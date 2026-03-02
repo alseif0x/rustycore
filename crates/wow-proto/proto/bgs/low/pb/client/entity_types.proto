@@ -1,0 +1,14 @@
+// BNet entity types.
+
+syntax = "proto2";
+package bgs.protocol;
+
+message EntityId {
+  required fixed64 high = 1;
+  required fixed64 low = 2;
+}
+
+message Identity {
+  optional EntityId account_id = 1;
+  optional EntityId game_account_id = 2;
+}

@@ -1,0 +1,45 @@
+name: SQL / Data Fix
+description: Suggest a database fix for creature, spell, quest or world data.
+labels: ["database", "data-fix"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for contributing a data fix! Please follow these guidelines:
+        - Always start with `--` in case the previous SQL file has no newline
+        - Use capital letters for SQL keywords (SELECT, UPDATE, INSERT, DELETE, FROM, WHERE…)
+        - Use backticks for table and column names
+        - Don't use database names
+        - Don't use quotes around numbers
+        - Make every INSERT runnable twice (DELETE before INSERT, even if row doesn't exist)
+        - Search for existing issues before submitting — if one exists, comment there instead
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What is being fixed? How to reproduce the issue?
+    validations:
+      required: true
+  - type: textarea
+    id: fix
+    attributes:
+      label: SQL fix
+      description: Paste the SQL. For large fixes use https://gist.github.com/
+      placeholder: "--"
+      render: sql
+    validations:
+      required: true
+  - type: input
+    id: reference
+    attributes:
+      label: Wowhead / wowdev.wiki reference
+      description: Link to the relevant wowhead page or documentation
+    validations:
+      required: false
+  - type: input
+    id: commit
+    attributes:
+      label: RustyCore commit hash
+      description: Output of `git rev-parse HEAD`
+    validations:
+      required: true

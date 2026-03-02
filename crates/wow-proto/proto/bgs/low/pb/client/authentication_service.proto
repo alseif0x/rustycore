@@ -1,0 +1,78 @@
+// BNet Authentication service messages.
+
+syntax = "proto2";
+package bgs.protocol.authentication.v1;
+
+import "bgs/low/pb/client/entity_types.proto";
+
+// -- AuthenticationService (server handles, hash 0x0DECFC01) --
+// Method 1: Logon(LogonRequest) -> NoData
+// Method 7: VerifyWebCredentials(VerifyWebCredentialsRequest) -> NoData
+// Method 8: GenerateWebCredentials(GenerateWebCredentialsRequest) -> GenerateWebCredentialsResponse
+
+message LogonRequest {
+  optional string program = 1;
+  optional string platform = 2;
+  optional string locale = 3;
+  optional string email = 4;
+  optional string version = 5;
+  optional int32 application_version = 6;
+  optional bool public_computer = 7;
+  optional bool allow_logon_queue_notifications = 10 [default = false];
+  optional bytes cached_web_credentials = 12;
+  optional string user_agent = 14;
+  optional string device_id = 15;
+  optional string phone_number = 16;
+}
+
+message LogonResult {
+  required uint32 error_code = 1;
+  optional bgs.protocol.EntityId account_id = 2;
+  repeated bgs.protocol.EntityId game_account_id = 3;
+  optional string email = 4;
+  repeated uint32 available_region = 5;
+  optional uint32 connected_region = 6;
+  optional string battle_tag = 7;
+  optional string geoip_country = 8;
+  optional bytes session_key = 9;
+  optional bool restricted_mode = 10;
+  optional string client_id = 11;
+}
+
+message LogonUpdateRequest {
+  required uint32 error_code = 1;
+}
+
+message LogonQueueUpdateRequest {
+  required uint32 position = 1;
+  required int64 estimated_time = 2;
+  required int64 eta_deviation_in_sec = 3;
+}
+
+message ServerStateChangeRequest {
+  required uint32 state = 1;
+  required int64 event_time = 2;
+}
+
+message VersionInfo {
+  optional uint32 number = 1;
+  optional string patch = 2;
+  optional bool is_optional = 3;
+  optional uint64 kick_time = 4;
+}
+
+message VersionInfoNotification {
+  optional VersionInfo version_info = 1;
+}
+
+message GenerateWebCredentialsRequest {
+  optional fixed32 program = 1;
+}
+
+message GenerateWebCredentialsResponse {
+  optional bytes web_credentials = 1;
+}
+
+message VerifyWebCredentialsRequest {
+  optional bytes web_credentials = 1;
+}

@@ -1,0 +1,61 @@
+# Rust build artifacts
+/target/
+**/*.rs.bk
+
+# Binaries at root (release builds copied here)
+/bnet-server
+/world-server
+
+# SSL certificates (sensitive)
+*.pem
+*.pfx
+
+# Config files with credentials (use .dist versions)
+BNetServer.conf
+WorldServer.conf
+
+# Logs
+Logs/
+*.log
+*.pkt
+
+# Local DB config
+/my.cnf
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# OpenClaw agent internal dirs (not for public repo)
+.agent/
+.agents/
+.claude/
+.openclaw/
+.trae/
+memory/
+skills/
+wiki/
+skills-lock.json
+
+# OpenClaw workspace files (private)
+AGENTS.md
+SOUL.md
+SOUL_QWEN.md
+USER.md
+MEMORY.md
+HEARTBEAT.md
+IDENTITY.md
+INVENTORY.md
+PLAN.md
+TOOLS.md
+
+# Compiled binaries at root
+world-server-rust
+world-server-rust.old
+world-server-bin

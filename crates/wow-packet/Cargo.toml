@@ -1,0 +1,15 @@
+[package]
+name = "wow-packet"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+bytes = { workspace = true }
+flate2 = { workspace = true }
+num-traits = { workspace = true }
+tracing = { workspace = true }
+wow-core = { workspace = true }
+wow-constants = { workspace = true }
+thiserror = { workspace = true }

@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Discussions
+    url: https://github.com/alseif0x/rustycore/discussions
+    about: Ideas, questions and general discussion
+  - name: WoW Dev Wiki
+    url: https://wowdev.wiki
+    about: WoW protocol and packet reference
+  - name: WotLK DB Reference
+    url: https://www.wowhead.com/wotlk
+    about: Spells, creatures, quests reference

@@ -1,0 +1,13 @@
+[package]
+name = "wow-math"
+description = "3D math utilities: Vec3 (glam), bounding box, spline, distance/angle helpers"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+glam = { workspace = true }
+
+[lints]
+workspace = true

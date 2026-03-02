@@ -1,0 +1,55 @@
+name: Bug Report
+description: Report a bug or incorrect behaviour in the server.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill in all fields carefully.
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: |
+        Describe the bug clearly. If it's a crash, paste the full panic/backtrace (use https://gist.github.com/ for long logs).
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+      description: What should happen instead? Link to wowhead/wowdev.wiki if relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: |
+        1. Step 1 (include spell IDs, creature IDs, quest IDs with wowhead links)
+        2. Step 2
+        3. Step 3
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: RustyCore commit hash
+      description: Output of `git rev-parse HEAD` in the rustycore directory
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      description: e.g. Ubuntu 24.04 x64, Windows 11 x64
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Paste relevant server logs or cargo output. Use https://gist.github.com/ for long logs.
+      render: shell
+    validations:
+      required: false

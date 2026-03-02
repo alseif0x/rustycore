@@ -1,0 +1,16 @@
+// BNet content handle types.
+
+syntax = "proto2";
+package bgs.protocol;
+
+message ContentHandle {
+  required fixed32 region = 1;
+  required fixed32 usage = 2;
+  required bytes hash = 3;
+  optional string proto_url = 4;
+}
+
+message TitleIconContentHandle {
+  optional uint32 title_id = 1;
+  optional ContentHandle content_handle = 2;
+}

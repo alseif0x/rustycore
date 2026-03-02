@@ -1,0 +1,90 @@
+// BNet Account types.
+
+syntax = "proto2";
+package bgs.protocol.account.v1;
+
+import "bgs/low/pb/client/entity_types.proto";
+
+// -- Account state structures used in AccountService responses --
+
+message AccountState {
+  optional PrivacyInfo privacy_info = 5;
+}
+
+message PrivacyInfo {
+  optional bool is_using_rid = 3;
+  optional bool is_visible_for_view_friends = 4;
+  optional bool is_hidden_from_friend_finder = 5;
+}
+
+message GameAccountState {
+  optional GameLevelInfo game_level_info = 1;
+  optional GameStatus game_status = 2;
+}
+
+message GameLevelInfo {
+  optional string name = 3;
+  optional fixed32 program = 4;
+}
+
+message GameStatus {
+  optional bool is_suspended = 4;
+  optional bool is_banned = 5;
+  optional uint64 suspension_expires = 6;
+  optional fixed32 program = 7;
+}
+
+// -- Field tags used for caching/state versioning --
+
+message AccountFieldTags {
+  optional fixed32 privacy_info_tag = 8;
+}
+
+message GameAccountFieldTags {
+  optional fixed32 game_level_info_tag = 2;
+  optional fixed32 game_status_tag = 3;
+}
+
+// -- Options for what fields to request --
+
+message AccountFieldOptions {
+  optional bool all_fields = 1;
+  optional bool field_privacy_info = 5;
+}
+
+message GameAccountFieldOptions {
+  optional bool all_fields = 1;
+  optional bool field_game_level_info = 2;
+  optional bool field_game_status = 3;
+}
+
+// -- Notification messages (server -> client via AccountListener 0x54DFDA17) --
+
+message AccountStateNotification {
+  optional AccountState account_state = 1;
+  optional uint64 subscriber_id = 2;
+  optional AccountFieldTags account_tags = 3;
+  optional bool subscription_completed = 4;
+}
+
+message GameAccountStateNotification {
+  optional GameAccountState game_account_state = 1;
+  optional uint64 subscriber_id = 2;
+  optional GameAccountFieldTags game_account_tags = 3;
+  optional bool subscription_completed = 4;
+}
+
+message GameAccountNotification {
+  repeated bgs.protocol.EntityId game_accounts = 1;
+  optional uint64 subscriber_id = 2;
+  optional AccountFieldTags account_tags = 3;
+}
+
+message GameAccountSessionNotification {
+  optional bgs.protocol.EntityId game_account_id = 1;
+  optional GameSessionUpdateInfo session_info = 2;
+}
+
+message GameSessionUpdateInfo {
+  optional uint32 cais_id = 8;
+}

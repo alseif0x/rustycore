@@ -1,0 +1,29 @@
+                    GNU GENERAL PUBLIC LICENSE
+                       Version 3, 29 June 2007
+
+RustyCore — WoW WotLK 3.4.3 Server in Rust
+Copyright (C) 2026 RustyCore Contributors
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+---
+
+WoW protocol research based on:
+- TrinityCore (https://github.com/TrinityCore/TrinityCore) — GPL v2
+- MaNGOS (https://github.com/mangos/MaNGOS) — GPL v2
+
+World of Warcraft and related trademarks are property of Blizzard Entertainment.
+This project is not affiliated with or endorsed by Blizzard Entertainment.
+
+Full GPL v3 license text: https://www.gnu.org/licenses/gpl-3.0.html

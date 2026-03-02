@@ -1,0 +1,13 @@
+[package]
+name = "wow-data"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+wow-core = { workspace = true }
+wow-constants = { workspace = true }
+wow-database = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }

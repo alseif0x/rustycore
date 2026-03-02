@@ -1,0 +1,28 @@
+[package]
+name = "world-server"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "world-server"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+flume = { workspace = true }
+wow-core = { workspace = true }
+wow-config = { workspace = true }
+wow-logging = { workspace = true }
+wow-data = { workspace = true }
+wow-database = { workspace = true }
+wow-network = { workspace = true }
+wow-world = { workspace = true }
+wow-handler = { workspace = true }
+wow-packet = { workspace = true }
+wow-constants = { workspace = true }
+wow-crypto = { workspace = true }

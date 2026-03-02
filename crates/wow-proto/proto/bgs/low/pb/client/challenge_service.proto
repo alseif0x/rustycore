@@ -1,0 +1,19 @@
+// BNet Challenge service messages.
+
+syntax = "proto2";
+package bgs.protocol.challenge.v1;
+
+// -- ChallengeListener (server sends to client, hash 0xBBDA171F) --
+// Method 3: OnExternalChallenge(ChallengeExternalRequest) -> NO_RESPONSE
+// Method 4: OnExternalChallengeResult(ChallengeExternalResult) -> NO_RESPONSE
+
+message ChallengeExternalRequest {
+  optional string request_token = 1;
+  optional string payload_type = 2;
+  optional bytes payload = 3;
+}
+
+message ChallengeExternalResult {
+  optional string request_token = 1;
+  optional bool passed = 2 [default = true];
+}

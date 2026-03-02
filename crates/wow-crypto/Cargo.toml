@@ -1,0 +1,32 @@
+[package]
+name = "wow-crypto"
+description = "WoW cryptography: SRP6, AES-GCM, HMAC-SHA256, Ed25519, RC4"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[features]
+default = []
+srp-debug = []
+
+[dependencies]
+num-bigint = { workspace = true }
+num-integer = { workspace = true }
+num-traits = { workspace = true }
+aes-gcm = { workspace = true }
+aes = { workspace = true }
+hmac = { workspace = true }
+sha2 = { workspace = true }
+sha1 = { workspace = true }
+pbkdf2 = { workspace = true }
+ed25519-dalek = { workspace = true }
+curve25519-dalek = { version = "4", default-features = false }
+rsa = { workspace = true }
+rand = { workspace = true }
+digest = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,13 @@
+[package]
+name = "wow-collections"
+description = "Custom collections: MultiMap, FlagArray"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+smallvec = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,30 @@
+name: Feature Request
+description: Suggest a new feature or improvement.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting an improvement! Please be as specific as possible.
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What feature or improvement would you like to see?
+    validations:
+      required: true
+  - type: textarea
+    id: blizzlike
+    attributes:
+      label: Blizzlike reference
+      description: |
+        Is this a blizzlike feature? Link to wowhead, wowdev.wiki, or any sniff/reference that validates the expected behaviour.
+    validations:
+      required: false
+  - type: textarea
+    id: implementation
+    attributes:
+      label: Implementation ideas
+      description: Any ideas on how this could be implemented in Rust? Optional.
+    validations:
+      required: false

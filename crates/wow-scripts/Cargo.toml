@@ -1,0 +1,11 @@
+[package]
+name = "wow-scripts"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+wow-script = { workspace = true }
+wow-core = { workspace = true }
+wow-constants = { workspace = true }

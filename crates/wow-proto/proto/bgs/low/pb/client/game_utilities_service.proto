@@ -1,0 +1,80 @@
+// BNet GameUtilities service messages.
+
+syntax = "proto2";
+package bgs.protocol.game_utilities.v1;
+
+import "bgs/low/pb/client/entity_types.proto";
+import "bgs/low/pb/client/attribute_types.proto";
+
+// -- GameUtilitiesService (server handles, hash 0x3FC1274D) --
+// Method 1: ProcessClientRequest(ClientRequest) -> ClientResponse
+// Method 10: GetAllValuesForAttribute(GetAllValuesForAttributeRequest) -> GetAllValuesForAttributeResponse
+
+message ClientInfo {
+  optional string client_address = 1;
+  optional bool privileged_network = 2;
+}
+
+message PlayerVariables {
+  required bgs.protocol.Identity identity = 1;
+  optional double rating = 2;
+  repeated bgs.protocol.Attribute attribute = 3;
+}
+
+message ClientRequest {
+  repeated bgs.protocol.Attribute attribute = 1;
+  optional bgs.protocol.EntityId account_id = 3;
+  optional bgs.protocol.EntityId game_account_id = 4;
+  optional fixed32 program = 5;
+  optional ClientInfo client_info = 6;
+}
+
+message ClientResponse {
+  repeated bgs.protocol.Attribute attribute = 1;
+}
+
+message ServerRequest {
+  repeated bgs.protocol.Attribute attribute = 1;
+  required fixed32 program = 2;
+}
+
+message ServerResponse {
+  repeated bgs.protocol.Attribute attribute = 1;
+}
+
+message PresenceChannelCreatedRequest {
+  required bgs.protocol.EntityId id = 1;
+  optional bgs.protocol.EntityId game_account_id = 3;
+  optional bgs.protocol.EntityId account_id = 4;
+}
+
+message GameAccountOnlineNotification {
+  required bgs.protocol.EntityId game_account_id = 1;
+  optional string session_id = 3;
+}
+
+message GameAccountOfflineNotification {
+  required bgs.protocol.EntityId game_account_id = 1;
+  optional string session_id = 3;
+}
+
+message GetAllValuesForAttributeRequest {
+  optional string attribute_key = 1;
+  optional bgs.protocol.EntityId agent_id = 2;
+  optional fixed32 program = 5;
+}
+
+message GetAllValuesForAttributeResponse {
+  repeated bgs.protocol.Variant attribute_value = 1;
+}
+
+message RegisterUtilitiesRequest {
+  repeated bgs.protocol.Attribute attribute = 1;
+  optional fixed32 program = 2;
+}
+
+message RegisterUtilitiesResponse {
+  optional string client_id = 1;
+}
+
+message UnregisterUtilitiesRequest {}

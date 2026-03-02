@@ -1,0 +1,40 @@
+[package]
+name = "bnet-server"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "bnet-server"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { workspace = true }
+axum = { workspace = true }
+hyper = { workspace = true }
+hyper-util = { workspace = true }
+tokio-rustls = { workspace = true }
+rustls = { workspace = true }
+rustls-pemfile = { workspace = true }
+tower = "0.5"
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+prost = { workspace = true }
+bytes = { workspace = true }
+flate2 = { workspace = true }
+rand = { workspace = true }
+dashmap = { workspace = true }
+parking_lot = { workspace = true }
+wow-core = { workspace = true }
+wow-config = { workspace = true }
+wow-logging = { workspace = true }
+wow-crypto = { workspace = true, features = ["srp-debug"] }
+wow-database = { workspace = true }
+wow-proto = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,24 @@
+// RustyCore — WoW WotLK 3.4.3 server in Rust
+// Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
+// Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
+
+//! Packet definitions organized by category.
+
+pub mod aura;
+pub mod auth;
+pub mod battlenet;
+pub mod character;
+pub mod chat;
+pub mod combat;
+pub mod gossip;
+pub mod inspect;
+pub mod item;
+pub mod loot;
+pub mod misc;
+pub mod movement;
+pub mod query;
+pub mod party;
+pub mod social;
+pub mod spell;
+pub mod trainer;
+pub mod update;

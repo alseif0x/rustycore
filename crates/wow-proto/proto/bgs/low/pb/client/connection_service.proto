@@ -1,0 +1,88 @@
+// BNet Connection service messages.
+
+syntax = "proto2";
+package bgs.protocol.connection.v1;
+
+import "bgs/low/pb/client/rpc_types.proto";
+import "bgs/low/pb/client/content_handle_types.proto";
+import "bgs/low/pb/client/semantic_version.proto";
+
+// -- ConnectionService (server handles, hash 0x65446991) --
+// Method 1: Connect(ConnectRequest) -> ConnectResponse
+// Method 5: KeepAlive(NoData) -> void
+// Method 7: RequestDisconnect(DisconnectRequest) -> void
+
+enum MeteringLevel {
+  METERING_LEVEL_LEGACY = 0;
+  METERING_LEVEL_CATEGORIZED = 1;
+}
+
+message ClientSdkVersionInfo {
+  optional string sdk_name = 1;
+  optional bgs.protocol.SemanticVersion sdk_version = 2;
+  optional bgs.protocol.SemanticVersion protocol_version = 3;
+}
+
+message ConnectRequest {
+  optional bgs.protocol.ProcessId client_id = 1;
+  optional BindRequest bind_request = 2;
+  optional bool use_bindless_rpc = 3 [default = true];
+  optional MeteringLevel metering_level = 4 [default = METERING_LEVEL_LEGACY];
+  optional ClientSdkVersionInfo client_sdk_info = 5;
+}
+
+message ConnectResponse {
+  required bgs.protocol.ProcessId server_id = 1;
+  optional bgs.protocol.ProcessId client_id = 2;
+  optional uint32 bind_result = 3;
+  optional BindResponse bind_response = 4;
+  optional ConnectionMeteringContentHandles content_handle_array = 5;
+  optional uint64 server_time = 6;
+  optional bool use_bindless_rpc = 7 [default = false];
+  optional ConnectionMeteringContentHandles binary_content_handle_array = 8;
+  optional string ciid = 9;
+}
+
+message ConnectionMeteringContentHandles {
+  repeated bgs.protocol.ContentHandle content_handle = 1;
+}
+
+message BoundService {
+  required fixed32 hash = 1;
+  required uint32 id = 2;
+}
+
+message BindRequest {
+  repeated fixed32 deprecated_imported_service_hash = 1 [packed = true, deprecated = true];
+  repeated BoundService deprecated_exported_service = 2 [deprecated = true];
+  repeated BoundService exported_service = 3;
+  repeated BoundService imported_service = 4;
+}
+
+message BindResponse {
+  repeated uint32 imported_service_id = 1 [packed = true, deprecated = true];
+}
+
+message EchoRequest {
+  optional fixed64 time = 1;
+  optional bool network_only = 2 [default = false];
+  optional bytes payload = 3;
+  optional bgs.protocol.ProcessId forward = 4;
+  optional string forward_client_id = 5;
+}
+
+message EchoResponse {
+  optional fixed64 time = 1;
+  optional bytes payload = 2;
+}
+
+message DisconnectRequest {
+  required uint32 error_code = 1;
+}
+
+message DisconnectNotification {
+  required uint32 error_code = 1;
+  optional string reason = 2;
+}
+
+message EncryptRequest {}

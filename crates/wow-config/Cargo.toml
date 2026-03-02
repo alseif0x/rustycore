@@ -1,0 +1,15 @@
+[package]
+name = "wow-config"
+description = "Parser for .conf key=value configuration files"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+thiserror = { workspace = true }
+once_cell = { workspace = true }
+parking_lot = { workspace = true }
+
+[lints]
+workspace = true

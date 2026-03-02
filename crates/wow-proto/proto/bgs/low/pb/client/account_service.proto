@@ -1,0 +1,54 @@
+// BNet Account service messages.
+
+syntax = "proto2";
+package bgs.protocol.account.v1;
+
+import "bgs/low/pb/client/entity_types.proto";
+import "bgs/low/pb/client/account_types.proto";
+
+// -- AccountService (server handles, hash 0x62DA0891) --
+// Method 30: GetAccountState(GetAccountStateRequest) -> GetAccountStateResponse
+// Method 31: GetGameAccountState(GetGameAccountStateRequest) -> GetGameAccountStateResponse
+
+message GetAccountStateRequest {
+  optional bgs.protocol.EntityId entity_id = 1;
+  optional uint32 program = 2;
+  optional uint32 region = 3;
+  optional AccountFieldOptions options = 10;
+  optional AccountFieldTags tags = 11;
+}
+
+message GetAccountStateResponse {
+  optional AccountState state = 1;
+  optional AccountFieldTags tags = 2;
+}
+
+message GetGameAccountStateRequest {
+  optional bgs.protocol.EntityId account_id = 1;
+  optional bgs.protocol.EntityId game_account_id = 2;
+  optional GameAccountFieldOptions options = 10;
+  optional GameAccountFieldTags tags = 11;
+}
+
+message GetGameAccountStateResponse {
+  optional GameAccountState state = 1;
+  optional GameAccountFieldTags tags = 2;
+}
+
+// -- Subscription messages (methods 25/26) --
+
+message SubscriptionUpdateRequest {
+  repeated SubscriberReference ref = 2;
+}
+
+message SubscriptionUpdateResponse {}
+
+message SubscriberReference {
+  optional uint64 object_id = 1 [default = 0];
+  optional bgs.protocol.EntityId entity_id = 2;
+  optional AccountFieldOptions account_options = 3;
+  optional AccountFieldTags account_tags = 4;
+  optional GameAccountFieldOptions game_account_options = 5;
+  optional GameAccountFieldTags game_account_tags = 6;
+  optional uint64 subscriber_id = 7 [default = 0];
+}
