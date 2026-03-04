@@ -108,6 +108,11 @@ pub enum WorldStatements {
     SEL_ITEM_SELL_PRICE,
     /// Load all area trigger teleport destinations.
     SEL_AREA_TRIGGER_TELEPORT,
+    // Quest system
+    SEL_QUEST_TEMPLATE,
+    SEL_QUEST_OBJECTIVES,
+    SEL_QUEST_STARTERS,
+    SEL_QUEST_ENDERS,
     /// Get TrainerId from creature_trainer by creature entry (NPC template ID).
     SEL_TRAINER_BY_CREATURE,
     /// Load all spells for a trainer by TrainerId.
@@ -325,6 +330,26 @@ impl StatementDef for WorldStatements {
             }
             Self::SEL_TRAINER_INFO => {
                 "SELECT Id, Type, Greeting FROM trainer WHERE Id = ?"
+            }
+            Self::SEL_QUEST_TEMPLATE => concat!(
+                "SELECT ID, QuestType, QuestLevel, QuestMaxScalingLevel, MinLevel, QuestSortID, ",
+                "QuestInfoID, SuggestedGroupNum, RewardNextQuest, RewardXPDifficulty, RewardXPMultiplier, ",
+                "RewardMoneyDifficulty, RewardMoneyMultiplier, RewardBonusMoney, ",
+                "RewardDisplaySpell1, RewardDisplaySpell2, RewardDisplaySpell3, ",
+                "RewardSpell, RewardHonor, Flags, FlagsEx, FlagsEx2, ",
+                "RewardItem1, RewardAmount1, RewardItem2, RewardAmount2, ",
+                "RewardItem3, RewardAmount3, RewardItem4, RewardAmount4, ",
+                "LogTitle, LogDescription, QuestDescription, AreaDescription, QuestCompletionLog ",
+                "FROM quest_template"
+            ),
+            Self::SEL_QUEST_OBJECTIVES => {
+                "SELECT ID, QuestID, Type, `Order`, StorageIndex, ObjectID, Amount, Flags, Flags2, ProgressBarWeight, Description FROM quest_objectives ORDER BY QuestID, `Order`"
+            }
+            Self::SEL_QUEST_STARTERS => {
+                "SELECT id, quest FROM creature_queststarter"
+            }
+            Self::SEL_QUEST_ENDERS => {
+                "SELECT id, quest FROM creature_questender"
             }
         }
     }

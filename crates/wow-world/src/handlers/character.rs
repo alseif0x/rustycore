@@ -354,24 +354,6 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::QuestGiverHello,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_quest_giver_hello",
-    }
-}
-
-inventory::submit! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::QuestGiverStatusQuery,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_quest_giver_status_query",
-    }
-}
-
-inventory::submit! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::QuestGiverStatusMultipleQuery,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
@@ -1738,6 +1720,9 @@ impl WorldSession {
             combat.max_health, combat.max_mana, combat.attack_power,
             combat.stats, combat.base_armor, combat.dodge_pct, combat.crit_pct
         );
+
+        // Load active quests from characters DB
+        self.load_player_quests().await;
 
         self.send_login_sequence(
             guid, race, class, gender, level, display_id, &position, map_id, zone,
@@ -3481,26 +3466,6 @@ impl WorldSession {
             self.player_gold,
             Some((slot, ObjectGuid::EMPTY)),
         ));
-    }
-
-    /// Handle CMSG_QUEST_GIVER_HELLO — player talks to a quest giver.
-    pub async fn handle_quest_giver_hello(&mut self, hello: Hello) {
-        debug!(
-            "QuestGiverHello for {:?} from account {}",
-            hello.unit, self.account_id
-        );
-        // Send an empty gossip message (no quests available)
-        self.send_packet(&GossipMessage::empty(hello.unit, 0, 1));
-    }
-
-    /// Handle CMSG_QUEST_GIVER_STATUS_QUERY — client asks quest status for one NPC.
-    pub async fn handle_quest_giver_status_query(&mut self, hello: Hello) {
-        trace!(
-            "QuestGiverStatusQuery for {:?} from account {}",
-            hello.unit, self.account_id
-        );
-        // Respond with "no quest available" status (2 = DIALOG_STATUS_UNAVAILABLE)
-        self.send_quest_giver_status(hello.unit, 0);
     }
 
     /// Handle CMSG_QUEST_GIVER_STATUS_MULTIPLE_QUERY — client asks quest status for all NPCs.

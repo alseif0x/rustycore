@@ -253,6 +253,12 @@ pub struct WorldSession {
     /// Used to enforce spell-specific cooldown timers.
     pub(crate) last_spell_cast_time_per_spell: HashMap<i32, Instant>,
 
+    // ── Quest system ───────────────────────────────────────────────
+    /// Quest template store (loaded from world DB at startup).
+    pub(crate) quest_store: Option<Arc<wow_data::quest::QuestStore>>,
+    /// Active quests for this player: quest_id → status.
+    pub(crate) player_quests: HashMap<u32, crate::handlers::quest::PlayerQuestStatus>,
+
     // ── Loot ──────────────────────────────────────────────────────
     /// Active loot windows keyed by creature GUID.
     pub(crate) loot_table: std::collections::HashMap<wow_core::ObjectGuid, wow_packet::packets::loot::CreatureLoot>,
@@ -436,6 +442,8 @@ impl WorldSession {
             in_combat: false,
             visible_auras: HashMap::new(),
             spell_store: None,
+            quest_store: None,
+            player_quests: HashMap::new(),
             active_spell_cast: None,
             last_spell_cast_time: None,
             last_spell_cast_time_per_spell: HashMap::new(),
@@ -570,6 +578,11 @@ impl WorldSession {
     /// Get the spell store reference.
     pub fn spell_store(&self) -> Option<&Arc<SpellStore>> {
         self.spell_store.as_ref()
+    }
+
+    /// Set the quest store shared reference.
+    pub fn set_quest_store(&mut self, store: Arc<wow_data::quest::QuestStore>) {
+        self.quest_store = Some(store);
     }
 
     /// Check if a spell is on cooldown (global or per-spell).
@@ -1312,16 +1325,10 @@ impl WorldSession {
                 }
             }
             ClientOpcodes::QuestGiverHello => {
-                match wow_packet::packets::gossip::Hello::read(&mut pkt) {
-                    Ok(hello) => self.handle_quest_giver_hello(hello).await,
-                    Err(e) => warn!("Failed to read QuestGiverHello: {e}"),
-                }
+                self.handle_quest_giver_hello(pkt).await;
             }
             ClientOpcodes::QuestGiverStatusQuery => {
-                match wow_packet::packets::gossip::Hello::read(&mut pkt) {
-                    Ok(hello) => self.handle_quest_giver_status_query(hello).await,
-                    Err(e) => warn!("Failed to read QuestGiverStatusQuery: {e}"),
-                }
+                self.handle_quest_giver_status_query(pkt).await;
             }
             ClientOpcodes::QuestGiverStatusMultipleQuery => {
                 self.handle_quest_giver_status_multiple_query().await;

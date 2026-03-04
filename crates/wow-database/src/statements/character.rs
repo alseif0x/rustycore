@@ -81,6 +81,10 @@ pub enum CharStatements {
 
     /// UPDATE characters SET totaltime = ?, leveltime = ? WHERE guid = ?
     UPD_CHAR_PLAYED_TIME,
+    // Quest status
+    SEL_CHAR_QUEST_STATUS,
+    INS_CHAR_QUEST_STATUS,
+    DEL_CHAR_QUEST_STATUS,
 
     /// UPDATE characters SET money = ? WHERE guid = ?
     UPD_CHAR_MONEY,
@@ -201,6 +205,17 @@ impl StatementDef for CharStatements {
             }
             Self::INS_CHARACTER_SPELL => {
                 "INSERT IGNORE INTO character_spell (guid, spell, active, disabled) VALUES (?, ?, 1, 0)"
+            }
+            Self::SEL_CHAR_QUEST_STATUS => {
+                "SELECT quest, status, explored FROM character_queststatus WHERE guid = ?"
+            }
+            Self::INS_CHAR_QUEST_STATUS => {
+                "INSERT INTO character_queststatus (guid, quest, status, explored, acceptTime, endTime) \
+                 VALUES (?, ?, ?, 0, UNIX_TIMESTAMP(), 0) \
+                 ON DUPLICATE KEY UPDATE status = ?, explored = ?"
+            }
+            Self::DEL_CHAR_QUEST_STATUS => {
+                "DELETE FROM character_queststatus WHERE guid = ? AND quest = ?"
             }
         }
     }

@@ -353,6 +353,12 @@ async fn main() -> Result<()> {
             .context("Failed to load area triggers")?
     );
 
+    // Load quest store (templates + objectives + NPC relations)
+    let quest_store = Arc::new(
+        wow_data::quest::load_quests(&world_db).await
+            .context("Failed to load quest store")?
+    );
+
     // Get realm ID and load build-specific auth seed
     let realm_id: u16 = wow_config::get_value("RealmID").unwrap_or(1);
 
@@ -402,6 +408,7 @@ async fn main() -> Result<()> {
         skill_store: Some(Arc::clone(&skill_store)),
         spell_store: Some(Arc::clone(&spell_store)),
         area_trigger_store: Some(Arc::clone(&area_trigger_store)),
+        quest_store: Some(Arc::clone(&quest_store)),
         player_registry: Some(Arc::clone(&player_registry)),
         group_registry: Some(Arc::clone(&group_registry)),
         pending_invites: Some(Arc::clone(&pending_invites)),
@@ -618,6 +625,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.area_trigger_store {
         session.set_area_trigger_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.quest_store {
+        session.set_quest_store(Arc::clone(store));
     }
     if let Some(ref registry) = resources.player_registry {
         session.set_player_registry(Arc::clone(registry));
