@@ -141,9 +141,13 @@ impl WorldSession {
             None => { debug!("No quest store"); return; }
         };
 
+        let race = self.player_race;
+        let class = self.player_class;
+        let level = self.player_level;
+
         let available = quest_store.quests_for_starter(npc_entry);
         let quests: Vec<QuestListEntry> = available.iter()
-            .filter(|q| !self.has_quest(q.id))
+            .filter(|q| !self.has_quest(q.id) && q.is_available_for(race, class, level))
             .map(|q| QuestListEntry {
                 quest_id: q.id,
                 quest_type: q.quest_type,
@@ -253,6 +257,18 @@ impl WorldSession {
         if quest_store.get(quest_id).is_none() {
             warn!(account = self.account_id, quest_id, "AcceptQuest: unknown quest");
             return;
+        }
+
+        // Validate race/class/level eligibility
+        if let Some(quest) = quest_store.get(quest_id) {
+            if !quest.is_available_for(self.player_race, self.player_class, self.player_level) {
+                warn!(
+                    account = self.account_id, quest_id,
+                    race = self.player_race, class = self.player_class, level = self.player_level,
+                    "AcceptQuest: player does not meet requirements"
+                );
+                return;
+            }
         }
 
         // Check quest limit (max 25 active quests)
@@ -509,9 +525,26 @@ impl WorldSession {
     fn get_quest_giver_status(&self, npc_entry: u32) -> u64 {
         let Some(store) = &self.quest_store else { return quest_giver_status::NONE; };
 
+        let race = self.player_race;
+        let class = self.player_class;
+        let level = self.player_level;
+
+        // Check if NPC ends any quest the player has completed (blue ?)
+        let has_turn_in = store.quests_for_ender(npc_entry)
+            .iter()
+            .any(|q| {
+                self.player_quests.get(&q.id)
+                    .map_or(false, |qs| qs.status == 2)
+            });
+
+        if has_turn_in {
+            return quest_giver_status::CAN_REWARD; // blue ? (turn-in ready)
+        }
+
+        // Check if NPC starts any quest the player can take
         let has_available = store.quests_for_starter(npc_entry)
             .iter()
-            .any(|q| !self.has_quest(q.id));
+            .any(|q| !self.has_quest(q.id) && q.is_available_for(race, class, level));
 
         if has_available {
             quest_giver_status::AVAILABLE // yellow !

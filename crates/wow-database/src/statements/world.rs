@@ -332,15 +332,19 @@ impl StatementDef for WorldStatements {
                 "SELECT Id, Type, Greeting FROM trainer WHERE Id = ?"
             }
             Self::SEL_QUEST_TEMPLATE => concat!(
-                "SELECT ID, QuestType, QuestLevel, QuestMaxScalingLevel, MinLevel, QuestSortID, ",
-                "QuestInfoID, SuggestedGroupNum, RewardNextQuest, RewardXPDifficulty, RewardXPMultiplier, ",
-                "RewardMoneyDifficulty, RewardMoneyMultiplier, RewardBonusMoney, ",
-                "RewardDisplaySpell1, RewardDisplaySpell2, RewardDisplaySpell3, ",
-                "RewardSpell, RewardHonor, Flags, FlagsEx, FlagsEx2, ",
-                "RewardItem1, RewardAmount1, RewardItem2, RewardAmount2, ",
-                "RewardItem3, RewardAmount3, RewardItem4, RewardAmount4, ",
-                "LogTitle, LogDescription, QuestDescription, AreaDescription, QuestCompletionLog ",
-                "FROM quest_template"
+                "SELECT qt.ID, qt.QuestType, qt.QuestLevel, qt.QuestMaxScalingLevel, qt.MinLevel, qt.QuestSortID, ",
+                "qt.QuestInfoID, qt.SuggestedGroupNum, qt.RewardNextQuest, qt.RewardXPDifficulty, qt.RewardXPMultiplier, ",
+                "qt.RewardMoneyDifficulty, qt.RewardMoneyMultiplier, qt.RewardBonusMoney, ",
+                "qt.RewardDisplaySpell1, qt.RewardDisplaySpell2, qt.RewardDisplaySpell3, ",
+                "qt.RewardSpell, qt.RewardHonor, qt.Flags, qt.FlagsEx, qt.FlagsEx2, ",
+                "qt.RewardItem1, qt.RewardAmount1, qt.RewardItem2, qt.RewardAmount2, ",
+                "qt.RewardItem3, qt.RewardAmount3, qt.RewardItem4, qt.RewardAmount4, ",
+                "qt.LogTitle, qt.LogDescription, qt.QuestDescription, qt.AreaDescription, qt.QuestCompletionLog, ",
+                "COALESCE(qt.AllowableRaces, 0) AS AllowableRaces, ",
+                "COALESCE(qta.AllowableClasses, 0) AS AllowableClasses, ",
+                "COALESCE(qta.MaxLevel, 0) AS MaxLevel, ",
+                "COALESCE(qta.PrevQuestID, 0) AS PrevQuestID ",
+                "FROM quest_template qt LEFT JOIN quest_template_addon qta ON qt.ID = qta.ID"
             ),
             Self::SEL_QUEST_OBJECTIVES => {
                 "SELECT ID, QuestID, Type, `Order`, StorageIndex, ObjectID, Amount, Flags, Flags2, ProgressBarWeight, Description FROM quest_objectives ORDER BY QuestID, `Order`"

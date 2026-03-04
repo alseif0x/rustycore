@@ -78,6 +78,18 @@ pub struct QuestTemplate {
     pub quest_completion_log: String,
     // Objectives
     pub objectives: Vec<QuestObjective>,
+
+    // ── Eligibility filters ──────────────────────────────────────────────────
+    /// Bitmask of allowed races: bit (race-1) set = allowed.
+    /// 0 = all races allowed (RaceMask::Playable default).
+    pub allowable_races: u64,
+    /// Bitmask of allowed classes: bit (class-1) set = allowed.
+    /// 0 = all classes allowed.
+    pub allowable_classes: u32,
+    /// Maximum player level to take this quest. 0 = no limit.
+    pub max_level: u8,
+    /// Previous quest that must be completed first. 0 = none.
+    pub prev_quest_id: i32,
 }
 
 impl QuestTemplate {
@@ -85,6 +97,38 @@ impl QuestTemplate {
     pub fn is_repeatable(&self) -> bool {
         // Flags & QUEST_FLAGS_REPEATABLE (0x1) or daily (0x4000)
         self.flags & 0x1 != 0 || self.flags & 0x4000 != 0
+    }
+
+    /// Returns true if the given player (race, class, level) can take this quest.
+    /// C# ref: SatisfyQuestRace + SatisfyQuestClass + SatisfyQuestLevel
+    pub fn is_available_for(&self, race: u8, class: u8, level: u8) -> bool {
+        // Race check: 0 means all races allowed
+        if self.allowable_races != 0 {
+            let race_bit = 1u64 << (race.saturating_sub(1) as u64);
+            if self.allowable_races & race_bit == 0 {
+                return false;
+            }
+        }
+
+        // Class check: 0 means all classes allowed
+        if self.allowable_classes != 0 {
+            let class_bit = 1u32 << (class.saturating_sub(1) as u32);
+            if self.allowable_classes & class_bit == 0 {
+                return false;
+            }
+        }
+
+        // Min level check
+        if self.min_level > 0 && (level as i32) < self.min_level {
+            return false;
+        }
+
+        // Max level check
+        if self.max_level > 0 && level > self.max_level {
+            return false;
+        }
+
+        true
     }
 }
 
@@ -200,6 +244,10 @@ pub async fn load_quests(db: &WorldDatabase) -> Result<QuestStore> {
                 quest_description:   result.try_read::<String>(32).unwrap_or_default(),
                 area_description:    result.try_read::<String>(33).unwrap_or_default(),
                 quest_completion_log:result.try_read::<String>(34).unwrap_or_default(),
+                allowable_races:     result.try_read::<i64>(35).map(|v| v as u64).unwrap_or(0),
+                allowable_classes:   result.try_read::<u32>(36).unwrap_or(0),
+                max_level:           result.try_read::<u8>(37).unwrap_or(0),
+                prev_quest_id:       result.try_read::<i32>(38).unwrap_or(0),
                 objectives: Vec::new(), // filled next
             };
             store.quests.insert(id, quest);
