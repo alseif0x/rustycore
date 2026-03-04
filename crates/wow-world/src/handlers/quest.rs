@@ -20,9 +20,9 @@ use tracing::{debug, info, warn};
 use wow_constants::ClientOpcodes;
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
 use wow_packet::packets::quest::{
-    quest_giver_status, QuestGiverQuestComplete, QuestGiverQuestDetails, QuestGiverQuestList,
-    QuestGiverStatus, QuestListEntry, QuestObjectiveInfo, QuestObjectiveSimple,
-    QuestRewardsBlock, QueryQuestInfoResponse,
+    quest_giver_status, QuestGiverOfferReward, QuestGiverQuestComplete, QuestGiverQuestDetails,
+    QuestGiverQuestList, QuestGiverStatus, QuestListEntry, QuestObjectiveInfo,
+    QuestObjectiveSimple, QuestRewardsBlock, QueryQuestInfoResponse, QuestUpdateComplete,
 };
 use wow_packet::ServerPacket;
 
@@ -81,6 +81,24 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_query_quest_info",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::QuestGiverCompleteQuest,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_quest_giver_complete_quest",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::QuestGiverChooseReward,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_quest_giver_choose_reward",
     }
 }
 
@@ -362,6 +380,123 @@ impl WorldSession {
                 });
             }
         }
+    }
+
+    /// CMSG_QUEST_GIVER_COMPLETE_QUEST — player talks to quest-ender NPC.
+    /// If objectives are done: show reward dialog. Else: show "still need X" dialog.
+    /// C# ref: QuestHandler.HandleQuestGiverCompleteQuest
+    pub async fn handle_quest_giver_complete_quest(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let guid = match pkt.read_packed_guid() {
+            Ok(g) => g,
+            Err(_) => { warn!("QuestGiverCompleteQuest: failed to read GUID"); return; }
+        };
+        let quest_id: u32 = pkt.read_uint32().unwrap_or(0);
+        let _from_script: bool = pkt.read_bit().unwrap_or(false);
+
+        let quest_store = match &self.quest_store {
+            Some(s) => Arc::clone(s),
+            None => return,
+        };
+
+        let quest = match quest_store.get(quest_id) {
+            Some(q) => q,
+            None => {
+                warn!(account = self.account_id, quest_id, "QuestGiverCompleteQuest: unknown quest");
+                return;
+            }
+        };
+
+        // Check if player has the quest active
+        if !self.has_quest(quest_id) {
+            debug!(account = self.account_id, quest_id, "Player doesn't have quest");
+            return;
+        }
+
+        // Build rewards block
+        let mut rewards = QuestRewardsBlock::default();
+        rewards.money = quest.reward_money_difficulty as i32;
+        for i in 0..4 {
+            rewards.items[i] = (quest.reward_items[i], quest.reward_amounts[i]);
+        }
+        for i in 0..3 {
+            rewards.display_spells[i] = quest.reward_display_spell[i];
+        }
+        rewards.completion_spell = quest.reward_spell as i32;
+
+        // Phase 1: assume objectives always complete — show offer reward dialog
+        self.send_packet(&QuestGiverOfferReward {
+            giver_guid: guid,
+            quest_id,
+            quest_flags: [quest.flags, quest.flags_ex, quest.flags_ex2],
+            suggested_party_members: quest.suggested_group_num,
+            rewards,
+            title: quest.log_title.clone(),
+            reward_text: quest.quest_completion_log.clone(),
+            auto_launched: false,
+        });
+    }
+
+    /// CMSG_QUEST_GIVER_CHOOSE_REWARD — player clicks "Complete Quest" in reward dialog.
+    /// Gives XP, gold, items. Removes quest from active log.
+    /// C# ref: QuestHandler.HandleQuestGiverChooseReward
+    pub async fn handle_quest_giver_choose_reward(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let _guid = pkt.read_packed_guid();
+        let quest_id: u32 = pkt.read_uint32().unwrap_or(0);
+        let _choice_item_id: u32 = pkt.read_uint32().unwrap_or(0);
+        let _choice_item_slot: u32 = pkt.read_uint32().unwrap_or(0);
+
+        let quest = {
+            let store = match &self.quest_store {
+                Some(s) => Arc::clone(s),
+                None => return,
+            };
+            match store.get(quest_id) {
+                Some(q) => q.clone(),
+                None => {
+                    warn!(account = self.account_id, quest_id, "ChooseReward: unknown quest");
+                    return;
+                }
+            }
+        };
+
+        if !self.has_quest(quest_id) {
+            debug!(account = self.account_id, quest_id, "ChooseReward: player doesn't have quest");
+            return;
+        }
+
+        // Calculate XP reward (simplified: xp_difficulty maps to base XP values)
+        let xp = self.calculate_quest_xp(quest.reward_xp_difficulty, self.player_level as u32);
+        let money = quest.reward_money_difficulty;
+
+        // Give gold
+        if money > 0 {
+            self.player_gold = self.player_gold.saturating_add(money as u64);
+            self.save_player_gold().await;
+        }
+
+        // Remove from active quest log, mark complete (status=2) in DB
+        self.player_quests.remove(&quest_id);
+        self.save_quest_to_db(quest_id, 2).await;
+
+        info!(
+            account = self.account_id,
+            quest_id,
+            xp,
+            gold = money,
+            "Quest completed"
+        );
+
+        // SMSG_QUEST_GIVER_QUEST_COMPLETE — reward popup
+        self.send_packet(&QuestGiverQuestComplete {
+            quest_id,
+            xp,
+            money,
+            skill_points: 0,
+            use_quest_reward_currency: false,
+        });
+
+        // SMSG_QUEST_UPDATE_COMPLETE — green checkmark in quest log
+        self.send_packet(&QuestUpdateComplete { quest_id });
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

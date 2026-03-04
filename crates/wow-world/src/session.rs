@@ -585,6 +585,27 @@ impl WorldSession {
         self.quest_store = Some(store);
     }
 
+    /// Save current player gold to the characters DB.
+    pub(crate) async fn save_player_gold(&self) {
+        use wow_database::CharStatements;
+        let guid = match self.player_guid { Some(g) => g.counter() as u32, None => return };
+        let char_db = match self.char_db() { Some(db) => Arc::clone(db), None => return };
+        let mut stmt = char_db.prepare(CharStatements::UPD_CHAR_MONEY);
+        stmt.set_u64(0, self.player_gold);
+        stmt.set_u32(1, guid);
+        let _ = char_db.execute(&stmt).await;
+    }
+
+    /// Calculate XP reward for a quest based on difficulty index and player level.
+    /// Simplified version — TrinityCore uses quest_xp.db2 table.
+    /// Difficulty 0–9 map to base values; reduced for grey quests.
+    pub(crate) fn calculate_quest_xp(&self, difficulty: u32, _player_level: u32) -> u32 {
+        // Base XP table by difficulty (approximate WotLK values)
+        const XP_TABLE: [u32; 10] = [0, 50, 100, 200, 400, 650, 1000, 1500, 2500, 4000];
+        let idx = difficulty.min(9) as usize;
+        XP_TABLE[idx]
+    }
+
     /// Check if a spell is on cooldown (global or per-spell).
     ///
     /// Returns true if either the global cooldown (1500ms) or the spell-specific

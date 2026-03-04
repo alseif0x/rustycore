@@ -461,3 +461,114 @@ impl ServerPacket for QueryQuestInfoResponse {
         pkt.write_string(&self.quest_completion_log);
     }
 }
+
+// ── SMSG_QUEST_GIVER_OFFER_REWARD_MESSAGE ────────────────────────────────────
+
+/// "Quest Complete" dialog — shows rewards and a "Complete Quest" button.
+/// C# ref: QuestGiverOfferRewardMessage / QuestGiverOfferReward
+pub struct QuestGiverOfferReward {
+    pub giver_guid: ObjectGuid,
+    pub quest_id: u32,
+    pub quest_flags: [u32; 3],
+    pub suggested_party_members: u8,
+    pub rewards: QuestRewardsBlock,
+    pub title: String,
+    pub reward_text: String,
+    pub auto_launched: bool,
+}
+
+impl ServerPacket for QuestGiverOfferReward {
+    const OPCODE: ServerOpcodes = ServerOpcodes::QuestGiverOfferRewardMessage;
+    fn write(&self, pkt: &mut WorldPacket) {
+        // QuestGiverOfferReward inner block
+        pkt.write_packed_guid(&self.giver_guid);
+        pkt.write_int32(0);  // QuestGiverCreatureID
+        pkt.write_uint32(self.quest_id);
+        pkt.write_uint32(self.quest_flags[0]);
+        pkt.write_uint32(self.quest_flags[1]);
+        pkt.write_uint32(self.quest_flags[2]);
+        pkt.write_int32(self.suggested_party_members as i32);
+        pkt.write_int32(0);  // Emotes count
+        pkt.write_bit(self.auto_launched);
+        pkt.write_bit(false); // unused
+        pkt.flush_bits();
+        self.rewards.write(pkt);
+
+        // Outer wrapper fields
+        pkt.write_int32(0);  // QuestPackageID
+        pkt.write_int32(0);  // PortraitGiver
+        pkt.write_int32(0);  // PortraitGiverMount
+        pkt.write_int32(0);  // PortraitGiverModelSceneID
+        pkt.write_int32(0);  // PortraitTurnIn
+        pkt.write_int32(0);  // QuestGiverCreatureID (outer)
+        pkt.write_int32(0);  // ConditionalRewardText count
+
+        pkt.write_bits(self.title.len() as u32, 9);
+        pkt.write_bits(self.reward_text.len() as u32, 12);
+        pkt.write_bits(0u32, 10); // PortraitGiverText
+        pkt.write_bits(0u32, 8);  // PortraitGiverName
+        pkt.write_bits(0u32, 10); // PortraitTurnInText
+        pkt.write_bits(0u32, 8);  // PortraitTurnInName
+        pkt.flush_bits();
+
+        pkt.write_string(&self.title);
+        pkt.write_string(&self.reward_text);
+    }
+}
+
+// ── SMSG_QUEST_GIVER_REQUEST_ITEMS ───────────────────────────────────────────
+
+/// Shown when player tries to complete a quest but hasn't finished all objectives.
+/// C# ref: QuestGiverRequestItems
+pub struct QuestGiverRequestItems {
+    pub giver_guid: ObjectGuid,
+    pub quest_id: u32,
+    pub quest_flags: [u32; 3],
+    pub suggested_party_members: u8,
+    pub status_flags: u32,
+    pub money_cost: u32,
+    pub title: String,
+    pub completion_text: String,
+}
+
+impl ServerPacket for QuestGiverRequestItems {
+    const OPCODE: ServerOpcodes = ServerOpcodes::QuestGiverRequestItems;
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_packed_guid(&self.giver_guid);
+        pkt.write_uint32(self.quest_id);
+        pkt.write_uint32(self.status_flags);
+        pkt.write_uint32(0); // emote delay
+        pkt.write_uint32(0); // emote type
+        pkt.write_uint32(self.money_cost);
+        pkt.write_uint32(0); // collect items count
+        pkt.write_uint32(0); // currency count
+        pkt.write_uint32(self.quest_flags[0]);
+        pkt.write_uint32(self.quest_flags[1]);
+        pkt.write_uint32(self.quest_flags[2]);
+        pkt.write_int32(self.suggested_party_members as i32);
+        pkt.write_int32(0); // ConditionalCompletionText count
+
+        pkt.write_bits(self.title.len() as u32, 9);
+        pkt.write_bits(self.completion_text.len() as u32, 12);
+        pkt.write_bit(false); // AutoLaunched
+        pkt.write_bit(false); // Unused
+        pkt.flush_bits();
+
+        pkt.write_string(&self.title);
+        pkt.write_string(&self.completion_text);
+    }
+}
+
+// ── SMSG_QUEST_UPDATE_COMPLETE ────────────────────────────────────────────────
+
+/// Notifies client that a quest in the log is now complete (green checkmark).
+pub struct QuestUpdateComplete {
+    pub quest_id: u32,
+}
+
+impl ServerPacket for QuestUpdateComplete {
+    const OPCODE: ServerOpcodes = ServerOpcodes::QuestUpdateComplete;
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_uint32(self.quest_id);
+    }
+}
