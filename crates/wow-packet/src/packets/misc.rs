@@ -2565,3 +2565,49 @@ mod tests {
         assert_eq!(mask, 0x5E);
     }
 }
+
+// ── SMSG_LOG_XP_GAIN ─────────────────────────────────────────────────────────
+
+/// Floating text "+XP" on screen when player earns experience.
+/// C# ref: LogXPGain
+pub struct LogXpGain {
+    pub victim: ObjectGuid,
+    pub original: i32,   // XP before bonuses
+    pub reason: u8,      // 0=Kill, 1=NoKill(quest/explore)
+    pub amount: i32,     // XP after bonuses (what actually counts)
+    pub group_bonus: f32,
+}
+
+impl ServerPacket for LogXpGain {
+    const OPCODE: ServerOpcodes = ServerOpcodes::LogXpGain;
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_packed_guid(&self.victim);
+        pkt.write_int32(self.original);
+        pkt.write_uint8(self.reason);
+        pkt.write_int32(self.amount);
+        pkt.write_float(self.group_bonus);
+    }
+}
+
+// ── SMSG_LEVELUP_INFO ────────────────────────────────────────────────────────
+
+/// "Ding!" level-up popup with stat deltas.
+/// C# ref: LevelUpInfo — PowerDelta[10] + StatDelta[5]
+pub struct LevelUpInfo {
+    pub level: i32,
+    pub health_delta: i32,
+    pub power_delta: [i32; 10], // PowerType::MaxPerClass = 10
+    pub stat_delta: [i32; 5],   // Stats::Max = 5 (Str/Agi/Sta/Int/Spi)
+    pub num_new_talents: i32,
+}
+
+impl ServerPacket for LevelUpInfo {
+    const OPCODE: ServerOpcodes = ServerOpcodes::LevelUpInfo;
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_int32(self.level);
+        pkt.write_int32(self.health_delta);
+        for p in &self.power_delta { pkt.write_int32(*p); }
+        for s in &self.stat_delta  { pkt.write_int32(*s); }
+        pkt.write_int32(self.num_new_talents);
+    }
+}

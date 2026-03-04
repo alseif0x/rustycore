@@ -179,6 +179,9 @@ pub struct WorldSession {
     /// Player's current money in copper (1 gold = 10,000 copper).
     /// Loaded from `characters.money` on login; saved on logout + buy/sell.
     pub(crate) player_gold: u64,
+    pub(crate) player_xp: u32,
+    /// XP required to reach next level, cached from player_xp_for_level.
+    pub(crate) player_next_level_xp: u32,
     /// Currently selected target GUID (SetSelection).
     pub(crate) selection_guid: Option<wow_core::ObjectGuid>,
 
@@ -257,6 +260,7 @@ pub struct WorldSession {
     /// Quest template store (loaded from world DB at startup).
     pub(crate) quest_store: Option<Arc<wow_data::quest::QuestStore>>,
     pub(crate) quest_xp_store: Option<Arc<wow_data::quest_xp::QuestXpStore>>,
+    pub(crate) player_xp_table: Option<Arc<Vec<u32>>>,
     /// Active quests for this player: quest_id → status.
     pub(crate) player_quests: HashMap<u32, crate::handlers::quest::PlayerQuestStatus>,
     /// Quests the player has already been rewarded for (non-repeatable quests cannot be re-taken).
@@ -425,6 +429,9 @@ impl WorldSession {
             total_played_time: 0,
             level_played_time: 0,
             player_gold: 0,
+            player_xp: 0,
+            player_next_level_xp: 400,
+            player_xp_table: None,
             selection_guid: None,
             player_guid: None,
             pending_creature_spawn: None,
@@ -602,6 +609,132 @@ impl WorldSession {
         let _ = char_db.execute(&stmt).await;
     }
 
+    /// Give XP to the player, leveling up if threshold reached.
+    /// C# ref: Player.GiveXP(xp, victim)
+    pub(crate) async fn give_xp(&mut self, xp: u32, victim: wow_core::ObjectGuid, is_kill: bool) {
+        use wow_packet::packets::misc::{LogXpGain, LevelUpInfo};
+        use wow_packet::ServerPacket;
+
+        if xp == 0 { return; }
+        if self.player_level >= 80 { return; } // max level
+
+        // Send floating XP text — C# LogXPGain
+        self.send_packet(&LogXpGain {
+            victim,
+            original: xp as i32,
+            reason: if is_kill { 0 } else { 1 },
+            amount: xp as i32,
+            group_bonus: 1.0,
+        });
+
+        self.player_xp = self.player_xp.saturating_add(xp);
+
+        // Level up loop — C# while (newXP >= nextLvlXP && !IsMaxLevel())
+        while self.player_xp >= self.player_next_level_xp && self.player_level < 80 {
+            self.player_xp -= self.player_next_level_xp;
+            let new_level = self.player_level + 1;
+
+            info!(
+                account = self.account_id,
+                new_level,
+                "Player leveled up"
+            );
+
+            // Send SMSG_LEVELUP_INFO — "Ding!" popup
+            // Stats deltas are loaded from player_levelstats in real impl;
+            // for now send 0 deltas (client will update from UpdateObject).
+            self.send_packet(&LevelUpInfo {
+                level: new_level as i32,
+                health_delta: 0,
+                power_delta: [0i32; 10],
+                stat_delta: [0i32; 5],
+                num_new_talents: 0,
+            });
+
+            self.player_level = new_level;
+            self.refresh_next_level_xp();
+
+            // Persist new level to DB
+            if let Some(guid) = self.player_guid {
+                let char_db = self.char_db().map(Arc::clone);
+                if let Some(db) = char_db {
+                    use wow_database::CharStatements;
+                    let mut stmt = db.prepare(CharStatements::UPD_CHAR_LEVEL);
+                    stmt.set_u8(0, self.player_level);
+                    stmt.set_u32(1, self.player_xp);
+                    stmt.set_u32(2, guid.counter() as u32);
+                    let _ = db.execute(&stmt).await;
+                }
+            }
+        }
+
+        // Persist current XP
+        if let Some(guid) = self.player_guid {
+            let char_db = self.char_db().map(Arc::clone);
+            if let Some(db) = char_db {
+                use wow_database::CharStatements;
+                let mut stmt = db.prepare(CharStatements::UPD_CHAR_XP);
+                stmt.set_u32(0, self.player_xp);
+                stmt.set_u32(1, guid.counter() as u32);
+                let _ = db.execute(&stmt).await;
+            }
+        }
+    }
+
+    /// XP reward for killing a creature.
+    /// C# ref: Formulas.XPGain / Formulas.BaseGain
+    pub(crate) fn creature_kill_xp(&self, mob_level: u8) -> u32 {
+        let pl = self.player_level as i32;
+        let ml = mob_level as i32;
+
+        // nBaseExp by content level (WotLK = 71-80 content)
+        let n_base_exp: i32 = if pl >= 71 { 580 }
+                              else if pl >= 61 { 235 }
+                              else { 45 };
+
+        // Gray level check
+        let gray = self.gray_level(pl as u8) as i32;
+        if ml <= gray { return 0; }
+
+        let base_gain = if ml >= pl {
+            let diff = (ml - pl).min(4);
+            ((pl * 5 + n_base_exp) * (20 + diff) / 10 + 1) / 2
+        } else {
+            let zd = self.zero_difference(pl as u8) as i32;
+            (pl * 5 + n_base_exp) * (zd + ml - pl) / zd
+        };
+
+        base_gain.max(0) as u32
+    }
+
+    /// Level at which mobs give 0 XP ("gray") — C# Formulas.GetGrayLevel
+    fn gray_level(&self, pl: u8) -> u8 {
+        let p = pl as i32;
+        let g = if p <= 5 { 0 }
+                else if p <= 39 { p - 5 - p / 10 }
+                else if p <= 59 { p - 1 - p / 5 }
+                else { p - 9 };
+        g.max(0) as u8
+    }
+
+    /// Zero-difference table — C# Formulas.GetZeroDifference
+    fn zero_difference(&self, pl: u8) -> u8 {
+        match pl {
+            0..=3   => 5,
+            4..=9   => 6,
+            10..=11 => 7,
+            12..=15 => 8,
+            16..=19 => 9,
+            20..=29 => 11,
+            30..=39 => 12,
+            40..=44 => 13,
+            45..=49 => 14,
+            50..=54 => 15,
+            55..=59 => 16,
+            _       => 17,
+        }
+    }
+
     /// Called when the player kills a creature. Checks all active kill-objective quests
     /// and updates progress. Sends SMSG_QUEST_UPDATE_ADD_CREDIT if progress was made.
     pub(crate) async fn on_creature_killed(
@@ -685,6 +818,20 @@ impl WorldSession {
     /// Set the QuestXP store (loaded from QuestXP.db2).
     pub fn set_quest_xp_store(&mut self, store: Arc<wow_data::quest_xp::QuestXpStore>) {
         self.quest_xp_store = Some(store);
+    }
+
+    /// Set the player XP table (xp required per level).
+    pub fn set_player_xp_table(&mut self, table: Arc<Vec<u32>>) {
+        self.player_xp_table = Some(table);
+        self.refresh_next_level_xp();
+    }
+
+    /// Update player_next_level_xp from the table based on current level.
+    pub(crate) fn refresh_next_level_xp(&mut self) {
+        if let Some(table) = &self.player_xp_table {
+            let lvl = self.player_level as usize;
+            self.player_next_level_xp = table.get(lvl).copied().unwrap_or(u32::MAX);
+        }
     }
 
     /// Calculate XP reward for a quest.
@@ -2788,6 +2935,14 @@ impl WorldSession {
 
         // Process creature death outside the mutable borrow
         if let Some((entry, guid)) = kill_info {
+            // Give XP for the kill
+            let mob_level = self.creatures.get(&guid)
+                .map(|c| c.level as u8)
+                .unwrap_or(1);
+            let xp = self.creature_kill_xp(mob_level);
+            if xp > 0 {
+                self.give_xp(xp, guid, true).await;
+            }
             self.on_creature_killed(entry, guid).await;
         }
 

@@ -1392,6 +1392,7 @@ impl WorldSession {
         self.total_played_time = result.try_read::<u32>(15).unwrap_or(0);
         self.level_played_time = result.try_read::<u32>(16).unwrap_or(0);
         self.player_gold = result.try_read::<u64>(17).unwrap_or(0);
+        self.player_xp = result.try_read::<u32>(18).unwrap_or(0);
 
         // Load equipped items for visible display + inventory objects
         let mut visible_items = [(0i32, 0u16, 0u16); 19];
@@ -1593,6 +1594,7 @@ impl WorldSession {
         self.player_class = class;
         self.player_level = level;
         self.player_gender = gender;
+        self.refresh_next_level_xp();
         // NOTE: known_spells is stored below after DBC merge (see "Merge DBC auto-learned spells")
 
         // Sum gear stat bonuses from equipped items (slots 0-18)

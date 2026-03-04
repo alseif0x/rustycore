@@ -88,6 +88,10 @@ pub enum CharStatements {
 
     /// UPDATE characters SET money = ? WHERE guid = ?
     UPD_CHAR_MONEY,
+    /// UPDATE characters SET xp = ? WHERE guid = ?
+    UPD_CHAR_XP,
+    /// UPDATE characters SET level = ?, xp = ? WHERE guid = ?
+    UPD_CHAR_LEVEL,
 
     /// SELECT MAX(guid) FROM item_instance
     SEL_MAX_ITEM_GUID,
@@ -140,7 +144,7 @@ impl StatementDef for CharStatements {
             Self::SEL_CHARACTER => {
                 "SELECT guid, account, name, race, class, gender, level, zone, map, \
                  position_x, position_y, position_z, orientation, playerFlags, at_login, \
-                 totaltime, leveltime, money \
+                 totaltime, leveltime, money, xp \
                  FROM characters WHERE guid = ?"
             }
             Self::UPD_CHAR_ONLINE => {
@@ -183,6 +187,12 @@ impl StatementDef for CharStatements {
             }
             Self::UPD_CHAR_PLAYED_TIME => {
                 "UPDATE characters SET totaltime = ?, leveltime = ? WHERE guid = ?"
+            }
+            Self::UPD_CHAR_XP => {
+                "UPDATE characters SET xp = ? WHERE guid = ?"
+            }
+            Self::UPD_CHAR_LEVEL => {
+                "UPDATE characters SET level = ?, xp = ? WHERE guid = ?"
             }
             Self::UPD_CHAR_MONEY => {
                 "UPDATE characters SET money = ? WHERE guid = ?"

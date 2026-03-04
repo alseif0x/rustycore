@@ -633,6 +633,12 @@ impl WorldSession {
 
         // SMSG_QUEST_UPDATE_COMPLETE — removes from quest log UI
         self.send_packet(&QuestUpdateComplete { quest_id });
+
+        // Give XP reward — C# Player.RewardQuest → GiveXP
+        if xp > 0 {
+            let player_guid = self.player_guid.unwrap_or(wow_core::ObjectGuid::new(0, 0));
+            self.give_xp(xp, player_guid, false).await;
+        }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

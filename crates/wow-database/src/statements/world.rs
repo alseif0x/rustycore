@@ -50,6 +50,8 @@ pub enum WorldStatements {
     DEL_CREATURE,
     SEL_COMMANDS,
     SEL_CREATURE_TEMPLATE,
+    /// SELECT Experience FROM player_xp_for_level ORDER BY Level
+    SEL_PLAYER_XP_FOR_LEVEL,
     SEL_CREATURE_BY_ID,
     /// Creature template entry by spawn GUID (for vendor/trainer when not in visibility tracker).
     SEL_CREATURE_ENTRY_BY_GUID,
@@ -181,6 +183,9 @@ impl StatementDef for WorldStatements {
             Self::SEL_CREATURE_ADDON_BY_GUID => "SELECT guid FROM creature_addon WHERE guid = ?",
             Self::DEL_CREATURE => "DELETE FROM creature WHERE guid = ?",
             Self::SEL_COMMANDS => "SELECT name, help FROM command",
+            Self::SEL_PLAYER_XP_FOR_LEVEL => {
+                "SELECT Level, Experience FROM player_xp_for_level ORDER BY Level"
+            }
             Self::SEL_CREATURE_TEMPLATE => concat!(
                 "SELECT entry, KillCredit1, KillCredit2, name, femaleName, subname, TitleAlt, IconName, ",
                 "RequiredExpansion, VignetteID, faction, npcflag, speed_walk, speed_run, scale, Classification, ",

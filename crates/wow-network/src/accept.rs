@@ -42,6 +42,8 @@ pub struct SessionResources {
     pub area_trigger_store: Option<Arc<wow_data::AreaTriggerStore>>,
     pub quest_store: Option<Arc<wow_data::quest::QuestStore>>,
     pub quest_xp_store: Option<Arc<wow_data::quest_xp::QuestXpStore>>,
+    /// XP required per level: index = level (1-based), value = xp_needed.
+    pub player_xp_table: Option<Arc<Vec<u32>>>,
     /// Shared registry of all active player sessions (for broadcast).
     pub player_registry: Option<Arc<PlayerRegistry>>,
     /// Shared registry of all active groups.

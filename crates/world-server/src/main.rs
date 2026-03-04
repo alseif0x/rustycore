@@ -359,6 +359,23 @@ async fn main() -> Result<()> {
             .context("Failed to load quest store")?
     );
 
+    // Load player_xp_for_level table
+    let player_xp_table = {
+        use wow_database::WorldStatements;
+        let mut stmt = world_db.prepare(WorldStatements::SEL_PLAYER_XP_FOR_LEVEL);
+        let mut table = vec![0u32; 82]; // index = level, 0=unused, 81=max
+        if let Ok(result) = world_db.query(&stmt).await {
+            let mut r = result;
+            loop {
+                let lvl: u8  = r.try_read::<u8>(0).unwrap_or(0);
+                let xp: u32  = r.try_read::<u32>(1).unwrap_or(0);
+                if (lvl as usize) < table.len() { table[lvl as usize] = xp; }
+                if !r.next_row() { break; }
+            }
+        }
+        Arc::new(table)
+    };
+
     // Load QuestXP.db2 for accurate XP rewards
     let dbc_path = format!("{}/dbc/{}", data_dir, locale);
     let quest_xp_store = Arc::new(
@@ -420,6 +437,7 @@ async fn main() -> Result<()> {
         area_trigger_store: Some(Arc::clone(&area_trigger_store)),
         quest_store: Some(Arc::clone(&quest_store)),
         quest_xp_store: Some(Arc::clone(&quest_xp_store)),
+        player_xp_table: Some(Arc::clone(&player_xp_table)),
         player_registry: Some(Arc::clone(&player_registry)),
         group_registry: Some(Arc::clone(&group_registry)),
         pending_invites: Some(Arc::clone(&pending_invites)),
@@ -642,6 +660,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.quest_xp_store {
         session.set_quest_xp_store(Arc::clone(store));
+    }
+    if let Some(ref table) = resources.player_xp_table {
+        session.set_player_xp_table(Arc::clone(table));
     }
     if let Some(ref registry) = resources.player_registry {
         session.set_player_registry(Arc::clone(registry));
