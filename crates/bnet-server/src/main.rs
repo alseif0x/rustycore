@@ -47,6 +47,23 @@ async fn main() -> Result<()> {
 
     tracing::info!("Connected to login database");
 
+    // ── Database auto-update (auth only) ─────────────────────────────────
+    let auto_setup = wow_config::get_string_default("Updates.AutoSetup", "1");
+    if auto_setup != "0" && auto_setup.to_lowercase() != "false" {
+        use wow_database::updater::DbUpdater;
+        let src = wow_config::get_string_default("Updates.SourcePath", ".");
+        let auth_up = DbUpdater::new(
+            login_db.pool().clone(), &db_host, db_port, &db_user, &db_pass, &db_name,
+        );
+        if let Err(e) = auth_up.populate(&format!("{src}/sql/base/auth_database.sql")).await {
+            tracing::warn!("Auth populate skipped: {e}");
+        }
+        if let Err(e) = auth_up.update(&src).await {
+            tracing::warn!("Auth update error: {e}");
+        }
+    }
+    // ─────────────────────────────────────────────────────────────────────
+
     // Load TLS certificates — separate configs for REST (HTTPS) and RPC (binary)
     let cert_file = wow_config::get_string_default("CertificatesFile", "./BNetServer.pfx");
     let (rest_tls_acceptor, rpc_tls_acceptor) = load_tls_acceptors(&cert_file)

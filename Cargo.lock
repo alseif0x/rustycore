@@ -3075,6 +3075,8 @@ dependencies = [
 name = "wow-database"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "sha1",
  "sqlx",
  "thiserror",
  "tokio",

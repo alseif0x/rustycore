@@ -36,12 +36,12 @@ Implementación simplificada para sesiones single‑player:
 
 ### Archivos modificados/creados:
 
-#### 1. `/path/to/rustycore/crates/wow-packet/src/packets/movement.rs`
+#### 1. `/home/server/woltk-server-core/rustycore/crates/wow-packet/src/packets/movement.rs`
 - **Estructura:** `pub struct SetActiveMover { pub active_mover: ObjectGuid }`
 - **Implementación:** `impl ClientPacket for SetActiveMover`
 - **Lectura:** `pkt.read_packed_guid()`
 
-#### 2. `/path/to/rustycore/crates/wow-world/src/handlers/movement.rs`
+#### 2. `/home/server/woltk-server-core/rustycore/crates/wow-world/src/handlers/movement.rs`
 - **Función:** `handle_set_active_mover(&mut self, pkt: SetActiveMover) -> async`
 - **Lógica:**
   - Log con `trace!` el GUID recibido.
@@ -49,7 +49,7 @@ Implementación simplificada para sesiones single‑player:
   - Si no coincide: `warn!` (pero no se rechaza).
 - **Registro:** `inventory::submit!` con `opcode = SetActiveMover`.
 
-#### 3. `/path/to/rustycore/crates/wow-world/src/session.rs`
+#### 3. `/home/server/woltk-server-core/rustycore/crates/wow-world/src/session.rs`
 - **Dispatch:** Añadido en el match de opcodes, dentro de “Movement control opcodes”.
 - **Lectura:** `match wow_packet::packets::movement::SetActiveMover::read(&mut pkt)`.
 

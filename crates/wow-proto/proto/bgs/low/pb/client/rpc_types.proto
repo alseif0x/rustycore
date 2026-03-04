@@ -1,5 +1,5 @@
 // BNet RPC framework types.
-// Reconstructed from open-source WoW server reference implementations.
+// Reconstructed from CypherCore C# generated code.
 
 syntax = "proto2";
 package bgs.protocol;

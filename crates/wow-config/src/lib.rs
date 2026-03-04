@@ -8,7 +8,7 @@
 //!
 //! ```text
 //! # This is a comment
-//! DataDir = "/path/to/data"
+//! DataDir = "/home/server/data"
 //! WorldServerPort = 8085
 //! Rate.XP.Kill = 1.5
 //! ```
@@ -204,8 +204,8 @@ mod tests {
 
     #[test]
     fn test_quoted_string_value() {
-        let store = parse(r#"DataDir = "/path/to/data""#);
-        assert_eq!(store.get("DataDir"), Some("/path/to/data"));
+        let store = parse(r#"DataDir = "/home/server/data""#);
+        assert_eq!(store.get("DataDir"), Some("/home/server/data"));
     }
 
     #[test]

@@ -12,3 +12,5 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 wow-config = { workspace = true }
 wow-logging = { workspace = true }
+sha1 = { workspace = true }
+anyhow = { workspace = true }

@@ -1,3 +1,4 @@
+// Copyright (c) 2026 alseif0x
 // RustyCore — WoW WotLK 3.4.3 server in Rust
 // Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
@@ -227,6 +228,50 @@ async fn main() -> Result<()> {
         .context("Failed to connect to hotfix database")?;
 
     info!("Connected to hotfix database");
+
+    // ── Database auto-update ──────────────────────────────────────────────
+    let auto_setup = wow_config::get_string_default("Updates.AutoSetup", "1");
+    if auto_setup != "0" && auto_setup.to_lowercase() != "false" {
+        use wow_database::updater::DbUpdater;
+        let src = wow_config::get_string_default("Updates.SourcePath", ".");
+
+        let auth_up = DbUpdater::new(
+            login_db.pool().clone(), &db_host, db_port, &db_user, &db_pass, &db_name,
+        );
+        if let Err(e) = auth_up.populate(&format!("{src}/sql/base/auth_database.sql")).await {
+            tracing::warn!("Auth populate skipped: {e}");
+        }
+        if let Err(e) = auth_up.update(&src).await {
+            tracing::warn!("Auth update error: {e}");
+        }
+
+        let char_up = DbUpdater::new(
+            char_db.pool().clone(), &char_host, char_port, &char_user, &char_pass, &char_db_name,
+        );
+        if let Err(e) = char_up.populate(&format!("{src}/sql/base/characters_database.sql")).await {
+            tracing::warn!("Characters populate skipped: {e}");
+        }
+        if let Err(e) = char_up.update(&src).await {
+            tracing::warn!("Characters update error: {e}");
+        }
+
+        // world + hotfixes: only update (base SQL is the full TDB, downloaded separately)
+        let world_up = DbUpdater::new(
+            world_db.pool().clone(), &world_host, world_port, &world_user, &world_pass, &world_db_name,
+        );
+        if let Err(e) = world_up.update(&src).await {
+            tracing::warn!("World update error: {e}");
+        }
+
+        let hotfix_up = DbUpdater::new(
+            hotfix_db.pool().clone(), &hotfix_host, hotfix_port, &hotfix_user, &hotfix_pass, &hotfix_db_name,
+        );
+        if let Err(e) = hotfix_up.update(&src).await {
+            tracing::warn!("Hotfix update error: {e}");
+        }
+    }
+    // ─────────────────────────────────────────────────────────────────────
+
     let hotfix_db = Arc::new(hotfix_db);
 
     // Initialize GUID generator from MAX(guid) in characters table

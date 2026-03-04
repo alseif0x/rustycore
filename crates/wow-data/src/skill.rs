@@ -1,3 +1,4 @@
+// Copyright (c) 2026 alseif0x
 // RustyCore — WoW WotLK 3.4.3 server in Rust
 // Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
@@ -446,7 +447,7 @@ fn matches_class(mask: i32, class: u8) -> bool {
 mod tests {
     use super::*;
 
-    const DATA_DIR: &str = "/path/to/wow-data";
+    const DATA_DIR: &str = "/home/server/woltk-server-core/Data";
     const LOCALE: &str = "esES";
 
     fn load_store() -> Option<SkillStore> {

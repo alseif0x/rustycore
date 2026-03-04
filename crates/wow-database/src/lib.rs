@@ -39,6 +39,7 @@ pub mod params;
 pub mod result;
 pub mod statements;
 pub mod transaction;
+pub mod updater;
 
 // Re-export primary types at crate root for convenience.
 pub use database::{Database, build_connection_string};

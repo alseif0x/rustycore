@@ -33,19 +33,19 @@ Stub simple que solo registra la recepción del paquete. La lógica completa de 
 
 ### Archivos modificados/creados:
 
-#### 1. `/path/to/rustycore/crates/wow-packet/src/packets/movement.rs`
+#### 1. `/home/server/woltk-server-core/rustycore/crates/wow-packet/src/packets/movement.rs`
 - **Estructura:** `pub struct MoveInitActiveMoverComplete { pub ticks: u32 }`
 - **Implementación:** `impl ClientPacket for MoveInitActiveMoverComplete`
 - **Lectura:** `pkt.read_uint32()` (ticks relativos).
 
-#### 2. `/path/to/rustycore/crates/wow-world/src/handlers/movement.rs`
+#### 2. `/home/server/woltk-server-core/rustycore/crates/wow-world/src/handlers/movement.rs`
 - **Función:** `handle_move_init_active_mover_complete(&mut self, pkt: MoveInitActiveMoverComplete) -> async`
 - **Lógica:**
   - Log con `trace!` el valor de ticks recibido.
   - No se realiza ninguna acción adicional (stub).
 - **Registro:** `inventory::submit!` con `opcode = MoveInitActiveMoverComplete`.
 
-#### 3. `/path/to/rustycore/crates/wow-world/src/session.rs`
+#### 3. `/home/server/woltk-server-core/rustycore/crates/wow-world/src/session.rs`
 - **Dispatch:** Añadido en el match de opcodes, dentro de “Movement control opcodes”.
 - **Lectura:** `match wow_packet::packets::movement::MoveInitActiveMoverComplete::read(&mut pkt)`.
 

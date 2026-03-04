@@ -38,7 +38,7 @@ Dado que aún no tenemos `MapManager` con grids, implementamos un sistema basado
 
 ### Archivos modificados/creados:
 
-#### 1. `/path/to/rustycore/crates/wow-world/src/handlers/character.rs`
+#### 1. `/home/server/woltk-server-core/rustycore/crates/wow-world/src/handlers/character.rs`
 - **Función:** `update_visibility(&mut self) -> async`
 - **Lógica:**
   - Compara posición actual con `last_visibility_pos`
@@ -49,23 +49,23 @@ Dado que aún no tenemos `MapManager` con grids, implementamos un sistema basado
 - **Threshold:** 50 yardas para evitar spam de queries
 - **Radio:** ±800 yardas (configurable)
 
-#### 2. `/path/to/rustycore/crates/wow-world/src/session.rs`
+#### 2. `/home/server/woltk-server-core/rustycore/crates/wow-world/src/session.rs`
 - **Campos añadidos:**
   - `visible_creatures: HashSet<ObjectGuid>`
   - `visible_gameobjects: HashSet<ObjectGuid>`
   - `last_visibility_pos: Option<Position>`
 - **Inicialización:** en `WorldSession::new()`
 
-#### 3. `/path/to/rustycore/crates/wow-world/src/handlers/movement.rs`
+#### 3. `/home/server/woltk-server-core/rustycore/crates/wow-world/src/handlers/movement.rs`
 - **Hook:** En `handle_movement()` después de actualizar `player_position`
 - **Llamada:** `self.update_visibility().await`
 
-#### 4. `/path/to/rustycore/crates/wow-packet/src/packets/update.rs`
+#### 4. `/home/server/woltk-server-core/rustycore/crates/wow-packet/src/packets/update.rs`
 - **Constructor añadido:** `UpdateObject::out_of_range_objects()`
 - **Corrección:** `destroy_objects()` ahora usa `num_updates: 0` (era bug)
 - **Formato:** `has_destroy_or_oor` bit → `destroy_guids` + `out_of_range_guids`
 
-#### 5. `/path/to/rustycore/crates/wow-database/src/statements/world.rs`
+#### 5. `/home/server/woltk-server-core/rustycore/crates/wow-database/src/statements/world.rs`
 - **Query mejorado:** `SEL_VENDOR_ITEMS` con JOIN a `hotfixes.item_sparse`
 - **Radios:** Query usa `BETWEEN ? AND ?` en X e Y
 

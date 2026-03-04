@@ -1,3 +1,4 @@
+// Copyright (c) 2026 alseif0x
 // RustyCore — WoW WotLK 3.4.3 server in Rust
 // Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
@@ -391,7 +392,7 @@ mod tests {
 
     #[test]
     fn test_load_item_stats_store() {
-        let data_dir = "/path/to/wow-data";
+        let data_dir = "/home/server/woltk-server-core/Data";
         let locale = "esES";
         let path = std::path::Path::new(data_dir)
             .join("dbc").join(locale).join("ItemSparse.db2");

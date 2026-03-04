@@ -1,3 +1,4 @@
+// Copyright (c) 2026 alseif0x
 // RustyCore — WoW WotLK 3.4.3 server in Rust
 // Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
@@ -806,7 +807,7 @@ mod tests {
     // Integration test: parse real Item.db2 if available
     #[test]
     fn test_parse_item_db2() {
-        let path = std::path::Path::new("/path/to/wow-data/dbc/Item.db2");
+        let path = std::path::Path::new("/home/server/woltk-server-core/Data/dbc/esES/Item.db2");
         if !path.exists() {
             eprintln!("Skipping test: Item.db2 not found");
             return;
@@ -844,7 +845,7 @@ mod tests {
     #[test]
     fn test_probe_item_sparse_db2() {
         let path = std::path::Path::new(
-            "/path/to/wow-data/dbc/ItemSparse.db2",
+            "/home/server/woltk-server-core/Data/dbc/esES/ItemSparse.db2",
         );
         if !path.exists() {
             eprintln!("Skipping test: ItemSparse.db2 not found");
@@ -899,7 +900,7 @@ mod tests {
 #[test]
 fn test_find_record_58268() {
     let path = std::path::Path::new(
-        "/path/to/wow-data/dbc/ItemSparse.db2",
+        "/home/server/woltk-server-core/Data/dbc/esES/ItemSparse.db2",
     );
     if !path.exists() { return; }
     let reader = Wdc4Reader::open(path).expect("failed to parse");

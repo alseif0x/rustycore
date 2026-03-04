@@ -3,10 +3,10 @@
 ## 📊 Resumen Ejecutivo
 
 **Proyecto**: rustycore — Migración de RustyCore (WoW 3.4.3.54261) de C# a Rust
-**Dominio**: your-domain.example.com
+**Dominio**: wowchad.work.gd
 **Rust Version**: 1.85 (edition 2024)
-**Ubicación**: `/path/to/rustycore/`
-**Referencia C#**: `/path/to/reference/`
+**Ubicación**: `/home/server/woltk-server-core/rustycore/`
+**Referencia C#**: `/home/server/woltk-server-core/Source/`
 **Estado General**: ~35% — infraestructura lista, jugador en mundo, combat/movement/loot funcional
 
 ---
@@ -241,4 +241,4 @@
 ---
 
 **Última actualización**: 2026-02-27
-**Build**: `cargo build --workspace` → ✅ 0 errores, 138 handlers
+**Build**: `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo build --workspace` → ✅ 0 errores, 138 handlers

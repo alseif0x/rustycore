@@ -1029,9 +1029,9 @@ assert_eq!(last4, &[0x00, 0x00, 0xFF, 0xFF]);
 ### Build and Test Commands
 
 ```bash
-export PATH="/usr/bin:/usr/local/bin:/bin:$PATH"
-PROTOC=/usr/local/bin/protoc cargo test --workspace
-PROTOC=/usr/local/bin/protoc cargo check -p world-server
+export PATH="/home/cdmonio/.cargo/bin:/usr/bin:/usr/local/bin:/bin:$PATH"
+PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test --workspace
+PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server
 ```
 
 ### Debugging Checklist
