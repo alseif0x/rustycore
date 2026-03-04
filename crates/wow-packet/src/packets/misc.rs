@@ -1311,6 +1311,79 @@ impl SetProficiency {
     }
 }
 
+// ── SuspendToken (SMSG 0x25a8) ───────────────────────────────────────
+
+/// Sent on the instance connection after TransferPending.
+/// Tells the client to pause movement processing during map transfer.
+/// C# ref: MovementPackets.SuspendToken (ConnectionType.Instance)
+pub struct SuspendToken {
+    /// Movement counter (sequence index). Send 1 for simple teleports.
+    pub sequence_index: u32,
+    /// 1 = Normal teleport, 2 = Seamless teleport.
+    pub reason: u32,
+}
+
+impl ServerPacket for SuspendToken {
+    const OPCODE: ServerOpcodes = ServerOpcodes::SuspendToken;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_uint32(self.sequence_index);
+        pkt.write_bits(self.reason, 2);
+        pkt.flush_bits();
+    }
+}
+
+// ── ResumeToken (SMSG 0x25a9) ────────────────────────────────────────
+
+/// Sent after WorldPortResponse to resume movement processing.
+/// C# ref: MovementPackets.ResumeToken (ConnectionType.Instance)
+pub struct ResumeToken {
+    pub sequence_index: u32,
+    /// 1 = Normal, 2 = Seamless.
+    pub reason: u32,
+}
+
+impl ServerPacket for ResumeToken {
+    const OPCODE: ServerOpcodes = ServerOpcodes::ResumeToken;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_uint32(self.sequence_index);
+        pkt.write_bits(self.reason, 2);
+        pkt.flush_bits();
+    }
+}
+
+// ── NewWorld (SMSG 0x2594) ────────────────────────────────────────────
+
+/// Sent after WorldPortResponse to place the player in the new world.
+/// C# ref: MovementPackets.NewWorld
+pub struct NewWorld {
+    pub map_id: u32,
+    pub pos: wow_core::Position,
+    /// 0 = Normal teleport, 1 = Seamless.
+    pub reason: u32,
+}
+
+impl ServerPacket for NewWorld {
+    const OPCODE: ServerOpcodes = ServerOpcodes::NewWorld;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_uint32(self.map_id);
+        // TeleportLocation: Pos (XYZO) + two unused int32 fields (-1, -1)
+        pkt.write_float(self.pos.x);
+        pkt.write_float(self.pos.y);
+        pkt.write_float(self.pos.z);
+        pkt.write_float(self.pos.orientation);
+        pkt.write_int32(-1); // Unused901_1
+        pkt.write_int32(-1); // Unused901_2
+        pkt.write_uint32(self.reason);
+        // MovementOffset (all zeros)
+        pkt.write_float(0.0);
+        pkt.write_float(0.0);
+        pkt.write_float(0.0);
+    }
+}
+
 // ── LogoutRequest (CMSG 0x34d6) ─────────────────────────────────────
 
 /// Client requests to log out.

@@ -35,6 +35,15 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
+        opcode: ClientOpcodes::WorldPortResponse,
+        status: SessionStatus::Transfer,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_world_port_response",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
         opcode: ClientOpcodes::RequestCemeteryList,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
@@ -408,9 +417,50 @@ impl crate::session::WorldSession {
         );
     }
 
+    /// CMSG_WORLD_PORT_RESPONSE — client confirms it has loaded the new map.
+    /// C# ref: MovementHandler.HandleMoveWorldportAck
+    /// Sent after SMSG_TRANSFER_PENDING + SMSG_SUSPEND_TOKEN.
+    /// We respond with SMSG_NEW_WORLD + SMSG_RESUME_TOKEN and resend world objects.
+    pub async fn handle_world_port_response(&mut self, _pkt: wow_packet::WorldPacket) {
+        use wow_packet::packets::misc::{NewWorld, ResumeToken};
+
+        let Some((new_map, new_pos)) = self.pending_teleport.take() else {
+            warn!("WorldPortResponse from account {} but no pending teleport", self.account_id);
+            self.set_state(crate::session::SessionState::LoggedIn);
+            return;
+        };
+
+        info!(
+            account = self.account_id,
+            "WorldPortResponse: completing teleport to map {} ({:.2}, {:.2}, {:.2})",
+            new_map, new_pos.x, new_pos.y, new_pos.z
+        );
+
+        // Update internal state
+        self.current_map_id = new_map as u16;
+        self.player_position = Some(new_pos);
+        self.update_registry_position();
+
+        // SMSG_NEW_WORLD — place player in new world
+        self.send_packet(&NewWorld {
+            map_id: new_map,
+            pos: new_pos,
+            reason: 0,
+        });
+
+        // SMSG_RESUME_TOKEN — resume movement processing
+        self.send_packet(&ResumeToken { sequence_index: 1, reason: 1 });
+
+        // Back to LoggedIn — handler dispatch resumes
+        self.set_state(crate::session::SessionState::LoggedIn);
+
+        // Resend nearby world objects at new position
+        self.send_nearby_creatures(new_map as u16, &new_pos, 0).await;
+        self.send_nearby_gameobjects(new_map as u16, &new_pos, 0).await;
+    }
+
     /// CMSG_AREA_TRIGGER — player entered an area trigger.
     /// C# ref: MiscHandler.HandleAreaTrigger
-    /// TODO: execute trigger effects (teleport, buff, quest, etc.)
     pub async fn handle_area_trigger(&mut self, mut pkt: wow_packet::WorldPacket) {
         let trigger_id: u32 = pkt.read_uint32().unwrap_or(0);
         
@@ -428,12 +478,13 @@ impl crate::session::WorldSession {
                 );
                 
                 if let Some(ref teleport) = trigger.teleport {
+                    let target_map = teleport.target_map;
+                    let target_pos = teleport.target_position;
                     info!(
-                        "AreaTrigger {} -> teleport to map {} pos ({}, {}, {})",
-                        trigger_id, teleport.target_map, teleport.target_position.x, 
-                        teleport.target_position.y, teleport.target_position.z
+                        "AreaTrigger {} → teleport to map {} ({:.2}, {:.2}, {:.2})",
+                        trigger_id, target_map, target_pos.x, target_pos.y, target_pos.z
                     );
-                    // TODO: Send TransferPending packet and teleport after delay
+                    self.teleport_to(target_map, target_pos).await;
                 }
             } else {
                 debug!("Unknown area trigger ID {}", trigger_id);

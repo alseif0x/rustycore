@@ -277,6 +277,9 @@ pub struct WorldSession {
     /// Currently active area trigger ID (to prevent retriggering on same position).
     /// Set to Some(trigger_id) when entered, None when exited.
     pub(crate) active_area_trigger: Option<u32>,
+    /// Pending far teleport destination (map_id, position).
+    /// Set by `teleport_to`, consumed by `handle_world_port_response`.
+    pub(crate) pending_teleport: Option<(u32, wow_core::Position)>,
 
     // ── QueryCreature cache ────────────────────────────────────────
     /// Creature entry IDs for which we've already sent a QueryCreatureResponse.
@@ -441,6 +444,7 @@ impl WorldSession {
             gossip_options: Vec::new(),
             gossip_source_guid: None,
             active_area_trigger: None,
+            pending_teleport: None,
             creature_query_cache: std::collections::HashSet::new(),
         }
     }
@@ -1684,8 +1688,6 @@ impl WorldSession {
     ///
     /// C# ref: Player.TeleportTo → SendTransferPending
     pub async fn teleport_to(&mut self, new_map: u32, new_pos: wow_core::Position) {
-        use wow_packet::packets::misc::TransferPending;
-
         // Validate inputs
         if new_map as u16 > 0xFFF {
             warn!(
@@ -1712,39 +1714,32 @@ impl WorldSession {
             "Player teleporting to new map"
         );
 
-        // Send TransferPending packet with old position (client needs to know where we're coming from)
+        use wow_packet::packets::misc::{SuspendToken, TransferPending};
+
+        // 1. SMSG_TRANSFER_PENDING — tell client to start loading screen
         let transfer_pending = TransferPending {
             map_id: new_map,
             old_map_position: current_pos,
             ship: None,
             transfer_spell_id: None,
         };
-
         self.send_packet(&transfer_pending);
 
-        // Update session state to Transfer (waiting for CMSG_WORLD_PORT_ACK)
+        // 2. Store pending destination — completed in handle_world_port_response
+        self.pending_teleport = Some((new_map, new_pos));
+        self.active_area_trigger = None;
+
+        // 3. SMSG_SUSPEND_TOKEN — pause movement processing on client
+        self.send_packet(&SuspendToken { sequence_index: 1, reason: 1 });
+
+        // 4. Transition to Transfer state — only WorldPortResponse accepted now
         self.state = SessionState::Transfer;
 
-        // Store the pending teleport destination
-        // (In a full implementation, we'd store this and complete it on CMSG_WORLD_PORT_ACK)
-        // For now, immediately update to simulate the teleport
-        // In production, this should wait for client confirmation via CMSG_WORLD_PORT_ACK
-        
-        self.current_map_id = new_map as u16;
-        self.player_position = Some(new_pos);
-        self.active_area_trigger = None; // Clear trigger state after teleport
-
-        // Update the player registry with new position
-        self.update_registry_position();
-
-        debug!(
+        info!(
             account = self.account_id,
-            "Teleport complete: now at map {} pos ({:.2}, {:.2}, {:.2})",
-            self.current_map_id, new_pos.x, new_pos.y, new_pos.z
+            "Teleport initiated: map {} → {} dest ({:.2}, {:.2}, {:.2}); awaiting WorldPortResponse",
+            self.current_map_id, new_map, new_pos.x, new_pos.y, new_pos.z
         );
-
-        // Return to LoggedIn state (in production, this happens after CMSG_WORLD_PORT_ACK)
-        self.state = SessionState::LoggedIn;
     }
 
     /// Send a server packet back to the client via the instance (default) channel.
