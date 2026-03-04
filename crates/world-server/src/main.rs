@@ -359,6 +359,16 @@ async fn main() -> Result<()> {
             .context("Failed to load quest store")?
     );
 
+    // Load QuestXP.db2 for accurate XP rewards
+    let dbc_path = format!("{}/dbc/{}", data_dir, locale);
+    let quest_xp_store = Arc::new(
+        wow_data::quest_xp::QuestXpStore::load(&dbc_path)
+            .unwrap_or_else(|e| {
+                tracing::warn!("QuestXP.db2 not loaded ({e}), using fallback XP table");
+                wow_data::quest_xp::QuestXpStore::default()
+            })
+    );
+
     // Get realm ID and load build-specific auth seed
     let realm_id: u16 = wow_config::get_value("RealmID").unwrap_or(1);
 
@@ -409,6 +419,7 @@ async fn main() -> Result<()> {
         spell_store: Some(Arc::clone(&spell_store)),
         area_trigger_store: Some(Arc::clone(&area_trigger_store)),
         quest_store: Some(Arc::clone(&quest_store)),
+        quest_xp_store: Some(Arc::clone(&quest_xp_store)),
         player_registry: Some(Arc::clone(&player_registry)),
         group_registry: Some(Arc::clone(&group_registry)),
         pending_invites: Some(Arc::clone(&pending_invites)),
@@ -628,6 +639,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.quest_store {
         session.set_quest_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.quest_xp_store {
+        session.set_quest_xp_store(Arc::clone(store));
     }
     if let Some(ref registry) = resources.player_registry {
         session.set_player_registry(Arc::clone(registry));

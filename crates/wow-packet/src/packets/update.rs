@@ -220,6 +220,10 @@ pub struct PlayerCreateData {
     /// Character's learned skills for the SkillInfo array (up to 256).
     /// Each entry: (skill_id, step, rank, starting_rank, max_rank, temp_bonus, perm_bonus).
     pub skill_info: Vec<(u16, u16, u16, u16, u16, i16, u16)>,
+    /// Quest log slots — up to 25 active quests.
+    /// (quest_id, state_flags, end_time, objective_progress[24])
+    /// C# ref: QuestLog.WriteCreate — only sent with PartyMember flag (= self-view)
+    pub quest_log: Vec<(u32, u32, i64, [u16; 24])>,
     /// Current money in copper (Coinage field in ActivePlayerData).
     pub coinage: u64,
 }
@@ -265,8 +269,9 @@ impl PlayerCreateData {
         // Build into a temp buffer so we can prefix with size
         let mut buf = WorldPacket::new_empty();
 
-        // UpdateFieldFlag: Owner=0x01 for self, 0x00 for others
-        let flags: u8 = if is_self { 0x01 } else { 0x00 };
+        // UpdateFieldFlag: Owner=0x01 | PartyMember=0x02 for self (IsInSameRaidWith(self)==true)
+        // C# ref: Player.GetUpdateFieldFlagsFor(target) — PartyMember set when in same raid
+        let flags: u8 = if is_self { 0x03 } else { 0x00 }; // 0x01=Owner 0x02=PartyMember
         buf.write_uint8(flags);
 
         self.write_object_data(&mut buf);
@@ -554,7 +559,7 @@ impl PlayerCreateData {
     // ── PlayerData.WriteCreate ──────────────────────────────────
 
     fn write_player_data(&self, buf: &mut WorldPacket, flags: u8) {
-        let _is_party = flags & 0x04 != 0; // PartyMember flag
+        let is_party = flags & 0x02 != 0; // UpdateFieldFlag::PartyMember = 0x02
 
         // 3 PackedGuids
         write_empty_guid(buf); // DuelArbiter
@@ -590,8 +595,23 @@ impl PlayerCreateData {
         buf.write_uint32(0);
         buf.write_int32(0);
 
-        // QuestLog[25] — only if PartyMember flag set (skip for self on login)
-        // We never set PartyMember flag for self-view, so skip.
+        // QuestLog[25] — written when PartyMember flag is set.
+        // For self-view (is_self=true), C# always includes this (IsInSameRaidWith(self)==true).
+        // C# ref: QuestLog.WriteCreate: int64 EndTime + int32 QuestID + uint32 StateFlags + uint16[24] ObjectiveProgress
+        if is_party {
+            // Fill 25 slots; empty slots get quest_id=0
+            let empty_slot: (u32, u32, i64, [u16; 24]) = (0, 0, 0, [0u16; 24]);
+            for i in 0..25usize {
+                let (quest_id, state_flags, end_time, obj_progress) =
+                    self.quest_log.get(i).copied().unwrap_or(empty_slot);
+                buf.write_int64(end_time);          // EndTime (int64)
+                buf.write_int32(quest_id as i32);   // QuestID (int32)
+                buf.write_uint32(state_flags);      // StateFlags (uint32)
+                for progress in &obj_progress {     // ObjectiveProgress[24] (uint16 each)
+                    buf.write_uint16(*progress);
+                }
+            }
+        }
 
         // VisibleItems[19] (each: i32 ItemID + u16 AppearanceModID + u16 ItemVisual)
         for &(item_id, appearance_mod, item_visual) in &self.visible_items {
@@ -1524,6 +1544,7 @@ impl UpdateObject {
         combat: PlayerCombatStats,
         skill_info: Vec<(u16, u16, u16, u16, u16, i16, u16)>,
         coinage: u64,
+        quest_log: Vec<(u32, u32, i64, [u16; 24])>,
     ) -> Self {
         let faction = PlayerCreateData::faction_for_race(race);
 
@@ -1557,6 +1578,7 @@ impl UpdateObject {
             inv_slots,
             skill_info,
             coinage,
+            quest_log,
         };
 
         let movement = MovementBlock {

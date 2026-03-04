@@ -14,6 +14,7 @@ pub mod skill;
 pub mod area_trigger;
 pub mod spell;
 pub mod quest;
+pub mod quest_xp;
 
 pub use item::{ItemRecord, ItemStore};
 pub use item_stats::{ItemStatEntry, ItemStatsStore};

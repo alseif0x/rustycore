@@ -256,6 +256,7 @@ pub struct WorldSession {
     // ── Quest system ───────────────────────────────────────────────
     /// Quest template store (loaded from world DB at startup).
     pub(crate) quest_store: Option<Arc<wow_data::quest::QuestStore>>,
+    pub(crate) quest_xp_store: Option<Arc<wow_data::quest_xp::QuestXpStore>>,
     /// Active quests for this player: quest_id → status.
     pub(crate) player_quests: HashMap<u32, crate::handlers::quest::PlayerQuestStatus>,
     /// Quests the player has already been rewarded for (non-repeatable quests cannot be re-taken).
@@ -446,6 +447,7 @@ impl WorldSession {
             visible_auras: HashMap::new(),
             spell_store: None,
             quest_store: None,
+            quest_xp_store: None,
             player_quests: HashMap::new(),
             rewarded_quests: std::collections::HashSet::new(),
             active_spell_cast: None,
@@ -680,14 +682,21 @@ impl WorldSession {
         }
     }
 
-    /// Calculate XP reward for a quest based on difficulty index and player level.
-    /// Simplified version — TrinityCore uses quest_xp.db2 table.
-    /// Difficulty 0–9 map to base values; reduced for grey quests.
-    pub(crate) fn calculate_quest_xp(&self, difficulty: u32, _player_level: u32) -> u32 {
-        // Base XP table by difficulty (approximate WotLK values)
-        const XP_TABLE: [u32; 10] = [0, 50, 100, 200, 400, 650, 1000, 1500, 2500, 4000];
-        let idx = difficulty.min(9) as usize;
-        XP_TABLE[idx]
+    /// Set the QuestXP store (loaded from QuestXP.db2).
+    pub fn set_quest_xp_store(&mut self, store: Arc<wow_data::quest_xp::QuestXpStore>) {
+        self.quest_xp_store = Some(store);
+    }
+
+    /// Calculate XP reward for a quest.
+    /// C# ref: Quest::XPValue(player, questLevel, xpDifficulty, xpMultiplier)
+    pub(crate) fn calculate_quest_xp(&self, difficulty: u32, quest_level: i32) -> u32 {
+        if let Some(store) = &self.quest_xp_store {
+            store.calculate_xp(quest_level, self.player_level, difficulty)
+        } else {
+            // Fallback if DB2 not loaded
+            const XP_TABLE: [u32; 10] = [0, 50, 100, 200, 400, 650, 1000, 1500, 2500, 4000];
+            XP_TABLE[difficulty.min(9) as usize]
+        }
     }
 
     /// Check if a spell is on cooldown (global or per-spell).
@@ -2458,6 +2467,7 @@ impl WorldSession {
             PlayerCombatStats::default(), // other players don't need detailed combat stats
             empty_skills,
             self.player_gold,
+            vec![], // quest_log — not sent to other players
         );
 
         // Serialize once, reuse for all broadcasts
@@ -2567,6 +2577,7 @@ impl WorldSession {
                 default_combat_stats,
                 empty_skills.clone(),
                 0, // coinage (don't send other players' gold)
+                vec![], // quest_log — not sent to other players
             );
 
             self.send_packet(&update);

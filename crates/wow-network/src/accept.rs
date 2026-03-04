@@ -41,6 +41,7 @@ pub struct SessionResources {
     pub spell_store: Option<Arc<wow_data::SpellStore>>,
     pub area_trigger_store: Option<Arc<wow_data::AreaTriggerStore>>,
     pub quest_store: Option<Arc<wow_data::quest::QuestStore>>,
+    pub quest_xp_store: Option<Arc<wow_data::quest_xp::QuestXpStore>>,
     /// Shared registry of all active player sessions (for broadcast).
     pub player_registry: Option<Arc<PlayerRegistry>>,
     /// Shared registry of all active groups.

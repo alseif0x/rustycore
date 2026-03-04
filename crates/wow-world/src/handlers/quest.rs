@@ -21,8 +21,9 @@ use wow_constants::ClientOpcodes;
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
 use wow_packet::packets::quest::{
     quest_giver_status, QuestGiverOfferReward, QuestGiverQuestComplete, QuestGiverQuestDetails,
-    QuestGiverQuestList, QuestGiverStatus, QuestListEntry, QuestObjectiveInfo,
-    QuestObjectiveSimple, QuestRewardsBlock, QueryQuestInfoResponse, QuestUpdateComplete,
+    QuestGiverQuestList, QuestGiverRequestItems, QuestGiverStatus, QuestListEntry,
+    QuestObjectiveInfo, QuestObjectiveSimple, QuestRewardsBlock, QueryQuestInfoResponse,
+    QuestUpdateComplete,
 };
 use wow_packet::ServerPacket;
 
@@ -508,7 +509,27 @@ impl WorldSession {
         }
         rewards.completion_spell = quest.reward_spell as i32;
 
-        // Phase 1: assume objectives always complete — show offer reward dialog
+        // Check if all objectives are done — C# GetQuestStatus == QuestStatus.Complete
+        let is_complete = self.player_quests.get(&quest_id)
+            .map_or(false, |qs| qs.status == 2);
+
+        if !is_complete {
+            // Not all objectives done — send "you still need X" dialog
+            // C# ref: SendQuestGiverRequestItems(quest, guid, canComplete=false, false)
+            self.send_packet(&QuestGiverRequestItems {
+                giver_guid: guid,
+                quest_id,
+                quest_flags: [quest.flags, quest.flags_ex, quest.flags_ex2],
+                suggested_party_members: quest.suggested_group_num,
+                status_flags: 0,
+                money_cost: 0,
+                title: quest.log_title.clone(),
+                completion_text: quest.area_description.clone(),
+            });
+            return;
+        }
+
+        // All objectives done — show offer reward dialog
         self.send_packet(&QuestGiverOfferReward {
             giver_guid: guid,
             quest_id,
@@ -580,7 +601,7 @@ impl WorldSession {
             self.save_player_gold().await;
         }
 
-        let xp = self.calculate_quest_xp(quest.reward_xp_difficulty, self.player_level as u32);
+        let xp = self.calculate_quest_xp(quest.reward_xp_difficulty, quest.quest_level);
 
         // RewardQuest — C# Player.RewardQuest:
         // 1. Remove from active quest log

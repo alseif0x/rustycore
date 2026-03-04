@@ -4356,10 +4356,26 @@ impl WorldSession {
         //     them when it processes InvSlots, but everything must be in
         //     the same packet for forward-referenced Owner GUIDs to resolve.
         {
+            // Build quest log for the UpdateObject (25 slots max).
+            // C# ref: QuestLog.WriteCreate — sent with PartyMember flag for self-view.
+            // StateFlags: 0=None, 1=Complete (QuestSlotStateMask)
+            let quest_log: Vec<(u32, u32, i64, [u16; 24])> = self.player_quests.values()
+                .filter(|qs| qs.status == 1 || qs.status == 2)
+                .take(25)
+                .map(|qs| {
+                    let state_flags: u32 = if qs.status == 2 { 1 } else { 0 };
+                    let mut obj_progress = [0u16; 24];
+                    for (i, &count) in qs.objective_counts.iter().enumerate().take(24) {
+                        obj_progress[i] = count.min(u16::MAX as i32) as u16;
+                    }
+                    (qs.quest_id, state_flags, 0i64, obj_progress)
+                })
+                .collect();
+
             let mut player_pkt = UpdateObject::create_player(
                 guid, race, class, sex, level, display_id, position,
                 map_id as u16, zone_id as u32, true, visible_items, inv_slots,
-                combat, skill_info, self.player_gold,
+                combat, skill_info, self.player_gold, quest_log,
             );
 
             if !item_creates.is_empty() {
