@@ -267,11 +267,15 @@ impl WorldSession {
             return;
         }
 
+        // Build objective counts (one slot per objective)
+        let obj_count = quest_store.get(quest_id).map_or(0, |q| q.objectives.len());
+
         // Add to local state
         self.player_quests.insert(quest_id, PlayerQuestStatus {
             quest_id,
             status: 1, // Incomplete
             explored: false,
+            objective_counts: vec![0; obj_count],
         });
 
         // Save to DB
@@ -599,7 +603,15 @@ impl WorldSession {
                 let quest_id: u32 = result.try_read::<u32>(0).unwrap_or(0);
                 let status: u8    = result.try_read::<u8>(1).unwrap_or(0);
                 let explored: bool = result.try_read::<u8>(2).unwrap_or(0) != 0;
-                self.player_quests.insert(quest_id, PlayerQuestStatus { quest_id, status, explored });
+                let obj_count = self.quest_store.as_ref()
+                    .and_then(|s| s.get(quest_id))
+                    .map_or(0, |q| q.objectives.len());
+                self.player_quests.insert(quest_id, PlayerQuestStatus {
+                    quest_id,
+                    status,
+                    explored,
+                    objective_counts: vec![0; obj_count],
+                });
                 if !result.next_row() { break; }
             }
         }
@@ -621,4 +633,7 @@ pub struct PlayerQuestStatus {
     /// 0=None, 1=Incomplete, 2=Complete, 3=Failed
     pub status: u8,
     pub explored: bool,
+    /// Progress per objective (indexed by objective.storage_index).
+    /// value = current count toward the required amount.
+    pub objective_counts: Vec<i32>,
 }

@@ -596,6 +596,86 @@ impl WorldSession {
         let _ = char_db.execute(&stmt).await;
     }
 
+    /// Called when the player kills a creature. Checks all active kill-objective quests
+    /// and updates progress. Sends SMSG_QUEST_UPDATE_ADD_CREDIT if progress was made.
+    pub(crate) async fn on_creature_killed(
+        &mut self,
+        creature_entry: u32,
+        creature_guid: wow_core::ObjectGuid,
+    ) {
+        use wow_packet::packets::quest::{QuestUpdateAddCredit, QuestUpdateComplete};
+        use wow_packet::ServerPacket;
+
+        let Some(store) = self.quest_store.clone() else { return };
+
+        // Objective type 0 = Monster/NPC kill
+        const OBJ_TYPE_MONSTER: u8 = 0;
+
+        // Collect quest IDs that have a matching kill objective to avoid borrow issues
+        let matching: Vec<(u32, usize, i32)> = self.player_quests.values()
+            .filter(|qs| qs.status == 1) // only incomplete quests
+            .filter_map(|qs| {
+                let quest = store.get(qs.quest_id)?;
+                for (i, obj) in quest.objectives.iter().enumerate() {
+                    if obj.obj_type == OBJ_TYPE_MONSTER && obj.object_id == creature_entry as i32 {
+                        let idx = obj.storage_index.max(0) as usize;
+                        return Some((qs.quest_id, idx, obj.amount));
+                    }
+                }
+                None
+            })
+            .collect();
+
+        for (quest_id, obj_idx, required) in matching {
+            let Some(qs) = self.player_quests.get_mut(&quest_id) else { continue };
+            if qs.objective_counts.len() <= obj_idx {
+                qs.objective_counts.resize(obj_idx + 1, 0);
+            }
+            if qs.objective_counts[obj_idx] >= required {
+                continue; // Already done
+            }
+            qs.objective_counts[obj_idx] += 1;
+            let current = qs.objective_counts[obj_idx];
+
+            debug!(
+                account = self.account_id,
+                quest_id, obj_idx, current, required,
+                "Quest kill objective progress"
+            );
+
+            // SMSG_QUEST_UPDATE_ADD_CREDIT
+            self.send_packet(&QuestUpdateAddCredit {
+                victim_guid: creature_guid,
+                quest_id,
+                object_id: creature_entry as i32,
+                count: current as u16,
+                required: required as u16,
+                objective_type: OBJ_TYPE_MONSTER,
+            });
+
+            // Check if quest is now complete (all objectives satisfied)
+            let all_done = {
+                let quest = store.get(quest_id);
+                quest.map_or(false, |q| {
+                    let qs = self.player_quests.get(&quest_id).unwrap();
+                    q.objectives.iter().enumerate().all(|(i, obj)| {
+                        let idx = obj.storage_index.max(0) as usize;
+                        let progress = qs.objective_counts.get(idx).copied().unwrap_or(0);
+                        progress >= obj.amount
+                    })
+                })
+            };
+
+            if all_done {
+                if let Some(qs) = self.player_quests.get_mut(&quest_id) {
+                    qs.status = 2; // Complete
+                }
+                self.send_packet(&QuestUpdateComplete { quest_id });
+                info!(account = self.account_id, quest_id, "Quest objectives complete");
+            }
+        }
+    }
+
     /// Calculate XP reward for a quest based on difficulty index and player level.
     /// Simplified version — TrinityCore uses quest_xp.db2 table.
     /// Difficulty 0–9 map to base values; reduced for grey quests.
@@ -2666,30 +2746,37 @@ impl WorldSession {
     async fn apply_damage(&mut self, target_guid: ObjectGuid, damage_amount: u32) -> Result<(), &'static str> {
         let _player_guid = self.player_guid.ok_or("No player GUID")?;
 
-        // Si target es otra criatura
-        if let Some(creature) = self.creatures.get_mut(&target_guid) {
-            info!(
-                account = self.account_id,
-                creature = ?target_guid,
-                damage = damage_amount,
-                "Dealt damage to creature"
-            );
+        // Si target es otra criatura — end mutable borrow before calling async methods
+        let kill_info: Option<(u32, wow_core::ObjectGuid)> = {
+            if let Some(creature) = self.creatures.get_mut(&target_guid) {
+                info!(
+                    account = self.account_id,
+                    creature = ?target_guid,
+                    damage = damage_amount,
+                    "Dealt damage to creature"
+                );
 
-            // Restar HP
-            creature.hp = creature.hp.saturating_sub(damage_amount);
+                creature.hp = creature.hp.saturating_sub(damage_amount);
 
-            // Si criatura muere
-            if creature.hp == 0 {
-                info!("Creature {} killed", target_guid);
-                creature.state = wow_ai::CreatureState::Dead;
-                creature.is_alive = false;
-                // TODO: Trigger loot, respawn, etc.
+                if creature.hp == 0 {
+                    info!("Creature {} (entry={}) killed", target_guid, creature.entry);
+                    creature.state = wow_ai::CreatureState::Dead;
+                    creature.is_alive = false;
+                    Some((creature.entry, target_guid))
+                } else {
+                    None
+                }
+            } else {
+                return Err("Target creature not found");
             }
+        };
 
-            return Ok(());
+        // Process creature death outside the mutable borrow
+        if let Some((entry, guid)) = kill_info {
+            self.on_creature_killed(entry, guid).await;
         }
 
-        Err("Target creature not found")
+        Ok(())
     }
 }
 

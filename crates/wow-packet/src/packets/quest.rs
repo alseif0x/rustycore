@@ -572,3 +572,29 @@ impl ServerPacket for QuestUpdateComplete {
         pkt.write_uint32(self.quest_id);
     }
 }
+
+// ── SMSG_QUEST_UPDATE_ADD_CREDIT (0x2a8c) ────────────────────────────────────
+
+/// Sent when a quest objective gets progress (kill, item loot, etc.).
+/// Updates the count shown in the quest tracker.
+/// C# ref: QuestUpdateAddCredit
+pub struct QuestUpdateAddCredit {
+    pub victim_guid: ObjectGuid,
+    pub quest_id: u32,
+    pub object_id: i32,
+    pub count: u16,
+    pub required: u16,
+    pub objective_type: u8,
+}
+
+impl ServerPacket for QuestUpdateAddCredit {
+    const OPCODE: ServerOpcodes = ServerOpcodes::QuestUpdateAddCredit;
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_packed_guid(&self.victim_guid);
+        pkt.write_uint32(self.quest_id);
+        pkt.write_int32(self.object_id);
+        pkt.write_uint16(self.count);
+        pkt.write_uint16(self.required);
+        pkt.write_uint8(self.objective_type);
+    }
+}
