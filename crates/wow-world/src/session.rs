@@ -315,7 +315,7 @@ pub struct AuraApplication {
     pub caster_guid: ObjectGuid,
     /// Aura slot (0-254)
     pub slot: u8,
-    /// Total duration in milliseconds
+    /// Total duration in milliseconds (0 = permanent)
     pub duration_total: u32,
     /// Remaining duration in milliseconds
     pub duration_remaining: u32,
@@ -323,6 +323,8 @@ pub struct AuraApplication {
     pub stack_count: u8,
     /// Aura flags (bitmask)
     pub aura_flags: u32,
+    /// Monotonic timestamp when this aura was applied — used for expiry checks.
+    pub applied_at: Instant,
 }
 
 /// Parameters for spawning nearby creatures after login.
@@ -828,6 +830,10 @@ impl WorldSession {
             if self.creature_tick % 2 == 0 {
                 self.tick_combat_sync();
             }
+            // Aura expiry tick every 4 ticks (~200ms)
+            if self.creature_tick % 4 == 0 {
+                self.tick_auras();
+            }
         }
 
         // ── Periodic TimeSyncRequest ──────────────────────────────
@@ -883,6 +889,7 @@ impl WorldSession {
             duration_remaining: duration_ms,
             stack_count: 1,
             aura_flags,
+            applied_at: Instant::now(),
         };
 
         self.visible_auras.insert(slot, aura);
@@ -904,6 +911,37 @@ impl WorldSession {
         self.send_aura_update_removed(slot);
 
         Ok(())
+    }
+
+    /// Check all active auras for expiry and remove those whose duration has elapsed.
+    /// Called from the synchronous tick loop (~every 200ms via creature_tick).
+    pub(crate) fn tick_auras(&mut self) {
+        if self.visible_auras.is_empty() {
+            return;
+        }
+
+        // Collect expired slots (avoid borrow conflict)
+        let expired: Vec<u8> = self
+            .visible_auras
+            .values()
+            .filter(|a| {
+                // Permanent auras (duration_total == 0) never expire
+                a.duration_total > 0
+                    && a.applied_at.elapsed().as_millis() as u32 >= a.duration_total
+            })
+            .map(|a| a.slot)
+            .collect();
+
+        for slot in expired {
+            let spell_id = self.visible_auras.get(&slot).map(|a| a.spell_id).unwrap_or(0);
+            let _ = self.remove_aura(slot);
+            debug!(
+                account = self.account_id,
+                slot = slot,
+                spell_id = spell_id,
+                "Aura expired"
+            );
+        }
     }
 
     fn send_aura_update_applied(
