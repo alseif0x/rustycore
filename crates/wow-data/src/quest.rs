@@ -89,7 +89,11 @@ pub struct QuestTemplate {
     /// Maximum player level to take this quest. 0 = no limit.
     pub max_level: u8,
     /// Previous quest that must be completed first. 0 = none.
+    /// Positive = must be rewarded. Negative = must be active (Incomplete).
     pub prev_quest_id: i32,
+    /// Optional reward items player can choose (up to 6). (item_id, quantity).
+    /// item_id == 0 means that slot is empty.
+    pub reward_choice_items: [(u32, u32); QUEST_REWARD_CHOICES_COUNT],
 }
 
 impl QuestTemplate {
@@ -248,6 +252,14 @@ pub async fn load_quests(db: &WorldDatabase) -> Result<QuestStore> {
                 allowable_classes:   result.try_read::<u32>(36).unwrap_or(0),
                 max_level:           result.try_read::<u8>(37).unwrap_or(0),
                 prev_quest_id:       result.try_read::<i32>(38).unwrap_or(0),
+                reward_choice_items: [
+                    (result.try_read::<u32>(39).unwrap_or(0), result.try_read::<u32>(40).unwrap_or(0)),
+                    (result.try_read::<u32>(41).unwrap_or(0), result.try_read::<u32>(42).unwrap_or(0)),
+                    (result.try_read::<u32>(43).unwrap_or(0), result.try_read::<u32>(44).unwrap_or(0)),
+                    (result.try_read::<u32>(45).unwrap_or(0), result.try_read::<u32>(46).unwrap_or(0)),
+                    (result.try_read::<u32>(47).unwrap_or(0), result.try_read::<u32>(48).unwrap_or(0)),
+                    (result.try_read::<u32>(49).unwrap_or(0), result.try_read::<u32>(50).unwrap_or(0)),
+                ],
                 objectives: Vec::new(), // filled next
             };
             store.quests.insert(id, quest);

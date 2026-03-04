@@ -343,7 +343,13 @@ impl StatementDef for WorldStatements {
                 "COALESCE(qt.AllowableRaces, 0) AS AllowableRaces, ",
                 "COALESCE(qta.AllowableClasses, 0) AS AllowableClasses, ",
                 "COALESCE(qta.MaxLevel, 0) AS MaxLevel, ",
-                "COALESCE(qta.PrevQuestID, 0) AS PrevQuestID ",
+                "COALESCE(qta.PrevQuestID, 0) AS PrevQuestID, ",
+                "qt.RewardChoiceItemID1, qt.RewardChoiceItemQuantity1, ",
+                "qt.RewardChoiceItemID2, qt.RewardChoiceItemQuantity2, ",
+                "qt.RewardChoiceItemID3, qt.RewardChoiceItemQuantity3, ",
+                "qt.RewardChoiceItemID4, qt.RewardChoiceItemQuantity4, ",
+                "qt.RewardChoiceItemID5, qt.RewardChoiceItemQuantity5, ",
+                "qt.RewardChoiceItemID6, qt.RewardChoiceItemQuantity6 ",
                 "FROM quest_template qt LEFT JOIN quest_template_addon qta ON qt.ID = qta.ID"
             ),
             Self::SEL_QUEST_OBJECTIVES => {

@@ -258,6 +258,9 @@ pub struct WorldSession {
     pub(crate) quest_store: Option<Arc<wow_data::quest::QuestStore>>,
     /// Active quests for this player: quest_id → status.
     pub(crate) player_quests: HashMap<u32, crate::handlers::quest::PlayerQuestStatus>,
+    /// Quests the player has already been rewarded for (non-repeatable quests cannot be re-taken).
+    /// C# ref: m_RewardedQuests
+    pub(crate) rewarded_quests: std::collections::HashSet<u32>,
 
     // ── Loot ──────────────────────────────────────────────────────
     /// Active loot windows keyed by creature GUID.
@@ -444,6 +447,7 @@ impl WorldSession {
             spell_store: None,
             quest_store: None,
             player_quests: HashMap::new(),
+            rewarded_quests: std::collections::HashSet::new(),
             active_spell_cast: None,
             last_spell_cast_time: None,
             last_spell_cast_time_per_spell: HashMap::new(),

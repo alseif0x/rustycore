@@ -86,6 +86,15 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
+        opcode: ClientOpcodes::QuestGiverRequestReward,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_quest_giver_request_reward",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
         opcode: ClientOpcodes::QuestGiverCompleteQuest,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
@@ -141,13 +150,9 @@ impl WorldSession {
             None => { debug!("No quest store"); return; }
         };
 
-        let race = self.player_race;
-        let class = self.player_class;
-        let level = self.player_level;
-
         let available = quest_store.quests_for_starter(npc_entry);
         let quests: Vec<QuestListEntry> = available.iter()
-            .filter(|q| !self.has_quest(q.id) && q.is_available_for(race, class, level))
+            .filter(|q| self.can_take_quest(q))
             .map(|q| QuestListEntry {
                 quest_id: q.id,
                 quest_type: q.quest_type,
@@ -259,27 +264,22 @@ impl WorldSession {
             return;
         }
 
-        // Validate race/class/level eligibility
+        // Full eligibility check: SatisfyQuestStatus + PrevQuestId + race/class/level
+        // C# ref: Player.CanTakeQuest(quest, true)
         if let Some(quest) = quest_store.get(quest_id) {
-            if !quest.is_available_for(self.player_race, self.player_class, self.player_level) {
+            if !self.can_take_quest(quest) {
                 warn!(
                     account = self.account_id, quest_id,
                     race = self.player_race, class = self.player_class, level = self.player_level,
-                    "AcceptQuest: player does not meet requirements"
+                    "AcceptQuest: player does not meet requirements (CanTakeQuest failed)"
                 );
                 return;
             }
         }
 
-        // Check quest limit (max 25 active quests)
+        // Check quest limit (max 25 active quests — C# SharedConst.MaxQuestLogSize)
         if self.player_quests.len() >= 25 {
             warn!(account = self.account_id, "Quest log full");
-            return;
-        }
-
-        // Don't accept if already active
-        if self.has_quest(quest_id) {
-            debug!(account = self.account_id, quest_id, "Quest already active");
             return;
         }
 
@@ -402,6 +402,71 @@ impl WorldSession {
         }
     }
 
+    /// CMSG_QUEST_GIVER_REQUEST_REWARD — player talks to NPC to turn in a completed quest.
+    /// C# ref: QuestHandler.HandleQuestgiverRequestReward
+    /// Sent when player right-clicks a quest-ender NPC and has the quest in Complete status.
+    /// Server responds with SMSG_QUEST_GIVER_OFFER_REWARD_MESSAGE (reward selection dialog).
+    pub async fn handle_quest_giver_request_reward(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let guid = match pkt.read_packed_guid() {
+            Ok(g) => g,
+            Err(_) => { warn!("QuestGiverRequestReward: failed to read GUID"); return; }
+        };
+        let quest_id: u32 = pkt.read_uint32().unwrap_or(0);
+
+        let quest = {
+            let store = match &self.quest_store {
+                Some(s) => Arc::clone(s),
+                None => return,
+            };
+            match store.get(quest_id) {
+                Some(q) => q.clone(),
+                None => {
+                    warn!(account = self.account_id, quest_id, "RequestReward: unknown quest");
+                    return;
+                }
+            }
+        };
+
+        // C#: if (GetPlayer().CanCompleteQuest(questID)) GetPlayer().CompleteQuest(questID)
+        // We check if all objectives are done; if so, upgrade status to Complete (2).
+        let is_complete = self.player_quests.get(&quest_id)
+            .map_or(false, |qs| qs.status == 2);
+
+        if !is_complete {
+            // Objectives not finished — silently ignore
+            // (C# would send SMSG_QUEST_GIVER_REQUEST_ITEMS instead)
+            debug!(account = self.account_id, quest_id, "RequestReward: quest not complete");
+            return;
+        }
+
+        // Build rewards block for the offer-reward dialog
+        let mut rewards = QuestRewardsBlock::default();
+        rewards.money = quest.reward_money_difficulty as i32;
+        for i in 0..4 {
+            rewards.items[i] = (quest.reward_items[i], quest.reward_amounts[i]);
+        }
+        for i in 0..3 {
+            rewards.display_spells[i] = quest.reward_display_spell[i];
+        }
+        rewards.completion_spell = quest.reward_spell as i32;
+        // Populate choice items for the dialog
+        for i in 0..6 {
+            rewards.choice_items[i] = (quest.reward_choice_items[i].0, quest.reward_choice_items[i].1);
+        }
+
+        // C#: SendQuestGiverOfferReward(quest, questGiverGUID, true)
+        self.send_packet(&QuestGiverOfferReward {
+            giver_guid: guid,
+            quest_id,
+            quest_flags: [quest.flags, quest.flags_ex, quest.flags_ex2],
+            suggested_party_members: quest.suggested_group_num,
+            rewards,
+            title: quest.log_title.clone(),
+            reward_text: quest.quest_completion_log.clone(),
+            auto_launched: false,
+        });
+    }
+
     /// CMSG_QUEST_GIVER_COMPLETE_QUEST — player talks to quest-ender NPC.
     /// If objectives are done: show reward dialog. Else: show "still need X" dialog.
     /// C# ref: QuestHandler.HandleQuestGiverCompleteQuest
@@ -461,9 +526,9 @@ impl WorldSession {
     /// C# ref: QuestHandler.HandleQuestGiverChooseReward
     pub async fn handle_quest_giver_choose_reward(&mut self, mut pkt: wow_packet::WorldPacket) {
         let _guid = pkt.read_packed_guid();
-        let quest_id: u32 = pkt.read_uint32().unwrap_or(0);
-        let _choice_item_id: u32 = pkt.read_uint32().unwrap_or(0);
-        let _choice_item_slot: u32 = pkt.read_uint32().unwrap_or(0);
+        let quest_id: u32       = pkt.read_uint32().unwrap_or(0);
+        let choice_item_id: u32 = pkt.read_uint32().unwrap_or(0);
+        let _loot_item_type: u32 = pkt.read_uint32().unwrap_or(0); // 0=Item, 1=Currency
 
         let quest = {
             let store = match &self.quest_store {
@@ -479,34 +544,64 @@ impl WorldSession {
             }
         };
 
-        if !self.has_quest(quest_id) {
-            debug!(account = self.account_id, quest_id, "ChooseReward: player doesn't have quest");
-            return;
+        // SatisfyQuestStatus — C# HandleQuestgiverChooseReward line ~370
+        // Player must have the quest active AND it must be complete (status=2)
+        let quest_status = self.player_quests.get(&quest_id).map(|qs| qs.status);
+        match quest_status {
+            Some(2) => {} // Complete — ok
+            Some(1) => {
+                warn!(account = self.account_id, quest_id, "ChooseReward: quest not complete yet");
+                return;
+            }
+            _ => {
+                warn!(account = self.account_id, quest_id, "ChooseReward: player doesn't have quest");
+                return;
+            }
         }
 
-        // Calculate XP reward (simplified: xp_difficulty maps to base XP values)
-        let xp = self.calculate_quest_xp(quest.reward_xp_difficulty, self.player_level as u32);
-        let money = quest.reward_money_difficulty;
+        // Validate choice item — C# HandleQuestgiverChooseReward lines 255-310
+        // If client sends a non-zero choice item, it must be in reward_choice_items.
+        if choice_item_id != 0 {
+            let valid = quest.reward_choice_items.iter()
+                .any(|(item_id, _qty)| *item_id == choice_item_id);
+            if !valid {
+                warn!(
+                    account = self.account_id, quest_id, choice_item_id,
+                    "ChooseReward: choice item not valid for this quest (possible exploit)"
+                );
+                return;
+            }
+        }
 
-        // Give gold
+        // Give gold reward
+        let money = quest.reward_money_difficulty;
         if money > 0 {
             self.player_gold = self.player_gold.saturating_add(money as u64);
             self.save_player_gold().await;
         }
 
-        // Remove from active quest log, mark complete (status=2) in DB
+        let xp = self.calculate_quest_xp(quest.reward_xp_difficulty, self.player_level as u32);
+
+        // RewardQuest — C# Player.RewardQuest:
+        // 1. Remove from active quest log
+        // 2. Mark as rewarded (status=3) in DB and in memory
+        // Non-repeatable quests go into rewarded_quests; repeatable quests stay removed
         self.player_quests.remove(&quest_id);
-        self.save_quest_to_db(quest_id, 2).await;
+        if !quest.is_repeatable() {
+            self.rewarded_quests.insert(quest_id);
+            self.save_quest_to_db(quest_id, 3).await; // status=3 = Rewarded
+        } else {
+            self.delete_quest_from_db(quest_id).await;
+        }
 
         info!(
             account = self.account_id,
-            quest_id,
-            xp,
-            gold = money,
-            "Quest completed"
+            quest_id, xp, gold = money,
+            repeatable = quest.is_repeatable(),
+            "Quest rewarded"
         );
 
-        // SMSG_QUEST_GIVER_QUEST_COMPLETE — reward popup
+        // SMSG_QUEST_GIVER_QUEST_COMPLETE — reward popup with XP/gold
         self.send_packet(&QuestGiverQuestComplete {
             quest_id,
             xp,
@@ -515,7 +610,7 @@ impl WorldSession {
             use_quest_reward_currency: false,
         });
 
-        // SMSG_QUEST_UPDATE_COMPLETE — green checkmark in quest log
+        // SMSG_QUEST_UPDATE_COMPLETE — removes from quest log UI
         self.send_packet(&QuestUpdateComplete { quest_id });
     }
 
@@ -525,11 +620,8 @@ impl WorldSession {
     fn get_quest_giver_status(&self, npc_entry: u32) -> u64 {
         let Some(store) = &self.quest_store else { return quest_giver_status::NONE; };
 
-        let race = self.player_race;
-        let class = self.player_class;
-        let level = self.player_level;
-
         // Check if NPC ends any quest the player has completed (blue ?)
+        // C# ref: GetQuestDialogStatus → QuestGiverStatus.Reward
         let has_turn_in = store.quests_for_ender(npc_entry)
             .iter()
             .any(|q| {
@@ -538,13 +630,13 @@ impl WorldSession {
             });
 
         if has_turn_in {
-            return quest_giver_status::CAN_REWARD; // blue ? (turn-in ready)
+            return quest_giver_status::CAN_REWARD; // blue ?
         }
 
-        // Check if NPC starts any quest the player can take
+        // Check if NPC starts any quest the player can take (yellow !)
         let has_available = store.quests_for_starter(npc_entry)
             .iter()
-            .any(|q| !self.has_quest(q.id) && q.is_available_for(race, class, level));
+            .any(|q| self.can_take_quest(q));
 
         if has_available {
             quest_giver_status::AVAILABLE // yellow !
@@ -556,6 +648,54 @@ impl WorldSession {
     /// Check if the player currently has an active quest with the given ID.
     pub fn has_quest(&self, quest_id: u32) -> bool {
         self.player_quests.contains_key(&quest_id)
+    }
+
+    /// Full eligibility check before accepting a quest.
+    /// C# ref: Player.CanTakeQuest (SatisfyQuestStatus + SatisfyQuestRace/Class/Level + PrevQuest)
+    pub fn can_take_quest(&self, quest: &wow_data::quest::QuestTemplate) -> bool {
+        // SatisfyQuestStatus — C# lines 1624-1654
+        // If quest is already rewarded (non-repeatable), cannot take again.
+        if self.rewarded_quests.contains(&quest.id) && !quest.is_repeatable() {
+            debug!(account = self.account_id, quest_id = quest.id, "CanTakeQuest: already rewarded");
+            return false;
+        }
+        // If quest is already active, cannot accept again.
+        if self.player_quests.contains_key(&quest.id) {
+            debug!(account = self.account_id, quest_id = quest.id, "CanTakeQuest: already active");
+            return false;
+        }
+
+        // SatisfyQuestPreviousQuest — C# lines 1415-1440
+        // prev_quest_id > 0 → previous quest must have been rewarded
+        // prev_quest_id < 0 → previous quest must be currently active (Incomplete)
+        if quest.prev_quest_id != 0 {
+            let prev_id = quest.prev_quest_id.unsigned_abs();
+            if quest.prev_quest_id > 0 {
+                if !self.rewarded_quests.contains(&prev_id) {
+                    debug!(
+                        account = self.account_id,
+                        quest_id = quest.id, prev_id,
+                        "CanTakeQuest: prev quest not rewarded"
+                    );
+                    return false;
+                }
+            } else {
+                // negative: prev quest must be active
+                let active = self.player_quests.get(&prev_id)
+                    .map_or(false, |qs| qs.status == 1);
+                if !active {
+                    debug!(
+                        account = self.account_id,
+                        quest_id = quest.id, prev_id,
+                        "CanTakeQuest: negative prev quest not active"
+                    );
+                    return false;
+                }
+            }
+        }
+
+        // SatisfyQuestRace + SatisfyQuestClass + SatisfyQuestLevel
+        quest.is_available_for(self.player_race, self.player_class, self.player_level)
     }
 
     /// Save quest status to the characters database.
@@ -630,28 +770,40 @@ impl WorldSession {
         };
 
         self.player_quests.clear();
+        self.rewarded_quests.clear();
+
         if !result.is_empty() {
             let mut result = result;
             loop {
-                let quest_id: u32 = result.try_read::<u32>(0).unwrap_or(0);
-                let status: u8    = result.try_read::<u8>(1).unwrap_or(0);
+                let quest_id: u32  = result.try_read::<u32>(0).unwrap_or(0);
+                let status: u8     = result.try_read::<u8>(1).unwrap_or(0);
                 let explored: bool = result.try_read::<u8>(2).unwrap_or(0) != 0;
-                let obj_count = self.quest_store.as_ref()
-                    .and_then(|s| s.get(quest_id))
-                    .map_or(0, |q| q.objectives.len());
-                self.player_quests.insert(quest_id, PlayerQuestStatus {
-                    quest_id,
-                    status,
-                    explored,
-                    objective_counts: vec![0; obj_count],
-                });
+
+                if status == 3 {
+                    // Rewarded (C# QuestStatus.Rewarded / m_RewardedQuests)
+                    // Non-repeatable quests cannot be re-taken once rewarded.
+                    self.rewarded_quests.insert(quest_id);
+                } else {
+                    // Active (1=Incomplete) or complete-but-not-turned-in (2=Complete)
+                    let obj_count = self.quest_store.as_ref()
+                        .and_then(|s| s.get(quest_id))
+                        .map_or(0, |q| q.objectives.len());
+                    self.player_quests.insert(quest_id, PlayerQuestStatus {
+                        quest_id,
+                        status,
+                        explored,
+                        objective_counts: vec![0; obj_count],
+                    });
+                }
+
                 if !result.next_row() { break; }
             }
         }
 
         info!(
             account = self.account_id,
-            count = self.player_quests.len(),
+            active = self.player_quests.len(),
+            rewarded = self.rewarded_quests.len(),
             "Loaded player quests"
         );
     }

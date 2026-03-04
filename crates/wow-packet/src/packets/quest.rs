@@ -120,7 +120,8 @@ pub struct QuestObjectiveSimple {
 /// Full reward block for a quest details / offer reward packet.
 /// C# ref: QuestRewards
 pub struct QuestRewardsBlock {
-    pub items: [(u32, u32); QUEST_REWARD_ITEM_COUNT],   // (item_id, qty)
+    pub items: [(u32, u32); QUEST_REWARD_ITEM_COUNT],        // (item_id, qty) — fixed rewards
+    pub choice_items: [(u32, u32); QUEST_REWARD_CHOICES_COUNT], // (item_id, qty) — player picks one
     pub money: i32,
     pub xp: i32,
     pub honor: i32,
@@ -133,6 +134,7 @@ impl Default for QuestRewardsBlock {
     fn default() -> Self {
         Self {
             items: [(0, 0); QUEST_REWARD_ITEM_COUNT],
+            choice_items: [(0, 0); QUEST_REWARD_CHOICES_COUNT],
             money: 0,
             xp: 0,
             honor: 0,
@@ -145,7 +147,8 @@ impl Default for QuestRewardsBlock {
 
 impl QuestRewardsBlock {
     fn write(&self, pkt: &mut WorldPacket) {
-        pkt.write_uint32(0); // ChoiceItemCount
+        let choice_count = self.choice_items.iter().filter(|i| i.0 != 0).count() as u32;
+        pkt.write_uint32(choice_count); // ChoiceItemCount
         pkt.write_uint32(self.items.iter().filter(|i| i.0 != 0).count() as u32); // ItemCount
         for (item, qty) in &self.items {
             pkt.write_int32(*item as i32);
@@ -178,15 +181,15 @@ impl QuestRewardsBlock {
         pkt.write_int32(0); // SkillLineID
         pkt.write_int32(0); // NumSkillUps
         pkt.write_int32(0); // TreasurePickerID
-        // ChoiceItems (6 entries, each: ItemID, Quantity, DisplayID)
-        for _ in 0..QUEST_REWARD_CHOICES_COUNT {
-            // QuestChoiceItem.Write — 5 ints + flags
-            pkt.write_int32(0); // Item.ItemID
-            pkt.write_int32(0); // Item.Quantity (ItemCount)
-            pkt.write_uint64(0u64); // Item.Mask (ItemContext bits)
-            pkt.write_uint32(0); // Item.Bonuses count
-            pkt.write_int32(0); // DisplayID
-            pkt.write_int32(0); // Unused
+        // ChoiceItems (6 entries, each: ItemID, Quantity, Context+Bonuses, DisplayID, Unused)
+        // C# ref: QuestChoiceItem.Write / ItemInstance.Write
+        for (item_id, qty) in &self.choice_items {
+            pkt.write_int32(*item_id as i32); // Item.ItemID
+            pkt.write_int32(*qty as i32);     // Item.Quantity
+            pkt.write_uint64(0u64);           // Item.Mask (ItemContext bits)
+            pkt.write_uint32(0);              // Item.Bonuses count
+            pkt.write_int32(0);               // DisplayID
+            pkt.write_int32(0);               // Unused (LootItemType 0=Item)
         }
         pkt.write_bit(false); // IsBoostSpell
         pkt.flush_bits();
