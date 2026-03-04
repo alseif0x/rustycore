@@ -403,3 +403,64 @@ impl ServerPacket for CastFailed {
         pkt.write_int32(self.fail_arg2);
     }
 }
+
+// ── CooldownEvent (SMSG 0x26b9) ──────────────────────────────────────
+
+/// Sent after a spell fires to notify the client that a cooldown has started.
+/// The client uses this to display the GCD / cooldown animation on action buttons.
+/// C# ref: SpellPackets.CooldownEvent (ConnectionType.Instance)
+pub struct CooldownEvent {
+    pub spell_id: i32,
+    pub is_pet: bool,
+}
+
+impl ServerPacket for CooldownEvent {
+    const OPCODE: ServerOpcodes = ServerOpcodes::CooldownEvent;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_int32(self.spell_id);
+        pkt.write_bit(self.is_pet);
+        pkt.flush_bits();
+    }
+}
+
+// ── SpellCooldownEntry / SpellCooldownPkt (SMSG 0x2c15) ──────────────
+
+/// One entry in a SpellCooldownPkt.
+/// C# ref: SpellPackets.SpellCooldownStruct
+#[derive(Clone)]
+pub struct SpellCooldownEntry {
+    /// Spell ID (SrecID in C#).
+    pub spell_id: i32,
+    /// Remaining cooldown in milliseconds (0 = use category cooldown).
+    pub cooldown_ms: u32,
+    /// Cooldown modifier rate (1.0 = unmodified).
+    pub mod_rate: f32,
+}
+
+/// Sends a list of spell cooldowns to the client.
+/// Sent on login to restore active cooldowns, and optionally after each cast.
+/// C# ref: SpellPackets.SpellCooldownPkt (ConnectionType.Instance)
+pub struct SpellCooldownPkt {
+    pub caster: wow_core::ObjectGuid,
+    /// SpellCooldownFlags: 0x1 = IncludeGCD, 0x2 = InitialLogin, 0x4 = OnHold
+    pub flags: u8,
+    pub cooldowns: Vec<SpellCooldownEntry>,
+}
+
+impl ServerPacket for SpellCooldownPkt {
+    const OPCODE: ServerOpcodes = ServerOpcodes::SpellCooldown;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_packed_guid(&self.caster);
+        pkt.write_uint8(self.flags);
+        pkt.write_uint32(self.cooldowns.len() as u32);
+        for cd in &self.cooldowns {
+            pkt.write_int32(cd.spell_id);
+            pkt.write_uint32(cd.cooldown_ms);
+            pkt.write_float(cd.mod_rate);
+        }
+    }
+}
+
+

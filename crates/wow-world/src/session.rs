@@ -2553,9 +2553,13 @@ impl WorldSession {
 
         // Set global cooldown
         self.last_spell_cast_time = Some(Instant::now());
-        
+
         // Set per-spell cooldown
         self.last_spell_cast_time_per_spell.insert(spell_id, Instant::now());
+
+        // Notify client so action bar shows the cooldown animation
+        use wow_packet::packets::spell::CooldownEvent;
+        self.send_packet(&CooldownEvent { spell_id, is_pet: false });
 
         Ok(())
     }
