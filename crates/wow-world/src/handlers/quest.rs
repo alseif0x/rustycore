@@ -6144,11 +6144,28 @@ impl WorldSession {
             }
         }
 
+        // SatisfyQuestDependentPreviousQuests — Player.cpp:15090 / Player.cpp:15121-15177
+        // Blocks acceptance if the scalar dependent-previous list is not satisfied.
+        if let Some(quest_store) = &self.quest_store {
+            if represented_satisfy_quest_dependent_previous_quests_failed_like_cpp(
+                quest_store,
+                quest,
+                &self.rewarded_quests,
+            ) {
+                debug!(
+                    account = self.account_id,
+                    quest_id = quest.id,
+                    "CanTakeQuest: dependent previous quests not satisfied"
+                );
+                return false;
+            }
+        }
+
         // SatisfyQuestDependentBreadcrumbQuests — Player.cpp:15203-15222
         // Blocks acceptance if any breadcrumb quest listed in `dependent_breadcrumb_quests` is
         // currently INCOMPLETE/COMPLETE/FAILED in the player's log.
-        // Note: SatisfyQuestDependentPreviousQuests (scalar list) and BreadcrumbQuest (recursive
-        // single breadcrumb) remain unimplemented here without falsing.
+        // Note: BreadcrumbQuest (recursive single breadcrumb, Player.cpp:15179-15202) remains
+        // unimplemented here without falsing.
         {
             let statuses: std::collections::HashMap<u32, u8> = self
                 .player_quests
@@ -15394,6 +15411,60 @@ mod tests {
         session2.set_quest_store(Arc::new(store2));
 
         assert!(session2.can_take_quest(&quest2));
+    }
+
+    // ── SatisfyQuestDependentPreviousQuests tests ────────────────────────────
+
+    #[test]
+    fn can_take_quest_dependent_previous_not_rewarded_blocks_like_cpp() {
+        // NEGATIVA: quest objetivo con dependent_previous_quests=[prev] (exclusive_group=0 >= 0),
+        // prev NO en rewarded_quests → Player.cpp:15121-15177 → false.
+        let (mut session, _send_rx) = make_session();
+
+        let quest_id = 9920u32;
+        let prev_id = 9921u32;
+
+        // Construir quest previa con next_quest_id → quest objetivo, exclusive_group=0 (>= 0).
+        let mut prev_quest = quest_template(prev_id);
+        prev_quest.next_quest_id = quest_id;
+        prev_quest.exclusive_group = 0;
+
+        // from_quests_like_cpp normaliza dependent_previous_quests automáticamente.
+        let store = Arc::new(QuestStore::from_quests_like_cpp([
+            quest_template(quest_id),
+            prev_quest,
+        ]));
+        // Obtener la quest del store ya normalizado (con dependent_previous_quests populado).
+        let quest = store.get(quest_id).expect("quest in store").clone();
+        session.set_quest_store(Arc::clone(&store));
+
+        // prev NO en rewarded_quests → el gate debe bloquear.
+        assert!(!session.can_take_quest(&quest));
+    }
+
+    #[test]
+    fn can_take_quest_dependent_previous_rewarded_allows_like_cpp() {
+        // POSITIVA: mismo setup pero prev en rewarded_quests (exclusive_group=0 >= 0)
+        // → Player.cpp:15134 → false (no blocked) → can_take_quest sigue adelante.
+        let (mut session, _send_rx) = make_session();
+
+        let quest_id = 9922u32;
+        let prev_id = 9923u32;
+
+        let mut prev_quest = quest_template(prev_id);
+        prev_quest.next_quest_id = quest_id;
+        prev_quest.exclusive_group = 0;
+
+        let store = Arc::new(QuestStore::from_quests_like_cpp([
+            quest_template(quest_id),
+            prev_quest,
+        ]));
+        let quest = store.get(quest_id).expect("quest in store").clone();
+        session.set_quest_store(Arc::clone(&store));
+
+        // prev en rewarded_quests → el gate no bloquea.
+        session.rewarded_quests.insert(prev_id);
+        assert!(session.can_take_quest(&quest));
     }
 
     // ── SatisfyQuestReputation tests ─────────────────────────────────────────
