@@ -5709,6 +5709,88 @@ impl WorldSession {
             .unwrap_or(QUEST_STATUS_NONE_LIKE_CPP)
     }
 
+    // SatisfyQuestExclusiveGroup — Player.cpp:15348-15391
+    //
+    // Only positive exclusive_group values restrict: a positive group means "take
+    // at most one quest from this set".  Non-positive (0 or negative) groups are
+    // unused/unrestricted → always true (Player.cpp:15351).
+    //
+    // quest_store None → fail-open: without the store we cannot enumerate peers,
+    // so we conservatively allow the quest rather than silently blocking it.  The
+    // same fail-open pattern is used throughout can_take_quest for missing stores.
+    fn satisfy_quest_exclusive_group_like_cpp(
+        &self,
+        quest: &wow_data::quest::QuestTemplate,
+    ) -> bool {
+        // Player.cpp:15351 — non-positive exclusive_group never restricts
+        if quest.exclusive_group <= 0 {
+            return true;
+        }
+
+        let Some(quest_store) = &self.quest_store else {
+            return true;
+        };
+
+        for peer in quest_store
+            .quests
+            .values()
+            .filter(|c| c.exclusive_group == quest.exclusive_group)
+        {
+            // Player.cpp:15360 — skip the quest being evaluated
+            if peer.id == quest.id {
+                continue;
+            }
+
+            // Player.cpp:15366 — SatisfyQuestDay: daily/DF cooldown blocks the group
+            // Mirrors the daily/DF pattern from the push path (quest.rs:271-278).
+            if peer.is_df_quest_like_cpp() && self.df_quests_like_cpp.contains(&peer.id) {
+                return false;
+            }
+            if peer.is_daily_like_cpp() && self.daily_quests_completed_like_cpp.contains(&peer.id) {
+                return false;
+            }
+
+            // Player.cpp:15366 — SatisfyQuestWeek: weekly cooldown blocks the group
+            if peer.is_weekly_like_cpp() && self.weekly_quests_completed_like_cpp.contains(&peer.id)
+            {
+                return false;
+            }
+
+            // Player.cpp:15366 — SatisfyQuestSeasonal: seasonal cooldown blocks the group
+            // Mirrors the seasonal pattern from can_take_quest (quest.rs:5948-5963).
+            if peer.is_seasonal_like_cpp() && !self.seasonal_quests_like_cpp.is_empty() {
+                if let Some(bucket) = self
+                    .seasonal_quests_like_cpp
+                    .get(&peer.event_id_for_quest_like_cpp())
+                {
+                    if !bucket.is_empty() && bucket.contains_key(&peer.id) {
+                        return false;
+                    }
+                }
+            }
+
+            // Player.cpp:15379 — alternative quest already active or rewarded (non-repeatable pair).
+            //
+            // C++: GetQuestStatus(peer) != QUEST_STATUS_NONE
+            //   → in C++ GetQuestStatus returns REWARDED when rewarded, so this single
+            //     term would also catch rewarded quests.  We model the two cases separately
+            //     to keep the Rust representation explicit:
+            //   Term 1: peer is currently active in player_quests (Incomplete/Complete/Failed).
+            //   Term 2: peer was rewarded AND not both quests are repeatable (matching the
+            //           C++ second OR operand: GetQuestRewardStatus + !IsRepeatable pair).
+            if self.player_quests.contains_key(&peer.id) {
+                return false;
+            }
+            if !(quest.is_repeatable() && peer.is_repeatable())
+                && self.rewarded_quests.contains(&peer.id)
+            {
+                return false;
+            }
+        }
+
+        true
+    }
+
     fn represented_quest_info_like_cpp(
         &self,
         quest: &wow_data::quest::QuestTemplate,
@@ -5940,6 +6022,17 @@ impl WorldSession {
                 account = self.account_id,
                 quest_id = quest.id,
                 "CanTakeQuest: already active"
+            );
+            return false;
+        }
+
+        // SatisfyQuestExclusiveGroup — Player.cpp:14096, Player.cpp:15348-15391
+        // Inserted here to match C++ CanTakeQuest evaluation order: status → exclusive group.
+        if !self.satisfy_quest_exclusive_group_like_cpp(quest) {
+            debug!(
+                account = self.account_id,
+                quest_id = quest.id,
+                "CanTakeQuest: exclusive group blocked"
             );
             return false;
         }
@@ -15110,6 +15203,95 @@ mod tests {
         let store2 = QuestStore::from_quests_like_cpp([quest2.clone()]);
         session2.set_quest_store(Arc::new(store2));
         session2.expansion = 2;
+        assert!(session2.can_take_quest(&quest2));
+    }
+
+    // ── SatisfyQuestExclusiveGroup tests ────────────────────────────────────
+
+    #[test]
+    fn can_take_quest_exclusive_group_blocks_when_peer_rewarded_non_repeatable_like_cpp() {
+        // NEGATIVA: peer del mismo exclusive_group (>0) ya rewarded (no repetible)
+        // → Player.cpp:15379 segundo término: !(repeatable && repeatable) && rewarded → false.
+        let (mut session, _send_rx) = make_session();
+
+        let mut peer = quest_template(9910u32);
+        peer.exclusive_group = 5;
+        // is_repeatable() false por defecto (quest_type=2, special_flags=0)
+
+        let mut quest = quest_template(9911u32);
+        quest.exclusive_group = 5;
+
+        let store = QuestStore::from_quests_like_cpp([peer.clone(), quest.clone()]);
+        session.set_quest_store(Arc::new(store));
+
+        // El peer ya fue recompensado (no repetible).
+        session.rewarded_quests.insert(peer.id);
+
+        // La quest objetivo no está ni activa ni rewarded.
+        assert!(!session.can_take_quest(&quest));
+    }
+
+    #[test]
+    fn can_take_quest_exclusive_group_blocks_when_peer_active_like_cpp() {
+        // NEGATIVA-2: peer del mismo exclusive_group activo en player_quests (status != NONE)
+        // → Player.cpp:15379 primer término: GetQuestStatus(peer) != NONE → false.
+        let (mut session, _send_rx) = make_session();
+
+        let mut peer = quest_template(9912u32);
+        peer.exclusive_group = 7;
+
+        let mut quest = quest_template(9913u32);
+        quest.exclusive_group = 7;
+
+        let store = QuestStore::from_quests_like_cpp([peer.clone(), quest.clone()]);
+        session.set_quest_store(Arc::new(store));
+
+        // El peer está activo (Incomplete).
+        add_active_quest(&mut session, peer.id);
+
+        // La quest objetivo aún no ha sido aceptada.
+        assert!(!session.can_take_quest(&quest));
+    }
+
+    #[test]
+    fn can_take_quest_exclusive_group_positive_no_conflicting_peer_allows_like_cpp() {
+        // POSITIVA: exclusive_group > 0 pero ningún peer está activo ni rewarded → true.
+        let (mut session, _send_rx) = make_session();
+
+        let mut peer = quest_template(9914u32);
+        peer.exclusive_group = 9;
+
+        let mut quest = quest_template(9915u32);
+        quest.exclusive_group = 9;
+
+        let store = QuestStore::from_quests_like_cpp([peer.clone(), quest.clone()]);
+        session.set_quest_store(Arc::new(store));
+
+        // Ningún peer activo ni rewarded → debe permitir.
+        assert!(session.can_take_quest(&quest));
+    }
+
+    #[test]
+    fn can_take_quest_exclusive_group_zero_never_blocks_like_cpp() {
+        // POSITIVA: exclusive_group <= 0 → Player.cpp:15351 → siempre true.
+        let (mut session, _send_rx) = make_session();
+
+        let mut quest = quest_template(9916u32);
+        quest.exclusive_group = 0;
+
+        let store = QuestStore::from_quests_like_cpp([quest.clone()]);
+        session.set_quest_store(Arc::new(store));
+
+        assert!(session.can_take_quest(&quest));
+
+        // También verifica group negativo.
+        let (mut session2, _send_rx2) = make_session();
+        let mut quest2 = quest_template(9917u32);
+        quest2.exclusive_group = -3;
+
+        let store2 = QuestStore::from_quests_like_cpp([quest2.clone()]);
+        session2.set_quest_store(Arc::new(store2));
+
         assert!(session2.can_take_quest(&quest2));
     }
 }
