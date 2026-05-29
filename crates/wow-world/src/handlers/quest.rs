@@ -5709,6 +5709,51 @@ impl WorldSession {
             .unwrap_or(QUEST_STATUS_NONE_LIKE_CPP)
     }
 
+    // SatisfyQuestReputation — Player.cpp:14098, 15262-15289
+    //
+    // Mirrors C++ GetReputation(fId) = base + standing.
+    // faction_store None or faction not found → treat reputation as 0 (C++ GetReputation returns 0
+    // for unknown faction id, Player.cpp:15265 / ReputationMgr.cpp:118-124).
+    fn satisfy_quest_reputation_like_cpp(&self, quest: &wow_data::quest::QuestTemplate) -> bool {
+        if quest.required_min_rep_faction != 0 {
+            let rep = self
+                .faction_store()
+                .and_then(|store| store.get(quest.required_min_rep_faction))
+                .map(|faction_entry| {
+                    self.reputation_mgr_like_cpp()
+                        .reputation_for_faction_like_cpp(
+                            faction_entry,
+                            self.player_race_like_cpp(),
+                            self.player_class_like_cpp(),
+                        )
+                })
+                .unwrap_or(0);
+            if rep < quest.required_min_rep_value {
+                return false;
+            }
+        }
+
+        if quest.required_max_rep_faction != 0 {
+            let rep = self
+                .faction_store()
+                .and_then(|store| store.get(quest.required_max_rep_faction))
+                .map(|faction_entry| {
+                    self.reputation_mgr_like_cpp()
+                        .reputation_for_faction_like_cpp(
+                            faction_entry,
+                            self.player_race_like_cpp(),
+                            self.player_class_like_cpp(),
+                        )
+                })
+                .unwrap_or(0);
+            if rep >= quest.required_max_rep_value {
+                return false;
+            }
+        }
+
+        true
+    }
+
     // SatisfyQuestExclusiveGroup — Player.cpp:15348-15391
     //
     // Only positive exclusive_group values restrict: a positive group means "take
@@ -6094,6 +6139,16 @@ impl WorldSession {
             self.player_class_like_cpp(),
             self.player_level_like_cpp(),
         ) {
+            return false;
+        }
+
+        // SatisfyQuestReputation — Player.cpp:14098, 15262-15289
+        if !self.satisfy_quest_reputation_like_cpp(quest) {
+            debug!(
+                account = self.account_id,
+                quest_id = quest.id,
+                "CanTakeQuest: reputation requirement not met"
+            );
             return false;
         }
 
@@ -15293,6 +15348,92 @@ mod tests {
         session2.set_quest_store(Arc::new(store2));
 
         assert!(session2.can_take_quest(&quest2));
+    }
+
+    // ── SatisfyQuestReputation tests ─────────────────────────────────────────
+
+    #[test]
+    fn can_take_quest_reputation_blocks_when_below_min_rep_like_cpp() {
+        // NEGATIVA min: required_min_rep_faction != 0, jugador con standing < required_min_rep_value.
+        // → Player.cpp:15265 → false.
+        let (mut session, _send_rx) = make_session();
+
+        // Facción 76 con reputation_index 5.
+        let rep_list_id: u32 = 5;
+        let faction_id: u32 = 76;
+        session.set_faction_store(Arc::new(FactionStore::from_entries([
+            FactionEntry::for_test_like_cpp(faction_id, rep_list_id as i16),
+        ])));
+        // Jugador standing 100 — por debajo del mínimo requerido (500).
+        session
+            .reputation_mgr_like_cpp_mut()
+            .get_state_mut(rep_list_id)
+            .expect("reputation state")
+            .standing = 100;
+
+        let mut quest = quest_template(9920u32);
+        quest.required_min_rep_faction = faction_id;
+        quest.required_min_rep_value = 500;
+        // Aislar el gate: sin restricciones de raza/clase/level/conditions/expansion/exclusive_group.
+        let store = QuestStore::from_quests_like_cpp([quest.clone()]);
+        session.set_quest_store(Arc::new(store));
+
+        assert!(!session.can_take_quest(&quest));
+    }
+
+    #[test]
+    fn can_take_quest_reputation_blocks_when_at_or_above_max_rep_like_cpp() {
+        // NEGATIVA max: required_max_rep_faction != 0, jugador con standing >= required_max_rep_value.
+        // → Player.cpp:15277 → false.
+        let (mut session, _send_rx) = make_session();
+
+        let rep_list_id: u32 = 5;
+        let faction_id: u32 = 76;
+        session.set_faction_store(Arc::new(FactionStore::from_entries([
+            FactionEntry::for_test_like_cpp(faction_id, rep_list_id as i16),
+        ])));
+        // Jugador standing 1000 — igual al máximo requerido (1000) → bloqueado.
+        session
+            .reputation_mgr_like_cpp_mut()
+            .get_state_mut(rep_list_id)
+            .expect("reputation state")
+            .standing = 1000;
+
+        let mut quest = quest_template(9921u32);
+        quest.required_max_rep_faction = faction_id;
+        quest.required_max_rep_value = 1000;
+        let store = QuestStore::from_quests_like_cpp([quest.clone()]);
+        session.set_quest_store(Arc::new(store));
+
+        assert!(!session.can_take_quest(&quest));
+    }
+
+    #[test]
+    fn can_take_quest_reputation_allows_when_in_valid_range_like_cpp() {
+        // POSITIVA: standing >= min y < max → el gate de reputación no bloquea.
+        let (mut session, _send_rx) = make_session();
+
+        let rep_list_id: u32 = 5;
+        let faction_id: u32 = 76;
+        session.set_faction_store(Arc::new(FactionStore::from_entries([
+            FactionEntry::for_test_like_cpp(faction_id, rep_list_id as i16),
+        ])));
+        // Standing 500 — exactamente en el mínimo (500) y por debajo del máximo (1000).
+        session
+            .reputation_mgr_like_cpp_mut()
+            .get_state_mut(rep_list_id)
+            .expect("reputation state")
+            .standing = 500;
+
+        let mut quest = quest_template(9922u32);
+        quest.required_min_rep_faction = faction_id;
+        quest.required_min_rep_value = 500;
+        quest.required_max_rep_faction = faction_id;
+        quest.required_max_rep_value = 1000;
+        let store = QuestStore::from_quests_like_cpp([quest.clone()]);
+        session.set_quest_store(Arc::new(store));
+
+        assert!(session.can_take_quest(&quest));
     }
 }
 
