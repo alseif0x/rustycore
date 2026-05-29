@@ -6014,6 +6014,16 @@ impl WorldSession {
             return false;
         }
 
+        // SatisfyQuestExpansion — Player.cpp:15431-15443 (CanTakeQuest term Player.cpp:14102)
+        if i32::from(self.expansion) < quest.expansion {
+            debug!(
+                account = self.account_id,
+                quest_id = quest.id,
+                "CanTakeQuest: required expansion"
+            );
+            return false;
+        }
+
         true
     }
 
@@ -15080,6 +15090,27 @@ mod tests {
         ));
 
         assert!(session.can_take_quest(&quest2));
+    }
+
+    #[test]
+    fn can_take_quest_blocks_when_session_expansion_below_required_like_cpp() {
+        // NEGATIVA: expansión de sesión 1 < expansión requerida 2 → rechaza.
+        let (mut session, _send_rx) = make_session();
+        let mut quest = quest_template(9900u32);
+        quest.expansion = 2;
+        let store = QuestStore::from_quests_like_cpp([quest.clone()]);
+        session.set_quest_store(Arc::new(store));
+        session.expansion = 1;
+        assert!(!session.can_take_quest(&quest));
+
+        // POSITIVA límite: expansión de sesión == expansión requerida → acepta.
+        let (mut session2, _send_rx2) = make_session();
+        let mut quest2 = quest_template(9901u32);
+        quest2.expansion = 2;
+        let store2 = QuestStore::from_quests_like_cpp([quest2.clone()]);
+        session2.set_quest_store(Arc::new(store2));
+        session2.expansion = 2;
+        assert!(session2.can_take_quest(&quest2));
     }
 }
 
