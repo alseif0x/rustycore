@@ -18,7 +18,9 @@ use crate::entity_update_bridge::{
     dynamic_object_values_update_to_update_object, item_values_update_to_update_object,
     player_values_update_to_update_object, unit_values_update_to_packet,
 };
-use crate::map_manager::{WorldMMapPathRequestLikeCpp, WorldMMapPathfinderWorkerLikeCpp};
+use crate::map_manager::{
+    RuntimeOutput, RuntimeTickOwner, WorldMMapPathRequestLikeCpp, WorldMMapPathfinderWorkerLikeCpp,
+};
 use crate::phasing::{
     init_db_phase_shift_like_cpp, init_db_visible_map_id_like_cpp,
     party_member_phase_states_like_cpp,
@@ -11292,15 +11294,18 @@ impl WorldSession {
         // ── Creature AI tick ─────────────────────────────────────────
         // Throttle to every 4 ticks (~200ms at 50ms tick).
         if self.state == SessionState::LoggedIn {
+            // Read the tick owner once; the lock is taken and released inside
+            // runtime_tick_owner_like_cpp before any tick work begins.
+            let owner = self.runtime_tick_owner_like_cpp();
             self.creature_tick = self.creature_tick.wrapping_add(1);
-            if self.creature_tick % 4 == 0 {
+            if self.creature_tick % 4 == 0 && owner == RuntimeTickOwner::Session {
                 self.tick_creatures_sync();
             }
             // Combat tick every 2 ticks (~100ms)
-            if self.creature_tick % 2 == 0 {
+            if self.creature_tick % 2 == 0 && owner == RuntimeTickOwner::Session {
                 self.tick_combat_sync();
             }
-            // Aura expiry tick every 4 ticks (~200ms)
+            // Aura expiry tick every 4 ticks (~200ms) — always, regardless of owner.
             if self.creature_tick % 4 == 0 {
                 self.tick_auras();
             }
@@ -20062,11 +20067,18 @@ impl WorldSession {
 impl WorldSession {
     /// Called every ~200ms from the update loop.
     /// Advances creature movement state and sends MonsterMove packets.
-    pub(crate) fn tick_creatures_sync(&mut self) {
+    /// Extract of the creatures tick body. Returns all bytes that must be sent
+    /// to the session channel. Callers must flush via `flush_runtime_output`.
+    ///
+    /// No `send_tx.send` or `send_packet` calls may remain here — each is
+    /// converted to `output.packets.push` at the same relative position.
+    pub(crate) fn run_creatures_tick(&mut self) -> RuntimeOutput {
         use wow_packet::ServerPacket;
         use wow_packet::packets::movement::{MonsterMove, MovementMonsterSpline};
 
-        // Collect packets to send (avoids borrow conflict with send_packet)
+        let mut output = RuntimeOutput::new();
+
+        // Collect movement packets (avoids borrow conflict with send_packet)
         let mut to_send: Vec<Vec<u8>> = Vec::new();
 
         let guids = self.world_creature_guids();
@@ -20156,9 +20168,7 @@ impl WorldSession {
                 self.client_visible_guids_like_cpp.remove(g);
             }
             let pkt = UpdateObject::destroy_objects(despawn_guids, map_id);
-            if let Err(e) = self.send_tx.send(pkt.to_bytes()) {
-                tracing::warn!("Failed to send despawn UpdateObject: {e}");
-            }
+            output.packets.push(pkt.to_bytes());
         }
         // ── Respawn queue ──────────────────────────────────────────────────
         // C# ref: Creature::Update → RemoveCorpse → respawn via Map::AddToMap.
@@ -20219,9 +20229,7 @@ impl WorldSession {
                 );
             let block = UpdateObject::create_creature_block(viewer_create_data, &r.home_pos);
             let pkt = UpdateObject::create_creatures(vec![block], r.map_id);
-            if let Err(e) = self.send_tx.send(pkt.to_bytes()) {
-                tracing::warn!("Failed to send respawn packet: {e}");
-            }
+            output.packets.push(pkt.to_bytes());
             self.client_visible_guids_like_cpp.insert(guid);
         }
         // ──────────────────────────────────────────────────────────────────
@@ -20335,12 +20343,15 @@ impl WorldSession {
             });
         }
 
-        // Send all movement packets
-        for data in to_send {
-            if self.send_tx.send(data).is_err() {
-                break;
-            }
-        }
+        // Collect movement packets into output in the same order they were built.
+        output.packets.extend(to_send);
+        output
+    }
+
+    /// Wrapper: runs the creatures tick and flushes packets to the session channel.
+    pub(crate) fn tick_creatures_sync(&mut self) {
+        let out = self.run_creatures_tick();
+        self.flush_runtime_output(out);
     }
 
     /// Called every ~100ms. Checks if an in-progress spell cast has completed.
@@ -20391,13 +20402,20 @@ impl WorldSession {
     }
 
     /// Called every ~100ms. Handles auto-attack swing timer (player → creature).
-    pub(crate) fn tick_combat_sync(&mut self) {
+    /// Extract of the combat tick body. Returns all bytes that must be sent to
+    /// the session channel. Callers must flush via `flush_runtime_output`.
+    ///
+    /// No `send_tx.send` or `send_packet` calls may remain here — each is
+    /// converted to `output.packets.push` at the same relative position.
+    pub(crate) fn run_combat_tick(&mut self) -> RuntimeOutput {
         use wow_packet::ServerPacket;
         use wow_packet::packets::combat::{AttackerStateUpdate, SAttackStop, VICTIM_STATE_HIT};
         use wow_packet::packets::movement::MonsterMoveStop;
 
+        let mut output = RuntimeOutput::new();
+
         let Some(player_guid) = self.player_guid() else {
-            return;
+            return output;
         };
         self.revalidate_canonical_player_combat_refs_like_cpp(player_guid);
         let canonical_attack_state = self.canonical_player_attack_state_like_cpp();
@@ -20410,7 +20428,7 @@ impl WorldSession {
         }) else {
             self.combat_target = None;
             self.in_combat = false;
-            return;
+            return output;
         };
         self.combat_target = Some(combat_target);
         let canonical_threat_before = self
@@ -20468,7 +20486,7 @@ impl WorldSession {
             });
             self.combat_target = None;
             self.in_combat = false;
-            return;
+            return output;
         };
         let (target_position, target_combat_reach, target_bounding_radius) = match target_runtime {
             CombatTargetRuntimeLikeCpp::WorldCreature {
@@ -20514,7 +20532,7 @@ impl WorldSession {
         );
         let (canonical_swing_damages, swing_error_update) = match canonical_attack_update {
             Some((damages, swing_error_update)) => (Some(damages), swing_error_update),
-            None if self.canonical_map_manager.is_some() => return,
+            None if self.canonical_map_manager.is_some() => return output,
             None => (None, None),
         };
         if let Some(swing_error) = swing_error_update {
@@ -20552,7 +20570,7 @@ impl WorldSession {
                 });
                 self.combat_target = None;
                 self.in_combat = false;
-                return;
+                return output;
             };
 
             if !swings.is_empty() {
@@ -20573,9 +20591,9 @@ impl WorldSession {
                     target_level,
                     expansion: 2,
                 };
-                let _ = self.send_tx.send(state_update.to_bytes());
+                output.packets.push(state_update.to_bytes());
             }
-            return;
+            return output;
         }
 
         let tap_group_guids = self.current_group_member_guids_for_tap_like_cpp(player_guid);
@@ -20649,7 +20667,7 @@ impl WorldSession {
             })
             .flatten()
         else {
-            return;
+            return output;
         };
 
         if !swings.is_empty() {
@@ -20679,7 +20697,7 @@ impl WorldSession {
                 target_level,
                 expansion: 2,
             };
-            let _ = self.send_tx.send(state_update.to_bytes());
+            output.packets.push(state_update.to_bytes());
         }
 
         if self.client_visible_guids_like_cpp.contains(&combat_target)
@@ -20689,7 +20707,7 @@ impl WorldSession {
                 &values_update,
             )
         {
-            self.send_packet(&update);
+            output.packets.push(update.to_bytes());
         }
 
         if now_dead {
@@ -20714,14 +20732,14 @@ impl WorldSession {
                 );
             }
             if let Some(bytes) = move_stop {
-                let _ = self.send_tx.send(bytes);
+                output.packets.push(bytes);
             }
             let stop = SAttackStop {
                 attacker: player_guid,
                 victim: combat_target,
                 now_dead: true,
             };
-            let _ = self.send_tx.send(stop.to_bytes());
+            output.packets.push(stop.to_bytes());
             let _ = self.mutate_canonical_player_like_cpp(|player| {
                 let unit = player.unit_mut();
                 unit.attack_stop_like_cpp();
@@ -20733,6 +20751,34 @@ impl WorldSession {
             self.combat_target = None;
             self.in_combat = false;
         }
+        output
+    }
+
+    /// Wrapper: runs the combat tick and flushes packets to the session channel.
+    pub(crate) fn tick_combat_sync(&mut self) {
+        let out = self.run_combat_tick();
+        self.flush_runtime_output(out);
+    }
+
+    /// Flush a [`RuntimeOutput`] to the session send channel.
+    ///
+    /// Must be called outside any map lock. `flume` bounded `send` may block if
+    /// the channel is full — behaviour is identical to the previous direct sends.
+    pub(crate) fn flush_runtime_output(&self, out: RuntimeOutput) {
+        for pkt in out.packets {
+            let _ = self.send_tx.send(pkt);
+        }
+    }
+
+    /// Read the [`RuntimeTickOwner`] from the shared [`MapManager`], copy it
+    /// (enum is `Copy`), and release the lock before returning.
+    ///
+    /// Falls back to `Session` if no map manager is attached.
+    pub(crate) fn runtime_tick_owner_like_cpp(&self) -> RuntimeTickOwner {
+        self.map_manager
+            .as_ref()
+            .and_then(|mm| mm.read().ok().map(|guard| guard.tick_owner()))
+            .unwrap_or(RuntimeTickOwner::Session)
     }
 
     /// Broadcast the newly logged-in player's CREATE block to all other players on the same map.
@@ -48290,5 +48336,285 @@ mod tests {
             .collect();
 
         assert!(duplicates.is_empty(), "duplicate handlers: {duplicates:?}");
+    }
+
+    // ── RuntimeTickOwner / RuntimeOutput tests (#NEXT.RUNTIME.L3.001) ─────────
+
+    #[test]
+    fn runtime_tick_owner_default_is_session() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let owner = manager.read().unwrap().tick_owner();
+        assert_eq!(owner, RuntimeTickOwner::Session);
+    }
+
+    #[test]
+    fn default_session_owner_preserves_creatures_tick_packets() {
+        // With the default Session owner, run_creatures_tick must produce the
+        // same bytes that tick_creatures_sync previously sent directly.
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        assert_eq!(
+            manager.read().unwrap().tick_owner(),
+            RuntimeTickOwner::Session
+        );
+
+        // Session A: call run_creatures_tick and collect output.
+        let (mut session_a, _, recv_a) = make_session();
+        let guid = test_creature_guid(90_001);
+        register_test_creature(&mut session_a, manager.clone(), guid, 25);
+        session_a
+            .mutate_world_creature(guid, |creature| {
+                let ai = creature.creature.ai_ownership_mut();
+                ai.wander_delay_ms = 0;
+                ai.move_start_ms = 0;
+                ai.wander_radius = 3.0;
+            })
+            .unwrap();
+
+        let output = session_a.run_creatures_tick();
+        // Channel must be empty — no direct send happened.
+        assert!(
+            recv_a.try_recv().is_err(),
+            "run_creatures_tick must not send directly to the channel"
+        );
+        // Flush and verify at least one packet arrived (MonsterMove).
+        session_a.flush_runtime_output(output);
+        let pkt = recv_a
+            .try_recv()
+            .expect("flush must deliver the MonsterMove packet");
+        let opcode = u16::from_le_bytes([pkt[0], pkt[1]]);
+        assert_eq!(opcode, ServerOpcodes::OnMonsterMove as u16);
+    }
+
+    #[test]
+    fn default_session_owner_preserves_combat_tick_packets() {
+        // With Session owner, run_combat_tick must produce the same bytes that
+        // tick_combat_sync previously sent directly.
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        assert_eq!(
+            manager.read().unwrap().tick_owner(),
+            RuntimeTickOwner::Session
+        );
+
+        let (mut session, _, recv) = make_session();
+        let guid = test_creature_guid(90_002);
+        let player = ObjectGuid::create_player(1, 90_002);
+        session.player_guid = Some(player);
+        session.combat_target = Some(guid);
+        session.in_combat = true;
+        session.client_visible_guids_like_cpp.insert(guid);
+        register_test_creature(&mut session, manager, guid, 40);
+        session
+            .mutate_world_creature(guid, |creature| {
+                creature.enter_combat(player);
+                creature.creature.ai_ownership_mut().last_swing_ms = 0;
+                creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            })
+            .unwrap();
+
+        let output = session.run_combat_tick();
+        // Channel must be empty before flush.
+        assert!(
+            recv.try_recv().is_err(),
+            "run_combat_tick must not send directly to the channel"
+        );
+        // After flush, the AttackerStateUpdate packet must arrive.
+        session.flush_runtime_output(output);
+        let pkt = recv
+            .try_recv()
+            .expect("flush must deliver the AttackerStateUpdate packet");
+        let opcode = u16::from_le_bytes([pkt[0], pkt[1]]);
+        assert_eq!(opcode, ServerOpcodes::AttackerStateUpdate as u16);
+    }
+
+    #[test]
+    fn global_legacy_owner_skips_session_creature_combat_ticks() {
+        // With GlobalLegacy, the update guard prevents both tick_creatures_sync
+        // and tick_combat_sync from executing, so the creature state must not
+        // advance and no packets must be sent.
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let (mut session, _, recv) = make_session();
+        let guid = test_creature_guid(90_003);
+        let player = ObjectGuid::create_player(1, 90_003);
+        session.player_guid = Some(player);
+        session.combat_target = Some(guid);
+        session.in_combat = true;
+        session.client_visible_guids_like_cpp.insert(guid);
+        register_test_creature(&mut session, manager, guid, 40);
+        session
+            .mutate_world_creature(guid, |creature| {
+                creature.enter_combat(player);
+                creature.creature.ai_ownership_mut().last_swing_ms = 0;
+                creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            })
+            .unwrap();
+
+        // Drive creature_tick to a value where both %4 and %2 would fire.
+        session.creature_tick = 3; // next wrapping_add → 4, divisible by both 4 and 2.
+        session.state = crate::session::SessionState::LoggedIn;
+
+        // Simulate the guard logic in update() for the tick path only.
+        let owner = session.runtime_tick_owner_like_cpp();
+        session.creature_tick = session.creature_tick.wrapping_add(1);
+        if session.creature_tick % 4 == 0 && owner == RuntimeTickOwner::Session {
+            session.tick_creatures_sync();
+        }
+        if session.creature_tick % 2 == 0 && owner == RuntimeTickOwner::Session {
+            session.tick_combat_sync();
+        }
+
+        // No packets must have been sent.
+        assert!(
+            recv.try_recv().is_err(),
+            "GlobalLegacy owner must suppress session tick packets"
+        );
+        // creature_tick was still incremented (guard only wraps the tick calls).
+        assert_eq!(session.creature_tick, 4);
+    }
+
+    #[test]
+    fn two_sessions_same_map_under_global_owner_do_not_session_tick_creature() {
+        // Two sessions share the same Arc<RwLock<MapManager>>. With GlobalLegacy,
+        // neither session must advance the shared creature via session ticks.
+        // Contrast: with Session (default) both would tick the same creature
+        // (double tick — the bug GlobalLegacy is designed to prevent in Slice 4).
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let guid = test_creature_guid(90_004);
+        let player1 = ObjectGuid::create_player(1, 90_004);
+        let player2 = ObjectGuid::create_player(2, 90_004);
+
+        let (mut session1, _, recv1) = make_session();
+        session1.player_guid = Some(player1);
+        session1.combat_target = Some(guid);
+        session1.in_combat = true;
+        session1.client_visible_guids_like_cpp.insert(guid);
+        register_test_creature(&mut session1, manager.clone(), guid, 100);
+        session1
+            .mutate_world_creature(guid, |creature| {
+                creature.enter_combat(player1);
+                creature.creature.ai_ownership_mut().last_swing_ms = 0;
+                creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            })
+            .unwrap();
+
+        let (mut session2, _, recv2) = make_session();
+        session2.player_guid = Some(player2);
+        session2.combat_target = Some(guid);
+        session2.in_combat = true;
+        session2.client_visible_guids_like_cpp.insert(guid);
+        session2.set_map_manager(manager.clone());
+        session2.current_map_id = 0;
+
+        // Both sessions read GlobalLegacy → neither ticks.
+        let owner1 = session1.runtime_tick_owner_like_cpp();
+        let owner2 = session2.runtime_tick_owner_like_cpp();
+        assert_eq!(owner1, RuntimeTickOwner::GlobalLegacy);
+        assert_eq!(owner2, RuntimeTickOwner::GlobalLegacy);
+
+        if owner1 == RuntimeTickOwner::Session {
+            session1.tick_combat_sync();
+        }
+        if owner2 == RuntimeTickOwner::Session {
+            session2.tick_combat_sync();
+        }
+
+        // Creature HP must be unchanged (100).
+        let hp = manager
+            .read()
+            .unwrap()
+            .find_creature(0, 0, guid)
+            .expect("creature must exist")
+            .current_hp();
+        assert_eq!(
+            hp, 100,
+            "creature HP must be unchanged when GlobalLegacy suppresses both sessions"
+        );
+
+        assert!(recv1.try_recv().is_err(), "session1 must not send packets");
+        assert!(recv2.try_recv().is_err(), "session2 must not send packets");
+    }
+
+    #[test]
+    fn run_tick_returns_output_without_sending() {
+        // run_creatures_tick and run_combat_tick must return a RuntimeOutput
+        // containing the packets but NOT send anything to the channel until
+        // flush_runtime_output is called. This catches any residual direct send.
+        let manager = shared_map_manager();
+
+        // ── creatures tick ─────────────────────────────────────────────────
+        let (mut session_c, _, recv_c) = make_session();
+        let guid_c = test_creature_guid(90_005);
+        register_test_creature(&mut session_c, manager.clone(), guid_c, 25);
+        session_c
+            .mutate_world_creature(guid_c, |creature| {
+                let ai = creature.creature.ai_ownership_mut();
+                ai.wander_delay_ms = 0;
+                ai.move_start_ms = 0;
+                ai.wander_radius = 3.0;
+            })
+            .unwrap();
+
+        let output_c = session_c.run_creatures_tick();
+        assert!(
+            recv_c.try_recv().is_err(),
+            "run_creatures_tick must not send before flush"
+        );
+        // Verify output is non-empty (wander should have produced a MonsterMove).
+        assert!(
+            !output_c.packets.is_empty(),
+            "run_creatures_tick must return at least one packet"
+        );
+        // Flush and confirm the channel is now populated.
+        session_c.flush_runtime_output(output_c);
+        assert!(
+            recv_c.try_recv().is_ok(),
+            "channel must have packets after flush"
+        );
+
+        // ── combat tick ───────────────────────────────────────────────────
+        let (mut session_m, _, recv_m) = make_session();
+        let guid_m = test_creature_guid(90_006);
+        let player_m = ObjectGuid::create_player(1, 90_006);
+        session_m.player_guid = Some(player_m);
+        session_m.combat_target = Some(guid_m);
+        session_m.in_combat = true;
+        session_m.client_visible_guids_like_cpp.insert(guid_m);
+        register_test_creature(&mut session_m, manager.clone(), guid_m, 40);
+        session_m
+            .mutate_world_creature(guid_m, |creature| {
+                creature.enter_combat(player_m);
+                creature.creature.ai_ownership_mut().last_swing_ms = 0;
+                creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            })
+            .unwrap();
+
+        let output_m = session_m.run_combat_tick();
+        assert!(
+            recv_m.try_recv().is_err(),
+            "run_combat_tick must not send before flush"
+        );
+        assert!(
+            !output_m.packets.is_empty(),
+            "run_combat_tick must return at least one packet"
+        );
+        session_m.flush_runtime_output(output_m);
+        assert!(
+            recv_m.try_recv().is_ok(),
+            "channel must have packets after flush"
+        );
     }
 }

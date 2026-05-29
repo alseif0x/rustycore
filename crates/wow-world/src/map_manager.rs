@@ -1777,12 +1777,59 @@ impl MapInstance {
     }
 }
 
+/// Who owns the creature/combat tick for a given map at runtime.
+///
+/// Default is `Session`: each logged-in session drives its own creature and
+/// combat ticks — this is the legacy behaviour and the safe starting point.
+/// `GlobalLegacy` signals that a global clock will drive the ticks instead,
+/// so session-level tick calls must be skipped to avoid double resolution.
+///
+/// The owner lives on the shared [`MapManager`] so all sessions on the same
+/// map read the same value.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum RuntimeTickOwner {
+    /// Per-session tick (legacy behaviour, current default).
+    #[default]
+    Session,
+    /// Global legacy-manager tick (activated in Slice 4+).
+    GlobalLegacy,
+}
+
+/// Initial session-local packet seam produced by `run_creatures_tick` /
+/// `run_combat_tick`.
+///
+/// **This is a seam initial, NOT the final fanout design.** It holds only the
+/// raw bytes that today are sent via `send_tx`. The real global fanout (Slice
+/// 5+) will need per-destination routing, not a flat byte list.
+///
+/// If side effects other than packet bytes are discovered during extraction
+/// they must be modelled separately, NOT smuggled through this flush path.
+pub struct RuntimeOutput {
+    /// Packets to be flushed to the session channel in order.
+    pub packets: Vec<Vec<u8>>,
+}
+
+impl RuntimeOutput {
+    pub fn new() -> Self {
+        Self {
+            packets: Vec::new(),
+        }
+    }
+}
+
+impl Default for RuntimeOutput {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Global map manager containing all map instances.
 #[derive(Debug)]
 pub struct MapManager {
     maps: HashMap<(u16, u32), MapInstance>, // (map_id, instance_id) -> MapInstance
     free_instance_ids: Vec<bool>,
     next_instance_id: u32,
+    tick_owner: RuntimeTickOwner,
 }
 
 impl MapManager {
@@ -1791,9 +1838,23 @@ impl MapManager {
             maps: HashMap::new(),
             free_instance_ids: Vec::new(),
             next_instance_id: 1,
+            tick_owner: RuntimeTickOwner::Session,
         };
         manager.init_instance_ids_from_max(0);
         manager
+    }
+
+    /// Returns the current tick owner for this map manager.
+    ///
+    /// Returns a `Copy` value; the caller should read this once and release the
+    /// lock before performing any tick work.
+    pub fn tick_owner(&self) -> RuntimeTickOwner {
+        self.tick_owner
+    }
+
+    /// Sets the tick owner. Not called in Slice 3 — default remains `Session`.
+    pub fn set_tick_owner(&mut self, owner: RuntimeTickOwner) {
+        self.tick_owner = owner;
     }
 
     pub fn init_instance_ids_from_max(&mut self, max_existing_instance_id: u32) {
