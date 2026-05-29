@@ -1,106 +1,238 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file is the operating guide for Claude Code in this repository. Keep it factual and current. If it conflicts with the current worktree or with C++ source, the current worktree plus C++ source wins.
 
-## Project
+## Project And Source Of Truth
 
-RustyCore — WoW Wrath of the Lich King Classic (3.4.3.54261) private server emulator written in Rust. Migration from the C++ TrinityCore-derived server at `/home/server/woltk-trinity-legacy`. Rust 1.85, edition 2024. ~29-crate Cargo workspace.
+RustyCore is a Rust port of a TrinityCore-derived World of Warcraft Wrath/Cata-classic private server. The port target is full functional parity with the legacy C++ server, not a smaller compatible subset.
 
-The repo lives on GitHub at `https://github.com/alseif0x/rustycore.git` (remote `origin`). There is also an older archived clone at `/home/server/rustycore_ARCHIVED_20260312/` — a parallel iteration with different work, not authoritative.
+- Rust repo: `/home/server/rustycore`
+- Legacy C++ reference: `/home/server/woltk-trinity-legacy`
+- Remote: `https://github.com/alseif0x/rustycore.git`
+- Main work branch: `develop`
+- `main` is kept fast-forward synced at stable checkpoints.
+- Rust toolchain: Rust 1.85, edition 2024.
+- `protoc`: `/home/cdmonio/.local/protoc/bin/protoc`
 
-## Build / test
+Do not trust existing Rust, old AI summaries, or migration docs as correctness proof. Always contrast behavior against the C++ source before implementing or approving a change.
 
-`protoc` lives at a non-standard path on this machine. Always use the env var:
+## Current Checkpoint
+
+As of the last audited port state before this documentation refresh:
+
+- Last audited port base: `1af9223 Add honest progress audit (R8-entities)`
+- At that base, `develop`, `origin/develop`, `main`, and `origin/main` all pointed at `1af9223`.
+- Tree expected clean on `develop`.
+- Latest documented coverage count: `736/759 = 96.97%`.
+- Latest handoff item: `TEST-DEBT / #NEXT.R8.ENTITIES.765`.
+
+Start every session with:
 
 ```bash
-PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo build --workspace
-PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test --workspace
-PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo build --workspace --release   # ~10 MB binaries
+cd /home/server/rustycore
+git status --short --branch
+git log --oneline --decorate -8
+head -n 20 docs/migration/current-session-handoff.md
 ```
 
-Per-crate is much faster while iterating:
+If HEAD has moved beyond `1af9223`, audit the commits instead of trusting their messages. A documentation-only commit that updates this file is not a new port base; code-bearing commits must still be reviewed against C++:
 
 ```bash
-cargo check -p wow-world
-cargo test -p wow-world --lib
-cargo test -p wow-world --lib -- some_test_name
+git log --oneline 1af9223..HEAD
+git diff --stat 1af9223..HEAD
+git diff 1af9223..HEAD
 ```
 
-Lints (`Cargo.toml`): `clippy::all` + `pedantic` warn, several casts/docs allowed. `unsafe_code` is `warn`. Release profile: `lto = "thin"`, `codegen-units = 1`, `strip = "symbols"`. Current state: `cargo check` 0 errors; `cargo test --workspace` 393 passed.
+Only promote a newer commit to the reliable base after reviewing it against C++ and validating tests/docs.
 
-## Runtime
+## Mandatory Porting Method
 
-Two binaries:
+Every implementation slice must follow this sequence:
 
-- **`bnet-server`** — Battle.net auth: TCP+TLS on **1119**, REST (Axum) on **8081**. Reads `BNetServer.conf`, `bnet_cert.pem`, `bnet_key.pem`, `bnet_fullchain.pem`.
-- **`world-server`** — game server: TCP on **8085** / **8086**. Reads `WorldServer.conf`.
+1. Inspect current repo state and latest handoff.
+2. Pick a real documented gap from `docs/migration/current-session-handoff.md` or the inventory files.
+3. Locate exact C++ source anchors in `/home/server/woltk-trinity-legacy`.
+4. Compare existing Rust against C++ before editing.
+5. Implement the smallest faithful Rust change that moves the full port forward.
+6. Add focused tests, preferably positive and negative branches.
+7. Update migration docs/checklists with the new `#NEXT.R8.ENTITIES.xxx` item when closing a represented implementation gap.
+8. Recalculate progress honestly.
+9. Run validation.
+10. Commit on `develop`, push, fast-forward `main`, push, and return to `develop` only at stable closure points.
 
-Both depend on MariaDB 10.6+ with four databases: `auth`, `characters`, `world`, `hotfixes`. Connection details live in the `.conf` files (gitignored). Production domain: `wowchad.work.gd` (Let's Encrypt).
+Do not do "bulk close" inventory edits. A closed `#NEXT` item must correspond to real code and tests, with exact C++ refs, Rust targets, checks run, and remaining boundaries stated. Discovering or documenting a gap is useful, but it is not an implementation closeout.
 
-## Architecture
+Do not mark anything `manual-test-ready` unless it has actually been installed/restarted and exercised manually against the client/runtime.
 
-The workspace is layered foundation → infrastructure → ECS/game → executables. Crates depend downward only.
+## Build And Test
 
-**Foundation**: `wow-core` (GUID, Position, Time), `wow-constants` (opcodes, game constants), `wow-config`, `wow-logging` (tracing), `wow-crypto` (SRP6, AES-GCM, HMAC-SHA256), `wow-math` (glam), `wow-collections`.
+Use `PROTOC` explicitly for any command that may compile protobuf-dependent crates:
 
-**Infrastructure**: `wow-database` (SQLx + MariaDB, prepared statement registry, schema `updater.rs`), `wow-network` (Tokio sockets, `PlayerRegistry`/`GroupRegistry`/`PendingInvites` shared registries, `SessionManager`, `world_socket` handshake), `wow-proto` (BNet protobuf via prost), `wow-data` (DB2/DBC: `Wdc4Reader`, `HotfixBlobCache`, plus `quest.rs` / `quest_xp.rs` for quest data and `player_stats.rs` / `item_stats.rs` for stat math).
+```bash
+PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server
+PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world --lib
+PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-map --lib
+```
 
-**Game core**: `wow-ecs` (hecs), `wow-world` (the bulk of game logic — `WorldSession`, packet handlers, the new `MapManager`), `wow-map`, `wow-spell`, `wow-combat`, `wow-ai`, `wow-loot`, `wow-chat`, `wow-social`, `wow-pvp`, `wow-achievement`, `wow-script`(s).
+Fast iteration commands:
 
-**Packets / dispatch**: `wow-packet` (serialization, bit-packing primitives in `world_packet.rs`: `read_bit`, `write_bit`, `flush_bits`, packed GUID; `update.rs` is the big one — `UpdateObject` / `CreatureCreateData` / `PlayerCreateData`; `quest.rs` covers questgiver/log packets), `wow-handler` (dispatch table). FFI: `wow-recastdetour` (pathfinding, scaffolded).
+```bash
+cargo fmt --check
+cargo fmt --all -- --check
+cargo test -p wow-world some_test_name --lib
+cargo test -p wow-map some_test_name --lib
+cargo clippy -p wow-map -p wow-world --all-targets
+git diff --check
+```
 
-**Executables**: `bnet-server`, `world-server`.
+TSV inventory files must keep 9 tab-separated columns:
 
-### Packet handler dispatch (read this before adding handlers)
+```bash
+awk -F '\t' 'NF != 9 { print FNR ":" NF ":" $0; bad=1 } END { if (bad) exit 1; print "TSV_OK" }' docs/migration/inventory/r8-entities-miniphase.tsv
+```
 
-The world server uses static registration via the `inventory` crate. **Two-step dispatch is mandatory**: a handler runs only if it both (a) has a `match` arm in the dispatcher and (b) registers a `PacketHandlerEntry` via `inventory::submit!`. Forgetting `submit!` silently drops the opcode even if the match arm exists. Each `PacketHandlerEntry` declares an opcode, a `SessionStatus` (`Authed` / `LoggedIn` / `Transfer` / `LoggedInOrRecentlyLogout`), and a `PacketProcessing` mode. See `crates/wow-handler/src/lib.rs`.
+Current useful baselines from recent handoff:
 
-Handler modules in `crates/wow-world/src/handlers/`:
-- `character.rs` — login, char select, char create/delete, played time
-- `combat.rs` — attack swing/stop, sheathe, combat tick, XP on kill, level-up
-- `loot.rs` — loot unit/item/release
-- `chat.rs` — say/yell/whisper/emote/channel broadcast
-- `movement.rs` — all CMSG_MOVE_* opcodes
-- `quest.rs` — full questgiver flow, accept/abandon, kill objectives, complete, rewards
-- `spell.rs` — cast, cancel, cooldown, aura updates
-- `trainer.rs` — list, buy spell
-- `social.rs` — friends, ignore, contact list, who, inspect
-- `group.rs` — invite, accept, leave, party broadcasts
-- `misc.rs` — ~40 misc handlers (selection, area trigger teleport, cemetery, taxi status, time sync, etc.)
-- `battlenet.rs` — BattlenetRequest plumbing
+- `wow-world --lib`: clean in recent runs.
+- `wow-map --lib`: cleaned to `614/0` in `#NEXT.R8.ENTITIES.765`.
+- `world-server` check passes with existing warnings.
 
-### `MapManager` — landed module, integration pending
+If a test fails, do not assume production is wrong or the test is wrong. Contrast with C++ and document which one it is.
 
-`crates/wow-world/src/map_manager.rs` (~890 lines, 12 unit tests) defines a global, shared world model: `Arc<RwLock<MapManager>>` with 64×64 grids and a single `WorldCreature` per `ObjectGuid` seen by every session on the same map. The intent is for all `WorldSession`s to read/write the same creature state instead of each keeping its own `HashMap`.
+## Architecture: Current Runtime Reality
 
-**The module is defined and unit-tested in isolation but not yet wired into the live tick path.** `WorldSession` still owns its per-session creature view via the legacy `creatures: HashMap<ObjectGuid, CreatureAI>` field. Migrating session methods to `MapManager` is future work.
+The runtime currently has three coexisting world models. This is important; old notes that describe a single pending `MapManager` integration are stale.
 
-`crates/wow-world/_attic/` (renamed `.rs.txt` so cargo skips it) holds ~22 files from a previous integration attempt that produced 176 compile errors when written against `CreatureCreateData` field names that never existed (`entry_id`, `faction`, `position`, `current_hp`, `max_hp`). The real names are `entry`, `faction_template`, `health`, `max_health`. Read `_attic/README.md` first when:
-- you need to know which 40+ stub handlers the previous attempt enumerated
-- you're about to migrate a session method and want to see what was tried (`migrated_session_methods.rs.txt`, `character_migration.rs.txt`)
+1. Legacy `wow_world::MapManager`
+   - Shared as `Arc<RwLock<...>>` from `crates/world-server/src/main.rs`.
+   - Shared across sessions.
+   - Runs represented creature AI/combat through session-driven ticks such as `tick_creatures_sync` and `tick_combat_sync`.
+   - Has no independent global clock; it advances when logged-in sessions tick it.
 
-Treat `_attic/` as a brief from a colleague who tried and wrote down what didn't work — don't re-introduce content mechanically.
+2. Canonical `wow_map::MapManager`
+   - Owns the global canonical map tick loop (`spawn_canonical_map_update_loop`, about 10ms).
+   - Has a C++-like `Map::Update` structure and map/spawn/respawn infrastructure.
+   - Creature runtime update currently uses default context and does not dispatch real AI/combat side effects such as `AiUpdateTick` or `MeleeAttackIfReady`.
 
-### Patterns to follow
+3. Global world loop
+   - Ticks the canonical `wow_map::MapManager`.
+   - Does not tick the legacy `wow_world::MapManager`.
 
-- **Collect-then-send**: build `Vec<Vec<u8>>` of serialized packets first, then send, to avoid borrow conflicts on `&mut self`.
-- **`send_packet` vs `send_tx`**: inside tick methods (`tick_combat_sync`, creature ticks, etc.) use `send_tx.send(pkt.to_bytes())` — `send_packet` will double-borrow.
-- **`Position` fields are `.x .y .z .orientation`** — not `.o`.
-- **`use wow_packet::ClientPacket;`** must be imported explicitly in each handler module that decodes a packet; the trait does not auto-import.
-- Prefer `parking_lot` / `dashmap` over std equivalents (already in workspace deps).
+Regression anchors from `#NEXT.R8.ENTITIES.764`:
 
-### Migration status documents
+- `canonical_map_update_visits_creature_with_no_real_ai_combat_effect_like_cpp`
+- `two_sessions_sharing_legacy_map_manager_see_same_creature_state`
 
-`MIGRATION_STATUS.md` (root) is a feature-implementation snapshot from late February 2026 — useful for "is X already done" but stale: it doesn't mention the quest system, XP/levelup, aura expiry, spell cooldown, or area-trigger teleports that have landed since.
+The old statement that `WorldSession` owns a `creatures: HashMap<ObjectGuid, CreatureAI>` field is false. Do not build new work around that field.
 
-### Reference implementations
+Incremental live-runtime roadmap from handoff:
 
-The C++ server at `/home/server/woltk-trinity-legacy` is the canonical reference for this port. Do not trust existing Rust code, prior AI changes, or migration docs as correctness sources until they are contrasted against C++.
+1. Characterize current split. Done in `#NEXT.R8.ENTITIES.764`.
+2. Give the legacy map a sessionless clock.
+3. Add creature movement fanout from global tick via per-map session registry.
+4. Move combat resolution to global clock, resolving once rather than per session.
+5. Unify respawn from per-session queue into canonical runtime.
+6. Move to a single source of truth for creatures, method by method.
+7. Add real `SendObjectUpdates`, scripts, weather, threat, and remaining fanout.
 
-The C# server at `/home/server/woltk-server-core/Source/` is historical/reference material only. It can help locate concepts, but C++ wins for protocol layouts, database field order, packet semantics, and mechanics.
+Steps 2+ are architectural-risk work. Avoid big-bang rewrites. Previous `_attic/` attempts failed with large compile-error blasts; use them only as historical context.
 
-## Repo conventions / gitignore quirks
+## Important Current Open Gaps
 
-The `.gitignore` excludes a lot of agent/workflow files that **do exist locally and contain useful project context** but are not in the public repo: `AGENTS.md`, `SOUL.md`, `USER.md`, `MEMORY.md`, `PLAN.md`, `MIGRATION_STATUS.md`, `IDENTITY.md`, `INVENTORY.md`, `HEARTBEAT.md`, `TOOLS.md`, plus the `memory/`, `skills/`, `wiki/`, `.claude/`, `.agent(s)/`, `.openclaw/`, `.trae/` directories. Read them when you need project history or domain knowledge — just don't commit them.
+The exact list changes as the port advances. Always read the handoff first. Current repeatedly documented gaps include:
 
-`*.pem`, `BNetServer.conf`, `WorldServer.conf`, and the `world-server` / `bnet-server` binaries at the repo root are gitignored and contain credentials/keys — never stage them.
+- Full `ConditionMgr` target/searcher/map/world-state/active-event coverage.
+- `Player::SatisfyQuestBreadcrumbQuest` recursive `CanTakeQuest` gate.
+- `SatisfyQuestTimed`, day, week, month gates at accept.
+- GM override visibility and server-side visibility infrastructure.
+- AI override dialog status.
+- Battleground chest `CanActivateGO`.
+- Live-runtime / map-manager tick integration.
+- Runtime install/restart/manual client-test readiness for many represented slices.
+
+Do not use this list as exhaustive; use the migration inventory as the source for current planning.
+
+## Migration Documents
+
+Primary current-state docs:
+
+- `docs/migration/current-session-handoff.md`
+- `docs/migration/inventory/r8-entities-miniphase.md`
+- `docs/migration/inventory/r8-entities-miniphase.tsv`
+- `docs/migration/progress-audit.md` or similarly named audit docs if present.
+
+Older snapshots such as `MIGRATION_STATUS.md` may be stale. They can help find concepts but are not proof of current parity.
+
+When updating docs:
+
+- Put newest items at the top where the file already follows reverse chronological order.
+- Include C++ refs, Rust targets, acceptance, checks, and boundaries.
+- Keep `represented-partial` unless full runtime parity is actually proven.
+- Do not inflate progress with planning-only or test-debt-only work.
+
+## Packet Handler Dispatch
+
+The world server uses static registration via the `inventory` crate. A handler runs only if it both:
+
+- has a dispatcher match arm, and
+- registers a `PacketHandlerEntry` via `inventory::submit!`.
+
+Forgetting `submit!` can silently drop the opcode even if the match arm exists. Each `PacketHandlerEntry` declares opcode, `SessionStatus`, and `PacketProcessing` mode. See `crates/wow-handler/src/lib.rs`.
+
+Handler modules live under `crates/wow-world/src/handlers/`.
+
+## Coding Patterns
+
+- Prefer existing local helpers and `*_like_cpp` functions over inventing new abstractions.
+- Use C++ names/order when mirroring C++ behavior.
+- Collect packets into `Vec<Vec<u8>>` before sending when it avoids borrow conflicts.
+- In tick methods, use `send_tx.send(pkt.to_bytes())` rather than `send_packet` if `send_packet` would double-borrow.
+- `Position` fields are `.x`, `.y`, `.z`, `.orientation`; not `.o`.
+- Import `wow_packet::ClientPacket` explicitly in handler modules that decode packets.
+- Use `rg` for searching.
+- Use `apply_patch` for manual edits.
+- Do not revert unrelated user/agent changes without explicit instruction.
+
+## Runtime / Config
+
+Two primary binaries:
+
+- `bnet-server`: Battle.net auth, TCP+TLS on `1119`, REST on `8081`. Reads `BNetServer.conf` and PEM files.
+- `world-server`: game server, TCP on `8085` / `8086`. Reads `WorldServer.conf`.
+
+MariaDB databases: `auth`, `characters`, `world`, `hotfixes`.
+
+Gitignored runtime files may contain credentials or keys:
+
+- `*.pem`
+- `BNetServer.conf`
+- `WorldServer.conf`
+- root `world-server` / `bnet-server` binaries
+
+Never stage credentials, certs, local configs, or built binaries.
+
+## Git Discipline
+
+Stable closeout workflow:
+
+```bash
+git status --short --branch
+cargo fmt --check
+# focused tests
+PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server
+git diff --check
+git add <changed files>
+git commit -m "<short faithful summary>"
+git push origin develop
+git checkout main
+git merge --ff-only develop
+git push origin main
+git checkout develop
+git status --short --branch
+```
+
+Only do this after the slice is genuinely validated. If the tree contains changes from another agent, audit them before building on top of them.
+
+## Local Context Files
+
+The `.gitignore` excludes local agent/workflow files that may exist and contain useful context, such as `AGENTS.md`, `PLAN.md`, `MIGRATION_STATUS.md`, `INVENTORY.md`, `memory/`, `.claude/`, `.agents/`, `.openclaw/`, and similar directories. Read them if useful, but do not commit ignored local context unless the user explicitly asks for it.
