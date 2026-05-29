@@ -2283,8 +2283,9 @@ pub struct WorldSession {
     /// Represented C++ `GameEvents::Trigger` and `TriggeringLinkedGameObject` hook points.
     pub(crate) represented_gameobject_use_effects: Vec<RepresentedGameObjectUseEffect>,
     /// Session-local represented `GameObject` use state until canonical GO runtime ownership lands.
+    /// Deterministic iteration order by GUID (not a strict C++ ordering guarantee).
     pub(crate) represented_gameobject_use_states:
-        std::collections::HashMap<wow_core::ObjectGuid, RepresentedGameObjectUseState>,
+        std::collections::BTreeMap<wow_core::ObjectGuid, RepresentedGameObjectUseState>,
     /// C++ `Player::SetPendingBind` represented until `InstanceMap` owns real bind confirmation.
     pub(crate) pending_bind: Option<RepresentedPendingBind>,
     /// Confirmed pending bind ids, used by represented `CMSG_INSTANCE_LOCK_RESPONSE`.
@@ -3041,7 +3042,7 @@ impl WorldSession {
             mmap_runtime_config_like_cpp: MMapRuntimeConfigLikeCpp::default(),
             represented_unique_gameobject_uses: std::collections::HashSet::new(),
             represented_gameobject_use_effects: Vec::new(),
-            represented_gameobject_use_states: std::collections::HashMap::new(),
+            represented_gameobject_use_states: std::collections::BTreeMap::new(),
             pending_bind: None,
             represented_confirmed_pending_binds: Vec::new(),
             represented_repop_at_graveyard_count: 0,
