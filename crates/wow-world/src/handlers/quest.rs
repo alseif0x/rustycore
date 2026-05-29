@@ -6133,6 +6133,29 @@ impl WorldSession {
             }
         }
 
+        // SatisfyQuestDependentBreadcrumbQuests — Player.cpp:15203-15222
+        // Blocks acceptance if any breadcrumb quest listed in `dependent_breadcrumb_quests` is
+        // currently INCOMPLETE/COMPLETE/FAILED in the player's log.
+        // Note: SatisfyQuestDependentPreviousQuests (scalar list) and BreadcrumbQuest (recursive
+        // single breadcrumb) remain unimplemented here without falsing.
+        {
+            let statuses: std::collections::HashMap<u32, u8> = self
+                .player_quests
+                .iter()
+                .map(|(&qid, qs)| (qid, qs.status))
+                .collect();
+            if represented_satisfy_quest_dependent_breadcrumb_quests_failed_like_cpp(
+                quest, &statuses,
+            ) {
+                debug!(
+                    account = self.account_id,
+                    quest_id = quest.id,
+                    "CanTakeQuest: dependent breadcrumb in log"
+                );
+                return false;
+            }
+        }
+
         // SatisfyQuestRace + SatisfyQuestClass + SatisfyQuestLevel
         if !quest.is_available_for(
             self.player_race_like_cpp(),
@@ -15434,6 +15457,33 @@ mod tests {
         session.set_quest_store(Arc::new(store));
 
         assert!(session.can_take_quest(&quest));
+    }
+
+    // ── SatisfyQuestDependentBreadcrumbQuests tests ──────────────────────────
+
+    #[test]
+    fn can_take_quest_blocks_when_dependent_breadcrumb_in_log_like_cpp() {
+        let breadcrumb_quest_id = 9930u32;
+        let quest_id = 9931u32;
+
+        // NEGATIVA: breadcrumb B (9930) está en player_quests con status INCOMPLETE
+        // → Player.cpp:15203-15222 → false.
+        let (mut session, _send_rx) = make_session();
+        let mut quest = quest_template(quest_id);
+        quest.dependent_breadcrumb_quests = vec![breadcrumb_quest_id];
+        let store = QuestStore::from_quests_like_cpp([quest.clone()]);
+        session.set_quest_store(Arc::new(store));
+        add_active_quest(&mut session, breadcrumb_quest_id);
+        assert!(!session.can_take_quest(&quest));
+
+        // POSITIVA: breadcrumb no está en el log → no bloquea.
+        let (mut session2, _send_rx2) = make_session();
+        let mut quest2 = quest_template(quest_id);
+        quest2.dependent_breadcrumb_quests = vec![breadcrumb_quest_id];
+        let store2 = QuestStore::from_quests_like_cpp([quest2.clone()]);
+        session2.set_quest_store(Arc::new(store2));
+        // breadcrumb_quest_id no insertado en player_quests
+        assert!(session2.can_take_quest(&quest2));
     }
 }
 
