@@ -17493,9 +17493,13 @@ impl WorldSession {
         &self,
         quest_id: u32,
     ) -> bool {
-        self.player_quests
-            .get(&quest_id)
-            .is_some_and(|status| matches!(status.status, 1 | 2))
+        self.player_quests.get(&quest_id).is_some_and(|status| {
+            matches!(
+                status.status,
+                crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP
+                    | crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP
+            )
+        })
     }
 
     fn represented_player_quest_status_is_none_like_cpp(&self, quest_id: u32) -> bool {
@@ -24623,7 +24627,7 @@ mod tests {
             100,
             crate::handlers::quest::PlayerQuestStatus {
                 quest_id: 100,
-                status: 1,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
                 explored: false,
                 accept_time_secs: 0,
                 end_time_secs: 0,
@@ -24635,7 +24639,7 @@ mod tests {
             101,
             crate::handlers::quest::PlayerQuestStatus {
                 quest_id: 101,
-                status: 2,
+                status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
                 explored: false,
                 accept_time_secs: 0,
                 end_time_secs: 0,
@@ -33580,7 +33584,7 @@ mod tests {
             9_001,
             crate::handlers::quest::PlayerQuestStatus {
                 quest_id: 9_001,
-                status: 1,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
                 explored: false,
                 accept_time_secs: 0,
                 end_time_secs: 0,
@@ -33612,7 +33616,10 @@ mod tests {
         assert_eq!(loot.loot_type, LOOT_TYPE_CORPSE_LIKE_CPP);
         assert!(session.player_xp_like_cpp() > 0);
         let quest = session.player_quests.get(&9_001).unwrap();
-        assert_eq!(quest.status, 2);
+        assert_eq!(
+            quest.status,
+            crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP
+        );
         assert_eq!(quest.objective_counts, vec![1]);
         let manager = manager.read().unwrap();
         let world_creature = manager.find_creature(0, 0, guid).unwrap();
