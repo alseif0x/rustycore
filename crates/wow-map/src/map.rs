@@ -15153,8 +15153,8 @@ mod tests {
             &[LosCall {
                 source_guid: source.guid(),
                 target_guid: Some(target.guid()),
-                from: source.position(),
-                to: target.position(),
+                from: Position::new(1.0, 2.0, 3.0, 0.0),
+                to: Position::new(4.0, 5.0, 6.0, 0.0),
                 check_dynamic: true,
             }]
         );
@@ -15866,7 +15866,7 @@ mod tests {
         store.add_object_spawn(&spawn_data(SpawnObjectType::Creature, 43, active), |_| {
             false
         });
-        map.ensure_grid_loaded(&cell_from_world(0.0, 0.0));
+        map.ensure_grid_loaded(&cell_from_grid_center(GridCoord::new(7, 0)));
         map.add_respawn_info_like_cpp(respawn_info(SpawnObjectType::Creature, 43, 100));
 
         let summary = map.process_due_respawns_spawn_group_delete_only_like_cpp(100, &store);
@@ -15949,7 +15949,7 @@ mod tests {
             &spawn_data(SpawnObjectType::Creature, 39701, active),
             |_| false,
         );
-        map.ensure_grid_loaded(&cell_from_world(0.0, 0.0));
+        map.ensure_grid_loaded(&cell_from_grid_center(GridCoord::new(7, 0)));
         map.add_respawn_info_like_cpp(respawn_info(SpawnObjectType::Creature, 39701, 100));
         let expected_guid = guid(HighGuid::Creature, 3970101);
         let mut loader_calls = 0;
@@ -16017,7 +16017,7 @@ mod tests {
             &spawn_data(SpawnObjectType::GameObject, 39801, active),
             |_| false,
         );
-        map.ensure_grid_loaded(&cell_from_world(0.0, 0.0));
+        map.ensure_grid_loaded(&cell_from_grid_center(GridCoord::new(7, 0)));
         map.add_respawn_info_like_cpp(respawn_info(SpawnObjectType::GameObject, 39801, 100));
         let expected_guid = guid(HighGuid::GameObject, 3980101);
 
@@ -16073,7 +16073,7 @@ mod tests {
             &spawn_data(SpawnObjectType::GameObject, 40901, active),
             |_| false,
         );
-        map.ensure_grid_loaded(&cell_from_world(0.0, 0.0));
+        map.ensure_grid_loaded(&cell_from_grid_center(GridCoord::new(7, 0)));
         map.add_respawn_info_like_cpp(respawn_info(SpawnObjectType::GameObject, 40901, 100));
         let owner_guid = guid(HighGuid::GameObject, 4090101);
         let trap_guid = guid(HighGuid::GameObject, 4090102);
@@ -16136,7 +16136,7 @@ mod tests {
             &spawn_data(SpawnObjectType::Creature, 39902, active),
             |_| false,
         );
-        map.ensure_grid_loaded(&cell_from_world(0.0, 0.0));
+        map.ensure_grid_loaded(&cell_from_grid_center(GridCoord::new(7, 0)));
         map.add_respawn_info_like_cpp(respawn_info(SpawnObjectType::Creature, 39901, 90));
         map.add_respawn_info_like_cpp(respawn_info(SpawnObjectType::Creature, 39902, 100));
 
@@ -16211,7 +16211,7 @@ mod tests {
             &spawn_data(SpawnObjectType::Creature, 40101, active),
             |_| false,
         );
-        map.ensure_grid_loaded(&cell_from_world(0.0, 0.0));
+        map.ensure_grid_loaded(&cell_from_grid_center(GridCoord::new(7, 0)));
         map.add_respawn_info_like_cpp(respawn_info(SpawnObjectType::Creature, 40101, 100));
         let expected_guid = guid(HighGuid::Creature, 4010101);
 
@@ -17172,7 +17172,7 @@ mod tests {
         store.add_object_spawn(&spawn_data(SpawnObjectType::Creature, 40, manual), |_| {
             false
         });
-        map.ensure_grid_loaded(&cell_from_world(0.0, 0.0));
+        map.ensure_grid_loaded(&cell_from_grid_center(GridCoord::new(7, 0)));
         map.add_respawn_info_like_cpp(respawn_info(SpawnObjectType::Creature, 50, 90));
         map.add_respawn_info_like_cpp(respawn_info(SpawnObjectType::Creature, 40, 100));
 
@@ -18468,6 +18468,7 @@ mod tests {
             despawn.applied_inactive_change,
             Some(SpawnGroupActiveChange::Toggled)
         );
+        map.remove_all_objects_in_remove_list_like_cpp();
         assert_eq!(map.map_object_count(), 0);
         assert_eq!(map.creature_spawn_id_store_count_like_cpp(10), 0);
         assert_eq!(map.gameobject_spawn_id_store_count_like_cpp(20), 0);
