@@ -5996,11 +5996,25 @@ impl WorldSession {
         }
 
         // SatisfyQuestRace + SatisfyQuestClass + SatisfyQuestLevel
-        quest.is_available_for(
+        if !quest.is_available_for(
             self.player_race_like_cpp(),
             self.player_class_like_cpp(),
             self.player_level_like_cpp(),
-        )
+        ) {
+            return false;
+        }
+
+        // SatisfyQuestConditions — C++ Player.cpp:14102
+        if !self.represented_quest_available_conditions_meet_like_cpp(quest.id) {
+            debug!(
+                account = self.account_id,
+                quest_id = quest.id,
+                "CanTakeQuest: quest available conditions not met"
+            );
+            return false;
+        }
+
+        true
     }
 
     fn is_quest_disabled_like_cpp(&self, quest_id: u32) -> bool {
@@ -15024,6 +15038,48 @@ mod tests {
         assert!(
             include_str!("../session.rs").contains("self.handle_quest_log_remove_quest(pkt).await")
         );
+    }
+
+    #[test]
+    fn can_take_quest_blocks_when_quest_available_condition_not_met_like_cpp() {
+        // NEGATIVA: nivel requerido 90, jugador nivel 80 → condición no se cumple.
+        let (mut session, _send_rx) = make_session();
+        let quest_id = 7570u32;
+        let quest = quest_template(quest_id);
+        let store = QuestStore::from_quests_like_cpp([quest.clone()]);
+        session.set_quest_store(Arc::new(store));
+        session.set_condition_store(Arc::new(
+            ConditionEntriesByTypeStore::from_conditions_like_cpp([Condition {
+                source_type: ConditionSourceType::QuestAvailable,
+                source_entry: quest_id as i32,
+                condition_type: ConditionType::Level,
+                condition_value1: 90,
+                condition_value2: ComparisonType::HighEq as u32,
+                ..Condition::default()
+            }]),
+        ));
+
+        // Sin la condición la quest sería aceptable (nivel 1, min_level 1, raza/clase sin filtro).
+        // Con la condición de nivel 90, el jugador (80) no la cumple.
+        assert!(!session.can_take_quest(&quest));
+
+        // POSITIVA: nivel requerido 80 (alcanzable para el jugador en nivel 80).
+        let quest_id2 = 7571u32;
+        let quest2 = quest_template(quest_id2);
+        let store2 = QuestStore::from_quests_like_cpp([quest2.clone()]);
+        session.set_quest_store(Arc::new(store2));
+        session.set_condition_store(Arc::new(
+            ConditionEntriesByTypeStore::from_conditions_like_cpp([Condition {
+                source_type: ConditionSourceType::QuestAvailable,
+                source_entry: quest_id2 as i32,
+                condition_type: ConditionType::Level,
+                condition_value1: 80,
+                condition_value2: ComparisonType::HighEq as u32,
+                ..Condition::default()
+            }]),
+        ));
+
+        assert!(session.can_take_quest(&quest2));
     }
 }
 
