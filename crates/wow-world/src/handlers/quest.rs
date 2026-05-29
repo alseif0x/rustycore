@@ -5709,6 +5709,17 @@ impl WorldSession {
             .unwrap_or(QUEST_STATUS_NONE_LIKE_CPP)
     }
 
+    // SatisfyQuestSkill — Player.cpp:14098, 15015-15037
+    fn satisfy_quest_skill_like_cpp(&self, quest: &wow_data::quest::QuestTemplate) -> bool {
+        if quest.required_skill_id == 0 {
+            return true;
+        }
+        let Ok(skill_u16) = u16::try_from(quest.required_skill_id) else {
+            return true;
+        };
+        u32::from(self.player_skill_value_like_cpp(skill_u16)) >= quest.required_skill_points
+    }
+
     // SatisfyQuestReputation — Player.cpp:14098, 15262-15289
     //
     // Mirrors C++ GetReputation(fId) = base + standing.
@@ -6162,6 +6173,16 @@ impl WorldSession {
             self.player_class_like_cpp(),
             self.player_level_like_cpp(),
         ) {
+            return false;
+        }
+
+        // SatisfyQuestSkill — Player.cpp:14098, 15015-15037
+        if !self.satisfy_quest_skill_like_cpp(quest) {
+            debug!(
+                account = self.account_id,
+                quest_id = quest.id,
+                "CanTakeQuest: skill requirement not met"
+            );
             return false;
         }
 
@@ -6712,6 +6733,8 @@ mod tests {
             required_min_rep_value: 0,
             required_max_rep_faction: 0,
             required_max_rep_value: 0,
+            required_skill_id: 0,
+            required_skill_points: 0,
             reward_choice_items: [(0, 0); QUEST_REWARD_CHOICES_COUNT],
             reward_choice_item_types: [0; QUEST_REWARD_CHOICES_COUNT],
         }
@@ -15453,6 +15476,52 @@ mod tests {
         quest.required_min_rep_value = 500;
         quest.required_max_rep_faction = faction_id;
         quest.required_max_rep_value = 1000;
+        let store = QuestStore::from_quests_like_cpp([quest.clone()]);
+        session.set_quest_store(Arc::new(store));
+
+        assert!(session.can_take_quest(&quest));
+    }
+
+    // ── SatisfyQuestSkill tests ──────────────────────────────────────────────
+
+    #[test]
+    fn can_take_quest_skill_blocks_when_skill_below_required_like_cpp() {
+        // NEGATIVA: required_skill_id != 0, skill del jugador < required_skill_points → false.
+        // Player.cpp:15015-15037.
+        let skill_id: u16 = 1_000;
+        let required_points: u32 = 300;
+
+        let (mut session, _send_rx) = make_session();
+        // Jugador con skill 1000 en valor 299 — por debajo del requisito.
+        session.set_player_skill_values_like_cpp(std::collections::HashMap::from([(
+            skill_id, 299_u16,
+        )]));
+
+        let mut quest = quest_template(9940u32);
+        quest.required_skill_id = u32::from(skill_id);
+        quest.required_skill_points = required_points;
+        // Aislar el gate: sin restricciones de raza/clase/level/rep/conditions/expansion.
+        let store = QuestStore::from_quests_like_cpp([quest.clone()]);
+        session.set_quest_store(Arc::new(store));
+
+        assert!(!session.can_take_quest(&quest));
+    }
+
+    #[test]
+    fn can_take_quest_skill_allows_when_skill_at_or_above_required_like_cpp() {
+        // POSITIVA: skill del jugador >= required_skill_points → el gate no bloquea.
+        let skill_id: u16 = 1_000;
+        let required_points: u32 = 300;
+
+        let (mut session, _send_rx) = make_session();
+        // Jugador con skill 1000 exactamente en 300.
+        session.set_player_skill_values_like_cpp(std::collections::HashMap::from([(
+            skill_id, 300_u16,
+        )]));
+
+        let mut quest = quest_template(9941u32);
+        quest.required_skill_id = u32::from(skill_id);
+        quest.required_skill_points = required_points;
         let store = QuestStore::from_quests_like_cpp([quest.clone()]);
         session.set_quest_store(Arc::new(store));
 

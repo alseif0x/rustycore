@@ -935,7 +935,9 @@ impl StatementDef for WorldStatements {
                 "qt.RewardFactionID3, qt.RewardFactionValue3, qt.RewardFactionOverride3, qt.RewardFactionCapIn3, ",
                 "qt.RewardFactionID4, qt.RewardFactionValue4, qt.RewardFactionOverride4, qt.RewardFactionCapIn4, ",
                 "qt.RewardFactionID5, qt.RewardFactionValue5, qt.RewardFactionOverride5, qt.RewardFactionCapIn5, ",
-                "qt.RewardFactionFlags ",
+                "qt.RewardFactionFlags, ",
+                "COALESCE(qta.RequiredSkillID, 0) AS RequiredSkillID, ",
+                "COALESCE(qta.RequiredSkillPoints, 0) AS RequiredSkillPoints ",
                 "FROM quest_template qt ",
                 "LEFT JOIN quest_template_addon qta ON qt.ID = qta.ID ",
                 "LEFT JOIN quest_reward_choice_items qrci ON qt.ID = qrci.QuestID ",
@@ -1061,6 +1063,8 @@ mod tests {
         assert!(sql.contains("qt.RewardFactionID1, qt.RewardFactionValue1"));
         assert!(sql.contains("qt.RewardFactionID5, qt.RewardFactionValue5"));
         assert!(sql.contains("qt.RewardFactionFlags"));
+        assert!(sql.contains("COALESCE(qta.RequiredSkillID, 0) AS RequiredSkillID"));
+        assert!(sql.contains("COALESCE(qta.RequiredSkillPoints, 0) AS RequiredSkillPoints"));
     }
 
     #[test]

@@ -9303,6 +9303,8 @@ mod tests {
             required_min_rep_value: 0,
             required_max_rep_faction: 0,
             required_max_rep_value: 0,
+            required_skill_id: 0,
+            required_skill_points: 0,
             reward_choice_items: [(0, 0); QUEST_REWARD_CHOICES_COUNT],
             reward_choice_item_types: [0; QUEST_REWARD_CHOICES_COUNT],
         }

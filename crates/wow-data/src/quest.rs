@@ -180,6 +180,10 @@ pub struct QuestTemplate {
     pub required_max_rep_faction: u32,
     /// C++ `Quest::GetRequiredMaxRepValue()` from `quest_template_addon`.
     pub required_max_rep_value: i32,
+    /// C++ `Quest::GetRequiredSkill()` / `_requiredSkillId` — QuestDef.h:585, quest_template_addon.
+    pub required_skill_id: u32,
+    /// C++ `Quest::GetRequiredSkillValue()` / `_requiredSkillPoints` — QuestDef.h:586, ObjectMgr.cpp:4623.
+    pub required_skill_points: u32,
     /// Optional reward choices player can choose (up to 6). (item_id, quantity).
     /// item_id == 0 means that slot is empty.
     pub reward_choice_items: [(u32, u32); QUEST_REWARD_CHOICES_COUNT],
@@ -956,6 +960,8 @@ pub async fn load_quests(db: &WorldDatabase) -> Result<QuestStore> {
                 required_min_rep_value: result.try_read::<i32>(49).unwrap_or(0),
                 required_max_rep_faction: result.try_read::<u32>(50).unwrap_or(0),
                 required_max_rep_value: result.try_read::<i32>(51).unwrap_or(0),
+                required_skill_id: result.try_read::<u32>(114).unwrap_or(0),
+                required_skill_points: result.try_read::<u32>(115).unwrap_or(0),
                 reward_choice_items: [
                     (
                         result.try_read::<u32>(52).unwrap_or(0),
@@ -1223,6 +1229,8 @@ mod tests {
             required_min_rep_value: 0,
             required_max_rep_faction: 0,
             required_max_rep_value: 0,
+            required_skill_id: 0,
+            required_skill_points: 0,
             reward_choice_items: [(0, 0); QUEST_REWARD_CHOICES_COUNT],
             reward_choice_item_types: [0; QUEST_REWARD_CHOICES_COUNT],
         }
