@@ -192,6 +192,14 @@ Leyenda:
 
 ### L3 World/Maps — 🔧 NÚCLEO DE REWRITE
 
+> **DRIFT (2026-05-29):** este snapshot está desactualizado. Existe ya un `wow_map::MapManager`
+> canónico con tick global (`spawn_canonical_map_update_loop`) y estructura tipo `Map::Update`,
+> y loaders loaded-grid (`creature/gameobject_loaded_grid`). La realidad actual del runtime y la
+> decisión de convergencia (tick ownership, sin doble tick; legacy = motor transitorio, canónico =
+> destino estructural) están en **`docs/migration/adr-runtime-tick-ownership.md`**. Progreso honesto:
+> `docs/migration/honest-progress-audit.md`. El trabajo de runtime vivo va por estas fases L3/L4,
+> NO por el namespace `#NEXT.R8.ENTITIES.*`.
+
 | Módulo C++ | Crate Rust | Estado | Pendiente |
 |---|---|---|---|
 | `Maps/Map` | wow-world/map_manager.rs | 🔧 | sin Cell anidado, sin máquina de estados, sin lifecycle |
