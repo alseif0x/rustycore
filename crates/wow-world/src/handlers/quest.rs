@@ -6051,7 +6051,7 @@ impl WorldSession {
     }
 
     /// Full eligibility check before accepting a quest.
-    /// C# ref: Player.CanTakeQuest (SatisfyQuestStatus + SatisfyQuestRace/Class/Level + PrevQuest)
+    /// C++ ref: Player::CanTakeQuest (Player.cpp:14093-14102) — gate order mirrors C++ exactly.
     pub fn can_take_quest(&self, quest: &wow_data::quest::QuestTemplate) -> bool {
         if self.is_quest_disabled_like_cpp(quest.id) {
             debug!(
@@ -6093,22 +6093,33 @@ impl WorldSession {
             return false;
         }
 
-        // SatisfyQuestSeasonal — C++ Player::SatisfyQuestSeasonal
-        if quest.is_seasonal_like_cpp() && !self.seasonal_quests_like_cpp.is_empty() {
-            if let Some(bucket) = self
-                .seasonal_quests_like_cpp
-                .get(&quest.event_id_for_quest_like_cpp())
-            {
-                if !bucket.is_empty() && bucket.contains_key(&quest.id) {
-                    debug!(
-                        account = self.account_id,
-                        quest_id = quest.id,
-                        event_id = quest.event_id_for_quest_like_cpp(),
-                        "CanTakeQuest: seasonal quest cooldown"
-                    );
-                    return false;
-                }
-            }
+        // SatisfyQuestRace + SatisfyQuestClass + SatisfyQuestLevel
+        if !quest.is_available_for(
+            self.player_race_like_cpp(),
+            self.player_class_like_cpp(),
+            self.player_level_like_cpp(),
+        ) {
+            return false;
+        }
+
+        // SatisfyQuestSkill — Player.cpp:14098, 15015-15037
+        if !self.satisfy_quest_skill_like_cpp(quest) {
+            debug!(
+                account = self.account_id,
+                quest_id = quest.id,
+                "CanTakeQuest: skill requirement not met"
+            );
+            return false;
+        }
+
+        // SatisfyQuestReputation — Player.cpp:14098, 15262-15289
+        if !self.satisfy_quest_reputation_like_cpp(quest) {
+            debug!(
+                account = self.account_id,
+                quest_id = quest.id,
+                "CanTakeQuest: reputation requirement not met"
+            );
+            return false;
         }
 
         // SatisfyQuestPreviousQuest — C# lines 1415-1440
@@ -6146,6 +6157,8 @@ impl WorldSession {
 
         // SatisfyQuestDependentPreviousQuests — Player.cpp:15090 / Player.cpp:15121-15177
         // Blocks acceptance if the scalar dependent-previous list is not satisfied.
+        // Per C++ SatisfyQuestDependentQuests (Player.cpp:15088-15092), this cluster runs
+        // after SatisfyQuestReputation, not before Race/Class/Level.
         if let Some(quest_store) = &self.quest_store {
             if represented_satisfy_quest_dependent_previous_quests_failed_like_cpp(
                 quest_store,
@@ -6184,33 +6197,25 @@ impl WorldSession {
             }
         }
 
-        // SatisfyQuestRace + SatisfyQuestClass + SatisfyQuestLevel
-        if !quest.is_available_for(
-            self.player_race_like_cpp(),
-            self.player_class_like_cpp(),
-            self.player_level_like_cpp(),
-        ) {
-            return false;
-        }
-
-        // SatisfyQuestSkill — Player.cpp:14098, 15015-15037
-        if !self.satisfy_quest_skill_like_cpp(quest) {
-            debug!(
-                account = self.account_id,
-                quest_id = quest.id,
-                "CanTakeQuest: skill requirement not met"
-            );
-            return false;
-        }
-
-        // SatisfyQuestReputation — Player.cpp:14098, 15262-15289
-        if !self.satisfy_quest_reputation_like_cpp(quest) {
-            debug!(
-                account = self.account_id,
-                quest_id = quest.id,
-                "CanTakeQuest: reputation requirement not met"
-            );
-            return false;
+        // SatisfyQuestSeasonal — C++ Player::SatisfyQuestSeasonal
+        // Per C++ CanTakeQuest order (Player.cpp:14093-14102): Seasonal follows Month (gap) and
+        // precedes Conditions; the dependent cluster (prev_quest_id, DependentPreviousQuests,
+        // DependentBreadcrumbQuests) runs before this, as part of SatisfyQuestDependentQuests.
+        if quest.is_seasonal_like_cpp() && !self.seasonal_quests_like_cpp.is_empty() {
+            if let Some(bucket) = self
+                .seasonal_quests_like_cpp
+                .get(&quest.event_id_for_quest_like_cpp())
+            {
+                if !bucket.is_empty() && bucket.contains_key(&quest.id) {
+                    debug!(
+                        account = self.account_id,
+                        quest_id = quest.id,
+                        event_id = quest.event_id_for_quest_like_cpp(),
+                        "CanTakeQuest: seasonal quest cooldown"
+                    );
+                    return false;
+                }
+            }
         }
 
         // SatisfyQuestConditions — C++ Player.cpp:14102
