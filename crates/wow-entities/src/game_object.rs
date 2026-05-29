@@ -64,6 +64,8 @@ pub const GAMEOBJECT_DATA_CHEST_RESTOCK_TIME: usize = 2;
 pub const GAMEOBJECT_DATA_CHEST_CONSUMABLE: usize = 3;
 pub const GAMEOBJECT_DATA_CHEST_TRIGGERED_EVENT: usize = 6;
 pub const GAMEOBJECT_DATA_CHEST_LINKED_TRAP: usize = 7;
+// C++ anchor: /home/server/woltk-trinity-legacy/src/server/game/Entities/GameObject/GameObjectData.h:105
+pub const GAMEOBJECT_DATA_CHEST_QUEST_ID: usize = 8;
 pub const GAMEOBJECT_DATA_CHEST_USE_GROUP_LOOT_RULES: usize = 15;
 pub const GAMEOBJECT_DATA_CHEST_DUNGEON_ENCOUNTER: usize = 25;
 pub const GAMEOBJECT_DATA_CHEST_PERSONAL_LOOT: usize = 30;
@@ -172,6 +174,7 @@ pub struct GameObjectLootSource {
     pub linked_trap_entry: u32,
     pub chest_restock_time_secs: u32,
     pub chest_consumable: bool,
+    pub chest_quest_id: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -875,6 +878,7 @@ impl GameObjectTemplateData {
             linked_trap_entry: self.data[GAMEOBJECT_DATA_CHEST_LINKED_TRAP],
             chest_restock_time_secs: self.data[GAMEOBJECT_DATA_CHEST_RESTOCK_TIME],
             chest_consumable: self.data[GAMEOBJECT_DATA_CHEST_CONSUMABLE] != 0,
+            chest_quest_id: self.data[GAMEOBJECT_DATA_CHEST_QUEST_ID],
         })
     }
 
@@ -3152,6 +3156,7 @@ mod tests {
         data[GAMEOBJECT_DATA_CHEST_CONSUMABLE] = 1;
         data[GAMEOBJECT_DATA_CHEST_TRIGGERED_EVENT] = 40;
         data[GAMEOBJECT_DATA_CHEST_LINKED_TRAP] = 50;
+        data[GAMEOBJECT_DATA_CHEST_QUEST_ID] = 9999;
         data[GAMEOBJECT_DATA_CHEST_USE_GROUP_LOOT_RULES] = 1;
         data[GAMEOBJECT_DATA_CHEST_DUNGEON_ENCOUNTER] = 1234;
         data[GAMEOBJECT_DATA_CHEST_PERSONAL_LOOT] = 20;
@@ -3173,6 +3178,7 @@ mod tests {
                 linked_trap_entry: 50,
                 chest_restock_time_secs: 60,
                 chest_consumable: true,
+                chest_quest_id: 9999,
             }
         );
         assert!(!source.is_empty());
@@ -3180,6 +3186,13 @@ mod tests {
         assert!(source.has_open_loot_like_cpp());
         assert!(!source.is_personal_encounter_loot_like_cpp());
         assert!(!source.should_autostore_push_loot_like_cpp());
+
+        // Verify index 8 is read from the correct data slot: zero it and confirm field resets.
+        data[GAMEOBJECT_DATA_CHEST_QUEST_ID] = 0;
+        let no_quest_source = GameObjectTemplateData::new(GAMEOBJECT_TYPE_CHEST, data)
+            .chest_loot_source_like_cpp()
+            .expect("chest templates expose a chest loot source");
+        assert_eq!(no_quest_source.chest_quest_id, 0);
 
         data[GAMEOBJECT_DATA_CHEST_LOOT] = 0;
         data[GAMEOBJECT_DATA_CHEST_PERSONAL_LOOT] = 0;

@@ -5315,8 +5315,12 @@ impl WorldSession {
     ) -> bool {
         match state.go_type.map(u32::from) {
             Some(wow_entities::GAMEOBJECT_TYPE_QUESTGIVER) => true,
+            // C++ anchor: /home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:8791-8800
             Some(wow_entities::GAMEOBJECT_TYPE_CHEST) => {
                 self.represented_has_quest_for_gameobject_like_cpp(gameobject_entry)
+                    || state
+                        .chest_loot_source
+                        .is_some_and(|source| source.chest_quest_id != 0)
                     || state.chest_loot_source.is_some_and(|source| {
                         self.represented_gameobject_loot_ids_have_quest_loot_like_cpp(
                             Self::represented_gameobject_chest_loot_ids_like_cpp(source),
@@ -5360,14 +5364,23 @@ impl WorldSession {
                 status != wow_packet::packets::quest::quest_giver_status::NONE
                     && status != wow_packet::packets::quest::quest_giver_status::FUTURE
             }
-            Some(wow_entities::GAMEOBJECT_TYPE_CHEST) => state.loot_state
-                != Some(wow_entities::LootState::NotReady)
-                && (self.represented_has_quest_for_gameobject_like_cpp(gameobject_entry)
-                    || state.chest_loot_source.is_some_and(|source| {
+            // C++ anchor: /home/server/woltk-trinity-legacy/src/server/game/Entities/GameObject/GameObject.cpp:2236-2251
+            Some(wow_entities::GAMEOBJECT_TYPE_CHEST) => {
+                state.loot_state != Some(wow_entities::LootState::NotReady)
+                    && (state.chest_loot_source.is_some_and(|source| {
+                        source.chest_quest_id != 0
+                            && self
+                                .player_quests
+                                .get(&source.chest_quest_id)
+                                .is_some_and(|s| {
+                                    s.status == crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP
+                                })
+                    }) || state.chest_loot_source.is_some_and(|source| {
                         self.represented_gameobject_loot_ids_have_quest_loot_for_player_like_cpp(
                             Self::represented_gameobject_chest_loot_ids_like_cpp(source),
                         )
-                    })),
+                    }))
+            }
             Some(wow_entities::GAMEOBJECT_TYPE_GENERIC) => {
                 self.represented_has_quest_for_gameobject_like_cpp(gameobject_entry)
             }
@@ -48102,6 +48115,85 @@ mod tests {
                 loot_state: wow_entities::LootState::Ready,
                 go_state: Some(wow_entities::GoState::Ready),
             }]
+        );
+    }
+
+    // C++ anchor: /home/server/woltk-trinity-legacy/src/server/game/Entities/GameObject/GameObject.cpp:2236-2251
+    #[test]
+    fn chest_quest_id_incomplete_activates_to_quest_like_cpp() {
+        let quest_id: u32 = 1_234;
+        let entry: u32 = 55_001;
+
+        // Positive: player has quest in INCOMPLETE — chest with matching chest_quest_id activates.
+        let (mut session, _, _send_rx) = make_session();
+        session.player_quests.insert(
+            quest_id,
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![],
+                slot: 0,
+            },
+        );
+        let state = RepresentedGameObjectUseState {
+            go_type: Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8),
+            loot_state: Some(wow_entities::LootState::Ready),
+            chest_loot_source: Some(wow_entities::GameObjectLootSource {
+                chest_quest_id: quest_id,
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        assert!(
+            session.represented_gameobject_activate_to_quest_like_cpp(entry, &state),
+            "chest with INCOMPLETE quest_id must activate"
+        );
+
+        // Negative A: chest_quest_id == 0 (no quest link) — no activation.
+        let (session_a, _, _) = make_session();
+        let state_a = RepresentedGameObjectUseState {
+            go_type: Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8),
+            loot_state: Some(wow_entities::LootState::Ready),
+            chest_loot_source: Some(wow_entities::GameObjectLootSource {
+                chest_quest_id: 0,
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        assert!(
+            !session_a.represented_gameobject_activate_to_quest_like_cpp(entry, &state_a),
+            "chest_quest_id == 0 must not activate"
+        );
+
+        // Negative B: player has the quest but in COMPLETE status — no activation.
+        let (mut session_b, _, _) = make_session();
+        session_b.player_quests.insert(
+            quest_id,
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![],
+                slot: 0,
+            },
+        );
+        let state_b = RepresentedGameObjectUseState {
+            go_type: Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8),
+            loot_state: Some(wow_entities::LootState::Ready),
+            chest_loot_source: Some(wow_entities::GameObjectLootSource {
+                chest_quest_id: quest_id,
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        assert!(
+            !session_b.represented_gameobject_activate_to_quest_like_cpp(entry, &state_b),
+            "chest with quest in COMPLETE status must not activate"
         );
     }
 
