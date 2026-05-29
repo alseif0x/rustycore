@@ -48209,6 +48209,74 @@ mod tests {
         );
     }
 
+    // Anchor: legacy motor A (WorldSession) shares a single Arc<RwLock<MapManager>>
+    // across sessions — mutations from one session are immediately visible to the
+    // other without any message-passing. This characterizes the shared-state
+    // contract that tick_creatures_sync / tick_combat_sync depend on.
+    #[tokio::test]
+    async fn two_sessions_sharing_legacy_map_manager_see_same_creature_state() {
+        let manager = shared_map_manager();
+
+        let (mut session1, _pkt_tx1, _send_rx1) = make_session();
+        let (mut session2, _pkt_tx2, _send_rx2) = make_session();
+
+        session1.set_map_manager(Arc::clone(&manager));
+        session2.set_map_manager(Arc::clone(&manager));
+
+        let creature_guid = test_creature_guid(99901);
+        let pos = Position::new(10.0, 10.0, 0.0, 0.0);
+        let (grid_x, grid_y) = crate::map_manager::world_to_grid_coords(pos.x, pos.y);
+        manager.write().unwrap().add_creature(
+            0,
+            0,
+            grid_x,
+            grid_y,
+            crate::map_manager::WorldCreature::new(
+                creature_guid,
+                900,
+                pos,
+                100,
+                80,
+                1,
+                2,
+                0.0,
+                1,
+                35,
+                0,
+                0,
+            ),
+        );
+
+        let hp_before = manager
+            .read()
+            .unwrap()
+            .find_creature(0, 0, creature_guid)
+            .expect("creature must exist before mutation")
+            .current_hp();
+        assert_eq!(hp_before, 100, "initial HP must be 100");
+
+        session1.mutate_world_creature(creature_guid, |c| {
+            c.take_damage(40);
+        });
+
+        let hp_after = manager
+            .read()
+            .unwrap()
+            .find_creature(0, 0, creature_guid)
+            .expect("creature must exist after mutation")
+            .current_hp();
+        assert_eq!(
+            hp_after, 60,
+            "session2 must observe HP=60 after session1 applied 40 damage"
+        );
+
+        let guids2 = session2.world_creature_guids();
+        assert!(
+            guids2.contains(&creature_guid),
+            "session2 must see creature inserted via shared manager"
+        );
+    }
+
     #[test]
     fn dispatch_table_has_no_duplicate_registered_opcodes() {
         let mut counts = std::collections::HashMap::new();

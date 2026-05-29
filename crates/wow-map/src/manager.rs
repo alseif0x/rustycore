@@ -3901,4 +3901,72 @@ mod tests {
             42
         );
     }
+
+    // Anchor: canonical motor B (map.rs:6286-6295) calls runtime_update_plan and
+    // stores actions_recorded but has NO match that dispatches AiUpdateTick/
+    // MeleeAttackIfReady — no real AI/combat/threat/fanout. Characterizes the split
+    // vs. legacy motor A (WorldSession::tick_creatures_sync / tick_combat_sync).
+    #[test]
+    fn canonical_map_update_visits_creature_with_no_real_ai_combat_effect_like_cpp() {
+        let mut manager = MapManager::new(MIN_GRID_DELAY_MS, 1);
+        manager.create_world_map(1, 0);
+        let creature_guid = insert_creature_for_update(&mut manager, 9990001, true);
+
+        let position_before = manager
+            .find_map(1, 0)
+            .unwrap()
+            .map()
+            .map_object(creature_guid)
+            .unwrap()
+            .position();
+        let health_before = manager
+            .find_map(1, 0)
+            .unwrap()
+            .map()
+            .map_object_record(creature_guid)
+            .unwrap()
+            .creature()
+            .unwrap()
+            .unit()
+            .data()
+            .health;
+
+        assert_eq!(manager.update(1), Some(1));
+
+        let managed_map = manager.find_map(1, 0).unwrap();
+
+        let summary = managed_map.last_creatures_update_summary();
+        assert!(
+            summary.visited >= 1,
+            "canonical tick must visit the creature"
+        );
+        assert!(
+            summary.actions_recorded > 0,
+            "canonical tick must record plan actions (runtime_update_plan was called)"
+        );
+
+        let position_after = managed_map
+            .map()
+            .map_object(creature_guid)
+            .unwrap()
+            .position();
+        let health_after = managed_map
+            .map()
+            .map_object_record(creature_guid)
+            .unwrap()
+            .creature()
+            .unwrap()
+            .unit()
+            .data()
+            .health;
+
+        assert_eq!(
+            position_after, position_before,
+            "canonical tick must not change creature position — no real AI/combat executed"
+        );
+        assert_eq!(
+            health_after, health_before,
+            "canonical tick must not change creature health — no real AI/combat executed"
+        );
+    }
 }
