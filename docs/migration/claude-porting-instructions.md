@@ -14,15 +14,17 @@ Rutas obligatorias:
 - Docs de estado: /home/server/rustycore/docs/migration/current-session-handoff.md
 - Inventario principal: /home/server/rustycore/docs/migration/inventory/r8-entities-miniphase.md
 - TSV principal: /home/server/rustycore/docs/migration/inventory/r8-entities-miniphase.tsv
+- Plan por fases (orden de ejecucion): /home/server/rustycore/docs/MIGRATION_ROADMAP.md
+- Indice de modulos + estado/auditoria: /home/server/rustycore/docs/migration/_INDEX.md
+- Auditoria honesta de progreso: /home/server/rustycore/docs/migration/honest-progress-audit.md
 - Guia local de agente: /home/server/rustycore/CLAUDE.md
 
-Estado actual conocido:
-- HEAD actual de documentacion: ef9741f Refresh Claude project guidance
-- Ultima base funcional auditada del port: 1af9223 Add honest progress audit (R8-entities)
-- Progreso honesto documentado: 736/759 = 96.97%
-- Ultimo item del handoff: TEST-DEBT / #NEXT.R8.ENTITIES.765
-- develop, origin/develop, main, origin/main estaban sincronizados en ef9741f al crear esta guia.
-- ef9741f es documentacion; para cambios funcionales, considera 1af9223 como la ultima base auditada del port salvo que revises commits posteriores contra C++.
+Estado actual conocido (puede haber avanzado; corre `git log` para confirmar HEAD real):
+- HEAD reciente: af9ffe0 Align can_take_quest gate order to C++
+- Ultima base funcional auditada del port: 1af9223 Add honest progress audit (R8-entities). Despues de 1af9223 se han revisado por el flujo analista->dev->revisor: b285e92 (#765 test-debt wow-map 614/0), af9ffe0 (#766 reorden de fidelidad de gates). ef9741f/12686e2 son documentacion.
+- Progreso honesto documentado: 736/759 = 96.97% (sin cambio por #765/#766: son test-debt/fidelidad, no gaps nuevos). Ver `docs/migration/honest-progress-audit.md` para el desglose real (lo "atendido" no es lo mismo que runtime vivo).
+- Ultimo item del handoff: FIDELITY / #NEXT.R8.ENTITIES.766.
+- Para cambios funcionales, audita siempre los commits posteriores a 1af9223 contra C++; no aceptes nada por el mensaje.
 
 Regla principal:
 No confies en Rust, en summaries de IA ni en docs antiguas como prueba de paridad. Siempre contrasta contra /home/server/woltk-trinity-legacy antes de implementar o aceptar cambios.
@@ -96,6 +98,8 @@ head -n 30 docs/migration/current-session-handoff.md
 ```bash
 rg -n "remain open|Boundaries|Remaining gaps|SatisfyQuest|ConditionMgr|manual-test-ready|live-runtime" docs/migration/current-session-handoff.md docs/migration/inventory/r8-entities-miniphase.md
 ```
+
+Para trabajo de runtime/arquitectura (Maps, MapManager, tick global, entidades canonicas vivas), el plan por fases vive en `docs/MIGRATION_ROADMAP.md` (Fase 0 = rehacer Maps, Fase 1 = entidades canonicas, etc.) y el estado por modulo en `docs/migration/_INDEX.md`. Ese trabajo es L3/L4 del roadmap; NO usar el namespace `#NEXT.R8.ENTITIES.*` para slices de runtime/arquitectura — usar la fase/modulo del roadmap. El namespace `R8.ENTITIES` es para la mini-fase de entidades representadas, no para la convergencia de runtime.
 
 3. Localizar C++ exacto:
 
@@ -285,13 +289,13 @@ No hacer big-bang. Si un cambio toca runtime global, aislarlo con regression tes
 
 ## Estado Actual Y Gaps Repetidos
 
-Estado documentado al crear esta guia:
+Estado documentado (puede haber avanzado; confirmar con `git log`):
 
-- HEAD docs: `ef9741f Refresh Claude project guidance`
-- base funcional auditada: `1af9223 Add honest progress audit (R8-entities)`
+- HEAD reciente: `af9ffe0 Align can_take_quest gate order to C++`
+- base funcional auditada: `1af9223 Add honest progress audit (R8-entities)` (commits posteriores revisados: `b285e92` #765, `af9ffe0` #766)
 - progreso: `736/759 = 96.97%`
 - `wow-map --lib`: limpio `614/0`
-- `wow-world --lib`: limpio en runs recientes
+- `wow-world --lib`: limpio `1051/0`
 
 Gaps abiertos repetidos en handoff:
 

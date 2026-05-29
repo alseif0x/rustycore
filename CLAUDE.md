@@ -159,7 +159,8 @@ Primary current-state docs:
 - `docs/migration/current-session-handoff.md`
 - `docs/migration/inventory/r8-entities-miniphase.md`
 - `docs/migration/inventory/r8-entities-miniphase.tsv`
-- `docs/migration/progress-audit.md` or similarly named audit docs if present.
+- `docs/migration/honest-progress-audit.md` (honest progress audit; or similarly named audit docs if present).
+- `docs/MIGRATION_ROADMAP.md` (phase-ordered execution plan) and `docs/migration/_INDEX.md` (per-module status/audit). Use them for plan/order; their status snapshots predate the R8-entities work and have drifted, so they are not proof of current state.
 
 Older snapshots such as `MIGRATION_STATUS.md` may be stale. They can help find concepts but are not proof of current parity.
 
