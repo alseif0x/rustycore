@@ -1485,7 +1485,7 @@ pub struct LegacyCreatureLifecycleTickOutcomeLikeCpp {
     pub refresh_map_keys: Vec<(u16, u32)>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct LegacyCreatureAggroCandidateLikeCpp {
     pub player_guid: ObjectGuid,
     pub map_id: u16,
@@ -1494,8 +1494,15 @@ pub struct LegacyCreatureAggroCandidateLikeCpp {
     pub player_level: u8,
     pub player_gray_level: u8,
     pub player_unit_flags: u32,
+    pub player_unit_flags2: u32,
     pub player_unit_state: u32,
     pub player_is_game_master: bool,
+    pub player_is_contested_pvp: bool,
+    pub player_faction_template_id: u32,
+    pub player_reputation_standings: Vec<(u32, i32)>,
+    pub player_reputation_state_flags: Vec<(u32, u32)>,
+    pub player_forced_reputation_ranks: Vec<(u32, wow_data::reputation::ReputationRankLikeCpp)>,
+    pub player_forced_reputation_faction_ids: Vec<u32>,
 }
 
 /// Map-owned creature aggro fidelity switches derived from C++ world configs.
@@ -1503,10 +1510,12 @@ pub struct LegacyCreatureAggroCandidateLikeCpp {
 /// C++ anchor: `Creature::CheckNoGrayAggroConfig` reads
 /// `CONFIG_NO_GRAY_AGGRO_ABOVE` and `CONFIG_NO_GRAY_AGGRO_BELOW` after
 /// `Trinity::XP::GetColorCode(playerLevel, creatureLevel) == XP_GRAY`.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Clone, Default)]
 pub struct LegacyCreatureAggroConfigLikeCpp {
     pub no_gray_aggro_above: u32,
     pub no_gray_aggro_below: u32,
+    pub faction_template_store: Option<Arc<FactionTemplateStore>>,
+    pub faction_store: Option<Arc<FactionStore>>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -1516,6 +1525,8 @@ pub struct LegacyCreatureAggroTickOutcomeLikeCpp {
     pub creatures_seen: usize,
     pub candidates_seen: usize,
     pub targetability_rejections: usize,
+    pub hostility_rejections: usize,
+    pub hostility_unrepresented: usize,
     pub gray_aggro_rejections: usize,
     pub aggro_starts: usize,
     pub commands: Vec<wow_network::player_registry::CreatureAttackStartLikeCppCommand>,
@@ -8232,11 +8243,28 @@ impl WorldSession {
         .unwrap_or_default()
     }
 
+    pub(crate) fn player_forced_reputation_ranks_snapshot_like_cpp(
+        &self,
+    ) -> Vec<(u32, wow_data::reputation::ReputationRankLikeCpp)> {
+        self.reputation_mgr_like_cpp()
+            .forced_reactions()
+            .iter()
+            .map(|(faction_id, rank)| (*faction_id, *rank))
+            .collect()
+    }
+
     pub(crate) fn canonical_player_contested_pvp_flag_like_cpp(&self) -> bool {
         self.canonical_player_snapshot_like_cpp(|player| {
             player.has_player_flag(PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP)
         })
         .unwrap_or(false)
+    }
+
+    pub(crate) fn canonical_player_unit_flags2_snapshot_like_cpp(&self) -> u32 {
+        self.canonical_player_snapshot_like_cpp(|player| {
+            player.unit().unit_flags2_like_cpp().bits()
+        })
+        .unwrap_or(0)
     }
 
     pub(crate) fn canonical_player_reputation_standing_like_cpp(
@@ -10989,9 +11017,11 @@ impl WorldSession {
         let reputation_standings = self.canonical_player_reputation_standings_snapshot_like_cpp();
         let reputation_state_flags =
             self.canonical_player_reputation_state_flags_snapshot_like_cpp();
+        let forced_reputation_ranks = self.player_forced_reputation_ranks_snapshot_like_cpp();
         let forced_reputation_faction_ids =
             self.canonical_player_forced_reputation_faction_ids_snapshot_like_cpp();
         let is_contested_pvp = self.canonical_player_contested_pvp_flag_like_cpp();
+        let unit_flags2 = self.canonical_player_unit_flags2_snapshot_like_cpp();
         reg.insert(
             guid,
             PlayerBroadcastInfo {
@@ -11010,6 +11040,7 @@ impl WorldSession {
                 enchanting_skill: self.represented_enchanting_skill,
                 is_alive: self.player_alive_like_cpp,
                 unit_flags: self.player_unit_flags_like_cpp.bits(),
+                unit_flags2,
                 unit_state: self.player_unit_state_for_registry_like_cpp(),
                 is_game_master: self.player_game_master_like_cpp,
                 is_contested_pvp,
@@ -11034,6 +11065,7 @@ impl WorldSession {
                 faction_template_id: self.player_faction_template_like_cpp.unwrap_or(0),
                 reputation_standings,
                 reputation_state_flags,
+                forced_reputation_ranks,
                 forced_reputation_faction_ids,
                 inventory_item_counts: self.represented_inventory_item_counts_like_cpp(),
                 party_member_phase_states: party_member_phase_states_like_cpp(
@@ -11073,6 +11105,7 @@ impl WorldSession {
             info.enchanting_skill = self.represented_enchanting_skill;
             info.is_alive = self.player_alive_like_cpp;
             info.unit_flags = self.player_unit_flags_like_cpp.bits();
+            info.unit_flags2 = self.canonical_player_unit_flags2_snapshot_like_cpp();
             info.unit_state = self.player_unit_state_for_registry_like_cpp();
             info.is_game_master = self.player_game_master_like_cpp;
             info.is_contested_pvp = self.canonical_player_contested_pvp_flag_like_cpp();
@@ -11103,6 +11136,7 @@ impl WorldSession {
                 self.canonical_player_reputation_standings_snapshot_like_cpp();
             info.reputation_state_flags =
                 self.canonical_player_reputation_state_flags_snapshot_like_cpp();
+            info.forced_reputation_ranks = self.player_forced_reputation_ranks_snapshot_like_cpp();
             info.forced_reputation_faction_ids =
                 self.canonical_player_forced_reputation_faction_ids_snapshot_like_cpp();
             info.inventory_item_counts = self.represented_inventory_item_counts_like_cpp();
@@ -20742,7 +20776,7 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
 }
 
 fn check_no_gray_aggro_config_like_cpp(
-    config: LegacyCreatureAggroConfigLikeCpp,
+    config: &LegacyCreatureAggroConfigLikeCpp,
     player_level: u8,
     player_gray_level: u8,
     creature_level: u8,
@@ -20793,15 +20827,145 @@ fn legacy_creature_aggro_candidate_is_targetable_for_attack_like_cpp(
     )
 }
 
+fn legacy_creature_aggro_candidate_has_reputation_state_like_cpp(
+    candidate: &LegacyCreatureAggroCandidateLikeCpp,
+    faction_id: u32,
+) -> bool {
+    candidate
+        .player_reputation_state_flags
+        .iter()
+        .any(|(candidate_faction_id, _)| *candidate_faction_id == faction_id)
+}
+
+fn legacy_creature_aggro_candidate_is_at_war_like_cpp(
+    candidate: &LegacyCreatureAggroCandidateLikeCpp,
+    faction_id: u32,
+) -> bool {
+    candidate
+        .player_reputation_state_flags
+        .iter()
+        .find_map(|(candidate_faction_id, flags)| {
+            (*candidate_faction_id == faction_id).then_some(*flags)
+        })
+        .is_some_and(|flags| flags & wow_entities::REPUTATION_FLAG_AT_WAR_LIKE_CPP != 0)
+}
+
+fn legacy_creature_aggro_candidate_reputation_standing_like_cpp(
+    candidate: &LegacyCreatureAggroCandidateLikeCpp,
+    faction_id: u32,
+) -> i32 {
+    candidate
+        .player_reputation_standings
+        .iter()
+        .find_map(|(candidate_faction_id, standing)| {
+            (*candidate_faction_id == faction_id).then_some(*standing)
+        })
+        .unwrap_or(0)
+}
+
+fn legacy_creature_aggro_candidate_has_forced_reputation_rank_like_cpp(
+    candidate: &LegacyCreatureAggroCandidateLikeCpp,
+    faction_id: u32,
+) -> Option<wow_data::reputation::ReputationRankLikeCpp> {
+    candidate
+        .player_forced_reputation_ranks
+        .iter()
+        .find_map(|(candidate_faction_id, rank)| {
+            (*candidate_faction_id == faction_id).then_some(*rank)
+        })
+}
+
+fn legacy_creature_aggro_candidate_is_hostile_to_creature_like_cpp(
+    creature: &crate::map_manager::WorldCreature,
+    candidate: &LegacyCreatureAggroCandidateLikeCpp,
+    config: &LegacyCreatureAggroConfigLikeCpp,
+) -> Option<bool> {
+    let faction_template_store = config.faction_template_store.as_ref()?;
+    let creature_faction_template_id =
+        creature.creature.unit().data().faction_template.max(0) as u32;
+    if creature_faction_template_id == 0 || candidate.player_faction_template_id == 0 {
+        return Some(false);
+    }
+
+    let creature_faction_template = faction_template_store.get(creature_faction_template_id)?;
+    let player_faction_template =
+        faction_template_store.get(candidate.player_faction_template_id)?;
+
+    if creature_faction_template.is_contested_guard_faction_like_cpp()
+        && candidate.player_is_contested_pvp
+    {
+        return Some(true);
+    }
+
+    let creature_faction_id = u32::from(creature_faction_template.faction);
+    if creature_faction_id != 0 {
+        if let Some(forced_rank) =
+            legacy_creature_aggro_candidate_has_forced_reputation_rank_like_cpp(
+                candidate,
+                creature_faction_id,
+            )
+        {
+            return Some(forced_rank <= wow_data::reputation::ReputationRankLikeCpp::Hostile);
+        }
+        if candidate
+            .player_forced_reputation_faction_ids
+            .contains(&creature_faction_id)
+        {
+            return None;
+        }
+
+        let player_flags2 = UnitFlags2::from_bits_truncate(candidate.player_unit_flags2);
+        if !player_flags2.contains(UnitFlags2::IGNORE_REPUTATION)
+            && let Some(faction_store) = config.faction_store.as_ref()
+            && let Some(faction_entry) = faction_store.get(creature_faction_id)
+            && faction_entry.can_have_reputation_like_cpp()
+            && legacy_creature_aggro_candidate_has_reputation_state_like_cpp(
+                candidate,
+                creature_faction_id,
+            )
+        {
+            if !legacy_creature_aggro_candidate_is_at_war_like_cpp(candidate, creature_faction_id) {
+                return Some(false);
+            }
+
+            let rank = wow_data::reputation::reputation_rank_from_standing_like_cpp(
+                legacy_creature_aggro_candidate_reputation_standing_like_cpp(
+                    candidate,
+                    creature_faction_id,
+                ),
+            );
+            // C++ `GetFactionReactionTo` caps an at-war player reaction to at
+            // most neutral; `Creature::_IsTargetAcceptable` still requires an
+            // actually hostile reaction to start aggro.
+            return Some(rank <= wow_data::reputation::ReputationRankLikeCpp::Hostile);
+        }
+    }
+
+    if creature_faction_template.is_hostile_to_like_cpp(player_faction_template) {
+        return Some(true);
+    }
+    if creature_faction_template.is_friendly_to_like_cpp(player_faction_template) {
+        return Some(false);
+    }
+    if player_faction_template.is_friendly_to_like_cpp(creature_faction_template) {
+        return Some(false);
+    }
+    if creature_faction_template.is_hostile_by_default_like_cpp() {
+        return Some(true);
+    }
+    Some(false)
+}
+
 /// Runs one global legacy creature aggro scan without spawning a loop.
 ///
 /// C++ contrast: `CreatureAI::MoveInLineOfSight` checks aggressive creatures
 /// through `Creature::CanStartAttack` and then engages a target. This
 /// transitional Rust slice uses the existing represented `WorldCreature`
-/// `try_aggro` radius model and applies the C++ NoGrayAggro world-config gate;
-/// faction/LOS parity remains a later AI fidelity task. The map owner computes
-/// aggro once and returns victim-session `AttackStart` commands for delivery
-/// outside map locks.
+/// `try_aggro` radius model plus the represented C++ targetability,
+/// faction/reputation and NoGrayAggro gates; z-distance, accessibility,
+/// detection and LOS remain later AI fidelity tasks. The map owner computes aggro
+/// once and returns victim-session `AttackStart` commands for delivery outside
+/// map locks.
 pub fn run_legacy_creature_aggro_tick_once_like_cpp(
     legacy_map_manager: &crate::map_manager::SharedMapManager,
     candidates: &[LegacyCreatureAggroCandidateLikeCpp],
@@ -20834,7 +20998,6 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
     for (map_id, instance_id) in map_keys {
         let map_candidates: Vec<_> = candidates
             .iter()
-            .copied()
             .filter(|candidate| candidate.map_id == map_id && candidate.instance_id == instance_id)
             .collect();
         outcome.candidates_seen += map_candidates.len();
@@ -20853,8 +21016,21 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
                     outcome.targetability_rejections += 1;
                     continue;
                 }
+                match legacy_creature_aggro_candidate_is_hostile_to_creature_like_cpp(
+                    creature, candidate, &config,
+                ) {
+                    Some(true) => {}
+                    Some(false) => {
+                        outcome.hostility_rejections += 1;
+                        continue;
+                    }
+                    None => {
+                        outcome.hostility_unrepresented += 1;
+                        continue;
+                    }
+                }
                 if check_no_gray_aggro_config_like_cpp(
-                    config,
+                    &config,
                     candidate.player_level,
                     candidate.player_gray_level,
                     creature.level(),
@@ -34268,6 +34444,7 @@ mod tests {
             enchanting_skill: 0,
             is_alive: true,
             unit_flags: 0,
+            unit_flags2: 0,
             unit_state: 0,
             is_game_master: false,
             is_contested_pvp: false,
@@ -34282,6 +34459,7 @@ mod tests {
             faction_template_id: 0,
             reputation_standings: Vec::new(),
             reputation_state_flags: Vec::new(),
+            forced_reputation_ranks: Vec::new(),
             forced_reputation_faction_ids: Vec::new(),
             inventory_item_counts: Default::default(),
             party_member_phase_states: Default::default(),
@@ -41941,6 +42119,13 @@ mod tests {
         session.set_canonical_map_manager(Arc::clone(&canonical));
         session.set_player_registry(Arc::clone(&player_registry));
         insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
+        session
+            .reputation_mgr_like_cpp_mut()
+            .apply_force_reaction_like_cpp(
+                87,
+                wow_data::reputation::ReputationRankLikeCpp::Hostile,
+                true,
+            );
         session.mutate_canonical_player_like_cpp(|player| {
             player
                 .gameplay_state_mut()
@@ -41978,6 +42163,13 @@ mod tests {
         session.set_canonical_map_manager(Arc::clone(&canonical));
         session.set_player_registry(Arc::clone(&player_registry));
         insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
+        session
+            .reputation_mgr_like_cpp_mut()
+            .apply_force_reaction_like_cpp(
+                87,
+                wow_data::reputation::ReputationRankLikeCpp::Hostile,
+                true,
+            );
         session.mutate_canonical_player_like_cpp(|player| {
             player
                 .gameplay_state_mut()
@@ -41988,6 +42180,9 @@ mod tests {
                     flags: wow_entities::REPUTATION_FLAG_AT_WAR_LIKE_CPP,
                 });
             player.set_forced_reputation_rank_like_cpp(87, true);
+            player
+                .unit_mut()
+                .set_unit_flags2_like_cpp(UnitFlags2::IGNORE_REPUTATION);
             player.set_player_flag(PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP);
         });
 
@@ -41995,9 +42190,14 @@ mod tests {
 
         let snapshot = player_registry.get(&player_guid).expect("player snapshot");
         assert_eq!(snapshot.faction_template_id, 1);
+        assert_eq!(snapshot.unit_flags2, UnitFlags2::IGNORE_REPUTATION.bits());
         assert_eq!(
             snapshot.reputation_state_flags,
             vec![(72, wow_entities::REPUTATION_FLAG_AT_WAR_LIKE_CPP)]
+        );
+        assert_eq!(
+            snapshot.forced_reputation_ranks,
+            vec![(87, wow_data::reputation::ReputationRankLikeCpp::Hostile)]
         );
         assert_eq!(snapshot.forced_reputation_faction_ids, vec![87]);
         assert!(snapshot.is_contested_pvp);
@@ -50186,9 +50386,41 @@ mod tests {
             player_level: 80,
             player_gray_level: 70,
             player_unit_flags: UnitFlags::PLAYER_CONTROLLED.bits(),
+            player_unit_flags2: 0,
             player_unit_state: 0,
             player_is_game_master: false,
+            player_is_contested_pvp: false,
+            player_faction_template_id: 1,
+            player_reputation_standings: Vec::new(),
+            player_reputation_state_flags: Vec::new(),
+            player_forced_reputation_ranks: Vec::new(),
+            player_forced_reputation_faction_ids: Vec::new(),
         }
+    }
+
+    fn legacy_aggro_relation_config_like_cpp(
+        creature_faction_template: wow_data::progression_rewards::FactionTemplateEntry,
+        player_faction_template: wow_data::progression_rewards::FactionTemplateEntry,
+        creature_faction: FactionEntry,
+    ) -> LegacyCreatureAggroConfigLikeCpp {
+        LegacyCreatureAggroConfigLikeCpp {
+            faction_template_store: Some(Arc::new(
+                wow_data::progression_rewards::FactionTemplateStore::from_entries([
+                    creature_faction_template,
+                    player_faction_template,
+                ]),
+            )),
+            faction_store: Some(Arc::new(FactionStore::from_entries([creature_faction]))),
+            ..Default::default()
+        }
+    }
+
+    fn legacy_aggro_hostile_config_like_cpp() -> LegacyCreatureAggroConfigLikeCpp {
+        legacy_aggro_relation_config_like_cpp(
+            faction_template_entry(14, 72, 0, 0, 930),
+            faction_template_entry(1, 930, 0, 0, 0),
+            FactionEntry::for_test_like_cpp(72, 1),
+        )
     }
 
     #[test]
@@ -50200,7 +50432,11 @@ mod tests {
         let player = ObjectGuid::create_player(1, 91_006);
         let candidates = vec![legacy_aggro_candidate_like_cpp(player, Position::ZERO)];
 
-        let outcome = run_legacy_creature_aggro_tick_once_like_cpp(&manager, &candidates);
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &candidates,
+            legacy_aggro_hostile_config_like_cpp(),
+        );
 
         assert!(outcome.skipped_owner_not_global);
         assert_eq!(outcome.maps_seen, 0);
@@ -50244,7 +50480,11 @@ mod tests {
             legacy_aggro_candidate_like_cpp(player, Position::new(10.5, 10.5, 0.0, 0.0)),
         ];
 
-        let outcome = run_legacy_creature_aggro_tick_once_like_cpp(&manager, &candidates);
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &candidates,
+            legacy_aggro_hostile_config_like_cpp(),
+        );
 
         assert!(!outcome.skipped_owner_not_global);
         assert_eq!(outcome.maps_seen, 1);
@@ -50303,6 +50543,7 @@ mod tests {
             LegacyCreatureAggroConfigLikeCpp {
                 no_gray_aggro_above: 80,
                 no_gray_aggro_below: 0,
+                ..legacy_aggro_hostile_config_like_cpp()
             },
         );
 
@@ -50373,7 +50614,11 @@ mod tests {
             legacy_aggro_candidate_like_cpp(good_player, Position::new(10.5, 10.5, 0.0, 0.0)),
         ];
 
-        let outcome = run_legacy_creature_aggro_tick_once_like_cpp(&manager, &candidates);
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &candidates,
+            legacy_aggro_hostile_config_like_cpp(),
+        );
 
         assert!(!outcome.skipped_owner_not_global);
         assert_eq!(outcome.maps_seen, 1);
@@ -50393,6 +50638,269 @@ mod tests {
                 .combat_target
         };
         assert_eq!(combat_target, Some(good_player));
+    }
+
+    #[test]
+    fn legacy_creature_aggro_tick_once_rejects_reputation_without_at_war_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_027);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 5.0;
+                creature.creature.unit_mut().set_level(25);
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let rejected_player = ObjectGuid::create_player(1, 91_028);
+        let allowed_player = ObjectGuid::create_player(1, 91_029);
+        let mut rejected =
+            legacy_aggro_candidate_like_cpp(rejected_player, Position::new(10.5, 10.5, 0.0, 0.0));
+        rejected.player_faction_template_id = 1;
+        rejected.player_reputation_standings = vec![(72, -6_000)];
+        rejected.player_reputation_state_flags = vec![(72, 0)];
+        let mut allowed =
+            legacy_aggro_candidate_like_cpp(allowed_player, Position::new(10.5, 10.5, 0.0, 0.0));
+        allowed.player_faction_template_id = 1;
+        allowed.player_reputation_standings = vec![(72, -6_000)];
+        allowed.player_reputation_state_flags =
+            vec![(72, wow_entities::REPUTATION_FLAG_AT_WAR_LIKE_CPP)];
+        let config = legacy_aggro_relation_config_like_cpp(
+            faction_template_entry(14, 72, 0, 0, 0),
+            faction_template_entry(1, 930, 0, 0, 0),
+            FactionEntry::for_test_like_cpp(72, 1),
+        );
+        let candidates = vec![rejected, allowed];
+
+        let outcome =
+            run_legacy_creature_aggro_tick_once_with_config_like_cpp(&manager, &candidates, config);
+
+        assert!(!outcome.skipped_owner_not_global);
+        assert_eq!(outcome.candidates_seen, 2);
+        assert_eq!(outcome.hostility_rejections, 1);
+        assert_eq!(outcome.aggro_starts, 1);
+        assert_eq!(outcome.commands.len(), 1);
+        assert_eq!(outcome.commands[0].victim_guid, allowed_player);
+        let combat_target = {
+            let guard = manager.read().unwrap();
+            guard
+                .find_creature(0, 0, creature_guid)
+                .unwrap()
+                .creature
+                .ai_ownership()
+                .combat_target
+        };
+        assert_eq!(combat_target, Some(allowed_player));
+    }
+
+    #[test]
+    fn legacy_creature_aggro_tick_once_honors_forced_reputation_rank_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_034);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 5.0;
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let friendly_forced_player = ObjectGuid::create_player(1, 91_035);
+        let hostile_forced_player = ObjectGuid::create_player(1, 91_036);
+        let mut friendly_forced = legacy_aggro_candidate_like_cpp(
+            friendly_forced_player,
+            Position::new(10.5, 10.5, 0.0, 0.0),
+        );
+        friendly_forced.player_forced_reputation_ranks =
+            vec![(72, wow_data::reputation::ReputationRankLikeCpp::Friendly)];
+        let mut hostile_forced = legacy_aggro_candidate_like_cpp(
+            hostile_forced_player,
+            Position::new(10.5, 10.5, 0.0, 0.0),
+        );
+        hostile_forced.player_forced_reputation_ranks =
+            vec![(72, wow_data::reputation::ReputationRankLikeCpp::Hostile)];
+        let candidates = vec![friendly_forced, hostile_forced];
+
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &candidates,
+            legacy_aggro_hostile_config_like_cpp(),
+        );
+
+        assert!(!outcome.skipped_owner_not_global);
+        assert_eq!(outcome.hostility_rejections, 1);
+        assert_eq!(outcome.aggro_starts, 1);
+        assert_eq!(outcome.commands.len(), 1);
+        assert_eq!(outcome.commands[0].victim_guid, hostile_forced_player);
+    }
+
+    #[test]
+    fn legacy_creature_aggro_tick_once_ignores_reputation_when_unit_flag2_says_so_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_037);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 5.0;
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let player = ObjectGuid::create_player(1, 91_038);
+        let mut candidate =
+            legacy_aggro_candidate_like_cpp(player, Position::new(10.5, 10.5, 0.0, 0.0));
+        candidate.player_unit_flags2 = UnitFlags2::IGNORE_REPUTATION.bits();
+        candidate.player_reputation_standings = vec![(72, -6_000)];
+        candidate.player_reputation_state_flags = vec![(72, 0)];
+
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &[candidate],
+            legacy_aggro_hostile_config_like_cpp(),
+        );
+
+        assert!(!outcome.skipped_owner_not_global);
+        assert_eq!(outcome.hostility_rejections, 0);
+        assert_eq!(outcome.aggro_starts, 1);
+        assert_eq!(outcome.commands.len(), 1);
+        assert_eq!(outcome.commands[0].victim_guid, player);
+    }
+
+    #[test]
+    fn legacy_creature_aggro_tick_once_rejects_unrepresented_faction_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_039);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 5.0;
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let player = ObjectGuid::create_player(1, 91_040);
+        let candidate =
+            legacy_aggro_candidate_like_cpp(player, Position::new(10.5, 10.5, 0.0, 0.0));
+
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &[candidate],
+            LegacyCreatureAggroConfigLikeCpp::default(),
+        );
+
+        assert!(!outcome.skipped_owner_not_global);
+        assert_eq!(outcome.hostility_unrepresented, 1);
+        assert_eq!(outcome.aggro_starts, 0);
+        assert!(outcome.commands.is_empty());
+    }
+
+    #[test]
+    fn legacy_creature_aggro_tick_once_rejects_friendly_faction_templates_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_030);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 5.0;
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let player = ObjectGuid::create_player(1, 91_031);
+        let mut candidate =
+            legacy_aggro_candidate_like_cpp(player, Position::new(10.5, 10.5, 0.0, 0.0));
+        candidate.player_faction_template_id = 1;
+        let config = legacy_aggro_relation_config_like_cpp(
+            faction_template_entry(14, 72, 0, 1, 0),
+            faction_template_entry(1, 930, 1, 0, 0),
+            FactionEntry::for_test_like_cpp(72, 1),
+        );
+
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &[candidate],
+            config,
+        );
+
+        assert!(!outcome.skipped_owner_not_global);
+        assert_eq!(outcome.hostility_rejections, 1);
+        assert_eq!(outcome.aggro_starts, 0);
+        assert!(outcome.commands.is_empty());
+    }
+
+    #[test]
+    fn legacy_creature_aggro_tick_once_prefers_hostile_static_reaction_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_032);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 5.0;
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let player = ObjectGuid::create_player(1, 91_033);
+        let mut candidate =
+            legacy_aggro_candidate_like_cpp(player, Position::new(10.5, 10.5, 0.0, 0.0));
+        candidate.player_faction_template_id = 1;
+        let config = legacy_aggro_relation_config_like_cpp(
+            wow_data::progression_rewards::FactionTemplateEntry {
+                id: 14,
+                faction: 72,
+                flags: 0,
+                faction_group: 0,
+                friend_group: 1,
+                enemy_group: 1,
+                enemies: [0; 8],
+                friend: [0; 8],
+            },
+            faction_template_entry(1, 930, 1, 0, 0),
+            FactionEntry::for_test_like_cpp(72, 1),
+        );
+
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &[candidate],
+            config,
+        );
+
+        assert!(!outcome.skipped_owner_not_global);
+        assert_eq!(outcome.hostility_rejections, 0);
+        assert_eq!(outcome.aggro_starts, 1);
+        assert_eq!(outcome.commands.len(), 1);
+        assert_eq!(outcome.commands[0].victim_guid, player);
     }
 
     #[test]
@@ -50421,7 +50929,11 @@ mod tests {
             Position::new(10.5, 10.5, 0.0, 0.0),
         )];
 
-        let outcome = run_legacy_creature_aggro_tick_once_like_cpp(&manager, &candidates);
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &candidates,
+            legacy_aggro_hostile_config_like_cpp(),
+        );
 
         assert!(!outcome.skipped_owner_not_global);
         assert_eq!(outcome.maps_seen, 1);
@@ -50464,7 +50976,11 @@ mod tests {
             Position::new(10.0, 10.0, 0.0, 0.0),
         )];
 
-        let outcome = run_legacy_creature_aggro_tick_once_like_cpp(&manager, &candidates);
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &candidates,
+            legacy_aggro_hostile_config_like_cpp(),
+        );
 
         assert!(!outcome.skipped_owner_not_global);
         assert_eq!(outcome.maps_seen, 1);
@@ -50511,7 +51027,11 @@ mod tests {
             Position::new(10.5, 10.5, 0.0, 0.0),
         )];
 
-        let outcome = run_legacy_creature_aggro_tick_once_like_cpp(&manager, &candidates);
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &candidates,
+            legacy_aggro_hostile_config_like_cpp(),
+        );
 
         assert!(!outcome.skipped_owner_not_global);
         assert_eq!(outcome.maps_seen, 1);
@@ -50557,7 +51077,11 @@ mod tests {
             Position::new(10.5, 10.5, 0.0, 0.0),
         )];
 
-        let outcome = run_legacy_creature_aggro_tick_once_like_cpp(&manager, &candidates);
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &candidates,
+            legacy_aggro_hostile_config_like_cpp(),
+        );
 
         assert!(!outcome.skipped_owner_not_global);
         assert_eq!(outcome.maps_seen, 1);

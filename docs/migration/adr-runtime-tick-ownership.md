@@ -386,11 +386,22 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
 - 2026-05-30 — Runtime creature-aggro relation snapshot wiring `#NEXT.RUNTIME.L3.031a`: the live
   server now loads `FactionTemplate.db2` into `SessionResources`, sessions receive the
   `FactionTemplateStore`, and `PlayerRegistry` publishes player faction-template id, reputation
-  flags, forced-reputation faction ids, and contested-PvP state. This is the data prerequisite for
-  porting the C++ `_IsTargetAcceptable`/`WorldObject::IsValidAttackTarget` hostility/reputation gates
-  into the global legacy aggro scan. No aggro behavior is flipped in this slice. Remaining
-  `CanStartAttack` fidelity gaps: applying the hostility/reputation gate, z-distance/accessibility,
-  and LOS.
+  flags, forced-reputation ids, forced-rank values, `UNIT_FLAG2_IGNORE_REPUTATION`, and
+  contested-PvP state. This is the data prerequisite for porting the C++
+  `_IsTargetAcceptable`/`WorldObject::IsValidAttackTarget` hostility/reputation gates into the
+  global legacy aggro scan. No aggro behavior is flipped in this slice. Remaining `CanStartAttack`
+  fidelity gaps: applying the hostility/reputation gate, z-distance/accessibility, and LOS.
+- 2026-05-30 — Runtime creature-aggro hostility/reputation gate `#NEXT.RUNTIME.L3.031b`: the global
+  legacy aggro scan now consumes those relation snapshots plus the loaded `FactionTemplateStore` /
+  `FactionStore` and rejects friendly templates, non-`AtWar` reputation states, and represented
+  non-hostile reputation ranks before mutating creature combat state. Unknown/missing relation data
+  is counted with `hostility_unrepresented` and rejected as neutral rather than allowed to fall
+  through to radius aggro, matching the C++ no-template `REP_NEUTRAL` path. It reuses
+  `FactionTemplateEntry` / `FactionEntry` helpers instead of duplicating DB2 relation semantics.
+  Covered C++ anchors: `Creature::_IsTargetAcceptable`,
+  `WorldObject::IsValidAttackTarget`, and `WorldObject::GetReactionTo` for the NPC-vs-player
+  hostility/reputation path, including forced reaction ranks and `UNIT_FLAG2_IGNORE_REPUTATION`.
+  Remaining `CanStartAttack` fidelity gaps: z-distance/accessibility, visibility/detection, and LOS.
 
 ## References
 

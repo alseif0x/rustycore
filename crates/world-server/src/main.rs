@@ -2121,13 +2121,16 @@ async fn main() -> Result<()> {
         Arc::clone(&battlemaster_list_typed_store),
         Arc::clone(&world_state_mgr),
     );
+    let mut legacy_creature_aggro_config = legacy_creature_aggro_config_like_cpp(&world_configs);
+    legacy_creature_aggro_config.faction_template_store = Some(Arc::clone(&faction_template_store));
+    legacy_creature_aggro_config.faction_store = Some(Arc::clone(&progression_faction_store));
     let legacy_creature_runtime_handle = spawn_legacy_creature_runtime_update_loop_like_cpp(
         legacy_creature_global_runtime_enabled,
         Arc::clone(&shared_map),
         Arc::clone(&canonical_map_manager),
         mmap_runtime_config.clone(),
         mmap_pathfinder.clone(),
-        legacy_creature_aggro_config_like_cpp(&world_configs),
+        legacy_creature_aggro_config,
         map_update_interval_ms,
         Arc::clone(&player_registry),
     );
@@ -7570,8 +7573,17 @@ fn collect_legacy_creature_aggro_candidates_like_cpp(
                     player_level: info.level,
                     player_gray_level: info.gray_level,
                     player_unit_flags: info.unit_flags,
+                    player_unit_flags2: info.unit_flags2,
                     player_unit_state: info.unit_state,
                     player_is_game_master: info.is_game_master,
+                    player_is_contested_pvp: info.is_contested_pvp,
+                    player_faction_template_id: info.faction_template_id,
+                    player_reputation_standings: info.reputation_standings.clone(),
+                    player_reputation_state_flags: info.reputation_state_flags.clone(),
+                    player_forced_reputation_ranks: info.forced_reputation_ranks.clone(),
+                    player_forced_reputation_faction_ids: info
+                        .forced_reputation_faction_ids
+                        .clone(),
                 },
             )
         })
@@ -7584,6 +7596,8 @@ fn legacy_creature_aggro_config_like_cpp(
     wow_world::session::LegacyCreatureAggroConfigLikeCpp {
         no_gray_aggro_above: world_config_u32(configs, "CONFIG_NO_GRAY_AGGRO_ABOVE", 0),
         no_gray_aggro_below: world_config_u32(configs, "CONFIG_NO_GRAY_AGGRO_BELOW", 0),
+        faction_template_store: None,
+        faction_store: None,
     }
 }
 
@@ -7919,7 +7933,7 @@ fn spawn_legacy_creature_runtime_update_loop_like_cpp(
             let canonical_for_tick = Arc::clone(&canonical_map_manager);
             let mmap_config_for_tick = mmap_config.clone();
             let mmap_pathfinder_for_tick = mmap_pathfinder.clone();
-            let aggro_config_for_tick = aggro_config;
+            let aggro_config_for_tick = aggro_config.clone();
             let registry_for_tick = Arc::clone(&player_registry);
 
             let tick_result = tokio::task::spawn_blocking(move || {
@@ -8048,6 +8062,7 @@ mod tests {
             enchanting_skill: 0,
             is_alive: true,
             unit_flags: 0,
+            unit_flags2: 0,
             unit_state: 0,
             is_game_master: false,
             is_contested_pvp: false,
@@ -8062,6 +8077,7 @@ mod tests {
             faction_template_id: 0,
             reputation_standings: Vec::new(),
             reputation_state_flags: Vec::new(),
+            forced_reputation_ranks: Vec::new(),
             forced_reputation_faction_ids: Vec::new(),
             inventory_item_counts: Default::default(),
             party_member_phase_states: Default::default(),
@@ -12818,6 +12834,7 @@ mmap.enablePathFinding = 0
                 enchanting_skill: 0,
                 is_alive: true,
                 unit_flags: 0,
+                unit_flags2: 0,
                 unit_state: 0,
                 is_game_master: false,
                 is_contested_pvp: false,
@@ -12832,6 +12849,7 @@ mmap.enablePathFinding = 0
                 faction_template_id: 0,
                 reputation_standings: Vec::new(),
                 reputation_state_flags: Vec::new(),
+                forced_reputation_ranks: Vec::new(),
                 forced_reputation_faction_ids: Vec::new(),
                 inventory_item_counts: Default::default(),
                 party_member_phase_states: Default::default(),
@@ -14759,8 +14777,17 @@ mmap.enablePathFinding = 0
         let in_world = ObjectGuid::create_player(1, 64);
         let not_in_world = ObjectGuid::create_player(1, 65);
         let dead_in_world = ObjectGuid::create_player(1, 66);
-        let (in_world_info, _) =
+        let (mut in_world_info, _) =
             make_registry_player_like_cpp(571, 2, Position::new(1.0, 2.0, 3.0, 0.0), true);
+        in_world_info.unit_flags2 = wow_constants::unit::UnitFlags2::IGNORE_REPUTATION.bits();
+        in_world_info.faction_template_id = 1;
+        in_world_info.reputation_standings = vec![(72, -6_000)];
+        in_world_info.reputation_state_flags =
+            vec![(72, wow_entities::REPUTATION_FLAG_AT_WAR_LIKE_CPP)];
+        in_world_info.forced_reputation_ranks =
+            vec![(87, wow_data::reputation::ReputationRankLikeCpp::Hostile)];
+        in_world_info.forced_reputation_faction_ids = vec![87];
+        in_world_info.is_contested_pvp = true;
         let (not_in_world_info, _) =
             make_registry_player_like_cpp(571, 2, Position::new(9.0, 9.0, 9.0, 0.0), false);
         let (mut dead_in_world_info, _) =
@@ -14779,6 +14806,25 @@ mmap.enablePathFinding = 0
         assert_eq!(candidates[0].position, Position::new(1.0, 2.0, 3.0, 0.0));
         assert_eq!(candidates[0].player_level, 1);
         assert_eq!(candidates[0].player_gray_level, 0);
+        assert_eq!(
+            candidates[0].player_unit_flags2,
+            wow_constants::unit::UnitFlags2::IGNORE_REPUTATION.bits()
+        );
+        assert_eq!(candidates[0].player_faction_template_id, 1);
+        assert_eq!(
+            candidates[0].player_reputation_standings,
+            vec![(72, -6_000)]
+        );
+        assert_eq!(
+            candidates[0].player_reputation_state_flags,
+            vec![(72, wow_entities::REPUTATION_FLAG_AT_WAR_LIKE_CPP)]
+        );
+        assert_eq!(
+            candidates[0].player_forced_reputation_ranks,
+            vec![(87, wow_data::reputation::ReputationRankLikeCpp::Hostile)]
+        );
+        assert_eq!(candidates[0].player_forced_reputation_faction_ids, vec![87]);
+        assert!(candidates[0].player_is_contested_pvp);
     }
 
     #[test]
@@ -14923,7 +14969,9 @@ mmap.enablePathFinding = 0
         }
 
         let registry = PlayerRegistry::default();
-        let (victim_info, victim_rx) = make_registry_player_like_cpp(0, 0, victim_position, true);
+        let (mut victim_info, victim_rx) =
+            make_registry_player_like_cpp(0, 0, victim_position, true);
+        victim_info.faction_template_id = 1;
         registry.insert(victim, victim_info);
         let wrong_map = ObjectGuid::create_player(1, 93_003);
         let (wrong_map_info, wrong_map_rx) =
@@ -14934,12 +14982,44 @@ mmap.enablePathFinding = 0
             enabled: false,
             ..Default::default()
         };
+        let aggro_config = wow_world::session::LegacyCreatureAggroConfigLikeCpp {
+            faction_template_store: Some(Arc::new(
+                wow_data::progression_rewards::FactionTemplateStore::from_entries([
+                    wow_data::progression_rewards::FactionTemplateEntry {
+                        id: 14,
+                        faction: 72,
+                        flags: 0,
+                        faction_group: 0,
+                        friend_group: 0,
+                        enemy_group: 0,
+                        enemies: [930, 0, 0, 0, 0, 0, 0, 0],
+                        friend: [0; 8],
+                    },
+                    wow_data::progression_rewards::FactionTemplateEntry {
+                        id: 1,
+                        faction: 930,
+                        flags: 0,
+                        faction_group: 0,
+                        friend_group: 0,
+                        enemy_group: 0,
+                        enemies: [0; 8],
+                        friend: [0; 8],
+                    },
+                ]),
+            )),
+            faction_store: Some(Arc::new(
+                wow_data::progression_rewards::FactionStore::from_entries([
+                    wow_data::progression_rewards::FactionEntry::for_test_like_cpp(72, 1),
+                ]),
+            )),
+            ..Default::default()
+        };
         let outcome = run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
             &legacy,
             Some(&canonical),
             &mmap_config,
             None,
-            wow_world::session::LegacyCreatureAggroConfigLikeCpp::default(),
+            aggro_config,
             std::time::Instant::now(),
             &registry,
         );

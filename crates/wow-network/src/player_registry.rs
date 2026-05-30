@@ -226,6 +226,8 @@ pub struct PlayerBroadcastInfo {
     pub is_alive: bool,
     /// Represented `Unit::GetUnitFlags()` snapshot for global creature targetability gates.
     pub unit_flags: u32,
+    /// Represented `Unit::GetUnitFlags2()` snapshot for reputation-ignore gates.
+    pub unit_flags2: u32,
     /// Represented `Unit::GetUnitState()` snapshot for fake-death/unattackable targetability gates.
     pub unit_state: u32,
     /// Represented `Player::IsGameMaster()` snapshot; C++ rejects GM players as attack targets.
@@ -255,7 +257,9 @@ pub struct PlayerBroadcastInfo {
     pub reputation_standings: Vec<(u32, i32)>,
     /// Represented reputation flags by faction, including `REPUTATION_FLAG_AT_WAR`.
     pub reputation_state_flags: Vec<(u32, u32)>,
-    /// Represented `Player::GetReputationMgr().GetForcedRankIfAny()` membership.
+    /// Represented `Player::GetReputationMgr().GetForcedRankIfAny()` ranks.
+    pub forced_reputation_ranks: Vec<(u32, wow_data::reputation::ReputationRankLikeCpp)>,
+    /// Represented forced-reaction membership mirrored on the canonical player.
     pub forced_reputation_faction_ids: Vec<u32>,
     /// Direct inventory item counts, keyed by item entry, used for remote quest-loot gates.
     pub inventory_item_counts: HashMap<u32, u32>,
@@ -316,6 +320,7 @@ mod tests {
             enchanting_skill: 0,
             is_alive: true,
             unit_flags: 0,
+            unit_flags2: 0,
             unit_state: 0,
             is_game_master: false,
             is_contested_pvp: false,
@@ -330,6 +335,7 @@ mod tests {
             faction_template_id: 0,
             reputation_standings: Vec::new(),
             reputation_state_flags: Vec::new(),
+            forced_reputation_ranks: Vec::new(),
             forced_reputation_faction_ids: Vec::new(),
             inventory_item_counts: Default::default(),
             party_member_phase_states: Default::default(),
