@@ -489,6 +489,15 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   before leash/NoGray/aggro start and counts `attacker_evade_rejections`. Remaining gaps:
   victim-creature evade for non-player aggro targets, accessibility, AI-specific attack gates,
   visibility/detection, and LOS.
+- 2026-05-30 — Runtime creature-aggro player-owner leash `#NEXT.RUNTIME.L3.031m`: represented the
+  C++ `GetCharmerOrOwner()` leash center for the safe subset where the owner is a player already
+  present in the active aggro candidate snapshots on the same map/instance. The check uses 3D
+  distance from victim to owner and includes victim + owner combat reach, matching
+  `WorldObject::IsWithinDist` defaults, including the strict `< dist * dist` edge from
+  `Position::IsInDist`. Missing, non-player, or cross-map owners still fail closed as
+  `OwnerPositionUnrepresented`. Remaining gaps: victim-creature evade for non-player aggro targets,
+  non-player owner leash centers, accessibility, AI-specific attack gates, visibility/detection,
+  and LOS.
 
 ## References
 

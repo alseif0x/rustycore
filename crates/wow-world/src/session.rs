@@ -1507,6 +1507,14 @@ pub struct LegacyCreatureAggroCandidateLikeCpp {
     pub player_forced_reputation_faction_ids: Vec<u32>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct LegacyCreatureAggroOwnerSnapshotLikeCpp {
+    map_id: u16,
+    instance_id: u32,
+    position: Position,
+    combat_reach: f32,
+}
+
 const DEFAULT_VISIBILITY_BGARENAS_LIKE_CPP: f32 = 533.0;
 
 /// Map-owned creature aggro fidelity switches derived from C++ world configs.
@@ -21073,10 +21081,19 @@ enum LegacyCreatureCanAttackLeashDecisionLikeCpp {
     HomeRangeRejected,
 }
 
+fn position_is_in_dist_strict_3d_like_cpp(
+    position: &Position,
+    other: &Position,
+    dist: f32,
+) -> bool {
+    position.distance_sq(other) < dist * dist
+}
+
 fn legacy_creature_can_attack_leash_decision_like_cpp(
     creature: &crate::map_manager::WorldCreature,
     candidate: &LegacyCreatureAggroCandidateLikeCpp,
     config: &LegacyCreatureAggroConfigLikeCpp,
+    owner_snapshots: &HashMap<ObjectGuid, LegacyCreatureAggroOwnerSnapshotLikeCpp>,
 ) -> LegacyCreatureCanAttackLeashDecisionLikeCpp {
     let charmer_or_owner_guid = creature
         .creature
@@ -21107,11 +21124,31 @@ fn legacy_creature_can_attack_leash_decision_like_cpp(
         .min(SIZE_OF_GRID_CELL * 2.0);
 
     // C++ uses `GetCharmerOrOwner()` as the leash center after the non-player
-    // dungeon/recent-damage bypasses. The transitional global aggro scan does
-    // not yet carry owner positions, so fail closed instead of pretending the
-    // creature home position is equivalent.
-    if charmer_or_owner_guid.is_some() {
-        return LegacyCreatureCanAttackLeashDecisionLikeCpp::OwnerPositionUnrepresented;
+    // dungeon/recent-damage bypasses. This transitional scan only represents
+    // player owners that are active candidates on the same map instance;
+    // anything else fails closed instead of pretending home position is
+    // equivalent.
+    if let Some(owner_guid) = charmer_or_owner_guid {
+        if !owner_guid.is_player() {
+            return LegacyCreatureCanAttackLeashDecisionLikeCpp::OwnerPositionUnrepresented;
+        }
+        let Some(owner) = owner_snapshots.get(&owner_guid) else {
+            return LegacyCreatureCanAttackLeashDecisionLikeCpp::OwnerPositionUnrepresented;
+        };
+        if owner.map_id != candidate.map_id || owner.instance_id != candidate.instance_id {
+            return LegacyCreatureCanAttackLeashDecisionLikeCpp::OwnerPositionUnrepresented;
+        }
+
+        max_home_distance += candidate.player_combat_reach.max(0.0) + owner.combat_reach.max(0.0);
+        return if position_is_in_dist_strict_3d_like_cpp(
+            &candidate.position,
+            &owner.position,
+            max_home_distance,
+        ) {
+            LegacyCreatureCanAttackLeashDecisionLikeCpp::Allowed
+        } else {
+            LegacyCreatureCanAttackLeashDecisionLikeCpp::HomeRangeRejected
+        };
     }
 
     max_home_distance +=
@@ -21181,6 +21218,20 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
 
     let map_keys = manager.active_map_keys();
     outcome.maps_seen = map_keys.len();
+    let owner_snapshots: HashMap<_, _> = candidates
+        .iter()
+        .map(|candidate| {
+            (
+                candidate.player_guid,
+                LegacyCreatureAggroOwnerSnapshotLikeCpp {
+                    map_id: candidate.map_id,
+                    instance_id: candidate.instance_id,
+                    position: candidate.position,
+                    combat_reach: candidate.player_combat_reach,
+                },
+            )
+        })
+        .collect();
     for (map_id, instance_id) in map_keys {
         let map_candidates: Vec<_> = candidates
             .iter()
@@ -21220,7 +21271,10 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
                     continue;
                 }
                 match legacy_creature_can_attack_leash_decision_like_cpp(
-                    creature, candidate, &config,
+                    creature,
+                    candidate,
+                    &config,
+                    &owner_snapshots,
                 ) {
                     LegacyCreatureCanAttackLeashDecisionLikeCpp::Allowed => {}
                     LegacyCreatureCanAttackLeashDecisionLikeCpp::OwnerPositionUnrepresented => {
@@ -51046,6 +51100,196 @@ mod tests {
 
         assert_eq!(outcome.owner_position_unrepresented, 1);
         assert_eq!(outcome.home_range_rejections, 0);
+        assert_eq!(outcome.aggro_starts, 0);
+        assert!(outcome.commands.is_empty());
+    }
+
+    #[test]
+    fn legacy_creature_aggro_player_owned_creature_uses_owner_position_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_048);
+        let owner = ObjectGuid::create_player(1, 91_049);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 400.0;
+                creature.creature.unit_mut().set_level(25);
+                creature.creature.unit_mut().set_combat_reach(0.0);
+                creature
+                    .creature
+                    .unit_mut()
+                    .subsystems_mut()
+                    .control
+                    .set_owner_guid(Some(owner));
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let victim = ObjectGuid::create_player(1, 91_050);
+        let mut victim_candidate =
+            legacy_aggro_candidate_like_cpp(victim, Position::new(301.5, 10.0, 0.0, 0.0));
+        victim_candidate.player_combat_reach = 1.0;
+        let mut owner_candidate =
+            legacy_aggro_candidate_like_cpp(owner, Position::new(200.0, 10.0, 0.0, 0.0));
+        owner_candidate.player_combat_reach = 1.0;
+        owner_candidate.player_unit_flags |= UnitFlags::NON_ATTACKABLE.bits();
+        let candidates = vec![victim_candidate, owner_candidate];
+
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &candidates,
+            legacy_aggro_hostile_config_like_cpp(),
+        );
+
+        assert_eq!(outcome.owner_position_unrepresented, 0);
+        assert_eq!(outcome.home_range_rejections, 0);
+        assert_eq!(outcome.aggro_starts, 1);
+        assert_eq!(outcome.commands.len(), 1);
+        assert_eq!(outcome.commands[0].victim_guid, victim);
+    }
+
+    #[test]
+    fn legacy_creature_aggro_player_owned_creature_rejects_beyond_owner_position_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_051);
+        let owner = ObjectGuid::create_player(1, 91_052);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 400.0;
+                creature.creature.unit_mut().set_level(25);
+                creature.creature.unit_mut().set_combat_reach(0.0);
+                creature
+                    .creature
+                    .unit_mut()
+                    .subsystems_mut()
+                    .control
+                    .set_owner_guid(Some(owner));
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let victim = ObjectGuid::create_player(1, 91_053);
+        let mut victim_candidate =
+            legacy_aggro_candidate_like_cpp(victim, Position::new(303.5, 10.0, 0.0, 0.0));
+        victim_candidate.player_combat_reach = 1.0;
+        let mut owner_candidate =
+            legacy_aggro_candidate_like_cpp(owner, Position::new(200.0, 10.0, 0.0, 0.0));
+        owner_candidate.player_combat_reach = 1.0;
+        owner_candidate.player_unit_flags |= UnitFlags::NON_ATTACKABLE.bits();
+        let candidates = vec![victim_candidate, owner_candidate];
+
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &candidates,
+            legacy_aggro_hostile_config_like_cpp(),
+        );
+
+        assert_eq!(outcome.owner_position_unrepresented, 0);
+        assert_eq!(outcome.home_range_rejections, 1);
+        assert_eq!(outcome.aggro_starts, 0);
+        assert!(outcome.commands.is_empty());
+    }
+
+    #[test]
+    fn legacy_creature_aggro_player_owned_creature_rejects_exact_owner_distance_edge_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_057);
+        let owner = ObjectGuid::create_player(1, 91_058);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 400.0;
+                creature.creature.unit_mut().set_level(25);
+                creature.creature.unit_mut().set_combat_reach(0.0);
+                creature
+                    .creature
+                    .unit_mut()
+                    .subsystems_mut()
+                    .control
+                    .set_owner_guid(Some(owner));
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let victim = ObjectGuid::create_player(1, 91_059);
+        let mut victim_candidate =
+            legacy_aggro_candidate_like_cpp(victim, Position::new(302.0, 10.0, 0.0, 0.0));
+        victim_candidate.player_combat_reach = 1.0;
+        let mut owner_candidate =
+            legacy_aggro_candidate_like_cpp(owner, Position::new(200.0, 10.0, 0.0, 0.0));
+        owner_candidate.player_combat_reach = 1.0;
+        owner_candidate.player_unit_flags |= UnitFlags::NON_ATTACKABLE.bits();
+        let candidates = vec![victim_candidate, owner_candidate];
+
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &candidates,
+            legacy_aggro_hostile_config_like_cpp(),
+        );
+
+        assert_eq!(outcome.home_range_rejections, 1);
+        assert_eq!(outcome.aggro_starts, 0);
+        assert!(outcome.commands.is_empty());
+    }
+
+    #[test]
+    fn legacy_creature_aggro_player_owned_creature_wrong_map_owner_is_unrepresented_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_054);
+        let owner = ObjectGuid::create_player(1, 91_055);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 400.0;
+                creature.creature.unit_mut().set_level(25);
+                creature.creature.unit_mut().set_combat_reach(0.0);
+                creature
+                    .creature
+                    .unit_mut()
+                    .subsystems_mut()
+                    .control
+                    .set_owner_guid(Some(owner));
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let victim = ObjectGuid::create_player(1, 91_056);
+        let victim_candidate =
+            legacy_aggro_candidate_like_cpp(victim, Position::new(80.0, 10.0, 0.0, 0.0));
+        let mut owner_candidate =
+            legacy_aggro_candidate_like_cpp(owner, Position::new(80.0, 10.0, 0.0, 0.0));
+        owner_candidate.map_id = 1;
+        owner_candidate.player_unit_flags |= UnitFlags::NON_ATTACKABLE.bits();
+        let candidates = vec![victim_candidate, owner_candidate];
+
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &candidates,
+            legacy_aggro_hostile_config_like_cpp(),
+        );
+
+        assert_eq!(outcome.owner_position_unrepresented, 1);
         assert_eq!(outcome.aggro_starts, 0);
         assert!(outcome.commands.is_empty());
     }
