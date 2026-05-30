@@ -1921,8 +1921,6 @@ pub struct WorldSession {
     pending_creature_kill_loot_like_cpp: Vec<ObjectGuid>,
     pending_creature_kill_rewards_like_cpp: Vec<PendingCreatureKillRewardLikeCpp>,
     represented_creature_kill_events_like_cpp: Vec<RepresentedCreatureKillEventLikeCpp>,
-    /// Creatures waiting to respawn after corpse despawn.
-    pub(crate) respawn_queue: Vec<PendingRespawn>,
 
     /// In-memory inventory: slot → (item ObjectGuid, entry_id, db_guid).
     inventory_items: HashMap<u8, InventoryItem>,
@@ -2842,7 +2840,6 @@ impl WorldSession {
             pending_creature_kill_loot_like_cpp: Vec::new(),
             pending_creature_kill_rewards_like_cpp: Vec::new(),
             represented_creature_kill_events_like_cpp: Vec::new(),
-            respawn_queue: Vec::new(),
             inventory_items: HashMap::new(),
             buyback_items: HashMap::new(),
             buyback_price: [0; BUYBACK_SLOT_COUNT],
@@ -5906,6 +5903,47 @@ impl WorldSession {
 
     pub(crate) fn has_world_map_manager_like_cpp(&self) -> bool {
         self.map_manager.is_some()
+    }
+
+    /// Push a `PendingRespawn` into the shared map's respawn queue.
+    ///
+    /// instance_id=0: legacy path limitation — consistent with `register_world_creature`,
+    /// `remove_world_creature`, and `mutate_world_creature` which all hardcode 0.
+    /// The canonical respawn store (wow_map `RespawnStoreLikeCpp`) is a separate step.
+    /// Lock is acquired, respawn is pushed, then lock is released before returning.
+    /// No `.await` is performed under lock.
+    pub(crate) fn push_map_respawn_like_cpp(
+        &mut self,
+        map_id: u16,
+        instance_id: u32,
+        r: crate::map_manager::PendingRespawn,
+    ) {
+        if let Some(manager) = &self.map_manager {
+            manager
+                .write()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .push_respawn(map_id, instance_id, r);
+        }
+    }
+
+    /// Drain ready respawns from the shared map's respawn queue for this (map_id, instance_id).
+    ///
+    /// Lock is acquired, ready entries are drained, then lock is released before returning.
+    /// Packet building and `register_world_creature` calls MUST happen after this returns
+    /// (never under lock). No `.await` is performed under lock.
+    pub(crate) fn drain_ready_map_respawns_like_cpp(
+        &mut self,
+        map_id: u16,
+        instance_id: u32,
+        now: std::time::Instant,
+    ) -> Vec<crate::map_manager::PendingRespawn> {
+        if let Some(manager) = &self.map_manager {
+            return manager
+                .write()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .drain_ready_respawns(map_id, instance_id, now);
+        }
+        Vec::new()
     }
 
     pub(crate) fn visible_world_creatures_from_map_like_cpp(
@@ -20118,29 +20156,34 @@ impl WorldSession {
                         speed_walk_rate: 1.0,
                         speed_run_rate: 1.14286,
                     };
-                    self.respawn_queue.push(PendingRespawn {
-                        respawn_at,
-                        home_pos: c.home_position(),
-                        create_data,
-                        max_hp: c.max_hp(),
-                        level: c.level(),
-                        min_dmg: c.min_dmg(),
-                        max_dmg: c.max_dmg(),
-                        aggro_radius: c.creature.ai_ownership().aggro_radius,
-                        npc_flags: c.npc_flags(),
-                        unit_flags: c.unit_flags(),
+                    // instance_id=0: legacy path — consistent with register/remove/mutate_world_creature.
+                    self.push_map_respawn_like_cpp(
                         map_id,
-                        loot_id: c.loot_id(),
-                        skin_loot_id: c.skin_loot_id(),
-                        gold_min: c.gold_min(),
-                        gold_max: c.gold_max(),
-                        boss_id: c.boss_id(),
-                        dungeon_encounter_id: c.dungeon_encounter_id(),
-                        phase_use_flags: c.creature.ai_ownership().phase_use_flags,
-                        phase_id: c.creature.ai_ownership().phase_id,
-                        phase_group_id: c.creature.ai_ownership().phase_group_id,
-                        terrain_swap_map: c.creature.ai_ownership().terrain_swap_map,
-                    });
+                        0,
+                        PendingRespawn {
+                            respawn_at,
+                            home_pos: c.home_position(),
+                            create_data,
+                            max_hp: c.max_hp(),
+                            level: c.level(),
+                            min_dmg: c.min_dmg(),
+                            max_dmg: c.max_dmg(),
+                            aggro_radius: c.creature.ai_ownership().aggro_radius,
+                            npc_flags: c.npc_flags(),
+                            unit_flags: c.unit_flags(),
+                            map_id,
+                            loot_id: c.loot_id(),
+                            skin_loot_id: c.skin_loot_id(),
+                            gold_min: c.gold_min(),
+                            gold_max: c.gold_max(),
+                            boss_id: c.boss_id(),
+                            dungeon_encounter_id: c.dungeon_encounter_id(),
+                            phase_use_flags: c.creature.ai_ownership().phase_use_flags,
+                            phase_id: c.creature.ai_ownership().phase_id,
+                            phase_group_id: c.creature.ai_ownership().phase_group_id,
+                            terrain_swap_map: c.creature.ai_ownership().terrain_swap_map,
+                        },
+                    );
                     tracing::info!(
                         "Corpse despawned: {:?} (entry {}) — respawn in {}s",
                         g,
@@ -20155,19 +20198,13 @@ impl WorldSession {
         }
         // ── Respawn queue ──────────────────────────────────────────────────
         // C# ref: Creature::Update → RemoveCorpse → respawn via Map::AddToMap.
-        let ready: Vec<PendingRespawn> = {
-            let mut remaining = Vec::new();
-            let mut spawn_now = Vec::new();
-            for r in self.respawn_queue.drain(..) {
-                if now >= r.respawn_at {
-                    spawn_now.push(r);
-                } else {
-                    remaining.push(r);
-                }
-            }
-            self.respawn_queue = remaining;
-            spawn_now
-        };
+        // Lock is acquired inside drain_ready_map_respawns_like_cpp and released
+        // before returning; register_world_creature and packet building happen below,
+        // outside the lock.
+        // instance_id=0: legacy path — consistent with register/remove/mutate_world_creature.
+        let current_map_id = self.player_map_id_like_cpp();
+        let ready: Vec<PendingRespawn> =
+            self.drain_ready_map_respawns_like_cpp(current_map_id, 0, now);
 
         for r in ready {
             use wow_packet::ServerPacket;
@@ -48805,6 +48842,195 @@ mod tests {
         assert!(
             recv_m.try_recv().is_ok(),
             "channel must have packets after flush"
+        );
+    }
+
+    // ── Slice 4A.2b — respawn queue ownership migrated to MapInstance ──────
+
+    /// Prepare a dead creature whose corpse timer has already elapsed.
+    /// Returns the session and the creature GUID so the caller can drive
+    /// `run_creatures_tick` to trigger the despawn-then-respawn path.
+    fn setup_dead_creature_past_despawn(
+        guid_counter: i64,
+    ) -> (WorldSession, flume::Receiver<Vec<u8>>, ObjectGuid) {
+        let (mut session, _, send_rx) = make_session();
+        let manager = shared_map_manager();
+        let guid = test_creature_guid(guid_counter);
+        register_test_creature(&mut session, manager.clone(), guid, 10);
+
+        // Kill the creature and set corpse_despawn_at to the past so that
+        // the very next run_creatures_tick triggers despawn.
+        let past = Instant::now() - Duration::from_secs(1);
+        session
+            .mutate_world_creature(guid, |c| {
+                c.take_damage(10);
+                c.set_corpse_despawn_at(Some(past));
+            })
+            .unwrap();
+
+        // Mark the creature as client-visible so the DESTROY packet is built.
+        session.client_visible_guids_like_cpp.insert(guid);
+
+        (session, send_rx, guid)
+    }
+
+    /// After despawn, force the pending respawn entry to be immediately ready
+    /// by rewriting its `respawn_at` to the past via the map's queue.
+    fn force_respawn_ready(session: &mut WorldSession) {
+        let map_id = session.player_map_id_like_cpp();
+        let past = Instant::now() - Duration::from_secs(1);
+        // Drain whatever is in the queue, rewrite respawn_at, push back.
+        if let Some(manager) = &session.map_manager {
+            let mut mgr = manager.write().unwrap_or_else(|p| p.into_inner());
+            let entries =
+                mgr.drain_ready_respawns(map_id, 0, Instant::now() + Duration::from_secs(9999));
+            for mut r in entries {
+                r.respawn_at = past;
+                mgr.push_respawn(map_id, 0, r);
+            }
+        }
+    }
+
+    #[test]
+    fn respawn_queue_lives_in_map_not_in_session_like_cpp() {
+        // After a creature is despawned and queued for respawn, the pending entry
+        // must be stored in the map's respawn_queue (MapInstance), not in WorldSession.
+        let (mut session, _, _) = setup_dead_creature_past_despawn(91_001);
+
+        // First tick: despawn fires and pushes to the MAP queue.
+        let output = session.run_creatures_tick();
+        session.flush_runtime_output(output);
+
+        // Verify the pending respawn is in the map, not in a session field.
+        let map_id = session.player_map_id_like_cpp();
+        let queue_len = session
+            .map_manager
+            .as_ref()
+            .map(|m| {
+                m.read()
+                    .unwrap_or_else(|p| p.into_inner())
+                    .respawn_queue_len(map_id, 0)
+            })
+            .unwrap_or(0);
+        assert_eq!(queue_len, 1, "pending respawn must be in the map queue");
+    }
+
+    #[test]
+    fn single_session_respawn_produces_create_packet_like_cpp() {
+        // 1 session: kill creature → corpse despawn → respawn ready → run_creatures_tick
+        // must produce an SMSG_UPDATE_OBJECT CREATE block.
+        // This verifies byte-identity of the single-session path: the same opcode
+        // sequence that was produced before the ownership migration still fires.
+        let (mut session, send_rx, _guid) = setup_dead_creature_past_despawn(91_002);
+
+        // Tick 1: despawn — removes the creature from the world and enqueues respawn.
+        let output = session.run_creatures_tick();
+        session.flush_runtime_output(output);
+
+        // Drain any packets sent so far (DESTROY block).
+        while send_rx.try_recv().is_ok() {}
+
+        // Force the queued respawn to be immediately ready.
+        force_respawn_ready(&mut session);
+
+        // Tick 2: respawn fires — must produce an SMSG_UPDATE_OBJECT CREATE block.
+        let output2 = session.run_creatures_tick();
+
+        // The CREATE block must be in the RuntimeOutput packets before flush.
+        let found_create = output2.packets.iter().any(|bytes| {
+            bytes.len() >= 2
+                && u16::from_le_bytes([bytes[0], bytes[1]]) == ServerOpcodes::UpdateObject as u16
+        });
+
+        assert!(
+            found_create,
+            "respawn tick must produce SMSG_UPDATE_OBJECT CREATE in RuntimeOutput"
+        );
+    }
+
+    #[test]
+    fn two_sessions_share_respawn_queue_drain_is_not_duplicated_like_cpp() {
+        // Two sessions sharing the same Arc<RwLock<MapManager>>:
+        // a respawn enqueued by session A must be drained exactly once —
+        // a second drain (by session B) must return nothing.
+        let manager = shared_map_manager();
+        let (mut session_a, _, send_rx_a) = make_session();
+        let (mut session_b, _, _send_rx_b) = make_session();
+
+        session_a.set_map_manager(manager.clone());
+        session_a.current_map_id = 0;
+        session_b.set_map_manager(manager.clone());
+        session_b.current_map_id = 0;
+
+        let past = Instant::now() - Duration::from_secs(1);
+
+        // Push one pending respawn via session A.
+        let dummy_guid = test_creature_guid(91_003);
+        let create_data = test_creature_create_data(dummy_guid, 9001, 10);
+        let pending = crate::map_manager::PendingRespawn {
+            respawn_at: past,
+            home_pos: Position::new(0.0, 0.0, 0.0, 0.0),
+            create_data,
+            max_hp: 10,
+            level: 1,
+            min_dmg: 1,
+            max_dmg: 2,
+            aggro_radius: 5.0,
+            npc_flags: 0,
+            unit_flags: 0,
+            map_id: 0,
+            loot_id: 0,
+            skin_loot_id: 0,
+            gold_min: 0,
+            gold_max: 0,
+            boss_id: None,
+            dungeon_encounter_id: 0,
+            phase_use_flags: 0,
+            phase_id: 0,
+            phase_group_id: 0,
+            terrain_swap_map: -1,
+        };
+        session_a.push_map_respawn_like_cpp(0, 0, pending);
+
+        // Queue must have exactly 1 entry.
+        {
+            let mgr = manager.read().unwrap_or_else(|p| p.into_inner());
+            assert_eq!(
+                mgr.respawn_queue_len(0, 0),
+                1,
+                "queue must have 1 entry after push"
+            );
+        }
+
+        // Session A drains — gets 1 entry.
+        let drained_a = session_a.drain_ready_map_respawns_like_cpp(0, 0, Instant::now());
+        assert_eq!(
+            drained_a.len(),
+            1,
+            "session A must drain the 1 ready respawn"
+        );
+
+        // Queue is now empty.
+        {
+            let mgr = manager.read().unwrap_or_else(|p| p.into_inner());
+            assert_eq!(
+                mgr.respawn_queue_len(0, 0),
+                0,
+                "queue must be empty after drain"
+            );
+        }
+
+        // Session B drains — must get nothing (no duplicates).
+        let drained_b = session_b.drain_ready_map_respawns_like_cpp(0, 0, Instant::now());
+        assert!(
+            drained_b.is_empty(),
+            "second drain by session B must return empty — no duplicate respawns"
+        );
+
+        // Channel must be empty (no side effects from push/drain helpers).
+        assert!(
+            send_rx_a.try_recv().is_err(),
+            "helpers must not send packets"
         );
     }
 }

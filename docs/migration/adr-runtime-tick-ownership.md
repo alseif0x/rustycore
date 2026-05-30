@@ -142,9 +142,11 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
     (ready in insertion order, non-ready stay)/`respawn_queue_len`; delegates on `MapManager` by
     `(map_id, instance_id)`. Dormant (no production caller; `run_creatures_tick` still uses the
     session field). 6 tests; 1074/0. 1 code file.
-  - **4A.2b — NEXT:** repoint `run_creatures_tick` to the map queue via session helpers (lock only
-    for push/drain, released before building packets / `register_world_creature`), remove
-    `WorldSession::respawn_queue`. Byte-identical for 1 session.
+  - **4A.2b — DONE (`#NEXT.RUNTIME.L3.004`):** repointed `run_creatures_tick` to the map queue via
+    session helpers `push_map_respawn_like_cpp`/`drain_ready_map_respawns_like_cpp` (lock only for
+    push/drain, released before building packets / `register_world_creature`), removed
+    `WorldSession::respawn_queue`. Byte-identical for 1 session (reviewer confirmed the drain logic
+    and packet-build loop are unchanged). 3 tests; wow-world 1077/0. **4A.2 complete.**
 - **4A.3 (higher risk, gated OFF):** separate legacy creature-tick driver (NOT hooked into the
   canonical loop) that ticks creatures once per map, builds a `RuntimePlan` under the lock, releases
   the lock, resolves recipients, and delivers via `try_send`. Owner stays `Session` in production;
@@ -162,7 +164,10 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   refinements integrated. Dormant in production. wow-world 1068/0, world-server 266/0, wow-network 14/0.
 - 2026-05-30 — Slice 4A.2a `#NEXT.RUNTIME.L3.004`: PendingRespawn -> map_manager.rs +
   MapInstance/MapManager respawn-queue API (dormant). 6 tests; wow-world 1074/0. Fixes ownership,
-  not delivery. NEXT 4A.2b repoints run_creatures_tick + removes the session field.
+  not delivery.
+- 2026-05-30 — Slice 4A.2b `#NEXT.RUNTIME.L3.004`: run_creatures_tick repointed to the map queue;
+  WorldSession::respawn_queue removed. Byte-identical 1 session. 3 tests; wow-world 1077/0.
+  **4A.2 complete.** NEXT: 4A.3 (separate legacy creature-tick driver, gated OFF).
 
 ## References
 
