@@ -69,7 +69,7 @@ All paths relative to `/home/server/woltk-trinity-legacy/`.
 | PACKET SPOOF PROTECTION SETTINGS | 4303-4336 | `PacketSpoof.Policy=1` (0 log / 1 log+kick / 2 log+kick+ban), `PacketSpoof.BanMode=0` (0 account / 2 IP), `PacketSpoof.BanDuration=86400` |
 | METRIC SETTINGS | 4338-4389 | `Metric.Enable`, `Metric.Interval=1`, `Metric.ConnectionInfo="127.0.0.1;8086;worldserver"`, `Metric.OverallStatusInterval=1`, `Metric.Threshold.<name>` |
 | PVP SETTINGS | 4391-4426 | `Pvp.FactionBalance.LevelCheckDiff`, `Pvp.FactionBalance.{Pct5=0.6,Pct10=0.7,Pct20=0.8}` |
-| LFG TEST HARNESS | 4428-4444 | `Bot.AccountPrefix` (RustyCore-only addition; gates the synchronous-login path used by headless test bots) |
+| RUSTYCORE TEST / EXPERIMENTAL FLAGS | 4428-4444 | `Bot.AccountPrefix` (RustyCore-only addition; gates the synchronous-login path used by headless test bots), `RustyCore.LegacyCreatureGlobalRuntime` (RustyCore-only experimental runtime owner flag; default `0`) |
 
 ### `bnetserver.conf.dist` section index
 
@@ -122,7 +122,7 @@ All paths relative to `/home/server/woltk-trinity-legacy/`.
 - `Realm`, `Database` — `LoginDatabaseInfo`, `WorldDatabaseInfo`, `CharacterDatabaseInfo`, `HotfixDatabaseInfo`, `*.WorkerThreads`, `*.SynchThreads`, `MaxPingTime`, `RealmID`
 - `WorldSocket` / `WorldSocketMgr` — `WorldServerPort`, `InstanceServerPort`, `BindIP`, `Network.Threads`, `Network.{OutKBuff,OutUBuff,TcpNodelay}`, `SocketTimeOutTime{,Active}`, `CONFIG_COMPRESSION`, `PacketSpoof.{Policy,BanMode,BanDuration}`
 - `WorldSession` — `SessionAddDelay`, `MaxOverspeedPings`, `Auth*`, `WrongPass.*`, `Bot.AccountPrefix`
-- `Map` / `MapManager` — `GridUnload`, `BaseMapLoadAllGrids`, `InstanceMapLoadAllGrids`, `BattlegroundMapLoadAllGrids`, `GridCleanUpDelay`, `MinWorldUpdateTime`, `MapUpdateInterval`
+- `Map` / `MapManager` — `GridUnload`, `BaseMapLoadAllGrids`, `InstanceMapLoadAllGrids`, `BattlegroundMapLoadAllGrids`, `GridCleanUpDelay`, `MinWorldUpdateTime`, `MapUpdateInterval`, `RustyCore.LegacyCreatureGlobalRuntime`
 - `Player` — every `Rate.XP.*`, `Rate.Health/Mana/...`, `MaxPlayerLevel`, `StartPlayerLevel`, `StartPlayerMoney`, `Death.*`, `CharDelete.*`, `Visibility.*`, `Stats.Limits.*`
 - `Creature` — `Rate.Creature.{Damage,SpellDamage,HP}.*`, `Corpse.Decay.*`, `Rate.Creature.Aggro`
 - `BattlegroundMgr` — every `Battleground.*`
@@ -184,6 +184,7 @@ The config layer is process-internal — it does not originate packets. It does,
 - ✅ Fallback chain `WorldServer.conf` → `WorldServer.conf.dist` (TC has the same convention).
 - ✅ Typed accessors via `FromStr`: integers, floats, `String` all flow through one generic.
 - ✅ Reload-replaces semantics on the parser side (`parse()` clears the map first, so repeated calls overwrite cleanly).
+- ✅ RustyCore-only experimental flags can be read ad hoc. `RustyCore.LegacyCreatureGlobalRuntime` is numeric `0`/`1`, defaults to `0`, and is intentionally not part of TrinityCore config parity.
 
 **What's missing vs C++:**
 
@@ -275,15 +276,17 @@ The config layer is process-internal — it does not originate packets. It does,
 
 10. **`Bot.AccountPrefix`** is a RustyCore-specific addition (not in TC). It is documented in `worldserver.conf.dist` lines 4428-4444 and gates the synchronous-login path used by the LFG headless test bot. Production realms must leave it `""` — see CLAUDE.md.
 
-11. **`TOTPMasterSecret` is a hex string**, not a base64 string. TC uses raw 16-byte AES-128-CBC keys formatted as 32 hex chars (`000102…0F`).
+11. **`RustyCore.LegacyCreatureGlobalRuntime`** is a RustyCore-specific experimental migration flag (not in TC). It is read as numeric `0`/`1`; absent and `0` keep the legacy session-owned creature tick, while non-zero flips the shared legacy map owner to `GlobalLegacy` and starts the global creature runtime loop at `MapUpdateInterval`. Do not enable it on a production realm until Slice 4B manual client/server validation is complete.
 
-12. **Reload semantics**: TC's `.reload config` only re-reads the file. Subsystems must opt in to picking up the new values — many keys (e.g. `BindIP`, `WorldServerPort`, `Network.Threads`) are read once at boot and ignored on reload. Document per-key whether reload takes effect.
+12. **`TOTPMasterSecret` is a hex string**, not a base64 string. TC uses raw 16-byte AES-128-CBC keys formatted as 32 hex chars (`000102…0F`).
 
-13. **`Metric.ConnectionInfo = "127.0.0.1;8086;worldserver"`** uses a different semicolon schema (host/port/database, no auth) — yet another not-quite-the-same connection-string format to handle.
+13. **Reload semantics**: TC's `.reload config` only re-reads the file. Subsystems must opt in to picking up the new values — many keys (e.g. `BindIP`, `WorldServerPort`, `Network.Threads`) are read once at boot and ignored on reload. Document per-key whether reload takes effect.
 
-14. **Per-environment file naming**: TC convention is `worldserver.conf` (the operator's edited copy) overrides `worldserver.conf.dist` (template). RustyCore mirrors this in `world-server/src/main.rs:165`. Document this so operators don't edit the `.dist` file and lose changes on next checkout.
+14. **`Metric.ConnectionInfo = "127.0.0.1;8086;worldserver"`** uses a different semicolon schema (host/port/database, no auth) — yet another not-quite-the-same connection-string format to handle.
 
-15. **The `[worldserver]` / `[bnetserver]` header** is the only INI-like artefact in an otherwise flat-key file. Some TC forks abuse the header to support multiple realms in one file by switching sections; RustyCore should explicitly choose **not** to support that and document the choice.
+15. **Per-environment file naming**: TC convention is `worldserver.conf` (the operator's edited copy) overrides `worldserver.conf.dist` (template). RustyCore mirrors this in `world-server/src/main.rs:165`. Document this so operators don't edit the `.dist` file and lose changes on next checkout.
+
+16. **The `[worldserver]` / `[bnetserver]` header** is the only INI-like artefact in an otherwise flat-key file. Some TC forks abuse the header to support multiple realms in one file by switching sections; RustyCore should explicitly choose **not** to support that and document the choice.
 
 ---
 
@@ -306,6 +309,7 @@ The config layer is process-internal — it does not originate packets. It does,
 | `sLog->LoadFromConfig()` | planned `wow_logging::reload_from_config()` | Today: `tracing_subscriber::EnvFilter::from_default_env()` only |
 | `LoginDatabaseInfo = "host;port;user;pass;db;ssl"` | split keys `LoginDatabaseInfo.{Host,Port,Username,Password,Database}` | **Format divergence**; #CONFIG.3 |
 | `Bot.AccountPrefix` | `wow_config::get_string_default("Bot.AccountPrefix", "")` | RustyCore-specific key (not in TC) |
+| `RustyCore.LegacyCreatureGlobalRuntime` | `wow_config::get_value_default::<u8>("RustyCore.LegacyCreatureGlobalRuntime", 0) != 0` | RustyCore-specific experimental key (not in TC); default off |
 | `[worldserver]` section header | (would currently fail to parse) | #CONFIG.1 |
 | `0`/`1` boolean values | (would currently return `None` from `get_value::<bool>`) | #CONFIG.2 |
 | `.reload config` GM command | (no equivalent) | #CONFIG.5 |

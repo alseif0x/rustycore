@@ -2453,6 +2453,7 @@ pub struct PendingRespawn {
     pub min_dmg: u32,
     pub max_dmg: u32,
     pub aggro_radius: f32,
+    pub flags_extra: u32,
     pub npc_flags: u32,
     pub unit_flags: u32,
     pub map_id: u16,
@@ -2466,6 +2467,126 @@ pub struct PendingRespawn {
     pub phase_id: u16,
     pub phase_group_id: u32,
     pub terrain_swap_map: i32,
+    /// Already-resolved DB phase shift from the creature that despawned.
+    ///
+    /// The global runtime has no `WorldSession` phase stores, so respawn must
+    /// reuse the resolved phase state captured at despawn time instead of
+    /// recalculating it through session-local helpers.
+    pub phase_shift: PhaseShift,
+}
+
+/// Build a map-owned respawn entry from the represented runtime creature.
+///
+/// Mirrors the data captured by the session-local corpse despawn path; this
+/// helper exists so the future global lifecycle driver and the legacy session
+/// path do not drift.
+pub fn pending_respawn_from_world_creature_like_cpp(
+    creature: &WorldCreature,
+    respawn_at: Instant,
+    map_id: u16,
+) -> PendingRespawn {
+    PendingRespawn {
+        respawn_at,
+        home_pos: creature.home_position(),
+        create_data: CreatureCreateData {
+            guid: creature.guid(),
+            entry: creature.entry(),
+            display_id: creature.display_id(),
+            native_display_id: creature.display_id(),
+            health: creature.max_hp() as i64,
+            max_health: creature.max_hp() as i64,
+            level: creature.level(),
+            faction_template: creature.faction() as i32,
+            npc_flags: creature.npc_flags_mask_like_cpp(),
+            unit_flags: creature.unit_flags(),
+            unit_flags2: 0,
+            unit_flags3: 0,
+            scale: 1.0,
+            unit_class: 1,
+            base_attack_time: 2000,
+            ranged_attack_time: 0,
+            zone_id: 0,
+            speed_walk_rate: 1.0,
+            speed_run_rate: 1.14286,
+        },
+        max_hp: creature.max_hp(),
+        level: creature.level(),
+        min_dmg: creature.min_dmg(),
+        max_dmg: creature.max_dmg(),
+        aggro_radius: creature.creature.ai_ownership().aggro_radius,
+        flags_extra: creature.creature.lifecycle_metadata().flags_extra,
+        npc_flags: creature.npc_flags(),
+        unit_flags: creature.unit_flags(),
+        map_id,
+        loot_id: creature.loot_id(),
+        skin_loot_id: creature.skin_loot_id(),
+        gold_min: creature.gold_min(),
+        gold_max: creature.gold_max(),
+        boss_id: creature.boss_id(),
+        dungeon_encounter_id: creature.dungeon_encounter_id(),
+        phase_use_flags: creature.creature.ai_ownership().phase_use_flags,
+        phase_id: creature.creature.ai_ownership().phase_id,
+        phase_group_id: creature.creature.ai_ownership().phase_group_id,
+        terrain_swap_map: creature.creature.ai_ownership().terrain_swap_map,
+        phase_shift: creature.phase_shift().clone(),
+    }
+}
+
+/// Recreate a represented world creature from a map-owned respawn entry.
+///
+/// This is the session-free equivalent of `WorldSession::register_world_creature`
+/// for the global lifecycle driver. It intentionally uses the already-resolved
+/// phase shift stored in [`PendingRespawn`].
+pub fn world_creature_from_pending_respawn_like_cpp(
+    respawn: &PendingRespawn,
+    instance_id: u32,
+) -> WorldCreature {
+    let create_data = &respawn.create_data;
+    let guid = create_data.guid;
+    let entry = create_data.entry;
+    let hp = create_data.health.max(1) as u32;
+    let level = create_data.level;
+    let display_id = create_data.display_id;
+    let faction = create_data.faction_template.max(0) as u32;
+    let npc_flags = create_data.npc_flags as u32;
+    let npc_flags2 = (create_data.npc_flags >> 32) as u32;
+    let unit_flags = create_data.unit_flags;
+
+    let mut creature = Creature::new(false);
+    creature.unit_mut().world_mut().object_mut().create(guid);
+    creature
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .set_entry(entry);
+    let _ = creature
+        .unit_mut()
+        .world_mut()
+        .set_map(u32::from(respawn.map_id), instance_id);
+    creature.unit_mut().world_mut().relocate(respawn.home_pos);
+    *creature.unit_mut().world_mut().phase_shift_mut() = respawn.phase_shift.clone();
+    creature.unit_mut().set_level(level);
+    creature.unit_mut().set_max_health(u64::from(hp));
+    creature.unit_mut().set_health(u64::from(hp));
+    creature.set_ai_identity_runtime(display_id, faction, npc_flags, unit_flags);
+    creature.set_npc_flags2_runtime_like_cpp(npc_flags2);
+    creature.set_flags_extra_runtime_like_cpp(respawn.flags_extra);
+    creature.configure_ai_runtime(respawn.home_pos, respawn.aggro_radius, 5.0, 30);
+    creature.ai_ownership_mut().min_damage = respawn.min_dmg;
+    creature.ai_ownership_mut().max_damage = respawn.max_dmg;
+    creature.ai_ownership_mut().loot_id = respawn.loot_id;
+    creature.ai_ownership_mut().skin_loot_id = respawn.skin_loot_id;
+    creature.ai_ownership_mut().gold_min = respawn.gold_min;
+    creature.ai_ownership_mut().gold_max = respawn.gold_max;
+    creature.ai_ownership_mut().boss_id = respawn.boss_id;
+    creature.ai_ownership_mut().dungeon_encounter_id = respawn.dungeon_encounter_id;
+    creature.ai_ownership_mut().phase_use_flags = respawn.phase_use_flags;
+    creature.ai_ownership_mut().phase_id = respawn.phase_id;
+    creature.ai_ownership_mut().phase_group_id = respawn.phase_group_id;
+    creature.ai_ownership_mut().terrain_swap_map = respawn.terrain_swap_map;
+    creature.clear_data_changes();
+
+    WorldCreature::from_canonical(creature, respawn.create_data.clone())
 }
 
 #[cfg(test)]
@@ -2473,7 +2594,7 @@ mod tests {
     use super::*;
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
-    use wow_constants::PhaseFlags;
+    use wow_constants::{CreatureFlagsExtra, PhaseFlags};
     use wow_core::guid::HighGuid;
 
     fn unique_temp_data_dir(test_name: &str) -> PathBuf {
@@ -4075,6 +4196,7 @@ mod tests {
             min_dmg: 1,
             max_dmg: 5,
             aggro_radius: 10.0,
+            flags_extra: 0,
             npc_flags: 0,
             unit_flags: 0,
             map_id: 0,
@@ -4088,6 +4210,7 @@ mod tests {
             phase_id: 0,
             phase_group_id: 0,
             terrain_swap_map: -1,
+            phase_shift: PhaseShift::default(),
         }
     }
 
@@ -4179,5 +4302,23 @@ mod tests {
 
         let ready_0 = manager.drain_ready_respawns(0, 0, now);
         assert_eq!(ready_0.len(), 1);
+    }
+
+    #[test]
+    fn pending_respawn_preserves_flags_extra_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 42);
+        let mut creature = test_creature(guid);
+        creature
+            .creature
+            .set_flags_extra_runtime_like_cpp(CreatureFlagsExtra::CIVILIAN.bits());
+
+        let pending = pending_respawn_from_world_creature_like_cpp(&creature, Instant::now(), 0);
+        assert_eq!(pending.flags_extra, CreatureFlagsExtra::CIVILIAN.bits());
+
+        let respawned = world_creature_from_pending_respawn_like_cpp(&pending, 0);
+        assert!(
+            respawned.creature.is_civilian_like_cpp(),
+            "map-owned respawn must keep C++ flags_extra gates"
+        );
     }
 }

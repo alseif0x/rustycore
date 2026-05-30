@@ -1194,6 +1194,9 @@ mod tests {
             pass_on_group_loot: false,
             enchanting_skill: 0,
             is_alive: true,
+            unit_flags: 0,
+            unit_state: 0,
+            is_game_master: false,
             active_expansion: 2,
             pending_quest_sharing: None,
             known_spells: Vec::new(),
@@ -1212,6 +1215,7 @@ mod tests {
             class: 1,
             sex: 0,
             level: 1,
+            gray_level: 0,
             display_id: 49,
             visible_items: [(0, 0, 0); 19],
         }

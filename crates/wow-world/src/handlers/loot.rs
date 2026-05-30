@@ -48,8 +48,9 @@ use wow_loot::{
     loot_item_ui_type_for_player_like_cpp,
 };
 use wow_network::player_registry::{
-    SendIfVisibleLikeCppCommand, SendRepeatableTurnInRequestItemsLikeCppCommand,
-    SetQuestSharingInfoAndSendDetailsCommand,
+    ApplyCreatureMeleeDamageLikeCppCommand, CreatureAttackStartLikeCppCommand,
+    RefreshVisibleWorldCreaturesLikeCppCommand, SendIfVisibleLikeCppCommand,
+    SendRepeatableTurnInRequestItemsLikeCppCommand, SetQuestSharingInfoAndSendDetailsCommand,
 };
 use wow_network::{
     LootRollStoreWinnerCommand, LootRollVoteCommand, MasterLootGiveCommand, MasterLootGiveResult,
@@ -2489,6 +2490,12 @@ impl WorldSession {
         let commands = self.drain_session_commands();
         for command in commands {
             match command {
+                SessionCommand::ApplyCreatureMeleeDamageLikeCpp(command) => {
+                    self.handle_apply_creature_melee_damage_like_cpp_command_like_cpp(command);
+                }
+                SessionCommand::CreatureAttackStartLikeCpp(command) => {
+                    self.handle_creature_attack_start_like_cpp_command_like_cpp(command);
+                }
                 SessionCommand::MasterLootGive(command) => {
                     self.handle_represented_master_loot_give_command_like_cpp(command)
                         .await;
@@ -2510,6 +2517,10 @@ impl WorldSession {
                 SessionCommand::SendVisibleObjectValuesUpdate(command) => {
                     self.handle_send_visible_object_values_update_command_like_cpp(command);
                 }
+                SessionCommand::RefreshVisibleWorldCreaturesLikeCpp(command) => {
+                    self.handle_refresh_visible_world_creatures_like_cpp_command_like_cpp(command)
+                        .await;
+                }
                 SessionCommand::RefreshVisibleGameobjectsOrSpellClicksLikeCpp => {
                     let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
                 }
@@ -2524,6 +2535,109 @@ impl WorldSession {
                 }
             }
         }
+    }
+
+    /// Apply a map-owned creature melee hit to this player session.
+    ///
+    /// C++ contrast: `Creature::Update` calls `DoMeleeAttackIfReady()`, which
+    /// eventually emits `AttackerStateUpdate` from the map update tick and
+    /// then applies damage to the victim. The global creature combat driver
+    /// owns the swing timer/damage/canonical health mutation once; this
+    /// command is only the victim-session delivery rail. It sets represented
+    /// player health to the final value instead of subtracting damage, so
+    /// retries cannot double apply the hit and delayed command delivery cannot
+    /// stale-overwrite newer canonical health.
+    fn handle_apply_creature_melee_damage_like_cpp_command_like_cpp(
+        &mut self,
+        command: ApplyCreatureMeleeDamageLikeCppCommand,
+    ) {
+        if self.state() != crate::session::SessionState::LoggedIn {
+            return;
+        }
+        if self.player_guid() != Some(command.victim_guid) {
+            return;
+        }
+        if !self.player_is_alive_like_cpp() {
+            return;
+        }
+        if self.player_map_id_like_cpp() != command.map_id {
+            return;
+        }
+        let session_instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|k| k.instance_id)
+            .unwrap_or(0);
+        if session_instance_id != command.instance_id {
+            return;
+        }
+        if !self
+            .client_visible_guids_like_cpp
+            .contains(&command.attacker_guid)
+        {
+            return;
+        }
+
+        let health_after = command.victim_health_after;
+        self.set_player_health_after_runtime_damage_like_cpp(health_after);
+
+        use wow_packet::packets::combat::{AttackerStateUpdate, VICTIM_STATE_HIT};
+        self.send_packet(&AttackerStateUpdate {
+            attacker: command.attacker_guid,
+            victim: command.victim_guid,
+            damage: command.damage.min(i32::MAX as u32) as i32,
+            over_damage: command.over_damage,
+            victim_state: VICTIM_STATE_HIT,
+            school_mask: 1,
+            target_level: command.target_level,
+            expansion: 2,
+        });
+    }
+
+    /// Mirror one map-owned creature aggro transition into this victim session.
+    ///
+    /// C++ contrast: `CreatureAI::MoveInLineOfSight` calls
+    /// `Creature::CanStartAttack` and then engages the target; the combat start
+    /// is visible to the client through `Unit::SendMeleeAttackStart`. The map
+    /// runtime owns the aggro decision; this handler only gates the victim
+    /// session and sends one `AttackStart` packet.
+    fn handle_creature_attack_start_like_cpp_command_like_cpp(
+        &mut self,
+        command: CreatureAttackStartLikeCppCommand,
+    ) {
+        if self.state() != crate::session::SessionState::LoggedIn {
+            return;
+        }
+        if self.player_guid() != Some(command.victim_guid) {
+            return;
+        }
+        if !self.player_is_alive_like_cpp() {
+            return;
+        }
+        if self.player_map_id_like_cpp() != command.map_id {
+            return;
+        }
+        let session_instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|k| k.instance_id)
+            .unwrap_or(0);
+        if session_instance_id != command.instance_id {
+            return;
+        }
+        if !self
+            .client_visible_guids_like_cpp
+            .contains(&command.attacker_guid)
+        {
+            return;
+        }
+
+        self.combat_target = Some(command.attacker_guid);
+        self.in_combat = true;
+
+        use wow_packet::packets::combat::AttackStart;
+        self.send_packet(&AttackStart {
+            attacker: command.attacker_guid,
+            victim: command.victim_guid,
+        });
     }
 
     fn handle_send_visible_object_values_update_command_like_cpp(
@@ -2590,6 +2704,33 @@ impl WorldSession {
         }
         // All gates passed — deliver the already-serialised packet as-is.
         self.send_raw_packet(&command.packet_bytes);
+    }
+
+    /// Recompute this session's map-owned creature visibility.
+    ///
+    /// This is the session-local side of future global creature CREATE/DESTROY
+    /// work. C++ performs creature create/out-of-range decisions in
+    /// `Player::UpdateVisibilityOf`; this command reuses Rust's represented
+    /// `update_visibility` pass instead of sending raw bytes that cannot update
+    /// `client_visible_guids_like_cpp`.
+    async fn handle_refresh_visible_world_creatures_like_cpp_command_like_cpp(
+        &mut self,
+        command: RefreshVisibleWorldCreaturesLikeCppCommand,
+    ) {
+        if self.state() != crate::session::SessionState::LoggedIn {
+            return;
+        }
+        if self.player_map_id_like_cpp() != command.map_id {
+            return;
+        }
+        let session_instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|k| k.instance_id)
+            .unwrap_or(0);
+        if session_instance_id != command.instance_id {
+            return;
+        }
+        self.force_update_visibility_like_cpp().await;
     }
 
     fn handle_send_repeatable_turn_in_request_items_command_like_cpp(
@@ -7693,6 +7834,9 @@ mod tests {
             pass_on_group_loot: false,
             enchanting_skill: 0,
             is_alive: true,
+            unit_flags: 0,
+            unit_state: 0,
+            is_game_master: false,
             active_expansion: 2,
             pending_quest_sharing: None,
             known_spells: Vec::new(),
@@ -7711,6 +7855,7 @@ mod tests {
             class: 1,
             sex: 0,
             level: 1,
+            gray_level: 0,
             display_id: 49,
             visible_items: [(0, 0, 0); 19],
         }

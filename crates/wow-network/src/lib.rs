@@ -18,11 +18,12 @@ pub use accept::{
 };
 pub use group_registry::{GROUP_FLAG_RAID_LIKE_CPP, GroupInfo, GroupRegistry, PendingInvites};
 pub use player_registry::{
+    ApplyCreatureMeleeDamageLikeCppCommand, CreatureAttackStartLikeCppCommand,
     GameEventQuestCompleteClientOutcomeLikeCpp, GameEventQuestCompleteCommandLikeCpp,
     GameEventQuestCompleteResponseLikeCpp, LootRollStoreWinnerCommand, LootRollVoteCommand,
     MasterLootGiveCommand, MasterLootGiveResult, PlayerBroadcastInfo, PlayerRegistry,
-    ResetSeasonalQuestStatusCommand, SendIfVisibleLikeCppCommand,
-    SendVisibleObjectValuesUpdateCommand, SessionCommand,
+    RefreshVisibleWorldCreaturesLikeCppCommand, ResetSeasonalQuestStatusCommand,
+    SendIfVisibleLikeCppCommand, SendVisibleObjectValuesUpdateCommand, SessionCommand,
 };
 pub use session_mgr::{InstanceLink, SessionManager};
 pub use world_socket::{AccountInfo, SocketReader, SocketWriter, WorldSocket, WorldSocketError};

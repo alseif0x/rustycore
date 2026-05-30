@@ -1,5 +1,6 @@
 use wow_constants::{
-    DeathState, PowerType, TypeId, TypeMask, UnitDynFlags, UnitFlags, UnitState, WeaponAttackType,
+    CreatureFlagsExtra, DeathState, PowerType, TypeId, TypeMask, UnitDynFlags, UnitFlags,
+    UnitState, WeaponAttackType,
 };
 use wow_core::{ObjectGuid, Position};
 
@@ -961,6 +962,11 @@ impl Creature {
         &self.lifecycle_metadata
     }
 
+    pub fn is_civilian_like_cpp(&self) -> bool {
+        CreatureFlagsExtra::from_bits_truncate(self.lifecycle_metadata.flags_extra)
+            .contains(CreatureFlagsExtra::CIVILIAN)
+    }
+
     pub fn add_to_world_vehicle_reset_context_like_cpp(
         &self,
     ) -> Option<&CreatureAddToWorldVehicleResetContextLikeCpp> {
@@ -1285,6 +1291,26 @@ impl Creature {
             return false;
         }
 
+        if !self.has_react_state(ReactState::Aggressive) {
+            return false;
+        }
+
+        if self.is_civilian_like_cpp() {
+            return false;
+        }
+
+        if self.ai_ownership.aggro_radius <= 0.0 {
+            return false;
+        }
+
+        if self
+            .unit
+            .unit_flags_like_cpp()
+            .contains(UnitFlags::IMMUNE_TO_PC)
+        {
+            return false;
+        }
+
         if self.ai_position().distance(player_pos) <= self.ai_ownership.aggro_radius {
             self.enter_ai_combat(player_guid);
             true
@@ -1327,6 +1353,10 @@ impl Creature {
     pub fn set_npc_flags2_runtime_like_cpp(&mut self, npc_flags2: u32) {
         self.ai_ownership.npc_flags2 = npc_flags2;
         self.unit.set_npc_flags2_like_cpp(npc_flags2);
+    }
+
+    pub fn set_flags_extra_runtime_like_cpp(&mut self, flags_extra: u32) {
+        self.lifecycle_metadata.flags_extra = flags_extra;
     }
 
     pub fn configure_ai_runtime(
@@ -2531,6 +2561,109 @@ mod tests {
         assert_eq!(creature.ai_state(), CreatureAiState::Idle);
         assert_eq!(creature.ai_ownership().combat_target, None);
         assert_eq!(creature.ai_ownership().corpse_despawn_at_ms, None);
+    }
+
+    #[test]
+    fn creature_try_ai_aggro_requires_aggressive_react_state_like_cpp() {
+        let mut creature = Creature::new(false);
+        let player = ObjectGuid::create_player(1, 7);
+        let creature_pos = Position::new(10.0, 20.0, 30.0, 0.0);
+        let player_pos = Position::new(11.0, 20.0, 30.0, 0.0);
+        creature.unit_mut().set_max_health(80);
+        creature.unit_mut().set_health(80);
+        creature.set_ai_position(creature_pos);
+        creature.ai_ownership_mut().aggro_radius = 5.0;
+
+        // C++ `CreatureAI::MoveInLineOfSight` gates normal proximity aggro on
+        // `HasReactState(REACT_AGGRESSIVE)` before `CanStartAttack`.
+        creature.set_react_state(ReactState::Passive);
+        assert!(!creature.try_ai_aggro(player, &player_pos));
+        assert_eq!(creature.ai_state(), CreatureAiState::Idle);
+
+        creature.set_react_state(ReactState::Defensive);
+        assert!(!creature.try_ai_aggro(player, &player_pos));
+        assert_eq!(creature.ai_state(), CreatureAiState::Idle);
+
+        creature.set_react_state(ReactState::Aggressive);
+        assert!(creature.try_ai_aggro(player, &player_pos));
+        assert_eq!(creature.ai_state(), CreatureAiState::InCombat);
+    }
+
+    #[test]
+    fn creature_try_ai_aggro_rejects_non_positive_radius_like_cpp() {
+        let mut creature = Creature::new(false);
+        let player = ObjectGuid::create_player(1, 7);
+        let creature_pos = Position::new(10.0, 20.0, 30.0, 0.0);
+        creature.unit_mut().set_max_health(80);
+        creature.unit_mut().set_health(80);
+        creature.set_ai_position(creature_pos);
+
+        // Rust uses aggro_radius=0 for non-aggro neutral spawns (for example
+        // faction 35). The legacy session path already rejected that before
+        // calling into creature AI; the global map-owned path must keep the
+        // same C++ CanStartAttack-style no-aggro gate.
+        creature.ai_ownership_mut().aggro_radius = 0.0;
+        assert!(!creature.try_ai_aggro(player, &creature_pos));
+        assert_eq!(creature.ai_state(), CreatureAiState::Idle);
+
+        creature.ai_ownership_mut().aggro_radius = -1.0;
+        assert!(!creature.try_ai_aggro(player, &creature_pos));
+        assert_eq!(creature.ai_state(), CreatureAiState::Idle);
+
+        creature.ai_ownership_mut().aggro_radius = 1.0;
+        assert!(creature.try_ai_aggro(player, &creature_pos));
+        assert_eq!(creature.ai_state(), CreatureAiState::InCombat);
+    }
+
+    #[test]
+    fn creature_try_ai_aggro_rejects_immune_to_pc_like_cpp() {
+        let mut creature = Creature::new(false);
+        let player = ObjectGuid::create_player(1, 7);
+        let creature_pos = Position::new(10.0, 20.0, 30.0, 0.0);
+        let player_pos = Position::new(11.0, 20.0, 30.0, 0.0);
+        creature.unit_mut().set_max_health(80);
+        creature.unit_mut().set_health(80);
+        creature.set_ai_position(creature_pos);
+        creature.ai_ownership_mut().aggro_radius = 5.0;
+
+        // C++ `Creature::CanStartAttack` rejects `IsImmuneToPC()` when the
+        // target has `UNIT_FLAG_PLAYER_CONTROLLED`; this helper only scans
+        // player candidates, so the target side is implied here.
+        creature
+            .unit_mut()
+            .set_unit_flags_like_cpp(UnitFlags::IMMUNE_TO_PC);
+        assert!(!creature.try_ai_aggro(player, &player_pos));
+        assert_eq!(creature.ai_state(), CreatureAiState::Idle);
+
+        creature
+            .unit_mut()
+            .set_unit_flags_like_cpp(UnitFlags::IMMUNE_TO_NPC);
+        assert!(creature.try_ai_aggro(player, &player_pos));
+        assert_eq!(creature.ai_state(), CreatureAiState::InCombat);
+    }
+
+    #[test]
+    fn creature_try_ai_aggro_rejects_civilian_like_cpp() {
+        let mut creature = Creature::new(false);
+        let player = ObjectGuid::create_player(1, 7);
+        let creature_pos = Position::new(10.0, 20.0, 30.0, 0.0);
+        let player_pos = Position::new(11.0, 20.0, 30.0, 0.0);
+        creature.unit_mut().set_max_health(80);
+        creature.unit_mut().set_health(80);
+        creature.set_ai_position(creature_pos);
+        creature.ai_ownership_mut().aggro_radius = 5.0;
+
+        // C++ `Creature::CanStartAttack` returns false immediately for
+        // `IsCivilian()`, which is backed by `CREATURE_FLAG_EXTRA_CIVILIAN`.
+        creature.set_flags_extra_runtime_like_cpp(CreatureFlagsExtra::CIVILIAN.bits());
+        assert!(creature.is_civilian_like_cpp());
+        assert!(!creature.try_ai_aggro(player, &player_pos));
+        assert_eq!(creature.ai_state(), CreatureAiState::Idle);
+
+        creature.set_flags_extra_runtime_like_cpp(0);
+        assert!(!creature.is_civilian_like_cpp());
+        assert!(creature.try_ai_aggro(player, &player_pos));
+        assert_eq!(creature.ai_state(), CreatureAiState::InCombat);
     }
 
     #[test]

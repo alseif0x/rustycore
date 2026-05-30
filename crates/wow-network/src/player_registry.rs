@@ -17,11 +17,14 @@ use wow_packet::packets::party::PartyMemberPhaseStates;
 
 #[derive(Clone, Debug)]
 pub enum SessionCommand {
+    ApplyCreatureMeleeDamageLikeCpp(ApplyCreatureMeleeDamageLikeCppCommand),
+    CreatureAttackStartLikeCpp(CreatureAttackStartLikeCppCommand),
     MasterLootGive(MasterLootGiveCommand),
     LootRollStoreWinner(LootRollStoreWinnerCommand),
     LootRollVote(LootRollVoteCommand),
     ResetSeasonalQuestStatus(ResetSeasonalQuestStatusCommand),
     SendVisibleObjectValuesUpdate(SendVisibleObjectValuesUpdateCommand),
+    RefreshVisibleWorldCreaturesLikeCpp(RefreshVisibleWorldCreaturesLikeCppCommand),
     RefreshVisibleGameobjectsOrSpellClicksLikeCpp,
     SetQuestSharingInfoAndSendDetails(SetQuestSharingInfoAndSendDetailsCommand),
     SendRepeatableTurnInRequestItemsLikeCpp(SendRepeatableTurnInRequestItemsLikeCppCommand),
@@ -34,6 +37,37 @@ pub enum SessionCommand {
     /// world-server; the per-session gate is in
     /// `handle_send_if_visible_like_cpp_command_like_cpp` (Slice 4A.1b).
     SendIfVisibleLikeCpp(SendIfVisibleLikeCppCommand),
+}
+
+/// Payload for a map-owned creature melee hit against one player session.
+///
+/// Future global creature combat will compute the swing once from the map tick,
+/// set the canonical player health to `victim_health_after`, then enqueue this
+/// command to the victim's session. The session side is idempotent: it sets the
+/// represented player health to the final value and sends one combat packet.
+#[derive(Clone, Debug)]
+pub struct ApplyCreatureMeleeDamageLikeCppCommand {
+    pub attacker_guid: ObjectGuid,
+    pub victim_guid: ObjectGuid,
+    pub map_id: u16,
+    pub instance_id: u32,
+    pub damage: u32,
+    pub over_damage: i32,
+    pub target_level: u8,
+    pub victim_health_after: u64,
+}
+
+/// Payload for a map-owned creature aggro transition against one player.
+///
+/// The global creature runtime computes the `MoveInLineOfSight`/aggro result
+/// once from map state, then sends this command to the victim session so the
+/// client receives one `SMSG_ATTACKSTART` and the session mirrors combat state.
+#[derive(Clone, Debug)]
+pub struct CreatureAttackStartLikeCppCommand {
+    pub attacker_guid: ObjectGuid,
+    pub victim_guid: ObjectGuid,
+    pub map_id: u16,
+    pub instance_id: u32,
 }
 
 /// Payload for [`SessionCommand::SendIfVisibleLikeCpp`].
@@ -52,6 +86,19 @@ pub struct SendIfVisibleLikeCppCommand {
     pub instance_id: u32,
     /// Already-serialised wire payload ready to write to the socket.
     pub packet_bytes: Vec<u8>,
+}
+
+/// Requests a per-session creature visibility recomputation.
+///
+/// Used by the global creature runtime path when map-owned creature state
+/// changed in a way that may require CREATE/DESTROY visibility deltas. Unlike
+/// [`SendIfVisibleLikeCppCommand`], this is allowed to update the session's
+/// `client_visible_guids_like_cpp` set by reusing the session visibility pass
+/// (`Player::UpdateVisibilityOf` seam).
+#[derive(Clone, Debug)]
+pub struct RefreshVisibleWorldCreaturesLikeCppCommand {
+    pub map_id: u16,
+    pub instance_id: u32,
 }
 
 #[derive(Clone, Debug)]
@@ -177,6 +224,12 @@ pub struct PlayerBroadcastInfo {
     pub enchanting_skill: u16,
     /// Represented `Player::IsAlive()` snapshot for cross-session receiver gates.
     pub is_alive: bool,
+    /// Represented `Unit::GetUnitFlags()` snapshot for global creature targetability gates.
+    pub unit_flags: u32,
+    /// Represented `Unit::GetUnitState()` snapshot for fake-death/unattackable targetability gates.
+    pub unit_state: u32,
+    /// Represented `Player::IsGameMaster()` snapshot; C++ rejects GM players as attack targets.
+    pub is_game_master: bool,
     /// Active expansion derived from canonical `WorldSession::expansion` for receiver-only quest gates.
     pub active_expansion: u8,
     /// Represented non-empty `Player::GetPlayerSharingQuest()` snapshot for party quest sharing.
@@ -215,6 +268,10 @@ pub struct PlayerBroadcastInfo {
     pub sex: u8,
     /// Character level
     pub level: u8,
+    /// C++ `Trinity::XP::GetGrayLevel(level)` snapshot for receiver-side
+    /// aggro decisions. Sessions publish this so global map-owned scans do not
+    /// recompute or lose script-adjusted gray-level state.
+    pub gray_level: u8,
     /// Display ID for model rendering
     pub display_id: u32,
     /// Equipped item display info: (item_entry, enchant_display_id, subclass) per slot 0-18
@@ -250,6 +307,9 @@ mod tests {
             pass_on_group_loot: false,
             enchanting_skill: 0,
             is_alive: true,
+            unit_flags: 0,
+            unit_state: 0,
+            is_game_master: false,
             active_expansion: 2,
             pending_quest_sharing: None,
             known_spells: Vec::new(),
@@ -268,6 +328,7 @@ mod tests {
             class: 1,
             sex: 0,
             level: 1,
+            gray_level: 0,
             display_id: 49,
             visible_items: [(0, 0, 0); 19],
         };
@@ -289,5 +350,75 @@ mod tests {
         };
         assert_eq!(cmd.map_id, 532);
         assert_eq!(cmd.instance_id, 99);
+    }
+
+    /// Verify that creature visibility refresh commands are scoped by both map
+    /// and instance. The receiving `WorldSession` applies the same gates before
+    /// forcing its visibility pass.
+    #[test]
+    fn refresh_visible_world_creatures_like_cpp_command_carries_map_and_instance_id() {
+        let cmd = RefreshVisibleWorldCreaturesLikeCppCommand {
+            map_id: 571,
+            instance_id: 7,
+        };
+        assert_eq!(cmd.map_id, 571);
+        assert_eq!(cmd.instance_id, 7);
+    }
+
+    /// Verify the creature melee damage command carries both addressing data
+    /// and final victim health so session delivery can be idempotent.
+    #[test]
+    fn apply_creature_melee_damage_like_cpp_command_carries_final_health() {
+        let attacker = ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::Creature,
+            0,
+            1,
+            571,
+            0,
+            123,
+            456,
+        );
+        let victim = ObjectGuid::create_player(1, 7);
+        let cmd = ApplyCreatureMeleeDamageLikeCppCommand {
+            attacker_guid: attacker,
+            victim_guid: victim,
+            map_id: 571,
+            instance_id: 3,
+            damage: 11,
+            over_damage: -1,
+            target_level: 80,
+            victim_health_after: 89,
+        };
+
+        assert_eq!(cmd.attacker_guid, attacker);
+        assert_eq!(cmd.victim_guid, victim);
+        assert_eq!(cmd.map_id, 571);
+        assert_eq!(cmd.instance_id, 3);
+        assert_eq!(cmd.victim_health_after, 89);
+    }
+
+    #[test]
+    fn creature_attack_start_like_cpp_command_carries_map_and_instance_id() {
+        let attacker = ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::Creature,
+            0,
+            1,
+            571,
+            0,
+            123,
+            457,
+        );
+        let victim = ObjectGuid::create_player(1, 8);
+        let cmd = CreatureAttackStartLikeCppCommand {
+            attacker_guid: attacker,
+            victim_guid: victim,
+            map_id: 571,
+            instance_id: 4,
+        };
+
+        assert_eq!(cmd.attacker_guid, attacker);
+        assert_eq!(cmd.victim_guid, victim);
+        assert_eq!(cmd.map_id, 571);
+        assert_eq!(cmd.instance_id, 4);
     }
 }

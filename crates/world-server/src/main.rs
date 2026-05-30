@@ -64,6 +64,8 @@ const WORLD_CONFIG_CANDIDATES: &[&str] = &[
     "WorldServer.conf.dist",
 ];
 const WORLD_CONFIG_DIR: &str = "worldserver.conf.d";
+const RUSTYCORE_LEGACY_CREATURE_GLOBAL_RUNTIME_CONFIG: &str =
+    "RustyCore.LegacyCreatureGlobalRuntime";
 const DEFAULT_RESPAWN_MIN_CHECK_INTERVAL_MS: u32 = 5_000;
 const CREATURE_TYPE_MECHANICAL_LIKE_CPP: u32 = 9;
 const CREATURE_TYPE_FLAG_BOSS_MOB_LIKE_CPP: u32 = 0x0001_0000;
@@ -2080,6 +2082,21 @@ async fn main() -> Result<()> {
 
     let map_update_interval_ms = world_config_u32(&world_configs, "CONFIG_INTERVAL_MAPUPDATE", 10)
         .max(wow_map::MIN_MAP_UPDATE_DELAY_MS);
+    let legacy_creature_global_runtime_enabled =
+        legacy_creature_global_runtime_enabled_from_config_like_cpp();
+    if legacy_creature_global_runtime_enabled {
+        warn!(
+            "EXPERIMENTAL: RustyCore.LegacyCreatureGlobalRuntime enabled; legacy creature tick owner set to GlobalLegacy"
+        );
+        match shared_map.write() {
+            Ok(mut manager) => {
+                manager.set_tick_owner(wow_world::map_manager::RuntimeTickOwner::GlobalLegacy);
+            }
+            Err(_) => {
+                warn!("Legacy MapManager lock poisoned; cannot enable GlobalLegacy tick owner")
+            }
+        }
+    }
     let respawn_condition_interval_ms = world_config_u32(
         &world_configs,
         "CONFIG_RESPAWN_MINCHECKINTERVALMS",
@@ -2098,6 +2115,16 @@ async fn main() -> Result<()> {
         Arc::clone(&player_registry),
         Arc::clone(&battlemaster_list_typed_store),
         Arc::clone(&world_state_mgr),
+    );
+    let legacy_creature_runtime_handle = spawn_legacy_creature_runtime_update_loop_like_cpp(
+        legacy_creature_global_runtime_enabled,
+        Arc::clone(&shared_map),
+        Arc::clone(&canonical_map_manager),
+        mmap_runtime_config.clone(),
+        mmap_pathfinder.clone(),
+        legacy_creature_aggro_config_like_cpp(&world_configs),
+        map_update_interval_ms,
+        Arc::clone(&player_registry),
     );
 
     set_realm_online(&login_db, realm_id).await?;
@@ -2120,6 +2147,11 @@ async fn main() -> Result<()> {
         result = map_update_handle => {
             if let Err(e) = result {
                 tracing::error!("Map update task failed: {e}");
+            }
+        }
+        result = legacy_creature_runtime_handle => {
+            if let Err(e) = result {
+                tracing::error!("Legacy creature runtime task failed: {e}");
             }
         }
     }
@@ -2195,6 +2227,10 @@ fn load_world_config_from(config_candidates: &[&str], config_dir: &str) -> Resul
     }
 
     Ok(loaded_config)
+}
+
+fn legacy_creature_global_runtime_enabled_from_config_like_cpp() -> bool {
+    wow_config::get_value_default::<u8>(RUSTYCORE_LEGACY_CREATURE_GLOBAL_RUNTIME_CONFIG, 0) != 0
 }
 
 fn world_config_u16(configs: &WorldConfigSet, enum_name: &str, default: u16) -> u16 {
@@ -7064,10 +7100,11 @@ fn locale_id_to_name(raw: &str) -> String {
     }
 }
 
-// ── Slice 4A.1b: candidate routing + delivery (gated OFF in production) ──────
+// ── Runtime candidate routing + delivery ────────────────────────────────────
 //
-// These functions are private and ONLY called from tests in this slice.  No
-// production caller exists; the delivery rail is built but dormant.
+// These functions started as dormant Slice 4A.1b infrastructure and are now
+// reached only through the experimental `RustyCore.LegacyCreatureGlobalRuntime`
+// loop, which is disabled by default.
 // C++ anchors: `Object.cpp : WorldObject::SendMessageToSet` (~1746-1764),
 // `GridNotifiersImpl.h : MessageDistDeliverer::Visit(PlayerMapType&)` (~43-46),
 // `GridNotifiers.h : MessageDistDeliverer::SendPacket`.
@@ -7093,6 +7130,78 @@ struct RuntimeDeliverySummaryLikeCpp {
     pub self_only_skipped: usize,
     /// `try_send` calls that returned `Err` (channel full or disconnected).
     pub send_failed: usize,
+}
+
+/// Summary for map-wide creature-visibility refresh commands.
+#[derive(Debug, Default, PartialEq, Eq)]
+struct RuntimeVisibilityRefreshDeliverySummaryLikeCpp {
+    /// Total candidate sessions evaluated.
+    pub candidates_seen: usize,
+    /// Commands successfully enqueued (`try_send` succeeded).
+    pub candidates_queued: usize,
+    /// Candidates rejected because their map_id did not match.
+    pub candidates_skipped_wrong_map: usize,
+    /// Candidates rejected because their instance_id did not match.
+    pub candidates_skipped_wrong_instance: usize,
+    /// Candidates rejected because `is_in_world == false`.
+    pub candidates_skipped_not_in_world: usize,
+    /// `try_send` calls that returned `Err` (channel full or disconnected).
+    pub send_failed: usize,
+}
+
+/// Summary for explicit victim-session creature melee commands.
+#[derive(Debug, Default, PartialEq, Eq)]
+struct RuntimeCreatureMeleeDeliverySummaryLikeCpp {
+    /// Total already-resolved creature melee commands processed.
+    pub commands_seen: usize,
+    /// Victim sessions found in [`PlayerRegistry`] and evaluated.
+    pub candidates_seen: usize,
+    /// Commands successfully enqueued (`try_send` succeeded).
+    pub candidates_queued: usize,
+    /// Commands whose victim player was not present in the registry.
+    pub candidates_skipped_missing_victim: usize,
+    /// Candidates rejected because their map_id did not match the command.
+    pub candidates_skipped_wrong_map: usize,
+    /// Candidates rejected because their instance_id did not match the command.
+    pub candidates_skipped_wrong_instance: usize,
+    /// Candidates rejected because `is_in_world == false`.
+    pub candidates_skipped_not_in_world: usize,
+    /// `try_send` calls that returned `Err` (channel full or disconnected).
+    pub send_failed: usize,
+}
+
+/// Summary for explicit victim-session creature attack-start commands.
+#[derive(Debug, Default, PartialEq, Eq)]
+struct RuntimeCreatureAttackStartDeliverySummaryLikeCpp {
+    /// Total already-resolved creature aggro commands processed.
+    pub commands_seen: usize,
+    /// Victim sessions found in [`PlayerRegistry`] and evaluated.
+    pub candidates_seen: usize,
+    /// Commands successfully enqueued (`try_send` succeeded).
+    pub candidates_queued: usize,
+    /// Commands whose victim player was not present in the registry.
+    pub candidates_skipped_missing_victim: usize,
+    /// Candidates rejected because their map_id did not match the command.
+    pub candidates_skipped_wrong_map: usize,
+    /// Candidates rejected because their instance_id did not match the command.
+    pub candidates_skipped_wrong_instance: usize,
+    /// Candidates rejected because `is_in_world == false`.
+    pub candidates_skipped_not_in_world: usize,
+    /// Candidates rejected because the victim was no longer alive at delivery time.
+    pub candidates_skipped_dead: usize,
+    /// `try_send` calls that returned `Err` (channel full or disconnected).
+    pub send_failed: usize,
+}
+
+impl RuntimeVisibilityRefreshDeliverySummaryLikeCpp {
+    fn merge(&mut self, other: Self) {
+        self.candidates_seen += other.candidates_seen;
+        self.candidates_queued += other.candidates_queued;
+        self.candidates_skipped_wrong_map += other.candidates_skipped_wrong_map;
+        self.candidates_skipped_wrong_instance += other.candidates_skipped_wrong_instance;
+        self.candidates_skipped_not_in_world += other.candidates_skipped_not_in_world;
+        self.send_failed += other.send_failed;
+    }
 }
 
 /// Collect candidate sessions from `registry` for one `RuntimeEvent` and push
@@ -7347,6 +7456,504 @@ fn deliver_runtime_plan_like_cpp(
     summary
 }
 
+/// Ask all sessions on a map instance to recompute map-owned creature visibility.
+///
+/// This is dormant 4A.3c infrastructure for global create/destroy/respawn
+/// delivery. C++ creates/destroys visibility through `Player::UpdateVisibilityOf`
+/// (Player.cpp:23138+) rather than by sending a raw packet that bypasses
+/// `m_clientGUIDs`. The session command mirrors that seam by forcing each
+/// matching session to run its own visibility pass.
+///
+/// No map locks are held here; registry candidates are cloned before `try_send`.
+fn deliver_refresh_visible_world_creatures_like_cpp(
+    map_id: u16,
+    instance_id: u32,
+    registry: &wow_network::PlayerRegistry,
+) -> RuntimeVisibilityRefreshDeliverySummaryLikeCpp {
+    struct Candidate {
+        tx: flume::Sender<wow_network::SessionCommand>,
+        skip_reason: Option<RefreshSkipReason>,
+    }
+    enum RefreshSkipReason {
+        NotInWorld,
+        WrongMap,
+        WrongInstance,
+    }
+
+    let candidates: Vec<Candidate> = registry
+        .iter()
+        .map(|entry| {
+            let info = entry.value();
+            if !info.is_in_world {
+                return Candidate {
+                    tx: info.command_tx.clone(),
+                    skip_reason: Some(RefreshSkipReason::NotInWorld),
+                };
+            }
+            if info.map_id != map_id {
+                return Candidate {
+                    tx: info.command_tx.clone(),
+                    skip_reason: Some(RefreshSkipReason::WrongMap),
+                };
+            }
+            if info.instance_id != instance_id {
+                return Candidate {
+                    tx: info.command_tx.clone(),
+                    skip_reason: Some(RefreshSkipReason::WrongInstance),
+                };
+            }
+            Candidate {
+                tx: info.command_tx.clone(),
+                skip_reason: None,
+            }
+        })
+        .collect();
+
+    let mut summary = RuntimeVisibilityRefreshDeliverySummaryLikeCpp::default();
+    for candidate in candidates {
+        summary.candidates_seen += 1;
+        match candidate.skip_reason {
+            Some(RefreshSkipReason::NotInWorld) => {
+                summary.candidates_skipped_not_in_world += 1;
+            }
+            Some(RefreshSkipReason::WrongMap) => {
+                summary.candidates_skipped_wrong_map += 1;
+            }
+            Some(RefreshSkipReason::WrongInstance) => {
+                summary.candidates_skipped_wrong_instance += 1;
+            }
+            None => {
+                let cmd = wow_network::SessionCommand::RefreshVisibleWorldCreaturesLikeCpp(
+                    wow_network::player_registry::RefreshVisibleWorldCreaturesLikeCppCommand {
+                        map_id,
+                        instance_id,
+                    },
+                );
+                if candidate.tx.try_send(cmd).is_ok() {
+                    summary.candidates_queued += 1;
+                } else {
+                    summary.send_failed += 1;
+                }
+            }
+        }
+    }
+    summary
+}
+
+/// Snapshot active player positions for the global creature aggro scan.
+///
+/// The scan itself is map-owned and runs in `wow-world`; this bridge only
+/// collects cheap, copyable receiver state from [`PlayerRegistry`] and drops
+/// DashMap guards before the legacy map lock is taken.
+fn collect_legacy_creature_aggro_candidates_like_cpp(
+    registry: &wow_network::PlayerRegistry,
+) -> Vec<wow_world::session::LegacyCreatureAggroCandidateLikeCpp> {
+    registry
+        .iter()
+        .filter_map(|entry| {
+            let guid = *entry.key();
+            let info = entry.value();
+            (info.is_in_world && info.is_alive).then_some(
+                wow_world::session::LegacyCreatureAggroCandidateLikeCpp {
+                    player_guid: guid,
+                    map_id: info.map_id,
+                    instance_id: info.instance_id,
+                    position: info.position,
+                    player_level: info.level,
+                    player_gray_level: info.gray_level,
+                    player_unit_flags: info.unit_flags,
+                    player_unit_state: info.unit_state,
+                    player_is_game_master: info.is_game_master,
+                },
+            )
+        })
+        .collect()
+}
+
+fn legacy_creature_aggro_config_like_cpp(
+    configs: &WorldConfigSet,
+) -> wow_world::session::LegacyCreatureAggroConfigLikeCpp {
+    wow_world::session::LegacyCreatureAggroConfigLikeCpp {
+        no_gray_aggro_above: world_config_u32(configs, "CONFIG_NO_GRAY_AGGRO_ABOVE", 0),
+        no_gray_aggro_below: world_config_u32(configs, "CONFIG_NO_GRAY_AGGRO_BELOW", 0),
+    }
+}
+
+/// Deliver map-owned creature aggro starts to their exact victim sessions.
+///
+/// C++ contrast: `CreatureAI::MoveInLineOfSight`/`Creature::CanStartAttack`
+/// decides the engagement from map state; `Unit::SendMeleeAttackStart` sends
+/// the visible combat-start packet. This helper routes that already-resolved
+/// engagement to the victim session using `try_send`, outside all map locks.
+fn deliver_creature_attack_start_commands_like_cpp(
+    commands: &[wow_network::player_registry::CreatureAttackStartLikeCppCommand],
+    registry: &wow_network::PlayerRegistry,
+) -> RuntimeCreatureAttackStartDeliverySummaryLikeCpp {
+    struct Candidate {
+        tx: flume::Sender<wow_network::SessionCommand>,
+        map_id: u16,
+        instance_id: u32,
+        is_in_world: bool,
+        is_alive: bool,
+    }
+
+    let mut summary = RuntimeCreatureAttackStartDeliverySummaryLikeCpp::default();
+    for command in commands {
+        summary.commands_seen += 1;
+
+        let Some(candidate) = registry.get(&command.victim_guid).map(|entry| {
+            let info = entry.value();
+            Candidate {
+                tx: info.command_tx.clone(),
+                map_id: info.map_id,
+                instance_id: info.instance_id,
+                is_in_world: info.is_in_world,
+                is_alive: info.is_alive,
+            }
+        }) else {
+            summary.candidates_skipped_missing_victim += 1;
+            continue;
+        };
+
+        summary.candidates_seen += 1;
+        if !candidate.is_in_world {
+            summary.candidates_skipped_not_in_world += 1;
+            continue;
+        }
+        if !candidate.is_alive {
+            summary.candidates_skipped_dead += 1;
+            continue;
+        }
+        if candidate.map_id != command.map_id {
+            summary.candidates_skipped_wrong_map += 1;
+            continue;
+        }
+        if candidate.instance_id != command.instance_id {
+            summary.candidates_skipped_wrong_instance += 1;
+            continue;
+        }
+
+        let cmd = wow_network::SessionCommand::CreatureAttackStartLikeCpp(command.clone());
+        if candidate.tx.try_send(cmd).is_ok() {
+            summary.candidates_queued += 1;
+        } else {
+            summary.send_failed += 1;
+        }
+    }
+    summary
+}
+
+/// Deliver map-owned creature melee results to their exact victim sessions.
+///
+/// C++ contrast: `Creature::Update` runs `DoMeleeAttackIfReady()` from the
+/// map object update phase; `AttackerStateUpdate` resolves the damage once,
+/// mutates the victim, then sends the combat packet. The global Rust driver
+/// mirrors that by producing final-health commands once from the map owner.
+/// This helper only routes those already-resolved results to the victim
+/// session. It never holds map locks and uses `try_send` for backpressure.
+fn deliver_creature_melee_damage_commands_like_cpp(
+    commands: &[wow_network::player_registry::ApplyCreatureMeleeDamageLikeCppCommand],
+    registry: &wow_network::PlayerRegistry,
+) -> RuntimeCreatureMeleeDeliverySummaryLikeCpp {
+    struct Candidate {
+        tx: flume::Sender<wow_network::SessionCommand>,
+        map_id: u16,
+        instance_id: u32,
+        is_in_world: bool,
+    }
+
+    let mut summary = RuntimeCreatureMeleeDeliverySummaryLikeCpp::default();
+    for command in commands {
+        summary.commands_seen += 1;
+
+        let Some(candidate) = registry.get(&command.victim_guid).map(|entry| {
+            let info = entry.value();
+            Candidate {
+                tx: info.command_tx.clone(),
+                map_id: info.map_id,
+                instance_id: info.instance_id,
+                is_in_world: info.is_in_world,
+            }
+        }) else {
+            summary.candidates_skipped_missing_victim += 1;
+            continue;
+        };
+
+        summary.candidates_seen += 1;
+        if !candidate.is_in_world {
+            summary.candidates_skipped_not_in_world += 1;
+            continue;
+        }
+        if candidate.map_id != command.map_id {
+            summary.candidates_skipped_wrong_map += 1;
+            continue;
+        }
+        if candidate.instance_id != command.instance_id {
+            summary.candidates_skipped_wrong_instance += 1;
+            continue;
+        }
+
+        let cmd = wow_network::SessionCommand::ApplyCreatureMeleeDamageLikeCpp(command.clone());
+        if candidate.tx.try_send(cmd).is_ok() {
+            summary.candidates_queued += 1;
+        } else {
+            summary.send_failed += 1;
+        }
+    }
+    summary
+}
+
+/// Run one legacy global creature-movement tick and deliver its runtime plan.
+///
+/// Production reaches this only through the experimental
+/// `RustyCore.LegacyCreatureGlobalRuntime` loop, disabled by default. The tick
+/// body itself owns all map-lock ordering; delivery happens afterwards through
+/// the already-tested `SendIfVisibleLikeCpp` rail.
+fn run_legacy_creature_movement_tick_and_deliver_once_like_cpp(
+    legacy_map_manager: &SharedMapManager,
+    canonical_map_manager: Option<&SharedCanonicalMapManager>,
+    mmap_config: &MMapRuntimeConfigLikeCpp,
+    mmap_pathfinder: Option<&WorldMMapPathfinderWorkerLikeCpp>,
+    registry: &wow_network::PlayerRegistry,
+) -> (
+    wow_world::session::LegacyCreatureMovementTickOutcomeLikeCpp,
+    RuntimeDeliverySummaryLikeCpp,
+) {
+    let outcome = wow_world::session::run_legacy_creature_movement_tick_once_like_cpp(
+        legacy_map_manager,
+        canonical_map_manager,
+        mmap_config,
+        mmap_pathfinder,
+    );
+    let delivery = deliver_runtime_plan_like_cpp(&outcome.plan, registry);
+    (outcome, delivery)
+}
+
+/// Run one legacy global creature lifecycle tick and wake affected sessions.
+///
+/// Production reaches this only through the experimental
+/// `RustyCore.LegacyCreatureGlobalRuntime` loop, disabled by default. The
+/// lifecycle body mutates legacy/canonical map state and returns map keys whose
+/// sessions need to recompute creature visibility; delivery is map-scoped
+/// refresh commands via `try_send`.
+fn run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp(
+    legacy_map_manager: &SharedMapManager,
+    canonical_map_manager: Option<&SharedCanonicalMapManager>,
+    now: std::time::Instant,
+    registry: &wow_network::PlayerRegistry,
+) -> (
+    wow_world::session::LegacyCreatureLifecycleTickOutcomeLikeCpp,
+    RuntimeVisibilityRefreshDeliverySummaryLikeCpp,
+) {
+    let outcome = wow_world::session::run_legacy_creature_lifecycle_tick_once_like_cpp(
+        legacy_map_manager,
+        canonical_map_manager,
+        now,
+    );
+    let mut delivery = RuntimeVisibilityRefreshDeliverySummaryLikeCpp::default();
+    for (map_id, instance_id) in &outcome.refresh_map_keys {
+        delivery.merge(deliver_refresh_visible_world_creatures_like_cpp(
+            *map_id,
+            *instance_id,
+            registry,
+        ));
+    }
+    (outcome, delivery)
+}
+
+/// Run one legacy global creature aggro scan and deliver attack-start commands.
+///
+/// Production reaches this only through the experimental
+/// `RustyCore.LegacyCreatureGlobalRuntime` loop, disabled by default. Candidate
+/// player snapshots are collected before taking the legacy map lock; delivery
+/// happens after the map-owned aggro result is computed.
+fn run_legacy_creature_aggro_tick_and_deliver_once_like_cpp(
+    legacy_map_manager: &SharedMapManager,
+    registry: &wow_network::PlayerRegistry,
+    aggro_config: wow_world::session::LegacyCreatureAggroConfigLikeCpp,
+) -> (
+    wow_world::session::LegacyCreatureAggroTickOutcomeLikeCpp,
+    RuntimeCreatureAttackStartDeliverySummaryLikeCpp,
+) {
+    let candidates = collect_legacy_creature_aggro_candidates_like_cpp(registry);
+    let outcome = wow_world::session::run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+        legacy_map_manager,
+        &candidates,
+        aggro_config,
+    );
+    let delivery = deliver_creature_attack_start_commands_like_cpp(&outcome.commands, registry);
+    (outcome, delivery)
+}
+
+/// Run one legacy global creature melee tick and deliver victim commands.
+///
+/// Production reaches this only through the experimental
+/// `RustyCore.LegacyCreatureGlobalRuntime` loop, disabled by default. The tick
+/// body mutates canonical victim health and returns final-health commands; this
+/// bridge delivers them outside all map locks.
+fn run_legacy_creature_melee_tick_and_deliver_once_like_cpp(
+    legacy_map_manager: &SharedMapManager,
+    canonical_map_manager: Option<&SharedCanonicalMapManager>,
+    registry: &wow_network::PlayerRegistry,
+) -> (
+    wow_world::session::LegacyCreatureMeleeTickOutcomeLikeCpp,
+    RuntimeCreatureMeleeDeliverySummaryLikeCpp,
+) {
+    let outcome = wow_world::session::run_legacy_creature_melee_tick_once_like_cpp(
+        legacy_map_manager,
+        canonical_map_manager,
+    );
+    let delivery = deliver_creature_melee_damage_commands_like_cpp(&outcome.commands, registry);
+    (outcome, delivery)
+}
+
+/// Combined single-shot legacy creature runtime bridge.
+///
+/// This is the production loop body behind the experimental
+/// `RustyCore.LegacyCreatureGlobalRuntime` flag and the same body used by the
+/// task-boundary tests. It mirrors the current legacy creature tick split while
+/// proving that lifecycle refresh and movement fanout can run without holding
+/// map locks during channel delivery.
+#[derive(Debug)]
+struct LegacyCreatureRuntimeTickBridgeOutcomeLikeCpp {
+    pub lifecycle: wow_world::session::LegacyCreatureLifecycleTickOutcomeLikeCpp,
+    pub lifecycle_delivery: RuntimeVisibilityRefreshDeliverySummaryLikeCpp,
+    pub movement: wow_world::session::LegacyCreatureMovementTickOutcomeLikeCpp,
+    pub movement_delivery: RuntimeDeliverySummaryLikeCpp,
+    pub aggro: wow_world::session::LegacyCreatureAggroTickOutcomeLikeCpp,
+    pub aggro_delivery: RuntimeCreatureAttackStartDeliverySummaryLikeCpp,
+    pub melee: wow_world::session::LegacyCreatureMeleeTickOutcomeLikeCpp,
+    pub melee_delivery: RuntimeCreatureMeleeDeliverySummaryLikeCpp,
+}
+
+fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
+    legacy_map_manager: &SharedMapManager,
+    canonical_map_manager: Option<&SharedCanonicalMapManager>,
+    mmap_config: &MMapRuntimeConfigLikeCpp,
+    mmap_pathfinder: Option<&WorldMMapPathfinderWorkerLikeCpp>,
+    aggro_config: wow_world::session::LegacyCreatureAggroConfigLikeCpp,
+    now: std::time::Instant,
+    registry: &wow_network::PlayerRegistry,
+) -> LegacyCreatureRuntimeTickBridgeOutcomeLikeCpp {
+    let (lifecycle, lifecycle_delivery) =
+        run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp(
+            legacy_map_manager,
+            canonical_map_manager,
+            now,
+            registry,
+        );
+    let (movement, movement_delivery) = run_legacy_creature_movement_tick_and_deliver_once_like_cpp(
+        legacy_map_manager,
+        canonical_map_manager,
+        mmap_config,
+        mmap_pathfinder,
+        registry,
+    );
+    let (aggro, aggro_delivery) = run_legacy_creature_aggro_tick_and_deliver_once_like_cpp(
+        legacy_map_manager,
+        registry,
+        aggro_config,
+    );
+    let (melee, melee_delivery) = run_legacy_creature_melee_tick_and_deliver_once_like_cpp(
+        legacy_map_manager,
+        canonical_map_manager,
+        registry,
+    );
+
+    LegacyCreatureRuntimeTickBridgeOutcomeLikeCpp {
+        lifecycle,
+        lifecycle_delivery,
+        movement,
+        movement_delivery,
+        aggro,
+        aggro_delivery,
+        melee,
+        melee_delivery,
+    }
+}
+
+/// Spawn the experimental legacy global creature runtime loop.
+///
+/// C++ contrast: `World::Update` calls `sMapMgr->Update(diff)` and
+/// `MapManager::Update` uses `CONFIG_INTERVAL_MAPUPDATE` / `MapUpdateInterval`.
+/// This Rust bridge uses the same configured interval, but remains disabled by
+/// default and only runs when `RustyCore.LegacyCreatureGlobalRuntime != 0`.
+///
+/// The actual tick is executed via `spawn_blocking` because the legacy manager
+/// uses `std::sync::RwLock` and movement may touch synchronous mmap/pathfinding
+/// state. Packet fanout still happens outside map locks inside the single-shot
+/// bridge.
+fn spawn_legacy_creature_runtime_update_loop_like_cpp(
+    enabled: bool,
+    legacy_map_manager: SharedMapManager,
+    canonical_map_manager: SharedCanonicalMapManager,
+    mmap_config: MMapRuntimeConfigLikeCpp,
+    mmap_pathfinder: Option<Arc<WorldMMapPathfinderWorkerLikeCpp>>,
+    aggro_config: wow_world::session::LegacyCreatureAggroConfigLikeCpp,
+    tick_interval_ms: u32,
+    player_registry: Arc<PlayerRegistry>,
+) -> tokio::task::JoinHandle<()> {
+    if !enabled {
+        return tokio::spawn(async {
+            std::future::pending::<()>().await;
+        });
+    }
+
+    tokio::spawn(async move {
+        let mut interval =
+            tokio::time::interval(Duration::from_millis(u64::from(tick_interval_ms.max(1))));
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+
+        loop {
+            interval.tick().await;
+            let now = Instant::now();
+            let legacy_for_tick = Arc::clone(&legacy_map_manager);
+            let canonical_for_tick = Arc::clone(&canonical_map_manager);
+            let mmap_config_for_tick = mmap_config.clone();
+            let mmap_pathfinder_for_tick = mmap_pathfinder.clone();
+            let aggro_config_for_tick = aggro_config;
+            let registry_for_tick = Arc::clone(&player_registry);
+
+            let tick_result = tokio::task::spawn_blocking(move || {
+                run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
+                    &legacy_for_tick,
+                    Some(&canonical_for_tick),
+                    &mmap_config_for_tick,
+                    mmap_pathfinder_for_tick.as_deref(),
+                    aggro_config_for_tick,
+                    now,
+                    registry_for_tick.as_ref(),
+                )
+            })
+            .await;
+
+            let Ok(outcome) = tick_result else {
+                tracing::error!("Legacy global creature runtime tick task panicked; stopping loop");
+                break;
+            };
+
+            let touched_creatures = outcome.lifecycle.corpses_despawned
+                + outcome.movement.movement_packets
+                + outcome.aggro.aggro_starts
+                + outcome.melee.canonical_hits;
+            if touched_creatures > 0 {
+                debug!(
+                    lifecycle_corpses_despawned = outcome.lifecycle.corpses_despawned,
+                    lifecycle_respawns_processed = outcome.lifecycle.respawns_processed,
+                    lifecycle_refresh_commands = outcome.lifecycle_delivery.candidates_queued,
+                    movement_packets = outcome.movement.movement_packets,
+                    movement_commands = outcome.movement_delivery.candidates_queued,
+                    aggro_starts = outcome.aggro.aggro_starts,
+                    aggro_commands = outcome.aggro_delivery.candidates_queued,
+                    melee_hits = outcome.melee.canonical_hits,
+                    melee_commands = outcome.melee_delivery.candidates_queued,
+                    "Legacy global creature runtime tick produced visible work"
+                );
+            }
+        }
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -7357,13 +7964,17 @@ mod tests {
         GameEventWorldEventStateDbStatementKindLikeCpp, LoadedGridCreatureRespawnCachesLikeCpp,
         PersistedRespawnLoadReportLikeCpp, PersistedRespawnRowLikeCpp,
         PersistedRespawnTimesLikeCpp, RespawnDbDeleteQueueOutcomeLikeCpp,
-        RespawnDbSaveQueueOutcomeLikeCpp, RuntimeDeliverySummaryLikeCpp,
+        RespawnDbSaveQueueOutcomeLikeCpp,
         apply_canonical_spawn_group_condition_update_loaded_grid_records_like_cpp,
         build_loaded_grid_creature_respawn_record_like_cpp,
         build_loaded_grid_creature_spawn_group_spawn_record_like_cpp,
         build_loaded_grid_gameobject_respawn_record_like_cpp,
         canonical_map_update_tick_set_inactive_like_cpp,
-        consume_game_event_live_update_side_effects_like_cpp, deliver_runtime_plan_like_cpp,
+        collect_legacy_creature_aggro_candidates_like_cpp,
+        consume_game_event_live_update_side_effects_like_cpp,
+        deliver_creature_attack_start_commands_like_cpp,
+        deliver_creature_melee_damage_commands_like_cpp,
+        deliver_refresh_visible_world_creatures_like_cpp, deliver_runtime_plan_like_cpp,
         fanout_game_event_announcement_to_player_sessions_like_cpp,
         fanout_realm_update_world_state_to_player_sessions_like_cpp,
         fanout_reset_event_seasonal_quests_to_player_sessions_after_db_delete_like_cpp,
@@ -7377,12 +7988,17 @@ mod tests {
         game_event_unspawn_for_event_like_cpp, game_event_unspawn_pools_for_event_like_cpp,
         game_event_unspawn_pools_like_cpp, game_event_update_npc_flags_like_cpp,
         game_event_update_npc_vendor_like_cpp, game_event_update_world_states_like_cpp,
-        install_canonical_spawn_group_initializer_like_cpp, load_world_config_from,
+        install_canonical_spawn_group_initializer_like_cpp, legacy_creature_aggro_config_like_cpp,
+        legacy_creature_global_runtime_enabled_from_config_like_cpp, load_world_config_from,
         loot_drop_rates_like_cpp, materialize_game_event_quest_complete_db_bridge_like_cpp,
         materialize_game_event_world_event_state_db_bridge_like_cpp, mmap_runtime_config_like_cpp,
         persisted_respawn_info_from_row_like_cpp, queue_respawn_db_delete_like_cpp,
         queue_respawn_db_save_like_cpp, repair_cost_rate_like_cpp, reputation_rates_like_cpp,
-        spawn_store_loader, world_config_bool, world_config_u8, world_config_u16,
+        run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp,
+        run_legacy_creature_melee_tick_and_deliver_once_like_cpp,
+        run_legacy_creature_movement_tick_and_deliver_once_like_cpp,
+        run_legacy_creature_runtime_tick_and_deliver_once_like_cpp, spawn_store_loader,
+        world_config_bool, world_config_u8, world_config_u16,
     };
     use std::collections::{BTreeMap, HashSet};
     use std::env;
@@ -7394,7 +8010,7 @@ mod tests {
     use wow_core::{ObjectGuid, Position, guid::HighGuid};
     use wow_data::{Condition, ConditionEntriesByTypeStore};
     use wow_database::{CharStatements, SqlParam, StatementDef};
-    use wow_entities::{Creature, GameObject, MapObjectRecord};
+    use wow_entities::{Creature, GameObject, MapObjectRecord, Player};
     use wow_map::{
         LinkedRespawnStoreLikeCpp, PoolGroupLikeCpp, PoolMemberKindLikeCpp, PoolMgrLikeCpp,
         PoolObjectLikeCpp, PoolTemplateDataLikeCpp, RespawnInfoLikeCpp, SpawnData, SpawnGroupFlags,
@@ -7423,6 +8039,9 @@ mod tests {
             pass_on_group_loot: false,
             enchanting_skill: 0,
             is_alive: true,
+            unit_flags: 0,
+            unit_state: 0,
+            is_game_master: false,
             active_expansion: 2,
             pending_quest_sharing: None,
             known_spells: Vec::new(),
@@ -7441,6 +8060,7 @@ mod tests {
             class: 1,
             sex: 0,
             level: 1,
+            gray_level: 0,
             display_id: 49,
             visible_items: [(0, 0, 0); 19],
         }
@@ -9480,6 +10100,42 @@ Expansion = 9
             4465
         );
         assert_eq!(world_config_u8(&configs, "CONFIG_EXPANSION", 2), 9);
+    }
+
+    #[test]
+    fn legacy_creature_global_runtime_config_is_numeric_opt_in_like_cpp() {
+        let _guard = TEST_LOCK.lock().expect("test lock poisoned");
+
+        wow_config::load_config_from_str("").expect("config should load");
+        assert!(!legacy_creature_global_runtime_enabled_from_config_like_cpp());
+
+        wow_config::load_config_from_str("RustyCore.LegacyCreatureGlobalRuntime = 0\n")
+            .expect("config should load");
+        assert!(!legacy_creature_global_runtime_enabled_from_config_like_cpp());
+
+        wow_config::load_config_from_str("RustyCore.LegacyCreatureGlobalRuntime = 1\n")
+            .expect("config should load");
+        assert!(legacy_creature_global_runtime_enabled_from_config_like_cpp());
+    }
+
+    #[test]
+    fn legacy_creature_aggro_config_uses_cpp_no_gray_aggro_keys_like_cpp() {
+        let _guard = TEST_LOCK.lock().expect("test lock poisoned");
+
+        wow_config::load_config_from_str(
+            r#"
+MaxPlayerLevel = 80
+NoGrayAggro.Above = 80
+NoGrayAggro.Below = 90
+"#,
+        )
+        .expect("config should load");
+        let configs = wow_config::load_world_config_values();
+        let config = legacy_creature_aggro_config_like_cpp(&configs);
+
+        assert_eq!(config.no_gray_aggro_above, 80);
+        // C++ clamps Below down to Above when Above > 0 && Above < Below.
+        assert_eq!(config.no_gray_aggro_below, 80);
     }
 
     #[test]
@@ -12149,6 +12805,9 @@ mmap.enablePathFinding = 0
                 pass_on_group_loot: false,
                 enchanting_skill: 0,
                 is_alive: true,
+                unit_flags: 0,
+                unit_state: 0,
+                is_game_master: false,
                 active_expansion: 2,
                 pending_quest_sharing: None,
                 known_spells: Vec::new(),
@@ -12167,6 +12826,7 @@ mmap.enablePathFinding = 0
                 class: 1,
                 sex: 0,
                 level: 1,
+                gray_level: 0,
                 display_id: 49,
                 visible_items: [(0, 0, 0); 19],
             },
@@ -13707,6 +14367,37 @@ mmap.enablePathFinding = 0
         (info, command_rx)
     }
 
+    fn add_canonical_test_player_on_map_like_cpp(
+        canonical: &wow_world::SharedCanonicalMapManager,
+        guid: ObjectGuid,
+        position: Position,
+        map_id: u32,
+        instance_id: u32,
+        health: u64,
+    ) {
+        let mut player = Player::new(Some(1), false);
+        player.unit_mut().world_mut().object_mut().create(guid);
+        player.unit_mut().world_mut().set_name("RuntimeVictim");
+        player
+            .unit_mut()
+            .world_mut()
+            .set_map(map_id, instance_id)
+            .unwrap();
+        player.unit_mut().world_mut().relocate(position);
+        player.unit_mut().world_mut().object_mut().add_to_world();
+        player.unit_mut().set_level(80);
+        player.unit_mut().set_max_health(health);
+        player.unit_mut().set_health(health);
+
+        canonical
+            .lock()
+            .unwrap()
+            .create_world_map(map_id, instance_id)
+            .map_mut()
+            .insert_map_object_record(MapObjectRecord::new_player(player).unwrap())
+            .unwrap();
+    }
+
     /// (1) NearbyVisible: players on a different map_id are not enqueued.
     /// C++ anchor: MessageDistDeliverer::Visit — map-id check before distance.
     #[test]
@@ -13964,5 +14655,1055 @@ mmap.enablePathFinding = 0
             "disconnected channel counted as send_failed"
         );
         assert_eq!(summary.candidates_queued, 0);
+    }
+
+    /// 4A.3c dormant rail: map/instance scoped creature visibility refresh.
+    ///
+    /// C++ anchor: `Player::UpdateVisibilityOf` (Player.cpp:23138+) is the
+    /// seam that mutates `m_clientGUIDs` and emits CREATE/DESTROY. The global
+    /// runtime must wake matching sessions to run that seam rather than trying
+    /// to send raw CREATE bytes through HaveAtClient.
+    #[test]
+    fn refresh_visible_world_creatures_routes_by_map_instance_in_world_like_cpp() {
+        let registry = PlayerRegistry::default();
+
+        let in_a = ObjectGuid::create_player(1, 50);
+        let (in_a_info, in_a_rx) = make_registry_player_like_cpp(571, 7, Position::ZERO, true);
+        registry.insert(in_a, in_a_info);
+
+        let in_b = ObjectGuid::create_player(1, 51);
+        let (in_b_info, in_b_rx) =
+            make_registry_player_like_cpp(571, 7, Position::new(9000.0, 0.0, 0.0, 0.0), true);
+        registry.insert(in_b, in_b_info);
+
+        let wrong_map = ObjectGuid::create_player(1, 52);
+        let (wrong_map_info, wrong_map_rx) =
+            make_registry_player_like_cpp(530, 7, Position::ZERO, true);
+        registry.insert(wrong_map, wrong_map_info);
+
+        let wrong_instance = ObjectGuid::create_player(1, 53);
+        let (wrong_instance_info, wrong_instance_rx) =
+            make_registry_player_like_cpp(571, 8, Position::ZERO, true);
+        registry.insert(wrong_instance, wrong_instance_info);
+
+        let not_in_world = ObjectGuid::create_player(1, 54);
+        let (not_in_world_info, not_in_world_rx) =
+            make_registry_player_like_cpp(571, 7, Position::ZERO, false);
+        registry.insert(not_in_world, not_in_world_info);
+
+        let summary = deliver_refresh_visible_world_creatures_like_cpp(571, 7, &registry);
+
+        assert_eq!(summary.candidates_seen, 5);
+        assert_eq!(summary.candidates_queued, 2);
+        assert_eq!(summary.candidates_skipped_wrong_map, 1);
+        assert_eq!(summary.candidates_skipped_wrong_instance, 1);
+        assert_eq!(summary.candidates_skipped_not_in_world, 1);
+
+        for command in [
+            in_a_rx.try_recv().expect("same-map player A refresh"),
+            in_b_rx.try_recv().expect("same-map player B refresh"),
+        ] {
+            let SessionCommand::RefreshVisibleWorldCreaturesLikeCpp(command) = command else {
+                panic!("expected RefreshVisibleWorldCreaturesLikeCpp command");
+            };
+            assert_eq!(command.map_id, 571);
+            assert_eq!(command.instance_id, 7);
+        }
+        assert!(wrong_map_rx.try_recv().is_err());
+        assert!(wrong_instance_rx.try_recv().is_err());
+        assert!(not_in_world_rx.try_recv().is_err());
+    }
+
+    /// Backpressure on the refresh rail must not block the runtime task.
+    #[test]
+    fn refresh_visible_world_creatures_full_channel_counts_send_failed_like_cpp() {
+        let registry = PlayerRegistry::default();
+        let guid = ObjectGuid::create_player(1, 55);
+
+        let (send_tx, _send_rx) = flume::bounded::<Vec<u8>>(1);
+        let (command_tx, command_rx) = flume::bounded::<SessionCommand>(1);
+        drop(command_rx);
+
+        let mut info = player_broadcast_info_fixture_like_cpp(send_tx, command_tx, "RefreshFull");
+        info.map_id = 571;
+        info.instance_id = 7;
+        info.is_in_world = true;
+        registry.insert(guid, info);
+
+        let summary = deliver_refresh_visible_world_creatures_like_cpp(571, 7, &registry);
+
+        assert_eq!(summary.candidates_seen, 1);
+        assert_eq!(summary.candidates_queued, 0);
+        assert_eq!(summary.send_failed, 1);
+    }
+
+    #[test]
+    fn collect_legacy_creature_aggro_candidates_uses_living_in_world_players_like_cpp() {
+        let registry = PlayerRegistry::default();
+        let in_world = ObjectGuid::create_player(1, 64);
+        let not_in_world = ObjectGuid::create_player(1, 65);
+        let dead_in_world = ObjectGuid::create_player(1, 66);
+        let (in_world_info, _) =
+            make_registry_player_like_cpp(571, 2, Position::new(1.0, 2.0, 3.0, 0.0), true);
+        let (not_in_world_info, _) =
+            make_registry_player_like_cpp(571, 2, Position::new(9.0, 9.0, 9.0, 0.0), false);
+        let (mut dead_in_world_info, _) =
+            make_registry_player_like_cpp(571, 2, Position::new(4.0, 4.0, 4.0, 0.0), true);
+        dead_in_world_info.is_alive = false;
+        registry.insert(in_world, in_world_info);
+        registry.insert(not_in_world, not_in_world_info);
+        registry.insert(dead_in_world, dead_in_world_info);
+
+        let candidates = collect_legacy_creature_aggro_candidates_like_cpp(&registry);
+
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].player_guid, in_world);
+        assert_eq!(candidates[0].map_id, 571);
+        assert_eq!(candidates[0].instance_id, 2);
+        assert_eq!(candidates[0].position, Position::new(1.0, 2.0, 3.0, 0.0));
+        assert_eq!(candidates[0].player_level, 1);
+        assert_eq!(candidates[0].player_gray_level, 0);
+    }
+
+    #[test]
+    fn creature_attack_start_delivery_routes_only_to_victim_like_cpp() {
+        let registry = PlayerRegistry::default();
+        let victim = ObjectGuid::create_player(1, 66);
+        let other = ObjectGuid::create_player(1, 67);
+        let attacker =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9001, 90_060);
+        let (victim_info, victim_rx) = make_registry_player_like_cpp(571, 4, Position::ZERO, true);
+        let (other_info, other_rx) = make_registry_player_like_cpp(571, 4, Position::ZERO, true);
+        registry.insert(victim, victim_info);
+        registry.insert(other, other_info);
+
+        let commands = vec![
+            wow_network::player_registry::CreatureAttackStartLikeCppCommand {
+                attacker_guid: attacker,
+                victim_guid: victim,
+                map_id: 571,
+                instance_id: 4,
+            },
+        ];
+        let summary = deliver_creature_attack_start_commands_like_cpp(&commands, &registry);
+
+        assert_eq!(summary.commands_seen, 1);
+        assert_eq!(summary.candidates_seen, 1);
+        assert_eq!(summary.candidates_queued, 1);
+        let SessionCommand::CreatureAttackStartLikeCpp(command) =
+            victim_rx.try_recv().expect("victim receives attack-start")
+        else {
+            panic!("expected CreatureAttackStartLikeCpp command");
+        };
+        assert_eq!(command.attacker_guid, attacker);
+        assert_eq!(command.victim_guid, victim);
+        assert!(
+            other_rx.try_recv().is_err(),
+            "non-victim session is untouched"
+        );
+    }
+
+    #[test]
+    fn creature_attack_start_delivery_filters_registry_state_like_cpp() {
+        let registry = PlayerRegistry::default();
+        let attacker =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9001, 90_061);
+        let wrong_map = ObjectGuid::create_player(1, 68);
+        let wrong_instance = ObjectGuid::create_player(1, 69);
+        let not_in_world = ObjectGuid::create_player(1, 70);
+        let missing = ObjectGuid::create_player(1, 71);
+        let dead = ObjectGuid::create_player(1, 72);
+        let (wrong_map_info, wrong_map_rx) =
+            make_registry_player_like_cpp(530, 0, Position::ZERO, true);
+        let (wrong_instance_info, wrong_instance_rx) =
+            make_registry_player_like_cpp(571, 9, Position::ZERO, true);
+        let (not_in_world_info, not_in_world_rx) =
+            make_registry_player_like_cpp(571, 0, Position::ZERO, false);
+        let (mut dead_info, dead_rx) = make_registry_player_like_cpp(571, 0, Position::ZERO, true);
+        dead_info.is_alive = false;
+        registry.insert(wrong_map, wrong_map_info);
+        registry.insert(wrong_instance, wrong_instance_info);
+        registry.insert(not_in_world, not_in_world_info);
+        registry.insert(dead, dead_info);
+
+        let make_command =
+            |victim_guid| wow_network::player_registry::CreatureAttackStartLikeCppCommand {
+                attacker_guid: attacker,
+                victim_guid,
+                map_id: 571,
+                instance_id: 0,
+            };
+        let commands = vec![
+            make_command(wrong_map),
+            make_command(wrong_instance),
+            make_command(not_in_world),
+            make_command(missing),
+            make_command(dead),
+        ];
+        let summary = deliver_creature_attack_start_commands_like_cpp(&commands, &registry);
+
+        assert_eq!(summary.commands_seen, 5);
+        assert_eq!(summary.candidates_seen, 4);
+        assert_eq!(summary.candidates_queued, 0);
+        assert_eq!(summary.candidates_skipped_wrong_map, 1);
+        assert_eq!(summary.candidates_skipped_wrong_instance, 1);
+        assert_eq!(summary.candidates_skipped_not_in_world, 1);
+        assert_eq!(summary.candidates_skipped_dead, 1);
+        assert_eq!(summary.candidates_skipped_missing_victim, 1);
+        assert!(wrong_map_rx.try_recv().is_err());
+        assert!(wrong_instance_rx.try_recv().is_err());
+        assert!(not_in_world_rx.try_recv().is_err());
+        assert!(dead_rx.try_recv().is_err());
+    }
+
+    /// 4C.4 bridge coverage: the combined global runtime body can perform the
+    /// C++ `CreatureAI::MoveInLineOfSight`-style aggro transition once from the
+    /// map owner and deliver one attack-start command to the victim session.
+    #[test]
+    fn legacy_creature_runtime_bridge_delivers_aggro_start_like_cpp() {
+        let legacy: wow_world::SharedMapManager =
+            Arc::new(std::sync::RwLock::new(wow_world::MapManager::new()));
+        let canonical: wow_world::SharedCanonicalMapManager =
+            Arc::new(Mutex::new(wow_map::MapManager::default()));
+        canonical.lock().unwrap().create_world_map(0, 0);
+
+        let victim = ObjectGuid::create_player(1, 93_001);
+        let victim_position = Position::new(10.5, 10.5, 0.0, 0.0);
+        add_canonical_test_player_on_map_like_cpp(&canonical, victim, victim_position, 0, 0, 100);
+
+        let attacker =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 9001, 93_002);
+        let attacker_position = Position::new(10.0, 10.0, 0.0, 0.0);
+        let mut creature = wow_world::map_manager::WorldCreature::new(
+            attacker,
+            9001,
+            attacker_position,
+            25,
+            2,
+            3,
+            5,
+            5.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        {
+            let ai = creature.creature.ai_ownership_mut();
+            ai.wander_delay_ms = u64::MAX;
+            ai.swing_timer_ms = u64::MAX;
+        }
+
+        {
+            let mut manager = legacy.write().unwrap();
+            manager.add_creature(
+                0,
+                0,
+                wow_world::map_manager::world_to_grid_x(attacker_position.x),
+                wow_world::map_manager::world_to_grid_y(attacker_position.y),
+                creature,
+            );
+            manager.set_tick_owner(wow_world::map_manager::RuntimeTickOwner::GlobalLegacy);
+        }
+
+        let registry = PlayerRegistry::default();
+        let (victim_info, victim_rx) = make_registry_player_like_cpp(0, 0, victim_position, true);
+        registry.insert(victim, victim_info);
+        let wrong_map = ObjectGuid::create_player(1, 93_003);
+        let (wrong_map_info, wrong_map_rx) =
+            make_registry_player_like_cpp(1, 0, victim_position, true);
+        registry.insert(wrong_map, wrong_map_info);
+
+        let mmap_config = wow_world::MMapRuntimeConfigLikeCpp {
+            enabled: false,
+            ..Default::default()
+        };
+        let outcome = run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
+            &legacy,
+            Some(&canonical),
+            &mmap_config,
+            None,
+            wow_world::session::LegacyCreatureAggroConfigLikeCpp::default(),
+            std::time::Instant::now(),
+            &registry,
+        );
+
+        assert!(!outcome.aggro.skipped_owner_not_global);
+        assert_eq!(outcome.aggro.maps_seen, 1);
+        assert_eq!(outcome.aggro.creatures_seen, 1);
+        assert_eq!(outcome.aggro.candidates_seen, 1);
+        assert_eq!(outcome.aggro.aggro_starts, 1);
+        assert_eq!(outcome.aggro.commands.len(), 1);
+        assert_eq!(outcome.aggro_delivery.commands_seen, 1);
+        assert_eq!(outcome.aggro_delivery.candidates_seen, 1);
+        assert_eq!(outcome.aggro_delivery.candidates_queued, 1);
+        assert_eq!(outcome.aggro_delivery.candidates_skipped_wrong_map, 0);
+        assert_eq!(outcome.movement.movement_packets, 0);
+        assert_eq!(outcome.melee.swings_ready, 0);
+
+        let SessionCommand::CreatureAttackStartLikeCpp(command) = victim_rx
+            .try_recv()
+            .expect("victim must receive global aggro attack-start")
+        else {
+            panic!("expected CreatureAttackStartLikeCpp command");
+        };
+        assert_eq!(command.attacker_guid, attacker);
+        assert_eq!(command.victim_guid, victim);
+        assert_eq!(command.map_id, 0);
+        assert_eq!(command.instance_id, 0);
+        assert!(victim_rx.try_recv().is_err());
+        assert!(wrong_map_rx.try_recv().is_err());
+
+        let combat_target = {
+            let guard = legacy.read().unwrap();
+            guard
+                .find_creature(0, 0, attacker)
+                .unwrap()
+                .creature
+                .ai_ownership()
+                .combat_target
+        };
+        assert_eq!(combat_target, Some(victim));
+    }
+
+    /// 4C.3 dormant rail: map-owned creature melee results route to exactly
+    /// the victim session. C++ anchor: `Unit::AttackerStateUpdate` resolves a
+    /// single melee hit for one victim, then `Unit::DealDamage` mutates health.
+    #[test]
+    fn creature_melee_damage_delivery_routes_only_to_victim_like_cpp() {
+        let registry = PlayerRegistry::default();
+        let victim = ObjectGuid::create_player(1, 56);
+        let other = ObjectGuid::create_player(1, 57);
+        let attacker =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9001, 90_056);
+        let (victim_info, victim_rx) = make_registry_player_like_cpp(571, 3, Position::ZERO, true);
+        let (other_info, other_rx) = make_registry_player_like_cpp(571, 3, Position::ZERO, true);
+        registry.insert(victim, victim_info);
+        registry.insert(other, other_info);
+
+        let commands = vec![
+            wow_network::player_registry::ApplyCreatureMeleeDamageLikeCppCommand {
+                attacker_guid: attacker,
+                victim_guid: victim,
+                map_id: 571,
+                instance_id: 3,
+                damage: 17,
+                over_damage: -1,
+                target_level: 80,
+                victim_health_after: 83,
+            },
+        ];
+        let summary = deliver_creature_melee_damage_commands_like_cpp(&commands, &registry);
+
+        assert_eq!(summary.commands_seen, 1);
+        assert_eq!(summary.candidates_seen, 1);
+        assert_eq!(summary.candidates_queued, 1);
+        let SessionCommand::ApplyCreatureMeleeDamageLikeCpp(command) =
+            victim_rx.try_recv().expect("victim receives melee command")
+        else {
+            panic!("expected ApplyCreatureMeleeDamageLikeCpp command");
+        };
+        assert_eq!(command.attacker_guid, attacker);
+        assert_eq!(command.victim_guid, victim);
+        assert_eq!(command.victim_health_after, 83);
+        assert!(
+            other_rx.try_recv().is_err(),
+            "non-victim session is untouched"
+        );
+    }
+
+    #[test]
+    fn creature_melee_damage_delivery_filters_registry_state_like_cpp() {
+        let registry = PlayerRegistry::default();
+        let attacker =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9001, 90_057);
+        let wrong_map = ObjectGuid::create_player(1, 58);
+        let wrong_instance = ObjectGuid::create_player(1, 59);
+        let not_in_world = ObjectGuid::create_player(1, 60);
+        let missing = ObjectGuid::create_player(1, 61);
+        let (wrong_map_info, wrong_map_rx) =
+            make_registry_player_like_cpp(530, 0, Position::ZERO, true);
+        let (wrong_instance_info, wrong_instance_rx) =
+            make_registry_player_like_cpp(571, 9, Position::ZERO, true);
+        let (not_in_world_info, not_in_world_rx) =
+            make_registry_player_like_cpp(571, 0, Position::ZERO, false);
+        registry.insert(wrong_map, wrong_map_info);
+        registry.insert(wrong_instance, wrong_instance_info);
+        registry.insert(not_in_world, not_in_world_info);
+
+        let make_command =
+            |victim_guid| wow_network::player_registry::ApplyCreatureMeleeDamageLikeCppCommand {
+                attacker_guid: attacker,
+                victim_guid,
+                map_id: 571,
+                instance_id: 0,
+                damage: 5,
+                over_damage: -1,
+                target_level: 80,
+                victim_health_after: 95,
+            };
+        let commands = vec![
+            make_command(wrong_map),
+            make_command(wrong_instance),
+            make_command(not_in_world),
+            make_command(missing),
+        ];
+        let summary = deliver_creature_melee_damage_commands_like_cpp(&commands, &registry);
+
+        assert_eq!(summary.commands_seen, 4);
+        assert_eq!(summary.candidates_seen, 3);
+        assert_eq!(summary.candidates_queued, 0);
+        assert_eq!(summary.candidates_skipped_wrong_map, 1);
+        assert_eq!(summary.candidates_skipped_wrong_instance, 1);
+        assert_eq!(summary.candidates_skipped_not_in_world, 1);
+        assert_eq!(summary.candidates_skipped_missing_victim, 1);
+        assert!(wrong_map_rx.try_recv().is_err());
+        assert!(wrong_instance_rx.try_recv().is_err());
+        assert!(not_in_world_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn creature_melee_damage_delivery_full_channel_counts_send_failed_like_cpp() {
+        let registry = PlayerRegistry::default();
+        let victim = ObjectGuid::create_player(1, 62);
+        let attacker =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9001, 90_058);
+        let (send_tx, _send_rx) = flume::bounded::<Vec<u8>>(1);
+        let (command_tx, command_rx) = flume::bounded::<SessionCommand>(1);
+        drop(command_rx);
+        let mut info = player_broadcast_info_fixture_like_cpp(send_tx, command_tx, "MeleeFull");
+        info.map_id = 571;
+        info.instance_id = 0;
+        info.is_in_world = true;
+        registry.insert(victim, info);
+
+        let commands = vec![
+            wow_network::player_registry::ApplyCreatureMeleeDamageLikeCppCommand {
+                attacker_guid: attacker,
+                victim_guid: victim,
+                map_id: 571,
+                instance_id: 0,
+                damage: 5,
+                over_damage: -1,
+                target_level: 80,
+                victim_health_after: 95,
+            },
+        ];
+        let summary = deliver_creature_melee_damage_commands_like_cpp(&commands, &registry);
+
+        assert_eq!(summary.commands_seen, 1);
+        assert_eq!(summary.candidates_seen, 1);
+        assert_eq!(summary.candidates_queued, 0);
+        assert_eq!(summary.send_failed, 1);
+    }
+
+    /// 4C.3 bridge: the global creature melee body applies canonical health
+    /// once, then world-server delivers the final-health command to the victim
+    /// session outside all map locks.
+    #[test]
+    fn legacy_creature_melee_tick_delivers_victim_command_like_cpp() {
+        let legacy: wow_world::SharedMapManager =
+            Arc::new(std::sync::RwLock::new(wow_world::MapManager::new()));
+        let canonical: wow_world::SharedCanonicalMapManager =
+            Arc::new(Mutex::new(wow_map::MapManager::default()));
+        canonical.lock().unwrap().create_world_map(0, 0);
+
+        let victim = ObjectGuid::create_player(1, 63);
+        add_canonical_test_player_on_map_like_cpp(&canonical, victim, Position::ZERO, 0, 0, 100);
+
+        let attacker =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 9001, 90_059);
+        let attacker_position = Position::new(5.0, 5.0, 0.0, 0.0);
+        let mut world_creature = wow_world::map_manager::WorldCreature::new(
+            attacker,
+            9001,
+            attacker_position,
+            25,
+            2,
+            3,
+            5,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        world_creature.enter_combat(victim);
+        world_creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+
+        {
+            let mut manager = legacy.write().unwrap();
+            manager.add_creature(
+                0,
+                0,
+                wow_world::map_manager::world_to_grid_x(attacker_position.x),
+                wow_world::map_manager::world_to_grid_y(attacker_position.y),
+                world_creature,
+            );
+            manager.set_tick_owner(wow_world::map_manager::RuntimeTickOwner::GlobalLegacy);
+        }
+
+        let registry = PlayerRegistry::default();
+        let (victim_info, victim_rx) = make_registry_player_like_cpp(0, 0, Position::ZERO, true);
+        registry.insert(victim, victim_info);
+
+        let (outcome, delivery) = run_legacy_creature_melee_tick_and_deliver_once_like_cpp(
+            &legacy,
+            Some(&canonical),
+            &registry,
+        );
+
+        assert!(!outcome.skipped_owner_not_global);
+        assert_eq!(outcome.maps_seen, 1);
+        assert_eq!(outcome.creatures_seen, 1);
+        assert_eq!(outcome.swings_ready, 1);
+        assert_eq!(outcome.canonical_hits, 1);
+        assert_eq!(outcome.commands.len(), 1);
+        assert_eq!(delivery.commands_seen, 1);
+        assert_eq!(delivery.candidates_seen, 1);
+        assert_eq!(delivery.candidates_queued, 1);
+
+        let command = match victim_rx
+            .try_recv()
+            .expect("victim session receives final-health melee command")
+        {
+            SessionCommand::ApplyCreatureMeleeDamageLikeCpp(command) => command,
+            other => panic!("expected ApplyCreatureMeleeDamageLikeCpp, got {other:?}"),
+        };
+        assert_eq!(command.attacker_guid, attacker);
+        assert_eq!(command.victim_guid, victim);
+        assert!((3..=5).contains(&command.damage));
+
+        let canonical_health = canonical
+            .lock()
+            .unwrap()
+            .find_map(0, 0)
+            .unwrap()
+            .map()
+            .get_typed_player(victim)
+            .unwrap()
+            .unit()
+            .data()
+            .health;
+        assert_eq!(command.victim_health_after, canonical_health);
+        assert_eq!(canonical_health, 100 - u64::from(command.damage));
+    }
+
+    /// 4A.3c bridge: lifecycle changes happen once under the global owner, then
+    /// matching sessions are woken to run their own visibility pass.
+    #[test]
+    fn legacy_creature_lifecycle_tick_refreshes_sessions_after_ready_respawn_like_cpp() {
+        let legacy: wow_world::SharedMapManager =
+            Arc::new(std::sync::RwLock::new(wow_world::MapManager::new()));
+        let canonical: wow_world::SharedCanonicalMapManager =
+            Arc::new(Mutex::new(wow_map::MapManager::default()));
+        canonical.lock().unwrap().create_world_map(0, 0);
+        legacy
+            .write()
+            .unwrap()
+            .set_tick_owner(wow_world::map_manager::RuntimeTickOwner::GlobalLegacy);
+
+        let now = std::time::Instant::now();
+        let creature_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 9001, 90_012);
+        let mut world_creature = wow_world::map_manager::WorldCreature::new(
+            creature_guid,
+            9001,
+            Position::new(20.0, 20.0, 0.0, 0.0),
+            30,
+            4,
+            5,
+            9,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        world_creature
+            .creature
+            .unit_mut()
+            .world_mut()
+            .phase_shift_mut()
+            .add_phase_like_cpp(77, wow_constants::PhaseFlags::empty(), 1);
+        let pending = wow_world::map_manager::pending_respawn_from_world_creature_like_cpp(
+            &world_creature,
+            now - std::time::Duration::from_secs(1),
+            0,
+        );
+        legacy.write().unwrap().push_respawn(0, 0, pending);
+
+        let registry = PlayerRegistry::default();
+        let same_a = ObjectGuid::create_player(1, 91_001);
+        let (same_a_info, same_a_rx) = make_registry_player_like_cpp(0, 0, Position::ZERO, true);
+        registry.insert(same_a, same_a_info);
+        let same_b = ObjectGuid::create_player(1, 91_002);
+        let (same_b_info, same_b_rx) =
+            make_registry_player_like_cpp(0, 0, Position::new(9000.0, 0.0, 0.0, 0.0), true);
+        registry.insert(same_b, same_b_info);
+        let wrong_map = ObjectGuid::create_player(1, 91_003);
+        let (wrong_map_info, wrong_map_rx) =
+            make_registry_player_like_cpp(1, 0, Position::ZERO, true);
+        registry.insert(wrong_map, wrong_map_info);
+
+        let (outcome, delivery) = run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp(
+            &legacy,
+            Some(&canonical),
+            now,
+            &registry,
+        );
+
+        assert!(!outcome.skipped_owner_not_global);
+        assert_eq!(outcome.respawns_processed, 1);
+        assert_eq!(outcome.canonical_inserts, 1);
+        assert_eq!(outcome.refresh_map_keys, vec![(0, 0)]);
+        assert_eq!(delivery.candidates_seen, 3);
+        assert_eq!(delivery.candidates_queued, 2);
+        assert_eq!(delivery.candidates_skipped_wrong_map, 1);
+
+        for command in [
+            same_a_rx.try_recv().expect("same-map session A refresh"),
+            same_b_rx.try_recv().expect("same-map session B refresh"),
+        ] {
+            let SessionCommand::RefreshVisibleWorldCreaturesLikeCpp(command) = command else {
+                panic!("expected RefreshVisibleWorldCreaturesLikeCpp command");
+            };
+            assert_eq!(command.map_id, 0);
+            assert_eq!(command.instance_id, 0);
+        }
+        assert!(wrong_map_rx.try_recv().is_err());
+
+        let canonical_guard = canonical.lock().unwrap();
+        let typed = canonical_guard
+            .find_map(0, 0)
+            .unwrap()
+            .map()
+            .get_typed_creature(creature_guid)
+            .expect("lifecycle bridge must sync canonical respawn");
+        assert!(typed.unit().world().phase_shift().has_phase_like_cpp(77));
+    }
+
+    /// Slice 4A.4 test-only bridge: one gated global movement tick runs from a
+    /// spawned task, produces a `RuntimePlan`, syncs canonical state outside
+    /// the legacy lock, then delivers `SendIfVisibleLikeCpp` commands to
+    /// candidate sessions.
+    ///
+    /// No production loop calls this yet; this only proves the cross-crate
+    /// task/ownership path with `GlobalLegacy` flipped only in the test.
+    #[tokio::test]
+    async fn legacy_creature_global_tick_task_delivers_movement_plan_like_cpp() {
+        let legacy: wow_world::SharedMapManager =
+            Arc::new(std::sync::RwLock::new(wow_world::MapManager::new()));
+        let canonical: wow_world::SharedCanonicalMapManager =
+            Arc::new(Mutex::new(wow_map::MapManager::default()));
+        canonical.lock().unwrap().create_world_map(0, 0);
+
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 9001, 90_009);
+        let position = Position::new(10.0, 10.0, 0.0, 0.0);
+        let mut world_creature = wow_world::map_manager::WorldCreature::new(
+            guid, 9001, position, 25, 2, 3, 5, 20.0, 100, 14, 0, 0,
+        );
+        {
+            let ai = world_creature.creature.ai_ownership_mut();
+            ai.wander_delay_ms = 0;
+            ai.move_start_ms = 0;
+            ai.wander_radius = 3.0;
+        }
+
+        let mut canonical_creature = world_creature.creature.clone();
+        canonical_creature
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .add_to_world();
+        canonical
+            .lock()
+            .unwrap()
+            .find_map_mut(0, 0)
+            .unwrap()
+            .map_mut()
+            .insert_map_object_record(MapObjectRecord::new_creature(canonical_creature).unwrap())
+            .unwrap();
+
+        {
+            let mut manager = legacy.write().unwrap();
+            manager.add_creature(
+                0,
+                0,
+                wow_world::map_manager::world_to_grid_x(position.x),
+                wow_world::map_manager::world_to_grid_y(position.y),
+                world_creature,
+            );
+            manager.set_tick_owner(wow_world::map_manager::RuntimeTickOwner::GlobalLegacy);
+        }
+
+        let registry = Arc::new(PlayerRegistry::default());
+        let near_a = ObjectGuid::create_player(1, 90_001);
+        let (near_a_info, near_a_rx) =
+            make_registry_player_like_cpp(0, 0, Position::new(11.0, 10.0, 999.0, 0.0), true);
+        registry.insert(near_a, near_a_info);
+        let near_b = ObjectGuid::create_player(1, 90_002);
+        let (near_b_info, near_b_rx) =
+            make_registry_player_like_cpp(0, 0, Position::new(12.0, 10.0, -999.0, 0.0), true);
+        registry.insert(near_b, near_b_info);
+        let wrong_map = ObjectGuid::create_player(1, 90_003);
+        let (wrong_map_info, wrong_map_rx) =
+            make_registry_player_like_cpp(1, 0, Position::new(10.0, 10.0, 0.0, 0.0), true);
+        registry.insert(wrong_map, wrong_map_info);
+
+        let mmap_config = wow_world::MMapRuntimeConfigLikeCpp {
+            enabled: false,
+            ..Default::default()
+        };
+        let legacy_for_task = Arc::clone(&legacy);
+        let canonical_for_task = Arc::clone(&canonical);
+        let registry_for_task = Arc::clone(&registry);
+        let handle = tokio::spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_millis(1));
+            interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+            interval.tick().await;
+            tokio::task::spawn_blocking(move || {
+                run_legacy_creature_movement_tick_and_deliver_once_like_cpp(
+                    &legacy_for_task,
+                    Some(&canonical_for_task),
+                    &mmap_config,
+                    None,
+                    registry_for_task.as_ref(),
+                )
+            })
+            .await
+            .expect("legacy global tick task must not panic")
+        });
+        let (outcome, delivery) = handle.await.expect("tick task must complete");
+
+        assert!(!outcome.skipped_owner_not_global);
+        assert_eq!(outcome.maps_seen, 1);
+        assert_eq!(outcome.creatures_seen, 1);
+        assert_eq!(outcome.movement_packets, 1);
+        assert_eq!(outcome.canonical_syncs, 1);
+        assert_eq!(delivery.events_seen, 1);
+        assert_eq!(delivery.candidates_seen, 3);
+        assert_eq!(delivery.candidates_queued, 2);
+        assert_eq!(delivery.candidates_skipped_wrong_map, 1);
+
+        for command in [
+            near_a_rx.try_recv().expect("near player A command"),
+            near_b_rx.try_recv().expect("near player B command"),
+        ] {
+            let SessionCommand::SendIfVisibleLikeCpp(command) = command else {
+                panic!("expected SendIfVisibleLikeCpp command");
+            };
+            assert_eq!(command.source_guid, guid);
+            assert_eq!(command.map_id, 0);
+            assert_eq!(command.instance_id, 0);
+            let opcode = u16::from_le_bytes([command.packet_bytes[0], command.packet_bytes[1]]);
+            assert_eq!(opcode, wow_constants::ServerOpcodes::OnMonsterMove as u16);
+        }
+        assert!(wrong_map_rx.try_recv().is_err());
+
+        let guard = canonical.lock().unwrap();
+        let typed = guard
+            .find_map(0, 0)
+            .unwrap()
+            .map()
+            .get_typed_creature(guid)
+            .expect("canonical creature record stays synced by the single-shot driver");
+        assert_eq!(
+            typed.ai_state(),
+            wow_entities::CreatureAiState::WalkingRandom
+        );
+    }
+
+    /// Combined runtime bridge: one test-only task runs lifecycle first
+    /// (map-owned despawn/respawn visibility refresh), then movement
+    /// (NearbyVisible MonsterMove fanout), then creature melee (explicit victim
+    /// command), all while `GlobalLegacy` is enabled only inside the test.
+    #[tokio::test]
+    async fn legacy_creature_global_runtime_task_delivers_lifecycle_refresh_and_movement_like_cpp()
+    {
+        let legacy: wow_world::SharedMapManager =
+            Arc::new(std::sync::RwLock::new(wow_world::MapManager::new()));
+        let canonical: wow_world::SharedCanonicalMapManager =
+            Arc::new(Mutex::new(wow_map::MapManager::default()));
+        canonical.lock().unwrap().create_world_map(0, 0);
+
+        let melee_victim = ObjectGuid::create_player(1, 92_004);
+        add_canonical_test_player_on_map_like_cpp(
+            &canonical,
+            melee_victim,
+            Position::ZERO,
+            0,
+            0,
+            100,
+        );
+
+        let moving_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 9001, 90_013);
+        let moving_position = Position::new(10.0, 10.0, 0.0, 0.0);
+        let mut moving_creature = wow_world::map_manager::WorldCreature::new(
+            moving_guid,
+            9001,
+            moving_position,
+            25,
+            2,
+            3,
+            5,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        {
+            let ai = moving_creature.creature.ai_ownership_mut();
+            ai.wander_delay_ms = 0;
+            ai.move_start_ms = 0;
+            ai.wander_radius = 3.0;
+            ai.aggro_radius = 0.0;
+        }
+        let mut canonical_moving = moving_creature.creature.clone();
+        canonical_moving
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .add_to_world();
+        canonical
+            .lock()
+            .unwrap()
+            .find_map_mut(0, 0)
+            .unwrap()
+            .map_mut()
+            .insert_map_object_record(MapObjectRecord::new_creature(canonical_moving).unwrap())
+            .unwrap();
+
+        let corpse_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 9001, 90_014);
+        let mut corpse_creature = wow_world::map_manager::WorldCreature::new(
+            corpse_guid,
+            9001,
+            Position::new(20.0, 20.0, 0.0, 0.0),
+            10,
+            2,
+            3,
+            5,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        corpse_creature.take_damage(10);
+        corpse_creature.set_corpse_despawn_at(Some(
+            std::time::Instant::now() - std::time::Duration::from_secs(1),
+        ));
+
+        let melee_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 9001, 90_015);
+        let melee_position = Position::new(30.0, 30.0, 0.0, 0.0);
+        let mut melee_creature = wow_world::map_manager::WorldCreature::new(
+            melee_guid,
+            9001,
+            melee_position,
+            25,
+            2,
+            3,
+            5,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        melee_creature.enter_combat(melee_victim);
+        melee_creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+
+        {
+            let mut manager = legacy.write().unwrap();
+            manager.add_creature(
+                0,
+                0,
+                wow_world::map_manager::world_to_grid_x(moving_position.x),
+                wow_world::map_manager::world_to_grid_y(moving_position.y),
+                moving_creature,
+            );
+            manager.add_creature(
+                0,
+                0,
+                wow_world::map_manager::world_to_grid_x(20.0),
+                wow_world::map_manager::world_to_grid_y(20.0),
+                corpse_creature,
+            );
+            manager.add_creature(
+                0,
+                0,
+                wow_world::map_manager::world_to_grid_x(melee_position.x),
+                wow_world::map_manager::world_to_grid_y(melee_position.y),
+                melee_creature,
+            );
+            manager.set_tick_owner(wow_world::map_manager::RuntimeTickOwner::GlobalLegacy);
+        }
+
+        let registry = Arc::new(PlayerRegistry::default());
+        let near_a = ObjectGuid::create_player(1, 92_001);
+        let (near_a_info, near_a_rx) =
+            make_registry_player_like_cpp(0, 0, Position::new(11.0, 10.0, 999.0, 0.0), true);
+        registry.insert(near_a, near_a_info);
+        let near_b = ObjectGuid::create_player(1, 92_002);
+        let (near_b_info, near_b_rx) =
+            make_registry_player_like_cpp(0, 0, Position::new(12.0, 10.0, -999.0, 0.0), true);
+        registry.insert(near_b, near_b_info);
+        let wrong_map = ObjectGuid::create_player(1, 92_003);
+        let (wrong_map_info, wrong_map_rx) =
+            make_registry_player_like_cpp(1, 0, Position::new(10.0, 10.0, 0.0, 0.0), true);
+        registry.insert(wrong_map, wrong_map_info);
+        let (victim_info, victim_rx) =
+            make_registry_player_like_cpp(0, 0, Position::new(5000.0, 0.0, 0.0, 0.0), true);
+        registry.insert(melee_victim, victim_info);
+
+        let mmap_config = wow_world::MMapRuntimeConfigLikeCpp {
+            enabled: false,
+            ..Default::default()
+        };
+        let legacy_for_task = Arc::clone(&legacy);
+        let canonical_for_task = Arc::clone(&canonical);
+        let registry_for_task = Arc::clone(&registry);
+        let tick_now = std::time::Instant::now() + std::time::Duration::from_millis(1);
+        let handle = tokio::spawn(async move {
+            tokio::task::spawn_blocking(move || {
+                run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
+                    &legacy_for_task,
+                    Some(&canonical_for_task),
+                    &mmap_config,
+                    None,
+                    wow_world::session::LegacyCreatureAggroConfigLikeCpp::default(),
+                    tick_now,
+                    registry_for_task.as_ref(),
+                )
+            })
+            .await
+            .expect("combined legacy runtime tick task must not panic")
+        });
+        let outcome = handle.await.expect("combined tick task must complete");
+
+        assert!(!outcome.lifecycle.skipped_owner_not_global);
+        assert_eq!(outcome.lifecycle.maps_seen, 1);
+        assert_eq!(outcome.lifecycle.creatures_seen, 3);
+        assert_eq!(outcome.lifecycle.corpses_despawned, 1);
+        assert_eq!(outcome.lifecycle.refresh_map_keys, vec![(0, 0)]);
+        assert_eq!(outcome.lifecycle_delivery.candidates_seen, 4);
+        assert_eq!(outcome.lifecycle_delivery.candidates_queued, 3);
+        assert_eq!(outcome.lifecycle_delivery.candidates_skipped_wrong_map, 1);
+
+        assert!(!outcome.movement.skipped_owner_not_global);
+        assert_eq!(outcome.movement.maps_seen, 1);
+        assert_eq!(outcome.movement.creatures_seen, 2);
+        assert_eq!(outcome.movement.movement_packets, 1);
+        assert_eq!(outcome.movement_delivery.events_seen, 1);
+        assert_eq!(outcome.movement_delivery.candidates_seen, 4);
+        assert_eq!(outcome.movement_delivery.candidates_queued, 2);
+        assert_eq!(outcome.movement_delivery.candidates_skipped_distance, 1);
+        assert_eq!(outcome.movement_delivery.candidates_skipped_wrong_map, 1);
+
+        assert!(!outcome.aggro.skipped_owner_not_global);
+        assert_eq!(outcome.aggro.maps_seen, 1);
+        assert_eq!(outcome.aggro.creatures_seen, 2);
+        assert_eq!(outcome.aggro.candidates_seen, 3);
+        assert_eq!(outcome.aggro.aggro_starts, 0);
+        assert_eq!(outcome.aggro_delivery.commands_seen, 0);
+        assert_eq!(outcome.aggro_delivery.candidates_queued, 0);
+
+        assert!(!outcome.melee.skipped_owner_not_global);
+        assert_eq!(outcome.melee.maps_seen, 1);
+        assert_eq!(outcome.melee.creatures_seen, 2);
+        assert_eq!(outcome.melee.swings_ready, 1);
+        assert_eq!(outcome.melee.canonical_hits, 1);
+        assert_eq!(outcome.melee_delivery.commands_seen, 1);
+        assert_eq!(outcome.melee_delivery.candidates_seen, 1);
+        assert_eq!(outcome.melee_delivery.candidates_queued, 1);
+
+        for command_rx in [&near_a_rx, &near_b_rx] {
+            let SessionCommand::RefreshVisibleWorldCreaturesLikeCpp(refresh) = command_rx
+                .try_recv()
+                .expect("same-map player must receive lifecycle refresh")
+            else {
+                panic!("expected RefreshVisibleWorldCreaturesLikeCpp command");
+            };
+            assert_eq!(refresh.map_id, 0);
+            assert_eq!(refresh.instance_id, 0);
+
+            let SessionCommand::SendIfVisibleLikeCpp(move_command) = command_rx
+                .try_recv()
+                .expect("same-map player must receive movement command")
+            else {
+                panic!("expected SendIfVisibleLikeCpp command");
+            };
+            assert_eq!(move_command.source_guid, moving_guid);
+            assert_eq!(move_command.map_id, 0);
+            assert_eq!(move_command.instance_id, 0);
+            let opcode =
+                u16::from_le_bytes([move_command.packet_bytes[0], move_command.packet_bytes[1]]);
+            assert_eq!(opcode, wow_constants::ServerOpcodes::OnMonsterMove as u16);
+        }
+
+        let SessionCommand::RefreshVisibleWorldCreaturesLikeCpp(refresh) = victim_rx
+            .try_recv()
+            .expect("victim same-map session must receive lifecycle refresh")
+        else {
+            panic!("expected RefreshVisibleWorldCreaturesLikeCpp command for victim");
+        };
+        assert_eq!(refresh.map_id, 0);
+        assert_eq!(refresh.instance_id, 0);
+        let SessionCommand::ApplyCreatureMeleeDamageLikeCpp(melee_command) = victim_rx
+            .try_recv()
+            .expect("victim must receive the creature melee command")
+        else {
+            panic!("expected ApplyCreatureMeleeDamageLikeCpp command for victim");
+        };
+        assert_eq!(melee_command.attacker_guid, melee_guid);
+        assert_eq!(melee_command.victim_guid, melee_victim);
+        assert!((3..=5).contains(&melee_command.damage));
+        assert!(
+            victim_rx.try_recv().is_err(),
+            "victim is outside movement range"
+        );
+        assert!(wrong_map_rx.try_recv().is_err());
+
+        {
+            let guard = legacy.read().unwrap();
+            assert!(
+                guard.find_creature(0, 0, corpse_guid).is_none(),
+                "expired corpse must be removed by lifecycle before movement"
+            );
+            assert!(
+                guard.find_creature(0, 0, moving_guid).is_some(),
+                "alive moving creature must remain in the legacy map"
+            );
+            assert!(
+                guard.find_creature(0, 0, melee_guid).is_some(),
+                "alive melee creature must remain in the legacy map"
+            );
+        }
+        let guard = canonical.lock().unwrap();
+        let typed = guard
+            .find_map(0, 0)
+            .unwrap()
+            .map()
+            .get_typed_creature(moving_guid)
+            .expect("movement phase must keep canonical moving creature synced");
+        assert_eq!(
+            typed.ai_state(),
+            wow_entities::CreatureAiState::WalkingRandom
+        );
+        let victim_health = guard
+            .find_map(0, 0)
+            .unwrap()
+            .map()
+            .get_typed_player(melee_victim)
+            .unwrap()
+            .unit()
+            .data()
+            .health;
+        assert_eq!(victim_health, melee_command.victim_health_after);
+        assert_eq!(victim_health, 100 - u64::from(melee_command.damage));
     }
 }

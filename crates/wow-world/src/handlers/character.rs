@@ -3196,27 +3196,28 @@ impl WorldSession {
             let speed_run: f32 = result.try_read(17).unwrap_or(1.14286);
             let scale: f32 = result.try_read(18).unwrap_or(1.0);
             let unit_class: u8 = result.try_read(19).unwrap_or(1);
-            let base_attack_time: u32 = result.try_read(20).unwrap_or(2000);
-            let _ranged_attack_time: u32 = result.try_read(21).unwrap_or(0);
+            let flags_extra: u32 = result.try_read(20).unwrap_or(0);
+            let base_attack_time: u32 = result.try_read(21).unwrap_or(2000);
+            let _ranged_attack_time: u32 = result.try_read(22).unwrap_or(0);
             let template_display_id: u32 =
-                result.try_read::<Option<u32>>(22).flatten().unwrap_or(0);
-            let loot_id: u32 = result.try_read::<Option<u32>>(23).flatten().unwrap_or(0);
-            let skin_loot_id: u32 = result.try_read::<Option<u32>>(24).flatten().unwrap_or(0);
-            let gold_min: u32 = result.try_read::<Option<u32>>(25).flatten().unwrap_or(0);
-            let gold_max: u32 = result.try_read::<Option<u32>>(26).flatten().unwrap_or(0);
+                result.try_read::<Option<u32>>(23).flatten().unwrap_or(0);
+            let loot_id: u32 = result.try_read::<Option<u32>>(24).flatten().unwrap_or(0);
+            let skin_loot_id: u32 = result.try_read::<Option<u32>>(25).flatten().unwrap_or(0);
+            let gold_min: u32 = result.try_read::<Option<u32>>(26).flatten().unwrap_or(0);
+            let gold_max: u32 = result.try_read::<Option<u32>>(27).flatten().unwrap_or(0);
             let phase_use_flags: u8 = result
-                .try_read::<u8>(27)
-                .or_else(|| result.try_read::<i16>(27).map(|value| value.max(0) as u8))
+                .try_read::<u8>(28)
+                .or_else(|| result.try_read::<i16>(28).map(|value| value.max(0) as u8))
                 .unwrap_or(0);
             let phase_id: u16 = result
-                .try_read::<u16>(28)
-                .or_else(|| result.try_read::<i32>(28).map(|value| value.max(0) as u16))
+                .try_read::<u16>(29)
+                .or_else(|| result.try_read::<i32>(29).map(|value| value.max(0) as u16))
                 .unwrap_or(0);
             let phase_group_id: u32 = result
-                .try_read::<u32>(29)
-                .or_else(|| result.try_read::<i32>(29).map(|value| value.max(0) as u32))
+                .try_read::<u32>(30)
+                .or_else(|| result.try_read::<i32>(30).map(|value| value.max(0) as u32))
                 .unwrap_or(0);
-            let terrain_swap_map: i32 = result.try_read(30).unwrap_or(-1);
+            let terrain_swap_map: i32 = result.try_read(31).unwrap_or(-1);
 
             let display_id = if model_id > 0 {
                 model_id
@@ -3284,10 +3285,11 @@ impl WorldSession {
 
             // Register through canonical map state when available; the legacy
             // per-session AI object remains a compatibility facade/cache.
-            let aggro_radius = if faction == 35 { 0.0 } else { 15.0 };
+            let aggro_radius = self
+                .creature_aggro_radius_for_faction_template_like_cpp(faction.max(0) as u32, 15.0);
             let min_dmg = (min_level as u32).saturating_sub(1) * 3 + 5;
             let max_dmg = min_dmg + min_dmg / 2;
-            self.register_world_creature(
+            self.register_world_creature_with_flags_extra_like_cpp(
                 map_id,
                 creature_pos,
                 create_data.clone(),
@@ -3304,6 +3306,7 @@ impl WorldSession {
                 phase_id,
                 phase_group_id,
                 terrain_swap_map,
+                flags_extra,
             );
 
             let mut viewer_create_data = create_data.clone();
@@ -3606,26 +3609,27 @@ impl WorldSession {
                 let speed_run: f32 = cr.try_read(17).unwrap_or(1.14286);
                 let scale: f32 = cr.try_read(18).unwrap_or(1.0);
                 let unit_class: u8 = cr.try_read(19).unwrap_or(1);
-                let base_attack_time: u32 = cr.try_read(20).unwrap_or(2000);
+                let flags_extra: u32 = cr.try_read(20).unwrap_or(0);
+                let base_attack_time: u32 = cr.try_read(21).unwrap_or(2000);
                 let template_display_id: u32 =
-                    cr.try_read::<Option<u32>>(22).flatten().unwrap_or(0);
-                let loot_id: u32 = cr.try_read::<Option<u32>>(23).flatten().unwrap_or(0);
-                let skin_loot_id: u32 = cr.try_read::<Option<u32>>(24).flatten().unwrap_or(0);
-                let gold_min: u32 = cr.try_read::<Option<u32>>(25).flatten().unwrap_or(0);
-                let gold_max: u32 = cr.try_read::<Option<u32>>(26).flatten().unwrap_or(0);
+                    cr.try_read::<Option<u32>>(23).flatten().unwrap_or(0);
+                let loot_id: u32 = cr.try_read::<Option<u32>>(24).flatten().unwrap_or(0);
+                let skin_loot_id: u32 = cr.try_read::<Option<u32>>(25).flatten().unwrap_or(0);
+                let gold_min: u32 = cr.try_read::<Option<u32>>(26).flatten().unwrap_or(0);
+                let gold_max: u32 = cr.try_read::<Option<u32>>(27).flatten().unwrap_or(0);
                 let phase_use_flags: u8 = cr
-                    .try_read::<u8>(27)
-                    .or_else(|| cr.try_read::<i16>(27).map(|value| value.max(0) as u8))
+                    .try_read::<u8>(28)
+                    .or_else(|| cr.try_read::<i16>(28).map(|value| value.max(0) as u8))
                     .unwrap_or(0);
                 let phase_id: u16 = cr
-                    .try_read::<u16>(28)
-                    .or_else(|| cr.try_read::<i32>(28).map(|value| value.max(0) as u16))
+                    .try_read::<u16>(29)
+                    .or_else(|| cr.try_read::<i32>(29).map(|value| value.max(0) as u16))
                     .unwrap_or(0);
                 let phase_group_id: u32 = cr
-                    .try_read::<u32>(29)
-                    .or_else(|| cr.try_read::<i32>(29).map(|value| value.max(0) as u32))
+                    .try_read::<u32>(30)
+                    .or_else(|| cr.try_read::<i32>(30).map(|value| value.max(0) as u32))
                     .unwrap_or(0);
-                let terrain_swap_map: i32 = cr.try_read(30).unwrap_or(-1);
+                let terrain_swap_map: i32 = cr.try_read(31).unwrap_or(-1);
 
                 let display_id = if model_id > 0 {
                     model_id
@@ -3695,10 +3699,13 @@ impl WorldSession {
                     };
 
                     // Register in AI tracker
-                    let aggro_radius = if faction == 35 { 0.0 } else { 15.0 };
+                    let aggro_radius = self.creature_aggro_radius_for_faction_template_like_cpp(
+                        faction.max(0) as u32,
+                        15.0,
+                    );
                     let min_dmg = (min_level as u32).saturating_sub(1) * 3 + 5;
                     let max_dmg = min_dmg + min_dmg / 2;
-                    self.register_world_creature(
+                    self.register_world_creature_with_flags_extra_like_cpp(
                         map_id,
                         creature_pos,
                         create_data.clone(),
@@ -3715,6 +3722,7 @@ impl WorldSession {
                         phase_id,
                         phase_group_id,
                         terrain_swap_map,
+                        flags_extra,
                     );
 
                     let mut viewer_create_data = create_data.clone();

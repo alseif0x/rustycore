@@ -520,6 +520,7 @@ impl StatementDef for WorldStatements {
                 "ct.faction, ct.npcflag, ",
                 "ct.unit_flags, ct.unit_flags2, ct.unit_flags3, ",
                 "ct.speed_walk, ct.speed_run, ct.scale, ct.unit_class, ",
+                "ct.flags_extra, ",
                 "ct.BaseAttackTime, ct.RangeAttackTime, ",
                 "ctm.CreatureDisplayID, ",
                 "ctdiff.LootID, ctdiff.SkinLootID, ctdiff.GoldMin, ctdiff.GoldMax, ",
