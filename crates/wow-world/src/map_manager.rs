@@ -1594,6 +1594,9 @@ pub struct MapInstance {
     pub grid_unload_timeout: Duration,
     pub personal_phases: MultiPersonalPhaseTracker,
     personal_phase_objects_to_remove: HashSet<ObjectGuid>,
+    /// Creatures waiting to respawn; drained by `tick_creatures_sync`.
+    /// C++ ref: `Map::_respawnTimes` (Map.h:748).
+    pub respawn_queue: Vec<PendingRespawn>,
 }
 
 impl MapInstance {
@@ -1605,6 +1608,7 @@ impl MapInstance {
             grid_unload_timeout: DEFAULT_GRID_UNLOAD_TIME,
             personal_phases: MultiPersonalPhaseTracker::default(),
             personal_phase_objects_to_remove: HashSet::new(),
+            respawn_queue: Vec::new(),
         }
     }
 
@@ -1774,6 +1778,40 @@ impl MapInstance {
 
     pub fn queued_personal_phase_remove_count_like_cpp(&self) -> usize {
         self.personal_phase_objects_to_remove.len()
+    }
+
+    // ── Respawn queue (Slice 4A.2a) ───────────────────────────────────────────
+    //
+    // Mirrors `Map::_respawnTimes` (Map.h:748-750) ownership model.
+    // The queue is a plain `Vec`; heap/SpawnId convergence is deferred.
+
+    /// Enqueue a creature waiting to respawn.
+    /// C++ ref: `Map::_respawnTimes` insertion path (Map.cpp:2191).
+    pub fn push_respawn(&mut self, respawn: PendingRespawn) {
+        self.respawn_queue.push(respawn);
+    }
+
+    /// Drain entries whose `respawn_at <= now` in insertion order.
+    ///
+    /// Entries that are NOT yet ready are retained in the queue.
+    /// C++ ref: `Map::ProcessRespawns` (Map.cpp:2191).
+    pub fn drain_ready_respawns(&mut self, now: Instant) -> Vec<PendingRespawn> {
+        let mut remaining = Vec::new();
+        let mut spawn_now = Vec::new();
+        for r in self.respawn_queue.drain(..) {
+            if now >= r.respawn_at {
+                spawn_now.push(r);
+            } else {
+                remaining.push(r);
+            }
+        }
+        self.respawn_queue = remaining;
+        spawn_now
+    }
+
+    /// Number of entries currently waiting to respawn.
+    pub fn respawn_queue_len(&self) -> usize {
+        self.respawn_queue.len()
     }
 }
 
@@ -2173,6 +2211,38 @@ impl MapManager {
             .map(f)
     }
 
+    // ── Respawn queue delegates (Slice 4A.2a) ─────────────────────────────────
+
+    /// Enqueue a pending respawn on the given map instance.
+    /// Creates the instance if it does not yet exist.
+    pub fn push_respawn(&mut self, map_id: u16, instance_id: u32, respawn: PendingRespawn) {
+        self.get_or_create_map(map_id, instance_id)
+            .push_respawn(respawn);
+    }
+
+    /// Drain ready respawns (`respawn_at <= now`) from the given map instance.
+    /// Returns an empty `Vec` if the instance does not exist.
+    pub fn drain_ready_respawns(
+        &mut self,
+        map_id: u16,
+        instance_id: u32,
+        now: Instant,
+    ) -> Vec<PendingRespawn> {
+        if let Some(map) = self.get_map_mut(map_id, instance_id) {
+            map.drain_ready_respawns(now)
+        } else {
+            Vec::new()
+        }
+    }
+
+    /// Number of entries currently in the respawn queue of the given map
+    /// instance.  Returns 0 if the instance does not exist.
+    pub fn respawn_queue_len(&self, map_id: u16, instance_id: u32) -> usize {
+        self.get_map(map_id, instance_id)
+            .map(|m| m.respawn_queue_len())
+            .unwrap_or(0)
+    }
+
     pub fn player_enter_grid(
         &mut self,
         map_id: u16,
@@ -2362,6 +2432,40 @@ pub fn grid_to_world(grid: i16) -> f32 {
 /// Get the world coordinates of a grid's corner.
 pub fn grid_corner(grid_x: i16, grid_y: i16) -> (f32, f32) {
     (grid_x as f32 * GRID_SIZE, grid_y as f32 * GRID_SIZE)
+}
+
+/// A creature waiting to respawn after its corpse despawned.
+///
+/// Owned by `MapInstance::respawn_queue`; processed by `tick_creatures_sync`.
+/// C++ ref: `Map::_respawnTimes` / `Map::ProcessRespawns` (Map.h:748-750, Map.cpp:2191).
+/// C# ref: `Creature::AllLootRemovedFromCorpse` → `m_respawnTime` → `Map::AddToMap`.
+#[derive(Debug)]
+pub struct PendingRespawn {
+    /// When to respawn.
+    pub respawn_at: Instant,
+    /// Home position (spawn point).
+    pub home_pos: wow_core::Position,
+    /// Full create data — reused verbatim for the respawn CREATE packet.
+    pub create_data: CreatureCreateData,
+    /// AI fields needed to rebuild the canonical creature runtime.
+    pub max_hp: u32,
+    pub level: u8,
+    pub min_dmg: u32,
+    pub max_dmg: u32,
+    pub aggro_radius: f32,
+    pub npc_flags: u32,
+    pub unit_flags: u32,
+    pub map_id: u16,
+    pub loot_id: u32,
+    pub skin_loot_id: u32,
+    pub gold_min: u32,
+    pub gold_max: u32,
+    pub boss_id: Option<u32>,
+    pub dungeon_encounter_id: u32,
+    pub phase_use_flags: u8,
+    pub phase_id: u16,
+    pub phase_group_id: u32,
+    pub terrain_swap_map: i32,
 }
 
 #[cfg(test)]
@@ -3923,5 +4027,157 @@ mod tests {
         assert_eq!(keys.len(), 2);
         assert_eq!(keys[0], (0, 0));
         assert_eq!(keys[1], (571, 1));
+    }
+
+    // ── Slice 4A.2a: respawn queue tests ──────────────────────────────────────
+
+    fn make_pending_respawn(respawn_at: Instant) -> PendingRespawn {
+        use wow_packet::packets::update::CreatureCreateData;
+        PendingRespawn {
+            respawn_at,
+            home_pos: Position {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+                orientation: 0.0,
+            },
+            create_data: CreatureCreateData {
+                guid: ObjectGuid::create_world_object(
+                    wow_core::guid::HighGuid::Creature,
+                    0,
+                    1,
+                    0,
+                    0,
+                    1,
+                    100,
+                ),
+                entry: 1,
+                display_id: 1,
+                native_display_id: 1,
+                health: 100,
+                max_health: 100,
+                level: 1,
+                faction_template: 1,
+                npc_flags: 0,
+                unit_flags: 0,
+                unit_flags2: 0,
+                unit_flags3: 0,
+                scale: 1.0,
+                unit_class: 1,
+                base_attack_time: 2000,
+                ranged_attack_time: 0,
+                zone_id: 0,
+                speed_walk_rate: 1.0,
+                speed_run_rate: 1.14286,
+            },
+            max_hp: 100,
+            level: 1,
+            min_dmg: 1,
+            max_dmg: 5,
+            aggro_radius: 10.0,
+            npc_flags: 0,
+            unit_flags: 0,
+            map_id: 0,
+            loot_id: 0,
+            skin_loot_id: 0,
+            gold_min: 0,
+            gold_max: 0,
+            boss_id: None,
+            dungeon_encounter_id: 0,
+            phase_use_flags: 0,
+            phase_id: 0,
+            phase_group_id: 0,
+            terrain_swap_map: -1,
+        }
+    }
+
+    /// A newly created `MapInstance` starts with an empty respawn queue.
+    #[test]
+    fn respawn_queue_starts_empty_like_cpp() {
+        let map = MapInstance::new(0, 0);
+        assert_eq!(map.respawn_queue_len(), 0);
+    }
+
+    /// Pushing one entry increments the length to 1.
+    #[test]
+    fn push_respawn_increments_len_like_cpp() {
+        let mut map = MapInstance::new(0, 0);
+        let now = Instant::now();
+        map.push_respawn(make_pending_respawn(now));
+        assert_eq!(map.respawn_queue_len(), 1);
+    }
+
+    /// `drain_ready_respawns` returns only entries whose `respawn_at <= now`.
+    #[test]
+    fn drain_returns_only_ready_entries_like_cpp() {
+        let mut map = MapInstance::new(0, 0);
+        let now = Instant::now();
+        let past = now - Duration::from_secs(5);
+        let future = now + Duration::from_secs(60);
+
+        map.push_respawn(make_pending_respawn(past));
+        map.push_respawn(make_pending_respawn(future));
+
+        let ready = map.drain_ready_respawns(now);
+        assert_eq!(ready.len(), 1);
+        assert_eq!(map.respawn_queue_len(), 1);
+    }
+
+    /// Entries that are not yet ready remain in the queue after drain.
+    #[test]
+    fn future_entries_remain_after_drain_like_cpp() {
+        let mut map = MapInstance::new(0, 0);
+        let future = Instant::now() + Duration::from_secs(60);
+
+        map.push_respawn(make_pending_respawn(future));
+
+        let ready = map.drain_ready_respawns(Instant::now());
+        assert_eq!(ready.len(), 0);
+        assert_eq!(map.respawn_queue_len(), 1);
+    }
+
+    /// Ready entries are returned in insertion order.
+    #[test]
+    fn drain_preserves_insertion_order_like_cpp() {
+        let mut map = MapInstance::new(0, 0);
+        let t0 = Instant::now() - Duration::from_secs(10);
+        let t1 = Instant::now() - Duration::from_secs(5);
+        let t2 = Instant::now() - Duration::from_secs(1);
+
+        // Insert in REVERSE temporal order (t2, t1, t0) — all in the past, all ready.
+        // drain must return them in INSERTION order, not sorted by respawn_at, mirroring
+        // the original Vec partition in run_creatures_tick (session.rs:20189-20201).
+        map.push_respawn(make_pending_respawn(t2));
+        map.push_respawn(make_pending_respawn(t1));
+        map.push_respawn(make_pending_respawn(t0));
+
+        let now = Instant::now();
+        let ready = map.drain_ready_respawns(now);
+
+        assert_eq!(ready.len(), 3);
+        // Insertion order (t2, t1, t0), distinct from temporal order (t0, t1, t2).
+        assert_eq!(ready[0].respawn_at, t2);
+        assert_eq!(ready[1].respawn_at, t1);
+        assert_eq!(ready[2].respawn_at, t0);
+    }
+
+    /// Queues are independent per (map_id, instance_id).
+    /// Pushing to (0, 0) must not affect (571, 1).
+    #[test]
+    fn respawn_queues_are_isolated_by_map_and_instance_like_cpp() {
+        let mut manager = MapManager::new();
+        let now = Instant::now();
+        let past = now - Duration::from_secs(1);
+
+        manager.push_respawn(0, 0, make_pending_respawn(past));
+
+        assert_eq!(manager.respawn_queue_len(0, 0), 1);
+        assert_eq!(manager.respawn_queue_len(571, 1), 0);
+
+        let ready_571 = manager.drain_ready_respawns(571, 1, now);
+        assert_eq!(ready_571.len(), 0);
+
+        let ready_0 = manager.drain_ready_respawns(0, 0, now);
+        assert_eq!(ready_0.len(), 1);
     }
 }

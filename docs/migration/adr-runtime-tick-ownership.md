@@ -130,8 +130,21 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `NearbyVisible`; (3) `SelfOnly` is NOT broadcast (skipped with `self_only_skipped`, no guessing of
   owning session); `ExplicitPlayer` reads the target's map_id/instance_id from the registry entry so
   the session map gate accepts it. Dormant in production (no caller until 4A.3).
-- **4A.2:** move `respawn_queue` from `WorldSession` to the map (world state). `client_visible_guids`
-  stays per-session.
+- **4A.2 (split, Codex-validated):** move `respawn_queue` from `WorldSession` to the map (world
+  state). **CRITICAL framing: this fixes respawn-queue OWNERSHIP, NOT multi-session delivery** —
+  while `run_creatures_tick` stays session-local, only the draining session sees the respawn CREATE;
+  real fanout is 4A.3/4B. Behavior: byte-identical with 1 session; with N sessions it replaces a
+  mis-modeled per-session queue (latent bug) with a single map queue — a bugfix, not a regression,
+  NOT gated. `client_visible_guids` stays per-session. NOT fused with the canonical
+  `wow_map RespawnStoreLikeCpp` (by SpawnId/DB — that's step 7). `instance_id=0` legacy-path limit.
+  - **4A.2a — DONE (`#NEXT.RUNTIME.L3.004`):** `PendingRespawn` moved to `map_manager.rs`;
+    `MapInstance.respawn_queue: Vec<PendingRespawn>` + `push_respawn`/`drain_ready_respawns`
+    (ready in insertion order, non-ready stay)/`respawn_queue_len`; delegates on `MapManager` by
+    `(map_id, instance_id)`. Dormant (no production caller; `run_creatures_tick` still uses the
+    session field). 6 tests; 1074/0. 1 code file.
+  - **4A.2b — NEXT:** repoint `run_creatures_tick` to the map queue via session helpers (lock only
+    for push/drain, released before building packets / `register_world_creature`), remove
+    `WorldSession::respawn_queue`. Byte-identical for 1 session.
 - **4A.3 (higher risk, gated OFF):** separate legacy creature-tick driver (NOT hooked into the
   canonical loop) that ticks creatures once per map, builds a `RuntimePlan` under the lock, releases
   the lock, resolves recipients, and delivers via `try_send`. Owner stays `Session` in production;
@@ -147,6 +160,9 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
 - 2026-05-30 — Slice 4A.1b `#NEXT.RUNTIME.L3.003`: SendIfVisibleLikeCpp command + per-session
   visibility gate + candidate routing/delivery (try_send). instance_id/required_3d/SelfOnly
   refinements integrated. Dormant in production. wow-world 1068/0, world-server 266/0, wow-network 14/0.
+- 2026-05-30 — Slice 4A.2a `#NEXT.RUNTIME.L3.004`: PendingRespawn -> map_manager.rs +
+  MapInstance/MapManager respawn-queue API (dormant). 6 tests; wow-world 1074/0. Fixes ownership,
+  not delivery. NEXT 4A.2b repoints run_creatures_tick + removes the session field.
 
 ## References
 

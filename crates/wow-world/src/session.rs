@@ -19,7 +19,8 @@ use crate::entity_update_bridge::{
     player_values_update_to_update_object, unit_values_update_to_packet,
 };
 use crate::map_manager::{
-    RuntimeOutput, RuntimeTickOwner, WorldMMapPathRequestLikeCpp, WorldMMapPathfinderWorkerLikeCpp,
+    PendingRespawn, RuntimeOutput, RuntimeTickOwner, WorldMMapPathRequestLikeCpp,
+    WorldMMapPathfinderWorkerLikeCpp,
 };
 use crate::phasing::{
     init_db_phase_shift_like_cpp, init_db_visible_map_id_like_cpp,
@@ -2691,38 +2692,6 @@ pub(crate) enum RepresentedCreatureKillEventLikeCpp {
         reputation: i32,
         spillover_only: bool,
     },
-}
-
-/// A creature waiting to respawn after its corpse despawned.
-///
-/// Stored in `WorldSession::respawn_queue`; processed by `tick_creatures_sync`.
-/// C# ref: `Creature::AllLootRemovedFromCorpse` → `m_respawnTime` → `Map::AddToMap`.
-pub struct PendingRespawn {
-    /// When to respawn.
-    pub respawn_at: std::time::Instant,
-    /// Home position (spawn point).
-    pub home_pos: wow_core::Position,
-    /// Full create data — reused verbatim for the respawn CREATE packet.
-    pub create_data: wow_packet::packets::update::CreatureCreateData,
-    /// AI fields needed to rebuild the canonical creature runtime.
-    pub max_hp: u32,
-    pub level: u8,
-    pub min_dmg: u32,
-    pub max_dmg: u32,
-    pub aggro_radius: f32,
-    pub npc_flags: u32,
-    pub unit_flags: u32,
-    pub map_id: u16,
-    pub loot_id: u32,
-    pub skin_loot_id: u32,
-    pub gold_min: u32,
-    pub gold_max: u32,
-    pub boss_id: Option<u32>,
-    pub dungeon_encounter_id: u32,
-    pub phase_use_flags: u8,
-    pub phase_id: u16,
-    pub phase_group_id: u32,
-    pub terrain_swap_map: i32,
 }
 
 fn is_represented_bag_slot(slot: u8) -> bool {
