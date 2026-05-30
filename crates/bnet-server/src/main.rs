@@ -84,9 +84,10 @@ async fn main() -> Result<()> {
     // ─────────────────────────────────────────────────────────────────────
 
     // Load TLS certificates — separate configs for REST (HTTPS) and RPC (binary)
-    let cert_file = wow_config::get_string_default("CertificatesFile", "./BNetServer.pfx");
+    let cert_file = wow_config::get_string_default("CertificatesFile", "./bnetserver.cert.pem");
+    let key_file = wow_config::get_string_default("PrivateKeyFile", "./bnetserver.key.pem");
     let (rest_tls_acceptor, rpc_tls_acceptor) =
-        load_tls_acceptors(&cert_file).context("Failed to load TLS certificates")?;
+        load_tls_acceptors(&cert_file, &key_file).context("Failed to load TLS certificates")?;
     tracing::info!("TLS certificates loaded");
 
     // Build shared state
@@ -203,20 +204,13 @@ fn load_bnet_config_from(config_candidates: &[&str], config_dir: &str) -> Result
 /// Load TLS certificates and create two acceptors:
 /// - REST acceptor: with ALPN for HTTP/1.1 (HTTPS)
 /// - RPC acceptor: without ALPN (raw binary protocol)
-fn load_tls_acceptors(_cert_config: &str) -> Result<(TlsAcceptor, TlsAcceptor)> {
+fn load_tls_acceptors(
+    cert_file_path: &str,
+    private_key_file_path: &str,
+) -> Result<(TlsAcceptor, TlsAcceptor)> {
     use rustls::ServerConfig;
     use rustls::pki_types::{CertificateDer, PrivateKeyDer};
     use std::io::BufReader;
-
-    let cert_path = "bnet_cert.pem";
-    let key_path = "bnet_key.pem";
-    let fullchain_path = "bnet_fullchain.pem";
-
-    let cert_file_path = if std::path::Path::new(fullchain_path).exists() {
-        fullchain_path
-    } else {
-        cert_path
-    };
 
     // Load certificates
     let cert_file = std::fs::File::open(cert_file_path)
@@ -231,15 +225,15 @@ fn load_tls_acceptors(_cert_config: &str) -> Result<(TlsAcceptor, TlsAcceptor)> 
     }
 
     // Load private key
-    let key_file =
-        std::fs::File::open(key_path).with_context(|| format!("Failed to open {key_path}"))?;
+    let key_file = std::fs::File::open(private_key_file_path)
+        .with_context(|| format!("Failed to open {private_key_file_path}"))?;
     let mut key_reader = BufReader::new(key_file);
     let key: PrivateKeyDer<'static> = rustls_pemfile::private_key(&mut key_reader)
         .context("Failed to parse private key")?
-        .ok_or_else(|| anyhow::anyhow!("No private key found in {key_path}"))?;
+        .ok_or_else(|| anyhow::anyhow!("No private key found in {private_key_file_path}"))?;
 
     tracing::info!(
-        "Loaded {} certificate(s) from {cert_file_path}",
+        "Loaded {} certificate(s) from {cert_file_path}; private key from {private_key_file_path}",
         certs.len()
     );
 
@@ -294,9 +288,13 @@ mod tests {
     use std::env;
     use std::fs;
     use std::path::PathBuf;
+    use std::sync::Mutex;
+
+    static CONFIG_TEST_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
     fn bnet_config_resolution_prefers_lowercase_cpp_name() {
+        let _guard = CONFIG_TEST_LOCK.lock().expect("config test lock poisoned");
         let root = unique_temp_dir("bnet_config_resolution");
         let lower = root.join("bnetserver.conf");
         let legacy = root.join("BNetServer.conf");
@@ -315,6 +313,48 @@ mod tests {
 
         assert_eq!(report.candidate_index, 0);
         assert_eq!(wow_config::get_value::<u16>("BattlenetPort"), Some(1119));
+
+        fs::remove_dir_all(root).expect("cleanup failed");
+    }
+
+    #[test]
+    fn bnet_config_loads_cpp_section_and_tls_paths_like_cpp() {
+        let _guard = CONFIG_TEST_LOCK.lock().expect("config test lock poisoned");
+        let root = unique_temp_dir("bnet_config_cpp_section");
+        let lower = root.join("bnetserver.conf");
+
+        fs::write(
+            &lower,
+            r#"
+[bnetserver]
+BattlenetPort = 1119
+LoginREST.Port = 8081
+CertificatesFile = "/tmp/bnetserver.cert.pem"
+PrivateKeyFile = "/tmp/bnetserver.key.pem"
+LoginDatabaseInfo = "127.0.0.1;3306;trinity;trinity;auth"
+"#,
+        )
+        .expect("write lower failed");
+
+        load_bnet_config_from(
+            &[lower.to_str().expect("utf8 path")],
+            root.join("bnetserver.conf.d").to_str().expect("utf8 path"),
+        )
+        .expect("config should load");
+
+        assert_eq!(
+            wow_config::get_string_default("CertificatesFile", ""),
+            "/tmp/bnetserver.cert.pem"
+        );
+        assert_eq!(
+            wow_config::get_string_default("PrivateKeyFile", ""),
+            "/tmp/bnetserver.key.pem"
+        );
+        let info = wow_config::get_database_info_default(
+            "Login",
+            wow_config::DatabaseInfo::new("fallback", 1, "fallback", "fallback", "fallback"),
+        );
+        assert_eq!(info.database, "auth");
 
         fs::remove_dir_all(root).expect("cleanup failed");
     }

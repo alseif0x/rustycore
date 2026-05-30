@@ -171,10 +171,10 @@ The config layer is process-internal — it does not originate packets. It does,
 
 **Files in `/home/server/rustycore`:**
 
-- `crates/wow-config/src/lib.rs` — 397 lines — global `RwLock<ConfigStore>` singleton, `load_config(path)` / `load_config_from_str(content)` / `get_value::<T>(key)` / `get_value_default::<T>(key, default)` / `get_string_default(key, default)` API. Case-insensitive lookup (keys stored lowercased). 22 unit tests, all passing.
-- `crates/bnet-server/src/main.rs` lines 32-83 — calls `wow_config::load_config("BNetServer.conf")` (falling back to `.dist`) and reads ~17 keys.
-- `crates/world-server/src/main.rs` lines 165-460 — same pattern; reads ~24 keys.
-- Production files (gitignored, contain credentials): `/home/server/rustycore/BNetServer.conf`, `/home/server/rustycore/WorldServer.conf`.
+- `crates/wow-config/src/lib.rs` — global `RwLock<ConfigStore>` singleton, fallback/overlay loader, typed accessors, semicolon `*DatabaseInfo` parser, and TC-style environment overrides. Case-insensitive lookup (keys stored lowercased).
+- `crates/bnet-server/src/main.rs` — calls `load_config_with_fallbacks()` over `bnetserver.conf` / `.dist` / legacy-capitalized names and reads the currently represented bnet keys.
+- `crates/world-server/src/main.rs` — same fallback pattern over `worldserver.conf` / `.dist` / legacy-capitalized names and reads the currently represented world keys.
+- Production/operator files are gitignored and may live outside the repo; do not stage local configs or TLS material.
 
 **What's implemented:**
 
@@ -184,6 +184,9 @@ The config layer is process-internal — it does not originate packets. It does,
 - ✅ Fallback chain `WorldServer.conf` → `WorldServer.conf.dist` (TC has the same convention).
 - ✅ Typed accessors via `FromStr`: integers, floats, `String` all flow through one generic.
 - ✅ Reload-replaces semantics on the parser side (`parse()` clears the map first, so repeated calls overwrite cleanly).
+- ✅ Single section headers (`[worldserver]` / `[bnetserver]`) are accepted and flattened, matching C++ `fullTree.begin()->second`.
+- ✅ Canonical TC semicolon DB strings (`LoginDatabaseInfo = "host;port;user;pass;db[;ssl]"`) are parsed by `get_database_info_default`.
+- ✅ BNet TLS uses configured `CertificatesFile` and `PrivateKeyFile` paths with C++ defaults.
 - ✅ RustyCore-only experimental flags can be read ad hoc. `RustyCore.LegacyCreatureGlobalRuntime` is numeric `0`/`1`, defaults to `0`, and is intentionally not part of TrinityCore config parity.
 
 **What's missing vs C++:**
@@ -191,7 +194,6 @@ The config layer is process-internal — it does not originate packets. It does,
 - ❌ **The `m_int_configs` / `m_bool_configs` / `m_float_configs` arrays do not exist.** RustyCore reads keys ad-hoc at the call site instead of caching them in indexed arrays. This means every `getIntConfig` equivalent is a `HashMap` lookup instead of an `O(1)` array index — fine functionally but a perf gap on hot paths (e.g. movement validation reads `MaxOverspeedPings` per packet).
 - ❌ **No `World::LoadConfigSettings()` equivalent.** Subsystems that need values fetch them lazily; there is no startup pass that validates every expected key is present and warns on missing/malformed entries. Silent fall-through to hardcoded Rust defaults.
 - ❌ **No `.reload config` command.** `wow_config::load_config` *can* be called again to replace values, but no GM command, no signal handler, and no `OnConfigReload` hook fires in subsystems. CLAUDE.md acknowledges this.
-- ❌ **The semicolon-delimited DB connection-string format `"host;port;user;pass;db;ssl"` is not parsed.** Rust expects split keys: `LoginDatabaseInfo.Host`, `LoginDatabaseInfo.Port`, `LoginDatabaseInfo.Username`, `LoginDatabaseInfo.Password`, `LoginDatabaseInfo.Database`. **Operators copying a TC `worldserver.conf` will get default `127.0.0.1` / `root` / empty password silently** because the literal key `LoginDatabaseInfo` is parsed but never looked up.
 - ❌ ~588 of ~612 `worldserver.conf` keys are unread. Examples grouped by criticality:
   - **Security-critical (silently default to Rust hardcoded values)**: `MaxOverspeedPings`, `PacketSpoof.{Policy,BanMode,BanDuration}`, `Warden.*`, `ChatFlood.*`, `WrongPass.*` (only on bnet side), `SocketTimeOutTime{,Active}`, `SessionAddDelay`.
   - **Economy / progression**: every `Rate.XP.*`, `Rate.Drop.*`, `Rate.Creature.*`, `Rate.Quest.Money.*`, `Rate.Health`, `Rate.Mana`, `StartPlayerLevel`, `StartPlayerMoney`.
@@ -207,12 +209,12 @@ The config layer is process-internal — it does not originate packets. It does,
 
 **Suspicious / likely divergent (hipótesis pre-auditoría):**
 
-- **DB connection format mismatch**: `LoginDatabaseInfo = "127.0.0.1;3306;trinity;trinity;auth"` from a stock TC config will produce an empty database connection in RustyCore because the splitter logic doesn't exist. Operator gets a successful boot with `localhost` / `root` / no-password defaults. **Confirm before next release.**
+- **DB connection format**: canonical TC semicolon strings are now parsed, but every deployment still needs an explicit runtime check against the intended auth/world/characters/hotfix DB names before replacing C++.
 - **Silent default drift**: every `Rate.*` not read defaults to `1.0` somewhere in code, but the *somewhere* is per-subsystem and undocumented. Two subsystems may pick different defaults for the same conceptual rate.
 - **Inline comment with quoted `#`**: Rust handles `Color = "#FF0000"` correctly per `test_quoted_value_with_hash`. Good.
 - **No bool parsing**: TC accepts `true`/`false` and `1`/`0` for bool keys. Rust only parses via `FromStr<bool>` which accepts only `true`/`false`. Stock TC configs use `0`/`1`, which Rust would reject. (`Instance.IgnoreLevel = 0` → `parse::<bool>()` fails → `None` → default fires.) **Bug.**
 - **`Updates.EnableDatabases` is a bitmask**, not a bool. Rust currently reads `Updates.AutoSetup` as a string and compares. Fine. But `Updates.EnableDatabases = 15` from the dist file will not be interpreted correctly if treated as bool.
-- **Section header `[worldserver]` / `[bnetserver]`** — the Rust parser ignores any line that doesn't have `=`. The header lines start with `[`, contain no `=` — they will be **rejected** with a parse error: see `ConfigStore::parse` returning `ParseError { line, message: "expected '=' in: [worldserver]" }`. **The current Rust loader cannot read TC-format `.conf.dist` files at all without manual editing.** (TC's parser explicitly skips section headers as a special case.)
+- **Section header `[worldserver]` / `[bnetserver]`** — represented. Rust skips single section headers and flattens subsequent keys like C++ `fullTree.begin()->second`.
 - **TOTP not loaded** → `account.totp_secret` rows decrypt to garbage → in-game `.account 2fa` commands break.
 
 **Tests existing:**
@@ -233,17 +235,17 @@ The config layer is process-internal — it does not originate packets. It does,
 - [ ] **#CONFIG.8** Port the `Appender.*` / `Logger.*` schema into a `tracing` configuration: parse the `Type,LogLevel,Flags[,opt1,opt2,opt3]` format and build a `tracing_subscriber` layer accordingly. Today RustyCore ignores these and uses `RUST_LOG`; operators editing the conf get no effect. (complejidad: H)
 - [ ] **#CONFIG.9** Port `TOTPMasterSecret` to bnet-server: AES-decrypt `account.totp_secret` rows with the configured key, expose a `verify_totp(account_id, code)` helper, gate `.account 2fa` commands. (complejidad: M)
 - [ ] **#CONFIG.10** Port the schedule keys: `ResetSchedule.{WeekDay,Hour}`, `Quests.{DailyResetTime,WeeklyResetWDay}`, `Guild.ResetHour`, `Battleground.Random.ResetHour`, `Currency.{ResetHour,ResetDay,ResetInterval}`. Without these, daily/weekly resets either don't fire or fire at the wrong wall-clock time. (complejidad: M)
-- [ ] **#CONFIG.11** Add a `cargo test` round-trip that loads `worldserver.conf.dist` and `bnetserver.conf.dist` verbatim from the TC tree and asserts no `ParseError`. Add a sister test that warns on every key present in the file but never read by any RustyCore subsystem (catalogue of unimplemented features, refreshed on every CI run). (complejidad: M)
+- [ ] **#CONFIG.11** Add a repo-local round-trip that loads representative `worldserver.conf.dist` and `bnetserver.conf.dist` fixtures and asserts no `ParseError`. Add a sister test that warns on every key present in the file but never read by any RustyCore subsystem (catalogue of unimplemented features, refreshed on every CI run). (complejidad: M)
 - [ ] **#CONFIG.12** Document the divergence in `BNetServer.conf` / `WorldServer.conf` example files at the repo root: list the keys RustyCore *actually* reads, with their current defaults, and a note that copying a stock TC config produces incorrect behaviour. Update CLAUDE.md to reference this migration doc. (complejidad: L)
 
 ---
 
 ## 10. Regression tests to write
 
-- [ ] Test: `load_config()` on the verbatim TC `worldserver.conf.dist` succeeds (no parse error from the `[worldserver]` header or any `0`/`1` bool).
-- [ ] Test: `load_config()` on the verbatim TC `bnetserver.conf.dist` succeeds.
-- [ ] Test: `LoginDatabaseInfo = "127.0.0.1;3306;trinity;trinity;auth"` from stock TC parses into `ConnectionInfo { host: "127.0.0.1", port: 3306, user: "trinity", password: "trinity", database: "auth", ssl: false }`.
-- [ ] Test: `LoginDatabaseInfo = "127.0.0.1;3306;trinity;trinity;auth;ssl"` parses with `ssl: true`.
+- [x] Test: single-section `worldserver.conf`/`bnetserver.conf` headers are flattened like C++.
+- [x] Test: `LoginDatabaseInfo = "127.0.0.1;3306;trinity;trinity;auth"` from stock TC parses into `DatabaseInfo { host: "127.0.0.1", port_or_socket: "3306", user: "trinity", password: "trinity", database: "auth", ssl: false }`.
+- [x] Test: `LoginDatabaseInfo = "127.0.0.1;3306;trinity;trinity;auth;ssl"` parses with `ssl: true`.
+- [ ] Test: repo-local fixtures for full representative TC `worldserver.conf.dist` and `bnetserver.conf.dist` succeed end-to-end.
 - [ ] Test: bool key `Instance.IgnoreLevel = 0` returns `false`; `Instance.IgnoreLevel = 1` returns `true`; `Instance.IgnoreLevel = true` also returns `true` (both formats accepted).
 - [ ] Test: `WorldConfig::get_int(WorldIntConfig::MaxPlayerLevel)` returns `80` after loading default conf.
 - [ ] Test: reload — load conf, mutate one key on disk, call `reload()`, verify the new value is visible without restarting subsystems that subscribed to the reload broadcast.
@@ -256,9 +258,9 @@ The config layer is process-internal — it does not originate packets. It does,
 
 ## 11. Notes / gotchas
 
-1. **The Rust parser cannot load a stock TC config today.** `[worldserver]` on line 4 of `worldserver.conf.dist` is parsed as a key/value line, fails the `=` check, and returns `ConfigError::ParseError`. The production `WorldServer.conf` / `BNetServer.conf` files at the repo root work only because they were authored without the section header. This is the single most important fix in #CONFIG.1.
+1. **Section header compatibility is represented.** `[worldserver]` / `[bnetserver]` are skipped and the contained keys are flattened, matching TC's single-section config convention. A full fixture round-trip is still pending because many keys remain unread or semantically unrepresented.
 
-2. **Database connection format is incompatible.** TC and the dist files use one semicolon-delimited string. RustyCore expects five separate keys. Copying a TC config gives silent fallback to `127.0.0.1` / `root` / empty password, which on a production realm is a credential-leak vector if the operator's intent was a different host.
+2. **Database connection format is now TC-style semicolon.** Runtime replacement still requires checking the loaded auth/world/characters/hotfix DB names against the C++ deployment before starting Rust.
 
 3. **`0`/`1` as bool**: `FromStr::<bool>` rejects them. Every `*.Enable` / `*.Enabled` / `Allow*` / `Use*` key in TC uses `0`/`1`. Without #CONFIG.2, *every* boolean key from a stock config silently defaults.
 
@@ -307,10 +309,11 @@ The config layer is process-internal — it does not originate packets. It does,
 | `World::LoadConfigSettings(reload)` | planned `WorldConfig::load_or_reload(path, is_reload)` | Not implemented |
 | `sWorld->getIntConfig(CONFIG_FOO)` | planned `world_config.get_int(WorldIntConfig::Foo)` | Hot-path read via array index |
 | `sLog->LoadFromConfig()` | planned `wow_logging::reload_from_config()` | Today: `tracing_subscriber::EnvFilter::from_default_env()` only |
-| `LoginDatabaseInfo = "host;port;user;pass;db;ssl"` | split keys `LoginDatabaseInfo.{Host,Port,Username,Password,Database}` | **Format divergence**; #CONFIG.3 |
+| `LoginDatabaseInfo = "host;port;user;pass;db;ssl"` | `wow_config::get_database_info_default("Login", ...)` | TC semicolon schema represented; #CONFIG.3 |
+| `CertificatesFile` / `PrivateKeyFile` | `bnet-server::load_tls_acceptors(cert, key)` | PEM chain + private key, matching current C++ `SslContext.cpp` |
 | `Bot.AccountPrefix` | `wow_config::get_string_default("Bot.AccountPrefix", "")` | RustyCore-specific key (not in TC) |
 | `RustyCore.LegacyCreatureGlobalRuntime` | `wow_config::get_value_default::<u8>("RustyCore.LegacyCreatureGlobalRuntime", 0) != 0` | RustyCore-specific experimental key (not in TC); default off |
-| `[worldserver]` section header | (would currently fail to parse) | #CONFIG.1 |
+| `[worldserver]` / `[bnetserver]` section header | flattened by parser | #CONFIG.1 represented |
 | `0`/`1` boolean values | (would currently return `None` from `get_value::<bool>`) | #CONFIG.2 |
 | `.reload config` GM command | (no equivalent) | #CONFIG.5 |
 
@@ -332,20 +335,20 @@ Cross-checked the canonical `.conf.dist` files line-by-line against the Rust loa
 |---|---|
 | `worldserver.conf.dist` distinct keys | ~612 (excluding the `Appender.*` / `Logger.*` template lines which use a meta-format) |
 | `bnetserver.conf.dist` distinct keys | ~25 |
-| Rust keys read in `world-server/src/main.rs` | 24 (incl. 5 split-format DB keys × 4 DBs = 20 of the 24) |
+| Rust keys read in `world-server/src/main.rs` | ~24 plus canonical semicolon DB strings |
 | Rust keys read in `bnet-server/src/main.rs` | 17 |
 | **Coverage** (world-server) | **~4 %** (24 / 612) |
 | **Coverage** (bnet-server) | **~68 %** (17 / 25) — but the 25 includes the `Appender.*` / `Logger.*` family Rust does not parse |
-| Connection-string format mismatch | 4 keys (LoginDatabaseInfo, WorldDatabaseInfo, CharacterDatabaseInfo, HotfixDatabaseInfo): split into 5 sub-keys each in Rust, single semicolon string in TC |
-| Section headers parsed | 0 out of 2 (`[worldserver]`, `[bnetserver]`) — would fail the `=` check |
+| Connection-string format mismatch | 0 known for canonical TC semicolon strings; split-format Rust-era subkeys are intentionally ignored |
+| Section headers parsed | 2 out of 2 (`[worldserver]`, `[bnetserver]`) — flattened like C++ single-section configs |
 | Bool keys with `0`/`1` literals in dist | ~120 (every `*.Enable`, `Allow*`, `Use*`, `*.IgnoreLevel`, etc.) — none parse via `get_value::<bool>` today |
 | Hot-path security keys unread | 8 (`MaxOverspeedPings`, `PacketSpoof.Policy`, `PacketSpoof.BanMode`, `PacketSpoof.BanDuration`, `Warden.Enabled`, `ChatFlood.MessageCount`, `ChatFlood.MessageDelay`, `SessionAddDelay`) |
 
 ### Behavioural divergences
 
-1. **Section header parse failure** (`#CONFIG.1`): Rust returns `ParseError { line: 4, message: "expected '=' in: [worldserver]" }` on the verbatim TC file. Severity: **blocker** — operators cannot use a stock dist as starting point. The production files at the repo root work only because they have been hand-stripped of the header.
+1. **Section header compatibility** (`#CONFIG.1`): represented for single-section TC files. Remaining work is full fixture coverage and unread-key reporting.
 
-2. **DB connection-string mismatch** (`#CONFIG.3`): TC `LoginDatabaseInfo = "127.0.0.1;3306;trinity;trinity;auth"` is parsed as a single string by Rust and then ignored — the consumer code looks for `LoginDatabaseInfo.Host`, which is absent, so it falls back to `127.0.0.1` (the Rust default). On any non-default deployment the operator gets a connection failure or — worse — a successful connection to a DB on `127.0.0.1` that wasn't intended. Severity: **high** (correctness + potential security implication).
+2. **DB connection-string mismatch** (`#CONFIG.3`): resolved for canonical TC semicolon strings. Operational risk remains high if a local test config points at the wrong DB, so startup/manual-test evidence must include the loaded DB endpoints.
 
 3. **`0`/`1` bool rejection** (`#CONFIG.2`): every `*.Enable=1` from TC is silently treated as missing. Severity: **high** — `Warden.Enabled = 1`, `Updates.AutoSetup = 1`, `AutoBroadcast.On = 1`, `Battleground.CastDeserter = 1`, `AllowLoggingIPAddressesInDatabase = 1` etc. all silently disable.
 
@@ -371,16 +374,16 @@ Took 5 keys at random from the dist and verified their Rust handling:
 |---|---|---|---|
 | `RealmID` | `1` | `get_value("RealmID").unwrap_or(1)` | **OK** |
 | `WorldServerPort` | `8085` | `get_value("WorldServerPort").unwrap_or(8085)` | **OK** |
-| `LoginDatabaseInfo` | `"127.0.0.1;3306;trinity;trinity;auth"` | (ignored — split keys read instead) | **MISMATCH** |
+| `LoginDatabaseInfo` | `"127.0.0.1;3306;trinity;trinity;auth"` | `get_database_info_default("Login", ...)` | **OK** |
 | `Warden.Enabled` | `0` | (not read) | **MISSING** |
 | `Rate.XP.Kill` | `1` | (not read) | **MISSING** |
 
-3 of 5 sampled keys are mishandled. Extrapolating to the full 612-key surface and assuming the hot 24 keys Rust *does* read are over-represented in correctness, true coverage is closer to **0–5 %** of useful semantic behaviour, not 4 % of keys.
+2 of 5 sampled keys are still mishandled or missing. Extrapolating to the full 612-key surface and assuming the hot keys Rust *does* read are over-represented in correctness, true coverage is still low; this doc is an operational risk register, not proof of config parity.
 
 ### Recommended remediation order
 
-1. **#CONFIG.1** (section header) and **#CONFIG.2** (`0`/`1` bool) — both trivial; without them no further key porting helps because the parser fails or silently rejects.
-2. **#CONFIG.3** (DB connection string) — operationally the highest-impact correctness bug.
+1. **#CONFIG.2** (`0`/`1` bool) — still needed because many TC booleans otherwise silently reject.
+2. **Runtime startup evidence** — verify loaded DB endpoints, ports, cert/key paths, and flags before replacing C++.
 3. **#CONFIG.6** (security-critical keys) — every public realm needs these enforced.
 4. **#CONFIG.9** (TOTP) — security feature, narrow scope, easy to ship.
 5. **#CONFIG.10** (schedules) and **#CONFIG.7** (Rate.\*) — gameplay correctness, large surface.

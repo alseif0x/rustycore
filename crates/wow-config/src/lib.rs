@@ -84,6 +84,13 @@ impl ConfigStore {
                 continue;
             }
 
+            // TrinityCore uses Boost.PropertyTree INI parsing and then flattens
+            // the single top-level section (`[worldserver]` / `[bnetserver]`)
+            // with `fullTree.begin()->second`.
+            if line.starts_with('[') && line.ends_with(']') {
+                continue;
+            }
+
             // Find the first '=' to split key and value.
             let Some(eq_pos) = line.find('=') else {
                 return Err(ConfigError::ParseError {
@@ -1202,6 +1209,51 @@ LogLevel = 3
         assert_eq!(store.get("LogLevel"), Some("3"));
     }
 
+    #[test]
+    fn test_single_section_header_is_flattened_like_cpp() {
+        let store = parse(
+            r#"
+################################################
+# Trinity Core World Server configuration file #
+################################################
+[worldserver]
+
+WorldServerPort = 8085
+LoginDatabaseInfo = "127.0.0.1;3306;trinity;trinity;auth"
+"#,
+        );
+
+        assert_eq!(store.get("WorldServerPort"), Some("8085"));
+        assert_eq!(
+            store.database_info_default(
+                "Login",
+                DatabaseInfo::new("fallback", 1, "fallback", "fallback", "fallback"),
+            ),
+            DatabaseInfo {
+                host: "127.0.0.1".to_string(),
+                port_or_socket: "3306".to_string(),
+                username: "trinity".to_string(),
+                password: "trinity".to_string(),
+                database: "auth".to_string(),
+                ssl: false,
+            }
+        );
+    }
+
+    #[test]
+    fn test_bnet_section_header_is_flattened_like_cpp() {
+        let store = parse(
+            r#"
+[bnetserver]
+BattlenetPort = 1119
+LoginREST.Port = 8081
+"#,
+        );
+
+        assert_eq!(store.get("BattlenetPort"), Some("1119"));
+        assert_eq!(store.get("LoginREST.Port"), Some("8081"));
+    }
+
     // -- Overwrite on reload ------------------------------------------------
 
     #[test]
@@ -1397,7 +1449,7 @@ LoginDatabaseInfo = "127.0.0.1;3306;trinity;trinity;auth"
     #[test]
     fn test_world_config_registry_covers_cpp_inventory() {
         let registry = world_config_registry();
-        assert_eq!(registry.len(), 339);
+        assert_eq!(registry.len(), 340);
         assert_eq!(
             registry
                 .iter()
@@ -1410,7 +1462,7 @@ LoginDatabaseInfo = "127.0.0.1;3306;trinity;trinity;auth"
                 .iter()
                 .filter(|entry| entry.kind == WorldConfigKind::Float)
                 .count(),
-            36
+            37
         );
         assert_eq!(
             registry
