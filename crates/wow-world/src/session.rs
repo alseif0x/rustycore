@@ -1544,6 +1544,13 @@ impl Default for LegacyCreatureAggroConfigLikeCpp {
 }
 
 impl LegacyCreatureAggroConfigLikeCpp {
+    fn map_is_dungeon_like_cpp(&self, map_id: u16) -> bool {
+        self.map_store
+            .as_ref()
+            .and_then(|store| store.get(u32::from(map_id)))
+            .is_some_and(|entry| entry.is_dungeon())
+    }
+
     fn map_visibility_range_like_cpp(&self, map_id: u16) -> f32 {
         let Some(entry) = self
             .map_store
@@ -21062,6 +21069,10 @@ fn legacy_creature_can_attack_home_range_like_cpp(
     candidate: &LegacyCreatureAggroCandidateLikeCpp,
     config: &LegacyCreatureAggroConfigLikeCpp,
 ) -> bool {
+    if config.map_is_dungeon_like_cpp(candidate.map_id) {
+        return true;
+    }
+
     let mut max_home_distance = config
         .map_visibility_range_like_cpp(candidate.map_id)
         .min(SIZE_OF_GRID_CELL * 2.0);
@@ -50820,6 +50831,50 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_BATTLEGROUND,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+            },
+        ])));
+
+        let outcome =
+            run_legacy_creature_aggro_tick_once_with_config_like_cpp(&manager, &candidates, config);
+
+        assert_eq!(outcome.home_range_rejections, 0);
+        assert_eq!(outcome.aggro_starts, 1);
+        assert_eq!(outcome.commands.len(), 1);
+        assert_eq!(outcome.commands[0].victim_guid, player);
+    }
+
+    #[test]
+    fn legacy_creature_aggro_home_range_is_skipped_in_dungeon_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_031);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 250.0;
+                creature.creature.unit_mut().set_level(25);
+                creature.creature.unit_mut().set_combat_reach(0.0);
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let player = ObjectGuid::create_player(1, 91_032);
+        let candidates = vec![legacy_aggro_candidate_like_cpp(
+            player,
+            Position::new(240.0, 10.0, 0.0, 0.0),
+        )];
+        let mut config = legacy_aggro_hostile_config_like_cpp();
+        config.map_store = Some(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_INSTANCE,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,

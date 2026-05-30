@@ -456,6 +456,14 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   gaps: the canonical `wow_map::Map::visible_distance` constructor still defaults to `100.0`
   outside this legacy aggro config path; `CanCreatureAttack` dungeon/owner/taunt bypasses,
   accessibility/visibility/detection, and LOS remain separate runtime fidelity work.
+- 2026-05-30 — Runtime creature-aggro dungeon leash bypass `#NEXT.RUNTIME.L3.031i`: represented the
+  C++ `Creature::CanCreatureAttack` branch where non-player-owned creatures on dungeon maps skip the
+  home-distance leash. Rust selects dungeon maps from `Map.db2` via `MapEntry::is_dungeon()` and lets
+  those represented unowned legacy world creatures continue to radius aggro without a home-range
+  rejection. Covered C++ anchors: `Creature::CanCreatureAttack`, `Map::IsDungeon`, and
+  `MapEntry::IsDungeon`. Remaining gaps: represented player charmer/owner state for creatures,
+  recent-damage/taunt bypass, accessibility, AI-specific attack gates, evade states,
+  visibility/detection, and LOS.
 
 ## References
 
