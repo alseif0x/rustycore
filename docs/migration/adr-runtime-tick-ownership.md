@@ -99,9 +99,50 @@ inverted** from C++. The canonical `wow_map::MapManager` already mirrors the C++
 - Progress metric note: this convergence advances the live-runtime axis (~0% today, per
   `honest-progress-audit.md`), not the `R8.ENTITIES` inventory count.
 
+## Slice 4 subdivision (validated with Codex)
+
+Step 4 ("first behavior change") is too large for one slice and is split. **Combat stays out of
+Slice 4** — `WorldSession::run_combat_tick` is per-PLAYER (the player's auto-attack swing,
+`session.rs` ~20417/20427), not per-creature, so it belongs to **Slice 6** ("move combat to the
+global owner"), not 4A. Slice 4A is limited to the **creature (AI/movement/respawn) tick**.
+
+**Visibility amendment (Codex, mandatory):** `PlayerBroadcastInfo` (`map_id`, `position`,
+`is_in_world`) is enough for **candidate routing only**, NOT for C++-faithful final delivery.
+`MessageDistDeliverer` (Object.cpp:1746-1764, GridNotifiersImpl.h:43-46) also filters `InSamePhase`,
+2D/3D distance per `required3dDist`, **`HaveAtClient(source)`**, shared vision/seer/vehicle,
+`own_team_only`, `skipped_receiver`. Decision: do NOT duplicate visibility/phase in the registry.
+Final delivery uses `SessionCommand::SendIfVisibleLikeCpp { source_guid, packet_bytes }` and **each
+session applies its own `client_visible_guids_like_cpp`** (the per-session `HashSet<ObjectGuid>` =
+HaveAtClient gate). `client_visible_guids` stays per-session (not moved to the map).
+
+Sub-slices (each compiles, suite green, no production behavior change until the flip in 4B):
+- **4A.1a — DONE (`#NEXT.RUNTIME.L3.002`, 4ab11af):** addressable types in `map_manager.rs`
+  (`RecipientRule`/`RuntimeEvent`/`RuntimePlan`, `RuntimeOutput::into_owning_session_plan`,
+  `MapManager::active_map_keys`). Pure types, gated OFF, 1062/0.
+- **4A.1b — NEXT (pending Codex shape confirmation):** `SessionCommand::SendIfVisibleLikeCpp`
+  + per-session visibility gate (mirrors the existing `SendVisibleObjectValuesUpdate` +
+  `client_visible_guids_like_cpp.contains` pattern, e.g. session.rs:12080 and main.rs:4434-4456)
+  + `resolve_runtime_event_candidates`/`deliver_runtime_plan` in world-server (try_send,
+  non-blocking, outside lock). Dormant in production (no caller until 4A.3).
+- **4A.2:** move `respawn_queue` from `WorldSession` to the map (world state). `client_visible_guids`
+  stays per-session.
+- **4A.3 (higher risk, gated OFF):** separate legacy creature-tick driver (NOT hooked into the
+  canonical loop) that ticks creatures once per map, builds a `RuntimePlan` under the lock, releases
+  the lock, resolves recipients, and delivers via `try_send`. Owner stays `Session` in production;
+  `GlobalLegacy` only in tests.
+- **4A.4:** flip `GlobalLegacy` in an integration test only.
+- **4B:** production flip + manual client/server verification (first real manual test).
+
+## Progress log (runtime slices)
+
+- 2026-05-29 — Slice 3 `#NEXT.RUNTIME.L3.001` (3308647): `RuntimeTickOwner` infra + extract
+  `run_*_tick` + guard. No behavior change.
+- 2026-05-30 — Slice 4A.1a `#NEXT.RUNTIME.L3.002` (4ab11af): addressable types. No behavior change.
+
 ## References
 
-- `crates/wow-world/src/session.rs` — `tick_creatures_sync`, `tick_combat_sync`, creature wrappers.
+- `crates/wow-world/src/session.rs` — `tick_creatures_sync`, `tick_combat_sync`, creature wrappers; `client_visible_guids_like_cpp` (HashSet, :2312); `process_represented_session_commands_like_cpp` (:12004).
+- `crates/wow-network/src/player_registry.rs` — `SessionCommand` enum (:19), `PlayerBroadcastInfo`/`PlayerRegistry`.
 - `crates/wow-map/src/manager.rs` — `MapManager::update` / `ManagedMap::update` (mirrors `Map::Update`).
 - `crates/world-server/src/main.rs` — both managers + `spawn_canonical_map_update_loop`.
 - C++: `World.cpp:2748` (`sMapMgr->Update`), `Map.cpp:666` (`Map::Update` phase order).
