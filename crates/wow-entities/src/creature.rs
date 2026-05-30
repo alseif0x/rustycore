@@ -1,6 +1,6 @@
 use wow_constants::{
     CreatureFlagsExtra, CreatureFlightMovementType, DeathState, PowerType, TypeId, TypeMask,
-    UnitDynFlags, UnitFlags, UnitState, WeaponAttackType,
+    UnitDynFlags, UnitFlags, UnitState, WeaponAttackType, movement::MovementFlag,
 };
 use wow_core::{ObjectGuid, Position};
 
@@ -579,6 +579,7 @@ pub struct CreatureRuntimeState {
     pub loot_removed_count: u32,
     pub pickpocket_reset_count: u32,
     pub has_loot_recipient: bool,
+    pub movement_flags: MovementFlag,
 }
 
 impl Default for CreatureRuntimeState {
@@ -600,6 +601,7 @@ impl Default for CreatureRuntimeState {
             loot_removed_count: 0,
             pickpocket_reset_count: 0,
             has_loot_recipient: false,
+            movement_flags: MovementFlag::NONE,
         }
     }
 }
@@ -989,10 +991,24 @@ impl Creature {
 
     /// C++ `Creature::CanFly()` returns true when the movement template allows
     /// flight (`Flight != None`) or runtime movement flags say the unit is
-    /// flying. Rust does not yet model the dynamic movement flag half for
-    /// creatures, so this covers the template/override side of the predicate.
+    /// flying (`MOVEMENTFLAG_FLYING | MOVEMENTFLAG_DISABLE_GRAVITY`).
     pub fn can_fly_like_cpp(&self) -> bool {
         self.lifecycle_metadata.flight_movement_type != CreatureFlightMovementType::None as u8
+            || self.is_flying_like_cpp()
+    }
+
+    pub fn is_flying_like_cpp(&self) -> bool {
+        self.runtime_state
+            .movement_flags
+            .intersects(MovementFlag::FLYING | MovementFlag::DISABLE_GRAVITY)
+    }
+
+    pub const fn movement_flags_like_cpp(&self) -> MovementFlag {
+        self.runtime_state.movement_flags
+    }
+
+    pub fn set_movement_flags_runtime_like_cpp(&mut self, movement_flags: MovementFlag) {
+        self.runtime_state.movement_flags = movement_flags;
     }
 
     pub fn add_to_world_vehicle_reset_context_like_cpp(
@@ -2773,6 +2789,59 @@ mod tests {
             "C++ Creature::CanFly bypasses the z-distance gate for Flight != None"
         );
         assert_eq!(flying.ai_state(), CreatureAiState::InCombat);
+
+        let mut dynamic_disable_gravity = Creature::new(false);
+        dynamic_disable_gravity.unit_mut().set_max_health(80);
+        dynamic_disable_gravity.unit_mut().set_health(80);
+        dynamic_disable_gravity.unit_mut().set_combat_reach(1.0);
+        dynamic_disable_gravity.set_ai_position(creature_pos);
+        dynamic_disable_gravity.ai_ownership_mut().aggro_radius = 100.0;
+        dynamic_disable_gravity.set_movement_flags_runtime_like_cpp(MovementFlag::DISABLE_GRAVITY);
+        assert!(dynamic_disable_gravity.is_flying_like_cpp());
+        assert!(
+            dynamic_disable_gravity.try_ai_aggro_with_target_combat_reach_like_cpp(
+                player,
+                &Position::new(12.0, 20.0, 60.0, 0.0),
+                0.5,
+            ),
+            "C++ Unit::IsFlying makes Creature::CanFly true for DISABLE_GRAVITY"
+        );
+
+        let mut dynamic_flying = Creature::new(false);
+        dynamic_flying.unit_mut().set_max_health(80);
+        dynamic_flying.unit_mut().set_health(80);
+        dynamic_flying.unit_mut().set_combat_reach(1.0);
+        dynamic_flying.set_ai_position(creature_pos);
+        dynamic_flying.ai_ownership_mut().aggro_radius = 100.0;
+        dynamic_flying.set_movement_flags_runtime_like_cpp(MovementFlag::FLYING);
+        assert!(dynamic_flying.is_flying_like_cpp());
+        assert!(
+            dynamic_flying.try_ai_aggro_with_target_combat_reach_like_cpp(
+                player,
+                &Position::new(12.0, 20.0, 60.0, 0.0),
+                0.5,
+            ),
+            "C++ Unit::IsFlying makes Creature::CanFly true for FLYING"
+        );
+
+        let mut dynamic_can_fly_only = Creature::new(false);
+        dynamic_can_fly_only.unit_mut().set_max_health(80);
+        dynamic_can_fly_only.unit_mut().set_health(80);
+        dynamic_can_fly_only.unit_mut().set_combat_reach(1.0);
+        dynamic_can_fly_only.set_ai_position(creature_pos);
+        dynamic_can_fly_only.ai_ownership_mut().aggro_radius = 100.0;
+        dynamic_can_fly_only.set_movement_flags_runtime_like_cpp(MovementFlag::CAN_FLY);
+        assert!(
+            !dynamic_can_fly_only.is_flying_like_cpp(),
+            "C++ Unit::IsFlying ignores MOVEMENTFLAG_CAN_FLY by itself"
+        );
+        assert!(
+            !dynamic_can_fly_only.try_ai_aggro_with_target_combat_reach_like_cpp(
+                player,
+                &Position::new(12.0, 20.0, 60.0, 0.0),
+                0.5,
+            )
+        );
 
         let mut invalid_flight = Creature::new(false);
         invalid_flight.unit_mut().set_max_health(80);

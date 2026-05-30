@@ -420,6 +420,14 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `ObjectMgr::LoadCreatureTemplates`, `ObjectMgr::LoadCreatureMovementOverrides`, and
   `Creature::CanStartAttack`. Remaining `CanStartAttack` fidelity gaps: dynamic `IsFlying()`
   movement flags for creature runtime state, accessibility/visibility/detection, and LOS.
+- 2026-05-30 — Runtime creature-aggro dynamic flying half `#NEXT.RUNTIME.L3.031e`: represented the
+  second half of C++ `Creature::CanFly()` by adding creature runtime movement flags and making
+  `Unit::IsFlying()` true only for `MOVEMENTFLAG_FLYING | MOVEMENTFLAG_DISABLE_GRAVITY`, not bare
+  `MOVEMENTFLAG_CAN_FLY`. The z-distance reject now matches the C++ predicate
+  `GetMovementTemplate().IsFlightAllowed() || IsFlying()` for represented data. Covered C++ anchors:
+  `Creature.h::CanFly`, `Unit.h::IsFlying`, `Unit::SetDisableGravity`, and `Unit::SetCanFly`.
+  Remaining `CanStartAttack` fidelity gaps: producers for all dynamic creature movement flag
+  transitions, accessibility/visibility/detection, and LOS.
 
 ## References
 
