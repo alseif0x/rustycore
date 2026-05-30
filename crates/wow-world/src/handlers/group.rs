@@ -695,6 +695,7 @@ mod tests {
             instance_id: 0,
             position: Position::ZERO,
             combat_reach: 0.0,
+            liquid_status: 0,
             is_in_world: true,
             send_tx,
             command_tx,

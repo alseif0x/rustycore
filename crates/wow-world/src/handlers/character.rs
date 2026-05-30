@@ -3218,11 +3218,24 @@ impl WorldSession {
                 .or_else(|| result.try_read::<i32>(30).map(|value| value.max(0) as u32))
                 .unwrap_or(0);
             let terrain_swap_map: i32 = result.try_read(31).unwrap_or(-1);
-            let flight_movement_type: u8 = result
+            let ground_movement_type: u8 = result
                 .try_read::<Option<u8>>(32)
                 .flatten()
                 .or_else(|| result.try_read::<u8>(32))
                 .or_else(|| result.try_read::<i16>(32).map(|value| value.max(0) as u8))
+                .unwrap_or(wow_constants::CreatureGroundMovementType::Run as u8);
+            let swim_allowed: bool = result
+                .try_read::<Option<u8>>(33)
+                .flatten()
+                .or_else(|| result.try_read::<u8>(33))
+                .or_else(|| result.try_read::<i16>(33).map(|value| value.max(0) as u8))
+                .unwrap_or(1)
+                != 0;
+            let flight_movement_type: u8 = result
+                .try_read::<Option<u8>>(34)
+                .flatten()
+                .or_else(|| result.try_read::<u8>(34))
+                .or_else(|| result.try_read::<i16>(34).map(|value| value.max(0) as u8))
                 .unwrap_or(0);
 
             let display_id = if model_id > 0 {
@@ -3313,6 +3326,8 @@ impl WorldSession {
                 phase_group_id,
                 terrain_swap_map,
                 flags_extra,
+                ground_movement_type,
+                swim_allowed,
                 flight_movement_type,
             );
 
@@ -3637,11 +3652,24 @@ impl WorldSession {
                     .or_else(|| cr.try_read::<i32>(30).map(|value| value.max(0) as u32))
                     .unwrap_or(0);
                 let terrain_swap_map: i32 = cr.try_read(31).unwrap_or(-1);
-                let flight_movement_type: u8 = cr
+                let ground_movement_type: u8 = cr
                     .try_read::<Option<u8>>(32)
                     .flatten()
                     .or_else(|| cr.try_read::<u8>(32))
                     .or_else(|| cr.try_read::<i16>(32).map(|value| value.max(0) as u8))
+                    .unwrap_or(wow_constants::CreatureGroundMovementType::Run as u8);
+                let swim_allowed: bool = cr
+                    .try_read::<Option<u8>>(33)
+                    .flatten()
+                    .or_else(|| cr.try_read::<u8>(33))
+                    .or_else(|| cr.try_read::<i16>(33).map(|value| value.max(0) as u8))
+                    .unwrap_or(1)
+                    != 0;
+                let flight_movement_type: u8 = cr
+                    .try_read::<Option<u8>>(34)
+                    .flatten()
+                    .or_else(|| cr.try_read::<u8>(34))
+                    .or_else(|| cr.try_read::<i16>(34).map(|value| value.max(0) as u8))
                     .unwrap_or(0);
 
                 let display_id = if model_id > 0 {
@@ -3736,6 +3764,8 @@ impl WorldSession {
                         phase_group_id,
                         terrain_swap_map,
                         flags_extra,
+                        ground_movement_type,
+                        swim_allowed,
                         flight_movement_type,
                     );
 

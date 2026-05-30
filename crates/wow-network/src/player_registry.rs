@@ -212,6 +212,8 @@ pub struct PlayerBroadcastInfo {
     pub position: Position,
     /// Current combat reach used by C++ distance gates such as `GetDistanceZ`.
     pub combat_reach: f32,
+    /// Represented C++ `Unit::GetLiquidStatus()` snapshot for remote accessibility gates.
+    pub liquid_status: u32,
     /// Represented C++ `Player::IsInWorld()` receiver gate for global-message fanout.
     pub is_in_world: bool,
     /// Channel used to push serialised packets to this player's socket.
@@ -315,6 +317,7 @@ mod tests {
             instance_id: 42,
             position: Position::ZERO,
             combat_reach: 0.0,
+            liquid_status: 0,
             is_in_world: true,
             send_tx,
             command_tx,

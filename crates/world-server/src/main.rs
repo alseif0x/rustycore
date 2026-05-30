@@ -7572,6 +7572,7 @@ fn collect_legacy_creature_aggro_candidates_like_cpp(
                     instance_id: info.instance_id,
                     position: info.position,
                     player_combat_reach: info.combat_reach,
+                    player_liquid_status_like_cpp: info.liquid_status,
                     player_level: info.level,
                     player_gray_level: info.gray_level,
                     player_unit_flags: info.unit_flags,
@@ -8086,6 +8087,7 @@ mod tests {
             instance_id: 0,
             position: wow_core::Position::ZERO,
             combat_reach: 0.0,
+            liquid_status: 0,
             is_in_world: true,
             send_tx,
             command_tx,
@@ -9156,6 +9158,8 @@ mod tests {
                         curhealth: 0,
                         curmana: 0,
                         movement_type: 1,
+                        ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
+                        swim_allowed: true,
                         flight_movement_type: 0,
                         string_id: "game-event-spawn-creature".to_string(),
                         spawn_time_secs: 120,
@@ -9343,6 +9347,8 @@ mod tests {
                         curhealth: 0,
                         curmana: 0,
                         movement_type: 1,
+                        ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
+                        swim_allowed: true,
                         flight_movement_type: 0,
                         string_id: "game-event-spawn-creature-before-missing-go".to_string(),
                         spawn_time_secs: 120,
@@ -9427,6 +9433,8 @@ mod tests {
                         curhealth: 0,
                         curmana: 0,
                         movement_type: 1,
+                        ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
+                        swim_allowed: true,
                         flight_movement_type: 0,
                         string_id: "game-event-unloaded-creature".to_string(),
                         spawn_time_secs: 120,
@@ -12874,6 +12882,7 @@ mmap.enablePathFinding = 0
                 instance_id: 0,
                 position: wow_core::Position::ZERO,
                 combat_reach: 0.0,
+                liquid_status: 0,
                 is_in_world: true,
                 send_tx,
                 command_tx,
@@ -13851,6 +13860,8 @@ mmap.enablePathFinding = 0
                 curhealth: 0,
                 curmana: 0,
                 movement_type: 1,
+                ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
+                swim_allowed: true,
                 flight_movement_type: 0,
                 string_id: "variable-level-live".to_string(),
                 spawn_time_secs: 120,
@@ -13912,6 +13923,8 @@ mmap.enablePathFinding = 0
                 curhealth: 0,
                 curmana: 0,
                 movement_type: 1,
+                ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
+                swim_allowed: true,
                 flight_movement_type: 0,
                 string_id: "condition-spawn-no-timer".to_string(),
                 spawn_time_secs: 120,
@@ -13961,6 +13974,8 @@ mmap.enablePathFinding = 0
                 curhealth: 0,
                 curmana: 0,
                 movement_type: 1,
+                ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
+                swim_allowed: true,
                 flight_movement_type: 0,
                 string_id: "condition-spawn-caller-no-timer".to_string(),
                 spawn_time_secs: 120,
@@ -14029,6 +14044,8 @@ mmap.enablePathFinding = 0
                 curhealth: 0,
                 curmana: 0,
                 movement_type: 1,
+                ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
+                swim_allowed: true,
                 flight_movement_type: 0,
                 string_id: "vehicle-template-live".to_string(),
                 spawn_time_secs: 120,
@@ -14133,6 +14150,8 @@ mmap.enablePathFinding = 0
                 curhealth: 0,
                 curmana: 0,
                 movement_type: 1,
+                ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
+                swim_allowed: true,
                 flight_movement_type: 0,
                 string_id: "vehicle-template-missing-row".to_string(),
                 spawn_time_secs: 120,
@@ -14216,6 +14235,8 @@ mmap.enablePathFinding = 0
                         unit_class: 1,
                         vehicle_id,
                         movement_type: 1,
+                        ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
+                        swim_allowed: true,
                         flight_movement_type: 0,
                         flags_extra: 0,
                         string_id: String::new(),
@@ -14834,6 +14855,7 @@ mmap.enablePathFinding = 0
         let (mut in_world_info, _) =
             make_registry_player_like_cpp(571, 2, Position::new(1.0, 2.0, 3.0, 0.0), true);
         in_world_info.combat_reach = 1.5;
+        in_world_info.liquid_status = wow_world::session::LIQUID_MAP_IN_WATER_LIKE_CPP;
         in_world_info.unit_flags2 = wow_constants::unit::UnitFlags2::IGNORE_REPUTATION.bits();
         in_world_info.faction_template_id = 1;
         in_world_info.reputation_standings = vec![(72, -6_000)];
@@ -14860,6 +14882,10 @@ mmap.enablePathFinding = 0
         assert_eq!(candidates[0].instance_id, 2);
         assert_eq!(candidates[0].position, Position::new(1.0, 2.0, 3.0, 0.0));
         assert_eq!(candidates[0].player_combat_reach, 1.5);
+        assert_eq!(
+            candidates[0].player_liquid_status_like_cpp,
+            wow_world::session::LIQUID_MAP_IN_WATER_LIKE_CPP
+        );
         assert_eq!(candidates[0].player_level, 1);
         assert_eq!(candidates[0].player_gray_level, 0);
         assert_eq!(

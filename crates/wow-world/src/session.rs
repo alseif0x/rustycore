@@ -1377,8 +1377,8 @@ pub(crate) enum RepresentedGameObjectCriteriaEvent {
 pub type SharedObjectAccessor = Arc<RwLock<ObjectAccessor>>;
 pub(crate) const SKILL_FISHING_LIKE_CPP: u16 = 356;
 pub(crate) const SKILL_RIDING_LIKE_CPP: u16 = 762;
-pub(crate) const LIQUID_MAP_IN_WATER_LIKE_CPP: u32 = 0x0000_0004;
-pub(crate) const LIQUID_MAP_UNDER_WATER_LIKE_CPP: u32 = 0x0000_0008;
+pub const LIQUID_MAP_IN_WATER_LIKE_CPP: u32 = 0x0000_0004;
+pub const LIQUID_MAP_UNDER_WATER_LIKE_CPP: u32 = 0x0000_0008;
 pub type SharedCanonicalMapManager = Arc<Mutex<wow_map::MapManager>>;
 
 pub(crate) fn relocate_canonical_creature_map_object_on_map_like_cpp(
@@ -1493,6 +1493,7 @@ pub struct LegacyCreatureAggroCandidateLikeCpp {
     pub instance_id: u32,
     pub position: Position,
     pub player_combat_reach: f32,
+    pub player_liquid_status_like_cpp: u32,
     pub player_level: u8,
     pub player_gray_level: u8,
     pub player_unit_flags: u32,
@@ -1590,6 +1591,7 @@ pub struct LegacyCreatureAggroTickOutcomeLikeCpp {
     pub targetability_rejections: usize,
     pub hostility_rejections: usize,
     pub hostility_unrepresented: usize,
+    pub accessibility_rejections: usize,
     pub owner_position_unrepresented: usize,
     pub attacker_evade_rejections: usize,
     pub home_range_rejections: usize,
@@ -4792,6 +4794,8 @@ impl WorldSession {
             phase_group_id,
             terrain_swap_map,
             flags_extra,
+            wow_constants::CreatureGroundMovementType::Run as u8,
+            true,
             0,
         );
     }
@@ -4815,6 +4819,8 @@ impl WorldSession {
         phase_group_id: u32,
         terrain_swap_map: i32,
         flags_extra: u32,
+        ground_movement_type: u8,
+        swim_allowed: bool,
         flight_movement_type: u8,
     ) {
         let guid = create_data.guid;
@@ -4853,6 +4859,8 @@ impl WorldSession {
             creature.set_ai_identity_runtime(display_id, faction, npc_flags, unit_flags);
             creature.set_npc_flags2_runtime_like_cpp(npc_flags2);
             creature.set_flags_extra_runtime_like_cpp(flags_extra);
+            creature.set_ground_movement_type_runtime_like_cpp(ground_movement_type);
+            creature.set_swim_allowed_runtime_like_cpp(swim_allowed);
             creature.set_flight_movement_type_runtime_like_cpp(flight_movement_type);
             creature.configure_ai_runtime(position, aggro_radius, 5.0, 30);
             creature.ai_ownership_mut().min_damage = min_dmg;
@@ -11144,6 +11152,7 @@ impl WorldSession {
                 instance_id,
                 position: pos,
                 combat_reach: self.canonical_player_combat_reach_snapshot_like_cpp(),
+                liquid_status: self.player_liquid_status_like_cpp(),
                 is_in_world: self.player_is_in_world_for_registry_like_cpp(),
                 send_tx: self.send_tx.clone(),
                 command_tx: self.session_command_tx.clone(),
@@ -11213,6 +11222,7 @@ impl WorldSession {
         if let Some(mut info) = registry.get_mut(&guid) {
             info.is_in_world = self.player_is_in_world_for_registry_like_cpp();
             info.combat_reach = self.canonical_player_combat_reach_snapshot_like_cpp();
+            info.liquid_status = self.player_liquid_status_like_cpp();
             info.active_loot_rolls = self
                 .represented_loot_rolls
                 .keys()
@@ -11389,6 +11399,7 @@ impl WorldSession {
             entry.position = pos;
             entry.map_id = map_id;
             entry.instance_id = instance_id;
+            entry.liquid_status = self.player_liquid_status_like_cpp();
         }
         if let Some(accessor) = &self.object_accessor {
             if let Some(object) = accessor.write().player_object_mut(guid) {
@@ -21074,6 +21085,24 @@ fn legacy_creature_aggro_candidate_is_hostile_to_creature_like_cpp(
     Some(false)
 }
 
+fn legacy_creature_aggro_candidate_is_accessible_for_creature_like_cpp(
+    creature: &crate::map_manager::WorldCreature,
+    candidate: &LegacyCreatureAggroCandidateLikeCpp,
+) -> bool {
+    let victim_is_in_water = candidate.player_liquid_status_like_cpp
+        & (LIQUID_MAP_IN_WATER_LIKE_CPP | LIQUID_MAP_UNDER_WATER_LIKE_CPP)
+        != 0;
+
+    // C++ `Unit::isInAccessiblePlaceFor(Creature const*)`:
+    // water victims require `Creature::CanEnterWater`; non-water victims
+    // require `Creature::CanWalk() || Creature::CanFly()`.
+    if victim_is_in_water {
+        creature.creature.can_enter_water_like_cpp()
+    } else {
+        creature.creature.can_walk_like_cpp() || creature.creature.can_fly_like_cpp()
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum LegacyCreatureCanAttackLeashDecisionLikeCpp {
     Allowed,
@@ -21192,8 +21221,8 @@ fn legacy_creature_can_attack_leash_decision_like_cpp(
 /// through `Creature::CanStartAttack` and then engages a target. This
 /// transitional Rust slice uses the existing represented `WorldCreature`
 /// `try_aggro` radius model plus the represented C++ targetability,
-/// faction/reputation, vertical distance, template `CanFly` exemption and
-/// home leash/NoGrayAggro gates; accessibility, detection and LOS remain later
+/// faction/reputation, accessibility, vertical distance, template `CanFly`
+/// exemption and home leash/NoGrayAggro gates; detection and LOS remain later
 /// AI fidelity tasks.
 /// The map owner computes aggro once and returns victim-session `AttackStart`
 /// commands for delivery outside map locks.
@@ -21273,6 +21302,12 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
                         outcome.hostility_unrepresented += 1;
                         continue;
                     }
+                }
+                if !legacy_creature_aggro_candidate_is_accessible_for_creature_like_cpp(
+                    creature, candidate,
+                ) {
+                    outcome.accessibility_rejections += 1;
+                    continue;
                 }
                 if creature.creature.is_in_evade_mode_like_cpp() {
                     outcome.attacker_evade_rejections += 1;
@@ -21575,6 +21610,8 @@ impl WorldSession {
                 r.phase_group_id,
                 r.terrain_swap_map,
                 r.flags_extra,
+                r.ground_movement_type,
+                r.swim_allowed,
                 r.flight_movement_type,
             );
 
@@ -33378,6 +33415,8 @@ mod tests {
                 unit_class: 1,
                 vehicle_id: 0,
                 movement_type: 0,
+                ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
+                swim_allowed: true,
                 flight_movement_type: 0,
                 flags_extra: 0,
                 string_id: String::new(),
@@ -34713,6 +34752,7 @@ mod tests {
             instance_id: 0,
             position: Position::new(0.0, 0.0, 0.0, 0.0),
             combat_reach: 0.0,
+            liquid_status: 0,
             is_in_world: true,
             send_tx,
             command_tx,
@@ -50663,6 +50703,7 @@ mod tests {
             instance_id: 0,
             position,
             player_combat_reach: 0.0,
+            player_liquid_status_like_cpp: 0,
             player_level: 80,
             player_gray_level: 70,
             player_unit_flags: UnitFlags::PLAYER_CONTROLLED.bits(),
@@ -51042,6 +51083,86 @@ mod tests {
         );
 
         assert_eq!(outcome.attacker_evade_rejections, 1);
+        assert_eq!(outcome.aggro_starts, 0);
+        assert!(outcome.commands.is_empty());
+    }
+
+    #[test]
+    fn legacy_creature_aggro_rejects_water_target_when_creature_cannot_enter_water_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_064);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 50.0;
+                creature.creature.unit_mut().set_level(25);
+                creature.creature.set_swim_allowed_runtime_like_cpp(false);
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let water_player = ObjectGuid::create_player(1, 91_065);
+        let dry_player = ObjectGuid::create_player(1, 91_066);
+        let mut water_candidate =
+            legacy_aggro_candidate_like_cpp(water_player, Position::new(10.5, 10.5, 0.0, 0.0));
+        water_candidate.player_liquid_status_like_cpp = LIQUID_MAP_IN_WATER_LIKE_CPP;
+        let candidates = vec![
+            water_candidate,
+            legacy_aggro_candidate_like_cpp(dry_player, Position::new(10.5, 10.5, 0.0, 0.0)),
+        ];
+
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &candidates,
+            legacy_aggro_hostile_config_like_cpp(),
+        );
+
+        assert_eq!(outcome.accessibility_rejections, 1);
+        assert_eq!(outcome.aggro_starts, 1);
+        assert_eq!(outcome.commands.len(), 1);
+        assert_eq!(outcome.commands[0].victim_guid, dry_player);
+    }
+
+    #[test]
+    fn legacy_creature_aggro_rejects_land_target_when_creature_cannot_walk_or_fly_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_067);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 50.0;
+                creature.creature.unit_mut().set_level(25);
+                creature.creature.set_ground_movement_type_runtime_like_cpp(
+                    wow_constants::CreatureGroundMovementType::None as u8,
+                );
+                creature.creature.set_swim_allowed_runtime_like_cpp(true);
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let player = ObjectGuid::create_player(1, 91_068);
+        let candidates = vec![legacy_aggro_candidate_like_cpp(
+            player,
+            Position::new(10.5, 10.5, 0.0, 0.0),
+        )];
+
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &candidates,
+            legacy_aggro_hostile_config_like_cpp(),
+        );
+
+        assert_eq!(outcome.accessibility_rejections, 1);
         assert_eq!(outcome.aggro_starts, 0);
         assert!(outcome.commands.is_empty());
     }
@@ -52719,6 +52840,8 @@ mod tests {
             max_dmg: 2,
             aggro_radius: 5.0,
             flags_extra: 0,
+            ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
+            swim_allowed: true,
             flight_movement_type: 0,
             npc_flags: 0,
             unit_flags: 0,

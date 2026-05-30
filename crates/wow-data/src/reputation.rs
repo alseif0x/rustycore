@@ -663,6 +663,8 @@ mod tests {
                 unit_class: 1,
                 vehicle_id: 0,
                 movement_type: 0,
+                ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
+                swim_allowed: true,
                 flight_movement_type: 0,
                 flags_extra: 0,
                 string_id: String::new(),

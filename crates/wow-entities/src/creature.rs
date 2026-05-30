@@ -1,8 +1,9 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use wow_constants::{
-    CreatureFlagsExtra, CreatureFlightMovementType, CreatureTypeFlags, DeathState, PowerType,
-    TypeId, TypeMask, UnitDynFlags, UnitFlags, UnitState, WeaponAttackType, movement::MovementFlag,
+    CreatureFlagsExtra, CreatureFlightMovementType, CreatureGroundMovementType, CreatureTypeFlags,
+    DeathState, PowerType, TypeId, TypeMask, UnitDynFlags, UnitFlags, UnitFlags2, UnitState,
+    WeaponAttackType, movement::MovementFlag,
 };
 use wow_core::{ObjectGuid, Position};
 
@@ -21,6 +22,7 @@ pub const CREATURE_TAPPERS_SOFT_CAP: usize = 5;
 pub const CREATURE_NOPATH_EVADE_TIME_MS: u32 = 10_000;
 pub const CREATURE_Z_ATTACK_RANGE_LIKE_CPP: f32 = 3.0;
 pub const MAX_AGGRO_RESET_TIME_SECS_LIKE_CPP: i64 = 10;
+const CREATURE_GROUND_MOVEMENT_TYPE_MAX_LIKE_CPP: u8 = 3;
 const CREATURE_FLIGHT_MOVEMENT_TYPE_MAX_LIKE_CPP: u8 = 3;
 
 pub fn game_time_secs_like_cpp() -> i64 {
@@ -35,6 +37,14 @@ pub const fn normalize_creature_flight_movement_type_like_cpp(flight_movement_ty
         flight_movement_type
     } else {
         CreatureFlightMovementType::None as u8
+    }
+}
+
+pub const fn normalize_creature_ground_movement_type_like_cpp(ground_movement_type: u8) -> u8 {
+    if ground_movement_type < CREATURE_GROUND_MOVEMENT_TYPE_MAX_LIKE_CPP {
+        ground_movement_type
+    } else {
+        CreatureGroundMovementType::Run as u8
     }
 }
 
@@ -209,6 +219,8 @@ pub struct CreatureTemplateLifecycleRecord {
     pub creature_type: u32,
     pub type_flags: u32,
     pub movement_type: MovementGeneratorType,
+    pub ground_movement_type: u8,
+    pub swim_allowed: bool,
     pub flight_movement_type: u8,
     pub min_level: u8,
     pub max_level: u8,
@@ -332,6 +344,8 @@ pub struct CreatureLifecycleMetadata {
     pub unit_class: u8,
     pub classification: u32,
     pub flags_extra: u32,
+    pub ground_movement_type: u8,
+    pub swim_allowed: bool,
     pub flight_movement_type: u8,
     pub creature_type: u32,
     pub type_flags: u32,
@@ -376,6 +390,8 @@ impl Default for CreatureLifecycleMetadata {
             unit_class: 0,
             classification: 0,
             flags_extra: 0,
+            ground_movement_type: CreatureGroundMovementType::Run as u8,
+            swim_allowed: true,
             flight_movement_type: CreatureFlightMovementType::None as u8,
             creature_type: 0,
             type_flags: 0,
@@ -888,6 +904,10 @@ impl Creature {
             unit_class: template.unit_class,
             classification: template.classification,
             flags_extra: template.flags_extra,
+            ground_movement_type: normalize_creature_ground_movement_type_like_cpp(
+                template.ground_movement_type,
+            ),
+            swim_allowed: template.swim_allowed,
             flight_movement_type: normalize_creature_flight_movement_type_like_cpp(
                 template.flight_movement_type,
             ),
@@ -1010,6 +1030,46 @@ impl Creature {
 
     pub fn flight_movement_type_like_cpp(&self) -> u8 {
         self.lifecycle_metadata.flight_movement_type
+    }
+
+    /// C++ `Creature::CanWalk()` is true when the movement template allows
+    /// ground movement (`Ground != None`).
+    pub fn can_walk_like_cpp(&self) -> bool {
+        self.lifecycle_metadata.ground_movement_type != CreatureGroundMovementType::None as u8
+    }
+
+    /// C++ `Creature::CanEnterWater()` returns true when `Unit::CanSwim()`,
+    /// `IsPet()`, or the creature movement template allows swimming.
+    pub fn can_enter_water_like_cpp(&self) -> bool {
+        if self.can_swim_like_cpp() {
+            return true;
+        }
+        if self.unit.world().object().guid().is_pet() {
+            return true;
+        }
+        self.lifecycle_metadata.swim_allowed
+    }
+
+    /// Represented C++ `Unit::CanSwim()` for creature-backed units.
+    pub fn can_swim_like_cpp(&self) -> bool {
+        let unit_flags = self.unit.unit_flags_like_cpp();
+        if unit_flags.contains(UnitFlags::CANT_SWIM) {
+            return false;
+        }
+        if unit_flags.contains(UnitFlags::PLAYER_CONTROLLED) {
+            return true;
+        }
+        if self
+            .unit
+            .unit_flags2_like_cpp()
+            .contains(UnitFlags2::AI_WILL_ONLY_SWIM_IF_TARGET_SWIMS)
+        {
+            return false;
+        }
+        if unit_flags.contains(UnitFlags::PET_IN_COMBAT) {
+            return true;
+        }
+        unit_flags.intersects(UnitFlags::RENAME | UnitFlags::CAN_SWIM)
     }
 
     /// C++ `Creature::CanFly()` returns true when the movement template allows
@@ -1479,6 +1539,23 @@ impl Creature {
 
     pub fn set_flags_extra_runtime_like_cpp(&mut self, flags_extra: u32) {
         self.lifecycle_metadata.flags_extra = flags_extra;
+    }
+
+    pub fn ground_movement_type_like_cpp(&self) -> u8 {
+        self.lifecycle_metadata.ground_movement_type
+    }
+
+    pub fn set_ground_movement_type_runtime_like_cpp(&mut self, ground_movement_type: u8) {
+        self.lifecycle_metadata.ground_movement_type =
+            normalize_creature_ground_movement_type_like_cpp(ground_movement_type);
+    }
+
+    pub fn swim_allowed_like_cpp(&self) -> bool {
+        self.lifecycle_metadata.swim_allowed
+    }
+
+    pub fn set_swim_allowed_runtime_like_cpp(&mut self, swim_allowed: bool) {
+        self.lifecycle_metadata.swim_allowed = swim_allowed;
     }
 
     pub fn set_flight_movement_type_runtime_like_cpp(&mut self, flight_movement_type: u8) {
@@ -2976,6 +3053,45 @@ mod tests {
     }
 
     #[test]
+    fn creature_accessibility_capabilities_follow_movement_template_like_cpp() {
+        let mut creature = Creature::new(false);
+
+        assert!(creature.can_walk_like_cpp());
+        assert!(creature.can_enter_water_like_cpp());
+        assert!(!creature.can_fly_like_cpp());
+
+        creature.set_ground_movement_type_runtime_like_cpp(CreatureGroundMovementType::None as u8);
+        creature.set_swim_allowed_runtime_like_cpp(true);
+        assert!(!creature.can_walk_like_cpp());
+        assert!(creature.can_enter_water_like_cpp());
+
+        creature.set_swim_allowed_runtime_like_cpp(false);
+        assert!(!creature.can_enter_water_like_cpp());
+
+        creature.set_flight_movement_type_runtime_like_cpp(
+            CreatureFlightMovementType::DisableGravity as u8,
+        );
+        assert!(creature.can_fly_like_cpp());
+    }
+
+    #[test]
+    fn creature_can_enter_water_honors_unit_can_swim_like_cpp() {
+        let mut creature = Creature::new(false);
+        creature.set_swim_allowed_runtime_like_cpp(false);
+        assert!(!creature.can_enter_water_like_cpp());
+
+        creature
+            .unit_mut()
+            .set_unit_flags_like_cpp(UnitFlags::CAN_SWIM);
+        assert!(creature.can_enter_water_like_cpp());
+
+        creature
+            .unit_mut()
+            .set_unit_flags_like_cpp(UnitFlags::CAN_SWIM | UnitFlags::CANT_SWIM);
+        assert!(!creature.can_enter_water_like_cpp());
+    }
+
+    #[test]
     fn creature_try_ai_aggro_rejects_civilian_like_cpp() {
         let mut creature = Creature::new(false);
         let player = ObjectGuid::create_player(1, 7);
@@ -3169,6 +3285,8 @@ mod tests {
             creature_type: 9,
             type_flags: 0x20,
             movement_type: MovementGeneratorType::Idle,
+            ground_movement_type: CreatureGroundMovementType::Run as u8,
+            swim_allowed: true,
             flight_movement_type: CreatureFlightMovementType::DisableGravity as u8,
             min_level: 70,
             max_level: 72,

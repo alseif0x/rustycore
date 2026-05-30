@@ -2,11 +2,20 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 use rand::Rng;
-use wow_constants::CreatureFlightMovementType;
+use wow_constants::{CreatureFlightMovementType, CreatureGroundMovementType};
 use wow_database::WorldDatabase;
 
 pub const MAX_CREATURE_SPELLS_LIKE_CPP: usize = 8;
+const CREATURE_GROUND_MOVEMENT_TYPE_MAX_LIKE_CPP: u8 = 3;
 const CREATURE_FLIGHT_MOVEMENT_TYPE_MAX_LIKE_CPP: u8 = 3;
+
+fn normalize_creature_ground_movement_type_like_cpp(ground_movement_type: u8) -> u8 {
+    if ground_movement_type < CREATURE_GROUND_MOVEMENT_TYPE_MAX_LIKE_CPP {
+        ground_movement_type
+    } else {
+        CreatureGroundMovementType::Run as u8
+    }
+}
 
 fn normalize_creature_flight_movement_type_like_cpp(flight_movement_type: u8) -> u8 {
     if flight_movement_type < CREATURE_FLIGHT_MOVEMENT_TYPE_MAX_LIKE_CPP {
@@ -106,6 +115,8 @@ pub struct CreatureTemplateLifecycleRecordLikeCpp {
     pub unit_class: u8,
     pub vehicle_id: u32,
     pub movement_type: u8,
+    pub ground_movement_type: u8,
+    pub swim_allowed: bool,
     pub flight_movement_type: u8,
     pub flags_extra: u32,
     pub string_id: String,
@@ -144,7 +155,7 @@ impl CreatureTemplateLifecycleStoreLikeCpp {
         let mut templates = HashMap::new();
         let mut result = db
             .direct_query(
-                "SELECT ct.entry, ct.name, ct.faction, ct.speed_walk, ct.speed_run, ct.scale, ct.Classification, ct.`type`, ct.unit_class, ct.VehicleId, ct.MovementType, COALESCE(ctm.Flight, 0), ct.flags_extra, ct.StringId, ct.RegenHealth FROM creature_template ct LEFT JOIN creature_template_movement ctm ON ct.entry = ctm.CreatureId",
+                "SELECT ct.entry, ct.name, ct.faction, ct.speed_walk, ct.speed_run, ct.scale, ct.Classification, ct.`type`, ct.unit_class, ct.VehicleId, ct.MovementType, COALESCE(ctm.Ground, 1), COALESCE(ctm.Swim, 1), COALESCE(ctm.Flight, 0), ct.flags_extra, ct.StringId, ct.RegenHealth FROM creature_template ct LEFT JOIN creature_template_movement ctm ON ct.entry = ctm.CreatureId",
             )
             .await?;
         if !result.is_empty() {
@@ -161,10 +172,15 @@ impl CreatureTemplateLifecycleStoreLikeCpp {
                     unit_class: result.try_read::<u8>(8).unwrap_or(0),
                     vehicle_id: result.try_read::<u32>(9).unwrap_or(0),
                     movement_type: result.try_read::<u8>(10).unwrap_or(0),
-                    flight_movement_type: result.try_read::<u8>(11).unwrap_or(0),
-                    flags_extra: result.try_read::<u32>(12).unwrap_or(0),
-                    string_id: result.try_read::<String>(13).unwrap_or_default(),
-                    regen_health: result.try_read::<u8>(14).unwrap_or(0) != 0,
+                    ground_movement_type: result
+                        .try_read::<Option<u8>>(11)
+                        .flatten()
+                        .unwrap_or(CreatureGroundMovementType::Run as u8),
+                    swim_allowed: result.try_read::<Option<u8>>(12).flatten().unwrap_or(1) != 0,
+                    flight_movement_type: result.try_read::<Option<u8>>(13).flatten().unwrap_or(0),
+                    flags_extra: result.try_read::<u32>(14).unwrap_or(0),
+                    string_id: result.try_read::<String>(15).unwrap_or_default(),
+                    regen_health: result.try_read::<u8>(16).unwrap_or(0) != 0,
                     spells: [0; MAX_CREATURE_SPELLS_LIKE_CPP],
                     models: Vec::new(),
                 };
@@ -240,6 +256,8 @@ impl CreatureTemplateLifecycleStoreLikeCpp {
 
 impl CreatureTemplateLifecycleRecordLikeCpp {
     pub fn normalize_like_cpp(mut self) -> Self {
+        self.ground_movement_type =
+            normalize_creature_ground_movement_type_like_cpp(self.ground_movement_type);
         self.flight_movement_type =
             normalize_creature_flight_movement_type_like_cpp(self.flight_movement_type);
         self.models = self
@@ -818,6 +836,8 @@ mod tests {
                 unit_class: 2,
                 vehicle_id: 900,
                 movement_type: 1,
+                ground_movement_type: CreatureGroundMovementType::Hover as u8,
+                swim_allowed: false,
                 flight_movement_type: CreatureFlightMovementType::CanFly as u8,
                 flags_extra: 0x20,
                 string_id: "template_string".to_string(),
@@ -838,6 +858,11 @@ mod tests {
         assert_eq!(template.unit_class, 2);
         assert_eq!(template.vehicle_id, 900);
         assert_eq!(template.movement_type, 1);
+        assert_eq!(
+            template.ground_movement_type,
+            CreatureGroundMovementType::Hover as u8
+        );
+        assert!(!template.swim_allowed);
         assert_eq!(
             template.flight_movement_type,
             CreatureFlightMovementType::CanFly as u8
@@ -861,6 +886,8 @@ mod tests {
             unit_class: 1,
             vehicle_id: 0,
             movement_type: 0,
+            ground_movement_type: 0,
+            swim_allowed: true,
             flight_movement_type: CREATURE_FLIGHT_MOVEMENT_TYPE_MAX_LIKE_CPP,
             flags_extra: 0,
             string_id: String::new(),
@@ -890,6 +917,8 @@ mod tests {
             unit_class: 0,
             vehicle_id: 0,
             movement_type: 0,
+            ground_movement_type: CreatureGroundMovementType::Run as u8,
+            swim_allowed: true,
             flight_movement_type: 0,
             flags_extra: 0,
             string_id: String::new(),
@@ -921,6 +950,8 @@ mod tests {
             unit_class: 0,
             vehicle_id: 0,
             movement_type: 0,
+            ground_movement_type: CreatureGroundMovementType::Run as u8,
+            swim_allowed: true,
             flight_movement_type: 0,
             flags_extra: 0,
             string_id: String::new(),
@@ -971,6 +1002,8 @@ mod tests {
             unit_class: 0,
             vehicle_id: 0,
             movement_type: 0,
+            ground_movement_type: CreatureGroundMovementType::Run as u8,
+            swim_allowed: true,
             flight_movement_type: 0,
             flags_extra: 0,
             string_id: String::new(),
