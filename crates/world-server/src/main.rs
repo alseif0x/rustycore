@@ -218,6 +218,7 @@ async fn main() -> Result<()> {
         "Login",
         DatabaseInfo::new("127.0.0.1", 3306, "trinity", "trinity", "auth"),
     );
+    log_database_target_like_cpp("login", &login_info);
 
     let conn_str = build_connection_string(
         &login_info.host,
@@ -237,6 +238,7 @@ async fn main() -> Result<()> {
         "Character",
         DatabaseInfo::new("127.0.0.1", 3306, "trinity", "trinity", "characters"),
     );
+    log_database_target_like_cpp("character", &char_info);
 
     let char_conn_str = build_connection_string(
         &char_info.host,
@@ -256,6 +258,7 @@ async fn main() -> Result<()> {
         "World",
         DatabaseInfo::new("127.0.0.1", 3306, "trinity", "trinity", "world"),
     );
+    log_database_target_like_cpp("world", &world_info);
 
     let world_conn_str = build_connection_string(
         &world_info.host,
@@ -276,6 +279,7 @@ async fn main() -> Result<()> {
         "Hotfix",
         DatabaseInfo::new("127.0.0.1", 3306, "trinity", "trinity", "hotfixes"),
     );
+    log_database_target_like_cpp("hotfix", &hotfix_info);
 
     let hotfix_conn_str = build_connection_string(
         &hotfix_info.host,
@@ -2237,6 +2241,16 @@ fn load_world_config_from(config_candidates: &[&str], config_dir: &str) -> Resul
     }
 
     Ok(loaded_config)
+}
+
+fn log_database_target_like_cpp(kind: &str, info: &DatabaseInfo) {
+    info!(
+        database_kind = kind,
+        host = %info.host,
+        port_or_socket = %info.port_or_socket,
+        database = %info.database,
+        "Connecting to database"
+    );
 }
 
 fn legacy_creature_global_runtime_enabled_from_config_like_cpp() -> bool {

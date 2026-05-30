@@ -44,6 +44,7 @@ async fn main() -> Result<()> {
         "Login",
         DatabaseInfo::new("127.0.0.1", 3306, "trinity", "trinity", "auth"),
     );
+    log_database_target_like_cpp("login", &login_info);
 
     let conn_str = build_connection_string(
         &login_info.host,
@@ -199,6 +200,16 @@ fn load_bnet_config_from(config_candidates: &[&str], config_dir: &str) -> Result
     }
 
     Ok(loaded_config)
+}
+
+fn log_database_target_like_cpp(kind: &str, info: &DatabaseInfo) {
+    tracing::info!(
+        database_kind = kind,
+        host = %info.host,
+        port_or_socket = %info.port_or_socket,
+        database = %info.database,
+        "Connecting to database"
+    );
 }
 
 /// Load TLS certificates and create two acceptors:
