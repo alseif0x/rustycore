@@ -119,11 +119,17 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
 - **4A.1a — DONE (`#NEXT.RUNTIME.L3.002`, 4ab11af):** addressable types in `map_manager.rs`
   (`RecipientRule`/`RuntimeEvent`/`RuntimePlan`, `RuntimeOutput::into_owning_session_plan`,
   `MapManager::active_map_keys`). Pure types, gated OFF, 1062/0.
-- **4A.1b — NEXT (pending Codex shape confirmation):** `SessionCommand::SendIfVisibleLikeCpp`
-  + per-session visibility gate (mirrors the existing `SendVisibleObjectValuesUpdate` +
-  `client_visible_guids_like_cpp.contains` pattern, e.g. session.rs:12080 and main.rs:4434-4456)
-  + `resolve_runtime_event_candidates`/`deliver_runtime_plan` in world-server (try_send,
-  non-blocking, outside lock). Dormant in production (no caller until 4A.3).
+- **4A.1b — DONE (`#NEXT.RUNTIME.L3.003`):** `SessionCommand::SendIfVisibleLikeCpp { source_guid,
+  map_id, instance_id, packet_bytes }` + per-session visibility gate in `handlers/loot.rs`
+  (gates in order: LoggedIn, map_id, instance_id, `client_visible_guids_like_cpp.contains` =
+  HaveAtClient; mirrors `SendVisibleObjectValuesUpdate`) + `resolve_runtime_event_candidates_like_cpp`
+  / `deliver_runtime_plan_like_cpp` in world-server (try_send, non-blocking, candidates cloned out
+  of the DashMap before sending). Confirmed Codex refinements: (1) `instance_id` added to
+  `PlayerBroadcastInfo` and the command, filled from the canonical map key (fallback 0) and filtered
+  everywhere — avoids cross-instance bleed; (2) `required_3d` honored (2D vs 3D distance) in
+  `NearbyVisible`; (3) `SelfOnly` is NOT broadcast (skipped with `self_only_skipped`, no guessing of
+  owning session); `ExplicitPlayer` reads the target's map_id/instance_id from the registry entry so
+  the session map gate accepts it. Dormant in production (no caller until 4A.3).
 - **4A.2:** move `respawn_queue` from `WorldSession` to the map (world state). `client_visible_guids`
   stays per-session.
 - **4A.3 (higher risk, gated OFF):** separate legacy creature-tick driver (NOT hooked into the
@@ -138,6 +144,9 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
 - 2026-05-29 — Slice 3 `#NEXT.RUNTIME.L3.001` (3308647): `RuntimeTickOwner` infra + extract
   `run_*_tick` + guard. No behavior change.
 - 2026-05-30 — Slice 4A.1a `#NEXT.RUNTIME.L3.002` (4ab11af): addressable types. No behavior change.
+- 2026-05-30 — Slice 4A.1b `#NEXT.RUNTIME.L3.003`: SendIfVisibleLikeCpp command + per-session
+  visibility gate + candidate routing/delivery (try_send). instance_id/required_3d/SelfOnly
+  refinements integrated. Dormant in production. wow-world 1068/0, world-server 266/0, wow-network 14/0.
 
 ## References
 

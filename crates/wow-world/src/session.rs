@@ -10698,10 +10698,17 @@ impl WorldSession {
                 visible_items[*slot as usize] = (item.entry_id as i32, 0u16, 0u16);
             }
         }
+        // Fallback to 0 (world/default instance) when no canonical map key is
+        // available — mirrors C++ world-map phase where instance_id == 0.
+        let instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|k| k.instance_id)
+            .unwrap_or(0);
         reg.insert(
             guid,
             PlayerBroadcastInfo {
                 map_id,
+                instance_id,
                 position: pos,
                 is_in_world: self.player_is_in_world_for_registry_like_cpp(),
                 send_tx: self.send_tx.clone(),
@@ -10916,9 +10923,16 @@ impl WorldSession {
             return;
         };
         let map_id = self.player_map_id_like_cpp();
+        // Fallback to 0 (world/default instance) when no canonical map key is
+        // available — mirrors C++ world-map phase where instance_id == 0.
+        let instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|k| k.instance_id)
+            .unwrap_or(0);
         if let Some(mut entry) = reg.get_mut(&guid) {
             entry.position = pos;
             entry.map_id = map_id;
+            entry.instance_id = instance_id;
         }
         if let Some(accessor) = &self.object_accessor {
             if let Some(object) = accessor.write().player_object_mut(guid) {
@@ -19351,7 +19365,7 @@ impl WorldSession {
         self.represented_seer_guid_like_cpp
     }
 
-    fn current_canonical_player_map_key_like_cpp(&self) -> Option<wow_map::MapKey> {
+    pub(crate) fn current_canonical_player_map_key_like_cpp(&self) -> Option<wow_map::MapKey> {
         let guid = self.player_guid()?;
         let manager = self.canonical_map_manager.as_ref()?;
         let manager = manager.lock().ok()?;
@@ -21729,7 +21743,8 @@ mod tests {
     use wow_network::{
         GameEventQuestCompleteClientOutcomeLikeCpp, GameEventQuestCompleteResponseLikeCpp,
         GroupInfo, GroupRegistry, PendingInvites, PlayerBroadcastInfo,
-        ResetSeasonalQuestStatusCommand, SendVisibleObjectValuesUpdateCommand,
+        ResetSeasonalQuestStatusCommand, SendIfVisibleLikeCppCommand,
+        SendVisibleObjectValuesUpdateCommand, SessionCommand,
     };
     use wow_packet::ServerPacket;
     use wow_packet::packets::loot::{
@@ -22156,6 +22171,211 @@ mod tests {
             packet_bytes
         );
         assert!(send_rx.try_recv().is_err());
+    }
+
+    // ── Slice 4A.1b: SendIfVisibleLikeCpp per-session gate tests ────────────
+    // C++ anchor: GridNotifiers.h : MessageDistDeliverer::SendPacket — HaveAtClient
+    // (client_visible_guids_like_cpp) is the final gate; map/instance filter first.
+
+    /// (1) Packet is NOT sent when source GUID is not in `client_visible_guids_like_cpp`.
+    /// Mirrors C++ `HaveAtClient` gate in `MessageDistDeliverer::SendPacket`.
+    #[tokio::test]
+    async fn send_if_visible_command_not_sent_when_source_not_visible_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let source_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1001);
+        let packet_bytes = vec![0x11, 0x22, 0x33];
+        session.state = SessionState::LoggedIn;
+        session.set_player_map_position_like_cpp(571, Position::ZERO);
+
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::SendIfVisibleLikeCpp(
+                SendIfVisibleLikeCppCommand {
+                    source_guid,
+                    map_id: 571,
+                    instance_id: 0,
+                    packet_bytes: packet_bytes.clone(),
+                },
+            ))
+            .expect("command queued");
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+        assert!(send_rx.try_recv().is_err(), "must not send if not visible");
+    }
+
+    /// (2) Packet IS sent when source GUID IS in `client_visible_guids_like_cpp`.
+    /// Mirrors C++ `HaveAtClient` positive path.
+    #[tokio::test]
+    async fn send_if_visible_command_sent_when_source_visible_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let source_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1002);
+        let packet_bytes = vec![0x44, 0x55, 0x66];
+        session.state = SessionState::LoggedIn;
+        session.set_player_map_position_like_cpp(571, Position::ZERO);
+        session.client_visible_guids_like_cpp.insert(source_guid);
+
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::SendIfVisibleLikeCpp(
+                SendIfVisibleLikeCppCommand {
+                    source_guid,
+                    map_id: 571,
+                    instance_id: 0,
+                    packet_bytes: packet_bytes.clone(),
+                },
+            ))
+            .expect("command queued");
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+        assert_eq!(
+            send_rx.try_recv().expect("must send when visible"),
+            packet_bytes
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    /// (3) Packet is NOT sent when `map_id` in command does not match session map.
+    /// Mirrors C++ map-id check before HaveAtClient.
+    #[tokio::test]
+    async fn send_if_visible_command_rejected_on_wrong_map_id_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let source_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1003);
+        session.state = SessionState::LoggedIn;
+        session.set_player_map_position_like_cpp(571, Position::ZERO);
+        session.client_visible_guids_like_cpp.insert(source_guid);
+
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::SendIfVisibleLikeCpp(
+                SendIfVisibleLikeCppCommand {
+                    source_guid,
+                    map_id: 530, // wrong map
+                    instance_id: 0,
+                    packet_bytes: vec![0x77],
+                },
+            ))
+            .expect("command queued");
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+        assert!(
+            send_rx.try_recv().is_err(),
+            "must not send when map_id does not match"
+        );
+    }
+
+    /// (4) Packet is NOT sent when `instance_id` in command does not match session instance.
+    /// Slice 4A.1b requirement — instance separation, no cross-instance delivery.
+    #[tokio::test]
+    async fn send_if_visible_command_rejected_on_wrong_instance_id_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let source_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1004);
+        session.state = SessionState::LoggedIn;
+        session.set_player_map_position_like_cpp(571, Position::ZERO);
+        // session has no canonical map manager → instance_id fallback is 0
+        session.client_visible_guids_like_cpp.insert(source_guid);
+
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::SendIfVisibleLikeCpp(
+                SendIfVisibleLikeCppCommand {
+                    source_guid,
+                    map_id: 571,
+                    instance_id: 99, // different instance
+                    packet_bytes: vec![0x88],
+                },
+            ))
+            .expect("command queued");
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+        assert!(
+            send_rx.try_recv().is_err(),
+            "must not send when instance_id does not match"
+        );
+    }
+
+    /// (5) Packet is NOT sent when session is not LoggedIn.
+    /// Mirrors C++ player-object-required guard at the top of dispatch.
+    #[tokio::test]
+    async fn send_if_visible_command_rejected_when_not_logged_in_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let source_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1005);
+        // state is NOT LoggedIn (default after make_session is Authed)
+        session.set_player_map_position_like_cpp(571, Position::ZERO);
+        session.client_visible_guids_like_cpp.insert(source_guid);
+
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::SendIfVisibleLikeCpp(
+                SendIfVisibleLikeCppCommand {
+                    source_guid,
+                    map_id: 571,
+                    instance_id: 0,
+                    packet_bytes: vec![0x99],
+                },
+            ))
+            .expect("command queued");
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+        assert!(
+            send_rx.try_recv().is_err(),
+            "must not send when session is not LoggedIn"
+        );
+    }
+
+    /// (6) ExplicitPlayer fix — session with player_map_id == 571 (non-zero) receives
+    /// the packet when map_id in the command matches and source_guid is visible.
+    ///
+    /// Regression guard for the bug where ExplicitPlayer routing set map_id=0 in the
+    /// command, causing gate 2 (`player_map_id_like_cpp() != command.map_id`) to
+    /// discard the packet for any session on a non-zero map.
+    ///
+    /// C++ anchor: WorldObject::SendMessageToSet / SendDirectMessage — the explicit
+    /// receiver path does not apply a sender-side map filter; the receiver's own map
+    /// is the correct reference.
+    #[tokio::test]
+    async fn send_if_visible_explicit_player_delivers_to_session_on_non_zero_map_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let source_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1006);
+        let packet_bytes = vec![0xAA, 0xBB, 0xCC];
+        // Session is on map 571 (non-zero) — the same map ExplicitPlayer routing now
+        // reads from the registry entry and places in the command.
+        session.state = SessionState::LoggedIn;
+        session.set_player_map_position_like_cpp(571, Position::ZERO);
+        session.client_visible_guids_like_cpp.insert(source_guid);
+
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::SendIfVisibleLikeCpp(
+                SendIfVisibleLikeCppCommand {
+                    source_guid,
+                    map_id: 571, // matches session map — as set by the fixed ExplicitPlayer routing
+                    instance_id: 0,
+                    packet_bytes: packet_bytes.clone(),
+                },
+            ))
+            .expect("command queued");
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+        assert_eq!(
+            send_rx
+                .try_recv()
+                .expect("must deliver to session on map 571"),
+            packet_bytes,
+            "ExplicitPlayer with correct map_id must reach the session"
+        );
+        assert!(send_rx.try_recv().is_err(), "no extra packets");
     }
 
     #[tokio::test]
@@ -32911,6 +33131,7 @@ mod tests {
         let (command_tx, _command_rx) = flume::bounded(1);
         PlayerBroadcastInfo {
             map_id: 0,
+            instance_id: 0,
             position: Position::new(0.0, 0.0, 0.0, 0.0),
             is_in_world: true,
             send_tx,

@@ -1185,6 +1185,7 @@ mod tests {
         let (command_tx, _command_rx) = flume::bounded(1);
         wow_network::PlayerBroadcastInfo {
             map_id: 0,
+            instance_id: 0,
             position: wow_core::Position::ZERO,
             is_in_world: true,
             send_tx,

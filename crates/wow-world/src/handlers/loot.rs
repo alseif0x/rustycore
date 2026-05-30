@@ -48,7 +48,8 @@ use wow_loot::{
     loot_item_ui_type_for_player_like_cpp,
 };
 use wow_network::player_registry::{
-    SendRepeatableTurnInRequestItemsLikeCppCommand, SetQuestSharingInfoAndSendDetailsCommand,
+    SendIfVisibleLikeCppCommand, SendRepeatableTurnInRequestItemsLikeCppCommand,
+    SetQuestSharingInfoAndSendDetailsCommand,
 };
 use wow_network::{
     LootRollStoreWinnerCommand, LootRollVoteCommand, MasterLootGiveCommand, MasterLootGiveResult,
@@ -2518,6 +2519,9 @@ impl WorldSession {
                 SessionCommand::SendRepeatableTurnInRequestItemsLikeCpp(command) => {
                     self.handle_send_repeatable_turn_in_request_items_command_like_cpp(command);
                 }
+                SessionCommand::SendIfVisibleLikeCpp(command) => {
+                    self.handle_send_if_visible_like_cpp_command_like_cpp(command);
+                }
             }
         }
     }
@@ -2549,6 +2553,43 @@ impl WorldSession {
         } else {
             self.send_raw_packet(&command.packet_bytes);
         }
+    }
+
+    /// Per-session gate for [`SessionCommand::SendIfVisibleLikeCpp`].
+    ///
+    /// Mirrors C++ `GridNotifiers.h : MessageDistDeliverer::SendPacket` and
+    /// `GridNotifiersImpl.h : MessageDistDeliverer::Visit(PlayerMapType&)`:
+    /// HaveAtClient (`client_visible_guids_like_cpp`) is the final gate after
+    /// map/instance filtering.  No visibility or phase logic is duplicated here.
+    fn handle_send_if_visible_like_cpp_command_like_cpp(
+        &mut self,
+        command: SendIfVisibleLikeCppCommand,
+    ) {
+        // Gate 1: session must be fully logged in (player object loaded).
+        if self.state() != crate::session::SessionState::LoggedIn {
+            return;
+        }
+        // Gate 2: map must match.
+        if self.player_map_id_like_cpp() != command.map_id {
+            return;
+        }
+        // Gate 3: instance must match.
+        let session_instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|k| k.instance_id)
+            .unwrap_or(0);
+        if session_instance_id != command.instance_id {
+            return;
+        }
+        // Gate 4: source GUID must be in client's visible set (HaveAtClient).
+        if !self
+            .client_visible_guids_like_cpp
+            .contains(&command.source_guid)
+        {
+            return;
+        }
+        // All gates passed — deliver the already-serialised packet as-is.
+        self.send_raw_packet(&command.packet_bytes);
     }
 
     fn handle_send_repeatable_turn_in_request_items_command_like_cpp(
@@ -7643,6 +7684,7 @@ mod tests {
         let (command_tx, _command_rx) = flume::bounded(1);
         PlayerBroadcastInfo {
             map_id: 0,
+            instance_id: 0,
             position: Position::ZERO,
             is_in_world: true,
             send_tx,

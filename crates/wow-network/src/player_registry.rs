@@ -25,6 +25,33 @@ pub enum SessionCommand {
     RefreshVisibleGameobjectsOrSpellClicksLikeCpp,
     SetQuestSharingInfoAndSendDetails(SetQuestSharingInfoAndSendDetailsCommand),
     SendRepeatableTurnInRequestItemsLikeCpp(SendRepeatableTurnInRequestItemsLikeCppCommand),
+    /// Deliver `packet_bytes` to this session if the source GUID is currently in
+    /// `client_visible_guids_like_cpp` (HaveAtClient gate).
+    ///
+    /// Mirrors C++ `GridNotifiers.h : MessageDistDeliverer::SendPacket` /
+    /// `GridNotifiersImpl.h : MessageDistDeliverer::Visit(PlayerMapType&)`.
+    /// Routing is performed by `resolve_runtime_event_candidates_like_cpp` in
+    /// world-server; the per-session gate is in
+    /// `handle_send_if_visible_like_cpp_command_like_cpp` (Slice 4A.1b).
+    SendIfVisibleLikeCpp(SendIfVisibleLikeCppCommand),
+}
+
+/// Payload for [`SessionCommand::SendIfVisibleLikeCpp`].
+///
+/// Carries both `map_id` and `instance_id` so the per-session gate can reject
+/// cross-instance delivery without touching the canonical map manager.
+#[derive(Clone, Debug)]
+pub struct SendIfVisibleLikeCppCommand {
+    /// GUID of the entity that emitted the packet — checked against
+    /// `client_visible_guids_like_cpp` (C++ `HaveAtClient`).
+    pub source_guid: ObjectGuid,
+    /// Map the packet was generated on; must match `player_map_id_like_cpp()`.
+    pub map_id: u16,
+    /// Instance within that map; must match the session's canonical instance.
+    /// 0 = world/default instance.
+    pub instance_id: u32,
+    /// Already-serialised wire payload ready to write to the socket.
+    pub packet_bytes: Vec<u8>,
 }
 
 #[derive(Clone, Debug)]
@@ -129,6 +156,11 @@ pub struct LootRollVoteCommand {
 pub struct PlayerBroadcastInfo {
     /// Map ID the player is currently on.
     pub map_id: u16,
+    /// Instance ID within the map — distinguishes multiple concurrent instances
+    /// of the same dungeon/raid.  0 = world/default instance (fallback when no
+    /// canonical map key is available), mirroring C++ Phase/instance filtering
+    /// in `GridNotifiersImpl.h : MessageDistDeliverer::Visit`.
+    pub instance_id: u32,
     /// Server-side world position (updated on every movement packet).
     pub position: Position,
     /// Represented C++ `Player::IsInWorld()` receiver gate for global-message fanout.
@@ -194,3 +226,68 @@ pub struct PlayerBroadcastInfo {
 /// Wrap in `Arc` and share between all `WorldSession` instances and the
 /// `SessionResources` passed to `create_session`.
 pub type PlayerRegistry = DashMap<ObjectGuid, PlayerBroadcastInfo>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Verify that `PlayerBroadcastInfo` carries `instance_id` so that
+    /// cross-instance delivery can be filtered (Slice 4A.1b).
+    /// C++ anchor: `GridNotifiersImpl.h : MessageDistDeliverer::Visit` — instance
+    /// separation via `InSamePhase` + map instance ID check.
+    #[test]
+    fn player_broadcast_info_has_instance_id_field_like_cpp() {
+        let (send_tx, _send_rx) = flume::bounded::<Vec<u8>>(1);
+        let (command_tx, _command_rx) = flume::bounded::<SessionCommand>(1);
+        let info = PlayerBroadcastInfo {
+            map_id: 571,
+            instance_id: 42,
+            position: Position::ZERO,
+            is_in_world: true,
+            send_tx,
+            command_tx,
+            active_loot_rolls: Vec::new(),
+            pass_on_group_loot: false,
+            enchanting_skill: 0,
+            is_alive: true,
+            active_expansion: 2,
+            pending_quest_sharing: None,
+            known_spells: Vec::new(),
+            active_quest_statuses: Default::default(),
+            active_quest_objective_counts: Default::default(),
+            rewarded_quests: Default::default(),
+            daily_quests_completed: Default::default(),
+            df_quests: Default::default(),
+            reputation_standings: Vec::new(),
+            inventory_item_counts: Default::default(),
+            party_member_phase_states: Default::default(),
+            player_name: "TestPlayer".to_string(),
+            account_id: 1,
+            recruiter_id: 0,
+            race: 1,
+            class: 1,
+            sex: 0,
+            level: 1,
+            display_id: 49,
+            visible_items: [(0, 0, 0); 19],
+        };
+        assert_eq!(info.instance_id, 42);
+        assert_eq!(info.map_id, 571);
+    }
+
+    /// Verify that `SendIfVisibleLikeCppCommand` carries both `map_id` and
+    /// `instance_id` — required so per-session gate can reject cross-instance
+    /// delivery (Slice 4A.1b).
+    #[test]
+    fn send_if_visible_like_cpp_command_carries_map_and_instance_id() {
+        let guid = ObjectGuid::create_player(1, 7);
+        let cmd = SendIfVisibleLikeCppCommand {
+            source_guid: guid,
+            map_id: 532,
+            instance_id: 99,
+            packet_bytes: vec![0xDE, 0xAD],
+        };
+        assert_eq!(cmd.map_id, 532);
+        assert_eq!(cmd.instance_id, 99);
+    }
+}

@@ -7064,6 +7064,289 @@ fn locale_id_to_name(raw: &str) -> String {
     }
 }
 
+// ── Slice 4A.1b: candidate routing + delivery (gated OFF in production) ──────
+//
+// These functions are private and ONLY called from tests in this slice.  No
+// production caller exists; the delivery rail is built but dormant.
+// C++ anchors: `Object.cpp : WorldObject::SendMessageToSet` (~1746-1764),
+// `GridNotifiersImpl.h : MessageDistDeliverer::Visit(PlayerMapType&)` (~43-46),
+// `GridNotifiers.h : MessageDistDeliverer::SendPacket`.
+
+/// Summary returned by [`deliver_runtime_plan_like_cpp`], testable without I/O.
+#[derive(Debug, Default, PartialEq, Eq)]
+struct RuntimeDeliverySummaryLikeCpp {
+    /// Total `RuntimeEvent`s processed.
+    pub events_seen: usize,
+    /// Total candidate sessions evaluated across all events.
+    pub candidates_seen: usize,
+    /// Commands successfully enqueued (`try_send` succeeded).
+    pub candidates_queued: usize,
+    /// Candidates rejected because their map_id did not match the event.
+    pub candidates_skipped_wrong_map: usize,
+    /// Candidates rejected because their instance_id did not match the event.
+    pub candidates_skipped_wrong_instance: usize,
+    /// Candidates rejected because `is_in_world == false`.
+    pub candidates_skipped_not_in_world: usize,
+    /// Candidates rejected because they were out of distance range.
+    pub candidates_skipped_distance: usize,
+    /// `SelfOnly` events skipped (no broadcast; session delivers its own packets).
+    pub self_only_skipped: usize,
+    /// `try_send` calls that returned `Err` (channel full or disconnected).
+    pub send_failed: usize,
+}
+
+/// Collect candidate sessions from `registry` for one `RuntimeEvent` and push
+/// [`SessionCommand::SendIfVisibleLikeCpp`] commands via `try_send`.
+///
+/// Gates applied here (cheap, without session lock):
+/// - `is_in_world` — mirrors C++ `Player::IsInWorld()`.
+/// - `map_id` / `instance_id` — mirrors C++ `InSamePhase` + map check.
+/// - Distance — 2D (`required_3d == false`) or 3D (`required_3d == true`),
+///   mirroring `MessageDistDeliverer::Visit` range parameter.
+///
+/// The final HaveAtClient gate is applied per-session in
+/// `handle_send_if_visible_like_cpp_command_like_cpp`.
+///
+/// **No guards are held during `try_send`**: candidates are collected into a
+/// `Vec` first, then commands are sent outside the DashMap iteration.
+fn resolve_runtime_event_candidates_like_cpp(
+    event: &wow_world::map_manager::RuntimeEvent,
+    registry: &wow_network::PlayerRegistry,
+    summary: &mut RuntimeDeliverySummaryLikeCpp,
+) {
+    use wow_world::map_manager::RecipientRule;
+
+    match &event.recipients {
+        RecipientRule::SelfOnly => {
+            // SelfOnly packets are delivered by the owning session directly
+            // (e.g. flush_runtime_output).  Never broadcast globally — the
+            // owner session is not identified here.  C++ analogy: self-send
+            // path inside `WorldObject::SendMessageToSet` skips the
+            // `MessageDistDeliverer` entirely for the source player.
+            summary.self_only_skipped += 1;
+            return;
+        }
+        RecipientRule::ExplicitPlayer(guid) => {
+            // Send to exactly one player session — no distance or in_world filter.
+            // Read map_id/instance_id from the registry entry so that the per-session
+            // gate 2/3 (player_map_id_like_cpp / instance_id) accepts the command.
+            // C++ analogy: SendDirectMessage / explicit-receiver path in
+            // WorldObject::SendMessageToSet does NOT apply a map filter on the sender
+            // side; the receiver is already known.  We mirror this by populating the
+            // command with the *target* session's own map/instance so the gate passes.
+            // If the guid is not in the registry we drop silently (session already gone).
+            let candidate = registry
+                .get(guid)
+                .map(|entry| (entry.command_tx.clone(), entry.map_id, entry.instance_id));
+            if let Some((tx, target_map_id, target_instance_id)) = candidate {
+                summary.candidates_seen += 1;
+                let cmd = wow_network::SessionCommand::SendIfVisibleLikeCpp(
+                    wow_network::player_registry::SendIfVisibleLikeCppCommand {
+                        source_guid: event.source_guid,
+                        map_id: target_map_id,
+                        instance_id: target_instance_id,
+                        packet_bytes: event.packet_bytes.clone(),
+                    },
+                );
+                if tx.try_send(cmd).is_ok() {
+                    summary.candidates_queued += 1;
+                } else {
+                    summary.send_failed += 1;
+                }
+            }
+        }
+        RecipientRule::MapBroadcastVisible {
+            map_id,
+            instance_id,
+        } => {
+            // Single pass: classify each session once, then send outside the
+            // DashMap iteration (no guards held during try_send).
+            // Mirrors the NearbyVisible pattern above.
+            struct Candidate {
+                tx: flume::Sender<wow_network::SessionCommand>,
+                skip_reason: Option<BroadcastSkipReason>,
+            }
+            enum BroadcastSkipReason {
+                NotInWorld,
+                WrongMap,
+                WrongInstance,
+            }
+            let candidates: Vec<Candidate> = registry
+                .iter()
+                .map(|entry| {
+                    let info = entry.value();
+                    if !info.is_in_world {
+                        return Candidate {
+                            tx: info.command_tx.clone(),
+                            skip_reason: Some(BroadcastSkipReason::NotInWorld),
+                        };
+                    }
+                    if info.map_id != *map_id {
+                        return Candidate {
+                            tx: info.command_tx.clone(),
+                            skip_reason: Some(BroadcastSkipReason::WrongMap),
+                        };
+                    }
+                    if info.instance_id != *instance_id {
+                        return Candidate {
+                            tx: info.command_tx.clone(),
+                            skip_reason: Some(BroadcastSkipReason::WrongInstance),
+                        };
+                    }
+                    Candidate {
+                        tx: info.command_tx.clone(),
+                        skip_reason: None,
+                    }
+                })
+                .collect();
+
+            for candidate in candidates {
+                summary.candidates_seen += 1;
+                match candidate.skip_reason {
+                    Some(BroadcastSkipReason::NotInWorld) => {
+                        summary.candidates_skipped_not_in_world += 1;
+                    }
+                    Some(BroadcastSkipReason::WrongMap) => {
+                        summary.candidates_skipped_wrong_map += 1;
+                    }
+                    Some(BroadcastSkipReason::WrongInstance) => {
+                        summary.candidates_skipped_wrong_instance += 1;
+                    }
+                    None => {
+                        let cmd = wow_network::SessionCommand::SendIfVisibleLikeCpp(
+                            wow_network::player_registry::SendIfVisibleLikeCppCommand {
+                                source_guid: event.source_guid,
+                                map_id: *map_id,
+                                instance_id: *instance_id,
+                                packet_bytes: event.packet_bytes.clone(),
+                            },
+                        );
+                        if candidate.tx.try_send(cmd).is_ok() {
+                            summary.candidates_queued += 1;
+                        } else {
+                            summary.send_failed += 1;
+                        }
+                    }
+                }
+            }
+        }
+        RecipientRule::NearbyVisible {
+            source_guid: _,
+            map_id,
+            instance_id,
+            source_position,
+            range,
+            required_3d,
+        } => {
+            let range_sq = range * range;
+            // Collect candidates first (avoid holding guards during try_send).
+            struct Candidate {
+                tx: flume::Sender<wow_network::SessionCommand>,
+                skip_reason: Option<SkipReason>,
+            }
+            enum SkipReason {
+                NotInWorld,
+                WrongMap,
+                WrongInstance,
+                Distance,
+            }
+            let candidates: Vec<Candidate> = registry
+                .iter()
+                .map(|entry| {
+                    let info = entry.value();
+                    if !info.is_in_world {
+                        return Candidate {
+                            tx: info.command_tx.clone(),
+                            skip_reason: Some(SkipReason::NotInWorld),
+                        };
+                    }
+                    if info.map_id != *map_id {
+                        return Candidate {
+                            tx: info.command_tx.clone(),
+                            skip_reason: Some(SkipReason::WrongMap),
+                        };
+                    }
+                    if info.instance_id != *instance_id {
+                        return Candidate {
+                            tx: info.command_tx.clone(),
+                            skip_reason: Some(SkipReason::WrongInstance),
+                        };
+                    }
+                    let dist_sq = if *required_3d {
+                        let dx = info.position.x - source_position.x;
+                        let dy = info.position.y - source_position.y;
+                        let dz = info.position.z - source_position.z;
+                        dx * dx + dy * dy + dz * dz
+                    } else {
+                        let dx = info.position.x - source_position.x;
+                        let dy = info.position.y - source_position.y;
+                        dx * dx + dy * dy
+                    };
+                    if dist_sq > range_sq {
+                        return Candidate {
+                            tx: info.command_tx.clone(),
+                            skip_reason: Some(SkipReason::Distance),
+                        };
+                    }
+                    Candidate {
+                        tx: info.command_tx.clone(),
+                        skip_reason: None,
+                    }
+                })
+                .collect();
+
+            for candidate in candidates {
+                summary.candidates_seen += 1;
+                match candidate.skip_reason {
+                    Some(SkipReason::NotInWorld) => {
+                        summary.candidates_skipped_not_in_world += 1;
+                    }
+                    Some(SkipReason::WrongMap) => {
+                        summary.candidates_skipped_wrong_map += 1;
+                    }
+                    Some(SkipReason::WrongInstance) => {
+                        summary.candidates_skipped_wrong_instance += 1;
+                    }
+                    Some(SkipReason::Distance) => {
+                        summary.candidates_skipped_distance += 1;
+                    }
+                    None => {
+                        let cmd = wow_network::SessionCommand::SendIfVisibleLikeCpp(
+                            wow_network::player_registry::SendIfVisibleLikeCppCommand {
+                                source_guid: event.source_guid,
+                                map_id: *map_id,
+                                instance_id: *instance_id,
+                                packet_bytes: event.packet_bytes.clone(),
+                            },
+                        );
+                        if candidate.tx.try_send(cmd).is_ok() {
+                            summary.candidates_queued += 1;
+                        } else {
+                            summary.send_failed += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Route and deliver all events in `plan` to candidate sessions.
+///
+/// Returns a [`RuntimeDeliverySummaryLikeCpp`] for test assertions.
+/// No blocking sends — backpressure via `try_send` only.
+fn deliver_runtime_plan_like_cpp(
+    plan: &wow_world::map_manager::RuntimePlan,
+    registry: &wow_network::PlayerRegistry,
+) -> RuntimeDeliverySummaryLikeCpp {
+    let mut summary = RuntimeDeliverySummaryLikeCpp::default();
+    for event in &plan.events {
+        summary.events_seen += 1;
+        resolve_runtime_event_candidates_like_cpp(event, registry, &mut summary);
+    }
+    summary
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -7074,13 +7357,13 @@ mod tests {
         GameEventWorldEventStateDbStatementKindLikeCpp, LoadedGridCreatureRespawnCachesLikeCpp,
         PersistedRespawnLoadReportLikeCpp, PersistedRespawnRowLikeCpp,
         PersistedRespawnTimesLikeCpp, RespawnDbDeleteQueueOutcomeLikeCpp,
-        RespawnDbSaveQueueOutcomeLikeCpp,
+        RespawnDbSaveQueueOutcomeLikeCpp, RuntimeDeliverySummaryLikeCpp,
         apply_canonical_spawn_group_condition_update_loaded_grid_records_like_cpp,
         build_loaded_grid_creature_respawn_record_like_cpp,
         build_loaded_grid_creature_spawn_group_spawn_record_like_cpp,
         build_loaded_grid_gameobject_respawn_record_like_cpp,
         canonical_map_update_tick_set_inactive_like_cpp,
-        consume_game_event_live_update_side_effects_like_cpp,
+        consume_game_event_live_update_side_effects_like_cpp, deliver_runtime_plan_like_cpp,
         fanout_game_event_announcement_to_player_sessions_like_cpp,
         fanout_realm_update_world_state_to_player_sessions_like_cpp,
         fanout_reset_event_seasonal_quests_to_player_sessions_after_db_delete_like_cpp,
@@ -7131,6 +7414,7 @@ mod tests {
     ) -> PlayerBroadcastInfo {
         PlayerBroadcastInfo {
             map_id: 0,
+            instance_id: 0,
             position: wow_core::Position::ZERO,
             is_in_world: true,
             send_tx,
@@ -11856,6 +12140,7 @@ mmap.enablePathFinding = 0
             player_guid,
             PlayerBroadcastInfo {
                 map_id: 0,
+                instance_id: 0,
                 position: wow_core::Position::ZERO,
                 is_in_world: true,
                 send_tx,
@@ -13373,5 +13658,311 @@ mmap.enablePathFinding = 0
         let _ = fs::remove_dir_all(&path);
         fs::create_dir_all(&path).expect("temp dir failed");
         path
+    }
+
+    // ── Slice 4A.1b: routing tests ───────────────────────────────────────────
+    // C++ anchors:
+    //   Object.cpp : WorldObject::SendMessageToSet (~1746-1764)
+    //   GridNotifiersImpl.h : MessageDistDeliverer::Visit(PlayerMapType&) (~43-46)
+    //   GridNotifiers.h : MessageDistDeliverer::SendPacket
+
+    fn make_source_guid() -> ObjectGuid {
+        ObjectGuid::create_world_object(wow_core::guid::HighGuid::Creature, 0, 1, 571, 0, 1, 1)
+    }
+
+    fn make_nearby_visible_event_like_cpp(
+        map_id: u16,
+        instance_id: u32,
+        source_position: Position,
+        range: f32,
+        required_3d: bool,
+    ) -> wow_world::map_manager::RuntimeEvent {
+        wow_world::map_manager::RuntimeEvent {
+            source_guid: make_source_guid(),
+            recipients: wow_world::map_manager::RecipientRule::NearbyVisible {
+                source_guid: make_source_guid(),
+                map_id,
+                instance_id,
+                source_position,
+                range,
+                required_3d,
+            },
+            packet_bytes: vec![0xAA, 0xBB],
+        }
+    }
+
+    fn make_registry_player_like_cpp(
+        map_id: u16,
+        instance_id: u32,
+        position: Position,
+        is_in_world: bool,
+    ) -> (PlayerBroadcastInfo, flume::Receiver<SessionCommand>) {
+        let (send_tx, _send_rx) = flume::bounded(4);
+        let (command_tx, command_rx) = flume::bounded(4);
+        let mut info = player_broadcast_info_fixture_like_cpp(send_tx, command_tx, "Tester");
+        info.map_id = map_id;
+        info.instance_id = instance_id;
+        info.position = position;
+        info.is_in_world = is_in_world;
+        (info, command_rx)
+    }
+
+    /// (1) NearbyVisible: players on a different map_id are not enqueued.
+    /// C++ anchor: MessageDistDeliverer::Visit — map-id check before distance.
+    #[test]
+    fn nearby_visible_filters_by_map_id_like_cpp() {
+        let registry = PlayerRegistry::default();
+        let guid = ObjectGuid::create_player(1, 1);
+        let (info, command_rx) = make_registry_player_like_cpp(530, 0, Position::ZERO, true); // wrong map
+        registry.insert(guid, info);
+
+        let event = make_nearby_visible_event_like_cpp(571, 0, Position::ZERO, 100.0, false);
+        let plan = wow_world::map_manager::RuntimePlan {
+            events: vec![event],
+        };
+        let summary = deliver_runtime_plan_like_cpp(&plan, &registry);
+
+        assert_eq!(summary.candidates_queued, 0);
+        assert_eq!(summary.candidates_skipped_wrong_map, 1);
+        assert!(command_rx.try_recv().is_err());
+    }
+
+    /// (2) NearbyVisible: players on a different instance_id are not enqueued.
+    /// Slice 4A.1b requirement — instance separation.
+    #[test]
+    fn nearby_visible_filters_by_instance_id_like_cpp() {
+        let registry = PlayerRegistry::default();
+        let guid = ObjectGuid::create_player(1, 2);
+        let (info, command_rx) = make_registry_player_like_cpp(571, 99, Position::ZERO, true); // wrong instance
+        registry.insert(guid, info);
+
+        let event = make_nearby_visible_event_like_cpp(571, 0, Position::ZERO, 100.0, false);
+        let plan = wow_world::map_manager::RuntimePlan {
+            events: vec![event],
+        };
+        let summary = deliver_runtime_plan_like_cpp(&plan, &registry);
+
+        assert_eq!(summary.candidates_queued, 0);
+        assert_eq!(summary.candidates_skipped_wrong_instance, 1);
+        assert!(command_rx.try_recv().is_err());
+    }
+
+    /// (3) NearbyVisible: players not in world are not enqueued.
+    /// C++ anchor: MessageDistDeliverer::Visit — `Player::IsInWorld()` gate.
+    #[test]
+    fn nearby_visible_filters_is_in_world_like_cpp() {
+        let registry = PlayerRegistry::default();
+        let guid = ObjectGuid::create_player(1, 3);
+        let (info, command_rx) = make_registry_player_like_cpp(571, 0, Position::ZERO, false); // not in world
+        registry.insert(guid, info);
+
+        let event = make_nearby_visible_event_like_cpp(571, 0, Position::ZERO, 100.0, false);
+        let plan = wow_world::map_manager::RuntimePlan {
+            events: vec![event],
+        };
+        let summary = deliver_runtime_plan_like_cpp(&plan, &registry);
+
+        assert_eq!(summary.candidates_queued, 0);
+        assert_eq!(summary.candidates_skipped_not_in_world, 1);
+        assert!(command_rx.try_recv().is_err());
+    }
+
+    /// (4) NearbyVisible: 2D distance check excludes players beyond range when
+    /// `required_3d == false` — Z-axis is ignored.
+    /// C++ anchor: GridNotifiersImpl.h MessageDistDeliverer::Visit ~43-46.
+    #[test]
+    fn nearby_visible_uses_2d_distance_when_required_3d_false_like_cpp() {
+        let registry = PlayerRegistry::default();
+        // Player is far on Z but close in XY — should be INCLUDED with 2D check.
+        let near_guid = ObjectGuid::create_player(1, 4);
+        let (near_info, near_rx) =
+            make_registry_player_like_cpp(571, 0, Position::new(5.0, 0.0, 1000.0, 0.0), true);
+        registry.insert(near_guid, near_info);
+
+        // Player is far in XY — should be EXCLUDED.
+        let far_guid = ObjectGuid::create_player(1, 5);
+        let (far_info, far_rx) =
+            make_registry_player_like_cpp(571, 0, Position::new(200.0, 0.0, 0.0, 0.0), true);
+        registry.insert(far_guid, far_info);
+
+        let source = Position::new(0.0, 0.0, 0.0, 0.0);
+        let event = make_nearby_visible_event_like_cpp(571, 0, source, 100.0, false);
+        let plan = wow_world::map_manager::RuntimePlan {
+            events: vec![event],
+        };
+        let summary = deliver_runtime_plan_like_cpp(&plan, &registry);
+
+        assert_eq!(summary.candidates_queued, 1, "only the XY-near player");
+        assert_eq!(summary.candidates_skipped_distance, 1);
+        assert!(near_rx.try_recv().is_ok(), "near player got command");
+        assert!(far_rx.try_recv().is_err(), "far player did not get command");
+    }
+
+    /// (5) NearbyVisible: 3D distance check excludes players beyond range when
+    /// `required_3d == true` — Z-axis contributes to distance.
+    /// C++ anchor: GridNotifiersImpl.h MessageDistDeliverer::Visit ~43-46.
+    #[test]
+    fn nearby_visible_uses_3d_distance_when_required_3d_true_like_cpp() {
+        let registry = PlayerRegistry::default();
+        // Player is close in XY but far on Z — should be EXCLUDED with 3D check.
+        let near_xy_guid = ObjectGuid::create_player(1, 6);
+        let (near_xy_info, near_xy_rx) =
+            make_registry_player_like_cpp(571, 0, Position::new(5.0, 0.0, 200.0, 0.0), true);
+        registry.insert(near_xy_guid, near_xy_info);
+
+        // Player is close in 3D — should be INCLUDED.
+        let near_3d_guid = ObjectGuid::create_player(1, 7);
+        let (near_3d_info, near_3d_rx) =
+            make_registry_player_like_cpp(571, 0, Position::new(3.0, 3.0, 3.0, 0.0), true);
+        registry.insert(near_3d_guid, near_3d_info);
+
+        let source = Position::new(0.0, 0.0, 0.0, 0.0);
+        let event = make_nearby_visible_event_like_cpp(571, 0, source, 10.0, true);
+        let plan = wow_world::map_manager::RuntimePlan {
+            events: vec![event],
+        };
+        let summary = deliver_runtime_plan_like_cpp(&plan, &registry);
+
+        assert_eq!(summary.candidates_queued, 1, "only the 3D-near player");
+        assert_eq!(summary.candidates_skipped_distance, 1);
+        assert!(near_xy_rx.try_recv().is_err(), "far-Z player excluded");
+        assert!(near_3d_rx.try_recv().is_ok(), "3D-near player included");
+    }
+
+    /// (6) MapBroadcastVisible: enqueues all players on the same map/instance
+    /// regardless of distance, but respects map/instance/in_world.
+    /// C++ anchor: WorldObject::SendMessageToSet map-wide broadcast path.
+    #[test]
+    fn map_broadcast_visible_ignores_distance_but_respects_map_instance_in_world_like_cpp() {
+        let registry = PlayerRegistry::default();
+
+        // In range player — correct map/instance.
+        let in_guid = ObjectGuid::create_player(1, 10);
+        let (in_info, in_rx) =
+            make_registry_player_like_cpp(571, 0, Position::new(9999.0, 9999.0, 0.0, 0.0), true);
+        registry.insert(in_guid, in_info);
+
+        // Wrong map.
+        let wrong_map_guid = ObjectGuid::create_player(1, 11);
+        let (wrong_map_info, wrong_map_rx) =
+            make_registry_player_like_cpp(530, 0, Position::ZERO, true);
+        registry.insert(wrong_map_guid, wrong_map_info);
+
+        // Not in world.
+        let no_world_guid = ObjectGuid::create_player(1, 12);
+        let (no_world_info, no_world_rx) =
+            make_registry_player_like_cpp(571, 0, Position::ZERO, false);
+        registry.insert(no_world_guid, no_world_info);
+
+        let event = wow_world::map_manager::RuntimeEvent {
+            source_guid: make_source_guid(),
+            recipients: wow_world::map_manager::RecipientRule::MapBroadcastVisible {
+                map_id: 571,
+                instance_id: 0,
+            },
+            packet_bytes: vec![0xCC],
+        };
+        let plan = wow_world::map_manager::RuntimePlan {
+            events: vec![event],
+        };
+        let summary = deliver_runtime_plan_like_cpp(&plan, &registry);
+
+        assert_eq!(summary.candidates_queued, 1);
+        assert!(in_rx.try_recv().is_ok(), "valid player got command");
+        assert!(wrong_map_rx.try_recv().is_err(), "wrong-map excluded");
+        assert!(no_world_rx.try_recv().is_err(), "not-in-world excluded");
+    }
+
+    /// (7) ExplicitPlayer: command sent to exactly one GUID, no other sessions.
+    /// C++ anchor: WorldObject::SendMessageToSet explicit receiver path.
+    #[test]
+    fn explicit_player_routes_only_to_target_guid_like_cpp() {
+        let registry = PlayerRegistry::default();
+        let target_guid = ObjectGuid::create_player(1, 20);
+        let other_guid = ObjectGuid::create_player(1, 21);
+        let (target_info, target_rx) = make_registry_player_like_cpp(571, 0, Position::ZERO, true);
+        let (other_info, other_rx) = make_registry_player_like_cpp(571, 0, Position::ZERO, true);
+        registry.insert(target_guid, target_info);
+        registry.insert(other_guid, other_info);
+
+        let event = wow_world::map_manager::RuntimeEvent {
+            source_guid: make_source_guid(),
+            recipients: wow_world::map_manager::RecipientRule::ExplicitPlayer(target_guid),
+            packet_bytes: vec![0xDD],
+        };
+        let plan = wow_world::map_manager::RuntimePlan {
+            events: vec![event],
+        };
+        let summary = deliver_runtime_plan_like_cpp(&plan, &registry);
+
+        assert_eq!(summary.candidates_queued, 1);
+        assert!(target_rx.try_recv().is_ok(), "target received command");
+        assert!(other_rx.try_recv().is_err(), "other session NOT notified");
+    }
+
+    /// (8) SelfOnly: NO broadcast global; increments self_only_skipped counter.
+    /// Guarantees SelfOnly events are not distributed to any registry session.
+    /// C++ anchor: WorldObject::SendMessageToSet — self-send path bypasses
+    /// MessageDistDeliverer entirely.
+    #[test]
+    fn self_only_does_not_broadcast_to_any_session_like_cpp() {
+        let registry = PlayerRegistry::default();
+        // Even with a matching player in registry, SelfOnly must NOT deliver.
+        let guid = ObjectGuid::create_player(1, 30);
+        let (info, command_rx) = make_registry_player_like_cpp(571, 0, Position::ZERO, true);
+        registry.insert(guid, info);
+
+        let event = wow_world::map_manager::RuntimeEvent {
+            source_guid: make_source_guid(),
+            recipients: wow_world::map_manager::RecipientRule::SelfOnly,
+            packet_bytes: vec![0xEE],
+        };
+        let plan = wow_world::map_manager::RuntimePlan {
+            events: vec![event],
+        };
+        let summary = deliver_runtime_plan_like_cpp(&plan, &registry);
+
+        assert_eq!(summary.self_only_skipped, 1, "must count skipped SelfOnly");
+        assert_eq!(
+            summary.candidates_queued, 0,
+            "must NOT broadcast to registry"
+        );
+        assert_eq!(summary.candidates_seen, 0, "no candidates should be seen");
+        assert!(
+            command_rx.try_recv().is_err(),
+            "session must NOT receive command"
+        );
+    }
+
+    /// (9) try_send on a full channel increments send_failed and does NOT block.
+    /// Backpressure requirement from Slice 4A.1b spec.
+    #[test]
+    fn full_command_channel_increments_send_failed_and_does_not_block_like_cpp() {
+        let registry = PlayerRegistry::default();
+        let guid = ObjectGuid::create_player(1, 40);
+
+        let (send_tx, _send_rx) = flume::bounded::<Vec<u8>>(1);
+        // Drop the receiver so try_send returns Err::Disconnected immediately.
+        let (command_tx, command_rx) = flume::bounded::<SessionCommand>(1);
+        drop(command_rx);
+
+        let mut info = player_broadcast_info_fixture_like_cpp(send_tx, command_tx, "Full");
+        info.map_id = 571;
+        info.instance_id = 0;
+        info.is_in_world = true;
+        info.position = Position::ZERO;
+        registry.insert(guid, info);
+
+        let event = make_nearby_visible_event_like_cpp(571, 0, Position::ZERO, 1000.0, false);
+        let plan = wow_world::map_manager::RuntimePlan {
+            events: vec![event],
+        };
+        let summary = deliver_runtime_plan_like_cpp(&plan, &registry);
+
+        assert_eq!(
+            summary.send_failed, 1,
+            "disconnected channel counted as send_failed"
+        );
+        assert_eq!(summary.candidates_queued, 0);
     }
 }
