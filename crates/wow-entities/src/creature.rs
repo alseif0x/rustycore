@@ -1,6 +1,6 @@
 use wow_constants::{
-    CreatureFlagsExtra, DeathState, PowerType, TypeId, TypeMask, UnitDynFlags, UnitFlags,
-    UnitState, WeaponAttackType,
+    CreatureFlagsExtra, CreatureFlightMovementType, DeathState, PowerType, TypeId, TypeMask,
+    UnitDynFlags, UnitFlags, UnitState, WeaponAttackType,
 };
 use wow_core::{ObjectGuid, Position};
 
@@ -18,6 +18,15 @@ pub const LOOT_MODE_DEFAULT: u16 = 0x1;
 pub const CREATURE_TAPPERS_SOFT_CAP: usize = 5;
 pub const CREATURE_NOPATH_EVADE_TIME_MS: u32 = 10_000;
 pub const CREATURE_Z_ATTACK_RANGE_LIKE_CPP: f32 = 3.0;
+const CREATURE_FLIGHT_MOVEMENT_TYPE_MAX_LIKE_CPP: u8 = 3;
+
+pub const fn normalize_creature_flight_movement_type_like_cpp(flight_movement_type: u8) -> u8 {
+    if flight_movement_type < CREATURE_FLIGHT_MOVEMENT_TYPE_MAX_LIKE_CPP {
+        flight_movement_type
+    } else {
+        CreatureFlightMovementType::None as u8
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
@@ -190,6 +199,7 @@ pub struct CreatureTemplateLifecycleRecord {
     pub creature_type: u32,
     pub type_flags: u32,
     pub movement_type: MovementGeneratorType,
+    pub flight_movement_type: u8,
     pub min_level: u8,
     pub max_level: u8,
     pub equipment_id: u8,
@@ -312,6 +322,7 @@ pub struct CreatureLifecycleMetadata {
     pub unit_class: u8,
     pub classification: u32,
     pub flags_extra: u32,
+    pub flight_movement_type: u8,
     pub creature_type: u32,
     pub type_flags: u32,
     pub selected_level: u8,
@@ -355,6 +366,7 @@ impl Default for CreatureLifecycleMetadata {
             unit_class: 0,
             classification: 0,
             flags_extra: 0,
+            flight_movement_type: CreatureFlightMovementType::None as u8,
             creature_type: 0,
             type_flags: 0,
             selected_level: 0,
@@ -864,6 +876,9 @@ impl Creature {
             unit_class: template.unit_class,
             classification: template.classification,
             flags_extra: template.flags_extra,
+            flight_movement_type: normalize_creature_flight_movement_type_like_cpp(
+                template.flight_movement_type,
+            ),
             creature_type: template.creature_type,
             type_flags: template.type_flags,
             selected_level: record.selected_level,
@@ -966,6 +981,18 @@ impl Creature {
     pub fn is_civilian_like_cpp(&self) -> bool {
         CreatureFlagsExtra::from_bits_truncate(self.lifecycle_metadata.flags_extra)
             .contains(CreatureFlagsExtra::CIVILIAN)
+    }
+
+    pub fn flight_movement_type_like_cpp(&self) -> u8 {
+        self.lifecycle_metadata.flight_movement_type
+    }
+
+    /// C++ `Creature::CanFly()` returns true when the movement template allows
+    /// flight (`Flight != None`) or runtime movement flags say the unit is
+    /// flying. Rust does not yet model the dynamic movement flag half for
+    /// creatures, so this covers the template/override side of the predicate.
+    pub fn can_fly_like_cpp(&self) -> bool {
+        self.lifecycle_metadata.flight_movement_type != CreatureFlightMovementType::None as u8
     }
 
     pub fn add_to_world_vehicle_reset_context_like_cpp(
@@ -1338,6 +1365,10 @@ impl Creature {
         target_position: &Position,
         target_combat_reach: f32,
     ) -> bool {
+        if self.can_fly_like_cpp() {
+            return true;
+        }
+
         let distance_z = ((self.ai_position().z - target_position.z).abs()
             - self.unit.world().combat_reach()
             - target_combat_reach.max(0.0))
@@ -1383,6 +1414,11 @@ impl Creature {
 
     pub fn set_flags_extra_runtime_like_cpp(&mut self, flags_extra: u32) {
         self.lifecycle_metadata.flags_extra = flags_extra;
+    }
+
+    pub fn set_flight_movement_type_runtime_like_cpp(&mut self, flight_movement_type: u8) {
+        self.lifecycle_metadata.flight_movement_type =
+            normalize_creature_flight_movement_type_like_cpp(flight_movement_type);
     }
 
     pub fn configure_ai_runtime(
@@ -2718,6 +2754,45 @@ mod tests {
             )
         );
         assert_eq!(combat_distance.ai_state(), CreatureAiState::InCombat);
+
+        let mut flying = Creature::new(false);
+        flying.unit_mut().set_max_health(80);
+        flying.unit_mut().set_health(80);
+        flying.unit_mut().set_combat_reach(1.0);
+        flying.set_ai_position(creature_pos);
+        flying.ai_ownership_mut().aggro_radius = 100.0;
+        flying.set_flight_movement_type_runtime_like_cpp(
+            CreatureFlightMovementType::DisableGravity as u8,
+        );
+        assert!(
+            flying.try_ai_aggro_with_target_combat_reach_like_cpp(
+                player,
+                &Position::new(12.0, 20.0, 60.0, 0.0),
+                0.5,
+            ),
+            "C++ Creature::CanFly bypasses the z-distance gate for Flight != None"
+        );
+        assert_eq!(flying.ai_state(), CreatureAiState::InCombat);
+
+        let mut invalid_flight = Creature::new(false);
+        invalid_flight.unit_mut().set_max_health(80);
+        invalid_flight.unit_mut().set_health(80);
+        invalid_flight.unit_mut().set_combat_reach(1.0);
+        invalid_flight.set_ai_position(creature_pos);
+        invalid_flight.ai_ownership_mut().aggro_radius = 100.0;
+        invalid_flight
+            .set_flight_movement_type_runtime_like_cpp(CREATURE_FLIGHT_MOVEMENT_TYPE_MAX_LIKE_CPP);
+        assert_eq!(
+            invalid_flight.flight_movement_type_like_cpp(),
+            CreatureFlightMovementType::None as u8
+        );
+        assert!(
+            !invalid_flight.try_ai_aggro_with_target_combat_reach_like_cpp(
+                player,
+                &Position::new(12.0, 20.0, 60.0, 0.0),
+                0.5,
+            )
+        );
     }
 
     #[test]
@@ -2914,6 +2989,7 @@ mod tests {
             creature_type: 9,
             type_flags: 0x20,
             movement_type: MovementGeneratorType::Idle,
+            flight_movement_type: CreatureFlightMovementType::DisableGravity as u8,
             min_level: 70,
             max_level: 72,
             equipment_id: 4,
@@ -3075,6 +3151,10 @@ mod tests {
         assert_eq!(creature.lifecycle_metadata().original_entry, 9001);
         assert_eq!(creature.lifecycle_metadata().difficulty_id, 2);
         assert_eq!(creature.lifecycle_metadata().classification, 3);
+        assert_eq!(
+            creature.lifecycle_metadata().flight_movement_type,
+            CreatureFlightMovementType::DisableGravity as u8
+        );
         assert_eq!(creature.unit().changed_object_type_mask(), 0);
     }
 

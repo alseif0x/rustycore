@@ -61,6 +61,7 @@ pub struct ResolvedCreatureTemplateLikeCpp {
     pub creature_type: u32,
     pub type_flags: u32,
     pub movement_type: MovementGeneratorType,
+    pub flight_movement_type: u8,
     pub min_level: u8,
     pub max_level: u8,
     pub equipment_id: u8,
@@ -355,6 +356,7 @@ pub fn build_loaded_grid_creature_inputs_from_db_like_cpp(
         creature_type: template.creature_type,
         type_flags: difficulty.type_flags,
         movement_type,
+        flight_movement_type: runtime_row.flight_movement_type,
         min_level: difficulty.min_level,
         max_level: difficulty.max_level,
         equipment_id,
@@ -487,6 +489,7 @@ fn template_lifecycle_record(
         creature_type: template.creature_type,
         type_flags: template.type_flags,
         movement_type: template.movement_type,
+        flight_movement_type: template.flight_movement_type,
         min_level: template.min_level,
         max_level: template.max_level,
         equipment_id: template.equipment_id,
@@ -558,6 +561,7 @@ mod tests {
             creature_type: 0,
             type_flags: 0x20,
             movement_type: MovementGeneratorType::Idle,
+            flight_movement_type: 0,
             min_level: 18,
             max_level: 20,
             equipment_id: 3,
@@ -698,6 +702,7 @@ mod tests {
                 unit_class: 1,
                 vehicle_id,
                 movement_type: 1,
+                flight_movement_type: 0,
                 flags_extra: 0x40,
                 string_id: "template-string".to_string(),
                 regen_health,
@@ -785,6 +790,7 @@ mod tests {
             curhealth: 77,
             curmana: 33,
             movement_type: 2,
+            flight_movement_type: wow_constants::CreatureFlightMovementType::CanFly as u8,
             string_id: "runtime-string".to_string(),
             spawn_time_secs: 300,
         };
@@ -817,6 +823,10 @@ mod tests {
         assert_eq!(template.faction, 35);
         assert_eq!(template.spells[0..2], [10, 20]);
         assert_eq!(template.display_id, 999);
+        assert_eq!(
+            template.flight_movement_type,
+            wow_constants::CreatureFlightMovementType::CanFly as u8
+        );
         assert_eq!(template.equipment_id, 0);
         assert_eq!(template.original_equipment_id, -7);
         assert_eq!(resolved_spawn.spawn_id, 70);
@@ -857,6 +867,7 @@ mod tests {
             curhealth: 77,
             curmana: 33,
             movement_type: 0,
+            flight_movement_type: 0,
             string_id: String::new(),
             spawn_time_secs: 20,
         };
@@ -902,6 +913,7 @@ mod tests {
             curhealth: 77,
             curmana: 33,
             movement_type: 0,
+            flight_movement_type: 0,
             string_id: String::new(),
             spawn_time_secs: 20,
         };
@@ -954,6 +966,7 @@ mod tests {
             curhealth: 0,
             curmana: 0,
             movement_type: 0,
+            flight_movement_type: 0,
             string_id: String::new(),
             spawn_time_secs: 10,
         };
@@ -1014,6 +1027,7 @@ mod tests {
             curhealth: 0,
             curmana: 0,
             movement_type: 0,
+            flight_movement_type: 0,
             string_id: String::new(),
             spawn_time_secs: 20,
         };
@@ -1065,6 +1079,7 @@ mod tests {
             curhealth: 0,
             curmana: 33,
             movement_type: 0,
+            flight_movement_type: 0,
             string_id: String::new(),
             spawn_time_secs: 20,
         };
@@ -1116,6 +1131,7 @@ mod tests {
             curhealth: 1,
             curmana: 44,
             movement_type: 0,
+            flight_movement_type: 0,
             string_id: String::new(),
             spawn_time_secs: 20,
         };
@@ -1179,6 +1195,7 @@ mod tests {
             curhealth: 0,
             curmana: 0,
             movement_type: 0,
+            flight_movement_type: 0,
             string_id: String::new(),
             spawn_time_secs: 20,
         };

@@ -3062,6 +3062,7 @@ pub struct CreatureSpawnRuntimeRowLikeCpp {
     pub curhealth: u32,
     pub curmana: u32,
     pub movement_type: u8,
+    pub flight_movement_type: u8,
     pub string_id: String,
     pub spawn_time_secs: i32,
 }
@@ -3092,6 +3093,7 @@ struct CreatureSpawnRow {
     curhealth: u32,
     curmana: u32,
     movement_type: u8,
+    flight_movement_type: u8,
     spawn_difficulties: String,
     event_entry: i16,
     pool_id: u32,
@@ -4642,6 +4644,7 @@ async fn load_creature_spawns_like_cpp(
             terrain_swap_map: result.read(25),
             script_name: result.try_read(26).unwrap_or_default(),
             string_id: result.try_read(27).unwrap_or_default(),
+            flight_movement_type: result.try_read(28).unwrap_or(0),
         };
         let runtime_row = creature_row_to_runtime_row_like_cpp(&row);
         report.creature.rows += 1;
@@ -5006,6 +5009,7 @@ fn creature_row_to_runtime_row_like_cpp(row: &CreatureSpawnRow) -> CreatureSpawn
         curhealth: row.curhealth,
         curmana: row.curmana,
         movement_type: row.movement_type,
+        flight_movement_type: row.flight_movement_type,
         string_id: row.string_id.clone(),
         spawn_time_secs: row.spawn_time_secs,
     }
@@ -5448,6 +5452,7 @@ mod tests {
             curhealth: 0,
             curmana: 0,
             movement_type: 0,
+            flight_movement_type: 0,
             spawn_difficulties: difficulties.to_string(),
             event_entry,
             pool_id: 0,
@@ -9033,6 +9038,7 @@ mod tests {
             curhealth: 1,
             curmana: 0,
             movement_type: 0,
+            flight_movement_type: 0,
             string_id: String::new(),
             spawn_time_secs: 120,
         }

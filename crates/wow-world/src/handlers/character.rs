@@ -3218,6 +3218,12 @@ impl WorldSession {
                 .or_else(|| result.try_read::<i32>(30).map(|value| value.max(0) as u32))
                 .unwrap_or(0);
             let terrain_swap_map: i32 = result.try_read(31).unwrap_or(-1);
+            let flight_movement_type: u8 = result
+                .try_read::<Option<u8>>(32)
+                .flatten()
+                .or_else(|| result.try_read::<u8>(32))
+                .or_else(|| result.try_read::<i16>(32).map(|value| value.max(0) as u8))
+                .unwrap_or(0);
 
             let display_id = if model_id > 0 {
                 model_id
@@ -3289,7 +3295,7 @@ impl WorldSession {
                 .creature_aggro_radius_for_faction_template_like_cpp(faction.max(0) as u32, 15.0);
             let min_dmg = (min_level as u32).saturating_sub(1) * 3 + 5;
             let max_dmg = min_dmg + min_dmg / 2;
-            self.register_world_creature_with_flags_extra_like_cpp(
+            self.register_world_creature_with_flags_extra_and_movement_like_cpp(
                 map_id,
                 creature_pos,
                 create_data.clone(),
@@ -3307,6 +3313,7 @@ impl WorldSession {
                 phase_group_id,
                 terrain_swap_map,
                 flags_extra,
+                flight_movement_type,
             );
 
             let mut viewer_create_data = create_data.clone();
@@ -3630,6 +3637,12 @@ impl WorldSession {
                     .or_else(|| cr.try_read::<i32>(30).map(|value| value.max(0) as u32))
                     .unwrap_or(0);
                 let terrain_swap_map: i32 = cr.try_read(31).unwrap_or(-1);
+                let flight_movement_type: u8 = cr
+                    .try_read::<Option<u8>>(32)
+                    .flatten()
+                    .or_else(|| cr.try_read::<u8>(32))
+                    .or_else(|| cr.try_read::<i16>(32).map(|value| value.max(0) as u8))
+                    .unwrap_or(0);
 
                 let display_id = if model_id > 0 {
                     model_id
@@ -3705,7 +3718,7 @@ impl WorldSession {
                     );
                     let min_dmg = (min_level as u32).saturating_sub(1) * 3 + 5;
                     let max_dmg = min_dmg + min_dmg / 2;
-                    self.register_world_creature_with_flags_extra_like_cpp(
+                    self.register_world_creature_with_flags_extra_and_movement_like_cpp(
                         map_id,
                         creature_pos,
                         create_data.clone(),
@@ -3723,6 +3736,7 @@ impl WorldSession {
                         phase_group_id,
                         terrain_swap_map,
                         flags_extra,
+                        flight_movement_type,
                     );
 
                     let mut viewer_create_data = create_data.clone();

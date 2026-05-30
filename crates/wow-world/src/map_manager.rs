@@ -2468,6 +2468,7 @@ pub struct PendingRespawn {
     pub max_dmg: u32,
     pub aggro_radius: f32,
     pub flags_extra: u32,
+    pub flight_movement_type: u8,
     pub npc_flags: u32,
     pub unit_flags: u32,
     pub map_id: u16,
@@ -2529,6 +2530,7 @@ pub fn pending_respawn_from_world_creature_like_cpp(
         max_dmg: creature.max_dmg(),
         aggro_radius: creature.creature.ai_ownership().aggro_radius,
         flags_extra: creature.creature.lifecycle_metadata().flags_extra,
+        flight_movement_type: creature.creature.flight_movement_type_like_cpp(),
         npc_flags: creature.npc_flags(),
         unit_flags: creature.unit_flags(),
         map_id,
@@ -2585,6 +2587,7 @@ pub fn world_creature_from_pending_respawn_like_cpp(
     creature.set_ai_identity_runtime(display_id, faction, npc_flags, unit_flags);
     creature.set_npc_flags2_runtime_like_cpp(npc_flags2);
     creature.set_flags_extra_runtime_like_cpp(respawn.flags_extra);
+    creature.set_flight_movement_type_runtime_like_cpp(respawn.flight_movement_type);
     creature.configure_ai_runtime(respawn.home_pos, respawn.aggro_radius, 5.0, 30);
     creature.ai_ownership_mut().min_damage = respawn.min_dmg;
     creature.ai_ownership_mut().max_damage = respawn.max_dmg;
@@ -4211,6 +4214,7 @@ mod tests {
             max_dmg: 5,
             aggro_radius: 10.0,
             flags_extra: 0,
+            flight_movement_type: 0,
             npc_flags: 0,
             unit_flags: 0,
             map_id: 0,
@@ -4325,14 +4329,22 @@ mod tests {
         creature
             .creature
             .set_flags_extra_runtime_like_cpp(CreatureFlagsExtra::CIVILIAN.bits());
+        creature.creature.set_flight_movement_type_runtime_like_cpp(
+            wow_constants::CreatureFlightMovementType::CanFly as u8,
+        );
 
         let pending = pending_respawn_from_world_creature_like_cpp(&creature, Instant::now(), 0);
         assert_eq!(pending.flags_extra, CreatureFlagsExtra::CIVILIAN.bits());
+        assert_eq!(
+            pending.flight_movement_type,
+            wow_constants::CreatureFlightMovementType::CanFly as u8
+        );
 
         let respawned = world_creature_from_pending_respawn_like_cpp(&pending, 0);
         assert!(
             respawned.creature.is_civilian_like_cpp(),
             "map-owned respawn must keep C++ flags_extra gates"
         );
+        assert!(respawned.creature.can_fly_like_cpp());
     }
 }

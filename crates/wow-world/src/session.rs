@@ -4709,6 +4709,49 @@ impl WorldSession {
         terrain_swap_map: i32,
         flags_extra: u32,
     ) {
+        self.register_world_creature_with_flags_extra_and_movement_like_cpp(
+            map_id,
+            position,
+            create_data,
+            min_dmg,
+            max_dmg,
+            aggro_radius,
+            loot_id,
+            skin_loot_id,
+            gold_min,
+            gold_max,
+            boss_id,
+            dungeon_encounter_id,
+            phase_use_flags,
+            phase_id,
+            phase_group_id,
+            terrain_swap_map,
+            flags_extra,
+            0,
+        );
+    }
+
+    pub(crate) fn register_world_creature_with_flags_extra_and_movement_like_cpp(
+        &mut self,
+        map_id: u16,
+        position: wow_core::Position,
+        create_data: wow_packet::packets::update::CreatureCreateData,
+        min_dmg: u32,
+        max_dmg: u32,
+        aggro_radius: f32,
+        loot_id: u32,
+        skin_loot_id: u32,
+        gold_min: u32,
+        gold_max: u32,
+        boss_id: Option<u32>,
+        dungeon_encounter_id: u32,
+        phase_use_flags: u8,
+        phase_id: u16,
+        phase_group_id: u32,
+        terrain_swap_map: i32,
+        flags_extra: u32,
+        flight_movement_type: u8,
+    ) {
         let guid = create_data.guid;
         let entry = create_data.entry;
         let hp = create_data.health.max(1) as u32;
@@ -4745,6 +4788,7 @@ impl WorldSession {
             creature.set_ai_identity_runtime(display_id, faction, npc_flags, unit_flags);
             creature.set_npc_flags2_runtime_like_cpp(npc_flags2);
             creature.set_flags_extra_runtime_like_cpp(flags_extra);
+            creature.set_flight_movement_type_runtime_like_cpp(flight_movement_type);
             creature.configure_ai_runtime(position, aggro_radius, 5.0, 30);
             creature.ai_ownership_mut().min_damage = min_dmg;
             creature.ai_ownership_mut().max_damage = max_dmg;
@@ -20970,8 +21014,8 @@ fn legacy_creature_aggro_candidate_is_hostile_to_creature_like_cpp(
 /// through `Creature::CanStartAttack` and then engages a target. This
 /// transitional Rust slice uses the existing represented `WorldCreature`
 /// `try_aggro` radius model plus the represented C++ targetability,
-/// faction/reputation, vertical distance and NoGrayAggro gates; the `CanFly`
-/// exemption, accessibility, detection and LOS remain later AI fidelity tasks.
+/// faction/reputation, vertical distance, template `CanFly` exemption and
+/// NoGrayAggro gates; accessibility, detection and LOS remain later AI fidelity tasks.
 /// The map owner computes aggro once and returns victim-session `AttackStart`
 /// commands for delivery outside map locks.
 pub fn run_legacy_creature_aggro_tick_once_like_cpp(
@@ -21300,7 +21344,7 @@ impl WorldSession {
             );
 
             // Recreate canonical map state.
-            self.register_world_creature_with_flags_extra_like_cpp(
+            self.register_world_creature_with_flags_extra_and_movement_like_cpp(
                 r.map_id,
                 r.home_pos,
                 r.create_data.clone(),
@@ -21318,6 +21362,7 @@ impl WorldSession {
                 r.phase_group_id,
                 r.terrain_swap_map,
                 r.flags_extra,
+                r.flight_movement_type,
             );
 
             // Send CREATE block to client with C++ viewer-dependent
@@ -33120,6 +33165,7 @@ mod tests {
                 unit_class: 1,
                 vehicle_id: 0,
                 movement_type: 0,
+                flight_movement_type: 0,
                 flags_extra: 0,
                 string_id: String::new(),
                 regen_health: true,
@@ -50586,6 +50632,46 @@ mod tests {
     }
 
     #[test]
+    fn legacy_creature_aggro_tick_once_honors_can_fly_z_exemption_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_021);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 50.0;
+                creature.creature.unit_mut().set_level(25);
+                creature.creature.unit_mut().set_combat_reach(0.0);
+                creature.creature.set_flight_movement_type_runtime_like_cpp(
+                    wow_constants::CreatureFlightMovementType::DisableGravity as u8,
+                );
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let player = ObjectGuid::create_player(1, 91_022);
+        let candidates = vec![legacy_aggro_candidate_like_cpp(
+            player,
+            Position::new(10.5, 10.5, 30.0, 0.0),
+        )];
+
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &candidates,
+            legacy_aggro_hostile_config_like_cpp(),
+        );
+
+        assert_eq!(outcome.aggro_starts, 1);
+        assert_eq!(outcome.commands.len(), 1);
+        assert_eq!(outcome.commands[0].attacker_guid, creature_guid);
+        assert_eq!(outcome.commands[0].victim_guid, player);
+    }
+
+    #[test]
     fn legacy_creature_aggro_tick_once_respects_no_gray_aggro_config_like_cpp() {
         use crate::map_manager::RuntimeTickOwner;
         let manager = shared_map_manager();
@@ -51675,6 +51761,7 @@ mod tests {
             max_dmg: 2,
             aggro_radius: 5.0,
             flags_extra: 0,
+            flight_movement_type: 0,
             npc_flags: 0,
             unit_flags: 0,
             map_id: 0,

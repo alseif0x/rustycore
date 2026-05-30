@@ -663,6 +663,7 @@ mod tests {
                 unit_class: 1,
                 vehicle_id: 0,
                 movement_type: 0,
+                flight_movement_type: 0,
                 flags_extra: 0,
                 string_id: String::new(),
                 regen_health: true,

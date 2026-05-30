@@ -410,6 +410,16 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   m_CombatDistance`. Covered C++ anchors: `Creature.h` `CREATURE_Z_ATTACK_RANGE`,
   `Object::GetDistanceZ`, and `Creature::CanStartAttack`. Remaining `CanStartAttack` fidelity gaps:
   represented `CanFly()` exemption, accessibility/visibility/detection, and LOS.
+- 2026-05-30 — Runtime creature-aggro `CanFly()` z-exemption `#NEXT.RUNTIME.L3.031d`: represented
+  the C++ `Creature::CanFly()` side of the z-distance branch for template/spawn movement data. Rust
+  now loads `creature_template_movement.Flight`, applies `creature_movement_override.Flight` where a
+  concrete spawn is available, normalizes invalid flight values to `None`, carries the value through
+  loaded-grid/runtime registration/respawn, and bypasses the aggro z-distance reject when
+  `Flight != None` (`DisableGravity` and `CanFly`). Covered C++ anchors:
+  `Creature.h::CanFly`, `CreatureData.h::CreatureMovementData::IsFlightAllowed`,
+  `ObjectMgr::LoadCreatureTemplates`, `ObjectMgr::LoadCreatureMovementOverrides`, and
+  `Creature::CanStartAttack`. Remaining `CanStartAttack` fidelity gaps: dynamic `IsFlying()`
+  movement flags for creature runtime state, accessibility/visibility/detection, and LOS.
 
 ## References
 

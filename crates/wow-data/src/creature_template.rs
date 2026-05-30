@@ -2,9 +2,19 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 use rand::Rng;
+use wow_constants::CreatureFlightMovementType;
 use wow_database::WorldDatabase;
 
 pub const MAX_CREATURE_SPELLS_LIKE_CPP: usize = 8;
+const CREATURE_FLIGHT_MOVEMENT_TYPE_MAX_LIKE_CPP: u8 = 3;
+
+fn normalize_creature_flight_movement_type_like_cpp(flight_movement_type: u8) -> u8 {
+    if flight_movement_type < CREATURE_FLIGHT_MOVEMENT_TYPE_MAX_LIKE_CPP {
+        flight_movement_type
+    } else {
+        CreatureFlightMovementType::None as u8
+    }
+}
 
 #[derive(Debug, Clone, Default)]
 pub struct CreatureTemplateClassificationStoreLikeCpp {
@@ -96,6 +106,7 @@ pub struct CreatureTemplateLifecycleRecordLikeCpp {
     pub unit_class: u8,
     pub vehicle_id: u32,
     pub movement_type: u8,
+    pub flight_movement_type: u8,
     pub flags_extra: u32,
     pub string_id: String,
     pub regen_health: bool,
@@ -133,7 +144,7 @@ impl CreatureTemplateLifecycleStoreLikeCpp {
         let mut templates = HashMap::new();
         let mut result = db
             .direct_query(
-                "SELECT entry, name, faction, speed_walk, speed_run, scale, Classification, `type`, unit_class, VehicleId, MovementType, flags_extra, StringId, RegenHealth FROM creature_template",
+                "SELECT ct.entry, ct.name, ct.faction, ct.speed_walk, ct.speed_run, ct.scale, ct.Classification, ct.`type`, ct.unit_class, ct.VehicleId, ct.MovementType, COALESCE(ctm.Flight, 0), ct.flags_extra, ct.StringId, ct.RegenHealth FROM creature_template ct LEFT JOIN creature_template_movement ctm ON ct.entry = ctm.CreatureId",
             )
             .await?;
         if !result.is_empty() {
@@ -150,9 +161,10 @@ impl CreatureTemplateLifecycleStoreLikeCpp {
                     unit_class: result.try_read::<u8>(8).unwrap_or(0),
                     vehicle_id: result.try_read::<u32>(9).unwrap_or(0),
                     movement_type: result.try_read::<u8>(10).unwrap_or(0),
-                    flags_extra: result.try_read::<u32>(11).unwrap_or(0),
-                    string_id: result.try_read::<String>(12).unwrap_or_default(),
-                    regen_health: result.try_read::<u8>(13).unwrap_or(0) != 0,
+                    flight_movement_type: result.try_read::<u8>(11).unwrap_or(0),
+                    flags_extra: result.try_read::<u32>(12).unwrap_or(0),
+                    string_id: result.try_read::<String>(13).unwrap_or_default(),
+                    regen_health: result.try_read::<u8>(14).unwrap_or(0) != 0,
                     spells: [0; MAX_CREATURE_SPELLS_LIKE_CPP],
                     models: Vec::new(),
                 };
@@ -210,7 +222,7 @@ impl CreatureTemplateLifecycleStoreLikeCpp {
             }
         }
 
-        Ok(Self { templates })
+        Ok(Self::from_templates(templates.into_values()))
     }
 
     pub fn get(&self, entry: u32) -> Option<&CreatureTemplateLifecycleRecordLikeCpp> {
@@ -228,6 +240,8 @@ impl CreatureTemplateLifecycleStoreLikeCpp {
 
 impl CreatureTemplateLifecycleRecordLikeCpp {
     pub fn normalize_like_cpp(mut self) -> Self {
+        self.flight_movement_type =
+            normalize_creature_flight_movement_type_like_cpp(self.flight_movement_type);
         self.models = self
             .models
             .into_iter()
@@ -804,6 +818,7 @@ mod tests {
                 unit_class: 2,
                 vehicle_id: 900,
                 movement_type: 1,
+                flight_movement_type: CreatureFlightMovementType::CanFly as u8,
                 flags_extra: 0x20,
                 string_id: "template_string".to_string(),
                 regen_health: true,
@@ -823,9 +838,42 @@ mod tests {
         assert_eq!(template.unit_class, 2);
         assert_eq!(template.vehicle_id, 900);
         assert_eq!(template.movement_type, 1);
+        assert_eq!(
+            template.flight_movement_type,
+            CreatureFlightMovementType::CanFly as u8
+        );
         assert_eq!(template.flags_extra, 0x20);
         assert_eq!(template.string_id, "template_string");
         assert!(template.regen_health);
+    }
+
+    #[test]
+    fn creature_template_lifecycle_normalizes_invalid_flight_like_cpp() {
+        let mut invalid = CreatureTemplateLifecycleRecordLikeCpp {
+            entry: 43,
+            name: "invalid flight".to_string(),
+            faction: 35,
+            speed_walk: 1.0,
+            speed_run: 1.0,
+            scale: 1.0,
+            classification: 0,
+            creature_type: 0,
+            unit_class: 1,
+            vehicle_id: 0,
+            movement_type: 0,
+            flight_movement_type: CREATURE_FLIGHT_MOVEMENT_TYPE_MAX_LIKE_CPP,
+            flags_extra: 0,
+            string_id: String::new(),
+            regen_health: true,
+            spells: [0; MAX_CREATURE_SPELLS_LIKE_CPP],
+            models: Vec::new(),
+        };
+        invalid = invalid.normalize_like_cpp();
+
+        assert_eq!(
+            invalid.flight_movement_type,
+            CreatureFlightMovementType::None as u8
+        );
     }
 
     #[test]
@@ -842,6 +890,7 @@ mod tests {
             unit_class: 0,
             vehicle_id: 0,
             movement_type: 0,
+            flight_movement_type: 0,
             flags_extra: 0,
             string_id: String::new(),
             regen_health: false,
@@ -872,6 +921,7 @@ mod tests {
             unit_class: 0,
             vehicle_id: 0,
             movement_type: 0,
+            flight_movement_type: 0,
             flags_extra: 0,
             string_id: String::new(),
             regen_health: false,
@@ -921,6 +971,7 @@ mod tests {
             unit_class: 0,
             vehicle_id: 0,
             movement_type: 0,
+            flight_movement_type: 0,
             flags_extra: 0,
             string_id: String::new(),
             regen_health: false,
