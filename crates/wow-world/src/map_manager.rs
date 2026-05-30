@@ -1823,6 +1823,87 @@ impl Default for RuntimeOutput {
     }
 }
 
+// ── Slice 4A.1a: addressable routing types ────────────────────────────────────
+//
+// These types model *candidate* recipients for map-wide packet fanout,
+// mirroring C++ `MessageDistDeliverer` routing modes.
+//
+// IMPORTANT: these rules select *candidate* sessions only.  The final gate
+// (HaveAtClient / phase check) is applied by each session via
+// `SendIfVisibleLikeCpp`, which lands in Slice 4A.1b.  Do NOT duplicate
+// visibility or phase logic here.
+//
+// Extensions from the C++ model that are not yet needed (own_team_only,
+// skipped_receiver, team-based broadcast) are omitted for now and will be
+// added as variants in future sub-slices.
+
+/// Candidate-routing rule for a [`RuntimeEvent`].
+///
+/// Each variant maps to one of the C++ `MessageDistDeliverer` distribution
+/// modes.  The final HaveAtClient / phase gate is applied by each session
+/// (`SendIfVisibleLikeCpp`, Slice 4A.1b) — do NOT duplicate visibility or
+/// phase logic here.
+#[derive(Debug, Clone, PartialEq)]
+pub enum RecipientRule {
+    /// Broadcast to all sessions whose visible range overlaps the source
+    /// position.  Mirrors C++ `MessageDistDeliverer` with a range constraint.
+    NearbyVisible {
+        source_guid: ObjectGuid,
+        map_id: u16,
+        instance_id: u32,
+        source_position: Position,
+        range: f32,
+        required_3d: bool,
+    },
+    /// Broadcast to every session on the map regardless of distance.
+    /// Mirrors C++ map-wide broadcast.
+    MapBroadcastVisible { map_id: u16, instance_id: u32 },
+    /// Send to exactly one player session identified by GUID.
+    ExplicitPlayer(ObjectGuid),
+    /// Send only to the session that owns the source entity (self-delivery).
+    SelfOnly,
+}
+
+/// A single routing-annotated packet produced during a tick.
+///
+/// `packet_bytes` is the already-serialised wire payload.  The routing
+/// decision (who receives it) is encoded in `recipients`.
+#[derive(Debug, Clone)]
+pub struct RuntimeEvent {
+    pub source_guid: ObjectGuid,
+    pub recipients: RecipientRule,
+    pub packet_bytes: Vec<u8>,
+}
+
+/// An ordered list of [`RuntimeEvent`]s produced by a single tick pass,
+/// ready to be consumed by a routing layer (Slice 4A.1b+).
+#[derive(Debug, Clone)]
+pub struct RuntimePlan {
+    pub events: Vec<RuntimeEvent>,
+}
+
+impl RuntimeOutput {
+    /// Convert this `RuntimeOutput` into a [`RuntimePlan`] where every packet
+    /// is addressed to the owning session only (`RecipientRule::SelfOnly`).
+    ///
+    /// This is the minimal bridge used by a single-session tick caller that
+    /// still handles its own delivery.  Packet order is preserved exactly.
+    /// `RuntimeOutput` itself is consumed (not cloned); the Slice 3 flush path
+    /// (`flush_runtime_output`) is left untouched.
+    pub fn into_owning_session_plan(self, source_guid: ObjectGuid) -> RuntimePlan {
+        let events = self
+            .packets
+            .into_iter()
+            .map(|packet_bytes| RuntimeEvent {
+                source_guid,
+                recipients: RecipientRule::SelfOnly,
+                packet_bytes,
+            })
+            .collect();
+        RuntimePlan { events }
+    }
+}
+
 /// Global map manager containing all map instances.
 #[derive(Debug)]
 pub struct MapManager {
@@ -1855,6 +1936,15 @@ impl MapManager {
     /// Sets the tick owner. Not called in Slice 3 — default remains `Session`.
     pub fn set_tick_owner(&mut self, owner: RuntimeTickOwner) {
         self.tick_owner = owner;
+    }
+
+    /// Returns the `(map_id, instance_id)` keys of all currently active map
+    /// instances held by this manager.
+    ///
+    /// The key type matches `self.maps: HashMap<(u16, u32), MapInstance>` exactly.
+    /// Order is unspecified (hash map iteration order).
+    pub fn active_map_keys(&self) -> Vec<(u16, u32)> {
+        self.maps.keys().copied().collect()
     }
 
     pub fn init_instance_ids_from_max(&mut self, max_existing_instance_id: u32) {
@@ -3708,5 +3798,130 @@ mod tests {
             std::process::id(),
             std::thread::current().id()
         ))
+    }
+
+    // ── Slice 4A.1a tests ────────────────────────────────────────────────────
+
+    /// `into_owning_session_plan` must produce one `SelfOnly` `RuntimeEvent`
+    /// per packet, in the same order, with `source_guid` set on every event.
+    #[test]
+    fn into_owning_session_plan_preserves_packets_as_self_only() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 42);
+
+        let pkt_a = vec![0x01, 0x02, 0x03];
+        let pkt_b = vec![0xAA, 0xBB];
+        let pkt_c = vec![0xFF];
+
+        let mut output = RuntimeOutput::new();
+        output.packets.push(pkt_a.clone());
+        output.packets.push(pkt_b.clone());
+        output.packets.push(pkt_c.clone());
+
+        let plan = output.into_owning_session_plan(guid);
+
+        assert_eq!(plan.events.len(), 3, "must produce one event per packet");
+
+        for (i, event) in plan.events.iter().enumerate() {
+            assert_eq!(
+                event.source_guid, guid,
+                "event[{i}] must carry the source guid"
+            );
+            assert_eq!(
+                event.recipients,
+                RecipientRule::SelfOnly,
+                "event[{i}] must be SelfOnly"
+            );
+        }
+
+        // Packet bytes preserved in order.
+        assert_eq!(plan.events[0].packet_bytes, pkt_a);
+        assert_eq!(plan.events[1].packet_bytes, pkt_b);
+        assert_eq!(plan.events[2].packet_bytes, pkt_c);
+    }
+
+    /// Empty `RuntimeOutput` produces an empty `RuntimePlan`.
+    #[test]
+    fn into_owning_session_plan_empty_output_gives_empty_plan() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 1);
+        let plan = RuntimeOutput::new().into_owning_session_plan(guid);
+        assert!(plan.events.is_empty());
+    }
+
+    /// Smoke: `RecipientRule::NearbyVisible` stores all its fields correctly.
+    #[test]
+    fn recipient_rule_nearby_visible_stores_fields() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 7);
+        let pos = Position::new(1.0, 2.0, 3.0, 0.5);
+
+        let rule = RecipientRule::NearbyVisible {
+            source_guid: guid,
+            map_id: 571,
+            instance_id: 0,
+            source_position: pos,
+            range: 100.0,
+            required_3d: true,
+        };
+
+        if let RecipientRule::NearbyVisible {
+            source_guid,
+            map_id,
+            instance_id,
+            source_position,
+            range,
+            required_3d,
+        } = rule
+        {
+            assert_eq!(source_guid, guid);
+            assert_eq!(map_id, 571);
+            assert_eq!(instance_id, 0);
+            assert_eq!(source_position.x, 1.0);
+            assert_eq!(source_position.y, 2.0);
+            assert_eq!(source_position.z, 3.0);
+            assert!((range - 100.0).abs() < f32::EPSILON);
+            assert!(required_3d);
+        } else {
+            panic!("expected NearbyVisible");
+        }
+    }
+
+    /// Smoke: `RecipientRule::MapBroadcastVisible` stores map_id and instance_id.
+    #[test]
+    fn recipient_rule_map_broadcast_visible_stores_fields() {
+        let rule = RecipientRule::MapBroadcastVisible {
+            map_id: 0,
+            instance_id: 5,
+        };
+
+        if let RecipientRule::MapBroadcastVisible {
+            map_id,
+            instance_id,
+        } = rule
+        {
+            assert_eq!(map_id, 0);
+            assert_eq!(instance_id, 5);
+        } else {
+            panic!("expected MapBroadcastVisible");
+        }
+    }
+
+    /// `active_map_keys` returns the exact `(map_id, instance_id)` pairs of
+    /// the maps that have been created in the manager.
+    #[test]
+    fn active_map_keys_returns_inserted_map_keys() {
+        let mut manager = MapManager::new();
+
+        // No maps yet.
+        assert!(manager.active_map_keys().is_empty());
+
+        // Insert two distinct maps.
+        manager.get_or_create_map(0, 0);
+        manager.get_or_create_map(571, 1);
+
+        let mut keys = manager.active_map_keys();
+        keys.sort_unstable(); // deterministic order for assertions
+
+        assert_eq!(keys.len(), 2);
+        assert_eq!(keys[0], (0, 0));
+        assert_eq!(keys[1], (571, 1));
     }
 }
