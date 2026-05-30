@@ -98,6 +98,7 @@ use wow_entities::{
 };
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus, build_dispatch_table};
 use wow_loot::{LootStoreKind, LootStores};
+use wow_map::coords::SIZE_OF_GRID_CELL;
 use wow_network::session_mgr::{InstanceLink, SessionManager};
 use wow_network::{
     GameEventQuestCompleteClientOutcomeLikeCpp, GameEventQuestCompleteCommandLikeCpp,
@@ -1528,6 +1529,7 @@ pub struct LegacyCreatureAggroTickOutcomeLikeCpp {
     pub targetability_rejections: usize,
     pub hostility_rejections: usize,
     pub hostility_unrepresented: usize,
+    pub home_range_rejections: usize,
     pub gray_aggro_rejections: usize,
     pub aggro_starts: usize,
     pub commands: Vec<wow_network::player_registry::CreatureAttackStartLikeCppCommand>,
@@ -21008,6 +21010,28 @@ fn legacy_creature_aggro_candidate_is_hostile_to_creature_like_cpp(
     Some(false)
 }
 
+fn legacy_creature_can_attack_home_range_like_cpp(
+    creature: &crate::map_manager::WorldCreature,
+    candidate: &LegacyCreatureAggroCandidateLikeCpp,
+) -> bool {
+    let mut max_home_distance = crate::map_manager::VISIBILITY_RADIUS.min(SIZE_OF_GRID_CELL * 2.0);
+    max_home_distance +=
+        creature.creature.unit().world().combat_reach() + candidate.player_combat_reach.max(0.0);
+    let home_position = creature.home_position();
+
+    if creature.creature.flight_movement_type_like_cpp()
+        != wow_constants::CreatureFlightMovementType::None as u8
+    {
+        candidate
+            .position
+            .is_within_dist_2d(&home_position, max_home_distance)
+    } else {
+        candidate
+            .position
+            .is_within_dist(&home_position, max_home_distance)
+    }
+}
+
 /// Runs one global legacy creature aggro scan without spawning a loop.
 ///
 /// C++ contrast: `CreatureAI::MoveInLineOfSight` checks aggressive creatures
@@ -21015,7 +21039,8 @@ fn legacy_creature_aggro_candidate_is_hostile_to_creature_like_cpp(
 /// transitional Rust slice uses the existing represented `WorldCreature`
 /// `try_aggro` radius model plus the represented C++ targetability,
 /// faction/reputation, vertical distance, template `CanFly` exemption and
-/// NoGrayAggro gates; accessibility, detection and LOS remain later AI fidelity tasks.
+/// home leash/NoGrayAggro gates; accessibility, detection and LOS remain later
+/// AI fidelity tasks.
 /// The map owner computes aggro once and returns victim-session `AttackStart`
 /// commands for delivery outside map locks.
 pub fn run_legacy_creature_aggro_tick_once_like_cpp(
@@ -21080,6 +21105,10 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
                         outcome.hostility_unrepresented += 1;
                         continue;
                     }
+                }
+                if !legacy_creature_can_attack_home_range_like_cpp(creature, candidate) {
+                    outcome.home_range_rejections += 1;
+                    continue;
                 }
                 if check_no_gray_aggro_config_like_cpp(
                     &config,
@@ -50669,6 +50698,107 @@ mod tests {
         assert_eq!(outcome.commands.len(), 1);
         assert_eq!(outcome.commands[0].attacker_guid, creature_guid);
         assert_eq!(outcome.commands[0].victim_guid, player);
+    }
+
+    #[test]
+    fn legacy_creature_aggro_tick_once_rejects_targets_beyond_home_range_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_023);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 250.0;
+                creature.creature.unit_mut().set_level(25);
+                creature.creature.unit_mut().set_combat_reach(0.0);
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let player = ObjectGuid::create_player(1, 91_024);
+        let candidates = vec![legacy_aggro_candidate_like_cpp(
+            player,
+            Position::new(
+                10.0 + crate::map_manager::VISIBILITY_RADIUS + 1.0,
+                10.0,
+                0.0,
+                0.0,
+            ),
+        )];
+
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &candidates,
+            legacy_aggro_hostile_config_like_cpp(),
+        );
+
+        assert_eq!(outcome.home_range_rejections, 1);
+        assert_eq!(outcome.aggro_starts, 0);
+        assert!(outcome.commands.is_empty());
+    }
+
+    #[test]
+    fn legacy_creature_aggro_home_range_uses_template_flight_2d_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let dynamic_guid = test_creature_guid(91_025);
+        let template_guid = test_creature_guid(91_026);
+        register_test_creature(&mut session, manager.clone(), dynamic_guid, 25);
+        register_test_creature(&mut session, manager.clone(), template_guid, 25);
+        session
+            .mutate_world_creature(dynamic_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 500.0;
+                creature.creature.unit_mut().set_level(25);
+                creature.creature.unit_mut().set_combat_reach(0.0);
+                creature
+                    .creature
+                    .set_movement_flags_runtime_like_cpp(MovementFlag::DISABLE_GRAVITY);
+            })
+            .unwrap();
+        session
+            .mutate_world_creature(template_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 500.0;
+                creature.creature.unit_mut().set_level(25);
+                creature.creature.unit_mut().set_combat_reach(0.0);
+                creature.creature.set_flight_movement_type_runtime_like_cpp(
+                    wow_constants::CreatureFlightMovementType::CanFly as u8,
+                );
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let dynamic_player = ObjectGuid::create_player(1, 91_027);
+        let template_player = ObjectGuid::create_player(1, 91_028);
+        let candidates = vec![
+            legacy_aggro_candidate_like_cpp(
+                dynamic_player,
+                Position::new(10.5, 10.5, crate::map_manager::VISIBILITY_RADIUS + 1.0, 0.0),
+            ),
+            legacy_aggro_candidate_like_cpp(
+                template_player,
+                Position::new(10.5, 10.5, crate::map_manager::VISIBILITY_RADIUS + 1.0, 0.0),
+            ),
+        ];
+
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &candidates,
+            legacy_aggro_hostile_config_like_cpp(),
+        );
+
+        assert_eq!(outcome.home_range_rejections, 2);
+        assert_eq!(outcome.aggro_starts, 1);
+        assert_eq!(outcome.commands.len(), 1);
+        assert_eq!(outcome.commands[0].attacker_guid, template_guid);
+        assert_eq!(outcome.commands[0].victim_guid, dynamic_player);
     }
 
     #[test]

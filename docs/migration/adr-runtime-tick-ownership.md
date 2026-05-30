@@ -428,6 +428,15 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `Creature.h::CanFly`, `Unit.h::IsFlying`, `Unit::SetDisableGravity`, and `Unit::SetCanFly`.
   Remaining `CanStartAttack` fidelity gaps: producers for all dynamic creature movement flag
   transitions, accessibility/visibility/detection, and LOS.
+- 2026-05-30 — Runtime creature-aggro home leash `#NEXT.RUNTIME.L3.031f`: represented the
+  `CanCreatureAttack` home-distance leash for global legacy aggro. Rust now rejects candidates
+  beyond `min(GetMap()->GetVisibilityRange(), SIZE_OF_GRID_CELL * 2) + combat reaches` from the
+  creature home position before entering combat. It also preserves the C++ distinction that
+  `GetMovementTemplate().IsFlightAllowed()` uses 2D home distance, while a dynamically flying
+  creature with no flight template still uses 3D home distance. Covered C++ anchors:
+  `Creature::CanCreatureAttack`, `Map::GetVisibilityRange`, and `GridDefines.h::SIZE_OF_GRID_CELL`.
+  Remaining `CanStartAttack` fidelity gaps: exact map visibility range source for every map,
+  accessibility/visibility/detection, and LOS.
 
 ## References
 
