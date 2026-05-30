@@ -19,8 +19,7 @@ use crate::entity_update_bridge::{
     player_values_update_to_update_object, unit_values_update_to_packet,
 };
 use crate::map_manager::{
-    PendingRespawn, RuntimeOutput, RuntimeTickOwner, WorldMMapPathRequestLikeCpp,
-    WorldMMapPathfinderWorkerLikeCpp,
+    PendingRespawn, RuntimeOutput, RuntimeTickOwner, WorldMMapPathfinderWorkerLikeCpp,
 };
 use crate::phasing::{
     init_db_phase_shift_like_cpp, init_db_visible_map_id_like_cpp,
@@ -20083,6 +20082,129 @@ impl WorldSession {
     }
 }
 
+// ── Creature movement step helper ────────────────────────────────
+
+/// Advances a single creature's movement state for one tick and returns the
+/// serialised `MonsterMove` packet bytes if a new spline was launched, or
+/// `None` otherwise.
+///
+/// This is a pure function of `creature`, `guid`, and the two mmap resources;
+/// it does NOT touch any `WorldSession` state, making it callable from the
+/// future global creature-tick driver (4A.3b) as well as from the existing
+/// per-session tick.
+///
+/// Logic is byte-identical to the closure that previously lived inside
+/// `run_creatures_tick` — only the location changed.
+pub(crate) fn step_creature_movement_like_cpp(
+    creature: &mut crate::map_manager::WorldCreature,
+    guid: wow_core::ObjectGuid,
+    mmap_config: &MMapRuntimeConfigLikeCpp,
+    mmap_pathfinder: Option<&crate::map_manager::WorldMMapPathfinderWorkerLikeCpp>,
+) -> Option<Vec<u8>> {
+    use wow_packet::ServerPacket;
+    use wow_packet::packets::movement::{MonsterMove, MovementMonsterSpline};
+
+    if !creature.is_alive() {
+        if creature.should_respawn() {
+            creature.respawn();
+        }
+        return None;
+    }
+
+    match creature.state() {
+        wow_entities::CreatureAiState::Idle => {
+            if creature.movement_finished() {
+                if creature.move_target().is_some() {
+                    creature.finish_move();
+                }
+                if creature.should_wander() {
+                    let dst = creature.pick_wander_destination();
+                    let owner_ignores_pathfinding = creature
+                        .creature
+                        .unit()
+                        .has_unit_state(UnitState::IGNORE_PATHFINDING.bits());
+                    let source_map_id = creature.map_id();
+                    let source_instance_id = creature.instance_id();
+                    let movement = if mmap_config
+                        .should_try_pathfinding_like_cpp(source_map_id, owner_ignores_pathfinding)
+                    {
+                        let detour_path = mmap_pathfinder.and_then(|worker| {
+                            match worker.calculate_path_like_cpp(
+                                crate::map_manager::WorldMMapPathRequestLikeCpp {
+                                    start: creature.position(),
+                                    destination: dst,
+                                    mesh_map_id: source_map_id,
+                                    instance_map_id: source_map_id,
+                                    instance_id: source_instance_id,
+                                    filter_context: PathQueryFilterContext::creature(
+                                        true, false, false, false,
+                                    ),
+                                    force_destination: false,
+                                    phase_shift: creature.phase_shift().clone(),
+                                },
+                            ) {
+                                Ok(path) => path,
+                                Err(error) => {
+                                    tracing::warn!(
+                                        "mmap pathfinding failed for creature {:?}: {:?}",
+                                        guid,
+                                        error
+                                    );
+                                    None
+                                }
+                            }
+                        });
+                        creature
+                            .begin_move_spline_with_detour_path_like_cpp(
+                                dst,
+                                detour_path.as_ref(),
+                                false,
+                            )
+                            .map(|(from, spline, _path)| (from, spline))
+                    } else {
+                        creature.begin_move_spline_like_cpp(dst)
+                    };
+                    if let Some((from, move_spline)) = movement {
+                        creature
+                            .creature
+                            .set_ai_state(wow_entities::CreatureAiState::WalkingRandom);
+                        creature.reset_wander_timer();
+                        let pkt = MonsterMove {
+                            mover_guid: guid,
+                            current_pos: from,
+                            spline: MovementMonsterSpline::from_move_spline(&move_spline),
+                        };
+                        return Some(pkt.to_bytes());
+                    } else {
+                        creature.reset_wander_timer();
+                    }
+                }
+            }
+        }
+        wow_entities::CreatureAiState::WalkingRandom => {
+            if creature.update_move_spline_like_cpp() || creature.movement_finished() {
+                creature.finish_move();
+                creature
+                    .creature
+                    .set_ai_state(wow_entities::CreatureAiState::Idle);
+                creature.reset_wander_timer();
+            }
+        }
+        wow_entities::CreatureAiState::Returning => {
+            if creature.movement_finished() {
+                creature.finish_move();
+                creature
+                    .creature
+                    .set_ai_state(wow_entities::CreatureAiState::Idle);
+            }
+        }
+        wow_entities::CreatureAiState::InCombat
+        | wow_entities::CreatureAiState::Dead
+        | wow_entities::CreatureAiState::WalkingWaypoint => {}
+    }
+    None
+}
+
 // ── Creature AI / Combat tick methods ────────────────────────────
 
 impl WorldSession {
@@ -20094,9 +20216,6 @@ impl WorldSession {
     /// No `send_tx.send` or `send_packet` calls may remain here — each is
     /// converted to `output.packets.push` at the same relative position.
     pub(crate) fn run_creatures_tick(&mut self) -> RuntimeOutput {
-        use wow_packet::ServerPacket;
-        use wow_packet::packets::movement::{MonsterMove, MovementMonsterSpline};
-
         let mut output = RuntimeOutput::new();
 
         // Collect movement packets (avoids borrow conflict with send_packet)
@@ -20258,107 +20377,13 @@ impl WorldSession {
         let mmap_pathfinder = self.mmap_pathfinder_like_cpp.clone();
         for guid in guids {
             let _ = self.mutate_world_creature(guid, |creature| {
-                if !creature.is_alive() {
-                    if creature.should_respawn() {
-                        creature.respawn();
-                    }
-                    return;
-                }
-
-                match creature.state() {
-                    wow_entities::CreatureAiState::Idle => {
-                        if creature.movement_finished() {
-                            if creature.move_target().is_some() {
-                                creature.finish_move();
-                            }
-                            if creature.should_wander() {
-                                let dst = creature.pick_wander_destination();
-                                let owner_ignores_pathfinding = creature
-                                    .creature
-                                    .unit()
-                                    .has_unit_state(UnitState::IGNORE_PATHFINDING.bits());
-                                let source_map_id = creature.map_id();
-                                let source_instance_id = creature.instance_id();
-                                let movement = if mmap_runtime_config
-                                    .should_try_pathfinding_like_cpp(
-                                        source_map_id,
-                                        owner_ignores_pathfinding,
-                                    ) {
-                                    let detour_path = mmap_pathfinder.as_ref().and_then(|worker| {
-                                        match worker.calculate_path_like_cpp(
-                                            WorldMMapPathRequestLikeCpp {
-                                                start: creature.position(),
-                                                destination: dst,
-                                                mesh_map_id: source_map_id,
-                                                instance_map_id: source_map_id,
-                                                instance_id: source_instance_id,
-                                                filter_context: PathQueryFilterContext::creature(
-                                                    true, false, false, false,
-                                                ),
-                                                force_destination: false,
-                                                phase_shift: creature.phase_shift().clone(),
-                                            },
-                                        ) {
-                                            Ok(path) => path,
-                                            Err(error) => {
-                                                tracing::warn!(
-                                                    "mmap pathfinding failed for creature {:?}: {:?}",
-                                                    guid,
-                                                    error
-                                                );
-                                                None
-                                            }
-                                        }
-                                    });
-                                    creature
-                                        .begin_move_spline_with_detour_path_like_cpp(
-                                            dst,
-                                            detour_path.as_ref(),
-                                            false,
-                                        )
-                                        .map(|(from, spline, _path)| (from, spline))
-                                } else {
-                                    creature.begin_move_spline_like_cpp(dst)
-                                };
-                                if let Some((from, move_spline)) = movement {
-                                    creature
-                                        .creature
-                                        .set_ai_state(wow_entities::CreatureAiState::WalkingRandom);
-                                    creature.reset_wander_timer();
-                                    let pkt = MonsterMove {
-                                        mover_guid: guid,
-                                        current_pos: from,
-                                        spline: MovementMonsterSpline::from_move_spline(
-                                            &move_spline,
-                                        ),
-                                    };
-                                    to_send.push(pkt.to_bytes());
-                                } else {
-                                    creature.reset_wander_timer();
-                                }
-                            }
-                        }
-                    }
-                    wow_entities::CreatureAiState::WalkingRandom => {
-                        if creature.update_move_spline_like_cpp() || creature.movement_finished() {
-                            creature.finish_move();
-                            creature
-                                .creature
-                                .set_ai_state(wow_entities::CreatureAiState::Idle);
-                            creature.reset_wander_timer();
-                        }
-                    }
-                    wow_entities::CreatureAiState::Returning => {
-                        if creature.movement_finished() {
-                            creature.finish_move();
-                            creature
-                                .creature
-                                .set_ai_state(wow_entities::CreatureAiState::Idle);
-                        }
-                    }
-                    wow_entities::CreatureAiState::InCombat
-                    | wow_entities::CreatureAiState::Dead
-                    | wow_entities::CreatureAiState::WalkingWaypoint => {}
+                if let Some(pkt) = step_creature_movement_like_cpp(
+                    creature,
+                    guid,
+                    &mmap_runtime_config,
+                    mmap_pathfinder.as_deref(),
+                ) {
+                    to_send.push(pkt);
                 }
             });
         }
@@ -49031,6 +49056,123 @@ mod tests {
         assert!(
             send_rx_a.try_recv().is_err(),
             "helpers must not send packets"
+        );
+    }
+
+    // ── step_creature_movement_like_cpp unit tests (no WorldSession) ──────────
+
+    fn make_test_world_creature(guid: ObjectGuid) -> crate::map_manager::WorldCreature {
+        crate::map_manager::WorldCreature::new(
+            guid,
+            9999,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            25,
+            2,
+            3,
+            5,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        )
+    }
+
+    #[test]
+    fn step_creature_movement_idle_should_wander_returns_monster_move_and_state_walking_random() {
+        let guid = test_creature_guid(200_001);
+        let mut creature = make_test_world_creature(guid);
+        // Trigger wander: delay=0, wander_radius=3.0, move_start_ms=0.
+        {
+            let ai = creature.creature.ai_ownership_mut();
+            ai.wander_delay_ms = 0;
+            ai.move_start_ms = 0;
+            ai.wander_radius = 3.0;
+        }
+        let config = MMapRuntimeConfigLikeCpp {
+            enabled: false, // disable pathfinding → simple straight-line spline
+            ..Default::default()
+        };
+
+        let result = step_creature_movement_like_cpp(&mut creature, guid, &config, None);
+
+        // Must return Some with a serialised MonsterMove packet.
+        assert!(
+            result.is_some(),
+            "Idle + should_wander must produce a MonsterMove packet"
+        );
+        let bytes = result.unwrap();
+        // Opcode bytes [0..2] must equal OnMonsterMove.
+        let opcode = u16::from_le_bytes([bytes[0], bytes[1]]);
+        assert_eq!(
+            opcode,
+            wow_constants::ServerOpcodes::OnMonsterMove as u16,
+            "packet opcode must be OnMonsterMove"
+        );
+        // State must have transitioned to WalkingRandom.
+        assert_eq!(
+            creature.state(),
+            wow_entities::CreatureAiState::WalkingRandom,
+            "state must be WalkingRandom after launching a wander spline"
+        );
+    }
+
+    #[test]
+    fn step_creature_movement_walking_random_finished_returns_none_and_state_idle() {
+        let guid = test_creature_guid(200_002);
+        let mut creature = make_test_world_creature(guid);
+        // Put creature into WalkingRandom with no active spline and no move_target
+        // so that movement_finished() == true.
+        creature
+            .creature
+            .set_ai_state(wow_entities::CreatureAiState::WalkingRandom);
+        // Ensure no move_target (movement_finished returns true when None).
+        creature.creature.ai_ownership_mut().move_target = None;
+
+        let config = MMapRuntimeConfigLikeCpp::default();
+
+        let result = step_creature_movement_like_cpp(&mut creature, guid, &config, None);
+
+        assert!(
+            result.is_none(),
+            "WalkingRandom + movement finished must return None"
+        );
+        assert_eq!(
+            creature.state(),
+            wow_entities::CreatureAiState::Idle,
+            "state must transition back to Idle after movement finished"
+        );
+    }
+
+    #[test]
+    fn step_creature_movement_dead_should_respawn_respawns_and_returns_none() {
+        let guid = test_creature_guid(200_003);
+        let mut creature = make_test_world_creature(guid);
+        // Kill the creature: death_time_ms=0, respawn_time_secs=0 so
+        // should_respawn() is true immediately (now_ms >= 0 + 0*1000 = 0).
+        creature.creature.mark_ai_dead(0);
+        creature.creature.ai_ownership_mut().respawn_time_secs = 0;
+
+        assert!(
+            !creature.is_alive(),
+            "creature must be dead before the call"
+        );
+        assert!(
+            creature.should_respawn(),
+            "creature must be ready to respawn"
+        );
+
+        let config = MMapRuntimeConfigLikeCpp::default();
+
+        let result = step_creature_movement_like_cpp(&mut creature, guid, &config, None);
+
+        assert!(result.is_none(), "dead + respawn must return None");
+        // After respawn the creature is alive and in Idle state.
+        assert!(creature.is_alive(), "creature must be alive after respawn");
+        assert_eq!(
+            creature.state(),
+            wow_entities::CreatureAiState::Idle,
+            "state must be Idle after respawn"
         );
     }
 }

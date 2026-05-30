@@ -151,6 +151,25 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   canonical loop) that ticks creatures once per map, builds a `RuntimePlan` under the lock, releases
   the lock, resolves recipients, and delivers via `try_send`. Owner stays `Session` in production;
   `GlobalLegacy` only in tests.
+  - **Design decisions (orchestrator call, conservative + C++-faithful; revisable):**
+    Q1 create/destroy — the global driver does **MOVEMENT ONLY**; create/destroy stay per-session,
+    which is the C++ `Player::UpdateVisibilityOf` model (per-player visibility update). NOT Q2 (no
+    mutating the receiver's set). Q2 npc_flags per-viewer — moot, happens at the per-session CREATE.
+    Q3 canonical ECS sync — stays in the existing `mutate_world_creature` per-creature path; the
+    driver's lock-ordering (simulate under RwLock → release → sync canonical under Mutex) is 4A.3b's
+    concern. Q4 active grids — deferred (the legacy map only holds spawned creatures).
+  - **4A.3a — DONE (`#NEXT.RUNTIME.L3.005`):** extracted the per-creature movement step from
+    `run_creatures_tick`'s closure into a session-free free function `step_creature_movement_like_cpp`
+    (returns the `MonsterMove` bytes; the tick delegates to it). Byte-identical, reusable by the
+    future driver. 3 tests; wow-world 1080/0; warning count unchanged vs baseline. 1 code file.
+  - **4A.3b — NEXT:** the separate legacy driver task (gated OFF; spawned only in an integration
+    test) that iterates `active_map_keys`, calls the movement helper under the RwLock, releases,
+    and delivers `MonsterMove` via `deliver_runtime_plan_like_cpp` (NearbyVisible, try_send). Verify
+    two sessions: moved once, fanned out to both.
+  - **4A.3c — LATER (own decision):** create/destroy from the global owner — needs a per-session
+    creature-visibility scan (the C++ `UpdateVisibilityOf` seam); the current incremental
+    `client_visible_guids` model (set mutated on each individual CREATE/DESTROY, ~50 sites) cannot be
+    driven from a session-less emitter. NOT bundled with 4A.3a/b.
 - **4A.4:** flip `GlobalLegacy` in an integration test only.
 - **4B:** production flip + manual client/server verification (first real manual test).
 
@@ -167,7 +186,10 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   not delivery.
 - 2026-05-30 — Slice 4A.2b `#NEXT.RUNTIME.L3.004`: run_creatures_tick repointed to the map queue;
   WorldSession::respawn_queue removed. Byte-identical 1 session. 3 tests; wow-world 1077/0.
-  **4A.2 complete.** NEXT: 4A.3 (separate legacy creature-tick driver, gated OFF).
+  **4A.2 complete.**
+- 2026-05-30 — Slice 4A.3a `#NEXT.RUNTIME.L3.005`: extracted session-free
+  `step_creature_movement_like_cpp` (movement step) from run_creatures_tick; byte-identical,
+  reusable by the future driver. 3 tests; wow-world 1080/0. NEXT: 4A.3b (driver task, gated OFF).
 
 ## References
 
