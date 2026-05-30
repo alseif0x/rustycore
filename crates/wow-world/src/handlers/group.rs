@@ -694,6 +694,7 @@ mod tests {
             map_id: 0,
             instance_id: 0,
             position: Position::ZERO,
+            combat_reach: 0.0,
             is_in_world: true,
             send_tx,
             command_tx,

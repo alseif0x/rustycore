@@ -1491,6 +1491,7 @@ pub struct LegacyCreatureAggroCandidateLikeCpp {
     pub map_id: u16,
     pub instance_id: u32,
     pub position: Position,
+    pub player_combat_reach: f32,
     pub player_level: u8,
     pub player_gray_level: u8,
     pub player_unit_flags: u32,
@@ -8267,6 +8268,11 @@ impl WorldSession {
         .unwrap_or(0)
     }
 
+    pub(crate) fn canonical_player_combat_reach_snapshot_like_cpp(&self) -> f32 {
+        self.canonical_player_snapshot_like_cpp(|player| player.unit().data().combat_reach)
+            .unwrap_or(0.0)
+    }
+
     pub(crate) fn canonical_player_reputation_standing_like_cpp(
         &self,
         faction_id: u32,
@@ -11028,6 +11034,7 @@ impl WorldSession {
                 map_id,
                 instance_id,
                 position: pos,
+                combat_reach: self.canonical_player_combat_reach_snapshot_like_cpp(),
                 is_in_world: self.player_is_in_world_for_registry_like_cpp(),
                 send_tx: self.send_tx.clone(),
                 command_tx: self.session_command_tx.clone(),
@@ -11096,6 +11103,7 @@ impl WorldSession {
         };
         if let Some(mut info) = registry.get_mut(&guid) {
             info.is_in_world = self.player_is_in_world_for_registry_like_cpp();
+            info.combat_reach = self.canonical_player_combat_reach_snapshot_like_cpp();
             info.active_loot_rolls = self
                 .represented_loot_rolls
                 .keys()
@@ -20962,10 +20970,10 @@ fn legacy_creature_aggro_candidate_is_hostile_to_creature_like_cpp(
 /// through `Creature::CanStartAttack` and then engages a target. This
 /// transitional Rust slice uses the existing represented `WorldCreature`
 /// `try_aggro` radius model plus the represented C++ targetability,
-/// faction/reputation and NoGrayAggro gates; z-distance, accessibility,
-/// detection and LOS remain later AI fidelity tasks. The map owner computes aggro
-/// once and returns victim-session `AttackStart` commands for delivery outside
-/// map locks.
+/// faction/reputation, vertical distance and NoGrayAggro gates; the `CanFly`
+/// exemption, accessibility, detection and LOS remain later AI fidelity tasks.
+/// The map owner computes aggro once and returns victim-session `AttackStart`
+/// commands for delivery outside map locks.
 pub fn run_legacy_creature_aggro_tick_once_like_cpp(
     legacy_map_manager: &crate::map_manager::SharedMapManager,
     candidates: &[LegacyCreatureAggroCandidateLikeCpp],
@@ -21038,7 +21046,11 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
                     outcome.gray_aggro_rejections += 1;
                     continue;
                 }
-                if creature.try_aggro(candidate.player_guid, &candidate.position) {
+                if creature.try_aggro_with_target_combat_reach_like_cpp(
+                    candidate.player_guid,
+                    &candidate.position,
+                    candidate.player_combat_reach,
+                ) {
                     outcome.aggro_starts += 1;
                     outcome.commands.push(
                         wow_network::player_registry::CreatureAttackStartLikeCppCommand {
@@ -21993,6 +22005,7 @@ impl WorldSession {
 
         let guids = self.world_creature_guids();
         let mut aggro_guid: Option<wow_core::ObjectGuid> = None;
+        let player_combat_reach = self.canonical_player_combat_reach_snapshot_like_cpp();
 
         for guid in guids {
             let aggroed = self
@@ -22001,7 +22014,11 @@ impl WorldSession {
                     {
                         return false;
                     }
-                    creature.try_aggro(player_guid, &player_pos)
+                    creature.try_aggro_with_target_combat_reach_like_cpp(
+                        player_guid,
+                        &player_pos,
+                        player_combat_reach,
+                    )
                 })
                 .unwrap_or(false);
             if aggroed {
@@ -34436,6 +34453,7 @@ mod tests {
             map_id: 0,
             instance_id: 0,
             position: Position::new(0.0, 0.0, 0.0, 0.0),
+            combat_reach: 0.0,
             is_in_world: true,
             send_tx,
             command_tx,
@@ -42183,6 +42201,7 @@ mod tests {
             player
                 .unit_mut()
                 .set_unit_flags2_like_cpp(UnitFlags2::IGNORE_REPUTATION);
+            player.unit_mut().set_combat_reach(1.25);
             player.set_player_flag(PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP);
         });
 
@@ -42200,6 +42219,7 @@ mod tests {
             vec![(87, wow_data::reputation::ReputationRankLikeCpp::Hostile)]
         );
         assert_eq!(snapshot.forced_reputation_faction_ids, vec![87]);
+        assert_eq!(snapshot.combat_reach, 1.25);
         assert!(snapshot.is_contested_pvp);
     }
 
@@ -50383,6 +50403,7 @@ mod tests {
             map_id: 0,
             instance_id: 0,
             position,
+            player_combat_reach: 0.0,
             player_level: 80,
             player_gray_level: 70,
             player_unit_flags: UnitFlags::PLAYER_CONTROLLED.bits(),
@@ -50507,6 +50528,61 @@ mod tests {
                 .combat_target
         };
         assert_eq!(combat_target, Some(player));
+    }
+
+    #[test]
+    fn legacy_creature_aggro_tick_once_rejects_excessive_z_distance_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_018);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 5.0;
+                creature.creature.unit_mut().set_level(25);
+                creature.creature.unit_mut().set_combat_reach(0.0);
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let high_player = ObjectGuid::create_player(1, 91_019);
+        let allowed_player = ObjectGuid::create_player(1, 91_020);
+        let mut allowed_by_reach =
+            legacy_aggro_candidate_like_cpp(allowed_player, Position::new(10.5, 10.5, 4.0, 0.0));
+        allowed_by_reach.player_combat_reach = 1.0;
+        let candidates = vec![
+            legacy_aggro_candidate_like_cpp(high_player, Position::new(10.5, 10.5, 3.1, 0.0)),
+            allowed_by_reach,
+        ];
+
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &candidates,
+            legacy_aggro_hostile_config_like_cpp(),
+        );
+
+        assert!(!outcome.skipped_owner_not_global);
+        assert_eq!(outcome.maps_seen, 1);
+        assert_eq!(outcome.creatures_seen, 1);
+        assert_eq!(outcome.candidates_seen, 2);
+        assert_eq!(outcome.aggro_starts, 1);
+        assert_eq!(outcome.commands.len(), 1);
+        assert_eq!(outcome.commands[0].attacker_guid, creature_guid);
+        assert_eq!(outcome.commands[0].victim_guid, allowed_player);
+        let combat_target = {
+            let guard = manager.read().unwrap();
+            guard
+                .find_creature(0, 0, creature_guid)
+                .unwrap()
+                .creature
+                .ai_ownership()
+                .combat_target
+        };
+        assert_eq!(combat_target, Some(allowed_player));
     }
 
     #[test]

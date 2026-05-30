@@ -210,6 +210,8 @@ pub struct PlayerBroadcastInfo {
     pub instance_id: u32,
     /// Server-side world position (updated on every movement packet).
     pub position: Position,
+    /// Current combat reach used by C++ distance gates such as `GetDistanceZ`.
+    pub combat_reach: f32,
     /// Represented C++ `Player::IsInWorld()` receiver gate for global-message fanout.
     pub is_in_world: bool,
     /// Channel used to push serialised packets to this player's socket.
@@ -312,6 +314,7 @@ mod tests {
             map_id: 571,
             instance_id: 42,
             position: Position::ZERO,
+            combat_reach: 0.0,
             is_in_world: true,
             send_tx,
             command_tx,

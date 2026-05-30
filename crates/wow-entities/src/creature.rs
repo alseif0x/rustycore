@@ -17,6 +17,7 @@ pub const DEFAULT_MONSTER_SIGHT_DISTANCE: f32 = 50.0;
 pub const LOOT_MODE_DEFAULT: u16 = 0x1;
 pub const CREATURE_TAPPERS_SOFT_CAP: usize = 5;
 pub const CREATURE_NOPATH_EVADE_TIME_MS: u32 = 10_000;
+pub const CREATURE_Z_ATTACK_RANGE_LIKE_CPP: f32 = 3.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
@@ -1287,6 +1288,15 @@ impl Creature {
     }
 
     pub fn try_ai_aggro(&mut self, player_guid: ObjectGuid, player_pos: &Position) -> bool {
+        self.try_ai_aggro_with_target_combat_reach_like_cpp(player_guid, player_pos, 0.0)
+    }
+
+    pub fn try_ai_aggro_with_target_combat_reach_like_cpp(
+        &mut self,
+        player_guid: ObjectGuid,
+        player_pos: &Position,
+        player_combat_reach: f32,
+    ) -> bool {
         if !self.ai_is_alive() || self.ai_ownership.state == CreatureAiState::InCombat {
             return false;
         }
@@ -1311,12 +1321,28 @@ impl Creature {
             return false;
         }
 
+        if !self.can_start_attack_z_range_like_cpp(player_pos, player_combat_reach) {
+            return false;
+        }
+
         if self.ai_position().distance(player_pos) <= self.ai_ownership.aggro_radius {
             self.enter_ai_combat(player_guid);
             true
         } else {
             false
         }
+    }
+
+    pub fn can_start_attack_z_range_like_cpp(
+        &self,
+        target_position: &Position,
+        target_combat_reach: f32,
+    ) -> bool {
+        let distance_z = ((self.ai_position().z - target_position.z).abs()
+            - self.unit.world().combat_reach()
+            - target_combat_reach.max(0.0))
+        .max(0.0);
+        distance_z <= CREATURE_Z_ATTACK_RANGE_LIKE_CPP + self.combat_distance.max(0.0)
     }
 
     pub fn should_ai_respawn(&self, now_ms: u64) -> bool {
@@ -1617,6 +1643,10 @@ impl Creature {
 
     pub const fn combat_distance(&self) -> f32 {
         self.combat_distance
+    }
+
+    pub fn set_combat_distance_like_cpp(&mut self, combat_distance: f32) {
+        self.combat_distance = combat_distance.max(0.0);
     }
 
     pub const fn loot_mode(&self) -> u16 {
@@ -2640,6 +2670,54 @@ mod tests {
             .set_unit_flags_like_cpp(UnitFlags::IMMUNE_TO_NPC);
         assert!(creature.try_ai_aggro(player, &player_pos));
         assert_eq!(creature.ai_state(), CreatureAiState::InCombat);
+    }
+
+    #[test]
+    fn creature_try_ai_aggro_rejects_excessive_z_distance_like_cpp() {
+        let player = ObjectGuid::create_player(1, 7);
+        let creature_pos = Position::new(10.0, 20.0, 30.0, 0.0);
+
+        let mut rejected = Creature::new(false);
+        rejected.unit_mut().set_max_health(80);
+        rejected.unit_mut().set_health(80);
+        rejected.unit_mut().set_combat_reach(1.0);
+        rejected.set_ai_position(creature_pos);
+        rejected.ai_ownership_mut().aggro_radius = 10.0;
+        assert!(!rejected.try_ai_aggro_with_target_combat_reach_like_cpp(
+            player,
+            &Position::new(12.0, 20.0, 34.6, 0.0),
+            0.5,
+        ));
+        assert_eq!(rejected.ai_state(), CreatureAiState::Idle);
+
+        let mut accepted = Creature::new(false);
+        accepted.unit_mut().set_max_health(80);
+        accepted.unit_mut().set_health(80);
+        accepted.unit_mut().set_combat_reach(1.0);
+        accepted.set_ai_position(creature_pos);
+        accepted.ai_ownership_mut().aggro_radius = 10.0;
+        assert!(accepted.try_ai_aggro_with_target_combat_reach_like_cpp(
+            player,
+            &Position::new(12.0, 20.0, 34.5, 0.0),
+            0.5,
+        ));
+        assert_eq!(accepted.ai_state(), CreatureAiState::InCombat);
+
+        let mut combat_distance = Creature::new(false);
+        combat_distance.unit_mut().set_max_health(80);
+        combat_distance.unit_mut().set_health(80);
+        combat_distance.unit_mut().set_combat_reach(1.0);
+        combat_distance.set_combat_distance_like_cpp(1.0);
+        combat_distance.set_ai_position(creature_pos);
+        combat_distance.ai_ownership_mut().aggro_radius = 10.0;
+        assert!(
+            combat_distance.try_ai_aggro_with_target_combat_reach_like_cpp(
+                player,
+                &Position::new(12.0, 20.0, 35.5, 0.0),
+                0.5,
+            )
+        );
+        assert_eq!(combat_distance.ai_state(), CreatureAiState::InCombat);
     }
 
     #[test]

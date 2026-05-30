@@ -402,6 +402,14 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `WorldObject::IsValidAttackTarget`, and `WorldObject::GetReactionTo` for the NPC-vs-player
   hostility/reputation path, including forced reaction ranks and `UNIT_FLAG2_IGNORE_REPUTATION`.
   Remaining `CanStartAttack` fidelity gaps: z-distance/accessibility, visibility/detection, and LOS.
+- 2026-05-30 — Runtime creature-aggro z-distance gate `#NEXT.RUNTIME.L3.031c`: represented the
+  vertical gate from `Creature::CanStartAttack` before radius engagement in both session-owned and
+  global legacy aggro paths. Rust now snapshots player combat reach into `PlayerBroadcastInfo`,
+  carries it through `LegacyCreatureAggroCandidateLikeCpp`, and applies the C++ formula
+  `max(0, abs(dz) - ownCombatReach - targetCombatReach) <= CREATURE_Z_ATTACK_RANGE(3) +
+  m_CombatDistance`. Covered C++ anchors: `Creature.h` `CREATURE_Z_ATTACK_RANGE`,
+  `Object::GetDistanceZ`, and `Creature::CanStartAttack`. Remaining `CanStartAttack` fidelity gaps:
+  represented `CanFly()` exemption, accessibility/visibility/detection, and LOS.
 
 ## References
 

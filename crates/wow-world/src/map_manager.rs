@@ -947,6 +947,20 @@ impl WorldCreature {
         self.creature.try_ai_aggro(player_guid, player_pos)
     }
 
+    pub fn try_aggro_with_target_combat_reach_like_cpp(
+        &mut self,
+        player_guid: ObjectGuid,
+        player_pos: &Position,
+        player_combat_reach: f32,
+    ) -> bool {
+        self.creature
+            .try_ai_aggro_with_target_combat_reach_like_cpp(
+                player_guid,
+                player_pos,
+                player_combat_reach,
+            )
+    }
+
     pub fn should_respawn(&self) -> bool {
         self.creature.should_ai_respawn(self.now_ms())
     }
