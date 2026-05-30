@@ -445,6 +445,17 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `WorldObject::IsValidAttackTarget`, `Unit::isTargetableForAttack(false)`, and
   `Unit.h::UNIT_STATE_UNATTACKABLE`. Remaining `CanStartAttack` fidelity gaps: exact map visibility
   range source for every map, accessibility/visibility/detection, and LOS.
+- 2026-05-30 — Runtime creature-aggro map visibility range source `#NEXT.RUNTIME.L3.031h`:
+  the legacy global aggro home leash now uses the C++ visibility-distance categories instead of a
+  hardcoded `100.0`: continents, instances, battlegrounds, and arenas are loaded from
+  `Visibility.Distance.*`, clamped like `World.cpp`, and selected via `Map.db2` instance type before
+  applying `min(GetMap()->GetVisibilityRange(), SIZE_OF_GRID_CELL * 2)`. This fixes the too-short
+  home leash on represented BG/arena/instance map entries. Covered C++ anchors:
+  `Map::GetVisibilityRange`, `Map::InitVisibilityDistance`, `InstanceMap::InitVisibilityDistance`,
+  `BattlegroundMap::InitVisibilityDistance`, and `World.cpp` visibility config loading. Remaining
+  gaps: the canonical `wow_map::Map::visible_distance` constructor still defaults to `100.0`
+  outside this legacy aggro config path; `CanCreatureAttack` dungeon/owner/taunt bypasses,
+  accessibility/visibility/detection, and LOS remain separate runtime fidelity work.
 
 ## References
 

@@ -1507,17 +1507,63 @@ pub struct LegacyCreatureAggroCandidateLikeCpp {
     pub player_forced_reputation_faction_ids: Vec<u32>,
 }
 
+const DEFAULT_VISIBILITY_BGARENAS_LIKE_CPP: f32 = 533.0;
+
 /// Map-owned creature aggro fidelity switches derived from C++ world configs.
 ///
 /// C++ anchor: `Creature::CheckNoGrayAggroConfig` reads
 /// `CONFIG_NO_GRAY_AGGRO_ABOVE` and `CONFIG_NO_GRAY_AGGRO_BELOW` after
 /// `Trinity::XP::GetColorCode(playerLevel, creatureLevel) == XP_GRAY`.
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct LegacyCreatureAggroConfigLikeCpp {
     pub no_gray_aggro_above: u32,
     pub no_gray_aggro_below: u32,
     pub faction_template_store: Option<Arc<FactionTemplateStore>>,
     pub faction_store: Option<Arc<FactionStore>>,
+    pub map_store: Option<Arc<MapStore>>,
+    pub visibility_distance_continents: f32,
+    pub visibility_distance_instances: f32,
+    pub visibility_distance_battlegrounds: f32,
+    pub visibility_distance_arenas: f32,
+}
+
+impl Default for LegacyCreatureAggroConfigLikeCpp {
+    fn default() -> Self {
+        Self {
+            no_gray_aggro_above: 0,
+            no_gray_aggro_below: 0,
+            faction_template_store: None,
+            faction_store: None,
+            map_store: None,
+            visibility_distance_continents: wow_entities::DEFAULT_VISIBILITY_DISTANCE,
+            visibility_distance_instances: wow_entities::DEFAULT_VISIBILITY_INSTANCE,
+            visibility_distance_battlegrounds: DEFAULT_VISIBILITY_BGARENAS_LIKE_CPP,
+            visibility_distance_arenas: DEFAULT_VISIBILITY_BGARENAS_LIKE_CPP,
+        }
+    }
+}
+
+impl LegacyCreatureAggroConfigLikeCpp {
+    fn map_visibility_range_like_cpp(&self, map_id: u16) -> f32 {
+        let Some(entry) = self
+            .map_store
+            .as_ref()
+            .and_then(|store| store.get(u32::from(map_id)))
+        else {
+            return self.visibility_distance_continents;
+        };
+
+        match entry.instance_type {
+            wow_data::map::MAP_ARENA => self.visibility_distance_arenas,
+            wow_data::map::MAP_BATTLEGROUND => self.visibility_distance_battlegrounds,
+            wow_data::map::MAP_INSTANCE | wow_data::map::MAP_RAID | wow_data::map::MAP_SCENARIO
+                if !entry.is_garrison() =>
+            {
+                self.visibility_distance_instances
+            }
+            _ => self.visibility_distance_continents,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -21014,8 +21060,11 @@ fn legacy_creature_aggro_candidate_is_hostile_to_creature_like_cpp(
 fn legacy_creature_can_attack_home_range_like_cpp(
     creature: &crate::map_manager::WorldCreature,
     candidate: &LegacyCreatureAggroCandidateLikeCpp,
+    config: &LegacyCreatureAggroConfigLikeCpp,
 ) -> bool {
-    let mut max_home_distance = crate::map_manager::VISIBILITY_RADIUS.min(SIZE_OF_GRID_CELL * 2.0);
+    let mut max_home_distance = config
+        .map_visibility_range_like_cpp(candidate.map_id)
+        .min(SIZE_OF_GRID_CELL * 2.0);
     max_home_distance +=
         creature.creature.unit().world().combat_reach() + candidate.player_combat_reach.max(0.0);
     let home_position = creature.home_position();
@@ -21107,7 +21156,7 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
                         continue;
                     }
                 }
-                if !legacy_creature_can_attack_home_range_like_cpp(creature, candidate) {
+                if !legacy_creature_can_attack_home_range_like_cpp(creature, candidate, &config) {
                     outcome.home_range_rejections += 1;
                     continue;
                 }
@@ -50740,6 +50789,50 @@ mod tests {
         assert_eq!(outcome.home_range_rejections, 1);
         assert_eq!(outcome.aggro_starts, 0);
         assert!(outcome.commands.is_empty());
+    }
+
+    #[test]
+    fn legacy_creature_aggro_home_range_uses_map_visibility_category_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_029);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 250.0;
+                creature.creature.unit_mut().set_level(25);
+                creature.creature.unit_mut().set_combat_reach(0.0);
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let player = ObjectGuid::create_player(1, 91_030);
+        let candidates = vec![legacy_aggro_candidate_like_cpp(
+            player,
+            Position::new(130.0, 10.0, 0.0, 0.0),
+        )];
+        let mut config = legacy_aggro_hostile_config_like_cpp();
+        config.map_store = Some(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_BATTLEGROUND,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+            },
+        ])));
+
+        let outcome =
+            run_legacy_creature_aggro_tick_once_with_config_like_cpp(&manager, &candidates, config);
+
+        assert_eq!(outcome.home_range_rejections, 0);
+        assert_eq!(outcome.aggro_starts, 1);
+        assert_eq!(outcome.commands.len(), 1);
+        assert_eq!(outcome.commands[0].victim_guid, player);
     }
 
     #[test]
