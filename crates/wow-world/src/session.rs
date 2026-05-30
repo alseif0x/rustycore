@@ -1583,6 +1583,7 @@ pub struct LegacyCreatureAggroTickOutcomeLikeCpp {
     pub hostility_rejections: usize,
     pub hostility_unrepresented: usize,
     pub owner_position_unrepresented: usize,
+    pub attacker_evade_rejections: usize,
     pub home_range_rejections: usize,
     pub gray_aggro_rejections: usize,
     pub aggro_starts: usize,
@@ -21213,6 +21214,10 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
                         outcome.hostility_unrepresented += 1;
                         continue;
                     }
+                }
+                if creature.creature.is_in_evade_mode_like_cpp() {
+                    outcome.attacker_evade_rejections += 1;
+                    continue;
                 }
                 match legacy_creature_can_attack_leash_decision_like_cpp(
                     creature, candidate, &config,
@@ -50854,6 +50859,42 @@ mod tests {
         );
 
         assert_eq!(outcome.home_range_rejections, 1);
+        assert_eq!(outcome.aggro_starts, 0);
+        assert!(outcome.commands.is_empty());
+    }
+
+    #[test]
+    fn legacy_creature_aggro_tick_once_rejects_evading_attacker_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_046);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 50.0;
+                creature.creature.unit_mut().set_level(25);
+                creature.creature.set_in_evade_mode_like_cpp(true);
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let player = ObjectGuid::create_player(1, 91_047);
+        let candidates = vec![legacy_aggro_candidate_like_cpp(
+            player,
+            Position::new(10.5, 10.5, 0.0, 0.0),
+        )];
+
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &candidates,
+            legacy_aggro_hostile_config_like_cpp(),
+        );
+
+        assert_eq!(outcome.attacker_evade_rejections, 1);
         assert_eq!(outcome.aggro_starts, 0);
         assert!(outcome.commands.is_empty());
     }

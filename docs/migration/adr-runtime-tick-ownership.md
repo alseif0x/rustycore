@@ -483,6 +483,12 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `SPELL_AURA_MOD_TAUNT = 11`. Remaining gaps: owner-position routing for owned creatures, exact
   damage-type exclusions for DoTs/damage shields, accessibility, AI-specific attack gates, evade
   states, visibility/detection, and LOS.
+- 2026-05-30 — Runtime creature-aggro attacker evade gate `#NEXT.RUNTIME.L3.031l`: represented the
+  C++ `Creature::CanCreatureAttack` branch that rejects when the attacking creature
+  `IsInEvadeMode()`. The global legacy aggro scan now checks `Creature::is_in_evade_mode_like_cpp()`
+  before leash/NoGray/aggro start and counts `attacker_evade_rejections`. Remaining gaps:
+  victim-creature evade for non-player aggro targets, accessibility, AI-specific attack gates,
+  visibility/detection, and LOS.
 
 ## References
 
