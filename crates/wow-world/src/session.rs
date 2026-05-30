@@ -1582,6 +1582,7 @@ pub struct LegacyCreatureAggroTickOutcomeLikeCpp {
     pub targetability_rejections: usize,
     pub hostility_rejections: usize,
     pub hostility_unrepresented: usize,
+    pub owner_position_unrepresented: usize,
     pub home_range_rejections: usize,
     pub gray_aggro_rejections: usize,
     pub aggro_starts: usize,
@@ -21064,18 +21065,42 @@ fn legacy_creature_aggro_candidate_is_hostile_to_creature_like_cpp(
     Some(false)
 }
 
-fn legacy_creature_can_attack_home_range_like_cpp(
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LegacyCreatureCanAttackLeashDecisionLikeCpp {
+    Allowed,
+    OwnerPositionUnrepresented,
+    HomeRangeRejected,
+}
+
+fn legacy_creature_can_attack_leash_decision_like_cpp(
     creature: &crate::map_manager::WorldCreature,
     candidate: &LegacyCreatureAggroCandidateLikeCpp,
     config: &LegacyCreatureAggroConfigLikeCpp,
-) -> bool {
-    if config.map_is_dungeon_like_cpp(candidate.map_id) {
-        return true;
+) -> LegacyCreatureCanAttackLeashDecisionLikeCpp {
+    let charmer_or_owner_guid = creature
+        .creature
+        .unit()
+        .subsystems()
+        .control
+        .charmer_or_owner_guid();
+    let charmer_or_owner_is_player = charmer_or_owner_guid.is_some_and(|guid| guid.is_player());
+
+    if !charmer_or_owner_is_player && config.map_is_dungeon_like_cpp(candidate.map_id) {
+        return LegacyCreatureCanAttackLeashDecisionLikeCpp::Allowed;
     }
 
     let mut max_home_distance = config
         .map_visibility_range_like_cpp(candidate.map_id)
         .min(SIZE_OF_GRID_CELL * 2.0);
+
+    // C++ uses `GetCharmerOrOwner()` as the leash center after the non-player
+    // dungeon/recent-damage bypasses. The transitional global aggro scan does
+    // not yet carry owner positions, so fail closed instead of pretending the
+    // creature home position is equivalent.
+    if charmer_or_owner_guid.is_some() {
+        return LegacyCreatureCanAttackLeashDecisionLikeCpp::OwnerPositionUnrepresented;
+    }
+
     max_home_distance +=
         creature.creature.unit().world().combat_reach() + candidate.player_combat_reach.max(0.0);
     let home_position = creature.home_position();
@@ -21083,13 +21108,23 @@ fn legacy_creature_can_attack_home_range_like_cpp(
     if creature.creature.flight_movement_type_like_cpp()
         != wow_constants::CreatureFlightMovementType::None as u8
     {
-        candidate
+        if candidate
             .position
             .is_within_dist_2d(&home_position, max_home_distance)
+        {
+            LegacyCreatureCanAttackLeashDecisionLikeCpp::Allowed
+        } else {
+            LegacyCreatureCanAttackLeashDecisionLikeCpp::HomeRangeRejected
+        }
     } else {
-        candidate
+        if candidate
             .position
             .is_within_dist(&home_position, max_home_distance)
+        {
+            LegacyCreatureCanAttackLeashDecisionLikeCpp::Allowed
+        } else {
+            LegacyCreatureCanAttackLeashDecisionLikeCpp::HomeRangeRejected
+        }
     }
 }
 
@@ -21167,9 +21202,18 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
                         continue;
                     }
                 }
-                if !legacy_creature_can_attack_home_range_like_cpp(creature, candidate, &config) {
-                    outcome.home_range_rejections += 1;
-                    continue;
+                match legacy_creature_can_attack_leash_decision_like_cpp(
+                    creature, candidate, &config,
+                ) {
+                    LegacyCreatureCanAttackLeashDecisionLikeCpp::Allowed => {}
+                    LegacyCreatureCanAttackLeashDecisionLikeCpp::OwnerPositionUnrepresented => {
+                        outcome.owner_position_unrepresented += 1;
+                        continue;
+                    }
+                    LegacyCreatureCanAttackLeashDecisionLikeCpp::HomeRangeRejected => {
+                        outcome.home_range_rejections += 1;
+                        continue;
+                    }
                 }
                 if check_no_gray_aggro_config_like_cpp(
                     &config,
@@ -50888,6 +50932,57 @@ mod tests {
         assert_eq!(outcome.aggro_starts, 1);
         assert_eq!(outcome.commands.len(), 1);
         assert_eq!(outcome.commands[0].victim_guid, player);
+    }
+
+    #[test]
+    fn legacy_creature_aggro_player_owned_creature_requires_owner_position_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_033);
+        let owner = ObjectGuid::create_player(1, 91_034);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 250.0;
+                creature.creature.unit_mut().set_level(25);
+                creature.creature.unit_mut().set_combat_reach(0.0);
+                creature
+                    .creature
+                    .unit_mut()
+                    .subsystems_mut()
+                    .control
+                    .set_owner_guid(Some(owner));
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let player = ObjectGuid::create_player(1, 91_035);
+        let candidates = vec![legacy_aggro_candidate_like_cpp(
+            player,
+            Position::new(240.0, 10.0, 0.0, 0.0),
+        )];
+        let mut config = legacy_aggro_hostile_config_like_cpp();
+        config.map_store = Some(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_INSTANCE,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+            },
+        ])));
+
+        let outcome =
+            run_legacy_creature_aggro_tick_once_with_config_like_cpp(&manager, &candidates, config);
+
+        assert_eq!(outcome.owner_position_unrepresented, 1);
+        assert_eq!(outcome.home_range_rejections, 0);
+        assert_eq!(outcome.aggro_starts, 0);
+        assert!(outcome.commands.is_empty());
     }
 
     #[test]

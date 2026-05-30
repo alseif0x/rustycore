@@ -464,6 +464,15 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `MapEntry::IsDungeon`. Remaining gaps: represented player charmer/owner state for creatures,
   recent-damage/taunt bypass, accessibility, AI-specific attack gates, evade states,
   visibility/detection, and LOS.
+- 2026-05-30 — Runtime creature-aggro owner leash guard `#NEXT.RUNTIME.L3.031j`: represented the C++
+  `Creature::CanCreatureAttack` distinction between non-player-owned creatures and creatures with a
+  player charmer/owner. The dungeon leash bypass now applies only to creatures whose
+  `GetCharmerOrOwnerGUID().IsPlayer()` equivalent is false; if any charmer/owner exists and this
+  transitional global scan lacks the owner position needed for C++ `victim->IsWithinDist(owner,
+  dist)`, Rust fails closed and counts `owner_position_unrepresented` instead of falling back to the
+  home position. Remaining gaps: owner-position routing for player/non-player owned creatures,
+  recent-damage/taunt bypass, accessibility, AI-specific attack gates, evade states,
+  visibility/detection, and LOS.
 
 ## References
 
