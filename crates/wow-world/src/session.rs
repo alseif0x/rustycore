@@ -21088,6 +21088,18 @@ fn legacy_creature_can_attack_leash_decision_like_cpp(
     if !charmer_or_owner_is_player && config.map_is_dungeon_like_cpp(candidate.map_id) {
         return LegacyCreatureCanAttackLeashDecisionLikeCpp::Allowed;
     }
+    if !charmer_or_owner_is_player
+        && !creature.creature.is_world_boss_like_cpp()
+        && (creature.creature.last_damaged_time() > wow_entities::game_time_secs_like_cpp()
+            || creature
+                .creature
+                .unit()
+                .subsystems()
+                .auras
+                .has_aura_type_like_cpp(wow_data::spell::aura_types::SPELL_AURA_MOD_TAUNT))
+    {
+        return LegacyCreatureCanAttackLeashDecisionLikeCpp::Allowed;
+    }
 
     let mut max_home_distance = config
         .map_visibility_range_like_cpp(candidate.map_id)
@@ -50953,6 +50965,18 @@ mod tests {
                     .subsystems_mut()
                     .control
                     .set_owner_guid(Some(owner));
+                creature
+                    .creature
+                    .set_last_damaged_time_like_cpp(wow_entities::game_time_secs_like_cpp() + 10);
+                creature
+                    .creature
+                    .unit_mut()
+                    .subsystems_mut()
+                    .auras
+                    .register_applied_aura_type_like_cpp(
+                        wow_entities::AppliedAuraRef::new(35_517, owner, 0, 0x1),
+                        wow_data::spell::aura_types::SPELL_AURA_MOD_TAUNT,
+                    );
             })
             .unwrap();
         manager
@@ -50981,6 +51005,182 @@ mod tests {
 
         assert_eq!(outcome.owner_position_unrepresented, 1);
         assert_eq!(outcome.home_range_rejections, 0);
+        assert_eq!(outcome.aggro_starts, 0);
+        assert!(outcome.commands.is_empty());
+    }
+
+    #[test]
+    fn legacy_creature_aggro_recent_damage_skips_home_range_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_036);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 250.0;
+                creature.creature.unit_mut().set_level(25);
+                creature.creature.unit_mut().set_combat_reach(0.0);
+                let _ = creature.creature.take_ai_damage(1, 0);
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let player = ObjectGuid::create_player(1, 91_037);
+        let candidates = vec![legacy_aggro_candidate_like_cpp(
+            player,
+            Position::new(240.0, 10.0, 0.0, 0.0),
+        )];
+
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &candidates,
+            legacy_aggro_hostile_config_like_cpp(),
+        );
+
+        assert_eq!(outcome.home_range_rejections, 0);
+        assert_eq!(outcome.aggro_starts, 1);
+        assert_eq!(outcome.commands.len(), 1);
+        assert_eq!(outcome.commands[0].victim_guid, player);
+    }
+
+    #[test]
+    fn legacy_creature_aggro_expired_recent_damage_uses_home_range_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_044);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 250.0;
+                creature.creature.unit_mut().set_level(25);
+                creature.creature.unit_mut().set_combat_reach(0.0);
+                creature
+                    .creature
+                    .set_last_damaged_time_like_cpp(wow_entities::game_time_secs_like_cpp() - 1);
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let player = ObjectGuid::create_player(1, 91_045);
+        let candidates = vec![legacy_aggro_candidate_like_cpp(
+            player,
+            Position::new(240.0, 10.0, 0.0, 0.0),
+        )];
+
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &candidates,
+            legacy_aggro_hostile_config_like_cpp(),
+        );
+
+        assert_eq!(outcome.home_range_rejections, 1);
+        assert_eq!(outcome.aggro_starts, 0);
+        assert!(outcome.commands.is_empty());
+    }
+
+    #[test]
+    fn legacy_creature_aggro_taunt_skips_home_range_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_038);
+        let caster = ObjectGuid::create_player(1, 91_039);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 250.0;
+                creature.creature.unit_mut().set_level(25);
+                creature.creature.unit_mut().set_combat_reach(0.0);
+                creature
+                    .creature
+                    .unit_mut()
+                    .subsystems_mut()
+                    .auras
+                    .register_applied_aura_type_like_cpp(
+                        wow_entities::AppliedAuraRef::new(35_517, caster, 0, 0x1),
+                        wow_data::spell::aura_types::SPELL_AURA_MOD_TAUNT,
+                    );
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let player = ObjectGuid::create_player(1, 91_040);
+        let candidates = vec![legacy_aggro_candidate_like_cpp(
+            player,
+            Position::new(240.0, 10.0, 0.0, 0.0),
+        )];
+
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &candidates,
+            legacy_aggro_hostile_config_like_cpp(),
+        );
+
+        assert_eq!(outcome.home_range_rejections, 0);
+        assert_eq!(outcome.aggro_starts, 1);
+        assert_eq!(outcome.commands.len(), 1);
+        assert_eq!(outcome.commands[0].victim_guid, player);
+    }
+
+    #[test]
+    fn legacy_creature_aggro_world_boss_does_not_skip_home_range_for_taunt_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_041);
+        let caster = ObjectGuid::create_player(1, 91_042);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 250.0;
+                creature.creature.unit_mut().set_level(25);
+                creature.creature.unit_mut().set_combat_reach(0.0);
+                creature
+                    .creature
+                    .set_type_flags_runtime_like_cpp(CreatureTypeFlags::BOSS_MOB.bits());
+                creature
+                    .creature
+                    .set_last_damaged_time_like_cpp(wow_entities::game_time_secs_like_cpp() + 10);
+                creature
+                    .creature
+                    .unit_mut()
+                    .subsystems_mut()
+                    .auras
+                    .register_applied_aura_type_like_cpp(
+                        wow_entities::AppliedAuraRef::new(35_517, caster, 0, 0x1),
+                        wow_data::spell::aura_types::SPELL_AURA_MOD_TAUNT,
+                    );
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let player = ObjectGuid::create_player(1, 91_043);
+        let candidates = vec![legacy_aggro_candidate_like_cpp(
+            player,
+            Position::new(240.0, 10.0, 0.0, 0.0),
+        )];
+
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &candidates,
+            legacy_aggro_hostile_config_like_cpp(),
+        );
+
+        assert_eq!(outcome.home_range_rejections, 1);
         assert_eq!(outcome.aggro_starts, 0);
         assert!(outcome.commands.is_empty());
     }

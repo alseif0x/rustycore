@@ -44,6 +44,7 @@ pub mod aura_types {
     pub const SPELL_AURA_SCHOOL_ABSORB: i32 = 1;
     pub const SPELL_AURA_SCHOOL_IMMUNITY: i32 = 2;
     pub const SPELL_AURA_DUMMY_ABSORB: i32 = 3;
+    pub const SPELL_AURA_MOD_TAUNT: i32 = 11;
     pub const SPELL_AURA_MODIFY_DAMAGE_PERCENT_TAKEN: i32 = 31;
     pub const SPELL_AURA_HASTE_SPELLS: i32 = 73;
     pub const SPELL_AURA_MOUNTED: i32 = 78;

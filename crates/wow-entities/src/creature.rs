@@ -1,6 +1,8 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use wow_constants::{
-    CreatureFlagsExtra, CreatureFlightMovementType, DeathState, PowerType, TypeId, TypeMask,
-    UnitDynFlags, UnitFlags, UnitState, WeaponAttackType, movement::MovementFlag,
+    CreatureFlagsExtra, CreatureFlightMovementType, CreatureTypeFlags, DeathState, PowerType,
+    TypeId, TypeMask, UnitDynFlags, UnitFlags, UnitState, WeaponAttackType, movement::MovementFlag,
 };
 use wow_core::{ObjectGuid, Position};
 
@@ -18,7 +20,15 @@ pub const LOOT_MODE_DEFAULT: u16 = 0x1;
 pub const CREATURE_TAPPERS_SOFT_CAP: usize = 5;
 pub const CREATURE_NOPATH_EVADE_TIME_MS: u32 = 10_000;
 pub const CREATURE_Z_ATTACK_RANGE_LIKE_CPP: f32 = 3.0;
+pub const MAX_AGGRO_RESET_TIME_SECS_LIKE_CPP: i64 = 10;
 const CREATURE_FLIGHT_MOVEMENT_TYPE_MAX_LIKE_CPP: u8 = 3;
+
+pub fn game_time_secs_like_cpp() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_secs().min(i64::MAX as u64) as i64)
+        .unwrap_or(0)
+}
 
 pub const fn normalize_creature_flight_movement_type_like_cpp(flight_movement_type: u8) -> u8 {
     if flight_movement_type < CREATURE_FLIGHT_MOVEMENT_TYPE_MAX_LIKE_CPP {
@@ -980,6 +990,19 @@ impl Creature {
         &self.lifecycle_metadata
     }
 
+    pub fn is_world_boss_like_cpp(&self) -> bool {
+        if self.is_summon_like_cpp() {
+            return false;
+        }
+
+        CreatureTypeFlags::from_bits_truncate(self.lifecycle_metadata.type_flags)
+            .contains(CreatureTypeFlags::BOSS_MOB)
+    }
+
+    pub fn set_type_flags_runtime_like_cpp(&mut self, type_flags: u32) {
+        self.lifecycle_metadata.type_flags = type_flags;
+    }
+
     pub fn is_civilian_like_cpp(&self) -> bool {
         CreatureFlagsExtra::from_bits_truncate(self.lifecycle_metadata.flags_extra)
             .contains(CreatureFlagsExtra::CIVILIAN)
@@ -1231,6 +1254,7 @@ impl Creature {
         let max_health = self.unit.data().max_health;
         self.unit.set_death_state(DeathState::Alive);
         self.unit.set_health(max_health);
+        self.last_damaged_time = 0;
     }
 
     /// Apply damage and return `true` when this call killed the creature.
@@ -1248,13 +1272,37 @@ impl Creature {
         damage: u32,
         now_ms: u64,
     ) -> bool {
+        self.apply_ai_damage_before_death_state_at_game_time_like_cpp(
+            damage,
+            now_ms,
+            game_time_secs_like_cpp(),
+        )
+    }
+
+    pub fn apply_ai_damage_before_death_state_at_game_time_like_cpp(
+        &mut self,
+        damage: u32,
+        now_ms: u64,
+        game_time_secs: i64,
+    ) -> bool {
         if !self.ai_is_alive() {
             return false;
         }
 
         let remaining = self.ai_current_health().saturating_sub(u64::from(damage));
         self.unit.set_health(remaining);
-        self.last_damaged_time = now_ms.min(i64::MAX as u64) as i64;
+        if remaining > 0
+            && damage > 0
+            && !self
+                .unit
+                .subsystems()
+                .control
+                .owner_guid
+                .is_some_and(|owner_guid| owner_guid.is_player())
+        {
+            self.last_damaged_time =
+                game_time_secs.saturating_add(MAX_AGGRO_RESET_TIME_SECS_LIKE_CPP);
+        }
         if remaining == 0 {
             self.ai_ownership.state = CreatureAiState::Dead;
             self.ai_ownership.combat_target = None;
@@ -1324,6 +1372,7 @@ impl Creature {
             .world_mut()
             .relocate(self.ai_ownership.home_position);
         self.unit.set_attacking(None);
+        self.last_damaged_time = 0;
     }
 
     pub fn can_ai_wander(&self) -> bool {
@@ -1653,6 +1702,10 @@ impl Creature {
 
     pub const fn last_damaged_time(&self) -> i64 {
         self.last_damaged_time
+    }
+
+    pub fn set_last_damaged_time_like_cpp(&mut self, last_damaged_time: i64) {
+        self.last_damaged_time = last_damaged_time;
     }
 
     pub const fn regenerate_health(&self) -> bool {
@@ -2521,9 +2574,11 @@ mod tests {
         creature.set_ai_home_position(home);
 
         creature.enter_ai_combat(attacker);
+        assert!(!creature.take_ai_damage(1, 10));
         assert_eq!(creature.ai_state(), CreatureAiState::InCombat);
         assert_eq!(creature.ai_ownership().combat_target, Some(attacker));
         assert_eq!(creature.unit().attacking(), Some(attacker));
+        assert!(creature.last_damaged_time() > 10);
 
         creature.reset_ai_combat(55);
         assert_eq!(creature.ai_state(), CreatureAiState::Returning);
@@ -2532,6 +2587,7 @@ mod tests {
         assert_eq!(creature.ai_current_health(), 80);
         assert_eq!(creature.ai_ownership().move_target, Some(home));
         assert_eq!(creature.ai_ownership().move_start_ms, 55);
+        assert_eq!(creature.last_damaged_time(), 0);
     }
 
     #[test]
@@ -2559,6 +2615,59 @@ mod tests {
         assert!(creature.runtime_state().save_respawn_requested);
         assert!(!creature.should_ai_respawn(29_999));
         assert!(creature.should_ai_respawn(30_020));
+    }
+
+    #[test]
+    fn creature_ai_damage_records_aggro_reset_expiry_like_cpp() {
+        let mut creature = Creature::new(false);
+        creature.unit_mut().set_max_health(40);
+        creature.unit_mut().set_health(40);
+
+        assert!(!creature.apply_ai_damage_before_death_state_at_game_time_like_cpp(15, 10, 1_000));
+
+        assert_eq!(
+            creature.last_damaged_time(),
+            1_000 + MAX_AGGRO_RESET_TIME_SECS_LIKE_CPP
+        );
+    }
+
+    #[test]
+    fn creature_ai_lethal_damage_does_not_record_aggro_reset_expiry_like_cpp() {
+        let mut creature = Creature::new(false);
+        creature.unit_mut().set_max_health(40);
+        creature.unit_mut().set_health(40);
+
+        assert!(creature.apply_ai_damage_before_death_state_at_game_time_like_cpp(100, 10, 1_000));
+
+        assert_eq!(creature.last_damaged_time(), 0);
+    }
+
+    #[test]
+    fn creature_ai_damage_does_not_record_player_owned_aggro_reset_like_cpp() {
+        let owner = ObjectGuid::create_player(1, 42);
+        let mut creature = Creature::new(false);
+        creature.unit_mut().set_max_health(40);
+        creature.unit_mut().set_health(40);
+        creature
+            .unit_mut()
+            .subsystems_mut()
+            .control
+            .set_owner_guid(Some(owner));
+
+        assert!(!creature.apply_ai_damage_before_death_state_at_game_time_like_cpp(15, 10, 1_000));
+
+        assert_eq!(creature.last_damaged_time(), 0);
+    }
+
+    #[test]
+    fn creature_world_boss_uses_type_flags_and_excludes_summons_like_cpp() {
+        let mut creature = Creature::new(false);
+        creature.set_type_flags_runtime_like_cpp(CreatureTypeFlags::BOSS_MOB.bits());
+        assert!(creature.is_world_boss_like_cpp());
+
+        creature.set_summon_like_cpp(true);
+
+        assert!(!creature.is_world_boss_like_cpp());
     }
 
     #[test]
@@ -2635,6 +2744,7 @@ mod tests {
 
         creature.mark_ai_dead(100);
         creature.set_ai_corpse_despawn_at(Some(130));
+        creature.set_last_damaged_time_like_cpp(1_010);
         assert_eq!(creature.ai_ownership().corpse_despawn_at_ms, Some(130));
         creature.respawn_ai(200);
         assert!(creature.is_alive());
@@ -2643,6 +2753,7 @@ mod tests {
         assert_eq!(creature.ai_state(), CreatureAiState::Idle);
         assert_eq!(creature.ai_ownership().combat_target, None);
         assert_eq!(creature.ai_ownership().corpse_despawn_at_ms, None);
+        assert_eq!(creature.last_damaged_time(), 0);
     }
 
     #[test]

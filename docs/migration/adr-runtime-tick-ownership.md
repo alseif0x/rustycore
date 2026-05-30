@@ -473,6 +473,16 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   home position. Remaining gaps: owner-position routing for player/non-player owned creatures,
   recent-damage/taunt bypass, accessibility, AI-specific attack gates, evade states,
   visibility/detection, and LOS.
+- 2026-05-30 — Runtime creature-aggro recent-damage/taunt leash bypass
+  `#NEXT.RUNTIME.L3.031k`: represented the C++ non-player-owned, non-world-boss
+  `CanCreatureAttack` branch that skips home leash when `_lastDamagedTime > GameTime::GetGameTime()`
+  or `HasAuraType(SPELL_AURA_MOD_TAUNT)`. Rust now stores creature AI `last_damaged_time` as a
+  C++-style absolute `GameTime` seconds expiry (`now + MAX_AGGRO_RESET_TIME`), records it only for
+  non-lethal positive damage to non-player-owned creatures, clears it on combat reset/respawn,
+  exposes `Creature::is_world_boss_like_cpp()` from `CreatureTypeFlags::BOSS_MOB`, and adds
+  `SPELL_AURA_MOD_TAUNT = 11`. Remaining gaps: owner-position routing for owned creatures, exact
+  damage-type exclusions for DoTs/damage shields, accessibility, AI-specific attack gates, evade
+  states, visibility/detection, and LOS.
 
 ## References
 
