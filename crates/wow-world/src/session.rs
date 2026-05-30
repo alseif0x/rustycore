@@ -21089,6 +21089,14 @@ fn position_is_in_dist_strict_3d_like_cpp(
     position.distance_sq(other) < dist * dist
 }
 
+fn position_is_in_dist_strict_2d_like_cpp(
+    position: &Position,
+    other: &Position,
+    dist: f32,
+) -> bool {
+    position.distance_2d_sq(other) < dist * dist
+}
+
 fn legacy_creature_can_attack_leash_decision_like_cpp(
     creature: &crate::map_manager::WorldCreature,
     candidate: &LegacyCreatureAggroCandidateLikeCpp,
@@ -21158,23 +21166,23 @@ fn legacy_creature_can_attack_leash_decision_like_cpp(
     if creature.creature.flight_movement_type_like_cpp()
         != wow_constants::CreatureFlightMovementType::None as u8
     {
-        if candidate
-            .position
-            .is_within_dist_2d(&home_position, max_home_distance)
-        {
+        if position_is_in_dist_strict_2d_like_cpp(
+            &candidate.position,
+            &home_position,
+            max_home_distance,
+        ) {
             LegacyCreatureCanAttackLeashDecisionLikeCpp::Allowed
         } else {
             LegacyCreatureCanAttackLeashDecisionLikeCpp::HomeRangeRejected
         }
+    } else if position_is_in_dist_strict_3d_like_cpp(
+        &candidate.position,
+        &home_position,
+        max_home_distance,
+    ) {
+        LegacyCreatureCanAttackLeashDecisionLikeCpp::Allowed
     } else {
-        if candidate
-            .position
-            .is_within_dist(&home_position, max_home_distance)
-        {
-            LegacyCreatureCanAttackLeashDecisionLikeCpp::Allowed
-        } else {
-            LegacyCreatureCanAttackLeashDecisionLikeCpp::HomeRangeRejected
-        }
+        LegacyCreatureCanAttackLeashDecisionLikeCpp::HomeRangeRejected
     }
 }
 
@@ -50902,6 +50910,91 @@ mod tests {
                 10.0 + crate::map_manager::VISIBILITY_RADIUS + 1.0,
                 10.0,
                 0.0,
+                0.0,
+            ),
+        )];
+
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &candidates,
+            legacy_aggro_hostile_config_like_cpp(),
+        );
+
+        assert_eq!(outcome.home_range_rejections, 1);
+        assert_eq!(outcome.aggro_starts, 0);
+        assert!(outcome.commands.is_empty());
+    }
+
+    #[test]
+    fn legacy_creature_aggro_home_range_rejects_exact_3d_edge_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_060);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 250.0;
+                creature.creature.unit_mut().set_level(25);
+                creature.creature.unit_mut().set_combat_reach(0.0);
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let player = ObjectGuid::create_player(1, 91_061);
+        let candidates = vec![legacy_aggro_candidate_like_cpp(
+            player,
+            Position::new(
+                10.0 + wow_entities::DEFAULT_VISIBILITY_DISTANCE,
+                10.0,
+                0.0,
+                0.0,
+            ),
+        )];
+
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &candidates,
+            legacy_aggro_hostile_config_like_cpp(),
+        );
+
+        assert_eq!(outcome.home_range_rejections, 1);
+        assert_eq!(outcome.aggro_starts, 0);
+        assert!(outcome.commands.is_empty());
+    }
+
+    #[test]
+    fn legacy_creature_aggro_home_range_rejects_exact_2d_flight_edge_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_062);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 250.0;
+                creature.creature.unit_mut().set_level(25);
+                creature.creature.unit_mut().set_combat_reach(0.0);
+                creature.creature.set_flight_movement_type_runtime_like_cpp(
+                    wow_constants::CreatureFlightMovementType::CanFly as u8,
+                );
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let player = ObjectGuid::create_player(1, 91_063);
+        let candidates = vec![legacy_aggro_candidate_like_cpp(
+            player,
+            Position::new(
+                10.0 + wow_entities::DEFAULT_VISIBILITY_DISTANCE,
+                10.0,
+                250.0,
                 0.0,
             ),
         )];

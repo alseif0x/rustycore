@@ -498,6 +498,12 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `OwnerPositionUnrepresented`. Remaining gaps: victim-creature evade for non-player aggro targets,
   non-player owner leash centers, accessibility, AI-specific attack gates, visibility/detection,
   and LOS.
+- 2026-05-30 — Runtime creature-aggro home leash strict edge `#NEXT.RUNTIME.L3.031n`: aligned the
+  normal home-position leash branch with C++ `Position::IsInDist` / `IsInDist2d` strict `< dist *
+  dist` semantics for both ground 3D and flight-template 2D checks. This closes the exact-edge case
+  where Rust's generic `Position::is_within_dist` helper was inclusive. Remaining gaps:
+  victim-creature evade for non-player aggro targets, non-player owner leash centers,
+  accessibility, AI-specific attack gates, visibility/detection, and LOS.
 
 ## References
 
