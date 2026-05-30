@@ -2091,6 +2091,7 @@ async fn main() -> Result<()> {
         legacy_creature_global_runtime_enabled_from_config_like_cpp();
     if legacy_creature_global_runtime_enabled {
         warn!(
+            map_update_interval_ms,
             "EXPERIMENTAL: RustyCore.LegacyCreatureGlobalRuntime enabled; legacy creature tick owner set to GlobalLegacy"
         );
         match shared_map.write() {
@@ -8051,8 +8052,9 @@ mod tests {
         run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp,
         run_legacy_creature_melee_tick_and_deliver_once_like_cpp,
         run_legacy_creature_movement_tick_and_deliver_once_like_cpp,
-        run_legacy_creature_runtime_tick_and_deliver_once_like_cpp, spawn_store_loader,
-        world_config_bool, world_config_u8, world_config_u16,
+        run_legacy_creature_runtime_tick_and_deliver_once_like_cpp,
+        spawn_legacy_creature_runtime_update_loop_like_cpp, spawn_store_loader, world_config_bool,
+        world_config_u8, world_config_u16,
     };
     use std::collections::{BTreeMap, HashSet};
     use std::env;
@@ -15883,5 +15885,120 @@ mmap.enablePathFinding = 0
             .health;
         assert_eq!(victim_health, melee_command.victim_health_after);
         assert_eq!(victim_health, 100 - u64::from(melee_command.damage));
+    }
+
+    /// 4B.2a smoke: exercise the real experimental production loop wrapper,
+    /// not only the single-shot bridge.  The loop remains disabled by default;
+    /// this test flips `GlobalLegacy` explicitly, waits for one visible
+    /// movement command, then aborts the forever-running task.
+    #[tokio::test]
+    async fn legacy_creature_runtime_loop_smoke_delivers_visible_work_like_cpp() {
+        let legacy: wow_world::SharedMapManager =
+            Arc::new(std::sync::RwLock::new(wow_world::MapManager::new()));
+        let canonical: wow_world::SharedCanonicalMapManager =
+            Arc::new(Mutex::new(wow_map::MapManager::default()));
+        canonical.lock().unwrap().create_world_map(0, 0);
+
+        let creature_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 9001, 94_001);
+        let creature_position = Position::new(10.0, 10.0, 0.0, 0.0);
+        let mut world_creature = wow_world::map_manager::WorldCreature::new(
+            creature_guid,
+            9001,
+            creature_position,
+            25,
+            2,
+            3,
+            5,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        {
+            let ai = world_creature.creature.ai_ownership_mut();
+            ai.wander_delay_ms = 0;
+            ai.move_start_ms = 0;
+            ai.wander_radius = 3.0;
+            ai.aggro_radius = 0.0;
+            ai.swing_timer_ms = u64::MAX;
+        }
+
+        let mut canonical_creature = world_creature.creature.clone();
+        canonical_creature
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .add_to_world();
+        canonical
+            .lock()
+            .unwrap()
+            .find_map_mut(0, 0)
+            .unwrap()
+            .map_mut()
+            .insert_map_object_record(MapObjectRecord::new_creature(canonical_creature).unwrap())
+            .unwrap();
+
+        {
+            let mut manager = legacy.write().unwrap();
+            manager.add_creature(
+                0,
+                0,
+                wow_world::map_manager::world_to_grid_x(creature_position.x),
+                wow_world::map_manager::world_to_grid_y(creature_position.y),
+                world_creature,
+            );
+            manager.set_tick_owner(wow_world::map_manager::RuntimeTickOwner::GlobalLegacy);
+        }
+
+        let registry = Arc::new(PlayerRegistry::default());
+        let player = ObjectGuid::create_player(1, 94_002);
+        let (player_info, player_rx) =
+            make_registry_player_like_cpp(0, 0, Position::new(11.0, 10.0, 0.0, 0.0), true);
+        registry.insert(player, player_info);
+
+        let handle = spawn_legacy_creature_runtime_update_loop_like_cpp(
+            true,
+            Arc::clone(&legacy),
+            Arc::clone(&canonical),
+            wow_world::MMapRuntimeConfigLikeCpp {
+                enabled: false,
+                ..Default::default()
+            },
+            None,
+            wow_world::session::LegacyCreatureAggroConfigLikeCpp::default(),
+            1,
+            Arc::clone(&registry),
+        );
+
+        let command =
+            tokio::time::timeout(std::time::Duration::from_secs(2), player_rx.recv_async())
+                .await
+                .expect("runtime loop should deliver visible work")
+                .expect("command channel should stay open");
+        handle.abort();
+        let _ = handle.await;
+
+        let SessionCommand::SendIfVisibleLikeCpp(command) = command else {
+            panic!("expected SendIfVisibleLikeCpp movement command");
+        };
+        assert_eq!(command.source_guid, creature_guid);
+        assert_eq!(command.map_id, 0);
+        assert_eq!(command.instance_id, 0);
+        let opcode = u16::from_le_bytes([command.packet_bytes[0], command.packet_bytes[1]]);
+        assert_eq!(opcode, wow_constants::ServerOpcodes::OnMonsterMove as u16);
+
+        let guard = canonical.lock().unwrap();
+        let typed = guard
+            .find_map(0, 0)
+            .unwrap()
+            .map()
+            .get_typed_creature(creature_guid)
+            .expect("production loop must keep canonical creature synced");
+        assert_eq!(
+            typed.ai_state(),
+            wow_entities::CreatureAiState::WalkingRandom
+        );
     }
 }

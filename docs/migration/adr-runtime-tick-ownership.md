@@ -504,6 +504,22 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   where Rust's generic `Position::is_within_dist` helper was inclusive. Remaining gaps:
   victim-creature evade for non-player aggro targets, non-player owner leash centers,
   accessibility, AI-specific attack gates, visibility/detection, and LOS.
+- 2026-05-30 — Runtime creature-aggro accessibility gate `#NEXT.RUNTIME.L3.031o`: represented C++
+  `Unit::isInAccessiblePlaceFor(Creature const*)` before radius engagement. Rust now carries
+  creature `Ground`/`Swim` movement-template state alongside `Flight`, publishes player liquid status
+  through `PlayerRegistry`, and rejects water targets unless the creature can enter water, or land
+  targets unless the creature can walk or fly. Covered C++ anchors: `CreatureMovementData`,
+  `Creature::CanWalk`, `Creature::CanEnterWater`, `Unit::CanSwim`, and
+  `Unit::isInAccessiblePlaceFor`. Remaining gaps: victim-creature evade for non-player aggro
+  targets, non-player owner leash centers, AI-specific attack gates, visibility/detection, and LOS.
+- 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
+  experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
+  test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
+  `SendIfVisibleLikeCpp` `OnMonsterMove` command through `PlayerRegistry`, verifies canonical
+  creature sync, and aborts the forever task. Production remains default-off; startup logs include
+  the map-update interval when `RustyCore.LegacyCreatureGlobalRuntime` is enabled. This advances
+  manual-test readiness but does not mark 4B.2 complete until the server is actually run with a
+  client.
 
 ## References
 
