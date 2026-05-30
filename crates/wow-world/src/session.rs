@@ -20860,14 +20860,15 @@ fn legacy_creature_aggro_candidate_is_targetable_for_attack_like_cpp(
     }
 
     // C++ anchors:
-    // - `Unit::isTargetableForAttack(false)` rejects dead, non-attackable,
-    //   uninteractible and GM players.
+    // - `Unit::isTargetableForAttack(false)` rejects dead, `UNIT_STATE_UNATTACKABLE`,
+    //   non-attackable, uninteractible and GM players. In Trinity 3.3.5
+    //   `UNIT_STATE_UNATTACKABLE` is currently `UNIT_STATE_IN_FLIGHT`.
     // - `Creature::_IsTargetAcceptable` rejects `UNIT_STATE_DIED` unless the
     //   creature can detect feign death; that override is not represented in
     //   the transitional global aggro scan yet.
     // - `WorldObject::IsValidAttackTarget` rejects untargetable/taxi targets
     //   and `UNIT_FLAG_IMMUNE_TO_NPC` for creature-vs-player attacks.
-    if player_state.contains(UnitState::DIED) {
+    if player_state.intersects(UnitState::DIED | UnitState::IN_FLIGHT) {
         return false;
     }
 
@@ -50898,11 +50899,17 @@ mod tests {
             Position::new(10.5, 10.5, 0.0, 0.0),
         );
         game_master.player_is_game_master = true;
+        let mut in_flight = legacy_aggro_candidate_like_cpp(
+            ObjectGuid::create_player(1, 91_027),
+            Position::new(10.5, 10.5, 0.0, 0.0),
+        );
+        in_flight.player_unit_state |= UnitState::IN_FLIGHT.bits();
         let candidates = vec![
             non_attackable,
             immune_to_npc,
             fake_dead,
             game_master,
+            in_flight,
             legacy_aggro_candidate_like_cpp(good_player, Position::new(10.5, 10.5, 0.0, 0.0)),
         ];
 
@@ -50915,8 +50922,8 @@ mod tests {
         assert!(!outcome.skipped_owner_not_global);
         assert_eq!(outcome.maps_seen, 1);
         assert_eq!(outcome.creatures_seen, 1);
-        assert_eq!(outcome.candidates_seen, 5);
-        assert_eq!(outcome.targetability_rejections, 4);
+        assert_eq!(outcome.candidates_seen, 6);
+        assert_eq!(outcome.targetability_rejections, 5);
         assert_eq!(outcome.aggro_starts, 1);
         assert_eq!(outcome.commands.len(), 1);
         assert_eq!(outcome.commands[0].victim_guid, good_player);

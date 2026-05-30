@@ -437,6 +437,14 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `Creature::CanCreatureAttack`, `Map::GetVisibilityRange`, and `GridDefines.h::SIZE_OF_GRID_CELL`.
   Remaining `CanStartAttack` fidelity gaps: exact map visibility range source for every map,
   accessibility/visibility/detection, and LOS.
+- 2026-05-30 — Runtime creature-aggro in-flight targetability gate `#NEXT.RUNTIME.L3.031g`:
+  represented the C++ `UNIT_STATE_UNATTACKABLE` rejection for player candidates in the global
+  legacy aggro scan. In Trinity 3.3.5 `UNIT_STATE_UNATTACKABLE` is `UNIT_STATE_IN_FLIGHT`, so Rust
+  now rejects in-flight players before gray-aggro/radius engagement, alongside the existing dead,
+  GM, non-attackable, taxi, and NPC-immune targetability gates. Covered C++ anchors:
+  `WorldObject::IsValidAttackTarget`, `Unit::isTargetableForAttack(false)`, and
+  `Unit.h::UNIT_STATE_UNATTACKABLE`. Remaining `CanStartAttack` fidelity gaps: exact map visibility
+  range source for every map, accessibility/visibility/detection, and LOS.
 
 ## References
 
