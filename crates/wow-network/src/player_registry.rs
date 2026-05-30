@@ -230,6 +230,8 @@ pub struct PlayerBroadcastInfo {
     pub unit_state: u32,
     /// Represented `Player::IsGameMaster()` snapshot; C++ rejects GM players as attack targets.
     pub is_game_master: bool,
+    /// Represented `PLAYER_FLAGS_CONTESTED_PVP` snapshot for contested-guard attackability.
+    pub is_contested_pvp: bool,
     /// Active expansion derived from canonical `WorldSession::expansion` for receiver-only quest gates.
     pub active_expansion: u8,
     /// Represented non-empty `Player::GetPlayerSharingQuest()` snapshot for party quest sharing.
@@ -246,9 +248,15 @@ pub struct PlayerBroadcastInfo {
     pub daily_quests_completed: HashSet<u32>,
     /// Represented `Player::m_DFQuests` snapshot for remote `SatisfyQuestDay`.
     pub df_quests: HashSet<u32>,
+    /// Represented `Unit::GetFactionTemplateEntry()` id for C++ hostility/reputation checks.
+    pub faction_template_id: u32,
     /// Represented current reputation standing by faction for remote `SatisfyQuestReputation`.
     /// Missing factions are interpreted as standing 0 like C++ no-state path.
     pub reputation_standings: Vec<(u32, i32)>,
+    /// Represented reputation flags by faction, including `REPUTATION_FLAG_AT_WAR`.
+    pub reputation_state_flags: Vec<(u32, u32)>,
+    /// Represented `Player::GetReputationMgr().GetForcedRankIfAny()` membership.
+    pub forced_reputation_faction_ids: Vec<u32>,
     /// Direct inventory item counts, keyed by item entry, used for remote quest-loot gates.
     pub inventory_item_counts: HashMap<u32, u32>,
     /// C++ `PartyMemberPhaseStates` snapshot for SMSG_PARTY_MEMBER_FULL_STATE.
@@ -310,6 +318,7 @@ mod tests {
             unit_flags: 0,
             unit_state: 0,
             is_game_master: false,
+            is_contested_pvp: false,
             active_expansion: 2,
             pending_quest_sharing: None,
             known_spells: Vec::new(),
@@ -318,7 +327,10 @@ mod tests {
             rewarded_quests: Default::default(),
             daily_quests_completed: Default::default(),
             df_quests: Default::default(),
+            faction_template_id: 0,
             reputation_standings: Vec::new(),
+            reputation_state_flags: Vec::new(),
+            forced_reputation_faction_ids: Vec::new(),
             inventory_item_counts: Default::default(),
             party_member_phase_states: Default::default(),
             player_name: "TestPlayer".to_string(),

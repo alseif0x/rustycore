@@ -1379,6 +1379,10 @@ async fn main() -> Result<()> {
             "Failed to load Faction.db2 progression store — check DataDir and DBC.Locale config",
         )?,
     );
+    let faction_template_store = Arc::new(
+        wow_data::progression_rewards::FactionTemplateStore::load(&data_dir, &locale)
+            .context("Failed to load FactionTemplate.db2 — check DataDir and DBC.Locale config")?,
+    );
     let friendship_rep_reaction_store = Arc::new(
         wow_data::progression_rewards::FriendshipRepReactionStore::load(&data_dir, &locale)
             .context(
@@ -1959,6 +1963,7 @@ async fn main() -> Result<()> {
         quest_package_item_store: Some(Arc::clone(&quest_package_item_store)),
         quest_faction_reward_store: Some(Arc::clone(&quest_faction_reward_store)),
         progression_faction_store: Some(Arc::clone(&progression_faction_store)),
+        faction_template_store: Some(Arc::clone(&faction_template_store)),
         friendship_rep_reaction_store: Some(Arc::clone(&friendship_rep_reaction_store)),
         paragon_reputation_store: Some(Arc::clone(&paragon_reputation_store)),
         reputation_reward_rate_store: Some(Arc::clone(&reputation_reward_rate_store)),
@@ -6920,6 +6925,9 @@ async fn create_session(
     if let Some(ref store) = resources.progression_faction_store {
         session.set_faction_store(Arc::clone(store));
     }
+    if let Some(ref store) = resources.faction_template_store {
+        session.set_faction_template_store(Arc::clone(store));
+    }
     if let Some(ref store) = resources.friendship_rep_reaction_store {
         session.set_friendship_rep_reaction_store(Arc::clone(store));
     }
@@ -8042,6 +8050,7 @@ mod tests {
             unit_flags: 0,
             unit_state: 0,
             is_game_master: false,
+            is_contested_pvp: false,
             active_expansion: 2,
             pending_quest_sharing: None,
             known_spells: Vec::new(),
@@ -8050,7 +8059,10 @@ mod tests {
             rewarded_quests: Default::default(),
             daily_quests_completed: Default::default(),
             df_quests: Default::default(),
+            faction_template_id: 0,
             reputation_standings: Vec::new(),
+            reputation_state_flags: Vec::new(),
+            forced_reputation_faction_ids: Vec::new(),
             inventory_item_counts: Default::default(),
             party_member_phase_states: Default::default(),
             player_name: player_name.to_string(),
@@ -12808,6 +12820,7 @@ mmap.enablePathFinding = 0
                 unit_flags: 0,
                 unit_state: 0,
                 is_game_master: false,
+                is_contested_pvp: false,
                 active_expansion: 2,
                 pending_quest_sharing: None,
                 known_spells: Vec::new(),
@@ -12816,7 +12829,10 @@ mmap.enablePathFinding = 0
                 rewarded_quests: Default::default(),
                 daily_quests_completed: Default::default(),
                 df_quests: Default::default(),
+                faction_template_id: 0,
                 reputation_standings: Vec::new(),
+                reputation_state_flags: Vec::new(),
+                forced_reputation_faction_ids: Vec::new(),
                 inventory_item_counts: Default::default(),
                 party_member_phase_states: Default::default(),
                 player_name: "SeasonalTester".to_string(),

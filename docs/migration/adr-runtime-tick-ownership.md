@@ -383,6 +383,14 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `WorldObject::IsValidAttackTarget` for untargetable/taxi/immune-to-NPC player flags. Remaining
   `CanStartAttack` fidelity gaps: full hostility/reputation relation, z-distance/accessibility, and
   LOS.
+- 2026-05-30 — Runtime creature-aggro relation snapshot wiring `#NEXT.RUNTIME.L3.031a`: the live
+  server now loads `FactionTemplate.db2` into `SessionResources`, sessions receive the
+  `FactionTemplateStore`, and `PlayerRegistry` publishes player faction-template id, reputation
+  flags, forced-reputation faction ids, and contested-PvP state. This is the data prerequisite for
+  porting the C++ `_IsTargetAcceptable`/`WorldObject::IsValidAttackTarget` hostility/reputation gates
+  into the global legacy aggro scan. No aggro behavior is flipped in this slice. Remaining
+  `CanStartAttack` fidelity gaps: applying the hostility/reputation gate, z-distance/accessibility,
+  and LOS.
 
 ## References
 

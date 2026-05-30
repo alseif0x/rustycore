@@ -112,6 +112,7 @@ pub struct SessionResources {
     pub player_condition_store: Option<Arc<wow_data::PlayerConditionStore>>,
     pub content_tuning_store: Option<Arc<wow_data::progression_rewards::ContentTuningStore>>,
     pub progression_faction_store: Option<Arc<wow_data::progression_rewards::FactionStore>>,
+    pub faction_template_store: Option<Arc<wow_data::progression_rewards::FactionTemplateStore>>,
     pub friendship_rep_reaction_store:
         Option<Arc<wow_data::progression_rewards::FriendshipRepReactionStore>>,
     pub paragon_reputation_store:

@@ -8163,51 +8163,94 @@ impl WorldSession {
             })
     }
 
+    fn canonical_player_snapshot_like_cpp<R>(&self, f: impl FnOnce(&Player) -> R) -> Option<R> {
+        let Some(guid) = self.player_guid() else {
+            return None;
+        };
+        let key = self.current_canonical_player_map_key_like_cpp();
+        let Some(manager) = self.canonical_map_manager.as_ref() else {
+            return None;
+        };
+        let Ok(manager) = manager.lock() else {
+            return None;
+        };
+        let map_id = key
+            .as_ref()
+            .map(|key| key.map_id)
+            .unwrap_or_else(|| u32::from(self.player_map_id_like_cpp()));
+        let instance_id = key.as_ref().map(|key| key.instance_id).unwrap_or(0);
+        let Some(map) = manager.find_map(map_id, instance_id) else {
+            return None;
+        };
+        let Some(player) = map.map().get_typed_player(guid) else {
+            return None;
+        };
+
+        Some(f(player))
+    }
+
     pub(crate) fn canonical_player_reputation_standings_snapshot_like_cpp(
         &self,
     ) -> Vec<(u32, i32)> {
-        let Some(guid) = self.player_guid() else {
-            return Vec::new();
-        };
-        let Some(manager) = self.canonical_map_manager.as_ref() else {
-            return Vec::new();
-        };
-        let Ok(manager) = manager.lock() else {
-            return Vec::new();
-        };
-        let Some(map) = manager.find_map(u32::from(self.player_map_id_like_cpp()), 0) else {
-            return Vec::new();
-        };
-        let Some(player) = map.map().get_typed_player(guid) else {
-            return Vec::new();
-        };
+        self.canonical_player_snapshot_like_cpp(|player| {
+            player
+                .gameplay_state()
+                .reputations
+                .iter()
+                .map(|record| (record.faction_id, record.standing))
+                .collect()
+        })
+        .unwrap_or_default()
+    }
 
-        player
-            .gameplay_state()
-            .reputations
-            .iter()
-            .map(|record| (record.faction_id, record.standing))
-            .collect()
+    pub(crate) fn canonical_player_reputation_state_flags_snapshot_like_cpp(
+        &self,
+    ) -> Vec<(u32, u32)> {
+        self.canonical_player_snapshot_like_cpp(|player| {
+            player
+                .gameplay_state()
+                .reputations
+                .iter()
+                .map(|record| (record.faction_id, record.flags))
+                .collect()
+        })
+        .unwrap_or_default()
+    }
+
+    pub(crate) fn canonical_player_forced_reputation_faction_ids_snapshot_like_cpp(
+        &self,
+    ) -> Vec<u32> {
+        self.canonical_player_snapshot_like_cpp(|player| {
+            let mut faction_ids: Vec<u32> = player
+                .forced_reputation_faction_ids_like_cpp()
+                .iter()
+                .copied()
+                .collect();
+            faction_ids.sort_unstable();
+            faction_ids
+        })
+        .unwrap_or_default()
+    }
+
+    pub(crate) fn canonical_player_contested_pvp_flag_like_cpp(&self) -> bool {
+        self.canonical_player_snapshot_like_cpp(|player| {
+            player.has_player_flag(PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP)
+        })
+        .unwrap_or(false)
     }
 
     pub(crate) fn canonical_player_reputation_standing_like_cpp(
         &self,
         faction_id: u32,
     ) -> Option<i32> {
-        let guid = self.player_guid()?;
-        let manager = self.canonical_map_manager.as_ref()?;
-        let manager = manager.lock().ok()?;
-        let map = manager.find_map(u32::from(self.player_map_id_like_cpp()), 0)?;
-        let player = map.map().get_typed_player(guid)?;
-
-        Some(
+        self.canonical_player_snapshot_like_cpp(|player| {
             player
                 .gameplay_state()
                 .reputations
                 .iter()
                 .find_map(|record| (record.faction_id == faction_id).then_some(record.standing))
-                .unwrap_or(0),
-        )
+                .unwrap_or(0)
+        })
     }
 
     /// Resolve an inventory item by (bag, slot) following C++ Player::GetItemByPos.
@@ -10943,6 +10986,12 @@ impl WorldSession {
             .current_canonical_player_map_key_like_cpp()
             .map(|k| k.instance_id)
             .unwrap_or(0);
+        let reputation_standings = self.canonical_player_reputation_standings_snapshot_like_cpp();
+        let reputation_state_flags =
+            self.canonical_player_reputation_state_flags_snapshot_like_cpp();
+        let forced_reputation_faction_ids =
+            self.canonical_player_forced_reputation_faction_ids_snapshot_like_cpp();
+        let is_contested_pvp = self.canonical_player_contested_pvp_flag_like_cpp();
         reg.insert(
             guid,
             PlayerBroadcastInfo {
@@ -10963,6 +11012,7 @@ impl WorldSession {
                 unit_flags: self.player_unit_flags_like_cpp.bits(),
                 unit_state: self.player_unit_state_for_registry_like_cpp(),
                 is_game_master: self.player_game_master_like_cpp,
+                is_contested_pvp,
                 active_expansion: self.expansion,
                 pending_quest_sharing: self
                     .represented_pending_quest_sharing_like_cpp
@@ -10981,8 +11031,10 @@ impl WorldSession {
                 rewarded_quests: self.rewarded_quests.clone(),
                 daily_quests_completed: self.daily_quests_completed_like_cpp.clone(),
                 df_quests: self.df_quests_like_cpp.clone(),
-                reputation_standings: self
-                    .canonical_player_reputation_standings_snapshot_like_cpp(),
+                faction_template_id: self.player_faction_template_like_cpp.unwrap_or(0),
+                reputation_standings,
+                reputation_state_flags,
+                forced_reputation_faction_ids,
                 inventory_item_counts: self.represented_inventory_item_counts_like_cpp(),
                 party_member_phase_states: party_member_phase_states_like_cpp(
                     self.represented_player_phase_shift_like_cpp(),
@@ -11023,6 +11075,7 @@ impl WorldSession {
             info.unit_flags = self.player_unit_flags_like_cpp.bits();
             info.unit_state = self.player_unit_state_for_registry_like_cpp();
             info.is_game_master = self.player_game_master_like_cpp;
+            info.is_contested_pvp = self.canonical_player_contested_pvp_flag_like_cpp();
             info.active_expansion = self.expansion;
             info.level = self.player_level_like_cpp();
             info.gray_level = self.gray_level(info.level);
@@ -11045,8 +11098,13 @@ impl WorldSession {
             info.rewarded_quests = self.rewarded_quests.clone();
             info.daily_quests_completed = self.daily_quests_completed_like_cpp.clone();
             info.df_quests = self.df_quests_like_cpp.clone();
+            info.faction_template_id = self.player_faction_template_like_cpp.unwrap_or(0);
             info.reputation_standings =
                 self.canonical_player_reputation_standings_snapshot_like_cpp();
+            info.reputation_state_flags =
+                self.canonical_player_reputation_state_flags_snapshot_like_cpp();
+            info.forced_reputation_faction_ids =
+                self.canonical_player_forced_reputation_faction_ids_snapshot_like_cpp();
             info.inventory_item_counts = self.represented_inventory_item_counts_like_cpp();
             info.party_member_phase_states =
                 party_member_phase_states_like_cpp(self.represented_player_phase_shift_like_cpp())
@@ -34212,6 +34270,7 @@ mod tests {
             unit_flags: 0,
             unit_state: 0,
             is_game_master: false,
+            is_contested_pvp: false,
             active_expansion: 2,
             pending_quest_sharing: None,
             known_spells: Vec::new(),
@@ -34220,7 +34279,10 @@ mod tests {
             rewarded_quests: Default::default(),
             daily_quests_completed: Default::default(),
             df_quests: Default::default(),
+            faction_template_id: 0,
             reputation_standings: Vec::new(),
+            reputation_state_flags: Vec::new(),
+            forced_reputation_faction_ids: Vec::new(),
             inventory_item_counts: Default::default(),
             party_member_phase_states: Default::default(),
             player_name: format!("Player{}", guid.counter()),
@@ -41899,6 +41961,46 @@ mod tests {
                 .reputation_standings,
             vec![(72, 1234)]
         );
+    }
+
+    #[test]
+    fn player_registry_relation_snapshot_syncs_from_session_and_canonical_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let player_guid = ObjectGuid::create_player(1, 606);
+
+        session.set_player_guid(Some(player_guid));
+        session.player_name = Some("RelationSnapshot".into());
+        session.player_position = Some(Position::new(10.0, 10.0, 0.0, 0.0));
+        session.current_map_id = 571;
+        session.set_player_faction_template_like_cpp(1);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_player_registry(Arc::clone(&player_registry));
+        insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
+        session.mutate_canonical_player_like_cpp(|player| {
+            player
+                .gameplay_state_mut()
+                .reputations
+                .push(wow_entities::PlayerReputationRecord {
+                    faction_id: 72,
+                    standing: -6000,
+                    flags: wow_entities::REPUTATION_FLAG_AT_WAR_LIKE_CPP,
+                });
+            player.set_forced_reputation_rank_like_cpp(87, true);
+            player.set_player_flag(PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP);
+        });
+
+        session.register_in_player_registry();
+
+        let snapshot = player_registry.get(&player_guid).expect("player snapshot");
+        assert_eq!(snapshot.faction_template_id, 1);
+        assert_eq!(
+            snapshot.reputation_state_flags,
+            vec![(72, wow_entities::REPUTATION_FLAG_AT_WAR_LIKE_CPP)]
+        );
+        assert_eq!(snapshot.forced_reputation_faction_ids, vec![87]);
+        assert!(snapshot.is_contested_pvp);
     }
 
     #[test]
