@@ -1127,6 +1127,16 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `WaypointReached`/`WaypointPathEnded` AI dispatch, path/MMAP generation, Land/TakeOff animation
   tier, formation side effects, MonsterMove fanout wiring, automatic `WaypointPathStoreLikeCpp`
   resolution, and live server/client validation.
+- 2026-05-31 — Waypoint Land/TakeOff animation tier application `#NEXT.RUNTIME.L3.031cc`:
+  contrasted against C++ `WaypointMovementGenerator<Creature>::StartMove`
+  `init.SetAnimation(AnimTier::Ground/Hover)` (`WaypointMovementGenerator.cpp:391-399`) and
+  `AnimTier` values (`UnitDefines.h:63-69`, Ground=0, Hover=2). Rust already represented
+  `WaypointLaunchPlan.animation`; `WorldCreature::begin_waypoint_launch_like_cpp` now applies it
+  through `MoveSplineInit::set_animation` before launch, so Land waypoints produce anim tier 0 and
+  TakeOff waypoints produce anim tier 2. Test covers both branches. Still open: random wait/end
+  wandering, real `WaypointReached`/`WaypointPathEnded` AI dispatch, path/MMAP generation, formation
+  side effects, MonsterMove fanout wiring, automatic `WaypointPathStoreLikeCpp` resolution, and live
+  server/client validation.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

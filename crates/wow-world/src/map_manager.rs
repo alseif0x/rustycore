@@ -17,8 +17,8 @@ use wow_entities::{
 };
 use wow_movement::{
     MoveSpline, MoveSplineInit, MoveSplineLaunchInput, MoveSplineStopInput, MoveSplineStopResult,
-    PathGenerator, PathType, WaypointLaunchPlan, WaypointMovementAction, WaypointMovementGenerator,
-    WaypointPath, WaypointUnitSnapshot,
+    PathGenerator, PathType, WaypointAnimation, WaypointLaunchPlan, WaypointMovementAction,
+    WaypointMovementGenerator, WaypointPath, WaypointUnitSnapshot,
 };
 use wow_packet::packets::update::CreatureCreateData;
 use wow_recastdetour::{
@@ -1247,6 +1247,12 @@ impl WorldCreature {
         }
         if let Some(velocity) = launch.velocity {
             init.set_velocity(velocity);
+        }
+        if let Some(animation) = launch.animation {
+            match animation {
+                WaypointAnimation::Ground => init.set_animation(0, 0, 0),
+                WaypointAnimation::Hover => init.set_animation(2, 0, 0),
+            }
         }
         self.creature
             .unit_mut()
@@ -3728,6 +3734,63 @@ mod tests {
                 .len(),
             1
         );
+    }
+
+    #[test]
+    fn world_creature_waypoint_launch_applies_land_takeoff_anim_tier_like_cpp() {
+        for (move_type, expected_anim_tier) in [
+            (wow_movement::WaypointMoveType::Land, 0),
+            (wow_movement::WaypointMoveType::TakeOff, 2),
+        ] {
+            let guid = ObjectGuid::create_world_object(
+                HighGuid::Creature,
+                0,
+                1,
+                0,
+                0,
+                1,
+                54335 + i64::from(expected_anim_tier),
+            );
+            let mut creature = WorldCreature::new(
+                guid,
+                1,
+                Position::new(10.0, 10.0, 0.0, 0.0),
+                50,
+                2,
+                5,
+                10,
+                20.0,
+                100,
+                14,
+                0,
+                0,
+            );
+            let mut path = WaypointPath::new(
+                90 + expected_anim_tier as u32,
+                vec![wow_movement::WaypointNode::new(10, 11.0, 10.0, 0.0)],
+            );
+            path.move_type = move_type;
+            assert_eq!(
+                creature.initialize_default_waypoint_movement_like_cpp(Some(path)),
+                WaypointMovementAction::StopMoving
+            );
+
+            assert!(matches!(
+                creature.update_default_waypoint_movement_like_cpp(
+                    wow_movement::WAYPOINT_INITIAL_DELAY_MS_LIKE_CPP as u32
+                ),
+                WaypointMovementAction::Launch(_)
+            ));
+
+            assert_eq!(
+                creature
+                    .active_move_spline
+                    .as_ref()
+                    .and_then(MoveSpline::anim_tier)
+                    .map(|anim| anim.anim_tier),
+                Some(expected_anim_tier)
+            );
+        }
     }
 
     #[test]
