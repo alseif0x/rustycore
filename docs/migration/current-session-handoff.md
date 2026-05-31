@@ -1889,3 +1889,13 @@ C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entit
 Implemented Rust seam: `crates/wow-entities/src/creature.rs` now clears represented `MovementFlag::HOVER | MovementFlag::DISABLE_GRAVITY` during `Creature::set_death_state_runtime(JustDied)` and deliberately preserves `CAN_FLY`/`FLYING`, matching the contrasted C++ setters. The conditional `MoveFall()` itself remains an open runtime gap because it needs MotionMaster ground-height/spline/fanout ownership, not just entity-field mutation.
 
 Validation evidence: focused death-state test now starts with `HOVER | DISABLE_GRAVITY | CAN_FLY | FLYING` and asserts only hover/gravity are removed.
+
+### #NEXT.RUNTIME.L3.031av — represented creature death StopOnDeath wiring
+
+Status: represented-closeout for the bounded `Unit::setDeathState(JUST_DIED)` motion shutdown subset; not manual-test-ready.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:8554-8561` skips `StopOnDeath` while on vehicle and calls `DisableSpline()` when `StopOnDeath()` succeeds; `/home/server/woltk-trinity-legacy/src/server/game/Movement/MotionMaster.cpp:548-566` returns false for `MOVEMENTGENERATOR_FLAG_PERSIST_ON_DEATH`, clears/moves idle when in world, then calls `Unit::StopMoving()`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:9915-9931` clears `UNIT_STATE_MOVING`; `Unit.cpp:622-625` removes forward movement and interrupts the spline.
+
+Implemented Rust seam: `crates/wow-entities/src/creature.rs` now skips represented `StopOnDeath` when `vehicle_guid` is present; otherwise it calls the existing `MotionSubsystem::stop_on_death()`, clears represented `UnitState::MOVING` only when that call succeeds, and relies on the existing motion helper to finalize the represented spline. Runtime packet/fanout behavior, exact in-world `MotionMaster::Clear` semantics, forward movement packet state, and position update remain open runtime gaps.
+
+Validation evidence: focused death-state test now starts with `UNIT_STATE_MOVING` and an active represented spline, then asserts moving state is gone, motion is stopped, and the spline is finalized.

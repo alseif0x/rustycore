@@ -819,6 +819,14 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   death while preserving `CAN_FLY`/`FLYING`, which those C++ calls do not clear. The follow-up
   `MoveFall()` spline/fanout remains open because it needs real MotionMaster ground-height/runtime
   ownership rather than just entity-field mutation.
+- 2026-05-31 — Represented creature death StopOnDeath wiring `#NEXT.RUNTIME.L3.031av`:
+  ports the represented subset of C++ `Unit::setDeathState(JUST_DIED)` movement shutdown
+  (`Unit.cpp:8554-8561`, `MotionMaster.cpp:548-566`, `Unit.cpp:9915-9931`, `Unit.cpp:622-625`).
+  Rust now skips the movement shutdown for represented vehicle passengers, otherwise calls the
+  existing `MotionSubsystem::stop_on_death()`, clears `UNIT_STATE_MOVING`, and finalizes the
+  represented move spline when `StopOnDeath` succeeds. This remains entity-local: exact in-world
+  `MotionMaster::Clear`/`MoveIdle` packet behavior, spline stop packets, and position update
+  fanout remain runtime-owner work.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

@@ -2262,6 +2262,14 @@ impl Creature {
                     .auras
                     .clear_all_reactives_like_cpp();
                 self.unit.subsystems_mut().auras.clear_diminishings();
+                let stop_on_death = if self.unit.subsystems().vehicle.vehicle_guid.is_some() {
+                    false
+                } else {
+                    self.unit.subsystems_mut().motion.stop_on_death()
+                };
+                if stop_on_death {
+                    self.unit.clear_unit_state(UnitState::MOVING.bits());
+                }
                 self.unit.set_health(0);
                 self.unit.set_power(self.power_type(), 0);
                 self.unit.set_emote_state_like_cpp(0);
@@ -3997,6 +4005,12 @@ mod tests {
         creature
             .unit_mut()
             .set_stand_state_like_cpp(UnitStandStateType::Sit);
+        creature.unit_mut().add_unit_state(UnitState::MOVING.bits());
+        creature
+            .unit_mut()
+            .subsystems_mut()
+            .motion
+            .start_spline(77, 1_000);
         creature.unit_mut().set_npc_flags_like_cpp(0x40);
         creature.unit_mut().set_npc_flags2_like_cpp(0x2);
         creature.unit_mut().set_mount_display_id(1234);
@@ -4062,6 +4076,19 @@ mod tests {
         assert_eq!(
             creature.unit().stand_state_like_cpp(),
             UnitStandStateType::Stand
+        );
+        assert!(
+            !UnitState::from_bits_truncate(creature.unit().unit_state())
+                .intersects(UnitState::MOVING),
+            "C++ Unit::StopMoving clears UNIT_STATE_MOVING during StopOnDeath"
+        );
+        assert!(
+            creature.unit().subsystems().motion.stopped,
+            "C++ MotionMaster::StopOnDeath calls Unit::StopMoving"
+        );
+        assert!(
+            creature.unit().subsystems().motion.spline.finalized,
+            "C++ Unit::setDeathState(JUST_DIED) disables/interrupts the movement spline when StopOnDeath succeeds"
         );
         assert_eq!(
             creature.unit().npc_flags_like_cpp(),
