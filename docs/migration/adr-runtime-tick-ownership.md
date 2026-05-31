@@ -1137,6 +1137,18 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   wandering, real `WaypointReached`/`WaypointPathEnded` AI dispatch, path/MMAP generation, formation
   side effects, MonsterMove fanout wiring, automatic `WaypointPathStoreLikeCpp` resolution, and live
   server/client validation.
+- 2026-05-31 — Waypoint path-end random handoff guard `#NEXT.RUNTIME.L3.031cd`: contrasted against
+  C++ `WaypointMovementGenerator<Creature>::OnArrived` random path-end branch
+  (`WaypointMovementGenerator.cpp:290-301`) and same-tick `DoUpdate`/`StartMove` flow
+  (`WaypointMovementGenerator.cpp:234-244`). Rust `WorldCreature` now carries a represented active
+  random-at-path-end handoff, accepts an injectable wait roll for deterministic parity tests, records
+  `WaypointRandomAtPathEnd`, and prevents same-tick/next-tick waypoint progression while that
+  represented handoff duration is active. This fixes the bridge bug where `move_random_at_path_end`
+  with no `_nextMoveTime` could immediately launch the next waypoint. Still open: real
+  `MotionMaster::MoveRandom`/`RandomMovementGenerator` bridge at path ends, real
+  `WaypointReached`/`WaypointPathEnded` AI dispatch, path/MMAP generation, formation side effects,
+  MonsterMove fanout wiring, automatic `WaypointPathStoreLikeCpp` resolution, and live server/client
+  validation.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

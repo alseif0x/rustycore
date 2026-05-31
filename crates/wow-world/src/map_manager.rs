@@ -18,7 +18,7 @@ use wow_entities::{
 use wow_movement::{
     MoveSpline, MoveSplineInit, MoveSplineLaunchInput, MoveSplineStopInput, MoveSplineStopResult,
     PathGenerator, PathType, WaypointAnimation, WaypointLaunchPlan, WaypointMovementAction,
-    WaypointMovementGenerator, WaypointPath, WaypointUnitSnapshot,
+    WaypointMovementGenerator, WaypointPath, WaypointRandomAtPathEnd, WaypointUnitSnapshot,
 };
 use wow_packet::packets::update::CreatureCreateData;
 use wow_recastdetour::{
@@ -662,6 +662,7 @@ pub struct WorldCreature {
     /// `MoveSplineInit`/`MotionMaster` port still owns generalized launch/stop.
     active_move_spline: Option<MoveSpline>,
     active_waypoint_generator: Option<WaypointMovementGenerator>,
+    active_waypoint_random_at_path_end: Option<WaypointRandomAtPathEnd>,
     clock_started_at: Instant,
 }
 
@@ -764,12 +765,17 @@ impl WorldCreature {
             create_data,
             active_move_spline: None,
             active_waypoint_generator: None,
+            active_waypoint_random_at_path_end: None,
             clock_started_at: Instant::now(),
         }
     }
 
     pub fn active_waypoint_generator_like_cpp(&self) -> Option<&WaypointMovementGenerator> {
         self.active_waypoint_generator.as_ref()
+    }
+
+    pub fn active_waypoint_random_at_path_end_like_cpp(&self) -> Option<WaypointRandomAtPathEnd> {
+        self.active_waypoint_random_at_path_end
     }
 
     pub fn visibility_range_like_cpp(&self) -> f32 {
@@ -1152,15 +1158,34 @@ impl WorldCreature {
         &mut self,
         diff_ms: u32,
     ) -> WaypointMovementAction {
+        self.update_default_waypoint_movement_with_wait_roll_like_cpp(diff_ms, None)
+    }
+
+    pub fn update_default_waypoint_movement_with_wait_roll_like_cpp(
+        &mut self,
+        diff_ms: u32,
+        wait_time_roll_ms: Option<i32>,
+    ) -> WaypointMovementAction {
+        if let Some(mut random) = self.active_waypoint_random_at_path_end {
+            random.duration_ms = random.duration_ms.saturating_sub(diff_ms as i32);
+            if random.duration_ms > 0 {
+                self.active_waypoint_random_at_path_end = Some(random);
+            } else {
+                self.active_waypoint_random_at_path_end = None;
+            }
+            return WaypointMovementAction::Continue;
+        }
+
         let snapshot = self.waypoint_unit_snapshot_like_cpp();
         let Some(generator) = self.active_waypoint_generator.as_mut() else {
             return WaypointMovementAction::Continue;
         };
-        let action = generator.update_like_cpp(true, diff_ms, snapshot, None);
+        let action = generator.update_like_cpp(true, diff_ms, snapshot, wait_time_roll_ms);
         self.apply_waypoint_movement_action_like_cpp(action);
         if matches!(
             action,
-            WaypointMovementAction::Arrived(arrived) if arrived.timer_ms.is_none()
+            WaypointMovementAction::Arrived(arrived)
+                if arrived.timer_ms.is_none() && arrived.move_random_at_path_end.is_none()
         ) {
             let snapshot = self.waypoint_unit_snapshot_like_cpp();
             if let Some(generator) = self.active_waypoint_generator.as_mut() {
@@ -1193,6 +1218,9 @@ impl WorldCreature {
                     arrived.inform.movement_type.trinity_id(),
                     arrived.inform.node_id,
                 );
+                if let Some(random) = arrived.move_random_at_path_end {
+                    self.active_waypoint_random_at_path_end = Some(random);
+                }
             }
             WaypointMovementAction::PathEnded(ended) => {
                 let home = self
@@ -3988,6 +4016,103 @@ mod tests {
         assert_eq!(
             creature.home_position(),
             Position::new(11.0, 10.0, 0.0, 0.0)
+        );
+    }
+
+    #[test]
+    fn world_creature_waypoint_path_end_random_handoff_blocks_same_tick_next_move_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54337);
+        let mut creature = WorldCreature::new(
+            guid,
+            1,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        let mut path = WaypointPath::new(
+            91,
+            vec![
+                wow_movement::WaypointNode::new(10, 11.0, 10.0, 0.0),
+                wow_movement::WaypointNode::new(20, 12.0, 10.0, 0.0),
+                wow_movement::WaypointNode::new(30, 13.0, 10.0, 0.0),
+            ],
+        );
+        path.follow_path_backwards_from_end_to_start = true;
+        creature.active_waypoint_generator = Some(WaypointMovementGenerator::from_path(
+            path,
+            true,
+            Some(10_000),
+            None,
+            wow_movement::MovementWalkRunSpeedSelectionMode::Default,
+            Some((1_000, 2_000)),
+            Some(5.0),
+            true,
+            true,
+        ));
+
+        for expected_node in [10, 20, 30] {
+            match creature.update_default_waypoint_movement_like_cpp(0) {
+                WaypointMovementAction::Launch(launch) => assert_eq!(launch.node_id, expected_node),
+                other => panic!("expected waypoint launch for node {expected_node}, got {other:?}"),
+            }
+            creature
+                .active_move_spline
+                .as_mut()
+                .expect("active waypoint spline")
+                .finalize();
+            assert!(creature.update_move_spline_like_cpp());
+        }
+
+        let action =
+            creature.update_default_waypoint_movement_with_wait_roll_like_cpp(0, Some(1_500));
+
+        match action {
+            WaypointMovementAction::Arrived(arrived) => {
+                assert_eq!(arrived.inform.node_id, 30);
+                assert_eq!(
+                    arrived.move_random_at_path_end,
+                    Some(WaypointRandomAtPathEnd {
+                        wander_distance: 5.0,
+                        duration_ms: 1_500,
+                    })
+                );
+                assert_eq!(arrived.duration_after_wait_ms, Some(8_500));
+            }
+            other => panic!("expected endpoint random handoff arrival, got {other:?}"),
+        }
+        assert!(creature.active_move_spline.is_none());
+        assert_eq!(
+            creature.active_waypoint_random_at_path_end_like_cpp(),
+            Some(WaypointRandomAtPathEnd {
+                wander_distance: 5.0,
+                duration_ms: 1_500,
+            })
+        );
+        assert_eq!(
+            creature
+                .active_waypoint_generator_like_cpp()
+                .and_then(WaypointMovementGenerator::duration_ms),
+            Some(8_500)
+        );
+
+        assert_eq!(
+            creature.update_default_waypoint_movement_like_cpp(100),
+            WaypointMovementAction::Continue
+        );
+        assert!(creature.active_move_spline.is_none());
+        assert_eq!(
+            creature.active_waypoint_random_at_path_end_like_cpp(),
+            Some(WaypointRandomAtPathEnd {
+                wander_distance: 5.0,
+                duration_ms: 1_400,
+            })
         );
     }
 
