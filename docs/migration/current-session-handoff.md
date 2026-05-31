@@ -1899,3 +1899,13 @@ C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entit
 Implemented Rust seam: `crates/wow-entities/src/creature.rs` now skips represented `StopOnDeath` when `vehicle_guid` is present; otherwise it calls the existing `MotionSubsystem::stop_on_death()`, clears represented `UnitState::MOVING` only when that call succeeds, and relies on the existing motion helper to finalize the represented spline. Runtime packet/fanout behavior, exact in-world `MotionMaster::Clear` semantics, forward movement packet state, and position update remain open runtime gaps.
 
 Validation evidence: focused death-state test now starts with `UNIT_STATE_MOVING` and an active represented spline, then asserts moving state is gone, motion is stopped, and the spline is finalized.
+
+### #NEXT.RUNTIME.L3.031aw — represented creature death vehicle/control cleanup
+
+Status: represented-closeout for the bounded local vehicle/summon/control subset of `Unit::setDeathState(non-alive)`; not manual-test-ready.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:8534-8546` orders `CombatStop`, guarded non-melee spell interrupt, `ExitVehicle()`, `UnsummonAllTotems()`, `RemoveAllControlled()`, then `RemoveAllAurasOnDeath()`. `Unit.cpp:12069-12079` shows `ExitVehicle` removes the control-vehicle aura and delegates real passenger cleanup through aura unapply; `Unit.cpp:6525-6535` loops summon slots and unsummons map-owned summons; `Unit.cpp:6394-6422` drains `m_Controlled` and removes `UNIT_FLAG_PET_IN_COMBAT` for non-pets.
+
+Implemented Rust seam: `crates/wow-entities/src/creature.rs` now exits the represented local vehicle subsystem, clears represented summon slots, drains represented controlled/charmed GUID state, and removes represented `UnitFlags::PET_IN_COMBAT` for non-pet creature GUIDs during `Creature::set_death_state_runtime(JustDied)`. This is intentionally entity-local; real vehicle aura unapply, map lookup and `TempSummon::UnSummon`, target-side controlled mutation, owner slot fanout, ObjectAccessor cleanup, and full `RemoveAllAurasOnDeath` remain open.
+
+Validation evidence: focused death-state test now starts with a vehicle passenger state, summon slot, charmed/controlled GUIDs, and `PET_IN_COMBAT`, then asserts the represented local state is cleared after death.

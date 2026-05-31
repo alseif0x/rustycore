@@ -2257,6 +2257,19 @@ impl Creature {
                 {
                     self.unit.interrupt_non_melee_spells(None, false, true);
                 }
+                {
+                    let subsystems = self.unit.subsystems_mut();
+                    subsystems.vehicle.exit_vehicle();
+                    for summon_slot in &mut subsystems.control.summon_slots {
+                        *summon_slot = ObjectGuid::EMPTY;
+                    }
+                    subsystems.control.remove_all_controlled();
+                }
+                if !self.unit.world().object().guid().is_pet() {
+                    let mut flags = self.unit.unit_flags_like_cpp();
+                    flags.remove(UnitFlags::PET_IN_COMBAT);
+                    self.unit.set_unit_flags_like_cpp(flags);
+                }
                 self.unit
                     .subsystems_mut()
                     .auras
@@ -4011,6 +4024,29 @@ mod tests {
             .subsystems_mut()
             .motion
             .start_spline(77, 1_000);
+        creature
+            .unit_mut()
+            .subsystems_mut()
+            .vehicle
+            .enter_vehicle(ObjectGuid::new(1, 700), Some(1));
+        creature
+            .unit_mut()
+            .subsystems_mut()
+            .control
+            .set_summon_slot(1, ObjectGuid::new(1, 701));
+        creature
+            .unit_mut()
+            .subsystems_mut()
+            .control
+            .set_charmed(ObjectGuid::new(1, 702));
+        creature
+            .unit_mut()
+            .subsystems_mut()
+            .control
+            .add_controlled(ObjectGuid::new(1, 703));
+        creature
+            .unit_mut()
+            .set_unit_flags_like_cpp(UnitFlags::PET_IN_COMBAT);
         creature.unit_mut().set_npc_flags_like_cpp(0x40);
         creature.unit_mut().set_npc_flags2_like_cpp(0x2);
         creature.unit_mut().set_mount_display_id(1234);
@@ -4116,6 +4152,38 @@ mod tests {
         assert_eq!(
             creature.unit().current_spell(CurrentSpellSlot::Channeled),
             None
+        );
+        assert_eq!(
+            creature.unit().subsystems().vehicle.vehicle_guid,
+            None,
+            "C++ Unit::setDeathState(non-alive) calls ExitVehicle before RemoveAllControlled"
+        );
+        assert!(
+            creature
+                .unit()
+                .subsystems()
+                .control
+                .summon_slots
+                .iter()
+                .all(|guid| guid.is_empty()),
+            "C++ Unit::setDeathState(non-alive) calls UnsummonAllTotems before RemoveAllControlled"
+        );
+        assert!(
+            creature
+                .unit()
+                .subsystems()
+                .control
+                .controlled_guids
+                .is_empty(),
+            "C++ Unit::setDeathState(non-alive) calls RemoveAllControlled"
+        );
+        assert_eq!(creature.unit().subsystems().control.charmed_guid, None);
+        assert!(
+            !creature
+                .unit()
+                .unit_flags_like_cpp()
+                .contains(UnitFlags::PET_IN_COMBAT),
+            "C++ RemoveAllControlled clears UNIT_FLAG_PET_IN_COMBAT for non-pets"
         );
         assert!(
             !creature.unit().world().is_active(),

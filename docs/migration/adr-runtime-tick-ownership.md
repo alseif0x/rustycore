@@ -827,6 +827,14 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   represented move spline when `StopOnDeath` succeeds. This remains entity-local: exact in-world
   `MotionMaster::Clear`/`MoveIdle` packet behavior, spline stop packets, and position update
   fanout remain runtime-owner work.
+- 2026-05-31 — Represented creature death vehicle/control cleanup `#NEXT.RUNTIME.L3.031aw`:
+  ports the represented local subset of C++ `Unit::setDeathState(non-alive)` cleanup order after
+  spell interruption (`Unit.cpp:8534-8546`): `ExitVehicle()`, `UnsummonAllTotems()`,
+  `RemoveAllControlled()`, then aura death filtering. Rust now exits the local vehicle subsystem,
+  clears represented summon slots, drains represented controlled GUIDs/charmed GUID, and removes
+  `UNIT_FLAG_PET_IN_COMBAT` for non-pet creature GUIDs. This does not claim real vehicle aura
+  unapply, map lookup/TempSummon unsummon, ObjectAccessor cleanup, controlled target mutation,
+  owner slot fanout, or full `RemoveAllAurasOnDeath`.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
