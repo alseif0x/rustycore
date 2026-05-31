@@ -1252,6 +1252,14 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   the local lifecycle rotation needed for exact create-data reconstruction. Remaining gaps: full
   GameObject runtime/use/scripts/traps/GO AI, complete values-update fanout, dynamic-tree/collision,
   ObjectAccessor parity, and live client/server validation.
+- 2026-05-31 — Viewer-dependent GameObject create state `#NEXT.RUNTIME.L3.031d6`: contrasted
+  against C++ viewer-dependent `GameObjectData::StateTag` (`ViewerDependentValues.h:323-332`) and
+  `GameObject::GetGoStateFor` / `SetGoStateFor` (`GameObject.cpp:3795-3815`). Represented
+  GameObject create visibility now rebuilds `GameObjectCreateData.state` from the receiving
+  session's effective state: active, unexpired per-player state for that player wins, otherwise the
+  shared represented state or Ready fallback is used. This closes the create-packet side of the
+  existing represented per-player state rail; viewer-dependent group-loot chest flags and full
+  GameObject values-update fanout remain separate gaps.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

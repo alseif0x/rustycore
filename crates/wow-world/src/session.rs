@@ -6503,6 +6503,8 @@ impl WorldSession {
                 let Some(go_type) = state.go_type else {
                     continue;
                 };
+                let state_for_viewer =
+                    self.represented_gameobject_go_state_for_viewer_like_cpp(state, now);
 
                 wow_packet::packets::update::GameObjectCreateData {
                     guid,
@@ -6512,10 +6514,7 @@ impl WorldSession {
                     position: object.position(),
                     rotation: state.rotation,
                     anim_progress: 255,
-                    state: state
-                        .go_state
-                        .map(|go_state| go_state as i8)
-                        .unwrap_or(wow_entities::GoState::Ready as i8),
+                    state: state_for_viewer as i8,
                     created_by: state.owner_guid.unwrap_or(ObjectGuid::EMPTY),
                     faction_template: state.faction_template.unwrap_or(0) as i32,
                     gameobject_flags: state.gameobject_flags,
@@ -6534,6 +6533,23 @@ impl WorldSession {
         }
 
         Some(gameobjects)
+    }
+
+    fn represented_gameobject_go_state_for_viewer_like_cpp(
+        &self,
+        state: &RepresentedGameObjectUseState,
+        now: Instant,
+    ) -> wow_entities::GoState {
+        if state.per_player_state_player_guid == self.player_guid()
+            && state
+                .per_player_go_state_until
+                .is_none_or(|until| until > now)
+            && let Some(per_player_go_state) = state.per_player_go_state
+        {
+            return per_player_go_state;
+        }
+
+        state.go_state.unwrap_or(wow_entities::GoState::Ready)
     }
 
     fn gameobject_create_data_from_canonical_like_cpp(
@@ -32561,6 +32577,84 @@ mod tests {
         assert_eq!(visible[0].display_id, 7000);
         assert_eq!(visible[0].go_type, 3);
         assert_eq!(visible[0].scale, 1.5);
+    }
+
+    #[test]
+    fn visible_gameobjects_create_uses_per_player_go_state_like_cpp() {
+        let (mut session, _pkt_tx, _send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 515);
+        let gameobject_guid = test_gameobject_guid(914, 914);
+
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "Viewer".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            571,
+            2,
+            1,
+            10,
+            0,
+        ));
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        canonical.lock().unwrap().create_world_map(571, 0);
+
+        session.record_represented_gameobject_runtime_state_like_cpp(
+            571,
+            gameobject_guid,
+            914,
+            Position::new(20.0, 20.0, 0.0, 0.0),
+            wow_entities::GAMEOBJECT_TYPE_GATHERING_NODE as u8,
+        );
+        session.record_represented_gameobject_display_model_like_cpp(
+            gameobject_guid,
+            7_014,
+            1.0,
+            [0.0, 0.0, 0.0, 1.0],
+        );
+        {
+            let state = session
+                .represented_gameobject_use_states
+                .get_mut(&gameobject_guid)
+                .expect("represented state");
+            state.go_state = Some(wow_entities::GoState::Ready);
+            state.per_player_state_player_guid = Some(player_guid);
+            state.per_player_go_state = Some(wow_entities::GoState::Active);
+            state.per_player_go_state_until = Some(Instant::now() + Duration::from_secs(30));
+        }
+
+        let visible = session
+            .visible_gameobjects_from_canonical_map_like_cpp(
+                571,
+                &Position::new(10.0, 10.0, 0.0, 0.0),
+                800.0,
+            )
+            .expect("canonical map");
+
+        assert_eq!(visible.len(), 1);
+        assert_eq!(visible[0].guid, gameobject_guid);
+        assert_eq!(visible[0].state, wow_entities::GoState::Active as i8);
+
+        session
+            .represented_gameobject_use_states
+            .get_mut(&gameobject_guid)
+            .expect("represented state")
+            .per_player_go_state_until = Some(Instant::now() - Duration::from_secs(1));
+
+        let visible_after_expiry = session
+            .visible_gameobjects_from_canonical_map_like_cpp(
+                571,
+                &Position::new(10.0, 10.0, 0.0, 0.0),
+                800.0,
+            )
+            .expect("canonical map");
+
+        assert_eq!(visible_after_expiry.len(), 1);
+        assert_eq!(
+            visible_after_expiry[0].state,
+            wow_entities::GoState::Ready as i8,
+            "expired Rust per-player state must not override C++ GetGoState fallback"
+        );
     }
 
     #[test]
