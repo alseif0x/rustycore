@@ -217,6 +217,59 @@ impl ServerPacket for GameObjectDespawn {
     }
 }
 
+// ── AnimKit control packets ────────────────────────────────────────
+
+/// C++ `WorldPackets::Misc::SetAIAnimKit`: ObjectGuid + uint16 AnimKitID.
+pub struct SetAiAnimKit {
+    pub unit: ObjectGuid,
+    pub anim_kit_id: u16,
+}
+
+impl ServerPacket for SetAiAnimKit {
+    const OPCODE: ServerOpcodes = ServerOpcodes::SetAiAnimKit;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        for byte in self.unit.to_raw_bytes() {
+            pkt.write_uint8(byte);
+        }
+        pkt.write_uint16(self.anim_kit_id);
+    }
+}
+
+/// C++ `WorldPackets::Misc::SetMovementAnimKit`: ObjectGuid + uint16 AnimKitID.
+pub struct SetMovementAnimKit {
+    pub unit: ObjectGuid,
+    pub anim_kit_id: u16,
+}
+
+impl ServerPacket for SetMovementAnimKit {
+    const OPCODE: ServerOpcodes = ServerOpcodes::SetMovementAnimKit;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        for byte in self.unit.to_raw_bytes() {
+            pkt.write_uint8(byte);
+        }
+        pkt.write_uint16(self.anim_kit_id);
+    }
+}
+
+/// C++ `WorldPackets::Misc::SetMeleeAnimKit`: ObjectGuid + uint16 AnimKitID.
+pub struct SetMeleeAnimKit {
+    pub unit: ObjectGuid,
+    pub anim_kit_id: u16,
+}
+
+impl ServerPacket for SetMeleeAnimKit {
+    const OPCODE: ServerOpcodes = ServerOpcodes::SetMeleeAnimKit;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        for byte in self.unit.to_raw_bytes() {
+            pkt.write_uint8(byte);
+        }
+        pkt.write_uint16(self.anim_kit_id);
+    }
+}
+
 // ── UpdateCapturePoint (SMSG 0xbadd) ───────────────────────────────
 
 /// C++ `WorldPackets::Battleground::UpdateCapturePoint`.
@@ -3828,6 +3881,54 @@ mod tests {
         assert_eq!(bytes[0..2], (ServerOpcodes::PageText as u16).to_le_bytes());
         assert_eq!(&bytes[2..18], &guid.to_raw_bytes());
         assert_eq!(bytes.len(), 18);
+    }
+
+    #[test]
+    fn anim_kit_packets_write_unit_guid_and_anim_kit_id_like_cpp() {
+        let guid = ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::Creature,
+            0,
+            1,
+            571,
+            0,
+            1234,
+            99,
+        );
+
+        for (bytes, opcode, anim_kit_id) in [
+            (
+                SetAiAnimKit {
+                    unit: guid,
+                    anim_kit_id: 11,
+                }
+                .to_bytes(),
+                ServerOpcodes::SetAiAnimKit,
+                11_u16,
+            ),
+            (
+                SetMovementAnimKit {
+                    unit: guid,
+                    anim_kit_id: 22,
+                }
+                .to_bytes(),
+                ServerOpcodes::SetMovementAnimKit,
+                22_u16,
+            ),
+            (
+                SetMeleeAnimKit {
+                    unit: guid,
+                    anim_kit_id: 33,
+                }
+                .to_bytes(),
+                ServerOpcodes::SetMeleeAnimKit,
+                33_u16,
+            ),
+        ] {
+            assert_eq!(bytes[0..2], (opcode as u16).to_le_bytes());
+            assert_eq!(&bytes[2..18], &guid.to_raw_bytes());
+            assert_eq!(&bytes[18..20], &anim_kit_id.to_le_bytes());
+            assert_eq!(bytes.len(), 20);
+        }
     }
 
     #[test]

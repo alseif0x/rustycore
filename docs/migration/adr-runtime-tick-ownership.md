@@ -1008,6 +1008,13 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   because C++ addon loading only calls `AddUnitMovementFlag`; full hover packets/height/anim-tier
   handling remains a separate runtime concern. Visibility distance override, auras, waypoint path
   execution, and live `SMSG_SET_*_ANIM_KIT` fanout remain open.
+- 2026-05-31 — Anim kit live packet surface `#NEXT.RUNTIME.L3.031bq`: contrasted against C++
+  `WorldPackets::Misc::SetAIAnimKit` / `SetMovementAnimKit` / `SetMeleeAnimKit`
+  (`MiscPackets.h:753-783`, `MiscPackets.cpp:615-634`) and `Unit::Set*AnimKitId`
+  (`Unit.cpp:10409-10455`). Rust now has the three SMSG packet serializers with the same payload
+  shape: raw `ObjectGuid` plus `uint16 AnimKitID`. Runtime fanout from represented `Unit` setters is
+  still not wired; this is only the protocol surface needed before that behavior can be closed.
+  Visibility distance override, auras, and waypoint path execution remain open.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
