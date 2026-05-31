@@ -3,7 +3,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use wow_constants::{
     CreatureFlagsExtra, CreatureFlightMovementType, CreatureGroundMovementType,
     CreatureStaticFlags, CreatureTypeFlags, DeathState, PowerType, TypeId, TypeMask, UnitDynFlags,
-    UnitFlags, UnitFlags2, UnitStandStateType, UnitState, WeaponAttackType, movement::MovementFlag,
+    UnitFlags, UnitFlags2, UnitFlags3, UnitStandStateType, UnitState, WeaponAttackType,
+    movement::MovementFlag,
 };
 use wow_core::{ObjectGuid, Position};
 
@@ -110,6 +111,8 @@ pub struct CreatureAiOwnershipState {
     pub npc_flags: u32,
     pub npc_flags2: u32,
     pub unit_flags: u32,
+    pub unit_flags2: u32,
+    pub unit_flags3: u32,
     pub min_damage: u32,
     pub max_damage: u32,
     pub loot_id: u32,
@@ -148,6 +151,8 @@ impl Default for CreatureAiOwnershipState {
             npc_flags: 0,
             npc_flags2: 0,
             unit_flags: 0,
+            unit_flags2: 0,
+            unit_flags3: 0,
             min_damage: BASE_MINDAMAGE as u32,
             max_damage: BASE_MAXDAMAGE as u32,
             loot_id: 0,
@@ -1579,6 +1584,8 @@ impl Creature {
         self.ai_ownership.npc_flags = npc_flags;
         self.ai_ownership.unit_flags = unit_flags;
         self.unit.set_npc_flags_like_cpp(npc_flags);
+        self.unit
+            .set_unit_flags_like_cpp(UnitFlags::from_bits_truncate(unit_flags));
         self.set_display_id(display_id, true, None);
         self.set_faction(faction);
     }
@@ -1586,6 +1593,18 @@ impl Creature {
     pub fn set_npc_flags2_runtime_like_cpp(&mut self, npc_flags2: u32) {
         self.ai_ownership.npc_flags2 = npc_flags2;
         self.unit.set_npc_flags2_like_cpp(npc_flags2);
+    }
+
+    pub fn set_unit_flags2_runtime_like_cpp(&mut self, unit_flags2: u32) {
+        self.ai_ownership.unit_flags2 = unit_flags2;
+        self.unit
+            .set_unit_flags2_like_cpp(UnitFlags2::from_bits_truncate(unit_flags2));
+    }
+
+    pub fn set_unit_flags3_runtime_like_cpp(&mut self, unit_flags3: u32) {
+        self.ai_ownership.unit_flags3 = unit_flags3;
+        self.unit
+            .set_unit_flags3_like_cpp(UnitFlags3::from_bits_truncate(unit_flags3));
     }
 
     pub fn set_flags_extra_runtime_like_cpp(&mut self, flags_extra: u32) {
@@ -2317,9 +2336,21 @@ impl Creature {
                     .world_mut()
                     .object_mut()
                     .replace_all_dynamic_flags(0);
-                let mut flags = self.unit.unit_flags_like_cpp();
+                self.unit
+                    .set_npc_flags_like_cpp(self.ai_ownership.npc_flags);
+                self.unit
+                    .set_npc_flags2_like_cpp(self.ai_ownership.npc_flags2);
+                let mut flags = UnitFlags::from_bits_truncate(self.ai_ownership.unit_flags);
                 flags.remove(UnitFlags::SKINNABLE | UnitFlags::IN_COMBAT);
                 self.unit.set_unit_flags_like_cpp(flags);
+                self.unit
+                    .set_unit_flags2_like_cpp(UnitFlags2::from_bits_truncate(
+                        self.ai_ownership.unit_flags2,
+                    ));
+                self.unit
+                    .set_unit_flags3_like_cpp(UnitFlags3::from_bits_truncate(
+                        self.ai_ownership.unit_flags3,
+                    ));
                 self.unit.clear_unit_state(UnitState::ALL_ERASABLE.bits());
                 self.clear_tap_list();
                 self.player_damage_req = 0;
@@ -4318,6 +4349,15 @@ mod tests {
     fn creature_runtime_just_respawned_resets_represented_runtime_state() {
         let player = ObjectGuid::new(1, 3);
         let mut creature = Creature::new(false);
+        creature.set_ai_identity_runtime(
+            100,
+            35,
+            0x40,
+            (UnitFlags::IMMUNE_TO_NPC | UnitFlags::IN_COMBAT).bits(),
+        );
+        creature.set_npc_flags2_runtime_like_cpp(0x2);
+        creature.set_unit_flags2_runtime_like_cpp(UnitFlags2::FEIGN_DEATH.bits());
+        creature.set_unit_flags3_runtime_like_cpp(UnitFlags3::AI_OBSTACLE.bits());
         creature.unit_mut().set_max_health(250);
         creature.unit_mut().set_health(1);
         creature.unit_mut().set_death_state(DeathState::Corpse);
@@ -4334,6 +4374,14 @@ mod tests {
         creature
             .unit_mut()
             .set_unit_flags_like_cpp(UnitFlags::SKINNABLE | UnitFlags::IN_COMBAT);
+        creature
+            .unit_mut()
+            .set_unit_flags2_like_cpp(UnitFlags2::empty());
+        creature
+            .unit_mut()
+            .set_unit_flags3_like_cpp(UnitFlags3::empty());
+        creature.unit_mut().set_npc_flags_like_cpp(0);
+        creature.unit_mut().set_npc_flags2_like_cpp(0);
         creature.unit_mut().add_unit_state(
             UnitState::DIED.bits()
                 | UnitState::CHARGING.bits()
@@ -4364,6 +4412,28 @@ mod tests {
                 .unit_flags_like_cpp()
                 .intersects(UnitFlags::SKINNABLE | UnitFlags::IN_COMBAT),
             "C++ Unit::setDeathState(JUST_RESPAWNED) removes SKINNABLE and Creature respawn removes IN_COMBAT"
+        );
+        assert!(
+            creature
+                .unit()
+                .unit_flags_like_cpp()
+                .contains(UnitFlags::IMMUNE_TO_NPC),
+            "C++ Creature::setDeathState(JUST_RESPAWNED) reloads template unitFlags via ChooseCreatureFlags"
+        );
+        assert_eq!(
+            creature.unit().unit_flags2_like_cpp(),
+            UnitFlags2::FEIGN_DEATH,
+            "C++ Creature::setDeathState(JUST_RESPAWNED) reloads template unitFlags2"
+        );
+        assert_eq!(
+            creature.unit().unit_flags3_like_cpp(),
+            UnitFlags3::AI_OBSTACLE,
+            "C++ Creature::setDeathState(JUST_RESPAWNED) reloads template unitFlags3"
+        );
+        assert_eq!(
+            creature.unit().npc_flags_like_cpp(),
+            [0x40, 0x2],
+            "C++ Creature::setDeathState(JUST_RESPAWNED) reloads npcFlags/npcFlags2"
         );
         assert_eq!(
             UnitState::from_bits_truncate(creature.unit().unit_state()),

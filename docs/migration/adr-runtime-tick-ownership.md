@@ -844,6 +844,15 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   cleanup. This is still metadata-driven: exact `SpellInfo::IsPassive`,
   `Aura::IsDeathPersistent`, scripts, proc/unapply handlers, packet emission, and full aura runtime
   remain separate gaps.
+- 2026-05-31 — Represented creature respawn template flag reload `#NEXT.RUNTIME.L3.031ay`:
+  ports the represented local subset of C++ `Creature::setDeathState(JUST_RESPAWNED)`
+  `ObjectMgr::ChooseCreatureFlags` / `ReplaceAllNpcFlags*` / `ReplaceAllUnitFlags*`
+  (`Creature.cpp:2268-2284`). Rust now preserves `unit_flags2` and `unit_flags3` in
+  `CreatureAiOwnershipState` alongside existing npc/unit flags, wires them from represented
+  `CreatureCreateData`, adds `UnitFlags3` setters/getters, and reloads represented live
+  npc/unit flags during respawn before clearing `IN_COMBAT`. Full `ChooseCreatureFlags` conditions,
+  world-event NPC flag overlays, creature-data overrides beyond represented create data, and melee
+  damage school/template store integration remain open.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

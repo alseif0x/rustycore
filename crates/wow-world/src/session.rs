@@ -4893,6 +4893,8 @@ impl WorldSession {
         let npc_flags = create_data.npc_flags as u32;
         let npc_flags2 = (create_data.npc_flags >> 32) as u32;
         let unit_flags = create_data.unit_flags;
+        let unit_flags2 = create_data.unit_flags2;
+        let unit_flags3 = create_data.unit_flags3;
         let (db_phase_shift, validated_terrain_swap_map) = self.db_spawn_phase_shift_like_cpp(
             map_id,
             phase_use_flags,
@@ -4919,6 +4921,8 @@ impl WorldSession {
             creature.unit_mut().set_health(u64::from(hp));
             creature.set_ai_identity_runtime(display_id, faction, npc_flags, unit_flags);
             creature.set_npc_flags2_runtime_like_cpp(npc_flags2);
+            creature.set_unit_flags2_runtime_like_cpp(unit_flags2);
+            creature.set_unit_flags3_runtime_like_cpp(unit_flags3);
             creature.set_flags_extra_runtime_like_cpp(flags_extra);
             creature.set_ground_movement_type_runtime_like_cpp(ground_movement_type);
             creature.set_swim_allowed_runtime_like_cpp(swim_allowed);

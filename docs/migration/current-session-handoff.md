@@ -1919,3 +1919,13 @@ C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entit
 Implemented Rust seam: `crates/wow-entities/src/unit_subsystems.rs` now carries explicit represented aura death policy metadata (`passive_auras_like_cpp`, `death_persistent_auras_like_cpp`) and exposes `remove_all_auras_on_death_like_cpp`, removing matching applied and owned aura refs while preserving passive/death-persistent refs. `crates/wow-entities/src/creature.rs` invokes it during `Creature::set_death_state_runtime(JustDied)` after vehicle/summon/control cleanup and before `JUST_DIED` reactive/diminishing cleanup. This does not claim full `SpellInfo::IsPassive`, `Aura::IsDeathPersistent`, unapply scripts/procs, packet emission, or live aura runtime; callers must provide represented policy metadata.
 
 Validation evidence: focused death-state test now seeds removable, passive, and death-persistent applied and owned auras, then asserts only the non-passive/non-death-persistent refs are removed and recorded.
+
+### #NEXT.RUNTIME.L3.031ay — represented creature respawn template flag reload
+
+Status: represented-closeout for the bounded live flag reload subset of `Creature::setDeathState(JUST_RESPAWNED)`; not manual-test-ready.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Creature/Creature.cpp:2268-2284` calls `ObjectMgr::ChooseCreatureFlags`, applies world-event NPC flags, then `ReplaceAllNpcFlags`, `ReplaceAllNpcFlags2`, `ReplaceAllUnitFlags`, `ReplaceAllUnitFlags2`, `ReplaceAllUnitFlags3`, `ReplaceAllDynamicFlags(UNIT_DYNFLAG_NONE)`, and removes `UNIT_FLAG_IN_COMBAT`.
+
+Implemented Rust seam: `crates/wow-entities/src/creature.rs` now carries represented `unit_flags2` and `unit_flags3` in `CreatureAiOwnershipState`, exposes runtime setters, and reloads represented live npc/unit flags from that identity during `JustRespawned` before clearing `IN_COMBAT`. `crates/wow-entities/src/unit.rs` adds `UnitFlags3` setter/getter. `crates/wow-world/src/{session.rs,map_manager.rs}` now propagate `CreatureCreateData.unit_flags2/unit_flags3` into the represented creature identity and back into `WorldCreature::create_data`.
+
+Validation evidence: focused respawn test now dirties live npc/unit flags, seeds represented template flags including unitFlags2/3, then asserts respawn reloads them and still removes `IN_COMBAT`. Remaining gaps: full `ChooseCreatureFlags` condition evaluation, world-event NPC flag overlay, creature-data overrides not present in represented create data, `SetMeleeDamageSchool(cInfo->dmgschool)`, and full addon/sparring reload.
