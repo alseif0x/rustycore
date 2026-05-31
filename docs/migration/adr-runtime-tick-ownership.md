@@ -744,6 +744,15 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   creature-vs-creature: pet victims, full player/charm ownership parity beyond represented control
   state, absorbs/resists/procs/redirect, death cleanup, loot, rewards, and exact threat/proc side
   effects remain open.
+- 2026-05-31 — Runtime global creature melee canonical Creature death-state `#NEXT.RUNTIME.L3.031al`:
+  closes the immediate health-zero-only death gap for canonical Creature victims. C++ `DealDamage`
+  calls `Unit::Kill` when `health <= damageTaken`, and `Creature::setDeathState(JUST_DIED)` promotes
+  creatures through corpse/respawn bookkeeping before ending in `CORPSE` (`Unit.cpp:942-1016`,
+  `Unit.cpp:10457-10614`, `Creature.cpp:2193-2247`). Rust now routes lethal global creature melee
+  through represented AI damage state, then calls `set_death_state_runtime(JustDied, game_time_secs)`
+  instead of the existing `mark_ai_dead(now_ms)` shortcut so corpse/respawn times use the same seconds
+  scale as C++. This is still not full `Unit::Kill`: rewards, loot, proc hooks, aura/combat cleanup,
+  tapper/group handling, and pet notifications remain open.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

@@ -21949,8 +21949,19 @@ fn apply_creature_melee_damage_to_canonical_creature_on_map_like_cpp(
     let Some(victim) = managed.map_mut().get_typed_creature_mut(victim_guid) else {
         return CreatureMeleeApplyResultLikeCpp::MissingVictim;
     };
-    let health_after = health_before.saturating_sub(u64::from(applied_damage));
-    victim.unit_mut().set_health(health_after);
+    let killed = victim.apply_ai_damage_before_death_state_at_game_time_like_cpp(
+        applied_damage,
+        u64::from(WorldSession::game_time_ms_like_cpp()),
+        wow_entities::game_time_secs_like_cpp(),
+    );
+    if killed {
+        victim.set_death_state_runtime(
+            wow_constants::DeathState::JustDied,
+            wow_entities::game_time_secs_like_cpp(),
+        );
+        victim.unit_mut().set_health(0);
+    }
+    let health_after = victim.unit().data().health;
     let over_damage = if health_after == 0 {
         u64::from(applied_damage).saturating_sub(health_before) as i32
     } else {
@@ -54303,6 +54314,78 @@ mod tests {
             .data()
             .health;
         assert_eq!(health, 50);
+    }
+
+    #[test]
+    fn legacy_creature_melee_tick_once_kills_canonical_creature_victim_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        let victim = test_creature_guid(91_034);
+        add_canonical_test_creature_on_map(
+            &canonical,
+            victim,
+            9002,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            0,
+            0,
+        );
+        {
+            let mut guard = canonical.lock().unwrap();
+            let typed = guard
+                .find_map_mut(0, 0)
+                .unwrap()
+                .map_mut()
+                .get_typed_creature_mut(victim)
+                .unwrap();
+            typed.unit_mut().set_level(80);
+            typed.unit_mut().set_max_health(100);
+            typed.unit_mut().set_health(1);
+        }
+
+        let (mut session, _, _) = make_session();
+        let attacker = test_creature_guid(91_035);
+        register_test_creature(&mut session, manager.clone(), attacker, 25);
+        session
+            .mutate_world_creature(attacker, |creature| {
+                creature.enter_combat(victim);
+                creature.creature.ai_ownership_mut().last_swing_ms = 0;
+                creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+
+        assert_eq!(outcome.swings_ready, 1);
+        assert_eq!(outcome.canonical_creature_hits, 1);
+        assert_eq!(
+            outcome.plan.events.len(),
+            2,
+            "death still sends attack-state plus represented values update"
+        );
+        let guard = canonical.lock().unwrap();
+        let creature = guard
+            .find_map(0, 0)
+            .unwrap()
+            .map()
+            .get_typed_creature(victim)
+            .unwrap();
+        assert_eq!(creature.unit().data().health, 0);
+        assert_eq!(
+            creature.unit().death_state(),
+            wow_constants::DeathState::Corpse,
+            "C++ Creature::setDeathState(JUST_DIED) promotes dead creatures to CORPSE"
+        );
+        assert_eq!(
+            creature.ai_ownership().state,
+            wow_entities::CreatureAiState::Dead
+        );
+        assert_eq!(creature.ai_ownership().combat_target, None);
     }
 
     struct CreatureMeleeLosTestEnvironment {
