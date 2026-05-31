@@ -64,6 +64,7 @@ pub enum ReactState {
 #[repr(u8)]
 pub enum MovementGeneratorType {
     Idle = 0,
+    Waypoint = 2,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -784,6 +785,7 @@ pub struct Creature {
     combat_pulse_delay: u32,
     react_state: ReactState,
     default_movement_type: MovementGeneratorType,
+    waypoint_path_id: u32,
     spawn_id: u64,
     equipment_id: u8,
     original_equipment_id: i8,
@@ -847,6 +849,7 @@ impl Creature {
             combat_pulse_delay: 0,
             react_state: ReactState::Aggressive,
             default_movement_type: MovementGeneratorType::Idle,
+            waypoint_path_id: 0,
             spawn_id: 0,
             equipment_id: 0,
             original_equipment_id: 0,
@@ -1995,6 +1998,10 @@ impl Creature {
         self.default_movement_type
     }
 
+    pub const fn waypoint_path_id_like_cpp(&self) -> u32 {
+        self.waypoint_path_id
+    }
+
     pub const fn spawn_id(&self) -> u64 {
         self.spawn_id
     }
@@ -2657,6 +2664,9 @@ impl Creature {
         if addon.emote != 0 {
             self.unit.set_emote_state_like_cpp(addon.emote);
         }
+        if addon.path_id != 0 {
+            self.waypoint_path_id = addon.path_id;
+        }
         self.unit.set_ai_anim_kit_id_like_cpp(addon.ai_anim_kit_id);
         self.unit
             .set_movement_anim_kit_id_like_cpp(addon.movement_anim_kit_id);
@@ -3122,6 +3132,7 @@ mod tests {
             creature.default_movement_type(),
             MovementGeneratorType::Idle
         );
+        assert_eq!(creature.waypoint_path_id_like_cpp(), 0);
         assert_eq!(creature.spawn_id(), 0);
         assert_eq!(creature.equipment_id(), 0);
         assert_eq!(creature.original_equipment_id(), 0);
@@ -4441,7 +4452,7 @@ mod tests {
     fn creature_lifecycle_loads_represented_addon_local_fields_like_cpp() {
         let mut record = creature_lifecycle_create_record();
         record.addon = Some(CreatureAddonLifecycleRecordLikeCpp {
-            path_id: 0,
+            path_id: 9_001,
             mount_display_id: 12_345,
             stand_state: UnitStandStateType::Kneel,
             vis_flags: 0x12,
@@ -4462,6 +4473,11 @@ mod tests {
             creature.unit().data().mount_display_id,
             12_345,
             "C++ Creature::LoadCreaturesAddon calls Mount(addon->mount) when mount != 0"
+        );
+        assert_eq!(
+            creature.waypoint_path_id_like_cpp(),
+            9_001,
+            "C++ Creature::LoadCreaturesAddon copies nonzero addon PathId into _waypointPathId"
         );
         assert_eq!(
             creature.unit().stand_state_like_cpp(),
@@ -4572,7 +4588,7 @@ mod tests {
     fn creature_runtime_respawn_reloads_represented_addon_local_fields_like_cpp() {
         let mut record = creature_lifecycle_create_record();
         record.addon = Some(CreatureAddonLifecycleRecordLikeCpp {
-            path_id: 0,
+            path_id: 9_002,
             mount_display_id: 22_222,
             stand_state: UnitStandStateType::Sit,
             vis_flags: 0x04,
@@ -4633,6 +4649,11 @@ mod tests {
         assert_eq!(creature.unit().ai_anim_kit_id_like_cpp(), 44);
         assert_eq!(creature.unit().movement_anim_kit_id_like_cpp(), 55);
         assert_eq!(creature.unit().melee_anim_kit_id_like_cpp(), 66);
+        assert_eq!(
+            creature.waypoint_path_id_like_cpp(),
+            9_002,
+            "C++ respawn reload path calls LoadCreaturesAddon and preserves nonzero PathId"
+        );
         assert_eq!(
             creature
                 .unit()

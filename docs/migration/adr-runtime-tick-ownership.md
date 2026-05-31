@@ -1045,6 +1045,14 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   overrides affect MonsterMove fanout instead of always using the default legacy map radius. This is
   the bounded movement-runtime use of the override; other session visibility scans and non-creature
   fanout paths that still consult map visibility remain separate follow-up gaps.
+- 2026-05-31 — Waypoint PathId/default movement bridge `#NEXT.RUNTIME.L3.031bu`: contrasted against
+  C++ `Creature::LoadCreaturesAddon` (`Creature.cpp:2773`), `Creature::CreateFromProto`
+  (`Creature.cpp:558-560`), `ObjectMgr::LoadCreatureAddons` (`ObjectMgr.cpp:1253-1256`), and
+  `WaypointMovementGenerator::DoInitialize` (`WaypointMovementGenerator.cpp:120-129`). Rust now
+  preserves nonzero addon `PathId` on represented `Creature` and keeps loaded-grid
+  `MovementType=WAYPOINT_MOTION_TYPE` as represented `MovementGeneratorType::Waypoint` after the
+  existing spawn-addon `PathId==0` downgrade seam. This does not claim waypoint path DB loading,
+  spline launch, timers, `MovementInform`, scripts, formation signaling, or live waypoint execution.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

@@ -468,13 +468,17 @@ pub fn build_loaded_grid_creature_inputs_from_db_like_cpp(
 }
 
 fn movement_type_like_cpp(
-    _db_movement_type: u8,
+    db_movement_type: u8,
     _template_movement_type: u8,
 ) -> MovementGeneratorType {
-    // `wow-entities` currently represents only Idle movement. Preserve raw DB/template values in
-    // the DB-backed stores and collapse here only at the existing entity seam; no live movement
-    // runtime is claimed by this builder.
-    MovementGeneratorType::Idle
+    // C++ `Creature::CreateFromProto` takes concrete spawn `CreatureData::movementType` when a
+    // spawn exists. The spawn-addon PathId=0 waypoint downgrade has already been applied by
+    // `CreatureAddonStoreLikeCpp::movement_type_after_spawn_addon_load_like_cpp`.
+    const WAYPOINT_MOTION_TYPE_LIKE_CPP: u8 = 2;
+    match db_movement_type {
+        WAYPOINT_MOTION_TYPE_LIKE_CPP => MovementGeneratorType::Waypoint,
+        _ => MovementGeneratorType::Idle,
+    }
 }
 
 fn validate_map_object_guid_like_cpp(
@@ -1523,7 +1527,11 @@ mod tests {
         );
         assert_eq!(record.spawn.respawn_delay, 300);
         assert_eq!(record.spawn.respawn_time, 123_456);
-        assert_eq!(record.spawn.movement_type, MovementGeneratorType::Idle);
+        assert_eq!(
+            record.spawn.movement_type,
+            MovementGeneratorType::Waypoint,
+            "C++ preserves spawn MovementType=WAYPOINT_MOTION_TYPE when no spawn-addon PathId=0 downgrade applied"
+        );
         assert_eq!(
             record.spawn.string_id.as_deref(),
             Some("loaded_grid_string")
