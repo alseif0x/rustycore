@@ -60,6 +60,7 @@ pub struct ResolvedCreatureTemplateLikeCpp {
     pub spells: [u32; 8],
     pub classification: u32,
     pub flags_extra: u32,
+    pub static_flags: [u32; 8],
     pub creature_type: u32,
     pub type_flags: u32,
     pub movement_type: MovementGeneratorType,
@@ -359,6 +360,7 @@ pub fn build_loaded_grid_creature_inputs_from_db_like_cpp(
         spells: template.spells,
         classification: template.classification,
         flags_extra: template.flags_extra,
+        static_flags: difficulty.static_flags,
         creature_type: template.creature_type,
         type_flags: difficulty.type_flags,
         movement_type,
@@ -496,6 +498,7 @@ fn template_lifecycle_record(
         spells: template.spells,
         classification: template.classification,
         flags_extra: template.flags_extra,
+        static_flags: template.static_flags,
         creature_type: template.creature_type,
         type_flags: template.type_flags,
         movement_type: template.movement_type,
@@ -572,6 +575,7 @@ mod tests {
             spells: [11, 22, 33, 44, 55, 66, 77, 88],
             classification: 4,
             flags_extra: 0x10,
+            static_flags: [0; 8],
             creature_type: 0,
             type_flags: 0x20,
             movement_type: MovementGeneratorType::Idle,
@@ -817,13 +821,15 @@ mod tests {
             spawn_time_secs: 300,
         };
         let (display_store, model_store) = empty_display_stores();
+        let mut static_flags = [0; 8];
+        static_flags[0] = wow_constants::creature::CreatureStaticFlags::NO_MELEE_FLEE.bits();
 
         let (template, resolved_spawn, runtime) =
             build_loaded_grid_creature_inputs_from_db_like_cpp(
                 &spawn,
                 &runtime_row,
                 &db_backed_template_store(entry),
-                &db_backed_difficulty_store(entry),
+                &db_backed_difficulty_store_with_static_flags(entry, static_flags),
                 &db_backed_base_stats_store(),
                 &CreatureClassificationHealthRatesLikeCpp::default(),
                 &display_store,
@@ -846,6 +852,7 @@ mod tests {
         assert_eq!(template.script_name, "npc_db_creature");
         assert_eq!(template.faction, 35);
         assert_eq!(template.spells[0..2], [10, 20]);
+        assert_eq!(template.static_flags[0], static_flags[0]);
         assert_eq!(template.display_id, 999);
         assert_eq!(
             template.flight_movement_type,

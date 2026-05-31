@@ -686,6 +686,16 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   channels explicitly marked as allowing actions. `UNIT_STATE_MELEE_ATTACKING` and
   `Creature::CanMelee` remain unrepresented in this transitional global legacy AI path; LOS,
   non-player victims, offhand/extra attacks, and full canonical `Unit` attack timers remain open.
+- 2026-05-31 — Runtime global creature melee `CanMelee` gate `#NEXT.RUNTIME.L3.031ag`: closed
+  the represented C++ `Creature::CanMelee` precondition gap in the experimental global legacy
+  creature melee driver. C++ returns before victim lookup and `isAttackReady` when
+  `CREATURE_STATIC_FLAG_NO_MELEE` is set (`Unit.cpp:2085-2101`, `Creature.h:180-181`,
+  `CreatureData.h:58`). Rust now carries `creature_template_difficulty.StaticFlags1..8` through
+  loaded-grid template resolution into `CreatureTemplateLifecycleRecord` and
+  `CreatureLifecycleMetadata`, preserves those flags in map-owned respawn snapshots, exposes
+  `Creature::can_melee_like_cpp()`, and rejects `CreatureStaticFlags::NO_MELEE_FLEE` before queuing
+  a ready global creature swing. Remaining gaps: LOS, non-player victims, offhand/extra attacks,
+  `UNIT_STATE_MELEE_ATTACKING` unification, and full canonical `Unit` attack timers.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

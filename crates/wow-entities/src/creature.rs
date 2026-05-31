@@ -1,9 +1,9 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use wow_constants::{
-    CreatureFlagsExtra, CreatureFlightMovementType, CreatureGroundMovementType, CreatureTypeFlags,
-    DeathState, PowerType, TypeId, TypeMask, UnitDynFlags, UnitFlags, UnitFlags2, UnitState,
-    WeaponAttackType, movement::MovementFlag,
+    CreatureFlagsExtra, CreatureFlightMovementType, CreatureGroundMovementType,
+    CreatureStaticFlags, CreatureTypeFlags, DeathState, PowerType, TypeId, TypeMask, UnitDynFlags,
+    UnitFlags, UnitFlags2, UnitState, WeaponAttackType, movement::MovementFlag,
 };
 use wow_core::{ObjectGuid, Position};
 
@@ -219,6 +219,7 @@ pub struct CreatureTemplateLifecycleRecord {
     pub spells: [u32; MAX_CREATURE_SPELLS],
     pub classification: u32,
     pub flags_extra: u32,
+    pub static_flags: [u32; 8],
     pub creature_type: u32,
     pub type_flags: u32,
     pub movement_type: MovementGeneratorType,
@@ -349,6 +350,7 @@ pub struct CreatureLifecycleMetadata {
     pub unit_class: u8,
     pub classification: u32,
     pub flags_extra: u32,
+    pub static_flags: [u32; 8],
     pub ground_movement_type: u8,
     pub swim_allowed: bool,
     pub flight_movement_type: u8,
@@ -397,6 +399,7 @@ impl Default for CreatureLifecycleMetadata {
             unit_class: 0,
             classification: 0,
             flags_extra: 0,
+            static_flags: [0; 8],
             ground_movement_type: CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: CreatureFlightMovementType::None as u8,
@@ -919,6 +922,7 @@ impl Creature {
             unit_class: template.unit_class,
             classification: template.classification,
             flags_extra: template.flags_extra,
+            static_flags: template.static_flags,
             ground_movement_type: normalize_creature_ground_movement_type_like_cpp(
                 template.ground_movement_type,
             ),
@@ -1586,6 +1590,15 @@ impl Creature {
 
     pub fn set_flags_extra_runtime_like_cpp(&mut self, flags_extra: u32) {
         self.lifecycle_metadata.flags_extra = flags_extra;
+    }
+
+    pub fn set_static_flags_runtime_like_cpp(&mut self, static_flags: [u32; 8]) {
+        self.lifecycle_metadata.static_flags = static_flags;
+    }
+
+    pub fn can_melee_like_cpp(&self) -> bool {
+        !CreatureStaticFlags::from_bits_truncate(self.lifecycle_metadata.static_flags[0])
+            .contains(CreatureStaticFlags::NO_MELEE_FLEE)
     }
 
     pub fn set_ai_identity_names_runtime_like_cpp(
@@ -3340,6 +3353,7 @@ mod tests {
             spells,
             classification: 3,
             flags_extra: 0x10,
+            static_flags: [0; 8],
             creature_type: 9,
             type_flags: 0x20,
             movement_type: MovementGeneratorType::Idle,
@@ -3965,6 +3979,18 @@ mod tests {
         assert!(!creature.cannot_reach_target());
         assert_eq!(creature.cannot_reach_timer(), 0);
         assert!(!creature.is_evading_attacks_like_cpp());
+    }
+
+    #[test]
+    fn creature_can_melee_reflects_primary_static_no_melee_flag_like_cpp() {
+        let mut creature = Creature::new(false);
+        assert!(creature.can_melee_like_cpp());
+
+        let mut static_flags = [0; 8];
+        static_flags[0] = CreatureStaticFlags::NO_MELEE_FLEE.bits();
+        creature.set_static_flags_runtime_like_cpp(static_flags);
+
+        assert!(!creature.can_melee_like_cpp());
     }
 
     #[test]
