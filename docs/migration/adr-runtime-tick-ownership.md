@@ -635,6 +635,16 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `owner_position_unrepresented`. This only affects the experimental `GlobalLegacy` owner path;
   victim-creature aggro targets, full non-player owner routing outside the active map, BossAI
   boundary data, and real VMAP LOS remain open.
+- 2026-05-31 — Runtime global creature melee range gate `#NEXT.RUNTIME.L3.031ab`: closed the
+  bounded range gap in the experimental global legacy creature melee driver. C++ `Unit::DoMeleeAttackIfReady`
+  computes an auto-attack error and rejects base/offhand swings before `AttackerStateUpdate` when
+  `!IsWithinMeleeRange(victim)`, while `Unit::IsWithinMeleeRangeAt` uses
+  `max(attackerCombatReach + victimCombatReach + 4/3, NOMINAL_MELEE_RANGE)`
+  (`Unit.cpp:2085-2155`, `Unit.cpp:649-667`). Rust now carries attacker position/combat reach into
+  pending global creature swings, checks the canonical victim position/combat reach before mutating
+  health, records `melee_range_rejections`, and suppresses victim delivery for out-of-range swings.
+  This only affects the gated `GlobalLegacy` owner path. Facing/boundary-radius, LOS,
+  non-player victims, and full C++ timer retry semantics remain open.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

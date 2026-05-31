@@ -15394,11 +15394,10 @@ mmap.enablePathFinding = 0
         canonical.lock().unwrap().create_world_map(0, 0);
 
         let victim = ObjectGuid::create_player(1, 63);
-        add_canonical_test_player_on_map_like_cpp(&canonical, victim, Position::ZERO, 0, 0, 100);
-
         let attacker =
             ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 9001, 90_059);
         let attacker_position = Position::new(5.0, 5.0, 0.0, 0.0);
+        add_canonical_test_player_on_map_like_cpp(&canonical, victim, attacker_position, 0, 0, 100);
         let mut world_creature = wow_world::map_manager::WorldCreature::new(
             attacker,
             9001,
@@ -15429,7 +15428,7 @@ mmap.enablePathFinding = 0
         }
 
         let registry = PlayerRegistry::default();
-        let (victim_info, victim_rx) = make_registry_player_like_cpp(0, 0, Position::ZERO, true);
+        let (victim_info, victim_rx) = make_registry_player_like_cpp(0, 0, attacker_position, true);
         registry.insert(victim, victim_info);
 
         let (outcome, delivery) = run_legacy_creature_melee_tick_and_deliver_once_like_cpp(
@@ -15713,10 +15712,11 @@ mmap.enablePathFinding = 0
         canonical.lock().unwrap().create_world_map(0, 0);
 
         let melee_victim = ObjectGuid::create_player(1, 92_004);
+        let melee_position = Position::new(30.0, 30.0, 0.0, 0.0);
         add_canonical_test_player_on_map_like_cpp(
             &canonical,
             melee_victim,
-            Position::ZERO,
+            melee_position,
             0,
             0,
             100,
@@ -15784,7 +15784,6 @@ mmap.enablePathFinding = 0
 
         let melee_guid =
             ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 9001, 90_015);
-        let melee_position = Position::new(30.0, 30.0, 0.0, 0.0);
         let mut melee_creature = wow_world::map_manager::WorldCreature::new(
             melee_guid,
             9001,

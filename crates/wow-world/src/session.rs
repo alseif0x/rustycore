@@ -1653,6 +1653,7 @@ pub struct LegacyCreatureMeleeTickOutcomeLikeCpp {
     pub maps_seen: usize,
     pub creatures_seen: usize,
     pub swings_ready: usize,
+    pub melee_range_rejections: usize,
     pub canonical_hits: usize,
     pub commands: Vec<wow_network::player_registry::ApplyCreatureMeleeDamageLikeCppCommand>,
 }
@@ -21722,18 +21723,47 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
     outcome
 }
 
+enum CreatureMeleeApplyResultLikeCpp {
+    Hit {
+        victim_health_after: u64,
+        over_damage: i32,
+        target_level: u8,
+    },
+    OutOfRange,
+    MissingVictim,
+}
+
 fn apply_creature_melee_damage_to_canonical_player_on_map_like_cpp(
     canonical_map_manager: &SharedCanonicalMapManager,
     map_id: u32,
     instance_id: u32,
+    attacker_position: Position,
+    attacker_combat_reach: f32,
     victim_guid: ObjectGuid,
     damage: u32,
-) -> Option<(u64, i32, u8)> {
-    let mut manager = canonical_map_manager.lock().ok()?;
-    let managed = manager.find_map_mut(map_id, instance_id)?;
-    let victim = managed.map_mut().get_typed_player_mut(victim_guid)?;
+) -> CreatureMeleeApplyResultLikeCpp {
+    let Ok(mut manager) = canonical_map_manager.lock() else {
+        return CreatureMeleeApplyResultLikeCpp::MissingVictim;
+    };
+    let Some(managed) = manager.find_map_mut(map_id, instance_id) else {
+        return CreatureMeleeApplyResultLikeCpp::MissingVictim;
+    };
+    let Some(victim) = managed.map_mut().get_typed_player_mut(victim_guid) else {
+        return CreatureMeleeApplyResultLikeCpp::MissingVictim;
+    };
     if !victim.unit().is_alive() {
-        return None;
+        return CreatureMeleeApplyResultLikeCpp::MissingVictim;
+    }
+
+    let victim_position = victim.unit().world().position();
+    let victim_combat_reach = victim.unit().data().combat_reach;
+    if !WorldSession::is_within_melee_range_like_cpp(
+        attacker_position,
+        attacker_combat_reach,
+        victim_position,
+        victim_combat_reach,
+    ) {
+        return CreatureMeleeApplyResultLikeCpp::OutOfRange;
     }
 
     let health_before = victim.unit().data().health;
@@ -21745,7 +21775,11 @@ fn apply_creature_melee_damage_to_canonical_player_on_map_like_cpp(
         -1
     };
     let target_level = victim.unit().data().level.clamp(0, i32::from(u8::MAX)) as u8;
-    Some((health_after, over_damage, target_level))
+    CreatureMeleeApplyResultLikeCpp::Hit {
+        victim_health_after: health_after,
+        over_damage,
+        target_level,
+    }
 }
 
 /// Runs one global legacy creature melee tick without spawning a loop.
@@ -21767,6 +21801,8 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
         map_id: u16,
         instance_id: u32,
         attacker_guid: ObjectGuid,
+        attacker_position: Position,
+        attacker_combat_reach: f32,
         victim_guid: ObjectGuid,
         damage: u32,
     }
@@ -21805,6 +21841,8 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                     map_id,
                     instance_id,
                     attacker_guid: guid,
+                    attacker_position: creature.position(),
+                    attacker_combat_reach: creature.creature.unit().world().combat_reach(),
                     victim_guid,
                     damage: creature.roll_damage().max(1),
                 });
@@ -21819,16 +21857,26 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
 
     let mut committed_swings = Vec::new();
     for swing in pending_swings {
-        let Some((victim_health_after, over_damage, target_level)) =
-            apply_creature_melee_damage_to_canonical_player_on_map_like_cpp(
-                canonical_map_manager,
-                u32::from(swing.map_id),
-                swing.instance_id,
-                swing.victim_guid,
-                swing.damage,
-            )
-        else {
-            continue;
+        let apply_result = apply_creature_melee_damage_to_canonical_player_on_map_like_cpp(
+            canonical_map_manager,
+            u32::from(swing.map_id),
+            swing.instance_id,
+            swing.attacker_position,
+            swing.attacker_combat_reach,
+            swing.victim_guid,
+            swing.damage,
+        );
+        let (victim_health_after, over_damage, target_level) = match apply_result {
+            CreatureMeleeApplyResultLikeCpp::Hit {
+                victim_health_after,
+                over_damage,
+                target_level,
+            } => (victim_health_after, over_damage, target_level),
+            CreatureMeleeApplyResultLikeCpp::OutOfRange => {
+                outcome.melee_range_rejections += 1;
+                continue;
+            }
+            CreatureMeleeApplyResultLikeCpp::MissingVictim => continue,
         };
         outcome.canonical_hits += 1;
         outcome.commands.push(
@@ -53306,7 +53354,13 @@ mod tests {
         let manager = shared_map_manager();
         let canonical = shared_canonical_map_manager();
         let player = ObjectGuid::create_player(1, 91_003);
-        add_canonical_test_player_on_map(&canonical, player, Position::ZERO, 0, 0);
+        add_canonical_test_player_on_map(
+            &canonical,
+            player,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            0,
+        );
         {
             let mut guard = canonical.lock().unwrap();
             let typed = guard
@@ -53364,6 +53418,74 @@ mod tests {
         assert_eq!(health, 100 - u64::from(command.damage));
         assert_eq!(command.victim_health_after, health);
         assert_eq!(command.over_damage, -1);
+    }
+
+    #[test]
+    fn legacy_creature_melee_tick_once_rejects_out_of_range_victim_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        let player = ObjectGuid::create_player(1, 91_005);
+        add_canonical_test_player_on_map(
+            &canonical,
+            player,
+            Position::new(100.0, 100.0, 0.0, 0.0),
+            0,
+            0,
+        );
+        {
+            let mut guard = canonical.lock().unwrap();
+            let typed = guard
+                .find_map_mut(0, 0)
+                .unwrap()
+                .map_mut()
+                .get_typed_player_mut(player)
+                .unwrap();
+            typed.unit_mut().set_max_health(100);
+            typed.unit_mut().set_health(100);
+            typed.unit_mut().set_combat_reach(0.0);
+        }
+
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_006);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature
+                    .creature
+                    .set_ai_position(Position::new(10.0, 10.0, 0.0, 0.0));
+                creature.creature.unit_mut().set_combat_reach(0.0);
+                creature.enter_combat(player);
+                creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+
+        assert!(!outcome.skipped_owner_not_global);
+        assert_eq!(outcome.maps_seen, 1);
+        assert_eq!(outcome.creatures_seen, 1);
+        assert_eq!(outcome.swings_ready, 1);
+        assert_eq!(outcome.melee_range_rejections, 1);
+        assert_eq!(outcome.canonical_hits, 0);
+        assert!(outcome.commands.is_empty());
+
+        let health = canonical
+            .lock()
+            .unwrap()
+            .find_map(0, 0)
+            .unwrap()
+            .map()
+            .get_typed_player(player)
+            .unwrap()
+            .unit()
+            .data()
+            .health;
+        assert_eq!(health, 100);
     }
 
     #[test]
