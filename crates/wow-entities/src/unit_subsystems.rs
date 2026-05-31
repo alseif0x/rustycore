@@ -21,6 +21,8 @@ pub struct AuraSubsystem {
     pub visible_auras_to_update: HashSet<u8>,
     pub removed_auras: Vec<AuraRef>,
     pub removed_auras_count: u32,
+    pub passive_auras_like_cpp: HashSet<AuraRef>,
+    pub death_persistent_auras_like_cpp: HashSet<AuraRef>,
     pub interruptible_auras: Vec<AppliedAuraRef>,
     pub aura_interrupt_flags: HashMap<AppliedAuraRef, (u32, u32)>,
     pub aura_state_auras: HashMap<u8, Vec<AppliedAuraRef>>,
@@ -66,6 +68,10 @@ impl OwnedAuraRef {
             item_caster_guid,
         }
     }
+
+    pub const fn aura_ref(self) -> AuraRef {
+        AuraRef::new(self.spell_id, self.caster_guid)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -84,6 +90,10 @@ impl AppliedAuraRef {
             slot,
             effect_mask,
         }
+    }
+
+    pub const fn aura_ref(self) -> AuraRef {
+        AuraRef::new(self.spell_id, self.caster_guid)
     }
 }
 
@@ -236,6 +246,57 @@ impl AuraSubsystem {
         self.removed_auras_count = self.removed_auras_count.saturating_add(1);
     }
 
+    pub fn set_aura_death_policy_like_cpp(
+        &mut self,
+        aura: AuraRef,
+        passive: bool,
+        death_persistent: bool,
+    ) {
+        if passive {
+            self.passive_auras_like_cpp.insert(aura);
+        } else {
+            self.passive_auras_like_cpp.remove(&aura);
+        }
+        if death_persistent {
+            self.death_persistent_auras_like_cpp.insert(aura);
+        } else {
+            self.death_persistent_auras_like_cpp.remove(&aura);
+        }
+    }
+
+    pub fn remove_all_auras_on_death_like_cpp(
+        &mut self,
+    ) -> (Vec<AppliedAuraRef>, Vec<OwnedAuraRef>) {
+        let removable_applied: Vec<_> = self
+            .applied_auras
+            .iter()
+            .copied()
+            .filter(|aura| self.aura_removed_on_death_like_cpp(aura.aura_ref()))
+            .collect();
+        for aura in &removable_applied {
+            self.unapply_aura(*aura, 1);
+        }
+
+        let removable_owned: Vec<_> = self
+            .owned_auras
+            .iter()
+            .copied()
+            .filter(|aura| self.aura_removed_on_death_like_cpp(aura.aura_ref()))
+            .collect();
+        for aura in &removable_owned {
+            if self.remove_owned(*aura) {
+                self.mark_removed(aura.aura_ref());
+            }
+        }
+
+        (removable_applied, removable_owned)
+    }
+
+    fn aura_removed_on_death_like_cpp(&self, aura: AuraRef) -> bool {
+        !self.passive_auras_like_cpp.contains(&aura)
+            && !self.death_persistent_auras_like_cpp.contains(&aura)
+    }
+
     pub fn clear_removed(&mut self) {
         self.removed_auras.clear();
         self.removed_auras_count = 0;
@@ -274,7 +335,7 @@ impl AuraSubsystem {
     pub fn unapply_aura(&mut self, aura: AppliedAuraRef, remove_mode_marker: u8) -> bool {
         let removed = self.remove_applied(aura);
         if removed {
-            self.mark_removed(AuraRef::new(aura.spell_id, aura.caster_guid));
+            self.mark_removed(aura.aura_ref());
             if remove_mode_marker != 0 {
                 self.removed_auras_count = self.removed_auras_count.saturating_add(0);
             }

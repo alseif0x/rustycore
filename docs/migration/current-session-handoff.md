@@ -1909,3 +1909,13 @@ C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entit
 Implemented Rust seam: `crates/wow-entities/src/creature.rs` now exits the represented local vehicle subsystem, clears represented summon slots, drains represented controlled/charmed GUID state, and removes represented `UnitFlags::PET_IN_COMBAT` for non-pet creature GUIDs during `Creature::set_death_state_runtime(JustDied)`. This is intentionally entity-local; real vehicle aura unapply, map lookup and `TempSummon::UnSummon`, target-side controlled mutation, owner slot fanout, ObjectAccessor cleanup, and full `RemoveAllAurasOnDeath` remain open.
 
 Validation evidence: focused death-state test now starts with a vehicle passenger state, summon slot, charmed/controlled GUIDs, and `PET_IN_COMBAT`, then asserts the represented local state is cleared after death.
+
+### #NEXT.RUNTIME.L3.031ax — represented creature death aura filtering
+
+Status: represented-closeout for the bounded `RemoveAllAurasOnDeath` container rule; not manual-test-ready.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:4308-4330` iterates applied and owned aura containers and removes only auras where `!aura->IsPassive() && !aura->IsDeathPersistent()`, using `AURA_REMOVE_BY_DEATH`.
+
+Implemented Rust seam: `crates/wow-entities/src/unit_subsystems.rs` now carries explicit represented aura death policy metadata (`passive_auras_like_cpp`, `death_persistent_auras_like_cpp`) and exposes `remove_all_auras_on_death_like_cpp`, removing matching applied and owned aura refs while preserving passive/death-persistent refs. `crates/wow-entities/src/creature.rs` invokes it during `Creature::set_death_state_runtime(JustDied)` after vehicle/summon/control cleanup and before `JUST_DIED` reactive/diminishing cleanup. This does not claim full `SpellInfo::IsPassive`, `Aura::IsDeathPersistent`, unapply scripts/procs, packet emission, or live aura runtime; callers must provide represented policy metadata.
+
+Validation evidence: focused death-state test now seeds removable, passive, and death-persistent applied and owned auras, then asserts only the non-passive/non-death-persistent refs are removed and recorded.

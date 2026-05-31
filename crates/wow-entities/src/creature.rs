@@ -2273,6 +2273,10 @@ impl Creature {
                 self.unit
                     .subsystems_mut()
                     .auras
+                    .remove_all_auras_on_death_like_cpp();
+                self.unit
+                    .subsystems_mut()
+                    .auras
                     .clear_all_reactives_like_cpp();
                 self.unit.subsystems_mut().auras.clear_diminishings();
                 let stop_on_death = if self.unit.subsystems().vehicle.vehicle_guid.is_some() {
@@ -2683,8 +2687,8 @@ fn power_type_from_u8(power: u8) -> PowerType {
 mod tests {
     use super::*;
     use crate::{
-        AURA_STATE_DEFENSIVE, AURA_STATE_DEFENSIVE_2, CurrentSpellRef, CurrentSpellSlot,
-        DIMINISHING_STUN, DiminishingLevel,
+        AURA_STATE_DEFENSIVE, AURA_STATE_DEFENSIVE_2, AppliedAuraRef, AuraRef, CurrentSpellRef,
+        CurrentSpellSlot, DIMINISHING_STUN, DiminishingLevel, OwnedAuraRef,
     };
     use wow_constants::SpellState;
 
@@ -4005,6 +4009,12 @@ mod tests {
         let channeled_spell = CurrentSpellRef::new(402, Some(player), None)
             .with_cast_time_ms(1_000)
             .with_state(SpellState::Delayed);
+        let applied_death_removed = AppliedAuraRef::new(501, player, 0, 0x1);
+        let applied_passive = AppliedAuraRef::new(502, player, 1, 0x1);
+        let applied_death_persistent = AppliedAuraRef::new(503, player, 2, 0x1);
+        let owned_death_removed = OwnedAuraRef::new(601, player, None);
+        let owned_passive = OwnedAuraRef::new(602, player, None);
+        let owned_death_persistent = OwnedAuraRef::new(603, player, None);
         let mut creature = Creature::new(false);
         creature.set_respawn_compatibility_mode(true);
         creature.set_respawn_delay(45);
@@ -4066,6 +4076,23 @@ mod tests {
             .subsystems_mut()
             .auras
             .modify_aura_state(AURA_STATE_DEFENSIVE_2, true);
+        {
+            let auras = &mut creature.unit_mut().subsystems_mut().auras;
+            for aura in [
+                applied_death_removed,
+                applied_passive,
+                applied_death_persistent,
+            ] {
+                auras.add_applied(aura);
+            }
+            for aura in [owned_death_removed, owned_passive, owned_death_persistent] {
+                auras.add_owned(aura);
+            }
+            auras.set_aura_death_policy_like_cpp(applied_passive.aura_ref(), true, false);
+            auras.set_aura_death_policy_like_cpp(applied_death_persistent.aura_ref(), false, true);
+            auras.set_aura_death_policy_like_cpp(owned_passive.aura_ref(), true, false);
+            auras.set_aura_death_policy_like_cpp(owned_death_persistent.aura_ref(), false, true);
+        }
         creature.unit_mut().subsystems_mut().auras.incr_diminishing(
             DIMINISHING_STUN,
             DiminishingLevel::Immune,
@@ -4152,6 +4179,62 @@ mod tests {
         assert_eq!(
             creature.unit().current_spell(CurrentSpellSlot::Channeled),
             None
+        );
+        assert!(
+            !creature
+                .unit()
+                .subsystems()
+                .auras
+                .has_applied(applied_death_removed),
+            "C++ RemoveAllAurasOnDeath removes non-passive, non-death-persistent applied auras"
+        );
+        assert!(
+            creature
+                .unit()
+                .subsystems()
+                .auras
+                .has_applied(applied_passive),
+            "C++ RemoveAllAurasOnDeath preserves passive applied auras"
+        );
+        assert!(
+            creature
+                .unit()
+                .subsystems()
+                .auras
+                .has_applied(applied_death_persistent),
+            "C++ RemoveAllAurasOnDeath preserves death-persistent applied auras"
+        );
+        assert!(
+            !creature
+                .unit()
+                .subsystems()
+                .auras
+                .has_owned(owned_death_removed),
+            "C++ RemoveAllAurasOnDeath removes non-passive, non-death-persistent owned auras"
+        );
+        assert!(creature.unit().subsystems().auras.has_owned(owned_passive));
+        assert!(
+            creature
+                .unit()
+                .subsystems()
+                .auras
+                .has_owned(owned_death_persistent)
+        );
+        assert!(
+            creature
+                .unit()
+                .subsystems()
+                .auras
+                .removed_auras
+                .contains(&AuraRef::new(501, player))
+        );
+        assert!(
+            creature
+                .unit()
+                .subsystems()
+                .auras
+                .removed_auras
+                .contains(&AuraRef::new(601, player))
         );
         assert_eq!(
             creature.unit().subsystems().vehicle.vehicle_guid,

@@ -835,6 +835,15 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `UNIT_FLAG_PET_IN_COMBAT` for non-pet creature GUIDs. This does not claim real vehicle aura
   unapply, map lookup/TempSummon unsummon, ObjectAccessor cleanup, controlled target mutation,
   owner slot fanout, or full `RemoveAllAurasOnDeath`.
+- 2026-05-31 — Represented creature death aura filtering `#NEXT.RUNTIME.L3.031ax`:
+  ports the represented container rule of C++ `Unit::RemoveAllAurasOnDeath`
+  (`Unit.cpp:4308-4330`): remove applied and owned auras only when they are neither passive nor
+  death-persistent. Rust now stores explicit represented aura death policy metadata in
+  `AuraSubsystem`, exposes `remove_all_auras_on_death_like_cpp`, and invokes it during creature
+  `JustDied` after vehicle/summon/control cleanup and before the `JUST_DIED` reactive/diminishing
+  cleanup. This is still metadata-driven: exact `SpellInfo::IsPassive`,
+  `Aura::IsDeathPersistent`, scripts, proc/unapply handlers, packet emission, and full aura runtime
+  remain separate gaps.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
