@@ -17,7 +17,7 @@ use wow_entities::{
 };
 use wow_movement::{
     MoveSpline, MoveSplineInit, MoveSplineLaunchInput, MoveSplineStopInput, MoveSplineStopResult,
-    PathGenerator, PathType,
+    PathGenerator, PathType, WaypointMovementAction, WaypointMovementGenerator, WaypointPath,
 };
 use wow_packet::packets::update::CreatureCreateData;
 use wow_recastdetour::{
@@ -660,6 +660,7 @@ pub struct WorldCreature {
     /// This is the first runtime bridge toward C++ `Unit::movespline`; the full
     /// `MoveSplineInit`/`MotionMaster` port still owns generalized launch/stop.
     active_move_spline: Option<MoveSpline>,
+    active_waypoint_generator: Option<WaypointMovementGenerator>,
     clock_started_at: Instant,
 }
 
@@ -761,8 +762,13 @@ impl WorldCreature {
             creature,
             create_data,
             active_move_spline: None,
+            active_waypoint_generator: None,
             clock_started_at: Instant::now(),
         }
+    }
+
+    pub fn active_waypoint_generator_like_cpp(&self) -> Option<&WaypointMovementGenerator> {
+        self.active_waypoint_generator.as_ref()
     }
 
     pub fn visibility_range_like_cpp(&self) -> f32 {
@@ -1118,6 +1124,27 @@ impl WorldCreature {
         init.move_by_path(points, 0);
 
         self.launch_move_spline_init_like_cpp(&mut init, dst)
+    }
+
+    pub fn initialize_default_waypoint_movement_like_cpp(
+        &mut self,
+        loaded_path: Option<WaypointPath>,
+    ) -> WaypointMovementAction {
+        let mut generator = WaypointMovementGenerator::from_db_path_id(0, true);
+        let action = generator.initialize_like_cpp(
+            true,
+            self.creature.waypoint_path_id_like_cpp(),
+            loaded_path,
+        );
+        if action == WaypointMovementAction::StopMoving {
+            self.creature
+                .unit_mut()
+                .subsystems_mut()
+                .motion
+                .stop_moving();
+        }
+        self.active_waypoint_generator = Some(generator);
+        action
     }
 
     pub fn begin_move_spline_with_detour_path_like_cpp(
@@ -3468,6 +3495,70 @@ mod tests {
         assert!(motion_spline.enabled);
         assert_eq!(motion_spline.spline_id, spline.id());
         assert_eq!(motion_spline.final_destination, Some((15, 12, 0)));
+    }
+
+    #[test]
+    fn world_creature_waypoint_default_initialize_stores_generator_and_stops_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54329);
+        let mut creature = WorldCreature::new(
+            guid,
+            1,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        let path = WaypointPath::new(
+            77,
+            vec![
+                wow_movement::WaypointNode::new(10, 11.0, 10.0, 0.0),
+                wow_movement::WaypointNode::new(20, 12.0, 10.0, 0.0),
+            ],
+        );
+
+        let action = creature.initialize_default_waypoint_movement_like_cpp(Some(path));
+
+        assert_eq!(action, WaypointMovementAction::StopMoving);
+        assert!(creature.creature.unit().subsystems().motion.stopped);
+        let generator = creature
+            .active_waypoint_generator_like_cpp()
+            .expect("waypoint generator stored");
+        assert_eq!(
+            generator.next_move_time_ms(),
+            wow_movement::WAYPOINT_INITIAL_DELAY_MS_LIKE_CPP
+        );
+        assert_eq!(generator.stop_moving_calls, 1);
+    }
+
+    #[test]
+    fn world_creature_waypoint_default_initialize_missing_path_does_not_stop_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54330);
+        let mut creature = WorldCreature::new(
+            guid,
+            1,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+
+        let action = creature.initialize_default_waypoint_movement_like_cpp(None);
+
+        assert_eq!(action, WaypointMovementAction::MissingPath);
+        assert!(!creature.creature.unit().subsystems().motion.stopped);
+        assert!(creature.active_waypoint_generator_like_cpp().is_some());
     }
 
     #[test]

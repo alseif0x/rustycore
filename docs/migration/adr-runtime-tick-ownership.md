@@ -1082,6 +1082,17 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   initialization-pending state, and roaming base state. This remains pre-execution scaffolding:
   no waypoint path lookup, `DoInitialize` owner-path fallback, spline launch, timers, AI informs,
   formations, or live waypoint movement are claimed.
+- 2026-05-31 — WorldCreature waypoint generator initialization seam `#NEXT.RUNTIME.L3.031by`:
+  contrasted against C++ `WaypointMovementGenerator<Creature>::DoInitialize`
+  (`WaypointMovementGenerator.cpp:120-148`) and the DB-loaded waypoint constructor
+  (`WaypointMovementGenerator.cpp:33-44`). Rust `WorldCreature` now stores an
+  `active_waypoint_generator` and can initialize the represented DB-loaded waypoint generator with
+  an already loaded path, applying owner default `PathId` through the existing `wow-movement`
+  initializer. The path-found branch stores the generator, records the C++ 1000ms initial delay,
+  and calls represented `StopMoving`; the missing-path branch stores the generator but does not
+  stop the owner, matching the C++ early return. Still open: resolving the path from
+  `WaypointPathStoreLikeCpp`, launching `MoveSpline`, advancing timers/nodes, MonsterMove fanout,
+  AI waypoint informs, formations/scripts, and live server/client validation.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
