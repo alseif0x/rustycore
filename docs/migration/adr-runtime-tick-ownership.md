@@ -720,6 +720,19 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   canonical terrain/VMAP/dynamic-tree LOS. Remaining gaps: non-player victims, offhand/extra
   attacks, `UNIT_STATE_MELEE_ATTACKING` unification, full canonical `Unit` attack timers, and real
   VMAP/dynamic LOS.
+- 2026-05-31 — Runtime global creature melee canonical Creature victims `#NEXT.RUNTIME.L3.031aj`:
+  closed the player-only victim shortcut in the experimental `GlobalLegacy` creature melee driver
+  for canonical Creature victims. C++ `Unit::DoMeleeAttackIfReady`/`AttackerStateUpdate` operates on
+  a generic `Unit* victim`; it only branches for `Creature* victimCreature` to set fake-damage hit
+  flags before sending the attack state update and applying `DealMeleeDamage` (`Creature.cpp:847`,
+  `Unit.cpp:2103-2130`, `Unit.cpp:2211-2227`). Rust now allows creature GUID combat targets, mutates
+  canonical creature health via `get_typed_creature_mut`, produces map-visible attack-state and Unit
+  values-update events through `RuntimePlan`, and has world-server deliver those events through the
+  existing `SendIfVisibleLikeCpp` rail. Player victims continue to use the explicit victim-session
+  command because they must mirror local player health. This slice intentionally does not claim full
+  `DealMeleeDamage`: Pet victims, absorbs/resists/procs/redirect, fake damage, death cleanup, loot,
+  rewards, and exact threat/proc side effects remain open. No C++ bug was found in this area; the
+  previous player-only filter was a Rust port gap.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

@@ -17,9 +17,11 @@ use tracing::{debug, info, trace, warn};
 use crate::entity_update_bridge::{
     dynamic_object_values_update_to_update_object, item_values_update_to_update_object,
     player_values_update_to_update_object, unit_values_update_to_packet,
+    unit_values_update_to_update_object,
 };
 use crate::map_manager::{
-    PendingRespawn, RuntimeOutput, RuntimeTickOwner, WorldMMapPathfinderWorkerLikeCpp,
+    PendingRespawn, RecipientRule, RuntimeEvent, RuntimeOutput, RuntimePlan, RuntimeTickOwner,
+    WorldMMapPathfinderWorkerLikeCpp,
 };
 use crate::phasing::{
     init_db_phase_shift_like_cpp, init_db_visible_map_id_like_cpp,
@@ -1660,7 +1662,9 @@ pub struct LegacyCreatureMeleeTickOutcomeLikeCpp {
     pub melee_los_rejections: usize,
     pub attacking_interrupt_auras_removed: usize,
     pub canonical_hits: usize,
+    pub canonical_creature_hits: usize,
     pub commands: Vec<wow_network::player_registry::ApplyCreatureMeleeDamageLikeCppCommand>,
+    pub plan: RuntimePlan,
 }
 
 pub fn new_shared_object_accessor() -> SharedObjectAccessor {
@@ -21736,6 +21740,7 @@ enum CreatureMeleeApplyResultLikeCpp {
         victim_health_after: u64,
         over_damage: i32,
         target_level: u8,
+        events: Vec<RuntimeEvent>,
     },
     OutOfRange,
     BadFacing,
@@ -21845,6 +21850,134 @@ fn apply_creature_melee_damage_to_canonical_player_on_map_like_cpp(
         victim_health_after: health_after,
         over_damage,
         target_level,
+        events: Vec::new(),
+    }
+}
+
+fn apply_creature_melee_damage_to_canonical_creature_on_map_like_cpp(
+    canonical_map_manager: &SharedCanonicalMapManager,
+    map_id: u32,
+    instance_id: u32,
+    attacker_guid: ObjectGuid,
+    attacker_position: Position,
+    attacker_combat_reach: f32,
+    attacker_can_state_update: bool,
+    victim_guid: ObjectGuid,
+    damage: u32,
+) -> CreatureMeleeApplyResultLikeCpp {
+    use wow_packet::ServerPacket;
+    use wow_packet::packets::combat::{AttackerStateUpdate, VICTIM_STATE_HIT};
+
+    let Ok(mut manager) = canonical_map_manager.lock() else {
+        return CreatureMeleeApplyResultLikeCpp::MissingVictim;
+    };
+    let Some(managed) = manager.find_map_mut(map_id, instance_id) else {
+        return CreatureMeleeApplyResultLikeCpp::MissingVictim;
+    };
+
+    let (health_before, target_level) = {
+        let map = managed.map();
+        let Some(victim) = map.get_typed_creature(victim_guid) else {
+            return CreatureMeleeApplyResultLikeCpp::MissingVictim;
+        };
+        if !victim.unit().is_alive() {
+            return CreatureMeleeApplyResultLikeCpp::MissingVictim;
+        }
+
+        let victim_position = victim.unit().world().position();
+        let victim_data = victim.unit().data();
+        let victim_combat_reach = victim_data.combat_reach;
+        if !WorldSession::is_within_melee_range_like_cpp(
+            attacker_position,
+            attacker_combat_reach,
+            victim_position,
+            victim_combat_reach,
+        ) {
+            return CreatureMeleeApplyResultLikeCpp::OutOfRange;
+        }
+        if !WorldSession::is_within_target_boundary_radius_like_cpp(
+            attacker_position,
+            attacker_combat_reach,
+            victim_position,
+            victim_combat_reach,
+            victim_data.bounding_radius,
+        ) && !WorldSession::is_unit_facing_target_for_melee_like_cpp(
+            attacker_position,
+            victim_position,
+        ) {
+            return CreatureMeleeApplyResultLikeCpp::BadFacing;
+        }
+        if !attacker_can_state_update {
+            return CreatureMeleeApplyResultLikeCpp::AttackerStateRejected;
+        }
+        if map
+            .get_typed_creature(attacker_guid)
+            .is_some_and(|attacker| {
+                !is_creature_melee_los_clear_like_cpp(
+                    attacker.unit().world(),
+                    victim.unit().world(),
+                    map,
+                )
+            })
+        {
+            return CreatureMeleeApplyResultLikeCpp::LosRejected;
+        }
+
+        (
+            victim.unit().data().health,
+            victim.unit().data().level.clamp(0, i32::from(u8::MAX)) as u8,
+        )
+    };
+
+    let Some(victim) = managed.map_mut().get_typed_creature_mut(victim_guid) else {
+        return CreatureMeleeApplyResultLikeCpp::MissingVictim;
+    };
+    let health_after = health_before.saturating_sub(u64::from(damage));
+    victim.unit_mut().set_health(health_after);
+    let over_damage = if health_after == 0 {
+        u64::from(damage).saturating_sub(health_before) as i32
+    } else {
+        -1
+    };
+    let values_update = victim.unit().values_update();
+
+    let mut events = Vec::new();
+    events.push(RuntimeEvent {
+        source_guid: attacker_guid,
+        recipients: RecipientRule::MapBroadcastVisible {
+            map_id: map_id as u16,
+            instance_id,
+        },
+        packet_bytes: AttackerStateUpdate {
+            attacker: attacker_guid,
+            victim: victim_guid,
+            damage: damage.min(i32::MAX as u32) as i32,
+            over_damage,
+            victim_state: VICTIM_STATE_HIT,
+            school_mask: 1,
+            target_level,
+            expansion: 2,
+        }
+        .to_bytes(),
+    });
+    if let Some(update) =
+        unit_values_update_to_update_object(victim_guid, map_id as u16, &values_update)
+    {
+        events.push(RuntimeEvent {
+            source_guid: victim_guid,
+            recipients: RecipientRule::MapBroadcastVisible {
+                map_id: map_id as u16,
+                instance_id,
+            },
+            packet_bytes: update.to_bytes(),
+        });
+    }
+
+    CreatureMeleeApplyResultLikeCpp::Hit {
+        victim_health_after: health_after,
+        over_damage,
+        target_level,
+        events,
     }
 }
 
@@ -21916,7 +22049,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                 let Some(victim_guid) = creature.creature.ai_ownership().combat_target else {
                     continue;
                 };
-                if !victim_guid.is_player() {
+                if !victim_guid.is_player() && !victim_guid.is_any_type_creature() {
                     continue;
                 }
                 pending_swings.push(PendingCreatureSwingLikeCpp {
@@ -21945,23 +22078,38 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
     let mut hit_swings = Vec::new();
     let mut failed_retry_swings = Vec::new();
     for swing in pending_swings {
-        let apply_result = apply_creature_melee_damage_to_canonical_player_on_map_like_cpp(
-            canonical_map_manager,
-            u32::from(swing.map_id),
-            swing.instance_id,
-            swing.attacker_guid,
-            swing.attacker_position,
-            swing.attacker_combat_reach,
-            swing.attacker_can_state_update,
-            swing.victim_guid,
-            swing.damage,
-        );
-        let (victim_health_after, over_damage, target_level) = match apply_result {
+        let apply_result = if swing.victim_guid.is_player() {
+            apply_creature_melee_damage_to_canonical_player_on_map_like_cpp(
+                canonical_map_manager,
+                u32::from(swing.map_id),
+                swing.instance_id,
+                swing.attacker_guid,
+                swing.attacker_position,
+                swing.attacker_combat_reach,
+                swing.attacker_can_state_update,
+                swing.victim_guid,
+                swing.damage,
+            )
+        } else {
+            apply_creature_melee_damage_to_canonical_creature_on_map_like_cpp(
+                canonical_map_manager,
+                u32::from(swing.map_id),
+                swing.instance_id,
+                swing.attacker_guid,
+                swing.attacker_position,
+                swing.attacker_combat_reach,
+                swing.attacker_can_state_update,
+                swing.victim_guid,
+                swing.damage,
+            )
+        };
+        let (victim_health_after, over_damage, target_level, events) = match apply_result {
             CreatureMeleeApplyResultLikeCpp::Hit {
                 victim_health_after,
                 over_damage,
                 target_level,
-            } => (victim_health_after, over_damage, target_level),
+                events,
+            } => (victim_health_after, over_damage, target_level, events),
             CreatureMeleeApplyResultLikeCpp::OutOfRange => {
                 outcome.melee_range_rejections += 1;
                 failed_retry_swings.push(swing);
@@ -21985,18 +22133,23 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
             CreatureMeleeApplyResultLikeCpp::MissingVictim => continue,
         };
         outcome.canonical_hits += 1;
-        outcome.commands.push(
-            wow_network::player_registry::ApplyCreatureMeleeDamageLikeCppCommand {
-                attacker_guid: swing.attacker_guid,
-                victim_guid: swing.victim_guid,
-                map_id: swing.map_id,
-                instance_id: swing.instance_id,
-                damage: swing.damage,
-                over_damage,
-                target_level,
-                victim_health_after,
-            },
-        );
+        if swing.victim_guid.is_player() {
+            outcome.commands.push(
+                wow_network::player_registry::ApplyCreatureMeleeDamageLikeCppCommand {
+                    attacker_guid: swing.attacker_guid,
+                    victim_guid: swing.victim_guid,
+                    map_id: swing.map_id,
+                    instance_id: swing.instance_id,
+                    damage: swing.damage,
+                    over_damage,
+                    target_level,
+                    victim_health_after,
+                },
+            );
+        } else {
+            outcome.canonical_creature_hits += 1;
+            outcome.plan.events.extend(events);
+        }
         hit_swings.push(swing);
         committed_swings.push(swing);
     }
@@ -53913,6 +54066,76 @@ mod tests {
                 .auras
                 .has_applied(kept)
         );
+    }
+
+    #[test]
+    fn legacy_creature_melee_tick_once_applies_canonical_creature_victim_hit_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        let victim = test_creature_guid(91_028);
+        add_canonical_test_creature_on_map(
+            &canonical,
+            victim,
+            9002,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            0,
+            0,
+        );
+        {
+            let mut guard = canonical.lock().unwrap();
+            let typed = guard
+                .find_map_mut(0, 0)
+                .unwrap()
+                .map_mut()
+                .get_typed_creature_mut(victim)
+                .unwrap();
+            typed.unit_mut().set_level(80);
+            typed.unit_mut().set_max_health(100);
+            typed.unit_mut().set_health(100);
+        }
+
+        let (mut session, _, _) = make_session();
+        let attacker = test_creature_guid(91_029);
+        register_test_creature(&mut session, manager.clone(), attacker, 25);
+        session
+            .mutate_world_creature(attacker, |creature| {
+                creature.enter_combat(victim);
+                creature.creature.ai_ownership_mut().last_swing_ms = 0;
+                creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+
+        assert_eq!(outcome.swings_ready, 1);
+        assert_eq!(outcome.canonical_hits, 1);
+        assert_eq!(outcome.canonical_creature_hits, 1);
+        assert!(outcome.commands.is_empty());
+        assert_eq!(
+            outcome.plan.events.len(),
+            2,
+            "creature victims need visible combat log plus values update fanout"
+        );
+        assert_eq!(outcome.plan.events[0].source_guid, attacker);
+        assert_eq!(outcome.plan.events[1].source_guid, victim);
+        let health = canonical
+            .lock()
+            .unwrap()
+            .find_map(0, 0)
+            .unwrap()
+            .map()
+            .get_typed_creature(victim)
+            .unwrap()
+            .unit()
+            .data()
+            .health;
+        assert!(health < 100);
     }
 
     struct CreatureMeleeLosTestEnvironment {

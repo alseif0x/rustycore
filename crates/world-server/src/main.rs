@@ -7910,13 +7910,15 @@ fn run_legacy_creature_melee_tick_and_deliver_once_like_cpp(
 ) -> (
     wow_world::session::LegacyCreatureMeleeTickOutcomeLikeCpp,
     RuntimeCreatureMeleeDeliverySummaryLikeCpp,
+    RuntimeDeliverySummaryLikeCpp,
 ) {
     let outcome = wow_world::session::run_legacy_creature_melee_tick_once_like_cpp(
         legacy_map_manager,
         canonical_map_manager,
     );
     let delivery = deliver_creature_melee_damage_commands_like_cpp(&outcome.commands, registry);
-    (outcome, delivery)
+    let plan_delivery = deliver_runtime_plan_like_cpp(&outcome.plan, registry);
+    (outcome, delivery, plan_delivery)
 }
 
 /// Combined single-shot legacy creature runtime bridge.
@@ -7937,6 +7939,7 @@ struct LegacyCreatureRuntimeTickBridgeOutcomeLikeCpp {
     pub aggro_alert_delivery: RuntimeDeliverySummaryLikeCpp,
     pub melee: wow_world::session::LegacyCreatureMeleeTickOutcomeLikeCpp,
     pub melee_delivery: RuntimeCreatureMeleeDeliverySummaryLikeCpp,
+    pub melee_plan_delivery: RuntimeDeliverySummaryLikeCpp,
 }
 
 fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
@@ -7969,11 +7972,12 @@ fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
             registry,
             aggro_config,
         );
-    let (melee, melee_delivery) = run_legacy_creature_melee_tick_and_deliver_once_like_cpp(
-        legacy_map_manager,
-        canonical_map_manager,
-        registry,
-    );
+    let (melee, melee_delivery, melee_plan_delivery) =
+        run_legacy_creature_melee_tick_and_deliver_once_like_cpp(
+            legacy_map_manager,
+            canonical_map_manager,
+            registry,
+        );
 
     LegacyCreatureRuntimeTickBridgeOutcomeLikeCpp {
         lifecycle,
@@ -7985,6 +7989,7 @@ fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
         aggro_alert_delivery,
         melee,
         melee_delivery,
+        melee_plan_delivery,
     }
 }
 
@@ -8065,6 +8070,7 @@ fn spawn_legacy_creature_runtime_update_loop_like_cpp(
                     aggro_alert_commands = outcome.aggro_alert_delivery.candidates_queued,
                     melee_hits = outcome.melee.canonical_hits,
                     melee_commands = outcome.melee_delivery.candidates_queued,
+                    melee_plan_commands = outcome.melee_plan_delivery.candidates_queued,
                     "Legacy global creature runtime tick produced visible work"
                 );
             }
@@ -14575,6 +14581,38 @@ mmap.enablePathFinding = 0
             .unwrap();
     }
 
+    fn add_canonical_test_creature_on_map_like_cpp(
+        canonical: &wow_world::SharedCanonicalMapManager,
+        guid: ObjectGuid,
+        position: Position,
+        map_id: u32,
+        instance_id: u32,
+        health: u64,
+    ) {
+        let mut creature = Creature::new(false);
+        creature.unit_mut().world_mut().object_mut().create(guid);
+        creature.unit_mut().world_mut().object_mut().set_entry(9002);
+        creature
+            .unit_mut()
+            .world_mut()
+            .set_map(map_id, instance_id)
+            .unwrap();
+        creature.unit_mut().world_mut().relocate(position);
+        creature.unit_mut().world_mut().set_combat_reach(1.0);
+        creature.unit_mut().world_mut().object_mut().add_to_world();
+        creature.unit_mut().set_level(80);
+        creature.unit_mut().set_max_health(health);
+        creature.unit_mut().set_health(health);
+
+        canonical
+            .lock()
+            .unwrap()
+            .create_world_map(map_id, instance_id)
+            .map_mut()
+            .insert_map_object_record(MapObjectRecord::new_creature(creature).unwrap())
+            .unwrap();
+    }
+
     /// (1) NearbyVisible: players on a different map_id are not enqueued.
     /// C++ anchor: MessageDistDeliverer::Visit — map-id check before distance.
     #[test]
@@ -15431,11 +15469,12 @@ mmap.enablePathFinding = 0
         let (victim_info, victim_rx) = make_registry_player_like_cpp(0, 0, attacker_position, true);
         registry.insert(victim, victim_info);
 
-        let (outcome, delivery) = run_legacy_creature_melee_tick_and_deliver_once_like_cpp(
-            &legacy,
-            Some(&canonical),
-            &registry,
-        );
+        let (outcome, delivery, plan_delivery) =
+            run_legacy_creature_melee_tick_and_deliver_once_like_cpp(
+                &legacy,
+                Some(&canonical),
+                &registry,
+            );
 
         assert!(!outcome.skipped_owner_not_global);
         assert_eq!(outcome.maps_seen, 1);
@@ -15446,6 +15485,7 @@ mmap.enablePathFinding = 0
         assert_eq!(delivery.commands_seen, 1);
         assert_eq!(delivery.candidates_seen, 1);
         assert_eq!(delivery.candidates_queued, 1);
+        assert_eq!(plan_delivery.events_seen, 0);
 
         let command = match victim_rx
             .try_recv()
@@ -15471,6 +15511,70 @@ mmap.enablePathFinding = 0
             .health;
         assert_eq!(command.victim_health_after, canonical_health);
         assert_eq!(canonical_health, 100 - u64::from(command.damage));
+    }
+
+    #[test]
+    fn legacy_creature_melee_tick_delivers_creature_victim_plan_to_viewers_like_cpp() {
+        let legacy: wow_world::SharedMapManager =
+            Arc::new(std::sync::RwLock::new(wow_world::MapManager::new()));
+        let canonical: wow_world::SharedCanonicalMapManager =
+            Arc::new(Mutex::new(wow_map::MapManager::default()));
+        canonical.lock().unwrap().create_world_map(0, 0);
+
+        let victim = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 9002, 90_060);
+        let attacker =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 9001, 90_061);
+        let position = Position::new(5.0, 5.0, 0.0, 0.0);
+        add_canonical_test_creature_on_map_like_cpp(&canonical, victim, position, 0, 0, 100);
+
+        let mut world_creature = wow_world::map_manager::WorldCreature::new(
+            attacker, 9001, position, 25, 2, 3, 5, 20.0, 100, 14, 0, 0,
+        );
+        world_creature.enter_combat(victim);
+        world_creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+
+        {
+            let mut manager = legacy.write().unwrap();
+            manager.add_creature(
+                0,
+                0,
+                wow_world::map_manager::world_to_grid_x(position.x),
+                wow_world::map_manager::world_to_grid_y(position.y),
+                world_creature,
+            );
+            manager.set_tick_owner(wow_world::map_manager::RuntimeTickOwner::GlobalLegacy);
+        }
+
+        let registry = PlayerRegistry::default();
+        let viewer = ObjectGuid::create_player(1, 91_030);
+        let (viewer_info, viewer_rx) = make_registry_player_like_cpp(0, 0, position, true);
+        registry.insert(viewer, viewer_info);
+
+        let (outcome, delivery, plan_delivery) =
+            run_legacy_creature_melee_tick_and_deliver_once_like_cpp(
+                &legacy,
+                Some(&canonical),
+                &registry,
+            );
+
+        assert_eq!(outcome.swings_ready, 1);
+        assert_eq!(outcome.canonical_hits, 1);
+        assert_eq!(outcome.canonical_creature_hits, 1);
+        assert!(outcome.commands.is_empty());
+        assert_eq!(delivery.commands_seen, 0);
+        assert_eq!(plan_delivery.events_seen, 2);
+        assert_eq!(plan_delivery.candidates_queued, 2);
+
+        for _ in 0..2 {
+            let SessionCommand::SendIfVisibleLikeCpp(command) = viewer_rx
+                .try_recv()
+                .expect("viewer receives creature-victim melee fanout")
+            else {
+                panic!("expected SendIfVisibleLikeCpp");
+            };
+            assert!(command.source_guid == attacker || command.source_guid == victim);
+            assert!(!command.packet_bytes.is_empty());
+        }
     }
 
     /// 4A.3c bridge: lifecycle changes happen once under the global owner, then
@@ -15904,6 +16008,7 @@ mmap.enablePathFinding = 0
         assert_eq!(outcome.melee_delivery.commands_seen, 1);
         assert_eq!(outcome.melee_delivery.candidates_seen, 1);
         assert_eq!(outcome.melee_delivery.candidates_queued, 1);
+        assert_eq!(outcome.melee_plan_delivery.events_seen, 0);
 
         for command_rx in [&near_a_rx, &near_b_rx] {
             let SessionCommand::RefreshVisibleWorldCreaturesLikeCpp(refresh) = command_rx
