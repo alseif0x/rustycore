@@ -21874,6 +21874,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
     };
 
     let mut committed_swings = Vec::new();
+    let mut failed_retry_swings = Vec::new();
     for swing in pending_swings {
         let apply_result = apply_creature_melee_damage_to_canonical_player_on_map_like_cpp(
             canonical_map_manager,
@@ -21892,10 +21893,12 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
             } => (victim_health_after, over_damage, target_level),
             CreatureMeleeApplyResultLikeCpp::OutOfRange => {
                 outcome.melee_range_rejections += 1;
+                failed_retry_swings.push(swing);
                 continue;
             }
             CreatureMeleeApplyResultLikeCpp::BadFacing => {
                 outcome.melee_facing_rejections += 1;
+                failed_retry_swings.push(swing);
                 continue;
             }
             CreatureMeleeApplyResultLikeCpp::MissingVictim => continue,
@@ -21916,7 +21919,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
         committed_swings.push(swing);
     }
 
-    if !committed_swings.is_empty() {
+    if !committed_swings.is_empty() || !failed_retry_swings.is_empty() {
         let mut manager = legacy_map_manager
             .write()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -21925,6 +21928,13 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                 manager.find_creature_mut(swing.map_id, swing.instance_id, swing.attacker_guid)
             {
                 creature.record_swing();
+            }
+        }
+        for swing in failed_retry_swings {
+            if let Some(creature) =
+                manager.find_creature_mut(swing.map_id, swing.instance_id, swing.attacker_guid)
+            {
+                creature.record_failed_swing_retry_like_cpp();
             }
         }
     }
@@ -53442,6 +53452,15 @@ mod tests {
         assert_eq!(health, 100 - u64::from(command.damage));
         assert_eq!(command.victim_health_after, health);
         assert_eq!(command.over_damage, -1);
+        let swing_timer = manager
+            .read()
+            .unwrap()
+            .find_creature(0, 0, creature_guid)
+            .unwrap()
+            .creature
+            .ai_ownership()
+            .swing_timer_ms;
+        assert_eq!(swing_timer, 2_000);
     }
 
     #[test]
@@ -53580,6 +53599,55 @@ mod tests {
             .data()
             .health;
         assert_eq!(health, 100);
+    }
+
+    #[test]
+    fn legacy_creature_melee_tick_once_failed_auto_attack_uses_retry_timer_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        let player = ObjectGuid::create_player(1, 91_009);
+        add_canonical_test_player_on_map(
+            &canonical,
+            player,
+            Position::new(100.0, 100.0, 0.0, 0.0),
+            0,
+            0,
+        );
+
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_010);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.enter_combat(player);
+                creature.creature.ai_ownership_mut().last_swing_ms = 0;
+                creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let rejected = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+
+        assert_eq!(rejected.swings_ready, 1);
+        assert_eq!(rejected.melee_range_rejections, 1);
+        assert_eq!(rejected.canonical_hits, 0);
+        {
+            let guard = manager.read().unwrap();
+            let creature = guard.find_creature(0, 0, creature_guid).unwrap();
+            assert_eq!(creature.creature.ai_ownership().swing_timer_ms, 100);
+        }
+
+        let immediate_retry =
+            run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+
+        assert_eq!(immediate_retry.swings_ready, 0);
+        assert_eq!(immediate_retry.melee_range_rejections, 0);
+        assert_eq!(immediate_retry.canonical_hits, 0);
+        assert!(immediate_retry.commands.is_empty());
     }
 
     #[test]

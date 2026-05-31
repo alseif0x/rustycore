@@ -1487,7 +1487,22 @@ impl WorldCreature {
     }
 
     pub fn record_swing(&mut self) {
-        self.creature.ai_ownership_mut().last_swing_ms = self.now_ms();
+        let now_ms = self.now_ms();
+        let base_attack_time = if self.create_data.base_attack_time > 0 {
+            self.create_data.base_attack_time as u64
+        } else {
+            self.creature.ai_ownership().swing_timer_ms.max(1)
+        };
+        let ai = self.creature.ai_ownership_mut();
+        ai.last_swing_ms = now_ms;
+        ai.swing_timer_ms = base_attack_time;
+    }
+
+    pub fn record_failed_swing_retry_like_cpp(&mut self) {
+        let now_ms = self.now_ms();
+        let ai = self.creature.ai_ownership_mut();
+        ai.last_swing_ms = now_ms;
+        ai.swing_timer_ms = 100;
     }
 
     pub fn roll_damage(&self) -> u32 {

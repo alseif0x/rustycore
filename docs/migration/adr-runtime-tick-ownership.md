@@ -655,6 +655,16 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `melee_facing_rejections`, and suppresses victim delivery for bad-facing swings. The shared
   boundary helper used by session combat was corrected to include both combat reaches. This still
   leaves LOS, non-player victims, offhand/extra attacks, and exact attack-timer retry semantics open.
+- 2026-05-31 — Runtime global creature melee retry timer `#NEXT.RUNTIME.L3.031ad`: closed the
+  represented auto-attack error retry gap in the experimental global legacy creature melee driver.
+  C++ `Unit::DoMeleeAttackIfReady` sets the base attack timer to `100` when the ready base attack
+  fails the auto-attack gate (`NotInRange`/`BadFacing`) and resets the base timer only after the
+  successful `AttackerStateUpdate` path (`Unit.cpp:2085-2155`). Rust now records failed global
+  creature swings with a 100ms retry cooldown and restores the represented base attack interval
+  from `CreatureCreateData::base_attack_time` on successful swings. This prevents per-global-tick
+  retry spam while keeping the current bounded AI ownership timer model. Remaining gaps: LOS,
+  non-player victims, offhand/extra attacks, and full unification with canonical `Unit` attack
+  timers.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
