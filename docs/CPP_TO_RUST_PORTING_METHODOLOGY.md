@@ -33,29 +33,37 @@ Secondary logic reference, only when legacy is incomplete or suspicious:
    been reviewed and the Rust behavior is either equivalent or the divergence
    is explicitly documented.
 
-5. Prefer small, mergeable, behavior-complete slices.
+5. Do not port suspected C++ bugs blindly.
+   The legacy C++ implementation is the behavioral baseline, but it is not
+   assumed infallible. If contrast reveals a likely C++ bug, undefined edge,
+   or internally inconsistent behavior, stop and record it as a legacy
+   divergence candidate with exact anchors, observed impact, proposed Rust/C++
+   correction, and tests. Do not silently "fix" it in Rust, and do not silently
+   copy it into Rust as if it were validated behavior.
+
+6. Prefer small, mergeable, behavior-complete slices.
    A good slice is: C++ branch -> Rust implementation -> positive and negative
    tests -> roadmap update -> checks.
 
-6. Runtime source of truth must move toward canonical entities.
+7. Runtime source of truth must move toward canonical entities.
    If a canonical `Unit`, `Player`, `Creature`, `Map`, or subsystem exists,
    prefer it over legacy `WorldSession` mirrors. Legacy mirrors can be used only
    as a documented fallback while migration is incomplete.
 
-7. A fallback must never override a known canonical empty state.
+8. A fallback must never override a known canonical empty state.
    If the canonical player exists and `Player.unit().attacking()` is `None`,
    do not resurrect combat from `WorldSession::combat_target`. Fallbacks are
    only for "canonical entity does not exist yet", not "canonical says none".
 
-8. Tests must cover C++ early returns.
+9. Tests must cover C++ early returns.
    Porting only success paths creates false confidence. Every C++ guard that
    returns early needs a negative test whenever it is representable.
 
-9. Keep the roadmap honest.
+10. Keep the roadmap honest.
    The roadmap is the source of truth for what is done, partial, blocked, and
    still missing. It must not be used as a progress scoreboard.
 
-10. Do not start the server unless explicitly requested.
+11. Do not start the server unless explicitly requested.
     Development verification normally means unit/integration checks. Manual
     client/server testing is a separate step.
 
