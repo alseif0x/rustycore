@@ -645,6 +645,16 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   health, records `melee_range_rejections`, and suppresses victim delivery for out-of-range swings.
   This only affects the gated `GlobalLegacy` owner path. Facing/boundary-radius, LOS,
   non-player victims, and full C++ timer retry semantics remain open.
+- 2026-05-31 — Runtime global creature melee facing/boundary gate `#NEXT.RUNTIME.L3.031ac`: closed
+  the represented bad-facing gap in the experimental global legacy creature melee driver. C++
+  `Unit::DoMeleeAttackIfReady` rejects with `AttackSwingErr::BadFacing` when the victim is outside
+  `IsWithinBoundaryRadius` and outside `HasInArc(2*pi/3)`, while `IsWithinBoundaryRadius` delegates
+  to `WorldObject::IsWithinDist` and includes attacker/target combat reach
+  (`Unit.cpp:2085-2155`, `Unit.cpp:672-678`, `Object.cpp:1057-1083`). Rust now checks the canonical
+  victim position, bounding radius, and combat reach before health mutation, records
+  `melee_facing_rejections`, and suppresses victim delivery for bad-facing swings. The shared
+  boundary helper used by session combat was corrected to include both combat reaches. This still
+  leaves LOS, non-player victims, offhand/extra attacks, and exact attack-timer retry semantics open.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

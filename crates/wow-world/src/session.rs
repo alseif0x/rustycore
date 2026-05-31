@@ -1654,6 +1654,7 @@ pub struct LegacyCreatureMeleeTickOutcomeLikeCpp {
     pub creatures_seen: usize,
     pub swings_ready: usize,
     pub melee_range_rejections: usize,
+    pub melee_facing_rejections: usize,
     pub canonical_hits: usize,
     pub commands: Vec<wow_network::player_registry::ApplyCreatureMeleeDamageLikeCppCommand>,
 }
@@ -3765,26 +3766,29 @@ impl WorldSession {
 
     fn is_within_target_boundary_radius_like_cpp(
         attacker_position: Position,
+        attacker_combat_reach: f32,
         target_position: Position,
+        target_combat_reach: f32,
         target_bounding_radius: f32,
     ) -> bool {
-        let boundary_radius = target_bounding_radius.max(MIN_MELEE_REACH_LIKE_CPP);
+        let boundary_radius = target_bounding_radius.max(MIN_MELEE_REACH_LIKE_CPP)
+            + attacker_combat_reach.max(0.0)
+            + target_combat_reach.max(0.0);
         attacker_position.distance(&target_position) < boundary_radius
     }
 
-    fn is_player_facing_target_for_melee_like_cpp(
-        player_position: Position,
+    fn is_unit_facing_target_for_melee_like_cpp(
+        unit_position: Position,
         target_position: Position,
     ) -> bool {
-        let dx = target_position.x - player_position.x;
-        let dy = target_position.y - player_position.y;
+        let dx = target_position.x - unit_position.x;
+        let dy = target_position.y - unit_position.y;
         if dx.abs() <= f32::EPSILON && dy.abs() <= f32::EPSILON {
             return true;
         }
 
         let target_angle = dy.atan2(dx);
-        let mut diff =
-            (target_angle - player_position.orientation).rem_euclid(std::f32::consts::TAU);
+        let mut diff = (target_angle - unit_position.orientation).rem_euclid(std::f32::consts::TAU);
         if diff > std::f32::consts::PI {
             diff = std::f32::consts::TAU - diff;
         }
@@ -21730,6 +21734,7 @@ enum CreatureMeleeApplyResultLikeCpp {
         target_level: u8,
     },
     OutOfRange,
+    BadFacing,
     MissingVictim,
 }
 
@@ -21756,7 +21761,8 @@ fn apply_creature_melee_damage_to_canonical_player_on_map_like_cpp(
     }
 
     let victim_position = victim.unit().world().position();
-    let victim_combat_reach = victim.unit().data().combat_reach;
+    let victim_data = victim.unit().data();
+    let victim_combat_reach = victim_data.combat_reach;
     if !WorldSession::is_within_melee_range_like_cpp(
         attacker_position,
         attacker_combat_reach,
@@ -21764,6 +21770,18 @@ fn apply_creature_melee_damage_to_canonical_player_on_map_like_cpp(
         victim_combat_reach,
     ) {
         return CreatureMeleeApplyResultLikeCpp::OutOfRange;
+    }
+    if !WorldSession::is_within_target_boundary_radius_like_cpp(
+        attacker_position,
+        attacker_combat_reach,
+        victim_position,
+        victim_combat_reach,
+        victim_data.bounding_radius,
+    ) && !WorldSession::is_unit_facing_target_for_melee_like_cpp(
+        attacker_position,
+        victim_position,
+    ) {
+        return CreatureMeleeApplyResultLikeCpp::BadFacing;
     }
 
     let health_before = victim.unit().data().health;
@@ -21874,6 +21892,10 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
             } => (victim_health_after, over_damage, target_level),
             CreatureMeleeApplyResultLikeCpp::OutOfRange => {
                 outcome.melee_range_rejections += 1;
+                continue;
+            }
+            CreatureMeleeApplyResultLikeCpp::BadFacing => {
+                outcome.melee_facing_rejections += 1;
                 continue;
             }
             CreatureMeleeApplyResultLikeCpp::MissingVictim => continue,
@@ -22229,9 +22251,11 @@ impl WorldSession {
             .map(|position| {
                 Self::is_within_target_boundary_radius_like_cpp(
                     position,
+                    player_combat_reach,
                     target_position,
+                    target_combat_reach,
                     target_bounding_radius,
-                ) || Self::is_player_facing_target_for_melee_like_cpp(position, target_position)
+                ) || Self::is_unit_facing_target_for_melee_like_cpp(position, target_position)
             })
             .unwrap_or(true);
         let within_los = self.player_melee_los_to_target_like_cpp.unwrap_or(true);
@@ -53471,6 +53495,76 @@ mod tests {
         assert_eq!(outcome.creatures_seen, 1);
         assert_eq!(outcome.swings_ready, 1);
         assert_eq!(outcome.melee_range_rejections, 1);
+        assert_eq!(outcome.canonical_hits, 0);
+        assert!(outcome.commands.is_empty());
+
+        let health = canonical
+            .lock()
+            .unwrap()
+            .find_map(0, 0)
+            .unwrap()
+            .map()
+            .get_typed_player(player)
+            .unwrap()
+            .unit()
+            .data()
+            .health;
+        assert_eq!(health, 100);
+    }
+
+    #[test]
+    fn legacy_creature_melee_tick_once_rejects_bad_facing_victim_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        let player = ObjectGuid::create_player(1, 91_007);
+        add_canonical_test_player_on_map(
+            &canonical,
+            player,
+            Position::new(6.0, 10.0, 0.0, 0.0),
+            0,
+            0,
+        );
+        {
+            let mut guard = canonical.lock().unwrap();
+            let typed = guard
+                .find_map_mut(0, 0)
+                .unwrap()
+                .map_mut()
+                .get_typed_player_mut(player)
+                .unwrap();
+            typed.unit_mut().set_max_health(100);
+            typed.unit_mut().set_health(100);
+            typed.unit_mut().set_combat_reach(0.0);
+            typed.unit_mut().set_bounding_radius(0.0);
+        }
+
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_008);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature
+                    .creature
+                    .set_ai_position(Position::new(10.0, 10.0, 0.0, 0.0));
+                creature.creature.unit_mut().set_combat_reach(0.0);
+                creature.enter_combat(player);
+                creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+
+        assert!(!outcome.skipped_owner_not_global);
+        assert_eq!(outcome.maps_seen, 1);
+        assert_eq!(outcome.creatures_seen, 1);
+        assert_eq!(outcome.swings_ready, 1);
+        assert_eq!(outcome.melee_range_rejections, 0);
+        assert_eq!(outcome.melee_facing_rejections, 1);
         assert_eq!(outcome.canonical_hits, 0);
         assert!(outcome.commands.is_empty());
 
