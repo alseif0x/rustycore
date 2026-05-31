@@ -811,6 +811,14 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `ReplaceAllNpcFlags(0)`, `ReplaceAllNpcFlags2(0)`, and `SetMountDisplayId(0)` to the represented
   `UnitData`. This deliberately does not clear `CreatureAiOwnershipState` template/identity fields:
   C++ clears the live unit update fields on death and reloads/choses template flags on respawn.
+- 2026-05-31 — Represented creature death hover/gravity cleanup `#NEXT.RUNTIME.L3.031au`:
+  ports the represented movement-flag subset of C++ `Creature::setDeathState(JUST_DIED)`
+  (`Creature.cpp:2240-2245`) and the exact flag mutations inside `Unit::SetHover(false,false)` /
+  `Unit::SetDisableGravity(false,false)` (`Unit.cpp:12580-12613`, `Unit.cpp:12793-12835`). Rust now
+  removes represented `MOVEMENTFLAG_HOVER` and `MOVEMENTFLAG_DISABLE_GRAVITY` during creature
+  death while preserving `CAN_FLY`/`FLYING`, which those C++ calls do not clear. The follow-up
+  `MoveFall()` spline/fanout remains open because it needs real MotionMaster ground-height/runtime
+  ownership rather than just entity-field mutation.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

@@ -2273,6 +2273,9 @@ impl Creature {
                 self.unit.world_mut().set_active(false);
                 self.already_searched_assistance = false;
                 self.already_call_assistance = false;
+                self.runtime_state
+                    .movement_flags
+                    .remove(MovementFlag::HOVER | MovementFlag::DISABLE_GRAVITY);
                 plan.extend([
                     CreatureRuntimeAction::SaveRespawnTime,
                     CreatureRuntimeAction::ClearTarget,
@@ -3997,6 +4000,12 @@ mod tests {
         creature.unit_mut().set_npc_flags_like_cpp(0x40);
         creature.unit_mut().set_npc_flags2_like_cpp(0x2);
         creature.unit_mut().set_mount_display_id(1234);
+        creature.set_movement_flags_runtime_like_cpp(
+            MovementFlag::HOVER
+                | MovementFlag::DISABLE_GRAVITY
+                | MovementFlag::CAN_FLY
+                | MovementFlag::FLYING,
+        );
         creature
             .unit_mut()
             .subsystems_mut()
@@ -4063,6 +4072,11 @@ mod tests {
             creature.unit().data().mount_display_id,
             0,
             "C++ Creature::setDeathState(JUST_DIED) calls SetMountDisplayId(0)"
+        );
+        assert_eq!(
+            creature.movement_flags_like_cpp(),
+            MovementFlag::CAN_FLY | MovementFlag::FLYING,
+            "C++ death calls SetHover(false,false) and SetDisableGravity(false,false), but does not unset CAN_FLY/FLYING here"
         );
         assert_eq!(
             creature.unit().current_spell(CurrentSpellSlot::Melee),

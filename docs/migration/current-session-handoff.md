@@ -1879,3 +1879,13 @@ C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entit
 Implemented Rust seam: `crates/wow-entities/src/creature.rs` now mutates represented `UnitData::NpcFlags[0]`, `NpcFlags[1]`, and `MountDisplayID` to zero during `Creature::set_death_state_runtime(JustDied)`. The existing `CreatureRuntimeAction::ClearNpcFlags` / `ClearMount` plan entries remain as runtime bridge evidence. `CreatureAiOwnershipState` template/identity fields are intentionally left intact: C++ clears live unit update fields on death, then chooses/reloads template flags during respawn rather than destroying the spawn identity.
 
 Validation evidence: focused `creature_runtime_just_died_sets_corpse_respawn_and_clears_combat_bridge_state` coverage was extended to start from non-zero NPC flags and mount display, then assert zero after death.
+
+### #NEXT.RUNTIME.L3.031au — represented creature death hover/gravity cleanup
+
+Status: represented-closeout for the bounded movement-flag subset of `Creature::setDeathState(JUST_DIED)`; not manual-test-ready.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Creature/Creature.cpp:2240-2245` computes falling from `IsFlying() || IsHovering()`, calls `SetHover(false,false)`, calls `SetDisableGravity(false,false)`, then conditionally `MoveFall()`. Exact flag mutations are in `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:12580-12613` (`SetDisableGravity(false)` removes only `MOVEMENTFLAG_DISABLE_GRAVITY`) and `Unit.cpp:12793-12835` (`SetHover(false)` removes only `MOVEMENTFLAG_HOVER`).
+
+Implemented Rust seam: `crates/wow-entities/src/creature.rs` now clears represented `MovementFlag::HOVER | MovementFlag::DISABLE_GRAVITY` during `Creature::set_death_state_runtime(JustDied)` and deliberately preserves `CAN_FLY`/`FLYING`, matching the contrasted C++ setters. The conditional `MoveFall()` itself remains an open runtime gap because it needs MotionMaster ground-height/spline/fanout ownership, not just entity-field mutation.
+
+Validation evidence: focused death-state test now starts with `HOVER | DISABLE_GRAVITY | CAN_FLY | FLYING` and asserts only hover/gravity are removed.
