@@ -14,6 +14,8 @@ pub const MAX_CREATURE_SPELLS_LIKE_CPP: usize = 8;
 pub const MAX_SPELL_SCHOOL_LIKE_CPP: u8 = 7;
 const CREATURE_GROUND_MOVEMENT_TYPE_MAX_LIKE_CPP: u8 = 3;
 const CREATURE_FLIGHT_MOVEMENT_TYPE_MAX_LIKE_CPP: u8 = 3;
+const IDLE_MOTION_TYPE_LIKE_CPP: u8 = 0;
+const WAYPOINT_MOTION_TYPE_LIKE_CPP: u8 = 2;
 
 fn normalize_creature_ground_movement_type_like_cpp(ground_movement_type: u8) -> u8 {
     if ground_movement_type < CREATURE_GROUND_MOVEMENT_TYPE_MAX_LIKE_CPP {
@@ -270,6 +272,28 @@ impl CreatureAddonStoreLikeCpp {
         self.template_addons.get(&entry).copied()
     }
 
+    /// Mirrors the spawn-addon side effect in C++ `ObjectMgr::LoadCreatureAddons`.
+    ///
+    /// If a concrete spawn uses `WAYPOINT_MOTION_TYPE` but its spawn-specific
+    /// `creature_addon` row has no `PathId`, C++ mutates `CreatureData::movementType`
+    /// to `IDLE_MOTION_TYPE`. Template addon rows do not apply this mutation.
+    pub fn movement_type_after_spawn_addon_load_like_cpp(
+        &self,
+        spawn_id: u64,
+        movement_type: u8,
+    ) -> u8 {
+        if movement_type == WAYPOINT_MOTION_TYPE_LIKE_CPP
+            && self
+                .spawn_addons
+                .get(&spawn_id)
+                .is_some_and(|addon| addon.path_id == 0)
+        {
+            IDLE_MOTION_TYPE_LIKE_CPP
+        } else {
+            movement_type
+        }
+    }
+
     pub fn len(&self) -> usize {
         self.spawn_addons.len() + self.template_addons.len()
     }
@@ -331,6 +355,7 @@ fn addon_record_from_row_like_cpp(
     };
 
     CreatureAddonLifecycleRecordLikeCpp {
+        path_id: row.path_id,
         mount_display_id,
         stand_state,
         pvp_flags: UnitPvpFlags::from_bits_retain(row.pvp_flags),
@@ -1718,6 +1743,7 @@ mod tests {
         assert_eq!(
             store.get_for_creature_like_cpp(44, 1001),
             Some(CreatureAddonLifecycleRecordLikeCpp {
+                path_id: 0,
                 mount_display_id: 1234,
                 stand_state: UnitStandStateType::Kneel,
                 pvp_flags: UnitPvpFlags::PVP,
@@ -1728,6 +1754,7 @@ mod tests {
         assert_eq!(
             store.get_for_creature_like_cpp(0, 1001),
             Some(CreatureAddonLifecycleRecordLikeCpp {
+                path_id: 0,
                 mount_display_id: 5678,
                 stand_state: UnitStandStateType::Sleep,
                 pvp_flags: UnitPvpFlags::SANCTUARY,
@@ -1758,12 +1785,61 @@ mod tests {
         assert_eq!(
             store.get_for_creature_like_cpp(44, 1001),
             Some(CreatureAddonLifecycleRecordLikeCpp {
+                path_id: 0,
                 mount_display_id: 0,
                 stand_state: UnitStandStateType::Stand,
                 pvp_flags: UnitPvpFlags::from_bits_retain(0xff),
                 emote: 0,
             }),
             "C++ invalid mount/emote/stand rows are truncated; PvPFlags cover the full byte"
+        );
+    }
+
+    #[test]
+    fn creature_addon_store_mutates_waypoint_spawn_without_path_to_idle_like_cpp() {
+        let spawn_without_path = CreatureAddonRowLikeCpp {
+            path_id: 0,
+            ..addon_row(44)
+        };
+        let spawn_with_path = CreatureAddonRowLikeCpp {
+            path_id: 9001,
+            ..addon_row(45)
+        };
+        let template_without_path = CreatureAddonRowLikeCpp {
+            path_id: 0,
+            ..addon_row(1001)
+        };
+
+        let store = CreatureAddonStoreLikeCpp::from_rows_like_cpp(
+            [spawn_without_path, spawn_with_path],
+            [template_without_path],
+            |spawn_id| matches!(spawn_id, 44 | 45),
+            |entry| entry == 1001,
+            |_| true,
+            |_| true,
+        );
+
+        assert_eq!(
+            store.movement_type_after_spawn_addon_load_like_cpp(44, WAYPOINT_MOTION_TYPE_LIKE_CPP),
+            IDLE_MOTION_TYPE_LIKE_CPP,
+            "C++ LoadCreatureAddons mutates spawn WAYPOINT_MOTION_TYPE to IDLE_MOTION_TYPE when spawn PathId is zero"
+        );
+        assert_eq!(
+            store.movement_type_after_spawn_addon_load_like_cpp(45, WAYPOINT_MOTION_TYPE_LIKE_CPP),
+            WAYPOINT_MOTION_TYPE_LIKE_CPP,
+            "non-zero spawn PathId preserves C++ waypoint movement"
+        );
+        assert_eq!(
+            store.movement_type_after_spawn_addon_load_like_cpp(0, WAYPOINT_MOTION_TYPE_LIKE_CPP),
+            WAYPOINT_MOTION_TYPE_LIKE_CPP,
+            "template addon PathId never triggers the spawn CreatureData movementType mutation"
+        );
+        assert_eq!(
+            store
+                .get_for_creature_like_cpp(45, 1001)
+                .map(|addon| addon.path_id),
+            Some(9001),
+            "PathId is retained for the future path runtime seam"
         );
     }
 }

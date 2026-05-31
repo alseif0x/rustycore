@@ -354,7 +354,10 @@ pub fn build_loaded_grid_creature_inputs_from_db_like_cpp(
         .flatten();
     let equipment_id = u8::try_from(runtime_row.equipment_id.max(0)).unwrap_or(0);
     let original_equipment_id = runtime_row.equipment_id;
-    let movement_type = movement_type_like_cpp(runtime_row.movement_type, template.movement_type);
+    let addon = addon_store.get_for_creature_like_cpp(spawn.spawn_id, template.entry);
+    let selected_db_movement_type = addon_store
+        .movement_type_after_spawn_addon_load_like_cpp(spawn.spawn_id, runtime_row.movement_type);
+    let movement_type = movement_type_like_cpp(selected_db_movement_type, template.movement_type);
     let npc_flags = runtime_row.npc_flags.unwrap_or(template.npc_flags);
     let unit_flags = runtime_row.unit_flags.unwrap_or(template.unit_flags);
     let unit_flags2 = runtime_row.unit_flags2.unwrap_or(template.unit_flags2);
@@ -399,7 +402,7 @@ pub fn build_loaded_grid_creature_inputs_from_db_like_cpp(
         add_to_world_vehicle_reset_context: None,
         corpse_delay: 0,
         ignore_corpse_decay_ratio: false,
-        addon: addon_store.get_for_creature_like_cpp(spawn.spawn_id, template.entry),
+        addon,
     };
     let position = Position {
         x: spawn.spawn_point.x,
@@ -1027,6 +1030,7 @@ mod tests {
         assert_eq!(
             template.addon,
             Some(CreatureAddonLifecycleRecordLikeCpp {
+                path_id: 0,
                 mount_display_id: 1234,
                 stand_state: wow_constants::UnitStandStateType::Kneel,
                 pvp_flags: wow_constants::UnitPvpFlags::PVP,
@@ -1595,6 +1599,7 @@ mod tests {
         let spawn_id = 56;
         let mut template = template(entry);
         template.addon = Some(CreatureAddonLifecycleRecordLikeCpp {
+            path_id: 0,
             mount_display_id: 4321,
             stand_state: wow_constants::UnitStandStateType::Kneel,
             pvp_flags: wow_constants::UnitPvpFlags::PVP | wow_constants::UnitPvpFlags::FFA_PVP,
@@ -1613,6 +1618,7 @@ mod tests {
         assert_eq!(
             resolved.lifecycle_record.create.addon,
             Some(CreatureAddonLifecycleRecordLikeCpp {
+                path_id: 0,
                 mount_display_id: 4321,
                 stand_state: wow_constants::UnitStandStateType::Kneel,
                 pvp_flags: wow_constants::UnitPvpFlags::PVP | wow_constants::UnitPvpFlags::FFA_PVP,

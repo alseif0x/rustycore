@@ -964,9 +964,18 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `ObjectMgr::LoadCreatureAddons` / `LoadCreatureTemplateAddons` (`ObjectMgr.cpp:766-897`,
   `ObjectMgr.cpp:1224-1367`), filtering missing spawn/template owners and validating represented
   mount/emote/stand fields before the loaded-grid resolver consumes the store. This still only
-  covers the represented subset (`mount`, `StandState`, `PvPFlags`, non-zero `emote`); C++ waypoint
-  movement-type mutation, path id runtime, auras, visual flags, anim tier/kits, sheath, visibility
+  covers the represented subset (`mount`, `StandState`, `PvPFlags`, non-zero `emote`); path id
+  runtime, auras, visual flags, anim tier/kits, sheath, visibility
   distance, hover, and full validation/reporting are still open.
+- 2026-05-31 — Spawn-addon `PathId` movement mutation seam `#NEXT.RUNTIME.L3.031bl`: contrasted
+  against C++ `ObjectMgr::LoadCreatureAddons` (`ObjectMgr.cpp:1229-1261`). Rust now retains addon
+  `PathId` in `CreatureAddonLifecycleRecordLikeCpp` and applies the spawn-specific C++ load-time
+  rule at the loaded-grid movement selection seam: a concrete spawn with DB `WAYPOINT_MOTION_TYPE`
+  and a spawn-specific `creature_addon.PathId == 0` is selected as `IDLE_MOTION_TYPE`. Template
+  addon rows deliberately do not trigger this mutation, matching C++. Because `wow-entities`
+  currently represents only idle movement at the final entity seam, this does not claim waypoint
+  runtime support; path execution, waypoint data loading, and full motion generator parity remain
+  open.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

@@ -328,11 +328,13 @@ pub struct CreatureAddToWorldVehicleResetContextLikeCpp {
 /// - `Creature::GetCreatureAddon`
 /// - `Creature::LoadCreaturesAddon`
 ///
-/// This record intentionally carries only fields that `wow-entities` currently models locally.
-/// DB loading, template-vs-spawn fallback, path, auras, visual flags, anim tier/kits, sheath,
+/// This record intentionally carries only fields that `wow-entities` currently models locally,
+/// plus `PathId` as a data seam for C++ addon movement selection.
+/// DB loading, template-vs-spawn fallback, path runtime, auras, visual flags, anim tier/kits, sheath,
 /// pet flags, shapeshift form, visibility distance override, and hover are follow-up runtime gaps.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CreatureAddonLifecycleRecordLikeCpp {
+    pub path_id: u32,
     pub mount_display_id: u32,
     pub stand_state: UnitStandStateType,
     pub pvp_flags: UnitPvpFlags,
@@ -342,6 +344,7 @@ pub struct CreatureAddonLifecycleRecordLikeCpp {
 impl Default for CreatureAddonLifecycleRecordLikeCpp {
     fn default() -> Self {
         Self {
+            path_id: 0,
             mount_display_id: 0,
             stand_state: UnitStandStateType::Stand,
             pvp_flags: UnitPvpFlags::empty(),
@@ -4370,6 +4373,7 @@ mod tests {
     fn creature_lifecycle_loads_represented_addon_local_fields_like_cpp() {
         let mut record = creature_lifecycle_create_record();
         record.addon = Some(CreatureAddonLifecycleRecordLikeCpp {
+            path_id: 0,
             mount_display_id: 12_345,
             stand_state: UnitStandStateType::Kneel,
             pvp_flags: UnitPvpFlags::PVP | UnitPvpFlags::FFA_PVP,
@@ -4404,6 +4408,7 @@ mod tests {
     fn creature_runtime_respawn_reloads_represented_addon_local_fields_like_cpp() {
         let mut record = creature_lifecycle_create_record();
         record.addon = Some(CreatureAddonLifecycleRecordLikeCpp {
+            path_id: 0,
             mount_display_id: 22_222,
             stand_state: UnitStandStateType::Sit,
             pvp_flags: UnitPvpFlags::SANCTUARY,
