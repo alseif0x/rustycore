@@ -910,6 +910,17 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   from represented creature identity. This is not full `ChooseCreatureFlags`: condition evaluation,
   creature-data overrides, addon reload, and the world-event NPC flag overlay from
   `GameEventMgr::GetNPCFlag` (`GameEventMgr.cpp:920-933`) remain explicit follow-up runtime gaps.
+- 2026-05-31 — Game-event NPC flag overlay uses template base `#NEXT.RUNTIME.L3.031bf`:
+  closes the bounded live-update side of C++ `GameEventMgr::UpdateEventNPCFlags`
+  (`GameEventMgr.cpp:1115-1148`) and `GetNPCFlag` (`GameEventMgr.cpp:920-933`). That live route
+  updates spawn ids present in `game_event_npcflag`, ORs active-event npcflag records, and ORs
+  `creatureTemplate->npcflag` when available; unlike the respawn path (`Creature.cpp:2274-2275`),
+  it is not guarded by `CREATURE_FLAG_EXTRA_WORLDEVENT`. Rust `game_event_update_npc_flags_like_cpp`
+  now receives the DB-backed lifecycle template store, looks up the spawn template entry, and applies
+  `template.npc_flags | active_event_overlay` instead of `0 | active_event_overlay`; the
+  `update_npc_flags_template_npcflag_missing` counter now means a true missing template. This does
+  not implement full `ChooseCreatureFlags` condition evaluation, creature-data overrides, or the
+  respawn-route `flags_extra` gate nuance.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
