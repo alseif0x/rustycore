@@ -676,6 +676,16 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   treats the swing as consumed rather than a 100ms auto-attack-error retry. Remaining gaps: LOS,
   non-player victims, offhand/extra attacks, exact `CanMelee`/casting/channel gates, and full
   canonical `Unit` attack-timer unification.
+- 2026-05-31 — Runtime global creature melee precondition gates `#NEXT.RUNTIME.L3.031af`: closed
+  the represented `DoMeleeAttackIfReady` charging/casting precondition gap before ready swings in
+  the experimental global legacy creature melee driver. C++ returns before victim lookup and before
+  `isAttackReady` while `UNIT_STATE_CHARGING`, and while `UNIT_STATE_CASTING` unless the current
+  channeled spell has `SPELL_ATTR5_ALLOW_ACTIONS_DURING_CHANNEL` (`Unit.cpp:2085-2101`). Rust now
+  rejects those represented states before queuing a pending swing, records
+  `melee_precondition_rejections`, leaves the represented swing timer unchanged, and allows
+  channels explicitly marked as allowing actions. `UNIT_STATE_MELEE_ATTACKING` and
+  `Creature::CanMelee` remain unrepresented in this transitional global legacy AI path; LOS,
+  non-player victims, offhand/extra attacks, and full canonical `Unit` attack timers remain open.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

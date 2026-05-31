@@ -1653,6 +1653,7 @@ pub struct LegacyCreatureMeleeTickOutcomeLikeCpp {
     pub maps_seen: usize,
     pub creatures_seen: usize,
     pub swings_ready: usize,
+    pub melee_precondition_rejections: usize,
     pub melee_range_rejections: usize,
     pub melee_facing_rejections: usize,
     pub attacker_state_rejections: usize,
@@ -21819,6 +21820,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
     canonical_map_manager: Option<&SharedCanonicalMapManager>,
 ) -> LegacyCreatureMeleeTickOutcomeLikeCpp {
     use crate::map_manager::RuntimeTickOwner;
+    use wow_entities::CurrentSpellSlot;
 
     #[derive(Clone, Copy)]
     struct PendingCreatureSwingLikeCpp {
@@ -21854,6 +21856,16 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                 };
                 outcome.creatures_seen += 1;
                 if !creature.can_swing() {
+                    continue;
+                }
+                let unit = creature.creature.unit();
+                if unit.has_unit_state(UnitState::CHARGING.bits())
+                    || (unit.has_unit_state(UnitState::CASTING.bits())
+                        && !unit
+                            .current_spell(CurrentSpellSlot::Channeled)
+                            .is_some_and(|spell| spell.allow_actions_during_channel))
+                {
+                    outcome.melee_precondition_rejections += 1;
                     continue;
                 }
                 let Some(victim_guid) = creature.creature.ai_ownership().combat_target else {
@@ -53748,6 +53760,152 @@ mod tests {
         assert_eq!(immediate_retry.attacker_state_rejections, 0);
         assert_eq!(immediate_retry.canonical_hits, 0);
         assert!(immediate_retry.commands.is_empty());
+    }
+
+    #[test]
+    fn legacy_creature_melee_tick_once_rejects_charging_before_ready_swing_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        let player = ObjectGuid::create_player(1, 91_013);
+        add_canonical_test_player_on_map(
+            &canonical,
+            player,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            0,
+        );
+
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_014);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.enter_combat(player);
+                creature.creature.ai_ownership_mut().last_swing_ms = 0;
+                creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+                creature
+                    .creature
+                    .unit_mut()
+                    .add_unit_state(UnitState::CHARGING.bits());
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let rejected = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+
+        assert_eq!(rejected.creatures_seen, 1);
+        assert_eq!(rejected.swings_ready, 0);
+        assert_eq!(rejected.melee_precondition_rejections, 1);
+        assert_eq!(rejected.canonical_hits, 0);
+        assert!(rejected.commands.is_empty());
+        {
+            let guard = manager.read().unwrap();
+            let creature = guard.find_creature(0, 0, creature_guid).unwrap();
+            assert_eq!(
+                creature.creature.ai_ownership().swing_timer_ms,
+                0,
+                "C++ returns before isAttackReady/resetAttackTimer while charging"
+            );
+        }
+    }
+
+    #[test]
+    fn legacy_creature_melee_tick_once_rejects_blocking_channel_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        let player = ObjectGuid::create_player(1, 91_015);
+        add_canonical_test_player_on_map(
+            &canonical,
+            player,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            0,
+        );
+
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_016);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.enter_combat(player);
+                creature.creature.ai_ownership_mut().last_swing_ms = 0;
+                creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+                creature.creature.unit_mut().set_current_cast_spell(
+                    wow_entities::CurrentSpellSlot::Channeled,
+                    wow_entities::CurrentSpellRef::new(12_347, Some(creature_guid), None),
+                );
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let rejected = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+
+        assert_eq!(rejected.creatures_seen, 1);
+        assert_eq!(rejected.swings_ready, 0);
+        assert_eq!(rejected.melee_precondition_rejections, 1);
+        assert_eq!(rejected.canonical_hits, 0);
+        assert!(rejected.commands.is_empty());
+    }
+
+    #[test]
+    fn legacy_creature_melee_tick_once_respects_channel_allow_actions_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        let player = ObjectGuid::create_player(1, 91_018);
+        add_canonical_test_player_on_map(
+            &canonical,
+            player,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            0,
+        );
+        {
+            let mut guard = canonical.lock().unwrap();
+            let typed = guard
+                .find_map_mut(0, 0)
+                .unwrap()
+                .map_mut()
+                .get_typed_player_mut(player)
+                .unwrap();
+            typed.unit_mut().set_max_health(100);
+            typed.unit_mut().set_health(100);
+        }
+
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_019);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.enter_combat(player);
+                creature.creature.ai_ownership_mut().last_swing_ms = 0;
+                creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+                creature.creature.unit_mut().set_current_cast_spell(
+                    wow_entities::CurrentSpellSlot::Channeled,
+                    wow_entities::CurrentSpellRef::new(12_348, Some(creature_guid), None)
+                        .with_allow_actions_during_channel(true),
+                );
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+
+        assert_eq!(outcome.melee_precondition_rejections, 0);
+        assert_eq!(outcome.swings_ready, 1);
+        assert_eq!(outcome.canonical_hits, 1);
+        assert_eq!(outcome.commands.len(), 1);
     }
 
     #[test]
