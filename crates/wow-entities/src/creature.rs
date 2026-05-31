@@ -519,6 +519,27 @@ impl Default for CreatureLifecyclePlan {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CreatureSpellFocusStateLikeCpp {
+    pub spell_id: Option<u32>,
+    pub delay_ms: u32,
+    pub target: ObjectGuid,
+    pub orientation: f32,
+    pub ai_does_not_face_target: bool,
+}
+
+impl Default for CreatureSpellFocusStateLikeCpp {
+    fn default() -> Self {
+        Self {
+            spell_id: None,
+            delay_ms: 0,
+            target: ObjectGuid::EMPTY,
+            orientation: 0.0,
+            ai_does_not_face_target: false,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CreatureRuntimeEvadeReason {
     Boundary,
@@ -530,6 +551,8 @@ pub enum CreatureRuntimeEvadeReason {
 pub enum CreatureRuntimeAction {
     NotifyJustAppeared,
     SaveRespawnTime,
+    ReleaseSpellFocus,
+    CancelSpellFocusReacquire,
     ClearTarget,
     ClearNpcFlags,
     ClearMount,
@@ -742,6 +765,7 @@ pub struct Creature {
     tap_list: Vec<ObjectGuid>,
     attack_reputation_faction_id: Option<u32>,
     is_contested_guard_faction: bool,
+    spell_focus: CreatureSpellFocusStateLikeCpp,
 }
 
 impl Creature {
@@ -804,6 +828,7 @@ impl Creature {
             tap_list: Vec::new(),
             attack_reputation_faction_id: None,
             is_contested_guard_faction: false,
+            spell_focus: CreatureSpellFocusStateLikeCpp::default(),
         }
     }
 
@@ -1191,6 +1216,99 @@ impl Creature {
 
     pub fn set_formation_info_like_cpp(&mut self, info: Option<CreatureFormationInfoLikeCpp>) {
         self.lifecycle_metadata.formation_info = info;
+    }
+
+    pub const fn spell_focus_state_like_cpp(&self) -> CreatureSpellFocusStateLikeCpp {
+        self.spell_focus
+    }
+
+    pub fn set_represented_spell_focus_like_cpp(
+        &mut self,
+        spell_id: u32,
+        target: ObjectGuid,
+        orientation: f32,
+        ai_does_not_face_target: bool,
+    ) {
+        self.spell_focus = CreatureSpellFocusStateLikeCpp {
+            spell_id: Some(spell_id),
+            delay_ms: 0,
+            target: self.unit.data().target,
+            orientation,
+            ai_does_not_face_target,
+        };
+        if ai_does_not_face_target {
+            self.unit.add_unit_state(UnitState::FOCUSING.bits());
+        }
+        let new_target = if ai_does_not_face_target {
+            ObjectGuid::EMPTY
+        } else {
+            target
+        };
+        self.unit.set_target(new_target);
+    }
+
+    pub fn has_spell_focus_like_cpp(&self, focus_spell_id: Option<u32>) -> bool {
+        if self.unit.is_dead() {
+            return false;
+        }
+
+        match focus_spell_id {
+            Some(focus_spell_id) => self.spell_focus.spell_id == Some(focus_spell_id),
+            None => self.spell_focus.spell_id.is_some() || self.spell_focus.delay_ms != 0,
+        }
+    }
+
+    pub fn set_target_like_cpp(&mut self, guid: ObjectGuid) {
+        if self.has_spell_focus_like_cpp(None) {
+            self.spell_focus.target = guid;
+        } else {
+            self.unit.set_target(guid);
+        }
+    }
+
+    pub fn release_spell_focus_like_cpp(
+        &mut self,
+        focus_spell_id: Option<u32>,
+        with_delay: bool,
+        is_pet: bool,
+        cannot_turn: bool,
+    ) {
+        let Some(active_spell_id) = self.spell_focus.spell_id else {
+            return;
+        };
+        if focus_spell_id.is_some_and(|focus_spell_id| focus_spell_id != active_spell_id) {
+            return;
+        }
+
+        if self.spell_focus.ai_does_not_face_target {
+            self.unit.clear_unit_state(UnitState::FOCUSING.bits());
+        }
+
+        if is_pet {
+            if !cannot_turn {
+                self.reacquire_spell_focus_target_like_cpp(cannot_turn);
+            }
+        } else {
+            self.spell_focus.delay_ms = if with_delay { 1000 } else { 1 };
+        }
+        self.spell_focus.spell_id = None;
+    }
+
+    pub fn reacquire_spell_focus_target_like_cpp(&mut self, cannot_turn: bool) {
+        if !self.has_spell_focus_like_cpp(None) {
+            return;
+        }
+
+        self.unit.set_target(self.spell_focus.target);
+        if cannot_turn {
+            // C++ skips target-facing/orientation restore when CannotTurn() is true.
+        }
+        self.spell_focus.delay_ms = 0;
+    }
+
+    pub fn do_not_reacquire_spell_focus_target_like_cpp(&mut self) {
+        self.spell_focus.delay_ms = 0;
+        self.spell_focus.spell_id = None;
     }
 
     /// Represented C++ `Creature::SearchFormation()` branch.
@@ -2291,6 +2409,8 @@ impl Creature {
                 };
                 self.runtime_state.save_respawn_requested = true;
                 self.runtime_state.visibility_update_requested = true;
+                self.release_spell_focus_like_cpp(None, false, false, false);
+                self.do_not_reacquire_spell_focus_target_like_cpp();
                 self.unit.set_target(ObjectGuid::EMPTY);
                 self.unit.set_attacking(None);
                 self.unit.subsystems_mut().combat.end_all_combat();
@@ -2347,6 +2467,8 @@ impl Creature {
                     .remove(MovementFlag::HOVER | MovementFlag::DISABLE_GRAVITY);
                 plan.extend([
                     CreatureRuntimeAction::SaveRespawnTime,
+                    CreatureRuntimeAction::ReleaseSpellFocus,
+                    CreatureRuntimeAction::CancelSpellFocusReacquire,
                     CreatureRuntimeAction::ClearTarget,
                     CreatureRuntimeAction::ClearNpcFlags,
                     CreatureRuntimeAction::ClearMount,
@@ -4303,6 +4425,7 @@ mod tests {
             .spells
             .set_current_spell(CurrentSpellSlot::Channeled, channeled_spell);
         creature.unit_mut().set_target(victim);
+        creature.set_represented_spell_focus_like_cpp(9001, player, 1.25, true);
         creature.unit_mut().set_attacking(Some(victim));
         creature.unit_mut().world_mut().set_active(true);
         creature
@@ -4323,6 +4446,20 @@ mod tests {
         assert_eq!(creature.corpse_remove_time(), now + 15);
         assert_eq!(creature.respawn_time(), now + 45 + 15);
         assert_eq!(creature.unit().data().target, ObjectGuid::EMPTY);
+        assert_eq!(
+            creature.spell_focus_state_like_cpp().spell_id,
+            None,
+            "C++ Creature::setDeathState(JUST_DIED) releases spell focus before clearing target"
+        );
+        assert_eq!(
+            creature.spell_focus_state_like_cpp().delay_ms,
+            0,
+            "C++ DoNotReacquireSpellFocusTarget cancels the delayed target snapback"
+        );
+        assert!(
+            !creature.unit().has_unit_state(UnitState::FOCUSING.bits()),
+            "C++ ReleaseSpellFocus clears UNIT_STATE_FOCUSING for AI_DOESNT_FACE_TARGET spells"
+        );
         assert_eq!(creature.unit().attacking(), None);
         assert_eq!(creature.unit().data().health, 0);
         assert_eq!(creature.unit().get_power(PowerType::Energy), 0);
@@ -4493,6 +4630,8 @@ mod tests {
         assert!(creature.unit().subsystems().combat.attackers.is_empty());
         assert!(creature.runtime_state().save_respawn_requested);
         assert!(plan.contains(CreatureRuntimeAction::SaveRespawnTime));
+        assert!(plan.contains(CreatureRuntimeAction::ReleaseSpellFocus));
+        assert!(plan.contains(CreatureRuntimeAction::CancelSpellFocusReacquire));
         assert!(plan.contains(CreatureRuntimeAction::ClearTarget));
 
         let mut non_compat = Creature::new(false);
@@ -4503,6 +4642,35 @@ mod tests {
         assert_eq!(non_compat.respawn_time(), now + 45);
         assert_eq!(non_compat.corpse_remove_time(), now + 15);
         assert_eq!(non_compat.unit().death_state(), DeathState::Corpse);
+    }
+
+    #[test]
+    fn creature_spell_focus_release_and_cancel_match_cpp_state_transitions() {
+        let original_target = ObjectGuid::new(1, 10);
+        let cast_target = ObjectGuid::new(1, 11);
+        let mut creature = Creature::new(false);
+        creature.unit_mut().set_target(original_target);
+        creature.set_represented_spell_focus_like_cpp(700, cast_target, 2.5, true);
+
+        assert_eq!(
+            creature.spell_focus_state_like_cpp().target,
+            original_target
+        );
+        assert_eq!(creature.unit().data().target, ObjectGuid::EMPTY);
+        assert!(creature.unit().has_unit_state(UnitState::FOCUSING.bits()));
+
+        creature.release_spell_focus_like_cpp(None, false, false, false);
+
+        assert_eq!(creature.spell_focus_state_like_cpp().spell_id, None);
+        assert_eq!(creature.spell_focus_state_like_cpp().delay_ms, 1);
+        assert!(!creature.unit().has_unit_state(UnitState::FOCUSING.bits()));
+        assert!(creature.has_spell_focus_like_cpp(None));
+
+        creature.do_not_reacquire_spell_focus_target_like_cpp();
+
+        assert_eq!(creature.spell_focus_state_like_cpp().spell_id, None);
+        assert_eq!(creature.spell_focus_state_like_cpp().delay_ms, 0);
+        assert!(!creature.has_spell_focus_like_cpp(None));
     }
 
     #[test]

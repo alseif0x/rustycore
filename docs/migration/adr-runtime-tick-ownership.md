@@ -889,6 +889,16 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   it to loaded creatures so represented sparring damage/fake-damage uses the DB-backed float
   threshold. Exact addon reload is still a separate gap; `MoveFall()` remains intentionally open
   because the C++ path also needs `IsUnderWater()` plus real MotionMaster terrain/spline execution.
+- 2026-05-31 — Represented creature death spell-focus cleanup `#NEXT.RUNTIME.L3.031bd`:
+  ports the bounded state cleanup from C++ `Creature::setDeathState(JUST_DIED)`
+  `ReleaseSpellFocus(nullptr, false)` and `DoNotReacquireSpellFocusTarget()`
+  (`Creature.cpp:2223-2224`, `Creature.cpp:3340-3389`). Rust now represents `_spellFocusInfo`
+  locally on `Creature`, preserves the C++ non-pet delayed-reacquire shape for `ReleaseSpellFocus`
+  (`withDelay=false` schedules delay `1` before the following cancel), clears represented
+  `UNIT_STATE_FOCUSING` for focus spells that use the `AI_DOESNT_FACE_TARGET` path, and death
+  cancels any delayed snapback before clearing target. Full `Spell*`/`SpellInfo` validation,
+  ObjectAccessor target-facing restore, pet override timing/fanout, and the live spell runtime
+  remain separate gaps.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
