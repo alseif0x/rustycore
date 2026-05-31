@@ -31,15 +31,16 @@ use crate::spawn_store_loader::CreatureSpawnRuntimeRowLikeCpp;
 use anyhow::Result;
 use wow_core::{ObjectGuid, Position, guid::HighGuid};
 use wow_data::{
-    CreatureBaseStatsStoreLikeCpp, CreatureClassificationHealthRatesLikeCpp,
-    CreatureDifficultyStoreLikeCpp, CreatureDisplayInfoStore, CreatureModelDataStore,
-    CreatureTemplateLifecycleStoreLikeCpp,
+    CreatureAddonStoreLikeCpp, CreatureBaseStatsStoreLikeCpp,
+    CreatureClassificationHealthRatesLikeCpp, CreatureDifficultyStoreLikeCpp,
+    CreatureDisplayInfoStore, CreatureModelDataStore, CreatureTemplateLifecycleStoreLikeCpp,
 };
 use wow_entities::{
-    Creature, CreatureAddToWorldVehicleResetContextLikeCpp, CreatureCreateLifecycleRecord,
-    CreatureFormationInfoLikeCpp, CreatureLifecycleStats, CreatureLoadFromDbLifecycleRecord,
-    CreatureModelDimensions, CreatureSpawnLifecycleRecord, CreatureTemplateLifecycleRecord,
-    MapObjectRecord, MovementGeneratorType, VehicleKitCreateInputLikeCpp,
+    Creature, CreatureAddToWorldVehicleResetContextLikeCpp, CreatureAddonLifecycleRecordLikeCpp,
+    CreatureCreateLifecycleRecord, CreatureFormationInfoLikeCpp, CreatureLifecycleStats,
+    CreatureLoadFromDbLifecycleRecord, CreatureModelDimensions, CreatureSpawnLifecycleRecord,
+    CreatureTemplateLifecycleRecord, MapObjectRecord, MovementGeneratorType,
+    VehicleKitCreateInputLikeCpp,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -82,6 +83,7 @@ pub struct ResolvedCreatureTemplateLikeCpp {
     pub add_to_world_vehicle_reset_context: Option<CreatureAddToWorldVehicleResetContextLikeCpp>,
     pub corpse_delay: u32,
     pub ignore_corpse_decay_ratio: bool,
+    pub addon: Option<CreatureAddonLifecycleRecordLikeCpp>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -227,7 +229,7 @@ impl CreatureLoadedGridLifecycleResolverLikeCpp {
                 selected_original_equipment_id: selection.selected_original_equipment_id,
                 corpse_delay: template.corpse_delay,
                 ignore_corpse_decay_ratio: template.ignore_corpse_decay_ratio,
-                addon: None,
+                addon: template.addon,
             },
             spawn: spawn_lifecycle_record(spawn),
         };
@@ -267,6 +269,7 @@ pub fn build_loaded_grid_creature_inputs_from_db_like_cpp(
     health_rates: &CreatureClassificationHealthRatesLikeCpp,
     display_store: &CreatureDisplayInfoStore,
     model_store: &CreatureModelDataStore,
+    addon_store: &CreatureAddonStoreLikeCpp,
     difficulty_id: u8,
     instance_id: u32,
     respawn_time: i64,
@@ -396,6 +399,7 @@ pub fn build_loaded_grid_creature_inputs_from_db_like_cpp(
         add_to_world_vehicle_reset_context: None,
         corpse_delay: 0,
         ignore_corpse_decay_ratio: false,
+        addon: addon_store.get_for_creature_like_cpp(spawn.spawn_id, template.entry),
     };
     let position = Position {
         x: spawn.spawn_point.x,
@@ -622,6 +626,7 @@ mod tests {
             add_to_world_vehicle_reset_context: None,
             corpse_delay: 61,
             ignore_corpse_decay_ratio: true,
+            addon: None,
         }
     }
 
@@ -874,6 +879,7 @@ mod tests {
                 &CreatureClassificationHealthRatesLikeCpp::default(),
                 &display_store,
                 &model_store,
+                &CreatureAddonStoreLikeCpp::default(),
                 2,
                 9,
                 123,
@@ -940,6 +946,97 @@ mod tests {
     }
 
     #[test]
+    fn loaded_grid_db_backed_builder_resolves_creature_addon_fallback_like_cpp() {
+        let entry = 12_401;
+        let spawn = db_backed_spawn(entry);
+        let runtime_row = CreatureSpawnRuntimeRowLikeCpp {
+            spawn_id: spawn.spawn_id,
+            model_id: 999,
+            equipment_id: 0,
+            wander_distance: 5.0,
+            curhealth: 10,
+            curmana: 5,
+            movement_type: 0,
+            npc_flags: None,
+            unit_flags: None,
+            unit_flags2: None,
+            unit_flags3: None,
+            ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
+            swim_allowed: true,
+            flight_movement_type: 0,
+            string_id: String::new(),
+            spawn_time_secs: 20,
+        };
+        let addon_store = CreatureAddonStoreLikeCpp::from_rows_like_cpp(
+            [wow_data::CreatureAddonRowLikeCpp {
+                owner_id: spawn.spawn_id,
+                path_id: 0,
+                mount: 1234,
+                stand_state: wow_constants::UnitStandStateType::Kneel as u8,
+                anim_tier: 0,
+                vis_flags: 0,
+                sheath_state: 0,
+                pvp_flags: wow_constants::UnitPvpFlags::PVP.bits(),
+                emote: 77,
+                ai_anim_kit: 0,
+                movement_anim_kit: 0,
+                melee_anim_kit: 0,
+                visibility_distance_type: 0,
+            }],
+            [wow_data::CreatureAddonRowLikeCpp {
+                owner_id: u64::from(entry),
+                path_id: 0,
+                mount: 5678,
+                stand_state: wow_constants::UnitStandStateType::Sleep as u8,
+                anim_tier: 0,
+                vis_flags: 0,
+                sheath_state: 0,
+                pvp_flags: wow_constants::UnitPvpFlags::SANCTUARY.bits(),
+                emote: 88,
+                ai_anim_kit: 0,
+                movement_anim_kit: 0,
+                melee_anim_kit: 0,
+                visibility_distance_type: 0,
+            }],
+            |spawn_id| spawn_id == spawn.spawn_id,
+            |template_entry| template_entry == entry,
+            |display_id| matches!(display_id, 1234 | 5678),
+            |emote| matches!(emote, 77 | 88),
+        );
+        let (display_store, model_store) = empty_display_stores();
+
+        let (template, _, _) = build_loaded_grid_creature_inputs_from_db_like_cpp(
+            &spawn,
+            &runtime_row,
+            &db_backed_template_store(entry),
+            &db_backed_difficulty_store(entry),
+            &db_backed_base_stats_store(),
+            &CreatureClassificationHealthRatesLikeCpp::default(),
+            &display_store,
+            &model_store,
+            &addon_store,
+            2,
+            0,
+            0,
+            false,
+            None,
+            |_, _| 19,
+        )
+        .expect("DB-backed builder should resolve addon fallback");
+
+        assert_eq!(
+            template.addon,
+            Some(CreatureAddonLifecycleRecordLikeCpp {
+                mount_display_id: 1234,
+                stand_state: wow_constants::UnitStandStateType::Kneel,
+                pvp_flags: wow_constants::UnitPvpFlags::PVP,
+                emote: 77,
+            }),
+            "C++ Creature::GetCreatureAddon prefers creature_addon by spawn id over template addon"
+        );
+    }
+
+    #[test]
     fn loaded_grid_db_backed_builder_regen_true_scales_max_and_current_health_like_cpp() {
         let entry = 12_405;
         let spawn = db_backed_spawn(entry);
@@ -976,6 +1073,7 @@ mod tests {
             &health_rates,
             &display_store,
             &model_store,
+            &CreatureAddonStoreLikeCpp::default(),
             2,
             0,
             0,
@@ -1030,6 +1128,7 @@ mod tests {
             &health_rates,
             &display_store,
             &model_store,
+            &CreatureAddonStoreLikeCpp::default(),
             2,
             0,
             0,
@@ -1084,6 +1183,7 @@ mod tests {
                 &CreatureClassificationHealthRatesLikeCpp::default(),
                 &display_store,
                 &model_store,
+                &CreatureAddonStoreLikeCpp::default(),
                 2,
                 0,
                 0,
@@ -1103,6 +1203,7 @@ mod tests {
                 &CreatureClassificationHealthRatesLikeCpp::default(),
                 &display_store,
                 &model_store,
+                &CreatureAddonStoreLikeCpp::default(),
                 2,
                 0,
                 0,
@@ -1159,6 +1260,7 @@ mod tests {
             &CreatureClassificationHealthRatesLikeCpp::default(),
             &display_store,
             &model_store,
+            &CreatureAddonStoreLikeCpp::default(),
             2,
             0,
             0,
@@ -1212,6 +1314,7 @@ mod tests {
             &health_rates,
             &display_store,
             &model_store,
+            &CreatureAddonStoreLikeCpp::default(),
             2,
             0,
             0,
@@ -1264,6 +1367,7 @@ mod tests {
             &health_rates,
             &display_store,
             &model_store,
+            &CreatureAddonStoreLikeCpp::default(),
             2,
             0,
             0,
@@ -1290,6 +1394,7 @@ mod tests {
             &health_rates,
             &display_store,
             &model_store,
+            &CreatureAddonStoreLikeCpp::default(),
             2,
             0,
             0,
@@ -1336,6 +1441,7 @@ mod tests {
             &CreatureClassificationHealthRatesLikeCpp::default(),
             &display_store,
             &model_store,
+            &CreatureAddonStoreLikeCpp::default(),
             2,
             0,
             0,
@@ -1481,6 +1587,49 @@ mod tests {
             .expect("resolver should build lifecycle record");
 
         assert_eq!(resolved.creature.sparring_health_pct(), 35.5);
+    }
+
+    #[test]
+    fn loaded_grid_creature_lifecycle_resolver_applies_resolved_addon_like_cpp() {
+        let entry = 12_346;
+        let spawn_id = 56;
+        let mut template = template(entry);
+        template.addon = Some(CreatureAddonLifecycleRecordLikeCpp {
+            mount_display_id: 4321,
+            stand_state: wow_constants::UnitStandStateType::Kneel,
+            pvp_flags: wow_constants::UnitPvpFlags::PVP | wow_constants::UnitPvpFlags::FFA_PVP,
+            emote: 77,
+        });
+        let resolver = CreatureLoadedGridLifecycleResolverLikeCpp::new(
+            [template],
+            [spawn(spawn_id, entry, true)],
+            [selection(entry)],
+        );
+
+        let resolved = resolver
+            .resolve_loaded_grid_creature_like_cpp(spawn_id, map_creature_guid(entry, 571, 99_002))
+            .expect("resolver should build lifecycle record");
+
+        assert_eq!(
+            resolved.lifecycle_record.create.addon,
+            Some(CreatureAddonLifecycleRecordLikeCpp {
+                mount_display_id: 4321,
+                stand_state: wow_constants::UnitStandStateType::Kneel,
+                pvp_flags: wow_constants::UnitPvpFlags::PVP | wow_constants::UnitPvpFlags::FFA_PVP,
+                emote: 77,
+            }),
+            "C++ Creature::LoadFromDB/Create carries the addon selected by Creature::GetCreatureAddon"
+        );
+        assert_eq!(resolved.creature.unit().data().mount_display_id, 4321);
+        assert_eq!(
+            resolved.creature.unit().stand_state_like_cpp(),
+            wow_constants::UnitStandStateType::Kneel
+        );
+        assert_eq!(
+            resolved.creature.unit().pvp_flags_like_cpp(),
+            wow_constants::UnitPvpFlags::PVP | wow_constants::UnitPvpFlags::FFA_PVP
+        );
+        assert_eq!(resolved.creature.unit().emote_state_like_cpp(), 77);
     }
 
     #[test]

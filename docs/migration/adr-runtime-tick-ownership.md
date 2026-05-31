@@ -948,6 +948,16 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   C++-style mount/emote invalidation to zero, stand-state truncation to stand, and full-byte PvP flag
   retention. This is still a dormant data store: live DB loading, movement-type waypoint mutation,
   path id, aura/anim/sheath/visibility validation, and loaded-grid resolver wiring remain open.
+- 2026-05-31 — Loaded-grid creature addon resolver wiring `#NEXT.RUNTIME.L3.031bj`: wires the
+  supported addon subset through the DB-backed loaded-grid resolver, still contrasted against C++
+  `Creature::GetCreatureAddon` (`Creature.cpp:2722-2732`) and `LoadCreaturesAddon`
+  (`Creature.cpp:2734-2809`). `build_loaded_grid_creature_inputs_from_db_like_cpp` now accepts a
+  `CreatureAddonStoreLikeCpp`, resolves the spawn-addon-before-template-addon record into
+  `ResolvedCreatureTemplateLikeCpp`, and `CreatureLoadedGridLifecycleResolverLikeCpp` passes that
+  resolved addon into `CreatureCreateLifecycleRecord` so create/respawn lifecycle code applies the
+  represented mount/stand/PvP/emote fields. Production still passes an empty store until the next DB
+  loading slice; path id, auras, visual flags, anim tier/kits, sheath, visibility distance, hover,
+  and waypoint movement mutation remain explicit gaps.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
