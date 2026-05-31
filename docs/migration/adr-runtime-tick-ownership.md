@@ -863,6 +863,14 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   and preserves it through `CreatureCreateData` when respawn reconstruction has the value. Legacy
   visibility/test routes without a `dmgschool` query explicitly seed normal school rather than
   inventing DB-backed data.
+- 2026-05-31 — Represented creature respawn spawn-health reload `#NEXT.RUNTIME.L3.031ba`:
+  ports the bounded non-pet `SetSpawnHealth()` source used by
+  `Creature::setDeathState(JUST_RESPAWNED)` (`Creature.cpp:2251-2255`, `Creature.cpp:1954-1974`).
+  The DB-backed loaded-grid resolver already resolves C++ `curhealth`/`curmana`,
+  `_regenerateHealth`, classification health scaling, and `NO_HEALTH_REGEN`; Rust now stores that
+  represented spawn health/mana in creature lifecycle metadata and uses it during represented
+  respawn. Entities without DB-backed lifecycle metadata keep the existing max-health fallback
+  rather than inventing missing spawn-row data.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

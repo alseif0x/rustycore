@@ -1939,3 +1939,13 @@ C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entit
 Implemented Rust seam: `crates/wow-data/src/creature_template.rs` now loads and normalizes represented `damage_school` from `creature_template.dmgschool`; `crates/wow-entities/src/creature.rs` carries it in lifecycle metadata/template records, exposes `set_melee_damage_school_like_cpp`, applies it during lifecycle create and represented `JustRespawned`; `crates/world-server/src/creature_loaded_grid.rs` propagates it through the DB-backed loaded-grid lifecycle builder; `CreatureCreateData` carries the value so legacy map respawn reconstruction preserves it when available. Legacy visibility/test routes that do not query `dmgschool` explicitly seed `SPELL_SCHOOL_NORMAL`; no fake DB value is invented there.
 
 Validation evidence: focused wow-data lifecycle tests assert field mapping and invalid clamp; focused wow-entities lifecycle and respawn tests assert melee school mask application/reload; focused world-server loaded-grid resolver test asserts DB-backed propagation into the entity.
+
+### #NEXT.RUNTIME.L3.031ba — represented creature respawn spawn-health reload
+
+Status: represented-closeout for the bounded non-pet `SetSpawnHealth()` health/mana source used by `Creature::setDeathState(JUST_RESPAWNED)`; not manual-test-ready.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Creature/Creature.cpp:2251-2255` calls `SetSpawnHealth()` for non-pets during `JUST_RESPAWNED`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Creature/Creature.cpp:1954-1974` uses creature-data `curhealth/curmana` when `_regenerateHealth` is false, otherwise max health/full mana, and preserves existing initial stats when `CREATURE_STATIC_FLAG_5_NO_HEALTH_REGEN` is set.
+
+Implemented Rust seam: `crates/wow-entities/src/creature.rs` now stores represented lifecycle `spawn_health`/`spawn_mana` from `CreatureCreateLifecycleRecord.stats` and uses those values during represented `JustRespawned`; creatures without DB-backed lifecycle metadata keep the previous fallback to max health. This reuses the existing DB-backed loaded-grid `SetSpawnHealth` resolver in `crates/world-server/src/creature_loaded_grid.rs` rather than recalculating DB rules in the entity layer.
+
+Validation evidence: focused lifecycle test asserts spawn health/mana metadata is retained, and a new respawn test dirties current health/mana then asserts respawn restores represented spawn health/mana instead of blindly using max health.

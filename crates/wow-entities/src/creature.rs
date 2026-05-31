@@ -367,6 +367,8 @@ pub struct CreatureLifecycleMetadata {
     pub selected_level: u8,
     pub selected_display_id: u32,
     pub selected_model_dimensions: Option<CreatureModelDimensions>,
+    pub spawn_health: Option<u64>,
+    pub spawn_mana: Option<i32>,
     pub template_scale: f32,
     pub speed_walk: f32,
     pub speed_run: f32,
@@ -417,6 +419,8 @@ impl Default for CreatureLifecycleMetadata {
             selected_level: 0,
             selected_display_id: 0,
             selected_model_dimensions: None,
+            spawn_health: None,
+            spawn_mana: None,
             template_scale: 1.0,
             speed_walk: 1.0,
             speed_run: 1.0,
@@ -948,6 +952,8 @@ impl Creature {
             selected_model_dimensions: record
                 .selected_model_dimensions
                 .or(template.model_dimensions),
+            spawn_health: Some(record.stats.health),
+            spawn_mana: Some(record.stats.mana),
             template_scale: template.scale,
             speed_walk: template.speed_walk,
             speed_run: template.speed_run,
@@ -2351,7 +2357,14 @@ impl Creature {
                 self.unit.set_death_state(DeathState::Corpse);
             }
             DeathState::JustRespawned => {
-                self.unit.set_health(self.unit.data().max_health);
+                self.unit.set_health(
+                    self.lifecycle_metadata
+                        .spawn_health
+                        .unwrap_or(self.unit.data().max_health),
+                );
+                if let Some(spawn_mana) = self.lifecycle_metadata.spawn_mana {
+                    self.unit.set_power(PowerType::Mana, spawn_mana);
+                }
                 self.unit
                     .world_mut()
                     .object_mut()
@@ -3777,6 +3790,8 @@ mod tests {
         assert_eq!(creature.unit().data().health, 4_500);
         assert_eq!(creature.unit().get_max_power(PowerType::Mana), 1_000);
         assert_eq!(creature.unit().get_power(PowerType::Mana), 750);
+        assert_eq!(creature.lifecycle_metadata().spawn_health, Some(4_500));
+        assert_eq!(creature.lifecycle_metadata().spawn_mana, Some(750));
         assert_eq!(
             creature.unit().weapon_damage(WeaponAttackType::BaseAttack),
             [BASE_MINDAMAGE, BASE_MAXDAMAGE]
@@ -3817,6 +3832,27 @@ mod tests {
         record.spawn = None;
         let dynamic_creature = Creature::create_from_lifecycle(record);
         assert!(!dynamic_creature.respawn_compatibility_mode());
+    }
+
+    #[test]
+    fn creature_runtime_just_respawned_uses_represented_spawn_health_like_cpp() {
+        let mut creature = Creature::create_from_lifecycle(creature_lifecycle_create_record());
+        creature.unit_mut().set_health(1);
+        creature.unit_mut().set_power(PowerType::Mana, 1);
+        creature.unit_mut().set_death_state(DeathState::Corpse);
+
+        creature.set_death_state_runtime(DeathState::JustRespawned, 5_000);
+
+        assert_eq!(
+            creature.unit().data().health,
+            4_500,
+            "C++ Creature::setDeathState(JUST_RESPAWNED) calls SetSpawnHealth instead of always SetFullHealth for non-pets"
+        );
+        assert_eq!(
+            creature.unit().get_power(PowerType::Mana),
+            750,
+            "C++ SetSpawnHealth restores the represented spawn mana source"
+        );
     }
 
     #[test]
