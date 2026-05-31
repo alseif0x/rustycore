@@ -570,6 +570,16 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `script_name` from the despawned `WorldCreature`, and
   `world_creature_from_pending_respawn_like_cpp` restores them into `CreatureLifecycleMetadata`.
   This is still data continuity only; AI factory selection and `CanAIAttack` behavior remain open.
+- 2026-05-31 — Runtime creature AI selector evidence `#NEXT.RUNTIME.L3.031v`: represented the pure
+  C++ `FactorySelector::SelectAI` decision in `wow-ai` without changing live behavior. Rust now
+  models the pet override, script-created AI before `AIName`, registered `AIName` lookup
+  (`SmartAI` included), and fallback permit selection with C++ `ObjectRegistry` `std::map` /
+  `std::max_element` tie behavior. This matters for cases like trigger-without-spell selecting
+  `NullCreatureAI`, and equal permit values being resolved by lexicographic AIName order rather
+  than hand-written priority. C++ anchors: `CreatureAISelector.cpp:59-101`,
+  `CreatureAIRegistry.cpp:34-54`, `ObjectRegistry.h:31,70`, `CreatureAI.h:44-49`, and stock
+  permit implementations in `CoreAI`. This remains selector evidence only: no AI object
+  instantiation, script/SmartAI execution, `CanAIAttack` wiring, or live creature behavior change.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
