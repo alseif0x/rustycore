@@ -4891,6 +4891,57 @@ impl WorldSession {
         swim_allowed: bool,
         flight_movement_type: u8,
     ) {
+        self.register_world_creature_with_flags_extra_movement_and_default_motion_like_cpp(
+            map_id,
+            position,
+            create_data,
+            min_dmg,
+            max_dmg,
+            aggro_radius,
+            loot_id,
+            skin_loot_id,
+            gold_min,
+            gold_max,
+            boss_id,
+            dungeon_encounter_id,
+            phase_use_flags,
+            phase_id,
+            phase_group_id,
+            terrain_swap_map,
+            flags_extra,
+            ground_movement_type,
+            swim_allowed,
+            flight_movement_type,
+            wow_entities::MovementGeneratorType::Idle,
+            0,
+        );
+    }
+
+    pub(crate) fn register_world_creature_with_flags_extra_movement_and_default_motion_like_cpp(
+        &mut self,
+        map_id: u16,
+        position: wow_core::Position,
+        create_data: wow_packet::packets::update::CreatureCreateData,
+        min_dmg: u32,
+        max_dmg: u32,
+        aggro_radius: f32,
+        loot_id: u32,
+        skin_loot_id: u32,
+        gold_min: u32,
+        gold_max: u32,
+        boss_id: Option<u32>,
+        dungeon_encounter_id: u32,
+        phase_use_flags: u8,
+        phase_id: u16,
+        phase_group_id: u32,
+        terrain_swap_map: i32,
+        flags_extra: u32,
+        ground_movement_type: u8,
+        swim_allowed: bool,
+        flight_movement_type: u8,
+        default_movement_type: wow_entities::MovementGeneratorType,
+        waypoint_path_id: u32,
+    ) {
         let guid = create_data.guid;
         let entry = create_data.entry;
         let hp = create_data.health.max(1) as u32;
@@ -4936,6 +4987,10 @@ impl WorldSession {
             creature.set_ground_movement_type_runtime_like_cpp(ground_movement_type);
             creature.set_swim_allowed_runtime_like_cpp(swim_allowed);
             creature.set_flight_movement_type_runtime_like_cpp(flight_movement_type);
+            creature.set_default_movement_type_runtime_like_cpp(default_movement_type);
+            if waypoint_path_id != 0 {
+                creature.load_path_like_cpp(waypoint_path_id);
+            }
             creature.configure_ai_runtime(position, aggro_radius, 5.0, 30);
             creature.ai_ownership_mut().min_damage = min_dmg;
             creature.ai_ownership_mut().max_damage = max_dmg;
@@ -34955,6 +35010,61 @@ mod tests {
             .expect("creature stored as typed Creature entity");
         assert_eq!(typed.unit().world().object().entry(), 9001);
         assert_eq!(typed.current_health(), 25);
+    }
+
+    #[test]
+    fn register_world_creature_hydrates_db_waypoint_path_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let manager = shared_map_manager();
+        let guid = test_creature_guid(613);
+        let path = wow_movement::WaypointPath::new(
+            77_001,
+            vec![wow_movement::WaypointNode::new(1, 12.0, 20.0, 30.0)],
+        );
+
+        session.set_map_manager(Arc::clone(&manager));
+        session.set_waypoint_path_resolver_like_cpp(Arc::new(move |path_id| {
+            (path_id == 77_001).then_some(path.clone())
+        }));
+        session.current_map_id = 571;
+        session.register_world_creature_with_flags_extra_movement_and_default_motion_like_cpp(
+            571,
+            Position::new(10.0, 20.0, 30.0, 1.0),
+            test_creature_create_data(guid, 9001, 25),
+            3,
+            5,
+            20.0,
+            0,
+            0,
+            0,
+            0,
+            None,
+            0,
+            0,
+            0,
+            0,
+            -1,
+            0,
+            wow_constants::CreatureGroundMovementType::Run as u8,
+            true,
+            0,
+            wow_entities::MovementGeneratorType::Waypoint,
+            77_001,
+        );
+
+        let guard = manager.read().unwrap();
+        let creature = guard
+            .find_creature(571, 0, guid)
+            .expect("creature inserted into legacy map");
+        assert_eq!(
+            creature.creature.waypoint_path_id_like_cpp(),
+            77_001,
+            "C++ Creature::LoadCreaturesAddon copies nonzero PathId into _waypointPathId"
+        );
+        assert!(
+            creature.active_waypoint_generator_like_cpp().is_some(),
+            "C++ WaypointMovementGenerator::DoInitialize resolves owner GetWaypointPathId for DB-loaded waypoint movement"
+        );
     }
 
     #[test]

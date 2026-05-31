@@ -2000,6 +2000,14 @@ impl Creature {
         self.default_movement_type
     }
 
+    pub fn set_default_movement_type_runtime_like_cpp(
+        &mut self,
+        movement_type: MovementGeneratorType,
+    ) {
+        self.default_movement_type = movement_type;
+        self.sync_motion_default_generator_like_cpp();
+    }
+
     fn sync_motion_default_generator_like_cpp(&mut self) {
         let kind = match self.default_movement_type {
             MovementGeneratorType::Idle => MovementGeneratorKind::Idle,
@@ -4506,6 +4514,31 @@ mod tests {
         );
         assert!(current.has_flag(crate::MOVEMENTGENERATOR_FLAG_INITIALIZATION_PENDING));
         assert_eq!(current.base_unit_state, UnitState::ROAMING.bits());
+    }
+
+    #[test]
+    fn creature_runtime_default_movement_setter_syncs_motion_generator_like_cpp() {
+        let mut creature = Creature::new(false);
+        assert_eq!(
+            creature.default_movement_type(),
+            MovementGeneratorType::Idle
+        );
+
+        creature.set_default_movement_type_runtime_like_cpp(MovementGeneratorType::Waypoint);
+
+        assert_eq!(
+            creature.default_movement_type(),
+            MovementGeneratorType::Waypoint
+        );
+        assert_eq!(
+            creature
+                .unit()
+                .subsystems()
+                .motion
+                .current_movement_generator()
+                .kind,
+            MovementGeneratorKind::Waypoint
+        );
     }
 
     #[test]

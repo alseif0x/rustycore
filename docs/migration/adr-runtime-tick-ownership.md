@@ -1227,8 +1227,21 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   mutation and mirrors Creature records into the legacy `MapManager`. This extends `031d2` beyond
   direct game-event spawning to canonical tick respawns, spawn-group condition spawns, pool and
   event-pool loaded-grid execution. Remaining gap: this still mirrors only Creature records into the
-  legacy creature runtime; GameObject runtime parity, pre-add trap side effects, direct session DB
-  addon `PathId` hydration, and live server/client validation remain separate work.
+  legacy creature runtime; GameObject runtime parity, pre-add trap side effects, and live
+  server/client validation remain separate work. Direct session DB addon `PathId` hydration is
+  superseded by `031d4`.
+- 2026-05-31 — Direct session DB creature query addon `PathId` hydration
+  `#NEXT.RUNTIME.L3.031d4`: contrasted against C++ `Creature::LoadFromDB`, `Creature::Create`,
+  `Creature::LoadCreaturesAddon`, `ObjectMgr::LoadCreatureAddons`, and
+  `WaypointMovementGenerator<Creature>::DoInitialize`. The legacy fallback DB visibility query now
+  selects effective spawn movement and resolved addon path (`creature_addon` first,
+  `creature_template_addon` fallback), preserving the existing column/parameter prefix. Both direct
+  session visibility paths pass those values to creature registration, which sets the represented
+  default movement and nonzero waypoint path before building the `WorldCreature`; DB waypoint
+  creatures therefore initialize the stored waypoint generator through the injected
+  `WaypointPathStoreLikeCpp` resolver. This closes the direct-session gap left after `031d1-031d3`;
+  live client validation, full AI waypoint callbacks, path/MMAP, formations, and GameObject runtime
+  parity remain open.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

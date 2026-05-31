@@ -531,13 +531,17 @@ impl StatementDef for WorldStatements {
                 "ctm.CreatureDisplayID, ",
                 "ctdiff.LootID, ctdiff.SkinLootID, ctdiff.GoldMin, ctdiff.GoldMax, ",
                 "c.phaseUseFlags, c.phaseid, c.phasegroup, c.terrainSwapMap, ",
-                "COALESCE(cmo.Ground, ctmv.Ground, 1), COALESCE(cmo.Swim, ctmv.Swim, 1), COALESCE(cmo.Flight, ctmv.Flight, 0) ",
+                "COALESCE(cmo.Ground, ctmv.Ground, 1), COALESCE(cmo.Swim, ctmv.Swim, 1), COALESCE(cmo.Flight, ctmv.Flight, 0), ",
+                "CASE WHEN ca.guid IS NOT NULL AND ca.PathId = 0 AND c.MovementType = 2 THEN 0 ELSE c.MovementType END, ",
+                "COALESCE(ca.PathId, cta.PathId, 0) ",
                 "FROM creature c ",
                 "JOIN creature_template ct ON c.id = ct.entry ",
                 "LEFT JOIN creature_template_difficulty ctdiff ON ct.entry = ctdiff.Entry AND ctdiff.DifficultyID = 0 ",
                 "LEFT JOIN creature_template_model ctm ON ct.entry = ctm.CreatureID AND ctm.Idx = 0 ",
                 "LEFT JOIN creature_template_movement ctmv ON ct.entry = ctmv.CreatureId ",
                 "LEFT JOIN creature_movement_override cmo ON c.guid = cmo.SpawnId ",
+                "LEFT JOIN creature_addon ca ON ca.guid = c.guid ",
+                "LEFT JOIN creature_template_addon cta ON cta.entry = c.id ",
                 "WHERE c.map = ? AND c.position_x BETWEEN ? AND ? AND c.position_y BETWEEN ? AND ?",
             ),
             Self::SEL_CREATURE_SPAWNS => concat!(
@@ -973,6 +977,22 @@ impl StatementDef for WorldStatements {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn creatures_in_range_selects_addon_path_and_effective_movement_like_cpp() {
+        let sql = WorldStatements::SEL_CREATURES_IN_RANGE.sql();
+
+        assert!(sql.contains("LEFT JOIN creature_addon ca ON ca.guid = c.guid"));
+        assert!(sql.contains("LEFT JOIN creature_template_addon cta ON cta.entry = c.id"));
+        assert!(
+            sql.contains(
+                "CASE WHEN ca.guid IS NOT NULL AND ca.PathId = 0 AND c.MovementType = 2 THEN 0 ELSE c.MovementType END"
+            ),
+            "C++ ObjectMgr::LoadCreatureAddons downgrades spawn waypoint movement when a spawn addon has PathId=0"
+        );
+        assert!(sql.contains("COALESCE(ca.PathId, cta.PathId, 0)"));
+        assert_eq!(sql.matches('?').count(), 5);
+    }
 
     #[test]
     fn world_state_load_statement_matches_cpp_sql_exactly() {

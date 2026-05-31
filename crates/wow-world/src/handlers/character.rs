@@ -32,8 +32,9 @@ use wow_entities::{
     BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_START, GAMEOBJECT_TYPE_FISHING_HOLE,
     GAMEOBJECT_TYPE_QUESTGIVER, GameObjectTemplateData, INVENTORY_DEFAULT_SIZE,
     INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START,
-    INVENTORY_SLOT_ITEM_START, MAX_BAG_SIZE, MAX_GAMEOBJECT_DATA, NULL_BAG, NULL_SLOT,
-    REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, WorldObject, is_equipment_pos, is_inventory_pos,
+    INVENTORY_SLOT_ITEM_START, MAX_BAG_SIZE, MAX_GAMEOBJECT_DATA, MovementGeneratorType, NULL_BAG,
+    NULL_SLOT, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, WorldObject, is_equipment_pos,
+    is_inventory_pos,
 };
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
 use wow_packet::WorldPacket;
@@ -60,8 +61,20 @@ const GO_SPAWN_TERRAIN_SWAP_MAP_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN 
 const GO_SPAWN_EFFECTIVE_FLAGS_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN + 4;
 const GO_SPAWN_EFFECTIVE_FACTION_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN + 5;
 const GO_SPAWN_OVERRIDE_SOURCE_KNOWN_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN + 6;
+const CREATURE_SPAWN_EFFECTIVE_MOVEMENT_TYPE_COLUMN: usize = 35;
+const CREATURE_SPAWN_WAYPOINT_PATH_ID_COLUMN: usize = 36;
+const WAYPOINT_MOTION_TYPE_LIKE_CPP: u8 = 2;
 const TACT_KEY_TABLE_HASH_LIKE_CPP: u32 = 0xD3F6_1A9E;
 const QUEST_GIVER_STATUS_TRACKED_QUERY_MAX_GUIDS_LIKE_CPP: u32 = 1000;
+
+fn creature_movement_generator_type_from_db_like_cpp(
+    db_movement_type: u8,
+) -> MovementGeneratorType {
+    match db_movement_type {
+        WAYPOINT_MOTION_TYPE_LIKE_CPP => MovementGeneratorType::Waypoint,
+        _ => MovementGeneratorType::Idle,
+    }
+}
 
 inventory::submit! {
     PacketHandlerEntry {
@@ -3237,6 +3250,27 @@ impl WorldSession {
                 .or_else(|| result.try_read::<u8>(34))
                 .or_else(|| result.try_read::<i16>(34).map(|value| value.max(0) as u8))
                 .unwrap_or(0);
+            let default_movement_type = result
+                .try_read::<Option<u8>>(CREATURE_SPAWN_EFFECTIVE_MOVEMENT_TYPE_COLUMN)
+                .flatten()
+                .or_else(|| result.try_read::<u8>(CREATURE_SPAWN_EFFECTIVE_MOVEMENT_TYPE_COLUMN))
+                .or_else(|| {
+                    result
+                        .try_read::<i16>(CREATURE_SPAWN_EFFECTIVE_MOVEMENT_TYPE_COLUMN)
+                        .map(|value| value.max(0) as u8)
+                })
+                .map(creature_movement_generator_type_from_db_like_cpp)
+                .unwrap_or(MovementGeneratorType::Idle);
+            let waypoint_path_id: u32 = result
+                .try_read::<Option<u32>>(CREATURE_SPAWN_WAYPOINT_PATH_ID_COLUMN)
+                .flatten()
+                .or_else(|| result.try_read::<u32>(CREATURE_SPAWN_WAYPOINT_PATH_ID_COLUMN))
+                .or_else(|| {
+                    result
+                        .try_read::<i64>(CREATURE_SPAWN_WAYPOINT_PATH_ID_COLUMN)
+                        .map(|value| value.max(0) as u32)
+                })
+                .unwrap_or(0);
 
             let display_id = if model_id > 0 {
                 model_id
@@ -3312,7 +3346,7 @@ impl WorldSession {
                 .creature_aggro_radius_for_faction_template_like_cpp(faction.max(0) as u32, 15.0);
             let min_dmg = (min_level as u32).saturating_sub(1) * 3 + 5;
             let max_dmg = min_dmg + min_dmg / 2;
-            self.register_world_creature_with_flags_extra_and_movement_like_cpp(
+            self.register_world_creature_with_flags_extra_movement_and_default_motion_like_cpp(
                 map_id,
                 creature_pos,
                 create_data.clone(),
@@ -3333,6 +3367,8 @@ impl WorldSession {
                 ground_movement_type,
                 swim_allowed,
                 flight_movement_type,
+                default_movement_type,
+                waypoint_path_id,
             );
 
             let mut viewer_create_data = create_data.clone();
@@ -3675,6 +3711,25 @@ impl WorldSession {
                     .or_else(|| cr.try_read::<u8>(34))
                     .or_else(|| cr.try_read::<i16>(34).map(|value| value.max(0) as u8))
                     .unwrap_or(0);
+                let default_movement_type = cr
+                    .try_read::<Option<u8>>(CREATURE_SPAWN_EFFECTIVE_MOVEMENT_TYPE_COLUMN)
+                    .flatten()
+                    .or_else(|| cr.try_read::<u8>(CREATURE_SPAWN_EFFECTIVE_MOVEMENT_TYPE_COLUMN))
+                    .or_else(|| {
+                        cr.try_read::<i16>(CREATURE_SPAWN_EFFECTIVE_MOVEMENT_TYPE_COLUMN)
+                            .map(|value| value.max(0) as u8)
+                    })
+                    .map(creature_movement_generator_type_from_db_like_cpp)
+                    .unwrap_or(MovementGeneratorType::Idle);
+                let waypoint_path_id: u32 = cr
+                    .try_read::<Option<u32>>(CREATURE_SPAWN_WAYPOINT_PATH_ID_COLUMN)
+                    .flatten()
+                    .or_else(|| cr.try_read::<u32>(CREATURE_SPAWN_WAYPOINT_PATH_ID_COLUMN))
+                    .or_else(|| {
+                        cr.try_read::<i64>(CREATURE_SPAWN_WAYPOINT_PATH_ID_COLUMN)
+                            .map(|value| value.max(0) as u32)
+                    })
+                    .unwrap_or(0);
 
                 let display_id = if model_id > 0 {
                     model_id
@@ -3754,7 +3809,7 @@ impl WorldSession {
                     );
                     let min_dmg = (min_level as u32).saturating_sub(1) * 3 + 5;
                     let max_dmg = min_dmg + min_dmg / 2;
-                    self.register_world_creature_with_flags_extra_and_movement_like_cpp(
+                    self.register_world_creature_with_flags_extra_movement_and_default_motion_like_cpp(
                         map_id,
                         creature_pos,
                         create_data.clone(),
@@ -3775,6 +3830,8 @@ impl WorldSession {
                         ground_movement_type,
                         swim_allowed,
                         flight_movement_type,
+                        default_movement_type,
+                        waypoint_path_id,
                     );
 
                     let mut viewer_create_data = create_data.clone();
