@@ -104,14 +104,14 @@ pub use creature_display::{
 };
 pub use creature_template::{
     CREATURE_CURRENT_EXPANSION_LIKE_CPP, CREATURE_EXPANSION_LEVEL_CURRENT_LIKE_CPP,
-    CreatureBaseStatsRecordLikeCpp, CreatureBaseStatsStoreLikeCpp,
-    CreatureClassificationDamageRatesLikeCpp, CreatureClassificationHealthRatesLikeCpp,
-    CreatureDifficultyRecordLikeCpp, CreatureDifficultyStoreLikeCpp,
-    CreatureTemplateClassificationStoreLikeCpp, CreatureTemplateLifecycleModelLikeCpp,
-    CreatureTemplateLifecycleRecordLikeCpp, CreatureTemplateLifecycleStoreLikeCpp,
-    CreatureTemplateMountEntryLikeCpp, CreatureTemplateMountModelLikeCpp,
-    CreatureTemplateMountStoreLikeCpp, CreatureTemplateSparringStoreLikeCpp,
-    MAX_CREATURE_SPELLS_LIKE_CPP,
+    CreatureAddonRowLikeCpp, CreatureAddonStoreLikeCpp, CreatureBaseStatsRecordLikeCpp,
+    CreatureBaseStatsStoreLikeCpp, CreatureClassificationDamageRatesLikeCpp,
+    CreatureClassificationHealthRatesLikeCpp, CreatureDifficultyRecordLikeCpp,
+    CreatureDifficultyStoreLikeCpp, CreatureTemplateClassificationStoreLikeCpp,
+    CreatureTemplateLifecycleModelLikeCpp, CreatureTemplateLifecycleRecordLikeCpp,
+    CreatureTemplateLifecycleStoreLikeCpp, CreatureTemplateMountEntryLikeCpp,
+    CreatureTemplateMountModelLikeCpp, CreatureTemplateMountStoreLikeCpp,
+    CreatureTemplateSparringStoreLikeCpp, MAX_CREATURE_SPELLS_LIKE_CPP,
 };
 pub use currency::{CurrencyTypesEntry, CurrencyTypesStore};
 pub use db2_id_store::Db2IdStore;

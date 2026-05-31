@@ -63,12 +63,12 @@ pub use corpse::{
 };
 pub use creature::{
     CREATURE_NOPATH_EVADE_TIME_MS, CREATURE_REGEN_INTERVAL_MS, CREATURE_TAPPERS_SOFT_CAP, Creature,
-    CreatureAddToWorldVehicleResetContextLikeCpp, CreatureAiOwnershipState, CreatureAiState,
-    CreatureAimInitializeOutcomeLikeCpp, CreatureCreateLifecycleRecord,
-    CreatureFormationInfoLikeCpp, CreatureLifecycleMetadata, CreatureLifecyclePlan,
-    CreatureLifecycleStats, CreatureLifecycleStep, CreatureLoadFromDbLifecycleRecord,
-    CreatureModelDimensions, CreatureMovementInform, CreatureRuntimeAction,
-    CreatureRuntimeEvadeReason, CreatureRuntimePlan, CreatureRuntimeState,
+    CreatureAddToWorldVehicleResetContextLikeCpp, CreatureAddonLifecycleRecordLikeCpp,
+    CreatureAiOwnershipState, CreatureAiState, CreatureAimInitializeOutcomeLikeCpp,
+    CreatureCreateLifecycleRecord, CreatureFormationInfoLikeCpp, CreatureLifecycleMetadata,
+    CreatureLifecyclePlan, CreatureLifecycleStats, CreatureLifecycleStep,
+    CreatureLoadFromDbLifecycleRecord, CreatureModelDimensions, CreatureMovementInform,
+    CreatureRuntimeAction, CreatureRuntimeEvadeReason, CreatureRuntimePlan, CreatureRuntimeState,
     CreatureRuntimeUpdateContext, CreatureSearchFormationOutcomeLikeCpp,
     CreatureSpawnLifecycleRecord, CreatureTemplateLifecycleRecord, DEFAULT_BOUNDARY_CHECK_TIME_MS,
     DEFAULT_CORPSE_DELAY_SECS, DEFAULT_MONSTER_SIGHT_DISTANCE, DEFAULT_RESPAWN_DELAY_SECS,

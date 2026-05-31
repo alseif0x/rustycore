@@ -2,8 +2,11 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 use rand::Rng;
-use wow_constants::{CreatureFlightMovementType, CreatureGroundMovementType};
+use wow_constants::{
+    CreatureFlightMovementType, CreatureGroundMovementType, UnitPvpFlags, UnitStandStateType,
+};
 use wow_database::WorldDatabase;
+use wow_entities::CreatureAddonLifecycleRecordLikeCpp;
 
 pub const MAX_CREATURE_SPELLS_LIKE_CPP: usize = 8;
 pub const MAX_SPELL_SCHOOL_LIKE_CPP: u8 = 7;
@@ -23,6 +26,21 @@ fn normalize_creature_flight_movement_type_like_cpp(flight_movement_type: u8) ->
         flight_movement_type
     } else {
         CreatureFlightMovementType::None as u8
+    }
+}
+
+fn normalize_unit_stand_state_like_cpp(stand_state: u8) -> UnitStandStateType {
+    match stand_state {
+        1 => UnitStandStateType::Sit,
+        2 => UnitStandStateType::SitChair,
+        3 => UnitStandStateType::Sleep,
+        4 => UnitStandStateType::SitLowChair,
+        5 => UnitStandStateType::SitMediumChair,
+        6 => UnitStandStateType::SitHighChair,
+        7 => UnitStandStateType::Dead,
+        8 => UnitStandStateType::Kneel,
+        9 => UnitStandStateType::Submerged,
+        _ => UnitStandStateType::Stand,
     }
 }
 
@@ -136,6 +154,113 @@ pub struct CreatureTemplateLifecycleRecordLikeCpp {
 #[derive(Debug, Clone, Default)]
 pub struct CreatureTemplateSparringStoreLikeCpp {
     values: HashMap<u32, Vec<f32>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CreatureAddonRowLikeCpp {
+    pub owner_id: u64,
+    pub path_id: u32,
+    pub mount: u32,
+    pub stand_state: u8,
+    pub anim_tier: u8,
+    pub vis_flags: u8,
+    pub sheath_state: u8,
+    pub pvp_flags: u8,
+    pub emote: u32,
+    pub ai_anim_kit: u16,
+    pub movement_anim_kit: u16,
+    pub melee_anim_kit: u16,
+    pub visibility_distance_type: u8,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct CreatureAddonStoreLikeCpp {
+    spawn_addons: HashMap<u64, CreatureAddonLifecycleRecordLikeCpp>,
+    template_addons: HashMap<u32, CreatureAddonLifecycleRecordLikeCpp>,
+}
+
+impl CreatureAddonStoreLikeCpp {
+    pub fn from_rows_like_cpp(
+        spawn_rows: impl IntoIterator<Item = CreatureAddonRowLikeCpp>,
+        template_rows: impl IntoIterator<Item = CreatureAddonRowLikeCpp>,
+        creature_spawn_exists: impl Fn(u64) -> bool,
+        creature_template_exists: impl Fn(u32) -> bool,
+        mount_display_exists: impl Fn(u32) -> bool,
+        emote_exists: impl Fn(u32) -> bool,
+    ) -> Self {
+        let spawn_addons = spawn_rows
+            .into_iter()
+            .filter(|row| creature_spawn_exists(row.owner_id))
+            .map(|row| {
+                (
+                    row.owner_id,
+                    addon_record_from_row_like_cpp(row, &mount_display_exists, &emote_exists),
+                )
+            })
+            .collect();
+        let template_addons = template_rows
+            .into_iter()
+            .filter(|row| creature_template_exists(row.owner_id as u32))
+            .map(|row| {
+                (
+                    row.owner_id as u32,
+                    addon_record_from_row_like_cpp(row, &mount_display_exists, &emote_exists),
+                )
+            })
+            .collect();
+
+        Self {
+            spawn_addons,
+            template_addons,
+        }
+    }
+
+    /// Mirrors C++ `Creature::GetCreatureAddon`: spawn-specific addon wins over template addon.
+    pub fn get_for_creature_like_cpp(
+        &self,
+        spawn_id: u64,
+        entry: u32,
+    ) -> Option<CreatureAddonLifecycleRecordLikeCpp> {
+        if spawn_id != 0 {
+            if let Some(addon) = self.spawn_addons.get(&spawn_id) {
+                return Some(*addon);
+            }
+        }
+        self.template_addons.get(&entry).copied()
+    }
+
+    pub fn len(&self) -> usize {
+        self.spawn_addons.len() + self.template_addons.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.spawn_addons.is_empty() && self.template_addons.is_empty()
+    }
+}
+
+fn addon_record_from_row_like_cpp(
+    row: CreatureAddonRowLikeCpp,
+    mount_display_exists: &impl Fn(u32) -> bool,
+    emote_exists: &impl Fn(u32) -> bool,
+) -> CreatureAddonLifecycleRecordLikeCpp {
+    let mount_display_id = if row.mount != 0 && !mount_display_exists(row.mount) {
+        0
+    } else {
+        row.mount
+    };
+    let stand_state = normalize_unit_stand_state_like_cpp(row.stand_state);
+    let emote = if emote_exists(row.emote) {
+        row.emote
+    } else {
+        0
+    };
+
+    CreatureAddonLifecycleRecordLikeCpp {
+        mount_display_id,
+        stand_state,
+        pvp_flags: UnitPvpFlags::from_bits_retain(row.pvp_flags),
+        emote,
+    }
 }
 
 impl CreatureTemplateSparringStoreLikeCpp {
@@ -1468,6 +1593,102 @@ mod tests {
         assert_eq!(
             entry.choose_display_id_like_cpp(&mut StdRng::seed_from_u64(2)),
             Some(2)
+        );
+    }
+
+    fn addon_row(owner_id: u64) -> CreatureAddonRowLikeCpp {
+        CreatureAddonRowLikeCpp {
+            owner_id,
+            path_id: 0,
+            mount: 0,
+            stand_state: 0,
+            anim_tier: 0,
+            vis_flags: 0,
+            sheath_state: 0,
+            pvp_flags: 0,
+            emote: 0,
+            ai_anim_kit: 0,
+            movement_anim_kit: 0,
+            melee_anim_kit: 0,
+            visibility_distance_type: 0,
+        }
+    }
+
+    #[test]
+    fn creature_addon_store_uses_spawn_addon_before_template_like_cpp() {
+        let spawn = CreatureAddonRowLikeCpp {
+            mount: 1234,
+            stand_state: UnitStandStateType::Kneel as u8,
+            pvp_flags: UnitPvpFlags::PVP.bits(),
+            emote: 77,
+            ..addon_row(44)
+        };
+        let template = CreatureAddonRowLikeCpp {
+            mount: 5678,
+            stand_state: UnitStandStateType::Sleep as u8,
+            pvp_flags: UnitPvpFlags::SANCTUARY.bits(),
+            emote: 88,
+            ..addon_row(1001)
+        };
+
+        let store = CreatureAddonStoreLikeCpp::from_rows_like_cpp(
+            [spawn],
+            [template],
+            |spawn_id| spawn_id == 44,
+            |entry| entry == 1001,
+            |display_id| matches!(display_id, 1234 | 5678),
+            |emote| matches!(emote, 77 | 88),
+        );
+
+        assert_eq!(
+            store.get_for_creature_like_cpp(44, 1001),
+            Some(CreatureAddonLifecycleRecordLikeCpp {
+                mount_display_id: 1234,
+                stand_state: UnitStandStateType::Kneel,
+                pvp_flags: UnitPvpFlags::PVP,
+                emote: 77,
+            }),
+            "C++ Creature::GetCreatureAddon checks spawn id before template entry"
+        );
+        assert_eq!(
+            store.get_for_creature_like_cpp(0, 1001),
+            Some(CreatureAddonLifecycleRecordLikeCpp {
+                mount_display_id: 5678,
+                stand_state: UnitStandStateType::Sleep,
+                pvp_flags: UnitPvpFlags::SANCTUARY,
+                emote: 88,
+            })
+        );
+    }
+
+    #[test]
+    fn creature_addon_store_normalizes_supported_fields_like_cpp() {
+        let row = CreatureAddonRowLikeCpp {
+            mount: 9999,
+            stand_state: UnitStandStateType::Max as u8,
+            pvp_flags: 0xff,
+            emote: 333,
+            ..addon_row(44)
+        };
+
+        let store = CreatureAddonStoreLikeCpp::from_rows_like_cpp(
+            [row],
+            [],
+            |spawn_id| spawn_id == 44,
+            |_| false,
+            |_| false,
+            |_| false,
+        );
+
+        assert_eq!(
+            store.get_for_creature_like_cpp(44, 1001),
+            Some(CreatureAddonLifecycleRecordLikeCpp {
+                mount_display_id: 0,
+                stand_state: UnitStandStateType::Stand,
+                pvp_flags: UnitPvpFlags::from_bits_retain(0xff),
+                emote: 0,
+            }),
+            "C++ invalid mount/emote/stand rows are truncated; PvPFlags cover the full byte"
         );
     }
 }

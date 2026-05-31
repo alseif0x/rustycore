@@ -940,6 +940,14 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `creature_template_addon` stores, path id, auras, visual flags, anim tier/kits, sheath, pet flags,
   shapeshift form, visibility distance override, hover, and validation remain explicit follow-up
   gaps.
+- 2026-05-31 — Represented creature addon store fallback `#NEXT.RUNTIME.L3.031bi`: adds the pure
+  data-store side for the supported addon subset, contrasted against C++ `ObjectMgr::LoadCreatureAddons`
+  / `LoadCreatureTemplateAddons` (`ObjectMgr.cpp:766-897`, `ObjectMgr.cpp:1224-1367`) and
+  `Creature::GetCreatureAddon` (`Creature.cpp:2722-2732`). Rust now has
+  `CreatureAddonStoreLikeCpp` with spawn-addon-before-template-addon fallback, row existence filters,
+  C++-style mount/emote invalidation to zero, stand-state truncation to stand, and full-byte PvP flag
+  retention. This is still a dormant data store: live DB loading, movement-type waypoint mutation,
+  path id, aura/anim/sheath/visibility validation, and loaded-grid resolver wiring remain open.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
