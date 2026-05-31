@@ -901,6 +901,10 @@ impl WorldCreature {
         self.creature.ai_ownership().move_target
     }
 
+    pub fn active_move_spline_like_cpp(&self) -> Option<&MoveSpline> {
+        self.active_move_spline.as_ref()
+    }
+
     pub fn spline_id(&self) -> u32 {
         self.creature.ai_ownership().spline_id
     }
@@ -1149,6 +1153,8 @@ impl WorldCreature {
                 .subsystems_mut()
                 .motion
                 .stop_moving();
+            self.creature
+                .set_ai_state(wow_entities::CreatureAiState::WalkingWaypoint);
         }
         self.active_waypoint_generator = Some(generator);
         action
@@ -1245,6 +1251,8 @@ impl WorldCreature {
                 self.creature
                     .unit_mut()
                     .clear_unit_state(UnitState::ROAMING_MOVE.bits());
+                self.creature
+                    .set_ai_state(wow_entities::CreatureAiState::Idle);
                 let _ = ended;
             }
             WaypointMovementAction::Launch(launch) => {

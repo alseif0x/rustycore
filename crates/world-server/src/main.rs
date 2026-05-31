@@ -7884,6 +7884,7 @@ fn run_legacy_creature_movement_tick_and_deliver_once_like_cpp(
     canonical_map_manager: Option<&SharedCanonicalMapManager>,
     mmap_config: &MMapRuntimeConfigLikeCpp,
     mmap_pathfinder: Option<&WorldMMapPathfinderWorkerLikeCpp>,
+    diff_ms: u32,
     registry: &wow_network::PlayerRegistry,
 ) -> (
     wow_world::session::LegacyCreatureMovementTickOutcomeLikeCpp,
@@ -7894,6 +7895,7 @@ fn run_legacy_creature_movement_tick_and_deliver_once_like_cpp(
         canonical_map_manager,
         mmap_config,
         mmap_pathfinder,
+        diff_ms,
     );
     let delivery = deliver_runtime_plan_like_cpp(&outcome.plan, registry);
     (outcome, delivery)
@@ -8012,6 +8014,7 @@ fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
     mmap_config: &MMapRuntimeConfigLikeCpp,
     mmap_pathfinder: Option<&WorldMMapPathfinderWorkerLikeCpp>,
     aggro_config: wow_world::session::LegacyCreatureAggroConfigLikeCpp,
+    diff_ms: u32,
     now: std::time::Instant,
     registry: &wow_network::PlayerRegistry,
 ) -> LegacyCreatureRuntimeTickBridgeOutcomeLikeCpp {
@@ -8027,6 +8030,7 @@ fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
         canonical_map_manager,
         mmap_config,
         mmap_pathfinder,
+        diff_ms,
         registry,
     );
     let (aggro, aggro_delivery, aggro_alert_delivery) =
@@ -8106,6 +8110,7 @@ fn spawn_legacy_creature_runtime_update_loop_like_cpp(
                     &mmap_config_for_tick,
                     mmap_pathfinder_for_tick.as_deref(),
                     aggro_config_for_tick,
+                    tick_interval_ms,
                     now,
                     registry_for_tick.as_ref(),
                 )
@@ -15413,6 +15418,7 @@ mmap.enablePathFinding = 0
             &mmap_config,
             None,
             aggro_config,
+            10,
             std::time::Instant::now(),
             &registry,
         );
@@ -15922,6 +15928,7 @@ mmap.enablePathFinding = 0
                     Some(&canonical_for_task),
                     &mmap_config,
                     None,
+                    1,
                     registry_for_task.as_ref(),
                 )
             })
@@ -16130,6 +16137,7 @@ mmap.enablePathFinding = 0
                     &mmap_config,
                     None,
                     wow_world::session::LegacyCreatureAggroConfigLikeCpp::default(),
+                    10,
                     tick_now,
                     registry_for_task.as_ref(),
                 )

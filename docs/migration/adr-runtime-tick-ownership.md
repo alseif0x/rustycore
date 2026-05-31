@@ -1178,6 +1178,21 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   this spline, real `WaypointReached`/`WaypointPathEnded` AI dispatch, path/MMAP generation,
   formation side effects, live DB spawn wiring for waypoint initialization, and live server/client
   validation.
+- 2026-05-31 — Waypoint movement tick emits `MonsterMove`
+  `#NEXT.RUNTIME.L3.031d0`: contrasted against C++ `WaypointMovementGenerator<Creature>::DoUpdate`
+  running from the creature update (`WaypointMovementGenerator.cpp:208-244`) and
+  `WaypointMovementGenerator<Creature>::StartMove` launching the current node with
+  `MoveSplineInit` (`WaypointMovementGenerator.cpp:309-422`). Rust `step_creature_movement_like_cpp`
+  no longer ignores `CreatureAiState::WalkingWaypoint`: it advances the represented waypoint
+  generator using the caller's diff and returns an `OnMonsterMove` packet when a launch creates a
+  new spline, so both the old session tick and the experimental global runtime can use the existing
+  `RuntimePlan`/`SendIfVisibleLikeCpp` fanout rail. The global runtime bridge now forwards its real
+  map-update interval to the movement body, while `WorldCreature` marks default waypoint movement as
+  `WalkingWaypoint` and returns to `Idle` on path end. Still open: live DB spawn wiring for
+  `WaypointPathStoreLikeCpp` initialization, full path/MMAP generation for waypoint splines, real
+  `WaypointReached`/`WaypointPathEnded` AI dispatch, formation side effects, full
+  `RandomMovementGenerator` state machine/path/LOS retry parity at path ends, and live server/client
+  validation.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

@@ -20637,6 +20637,7 @@ pub(crate) fn step_creature_movement_like_cpp(
     guid: wow_core::ObjectGuid,
     mmap_config: &MMapRuntimeConfigLikeCpp,
     mmap_pathfinder: Option<&crate::map_manager::WorldMMapPathfinderWorkerLikeCpp>,
+    diff_ms: u32,
 ) -> Option<Vec<u8>> {
     use wow_packet::ServerPacket;
     use wow_packet::packets::movement::{MonsterMove, MovementMonsterSpline};
@@ -20735,9 +20736,26 @@ pub(crate) fn step_creature_movement_like_cpp(
                     .set_ai_state(wow_entities::CreatureAiState::Idle);
             }
         }
-        wow_entities::CreatureAiState::InCombat
-        | wow_entities::CreatureAiState::Dead
-        | wow_entities::CreatureAiState::WalkingWaypoint => {}
+        wow_entities::CreatureAiState::WalkingWaypoint => {
+            // C++ `WaypointMovementGenerator<Creature>::DoUpdate` advances the
+            // generator from the map-owned creature update and `StartMove`
+            // launches a MoveSpline, which serializes as MonsterMove to
+            // visible clients. Keep this session-free so the global legacy
+            // runtime and the old session tick use the same body.
+            let before_spline_id = creature.spline_id();
+            let _ = creature.update_default_waypoint_movement_like_cpp(diff_ms);
+            if creature.spline_id() != before_spline_id {
+                if let Some(move_spline) = creature.active_move_spline_like_cpp() {
+                    let pkt = MonsterMove {
+                        mover_guid: guid,
+                        current_pos: creature.position(),
+                        spline: MovementMonsterSpline::from_move_spline(move_spline),
+                    };
+                    return Some(pkt.to_bytes());
+                }
+            }
+        }
+        wow_entities::CreatureAiState::InCombat | wow_entities::CreatureAiState::Dead => {}
     }
     None
 }
@@ -20760,6 +20778,7 @@ pub fn run_legacy_creature_movement_tick_once_like_cpp(
     canonical_map_manager: Option<&SharedCanonicalMapManager>,
     mmap_config: &MMapRuntimeConfigLikeCpp,
     mmap_pathfinder: Option<&crate::map_manager::WorldMMapPathfinderWorkerLikeCpp>,
+    diff_ms: u32,
 ) -> LegacyCreatureMovementTickOutcomeLikeCpp {
     use crate::map_manager::{RecipientRule, RuntimeEvent, RuntimePlan, RuntimeTickOwner};
 
@@ -20797,8 +20816,13 @@ pub fn run_legacy_creature_movement_tick_once_like_cpp(
                     continue;
                 };
                 outcome.creatures_seen += 1;
-                let packet_bytes =
-                    step_creature_movement_like_cpp(creature, guid, mmap_config, mmap_pathfinder);
+                let packet_bytes = step_creature_movement_like_cpp(
+                    creature,
+                    guid,
+                    mmap_config,
+                    mmap_pathfinder,
+                    diff_ms,
+                );
                 let source_position = creature.position();
                 canonical_syncs.push((
                     u32::from(map_id),
@@ -22400,6 +22424,7 @@ impl WorldSession {
                     guid,
                     &mmap_runtime_config,
                     mmap_pathfinder.as_deref(),
+                    200,
                 ) {
                     to_send.push(pkt);
                 }
@@ -51321,6 +51346,7 @@ mod tests {
             None,
             &MMapRuntimeConfigLikeCpp::default(),
             None,
+            10,
         );
 
         assert!(outcome.skipped_owner_not_global);
@@ -51371,6 +51397,7 @@ mod tests {
             Some(&canonical),
             &mmap_config,
             None,
+            10,
         );
 
         assert!(!outcome.skipped_owner_not_global);
@@ -51454,7 +51481,7 @@ mod tests {
             ..Default::default()
         };
         let outcome =
-            run_legacy_creature_movement_tick_once_like_cpp(&manager, None, &mmap_config, None);
+            run_legacy_creature_movement_tick_once_like_cpp(&manager, None, &mmap_config, None, 10);
 
         assert_eq!(outcome.movement_packets, 1);
         let event = &outcome.plan.events[0];
@@ -55319,7 +55346,7 @@ mod tests {
             ..Default::default()
         };
 
-        let result = step_creature_movement_like_cpp(&mut creature, guid, &config, None);
+        let result = step_creature_movement_like_cpp(&mut creature, guid, &config, None, 200);
 
         // Must return Some with a serialised MonsterMove packet.
         assert!(
@@ -55356,7 +55383,7 @@ mod tests {
 
         let config = MMapRuntimeConfigLikeCpp::default();
 
-        let result = step_creature_movement_like_cpp(&mut creature, guid, &config, None);
+        let result = step_creature_movement_like_cpp(&mut creature, guid, &config, None, 200);
 
         assert!(
             result.is_none(),
@@ -55366,6 +55393,49 @@ mod tests {
             creature.state(),
             wow_entities::CreatureAiState::Idle,
             "state must transition back to Idle after movement finished"
+        );
+    }
+
+    #[test]
+    fn step_creature_movement_walking_waypoint_launches_monster_move_like_cpp() {
+        let guid = test_creature_guid(200_004);
+        let mut creature = make_test_world_creature(guid);
+        let path = wow_movement::WaypointPath::new(
+            42,
+            vec![wow_movement::WaypointNode::new(1, 12.0, 10.0, 0.0)],
+        );
+
+        assert_eq!(
+            creature.initialize_default_waypoint_movement_like_cpp(Some(path)),
+            wow_movement::WaypointMovementAction::StopMoving
+        );
+        assert_eq!(
+            creature.state(),
+            wow_entities::CreatureAiState::WalkingWaypoint,
+            "C++ default waypoint motion is the active creature movement generator"
+        );
+
+        let config = MMapRuntimeConfigLikeCpp::default();
+        let result = step_creature_movement_like_cpp(
+            &mut creature,
+            guid,
+            &config,
+            None,
+            wow_movement::WAYPOINT_INITIAL_DELAY_MS_LIKE_CPP as u32,
+        );
+
+        let bytes = result.expect("Waypoint StartMove must launch a MonsterMove packet");
+        let opcode = u16::from_le_bytes([bytes[0], bytes[1]]);
+        assert_eq!(
+            opcode,
+            wow_constants::ServerOpcodes::OnMonsterMove as u16,
+            "Waypoint StartMove must be visible through the same MonsterMove fanout rail as C++ MoveSplineInit::Launch"
+        );
+        assert_eq!(creature.move_target().unwrap().x, 12.0);
+        assert!(creature.active_move_spline_like_cpp().is_some());
+        assert_eq!(
+            creature.state(),
+            wow_entities::CreatureAiState::WalkingWaypoint
         );
     }
 
@@ -55389,7 +55459,7 @@ mod tests {
 
         let config = MMapRuntimeConfigLikeCpp::default();
 
-        let result = step_creature_movement_like_cpp(&mut creature, guid, &config, None);
+        let result = step_creature_movement_like_cpp(&mut creature, guid, &config, None, 200);
 
         assert!(result.is_none(), "dead + respawn must return None");
         // After respawn the creature is alive and in Idle state.
