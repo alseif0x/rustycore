@@ -6495,36 +6495,73 @@ impl WorldSession {
             }) {
                 continue;
             }
-            let Some(state) = state else {
-                continue;
-            };
-            let Some(display_id) = state.display_id else {
-                continue;
-            };
-            let Some(go_type) = state.go_type else {
-                continue;
+
+            let create_data = if let Some(state) = state {
+                let Some(display_id) = state.display_id else {
+                    continue;
+                };
+                let Some(go_type) = state.go_type else {
+                    continue;
+                };
+
+                wow_packet::packets::update::GameObjectCreateData {
+                    guid,
+                    entry: object.object().entry(),
+                    display_id,
+                    go_type,
+                    position: object.position(),
+                    rotation: state.rotation,
+                    anim_progress: 255,
+                    state: state
+                        .go_state
+                        .map(|go_state| go_state as i8)
+                        .unwrap_or(wow_entities::GoState::Ready as i8),
+                    created_by: state.owner_guid.unwrap_or(ObjectGuid::EMPTY),
+                    faction_template: state.faction_template.unwrap_or(0) as i32,
+                    gameobject_flags: state.gameobject_flags,
+                    scale: state.scale,
+                }
+            } else {
+                let Some(create_data) =
+                    Self::gameobject_create_data_from_canonical_like_cpp(guid, gameobject)
+                else {
+                    continue;
+                };
+                create_data
             };
 
-            gameobjects.push(wow_packet::packets::update::GameObjectCreateData {
-                guid,
-                entry: object.object().entry(),
-                display_id,
-                go_type,
-                position: object.position(),
-                rotation: state.rotation,
-                anim_progress: 255,
-                state: state
-                    .go_state
-                    .map(|go_state| go_state as i8)
-                    .unwrap_or(wow_entities::GoState::Ready as i8),
-                created_by: state.owner_guid.unwrap_or(ObjectGuid::EMPTY),
-                faction_template: state.faction_template.unwrap_or(0) as i32,
-                gameobject_flags: state.gameobject_flags,
-                scale: state.scale,
-            });
+            gameobjects.push(create_data);
         }
 
         Some(gameobjects)
+    }
+
+    fn gameobject_create_data_from_canonical_like_cpp(
+        guid: ObjectGuid,
+        gameobject: &wow_entities::GameObject,
+    ) -> Option<wow_packet::packets::update::GameObjectCreateData> {
+        let object = gameobject.world();
+        let data = gameobject.data();
+        let display_id = u32::try_from(data.display_id).ok()?;
+        if display_id == 0 {
+            return None;
+        }
+        let go_type = u8::try_from(data.type_id).ok()?;
+
+        Some(wow_packet::packets::update::GameObjectCreateData {
+            guid,
+            entry: object.object().entry(),
+            display_id,
+            go_type,
+            position: object.position(),
+            rotation: gameobject.local_rotation_like_cpp(),
+            anim_progress: gameobject.go_anim_progress_like_cpp(),
+            state: data.state,
+            created_by: data.created_by,
+            faction_template: data.faction_template,
+            gameobject_flags: data.flags,
+            scale: object.object().scale(),
+        })
     }
 
     fn dynamic_object_create_data_from_canonical_like_cpp(
@@ -28404,6 +28441,59 @@ mod tests {
             .unwrap();
     }
 
+    fn add_canonical_lifecycle_gameobject_on_map(
+        canonical: &SharedCanonicalMapManager,
+        guid: ObjectGuid,
+        entry: u32,
+        position: Position,
+        rotation: [f32; 4],
+        map_id: u32,
+        instance_id: u32,
+    ) {
+        let mut template_data = [0_u32; wow_entities::MAX_GAMEOBJECT_DATA];
+        template_data[wow_entities::GAMEOBJECT_DATA_CHEST_LOOT] = 9_001;
+        let gameobject =
+            GameObject::try_create_from_lifecycle(wow_entities::GameObjectCreateLifecycleRecord {
+                guid,
+                map_id,
+                instance_id,
+                position,
+                rotation,
+                anim_progress: 33,
+                go_state: wow_entities::GoState::Ready,
+                art_kit: 0,
+                dynamic: false,
+                spawn_id: 98_765,
+                template: wow_entities::GameObjectTemplateLifecycleRecord {
+                    entry,
+                    name: "canonical visible chest".to_string(),
+                    go_type: wow_entities::GAMEOBJECT_TYPE_CHEST,
+                    display_id: 7_777,
+                    scale: 1.75,
+                    faction: 35,
+                    flags: 0x24,
+                    data: template_data,
+                    world_effect_id: 0,
+                    anim_kit_id: 0,
+                    level: 80,
+                    percent_health: 100,
+                    custom_param: 0,
+                },
+            })
+            .expect("valid gameobject lifecycle");
+
+        let mut guard = canonical.lock().unwrap();
+        let map = guard.create_world_map(map_id, instance_id);
+        let _ = map
+            .map_mut()
+            .add_to_map_like_cpp(AccessorObjectKind::GameObject, gameobject.world().clone());
+        map.map_mut()
+            .insert_map_object_record(
+                wow_entities::MapObjectRecord::new_game_object(gameobject).unwrap(),
+            )
+            .unwrap();
+    }
+
     fn add_canonical_visibility_on_destroy_gameobject_like_cpp(
         canonical: &SharedCanonicalMapManager,
         guid: ObjectGuid,
@@ -32471,6 +32561,51 @@ mod tests {
         assert_eq!(visible[0].display_id, 7000);
         assert_eq!(visible[0].go_type, 3);
         assert_eq!(visible[0].scale, 1.5);
+    }
+
+    #[test]
+    fn visible_gameobjects_falls_back_to_typed_canonical_data_like_cpp() {
+        let (mut session, _pkt_tx, _send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_position = Position::new(10.0, 10.0, 0.0, 0.0);
+        let gameobject_guid = test_gameobject_guid(49_630, 49_630);
+        let rotation = [0.125, 0.25, 0.375, 0.875];
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_lifecycle_gameobject_on_map(
+            &canonical,
+            gameobject_guid,
+            49_630,
+            Position::new(20.0, 20.0, 0.0, 0.0),
+            rotation,
+            571,
+            0,
+        );
+
+        let visible = session
+            .visible_gameobjects_from_canonical_map_like_cpp(571, &player_position, 800.0)
+            .expect("canonical map");
+
+        assert_eq!(visible.len(), 1);
+        assert_eq!(visible[0].guid, gameobject_guid);
+        assert_eq!(visible[0].entry, 49_630);
+        assert_eq!(visible[0].display_id, 7_777);
+        assert_eq!(
+            visible[0].go_type,
+            wow_entities::GAMEOBJECT_TYPE_CHEST as u8
+        );
+        assert_eq!(visible[0].rotation, rotation);
+        assert_eq!(visible[0].anim_progress, 33);
+        assert_eq!(visible[0].state, wow_entities::GoState::Ready as i8);
+        assert_eq!(visible[0].faction_template, 35);
+        assert_eq!(visible[0].gameobject_flags, 0x24);
+        assert_eq!(visible[0].scale, 1.75);
+        assert!(
+            !session
+                .represented_gameobject_use_states
+                .contains_key(&gameobject_guid),
+            "C++ AddToMap-visible GameObjects are real map objects; visibility must not require session-local represented state"
+        );
     }
 
     #[tokio::test]

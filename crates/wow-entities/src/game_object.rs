@@ -982,6 +982,7 @@ pub struct GameObject {
     cooldown_time: i64,
     prev_go_state: GoState,
     packed_rotation: i64,
+    local_rotation: [f32; 4],
     spawn_id: u64,
     loot_mode: u16,
     respawn_compatibility_mode: bool,
@@ -1067,6 +1068,7 @@ impl GameObject {
             cooldown_time: 0,
             prev_go_state: GoState::Active,
             packed_rotation: 0,
+            local_rotation: [0.0, 0.0, 0.0, 1.0],
             spawn_id: 0,
             loot_mode: GAMEOBJECT_LOOT_MODE_DEFAULT,
             respawn_compatibility_mode: false,
@@ -1126,6 +1128,7 @@ impl GameObject {
 
         self.set_respawn_compatibility_mode(!record.dynamic);
         self.set_spawn_id(record.spawn_id);
+        self.local_rotation = record.rotation;
         self.packed_rotation = pack_gameobject_local_rotation(record.rotation);
         self.world_effect_id = template.world_effect_id;
         self.anim_kit_id = template.anim_kit_id;
@@ -1585,6 +1588,10 @@ impl GameObject {
 
     pub const fn packed_rotation(&self) -> i64 {
         self.packed_rotation
+    }
+
+    pub const fn local_rotation_like_cpp(&self) -> [f32; 4] {
+        self.local_rotation
     }
 
     pub const fn spawn_id(&self) -> u64 {
@@ -2182,6 +2189,7 @@ mod tests {
         assert_eq!(go.world().instance_id(), 3);
         assert_eq!(go.world().position(), position);
         assert_eq!(go.stationary_position(), position);
+        assert_eq!(go.local_rotation_like_cpp(), [0.125, 0.25, 0.375, 0.875]);
         assert_eq!(go.world().object().entry(), 17_000);
         assert_eq!(go.world().object().scale(), 1.75);
         assert_eq!(go.world().name(), "C++ anchored chest");
