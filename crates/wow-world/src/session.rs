@@ -1657,6 +1657,7 @@ pub struct LegacyCreatureMeleeTickOutcomeLikeCpp {
     pub melee_range_rejections: usize,
     pub melee_facing_rejections: usize,
     pub attacker_state_rejections: usize,
+    pub melee_los_rejections: usize,
     pub attacking_interrupt_auras_removed: usize,
     pub canonical_hits: usize,
     pub commands: Vec<wow_network::player_registry::ApplyCreatureMeleeDamageLikeCppCommand>,
@@ -21739,13 +21740,27 @@ enum CreatureMeleeApplyResultLikeCpp {
     OutOfRange,
     BadFacing,
     AttackerStateRejected,
+    LosRejected,
     MissingVictim,
+}
+
+fn is_creature_melee_los_clear_like_cpp(
+    attacker: &wow_entities::WorldObject,
+    victim: &wow_entities::WorldObject,
+    environment: &impl wow_entities::WorldObjectEnvironment,
+) -> bool {
+    attacker.is_within_los_in_map(
+        victim,
+        environment,
+        wow_entities::LineOfSightOptions::default(),
+    )
 }
 
 fn apply_creature_melee_damage_to_canonical_player_on_map_like_cpp(
     canonical_map_manager: &SharedCanonicalMapManager,
     map_id: u32,
     instance_id: u32,
+    attacker_guid: ObjectGuid,
     attacker_position: Position,
     attacker_combat_reach: f32,
     attacker_can_state_update: bool,
@@ -21758,41 +21773,67 @@ fn apply_creature_melee_damage_to_canonical_player_on_map_like_cpp(
     let Some(managed) = manager.find_map_mut(map_id, instance_id) else {
         return CreatureMeleeApplyResultLikeCpp::MissingVictim;
     };
+
+    let (health_before, target_level) = {
+        let map = managed.map();
+        let Some(victim) = map.get_typed_player(victim_guid) else {
+            return CreatureMeleeApplyResultLikeCpp::MissingVictim;
+        };
+        if !victim.unit().is_alive() {
+            return CreatureMeleeApplyResultLikeCpp::MissingVictim;
+        }
+
+        let victim_position = victim.unit().world().position();
+        let victim_data = victim.unit().data();
+        let victim_combat_reach = victim_data.combat_reach;
+        if !WorldSession::is_within_melee_range_like_cpp(
+            attacker_position,
+            attacker_combat_reach,
+            victim_position,
+            victim_combat_reach,
+        ) {
+            return CreatureMeleeApplyResultLikeCpp::OutOfRange;
+        }
+        if !WorldSession::is_within_target_boundary_radius_like_cpp(
+            attacker_position,
+            attacker_combat_reach,
+            victim_position,
+            victim_combat_reach,
+            victim_data.bounding_radius,
+        ) && !WorldSession::is_unit_facing_target_for_melee_like_cpp(
+            attacker_position,
+            victim_position,
+        ) {
+            return CreatureMeleeApplyResultLikeCpp::BadFacing;
+        }
+        if !attacker_can_state_update {
+            return CreatureMeleeApplyResultLikeCpp::AttackerStateRejected;
+        }
+        // C++ `Unit::AttackerStateUpdate` calls `IsWithinLOSInMap` here.
+        // Today's canonical manager uses a noop terrain loader, so production
+        // remains permissive until real VMAP/dynamic LOS is wired into `Map`.
+        if map
+            .get_typed_creature(attacker_guid)
+            .is_some_and(|attacker| {
+                !is_creature_melee_los_clear_like_cpp(
+                    attacker.unit().world(),
+                    victim.unit().world(),
+                    map,
+                )
+            })
+        {
+            return CreatureMeleeApplyResultLikeCpp::LosRejected;
+        }
+
+        (
+            victim.unit().data().health,
+            victim.unit().data().level.clamp(0, i32::from(u8::MAX)) as u8,
+        )
+    };
+
     let Some(victim) = managed.map_mut().get_typed_player_mut(victim_guid) else {
         return CreatureMeleeApplyResultLikeCpp::MissingVictim;
     };
-    if !victim.unit().is_alive() {
-        return CreatureMeleeApplyResultLikeCpp::MissingVictim;
-    }
-
-    let victim_position = victim.unit().world().position();
-    let victim_data = victim.unit().data();
-    let victim_combat_reach = victim_data.combat_reach;
-    if !WorldSession::is_within_melee_range_like_cpp(
-        attacker_position,
-        attacker_combat_reach,
-        victim_position,
-        victim_combat_reach,
-    ) {
-        return CreatureMeleeApplyResultLikeCpp::OutOfRange;
-    }
-    if !WorldSession::is_within_target_boundary_radius_like_cpp(
-        attacker_position,
-        attacker_combat_reach,
-        victim_position,
-        victim_combat_reach,
-        victim_data.bounding_radius,
-    ) && !WorldSession::is_unit_facing_target_for_melee_like_cpp(
-        attacker_position,
-        victim_position,
-    ) {
-        return CreatureMeleeApplyResultLikeCpp::BadFacing;
-    }
-    if !attacker_can_state_update {
-        return CreatureMeleeApplyResultLikeCpp::AttackerStateRejected;
-    }
-
-    let health_before = victim.unit().data().health;
     let health_after = health_before.saturating_sub(u64::from(damage));
     victim.unit_mut().set_health(health_after);
     let over_damage = if health_after == 0 {
@@ -21800,7 +21841,6 @@ fn apply_creature_melee_damage_to_canonical_player_on_map_like_cpp(
     } else {
         -1
     };
-    let target_level = victim.unit().data().level.clamp(0, i32::from(u8::MAX)) as u8;
     CreatureMeleeApplyResultLikeCpp::Hit {
         victim_health_after: health_after,
         over_damage,
@@ -21909,6 +21949,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
             canonical_map_manager,
             u32::from(swing.map_id),
             swing.instance_id,
+            swing.attacker_guid,
             swing.attacker_position,
             swing.attacker_combat_reach,
             swing.attacker_can_state_update,
@@ -21933,6 +21974,11 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
             }
             CreatureMeleeApplyResultLikeCpp::AttackerStateRejected => {
                 outcome.attacker_state_rejections += 1;
+                committed_swings.push(swing);
+                continue;
+            }
+            CreatureMeleeApplyResultLikeCpp::LosRejected => {
+                outcome.melee_los_rejections += 1;
                 committed_swings.push(swing);
                 continue;
             }
@@ -53867,6 +53913,89 @@ mod tests {
                 .auras
                 .has_applied(kept)
         );
+    }
+
+    struct CreatureMeleeLosTestEnvironment {
+        los: bool,
+    }
+
+    impl wow_entities::WorldObjectEnvironment for CreatureMeleeLosTestEnvironment {
+        fn map_id(&self) -> u32 {
+            0
+        }
+
+        fn instance_id(&self) -> u32 {
+            0
+        }
+
+        fn visibility_range(&self) -> f32 {
+            100.0
+        }
+
+        fn line_of_sight(&self, _query: wow_entities::LineOfSightQuery<'_>) -> bool {
+            self.los
+        }
+
+        fn map_height(
+            &self,
+            _object: &wow_entities::WorldObject,
+            _x: f32,
+            _y: f32,
+            _z: f32,
+            _query: wow_entities::WorldObjectHeightQuery,
+        ) -> f32 {
+            wow_entities::INVALID_HEIGHT
+        }
+
+        fn floor_z(
+            &self,
+            _object: &wow_entities::WorldObject,
+            _position: Position,
+            _max_search_dist: f32,
+        ) -> f32 {
+            wow_entities::INVALID_HEIGHT
+        }
+    }
+
+    fn melee_los_test_world_object(
+        guid: ObjectGuid,
+        type_id: TypeId,
+        type_mask: wow_constants::TypeMask,
+        position: Position,
+    ) -> wow_entities::WorldObject {
+        let mut object = wow_entities::WorldObject::new(true, type_id, type_mask);
+        object.object_mut().create(guid);
+        object.set_map(0, 0).unwrap();
+        object.relocate(position);
+        object.object_mut().add_to_world();
+        object
+    }
+
+    #[test]
+    fn legacy_creature_melee_los_gate_delegates_to_map_environment_like_cpp() {
+        let attacker = melee_los_test_world_object(
+            test_creature_guid(91_026),
+            TypeId::Unit,
+            wow_constants::TypeMask::UNIT,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+        );
+        let victim = melee_los_test_world_object(
+            ObjectGuid::create_player(1, 91_027),
+            TypeId::Player,
+            wow_constants::TypeMask::PLAYER,
+            Position::new(11.0, 10.0, 0.0, 0.0),
+        );
+
+        assert!(!is_creature_melee_los_clear_like_cpp(
+            &attacker,
+            &victim,
+            &CreatureMeleeLosTestEnvironment { los: false },
+        ));
+        assert!(is_creature_melee_los_clear_like_cpp(
+            &attacker,
+            &victim,
+            &CreatureMeleeLosTestEnvironment { los: true },
+        ));
     }
 
     #[test]

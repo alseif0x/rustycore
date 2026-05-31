@@ -707,6 +707,19 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   lock-ordering invariant; exact pre-damage ordering belongs to the later canonical `Unit` ownership
   unification. Remaining gaps: LOS, non-player victims, offhand/extra attacks,
   `UNIT_STATE_MELEE_ATTACKING` unification, and full canonical `Unit` attack timers.
+- 2026-05-31 — Runtime global creature melee represented LOS hook `#NEXT.RUNTIME.L3.031ai`: wired
+  the experimental `GlobalLegacy` creature melee apply path to the existing represented
+  `WorldObject::IsWithinLOSInMap` hook when the canonical attacker creature exists. C++ rejects
+  base/offhand melee inside `Unit::AttackerStateUpdate` when `!IsWithinLOSInMap(victim)` after the
+  earlier range/facing and attacker-state gates (`Unit.cpp:2168-2173`, `Object.cpp:1187-1210`).
+  Rust now routes that check through `WorldObjectEnvironment`, counts `melee_los_rejections`, and
+  consumes rejected swings like the C++ caller's `resetAttackTimer` after `AttackerStateUpdate`
+  returns. This is intentionally not claimed as real LOS parity: `SharedCanonicalMapManager` remains
+  fixed to `wow_map::MapManager`/`NoopTerrainGridLoader`, whose terrain LOS returns `true`; a
+  focused helper test proves false-return delegation, while live false LOS awaits real/injectable
+  canonical terrain/VMAP/dynamic-tree LOS. Remaining gaps: non-player victims, offhand/extra
+  attacks, `UNIT_STATE_MELEE_ATTACKING` unification, full canonical `Unit` attack timers, and real
+  VMAP/dynamic LOS.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
