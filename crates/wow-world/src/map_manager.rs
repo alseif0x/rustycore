@@ -1968,6 +1968,14 @@ pub struct RuntimePlan {
     pub events: Vec<RuntimeEvent>,
 }
 
+/// Which C++ `Unit::Set*AnimKitId` setter to mirror.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CreatureAnimKitSlotLikeCpp {
+    Ai,
+    Movement,
+    Melee,
+}
+
 impl RuntimeOutput {
     /// Convert this `RuntimeOutput` into a [`RuntimePlan`] where every packet
     /// is addressed to the owning session only (`RecipientRule::SelfOnly`).
@@ -2216,6 +2224,91 @@ impl MapManager {
         map.grids
             .values_mut()
             .find_map(|grid| grid.get_creature_mut(guid))
+    }
+
+    pub fn set_creature_anim_kit_id_like_cpp(
+        &mut self,
+        map_id: u16,
+        instance_id: u32,
+        guid: ObjectGuid,
+        slot: CreatureAnimKitSlotLikeCpp,
+        anim_kit_id: u16,
+        anim_kit_exists: impl Fn(u16) -> bool,
+    ) -> Option<RuntimeEvent> {
+        use wow_packet::ServerPacket;
+
+        let creature = self.find_creature_mut(map_id, instance_id, guid)?;
+        if anim_kit_id != 0 && !anim_kit_exists(anim_kit_id) {
+            return None;
+        }
+
+        let changed = match slot {
+            CreatureAnimKitSlotLikeCpp::Ai => {
+                let changed = creature
+                    .creature
+                    .unit_mut()
+                    .set_ai_anim_kit_id_like_cpp(anim_kit_id);
+                if changed {
+                    creature.create_data.ai_anim_kit_id = anim_kit_id;
+                }
+                changed
+            }
+            CreatureAnimKitSlotLikeCpp::Movement => {
+                let changed = creature
+                    .creature
+                    .unit_mut()
+                    .set_movement_anim_kit_id_like_cpp(anim_kit_id);
+                if changed {
+                    creature.create_data.movement_anim_kit_id = anim_kit_id;
+                }
+                changed
+            }
+            CreatureAnimKitSlotLikeCpp::Melee => {
+                let changed = creature
+                    .creature
+                    .unit_mut()
+                    .set_melee_anim_kit_id_like_cpp(anim_kit_id);
+                if changed {
+                    creature.create_data.melee_anim_kit_id = anim_kit_id;
+                }
+                changed
+            }
+        };
+        if !changed {
+            return None;
+        }
+
+        let packet_bytes = match slot {
+            CreatureAnimKitSlotLikeCpp::Ai => wow_packet::packets::misc::SetAiAnimKit {
+                unit: guid,
+                anim_kit_id,
+            }
+            .to_bytes(),
+            CreatureAnimKitSlotLikeCpp::Movement => wow_packet::packets::misc::SetMovementAnimKit {
+                unit: guid,
+                anim_kit_id,
+            }
+            .to_bytes(),
+            CreatureAnimKitSlotLikeCpp::Melee => wow_packet::packets::misc::SetMeleeAnimKit {
+                unit: guid,
+                anim_kit_id,
+            }
+            .to_bytes(),
+        };
+        let source_position = creature.position();
+        let range = creature.visibility_range_like_cpp();
+        Some(RuntimeEvent {
+            source_guid: guid,
+            recipients: RecipientRule::NearbyVisible {
+                source_guid: guid,
+                map_id,
+                instance_id,
+                source_position,
+                range,
+                required_3d: false,
+            },
+            packet_bytes,
+        })
     }
 
     pub fn creature_guids(&self, map_id: u16, instance_id: u32) -> Vec<ObjectGuid> {
@@ -4093,6 +4186,138 @@ mod tests {
         assert_eq!(bridged.npc_flags2(), 0x1);
         assert_eq!(bridged.npc_flags_mask_like_cpp(), 0x1_0000_0040);
         assert_eq!(bridged.create_data.npc_flags, 0x1_0000_0040);
+    }
+
+    #[test]
+    fn set_creature_anim_kit_id_like_cpp_mutates_state_create_data_and_returns_fanout() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 1, 103);
+        let mut manager = MapManager::new();
+        manager.add_creature(
+            571,
+            0,
+            0,
+            0,
+            WorldCreature::new(
+                guid,
+                1,
+                Position::new(10.0, 20.0, 30.0, 0.0),
+                50,
+                1,
+                5,
+                10,
+                20.0,
+                0,
+                35,
+                0,
+                0,
+            ),
+        );
+
+        let event = manager
+            .set_creature_anim_kit_id_like_cpp(
+                571,
+                0,
+                guid,
+                CreatureAnimKitSlotLikeCpp::Ai,
+                77,
+                |id| id == 77,
+            )
+            .expect("valid changed anim kit emits fanout event");
+
+        let creature = manager.find_creature(571, 0, guid).expect("creature");
+        assert_eq!(creature.creature.unit().ai_anim_kit_id_like_cpp(), 77);
+        assert_eq!(
+            creature.create_data.ai_anim_kit_id, 77,
+            "late CREATE viewers must see the mutated anim kit state"
+        );
+        assert_eq!(event.source_guid, guid);
+        match event.recipients {
+            RecipientRule::NearbyVisible {
+                source_guid,
+                map_id,
+                instance_id,
+                source_position,
+                range,
+                required_3d,
+            } => {
+                assert_eq!(source_guid, guid);
+                assert_eq!(map_id, 571);
+                assert_eq!(instance_id, 0);
+                assert_eq!(source_position, Position::new(10.0, 20.0, 30.0, 0.0));
+                assert_eq!(range, VISIBILITY_RADIUS);
+                assert!(!required_3d);
+            }
+            other => panic!("expected NearbyVisible, got {other:?}"),
+        }
+        let opcode = u16::from_le_bytes([event.packet_bytes[0], event.packet_bytes[1]]);
+        assert_eq!(
+            opcode,
+            wow_constants::ServerOpcodes::SetAiAnimKit as u16,
+            "C++ Unit::SetAIAnimKitId sends SMSG_SET_AI_ANIM_KIT after mutation"
+        );
+    }
+
+    #[test]
+    fn set_creature_anim_kit_id_like_cpp_rejects_same_and_invalid_nonzero_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 1, 104);
+        let mut manager = MapManager::new();
+        manager.add_creature(
+            571,
+            0,
+            0,
+            0,
+            WorldCreature::new(
+                guid,
+                1,
+                Position::new(10.0, 20.0, 30.0, 0.0),
+                50,
+                1,
+                5,
+                10,
+                20.0,
+                0,
+                35,
+                0,
+                0,
+            ),
+        );
+
+        assert!(
+            manager
+                .set_creature_anim_kit_id_like_cpp(
+                    571,
+                    0,
+                    guid,
+                    CreatureAnimKitSlotLikeCpp::Movement,
+                    88,
+                    |_| false,
+                )
+                .is_none(),
+            "C++ Unit::SetMovementAnimKitId rejects nonzero IDs missing from sAnimKitStore"
+        );
+        assert_eq!(
+            manager
+                .find_creature(571, 0, guid)
+                .unwrap()
+                .creature
+                .unit()
+                .movement_anim_kit_id_like_cpp(),
+            0
+        );
+
+        assert!(
+            manager
+                .set_creature_anim_kit_id_like_cpp(
+                    571,
+                    0,
+                    guid,
+                    CreatureAnimKitSlotLikeCpp::Melee,
+                    0,
+                    |_| false,
+                )
+                .is_none(),
+            "same ID must not emit the C++ live packet"
+        );
     }
 
     fn unique_test_dir(name: &str) -> std::path::PathBuf {

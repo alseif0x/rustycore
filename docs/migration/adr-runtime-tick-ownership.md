@@ -1053,6 +1053,15 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `MovementType=WAYPOINT_MOTION_TYPE` as represented `MovementGeneratorType::Waypoint` after the
   existing spawn-addon `PathId==0` downgrade seam. This does not claim waypoint path DB loading,
   spline launch, timers, `MovementInform`, scripts, formation signaling, or live waypoint execution.
+- 2026-05-31 — Creature anim-kit live fanout seam `#NEXT.RUNTIME.L3.031bv`: contrasted against C++
+  `Unit::SetAIAnimKitId` / `SetMovementAnimKitId` / `SetMeleeAnimKitId` (`Unit.cpp:10409-10455`),
+  `WorldPackets::Misc::Set*AnimKit` (`MiscPackets.h:753-783`, `MiscPackets.cpp:615-634`), and
+  `WorldObject::SendMessageToSet` (`Object.cpp:1746-1755`). Rust now exposes a legacy
+  map-owned `set_creature_anim_kit_id_like_cpp` seam that validates nonzero IDs through an
+  `AnimKitStore` predicate, no-ops unchanged values, mutates represented `Unit` state, updates
+  `CreatureCreateData` for late viewers, and returns a `RuntimeEvent::NearbyVisible` with the exact
+  SMSG_SET_*_ANIM_KIT bytes. Production callers, canonical sync, scripts/spells, and live
+  client/server verification remain open.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
