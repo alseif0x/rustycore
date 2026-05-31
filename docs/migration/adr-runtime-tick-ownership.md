@@ -753,6 +753,14 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   instead of the existing `mark_ai_dead(now_ms)` shortcut so corpse/respawn times use the same seconds
   scale as C++. This is still not full `Unit::Kill`: rewards, loot, proc hooks, aura/combat cleanup,
   tapper/group handling, and pet notifications remain open.
+- 2026-05-31 — Runtime global creature melee legacy Creature victim mirror `#NEXT.RUNTIME.L3.031am`:
+  keeps the transient legacy+canonical split from creating two different creature states after a
+  global creature-vs-creature hit. C++ has a single `Creature`/`Unit` object, so after
+  `DealMeleeDamage` the victim's health/death state cannot diverge between runtimes
+  (`Unit.cpp:942-1016`, `Unit.cpp:10457-10614`). Rust now mirrors successful canonical Creature
+  victim hits back into the legacy `WorldCreature` when it exists on the same `(map, instance)`,
+  including the `JustDied -> Corpse` transition for lethal hits. This is a convergence guard for the
+  current dual-model runtime, not a substitute for the final single canonical source of truth.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

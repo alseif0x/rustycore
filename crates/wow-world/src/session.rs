@@ -1663,6 +1663,7 @@ pub struct LegacyCreatureMeleeTickOutcomeLikeCpp {
     pub attacking_interrupt_auras_removed: usize,
     pub canonical_hits: usize,
     pub canonical_creature_hits: usize,
+    pub legacy_creature_victim_syncs: usize,
     pub commands: Vec<wow_network::player_registry::ApplyCreatureMeleeDamageLikeCppCommand>,
     pub plan: RuntimePlan,
 }
@@ -22105,6 +22106,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
 
     let mut committed_swings = Vec::new();
     let mut hit_swings = Vec::new();
+    let mut creature_victim_syncs = Vec::new();
     let mut failed_retry_swings = Vec::new();
     for swing in pending_swings {
         let apply_result = if swing.victim_guid.is_player() {
@@ -22178,15 +22180,50 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
         } else {
             outcome.canonical_creature_hits += 1;
             outcome.plan.events.extend(events);
+            creature_victim_syncs.push((swing, victim_health_after));
         }
         hit_swings.push(swing);
         committed_swings.push(swing);
     }
 
-    if !committed_swings.is_empty() || !failed_retry_swings.is_empty() || !hit_swings.is_empty() {
+    if !committed_swings.is_empty()
+        || !failed_retry_swings.is_empty()
+        || !hit_swings.is_empty()
+        || !creature_victim_syncs.is_empty()
+    {
         let mut manager = legacy_map_manager
             .write()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let now_ms = u64::from(WorldSession::game_time_ms_like_cpp());
+        let game_time_secs = wow_entities::game_time_secs_like_cpp();
+        for (swing, victim_health_after) in creature_victim_syncs {
+            let Some(victim) =
+                manager.find_creature_mut(swing.map_id, swing.instance_id, swing.victim_guid)
+            else {
+                continue;
+            };
+            let current = victim.creature.unit().data().health;
+            if victim_health_after == 0 {
+                let damage_to_zero = current.min(u64::from(u32::MAX)) as u32;
+                let killed = victim
+                    .creature
+                    .apply_ai_damage_before_death_state_at_game_time_like_cpp(
+                        damage_to_zero,
+                        now_ms,
+                        game_time_secs,
+                    );
+                if killed {
+                    victim.creature.set_death_state_runtime(
+                        wow_constants::DeathState::JustDied,
+                        game_time_secs,
+                    );
+                    victim.creature.unit_mut().set_health(0);
+                }
+            } else {
+                victim.creature.unit_mut().set_health(victim_health_after);
+            }
+            outcome.legacy_creature_victim_syncs += 1;
+        }
         for swing in hit_swings {
             if let Some(creature) =
                 manager.find_creature_mut(swing.map_id, swing.instance_id, swing.attacker_guid)
@@ -54131,6 +54168,7 @@ mod tests {
 
         let (mut session, _, _) = make_session();
         let attacker = test_creature_guid(91_029);
+        register_test_creature(&mut session, manager.clone(), victim, 100);
         register_test_creature(&mut session, manager.clone(), attacker, 25);
         session
             .mutate_world_creature(attacker, |creature| {
@@ -54149,6 +54187,7 @@ mod tests {
         assert_eq!(outcome.swings_ready, 1);
         assert_eq!(outcome.canonical_hits, 1);
         assert_eq!(outcome.canonical_creature_hits, 1);
+        assert_eq!(outcome.legacy_creature_victim_syncs, 1);
         assert!(outcome.commands.is_empty());
         assert_eq!(
             outcome.plan.events.len(),
@@ -54169,6 +54208,19 @@ mod tests {
             .data()
             .health;
         assert!(health < 100);
+        let legacy_health = manager
+            .read()
+            .unwrap()
+            .find_creature(0, 0, victim)
+            .unwrap()
+            .creature
+            .unit()
+            .data()
+            .health;
+        assert_eq!(
+            legacy_health, health,
+            "Rust has a transient legacy+canonical split, but C++ has one Creature state; the mirror must not stay stale"
+        );
     }
 
     #[test]
@@ -54346,6 +54398,7 @@ mod tests {
 
         let (mut session, _, _) = make_session();
         let attacker = test_creature_guid(91_035);
+        register_test_creature(&mut session, manager.clone(), victim, 1);
         register_test_creature(&mut session, manager.clone(), attacker, 25);
         session
             .mutate_world_creature(attacker, |creature| {
@@ -54363,6 +54416,7 @@ mod tests {
 
         assert_eq!(outcome.swings_ready, 1);
         assert_eq!(outcome.canonical_creature_hits, 1);
+        assert_eq!(outcome.legacy_creature_victim_syncs, 1);
         assert_eq!(
             outcome.plan.events.len(),
             2,
@@ -54386,6 +54440,18 @@ mod tests {
             wow_entities::CreatureAiState::Dead
         );
         assert_eq!(creature.ai_ownership().combat_target, None);
+        drop(guard);
+        let legacy_guard = manager.read().unwrap();
+        let legacy_creature = legacy_guard.find_creature(0, 0, victim).unwrap();
+        assert_eq!(legacy_creature.creature.unit().data().health, 0);
+        assert_eq!(
+            legacy_creature.creature.unit().death_state(),
+            wow_constants::DeathState::Corpse
+        );
+        assert_eq!(
+            legacy_creature.creature.ai_ownership().state,
+            wow_entities::CreatureAiState::Dead
+        );
     }
 
     struct CreatureMeleeLosTestEnvironment {
