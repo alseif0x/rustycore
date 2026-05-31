@@ -765,6 +765,14 @@ impl WorldCreature {
         }
     }
 
+    pub fn visibility_range_like_cpp(&self) -> f32 {
+        self.creature
+            .unit()
+            .world()
+            .visibility_distance_override_like_cpp()
+            .unwrap_or(VISIBILITY_RADIUS)
+    }
+
     pub(crate) fn now_ms(&self) -> u64 {
         self.clock_started_at
             .elapsed()

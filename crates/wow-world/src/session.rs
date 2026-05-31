@@ -20761,9 +20761,7 @@ pub fn run_legacy_creature_movement_tick_once_like_cpp(
     mmap_config: &MMapRuntimeConfigLikeCpp,
     mmap_pathfinder: Option<&crate::map_manager::WorldMMapPathfinderWorkerLikeCpp>,
 ) -> LegacyCreatureMovementTickOutcomeLikeCpp {
-    use crate::map_manager::{
-        RecipientRule, RuntimeEvent, RuntimePlan, RuntimeTickOwner, VISIBILITY_RADIUS,
-    };
+    use crate::map_manager::{RecipientRule, RuntimeEvent, RuntimePlan, RuntimeTickOwner};
 
     let mut outcome = LegacyCreatureMovementTickOutcomeLikeCpp {
         skipped_owner_not_global: false,
@@ -20811,6 +20809,7 @@ pub fn run_legacy_creature_movement_tick_once_like_cpp(
                 ));
                 if let Some(packet_bytes) = packet_bytes {
                     outcome.movement_packets += 1;
+                    let visibility_range = creature.visibility_range_like_cpp();
                     outcome.plan.events.push(RuntimeEvent {
                         source_guid: guid,
                         recipients: RecipientRule::NearbyVisible {
@@ -20818,7 +20817,7 @@ pub fn run_legacy_creature_movement_tick_once_like_cpp(
                             map_id,
                             instance_id,
                             source_position,
-                            range: VISIBILITY_RADIUS,
+                            range: visibility_range,
                             required_3d: false,
                         },
                         packet_bytes,
@@ -51420,6 +51419,52 @@ mod tests {
                 typed.ai_state(),
                 wow_entities::CreatureAiState::WalkingRandom
             );
+        }
+    }
+
+    #[test]
+    fn legacy_creature_movement_tick_once_uses_creature_visibility_override_like_cpp() {
+        use crate::map_manager::{RecipientRule, RuntimeTickOwner};
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let guid = test_creature_guid(90_009);
+        register_test_creature(&mut session, manager.clone(), guid, 25);
+        session
+            .mutate_world_creature(guid, |creature| {
+                let ai = creature.creature.ai_ownership_mut();
+                ai.wander_delay_ms = 0;
+                ai.move_start_ms = 0;
+                ai.wander_radius = 3.0;
+                creature
+                    .creature
+                    .unit_mut()
+                    .world_mut()
+                    .set_visibility_distance_override_like_cpp(
+                        wow_entities::VisibilityDistanceTypeLikeCpp::Gigantic,
+                    );
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let mmap_config = MMapRuntimeConfigLikeCpp {
+            enabled: false,
+            ..Default::default()
+        };
+        let outcome =
+            run_legacy_creature_movement_tick_once_like_cpp(&manager, None, &mmap_config, None);
+
+        assert_eq!(outcome.movement_packets, 1);
+        let event = &outcome.plan.events[0];
+        match &event.recipients {
+            RecipientRule::NearbyVisible { range, .. } => assert_eq!(
+                *range,
+                wow_entities::VisibilityDistanceTypeLikeCpp::Gigantic.distance_like_cpp(),
+                "C++ SendMessageToSet uses source GetVisibilityRange(), including creature addon visibility overrides"
+            ),
+            other => panic!("expected NearbyVisible, got {other:?}"),
         }
     }
 

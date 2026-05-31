@@ -1037,6 +1037,14 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   create/respawn when the creature does not already have that spell aura. This is still a represented
   `AddAura` subset: real spell effects, aura scripts, procs, visible-aura update-field packet fanout,
   and full spell runtime remain open.
+- 2026-05-31 — Creature movement fanout visibility override `#NEXT.RUNTIME.L3.031bt`:
+  contrasted against C++ `WorldObject::SendMessageToSet` / `SendMessageToSetInRange`
+  (`Object.cpp:1746-1755`) and `WorldObject::GetVisibilityRange` (`Object.cpp:1449-1456`). The
+  global legacy creature movement driver now uses the source `WorldCreature` represented visibility
+  range when building `RecipientRule::NearbyVisible`, so `visibilityDistanceType` / object-owned
+  overrides affect MonsterMove fanout instead of always using the default legacy map radius. This is
+  the bounded movement-runtime use of the override; other session visibility scans and non-creature
+  fanout paths that still consult map visibility remain separate follow-up gaps.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
