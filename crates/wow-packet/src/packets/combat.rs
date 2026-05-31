@@ -5,6 +5,7 @@
 
 //! Combat packet definitions.
 
+use wow_constants::creature::AiReaction;
 use wow_constants::{ClientOpcodes, ServerOpcodes};
 use wow_core::ObjectGuid;
 
@@ -103,6 +104,27 @@ impl ServerPacket for SAttackStop {
     }
 }
 
+// ── AIReaction (SMSG_AI_REACTION) ────────────────────────────────
+
+/// Server notifies visible clients of a creature AI reaction.
+///
+/// C++ anchor: `WorldPackets::Combat::AIReaction::Write` writes `UnitGUID`
+/// followed by `Reaction`.
+#[derive(Debug, Clone)]
+pub struct AIReaction {
+    pub unit_guid: ObjectGuid,
+    pub reaction: AiReaction,
+}
+
+impl ServerPacket for AIReaction {
+    const OPCODE: ServerOpcodes = ServerOpcodes::AiReaction;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_packed_guid(&self.unit_guid);
+        pkt.write_uint32(self.reaction as u32);
+    }
+}
+
 // ── AttackerStateUpdate (SMSG_ATTACKER_STATE_UPDATE) ─────────────
 
 /// Sends melee hit result with damage info to the client.
@@ -191,5 +213,40 @@ impl ServerPacket for AttackSwingError {
     fn write(&self, pkt: &mut WorldPacket) {
         pkt.write_bits(self.reason as u32, 3);
         pkt.flush_bits();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ai_reaction_serializes_guid_then_reaction_like_cpp() {
+        let guid = ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::Creature,
+            0,
+            0,
+            0,
+            0,
+            123,
+            0x1234,
+        );
+        let bytes = AIReaction {
+            unit_guid: guid,
+            reaction: AiReaction::Alert,
+        }
+        .to_bytes();
+
+        let mut pkt = WorldPacket::from_bytes(&bytes);
+        assert_eq!(
+            pkt.read_uint16().expect("opcode"),
+            ServerOpcodes::AiReaction as u16
+        );
+        assert_eq!(pkt.read_packed_guid().expect("unit guid"), guid);
+        assert_eq!(
+            pkt.read_uint32().expect("reaction"),
+            AiReaction::Alert as u32
+        );
+        assert!(pkt.is_empty());
     }
 }

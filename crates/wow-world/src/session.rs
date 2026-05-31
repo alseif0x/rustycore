@@ -1604,6 +1604,7 @@ pub struct LegacyCreatureAggroTickOutcomeLikeCpp {
     pub gray_aggro_rejections: usize,
     pub alert_triggers: usize,
     pub alert_rejections: usize,
+    pub alert_plan: crate::map_manager::RuntimePlan,
     pub aggro_starts: usize,
     pub commands: Vec<wow_network::player_registry::CreatureAttackStartLikeCppCommand>,
 }
@@ -21303,44 +21304,53 @@ fn legacy_creature_try_trigger_alert_like_cpp(
     creature: &mut crate::map_manager::WorldCreature,
     candidate: &LegacyCreatureAggroCandidateLikeCpp,
     config: &LegacyCreatureAggroConfigLikeCpp,
-) -> bool {
+) -> Option<Vec<u8>> {
+    use wow_constants::creature::AiReaction;
+    use wow_packet::ServerPacket;
+    use wow_packet::packets::combat::AIReaction;
+
     // C++ `CreatureAI::TriggerAlert` after `CreatureUnitRelocationWorker`:
     // only hostile stealthed players can distract an alive, non-engaged,
-    // non-controlled aggressive creature. `SendAIReaction(AI_REACTION_ALERT)`
-    // is not represented by the transitional runtime yet; the map-owned state
-    // mutation covered here is the `MoveDistract(5s, angle)` side effect.
+    // non-controlled aggressive creature, sends `SMSG_AI_REACTION` to the
+    // visible set, then runs `MoveDistract(5s, angle)`.
     if !legacy_creature_aggro_candidate_has_stealth_aura_like_cpp(candidate) {
-        return false;
+        return None;
     }
     if creature.creature.ai_ownership().combat_target.is_some() {
-        return false;
+        return None;
     }
     if creature.creature.is_civilian_like_cpp()
         || creature
             .creature
             .has_react_state(wow_entities::ReactState::Passive)
     {
-        return false;
+        return None;
     }
     if creature.creature.unit().has_unit_state(
         (UnitState::CONFUSED | UnitState::STUNNED | UnitState::FLEEING | UnitState::DISTRACTED)
             .bits(),
     ) {
-        return false;
+        return None;
     }
     if !legacy_creature_aggro_candidate_is_targetable_for_attack_like_cpp(candidate) {
-        return false;
+        return None;
     }
     if !legacy_creature_aggro_candidate_is_hostile_to_creature_like_cpp(creature, candidate, config)
         .unwrap_or(false)
     {
-        return false;
+        return None;
     }
 
     let orientation = creature.position().angle_to(&candidate.position);
     creature
         .begin_distract_movement_like_cpp(5_000, orientation)
-        .is_some()
+        .map(|_| {
+            AIReaction {
+                unit_guid: creature.guid(),
+                reaction: AiReaction::Alert,
+            }
+            .to_bytes()
+        })
 }
 
 /// Runs one global legacy creature aggro scan without spawning a loop.
@@ -21444,10 +21454,25 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
                                 true,
                             ),
                             LegacyCreatureAggroVisibilityDecisionLikeCpp::Allowed
-                        ) && legacy_creature_try_trigger_alert_like_cpp(
-                            creature, candidate, &config,
                         ) {
-                            outcome.alert_triggers += 1;
+                            let alert_packet = legacy_creature_try_trigger_alert_like_cpp(
+                                creature, candidate, &config,
+                            );
+                            if let Some(packet_bytes) = alert_packet {
+                                use crate::map_manager::{RecipientRule, RuntimeEvent};
+
+                                outcome.alert_triggers += 1;
+                                outcome.alert_plan.events.push(RuntimeEvent {
+                                    source_guid: guid,
+                                    recipients: RecipientRule::MapBroadcastVisible {
+                                        map_id,
+                                        instance_id,
+                                    },
+                                    packet_bytes,
+                                });
+                            } else {
+                                outcome.alert_rejections += 1;
+                            }
                         } else {
                             outcome.alert_rejections += 1;
                         }
@@ -52184,6 +52209,30 @@ mod tests {
         assert_eq!(outcome.visibility_rejections, 1);
         assert_eq!(outcome.alert_triggers, 1);
         assert_eq!(outcome.alert_rejections, 0);
+        assert_eq!(outcome.alert_plan.events.len(), 1);
+        let alert_event = &outcome.alert_plan.events[0];
+        assert_eq!(alert_event.source_guid, creature_guid);
+        assert!(matches!(
+            &alert_event.recipients,
+            crate::map_manager::RecipientRule::MapBroadcastVisible {
+                map_id: 0,
+                instance_id: 0
+            }
+        ));
+        let mut alert_packet = wow_packet::WorldPacket::from_bytes(&alert_event.packet_bytes);
+        assert_eq!(
+            alert_packet.read_uint16().expect("opcode"),
+            ServerOpcodes::AiReaction as u16
+        );
+        assert_eq!(
+            alert_packet.read_packed_guid().expect("unit guid"),
+            creature_guid
+        );
+        assert_eq!(
+            alert_packet.read_uint32().expect("reaction"),
+            wow_constants::creature::AiReaction::Alert as u32
+        );
+        assert!(alert_packet.is_empty());
         assert_eq!(outcome.aggro_starts, 0);
         assert!(outcome.commands.is_empty());
         let (combat_target, has_distract_generator) = {

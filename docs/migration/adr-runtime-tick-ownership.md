@@ -541,9 +541,21 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   the C++ `CreatureAI::TriggerAlert` gates (non-engaged, non-controlled, non-civilian, non-passive,
   hostile/targetable player), and starts the map-owned `MoveDistract(5000ms, angle)` movement side
   effect. The `SendAIReaction(AI_REACTION_ALERT)` sound packet remains an explicit packet/fanout gap.
-  C++ anchors: `GridNotifiers.cpp:127-132` and `CreatureAI.cpp:140-159`. Remaining gaps: real
-  VMAP-backed LOS, AI-specific `CanAIAttack`, victim-creature evade for non-player aggro targets,
-  non-player owner/victim creature edge cases, and alert reaction packet delivery.
+  C++ anchors: `GridNotifiers.cpp:127-132` and `CreatureAI.cpp:140-159`. Alert reaction packet
+  delivery is closed by `#NEXT.RUNTIME.L3.031s`; remaining gaps: real VMAP-backed LOS, AI-specific
+  `CanAIAttack`, victim-creature evade for non-player aggro targets, and non-player owner/victim
+  creature edge cases.
+- 2026-05-31 — Runtime creature-aggro AI reaction packet/fanout `#NEXT.RUNTIME.L3.031s`: closed
+  the explicit `SendAIReaction(AI_REACTION_ALERT)` packet gap for the represented stealth-alert
+  branch. C++ `WorldPackets::Combat::AIReaction::Write` writes `UnitGUID` then `Reaction`, and
+  `Creature::SendAIReaction` sends it with `SendMessageToSet(packet.Write(), true)`. Rust now has
+  `wow_packet::packets::combat::AIReaction` for `SMSG_AI_REACTION`, returns alert packets as a
+  `RuntimePlan` from the global legacy aggro scan, addresses them with `MapBroadcastVisible`, and
+  lets the existing `SendIfVisibleLikeCpp` rail apply the per-session HaveAtClient gate outside map
+  locks. C++ anchors: `CombatPackets.cpp:89-94`, `CombatPackets.h:125-134`, and
+  `Creature.cpp:2506-2515`. Remaining gaps: real VMAP-backed LOS, AI-specific `CanAIAttack`,
+  victim-creature evade for non-player aggro targets, non-player owner/victim creature edge cases,
+  and live-client validation of the alert reaction sound/visual.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

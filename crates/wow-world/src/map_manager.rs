@@ -1929,7 +1929,7 @@ pub struct RuntimeEvent {
 
 /// An ordered list of [`RuntimeEvent`]s produced by a single tick pass,
 /// ready to be consumed by a routing layer (Slice 4A.1b+).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct RuntimePlan {
     pub events: Vec<RuntimeEvent>,
 }

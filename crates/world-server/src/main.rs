@@ -7877,6 +7877,7 @@ fn run_legacy_creature_aggro_tick_and_deliver_once_like_cpp(
 ) -> (
     wow_world::session::LegacyCreatureAggroTickOutcomeLikeCpp,
     RuntimeCreatureAttackStartDeliverySummaryLikeCpp,
+    RuntimeDeliverySummaryLikeCpp,
 ) {
     let candidates = collect_legacy_creature_aggro_candidates_with_canonical_like_cpp(
         registry,
@@ -7888,7 +7889,8 @@ fn run_legacy_creature_aggro_tick_and_deliver_once_like_cpp(
         aggro_config,
     );
     let delivery = deliver_creature_attack_start_commands_like_cpp(&outcome.commands, registry);
-    (outcome, delivery)
+    let alert_delivery = deliver_runtime_plan_like_cpp(&outcome.alert_plan, registry);
+    (outcome, delivery, alert_delivery)
 }
 
 /// Run one legacy global creature melee tick and deliver victim commands.
@@ -7928,6 +7930,7 @@ struct LegacyCreatureRuntimeTickBridgeOutcomeLikeCpp {
     pub movement_delivery: RuntimeDeliverySummaryLikeCpp,
     pub aggro: wow_world::session::LegacyCreatureAggroTickOutcomeLikeCpp,
     pub aggro_delivery: RuntimeCreatureAttackStartDeliverySummaryLikeCpp,
+    pub aggro_alert_delivery: RuntimeDeliverySummaryLikeCpp,
     pub melee: wow_world::session::LegacyCreatureMeleeTickOutcomeLikeCpp,
     pub melee_delivery: RuntimeCreatureMeleeDeliverySummaryLikeCpp,
 }
@@ -7955,12 +7958,13 @@ fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
         mmap_pathfinder,
         registry,
     );
-    let (aggro, aggro_delivery) = run_legacy_creature_aggro_tick_and_deliver_once_like_cpp(
-        legacy_map_manager,
-        canonical_map_manager,
-        registry,
-        aggro_config,
-    );
+    let (aggro, aggro_delivery, aggro_alert_delivery) =
+        run_legacy_creature_aggro_tick_and_deliver_once_like_cpp(
+            legacy_map_manager,
+            canonical_map_manager,
+            registry,
+            aggro_config,
+        );
     let (melee, melee_delivery) = run_legacy_creature_melee_tick_and_deliver_once_like_cpp(
         legacy_map_manager,
         canonical_map_manager,
@@ -7974,6 +7978,7 @@ fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
         movement_delivery,
         aggro,
         aggro_delivery,
+        aggro_alert_delivery,
         melee,
         melee_delivery,
     }
@@ -8052,6 +8057,8 @@ fn spawn_legacy_creature_runtime_update_loop_like_cpp(
                     movement_commands = outcome.movement_delivery.candidates_queued,
                     aggro_starts = outcome.aggro.aggro_starts,
                     aggro_commands = outcome.aggro_delivery.candidates_queued,
+                    aggro_alerts = outcome.aggro.alert_triggers,
+                    aggro_alert_commands = outcome.aggro_alert_delivery.candidates_queued,
                     melee_hits = outcome.melee.canonical_hits,
                     melee_commands = outcome.melee_delivery.candidates_queued,
                     "Legacy global creature runtime tick produced visible work"
