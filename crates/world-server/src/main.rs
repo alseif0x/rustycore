@@ -1764,6 +1764,7 @@ async fn main() -> Result<()> {
             })?;
             consume_game_event_live_update_side_effects_like_cpp(
                 &mut manager,
+                Some(&shared_map),
                 &mut canonical_spawn_metadata,
                 &loaded_grid_creature_respawn_caches,
                 Some(battlemaster_list_typed_store.as_ref()),
@@ -2159,6 +2160,7 @@ async fn main() -> Result<()> {
     .max(1);
     let map_update_handle = spawn_canonical_map_update_loop(
         Arc::clone(&canonical_map_manager),
+        Arc::clone(&shared_map),
         map_update_interval_ms,
         respawn_condition_interval_ms,
         Arc::clone(&canonical_spawn_metadata),
@@ -3316,6 +3318,7 @@ struct GameEventObjectSpawnBucketSummaryLikeCpp {
     load_attempts: usize,
     loader_blocked_or_missing: usize,
     successful_loaded_grid_spawns: usize,
+    legacy_creature_mirrors: usize,
     add_to_map_failures: usize,
     gameobject_not_spawned_by_default_skips: usize,
 }
@@ -3337,8 +3340,43 @@ struct GameEventSpawnForEventSummaryLikeCpp {
     pool: GameEventPoolEventSpawnSummaryLikeCpp,
 }
 
+fn mirror_loaded_grid_creature_to_legacy_like_cpp(
+    legacy_manager: Option<&SharedMapManager>,
+    waypoint_paths: &spawn_store_loader::WaypointPathStoreLikeCpp,
+    creature: wow_entities::Creature,
+) -> bool {
+    let Some(legacy_manager) = legacy_manager else {
+        return false;
+    };
+    let Ok(map_id) = u16::try_from(creature.unit().world().map_id()) else {
+        warn!(
+            guid = ?creature.guid(),
+            map_id = creature.unit().world().map_id(),
+            "C++ AddToMap legacy mirror skipped: map id does not fit legacy MapManager key"
+        );
+        return false;
+    };
+    let instance_id = creature.unit().world().instance_id();
+    let guid = creature.guid();
+    let position = creature.position();
+    let (grid_x, grid_y) = wow_world::map_manager::world_to_grid_coords(position.x, position.y);
+    let world_creature = wow_world::map_manager::WorldCreature::from_loaded_grid_canonical_like_cpp(
+        creature,
+        |path_id| waypoint_paths.get(path_id).cloned(),
+    );
+
+    let mut guard = legacy_manager
+        .write()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if guard.find_creature(map_id, instance_id, guid).is_some() {
+        return false;
+    }
+    guard.add_creature(map_id, instance_id, grid_x, grid_y, world_creature)
+}
+
 fn game_event_spawn_object_guid_list_for_event_like_cpp(
     manager: &mut wow_map::MapManager,
+    legacy_manager: Option<&SharedMapManager>,
     canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
     loaded_grid_creature_respawn_caches: &LoadedGridCreatureRespawnCachesLikeCpp,
     object_type: wow_map::SpawnObjectType,
@@ -3424,9 +3462,19 @@ fn game_event_spawn_object_guid_list_for_event_like_cpp(
             for pre_add_record in records.pre_add_records {
                 let _ = map.add_map_object_record_to_map_like_cpp(pre_add_record);
             }
+            let legacy_mirror_record = records.primary_record.creature().cloned();
             match map.add_map_object_record_to_map_like_cpp(records.primary_record) {
                 Ok(_outcome) => {
                     summary.successful_loaded_grid_spawns += 1;
+                    if let Some(creature) = legacy_mirror_record
+                        && mirror_loaded_grid_creature_to_legacy_like_cpp(
+                            legacy_manager,
+                            canonical_spawn_metadata.waypoint_paths_like_cpp(),
+                            creature,
+                        )
+                    {
+                        summary.legacy_creature_mirrors += 1;
+                    }
                 }
                 Err(_error) => {
                     summary.add_to_map_failures += 1;
@@ -3444,6 +3492,7 @@ fn game_event_spawn_object_guid_list_for_event_like_cpp(
 
 fn game_event_spawn_creatures_and_gameobjects_for_event_like_cpp(
     manager: &mut wow_map::MapManager,
+    legacy_manager: Option<&SharedMapManager>,
     canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
     loaded_grid_creature_respawn_caches: &LoadedGridCreatureRespawnCachesLikeCpp,
     event_id: i16,
@@ -3462,6 +3511,7 @@ fn game_event_spawn_creatures_and_gameobjects_for_event_like_cpp(
 
     let creature = game_event_spawn_object_guid_list_for_event_like_cpp(
         manager,
+        legacy_manager,
         canonical_spawn_metadata,
         loaded_grid_creature_respawn_caches,
         wow_map::SpawnObjectType::Creature,
@@ -3482,6 +3532,7 @@ fn game_event_spawn_creatures_and_gameobjects_for_event_like_cpp(
 
     let gameobject = game_event_spawn_object_guid_list_for_event_like_cpp(
         manager,
+        legacy_manager,
         canonical_spawn_metadata,
         loaded_grid_creature_respawn_caches,
         wow_map::SpawnObjectType::GameObject,
@@ -3649,12 +3700,14 @@ fn game_event_spawn_pools_for_event_like_cpp(
 
 fn game_event_spawn_for_event_like_cpp(
     manager: &mut wow_map::MapManager,
+    legacy_manager: Option<&SharedMapManager>,
     canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
     loaded_grid_creature_respawn_caches: &LoadedGridCreatureRespawnCachesLikeCpp,
     event_id: i16,
 ) -> GameEventSpawnForEventSummaryLikeCpp {
     let non_pool = game_event_spawn_creatures_and_gameobjects_for_event_like_cpp(
         manager,
+        legacy_manager,
         canonical_spawn_metadata,
         loaded_grid_creature_respawn_caches,
         event_id,
@@ -4824,6 +4877,7 @@ fn game_event_run_smart_ai_scripts_like_cpp(
 
 fn consume_game_event_live_update_side_effects_like_cpp(
     manager: &mut wow_map::MapManager,
+    legacy_manager: Option<&SharedMapManager>,
     canonical_spawn_metadata: &mut spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
     loaded_grid_creature_respawn_caches: &LoadedGridCreatureRespawnCachesLikeCpp,
     battlemaster_list_store: Option<&wow_data::BattlemasterListStore>,
@@ -4862,6 +4916,7 @@ fn consume_game_event_live_update_side_effects_like_cpp(
             GameEventLiveUpdateActionLikeCpp::Spawn(event_id) => {
                 let _ = game_event_spawn_for_event_like_cpp(
                     manager,
+                    legacy_manager,
                     canonical_spawn_metadata,
                     loaded_grid_creature_respawn_caches,
                     event_id,
@@ -6307,6 +6362,7 @@ fn canonical_map_update_tick_set_inactive_like_cpp(
 
 fn spawn_canonical_map_update_loop(
     map_manager: SharedCanonicalMapManager,
+    legacy_map_manager: SharedMapManager,
     tick_interval_ms: u32,
     respawn_condition_interval_ms: u32,
     canonical_spawn_metadata: SharedCanonicalSpawnMetadataLikeCpp,
@@ -6415,6 +6471,7 @@ fn spawn_canonical_map_update_loop(
                     };
                     consume_game_event_live_update_side_effects_like_cpp(
                         &mut manager,
+                        Some(&legacy_map_manager),
                         &mut canonical_spawn_metadata,
                         &loaded_grid_creature_respawn_caches,
                         Some(battlemaster_list_store.as_ref()),
@@ -9286,6 +9343,8 @@ mod tests {
         let mut manager = wow_map::MapManager::default();
         let map = manager.create_world_map(571, 0);
         assert!(map.map_mut().load_grid(0.0, 0.0));
+        let legacy_manager: wow_world::SharedMapManager =
+            Arc::new(std::sync::RwLock::new(wow_world::MapManager::new()));
         let event_id = 1;
         let creature_spawn_id = 535101;
         let gameobject_spawn_id = 535201;
@@ -9380,8 +9439,13 @@ mod tests {
             535000,
         ));
 
-        let summary =
-            game_event_spawn_for_event_like_cpp(&mut manager, &metadata, &caches, event_id);
+        let summary = game_event_spawn_for_event_like_cpp(
+            &mut manager,
+            Some(&legacy_manager),
+            &metadata,
+            &caches,
+            event_id,
+        );
 
         assert_eq!(summary.event_id, event_id);
         assert!(!summary.non_pool.missing_event_creature_guids);
@@ -9390,6 +9454,7 @@ mod tests {
         assert_eq!(summary.non_pool.creature.respawn_timers_removed, 1);
         assert_eq!(summary.non_pool.creature.load_attempts, 1);
         assert_eq!(summary.non_pool.creature.successful_loaded_grid_spawns, 1);
+        assert_eq!(summary.non_pool.creature.legacy_creature_mirrors, 1);
         assert_eq!(summary.non_pool.gameobject.guids_seen, 1);
         assert_eq!(summary.non_pool.gameobject.respawn_timers_removed, 1);
         assert_eq!(summary.non_pool.gameobject.load_attempts, 1);
@@ -9408,6 +9473,14 @@ mod tests {
             .get_creature_by_spawn_id_like_cpp(creature_spawn_id)
             .expect("GameEventSpawn should add loaded-grid Creature");
         assert_eq!(creature.respawn_time(), 0);
+        assert!(
+            legacy_manager
+                .read()
+                .unwrap()
+                .find_creature(571, 0, creature.guid())
+                .is_some(),
+            "Rust split runtime must mirror C++ AddToMap-loaded creatures into the legacy tick manager"
+        );
         let gameobject = map
             .get_gameobject_by_spawn_id_like_cpp(gameobject_spawn_id)
             .expect("GameEventSpawn should add spawned-by-default GameObject");
@@ -9458,7 +9531,7 @@ mod tests {
         let caches = empty_loaded_grid_creature_respawn_caches_like_cpp();
 
         let summary =
-            game_event_spawn_for_event_like_cpp(&mut manager, &metadata, &caches, event_id);
+            game_event_spawn_for_event_like_cpp(&mut manager, None, &metadata, &caches, event_id);
 
         assert_eq!(summary.event_id, event_id);
         assert!(summary.non_pool.missing_event_creature_guids);
@@ -9561,7 +9634,7 @@ mod tests {
             ));
 
         let summary =
-            game_event_spawn_for_event_like_cpp(&mut manager, &metadata, &caches, event_id);
+            game_event_spawn_for_event_like_cpp(&mut manager, None, &metadata, &caches, event_id);
 
         assert_eq!(summary.event_id, event_id);
         assert!(!summary.non_pool.missing_event_creature_guids);
@@ -9652,6 +9725,7 @@ mod tests {
 
         let summary = game_event_spawn_creatures_and_gameobjects_for_event_like_cpp(
             &mut manager,
+            None,
             &metadata,
             &caches,
             event_id,
@@ -9727,6 +9801,7 @@ mod tests {
 
         let summary = game_event_spawn_creatures_and_gameobjects_for_event_like_cpp(
             &mut manager,
+            None,
             &metadata,
             &caches,
             event_id,
@@ -9802,6 +9877,7 @@ mod tests {
 
         let summary = game_event_spawn_creatures_and_gameobjects_for_event_like_cpp(
             &mut manager,
+            None,
             &metadata,
             &caches,
             event_id,
@@ -11661,6 +11737,7 @@ mmap.enablePathFinding = 0
 
         let summary = consume_game_event_live_update_side_effects_like_cpp(
             &mut manager,
+            None,
             &mut metadata,
             &empty_loaded_grid_creature_respawn_caches_like_cpp(),
             None,
@@ -11701,6 +11778,7 @@ mmap.enablePathFinding = 0
 
         let summary = consume_game_event_live_update_side_effects_like_cpp(
             &mut manager,
+            None,
             &mut metadata,
             &empty_loaded_grid_creature_respawn_caches_like_cpp(),
             None,
@@ -11725,6 +11803,7 @@ mmap.enablePathFinding = 0
 
         let summary = consume_game_event_live_update_side_effects_like_cpp(
             &mut manager,
+            None,
             &mut metadata,
             &empty_loaded_grid_creature_respawn_caches_like_cpp(),
             None,
@@ -11803,6 +11882,7 @@ mmap.enablePathFinding = 0
             let outcome = game_event_world_state_start_outcome_like_cpp(1);
             consume_game_event_live_update_side_effects_like_cpp(
                 &mut manager,
+                None,
                 metadata,
                 &empty_loaded_grid_creature_respawn_caches_like_cpp(),
                 battlemaster_list_store,
@@ -12565,6 +12645,7 @@ mmap.enablePathFinding = 0
 
         let summary = consume_game_event_live_update_side_effects_like_cpp(
             &mut manager,
+            None,
             &mut metadata,
             &empty_loaded_grid_creature_respawn_caches_like_cpp(),
             None,
@@ -12880,6 +12961,7 @@ mmap.enablePathFinding = 0
 
         let summary = consume_game_event_live_update_side_effects_like_cpp(
             &mut manager,
+            None,
             &mut metadata,
             &empty_loaded_grid_creature_respawn_caches_like_cpp(),
             None,
@@ -12914,6 +12996,7 @@ mmap.enablePathFinding = 0
 
         let mut summary = consume_game_event_live_update_side_effects_like_cpp(
             &mut manager,
+            None,
             &mut metadata,
             &empty_loaded_grid_creature_respawn_caches_like_cpp(),
             None,
@@ -13000,6 +13083,7 @@ mmap.enablePathFinding = 0
 
         let mut summary = consume_game_event_live_update_side_effects_like_cpp(
             &mut manager,
+            None,
             &mut metadata,
             &empty_loaded_grid_creature_respawn_caches_like_cpp(),
             None,
@@ -13124,6 +13208,7 @@ mmap.enablePathFinding = 0
 
         let mut summary = consume_game_event_live_update_side_effects_like_cpp(
             &mut manager,
+            None,
             &mut metadata,
             &empty_loaded_grid_creature_respawn_caches_like_cpp(),
             None,

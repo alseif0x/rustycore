@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 
 use tracing::{debug, info, warn};
 use wow_constants::movement::MovementFlag;
-use wow_constants::{UnitStandStateType, UnitState, WeaponAttackType};
+use wow_constants::{UnitMoveType, UnitStandStateType, UnitState, WeaponAttackType};
 use wow_core::{ObjectGuid, Position};
 use wow_entities::{
     Creature, CreatureAiState, DistractMovementAction, EVENT_CHARGE_PREPATH, GenericMovementInform,
@@ -768,6 +768,57 @@ impl WorldCreature {
             active_waypoint_random_at_path_end: None,
             clock_started_at: Instant::now(),
         }
+    }
+
+    pub fn create_data_from_canonical_like_cpp(creature: &Creature) -> CreatureCreateData {
+        let unit = creature.unit();
+        let data = unit.data();
+        let object = unit.world().object();
+        let npc_flags = unit.npc_flags_like_cpp();
+        let attack_speed = unit.base_attack_speed();
+        let speed_rate = unit.speed_rate();
+
+        CreatureCreateData {
+            guid: creature.guid(),
+            entry: creature.entry(),
+            display_id: data.display_id.max(0) as u32,
+            native_display_id: data.native_display_id.max(0) as u32,
+            health: creature.current_health().min(i64::MAX as u64) as i64,
+            max_health: creature.max_health().min(i64::MAX as u64) as i64,
+            level: creature.level(),
+            faction_template: data.faction_template,
+            npc_flags: (u64::from(npc_flags[1]) << 32) | u64::from(npc_flags[0]),
+            unit_flags: data.flags,
+            unit_flags2: data.flags2,
+            unit_flags3: data.flags3,
+            damage_school: creature.melee_damage_school_like_cpp(),
+            scale: object.scale(),
+            unit_class: data.class_id,
+            base_attack_time: attack_speed[WeaponAttackType::BaseAttack as usize],
+            ranged_attack_time: attack_speed[WeaponAttackType::RangedAttack as usize],
+            zone_id: 0,
+            speed_walk_rate: speed_rate[UnitMoveType::Walk as usize],
+            speed_run_rate: speed_rate[UnitMoveType::Run as usize],
+            ai_anim_kit_id: unit.ai_anim_kit_id_like_cpp(),
+            movement_anim_kit_id: unit.movement_anim_kit_id_like_cpp(),
+            melee_anim_kit_id: unit.melee_anim_kit_id_like_cpp(),
+        }
+    }
+
+    pub fn from_loaded_grid_canonical_like_cpp(
+        creature: Creature,
+        mut waypoint_path_resolver: impl FnMut(u32) -> Option<WaypointPath>,
+    ) -> Self {
+        let create_data = Self::create_data_from_canonical_like_cpp(&creature);
+        let mut world_creature = Self::from_canonical(creature, create_data);
+        if world_creature.creature.default_movement_type()
+            == wow_entities::MovementGeneratorType::Waypoint
+        {
+            world_creature.initialize_default_waypoint_movement_with_path_resolver_like_cpp(
+                |path_id| waypoint_path_resolver(path_id),
+            );
+        }
+        world_creature
     }
 
     pub fn active_waypoint_generator_like_cpp(&self) -> Option<&WaypointMovementGenerator> {

@@ -1202,11 +1202,22 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `CanonicalSpawnMetadataLikeCpp::waypoint_paths_like_cpp`, and session-created legacy
   `WorldCreature::from_canonical` compatibility objects initialize the represented default waypoint
   generator when the canonical creature already carries `MovementType=Waypoint`. This is a wiring
-  seam, not the full DB closure: the canonical loaded-grid path still inserts only canonical
-  `MapObjectRecord`s and does not create/register a legacy `WorldCreature`, and the direct session DB
-  query path still does not hydrate addon `PathId`. Still open: loaded-grid legacy mirroring,
-  direct-spawn addon path hydration, AI `WaypointReached`/`WaypointPathEnded`, formation side
-  effects, full random path-end generator parity, and live server/client validation.
+  seam, not the full DB closure. Still open after `#NEXT.RUNTIME.L3.031d2`: internal `wow-map`
+  loaded-grid respawn/spawn-group/pool paths still need a `world-server` mirror hook, the direct
+  session DB query path still does not hydrate addon `PathId`, AI
+  `WaypointReached`/`WaypointPathEnded`, formation side effects, full random path-end generator
+  parity, and live server/client validation.
+- 2026-05-31 — Loaded-grid game-event Creature mirror into legacy runtime
+  `#NEXT.RUNTIME.L3.031d2`: contrasted against C++ `Map::AddToMap<T>` adding the loaded object to
+  the single live map runtime (`Map.cpp:530-570`) and the map-owned respawn/add flow
+  (`Map.cpp:2191+`). Rust split runtime now mirrors successfully added game-event loaded-grid
+  `MapObjectRecord::Creature` records from the canonical `wow_map::Map` into the legacy
+  `wow_world::MapManager`, reconstructing `CreatureCreateData` from the canonical creature and
+  resolving default waypoint paths through `WaypointPathStoreLikeCpp`. This closes the direct
+  `world-server` game-event loaded-grid path needed by the experimental legacy global creature
+  tick. Still open: loaded-grid records inserted internally inside `wow-map` respawn/spawn-group/pool
+  code cannot mirror yet without an explicit event/hook back to `world-server`; adding a dependency
+  from `wow-map` to `wow-world` remains rejected.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
