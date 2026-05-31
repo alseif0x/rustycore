@@ -1870,6 +1870,82 @@ impl Creature {
         self.sparring_health_pct
     }
 
+    pub fn set_sparring_health_pct_like_cpp(&mut self, pct: u8) {
+        self.sparring_health_pct = pct.min(100);
+    }
+
+    pub fn is_charmed_owned_by_player_or_player_like_cpp(&self) -> bool {
+        let control = &self.unit.subsystems().control;
+        control
+            .owner_guid
+            .is_some_and(|owner_guid| owner_guid.is_player())
+            || control.charmer_guid.is_some_and(|charmer_guid| {
+                charmer_guid.is_player() || control.controlled_by_player
+            })
+    }
+
+    /// C++ contrast: `Creature::CalculateDamageForSparring(Unit*, uint32)`.
+    ///
+    /// This helper keeps the current represented scope explicit: the caller
+    /// tells us whether the attacker is a creature and whether the attacker is
+    /// player-controlled. The victim-side player-control check is local.
+    pub fn calculate_damage_for_sparring_like_cpp(
+        &self,
+        attacker_is_creature: bool,
+        attacker_is_charmed_owned_by_player_or_player: bool,
+        damage: u32,
+    ) -> u32 {
+        if self.sparring_health_pct == 0
+            || !attacker_is_creature
+            || attacker_is_charmed_owned_by_player_or_player
+            || self.is_charmed_owned_by_player_or_player_like_cpp()
+        {
+            return damage;
+        }
+
+        let health = self.unit.data().health;
+        let max_health = self.unit.data().max_health;
+        if max_health == 0
+            || health.saturating_mul(100)
+                <= max_health.saturating_mul(u64::from(self.sparring_health_pct))
+        {
+            return 0;
+        }
+
+        let sparring_health = max_health.saturating_mul(u64::from(self.sparring_health_pct)) / 100;
+        if health.saturating_sub(u64::from(damage)) <= sparring_health {
+            return health
+                .saturating_sub(sparring_health)
+                .min(u64::from(u32::MAX)) as u32;
+        }
+
+        if u64::from(damage) >= health {
+            return health.saturating_sub(1).min(u64::from(u32::MAX)) as u32;
+        }
+
+        damage
+    }
+
+    /// C++ contrast: `Creature::ShouldFakeDamageFrom(Unit*)`.
+    pub fn should_fake_damage_from_like_cpp(
+        &self,
+        attacker_is_creature: bool,
+        attacker_is_charmed_owned_by_player_or_player: bool,
+    ) -> bool {
+        if self.sparring_health_pct == 0
+            || !attacker_is_creature
+            || attacker_is_charmed_owned_by_player_or_player
+            || self.is_charmed_owned_by_player_or_player_like_cpp()
+        {
+            return false;
+        }
+
+        let max_health = self.unit.data().max_health;
+        max_health != 0
+            && self.unit.data().health.saturating_mul(100)
+                <= max_health.saturating_mul(u64::from(self.sparring_health_pct))
+    }
+
     pub const fn regen_timer(&self) -> u32 {
         self.regen_timer
     }
@@ -2677,6 +2753,72 @@ mod tests {
         assert_eq!(creature.ai_ownership().dungeon_encounter_id, 0);
         assert_eq!(creature.ai_ownership().terrain_swap_map, -1);
         assert_eq!(creature.ai_ownership().last_movement_inform, None);
+    }
+
+    #[test]
+    fn creature_sparring_damage_clamps_at_configured_health_pct_like_cpp() {
+        let mut creature = Creature::new(false);
+        creature.unit_mut().set_max_health(100);
+        creature.unit_mut().set_health(52);
+        creature.set_sparring_health_pct_like_cpp(50);
+
+        assert_eq!(
+            creature.calculate_damage_for_sparring_like_cpp(true, false, 5),
+            2,
+            "C++ prevents creature-vs-creature sparring damage from crossing the threshold"
+        );
+    }
+
+    #[test]
+    fn creature_sparring_damage_is_zero_and_fake_at_or_below_threshold_like_cpp() {
+        let mut creature = Creature::new(false);
+        creature.unit_mut().set_max_health(100);
+        creature.unit_mut().set_health(50);
+        creature.set_sparring_health_pct_like_cpp(50);
+
+        assert_eq!(
+            creature.calculate_damage_for_sparring_like_cpp(true, false, 5),
+            0
+        );
+        assert!(creature.should_fake_damage_from_like_cpp(true, false));
+    }
+
+    #[test]
+    fn creature_sparring_ignores_non_creature_or_player_controlled_attackers_like_cpp() {
+        let mut creature = Creature::new(false);
+        creature.unit_mut().set_max_health(100);
+        creature.unit_mut().set_health(50);
+        creature.set_sparring_health_pct_like_cpp(50);
+
+        assert_eq!(
+            creature.calculate_damage_for_sparring_like_cpp(false, false, 5),
+            5
+        );
+        assert!(!creature.should_fake_damage_from_like_cpp(false, false));
+        assert_eq!(
+            creature.calculate_damage_for_sparring_like_cpp(true, true, 5),
+            5
+        );
+        assert!(!creature.should_fake_damage_from_like_cpp(true, true));
+    }
+
+    #[test]
+    fn creature_sparring_ignores_player_owned_victims_like_cpp() {
+        let mut creature = Creature::new(false);
+        creature.unit_mut().set_max_health(100);
+        creature.unit_mut().set_health(50);
+        creature.set_sparring_health_pct_like_cpp(50);
+        creature
+            .unit_mut()
+            .subsystems_mut()
+            .control
+            .set_owner_guid(Some(ObjectGuid::create_player(1, 42)));
+
+        assert_eq!(
+            creature.calculate_damage_for_sparring_like_cpp(true, false, 5),
+            5
+        );
+        assert!(!creature.should_fake_damage_from_like_cpp(true, false));
     }
 
     #[test]

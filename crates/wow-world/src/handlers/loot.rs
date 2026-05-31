@@ -2580,10 +2580,13 @@ impl WorldSession {
         let health_after = command.victim_health_after;
         self.set_player_health_after_runtime_damage_like_cpp(health_after);
 
-        use wow_packet::packets::combat::{AttackerStateUpdate, VICTIM_STATE_HIT};
+        use wow_packet::packets::combat::{
+            AttackerStateUpdate, HIT_INFO_NORMAL_SWING, VICTIM_STATE_HIT,
+        };
         self.send_packet(&AttackerStateUpdate {
             attacker: command.attacker_guid,
             victim: command.victim_guid,
+            hit_info: HIT_INFO_NORMAL_SWING,
             damage: command.damage.min(i32::MAX as u32) as i32,
             over_damage: command.over_damage,
             victim_state: VICTIM_STATE_HIT,

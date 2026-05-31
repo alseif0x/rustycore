@@ -21866,7 +21866,9 @@ fn apply_creature_melee_damage_to_canonical_creature_on_map_like_cpp(
     damage: u32,
 ) -> CreatureMeleeApplyResultLikeCpp {
     use wow_packet::ServerPacket;
-    use wow_packet::packets::combat::{AttackerStateUpdate, VICTIM_STATE_HIT};
+    use wow_packet::packets::combat::{
+        AttackerStateUpdate, HIT_INFO_FAKE_DAMAGE, HIT_INFO_NORMAL_SWING, VICTIM_STATE_HIT,
+    };
 
     let Ok(mut manager) = canonical_map_manager.lock() else {
         return CreatureMeleeApplyResultLikeCpp::MissingVictim;
@@ -21875,7 +21877,7 @@ fn apply_creature_melee_damage_to_canonical_creature_on_map_like_cpp(
         return CreatureMeleeApplyResultLikeCpp::MissingVictim;
     };
 
-    let (health_before, target_level) = {
+    let (health_before, target_level, applied_damage, hit_info) = {
         let map = managed.map();
         let Some(victim) = map.get_typed_creature(victim_guid) else {
             return CreatureMeleeApplyResultLikeCpp::MissingVictim;
@@ -21923,19 +21925,34 @@ fn apply_creature_melee_damage_to_canonical_creature_on_map_like_cpp(
             return CreatureMeleeApplyResultLikeCpp::LosRejected;
         }
 
+        let attacker_is_player_controlled = map
+            .get_typed_creature(attacker_guid)
+            .is_some_and(|attacker| attacker.is_charmed_owned_by_player_or_player_like_cpp());
+        let applied_damage = victim.calculate_damage_for_sparring_like_cpp(
+            true,
+            attacker_is_player_controlled,
+            damage,
+        );
+        let mut hit_info = HIT_INFO_NORMAL_SWING;
+        if victim.should_fake_damage_from_like_cpp(true, attacker_is_player_controlled) {
+            hit_info |= HIT_INFO_FAKE_DAMAGE;
+        }
+
         (
             victim.unit().data().health,
             victim.unit().data().level.clamp(0, i32::from(u8::MAX)) as u8,
+            applied_damage,
+            hit_info,
         )
     };
 
     let Some(victim) = managed.map_mut().get_typed_creature_mut(victim_guid) else {
         return CreatureMeleeApplyResultLikeCpp::MissingVictim;
     };
-    let health_after = health_before.saturating_sub(u64::from(damage));
+    let health_after = health_before.saturating_sub(u64::from(applied_damage));
     victim.unit_mut().set_health(health_after);
     let over_damage = if health_after == 0 {
-        u64::from(damage).saturating_sub(health_before) as i32
+        u64::from(applied_damage).saturating_sub(health_before) as i32
     } else {
         -1
     };
@@ -21951,6 +21968,7 @@ fn apply_creature_melee_damage_to_canonical_creature_on_map_like_cpp(
         packet_bytes: AttackerStateUpdate {
             attacker: attacker_guid,
             victim: victim_guid,
+            hit_info,
             damage: damage.min(i32::MAX as u32) as i32,
             over_damage,
             victim_state: VICTIM_STATE_HIT,
@@ -22401,7 +22419,9 @@ impl WorldSession {
     /// converted to `output.packets.push` at the same relative position.
     pub(crate) fn run_combat_tick(&mut self) -> RuntimeOutput {
         use wow_packet::ServerPacket;
-        use wow_packet::packets::combat::{AttackerStateUpdate, SAttackStop, VICTIM_STATE_HIT};
+        use wow_packet::packets::combat::{
+            AttackerStateUpdate, HIT_INFO_NORMAL_SWING, SAttackStop, VICTIM_STATE_HIT,
+        };
         use wow_packet::packets::movement::MonsterMoveStop;
 
         let mut output = RuntimeOutput::new();
@@ -22578,6 +22598,7 @@ impl WorldSession {
                 let state_update = AttackerStateUpdate {
                     attacker: player_guid,
                     victim: combat_target,
+                    hit_info: HIT_INFO_NORMAL_SWING,
                     damage: *dmg as i32,
                     over_damage: *over_damage,
                     victim_state: VICTIM_STATE_HIT,
@@ -22684,6 +22705,7 @@ impl WorldSession {
             let state_update = AttackerStateUpdate {
                 attacker: player_guid,
                 victim: combat_target,
+                hit_info: HIT_INFO_NORMAL_SWING,
                 damage: *dmg as i32,
                 over_damage: *over_damage,
                 victim_state: VICTIM_STATE_HIT,
@@ -54136,6 +54158,151 @@ mod tests {
             .data()
             .health;
         assert!(health < 100);
+    }
+
+    #[test]
+    fn legacy_creature_melee_tick_once_clamps_sparring_creature_damage_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        let victim = test_creature_guid(91_030);
+        add_canonical_test_creature_on_map(
+            &canonical,
+            victim,
+            9002,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            0,
+            0,
+        );
+        {
+            let mut guard = canonical.lock().unwrap();
+            let typed = guard
+                .find_map_mut(0, 0)
+                .unwrap()
+                .map_mut()
+                .get_typed_creature_mut(victim)
+                .unwrap();
+            typed.unit_mut().set_level(80);
+            typed.unit_mut().set_max_health(100);
+            typed.unit_mut().set_health(52);
+            typed.set_sparring_health_pct_like_cpp(50);
+        }
+
+        let (mut session, _, _) = make_session();
+        let attacker = test_creature_guid(91_031);
+        register_test_creature(&mut session, manager.clone(), attacker, 25);
+        session
+            .mutate_world_creature(attacker, |creature| {
+                creature.enter_combat(victim);
+                creature.creature.ai_ownership_mut().last_swing_ms = 0;
+                creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+
+        assert_eq!(outcome.swings_ready, 1);
+        assert_eq!(outcome.canonical_creature_hits, 1);
+        let health = canonical
+            .lock()
+            .unwrap()
+            .find_map(0, 0)
+            .unwrap()
+            .map()
+            .get_typed_creature(victim)
+            .unwrap()
+            .unit()
+            .data()
+            .health;
+        assert_eq!(
+            health, 50,
+            "C++ Creature::CalculateDamageForSparring clamps creature-vs-creature damage at the sparring threshold"
+        );
+    }
+
+    #[test]
+    fn legacy_creature_melee_tick_once_marks_fake_damage_at_sparring_threshold_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        use wow_packet::packets::combat::{HIT_INFO_FAKE_DAMAGE, HIT_INFO_NORMAL_SWING};
+        let manager = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        let victim = test_creature_guid(91_032);
+        add_canonical_test_creature_on_map(
+            &canonical,
+            victim,
+            9002,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            0,
+            0,
+        );
+        {
+            let mut guard = canonical.lock().unwrap();
+            let typed = guard
+                .find_map_mut(0, 0)
+                .unwrap()
+                .map_mut()
+                .get_typed_creature_mut(victim)
+                .unwrap();
+            typed.unit_mut().set_level(80);
+            typed.unit_mut().set_max_health(100);
+            typed.unit_mut().set_health(50);
+            typed.set_sparring_health_pct_like_cpp(50);
+        }
+
+        let (mut session, _, _) = make_session();
+        let attacker = test_creature_guid(91_033);
+        register_test_creature(&mut session, manager.clone(), attacker, 25);
+        session
+            .mutate_world_creature(attacker, |creature| {
+                creature.enter_combat(victim);
+                creature.creature.ai_ownership_mut().last_swing_ms = 0;
+                creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+
+        assert_eq!(outcome.swings_ready, 1);
+        assert_eq!(outcome.canonical_creature_hits, 1);
+        assert!(
+            !outcome.plan.events.is_empty(),
+            "fake damage still sends AttackerStateUpdate like C++"
+        );
+        let mut packet =
+            wow_packet::world_packet::WorldPacket::from_bytes(&outcome.plan.events[0].packet_bytes);
+        assert_eq!(
+            packet.read_uint16().expect("opcode"),
+            wow_constants::ServerOpcodes::AttackerStateUpdate as u16
+        );
+        let info_len = packet.read_uint32().expect("attackRoundInfo size") as usize;
+        let info_bytes = packet.read_bytes(info_len).expect("attackRoundInfo bytes");
+        let mut attack_round_info = wow_packet::world_packet::WorldPacket::from_bytes(&info_bytes);
+        assert_eq!(
+            attack_round_info.read_uint32().expect("hitInfo"),
+            HIT_INFO_NORMAL_SWING | HIT_INFO_FAKE_DAMAGE
+        );
+        let health = canonical
+            .lock()
+            .unwrap()
+            .find_map(0, 0)
+            .unwrap()
+            .map()
+            .get_typed_creature(victim)
+            .unwrap()
+            .unit()
+            .data()
+            .health;
+        assert_eq!(health, 50);
     }
 
     struct CreatureMeleeLosTestEnvironment {

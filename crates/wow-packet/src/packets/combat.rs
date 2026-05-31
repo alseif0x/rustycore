@@ -137,6 +137,8 @@ impl ServerPacket for AIReaction {
 pub struct AttackerStateUpdate {
     pub attacker: ObjectGuid,
     pub victim: ObjectGuid,
+    /// HitInfo flags written at the start of `attackRoundInfo`.
+    pub hit_info: u32,
     /// Total damage dealt.
     pub damage: i32,
     /// Overkill amount (-1 if target is still alive).
@@ -152,7 +154,9 @@ pub struct AttackerStateUpdate {
 }
 
 /// HitInfo flags (uint in C#).
-const HIT_INFO_NORMAL_SWING: u32 = 0x0000_0002;
+pub const HIT_INFO_NORMAL_SWING: u32 = 0x0000_0002;
+/// C++ `HITINFO_FAKE_DAMAGE`: enables a damage animation even if no damage is done.
+pub const HIT_INFO_FAKE_DAMAGE: u32 = 0x0100_0000;
 /// VictimState: normal hit.
 pub const VICTIM_STATE_HIT: u8 = 1;
 
@@ -162,7 +166,7 @@ impl ServerPacket for AttackerStateUpdate {
     fn write(&self, pkt: &mut WorldPacket) {
         // Build the attackRoundInfo sub-buffer (C# does this to a separate WorldPacket)
         let mut info = WorldPacket::new_empty();
-        info.write_uint32(HIT_INFO_NORMAL_SWING);
+        info.write_uint32(self.hit_info);
         info.write_packed_guid(&self.attacker);
         info.write_packed_guid(&self.victim);
         info.write_int32(self.damage);
@@ -219,6 +223,55 @@ impl ServerPacket for AttackSwingError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn attacker_state_update_writes_custom_hit_info_like_cpp() {
+        let attacker = ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::Creature,
+            0,
+            0,
+            0,
+            0,
+            123,
+            0x1234,
+        );
+        let victim = ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::Creature,
+            0,
+            0,
+            0,
+            0,
+            124,
+            0x1235,
+        );
+        let bytes = AttackerStateUpdate {
+            attacker,
+            victim,
+            hit_info: HIT_INFO_NORMAL_SWING | HIT_INFO_FAKE_DAMAGE,
+            damage: 0,
+            over_damage: -1,
+            victim_state: VICTIM_STATE_HIT,
+            school_mask: 1,
+            target_level: 80,
+            expansion: 2,
+        }
+        .to_bytes();
+
+        let mut pkt = WorldPacket::from_bytes(&bytes);
+        assert_eq!(
+            pkt.read_uint16().expect("opcode"),
+            ServerOpcodes::AttackerStateUpdate as u16
+        );
+        let attack_round_info_size = pkt.read_uint32().expect("attackRoundInfo size") as usize;
+        let attack_round_info = pkt
+            .read_bytes(attack_round_info_size)
+            .expect("attackRoundInfo bytes");
+        let mut info = WorldPacket::from_bytes(&attack_round_info);
+        assert_eq!(
+            info.read_uint32().expect("hitInfo"),
+            HIT_INFO_NORMAL_SWING | HIT_INFO_FAKE_DAMAGE
+        );
+    }
 
     #[test]
     fn ai_reaction_serializes_guid_then_reaction_like_cpp() {

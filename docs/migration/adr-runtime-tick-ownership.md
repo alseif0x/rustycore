@@ -733,6 +733,17 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `DealMeleeDamage`: Pet victims, absorbs/resists/procs/redirect, fake damage, death cleanup, loot,
   rewards, and exact threat/proc side effects remain open. No C++ bug was found in this area; the
   previous player-only filter was a Rust port gap.
+- 2026-05-31 — Runtime global creature melee sparring/fake-damage `#NEXT.RUNTIME.L3.031ak`:
+  added the represented `Creature::CalculateDamageForSparring` / `Creature::ShouldFakeDamageFrom`
+  branch for canonical Creature victims. C++ first marks `HITINFO_FAKE_DAMAGE` before sending
+  `AttackerStateUpdate`, then applies the actual sparring clamp inside `DealDamage`
+  (`Unit.cpp:780`, `Unit.cpp:2219-2220`, `Creature.cpp:1726-1765`,
+  `UnitDefines.h:468`). Rust now exposes `HIT_INFO_FAKE_DAMAGE`, lets `AttackerStateUpdate` carry
+  explicit hit-info flags, clamps canonical creature health at the sparring threshold, and emits a
+  fake-damage attack-state update when the victim is already at or below that threshold. Scope stays
+  creature-vs-creature: pet victims, full player/charm ownership parity beyond represented control
+  state, absorbs/resists/procs/redirect, death cleanup, loot, rewards, and exact threat/proc side
+  effects remain open.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
