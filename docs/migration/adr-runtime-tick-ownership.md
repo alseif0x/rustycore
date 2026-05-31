@@ -929,6 +929,17 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   lifecycle construction choose `spawn override` before `creature_template` values. This is still
   bounded to the explicit nullable source-selection rule; addon reload and any broader runtime
   flag recomputation remain separate gaps.
+- 2026-05-31 — Represented creature addon local fields `#NEXT.RUNTIME.L3.031bh`: starts the
+  `Creature::LoadCreaturesAddon` respawn/create gap with the fields already modeled by
+  `wow-entities`, contrasted against C++ `Creature::GetCreatureAddon` / `LoadCreaturesAddon`
+  (`Creature.cpp:2722-2809`) and `CreatureAddon` (`CreatureData.h:677-694`). Rust now carries an
+  optional `CreatureAddonLifecycleRecordLikeCpp` on `CreatureCreateLifecycleRecord`, stores it in
+  lifecycle metadata, applies represented mount display, stand state, PvP flags, and non-zero emote
+  during lifecycle creation, and reapplies the same represented subset during `JustRespawned`.
+  This is not DB-backed addon loading: spawn-vs-template fallback, `creature_addon` /
+  `creature_template_addon` stores, path id, auras, visual flags, anim tier/kits, sheath, pet flags,
+  shapeshift form, visibility distance override, hover, and validation remain explicit follow-up
+  gaps.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

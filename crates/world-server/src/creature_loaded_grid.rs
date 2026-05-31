@@ -227,6 +227,7 @@ impl CreatureLoadedGridLifecycleResolverLikeCpp {
                 selected_original_equipment_id: selection.selected_original_equipment_id,
                 corpse_delay: template.corpse_delay,
                 ignore_corpse_decay_ratio: template.ignore_corpse_decay_ratio,
+                addon: None,
             },
             spawn: spawn_lifecycle_record(spawn),
         };

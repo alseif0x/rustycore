@@ -3,8 +3,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use wow_constants::{
     CreatureFlagsExtra, CreatureFlightMovementType, CreatureGroundMovementType,
     CreatureStaticFlags, CreatureTypeFlags, DeathState, PowerType, TypeId, TypeMask, UnitDynFlags,
-    UnitFlags, UnitFlags2, UnitFlags3, UnitStandStateType, UnitState, WeaponAttackType,
-    movement::MovementFlag,
+    UnitFlags, UnitFlags2, UnitFlags3, UnitPvpFlags, UnitStandStateType, UnitState,
+    WeaponAttackType, movement::MovementFlag,
 };
 use wow_core::{ObjectGuid, Position};
 
@@ -321,6 +321,35 @@ pub struct CreatureAddToWorldVehicleResetContextLikeCpp {
     pub accessories: Vec<VehicleAccessory>,
 }
 
+/// Represented subset of Trinity `CreatureAddon`.
+///
+/// C++ source:
+/// - `CreatureData.h::CreatureAddon`
+/// - `Creature::GetCreatureAddon`
+/// - `Creature::LoadCreaturesAddon`
+///
+/// This record intentionally carries only fields that `wow-entities` currently models locally.
+/// DB loading, template-vs-spawn fallback, path, auras, visual flags, anim tier/kits, sheath,
+/// pet flags, shapeshift form, visibility distance override, and hover are follow-up runtime gaps.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CreatureAddonLifecycleRecordLikeCpp {
+    pub mount_display_id: u32,
+    pub stand_state: UnitStandStateType,
+    pub pvp_flags: UnitPvpFlags,
+    pub emote: u32,
+}
+
+impl Default for CreatureAddonLifecycleRecordLikeCpp {
+    fn default() -> Self {
+        Self {
+            mount_display_id: 0,
+            stand_state: UnitStandStateType::Stand,
+            pvp_flags: UnitPvpFlags::empty(),
+            emote: 0,
+        }
+    }
+}
+
 /// Resolved, testable input for TrinityCore `Creature::Create`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CreatureCreateLifecycleRecord {
@@ -343,6 +372,7 @@ pub struct CreatureCreateLifecycleRecord {
     pub selected_original_equipment_id: i8,
     pub corpse_delay: u32,
     pub ignore_corpse_decay_ratio: bool,
+    pub addon: Option<CreatureAddonLifecycleRecordLikeCpp>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -400,6 +430,7 @@ pub struct CreatureLifecycleMetadata {
     pub add_to_world_vehicle_reset_context: Option<CreatureAddToWorldVehicleResetContextLikeCpp>,
     pub equipment_id: u8,
     pub original_equipment_id: i8,
+    pub addon: Option<CreatureAddonLifecycleRecordLikeCpp>,
 }
 
 impl Default for CreatureLifecycleMetadata {
@@ -452,6 +483,7 @@ impl Default for CreatureLifecycleMetadata {
             add_to_world_vehicle_reset_context: None,
             equipment_id: 0,
             original_equipment_id: 0,
+            addon: None,
         }
     }
 }
@@ -970,6 +1002,7 @@ impl Creature {
             .set_unit_flags2_like_cpp(UnitFlags2::from_bits_truncate(template.unit_flags2));
         self.unit
             .set_unit_flags3_like_cpp(UnitFlags3::from_bits_truncate(template.unit_flags3));
+        self.load_creatures_addon_represented_like_cpp(record.addon.as_ref());
 
         self.lifecycle_metadata = CreatureLifecycleMetadata {
             template_entry: template.entry,
@@ -1029,6 +1062,7 @@ impl Creature {
             add_to_world_vehicle_reset_context: record.add_to_world_vehicle_reset_context,
             equipment_id,
             original_equipment_id,
+            addon: record.addon,
         };
 
         self.clear_data_changes();
@@ -2535,6 +2569,8 @@ impl Creature {
                 self.corpse_remove_time = 0;
                 self.reset_pickpocket_loot_restore();
                 self.reset_loot_mode();
+                let addon = self.lifecycle_metadata.addon;
+                self.load_creatures_addon_represented_like_cpp(addon.as_ref());
                 self.trigger_just_appeared = true;
                 self.runtime_state.ai_reset_requested = true;
                 self.runtime_state.visibility_update_requested = true;
@@ -2560,6 +2596,25 @@ impl Creature {
         }
 
         plan
+    }
+
+    fn load_creatures_addon_represented_like_cpp(
+        &mut self,
+        addon: Option<&CreatureAddonLifecycleRecordLikeCpp>,
+    ) -> bool {
+        let Some(addon) = addon else {
+            return false;
+        };
+
+        if addon.mount_display_id != 0 {
+            self.unit.set_mount_display_id(addon.mount_display_id);
+        }
+        self.unit.set_stand_state_like_cpp(addon.stand_state);
+        self.unit.replace_all_pvp_flags_like_cpp(addon.pvp_flags);
+        if addon.emote != 0 {
+            self.unit.set_emote_state_like_cpp(addon.emote);
+        }
+        true
     }
 
     pub fn remove_corpse_runtime(
@@ -3883,6 +3938,7 @@ mod tests {
             selected_original_equipment_id: -6,
             corpse_delay: 90,
             ignore_corpse_decay_ratio: true,
+            addon: None,
         }
     }
 
@@ -4308,6 +4364,82 @@ mod tests {
         assert!(!metadata.is_spawn_active);
         assert!(metadata.inactive_by_spawn_group);
         assert_eq!(creature.unit().changed_object_type_mask(), 0);
+    }
+
+    #[test]
+    fn creature_lifecycle_loads_represented_addon_local_fields_like_cpp() {
+        let mut record = creature_lifecycle_create_record();
+        record.addon = Some(CreatureAddonLifecycleRecordLikeCpp {
+            mount_display_id: 12_345,
+            stand_state: UnitStandStateType::Kneel,
+            pvp_flags: UnitPvpFlags::PVP | UnitPvpFlags::FFA_PVP,
+            emote: 77,
+        });
+
+        let creature = Creature::create_from_lifecycle(record);
+
+        assert_eq!(
+            creature.unit().data().mount_display_id,
+            12_345,
+            "C++ Creature::LoadCreaturesAddon calls Mount(addon->mount) when mount != 0"
+        );
+        assert_eq!(
+            creature.unit().stand_state_like_cpp(),
+            UnitStandStateType::Kneel,
+            "C++ Creature::LoadCreaturesAddon calls SetStandState(addon->standState)"
+        );
+        assert_eq!(
+            creature.unit().pvp_flags_like_cpp(),
+            UnitPvpFlags::PVP | UnitPvpFlags::FFA_PVP,
+            "C++ Creature::LoadCreaturesAddon calls ReplaceAllPvpFlags(addon->pvpFlags)"
+        );
+        assert_eq!(
+            creature.unit().emote_state_like_cpp(),
+            77,
+            "C++ Creature::LoadCreaturesAddon calls SetEmoteState(addon->emote) when emote != 0"
+        );
+    }
+
+    #[test]
+    fn creature_runtime_respawn_reloads_represented_addon_local_fields_like_cpp() {
+        let mut record = creature_lifecycle_create_record();
+        record.addon = Some(CreatureAddonLifecycleRecordLikeCpp {
+            mount_display_id: 22_222,
+            stand_state: UnitStandStateType::Sit,
+            pvp_flags: UnitPvpFlags::SANCTUARY,
+            emote: 0,
+        });
+        let mut creature = Creature::create_from_lifecycle(record);
+        creature.unit_mut().set_mount_display_id(1);
+        creature
+            .unit_mut()
+            .set_stand_state_like_cpp(UnitStandStateType::Sleep);
+        creature
+            .unit_mut()
+            .replace_all_pvp_flags_like_cpp(UnitPvpFlags::FFA_PVP);
+        creature.unit_mut().set_emote_state_like_cpp(99);
+
+        creature.set_death_state_runtime(DeathState::JustDied, 1_000);
+        creature.set_death_state_runtime(DeathState::JustRespawned, 2_000);
+
+        assert_eq!(
+            creature.unit().data().mount_display_id,
+            22_222,
+            "C++ Creature::setDeathState(JUST_RESPAWNED) calls LoadCreaturesAddon after Unit::setDeathState(ALIVE)"
+        );
+        assert_eq!(
+            creature.unit().stand_state_like_cpp(),
+            UnitStandStateType::Sit
+        );
+        assert_eq!(
+            creature.unit().pvp_flags_like_cpp(),
+            UnitPvpFlags::SANCTUARY
+        );
+        assert_eq!(
+            creature.unit().emote_state_like_cpp(),
+            0,
+            "C++ addon emote 0 skips SetEmoteState; the preceding death path already cleared the emote"
+        );
     }
 
     #[test]
