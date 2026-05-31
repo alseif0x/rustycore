@@ -3,7 +3,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use wow_constants::{
     CreatureFlagsExtra, CreatureFlightMovementType, CreatureGroundMovementType,
     CreatureStaticFlags, CreatureTypeFlags, DeathState, PowerType, TypeId, TypeMask, UnitDynFlags,
-    UnitFlags, UnitFlags2, UnitState, WeaponAttackType, movement::MovementFlag,
+    UnitFlags, UnitFlags2, UnitStandStateType, UnitState, WeaponAttackType, movement::MovementFlag,
 };
 use wow_core::{ObjectGuid, Position};
 
@@ -2251,6 +2251,16 @@ impl Creature {
                 self.unit.set_attacking(None);
                 self.unit.subsystems_mut().combat.end_all_combat();
                 self.unit.subsystems_mut().combat.clear_attackers();
+                self.unit
+                    .subsystems_mut()
+                    .auras
+                    .clear_all_reactives_like_cpp();
+                self.unit.subsystems_mut().auras.clear_diminishings();
+                self.unit.set_health(0);
+                self.unit.set_power(self.power_type(), 0);
+                self.unit.set_emote_state_like_cpp(0);
+                self.unit
+                    .set_stand_state_like_cpp(UnitStandStateType::Stand);
                 self.already_searched_assistance = false;
                 self.already_call_assistance = false;
                 plan.extend([
@@ -2630,6 +2640,7 @@ fn power_type_from_u8(power: u8) -> PowerType {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{AURA_STATE_DEFENSIVE, AURA_STATE_DEFENSIVE_2, DIMINISHING_STUN, DiminishingLevel};
 
     fn formation_info_like_cpp(leader_spawn_id: u64) -> CreatureFormationInfoLikeCpp {
         CreatureFormationInfoLikeCpp {
@@ -3947,6 +3958,30 @@ mod tests {
         creature.set_respawn_compatibility_mode(true);
         creature.set_respawn_delay(45);
         creature.set_corpse_delay(15, false);
+        creature.unit_mut().set_max_health(200);
+        creature.unit_mut().set_health(125);
+        creature.set_power_type(PowerType::Energy);
+        creature.unit_mut().set_max_power(PowerType::Energy, 100);
+        creature.unit_mut().set_power(PowerType::Energy, 45);
+        creature.unit_mut().set_emote_state_like_cpp(88);
+        creature
+            .unit_mut()
+            .set_stand_state_like_cpp(UnitStandStateType::Sit);
+        creature
+            .unit_mut()
+            .subsystems_mut()
+            .auras
+            .modify_aura_state(AURA_STATE_DEFENSIVE, true);
+        creature
+            .unit_mut()
+            .subsystems_mut()
+            .auras
+            .modify_aura_state(AURA_STATE_DEFENSIVE_2, true);
+        creature.unit_mut().subsystems_mut().auras.incr_diminishing(
+            DIMINISHING_STUN,
+            DiminishingLevel::Immune,
+            1_000,
+        );
         creature.unit_mut().set_target(victim);
         creature.unit_mut().set_attacking(Some(victim));
         creature
@@ -3968,6 +4003,35 @@ mod tests {
         assert_eq!(creature.respawn_time(), now + 45 + 15);
         assert_eq!(creature.unit().data().target, ObjectGuid::EMPTY);
         assert_eq!(creature.unit().attacking(), None);
+        assert_eq!(creature.unit().data().health, 0);
+        assert_eq!(creature.unit().get_power(PowerType::Energy), 0);
+        assert_eq!(creature.unit().emote_state_like_cpp(), 0);
+        assert_eq!(
+            creature.unit().stand_state_like_cpp(),
+            UnitStandStateType::Stand
+        );
+        assert!(
+            !creature
+                .unit()
+                .subsystems()
+                .auras
+                .has_aura_state(AURA_STATE_DEFENSIVE)
+        );
+        assert!(
+            !creature
+                .unit()
+                .subsystems()
+                .auras
+                .has_aura_state(AURA_STATE_DEFENSIVE_2)
+        );
+        assert_eq!(
+            creature
+                .unit()
+                .subsystems()
+                .auras
+                .get_diminishing(DIMINISHING_STUN, 1_000),
+            DiminishingLevel::Level1
+        );
         assert_eq!(
             creature.unit().subsystems().combat.threat_value(player),
             None,

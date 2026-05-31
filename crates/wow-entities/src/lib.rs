@@ -264,9 +264,9 @@ pub use unit::{
     UnitVisibilityDetectionStateLikeCpp,
 };
 pub use unit_subsystems::{
-    AURA_STATE_DEFENSIVE, AURA_STATE_ENRAGED, AURA_STATE_NONE, AURA_STATE_RAID_ENCOUNTER_2,
-    AURA_STATE_ROGUE_POISONED, AiSubsystem, AppliedAuraRef, AssistanceDistractFinalize,
-    AssistanceMovementFinalize, AuraRef, AuraSubsystem,
+    AURA_STATE_DEFENSIVE, AURA_STATE_DEFENSIVE_2, AURA_STATE_ENRAGED, AURA_STATE_NONE,
+    AURA_STATE_RAID_ENCOUNTER_2, AURA_STATE_ROGUE_POISONED, AiSubsystem, AppliedAuraRef,
+    AssistanceDistractFinalize, AssistanceMovementFinalize, AuraRef, AuraSubsystem,
     CREATURE_FAMILY_ASSISTANCE_DELAY_MS_LIKE_CPP, CURRENT_FIRST_NON_MELEE_SPELL, CURRENT_MAX_SPELL,
     CharmInfoState, CharmType, CombatBeginContextLikeCpp, CombatReferenceState, CombatSubsystem,
     ControlSubsystem, ControlledOwnerAttackedNotification, CurrentSpellRef, CurrentSpellSlot,

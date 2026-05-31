@@ -89,6 +89,7 @@ impl AppliedAuraRef {
 
 pub const AURA_STATE_NONE: u8 = 0;
 pub const AURA_STATE_DEFENSIVE: u8 = 1;
+pub const AURA_STATE_DEFENSIVE_2: u8 = 7;
 pub const AURA_STATE_RAID_ENCOUNTER_2: u8 = 14;
 pub const AURA_STATE_ROGUE_POISONED: u8 = 16;
 pub const AURA_STATE_ENRAGED: u8 = 17;
@@ -327,6 +328,11 @@ impl AuraSubsystem {
             return false;
         }
         (self.aura_state_mask & (1 << (flag - 1))) != 0
+    }
+
+    pub fn clear_all_reactives_like_cpp(&mut self) {
+        self.modify_aura_state(AURA_STATE_DEFENSIVE, false);
+        self.modify_aura_state(AURA_STATE_DEFENSIVE_2, false);
     }
 
     pub fn build_aura_state_update_for_target(&self, target: ObjectGuid) -> u32 {

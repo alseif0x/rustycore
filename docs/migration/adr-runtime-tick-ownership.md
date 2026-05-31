@@ -770,6 +770,14 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   all represented creature death paths stop combat before death hooks. This is still partial:
   spell interrupts, vehicle/totem/controlled removal, aura-on-death removal, and full combat packet
   fanout remain open.
+- 2026-05-31 — Represented creature death-state field normalization `#NEXT.RUNTIME.L3.031ao`:
+  extends the same C++ `Unit::setDeathState(JUST_DIED)` anchor (`Unit.cpp:8552-8567`). Rust now
+  clears represented defensive reactives and diminishing-return state, then normalizes health to 0,
+  current display power to 0, emote state to `EMOTE_ONESHOT_NONE`, and stand state to
+  `UNIT_STAND_STATE_STAND` during represented creature death. This deliberately stays within fields
+  already represented by `wow-entities`; spell interruption, vehicle/totem/controlled cleanup,
+  death-persistent aura filtering, movement `StopOnDeath`, and ZoneScript/InstanceScript callbacks
+  remain separate gaps.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
