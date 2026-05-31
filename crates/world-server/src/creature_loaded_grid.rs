@@ -351,6 +351,10 @@ pub fn build_loaded_grid_creature_inputs_from_db_like_cpp(
     let equipment_id = u8::try_from(runtime_row.equipment_id.max(0)).unwrap_or(0);
     let original_equipment_id = runtime_row.equipment_id;
     let movement_type = movement_type_like_cpp(runtime_row.movement_type, template.movement_type);
+    let npc_flags = runtime_row.npc_flags.unwrap_or(template.npc_flags);
+    let unit_flags = runtime_row.unit_flags.unwrap_or(template.unit_flags);
+    let unit_flags2 = runtime_row.unit_flags2.unwrap_or(template.unit_flags2);
+    let unit_flags3 = runtime_row.unit_flags3.unwrap_or(template.unit_flags3);
 
     let resolved_template = ResolvedCreatureTemplateLikeCpp {
         entry: template.entry,
@@ -361,7 +365,7 @@ pub fn build_loaded_grid_creature_inputs_from_db_like_cpp(
         script_name: template.script_name.clone(),
         unit_class: template.unit_class,
         faction: template.faction,
-        npc_flags: template.npc_flags,
+        npc_flags,
         display_id: selected_display_id,
         model_dimensions: selected_model_dimensions,
         scale: template.scale,
@@ -371,9 +375,9 @@ pub fn build_loaded_grid_creature_inputs_from_db_like_cpp(
         classification: template.classification,
         damage_school: template.damage_school,
         sparring_health_pct: None,
-        unit_flags: template.unit_flags,
-        unit_flags2: template.unit_flags2,
-        unit_flags3: template.unit_flags3,
+        unit_flags,
+        unit_flags2,
+        unit_flags3,
         flags_extra: template.flags_extra,
         static_flags: difficulty.static_flags,
         creature_type: template.creature_type,
@@ -845,6 +849,10 @@ mod tests {
             curhealth: 77,
             curmana: 33,
             movement_type: 2,
+            npc_flags: Some(0x2_0000_0080),
+            unit_flags: Some(wow_constants::UnitFlags::IMMUNE_TO_PC.bits()),
+            unit_flags2: Some(wow_constants::UnitFlags2::IGNORE_REPUTATION.bits()),
+            unit_flags3: Some(wow_constants::UnitFlags3::IGNORE_COMBAT.bits()),
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: wow_constants::CreatureFlightMovementType::CanFly as u8,
@@ -882,19 +890,19 @@ mod tests {
         assert_eq!(template.ai_name, "AggressorAI");
         assert_eq!(template.script_name, "npc_db_creature");
         assert_eq!(template.faction, 35);
-        assert_eq!(template.npc_flags, 0x1_0000_0040);
+        assert_eq!(template.npc_flags, 0x2_0000_0080);
         assert_eq!(template.spells[0..2], [10, 20]);
         assert_eq!(
             template.unit_flags,
-            wow_constants::UnitFlags::IMMUNE_TO_NPC.bits()
+            wow_constants::UnitFlags::IMMUNE_TO_PC.bits()
         );
         assert_eq!(
             template.unit_flags2,
-            wow_constants::UnitFlags2::FEIGN_DEATH.bits()
+            wow_constants::UnitFlags2::IGNORE_REPUTATION.bits()
         );
         assert_eq!(
             template.unit_flags3,
-            wow_constants::UnitFlags3::AI_OBSTACLE.bits()
+            wow_constants::UnitFlags3::IGNORE_COMBAT.bits()
         );
         assert_eq!(template.static_flags[0], static_flags[0]);
         assert_eq!(template.display_id, 999);
@@ -942,6 +950,10 @@ mod tests {
             curhealth: 77,
             curmana: 33,
             movement_type: 0,
+            npc_flags: None,
+            unit_flags: None,
+            unit_flags2: None,
+            unit_flags3: None,
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: 0,
@@ -990,6 +1002,10 @@ mod tests {
             curhealth: 77,
             curmana: 33,
             movement_type: 0,
+            npc_flags: None,
+            unit_flags: None,
+            unit_flags2: None,
+            unit_flags3: None,
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: 0,
@@ -1045,6 +1061,10 @@ mod tests {
             curhealth: 0,
             curmana: 0,
             movement_type: 0,
+            npc_flags: None,
+            unit_flags: None,
+            unit_flags2: None,
+            unit_flags3: None,
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: 0,
@@ -1108,6 +1128,10 @@ mod tests {
             curhealth: 0,
             curmana: 0,
             movement_type: 0,
+            npc_flags: None,
+            unit_flags: None,
+            unit_flags2: None,
+            unit_flags3: None,
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: 0,
@@ -1162,6 +1186,10 @@ mod tests {
             curhealth: 0,
             curmana: 33,
             movement_type: 0,
+            npc_flags: None,
+            unit_flags: None,
+            unit_flags2: None,
+            unit_flags3: None,
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: 0,
@@ -1216,6 +1244,10 @@ mod tests {
             curhealth: 1,
             curmana: 44,
             movement_type: 0,
+            npc_flags: None,
+            unit_flags: None,
+            unit_flags2: None,
+            unit_flags3: None,
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: 0,
@@ -1282,6 +1314,10 @@ mod tests {
             curhealth: 0,
             curmana: 0,
             movement_type: 0,
+            npc_flags: None,
+            unit_flags: None,
+            unit_flags2: None,
+            unit_flags3: None,
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: 0,

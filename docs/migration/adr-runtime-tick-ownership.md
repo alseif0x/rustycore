@@ -921,6 +921,14 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `update_npc_flags_template_npcflag_missing` counter now means a true missing template. This does
   not implement full `ChooseCreatureFlags` condition evaluation, creature-data overrides, or the
   respawn-route `flags_extra` gate nuance.
+- 2026-05-31 — Loaded-grid creature spawn flag overrides `#NEXT.RUNTIME.L3.031bg`:
+  ports the nullable spawn-row source selection inside C++ `ObjectMgr::ChooseCreatureFlags`
+  (`ObjectMgr.cpp:1683-1697`) using the nullable fields loaded by `ObjectMgr::LoadCreatures`
+  (`ObjectMgr.cpp:2174-2229`, `CreatureData.h:643-646`). Rust now carries optional
+  `creature.npcflag` / `unit_flags*` in `CreatureSpawnRuntimeRowLikeCpp` and lets loaded-grid
+  lifecycle construction choose `spawn override` before `creature_template` values. This is still
+  bounded to the explicit nullable source-selection rule; addon reload and any broader runtime
+  flag recomputation remain separate gaps.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
