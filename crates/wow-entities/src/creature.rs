@@ -2249,6 +2249,8 @@ impl Creature {
                 self.runtime_state.visibility_update_requested = true;
                 self.unit.set_target(ObjectGuid::EMPTY);
                 self.unit.set_attacking(None);
+                self.unit.subsystems_mut().combat.end_all_combat();
+                self.unit.subsystems_mut().combat.clear_attackers();
                 self.already_searched_assistance = false;
                 self.already_call_assistance = false;
                 plan.extend([
@@ -3947,6 +3949,16 @@ mod tests {
         creature.set_corpse_delay(15, false);
         creature.unit_mut().set_target(victim);
         creature.unit_mut().set_attacking(Some(victim));
+        creature
+            .unit_mut()
+            .subsystems_mut()
+            .combat
+            .add_threat(player, 7.5);
+        creature
+            .unit_mut()
+            .subsystems_mut()
+            .combat
+            .add_attacker(player);
         creature.set_tapped_by_player(player, &[]);
 
         let plan = creature.set_death_state_runtime(DeathState::JustDied, now);
@@ -3956,6 +3968,12 @@ mod tests {
         assert_eq!(creature.respawn_time(), now + 45 + 15);
         assert_eq!(creature.unit().data().target, ObjectGuid::EMPTY);
         assert_eq!(creature.unit().attacking(), None);
+        assert_eq!(
+            creature.unit().subsystems().combat.threat_value(player),
+            None,
+            "C++ Unit::setDeathState(JUST_DIED) calls CombatStop before death-state side effects"
+        );
+        assert!(creature.unit().subsystems().combat.attackers.is_empty());
         assert!(creature.runtime_state().save_respawn_requested);
         assert!(plan.contains(CreatureRuntimeAction::SaveRespawnTime));
         assert!(plan.contains(CreatureRuntimeAction::ClearTarget));

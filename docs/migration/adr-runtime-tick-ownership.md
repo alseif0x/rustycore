@@ -761,6 +761,15 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   victim hits back into the legacy `WorldCreature` when it exists on the same `(map, instance)`,
   including the `JustDied -> Corpse` transition for lethal hits. This is a convergence guard for the
   current dual-model runtime, not a substitute for the final single canonical source of truth.
+- 2026-05-31 — Represented creature death CombatStop parity `#NEXT.RUNTIME.L3.031an`:
+  closes a shared death-state gap found while auditing `Unit::Kill`. C++ `Unit::setDeathState`
+  stores the new death state and, for non-alive states, calls `CombatStop()` before `JUST_DIED`
+  side effects (`Unit.cpp:8527-8554`). Rust's represented `Creature::set_death_state_runtime`
+  already cleared target/attacking and drove corpse/respawn bookkeeping, but left threat references
+  and attacker sets alive. It now clears represented combat/threat/attackers during `JustDied`, so
+  all represented creature death paths stop combat before death hooks. This is still partial:
+  spell interrupts, vehicle/totem/controlled removal, aura-on-death removal, and full combat packet
+  fanout remain open.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
