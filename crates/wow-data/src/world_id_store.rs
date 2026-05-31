@@ -7,8 +7,8 @@
 
 use std::collections::HashSet;
 
-use anyhow::Result;
-use wow_database::{WorldDatabase, WorldStatements};
+use anyhow::{Result, bail};
+use wow_database::{SqlResult, WorldDatabase, WorldStatements};
 
 #[derive(Debug, Clone)]
 pub struct WorldIdStore {
@@ -46,7 +46,12 @@ impl WorldIdStore {
 
         let mut ids = HashSet::new();
         loop {
-            let id = result.read(0);
+            let Some(id) = read_world_id_like_cpp(&result, 0, name)? else {
+                if !result.next_row() {
+                    break;
+                }
+                continue;
+            };
             if keep_id(id) {
                 ids.insert(id);
             }
@@ -83,6 +88,39 @@ impl WorldIdStore {
     }
 }
 
+fn read_world_id_like_cpp(
+    result: &SqlResult,
+    column: usize,
+    store_name: &'static str,
+) -> Result<Option<u32>> {
+    if let Some(value) = result.try_read::<u32>(column) {
+        return Ok(Some(value));
+    }
+    if let Some(value) = result.try_read::<u64>(column) {
+        return Ok(u32::try_from(value).ok());
+    }
+    if let Some(value) = result.try_read::<u16>(column) {
+        return Ok(Some(u32::from(value)));
+    }
+    if let Some(value) = result.try_read::<u8>(column) {
+        return Ok(Some(u32::from(value)));
+    }
+    if let Some(value) = result.try_read::<i32>(column) {
+        return Ok(u32::try_from(value).ok());
+    }
+    if let Some(value) = result.try_read::<i64>(column) {
+        return Ok(u32::try_from(value).ok());
+    }
+    if let Some(value) = result.try_read::<i16>(column) {
+        return Ok(u32::try_from(value).ok());
+    }
+    if let Some(value) = result.try_read::<i8>(column) {
+        return Ok(u32::try_from(value).ok());
+    }
+
+    bail!("unsupported ID column type while loading world id store `{store_name}`")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -105,5 +143,11 @@ mod tests {
         assert!(store.contains(1));
         assert!(!store.contains(2));
         assert!(store.contains(3));
+    }
+
+    #[test]
+    fn signed_world_ids_are_normalized_to_unsigned_domain_like_cpp_getuint32() {
+        assert_eq!(u32::try_from(42_i32).ok(), Some(42));
+        assert_eq!(u32::try_from(-1_i32).ok(), None);
     }
 }

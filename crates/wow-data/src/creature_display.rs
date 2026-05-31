@@ -39,6 +39,13 @@ pub struct CreatureModelDataStore {
     entries: HashMap<u32, CreatureModelDataEntry>,
 }
 
+// C++ CreatureModelDataLoadInfo has 34 logical columns, but WDC4 stores
+// GeoBox[6] as one physical DB2Meta field. These indices are the physical
+// CreatureModelDataMeta fields, not the hotfix SELECT column ordinals.
+const CREATURE_MODEL_DATA_COLLISION_HEIGHT_DB2_FIELD: usize = 14;
+const CREATURE_MODEL_DATA_MODEL_SCALE_DB2_FIELD: usize = 19;
+const CREATURE_MODEL_DATA_MOUNT_HEIGHT_DB2_FIELD: usize = 23;
+
 impl CreatureDisplayInfoStore {
     pub fn from_entries(entries: impl IntoIterator<Item = CreatureDisplayInfoEntry>) -> Self {
         Self {
@@ -141,9 +148,15 @@ impl CreatureModelDataStore {
         for (id, idx) in reader.iter_records() {
             entries.push(CreatureModelDataEntry {
                 id,
-                collision_height: f32::from_bits(reader.get_field_u32(idx, 20)),
-                model_scale: f32::from_bits(reader.get_field_u32(idx, 25)),
-                mount_height: f32::from_bits(reader.get_field_u32(idx, 29)),
+                collision_height: f32::from_bits(
+                    reader.get_field_u32(idx, CREATURE_MODEL_DATA_COLLISION_HEIGHT_DB2_FIELD),
+                ),
+                model_scale: f32::from_bits(
+                    reader.get_field_u32(idx, CREATURE_MODEL_DATA_MODEL_SCALE_DB2_FIELD),
+                ),
+                mount_height: f32::from_bits(
+                    reader.get_field_u32(idx, CREATURE_MODEL_DATA_MOUNT_HEIGHT_DB2_FIELD),
+                ),
             });
         }
 
@@ -302,5 +315,29 @@ mod tests {
             unit_collision_height_like_cpp(2.0, 10, None, &displays, &models),
             Some(DEFAULT_COLLISION_HEIGHT_LIKE_CPP)
         );
+    }
+
+    #[test]
+    fn load_creature_model_data_uses_physical_wdc4_fields_like_cpp_meta() {
+        let data_dir = "/home/server/woltk-server-core/Data";
+        let locale = "enUS";
+        let path = std::path::Path::new(data_dir)
+            .join("dbc")
+            .join(locale)
+            .join("CreatureModelData.db2");
+        if !path.exists() {
+            eprintln!(
+                "Skipping test: CreatureModelData.db2 not found at {}",
+                path.display()
+            );
+            return;
+        }
+
+        let store = CreatureModelDataStore::load(data_dir, locale)
+            .expect("CreatureModelData.db2 should load with physical WDC4 field indices");
+        assert!(!store.is_empty());
+        assert!(store.entries.values().any(|entry| {
+            entry.collision_height > 0.0 || entry.model_scale > 0.0 || entry.mount_height > 0.0
+        }));
     }
 }

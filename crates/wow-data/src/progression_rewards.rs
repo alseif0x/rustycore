@@ -471,8 +471,14 @@ impl FactionStore {
             reputation_flags: std::array::from_fn(|i| r.get_array_u16(idx, 13, i)),
             reputation_base: std::array::from_fn(|i| r.get_array_i32(idx, 14, i)),
             reputation_max: std::array::from_fn(|i| r.get_array_i32(idx, 15, i)),
-            parent_faction_mod: [r.get_field_f32(idx, 16), r.get_field_f32(idx, 17)],
-            parent_faction_cap: [r.get_field_u8(idx, 18), r.get_field_u8(idx, 19)],
+            parent_faction_mod: [
+                f32::from_bits(r.get_array_element(idx, 16, 0, 32)),
+                f32::from_bits(r.get_array_element(idx, 16, 1, 32)),
+            ],
+            parent_faction_cap: [
+                r.get_array_element(idx, 17, 0, 8) as u8,
+                r.get_array_element(idx, 17, 1, 8) as u8,
+            ],
         })
     }
 

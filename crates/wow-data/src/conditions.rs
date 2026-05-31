@@ -17,7 +17,7 @@ use wow_constants::{
     ComparisonType, ConditionInstanceInfo, ConditionSourceType, ConditionType, Gender,
     RelationType, Team, TypeId, TypeMask, UnitStandStateType,
 };
-use wow_database::{WorldDatabase, WorldStatements};
+use wow_database::{SqlResult, WorldDatabase, WorldStatements};
 
 pub const GRID_MAP_TYPE_MASK_CORPSE: u32 = 0x01;
 pub const GRID_MAP_TYPE_MASK_CREATURE: u32 = 0x02;
@@ -2287,20 +2287,20 @@ pub async fn load_condition_rows_like_cpp(
     let mut rows = Vec::new();
     loop {
         rows.push(ConditionDbRowLikeCpp {
-            source_type_or_reference_id: result.read(0),
-            source_group: result.read(1),
-            source_entry: result.read(2),
-            source_id: result.read(3),
-            else_group: result.read(4),
-            condition_type_or_reference: result.read(5),
-            condition_target: result.read(6),
-            condition_value1: result.read(7),
-            condition_value2: result.read(8),
-            condition_value3: result.read(9),
+            source_type_or_reference_id: read_db_i32_like_cpp(&result, 0),
+            source_group: read_db_u32_like_cpp(&result, 1),
+            source_entry: read_db_i32_like_cpp(&result, 2),
+            source_id: read_db_i32_like_cpp(&result, 3) as u32,
+            else_group: read_db_u32_like_cpp(&result, 4),
+            condition_type_or_reference: read_db_i32_like_cpp(&result, 5),
+            condition_target: read_db_u8_like_cpp(&result, 6),
+            condition_value1: read_db_u32_like_cpp(&result, 7),
+            condition_value2: read_db_u32_like_cpp(&result, 8),
+            condition_value3: read_db_u32_like_cpp(&result, 9),
             condition_string_value1: result.read_string(10),
-            negative_condition: result.read(11),
-            error_type: result.read(12),
-            error_text_id: result.read(13),
+            negative_condition: read_db_bool_like_cpp(&result, 11),
+            error_type: read_db_u32_like_cpp(&result, 12),
+            error_text_id: read_db_u32_like_cpp(&result, 13),
             script_name: result.read_string(14),
         });
 
@@ -2319,9 +2319,140 @@ pub async fn load_condition_rows_like_cpp(
     Ok(report)
 }
 
+fn read_db_i32_like_cpp(result: &SqlResult, column: usize) -> i32 {
+    if let Some(value) = result.try_read::<i32>(column) {
+        return value;
+    }
+    if let Some(value) = result.try_read::<u32>(column) {
+        return normalize_unsigned_db_i32_like_cpp(value);
+    }
+    if let Some(value) = result.try_read::<i16>(column) {
+        return i32::from(value);
+    }
+    if let Some(value) = result.try_read::<u16>(column) {
+        return i32::from(value);
+    }
+    if let Some(value) = result.try_read::<i8>(column) {
+        return i32::from(value);
+    }
+    if let Some(value) = result.try_read::<u8>(column) {
+        return i32::from(value);
+    }
+    if let Some(value) = result.try_read::<i64>(column) {
+        return i32::try_from(value).unwrap_or(0);
+    }
+    if let Some(value) = result.try_read::<u64>(column) {
+        return i32::try_from(value).unwrap_or(0);
+    }
+    0
+}
+
+fn read_db_u32_like_cpp(result: &SqlResult, column: usize) -> u32 {
+    if let Some(value) = result.try_read::<u32>(column) {
+        return value;
+    }
+    if let Some(value) = result.try_read::<i32>(column) {
+        return normalize_signed_db_u32_like_cpp(value);
+    }
+    if let Some(value) = result.try_read::<u16>(column) {
+        return u32::from(value);
+    }
+    if let Some(value) = result.try_read::<i16>(column) {
+        return normalize_signed_db_u32_like_cpp(i32::from(value));
+    }
+    if let Some(value) = result.try_read::<u8>(column) {
+        return u32::from(value);
+    }
+    if let Some(value) = result.try_read::<i8>(column) {
+        return normalize_signed_db_u32_like_cpp(i32::from(value));
+    }
+    if let Some(value) = result.try_read::<u64>(column) {
+        return u32::try_from(value).unwrap_or(0);
+    }
+    if let Some(value) = result.try_read::<i64>(column) {
+        return if (0..=i64::from(u32::MAX)).contains(&value) {
+            value as u32
+        } else {
+            0
+        };
+    }
+    0
+}
+
+fn read_db_u8_like_cpp(result: &SqlResult, column: usize) -> u8 {
+    if let Some(value) = result.try_read::<u8>(column) {
+        return value;
+    }
+    if let Some(value) = result.try_read::<i8>(column) {
+        return normalize_signed_db_u8_like_cpp(i32::from(value));
+    }
+    if let Some(value) = result.try_read::<u16>(column) {
+        return u8::try_from(value).unwrap_or(0);
+    }
+    if let Some(value) = result.try_read::<i16>(column) {
+        return normalize_signed_db_u8_like_cpp(i32::from(value));
+    }
+    if let Some(value) = result.try_read::<u32>(column) {
+        return u8::try_from(value).unwrap_or(0);
+    }
+    if let Some(value) = result.try_read::<i32>(column) {
+        return normalize_signed_db_u8_like_cpp(value);
+    }
+    0
+}
+
+fn read_db_bool_like_cpp(result: &SqlResult, column: usize) -> bool {
+    read_db_u8_like_cpp(result, column) == 1
+}
+
+fn normalize_signed_db_u32_like_cpp(value: i32) -> u32 {
+    value as u32
+}
+
+fn normalize_unsigned_db_i32_like_cpp(value: u32) -> i32 {
+    i32::try_from(value).unwrap_or(0)
+}
+
+fn normalize_signed_db_u8_like_cpp(value: i32) -> u8 {
+    let converted = value as u8;
+    if i32::from(converted) == value || (converted as i8) as i32 == value {
+        converted
+    } else {
+        0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn condition_sql_columns_normalize_like_cpp_field_accessors() {
+        assert_eq!(normalize_signed_db_u32_like_cpp(-1), u32::MAX);
+        assert_eq!(normalize_signed_db_u8_like_cpp(-1), u8::MAX);
+        assert_eq!(normalize_signed_db_u8_like_cpp(0x100), 0);
+        assert_eq!(normalize_unsigned_db_i32_like_cpp(i32::MAX as u32 + 1), 0);
+
+        let row = ConditionDbRowLikeCpp {
+            source_type_or_reference_id: ConditionSourceType::SmartEvent as i32,
+            source_group: 1,
+            source_entry: -5,
+            source_id: (-1_i32) as u32,
+            else_group: 0,
+            condition_type_or_reference: ConditionType::None as i32,
+            condition_target: 0,
+            condition_value1: 0,
+            condition_value2: 0,
+            condition_value3: 0,
+            condition_string_value1: String::new(),
+            negative_condition: false,
+            error_type: 0,
+            error_text_id: 0,
+            script_name: String::new(),
+        };
+        let condition = parse_condition_row_like_cpp(row, |_| 0).unwrap();
+        assert_eq!(condition.source_id, u32::MAX);
+    }
 
     fn spell_info(spell_id: i32) -> crate::SpellInfo {
         crate::SpellInfo {

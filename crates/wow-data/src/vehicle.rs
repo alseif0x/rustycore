@@ -139,12 +139,12 @@ impl VehicleStore {
         for (id, idx) in reader.iter_records() {
             let mut seat_ids = [0u16; MAX_VEHICLE_SEATS_LIKE_CPP];
             for (offset, seat_id) in seat_ids.iter_mut().enumerate() {
-                *seat_id = reader.get_field_u16(idx, 17 + offset);
+                *seat_id = reader.get_array_u16(idx, 17, offset);
             }
             entries.push(VehicleEntry {
                 id,
-                flags: reader.get_field_i32(idx, 1),
-                flags_b: reader.get_field_i32(idx, 2),
+                flags: reader.get_field_i32(idx, 0),
+                flags_b: reader.get_field_i32(idx, 1),
                 seat_ids,
             });
         }
@@ -228,12 +228,12 @@ impl VehicleSeatStore {
         for (id, idx) in reader.iter_records() {
             entries.push(VehicleSeatEntry {
                 id,
-                attachment_offset_x: f32::from_bits(reader.get_field_u32(idx, 1)),
-                attachment_offset_y: f32::from_bits(reader.get_field_u32(idx, 2)),
-                attachment_offset_z: f32::from_bits(reader.get_field_u32(idx, 3)),
-                flags: reader.get_field_i32(idx, 7),
-                flags_b: reader.get_field_i32(idx, 8),
-                flags_c: reader.get_field_i32(idx, 9),
+                attachment_offset_x: f32::from_bits(reader.get_array_element(idx, 0, 0, 32)),
+                attachment_offset_y: f32::from_bits(reader.get_array_element(idx, 0, 1, 32)),
+                attachment_offset_z: f32::from_bits(reader.get_array_element(idx, 0, 2, 32)),
+                flags: reader.get_field_i32(idx, 2),
+                flags_b: reader.get_field_i32(idx, 3),
+                flags_c: reader.get_field_i32(idx, 4),
             });
         }
 
@@ -678,6 +678,44 @@ mod tests {
             store
                 .accessories_for_vehicle_like_cpp(Some(99), 1)
                 .is_none()
+        );
+    }
+
+    #[test]
+    fn load_vehicle_db2_uses_physical_wdc4_arrays_like_cpp_meta() {
+        let data_dir = "/home/server/woltk-server-core/Data";
+        let locale = "enUS";
+        let vehicle_path = std::path::Path::new(data_dir)
+            .join("dbc")
+            .join(locale)
+            .join("Vehicle.db2");
+        let seat_path = std::path::Path::new(data_dir)
+            .join("dbc")
+            .join(locale)
+            .join("VehicleSeat.db2");
+        if !vehicle_path.exists() || !seat_path.exists() {
+            eprintln!(
+                "Skipping test: Vehicle.db2 or VehicleSeat.db2 not found under {}",
+                std::path::Path::new(data_dir)
+                    .join("dbc")
+                    .join(locale)
+                    .display()
+            );
+            return;
+        }
+
+        let vehicles = VehicleStore::load(data_dir, locale)
+            .expect("Vehicle.db2 should load with physical WDC4 field indices");
+        let seats = VehicleSeatStore::load(data_dir, locale)
+            .expect("VehicleSeat.db2 should load with physical WDC4 field indices");
+
+        assert!(!vehicles.is_empty());
+        assert!(!seats.is_empty());
+        assert!(
+            vehicles
+                .by_id
+                .values()
+                .any(|vehicle| vehicle.seat_ids.iter().any(|seat_id| *seat_id != 0))
         );
     }
 }

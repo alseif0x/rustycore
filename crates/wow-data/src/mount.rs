@@ -582,11 +582,14 @@ impl MountXDisplayStore {
 
         let mut entries = Vec::with_capacity(reader.total_count());
         for (id, idx) in reader.iter_records() {
+            // C++ `MountXDisplayMeta` stores `MountID` as WDC4 relationship
+            // data; the physical payload only has CreatureDisplayInfoID and
+            // PlayerConditionID.
             entries.push(MountXDisplayEntry {
                 id,
                 creature_display_info_id: reader.get_field_i32(idx, 0),
                 player_condition_id: reader.get_field_u32(idx, 1),
-                mount_id: reader.get_field_u32(idx, 2),
+                mount_id: reader.get_relationship_id(idx).unwrap_or(0),
             });
         }
 
@@ -749,6 +752,24 @@ mod tests {
         assert_eq!(displays.len(), 2);
         assert_eq!(displays[0].creature_display_info_id, 1000);
         assert!(store.displays_for_mount_like_cpp(99).is_none());
+    }
+
+    #[test]
+    fn load_mount_x_display_uses_cpp_parent_relationship_when_fixture_exists() {
+        let data_dir = "/home/server/woltk-server-core/Data";
+        let locale = "enUS";
+        let path = Path::new(data_dir)
+            .join("dbc")
+            .join(locale)
+            .join("MountXDisplay.db2");
+        if !path.exists() {
+            eprintln!("Skipping test: MountXDisplay.db2 not found");
+            return;
+        }
+
+        let store =
+            MountXDisplayStore::load(data_dir, locale).expect("failed to load MountXDisplay.db2");
+        assert!(store.by_id.values().any(|display| display.mount_id != 0));
     }
 
     #[test]

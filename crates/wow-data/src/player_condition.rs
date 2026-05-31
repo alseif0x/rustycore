@@ -266,38 +266,40 @@ impl PlayerConditionStore {
                 min_expansion_tier: reader.get_field_i8(idx, 54),
                 min_pvp_rank: reader.get_field_u8(idx, 55),
                 max_pvp_rank: reader.get_field_u8(idx, 56),
+                // Trinity's load info expands these to fields 57..146, but
+                // the WDC4 payload stores them as physical array fields 57..80.
                 skill_id: read_u16_array(&reader, idx, 57),
-                min_skill: read_u16_array(&reader, idx, 61),
-                max_skill: read_u16_array(&reader, idx, 65),
-                min_faction_id: read_u32_array3(&reader, idx, 69),
-                min_reputation: read_u8_array3(&reader, idx, 72),
-                prev_quest_id: read_u32_array4(&reader, idx, 75),
-                curr_quest_id: read_u32_array4(&reader, idx, 79),
-                current_completed_quest_id: read_u32_array4(&reader, idx, 83),
-                spell_id: read_i32_array4(&reader, idx, 87),
-                item_id: read_i32_array4(&reader, idx, 91),
-                item_count: read_u32_array4(&reader, idx, 95),
+                min_skill: read_u16_array(&reader, idx, 58),
+                max_skill: read_u16_array(&reader, idx, 59),
+                min_faction_id: read_u32_array3(&reader, idx, 60),
+                min_reputation: read_u8_array3(&reader, idx, 61),
+                prev_quest_id: read_u32_array4(&reader, idx, 62),
+                curr_quest_id: read_u32_array4(&reader, idx, 63),
+                current_completed_quest_id: read_u32_array4(&reader, idx, 64),
+                spell_id: read_i32_array4(&reader, idx, 65),
+                item_id: read_i32_array4(&reader, idx, 66),
+                item_count: read_u32_array4(&reader, idx, 67),
                 explored: [
-                    reader.get_field_u16(idx, 99),
-                    reader.get_field_u16(idx, 100),
+                    reader.get_array_u16(idx, 68, 0),
+                    reader.get_array_u16(idx, 68, 1),
                 ],
                 time: [
-                    reader.get_field_u32(idx, 101),
-                    reader.get_field_u32(idx, 102),
+                    reader.get_array_element(idx, 69, 0, 32),
+                    reader.get_array_element(idx, 69, 1, 32),
                 ],
-                aura_spell_id: read_i32_array4(&reader, idx, 103),
-                aura_stacks: read_u8_array4(&reader, idx, 107),
-                achievement: read_u16_array(&reader, idx, 111),
-                area_id: read_u16_array(&reader, idx, 115),
-                lfg_status: read_u8_array4(&reader, idx, 119),
-                lfg_compare: read_u8_array4(&reader, idx, 123),
-                lfg_value: read_u32_array4(&reader, idx, 127),
-                currency_id: read_u32_array4(&reader, idx, 131),
-                currency_count: read_u32_array4(&reader, idx, 135),
-                quest_kill_monster: read_u32_array6(&reader, idx, 139),
+                aura_spell_id: read_i32_array4(&reader, idx, 70),
+                aura_stacks: read_u8_array4(&reader, idx, 71),
+                achievement: read_u16_array(&reader, idx, 72),
+                area_id: read_u16_array(&reader, idx, 73),
+                lfg_status: read_u8_array4(&reader, idx, 74),
+                lfg_compare: read_u8_array4(&reader, idx, 75),
+                lfg_value: read_u32_array4(&reader, idx, 76),
+                currency_id: read_u32_array4(&reader, idx, 77),
+                currency_count: read_u32_array4(&reader, idx, 78),
+                quest_kill_monster: read_u32_array6(&reader, idx, 79),
                 movement_flags: [
-                    reader.get_field_i32(idx, 145),
-                    reader.get_field_i32(idx, 146),
+                    reader.get_array_i32(idx, 80, 0),
+                    reader.get_array_i32(idx, 80, 1),
                 ],
             };
             entries.insert(id, entry);
@@ -969,64 +971,64 @@ fn check_quest_kills_like_cpp(
 
 fn read_u16_array(reader: &Wdc4Reader, idx: usize, start: usize) -> [u16; 4] {
     [
-        reader.get_field_u16(idx, start),
-        reader.get_field_u16(idx, start + 1),
-        reader.get_field_u16(idx, start + 2),
-        reader.get_field_u16(idx, start + 3),
+        reader.get_array_u16(idx, start, 0),
+        reader.get_array_u16(idx, start, 1),
+        reader.get_array_u16(idx, start, 2),
+        reader.get_array_u16(idx, start, 3),
     ]
 }
 
 fn read_u8_array3(reader: &Wdc4Reader, idx: usize, start: usize) -> [u8; 3] {
     [
-        reader.get_field_u8(idx, start),
-        reader.get_field_u8(idx, start + 1),
-        reader.get_field_u8(idx, start + 2),
+        reader.get_array_element(idx, start, 0, 8) as u8,
+        reader.get_array_element(idx, start, 1, 8) as u8,
+        reader.get_array_element(idx, start, 2, 8) as u8,
     ]
 }
 
 fn read_u8_array4(reader: &Wdc4Reader, idx: usize, start: usize) -> [u8; 4] {
     [
-        reader.get_field_u8(idx, start),
-        reader.get_field_u8(idx, start + 1),
-        reader.get_field_u8(idx, start + 2),
-        reader.get_field_u8(idx, start + 3),
+        reader.get_array_element(idx, start, 0, 8) as u8,
+        reader.get_array_element(idx, start, 1, 8) as u8,
+        reader.get_array_element(idx, start, 2, 8) as u8,
+        reader.get_array_element(idx, start, 3, 8) as u8,
     ]
 }
 
 fn read_u32_array3(reader: &Wdc4Reader, idx: usize, start: usize) -> [u32; 3] {
     [
-        reader.get_field_u32(idx, start),
-        reader.get_field_u32(idx, start + 1),
-        reader.get_field_u32(idx, start + 2),
+        reader.get_array_element(idx, start, 0, 32),
+        reader.get_array_element(idx, start, 1, 32),
+        reader.get_array_element(idx, start, 2, 32),
     ]
 }
 
 fn read_u32_array4(reader: &Wdc4Reader, idx: usize, start: usize) -> [u32; 4] {
     [
-        reader.get_field_u32(idx, start),
-        reader.get_field_u32(idx, start + 1),
-        reader.get_field_u32(idx, start + 2),
-        reader.get_field_u32(idx, start + 3),
+        reader.get_array_element(idx, start, 0, 32),
+        reader.get_array_element(idx, start, 1, 32),
+        reader.get_array_element(idx, start, 2, 32),
+        reader.get_array_element(idx, start, 3, 32),
     ]
 }
 
 fn read_u32_array6(reader: &Wdc4Reader, idx: usize, start: usize) -> [u32; 6] {
     [
-        reader.get_field_u32(idx, start),
-        reader.get_field_u32(idx, start + 1),
-        reader.get_field_u32(idx, start + 2),
-        reader.get_field_u32(idx, start + 3),
-        reader.get_field_u32(idx, start + 4),
-        reader.get_field_u32(idx, start + 5),
+        reader.get_array_element(idx, start, 0, 32),
+        reader.get_array_element(idx, start, 1, 32),
+        reader.get_array_element(idx, start, 2, 32),
+        reader.get_array_element(idx, start, 3, 32),
+        reader.get_array_element(idx, start, 4, 32),
+        reader.get_array_element(idx, start, 5, 32),
     ]
 }
 
 fn read_i32_array4(reader: &Wdc4Reader, idx: usize, start: usize) -> [i32; 4] {
     [
-        reader.get_field_i32(idx, start),
-        reader.get_field_i32(idx, start + 1),
-        reader.get_field_i32(idx, start + 2),
-        reader.get_field_i32(idx, start + 3),
+        reader.get_array_i32(idx, start, 0),
+        reader.get_array_i32(idx, start, 1),
+        reader.get_array_i32(idx, start, 2),
+        reader.get_array_i32(idx, start, 3),
     ]
 }
 
@@ -1039,6 +1041,38 @@ mod tests {
             id,
             ..PlayerConditionEntry::default()
         }
+    }
+
+    #[test]
+    fn load_player_condition_uses_physical_wdc4_array_fields_like_cpp_meta() {
+        let data_dir = "/home/server/woltk-server-core/Data";
+        let locale = "enUS";
+        let path = std::path::Path::new(data_dir)
+            .join("dbc")
+            .join(locale)
+            .join("PlayerCondition.db2");
+        if !path.exists() {
+            eprintln!("Skipping test: PlayerCondition.db2 fixture not found at {path:?}");
+            return;
+        }
+
+        let reader = Wdc4Reader::open(&path).expect("open PlayerCondition.db2 fixture");
+        assert_eq!(
+            reader.field_count(),
+            81,
+            "C++ PlayerConditionMeta stores 147 logical fields in 81 physical WDC4 fields"
+        );
+
+        let store = PlayerConditionStore::load(data_dir, locale).expect("load PlayerCondition.db2");
+        assert!(!store.is_empty());
+        assert!(
+            store.entries.values().any(|entry| {
+                entry.skill_id.iter().any(|value| *value != 0)
+                    || entry.prev_quest_id.iter().any(|value| *value != 0)
+                    || entry.quest_kill_monster.iter().any(|value| *value != 0)
+            }),
+            "fixture should exercise at least one compacted physical array field"
+        );
     }
 
     #[test]

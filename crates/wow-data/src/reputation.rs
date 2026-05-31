@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 use tracing::{info, warn};
-use wow_database::{WorldDatabase, WorldStatements};
+use wow_database::{SqlResult, WorldDatabase, WorldStatements};
 
 use crate::creature_template::CreatureTemplateLifecycleStoreLikeCpp;
 use crate::progression_rewards::FactionStore;
@@ -268,7 +268,7 @@ impl ReputationRewardRateStoreLikeCpp {
         let mut rows = Vec::new();
         loop {
             rows.push(ReputationRewardRateRowLikeCpp {
-                faction_id: result.read(0),
+                faction_id: read_db_u32_like_cpp(&result, 0),
                 rates: ReputationRewardRateEntryLikeCpp {
                     quest_rate: result.read(1),
                     quest_daily_rate: result.read(2),
@@ -392,17 +392,17 @@ impl CreatureOnKillReputationStoreLikeCpp {
         let mut rows = Vec::new();
         loop {
             rows.push(CreatureOnKillReputationRowLikeCpp {
-                creature_id: result.read(0),
+                creature_id: read_db_u32_like_cpp(&result, 0),
                 entry: CreatureOnKillReputationEntryLikeCpp {
-                    rep_faction_1: result.read::<i16>(1) as u32,
-                    rep_faction_2: result.read::<i16>(2) as u32,
-                    is_team_award_1: result.read::<u8>(3) != 0,
-                    reputation_max_cap_1: result.read(4),
+                    rep_faction_1: read_db_i16_like_cpp(&result, 1) as u32,
+                    rep_faction_2: read_db_i16_like_cpp(&result, 2) as u32,
+                    is_team_award_1: read_db_bool_like_cpp(&result, 3),
+                    reputation_max_cap_1: read_db_u8_like_cpp(&result, 4),
                     rep_value_1: result.read(5),
-                    is_team_award_2: result.read::<u8>(6) != 0,
-                    reputation_max_cap_2: result.read(7),
+                    is_team_award_2: read_db_bool_like_cpp(&result, 6),
+                    reputation_max_cap_2: read_db_u8_like_cpp(&result, 7),
                     rep_value_2: result.read(8),
-                    team_dependent: result.read::<u8>(9) != 0,
+                    team_dependent: read_db_bool_like_cpp(&result, 9),
                 },
             });
 
@@ -541,14 +541,14 @@ impl RepSpilloverTemplateStoreLikeCpp {
         let mut rows = Vec::new();
         loop {
             rows.push(RepSpilloverTemplateRowLikeCpp {
-                faction_id: result.read(0),
+                faction_id: u32::from(read_db_u16_like_cpp(&result, 0)),
                 template: RepSpilloverTemplateLikeCpp {
                     faction: [
-                        result.read(1),
-                        result.read(4),
-                        result.read(7),
-                        result.read(10),
-                        result.read(13),
+                        u32::from(read_db_u16_like_cpp(&result, 1)),
+                        u32::from(read_db_u16_like_cpp(&result, 4)),
+                        u32::from(read_db_u16_like_cpp(&result, 7)),
+                        u32::from(read_db_u16_like_cpp(&result, 10)),
+                        u32::from(read_db_u16_like_cpp(&result, 13)),
                     ],
                     faction_rate: [
                         result.read(2),
@@ -558,11 +558,11 @@ impl RepSpilloverTemplateStoreLikeCpp {
                         result.read(14),
                     ],
                     faction_rank: [
-                        result.read(3),
-                        result.read(6),
-                        result.read(9),
-                        result.read(12),
-                        result.read(15),
+                        read_db_u8_like_cpp(&result, 3),
+                        read_db_u8_like_cpp(&result, 6),
+                        read_db_u8_like_cpp(&result, 9),
+                        read_db_u8_like_cpp(&result, 12),
+                        read_db_u8_like_cpp(&result, 15),
                     ],
                 },
             });
@@ -623,6 +623,122 @@ fn validate_non_negative_rates_like_cpp(
     }
 }
 
+fn read_db_u32_like_cpp(result: &SqlResult, column: usize) -> u32 {
+    if let Some(value) = result.try_read::<u32>(column) {
+        return value;
+    }
+    if let Some(value) = result.try_read::<i32>(column) {
+        return normalize_signed_db_u32_like_cpp(value);
+    }
+    if let Some(value) = result.try_read::<u16>(column) {
+        return u32::from(value);
+    }
+    if let Some(value) = result.try_read::<i16>(column) {
+        return normalize_signed_db_u32_like_cpp(i32::from(value));
+    }
+    if let Some(value) = result.try_read::<u8>(column) {
+        return u32::from(value);
+    }
+    if let Some(value) = result.try_read::<i8>(column) {
+        return normalize_signed_db_u32_like_cpp(i32::from(value));
+    }
+    0
+}
+
+fn read_db_u16_like_cpp(result: &SqlResult, column: usize) -> u16 {
+    if let Some(value) = result.try_read::<u16>(column) {
+        return value;
+    }
+    if let Some(value) = result.try_read::<i16>(column) {
+        return normalize_signed_db_u16_like_cpp(i32::from(value));
+    }
+    if let Some(value) = result.try_read::<u8>(column) {
+        return u16::from(value);
+    }
+    if let Some(value) = result.try_read::<i8>(column) {
+        return u16::from(normalize_signed_db_u8_like_cpp(i32::from(value)));
+    }
+    if let Some(value) = result.try_read::<u32>(column) {
+        return u16::try_from(value).unwrap_or(0);
+    }
+    if let Some(value) = result.try_read::<i32>(column) {
+        return normalize_signed_db_u16_like_cpp(value);
+    }
+    0
+}
+
+fn read_db_u8_like_cpp(result: &SqlResult, column: usize) -> u8 {
+    if let Some(value) = result.try_read::<u8>(column) {
+        return value;
+    }
+    if let Some(value) = result.try_read::<i8>(column) {
+        return normalize_signed_db_u8_like_cpp(i32::from(value));
+    }
+    if let Some(value) = result.try_read::<u16>(column) {
+        return u8::try_from(value).unwrap_or(0);
+    }
+    if let Some(value) = result.try_read::<i16>(column) {
+        return normalize_signed_db_u8_like_cpp(i32::from(value));
+    }
+    if let Some(value) = result.try_read::<u32>(column) {
+        return u8::try_from(value).unwrap_or(0);
+    }
+    if let Some(value) = result.try_read::<i32>(column) {
+        return normalize_signed_db_u8_like_cpp(value);
+    }
+    0
+}
+
+fn read_db_i16_like_cpp(result: &SqlResult, column: usize) -> i16 {
+    if let Some(value) = result.try_read::<i16>(column) {
+        return value;
+    }
+    if let Some(value) = result.try_read::<u16>(column) {
+        return normalize_unsigned_db_i16_like_cpp(u32::from(value));
+    }
+    if let Some(value) = result.try_read::<i32>(column) {
+        return i16::try_from(value).unwrap_or(0);
+    }
+    if let Some(value) = result.try_read::<u32>(column) {
+        return normalize_unsigned_db_i16_like_cpp(value);
+    }
+    0
+}
+
+fn read_db_bool_like_cpp(result: &SqlResult, column: usize) -> bool {
+    read_db_u8_like_cpp(result, column) == 1
+}
+
+fn normalize_signed_db_u32_like_cpp(value: i32) -> u32 {
+    value as u32
+}
+
+fn normalize_signed_db_u16_like_cpp(value: i32) -> u16 {
+    let converted = value as u16;
+    if i32::from(converted) == value || (converted as i16) as i32 == value {
+        converted
+    } else {
+        0
+    }
+}
+
+fn normalize_signed_db_u8_like_cpp(value: i32) -> u8 {
+    let converted = value as u8;
+    if i32::from(converted) == value || (converted as i8) as i32 == value {
+        converted
+    } else {
+        0
+    }
+}
+
+fn normalize_unsigned_db_i16_like_cpp(value: u32) -> i16 {
+    if value <= u32::from(u16::MAX) {
+        value as i16
+    } else {
+        0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -645,6 +761,20 @@ mod tests {
             ids.into_iter()
                 .map(|id| FactionEntry::for_test_like_cpp(id, id as i16)),
         )
+    }
+
+    #[test]
+    fn signed_reputation_sql_columns_normalize_like_cpp_getuint_accessors() {
+        assert_eq!(normalize_signed_db_u32_like_cpp(-1), u32::MAX);
+        assert_eq!(normalize_signed_db_u16_like_cpp(-1), u16::MAX);
+        assert_eq!(normalize_signed_db_u16_like_cpp(0x1_0000), 0);
+        assert_eq!(normalize_signed_db_u8_like_cpp(-1), u8::MAX);
+        assert_eq!(normalize_signed_db_u8_like_cpp(0x100), 0);
+        assert_eq!(normalize_unsigned_db_i16_like_cpp(u32::from(u16::MAX)), -1);
+        assert_eq!(
+            normalize_unsigned_db_i16_like_cpp(u32::from(u16::MAX) + 1),
+            0
+        );
     }
 
     fn creature_template_store(

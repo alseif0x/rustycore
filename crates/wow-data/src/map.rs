@@ -255,7 +255,7 @@ impl MapDifficultyXConditionStore {
                 failure_description: reader.get_field_string(idx, 0),
                 player_condition_id: reader.get_field_u32(idx, 1),
                 order_index: reader.get_field_i32(idx, 2),
-                map_difficulty_id: reader.get_field_u32(idx, 3),
+                map_difficulty_id: reader.get_relationship_id(idx).unwrap_or(0),
             });
         }
 
@@ -727,9 +727,25 @@ mod tests {
         let maps = MapStore::load(data_dir, locale).expect("failed to load maps");
         let difficulties =
             MapDifficultyStore::load(data_dir, locale).expect("failed to load map difficulties");
+        let difficulty_conditions = if dbc_dir.join("MapDifficultyXCondition.db2").exists() {
+            Some(
+                MapDifficultyXConditionStore::load(data_dir, locale)
+                    .expect("failed to load map difficulty conditions"),
+            )
+        } else {
+            None
+        };
 
         assert!(!maps.is_empty());
         assert!(!difficulties.is_empty());
+        if let Some(difficulty_conditions) = difficulty_conditions {
+            assert!(
+                difficulty_conditions
+                    .by_id
+                    .values()
+                    .all(|condition| condition.map_difficulty_id != 0)
+            );
+        }
         assert!(maps.get(0).is_some());
 
         let icc = maps.get(631).expect("Icecrown Citadel map missing");

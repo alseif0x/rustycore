@@ -80,9 +80,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use anyhow::Result;
+use anyhow::{Result, bail};
 use wow_core::{ObjectGuid, Position, guid::HighGuid};
-use wow_database::{CharStatements, CharacterDatabase, WorldDatabase, WorldStatements};
+use wow_database::{CharStatements, CharacterDatabase, SqlResult, WorldDatabase, WorldStatements};
 use wow_entities::CreatureFormationInfoLikeCpp;
 use wow_map::pool::{
     PoolGroupLikeCpp, PoolMemberKindLikeCpp, PoolMgrLikeCpp, PoolObjectLikeCpp,
@@ -3283,13 +3283,29 @@ async fn load_creature_formations_like_cpp(
     let mut rows = Vec::new();
     loop {
         rows.push(CreatureFormationRowLikeCpp {
-            leader_spawn_id: result.read(0),
-            member_spawn_id: result.read(1),
+            leader_spawn_id: read_unsigned_db_u64_like_cpp(
+                &result,
+                0,
+                "creature_formations.leaderGUID",
+            )?,
+            member_spawn_id: read_unsigned_db_u64_like_cpp(
+                &result,
+                1,
+                "creature_formations.memberGUID",
+            )?,
             dist: result.read(2),
             angle_degrees: result.read(3),
-            group_ai: result.read(4),
-            point_1: u32::from(result.try_read::<u16>(5).unwrap_or(0)),
-            point_2: u32::from(result.try_read::<u16>(6).unwrap_or(0)),
+            group_ai: read_unsigned_db_u32_like_cpp(&result, 4, "creature_formations.groupAI")?,
+            point_1: u32::from(read_unsigned_db_u16_like_cpp(
+                &result,
+                5,
+                "creature_formations.point_1",
+            )?),
+            point_2: u32::from(read_unsigned_db_u16_like_cpp(
+                &result,
+                6,
+                "creature_formations.point_2",
+            )?),
         });
         if !result.next_row() {
             break;
@@ -3554,8 +3570,16 @@ async fn load_game_event_pool_ids_like_cpp(
     loop {
         apply_game_event_pool_row_like_cpp(
             GameEventPoolRowLikeCpp {
-                pool_entry: result.read(0),
-                event_id: result.read(1),
+                pool_entry: read_unsigned_db_u32_like_cpp(
+                    &result,
+                    0,
+                    "game_event_pool.pool_entry",
+                )?,
+                event_id: i16::from(read_signed_db_i8_like_cpp(
+                    &result,
+                    1,
+                    "game_event_pool.eventEntry",
+                )?),
             },
             mgr,
             &mut game_event_pools,
@@ -3595,16 +3619,20 @@ async fn load_game_events_like_cpp(
     loop {
         apply_game_event_data_row_like_cpp(
             GameEventDataRowLikeCpp {
-                event_id: result.read(0),
-                start: result.read(1),
-                end: result.read(2),
-                occurence: result.read(3),
-                length: result.read(4),
-                holiday_id: result.read(5),
-                holiday_stage: result.read(6),
+                event_id: u16::from(read_unsigned_db_u8_like_cpp(
+                    &result,
+                    0,
+                    "game_event.eventEntry",
+                )?),
+                start: read_unsigned_db_u64_like_cpp(&result, 1, "game_event.start_time")?,
+                end: read_unsigned_db_u64_like_cpp(&result, 2, "game_event.end_time")?,
+                occurence: read_unsigned_db_u32_like_cpp(&result, 3, "game_event.occurence")?,
+                length: read_unsigned_db_u32_like_cpp(&result, 4, "game_event.length")?,
+                holiday_id: read_unsigned_db_u32_like_cpp(&result, 5, "game_event.holiday")?,
+                holiday_stage: read_unsigned_db_u8_like_cpp(&result, 6, "game_event.holidayStage")?,
                 description: result.read(7),
-                state_raw: result.read(8),
-                announce: result.read(9),
+                state_raw: read_unsigned_db_u8_like_cpp(&result, 8, "game_event.world_event")?,
+                announce: read_unsigned_db_u8_like_cpp(&result, 9, "game_event.announce")?,
             },
             &mut game_events,
             &mut report.game_events,
@@ -3631,8 +3659,16 @@ async fn load_game_event_prerequisites_like_cpp(
     loop {
         apply_game_event_prerequisite_row_like_cpp(
             GameEventPrerequisiteRowLikeCpp {
-                event_id: result.read(0),
-                prerequisite_event: result.read(1),
+                event_id: u16::from(read_unsigned_db_u8_like_cpp(
+                    &result,
+                    0,
+                    "game_event_prerequisite.eventEntry",
+                )?),
+                prerequisite_event: read_unsigned_db_u32_like_cpp(
+                    &result,
+                    1,
+                    "game_event_prerequisite.prerequisite_event",
+                )?,
             },
             game_events,
             &mut report.game_event_prerequisites,
@@ -3678,14 +3714,26 @@ async fn load_game_event_conditions_like_cpp(
     }
 
     loop {
-        let event_id: u8 = result.read(0);
+        let event_id = read_unsigned_db_u8_like_cpp(&result, 0, "game_event_condition.eventEntry")?;
         apply_game_event_condition_row_like_cpp(
             GameEventConditionRowLikeCpp {
                 event_id: u16::from(event_id),
-                condition_id: result.read(1),
+                condition_id: read_unsigned_db_u32_like_cpp(
+                    &result,
+                    1,
+                    "game_event_condition.condition_id",
+                )?,
                 req_num: result.read(2),
-                max_world_state: result.read(3),
-                done_world_state: result.read(4),
+                max_world_state: read_unsigned_db_u16_like_cpp(
+                    &result,
+                    3,
+                    "game_event_condition.max_world_state_field",
+                )?,
+                done_world_state: read_unsigned_db_u16_like_cpp(
+                    &result,
+                    4,
+                    "game_event_condition.done_world_state_field",
+                )?,
             },
             game_events,
             &mut report.game_event_conditions,
@@ -3730,11 +3778,16 @@ async fn load_game_event_condition_saves_like_cpp(
     }
 
     loop {
-        let event_id: u8 = result.read(0);
+        let event_id =
+            read_unsigned_db_u8_like_cpp(&result, 0, "game_event_condition_save.eventEntry")?;
         apply_game_event_condition_save_row_like_cpp(
             GameEventConditionSaveRowLikeCpp {
                 event_id: u16::from(event_id),
-                condition_id: result.read(1),
+                condition_id: read_unsigned_db_u32_like_cpp(
+                    &result,
+                    1,
+                    "game_event_condition_save.condition_id",
+                )?,
                 done: result.read(2),
             },
             game_events,
@@ -3782,12 +3835,21 @@ async fn load_game_event_quest_conditions_like_cpp(
     }
 
     loop {
-        let event_id: u8 = result.read(1);
+        let event_id =
+            read_unsigned_db_u8_like_cpp(&result, 1, "game_event_quest_condition.eventEntry")?;
         apply_game_event_quest_condition_row_like_cpp(
             GameEventQuestConditionRowLikeCpp {
-                quest_id: result.read(0),
+                quest_id: read_unsigned_db_u32_like_cpp(
+                    &result,
+                    0,
+                    "game_event_quest_condition.quest",
+                )?,
                 event_id: u16::from(event_id),
-                condition_id: result.read(2),
+                condition_id: read_unsigned_db_u32_like_cpp(
+                    &result,
+                    2,
+                    "game_event_quest_condition.condition_id",
+                )?,
                 num: result.read(3),
             },
             game_events,
@@ -3937,8 +3999,12 @@ async fn load_game_event_object_guids_like_cpp(
     loop {
         apply_game_event_object_guid_row_like_cpp(
             GameEventObjectGuidRowLikeCpp {
-                guid: result.read(0),
-                event_id: result.read(1),
+                guid: read_unsigned_db_u64_like_cpp(&result, 0, "game_event_object.guid")?,
+                event_id: i16::from(read_signed_db_i8_like_cpp(
+                    &result,
+                    1,
+                    "game_event_object.eventEntry",
+                )?),
             },
             object_type,
             store,
@@ -4027,11 +4093,27 @@ async fn load_game_event_model_equip_like_cpp(
     loop {
         apply_game_event_model_equip_row_like_cpp(
             GameEventModelEquipRowLikeCpp {
-                spawn_id: result.read(0),
-                entry: result.read(1),
-                event_id: result.read(2),
-                model_id: result.read(3),
-                equipment_id: result.read(4),
+                spawn_id: read_unsigned_db_u64_like_cpp(&result, 0, "game_event_model_equip.guid")?,
+                entry: read_unsigned_db_u32_like_cpp(
+                    &result,
+                    1,
+                    "game_event_model_equip.creature.id",
+                )?,
+                event_id: u16::from(read_unsigned_db_u8_like_cpp(
+                    &result,
+                    2,
+                    "game_event_model_equip.eventEntry",
+                )?),
+                model_id: read_unsigned_db_u32_like_cpp(
+                    &result,
+                    3,
+                    "game_event_model_equip.modelid",
+                )?,
+                equipment_id: read_unsigned_db_u8_like_cpp(
+                    &result,
+                    4,
+                    "game_event_model_equip.equipment_id",
+                )?,
             },
             &equipment_ids,
             &mut model_equip,
@@ -4112,11 +4194,20 @@ async fn load_game_event_creature_quest_relations_like_cpp(
     }
 
     loop {
-        let event_id: u8 = result.read(2);
+        let event_id =
+            read_unsigned_db_u8_like_cpp(&result, 2, "game_event_creature_quest.eventEntry")?;
         apply_game_event_creature_quest_relation_row_like_cpp(
             GameEventQuestRelationRowLikeCpp {
-                giver_id: result.read(0),
-                quest_id: result.read(1),
+                giver_id: read_unsigned_db_u32_like_cpp(
+                    &result,
+                    0,
+                    "game_event_creature_quest.id",
+                )?,
+                quest_id: read_unsigned_db_u32_like_cpp(
+                    &result,
+                    1,
+                    "game_event_creature_quest.quest",
+                )?,
                 event_id,
             },
             quest_relations,
@@ -4142,11 +4233,20 @@ async fn load_game_event_gameobject_quest_relations_like_cpp(
     }
 
     loop {
-        let event_id: u8 = result.read(2);
+        let event_id =
+            read_unsigned_db_u8_like_cpp(&result, 2, "game_event_gameobject_quest.eventEntry")?;
         apply_game_event_gameobject_quest_relation_row_like_cpp(
             GameEventQuestRelationRowLikeCpp {
-                giver_id: result.read(0),
-                quest_id: result.read(1),
+                giver_id: read_unsigned_db_u32_like_cpp(
+                    &result,
+                    0,
+                    "game_event_gameobject_quest.id",
+                )?,
+                quest_id: read_unsigned_db_u32_like_cpp(
+                    &result,
+                    1,
+                    "game_event_gameobject_quest.quest",
+                )?,
                 event_id,
             },
             quest_relations,
@@ -4229,9 +4329,13 @@ async fn load_game_event_npc_flags_like_cpp(
     loop {
         apply_game_event_npc_flag_row_like_cpp(
             GameEventNpcFlagRowLikeCpp {
-                spawn_id: result.read(0),
-                event_id: result.read(1),
-                npcflag: result.read(2),
+                spawn_id: read_unsigned_db_u64_like_cpp(&result, 0, "game_event_npcflag.guid")?,
+                event_id: u16::from(read_unsigned_db_u8_like_cpp(
+                    &result,
+                    1,
+                    "game_event_npcflag.eventEntry",
+                )?),
+                npcflag: read_unsigned_db_u64_like_cpp(&result, 2, "game_event_npcflag.npcflag")?,
             },
             &mut npc_flags,
             &mut report.game_event_npc_flags,
@@ -4289,19 +4393,41 @@ async fn load_game_event_npc_vendors_like_cpp(
     }
 
     loop {
-        let event_id: u8 = result.read(0);
-        let ignore_filtering_raw: u8 = result.read(9);
+        let event_id =
+            read_unsigned_db_u8_like_cpp(&result, 0, "game_event_npc_vendor.eventEntry")?;
+        let ignore_filtering_raw =
+            read_unsigned_db_u8_like_cpp(&result, 9, "game_event_npc_vendor.IgnoreFiltering")?;
         apply_game_event_npc_vendor_row_like_cpp(
             GameEventNpcVendorRowLikeCpp {
                 event_id,
-                spawn_id: result.read(1),
-                item: result.read(2),
-                maxcount: result.read(3),
-                incrtime: result.read(4),
-                extended_cost: result.read(5),
-                vendor_type: result.read(6),
-                bonus_list_ids: result.read(7),
-                player_condition_id: result.read(8),
+                spawn_id: read_unsigned_db_u64_like_cpp(&result, 1, "game_event_npc_vendor.guid")?,
+                item: read_unsigned_db_u32_like_cpp(&result, 2, "game_event_npc_vendor.item")?,
+                maxcount: read_unsigned_db_u32_like_cpp(
+                    &result,
+                    3,
+                    "game_event_npc_vendor.maxcount",
+                )?,
+                incrtime: read_unsigned_db_u32_like_cpp(
+                    &result,
+                    4,
+                    "game_event_npc_vendor.incrtime",
+                )?,
+                extended_cost: read_unsigned_db_u32_like_cpp(
+                    &result,
+                    5,
+                    "game_event_npc_vendor.ExtendedCost",
+                )?,
+                vendor_type: read_unsigned_db_u8_like_cpp(
+                    &result,
+                    6,
+                    "game_event_npc_vendor.type",
+                )?,
+                bonus_list_ids: result.read_string(7),
+                player_condition_id: read_unsigned_db_u32_like_cpp(
+                    &result,
+                    8,
+                    "game_event_npc_vendor.PlayerConditionId",
+                )?,
                 ignore_filtering: ignore_filtering_raw != 0,
             },
             store,
@@ -4634,7 +4760,7 @@ async fn load_creature_spawns_like_cpp(
             orientation: result.read(6),
             model_id: result.try_read(7).unwrap_or(0),
             equipment_id: result.try_read(8).unwrap_or(0),
-            spawn_time_secs: result.read(9),
+            spawn_time_secs: creature_spawntimesecs_to_i32_like_cpp(result.read(9))?,
             wander_distance: result.try_read(10).unwrap_or(0.0),
             curhealth: result.try_read(12).unwrap_or(0),
             curmana: result.try_read(13).unwrap_or(0),
@@ -4643,8 +4769,8 @@ async fn load_creature_spawns_like_cpp(
             event_entry: result.try_read(16).unwrap_or(0),
             pool_id: result.try_read(17).unwrap_or(0),
             phase_use_flags: result.read(22),
-            phase_id: result.read(23),
-            phase_group: result.read(24),
+            phase_id: read_unsigned_db_u32_like_cpp(&result, 23, "creature.phaseid")?,
+            phase_group: read_unsigned_db_u32_like_cpp(&result, 24, "creature.phasegroup")?,
             terrain_swap_map: result.read(25),
             script_name: result.try_read(26).unwrap_or_default(),
             string_id: result.try_read(27).unwrap_or_default(),
@@ -4718,8 +4844,8 @@ async fn load_gameobject_spawns_like_cpp(
             event_entry: result.try_read(15).unwrap_or(0),
             pool_id: result.try_read(16).unwrap_or(0),
             phase_use_flags: result.read(17),
-            phase_id: result.read(18),
-            phase_group: result.read(19),
+            phase_id: read_unsigned_db_u32_like_cpp(&result, 18, "gameobject.phaseid")?,
+            phase_group: read_unsigned_db_u32_like_cpp(&result, 19, "gameobject.phasegroup")?,
             terrain_swap_map: result.read(20),
             script_name: result.try_read(21).unwrap_or_default(),
             string_id: result.try_read(22).unwrap_or_default(),
@@ -4775,8 +4901,8 @@ async fn load_area_trigger_spawns_like_cpp(
             z: result.read(7),
             orientation: result.read(8),
             phase_use_flags: result.read(9),
-            phase_id: result.read(10),
-            phase_group: result.read(11),
+            phase_id: read_unsigned_db_u32_like_cpp(&result, 10, "areatrigger.phaseid")?,
+            phase_group: read_unsigned_db_u32_like_cpp(&result, 11, "areatrigger.phasegroup")?,
             script_name: result.try_read(13).unwrap_or_default(),
         };
         report.area_trigger.rows += 1;
@@ -4813,9 +4939,9 @@ async fn load_linked_respawns_like_cpp(
 
     loop {
         let row = LinkedRespawnDbRow {
-            guid: result.read(0),
-            linked_guid: result.read(1),
-            link_type: result.read(2),
+            guid: read_unsigned_db_u64_like_cpp(&result, 0, "linked_respawn.guid")?,
+            linked_guid: read_unsigned_db_u64_like_cpp(&result, 1, "linked_respawn.linkedGuid")?,
+            link_type: read_unsigned_db_u8_like_cpp(&result, 2, "linked_respawn.linkType")?,
         };
         apply_linked_respawn_row_like_cpp(
             row.into(),
@@ -5007,6 +5133,169 @@ fn creature_row_to_spawn_data_like_cpp(
         map_difficulty_store,
         report,
     )
+}
+
+fn creature_spawntimesecs_to_i32_like_cpp(value: u32) -> Result<i32> {
+    // C++ `ObjectMgr::LoadCreatures` reads `creature.spawntimesecs` with
+    // `Field::GetUInt32()` and stores it in `SpawnData::spawntimesecs` (int32).
+    // Creature DB rows are unsigned; reject impossible values instead of
+    // silently wrapping them into negative respawn delays.
+    if value > i32::MAX as u32 {
+        bail!(
+            "creature.spawntimesecs value {value} exceeds the represented int32 SpawnData domain"
+        );
+    }
+
+    Ok(value as i32)
+}
+
+fn read_unsigned_db_u32_like_cpp(
+    result: &SqlResult,
+    column: usize,
+    field_name: &str,
+) -> Result<u32> {
+    if result.is_null(column) {
+        return Ok(0);
+    }
+    if let Some(value) = result.try_read::<u32>(column) {
+        return Ok(value);
+    }
+    if let Some(value) = result.try_read::<u64>(column) {
+        return normalize_u64_db_u32_like_cpp(value, field_name);
+    }
+    if let Some(value) = result.try_read::<u16>(column) {
+        return Ok(u32::from(value));
+    }
+    if let Some(value) = result.try_read::<u8>(column) {
+        return Ok(u32::from(value));
+    }
+    if let Some(value) = result.try_read::<i32>(column) {
+        return normalize_signed_db_u32_like_cpp(i64::from(value), field_name);
+    }
+    if let Some(value) = result.try_read::<i64>(column) {
+        return normalize_signed_db_u32_like_cpp(value, field_name);
+    }
+    if let Some(value) = result.try_read::<i16>(column) {
+        return normalize_signed_db_u32_like_cpp(i64::from(value), field_name);
+    }
+    if let Some(value) = result.try_read::<i8>(column) {
+        return normalize_signed_db_u32_like_cpp(i64::from(value), field_name);
+    }
+
+    bail!("could not decode {field_name} at column {column} as a C++ unsigned DB field")
+}
+
+fn read_unsigned_db_u64_like_cpp(
+    result: &SqlResult,
+    column: usize,
+    field_name: &str,
+) -> Result<u64> {
+    if result.is_null(column) {
+        return Ok(0);
+    }
+    if let Some(value) = result.try_read::<u64>(column) {
+        return Ok(value);
+    }
+    if let Some(value) = result.try_read::<u32>(column) {
+        return Ok(u64::from(value));
+    }
+    if let Some(value) = result.try_read::<u16>(column) {
+        return Ok(u64::from(value));
+    }
+    if let Some(value) = result.try_read::<u8>(column) {
+        return Ok(u64::from(value));
+    }
+    if let Some(value) = result.try_read::<i64>(column) {
+        return normalize_signed_db_u64_like_cpp(value, field_name);
+    }
+    if let Some(value) = result.try_read::<i32>(column) {
+        return normalize_signed_db_u64_like_cpp(i64::from(value), field_name);
+    }
+    if let Some(value) = result.try_read::<i16>(column) {
+        return normalize_signed_db_u64_like_cpp(i64::from(value), field_name);
+    }
+    if let Some(value) = result.try_read::<i8>(column) {
+        return normalize_signed_db_u64_like_cpp(i64::from(value), field_name);
+    }
+
+    bail!("could not decode {field_name} at column {column} as a C++ unsigned 64-bit DB field")
+}
+
+fn read_unsigned_db_u8_like_cpp(result: &SqlResult, column: usize, field_name: &str) -> Result<u8> {
+    let value = read_unsigned_db_u32_like_cpp(result, column, field_name)?;
+    if value > u32::from(u8::MAX) {
+        bail!("{field_name} value {value} exceeds the represented u8 domain");
+    }
+
+    Ok(value as u8)
+}
+
+fn read_unsigned_db_u16_like_cpp(
+    result: &SqlResult,
+    column: usize,
+    field_name: &str,
+) -> Result<u16> {
+    let value = read_unsigned_db_u32_like_cpp(result, column, field_name)?;
+    if value > u32::from(u16::MAX) {
+        bail!("{field_name} value {value} exceeds the represented u16 domain");
+    }
+
+    Ok(value as u16)
+}
+
+fn read_signed_db_i8_like_cpp(result: &SqlResult, column: usize, field_name: &str) -> Result<i8> {
+    if result.is_null(column) {
+        return Ok(0);
+    }
+    if let Some(value) = result.try_read::<i8>(column) {
+        return Ok(value);
+    }
+    if let Some(value) = result.try_read::<u8>(column) {
+        return Ok(value as i8);
+    }
+    if let Some(value) = result.try_read::<i16>(column) {
+        return normalize_signed_db_i8_like_cpp(i64::from(value), field_name);
+    }
+    if let Some(value) = result.try_read::<i32>(column) {
+        return normalize_signed_db_i8_like_cpp(i64::from(value), field_name);
+    }
+    if let Some(value) = result.try_read::<i64>(column) {
+        return normalize_signed_db_i8_like_cpp(value, field_name);
+    }
+
+    bail!("could not decode {field_name} at column {column} as a C++ signed 8-bit DB field")
+}
+
+fn normalize_u64_db_u32_like_cpp(value: u64, field_name: &str) -> Result<u32> {
+    if value > u64::from(u32::MAX) {
+        bail!("{field_name} value {value} exceeds the represented u32 domain");
+    }
+
+    Ok(value as u32)
+}
+
+fn normalize_signed_db_u64_like_cpp(value: i64, field_name: &str) -> Result<u64> {
+    if value < 0 {
+        bail!("{field_name} value {value} is negative but C++ reads this field as unsigned");
+    }
+
+    Ok(value as u64)
+}
+
+fn normalize_signed_db_i8_like_cpp(value: i64, field_name: &str) -> Result<i8> {
+    if value < i64::from(i8::MIN) || value > i64::from(i8::MAX) {
+        bail!("{field_name} value {value} exceeds the represented i8 domain");
+    }
+
+    Ok(value as i8)
+}
+
+fn normalize_signed_db_u32_like_cpp(value: i64, field_name: &str) -> Result<u32> {
+    if value < 0 {
+        bail!("{field_name} value {value} is negative but C++ reads this field as unsigned");
+    }
+
+    normalize_u64_db_u32_like_cpp(value as u64, field_name)
 }
 
 fn creature_row_to_runtime_row_like_cpp(row: &CreatureSpawnRow) -> CreatureSpawnRuntimeRowLikeCpp {
@@ -5304,6 +5593,77 @@ mod tests {
                 flags: 0,
             }
         }))
+    }
+
+    #[test]
+    fn creature_spawntimesecs_uses_unsigned_db_domain_like_cpp() {
+        assert_eq!(creature_spawntimesecs_to_i32_like_cpp(0).unwrap(), 0);
+        assert_eq!(creature_spawntimesecs_to_i32_like_cpp(300).unwrap(), 300);
+        assert_eq!(
+            creature_spawntimesecs_to_i32_like_cpp(i32::MAX as u32).unwrap(),
+            i32::MAX
+        );
+        assert!(creature_spawntimesecs_to_i32_like_cpp(i32::MAX as u32 + 1).is_err());
+    }
+
+    #[test]
+    fn signed_phase_ids_are_normalized_to_unsigned_domain_like_cpp_getuint32() {
+        assert_eq!(
+            normalize_signed_db_u32_like_cpp(0, "creature.phaseid").unwrap(),
+            0
+        );
+        assert_eq!(
+            normalize_signed_db_u32_like_cpp(123, "creature.phaseid").unwrap(),
+            123
+        );
+        assert_eq!(
+            normalize_signed_db_u32_like_cpp(i64::from(u32::MAX), "creature.phaseid").unwrap(),
+            u32::MAX
+        );
+        assert!(normalize_signed_db_u32_like_cpp(-1, "creature.phaseid").is_err());
+        assert!(
+            normalize_signed_db_u32_like_cpp(i64::from(u32::MAX) + 1, "creature.phaseid").is_err()
+        );
+    }
+
+    #[test]
+    fn signed_linked_respawn_guids_are_normalized_like_cpp_getuint64() {
+        assert_eq!(
+            normalize_signed_db_u64_like_cpp(0, "linked_respawn.linkedGuid").unwrap(),
+            0
+        );
+        assert_eq!(
+            normalize_signed_db_u64_like_cpp(123_456, "linked_respawn.linkedGuid").unwrap(),
+            123_456
+        );
+        assert!(normalize_signed_db_u64_like_cpp(-1, "linked_respawn.linkedGuid").is_err());
+    }
+
+    #[test]
+    fn signed_game_event_times_are_normalized_like_cpp_getuint64() {
+        assert_eq!(
+            normalize_signed_db_u64_like_cpp(0, "game_event.start_time").unwrap(),
+            0
+        );
+        assert_eq!(
+            normalize_signed_db_u64_like_cpp(1_893_456_000, "game_event.end_time").unwrap(),
+            1_893_456_000
+        );
+        assert!(normalize_signed_db_u64_like_cpp(-1, "game_event.start_time").is_err());
+    }
+
+    #[test]
+    fn signed_game_event_pool_ids_use_getint8_domain_like_cpp() {
+        assert_eq!(
+            normalize_signed_db_i8_like_cpp(-1, "game_event_pool.eventEntry").unwrap(),
+            -1
+        );
+        assert_eq!(
+            normalize_signed_db_i8_like_cpp(127, "game_event_pool.eventEntry").unwrap(),
+            127
+        );
+        assert!(normalize_signed_db_i8_like_cpp(-129, "game_event_pool.eventEntry").is_err());
+        assert!(normalize_signed_db_i8_like_cpp(128, "game_event_pool.eventEntry").is_err());
     }
 
     #[test]

@@ -10,7 +10,7 @@ use std::collections::{HashMap, HashSet};
 use anyhow::Result;
 use tracing::{info, warn};
 use wow_constants::TypeId;
-use wow_database::WorldDatabase;
+use wow_database::{SqlResult, WorldDatabase};
 
 use crate::{Db2IdStore, MapDifficultyStore, MapStore, SpellStore, quest::QuestStore};
 
@@ -158,9 +158,9 @@ impl DisableMgrLikeCpp {
         let mut rows = Vec::new();
         loop {
             rows.push(DisableDbRowLikeCpp {
-                source_type: result.read(0),
-                entry: result.read(1),
-                flags: result.read(2),
+                source_type: read_db_u32_like_cpp(&result, 0),
+                entry: read_db_u32_like_cpp(&result, 1),
+                flags: read_db_u16_like_cpp(&result, 2),
                 params_0: result.read_string(3),
                 params_1: result.read_string(4),
             });
@@ -234,6 +234,63 @@ impl DisableMgrLikeCpp {
             .keys()
             .copied()
             .collect()
+    }
+}
+
+fn read_db_u32_like_cpp(result: &SqlResult, column: usize) -> u32 {
+    if let Some(value) = result.try_read::<u32>(column) {
+        return value;
+    }
+    if let Some(value) = result.try_read::<i32>(column) {
+        return normalize_signed_db_u32_like_cpp(value);
+    }
+    if let Some(value) = result.try_read::<u16>(column) {
+        return u32::from(value);
+    }
+    if let Some(value) = result.try_read::<i16>(column) {
+        return normalize_signed_db_u32_like_cpp(i32::from(value));
+    }
+    if let Some(value) = result.try_read::<u8>(column) {
+        return u32::from(value);
+    }
+    if let Some(value) = result.try_read::<i8>(column) {
+        return normalize_signed_db_u32_like_cpp(i32::from(value));
+    }
+    0
+}
+
+fn read_db_u16_like_cpp(result: &SqlResult, column: usize) -> u16 {
+    if let Some(value) = result.try_read::<u16>(column) {
+        return value;
+    }
+    if let Some(value) = result.try_read::<i16>(column) {
+        return normalize_signed_db_u16_like_cpp(i32::from(value));
+    }
+    if let Some(value) = result.try_read::<u8>(column) {
+        return u16::from(value);
+    }
+    if let Some(value) = result.try_read::<i8>(column) {
+        return normalize_signed_db_u16_like_cpp(i32::from(value));
+    }
+    if let Some(value) = result.try_read::<u32>(column) {
+        return u16::try_from(value).unwrap_or(0);
+    }
+    if let Some(value) = result.try_read::<i32>(column) {
+        return normalize_signed_db_u16_like_cpp(value);
+    }
+    0
+}
+
+fn normalize_signed_db_u32_like_cpp(value: i32) -> u32 {
+    value as u32
+}
+
+fn normalize_signed_db_u16_like_cpp(value: i32) -> u16 {
+    let converted = value as u16;
+    if i32::from(converted) == value || (converted as i16) as i32 == value {
+        converted
+    } else {
+        0
     }
 }
 
@@ -562,6 +619,15 @@ mod tests {
         assert_eq!(DISABLE_TYPE_LFG_MAP, 8);
         assert_eq!(MAX_DISABLE_TYPES, 9);
         assert_eq!(MMAP_DISABLE_PATHFINDING, 0);
+    }
+
+    #[test]
+    fn signed_disable_columns_normalize_like_cpp_getuint_accessors() {
+        assert_eq!(normalize_signed_db_u32_like_cpp(8), 8);
+        assert_eq!(normalize_signed_db_u32_like_cpp(-1), u32::MAX);
+        assert_eq!(normalize_signed_db_u16_like_cpp(0x0200), 0x0200);
+        assert_eq!(normalize_signed_db_u16_like_cpp(-1), u16::MAX);
+        assert_eq!(normalize_signed_db_u16_like_cpp(0x1_0000), 0);
     }
 
     #[test]
