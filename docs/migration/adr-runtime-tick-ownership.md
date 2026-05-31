@@ -798,6 +798,11 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   the represented `WorldObject.active` flag could remain true after `JustDied`; it is now cleared
   directly during `Creature::set_death_state_runtime`. Map active-list removal/fanout remains a
   runtime owner gap outside `wow-entities`.
+- 2026-05-31 — Represented creature respawn erasable state cleanup `#NEXT.RUNTIME.L3.031as`:
+  ports C++ `Creature::setDeathState(JUST_RESPAWNED)` `ClearUnitState(UNIT_STATE_ALL_ERASABLE)`
+  (`Creature.cpp:2262`, `Unit.h:283-296`). Rust now defines the contrasted `UnitState::ALL_ERASABLE`
+  mask (`ALL_STATE_SUPPORTED & !IGNORE_PATHFINDING`) and clears it during represented creature
+  respawn, preserving `IGNORE_PATHFINDING` like C++.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

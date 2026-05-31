@@ -2289,6 +2289,7 @@ impl Creature {
                 let mut flags = self.unit.unit_flags_like_cpp();
                 flags.remove(UnitFlags::SKINNABLE | UnitFlags::IN_COMBAT);
                 self.unit.set_unit_flags_like_cpp(flags);
+                self.unit.clear_unit_state(UnitState::ALL_ERASABLE.bits());
                 self.clear_tap_list();
                 self.player_damage_req = 0;
                 self.cannot_reach_target = false;
@@ -4125,6 +4126,12 @@ mod tests {
         creature
             .unit_mut()
             .set_unit_flags_like_cpp(UnitFlags::SKINNABLE | UnitFlags::IN_COMBAT);
+        creature.unit_mut().add_unit_state(
+            UnitState::DIED.bits()
+                | UnitState::CHARGING.bits()
+                | UnitState::ROAMING_MOVE.bits()
+                | UnitState::IGNORE_PATHFINDING.bits(),
+        );
         creature.player_damage_req = 42;
         creature.cannot_reach_target = true;
         creature.cannot_reach_timer = 900;
@@ -4149,6 +4156,11 @@ mod tests {
                 .unit_flags_like_cpp()
                 .intersects(UnitFlags::SKINNABLE | UnitFlags::IN_COMBAT),
             "C++ Unit::setDeathState(JUST_RESPAWNED) removes SKINNABLE and Creature respawn removes IN_COMBAT"
+        );
+        assert_eq!(
+            UnitState::from_bits_truncate(creature.unit().unit_state()),
+            UnitState::IGNORE_PATHFINDING,
+            "C++ Creature::setDeathState(JUST_RESPAWNED) clears UNIT_STATE_ALL_ERASABLE but preserves IGNORE_PATHFINDING"
         );
         assert!(creature.tap_list().is_empty());
         assert_eq!(creature.player_damage_req(), 0);

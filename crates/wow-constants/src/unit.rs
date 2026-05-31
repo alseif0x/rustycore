@@ -320,6 +320,20 @@ bitflags! {
         const NOT_MOVE = Self::ROOT.bits() | Self::STUNNED.bits()
             | Self::DIED.bits() | Self::DISTRACTED.bits();
 
+        const ALL_STATE_SUPPORTED = Self::DIED.bits() | Self::MELEE_ATTACKING.bits()
+            | Self::CHARMED.bits() | Self::STUNNED.bits() | Self::ROAMING.bits()
+            | Self::CHASE.bits() | Self::FOCUSING.bits() | Self::FLEEING.bits()
+            | Self::IN_FLIGHT.bits() | Self::FOLLOW.bits() | Self::ROOT.bits()
+            | Self::CONFUSED.bits() | Self::DISTRACTED.bits() | Self::ISOLATED.bits()
+            | Self::ATTACK_PLAYER.bits() | Self::CASTING.bits() | Self::POSSESSED.bits()
+            | Self::CHARGING.bits() | Self::JUMPING.bits() | Self::MOVE.bits()
+            | Self::ROTATING.bits() | Self::EVADE.bits() | Self::ROAMING_MOVE.bits()
+            | Self::CONFUSED_MOVE.bits() | Self::FLEEING_MOVE.bits() | Self::CHASE_MOVE.bits()
+            | Self::FOLLOW_MOVE.bits() | Self::IGNORE_PATHFINDING.bits()
+            | Self::FOLLOW_FORMATION_MOVE.bits();
+
+        const ALL_ERASABLE = Self::ALL_STATE_SUPPORTED.bits() & !Self::IGNORE_PATHFINDING.bits();
+
         const ALL_STATE = 0xffffffff;
     }
 }
