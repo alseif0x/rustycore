@@ -602,6 +602,17 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `Pet.cpp:53-59`, `TemporarySummon.cpp:513-516`, and `Unit.cpp:11306-11326`. This is still a
   data prerequisite only; summon/totem/guardian spell paths and live selector/aggro wiring remain
   open.
+- 2026-05-31 — Runtime global aggro AI selector gates `#NEXT.RUNTIME.L3.031y`: wired the
+  represented selector/LOS/`CanAIAttack` decisions into the experimental global legacy aggro scan.
+  The scan now derives selector facts from `WorldCreature`, applies C++ empty `MoveInLineOfSight`
+  suppression before base auto-aggro, fails closed/counts non-pet `ScriptName` because the
+  script-creatable AI registry is not represented yet, and fails closed/counts `TurretAI` until
+  spell range hydration can provide its min/max range gate. C++ anchors:
+  `GridNotifiers.cpp:122-130`, `CreatureAI.cpp:113-127`, `Creature.cpp:2095-2128`,
+  `Creature.cpp:2671-2684`, `CreatureAISelector.cpp:83-101`, `CombatAI.cpp:203-210`, and empty LOS
+  overrides in the stock AI headers. This is a real runtime fidelity improvement but still only in
+  the gated `GlobalLegacy` owner path; script AI factories, SmartAI execution, Turret range
+  hydration, and BossAI boundary data remain open.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

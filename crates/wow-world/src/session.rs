@@ -26,7 +26,12 @@ use crate::phasing::{
     party_member_phase_states_like_cpp,
 };
 use crate::reputation::{ReputationMgrLikeCpp, reputation_to_rank_like_cpp};
-use wow_constants::creature::CreatureTypeFlags;
+use wow_ai::{
+    CreatureAiCanAttackInputLikeCpp, CreatureAiKindLikeCpp, CreatureAiSelectionInputLikeCpp,
+    creature_ai_can_attack_like_cpp, creature_ai_uses_base_move_in_line_of_sight_like_cpp,
+    select_creature_ai_like_cpp,
+};
+use wow_constants::creature::{CreatureFlagsExtra, CreatureType, CreatureTypeFlags};
 use wow_constants::item::{CurrencyTypes, CurrencyTypesFlags};
 use wow_constants::movement::MovementFlag;
 use wow_constants::unit::{
@@ -1556,6 +1561,31 @@ impl Default for LegacyCreatureAggroConfigLikeCpp {
 }
 
 impl LegacyCreatureAggroConfigLikeCpp {
+    fn creature_faction_template_is_neutral_to_all_like_cpp(
+        &self,
+        faction_template_id: u32,
+    ) -> bool {
+        let Some(faction_template_store) = self.faction_template_store.as_ref() else {
+            return faction_template_id == 35;
+        };
+        let Some(faction_template) = faction_template_store.get(faction_template_id) else {
+            return false;
+        };
+
+        if faction_template.faction == 0 {
+            return true;
+        }
+
+        if let Some(faction_store) = self.faction_store.as_ref()
+            && let Some(raw_faction) = faction_store.get(u32::from(faction_template.faction))
+            && raw_faction.can_have_reputation_like_cpp()
+        {
+            return false;
+        }
+
+        faction_template.is_neutral_to_all_like_cpp()
+    }
+
     fn map_is_dungeon_like_cpp(&self, map_id: u16) -> bool {
         self.map_store
             .as_ref()
@@ -1602,6 +1632,10 @@ pub struct LegacyCreatureAggroTickOutcomeLikeCpp {
     pub attacker_evade_rejections: usize,
     pub home_range_rejections: usize,
     pub gray_aggro_rejections: usize,
+    pub ai_selection_unrepresented: usize,
+    pub ai_los_suppressed: usize,
+    pub ai_can_attack_unrepresented: usize,
+    pub ai_can_attack_rejections: usize,
     pub alert_triggers: usize,
     pub alert_rejections: usize,
     pub alert_plan: crate::map_manager::RuntimePlan,
@@ -21188,6 +21222,79 @@ fn legacy_creature_aggro_candidate_is_accessible_for_creature_like_cpp(
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum LegacyCreatureAiSelectionDecisionLikeCpp {
+    Selected(CreatureAiKindLikeCpp),
+    ScriptRegistryUnrepresented,
+}
+
+fn legacy_creature_ai_selection_decision_like_cpp(
+    creature: &crate::map_manager::WorldCreature,
+    config: &LegacyCreatureAggroConfigLikeCpp,
+) -> LegacyCreatureAiSelectionDecisionLikeCpp {
+    let metadata = creature.creature.lifecycle_metadata();
+    let is_pet = creature.guid().is_pet();
+
+    // C++ pet override runs before ScriptName and AIName.
+    if !is_pet && !metadata.script_name.is_empty() {
+        return LegacyCreatureAiSelectionDecisionLikeCpp::ScriptRegistryUnrepresented;
+    }
+
+    let flags_extra = CreatureFlagsExtra::from_bits_truncate(metadata.flags_extra);
+    let input = CreatureAiSelectionInputLikeCpp {
+        ai_name: metadata.ai_name.clone(),
+        script_name: metadata.script_name.clone(),
+        script_can_create_creature_ai: false,
+        is_pet,
+        is_vehicle: creature.creature.is_vehicle_unit_type_like_cpp(),
+        is_totem: creature.creature.is_totem_unit_type_like_cpp(),
+        is_trigger: flags_extra.contains(CreatureFlagsExtra::TRIGGER),
+        first_spell_id: creature.creature.spells()[0],
+        is_critter: metadata.creature_type == CreatureType::Critter as u32,
+        is_guardian: creature.creature.is_guardian_unit_type_like_cpp(),
+        is_guard: flags_extra.contains(CreatureFlagsExtra::GUARD),
+        is_civilian: creature.creature.is_civilian_like_cpp(),
+        is_neutral_to_all: config.creature_faction_template_is_neutral_to_all_like_cpp(
+            creature.creature.unit().data().faction_template.max(0) as u32,
+        ),
+        has_spellclick_npc_flag: NPCFlags1::from_bits_truncate(creature.npc_flags())
+            .contains(NPCFlags1::SPELL_CLICK),
+        is_controllable_guardian: creature
+            .creature
+            .is_controlable_guardian_unit_type_like_cpp(),
+        controllable_guardian_owner_is_player: creature
+            .creature
+            .unit()
+            .subsystems()
+            .control
+            .charmer_or_owner_guid()
+            .is_some_and(|guid| guid.is_player()),
+    };
+
+    LegacyCreatureAiSelectionDecisionLikeCpp::Selected(select_creature_ai_like_cpp(&input))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LegacyCreatureAiCanAttackDecisionLikeCpp {
+    Allowed,
+    Rejected,
+    Unrepresented,
+}
+
+fn legacy_creature_ai_can_attack_decision_like_cpp(
+    ai_kind: &CreatureAiKindLikeCpp,
+) -> LegacyCreatureAiCanAttackDecisionLikeCpp {
+    if matches!(ai_kind, CreatureAiKindLikeCpp::TurretAI) {
+        return LegacyCreatureAiCanAttackDecisionLikeCpp::Unrepresented;
+    }
+
+    if creature_ai_can_attack_like_cpp(ai_kind, &CreatureAiCanAttackInputLikeCpp::default()) {
+        LegacyCreatureAiCanAttackDecisionLikeCpp::Allowed
+    } else {
+        LegacyCreatureAiCanAttackDecisionLikeCpp::Rejected
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum LegacyCreatureCanAttackLeashDecisionLikeCpp {
     Allowed,
@@ -21431,6 +21538,17 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
                 outcome.sightless_creatures_skipped += 1;
                 continue;
             }
+            let ai_kind = match legacy_creature_ai_selection_decision_like_cpp(creature, &config) {
+                LegacyCreatureAiSelectionDecisionLikeCpp::Selected(ai_kind) => ai_kind,
+                LegacyCreatureAiSelectionDecisionLikeCpp::ScriptRegistryUnrepresented => {
+                    outcome.ai_selection_unrepresented += 1;
+                    continue;
+                }
+            };
+            if !creature_ai_uses_base_move_in_line_of_sight_like_cpp(&ai_kind) {
+                outcome.ai_los_suppressed += 1;
+                continue;
+            }
             for candidate in &map_candidates {
                 if !legacy_creature_aggro_candidate_is_targetable_for_attack_like_cpp(candidate) {
                     outcome.targetability_rejections += 1;
@@ -21506,6 +21624,17 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
                 if creature.creature.is_in_evade_mode_like_cpp() {
                     outcome.attacker_evade_rejections += 1;
                     continue;
+                }
+                match legacy_creature_ai_can_attack_decision_like_cpp(&ai_kind) {
+                    LegacyCreatureAiCanAttackDecisionLikeCpp::Allowed => {}
+                    LegacyCreatureAiCanAttackDecisionLikeCpp::Rejected => {
+                        outcome.ai_can_attack_rejections += 1;
+                        continue;
+                    }
+                    LegacyCreatureAiCanAttackDecisionLikeCpp::Unrepresented => {
+                        outcome.ai_can_attack_unrepresented += 1;
+                        continue;
+                    }
                 }
                 match legacy_creature_can_attack_leash_decision_like_cpp(
                     creature,
@@ -52646,6 +52775,117 @@ mod tests {
                 .combat_target
         };
         assert_eq!(combat_target, None);
+    }
+
+    #[test]
+    fn legacy_creature_aggro_tick_once_suppresses_empty_los_ai_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_112);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 5.0;
+                creature
+                    .creature
+                    .set_ai_identity_names_runtime_like_cpp("ReactorAI", String::new());
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let player = ObjectGuid::create_player(1, 91_113);
+        let candidates = vec![legacy_aggro_candidate_like_cpp(
+            player,
+            Position::new(10.5, 10.5, 0.0, 0.0),
+        )];
+
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &candidates,
+            legacy_aggro_hostile_config_like_cpp(),
+        );
+
+        assert_eq!(outcome.ai_los_suppressed, 1);
+        assert_eq!(outcome.aggro_starts, 0);
+        assert!(outcome.commands.is_empty());
+    }
+
+    #[test]
+    fn legacy_creature_aggro_tick_once_fails_closed_for_script_ai_registry_gap_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_114);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 5.0;
+                creature
+                    .creature
+                    .set_ai_identity_names_runtime_like_cpp(String::new(), "npc_scripted_ai");
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let player = ObjectGuid::create_player(1, 91_115);
+        let candidates = vec![legacy_aggro_candidate_like_cpp(
+            player,
+            Position::new(10.5, 10.5, 0.0, 0.0),
+        )];
+
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &candidates,
+            legacy_aggro_hostile_config_like_cpp(),
+        );
+
+        assert_eq!(outcome.ai_selection_unrepresented, 1);
+        assert_eq!(outcome.aggro_starts, 0);
+        assert!(outcome.commands.is_empty());
+    }
+
+    #[test]
+    fn legacy_creature_aggro_tick_once_fails_closed_for_turret_range_gap_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_116);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 5.0;
+                creature
+                    .creature
+                    .set_ai_identity_names_runtime_like_cpp("TurretAI", String::new());
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let player = ObjectGuid::create_player(1, 91_117);
+        let candidates = vec![legacy_aggro_candidate_like_cpp(
+            player,
+            Position::new(10.5, 10.5, 0.0, 0.0),
+        )];
+
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &candidates,
+            legacy_aggro_hostile_config_like_cpp(),
+        );
+
+        assert_eq!(outcome.ai_can_attack_unrepresented, 1);
+        assert_eq!(outcome.aggro_starts, 0);
+        assert!(outcome.commands.is_empty());
     }
 
     #[test]
