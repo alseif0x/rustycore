@@ -1042,6 +1042,7 @@ mod tests {
                 ai_anim_kit_id: 0,
                 movement_anim_kit_id: 0,
                 melee_anim_kit_id: 0,
+                visibility_distance_type: wow_entities::VisibilityDistanceTypeLikeCpp::Normal,
             }),
             "C++ Creature::GetCreatureAddon prefers creature_addon by spawn id over template addon"
         );
@@ -1617,6 +1618,7 @@ mod tests {
             ai_anim_kit_id: 11,
             movement_anim_kit_id: 22,
             melee_anim_kit_id: 33,
+            visibility_distance_type: wow_entities::VisibilityDistanceTypeLikeCpp::Large,
         });
         let resolver = CreatureLoadedGridLifecycleResolverLikeCpp::new(
             [template],
@@ -1642,6 +1644,7 @@ mod tests {
                 ai_anim_kit_id: 11,
                 movement_anim_kit_id: 22,
                 melee_anim_kit_id: 33,
+                visibility_distance_type: wow_entities::VisibilityDistanceTypeLikeCpp::Large,
             }),
             "C++ Creature::LoadFromDB/Create carries the addon selected by Creature::GetCreatureAddon"
         );

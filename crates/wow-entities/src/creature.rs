@@ -11,6 +11,7 @@ use wow_core::{ObjectGuid, Position};
 use crate::{
     BASE_MAXDAMAGE, BASE_MINDAMAGE, UNIT_MASK_CONTROLABLE_GUARDIAN, UNIT_MASK_GUARDIAN,
     UNIT_MASK_TOTEM, UNIT_MASK_VEHICLE, Unit, VehicleAccessory, VehicleSeatAddon, VehicleSeatInfo,
+    VisibilityDistanceTypeLikeCpp,
 };
 
 pub const CREATURE_REGEN_INTERVAL_MS: u32 = 2_000;
@@ -331,7 +332,7 @@ pub struct CreatureAddToWorldVehicleResetContextLikeCpp {
 /// This record intentionally carries only fields that `wow-entities` currently models locally,
 /// plus `PathId` as a data seam for C++ addon movement selection.
 /// DB loading, template-vs-spawn fallback, path runtime, auras, anim kit packet fanout,
-/// visibility distance override, and hover are follow-up runtime gaps.
+/// and full runtime visibility routing are follow-up runtime gaps.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CreatureAddonLifecycleRecordLikeCpp {
     pub path_id: u32,
@@ -345,6 +346,7 @@ pub struct CreatureAddonLifecycleRecordLikeCpp {
     pub ai_anim_kit_id: u16,
     pub movement_anim_kit_id: u16,
     pub melee_anim_kit_id: u16,
+    pub visibility_distance_type: VisibilityDistanceTypeLikeCpp,
 }
 
 impl Default for CreatureAddonLifecycleRecordLikeCpp {
@@ -361,6 +363,7 @@ impl Default for CreatureAddonLifecycleRecordLikeCpp {
             ai_anim_kit_id: 0,
             movement_anim_kit_id: 0,
             melee_anim_kit_id: 0,
+            visibility_distance_type: VisibilityDistanceTypeLikeCpp::Normal,
         }
     }
 }
@@ -2657,6 +2660,22 @@ impl Creature {
             .set_movement_anim_kit_id_like_cpp(addon.movement_anim_kit_id);
         self.unit
             .set_melee_anim_kit_id_like_cpp(addon.melee_anim_kit_id);
+        if addon.visibility_distance_type != VisibilityDistanceTypeLikeCpp::Normal {
+            self.unit
+                .world_mut()
+                .set_visibility_distance_override_like_cpp(addon.visibility_distance_type);
+            let mut flags2 = self.unit.unit_flags2_like_cpp();
+            flags2.remove(
+                UnitFlags2::LARGE_AOI | UnitFlags2::GIGANTIC_AOI | UnitFlags2::INFINITE_AOI,
+            );
+            match addon.visibility_distance_type {
+                VisibilityDistanceTypeLikeCpp::Large => flags2.insert(UnitFlags2::LARGE_AOI),
+                VisibilityDistanceTypeLikeCpp::Gigantic => flags2.insert(UnitFlags2::GIGANTIC_AOI),
+                VisibilityDistanceTypeLikeCpp::Infinite => flags2.insert(UnitFlags2::INFINITE_AOI),
+                _ => {}
+            }
+            self.unit.set_unit_flags2_like_cpp(flags2);
+        }
         true
     }
 
@@ -4424,6 +4443,7 @@ mod tests {
             ai_anim_kit_id: 11,
             movement_anim_kit_id: 22,
             melee_anim_kit_id: 33,
+            visibility_distance_type: VisibilityDistanceTypeLikeCpp::Gigantic,
         });
 
         let creature = Creature::create_from_lifecycle(record);
@@ -4488,6 +4508,21 @@ mod tests {
             33,
             "C++ Creature::LoadCreaturesAddon calls SetMeleeAnimKitId(addon->meleeAnimKit)"
         );
+        assert_eq!(
+            creature
+                .unit()
+                .world()
+                .visibility_distance_override_like_cpp(),
+            Some(VisibilityDistanceTypeLikeCpp::Gigantic.distance_like_cpp()),
+            "C++ Creature::LoadCreaturesAddon calls SetVisibilityDistanceOverride for non-Normal addon visibility"
+        );
+        assert!(
+            creature
+                .unit()
+                .unit_flags2_like_cpp()
+                .contains(UnitFlags2::GIGANTIC_AOI),
+            "C++ SetVisibilityDistanceOverride sets the matching UNIT_FLAG2_*_AOI flag"
+        );
     }
 
     #[test]
@@ -4522,6 +4557,7 @@ mod tests {
             ai_anim_kit_id: 44,
             movement_anim_kit_id: 55,
             melee_anim_kit_id: 66,
+            visibility_distance_type: VisibilityDistanceTypeLikeCpp::Large,
         });
         let mut creature = Creature::create_from_lifecycle(record);
         creature.unit_mut().set_mount_display_id(1);
@@ -4570,6 +4606,13 @@ mod tests {
         assert_eq!(creature.unit().ai_anim_kit_id_like_cpp(), 44);
         assert_eq!(creature.unit().movement_anim_kit_id_like_cpp(), 55);
         assert_eq!(creature.unit().melee_anim_kit_id_like_cpp(), 66);
+        assert_eq!(
+            creature
+                .unit()
+                .world()
+                .visibility_distance_override_like_cpp(),
+            Some(VisibilityDistanceTypeLikeCpp::Large.distance_like_cpp())
+        );
         assert_eq!(
             creature.unit().emote_state_like_cpp(),
             0,

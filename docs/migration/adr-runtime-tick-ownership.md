@@ -1015,6 +1015,18 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   shape: raw `ObjectGuid` plus `uint16 AnimKitID`. Runtime fanout from represented `Unit` setters is
   still not wired; this is only the protocol surface needed before that behavior can be closed.
   Visibility distance override, auras, and waypoint path execution remain open.
+- 2026-05-31 — Represented addon visibility distance override `#NEXT.RUNTIME.L3.031br`:
+  contrasted against C++ `Creature::LoadCreaturesAddon` (`Creature.cpp:2769-2771`),
+  `WorldObject::SetVisibilityDistanceOverride` (`Object.cpp:952-978`), `WorldObject::GetVisibilityRange`
+  (`Object.cpp:1449-1472`), the `VisibilityDistances` table (`Object.cpp:62-70`), and addon load
+  validation (`ObjectMgr.cpp:885-889`, `ObjectMgr.cpp:1355-1359`). Rust now loads and normalizes
+  addon `visibilityDistanceType`, carries it through `CreatureAddonLifecycleRecordLikeCpp`, stores
+  the object-owned override for non-player world objects, applies it during represented creature
+  addon create/respawn, and sets the matching `UNIT_FLAG2_LARGE_AOI` / `GIGANTIC_AOI` /
+  `INFINITE_AOI` flag for Large/Gigantic/Infinite rows. This is not full runtime visibility
+  routing: several session/update/fanout paths still use map visibility range directly, so exact
+  client selection parity remains a follow-up runtime gap. Auras and waypoint path execution also
+  remain open.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

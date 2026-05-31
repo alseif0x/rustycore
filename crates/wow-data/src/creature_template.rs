@@ -7,7 +7,7 @@ use wow_constants::{
     UnitStandStateType,
 };
 use wow_database::WorldDatabase;
-use wow_entities::CreatureAddonLifecycleRecordLikeCpp;
+use wow_entities::{CreatureAddonLifecycleRecordLikeCpp, VisibilityDistanceTypeLikeCpp};
 
 use crate::{AnimKitStore, CreatureDisplayInfoStore, EmotesStore};
 
@@ -395,6 +395,8 @@ fn addon_record_from_row_like_cpp(
     let ai_anim_kit_id = normalize_anim_kit_like_cpp(row.ai_anim_kit, anim_kit_exists);
     let movement_anim_kit_id = normalize_anim_kit_like_cpp(row.movement_anim_kit, anim_kit_exists);
     let melee_anim_kit_id = normalize_anim_kit_like_cpp(row.melee_anim_kit, anim_kit_exists);
+    let visibility_distance_type =
+        VisibilityDistanceTypeLikeCpp::from_u8_like_cpp(row.visibility_distance_type);
 
     CreatureAddonLifecycleRecordLikeCpp {
         path_id: row.path_id,
@@ -408,6 +410,7 @@ fn addon_record_from_row_like_cpp(
         ai_anim_kit_id,
         movement_anim_kit_id,
         melee_anim_kit_id,
+        visibility_distance_type,
     }
 }
 
@@ -1817,6 +1820,7 @@ mod tests {
                 ai_anim_kit_id: 11,
                 movement_anim_kit_id: 22,
                 melee_anim_kit_id: 33,
+                visibility_distance_type: VisibilityDistanceTypeLikeCpp::Normal,
             }),
             "C++ Creature::GetCreatureAddon checks spawn id before template entry"
         );
@@ -1834,6 +1838,7 @@ mod tests {
                 ai_anim_kit_id: 44,
                 movement_anim_kit_id: 55,
                 melee_anim_kit_id: 66,
+                visibility_distance_type: VisibilityDistanceTypeLikeCpp::Normal,
             })
         );
     }
@@ -1851,6 +1856,7 @@ mod tests {
             ai_anim_kit: 11,
             movement_anim_kit: 22,
             melee_anim_kit: 33,
+            visibility_distance_type: VisibilityDistanceTypeLikeCpp::MAX_LIKE_CPP,
             ..addon_row(44)
         };
 
@@ -1878,8 +1884,9 @@ mod tests {
                 ai_anim_kit_id: 0,
                 movement_anim_kit_id: 0,
                 melee_anim_kit_id: 0,
+                visibility_distance_type: VisibilityDistanceTypeLikeCpp::Normal,
             }),
-            "C++ invalid mount/emote/stand/anim/sheath/anim-kit rows are truncated; VisFlags/PvPFlags cover the full byte"
+            "C++ invalid mount/emote/stand/anim/sheath/anim-kit/visibility rows are truncated; VisFlags/PvPFlags cover the full byte"
         );
     }
 
