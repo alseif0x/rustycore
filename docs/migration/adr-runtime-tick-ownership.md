@@ -792,6 +792,12 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   removes represented `SKINNABLE` / `IN_COMBAT` unit flags during `JustRespawned`. Full
   `ChooseCreatureFlags` template reload, unit flags2/3, melee damage school, addon reload, and
   default motion initialization remain separate respawn gaps.
+- 2026-05-31 — Represented creature death active-state cleanup `#NEXT.RUNTIME.L3.031ar`:
+  ports the represented subset of C++ `Creature::setDeathState(JUST_DIED)` `setActive(false)`
+  (`Creature.cpp:2227`). Rust's death plan already carried `CreatureRuntimeAction::Deactivate`, but
+  the represented `WorldObject.active` flag could remain true after `JustDied`; it is now cleared
+  directly during `Creature::set_death_state_runtime`. Map active-list removal/fanout remains a
+  runtime owner gap outside `wow-entities`.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

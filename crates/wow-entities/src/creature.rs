@@ -2267,6 +2267,7 @@ impl Creature {
                 self.unit.set_emote_state_like_cpp(0);
                 self.unit
                     .set_stand_state_like_cpp(UnitStandStateType::Stand);
+                self.unit.world_mut().set_active(false);
                 self.already_searched_assistance = false;
                 self.already_call_assistance = false;
                 plan.extend([
@@ -4019,6 +4020,7 @@ mod tests {
             .set_current_spell(CurrentSpellSlot::Channeled, channeled_spell);
         creature.unit_mut().set_target(victim);
         creature.unit_mut().set_attacking(Some(victim));
+        creature.unit_mut().world_mut().set_active(true);
         creature
             .unit_mut()
             .subsystems_mut()
@@ -4056,6 +4058,10 @@ mod tests {
         assert_eq!(
             creature.unit().current_spell(CurrentSpellSlot::Channeled),
             None
+        );
+        assert!(
+            !creature.unit().world().is_active(),
+            "C++ Creature::setDeathState(JUST_DIED) calls setActive(false)"
         );
         assert!(
             !creature
