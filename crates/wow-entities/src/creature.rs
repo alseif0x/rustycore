@@ -2,9 +2,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use wow_constants::{
     CreatureFlagsExtra, CreatureFlightMovementType, CreatureGroundMovementType,
-    CreatureStaticFlags, CreatureTypeFlags, DeathState, PowerType, SheathState, TypeId, TypeMask,
-    UnitDynFlags, UnitFlags, UnitFlags2, UnitFlags3, UnitPvpFlags, UnitStandStateType, UnitState,
-    WeaponAttackType, movement::MovementFlag,
+    CreatureStaticFlags, CreatureTypeFlags, DeathState, PowerType, ShapeShiftForm, SheathState,
+    TypeId, TypeMask, UnitDynFlags, UnitFlags, UnitFlags2, UnitFlags3, UnitPvpFlags,
+    UnitStandStateType, UnitState, WeaponAttackType, movement::MovementFlag,
 };
 use wow_core::{ObjectGuid, Position};
 
@@ -2623,6 +2623,8 @@ impl Creature {
         self.unit.set_anim_tier_like_cpp(addon.anim_tier);
         self.unit.set_sheath_like_cpp(addon.sheath_state);
         self.unit.replace_all_pvp_flags_like_cpp(addon.pvp_flags);
+        self.unit.replace_all_pet_flags_like_cpp(0);
+        self.unit.set_shapeshift_form_like_cpp(ShapeShiftForm::None);
         if addon.emote != 0 {
             self.unit.set_emote_state_like_cpp(addon.emote);
         }
@@ -4420,6 +4422,16 @@ mod tests {
             "C++ Creature::LoadCreaturesAddon calls SetSheath(addon->sheathState)"
         );
         assert_eq!(
+            creature.unit().pet_flags_like_cpp(),
+            0,
+            "C++ Creature::LoadCreaturesAddon calls ReplaceAllPetFlags(UNIT_PET_FLAG_NONE)"
+        );
+        assert_eq!(
+            creature.unit().shapeshift_form_like_cpp(),
+            ShapeShiftForm::None,
+            "C++ Creature::LoadCreaturesAddon calls SetShapeshiftForm(FORM_NONE)"
+        );
+        assert_eq!(
             creature.unit().pvp_flags_like_cpp(),
             UnitPvpFlags::PVP | UnitPvpFlags::FFA_PVP,
             "C++ Creature::LoadCreaturesAddon calls ReplaceAllPvpFlags(addon->pvpFlags)"
@@ -4452,6 +4464,10 @@ mod tests {
         creature.unit_mut().replace_all_vis_flags_like_cpp(0x02);
         creature.unit_mut().set_anim_tier_like_cpp(1);
         creature.unit_mut().set_sheath_like_cpp(SheathState::Ranged);
+        creature.unit_mut().replace_all_pet_flags_like_cpp(0x03);
+        creature
+            .unit_mut()
+            .set_shapeshift_form_like_cpp(ShapeShiftForm::CatForm);
         creature
             .unit_mut()
             .replace_all_pvp_flags_like_cpp(UnitPvpFlags::FFA_PVP);
@@ -4472,6 +4488,11 @@ mod tests {
         assert_eq!(creature.unit().vis_flags_like_cpp(), 0x04);
         assert_eq!(creature.unit().anim_tier_like_cpp(), 3);
         assert_eq!(creature.unit().sheath_like_cpp(), SheathState::Melee);
+        assert_eq!(creature.unit().pet_flags_like_cpp(), 0);
+        assert_eq!(
+            creature.unit().shapeshift_form_like_cpp(),
+            ShapeShiftForm::None
+        );
         assert_eq!(
             creature.unit().pvp_flags_like_cpp(),
             UnitPvpFlags::SANCTUARY

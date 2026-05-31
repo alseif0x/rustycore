@@ -1,6 +1,7 @@
 use wow_constants::{
-    DeathState, Gender, PowerType, SheathState, SpellState, TypeId, TypeMask, UnitFlags,
-    UnitFlags2, UnitFlags3, UnitPvpFlags, UnitStandStateType, UnitState, WeaponAttackType,
+    DeathState, Gender, PowerType, ShapeShiftForm, SheathState, SpellState, TypeId, TypeMask,
+    UnitFlags, UnitFlags2, UnitFlags3, UnitPvpFlags, UnitStandStateType, UnitState,
+    WeaponAttackType,
 };
 use wow_core::ObjectGuid;
 
@@ -48,6 +49,8 @@ pub const UNIT_DATA_VIS_FLAGS_BIT: usize = 58;
 pub const UNIT_DATA_ANIM_TIER_BIT: usize = 59;
 pub const UNIT_DATA_SHEATHE_STATE_BIT: usize = 77;
 pub const UNIT_DATA_PVP_FLAGS_BIT: usize = 78;
+pub const UNIT_DATA_PET_FLAGS_BIT: usize = 79;
+pub const UNIT_DATA_SHAPESHIFT_FORM_BIT: usize = 80;
 pub const UNIT_DATA_TARGET_BIT: usize = 19;
 pub const UNIT_DATA_RACE_BIT: usize = 24;
 pub const UNIT_DATA_CLASS_ID_BIT: usize = 25;
@@ -91,6 +94,8 @@ pub struct UnitDataValues {
     pub anim_tier: u8,
     pub sheathe_state: u8,
     pub pvp_flags: u8,
+    pub pet_flags: u8,
+    pub shapeshift_form: u8,
     pub npc_flags: [u32; 2],
     pub power: [i32; MAX_POWERS_PER_CLASS],
     pub max_power: [i32; MAX_POWERS_PER_CLASS],
@@ -125,6 +130,8 @@ impl Default for UnitDataValues {
             anim_tier: 0,
             sheathe_state: SheathState::Unarmed as u8,
             pvp_flags: 0,
+            pet_flags: 0,
+            shapeshift_form: ShapeShiftForm::None as u8,
             npc_flags: [0; 2],
             power: [0; MAX_POWERS_PER_CLASS],
             max_power: [0; MAX_POWERS_PER_CLASS],
@@ -1620,6 +1627,34 @@ impl Unit {
 
     pub fn pvp_flags_like_cpp(&self) -> UnitPvpFlags {
         UnitPvpFlags::from_bits_retain(self.data.pvp_flags)
+    }
+
+    pub fn replace_all_pet_flags_like_cpp(&mut self, flags: u8) {
+        self.set_u8_field(UNIT_DATA_PET_FLAGS_BIT, flags, |data| &mut data.pet_flags);
+    }
+
+    pub const fn pet_flags_like_cpp(&self) -> u8 {
+        self.data.pet_flags
+    }
+
+    pub fn set_shapeshift_form_like_cpp(&mut self, form: ShapeShiftForm) {
+        self.set_u8_field(UNIT_DATA_SHAPESHIFT_FORM_BIT, form as u8, |data| {
+            &mut data.shapeshift_form
+        });
+    }
+
+    pub fn shapeshift_form_like_cpp(&self) -> ShapeShiftForm {
+        match self.data.shapeshift_form {
+            1 => ShapeShiftForm::CatForm,
+            2 => ShapeShiftForm::TreeForm,
+            3 => ShapeShiftForm::TravelForm,
+            4 => ShapeShiftForm::AquaticForm,
+            5 => ShapeShiftForm::BearForm,
+            8 => ShapeShiftForm::DireBearForm,
+            16 => ShapeShiftForm::GhostWolf,
+            28 => ShapeShiftForm::Shadowform,
+            _ => ShapeShiftForm::None,
+        }
     }
 
     pub fn has_pvp_flag_like_cpp(&self, flags: UnitPvpFlags) -> bool {

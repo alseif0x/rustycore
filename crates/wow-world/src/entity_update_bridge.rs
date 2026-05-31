@@ -379,6 +379,8 @@ fn unit_data_update_to_packet(update: &UnitDataUpdate) -> UnitDataValuesDeltaUpd
     packet_update.anim_tier = update.values.anim_tier;
     packet_update.sheathe_state = update.values.sheathe_state;
     packet_update.pvp_flags = update.values.pvp_flags;
+    packet_update.pet_flags = update.values.pet_flags;
+    packet_update.shapeshift_form = update.values.shapeshift_form;
     packet_update.power = update.values.power;
     packet_update.max_power = update.values.max_power;
 
@@ -1044,6 +1046,8 @@ mod tests {
         unit.set_anim_tier_like_cpp(2);
         unit.set_sheath_like_cpp(wow_constants::SheathState::Ranged);
         unit.set_pvp_flag_like_cpp(wow_constants::UnitPvpFlags::PVP);
+        unit.replace_all_pet_flags_like_cpp(0x03);
+        unit.set_shapeshift_form_like_cpp(wow_constants::ShapeShiftForm::CatForm);
         unit.set_npc_flags_like_cpp(0x40);
         unit.set_npc_flags2_like_cpp(0x1);
 
@@ -1085,6 +1089,14 @@ mod tests {
         ));
         assert!(mask_has(
             &packet_update.unit_data_mask,
+            wow_entities::UNIT_DATA_PET_FLAGS_BIT
+        ));
+        assert!(mask_has(
+            &packet_update.unit_data_mask,
+            wow_entities::UNIT_DATA_SHAPESHIFT_FORM_BIT
+        ));
+        assert!(mask_has(
+            &packet_update.unit_data_mask,
             wow_entities::UNIT_DATA_NPC_FLAGS_PARENT_BIT
         ));
         assert!(mask_has(
@@ -1110,6 +1122,11 @@ mod tests {
         assert_eq!(
             packet_update.pvp_flags,
             wow_constants::UnitPvpFlags::PVP.bits()
+        );
+        assert_eq!(packet_update.pet_flags, 0x03);
+        assert_eq!(
+            packet_update.shapeshift_form,
+            wow_constants::ShapeShiftForm::CatForm as u8
         );
     }
 
