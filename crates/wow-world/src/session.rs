@@ -1602,6 +1602,8 @@ pub struct LegacyCreatureAggroTickOutcomeLikeCpp {
     pub attacker_evade_rejections: usize,
     pub home_range_rejections: usize,
     pub gray_aggro_rejections: usize,
+    pub alert_triggers: usize,
+    pub alert_rejections: usize,
     pub aggro_starts: usize,
     pub commands: Vec<wow_network::player_registry::CreatureAttackStartLikeCppCommand>,
 }
@@ -21017,6 +21019,7 @@ fn legacy_creature_aggro_candidate_visibility_decision_like_cpp(
     map_id: u16,
     instance_id: u32,
     candidate: &LegacyCreatureAggroCandidateLikeCpp,
+    check_alert: bool,
 ) -> LegacyCreatureAggroVisibilityDecisionLikeCpp {
     if !candidate.player_visibility_represented {
         return LegacyCreatureAggroVisibilityDecisionLikeCpp::Unrepresented;
@@ -21024,11 +21027,17 @@ fn legacy_creature_aggro_candidate_visibility_decision_like_cpp(
 
     let seer = legacy_creature_aggro_creature_unit_snapshot_like_cpp(creature, map_id, instance_id);
     let target = legacy_creature_aggro_candidate_unit_snapshot_like_cpp(candidate);
-    if seer.can_see_or_detect_unit_like_cpp(&target, false, false, false) {
+    if seer.can_see_or_detect_unit_like_cpp(&target, false, false, check_alert) {
         LegacyCreatureAggroVisibilityDecisionLikeCpp::Allowed
     } else {
         LegacyCreatureAggroVisibilityDecisionLikeCpp::Rejected
     }
+}
+
+fn legacy_creature_aggro_candidate_has_stealth_aura_like_cpp(
+    candidate: &LegacyCreatureAggroCandidateLikeCpp,
+) -> bool {
+    legacy_creature_aggro_candidate_unit_snapshot_like_cpp(candidate).has_stealth_aura_like_cpp()
 }
 
 fn legacy_creature_aggro_candidate_has_reputation_state_like_cpp(
@@ -21290,6 +21299,50 @@ fn legacy_creature_can_attack_leash_decision_like_cpp(
     }
 }
 
+fn legacy_creature_try_trigger_alert_like_cpp(
+    creature: &mut crate::map_manager::WorldCreature,
+    candidate: &LegacyCreatureAggroCandidateLikeCpp,
+    config: &LegacyCreatureAggroConfigLikeCpp,
+) -> bool {
+    // C++ `CreatureAI::TriggerAlert` after `CreatureUnitRelocationWorker`:
+    // only hostile stealthed players can distract an alive, non-engaged,
+    // non-controlled aggressive creature. `SendAIReaction(AI_REACTION_ALERT)`
+    // is not represented by the transitional runtime yet; the map-owned state
+    // mutation covered here is the `MoveDistract(5s, angle)` side effect.
+    if !legacy_creature_aggro_candidate_has_stealth_aura_like_cpp(candidate) {
+        return false;
+    }
+    if creature.creature.ai_ownership().combat_target.is_some() {
+        return false;
+    }
+    if creature.creature.is_civilian_like_cpp()
+        || creature
+            .creature
+            .has_react_state(wow_entities::ReactState::Passive)
+    {
+        return false;
+    }
+    if creature.creature.unit().has_unit_state(
+        (UnitState::CONFUSED | UnitState::STUNNED | UnitState::FLEEING | UnitState::DISTRACTED)
+            .bits(),
+    ) {
+        return false;
+    }
+    if !legacy_creature_aggro_candidate_is_targetable_for_attack_like_cpp(candidate) {
+        return false;
+    }
+    if !legacy_creature_aggro_candidate_is_hostile_to_creature_like_cpp(creature, candidate, config)
+        .unwrap_or(false)
+    {
+        return false;
+    }
+
+    let orientation = creature.position().angle_to(&candidate.position);
+    creature
+        .begin_distract_movement_like_cpp(5_000, orientation)
+        .is_some()
+}
+
 /// Runs one global legacy creature aggro scan without spawning a loop.
 ///
 /// C++ contrast: `CreatureAI::MoveInLineOfSight` checks aggressive creatures
@@ -21378,9 +21431,26 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
                     map_id,
                     instance_id,
                     candidate,
+                    false,
                 ) {
                     LegacyCreatureAggroVisibilityDecisionLikeCpp::Allowed => {}
                     LegacyCreatureAggroVisibilityDecisionLikeCpp::Rejected => {
+                        if matches!(
+                            legacy_creature_aggro_candidate_visibility_decision_like_cpp(
+                                creature,
+                                map_id,
+                                instance_id,
+                                candidate,
+                                true,
+                            ),
+                            LegacyCreatureAggroVisibilityDecisionLikeCpp::Allowed
+                        ) && legacy_creature_try_trigger_alert_like_cpp(
+                            creature, candidate, &config,
+                        ) {
+                            outcome.alert_triggers += 1;
+                        } else {
+                            outcome.alert_rejections += 1;
+                        }
                         outcome.visibility_rejections += 1;
                         continue;
                     }
@@ -52077,6 +52147,64 @@ mod tests {
         assert_eq!(outcome.aggro_starts, 1);
         assert_eq!(outcome.commands.len(), 1);
         assert_eq!(outcome.commands[0].victim_guid, visible_player);
+    }
+
+    #[test]
+    fn legacy_creature_aggro_tick_once_alerts_stealthed_player_without_aggro_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_041);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 5.0;
+                creature.creature.unit_mut().set_level(80);
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let stealthed_player = ObjectGuid::create_player(1, 91_042);
+        let mut candidate =
+            legacy_aggro_candidate_like_cpp(stealthed_player, Position::new(16.5, 10.0, 0.0, 0.0));
+        let mut stealthed_unit = Unit::new(true);
+        stealthed_unit.set_stealth_like_cpp(0, 408);
+        candidate.player_visibility_detection =
+            stealthed_unit.visibility_detection_like_cpp().clone();
+
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &[candidate],
+            legacy_aggro_hostile_config_like_cpp(),
+        );
+
+        assert_eq!(outcome.visibility_rejections, 1);
+        assert_eq!(outcome.alert_triggers, 1);
+        assert_eq!(outcome.alert_rejections, 0);
+        assert_eq!(outcome.aggro_starts, 0);
+        assert!(outcome.commands.is_empty());
+        let (combat_target, has_distract_generator) = {
+            let guard = manager.read().unwrap();
+            let creature = guard.find_creature(0, 0, creature_guid).unwrap();
+            (
+                creature.creature.ai_ownership().combat_target,
+                creature
+                    .creature
+                    .unit()
+                    .subsystems()
+                    .motion
+                    .active_generators
+                    .iter()
+                    .any(|generator| {
+                        generator.kind == wow_entities::MovementGeneratorKind::Distract
+                    }),
+            )
+        };
+        assert_eq!(combat_target, None);
+        assert!(has_distract_generator);
     }
 
     #[test]

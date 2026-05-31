@@ -606,6 +606,10 @@ impl Unit {
         }
     }
 
+    pub const fn has_stealth_aura_like_cpp(&self) -> bool {
+        self.visibility_detection.stealth_flags != 0
+    }
+
     pub fn can_detect_invisibility_of_like_cpp(&self, target: &Self) -> bool {
         let target_flags = target.visibility_detection.invisibility_flags;
         if target_flags == 0 {

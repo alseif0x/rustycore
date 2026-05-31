@@ -534,6 +534,16 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   Remaining gaps: alert/prowl behavior, real VMAP-backed LOS, AI-specific `CanAIAttack`,
   victim-creature evade for non-player aggro targets, and non-player owner/victim creature edge
   cases.
+- 2026-05-31 — Runtime creature-aggro stealth alert/distract `#NEXT.RUNTIME.L3.031r`: represented
+  the `CreatureUnitRelocationWorker` fallback branch for stealthed/prowling players that fail the
+  normal `CanSeeOrDetect(..., checkAlert=false)` aggro visibility gate but pass
+  `CanSeeOrDetect(..., checkAlert=true)`. Rust now keeps those players out of combat start, applies
+  the C++ `CreatureAI::TriggerAlert` gates (non-engaged, non-controlled, non-civilian, non-passive,
+  hostile/targetable player), and starts the map-owned `MoveDistract(5000ms, angle)` movement side
+  effect. The `SendAIReaction(AI_REACTION_ALERT)` sound packet remains an explicit packet/fanout gap.
+  C++ anchors: `GridNotifiers.cpp:127-132` and `CreatureAI.cpp:140-159`. Remaining gaps: real
+  VMAP-backed LOS, AI-specific `CanAIAttack`, victim-creature evade for non-player aggro targets,
+  non-player owner/victim creature edge cases, and alert reaction packet delivery.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
