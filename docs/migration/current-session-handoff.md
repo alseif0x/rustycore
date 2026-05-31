@@ -1869,3 +1869,13 @@ Implemented Rust seam: `crates/wow-world/src/handlers/quest.rs` now removes repr
 Validation evidence: `cargo fmt` OK; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world quest_giver_choose_reward_ --lib` OK (22 passed); `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world quest_giver --lib` OK (63 passed); `cargo fmt --check` OK; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server` OK with existing warnings; `git diff --check` OK; TSV 9-column check OK. Current represented/closed inventory count is 625/648 = 96.45%; no push/install/restart.
 
 Remaining gaps: full `DestroyItemCount` across bags, equipment unequip checks, bank/reagent bank, direct trade edge cases beyond the existing direct planner, quest counter criteria/scripts, exact DB save timing parity, `RemoveTimedQuest`, full `RewardQuest` parity, install/restart/push/manual-test-ready remain open.
+
+### #NEXT.RUNTIME.L3.031at — represented creature death live flag/mount cleanup
+
+Status: represented-closeout for the bounded `Creature::setDeathState(JUST_DIED)` live `UnitData` cleanup; not manual-test-ready.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Creature/Creature.cpp:2227-2230` (`ReplaceAllNpcFlags(UNIT_NPC_FLAG_NONE)`, `ReplaceAllNpcFlags2(UNIT_NPC_FLAG_2_NONE)`, `SetMountDisplayId(0)`), plus `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.h:876,958,964` for the exact update-field setters.
+
+Implemented Rust seam: `crates/wow-entities/src/creature.rs` now mutates represented `UnitData::NpcFlags[0]`, `NpcFlags[1]`, and `MountDisplayID` to zero during `Creature::set_death_state_runtime(JustDied)`. The existing `CreatureRuntimeAction::ClearNpcFlags` / `ClearMount` plan entries remain as runtime bridge evidence. `CreatureAiOwnershipState` template/identity fields are intentionally left intact: C++ clears live unit update fields on death, then chooses/reloads template flags during respawn rather than destroying the spawn identity.
+
+Validation evidence: focused `creature_runtime_just_died_sets_corpse_respawn_and_clears_combat_bridge_state` coverage was extended to start from non-zero NPC flags and mount display, then assert zero after death.

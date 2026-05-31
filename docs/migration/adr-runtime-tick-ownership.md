@@ -803,6 +803,14 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   (`Creature.cpp:2262`, `Unit.h:283-296`). Rust now defines the contrasted `UnitState::ALL_ERASABLE`
   mask (`ALL_STATE_SUPPORTED & !IGNORE_PATHFINDING`) and clears it during represented creature
   respawn, preserving `IGNORE_PATHFINDING` like C++.
+- 2026-05-31 — Represented creature death live flag/mount cleanup `#NEXT.RUNTIME.L3.031at`:
+  ports the live `UnitData` subset of C++ `Creature::setDeathState(JUST_DIED)`
+  (`Creature.cpp:2227-2230`). Rust already carried represented runtime actions for clearing NPC
+  flags and mount display, but the entity state itself could retain `NpcFlags[0]`, `NpcFlags[1]`,
+  and `MountDisplayID` after death. `Creature::set_death_state_runtime(JustDied)` now applies
+  `ReplaceAllNpcFlags(0)`, `ReplaceAllNpcFlags2(0)`, and `SetMountDisplayId(0)` to the represented
+  `UnitData`. This deliberately does not clear `CreatureAiOwnershipState` template/identity fields:
+  C++ clears the live unit update fields on death and reloads/choses template flags on respawn.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

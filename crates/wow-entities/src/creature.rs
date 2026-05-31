@@ -2267,6 +2267,9 @@ impl Creature {
                 self.unit.set_emote_state_like_cpp(0);
                 self.unit
                     .set_stand_state_like_cpp(UnitStandStateType::Stand);
+                self.unit.set_npc_flags_like_cpp(0);
+                self.unit.set_npc_flags2_like_cpp(0);
+                self.unit.set_mount_display_id(0);
                 self.unit.world_mut().set_active(false);
                 self.already_searched_assistance = false;
                 self.already_call_assistance = false;
@@ -3991,6 +3994,9 @@ mod tests {
         creature
             .unit_mut()
             .set_stand_state_like_cpp(UnitStandStateType::Sit);
+        creature.unit_mut().set_npc_flags_like_cpp(0x40);
+        creature.unit_mut().set_npc_flags2_like_cpp(0x2);
+        creature.unit_mut().set_mount_display_id(1234);
         creature
             .unit_mut()
             .subsystems_mut()
@@ -4047,6 +4053,16 @@ mod tests {
         assert_eq!(
             creature.unit().stand_state_like_cpp(),
             UnitStandStateType::Stand
+        );
+        assert_eq!(
+            creature.unit().npc_flags_like_cpp(),
+            [0, 0],
+            "C++ Creature::setDeathState(JUST_DIED) calls ReplaceAllNpcFlags(0) and ReplaceAllNpcFlags2(0)"
+        );
+        assert_eq!(
+            creature.unit().data().mount_display_id,
+            0,
+            "C++ Creature::setDeathState(JUST_DIED) calls SetMountDisplayId(0)"
         );
         assert_eq!(
             creature.unit().current_spell(CurrentSpellSlot::Melee),
