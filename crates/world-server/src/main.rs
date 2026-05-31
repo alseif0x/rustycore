@@ -2082,6 +2082,7 @@ async fn main() -> Result<()> {
         let mgr = Arc::clone(&session_mgr);
         let smap = Arc::clone(&shared_map);
         let canonical_map = Arc::clone(&canonical_map_manager);
+        let spawn_metadata = Arc::clone(&canonical_spawn_metadata);
         let accessor = Arc::clone(&object_accessor);
         let port = instance_port;
         let mmap_config = mmap_runtime_config.clone();
@@ -2095,6 +2096,7 @@ async fn main() -> Result<()> {
                     let mgr = Arc::clone(&mgr);
                     let smap = Arc::clone(&smap);
                     let canonical_map = Arc::clone(&canonical_map);
+                    let spawn_metadata = Arc::clone(&spawn_metadata);
                     let accessor = Arc::clone(&accessor);
                     let mmap_pathfinder = mmap_pathfinder.clone();
                     create_session(
@@ -2105,6 +2107,7 @@ async fn main() -> Result<()> {
                         mgr,
                         smap,
                         canonical_map,
+                        spawn_metadata,
                         accessor,
                         port,
                         max_expansion,
@@ -6752,6 +6755,7 @@ async fn create_session(
     session_mgr: Arc<SessionManager>,
     shared_map: SharedMapManager,
     canonical_map_manager: SharedCanonicalMapManager,
+    canonical_spawn_metadata: SharedCanonicalSpawnMetadataLikeCpp,
     object_accessor: wow_world::SharedObjectAccessor,
     instance_port: u16,
     max_expansion: u8,
@@ -7045,6 +7049,12 @@ async fn create_session(
     if let Some(pathfinder) = mmap_pathfinder {
         session.set_mmap_pathfinder_like_cpp(pathfinder);
     }
+    session.set_waypoint_path_resolver_like_cpp(Arc::new(move |path_id| {
+        canonical_spawn_metadata
+            .lock()
+            .ok()
+            .and_then(|metadata| metadata.waypoint_paths_like_cpp().get(path_id).cloned())
+    }));
     session.set_object_accessor(object_accessor);
     if let (Some(greg), Some(pinv)) = (&resources.group_registry, &resources.pending_invites) {
         session.set_group_registry(Arc::clone(greg), Arc::clone(pinv));

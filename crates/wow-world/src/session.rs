@@ -499,6 +499,9 @@ pub struct MMapRuntimeConfigLikeCpp {
     pub disabled_map_ids: HashSet<u32>,
 }
 
+pub type WaypointPathResolverLikeCpp =
+    Arc<dyn Fn(u32) -> Option<wow_movement::WaypointPath> + Send + Sync>;
+
 impl Default for MMapRuntimeConfigLikeCpp {
     fn default() -> Self {
         Self {
@@ -2566,6 +2569,9 @@ pub struct WorldSession {
     enable_ae_loot_like_cpp: bool,
     /// C++ `CONFIG_ENABLE_MMAPS` + `DataDir` represented until map lifecycle owns real mmaps.
     mmap_runtime_config_like_cpp: MMapRuntimeConfigLikeCpp,
+    /// C++ `sWaypointMgr->GetPath(pathId)` resolver for session-created legacy `WorldCreature`
+    /// compatibility objects. The canonical path store is owned by `world-server`.
+    waypoint_path_resolver_like_cpp: Option<WaypointPathResolverLikeCpp>,
     /// Session-local representation of `GameObject::m_unique_users` for no-GetLootId chest uses.
     pub(crate) represented_unique_gameobject_uses: std::collections::HashSet<wow_core::ObjectGuid>,
     /// Represented C++ `GameEvents::Trigger` and `TriggeringLinkedGameObject` hook points.
@@ -3295,6 +3301,7 @@ impl WorldSession {
             watched_faction_index_like_cpp: -1,
             enable_ae_loot_like_cpp: false,
             mmap_runtime_config_like_cpp: MMapRuntimeConfigLikeCpp::default(),
+            waypoint_path_resolver_like_cpp: None,
             represented_unique_gameobject_uses: std::collections::HashSet::new(),
             represented_gameobject_use_effects: Vec::new(),
             represented_gameobject_use_states: std::collections::BTreeMap::new(),
@@ -4949,14 +4956,26 @@ impl WorldSession {
 
         if let Some(manager) = &self.map_manager {
             let (grid_x, grid_y) = crate::map_manager::world_to_grid_coords(position.x, position.y);
+            let waypoint_path_resolver = self.waypoint_path_resolver_like_cpp.clone();
+            let mut world_creature = crate::map_manager::WorldCreature::from_canonical(
+                canonical_creature,
+                create_data.clone(),
+            );
+            if world_creature.creature.default_movement_type()
+                == wow_entities::MovementGeneratorType::Waypoint
+            {
+                world_creature.initialize_default_waypoint_movement_with_path_resolver_like_cpp(
+                    |path_id| {
+                        waypoint_path_resolver
+                            .as_ref()
+                            .and_then(|resolver| resolver(path_id))
+                    },
+                );
+            }
             let mut manager = manager
                 .write()
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
             if manager.find_creature(map_id, 0, guid).is_none() {
-                let world_creature = crate::map_manager::WorldCreature::from_canonical(
-                    canonical_creature,
-                    create_data.clone(),
-                );
                 manager.add_creature(map_id, 0, grid_x, grid_y, world_creature);
             }
         }
@@ -7657,6 +7676,10 @@ impl WorldSession {
 
     pub fn set_mmap_runtime_config_like_cpp(&mut self, config: MMapRuntimeConfigLikeCpp) {
         self.mmap_runtime_config_like_cpp = config;
+    }
+
+    pub fn set_waypoint_path_resolver_like_cpp(&mut self, resolver: WaypointPathResolverLikeCpp) {
+        self.waypoint_path_resolver_like_cpp = Some(resolver);
     }
 
     pub(crate) fn enable_ae_loot_like_cpp(&self) -> bool {

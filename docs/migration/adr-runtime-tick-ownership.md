@@ -1193,6 +1193,20 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `WaypointReached`/`WaypointPathEnded` AI dispatch, formation side effects, full
   `RandomMovementGenerator` state machine/path/LOS retry parity at path ends, and live server/client
   validation.
+- 2026-05-31 — Session waypoint path resolver injected
+  `#NEXT.RUNTIME.L3.031d1`: contrasted against C++ `Creature::LoadCreaturesAddon` copying addon
+  `PathId` into `_waypointPathId` (`Creature.cpp:2773`) and
+  `WaypointMovementGenerator<Creature>::DoInitialize` resolving `owner->GetWaypointPathId()` through
+  `sWaypointMgr->GetPath(_pathId)` (`WaypointMovementGenerator.cpp:120-148`). Rust now exposes a
+  `WaypointPathResolverLikeCpp` seam on `WorldSession`; `world-server` injects a resolver backed by
+  `CanonicalSpawnMetadataLikeCpp::waypoint_paths_like_cpp`, and session-created legacy
+  `WorldCreature::from_canonical` compatibility objects initialize the represented default waypoint
+  generator when the canonical creature already carries `MovementType=Waypoint`. This is a wiring
+  seam, not the full DB closure: the canonical loaded-grid path still inserts only canonical
+  `MapObjectRecord`s and does not create/register a legacy `WorldCreature`, and the direct session DB
+  query path still does not hydrate addon `PathId`. Still open: loaded-grid legacy mirroring,
+  direct-spawn addon path hydration, AI `WaypointReached`/`WaypointPathEnded`, formation side
+  effects, full random path-end generator parity, and live server/client validation.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
