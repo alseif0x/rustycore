@@ -665,6 +665,17 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   retry spam while keeping the current bounded AI ownership timer model. Remaining gaps: LOS,
   non-player victims, offhand/extra attacks, and full unification with canonical `Unit` attack
   timers.
+- 2026-05-31 — Runtime global creature melee attacker-state gate `#NEXT.RUNTIME.L3.031ae`: closed
+  the represented `AttackerStateUpdate` attacker-side rejection gap in the experimental global
+  legacy creature melee driver. C++ calls `AttackerStateUpdate` only after range/facing succeeds,
+  and that function returns before damage for `UNIT_FLAG_PACIFIED`, `UNIT_STATE_CANNOT_AUTOATTACK`
+  when not extra, or `SPELL_AURA_DISABLE_ATTACKING_EXCEPT_ABILITIES`; the caller still resets the
+  base attack timer after the call (`Unit.cpp:2085-2170`). Rust now snapshots
+  `Unit::can_attacker_state_update_melee_like_cpp(false)`, suppresses canonical player health
+  mutation and victim command delivery when it fails, records `attacker_state_rejections`, and
+  treats the swing as consumed rather than a 100ms auto-attack-error retry. Remaining gaps: LOS,
+  non-player victims, offhand/extra attacks, exact `CanMelee`/casting/channel gates, and full
+  canonical `Unit` attack-timer unification.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

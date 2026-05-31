@@ -1655,6 +1655,7 @@ pub struct LegacyCreatureMeleeTickOutcomeLikeCpp {
     pub swings_ready: usize,
     pub melee_range_rejections: usize,
     pub melee_facing_rejections: usize,
+    pub attacker_state_rejections: usize,
     pub canonical_hits: usize,
     pub commands: Vec<wow_network::player_registry::ApplyCreatureMeleeDamageLikeCppCommand>,
 }
@@ -21735,6 +21736,7 @@ enum CreatureMeleeApplyResultLikeCpp {
     },
     OutOfRange,
     BadFacing,
+    AttackerStateRejected,
     MissingVictim,
 }
 
@@ -21744,6 +21746,7 @@ fn apply_creature_melee_damage_to_canonical_player_on_map_like_cpp(
     instance_id: u32,
     attacker_position: Position,
     attacker_combat_reach: f32,
+    attacker_can_state_update: bool,
     victim_guid: ObjectGuid,
     damage: u32,
 ) -> CreatureMeleeApplyResultLikeCpp {
@@ -21783,6 +21786,9 @@ fn apply_creature_melee_damage_to_canonical_player_on_map_like_cpp(
     ) {
         return CreatureMeleeApplyResultLikeCpp::BadFacing;
     }
+    if !attacker_can_state_update {
+        return CreatureMeleeApplyResultLikeCpp::AttackerStateRejected;
+    }
 
     let health_before = victim.unit().data().health;
     let health_after = health_before.saturating_sub(u64::from(damage));
@@ -21821,6 +21827,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
         attacker_guid: ObjectGuid,
         attacker_position: Position,
         attacker_combat_reach: f32,
+        attacker_can_state_update: bool,
         victim_guid: ObjectGuid,
         damage: u32,
     }
@@ -21861,6 +21868,10 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                     attacker_guid: guid,
                     attacker_position: creature.position(),
                     attacker_combat_reach: creature.creature.unit().world().combat_reach(),
+                    attacker_can_state_update: creature
+                        .creature
+                        .unit()
+                        .can_attacker_state_update_melee_like_cpp(false),
                     victim_guid,
                     damage: creature.roll_damage().max(1),
                 });
@@ -21882,6 +21893,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
             swing.instance_id,
             swing.attacker_position,
             swing.attacker_combat_reach,
+            swing.attacker_can_state_update,
             swing.victim_guid,
             swing.damage,
         );
@@ -21899,6 +21911,11 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
             CreatureMeleeApplyResultLikeCpp::BadFacing => {
                 outcome.melee_facing_rejections += 1;
                 failed_retry_swings.push(swing);
+                continue;
+            }
+            CreatureMeleeApplyResultLikeCpp::AttackerStateRejected => {
+                outcome.attacker_state_rejections += 1;
+                committed_swings.push(swing);
                 continue;
             }
             CreatureMeleeApplyResultLikeCpp::MissingVictim => continue,
@@ -53646,6 +53663,89 @@ mod tests {
 
         assert_eq!(immediate_retry.swings_ready, 0);
         assert_eq!(immediate_retry.melee_range_rejections, 0);
+        assert_eq!(immediate_retry.canonical_hits, 0);
+        assert!(immediate_retry.commands.is_empty());
+    }
+
+    #[test]
+    fn legacy_creature_melee_tick_once_attacker_state_rejection_consumes_swing_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        let player = ObjectGuid::create_player(1, 91_011);
+        add_canonical_test_player_on_map(
+            &canonical,
+            player,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            0,
+        );
+        {
+            let mut guard = canonical.lock().unwrap();
+            let typed = guard
+                .find_map_mut(0, 0)
+                .unwrap()
+                .map_mut()
+                .get_typed_player_mut(player)
+                .unwrap();
+            typed.unit_mut().set_max_health(100);
+            typed.unit_mut().set_health(100);
+        }
+
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_012);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.enter_combat(player);
+                creature.creature.ai_ownership_mut().last_swing_ms = 0;
+                creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+                creature
+                    .creature
+                    .unit_mut()
+                    .set_unit_flags_like_cpp(UnitFlags::PACIFIED);
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let rejected = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+
+        assert_eq!(rejected.swings_ready, 1);
+        assert_eq!(rejected.melee_range_rejections, 0);
+        assert_eq!(rejected.melee_facing_rejections, 0);
+        assert_eq!(rejected.attacker_state_rejections, 1);
+        assert_eq!(rejected.canonical_hits, 0);
+        assert!(rejected.commands.is_empty());
+        let health = canonical
+            .lock()
+            .unwrap()
+            .find_map(0, 0)
+            .unwrap()
+            .map()
+            .get_typed_player(player)
+            .unwrap()
+            .unit()
+            .data()
+            .health;
+        assert_eq!(health, 100);
+        {
+            let guard = manager.read().unwrap();
+            let creature = guard.find_creature(0, 0, creature_guid).unwrap();
+            assert_eq!(
+                creature.creature.ai_ownership().swing_timer_ms,
+                2_000,
+                "C++ resets the base attack timer after AttackerStateUpdate returns early"
+            );
+        }
+
+        let immediate_retry =
+            run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+
+        assert_eq!(immediate_retry.swings_ready, 0);
+        assert_eq!(immediate_retry.attacker_state_rejections, 0);
         assert_eq!(immediate_retry.canonical_hits, 0);
         assert!(immediate_retry.commands.is_empty());
     }
