@@ -1103,6 +1103,18 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   path/MMAP generation, Land/TakeOff animation tier, formation side effects, arrival timers,
   next-node progression, AI inform dispatch, MonsterMove fanout wiring, and live server/client
   validation remain open.
+- 2026-05-31 — WorldCreature waypoint arrival/next-node/path-end side effects
+  `#NEXT.RUNTIME.L3.031ca`: contrasted against C++ `WaypointMovementGenerator<Creature>::DoUpdate`,
+  `OnArrived`, `MovementInform`, and `StartMove` (`WaypointMovementGenerator.cpp:148-222`,
+  `WaypointMovementGenerator.cpp:244-307`, `WaypointMovementGenerator.cpp:309-422`). Rust now
+  applies represented side effects for stored waypoint-generator `StopMoving`, `Arrived`, `Launch`,
+  and `PathEnded` actions. Arrival clears `UNIT_STATE_ROAMING_MOVE` when C++ would, records
+  represented `MovementInform(WAYPOINT_MOTION_TYPE, nodeId)` evidence, honors a node delay before
+  launching the next node, and single-node non-repeating paths finalize with home position set to
+  the last waypoint target. Still open: same-tick `OnArrived` to `StartMove` chaining, random
+  wait/end wandering, real `WaypointReached`/`WaypointPathEnded` AI dispatch, path/MMAP generation,
+  Land/TakeOff animation tier, formation side effects, MonsterMove fanout wiring, automatic
+  `WaypointPathStoreLikeCpp` resolution, and live server/client validation.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

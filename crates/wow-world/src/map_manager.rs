@@ -1157,10 +1157,47 @@ impl WorldCreature {
             return WaypointMovementAction::Continue;
         };
         let action = generator.update_like_cpp(true, diff_ms, snapshot, None);
-        if let WaypointMovementAction::Launch(launch) = action {
-            self.begin_waypoint_launch_like_cpp(launch);
-        }
+        self.apply_waypoint_movement_action_like_cpp(action);
         action
+    }
+
+    fn apply_waypoint_movement_action_like_cpp(&mut self, action: WaypointMovementAction) {
+        match action {
+            WaypointMovementAction::StopMoving => {
+                self.creature
+                    .unit_mut()
+                    .subsystems_mut()
+                    .motion
+                    .stop_moving();
+            }
+            WaypointMovementAction::Arrived(arrived) => {
+                if arrived.clear_roaming_move {
+                    self.creature
+                        .unit_mut()
+                        .clear_unit_state(UnitState::ROAMING_MOVE.bits());
+                }
+                self.creature.record_ai_movement_inform(
+                    arrived.inform.movement_type.trinity_id(),
+                    arrived.inform.node_id,
+                );
+            }
+            WaypointMovementAction::PathEnded(ended) => {
+                let home = self
+                    .creature
+                    .ai_ownership()
+                    .move_target
+                    .unwrap_or_else(|| self.position());
+                self.creature.set_ai_home_position(home);
+                self.creature
+                    .unit_mut()
+                    .clear_unit_state(UnitState::ROAMING_MOVE.bits());
+                let _ = ended;
+            }
+            WaypointMovementAction::Launch(launch) => {
+                self.begin_waypoint_launch_like_cpp(launch);
+            }
+            _ => {}
+        }
     }
 
     fn waypoint_unit_snapshot_like_cpp(&self) -> WaypointUnitSnapshot {
@@ -3677,6 +3714,144 @@ mod tests {
                 .waypoint_started
                 .len(),
             1
+        );
+    }
+
+    #[test]
+    fn world_creature_waypoint_arrival_records_inform_and_launches_next_node_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54332);
+        let mut creature = WorldCreature::new(
+            guid,
+            1,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        let path = WaypointPath::new(
+            77,
+            vec![
+                wow_movement::WaypointNode::new(10, 11.0, 10.0, 0.0).with_delay(500),
+                wow_movement::WaypointNode::new(20, 12.0, 10.0, 0.0),
+            ],
+        );
+        assert_eq!(
+            creature.initialize_default_waypoint_movement_like_cpp(Some(path)),
+            WaypointMovementAction::StopMoving
+        );
+        assert!(matches!(
+            creature.update_default_waypoint_movement_like_cpp(
+                wow_movement::WAYPOINT_INITIAL_DELAY_MS_LIKE_CPP as u32
+            ),
+            WaypointMovementAction::Launch(_)
+        ));
+        creature
+            .active_move_spline
+            .as_mut()
+            .expect("initial waypoint spline")
+            .finalize();
+        assert!(creature.update_move_spline_like_cpp());
+
+        let arrived = creature.update_default_waypoint_movement_like_cpp(0);
+
+        match arrived {
+            WaypointMovementAction::Arrived(arrived) => {
+                assert_eq!(arrived.inform.node_id, 10);
+                assert_eq!(arrived.inform.path_id, 77);
+                assert_eq!(arrived.timer_ms, Some(500));
+            }
+            other => panic!("expected waypoint arrival, got {other:?}"),
+        }
+        assert!(
+            !creature
+                .creature
+                .unit()
+                .has_unit_state(UnitState::ROAMING_MOVE.bits())
+        );
+        assert_eq!(
+            creature.creature.ai_ownership().last_movement_inform,
+            Some(wow_entities::CreatureMovementInform {
+                movement_type: MovementGeneratorKind::Waypoint.trinity_id(),
+                movement_id: 10,
+            })
+        );
+
+        let next = creature.update_default_waypoint_movement_like_cpp(500);
+
+        match next {
+            WaypointMovementAction::Launch(launch) => {
+                assert_eq!(launch.node_id, 20);
+                assert_eq!(launch.path_id, 77);
+                assert_eq!(launch.destination, Position::new(12.0, 10.0, 0.0, 0.0));
+            }
+            other => panic!("expected next waypoint launch, got {other:?}"),
+        }
+        assert_eq!(
+            creature.move_target(),
+            Some(Position::new(12.0, 10.0, 0.0, 0.0))
+        );
+    }
+
+    #[test]
+    fn world_creature_waypoint_single_node_path_ends_after_arrival_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54333);
+        let mut creature = WorldCreature::new(
+            guid,
+            1,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        let path = WaypointPath::new(
+            88,
+            vec![wow_movement::WaypointNode::new(10, 11.0, 10.0, 0.0)],
+        );
+        assert_eq!(
+            creature.initialize_default_waypoint_movement_like_cpp(Some(path)),
+            WaypointMovementAction::StopMoving
+        );
+        assert!(matches!(
+            creature.update_default_waypoint_movement_like_cpp(
+                wow_movement::WAYPOINT_INITIAL_DELAY_MS_LIKE_CPP as u32
+            ),
+            WaypointMovementAction::Launch(_)
+        ));
+        creature
+            .active_move_spline
+            .as_mut()
+            .expect("single waypoint spline")
+            .finalize();
+        assert!(creature.update_move_spline_like_cpp());
+        assert!(matches!(
+            creature.update_default_waypoint_movement_like_cpp(0),
+            WaypointMovementAction::Arrived(_)
+        ));
+
+        let ended = creature.update_default_waypoint_movement_like_cpp(0);
+
+        match ended {
+            WaypointMovementAction::PathEnded(ended) => {
+                assert_eq!(ended.node_id, 10);
+                assert_eq!(ended.path_id, 88);
+            }
+            other => panic!("expected waypoint path end, got {other:?}"),
+        }
+        assert_eq!(
+            creature.home_position(),
+            Position::new(11.0, 10.0, 0.0, 0.0)
         );
     }
 
