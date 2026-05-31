@@ -8,7 +8,8 @@ use wow_constants::{
 use wow_core::{ObjectGuid, Position};
 
 use crate::{
-    BASE_MAXDAMAGE, BASE_MINDAMAGE, Unit, VehicleAccessory, VehicleSeatAddon, VehicleSeatInfo,
+    BASE_MAXDAMAGE, BASE_MINDAMAGE, UNIT_MASK_CONTROLABLE_GUARDIAN, UNIT_MASK_GUARDIAN,
+    UNIT_MASK_TOTEM, UNIT_MASK_VEHICLE, Unit, VehicleAccessory, VehicleSeatAddon, VehicleSeatInfo,
 };
 
 pub const CREATURE_REGEN_INTERVAL_MS: u32 = 2_000;
@@ -702,6 +703,7 @@ pub struct Creature {
     last_damaged_time: i64,
     regenerate_health: bool,
     is_missing_can_swim_flag_out_of_combat: bool,
+    unit_type_mask: u32,
     gossip_menu_id: u32,
     sparring_health_pct: u8,
     regen_timer: u32,
@@ -763,6 +765,7 @@ impl Creature {
             last_damaged_time: 0,
             regenerate_health: true,
             is_missing_can_swim_flag_out_of_combat: false,
+            unit_type_mask: 0,
             gossip_menu_id: 0,
             sparring_health_pct: 0,
             regen_timer: CREATURE_REGEN_INTERVAL_MS,
@@ -853,7 +856,8 @@ impl Creature {
                 .as_ref()
                 .map_or(record.entry, |input| input.creature_entry);
             let seat_defs = create_input.map(|input| input.seat_defs);
-            self.unit
+            let outcome = self
+                .unit
                 .subsystems_mut()
                 .vehicle
                 .create_vehicle_kit_like_cpp(
@@ -864,6 +868,9 @@ impl Creature {
                     loading,
                     seat_defs,
                 );
+            if outcome.unit_type_mask_vehicle_represented {
+                self.add_unit_type_mask_like_cpp(UNIT_MASK_VEHICLE);
+            }
         }
         self.default_movement_type = spawn
             .map(|spawn| spawn.movement_type)
@@ -1119,6 +1126,38 @@ impl Creature {
 
     pub const fn is_summon_like_cpp(&self) -> bool {
         self.lifecycle_metadata.is_summon_like_cpp
+    }
+
+    pub const fn unit_type_mask_like_cpp(&self) -> u32 {
+        self.unit_type_mask
+    }
+
+    pub const fn has_unit_type_mask_like_cpp(&self, mask: u32) -> bool {
+        self.unit_type_mask & mask != 0
+    }
+
+    pub fn add_unit_type_mask_like_cpp(&mut self, mask: u32) {
+        self.unit_type_mask |= mask;
+    }
+
+    pub fn remove_unit_type_mask_like_cpp(&mut self, mask: u32) {
+        self.unit_type_mask &= !mask;
+    }
+
+    pub const fn is_totem_unit_type_like_cpp(&self) -> bool {
+        self.has_unit_type_mask_like_cpp(UNIT_MASK_TOTEM)
+    }
+
+    pub const fn is_guardian_unit_type_like_cpp(&self) -> bool {
+        self.has_unit_type_mask_like_cpp(UNIT_MASK_GUARDIAN)
+    }
+
+    pub const fn is_controlable_guardian_unit_type_like_cpp(&self) -> bool {
+        self.has_unit_type_mask_like_cpp(UNIT_MASK_CONTROLABLE_GUARDIAN)
+    }
+
+    pub const fn is_vehicle_unit_type_like_cpp(&self) -> bool {
+        self.has_unit_type_mask_like_cpp(UNIT_MASK_VEHICLE)
     }
 
     pub fn set_summon_like_cpp(&mut self, is_summon: bool) {
@@ -3446,6 +3485,10 @@ mod tests {
         assert_eq!(create_outcome.usable_seat_num, 1);
         assert!(create_outcome.unit_update_flag_vehicle_represented);
         assert!(create_outcome.unit_type_mask_vehicle_represented);
+        assert!(creature.has_unit_type_mask_like_cpp(UNIT_MASK_VEHICLE));
+        assert!(creature.is_vehicle_unit_type_like_cpp());
+        assert!(!creature.is_totem_unit_type_like_cpp());
+        assert!(!creature.is_guardian_unit_type_like_cpp());
         assert!(!create_outcome.send_set_vehicle_rec_id_represented);
         assert!(create_outcome.set_spellclick_or_player_vehicle_npc_flag_represented);
         assert!(!create_outcome.remove_spellclick_or_player_vehicle_npc_flag_represented);
@@ -3592,11 +3635,38 @@ mod tests {
         assert_eq!(outcome.usable_seat_num, 0);
         assert!(!outcome.unit_update_flag_vehicle_represented);
         assert!(!outcome.unit_type_mask_vehicle_represented);
+        assert_eq!(creature.unit_type_mask_like_cpp(), 0);
+        assert!(!creature.is_vehicle_unit_type_like_cpp());
         assert!(!outcome.send_set_vehicle_rec_id_represented);
         assert!(!outcome.set_spellclick_or_player_vehicle_npc_flag_represented);
         assert!(!outcome.remove_spellclick_or_player_vehicle_npc_flag_represented);
         assert!(!outcome.update_display_power_represented);
         assert!(!outcome.init_movement_info_for_base_represented);
+    }
+
+    #[test]
+    fn creature_unit_type_mask_helpers_match_cpp_bitmask_semantics() {
+        let mut creature = Creature::new(false);
+
+        assert_eq!(creature.unit_type_mask_like_cpp(), 0);
+        assert!(!creature.is_totem_unit_type_like_cpp());
+        assert!(!creature.is_guardian_unit_type_like_cpp());
+        assert!(!creature.is_controlable_guardian_unit_type_like_cpp());
+        assert!(!creature.is_vehicle_unit_type_like_cpp());
+
+        creature.add_unit_type_mask_like_cpp(
+            UNIT_MASK_TOTEM | UNIT_MASK_GUARDIAN | UNIT_MASK_CONTROLABLE_GUARDIAN,
+        );
+        assert!(creature.has_unit_type_mask_like_cpp(UNIT_MASK_TOTEM));
+        assert!(creature.is_totem_unit_type_like_cpp());
+        assert!(creature.is_guardian_unit_type_like_cpp());
+        assert!(creature.is_controlable_guardian_unit_type_like_cpp());
+        assert!(!creature.is_vehicle_unit_type_like_cpp());
+
+        creature.remove_unit_type_mask_like_cpp(UNIT_MASK_GUARDIAN);
+        assert!(creature.is_totem_unit_type_like_cpp());
+        assert!(!creature.is_guardian_unit_type_like_cpp());
+        assert!(creature.is_controlable_guardian_unit_type_like_cpp());
     }
 
     #[test]

@@ -593,6 +593,15 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `PetAI.h`, `TotemAI.h`, `CombatAI.h` (`VehicleAI`), and `ScheduledChangeAI.h`. Wiring remains
   blocked on clean runtime facts for script-creatable AI registry, true unit-type masks for
   totem/guardian/controlable guardian, spell range hydration for TurretAI, and boss boundary data.
+- 2026-05-31 — Runtime creature unit-type mask fact `#NEXT.RUNTIME.L3.031x`: added represented
+  C++ `UnitTypeMask` storage/helpers to `Creature` so later selector wiring can distinguish
+  `IsTotem`, `IsGuardian`, `HasUnitTypeMask(UNIT_MASK_CONTROLABLE_GUARDIAN)`, and `IsVehicle`
+  without guessing from template type. Successful represented `CreateVehicleKit` now sets
+  `UNIT_MASK_VEHICLE`; a missing DB2 vehicle entry keeps the mask clear, matching the existing
+  bounded seam. C++ anchors: `Unit.h:334-346`, `Unit.h:723-730`, `Totem.cpp:29-31`,
+  `Pet.cpp:53-59`, `TemporarySummon.cpp:513-516`, and `Unit.cpp:11306-11326`. This is still a
+  data prerequisite only; summon/totem/guardian spell paths and live selector/aggro wiring remain
+  open.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

@@ -235,7 +235,7 @@ pub use totem::{
     SUMMON_SLOT_TOTEM_3, SUMMON_SLOT_TOTEM_4, SpellAuraKind, SpellEffectKind, Totem,
     TotemCreatedPacket, TotemType, TotemUpdateOutcome, UNIT_MASK_CONTROLABLE_GUARDIAN,
     UNIT_MASK_GUARDIAN, UNIT_MASK_HUNTER_PET, UNIT_MASK_MINION, UNIT_MASK_PET, UNIT_MASK_SUMMON,
-    UNIT_MASK_TOTEM,
+    UNIT_MASK_TOTEM, UNIT_MASK_VEHICLE,
 };
 pub use transport::{
     GAMEOBJECT_TYPE_MAP_OBJ_TRANSPORT, GO_DYNFLAG_LO_STOPPED, Transport, TransportCreateInfo,
