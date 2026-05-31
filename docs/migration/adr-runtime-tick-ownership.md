@@ -1111,10 +1111,22 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   and `PathEnded` actions. Arrival clears `UNIT_STATE_ROAMING_MOVE` when C++ would, records
   represented `MovementInform(WAYPOINT_MOTION_TYPE, nodeId)` evidence, honors a node delay before
   launching the next node, and single-node non-repeating paths finalize with home position set to
-  the last waypoint target. Still open: same-tick `OnArrived` to `StartMove` chaining, random
-  wait/end wandering, real `WaypointReached`/`WaypointPathEnded` AI dispatch, path/MMAP generation,
+  the last waypoint target. Same-tick `OnArrived` to `StartMove` chaining is covered by
+  `#NEXT.RUNTIME.L3.031cb`. Still open: random wait/end wandering, real
+  `WaypointReached`/`WaypointPathEnded` AI dispatch, path/MMAP generation,
   Land/TakeOff animation tier, formation side effects, MonsterMove fanout wiring, automatic
   `WaypointPathStoreLikeCpp` resolution, and live server/client validation.
+- 2026-05-31 — Same-tick waypoint `OnArrived` to `StartMove` chaining `#NEXT.RUNTIME.L3.031cb`:
+  contrasted against C++ `WaypointMovementGenerator<Creature>::DoUpdate`
+  (`WaypointMovementGenerator.cpp:208-222`) and `StartMove` (`WaypointMovementGenerator.cpp:327-422`).
+  Rust `WorldCreature::update_default_waypoint_movement_like_cpp` now applies an `Arrived` action
+  and, when no delay/random-wait timer was scheduled, immediately advances the stored generator with
+  `diff=0` once more so the next waypoint launch or non-repeating `PathEnded` happens in the same
+  update call, matching the C++ `_nextMoveTime.Passed()` branch. Tests cover no-delay next-node
+  same-tick launch and single-node same-tick path-end. Still open: random wait/end wandering, real
+  `WaypointReached`/`WaypointPathEnded` AI dispatch, path/MMAP generation, Land/TakeOff animation
+  tier, formation side effects, MonsterMove fanout wiring, automatic `WaypointPathStoreLikeCpp`
+  resolution, and live server/client validation.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

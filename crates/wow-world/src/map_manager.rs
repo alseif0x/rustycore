@@ -1158,6 +1158,19 @@ impl WorldCreature {
         };
         let action = generator.update_like_cpp(true, diff_ms, snapshot, None);
         self.apply_waypoint_movement_action_like_cpp(action);
+        if matches!(
+            action,
+            WaypointMovementAction::Arrived(arrived) if arrived.timer_ms.is_none()
+        ) {
+            let snapshot = self.waypoint_unit_snapshot_like_cpp();
+            if let Some(generator) = self.active_waypoint_generator.as_mut() {
+                let chained = generator.update_like_cpp(true, 0, snapshot, None);
+                if chained != WaypointMovementAction::Continue {
+                    self.apply_waypoint_movement_action_like_cpp(chained);
+                    return chained;
+                }
+            }
+        }
         action
     }
 
@@ -3799,7 +3812,7 @@ mod tests {
     }
 
     #[test]
-    fn world_creature_waypoint_single_node_path_ends_after_arrival_like_cpp() {
+    fn world_creature_waypoint_arrival_without_delay_launches_next_node_same_tick_like_cpp() {
         let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54333);
         let mut creature = WorldCreature::new(
             guid,
@@ -3817,6 +3830,70 @@ mod tests {
         );
         let path = WaypointPath::new(
             88,
+            vec![
+                wow_movement::WaypointNode::new(10, 11.0, 10.0, 0.0),
+                wow_movement::WaypointNode::new(20, 12.0, 10.0, 0.0),
+            ],
+        );
+        assert_eq!(
+            creature.initialize_default_waypoint_movement_like_cpp(Some(path)),
+            WaypointMovementAction::StopMoving
+        );
+        assert!(matches!(
+            creature.update_default_waypoint_movement_like_cpp(
+                wow_movement::WAYPOINT_INITIAL_DELAY_MS_LIKE_CPP as u32
+            ),
+            WaypointMovementAction::Launch(_)
+        ));
+        creature
+            .active_move_spline
+            .as_mut()
+            .expect("single waypoint spline")
+            .finalize();
+        assert!(creature.update_move_spline_like_cpp());
+
+        let action = creature.update_default_waypoint_movement_like_cpp(0);
+
+        match action {
+            WaypointMovementAction::Launch(launch) => {
+                assert_eq!(launch.node_id, 20);
+                assert_eq!(launch.path_id, 88);
+                assert_eq!(launch.destination, Position::new(12.0, 10.0, 0.0, 0.0));
+            }
+            other => panic!("expected same-tick next waypoint launch, got {other:?}"),
+        }
+        assert_eq!(
+            creature.creature.ai_ownership().last_movement_inform,
+            Some(wow_entities::CreatureMovementInform {
+                movement_type: MovementGeneratorKind::Waypoint.trinity_id(),
+                movement_id: 10,
+            })
+        );
+        assert_eq!(
+            creature.move_target(),
+            Some(Position::new(12.0, 10.0, 0.0, 0.0))
+        );
+    }
+
+    #[test]
+    fn world_creature_waypoint_single_node_path_ends_same_tick_after_arrival_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54334);
+        let mut creature = WorldCreature::new(
+            guid,
+            1,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        let path = WaypointPath::new(
+            89,
             vec![wow_movement::WaypointNode::new(10, 11.0, 10.0, 0.0)],
         );
         assert_eq!(
@@ -3835,17 +3912,13 @@ mod tests {
             .expect("single waypoint spline")
             .finalize();
         assert!(creature.update_move_spline_like_cpp());
-        assert!(matches!(
-            creature.update_default_waypoint_movement_like_cpp(0),
-            WaypointMovementAction::Arrived(_)
-        ));
 
         let ended = creature.update_default_waypoint_movement_like_cpp(0);
 
         match ended {
             WaypointMovementAction::PathEnded(ended) => {
                 assert_eq!(ended.node_id, 10);
-                assert_eq!(ended.path_id, 88);
+                assert_eq!(ended.path_id, 89);
             }
             other => panic!("expected waypoint path end, got {other:?}"),
         }
