@@ -1093,6 +1093,16 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   stop the owner, matching the C++ early return. Still open: resolving the path from
   `WaypointPathStoreLikeCpp`, launching `MoveSpline`, advancing timers/nodes, MonsterMove fanout,
   AI waypoint informs, formations/scripts, and live server/client validation.
+- 2026-05-31 — WorldCreature waypoint initial launch seam `#NEXT.RUNTIME.L3.031bz`: contrasted
+  against C++ `WaypointMovementGenerator<Creature>::DoUpdate` / `StartMove`
+  (`WaypointMovementGenerator.cpp:148-222`, `WaypointMovementGenerator.cpp:309-422`). Rust can now
+  update the stored represented waypoint generator through the initial 1000ms delay, consume the
+  first `Launch` action, apply represented `UNIT_STATE_ROAMING_MOVE`, retain `WaypointStarted`
+  evidence from `wow-movement`, and launch a `MoveSplineInit` toward the first waypoint with the
+  currently represented facing/walk/velocity/transport flags. This remains a bounded launch seam:
+  path/MMAP generation, Land/TakeOff animation tier, formation side effects, arrival timers,
+  next-node progression, AI inform dispatch, MonsterMove fanout wiring, and live server/client
+  validation remain open.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
