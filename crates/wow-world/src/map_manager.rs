@@ -1178,6 +1178,7 @@ impl WorldCreature {
         wait_time_roll_ms: Option<i32>,
     ) -> WaypointMovementAction {
         if let Some(mut random) = self.active_waypoint_random_at_path_end {
+            let _ = self.update_move_spline_like_cpp();
             random.duration_ms = random.duration_ms.saturating_sub(diff_ms as i32);
             if random.duration_ms > 0 {
                 self.active_waypoint_random_at_path_end = Some(random);
@@ -1230,6 +1231,7 @@ impl WorldCreature {
                     arrived.inform.node_id,
                 );
                 if let Some(random) = arrived.move_random_at_path_end {
+                    self.begin_waypoint_random_at_path_end_like_cpp(random);
                     self.active_waypoint_random_at_path_end = Some(random);
                 }
             }
@@ -1297,6 +1299,15 @@ impl WorldCreature {
             .unit_mut()
             .add_unit_state(launch.add_unit_state);
         self.launch_move_spline_init_like_cpp(&mut init, launch.destination)
+    }
+
+    fn begin_waypoint_random_at_path_end_like_cpp(
+        &mut self,
+        random: WaypointRandomAtPathEnd,
+    ) -> Option<(Position, MoveSpline)> {
+        let dst =
+            self.pick_random_destination_from_current_position_like_cpp(random.wander_distance);
+        self.begin_move_spline_like_cpp(dst)
     }
 
     pub fn begin_move_spline_with_detour_path_like_cpp(
@@ -1734,6 +1745,21 @@ impl WorldCreature {
         let y = home.y + angle.sin() * dist;
         let o = angle + std::f32::consts::PI;
         Position::new(x, y, home.z, o)
+    }
+
+    pub fn pick_random_destination_from_current_position_like_cpp(
+        &mut self,
+        wander_distance: f32,
+    ) -> Position {
+        let seed = self.now_ms() as f32;
+        let angle = (seed * 0.001) % (2.0 * std::f32::consts::PI);
+        let radius = wander_distance.max(1.0);
+        let dist = ((seed * 0.0001) % radius).max(radius.min(1.0));
+        let reference = self.position();
+        let x = reference.x + angle.cos() * dist;
+        let y = reference.y + angle.sin() * dist;
+        let o = angle + std::f32::consts::PI;
+        Position::new(x, y, reference.z, o)
     }
 
     pub fn reset_wander_timer(&mut self) {
@@ -4072,7 +4098,7 @@ mod tests {
     }
 
     #[test]
-    fn world_creature_waypoint_path_end_random_handoff_blocks_same_tick_next_move_like_cpp() {
+    fn world_creature_waypoint_path_end_random_handoff_launches_active_random_spline_like_cpp() {
         let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54337);
         let mut creature = WorldCreature::new(
             guid,
@@ -4139,7 +4165,14 @@ mod tests {
             }
             other => panic!("expected endpoint random handoff arrival, got {other:?}"),
         }
-        assert!(creature.active_move_spline.is_none());
+        let random_target = creature
+            .move_target()
+            .expect("C++ MoveRandom handoff should launch an active random spline");
+        assert!(creature.active_move_spline.is_some());
+        assert!(
+            random_target.distance_2d(&Position::new(13.0, 10.0, 0.0, 0.0)) <= 5.0,
+            "C++ RandomMovementGenerator chooses a destination within _wanderDistance of its reference"
+        );
         assert_eq!(
             creature.active_waypoint_random_at_path_end_like_cpp(),
             Some(WaypointRandomAtPathEnd {
@@ -4158,7 +4191,7 @@ mod tests {
             creature.update_default_waypoint_movement_like_cpp(100),
             WaypointMovementAction::Continue
         );
-        assert!(creature.active_move_spline.is_none());
+        assert!(creature.active_move_spline.is_some());
         assert_eq!(
             creature.active_waypoint_random_at_path_end_like_cpp(),
             Some(WaypointRandomAtPathEnd {

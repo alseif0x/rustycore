@@ -1164,6 +1164,20 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `MotionMaster::MoveRandom`/`RandomMovementGenerator` bridge at path ends, real
   `WaypointReached`/`WaypointPathEnded` AI dispatch, path/MMAP generation, formation side effects,
   MonsterMove fanout wiring, and live server/client validation.
+- 2026-05-31 — Waypoint path-end random handoff launches active random spline
+  `#NEXT.RUNTIME.L3.031cf`: contrasted against C++ `WaypointMovementGenerator<Creature>::OnArrived`
+  calling `owner->GetMotionMaster()->MoveRandom(*_wanderDistanceAtPathEnds, waitTime,
+  MOTION_SLOT_ACTIVE)` (`WaypointMovementGenerator.cpp:290-301`), `MotionMaster::MoveRandom`
+  adding `RandomMovementGenerator<Creature>` (`MotionMaster.cpp:599-604`), and
+  `RandomMovementGenerator<Creature>::SetRandomLocation` choosing a destination within
+  `_wanderDistance` then launching a spline (`RandomMovementGenerator.cpp:113-190`). Rust now
+  starts a represented active random spline from the creature's current path-end position when
+  `WaypointRandomAtPathEnd` is emitted, keeps the waypoint generator blocked while the active
+  handoff duration remains, and advances that spline during waypoint updates. Still open: full
+  `RandomMovementGenerator` state machine/path/LOS retry parity at path ends, MonsterMove fanout for
+  this spline, real `WaypointReached`/`WaypointPathEnded` AI dispatch, path/MMAP generation,
+  formation side effects, live DB spawn wiring for waypoint initialization, and live server/client
+  validation.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
