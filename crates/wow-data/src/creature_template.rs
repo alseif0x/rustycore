@@ -8,6 +8,8 @@ use wow_constants::{
 use wow_database::WorldDatabase;
 use wow_entities::CreatureAddonLifecycleRecordLikeCpp;
 
+use crate::{CreatureDisplayInfoStore, EmotesStore};
+
 pub const MAX_CREATURE_SPELLS_LIKE_CPP: usize = 8;
 pub const MAX_SPELL_SCHOOL_LIKE_CPP: u8 = 7;
 const CREATURE_GROUND_MOVEMENT_TYPE_MAX_LIKE_CPP: u8 = 3;
@@ -215,6 +217,45 @@ impl CreatureAddonStoreLikeCpp {
         }
     }
 
+    /// Loads the represented subset of C++ `ObjectMgr::LoadCreatureAddons` and
+    /// `ObjectMgr::LoadCreatureTemplateAddons`.
+    ///
+    /// C++ anchors:
+    /// - `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:766-897`
+    /// - `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:1224-1367`
+    pub async fn load_like_cpp(
+        db: &WorldDatabase,
+        template_store: &CreatureTemplateLifecycleStoreLikeCpp,
+        creature_spawn_store: &crate::WorldSpawnIdStore,
+        display_store: &CreatureDisplayInfoStore,
+        emotes_store: &EmotesStore,
+    ) -> Result<Self> {
+        let spawn_rows = load_creature_addon_rows_like_cpp(
+            db,
+            "SELECT guid, PathId, mount, StandState, AnimTier, VisFlags, SheathState, PvPFlags, emote, aiAnimKit, movementAnimKit, meleeAnimKit, visibilityDistanceType, auras FROM creature_addon",
+        )
+        .await?;
+        let template_rows = load_creature_addon_rows_like_cpp(
+            db,
+            "SELECT entry, PathId, mount, StandState, AnimTier, VisFlags, SheathState, PvPFlags, emote, aiAnimKit, movementAnimKit, meleeAnimKit, visibilityDistanceType, auras FROM creature_template_addon",
+        )
+        .await?;
+
+        Ok(Self::from_rows_like_cpp(
+            spawn_rows,
+            template_rows,
+            |spawn_id| {
+                u32::try_from(spawn_id)
+                    .ok()
+                    .and_then(|spawn_id| creature_spawn_store.entry_for_guid(spawn_id))
+                    .is_some()
+            },
+            |entry| template_store.get(entry).is_some(),
+            |display_id| display_store.get(display_id).is_some(),
+            |emote| emotes_store.get(emote).is_some(),
+        ))
+    }
+
     /// Mirrors C++ `Creature::GetCreatureAddon`: spawn-specific addon wins over template addon.
     pub fn get_for_creature_like_cpp(
         &self,
@@ -236,6 +277,40 @@ impl CreatureAddonStoreLikeCpp {
     pub fn is_empty(&self) -> bool {
         self.spawn_addons.is_empty() && self.template_addons.is_empty()
     }
+}
+
+async fn load_creature_addon_rows_like_cpp(
+    db: &WorldDatabase,
+    query: &str,
+) -> Result<Vec<CreatureAddonRowLikeCpp>> {
+    let mut result = db.direct_query(query).await?;
+    if result.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let mut rows = Vec::new();
+    loop {
+        rows.push(CreatureAddonRowLikeCpp {
+            owner_id: result.try_read::<u64>(0).unwrap_or(0),
+            path_id: result.try_read::<u32>(1).unwrap_or(0),
+            mount: result.try_read::<u32>(2).unwrap_or(0),
+            stand_state: result.try_read::<u8>(3).unwrap_or(0),
+            anim_tier: result.try_read::<u8>(4).unwrap_or(0),
+            vis_flags: result.try_read::<u8>(5).unwrap_or(0),
+            sheath_state: result.try_read::<u8>(6).unwrap_or(0),
+            pvp_flags: result.try_read::<u8>(7).unwrap_or(0),
+            emote: result.try_read::<u32>(8).unwrap_or(0),
+            ai_anim_kit: result.try_read::<u16>(9).unwrap_or(0),
+            movement_anim_kit: result.try_read::<u16>(10).unwrap_or(0),
+            melee_anim_kit: result.try_read::<u16>(11).unwrap_or(0),
+            visibility_distance_type: result.try_read::<u8>(12).unwrap_or(0),
+        });
+        if !result.next_row() {
+            break;
+        }
+    }
+
+    Ok(rows)
 }
 
 fn addon_record_from_row_like_cpp(

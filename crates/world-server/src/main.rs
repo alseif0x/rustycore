@@ -713,6 +713,10 @@ async fn main() -> Result<()> {
         "Loaded {} creature display info rows",
         creature_display_info_store.len()
     );
+    let emotes_store = Arc::new(
+        wow_data::EmotesStore::load(&data_dir, &locale).context("Failed to load Emotes.db2")?,
+    );
+    info!("Loaded {} emote rows", emotes_store.len());
     let gameobject_display_info_store = Arc::new(
         wow_data::GameObjectDisplayInfoStore::load(&data_dir, &locale)
             .context("Failed to load GameObjectDisplayInfo.db2")?,
@@ -774,6 +778,21 @@ async fn main() -> Result<()> {
         "Loaded condition validation spawn id stores: {} creature spawns, {} gameobject spawns",
         creature_spawn_store.len(),
         gameobject_spawn_store.len()
+    );
+    let creature_addon_store = Arc::new(
+        wow_data::CreatureAddonStoreLikeCpp::load_like_cpp(
+            world_db.as_ref(),
+            creature_template_lifecycle_store.as_ref(),
+            creature_spawn_store.as_ref(),
+            creature_display_info_store.as_ref(),
+            emotes_store.as_ref(),
+        )
+        .await
+        .context("Failed to load represented creature_addon / creature_template_addon rows for C++ Creature::LoadCreaturesAddon")?,
+    );
+    info!(
+        "Loaded {} represented creature addon rows",
+        creature_addon_store.len()
     );
     let active_event_store = Arc::new(
         wow_data::WorldIdStore::load_like_cpp(
@@ -1686,7 +1705,7 @@ async fn main() -> Result<()> {
         health_rates: creature_health_rates,
         display_store: Arc::clone(&creature_display_info_store),
         model_store: Arc::clone(&creature_model_data_store),
-        creature_addon_store: Arc::new(wow_data::CreatureAddonStoreLikeCpp::default()),
+        creature_addon_store: Arc::clone(&creature_addon_store),
         vehicle_store: Arc::clone(&vehicle_store),
         vehicle_seat_store: Arc::clone(&vehicle_seat_store),
         vehicle_accessory_store: Arc::clone(&vehicle_accessory_store),
