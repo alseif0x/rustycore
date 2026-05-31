@@ -2281,6 +2281,13 @@ impl Creature {
             }
             DeathState::JustRespawned => {
                 self.unit.set_health(self.unit.data().max_health);
+                self.unit
+                    .world_mut()
+                    .object_mut()
+                    .replace_all_dynamic_flags(0);
+                let mut flags = self.unit.unit_flags_like_cpp();
+                flags.remove(UnitFlags::SKINNABLE | UnitFlags::IN_COMBAT);
+                self.unit.set_unit_flags_like_cpp(flags);
                 self.clear_tap_list();
                 self.player_damage_req = 0;
                 self.cannot_reach_target = false;
@@ -4099,6 +4106,19 @@ mod tests {
         creature.unit_mut().set_max_health(250);
         creature.unit_mut().set_health(1);
         creature.unit_mut().set_death_state(DeathState::Corpse);
+        creature
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .set_dynamic_flag(UnitDynFlags::Lootable as u32);
+        creature
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .set_dynamic_flag(UnitDynFlags::CanSkin as u32);
+        creature
+            .unit_mut()
+            .set_unit_flags_like_cpp(UnitFlags::SKINNABLE | UnitFlags::IN_COMBAT);
         creature.player_damage_req = 42;
         creature.cannot_reach_target = true;
         creature.cannot_reach_timer = 900;
@@ -4112,6 +4132,18 @@ mod tests {
 
         assert_eq!(creature.unit().death_state(), DeathState::Alive);
         assert_eq!(creature.unit().data().health, 250);
+        assert_eq!(
+            creature.unit().world().object().dynamic_flags(),
+            0,
+            "C++ Creature::setDeathState(JUST_RESPAWNED) calls ReplaceAllDynamicFlags(UNIT_DYNFLAG_NONE)"
+        );
+        assert!(
+            !creature
+                .unit()
+                .unit_flags_like_cpp()
+                .intersects(UnitFlags::SKINNABLE | UnitFlags::IN_COMBAT),
+            "C++ Unit::setDeathState(JUST_RESPAWNED) removes SKINNABLE and Creature respawn removes IN_COMBAT"
+        );
         assert!(creature.tap_list().is_empty());
         assert_eq!(creature.player_damage_req(), 0);
         assert!(!creature.cannot_reach_target());

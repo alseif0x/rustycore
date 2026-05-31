@@ -785,6 +785,13 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   interrupted just because death cleanup runs, while real generic casts, channeled spells, and
   autorepeat spells follow the existing represented interrupt path. Packet sends, cooldown failure
   side effects, and full spell runtime semantics remain separate spell-system gaps.
+- 2026-05-31 — Represented creature respawn corpse-flag cleanup `#NEXT.RUNTIME.L3.031aq`:
+  ports the represented subset of C++ `Unit::setDeathState(JUST_RESPAWNED)` /
+  `Creature::setDeathState(JUST_RESPAWNED)` (`Unit.cpp:8573-8574`, `Creature.cpp:2279-2284`).
+  Rust now clears corpse dynamic flags (`Lootable`/`CanSkin` via `ReplaceAllDynamicFlags(0)`) and
+  removes represented `SKINNABLE` / `IN_COMBAT` unit flags during `JustRespawned`. Full
+  `ChooseCreatureFlags` template reload, unit flags2/3, melee damage school, addon reload, and
+  default motion initialization remain separate respawn gaps.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
