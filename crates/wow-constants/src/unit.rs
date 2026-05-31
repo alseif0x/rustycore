@@ -315,6 +315,8 @@ bitflags! {
         const LOST_CONTROL = Self::CONTROLLED.bits() | Self::POSSESSED.bits()
             | Self::JUMPING.bits() | Self::CHARGING.bits();
 
+        const SIGHTLESS = Self::LOST_CONTROL.bits() | Self::EVADE.bits();
+
         const NOT_MOVE = Self::ROOT.bits() | Self::STUNNED.bits()
             | Self::DIED.bits() | Self::DISTRACTED.bits();
 

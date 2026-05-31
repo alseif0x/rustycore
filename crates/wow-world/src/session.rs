@@ -1590,6 +1590,7 @@ pub struct LegacyCreatureAggroTickOutcomeLikeCpp {
     pub skipped_owner_not_global: bool,
     pub maps_seen: usize,
     pub creatures_seen: usize,
+    pub sightless_creatures_skipped: usize,
     pub candidates_seen: usize,
     pub targetability_rejections: usize,
     pub visibility_unrepresented: usize,
@@ -21359,6 +21360,14 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
             let Some(creature) = manager.find_creature_mut(map_id, instance_id, guid) else {
                 continue;
             };
+            if creature
+                .creature
+                .unit()
+                .has_unit_state(UnitState::SIGHTLESS.bits())
+            {
+                outcome.sightless_creatures_skipped += 1;
+                continue;
+            }
             for candidate in &map_candidates {
                 if !legacy_creature_aggro_candidate_is_targetable_for_attack_like_cpp(candidate) {
                     outcome.targetability_rejections += 1;
@@ -51145,7 +51154,7 @@ mod tests {
     }
 
     #[test]
-    fn legacy_creature_aggro_tick_once_rejects_evading_attacker_like_cpp() {
+    fn legacy_creature_aggro_tick_once_skips_evading_attacker_as_sightless_like_cpp() {
         use crate::map_manager::RuntimeTickOwner;
         let manager = shared_map_manager();
         let (mut session, _, _) = make_session();
@@ -51175,9 +51184,60 @@ mod tests {
             legacy_aggro_hostile_config_like_cpp(),
         );
 
-        assert_eq!(outcome.attacker_evade_rejections, 1);
+        assert_eq!(outcome.sightless_creatures_skipped, 1);
+        assert_eq!(outcome.attacker_evade_rejections, 0);
         assert_eq!(outcome.aggro_starts, 0);
         assert!(outcome.commands.is_empty());
+    }
+
+    #[test]
+    fn legacy_creature_aggro_tick_once_skips_sightless_creature_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_096);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 50.0;
+                creature.creature.unit_mut().set_level(25);
+                creature
+                    .creature
+                    .unit_mut()
+                    .add_unit_state(UnitState::STUNNED.bits());
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let player = ObjectGuid::create_player(1, 91_097);
+        let candidates = vec![legacy_aggro_candidate_like_cpp(
+            player,
+            Position::new(10.5, 10.5, 0.0, 0.0),
+        )];
+
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &candidates,
+            legacy_aggro_hostile_config_like_cpp(),
+        );
+
+        assert_eq!(outcome.creatures_seen, 1);
+        assert_eq!(outcome.sightless_creatures_skipped, 1);
+        assert_eq!(outcome.aggro_starts, 0);
+        assert!(outcome.commands.is_empty());
+        let combat_target = {
+            let guard = manager.read().unwrap();
+            guard
+                .find_creature(0, 0, creature_guid)
+                .unwrap()
+                .creature
+                .ai_ownership()
+                .combat_target
+        };
+        assert_eq!(combat_target, None);
     }
 
     #[test]

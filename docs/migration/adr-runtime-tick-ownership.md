@@ -525,6 +525,15 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `WorldObject::IsValidAttackTarget`. Remaining gaps: real VMAP-backed LOS, AI-specific
   `CanAIAttack`, sightless/alert behavior, victim-creature evade for non-player aggro targets, and
   non-player owner/victim creature edge cases.
+- 2026-05-31 — Runtime creature-aggro sightless gate `#NEXT.RUNTIME.L3.031q`: represented the
+  `CreatureUnitRelocationWorker` early return when the creature has `UNIT_STATE_SIGHTLESS`
+  (`UNIT_STATE_LOST_CONTROL | UNIT_STATE_EVADE`). Rust now exposes the composed
+  `UnitState::SIGHTLESS` constant and the map-owned global aggro scan skips sightless creatures
+  before candidate-specific visibility/hostility/leash/radius work, counting
+  `sightless_creatures_skipped`. C++ anchors: `GridNotifiers.cpp:124-132` and `Unit.h:292`.
+  Remaining gaps: alert/prowl behavior, real VMAP-backed LOS, AI-specific `CanAIAttack`,
+  victim-creature evade for non-player aggro targets, and non-player owner/victim creature edge
+  cases.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
