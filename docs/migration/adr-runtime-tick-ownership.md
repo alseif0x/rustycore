@@ -871,6 +871,14 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   represented spawn health/mana in creature lifecycle metadata and uses it during represented
   respawn. Entities without DB-backed lifecycle metadata keep the existing max-health fallback
   rather than inventing missing spawn-row data.
+- 2026-05-31 — Represented creature respawn Motion_Initialize fallthrough `#NEXT.RUNTIME.L3.031bb`:
+  ports the bounded non-formation / formation-leader fallthrough of
+  `Creature::Motion_Initialize()` during respawn (`Creature.cpp:2289`, `Creature.cpp:1046-1060`).
+  Rust now reuses the existing represented `aim_initialize_like_cpp()` decision and calls
+  `MotionSubsystem::direct_initialize_like_cpp()` when C++ would fall through to
+  `MotionMaster::Initialize()`. Represented non-leader formation members intentionally keep their
+  previous motion because exact behavior needs live `CreatureGroup::IsFormed` and cross-creature
+  `MoveIdle` mutation.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

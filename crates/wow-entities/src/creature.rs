@@ -2357,6 +2357,7 @@ impl Creature {
                 self.unit.set_death_state(DeathState::Corpse);
             }
             DeathState::JustRespawned => {
+                let motion_initialize_outcome = self.aim_initialize_like_cpp();
                 self.unit.set_health(
                     self.lifecycle_metadata
                         .spawn_health
@@ -2397,6 +2398,12 @@ impl Creature {
                 self.trigger_just_appeared = true;
                 self.runtime_state.ai_reset_requested = true;
                 self.runtime_state.visibility_update_requested = true;
+                if motion_initialize_outcome.motion_master_initialize_represented {
+                    self.unit
+                        .subsystems_mut()
+                        .motion
+                        .direct_initialize_like_cpp();
+                }
                 plan.extend([
                     CreatureRuntimeAction::ClearTapList,
                     CreatureRuntimeAction::ResetPlayerDamageReq,
@@ -2751,6 +2758,7 @@ fn power_type_from_u8(power: u8) -> PowerType {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::MovementGeneratorKind;
     use crate::{
         AURA_STATE_DEFENSIVE, AURA_STATE_DEFENSIVE_2, AppliedAuraRef, AuraRef, CurrentSpellRef,
         CurrentSpellSlot, DIMINISHING_STUN, DiminishingLevel, OwnedAuraRef,
@@ -3852,6 +3860,76 @@ mod tests {
             creature.unit().get_power(PowerType::Mana),
             750,
             "C++ SetSpawnHealth restores the represented spawn mana source"
+        );
+    }
+
+    #[test]
+    fn creature_runtime_just_respawned_initializes_motion_when_not_blocked_by_formation_like_cpp() {
+        let mut creature = Creature::create_from_lifecycle(creature_lifecycle_create_record());
+        creature
+            .unit_mut()
+            .subsystems_mut()
+            .motion
+            .set_current_generator(MovementGeneratorKind::Chase);
+        assert_eq!(
+            creature
+                .unit()
+                .subsystems()
+                .motion
+                .current_movement_generator()
+                .kind,
+            MovementGeneratorKind::Chase
+        );
+
+        let plan = creature.set_death_state_runtime(DeathState::JustRespawned, 5_000);
+
+        assert!(plan.contains(CreatureRuntimeAction::InitializeMotion));
+        assert_eq!(
+            creature
+                .unit()
+                .subsystems()
+                .motion
+                .current_movement_generator()
+                .kind,
+            MovementGeneratorKind::Idle,
+            "C++ Creature::setDeathState(JUST_RESPAWNED) calls Motion_Initialize, which falls through to MotionMaster::Initialize when formation does not block it"
+        );
+    }
+
+    #[test]
+    fn creature_runtime_just_respawned_preserves_non_leader_formation_motion_until_group_runtime_like_cpp()
+     {
+        let mut create = creature_lifecycle_create_record();
+        create.vehicle_id = None;
+        create.vehicle_kit_create_input = None;
+        let mut spawn = creature_lifecycle_spawn();
+        spawn.spawn_id = 44_001;
+        let mut creature =
+            Creature::load_from_db_lifecycle(CreatureLoadFromDbLifecycleRecord { create, spawn });
+        creature.set_formation_info_like_cpp(Some(CreatureFormationInfoLikeCpp {
+            leader_spawn_id: 44_000,
+            follow_dist: 8.0,
+            follow_angle_radians: 0.75,
+            group_ai: 4,
+            leader_waypoint_ids: [21, 22],
+        }));
+        creature
+            .unit_mut()
+            .subsystems_mut()
+            .motion
+            .set_current_generator(MovementGeneratorKind::Chase);
+
+        creature.set_death_state_runtime(DeathState::JustRespawned, 5_000);
+
+        assert_eq!(
+            creature
+                .unit()
+                .subsystems()
+                .motion
+                .current_movement_generator()
+                .kind,
+            MovementGeneratorKind::Chase,
+            "C++ non-leader formed creatures wait for CreatureGroup state; Rust has no live CreatureGroup::IsFormed runtime here yet"
         );
     }
 

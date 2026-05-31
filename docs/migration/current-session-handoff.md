@@ -1949,3 +1949,13 @@ C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entit
 Implemented Rust seam: `crates/wow-entities/src/creature.rs` now stores represented lifecycle `spawn_health`/`spawn_mana` from `CreatureCreateLifecycleRecord.stats` and uses those values during represented `JustRespawned`; creatures without DB-backed lifecycle metadata keep the previous fallback to max health. This reuses the existing DB-backed loaded-grid `SetSpawnHealth` resolver in `crates/world-server/src/creature_loaded_grid.rs` rather than recalculating DB rules in the entity layer.
 
 Validation evidence: focused lifecycle test asserts spawn health/mana metadata is retained, and a new respawn test dirties current health/mana then asserts respawn restores represented spawn health/mana instead of blindly using max health.
+
+### #NEXT.RUNTIME.L3.031bb — represented creature respawn Motion_Initialize fallthrough
+
+Status: represented-closeout for the bounded `Motion_Initialize()` fallthrough to `MotionMaster::Initialize()` during `Creature::setDeathState(JUST_RESPAWNED)`; not manual-test-ready.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Creature/Creature.cpp:2289` calls `Motion_Initialize()` during respawn; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Creature/Creature.cpp:1046-1060` lets formation leaders reset their formation, makes formed non-leaders `MoveIdle()` and return, otherwise calls `GetMotionMaster()->Initialize()`.
+
+Implemented Rust seam: `crates/wow-entities/src/creature.rs` now uses the existing represented `aim_initialize_like_cpp()` decision during `JustRespawned`; when that outcome says `MotionMaster::Initialize` is represented, it calls `MotionSubsystem::direct_initialize_like_cpp()` and resets local motion to idle. For represented non-leader formation members, Rust deliberately preserves the previous motion because exact C++ behavior depends on live `CreatureGroup::IsFormed` and cross-member motion mutation that is not represented yet.
+
+Validation evidence: focused respawn tests assert non-formation respawn resets a dirty chase generator to idle, while represented non-leader formation respawn preserves the generator and documents the remaining live `CreatureGroup` gap.
