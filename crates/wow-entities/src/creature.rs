@@ -721,7 +721,7 @@ pub struct Creature {
     is_missing_can_swim_flag_out_of_combat: bool,
     unit_type_mask: u32,
     gossip_menu_id: u32,
-    sparring_health_pct: u8,
+    sparring_health_pct: f32,
     regen_timer: u32,
     spells: [u32; MAX_CREATURE_SPELLS],
     disable_reputation_gain: bool,
@@ -783,7 +783,7 @@ impl Creature {
             is_missing_can_swim_flag_out_of_combat: false,
             unit_type_mask: 0,
             gossip_menu_id: 0,
-            sparring_health_pct: 0,
+            sparring_health_pct: 0.0,
             regen_timer: CREATURE_REGEN_INTERVAL_MS,
             spells: [0; MAX_CREATURE_SPELLS],
             disable_reputation_gain: false,
@@ -1911,12 +1911,12 @@ impl Creature {
         self.gossip_menu_id
     }
 
-    pub const fn sparring_health_pct(&self) -> u8 {
+    pub const fn sparring_health_pct(&self) -> f32 {
         self.sparring_health_pct
     }
 
-    pub fn set_sparring_health_pct_like_cpp(&mut self, pct: u8) {
-        self.sparring_health_pct = pct.min(100);
+    pub fn set_sparring_health_pct_like_cpp(&mut self, pct: f32) {
+        self.sparring_health_pct = pct.clamp(0.0, 100.0);
     }
 
     pub fn is_charmed_owned_by_player_or_player_like_cpp(&self) -> bool {
@@ -1940,7 +1940,7 @@ impl Creature {
         attacker_is_charmed_owned_by_player_or_player: bool,
         damage: u32,
     ) -> u32 {
-        if self.sparring_health_pct == 0
+        if self.sparring_health_pct <= 0.0
             || !attacker_is_creature
             || attacker_is_charmed_owned_by_player_or_player
             || self.is_charmed_owned_by_player_or_player_like_cpp()
@@ -1951,13 +1951,12 @@ impl Creature {
         let health = self.unit.data().health;
         let max_health = self.unit.data().max_health;
         if max_health == 0
-            || health.saturating_mul(100)
-                <= max_health.saturating_mul(u64::from(self.sparring_health_pct))
+            || (health as f32 * 100.0 / max_health as f32) <= self.sparring_health_pct
         {
             return 0;
         }
 
-        let sparring_health = max_health.saturating_mul(u64::from(self.sparring_health_pct)) / 100;
+        let sparring_health = (max_health as f32 * self.sparring_health_pct / 100.0) as u64;
         if health.saturating_sub(u64::from(damage)) <= sparring_health {
             return health
                 .saturating_sub(sparring_health)
@@ -1977,7 +1976,7 @@ impl Creature {
         attacker_is_creature: bool,
         attacker_is_charmed_owned_by_player_or_player: bool,
     ) -> bool {
-        if self.sparring_health_pct == 0
+        if self.sparring_health_pct <= 0.0
             || !attacker_is_creature
             || attacker_is_charmed_owned_by_player_or_player
             || self.is_charmed_owned_by_player_or_player_like_cpp()
@@ -1987,8 +1986,8 @@ impl Creature {
 
         let max_health = self.unit.data().max_health;
         max_health != 0
-            && self.unit.data().health.saturating_mul(100)
-                <= max_health.saturating_mul(u64::from(self.sparring_health_pct))
+            && (self.unit.data().health as f32 * 100.0 / max_health as f32)
+                <= self.sparring_health_pct
     }
 
     pub const fn regen_timer(&self) -> u32 {
@@ -2871,7 +2870,7 @@ mod tests {
         assert!(creature.regenerate_health());
         assert!(!creature.is_missing_can_swim_flag_out_of_combat());
         assert_eq!(creature.gossip_menu_id(), 0);
-        assert_eq!(creature.sparring_health_pct(), 0);
+        assert_eq!(creature.sparring_health_pct(), 0.0);
         assert_eq!(creature.regen_timer(), CREATURE_REGEN_INTERVAL_MS);
         assert_eq!(creature.spells(), [0; MAX_CREATURE_SPELLS]);
         assert!(!creature.disable_reputation_gain());
@@ -2896,7 +2895,7 @@ mod tests {
         let mut creature = Creature::new(false);
         creature.unit_mut().set_max_health(100);
         creature.unit_mut().set_health(52);
-        creature.set_sparring_health_pct_like_cpp(50);
+        creature.set_sparring_health_pct_like_cpp(50.0);
 
         assert_eq!(
             creature.calculate_damage_for_sparring_like_cpp(true, false, 5),
@@ -2910,7 +2909,7 @@ mod tests {
         let mut creature = Creature::new(false);
         creature.unit_mut().set_max_health(100);
         creature.unit_mut().set_health(50);
-        creature.set_sparring_health_pct_like_cpp(50);
+        creature.set_sparring_health_pct_like_cpp(50.0);
 
         assert_eq!(
             creature.calculate_damage_for_sparring_like_cpp(true, false, 5),
@@ -2924,7 +2923,7 @@ mod tests {
         let mut creature = Creature::new(false);
         creature.unit_mut().set_max_health(100);
         creature.unit_mut().set_health(50);
-        creature.set_sparring_health_pct_like_cpp(50);
+        creature.set_sparring_health_pct_like_cpp(50.0);
 
         assert_eq!(
             creature.calculate_damage_for_sparring_like_cpp(false, false, 5),
@@ -2943,7 +2942,7 @@ mod tests {
         let mut creature = Creature::new(false);
         creature.unit_mut().set_max_health(100);
         creature.unit_mut().set_health(50);
-        creature.set_sparring_health_pct_like_cpp(50);
+        creature.set_sparring_health_pct_like_cpp(50.0);
         creature
             .unit_mut()
             .subsystems_mut()
@@ -2955,6 +2954,22 @@ mod tests {
             5
         );
         assert!(!creature.should_fake_damage_from_like_cpp(true, false));
+    }
+
+    #[test]
+    fn creature_sparring_damage_preserves_fractional_health_pct_like_cpp() {
+        let mut creature = Creature::new(false);
+        creature.unit_mut().set_max_health(1_000);
+        creature.unit_mut().set_health(506);
+        creature.set_sparring_health_pct_like_cpp(50.5);
+
+        assert_eq!(
+            creature.calculate_damage_for_sparring_like_cpp(true, false, 10),
+            1,
+            "C++ stores sparring pct as float; truncating to u8 would incorrectly allow 6 damage"
+        );
+        creature.unit_mut().set_health(505);
+        assert!(creature.should_fake_damage_from_like_cpp(true, false));
     }
 
     #[test]

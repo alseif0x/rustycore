@@ -623,6 +623,18 @@ async fn main() -> Result<()> {
         "Loaded {} DB-backed creature_template lifecycle rows for loaded-grid Creature::LoadFromDB",
         creature_template_lifecycle_store.len()
     );
+    let creature_template_sparring_store = Arc::new(
+        wow_data::CreatureTemplateSparringStoreLikeCpp::load_like_cpp(
+            world_db.as_ref(),
+            creature_template_lifecycle_store.as_ref(),
+        )
+        .await
+        .context("Failed to load creature_template_sparring rows for C++ Creature::LoadCreaturesSparringHealth")?,
+    );
+    info!(
+        "Loaded {} creature template sparring rows",
+        creature_template_sparring_store.len()
+    );
     let gameobject_template_lifecycle_store = Arc::new(
         wow_data::GameObjectTemplateLifecycleStoreLikeCpp::load_like_cpp(world_db.as_ref())
             .await
@@ -1668,6 +1680,7 @@ async fn main() -> Result<()> {
 
     let loaded_grid_creature_respawn_caches = LoadedGridCreatureRespawnCachesLikeCpp {
         template_store: Arc::clone(&creature_template_lifecycle_store),
+        sparring_store: Arc::clone(&creature_template_sparring_store),
         difficulty_store: Arc::clone(&creature_difficulty_store),
         base_stats_store: Arc::clone(&creature_base_stats_store),
         health_rates: creature_health_rates,
@@ -5533,6 +5546,7 @@ async fn execute_game_event_world_event_state_db_bridge_like_cpp(
 #[derive(Clone)]
 struct LoadedGridCreatureRespawnCachesLikeCpp {
     template_store: Arc<wow_data::CreatureTemplateLifecycleStoreLikeCpp>,
+    sparring_store: Arc<wow_data::CreatureTemplateSparringStoreLikeCpp>,
     difficulty_store: Arc<wow_data::CreatureDifficultyStoreLikeCpp>,
     base_stats_store: Arc<wow_data::CreatureBaseStatsStoreLikeCpp>,
     health_rates: wow_data::CreatureClassificationHealthRatesLikeCpp,
@@ -5742,6 +5756,18 @@ fn build_loaded_grid_creature_record_with_respawn_time_like_cpp(
         }
     };
     let mut template = template;
+    template.sparring_health_pct = caches
+        .sparring_store
+        .values_for_entry_like_cpp(template.entry)
+        .and_then(|values| {
+            if values.is_empty() {
+                None
+            } else {
+                let max = u32::try_from(values.len().saturating_sub(1)).unwrap_or(0);
+                let index = map.urand_inclusive_like_cpp(0, max) as usize;
+                values.get(index).copied()
+            }
+        });
     if let Some(vehicle_id) = template.vehicle_id {
         if let Some(vehicle_entry) = caches.vehicle_store.get(vehicle_id) {
             template.vehicle_kit_create_input = Some(wow_entities::VehicleKitCreateInputLikeCpp {
@@ -8378,6 +8404,7 @@ mod tests {
     {
         LoadedGridCreatureRespawnCachesLikeCpp {
             template_store: Arc::new(wow_data::CreatureTemplateLifecycleStoreLikeCpp::default()),
+            sparring_store: Arc::new(wow_data::CreatureTemplateSparringStoreLikeCpp::default()),
             difficulty_store: Arc::new(wow_data::CreatureDifficultyStoreLikeCpp::default()),
             base_stats_store: Arc::new(wow_data::CreatureBaseStatsStoreLikeCpp::default()),
             health_rates: wow_data::CreatureClassificationHealthRatesLikeCpp::default(),
@@ -14325,6 +14352,7 @@ mmap.enablePathFinding = 0
                     },
                 ]),
             ),
+            sparring_store: Arc::new(wow_data::CreatureTemplateSparringStoreLikeCpp::default()),
             difficulty_store: Arc::new(wow_data::CreatureDifficultyStoreLikeCpp::from_records(
                 [wow_data::CreatureDifficultyRecordLikeCpp {
                     entry,

@@ -130,6 +130,99 @@ pub struct CreatureTemplateLifecycleRecordLikeCpp {
 }
 
 #[derive(Debug, Clone, Default)]
+pub struct CreatureTemplateSparringStoreLikeCpp {
+    values: HashMap<u32, Vec<f32>>,
+}
+
+impl CreatureTemplateSparringStoreLikeCpp {
+    pub fn from_rows_like_cpp(
+        rows: impl IntoIterator<Item = (u32, f32)>,
+        template_exists: impl Fn(u32) -> bool,
+    ) -> Self {
+        let mut values: HashMap<u32, Vec<f32>> = HashMap::new();
+        for (entry, no_npc_damage_below_health_pct) in rows {
+            if !template_exists(entry)
+                || no_npc_damage_below_health_pct <= 0.0
+                || no_npc_damage_below_health_pct > 100.0
+            {
+                continue;
+            }
+            values
+                .entry(entry)
+                .or_default()
+                .push(no_npc_damage_below_health_pct);
+        }
+        Self { values }
+    }
+
+    /// Loads C++ `ObjectMgr::LoadCreatureTemplateSparring`.
+    ///
+    /// C++ anchors:
+    /// - `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:899-937`
+    /// - `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:1468-1471`
+    pub async fn load_like_cpp(
+        db: &WorldDatabase,
+        template_store: &CreatureTemplateLifecycleStoreLikeCpp,
+    ) -> Result<Self> {
+        let mut result = db
+            .direct_query("SELECT Entry, NoNPCDamageBelowHealthPct FROM creature_template_sparring")
+            .await?;
+
+        if result.is_empty() {
+            return Ok(Self::default());
+        }
+
+        let mut rows = Vec::new();
+        loop {
+            rows.push((
+                result.try_read::<u32>(0).unwrap_or(0),
+                result.try_read::<f32>(1).unwrap_or(0.0),
+            ));
+
+            if !result.next_row() {
+                break;
+            }
+        }
+
+        Ok(Self::from_rows_like_cpp(rows, |entry| {
+            template_store.get(entry).is_some()
+        }))
+    }
+
+    pub fn values_for_entry_like_cpp(&self, entry: u32) -> Option<&[f32]> {
+        self.values.get(&entry).map(Vec::as_slice)
+    }
+
+    pub fn select_for_entry_like_cpp<R: Rng + ?Sized>(
+        &self,
+        entry: u32,
+        rng: &mut R,
+    ) -> Option<f32> {
+        let values = self.values_for_entry_like_cpp(entry)?;
+        if values.is_empty() {
+            return None;
+        }
+        Some(values[rng.gen_range(0..values.len())])
+    }
+
+    pub fn select_for_entry_by_index_like_cpp(&self, entry: u32, index: usize) -> Option<f32> {
+        let values = self.values_for_entry_like_cpp(entry)?;
+        if values.is_empty() {
+            return None;
+        }
+        Some(values[index % values.len()])
+    }
+
+    pub fn len(&self) -> usize {
+        self.values.values().map(Vec::len).sum()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.values.is_empty()
+    }
+}
+
+#[derive(Debug, Clone, Default)]
 pub struct CreatureTemplateLifecycleStoreLikeCpp {
     templates: HashMap<u32, CreatureTemplateLifecycleRecordLikeCpp>,
 }
@@ -1065,6 +1158,41 @@ mod tests {
             probability: 1.0,
         });
         assert_eq!(template.models[0].display_scale, 1.0);
+    }
+
+    #[test]
+    fn creature_template_sparring_store_validates_rows_like_cpp() {
+        let store = CreatureTemplateSparringStoreLikeCpp::from_rows_like_cpp(
+            [
+                (10, 35.5),
+                (10, 75.0),
+                (11, 20.0),
+                (12, 0.0),
+                (13, -5.0),
+                (14, 100.1),
+            ],
+            |entry| matches!(entry, 10 | 12 | 13 | 14),
+        );
+
+        assert_eq!(store.len(), 2);
+        assert_eq!(store.values_for_entry_like_cpp(10), Some(&[35.5, 75.0][..]));
+        assert_eq!(store.values_for_entry_like_cpp(11), None);
+        assert_eq!(store.values_for_entry_like_cpp(12), None);
+        assert_eq!(store.values_for_entry_like_cpp(13), None);
+        assert_eq!(store.values_for_entry_like_cpp(14), None);
+    }
+
+    #[test]
+    fn creature_template_sparring_selection_preserves_float_percent_like_cpp() {
+        let store = CreatureTemplateSparringStoreLikeCpp::from_rows_like_cpp(
+            [(10, 35.5), (10, 75.25)],
+            |entry| entry == 10,
+        );
+
+        assert_eq!(store.select_for_entry_by_index_like_cpp(10, 0), Some(35.5));
+        assert_eq!(store.select_for_entry_by_index_like_cpp(10, 1), Some(75.25));
+        assert_eq!(store.select_for_entry_by_index_like_cpp(10, 2), Some(35.5));
+        assert_eq!(store.select_for_entry_by_index_like_cpp(999, 0), None);
     }
 
     #[test]

@@ -60,6 +60,7 @@ pub struct ResolvedCreatureTemplateLikeCpp {
     pub spells: [u32; 8],
     pub classification: u32,
     pub damage_school: u8,
+    pub sparring_health_pct: Option<f32>,
     pub flags_extra: u32,
     pub static_flags: [u32; 8],
     pub creature_type: u32,
@@ -228,6 +229,9 @@ impl CreatureLoadedGridLifecycleResolverLikeCpp {
 
         let mut creature = Creature::load_from_db_lifecycle(lifecycle_record.clone());
         creature.set_formation_info_like_cpp(spawn.formation_info);
+        if let Some(sparring_health_pct) = template.sparring_health_pct {
+            creature.set_sparring_health_pct_like_cpp(sparring_health_pct);
+        }
         let map_insertion_requested = spawn.add_to_map;
         let map_object_record = if map_insertion_requested {
             Some(
@@ -361,6 +365,7 @@ pub fn build_loaded_grid_creature_inputs_from_db_like_cpp(
         spells: template.spells,
         classification: template.classification,
         damage_school: template.damage_school,
+        sparring_health_pct: None,
         flags_extra: template.flags_extra,
         static_flags: difficulty.static_flags,
         creature_type: template.creature_type,
@@ -578,6 +583,7 @@ mod tests {
             spells: [11, 22, 33, 44, 55, 66, 77, 88],
             classification: 4,
             damage_school: wow_constants::spell::SpellSchools::Fire as u8,
+            sparring_health_pct: None,
             flags_extra: 0x10,
             static_flags: [0; 8],
             creature_type: 0,
@@ -1361,6 +1367,24 @@ mod tests {
                 .and_then(MapObjectRecord::creature)
                 .is_some()
         );
+    }
+
+    #[test]
+    fn loaded_grid_creature_lifecycle_resolver_applies_sparring_health_pct_like_cpp() {
+        let entry = 12_345;
+        let mut template = template(entry);
+        template.sparring_health_pct = Some(35.5);
+        let resolver = CreatureLoadedGridLifecycleResolverLikeCpp::new(
+            [template],
+            [spawn(55, entry, true)],
+            [selection(entry)],
+        );
+
+        let resolved = resolver
+            .resolve_loaded_grid_creature_like_cpp(55, map_creature_guid(entry, 571, 99_001))
+            .expect("resolver should build lifecycle record");
+
+        assert_eq!(resolved.creature.sparring_health_pct(), 35.5);
     }
 
     #[test]

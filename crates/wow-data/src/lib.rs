@@ -110,7 +110,8 @@ pub use creature_template::{
     CreatureTemplateClassificationStoreLikeCpp, CreatureTemplateLifecycleModelLikeCpp,
     CreatureTemplateLifecycleRecordLikeCpp, CreatureTemplateLifecycleStoreLikeCpp,
     CreatureTemplateMountEntryLikeCpp, CreatureTemplateMountModelLikeCpp,
-    CreatureTemplateMountStoreLikeCpp, MAX_CREATURE_SPELLS_LIKE_CPP,
+    CreatureTemplateMountStoreLikeCpp, CreatureTemplateSparringStoreLikeCpp,
+    MAX_CREATURE_SPELLS_LIKE_CPP,
 };
 pub use currency::{CurrencyTypesEntry, CurrencyTypesStore};
 pub use db2_id_store::Db2IdStore;

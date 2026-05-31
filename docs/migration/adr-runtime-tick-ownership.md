@@ -879,6 +879,16 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `MotionMaster::Initialize()`. Represented non-leader formation members intentionally keep their
   previous motion because exact behavior needs live `CreatureGroup::IsFormed` and cross-creature
   `MoveIdle` mutation.
+- 2026-05-31 — DB-backed creature sparring health reload `#NEXT.RUNTIME.L3.031bc`:
+  ports the bounded data/load path for C++ `ObjectMgr::LoadCreatureTemplateSparring` /
+  `GetCreatureTemplateSparringValues` / `Creature::LoadCreaturesSparringHealth`
+  (`ObjectMgr.cpp:899-937`, `ObjectMgr.cpp:1468-1471`, `Creature.cpp:2799-2802`) into the
+  loaded-grid lifecycle path. Rust now validates `creature_template_sparring` rows against existing
+  creature templates and the C++ `0 < pct <= 100` rule, preserves the percentage as `f32` rather
+  than the previous lossy `u8`, randomly selects a value through the map-owned RNG seam, and applies
+  it to loaded creatures so represented sparring damage/fake-damage uses the DB-backed float
+  threshold. Exact addon reload is still a separate gap; `MoveFall()` remains intentionally open
+  because the C++ path also needs `IsUnderWater()` plus real MotionMaster terrain/spline execution.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
