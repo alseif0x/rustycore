@@ -998,8 +998,16 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   and `meleeAnimKit` against `AnimKit.db2`, carries them through `CreatureAddonLifecycleRecordLikeCpp`,
   applies them as represented `Unit` internal state on create/respawn, and writes the C++ create-object
   `AnimKit` payload when any of the three IDs is non-zero. Live `SMSG_SET_*_ANIM_KIT` fanout remains
-  a packet/runtime follow-up; hover, visibility distance override, auras, and waypoint path execution
+  a packet/runtime follow-up; visibility distance override, auras, and waypoint path execution
   remain open.
+- 2026-05-31 — Represented addon hover movement flag `#NEXT.RUNTIME.L3.031bp`: contrasted against
+  C++ `Creature::LoadCreaturesAddon` (`Creature.cpp:2747-2753`) and `Creature::CanHover`
+  (`Creature.h:127`). Rust now mirrors the bounded addon behavior: when addon application runs and
+  `CanHover()` is true (`Ground == Hover` or already hovering), it adds `MOVEMENTFLAG_HOVER` to the
+  represented creature runtime movement flags. This intentionally does not call full `Unit::SetHover`,
+  because C++ addon loading only calls `AddUnitMovementFlag`; full hover packets/height/anim-tier
+  handling remains a separate runtime concern. Visibility distance override, auras, waypoint path
+  execution, and live `SMSG_SET_*_ANIM_KIT` fanout remain open.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

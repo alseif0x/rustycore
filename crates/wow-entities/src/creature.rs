@@ -1017,6 +1017,8 @@ impl Creature {
             .set_unit_flags2_like_cpp(UnitFlags2::from_bits_truncate(template.unit_flags2));
         self.unit
             .set_unit_flags3_like_cpp(UnitFlags3::from_bits_truncate(template.unit_flags3));
+        self.lifecycle_metadata.ground_movement_type =
+            normalize_creature_ground_movement_type_like_cpp(template.ground_movement_type);
         self.load_creatures_addon_represented_like_cpp(record.addon.as_ref());
 
         self.lifecycle_metadata = CreatureLifecycleMetadata {
@@ -1213,6 +1215,17 @@ impl Creature {
         self.runtime_state
             .movement_flags
             .intersects(MovementFlag::FLYING | MovementFlag::DISABLE_GRAVITY)
+    }
+
+    pub fn can_hover_like_cpp(&self) -> bool {
+        self.lifecycle_metadata.ground_movement_type == CreatureGroundMovementType::Hover as u8
+            || self.is_hovering_like_cpp()
+    }
+
+    pub fn is_hovering_like_cpp(&self) -> bool {
+        self.runtime_state
+            .movement_flags
+            .contains(MovementFlag::HOVER)
     }
 
     pub const fn movement_flags_like_cpp(&self) -> MovementFlag {
@@ -2627,6 +2640,11 @@ impl Creature {
         self.unit.set_stand_state_like_cpp(addon.stand_state);
         self.unit.replace_all_vis_flags_like_cpp(addon.vis_flags);
         self.unit.set_anim_tier_like_cpp(addon.anim_tier);
+        if self.can_hover_like_cpp() {
+            self.runtime_state
+                .movement_flags
+                .insert(MovementFlag::HOVER);
+        }
         self.unit.set_sheath_like_cpp(addon.sheath_state);
         self.unit.replace_all_pvp_flags_like_cpp(addon.pvp_flags);
         self.unit.replace_all_pet_flags_like_cpp(0);
@@ -4469,6 +4487,23 @@ mod tests {
             creature.unit().melee_anim_kit_id_like_cpp(),
             33,
             "C++ Creature::LoadCreaturesAddon calls SetMeleeAnimKitId(addon->meleeAnimKit)"
+        );
+    }
+
+    #[test]
+    fn creature_lifecycle_addon_applies_hover_movement_flag_like_cpp() {
+        let mut record = creature_lifecycle_create_record();
+        record.template.ground_movement_type = CreatureGroundMovementType::Hover as u8;
+        record.addon = Some(CreatureAddonLifecycleRecordLikeCpp::default());
+
+        let creature = Creature::create_from_lifecycle(record);
+
+        assert!(creature.can_hover_like_cpp());
+        assert!(
+            creature
+                .movement_flags_like_cpp()
+                .contains(MovementFlag::HOVER),
+            "C++ Creature::LoadCreaturesAddon calls AddUnitMovementFlag(MOVEMENTFLAG_HOVER) when CanHover()"
         );
     }
 
