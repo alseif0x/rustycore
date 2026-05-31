@@ -783,6 +783,20 @@ async fn main() -> Result<()> {
         creature_spawn_store.len(),
         gameobject_spawn_store.len()
     );
+    let mut spell_store = wow_data::SpellStore::load(&hotfix_db)
+        .await
+        .context("Failed to load SpellStore")?;
+    info!("Loaded {} spells from SpellStore", spell_store.len());
+    let spell_misc_store = Arc::new(
+        wow_data::SpellMiscStore::load(&data_dir, &locale)
+            .context("Failed to load SpellMisc.db2")?,
+    );
+    info!("Loaded {} spell misc rows", spell_misc_store.len());
+    let spell_duration_store = Arc::new(
+        wow_data::SpellDurationStore::load(&data_dir, &locale)
+            .context("Failed to load SpellDuration.db2")?,
+    );
+    info!("Loaded {} spell duration rows", spell_duration_store.len());
     let creature_addon_store = Arc::new(
         wow_data::CreatureAddonStoreLikeCpp::load_like_cpp(
             world_db.as_ref(),
@@ -791,6 +805,9 @@ async fn main() -> Result<()> {
             creature_display_info_store.as_ref(),
             emotes_store.as_ref(),
             anim_kit_store.as_ref(),
+            &spell_store,
+            spell_misc_store.as_ref(),
+            spell_duration_store.as_ref(),
         )
         .await
         .context("Failed to load represented creature_addon / creature_template_addon rows for C++ Creature::LoadCreaturesAddon")?,
@@ -1277,20 +1294,6 @@ async fn main() -> Result<()> {
     );
 
     // Load spell metadata (cast time, cooldown, effects, etc.) — Phase 2
-    let mut spell_store = wow_data::SpellStore::load(&hotfix_db)
-        .await
-        .context("Failed to load SpellStore")?;
-    info!("Loaded {} spells from SpellStore", spell_store.len());
-    let spell_misc_store = Arc::new(
-        wow_data::SpellMiscStore::load(&data_dir, &locale)
-            .context("Failed to load SpellMisc.db2")?,
-    );
-    info!("Loaded {} spell misc rows", spell_misc_store.len());
-    let spell_duration_store = Arc::new(
-        wow_data::SpellDurationStore::load(&data_dir, &locale)
-            .context("Failed to load SpellDuration.db2")?,
-    );
-    info!("Loaded {} spell duration rows", spell_duration_store.len());
     let spell_radius_store = Arc::new(
         wow_data::SpellRadiusStore::load(&data_dir, &locale)
             .context("Failed to load SpellRadius.db2")?,

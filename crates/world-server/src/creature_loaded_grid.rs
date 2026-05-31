@@ -229,7 +229,7 @@ impl CreatureLoadedGridLifecycleResolverLikeCpp {
                 selected_original_equipment_id: selection.selected_original_equipment_id,
                 corpse_delay: template.corpse_delay,
                 ignore_corpse_decay_ratio: template.ignore_corpse_decay_ratio,
-                addon: template.addon,
+                addon: template.addon.clone(),
             },
             spawn: spawn_lifecycle_record(spawn),
         };
@@ -985,6 +985,7 @@ mod tests {
                 movement_anim_kit: 0,
                 melee_anim_kit: 0,
                 visibility_distance_type: 0,
+                auras: String::new(),
             }],
             [wow_data::CreatureAddonRowLikeCpp {
                 owner_id: u64::from(entry),
@@ -1000,12 +1001,16 @@ mod tests {
                 movement_anim_kit: 0,
                 melee_anim_kit: 0,
                 visibility_distance_type: 0,
+                auras: String::new(),
             }],
             |spawn_id| spawn_id == spawn.spawn_id,
             |template_entry| template_entry == entry,
             |display_id| matches!(display_id, 1234 | 5678),
             |emote| matches!(emote, 77 | 88),
             |_| true,
+            |_| false,
+            |_| false,
+            |_| 0,
         );
         let (display_store, model_store) = empty_display_stores();
 
@@ -1043,6 +1048,7 @@ mod tests {
                 movement_anim_kit_id: 0,
                 melee_anim_kit_id: 0,
                 visibility_distance_type: wow_entities::VisibilityDistanceTypeLikeCpp::Normal,
+                auras: Vec::new(),
             }),
             "C++ Creature::GetCreatureAddon prefers creature_addon by spawn id over template addon"
         );
@@ -1619,6 +1625,7 @@ mod tests {
             movement_anim_kit_id: 22,
             melee_anim_kit_id: 33,
             visibility_distance_type: wow_entities::VisibilityDistanceTypeLikeCpp::Large,
+            auras: Vec::new(),
         });
         let resolver = CreatureLoadedGridLifecycleResolverLikeCpp::new(
             [template],
@@ -1645,6 +1652,7 @@ mod tests {
                 movement_anim_kit_id: 22,
                 melee_anim_kit_id: 33,
                 visibility_distance_type: wow_entities::VisibilityDistanceTypeLikeCpp::Large,
+                auras: Vec::new(),
             }),
             "C++ Creature::LoadFromDB/Create carries the addon selected by Creature::GetCreatureAddon"
         );

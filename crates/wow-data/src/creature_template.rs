@@ -9,7 +9,10 @@ use wow_constants::{
 use wow_database::WorldDatabase;
 use wow_entities::{CreatureAddonLifecycleRecordLikeCpp, VisibilityDistanceTypeLikeCpp};
 
-use crate::{AnimKitStore, CreatureDisplayInfoStore, EmotesStore};
+use crate::{
+    AnimKitStore, CreatureDisplayInfoStore, EmotesStore, SpellDurationStore, SpellMiscStore,
+    SpellStore, spell::aura_types, spell_duration_ms_like_cpp,
+};
 
 pub const MAX_CREATURE_SPELLS_LIKE_CPP: usize = 8;
 pub const MAX_SPELL_SCHOOL_LIKE_CPP: u8 = 7;
@@ -183,7 +186,7 @@ pub struct CreatureTemplateSparringStoreLikeCpp {
     values: HashMap<u32, Vec<f32>>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreatureAddonRowLikeCpp {
     pub owner_id: u64,
     pub path_id: u32,
@@ -198,6 +201,7 @@ pub struct CreatureAddonRowLikeCpp {
     pub movement_anim_kit: u16,
     pub melee_anim_kit: u16,
     pub visibility_distance_type: u8,
+    pub auras: String,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -215,6 +219,9 @@ impl CreatureAddonStoreLikeCpp {
         mount_display_exists: impl Fn(u32) -> bool,
         emote_exists: impl Fn(u32) -> bool,
         anim_kit_exists: impl Fn(u32) -> bool,
+        spell_exists: impl Fn(u32) -> bool,
+        spell_has_control_vehicle_aura: impl Fn(u32) -> bool,
+        spell_duration_ms: impl Fn(u32) -> i32,
     ) -> Self {
         let spawn_addons = spawn_rows
             .into_iter()
@@ -227,6 +234,9 @@ impl CreatureAddonStoreLikeCpp {
                         &mount_display_exists,
                         &emote_exists,
                         &anim_kit_exists,
+                        &spell_exists,
+                        &spell_has_control_vehicle_aura,
+                        &spell_duration_ms,
                     ),
                 )
             })
@@ -242,6 +252,9 @@ impl CreatureAddonStoreLikeCpp {
                         &mount_display_exists,
                         &emote_exists,
                         &anim_kit_exists,
+                        &spell_exists,
+                        &spell_has_control_vehicle_aura,
+                        &spell_duration_ms,
                     ),
                 )
             })
@@ -266,6 +279,9 @@ impl CreatureAddonStoreLikeCpp {
         display_store: &CreatureDisplayInfoStore,
         emotes_store: &EmotesStore,
         anim_kit_store: &AnimKitStore,
+        spell_store: &SpellStore,
+        spell_misc_store: &SpellMiscStore,
+        spell_duration_store: &SpellDurationStore,
     ) -> Result<Self> {
         let spawn_rows = load_creature_addon_rows_like_cpp(
             db,
@@ -291,6 +307,27 @@ impl CreatureAddonStoreLikeCpp {
             |display_id| display_store.get(display_id).is_some(),
             |emote| emotes_store.get(emote).is_some(),
             |anim_kit_id| anim_kit_store.get(anim_kit_id).is_some(),
+            |spell_id| {
+                i32::try_from(spell_id)
+                    .ok()
+                    .and_then(|id| spell_store.get(id))
+                    .is_some()
+            },
+            |spell_id| {
+                i32::try_from(spell_id)
+                    .ok()
+                    .and_then(|id| spell_store.get(id))
+                    .is_some_and(|spell| {
+                        spell.has_aura_like_cpp(aura_types::SPELL_AURA_CONTROL_VEHICLE)
+                    })
+            },
+            |spell_id| {
+                let duration_index = spell_misc_store
+                    .get_by_spell_id(spell_id)
+                    .map(|entry| u32::from(entry.duration_index))
+                    .unwrap_or(0);
+                spell_duration_ms_like_cpp(duration_index, Some(spell_duration_store))
+            },
         ))
     }
 
@@ -302,10 +339,10 @@ impl CreatureAddonStoreLikeCpp {
     ) -> Option<CreatureAddonLifecycleRecordLikeCpp> {
         if spawn_id != 0 {
             if let Some(addon) = self.spawn_addons.get(&spawn_id) {
-                return Some(*addon);
+                return Some(addon.clone());
             }
         }
-        self.template_addons.get(&entry).copied()
+        self.template_addons.get(&entry).cloned()
     }
 
     /// Mirrors the spawn-addon side effect in C++ `ObjectMgr::LoadCreatureAddons`.
@@ -364,6 +401,7 @@ async fn load_creature_addon_rows_like_cpp(
             movement_anim_kit: result.try_read::<u16>(10).unwrap_or(0),
             melee_anim_kit: result.try_read::<u16>(11).unwrap_or(0),
             visibility_distance_type: result.try_read::<u8>(12).unwrap_or(0),
+            auras: result.try_read::<String>(13).unwrap_or_default(),
         });
         if !result.next_row() {
             break;
@@ -378,6 +416,9 @@ fn addon_record_from_row_like_cpp(
     mount_display_exists: &impl Fn(u32) -> bool,
     emote_exists: &impl Fn(u32) -> bool,
     anim_kit_exists: &impl Fn(u32) -> bool,
+    spell_exists: &impl Fn(u32) -> bool,
+    spell_has_control_vehicle_aura: &impl Fn(u32) -> bool,
+    spell_duration_ms: &impl Fn(u32) -> i32,
 ) -> CreatureAddonLifecycleRecordLikeCpp {
     let mount_display_id = if row.mount != 0 && !mount_display_exists(row.mount) {
         0
@@ -397,6 +438,12 @@ fn addon_record_from_row_like_cpp(
     let melee_anim_kit_id = normalize_anim_kit_like_cpp(row.melee_anim_kit, anim_kit_exists);
     let visibility_distance_type =
         VisibilityDistanceTypeLikeCpp::from_u8_like_cpp(row.visibility_distance_type);
+    let auras = normalize_creature_addon_auras_like_cpp(
+        &row.auras,
+        spell_exists,
+        spell_has_control_vehicle_aura,
+        spell_duration_ms,
+    );
 
     CreatureAddonLifecycleRecordLikeCpp {
         path_id: row.path_id,
@@ -411,7 +458,34 @@ fn addon_record_from_row_like_cpp(
         movement_anim_kit_id,
         melee_anim_kit_id,
         visibility_distance_type,
+        auras,
     }
+}
+
+fn normalize_creature_addon_auras_like_cpp(
+    auras: &str,
+    spell_exists: &impl Fn(u32) -> bool,
+    spell_has_control_vehicle_aura: &impl Fn(u32) -> bool,
+    spell_duration_ms: &impl Fn(u32) -> i32,
+) -> Vec<u32> {
+    let mut normalized = Vec::new();
+    for token in auras.split_whitespace() {
+        let Ok(spell_id) = token.parse::<u32>() else {
+            continue;
+        };
+        if !spell_exists(spell_id) {
+            continue;
+        }
+        let _control_vehicle_warn_only = spell_has_control_vehicle_aura(spell_id);
+        if normalized.contains(&spell_id) {
+            continue;
+        }
+        if spell_duration_ms(spell_id) > 0 {
+            continue;
+        }
+        normalized.push(spell_id);
+    }
+    normalized
 }
 
 fn normalize_anim_kit_like_cpp(anim_kit_id: u16, exists: &impl Fn(u32) -> bool) -> u16 {
@@ -1770,6 +1844,7 @@ mod tests {
             movement_anim_kit: 0,
             melee_anim_kit: 0,
             visibility_distance_type: 0,
+            auras: String::new(),
         }
     }
 
@@ -1804,6 +1879,9 @@ mod tests {
             |display_id| matches!(display_id, 1234 | 5678),
             |emote| matches!(emote, 77 | 88),
             |anim_kit_id| matches!(anim_kit_id, 11 | 22 | 33 | 44 | 55 | 66),
+            |_| false,
+            |_| false,
+            |_| 0,
         );
 
         assert_eq!(
@@ -1821,6 +1899,7 @@ mod tests {
                 movement_anim_kit_id: 22,
                 melee_anim_kit_id: 33,
                 visibility_distance_type: VisibilityDistanceTypeLikeCpp::Normal,
+                auras: Vec::new(),
             }),
             "C++ Creature::GetCreatureAddon checks spawn id before template entry"
         );
@@ -1839,6 +1918,7 @@ mod tests {
                 movement_anim_kit_id: 55,
                 melee_anim_kit_id: 66,
                 visibility_distance_type: VisibilityDistanceTypeLikeCpp::Normal,
+                auras: Vec::new(),
             })
         );
     }
@@ -1868,6 +1948,9 @@ mod tests {
             |_| false,
             |_| false,
             |_| false,
+            |_| false,
+            |_| false,
+            |_| 0,
         );
 
         assert_eq!(
@@ -1885,8 +1968,38 @@ mod tests {
                 movement_anim_kit_id: 0,
                 melee_anim_kit_id: 0,
                 visibility_distance_type: VisibilityDistanceTypeLikeCpp::Normal,
+                auras: Vec::new(),
             }),
             "C++ invalid mount/emote/stand/anim/sheath/anim-kit/visibility rows are truncated; VisFlags/PvPFlags cover the full byte"
+        );
+    }
+
+    #[test]
+    fn creature_addon_store_normalizes_auras_like_cpp() {
+        let row = CreatureAddonRowLikeCpp {
+            auras: "100 bad 200 100 300 400 500".to_string(),
+            ..addon_row(44)
+        };
+
+        let store = CreatureAddonStoreLikeCpp::from_rows_like_cpp(
+            [row],
+            [],
+            |spawn_id| spawn_id == 44,
+            |_| false,
+            |_| true,
+            |_| true,
+            |_| true,
+            |spell_id| matches!(spell_id, 100 | 200 | 300 | 400),
+            |spell_id| spell_id == 400,
+            |spell_id| if spell_id == 300 { 5_000 } else { 0 },
+        );
+
+        assert_eq!(
+            store
+                .get_for_creature_like_cpp(44, 1001)
+                .map(|addon| addon.auras),
+            Some(vec![100, 200, 400]),
+            "C++ addon loading skips malformed, missing, duplicate, and temporary auras; control-vehicle auras log but remain stored"
         );
     }
 
@@ -1913,6 +2026,9 @@ mod tests {
             |_| true,
             |_| true,
             |_| true,
+            |_| false,
+            |_| false,
+            |_| 0,
         );
 
         assert_eq!(

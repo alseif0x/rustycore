@@ -1027,6 +1027,16 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   routing: several session/update/fanout paths still use map visibility range directly, so exact
   client selection parity remains a follow-up runtime gap. Auras and waypoint path execution also
   remain open.
+- 2026-05-31 — Represented addon auras `#NEXT.RUNTIME.L3.031bs`: contrasted against C++
+  `ObjectMgr::LoadCreatureTemplateAddons` / `LoadCreatureAddons` (`ObjectMgr.cpp:766-897`,
+  `ObjectMgr.cpp:1224-1367`) and `Creature::LoadCreaturesAddon` (`Creature.cpp:2777-2793`).
+  Rust now reads the `auras` column from both addon tables, tokenizes it like C++, skips malformed
+  or missing spell IDs, skips duplicates, skips temporary auras with `GetDuration() > 0`, and keeps
+  `SPELL_AURA_CONTROL_VEHICLE` as warn-only rather than rejecting it. Validated aura IDs are carried
+  through `CreatureAddonLifecycleRecordLikeCpp` and applied as represented self-cast aura identity on
+  create/respawn when the creature does not already have that spell aura. This is still a represented
+  `AddAura` subset: real spell effects, aura scripts, procs, visible-aura update-field packet fanout,
+  and full spell runtime remain open.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

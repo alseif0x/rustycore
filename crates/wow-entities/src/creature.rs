@@ -331,9 +331,9 @@ pub struct CreatureAddToWorldVehicleResetContextLikeCpp {
 ///
 /// This record intentionally carries only fields that `wow-entities` currently models locally,
 /// plus `PathId` as a data seam for C++ addon movement selection.
-/// DB loading, template-vs-spawn fallback, path runtime, auras, anim kit packet fanout,
+/// DB loading, template-vs-spawn fallback, path runtime, anim kit packet fanout,
 /// and full runtime visibility routing are follow-up runtime gaps.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreatureAddonLifecycleRecordLikeCpp {
     pub path_id: u32,
     pub mount_display_id: u32,
@@ -347,6 +347,7 @@ pub struct CreatureAddonLifecycleRecordLikeCpp {
     pub movement_anim_kit_id: u16,
     pub melee_anim_kit_id: u16,
     pub visibility_distance_type: VisibilityDistanceTypeLikeCpp,
+    pub auras: Vec<u32>,
 }
 
 impl Default for CreatureAddonLifecycleRecordLikeCpp {
@@ -364,6 +365,7 @@ impl Default for CreatureAddonLifecycleRecordLikeCpp {
             movement_anim_kit_id: 0,
             melee_anim_kit_id: 0,
             visibility_distance_type: VisibilityDistanceTypeLikeCpp::Normal,
+            auras: Vec::new(),
         }
     }
 }
@@ -2600,7 +2602,7 @@ impl Creature {
                 self.corpse_remove_time = 0;
                 self.reset_pickpocket_loot_restore();
                 self.reset_loot_mode();
-                let addon = self.lifecycle_metadata.addon;
+                let addon = self.lifecycle_metadata.addon.clone();
                 self.load_creatures_addon_represented_like_cpp(addon.as_ref());
                 self.trigger_just_appeared = true;
                 self.runtime_state.ai_reset_requested = true;
@@ -2675,6 +2677,13 @@ impl Creature {
                 _ => {}
             }
             self.unit.set_unit_flags2_like_cpp(flags2);
+        }
+        let self_guid = self.unit.world().object().guid();
+        for spell_id in &addon.auras {
+            self.unit
+                .subsystems_mut()
+                .auras
+                .add_self_cast_addon_aura_like_cpp(*spell_id, self_guid);
         }
         true
     }
@@ -4444,6 +4453,7 @@ mod tests {
             movement_anim_kit_id: 22,
             melee_anim_kit_id: 33,
             visibility_distance_type: VisibilityDistanceTypeLikeCpp::Gigantic,
+            auras: vec![70_001, 70_002],
         });
 
         let creature = Creature::create_from_lifecycle(record);
@@ -4523,6 +4533,22 @@ mod tests {
                 .contains(UnitFlags2::GIGANTIC_AOI),
             "C++ SetVisibilityDistanceOverride sets the matching UNIT_FLAG2_*_AOI flag"
         );
+        assert!(
+            creature
+                .unit()
+                .subsystems()
+                .auras
+                .has_aura_spell_like_cpp(70_001),
+            "C++ Creature::LoadCreaturesAddon applies listed permanent addon auras"
+        );
+        assert!(
+            creature
+                .unit()
+                .subsystems()
+                .auras
+                .has_aura_spell_like_cpp(70_002),
+            "C++ Creature::LoadCreaturesAddon applies each listed addon aura"
+        );
     }
 
     #[test]
@@ -4558,6 +4584,7 @@ mod tests {
             movement_anim_kit_id: 55,
             melee_anim_kit_id: 66,
             visibility_distance_type: VisibilityDistanceTypeLikeCpp::Large,
+            auras: vec![70_003],
         });
         let mut creature = Creature::create_from_lifecycle(record);
         creature.unit_mut().set_mount_display_id(1);
@@ -4612,6 +4639,13 @@ mod tests {
                 .world()
                 .visibility_distance_override_like_cpp(),
             Some(VisibilityDistanceTypeLikeCpp::Large.distance_like_cpp())
+        );
+        assert!(
+            creature
+                .unit()
+                .subsystems()
+                .auras
+                .has_aura_spell_like_cpp(70_003)
         );
         assert_eq!(
             creature.unit().emote_state_like_cpp(),

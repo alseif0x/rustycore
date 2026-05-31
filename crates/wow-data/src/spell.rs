@@ -40,6 +40,7 @@ pub mod spell_effect_types {
 
 /// Aura types (from AuraType enum)
 pub mod aura_types {
+    pub const SPELL_AURA_CONTROL_VEHICLE: i32 = 236;
     pub const SPELL_AURA_DUMMY: i32 = 0;
     pub const SPELL_AURA_SCHOOL_ABSORB: i32 = 1;
     pub const SPELL_AURA_SCHOOL_IMMUNITY: i32 = 2;
@@ -104,6 +105,12 @@ impl SpellInfo {
 
     pub fn effects(&self) -> &[SpellEffectInfo] {
         &self.effects
+    }
+
+    pub fn has_aura_like_cpp(&self, aura_type: i32) -> bool {
+        self.effects
+            .iter()
+            .any(|effect| effect.effect_aura == aura_type)
     }
 
     pub fn normalized_implicit_target_effect_mask_like_cpp(&self, mut effect_mask: u32) -> u32 {

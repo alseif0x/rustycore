@@ -204,6 +204,36 @@ impl AuraSubsystem {
         self.applied_auras.contains(&aura)
     }
 
+    pub fn has_aura_spell_like_cpp(&self, spell_id: u32) -> bool {
+        self.applied_auras
+            .iter()
+            .any(|aura| aura.spell_id == spell_id)
+    }
+
+    pub fn add_self_cast_addon_aura_like_cpp(
+        &mut self,
+        spell_id: u32,
+        caster_guid: ObjectGuid,
+    ) -> bool {
+        if self.has_aura_spell_like_cpp(spell_id) {
+            return false;
+        }
+
+        let slot = self
+            .applied_auras
+            .iter()
+            .filter(|aura| aura.caster_guid == caster_guid)
+            .map(|aura| aura.slot)
+            .max()
+            .and_then(|slot| slot.checked_add(1))
+            .unwrap_or(0);
+        let owned = OwnedAuraRef::new(spell_id, caster_guid, None);
+        let applied = AppliedAuraRef::new(spell_id, caster_guid, slot, 0);
+        self.add_owned(owned);
+        self.add_applied(applied);
+        true
+    }
+
     pub fn has_aura_type_like_cpp(&self, aura_type: i32) -> bool {
         self.applied_aura_types
             .get(&aura_type)
