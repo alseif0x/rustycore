@@ -778,6 +778,13 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   already represented by `wow-entities`; spell interruption, vehicle/totem/controlled cleanup,
   death-persistent aura filtering, movement `StopOnDeath`, and ZoneScript/InstanceScript callbacks
   remain separate gaps.
+- 2026-05-31 — Represented creature death spell interrupt guard `#NEXT.RUNTIME.L3.031ap`:
+  ports the guarded C++ shape `if (IsNonMeleeSpellCast(false)) InterruptNonMeleeSpells(false)`
+  from `Unit::setDeathState` (`Unit.cpp:8538-8539`) for represented creature state. Rust now has a
+  matching `Unit::is_non_melee_spell_cast_like_cpp` guard so a pure generic instant spell is not
+  interrupted just because death cleanup runs, while real generic casts, channeled spells, and
+  autorepeat spells follow the existing represented interrupt path. Packet sends, cooldown failure
+  side effects, and full spell runtime semantics remain separate spell-system gaps.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

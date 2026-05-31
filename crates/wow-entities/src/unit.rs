@@ -941,6 +941,33 @@ impl Unit {
         removed
     }
 
+    pub fn is_non_melee_spell_cast_like_cpp(
+        &self,
+        with_delayed: bool,
+        skip_channeled: bool,
+        skip_autorepeat: bool,
+        skip_instant: bool,
+    ) -> bool {
+        if let Some(spell) = self.current_spell(CurrentSpellSlot::Generic) {
+            if spell.state != SpellState::Finished
+                && (with_delayed || spell.state != SpellState::Delayed)
+                && (!skip_instant || spell.cast_time_ms > 0)
+            {
+                return true;
+            }
+        }
+
+        if !skip_channeled {
+            if let Some(spell) = self.current_spell(CurrentSpellSlot::Channeled) {
+                if spell.state != SpellState::Finished {
+                    return true;
+                }
+            }
+        }
+
+        !skip_autorepeat && self.current_spell(CurrentSpellSlot::Autorepeat).is_some()
+    }
+
     pub fn find_current_spell_by_spell_id(&self, spell_id: u32) -> Option<CurrentSpellRef> {
         self.subsystems
             .spells
@@ -3120,6 +3147,7 @@ mod tests {
             .spells
             .set_current_spell(CurrentSpellSlot::Channeled, delayed_channel);
 
+        assert!(unit.is_non_melee_spell_cast_like_cpp(false, false, false, true));
         let removed = unit.interrupt_non_melee_spells(Some(503), false, false);
         assert_eq!(
             removed,
@@ -3138,6 +3166,12 @@ mod tests {
             ]
         );
         assert_eq!(unit.current_spell(CurrentSpellSlot::Melee), Some(melee));
+
+        let mut instant_only = Unit::new(true);
+        let instant = CurrentSpellRef::new(504, Some(caster), None);
+        instant_only.set_current_cast_spell(CurrentSpellSlot::Generic, instant);
+        assert!(!instant_only.is_non_melee_spell_cast_like_cpp(false, false, false, true));
+        assert!(instant_only.is_non_melee_spell_cast_like_cpp(false, false, false, false));
     }
 
     #[test]

@@ -2251,6 +2251,12 @@ impl Creature {
                 self.unit.set_attacking(None);
                 self.unit.subsystems_mut().combat.end_all_combat();
                 self.unit.subsystems_mut().combat.clear_attackers();
+                if self
+                    .unit
+                    .is_non_melee_spell_cast_like_cpp(false, false, false, true)
+                {
+                    self.unit.interrupt_non_melee_spells(None, false, true);
+                }
                 self.unit
                     .subsystems_mut()
                     .auras
@@ -2640,7 +2646,11 @@ fn power_type_from_u8(power: u8) -> PowerType {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{AURA_STATE_DEFENSIVE, AURA_STATE_DEFENSIVE_2, DIMINISHING_STUN, DiminishingLevel};
+    use crate::{
+        AURA_STATE_DEFENSIVE, AURA_STATE_DEFENSIVE_2, CurrentSpellRef, CurrentSpellSlot,
+        DIMINISHING_STUN, DiminishingLevel,
+    };
+    use wow_constants::SpellState;
 
     fn formation_info_like_cpp(leader_spawn_id: u64) -> CreatureFormationInfoLikeCpp {
         CreatureFormationInfoLikeCpp {
@@ -3954,6 +3964,11 @@ mod tests {
         let now = 10_000;
         let victim = ObjectGuid::new(1, 2);
         let player = ObjectGuid::new(1, 3);
+        let melee_spell = CurrentSpellRef::new(400, Some(player), None);
+        let generic_spell = CurrentSpellRef::new(401, Some(player), None).with_cast_time_ms(1_000);
+        let channeled_spell = CurrentSpellRef::new(402, Some(player), None)
+            .with_cast_time_ms(1_000)
+            .with_state(SpellState::Delayed);
         let mut creature = Creature::new(false);
         creature.set_respawn_compatibility_mode(true);
         creature.set_respawn_delay(45);
@@ -3982,6 +3997,19 @@ mod tests {
             DiminishingLevel::Immune,
             1_000,
         );
+        creature
+            .unit_mut()
+            .subsystems_mut()
+            .spells
+            .set_current_spell(CurrentSpellSlot::Melee, melee_spell);
+        creature
+            .unit_mut()
+            .set_current_cast_spell(CurrentSpellSlot::Generic, generic_spell);
+        creature
+            .unit_mut()
+            .subsystems_mut()
+            .spells
+            .set_current_spell(CurrentSpellSlot::Channeled, channeled_spell);
         creature.unit_mut().set_target(victim);
         creature.unit_mut().set_attacking(Some(victim));
         creature
@@ -4009,6 +4037,18 @@ mod tests {
         assert_eq!(
             creature.unit().stand_state_like_cpp(),
             UnitStandStateType::Stand
+        );
+        assert_eq!(
+            creature.unit().current_spell(CurrentSpellSlot::Melee),
+            Some(melee_spell)
+        );
+        assert_eq!(
+            creature.unit().current_spell(CurrentSpellSlot::Generic),
+            None
+        );
+        assert_eq!(
+            creature.unit().current_spell(CurrentSpellSlot::Channeled),
+            None
         );
         assert!(
             !creature
