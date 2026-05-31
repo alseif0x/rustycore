@@ -7572,10 +7572,18 @@ fn deliver_refresh_visible_world_creatures_like_cpp(
 /// The scan itself is map-owned and runs in `wow-world`; this bridge only
 /// collects cheap, copyable receiver state from [`PlayerRegistry`] and drops
 /// DashMap guards before the legacy map lock is taken.
+#[cfg(test)]
 fn collect_legacy_creature_aggro_candidates_like_cpp(
     registry: &wow_network::PlayerRegistry,
 ) -> Vec<wow_world::session::LegacyCreatureAggroCandidateLikeCpp> {
-    registry
+    collect_legacy_creature_aggro_candidates_with_canonical_like_cpp(registry, None)
+}
+
+fn collect_legacy_creature_aggro_candidates_with_canonical_like_cpp(
+    registry: &wow_network::PlayerRegistry,
+    canonical_map_manager: Option<&SharedCanonicalMapManager>,
+) -> Vec<wow_world::session::LegacyCreatureAggroCandidateLikeCpp> {
+    let mut candidates: Vec<_> = registry
         .iter()
         .filter_map(|entry| {
             let guid = *entry.key();
@@ -7586,6 +7594,10 @@ fn collect_legacy_creature_aggro_candidates_like_cpp(
                     map_id: info.map_id,
                     instance_id: info.instance_id,
                     position: info.position,
+                    player_visibility_represented: false,
+                    player_phase_shift: wow_entities::PhaseShift::default(),
+                    player_visibility_detection:
+                        wow_entities::UnitVisibilityDetectionStateLikeCpp::default(),
                     player_combat_reach: info.combat_reach,
                     player_liquid_status_like_cpp: info.liquid_status,
                     player_level: info.level,
@@ -7605,7 +7617,28 @@ fn collect_legacy_creature_aggro_candidates_like_cpp(
                 },
             )
         })
-        .collect()
+        .collect();
+
+    if let Some(canonical_map_manager) = canonical_map_manager
+        && let Ok(manager) = canonical_map_manager.lock()
+    {
+        for candidate in &mut candidates {
+            let Some(managed) =
+                manager.find_map(u32::from(candidate.map_id), candidate.instance_id)
+            else {
+                continue;
+            };
+            let Some(player) = managed.map().get_typed_player(candidate.player_guid) else {
+                continue;
+            };
+            candidate.player_visibility_represented = true;
+            candidate.player_phase_shift = player.unit().world().phase_shift().clone();
+            candidate.player_visibility_detection =
+                player.unit().visibility_detection_like_cpp().clone();
+        }
+    }
+
+    candidates
 }
 
 fn legacy_creature_aggro_config_like_cpp(
@@ -7838,13 +7871,17 @@ fn run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp(
 /// happens after the map-owned aggro result is computed.
 fn run_legacy_creature_aggro_tick_and_deliver_once_like_cpp(
     legacy_map_manager: &SharedMapManager,
+    canonical_map_manager: Option<&SharedCanonicalMapManager>,
     registry: &wow_network::PlayerRegistry,
     aggro_config: wow_world::session::LegacyCreatureAggroConfigLikeCpp,
 ) -> (
     wow_world::session::LegacyCreatureAggroTickOutcomeLikeCpp,
     RuntimeCreatureAttackStartDeliverySummaryLikeCpp,
 ) {
-    let candidates = collect_legacy_creature_aggro_candidates_like_cpp(registry);
+    let candidates = collect_legacy_creature_aggro_candidates_with_canonical_like_cpp(
+        registry,
+        canonical_map_manager,
+    );
     let outcome = wow_world::session::run_legacy_creature_aggro_tick_once_with_config_like_cpp(
         legacy_map_manager,
         &candidates,
@@ -7920,6 +7957,7 @@ fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
     );
     let (aggro, aggro_delivery) = run_legacy_creature_aggro_tick_and_deliver_once_like_cpp(
         legacy_map_manager,
+        canonical_map_manager,
         registry,
         aggro_config,
     );
@@ -8040,6 +8078,7 @@ mod tests {
         build_loaded_grid_gameobject_respawn_record_like_cpp,
         canonical_map_update_tick_set_inactive_like_cpp,
         collect_legacy_creature_aggro_candidates_like_cpp,
+        collect_legacy_creature_aggro_candidates_with_canonical_like_cpp,
         consume_game_event_live_update_side_effects_like_cpp,
         deliver_creature_attack_start_commands_like_cpp,
         deliver_creature_melee_damage_commands_like_cpp,
@@ -14897,6 +14936,7 @@ mmap.enablePathFinding = 0
         assert_eq!(candidates[0].map_id, 571);
         assert_eq!(candidates[0].instance_id, 2);
         assert_eq!(candidates[0].position, Position::new(1.0, 2.0, 3.0, 0.0));
+        assert!(!candidates[0].player_visibility_represented);
         assert_eq!(candidates[0].player_combat_reach, 1.5);
         assert_eq!(
             candidates[0].player_liquid_status_like_cpp,
@@ -14923,6 +14963,44 @@ mmap.enablePathFinding = 0
         );
         assert_eq!(candidates[0].player_forced_reputation_faction_ids, vec![87]);
         assert!(candidates[0].player_is_contested_pvp);
+    }
+
+    #[test]
+    fn collect_legacy_creature_aggro_candidates_hydrates_canonical_visibility_like_cpp() {
+        let registry = PlayerRegistry::default();
+        let player = ObjectGuid::create_player(1, 68);
+        let position = Position::new(1.0, 2.0, 3.0, 0.0);
+        let (info, _) = make_registry_player_like_cpp(571, 2, position, true);
+        registry.insert(player, info);
+
+        let canonical: wow_world::SharedCanonicalMapManager =
+            Arc::new(Mutex::new(wow_map::MapManager::default()));
+        add_canonical_test_player_on_map_like_cpp(&canonical, player, position, 571, 2, 100);
+        {
+            let mut guard = canonical.lock().unwrap();
+            let player = guard
+                .find_map_mut(571, 2)
+                .unwrap()
+                .map_mut()
+                .get_typed_player_mut(player)
+                .unwrap();
+            *player.unit_mut().world_mut().phase_shift_mut() =
+                wow_entities::PhaseShift::from_phases([77]);
+            player.unit_mut().set_invisibility_like_cpp(0, 100);
+        }
+
+        let candidates = collect_legacy_creature_aggro_candidates_with_canonical_like_cpp(
+            &registry,
+            Some(&canonical),
+        );
+
+        assert_eq!(candidates.len(), 1);
+        assert!(candidates[0].player_visibility_represented);
+        assert!(candidates[0].player_phase_shift.has_phase_like_cpp(77));
+        assert_ne!(
+            candidates[0].player_visibility_detection,
+            wow_entities::UnitVisibilityDetectionStateLikeCpp::default()
+        );
     }
 
     #[test]

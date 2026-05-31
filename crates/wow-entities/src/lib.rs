@@ -261,6 +261,7 @@ pub use unit::{
     UnitAddToWorldOutcomeLikeCpp, UnitAttackContextLikeCpp, UnitAttackStartOutcome,
     UnitAttackStopOutcome, UnitDataUpdate, UnitDataValues, UnitRemoveFromWorldOutcomeLikeCpp,
     UnitSharedVisionSetWorldObjectRequestLikeCpp, UnitValuesUpdate,
+    UnitVisibilityDetectionStateLikeCpp,
 };
 pub use unit_subsystems::{
     AURA_STATE_DEFENSIVE, AURA_STATE_ENRAGED, AURA_STATE_NONE, AURA_STATE_RAID_ENCOUNTER_2,

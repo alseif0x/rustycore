@@ -512,6 +512,19 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `Creature::CanWalk`, `Creature::CanEnterWater`, `Unit::CanSwim`, and
   `Unit::isInAccessiblePlaceFor`. Remaining gaps: victim-creature evade for non-player aggro
   targets, non-player owner leash centers, AI-specific attack gates, visibility/detection, and LOS.
+- 2026-05-31 — Runtime creature-aggro represented detection gate `#NEXT.RUNTIME.L3.031p`: wired the
+  global legacy aggro scan through the represented `Unit::CanSeeOrDetect` port before hostility,
+  leash, NoGrayAggro, and radius engagement. Candidate snapshots now carry canonical player
+  `PhaseShift` and `UnitVisibilityDetectionStateLikeCpp` plus an explicit represented bit; the
+  global bridge hydrates them from the canonical map manager before taking the legacy map lock. If
+  the canonical visibility snapshot is missing, Rust fails closed and counts
+  `visibility_unrepresented`. The scan builds transient in-world seer and target units on the active
+  `(map_id, instance_id)` and rejects invisible/stealthed/phase-hidden represented players unless
+  the creature can detect them. Covered C++ anchors:
+  `CreatureUnitRelocationWorker`, `WorldObject::CanSeeOrDetect`, and
+  `WorldObject::IsValidAttackTarget`. Remaining gaps: real VMAP-backed LOS, AI-specific
+  `CanAIAttack`, sightless/alert behavior, victim-creature evade for non-player aggro targets, and
+  non-player owner/victim creature edge cases.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

@@ -92,9 +92,9 @@ use wow_entities::{
     PlayerEnchantTimeUpdate, PlayerInventoryStorage, PlayerItemTimeUpdate,
     QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE, REAGENT_BAG_SLOT_END,
     REAGENT_BAG_SLOT_START, SendNewItemDelivery, SendNewItemDisplayText, SendNewItemPlan,
-    TYPEID_ITEM, UNIT_DATA_HEALTH_BIT, UnitDataUpdate, UnitDataValues, UpdateMask, Vehicle,
-    VehicleAccessory, VisibleItemValues, WorldObject, is_bag_pos, is_equipment_packed_pos,
-    make_item_pos,
+    TYPEID_ITEM, UNIT_DATA_HEALTH_BIT, Unit, UnitDataUpdate, UnitDataValues,
+    UnitVisibilityDetectionStateLikeCpp, UpdateMask, Vehicle, VehicleAccessory, VisibleItemValues,
+    WorldObject, is_bag_pos, is_equipment_packed_pos, make_item_pos,
 };
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus, build_dispatch_table};
 use wow_loot::{LootStoreKind, LootStores};
@@ -1492,6 +1492,9 @@ pub struct LegacyCreatureAggroCandidateLikeCpp {
     pub map_id: u16,
     pub instance_id: u32,
     pub position: Position,
+    pub player_visibility_represented: bool,
+    pub player_phase_shift: PhaseShift,
+    pub player_visibility_detection: UnitVisibilityDetectionStateLikeCpp,
     pub player_combat_reach: f32,
     pub player_liquid_status_like_cpp: u32,
     pub player_level: u8,
@@ -1589,6 +1592,8 @@ pub struct LegacyCreatureAggroTickOutcomeLikeCpp {
     pub creatures_seen: usize,
     pub candidates_seen: usize,
     pub targetability_rejections: usize,
+    pub visibility_unrepresented: usize,
+    pub visibility_rejections: usize,
     pub hostility_rejections: usize,
     pub hostility_unrepresented: usize,
     pub accessibility_rejections: usize,
@@ -20956,6 +20961,75 @@ fn legacy_creature_aggro_candidate_is_targetable_for_attack_like_cpp(
     )
 }
 
+fn legacy_creature_aggro_candidate_unit_snapshot_like_cpp(
+    candidate: &LegacyCreatureAggroCandidateLikeCpp,
+) -> Unit {
+    let mut unit = Unit::new(true);
+    unit.world_mut().object_mut().create(candidate.player_guid);
+    let _ = unit
+        .world_mut()
+        .set_map(u32::from(candidate.map_id), candidate.instance_id);
+    unit.world_mut().relocate(candidate.position);
+    *unit.world_mut().phase_shift_mut() = candidate.player_phase_shift.clone();
+    unit.set_level(candidate.player_level);
+    unit.set_combat_reach(candidate.player_combat_reach);
+    unit.set_unit_flags_like_cpp(UnitFlags::from_bits_truncate(candidate.player_unit_flags));
+    unit.set_unit_flags2_like_cpp(UnitFlags2::from_bits_truncate(candidate.player_unit_flags2));
+    unit.add_unit_state(candidate.player_unit_state);
+    unit.replace_visibility_detection_like_cpp(candidate.player_visibility_detection.clone());
+    let _ = unit.add_to_world_like_cpp();
+    unit
+}
+
+fn legacy_creature_aggro_creature_unit_snapshot_like_cpp(
+    creature: &crate::map_manager::WorldCreature,
+    map_id: u16,
+    instance_id: u32,
+) -> Unit {
+    let source = creature.creature.unit();
+    let mut unit = Unit::new(true);
+    unit.world_mut()
+        .object_mut()
+        .create(source.world().object().guid());
+    let _ = unit.world_mut().set_map(u32::from(map_id), instance_id);
+    unit.world_mut().relocate(creature.position());
+    *unit.world_mut().phase_shift_mut() = source.world().phase_shift().clone();
+    unit.set_level(creature.level());
+    unit.set_combat_reach(source.data().combat_reach);
+    unit.set_unit_flags_like_cpp(source.unit_flags_like_cpp());
+    unit.set_unit_flags2_like_cpp(source.unit_flags2_like_cpp());
+    unit.add_unit_state(source.unit_state());
+    unit.replace_visibility_detection_like_cpp(source.visibility_detection_like_cpp().clone());
+    let _ = unit.add_to_world_like_cpp();
+    unit
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LegacyCreatureAggroVisibilityDecisionLikeCpp {
+    Allowed,
+    Rejected,
+    Unrepresented,
+}
+
+fn legacy_creature_aggro_candidate_visibility_decision_like_cpp(
+    creature: &crate::map_manager::WorldCreature,
+    map_id: u16,
+    instance_id: u32,
+    candidate: &LegacyCreatureAggroCandidateLikeCpp,
+) -> LegacyCreatureAggroVisibilityDecisionLikeCpp {
+    if !candidate.player_visibility_represented {
+        return LegacyCreatureAggroVisibilityDecisionLikeCpp::Unrepresented;
+    }
+
+    let seer = legacy_creature_aggro_creature_unit_snapshot_like_cpp(creature, map_id, instance_id);
+    let target = legacy_creature_aggro_candidate_unit_snapshot_like_cpp(candidate);
+    if seer.can_see_or_detect_unit_like_cpp(&target, false, false, false) {
+        LegacyCreatureAggroVisibilityDecisionLikeCpp::Allowed
+    } else {
+        LegacyCreatureAggroVisibilityDecisionLikeCpp::Rejected
+    }
+}
+
 fn legacy_creature_aggro_candidate_has_reputation_state_like_cpp(
     candidate: &LegacyCreatureAggroCandidateLikeCpp,
     faction_id: u32,
@@ -21222,8 +21296,8 @@ fn legacy_creature_can_attack_leash_decision_like_cpp(
 /// transitional Rust slice uses the existing represented `WorldCreature`
 /// `try_aggro` radius model plus the represented C++ targetability,
 /// faction/reputation, accessibility, vertical distance, template `CanFly`
-/// exemption and home leash/NoGrayAggro gates; detection and LOS remain later
-/// AI fidelity tasks.
+/// exemption, home leash/NoGrayAggro, and represented `CanSeeOrDetect` gates;
+/// real VMAP-backed LOS remains a later AI fidelity task.
 /// The map owner computes aggro once and returns victim-session `AttackStart`
 /// commands for delivery outside map locks.
 pub fn run_legacy_creature_aggro_tick_once_like_cpp(
@@ -21289,6 +21363,22 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
                 if !legacy_creature_aggro_candidate_is_targetable_for_attack_like_cpp(candidate) {
                     outcome.targetability_rejections += 1;
                     continue;
+                }
+                match legacy_creature_aggro_candidate_visibility_decision_like_cpp(
+                    creature,
+                    map_id,
+                    instance_id,
+                    candidate,
+                ) {
+                    LegacyCreatureAggroVisibilityDecisionLikeCpp::Allowed => {}
+                    LegacyCreatureAggroVisibilityDecisionLikeCpp::Rejected => {
+                        outcome.visibility_rejections += 1;
+                        continue;
+                    }
+                    LegacyCreatureAggroVisibilityDecisionLikeCpp::Unrepresented => {
+                        outcome.visibility_unrepresented += 1;
+                        continue;
+                    }
                 }
                 match legacy_creature_aggro_candidate_is_hostile_to_creature_like_cpp(
                     creature, candidate, &config,
@@ -50702,6 +50792,9 @@ mod tests {
             map_id: 0,
             instance_id: 0,
             position,
+            player_visibility_represented: true,
+            player_phase_shift: PhaseShift::default(),
+            player_visibility_detection: UnitVisibilityDetectionStateLikeCpp::default(),
             player_combat_reach: 0.0,
             player_liquid_status_like_cpp: 0,
             player_level: 80,
@@ -51879,6 +51972,128 @@ mod tests {
                 .combat_target
         };
         assert_eq!(combat_target, Some(good_player));
+    }
+
+    #[test]
+    fn legacy_creature_aggro_tick_once_rejects_invisible_player_without_detection_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_034);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 5.0;
+                creature.creature.unit_mut().set_level(25);
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let invisible_player = ObjectGuid::create_player(1, 91_035);
+        let visible_player = ObjectGuid::create_player(1, 91_036);
+        let mut invisible_candidate =
+            legacy_aggro_candidate_like_cpp(invisible_player, Position::new(10.5, 10.5, 0.0, 0.0));
+        let mut invisible_unit = Unit::new(true);
+        invisible_unit.set_invisibility_like_cpp(0, 100);
+        invisible_candidate.player_visibility_detection =
+            invisible_unit.visibility_detection_like_cpp().clone();
+
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &[
+                invisible_candidate,
+                legacy_aggro_candidate_like_cpp(
+                    visible_player,
+                    Position::new(10.5, 10.5, 0.0, 0.0),
+                ),
+            ],
+            legacy_aggro_hostile_config_like_cpp(),
+        );
+
+        assert_eq!(outcome.visibility_rejections, 1);
+        assert_eq!(outcome.aggro_starts, 1);
+        assert_eq!(outcome.commands.len(), 1);
+        assert_eq!(outcome.commands[0].victim_guid, visible_player);
+    }
+
+    #[test]
+    fn legacy_creature_aggro_tick_once_fails_closed_without_visibility_snapshot_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_039);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 5.0;
+                creature.creature.unit_mut().set_level(25);
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let player = ObjectGuid::create_player(1, 91_040);
+        let mut candidate =
+            legacy_aggro_candidate_like_cpp(player, Position::new(10.5, 10.5, 0.0, 0.0));
+        candidate.player_visibility_represented = false;
+
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &[candidate],
+            legacy_aggro_hostile_config_like_cpp(),
+        );
+
+        assert_eq!(outcome.visibility_unrepresented, 1);
+        assert_eq!(outcome.visibility_rejections, 0);
+        assert_eq!(outcome.aggro_starts, 0);
+        assert!(outcome.commands.is_empty());
+    }
+
+    #[test]
+    fn legacy_creature_aggro_tick_once_allows_invisible_player_when_creature_detects_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_037);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 5.0;
+                creature.creature.unit_mut().set_level(25);
+                creature
+                    .creature
+                    .unit_mut()
+                    .set_invisibility_detect_like_cpp(0, 100);
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let invisible_player = ObjectGuid::create_player(1, 91_038);
+        let mut invisible_candidate =
+            legacy_aggro_candidate_like_cpp(invisible_player, Position::new(10.5, 10.5, 0.0, 0.0));
+        let mut invisible_unit = Unit::new(true);
+        invisible_unit.set_invisibility_like_cpp(0, 100);
+        invisible_candidate.player_visibility_detection =
+            invisible_unit.visibility_detection_like_cpp().clone();
+
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &[invisible_candidate],
+            legacy_aggro_hostile_config_like_cpp(),
+        );
+
+        assert_eq!(outcome.visibility_rejections, 0);
+        assert_eq!(outcome.aggro_starts, 1);
+        assert_eq!(outcome.commands.len(), 1);
+        assert_eq!(outcome.commands[0].victim_guid, invisible_player);
     }
 
     #[test]
