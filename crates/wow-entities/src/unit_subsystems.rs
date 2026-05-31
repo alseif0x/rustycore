@@ -2980,8 +2980,9 @@ impl MotionSubsystem {
     }
 
     pub fn direct_initialize_like_cpp(&mut self) {
+        let selected_default = self.default_generator.kind;
         self.clear_active();
-        self.move_idle();
+        self.initialize_default_generator_like_cpp(selected_default);
     }
 
     fn apply_delayed_action_payload_like_cpp(&mut self, payload: MotionMasterDelayedActionPayload) {
@@ -3012,13 +3013,32 @@ impl MotionSubsystem {
     }
 
     pub fn move_idle(&mut self) {
-        self.default_generator =
-            MovementGeneratorRef::new(MovementGeneratorKind::Idle, MovementSlot::Default)
-                .with_priority(MovementGeneratorPriority::Normal)
-                .with_flags(MOVEMENTGENERATOR_FLAG_INITIALIZED);
+        self.initialize_default_generator_like_cpp(MovementGeneratorKind::Idle);
         self.flags |= MOTIONMASTER_FLAG_STATIC_INITIALIZATION_PENDING;
         if self.active_generators.is_empty() {
             self.current_generator = MovementGeneratorKind::Idle;
+        }
+    }
+
+    pub fn initialize_default_generator_like_cpp(&mut self, kind: MovementGeneratorKind) {
+        self.default_generator = match kind {
+            MovementGeneratorKind::Waypoint => {
+                MovementGeneratorRef::new(MovementGeneratorKind::Waypoint, MovementSlot::Default)
+                    .with_priority(MovementGeneratorPriority::Normal)
+                    .with_flags(MOVEMENTGENERATOR_FLAG_INITIALIZATION_PENDING)
+                    .with_base_unit_state(UnitState::ROAMING.bits())
+            }
+            MovementGeneratorKind::Idle => {
+                MovementGeneratorRef::new(MovementGeneratorKind::Idle, MovementSlot::Default)
+                    .with_priority(MovementGeneratorPriority::Normal)
+                    .with_flags(MOVEMENTGENERATOR_FLAG_INITIALIZED)
+            }
+            other => MovementGeneratorRef::new(other, MovementSlot::Default)
+                .with_priority(MovementGeneratorPriority::Normal)
+                .with_flags(MOVEMENTGENERATOR_FLAG_INITIALIZATION_PENDING),
+        };
+        if self.active_generators.is_empty() {
+            self.current_generator = self.default_generator.kind;
         }
     }
 
@@ -4750,6 +4770,30 @@ mod unit_subsystems_tests {
             motion.current_movement_generator().kind,
             MovementGeneratorKind::Follow
         );
+    }
+
+    #[test]
+    fn motion_direct_initialize_preserves_selected_waypoint_default_like_cpp() {
+        let mut motion = MotionSubsystem::default();
+        motion.initialize_default_generator_like_cpp(MovementGeneratorKind::Waypoint);
+        motion.add_generator(
+            MovementGeneratorRef::new(MovementGeneratorKind::Point, MovementSlot::Active)
+                .with_priority(MovementGeneratorPriority::Normal),
+        );
+
+        motion.direct_initialize_like_cpp();
+
+        assert!(motion.active_generators.is_empty());
+        let current = motion.current_movement_generator();
+        assert_eq!(
+            current.kind,
+            MovementGeneratorKind::Waypoint,
+            "C++ MotionMaster::DirectInitialize clears generators then InitializeDefault selects owner GetDefaultMovementType(), not unconditional idle"
+        );
+        assert_eq!(current.priority, MovementGeneratorPriority::Normal);
+        assert_eq!(current.base_unit_state, UnitState::ROAMING.bits());
+        assert!(current.has_flag(MOVEMENTGENERATOR_FLAG_INITIALIZATION_PENDING));
+        assert!(!current.has_flag(MOVEMENTGENERATOR_FLAG_INITIALIZED));
     }
 
     #[test]

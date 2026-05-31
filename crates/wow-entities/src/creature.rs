@@ -9,9 +9,9 @@ use wow_constants::{
 use wow_core::{ObjectGuid, Position};
 
 use crate::{
-    BASE_MAXDAMAGE, BASE_MINDAMAGE, UNIT_MASK_CONTROLABLE_GUARDIAN, UNIT_MASK_GUARDIAN,
-    UNIT_MASK_TOTEM, UNIT_MASK_VEHICLE, Unit, VehicleAccessory, VehicleSeatAddon, VehicleSeatInfo,
-    VisibilityDistanceTypeLikeCpp,
+    BASE_MAXDAMAGE, BASE_MINDAMAGE, MovementGeneratorKind, UNIT_MASK_CONTROLABLE_GUARDIAN,
+    UNIT_MASK_GUARDIAN, UNIT_MASK_TOTEM, UNIT_MASK_VEHICLE, Unit, VehicleAccessory,
+    VehicleSeatAddon, VehicleSeatInfo, VisibilityDistanceTypeLikeCpp,
 };
 
 pub const CREATURE_REGEN_INTERVAL_MS: u32 = 2_000;
@@ -975,6 +975,7 @@ impl Creature {
         self.default_movement_type = spawn
             .map(|spawn| spawn.movement_type)
             .unwrap_or(template.movement_type);
+        self.sync_motion_default_generator_like_cpp();
         self.set_corpse_delay(record.corpse_delay, record.ignore_corpse_decay_ratio);
         self.set_respawn_compatibility_mode(!record.dynamic);
         if let Some(spawn) = spawn {
@@ -1128,6 +1129,7 @@ impl Creature {
         self.set_respawn_delay(spawn.respawn_delay);
         self.set_respawn_time(spawn.respawn_time);
         self.default_movement_type = spawn.movement_type;
+        self.sync_motion_default_generator_like_cpp();
         if let Some(equipment_id) = spawn.equipment_id {
             self.equipment_id = equipment_id;
         }
@@ -1996,6 +1998,17 @@ impl Creature {
 
     pub const fn default_movement_type(&self) -> MovementGeneratorType {
         self.default_movement_type
+    }
+
+    fn sync_motion_default_generator_like_cpp(&mut self) {
+        let kind = match self.default_movement_type {
+            MovementGeneratorType::Idle => MovementGeneratorKind::Idle,
+            MovementGeneratorType::Waypoint => MovementGeneratorKind::Waypoint,
+        };
+        self.unit
+            .subsystems_mut()
+            .motion
+            .initialize_default_generator_like_cpp(kind);
     }
 
     pub const fn waypoint_path_id_like_cpp(&self) -> u32 {
@@ -4446,6 +4459,49 @@ mod tests {
         assert!(!metadata.is_spawn_active);
         assert!(metadata.inactive_by_spawn_group);
         assert_eq!(creature.unit().changed_object_type_mask(), 0);
+    }
+
+    #[test]
+    fn creature_lifecycle_waypoint_default_survives_add_to_world_motion_initialize_like_cpp() {
+        let create = creature_lifecycle_create_record();
+        let mut spawn = creature_lifecycle_spawn();
+        spawn.movement_type = MovementGeneratorType::Waypoint;
+        let mut creature =
+            Creature::load_from_db_lifecycle(CreatureLoadFromDbLifecycleRecord { create, spawn });
+
+        assert_eq!(
+            creature.default_movement_type(),
+            MovementGeneratorType::Waypoint
+        );
+        assert_eq!(
+            creature
+                .unit()
+                .subsystems()
+                .motion
+                .current_movement_generator()
+                .kind,
+            MovementGeneratorKind::Waypoint
+        );
+
+        let outcome = creature.unit_mut().add_to_world_like_cpp();
+
+        assert!(
+            outcome
+                .motion_master_add_to_world
+                .had_initialization_pending
+        );
+        let current = creature
+            .unit()
+            .subsystems()
+            .motion
+            .current_movement_generator();
+        assert_eq!(
+            current.kind,
+            MovementGeneratorKind::Waypoint,
+            "C++ FactorySelector::SelectMovementGenerator uses Creature::GetDefaultMovementType during MotionMaster::InitializeDefault"
+        );
+        assert!(current.has_flag(crate::MOVEMENTGENERATOR_FLAG_INITIALIZATION_PENDING));
+        assert_eq!(current.base_unit_state, UnitState::ROAMING.bits());
     }
 
     #[test]

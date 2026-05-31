@@ -1071,6 +1071,17 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   as an intentional typed-store correction of C++'s suspicious insert-before-return behavior. This
   is not live waypoint execution: no generator launch, spline packet fanout, timers,
   `MovementInform`, scripts, or formation movement are claimed.
+- 2026-05-31 — Waypoint default MotionMaster initialization `#NEXT.RUNTIME.L3.031bx`: contrasted
+  against C++ `MotionMaster::DirectInitialize` / `InitializeDefault`
+  (`MotionMaster.cpp:115-128`, `MotionMaster.cpp:1207-1213`),
+  `FactorySelector::SelectMovementGenerator` (`CreatureAISelector.cpp:129-137`), and
+  `WaypointMovementGenerator<Creature>` construction (`WaypointMovementGenerator.cpp:33-44`).
+  Rust now carries a represented creature `MovementType=WAYPOINT_MOTION_TYPE` into
+  `MotionSubsystem` and preserves that selected default across `direct_initialize_like_cpp()`
+  instead of replacing it with idle. The represented default keeps C++ normal priority,
+  initialization-pending state, and roaming base state. This remains pre-execution scaffolding:
+  no waypoint path lookup, `DoInitialize` owner-path fallback, spline launch, timers, AI informs,
+  formations, or live waypoint movement are claimed.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
