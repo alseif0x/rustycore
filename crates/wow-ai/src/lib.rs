@@ -203,6 +203,72 @@ fn permit_vehicle_ai_like_cpp(input: &CreatureAiSelectionInputLikeCpp) -> i32 {
     if input.is_vehicle { 800 } else { -1 }
 }
 
+// ── CreatureAI::CanAIAttack ───────────────────────────────────────
+
+/// Already-resolved facts for represented `AI()->CanAIAttack(target)`.
+///
+/// Most stock C++ creature AIs inherit `UnitAI::CanAIAttack == true`; this
+/// input carries only the extra facts needed by represented overrides.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CreatureAiCanAttackInputLikeCpp {
+    pub target_within_turret_combat_range: bool,
+    pub target_within_turret_min_range: bool,
+    pub boss_boundary_contains_target: Option<bool>,
+}
+
+impl Default for CreatureAiCanAttackInputLikeCpp {
+    fn default() -> Self {
+        Self {
+            target_within_turret_combat_range: true,
+            target_within_turret_min_range: false,
+            boss_boundary_contains_target: None,
+        }
+    }
+}
+
+pub fn creature_ai_can_attack_like_cpp(
+    ai_kind: &CreatureAiKindLikeCpp,
+    input: &CreatureAiCanAttackInputLikeCpp,
+) -> bool {
+    // C++ `BossAI::CanAIAttack` is a script-provided AI override, not a stock
+    // registry name. The caller must prove the selected script is BossAI before
+    // passing this boundary fact.
+    if let Some(in_boundary) = input.boss_boundary_contains_target {
+        return in_boundary;
+    }
+
+    match ai_kind {
+        CreatureAiKindLikeCpp::TurretAI => {
+            input.target_within_turret_combat_range && !input.target_within_turret_min_range
+        }
+        _ => true,
+    }
+}
+
+pub fn creature_ai_uses_base_move_in_line_of_sight_like_cpp(
+    ai_kind: &CreatureAiKindLikeCpp,
+) -> bool {
+    match ai_kind {
+        CreatureAiKindLikeCpp::NullCreatureAI
+        | CreatureAiKindLikeCpp::TriggerAI
+        | CreatureAiKindLikeCpp::ReactorAI
+        | CreatureAiKindLikeCpp::PassiveAI
+        | CreatureAiKindLikeCpp::PossessedAI
+        | CreatureAiKindLikeCpp::CritterAI
+        | CreatureAiKindLikeCpp::PetAI
+        | CreatureAiKindLikeCpp::TotemAI
+        | CreatureAiKindLikeCpp::VehicleAI
+        | CreatureAiKindLikeCpp::ScheduledChangeAI => false,
+        CreatureAiKindLikeCpp::ScriptedAI(_)
+        | CreatureAiKindLikeCpp::UnknownNamedAI(_)
+        | CreatureAiKindLikeCpp::AggressorAI
+        | CreatureAiKindLikeCpp::GuardAI
+        | CreatureAiKindLikeCpp::CombatAI
+        | CreatureAiKindLikeCpp::TurretAI
+        | CreatureAiKindLikeCpp::SmartAI => true,
+    }
+}
+
 // ── CreatureState ──────────────────────────────────────────────────
 
 /// Current AI state for a creature.
@@ -715,6 +781,116 @@ mod tests {
             select_creature_ai_like_cpp(&input),
             CreatureAiKindLikeCpp::UnknownNamedAI("CustomPrivateAI".to_string())
         );
+    }
+
+    #[test]
+    fn creature_ai_can_attack_defaults_true_for_stock_ai_like_cpp() {
+        for ai_kind in [
+            CreatureAiKindLikeCpp::AggressorAI,
+            CreatureAiKindLikeCpp::ReactorAI,
+            CreatureAiKindLikeCpp::GuardAI,
+            CreatureAiKindLikeCpp::SmartAI,
+            CreatureAiKindLikeCpp::VehicleAI,
+            CreatureAiKindLikeCpp::UnknownNamedAI("CustomPrivateAI".to_string()),
+        ] {
+            assert!(
+                creature_ai_can_attack_like_cpp(
+                    &ai_kind,
+                    &CreatureAiCanAttackInputLikeCpp {
+                        target_within_turret_combat_range: false,
+                        target_within_turret_min_range: true,
+                        boss_boundary_contains_target: None,
+                    },
+                ),
+                "{ai_kind:?} should inherit UnitAI::CanAIAttack == true"
+            );
+        }
+    }
+
+    #[test]
+    fn creature_ai_can_attack_applies_turret_range_override_like_cpp() {
+        assert!(creature_ai_can_attack_like_cpp(
+            &CreatureAiKindLikeCpp::TurretAI,
+            &CreatureAiCanAttackInputLikeCpp {
+                target_within_turret_combat_range: true,
+                target_within_turret_min_range: false,
+                boss_boundary_contains_target: None,
+            },
+        ));
+        assert!(!creature_ai_can_attack_like_cpp(
+            &CreatureAiKindLikeCpp::TurretAI,
+            &CreatureAiCanAttackInputLikeCpp {
+                target_within_turret_combat_range: false,
+                target_within_turret_min_range: false,
+                boss_boundary_contains_target: None,
+            },
+        ));
+        assert!(!creature_ai_can_attack_like_cpp(
+            &CreatureAiKindLikeCpp::TurretAI,
+            &CreatureAiCanAttackInputLikeCpp {
+                target_within_turret_combat_range: true,
+                target_within_turret_min_range: true,
+                boss_boundary_contains_target: None,
+            },
+        ));
+    }
+
+    #[test]
+    fn creature_ai_can_attack_applies_boss_boundary_override_like_cpp() {
+        assert!(!creature_ai_can_attack_like_cpp(
+            &CreatureAiKindLikeCpp::ScriptedAI("boss_script".to_string()),
+            &CreatureAiCanAttackInputLikeCpp {
+                boss_boundary_contains_target: Some(false),
+                ..CreatureAiCanAttackInputLikeCpp::default()
+            },
+        ));
+        assert!(creature_ai_can_attack_like_cpp(
+            &CreatureAiKindLikeCpp::ScriptedAI("boss_script".to_string()),
+            &CreatureAiCanAttackInputLikeCpp {
+                boss_boundary_contains_target: Some(true),
+                target_within_turret_combat_range: false,
+                target_within_turret_min_range: true,
+            },
+        ));
+    }
+
+    #[test]
+    fn creature_ai_move_in_line_of_sight_empty_overrides_are_suppressed_like_cpp() {
+        for ai_kind in [
+            CreatureAiKindLikeCpp::NullCreatureAI,
+            CreatureAiKindLikeCpp::TriggerAI,
+            CreatureAiKindLikeCpp::ReactorAI,
+            CreatureAiKindLikeCpp::PassiveAI,
+            CreatureAiKindLikeCpp::PossessedAI,
+            CreatureAiKindLikeCpp::CritterAI,
+            CreatureAiKindLikeCpp::PetAI,
+            CreatureAiKindLikeCpp::TotemAI,
+            CreatureAiKindLikeCpp::VehicleAI,
+            CreatureAiKindLikeCpp::ScheduledChangeAI,
+        ] {
+            assert!(
+                !creature_ai_uses_base_move_in_line_of_sight_like_cpp(&ai_kind),
+                "{ai_kind:?} overrides MoveInLineOfSight with no base auto-aggro"
+            );
+        }
+    }
+
+    #[test]
+    fn creature_ai_move_in_line_of_sight_base_users_keep_auto_aggro_path_like_cpp() {
+        for ai_kind in [
+            CreatureAiKindLikeCpp::AggressorAI,
+            CreatureAiKindLikeCpp::GuardAI,
+            CreatureAiKindLikeCpp::CombatAI,
+            CreatureAiKindLikeCpp::TurretAI,
+            CreatureAiKindLikeCpp::SmartAI,
+            CreatureAiKindLikeCpp::ScriptedAI("npc_scripted".to_string()),
+            CreatureAiKindLikeCpp::UnknownNamedAI("CustomAI".to_string()),
+        ] {
+            assert!(
+                creature_ai_uses_base_move_in_line_of_sight_like_cpp(&ai_kind),
+                "{ai_kind:?} should reach the base MoveInLineOfSight aggro path"
+            );
+        }
     }
 
     fn creature_with_boss_id(boss_id: Option<u32>) -> CreatureAI {

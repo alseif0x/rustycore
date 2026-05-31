@@ -580,6 +580,19 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `CreatureAIRegistry.cpp:34-54`, `ObjectRegistry.h:31,70`, `CreatureAI.h:44-49`, and stock
   permit implementations in `CoreAI`. This remains selector evidence only: no AI object
   instantiation, script/SmartAI execution, `CanAIAttack` wiring, or live creature behavior change.
+- 2026-05-31 — Runtime creature AI attack / LOS dispatch evidence `#NEXT.RUNTIME.L3.031w`:
+  represented the pure `AI()->CanAIAttack(target)` decision and whether a selected AI reaches the
+  base `CreatureAI::MoveInLineOfSight` auto-aggro path in `wow-ai`, without wiring it to global
+  aggro yet. C++ `Creature::CanCreatureAttack` calls `AI()->CanAIAttack` after target validity and
+  accessibility; the default inherited `UnitAI::CanAIAttack` returns true, while represented
+  overrides are `TurretAI` range/min-range and script-proven `BossAI` boundary membership. The
+  relocation path dispatches `MoveInLineOfSight_Safe`, so AIs with empty LOS overrides must be
+  suppressed before base auto-aggro. C++ anchors: `GridNotifiers.cpp:122-130`,
+  `CreatureAI.cpp:113-127`, `Creature.cpp:2671-2683`, `UnitAI.h:57`, `CombatAI.cpp:203-210`,
+  `ScriptedCreature.cpp:631-634`, and empty LOS overrides in `PassiveAI.h`, `ReactorAI.h`,
+  `PetAI.h`, `TotemAI.h`, `CombatAI.h` (`VehicleAI`), and `ScheduledChangeAI.h`. Wiring remains
+  blocked on clean runtime facts for script-creatable AI registry, true unit-type masks for
+  totem/guardian/controlable guardian, spell range hydration for TurretAI, and boss boundary data.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
