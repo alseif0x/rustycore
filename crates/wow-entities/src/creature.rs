@@ -2015,6 +2015,10 @@ impl Creature {
         self.waypoint_path_id
     }
 
+    pub fn load_path_like_cpp(&mut self, path_id: u32) {
+        self.waypoint_path_id = path_id;
+    }
+
     pub const fn spawn_id(&self) -> u64 {
         self.spawn_id
     }
@@ -4637,6 +4641,19 @@ mod tests {
                 .movement_flags_like_cpp()
                 .contains(MovementFlag::HOVER),
             "C++ Creature::LoadCreaturesAddon calls AddUnitMovementFlag(MOVEMENTFLAG_HOVER) when CanHover()"
+        );
+    }
+
+    #[test]
+    fn creature_load_path_sets_waypoint_path_id_like_cpp() {
+        let mut creature = Creature::new(false);
+
+        creature.load_path_like_cpp(9_123);
+
+        assert_eq!(
+            creature.waypoint_path_id_like_cpp(),
+            9_123,
+            "C++ Creature::LoadPath stores the waypoint path id used by WaypointMovementGenerator::DoInitialize"
         );
     }
 

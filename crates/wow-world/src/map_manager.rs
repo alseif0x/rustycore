@@ -1154,6 +1154,17 @@ impl WorldCreature {
         action
     }
 
+    pub fn initialize_default_waypoint_movement_with_path_resolver_like_cpp(
+        &mut self,
+        mut resolve_path: impl FnMut(u32) -> Option<WaypointPath>,
+    ) -> WaypointMovementAction {
+        let owner_path_id = self.creature.waypoint_path_id_like_cpp();
+        let loaded_path = (owner_path_id != 0)
+            .then(|| resolve_path(owner_path_id))
+            .flatten();
+        self.initialize_default_waypoint_movement_like_cpp(loaded_path)
+    }
+
     pub fn update_default_waypoint_movement_like_cpp(
         &mut self,
         diff_ms: u32,
@@ -3700,6 +3711,47 @@ mod tests {
         assert_eq!(action, WaypointMovementAction::MissingPath);
         assert!(!creature.creature.unit().subsystems().motion.stopped);
         assert!(creature.active_waypoint_generator_like_cpp().is_some());
+    }
+
+    #[test]
+    fn world_creature_waypoint_default_initialize_resolves_owner_path_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54338);
+        let mut creature = WorldCreature::new(
+            guid,
+            1,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        creature.creature.load_path_like_cpp(90_001);
+        let path = WaypointPath::new(
+            90_001,
+            vec![wow_movement::WaypointNode::new(10, 11.0, 10.0, 0.0)],
+        );
+
+        let action =
+            creature.initialize_default_waypoint_movement_with_path_resolver_like_cpp(|path_id| {
+                (path_id == path.id).then_some(path.clone())
+            });
+
+        assert_eq!(action, WaypointMovementAction::StopMoving);
+        assert!(
+            creature.creature.unit().subsystems().motion.stopped,
+            "C++ DoInitialize calls owner->StopMoving() after sWaypointMgr resolves the path"
+        );
+        assert_eq!(
+            creature
+                .active_waypoint_generator_like_cpp()
+                .map(WaypointMovementGenerator::next_move_time_ms),
+            Some(wow_movement::WAYPOINT_INITIAL_DELAY_MS_LIKE_CPP)
+        );
     }
 
     #[test]

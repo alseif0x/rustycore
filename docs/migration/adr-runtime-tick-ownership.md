@@ -1149,6 +1149,21 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `WaypointReached`/`WaypointPathEnded` AI dispatch, path/MMAP generation, formation side effects,
   MonsterMove fanout wiring, automatic `WaypointPathStoreLikeCpp` resolution, and live server/client
   validation.
+- 2026-05-31 — Waypoint DB path-store resolver seam `#NEXT.RUNTIME.L3.031ce`: contrasted against
+  C++ `WaypointMovementFactory::Create` creating `WaypointMovementGenerator<Creature>(0, true)`
+  (`MovementGenerator.cpp:56-64`), `WaypointMovementGenerator<Creature>::DoInitialize` resolving
+  `_pathId` from `owner->GetWaypointPathId()` and `sWaypointMgr->GetPath(_pathId)`
+  (`WaypointMovementGenerator.cpp:120-148`), `Creature::LoadPath` storing `_waypointPathId`
+  (`Creature.h:332-333`), and `WaypointMgr` loading `waypoint_path` / `waypoint_path_node`
+  (`WaypointManager.cpp:29-129`). Rust now exposes `Creature::load_path_like_cpp`, a
+  `WorldCreature::initialize_default_waypoint_movement_with_path_resolver_like_cpp` seam, and the
+  `world-server` helper `initialize_world_creature_default_waypoint_from_store_like_cpp` that
+  resolves `WaypointPathStoreLikeCpp` into the existing waypoint initializer. Tests cover direct
+  owner-path resolution and store-backed initialization launching the DB node after the C++ 1000ms
+  initial delay. Still open: wiring this helper into live DB creature spawn initialization, real
+  `MotionMaster::MoveRandom`/`RandomMovementGenerator` bridge at path ends, real
+  `WaypointReached`/`WaypointPathEnded` AI dispatch, path/MMAP generation, formation side effects,
+  MonsterMove fanout wiring, and live server/client validation.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

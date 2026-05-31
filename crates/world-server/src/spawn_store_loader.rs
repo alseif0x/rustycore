@@ -254,6 +254,15 @@ impl WaypointPathStoreLikeCpp {
     }
 }
 
+pub fn initialize_world_creature_default_waypoint_from_store_like_cpp(
+    creature: &mut wow_world::map_manager::WorldCreature,
+    waypoint_paths: &WaypointPathStoreLikeCpp,
+) -> wow_movement::WaypointMovementAction {
+    creature.initialize_default_waypoint_movement_with_path_resolver_like_cpp(|path_id| {
+        waypoint_paths.get(path_id).cloned()
+    })
+}
+
 fn waypoint_move_type_from_db_like_cpp(move_type: u8) -> Option<wow_movement::WaypointMoveType> {
     match move_type {
         0 => Some(wow_movement::WaypointMoveType::Walk),
@@ -5899,6 +5908,57 @@ mod tests {
             wow_movement::WaypointMoveType::TakeOff
         );
         assert_eq!(store.get(21).unwrap().nodes[0].delay_ms, i32::MAX);
+    }
+
+    #[test]
+    fn waypoint_path_store_initializes_world_creature_default_waypoint_like_cpp() {
+        let (store, _report) = WaypointPathStoreLikeCpp::from_rows_like_cpp(
+            [WaypointPathRowLikeCpp {
+                path_id: 30,
+                move_type: 1,
+                flags: 0,
+            }],
+            [WaypointPathNodeRowLikeCpp {
+                path_id: 30,
+                node_id: 7,
+                x: 11.0,
+                y: 12.0,
+                z: 13.0,
+                orientation: Some(1.5),
+                delay: 250,
+            }],
+        );
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54_340);
+        let mut creature = wow_world::map_manager::WorldCreature::new(
+            guid,
+            1,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        creature.creature.load_path_like_cpp(30);
+
+        let action =
+            initialize_world_creature_default_waypoint_from_store_like_cpp(&mut creature, &store);
+
+        assert_eq!(action, wow_movement::WaypointMovementAction::StopMoving);
+        assert!(creature.creature.unit().subsystems().motion.stopped);
+        assert!(matches!(
+            creature.update_default_waypoint_movement_like_cpp(
+                wow_movement::WAYPOINT_INITIAL_DELAY_MS_LIKE_CPP as u32
+            ),
+            wow_movement::WaypointMovementAction::Launch(launch)
+                if launch.path_id == 30
+                    && launch.node_id == 7
+                    && launch.destination == Position::new(11.0, 12.0, 13.0, 0.0)
+        ));
     }
 
     #[test]
