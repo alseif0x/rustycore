@@ -791,6 +791,7 @@ mod tests {
                 speed_run: 1.0,
                 scale: 1.0,
                 classification: 0,
+                damage_school: wow_constants::spell::SpellSchools::Normal as u8,
                 creature_type: 0,
                 unit_class: 1,
                 vehicle_id: 0,

@@ -19,6 +19,7 @@ pub const DEFAULT_RESPAWN_DELAY_SECS: u32 = 300;
 pub const DEFAULT_CORPSE_DELAY_SECS: u32 = 60;
 pub const DEFAULT_BOUNDARY_CHECK_TIME_MS: u32 = 2_500;
 pub const DEFAULT_MONSTER_SIGHT_DISTANCE: f32 = 50.0;
+pub const MAX_SPELL_SCHOOL_LIKE_CPP: u8 = 7;
 pub const LOOT_MODE_DEFAULT: u16 = 0x1;
 pub const CREATURE_TAPPERS_SOFT_CAP: usize = 5;
 pub const CREATURE_NOPATH_EVADE_TIME_MS: u32 = 10_000;
@@ -223,6 +224,7 @@ pub struct CreatureTemplateLifecycleRecord {
     pub speed_run: f32,
     pub spells: [u32; MAX_CREATURE_SPELLS],
     pub classification: u32,
+    pub damage_school: u8,
     pub flags_extra: u32,
     pub static_flags: [u32; 8],
     pub creature_type: u32,
@@ -354,6 +356,7 @@ pub struct CreatureLifecycleMetadata {
     pub script_name: String,
     pub unit_class: u8,
     pub classification: u32,
+    pub damage_school: u8,
     pub flags_extra: u32,
     pub static_flags: [u32; 8],
     pub ground_movement_type: u8,
@@ -403,6 +406,7 @@ impl Default for CreatureLifecycleMetadata {
             script_name: String::new(),
             unit_class: 0,
             classification: 0,
+            damage_school: wow_constants::spell::SpellSchools::Normal as u8,
             flags_extra: 0,
             static_flags: [0; 8],
             ground_movement_type: CreatureGroundMovementType::Run as u8,
@@ -901,6 +905,7 @@ impl Creature {
             record.stats.min_damage,
             record.stats.max_damage,
         );
+        self.set_melee_damage_school_like_cpp(template.damage_school);
         self.ai_ownership.home_position = home_position;
         self.ai_ownership.move_target = None;
         self.ai_ownership.move_start_ms = 0;
@@ -926,6 +931,7 @@ impl Creature {
             script_name: template.script_name.clone(),
             unit_class: template.unit_class,
             classification: template.classification,
+            damage_school: template.damage_school,
             flags_extra: template.flags_extra,
             static_flags: template.static_flags,
             ground_movement_type: normalize_creature_ground_movement_type_like_cpp(
@@ -1849,6 +1855,20 @@ impl Creature {
         self.melee_damage_school_mask
     }
 
+    pub fn melee_damage_school_like_cpp(&self) -> u8 {
+        if self.melee_damage_school_mask == 0 {
+            return wow_constants::spell::SpellSchools::Normal as u8;
+        }
+        self.melee_damage_school_mask
+            .trailing_zeros()
+            .min(u32::from(MAX_SPELL_SCHOOL_LIKE_CPP.saturating_sub(1))) as u8
+    }
+
+    pub fn set_melee_damage_school_like_cpp(&mut self, school: u8) {
+        let school = school.min(MAX_SPELL_SCHOOL_LIKE_CPP.saturating_sub(1));
+        self.melee_damage_school_mask = 1_u32 << school;
+    }
+
     pub const fn original_entry(&self) -> u32 {
         self.original_entry
     }
@@ -2351,6 +2371,7 @@ impl Creature {
                     .set_unit_flags3_like_cpp(UnitFlags3::from_bits_truncate(
                         self.ai_ownership.unit_flags3,
                     ));
+                self.set_melee_damage_school_like_cpp(self.lifecycle_metadata.damage_school);
                 self.unit.clear_unit_state(UnitState::ALL_ERASABLE.bits());
                 self.clear_tap_list();
                 self.player_damage_req = 0;
@@ -3588,6 +3609,7 @@ mod tests {
             speed_run: 1.14286,
             spells,
             classification: 3,
+            damage_school: wow_constants::spell::SpellSchools::Nature as u8,
             flags_extra: 0x10,
             static_flags: [0; 8],
             creature_type: 9,
@@ -3714,6 +3736,11 @@ mod tests {
         );
         assert_eq!(creature.spells()[0], 133);
         assert_eq!(creature.spells()[3], 116);
+        assert_eq!(
+            creature.melee_damage_school_mask(),
+            1 << (wow_constants::spell::SpellSchools::Nature as u8),
+            "C++ Creature::UpdateEntry applies SetMeleeDamageSchool(cInfo->dmgschool)"
+        );
         assert_eq!(creature.equipment_id(), 6);
         assert_eq!(creature.original_equipment_id(), -6);
         let kit = creature.unit().subsystems().vehicle.kit.as_ref().unwrap();
@@ -3766,6 +3793,10 @@ mod tests {
             "npc_lifecycle_wolf"
         );
         assert_eq!(creature.lifecycle_metadata().classification, 3);
+        assert_eq!(
+            creature.lifecycle_metadata().damage_school,
+            wow_constants::spell::SpellSchools::Nature as u8
+        );
         assert_eq!(
             creature.lifecycle_metadata().flight_movement_type,
             CreatureFlightMovementType::DisableGravity as u8
@@ -4396,6 +4427,7 @@ mod tests {
         creature.set_pickpocket_loot_restore(777);
         creature.loot_mode = 0x4;
         creature.set_tapped_by_player(player, &[]);
+        creature.set_melee_damage_school_like_cpp(wow_constants::spell::SpellSchools::Fire as u8);
 
         let plan = creature.set_death_state_runtime(DeathState::JustRespawned, 5_000);
 
@@ -4434,6 +4466,11 @@ mod tests {
             creature.unit().npc_flags_like_cpp(),
             [0x40, 0x2],
             "C++ Creature::setDeathState(JUST_RESPAWNED) reloads npcFlags/npcFlags2"
+        );
+        assert_eq!(
+            creature.melee_damage_school_mask(),
+            1 << (wow_constants::spell::SpellSchools::Normal as u8),
+            "C++ Creature::setDeathState(JUST_RESPAWNED) reloads melee damage school from cInfo->dmgschool"
         );
         assert_eq!(
             UnitState::from_bits_truncate(creature.unit().unit_state()),

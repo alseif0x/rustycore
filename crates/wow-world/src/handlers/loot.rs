@@ -7740,6 +7740,7 @@ mod tests {
             unit_flags: creature.unit_flags,
             unit_flags2: 0,
             unit_flags3: 0,
+            damage_school: wow_constants::spell::SpellSchools::Normal as u8,
             scale: 1.0,
             unit_class: 1,
             base_attack_time: 2000,

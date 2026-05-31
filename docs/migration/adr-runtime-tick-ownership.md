@@ -851,8 +851,18 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `CreatureAiOwnershipState` alongside existing npc/unit flags, wires them from represented
   `CreatureCreateData`, adds `UnitFlags3` setters/getters, and reloads represented live
   npc/unit flags during respawn before clearing `IN_COMBAT`. Full `ChooseCreatureFlags` conditions,
-  world-event NPC flag overlays, creature-data overrides beyond represented create data, and melee
-  damage school/template store integration remain open.
+  world-event NPC flag overlays, creature-data overrides beyond represented create data, and full
+  addon/sparring reload remain open.
+- 2026-05-31 — Represented creature respawn melee damage school reload `#NEXT.RUNTIME.L3.031az`:
+  ports the bounded `SetMeleeDamageSchool(SpellSchools(cInfo->dmgschool))` path from
+  `Creature::UpdateEntry` / `Creature::setDeathState(JUST_RESPAWNED)` (`Creature.cpp:632,2286`,
+  `Creature.h:178-179`) and the C++ ObjectMgr invalid-value clamp (`ObjectMgr.cpp:426,1094-1097`).
+  Rust now loads represented `creature_template.dmgschool` into the lifecycle template store,
+  normalizes invalid schools to normal, carries the value through loaded-grid lifecycle creation,
+  applies `m_meleeDamageSchoolMask = 1 << school` during lifecycle create and represented respawn,
+  and preserves it through `CreatureCreateData` when respawn reconstruction has the value. Legacy
+  visibility/test routes without a `dmgschool` query explicitly seed normal school rather than
+  inventing DB-backed data.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

@@ -6,6 +6,7 @@ use wow_constants::{CreatureFlightMovementType, CreatureGroundMovementType};
 use wow_database::WorldDatabase;
 
 pub const MAX_CREATURE_SPELLS_LIKE_CPP: usize = 8;
+pub const MAX_SPELL_SCHOOL_LIKE_CPP: u8 = 7;
 const CREATURE_GROUND_MOVEMENT_TYPE_MAX_LIKE_CPP: u8 = 3;
 const CREATURE_FLIGHT_MOVEMENT_TYPE_MAX_LIKE_CPP: u8 = 3;
 
@@ -113,6 +114,7 @@ pub struct CreatureTemplateLifecycleRecordLikeCpp {
     pub speed_run: f32,
     pub scale: f32,
     pub classification: u32,
+    pub damage_school: u8,
     pub creature_type: u32,
     pub unit_class: u8,
     pub vehicle_id: u32,
@@ -157,7 +159,7 @@ impl CreatureTemplateLifecycleStoreLikeCpp {
         let mut templates = HashMap::new();
         let mut result = db
             .direct_query(
-                "SELECT ct.entry, ct.name, ct.AIName, ct.ScriptName, ct.faction, ct.speed_walk, ct.speed_run, ct.scale, ct.Classification, ct.`type`, ct.unit_class, ct.VehicleId, ct.MovementType, COALESCE(ctm.Ground, 1), COALESCE(ctm.Swim, 1), COALESCE(ctm.Flight, 0), ct.flags_extra, ct.StringId, ct.RegenHealth FROM creature_template ct LEFT JOIN creature_template_movement ctm ON ct.entry = ctm.CreatureId",
+                "SELECT ct.entry, ct.name, ct.AIName, ct.ScriptName, ct.faction, ct.speed_walk, ct.speed_run, ct.scale, ct.Classification, ct.dmgschool, ct.`type`, ct.unit_class, ct.VehicleId, ct.MovementType, COALESCE(ctm.Ground, 1), COALESCE(ctm.Swim, 1), COALESCE(ctm.Flight, 0), ct.flags_extra, ct.StringId, ct.RegenHealth FROM creature_template ct LEFT JOIN creature_template_movement ctm ON ct.entry = ctm.CreatureId",
             )
             .await?;
         if !result.is_empty() {
@@ -172,19 +174,20 @@ impl CreatureTemplateLifecycleStoreLikeCpp {
                     speed_run: result.try_read::<f32>(6).unwrap_or(0.0),
                     scale: result.try_read::<f32>(7).unwrap_or(1.0),
                     classification: result.try_read::<u32>(8).unwrap_or(0),
-                    creature_type: result.try_read::<u32>(9).unwrap_or(0),
-                    unit_class: result.try_read::<u8>(10).unwrap_or(0),
-                    vehicle_id: result.try_read::<u32>(11).unwrap_or(0),
-                    movement_type: result.try_read::<u8>(12).unwrap_or(0),
+                    damage_school: result.try_read::<u8>(9).unwrap_or(0),
+                    creature_type: result.try_read::<u32>(10).unwrap_or(0),
+                    unit_class: result.try_read::<u8>(11).unwrap_or(0),
+                    vehicle_id: result.try_read::<u32>(12).unwrap_or(0),
+                    movement_type: result.try_read::<u8>(13).unwrap_or(0),
                     ground_movement_type: result
-                        .try_read::<Option<u8>>(13)
+                        .try_read::<Option<u8>>(14)
                         .flatten()
                         .unwrap_or(CreatureGroundMovementType::Run as u8),
-                    swim_allowed: result.try_read::<Option<u8>>(14).flatten().unwrap_or(1) != 0,
-                    flight_movement_type: result.try_read::<Option<u8>>(15).flatten().unwrap_or(0),
-                    flags_extra: result.try_read::<u32>(16).unwrap_or(0),
-                    string_id: result.try_read::<String>(17).unwrap_or_default(),
-                    regen_health: result.try_read::<u8>(18).unwrap_or(0) != 0,
+                    swim_allowed: result.try_read::<Option<u8>>(15).flatten().unwrap_or(1) != 0,
+                    flight_movement_type: result.try_read::<Option<u8>>(16).flatten().unwrap_or(0),
+                    flags_extra: result.try_read::<u32>(17).unwrap_or(0),
+                    string_id: result.try_read::<String>(18).unwrap_or_default(),
+                    regen_health: result.try_read::<u8>(19).unwrap_or(0) != 0,
                     spells: [0; MAX_CREATURE_SPELLS_LIKE_CPP],
                     models: Vec::new(),
                 };
@@ -264,6 +267,9 @@ impl CreatureTemplateLifecycleRecordLikeCpp {
             normalize_creature_ground_movement_type_like_cpp(self.ground_movement_type);
         self.flight_movement_type =
             normalize_creature_flight_movement_type_like_cpp(self.flight_movement_type);
+        if self.damage_school >= MAX_SPELL_SCHOOL_LIKE_CPP {
+            self.damage_school = wow_constants::spell::SpellSchools::Normal as u8;
+        }
         self.models = self
             .models
             .into_iter()
@@ -838,6 +844,7 @@ mod tests {
                 speed_run: 1.14286,
                 scale: 1.25,
                 classification: 4,
+                damage_school: wow_constants::spell::SpellSchools::Fire as u8,
                 creature_type: 7,
                 unit_class: 2,
                 vehicle_id: 900,
@@ -862,6 +869,10 @@ mod tests {
         assert_eq!(template.speed_run, 1.14286);
         assert_eq!(template.scale, 1.25);
         assert_eq!(template.classification, 4);
+        assert_eq!(
+            template.damage_school,
+            wow_constants::spell::SpellSchools::Fire as u8
+        );
         assert_eq!(template.creature_type, 7);
         assert_eq!(template.unit_class, 2);
         assert_eq!(template.vehicle_id, 900);
@@ -892,6 +903,7 @@ mod tests {
             speed_run: 1.0,
             scale: 1.0,
             classification: 0,
+            damage_school: wow_constants::spell::SpellSchools::Normal as u8,
             creature_type: 0,
             unit_class: 1,
             vehicle_id: 0,
@@ -925,6 +937,7 @@ mod tests {
             speed_run: 0.0,
             scale: 1.0,
             classification: 0,
+            damage_school: wow_constants::spell::SpellSchools::Normal as u8,
             creature_type: 0,
             unit_class: 0,
             vehicle_id: 0,
@@ -960,6 +973,7 @@ mod tests {
             speed_run: 0.0,
             scale: 1.0,
             classification: 0,
+            damage_school: wow_constants::spell::SpellSchools::Normal as u8,
             creature_type: 0,
             unit_class: 0,
             vehicle_id: 0,
@@ -1014,6 +1028,7 @@ mod tests {
             speed_run: 0.0,
             scale: 1.0,
             classification: 0,
+            damage_school: MAX_SPELL_SCHOOL_LIKE_CPP,
             creature_type: 0,
             unit_class: 0,
             vehicle_id: 0,
@@ -1036,6 +1051,11 @@ mod tests {
         assert_eq!(
             normalized_store.get(9).expect("template").models[0].display_scale,
             1.0
+        );
+        assert_eq!(
+            normalized_store.get(9).expect("template").damage_school,
+            wow_constants::spell::SpellSchools::Normal as u8,
+            "C++ ObjectMgr clamps invalid creature_template.dmgschool to SPELL_SCHOOL_NORMAL"
         );
 
         template.models.clear();

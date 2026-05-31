@@ -4895,6 +4895,7 @@ impl WorldSession {
         let unit_flags = create_data.unit_flags;
         let unit_flags2 = create_data.unit_flags2;
         let unit_flags3 = create_data.unit_flags3;
+        let damage_school = create_data.damage_school;
         let (db_phase_shift, validated_terrain_swap_map) = self.db_spawn_phase_shift_like_cpp(
             map_id,
             phase_use_flags,
@@ -4923,6 +4924,7 @@ impl WorldSession {
             creature.set_npc_flags2_runtime_like_cpp(npc_flags2);
             creature.set_unit_flags2_runtime_like_cpp(unit_flags2);
             creature.set_unit_flags3_runtime_like_cpp(unit_flags3);
+            creature.set_melee_damage_school_like_cpp(damage_school);
             creature.set_flags_extra_runtime_like_cpp(flags_extra);
             creature.set_ground_movement_type_runtime_like_cpp(ground_movement_type);
             creature.set_swim_allowed_runtime_like_cpp(swim_allowed);
@@ -34127,6 +34129,7 @@ mod tests {
             unit_flags: 0,
             unit_flags2: 0,
             unit_flags3: 0,
+            damage_school: wow_constants::spell::SpellSchools::Normal as u8,
             scale: 1.0,
             unit_class: 1,
             base_attack_time: 2000,
@@ -34179,6 +34182,7 @@ mod tests {
                 speed_run: 1.0,
                 scale: 1.0,
                 classification: 0,
+                damage_school: wow_constants::spell::SpellSchools::Normal as u8,
                 creature_type: 0,
                 unit_class: 1,
                 vehicle_id: 0,

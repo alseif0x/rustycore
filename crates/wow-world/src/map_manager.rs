@@ -731,6 +731,7 @@ impl WorldCreature {
             unit_flags,
             unit_flags2: 0,
             unit_flags3: 0,
+            damage_school: wow_constants::spell::SpellSchools::Normal as u8,
             scale: 1.0,
             unit_class: 1,
             base_attack_time: 2000,
@@ -749,6 +750,7 @@ impl WorldCreature {
         create_data.unit_flags = ai.unit_flags;
         create_data.unit_flags2 = ai.unit_flags2;
         create_data.unit_flags3 = ai.unit_flags3;
+        create_data.damage_school = creature.melee_damage_school_like_cpp();
         Self {
             creature,
             create_data,
@@ -2539,6 +2541,7 @@ pub fn pending_respawn_from_world_creature_like_cpp(
             unit_flags: creature.unit_flags(),
             unit_flags2: 0,
             unit_flags3: 0,
+            damage_school: creature.creature.melee_damage_school_like_cpp(),
             scale: 1.0,
             unit_class: 1,
             base_attack_time: 2000,
@@ -2597,6 +2600,7 @@ pub fn world_creature_from_pending_respawn_like_cpp(
     let unit_flags = create_data.unit_flags;
     let unit_flags2 = create_data.unit_flags2;
     let unit_flags3 = create_data.unit_flags3;
+    let damage_school = create_data.damage_school;
 
     let mut creature = Creature::new(false);
     creature.unit_mut().world_mut().object_mut().create(guid);
@@ -2618,6 +2622,7 @@ pub fn world_creature_from_pending_respawn_like_cpp(
     creature.set_npc_flags2_runtime_like_cpp(npc_flags2);
     creature.set_unit_flags2_runtime_like_cpp(unit_flags2);
     creature.set_unit_flags3_runtime_like_cpp(unit_flags3);
+    creature.set_melee_damage_school_like_cpp(damage_school);
     creature.set_flags_extra_runtime_like_cpp(respawn.flags_extra);
     creature.set_static_flags_runtime_like_cpp(respawn.static_flags);
     creature.set_ai_identity_names_runtime_like_cpp(
@@ -4239,6 +4244,7 @@ mod tests {
                 unit_flags: 0,
                 unit_flags2: 0,
                 unit_flags3: 0,
+                damage_school: wow_constants::spell::SpellSchools::Normal as u8,
                 scale: 1.0,
                 unit_class: 1,
                 base_attack_time: 2000,

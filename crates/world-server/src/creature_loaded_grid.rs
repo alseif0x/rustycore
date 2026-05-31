@@ -59,6 +59,7 @@ pub struct ResolvedCreatureTemplateLikeCpp {
     pub speed_run: f32,
     pub spells: [u32; 8],
     pub classification: u32,
+    pub damage_school: u8,
     pub flags_extra: u32,
     pub static_flags: [u32; 8],
     pub creature_type: u32,
@@ -359,6 +360,7 @@ pub fn build_loaded_grid_creature_inputs_from_db_like_cpp(
         speed_run: template.speed_run,
         spells: template.spells,
         classification: template.classification,
+        damage_school: template.damage_school,
         flags_extra: template.flags_extra,
         static_flags: difficulty.static_flags,
         creature_type: template.creature_type,
@@ -497,6 +499,7 @@ fn template_lifecycle_record(
         speed_run: template.speed_run,
         spells: template.spells,
         classification: template.classification,
+        damage_school: template.damage_school,
         flags_extra: template.flags_extra,
         static_flags: template.static_flags,
         creature_type: template.creature_type,
@@ -574,6 +577,7 @@ mod tests {
             speed_run: 1.14286,
             spells: [11, 22, 33, 44, 55, 66, 77, 88],
             classification: 4,
+            damage_school: wow_constants::spell::SpellSchools::Fire as u8,
             flags_extra: 0x10,
             static_flags: [0; 8],
             creature_type: 0,
@@ -720,6 +724,7 @@ mod tests {
                 speed_run: 1.14286,
                 scale: 1.25,
                 classification: 1,
+                damage_school: wow_constants::spell::SpellSchools::Nature as u8,
                 creature_type: 0,
                 unit_class: 1,
                 vehicle_id,
@@ -1291,6 +1296,10 @@ mod tests {
         assert_eq!(record.create.template.original_entry, entry - 1);
         assert_eq!(record.create.template.ai_name, "SmartAI");
         assert_eq!(record.create.template.script_name, "npc_loaded_grid_test");
+        assert_eq!(
+            record.create.template.damage_school,
+            wow_constants::spell::SpellSchools::Fire as u8
+        );
         assert_eq!(record.create.map_id, 571);
         assert_eq!(record.create.instance_id, 9);
         assert_eq!(record.spawn.spawn_id, 55);
@@ -1336,6 +1345,10 @@ mod tests {
         assert!(metadata.duplicate_spawn_found);
         assert_eq!(metadata.equipment_id, 4);
         assert_eq!(metadata.original_equipment_id, -4);
+        assert_eq!(
+            creature.melee_damage_school_mask(),
+            1 << (wow_constants::spell::SpellSchools::Fire as u8)
+        );
         assert_eq!(creature.ai_current_health(), 777);
         assert_eq!(creature.ai_max_health(), 1_234);
         assert_eq!(creature.ai_level(), 19);
