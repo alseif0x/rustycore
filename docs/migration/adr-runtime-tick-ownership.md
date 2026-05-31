@@ -624,6 +624,17 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   spell/range data still fails closed and counts `ai_can_attack_unrepresented`. This removes the
   previous blanket TurretAI-unrepresented behavior only for the experimental `GlobalLegacy` owner
   path; script AI factories, SmartAI execution, BossAI boundary data, and real VMAP LOS remain open.
+- 2026-05-31 — Runtime global aggro non-player owner leash center `#NEXT.RUNTIME.L3.031aa`: closed
+  the bounded owner-position gap for map-owned creature owners. C++ `Creature::CanCreatureAttack`
+  skips the home-position leash center when `GetCharmerOrOwner()` exists and instead checks
+  `victim->IsWithinDist(owner, dist)`, with `WorldObject::IsWithinDist` adding both combat reaches
+  (`Creature.cpp:2671-2721`, `Object.cpp:1062-1078`, `Object.cpp:1148-1151`). Rust now snapshots
+  active map-owned creatures on the same `(map_id, instance_id)` alongside player candidates before
+  the global aggro scan mutates creatures, so creature-owned creatures can use their non-player
+  owner as the leash center. Missing/cross-map owners still fail closed as
+  `owner_position_unrepresented`. This only affects the experimental `GlobalLegacy` owner path;
+  victim-creature aggro targets, full non-player owner routing outside the active map, BossAI
+  boundary data, and real VMAP LOS remain open.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
