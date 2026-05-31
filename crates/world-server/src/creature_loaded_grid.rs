@@ -52,6 +52,7 @@ pub struct ResolvedCreatureTemplateLikeCpp {
     pub script_name: String,
     pub unit_class: u8,
     pub faction: u32,
+    pub npc_flags: u64,
     pub display_id: u32,
     pub model_dimensions: Option<CreatureModelDimensions>,
     pub scale: f32,
@@ -61,6 +62,9 @@ pub struct ResolvedCreatureTemplateLikeCpp {
     pub classification: u32,
     pub damage_school: u8,
     pub sparring_health_pct: Option<f32>,
+    pub unit_flags: u32,
+    pub unit_flags2: u32,
+    pub unit_flags3: u32,
     pub flags_extra: u32,
     pub static_flags: [u32; 8],
     pub creature_type: u32,
@@ -357,6 +361,7 @@ pub fn build_loaded_grid_creature_inputs_from_db_like_cpp(
         script_name: template.script_name.clone(),
         unit_class: template.unit_class,
         faction: template.faction,
+        npc_flags: template.npc_flags,
         display_id: selected_display_id,
         model_dimensions: selected_model_dimensions,
         scale: template.scale,
@@ -366,6 +371,9 @@ pub fn build_loaded_grid_creature_inputs_from_db_like_cpp(
         classification: template.classification,
         damage_school: template.damage_school,
         sparring_health_pct: None,
+        unit_flags: template.unit_flags,
+        unit_flags2: template.unit_flags2,
+        unit_flags3: template.unit_flags3,
         flags_extra: template.flags_extra,
         static_flags: difficulty.static_flags,
         creature_type: template.creature_type,
@@ -497,6 +505,7 @@ fn template_lifecycle_record(
         script_name: template.script_name.clone(),
         unit_class: template.unit_class,
         faction: template.faction,
+        npc_flags: template.npc_flags,
         display_id: template.display_id,
         model_dimensions: template.model_dimensions,
         scale: template.scale,
@@ -505,6 +514,9 @@ fn template_lifecycle_record(
         spells: template.spells,
         classification: template.classification,
         damage_school: template.damage_school,
+        unit_flags: template.unit_flags,
+        unit_flags2: template.unit_flags2,
+        unit_flags3: template.unit_flags3,
         flags_extra: template.flags_extra,
         static_flags: template.static_flags,
         creature_type: template.creature_type,
@@ -572,6 +584,7 @@ mod tests {
             script_name: "npc_loaded_grid_test".to_string(),
             unit_class: 1,
             faction: 35,
+            npc_flags: 0x1_0000_0040,
             display_id: 9001,
             model_dimensions: Some(CreatureModelDimensions {
                 bounding_radius: 0.7,
@@ -584,6 +597,9 @@ mod tests {
             classification: 4,
             damage_school: wow_constants::spell::SpellSchools::Fire as u8,
             sparring_health_pct: None,
+            unit_flags: wow_constants::UnitFlags::IMMUNE_TO_NPC.bits(),
+            unit_flags2: wow_constants::UnitFlags2::FEIGN_DEATH.bits(),
+            unit_flags3: wow_constants::UnitFlags3::AI_OBSTACLE.bits(),
             flags_extra: 0x10,
             static_flags: [0; 8],
             creature_type: 0,
@@ -726,11 +742,15 @@ mod tests {
                 ai_name: "AggressorAI".to_string(),
                 script_name: "npc_db_creature".to_string(),
                 faction: 35,
+                npc_flags: 0x1_0000_0040,
                 speed_walk: 1.0,
                 speed_run: 1.14286,
                 scale: 1.25,
                 classification: 1,
                 damage_school: wow_constants::spell::SpellSchools::Nature as u8,
+                unit_flags: wow_constants::UnitFlags::IMMUNE_TO_NPC.bits(),
+                unit_flags2: wow_constants::UnitFlags2::FEIGN_DEATH.bits(),
+                unit_flags3: wow_constants::UnitFlags3::AI_OBSTACLE.bits(),
                 creature_type: 0,
                 unit_class: 1,
                 vehicle_id,
@@ -862,7 +882,20 @@ mod tests {
         assert_eq!(template.ai_name, "AggressorAI");
         assert_eq!(template.script_name, "npc_db_creature");
         assert_eq!(template.faction, 35);
+        assert_eq!(template.npc_flags, 0x1_0000_0040);
         assert_eq!(template.spells[0..2], [10, 20]);
+        assert_eq!(
+            template.unit_flags,
+            wow_constants::UnitFlags::IMMUNE_TO_NPC.bits()
+        );
+        assert_eq!(
+            template.unit_flags2,
+            wow_constants::UnitFlags2::FEIGN_DEATH.bits()
+        );
+        assert_eq!(
+            template.unit_flags3,
+            wow_constants::UnitFlags3::AI_OBSTACLE.bits()
+        );
         assert_eq!(template.static_flags[0], static_flags[0]);
         assert_eq!(template.display_id, 999);
         assert_eq!(
@@ -1302,9 +1335,22 @@ mod tests {
         assert_eq!(record.create.template.original_entry, entry - 1);
         assert_eq!(record.create.template.ai_name, "SmartAI");
         assert_eq!(record.create.template.script_name, "npc_loaded_grid_test");
+        assert_eq!(record.create.template.npc_flags, 0x1_0000_0040);
         assert_eq!(
             record.create.template.damage_school,
             wow_constants::spell::SpellSchools::Fire as u8
+        );
+        assert_eq!(
+            record.create.template.unit_flags,
+            wow_constants::UnitFlags::IMMUNE_TO_NPC.bits()
+        );
+        assert_eq!(
+            record.create.template.unit_flags2,
+            wow_constants::UnitFlags2::FEIGN_DEATH.bits()
+        );
+        assert_eq!(
+            record.create.template.unit_flags3,
+            wow_constants::UnitFlags3::AI_OBSTACLE.bits()
         );
         assert_eq!(record.create.map_id, 571);
         assert_eq!(record.create.instance_id, 9);
@@ -1358,6 +1404,19 @@ mod tests {
         assert_eq!(creature.ai_current_health(), 777);
         assert_eq!(creature.ai_max_health(), 1_234);
         assert_eq!(creature.ai_level(), 19);
+        assert_eq!(creature.unit().npc_flags_like_cpp(), [0x40, 0x1]);
+        assert_eq!(
+            creature.unit().unit_flags_like_cpp(),
+            wow_constants::UnitFlags::IMMUNE_TO_NPC
+        );
+        assert_eq!(
+            creature.unit().unit_flags2_like_cpp(),
+            wow_constants::UnitFlags2::FEIGN_DEATH
+        );
+        assert_eq!(
+            creature.unit().unit_flags3_like_cpp(),
+            wow_constants::UnitFlags3::AI_OBSTACLE
+        );
         assert!(resolved.map_insertion_requested);
         assert!(resolved.map_object_record.is_some());
         assert!(

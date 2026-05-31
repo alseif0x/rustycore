@@ -899,6 +899,17 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   cancels any delayed snapback before clearing target. Full `Spell*`/`SpellInfo` validation,
   ObjectAccessor target-facing restore, pet override timing/fanout, and the live spell runtime
   remain separate gaps.
+- 2026-05-31 — DB-backed creature template base flags `#NEXT.RUNTIME.L3.031be`:
+  closes the bounded base-data half of C++ `Creature::setDeathState(JUST_RESPAWNED)`
+  `ObjectMgr::ChooseCreatureFlags` / `ReplaceAllNpcFlags*` / `ReplaceAllUnitFlags*`
+  (`Creature.cpp:2268-2284`) by loading `creature_template.npcflag`, `unit_flags`,
+  `unit_flags2`, and `unit_flags3` from `ObjectMgr::LoadCreatureTemplate`
+  (`ObjectMgr.cpp:349-375`, `ObjectMgr.cpp:403-430`). Rust now carries those fields through
+  `CreatureTemplateLifecycleStoreLikeCpp`, `ResolvedCreatureTemplateLikeCpp`, and
+  `CreatureTemplateLifecycleRecord`, applies them during lifecycle create, and respawn reloads them
+  from represented creature identity. This is not full `ChooseCreatureFlags`: condition evaluation,
+  creature-data overrides, addon reload, and the world-event NPC flag overlay from
+  `GameEventMgr::GetNPCFlag` (`GameEventMgr.cpp:920-933`) remain explicit follow-up runtime gaps.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

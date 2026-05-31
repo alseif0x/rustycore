@@ -217,6 +217,7 @@ pub struct CreatureTemplateLifecycleRecord {
     pub script_name: String,
     pub unit_class: u8,
     pub faction: u32,
+    pub npc_flags: u64,
     pub display_id: u32,
     pub model_dimensions: Option<CreatureModelDimensions>,
     pub scale: f32,
@@ -225,6 +226,9 @@ pub struct CreatureTemplateLifecycleRecord {
     pub spells: [u32; MAX_CREATURE_SPELLS],
     pub classification: u32,
     pub damage_school: u8,
+    pub unit_flags: u32,
+    pub unit_flags2: u32,
+    pub unit_flags3: u32,
     pub flags_extra: u32,
     pub static_flags: [u32; 8],
     pub creature_type: u32,
@@ -949,8 +953,23 @@ impl Creature {
         self.ai_ownership.aggro_radius = DEFAULT_MONSTER_SIGHT_DISTANCE;
         self.ai_ownership.display_id = record.selected_display_id;
         self.ai_ownership.faction = template.faction;
+        self.ai_ownership.npc_flags = template.npc_flags as u32;
+        self.ai_ownership.npc_flags2 = (template.npc_flags >> 32) as u32;
+        self.ai_ownership.unit_flags = template.unit_flags;
+        self.ai_ownership.unit_flags2 = template.unit_flags2;
+        self.ai_ownership.unit_flags3 = template.unit_flags3;
         self.ai_ownership.min_damage = record.stats.min_damage.max(0.0) as u32;
         self.ai_ownership.max_damage = record.stats.max_damage.max(0.0) as u32;
+        self.unit
+            .set_npc_flags_like_cpp(self.ai_ownership.npc_flags);
+        self.unit
+            .set_npc_flags2_like_cpp(self.ai_ownership.npc_flags2);
+        self.unit
+            .set_unit_flags_like_cpp(UnitFlags::from_bits_truncate(template.unit_flags));
+        self.unit
+            .set_unit_flags2_like_cpp(UnitFlags2::from_bits_truncate(template.unit_flags2));
+        self.unit
+            .set_unit_flags3_like_cpp(UnitFlags3::from_bits_truncate(template.unit_flags3));
 
         self.lifecycle_metadata = CreatureLifecycleMetadata {
             template_entry: template.entry,
@@ -3757,6 +3776,7 @@ mod tests {
             script_name: "npc_lifecycle_wolf".to_string(),
             unit_class: 1,
             faction: 14,
+            npc_flags: 0x1_0000_0040,
             display_id: 2001,
             model_dimensions: Some(CreatureModelDimensions {
                 bounding_radius: 0.4,
@@ -3768,6 +3788,9 @@ mod tests {
             spells,
             classification: 3,
             damage_school: wow_constants::spell::SpellSchools::Nature as u8,
+            unit_flags: UnitFlags::IMMUNE_TO_NPC.bits(),
+            unit_flags2: UnitFlags2::FEIGN_DEATH.bits(),
+            unit_flags3: UnitFlags3::AI_OBSTACLE.bits(),
             flags_extra: 0x10,
             static_flags: [0; 8],
             creature_type: 9,
@@ -3881,6 +3904,19 @@ mod tests {
         assert_eq!(creature.unit().data().race, 0);
         assert_eq!(creature.unit().data().class_id, 1);
         assert_eq!(creature.unit().data().faction_template, 14);
+        assert_eq!(creature.unit().npc_flags_like_cpp(), [0x40, 0x1]);
+        assert_eq!(
+            creature.unit().unit_flags_like_cpp(),
+            UnitFlags::IMMUNE_TO_NPC
+        );
+        assert_eq!(
+            creature.unit().unit_flags2_like_cpp(),
+            UnitFlags2::FEIGN_DEATH
+        );
+        assert_eq!(
+            creature.unit().unit_flags3_like_cpp(),
+            UnitFlags3::AI_OBSTACLE
+        );
         assert_eq!(creature.unit().data().display_id, 3001);
         assert_eq!(creature.unit().data().native_display_id, 3001);
         assert_eq!(creature.unit().world().object().scale(), 1.5);
@@ -3997,6 +4033,23 @@ mod tests {
             creature.unit().get_power(PowerType::Mana),
             750,
             "C++ SetSpawnHealth restores the represented spawn mana source"
+        );
+        assert_eq!(
+            creature.unit().npc_flags_like_cpp(),
+            [0x40, 0x1],
+            "C++ JUST_RESPAWNED reloads ChooseCreatureFlags output from the creature template baseline"
+        );
+        assert_eq!(
+            creature.unit().unit_flags_like_cpp(),
+            UnitFlags::IMMUNE_TO_NPC
+        );
+        assert_eq!(
+            creature.unit().unit_flags2_like_cpp(),
+            UnitFlags2::FEIGN_DEATH
+        );
+        assert_eq!(
+            creature.unit().unit_flags3_like_cpp(),
+            UnitFlags3::AI_OBSTACLE
         );
     }
 
