@@ -3374,6 +3374,24 @@ fn mirror_loaded_grid_creature_to_legacy_like_cpp(
     guard.add_creature(map_id, instance_id, grid_x, grid_y, world_creature)
 }
 
+fn mirror_loaded_grid_primary_records_to_legacy_like_cpp(
+    legacy_manager: Option<&SharedMapManager>,
+    waypoint_paths: &spawn_store_loader::WaypointPathStoreLikeCpp,
+    records: &[wow_entities::MapObjectRecord],
+) -> usize {
+    records
+        .iter()
+        .filter_map(|record| record.creature().cloned())
+        .filter(|creature| {
+            mirror_loaded_grid_creature_to_legacy_like_cpp(
+                legacy_manager,
+                waypoint_paths,
+                creature.clone(),
+            )
+        })
+        .count()
+}
+
 fn game_event_spawn_object_guid_list_for_event_like_cpp(
     manager: &mut wow_map::MapManager,
     legacy_manager: Option<&SharedMapManager>,
@@ -3556,6 +3574,7 @@ struct GameEventPoolSpawnSummaryLikeCpp {
     pools_without_loaded_canonical_maps: usize,
     maps_matched: usize,
     executed_loaded_grid_respawns: usize,
+    legacy_creature_mirrors: usize,
     blocked_loaded_grid_respawn_add_to_map: usize,
     pool_spawn_actions_skipped_unloaded_grid: usize,
     pool_spawn_actions_blocked_loaded_grid: usize,
@@ -3604,6 +3623,7 @@ impl GameEventPoolSpawnSummaryLikeCpp {
 
 fn game_event_spawn_pools_like_cpp(
     manager: &mut wow_map::MapManager,
+    legacy_manager: Option<&SharedMapManager>,
     canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
     loaded_grid_creature_respawn_caches: &LoadedGridCreatureRespawnCachesLikeCpp,
     event_pool_ids: &[u32],
@@ -3658,7 +3678,15 @@ fn game_event_spawn_pools_like_cpp(
                         wow_map::SpawnObjectType::AreaTrigger => None,
                     },
                 ) {
-                Ok(map_summary) => summary.accumulate_spawn_summary_like_cpp(&map_summary),
+                Ok(map_summary) => {
+                    summary.legacy_creature_mirrors +=
+                        mirror_loaded_grid_primary_records_to_legacy_like_cpp(
+                            legacy_manager,
+                            canonical_spawn_metadata.waypoint_paths_like_cpp(),
+                            &map_summary.loaded_grid_primary_records,
+                        );
+                    summary.accumulate_spawn_summary_like_cpp(&map_summary);
+                }
                 Err(error) => summary.blocked_pool_plan_errors.push(error),
             }
         });
@@ -3673,6 +3701,7 @@ fn game_event_spawn_pools_like_cpp(
 
 fn game_event_spawn_pools_for_event_like_cpp(
     manager: &mut wow_map::MapManager,
+    legacy_manager: Option<&SharedMapManager>,
     canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
     loaded_grid_creature_respawn_caches: &LoadedGridCreatureRespawnCachesLikeCpp,
     event_id: i16,
@@ -3691,6 +3720,7 @@ fn game_event_spawn_pools_for_event_like_cpp(
         missing_event_pool_ids: false,
         pool_summary: game_event_spawn_pools_like_cpp(
             manager,
+            legacy_manager,
             canonical_spawn_metadata,
             loaded_grid_creature_respawn_caches,
             event_pool_ids,
@@ -3723,6 +3753,7 @@ fn game_event_spawn_for_event_like_cpp(
     } else {
         game_event_spawn_pools_for_event_like_cpp(
             manager,
+            legacy_manager,
             canonical_spawn_metadata,
             loaded_grid_creature_respawn_caches,
             event_id,
@@ -5661,6 +5692,7 @@ struct CanonicalSpawnGroupConditionTickSummaryLikeCpp {
     applied_set_inactive: usize,
     planned_spawn: usize,
     condition_spawn_executed_loaded_grid_spawns: usize,
+    condition_spawn_legacy_creature_mirrors: usize,
     condition_spawn_blocked_loaded_grid_spawn_loads: usize,
     condition_spawn_blocked_loaded_grid_creature_loads: usize,
     condition_spawn_blocked_loaded_grid_gameobject_loads: usize,
@@ -5686,6 +5718,7 @@ struct CanonicalSpawnGroupConditionTickSummaryLikeCpp {
     respawn_processed_pool_timers: usize,
     respawn_processed_unloaded_grid_respawns: usize,
     respawn_executed_loaded_grid_respawns: usize,
+    respawn_legacy_creature_mirrors: usize,
     respawn_blocked_loaded_grid_respawn_loads: usize,
     respawn_blocked_loaded_grid_respawn_add_to_map: usize,
     respawn_pool_update_plans: usize,
@@ -6147,6 +6180,7 @@ fn build_loaded_grid_gameobject_respawn_record_like_cpp(
 
 fn canonical_map_update_tick_set_inactive_like_cpp(
     manager: &mut wow_map::MapManager,
+    legacy_manager: Option<&SharedMapManager>,
     diff_ms: u32,
     scheduler: &mut CanonicalRespawnConditionSchedulerLikeCpp,
     canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
@@ -6248,6 +6282,12 @@ fn canonical_map_update_tick_set_inactive_like_cpp(
             respawn_summary.processed_unloaded_grid_respawns;
         summary.respawn_executed_loaded_grid_respawns +=
             respawn_summary.executed_loaded_grid_respawns;
+        summary.respawn_legacy_creature_mirrors +=
+            mirror_loaded_grid_primary_records_to_legacy_like_cpp(
+                legacy_manager,
+                canonical_spawn_metadata.waypoint_paths_like_cpp(),
+                &respawn_summary.loaded_grid_primary_records,
+            );
         summary.respawn_blocked_loaded_grid_respawn_loads +=
             respawn_summary.blocked_loaded_grid_respawn_loads;
         summary.respawn_blocked_loaded_grid_respawn_add_to_map +=
@@ -6297,6 +6337,12 @@ fn canonical_map_update_tick_set_inactive_like_cpp(
         {
             summary.condition_spawn_executed_loaded_grid_spawns +=
                 spawn.executed_loaded_grid_spawns;
+            summary.condition_spawn_legacy_creature_mirrors +=
+                mirror_loaded_grid_primary_records_to_legacy_like_cpp(
+                    legacy_manager,
+                    canonical_spawn_metadata.waypoint_paths_like_cpp(),
+                    &spawn.loaded_grid_primary_records,
+                );
             summary.condition_spawn_blocked_loaded_grid_spawn_loads +=
                 spawn.blocked_loaded_grid_spawn_loads;
             summary.condition_spawn_blocked_loaded_grid_creature_loads +=
@@ -6411,6 +6457,7 @@ fn spawn_canonical_map_update_loop(
                 };
                 canonical_map_update_tick_set_inactive_like_cpp(
                     &mut manager,
+                    Some(&legacy_map_manager),
                     diff_ms,
                     &mut respawn_condition_scheduler,
                     &canonical_spawn_metadata,
@@ -9946,8 +9993,13 @@ mod tests {
         );
         let caches = empty_loaded_grid_creature_respawn_caches_like_cpp();
 
-        let summary =
-            game_event_spawn_pools_for_event_like_cpp(&mut manager, &metadata, &caches, event_id);
+        let summary = game_event_spawn_pools_for_event_like_cpp(
+            &mut manager,
+            None,
+            &metadata,
+            &caches,
+            event_id,
+        );
 
         assert_eq!(summary.event_id, event_id);
         assert!(!summary.missing_event_pool_ids);
@@ -10052,7 +10104,7 @@ mod tests {
         let caches = empty_loaded_grid_creature_respawn_caches_like_cpp();
 
         let spawn_summary =
-            game_event_spawn_pools_for_event_like_cpp(&mut manager, &metadata, &caches, 99);
+            game_event_spawn_pools_for_event_like_cpp(&mut manager, None, &metadata, &caches, 99);
         let unspawn_summary =
             game_event_unspawn_pools_for_event_like_cpp(&mut manager, &metadata, 99);
 
@@ -10086,8 +10138,13 @@ mod tests {
         );
         let caches = empty_loaded_grid_creature_respawn_caches_like_cpp();
 
-        let spawn_summary =
-            game_event_spawn_pools_for_event_like_cpp(&mut manager, &metadata, &caches, event_id);
+        let spawn_summary = game_event_spawn_pools_for_event_like_cpp(
+            &mut manager,
+            None,
+            &metadata,
+            &caches,
+            event_id,
+        );
         let unspawn_summary =
             game_event_unspawn_pools_for_event_like_cpp(&mut manager, &metadata, event_id);
 
@@ -10139,7 +10196,8 @@ mod tests {
         );
         let caches = empty_loaded_grid_creature_respawn_caches_like_cpp();
 
-        let summary = game_event_spawn_pools_like_cpp(&mut manager, &metadata, &caches, &[pool_id]);
+        let summary =
+            game_event_spawn_pools_like_cpp(&mut manager, None, &metadata, &caches, &[pool_id]);
 
         assert_eq!(summary.event_pool_ids_seen, 1);
         assert_eq!(summary.missing_pool_templates, 0);
@@ -10173,7 +10231,8 @@ mod tests {
         let metadata = canonical_spawn_metadata_with_pool_mgr_like_cpp(PoolMgrLikeCpp::new());
         let caches = empty_loaded_grid_creature_respawn_caches_like_cpp();
 
-        let summary = game_event_spawn_pools_like_cpp(&mut manager, &metadata, &caches, &[5302]);
+        let summary =
+            game_event_spawn_pools_like_cpp(&mut manager, None, &metadata, &caches, &[5302]);
 
         assert_eq!(summary.event_pool_ids_seen, 1);
         assert_eq!(summary.missing_pool_templates, 1);
@@ -10262,7 +10321,8 @@ mod tests {
         let metadata = canonical_spawn_metadata_with_store_and_pool_mgr_like_cpp(store, pool_mgr);
         let caches = empty_loaded_grid_creature_respawn_caches_like_cpp();
 
-        let summary = game_event_spawn_pools_like_cpp(&mut manager, &metadata, &caches, &[5303]);
+        let summary =
+            game_event_spawn_pools_like_cpp(&mut manager, None, &metadata, &caches, &[5303]);
 
         assert_eq!(summary.maps_matched, 1);
         assert_eq!(summary.pool_spawn_actions_blocked_loaded_grid, 1);
@@ -13588,6 +13648,7 @@ mmap.enablePathFinding = 0
 
         let early = canonical_map_update_tick_set_inactive_like_cpp(
             &mut manager,
+            None,
             9,
             &mut scheduler,
             &metadata,
@@ -13606,6 +13667,7 @@ mmap.enablePathFinding = 0
 
         let summary = canonical_map_update_tick_set_inactive_like_cpp(
             &mut manager,
+            None,
             1,
             &mut scheduler,
             &metadata,
@@ -13651,6 +13713,7 @@ mmap.enablePathFinding = 0
 
         let early = canonical_map_update_tick_set_inactive_like_cpp(
             &mut manager,
+            None,
             99,
             &mut scheduler,
             &metadata,
@@ -13668,6 +13731,7 @@ mmap.enablePathFinding = 0
 
         let summary = canonical_map_update_tick_set_inactive_like_cpp(
             &mut manager,
+            None,
             1,
             &mut scheduler,
             &metadata,
@@ -13827,6 +13891,7 @@ mmap.enablePathFinding = 0
 
         let summary = canonical_map_update_tick_set_inactive_like_cpp(
             &mut manager,
+            None,
             1,
             &mut scheduler,
             &metadata,
@@ -13898,6 +13963,7 @@ mmap.enablePathFinding = 0
 
         let summary = canonical_map_update_tick_set_inactive_like_cpp(
             &mut manager,
+            None,
             1,
             &mut scheduler,
             &metadata,
@@ -13961,6 +14027,7 @@ mmap.enablePathFinding = 0
 
         let summary = canonical_map_update_tick_set_inactive_like_cpp(
             &mut manager,
+            None,
             1,
             &mut scheduler,
             &metadata,
@@ -14020,6 +14087,7 @@ mmap.enablePathFinding = 0
 
         let summary = canonical_map_update_tick_set_inactive_like_cpp(
             &mut manager,
+            None,
             1,
             &mut scheduler,
             &metadata,
@@ -14349,6 +14417,81 @@ mmap.enablePathFinding = 0
             .expect("loaded-grid Creature should be indexed by spawn id");
         assert_eq!(creature.respawn_time(), 0);
         assert_eq!(creature.lifecycle_metadata().spawn_id, spawn_id);
+    }
+
+    #[test]
+    fn spawn_group_condition_update_tick_mirrors_loaded_grid_creature_to_legacy_like_cpp() {
+        let mut metadata = test_spawn_metadata_with_flags([(69, 571, SpawnGroupFlags::NONE)]);
+        let spawn_id = 1;
+        let entry = 42;
+        metadata = metadata.with_creature_runtime_rows_like_cpp(BTreeMap::from([(
+            spawn_id,
+            super::spawn_store_loader::CreatureSpawnRuntimeRowLikeCpp {
+                spawn_id,
+                model_id: 999,
+                equipment_id: 3,
+                wander_distance: 15.0,
+                curhealth: 0,
+                curmana: 0,
+                movement_type: 1,
+                npc_flags: None,
+                unit_flags: None,
+                unit_flags2: None,
+                unit_flags3: None,
+                ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
+                swim_allowed: true,
+                flight_movement_type: 0,
+                string_id: "condition-spawn-caller-legacy-mirror".to_string(),
+                spawn_time_secs: 120,
+            },
+        )]));
+        let condition_store =
+            ConditionEntriesByTypeStore::from_conditions_like_cpp([mapid_condition(69, 571)]);
+        let caches =
+            variable_loaded_grid_creature_respawn_caches_with_vehicle_id_and_difficulty_like_cpp(
+                entry, 0, 0,
+            );
+        let legacy: wow_world::SharedMapManager =
+            Arc::new(std::sync::RwLock::new(wow_world::MapManager::new()));
+        let mut manager = wow_map::MapManager::new(60_000, 1);
+        let group = metadata
+            .spawn_group_templates()
+            .get(&69)
+            .expect("test group 69")
+            .clone();
+        let map = manager.create_world_map(571, 0);
+        map.map_mut()
+            .set_spawn_group_inactive_like_cpp(Some(&group));
+        assert!(map.map_mut().load_grid(0.0, 0.0));
+        let mut scheduler = CanonicalRespawnConditionSchedulerLikeCpp::new(1);
+
+        let summary = canonical_map_update_tick_set_inactive_like_cpp(
+            &mut manager,
+            Some(&legacy),
+            1,
+            &mut scheduler,
+            &metadata,
+            &condition_store,
+            &caches,
+        )
+        .expect("scheduler fires and condition spawn executes");
+
+        assert_eq!(summary.condition_spawn_executed_loaded_grid_spawns, 1);
+        assert_eq!(summary.condition_spawn_legacy_creature_mirrors, 1);
+        let creature = manager
+            .find_map(571, 0)
+            .expect("canonical map")
+            .map()
+            .get_creature_by_spawn_id_like_cpp(spawn_id)
+            .expect("canonical loaded-grid creature");
+        assert!(
+            legacy
+                .read()
+                .unwrap()
+                .find_creature(571, 0, creature.guid())
+                .is_some(),
+            "C++ AddToMap has one live runtime; Rust split runtime must mirror internal wow-map loaded-grid inserts into legacy"
+        );
     }
 
     #[test]

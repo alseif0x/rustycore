@@ -1218,6 +1218,17 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   tick. Still open: loaded-grid records inserted internally inside `wow-map` respawn/spawn-group/pool
   code cannot mirror yet without an explicit event/hook back to `world-server`; adding a dependency
   from `wow-map` to `wow-world` remains rejected.
+- 2026-05-31 — Internal loaded-grid AddToMap records mirrored to legacy runtime
+  `#NEXT.RUNTIME.L3.031d3`: contrasted against C++ `Map::DoRespawn` (`Map.cpp:2165-2188`),
+  `Map::SpawnGroupSpawn` (`Map.cpp:2356-2395`), `PoolGroup<Creature>::Spawn1Object`
+  (`PoolMgr.cpp:355-363`), and `Map::AddToMap<T>` (`Map.cpp:530-570`). Rust preserves the
+  dependency boundary: `wow-map` records successful internal loaded-grid primary inserts in summary
+  fields instead of depending on `wow-world`; `world-server` consumes those records after map
+  mutation and mirrors Creature records into the legacy `MapManager`. This extends `031d2` beyond
+  direct game-event spawning to canonical tick respawns, spawn-group condition spawns, pool and
+  event-pool loaded-grid execution. Remaining gap: this still mirrors only Creature records into the
+  legacy creature runtime; GameObject runtime parity, pre-add trap side effects, direct session DB
+  addon `PathId` hydration, and live server/client validation remain separate work.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

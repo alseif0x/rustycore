@@ -1365,7 +1365,7 @@ pub struct PoolSpawnActionLoadPlanLikeCpp {
     pub respawn: bool,
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct SpawnGroupSpawnOutcomeLikeCpp {
     pub group_id: u32,
     pub blocked_missing_group: usize,
@@ -1397,6 +1397,7 @@ pub struct SpawnGroupSpawnOutcomeLikeCpp {
     pub blocked_loaded_grid_gameobject_loads: usize,
     pub unsupported_spawn_types: usize,
     pub load_plans: Vec<SpawnGroupSpawnLoadPlanLikeCpp>,
+    pub loaded_grid_primary_records: Vec<MapObjectRecord>,
     pub applied_active_change: Option<SpawnGroupActiveChange>,
 }
 
@@ -1425,7 +1426,7 @@ impl SpawnGroupSpawnOutcomeLikeCpp {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct SpawnGroupConditionUpdateOutcomeLikeCpp {
     pub group_id: u32,
     pub action: SpawnGroupConditionActionLikeCpp,
@@ -1489,6 +1490,7 @@ pub struct ProcessRespawnsSafeSideEffectsSummaryLikeCpp {
     /// therefore stays removed and pool state is not reverted even when Rust
     /// `AddToMap` rejects it.
     pub blocked_loaded_grid_respawn_add_to_map: usize,
+    pub loaded_grid_primary_records: Vec<MapObjectRecord>,
     /// Legacy compatibility counter for the pre-#390 seam where any pooled timer
     /// blocked `ProcessRespawns`. New pooled-timer planner errors are reported in
     /// `blocked_pool_plan_errors`; successful pooled timers increment
@@ -3143,9 +3145,14 @@ where
         for pre_add_record in records.pre_add_records {
             let _ = self.add_map_object_record_to_map_like_cpp(pre_add_record);
         }
-        match self.add_map_object_record_to_map_like_cpp(records.primary_record) {
+        let primary_record = records.primary_record;
+        let loaded_grid_primary_record = primary_record.clone();
+        match self.add_map_object_record_to_map_like_cpp(primary_record) {
             Ok(_outcome) => {
                 summary.executed_loaded_grid_respawns += 1;
+                summary
+                    .loaded_grid_primary_records
+                    .push(loaded_grid_primary_record);
             }
             Err(_error) => {
                 summary.blocked_loaded_grid_respawn_add_to_map += 1;
@@ -3299,9 +3306,14 @@ where
                         for pre_add_record in records.pre_add_records {
                             let _ = self.add_map_object_record_to_map_like_cpp(pre_add_record);
                         }
-                        match self.add_map_object_record_to_map_like_cpp(records.primary_record) {
+                        let primary_record = records.primary_record;
+                        let loaded_grid_primary_record = primary_record.clone();
+                        match self.add_map_object_record_to_map_like_cpp(primary_record) {
                             Ok(_outcome) => {
                                 summary.executed_loaded_grid_respawns += 1;
+                                summary
+                                    .loaded_grid_primary_records
+                                    .push(loaded_grid_primary_record);
                             }
                             Err(_error) => {
                                 summary.blocked_loaded_grid_respawn_add_to_map += 1;
@@ -7532,8 +7544,15 @@ where
                 for pre_add_record in records.pre_add_records {
                     let _ = self.add_map_object_record_to_map_like_cpp(pre_add_record);
                 }
-                match self.add_map_object_record_to_map_like_cpp(records.primary_record) {
-                    Ok(_outcome) => outcome.executed_loaded_grid_spawns += 1,
+                let primary_record = records.primary_record;
+                let loaded_grid_primary_record = primary_record.clone();
+                match self.add_map_object_record_to_map_like_cpp(primary_record) {
+                    Ok(_outcome) => {
+                        outcome.executed_loaded_grid_spawns += 1;
+                        outcome
+                            .loaded_grid_primary_records
+                            .push(loaded_grid_primary_record);
+                    }
                     Err(_error) => outcome.blocked_loaded_grid_spawn_add_to_map += 1,
                 }
             }
