@@ -1549,6 +1549,15 @@ impl Creature {
         self.lifecycle_metadata.flags_extra = flags_extra;
     }
 
+    pub fn set_ai_identity_names_runtime_like_cpp(
+        &mut self,
+        ai_name: impl Into<String>,
+        script_name: impl Into<String>,
+    ) {
+        self.lifecycle_metadata.ai_name = ai_name.into();
+        self.lifecycle_metadata.script_name = script_name.into();
+    }
+
     pub fn ground_movement_type_like_cpp(&self) -> u8 {
         self.lifecycle_metadata.ground_movement_type
     }

@@ -565,6 +565,11 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   and `CreatureTemplateLifecycleRecord`, and stores them in `CreatureLifecycleMetadata`. This slice
   deliberately does not instantiate AI factories, SmartAI, BossAI boundary checks, TurretAI range
   gates, or `CanAIAttack`; those remain behavior slices now backed by real template identity data.
+- 2026-05-31 — Runtime respawn AI identity continuity `#NEXT.RUNTIME.L3.031u`: preserved that
+  identity across the map-owned respawn queue. `PendingRespawn` now captures `ai_name` and
+  `script_name` from the despawned `WorldCreature`, and
+  `world_creature_from_pending_respawn_like_cpp` restores them into `CreatureLifecycleMetadata`.
+  This is still data continuity only; AI factory selection and `CanAIAttack` behavior remain open.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

@@ -53294,6 +53294,8 @@ mod tests {
             max_dmg: 2,
             aggro_radius: 5.0,
             flags_extra: 0,
+            ai_name: String::new(),
+            script_name: String::new(),
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: 0,

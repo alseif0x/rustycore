@@ -2468,6 +2468,8 @@ pub struct PendingRespawn {
     pub max_dmg: u32,
     pub aggro_radius: f32,
     pub flags_extra: u32,
+    pub ai_name: String,
+    pub script_name: String,
     pub ground_movement_type: u8,
     pub swim_allowed: bool,
     pub flight_movement_type: u8,
@@ -2532,6 +2534,8 @@ pub fn pending_respawn_from_world_creature_like_cpp(
         max_dmg: creature.max_dmg(),
         aggro_radius: creature.creature.ai_ownership().aggro_radius,
         flags_extra: creature.creature.lifecycle_metadata().flags_extra,
+        ai_name: creature.creature.lifecycle_metadata().ai_name.clone(),
+        script_name: creature.creature.lifecycle_metadata().script_name.clone(),
         ground_movement_type: creature.creature.ground_movement_type_like_cpp(),
         swim_allowed: creature.creature.swim_allowed_like_cpp(),
         flight_movement_type: creature.creature.flight_movement_type_like_cpp(),
@@ -2591,6 +2595,10 @@ pub fn world_creature_from_pending_respawn_like_cpp(
     creature.set_ai_identity_runtime(display_id, faction, npc_flags, unit_flags);
     creature.set_npc_flags2_runtime_like_cpp(npc_flags2);
     creature.set_flags_extra_runtime_like_cpp(respawn.flags_extra);
+    creature.set_ai_identity_names_runtime_like_cpp(
+        respawn.ai_name.clone(),
+        respawn.script_name.clone(),
+    );
     creature.set_ground_movement_type_runtime_like_cpp(respawn.ground_movement_type);
     creature.set_swim_allowed_runtime_like_cpp(respawn.swim_allowed);
     creature.set_flight_movement_type_runtime_like_cpp(respawn.flight_movement_type);
@@ -4220,6 +4228,8 @@ mod tests {
             max_dmg: 5,
             aggro_radius: 10.0,
             flags_extra: 0,
+            ai_name: String::new(),
+            script_name: String::new(),
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: 0,
@@ -4337,6 +4347,9 @@ mod tests {
         creature
             .creature
             .set_flags_extra_runtime_like_cpp(CreatureFlagsExtra::CIVILIAN.bits());
+        creature
+            .creature
+            .set_ai_identity_names_runtime_like_cpp("SmartAI", "npc_respawn_identity");
         creature.creature.set_flight_movement_type_runtime_like_cpp(
             wow_constants::CreatureFlightMovementType::CanFly as u8,
         );
@@ -4347,6 +4360,8 @@ mod tests {
 
         let pending = pending_respawn_from_world_creature_like_cpp(&creature, Instant::now(), 0);
         assert_eq!(pending.flags_extra, CreatureFlagsExtra::CIVILIAN.bits());
+        assert_eq!(pending.ai_name, "SmartAI");
+        assert_eq!(pending.script_name, "npc_respawn_identity");
         assert_eq!(
             pending.ground_movement_type,
             wow_constants::CreatureGroundMovementType::None as u8
@@ -4361,6 +4376,11 @@ mod tests {
         assert!(
             respawned.creature.is_civilian_like_cpp(),
             "map-owned respawn must keep C++ flags_extra gates"
+        );
+        assert_eq!(respawned.creature.lifecycle_metadata().ai_name, "SmartAI");
+        assert_eq!(
+            respawned.creature.lifecycle_metadata().script_name,
+            "npc_respawn_identity"
         );
         assert!(!respawned.creature.can_walk_like_cpp());
         assert!(!respawned.creature.can_enter_water_like_cpp());
