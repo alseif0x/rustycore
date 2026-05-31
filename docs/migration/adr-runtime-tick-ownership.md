@@ -696,6 +696,17 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `Creature::can_melee_like_cpp()`, and rejects `CreatureStaticFlags::NO_MELEE_FLEE` before queuing
   a ready global creature swing. Remaining gaps: LOS, non-player victims, offhand/extra attacks,
   `UNIT_STATE_MELEE_ATTACKING` unification, and full canonical `Unit` attack timers.
+- 2026-05-31 — Runtime global creature melee attacking-interrupt aura removal
+  `#NEXT.RUNTIME.L3.031ah`: closed the represented C++ `Unit::AttackerStateUpdate` side effect that
+  removes attacking-interruptible auras from the attacker on confirmed melee attacks. C++ calls
+  `RemoveAurasWithInterruptFlags(SpellAuraInterruptFlags::Attacking)` after the attacker-state/LOS
+  gates and before damage (`Unit.cpp:2168-2173`). Rust now removes those represented auras from the
+  legacy creature attacker for successful `GlobalLegacy` canonical player hits, reports
+  `attacking_interrupt_auras_removed`, and preserves unrelated interrupt flags. The removal happens
+  after the canonical health mutation but before swing commit to preserve Rust's legacy/canonical
+  lock-ordering invariant; exact pre-damage ordering belongs to the later canonical `Unit` ownership
+  unification. Remaining gaps: LOS, non-player victims, offhand/extra attacks,
+  `UNIT_STATE_MELEE_ATTACKING` unification, and full canonical `Unit` attack timers.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

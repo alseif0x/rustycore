@@ -1657,6 +1657,7 @@ pub struct LegacyCreatureMeleeTickOutcomeLikeCpp {
     pub melee_range_rejections: usize,
     pub melee_facing_rejections: usize,
     pub attacker_state_rejections: usize,
+    pub attacking_interrupt_auras_removed: usize,
     pub canonical_hits: usize,
     pub commands: Vec<wow_network::player_registry::ApplyCreatureMeleeDamageLikeCppCommand>,
 }
@@ -21901,6 +21902,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
     };
 
     let mut committed_swings = Vec::new();
+    let mut hit_swings = Vec::new();
     let mut failed_retry_swings = Vec::new();
     for swing in pending_swings {
         let apply_result = apply_creature_melee_damage_to_canonical_player_on_map_like_cpp(
@@ -21949,13 +21951,28 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                 victim_health_after,
             },
         );
+        hit_swings.push(swing);
         committed_swings.push(swing);
     }
 
-    if !committed_swings.is_empty() || !failed_retry_swings.is_empty() {
+    if !committed_swings.is_empty() || !failed_retry_swings.is_empty() || !hit_swings.is_empty() {
         let mut manager = legacy_map_manager
             .write()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
+        for swing in hit_swings {
+            if let Some(creature) =
+                manager.find_creature_mut(swing.map_id, swing.instance_id, swing.attacker_guid)
+            {
+                // C++ `Unit::AttackerStateUpdate` removes attacking-interruptible
+                // auras before melee damage. The global Rust driver applies
+                // canonical damage outside the legacy lock, then removes the
+                // same auras from the legacy attacker before the tick commits.
+                outcome.attacking_interrupt_auras_removed += creature
+                    .creature
+                    .unit_mut()
+                    .remove_attacking_interrupt_auras_like_cpp();
+            }
+        }
         for swing in committed_swings {
             if let Some(creature) =
                 manager.find_creature_mut(swing.map_id, swing.instance_id, swing.attacker_guid)
@@ -53764,6 +53781,92 @@ mod tests {
         assert_eq!(immediate_retry.attacker_state_rejections, 0);
         assert_eq!(immediate_retry.canonical_hits, 0);
         assert!(immediate_retry.commands.is_empty());
+    }
+
+    #[test]
+    fn legacy_creature_melee_tick_once_removes_attacking_interrupt_auras_on_hit_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        let player = ObjectGuid::create_player(1, 91_022);
+        add_canonical_test_player_on_map(
+            &canonical,
+            player,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            0,
+        );
+        {
+            let mut guard = canonical.lock().unwrap();
+            let typed = guard
+                .find_map_mut(0, 0)
+                .unwrap()
+                .map_mut()
+                .get_typed_player_mut(player)
+                .unwrap();
+            typed.unit_mut().set_max_health(100);
+            typed.unit_mut().set_health(100);
+        }
+
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_023);
+        let removed_by_attacking = wow_entities::AppliedAuraRef::new(91_024, creature_guid, 0, 0x1);
+        let kept = wow_entities::AppliedAuraRef::new(91_025, creature_guid, 0, 0x2);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.enter_combat(player);
+                creature.creature.ai_ownership_mut().last_swing_ms = 0;
+                creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+                creature
+                    .creature
+                    .unit_mut()
+                    .subsystems_mut()
+                    .auras
+                    .register_applied_aura(
+                        removed_by_attacking,
+                        None,
+                        wow_entities::SPELL_AURA_INTERRUPT_FLAG_ATTACKING_LIKE_CPP,
+                        0,
+                    );
+                creature
+                    .creature
+                    .unit_mut()
+                    .subsystems_mut()
+                    .auras
+                    .register_applied_aura(kept, None, 0x20, 0);
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+
+        assert_eq!(outcome.swings_ready, 1);
+        assert_eq!(outcome.canonical_hits, 1);
+        assert_eq!(outcome.attacking_interrupt_auras_removed, 1);
+        assert_eq!(outcome.commands.len(), 1);
+        let guard = manager.read().unwrap();
+        let creature = guard.find_creature(0, 0, creature_guid).unwrap();
+        assert!(
+            !creature
+                .creature
+                .unit()
+                .subsystems()
+                .auras
+                .has_applied(removed_by_attacking),
+            "C++ Unit::AttackerStateUpdate removes SpellAuraInterruptFlags::Attacking"
+        );
+        assert!(
+            creature
+                .creature
+                .unit()
+                .subsystems()
+                .auras
+                .has_applied(kept)
+        );
     }
 
     #[test]
