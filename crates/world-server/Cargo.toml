@@ -21,6 +21,7 @@ wow-logging = { workspace = true }
 wow-data = { workspace = true }
 wow-database = { workspace = true }
 wow-loot = { workspace = true }
+wow-movement = { workspace = true }
 wow-network = { workspace = true }
 wow-world = { workspace = true }
 wow-handler = { workspace = true }

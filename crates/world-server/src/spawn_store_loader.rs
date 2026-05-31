@@ -138,6 +138,130 @@ pub struct CanonicalSpawnStoreLoadReport {
     pub game_event_npc_flags: GameEventNpcFlagLoadReportLikeCpp,
     pub game_event_npc_vendors: GameEventNpcVendorLoadReportLikeCpp,
     pub creature_formations: CreatureFormationLoadReportLikeCpp,
+    pub waypoint_paths: WaypointPathLoadReportLikeCpp,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct WaypointPathLoadReportLikeCpp {
+    pub path_rows: usize,
+    pub paths_loaded: usize,
+    pub skipped_invalid_move_type: usize,
+    pub node_rows: usize,
+    pub nodes_loaded: usize,
+    pub skipped_missing_path: usize,
+    pub empty_paths: usize,
+    pub backwards_too_short: usize,
+    pub clamped_delay: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WaypointPathRowLikeCpp {
+    pub path_id: u32,
+    pub move_type: u8,
+    pub flags: u8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct WaypointPathNodeRowLikeCpp {
+    pub path_id: u32,
+    pub node_id: u32,
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+    pub orientation: Option<f32>,
+    pub delay: u32,
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct WaypointPathStoreLikeCpp {
+    paths: BTreeMap<u32, wow_movement::WaypointPath>,
+}
+
+impl WaypointPathStoreLikeCpp {
+    pub fn from_rows_like_cpp(
+        path_rows: impl IntoIterator<Item = WaypointPathRowLikeCpp>,
+        node_rows: impl IntoIterator<Item = WaypointPathNodeRowLikeCpp>,
+    ) -> (Self, WaypointPathLoadReportLikeCpp) {
+        let mut report = WaypointPathLoadReportLikeCpp::default();
+        let mut paths = BTreeMap::new();
+
+        for row in path_rows {
+            report.path_rows += 1;
+            let Some(move_type) = waypoint_move_type_from_db_like_cpp(row.move_type) else {
+                // C++ logs and returns after `_pathStore[pathId]` has already inserted an
+                // invalid enum value. Rust keeps the store typed, so invalid paths are skipped.
+                report.skipped_invalid_move_type += 1;
+                continue;
+            };
+            let mut path = wow_movement::WaypointPath::new(row.path_id, Vec::new());
+            path.move_type = move_type;
+            path.follow_path_backwards_from_end_to_start = row.flags & 0x01 != 0;
+            paths.insert(row.path_id, path);
+            report.paths_loaded += 1;
+        }
+
+        for row in node_rows {
+            report.node_rows += 1;
+            let Some(path) = paths.get_mut(&row.path_id) else {
+                report.skipped_missing_path += 1;
+                continue;
+            };
+            let mut x = row.x;
+            let mut y = row.y;
+            wow_map::normalize_map_coord(&mut x);
+            wow_map::normalize_map_coord(&mut y);
+            let delay_ms = match i32::try_from(row.delay) {
+                Ok(delay) => delay,
+                Err(_) => {
+                    report.clamped_delay += 1;
+                    i32::MAX
+                }
+            };
+            let mut node = wow_movement::WaypointNode::new(row.node_id, x, y, row.z);
+            node.delay_ms = delay_ms;
+            if let Some(orientation) = row.orientation {
+                node.orientation = Some(orientation);
+            }
+            path.nodes.push(node);
+            report.nodes_loaded += 1;
+        }
+
+        for path in paths.values() {
+            if path.nodes.is_empty() {
+                report.empty_paths += 1;
+            }
+            if path.follow_path_backwards_from_end_to_start
+                && path.nodes.len()
+                    < wow_movement::WAYPOINT_PATH_FLAG_FOLLOW_PATH_BACKWARDS_MINIMUM_NODES_LIKE_CPP
+            {
+                report.backwards_too_short += 1;
+            }
+        }
+
+        (Self { paths }, report)
+    }
+
+    pub fn get(&self, path_id: u32) -> Option<&wow_movement::WaypointPath> {
+        self.paths.get(&path_id)
+    }
+
+    pub fn len(&self) -> usize {
+        self.paths.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.paths.is_empty()
+    }
+}
+
+fn waypoint_move_type_from_db_like_cpp(move_type: u8) -> Option<wow_movement::WaypointMoveType> {
+    match move_type {
+        0 => Some(wow_movement::WaypointMoveType::Walk),
+        1 => Some(wow_movement::WaypointMoveType::Run),
+        2 => Some(wow_movement::WaypointMoveType::Land),
+        3 => Some(wow_movement::WaypointMoveType::TakeOff),
+        _ => None,
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -2013,6 +2137,7 @@ pub struct CanonicalSpawnMetadataLikeCpp {
     game_event_active_gameobject_quest_relations_by_giver:
         BTreeMap<u32, Vec<GameEventQuestRelationRecordLikeCpp>>,
     game_event_vendor_cache_by_entry: BTreeMap<u32, Vec<GameEventNpcVendorRecordLikeCpp>>,
+    waypoint_paths: WaypointPathStoreLikeCpp,
     creature_runtime_rows: BTreeMap<SpawnId, CreatureSpawnRuntimeRowLikeCpp>,
     gameobject_runtime_rows: BTreeMap<SpawnId, GameObjectSpawnRuntimeRowLikeCpp>,
     creature_formations: BTreeMap<SpawnId, CreatureFormationInfoLikeCpp>,
@@ -2040,6 +2165,7 @@ impl CanonicalSpawnMetadataLikeCpp {
             game_event_active_creature_quest_relations_by_giver: BTreeMap::new(),
             game_event_active_gameobject_quest_relations_by_giver: BTreeMap::new(),
             game_event_vendor_cache_by_entry: BTreeMap::new(),
+            waypoint_paths: WaypointPathStoreLikeCpp::default(),
             creature_runtime_rows: BTreeMap::new(),
             gameobject_runtime_rows: BTreeMap::new(),
             creature_formations: BTreeMap::new(),
@@ -2133,6 +2259,18 @@ impl CanonicalSpawnMetadataLikeCpp {
     ) -> Self {
         self.game_event_npc_vendors = game_event_npc_vendors;
         self
+    }
+
+    pub fn with_waypoint_paths_like_cpp(
+        mut self,
+        waypoint_paths: WaypointPathStoreLikeCpp,
+    ) -> Self {
+        self.waypoint_paths = waypoint_paths;
+        self
+    }
+
+    pub fn waypoint_paths_like_cpp(&self) -> &WaypointPathStoreLikeCpp {
+        &self.waypoint_paths
     }
 
     pub fn linked_respawns_like_cpp(&self) -> &LinkedRespawnStoreLikeCpp {
@@ -3327,6 +3465,59 @@ async fn load_creature_formations_like_cpp(
     ))
 }
 
+async fn load_waypoint_paths_like_cpp(
+    db: &WorldDatabase,
+    report: &mut CanonicalSpawnStoreLoadReport,
+) -> Result<WaypointPathStoreLikeCpp> {
+    let path_stmt = db.prepare(WorldStatements::SEL_WAYPOINT_PATHS);
+    let mut path_result = db.query(&path_stmt).await?;
+    let mut path_rows = Vec::new();
+    if !path_result.is_empty() {
+        loop {
+            path_rows.push(WaypointPathRowLikeCpp {
+                path_id: read_unsigned_db_u32_like_cpp(&path_result, 0, "waypoint_path.PathId")?,
+                move_type: path_result.try_read(1).unwrap_or(0),
+                flags: path_result.try_read(2).unwrap_or(0),
+            });
+            if !path_result.next_row() {
+                break;
+            }
+        }
+    }
+
+    let node_stmt = db.prepare(WorldStatements::SEL_WAYPOINT_PATH_NODES);
+    let mut node_result = db.query(&node_stmt).await?;
+    let mut node_rows = Vec::new();
+    if !node_result.is_empty() {
+        loop {
+            node_rows.push(WaypointPathNodeRowLikeCpp {
+                path_id: read_unsigned_db_u32_like_cpp(
+                    &node_result,
+                    0,
+                    "waypoint_path_node.PathId",
+                )?,
+                node_id: read_unsigned_db_u32_like_cpp(
+                    &node_result,
+                    1,
+                    "waypoint_path_node.NodeId",
+                )?,
+                x: node_result.read(2),
+                y: node_result.read(3),
+                z: node_result.read(4),
+                orientation: node_result.try_read::<Option<f32>>(5).unwrap_or(None),
+                delay: read_unsigned_db_u32_like_cpp(&node_result, 6, "waypoint_path_node.Delay")?,
+            });
+            if !node_result.next_row() {
+                break;
+            }
+        }
+    }
+
+    let (store, load_report) = WaypointPathStoreLikeCpp::from_rows_like_cpp(path_rows, node_rows);
+    report.waypoint_paths = load_report;
+    Ok(store)
+}
+
 pub async fn load_canonical_spawn_store_like_cpp(
     db: &WorldDatabase,
     character_db: &CharacterDatabase,
@@ -3349,7 +3540,9 @@ pub async fn load_canonical_spawn_store_like_cpp(
     )
     .await?;
     // C++ `World::SetInitialWorldSettings` loads waypoint paths before
-    // `FormationMgr::LoadCreatureFormations`; waypoints remain metadata-only here.
+    // `FormationMgr::LoadCreatureFormations`; this stores metadata only and does not
+    // launch waypoint movement.
+    let waypoint_paths = load_waypoint_paths_like_cpp(db, &mut report).await?;
     let creature_formations = load_creature_formations_like_cpp(db, &store, &mut report).await?;
     load_gameobject_spawns_like_cpp(
         db,
@@ -3442,6 +3635,7 @@ pub async fn load_canonical_spawn_store_like_cpp(
             .with_game_event_quest_conditions_like_cpp(game_event_quest_conditions)
             .with_game_event_npc_flags_like_cpp(game_event_npc_flags)
             .with_game_event_npc_vendors_like_cpp(game_event_npc_vendors)
+            .with_waypoint_paths_like_cpp(waypoint_paths)
             .with_creature_runtime_rows_like_cpp(creature_runtime_rows)
             .with_gameobject_runtime_rows_like_cpp(gameobject_runtime_rows)
             .with_creature_formations_like_cpp(creature_formations),
@@ -5609,6 +5803,102 @@ mod tests {
                 flags: 0,
             }
         }))
+    }
+
+    #[test]
+    fn waypoint_path_store_loads_paths_nodes_and_normalizes_coords_like_cpp() {
+        let (store, report) = WaypointPathStoreLikeCpp::from_rows_like_cpp(
+            [
+                WaypointPathRowLikeCpp {
+                    path_id: 10,
+                    move_type: 1,
+                    flags: 0x01,
+                },
+                WaypointPathRowLikeCpp {
+                    path_id: 11,
+                    move_type: 4,
+                    flags: 0,
+                },
+            ],
+            [
+                WaypointPathNodeRowLikeCpp {
+                    path_id: 10,
+                    node_id: 1,
+                    x: wow_core::Position::MAP_HALFSIZE_LIKE_CPP + 100.0,
+                    y: -(wow_core::Position::MAP_HALFSIZE_LIKE_CPP + 100.0),
+                    z: 25.0,
+                    orientation: Some(1.25),
+                    delay: 500,
+                },
+                WaypointPathNodeRowLikeCpp {
+                    path_id: 12,
+                    node_id: 1,
+                    x: 1.0,
+                    y: 2.0,
+                    z: 3.0,
+                    orientation: None,
+                    delay: 0,
+                },
+            ],
+        );
+
+        assert_eq!(store.len(), 1);
+        assert_eq!(report.path_rows, 2);
+        assert_eq!(report.paths_loaded, 1);
+        assert_eq!(report.skipped_invalid_move_type, 1);
+        assert_eq!(report.node_rows, 2);
+        assert_eq!(report.nodes_loaded, 1);
+        assert_eq!(report.skipped_missing_path, 1);
+        assert_eq!(report.backwards_too_short, 1);
+
+        let path = store.get(10).expect("valid path retained");
+        assert_eq!(path.move_type, wow_movement::WaypointMoveType::Run);
+        assert!(path.follow_path_backwards_from_end_to_start);
+        assert_eq!(path.nodes.len(), 1);
+        let node = path.nodes[0];
+        let limit = wow_core::Position::MAP_HALFSIZE_LIKE_CPP - 0.5;
+        assert_eq!(node.id, 1);
+        assert_eq!(node.position.x, limit);
+        assert_eq!(node.position.y, -limit);
+        assert_eq!(node.position.z, 25.0);
+        assert_eq!(node.orientation, Some(1.25));
+        assert_eq!(node.delay_ms, 500);
+    }
+
+    #[test]
+    fn waypoint_path_store_reports_empty_paths_and_clamped_delay_like_cpp() {
+        let (store, report) = WaypointPathStoreLikeCpp::from_rows_like_cpp(
+            [
+                WaypointPathRowLikeCpp {
+                    path_id: 20,
+                    move_type: 0,
+                    flags: 0,
+                },
+                WaypointPathRowLikeCpp {
+                    path_id: 21,
+                    move_type: 3,
+                    flags: 0,
+                },
+            ],
+            [WaypointPathNodeRowLikeCpp {
+                path_id: 21,
+                node_id: 7,
+                x: 1.0,
+                y: 2.0,
+                z: 3.0,
+                orientation: None,
+                delay: u32::MAX,
+            }],
+        );
+
+        assert_eq!(store.len(), 2);
+        assert_eq!(report.empty_paths, 1);
+        assert_eq!(report.clamped_delay, 1);
+        assert_eq!(
+            store.get(21).unwrap().move_type,
+            wow_movement::WaypointMoveType::TakeOff
+        );
+        assert_eq!(store.get(21).unwrap().nodes[0].delay_ms, i32::MAX);
     }
 
     #[test]

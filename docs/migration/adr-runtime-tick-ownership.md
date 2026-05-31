@@ -1062,6 +1062,15 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `CreatureCreateData` for late viewers, and returns a `RuntimeEvent::NearbyVisible` with the exact
   SMSG_SET_*_ANIM_KIT bytes. Production callers, canonical sync, scripts/spells, and live
   client/server verification remain open.
+- 2026-05-31 — Waypoint path metadata store/load `#NEXT.RUNTIME.L3.031bw`: contrasted against C++
+  `WaypointMgr::LoadPaths` / `_LoadPaths` / `_LoadPathNodes` / `LoadPathFromDB` /
+  `LoadPathNodesFromDB` (`WaypointManager.cpp:29-129`) and `WaypointDefines.h`. Rust now has
+  `WaypointPathStoreLikeCpp`, all-path/all-node DB statements, startup metadata loading before
+  creature formations, C++-like X/Y `NormalizeMapCoord`, node orientation/delay preservation, and
+  post-load report evidence for empty/backwards-too-short paths. Invalid MoveType rows are skipped
+  as an intentional typed-store correction of C++'s suspicious insert-before-return behavior. This
+  is not live waypoint execution: no generator launch, spline packet fanout, timers,
+  `MovementInform`, scripts, or formation movement are claimed.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

@@ -2965,6 +2965,7 @@ dependencies = [
  "wow-logging",
  "wow-loot",
  "wow-map",
+ "wow-movement",
  "wow-network",
  "wow-packet",
  "wow-world",

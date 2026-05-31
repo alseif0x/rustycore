@@ -34,6 +34,8 @@ pub enum WorldStatements {
     UPD_CREATURE_WANDER_DISTANCE,
     UPD_CREATURE_SPAWN_TIME_SECS,
     INS_CREATURE_FORMATION,
+    SEL_WAYPOINT_PATHS,
+    SEL_WAYPOINT_PATH_NODES,
     SEL_WAYPOINT_PATH_BY_PATHID,
     INS_WAYPOINT_PATH_NODE,
     DEL_WAYPOINT_PATH_NODE,
@@ -392,6 +394,10 @@ impl StatementDef for WorldStatements {
             }
             Self::INS_CREATURE_FORMATION => {
                 "INSERT INTO creature_formations (leaderGUID, memberGUID, dist, angle, groupAI) VALUES (?, ?, ?, ?, ?)"
+            }
+            Self::SEL_WAYPOINT_PATHS => "SELECT PathId, MoveType, Flags FROM waypoint_path",
+            Self::SEL_WAYPOINT_PATH_NODES => {
+                "SELECT PathId, NodeId, PositionX, PositionY, PositionZ, Orientation, Delay FROM waypoint_path_node ORDER BY PathId, NodeId"
             }
             Self::SEL_WAYPOINT_PATH_BY_PATHID => {
                 "SELECT PathId, MoveType, Flags FROM waypoint_path WHERE PathId = ?"
