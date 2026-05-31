@@ -7748,6 +7748,9 @@ mod tests {
             zone_id: 0,
             speed_walk_rate: 1.0,
             speed_run_rate: 1.14286,
+            ai_anim_kit_id: 0,
+            movement_anim_kit_id: 0,
+            melee_anim_kit_id: 0,
         };
         let guid = creature.guid;
         let is_alive = creature.is_alive;

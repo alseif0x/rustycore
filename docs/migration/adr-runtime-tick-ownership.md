@@ -982,7 +982,7 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `VisFlags`, `AnimTier`, and `SheathState` through `CreatureAddonLifecycleRecordLikeCpp`,
   `UnitDataValues`, and the unit update bridge. `VisFlags` preserves the full byte like C++;
   `AnimTier >= Max` and `SheathState >= MAX_SHEATH_STATE` normalize to zero like C++. This still
-  does not cover hover movement flags, anim kit ids, visibility distance override, auras, or
+  does not cover hover movement flags, visibility distance override, auras, or
   waypoint path execution.
 - 2026-05-31 — Represented addon internal pet/form reset `#NEXT.RUNTIME.L3.031bn`: contrasted
   against C++ `Creature::LoadCreaturesAddon` (`Creature.cpp:2758-2761`). Rust now represents the
@@ -990,6 +990,16 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   through `UnitDataValues`, the unit update bridge, and addon create/respawn application. These
   fields are deliberately not loaded from DB because C++ treats them as core-internal and forces
   them to zero during addon application.
+- 2026-05-31 — Represented addon anim kit create state `#NEXT.RUNTIME.L3.031bo`: contrasted
+  against C++ `Creature::LoadCreaturesAddon` (`Creature.cpp:2765-2767`), `Unit::Set*AnimKitId`
+  (`Unit.cpp:10409-10455`), `Object::BuildCreateUpdateBlockForPlayer` (`Object.cpp:145-152`,
+  `Object.cpp:263`, `Object.cpp:420-425`), and addon validation (`ObjectMgr.cpp:865-883`,
+  `ObjectMgr.cpp:1335-1353`). Rust now loads/validates addon `aiAnimKit`, `movementAnimKit`,
+  and `meleeAnimKit` against `AnimKit.db2`, carries them through `CreatureAddonLifecycleRecordLikeCpp`,
+  applies them as represented `Unit` internal state on create/respawn, and writes the C++ create-object
+  `AnimKit` payload when any of the three IDs is non-zero. Live `SMSG_SET_*_ANIM_KIT` fanout remains
+  a packet/runtime follow-up; hover, visibility distance override, auras, and waypoint path execution
+  remain open.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

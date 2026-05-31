@@ -329,6 +329,9 @@ pub struct Unit {
     can_dual_wield: bool,
     emote_state: u32,
     speed_rate: [f32; MAX_MOVE_TYPE],
+    ai_anim_kit_id: u16,
+    movement_anim_kit_id: u16,
+    melee_anim_kit_id: u16,
     power_index: [Option<usize>; MAX_POWERS],
     visibility_detection: UnitVisibilityDetectionStateLikeCpp,
     subsystems: UnitSubsystems,
@@ -359,6 +362,9 @@ impl Unit {
             can_dual_wield: false,
             emote_state: 0,
             speed_rate: [1.0; MAX_MOVE_TYPE],
+            ai_anim_kit_id: 0,
+            movement_anim_kit_id: 0,
+            melee_anim_kit_id: 0,
             power_index: [None; MAX_POWERS],
             visibility_detection: UnitVisibilityDetectionStateLikeCpp::default(),
             subsystems: UnitSubsystems::default(),
@@ -1627,6 +1633,42 @@ impl Unit {
 
     pub fn pvp_flags_like_cpp(&self) -> UnitPvpFlags {
         UnitPvpFlags::from_bits_retain(self.data.pvp_flags)
+    }
+
+    pub fn set_ai_anim_kit_id_like_cpp(&mut self, anim_kit_id: u16) -> bool {
+        if self.ai_anim_kit_id == anim_kit_id {
+            return false;
+        }
+        self.ai_anim_kit_id = anim_kit_id;
+        true
+    }
+
+    pub const fn ai_anim_kit_id_like_cpp(&self) -> u16 {
+        self.ai_anim_kit_id
+    }
+
+    pub fn set_movement_anim_kit_id_like_cpp(&mut self, anim_kit_id: u16) -> bool {
+        if self.movement_anim_kit_id == anim_kit_id {
+            return false;
+        }
+        self.movement_anim_kit_id = anim_kit_id;
+        true
+    }
+
+    pub const fn movement_anim_kit_id_like_cpp(&self) -> u16 {
+        self.movement_anim_kit_id
+    }
+
+    pub fn set_melee_anim_kit_id_like_cpp(&mut self, anim_kit_id: u16) -> bool {
+        if self.melee_anim_kit_id == anim_kit_id {
+            return false;
+        }
+        self.melee_anim_kit_id = anim_kit_id;
+        true
+    }
+
+    pub const fn melee_anim_kit_id_like_cpp(&self) -> u16 {
+        self.melee_anim_kit_id
     }
 
     pub fn replace_all_pet_flags_like_cpp(&mut self, flags: u8) {

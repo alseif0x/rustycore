@@ -9,7 +9,7 @@ use wow_constants::{
 use wow_database::WorldDatabase;
 use wow_entities::CreatureAddonLifecycleRecordLikeCpp;
 
-use crate::{CreatureDisplayInfoStore, EmotesStore};
+use crate::{AnimKitStore, CreatureDisplayInfoStore, EmotesStore};
 
 pub const MAX_CREATURE_SPELLS_LIKE_CPP: usize = 8;
 pub const MAX_SPELL_SCHOOL_LIKE_CPP: u8 = 7;
@@ -214,6 +214,7 @@ impl CreatureAddonStoreLikeCpp {
         creature_template_exists: impl Fn(u32) -> bool,
         mount_display_exists: impl Fn(u32) -> bool,
         emote_exists: impl Fn(u32) -> bool,
+        anim_kit_exists: impl Fn(u32) -> bool,
     ) -> Self {
         let spawn_addons = spawn_rows
             .into_iter()
@@ -221,7 +222,12 @@ impl CreatureAddonStoreLikeCpp {
             .map(|row| {
                 (
                     row.owner_id,
-                    addon_record_from_row_like_cpp(row, &mount_display_exists, &emote_exists),
+                    addon_record_from_row_like_cpp(
+                        row,
+                        &mount_display_exists,
+                        &emote_exists,
+                        &anim_kit_exists,
+                    ),
                 )
             })
             .collect();
@@ -231,7 +237,12 @@ impl CreatureAddonStoreLikeCpp {
             .map(|row| {
                 (
                     row.owner_id as u32,
-                    addon_record_from_row_like_cpp(row, &mount_display_exists, &emote_exists),
+                    addon_record_from_row_like_cpp(
+                        row,
+                        &mount_display_exists,
+                        &emote_exists,
+                        &anim_kit_exists,
+                    ),
                 )
             })
             .collect();
@@ -254,6 +265,7 @@ impl CreatureAddonStoreLikeCpp {
         creature_spawn_store: &crate::WorldSpawnIdStore,
         display_store: &CreatureDisplayInfoStore,
         emotes_store: &EmotesStore,
+        anim_kit_store: &AnimKitStore,
     ) -> Result<Self> {
         let spawn_rows = load_creature_addon_rows_like_cpp(
             db,
@@ -278,6 +290,7 @@ impl CreatureAddonStoreLikeCpp {
             |entry| template_store.get(entry).is_some(),
             |display_id| display_store.get(display_id).is_some(),
             |emote| emotes_store.get(emote).is_some(),
+            |anim_kit_id| anim_kit_store.get(anim_kit_id).is_some(),
         ))
     }
 
@@ -364,6 +377,7 @@ fn addon_record_from_row_like_cpp(
     row: CreatureAddonRowLikeCpp,
     mount_display_exists: &impl Fn(u32) -> bool,
     emote_exists: &impl Fn(u32) -> bool,
+    anim_kit_exists: &impl Fn(u32) -> bool,
 ) -> CreatureAddonLifecycleRecordLikeCpp {
     let mount_display_id = if row.mount != 0 && !mount_display_exists(row.mount) {
         0
@@ -378,6 +392,9 @@ fn addon_record_from_row_like_cpp(
     } else {
         0
     };
+    let ai_anim_kit_id = normalize_anim_kit_like_cpp(row.ai_anim_kit, anim_kit_exists);
+    let movement_anim_kit_id = normalize_anim_kit_like_cpp(row.movement_anim_kit, anim_kit_exists);
+    let melee_anim_kit_id = normalize_anim_kit_like_cpp(row.melee_anim_kit, anim_kit_exists);
 
     CreatureAddonLifecycleRecordLikeCpp {
         path_id: row.path_id,
@@ -388,6 +405,17 @@ fn addon_record_from_row_like_cpp(
         sheath_state,
         pvp_flags: UnitPvpFlags::from_bits_retain(row.pvp_flags),
         emote,
+        ai_anim_kit_id,
+        movement_anim_kit_id,
+        melee_anim_kit_id,
+    }
+}
+
+fn normalize_anim_kit_like_cpp(anim_kit_id: u16, exists: &impl Fn(u32) -> bool) -> u16 {
+    if anim_kit_id != 0 && !exists(u32::from(anim_kit_id)) {
+        0
+    } else {
+        anim_kit_id
     }
 }
 
@@ -1749,6 +1777,9 @@ mod tests {
             stand_state: UnitStandStateType::Kneel as u8,
             pvp_flags: UnitPvpFlags::PVP.bits(),
             emote: 77,
+            ai_anim_kit: 11,
+            movement_anim_kit: 22,
+            melee_anim_kit: 33,
             ..addon_row(44)
         };
         let template = CreatureAddonRowLikeCpp {
@@ -1756,6 +1787,9 @@ mod tests {
             stand_state: UnitStandStateType::Sleep as u8,
             pvp_flags: UnitPvpFlags::SANCTUARY.bits(),
             emote: 88,
+            ai_anim_kit: 44,
+            movement_anim_kit: 55,
+            melee_anim_kit: 66,
             ..addon_row(1001)
         };
 
@@ -1766,6 +1800,7 @@ mod tests {
             |entry| entry == 1001,
             |display_id| matches!(display_id, 1234 | 5678),
             |emote| matches!(emote, 77 | 88),
+            |anim_kit_id| matches!(anim_kit_id, 11 | 22 | 33 | 44 | 55 | 66),
         );
 
         assert_eq!(
@@ -1779,6 +1814,9 @@ mod tests {
                 sheath_state: SheathState::Unarmed,
                 pvp_flags: UnitPvpFlags::PVP,
                 emote: 77,
+                ai_anim_kit_id: 11,
+                movement_anim_kit_id: 22,
+                melee_anim_kit_id: 33,
             }),
             "C++ Creature::GetCreatureAddon checks spawn id before template entry"
         );
@@ -1793,6 +1831,9 @@ mod tests {
                 sheath_state: SheathState::Unarmed,
                 pvp_flags: UnitPvpFlags::SANCTUARY,
                 emote: 88,
+                ai_anim_kit_id: 44,
+                movement_anim_kit_id: 55,
+                melee_anim_kit_id: 66,
             })
         );
     }
@@ -1807,6 +1848,9 @@ mod tests {
             sheath_state: MAX_SHEATH_STATE_LIKE_CPP,
             pvp_flags: 0xff,
             emote: 333,
+            ai_anim_kit: 11,
+            movement_anim_kit: 22,
+            melee_anim_kit: 33,
             ..addon_row(44)
         };
 
@@ -1814,6 +1858,7 @@ mod tests {
             [row],
             [],
             |spawn_id| spawn_id == 44,
+            |_| false,
             |_| false,
             |_| false,
             |_| false,
@@ -1830,8 +1875,11 @@ mod tests {
                 sheath_state: SheathState::Unarmed,
                 pvp_flags: UnitPvpFlags::from_bits_retain(0xff),
                 emote: 0,
+                ai_anim_kit_id: 0,
+                movement_anim_kit_id: 0,
+                melee_anim_kit_id: 0,
             }),
-            "C++ invalid mount/emote/stand/anim/sheath rows are truncated; VisFlags/PvPFlags cover the full byte"
+            "C++ invalid mount/emote/stand/anim/sheath/anim-kit rows are truncated; VisFlags/PvPFlags cover the full byte"
         );
     }
 
@@ -1855,6 +1903,7 @@ mod tests {
             [template_without_path],
             |spawn_id| matches!(spawn_id, 44 | 45),
             |entry| entry == 1001,
+            |_| true,
             |_| true,
             |_| true,
         );

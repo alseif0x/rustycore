@@ -739,6 +739,9 @@ impl WorldCreature {
             zone_id: 0,
             speed_walk_rate: 1.0,
             speed_run_rate: 1.14286,
+            ai_anim_kit_id: 0,
+            movement_anim_kit_id: 0,
+            melee_anim_kit_id: 0,
         };
 
         Self::from_canonical(creature, create_data)
@@ -751,6 +754,9 @@ impl WorldCreature {
         create_data.unit_flags2 = ai.unit_flags2;
         create_data.unit_flags3 = ai.unit_flags3;
         create_data.damage_school = creature.melee_damage_school_like_cpp();
+        create_data.ai_anim_kit_id = creature.unit().ai_anim_kit_id_like_cpp();
+        create_data.movement_anim_kit_id = creature.unit().movement_anim_kit_id_like_cpp();
+        create_data.melee_anim_kit_id = creature.unit().melee_anim_kit_id_like_cpp();
         Self {
             creature,
             create_data,
@@ -2549,6 +2555,9 @@ pub fn pending_respawn_from_world_creature_like_cpp(
             zone_id: 0,
             speed_walk_rate: 1.0,
             speed_run_rate: 1.14286,
+            ai_anim_kit_id: creature.creature.unit().ai_anim_kit_id_like_cpp(),
+            movement_anim_kit_id: creature.creature.unit().movement_anim_kit_id_like_cpp(),
+            melee_anim_kit_id: creature.creature.unit().melee_anim_kit_id_like_cpp(),
         },
         max_hp: creature.max_hp(),
         level: creature.level(),
@@ -4252,6 +4261,9 @@ mod tests {
                 zone_id: 0,
                 speed_walk_rate: 1.0,
                 speed_run_rate: 1.14286,
+                ai_anim_kit_id: 0,
+                movement_anim_kit_id: 0,
+                melee_anim_kit_id: 0,
             },
             max_hp: 100,
             level: 1,

@@ -1005,6 +1005,7 @@ mod tests {
             |template_entry| template_entry == entry,
             |display_id| matches!(display_id, 1234 | 5678),
             |emote| matches!(emote, 77 | 88),
+            |_| true,
         );
         let (display_store, model_store) = empty_display_stores();
 
@@ -1038,6 +1039,9 @@ mod tests {
                 sheath_state: wow_constants::SheathState::Unarmed,
                 pvp_flags: wow_constants::UnitPvpFlags::PVP,
                 emote: 77,
+                ai_anim_kit_id: 0,
+                movement_anim_kit_id: 0,
+                melee_anim_kit_id: 0,
             }),
             "C++ Creature::GetCreatureAddon prefers creature_addon by spawn id over template addon"
         );
@@ -1610,6 +1614,9 @@ mod tests {
             sheath_state: wow_constants::SheathState::Ranged,
             pvp_flags: wow_constants::UnitPvpFlags::PVP | wow_constants::UnitPvpFlags::FFA_PVP,
             emote: 77,
+            ai_anim_kit_id: 11,
+            movement_anim_kit_id: 22,
+            melee_anim_kit_id: 33,
         });
         let resolver = CreatureLoadedGridLifecycleResolverLikeCpp::new(
             [template],
@@ -1632,6 +1639,9 @@ mod tests {
                 sheath_state: wow_constants::SheathState::Ranged,
                 pvp_flags: wow_constants::UnitPvpFlags::PVP | wow_constants::UnitPvpFlags::FFA_PVP,
                 emote: 77,
+                ai_anim_kit_id: 11,
+                movement_anim_kit_id: 22,
+                melee_anim_kit_id: 33,
             }),
             "C++ Creature::LoadFromDB/Create carries the addon selected by Creature::GetCreatureAddon"
         );
@@ -1640,6 +1650,9 @@ mod tests {
             resolved.creature.unit().stand_state_like_cpp(),
             wow_constants::UnitStandStateType::Kneel
         );
+        assert_eq!(resolved.creature.unit().ai_anim_kit_id_like_cpp(), 11);
+        assert_eq!(resolved.creature.unit().movement_anim_kit_id_like_cpp(), 22);
+        assert_eq!(resolved.creature.unit().melee_anim_kit_id_like_cpp(), 33);
         assert_eq!(resolved.creature.unit().vis_flags_like_cpp(), 0x12);
         assert_eq!(resolved.creature.unit().anim_tier_like_cpp(), 2);
         assert_eq!(

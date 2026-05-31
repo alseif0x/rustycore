@@ -330,8 +330,8 @@ pub struct CreatureAddToWorldVehicleResetContextLikeCpp {
 ///
 /// This record intentionally carries only fields that `wow-entities` currently models locally,
 /// plus `PathId` as a data seam for C++ addon movement selection.
-/// DB loading, template-vs-spawn fallback, path runtime, auras, anim kits,
-/// pet flags, shapeshift form, visibility distance override, and hover are follow-up runtime gaps.
+/// DB loading, template-vs-spawn fallback, path runtime, auras, anim kit packet fanout,
+/// visibility distance override, and hover are follow-up runtime gaps.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CreatureAddonLifecycleRecordLikeCpp {
     pub path_id: u32,
@@ -342,6 +342,9 @@ pub struct CreatureAddonLifecycleRecordLikeCpp {
     pub sheath_state: SheathState,
     pub pvp_flags: UnitPvpFlags,
     pub emote: u32,
+    pub ai_anim_kit_id: u16,
+    pub movement_anim_kit_id: u16,
+    pub melee_anim_kit_id: u16,
 }
 
 impl Default for CreatureAddonLifecycleRecordLikeCpp {
@@ -355,6 +358,9 @@ impl Default for CreatureAddonLifecycleRecordLikeCpp {
             sheath_state: SheathState::Unarmed,
             pvp_flags: UnitPvpFlags::empty(),
             emote: 0,
+            ai_anim_kit_id: 0,
+            movement_anim_kit_id: 0,
+            melee_anim_kit_id: 0,
         }
     }
 }
@@ -2628,6 +2634,11 @@ impl Creature {
         if addon.emote != 0 {
             self.unit.set_emote_state_like_cpp(addon.emote);
         }
+        self.unit.set_ai_anim_kit_id_like_cpp(addon.ai_anim_kit_id);
+        self.unit
+            .set_movement_anim_kit_id_like_cpp(addon.movement_anim_kit_id);
+        self.unit
+            .set_melee_anim_kit_id_like_cpp(addon.melee_anim_kit_id);
         true
     }
 
@@ -4392,6 +4403,9 @@ mod tests {
             sheath_state: SheathState::Ranged,
             pvp_flags: UnitPvpFlags::PVP | UnitPvpFlags::FFA_PVP,
             emote: 77,
+            ai_anim_kit_id: 11,
+            movement_anim_kit_id: 22,
+            melee_anim_kit_id: 33,
         });
 
         let creature = Creature::create_from_lifecycle(record);
@@ -4441,6 +4455,21 @@ mod tests {
             77,
             "C++ Creature::LoadCreaturesAddon calls SetEmoteState(addon->emote) when emote != 0"
         );
+        assert_eq!(
+            creature.unit().ai_anim_kit_id_like_cpp(),
+            11,
+            "C++ Creature::LoadCreaturesAddon calls SetAIAnimKitId(addon->aiAnimKit)"
+        );
+        assert_eq!(
+            creature.unit().movement_anim_kit_id_like_cpp(),
+            22,
+            "C++ Creature::LoadCreaturesAddon calls SetMovementAnimKitId(addon->movementAnimKit)"
+        );
+        assert_eq!(
+            creature.unit().melee_anim_kit_id_like_cpp(),
+            33,
+            "C++ Creature::LoadCreaturesAddon calls SetMeleeAnimKitId(addon->meleeAnimKit)"
+        );
     }
 
     #[test]
@@ -4455,6 +4484,9 @@ mod tests {
             sheath_state: SheathState::Melee,
             pvp_flags: UnitPvpFlags::SANCTUARY,
             emote: 0,
+            ai_anim_kit_id: 44,
+            movement_anim_kit_id: 55,
+            melee_anim_kit_id: 66,
         });
         let mut creature = Creature::create_from_lifecycle(record);
         creature.unit_mut().set_mount_display_id(1);
@@ -4472,6 +4504,9 @@ mod tests {
             .unit_mut()
             .replace_all_pvp_flags_like_cpp(UnitPvpFlags::FFA_PVP);
         creature.unit_mut().set_emote_state_like_cpp(99);
+        creature.unit_mut().set_ai_anim_kit_id_like_cpp(1);
+        creature.unit_mut().set_movement_anim_kit_id_like_cpp(2);
+        creature.unit_mut().set_melee_anim_kit_id_like_cpp(3);
 
         creature.set_death_state_runtime(DeathState::JustDied, 1_000);
         creature.set_death_state_runtime(DeathState::JustRespawned, 2_000);
@@ -4497,6 +4532,9 @@ mod tests {
             creature.unit().pvp_flags_like_cpp(),
             UnitPvpFlags::SANCTUARY
         );
+        assert_eq!(creature.unit().ai_anim_kit_id_like_cpp(), 44);
+        assert_eq!(creature.unit().movement_anim_kit_id_like_cpp(), 55);
+        assert_eq!(creature.unit().melee_anim_kit_id_like_cpp(), 66);
         assert_eq!(
             creature.unit().emote_state_like_cpp(),
             0,

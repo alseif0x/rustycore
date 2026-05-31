@@ -2296,6 +2296,9 @@ pub struct CreatureCreateData {
     pub speed_walk_rate: f32,
     /// Speed rate from creature_template.speed_run (1.14286 = default).
     pub speed_run_rate: f32,
+    pub ai_anim_kit_id: u16,
+    pub movement_anim_kit_id: u16,
+    pub melee_anim_kit_id: u16,
 }
 
 impl CreatureCreateData {
@@ -3619,6 +3622,9 @@ fn write_creature_create_block(
     buf.write_uint8(TypeId::Unit as u8);
 
     // ── 18-bit CreateObjectBits ────────────────────────────
+    let has_anim_kit = create_data.ai_anim_kit_id != 0
+        || create_data.movement_anim_kit_id != 0
+        || create_data.melee_anim_kit_id != 0;
     buf.write_bit(false); // 0: NoBirthAnim
     buf.write_bit(false); // 1: EnablePortals
     buf.write_bit(false); // 2: PlayHoverAnim
@@ -3628,7 +3634,7 @@ fn write_creature_create_block(
     buf.write_bit(false); // 6: CombatVictim
     buf.write_bit(false); // 7: ServerTime
     buf.write_bit(false); // 8: Vehicle
-    buf.write_bit(false); // 9: AnimKit
+    buf.write_bit(has_anim_kit); // 9: AnimKit
     buf.write_bit(false); // 10: Rotation
     buf.write_bit(false); // 11: AreaTrigger
     buf.write_bit(false); // 12: GameObject
@@ -3644,6 +3650,12 @@ fn write_creature_create_block(
 
     // PauseTimes count
     buf.write_int32(0);
+
+    if has_anim_kit {
+        buf.write_uint16(create_data.ai_anim_kit_id);
+        buf.write_uint16(create_data.movement_anim_kit_id);
+        buf.write_uint16(create_data.melee_anim_kit_id);
+    }
 
     // No ActivePlayer block (bit 16 = false)
 
@@ -9139,6 +9151,9 @@ mod tests {
             zone_id: 12,
             speed_walk_rate: 1.0,
             speed_run_rate: 1.14286,
+            ai_anim_kit_id: 0,
+            movement_anim_kit_id: 0,
+            melee_anim_kit_id: 0,
         };
         let block = UpdateObject::create_creature_block(data, &pos);
         let pkt = UpdateObject::create_creatures(vec![block], 0);
@@ -9153,6 +9168,55 @@ mod tests {
             bytes.len() < 2000,
             "Creature packet too large: {} bytes",
             bytes.len()
+        );
+    }
+
+    #[test]
+    fn creature_create_serializes_cpp_anim_kit_block_when_any_anim_kit_is_set() {
+        let guid = ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::Creature,
+            0,
+            1,
+            0,
+            1,
+            1234,
+            5678,
+        );
+        let pos = Position::new(-8949.0, -132.0, 83.0, 0.0);
+        let data = CreatureCreateData {
+            guid,
+            entry: 1234,
+            display_id: 856,
+            native_display_id: 856,
+            health: 500,
+            max_health: 500,
+            level: 5,
+            faction_template: 14,
+            npc_flags: 0,
+            unit_flags: 0,
+            unit_flags2: 0,
+            unit_flags3: 0,
+            damage_school: wow_constants::spell::SpellSchools::Normal as u8,
+            scale: 1.0,
+            unit_class: 1,
+            base_attack_time: 2000,
+            ranged_attack_time: 0,
+            zone_id: 12,
+            speed_walk_rate: 1.0,
+            speed_run_rate: 1.14286,
+            ai_anim_kit_id: 11,
+            movement_anim_kit_id: 22,
+            melee_anim_kit_id: 33,
+        };
+        let block = UpdateObject::create_creature_block(data, &pos);
+        let pkt = UpdateObject::create_creatures(vec![block], 0);
+        let bytes = pkt.to_bytes();
+
+        assert!(
+            bytes
+                .windows(6)
+                .any(|window| window == [11, 0, 22, 0, 33, 0]),
+            "C++ CreateObjectBits::AnimKit writes AiID, MovementID, MeleeID as u16 payload"
         );
     }
 
@@ -9203,6 +9267,9 @@ mod tests {
             zone_id: 12,
             speed_walk_rate: 1.0,
             speed_run_rate: 1.14286,
+            ai_anim_kit_id: 0,
+            movement_anim_kit_id: 0,
+            melee_anim_kit_id: 0,
         };
         let block = UpdateObject::create_creature_block(creature_data, &pos);
         let creature_pkt = UpdateObject::create_creatures(vec![block], 0);
@@ -9254,6 +9321,9 @@ mod tests {
                 zone_id: 12,
                 speed_walk_rate: 1.0,
                 speed_run_rate: 1.14286,
+                ai_anim_kit_id: 0,
+                movement_anim_kit_id: 0,
+                melee_anim_kit_id: 0,
             };
             blocks.push(UpdateObject::create_creature_block(data, &pos));
         }
@@ -9307,6 +9377,9 @@ mod tests {
             zone_id: 1637,
             speed_walk_rate: 1.0,
             speed_run_rate: 1.14286,
+            ai_anim_kit_id: 0,
+            movement_anim_kit_id: 0,
+            melee_anim_kit_id: 0,
         };
         let block = UpdateObject::create_creature_block(data, &pos);
         let pkt = UpdateObject::create_creatures(vec![block], 1);

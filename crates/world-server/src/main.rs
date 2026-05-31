@@ -717,6 +717,10 @@ async fn main() -> Result<()> {
         wow_data::EmotesStore::load(&data_dir, &locale).context("Failed to load Emotes.db2")?,
     );
     info!("Loaded {} emote rows", emotes_store.len());
+    let anim_kit_store = Arc::new(
+        wow_data::AnimKitStore::load(&data_dir, &locale).context("Failed to load AnimKit.db2")?,
+    );
+    info!("Loaded {} anim kit rows", anim_kit_store.len());
     let gameobject_display_info_store = Arc::new(
         wow_data::GameObjectDisplayInfoStore::load(&data_dir, &locale)
             .context("Failed to load GameObjectDisplayInfo.db2")?,
@@ -786,6 +790,7 @@ async fn main() -> Result<()> {
             creature_spawn_store.as_ref(),
             creature_display_info_store.as_ref(),
             emotes_store.as_ref(),
+            anim_kit_store.as_ref(),
         )
         .await
         .context("Failed to load represented creature_addon / creature_template_addon rows for C++ Creature::LoadCreaturesAddon")?,

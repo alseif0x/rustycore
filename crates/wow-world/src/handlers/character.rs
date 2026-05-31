@@ -3301,6 +3301,9 @@ impl WorldSession {
                 zone_id,
                 speed_walk_rate: speed_walk,
                 speed_run_rate: speed_run,
+                ai_anim_kit_id: 0,
+                movement_anim_kit_id: 0,
+                melee_anim_kit_id: 0,
             };
 
             // Register through canonical map state when available; the legacy
@@ -3739,6 +3742,9 @@ impl WorldSession {
                         zone_id: 0,
                         speed_walk_rate: speed_walk,
                         speed_run_rate: speed_run,
+                        ai_anim_kit_id: 0,
+                        movement_anim_kit_id: 0,
+                        melee_anim_kit_id: 0,
                     };
 
                     // Register in AI tracker
