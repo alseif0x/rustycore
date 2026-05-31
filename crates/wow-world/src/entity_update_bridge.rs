@@ -375,6 +375,9 @@ fn unit_data_update_to_packet(update: &UnitDataUpdate) -> UnitDataValuesDeltaUpd
     packet_update.native_display_scale = update.values.native_display_scale;
     packet_update.mount_display_id = update.values.mount_display_id;
     packet_update.stand_state = update.values.stand_state;
+    packet_update.vis_flags = update.values.vis_flags;
+    packet_update.anim_tier = update.values.anim_tier;
+    packet_update.sheathe_state = update.values.sheathe_state;
     packet_update.pvp_flags = update.values.pvp_flags;
     packet_update.power = update.values.power;
     packet_update.max_power = update.values.max_power;
@@ -1037,6 +1040,9 @@ mod tests {
         unit.set_max_health(123);
         unit.set_health(123);
         unit.set_stand_state_like_cpp(wow_constants::UnitStandStateType::Sit);
+        unit.replace_all_vis_flags_like_cpp(0x12);
+        unit.set_anim_tier_like_cpp(2);
+        unit.set_sheath_like_cpp(wow_constants::SheathState::Ranged);
         unit.set_pvp_flag_like_cpp(wow_constants::UnitPvpFlags::PVP);
         unit.set_npc_flags_like_cpp(0x40);
         unit.set_npc_flags2_like_cpp(0x1);
@@ -1063,6 +1069,18 @@ mod tests {
         ));
         assert!(mask_has(
             &packet_update.unit_data_mask,
+            wow_entities::UNIT_DATA_VIS_FLAGS_BIT
+        ));
+        assert!(mask_has(
+            &packet_update.unit_data_mask,
+            wow_entities::UNIT_DATA_ANIM_TIER_BIT
+        ));
+        assert!(mask_has(
+            &packet_update.unit_data_mask,
+            wow_entities::UNIT_DATA_SHEATHE_STATE_BIT
+        ));
+        assert!(mask_has(
+            &packet_update.unit_data_mask,
             wow_entities::UNIT_DATA_PVP_FLAGS_BIT
         ));
         assert!(mask_has(
@@ -1082,6 +1100,12 @@ mod tests {
         assert_eq!(
             packet_update.stand_state,
             wow_constants::UnitStandStateType::Sit as u8
+        );
+        assert_eq!(packet_update.vis_flags, 0x12);
+        assert_eq!(packet_update.anim_tier, 2);
+        assert_eq!(
+            packet_update.sheathe_state,
+            wow_constants::SheathState::Ranged as u8
         );
         assert_eq!(
             packet_update.pvp_flags,

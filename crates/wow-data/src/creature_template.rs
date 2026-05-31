@@ -3,7 +3,8 @@ use std::collections::HashMap;
 use anyhow::Result;
 use rand::Rng;
 use wow_constants::{
-    CreatureFlightMovementType, CreatureGroundMovementType, UnitPvpFlags, UnitStandStateType,
+    CreatureFlightMovementType, CreatureGroundMovementType, SheathState, UnitPvpFlags,
+    UnitStandStateType,
 };
 use wow_database::WorldDatabase;
 use wow_entities::CreatureAddonLifecycleRecordLikeCpp;
@@ -16,6 +17,8 @@ const CREATURE_GROUND_MOVEMENT_TYPE_MAX_LIKE_CPP: u8 = 3;
 const CREATURE_FLIGHT_MOVEMENT_TYPE_MAX_LIKE_CPP: u8 = 3;
 const IDLE_MOTION_TYPE_LIKE_CPP: u8 = 0;
 const WAYPOINT_MOTION_TYPE_LIKE_CPP: u8 = 2;
+const MAX_ANIM_TIER_LIKE_CPP: u8 = 5;
+const MAX_SHEATH_STATE_LIKE_CPP: u8 = 3;
 
 fn normalize_creature_ground_movement_type_like_cpp(ground_movement_type: u8) -> u8 {
     if ground_movement_type < CREATURE_GROUND_MOVEMENT_TYPE_MAX_LIKE_CPP {
@@ -45,6 +48,26 @@ fn normalize_unit_stand_state_like_cpp(stand_state: u8) -> UnitStandStateType {
         8 => UnitStandStateType::Kneel,
         9 => UnitStandStateType::Submerged,
         _ => UnitStandStateType::Stand,
+    }
+}
+
+fn normalize_anim_tier_like_cpp(anim_tier: u8) -> u8 {
+    if anim_tier < MAX_ANIM_TIER_LIKE_CPP {
+        anim_tier
+    } else {
+        0
+    }
+}
+
+fn normalize_sheath_state_like_cpp(sheath_state: u8) -> SheathState {
+    match if sheath_state < MAX_SHEATH_STATE_LIKE_CPP {
+        sheath_state
+    } else {
+        0
+    } {
+        1 => SheathState::Melee,
+        2 => SheathState::Ranged,
+        _ => SheathState::Unarmed,
     }
 }
 
@@ -348,6 +371,8 @@ fn addon_record_from_row_like_cpp(
         row.mount
     };
     let stand_state = normalize_unit_stand_state_like_cpp(row.stand_state);
+    let anim_tier = normalize_anim_tier_like_cpp(row.anim_tier);
+    let sheath_state = normalize_sheath_state_like_cpp(row.sheath_state);
     let emote = if emote_exists(row.emote) {
         row.emote
     } else {
@@ -358,6 +383,9 @@ fn addon_record_from_row_like_cpp(
         path_id: row.path_id,
         mount_display_id,
         stand_state,
+        vis_flags: row.vis_flags,
+        anim_tier,
+        sheath_state,
         pvp_flags: UnitPvpFlags::from_bits_retain(row.pvp_flags),
         emote,
     }
@@ -1746,6 +1774,9 @@ mod tests {
                 path_id: 0,
                 mount_display_id: 1234,
                 stand_state: UnitStandStateType::Kneel,
+                vis_flags: 0,
+                anim_tier: 0,
+                sheath_state: SheathState::Unarmed,
                 pvp_flags: UnitPvpFlags::PVP,
                 emote: 77,
             }),
@@ -1757,6 +1788,9 @@ mod tests {
                 path_id: 0,
                 mount_display_id: 5678,
                 stand_state: UnitStandStateType::Sleep,
+                vis_flags: 0,
+                anim_tier: 0,
+                sheath_state: SheathState::Unarmed,
                 pvp_flags: UnitPvpFlags::SANCTUARY,
                 emote: 88,
             })
@@ -1768,6 +1802,9 @@ mod tests {
         let row = CreatureAddonRowLikeCpp {
             mount: 9999,
             stand_state: UnitStandStateType::Max as u8,
+            anim_tier: MAX_ANIM_TIER_LIKE_CPP,
+            vis_flags: 0xff,
+            sheath_state: MAX_SHEATH_STATE_LIKE_CPP,
             pvp_flags: 0xff,
             emote: 333,
             ..addon_row(44)
@@ -1788,10 +1825,13 @@ mod tests {
                 path_id: 0,
                 mount_display_id: 0,
                 stand_state: UnitStandStateType::Stand,
+                vis_flags: 0xff,
+                anim_tier: 0,
+                sheath_state: SheathState::Unarmed,
                 pvp_flags: UnitPvpFlags::from_bits_retain(0xff),
                 emote: 0,
             }),
-            "C++ invalid mount/emote/stand rows are truncated; PvPFlags cover the full byte"
+            "C++ invalid mount/emote/stand/anim/sheath rows are truncated; VisFlags/PvPFlags cover the full byte"
         );
     }
 

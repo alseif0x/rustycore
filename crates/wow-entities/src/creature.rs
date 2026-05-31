@@ -2,8 +2,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use wow_constants::{
     CreatureFlagsExtra, CreatureFlightMovementType, CreatureGroundMovementType,
-    CreatureStaticFlags, CreatureTypeFlags, DeathState, PowerType, TypeId, TypeMask, UnitDynFlags,
-    UnitFlags, UnitFlags2, UnitFlags3, UnitPvpFlags, UnitStandStateType, UnitState,
+    CreatureStaticFlags, CreatureTypeFlags, DeathState, PowerType, SheathState, TypeId, TypeMask,
+    UnitDynFlags, UnitFlags, UnitFlags2, UnitFlags3, UnitPvpFlags, UnitStandStateType, UnitState,
     WeaponAttackType, movement::MovementFlag,
 };
 use wow_core::{ObjectGuid, Position};
@@ -330,13 +330,16 @@ pub struct CreatureAddToWorldVehicleResetContextLikeCpp {
 ///
 /// This record intentionally carries only fields that `wow-entities` currently models locally,
 /// plus `PathId` as a data seam for C++ addon movement selection.
-/// DB loading, template-vs-spawn fallback, path runtime, auras, visual flags, anim tier/kits, sheath,
+/// DB loading, template-vs-spawn fallback, path runtime, auras, anim kits,
 /// pet flags, shapeshift form, visibility distance override, and hover are follow-up runtime gaps.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CreatureAddonLifecycleRecordLikeCpp {
     pub path_id: u32,
     pub mount_display_id: u32,
     pub stand_state: UnitStandStateType,
+    pub vis_flags: u8,
+    pub anim_tier: u8,
+    pub sheath_state: SheathState,
     pub pvp_flags: UnitPvpFlags,
     pub emote: u32,
 }
@@ -347,6 +350,9 @@ impl Default for CreatureAddonLifecycleRecordLikeCpp {
             path_id: 0,
             mount_display_id: 0,
             stand_state: UnitStandStateType::Stand,
+            vis_flags: 0,
+            anim_tier: 0,
+            sheath_state: SheathState::Unarmed,
             pvp_flags: UnitPvpFlags::empty(),
             emote: 0,
         }
@@ -2613,6 +2619,9 @@ impl Creature {
             self.unit.set_mount_display_id(addon.mount_display_id);
         }
         self.unit.set_stand_state_like_cpp(addon.stand_state);
+        self.unit.replace_all_vis_flags_like_cpp(addon.vis_flags);
+        self.unit.set_anim_tier_like_cpp(addon.anim_tier);
+        self.unit.set_sheath_like_cpp(addon.sheath_state);
         self.unit.replace_all_pvp_flags_like_cpp(addon.pvp_flags);
         if addon.emote != 0 {
             self.unit.set_emote_state_like_cpp(addon.emote);
@@ -4376,6 +4385,9 @@ mod tests {
             path_id: 0,
             mount_display_id: 12_345,
             stand_state: UnitStandStateType::Kneel,
+            vis_flags: 0x12,
+            anim_tier: 2,
+            sheath_state: SheathState::Ranged,
             pvp_flags: UnitPvpFlags::PVP | UnitPvpFlags::FFA_PVP,
             emote: 77,
         });
@@ -4391,6 +4403,21 @@ mod tests {
             creature.unit().stand_state_like_cpp(),
             UnitStandStateType::Kneel,
             "C++ Creature::LoadCreaturesAddon calls SetStandState(addon->standState)"
+        );
+        assert_eq!(
+            creature.unit().vis_flags_like_cpp(),
+            0x12,
+            "C++ Creature::LoadCreaturesAddon calls ReplaceAllVisFlags(addon->visFlags)"
+        );
+        assert_eq!(
+            creature.unit().anim_tier_like_cpp(),
+            2,
+            "C++ Creature::LoadCreaturesAddon calls SetAnimTier(addon->animTier, false)"
+        );
+        assert_eq!(
+            creature.unit().sheath_like_cpp(),
+            SheathState::Ranged,
+            "C++ Creature::LoadCreaturesAddon calls SetSheath(addon->sheathState)"
         );
         assert_eq!(
             creature.unit().pvp_flags_like_cpp(),
@@ -4411,6 +4438,9 @@ mod tests {
             path_id: 0,
             mount_display_id: 22_222,
             stand_state: UnitStandStateType::Sit,
+            vis_flags: 0x04,
+            anim_tier: 3,
+            sheath_state: SheathState::Melee,
             pvp_flags: UnitPvpFlags::SANCTUARY,
             emote: 0,
         });
@@ -4419,6 +4449,9 @@ mod tests {
         creature
             .unit_mut()
             .set_stand_state_like_cpp(UnitStandStateType::Sleep);
+        creature.unit_mut().replace_all_vis_flags_like_cpp(0x02);
+        creature.unit_mut().set_anim_tier_like_cpp(1);
+        creature.unit_mut().set_sheath_like_cpp(SheathState::Ranged);
         creature
             .unit_mut()
             .replace_all_pvp_flags_like_cpp(UnitPvpFlags::FFA_PVP);
@@ -4436,6 +4469,9 @@ mod tests {
             creature.unit().stand_state_like_cpp(),
             UnitStandStateType::Sit
         );
+        assert_eq!(creature.unit().vis_flags_like_cpp(), 0x04);
+        assert_eq!(creature.unit().anim_tier_like_cpp(), 3);
+        assert_eq!(creature.unit().sheath_like_cpp(), SheathState::Melee);
         assert_eq!(
             creature.unit().pvp_flags_like_cpp(),
             UnitPvpFlags::SANCTUARY

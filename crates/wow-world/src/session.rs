@@ -54261,7 +54261,7 @@ mod tests {
             typed.unit_mut().set_level(80);
             typed.unit_mut().set_max_health(100);
             typed.unit_mut().set_health(52);
-            typed.set_sparring_health_pct_like_cpp(50);
+            typed.set_sparring_health_pct_like_cpp(50.0);
         }
 
         let (mut session, _, _) = make_session();
@@ -54327,7 +54327,7 @@ mod tests {
             typed.unit_mut().set_level(80);
             typed.unit_mut().set_max_health(100);
             typed.unit_mut().set_health(50);
-            typed.set_sparring_health_pct_like_cpp(50);
+            typed.set_sparring_health_pct_like_cpp(50.0);
         }
 
         let (mut session, _, _) = make_session();

@@ -1,6 +1,6 @@
 use wow_constants::{
-    DeathState, Gender, PowerType, SpellState, TypeId, TypeMask, UnitFlags, UnitFlags2, UnitFlags3,
-    UnitPvpFlags, UnitStandStateType, UnitState, WeaponAttackType,
+    DeathState, Gender, PowerType, SheathState, SpellState, TypeId, TypeMask, UnitFlags,
+    UnitFlags2, UnitFlags3, UnitPvpFlags, UnitStandStateType, UnitState, WeaponAttackType,
 };
 use wow_core::ObjectGuid;
 
@@ -44,6 +44,9 @@ pub const UNIT_DATA_NATIVE_DISPLAY_ID_BIT: usize = 49;
 pub const UNIT_DATA_NATIVE_DISPLAY_SCALE_BIT: usize = 50;
 pub const UNIT_DATA_MOUNT_DISPLAY_ID_BIT: usize = 51;
 pub const UNIT_DATA_STAND_STATE_BIT: usize = 56;
+pub const UNIT_DATA_VIS_FLAGS_BIT: usize = 58;
+pub const UNIT_DATA_ANIM_TIER_BIT: usize = 59;
+pub const UNIT_DATA_SHEATHE_STATE_BIT: usize = 77;
 pub const UNIT_DATA_PVP_FLAGS_BIT: usize = 78;
 pub const UNIT_DATA_TARGET_BIT: usize = 19;
 pub const UNIT_DATA_RACE_BIT: usize = 24;
@@ -84,6 +87,9 @@ pub struct UnitDataValues {
     pub native_display_scale: f32,
     pub mount_display_id: i32,
     pub stand_state: u8,
+    pub vis_flags: u8,
+    pub anim_tier: u8,
+    pub sheathe_state: u8,
     pub pvp_flags: u8,
     pub npc_flags: [u32; 2],
     pub power: [i32; MAX_POWERS_PER_CLASS],
@@ -115,6 +121,9 @@ impl Default for UnitDataValues {
             native_display_scale: 0.0,
             mount_display_id: 0,
             stand_state: UnitStandStateType::Stand as u8,
+            vis_flags: 0,
+            anim_tier: 0,
+            sheathe_state: SheathState::Unarmed as u8,
             pvp_flags: 0,
             npc_flags: [0; 2],
             power: [0; MAX_POWERS_PER_CLASS],
@@ -1561,6 +1570,38 @@ impl Unit {
         self.set_u8_field(UNIT_DATA_STAND_STATE_BIT, state as u8, |data| {
             &mut data.stand_state
         });
+    }
+
+    pub fn replace_all_vis_flags_like_cpp(&mut self, flags: u8) {
+        self.set_u8_field(UNIT_DATA_VIS_FLAGS_BIT, flags, |data| &mut data.vis_flags);
+    }
+
+    pub const fn vis_flags_like_cpp(&self) -> u8 {
+        self.data.vis_flags
+    }
+
+    pub fn set_anim_tier_like_cpp(&mut self, anim_tier: u8) {
+        self.set_u8_field(UNIT_DATA_ANIM_TIER_BIT, anim_tier, |data| {
+            &mut data.anim_tier
+        });
+    }
+
+    pub const fn anim_tier_like_cpp(&self) -> u8 {
+        self.data.anim_tier
+    }
+
+    pub fn set_sheath_like_cpp(&mut self, state: SheathState) {
+        self.set_u8_field(UNIT_DATA_SHEATHE_STATE_BIT, state as u8, |data| {
+            &mut data.sheathe_state
+        });
+    }
+
+    pub fn sheath_like_cpp(&self) -> SheathState {
+        match self.data.sheathe_state {
+            1 => SheathState::Melee,
+            2 => SheathState::Ranged,
+            _ => SheathState::Unarmed,
+        }
     }
 
     pub fn replace_all_pvp_flags_like_cpp(&mut self, flags: UnitPvpFlags) {

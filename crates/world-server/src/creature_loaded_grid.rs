@@ -1033,6 +1033,9 @@ mod tests {
                 path_id: 0,
                 mount_display_id: 1234,
                 stand_state: wow_constants::UnitStandStateType::Kneel,
+                vis_flags: 0,
+                anim_tier: 0,
+                sheath_state: wow_constants::SheathState::Unarmed,
                 pvp_flags: wow_constants::UnitPvpFlags::PVP,
                 emote: 77,
             }),
@@ -1602,6 +1605,9 @@ mod tests {
             path_id: 0,
             mount_display_id: 4321,
             stand_state: wow_constants::UnitStandStateType::Kneel,
+            vis_flags: 0x12,
+            anim_tier: 2,
+            sheath_state: wow_constants::SheathState::Ranged,
             pvp_flags: wow_constants::UnitPvpFlags::PVP | wow_constants::UnitPvpFlags::FFA_PVP,
             emote: 77,
         });
@@ -1621,6 +1627,9 @@ mod tests {
                 path_id: 0,
                 mount_display_id: 4321,
                 stand_state: wow_constants::UnitStandStateType::Kneel,
+                vis_flags: 0x12,
+                anim_tier: 2,
+                sheath_state: wow_constants::SheathState::Ranged,
                 pvp_flags: wow_constants::UnitPvpFlags::PVP | wow_constants::UnitPvpFlags::FFA_PVP,
                 emote: 77,
             }),
@@ -1630,6 +1639,12 @@ mod tests {
         assert_eq!(
             resolved.creature.unit().stand_state_like_cpp(),
             wow_constants::UnitStandStateType::Kneel
+        );
+        assert_eq!(resolved.creature.unit().vis_flags_like_cpp(), 0x12);
+        assert_eq!(resolved.creature.unit().anim_tier_like_cpp(), 2);
+        assert_eq!(
+            resolved.creature.unit().sheath_like_cpp(),
+            wow_constants::SheathState::Ranged
         );
         assert_eq!(
             resolved.creature.unit().pvp_flags_like_cpp(),
