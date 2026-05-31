@@ -14288,6 +14288,8 @@ mmap.enablePathFinding = 0
                     wow_data::CreatureTemplateLifecycleRecordLikeCpp {
                         entry,
                         name: "Variable Level Live Creature".to_string(),
+                        ai_name: String::new(),
+                        script_name: String::new(),
                         faction: 35,
                         speed_walk: 1.0,
                         speed_run: 1.14286,

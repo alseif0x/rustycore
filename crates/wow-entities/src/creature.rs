@@ -206,6 +206,8 @@ pub struct CreatureTemplateLifecycleRecord {
     pub original_entry: u32,
     pub difficulty_id: u8,
     pub name: String,
+    pub ai_name: String,
+    pub script_name: String,
     pub unit_class: u8,
     pub faction: u32,
     pub display_id: u32,
@@ -341,6 +343,8 @@ pub struct CreatureLifecycleMetadata {
     pub template_entry: u32,
     pub original_entry: u32,
     pub difficulty_id: u8,
+    pub ai_name: String,
+    pub script_name: String,
     pub unit_class: u8,
     pub classification: u32,
     pub flags_extra: u32,
@@ -387,6 +391,8 @@ impl Default for CreatureLifecycleMetadata {
             template_entry: 0,
             original_entry: 0,
             difficulty_id: 0,
+            ai_name: String::new(),
+            script_name: String::new(),
             unit_class: 0,
             classification: 0,
             flags_extra: 0,
@@ -901,6 +907,8 @@ impl Creature {
             template_entry: template.entry,
             original_entry: template.original_entry,
             difficulty_id: template.difficulty_id,
+            ai_name: template.ai_name.clone(),
+            script_name: template.script_name.clone(),
             unit_class: template.unit_class,
             classification: template.classification,
             flags_extra: template.flags_extra,
@@ -3269,6 +3277,8 @@ mod tests {
             original_entry: 9001,
             difficulty_id: 2,
             name: "lifecycle wolf".to_string(),
+            ai_name: "SmartAI".to_string(),
+            script_name: "npc_lifecycle_wolf".to_string(),
             unit_class: 1,
             faction: 14,
             display_id: 2001,
@@ -3448,6 +3458,11 @@ mod tests {
         assert_eq!(creature.lifecycle_metadata().template_entry, 1001);
         assert_eq!(creature.lifecycle_metadata().original_entry, 9001);
         assert_eq!(creature.lifecycle_metadata().difficulty_id, 2);
+        assert_eq!(creature.lifecycle_metadata().ai_name, "SmartAI");
+        assert_eq!(
+            creature.lifecycle_metadata().script_name,
+            "npc_lifecycle_wolf"
+        );
         assert_eq!(creature.lifecycle_metadata().classification, 3);
         assert_eq!(
             creature.lifecycle_metadata().flight_movement_type,

@@ -33600,6 +33600,8 @@ mod tests {
             |entry| wow_data::CreatureTemplateLifecycleRecordLikeCpp {
                 entry,
                 name: format!("Creature {entry}"),
+                ai_name: String::new(),
+                script_name: String::new(),
                 faction: 14,
                 speed_walk: 1.0,
                 speed_run: 1.0,

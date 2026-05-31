@@ -784,6 +784,8 @@ mod tests {
             crate::creature_template::CreatureTemplateLifecycleRecordLikeCpp {
                 entry,
                 name: format!("Creature {entry}"),
+                ai_name: String::new(),
+                script_name: String::new(),
                 faction: 35,
                 speed_walk: 1.0,
                 speed_run: 1.0,

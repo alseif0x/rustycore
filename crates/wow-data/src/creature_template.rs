@@ -106,6 +106,8 @@ impl CreatureTemplateLifecycleModelLikeCpp {
 pub struct CreatureTemplateLifecycleRecordLikeCpp {
     pub entry: u32,
     pub name: String,
+    pub ai_name: String,
+    pub script_name: String,
     pub faction: u32,
     pub speed_walk: f32,
     pub speed_run: f32,
@@ -155,7 +157,7 @@ impl CreatureTemplateLifecycleStoreLikeCpp {
         let mut templates = HashMap::new();
         let mut result = db
             .direct_query(
-                "SELECT ct.entry, ct.name, ct.faction, ct.speed_walk, ct.speed_run, ct.scale, ct.Classification, ct.`type`, ct.unit_class, ct.VehicleId, ct.MovementType, COALESCE(ctm.Ground, 1), COALESCE(ctm.Swim, 1), COALESCE(ctm.Flight, 0), ct.flags_extra, ct.StringId, ct.RegenHealth FROM creature_template ct LEFT JOIN creature_template_movement ctm ON ct.entry = ctm.CreatureId",
+                "SELECT ct.entry, ct.name, ct.AIName, ct.ScriptName, ct.faction, ct.speed_walk, ct.speed_run, ct.scale, ct.Classification, ct.`type`, ct.unit_class, ct.VehicleId, ct.MovementType, COALESCE(ctm.Ground, 1), COALESCE(ctm.Swim, 1), COALESCE(ctm.Flight, 0), ct.flags_extra, ct.StringId, ct.RegenHealth FROM creature_template ct LEFT JOIN creature_template_movement ctm ON ct.entry = ctm.CreatureId",
             )
             .await?;
         if !result.is_empty() {
@@ -163,24 +165,26 @@ impl CreatureTemplateLifecycleStoreLikeCpp {
                 let record = CreatureTemplateLifecycleRecordLikeCpp {
                     entry: result.try_read::<u32>(0).unwrap_or(0),
                     name: result.try_read::<String>(1).unwrap_or_default(),
-                    faction: result.try_read::<u32>(2).unwrap_or(0),
-                    speed_walk: result.try_read::<f32>(3).unwrap_or(0.0),
-                    speed_run: result.try_read::<f32>(4).unwrap_or(0.0),
-                    scale: result.try_read::<f32>(5).unwrap_or(1.0),
-                    classification: result.try_read::<u32>(6).unwrap_or(0),
-                    creature_type: result.try_read::<u32>(7).unwrap_or(0),
-                    unit_class: result.try_read::<u8>(8).unwrap_or(0),
-                    vehicle_id: result.try_read::<u32>(9).unwrap_or(0),
-                    movement_type: result.try_read::<u8>(10).unwrap_or(0),
+                    ai_name: result.try_read::<String>(2).unwrap_or_default(),
+                    script_name: result.try_read::<String>(3).unwrap_or_default(),
+                    faction: result.try_read::<u32>(4).unwrap_or(0),
+                    speed_walk: result.try_read::<f32>(5).unwrap_or(0.0),
+                    speed_run: result.try_read::<f32>(6).unwrap_or(0.0),
+                    scale: result.try_read::<f32>(7).unwrap_or(1.0),
+                    classification: result.try_read::<u32>(8).unwrap_or(0),
+                    creature_type: result.try_read::<u32>(9).unwrap_or(0),
+                    unit_class: result.try_read::<u8>(10).unwrap_or(0),
+                    vehicle_id: result.try_read::<u32>(11).unwrap_or(0),
+                    movement_type: result.try_read::<u8>(12).unwrap_or(0),
                     ground_movement_type: result
-                        .try_read::<Option<u8>>(11)
+                        .try_read::<Option<u8>>(13)
                         .flatten()
                         .unwrap_or(CreatureGroundMovementType::Run as u8),
-                    swim_allowed: result.try_read::<Option<u8>>(12).flatten().unwrap_or(1) != 0,
-                    flight_movement_type: result.try_read::<Option<u8>>(13).flatten().unwrap_or(0),
-                    flags_extra: result.try_read::<u32>(14).unwrap_or(0),
-                    string_id: result.try_read::<String>(15).unwrap_or_default(),
-                    regen_health: result.try_read::<u8>(16).unwrap_or(0) != 0,
+                    swim_allowed: result.try_read::<Option<u8>>(14).flatten().unwrap_or(1) != 0,
+                    flight_movement_type: result.try_read::<Option<u8>>(15).flatten().unwrap_or(0),
+                    flags_extra: result.try_read::<u32>(16).unwrap_or(0),
+                    string_id: result.try_read::<String>(17).unwrap_or_default(),
+                    regen_health: result.try_read::<u8>(18).unwrap_or(0) != 0,
                     spells: [0; MAX_CREATURE_SPELLS_LIKE_CPP],
                     models: Vec::new(),
                 };
@@ -827,6 +831,8 @@ mod tests {
             CreatureTemplateLifecycleRecordLikeCpp {
                 entry: 42,
                 name: "C++ Template".to_string(),
+                ai_name: "SmartAI".to_string(),
+                script_name: "npc_cpp_template".to_string(),
                 faction: 35,
                 speed_walk: 1.0,
                 speed_run: 1.14286,
@@ -849,6 +855,8 @@ mod tests {
 
         let template = store.get(42).expect("template row retained");
         assert_eq!(template.name, "C++ Template");
+        assert_eq!(template.ai_name, "SmartAI");
+        assert_eq!(template.script_name, "npc_cpp_template");
         assert_eq!(template.faction, 35);
         assert_eq!(template.speed_walk, 1.0);
         assert_eq!(template.speed_run, 1.14286);
@@ -877,6 +885,8 @@ mod tests {
         let mut invalid = CreatureTemplateLifecycleRecordLikeCpp {
             entry: 43,
             name: "invalid flight".to_string(),
+            ai_name: String::new(),
+            script_name: String::new(),
             faction: 35,
             speed_walk: 1.0,
             speed_run: 1.0,
@@ -908,6 +918,8 @@ mod tests {
         let mut present = CreatureTemplateLifecycleRecordLikeCpp {
             entry: 7,
             name: String::new(),
+            ai_name: String::new(),
+            script_name: String::new(),
             faction: 0,
             speed_walk: 0.0,
             speed_run: 0.0,
@@ -941,6 +953,8 @@ mod tests {
         let mut template = CreatureTemplateLifecycleRecordLikeCpp {
             entry: 8,
             name: String::new(),
+            ai_name: String::new(),
+            script_name: String::new(),
             faction: 0,
             speed_walk: 0.0,
             speed_run: 0.0,
@@ -993,6 +1007,8 @@ mod tests {
         let mut template = CreatureTemplateLifecycleRecordLikeCpp {
             entry: 9,
             name: String::new(),
+            ai_name: String::new(),
+            script_name: String::new(),
             faction: 0,
             speed_walk: 0.0,
             speed_run: 0.0,

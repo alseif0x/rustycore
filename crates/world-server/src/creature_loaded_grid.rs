@@ -48,6 +48,8 @@ pub struct ResolvedCreatureTemplateLikeCpp {
     pub original_entry: u32,
     pub difficulty_id: u8,
     pub name: String,
+    pub ai_name: String,
+    pub script_name: String,
     pub unit_class: u8,
     pub faction: u32,
     pub display_id: u32,
@@ -345,6 +347,8 @@ pub fn build_loaded_grid_creature_inputs_from_db_like_cpp(
         original_entry: template.entry,
         difficulty_id,
         name: template.name.clone(),
+        ai_name: template.ai_name.clone(),
+        script_name: template.script_name.clone(),
         unit_class: template.unit_class,
         faction: template.faction,
         display_id: selected_display_id,
@@ -480,6 +484,8 @@ fn template_lifecycle_record(
         original_entry: template.original_entry,
         difficulty_id: template.difficulty_id,
         name: template.name.clone(),
+        ai_name: template.ai_name.clone(),
+        script_name: template.script_name.clone(),
         unit_class: template.unit_class,
         faction: template.faction,
         display_id: template.display_id,
@@ -551,6 +557,8 @@ mod tests {
             original_entry: entry - 1,
             difficulty_id: 2,
             name: "Loaded Grid Test Creature".to_string(),
+            ai_name: "SmartAI".to_string(),
+            script_name: "npc_loaded_grid_test".to_string(),
             unit_class: 1,
             faction: 35,
             display_id: 9001,
@@ -701,6 +709,8 @@ mod tests {
             wow_data::CreatureTemplateLifecycleRecordLikeCpp {
                 entry,
                 name: "DB Creature".to_string(),
+                ai_name: "AggressorAI".to_string(),
+                script_name: "npc_db_creature".to_string(),
                 faction: 35,
                 speed_walk: 1.0,
                 speed_run: 1.14286,
@@ -832,6 +842,8 @@ mod tests {
 
         assert_eq!(template.entry, entry);
         assert_eq!(template.name, "DB Creature");
+        assert_eq!(template.ai_name, "AggressorAI");
+        assert_eq!(template.script_name, "npc_db_creature");
         assert_eq!(template.faction, 35);
         assert_eq!(template.spells[0..2], [10, 20]);
         assert_eq!(template.display_id, 999);
@@ -1270,6 +1282,8 @@ mod tests {
         assert_eq!(record.create.guid.high_type(), HighGuid::Creature);
         assert_eq!(u32::from(record.create.guid.map_id()), 571);
         assert_eq!(record.create.template.original_entry, entry - 1);
+        assert_eq!(record.create.template.ai_name, "SmartAI");
+        assert_eq!(record.create.template.script_name, "npc_loaded_grid_test");
         assert_eq!(record.create.map_id, 571);
         assert_eq!(record.create.instance_id, 9);
         assert_eq!(record.spawn.spawn_id, 55);
@@ -1296,6 +1310,8 @@ mod tests {
         assert_eq!(record.create.selected_display_id, 9002);
         assert_eq!(record.create.selected_model_dimensions, None);
 
+        assert_eq!(metadata.ai_name, "SmartAI");
+        assert_eq!(metadata.script_name, "npc_loaded_grid_test");
         assert_eq!(metadata.spawn_id, 55);
         assert_eq!(metadata.spawn_map_id, 571);
         assert_eq!(metadata.spawn_instance_id, 9);

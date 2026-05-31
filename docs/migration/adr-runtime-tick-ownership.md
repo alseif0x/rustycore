@@ -556,6 +556,15 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `Creature.cpp:2506-2515`. Remaining gaps: real VMAP-backed LOS, AI-specific `CanAIAttack`,
   victim-creature evade for non-player aggro targets, non-player owner/victim creature edge cases,
   and live-client validation of the alert reaction sound/visual.
+- 2026-05-31 — Runtime creature AI identity data `#NEXT.RUNTIME.L3.031t`: carried template
+  `AIName` and `ScriptName` through the live creature lifecycle path as a prerequisite for real
+  `CanAIAttack` / AI selector work. C++ `ObjectMgr::LoadCreatureTemplates` selects `AIName` and
+  `ScriptName`; `LoadCreatureTemplate` stores `AIName` directly and resolves `ScriptName` via
+  `GetScriptId` (`ObjectMgr.cpp:349-400`, `ObjectMgr.cpp:430-482`). Rust now loads both columns in
+  `CreatureTemplateLifecycleStoreLikeCpp`, propagates them through `ResolvedCreatureTemplateLikeCpp`
+  and `CreatureTemplateLifecycleRecord`, and stores them in `CreatureLifecycleMetadata`. This slice
+  deliberately does not instantiate AI factories, SmartAI, BossAI boundary checks, TurretAI range
+  gates, or `CanAIAttack`; those remain behavior slices now backed by real template identity data.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
