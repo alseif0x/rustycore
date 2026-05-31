@@ -1538,6 +1538,8 @@ pub struct LegacyCreatureAggroConfigLikeCpp {
     pub faction_template_store: Option<Arc<FactionTemplateStore>>,
     pub faction_store: Option<Arc<FactionStore>>,
     pub map_store: Option<Arc<MapStore>>,
+    pub spell_misc_store: Option<Arc<SpellMiscStore>>,
+    pub spell_range_store: Option<Arc<SpellRangeStore>>,
     pub visibility_distance_continents: f32,
     pub visibility_distance_instances: f32,
     pub visibility_distance_battlegrounds: f32,
@@ -1552,6 +1554,8 @@ impl Default for LegacyCreatureAggroConfigLikeCpp {
             faction_template_store: None,
             faction_store: None,
             map_store: None,
+            spell_misc_store: None,
+            spell_range_store: None,
             visibility_distance_continents: wow_entities::DEFAULT_VISIBILITY_DISTANCE,
             visibility_distance_instances: wow_entities::DEFAULT_VISIBILITY_INSTANCE,
             visibility_distance_battlegrounds: DEFAULT_VISIBILITY_BGARENAS_LIKE_CPP,
@@ -21283,12 +21287,33 @@ enum LegacyCreatureAiCanAttackDecisionLikeCpp {
 
 fn legacy_creature_ai_can_attack_decision_like_cpp(
     ai_kind: &CreatureAiKindLikeCpp,
+    creature: &crate::map_manager::WorldCreature,
+    candidate: &LegacyCreatureAggroCandidateLikeCpp,
+    config: &LegacyCreatureAggroConfigLikeCpp,
 ) -> LegacyCreatureAiCanAttackDecisionLikeCpp {
+    let mut input = CreatureAiCanAttackInputLikeCpp::default();
     if matches!(ai_kind, CreatureAiKindLikeCpp::TurretAI) {
-        return LegacyCreatureAiCanAttackDecisionLikeCpp::Unrepresented;
+        let first_spell_id = creature.creature.spells()[0];
+        let Some(misc_store) = config.spell_misc_store.as_ref() else {
+            return LegacyCreatureAiCanAttackDecisionLikeCpp::Unrepresented;
+        };
+        let Some(range_store) = config.spell_range_store.as_ref() else {
+            return LegacyCreatureAiCanAttackDecisionLikeCpp::Unrepresented;
+        };
+        let Some(misc) = misc_store.get_by_spell_id(first_spell_id) else {
+            return LegacyCreatureAiCanAttackDecisionLikeCpp::Unrepresented;
+        };
+        let Some(range) = range_store.get(u32::from(misc.range_index)) else {
+            return LegacyCreatureAiCanAttackDecisionLikeCpp::Unrepresented;
+        };
+        let distance = creature.position().distance(&candidate.position).max(0.0);
+        let combat_distance = range.range_max[0].max(0.0);
+        let minimum_range = range.range_min[0].max(0.0);
+        input.target_within_turret_combat_range = distance <= combat_distance;
+        input.target_within_turret_min_range = minimum_range > 0.0 && distance <= minimum_range;
     }
 
-    if creature_ai_can_attack_like_cpp(ai_kind, &CreatureAiCanAttackInputLikeCpp::default()) {
+    if creature_ai_can_attack_like_cpp(ai_kind, &input) {
         LegacyCreatureAiCanAttackDecisionLikeCpp::Allowed
     } else {
         LegacyCreatureAiCanAttackDecisionLikeCpp::Rejected
@@ -21625,7 +21650,9 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
                     outcome.attacker_evade_rejections += 1;
                     continue;
                 }
-                match legacy_creature_ai_can_attack_decision_like_cpp(&ai_kind) {
+                match legacy_creature_ai_can_attack_decision_like_cpp(
+                    &ai_kind, creature, candidate, &config,
+                ) {
                     LegacyCreatureAiCanAttackDecisionLikeCpp::Allowed => {}
                     LegacyCreatureAiCanAttackDecisionLikeCpp::Rejected => {
                         outcome.ai_can_attack_rejections += 1;
@@ -52851,8 +52878,47 @@ mod tests {
         assert!(outcome.commands.is_empty());
     }
 
+    fn spell_misc_entry_like_cpp(
+        id: u32,
+        spell_id: u32,
+        range_index: u16,
+    ) -> wow_data::SpellMiscEntry {
+        wow_data::SpellMiscEntry {
+            id,
+            attributes: [0; 15],
+            difficulty_id: 0,
+            casting_time_index: 0,
+            duration_index: 0,
+            range_index,
+            school_mask: 0,
+            speed: 0.0,
+            launch_delay: 0.0,
+            min_duration: 0.0,
+            spell_icon_file_data_id: 0,
+            active_icon_file_data_id: 0,
+            content_tuning_id: 0,
+            show_future_spell_player_condition_id: 0,
+            spell_id,
+        }
+    }
+
+    fn spell_range_entry_like_cpp(
+        id: u32,
+        range_min: f32,
+        range_max: f32,
+    ) -> wow_data::SpellRangeEntry {
+        wow_data::SpellRangeEntry {
+            id,
+            display_name: String::new(),
+            display_name_short: String::new(),
+            flags: 0,
+            range_min: [range_min, range_min],
+            range_max: [range_max, range_max],
+        }
+    }
+
     #[test]
-    fn legacy_creature_aggro_tick_once_fails_closed_for_turret_range_gap_like_cpp() {
+    fn legacy_creature_aggro_tick_once_honors_turret_ai_range_like_cpp() {
         use crate::map_manager::RuntimeTickOwner;
         let manager = shared_map_manager();
         let (mut session, _, _) = make_session();
@@ -52860,10 +52926,11 @@ mod tests {
         register_test_creature(&mut session, manager.clone(), creature_guid, 25);
         session
             .mutate_world_creature(creature_guid, |creature| {
-                creature.creature.ai_ownership_mut().aggro_radius = 5.0;
+                creature.creature.ai_ownership_mut().aggro_radius = 100.0;
                 creature
                     .creature
                     .set_ai_identity_names_runtime_like_cpp("TurretAI", String::new());
+                creature.creature.set_spell(0, 7001);
             })
             .unwrap();
         manager
@@ -52871,7 +52938,58 @@ mod tests {
             .unwrap()
             .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
-        let player = ObjectGuid::create_player(1, 91_117);
+        let too_close = ObjectGuid::create_player(1, 91_117);
+        let too_far = ObjectGuid::create_player(1, 91_118);
+        let valid = ObjectGuid::create_player(1, 91_119);
+        let candidates = vec![
+            legacy_aggro_candidate_like_cpp(too_close, Position::new(10.5, 10.0, 0.0, 0.0)),
+            legacy_aggro_candidate_like_cpp(too_far, Position::new(16.0, 10.0, 0.0, 0.0)),
+            legacy_aggro_candidate_like_cpp(valid, Position::new(12.0, 10.0, 0.0, 0.0)),
+        ];
+
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &candidates,
+            LegacyCreatureAggroConfigLikeCpp {
+                spell_misc_store: Some(Arc::new(wow_data::SpellMiscStore::from_entries([
+                    spell_misc_entry_like_cpp(1, 7001, 71),
+                ]))),
+                spell_range_store: Some(Arc::new(wow_data::SpellRangeStore::from_entries([
+                    spell_range_entry_like_cpp(71, 1.0, 5.0),
+                ]))),
+                ..legacy_aggro_hostile_config_like_cpp()
+            },
+        );
+
+        assert_eq!(outcome.ai_can_attack_unrepresented, 0);
+        assert_eq!(outcome.ai_can_attack_rejections, 2);
+        assert_eq!(outcome.aggro_starts, 1);
+        assert_eq!(outcome.commands.len(), 1);
+        assert_eq!(outcome.commands[0].victim_guid, valid);
+    }
+
+    #[test]
+    fn legacy_creature_aggro_tick_once_fails_closed_for_missing_turret_range_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_120);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 5.0;
+                creature
+                    .creature
+                    .set_ai_identity_names_runtime_like_cpp("TurretAI", String::new());
+                creature.creature.set_spell(0, 7002);
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let player = ObjectGuid::create_player(1, 91_121);
         let candidates = vec![legacy_aggro_candidate_like_cpp(
             player,
             Position::new(10.5, 10.5, 0.0, 0.0),

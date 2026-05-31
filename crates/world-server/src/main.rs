@@ -2130,6 +2130,8 @@ async fn main() -> Result<()> {
     legacy_creature_aggro_config.faction_template_store = Some(Arc::clone(&faction_template_store));
     legacy_creature_aggro_config.faction_store = Some(Arc::clone(&progression_faction_store));
     legacy_creature_aggro_config.map_store = Some(Arc::clone(&map_store));
+    legacy_creature_aggro_config.spell_misc_store = Some(Arc::clone(&spell_misc_store));
+    legacy_creature_aggro_config.spell_range_store = Some(Arc::clone(&spell_range_store));
     let legacy_creature_runtime_handle = spawn_legacy_creature_runtime_update_loop_like_cpp(
         legacy_creature_global_runtime_enabled,
         Arc::clone(&shared_map),
@@ -7666,6 +7668,8 @@ fn legacy_creature_aggro_config_like_cpp(
         faction_template_store: None,
         faction_store: None,
         map_store: None,
+        spell_misc_store: None,
+        spell_range_store: None,
     }
 }
 
