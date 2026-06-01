@@ -1268,6 +1268,16 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   instead of only influencing later create visibility. Remaining gaps: consumable `DespawnForPlayer`
   packet parity, group-loot chest viewer flags, full GameObject values-update fanout, GO
   scripts/traps/AI, and live client/server validation.
+- 2026-06-01 — Per-player GameObject out-of-range removal `#NEXT.RUNTIME.L3.031d8`: contrasted
+  against C++ `GameObject::DespawnForPlayer` (`GameObject.cpp:1732-1738`), per-player despawn
+  visibility (`GameObject.cpp:2157-2171`), and `Player::UpdateVisibilityOf` / `Object::SendOutOfRangeForPlayer`
+  (`Player.cpp:23193-23208`, `Object.cpp:213-245`). The consumable multi-interact goober path now
+  mirrors `DespawnForPlayer` for the current session by sending `UpdateObject::out_of_range_objects`
+  only when `client_visible_guids_like_cpp` contains the GO, then erasing it from that set. This is
+  deliberately not `SMSG_GAMEOBJECT_DESPAWN`, which C++ uses for `GameObject::Delete` /
+  `SendGameObjectDespawn` rather than this per-player visibility path. Remaining gaps: group-loot
+  chest `OnLootRelease` per-player despawn, group-loot viewer flags, full values-update fanout,
+  scripts/traps/GO AI, and live client/server validation.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

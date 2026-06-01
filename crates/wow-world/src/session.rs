@@ -16875,6 +16875,19 @@ impl WorldSession {
         });
     }
 
+    fn send_represented_gameobject_out_of_range_for_player_like_cpp(
+        &mut self,
+        gameobject_guid: ObjectGuid,
+        map_id: u16,
+    ) {
+        self.send_packet(
+            &wow_packet::packets::update::UpdateObject::out_of_range_objects(
+                vec![gameobject_guid],
+                map_id,
+            ),
+        );
+    }
+
     fn send_represented_gameobject_delete_packets_like_cpp(&mut self, gameobject_guid: ObjectGuid) {
         self.send_represented_gameobject_despawn_like_cpp(gameobject_guid);
         self.restore_represented_gameobject_override_flags_like_cpp(gameobject_guid);
@@ -18672,17 +18685,21 @@ impl WorldSession {
     ) -> bool {
         if source.allow_multi_interact {
             if source.consumable {
-                let state = self
-                    .represented_gameobject_use_states
-                    .entry(gameobject_guid)
-                    .or_default();
-                let despawn_secs = state
-                    .despawn_delay_secs
-                    .unwrap_or(wow_entities::DEFAULT_GAMEOBJECT_RESPAWN_DELAY_SECS);
-                state.per_player_despawn_secs = Some(despawn_secs);
-                state.per_player_despawn_until =
-                    Some(Instant::now() + Duration::from_secs(u64::from(despawn_secs)));
-                state.per_player_state_player_guid = Some(player_guid);
+                let default_map_id = self.player_map_id_like_cpp();
+                let (despawn_secs, map_id) = {
+                    let state = self
+                        .represented_gameobject_use_states
+                        .entry(gameobject_guid)
+                        .or_default();
+                    let despawn_secs = state
+                        .despawn_delay_secs
+                        .unwrap_or(wow_entities::DEFAULT_GAMEOBJECT_RESPAWN_DELAY_SECS);
+                    state.per_player_despawn_secs = Some(despawn_secs);
+                    state.per_player_despawn_until =
+                        Some(Instant::now() + Duration::from_secs(u64::from(despawn_secs)));
+                    state.per_player_state_player_guid = Some(player_guid);
+                    (despawn_secs, state.map_id.unwrap_or(default_map_id))
+                };
                 self.represented_gameobject_use_effects.push(
                     RepresentedGameObjectUseEffect::GooberDespawnForPlayer {
                         gameobject_guid,
@@ -18690,6 +18707,14 @@ impl WorldSession {
                         despawn_secs,
                     },
                 );
+                if self.player_guid() == Some(player_guid)
+                    && self.client_visible_guids_like_cpp.remove(&gameobject_guid)
+                {
+                    self.send_represented_gameobject_out_of_range_for_player_like_cpp(
+                        gameobject_guid,
+                        map_id,
+                    );
+                }
             } else {
                 let state = self
                     .represented_gameobject_use_states
@@ -50622,6 +50647,9 @@ mod tests {
             .entry(gameobject_guid)
             .or_default()
             .despawn_delay_secs = Some(45);
+        session
+            .client_visible_guids_like_cpp
+            .insert(gameobject_guid);
         assert!(session.use_represented_gameobject_goober_state_like_cpp(
             gameobject_guid,
             player_guid,
@@ -50646,6 +50674,21 @@ mod tests {
                 player_guid,
                 despawn_secs: 45,
             }]
+        );
+        assert!(
+            !session
+                .client_visible_guids_like_cpp
+                .contains(&gameobject_guid)
+        );
+        assert_eq!(
+            send_rx
+                .try_recv()
+                .expect("DespawnForPlayer out-of-range update"),
+            wow_packet::packets::update::UpdateObject::out_of_range_objects(
+                vec![gameobject_guid],
+                session.player_map_id_like_cpp(),
+            )
+            .to_bytes()
         );
     }
 
