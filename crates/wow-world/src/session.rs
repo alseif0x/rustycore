@@ -18709,6 +18709,12 @@ impl WorldSession {
                         go_state: wow_entities::GoState::Active,
                     },
                 );
+                if self.player_guid() == Some(player_guid) {
+                    self.send_packet(&wow_packet::packets::misc::GameObjectSetStateLocal {
+                        object_guid: gameobject_guid,
+                        state: wow_entities::GoState::Active as u8,
+                    });
+                }
             }
         } else {
             let (go_state, custom_anim_progress) = {
@@ -50568,10 +50574,11 @@ mod tests {
 
     #[test]
     fn gameobject_use_goober_multi_interact_matches_cpp_per_player_branch() {
-        let (mut session, _pkt_tx, _send_rx) = make_session();
+        let (mut session, _pkt_tx, send_rx) = make_session();
         let player_guid = ObjectGuid::create_player(1, 99);
         let gameobject_guid =
             ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 14);
+        session.set_player_guid(Some(player_guid));
 
         assert!(session.use_represented_gameobject_goober_state_like_cpp(
             gameobject_guid,
@@ -50600,6 +50607,14 @@ mod tests {
             Some(wow_entities::GoState::Active)
         );
         assert!(state.per_player_go_state_until.is_some());
+        assert_eq!(
+            send_rx.try_recv().expect("SetGoStateFor direct packet"),
+            wow_packet::packets::misc::GameObjectSetStateLocal {
+                object_guid: gameobject_guid,
+                state: wow_entities::GoState::Active as u8,
+            }
+            .to_bytes()
+        );
 
         session.represented_gameobject_use_effects.clear();
         session

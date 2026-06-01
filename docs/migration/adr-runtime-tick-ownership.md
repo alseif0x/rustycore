@@ -1260,6 +1260,14 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   shared represented state or Ready fallback is used. This closes the create-packet side of the
   existing represented per-player state rail; viewer-dependent group-loot chest flags and full
   GameObject values-update fanout remain separate gaps.
+- 2026-05-31 — Local GameObject state packet `#NEXT.RUNTIME.L3.031d7`: contrasted against C++
+  `GameObject::SetGoStateFor` (`GameObject.cpp:3805-3815`) and `GameObjectSetStateLocal::Write`
+  (`GameObjectPackets.cpp:82-88`). Rust now serializes `SMSG_GAME_OBJECT_SET_STATE_LOCAL` as raw
+  ObjectGuid + uint8 state and sends it from the represented multi-interact goober branch when the
+  target player is the current session. This makes the per-player state rail visible immediately
+  instead of only influencing later create visibility. Remaining gaps: consumable `DespawnForPlayer`
+  packet parity, group-loot chest viewer flags, full GameObject values-update fanout, GO
+  scripts/traps/AI, and live client/server validation.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

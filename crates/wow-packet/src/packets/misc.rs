@@ -217,6 +217,25 @@ impl ServerPacket for GameObjectDespawn {
     }
 }
 
+// ── GameObjectSetStateLocal (SMSG 0x2806) ───────────────────────────
+
+/// Sets a gameobject state only for the receiving client.
+pub struct GameObjectSetStateLocal {
+    pub object_guid: ObjectGuid,
+    pub state: u8,
+}
+
+impl ServerPacket for GameObjectSetStateLocal {
+    const OPCODE: ServerOpcodes = ServerOpcodes::GameObjectSetStateLocal;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        for byte in self.object_guid.to_raw_bytes() {
+            pkt.write_uint8(byte);
+        }
+        pkt.write_uint8(self.state);
+    }
+}
+
 // ── AnimKit control packets ────────────────────────────────────────
 
 /// C++ `WorldPackets::Misc::SetAIAnimKit`: ObjectGuid + uint16 AnimKitID.
@@ -3785,6 +3804,31 @@ mod tests {
         );
         assert_eq!(&bytes[2..18], &guid.to_raw_bytes());
         assert_eq!(bytes.len(), 18);
+    }
+
+    #[test]
+    fn gameobject_set_state_local_writes_raw_guid_and_state_like_cpp() {
+        let guid = ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::GameObject,
+            0,
+            1,
+            571,
+            0,
+            777,
+            23,
+        );
+        let bytes = GameObjectSetStateLocal {
+            object_guid: guid,
+            state: 2,
+        }
+        .to_bytes();
+        assert_eq!(
+            bytes[0..2],
+            (ServerOpcodes::GameObjectSetStateLocal as u16).to_le_bytes()
+        );
+        assert_eq!(&bytes[2..18], &guid.to_raw_bytes());
+        assert_eq!(bytes[18], 2);
+        assert_eq!(bytes.len(), 19);
     }
 
     #[test]
