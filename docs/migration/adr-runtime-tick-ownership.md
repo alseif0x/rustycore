@@ -1443,6 +1443,18 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   general `RemoveFromWorld` linked-trap scheduler parity, same-pass drain of newly queued objects,
   PoolMgr/DB/capture-point packet runtime, scripts/GO AI, ObjectAccessor/session fanout, and live
   client/server validation.
+- 2026-06-04 — Represented delayed-despawn linked-trap cleanup `#NEXT.RUNTIME.L3.031dr`: contrasted
+  against C++ delayed `GameObject::DespawnOrUnsummon` expiry into immediate `Delete`
+  (`GameObject.cpp:1711-1729`, `GameObject.cpp:1740-1764`) plus the later linked-trap
+  `RemoveFromWorld` cleanup (`GameObject.cpp:939-941`). The represented `despawn_delay_until`
+  expiry path now snapshots `linked_trap_guid` and runs the existing represented linked-trap
+  delete/despawn helper before deleting the owner, so delayed gathering/goober-style despawns do not
+  leave a represented linked trap visible. Focused test coverage extends
+  `process_pending_expires_gameobject_despawn_delay_like_cpp_update` with linked-trap state and
+  fanout assertions. Remaining gaps: real map-owned remove-list lifecycle from the session runtime,
+  `m_despawnRespawnTime`/`SaveRespawnTime`/DB/PoolMgr nuances, capture-point packet runtime,
+  scripts/GO AI, ObjectAccessor/session fanout beyond represented packets, and live client/server
+  validation.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

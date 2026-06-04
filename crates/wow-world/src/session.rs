@@ -16279,6 +16279,13 @@ impl WorldSession {
             );
         }
         for guid in expired_despawn_delay_guids {
+            let linked_trap_guid = self
+                .represented_gameobject_use_states
+                .get(&guid)
+                .and_then(|state| state.linked_trap_guid);
+            if let Some(trap_guid) = linked_trap_guid.filter(|trap_guid| *trap_guid != guid) {
+                self.despawn_represented_linked_trap_by_guid_like_cpp(trap_guid);
+            }
             if let Some(state) = self.represented_gameobject_use_states.get_mut(&guid) {
                 state.despawn_delay_until = None;
                 state.loot_state = Some(wow_entities::LootState::NotReady);
@@ -51066,6 +51073,8 @@ mod tests {
         let same_map_guid = ObjectGuid::create_player(1, 77);
         let gameobject_guid =
             ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 142);
+        let linked_trap_guid =
+            ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 146);
         let (same_command_tx, same_command_rx) = flume::bounded(2);
         let (same_send_tx, _same_send_rx) = flume::bounded::<Vec<u8>>(1);
         let player_registry = Arc::new(PlayerRegistry::default());
@@ -51089,7 +51098,18 @@ mod tests {
             state.loot_state = Some(wow_entities::LootState::Activated);
             state.despawn_delay_secs = Some(15);
             state.despawn_delay_until = Some(Instant::now() - Duration::from_secs(1));
+            state.linked_trap_guid = Some(linked_trap_guid);
         }
+        let linked_state = session
+            .represented_gameobject_use_states
+            .entry(linked_trap_guid)
+            .or_default();
+        linked_state.map_id = Some(571);
+        linked_state.go_type = Some(wow_entities::GAMEOBJECT_TYPE_TRAP as u8);
+        linked_state.loot_state = Some(wow_entities::LootState::Ready);
+        session
+            .client_visible_guids_like_cpp
+            .insert(linked_trap_guid);
 
         session.process_pending().await;
 
@@ -51105,8 +51125,42 @@ mod tests {
                 .client_visible_guids_like_cpp
                 .contains(&gameobject_guid)
         );
-        assert!(send_rx.try_recv().is_ok());
-        assert!(send_rx.try_recv().is_ok());
+        let linked_state = session
+            .represented_gameobject_use_states
+            .get(&linked_trap_guid)
+            .unwrap();
+        assert_eq!(
+            linked_state.loot_state,
+            Some(wow_entities::LootState::NotReady)
+        );
+        assert!(
+            !session
+                .client_visible_guids_like_cpp
+                .contains(&linked_trap_guid)
+        );
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert_eq!(
+            opcodes
+                .iter()
+                .filter(|opcode| **opcode == ServerOpcodes::GameObjectDespawn)
+                .count(),
+            2
+        );
+        assert_eq!(opcodes.len(), 4);
+        let linked_command = match same_command_rx.try_recv() {
+            Ok(SessionCommand::SendIfVisibleLikeCpp(command)) => command,
+            other => {
+                panic!("expected represented linked trap despawn fanout command, got {other:?}")
+            }
+        };
+        let mut linked_expected = (ServerOpcodes::GameObjectDespawn as u16)
+            .to_le_bytes()
+            .to_vec();
+        linked_expected.extend_from_slice(&linked_trap_guid.to_raw_bytes());
+        assert_eq!(linked_command.source_guid, linked_trap_guid);
+        assert_eq!(linked_command.map_id, 571);
+        assert_eq!(linked_command.instance_id, 0);
+        assert_eq!(linked_command.packet_bytes, linked_expected);
         let command = match same_command_rx.try_recv() {
             Ok(SessionCommand::SendIfVisibleLikeCpp(command)) => command,
             other => panic!("expected represented delete despawn fanout command, got {other:?}"),
