@@ -1431,6 +1431,18 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   evidence effects. Remaining gaps: remove-from-world/object-store lifecycle parity,
   `DespawnOrUnsummon` scheduler nuances, scripts/GO AI, canonical shared GameObject ownership, and
   live client/server validation.
+- 2026-06-04 — Canonical linked-trap delete queues remove-list `#NEXT.RUNTIME.L3.031dq`: contrasted
+  against C++ `GO_JUST_DEACTIVATED` linked-trap cleanup (`GameObject.cpp:1577-1579`),
+  `GameObject::DespawnOrUnsummon(0)` (`GameObject.cpp:1711-1729`), `GameObject::Delete`
+  (`GameObject.cpp:1740-1764`), and `Map::AddObjectToRemoveList` / drain
+  (`Map.cpp:2547-2555`, `Map.cpp:2574-2646`). Canonical `wow-map::Map::update_game_object_like_cpp`
+  now routes linked traps through a bounded `gameobject_delete_like_cpp` helper and queues the trap
+  on the represented remove-list instead of physically extracting it during the update tick. Focused
+  tests assert the trap remains in `map_objects` after update, is `GO_NOT_READY`/ready-state reset,
+  and is removed only when `remove_all_objects_in_remove_list_like_cpp` drains. Remaining gaps:
+  general `RemoveFromWorld` linked-trap scheduler parity, same-pass drain of newly queued objects,
+  PoolMgr/DB/capture-point packet runtime, scripts/GO AI, ObjectAccessor/session fanout, and live
+  client/server validation.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

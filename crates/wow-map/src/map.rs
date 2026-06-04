@@ -40,9 +40,10 @@ use wow_entities::{
     AccessorObjectKind, AreaTrigger, CombatBeginContextLikeCpp, CombatSubsystem, Conversation,
     Corpse, Creature, CreatureAimInitializeOutcomeLikeCpp, CreatureRuntimePlan,
     CreatureRuntimeUpdateContext, CreatureSearchFormationOutcomeLikeCpp, DynamicObject,
-    DynamicObjectType, DynamicObjectValuesUpdate, GAMEOBJECT_TYPE_CHEST, GAMEOBJECT_TYPE_DOOR,
-    GAMEOBJECT_TYPE_GOOBER, GAMEOBJECT_TYPE_MAP_OBJ_TRANSPORT, GAMEOBJECT_TYPE_NEW_FLAG,
-    GAMEOBJECT_TYPE_NEW_FLAG_DROP, GAMEOBJECT_TYPE_TRANSPORT, GO_FLAG_NODESPAWN, GameObject,
+    DynamicObjectType, DynamicObjectValuesUpdate, GAMEOBJECT_TYPE_CAPTURE_POINT,
+    GAMEOBJECT_TYPE_CHEST, GAMEOBJECT_TYPE_DOOR, GAMEOBJECT_TYPE_GOOBER,
+    GAMEOBJECT_TYPE_MAP_OBJ_TRANSPORT, GAMEOBJECT_TYPE_NEW_FLAG, GAMEOBJECT_TYPE_NEW_FLAG_DROP,
+    GAMEOBJECT_TYPE_TRANSPORT, GO_FLAG_NODESPAWN, GameObject,
     GameObjectUpdateOutcomeLikeCpp as EntityGameObjectUpdateOutcomeLikeCpp,
     GameObjectUpdateStatusLikeCpp as EntityGameObjectUpdateStatusLikeCpp, GoState, INVALID_HEIGHT,
     LineOfSightQuery, LootState, MAX_VISIBILITY_DISTANCE, MapBindingError, MapObjectRecord,
@@ -864,6 +865,7 @@ pub struct GameObjectUpdateOutcomeLikeCpp {
     pub remove_list: Option<AddObjectToRemoveListOutcomeLikeCpp>,
     pub linked_trap_guid: Option<ObjectGuid>,
     pub linked_trap_removed: bool,
+    pub linked_trap_remove_queued: bool,
     pub linked_trap_missing_or_self: bool,
     pub loot_cleared: bool,
     pub goober_spell_cast_spell_id: Option<u32>,
@@ -898,6 +900,18 @@ pub struct GameObjectUpdateOutcomeLikeCpp {
     pub generic_respawn_save_missing_gameobject_data: bool,
     pub generic_respawn_compatibility_db_only_represented: bool,
     pub generic_visibility_on_destroy_represented: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GameObjectDeleteOutcomeLikeCpp {
+    pub guid: ObjectGuid,
+    pub remove_from_owner: Option<GameObjectRemoveFromOwnerOutcomeLikeCpp>,
+    pub capture_point_packet_represented: bool,
+    pub despawn_packet_represented: bool,
+    pub go_state_ready: bool,
+    pub flags_restored: bool,
+    pub pool_update_represented: bool,
+    pub remove_list: AddObjectToRemoveListOutcomeLikeCpp,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -947,6 +961,7 @@ pub struct GameObjectsUpdateSummaryLikeCpp {
     pub not_game_object: usize,
     pub not_in_world: usize,
     pub linked_traps_removed: usize,
+    pub linked_traps_remove_queued: usize,
     pub loot_cleared: usize,
     pub goober_spell_casts_represented: usize,
     pub goober_users_cleared: usize,
@@ -5029,6 +5044,7 @@ where
                 remove_list: None,
                 linked_trap_guid: None,
                 linked_trap_removed: false,
+                linked_trap_remove_queued: false,
                 linked_trap_missing_or_self: false,
                 loot_cleared: false,
                 goober_spell_cast_spell_id: None,
@@ -5082,6 +5098,7 @@ where
                 remove_list: None,
                 linked_trap_guid: None,
                 linked_trap_removed: false,
+                linked_trap_remove_queued: false,
                 linked_trap_missing_or_self: false,
                 loot_cleared: false,
                 goober_spell_cast_spell_id: None,
@@ -5135,6 +5152,7 @@ where
                 remove_list: None,
                 linked_trap_guid: None,
                 linked_trap_removed: false,
+                linked_trap_remove_queued: false,
                 linked_trap_missing_or_self: false,
                 loot_cleared: false,
                 goober_spell_cast_spell_id: None,
@@ -5190,6 +5208,7 @@ where
                 remove_list: None,
                 linked_trap_guid: None,
                 linked_trap_removed: false,
+                linked_trap_remove_queued: false,
                 linked_trap_missing_or_self: false,
                 loot_cleared: false,
                 goober_spell_cast_spell_id: None,
@@ -5244,6 +5263,7 @@ where
                     remove_list: None,
                     linked_trap_guid: None,
                     linked_trap_removed: false,
+                    linked_trap_remove_queued: false,
                     linked_trap_missing_or_self: false,
                     loot_cleared: false,
                     goober_spell_cast_spell_id: None,
@@ -5296,6 +5316,7 @@ where
                     remove_list: None,
                     linked_trap_guid: None,
                     linked_trap_removed: false,
+                    linked_trap_remove_queued: false,
                     linked_trap_missing_or_self: false,
                     loot_cleared: false,
                     goober_spell_cast_spell_id: None,
@@ -5335,38 +5356,48 @@ where
             game_object.update_like_cpp(diff_ms)
         };
 
-        let (linked_trap_guid, linked_trap_removed, linked_trap_missing_or_self) =
-            if entity_update.status == EntityGameObjectUpdateStatusLikeCpp::DespawnRequested {
-                (None, false, false)
-            } else {
-                self.map_object_record(game_object_guid)
-                    .and_then(MapObjectRecord::game_object)
-                    .filter(|game_object| game_object.loot_state() == LootState::JustDeactivated)
-                    .map(|game_object| game_object.linked_trap_guid_like_cpp())
-                    .map_or((None, false, false), |linked_guid| {
-                        if linked_guid.is_empty() || linked_guid == game_object_guid {
-                            return (
-                                (!linked_guid.is_empty()).then_some(linked_guid),
-                                false,
-                                true,
-                            );
-                        }
+        let (
+            linked_trap_guid,
+            linked_trap_removed,
+            linked_trap_remove_queued,
+            linked_trap_missing_or_self,
+        ) = if entity_update.status == EntityGameObjectUpdateStatusLikeCpp::DespawnRequested {
+            (None, false, false, false)
+        } else {
+            self.map_object_record(game_object_guid)
+                .and_then(MapObjectRecord::game_object)
+                .filter(|game_object| game_object.loot_state() == LootState::JustDeactivated)
+                .map(|game_object| game_object.linked_trap_guid_like_cpp())
+                .map_or((None, false, false, false), |linked_guid| {
+                    if linked_guid.is_empty() || linked_guid == game_object_guid {
+                        return (
+                            (!linked_guid.is_empty()).then_some(linked_guid),
+                            false,
+                            false,
+                            true,
+                        );
+                    }
 
-                        let linked_trap_exists = self
-                            .map_object_record(linked_guid)
-                            .filter(|record| record.kind() == AccessorObjectKind::GameObject)
-                            .and_then(MapObjectRecord::game_object)
-                            .is_some();
-                        if !linked_trap_exists {
-                            return (Some(linked_guid), false, true);
-                        }
+                    let linked_trap_exists = self
+                        .map_object_record(linked_guid)
+                        .filter(|record| record.kind() == AccessorObjectKind::GameObject)
+                        .and_then(MapObjectRecord::game_object)
+                        .is_some();
+                    if !linked_trap_exists {
+                        return (Some(linked_guid), false, false, true);
+                    }
 
-                        match self.remove_from_map_like_cpp(linked_guid, true) {
-                            Ok(_) => (Some(linked_guid), true, false),
-                            Err(_) => (Some(linked_guid), false, true),
-                        }
-                    })
-            };
+                    match self.gameobject_delete_like_cpp(linked_guid) {
+                        Some(delete) => (
+                            Some(linked_guid),
+                            false,
+                            delete.remove_list.queued || delete.remove_list.duplicate,
+                            false,
+                        ),
+                        None => (Some(linked_guid), false, false, true),
+                    }
+                })
+        };
 
         let mut goober_spell_cast_spell_id = None;
         let mut goober_spell_casts_represented = 0;
@@ -5724,6 +5755,7 @@ where
                 remove_list: Some(remove_list),
                 linked_trap_guid,
                 linked_trap_removed,
+                linked_trap_remove_queued,
                 linked_trap_missing_or_self,
                 loot_cleared,
                 goober_spell_cast_spell_id,
@@ -5782,6 +5814,7 @@ where
                 remove_list: Some(remove_list),
                 linked_trap_guid,
                 linked_trap_removed,
+                linked_trap_remove_queued,
                 linked_trap_missing_or_self,
                 loot_cleared: false,
                 goober_spell_cast_spell_id: None,
@@ -5834,6 +5867,7 @@ where
                 remove_list: None,
                 linked_trap_guid,
                 linked_trap_removed,
+                linked_trap_remove_queued,
                 linked_trap_missing_or_self,
                 loot_cleared,
                 goober_spell_cast_spell_id,
@@ -5899,6 +5933,9 @@ where
             let outcome = self.update_game_object_like_cpp(guid, diff_ms, game_time_secs);
             if outcome.linked_trap_removed {
                 summary.linked_traps_removed += 1;
+            }
+            if outcome.linked_trap_remove_queued {
+                summary.linked_traps_remove_queued += 1;
             }
             if outcome.loot_cleared {
                 summary.loot_cleared += 1;
@@ -8957,6 +8994,63 @@ where
             aura_cleanup_represented: false,
             cooldown_event_represented: false,
             creature_ai_callback_represented: false,
+        })
+    }
+
+    /// Bounded map-owned representation of C++ `GameObject::Delete()`.
+    ///
+    /// C++ anchors:
+    /// - `GameObject.cpp:1740-1764`: `SetLootState(GO_NOT_READY)`,
+    ///   `RemoveFromOwner()`, optional capture-point packet, `SendGameObjectDespawn()`,
+    ///   GO state reset for non-transports, override flag restore, then PoolMgr or
+    ///   `AddObjectToRemoveList()`.
+    /// - `Map.cpp:2547-2555`: `AddObjectToRemoveList()` is the physical-removal
+    ///   handoff; extraction happens later in `RemoveAllObjectsInRemoveList()`.
+    fn gameobject_delete_like_cpp(
+        &mut self,
+        guid: ObjectGuid,
+    ) -> Option<GameObjectDeleteOutcomeLikeCpp> {
+        let go_type = self
+            .map_object_record(guid)
+            .filter(|record| record.kind() == AccessorObjectKind::GameObject)
+            .and_then(MapObjectRecord::game_object)
+            .map(|game_object| game_object.data().type_id as u32)?;
+
+        if let Some(game_object) = self
+            .map_objects
+            .get_mut(&guid)
+            .and_then(MapObjectRecord::game_object_mut)
+        {
+            game_object.set_loot_state(LootState::NotReady, None);
+        }
+        let remove_from_owner = self.gameobject_remove_from_owner_like_cpp(guid);
+        let capture_point_packet_represented = go_type == GAMEOBJECT_TYPE_CAPTURE_POINT;
+        let despawn_packet_represented = true;
+
+        let (go_state_ready, flags_restored) = self
+            .map_objects
+            .get_mut(&guid)
+            .and_then(MapObjectRecord::game_object_mut)
+            .map(|game_object| {
+                let go_state_ready = go_type != GAMEOBJECT_TYPE_TRANSPORT;
+                if go_state_ready {
+                    game_object.set_go_state(GoState::Ready);
+                }
+                let flags_restored = game_object.restore_represented_baseline_flags_like_cpp();
+                (go_state_ready, flags_restored)
+            })
+            .unwrap_or((false, false));
+
+        let remove_list = self.add_object_to_remove_list_like_cpp(guid);
+        Some(GameObjectDeleteOutcomeLikeCpp {
+            guid,
+            remove_from_owner,
+            capture_point_packet_represented,
+            despawn_packet_represented,
+            go_state_ready,
+            flags_restored,
+            pool_update_represented: false,
+            remove_list,
         })
     }
 
@@ -25529,15 +25623,17 @@ mod tests {
     }
 
     #[test]
-    fn gameobject_update_just_deactivated_removes_linked_trap_like_cpp() {
+    fn gameobject_update_just_deactivated_queues_linked_trap_delete_like_cpp() {
         let mut map = test_map();
         let mut owner = game_object_with_counter(4580101, 571, 7, false);
-        let trap = game_object_with_counter(4580102, 571, 7, false);
+        let mut trap = game_object_with_counter(4580102, 571, 7, false);
         let owner_guid = owner.world().guid();
         let trap_guid = trap.world().guid();
         owner.set_loot_state(LootState::JustDeactivated, None);
         owner.set_respawn_delay_time(0);
         owner.set_linked_trap_like_cpp(trap_guid);
+        trap.set_loot_state(LootState::Ready, None);
+        trap.set_go_state(GoState::Active);
 
         map.add_map_object_record_to_map_like_cpp(MapObjectRecord::new_game_object(trap).unwrap())
             .unwrap();
@@ -25548,10 +25644,21 @@ mod tests {
 
         assert_eq!(outcome.status, GameObjectUpdateStatusLikeCpp::Updated);
         assert_eq!(outcome.linked_trap_guid, Some(trap_guid));
-        assert!(outcome.linked_trap_removed);
+        assert!(!outcome.linked_trap_removed);
+        assert!(outcome.linked_trap_remove_queued);
         assert!(!outcome.linked_trap_missing_or_self);
         assert!(map.map_object_record(owner_guid).is_some());
         assert!(outcome.loot_cleared);
+        let trap_after_update = map
+            .map_object_record(trap_guid)
+            .and_then(MapObjectRecord::game_object)
+            .expect("linked trap should stay in map until remove-list drain");
+        assert_eq!(trap_after_update.loot_state(), LootState::NotReady);
+        assert_eq!(trap_after_update.data().state, GoState::Ready as i8);
+        assert_eq!(map.objects_to_remove_count_like_cpp(), 1);
+
+        let drain = map.remove_all_objects_in_remove_list_like_cpp();
+        assert_eq!(drain.removed, 1);
         assert!(map.map_object_record(trap_guid).is_none());
     }
 
@@ -26846,13 +26953,14 @@ mod tests {
     }
 
     #[test]
-    fn gameobject_update_summary_counts_linked_trap_removal_like_cpp() {
+    fn gameobject_update_summary_counts_linked_trap_remove_queue_like_cpp() {
         let mut map = test_map();
         let mut owner = game_object_with_counter(4580401, 571, 7, false);
         let trap = game_object_with_counter(4580402, 571, 7, false);
         let owner_guid = owner.world().guid();
         let trap_guid = trap.world().guid();
         owner.set_loot_state(LootState::JustDeactivated, None);
+        owner.set_respawn_delay_time(0);
         owner.set_linked_trap_like_cpp(trap_guid);
 
         map.add_map_object_record_to_map_like_cpp(MapObjectRecord::new_game_object(trap).unwrap())
@@ -26862,11 +26970,13 @@ mod tests {
 
         let summary = map.update_game_objects_like_cpp(1, 1_000);
 
-        assert_eq!(summary.linked_traps_removed, 1);
+        assert_eq!(summary.linked_traps_removed, 0);
+        assert_eq!(summary.linked_traps_remove_queued, 1);
         assert_eq!(summary.loot_cleared, 1);
         assert!(summary.visited >= 1);
         assert!(map.map_object_record(owner_guid).is_some());
-        assert!(map.map_object_record(trap_guid).is_none());
+        assert!(map.map_object_record(trap_guid).is_some());
+        assert_eq!(map.objects_to_remove_count_like_cpp(), 1);
     }
 
     #[test]
