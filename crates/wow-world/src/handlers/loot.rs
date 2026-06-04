@@ -742,6 +742,54 @@ impl WorldSession {
         queued
     }
 
+    pub(crate) fn queue_visible_gameobject_packet_for_same_map_like_cpp(
+        &self,
+        gameobject_guid: ObjectGuid,
+        packet_bytes: Vec<u8>,
+    ) -> usize {
+        let Some(player_guid) = self.player_guid() else {
+            return 0;
+        };
+        let Some(registry) = self.player_registry() else {
+            return 0;
+        };
+        let current_map_id = self.player_map_id_like_cpp();
+        let current_instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        let mut queued = 0;
+
+        for entry in registry.iter() {
+            let (candidate_guid, candidate) = entry.pair();
+            if *candidate_guid == player_guid {
+                continue;
+            }
+            if !candidate.is_in_world
+                || candidate.map_id != current_map_id
+                || candidate.instance_id != current_instance_id
+            {
+                continue;
+            }
+            if candidate
+                .command_tx
+                .try_send(SessionCommand::SendIfVisibleLikeCpp(
+                    SendIfVisibleLikeCppCommand {
+                        source_guid: gameobject_guid,
+                        map_id: current_map_id,
+                        instance_id: current_instance_id,
+                        packet_bytes: packet_bytes.clone(),
+                    },
+                ))
+                .is_ok()
+            {
+                queued += 1;
+            }
+        }
+
+        queued
+    }
+
     fn queue_gathering_node_gameobject_state_refresh_for_same_map_like_cpp(
         &self,
         gameobject_guid: ObjectGuid,

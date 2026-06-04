@@ -18789,11 +18789,18 @@ impl WorldSession {
                 )
             };
             if let Some(custom_anim) = custom_anim_progress {
-                self.send_packet(&wow_packet::packets::misc::GameObjectCustomAnim {
+                use wow_packet::ServerPacket;
+
+                let packet = wow_packet::packets::misc::GameObjectCustomAnim {
                     object_guid: gameobject_guid,
                     custom_anim,
                     play_as_despawn: false,
-                });
+                };
+                self.send_packet(&packet);
+                let _ = self.queue_visible_gameobject_packet_for_same_map_like_cpp(
+                    gameobject_guid,
+                    packet.to_bytes(),
+                );
             }
             self.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::GooberUsed {
@@ -50711,8 +50718,26 @@ mod tests {
     fn gameobject_use_goober_state_branch_matches_cpp_custom_anim_and_go_cast() {
         let (mut session, _pkt_tx, send_rx) = make_session();
         let player_guid = ObjectGuid::create_player(1, 99);
+        let same_map_guid = ObjectGuid::create_player(1, 77);
+        let other_map_guid = ObjectGuid::create_player(1, 88);
         let gameobject_guid =
             ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 13);
+        let (same_command_tx, same_command_rx) = flume::bounded(2);
+        let (other_command_tx, other_command_rx) = flume::bounded(2);
+        let (same_send_tx, _same_send_rx) = flume::bounded::<Vec<u8>>(1);
+        let (other_send_tx, _other_send_rx) = flume::bounded::<Vec<u8>>(1);
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let mut same_info = broadcast_info(same_map_guid, same_send_tx);
+        same_info.map_id = 571;
+        same_info.command_tx = same_command_tx;
+        player_registry.insert(same_map_guid, same_info);
+        let mut other_info = broadcast_info(other_map_guid, other_send_tx);
+        other_info.map_id = 1;
+        other_info.command_tx = other_command_tx;
+        player_registry.insert(other_map_guid, other_info);
+        session.set_player_guid(Some(player_guid));
+        session.set_player_map_position_like_cpp(571, Position::ZERO);
+        session.set_player_registry(player_registry);
         session.record_represented_gameobject_anim_progress_like_cpp(gameobject_guid, 123);
 
         assert!(session.use_represented_gameobject_goober_state_like_cpp(
@@ -50739,6 +50764,15 @@ mod tests {
         expected.extend_from_slice(&123_u32.to_le_bytes());
         expected.push(0x00);
         assert_eq!(send_rx.try_recv().unwrap(), expected);
+        let command = match same_command_rx.try_recv() {
+            Ok(SessionCommand::SendIfVisibleLikeCpp(command)) => command,
+            other => panic!("expected SendIfVisibleLikeCpp custom anim command, got {other:?}"),
+        };
+        assert_eq!(command.source_guid, gameobject_guid);
+        assert_eq!(command.map_id, 571);
+        assert_eq!(command.instance_id, 0);
+        assert_eq!(command.packet_bytes, expected);
+        assert!(other_command_rx.try_recv().is_err());
         assert_eq!(
             session.represented_gameobject_use_effects,
             vec![

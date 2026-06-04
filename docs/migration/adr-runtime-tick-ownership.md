@@ -1371,6 +1371,14 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   Remaining gaps: custom-animation fanout to other viewers, autoclose/JustDeactivated ownership,
   unique-user spell cleanup, ClearLoot/NODESPAWN/delete/despawn branches, scripts/GO AI, canonical
   shared GameObject ownership, and live client/server validation.
+- 2026-06-04 — Represented goober custom-animation fanout `#NEXT.RUNTIME.L3.031dj`: contrasted against
+  C++ `GameObject::Use` goober `customAnim` branch (`GameObject.cpp:2795-2802`) and
+  `GameObject::SendCustomAnim`, which sends `SMSG_GAME_OBJECT_CUSTOM_ANIM` to the visible set
+  including the source player (`GameObject.cpp:3413-3419`). Rust now keeps the existing direct self
+  send and also enqueues the same packet bytes to same-map/instance remote sessions through
+  `SendIfVisibleLikeCpp`, preserving the per-session `HaveAtClient` gate. Remaining gaps:
+  autoclose/JustDeactivated ownership, unique-user spell cleanup, ClearLoot/NODESPAWN/delete/despawn
+  branches, scripts/GO AI, canonical shared GameObject ownership, and live client/server validation.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
