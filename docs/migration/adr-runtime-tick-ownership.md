@@ -1303,6 +1303,17 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   expired per-player GO state could still affect GOOBER/GATHERING dynamic flags. Remaining gaps:
   script/ConditionMgr-rich activation for DB-only create paths beyond represented state, full
   GameObject update fanout, scripts/traps/GO AI, and live client/server validation.
+- 2026-06-04 — Represented gathering-node GameObject refresh fanout `#NEXT.RUNTIME.L3.031dc`:
+  contrasted against C++ `Player::UpdateVisibleGameobjectsOrSpellClicks` (`Player.cpp:24439-24478`)
+  rebuilding per-viewer GameObject dynamic-flag deltas for objects already visible to each player.
+  When represented gathering-node use records runtime GO state, Rust now queues the existing
+  `RefreshVisibleGameobjectsOrSpellClicksLikeCpp` session command to other players in the same
+  map/instance. The receiving session remains the authority for `HaveAtClient`
+  (`client_visible_guids_like_cpp`) and viewer-dependent flags, matching the existing
+  receiver-side refresh pattern instead of broadcasting prebuilt bytes. Remaining gaps: this is a
+  bounded gathering-node use-state fanout only; full GameObject values-update fanout for chest,
+  goober, trap, script, GO AI, map-owned update phases, and live client/server validation remains
+  open.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

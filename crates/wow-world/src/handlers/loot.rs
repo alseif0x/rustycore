@@ -560,6 +560,44 @@ impl WorldSession {
             source,
             is_first_represented_use,
         );
+        let _ = self.queue_visible_gameobjects_or_spellclicks_refresh_for_same_map_like_cpp();
+    }
+
+    fn queue_visible_gameobjects_or_spellclicks_refresh_for_same_map_like_cpp(&self) -> usize {
+        let Some(player_guid) = self.player_guid() else {
+            return 0;
+        };
+        let Some(registry) = self.player_registry() else {
+            return 0;
+        };
+        let current_map_id = self.player_map_id_like_cpp();
+        let current_instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        let mut queued = 0;
+
+        for entry in registry.iter() {
+            let (candidate_guid, candidate) = entry.pair();
+            if *candidate_guid == player_guid {
+                continue;
+            }
+            if !candidate.is_in_world
+                || candidate.map_id != current_map_id
+                || candidate.instance_id != current_instance_id
+            {
+                continue;
+            }
+            if candidate
+                .command_tx
+                .try_send(SessionCommand::RefreshVisibleGameobjectsOrSpellClicksLikeCpp)
+                .is_ok()
+            {
+                queued += 1;
+            }
+        }
+
+        queued
     }
 
     fn set_represented_gameobject_loot_state_activated_like_cpp(
@@ -9298,6 +9336,53 @@ mod tests {
                 },
             ]
         );
+    }
+
+    #[tokio::test]
+    async fn represented_gathering_node_use_refreshes_same_map_gameobject_viewers_like_cpp() {
+        let mut session = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let same_map_guid = ObjectGuid::create_player(1, 77);
+        let other_map_guid = ObjectGuid::create_player(1, 88);
+        let gameobject_guid = test_gameobject_guid(91_008);
+        let (same_command_tx, same_command_rx) = flume::bounded(2);
+        let (other_command_tx, other_command_rx) = flume::bounded(2);
+        let (same_send_tx, _same_send_rx) = flume::bounded::<Vec<u8>>(1);
+        let (other_send_tx, _other_send_rx) = flume::bounded::<Vec<u8>>(1);
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let mut same_info = broadcast_info(same_map_guid, same_send_tx);
+        same_info.command_tx = same_command_tx;
+        player_registry.insert(same_map_guid, same_info);
+        let mut other_info = broadcast_info(other_map_guid, other_send_tx);
+        other_info.map_id = 1;
+        other_info.command_tx = other_command_tx;
+        player_registry.insert(other_map_guid, other_info);
+
+        session.set_player_guid(Some(player_guid));
+        session.set_player_registry(player_registry);
+        session
+            .client_visible_guids_like_cpp
+            .insert(gameobject_guid);
+
+        let source = GatheringNodeUseSource {
+            loot_id: 0,
+            despawn_delay_secs: 0,
+            triggered_event_id: 0,
+            xp_difficulty: 0,
+            spell_id: 0,
+            max_loots: 1,
+            linked_trap_entry: 0,
+        };
+
+        session
+            .open_represented_gathering_node_like_cpp(gameobject_guid, 190_008, source)
+            .await;
+
+        assert!(matches!(
+            same_command_rx.try_recv(),
+            Ok(SessionCommand::RefreshVisibleGameobjectsOrSpellClicksLikeCpp)
+        ));
+        assert!(other_command_rx.try_recv().is_err());
     }
 
     #[tokio::test]
