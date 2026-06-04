@@ -26,6 +26,9 @@ pub enum SessionCommand {
     SendVisibleObjectValuesUpdate(SendVisibleObjectValuesUpdateCommand),
     RefreshVisibleWorldCreaturesLikeCpp(RefreshVisibleWorldCreaturesLikeCppCommand),
     RefreshVisibleGameobjectsOrSpellClicksLikeCpp,
+    SyncGatheringNodeGameobjectStateAndRefreshLikeCpp(
+        SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
+    ),
     SetQuestSharingInfoAndSendDetails(SetQuestSharingInfoAndSendDetailsCommand),
     SendRepeatableTurnInRequestItemsLikeCpp(SendRepeatableTurnInRequestItemsLikeCppCommand),
     /// Deliver `packet_bytes` to this session if the source GUID is currently in
@@ -99,6 +102,28 @@ pub struct SendIfVisibleLikeCppCommand {
 pub struct RefreshVisibleWorldCreaturesLikeCppCommand {
     pub map_id: u16,
     pub instance_id: u32,
+}
+
+/// Syncs the bounded represented gathering-node state needed before running a
+/// remote `UpdateVisibleGameobjectsOrSpellClicks` refresh.
+///
+/// C++ owns this state on the shared `GameObject`. Rust's represented runtime
+/// still stores this subset per session, so the current bridge must carry the
+/// changed fields to the receiver before asking it to recompute viewer-dependent
+/// dynamic flags.
+#[derive(Clone, Debug)]
+pub struct SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand {
+    pub gameobject_guid: ObjectGuid,
+    pub map_id: u16,
+    pub instance_id: u32,
+    pub go_type: u8,
+    pub loot_state: Option<u8>,
+    pub loot_state_unit_guid: ObjectGuid,
+    pub go_state: Option<i8>,
+    pub dynamic_flags: u32,
+    pub gathering_node_loot_id: Option<u32>,
+    pub personal_loot_uses: u32,
+    pub linked_trap_entry: Option<u32>,
 }
 
 #[derive(Clone, Debug)]

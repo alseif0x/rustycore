@@ -51,6 +51,7 @@ use wow_network::player_registry::{
     ApplyCreatureMeleeDamageLikeCppCommand, CreatureAttackStartLikeCppCommand,
     RefreshVisibleWorldCreaturesLikeCppCommand, SendIfVisibleLikeCppCommand,
     SendRepeatableTurnInRequestItemsLikeCppCommand, SetQuestSharingInfoAndSendDetailsCommand,
+    SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
 };
 use wow_network::{
     LootRollStoreWinnerCommand, LootRollVoteCommand, MasterLootGiveCommand, MasterLootGiveResult,
@@ -78,7 +79,7 @@ use wow_packet::{ClientPacket, ServerPacket};
 use crate::session::{
     InventoryItem, RepresentedGameObjectSpellCaster, RepresentedGameObjectUseEffect,
     RepresentedLootRollState, RepresentedLootRollVote,
-    RepresentedQuestObjectiveProgressEventLikeCpp, WorldSession,
+    RepresentedQuestObjectiveProgressEventLikeCpp, SessionState, WorldSession,
 };
 
 const LOOT_METHOD_MASTER_LIKE_CPP: u8 = 2;
@@ -560,14 +561,48 @@ impl WorldSession {
             source,
             is_first_represented_use,
         );
-        let _ = self.queue_visible_gameobjects_or_spellclicks_refresh_for_same_map_like_cpp();
+        let _ = self
+            .queue_gathering_node_gameobject_state_refresh_for_same_map_like_cpp(gameobject_guid);
     }
 
-    fn queue_visible_gameobjects_or_spellclicks_refresh_for_same_map_like_cpp(&self) -> usize {
+    fn gathering_node_gameobject_state_refresh_command_like_cpp(
+        &self,
+        gameobject_guid: ObjectGuid,
+    ) -> Option<SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand> {
+        let state = self
+            .represented_gameobject_use_states
+            .get(&gameobject_guid)?;
+        Some(SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand {
+            gameobject_guid,
+            map_id: self.player_map_id_like_cpp(),
+            instance_id: self
+                .current_canonical_player_map_key_like_cpp()
+                .map(|key| key.instance_id)
+                .unwrap_or(0),
+            go_type: state.go_type?,
+            loot_state: state.loot_state.map(|loot_state| loot_state as u8),
+            loot_state_unit_guid: state.loot_state_unit_guid,
+            go_state: state.go_state.map(|go_state| go_state as i8),
+            dynamic_flags: state.dynamic_flags,
+            gathering_node_loot_id: state.gathering_node_loot_id,
+            personal_loot_uses: state.personal_loot_uses,
+            linked_trap_entry: state.linked_trap_entry,
+        })
+    }
+
+    fn queue_gathering_node_gameobject_state_refresh_for_same_map_like_cpp(
+        &self,
+        gameobject_guid: ObjectGuid,
+    ) -> usize {
         let Some(player_guid) = self.player_guid() else {
             return 0;
         };
         let Some(registry) = self.player_registry() else {
+            return 0;
+        };
+        let Some(command) =
+            self.gathering_node_gameobject_state_refresh_command_like_cpp(gameobject_guid)
+        else {
             return 0;
         };
         let current_map_id = self.player_map_id_like_cpp();
@@ -590,7 +625,11 @@ impl WorldSession {
             }
             if candidate
                 .command_tx
-                .try_send(SessionCommand::RefreshVisibleGameobjectsOrSpellClicksLikeCpp)
+                .try_send(
+                    SessionCommand::SyncGatheringNodeGameobjectStateAndRefreshLikeCpp(
+                        command.clone(),
+                    ),
+                )
                 .is_ok()
             {
                 queued += 1;
@@ -652,6 +691,7 @@ impl WorldSession {
             if is_first_represented_use {
                 state.personal_loot_uses = state.personal_loot_uses.saturating_add(1);
             }
+            state.go_type = Some(GAMEOBJECT_TYPE_GATHERING_NODE as u8);
             state.gathering_node_loot_id = Some(source.loot_id);
             if state.personal_loot_uses >= source.max_loots {
                 state.go_state = Some(GoState::Active);
@@ -2562,6 +2602,9 @@ impl WorldSession {
                 SessionCommand::RefreshVisibleGameobjectsOrSpellClicksLikeCpp => {
                     let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
                 }
+                SessionCommand::SyncGatheringNodeGameobjectStateAndRefreshLikeCpp(command) => {
+                    self.handle_sync_gathering_node_gameobject_state_and_refresh_like_cpp(command);
+                }
                 SessionCommand::SetQuestSharingInfoAndSendDetails(command) => {
                     self.handle_set_quest_sharing_info_and_send_details_command_like_cpp(command);
                 }
@@ -2573,6 +2616,66 @@ impl WorldSession {
                 }
             }
         }
+    }
+
+    /// Mirrors the small gathering-node state subset that C++ keeps on the
+    /// shared GameObject before asking this session to recompute its visible
+    /// GameObject dynamic-flag deltas.
+    fn handle_sync_gathering_node_gameobject_state_and_refresh_like_cpp(
+        &mut self,
+        command: SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
+    ) {
+        if self.state() != SessionState::LoggedIn {
+            return;
+        }
+        if command.map_id != self.player_map_id_like_cpp() {
+            return;
+        }
+        let current_instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        if command.instance_id != current_instance_id {
+            return;
+        }
+        if u32::from(command.go_type) != GAMEOBJECT_TYPE_GATHERING_NODE {
+            return;
+        }
+        let loot_state = match command.loot_state {
+            Some(0) => Some(LootState::NotReady),
+            Some(1) => Some(LootState::Ready),
+            Some(2) => Some(LootState::Activated),
+            Some(3) => Some(LootState::JustDeactivated),
+            Some(_) => return,
+            None => None,
+        };
+        let go_state = match command.go_state {
+            Some(0) => Some(GoState::Active),
+            Some(1) => Some(GoState::Ready),
+            Some(2) => Some(GoState::Destroyed),
+            Some(24) => Some(GoState::TransportActive),
+            Some(25) => Some(GoState::TransportStopped),
+            Some(_) => return,
+            None => None,
+        };
+
+        {
+            let state = self
+                .represented_gameobject_use_states
+                .entry(command.gameobject_guid)
+                .or_default();
+            state.map_id = Some(command.map_id);
+            state.go_type = Some(command.go_type);
+            state.loot_state = loot_state;
+            state.loot_state_unit_guid = command.loot_state_unit_guid;
+            state.go_state = go_state;
+            state.dynamic_flags = command.dynamic_flags;
+            state.gathering_node_loot_id = command.gathering_node_loot_id;
+            state.personal_loot_uses = command.personal_loot_uses;
+            state.linked_trap_entry = command.linked_trap_entry;
+        }
+
+        let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
     }
 
     /// Apply a map-owned creature melee hit to this player session.
@@ -7088,7 +7191,8 @@ mod tests {
         ROLL_ALL_TYPE_NO_DISENCHANT_LIKE_CPP, ROLL_FLAG_TYPE_NEED_LIKE_CPP,
         ROLL_VOTE_GREED_LIKE_CPP, ROLL_VOTE_NEED_LIKE_CPP, ROLL_VOTE_NOT_EMITTED_YET_LIKE_CPP,
         ROLL_VOTE_NOT_VALID_LIKE_CPP, ROLL_VOTE_PASS_LIKE_CPP, RepresentedLootPlayerContext,
-        SPELL_EFFECT_OPEN_LOCK_LIKE_CPP, assign_represented_personal_loot_items_like_cpp,
+        SPELL_EFFECT_OPEN_LOCK_LIKE_CPP, SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
+        assign_represented_personal_loot_items_like_cpp,
         generated_creature_loot_item_to_entry_like_cpp, loot_is_looted_like_cpp, loot_item_context,
         loot_store_data_can_stack_with_item, loot_type_for_client_like_cpp,
         mark_loot_allowed_for_player_like_cpp, mark_loot_item_looted_for_player_like_cpp,
@@ -9351,6 +9455,7 @@ mod tests {
         let (other_send_tx, _other_send_rx) = flume::bounded::<Vec<u8>>(1);
         let player_registry = Arc::new(PlayerRegistry::default());
         let mut same_info = broadcast_info(same_map_guid, same_send_tx);
+        same_info.map_id = 571;
         same_info.command_tx = same_command_tx;
         player_registry.insert(same_map_guid, same_info);
         let mut other_info = broadcast_info(other_map_guid, other_send_tx);
@@ -9359,6 +9464,7 @@ mod tests {
         player_registry.insert(other_map_guid, other_info);
 
         session.set_player_guid(Some(player_guid));
+        session.set_player_map_position_like_cpp(571, Position::ZERO);
         session.set_player_registry(player_registry);
         session
             .client_visible_guids_like_cpp
@@ -9378,11 +9484,82 @@ mod tests {
             .open_represented_gathering_node_like_cpp(gameobject_guid, 190_008, source)
             .await;
 
-        assert!(matches!(
-            same_command_rx.try_recv(),
-            Ok(SessionCommand::RefreshVisibleGameobjectsOrSpellClicksLikeCpp)
-        ));
+        let command = match same_command_rx.try_recv() {
+            Ok(SessionCommand::SyncGatheringNodeGameobjectStateAndRefreshLikeCpp(command)) => {
+                command
+            }
+            other => panic!("expected gathering-node sync command, got {other:?}"),
+        };
+        assert_eq!(command.gameobject_guid, gameobject_guid);
+        assert_eq!(command.map_id, 571);
+        assert_eq!(
+            command.go_type,
+            wow_entities::GAMEOBJECT_TYPE_GATHERING_NODE as u8
+        );
+        assert_eq!(
+            command.loot_state,
+            Some(wow_entities::LootState::Activated as u8)
+        );
+        assert_eq!(command.go_state, Some(wow_entities::GoState::Active as i8));
+        assert_eq!(command.gathering_node_loot_id, Some(0));
+        assert_eq!(
+            command.dynamic_flags & wow_entities::GO_DYNFLAG_LO_NO_INTERACT,
+            wow_entities::GO_DYNFLAG_LO_NO_INTERACT
+        );
         assert!(other_command_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn gathering_node_state_sync_command_updates_receiver_before_refresh_like_cpp() {
+        let mut session = make_session();
+        let player_guid = ObjectGuid::create_player(1, 77);
+        let gameobject_guid = test_gameobject_guid(91_009);
+        session.set_state(SessionState::LoggedIn);
+        session.set_player_guid(Some(player_guid));
+        session.set_player_map_position_like_cpp(571, Position::ZERO);
+
+        session
+            .session_command_tx()
+            .try_send(
+                SessionCommand::SyncGatheringNodeGameobjectStateAndRefreshLikeCpp(
+                    SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand {
+                        gameobject_guid,
+                        map_id: 571,
+                        instance_id: 0,
+                        go_type: wow_entities::GAMEOBJECT_TYPE_GATHERING_NODE as u8,
+                        loot_state: Some(wow_entities::LootState::Activated as u8),
+                        loot_state_unit_guid: ObjectGuid::create_player(1, 42),
+                        go_state: Some(wow_entities::GoState::Active as i8),
+                        dynamic_flags: wow_entities::GO_DYNFLAG_LO_NO_INTERACT,
+                        gathering_node_loot_id: Some(190_009),
+                        personal_loot_uses: 1,
+                        linked_trap_entry: Some(191_009),
+                    },
+                ),
+            )
+            .expect("command queued");
+
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+
+        let state = session
+            .represented_gameobject_use_states
+            .get(&gameobject_guid)
+            .expect("synced gathering node state");
+        assert_eq!(
+            state.go_type,
+            Some(wow_entities::GAMEOBJECT_TYPE_GATHERING_NODE as u8)
+        );
+        assert_eq!(state.loot_state, Some(wow_entities::LootState::Activated));
+        assert_eq!(state.go_state, Some(wow_entities::GoState::Active));
+        assert_eq!(
+            state.dynamic_flags & wow_entities::GO_DYNFLAG_LO_NO_INTERACT,
+            wow_entities::GO_DYNFLAG_LO_NO_INTERACT
+        );
+        assert_eq!(state.gathering_node_loot_id, Some(190_009));
+        assert_eq!(state.personal_loot_uses, 1);
+        assert_eq!(state.linked_trap_entry, Some(191_009));
     }
 
     #[tokio::test]
