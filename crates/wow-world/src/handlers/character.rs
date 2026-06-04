@@ -50,6 +50,7 @@ use wow_packet::packets::update::*;
 
 use crate::handlers::quest::RepresentedQuestGiverStatusSourceLikeCpp;
 use crate::reputation::mgr::CharacterReputationRowLikeCpp;
+use crate::session::RepresentedGameObjectUseState;
 
 // ── Handler registration ────────────────────────────────────────────
 
@@ -73,6 +74,17 @@ fn creature_movement_generator_type_from_db_like_cpp(
     match db_movement_type {
         WAYPOINT_MOTION_TYPE_LIKE_CPP => MovementGeneratorType::Waypoint,
         _ => MovementGeneratorType::Idle,
+    }
+}
+
+fn represented_go_state_from_i8_like_cpp(state: i8) -> Option<wow_entities::GoState> {
+    match state {
+        0 => Some(wow_entities::GoState::Active),
+        1 => Some(wow_entities::GoState::Ready),
+        2 => Some(wow_entities::GoState::Destroyed),
+        24 => Some(wow_entities::GoState::TransportActive),
+        25 => Some(wow_entities::GoState::TransportStopped),
+        _ => None,
     }
 }
 
@@ -4037,9 +4049,19 @@ impl WorldSession {
 
                 if !self.client_visible_guids_like_cpp.contains(&guid) {
                     let go_pos = Position::new(pos_x, pos_y, pos_z, orientation);
+                    let dynamic_flags = self
+                        .represented_gameobject_dynamic_flags_for_player_like_cpp(
+                            entry,
+                            &RepresentedGameObjectUseState {
+                                go_type: Some(go_type),
+                                go_state: represented_go_state_from_i8_like_cpp(state),
+                                ..Default::default()
+                            },
+                        );
                     let create_data = GameObjectCreateData {
                         guid,
                         entry,
+                        dynamic_flags,
                         display_id,
                         go_type,
                         position: go_pos,
@@ -4736,9 +4758,18 @@ impl WorldSession {
             );
 
             let go_pos = Position::new(pos_x, pos_y, pos_z, orientation);
+            let dynamic_flags = self.represented_gameobject_dynamic_flags_for_player_like_cpp(
+                entry,
+                &RepresentedGameObjectUseState {
+                    go_type: Some(go_type),
+                    go_state: represented_go_state_from_i8_like_cpp(state),
+                    ..Default::default()
+                },
+            );
             let create_data = GameObjectCreateData {
                 guid,
                 entry,
+                dynamic_flags,
                 display_id,
                 go_type,
                 position: go_pos,

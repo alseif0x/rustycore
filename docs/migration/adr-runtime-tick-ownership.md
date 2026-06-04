@@ -1293,6 +1293,16 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   exercise the real visible values-update path for quest-related-but-not-activating chest/goober
   objects and assert exact `GameObjectData::DynamicFlags` bytes. Remaining gaps: full GameObject
   create/update fanout parity, scripts/traps/GO AI, and live client/server validation.
+- 2026-06-04 — GameObject create dynamic flags `#NEXT.RUNTIME.L3.031db`: contrasted against C++
+  `Object::BuildCreateUpdateBlockForPlayer` (`Object.cpp:130-172`), `GameObject::BuildValuesCreate`
+  (`GameObject.cpp:3914-3923`), `ObjectData::WriteCreate` (`UpdateFields.cpp:38-43`), and
+  `ViewerDependentValue<DynamicFlagsTag>` (`ViewerDependentValues.h:60-145`). Rust no longer
+  hardcodes GameObject create `ObjectData::DynamicFlags` to zero; `GameObjectCreateData` carries the
+  viewer-dependent value and represented/canonical/direct-DB create paths populate it through the
+  same dynamic-flags seam used by values updates. The slice also fixes an exposed Rust bug where
+  expired per-player GO state could still affect GOOBER/GATHERING dynamic flags. Remaining gaps:
+  script/ConditionMgr-rich activation for DB-only create paths beyond represented state, full
+  GameObject update fanout, scripts/traps/GO AI, and live client/server validation.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

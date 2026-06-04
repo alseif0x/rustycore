@@ -2515,6 +2515,7 @@ impl CreatureCreateData {
 pub struct GameObjectCreateData {
     pub guid: ObjectGuid,
     pub entry: u32,
+    pub dynamic_flags: u32,
     pub display_id: u32,
     pub go_type: u8,
     pub position: Position,
@@ -2539,7 +2540,7 @@ impl GameObjectCreateData {
 
         // ObjectFieldData.WriteCreate
         buf.write_int32(self.entry as i32); // EntryId
-        buf.write_uint32(0); // DynamicFlags
+        buf.write_uint32(self.dynamic_flags); // DynamicFlags
         buf.write_float(self.scale); // Scale
 
         // GameObjectFieldData.WriteCreate (matches C# GameObjectFieldData.WriteCreate)
@@ -7554,6 +7555,7 @@ mod tests {
                 456,
             ),
             entry: 123,
+            dynamic_flags: 0,
             display_id: 456,
             go_type: 3,
             position: Position::ZERO,
@@ -7591,6 +7593,7 @@ mod tests {
                 456,
             ),
             entry: 123,
+            dynamic_flags: 0x44,
             display_id: 456,
             go_type: 3,
             position: Position::ZERO,
@@ -7613,6 +7616,10 @@ mod tests {
         assert!(
             data.windows(4)
                 .any(|window| window == 0x20u32.to_le_bytes())
+        );
+        assert!(
+            data.windows(4)
+                .any(|window| window == 0x44u32.to_le_bytes())
         );
     }
 

@@ -5851,7 +5851,7 @@ impl WorldSession {
         }
     }
 
-    fn represented_gameobject_dynamic_flags_for_player_like_cpp(
+    pub(crate) fn represented_gameobject_dynamic_flags_for_player_like_cpp(
         &self,
         gameobject_entry: u32,
         state: &RepresentedGameObjectUseState,
@@ -5879,11 +5879,8 @@ impl WorldSession {
             Some(wow_entities::GAMEOBJECT_TYPE_GOOBER) => {
                 if activate_to_quest {
                     dyn_flags |= wow_entities::GO_DYNFLAG_LO_HIGHLIGHT;
-                    let state_for_player = state
-                        .per_player_go_state
-                        .filter(|_| state.per_player_state_player_guid == self.player_guid())
-                        .or(state.go_state)
-                        .unwrap_or(wow_entities::GoState::Ready);
+                    let state_for_player = self
+                        .represented_gameobject_go_state_for_viewer_like_cpp(state, Instant::now());
                     if state_for_player != wow_entities::GoState::Active {
                         dyn_flags |= wow_entities::GO_DYNFLAG_LO_ACTIVATE;
                     }
@@ -5903,11 +5900,8 @@ impl WorldSession {
                         | wow_entities::GO_DYNFLAG_LO_SPARKLE
                         | wow_entities::GO_DYNFLAG_LO_HIGHLIGHT;
                 }
-                let state_for_player = state
-                    .per_player_go_state
-                    .filter(|_| state.per_player_state_player_guid == self.player_guid())
-                    .or(state.go_state)
-                    .unwrap_or(wow_entities::GoState::Ready);
+                let state_for_player =
+                    self.represented_gameobject_go_state_for_viewer_like_cpp(state, Instant::now());
                 if state_for_player == wow_entities::GoState::Active {
                     dyn_flags |= wow_entities::GO_DYNFLAG_LO_DEPLETED;
                 }
@@ -6513,6 +6507,10 @@ impl WorldSession {
                 wow_packet::packets::update::GameObjectCreateData {
                     guid,
                     entry: object.object().entry(),
+                    dynamic_flags: self.represented_gameobject_dynamic_flags_for_player_like_cpp(
+                        object.object().entry(),
+                        state,
+                    ),
                     display_id,
                     go_type,
                     position: object.position(),
@@ -6526,7 +6524,7 @@ impl WorldSession {
                 }
             } else {
                 let Some(create_data) =
-                    Self::gameobject_create_data_from_canonical_like_cpp(guid, gameobject)
+                    self.gameobject_create_data_from_canonical_like_cpp(guid, gameobject)
                 else {
                     continue;
                 };
@@ -6557,6 +6555,7 @@ impl WorldSession {
     }
 
     fn gameobject_create_data_from_canonical_like_cpp(
+        &self,
         guid: ObjectGuid,
         gameobject: &wow_entities::GameObject,
     ) -> Option<wow_packet::packets::update::GameObjectCreateData> {
@@ -6567,10 +6566,27 @@ impl WorldSession {
             return None;
         }
         let go_type = u8::try_from(data.type_id).ok()?;
+        let go_state = match data.state {
+            0 => Some(wow_entities::GoState::Active),
+            1 => Some(wow_entities::GoState::Ready),
+            2 => Some(wow_entities::GoState::Destroyed),
+            24 => Some(wow_entities::GoState::TransportActive),
+            25 => Some(wow_entities::GoState::TransportStopped),
+            _ => None,
+        };
 
         Some(wow_packet::packets::update::GameObjectCreateData {
             guid,
             entry: object.object().entry(),
+            dynamic_flags: self.represented_gameobject_dynamic_flags_for_player_like_cpp(
+                object.object().entry(),
+                &RepresentedGameObjectUseState {
+                    go_type: Some(go_type),
+                    go_state,
+                    dynamic_flags: object.object().dynamic_flags(),
+                    ..Default::default()
+                },
+            ),
             display_id,
             go_type,
             position: object.position(),
@@ -32782,6 +32798,11 @@ mod tests {
         assert_eq!(visible.len(), 1);
         assert_eq!(visible[0].guid, gameobject_guid);
         assert_eq!(visible[0].state, wow_entities::GoState::Active as i8);
+        assert_eq!(
+            visible[0].dynamic_flags,
+            wow_entities::GO_DYNFLAG_LO_DEPLETED,
+            "C++ GameObjectData::DynamicFlags create uses viewer-dependent GetGoStateFor"
+        );
 
         session
             .represented_gameobject_use_states
@@ -32803,6 +32824,7 @@ mod tests {
             wow_entities::GoState::Ready as i8,
             "expired Rust per-player state must not override C++ GetGoState fallback"
         );
+        assert_eq!(visible_after_expiry[0].dynamic_flags, 0);
     }
 
     #[test]
@@ -32847,6 +32869,38 @@ mod tests {
                 .represented_gameobject_use_states
                 .contains_key(&gameobject_guid),
             "C++ AddToMap-visible GameObjects are real map objects; visibility must not require session-local represented state"
+        );
+    }
+
+    #[test]
+    fn visible_gameobjects_canonical_create_uses_viewer_dynamic_flags_like_cpp() {
+        let (mut session, _pkt_tx, _send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_position = Position::new(10.0, 10.0, 0.0, 0.0);
+        let gameobject_guid = test_gameobject_guid(49_631, 49_631);
+
+        session.set_player_game_master_like_cpp(true);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_lifecycle_gameobject_on_map(
+            &canonical,
+            gameobject_guid,
+            49_631,
+            Position::new(20.0, 20.0, 0.0, 0.0),
+            [0.0, 0.0, 0.0, 1.0],
+            571,
+            0,
+        );
+
+        let visible = session
+            .visible_gameobjects_from_canonical_map_like_cpp(571, &player_position, 800.0)
+            .expect("canonical map");
+
+        assert_eq!(visible.len(), 1);
+        assert_eq!(visible[0].guid, gameobject_guid);
+        assert_eq!(
+            visible[0].dynamic_flags,
+            wow_entities::GO_DYNFLAG_LO_ACTIVATE,
+            "C++ ViewerDependentValue<DynamicFlagsTag> sets ACTIVATE for GM chest create"
         );
     }
 
