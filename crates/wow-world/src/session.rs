@@ -16424,6 +16424,9 @@ impl WorldSession {
         }
         for (guid, source) in just_deactivated_goobers {
             self.apply_represented_gameobject_goober_just_deactivated_like_cpp(guid, source);
+            if !source.consumable {
+                let _ = self.queue_goober_gameobject_state_refresh_for_same_map_like_cpp(guid);
+            }
         }
         for (
             guid,
@@ -51533,6 +51536,7 @@ mod tests {
     async fn process_pending_ticks_goober_autoclose_then_cleanup_like_cpp_update() {
         let (mut session, _pkt_tx, _send_rx) = make_session();
         let player_guid = ObjectGuid::create_player(1, 99);
+        let same_map_guid = ObjectGuid::create_player(1, 77);
         let gameobject_guid =
             ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 17);
         let source = wow_entities::GooberUseSource {
@@ -51573,6 +51577,17 @@ mod tests {
         assert_eq!(state.goober_use_source, Some(source));
         assert!(session.represented_gameobject_use_effects.is_empty());
 
+        let (same_command_tx, same_command_rx) = flume::bounded(2);
+        let (same_send_tx, _same_send_rx) = flume::bounded::<Vec<u8>>(1);
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let mut same_info = broadcast_info(same_map_guid, same_send_tx);
+        same_info.map_id = 571;
+        same_info.command_tx = same_command_tx;
+        player_registry.insert(same_map_guid, same_info);
+        session.set_player_guid(Some(player_guid));
+        session.set_player_map_position_like_cpp(571, Position::ZERO);
+        session.set_player_registry(player_registry);
+
         session.process_pending().await;
 
         let state = session
@@ -51590,6 +51605,17 @@ mod tests {
                 go_state: Some(wow_entities::GoState::Ready),
             }]
         );
+        let command = match same_command_rx.try_recv() {
+            Ok(SessionCommand::SyncGooberGameobjectStateAndRefreshLikeCpp(command)) => command,
+            other => panic!("expected final goober state sync command, got {other:?}"),
+        };
+        assert_eq!(command.gameobject_guid, gameobject_guid);
+        assert_eq!(
+            command.loot_state,
+            Some(wow_entities::LootState::Ready as u8)
+        );
+        assert_eq!(command.go_state, Some(wow_entities::GoState::Ready as i8));
+        assert_eq!(command.gameobject_flags & wow_entities::GO_FLAG_IN_USE, 0);
     }
 
     // C++ anchor: /home/server/woltk-trinity-legacy/src/server/game/Entities/GameObject/GameObject.cpp:2236-2251

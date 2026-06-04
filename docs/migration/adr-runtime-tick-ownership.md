@@ -1379,6 +1379,14 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `SendIfVisibleLikeCpp`, preserving the per-session `HaveAtClient` gate. Remaining gaps:
   autoclose/JustDeactivated ownership, unique-user spell cleanup, ClearLoot/NODESPAWN/delete/despawn
   branches, scripts/GO AI, canonical shared GameObject ownership, and live client/server validation.
+- 2026-06-04 — Represented goober autoclose final state sync `#NEXT.RUNTIME.L3.031dk`: contrasted
+  against C++ `GameObject::Update` goober cooldown expiry and `GO_JUST_DEACTIVATED` cleanup
+  (`GameObject.cpp:1516-1523`, `GameObject.cpp:1575-1628`). Rust already represented the two-step
+  local autoclose/cleanup; it now queues the bounded goober state sync after non-consumable cleanup so
+  same-map/instance viewers refresh from the final shared `GO_READY` / flag-cleared state. Remaining
+  gaps: consumable/despawn-at-action fanout, `SendGameObjectDespawn`, owner/summoned delete paths,
+  linked-trap runtime despawn, scripts/GO AI, canonical shared GameObject ownership, and live
+  client/server validation.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
