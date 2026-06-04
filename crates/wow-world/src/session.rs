@@ -16330,6 +16330,7 @@ impl WorldSession {
                 state.loot_state_unit_guid = wow_core::ObjectGuid::EMPTY;
             }
             self.loot_table.remove(&guid);
+            let _ = self.queue_chest_gameobject_state_refresh_for_same_map_like_cpp(guid);
         }
         for guid in ready_bomb_trap_guids {
             if let Some(state) = self.represented_gameobject_use_states.get_mut(&guid) {

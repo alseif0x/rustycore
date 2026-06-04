@@ -1344,6 +1344,15 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   restock tick, fully-looted visibility/update fanout, per-player despawn visibility for other
   viewers, delete/despawn packets, linked traps, scripts/GO AI, canonical shared GameObject
   ownership, or live client/server validation.
+- 2026-06-04 — Represented chest restock state sync `#NEXT.RUNTIME.L3.031dg`: contrasted against
+  C++ `GameObject::Update` chest restock (`GameObject.cpp:1294-1320`),
+  `GameObject::UpdateDynamicFlagsForNearbyPlayers` (`GameObject.cpp:4382-4386`), and
+  `Player::UpdateVisibleGameobjectsOrSpellClicks` (`Player.cpp:24439-24478`). Rust `process_pending`
+  already represented the local restock mutation; it now queues the bounded chest state sync after
+  clearing loot and setting `GO_READY`, so remote same-map/instance viewers refresh from the
+  restocked state. Remaining gaps: map-owned `GameObject::Update` ownership, `UpdateObjectVisibility`,
+  fully-looted/despawn branches, delete/despawn packets, linked traps, scripts/GO AI, canonical shared
+  GameObject ownership, and live client/server validation.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
