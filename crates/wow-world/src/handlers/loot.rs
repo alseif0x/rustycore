@@ -5658,6 +5658,61 @@ impl WorldSession {
         self.send_packet(&UpdateObject::out_of_range_objects(vec![guid], map_id));
     }
 
+    fn send_gathering_node_loot_release_dynamic_flags_update_like_cpp(&self, guid: ObjectGuid) {
+        if !self.client_visible_guids_like_cpp.contains(&guid) {
+            return;
+        }
+        let Some(access) = self.canonical_gameobject_access_like_cpp(guid) else {
+            return;
+        };
+        let Some(state) = self.represented_gameobject_use_states.get(&guid) else {
+            return;
+        };
+        if state.go_type.map(u32::from) != Some(GAMEOBJECT_TYPE_GATHERING_NODE) {
+            return;
+        }
+        let dynamic_flags =
+            self.represented_gameobject_dynamic_flags_for_player_like_cpp(access.entry, state);
+        let packet_update = wow_packet::packets::update::GameObjectDataValuesUpdate {
+            changed_object_type_mask: 1 << wow_entities::TYPEID_OBJECT,
+            object_data: Some(wow_packet::packets::update::ObjectDataValuesUpdate {
+                changed_object_type_mask: 1 << wow_entities::TYPEID_OBJECT,
+                object_data_mask: 0x05,
+                entry_id: 0,
+                dynamic_flags,
+                scale: 0.0,
+            }),
+            game_object_data_mask: 0,
+            state_world_effect_ids: Vec::new(),
+            enable_doodad_sets: Vec::new(),
+            enable_doodad_sets_update_mask: None,
+            world_effects: Vec::new(),
+            world_effects_update_mask: None,
+            display_id: 0,
+            spell_visual_id: 0,
+            state_spell_visual_id: 0,
+            spawn_tracking_state_anim_id: 0,
+            spawn_tracking_state_anim_kit_id: 0,
+            created_by: ObjectGuid::EMPTY,
+            guild_guid: ObjectGuid::EMPTY,
+            flags: 0,
+            parent_rotation: [0.0; 4],
+            faction_template: 0,
+            level: 0,
+            state: 0,
+            type_id: 0,
+            percent_health: 0,
+            art_kit: 0,
+            custom_param: 0,
+        };
+        let update = UpdateObject::game_object_values_update(
+            guid,
+            self.player_map_id_like_cpp(),
+            packet_update,
+        );
+        self.send_packet(&update);
+    }
+
     fn send_loot_error_like_cpp(&self, loot_obj: ObjectGuid, owner: ObjectGuid, error: u8) {
         self.send_packet(&LootResponse {
             owner,
@@ -5766,6 +5821,14 @@ impl WorldSession {
             }
 
             self.hide_represented_gameobject_for_player_after_loot_release_like_cpp(owner_guid);
+            let go_type = self
+                .represented_gameobject_use_states
+                .get(&owner_guid)
+                .and_then(|state| state.go_type)
+                .map(u32::from);
+            if go_type == Some(GAMEOBJECT_TYPE_GATHERING_NODE) {
+                self.send_gathering_node_loot_release_dynamic_flags_update_like_cpp(owner_guid);
+            }
             self.loot_table.remove(&owner_guid);
             return true;
         }
@@ -7392,7 +7455,6 @@ mod tests {
         GroupInfo, GroupRegistry, LootDropRatesLikeCpp, LootRollVoteCommand, PendingInvites,
         PlayerBroadcastInfo, PlayerRegistry, SessionCommand,
     };
-    use wow_packet::WorldPacket;
     use wow_packet::packets::loot::{
         CreatureLoot, LOOT_ERROR_MASTER_OTHER_LIKE_CPP, LOOT_ERROR_MASTER_UNIQUE_ITEM_LIKE_CPP,
         LOOT_ERROR_NO_LOOT_LIKE_CPP, LOOT_ERROR_PLAYER_NOT_FOUND_LIKE_CPP,
@@ -7405,6 +7467,7 @@ mod tests {
         LootEntry, LootEntryFlags, LootRoll, MasterLootItem, SetLootSpecialization,
     };
     use wow_packet::packets::update::CreatureCreateData;
+    use wow_packet::{ServerPacket, WorldPacket};
 
     use crate::session::{
         AuraApplication, InventoryItem, SPELL_AURA_INTERRUPT_FLAG_LOOTING_LIKE_CPP, SpellCastState,
@@ -15200,12 +15263,20 @@ mod tests {
 
     #[tokio::test]
     async fn loot_release_gathering_node_sets_local_active_state_like_cpp() {
-        let (mut session, send_rx) = make_session_with_send();
+        let (mut session, send_rx) = make_session_with_send_capacity(2);
         let player_guid = ObjectGuid::create_player(1, 42);
         let gathering_node = test_gameobject_guid(19_038);
         session.set_player_guid(Some(player_guid));
         session.set_player_position_like_cpp(Position::ZERO);
+        session.set_player_map_position_like_cpp(571, Position::ZERO);
+        let game_object = make_canonical_gameobject_for_session(
+            &session,
+            gathering_node,
+            GAMEOBJECT_TYPE_GATHERING_NODE as u8,
+        );
+        attach_canonical_gameobject(&mut session, game_object);
         session.set_active_loot_guid(gathering_node);
+        session.client_visible_guids_like_cpp.insert(gathering_node);
         session.record_represented_gameobject_runtime_state_like_cpp(
             0,
             gathering_node,
@@ -15236,13 +15307,56 @@ mod tests {
             .handle_loot_release(loot_release_packet(gathering_node))
             .await;
 
-        assert!(send_rx.try_recv().is_ok());
+        let release_bytes = send_rx.try_recv().unwrap();
+        let mut release = WorldPacket::from_bytes(&release_bytes);
+        assert_eq!(
+            release.read_uint16().unwrap(),
+            wow_constants::ServerOpcodes::LootRelease as u16
+        );
         let state = session
             .represented_gameobject_use_states
             .get(&gathering_node)
             .unwrap();
         assert_eq!(state.go_state, Some(GoState::Active));
         assert_eq!(state.loot_state, None);
+        let expected = wow_packet::packets::update::UpdateObject::game_object_values_update(
+            gathering_node,
+            571,
+            wow_packet::packets::update::GameObjectDataValuesUpdate {
+                changed_object_type_mask: 1 << wow_entities::TYPEID_OBJECT,
+                object_data: Some(wow_packet::packets::update::ObjectDataValuesUpdate {
+                    changed_object_type_mask: 1 << wow_entities::TYPEID_OBJECT,
+                    object_data_mask: 0x05,
+                    entry_id: 0,
+                    dynamic_flags: wow_entities::GO_DYNFLAG_LO_DEPLETED,
+                    scale: 0.0,
+                }),
+                game_object_data_mask: 0,
+                state_world_effect_ids: Vec::new(),
+                enable_doodad_sets: Vec::new(),
+                enable_doodad_sets_update_mask: None,
+                world_effects: Vec::new(),
+                world_effects_update_mask: None,
+                display_id: 0,
+                spell_visual_id: 0,
+                state_spell_visual_id: 0,
+                spawn_tracking_state_anim_id: 0,
+                spawn_tracking_state_anim_kit_id: 0,
+                created_by: ObjectGuid::EMPTY,
+                guild_guid: ObjectGuid::EMPTY,
+                flags: 0,
+                parent_rotation: [0.0; 4],
+                faction_template: 0,
+                level: 0,
+                state: 0,
+                type_id: 0,
+                percent_health: 0,
+                art_kit: 0,
+                custom_param: 0,
+            },
+        )
+        .to_bytes();
+        assert_eq!(send_rx.try_recv().unwrap(), expected);
     }
 
     #[tokio::test]

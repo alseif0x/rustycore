@@ -1353,6 +1353,13 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   restocked state. Remaining gaps: map-owned `GameObject::Update` ownership, `UpdateObjectVisibility`,
   fully-looted/despawn branches, delete/despawn packets, linked traps, scripts/GO AI, canonical shared
   GameObject ownership, and live client/server validation.
+- 2026-06-04 — Gathering-node loot-release direct dynamic-flags update `#NEXT.RUNTIME.L3.031dh`:
+  contrasted against C++ `GameObject::OnLootRelease` gathering-node branch (`GameObject.cpp:3735-3762`),
+  which applies `SetGoStateFor(GO_STATE_ACTIVE, looter)` and sends a direct dynamic-flags values update
+  to that looter. Rust now sends a single-GO `UpdateObject::game_object_values_update` after represented
+  gathering-node loot release when the GO is still `HaveAtClient`, using canonical GO access for the
+  entry and the represented viewer-dependent dynamic-flags seam. Remaining gaps: remote/state ownership
+  beyond the existing `031dd` sync rail, despawn/delete, scripts/GO AI, and live client/server validation.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
