@@ -1322,6 +1322,18 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   session's represented state, then runs the receiver-authoritative refresh. Remaining gaps:
   broader shared/canonical GameObject state ownership, chest/goober/trap/script/GO AI fanout, and
   live client/server validation.
+- 2026-06-04 — Represented chest-open state sync `#NEXT.RUNTIME.L3.031de`: contrasted against C++
+  `GameObject::Use` chest activation (`GameObject.cpp:2608-2662`), `GameObject::SetLootState`
+  (`GameObject.cpp:3683-3710`), `Player::UpdateVisibleGameobjectsOrSpellClicks`
+  (`Player.cpp:24439-24478`), and `GameObject::ActivateToQuest` (`GameObject.cpp:2220-2268`).
+  Rust now sends `SyncChestGameobjectStateAndRefreshLikeCpp` after represented chest activation so
+  same-map/instance remote sessions receive the bounded shared chest state before recomputing their
+  viewer-dependent GameObject flags. The receiver gates by LoggedIn/map/instance/type, applies
+  loot-state/unit-guid plus chest loot metadata used by the represented dynamic-flag seam, then
+  runs the existing receiver-authoritative refresh. Remaining gaps: chest release, fully-looted and
+  restock transitions, broader `UpdateDynamicFlagsForNearbyPlayers` / `UpdateObjectVisibility`,
+  personal despawn/delete packets, trap/script/GO AI, canonical shared GameObject ownership, and
+  live client/server validation.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

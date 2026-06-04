@@ -29,6 +29,7 @@ pub enum SessionCommand {
     SyncGatheringNodeGameobjectStateAndRefreshLikeCpp(
         SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
     ),
+    SyncChestGameobjectStateAndRefreshLikeCpp(SyncChestGameobjectStateAndRefreshLikeCppCommand),
     SetQuestSharingInfoAndSendDetails(SetQuestSharingInfoAndSendDetailsCommand),
     SendRepeatableTurnInRequestItemsLikeCpp(SendRepeatableTurnInRequestItemsLikeCppCommand),
     /// Deliver `packet_bytes` to this session if the source GUID is currently in
@@ -123,6 +124,25 @@ pub struct SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand {
     pub dynamic_flags: u32,
     pub gathering_node_loot_id: Option<u32>,
     pub personal_loot_uses: u32,
+    pub linked_trap_entry: Option<u32>,
+}
+
+/// Syncs the bounded represented chest state needed before running a remote
+/// `UpdateVisibleGameobjectsOrSpellClicks` refresh.
+#[derive(Clone, Debug)]
+pub struct SyncChestGameobjectStateAndRefreshLikeCppCommand {
+    pub gameobject_guid: ObjectGuid,
+    pub map_id: u16,
+    pub instance_id: u32,
+    pub go_type: u8,
+    pub loot_state: Option<u8>,
+    pub loot_state_unit_guid: ObjectGuid,
+    pub chest_loot_id: u32,
+    pub chest_personal_loot_id: u32,
+    pub chest_push_loot_id: u32,
+    pub chest_quest_id: u32,
+    pub chest_restock_time_secs: u32,
+    pub chest_consumable: bool,
     pub linked_trap_entry: Option<u32>,
 }
 

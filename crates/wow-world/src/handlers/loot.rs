@@ -51,6 +51,7 @@ use wow_network::player_registry::{
     ApplyCreatureMeleeDamageLikeCppCommand, CreatureAttackStartLikeCppCommand,
     RefreshVisibleWorldCreaturesLikeCppCommand, SendIfVisibleLikeCppCommand,
     SendRepeatableTurnInRequestItemsLikeCppCommand, SetQuestSharingInfoAndSendDetailsCommand,
+    SyncChestGameobjectStateAndRefreshLikeCppCommand,
     SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
 };
 use wow_network::{
@@ -315,7 +316,12 @@ impl WorldSession {
                 source.linked_trap_entry,
             );
         }
-        self.set_represented_gameobject_loot_state_activated_like_cpp(gameobject_guid, player_guid);
+        let activated_now = self
+            .set_represented_gameobject_loot_state_activated_like_cpp(gameobject_guid, player_guid);
+        if activated_now {
+            let _ =
+                self.queue_chest_gameobject_state_refresh_for_same_map_like_cpp(gameobject_guid);
+        }
         if !source.has_open_loot_like_cpp() {
             return;
         }
@@ -590,6 +596,80 @@ impl WorldSession {
         })
     }
 
+    fn chest_gameobject_state_refresh_command_like_cpp(
+        &self,
+        gameobject_guid: ObjectGuid,
+    ) -> Option<SyncChestGameobjectStateAndRefreshLikeCppCommand> {
+        let state = self
+            .represented_gameobject_use_states
+            .get(&gameobject_guid)?;
+        let source = state.chest_loot_source?;
+        Some(SyncChestGameobjectStateAndRefreshLikeCppCommand {
+            gameobject_guid,
+            map_id: self.player_map_id_like_cpp(),
+            instance_id: self
+                .current_canonical_player_map_key_like_cpp()
+                .map(|key| key.instance_id)
+                .unwrap_or(0),
+            go_type: state.go_type.unwrap_or(GAMEOBJECT_TYPE_CHEST as u8),
+            loot_state: state.loot_state.map(|loot_state| loot_state as u8),
+            loot_state_unit_guid: state.loot_state_unit_guid,
+            chest_loot_id: source.loot_id,
+            chest_personal_loot_id: source.personal_loot_id,
+            chest_push_loot_id: source.push_loot_id,
+            chest_quest_id: source.chest_quest_id,
+            chest_restock_time_secs: source.chest_restock_time_secs,
+            chest_consumable: source.chest_consumable,
+            linked_trap_entry: state.linked_trap_entry,
+        })
+    }
+
+    fn queue_chest_gameobject_state_refresh_for_same_map_like_cpp(
+        &self,
+        gameobject_guid: ObjectGuid,
+    ) -> usize {
+        let Some(player_guid) = self.player_guid() else {
+            return 0;
+        };
+        let Some(registry) = self.player_registry() else {
+            return 0;
+        };
+        let Some(command) = self.chest_gameobject_state_refresh_command_like_cpp(gameobject_guid)
+        else {
+            return 0;
+        };
+        let current_map_id = self.player_map_id_like_cpp();
+        let current_instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        let mut queued = 0;
+
+        for entry in registry.iter() {
+            let (candidate_guid, candidate) = entry.pair();
+            if *candidate_guid == player_guid {
+                continue;
+            }
+            if !candidate.is_in_world
+                || candidate.map_id != current_map_id
+                || candidate.instance_id != current_instance_id
+            {
+                continue;
+            }
+            if candidate
+                .command_tx
+                .try_send(SessionCommand::SyncChestGameobjectStateAndRefreshLikeCpp(
+                    command.clone(),
+                ))
+                .is_ok()
+            {
+                queued += 1;
+            }
+        }
+
+        queued
+    }
+
     fn queue_gathering_node_gameobject_state_refresh_for_same_map_like_cpp(
         &self,
         gameobject_guid: ObjectGuid,
@@ -666,6 +746,7 @@ impl WorldSession {
             .represented_gameobject_use_states
             .entry(gameobject_guid)
             .or_default();
+        state.go_type = Some(GAMEOBJECT_TYPE_CHEST as u8);
         state.chest_restock_time_secs = Some(source.chest_restock_time_secs);
         state.chest_consumable = Some(source.chest_consumable);
         state.despawn_at_action = source.chest_consumable;
@@ -2605,6 +2686,9 @@ impl WorldSession {
                 SessionCommand::SyncGatheringNodeGameobjectStateAndRefreshLikeCpp(command) => {
                     self.handle_sync_gathering_node_gameobject_state_and_refresh_like_cpp(command);
                 }
+                SessionCommand::SyncChestGameobjectStateAndRefreshLikeCpp(command) => {
+                    self.handle_sync_chest_gameobject_state_and_refresh_like_cpp(command);
+                }
                 SessionCommand::SetQuestSharingInfoAndSendDetails(command) => {
                     self.handle_set_quest_sharing_info_and_send_details_command_like_cpp(command);
                 }
@@ -2672,6 +2756,68 @@ impl WorldSession {
             state.dynamic_flags = command.dynamic_flags;
             state.gathering_node_loot_id = command.gathering_node_loot_id;
             state.personal_loot_uses = command.personal_loot_uses;
+            state.linked_trap_entry = command.linked_trap_entry;
+        }
+
+        let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
+    }
+
+    /// Mirrors the small chest state subset that C++ keeps on the shared
+    /// GameObject before asking this session to recompute visible GameObject
+    /// dynamic-flag deltas.
+    fn handle_sync_chest_gameobject_state_and_refresh_like_cpp(
+        &mut self,
+        command: SyncChestGameobjectStateAndRefreshLikeCppCommand,
+    ) {
+        if self.state() != SessionState::LoggedIn {
+            return;
+        }
+        if command.map_id != self.player_map_id_like_cpp() {
+            return;
+        }
+        let current_instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        if command.instance_id != current_instance_id {
+            return;
+        }
+        if u32::from(command.go_type) != GAMEOBJECT_TYPE_CHEST {
+            return;
+        }
+        let loot_state = match command.loot_state {
+            Some(0) => Some(LootState::NotReady),
+            Some(1) => Some(LootState::Ready),
+            Some(2) => Some(LootState::Activated),
+            Some(3) => Some(LootState::JustDeactivated),
+            Some(_) => return,
+            None => None,
+        };
+
+        {
+            let state = self
+                .represented_gameobject_use_states
+                .entry(command.gameobject_guid)
+                .or_default();
+            state.map_id = Some(command.map_id);
+            state.go_type = Some(command.go_type);
+            state.loot_state = loot_state;
+            state.loot_state_unit_guid = command.loot_state_unit_guid;
+            state.chest_loot_source = Some(GameObjectLootSource {
+                loot_id: command.chest_loot_id,
+                use_group_loot_rules: false,
+                dungeon_encounter_id: 0,
+                personal_loot_id: command.chest_personal_loot_id,
+                push_loot_id: command.chest_push_loot_id,
+                triggered_event_id: 0,
+                linked_trap_entry: command.linked_trap_entry.unwrap_or_default(),
+                chest_restock_time_secs: command.chest_restock_time_secs,
+                chest_consumable: command.chest_consumable,
+                chest_quest_id: command.chest_quest_id,
+            });
+            state.chest_restock_time_secs = Some(command.chest_restock_time_secs);
+            state.chest_consumable = Some(command.chest_consumable);
+            state.chest_personal_loot_id = Some(command.chest_personal_loot_id);
             state.linked_trap_entry = command.linked_trap_entry;
         }
 
@@ -7191,7 +7337,8 @@ mod tests {
         ROLL_ALL_TYPE_NO_DISENCHANT_LIKE_CPP, ROLL_FLAG_TYPE_NEED_LIKE_CPP,
         ROLL_VOTE_GREED_LIKE_CPP, ROLL_VOTE_NEED_LIKE_CPP, ROLL_VOTE_NOT_EMITTED_YET_LIKE_CPP,
         ROLL_VOTE_NOT_VALID_LIKE_CPP, ROLL_VOTE_PASS_LIKE_CPP, RepresentedLootPlayerContext,
-        SPELL_EFFECT_OPEN_LOCK_LIKE_CPP, SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
+        SPELL_EFFECT_OPEN_LOCK_LIKE_CPP, SyncChestGameobjectStateAndRefreshLikeCppCommand,
+        SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
         assign_represented_personal_loot_items_like_cpp,
         generated_creature_loot_item_to_entry_like_cpp, loot_is_looted_like_cpp, loot_item_context,
         loot_store_data_can_stack_with_item, loot_type_for_client_like_cpp,
@@ -9198,6 +9345,123 @@ mod tests {
             .expect("represented chest use records GO loot state");
         assert_eq!(state.loot_state, Some(LootState::Activated));
         assert_eq!(state.loot_state_unit_guid, player_guid);
+    }
+
+    #[tokio::test]
+    async fn represented_chest_use_syncs_state_to_same_map_viewers_like_cpp() {
+        let mut session = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let same_map_guid = ObjectGuid::create_player(1, 77);
+        let other_map_guid = ObjectGuid::create_player(1, 88);
+        let gameobject_guid = test_gameobject_guid(91_010);
+        let (same_command_tx, same_command_rx) = flume::bounded(2);
+        let (other_command_tx, other_command_rx) = flume::bounded(2);
+        let (same_send_tx, _same_send_rx) = flume::bounded::<Vec<u8>>(1);
+        let (other_send_tx, _other_send_rx) = flume::bounded::<Vec<u8>>(1);
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let mut same_info = broadcast_info(same_map_guid, same_send_tx);
+        same_info.map_id = 571;
+        same_info.command_tx = same_command_tx;
+        player_registry.insert(same_map_guid, same_info);
+        let mut other_info = broadcast_info(other_map_guid, other_send_tx);
+        other_info.map_id = 1;
+        other_info.command_tx = other_command_tx;
+        player_registry.insert(other_map_guid, other_info);
+        let source = GameObjectLootSource {
+            loot_id: 190_010,
+            personal_loot_id: 190_011,
+            push_loot_id: 190_012,
+            chest_restock_time_secs: 30,
+            chest_consumable: false,
+            chest_quest_id: 777,
+            linked_trap_entry: 190_013,
+            ..Default::default()
+        };
+
+        session.set_player_guid(Some(player_guid));
+        session.set_player_map_position_like_cpp(571, Position::ZERO);
+        session.set_player_registry(player_registry);
+        session
+            .client_visible_guids_like_cpp
+            .insert(gameobject_guid);
+
+        session
+            .open_represented_gameobject_chest_like_cpp(gameobject_guid, source)
+            .await;
+
+        let command = match same_command_rx.try_recv() {
+            Ok(SessionCommand::SyncChestGameobjectStateAndRefreshLikeCpp(command)) => command,
+            other => panic!("expected chest sync command, got {other:?}"),
+        };
+        assert_eq!(command.gameobject_guid, gameobject_guid);
+        assert_eq!(command.map_id, 571);
+        assert_eq!(command.go_type, wow_entities::GAMEOBJECT_TYPE_CHEST as u8);
+        assert_eq!(
+            command.loot_state,
+            Some(wow_entities::LootState::Activated as u8)
+        );
+        assert_eq!(command.chest_loot_id, 190_010);
+        assert_eq!(command.chest_personal_loot_id, 190_011);
+        assert_eq!(command.chest_push_loot_id, 190_012);
+        assert_eq!(command.chest_quest_id, 777);
+        assert_eq!(command.chest_restock_time_secs, 30);
+        assert!(!command.chest_consumable);
+        assert_eq!(command.linked_trap_entry, Some(190_013));
+        assert!(other_command_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn chest_state_sync_command_updates_receiver_before_refresh_like_cpp() {
+        let mut session = make_session();
+        let player_guid = ObjectGuid::create_player(1, 77);
+        let gameobject_guid = test_gameobject_guid(91_011);
+        session.set_state(SessionState::LoggedIn);
+        session.set_player_guid(Some(player_guid));
+        session.set_player_map_position_like_cpp(571, Position::ZERO);
+
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::SyncChestGameobjectStateAndRefreshLikeCpp(
+                SyncChestGameobjectStateAndRefreshLikeCppCommand {
+                    gameobject_guid,
+                    map_id: 571,
+                    instance_id: 0,
+                    go_type: wow_entities::GAMEOBJECT_TYPE_CHEST as u8,
+                    loot_state: Some(wow_entities::LootState::Activated as u8),
+                    loot_state_unit_guid: ObjectGuid::create_player(1, 42),
+                    chest_loot_id: 190_011,
+                    chest_personal_loot_id: 190_012,
+                    chest_push_loot_id: 190_013,
+                    chest_quest_id: 778,
+                    chest_restock_time_secs: 45,
+                    chest_consumable: false,
+                    linked_trap_entry: Some(190_014),
+                },
+            ))
+            .expect("command queued");
+
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+
+        let state = session
+            .represented_gameobject_use_states
+            .get(&gameobject_guid)
+            .expect("synced chest state");
+        assert_eq!(
+            state.go_type,
+            Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8)
+        );
+        assert_eq!(state.loot_state, Some(wow_entities::LootState::Activated));
+        assert_eq!(state.chest_restock_time_secs, Some(45));
+        assert_eq!(state.chest_consumable, Some(false));
+        assert_eq!(state.chest_personal_loot_id, Some(190_012));
+        assert_eq!(state.linked_trap_entry, Some(190_014));
+        let source = state.chest_loot_source.expect("synced chest source");
+        assert_eq!(source.loot_id, 190_011);
+        assert_eq!(source.personal_loot_id, 190_012);
+        assert_eq!(source.push_loot_id, 190_013);
+        assert_eq!(source.chest_quest_id, 778);
     }
 
     #[tokio::test]
