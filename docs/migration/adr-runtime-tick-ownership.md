@@ -1395,6 +1395,16 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   Remaining gaps: generic chest/GO visual despawn fanout, owner/summoned delete paths, linked-trap
   runtime despawn, object removal/list persistence, scripts/GO AI, canonical shared GameObject
   ownership, and live client/server validation.
+- 2026-06-04 — Represented generic/chest `GO_JUST_DEACTIVATED` visual despawn fanout
+  `#NEXT.RUNTIME.L3.031dm`: contrasted against the same C++ `GameObject::Update`
+  despawn-at-action / animation-progress branch and `GameObject::SendGameObjectDespawn`
+  (`GameObject.cpp:1640-1647`, `GameObject.cpp:1766-1771`). Rust's represented generic/chest
+  `send_despawn_at_action && !delete_after_clear && !schedule_respawn` path now preserves the
+  owning-session `SMSG_GAME_OBJECT_DESPAWN` and enqueues the same bytes to same-map/instance remote
+  sessions through `SendIfVisibleLikeCpp`. Remaining gaps: owner/summoned delete paths,
+  scheduled-respawn/remove-list despawn, linked-trap runtime despawn, object removal/list
+  persistence, scripts/GO AI, canonical shared GameObject ownership, and live client/server
+  validation.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

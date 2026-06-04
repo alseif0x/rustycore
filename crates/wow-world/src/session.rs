@@ -16492,7 +16492,7 @@ impl WorldSession {
             }
             let send_despawn_at_action = is_despawn_at_action || go_anim_progress > 0;
             if send_despawn_at_action && !delete_after_clear && !schedule_respawn {
-                self.send_represented_gameobject_despawn_like_cpp(guid);
+                self.send_represented_gameobject_despawn_to_visible_set_like_cpp(guid);
                 self.restore_represented_gameobject_override_flags_like_cpp(guid);
             }
             if delete_after_clear || schedule_respawn {
@@ -51110,8 +51110,20 @@ mod tests {
      {
         let (mut session, _pkt_tx, send_rx) = make_session();
         session.set_state(SessionState::LoggedIn);
+        let player_guid = ObjectGuid::create_player(1, 99);
+        let same_map_guid = ObjectGuid::create_player(1, 77);
         let gameobject_guid =
             ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 245);
+        let (same_command_tx, same_command_rx) = flume::bounded(2);
+        let (same_send_tx, _same_send_rx) = flume::bounded::<Vec<u8>>(1);
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let mut same_info = broadcast_info(same_map_guid, same_send_tx);
+        same_info.map_id = 571;
+        same_info.command_tx = same_command_tx;
+        player_registry.insert(same_map_guid, same_info);
+        session.set_player_guid(Some(player_guid));
+        session.set_player_map_position_like_cpp(571, Position::ZERO);
+        session.set_player_registry(player_registry);
         let state = session
             .represented_gameobject_use_states
             .entry(gameobject_guid)
@@ -51128,6 +51140,18 @@ mod tests {
 
         let opcodes = drain_server_opcodes(&send_rx);
         assert_eq!(opcodes, vec![ServerOpcodes::GameObjectDespawn]);
+        let command = match same_command_rx.try_recv() {
+            Ok(SessionCommand::SendIfVisibleLikeCpp(command)) => command,
+            other => panic!("expected represented chest despawn fanout command, got {other:?}"),
+        };
+        let mut expected = (ServerOpcodes::GameObjectDespawn as u16)
+            .to_le_bytes()
+            .to_vec();
+        expected.extend_from_slice(&gameobject_guid.to_raw_bytes());
+        assert_eq!(command.source_guid, gameobject_guid);
+        assert_eq!(command.map_id, 571);
+        assert_eq!(command.instance_id, 0);
+        assert_eq!(command.packet_bytes, expected);
     }
 
     #[tokio::test]
