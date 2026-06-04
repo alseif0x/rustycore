@@ -16899,6 +16899,22 @@ impl WorldSession {
         });
     }
 
+    fn send_represented_gameobject_despawn_to_visible_set_like_cpp(
+        &mut self,
+        gameobject_guid: ObjectGuid,
+    ) {
+        use wow_packet::ServerPacket;
+
+        let packet = wow_packet::packets::misc::GameObjectDespawn {
+            object_guid: gameobject_guid,
+        };
+        self.send_packet(&packet);
+        let _ = self.queue_visible_gameobject_packet_for_same_map_like_cpp(
+            gameobject_guid,
+            packet.to_bytes(),
+        );
+    }
+
     fn send_represented_gameobject_out_of_range_for_player_like_cpp(
         &mut self,
         gameobject_guid: ObjectGuid,
@@ -18889,7 +18905,7 @@ impl WorldSession {
         }
 
         if send_despawn_at_action {
-            self.send_represented_gameobject_despawn_like_cpp(gameobject_guid);
+            self.send_represented_gameobject_despawn_to_visible_set_like_cpp(gameobject_guid);
         }
 
         if source.spell_id != 0 {
@@ -51459,9 +51475,21 @@ mod tests {
 
     #[test]
     fn gameobject_goober_just_deactivated_consumable_stays_not_ready_like_cpp() {
-        let (mut session, _pkt_tx, _send_rx) = make_session();
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 99);
+        let same_map_guid = ObjectGuid::create_player(1, 77);
         let gameobject_guid =
             ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 16);
+        let (same_command_tx, same_command_rx) = flume::bounded(2);
+        let (same_send_tx, _same_send_rx) = flume::bounded::<Vec<u8>>(1);
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let mut same_info = broadcast_info(same_map_guid, same_send_tx);
+        same_info.map_id = 571;
+        same_info.command_tx = same_command_tx;
+        player_registry.insert(same_map_guid, same_info);
+        session.set_player_guid(Some(player_guid));
+        session.set_player_map_position_like_cpp(571, Position::ZERO);
+        session.set_player_registry(player_registry);
         session
             .represented_gameobject_use_states
             .entry(gameobject_guid)
@@ -51492,6 +51520,22 @@ mod tests {
                 go_state: None,
             }]
         );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::GameObjectDespawn]
+        );
+        let command = match same_command_rx.try_recv() {
+            Ok(SessionCommand::SendIfVisibleLikeCpp(command)) => command,
+            other => panic!("expected represented goober despawn fanout command, got {other:?}"),
+        };
+        let mut expected = (ServerOpcodes::GameObjectDespawn as u16)
+            .to_le_bytes()
+            .to_vec();
+        expected.extend_from_slice(&gameobject_guid.to_raw_bytes());
+        assert_eq!(command.source_guid, gameobject_guid);
+        assert_eq!(command.map_id, 571);
+        assert_eq!(command.instance_id, 0);
+        assert_eq!(command.packet_bytes, expected);
     }
 
     #[tokio::test]

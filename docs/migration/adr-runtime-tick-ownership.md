@@ -1387,6 +1387,14 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   gaps: consumable/despawn-at-action fanout, `SendGameObjectDespawn`, owner/summoned delete paths,
   linked-trap runtime despawn, scripts/GO AI, canonical shared GameObject ownership, and live
   client/server validation.
+- 2026-06-04 — Represented goober consumable visual despawn fanout `#NEXT.RUNTIME.L3.031dl`:
+  contrasted against C++ `GameObject::Update` `GO_JUST_DEACTIVATED` despawn-at-action branch and
+  `GameObject::SendGameObjectDespawn` (`GameObject.cpp:1640-1647`, `GameObject.cpp:1766-1771`).
+  Rust now keeps the represented goober consumable self-send and also enqueues the exact same
+  `SMSG_GAME_OBJECT_DESPAWN` bytes to same-map/instance remote sessions through `SendIfVisibleLikeCpp`.
+  Remaining gaps: generic chest/GO visual despawn fanout, owner/summoned delete paths, linked-trap
+  runtime despawn, object removal/list persistence, scripts/GO AI, canonical shared GameObject
+  ownership, and live client/server validation.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
