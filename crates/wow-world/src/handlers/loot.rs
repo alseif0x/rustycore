@@ -30,11 +30,12 @@ use wow_entities::{
     GAMEOBJECT_TYPE_DESTRUCTIBLE_BUILDING, GAMEOBJECT_TYPE_DOOR,
     GAMEOBJECT_TYPE_DUNGEON_DIFFICULTY, GAMEOBJECT_TYPE_FISHING_HOLE, GAMEOBJECT_TYPE_FISHING_NODE,
     GAMEOBJECT_TYPE_FLAGDROP, GAMEOBJECT_TYPE_FLAGSTAND, GAMEOBJECT_TYPE_GATHERING_NODE,
-    GAMEOBJECT_TYPE_GUILD_BANK, GAMEOBJECT_TYPE_MAILBOX, GAMEOBJECT_TYPE_MAP_OBJECT,
-    GAMEOBJECT_TYPE_MINI_GAME, GAMEOBJECT_TYPE_QUESTGIVER, GAMEOBJECT_TYPE_TEXT,
-    GO_DYNFLAG_LO_NO_INTERACT, GameObjectLootSource, GameObjectOwnedLoot, GatheringNodeUseSource,
-    GoState, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_END,
-    INVENTORY_SLOT_ITEM_START, Item, ItemPosCount, LootState, make_item_pos,
+    GAMEOBJECT_TYPE_GOOBER, GAMEOBJECT_TYPE_GUILD_BANK, GAMEOBJECT_TYPE_MAILBOX,
+    GAMEOBJECT_TYPE_MAP_OBJECT, GAMEOBJECT_TYPE_MINI_GAME, GAMEOBJECT_TYPE_QUESTGIVER,
+    GAMEOBJECT_TYPE_TEXT, GO_DYNFLAG_LO_NO_INTERACT, GameObjectLootSource, GameObjectOwnedLoot,
+    GatheringNodeUseSource, GoState, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0,
+    INVENTORY_SLOT_ITEM_END, INVENTORY_SLOT_ITEM_START, Item, ItemPosCount, LootState,
+    make_item_pos,
 };
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
 use wow_loot::{
@@ -53,6 +54,7 @@ use wow_network::player_registry::{
     SendRepeatableTurnInRequestItemsLikeCppCommand, SetQuestSharingInfoAndSendDetailsCommand,
     SyncChestGameobjectStateAndRefreshLikeCppCommand,
     SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
+    SyncGooberGameobjectStateAndRefreshLikeCppCommand,
 };
 use wow_network::{
     LootRollStoreWinnerCommand, LootRollVoteCommand, MasterLootGiveCommand, MasterLootGiveResult,
@@ -624,6 +626,30 @@ impl WorldSession {
         })
     }
 
+    fn goober_gameobject_state_refresh_command_like_cpp(
+        &self,
+        gameobject_guid: ObjectGuid,
+    ) -> Option<SyncGooberGameobjectStateAndRefreshLikeCppCommand> {
+        let state = self
+            .represented_gameobject_use_states
+            .get(&gameobject_guid)?;
+        Some(SyncGooberGameobjectStateAndRefreshLikeCppCommand {
+            gameobject_guid,
+            map_id: self.player_map_id_like_cpp(),
+            instance_id: self
+                .current_canonical_player_map_key_like_cpp()
+                .map(|key| key.instance_id)
+                .unwrap_or(0),
+            go_type: state.go_type.unwrap_or(GAMEOBJECT_TYPE_GOOBER as u8),
+            gameobject_flags: state.gameobject_flags,
+            loot_state: state.loot_state.map(|loot_state| loot_state as u8),
+            loot_state_unit_guid: state.loot_state_unit_guid,
+            go_state: state.go_state.map(|go_state| go_state as i8),
+            dynamic_flags: state.dynamic_flags,
+            linked_trap_entry: state.linked_trap_entry,
+        })
+    }
+
     pub(crate) fn queue_chest_gameobject_state_refresh_for_same_map_like_cpp(
         &self,
         gameobject_guid: ObjectGuid,
@@ -659,6 +685,52 @@ impl WorldSession {
             if candidate
                 .command_tx
                 .try_send(SessionCommand::SyncChestGameobjectStateAndRefreshLikeCpp(
+                    command.clone(),
+                ))
+                .is_ok()
+            {
+                queued += 1;
+            }
+        }
+
+        queued
+    }
+
+    pub(crate) fn queue_goober_gameobject_state_refresh_for_same_map_like_cpp(
+        &self,
+        gameobject_guid: ObjectGuid,
+    ) -> usize {
+        let Some(player_guid) = self.player_guid() else {
+            return 0;
+        };
+        let Some(registry) = self.player_registry() else {
+            return 0;
+        };
+        let Some(command) = self.goober_gameobject_state_refresh_command_like_cpp(gameobject_guid)
+        else {
+            return 0;
+        };
+        let current_map_id = self.player_map_id_like_cpp();
+        let current_instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        let mut queued = 0;
+
+        for entry in registry.iter() {
+            let (candidate_guid, candidate) = entry.pair();
+            if *candidate_guid == player_guid {
+                continue;
+            }
+            if !candidate.is_in_world
+                || candidate.map_id != current_map_id
+                || candidate.instance_id != current_instance_id
+            {
+                continue;
+            }
+            if candidate
+                .command_tx
+                .try_send(SessionCommand::SyncGooberGameobjectStateAndRefreshLikeCpp(
                     command.clone(),
                 ))
                 .is_ok()
@@ -2689,6 +2761,9 @@ impl WorldSession {
                 SessionCommand::SyncChestGameobjectStateAndRefreshLikeCpp(command) => {
                     self.handle_sync_chest_gameobject_state_and_refresh_like_cpp(command);
                 }
+                SessionCommand::SyncGooberGameobjectStateAndRefreshLikeCpp(command) => {
+                    self.handle_sync_goober_gameobject_state_and_refresh_like_cpp(command);
+                }
                 SessionCommand::SetQuestSharingInfoAndSendDetails(command) => {
                     self.handle_set_quest_sharing_info_and_send_details_command_like_cpp(command);
                 }
@@ -2818,6 +2893,67 @@ impl WorldSession {
             state.chest_restock_time_secs = Some(command.chest_restock_time_secs);
             state.chest_consumable = Some(command.chest_consumable);
             state.chest_personal_loot_id = Some(command.chest_personal_loot_id);
+            state.linked_trap_entry = command.linked_trap_entry;
+        }
+
+        let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
+    }
+
+    /// Mirrors the small shared goober state subset that C++ keeps on the
+    /// shared GameObject before asking this session to recompute visible
+    /// GameObject dynamic-flag deltas. This intentionally does not import the
+    /// cooldown/source ownership fields; the map-owned close/despawn path is a
+    /// later runtime slice.
+    fn handle_sync_goober_gameobject_state_and_refresh_like_cpp(
+        &mut self,
+        command: SyncGooberGameobjectStateAndRefreshLikeCppCommand,
+    ) {
+        if self.state() != SessionState::LoggedIn {
+            return;
+        }
+        if command.map_id != self.player_map_id_like_cpp() {
+            return;
+        }
+        let current_instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        if command.instance_id != current_instance_id {
+            return;
+        }
+        if u32::from(command.go_type) != GAMEOBJECT_TYPE_GOOBER {
+            return;
+        }
+        let loot_state = match command.loot_state {
+            Some(0) => Some(LootState::NotReady),
+            Some(1) => Some(LootState::Ready),
+            Some(2) => Some(LootState::Activated),
+            Some(3) => Some(LootState::JustDeactivated),
+            Some(_) => return,
+            None => None,
+        };
+        let go_state = match command.go_state {
+            Some(0) => Some(GoState::Active),
+            Some(1) => Some(GoState::Ready),
+            Some(2) => Some(GoState::Destroyed),
+            Some(24) => Some(GoState::TransportActive),
+            Some(25) => Some(GoState::TransportStopped),
+            Some(_) => return,
+            None => None,
+        };
+
+        {
+            let state = self
+                .represented_gameobject_use_states
+                .entry(command.gameobject_guid)
+                .or_default();
+            state.map_id = Some(command.map_id);
+            state.go_type = Some(command.go_type);
+            state.gameobject_flags = command.gameobject_flags;
+            state.loot_state = loot_state;
+            state.loot_state_unit_guid = command.loot_state_unit_guid;
+            state.go_state = go_state;
+            state.dynamic_flags = command.dynamic_flags;
             state.linked_trap_entry = command.linked_trap_entry;
         }
 
@@ -7403,6 +7539,7 @@ mod tests {
         ROLL_VOTE_NOT_VALID_LIKE_CPP, ROLL_VOTE_PASS_LIKE_CPP, RepresentedLootPlayerContext,
         SPELL_EFFECT_OPEN_LOCK_LIKE_CPP, SyncChestGameobjectStateAndRefreshLikeCppCommand,
         SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
+        SyncGooberGameobjectStateAndRefreshLikeCppCommand,
         assign_represented_personal_loot_items_like_cpp,
         generated_creature_loot_item_to_entry_like_cpp, loot_is_looted_like_cpp, loot_item_context,
         loot_store_data_can_stack_with_item, loot_type_for_client_like_cpp,
@@ -7443,9 +7580,10 @@ mod tests {
     use wow_database::{CharStatements, StatementDef};
     use wow_entities::{
         AccessorObjectKind, GAMEOBJECT_TYPE_CHEST, GAMEOBJECT_TYPE_FISHING_HOLE,
-        GAMEOBJECT_TYPE_FISHING_NODE, GAMEOBJECT_TYPE_GATHERING_NODE, GO_DYNFLAG_LO_NO_INTERACT,
-        GameObject, GameObjectLootSource, GameObjectOwnedLoot, GatheringNodeUseSource, GoState,
-        Item, ItemCreateInfo, LootState, MAX_ITEM_SPELLS, WorldObject,
+        GAMEOBJECT_TYPE_FISHING_NODE, GAMEOBJECT_TYPE_GATHERING_NODE, GAMEOBJECT_TYPE_GOOBER,
+        GO_DYNFLAG_LO_NO_INTERACT, GameObject, GameObjectLootSource, GameObjectOwnedLoot,
+        GatheringNodeUseSource, GoState, Item, ItemCreateInfo, LootState, MAX_ITEM_SPELLS,
+        WorldObject,
     };
     use wow_loot::{
         GeneratedLootItem, LOOT_SLOT_TYPE_OWNER_LIKE_CPP, LootConditionRowLikeCpp, LootStore,
@@ -9526,6 +9664,115 @@ mod tests {
         assert_eq!(source.personal_loot_id, 190_012);
         assert_eq!(source.push_loot_id, 190_013);
         assert_eq!(source.chest_quest_id, 778);
+    }
+
+    #[test]
+    fn represented_goober_use_syncs_shared_state_to_same_map_viewers_like_cpp() {
+        let mut session = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let same_map_guid = ObjectGuid::create_player(1, 77);
+        let other_map_guid = ObjectGuid::create_player(1, 88);
+        let gameobject_guid = test_gameobject_guid(91_012);
+        let (same_command_tx, same_command_rx) = flume::bounded(2);
+        let (other_command_tx, other_command_rx) = flume::bounded(2);
+        let (same_send_tx, _same_send_rx) = flume::bounded::<Vec<u8>>(1);
+        let (other_send_tx, _other_send_rx) = flume::bounded::<Vec<u8>>(1);
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let mut same_info = broadcast_info(same_map_guid, same_send_tx);
+        same_info.map_id = 571;
+        same_info.command_tx = same_command_tx;
+        player_registry.insert(same_map_guid, same_info);
+        let mut other_info = broadcast_info(other_map_guid, other_send_tx);
+        other_info.map_id = 1;
+        other_info.command_tx = other_command_tx;
+        player_registry.insert(other_map_guid, other_info);
+
+        session.set_player_guid(Some(player_guid));
+        session.set_player_map_position_like_cpp(571, Position::ZERO);
+        session.set_player_registry(player_registry);
+        session
+            .represented_gameobject_use_states
+            .entry(gameobject_guid)
+            .or_default()
+            .linked_trap_entry = Some(190_015);
+
+        assert!(session.use_represented_gameobject_goober_state_like_cpp(
+            gameobject_guid,
+            player_guid,
+            777,
+            wow_entities::GooberUseSource {
+                auto_close_ms: 3_000,
+                linked_trap_entry: 190_015,
+                ..Default::default()
+            },
+        ));
+
+        let command = match same_command_rx.try_recv() {
+            Ok(SessionCommand::SyncGooberGameobjectStateAndRefreshLikeCpp(command)) => command,
+            other => panic!("expected goober sync command, got {other:?}"),
+        };
+        assert_eq!(command.gameobject_guid, gameobject_guid);
+        assert_eq!(command.map_id, 571);
+        assert_eq!(command.go_type, GAMEOBJECT_TYPE_GOOBER as u8);
+        assert_eq!(command.gameobject_flags & wow_entities::GO_FLAG_IN_USE, 1);
+        assert_eq!(
+            command.loot_state,
+            Some(wow_entities::LootState::Activated as u8)
+        );
+        assert_eq!(command.loot_state_unit_guid, player_guid);
+        assert_eq!(command.go_state, Some(wow_entities::GoState::Active as i8));
+        assert_eq!(command.linked_trap_entry, Some(190_015));
+        assert!(other_command_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn goober_state_sync_command_updates_receiver_before_refresh_like_cpp() {
+        let mut session = make_session();
+        let player_guid = ObjectGuid::create_player(1, 77);
+        let owner_guid = ObjectGuid::create_player(1, 42);
+        let gameobject_guid = test_gameobject_guid(91_013);
+        session.set_state(SessionState::LoggedIn);
+        session.set_player_guid(Some(player_guid));
+        session.set_player_map_position_like_cpp(571, Position::ZERO);
+
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::SyncGooberGameobjectStateAndRefreshLikeCpp(
+                SyncGooberGameobjectStateAndRefreshLikeCppCommand {
+                    gameobject_guid,
+                    map_id: 571,
+                    instance_id: 0,
+                    go_type: GAMEOBJECT_TYPE_GOOBER as u8,
+                    gameobject_flags: wow_entities::GO_FLAG_IN_USE,
+                    loot_state: Some(wow_entities::LootState::Activated as u8),
+                    loot_state_unit_guid: owner_guid,
+                    go_state: Some(wow_entities::GoState::Active as i8),
+                    dynamic_flags: wow_entities::GO_DYNFLAG_LO_NO_INTERACT,
+                    linked_trap_entry: Some(190_016),
+                },
+            ))
+            .expect("command queued");
+
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+
+        let state = session
+            .represented_gameobject_use_states
+            .get(&gameobject_guid)
+            .expect("synced goober state");
+        assert_eq!(state.go_type, Some(GAMEOBJECT_TYPE_GOOBER as u8));
+        assert_eq!(state.gameobject_flags & wow_entities::GO_FLAG_IN_USE, 1);
+        assert_eq!(state.loot_state, Some(wow_entities::LootState::Activated));
+        assert_eq!(state.loot_state_unit_guid, owner_guid);
+        assert_eq!(state.go_state, Some(wow_entities::GoState::Active));
+        assert_eq!(
+            state.dynamic_flags & wow_entities::GO_DYNFLAG_LO_NO_INTERACT,
+            wow_entities::GO_DYNFLAG_LO_NO_INTERACT
+        );
+        assert_eq!(state.linked_trap_entry, Some(190_016));
+        assert!(state.cooldown_until.is_none());
+        assert!(state.goober_use_source.is_none());
     }
 
     #[tokio::test]

@@ -1360,6 +1360,17 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   gathering-node loot release when the GO is still `HaveAtClient`, using canonical GO access for the
   entry and the represented viewer-dependent dynamic-flags seam. Remaining gaps: remote/state ownership
   beyond the existing `031dd` sync rail, despawn/delete, scripts/GO AI, and live client/server validation.
+- 2026-06-04 — Represented goober activation state sync `#NEXT.RUNTIME.L3.031di`: contrasted against
+  C++ `GameObject::Use` `GAMEOBJECT_TYPE_GOOBER` shared branch (`GameObject.cpp:2740-2795`) and the
+  later autoclose / `GO_JUST_DEACTIVATED` update branches (`GameObject.cpp:1516-1523`,
+  `GameObject.cpp:1575-1647`). Rust now sends `SyncGooberGameobjectStateAndRefreshLikeCpp` after the
+  non-multi-interact represented goober shared-state mutation so same-map/instance remote viewers apply
+  the bounded visual state before `UpdateVisibleGameobjectsOrSpellClicks`. The receiver intentionally
+  does not import `cooldown_until` or `goober_use_source`; map-owned autoclose/despawn remains a later
+  runtime ownership slice and duplicating those fields per receiver would preserve the current bug.
+  Remaining gaps: custom-animation fanout to other viewers, autoclose/JustDeactivated ownership,
+  unique-user spell cleanup, ClearLoot/NODESPAWN/delete/despawn branches, scripts/GO AI, canonical
+  shared GameObject ownership, and live client/server validation.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

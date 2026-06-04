@@ -30,6 +30,7 @@ pub enum SessionCommand {
         SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
     ),
     SyncChestGameobjectStateAndRefreshLikeCpp(SyncChestGameobjectStateAndRefreshLikeCppCommand),
+    SyncGooberGameobjectStateAndRefreshLikeCpp(SyncGooberGameobjectStateAndRefreshLikeCppCommand),
     SetQuestSharingInfoAndSendDetails(SetQuestSharingInfoAndSendDetailsCommand),
     SendRepeatableTurnInRequestItemsLikeCpp(SendRepeatableTurnInRequestItemsLikeCppCommand),
     /// Deliver `packet_bytes` to this session if the source GUID is currently in
@@ -143,6 +144,22 @@ pub struct SyncChestGameobjectStateAndRefreshLikeCppCommand {
     pub chest_quest_id: u32,
     pub chest_restock_time_secs: u32,
     pub chest_consumable: bool,
+    pub linked_trap_entry: Option<u32>,
+}
+
+/// Syncs the bounded represented goober state needed before running a remote
+/// `UpdateVisibleGameobjectsOrSpellClicks` refresh.
+#[derive(Clone, Debug)]
+pub struct SyncGooberGameobjectStateAndRefreshLikeCppCommand {
+    pub gameobject_guid: ObjectGuid,
+    pub map_id: u16,
+    pub instance_id: u32,
+    pub go_type: u8,
+    pub gameobject_flags: u32,
+    pub loot_state: Option<u8>,
+    pub loot_state_unit_guid: ObjectGuid,
+    pub go_state: Option<i8>,
+    pub dynamic_flags: u32,
     pub linked_trap_entry: Option<u32>,
 }
 

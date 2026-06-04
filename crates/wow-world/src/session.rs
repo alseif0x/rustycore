@@ -18804,6 +18804,8 @@ impl WorldSession {
                     go_state,
                 },
             );
+            let _ =
+                self.queue_goober_gameobject_state_refresh_for_same_map_like_cpp(gameobject_guid);
         }
 
         if source.spell_id != 0 {
