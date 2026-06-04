@@ -5872,6 +5872,8 @@ impl WorldSession {
                     dyn_flags |= wow_entities::GO_DYNFLAG_LO_ACTIVATE
                         | wow_entities::GO_DYNFLAG_LO_SPARKLE
                         | wow_entities::GO_DYNFLAG_LO_HIGHLIGHT;
+                } else if self.player_game_master_like_cpp {
+                    dyn_flags |= wow_entities::GO_DYNFLAG_LO_ACTIVATE;
                 }
             }
             Some(wow_entities::GAMEOBJECT_TYPE_GOOBER) => {
@@ -5885,6 +5887,8 @@ impl WorldSession {
                     if state_for_player != wow_entities::GoState::Active {
                         dyn_flags |= wow_entities::GO_DYNFLAG_LO_ACTIVATE;
                     }
+                } else if self.player_game_master_like_cpp {
+                    dyn_flags |= wow_entities::GO_DYNFLAG_LO_ACTIVATE;
                 }
             }
             Some(wow_entities::GAMEOBJECT_TYPE_GENERIC) => {
@@ -25501,6 +25505,119 @@ mod tests {
                 wow_entities::GO_DYNFLAG_LO_ACTIVATE
                     | wow_entities::GO_DYNFLAG_LO_SPARKLE
                     | wow_entities::GO_DYNFLAG_LO_HIGHLIGHT
+            )
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    // C++ anchor: /home/server/woltk-trinity-legacy/src/server/game/Entities/Object/Updates/ViewerDependentValues.h:97-101
+    #[test]
+    fn update_visible_gameobjects_gm_chest_without_activation_gets_activate_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let go_entry = 8_130;
+        let gameobject_guid = test_gameobject_guid(go_entry, 140);
+        let quest_id = 12_547;
+
+        session.set_player_guid(Some(player_guid));
+        session.set_player_game_master_like_cpp(true);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "Tester".to_string(),
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_gameobject(
+            &canonical,
+            gameobject_guid,
+            go_entry,
+            Position::new(12.0, 0.0, 0.0, 0.0),
+        );
+        session
+            .client_visible_guids_like_cpp
+            .insert(gameobject_guid);
+        session.represented_gameobject_use_states.insert(
+            gameobject_guid,
+            RepresentedGameObjectUseState {
+                go_type: Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8),
+                loot_state: Some(wow_entities::LootState::Ready),
+                chest_loot_source: Some(wow_entities::GameObjectLootSource {
+                    chest_quest_id: quest_id,
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+        );
+
+        assert_eq!(session.update_visible_gameobjects_like_cpp(), 1);
+        assert_eq!(
+            send_rx.try_recv().expect("gm chest dynamic flags update"),
+            expected_gameobject_dynamic_flags_update_like_cpp(
+                gameobject_guid,
+                571,
+                wow_entities::GO_DYNFLAG_LO_ACTIVATE
+            )
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    // C++ anchor: /home/server/woltk-trinity-legacy/src/server/game/Entities/Object/Updates/ViewerDependentValues.h:103-111
+    #[test]
+    fn update_visible_gameobjects_gm_goober_without_activation_gets_activate_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let go_entry = 8_131;
+        let gameobject_guid = test_gameobject_guid(go_entry, 141);
+        let quest_id = 12_548;
+
+        session.set_player_guid(Some(player_guid));
+        session.set_player_game_master_like_cpp(true);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "Tester".to_string(),
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_gameobject(
+            &canonical,
+            gameobject_guid,
+            go_entry,
+            Position::new(12.0, 0.0, 0.0, 0.0),
+        );
+        session
+            .client_visible_guids_like_cpp
+            .insert(gameobject_guid);
+        session.represented_gameobject_use_states.insert(
+            gameobject_guid,
+            RepresentedGameObjectUseState {
+                go_type: Some(wow_entities::GAMEOBJECT_TYPE_GOOBER as u8),
+                goober_use_source: Some(wow_entities::GooberUseSource {
+                    quest_id,
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+        );
+
+        assert_eq!(session.update_visible_gameobjects_like_cpp(), 1);
+        assert_eq!(
+            send_rx.try_recv().expect("gm goober dynamic flags update"),
+            expected_gameobject_dynamic_flags_update_like_cpp(
+                gameobject_guid,
+                571,
+                wow_entities::GO_DYNFLAG_LO_ACTIVATE
             )
         );
         assert!(send_rx.try_recv().is_err());

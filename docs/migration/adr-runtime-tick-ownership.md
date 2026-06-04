@@ -1286,6 +1286,13 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `HaveAtClient` guard and skips `UpdateObject::out_of_range_objects` when the GO is absent from
   `client_visible_guids_like_cpp`. Remaining gaps: group-loot viewer flags, full values-update
   fanout, scripts/traps/GO AI, and live client/server validation.
+- 2026-06-04 — GM viewer-dependent GameObject dynamic flags `#NEXT.RUNTIME.L3.031da`: contrasted
+  against C++ `ViewerDependentValues.h:97-111`. Rust now mirrors the two missing
+  `receiver->IsGameMaster()` branches for non-quest-activating chests and goobers by setting
+  `GO_DYNFLAG_LO_ACTIVATE` in `represented_gameobject_dynamic_flags_for_player_like_cpp`. Tests
+  exercise the real visible values-update path for quest-related-but-not-activating chest/goober
+  objects and assert exact `GameObjectData::DynamicFlags` bytes. Remaining gaps: full GameObject
+  create/update fanout parity, scripts/traps/GO AI, and live client/server validation.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
