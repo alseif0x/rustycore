@@ -5365,7 +5365,9 @@ impl WorldSession {
         else {
             return;
         };
-        self.client_visible_guids_like_cpp.remove(&guid);
+        if !self.client_visible_guids_like_cpp.remove(&guid) {
+            return;
+        }
         self.send_packet(&UpdateObject::out_of_range_objects(vec![guid], map_id));
     }
 
@@ -14723,6 +14725,69 @@ mod tests {
                 .is_some()
         );
         assert!(session.represented_gameobject_is_per_player_despawned_like_cpp(restocked_chest));
+    }
+
+    #[tokio::test]
+    async fn loot_release_personal_chest_without_have_at_client_sends_no_out_of_range_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(2);
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let chest_guid = test_gameobject_guid(19_137);
+        session.set_player_guid(Some(player_guid));
+        session.set_player_position_like_cpp(Position::ZERO);
+        session.set_active_loot_guid(chest_guid);
+        session.record_represented_gameobject_runtime_state_like_cpp(
+            0,
+            chest_guid,
+            chest_guid.entry(),
+            Position::ZERO,
+            GAMEOBJECT_TYPE_CHEST as u8,
+        );
+        session.record_represented_gameobject_chest_release_metadata_like_cpp(
+            chest_guid,
+            GameObjectLootSource {
+                personal_loot_id: 7_001,
+                chest_restock_time_secs: 45,
+                chest_consumable: false,
+                ..Default::default()
+            },
+        );
+        session.loot_table.insert(
+            chest_guid,
+            CreatureLoot {
+                loot_guid: chest_guid,
+                coins: 0,
+                unlooted_count: 0,
+                loot_type: LOOT_TYPE_CHEST_LIKE_CPP,
+                dungeon_encounter_id: 0,
+                loot_method: 0,
+                loot_master: ObjectGuid::EMPTY,
+                round_robin_player: ObjectGuid::EMPTY,
+                player_ffa_items: Vec::new(),
+                players_looting: Vec::new(),
+                allowed_looters: Vec::new(),
+                items: Vec::new(),
+                looted_by_player: false,
+            },
+        );
+
+        session
+            .handle_loot_release(loot_release_packet(chest_guid))
+            .await;
+
+        let release_bytes = send_rx.try_recv().unwrap();
+        let mut release = WorldPacket::from_bytes(&release_bytes);
+        assert_eq!(
+            release.read_uint16().unwrap(),
+            wow_constants::ServerOpcodes::LootRelease as u16
+        );
+        assert!(send_rx.try_recv().is_err());
+        let state = session
+            .represented_gameobject_use_states
+            .get(&chest_guid)
+            .unwrap();
+        assert_eq!(state.per_player_despawn_secs, Some(45));
+        assert!(state.per_player_despawn_until.is_some());
+        assert_eq!(state.per_player_state_player_guid, Some(player_guid));
     }
 
     #[tokio::test]

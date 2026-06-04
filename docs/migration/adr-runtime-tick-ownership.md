@@ -1278,6 +1278,14 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `SendGameObjectDespawn` rather than this per-player visibility path. Remaining gaps: group-loot
   chest `OnLootRelease` per-player despawn, group-loot viewer flags, full values-update fanout,
   scripts/traps/GO AI, and live client/server validation.
+- 2026-06-04 — GameObject loot-release personal chest visibility gate `#NEXT.RUNTIME.L3.031d9`:
+  contrasted against C++ `WorldSession::DoLootRelease` (`LootHandler.cpp:289-320`),
+  `GameObject::OnLootRelease` (`GameObject.cpp:3735-3748`), and `Player::UpdateVisibilityOf`
+  (`Player.cpp:23193-23208`). Rust's represented `chestPersonalLoot` release path already recorded
+  `DespawnForPlayer` state and sent out-of-range for visible chests; it now also mirrors the C++
+  `HaveAtClient` guard and skips `UpdateObject::out_of_range_objects` when the GO is absent from
+  `client_visible_guids_like_cpp`. Remaining gaps: group-loot viewer flags, full values-update
+  fanout, scripts/traps/GO AI, and live client/server validation.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
