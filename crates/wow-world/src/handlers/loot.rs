@@ -595,6 +595,7 @@ impl WorldSession {
             gathering_node_loot_id: state.gathering_node_loot_id,
             personal_loot_uses: state.personal_loot_uses,
             linked_trap_entry: state.linked_trap_entry,
+            linked_trap_guid: state.linked_trap_guid,
         })
     }
 
@@ -623,6 +624,7 @@ impl WorldSession {
             chest_restock_time_secs: source.chest_restock_time_secs,
             chest_consumable: source.chest_consumable,
             linked_trap_entry: state.linked_trap_entry,
+            linked_trap_guid: state.linked_trap_guid,
         })
     }
 
@@ -647,6 +649,7 @@ impl WorldSession {
             go_state: state.go_state.map(|go_state| go_state as i8),
             dynamic_flags: state.dynamic_flags,
             linked_trap_entry: state.linked_trap_entry,
+            linked_trap_guid: state.linked_trap_guid,
         })
     }
 
@@ -2880,6 +2883,7 @@ impl WorldSession {
             state.gathering_node_loot_id = command.gathering_node_loot_id;
             state.personal_loot_uses = command.personal_loot_uses;
             state.linked_trap_entry = command.linked_trap_entry;
+            state.linked_trap_guid = command.linked_trap_guid;
         }
 
         let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
@@ -2942,6 +2946,7 @@ impl WorldSession {
             state.chest_consumable = Some(command.chest_consumable);
             state.chest_personal_loot_id = Some(command.chest_personal_loot_id);
             state.linked_trap_entry = command.linked_trap_entry;
+            state.linked_trap_guid = command.linked_trap_guid;
         }
 
         let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
@@ -3003,6 +3008,7 @@ impl WorldSession {
             state.go_state = go_state;
             state.dynamic_flags = command.dynamic_flags;
             state.linked_trap_entry = command.linked_trap_entry;
+            state.linked_trap_guid = command.linked_trap_guid;
         }
 
         let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
@@ -9657,6 +9663,7 @@ mod tests {
         assert_eq!(command.chest_restock_time_secs, 30);
         assert!(!command.chest_consumable);
         assert_eq!(command.linked_trap_entry, Some(190_013));
+        assert_eq!(command.linked_trap_guid, None);
         assert!(other_command_rx.try_recv().is_err());
     }
 
@@ -9686,6 +9693,7 @@ mod tests {
                     chest_restock_time_secs: 45,
                     chest_consumable: false,
                     linked_trap_entry: Some(190_014),
+                    linked_trap_guid: Some(test_gameobject_guid(91_014)),
                 },
             ))
             .expect("command queued");
@@ -9707,6 +9715,7 @@ mod tests {
         assert_eq!(state.chest_consumable, Some(false));
         assert_eq!(state.chest_personal_loot_id, Some(190_012));
         assert_eq!(state.linked_trap_entry, Some(190_014));
+        assert_eq!(state.linked_trap_guid, Some(test_gameobject_guid(91_014)));
         let source = state.chest_loot_source.expect("synced chest source");
         assert_eq!(source.loot_id, 190_011);
         assert_eq!(source.personal_loot_id, 190_012);
@@ -9797,6 +9806,7 @@ mod tests {
                     go_state: Some(wow_entities::GoState::Active as i8),
                     dynamic_flags: wow_entities::GO_DYNFLAG_LO_NO_INTERACT,
                     linked_trap_entry: Some(190_016),
+                    linked_trap_guid: Some(test_gameobject_guid(91_016)),
                 },
             ))
             .expect("command queued");
@@ -9819,6 +9829,7 @@ mod tests {
             wow_entities::GO_DYNFLAG_LO_NO_INTERACT
         );
         assert_eq!(state.linked_trap_entry, Some(190_016));
+        assert_eq!(state.linked_trap_guid, Some(test_gameobject_guid(91_016)));
         assert!(state.cooldown_until.is_none());
         assert!(state.goober_use_source.is_none());
     }
@@ -10157,6 +10168,7 @@ mod tests {
                         gathering_node_loot_id: Some(190_009),
                         personal_loot_uses: 1,
                         linked_trap_entry: Some(191_009),
+                        linked_trap_guid: Some(test_gameobject_guid(91_010)),
                     },
                 ),
             )
@@ -10183,6 +10195,7 @@ mod tests {
         assert_eq!(state.gathering_node_loot_id, Some(190_009));
         assert_eq!(state.personal_loot_uses, 1);
         assert_eq!(state.linked_trap_entry, Some(191_009));
+        assert_eq!(state.linked_trap_guid, Some(test_gameobject_guid(91_010)));
     }
 
     #[tokio::test]

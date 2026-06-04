@@ -126,6 +126,7 @@ pub struct SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand {
     pub gathering_node_loot_id: Option<u32>,
     pub personal_loot_uses: u32,
     pub linked_trap_entry: Option<u32>,
+    pub linked_trap_guid: Option<ObjectGuid>,
 }
 
 /// Syncs the bounded represented chest state needed before running a remote
@@ -145,6 +146,7 @@ pub struct SyncChestGameobjectStateAndRefreshLikeCppCommand {
     pub chest_restock_time_secs: u32,
     pub chest_consumable: bool,
     pub linked_trap_entry: Option<u32>,
+    pub linked_trap_guid: Option<ObjectGuid>,
 }
 
 /// Syncs the bounded represented goober state needed before running a remote
@@ -161,6 +163,7 @@ pub struct SyncGooberGameobjectStateAndRefreshLikeCppCommand {
     pub go_state: Option<i8>,
     pub dynamic_flags: u32,
     pub linked_trap_entry: Option<u32>,
+    pub linked_trap_guid: Option<ObjectGuid>,
 }
 
 #[derive(Clone, Debug)]

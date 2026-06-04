@@ -1414,6 +1414,15 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   packet as-is. Remaining gaps: full remove-list/object lifecycle, owner/summoned delete semantics,
   linked-trap runtime despawn by GUID, scripts/GO AI, canonical shared GameObject ownership, and
   live client/server validation.
+- 2026-06-04 — Represented linked-trap GUID bridge `#NEXT.RUNTIME.L3.031do`: contrasted against
+  C++ linked-trap ownership (`GameObject::GetLinkedTrap` returns the runtime GUID stored in
+  `m_linkedTrap`, `GameObject.cpp:3909-3912`; `RemoveFromWorld` and `GO_JUST_DEACTIVATED` call
+  `GetLinkedTrap()->DespawnOrUnsummon()`, `GameObject.cpp:939-941`, `GameObject.cpp:1577-1579`).
+  Rust already had canonical loaded-grid `linked_trap_guid`, but represented session state only
+  carried `linked_trap_entry`. The represented state and same-map sync commands now preserve
+  `linked_trap_guid` when canonical data has it. Remaining gap: actually applying
+  `DespawnOrUnsummon`/delete by GUID in represented linked-trap paths, plus full remove-list/object
+  lifecycle and live client/server validation.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

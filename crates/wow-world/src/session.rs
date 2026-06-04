@@ -1067,6 +1067,7 @@ pub(crate) struct RepresentedGameObjectUseState {
     pub nearby_fishing_hole_guid: Option<wow_core::ObjectGuid>,
     pub fishing_bobber_ready_at: Option<Instant>,
     pub linked_trap_entry: Option<u32>,
+    pub linked_trap_guid: Option<wow_core::ObjectGuid>,
     pub trap_use_source: Option<wow_entities::TrapUseSource>,
     pub trap_target_guid: Option<wow_core::ObjectGuid>,
     pub goober_use_source: Option<wow_entities::GooberUseSource>,
@@ -1326,6 +1327,7 @@ impl Default for RepresentedGameObjectUseState {
             nearby_fishing_hole_guid: None,
             fishing_bobber_ready_at: None,
             linked_trap_entry: None,
+            linked_trap_guid: None,
             trap_use_source: None,
             trap_target_guid: None,
             goober_use_source: None,
@@ -3958,6 +3960,23 @@ impl WorldSession {
         Some(f(gameobject))
     }
 
+    pub(crate) fn canonical_gameobject_linked_trap_guid_like_cpp(
+        &self,
+        guid: ObjectGuid,
+    ) -> Option<ObjectGuid> {
+        if guid.is_empty() || !guid.is_game_object() {
+            return None;
+        }
+        let manager = self.canonical_map_manager.as_ref()?;
+        let Ok(manager) = manager.lock() else {
+            return None;
+        };
+        let map = manager.find_map(u32::from(self.player_map_id_like_cpp()), 0)?;
+        let gameobject = map.map().get_typed_game_object(guid)?;
+        let linked_trap_guid = gameobject.linked_trap_guid_like_cpp();
+        (!linked_trap_guid.is_empty()).then_some(linked_trap_guid)
+    }
+
     pub(crate) fn canonical_gameobject_is_fully_looted_like_cpp(
         &mut self,
         guid: ObjectGuid,
@@ -5118,6 +5137,7 @@ impl WorldSession {
         position: wow_core::Position,
         go_type: u8,
     ) {
+        let linked_trap_guid = self.canonical_gameobject_linked_trap_guid_like_cpp(guid);
         let state = self
             .represented_gameobject_use_states
             .entry(guid)
@@ -5125,6 +5145,9 @@ impl WorldSession {
         state.map_id = Some(map_id);
         state.position = Some(position);
         state.go_type = Some(go_type);
+        if linked_trap_guid.is_some() {
+            state.linked_trap_guid = linked_trap_guid;
+        }
         self.upsert_canonical_gameobject_map_object_like_cpp(map_id, guid, entry, position);
     }
 
@@ -35709,6 +35732,46 @@ mod tests {
         assert_eq!(
             typed.world().position(),
             Position::new(10.0, 20.0, 30.0, 1.0)
+        );
+    }
+
+    #[test]
+    fn represented_gameobject_runtime_state_captures_canonical_linked_trap_guid_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let guid = ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 9002, 45);
+        let trap_guid =
+            ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 9003, 46);
+        let position = Position::new(10.0, 20.0, 30.0, 1.0);
+
+        add_canonical_test_gameobject(&canonical, guid, 9002, position);
+        add_canonical_test_gameobject(&canonical, trap_guid, 9003, position);
+        canonical
+            .lock()
+            .unwrap()
+            .find_map_mut(571, 0)
+            .unwrap()
+            .map_mut()
+            .get_typed_game_object_mut(guid)
+            .unwrap()
+            .set_linked_trap_like_cpp(trap_guid);
+        session.set_player_map_position_like_cpp(571, position);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+
+        session.record_represented_gameobject_runtime_state_like_cpp(
+            571,
+            guid,
+            9002,
+            position,
+            wow_entities::GAMEOBJECT_TYPE_CHEST as u8,
+        );
+
+        assert_eq!(
+            session
+                .represented_gameobject_use_states
+                .get(&guid)
+                .and_then(|state| state.linked_trap_guid),
+            Some(trap_guid)
         );
     }
 
