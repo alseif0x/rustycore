@@ -16057,6 +16057,7 @@ impl WorldSession {
                     state.go_type.map(u32::from),
                     state.owner_guid.is_some(),
                     state.linked_trap_entry,
+                    state.linked_trap_guid,
                     state.despawn_at_action,
                     state.go_anim_progress,
                     state.chest_restock_time_secs,
@@ -16064,7 +16065,7 @@ impl WorldSession {
             })
             .collect::<Vec<_>>();
         generic_just_deactivated_gameobjects
-            .sort_by_key(|(_, _, delete_after_clear, _, _, _, _)| (*delete_after_clear,));
+            .sort_by_key(|(_, _, delete_after_clear, _, _, _, _, _)| (*delete_after_clear,));
         let charge_depleted_guids = self
             .represented_gameobject_use_states
             .iter()
@@ -16456,12 +16457,16 @@ impl WorldSession {
             go_type,
             delete_after_clear,
             linked_trap_entry,
+            linked_trap_guid,
             is_despawn_at_action,
             go_anim_progress,
             chest_restock_time_secs,
         ) in generic_just_deactivated_gameobjects
         {
             if let Some(trap_entry) = linked_trap_entry.filter(|trap_entry| *trap_entry != 0) {
+                if let Some(trap_guid) = linked_trap_guid {
+                    self.despawn_represented_linked_trap_by_guid_like_cpp(trap_guid);
+                }
                 self.represented_gameobject_use_effects.push(
                     RepresentedGameObjectUseEffect::GameObjectLinkedTrapDespawn {
                         gameobject_guid: guid,
@@ -16963,6 +16968,22 @@ impl WorldSession {
             vec![gameobject_guid],
             map_id,
         ));
+    }
+
+    fn despawn_represented_linked_trap_by_guid_like_cpp(&mut self, trap_guid: ObjectGuid) {
+        if trap_guid.is_empty() || !trap_guid.is_game_object() {
+            return;
+        }
+        if let Some(state) = self.represented_gameobject_use_states.get_mut(&trap_guid) {
+            state.loot_state = Some(wow_entities::LootState::NotReady);
+            state.loot_state_unit_guid = ObjectGuid::EMPTY;
+            if state.go_type.map(u32::from) != Some(wow_entities::GAMEOBJECT_TYPE_TRANSPORT) {
+                state.go_state = Some(wow_entities::GoState::Ready);
+            }
+        }
+        self.client_visible_guids_like_cpp.remove(&trap_guid);
+        self.loot_table.remove(&trap_guid);
+        self.send_represented_gameobject_delete_packets_like_cpp(trap_guid);
     }
 
     pub(crate) fn use_represented_gameobject_flagstand_like_cpp(
@@ -18887,7 +18908,14 @@ impl WorldSession {
         gameobject_guid: ObjectGuid,
         source: wow_entities::GooberUseSource,
     ) -> bool {
+        let linked_trap_guid = self
+            .represented_gameobject_use_states
+            .get(&gameobject_guid)
+            .and_then(|state| state.linked_trap_guid);
         if source.linked_trap_entry != 0 {
+            if let Some(trap_guid) = linked_trap_guid {
+                self.despawn_represented_linked_trap_by_guid_like_cpp(trap_guid);
+            }
             self.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::GooberLinkedTrapDespawn {
                     gameobject_guid,
@@ -51099,6 +51127,8 @@ mod tests {
         session.set_state(SessionState::LoggedIn);
         let static_trap_guid =
             ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 143);
+        let linked_trap_guid =
+            ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 145);
         let owned_trap_guid =
             ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 144);
         let owner_guid = ObjectGuid::create_player(1, 99);
@@ -51116,6 +51146,9 @@ mod tests {
             state.use_count = 3;
             state.owner_guid = owner;
             state.linked_trap_entry = linked_trap_entry;
+            if guid == static_trap_guid {
+                state.linked_trap_guid = Some(linked_trap_guid);
+            }
             session.client_visible_guids_like_cpp.insert(guid);
             session.loot_table.insert(
                 guid,
@@ -51136,6 +51169,16 @@ mod tests {
                 },
             );
         }
+        let linked_state = session
+            .represented_gameobject_use_states
+            .entry(linked_trap_guid)
+            .or_default();
+        linked_state.map_id = Some(571);
+        linked_state.go_type = Some(wow_entities::GAMEOBJECT_TYPE_TRAP as u8);
+        linked_state.loot_state = Some(wow_entities::LootState::Ready);
+        session
+            .client_visible_guids_like_cpp
+            .insert(linked_trap_guid);
 
         session.process_pending().await;
 
@@ -51171,8 +51214,28 @@ mod tests {
                 .contains(&owned_trap_guid)
         );
         assert!(!session.loot_table.contains_key(&owned_trap_guid));
-        assert!(send_rx.try_recv().is_ok());
-        assert!(send_rx.try_recv().is_ok());
+        let linked_state = session
+            .represented_gameobject_use_states
+            .get(&linked_trap_guid)
+            .unwrap();
+        assert_eq!(
+            linked_state.loot_state,
+            Some(wow_entities::LootState::NotReady)
+        );
+        assert!(
+            !session
+                .client_visible_guids_like_cpp
+                .contains(&linked_trap_guid)
+        );
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert_eq!(
+            opcodes
+                .iter()
+                .filter(|opcode| **opcode == ServerOpcodes::GameObjectDespawn)
+                .count(),
+            3
+        );
+        assert_eq!(opcodes.len(), 5);
         assert_eq!(
             session.represented_gameobject_use_effects,
             vec![
@@ -51591,6 +51654,8 @@ mod tests {
         let same_map_guid = ObjectGuid::create_player(1, 77);
         let gameobject_guid =
             ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 16);
+        let linked_trap_guid =
+            ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 19);
         let (same_command_tx, same_command_rx) = flume::bounded(2);
         let (same_send_tx, _same_send_rx) = flume::bounded::<Vec<u8>>(1);
         let player_registry = Arc::new(PlayerRegistry::default());
@@ -51606,12 +51671,28 @@ mod tests {
             .entry(gameobject_guid)
             .or_default()
             .loot_state = Some(wow_entities::LootState::JustDeactivated);
+        session
+            .represented_gameobject_use_states
+            .entry(gameobject_guid)
+            .or_default()
+            .linked_trap_guid = Some(linked_trap_guid);
+        let linked_state = session
+            .represented_gameobject_use_states
+            .entry(linked_trap_guid)
+            .or_default();
+        linked_state.map_id = Some(571);
+        linked_state.go_type = Some(wow_entities::GAMEOBJECT_TYPE_TRAP as u8);
+        linked_state.loot_state = Some(wow_entities::LootState::Ready);
+        session
+            .client_visible_guids_like_cpp
+            .insert(linked_trap_guid);
 
         assert!(
             session.apply_represented_gameobject_goober_just_deactivated_like_cpp(
                 gameobject_guid,
                 wow_entities::GooberUseSource {
                     consumable: true,
+                    linked_trap_entry: 999,
                     ..Default::default()
                 },
             )
@@ -51623,18 +51704,51 @@ mod tests {
             .unwrap();
         assert_eq!(state.loot_state, Some(wow_entities::LootState::NotReady));
         assert_eq!(state.go_state, None);
+        let linked_state = session
+            .represented_gameobject_use_states
+            .get(&linked_trap_guid)
+            .unwrap();
+        assert_eq!(
+            linked_state.loot_state,
+            Some(wow_entities::LootState::NotReady)
+        );
+        assert!(
+            !session
+                .client_visible_guids_like_cpp
+                .contains(&linked_trap_guid)
+        );
         assert_eq!(
             session.represented_gameobject_use_effects,
-            vec![RepresentedGameObjectUseEffect::GooberCleared {
-                gameobject_guid,
-                loot_state: wow_entities::LootState::NotReady,
-                go_state: None,
-            }]
+            vec![
+                RepresentedGameObjectUseEffect::GooberLinkedTrapDespawn {
+                    gameobject_guid,
+                    trap_entry: 999,
+                },
+                RepresentedGameObjectUseEffect::GooberCleared {
+                    gameobject_guid,
+                    loot_state: wow_entities::LootState::NotReady,
+                    go_state: None,
+                },
+            ]
         );
+        let opcodes = drain_server_opcodes(&send_rx);
         assert_eq!(
-            drain_server_opcodes(&send_rx),
-            vec![ServerOpcodes::GameObjectDespawn]
+            opcodes
+                .iter()
+                .filter(|opcode| **opcode == ServerOpcodes::GameObjectDespawn)
+                .count(),
+            2
         );
+        assert_eq!(opcodes.len(), 3);
+        let linked_command = match same_command_rx.try_recv() {
+            Ok(SessionCommand::SendIfVisibleLikeCpp(command)) => command,
+            other => {
+                panic!("expected represented linked trap despawn fanout command, got {other:?}")
+            }
+        };
+        assert_eq!(linked_command.source_guid, linked_trap_guid);
+        assert_eq!(linked_command.map_id, 571);
+        assert_eq!(linked_command.instance_id, 0);
         let command = match same_command_rx.try_recv() {
             Ok(SessionCommand::SendIfVisibleLikeCpp(command)) => command,
             other => panic!("expected represented goober despawn fanout command, got {other:?}"),
