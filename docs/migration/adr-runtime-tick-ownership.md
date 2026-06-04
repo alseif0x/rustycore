@@ -1405,6 +1405,15 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   scheduled-respawn/remove-list despawn, linked-trap runtime despawn, object removal/list
   persistence, scripts/GO AI, canonical shared GameObject ownership, and live client/server
   validation.
+- 2026-06-04 — Represented delete-path `GameObjectDespawn` fanout `#NEXT.RUNTIME.L3.031dn`:
+  contrasted against C++ `GameObject::Delete`, which calls `SendGameObjectDespawn()` before
+  reset/remove-list handling, and `GameObject::SendGameObjectDespawn`, which sends the despawn
+  packet to the visible set (`GameObject.cpp:1743-1753`, `GameObject.cpp:1766-1771`). Rust's
+  represented delete helper now fanouts only the `SMSG_GAME_OBJECT_DESPAWN` through
+  `SendIfVisibleLikeCpp`, while preserving the owning-session `UpdateObject::destroy_objects`
+  packet as-is. Remaining gaps: full remove-list/object lifecycle, owner/summoned delete semantics,
+  linked-trap runtime despawn by GUID, scripts/GO AI, canonical shared GameObject ownership, and
+  live client/server validation.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
