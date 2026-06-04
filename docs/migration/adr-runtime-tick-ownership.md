@@ -1334,6 +1334,16 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   restock transitions, broader `UpdateDynamicFlagsForNearbyPlayers` / `UpdateObjectVisibility`,
   personal despawn/delete packets, trap/script/GO AI, canonical shared GameObject ownership, and
   live client/server validation.
+- 2026-06-04 — Represented chest loot-release state sync `#NEXT.RUNTIME.L3.031df`: contrasted
+  against C++ `WorldSession::DoLootRelease` (`LootHandler.cpp:270-320`), `GameObject::SetLootState`
+  (`GameObject.cpp:3683-3710`), `GameObject::OnLootRelease` (`GameObject.cpp:3735-3748`), and
+  `Player::UpdateVisibleGameobjectsOrSpellClicks` (`Player.cpp:24439-24478`). Rust now reuses the
+  chest state-sync rail after represented loot release mutates chest state, so same-map/instance
+  remote sessions receive the bounded chest state before recomputing viewer-dependent flags. This
+  covers the release-time shared-state refresh; it does not close the full `GameObject::Update`
+  restock tick, fully-looted visibility/update fanout, per-player despawn visibility for other
+  viewers, delete/despawn packets, linked traps, scripts/GO AI, canonical shared GameObject
+  ownership, or live client/server validation.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

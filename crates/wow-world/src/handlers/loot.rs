@@ -5760,6 +5760,7 @@ impl WorldSession {
                 player_guid,
                 fully_looted,
             );
+            let _ = self.queue_chest_gameobject_state_refresh_for_same_map_like_cpp(owner_guid);
             if !fully_looted {
                 return true;
             }
@@ -14708,6 +14709,97 @@ mod tests {
                 .loot_state,
             Some(LootState::Activated)
         );
+    }
+
+    #[tokio::test]
+    async fn loot_release_partial_chest_syncs_state_to_same_map_viewers_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let same_map_guid = ObjectGuid::create_player(1, 77);
+        let loot_guid = test_gameobject_guid(19_138);
+        let (same_command_tx, same_command_rx) = flume::bounded(2);
+        let (same_send_tx, _same_send_rx) = flume::bounded::<Vec<u8>>(1);
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let mut same_info = broadcast_info(same_map_guid, same_send_tx);
+        same_info.map_id = 571;
+        same_info.command_tx = same_command_tx;
+        player_registry.insert(same_map_guid, same_info);
+
+        session.set_player_registry(player_registry);
+        session.set_player_guid(Some(player_guid));
+        session.set_player_position_like_cpp(Position::ZERO);
+        session.set_player_map_position_like_cpp(571, Position::ZERO);
+        session.set_active_loot_guid(loot_guid);
+        session.record_represented_gameobject_runtime_state_like_cpp(
+            0,
+            loot_guid,
+            loot_guid.entry(),
+            Position::ZERO,
+            GAMEOBJECT_TYPE_CHEST as u8,
+        );
+        session.record_represented_gameobject_chest_release_metadata_like_cpp(
+            loot_guid,
+            GameObjectLootSource {
+                loot_id: 7_001,
+                chest_restock_time_secs: 45,
+                chest_consumable: false,
+                ..Default::default()
+            },
+        );
+        session.loot_table.insert(
+            loot_guid,
+            CreatureLoot {
+                loot_guid: represented_loot_object_guid_like_cpp(loot_guid),
+                coins: 0,
+                unlooted_count: 1,
+                loot_type: LOOT_TYPE_CHEST_LIKE_CPP,
+                dungeon_encounter_id: 0,
+                loot_method: 0,
+                loot_master: ObjectGuid::EMPTY,
+                round_robin_player: ObjectGuid::EMPTY,
+                player_ffa_items: Vec::new(),
+                players_looting: vec![player_guid],
+                allowed_looters: Vec::new(),
+                items: vec![LootEntry {
+                    loot_list_id: 0,
+                    item_id: 25,
+                    quantity: 1,
+                    random_properties_id: 0,
+                    random_properties_seed: 0,
+                    item_context: 0,
+                    flags: LootEntryFlags::default(),
+                    allowed_looters: Vec::new(),
+                    roll_winner: ObjectGuid::EMPTY,
+                    ffa_looted_by: Vec::new(),
+                    taken: false,
+                }],
+                looted_by_player: false,
+            },
+        );
+
+        session
+            .handle_loot_release(loot_release_packet(loot_guid))
+            .await;
+
+        let release_bytes = send_rx.try_recv().unwrap();
+        let mut release = WorldPacket::from_bytes(&release_bytes);
+        assert_eq!(
+            release.read_uint16().unwrap(),
+            wow_constants::ServerOpcodes::LootRelease as u16
+        );
+        let command = match same_command_rx.try_recv() {
+            Ok(SessionCommand::SyncChestGameobjectStateAndRefreshLikeCpp(command)) => command,
+            other => panic!("expected chest release sync command, got {other:?}"),
+        };
+        assert_eq!(command.gameobject_guid, loot_guid);
+        assert_eq!(command.map_id, 571);
+        assert_eq!(
+            command.loot_state,
+            Some(wow_entities::LootState::Activated as u8)
+        );
+        assert_eq!(command.loot_state_unit_guid, player_guid);
+        assert_eq!(command.chest_loot_id, 7_001);
+        assert_eq!(command.chest_restock_time_secs, 45);
     }
 
     #[tokio::test]
