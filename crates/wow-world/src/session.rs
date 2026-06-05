@@ -1482,6 +1482,7 @@ pub(crate) const BATTLE_PET_FLAGS_CONTROL_TYPE_APPLY_LIKE_CPP: u8 = 1;
 pub(crate) const BATTLE_PET_SLOT_COUNT_LIKE_CPP: usize = 3;
 pub(crate) const BATTLE_PET_CAGE_ITEM_ID_LIKE_CPP: u32 = 82_800;
 pub(crate) const BATTLE_PET_BREED_QUALITY_RARE_LIKE_CPP: u8 = 3;
+pub(crate) const MAX_BATTLE_PET_LEVEL_LIKE_CPP: u16 = 25;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RepresentedBattlePetSaveInfoLikeCpp {
@@ -1527,6 +1528,22 @@ pub(crate) enum RepresentedBattlePetQualityOutcomeLikeCpp {
     QualityAboveRare,
     CantBattle,
     NotUpgrade,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedBattlePetLevelCriteriaLikeCpp {
+    pub(crate) species: u32,
+    pub(crate) level: u16,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RepresentedBattlePetGrantLevelOutcomeLikeCpp {
+    Changed,
+    NoJournalLock,
+    UnknownPet,
+    CantBattle,
+    AlreadyMaxLevel,
+    NoGrantedLevels,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2853,6 +2870,9 @@ pub struct WorldSession {
     pub(crate) represented_summoned_battle_pet_guid_like_cpp: Option<ObjectGuid>,
     /// Represented caged-item creations from C++ `BattlePetMgr::CageBattlePet`.
     pub(crate) represented_battle_pet_cage_items_like_cpp: Vec<RepresentedBattlePetCageItemLikeCpp>,
+    /// Represented `CriteriaType::BattlePetReachLevel` events from battle-pet level grants.
+    pub(crate) represented_battle_pet_level_criteria_like_cpp:
+        Vec<RepresentedBattlePetLevelCriteriaLikeCpp>,
     /// Evidence for represented `BattlePetMgr::UpdateBattlePetData` calls.
     pub(crate) represented_battle_pet_data_updates_like_cpp: Vec<ObjectGuid>,
     /// Session-local evidence for represented `Player::RemoveTimedQuest` calls.
@@ -3751,6 +3771,7 @@ impl WorldSession {
             }),
             represented_summoned_battle_pet_guid_like_cpp: None,
             represented_battle_pet_cage_items_like_cpp: Vec::new(),
+            represented_battle_pet_level_criteria_like_cpp: Vec::new(),
             represented_battle_pet_data_updates_like_cpp: Vec::new(),
             represented_timed_quest_removals_like_cpp: Vec::new(),
             represented_quest_reward_skill_updates_like_cpp: Vec::new(),
@@ -18269,6 +18290,68 @@ impl WorldSession {
 
         self.send_battle_pet_updates_like_cpp(&[pet_guid], false);
         RepresentedBattlePetQualityOutcomeLikeCpp::Changed
+    }
+
+    /// C++ `BattlePetMgr::GrantBattlePetLevel`, represented after external
+    /// species-flag lookup and `BattlePet::CalculateStats` have resolved.
+    pub(crate) fn battle_pet_grant_battle_pet_level_represented_like_cpp(
+        &mut self,
+        pet_guid: ObjectGuid,
+        granted_levels: u16,
+        species_cant_battle: bool,
+        calculated_stats: RepresentedBattlePetCalculatedStatsLikeCpp,
+    ) -> RepresentedBattlePetGrantLevelOutcomeLikeCpp {
+        if !self.has_represented_battle_pet_journal_lock_like_cpp() {
+            return RepresentedBattlePetGrantLevelOutcomeLikeCpp::NoJournalLock;
+        }
+
+        let Some(pet) = self.represented_battle_pets_like_cpp.get_mut(&pet_guid) else {
+            return RepresentedBattlePetGrantLevelOutcomeLikeCpp::UnknownPet;
+        };
+
+        if species_cant_battle {
+            return RepresentedBattlePetGrantLevelOutcomeLikeCpp::CantBattle;
+        }
+
+        let mut level = pet.level;
+        if level >= MAX_BATTLE_PET_LEVEL_LIKE_CPP {
+            return RepresentedBattlePetGrantLevelOutcomeLikeCpp::AlreadyMaxLevel;
+        }
+
+        if granted_levels == 0 {
+            return RepresentedBattlePetGrantLevelOutcomeLikeCpp::NoGrantedLevels;
+        }
+
+        let species = pet.species;
+        let mut remaining_levels = granted_levels;
+        while remaining_levels > 0 && level < MAX_BATTLE_PET_LEVEL_LIKE_CPP {
+            level += 1;
+            remaining_levels -= 1;
+            self.represented_battle_pet_level_criteria_like_cpp
+                .push(RepresentedBattlePetLevelCriteriaLikeCpp { species, level });
+        }
+
+        pet.level = level;
+        if level >= MAX_BATTLE_PET_LEVEL_LIKE_CPP {
+            pet.exp = 0;
+        }
+        pet.max_health = calculated_stats.max_health;
+        pet.power = calculated_stats.power;
+        pet.speed = calculated_stats.speed;
+        pet.health = pet.max_health;
+
+        if pet.save_info != RepresentedBattlePetSaveInfoLikeCpp::New {
+            pet.save_info = RepresentedBattlePetSaveInfoLikeCpp::Changed;
+        }
+
+        self.send_battle_pet_updates_like_cpp(&[pet_guid], false);
+        RepresentedBattlePetGrantLevelOutcomeLikeCpp::Changed
+    }
+
+    pub(crate) fn represented_battle_pet_level_criteria_like_cpp(
+        &self,
+    ) -> &[RepresentedBattlePetLevelCriteriaLikeCpp] {
+        &self.represented_battle_pet_level_criteria_like_cpp
     }
 
     pub(crate) fn represented_battle_pet_slot_like_cpp(&self, slot: u8) -> Option<ObjectGuid> {
@@ -53838,6 +53921,190 @@ mod tests {
         assert_eq!(packet.read_uint16().expect("breed"), 44);
         assert_eq!(packet.read_uint16().expect("level"), 17);
         assert_eq!(packet.read_uint16().expect("exp"), 5);
+        assert_eq!(packet.read_uint16().expect("flags"), 6);
+        assert_eq!(packet.read_uint32().expect("power"), 45);
+        assert_eq!(packet.read_uint32().expect("health"), 123);
+        assert_eq!(packet.read_uint32().expect("max health"), 123);
+        assert_eq!(packet.read_uint32().expect("speed"), 67);
+        assert_eq!(packet.read_uint8().expect("quality"), 3);
+    }
+
+    #[test]
+    fn battle_pet_grant_level_applies_cpp_gates_without_side_effects() {
+        let (mut session, _, send_rx) = make_session();
+        let pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x18c);
+        let max_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x18d);
+        let unknown_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x18e);
+        let stats = RepresentedBattlePetCalculatedStatsLikeCpp {
+            max_health: 123,
+            power: 45,
+            speed: 67,
+        };
+
+        session.add_represented_battle_pet_packet_info_like_cpp(
+            pet_guid,
+            RepresentedBattlePetDataLikeCpp {
+                species: 11,
+                level: 17,
+                exp: 5,
+                health: 50,
+                max_health: 100,
+                save_info: RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+                ..RepresentedBattlePetDataLikeCpp::minimal_like_cpp(
+                    0,
+                    RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+                )
+            },
+        );
+        session.add_represented_battle_pet_packet_info_like_cpp(
+            max_guid,
+            RepresentedBattlePetDataLikeCpp {
+                species: 12,
+                level: MAX_BATTLE_PET_LEVEL_LIKE_CPP,
+                exp: 5,
+                health: 50,
+                max_health: 100,
+                save_info: RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+                ..RepresentedBattlePetDataLikeCpp::minimal_like_cpp(
+                    0,
+                    RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+                )
+            },
+        );
+
+        assert_eq!(
+            session
+                .battle_pet_grant_battle_pet_level_represented_like_cpp(pet_guid, 1, false, stats),
+            RepresentedBattlePetGrantLevelOutcomeLikeCpp::NoJournalLock
+        );
+        session.send_battle_pet_journal_lock_status_like_cpp();
+        let _ = drain_server_packet_bytes(&send_rx);
+
+        assert_eq!(
+            session.battle_pet_grant_battle_pet_level_represented_like_cpp(
+                unknown_guid,
+                1,
+                false,
+                stats
+            ),
+            RepresentedBattlePetGrantLevelOutcomeLikeCpp::UnknownPet
+        );
+        assert_eq!(
+            session
+                .battle_pet_grant_battle_pet_level_represented_like_cpp(pet_guid, 1, true, stats),
+            RepresentedBattlePetGrantLevelOutcomeLikeCpp::CantBattle
+        );
+        assert_eq!(
+            session
+                .battle_pet_grant_battle_pet_level_represented_like_cpp(max_guid, 1, false, stats),
+            RepresentedBattlePetGrantLevelOutcomeLikeCpp::AlreadyMaxLevel
+        );
+        assert_eq!(
+            session
+                .battle_pet_grant_battle_pet_level_represented_like_cpp(pet_guid, 0, false, stats),
+            RepresentedBattlePetGrantLevelOutcomeLikeCpp::NoGrantedLevels
+        );
+
+        let pet = session
+            .represented_battle_pet_like_cpp(pet_guid)
+            .expect("unchanged pet");
+        assert_eq!(pet.level, 17);
+        assert_eq!(pet.exp, 5);
+        assert_eq!(pet.health, 50);
+        assert_eq!(pet.max_health, 100);
+        assert_eq!(
+            pet.save_info,
+            RepresentedBattlePetSaveInfoLikeCpp::Unchanged
+        );
+        assert!(
+            session
+                .represented_battle_pet_level_criteria_like_cpp()
+                .is_empty()
+        );
+        assert!(drain_server_packet_bytes(&send_rx).is_empty());
+    }
+
+    #[test]
+    fn battle_pet_grant_level_caps_at_max_resets_xp_and_sends_update_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x18f);
+        let stats = RepresentedBattlePetCalculatedStatsLikeCpp {
+            max_health: 123,
+            power: 45,
+            speed: 67,
+        };
+
+        session.add_represented_battle_pet_packet_info_like_cpp(
+            pet_guid,
+            RepresentedBattlePetDataLikeCpp {
+                species: 11,
+                creature_id: 22,
+                display_id: 33,
+                breed: 44,
+                level: 23,
+                exp: 5,
+                flags: 6,
+                power: 10,
+                health: 50,
+                max_health: 100,
+                speed: 20,
+                quality: 3,
+                owner_info: None,
+                name: String::new(),
+                name_timestamp: 0,
+                declined_names: None,
+                save_info: RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+            },
+        );
+        session.send_battle_pet_journal_lock_status_like_cpp();
+        let _ = drain_server_packet_bytes(&send_rx);
+
+        assert_eq!(
+            session
+                .battle_pet_grant_battle_pet_level_represented_like_cpp(pet_guid, 5, false, stats),
+            RepresentedBattlePetGrantLevelOutcomeLikeCpp::Changed
+        );
+
+        let pet = session
+            .represented_battle_pet_like_cpp(pet_guid)
+            .expect("leveled pet");
+        assert_eq!(pet.level, MAX_BATTLE_PET_LEVEL_LIKE_CPP);
+        assert_eq!(pet.exp, 0);
+        assert_eq!(pet.health, 123);
+        assert_eq!(pet.max_health, 123);
+        assert_eq!(pet.power, 45);
+        assert_eq!(pet.speed, 67);
+        assert_eq!(pet.save_info, RepresentedBattlePetSaveInfoLikeCpp::Changed);
+        assert_eq!(
+            session.represented_battle_pet_level_criteria_like_cpp(),
+            &[
+                RepresentedBattlePetLevelCriteriaLikeCpp {
+                    species: 11,
+                    level: 24
+                },
+                RepresentedBattlePetLevelCriteriaLikeCpp {
+                    species: 11,
+                    level: 25
+                }
+            ]
+        );
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(packets.len(), 1);
+        let mut packet = wow_packet::WorldPacket::from_bytes(&packets[0]);
+        assert_eq!(
+            packet.read_uint16().expect("opcode"),
+            ServerOpcodes::BattlePetUpdates as u16
+        );
+        assert_eq!(packet.read_uint32().expect("pet count"), 1);
+        assert!(!packet.read_bit().expect("pet added"));
+        assert_eq!(packet.read_packed_guid().expect("pet guid"), pet_guid);
+        assert_eq!(packet.read_uint32().expect("species"), 11);
+        assert_eq!(packet.read_uint32().expect("creature"), 22);
+        assert_eq!(packet.read_uint32().expect("display"), 33);
+        assert_eq!(packet.read_uint16().expect("breed"), 44);
+        assert_eq!(packet.read_uint16().expect("level"), 25);
+        assert_eq!(packet.read_uint16().expect("exp"), 0);
         assert_eq!(packet.read_uint16().expect("flags"), 6);
         assert_eq!(packet.read_uint32().expect("power"), 45);
         assert_eq!(packet.read_uint32().expect("health"), 123);
