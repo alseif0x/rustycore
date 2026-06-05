@@ -1617,6 +1617,16 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   post-create tail only: it does not clear/delete the previous slot occupant, create the
   GameObject, compute spell duration/location, inherit phase, call `Map::AddToMap`, execute scripts,
   or send packets.
+- 2026-06-05 — Map-owned `Unit::RemoveGameObject(spellid, del)` boundary
+  `#NEXT.RUNTIME.L3.031e6`: contrasted C++ spell-id overload (`Unit.cpp:5253-5274`) and its
+  channeled-spell cancellation caller (`Spell.cpp:3621-3625`). Rust now exposes
+  `unit_remove_gameobjects_by_spell_like_cpp`, filtering the owner `owned_gameobjects` list by spell
+  id (`0` means all), clearing each matched GameObject owner, optionally setting respawn time to zero
+  and routing through the represented `GameObject::Delete` seam, then erasing matched owner-list
+  entries. The outcome deliberately reports no slot cleanup, aura cleanup, cooldown event, or
+  CreatureAI despawn callback because this C++ overload does not perform those pointer-overload side
+  effects. Tests preserve the C++ quirk that `m_ObjectSlot` can remain pointing at a removed
+  spell-owned GameObject.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
