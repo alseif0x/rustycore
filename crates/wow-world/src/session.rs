@@ -92,12 +92,15 @@ use wow_entities::{
     AccessorObjectKind, ApplyEnchantmentEffectRef, ApplyEnchantmentRandomSuffixRef,
     ApplyEnchantmentTemplateRef, BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_COUNT,
     BUYBACK_SLOT_END, BUYBACK_SLOT_START, BagTemplateRef, CanStoreItemArgs, CanUnequipItemArgs,
-    EQUIPMENT_SLOT_END, EQUIPMENT_SLOT_MAINHAND, GameObject, INVENTORY_DEFAULT_SIZE,
-    INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START,
-    INVENTORY_SLOT_ITEM_START, ITEM_DATA_BITS, ITEM_DATA_DURABILITY_BIT, Item, ItemCreateInfo,
-    ItemDataUpdate, ItemLimitCategoryTemplate, ItemPosCount, ItemSlotRef, ItemStorageRef,
-    ItemStorageTemplate, ItemValuesUpdate, MAX_BAG_SIZE, MAX_ITEM_SPELLS, MAX_MONEY_AMOUNT,
-    NULL_BAG, NULL_SLOT, ObjectAccessor, PLAYER_SLOT_END, PhaseShift, Player,
+    EQUIPMENT_SLOT_BACK, EQUIPMENT_SLOT_BODY, EQUIPMENT_SLOT_CHEST, EQUIPMENT_SLOT_END,
+    EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_HANDS, EQUIPMENT_SLOT_HEAD, EQUIPMENT_SLOT_LEGS,
+    EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND, EQUIPMENT_SLOT_SHOULDERS,
+    EQUIPMENT_SLOT_TABARD, EQUIPMENT_SLOT_WAIST, EQUIPMENT_SLOT_WRISTS, GameObject,
+    INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END,
+    INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, ITEM_DATA_BITS, ITEM_DATA_DURABILITY_BIT,
+    Item, ItemCreateInfo, ItemDataUpdate, ItemLimitCategoryTemplate, ItemPosCount, ItemSlotRef,
+    ItemStorageRef, ItemStorageTemplate, ItemValuesUpdate, MAX_BAG_SIZE, MAX_ITEM_SPELLS,
+    MAX_MONEY_AMOUNT, NULL_BAG, NULL_SLOT, ObjectAccessor, PLAYER_SLOT_END, PhaseShift, Player,
     PlayerEnchantTimeUpdate, PlayerInventoryStorage, PlayerItemTimeUpdate,
     QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE, REAGENT_BAG_SLOT_END,
     REAGENT_BAG_SLOT_START, SendNewItemDelivery, SendNewItemDisplayText, SendNewItemPlan,
@@ -7689,6 +7692,21 @@ impl WorldSession {
         Some(result)
     }
 
+    /// Bounded C++ `CollectionMgr::AddItemAppearance(uint32, uint32)`.
+    ///
+    /// This resolves `ItemModifiedAppearance` by `(item_id, appearance_mod_id)` like
+    /// `sDB2Manager.GetItemModifiedAppearance`; the full C++ `CanAddAppearance`
+    /// item-template/proficiency/quality gate remains a separate slice.
+    pub fn add_item_appearance_for_item_like_cpp(
+        &mut self,
+        item_id: u32,
+        appearance_mod_id: u32,
+    ) -> Option<wow_entities::PlayerValuesUpdate> {
+        let item_modified_appearance_id =
+            self.item_modified_appearance_for_item(item_id, appearance_mod_id)?;
+        self.add_item_appearance_like_cpp(item_modified_appearance_id)
+    }
+
     #[cfg(test)]
     pub(crate) fn represented_has_item_appearance_like_cpp(
         &self,
@@ -7771,6 +7789,80 @@ impl WorldSession {
             .get(&item_modified_appearance_id)
             .cloned()
             .unwrap_or_default()
+    }
+
+    /// C++ `ItemTransmogrificationSlots`.
+    fn item_transmogrification_slot_like_cpp(inventory_type: u8) -> Option<usize> {
+        let slot = match inventory_type {
+            x if x == InventoryType::Head as u8 => EQUIPMENT_SLOT_HEAD,
+            x if x == InventoryType::Shoulders as u8 => EQUIPMENT_SLOT_SHOULDERS,
+            x if x == InventoryType::Body as u8 => EQUIPMENT_SLOT_BODY,
+            x if x == InventoryType::Chest as u8 => EQUIPMENT_SLOT_CHEST,
+            x if x == InventoryType::Waist as u8 => EQUIPMENT_SLOT_WAIST,
+            x if x == InventoryType::Legs as u8 => EQUIPMENT_SLOT_LEGS,
+            x if x == InventoryType::Feet as u8 => EQUIPMENT_SLOT_FEET,
+            x if x == InventoryType::Wrists as u8 => EQUIPMENT_SLOT_WRISTS,
+            x if x == InventoryType::Hands as u8 => EQUIPMENT_SLOT_HANDS,
+            x if x == InventoryType::Weapon as u8
+                || x == InventoryType::Ranged as u8
+                || x == InventoryType::Weapon2Hand as u8
+                || x == InventoryType::WeaponMainhand as u8
+                || x == InventoryType::WeaponOffhand as u8
+                || x == InventoryType::RangedRight as u8 =>
+            {
+                EQUIPMENT_SLOT_MAINHAND
+            }
+            x if x == InventoryType::Shield as u8 || x == InventoryType::Holdable as u8 => {
+                EQUIPMENT_SLOT_OFFHAND
+            }
+            x if x == InventoryType::Cloak as u8 => EQUIPMENT_SLOT_BACK,
+            x if x == InventoryType::Tabard as u8 => EQUIPMENT_SLOT_TABARD,
+            x if x == InventoryType::Robe as u8 => EQUIPMENT_SLOT_CHEST,
+            _ => return None,
+        };
+
+        Some(slot as usize)
+    }
+
+    /// C++ `CollectionMgr::IsSetCompleted`.
+    pub fn is_transmog_set_completed_like_cpp(&self, transmog_set_id: u32) -> bool {
+        let Some(transmog_set_items) = self.transmog_set_items_like_cpp(transmog_set_id) else {
+            return false;
+        };
+
+        let mut known_pieces = [-1_i8; EQUIPMENT_SLOT_END as usize];
+        for transmog_set_item in transmog_set_items {
+            let Some(item_modified_appearance) = self
+                .item_modified_appearance_store
+                .as_ref()
+                .and_then(|store| store.get(transmog_set_item.item_modified_appearance_id))
+            else {
+                continue;
+            };
+            let Some(item_id) = u32::try_from(item_modified_appearance.item_id).ok() else {
+                continue;
+            };
+            let Some(inventory_type) = self
+                .item_store
+                .as_ref()
+                .and_then(|store| store.inventory_type(item_id))
+            else {
+                continue;
+            };
+            let Some(transmog_slot) = Self::item_transmogrification_slot_like_cpp(inventory_type)
+            else {
+                continue;
+            };
+            if known_pieces[transmog_slot] == 1 {
+                continue;
+            }
+
+            let (has_appearance, is_temporary) =
+                self.has_item_appearance_like_cpp(transmog_set_item.item_modified_appearance_id);
+            known_pieces[transmog_slot] = if has_appearance && !is_temporary { 1 } else { 0 };
+        }
+
+        !known_pieces.contains(&0)
     }
 
     /// Bounded C++ `CollectionMgr::AddTransmogSet`.
@@ -49406,6 +49498,49 @@ mod tests {
     }
 
     #[test]
+    fn add_item_appearance_for_item_resolves_modified_appearance_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 77);
+        let player_position = Position::new(10.0, 0.0, 0.0, 0.0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TransmogItemResolverTester".to_string(),
+            player_position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
+        session.set_item_modified_appearance_store(Arc::new(
+            ItemModifiedAppearanceStore::from_entries([ItemModifiedAppearanceEntry {
+                id: 65,
+                item_id: 777,
+                item_appearance_modifier_id: 2,
+                item_appearance_id: 9_000,
+                order_index: 0,
+                transmog_source_type_enum: 0,
+            }]),
+        ));
+        session.mutate_canonical_player_like_cpp(|player| player.clear_data_changes());
+
+        let update = session
+            .add_item_appearance_for_item_like_cpp(777, 2)
+            .expect("represented item appearance should resolve by item/modifier");
+        let active = update
+            .active_player_data
+            .expect("resolved item appearance should mark active player data");
+
+        assert!(session.represented_has_item_appearance_like_cpp(65));
+        assert_eq!(active.values.transmog, vec![0, 0, 1 << 1]);
+        assert!(session.add_item_appearance_for_item_like_cpp(777, 2).is_none());
+        assert!(session.add_item_appearance_for_item_like_cpp(778, 2).is_none());
+    }
+
+    #[test]
     fn has_item_appearance_reports_permanent_before_temporary_like_cpp() {
         let (mut session, _, _) = make_session();
 
@@ -49501,6 +49636,195 @@ mod tests {
                 .items_providing_temporary_appearance_like_cpp(65)
                 .is_empty()
         );
+    }
+
+    #[test]
+    fn is_transmog_set_completed_ignores_temporary_and_missing_entries_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_transmog_set_item_store(Arc::new(TransmogSetItemStore::from_entries([
+            TransmogSetItemEntry {
+                id: 1,
+                transmog_set_id: 70,
+                item_modified_appearance_id: 65,
+                flags: 0,
+            },
+            TransmogSetItemEntry {
+                id: 2,
+                transmog_set_id: 70,
+                item_modified_appearance_id: 96,
+                flags: 0,
+            },
+            TransmogSetItemEntry {
+                id: 3,
+                transmog_set_id: 70,
+                item_modified_appearance_id: 999,
+                flags: 0,
+            },
+            TransmogSetItemEntry {
+                id: 4,
+                transmog_set_id: 71,
+                item_modified_appearance_id: 300,
+                flags: 0,
+            },
+        ])));
+        session.set_item_modified_appearance_store(Arc::new(
+            ItemModifiedAppearanceStore::from_entries([
+                ItemModifiedAppearanceEntry {
+                    id: 65,
+                    item_id: 777,
+                    item_appearance_modifier_id: 0,
+                    item_appearance_id: 9000,
+                    order_index: 0,
+                    transmog_source_type_enum: 0,
+                },
+                ItemModifiedAppearanceEntry {
+                    id: 96,
+                    item_id: 778,
+                    item_appearance_modifier_id: 0,
+                    item_appearance_id: 9001,
+                    order_index: 0,
+                    transmog_source_type_enum: 0,
+                },
+                ItemModifiedAppearanceEntry {
+                    id: 300,
+                    item_id: 779,
+                    item_appearance_modifier_id: 0,
+                    item_appearance_id: 9002,
+                    order_index: 0,
+                    transmog_source_type_enum: 0,
+                },
+            ]),
+        ));
+        session.set_item_store(Arc::new(ItemStore::from_records([
+            ItemRecord {
+                id: 777,
+                class_id: 4,
+                subclass_id: 1,
+                material: 0,
+                inventory_type: InventoryType::Head as i8,
+                sheathe_type: 0,
+                random_select: 0,
+                random_suffix_group_id: 0,
+            },
+            ItemRecord {
+                id: 778,
+                class_id: 4,
+                subclass_id: 1,
+                material: 0,
+                inventory_type: InventoryType::Chest as i8,
+                sheathe_type: 0,
+                random_select: 0,
+                random_suffix_group_id: 0,
+            },
+            ItemRecord {
+                id: 779,
+                class_id: 4,
+                subclass_id: 1,
+                material: 0,
+                inventory_type: InventoryType::Bag as i8,
+                sheathe_type: 0,
+                random_select: 0,
+                random_suffix_group_id: 0,
+            },
+        ])));
+
+        assert!(!session.is_transmog_set_completed_like_cpp(99));
+        assert!(session.is_transmog_set_completed_like_cpp(71));
+
+        session
+            .represented_temporary_item_appearances_like_cpp
+            .insert(65, HashSet::from([ObjectGuid::create_item(1, 901)]));
+        session.represented_item_appearances_like_cpp.insert(96);
+        assert!(!session.is_transmog_set_completed_like_cpp(70));
+
+        session.represented_item_appearances_like_cpp.insert(65);
+        assert!(session.is_transmog_set_completed_like_cpp(70));
+    }
+
+    #[test]
+    fn is_transmog_set_completed_keeps_first_completed_slot_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_transmog_set_item_store(Arc::new(TransmogSetItemStore::from_entries([
+            TransmogSetItemEntry {
+                id: 1,
+                transmog_set_id: 80,
+                item_modified_appearance_id: 65,
+                flags: 0,
+            },
+            TransmogSetItemEntry {
+                id: 2,
+                transmog_set_id: 80,
+                item_modified_appearance_id: 96,
+                flags: 0,
+            },
+            TransmogSetItemEntry {
+                id: 3,
+                transmog_set_id: 81,
+                item_modified_appearance_id: 65,
+                flags: 0,
+            },
+            TransmogSetItemEntry {
+                id: 4,
+                transmog_set_id: 81,
+                item_modified_appearance_id: 96,
+                flags: 0,
+            },
+        ])));
+        session.set_item_modified_appearance_store(Arc::new(
+            ItemModifiedAppearanceStore::from_entries([
+                ItemModifiedAppearanceEntry {
+                    id: 65,
+                    item_id: 777,
+                    item_appearance_modifier_id: 0,
+                    item_appearance_id: 9000,
+                    order_index: 0,
+                    transmog_source_type_enum: 0,
+                },
+                ItemModifiedAppearanceEntry {
+                    id: 96,
+                    item_id: 778,
+                    item_appearance_modifier_id: 0,
+                    item_appearance_id: 9001,
+                    order_index: 0,
+                    transmog_source_type_enum: 0,
+                },
+            ]),
+        ));
+        session.set_item_store(Arc::new(ItemStore::from_records([
+            ItemRecord {
+                id: 777,
+                class_id: 2,
+                subclass_id: 7,
+                material: 0,
+                inventory_type: InventoryType::Weapon as i8,
+                sheathe_type: 0,
+                random_select: 0,
+                random_suffix_group_id: 0,
+            },
+            ItemRecord {
+                id: 778,
+                class_id: 2,
+                subclass_id: 7,
+                material: 0,
+                inventory_type: InventoryType::WeaponOffhand as i8,
+                sheathe_type: 0,
+                random_select: 0,
+                random_suffix_group_id: 0,
+            },
+        ])));
+
+        session
+            .represented_temporary_item_appearances_like_cpp
+            .insert(65, HashSet::from([ObjectGuid::create_item(1, 901)]));
+        session.represented_item_appearances_like_cpp.insert(96);
+        assert!(session.is_transmog_set_completed_like_cpp(80));
+
+        session.represented_item_appearances_like_cpp.remove(&96);
+        session.represented_item_appearances_like_cpp.insert(65);
+        session
+            .represented_temporary_item_appearances_like_cpp
+            .insert(96, HashSet::from([ObjectGuid::create_item(1, 902)]));
+        assert!(session.is_transmog_set_completed_like_cpp(81));
     }
 
     #[test]
