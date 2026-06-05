@@ -1486,12 +1486,74 @@ pub(crate) enum RepresentedBattlePetSaveInfoLikeCpp {
     New,
     Changed,
     Unchanged,
+    Removed,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct RepresentedBattlePetDataLikeCpp {
+    pub(crate) species: u32,
+    pub(crate) creature_id: u32,
+    pub(crate) display_id: u32,
+    pub(crate) breed: u16,
+    pub(crate) level: u16,
+    pub(crate) exp: u16,
     pub(crate) flags: u16,
+    pub(crate) power: u32,
+    pub(crate) health: u32,
+    pub(crate) max_health: u32,
+    pub(crate) speed: u32,
+    pub(crate) quality: u8,
+    pub(crate) owner_info: Option<wow_packet::packets::misc::BattlePetJournalPetOwnerInfo>,
+    pub(crate) name: String,
     pub(crate) save_info: RepresentedBattlePetSaveInfoLikeCpp,
+}
+
+impl RepresentedBattlePetDataLikeCpp {
+    pub(crate) fn minimal_like_cpp(
+        flags: u16,
+        save_info: RepresentedBattlePetSaveInfoLikeCpp,
+    ) -> Self {
+        Self {
+            species: 0,
+            creature_id: 0,
+            display_id: 0,
+            breed: 0,
+            level: 0,
+            exp: 0,
+            flags,
+            power: 0,
+            health: 0,
+            max_health: 0,
+            speed: 0,
+            quality: 0,
+            owner_info: None,
+            name: String::new(),
+            save_info,
+        }
+    }
+
+    fn packet_info_like_cpp(
+        &self,
+        guid: ObjectGuid,
+    ) -> wow_packet::packets::misc::BattlePetJournalPet {
+        wow_packet::packets::misc::BattlePetJournalPet {
+            guid,
+            species: self.species,
+            creature_id: self.creature_id,
+            display_id: self.display_id,
+            breed: self.breed,
+            level: self.level,
+            exp: self.exp,
+            flags: self.flags,
+            power: self.power,
+            health: self.health,
+            max_health: self.max_health,
+            speed: self.speed,
+            quality: self.quality,
+            owner_info: self.owner_info,
+            name: self.name.clone(),
+        }
+    }
 }
 
 fn heirloom_bonus_for_flags_like_cpp(heirloom: &HeirloomEntry, flags: u32) -> u32 {
@@ -17818,8 +17880,19 @@ impl WorldSession {
     ) {
         self.represented_battle_pets_like_cpp.insert(
             pet_guid,
-            RepresentedBattlePetDataLikeCpp { flags, save_info },
+            RepresentedBattlePetDataLikeCpp::minimal_like_cpp(flags, save_info),
         );
+    }
+
+    /// Test/setup seam for represented `BattlePet::PacketInfo` rows already
+    /// loaded into `BattlePetMgr::_pets`.
+    pub(crate) fn add_represented_battle_pet_packet_info_like_cpp(
+        &mut self,
+        pet_guid: ObjectGuid,
+        packet_info: RepresentedBattlePetDataLikeCpp,
+    ) {
+        self.represented_battle_pets_like_cpp
+            .insert(pet_guid, packet_info);
     }
 
     /// C++ `BattlePetMgr::HasJournalLock`.
@@ -17900,6 +17973,53 @@ impl WorldSession {
             .flatten()
     }
 
+    /// C++ `BattlePetMgr::SendJournal` packet body builder.
+    pub(crate) fn represented_battle_pet_journal_like_cpp(
+        &self,
+    ) -> wow_packet::packets::misc::BattlePetJournal {
+        let player_guid = self.player_guid();
+        let mut journal = wow_packet::packets::misc::BattlePetJournal {
+            trap: 0,
+            has_journal_lock: self.has_represented_battle_pet_journal_lock_like_cpp(),
+            slots: Vec::with_capacity(BATTLE_PET_SLOT_COUNT_LIKE_CPP),
+            pets: Vec::new(),
+        };
+
+        for (pet_guid, pet) in &self.represented_battle_pets_like_cpp {
+            if pet.save_info == RepresentedBattlePetSaveInfoLikeCpp::Removed {
+                continue;
+            }
+
+            if pet
+                .owner_info
+                .is_some_and(|owner_info| Some(owner_info.guid) != player_guid)
+            {
+                continue;
+            }
+
+            journal.pets.push(pet.packet_info_like_cpp(*pet_guid));
+        }
+
+        for (index, pet_guid) in self
+            .represented_battle_pet_slots_like_cpp
+            .iter()
+            .enumerate()
+        {
+            journal
+                .slots
+                .push(wow_packet::packets::misc::BattlePetJournalSlot {
+                    pet_guid: pet_guid
+                        .filter(|guid| self.represented_battle_pets_like_cpp.contains_key(guid))
+                        .unwrap_or_else(wow_packet::packets::misc::empty_battle_pet_guid_like_cpp),
+                    collar_id: 0,
+                    index: index as u8,
+                    locked: true,
+                });
+        }
+
+        journal
+    }
+
     /// C++ `WorldSession::HandleBattlePetSummon` represented toggle.
     ///
     /// `BattlePetMgr::SummonPet` silently ignores unknown pets before casting
@@ -17953,7 +18073,7 @@ impl WorldSession {
     ) -> Option<RepresentedBattlePetDataLikeCpp> {
         self.represented_battle_pets_like_cpp
             .get(&pet_guid)
-            .copied()
+            .cloned()
     }
 
     pub(crate) fn represented_player_reject_battleground_object_vehicle_like_cpp(
@@ -52616,17 +52736,17 @@ mod tests {
 
         assert_eq!(
             session.represented_battle_pet_like_cpp(pet_guid),
-            Some(RepresentedBattlePetDataLikeCpp {
-                flags: 0x10,
-                save_info: RepresentedBattlePetSaveInfoLikeCpp::Changed,
-            })
+            Some(RepresentedBattlePetDataLikeCpp::minimal_like_cpp(
+                0x10,
+                RepresentedBattlePetSaveInfoLikeCpp::Changed,
+            ))
         );
         assert_eq!(
             session.represented_battle_pet_like_cpp(new_pet_guid),
-            Some(RepresentedBattlePetDataLikeCpp {
-                flags: 0,
-                save_info: RepresentedBattlePetSaveInfoLikeCpp::New,
-            })
+            Some(RepresentedBattlePetDataLikeCpp::minimal_like_cpp(
+                0,
+                RepresentedBattlePetSaveInfoLikeCpp::New,
+            ))
         );
     }
 
@@ -52655,28 +52775,28 @@ mod tests {
         ));
         assert_eq!(
             session.represented_battle_pet_like_cpp(pet_guid),
-            Some(RepresentedBattlePetDataLikeCpp {
-                flags: 0x12,
-                save_info: RepresentedBattlePetSaveInfoLikeCpp::Changed,
-            })
+            Some(RepresentedBattlePetDataLikeCpp::minimal_like_cpp(
+                0x12,
+                RepresentedBattlePetSaveInfoLikeCpp::Changed,
+            ))
         );
 
         assert!(session.battle_pet_set_flags_like_cpp(pet_guid, 0x10, 2));
         assert_eq!(
             session.represented_battle_pet_like_cpp(pet_guid),
-            Some(RepresentedBattlePetDataLikeCpp {
-                flags: 0x02,
-                save_info: RepresentedBattlePetSaveInfoLikeCpp::Changed,
-            })
+            Some(RepresentedBattlePetDataLikeCpp::minimal_like_cpp(
+                0x02,
+                RepresentedBattlePetSaveInfoLikeCpp::Changed,
+            ))
         );
 
         assert!(session.battle_pet_set_flags_like_cpp(new_pet_guid, 0x10, 0));
         assert_eq!(
             session.represented_battle_pet_like_cpp(new_pet_guid),
-            Some(RepresentedBattlePetDataLikeCpp {
-                flags: 0x20,
-                save_info: RepresentedBattlePetSaveInfoLikeCpp::New,
-            })
+            Some(RepresentedBattlePetDataLikeCpp::minimal_like_cpp(
+                0x20,
+                RepresentedBattlePetSaveInfoLikeCpp::New,
+            ))
         );
         assert!(!session.battle_pet_set_flags_like_cpp(
             unknown_guid,

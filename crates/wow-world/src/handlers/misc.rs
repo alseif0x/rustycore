@@ -36,10 +36,10 @@ use wow_packet::packets::item::{
 };
 use wow_packet::packets::loot::{LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHING_LIKE_CPP};
 use wow_packet::packets::misc::{
-    AddToy, BattlePetClearFanfare, BattlePetJournal, BattlePetRequestJournal,
-    BattlePetSetBattleSlot, BattlePetSetFlags, BattlePetSummon, BattlePetUpdateNotify, FarSight,
-    MountSetFavorite, QueryBattlePetName, QueryBattlePetNameResponse, RatedPvpInfo,
-    RequestCemeteryListResponse, TaxiNodeStatusPkt, ToyClearFanfare, UseToy,
+    AddToy, BattlePetClearFanfare, BattlePetRequestJournal, BattlePetSetBattleSlot,
+    BattlePetSetFlags, BattlePetSummon, BattlePetUpdateNotify, FarSight, MountSetFavorite,
+    QueryBattlePetName, QueryBattlePetNameResponse, RatedPvpInfo, RequestCemeteryListResponse,
+    TaxiNodeStatusPkt, ToyClearFanfare, UseToy,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -1427,8 +1427,7 @@ impl crate::session::WorldSession {
     /// CMSG_BATTLE_PET_REQUEST_JOURNAL — send represented journal.
     ///
     /// C++ `BattlePetMgr::SendJournal` first acquires/sends journal-lock status
-    /// when needed, then sends `SMSG_BATTLE_PET_JOURNAL`. Rust currently emits
-    /// the faithful empty-pet/default-locked-slot journal subset.
+    /// when needed, then sends `SMSG_BATTLE_PET_JOURNAL`.
     pub async fn handle_battle_pet_request_journal(&mut self, mut pkt: wow_packet::WorldPacket) {
         if let Err(error) = BattlePetRequestJournal::read(&mut pkt) {
             warn!(
@@ -1442,9 +1441,7 @@ impl crate::session::WorldSession {
             self.send_battle_pet_journal_lock_status_like_cpp();
         }
 
-        self.send_packet(&BattlePetJournal::empty_with_default_slots(
-            self.has_represented_battle_pet_journal_lock_like_cpp(),
-        ));
+        self.send_packet(&self.represented_battle_pet_journal_like_cpp());
     }
 
     /// CMSG_BATTLE_PET_REQUEST_JOURNAL_LOCK — acquire represented journal lock.
@@ -1454,7 +1451,7 @@ impl crate::session::WorldSession {
     pub async fn handle_battle_pet_request_journal_lock(&mut self, _pkt: wow_packet::WorldPacket) {
         self.send_battle_pet_journal_lock_status_like_cpp();
         if self.has_represented_battle_pet_journal_lock_like_cpp() {
-            self.send_packet(&BattlePetJournal::empty_with_default_slots(true));
+            self.send_packet(&self.represented_battle_pet_journal_like_cpp());
         }
     }
 
@@ -2353,7 +2350,7 @@ mod tests {
     use std::collections::HashSet;
     use std::sync::{Arc, Mutex};
     use wow_constants::{ClientOpcodes, ServerOpcodes};
-    use wow_core::{ObjectGuid, Position};
+    use wow_core::{ObjectGuid, Position, guid::HighGuid};
     use wow_data::progression_rewards::{FactionEntry, FactionStore};
     use wow_data::reputation::{ReputationFlagsLikeCpp, ReputationRankLikeCpp};
     use wow_data::{
@@ -3357,6 +3354,86 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn battle_pet_request_journal_sends_represented_pet_rows_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x4338);
+        session.set_player_guid(Some(player_guid));
+        session.add_represented_battle_pet_packet_info_like_cpp(
+            pet_guid,
+            crate::session::RepresentedBattlePetDataLikeCpp {
+                species: 11,
+                creature_id: 22,
+                display_id: 33,
+                breed: 44,
+                level: 55,
+                exp: 66,
+                flags: 77,
+                power: 88,
+                health: 99,
+                max_health: 111,
+                speed: 222,
+                quality: 3,
+                owner_info: Some(wow_packet::packets::misc::BattlePetJournalPetOwnerInfo {
+                    guid: player_guid,
+                    player_virtual_realm: 123,
+                    player_native_realm: 456,
+                }),
+                name: "Misha".to_string(),
+                save_info: crate::session::RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+            },
+        );
+        assert!(session.battle_pet_set_battle_slot_like_cpp(pet_guid, 0));
+
+        session
+            .handle_battle_pet_request_journal(battle_pet_request_journal_packet())
+            .await;
+
+        let _ = send_rx.try_recv().expect("journal lock acquired packet");
+        let journal_bytes = send_rx.try_recv().expect("battle pet journal packet");
+        let mut body = WorldPacket::from_bytes(&journal_bytes[2..]);
+        assert_eq!(body.read_uint16().unwrap(), 0);
+        assert_eq!(body.read_uint32().unwrap(), 3);
+        assert_eq!(body.read_uint32().unwrap(), 1);
+        assert!(body.read_bit().unwrap());
+        assert_eq!(body.read_packed_guid().unwrap(), pet_guid);
+        assert_eq!(body.read_uint32().unwrap(), 0);
+        assert_eq!(body.read_uint8().unwrap(), 0);
+        assert!(body.read_bit().unwrap());
+        for index in 1..3 {
+            assert_eq!(
+                body.read_packed_guid().unwrap(),
+                empty_battle_pet_guid_like_cpp()
+            );
+            assert_eq!(body.read_uint32().unwrap(), 0);
+            assert_eq!(body.read_uint8().unwrap(), index);
+            assert!(body.read_bit().unwrap());
+        }
+        assert_eq!(body.read_packed_guid().unwrap(), pet_guid);
+        assert_eq!(body.read_uint32().unwrap(), 11);
+        assert_eq!(body.read_uint32().unwrap(), 22);
+        assert_eq!(body.read_uint32().unwrap(), 33);
+        assert_eq!(body.read_uint16().unwrap(), 44);
+        assert_eq!(body.read_uint16().unwrap(), 55);
+        assert_eq!(body.read_uint16().unwrap(), 66);
+        assert_eq!(body.read_uint16().unwrap(), 77);
+        assert_eq!(body.read_uint32().unwrap(), 88);
+        assert_eq!(body.read_uint32().unwrap(), 99);
+        assert_eq!(body.read_uint32().unwrap(), 111);
+        assert_eq!(body.read_uint32().unwrap(), 222);
+        assert_eq!(body.read_uint8().unwrap(), 3);
+        assert_eq!(body.read_bits(7).unwrap(), 5);
+        assert!(body.read_bit().unwrap());
+        assert!(!body.read_bit().unwrap());
+        assert_eq!(body.read_string(5).unwrap(), "Misha");
+        assert_eq!(body.read_packed_guid().unwrap(), player_guid);
+        assert_eq!(body.read_uint32().unwrap(), 123);
+        assert_eq!(body.read_uint32().unwrap(), 456);
+        assert_eq!(body.remaining(), 0);
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
     async fn battle_pet_clear_fanfare_clears_known_pet_silently_like_cpp() {
         let (mut session, send_rx) = make_session();
         let pet_guid = ObjectGuid::new(0, 0x223);
@@ -3372,10 +3449,12 @@ mod tests {
 
         assert_eq!(
             session.represented_battle_pet_like_cpp(pet_guid),
-            Some(crate::session::RepresentedBattlePetDataLikeCpp {
-                flags: 0x20,
-                save_info: crate::session::RepresentedBattlePetSaveInfoLikeCpp::Changed,
-            })
+            Some(
+                crate::session::RepresentedBattlePetDataLikeCpp::minimal_like_cpp(
+                    0x20,
+                    crate::session::RepresentedBattlePetSaveInfoLikeCpp::Changed,
+                )
+            )
         );
         assert!(send_rx.try_recv().is_err());
     }
@@ -3412,10 +3491,12 @@ mod tests {
             .await;
         assert_eq!(
             session.represented_battle_pet_like_cpp(pet_guid),
-            Some(crate::session::RepresentedBattlePetDataLikeCpp {
-                flags: 0x01,
-                save_info: crate::session::RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
-            })
+            Some(
+                crate::session::RepresentedBattlePetDataLikeCpp::minimal_like_cpp(
+                    0x01,
+                    crate::session::RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+                )
+            )
         );
         assert!(send_rx.try_recv().is_err());
 
@@ -3423,6 +3504,7 @@ mod tests {
             .handle_battle_pet_request_journal_lock(battle_pet_request_journal_lock_packet())
             .await;
         let _ = send_rx.try_recv().expect("lock acquired packet");
+        let _ = send_rx.try_recv().expect("battle pet journal packet");
 
         session
             .handle_battle_pet_set_flags(battle_pet_set_flags_packet(
@@ -3434,10 +3516,12 @@ mod tests {
 
         assert_eq!(
             session.represented_battle_pet_like_cpp(pet_guid),
-            Some(crate::session::RepresentedBattlePetDataLikeCpp {
-                flags: 0x05,
-                save_info: crate::session::RepresentedBattlePetSaveInfoLikeCpp::Changed,
-            })
+            Some(
+                crate::session::RepresentedBattlePetDataLikeCpp::minimal_like_cpp(
+                    0x05,
+                    crate::session::RepresentedBattlePetSaveInfoLikeCpp::Changed,
+                )
+            )
         );
         assert!(send_rx.try_recv().is_err());
     }
