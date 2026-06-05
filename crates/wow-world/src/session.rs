@@ -24111,8 +24111,16 @@ impl WorldSession {
                 }
             }
             x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE => {
-                let damage_amount = effect_base_points as u32;
-                self.apply_damage(target_guid, damage_amount).await?;
+                if let Ok(damage_amount) = u32::try_from(effect_base_points) {
+                    self.apply_damage(target_guid, damage_amount).await?;
+                } else {
+                    debug!(
+                        account = self.account_id,
+                        spell_id,
+                        effect_base_points,
+                        "Skipping SPELL_EFFECT_SCHOOL_DAMAGE because C++ only applies positive m_damage"
+                    );
+                }
             }
             x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA => {
                 if let Some(effect) = mounted_aura_effect.as_ref() {
@@ -25202,8 +25210,17 @@ impl WorldSession {
         let tap_group_guids = self.current_group_member_guids_for_tap_like_cpp(player_guid);
 
         // Si target es otra criatura — mutate canonical shared map state.
-        let (kill_info, mut values_update) = self
+        let damage_outcome = self
             .mutate_world_creature(target_guid, |creature| {
+                if !creature.is_alive() {
+                    debug!(
+                        account = account_id,
+                        creature = ?target_guid,
+                        damage = damage_amount,
+                        "Skipping spell damage because C++ EffectSchoolDMG requires alive target"
+                    );
+                    return None;
+                }
                 info!(
                     account = account_id,
                     creature = ?target_guid,
@@ -25233,9 +25250,12 @@ impl WorldSession {
                 } else {
                     None
                 };
-                (kill_info, creature.creature.unit().values_update())
+                Some((kill_info, creature.creature.unit().values_update()))
             })
             .ok_or("Target creature not found")?;
+        let Some((kill_info, mut values_update)) = damage_outcome else {
+            return Ok(());
+        };
 
         // Process creature death outside the mutable borrow
         if let Some((entry, guid, move_stop)) = kill_info {
@@ -40514,6 +40534,76 @@ mod tests {
                     can_skin: true,
                     skinnable: true,
                 })
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_damage_skips_dead_creature_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let manager = shared_map_manager();
+        let guid = test_creature_guid(18_010);
+        session.player_guid = Some(ObjectGuid::create_player(1, 53));
+        session.client_visible_guids_like_cpp.insert(guid);
+        register_test_creature(&mut session, manager.clone(), guid, 40);
+        session
+            .mutate_world_creature(guid, |creature| {
+                creature.take_damage(20);
+                creature
+                    .creature
+                    .unit_mut()
+                    .set_death_state(wow_constants::DeathState::Corpse);
+                creature.creature.clear_data_changes();
+            })
+            .unwrap();
+
+        session.apply_damage(guid, 7).await.unwrap();
+
+        let manager = manager.read().unwrap();
+        let world_creature = manager.find_creature(0, 0, guid).unwrap();
+        assert_eq!(world_creature.current_hp(), 20);
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn spell_effect_school_damage_negative_amount_is_noop_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let manager = shared_map_manager();
+        let spell_id = 723_i32;
+        let guid = test_creature_guid(18_011);
+        let player_guid = ObjectGuid::create_player(1, 54);
+        session.player_guid = Some(player_guid);
+        register_test_creature(&mut session, manager.clone(), guid, 40);
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE,
+                effect_base_points: -10,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: Vec::new(),
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, guid)
+            .await
+            .expect("negative represented damage should execute as C++ no-op effect");
+
+        let manager = manager.read().unwrap();
+        let world_creature = manager.find_creature(0, 0, guid).unwrap();
+        assert_eq!(world_creature.current_hp(), 40);
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert_eq!(
+            opcodes,
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
         );
     }
 
