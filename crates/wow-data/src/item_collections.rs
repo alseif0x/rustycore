@@ -152,6 +152,10 @@ macro_rules! db2_store {
             pub fn is_empty(&self) -> bool {
                 self.entries.is_empty()
             }
+
+            pub fn values(&self) -> impl Iterator<Item = &$entry> {
+                self.entries.values()
+            }
         }
     };
 }
@@ -172,13 +176,36 @@ db2_store!(TransmogSetGroupStore, TransmogSetGroupEntry);
 pub struct TransmogSetItemStore {
     entries: HashMap<u32, TransmogSetItemEntry>,
     by_transmog_set: HashMap<u32, Vec<TransmogSetItemEntry>>,
+    by_item_modified_appearance: HashMap<u32, Vec<TransmogSetEntry>>,
 }
 
 impl TransmogSetItemStore {
     pub fn from_entries(entries: impl IntoIterator<Item = TransmogSetItemEntry>) -> Self {
+        Self::from_entries_and_sets(entries, [])
+    }
+
+    /// Build C++ `DB2Manager` transmog secondary indexes.
+    pub fn from_entries_and_sets(
+        entries: impl IntoIterator<Item = TransmogSetItemEntry>,
+        sets: impl IntoIterator<Item = TransmogSetEntry>,
+    ) -> Self {
         let mut by_id = HashMap::new();
         let mut by_transmog_set = HashMap::<u32, Vec<TransmogSetItemEntry>>::new();
+        let sets_by_id = sets
+            .into_iter()
+            .map(|set| (set.id, set))
+            .collect::<HashMap<_, _>>();
+        let validate_sets = !sets_by_id.is_empty();
+        let mut by_item_modified_appearance = HashMap::<u32, Vec<TransmogSetEntry>>::new();
         for entry in entries {
+            if let Some(set) = sets_by_id.get(&entry.transmog_set_id) {
+                by_item_modified_appearance
+                    .entry(entry.item_modified_appearance_id)
+                    .or_default()
+                    .push(set.clone());
+            } else if validate_sets {
+                continue;
+            }
             by_transmog_set
                 .entry(entry.transmog_set_id)
                 .or_default()
@@ -189,6 +216,7 @@ impl TransmogSetItemStore {
         Self {
             entries: by_id,
             by_transmog_set,
+            by_item_modified_appearance,
         }
     }
 
@@ -202,6 +230,15 @@ impl TransmogSetItemStore {
     ) -> Option<&[TransmogSetItemEntry]> {
         self.by_transmog_set
             .get(&transmog_set_id)
+            .map(Vec::as_slice)
+    }
+
+    pub fn get_transmog_sets_for_item_modified_appearance_like_cpp(
+        &self,
+        item_modified_appearance_id: u32,
+    ) -> Option<&[TransmogSetEntry]> {
+        self.by_item_modified_appearance
+            .get(&item_modified_appearance_id)
             .map(Vec::as_slice)
     }
 
@@ -392,15 +429,46 @@ impl TransmogSetGroupStore {
 
 impl TransmogSetItemStore {
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
-        load_store(data_dir, locale, "TransmogSetItem.db2", |id, idx, r| {
-            TransmogSetItemEntry {
-                id,
-                transmog_set_id: r.get_relationship_id(idx).unwrap_or(0),
-                item_modified_appearance_id: r.get_field_u32(idx, 2),
-                flags: r.get_field_i32(idx, 3),
-            }
-        })
+        Ok(Self::from_entries(load_transmog_set_item_entries(
+            data_dir, locale,
+        )?))
     }
+
+    pub fn load_with_sets(
+        data_dir: &str,
+        locale: &str,
+        transmog_set_store: &TransmogSetStore,
+    ) -> Result<Self> {
+        Ok(Self::from_entries_and_sets(
+            load_transmog_set_item_entries(data_dir, locale)?,
+            transmog_set_store.values().cloned(),
+        ))
+    }
+}
+
+fn load_transmog_set_item_entries(
+    data_dir: &str,
+    locale: &str,
+) -> Result<Vec<TransmogSetItemEntry>> {
+    let path = Path::new(data_dir)
+        .join("dbc")
+        .join(locale)
+        .join("TransmogSetItem.db2");
+    let reader =
+        Wdc4Reader::open(&path).with_context(|| format!("failed to open {}", path.display()))?;
+
+    let mut entries = Vec::with_capacity(reader.total_count());
+    for (id, idx) in reader.iter_records() {
+        entries.push(TransmogSetItemEntry {
+            id,
+            transmog_set_id: reader.get_relationship_id(idx).unwrap_or(0),
+            item_modified_appearance_id: reader.get_field_u32(idx, 2),
+            flags: reader.get_field_i32(idx, 3),
+        });
+    }
+
+    info!("Loaded {} rows from {}", entries.len(), path.display());
+    Ok(entries)
 }
 
 fn load_store<T, S>(
@@ -488,26 +556,60 @@ mod tests {
 
     #[test]
     fn transmog_set_items_keep_cpp_secondary_index_shape() {
-        let store = TransmogSetItemStore::from_entries([
-            TransmogSetItemEntry {
-                id: 10,
-                transmog_set_id: 7,
-                item_modified_appearance_id: 100,
-                flags: 0,
-            },
-            TransmogSetItemEntry {
-                id: 11,
-                transmog_set_id: 8,
-                item_modified_appearance_id: 200,
-                flags: 1,
-            },
-            TransmogSetItemEntry {
-                id: 12,
-                transmog_set_id: 7,
-                item_modified_appearance_id: 101,
-                flags: 2,
-            },
-        ]);
+        let store = TransmogSetItemStore::from_entries_and_sets(
+            [
+                TransmogSetItemEntry {
+                    id: 10,
+                    transmog_set_id: 7,
+                    item_modified_appearance_id: 100,
+                    flags: 0,
+                },
+                TransmogSetItemEntry {
+                    id: 11,
+                    transmog_set_id: 8,
+                    item_modified_appearance_id: 200,
+                    flags: 1,
+                },
+                TransmogSetItemEntry {
+                    id: 12,
+                    transmog_set_id: 7,
+                    item_modified_appearance_id: 101,
+                    flags: 2,
+                },
+                TransmogSetItemEntry {
+                    id: 13,
+                    transmog_set_id: 99,
+                    item_modified_appearance_id: 100,
+                    flags: 3,
+                },
+            ],
+            [
+                TransmogSetEntry {
+                    id: 7,
+                    name: "set 7".to_string(),
+                    class_mask: 0,
+                    tracking_quest_id: 0,
+                    flags: 0,
+                    transmog_set_group_id: 70,
+                    item_name_description_id: 0,
+                    parent_transmog_set_id: 0,
+                    expansion_id: 0,
+                    ui_order: 0,
+                },
+                TransmogSetEntry {
+                    id: 8,
+                    name: "set 8".to_string(),
+                    class_mask: 0,
+                    tracking_quest_id: 0,
+                    flags: 0,
+                    transmog_set_group_id: 80,
+                    item_name_description_id: 0,
+                    parent_transmog_set_id: 0,
+                    expansion_id: 0,
+                    ui_order: 0,
+                },
+            ],
+        );
 
         assert_eq!(store.get(11).unwrap().item_modified_appearance_id, 200);
         assert_eq!(
@@ -520,6 +622,20 @@ mod tests {
             vec![100, 101]
         );
         assert!(store.get_transmog_set_items_like_cpp(99).is_none());
+        assert_eq!(
+            store
+                .get_transmog_sets_for_item_modified_appearance_like_cpp(100)
+                .unwrap()
+                .iter()
+                .map(|set| (set.id, set.transmog_set_group_id))
+                .collect::<Vec<_>>(),
+            vec![(7, 70)]
+        );
+        assert!(
+            store
+                .get_transmog_sets_for_item_modified_appearance_like_cpp(999)
+                .is_none()
+        );
     }
 
     #[test]

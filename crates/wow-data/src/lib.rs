@@ -167,7 +167,9 @@ pub use item_bonus::{
     ItemXBonusTreeStore,
 };
 pub use item_class::{ItemClassEntry, ItemClassStore};
-pub use item_collections::{TransmogSetItemEntry, TransmogSetItemStore};
+pub use item_collections::{
+    TransmogSetEntry, TransmogSetItemEntry, TransmogSetItemStore, TransmogSetStore,
+};
 pub use item_currency_cost::{ItemCurrencyCostEntry, ItemCurrencyCostStore};
 pub use item_disenchant_loot::{ItemDisenchantLootEntry, ItemDisenchantLootStore};
 pub use item_equipment::{

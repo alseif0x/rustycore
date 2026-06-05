@@ -1154,9 +1154,17 @@ async fn main() -> Result<()> {
         item_modified_appearance_store.len()
     );
 
-    // Load TransmogSetItem.db2 for DB2Manager::GetTransmogSetItems-style lookup.
+    // Load TransmogSet.db2 and TransmogSetItem.db2 for DB2Manager transmog indexes.
+    let transmog_set_store = Arc::new(
+        wow_data::TransmogSetStore::load(&data_dir, &locale)
+            .context("Failed to load TransmogSet.db2 — check DataDir and DBC.Locale config")?,
+    );
+    info!(
+        "Loaded {} transmog sets from TransmogSet.db2",
+        transmog_set_store.len()
+    );
     let transmog_set_item_store = Arc::new(
-        wow_data::TransmogSetItemStore::load(&data_dir, &locale)
+        wow_data::TransmogSetItemStore::load_with_sets(&data_dir, &locale, &transmog_set_store)
             .context("Failed to load TransmogSetItem.db2 — check DataDir and DBC.Locale config")?,
     );
     info!(

@@ -66,8 +66,8 @@ use wow_data::{
     PlayerConditionStore, PlayerStatsStore, RandPropPointsStore, SkillLineStore, SkillStore,
     SpellDurationStore, SpellItemEnchantmentStore, SpellMiscStore, SpellRadiusStore,
     SpellRangeStore, SpellStore, SpellTargetPositionStoreLikeCpp, SummonPropertiesEntry,
-    TransmogSetItemStore, VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp,
-    VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
+    TransmogSetEntry, TransmogSetItemStore, VEHICLE_SEAT_FLAG_CAN_ATTACK,
+    VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
     is_player_meeting_condition_like_cpp,
     progression_rewards::{
         ContentTuningStore, FactionEntry, FactionStore, FactionTemplateStore,
@@ -96,11 +96,11 @@ use wow_entities::{
     EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_HANDS, EQUIPMENT_SLOT_HEAD, EQUIPMENT_SLOT_LEGS,
     EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND, EQUIPMENT_SLOT_SHOULDERS,
     EQUIPMENT_SLOT_TABARD, EQUIPMENT_SLOT_WAIST, EQUIPMENT_SLOT_WRISTS, GameObject,
-    INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END,
-    INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, ITEM_DATA_BITS, ITEM_DATA_DURABILITY_BIT,
-    Item, ItemCreateInfo, ItemDataUpdate, ItemLimitCategoryTemplate, ItemPosCount, ItemSlotRef,
-    ItemStorageRef, ItemStorageTemplate, ItemValuesUpdate, MAX_BAG_SIZE, MAX_ITEM_SPELLS,
-    MAX_MONEY_AMOUNT, NULL_BAG, NULL_SLOT, ObjectAccessor, PLAYER_SLOT_END, PhaseShift, Player,
+    INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START,
+    INVENTORY_SLOT_ITEM_START, ITEM_DATA_BITS, ITEM_DATA_DURABILITY_BIT, Item, ItemCreateInfo,
+    ItemDataUpdate, ItemLimitCategoryTemplate, ItemPosCount, ItemSlotRef, ItemStorageRef,
+    ItemStorageTemplate, ItemValuesUpdate, MAX_BAG_SIZE, MAX_ITEM_SPELLS, MAX_MONEY_AMOUNT,
+    NULL_BAG, NULL_SLOT, ObjectAccessor, PLAYER_SLOT_END, PhaseShift, Player,
     PlayerEnchantTimeUpdate, PlayerInventoryStorage, PlayerItemTimeUpdate,
     QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE, REAGENT_BAG_SLOT_END,
     REAGENT_BAG_SLOT_START, SendNewItemDelivery, SendNewItemDisplayText, SendNewItemPlan,
@@ -1405,6 +1405,18 @@ pub(crate) enum RepresentedGameObjectCriteriaEvent {
     },
 }
 
+#[cfg(test)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RepresentedTransmogCriteriaEvent {
+    LearnAnyTransmogInSlot {
+        equipment_slot: u32,
+        item_modified_appearance_id: u32,
+    },
+    CollectTransmogSetFromGroup {
+        transmog_set_group_id: u32,
+    },
+}
+
 pub type SharedObjectAccessor = Arc<RwLock<ObjectAccessor>>;
 pub(crate) const SKILL_FISHING_LIKE_CPP: u16 = 356;
 pub(crate) const SKILL_RIDING_LIKE_CPP: u16 = 762;
@@ -2593,6 +2605,8 @@ pub struct WorldSession {
     pub(crate) represented_loot_roll_criteria_events: Vec<RepresentedLootRollCriteriaEvent>,
     #[cfg(test)]
     pub(crate) represented_gameobject_criteria_events: Vec<RepresentedGameObjectCriteriaEvent>,
+    #[cfg(test)]
+    pub(crate) represented_transmog_criteria_events: Vec<RepresentedTransmogCriteriaEvent>,
     /// C++ `sWorld->getRate(...)` subset used by represented loot generation.
     loot_drop_rates: LootDropRatesLikeCpp,
     /// C++ `sWorld->getRate(...)` subset used by represented reputation gain.
@@ -3407,6 +3421,8 @@ impl WorldSession {
             represented_loot_roll_criteria_events: Vec::new(),
             #[cfg(test)]
             represented_gameobject_criteria_events: Vec::new(),
+            #[cfg(test)]
+            represented_transmog_criteria_events: Vec::new(),
             loot_drop_rates: LootDropRatesLikeCpp::default(),
             reputation_rates: ReputationRatesLikeCpp::default(),
             repair_cost_rate_like_cpp: 1.0,
@@ -7639,6 +7655,18 @@ impl WorldSession {
             .and_then(|store| store.get_transmog_set_items_like_cpp(transmog_set_id))
     }
 
+    /// C++ `DB2Manager::GetTransmogSetsForItemModifiedAppearance`.
+    pub fn transmog_sets_for_item_modified_appearance_like_cpp(
+        &self,
+        item_modified_appearance_id: u32,
+    ) -> Option<&[TransmogSetEntry]> {
+        self.transmog_set_item_store.as_ref().and_then(|store| {
+            store.get_transmog_sets_for_item_modified_appearance_like_cpp(
+                item_modified_appearance_id,
+            )
+        })
+    }
+
     /// C++ `CollectionMgr::AddTransmogSet` expansion before `AddItemAppearance`.
     pub fn transmog_set_item_modified_appearances_like_cpp(
         &self,
@@ -7689,6 +7717,7 @@ impl WorldSession {
             self.represented_temporary_item_appearances_like_cpp
                 .remove(&item_modified_appearance_id);
         }
+        self.update_represented_transmog_criteria_like_cpp(item_modified_appearance_id);
         Some(result)
     }
 
@@ -7705,6 +7734,34 @@ impl WorldSession {
         let item_modified_appearance_id =
             self.item_modified_appearance_for_item(item_id, appearance_mod_id)?;
         self.add_item_appearance_like_cpp(item_modified_appearance_id)
+    }
+
+    /// Bounded direct-item part of C++ `Player::_LoadQuestStatusRewarded`.
+    ///
+    /// C++ replays reward choice item ids and fixed reward item ids through
+    /// `CollectionMgr::AddItemAppearance(itemId)`. Quest-package replay is not
+    /// folded in here because C++ gates it with `ItemTemplate::ItemSpecClassMask`,
+    /// which Rust does not yet represent.
+    pub fn replay_rewarded_quest_direct_item_appearances_like_cpp(
+        &mut self,
+        quest: &wow_data::quest::QuestTemplate,
+    ) -> Option<wow_entities::PlayerValuesUpdate> {
+        let reward_item_ids = quest
+            .reward_choice_items
+            .iter()
+            .map(|(item_id, _quantity)| *item_id)
+            .chain(quest.reward_items.iter().copied())
+            .filter(|item_id| *item_id != 0)
+            .collect::<Vec<_>>();
+
+        let mut last_update = None;
+        for item_id in reward_item_ids {
+            if let Some(update) = self.add_item_appearance_for_item_like_cpp(item_id, 0) {
+                last_update = Some(update);
+            }
+        }
+
+        last_update
     }
 
     #[cfg(test)]
@@ -7824,6 +7881,52 @@ impl WorldSession {
         Some(slot as usize)
     }
 
+    /// C++ `CollectionMgr::AddItemAppearance` criteria side effects.
+    fn update_represented_transmog_criteria_like_cpp(&mut self, item_modified_appearance_id: u32) {
+        let item_id = self
+            .item_modified_appearance_store
+            .as_ref()
+            .and_then(|store| store.get(item_modified_appearance_id))
+            .and_then(|appearance| u32::try_from(appearance.item_id).ok());
+
+        if let Some(_transmog_slot) = item_id
+            .and_then(|item_id| {
+                self.item_store
+                    .as_ref()
+                    .and_then(|store| store.inventory_type(item_id))
+            })
+            .and_then(Self::item_transmogrification_slot_like_cpp)
+        {
+            #[cfg(test)]
+            self.represented_transmog_criteria_events.push(
+                RepresentedTransmogCriteriaEvent::LearnAnyTransmogInSlot {
+                    equipment_slot: _transmog_slot as u32,
+                    item_modified_appearance_id,
+                },
+            );
+        }
+
+        let transmog_sets = self
+            .transmog_sets_for_item_modified_appearance_like_cpp(item_modified_appearance_id)
+            .map(|sets| {
+                sets.iter()
+                    .map(|set| (set.id, set.transmog_set_group_id))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+
+        for (transmog_set_id, _transmog_set_group_id) in transmog_sets {
+            if self.is_transmog_set_completed_like_cpp(transmog_set_id) {
+                #[cfg(test)]
+                self.represented_transmog_criteria_events.push(
+                    RepresentedTransmogCriteriaEvent::CollectTransmogSetFromGroup {
+                        transmog_set_group_id: _transmog_set_group_id,
+                    },
+                );
+            }
+        }
+    }
+
     /// C++ `CollectionMgr::IsSetCompleted`.
     pub fn is_transmog_set_completed_like_cpp(&self, transmog_set_id: u32) -> bool {
         let Some(transmog_set_items) = self.transmog_set_items_like_cpp(transmog_set_id) else {
@@ -7859,7 +7962,11 @@ impl WorldSession {
 
             let (has_appearance, is_temporary) =
                 self.has_item_appearance_like_cpp(transmog_set_item.item_modified_appearance_id);
-            known_pieces[transmog_slot] = if has_appearance && !is_temporary { 1 } else { 0 };
+            known_pieces[transmog_slot] = if has_appearance && !is_temporary {
+                1
+            } else {
+                0
+            };
         }
 
         !known_pieces.contains(&0)
@@ -26341,7 +26448,7 @@ mod tests {
         ItemRandomPropertyTemplateEntry, ItemRandomSuffixEntry, ItemRandomSuffixStore, ItemRecord,
         ItemSparseTemplateEntry, ItemStatsStore, ItemStore, LockEntry, LockStore,
         PlayerConditionEntry, PlayerConditionStore, SpellItemEnchantmentEntry,
-        SpellItemEnchantmentStore, TransmogSetItemEntry, TransmogSetItemStore,
+        SpellItemEnchantmentStore, TransmogSetEntry, TransmogSetItemEntry, TransmogSetItemStore,
         progression_rewards::{FactionEntry, FactionStore},
         reputation::ReputationFlagsLikeCpp,
     };
@@ -49536,8 +49643,78 @@ mod tests {
 
         assert!(session.represented_has_item_appearance_like_cpp(65));
         assert_eq!(active.values.transmog, vec![0, 0, 1 << 1]);
-        assert!(session.add_item_appearance_for_item_like_cpp(777, 2).is_none());
-        assert!(session.add_item_appearance_for_item_like_cpp(778, 2).is_none());
+        assert!(
+            session
+                .add_item_appearance_for_item_like_cpp(777, 2)
+                .is_none()
+        );
+        assert!(
+            session
+                .add_item_appearance_for_item_like_cpp(778, 2)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn replay_rewarded_quest_direct_item_appearances_adds_choice_and_fixed_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 78);
+        let player_position = Position::new(10.0, 0.0, 0.0, 0.0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "RewardedQuestAppearanceTester".to_string(),
+            player_position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
+        session.set_item_modified_appearance_store(Arc::new(
+            ItemModifiedAppearanceStore::from_entries([
+                ItemModifiedAppearanceEntry {
+                    id: 65,
+                    item_id: 777,
+                    item_appearance_modifier_id: 0,
+                    item_appearance_id: 9_000,
+                    order_index: 0,
+                    transmog_source_type_enum: 0,
+                },
+                ItemModifiedAppearanceEntry {
+                    id: 96,
+                    item_id: 778,
+                    item_appearance_modifier_id: 0,
+                    item_appearance_id: 9_001,
+                    order_index: 0,
+                    transmog_source_type_enum: 0,
+                },
+            ]),
+        ));
+        let mut quest = test_quest_template(7_777);
+        quest.reward_choice_items[0] = (777, 1);
+        quest.reward_choice_items[1] = (0, 1);
+        quest.reward_items[0] = 778;
+        quest.reward_items[1] = 999;
+        session.mutate_canonical_player_like_cpp(|player| player.clear_data_changes());
+
+        let update = session
+            .replay_rewarded_quest_direct_item_appearances_like_cpp(&quest)
+            .expect("direct rewarded quest appearances should mark the player");
+        let active = update
+            .active_player_data
+            .expect("rewarded quest replay should emit active player data");
+
+        assert!(session.represented_has_item_appearance_like_cpp(65));
+        assert!(session.represented_has_item_appearance_like_cpp(96));
+        assert_eq!(active.values.transmog, vec![0, 0, 1 << 1, 1]);
+        assert!(
+            session
+                .replay_rewarded_quest_direct_item_appearances_like_cpp(&quest)
+                .is_none()
+        );
     }
 
     #[test]
@@ -49825,6 +50002,128 @@ mod tests {
             .represented_temporary_item_appearances_like_cpp
             .insert(96, HashSet::from([ObjectGuid::create_item(1, 902)]));
         assert!(session.is_transmog_set_completed_like_cpp(81));
+    }
+
+    #[test]
+    fn add_item_appearance_records_transmog_criteria_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 78);
+        let player_position = Position::new(10.0, 0.0, 0.0, 0.0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TransmogCriteriaTester".to_string(),
+            player_position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
+        session.set_transmog_set_item_store(Arc::new(TransmogSetItemStore::from_entries_and_sets(
+            [
+                TransmogSetItemEntry {
+                    id: 1,
+                    transmog_set_id: 70,
+                    item_modified_appearance_id: 65,
+                    flags: 0,
+                },
+                TransmogSetItemEntry {
+                    id: 2,
+                    transmog_set_id: 70,
+                    item_modified_appearance_id: 96,
+                    flags: 0,
+                },
+            ],
+            [TransmogSetEntry {
+                id: 70,
+                name: "criterion set".to_string(),
+                class_mask: 0,
+                tracking_quest_id: 0,
+                flags: 0,
+                transmog_set_group_id: 7000,
+                item_name_description_id: 0,
+                parent_transmog_set_id: 0,
+                expansion_id: 0,
+                ui_order: 0,
+            }],
+        )));
+        session.set_item_modified_appearance_store(Arc::new(
+            ItemModifiedAppearanceStore::from_entries([
+                ItemModifiedAppearanceEntry {
+                    id: 65,
+                    item_id: 777,
+                    item_appearance_modifier_id: 0,
+                    item_appearance_id: 9000,
+                    order_index: 0,
+                    transmog_source_type_enum: 0,
+                },
+                ItemModifiedAppearanceEntry {
+                    id: 96,
+                    item_id: 778,
+                    item_appearance_modifier_id: 0,
+                    item_appearance_id: 9001,
+                    order_index: 0,
+                    transmog_source_type_enum: 0,
+                },
+            ]),
+        ));
+        session.set_item_store(Arc::new(ItemStore::from_records([
+            ItemRecord {
+                id: 777,
+                class_id: 4,
+                subclass_id: 1,
+                material: 0,
+                inventory_type: InventoryType::Head as i8,
+                sheathe_type: 0,
+                random_select: 0,
+                random_suffix_group_id: 0,
+            },
+            ItemRecord {
+                id: 778,
+                class_id: 4,
+                subclass_id: 1,
+                material: 0,
+                inventory_type: InventoryType::Chest as i8,
+                sheathe_type: 0,
+                random_select: 0,
+                random_suffix_group_id: 0,
+            },
+        ])));
+        session.mutate_canonical_player_like_cpp(|player| player.clear_data_changes());
+        session
+            .represented_temporary_item_appearances_like_cpp
+            .insert(96, HashSet::from([ObjectGuid::create_item(1, 902)]));
+
+        session
+            .add_item_appearance_like_cpp(65)
+            .expect("first permanent piece should update transmog state");
+        assert_eq!(
+            session.represented_transmog_criteria_events,
+            vec![RepresentedTransmogCriteriaEvent::LearnAnyTransmogInSlot {
+                equipment_slot: EQUIPMENT_SLOT_HEAD as u32,
+                item_modified_appearance_id: 65,
+            }]
+        );
+
+        session.represented_transmog_criteria_events.clear();
+        session
+            .add_item_appearance_like_cpp(96)
+            .expect("second permanent piece should complete the set");
+        assert_eq!(
+            session.represented_transmog_criteria_events,
+            vec![
+                RepresentedTransmogCriteriaEvent::LearnAnyTransmogInSlot {
+                    equipment_slot: EQUIPMENT_SLOT_CHEST as u32,
+                    item_modified_appearance_id: 96,
+                },
+                RepresentedTransmogCriteriaEvent::CollectTransmogSetFromGroup {
+                    transmog_set_group_id: 7000,
+                },
+            ]
+        );
     }
 
     #[test]
