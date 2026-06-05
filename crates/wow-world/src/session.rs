@@ -42833,6 +42833,8 @@ mod tests {
                     wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_FRIEND,
                     wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_ENEMY,
                     wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_OWNER,
+                    wow_data::spell::spell_effect_types::SPELL_EFFECT_178,
+                    wow_data::spell::spell_effect_types::SPELL_EFFECT_194,
                 ]
                 .into_iter()
                 .enumerate()
@@ -42891,6 +42893,70 @@ mod tests {
                 761_i32,
                 wow_data::spell::spell_effect_types::SPELL_EFFECT_CALL_PET,
             ),
+            (
+                762_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_OBLITERATE_ITEM,
+            ),
+            (
+                763_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_ALLOW_CONTROL_PET,
+            ),
+            (
+                764_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_175,
+            ),
+            (
+                765_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_DESPAWN_PERSISTENT_AREA_AURA,
+            ),
+            (
+                766_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_UPDATE_AREATRIGGER,
+            ),
+            (
+                767_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_DESPAWN_AREATRIGGER,
+            ),
+            (
+                768_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_183,
+            ),
+            (
+                769_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_REPUTATION_2,
+            ),
+            (
+                770_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_185,
+            ),
+            (
+                771_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_186,
+            ),
+            (
+                772_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_RANDOMIZE_ARCHAEOLOGY_DIGSITES,
+            ),
+            (
+                773_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_SUMMON_STABLED_PET_AS_GUARDIAN,
+            ),
+            (
+                774_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_LOOT,
+            ),
+            (
+                775_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_CHANGE_PARTY_MEMBERS,
+            ),
+            (
+                776_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_TELEPORT_TO_DIGSITE,
+            ),
+            (
+                777_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_START_PET_BATTLE,
+            ),
         ];
         for (spell_id, effect_type) in primary_noop_spells {
             spell_store.insert(
@@ -42922,20 +42988,10 @@ mod tests {
         assert_eq!(session.player_health_like_cpp(), 88);
         assert_eq!(
             drain_server_opcodes(&send_rx),
-            vec![
-                ServerOpcodes::SpellGo,
-                ServerOpcodes::CooldownEvent,
-                ServerOpcodes::SpellGo,
-                ServerOpcodes::CooldownEvent,
-                ServerOpcodes::SpellGo,
-                ServerOpcodes::CooldownEvent,
-                ServerOpcodes::SpellGo,
-                ServerOpcodes::CooldownEvent,
-                ServerOpcodes::SpellGo,
-                ServerOpcodes::CooldownEvent,
-                ServerOpcodes::SpellGo,
-                ServerOpcodes::CooldownEvent,
-            ]
+            primary_noop_spells
+                .iter()
+                .flat_map(|_| [ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent])
+                .collect::<Vec<_>>()
         );
     }
 

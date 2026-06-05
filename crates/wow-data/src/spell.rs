@@ -78,7 +78,25 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_CALL_PET: u32 = 135;
     pub const SPELL_EFFECT_HEAL_PCT: u32 = 136;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_OWNER: u32 = 143;
+    pub const SPELL_EFFECT_OBLITERATE_ITEM: u32 = 163;
+    pub const SPELL_EFFECT_ALLOW_CONTROL_PET: u32 = 168;
     pub const SPELL_EFFECT_APPLY_AURA_ON_PET: u32 = 174;
+    pub const SPELL_EFFECT_175: u32 = 175;
+    pub const SPELL_EFFECT_DESPAWN_PERSISTENT_AREA_AURA: u32 = 177;
+    pub const SPELL_EFFECT_178: u32 = 178;
+    pub const SPELL_EFFECT_UPDATE_AREATRIGGER: u32 = 180;
+    pub const SPELL_EFFECT_DESPAWN_AREATRIGGER: u32 = 182;
+    pub const SPELL_EFFECT_183: u32 = 183;
+    pub const SPELL_EFFECT_REPUTATION_2: u32 = 184;
+    pub const SPELL_EFFECT_185: u32 = 185;
+    pub const SPELL_EFFECT_186: u32 = 186;
+    pub const SPELL_EFFECT_RANDOMIZE_ARCHAEOLOGY_DIGSITES: u32 = 187;
+    pub const SPELL_EFFECT_SUMMON_STABLED_PET_AS_GUARDIAN: u32 = 188;
+    pub const SPELL_EFFECT_LOOT: u32 = 189;
+    pub const SPELL_EFFECT_CHANGE_PARTY_MEMBERS: u32 = 190;
+    pub const SPELL_EFFECT_TELEPORT_TO_DIGSITE: u32 = 191;
+    pub const SPELL_EFFECT_START_PET_BATTLE: u32 = 193;
+    pub const SPELL_EFFECT_194: u32 = 194;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_SUMMONS: u32 = 202;
     pub const SPELL_EFFECT_TELEPORT_UNITS: u32 = 252;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_PARTY_NONRANDOM: u32 = 271;
@@ -121,6 +139,24 @@ pub mod spell_effect_types {
                 | SPELL_EFFECT_APPLY_AREA_AURA_ENEMY
                 | SPELL_EFFECT_CALL_PET
                 | SPELL_EFFECT_APPLY_AREA_AURA_OWNER
+                | SPELL_EFFECT_OBLITERATE_ITEM
+                | SPELL_EFFECT_ALLOW_CONTROL_PET
+                | SPELL_EFFECT_175
+                | SPELL_EFFECT_DESPAWN_PERSISTENT_AREA_AURA
+                | SPELL_EFFECT_178
+                | SPELL_EFFECT_UPDATE_AREATRIGGER
+                | SPELL_EFFECT_DESPAWN_AREATRIGGER
+                | SPELL_EFFECT_183
+                | SPELL_EFFECT_REPUTATION_2
+                | SPELL_EFFECT_185
+                | SPELL_EFFECT_186
+                | SPELL_EFFECT_RANDOMIZE_ARCHAEOLOGY_DIGSITES
+                | SPELL_EFFECT_SUMMON_STABLED_PET_AS_GUARDIAN
+                | SPELL_EFFECT_LOOT
+                | SPELL_EFFECT_CHANGE_PARTY_MEMBERS
+                | SPELL_EFFECT_TELEPORT_TO_DIGSITE
+                | SPELL_EFFECT_START_PET_BATTLE
+                | SPELL_EFFECT_194
         )
     }
 }
@@ -884,6 +920,33 @@ mod tests {
         assert_eq!(spell_effect_types::SPELL_EFFECT_KILL_CREDIT2, 134);
         assert_eq!(spell_effect_types::SPELL_EFFECT_CALL_PET, 135);
         assert_eq!(spell_effect_types::SPELL_EFFECT_HEAL_PCT, 136);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_OBLITERATE_ITEM, 163);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_ALLOW_CONTROL_PET, 168);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_175, 175);
+        assert_eq!(
+            spell_effect_types::SPELL_EFFECT_DESPAWN_PERSISTENT_AREA_AURA,
+            177
+        );
+        assert_eq!(spell_effect_types::SPELL_EFFECT_178, 178);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_UPDATE_AREATRIGGER, 180);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_DESPAWN_AREATRIGGER, 182);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_183, 183);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_REPUTATION_2, 184);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_185, 185);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_186, 186);
+        assert_eq!(
+            spell_effect_types::SPELL_EFFECT_RANDOMIZE_ARCHAEOLOGY_DIGSITES,
+            187
+        );
+        assert_eq!(
+            spell_effect_types::SPELL_EFFECT_SUMMON_STABLED_PET_AS_GUARDIAN,
+            188
+        );
+        assert_eq!(spell_effect_types::SPELL_EFFECT_LOOT, 189);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_CHANGE_PARTY_MEMBERS, 190);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_TELEPORT_TO_DIGSITE, 191);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_START_PET_BATTLE, 193);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_194, 194);
     }
 
     #[test]
@@ -920,6 +983,24 @@ mod tests {
             spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_ENEMY,
             spell_effect_types::SPELL_EFFECT_CALL_PET,
             spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_OWNER,
+            spell_effect_types::SPELL_EFFECT_OBLITERATE_ITEM,
+            spell_effect_types::SPELL_EFFECT_ALLOW_CONTROL_PET,
+            spell_effect_types::SPELL_EFFECT_175,
+            spell_effect_types::SPELL_EFFECT_DESPAWN_PERSISTENT_AREA_AURA,
+            spell_effect_types::SPELL_EFFECT_178,
+            spell_effect_types::SPELL_EFFECT_UPDATE_AREATRIGGER,
+            spell_effect_types::SPELL_EFFECT_DESPAWN_AREATRIGGER,
+            spell_effect_types::SPELL_EFFECT_183,
+            spell_effect_types::SPELL_EFFECT_REPUTATION_2,
+            spell_effect_types::SPELL_EFFECT_185,
+            spell_effect_types::SPELL_EFFECT_186,
+            spell_effect_types::SPELL_EFFECT_RANDOMIZE_ARCHAEOLOGY_DIGSITES,
+            spell_effect_types::SPELL_EFFECT_SUMMON_STABLED_PET_AS_GUARDIAN,
+            spell_effect_types::SPELL_EFFECT_LOOT,
+            spell_effect_types::SPELL_EFFECT_CHANGE_PARTY_MEMBERS,
+            spell_effect_types::SPELL_EFFECT_TELEPORT_TO_DIGSITE,
+            spell_effect_types::SPELL_EFFECT_START_PET_BATTLE,
+            spell_effect_types::SPELL_EFFECT_194,
         ] {
             assert!(
                 spell_effect_types::is_cpp_null_or_unused_noop(effect),
