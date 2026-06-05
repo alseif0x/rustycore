@@ -679,6 +679,7 @@ pub const ACTIVE_PLAYER_DATA_XP_BIT: usize = 29;
 pub const ACTIVE_PLAYER_DATA_NEXT_LEVEL_XP_BIT: usize = 30;
 pub const ACTIVE_PLAYER_DATA_CHARACTER_POINTS_BIT: usize = 33;
 pub const ACTIVE_PLAYER_DATA_TRANSMOG_BIT: usize = 10;
+pub const ACTIVE_PLAYER_DATA_CONDITIONAL_TRANSMOG_BIT: usize = 11;
 pub const ACTIVE_PLAYER_DATA_HONOR_PARENT_BIT: usize = 102;
 pub const ACTIVE_PLAYER_DATA_HONOR_BIT: usize = 109;
 pub const ACTIVE_PLAYER_DATA_HONOR_NEXT_LEVEL_BIT: usize = 110;
@@ -2748,6 +2749,8 @@ pub struct ActivePlayerDataValues {
     pub buyback_timestamp: [i64; BUYBACK_SLOT_COUNT],
     pub transmog: Vec<u32>,
     pub transmog_update_mask: Option<Vec<u32>>,
+    pub conditional_transmog: Vec<i32>,
+    pub conditional_transmog_update_mask: Option<Vec<u32>>,
     pub quest_completed: [u64; QUESTS_COMPLETED_BITS_SIZE],
 }
 
@@ -2768,6 +2771,8 @@ impl Default for ActivePlayerDataValues {
             buyback_timestamp: [0; BUYBACK_SLOT_COUNT],
             transmog: Vec::new(),
             transmog_update_mask: None,
+            conditional_transmog: Vec::new(),
+            conditional_transmog_update_mask: None,
             quest_completed: [0; QUESTS_COMPLETED_BITS_SIZE],
         }
     }
@@ -6932,6 +6937,47 @@ impl Player {
 
     pub fn transmog_blocks_like_cpp(&self) -> &[u32] {
         &self.active_data.transmog
+    }
+
+    /// C++ `Player::AddConditionalTransmog`.
+    pub fn add_conditional_transmog_like_cpp(&mut self, item_modified_appearance_id: u32) -> usize {
+        let index = self.active_data.conditional_transmog.len();
+        self.active_data
+            .conditional_transmog
+            .push(item_modified_appearance_id as i32);
+        Self::set_dynamic_update_mask_index(
+            &mut self.active_data.conditional_transmog_update_mask,
+            index,
+        );
+        self.mark_active_player_data(ACTIVE_PLAYER_DATA_CONDITIONAL_TRANSMOG_BIT);
+        index
+    }
+
+    /// C++ `Player::RemoveConditionalTransmog`.
+    pub fn remove_conditional_transmog_like_cpp(
+        &mut self,
+        item_modified_appearance_id: u32,
+    ) -> bool {
+        let Some(index) = self
+            .active_data
+            .conditional_transmog
+            .iter()
+            .position(|id| *id == item_modified_appearance_id as i32)
+        else {
+            return false;
+        };
+
+        self.active_data.conditional_transmog.remove(index);
+        Self::set_dynamic_update_mask_index(
+            &mut self.active_data.conditional_transmog_update_mask,
+            index,
+        );
+        self.mark_active_player_data(ACTIVE_PLAYER_DATA_CONDITIONAL_TRANSMOG_BIT);
+        true
+    }
+
+    pub fn conditional_transmog_like_cpp(&self) -> &[i32] {
+        &self.active_data.conditional_transmog
     }
 
     pub fn get_item_from_buyback_slot(&self, slot: u8) -> Option<ObjectGuid> {
@@ -12163,6 +12209,29 @@ mod tests {
             player
                 .active_player_data_changes_mask()
                 .is_set(ACTIVE_PLAYER_DATA_TRANSMOG_BIT)
+        );
+
+        player.clear_data_changes();
+        assert_eq!(player.active_data().conditional_transmog, Vec::<i32>::new());
+        assert_eq!(player.active_data().conditional_transmog_update_mask, None);
+        assert_eq!(player.add_conditional_transmog_like_cpp(65), 0);
+        assert_eq!(player.add_conditional_transmog_like_cpp(96), 1);
+        assert_eq!(player.active_data().conditional_transmog, vec![65, 96]);
+        assert_eq!(
+            player.active_data().conditional_transmog_update_mask,
+            Some(vec![0b11])
+        );
+        assert!(player.remove_conditional_transmog_like_cpp(65));
+        assert_eq!(player.active_data().conditional_transmog, vec![96]);
+        assert_eq!(
+            player.active_data().conditional_transmog_update_mask,
+            Some(vec![0b11])
+        );
+        assert!(!player.remove_conditional_transmog_like_cpp(65));
+        assert!(
+            player
+                .active_player_data_changes_mask()
+                .is_set(ACTIVE_PLAYER_DATA_CONDITIONAL_TRANSMOG_BIT)
         );
     }
 

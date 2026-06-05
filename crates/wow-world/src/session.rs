@@ -2534,6 +2534,8 @@ pub struct WorldSession {
     pub(crate) seasonal_quest_changed_like_cpp: bool,
     /// C++ `CollectionMgr::_appearances`, represented until account collection persistence is ported.
     pub(crate) represented_item_appearances_like_cpp: HashSet<u32>,
+    /// C++ `CollectionMgr::_temporaryAppearances`, represented until account collection persistence is ported.
+    pub(crate) represented_temporary_item_appearances_like_cpp: HashMap<u32, HashSet<ObjectGuid>>,
     /// Session-local evidence for represented `Player::RemoveTimedQuest` calls.
     pub(crate) represented_timed_quest_removals_like_cpp: Vec<u32>,
     /// Session-local evidence for represented quest reward `Player::UpdateSkillPro` calls.
@@ -3375,6 +3377,7 @@ impl WorldSession {
             seasonal_quests_like_cpp: BTreeMap::new(),
             seasonal_quest_changed_like_cpp: false,
             represented_item_appearances_like_cpp: HashSet::new(),
+            represented_temporary_item_appearances_like_cpp: HashMap::new(),
             represented_timed_quest_removals_like_cpp: Vec::new(),
             represented_quest_reward_skill_updates_like_cpp: Vec::new(),
             represented_quest_reward_spell_casts_like_cpp: Vec::new(),
@@ -7660,19 +7663,29 @@ impl WorldSession {
         let block_index = usize::try_from(item_modified_appearance_id / 32).ok()?;
         let bit_index = item_modified_appearance_id % 32;
         let flag = 1_u32.checked_shl(bit_index)?;
+        let had_temporary = self
+            .represented_temporary_item_appearances_like_cpp
+            .contains_key(&item_modified_appearance_id);
 
         let result = self.mutate_canonical_player_like_cpp(|player| {
             while player.transmog_blocks_like_cpp().len() <= block_index {
                 player.add_transmog_block_like_cpp(0);
             }
 
-            player
-                .add_transmog_flag_like_cpp(block_index, flag)
-                .then(|| player.values_update(true))
+            let added_flag = player.add_transmog_flag_like_cpp(block_index, flag);
+            if had_temporary {
+                player.remove_conditional_transmog_like_cpp(item_modified_appearance_id);
+            }
+
+            added_flag.then(|| player.values_update(true))
         })??;
 
         self.represented_item_appearances_like_cpp
             .insert(item_modified_appearance_id);
+        if had_temporary {
+            self.represented_temporary_item_appearances_like_cpp
+                .remove(&item_modified_appearance_id);
+        }
         Some(result)
     }
 
@@ -7683,6 +7696,81 @@ impl WorldSession {
     ) -> bool {
         self.represented_item_appearances_like_cpp
             .contains(&item_modified_appearance_id)
+    }
+
+    /// C++ `CollectionMgr::HasItemAppearance`.
+    pub fn has_item_appearance_like_cpp(&self, item_modified_appearance_id: u32) -> (bool, bool) {
+        if self
+            .represented_item_appearances_like_cpp
+            .contains(&item_modified_appearance_id)
+        {
+            return (true, false);
+        }
+
+        if self
+            .represented_temporary_item_appearances_like_cpp
+            .contains_key(&item_modified_appearance_id)
+        {
+            return (true, true);
+        }
+
+        (false, false)
+    }
+
+    /// C++ `CollectionMgr::AddTemporaryAppearance`.
+    pub fn add_temporary_item_appearance_like_cpp(
+        &mut self,
+        item_modified_appearance_id: u32,
+        item_guid: ObjectGuid,
+    ) -> Option<wow_entities::PlayerValuesUpdate> {
+        let items_with_appearance = self
+            .represented_temporary_item_appearances_like_cpp
+            .entry(item_modified_appearance_id)
+            .or_default();
+        let was_empty = items_with_appearance.is_empty();
+        items_with_appearance.insert(item_guid);
+
+        was_empty.then_some(())?;
+        self.mutate_canonical_player_like_cpp(|player| {
+            player.add_conditional_transmog_like_cpp(item_modified_appearance_id);
+            player.values_update(true)
+        })
+    }
+
+    /// C++ `CollectionMgr::RemoveTemporaryAppearance`.
+    pub fn remove_temporary_item_appearance_like_cpp(
+        &mut self,
+        item_modified_appearance_id: u32,
+        item_guid: ObjectGuid,
+    ) -> Option<wow_entities::PlayerValuesUpdate> {
+        let items_with_appearance = self
+            .represented_temporary_item_appearances_like_cpp
+            .get_mut(&item_modified_appearance_id)?;
+        if !items_with_appearance.remove(&item_guid) {
+            return None;
+        }
+
+        if !items_with_appearance.is_empty() {
+            return None;
+        }
+
+        self.represented_temporary_item_appearances_like_cpp
+            .remove(&item_modified_appearance_id);
+        self.mutate_canonical_player_like_cpp(|player| {
+            player.remove_conditional_transmog_like_cpp(item_modified_appearance_id);
+            player.values_update(true)
+        })
+    }
+
+    /// C++ `CollectionMgr::GetItemsProvidingTemporaryAppearance`.
+    pub fn items_providing_temporary_appearance_like_cpp(
+        &self,
+        item_modified_appearance_id: u32,
+    ) -> HashSet<ObjectGuid> {
+        self.represented_temporary_item_appearances_like_cpp
+            .get(&item_modified_appearance_id)
+            .cloned()
+            .unwrap_or_default()
     }
 
     /// Bounded C++ `CollectionMgr::AddTransmogSet`.
@@ -49315,6 +49403,104 @@ mod tests {
                 .is_set(wow_entities::ACTIVE_PLAYER_DATA_TRANSMOG_BIT)
         );
         assert!(session.add_item_appearance_like_cpp(65).is_none());
+    }
+
+    #[test]
+    fn has_item_appearance_reports_permanent_before_temporary_like_cpp() {
+        let (mut session, _, _) = make_session();
+
+        assert_eq!(session.has_item_appearance_like_cpp(65), (false, false));
+
+        session
+            .represented_temporary_item_appearances_like_cpp
+            .insert(65, HashSet::from([ObjectGuid::create_item(1, 900)]));
+        assert_eq!(session.has_item_appearance_like_cpp(65), (true, true));
+
+        session.represented_item_appearances_like_cpp.insert(65);
+        assert_eq!(session.has_item_appearance_like_cpp(65), (true, false));
+    }
+
+    #[test]
+    fn temporary_item_appearance_tracks_conditional_transmog_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 76);
+        let player_position = Position::new(10.0, 0.0, 0.0, 0.0);
+        let item_guid_1 = ObjectGuid::create_item(1, 901);
+        let item_guid_2 = ObjectGuid::create_item(1, 902);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "ConditionalTransmogTester".to_string(),
+            player_position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
+        session.mutate_canonical_player_like_cpp(|player| player.clear_data_changes());
+
+        let update = session
+            .add_temporary_item_appearance_like_cpp(65, item_guid_1)
+            .expect("first temporary provider should add conditional transmog");
+        let active = update
+            .active_player_data
+            .expect("conditional transmog should mark active player data");
+        assert_eq!(active.values.conditional_transmog, vec![65]);
+        assert_eq!(
+            active.values.conditional_transmog_update_mask,
+            Some(vec![1])
+        );
+        assert_eq!(session.has_item_appearance_like_cpp(65), (true, true));
+
+        assert!(
+            session
+                .add_temporary_item_appearance_like_cpp(65, item_guid_2)
+                .is_none()
+        );
+        assert_eq!(
+            session.items_providing_temporary_appearance_like_cpp(65),
+            HashSet::from([item_guid_1, item_guid_2])
+        );
+
+        assert!(
+            session
+                .remove_temporary_item_appearance_like_cpp(65, item_guid_1)
+                .is_none()
+        );
+        assert_eq!(session.has_item_appearance_like_cpp(65), (true, true));
+
+        let update = session
+            .remove_temporary_item_appearance_like_cpp(65, item_guid_2)
+            .expect("last temporary provider should remove conditional transmog");
+        let active = update
+            .active_player_data
+            .expect("conditional transmog removal should mark active player data");
+        assert_eq!(active.values.conditional_transmog, Vec::<i32>::new());
+        assert_eq!(
+            active.values.conditional_transmog_update_mask,
+            Some(vec![1])
+        );
+        assert_eq!(session.has_item_appearance_like_cpp(65), (false, false));
+
+        session
+            .add_temporary_item_appearance_like_cpp(65, item_guid_1)
+            .expect("temporary appearance can be re-added");
+        let update = session
+            .add_item_appearance_like_cpp(65)
+            .expect("permanent appearance should remove matching temporary appearance");
+        let active = update
+            .active_player_data
+            .expect("permanent appearance should mark active player data");
+        assert_eq!(active.values.conditional_transmog, Vec::<i32>::new());
+        assert_eq!(session.has_item_appearance_like_cpp(65), (true, false));
+        assert!(
+            session
+                .items_providing_temporary_appearance_like_cpp(65)
+                .is_empty()
+        );
     }
 
     #[test]

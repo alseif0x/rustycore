@@ -853,6 +853,9 @@ fn active_player_data_update_to_packet(
     packet_update.buyback_timestamp = update.values.buyback_timestamp;
     packet_update.transmog = update.values.transmog.clone();
     packet_update.transmog_update_mask = update.values.transmog_update_mask.clone();
+    packet_update.conditional_transmog = update.values.conditional_transmog.clone();
+    packet_update.conditional_transmog_update_mask =
+        update.values.conditional_transmog_update_mask.clone();
     packet_update.quest_completed = update.values.quest_completed;
     packet_update
 }
@@ -984,6 +987,7 @@ mod tests {
 
         let slot = player.add_transmog_block_like_cpp(0);
         assert!(player.add_transmog_flag_like_cpp(slot, 1 << 5));
+        player.add_conditional_transmog_like_cpp(65);
 
         let update = player.values_update(true);
         let packet_update = player_values_update_to_packet(&update).unwrap();
@@ -999,6 +1003,12 @@ mod tests {
         ));
         assert_eq!(active.transmog, vec![1 << 5]);
         assert_eq!(active.transmog_update_mask, Some(vec![1]));
+        assert!(mask_has(
+            &active.active_player_data_mask,
+            wow_entities::ACTIVE_PLAYER_DATA_CONDITIONAL_TRANSMOG_BIT
+        ));
+        assert_eq!(active.conditional_transmog, vec![65]);
+        assert_eq!(active.conditional_transmog_update_mask, Some(vec![1]));
     }
 
     #[test]
