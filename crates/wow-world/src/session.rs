@@ -10039,6 +10039,41 @@ impl WorldSession {
         }
     }
 
+    /// Resolve an inventory item by GUID following C++ `Player::GetItemByGuid`.
+    ///
+    /// C++ iterates direct inventory and represented bags. Rust still models
+    /// nested bag contents through runtime `Item` objects, so this returns the
+    /// effective `(bag, slot, item)` tuple needed by `DestroyItem`.
+    pub(crate) fn get_inventory_item_by_guid_like_cpp(
+        &self,
+        item_guid: ObjectGuid,
+    ) -> Option<(u8, u8, InventoryItem)> {
+        if item_guid.is_empty() {
+            return None;
+        }
+
+        if let Some((&slot, item)) = self
+            .inventory_items_like_cpp()
+            .iter()
+            .find(|(_, item)| item.guid == item_guid)
+        {
+            if (slot as usize) < PLAYER_SLOT_END && !Self::is_buyback_slot(slot) {
+                return Some((INVENTORY_SLOT_BAG_0, slot, item.clone()));
+            }
+        }
+
+        let runtime_item = self.inventory_item_objects_like_cpp().get(&item_guid)?;
+        if !runtime_item.is_in_bag() {
+            return None;
+        }
+
+        let bag = runtime_item.bag_slot();
+        let slot = runtime_item.slot();
+        self.get_inventory_item_by_pos(bag, slot)
+            .filter(|item| item.guid == item_guid)
+            .map(|item| (bag, slot, item))
+    }
+
     pub(crate) fn select_buyback_slot_cpp(&self) -> u8 {
         let buyback_items = self.buyback_items_like_cpp();
         let buyback_timestamp = self.buyback_timestamp_like_cpp();
@@ -54167,6 +54202,30 @@ mod tests {
     #[test]
     fn open_item_release_destroy_nested_bank_bag_item_leaves_container_in_place() {
         assert_open_item_release_destroy_nested_item_leaves_container_in_place(BANK_SLOT_BAG_START);
+    }
+
+    #[test]
+    fn get_inventory_item_by_guid_finds_nested_bag_item_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        session.set_player_guid(Some(player_guid));
+        let (bag_guid, child_guid) =
+            insert_open_item_bag_with_child(&mut session, player_guid, INVENTORY_SLOT_BAG_START, 5);
+
+        let direct = session
+            .get_inventory_item_by_guid_like_cpp(bag_guid)
+            .expect("direct bag item");
+        assert_eq!(direct.0, INVENTORY_SLOT_BAG_0);
+        assert_eq!(direct.1, INVENTORY_SLOT_BAG_START);
+        assert_eq!(direct.2.guid, bag_guid);
+
+        let nested = session
+            .get_inventory_item_by_guid_like_cpp(child_guid)
+            .expect("nested child item");
+        assert_eq!(nested.0, INVENTORY_SLOT_BAG_START);
+        assert_eq!(nested.1, 5);
+        assert_eq!(nested.2.guid, child_guid);
+        assert_eq!(nested.2.entry_id, 700);
     }
 
     #[test]

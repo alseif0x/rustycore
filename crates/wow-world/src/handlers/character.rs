@@ -8609,6 +8609,25 @@ impl WorldSession {
         runtime_item: Option<wow_entities::Item>,
         context: &str,
     ) -> bool {
+        self.destroy_inventory_full_stack_by_pos_like_cpp(
+            INVENTORY_SLOT_BAG_0,
+            slot,
+            item,
+            runtime_item,
+            context,
+        )
+        .await
+    }
+
+    /// C++ `Player::DestroyItem(bag, slot, update=true)` for a full-stack item.
+    pub(crate) async fn destroy_inventory_full_stack_by_pos_like_cpp(
+        &mut self,
+        bag: u8,
+        slot: u8,
+        item: crate::session::InventoryItem,
+        runtime_item: Option<wow_entities::Item>,
+        context: &str,
+    ) -> bool {
         let player_guid = match self.player_guid() {
             Some(guid) => guid,
             None => return false,
@@ -8645,9 +8664,7 @@ impl WorldSession {
             return false;
         }
 
-        self.remove_inventory_item_like_cpp(slot);
-        self.remove_inventory_item_object(item.guid);
-        self.sync_object_accessor_player();
+        self.remove_fully_looted_runtime_item(bag, slot, item.guid);
 
         if should_expire_refund {
             self.send_packet(&ItemExpirePurchaseRefund {
@@ -8655,27 +8672,29 @@ impl WorldSession {
             });
         }
 
-        let inv_slot_changes = vec![(slot, ObjectGuid::EMPTY)];
-        let mut visible_item_changes = Vec::new();
-        let mut virtual_item_changes = Vec::new();
+        if bag == INVENTORY_SLOT_BAG_0 {
+            let inv_slot_changes = vec![(slot, ObjectGuid::EMPTY)];
+            let mut visible_item_changes = Vec::new();
+            let mut virtual_item_changes = Vec::new();
 
-        if (slot as usize) < 19 {
-            visible_item_changes.push((slot, 0i32, 0u16, 0u16));
-        }
-        if (15..=17).contains(&slot) {
-            virtual_item_changes.push((slot - 15, 0i32, 0u16, 0u16));
-        }
+            if (slot as usize) < 19 {
+                visible_item_changes.push((slot, 0i32, 0u16, 0u16));
+            }
+            if (15..=17).contains(&slot) {
+                virtual_item_changes.push((slot - 15, 0i32, 0u16, 0u16));
+            }
 
-        self.send_player_values_update_from_entity_bridge(
-            &inv_slot_changes,
-            &visible_item_changes,
-            &virtual_item_changes,
-            &[],
-            None,
-        );
+            self.send_player_values_update_from_entity_bridge(
+                &inv_slot_changes,
+                &visible_item_changes,
+                &virtual_item_changes,
+                &[],
+                None,
+            );
 
-        if slot < 19 {
-            self.send_stat_update();
+            if slot < 19 {
+                self.send_stat_update();
+            }
         }
 
         true

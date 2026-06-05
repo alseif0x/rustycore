@@ -1055,11 +1055,7 @@ impl crate::session::WorldSession {
             return;
         }
 
-        let Some((slot, item)) = self
-            .inventory_items_like_cpp()
-            .iter()
-            .find(|(_, item)| item.guid == request.item_guid)
-            .map(|(&slot, item)| (slot, item.clone()))
+        let Some((bag, slot, item)) = self.get_inventory_item_by_guid_like_cpp(request.item_guid)
         else {
             self.send_packet(&InventoryChangeFailure::error(
                 InventoryResult::ItemNotFound,
@@ -1081,12 +1077,12 @@ impl crate::session::WorldSession {
             .cloned();
         let destroyed_entry_id = item.entry_id;
         if self
-            .destroy_direct_inventory_full_stack_like_cpp(slot, item, runtime_item, "AddToy")
+            .destroy_inventory_full_stack_by_pos_like_cpp(bag, slot, item, runtime_item, "AddToy")
             .await
         {
             info!(
-                "Added toy item={} from slot {} for account {}",
-                destroyed_entry_id, slot, self.account_id
+                "Added toy item={} from bag {} slot {} for account {}",
+                destroyed_entry_id, bag, slot, self.account_id
             );
         } else {
             self.represented_account_toys_like_cpp
@@ -2387,6 +2383,77 @@ mod tests {
         session.handle_toy_clear_fanfare(pkt).await;
 
         assert!(session.account_toy_rows_like_cpp().is_empty());
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn add_toy_finds_nested_bag_item_by_guid_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 55);
+        let bag_guid = ObjectGuid::create_item(1, 1_001);
+        let toy_guid = ObjectGuid::create_item(1, 1_002);
+        let bag_slot = wow_entities::INVENTORY_SLOT_BAG_START;
+        let toy_slot = 5;
+        let toy_item_id = 30_000_u32;
+        let toy_item_id_i32 = i32::try_from(toy_item_id).unwrap();
+
+        session.set_player_guid(Some(player_guid));
+        session.set_toy_store(Arc::new(wow_data::ToyStore::from_entries([
+            wow_data::ToyEntry {
+                id: 1,
+                source_text: "known".to_string(),
+                item_id: toy_item_id_i32,
+                flags: 0,
+                source_type_enum: 0,
+            },
+        ])));
+        session.load_represented_account_toys_like_cpp([(toy_item_id, false, false)]);
+        session.insert_inventory_item_like_cpp(
+            bag_slot,
+            crate::session::InventoryItem {
+                guid: bag_guid,
+                entry_id: 101,
+                db_guid: bag_guid.counter() as u64,
+                inventory_type: Some(wow_constants::InventoryType::Bag as u8),
+            },
+        );
+        let bag_item = session.make_inventory_item_object(
+            bag_guid,
+            101,
+            player_guid,
+            1,
+            0,
+            wow_constants::ItemContext::None,
+            bag_slot,
+        );
+        session.insert_inventory_item_object(bag_item);
+        let mut toy_item = session.make_inventory_item_object(
+            toy_guid,
+            toy_item_id,
+            player_guid,
+            1,
+            0,
+            wow_constants::ItemContext::None,
+            toy_slot,
+        );
+        toy_item.set_container_guid_and_slot(bag_guid, bag_slot);
+        session.insert_inventory_item_object(toy_item);
+
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(ClientOpcodes::AddToy as u16);
+        pkt.write_packed_guid(&toy_guid);
+
+        session.handle_add_toy(pkt).await;
+
+        assert_eq!(
+            session.account_toy_rows_like_cpp(),
+            vec![(toy_item_id, false, false)]
+        );
+        assert!(
+            session
+                .inventory_item_objects_like_cpp()
+                .contains_key(&toy_guid)
+        );
         assert!(send_rx.try_recv().is_err());
     }
 
