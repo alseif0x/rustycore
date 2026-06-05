@@ -378,6 +378,21 @@ impl ServerPacket for TriggerCinematic {
     }
 }
 
+// ── TriggerMovie (SMSG 0x26cb) ──────────────────────────────────────
+
+/// C++ `WorldPackets::Misc::TriggerMovie`: starts a movie by Movie.db2 id.
+pub struct TriggerMovie {
+    pub movie_id: u32,
+}
+
+impl ServerPacket for TriggerMovie {
+    const OPCODE: ServerOpcodes = ServerOpcodes::TriggerMovie;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_uint32(self.movie_id);
+    }
+}
+
 // ── FeatureSystemStatus (SMSG 0x25bf) — IN-GAME version ─────────────
 
 /// Feature system status sent AFTER entering the world.
@@ -4073,6 +4088,17 @@ mod tests {
         assert_eq!(&bytes[2..6], &444_u32.to_le_bytes());
         assert_eq!(&bytes[6..22], &ObjectGuid::EMPTY.to_raw_bytes());
         assert_eq!(bytes.len(), 22);
+    }
+
+    #[test]
+    fn trigger_movie_writes_movie_id_like_cpp() {
+        let bytes = TriggerMovie { movie_id: 7788 }.to_bytes();
+        assert_eq!(
+            bytes[0..2],
+            (ServerOpcodes::TriggerMovie as u16).to_le_bytes()
+        );
+        assert_eq!(&bytes[2..6], &7788_u32.to_le_bytes());
+        assert_eq!(bytes.len(), 6);
     }
 
     #[test]

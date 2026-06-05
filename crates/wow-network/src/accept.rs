@@ -131,6 +131,7 @@ pub struct SessionResources {
     pub spell_radius_store: Option<Arc<wow_data::SpellRadiusStore>>,
     pub spell_range_store: Option<Arc<wow_data::SpellRangeStore>>,
     pub spell_target_position_store: Option<Arc<wow_data::SpellTargetPositionStoreLikeCpp>>,
+    pub movie_store: Option<Arc<wow_data::MovieStore>>,
     pub gameobject_template_lifecycle_store:
         Option<Arc<wow_data::GameObjectTemplateLifecycleStoreLikeCpp>>,
     pub area_table_store: Option<Arc<wow_data::AreaTableStore>>,

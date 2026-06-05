@@ -59,8 +59,8 @@ use wow_data::{
     ItemRandomPropertiesStore, ItemRandomPropertyTemplateEntry, ItemRandomSuffixStore,
     ItemStatsStore, ItemStore, LfgDungeonsStore, LockStore, MapDifficultyStore,
     MapDifficultyXConditionStore, MapStore, MountCapabilityStore, MountStore,
-    MountTypeXCapabilityStore, MountXDisplayStore, NpcSpellClickStoreLikeCpp, PhaseGroupStore,
-    PhaseStore, PlayerConditionAuraLikeCpp, PlayerConditionContextLikeCpp,
+    MountTypeXCapabilityStore, MountXDisplayStore, MovieStore, NpcSpellClickStoreLikeCpp,
+    PhaseGroupStore, PhaseStore, PlayerConditionAuraLikeCpp, PlayerConditionContextLikeCpp,
     PlayerConditionCountLikeCpp, PlayerConditionPartyStatusLikeCpp,
     PlayerConditionQuestKillLikeCpp, PlayerConditionReputationLikeCpp, PlayerConditionSkillLikeCpp,
     PlayerConditionStore, PlayerStatsStore, RandPropPointsStore, SkillLineStore, SkillStore,
@@ -2489,6 +2489,8 @@ pub struct WorldSession {
     spell_radius_store: Option<Arc<SpellRadiusStore>>,
     spell_range_store: Option<Arc<SpellRangeStore>>,
     spell_target_position_store: Option<Arc<SpellTargetPositionStoreLikeCpp>>,
+    movie_store: Option<Arc<MovieStore>>,
+    represented_movie_like_cpp: Option<u32>,
     gameobject_template_lifecycle_store: Option<Arc<GameObjectTemplateLifecycleStoreLikeCpp>>,
     /// Currently active spell cast (if any). Set when a cast starts, cleared when it completes.
     pub(crate) active_spell_cast: Option<SpellCastState>,
@@ -3349,6 +3351,8 @@ impl WorldSession {
             spell_radius_store: None,
             spell_range_store: None,
             spell_target_position_store: None,
+            movie_store: None,
+            represented_movie_like_cpp: None,
             gameobject_template_lifecycle_store: None,
             quest_store: None,
             quest_pool_store: None,
@@ -9845,6 +9849,15 @@ impl WorldSession {
 
     pub fn set_spell_range_store(&mut self, store: Arc<SpellRangeStore>) {
         self.spell_range_store = Some(store);
+    }
+
+    pub fn set_movie_store(&mut self, store: Arc<MovieStore>) {
+        self.movie_store = Some(store);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_movie_like_cpp(&self) -> Option<u32> {
+        self.represented_movie_like_cpp
     }
 
     pub(crate) fn spell_range_store(&self) -> Option<&Arc<SpellRangeStore>> {
@@ -24223,6 +24236,9 @@ impl WorldSession {
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_GIVE_HONOR => {
                     self.apply_give_honor_effect_like_cpp(direct_effect_base_points, target_guid)?;
                 }
+                x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_PLAY_MOVIE => {
+                    self.apply_play_movie_effect_like_cpp(target_guid, direct_effect_misc_value_1);
+                }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_PULL
                     || x
                         == wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_TRANSMOG_ILLUSION
@@ -24342,6 +24358,7 @@ impl WorldSession {
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_PARRY
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_BLOCK
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_GIVE_HONOR
+                || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_PLAY_MOVIE
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_PULL
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_TRANSMOG_ILLUSION
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_TRADE_SKILL
@@ -24370,6 +24387,28 @@ impl WorldSession {
         });
 
         Ok(())
+    }
+
+    fn apply_play_movie_effect_like_cpp(&mut self, target_guid: ObjectGuid, movie_id: i32) {
+        let Some(player_guid) = self.player_guid() else {
+            return;
+        };
+        if target_guid != player_guid {
+            return;
+        }
+
+        let Ok(movie_id) = u32::try_from(movie_id) else {
+            return;
+        };
+        let Some(movie_store) = self.movie_store.as_ref() else {
+            return;
+        };
+        if movie_store.get(movie_id).is_none() {
+            return;
+        }
+
+        self.represented_movie_like_cpp = Some(movie_id);
+        self.send_packet(&wow_packet::packets::misc::TriggerMovie { movie_id });
     }
 
     async fn apply_effect_teleport_units_like_cpp(
@@ -43120,6 +43159,131 @@ mod tests {
             drain_server_opcodes(&send_rx),
             vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
         );
+    }
+
+    #[tokio::test]
+    async fn spell_play_movie_sends_trigger_movie_for_valid_player_target_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 68);
+        let spell_id = 863_i32;
+        let movie_id = 177_u32;
+        session.set_player_guid(Some(player_guid));
+        session.set_movie_store(Arc::new(wow_data::MovieStore::from_entries([
+            wow_data::MovieEntry {
+                id: movie_id,
+                volume: 0,
+                key_id: 0,
+                audio_file_data_id: 0,
+                subtitle_file_data_id: 0,
+            },
+        ])));
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_PLAY_MOVIE,
+                    effect_misc_value_1: movie_id as i32,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("represented C++ EffectPlayMovie should execute");
+
+        assert_eq!(session.represented_movie_like_cpp(), Some(movie_id));
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(packets.len(), 3);
+        assert_eq!(
+            packets[0][0..2],
+            (ServerOpcodes::SpellGo as u16).to_le_bytes()
+        );
+        assert_eq!(
+            packets[1][0..2],
+            (ServerOpcodes::TriggerMovie as u16).to_le_bytes()
+        );
+        assert_eq!(&packets[1][2..6], &movie_id.to_le_bytes());
+        assert_eq!(packets[1].len(), 6);
+        assert_eq!(
+            packets[2][0..2],
+            (ServerOpcodes::CooldownEvent as u16).to_le_bytes()
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_play_movie_skips_missing_movie_or_non_player_target_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 69);
+        let other_player_guid = ObjectGuid::create_player(1, 70);
+        let spell_id = 864_i32;
+        session.set_player_guid(Some(player_guid));
+        session.set_movie_store(Arc::new(wow_data::MovieStore::from_entries([
+            wow_data::MovieEntry {
+                id: 55,
+                volume: 0,
+                key_id: 0,
+                audio_file_data_id: 0,
+                subtitle_file_data_id: 0,
+            },
+        ])));
+
+        let mut spell_store = wow_data::SpellStore::new();
+        for (spell_id, movie_id) in [(spell_id, 99_i32), (spell_id + 1, -1_i32)] {
+            spell_store.insert(
+                spell_id,
+                wow_data::SpellInfo {
+                    spell_id,
+                    cast_time_ms: 0,
+                    cooldown_ms: 0,
+                    recovery_time_ms: 0,
+                    effect_type: 0,
+                    effect_base_points: 0,
+                    effect_bonus_coefficient: 0.0,
+                    aura_type: None,
+                    display_flags: 0,
+                    requires_spell_focus: 0,
+                    effects: vec![wow_data::SpellEffectInfo {
+                        effect_index: 0,
+                        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_PLAY_MOVIE,
+                        effect_misc_value_1: movie_id,
+                        ..Default::default()
+                    }],
+                },
+            );
+        }
+        session.set_spell_store(Arc::new(spell_store));
+
+        for (cast_spell, target_guid) in [
+            (spell_id, player_guid),
+            (spell_id + 1, player_guid),
+            (spell_id, other_player_guid),
+        ] {
+            session
+                .execute_spell(cast_spell, target_guid)
+                .await
+                .expect("represented C++ EffectPlayMovie guard should no-op");
+            assert_eq!(session.represented_movie_like_cpp(), None);
+            assert_eq!(
+                drain_server_opcodes(&send_rx),
+                vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+            );
+        }
     }
 
     #[tokio::test]

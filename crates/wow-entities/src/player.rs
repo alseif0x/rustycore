@@ -678,6 +678,7 @@ pub const ACTIVE_PLAYER_DATA_COINAGE_BIT: usize = 28;
 pub const ACTIVE_PLAYER_DATA_XP_BIT: usize = 29;
 pub const ACTIVE_PLAYER_DATA_NEXT_LEVEL_XP_BIT: usize = 30;
 pub const ACTIVE_PLAYER_DATA_CHARACTER_POINTS_BIT: usize = 33;
+pub const ACTIVE_PLAYER_DATA_TRANSMOG_BIT: usize = 10;
 pub const ACTIVE_PLAYER_DATA_HONOR_PARENT_BIT: usize = 102;
 pub const ACTIVE_PLAYER_DATA_HONOR_BIT: usize = 109;
 pub const ACTIVE_PLAYER_DATA_HONOR_NEXT_LEVEL_BIT: usize = 110;
@@ -2731,7 +2732,7 @@ impl Default for PlayerDataValues {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ActivePlayerDataValues {
     pub farsight_object: ObjectGuid,
     pub coinage: u64,
@@ -2745,6 +2746,8 @@ pub struct ActivePlayerDataValues {
     pub inv_slots: [ObjectGuid; PLAYER_SLOT_END],
     pub buyback_price: [u32; BUYBACK_SLOT_COUNT],
     pub buyback_timestamp: [i64; BUYBACK_SLOT_COUNT],
+    pub transmog: Vec<u32>,
+    pub transmog_update_mask: Option<Vec<u32>>,
     pub quest_completed: [u64; QUESTS_COMPLETED_BITS_SIZE],
 }
 
@@ -2763,6 +2766,8 @@ impl Default for ActivePlayerDataValues {
             inv_slots: [ObjectGuid::EMPTY; PLAYER_SLOT_END],
             buyback_price: [0; BUYBACK_SLOT_COUNT],
             buyback_timestamp: [0; BUYBACK_SLOT_COUNT],
+            transmog: Vec::new(),
+            transmog_update_mask: None,
             quest_completed: [0; QUESTS_COMPLETED_BITS_SIZE],
         }
     }
@@ -6900,6 +6905,35 @@ impl Player {
         );
     }
 
+    /// C++ `Player::AddTransmogBlock`.
+    pub fn add_transmog_block_like_cpp(&mut self, block_value: u32) -> usize {
+        let index = self.active_data.transmog.len();
+        self.active_data.transmog.push(block_value);
+        Self::set_dynamic_update_mask_index(&mut self.active_data.transmog_update_mask, index);
+        self.mark_active_player_data(ACTIVE_PLAYER_DATA_TRANSMOG_BIT);
+        index
+    }
+
+    /// C++ `Player::AddTransmogFlag`.
+    pub fn add_transmog_flag_like_cpp(&mut self, slot: usize, flag: u32) -> bool {
+        let Some(block) = self.active_data.transmog.get_mut(slot) else {
+            return false;
+        };
+        let new_block = *block | flag;
+        if new_block == *block {
+            return false;
+        }
+
+        *block = new_block;
+        Self::set_dynamic_update_mask_index(&mut self.active_data.transmog_update_mask, slot);
+        self.mark_active_player_data(ACTIVE_PLAYER_DATA_TRANSMOG_BIT);
+        true
+    }
+
+    pub fn transmog_blocks_like_cpp(&self) -> &[u32] {
+        &self.active_data.transmog
+    }
+
     pub fn get_item_from_buyback_slot(&self, slot: u8) -> Option<ObjectGuid> {
         if is_buyback_slot(slot) {
             self.inventory.items[slot as usize]
@@ -7804,7 +7838,7 @@ impl Player {
                 && self.active_player_data_changes.is_any_set())
             .then(|| ActivePlayerDataUpdate {
                 mask: self.active_player_data_changes.clone(),
-                values: self.active_data,
+                values: self.active_data.clone(),
             }),
         }
     }
@@ -7964,6 +7998,16 @@ impl Player {
         self.active_player_data_changes.set(parent_bit);
         self.active_player_data_changes
             .set(first_element_bit + index);
+    }
+
+    fn set_dynamic_update_mask_index(mask: &mut Option<Vec<u32>>, index: usize) {
+        let block = index / 32;
+        let bit = index % 32;
+        let blocks = mask.get_or_insert_with(Vec::new);
+        if blocks.len() <= block {
+            blocks.resize(block + 1, 0);
+        }
+        blocks[block] |= 1 << bit;
     }
 
     fn visit_top_slot(
@@ -12104,6 +12148,21 @@ mod tests {
             player
                 .active_player_data_changes_mask()
                 .is_set(ACTIVE_PLAYER_DATA_INV_SLOTS_FIRST_BIT + 3)
+        );
+        assert_eq!(player.active_data().transmog, Vec::<u32>::new());
+        assert_eq!(player.active_data().transmog_update_mask, None);
+
+        let transmog_slot = player.add_transmog_block_like_cpp(0);
+        assert_eq!(transmog_slot, 0);
+        assert_eq!(player.active_data().transmog, vec![0]);
+        assert_eq!(player.active_data().transmog_update_mask, Some(vec![1]));
+        assert!(player.add_transmog_flag_like_cpp(transmog_slot, 1 << 7));
+        assert_eq!(player.active_data().transmog, vec![1 << 7]);
+        assert!(!player.add_transmog_flag_like_cpp(10, 1));
+        assert!(
+            player
+                .active_player_data_changes_mask()
+                .is_set(ACTIVE_PLAYER_DATA_TRANSMOG_BIT)
         );
     }
 

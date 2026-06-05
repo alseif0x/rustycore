@@ -721,6 +721,10 @@ async fn main() -> Result<()> {
         wow_data::AnimKitStore::load(&data_dir, &locale).context("Failed to load AnimKit.db2")?,
     );
     info!("Loaded {} anim kit rows", anim_kit_store.len());
+    let movie_store = Arc::new(
+        wow_data::MovieStore::load(&data_dir, &locale).context("Failed to load Movie.db2")?,
+    );
+    info!("Loaded {} movie rows", movie_store.len());
     let gameobject_display_info_store = Arc::new(
         wow_data::GameObjectDisplayInfoStore::load(&data_dir, &locale)
             .context("Failed to load GameObjectDisplayInfo.db2")?,
@@ -2018,6 +2022,7 @@ async fn main() -> Result<()> {
         spell_radius_store: Some(Arc::clone(&spell_radius_store)),
         spell_range_store: Some(Arc::clone(&spell_range_store)),
         spell_target_position_store: Some(Arc::clone(&spell_target_position_store)),
+        movie_store: Some(Arc::clone(&movie_store)),
         gameobject_template_lifecycle_store: Some(Arc::clone(&gameobject_template_lifecycle_store)),
         area_table_store: Some(Arc::clone(&area_table_store)),
         fishing_base_skill_store: Some(Arc::clone(&fishing_base_skill_store)),
@@ -7085,6 +7090,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.spell_target_position_store {
         session.set_spell_target_position_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.movie_store {
+        session.set_movie_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.gameobject_template_lifecycle_store {
         session.set_gameobject_template_lifecycle_store(Arc::clone(store));

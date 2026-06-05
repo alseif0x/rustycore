@@ -851,6 +851,8 @@ fn active_player_data_update_to_packet(
         .copy_from_slice(&update.values.inv_slots);
     packet_update.buyback_price = update.values.buyback_price;
     packet_update.buyback_timestamp = update.values.buyback_timestamp;
+    packet_update.transmog = update.values.transmog.clone();
+    packet_update.transmog_update_mask = update.values.transmog_update_mask.clone();
     packet_update.quest_completed = update.values.quest_completed;
     packet_update
 }
@@ -878,7 +880,7 @@ mod tests {
         ACTIVE_PLAYER_DATA_COINAGE_BIT, ACTIVE_PLAYER_DATA_HONOR_BIT,
         ACTIVE_PLAYER_DATA_HONOR_NEXT_LEVEL_BIT, ACTIVE_PLAYER_DATA_HONOR_PARENT_BIT,
         ACTIVE_PLAYER_DATA_PARENT_BIT, ACTIVE_PLAYER_DATA_QUEST_COMPLETED_FIRST_BIT,
-        ACTIVE_PLAYER_DATA_QUEST_COMPLETED_PARENT_BIT,
+        ACTIVE_PLAYER_DATA_QUEST_COMPLETED_PARENT_BIT, ACTIVE_PLAYER_DATA_TRANSMOG_BIT,
         ACTIVE_PLAYER_DATA_WATCHED_FACTION_INDEX_BIT, AREA_TRIGGER_DATA_DURATION_BIT,
         AREA_TRIGGER_DATA_PARENT_BIT, Bag, CONTAINER_DATA_NUM_SLOTS_BIT,
         CONVERSATION_DATA_LAST_LINE_END_TIME_BIT, CONVERSATION_DATA_PARENT_BIT,
@@ -973,6 +975,30 @@ mod tests {
         ));
         assert_eq!(active.honor, 1_234);
         assert_eq!(active.honor_next_level, 8_800);
+    }
+
+    #[test]
+    fn bridges_active_player_transmog_dynamic_field_like_cpp() {
+        let mut player = Player::new(Some(7), true);
+        player.clear_data_changes();
+
+        let slot = player.add_transmog_block_like_cpp(0);
+        assert!(player.add_transmog_flag_like_cpp(slot, 1 << 5));
+
+        let update = player.values_update(true);
+        let packet_update = player_values_update_to_packet(&update).unwrap();
+        let active = packet_update.active_player_data.unwrap();
+
+        assert!(mask_has(
+            &active.active_player_data_mask,
+            ACTIVE_PLAYER_DATA_PARENT_BIT
+        ));
+        assert!(mask_has(
+            &active.active_player_data_mask,
+            ACTIVE_PLAYER_DATA_TRANSMOG_BIT
+        ));
+        assert_eq!(active.transmog, vec![1 << 5]);
+        assert_eq!(active.transmog_update_mask, Some(vec![1]));
     }
 
     #[test]
