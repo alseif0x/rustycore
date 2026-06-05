@@ -25796,6 +25796,9 @@ impl WorldSession {
                         direct_effect_misc_value_1,
                     );
                 }
+                x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_UPGRADE_HEIRLOOM => {
+                    self.apply_upgrade_heirloom_effect_like_cpp(metadata);
+                }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_PULL
                     || x
                         == wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_TRANSMOG_ILLUSION
@@ -25917,6 +25920,7 @@ impl WorldSession {
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_GIVE_HONOR
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_PLAY_MOVIE
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_TRANSMOG_SET
+                || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_UPGRADE_HEIRLOOM
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_PULL
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_TRANSMOG_ILLUSION
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_TRADE_SKILL
@@ -25985,6 +25989,30 @@ impl WorldSession {
             return;
         };
         let Some(update) = self.add_transmog_set_like_cpp(transmog_set_id) else {
+            return;
+        };
+        if let Some(packet) = player_values_update_to_update_object(
+            player_guid,
+            self.player_map_id_like_cpp(),
+            &update,
+        ) {
+            self.send_packet(&packet);
+        }
+    }
+
+    /// C++ `Spell::EffectUpgradeHeirloom`.
+    fn apply_upgrade_heirloom_effect_like_cpp(&mut self, metadata: SpellCastMetadata) {
+        let Ok(item_id) = u32::try_from(metadata.misc[0]) else {
+            return;
+        };
+        let Some(cast_item_entry) = metadata.cast_item_entry else {
+            return;
+        };
+        let Some(update) = self.upgrade_account_heirloom_like_cpp(item_id, cast_item_entry as i32)
+        else {
+            return;
+        };
+        let Some(player_guid) = self.player_guid() else {
             return;
         };
         if let Some(packet) = player_values_update_to_update_object(
@@ -51660,6 +51688,104 @@ mod tests {
             vec![(44_000, 0x03)]
         );
         assert_eq!(session.account_heirloom_bonus_like_cpp(44_000), 0);
+    }
+
+    #[tokio::test]
+    async fn spell_upgrade_heirloom_effect_uses_metadata_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 79);
+        let player_position = Position::new(10.0, 0.0, 0.0, 0.0);
+        let spell_id = 77_001;
+
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
+        session.set_heirloom_store(Arc::new(HeirloomStore::from_entries([HeirloomEntry {
+            id: 1,
+            source_text: "known".to_string(),
+            item_id: 44_000,
+            legacy_upgraded_item_id: 0,
+            static_upgraded_item_id: 0,
+            source_type_enum: 0,
+            flags: 0,
+            legacy_item_id: 0,
+            upgrade_item_id: [90_001, 90_002, 0, 0, 0, 0],
+            upgrade_item_bonus_list_id: [101, 202, 0, 0, 0, 0],
+        }])));
+        session.load_represented_account_heirlooms_like_cpp([(44_000, 0x01)]);
+        session
+            .add_player_heirloom_dynamic_fields_like_cpp(44_000, 0x01)
+            .unwrap();
+        session.mutate_canonical_player_like_cpp(|player| player.clear_data_changes());
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_UPGRADE_HEIRLOOM,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell_with_visual_and_target_data_with_metadata(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual::default(),
+                SpellTargetData {
+                    flags: 0x2,
+                    unit: player_guid,
+                    ..SpellTargetData::default()
+                },
+                SpellCastMetadata {
+                    from_client: true,
+                    misc: [44_000, 0],
+                    cast_item_entry: Some(90_002),
+                    cast_flags_ex: CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP,
+                    original_cast_id: ObjectGuid::EMPTY,
+                },
+            )
+            .await
+            .expect("represented upgrade-heirloom spell row should execute");
+
+        assert_eq!(
+            session.account_heirloom_rows_like_cpp(),
+            vec![(44_000, 0x03)]
+        );
+        assert_eq!(session.account_heirloom_bonus_like_cpp(44_000), 202);
+        assert_eq!(
+            session
+                .mutate_canonical_player_like_cpp(|player| player
+                    .heirloom_flags_like_cpp()
+                    .to_vec())
+                .unwrap(),
+            vec![0x03]
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![
+                ServerOpcodes::SpellGo,
+                ServerOpcodes::UpdateObject,
+                ServerOpcodes::CooldownEvent,
+            ]
+        );
     }
 
     #[test]

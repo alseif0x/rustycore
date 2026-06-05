@@ -134,6 +134,7 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_241: u32 = 241;
     pub const SPELL_EFFECT_GIVE_ARTIFACT_POWER_NO_BONUS: u32 = 242;
     pub const SPELL_EFFECT_LEARN_FOLLOWER_ABILITY: u32 = 244;
+    pub const SPELL_EFFECT_UPGRADE_HEIRLOOM: u32 = 245;
     pub const SPELL_EFFECT_FINISH_GARRISON_MISSION: u32 = 246;
     pub const SPELL_EFFECT_ADD_GARRISON_MISSION_SET: u32 = 247;
     pub const SPELL_EFFECT_FINISH_SHIPMENT: u32 = 248;
@@ -1197,6 +1198,7 @@ mod tests {
             242
         );
         assert_eq!(spell_effect_types::SPELL_EFFECT_LEARN_FOLLOWER_ABILITY, 244);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_UPGRADE_HEIRLOOM, 245);
         assert_eq!(
             spell_effect_types::SPELL_EFFECT_FINISH_GARRISON_MISSION,
             246
@@ -1458,7 +1460,7 @@ mod tests {
         ));
         for real_handler_effect in [
             243,
-            245,
+            spell_effect_types::SPELL_EFFECT_UPGRADE_HEIRLOOM,
             spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS,
             spell_effect_types::SPELL_EFFECT_GIVE_HONOR,
             spell_effect_types::SPELL_EFFECT_JUMP_CHARGE,
