@@ -23946,6 +23946,18 @@ impl WorldSession {
             self.force_update_visibility_like_cpp().await;
         }
 
+        for effect in spell_info.effects() {
+            let represented_db_target_data = self
+                .represented_db_caster_destination_target_data_like_cpp(
+                    &spell_info,
+                    effect,
+                    &target_data,
+                );
+            let effect_target_data = represented_db_target_data.as_ref().unwrap_or(&target_data);
+            self.apply_effect_teleport_units_like_cpp(effect, target_guid, effect_target_data)
+                .await;
+        }
+
         let mut force_visibility_after_gameobject_summon = false;
         for effect in spell_info.effects() {
             let represented_focus_target_data = self
@@ -24055,6 +24067,49 @@ impl WorldSession {
         });
 
         Ok(())
+    }
+
+    async fn apply_effect_teleport_units_like_cpp(
+        &mut self,
+        effect: &wow_data::SpellEffectInfo,
+        target_guid: ObjectGuid,
+        target_data: &SpellTargetData,
+    ) {
+        if effect.effect != wow_data::spell::spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS {
+            return;
+        }
+
+        let Some(player_guid) = self.player_guid() else {
+            return;
+        };
+        if target_guid != player_guid {
+            // C++ also supports same-map creature NearTeleportTo here. Rust's
+            // represented spell path only owns the player target today; do not
+            // fabricate creature movement until Unit target selection is ported.
+            return;
+        }
+
+        let Some(destination) = target_data.dst_location.as_ref().map(|dst| dst.position) else {
+            debug!(
+                account = self.account_id,
+                effect_index = effect.effect_index,
+                "Spell::EffectTeleportUnits represented no-op: missing destination"
+            );
+            return;
+        };
+
+        let target_map = target_data
+            .map_id
+            .and_then(|map_id| u32::try_from(map_id).ok())
+            .unwrap_or_else(|| u32::from(self.player_map_id_like_cpp()));
+        let mut destination = destination;
+        if destination.orientation == 0.0 {
+            if let Some(player_position) = self.player_position_like_cpp() {
+                destination.orientation = player_position.orientation;
+            }
+        }
+
+        self.teleport_to(target_map, destination).await;
     }
 
     fn represented_focus_destination_target_data_like_cpp(
@@ -29197,6 +29252,25 @@ mod tests {
         }
     }
 
+    fn teleport_units_spell_info_like_cpp(
+        spell_id: i32,
+        effects: Vec<wow_data::SpellEffectInfo>,
+    ) -> wow_data::SpellInfo {
+        wow_data::SpellInfo {
+            spell_id,
+            cast_time_ms: 0,
+            cooldown_ms: 0,
+            recovery_time_ms: 0,
+            effect_type: 0,
+            effect_base_points: 0,
+            effect_bonus_coefficient: 0.0,
+            aura_type: None,
+            display_flags: 0,
+            requires_spell_focus: 0,
+            effects,
+        }
+    }
+
     fn configure_gameobject_summon_live_session_like_cpp(
         session: &mut WorldSession,
         canonical: &SharedCanonicalMapManager,
@@ -30621,6 +30695,137 @@ mod tests {
             update_object_packet_count_like_cpp(&packets) >= 1,
             "fallback summon should trigger represented visibility create/update delivery"
         );
+    }
+
+    #[tokio::test]
+    async fn teleport_units_uses_cross_map_db_destination_for_player_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let spell_id = 717_i32;
+        let player_guid = ObjectGuid::create_player(1, 7023);
+        let player_position = Position::new(260.0, 360.0, 52.0, 0.5);
+        let db_destination = Position::new(12.0, 24.0, 36.0, 0.0);
+        let canonical = shared_canonical_map_manager();
+        let teleport_effect = wow_data::SpellEffectInfo {
+            effect_index: 0,
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS,
+            implicit_target_1: wow_data::spell::implicit_targets::TARGET_DEST_DB,
+            ..Default::default()
+        };
+        let spell_info =
+            teleport_units_spell_info_like_cpp(spell_id, vec![teleport_effect.clone()]);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TeleportTarget".to_string(),
+            player_position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(spell_id, spell_info.clone());
+        session.set_spell_store(Arc::new(spell_store));
+        let mut target_spell_store = wow_data::SpellStore::new();
+        target_spell_store.insert(spell_id, spell_info);
+        session.set_spell_target_position_store(Arc::new(
+            wow_data::SpellTargetPositionStoreLikeCpp::from_rows_like_cpp(
+                [wow_data::SpellTargetPositionRowLikeCpp {
+                    spell_id: spell_id as u32,
+                    effect_index: teleport_effect.effect_index,
+                    target_map_id: 1,
+                    x: db_destination.x,
+                    y: db_destination.y,
+                    z: db_destination.z,
+                    orientation: Some(db_destination.orientation),
+                }],
+                &target_spell_store,
+                |map_id| matches!(map_id, 1 | 571),
+            ),
+        ));
+
+        session
+            .execute_spell_with_visual_and_target_data(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual {
+                    spell_visual_id: 717,
+                    script_visual_id: 0,
+                },
+                SpellTargetData::default(),
+            )
+            .await
+            .expect("TARGET_DEST_DB teleport should execute");
+
+        assert_eq!(
+            session.pending_teleport,
+            Some((
+                1,
+                Position::new(
+                    db_destination.x,
+                    db_destination.y,
+                    db_destination.z,
+                    player_position.orientation
+                )
+            )),
+            "C++ EffectTeleportUnits accepts cross-map TARGET_DEST_DB, fills missing orientation from unitTarget, and calls Player::TeleportTo"
+        );
+        assert_eq!(session.state, SessionState::Transfer);
+    }
+
+    #[tokio::test]
+    async fn teleport_units_without_destination_is_noop_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let spell_id = 718_i32;
+        let player_guid = ObjectGuid::create_player(1, 7024);
+        let player_position = Position::new(270.0, 370.0, 54.0, 0.625);
+        let canonical = shared_canonical_map_manager();
+        let teleport_effect = wow_data::SpellEffectInfo {
+            effect_index: 0,
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS,
+            ..Default::default()
+        };
+        let spell_info = teleport_units_spell_info_like_cpp(spell_id, vec![teleport_effect]);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TeleportNoDst".to_string(),
+            player_position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(spell_id, spell_info);
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell_with_visual_and_target_data(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual {
+                    spell_visual_id: 718,
+                    script_visual_id: 0,
+                },
+                SpellTargetData::default(),
+            )
+            .await
+            .expect("destination-less teleport should execute as effect no-op");
+
+        assert_eq!(
+            session.pending_teleport, None,
+            "C++ EffectTeleportUnits returns when m_targets.HasDst() is false"
+        );
+        assert_ne!(session.state, SessionState::Transfer);
     }
 
     #[tokio::test]
