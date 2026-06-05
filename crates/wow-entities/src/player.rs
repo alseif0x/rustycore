@@ -668,6 +668,7 @@ pub const PLAYER_DATA_FLAGS_EX_BIT: usize = 8;
 pub const PLAYER_DATA_NUM_BANK_SLOTS_BIT: usize = 12;
 pub const PLAYER_DATA_NATIVE_SEX_BIT: usize = 13;
 pub const PLAYER_DATA_CURRENT_SPEC_ID_BIT: usize = 24;
+pub const PLAYER_DATA_HONOR_LEVEL_BIT: usize = 27;
 pub const PLAYER_DATA_VISIBLE_ITEMS_PARENT_BIT: usize = 61;
 pub const PLAYER_DATA_VISIBLE_ITEMS_FIRST_BIT: usize = 62;
 
@@ -677,6 +678,9 @@ pub const ACTIVE_PLAYER_DATA_COINAGE_BIT: usize = 28;
 pub const ACTIVE_PLAYER_DATA_XP_BIT: usize = 29;
 pub const ACTIVE_PLAYER_DATA_NEXT_LEVEL_XP_BIT: usize = 30;
 pub const ACTIVE_PLAYER_DATA_CHARACTER_POINTS_BIT: usize = 33;
+pub const ACTIVE_PLAYER_DATA_HONOR_PARENT_BIT: usize = 102;
+pub const ACTIVE_PLAYER_DATA_HONOR_BIT: usize = 109;
+pub const ACTIVE_PLAYER_DATA_HONOR_NEXT_LEVEL_BIT: usize = 110;
 pub const ACTIVE_PLAYER_DATA_NUM_BACKPACK_SLOTS_BIT: usize = 104;
 pub const ACTIVE_PLAYER_DATA_INV_SLOTS_PARENT_BIT: usize = 124;
 pub const ACTIVE_PLAYER_DATA_INV_SLOTS_FIRST_BIT: usize = 125;
@@ -2705,6 +2709,7 @@ pub struct PlayerDataValues {
     pub num_bank_slots: u8,
     pub native_sex: u8,
     pub current_spec_id: u32,
+    pub honor_level: i32,
     pub visible_items: [VisibleItemValues; EQUIPMENT_SLOT_END as usize],
 }
 
@@ -2717,6 +2722,7 @@ impl Default for PlayerDataValues {
             num_bank_slots: 0,
             native_sex: Gender::Male as u8,
             current_spec_id: 0,
+            honor_level: 0,
             visible_items: [VisibleItemValues::default(); EQUIPMENT_SLOT_END as usize],
         }
     }
@@ -2729,6 +2735,8 @@ pub struct ActivePlayerDataValues {
     pub xp: i32,
     pub next_level_xp: i32,
     pub character_points: i32,
+    pub honor: i32,
+    pub honor_next_level: i32,
     pub watched_faction_index: i32,
     pub num_backpack_slots: u8,
     pub inv_slots: [ObjectGuid; PLAYER_SLOT_END],
@@ -2745,6 +2753,8 @@ impl Default for ActivePlayerDataValues {
             xp: 0,
             next_level_xp: 0,
             character_points: 0,
+            honor: 0,
+            honor_next_level: 0,
             watched_faction_index: -1,
             num_backpack_slots: 0,
             inv_slots: [ObjectGuid::EMPTY; PLAYER_SLOT_END],
@@ -3267,6 +3277,12 @@ impl Player {
         });
     }
 
+    pub fn set_honor_level_like_cpp(&mut self, level: i32) {
+        self.set_player_i32(PLAYER_DATA_HONOR_LEVEL_BIT, level, |data| {
+            &mut data.honor_level
+        });
+    }
+
     pub fn set_visible_item_slot(&mut self, slot: u8, item: Option<VisibleItemValues>) {
         if slot >= EQUIPMENT_SLOT_END {
             return;
@@ -3351,6 +3367,24 @@ impl Player {
         self.set_active_i32(ACTIVE_PLAYER_DATA_NEXT_LEVEL_XP_BIT, xp, |data| {
             &mut data.next_level_xp
         });
+    }
+
+    pub fn set_honor_like_cpp(&mut self, honor: i32) {
+        self.set_active_i32_in_section(
+            ACTIVE_PLAYER_DATA_HONOR_PARENT_BIT,
+            ACTIVE_PLAYER_DATA_HONOR_BIT,
+            honor,
+            |data| &mut data.honor,
+        );
+    }
+
+    pub fn set_honor_next_level_like_cpp(&mut self, xp: i32) {
+        self.set_active_i32_in_section(
+            ACTIVE_PLAYER_DATA_HONOR_PARENT_BIT,
+            ACTIVE_PLAYER_DATA_HONOR_NEXT_LEVEL_BIT,
+            xp,
+            |data| &mut data.honor_next_level,
+        );
     }
 
     pub fn set_free_primary_professions(&mut self, points: u16) {
@@ -7743,6 +7777,19 @@ impl Player {
         }
     }
 
+    fn set_player_i32(
+        &mut self,
+        bit: usize,
+        value: i32,
+        field: impl FnOnce(&mut PlayerDataValues) -> &mut i32,
+    ) {
+        let target = field(&mut self.data);
+        if *target != value {
+            *target = value;
+            self.mark_player_data(bit);
+        }
+    }
+
     fn set_player_u8(
         &mut self,
         bit: usize,
@@ -7808,6 +7855,20 @@ impl Player {
         }
     }
 
+    fn set_active_i32_in_section(
+        &mut self,
+        parent_bit: usize,
+        bit: usize,
+        value: i32,
+        field: impl FnOnce(&mut ActivePlayerDataValues) -> &mut i32,
+    ) {
+        let target = field(&mut self.active_data);
+        if *target != value {
+            *target = value;
+            self.mark_active_player_data_section(parent_bit, bit);
+        }
+    }
+
     fn set_active_u8(
         &mut self,
         bit: usize,
@@ -7839,6 +7900,13 @@ impl Player {
     fn mark_active_player_data(&mut self, bit: usize) {
         self.active_player_data_changes
             .set(ACTIVE_PLAYER_DATA_PARENT_BIT);
+        self.active_player_data_changes.set(bit);
+    }
+
+    fn mark_active_player_data_section(&mut self, parent_bit: usize, bit: usize) {
+        self.active_player_data_changes
+            .set(ACTIVE_PLAYER_DATA_PARENT_BIT);
+        self.active_player_data_changes.set(parent_bit);
         self.active_player_data_changes.set(bit);
     }
 
@@ -11836,12 +11904,14 @@ mod tests {
         player.set_loot_guid(ObjectGuid::new(9, 3));
         player.set_bank_bag_slot_count(6);
         player.set_primary_specialization(62);
+        player.set_honor_level_like_cpp(3);
 
         assert!(player.has_player_flag(0x20));
         assert!(player.has_player_flag_ex(0x04));
         assert_eq!(player.data().loot_target_guid, ObjectGuid::new(9, 3));
         assert_eq!(player.data().num_bank_slots, 6);
         assert_eq!(player.data().current_spec_id, 62);
+        assert_eq!(player.data().honor_level, 3);
         assert!(
             player
                 .player_data_changes_mask()
@@ -11871,6 +11941,11 @@ mod tests {
             player
                 .player_data_changes_mask()
                 .is_set(PLAYER_DATA_CURRENT_SPEC_ID_BIT)
+        );
+        assert!(
+            player
+                .player_data_changes_mask()
+                .is_set(PLAYER_DATA_HONOR_LEVEL_BIT)
         );
 
         player.remove_player_flag(0x20);
@@ -11910,6 +11985,8 @@ mod tests {
 
         player.set_xp(123);
         player.set_next_level_xp(456);
+        player.set_honor_like_cpp(789);
+        player.set_honor_next_level_like_cpp(8_800);
         player.set_free_primary_professions(2);
         player.set_watched_faction_index_like_cpp(42);
         player.set_inventory_slot_count(16);
@@ -11917,6 +11994,8 @@ mod tests {
 
         assert_eq!(player.active_data().xp, 123);
         assert_eq!(player.active_data().next_level_xp, 456);
+        assert_eq!(player.active_data().honor, 789);
+        assert_eq!(player.active_data().honor_next_level, 8_800);
         assert_eq!(player.active_data().character_points, 2);
         assert_eq!(player.active_data().watched_faction_index, 42);
         assert_eq!(player.active_data().num_backpack_slots, 16);
@@ -11940,6 +12019,21 @@ mod tests {
             player
                 .active_player_data_changes_mask()
                 .is_set(ACTIVE_PLAYER_DATA_NEXT_LEVEL_XP_BIT)
+        );
+        assert!(
+            player
+                .active_player_data_changes_mask()
+                .is_set(ACTIVE_PLAYER_DATA_HONOR_PARENT_BIT)
+        );
+        assert!(
+            player
+                .active_player_data_changes_mask()
+                .is_set(ACTIVE_PLAYER_DATA_HONOR_BIT)
+        );
+        assert!(
+            player
+                .active_player_data_changes_mask()
+                .is_set(ACTIVE_PLAYER_DATA_HONOR_NEXT_LEVEL_BIT)
         );
         assert!(
             player

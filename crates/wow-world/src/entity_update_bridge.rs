@@ -335,6 +335,7 @@ fn copy_player_data_update(
     packet_update.num_bank_slots = update.values.num_bank_slots;
     packet_update.native_sex = update.values.native_sex;
     packet_update.current_spec_id = update.values.current_spec_id;
+    packet_update.honor_level = update.values.honor_level;
 
     for (dst, src) in packet_update
         .visible_items
@@ -840,6 +841,8 @@ fn active_player_data_update_to_packet(
     packet_update.xp = update.values.xp;
     packet_update.next_level_xp = update.values.next_level_xp;
     packet_update.character_points = update.values.character_points;
+    packet_update.honor = update.values.honor;
+    packet_update.honor_next_level = update.values.honor_next_level;
     packet_update.watched_faction_index = update.values.watched_faction_index;
     packet_update.num_backpack_slots = update.values.num_backpack_slots;
     packet_update.farsight_object = update.values.farsight_object;
@@ -872,8 +875,9 @@ mod tests {
     use super::*;
     use wow_core::ObjectGuid;
     use wow_entities::{
-        ACTIVE_PLAYER_DATA_COINAGE_BIT, ACTIVE_PLAYER_DATA_PARENT_BIT,
-        ACTIVE_PLAYER_DATA_QUEST_COMPLETED_FIRST_BIT,
+        ACTIVE_PLAYER_DATA_COINAGE_BIT, ACTIVE_PLAYER_DATA_HONOR_BIT,
+        ACTIVE_PLAYER_DATA_HONOR_NEXT_LEVEL_BIT, ACTIVE_PLAYER_DATA_HONOR_PARENT_BIT,
+        ACTIVE_PLAYER_DATA_PARENT_BIT, ACTIVE_PLAYER_DATA_QUEST_COMPLETED_FIRST_BIT,
         ACTIVE_PLAYER_DATA_QUEST_COMPLETED_PARENT_BIT,
         ACTIVE_PLAYER_DATA_WATCHED_FACTION_INDEX_BIT, AREA_TRIGGER_DATA_DURATION_BIT,
         AREA_TRIGGER_DATA_PARENT_BIT, Bag, CONTAINER_DATA_NUM_SLOTS_BIT,
@@ -882,10 +886,10 @@ mod tests {
         DYNAMIC_OBJECT_DATA_PARENT_BIT, DYNAMIC_OBJECT_DATA_RADIUS_BIT, DynamicObject,
         GAME_OBJECT_DATA_CREATED_BY_BIT, GAME_OBJECT_DATA_DISPLAY_ID_BIT,
         GAME_OBJECT_DATA_PARENT_BIT, GameObject, ITEM_DATA_STACK_COUNT_BIT, Item,
-        PLAYER_DATA_FLAGS_BIT, PLAYER_DATA_PARENT_BIT, Player, SCENE_OBJECT_DATA_PARENT_BIT,
-        SCENE_OBJECT_DATA_SCRIPT_PACKAGE_ID_BIT, SceneObject, UNIT_DATA_HEALTH_BIT,
-        UNIT_DATA_PARENT_BIT, UNIT_DATA_STAND_STATE_BIT, UNIT_DATA_VIRTUAL_ITEMS_FIRST_BIT,
-        UNIT_DATA_VIRTUAL_ITEMS_PARENT_BIT, VisibleItemValues,
+        PLAYER_DATA_FLAGS_BIT, PLAYER_DATA_HONOR_LEVEL_BIT, PLAYER_DATA_PARENT_BIT, Player,
+        SCENE_OBJECT_DATA_PARENT_BIT, SCENE_OBJECT_DATA_SCRIPT_PACKAGE_ID_BIT, SceneObject,
+        UNIT_DATA_HEALTH_BIT, UNIT_DATA_PARENT_BIT, UNIT_DATA_STAND_STATE_BIT,
+        UNIT_DATA_VIRTUAL_ITEMS_FIRST_BIT, UNIT_DATA_VIRTUAL_ITEMS_PARENT_BIT, VisibleItemValues,
     };
     use wow_packet::ServerPacket;
 
@@ -926,6 +930,49 @@ mod tests {
         ));
         assert_eq!(active.coinage, 123_456);
         assert_eq!(active.watched_faction_index, 42);
+    }
+
+    #[test]
+    fn bridges_player_honor_fields_with_cpp_nested_masks() {
+        let mut player = Player::new(Some(7), true);
+        player.clear_data_changes();
+
+        player.set_honor_level_like_cpp(3);
+        player.set_honor_like_cpp(1_234);
+        player.set_honor_next_level_like_cpp(8_800);
+
+        let update = player.values_update(true);
+        let packet_update = player_values_update_to_packet(&update).unwrap();
+        let active = packet_update.active_player_data.unwrap();
+
+        assert!(mask_has(
+            &packet_update.player_data_mask,
+            PLAYER_DATA_PARENT_BIT
+        ));
+        assert!(mask_has(
+            &packet_update.player_data_mask,
+            PLAYER_DATA_HONOR_LEVEL_BIT
+        ));
+        assert_eq!(packet_update.honor_level, 3);
+
+        assert!(mask_has(
+            &active.active_player_data_mask,
+            ACTIVE_PLAYER_DATA_PARENT_BIT
+        ));
+        assert!(mask_has(
+            &active.active_player_data_mask,
+            ACTIVE_PLAYER_DATA_HONOR_PARENT_BIT
+        ));
+        assert!(mask_has(
+            &active.active_player_data_mask,
+            ACTIVE_PLAYER_DATA_HONOR_BIT
+        ));
+        assert!(mask_has(
+            &active.active_player_data_mask,
+            ACTIVE_PLAYER_DATA_HONOR_NEXT_LEVEL_BIT
+        ));
+        assert_eq!(active.honor, 1_234);
+        assert_eq!(active.honor_next_level, 8_800);
     }
 
     #[test]
