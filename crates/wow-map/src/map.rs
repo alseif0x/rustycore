@@ -12,6 +12,7 @@ use crate::cell::{Cell, GridObjectGuids, WorldObjectGuids, calculate_cell_area_l
 use crate::coords::{
     CellCoord, GridCoord, MAX_NUMBER_OF_CELLS, MAX_NUMBER_OF_GRIDS, SIZE_OF_GRID_CELL,
     TOTAL_NUMBER_OF_CELLS_PER_MAP, compute_cell_coord, compute_grid_coord, is_valid_map_coord_2d,
+    normalize_map_coord,
 };
 use crate::grid::{GridStateKind, MapGridHost, NGrid, update_grid_state};
 use crate::grid_unload::{
@@ -65,6 +66,57 @@ const WEATHER_UPDATE_INTERVAL_MS_LIKE_CPP: u32 = 1_000;
 fn gameobject_local_rotation_from_orientation_like_cpp(orientation: f32) -> [f32; 4] {
     let half = orientation * 0.5;
     [0.0, 0.0, half.sin(), half.cos()]
+}
+
+/// Position resolver for C++ `WorldObject::SummonGameObject(entry, x, y, z, ang, ...)`.
+///
+/// C++ anchors:
+/// - `Object.cpp:2096-2105`: if `x == y == z == 0`, call
+///   `GetClosePoint(x, y, z, GetCombatReach())` and use the summoner orientation.
+/// - `Object.cpp:3341-3408`: `GetClosePoint` delegates to `GetNearPoint(nullptr,
+///   distance2d + size, orientation)`, whose 2D calculation adds the summoner
+///   combat reach again when `searcher == nullptr`.
+///
+/// Scope: this represents the deterministic 2D coordinate/orientation branch
+/// and map-coordinate normalization. Height correction, collision detection,
+/// LOS fallback search and map-vmap terrain queries remain runtime gaps.
+pub fn world_object_summon_gameobject_position_from_coords_like_cpp(
+    summoner_position: Position,
+    summoner_combat_reach: f32,
+    x: f32,
+    y: f32,
+    z: f32,
+    angle: f32,
+) -> WorldObjectSummonGameObjectPositionOutcomeLikeCpp {
+    if x == 0.0 && y == 0.0 && z == 0.0 {
+        let reach = summoner_combat_reach.max(0.0);
+        let distance = reach + reach;
+        let mut resolved_x = summoner_position.x + distance * summoner_position.orientation.cos();
+        let mut resolved_y = summoner_position.y + distance * summoner_position.orientation.sin();
+        let before_normalize_x = resolved_x;
+        let before_normalize_y = resolved_y;
+        normalize_map_coord(&mut resolved_x);
+        normalize_map_coord(&mut resolved_y);
+        return WorldObjectSummonGameObjectPositionOutcomeLikeCpp {
+            position: Position::new(
+                resolved_x,
+                resolved_y,
+                summoner_position.z,
+                summoner_position.orientation,
+            ),
+            close_point_fallback_used: true,
+            normalized_map_coords: resolved_x != before_normalize_x
+                || resolved_y != before_normalize_y,
+            collision_los_adjustment_represented: false,
+        };
+    }
+
+    WorldObjectSummonGameObjectPositionOutcomeLikeCpp {
+        position: Position::new(x, y, z, angle),
+        close_point_fallback_used: false,
+        normalized_map_coords: false,
+        collision_los_adjustment_represented: false,
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -12879,6 +12931,14 @@ pub struct WorldObjectSummonGameObjectOutcomeLikeCpp {
     pub spawned_by_default_forced_false: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct WorldObjectSummonGameObjectPositionOutcomeLikeCpp {
+    pub position: Position,
+    pub close_point_fallback_used: bool,
+    pub normalized_map_coords: bool,
+    pub collision_los_adjustment_represented: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct UnitRemoveGameObjectsBySpellOutcomeLikeCpp {
     pub owner_guid: ObjectGuid,
@@ -15525,6 +15585,43 @@ mod tests {
         assert!(outcome.add_to_map.is_none());
         assert!(outcome.add_owner_slot.is_none());
         assert_eq!(map.get_max_low_guid_like_cpp(HighGuid::GameObject), Ok(1));
+    }
+
+    #[test]
+    fn world_object_summon_gameobject_position_keeps_explicit_coords_like_cpp() {
+        let source = Position::new(10.0, 20.0, 30.0, 1.5);
+
+        let outcome = world_object_summon_gameobject_position_from_coords_like_cpp(
+            source, 2.0, 4.0, 5.0, 6.0, 0.75,
+        );
+
+        assert_eq!(outcome.position, Position::new(4.0, 5.0, 6.0, 0.75));
+        assert!(!outcome.close_point_fallback_used);
+        assert!(!outcome.normalized_map_coords);
+        assert!(!outcome.collision_los_adjustment_represented);
+    }
+
+    #[test]
+    fn world_object_summon_gameobject_position_zero_coords_use_close_point_like_cpp() {
+        let source = Position::new(10.0, 20.0, 30.0, 0.0);
+
+        let outcome = world_object_summon_gameobject_position_from_coords_like_cpp(
+            source, 1.25, 0.0, 0.0, 0.0, 0.75,
+        );
+
+        assert_eq!(outcome.position, Position::new(12.5, 20.0, 30.0, 0.0));
+        assert!(outcome.close_point_fallback_used);
+        assert!(!outcome.normalized_map_coords);
+        assert!(!outcome.collision_los_adjustment_represented);
+
+        let source = Position::new(10.0, 20.0, 30.0, std::f32::consts::FRAC_PI_2);
+        let y_outcome = world_object_summon_gameobject_position_from_coords_like_cpp(
+            source, 2.0, 0.0, 0.0, 0.0, 0.0,
+        );
+        assert!((y_outcome.position.x - 10.0).abs() < 0.00001);
+        assert!((y_outcome.position.y - 24.0).abs() < 0.00001);
+        assert_eq!(y_outcome.position.z, 30.0);
+        assert_eq!(y_outcome.position.orientation, std::f32::consts::FRAC_PI_2);
     }
 
     #[test]

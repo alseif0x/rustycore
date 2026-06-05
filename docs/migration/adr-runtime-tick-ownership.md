@@ -1661,6 +1661,16 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   branch, and not-in-world/no-low-guid-consumption. Scope remains bounded: no DB/template lookup,
   spell target resolution/GetClosePoint, real phase inheritance, scripts, packets, linked traps, or
   spell execute logs.
+- 2026-06-05 — `WorldObject::SummonGameObject` coordinate-overload position resolver
+  `#NEXT.RUNTIME.L3.031ea`: contrasted C++ coordinate overload (`Object.cpp:2096-2105`),
+  `GetClosePoint` (`Object.cpp:3405-3408`) and `GetNearPoint2D/GetNearPoint`
+  (`Object.cpp:3341-3398`). Rust now exposes
+  `world_object_summon_gameobject_position_from_coords_like_cpp`, preserving explicit coordinates
+  and resolving the `x=y=z=0` fallback from summoner position/orientation with effective distance
+  `2 * combatReach`, matching the `GetClosePoint(..., GetCombatReach())` plus `searcher=nullptr`
+  `GetNearPoint2D` composition. It applies map-coordinate normalization and explicitly reports that
+  height correction, collision detection and LOS fallback search are still runtime gaps. Tests cover
+  explicit coordinates plus X/Y-axis close-point fallback.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
