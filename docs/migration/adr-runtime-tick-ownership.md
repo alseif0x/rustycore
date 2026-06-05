@@ -1530,6 +1530,19 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   Remaining gaps: `MapManager`/`world-server` still need to pass the DB-backed GameObject
   loaded-grid loader into these variants; DB save/delete effects, capture-point/session fanout,
   full object lifecycle side effects, and live client/server validation remain open.
+- 2026-06-05 — Canonical manager/world-server GameObject loaded-grid pool-update loader wiring
+  `#NEXT.RUNTIME.L3.031dy`: follow-up to `031dx`, still anchored to C++ `GameObject::Delete`
+  pooled branch (`GameObject.cpp:1759-1763`), `PoolMgr::UpdatePool<T>` (`PoolMgr.cpp:891-905`),
+  `PoolGroup<GameObject>::Spawn1Object` (`PoolMgr.cpp:368-379`), and `Map::AddToMap`
+  (`Map.cpp:530-570`). Rust now exposes `ManagedMap`/`MapManager`/`MapUpdater` variants that
+  accept a loaded-grid record loader and `world-server` passes the existing DB-backed
+  `build_loaded_grid_gameobject_respawn_record_like_cpp` from the canonical map update tick.
+  Focused manager coverage proves the live manager path can materialize a replacement pooled
+  GameObject on a loaded grid while the old no-loader context still preserves the previous
+  pool-data-only behavior. Remaining gaps: the trigger's full C++ `Despawn1Object` /
+  `AddObjectToRemoveList` physical-removal lifecycle is still not represented in this manager
+  path; DB save/delete effects, capture-point/session fanout, full object lifecycle side effects,
+  and live client/server validation remain open.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

@@ -15,15 +15,16 @@ use crate::map::{
     AreaTriggersUpdateSummaryLikeCpp, ConversationsUpdateSummaryLikeCpp,
     CreatureUpdateSummaryLikeCpp, DynamicMapTreeUpdateSummaryLikeCpp,
     DynamicObjectsUpdateSummaryLikeCpp, FarSpellCallbackDrainSummaryLikeCpp,
-    GameObjectsUpdateSummaryLikeCpp, GridStatesUpdateSummaryLikeCpp, Map,
-    MapUpdateMetricsSummaryLikeCpp, MoveListDrainSummaryLikeCpp, NoopGridLifecycle,
-    NoopTerrainGridLoader, PersonalPhaseTrackerUpdateSummaryLikeCpp,
-    ProcessRelocationNotifiesOutcome, SceneObjectUpdateContextLikeCpp,
-    SceneObjectsUpdateSummaryLikeCpp, ScriptScheduleProcessSummaryLikeCpp,
-    SendObjectUpdatesSummaryLikeCpp, TransportsUpdateSummaryLikeCpp, WeatherUpdateSummaryLikeCpp,
+    GameObjectsUpdateSummaryLikeCpp, GridStatesUpdateSummaryLikeCpp,
+    LoadedGridRespawnRecordsLikeCpp, Map, MapUpdateMetricsSummaryLikeCpp,
+    MoveListDrainSummaryLikeCpp, NoopGridLifecycle, NoopTerrainGridLoader,
+    PersonalPhaseTrackerUpdateSummaryLikeCpp, ProcessRelocationNotifiesOutcome,
+    SceneObjectUpdateContextLikeCpp, SceneObjectsUpdateSummaryLikeCpp,
+    ScriptScheduleProcessSummaryLikeCpp, SendObjectUpdatesSummaryLikeCpp,
+    TransportsUpdateSummaryLikeCpp, WeatherUpdateSummaryLikeCpp,
 };
 use crate::pool::PoolMgrLikeCpp;
-use crate::spawn::{Difficulty, SpawnStore};
+use crate::spawn::{Difficulty, SpawnId, SpawnObjectType, SpawnStore};
 use wow_core::GameTime;
 use wow_entities::CreatureRuntimeUpdateContext;
 
@@ -411,7 +412,11 @@ impl ManagedMap {
     }
 
     fn update(&mut self, diff_ms: u32) {
-        self.update_with_optional_pool_update_context(diff_ms, None);
+        self.update_with_optional_pool_update_context::<fn(
+            &mut Map,
+            SpawnObjectType,
+            SpawnId,
+        ) -> Option<LoadedGridRespawnRecordsLikeCpp>>(diff_ms, None, None);
     }
 
     fn update_with_pool_update_context(
@@ -420,14 +425,43 @@ impl ManagedMap {
         spawn_store: &SpawnStore,
         pool_mgr: &PoolMgrLikeCpp,
     ) {
-        self.update_with_optional_pool_update_context(diff_ms, Some((spawn_store, pool_mgr)));
+        self.update_with_optional_pool_update_context(
+            diff_ms,
+            Some((spawn_store, pool_mgr)),
+            None::<
+                &mut fn(
+                    &mut Map,
+                    SpawnObjectType,
+                    SpawnId,
+                ) -> Option<LoadedGridRespawnRecordsLikeCpp>,
+            >,
+        );
     }
 
-    fn update_with_optional_pool_update_context(
+    fn update_with_pool_update_loaded_grid_records_context<L>(
+        &mut self,
+        diff_ms: u32,
+        spawn_store: &SpawnStore,
+        pool_mgr: &PoolMgrLikeCpp,
+        load_record: &mut L,
+    ) where
+        L: FnMut(&mut Map, SpawnObjectType, SpawnId) -> Option<LoadedGridRespawnRecordsLikeCpp>,
+    {
+        self.update_with_optional_pool_update_context(
+            diff_ms,
+            Some((spawn_store, pool_mgr)),
+            Some(load_record),
+        );
+    }
+
+    fn update_with_optional_pool_update_context<L>(
         &mut self,
         diff_ms: u32,
         pool_update: Option<(&SpawnStore, &PoolMgrLikeCpp)>,
-    ) {
+        load_record: Option<&mut L>,
+    ) where
+        L: FnMut(&mut Map, SpawnObjectType, SpawnId) -> Option<LoadedGridRespawnRecordsLikeCpp>,
+    {
         // C++ `Map::Update` starts with `_dynamicTree.update(t_diff)` before
         // world sessions, respawns, ObjectUpdater families, SendObjectUpdates,
         // scripts, weather, personal phase, move lists, relocation notifies, and
@@ -452,8 +486,17 @@ impl ManagedMap {
         // map-owned GameObject records. C++ real order is TypeContainerVisitor
         // nearby-cell/active-object traversal; this Rust insertion only adds the
         // missing family and leaves AI/go-type/per-player/packet/DB gaps open.
-        self.last_game_objects_update_summary = match pool_update {
-            Some((spawn_store, pool_mgr)) => {
+        self.last_game_objects_update_summary = match (pool_update, load_record) {
+            (Some((spawn_store, pool_mgr)), Some(load_record)) => self
+                .map
+                .update_game_objects_with_pool_update_loaded_grid_records_like_cpp(
+                    diff_ms,
+                    now_secs,
+                    spawn_store,
+                    pool_mgr,
+                    load_record,
+                ),
+            (Some((spawn_store, pool_mgr)), None) => {
                 self.map.update_game_objects_with_pool_update_like_cpp(
                     diff_ms,
                     now_secs,
@@ -461,7 +504,7 @@ impl ManagedMap {
                     pool_mgr,
                 )
             }
-            None => self.map.update_game_objects_like_cpp(diff_ms, now_secs),
+            (None, _) => self.map.update_game_objects_like_cpp(diff_ms, now_secs),
         };
         // Partial C++ transport seam: after the represented GameObject/ObjectUpdater
         // family and before later represented families, visit typed canonical
@@ -1089,7 +1132,11 @@ impl MapManager {
     }
 
     pub fn update(&mut self, diff_ms: u32) -> Option<u32> {
-        self.update_with_optional_pool_update_context(diff_ms, None)
+        self.update_with_optional_pool_update_context::<fn(
+            &mut Map,
+            SpawnObjectType,
+            SpawnId,
+        ) -> Option<LoadedGridRespawnRecordsLikeCpp>>(diff_ms, None, None)
     }
 
     pub fn update_with_pool_update_context(
@@ -1098,14 +1145,45 @@ impl MapManager {
         spawn_store: &SpawnStore,
         pool_mgr: &PoolMgrLikeCpp,
     ) -> Option<u32> {
-        self.update_with_optional_pool_update_context(diff_ms, Some((spawn_store, pool_mgr)))
+        self.update_with_optional_pool_update_context(
+            diff_ms,
+            Some((spawn_store, pool_mgr)),
+            None::<
+                &mut fn(
+                    &mut Map,
+                    SpawnObjectType,
+                    SpawnId,
+                ) -> Option<LoadedGridRespawnRecordsLikeCpp>,
+            >,
+        )
     }
 
-    fn update_with_optional_pool_update_context(
+    pub fn update_with_pool_update_loaded_grid_records_context<L>(
+        &mut self,
+        diff_ms: u32,
+        spawn_store: &SpawnStore,
+        pool_mgr: &PoolMgrLikeCpp,
+        mut load_record: L,
+    ) -> Option<u32>
+    where
+        L: FnMut(&mut Map, SpawnObjectType, SpawnId) -> Option<LoadedGridRespawnRecordsLikeCpp>,
+    {
+        self.update_with_optional_pool_update_context(
+            diff_ms,
+            Some((spawn_store, pool_mgr)),
+            Some(&mut load_record),
+        )
+    }
+
+    fn update_with_optional_pool_update_context<L>(
         &mut self,
         diff_ms: u32,
         pool_update: Option<(&SpawnStore, &PoolMgrLikeCpp)>,
-    ) -> Option<u32> {
+        mut load_record: Option<&mut L>,
+    ) -> Option<u32>
+    where
+        L: FnMut(&mut Map, SpawnObjectType, SpawnId) -> Option<LoadedGridRespawnRecordsLikeCpp>,
+    {
         self.timer.update(diff_ms);
         if !self.timer.passed() {
             return None;
@@ -1130,19 +1208,39 @@ impl MapManager {
             if self.updater.activated() {
                 match pool_update {
                     Some((spawn_store, pool_mgr)) => {
-                        self.updater.schedule_update_with_pool_update_context(
-                            map,
-                            current,
-                            spawn_store,
-                            pool_mgr,
-                        )
+                        if let Some(load_record) = load_record.as_mut() {
+                            self.updater
+                                .schedule_update_with_pool_update_loaded_grid_records_context(
+                                    map,
+                                    current,
+                                    spawn_store,
+                                    pool_mgr,
+                                    &mut **load_record,
+                                )
+                        } else {
+                            self.updater.schedule_update_with_pool_update_context(
+                                map,
+                                current,
+                                spawn_store,
+                                pool_mgr,
+                            )
+                        }
                     }
                     None => self.updater.schedule_update(map, current),
                 }
             } else {
                 match pool_update {
                     Some((spawn_store, pool_mgr)) => {
-                        map.update_with_pool_update_context(current, spawn_store, pool_mgr);
+                        if let Some(load_record) = load_record.as_mut() {
+                            map.update_with_pool_update_loaded_grid_records_context(
+                                current,
+                                spawn_store,
+                                pool_mgr,
+                                &mut **load_record,
+                            );
+                        } else {
+                            map.update_with_pool_update_context(current, spawn_store, pool_mgr);
+                        }
                     }
                     None => map.update(current),
                 }
@@ -1301,6 +1399,27 @@ impl MapUpdater {
         self.pending_requests += 1;
         self.scheduled_updates += 1;
         map.update_with_pool_update_context(diff_ms, spawn_store, pool_mgr);
+        self.update_finished();
+    }
+
+    pub fn schedule_update_with_pool_update_loaded_grid_records_context<L>(
+        &mut self,
+        map: &mut ManagedMap,
+        diff_ms: u32,
+        spawn_store: &SpawnStore,
+        pool_mgr: &PoolMgrLikeCpp,
+        load_record: &mut L,
+    ) where
+        L: FnMut(&mut Map, SpawnObjectType, SpawnId) -> Option<LoadedGridRespawnRecordsLikeCpp>,
+    {
+        self.pending_requests += 1;
+        self.scheduled_updates += 1;
+        map.update_with_pool_update_loaded_grid_records_context(
+            diff_ms,
+            spawn_store,
+            pool_mgr,
+            load_record,
+        );
         self.update_finished();
     }
 
@@ -2186,9 +2305,9 @@ mod tests {
             }
         );
         assert_eq!(managed_map.map().objects_to_remove_count_like_cpp(), 0);
-        // 031dw wires the pool-update context into the live manager path. Full
-        // PoolMgr live despawn/fabrication remains a later slice; the old record
-        // still exists even though pool-data advanced to the replacement.
+        // 031dw wires the pool-update context into the live manager path. Without
+        // the loaded-grid loader from 031dx, pool-data advances but the live
+        // replacement is not materialized.
         assert!(
             managed_map
                 .map()
@@ -2200,6 +2319,97 @@ mod tests {
                 .map()
                 .pool_data_like_cpp()
                 .is_spawned_gameobject_like_cpp(4642202)
+        );
+    }
+
+    #[test]
+    fn map_manager_game_object_update_with_pool_loaded_grid_context_adds_replacement_like_cpp() {
+        let mut manager = MapManager::new(MIN_GRID_DELAY_MS, 1);
+        manager.create_world_map(1, 0);
+        let game_object_guid =
+            insert_pool_compatible_owner_created_game_object_for_update(&mut manager, 4642301, 464);
+        manager
+            .find_map_mut(1, 0)
+            .unwrap()
+            .map_mut()
+            .ensure_grid_loaded(&crate::map::cell_from_world(0.0, 0.0));
+        let (spawn_store, pool_mgr) =
+            gameobject_pool_update_context_for_manager_like_cpp(464, 4642301, 4642302);
+
+        let replacement_guid = guid(HighGuid::GameObject, 4642302, 1, 0);
+        let mut loader_calls = 0usize;
+        assert_eq!(
+            manager.update_with_pool_update_loaded_grid_records_context(
+                1,
+                &spawn_store,
+                &pool_mgr,
+                |_, object_type, spawn_id| {
+                    loader_calls += 1;
+                    assert_eq!(object_type, SpawnObjectType::GameObject);
+                    assert_eq!(spawn_id, 4642302);
+                    let mut game_object = GameObject::new();
+                    game_object
+                        .world_mut()
+                        .object_mut()
+                        .create(replacement_guid);
+                    game_object.world_mut().set_map(1, 0).unwrap();
+                    game_object
+                        .world_mut()
+                        .relocate(Position::xyz(0.0, 0.0, 0.0));
+                    game_object.world_mut().object_mut().add_to_world();
+                    game_object.set_spawn_id(spawn_id);
+                    Some(LoadedGridRespawnRecordsLikeCpp::primary_only(
+                        MapObjectRecord::new_game_object(game_object).unwrap(),
+                    ))
+                },
+            ),
+            Some(1)
+        );
+
+        let managed_map = manager.find_map(1, 0).unwrap();
+        assert_eq!(loader_calls, 1);
+        assert_eq!(
+            managed_map.last_game_objects_update_summary(),
+            GameObjectsUpdateSummaryLikeCpp {
+                visited: 1,
+                updated: 0,
+                despawn_remove_queued: 0,
+                despawn_pool_updated: 1,
+                loot_cleared: 1,
+                summoned_expired_deletes: 1,
+                summoned_expired_respawn_time_zeroed: 1,
+                summoned_expired_despawn_represented: 1,
+                summoned_expired_go_state_ready: 1,
+                ..GameObjectsUpdateSummaryLikeCpp::default()
+            }
+        );
+        assert_eq!(managed_map.map().objects_to_remove_count_like_cpp(), 0);
+        // Loaded-grid replacement materialization is wired here. Full C++
+        // Despawn1Object/AddObjectToRemoveList physical removal for the trigger
+        // remains a follow-up lifecycle slice.
+        assert!(
+            managed_map
+                .map()
+                .map_object_record(game_object_guid)
+                .is_some()
+        );
+        assert!(
+            managed_map
+                .map()
+                .map_object_record(replacement_guid)
+                .is_some()
+        );
+        assert_eq!(
+            managed_map
+                .map()
+                .gameobject_spawn_id_store_count_like_cpp(4642302),
+            1
+        );
+        assert!(
+            managed_map
+                .map()
+                .pool_data_like_cpp()
+                .is_spawned_gameobject_like_cpp(4642302)
         );
     }
 

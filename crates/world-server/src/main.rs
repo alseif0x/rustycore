@@ -6187,10 +6187,22 @@ fn canonical_map_update_tick_set_inactive_like_cpp(
     condition_store: &wow_data::ConditionEntriesByTypeStore,
     loaded_grid_creature_respawn_caches: &LoadedGridCreatureRespawnCachesLikeCpp,
 ) -> Option<CanonicalSpawnGroupConditionTickSummaryLikeCpp> {
-    let Some(effective_diff_ms) = manager.update_with_pool_update_context(
+    let Some(effective_diff_ms) = manager.update_with_pool_update_loaded_grid_records_context(
         diff_ms,
         canonical_spawn_metadata.spawn_store(),
         canonical_spawn_metadata.pool_mgr_like_cpp(),
+        |map, object_type, spawn_id| match object_type {
+            wow_map::SpawnObjectType::GameObject => {
+                build_loaded_grid_gameobject_respawn_record_like_cpp(
+                    map,
+                    object_type,
+                    spawn_id,
+                    canonical_spawn_metadata,
+                    loaded_grid_creature_respawn_caches,
+                )
+            }
+            wow_map::SpawnObjectType::Creature | wow_map::SpawnObjectType::AreaTrigger => None,
+        },
     ) else {
         return None;
     };
@@ -6211,8 +6223,8 @@ fn canonical_map_update_tick_set_inactive_like_cpp(
     // propagation into the bounded SearchFormation/AddCreatureToGroup seam;
     // AddToWorld ObjectAccessor/fanout, scripts/AI, vehicle runtime beyond local
     // evidence, zonescript, formation movement/combat/full CreatureGroup runtime,
-    // dynamic-tree, GameObject DB-backed loading, AreaTrigger runtime and full
-    // PoolMgr runtime remain gaps.
+    // dynamic-tree, full GameObject physical-removal lifecycle, AreaTrigger
+    // runtime and full PoolMgr runtime remain gaps.
     // RustyCore does not yet expose CONFIG_RESPAWN_DYNAMIC_ESCORTNPC
     // or Creature::IsEscorted ownership here, so the bridge passes false/false.
     let now_secs = SystemTime::now()
