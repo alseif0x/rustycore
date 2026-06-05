@@ -57,6 +57,7 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_APPLY_AREA_AURA_PARTY: u32 = 35;
     pub const SPELL_EFFECT_SPELL_DEFENSE: u32 = 37;
     pub const SPELL_EFFECT_LANGUAGE: u32 = 39;
+    pub const SPELL_EFFECT_DUAL_WIELD: u32 = 40;
     pub const SPELL_EFFECT_SPAWN: u32 = 46;
     pub const SPELL_EFFECT_STEALTH: u32 = 48;
     pub const SPELL_EFFECT_DETECT: u32 = 49;
@@ -836,6 +837,7 @@ mod tests {
         assert_eq!(spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_PARTY, 35);
         assert_eq!(spell_effect_types::SPELL_EFFECT_SPELL_DEFENSE, 37);
         assert_eq!(spell_effect_types::SPELL_EFFECT_LANGUAGE, 39);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_DUAL_WIELD, 40);
         assert_eq!(spell_effect_types::SPELL_EFFECT_SPAWN, 46);
         assert_eq!(spell_effect_types::SPELL_EFFECT_STEALTH, 48);
         assert_eq!(spell_effect_types::SPELL_EFFECT_DETECT, 49);

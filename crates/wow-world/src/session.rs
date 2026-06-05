@@ -24174,6 +24174,9 @@ impl WorldSession {
                     self.apply_health_leech_like_cpp(direct_effect_base_points, target_guid)
                         .await?;
                 }
+                x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_DUAL_WIELD => {
+                    self.apply_dual_wield_effect_like_cpp(target_guid)?;
+                }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_QUEST_COMPLETE => {
                     self.apply_quest_complete_effect_like_cpp(
                         target_guid,
@@ -24285,6 +24288,7 @@ impl WorldSession {
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL_MAX_HEALTH
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL_PCT
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEALTH_LEECH
+                || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_DUAL_WIELD
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_QUEST_COMPLETE
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_KILL_CREDIT
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_KILL_CREDIT2
@@ -25462,6 +25466,22 @@ impl WorldSession {
         if effective_damage > 0 && self.player_alive_like_cpp {
             self.apply_heal(player_guid, effective_damage).await?;
         }
+        Ok(())
+    }
+
+    fn apply_dual_wield_effect_like_cpp(
+        &mut self,
+        target_guid: ObjectGuid,
+    ) -> Result<(), &'static str> {
+        let player_guid = self.player_guid().ok_or("No player GUID")?;
+        if target_guid != player_guid {
+            return Ok(());
+        }
+
+        let _ = self.mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_can_dual_wield_like_cpp(true);
+        });
+
         Ok(())
     }
 
@@ -42832,6 +42852,151 @@ mod tests {
             .expect("represented C++ EffectNULL primary field should no-op");
 
         assert_eq!(session.player_health_like_cpp(), 88);
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_dual_wield_effect_row_sets_canonical_player_flag_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 751_i32;
+        let player_guid = ObjectGuid::create_player(1, 68);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_COMMON,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+            },
+        ])));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "DualWield".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        assert_eq!(
+            session.mutate_canonical_player_like_cpp(|player| {
+                player.unit().can_dual_wield_like_cpp()
+            }),
+            Some(false)
+        );
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_DUAL_WIELD,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("represented dual-wield spell row should execute");
+
+        assert_eq!(
+            session.mutate_canonical_player_like_cpp(|player| {
+                player.unit().can_dual_wield_like_cpp()
+            }),
+            Some(true)
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_dual_wield_effect_row_ignores_non_current_player_target_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 752_i32;
+        let player_guid = ObjectGuid::create_player(1, 69);
+        let other_guid = ObjectGuid::create_player(1, 70);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_COMMON,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+            },
+        ])));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "NoDualWield".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_DUAL_WIELD,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, other_guid)
+            .await
+            .expect("represented dual-wield non-current target should no-op");
+
+        assert_eq!(
+            session.mutate_canonical_player_like_cpp(|player| {
+                player.unit().can_dual_wield_like_cpp()
+            }),
+            Some(false)
+        );
         assert_eq!(
             drain_server_opcodes(&send_rx),
             vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
