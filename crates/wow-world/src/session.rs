@@ -43,7 +43,7 @@ use wow_constants::unit::{
 use wow_constants::{
     BagFamilyMask, BuyResult, ClientOpcodes, InventoryResult, InventoryType, ItemBondingType,
     ItemClass, ItemContext, ItemEnchantmentType, ItemFlags, ItemFlags2, ItemQuality, SellResult,
-    TypeId, UnitState,
+    SpellCastResult, TypeId, UnitState,
 };
 use wow_core::{ObjectGuid, ObjectGuidGenerator, Position};
 use wow_data::{
@@ -23864,6 +23864,49 @@ impl WorldSession {
             "Executing spell effect"
         );
 
+        let has_represented_gameobject_summon_effect = spell_info.effects().iter().any(|effect| {
+            effect.effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_SUMMON_OBJECT_WILD
+                || spell_effect_is_represented_summon_object_slot_like_cpp(effect.effect)
+        });
+        let represented_spell_focus_aura_satisfies_check_cast = spell_info
+            .requires_spell_focus_like_cpp()
+            && self.has_represented_aura_effect_with_misc_value_like_cpp(
+                RepresentedAuraEffectLikeCpp::ProvideSpellFocus,
+                i32::try_from(spell_info.requires_spell_focus).unwrap_or(i32::MAX),
+            );
+        let represented_focus_object = if spell_info.requires_spell_focus_like_cpp()
+            && has_represented_gameobject_summon_effect
+            && !represented_spell_focus_aura_satisfies_check_cast
+        {
+            self.search_spell_focus_like_cpp(spell_info.requires_spell_focus)
+        } else {
+            None
+        };
+        if spell_info.requires_spell_focus_like_cpp()
+            && has_represented_gameobject_summon_effect
+            && !represented_spell_focus_aura_satisfies_check_cast
+            && represented_focus_object.is_none()
+        {
+            // C++ `Spell::CheckCast` fails before `SMSG_SPELL_GO` when no
+            // matching `SPELL_AURA_PROVIDE_SPELL_FOCUS` aura or focus object
+            // exists. `Spell::SendCastResult` carries the SpellFocusObject id
+            // in FailedArg1 for this failure reason.
+            self.send_packet(&wow_packet::packets::spell::CastFailed {
+                cast_id,
+                spell_id,
+                reason: SpellCastResult::RequiresSpellFocus as i32,
+                fail_arg1: i32::try_from(spell_info.requires_spell_focus).unwrap_or(i32::MAX),
+                fail_arg2: 0,
+            });
+            debug!(
+                account = self.account_id,
+                spell_id = spell_id,
+                requires_spell_focus = spell_info.requires_spell_focus,
+                "Failing live GameObject summon because C++ SearchSpellFocus found no represented focusObject"
+            );
+            return Ok(());
+        }
+
         // Send SMSG_SPELL_GO
         use wow_packet::packets::spell::SpellGoPkt;
 
@@ -23897,65 +23940,32 @@ impl WorldSession {
             self.force_update_visibility_like_cpp().await;
         }
 
-        let has_represented_gameobject_summon_effect = spell_info.effects().iter().any(|effect| {
-            effect.effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_SUMMON_OBJECT_WILD
-                || spell_effect_is_represented_summon_object_slot_like_cpp(effect.effect)
-        });
-        let represented_spell_focus_aura_satisfies_check_cast = spell_info
-            .requires_spell_focus_like_cpp()
-            && self.has_represented_aura_effect_with_misc_value_like_cpp(
-                RepresentedAuraEffectLikeCpp::ProvideSpellFocus,
-                i32::try_from(spell_info.requires_spell_focus).unwrap_or(i32::MAX),
-            );
-        let represented_focus_object = if spell_info.requires_spell_focus_like_cpp()
-            && has_represented_gameobject_summon_effect
-            && !represented_spell_focus_aura_satisfies_check_cast
-        {
-            self.search_spell_focus_like_cpp(spell_info.requires_spell_focus)
-        } else {
-            None
-        };
         let mut force_visibility_after_gameobject_summon = false;
-        if spell_info.requires_spell_focus_like_cpp()
-            && has_represented_gameobject_summon_effect
-            && !represented_spell_focus_aura_satisfies_check_cast
-            && represented_focus_object.is_none()
-        {
-            debug!(
-                account = self.account_id,
-                spell_id = spell_id,
-                requires_spell_focus = spell_info.requires_spell_focus,
-                "Skipping live GameObject summon because C++ SearchSpellFocus found no represented focusObject"
-            );
-        } else {
-            for effect in spell_info.effects() {
-                if let Some(outcome) = self.apply_effect_summon_object_wild_with_focus_like_cpp(
-                    spell_id,
-                    effect,
-                    &target_data,
-                    represented_focus_object,
-                ) {
+        for effect in spell_info.effects() {
+            if let Some(outcome) = self.apply_effect_summon_object_wild_with_focus_like_cpp(
+                spell_id,
+                effect,
+                &target_data,
+                represented_focus_object,
+            ) {
+                if outcome.map_outcome.as_ref().is_some_and(|map_outcome| {
+                    map_outcome.status
+                        == wow_map::map::SpellEffectSummonObjectWildStatusLikeCpp::CreatedAddedToMap
+                }) {
+                    force_visibility_after_gameobject_summon = true;
+                }
+                continue;
+            }
+
+            if spell_effect_is_represented_summon_object_slot_like_cpp(effect.effect) {
+                if let Some(outcome) =
+                    self.apply_effect_summon_object_slot_like_cpp(spell_id, effect, &target_data)
+                {
                     if outcome.map_outcome.as_ref().is_some_and(|map_outcome| {
                         map_outcome.status
-                            == wow_map::map::SpellEffectSummonObjectWildStatusLikeCpp::CreatedAddedToMap
+                            == wow_map::map::GameObjectSummonObjectForOwnerSlotStatusLikeCpp::CreatedAddedAndSlotted
                     }) {
                         force_visibility_after_gameobject_summon = true;
-                    }
-                    continue;
-                }
-
-                if spell_effect_is_represented_summon_object_slot_like_cpp(effect.effect) {
-                    if let Some(outcome) = self.apply_effect_summon_object_slot_like_cpp(
-                        spell_id,
-                        effect,
-                        &target_data,
-                    ) {
-                        if outcome.map_outcome.as_ref().is_some_and(|map_outcome| {
-                            map_outcome.status
-                                == wow_map::map::GameObjectSummonObjectForOwnerSlotStatusLikeCpp::CreatedAddedAndSlotted
-                        }) {
-                            force_visibility_after_gameobject_summon = true;
-                        }
                     }
                 }
             }
@@ -29590,7 +29600,9 @@ mod tests {
                 SpellTargetData::default(),
             )
             .await
-            .expect("represented spell loop should not fail the cast without SearchSpellFocus");
+            .expect(
+                "represented CheckCast should send CastFailed without failing the transport path",
+            );
 
         assert!(
             session
@@ -29609,6 +29621,19 @@ mod tests {
         );
         drop(manager);
         let packets = drain_server_packet_bytes(&send_rx);
+        let expected_cast_failed = wow_packet::packets::spell::CastFailed {
+            cast_id: ObjectGuid::EMPTY,
+            spell_id,
+            reason: SpellCastResult::RequiresSpellFocus as i32,
+            fail_arg1: 181,
+            fail_arg2: 0,
+        }
+        .to_bytes();
+        assert_eq!(
+            packets,
+            vec![expected_cast_failed],
+            "C++ Spell::CheckCast sends SPELL_FAILED_REQUIRES_SPELL_FOCUS with FailedArg1 set to the required SpellFocusObject id before SpellGo"
+        );
         assert_eq!(
             update_object_packet_count_like_cpp(&packets),
             0,
