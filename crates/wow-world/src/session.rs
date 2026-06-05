@@ -15618,6 +15618,9 @@ impl WorldSession {
             ClientOpcodes::BattlePetUpdateNotify => {
                 self.handle_battle_pet_update_notify(pkt).await;
             }
+            ClientOpcodes::BattlePetUpdateDisplayNotify => {
+                self.handle_battle_pet_update_display_notify(pkt).await;
+            }
             ClientOpcodes::QueryBattlePetName => {
                 self.handle_query_battle_pet_name(pkt).await;
             }

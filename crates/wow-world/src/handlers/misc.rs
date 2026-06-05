@@ -454,6 +454,15 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
+        opcode: ClientOpcodes::BattlePetUpdateDisplayNotify,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_battle_pet_update_display_notify",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
         opcode: ClientOpcodes::QueryBattlePetName,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
@@ -1549,6 +1558,13 @@ impl crate::session::WorldSession {
         };
 
         self.battle_pet_update_notify_like_cpp(request.pet_guid);
+    }
+
+    /// CMSG_BATTLE_PET_UPDATE_DISPLAY_NOTIFY — explicit no-op.
+    ///
+    /// C++ registers this opcode as `STATUS_UNHANDLED` and dispatches it to
+    /// `Handle_NULL`, so Rust intentionally performs no read or mutation.
+    pub async fn handle_battle_pet_update_display_notify(&mut self, _pkt: wow_packet::WorldPacket) {
     }
 
     /// CMSG_QUERY_BATTLE_PET_NAME — represented negative lookup response.
@@ -3230,6 +3246,12 @@ mod tests {
         pkt
     }
 
+    fn battle_pet_update_display_notify_packet() -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(ClientOpcodes::BattlePetUpdateDisplayNotify as u16);
+        pkt
+    }
+
     fn query_battle_pet_name_packet(
         battle_pet_id: ObjectGuid,
         unit_guid: ObjectGuid,
@@ -3533,6 +3555,32 @@ mod tests {
 
         assert_eq!(session.represented_battle_pet_data_updates_like_cpp(), &[]);
         assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn battle_pet_update_display_notify_is_explicit_noop_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        session
+            .handle_battle_pet_update_display_notify(battle_pet_update_display_notify_packet())
+            .await;
+
+        assert_eq!(session.represented_battle_pet_data_updates_like_cpp(), &[]);
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn battle_pet_update_display_notify_handler_metadata_like_cpp() {
+        let entry = inventory::iter::<PacketHandlerEntry>
+            .into_iter()
+            .find(|entry| entry.opcode == ClientOpcodes::BattlePetUpdateDisplayNotify)
+            .expect("BattlePetUpdateDisplayNotify handler entry");
+
+        assert_eq!(entry.status, SessionStatus::LoggedIn);
+        assert_eq!(entry.processing, PacketProcessing::ThreadUnsafe);
+        assert_eq!(
+            entry.handler_name,
+            "handle_battle_pet_update_display_notify"
+        );
     }
 
     #[tokio::test]
