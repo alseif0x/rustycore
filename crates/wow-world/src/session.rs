@@ -24096,32 +24096,60 @@ impl WorldSession {
             self.force_update_visibility_like_cpp().await;
         }
 
-        // Aplicar efecto según type
+        let direct_spell_effects_like_cpp: Vec<(u32, i32, u32)> = if spell_info.effects().is_empty()
+        {
+            vec![(effect_type, effect_base_points, 0)]
+        } else {
+            spell_info
+                .effects()
+                .iter()
+                .filter(|effect| effect.effect != 0)
+                .map(|effect| {
+                    (
+                        effect.effect,
+                        effect.effect_base_points,
+                        effect.effect_index,
+                    )
+                })
+                .collect()
+        };
+        for (direct_effect_type, direct_effect_base_points, direct_effect_index) in
+            direct_spell_effects_like_cpp
+        {
+            match direct_effect_type {
+                x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL => {
+                    if let Ok(heal_amount) = u32::try_from(direct_effect_base_points) {
+                        self.apply_heal(target_guid, heal_amount).await?;
+                    } else {
+                        debug!(
+                            account = self.account_id,
+                            spell_id,
+                            effect_index = direct_effect_index,
+                            effect_base_points = direct_effect_base_points,
+                            "Skipping SPELL_EFFECT_HEAL because C++ EffectHeal returns when damage < 0"
+                        );
+                    }
+                }
+                x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE => {
+                    if let Ok(damage_amount) = u32::try_from(direct_effect_base_points) {
+                        self.apply_damage(target_guid, damage_amount).await?;
+                    } else {
+                        debug!(
+                            account = self.account_id,
+                            spell_id,
+                            effect_index = direct_effect_index,
+                            effect_base_points = direct_effect_base_points,
+                            "Skipping SPELL_EFFECT_SCHOOL_DAMAGE because C++ only applies positive m_damage"
+                        );
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        // Aplicar efecto primario histórico para ramas representadas que aún no
+        // tienen un consumer per-effect completo.
         match effect_type {
-            x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL => {
-                if let Ok(heal_amount) = u32::try_from(effect_base_points) {
-                    self.apply_heal(target_guid, heal_amount).await?;
-                } else {
-                    debug!(
-                        account = self.account_id,
-                        spell_id,
-                        effect_base_points,
-                        "Skipping SPELL_EFFECT_HEAL because C++ EffectHeal returns when damage < 0"
-                    );
-                }
-            }
-            x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE => {
-                if let Ok(damage_amount) = u32::try_from(effect_base_points) {
-                    self.apply_damage(target_guid, damage_amount).await?;
-                } else {
-                    debug!(
-                        account = self.account_id,
-                        spell_id,
-                        effect_base_points,
-                        "Skipping SPELL_EFFECT_SCHOOL_DAMAGE because C++ only applies positive m_damage"
-                    );
-                }
-            }
             x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA => {
                 if let Some(effect) = mounted_aura_effect.as_ref() {
                     self.apply_represented_mounted_aura_like_cpp(spell_id, player_guid, effect)?;
@@ -40604,6 +40632,73 @@ mod tests {
         assert_eq!(
             opcodes,
             vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_direct_heal_and_damage_use_spell_effect_rows_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let manager = shared_map_manager();
+        let spell_id = 724_i32;
+        let guid = test_creature_guid(18_012);
+        let player_guid = ObjectGuid::create_player(1, 55);
+        session.player_guid = Some(player_guid);
+        session.client_visible_guids_like_cpp.insert(guid);
+        register_test_creature(&mut session, manager.clone(), guid, 40);
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![
+                    wow_data::SpellEffectInfo {
+                        effect_index: 0,
+                        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE,
+                        effect_base_points: 7,
+                        ..Default::default()
+                    },
+                    wow_data::SpellEffectInfo {
+                        effect_index: 1,
+                        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL,
+                        effect_base_points: 5,
+                        ..Default::default()
+                    },
+                ],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, guid)
+            .await
+            .expect("represented direct effects should execute per SpellEffectInfo row");
+
+        let manager = manager.read().unwrap();
+        let world_creature = manager.find_creature(0, 0, guid).unwrap();
+        assert_eq!(
+            world_creature.current_hp(),
+            38,
+            "C++ HandleEffects executes damage and heal rows in effect order"
+        );
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert_eq!(
+            opcodes,
+            vec![
+                ServerOpcodes::SpellGo,
+                ServerOpcodes::UpdateObject,
+                ServerOpcodes::UpdateObject,
+                ServerOpcodes::CooldownEvent,
+            ]
         );
     }
 
