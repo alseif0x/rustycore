@@ -201,8 +201,27 @@ impl ServerPacket for AttackerStateUpdate {
     }
 }
 
-// ── UnitHealthUpdate — VALUES packet wrapper ──────────────────────
-// (These are sent via UpdateObject::unit_values_update, not a separate packet type)
+// ── HealthUpdate (SMSG_HEALTH_UPDATE) ─────────────────────────────
+
+/// Direct owner health update sent by C++ `Unit::ModifyHealth` when damage
+/// lowers the health of a player-owned unit.
+///
+/// C++ anchor: `WorldPackets::Combat::HealthUpdate::Write` writes `Guid`
+/// followed by `int64(Health)`.
+#[derive(Debug, Clone)]
+pub struct HealthUpdate {
+    pub guid: ObjectGuid,
+    pub health: i64,
+}
+
+impl ServerPacket for HealthUpdate {
+    const OPCODE: ServerOpcodes = ServerOpcodes::HealthUpdate;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_packed_guid(&self.guid);
+        pkt.write_int64(self.health);
+    }
+}
 
 // ── AttackSwingError (SMSG_ATTACK_SWING_ERROR) ───────────────────
 
@@ -300,6 +319,21 @@ mod tests {
             pkt.read_uint32().expect("reaction"),
             AiReaction::Alert as u32
         );
+        assert!(pkt.is_empty());
+    }
+
+    #[test]
+    fn health_update_writes_packed_guid_and_i64_health_like_cpp() {
+        let guid = ObjectGuid::create_player(1, 0x0102_0304_0506_0708);
+        let bytes = HealthUpdate { guid, health: 83 }.to_bytes();
+
+        let mut pkt = WorldPacket::from_bytes(&bytes);
+        assert_eq!(
+            pkt.read_uint16().expect("opcode"),
+            ServerOpcodes::HealthUpdate as u16
+        );
+        assert_eq!(pkt.read_packed_guid().expect("guid"), guid);
+        assert_eq!(pkt.read_int64().expect("health"), 83);
         assert!(pkt.is_empty());
     }
 }

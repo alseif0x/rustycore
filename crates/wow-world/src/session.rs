@@ -26141,6 +26141,9 @@ mod tests {
         let packet = send_rx.try_recv().expect("attacker state update");
         let opcode = u16::from_le_bytes([packet[0], packet[1]]);
         assert_eq!(opcode, ServerOpcodes::AttackerStateUpdate as u16);
+        let packet = send_rx.try_recv().expect("health update");
+        let opcode = u16::from_le_bytes([packet[0], packet[1]]);
+        assert_eq!(opcode, ServerOpcodes::HealthUpdate as u16);
         assert!(send_rx.try_recv().is_err(), "no extra packets");
     }
 
