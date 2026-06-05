@@ -1597,6 +1597,18 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   execute script AI or SmartAI behavior; cooldown event emission, creation-time owner-list
   population, DB effects, real script callback runtime, and live client/server validation remain
   open.
+- 2026-06-05 — Map-owned `Unit::AddGameObject` owner-link boundary
+  `#NEXT.RUNTIME.L3.031e4`: contrasted C++ `Unit::AddGameObject(GameObject*)` (`Unit.cpp:5192-5209`),
+  `WorldObject::SummonGameObject` (`Object.cpp:2067-2090`), slot summon setup
+  (`SpellEffects.cpp:3541-3597`), and transmitted GO special cases (`SpellEffects.cpp:4441-4512`).
+  Rust now exposes `gameobject_add_to_owner_like_cpp` as a map-owned, session-free representation of
+  the `AddGameObject` guard: only Unit-like owners and ownerless typed GameObjects register
+  `owned_gameobjects`, set `CreatedBy`, and record the Creature/Pet `JustSummonedGameobject` callback
+  boundary when AI is enabled. Slot assignment remains caller-specific because C++
+  `Unit::AddGameObject` does not write `m_ObjectSlot`; `Spell::EffectSummonObject` writes the slot
+  after `Map::AddToMap`. Cooldown start remains blocked, not implemented: Rust lacks a runtime
+  equivalent of `SpellInfo::IsCooldownStartedOnEvent()` over both spell attributes and category
+  flags, plus Trinity-equivalent category-aware `SpellHistory::StartCooldown` semantics.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

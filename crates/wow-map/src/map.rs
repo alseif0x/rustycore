@@ -9149,13 +9149,111 @@ where
         Some(record)
     }
 
-    fn map_record_is_unit_like_owner_for_gameobject_remove_from_owner_like_cpp(
-        record: &MapObjectRecord,
-    ) -> bool {
+    fn map_record_is_unit_like_gameobject_owner_like_cpp(record: &MapObjectRecord) -> bool {
         matches!(
             record.kind(),
             AccessorObjectKind::Player | AccessorObjectKind::Creature | AccessorObjectKind::Pet
         ) && (record.player().is_some() || record.creature().is_some() || record.pet().is_some())
+    }
+
+    /// Bounded map-owned representation of C++ `Unit::AddGameObject(GameObject*)`.
+    ///
+    /// C++ anchors:
+    /// - `Unit.cpp:5192-5209`: if the object exists and has no owner, append to
+    ///   `m_gameObj`, set `CreatedBy` to the Unit GUID, optionally start
+    ///   event-based cooldown, and dispatch `CreatureAI::JustSummonedGameobject`.
+    /// - `Object.cpp:2067-2090` and `SpellEffects.cpp:3238/3590/4456-4482`:
+    ///   summon/create paths call this helper for the owning Unit before or
+    ///   around `Map::AddToMap`.
+    ///
+    /// Scope: this does not create objects, insert into object slots, start
+    /// cooldowns, execute scripts/SmartAI, send packets, or touch DB. Slot
+    /// assignment is path-specific in C++ (`Spell::EffectSummonObject`) and
+    /// remains a caller concern.
+    pub fn gameobject_add_to_owner_like_cpp(
+        &mut self,
+        owner_guid: ObjectGuid,
+        guid: ObjectGuid,
+    ) -> GameObjectAddToOwnerOutcomeLikeCpp {
+        let owner_found_as_unit_like = self
+            .map_object_record(owner_guid)
+            .is_some_and(Self::map_record_is_unit_like_gameobject_owner_like_cpp);
+        let (gameobject_found, owner_guid_before) = self
+            .map_object_record(guid)
+            .filter(|record| record.kind() == AccessorObjectKind::GameObject)
+            .and_then(MapObjectRecord::game_object)
+            .map(|game_object| (true, game_object.owner_guid()))
+            .unwrap_or((false, ObjectGuid::EMPTY));
+        let gameobject_owner_empty_before = gameobject_found && owner_guid_before.is_empty();
+
+        let mut registered_owned_gameobject = false;
+        let mut owner_guid_after = owner_guid_before;
+        let mut creature_ai_callback_represented = false;
+
+        if owner_found_as_unit_like && gameobject_owner_empty_before {
+            if let Some(record) = self.map_objects.get_mut(&owner_guid) {
+                if let Some(owner) = Self::map_record_unit_mut_like_cpp(record) {
+                    owner
+                        .subsystems_mut()
+                        .control
+                        .register_owned_gameobject_like_cpp(guid);
+                    registered_owned_gameobject = true;
+                }
+            }
+
+            if registered_owned_gameobject {
+                if let Some(game_object) = self
+                    .map_objects
+                    .get_mut(&guid)
+                    .and_then(MapObjectRecord::game_object_mut)
+                {
+                    game_object.set_owner_guid_like_cpp(owner_guid);
+                    owner_guid_after = game_object.owner_guid();
+                }
+
+                creature_ai_callback_represented = self
+                    .map_objects
+                    .get_mut(&owner_guid)
+                    .map(|record| match record.kind() {
+                        AccessorObjectKind::Creature => record
+                            .creature_mut()
+                            .map(|creature| {
+                                creature
+                                    .unit_mut()
+                                    .subsystems_mut()
+                                    .ai
+                                    .just_summoned_gameobject_like_cpp()
+                            })
+                            .unwrap_or(false),
+                        AccessorObjectKind::Pet => record
+                            .pet_mut()
+                            .map(|pet| {
+                                pet.creature_mut()
+                                    .unit_mut()
+                                    .subsystems_mut()
+                                    .ai
+                                    .just_summoned_gameobject_like_cpp()
+                            })
+                            .unwrap_or(false),
+                        _ => false,
+                    })
+                    .unwrap_or(false);
+            }
+        }
+
+        GameObjectAddToOwnerOutcomeLikeCpp {
+            guid,
+            owner_guid,
+            owner_found_as_unit_like,
+            gameobject_found,
+            owner_guid_before,
+            owner_guid_after,
+            gameobject_owner_empty_before,
+            registered_owned_gameobject,
+            owner_guid_set: owner_guid_after == owner_guid && owner_guid_before != owner_guid,
+            cooldown_start_represented: false,
+            creature_ai_callback_represented,
+        }
     }
 
     /// Bounded map-owned representation of C++ `GameObject::RemoveFromOwner()`
@@ -9182,9 +9280,9 @@ where
             .map(|game_object| (game_object.owner_guid(), game_object.spell_id()))?;
 
         let owner_found_as_unit_like = !owner_guid_before.is_empty()
-            && self.map_object_record(owner_guid_before).is_some_and(
-                Self::map_record_is_unit_like_owner_for_gameobject_remove_from_owner_like_cpp,
-            );
+            && self
+                .map_object_record(owner_guid_before)
+                .is_some_and(Self::map_record_is_unit_like_gameobject_owner_like_cpp);
         let cleared_owner = !owner_guid_before.is_empty();
 
         if cleared_owner {
@@ -11937,6 +12035,21 @@ pub struct GameObjectZoneScriptRemoveOutcomeLikeCpp {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GameObjectAddToOwnerOutcomeLikeCpp {
+    pub guid: ObjectGuid,
+    pub owner_guid: ObjectGuid,
+    pub owner_found_as_unit_like: bool,
+    pub gameobject_found: bool,
+    pub owner_guid_before: ObjectGuid,
+    pub owner_guid_after: ObjectGuid,
+    pub gameobject_owner_empty_before: bool,
+    pub registered_owned_gameobject: bool,
+    pub owner_guid_set: bool,
+    pub cooldown_start_represented: bool,
+    pub creature_ai_callback_represented: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GameObjectRemoveFromOwnerOutcomeLikeCpp {
     pub guid: ObjectGuid,
     pub owner_guid_before: ObjectGuid,
@@ -14026,6 +14139,140 @@ mod tests {
             .unwrap();
 
         assert!(not_in_world_removed.gameobject_zone_script_remove.is_none());
+    }
+
+    #[test]
+    fn gameobject_add_to_owner_registers_owner_list_and_guid_like_cpp() {
+        let mut map = test_map();
+        let owner = test_player_for_viewpoint(4820601);
+        let owner_guid = owner.guid();
+        let gameobject = test_gameobject_for_spawn(48206, 4820602);
+        let guid = gameobject.world().guid();
+
+        map.insert_map_object_record(MapObjectRecord::new_player(owner).unwrap())
+            .unwrap();
+        map.insert_map_object_record(MapObjectRecord::new_game_object(gameobject).unwrap())
+            .unwrap();
+
+        let add_owner = map.gameobject_add_to_owner_like_cpp(owner_guid, guid);
+
+        assert_eq!(add_owner.guid, guid);
+        assert_eq!(add_owner.owner_guid, owner_guid);
+        assert!(add_owner.owner_found_as_unit_like);
+        assert!(add_owner.gameobject_found);
+        assert_eq!(add_owner.owner_guid_before, ObjectGuid::EMPTY);
+        assert_eq!(add_owner.owner_guid_after, owner_guid);
+        assert!(add_owner.gameobject_owner_empty_before);
+        assert!(add_owner.registered_owned_gameobject);
+        assert!(add_owner.owner_guid_set);
+        assert!(!add_owner.cooldown_start_represented);
+        assert!(!add_owner.creature_ai_callback_represented);
+
+        let owner = map
+            .map_object_record(owner_guid)
+            .and_then(MapObjectRecord::player)
+            .unwrap();
+        assert_eq!(
+            owner.unit().subsystems().control.owned_gameobjects,
+            vec![guid]
+        );
+        let gameobject = map
+            .map_object_record(guid)
+            .and_then(MapObjectRecord::game_object)
+            .unwrap();
+        assert_eq!(gameobject.owner_guid(), owner_guid);
+    }
+
+    #[test]
+    fn gameobject_add_to_owner_dispatches_creature_ai_summon_boundary_like_cpp() {
+        let mut map = test_map();
+        let mut owner = test_creature_for_spawn(48207, 4820701, true);
+        let owner_guid = owner.guid();
+        owner
+            .unit_mut()
+            .subsystems_mut()
+            .ai
+            .set_active(Some("NullCreatureAI"));
+        let gameobject = test_gameobject_for_spawn(48207, 4820702);
+        let guid = gameobject.world().guid();
+
+        map.insert_map_object_record(MapObjectRecord::new_creature(owner).unwrap())
+            .unwrap();
+        map.insert_map_object_record(MapObjectRecord::new_game_object(gameobject).unwrap())
+            .unwrap();
+
+        let add_owner = map.gameobject_add_to_owner_like_cpp(owner_guid, guid);
+
+        assert!(add_owner.registered_owned_gameobject);
+        assert!(add_owner.creature_ai_callback_represented);
+        let owner = map
+            .map_object_record(owner_guid)
+            .and_then(MapObjectRecord::creature)
+            .unwrap();
+        assert_eq!(
+            owner.unit().subsystems().ai.just_summoned_gameobject_count,
+            1
+        );
+
+        let mut disabled_map = test_map();
+        let disabled_owner = test_creature_for_spawn(48208, 4820801, true);
+        let disabled_owner_guid = disabled_owner.guid();
+        let disabled_gameobject = test_gameobject_for_spawn(48208, 4820802);
+        let disabled_guid = disabled_gameobject.world().guid();
+        disabled_map
+            .insert_map_object_record(MapObjectRecord::new_creature(disabled_owner).unwrap())
+            .unwrap();
+        disabled_map
+            .insert_map_object_record(
+                MapObjectRecord::new_game_object(disabled_gameobject).unwrap(),
+            )
+            .unwrap();
+
+        let disabled_add_owner =
+            disabled_map.gameobject_add_to_owner_like_cpp(disabled_owner_guid, disabled_guid);
+        assert!(disabled_add_owner.registered_owned_gameobject);
+        assert!(!disabled_add_owner.creature_ai_callback_represented);
+    }
+
+    #[test]
+    fn gameobject_add_to_owner_noops_for_missing_owner_or_preowned_gameobject_like_cpp() {
+        let mut preowned_map = test_map();
+        let owner = test_player_for_viewpoint(4820901);
+        let owner_guid = owner.guid();
+        let existing_owner_guid = ObjectGuid::create_player(1, 4820903);
+        let mut gameobject = test_gameobject_for_spawn(48209, 4820902);
+        let guid = gameobject.world().guid();
+        gameobject.set_owner_guid_like_cpp(existing_owner_guid);
+
+        preowned_map
+            .insert_map_object_record(MapObjectRecord::new_player(owner).unwrap())
+            .unwrap();
+        preowned_map
+            .insert_map_object_record(MapObjectRecord::new_game_object(gameobject).unwrap())
+            .unwrap();
+
+        let preowned = preowned_map.gameobject_add_to_owner_like_cpp(owner_guid, guid);
+        assert!(preowned.owner_found_as_unit_like);
+        assert!(preowned.gameobject_found);
+        assert_eq!(preowned.owner_guid_before, existing_owner_guid);
+        assert_eq!(preowned.owner_guid_after, existing_owner_guid);
+        assert!(!preowned.gameobject_owner_empty_before);
+        assert!(!preowned.registered_owned_gameobject);
+        assert!(!preowned.owner_guid_set);
+
+        let mut missing_owner_map = test_map();
+        let gameobject = test_gameobject_for_spawn(48210, 4821002);
+        let guid = gameobject.world().guid();
+        missing_owner_map
+            .insert_map_object_record(MapObjectRecord::new_game_object(gameobject).unwrap())
+            .unwrap();
+
+        let missing = missing_owner_map
+            .gameobject_add_to_owner_like_cpp(ObjectGuid::create_player(1, 4821001), guid);
+        assert!(!missing.owner_found_as_unit_like);
+        assert!(missing.gameobject_found);
+        assert!(!missing.registered_owned_gameobject);
+        assert_eq!(missing.owner_guid_after, ObjectGuid::EMPTY);
     }
 
     #[test]

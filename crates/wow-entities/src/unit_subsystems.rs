@@ -4118,6 +4118,7 @@ pub struct AiSubsystem {
     pub last_update_diff_ms: u32,
     pub hostile_reaction_count: u32,
     pub call_assistance_count: u32,
+    pub just_summoned_gameobject_count: u32,
     pub summoned_gameobject_despawn_count: u32,
 }
 
@@ -4174,6 +4175,14 @@ impl AiSubsystem {
 
     pub fn call_assistance_like_cpp(&mut self) {
         self.call_assistance_count = self.call_assistance_count.saturating_add(1);
+    }
+
+    pub fn just_summoned_gameobject_like_cpp(&mut self) -> bool {
+        if !self.is_enabled() {
+            return false;
+        }
+        self.just_summoned_gameobject_count = self.just_summoned_gameobject_count.saturating_add(1);
+        true
     }
 
     pub fn summoned_gameobject_despawn_like_cpp(&mut self) -> bool {
@@ -5663,6 +5672,8 @@ mod unit_subsystems_tests {
         assert!(ai.update_tick(50));
         assert_eq!(ai.update_ticks, 1);
         assert_eq!(ai.last_update_diff_ms, 50);
+        assert!(ai.just_summoned_gameobject_like_cpp());
+        assert_eq!(ai.just_summoned_gameobject_count, 1);
         assert!(ai.summoned_gameobject_despawn_like_cpp());
         assert_eq!(ai.summoned_gameobject_despawn_count, 1);
 
@@ -5684,6 +5695,8 @@ mod unit_subsystems_tests {
         assert!(!ai.scheduled_change_pending);
 
         let mut disabled = AiSubsystem::default();
+        assert!(!disabled.just_summoned_gameobject_like_cpp());
+        assert_eq!(disabled.just_summoned_gameobject_count, 0);
         assert!(!disabled.summoned_gameobject_despawn_like_cpp());
         assert_eq!(disabled.summoned_gameobject_despawn_count, 0);
     }
