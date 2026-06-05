@@ -2059,6 +2059,54 @@ impl ServerPacket for BattlePetJournal {
     }
 }
 
+/// C++ `WorldPackets::BattlePet::BattlePetUpdates`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BattlePetUpdates {
+    pub pets: Vec<BattlePetJournalPet>,
+    pub pet_added: bool,
+}
+
+impl ServerPacket for BattlePetUpdates {
+    const OPCODE: ServerOpcodes = ServerOpcodes::BattlePetUpdates;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_uint32(self.pets.len() as u32);
+        pkt.write_bit(self.pet_added);
+        pkt.flush_bits();
+
+        for pet in &self.pets {
+            pet.write_like_cpp(pkt);
+        }
+    }
+}
+
+/// C++ `WorldPackets::BattlePet::PetBattleSlotUpdates`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PetBattleSlotUpdates {
+    pub slots: Vec<BattlePetJournalSlot>,
+    pub auto_slotted: bool,
+    pub new_slot: bool,
+}
+
+impl ServerPacket for PetBattleSlotUpdates {
+    const OPCODE: ServerOpcodes = ServerOpcodes::PetBattleSlotUpdates;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_uint32(self.slots.len() as u32);
+        pkt.write_bit(self.new_slot);
+        pkt.write_bit(self.auto_slotted);
+        pkt.flush_bits();
+
+        for slot in &self.slots {
+            pkt.write_packed_guid(&slot.pet_guid);
+            pkt.write_uint32(slot.collar_id);
+            pkt.write_uint8(slot.index);
+            pkt.write_bit(slot.locked);
+            pkt.flush_bits();
+        }
+    }
+}
+
 /// Tells the client that the battle pet journal lock has been acquired.
 /// Empty packet (opcode only, no payload).
 pub struct BattlePetJournalLockAcquired;
@@ -4251,43 +4299,38 @@ mod tests {
         assert_eq!(body.remaining(), 0);
     }
 
-    #[test]
-    fn battle_pet_journal_writes_pet_rows_like_cpp() {
-        let pet_guid = ObjectGuid::new(0, 0x4335);
-        let owner_guid = ObjectGuid::create_player(1, 77);
-        let bytes = BattlePetJournal {
-            trap: 9,
-            has_journal_lock: true,
-            slots: Vec::new(),
-            pets: vec![BattlePetJournalPet {
-                guid: pet_guid,
-                species: 11,
-                creature_id: 22,
-                display_id: 33,
-                breed: 44,
-                level: 55,
-                exp: 66,
-                flags: 77,
-                power: 88,
-                health: 99,
-                max_health: 111,
-                speed: 222,
-                quality: 3,
-                owner_info: Some(BattlePetJournalPetOwnerInfo {
-                    guid: owner_guid,
-                    player_virtual_realm: 123,
-                    player_native_realm: 456,
-                }),
-                name: "Misha".to_string(),
-            }],
+    fn sample_battle_pet_journal_pet_like_cpp(
+        pet_guid: ObjectGuid,
+        owner_guid: ObjectGuid,
+    ) -> BattlePetJournalPet {
+        BattlePetJournalPet {
+            guid: pet_guid,
+            species: 11,
+            creature_id: 22,
+            display_id: 33,
+            breed: 44,
+            level: 55,
+            exp: 66,
+            flags: 77,
+            power: 88,
+            health: 99,
+            max_health: 111,
+            speed: 222,
+            quality: 3,
+            owner_info: Some(BattlePetJournalPetOwnerInfo {
+                guid: owner_guid,
+                player_virtual_realm: 123,
+                player_native_realm: 456,
+            }),
+            name: "Misha".to_string(),
         }
-        .to_bytes();
+    }
 
-        let mut body = WorldPacket::from_bytes(&bytes[2..]);
-        assert_eq!(body.read_uint16().unwrap(), 9);
-        assert_eq!(body.read_uint32().unwrap(), 0);
-        assert_eq!(body.read_uint32().unwrap(), 1);
-        assert!(body.read_bit().unwrap());
+    fn assert_sample_battle_pet_journal_pet_like_cpp(
+        body: &mut WorldPacket,
+        pet_guid: ObjectGuid,
+        owner_guid: ObjectGuid,
+    ) {
         assert_eq!(body.read_packed_guid().unwrap(), pet_guid);
         assert_eq!(body.read_uint32().unwrap(), 11);
         assert_eq!(body.read_uint32().unwrap(), 22);
@@ -4308,6 +4351,77 @@ mod tests {
         assert_eq!(body.read_packed_guid().unwrap(), owner_guid);
         assert_eq!(body.read_uint32().unwrap(), 123);
         assert_eq!(body.read_uint32().unwrap(), 456);
+    }
+
+    #[test]
+    fn battle_pet_journal_writes_pet_rows_like_cpp() {
+        let pet_guid = ObjectGuid::new(0, 0x4335);
+        let owner_guid = ObjectGuid::create_player(1, 77);
+        let bytes = BattlePetJournal {
+            trap: 9,
+            has_journal_lock: true,
+            slots: Vec::new(),
+            pets: vec![sample_battle_pet_journal_pet_like_cpp(pet_guid, owner_guid)],
+        }
+        .to_bytes();
+
+        let mut body = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(body.read_uint16().unwrap(), 9);
+        assert_eq!(body.read_uint32().unwrap(), 0);
+        assert_eq!(body.read_uint32().unwrap(), 1);
+        assert!(body.read_bit().unwrap());
+        assert_sample_battle_pet_journal_pet_like_cpp(&mut body, pet_guid, owner_guid);
+        assert_eq!(body.remaining(), 0);
+    }
+
+    #[test]
+    fn battle_pet_updates_writes_count_flag_then_pet_rows_like_cpp() {
+        let pet_guid = ObjectGuid::new(0, 0x4336);
+        let owner_guid = ObjectGuid::create_player(1, 78);
+        let bytes = BattlePetUpdates {
+            pets: vec![sample_battle_pet_journal_pet_like_cpp(pet_guid, owner_guid)],
+            pet_added: true,
+        }
+        .to_bytes();
+
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::BattlePetUpdates as u16
+        );
+        let mut body = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(body.read_uint32().unwrap(), 1);
+        assert!(body.read_bit().unwrap());
+        assert_sample_battle_pet_journal_pet_like_cpp(&mut body, pet_guid, owner_guid);
+        assert_eq!(body.remaining(), 0);
+    }
+
+    #[test]
+    fn pet_battle_slot_updates_writes_flags_then_slots_like_cpp() {
+        let pet_guid = ObjectGuid::new(0, 0x4337);
+        let bytes = PetBattleSlotUpdates {
+            slots: vec![BattlePetJournalSlot {
+                pet_guid,
+                collar_id: 10,
+                index: 2,
+                locked: false,
+            }],
+            auto_slotted: false,
+            new_slot: true,
+        }
+        .to_bytes();
+
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::PetBattleSlotUpdates as u16
+        );
+        let mut body = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(body.read_uint32().unwrap(), 1);
+        assert!(body.read_bit().unwrap());
+        assert!(!body.read_bit().unwrap());
+        assert_eq!(body.read_packed_guid().unwrap(), pet_guid);
+        assert_eq!(body.read_uint32().unwrap(), 10);
+        assert_eq!(body.read_uint8().unwrap(), 2);
+        assert!(!body.read_bit().unwrap());
         assert_eq!(body.remaining(), 0);
     }
 
