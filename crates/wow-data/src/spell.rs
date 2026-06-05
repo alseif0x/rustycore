@@ -44,18 +44,6 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_WEAPON: u32 = 25;
     pub const SPELL_EFFECT_DEFENSE: u32 = 26;
     pub const SPELL_EFFECT_PERSISTENT_AREA_AURA: u32 = 27;
-    /// C++ `SPELL_EFFECT_SUMMON_OBJECT_WILD`; see
-    /// `Spell::EffectSummonObjectWild` (`SpellEffects.cpp:2937-2986`).
-    pub const SPELL_EFFECT_SUMMON_OBJECT_WILD: u32 = 76;
-    pub const SPELL_EFFECT_HEAL_MAX_HEALTH: u32 = 67;
-    pub const SPELL_EFFECT_HEAL_MECHANICAL: u32 = 75;
-    pub const SPELL_EFFECT_KILL_CREDIT: u32 = 90;
-    pub const SPELL_EFFECT_KILL_CREDIT2: u32 = 134;
-    pub const SPELL_EFFECT_HEAL_PCT: u32 = 136;
-    pub const SPELL_EFFECT_ADD_FARSIGHT: u32 = 72;
-    /// First C++ `SPELL_EFFECT_SUMMON_OBJECT_SLOT*` value; see
-    /// `Spell::EffectSummonObject` (`SpellEffects.cpp:3541-3597`).
-    pub const SPELL_EFFECT_SUMMON_OBJECT_SLOT1: u32 = 104;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_PARTY: u32 = 35;
     pub const SPELL_EFFECT_SPELL_DEFENSE: u32 = 37;
     pub const SPELL_EFFECT_LANGUAGE: u32 = 39;
@@ -66,12 +54,29 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_FORCE_CRITICAL_HIT: u32 = 51;
     pub const SPELL_EFFECT_GUARANTEE_HIT: u32 = 52;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_RAID: u32 = 65;
+    pub const SPELL_EFFECT_HEAL_MAX_HEALTH: u32 = 67;
+    pub const SPELL_EFFECT_ADD_FARSIGHT: u32 = 72;
+    pub const SPELL_EFFECT_HEAL_MECHANICAL: u32 = 75;
+    /// C++ `SPELL_EFFECT_SUMMON_OBJECT_WILD`; see
+    /// `Spell::EffectSummonObjectWild` (`SpellEffects.cpp:2937-2986`).
+    pub const SPELL_EFFECT_SUMMON_OBJECT_WILD: u32 = 76;
     pub const SPELL_EFFECT_ATTACK: u32 = 78;
     pub const SPELL_EFFECT_BIND_SIGHT: u32 = 82;
+    pub const SPELL_EFFECT_KILL_CREDIT: u32 = 90;
     pub const SPELL_EFFECT_THREAT_ALL: u32 = 91;
+    /// First C++ `SPELL_EFFECT_SUMMON_OBJECT_SLOT*` value; see
+    /// `Spell::EffectSummonObject` (`SpellEffects.cpp:3541-3597`).
+    pub const SPELL_EFFECT_SUMMON_OBJECT_SLOT1: u32 = 104;
+    pub const SPELL_EFFECT_SURVEY: u32 = 105;
+    pub const SPELL_EFFECT_SHOW_CORPSE_LOOT: u32 = 107;
+    pub const SPELL_EFFECT_112: u32 = 112;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_PET: u32 = 119;
+    pub const SPELL_EFFECT_122: u32 = 122;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_FRIEND: u32 = 128;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_ENEMY: u32 = 129;
+    pub const SPELL_EFFECT_KILL_CREDIT2: u32 = 134;
+    pub const SPELL_EFFECT_CALL_PET: u32 = 135;
+    pub const SPELL_EFFECT_HEAL_PCT: u32 = 136;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_OWNER: u32 = 143;
     pub const SPELL_EFFECT_APPLY_AURA_ON_PET: u32 = 174;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_SUMMONS: u32 = 202;
@@ -107,6 +112,15 @@ pub mod spell_effect_types {
                 | SPELL_EFFECT_ATTACK
                 | SPELL_EFFECT_BIND_SIGHT
                 | SPELL_EFFECT_THREAT_ALL
+                | SPELL_EFFECT_SURVEY
+                | SPELL_EFFECT_SHOW_CORPSE_LOOT
+                | SPELL_EFFECT_112
+                | SPELL_EFFECT_APPLY_AREA_AURA_PET
+                | SPELL_EFFECT_122
+                | SPELL_EFFECT_APPLY_AREA_AURA_FRIEND
+                | SPELL_EFFECT_APPLY_AREA_AURA_ENEMY
+                | SPELL_EFFECT_CALL_PET
+                | SPELL_EFFECT_APPLY_AREA_AURA_OWNER
         )
     }
 }
@@ -860,7 +874,15 @@ mod tests {
         assert_eq!(spell_effect_types::SPELL_EFFECT_BIND_SIGHT, 82);
         assert_eq!(spell_effect_types::SPELL_EFFECT_KILL_CREDIT, 90);
         assert_eq!(spell_effect_types::SPELL_EFFECT_THREAT_ALL, 91);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_SURVEY, 105);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_SHOW_CORPSE_LOOT, 107);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_112, 112);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_PET, 119);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_122, 122);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_FRIEND, 128);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_ENEMY, 129);
         assert_eq!(spell_effect_types::SPELL_EFFECT_KILL_CREDIT2, 134);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_CALL_PET, 135);
         assert_eq!(spell_effect_types::SPELL_EFFECT_HEAL_PCT, 136);
     }
 
@@ -889,6 +911,15 @@ mod tests {
             spell_effect_types::SPELL_EFFECT_ATTACK,
             spell_effect_types::SPELL_EFFECT_BIND_SIGHT,
             spell_effect_types::SPELL_EFFECT_THREAT_ALL,
+            spell_effect_types::SPELL_EFFECT_SURVEY,
+            spell_effect_types::SPELL_EFFECT_SHOW_CORPSE_LOOT,
+            spell_effect_types::SPELL_EFFECT_112,
+            spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_PET,
+            spell_effect_types::SPELL_EFFECT_122,
+            spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_FRIEND,
+            spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_ENEMY,
+            spell_effect_types::SPELL_EFFECT_CALL_PET,
+            spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_OWNER,
         ] {
             assert!(
                 spell_effect_types::is_cpp_null_or_unused_noop(effect),
