@@ -24132,6 +24132,7 @@ impl WorldSession {
         ) in direct_spell_effects_like_cpp
         {
             match direct_effect_type {
+                x if wow_data::spell::spell_effect_types::is_cpp_null_or_unused_noop(x) => {}
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_INSTAKILL => {
                     self.apply_instakill_like_cpp(spell_id, target_guid).await?;
                 }
@@ -24270,6 +24271,7 @@ impl WorldSession {
         // Aplicar efecto primario histórico para ramas representadas que aún no
         // tienen un consumer per-effect completo.
         match effect_type {
+            x if wow_data::spell::spell_effect_types::is_cpp_null_or_unused_noop(x) => {}
             x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA => {
                 if spell_info.effects().is_empty() {
                     self.apply_aura(spell_id, player_guid, 30000, 0x00000001)?;
@@ -42748,6 +42750,88 @@ mod tests {
             status.status,
             crate::conditions::QUEST_STATUS_FAILED_LIKE_CPP
         );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_cpp_unused_effect_row_is_represented_noop_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 749_i32;
+        let player_guid = ObjectGuid::create_player(1, 66);
+        session.set_player_guid(Some(player_guid));
+        session.set_player_health_like_cpp(77, 100);
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_PORTAL_TELEPORT,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("represented C++ EffectUnused row should no-op");
+
+        assert_eq!(session.player_health_like_cpp(), 77);
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_cpp_null_primary_effect_is_represented_noop_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 750_i32;
+        let player_guid = ObjectGuid::create_player(1, 67);
+        session.set_player_guid(Some(player_guid));
+        session.set_player_health_like_cpp(88, 100);
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_PORTAL,
+                effect_base_points: 99,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: Vec::new(),
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("represented C++ EffectNULL primary field should no-op");
+
+        assert_eq!(session.player_health_like_cpp(), 88);
         assert_eq!(
             drain_server_opcodes(&send_rx),
             vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]

@@ -23,14 +23,24 @@ use crate::{ConditionEntriesByTypeStore, ConditionsReference};
 
 /// Spell effect types (from SpellEffectType enum)
 pub mod spell_effect_types {
+    pub const SPELL_EFFECT_NONE: u32 = 0;
     pub const SPELL_EFFECT_INSTAKILL: u32 = 1;
     pub const SPELL_EFFECT_SCHOOL_DAMAGE: u32 = 2;
+    pub const SPELL_EFFECT_PORTAL_TELEPORT: u32 = 4;
     pub const SPELL_EFFECT_ENVIRONMENTAL_DAMAGE: u32 = 7;
     pub const SPELL_EFFECT_APPLY_AURA: u32 = 6;
     pub const SPELL_EFFECT_HEALTH_LEECH: u32 = 9;
     pub const SPELL_EFFECT_HEAL: u32 = 10;
     pub const SPELL_EFFECT_BIND: u32 = 11;
+    pub const SPELL_EFFECT_PORTAL: u32 = 12;
+    pub const SPELL_EFFECT_RITUAL_BASE: u32 = 13;
+    pub const SPELL_EFFECT_RITUAL_SPECIALIZE: u32 = 14;
+    pub const SPELL_EFFECT_RITUAL_ACTIVATE_PORTAL: u32 = 15;
     pub const SPELL_EFFECT_QUEST_COMPLETE: u32 = 16;
+    pub const SPELL_EFFECT_DODGE: u32 = 20;
+    pub const SPELL_EFFECT_EVADE: u32 = 21;
+    pub const SPELL_EFFECT_WEAPON: u32 = 25;
+    pub const SPELL_EFFECT_DEFENSE: u32 = 26;
     pub const SPELL_EFFECT_PERSISTENT_AREA_AURA: u32 = 27;
     /// C++ `SPELL_EFFECT_SUMMON_OBJECT_WILD`; see
     /// `Spell::EffectSummonObjectWild` (`SpellEffects.cpp:2937-2986`).
@@ -45,6 +55,13 @@ pub mod spell_effect_types {
     /// `Spell::EffectSummonObject` (`SpellEffects.cpp:3541-3597`).
     pub const SPELL_EFFECT_SUMMON_OBJECT_SLOT1: u32 = 104;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_PARTY: u32 = 35;
+    pub const SPELL_EFFECT_SPELL_DEFENSE: u32 = 37;
+    pub const SPELL_EFFECT_LANGUAGE: u32 = 39;
+    pub const SPELL_EFFECT_SPAWN: u32 = 46;
+    pub const SPELL_EFFECT_STEALTH: u32 = 48;
+    pub const SPELL_EFFECT_DETECT: u32 = 49;
+    pub const SPELL_EFFECT_FORCE_CRITICAL_HIT: u32 = 51;
+    pub const SPELL_EFFECT_GUARANTEE_HIT: u32 = 52;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_RAID: u32 = 65;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_PET: u32 = 119;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_FRIEND: u32 = 128;
@@ -54,6 +71,35 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_APPLY_AREA_AURA_SUMMONS: u32 = 202;
     pub const SPELL_EFFECT_TELEPORT_UNITS: u32 = 252;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_PARTY_NONRANDOM: u32 = 271;
+
+    /// C++ dispatch entries that intentionally run `EffectNULL` or
+    /// `EffectUnused` in `SpellEffects.cpp` for the represented early effect
+    /// range. This deliberately excludes `SPELL_EFFECT_DUMMY`, whose behavior
+    /// is script-driven through `ScriptMgr::OnSpellEffectDummy`.
+    pub fn is_cpp_null_or_unused_noop(effect: u32) -> bool {
+        matches!(
+            effect,
+            SPELL_EFFECT_NONE
+                | SPELL_EFFECT_PORTAL_TELEPORT
+                | SPELL_EFFECT_PORTAL
+                | SPELL_EFFECT_RITUAL_BASE
+                | SPELL_EFFECT_RITUAL_SPECIALIZE
+                | SPELL_EFFECT_RITUAL_ACTIVATE_PORTAL
+                | SPELL_EFFECT_DODGE
+                | SPELL_EFFECT_EVADE
+                | SPELL_EFFECT_WEAPON
+                | SPELL_EFFECT_DEFENSE
+                | SPELL_EFFECT_APPLY_AREA_AURA_PARTY
+                | SPELL_EFFECT_SPELL_DEFENSE
+                | SPELL_EFFECT_LANGUAGE
+                | SPELL_EFFECT_SPAWN
+                | SPELL_EFFECT_STEALTH
+                | SPELL_EFFECT_DETECT
+                | SPELL_EFFECT_FORCE_CRITICAL_HIT
+                | SPELL_EFFECT_GUARANTEE_HIT
+                | SPELL_EFFECT_APPLY_AREA_AURA_RAID
+        )
+    }
 }
 
 /// Aura types (from AuraType enum)
@@ -770,19 +816,75 @@ mod tests {
     #[test]
     fn spell_effect_constants_match_cpp_shared_defines() {
         // C++ `SharedDefines.h`: `SpellEffects` enum.
+        assert_eq!(spell_effect_types::SPELL_EFFECT_NONE, 0);
         assert_eq!(spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE, 2);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_PORTAL_TELEPORT, 4);
         assert_eq!(spell_effect_types::SPELL_EFFECT_APPLY_AURA, 6);
         assert_eq!(spell_effect_types::SPELL_EFFECT_ENVIRONMENTAL_DAMAGE, 7);
         assert_eq!(spell_effect_types::SPELL_EFFECT_HEALTH_LEECH, 9);
         assert_eq!(spell_effect_types::SPELL_EFFECT_HEAL, 10);
         assert_eq!(spell_effect_types::SPELL_EFFECT_BIND, 11);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_PORTAL, 12);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_RITUAL_BASE, 13);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_RITUAL_SPECIALIZE, 14);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_RITUAL_ACTIVATE_PORTAL, 15);
         assert_eq!(spell_effect_types::SPELL_EFFECT_QUEST_COMPLETE, 16);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_DODGE, 20);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_EVADE, 21);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_WEAPON, 25);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_DEFENSE, 26);
         assert_eq!(spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_PARTY, 35);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_SPELL_DEFENSE, 37);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_LANGUAGE, 39);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_SPAWN, 46);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_STEALTH, 48);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_DETECT, 49);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_FORCE_CRITICAL_HIT, 51);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_GUARANTEE_HIT, 52);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_RAID, 65);
         assert_eq!(spell_effect_types::SPELL_EFFECT_HEAL_MAX_HEALTH, 67);
         assert_eq!(spell_effect_types::SPELL_EFFECT_HEAL_MECHANICAL, 75);
         assert_eq!(spell_effect_types::SPELL_EFFECT_KILL_CREDIT, 90);
         assert_eq!(spell_effect_types::SPELL_EFFECT_KILL_CREDIT2, 134);
         assert_eq!(spell_effect_types::SPELL_EFFECT_HEAL_PCT, 136);
+    }
+
+    #[test]
+    fn spell_effect_null_or_unused_classifier_matches_cpp_dispatch_subset() {
+        for effect in [
+            spell_effect_types::SPELL_EFFECT_NONE,
+            spell_effect_types::SPELL_EFFECT_PORTAL_TELEPORT,
+            spell_effect_types::SPELL_EFFECT_PORTAL,
+            spell_effect_types::SPELL_EFFECT_RITUAL_BASE,
+            spell_effect_types::SPELL_EFFECT_RITUAL_SPECIALIZE,
+            spell_effect_types::SPELL_EFFECT_RITUAL_ACTIVATE_PORTAL,
+            spell_effect_types::SPELL_EFFECT_DODGE,
+            spell_effect_types::SPELL_EFFECT_EVADE,
+            spell_effect_types::SPELL_EFFECT_WEAPON,
+            spell_effect_types::SPELL_EFFECT_DEFENSE,
+            spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_PARTY,
+            spell_effect_types::SPELL_EFFECT_SPELL_DEFENSE,
+            spell_effect_types::SPELL_EFFECT_LANGUAGE,
+            spell_effect_types::SPELL_EFFECT_SPAWN,
+            spell_effect_types::SPELL_EFFECT_STEALTH,
+            spell_effect_types::SPELL_EFFECT_DETECT,
+            spell_effect_types::SPELL_EFFECT_FORCE_CRITICAL_HIT,
+            spell_effect_types::SPELL_EFFECT_GUARANTEE_HIT,
+            spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_RAID,
+        ] {
+            assert!(
+                spell_effect_types::is_cpp_null_or_unused_noop(effect),
+                "effect {effect} should mirror C++ EffectNULL/EffectUnused"
+            );
+        }
+
+        assert!(
+            !spell_effect_types::is_cpp_null_or_unused_noop(3),
+            "C++ SPELL_EFFECT_DUMMY dispatches EffectDummy and remains script-driven"
+        );
+        assert!(!spell_effect_types::is_cpp_null_or_unused_noop(
+            spell_effect_types::SPELL_EFFECT_QUEST_COMPLETE
+        ));
     }
 
     #[test]
