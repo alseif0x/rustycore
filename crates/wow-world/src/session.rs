@@ -24138,6 +24138,15 @@ impl WorldSession {
         }
 
         if !spell_info.effects().is_empty() {
+            let generic_apply_aura_rows_like_cpp = spell_info
+                .effects()
+                .iter()
+                .filter(|effect| {
+                    effect.effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA
+                        && !effect.is_mounted_aura_like_cpp()
+                        && !effect.is_provide_spell_focus_aura_like_cpp()
+                })
+                .count();
             for effect in spell_info.effects().iter().filter(|effect| {
                 effect.effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA
             }) {
@@ -24149,6 +24158,15 @@ impl WorldSession {
                         player_guid,
                         effect,
                     )?;
+                } else if generic_apply_aura_rows_like_cpp == 1 {
+                    self.apply_aura(spell_id, player_guid, 30000, 0x00000001)?;
+                } else {
+                    debug!(
+                        account = self.account_id,
+                        spell_id,
+                        effect_index = effect.effect_index,
+                        "Skipping represented generic multi-effect aura grouping until C++ aura effect-mask application is ported"
+                    );
                 }
             }
         }
@@ -31682,6 +31700,70 @@ mod tests {
             ),
             "C++ HandleEffects dispatches SPELL_EFFECT_APPLY_AURA from SpellEffectInfo rows"
         );
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert_eq!(
+            opcodes,
+            vec![
+                ServerOpcodes::SpellGo,
+                ServerOpcodes::AuraUpdate,
+                ServerOpcodes::CooldownEvent
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn generic_apply_aura_single_effect_row_applies_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 726_i32;
+        let player_guid = ObjectGuid::create_player(1, 7031);
+        session.set_player_guid(Some(player_guid));
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 2,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_DUMMY,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell_with_visual_and_target_data(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual {
+                    spell_visual_id: 726,
+                    script_visual_id: 0,
+                },
+                SpellTargetData::default(),
+            )
+            .await
+            .expect("single represented generic apply-aura effect row should execute");
+
+        let aura = session
+            .visible_auras
+            .values()
+            .find(|aura| aura.spell_id == spell_id)
+            .expect("C++ EffectApplyAura registers the current SpellEffectInfo row");
+        assert_eq!(aura.represented_effect, None);
+        assert_eq!(aura.caster_guid, player_guid);
+        assert_eq!(aura.duration_total, 30_000);
+        assert_eq!(aura.aura_flags, 0x0000_0001);
         let opcodes = drain_server_opcodes(&send_rx);
         assert_eq!(
             opcodes,
