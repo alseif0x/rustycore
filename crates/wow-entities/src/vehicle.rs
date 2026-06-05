@@ -276,7 +276,7 @@ pub fn vehicle_base_movement_flags_like_cpp(vehicle_flags: u32) -> MovementFlag2
     movement_flags
 }
 
-pub const SPELL_EFFECT_HEAL_LIKE_CPP: i32 = 6;
+pub const SPELL_EFFECT_HEAL_LIKE_CPP: i32 = 10;
 pub const SPELL_EFFECT_DISPEL_LIKE_CPP: i32 = 38;
 pub const SPELL_EFFECT_KNOCK_BACK_LIKE_CPP: i32 = 98;
 pub const SPELL_EFFECT_HEAL_PCT_LIKE_CPP: i32 = 136;

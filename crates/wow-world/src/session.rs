@@ -24098,18 +24098,15 @@ impl WorldSession {
 
         // Aplicar efecto según type
         match effect_type {
-            6 => {
-                // SPELL_EFFECT_HEAL
+            x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL => {
                 let heal_amount = effect_base_points as u32;
                 self.apply_heal(target_guid, heal_amount).await?;
             }
-            2 => {
-                // SPELL_EFFECT_SCHOOL_DAMAGE
+            x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE => {
                 let damage_amount = effect_base_points as u32;
                 self.apply_damage(target_guid, damage_amount).await?;
             }
-            35 => {
-                // SPELL_EFFECT_APPLY_AURA
+            x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA => {
                 if let Some(effect) = mounted_aura_effect.as_ref() {
                     self.apply_represented_mounted_aura_like_cpp(spell_id, player_guid, effect)?;
                 } else if let Some(effect) = provide_spell_focus_aura_effect.as_ref() {

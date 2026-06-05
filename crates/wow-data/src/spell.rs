@@ -25,10 +25,10 @@ use crate::{ConditionEntriesByTypeStore, ConditionsReference};
 pub mod spell_effect_types {
     pub const SPELL_EFFECT_SCHOOL_DAMAGE: u32 = 2;
     pub const SPELL_EFFECT_ENVIRONMENTAL_DAMAGE: u32 = 7;
-    pub const SPELL_EFFECT_HEAL: u32 = 6;
+    pub const SPELL_EFFECT_APPLY_AURA: u32 = 6;
+    pub const SPELL_EFFECT_HEAL: u32 = 10;
     pub const SPELL_EFFECT_BIND: u32 = 11;
     pub const SPELL_EFFECT_PERSISTENT_AREA_AURA: u32 = 27;
-    pub const SPELL_EFFECT_APPLY_AURA: u32 = 35;
     /// C++ `SPELL_EFFECT_SUMMON_OBJECT_WILD`; see
     /// `Spell::EffectSummonObjectWild` (`SpellEffects.cpp:2937-2986`).
     pub const SPELL_EFFECT_SUMMON_OBJECT_WILD: u32 = 76;
@@ -85,7 +85,7 @@ pub struct SpellInfo {
     pub cooldown_ms: u32,
     /// Per-spell cooldown in milliseconds (0 = no per-spell cooldown)
     pub recovery_time_ms: u32,
-    /// First effect type (primary effect) — e.g., 2 (damage), 6 (heal), 35 (aura)
+    /// First effect type (primary effect) — e.g., 2 (damage), 6 (aura), 10 (heal)
     pub effect_type: u32,
     /// Base damage/healing before bonuses
     pub effect_base_points: i32,
@@ -757,6 +757,17 @@ mod tests {
         assert_eq!(mounted.effect_base_points, 11);
         assert_eq!(mounted.effect_misc_value_1, 22);
         assert_eq!(mounted.effect_misc_value_2, 33);
+    }
+
+    #[test]
+    fn spell_effect_constants_match_cpp_shared_defines() {
+        // C++ `SharedDefines.h`: `SpellEffects` enum.
+        assert_eq!(spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE, 2);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_APPLY_AURA, 6);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_ENVIRONMENTAL_DAMAGE, 7);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_HEAL, 10);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_BIND, 11);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_PARTY, 35);
     }
 
     #[test]
