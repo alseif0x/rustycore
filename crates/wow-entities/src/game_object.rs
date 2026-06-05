@@ -79,6 +79,14 @@ pub const GAMEOBJECT_DATA_GATHERING_NODE_XP_DIFFICULTY: usize = 13;
 pub const GAMEOBJECT_DATA_GATHERING_NODE_SPELL: usize = 14;
 pub const GAMEOBJECT_DATA_GATHERING_NODE_MAX_LOOTS: usize = 18;
 pub const GAMEOBJECT_DATA_GATHERING_NODE_LINKED_TRAP: usize = 20;
+// C++ anchors:
+// - GameObjectData.h:191-193 for GAMEOBJECT_TYPE_SPELL_FOCUS
+// - GameObjectData.h:697-699 for GAMEOBJECT_TYPE_UI_LINK
+pub const GAMEOBJECT_DATA_SPELL_FOCUS_TYPE: usize = 0;
+pub const GAMEOBJECT_DATA_SPELL_FOCUS_RADIUS: usize = 1;
+pub const GAMEOBJECT_DATA_SPELL_FOCUS_LINKED_TRAP: usize = 2;
+pub const GAMEOBJECT_DATA_UI_LINK_SPELL_FOCUS_TYPE: usize = 3;
+pub const GAMEOBJECT_DATA_UI_LINK_SPELL_FOCUS_RADIUS: usize = 4;
 
 pub const GO_FLAG_IN_USE: u32 = 0x0000_0001;
 pub const GO_FLAG_INTERACT_COND: u32 = 0x0000_0004;
@@ -345,6 +353,13 @@ pub struct BarberChairUseSource {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct UiLinkUseSource {
     pub ui_link_type: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct SpellFocusUseSource {
+    pub focus_type: u32,
+    pub radius: u32,
+    pub linked_trap_entry: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -668,6 +683,22 @@ impl GameObjectTemplateData {
         })
     }
 
+    pub const fn spell_focus_use_source_like_cpp(&self) -> Option<SpellFocusUseSource> {
+        match self.go_type {
+            GAMEOBJECT_TYPE_SPELL_FOCUS => Some(SpellFocusUseSource {
+                focus_type: self.data[GAMEOBJECT_DATA_SPELL_FOCUS_TYPE],
+                radius: self.data[GAMEOBJECT_DATA_SPELL_FOCUS_RADIUS],
+                linked_trap_entry: self.data[GAMEOBJECT_DATA_SPELL_FOCUS_LINKED_TRAP],
+            }),
+            GAMEOBJECT_TYPE_UI_LINK => Some(SpellFocusUseSource {
+                focus_type: self.data[GAMEOBJECT_DATA_UI_LINK_SPELL_FOCUS_TYPE],
+                radius: self.data[GAMEOBJECT_DATA_UI_LINK_SPELL_FOCUS_RADIUS],
+                linked_trap_entry: 0,
+            }),
+            _ => None,
+        }
+    }
+
     pub const fn item_forge_use_source_like_cpp(&self) -> Option<ItemForgeUseSource> {
         if self.go_type != GAMEOBJECT_TYPE_ITEM_FORGE {
             return None;
@@ -824,11 +855,11 @@ impl GameObjectTemplateData {
     }
 
     pub const fn spell_focus_linked_trap_like_cpp(&self) -> u32 {
-        if self.go_type != GAMEOBJECT_TYPE_SPELL_FOCUS {
-            return 0;
+        if let Some(source) = self.spell_focus_use_source_like_cpp() {
+            source.linked_trap_entry
+        } else {
+            0
         }
-
-        self.data[2]
     }
 
     pub const fn camera_use_source_like_cpp(&self) -> Option<CameraUseSource> {
@@ -1005,6 +1036,13 @@ pub struct GameObject {
     /// This is represented template evidence for bounded `GameObject::Update`
     /// branches only; it is not a full live `GameObjectTemplate`/ObjectMgr owner.
     goober_use_source_like_cpp: Option<GooberUseSource>,
+    /// Resolved C++ `GetGOInfo()->GetSpellFocusType/Radius` source carried
+    /// only when this entity was constructed or explicitly seeded with a
+    /// SPELL_FOCUS/UI_LINK template source.
+    ///
+    /// This is represented template evidence for bounded `Spell::SearchSpellFocus`
+    /// only; it is not a full live `GameObjectTemplate`/ObjectMgr owner.
+    spell_focus_use_source_like_cpp: Option<SpellFocusUseSource>,
     /// Explicit represented evidence for TrinityCore `GameObject::m_model != nullptr`.
     ///
     /// This flag exists only so map-owned AddToWorld/RemoveFromWorld seams can decide whether
@@ -1081,6 +1119,7 @@ impl GameObject {
             represented_baseline_flags_like_cpp: None,
             chest_loot_source_like_cpp: None,
             goober_use_source_like_cpp: None,
+            spell_focus_use_source_like_cpp: None,
             represented_gameobject_model_like_cpp: false,
             represented_gameobject_model_is_map_object_like_cpp: false,
             represented_gameobject_model_collision_enabled_like_cpp: None,
@@ -1152,6 +1191,7 @@ impl GameObject {
         let template_data = GameObjectTemplateData::new(template.go_type, template.data);
         self.chest_loot_source_like_cpp = template_data.chest_loot_source_like_cpp();
         self.goober_use_source_like_cpp = template_data.goober_use_source_like_cpp();
+        self.spell_focus_use_source_like_cpp = template_data.spell_focus_use_source_like_cpp();
         match template.go_type {
             GAMEOBJECT_TYPE_FISHING_HOLE | GAMEOBJECT_TYPE_TRANSPORT => {
                 self.set_go_anim_progress_like_cpp(record.anim_progress);
@@ -1539,6 +1579,17 @@ impl GameObject {
 
     pub fn set_represented_goober_use_source_like_cpp(&mut self, source: Option<GooberUseSource>) {
         self.goober_use_source_like_cpp = source;
+    }
+
+    pub fn represented_spell_focus_use_source_like_cpp(&self) -> Option<SpellFocusUseSource> {
+        self.spell_focus_use_source_like_cpp
+    }
+
+    pub fn set_represented_spell_focus_use_source_like_cpp(
+        &mut self,
+        source: Option<SpellFocusUseSource>,
+    ) {
+        self.spell_focus_use_source_like_cpp = source;
     }
 
     pub fn add_use_like_cpp(&mut self) {
@@ -2208,6 +2259,27 @@ mod tests {
         assert_eq!(go.spawn_id(), 98_765);
         assert_ne!(go.packed_rotation(), 0);
         assert!(go.respawn_compatibility_mode());
+    }
+
+    #[test]
+    fn gameobject_create_from_lifecycle_carries_spell_focus_source_like_cpp() {
+        let mut record = lifecycle_create(true);
+        record.template.go_type = GAMEOBJECT_TYPE_SPELL_FOCUS;
+        record.template.data = [0; MAX_GAMEOBJECT_DATA];
+        record.template.data[GAMEOBJECT_DATA_SPELL_FOCUS_TYPE] = 181;
+        record.template.data[GAMEOBJECT_DATA_SPELL_FOCUS_RADIUS] = 10;
+        record.template.data[GAMEOBJECT_DATA_SPELL_FOCUS_LINKED_TRAP] = 987;
+
+        let go = GameObject::try_create_from_lifecycle(record).expect("valid focus lifecycle");
+
+        assert_eq!(
+            go.represented_spell_focus_use_source_like_cpp(),
+            Some(SpellFocusUseSource {
+                focus_type: 181,
+                radius: 10,
+                linked_trap_entry: 987,
+            })
+        );
     }
 
     #[test]
@@ -2992,6 +3064,42 @@ mod tests {
         assert_eq!(
             GameObjectTemplateData::new(GAMEOBJECT_TYPE_CHEST, data)
                 .spellcaster_use_source_like_cpp(),
+            None
+        );
+    }
+
+    #[test]
+    fn spell_focus_use_source_uses_cpp_data_indices() {
+        let mut data = [0; MAX_GAMEOBJECT_DATA];
+        data[GAMEOBJECT_DATA_SPELL_FOCUS_TYPE] = 181;
+        data[GAMEOBJECT_DATA_SPELL_FOCUS_RADIUS] = 12;
+        data[GAMEOBJECT_DATA_SPELL_FOCUS_LINKED_TRAP] = 987;
+
+        assert_eq!(
+            GameObjectTemplateData::new(GAMEOBJECT_TYPE_SPELL_FOCUS, data)
+                .spell_focus_use_source_like_cpp(),
+            Some(SpellFocusUseSource {
+                focus_type: 181,
+                radius: 12,
+                linked_trap_entry: 987,
+            })
+        );
+
+        let mut ui_link_data = [0; MAX_GAMEOBJECT_DATA];
+        ui_link_data[GAMEOBJECT_DATA_UI_LINK_SPELL_FOCUS_TYPE] = 182;
+        ui_link_data[GAMEOBJECT_DATA_UI_LINK_SPELL_FOCUS_RADIUS] = 34;
+        assert_eq!(
+            GameObjectTemplateData::new(GAMEOBJECT_TYPE_UI_LINK, ui_link_data)
+                .spell_focus_use_source_like_cpp(),
+            Some(SpellFocusUseSource {
+                focus_type: 182,
+                radius: 34,
+                linked_trap_entry: 0,
+            })
+        );
+        assert_eq!(
+            GameObjectTemplateData::new(GAMEOBJECT_TYPE_CHEST, data)
+                .spell_focus_use_source_like_cpp(),
             None
         );
     }

@@ -2940,6 +2940,14 @@ pub(crate) struct ApplyEffectSummonObjectSlotSessionOutcomeLikeCpp {
     pub map_outcome: Option<wow_map::map::GameObjectSummonObjectForOwnerSlotOutcomeLikeCpp>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct RepresentedSpellFocusObjectLikeCpp {
+    pub guid: ObjectGuid,
+    pub map_key: wow_map::MapKey,
+    pub position: Position,
+    pub source: wow_entities::SpellFocusUseSource,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RepresentedAuraEffectLikeCpp {
     FeignDeath,
@@ -5341,6 +5349,56 @@ impl WorldSession {
             entry: game_object.world().object().entry(),
             position: game_object.world().position(),
         })
+    }
+
+    pub(crate) fn search_spell_focus_like_cpp(
+        &self,
+        focus_id: u32,
+    ) -> Option<RepresentedSpellFocusObjectLikeCpp> {
+        if focus_id == 0 {
+            return None;
+        }
+        let caster_position = self.player_position_like_cpp()?;
+        let player_map_key = self.current_canonical_player_map_key_like_cpp()?;
+        let manager = self.canonical_map_manager.as_ref()?;
+        let Ok(manager) = manager.lock() else {
+            return None;
+        };
+        let managed = manager.find_map(player_map_key.map_id, player_map_key.instance_id)?;
+        let map = managed.map();
+        let nearby = map.nearby_cell_guids_like_cpp(
+            caster_position.x,
+            caster_position.y,
+            map.visibility_range(),
+        );
+        for guid in nearby.grid.gameobjects {
+            let Some(gameobject) = map.get_typed_game_object(guid) else {
+                continue;
+            };
+            let world = gameobject.world();
+            if !world.object().is_in_world() {
+                continue;
+            }
+            let Some(source) = gameobject.represented_spell_focus_use_source_like_cpp() else {
+                continue;
+            };
+            if source.focus_type != focus_id {
+                continue;
+            }
+            if !world
+                .position()
+                .is_within_dist(&caster_position, source.radius as f32)
+            {
+                continue;
+            }
+            return Some(RepresentedSpellFocusObjectLikeCpp {
+                guid,
+                map_key: player_map_key,
+                position: world.position(),
+                source,
+            });
+        }
+        None
     }
 
     pub(crate) fn represented_gameobject_can_interact_with_like_cpp(
@@ -23784,25 +23842,36 @@ impl WorldSession {
             self.force_update_visibility_like_cpp().await;
         }
 
+        let has_represented_gameobject_summon_effect = spell_info.effects().iter().any(|effect| {
+            effect.effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_SUMMON_OBJECT_WILD
+                || spell_effect_is_represented_summon_object_slot_like_cpp(effect.effect)
+        });
+        let represented_focus_object = if spell_info.requires_spell_focus_like_cpp()
+            && has_represented_gameobject_summon_effect
+        {
+            self.search_spell_focus_like_cpp(spell_info.requires_spell_focus)
+        } else {
+            None
+        };
         let mut force_visibility_after_gameobject_summon = false;
-        if spell_info.requires_spell_focus_like_cpp() {
-            if spell_info.effects().iter().any(|effect| {
-                effect.effect
-                    == wow_data::spell::spell_effect_types::SPELL_EFFECT_SUMMON_OBJECT_WILD
-                    || spell_effect_is_represented_summon_object_slot_like_cpp(effect.effect)
-            }) {
-                debug!(
-                    account = self.account_id,
-                    spell_id = spell_id,
-                    requires_spell_focus = spell_info.requires_spell_focus,
-                    "Skipping live GameObject summon until C++ SearchSpellFocus/focusObject is represented"
-                );
-            }
+        if spell_info.requires_spell_focus_like_cpp()
+            && has_represented_gameobject_summon_effect
+            && represented_focus_object.is_none()
+        {
+            debug!(
+                account = self.account_id,
+                spell_id = spell_id,
+                requires_spell_focus = spell_info.requires_spell_focus,
+                "Skipping live GameObject summon because C++ SearchSpellFocus found no represented focusObject"
+            );
         } else {
             for effect in spell_info.effects() {
-                if let Some(outcome) =
-                    self.apply_effect_summon_object_wild_like_cpp(spell_id, effect, &target_data)
-                {
+                if let Some(outcome) = self.apply_effect_summon_object_wild_with_focus_like_cpp(
+                    spell_id,
+                    effect,
+                    &target_data,
+                    represented_focus_object,
+                ) {
                     if outcome.map_outcome.as_ref().is_some_and(|map_outcome| {
                         map_outcome.status
                             == wow_map::map::SpellEffectSummonObjectWildStatusLikeCpp::CreatedAddedToMap
@@ -23943,6 +24012,21 @@ impl WorldSession {
         effect: &wow_data::SpellEffectInfo,
         target_data: &SpellTargetData,
     ) -> Option<ApplyEffectSummonObjectWildSessionOutcomeLikeCpp> {
+        self.apply_effect_summon_object_wild_with_focus_like_cpp(
+            spell_id,
+            effect,
+            target_data,
+            None,
+        )
+    }
+
+    pub(crate) fn apply_effect_summon_object_wild_with_focus_like_cpp(
+        &mut self,
+        spell_id: i32,
+        effect: &wow_data::SpellEffectInfo,
+        target_data: &SpellTargetData,
+        focus_object: Option<RepresentedSpellFocusObjectLikeCpp>,
+    ) -> Option<ApplyEffectSummonObjectWildSessionOutcomeLikeCpp> {
         if effect.effect != wow_data::spell::spell_effect_types::SPELL_EFFECT_SUMMON_OBJECT_WILD {
             return None;
         }
@@ -24004,10 +24088,22 @@ impl WorldSession {
                     map_outcome: None,
                 });
             };
+            let close_point_source_position = focus_object
+                .map(|focus| focus.position)
+                .unwrap_or(caster_position);
+            let represented_source_reach = if focus_object.is_some() {
+                // C++ calls `target->GetClosePoint`; represented GameObject size
+                // is not carried here yet, so focus-backed fallback uses the
+                // focus position with no extra object reach instead of the
+                // caster combat reach.
+                0.0
+            } else {
+                self.canonical_player_combat_reach_snapshot_like_cpp()
+            };
             wow_map::map::spell_effect_summon_object_wild_position_like_cpp(
-                caster_position,
-                self.canonical_player_combat_reach_snapshot_like_cpp(),
-                caster_position.orientation,
+                close_point_source_position,
+                represented_source_reach,
+                close_point_source_position.orientation,
                 None,
             )
         };
@@ -24021,7 +24117,10 @@ impl WorldSession {
                 map_outcome: None,
             });
         };
-        let Some(player_map_key) = self.current_canonical_player_map_key_like_cpp() else {
+        let Some(player_map_key) = focus_object
+            .map(|focus| focus.map_key)
+            .or_else(|| self.current_canonical_player_map_key_like_cpp())
+        else {
             return Some(ApplyEffectSummonObjectWildSessionOutcomeLikeCpp {
                 status: ApplyEffectSummonObjectWildSessionStatusLikeCpp::MissingCanonicalPlayerMap,
                 template_entry: Some(template_entry),
@@ -29234,6 +29333,158 @@ mod tests {
         );
     }
 
+    #[test]
+    fn search_spell_focus_requires_type_spawned_and_radius_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 7007);
+        let player_position = Position::new(10.0, 20.0, 30.0, 0.0);
+        let matching_focus = test_gameobject_guid(9010, 7010);
+        let wrong_type_focus = test_gameobject_guid(9011, 7011);
+        let far_focus = test_gameobject_guid(9012, 7012);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "FocusCaster".to_string(),
+            player_position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
+        add_canonical_spell_focus_gameobject_on_map_like_cpp(
+            &canonical,
+            wrong_type_focus,
+            9_011,
+            182,
+            50,
+            Position::new(11.0, 20.0, 30.0, 0.25),
+            571,
+            0,
+        );
+        add_canonical_spell_focus_gameobject_on_map_like_cpp(
+            &canonical,
+            far_focus,
+            9_012,
+            181,
+            2,
+            Position::new(40.0, 20.0, 30.0, 0.5),
+            571,
+            0,
+        );
+        add_canonical_spell_focus_gameobject_on_map_like_cpp(
+            &canonical,
+            matching_focus,
+            9_010,
+            181,
+            10,
+            Position::new(12.0, 20.0, 30.0, 1.25),
+            571,
+            0,
+        );
+
+        let focus = session
+            .search_spell_focus_like_cpp(181)
+            .expect("matching spell focus should be found");
+        assert_eq!(focus.guid, matching_focus);
+        assert_eq!(focus.source.focus_type, 181);
+        assert_eq!(focus.source.radius, 10);
+        assert_eq!(focus.position.orientation, 1.25);
+        assert!(session.search_spell_focus_like_cpp(999).is_none());
+    }
+
+    #[tokio::test]
+    async fn summon_object_wild_live_spell_with_focus_uses_focus_orientation_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 705_i32;
+        let template_entry = 9006_u32;
+        let player_guid = ObjectGuid::create_player(1, 7008);
+        let focus_guid = test_gameobject_guid(9007, 7007);
+        let player_position = Position::new(160.0, 260.0, 36.0, 0.0);
+        let focus_position = Position::new(162.0, 260.0, 36.0, 1.25);
+        let canonical = shared_canonical_map_manager();
+        configure_gameobject_summon_live_session_like_cpp(
+            &mut session,
+            &canonical,
+            player_guid,
+            player_position,
+            summon_go_template_store_like_cpp(template_entry),
+            gameobject_summon_spell_info_like_cpp(
+                spell_id,
+                181,
+                vec![summon_object_wild_effect_like_cpp(
+                    i32::try_from(template_entry).unwrap(),
+                )],
+            ),
+        );
+        add_canonical_spell_focus_gameobject_on_map_like_cpp(
+            &canonical,
+            focus_guid,
+            9_007,
+            181,
+            10,
+            focus_position,
+            571,
+            0,
+        );
+
+        session
+            .execute_spell_with_visual_and_target_data(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual {
+                    spell_visual_id: 705,
+                    script_visual_id: 0,
+                },
+                SpellTargetData::default(),
+            )
+            .await
+            .expect("focus-backed wild GameObject summon should execute");
+
+        let manager = canonical.lock().unwrap();
+        let managed = manager.find_map(571, 0).expect("canonical map");
+        let summoned_guid = session
+            .client_visible_guids_like_cpp
+            .iter()
+            .copied()
+            .filter(ObjectGuid::is_game_object)
+            .find(|guid| {
+                managed
+                    .map()
+                    .get_typed_game_object(*guid)
+                    .is_some_and(|go| go.world().object().entry() == template_entry)
+            })
+            .expect("summoned focus-backed GO should be visible");
+        let summoned = managed
+            .map()
+            .get_typed_game_object(summoned_guid)
+            .expect("summoned GO should be map-owned");
+        assert_eq!(
+            summoned.world().position(),
+            Position::new(
+                focus_position.x
+                    + wow_map::map::DEFAULT_PLAYER_BOUNDING_RADIUS_LIKE_CPP
+                        * focus_position.orientation.cos(),
+                focus_position.y
+                    + wow_map::map::DEFAULT_PLAYER_BOUNDING_RADIUS_LIKE_CPP
+                        * focus_position.orientation.sin(),
+                focus_position.z,
+                focus_position.orientation,
+            )
+        );
+        drop(manager);
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert!(
+            update_object_packet_count_like_cpp(&packets) >= 1,
+            "focus-backed summon should trigger represented visibility create/update delivery"
+        );
+    }
+
     #[tokio::test]
     async fn summon_object_live_spell_requires_focus_waits_for_search_spell_focus_like_cpp() {
         let (mut session, _, send_rx) = make_session();
@@ -30118,6 +30369,39 @@ mod tests {
             .add_to_map_like_cpp(AccessorObjectKind::GameObject, gameobject.world().clone());
         map.map_mut()
             .insert_map_object_record(
+                wow_entities::MapObjectRecord::new_game_object(gameobject).unwrap(),
+            )
+            .unwrap();
+    }
+
+    fn add_canonical_spell_focus_gameobject_on_map_like_cpp(
+        canonical: &SharedCanonicalMapManager,
+        guid: ObjectGuid,
+        entry: u32,
+        focus_type: u32,
+        radius: u32,
+        position: Position,
+        map_id: u32,
+        instance_id: u32,
+    ) {
+        let mut gameobject = GameObject::new();
+        gameobject.world_mut().object_mut().create(guid);
+        gameobject.world_mut().object_mut().set_entry(entry);
+        gameobject.world_mut().set_map(map_id, instance_id).unwrap();
+        gameobject.world_mut().relocate(position);
+        gameobject.set_represented_spell_focus_use_source_like_cpp(Some(
+            wow_entities::SpellFocusUseSource {
+                focus_type,
+                radius,
+                linked_trap_entry: 0,
+            },
+        ));
+
+        let mut guard = canonical.lock().unwrap();
+        guard
+            .create_world_map(map_id, instance_id)
+            .map_mut()
+            .add_map_object_record_to_map_like_cpp(
                 wow_entities::MapObjectRecord::new_game_object(gameobject).unwrap(),
             )
             .unwrap();
