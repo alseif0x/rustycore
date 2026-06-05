@@ -15,9 +15,9 @@ use rand::seq::SliceRandom;
 use tracing::{debug, info, trace, warn};
 
 use crate::entity_update_bridge::{
-    dynamic_object_values_update_to_update_object, item_values_update_to_update_object,
-    player_values_update_to_update_object, unit_values_update_to_packet,
-    unit_values_update_to_update_object,
+    dynamic_object_values_update_to_update_object, game_object_values_update_to_update_object,
+    item_values_update_to_update_object, player_values_update_to_update_object,
+    unit_values_update_to_packet, unit_values_update_to_update_object,
 };
 use crate::map_manager::{
     PendingRespawn, RecipientRule, RuntimeEvent, RuntimeOutput, RuntimePlan, RuntimeTickOwner,
@@ -6088,6 +6088,29 @@ impl WorldSession {
         (path_progress << 16) | dyn_flags
     }
 
+    fn represented_gameobject_dynamic_flags_update_like_cpp(
+        guid: ObjectGuid,
+        map_id: u16,
+        dynamic_flags: u32,
+    ) -> Option<wow_packet::packets::update::UpdateObject> {
+        let mut mask = wow_entities::UpdateMask::new(wow_entities::OBJECT_DATA_BITS);
+        mask.set(wow_entities::OBJECT_DATA_PARENT_BIT);
+        mask.set(wow_entities::OBJECT_DATA_DYNAMIC_FLAGS_BIT);
+        let values_update = wow_entities::GameObjectValuesUpdate {
+            changed_object_type_mask: 1 << wow_entities::TYPEID_OBJECT,
+            object_data: Some(wow_entities::ObjectDataUpdate {
+                mask,
+                values: wow_entities::ObjectDataValues {
+                    entry_id: 0,
+                    dynamic_flags,
+                    scale: 0.0,
+                },
+            }),
+            game_object_data: None,
+        };
+        game_object_values_update_to_update_object(guid, map_id, &values_update)
+    }
+
     pub(crate) fn update_visible_gameobjects_like_cpp(&mut self) -> usize {
         let mut sent = 0;
         let visible_guids = self
@@ -6115,43 +6138,13 @@ impl WorldSession {
 
             let dynamic_flags =
                 self.represented_gameobject_dynamic_flags_for_player_like_cpp(access.entry, &state);
-            let packet_update = wow_packet::packets::update::GameObjectDataValuesUpdate {
-                changed_object_type_mask: 1 << wow_entities::TYPEID_OBJECT,
-                object_data: Some(wow_packet::packets::update::ObjectDataValuesUpdate {
-                    changed_object_type_mask: 1 << wow_entities::TYPEID_OBJECT,
-                    object_data_mask: 0x05,
-                    entry_id: 0,
-                    dynamic_flags,
-                    scale: 0.0,
-                }),
-                game_object_data_mask: 0,
-                state_world_effect_ids: Vec::new(),
-                enable_doodad_sets: Vec::new(),
-                enable_doodad_sets_update_mask: None,
-                world_effects: Vec::new(),
-                world_effects_update_mask: None,
-                display_id: 0,
-                spell_visual_id: 0,
-                state_spell_visual_id: 0,
-                spawn_tracking_state_anim_id: 0,
-                spawn_tracking_state_anim_kit_id: 0,
-                created_by: ObjectGuid::EMPTY,
-                guild_guid: ObjectGuid::EMPTY,
-                flags: 0,
-                parent_rotation: [0.0; 4],
-                faction_template: 0,
-                level: 0,
-                state: 0,
-                type_id: 0,
-                percent_health: 0,
-                art_kit: 0,
-                custom_param: 0,
-            };
-            let update = wow_packet::packets::update::UpdateObject::game_object_values_update(
+            let Some(update) = Self::represented_gameobject_dynamic_flags_update_like_cpp(
                 guid,
                 self.player_map_id_like_cpp(),
-                packet_update,
-            );
+                dynamic_flags,
+            ) else {
+                continue;
+            };
             self.send_packet(&update);
             sent += 1;
         }
@@ -27158,42 +27151,12 @@ mod tests {
         map_id: u16,
         dynamic_flags: u32,
     ) -> Vec<u8> {
-        wow_packet::packets::update::UpdateObject::game_object_values_update(
+        WorldSession::represented_gameobject_dynamic_flags_update_like_cpp(
             guid,
             map_id,
-            wow_packet::packets::update::GameObjectDataValuesUpdate {
-                changed_object_type_mask: 1 << wow_entities::TYPEID_OBJECT,
-                object_data: Some(wow_packet::packets::update::ObjectDataValuesUpdate {
-                    changed_object_type_mask: 1 << wow_entities::TYPEID_OBJECT,
-                    object_data_mask: 0x05,
-                    entry_id: 0,
-                    dynamic_flags,
-                    scale: 0.0,
-                }),
-                game_object_data_mask: 0,
-                state_world_effect_ids: Vec::new(),
-                enable_doodad_sets: Vec::new(),
-                enable_doodad_sets_update_mask: None,
-                world_effects: Vec::new(),
-                world_effects_update_mask: None,
-                display_id: 0,
-                spell_visual_id: 0,
-                state_spell_visual_id: 0,
-                spawn_tracking_state_anim_id: 0,
-                spawn_tracking_state_anim_kit_id: 0,
-                created_by: ObjectGuid::EMPTY,
-                guild_guid: ObjectGuid::EMPTY,
-                flags: 0,
-                parent_rotation: [0.0; 4],
-                faction_template: 0,
-                level: 0,
-                state: 0,
-                type_id: 0,
-                percent_health: 0,
-                art_kit: 0,
-                custom_param: 0,
-            },
+            dynamic_flags,
         )
+        .expect("dynamic flags update")
         .to_bytes()
     }
 
