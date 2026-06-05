@@ -55,16 +55,17 @@ use wow_data::{
     CurrencyTypesEntry, CurrencyTypesStore, DISABLE_TYPE_MAP, DisableMgrLikeCpp,
     DisableWorldObjectRefLikeCpp, DungeonEncounterStore, DurabilityCostsStore,
     DurabilityQualityStore, FishingBaseSkillStoreLikeCpp, GameObjectDisplayInfoStore,
-    GameObjectTemplateLifecycleStoreLikeCpp, HeirloomStore, HotfixBlobCache, ImportPriceStores,
-    ItemAppearanceStore, ItemClassStore, ItemCurrencyCostStore, ItemDisenchantLootStore,
-    ItemEffectStore, ItemExtendedCostStore, ItemLimitCategoryConditionStore,
-    ItemLimitCategoryStore, ItemModifiedAppearanceStore, ItemPriceBaseStore,
-    ItemRandomEnchantmentTemplateStore, ItemRandomPropertiesStore, ItemRandomPropertyTemplateEntry,
-    ItemRandomSuffixStore, ItemSearchNameStore, ItemSpecOverrideStore, ItemStatsStore, ItemStore,
-    LfgDungeonsStore, LockStore, MapDifficultyStore, MapDifficultyXConditionStore, MapStore,
-    MountCapabilityStore, MountStore, MountTypeXCapabilityStore, MountXDisplayStore, MovieStore,
-    NpcSpellClickStoreLikeCpp, PhaseGroupStore, PhaseStore, PlayerConditionAuraLikeCpp,
-    PlayerConditionContextLikeCpp, PlayerConditionCountLikeCpp, PlayerConditionPartyStatusLikeCpp,
+    GameObjectTemplateLifecycleStoreLikeCpp, HeirloomEntry, HeirloomStore, HotfixBlobCache,
+    ImportPriceStores, ItemAppearanceStore, ItemClassStore, ItemCurrencyCostStore,
+    ItemDisenchantLootStore, ItemEffectStore, ItemExtendedCostStore,
+    ItemLimitCategoryConditionStore, ItemLimitCategoryStore, ItemModifiedAppearanceStore,
+    ItemPriceBaseStore, ItemRandomEnchantmentTemplateStore, ItemRandomPropertiesStore,
+    ItemRandomPropertyTemplateEntry, ItemRandomSuffixStore, ItemSearchNameStore,
+    ItemSpecOverrideStore, ItemStatsStore, ItemStore, LfgDungeonsStore, LockStore,
+    MapDifficultyStore, MapDifficultyXConditionStore, MapStore, MountCapabilityStore, MountStore,
+    MountTypeXCapabilityStore, MountXDisplayStore, MovieStore, NpcSpellClickStoreLikeCpp,
+    PhaseGroupStore, PhaseStore, PlayerConditionAuraLikeCpp, PlayerConditionContextLikeCpp,
+    PlayerConditionCountLikeCpp, PlayerConditionPartyStatusLikeCpp,
     PlayerConditionQuestKillLikeCpp, PlayerConditionReputationLikeCpp, PlayerConditionSkillLikeCpp,
     PlayerConditionStore, PlayerStatsStore, RandPropPointsStore, SkillLineStore, SkillStore,
     SpellDurationStore, SpellItemEnchantmentStore, SpellMiscStore, SpellRadiusStore,
@@ -1433,6 +1434,13 @@ pub(crate) enum FavoriteAppearanceStateLikeCpp {
     Unchanged,
 }
 
+/// C++ `CollectionMgr::HeirloomData`, represented until the full collection manager owns it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct AccountHeirloomDataLikeCpp {
+    pub(crate) flags: u32,
+    pub(crate) bonus_id: u32,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub(crate) struct AccountItemAppearanceSavePlanLikeCpp {
     pub(crate) appearance_blocks: Vec<(u32, u32)>,
@@ -1446,6 +1454,16 @@ impl AccountItemAppearanceSavePlanLikeCpp {
             && self.favorite_inserts.is_empty()
             && self.favorite_deletes.is_empty()
     }
+}
+
+fn heirloom_bonus_for_flags_like_cpp(heirloom: &HeirloomEntry, flags: u32) -> u32 {
+    for upgrade_level in (0..heirloom.upgrade_item_id.len()).rev() {
+        if flags & (1_u32 << upgrade_level) != 0 {
+            return u32::from(heirloom.upgrade_item_bonus_list_id[upgrade_level]);
+        }
+    }
+
+    0
 }
 
 pub type SharedObjectAccessor = Arc<RwLock<ObjectAccessor>>;
@@ -2632,7 +2650,7 @@ pub struct WorldSession {
     /// C++ `Player::m_SeasonalQuestChanged` represented flag.
     pub(crate) seasonal_quest_changed_like_cpp: bool,
     /// C++ `CollectionMgr::_heirlooms`, represented until account collection runtime is complete.
-    pub(crate) represented_account_heirlooms_like_cpp: BTreeMap<u32, u32>,
+    pub(crate) represented_account_heirlooms_like_cpp: BTreeMap<u32, AccountHeirloomDataLikeCpp>,
     /// C++ `CollectionMgr::_toys`, represented until account collection runtime is complete.
     pub(crate) represented_account_toys_like_cpp: BTreeMap<u32, u32>,
     /// C++ `CollectionMgr::_appearances`, represented until account collection persistence is ported.
@@ -8224,15 +8242,17 @@ impl WorldSession {
     ) {
         self.represented_account_heirlooms_like_cpp.clear();
         for (item_id, flags) in heirloom_rows {
-            if self
-                .heirloom_store
-                .as_ref()
-                .is_some_and(|store| store.get_by_item_id_like_cpp(item_id).is_none())
-            {
-                continue;
-            }
+            let bonus_id = match self.heirloom_store.as_ref() {
+                Some(store) => {
+                    let Some(heirloom) = store.get_by_item_id_like_cpp(item_id) else {
+                        continue;
+                    };
+                    heirloom_bonus_for_flags_like_cpp(heirloom, flags)
+                }
+                None => 0,
+            };
             self.represented_account_heirlooms_like_cpp
-                .insert(item_id, flags);
+                .insert(item_id, AccountHeirloomDataLikeCpp { flags, bonus_id });
         }
     }
 
@@ -8240,18 +8260,26 @@ impl WorldSession {
     pub(crate) fn account_heirloom_rows_like_cpp(&self) -> Vec<(u32, u32)> {
         self.represented_account_heirlooms_like_cpp
             .iter()
-            .map(|(&item_id, &flags)| (item_id, flags))
+            .map(|(&item_id, data)| (item_id, data.flags))
             .collect()
+    }
+
+    /// C++ `CollectionMgr::GetHeirloomBonus`.
+    pub(crate) fn account_heirloom_bonus_like_cpp(&self, item_id: u32) -> u32 {
+        self.represented_account_heirlooms_like_cpp
+            .get(&item_id)
+            .map(|data| data.bonus_id)
+            .unwrap_or(0)
     }
 
     /// C++ `CollectionMgr::GetAccountHeirlooms` full update payload.
     pub(crate) fn account_heirloom_packet_rows_like_cpp(&self) -> Vec<AccountHeirloom> {
         self.represented_account_heirlooms_like_cpp
             .iter()
-            .filter_map(|(&item_id, &flags)| {
+            .filter_map(|(&item_id, data)| {
                 Some(AccountHeirloom {
                     item_id: i32::try_from(item_id).ok()?,
-                    flags,
+                    flags: data.flags,
                 })
             })
             .collect()
@@ -8261,7 +8289,7 @@ impl WorldSession {
     pub(crate) fn account_heirloom_active_player_rows_like_cpp(&self) -> Vec<(i32, u32)> {
         self.represented_account_heirlooms_like_cpp
             .iter()
-            .filter_map(|(&item_id, &flags)| Some((i32::try_from(item_id).ok()?, flags)))
+            .filter_map(|(&item_id, data)| Some((i32::try_from(item_id).ok()?, data.flags)))
             .collect()
     }
 
@@ -8282,7 +8310,7 @@ impl WorldSession {
         }
 
         self.represented_account_heirlooms_like_cpp
-            .insert(item_id, flags);
+            .insert(item_id, AccountHeirloomDataLikeCpp { flags, bonus_id: 0 });
         true
     }
 
@@ -51436,7 +51464,7 @@ mod tests {
             flags: 0,
             legacy_item_id: 0,
             upgrade_item_id: [0; 6],
-            upgrade_item_bonus_list_id: [0; 6],
+            upgrade_item_bonus_list_id: [10, 20, 30, 40, 50, 60],
         }])));
 
         session.load_represented_account_heirlooms_like_cpp([(44_000, 0x03), (44_001, 0x01)]);
@@ -51456,6 +51484,8 @@ mod tests {
             session.account_heirloom_active_player_rows_like_cpp(),
             vec![(44_000, 0x03)]
         );
+        assert_eq!(session.account_heirloom_bonus_like_cpp(44_000), 20);
+        assert_eq!(session.account_heirloom_bonus_like_cpp(44_001), 0);
     }
 
     #[test]
@@ -51481,6 +51511,7 @@ mod tests {
             session.account_heirloom_rows_like_cpp(),
             vec![(44_000, 0x03)]
         );
+        assert_eq!(session.account_heirloom_bonus_like_cpp(44_000), 0);
         assert_eq!(
             session
                 .mutate_canonical_player_like_cpp(|player| {
