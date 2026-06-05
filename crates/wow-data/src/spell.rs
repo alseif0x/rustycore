@@ -65,6 +65,10 @@ pub mod implicit_targets {
     pub const TARGET_DEST_NEARBY_ENTRY_OR_DB: u32 = 142;
 }
 
+pub mod attributes {
+    pub const SPELL_ATTR4_USE_FACING_FROM_SPELL: u32 = 0x8000_0000;
+}
+
 /// Metadata for a spell from Spell.db2 and related tables.
 #[derive(Debug, Clone)]
 pub struct SpellInfo {
@@ -94,7 +98,7 @@ pub struct SpellInfo {
 }
 
 /// Minimal `SpellEffectInfo` fields needed by C++ ConditionMgr validation.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct SpellEffectInfo {
     pub effect_index: u32,
     pub effect: u32,
@@ -104,6 +108,7 @@ pub struct SpellEffectInfo {
     pub effect_misc_value_2: i32,
     /// C++ `SpellEffectEntry::EffectRadiusIndex[0]` / TargetA radius index.
     pub effect_radius_index_1: u32,
+    pub position_facing: f32,
     pub chain_targets: i32,
     pub implicit_target_1: u32,
     pub implicit_target_2: u32,
@@ -302,6 +307,7 @@ SELECT
     CAST(COALESCE(se.EffectMiscValue1, 0) AS SIGNED) as effect_misc_value_1,
     CAST(COALESCE(se.EffectMiscValue2, 0) AS SIGNED) as effect_misc_value_2,
     CAST(COALESCE(se.EffectRadiusIndex1, 0) AS UNSIGNED) as effect_radius_index_1,
+    CAST(COALESCE(se.EffectPosFacing, 0.0) AS DECIMAL(10,4)) as position_facing,
     CAST(COALESCE(se.EffectIndex, 0) AS UNSIGNED) as effect_index,
     CAST(COALESCE(se.EffectChainTargets, 0) AS SIGNED) as effect_chain_targets,
     CAST(COALESCE(se.ImplicitTarget1, 0) AS UNSIGNED) as implicit_target_1,
@@ -330,11 +336,12 @@ ORDER BY sm.ID, se.EffectIndex
                 let effect_misc_value_1: i32 = result.try_read(8).unwrap_or(0);
                 let effect_misc_value_2: i32 = result.try_read(9).unwrap_or(0);
                 let effect_radius_index_1: u32 = result.try_read(10).unwrap_or(0);
-                let effect_index: u32 = result.try_read(11).unwrap_or(0);
-                let effect_chain_targets: i32 = result.try_read(12).unwrap_or(0);
-                let implicit_target_1: u32 = result.try_read(13).unwrap_or(0);
-                let implicit_target_2: u32 = result.try_read(14).unwrap_or(0);
-                let requires_spell_focus: u32 = result.try_read(15).unwrap_or(0);
+                let position_facing: f32 = result.try_read(11).unwrap_or(0.0);
+                let effect_index: u32 = result.try_read(12).unwrap_or(0);
+                let effect_chain_targets: i32 = result.try_read(13).unwrap_or(0);
+                let implicit_target_1: u32 = result.try_read(14).unwrap_or(0);
+                let implicit_target_2: u32 = result.try_read(15).unwrap_or(0);
+                let requires_spell_focus: u32 = result.try_read(16).unwrap_or(0);
 
                 let spell_info = store.spells.entry(spell_id).or_insert_with(|| SpellInfo {
                     spell_id,
@@ -359,6 +366,7 @@ ORDER BY sm.ID, se.EffectIndex
                         effect_misc_value_1,
                         effect_misc_value_2,
                         effect_radius_index_1,
+                        position_facing,
                         chain_targets: effect_chain_targets,
                         implicit_target_1,
                         implicit_target_2,

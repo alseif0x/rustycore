@@ -10750,6 +10750,7 @@ mod tests {
                     chain_targets: 0,
                     implicit_target_1: 0,
                     implicit_target_2: 0,
+                    ..Default::default()
                 }],
             },
         );

@@ -24060,10 +24060,24 @@ impl WorldSession {
             return None;
         }
 
+        let mut focus_position = focus_object.position;
+        if self
+            .spell_misc_store
+            .as_deref()
+            .and_then(|store| store.get_by_spell_id(u32::try_from(spell_id).ok()?))
+            .is_some_and(|misc| {
+                (misc.attributes[4] as u32
+                    & wow_data::spell::attributes::SPELL_ATTR4_USE_FACING_FROM_SPELL)
+                    != 0
+            })
+        {
+            focus_position.orientation = effect.position_facing;
+        }
+
         let mut target_data = target_data.clone();
         target_data.dst_location = Some(wow_packet::packets::spell::TargetLocation {
             transport: ObjectGuid::EMPTY,
-            position: focus_object.position,
+            position: focus_position,
         });
         Some(target_data)
     }
@@ -29773,6 +29787,95 @@ mod tests {
         assert!(
             update_object_packet_count_like_cpp(&packets) >= 1,
             "focus-destination slotted summon should trigger represented visibility create/update delivery"
+        );
+    }
+
+    #[tokio::test]
+    async fn focus_implicit_destination_uses_effect_facing_when_spell_attr4_requests_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 710_i32;
+        let template_entry = 9014_u32;
+        let player_guid = ObjectGuid::create_player(1, 7014);
+        let focus_guid = test_gameobject_guid(9015, 7015);
+        let player_position = Position::new(200.0, 300.0, 40.0, 0.0);
+        let focus_position = Position::new(204.0, 302.0, 40.5, 2.8);
+        let effect_position_facing = 0.625;
+        let canonical = shared_canonical_map_manager();
+        let mut summon_effect =
+            summon_object_wild_effect_like_cpp(i32::try_from(template_entry).unwrap());
+        summon_effect.implicit_target_1 =
+            wow_data::spell::implicit_targets::TARGET_DEST_NEARBY_ENTRY_OR_DB;
+        summon_effect.position_facing = effect_position_facing;
+        configure_gameobject_summon_live_session_like_cpp(
+            &mut session,
+            &canonical,
+            player_guid,
+            player_position,
+            summon_go_template_store_like_cpp(template_entry),
+            gameobject_summon_spell_info_like_cpp(spell_id, 181, vec![summon_effect]),
+        );
+        let mut misc = summon_go_spell_misc_entry_like_cpp(spell_id as u32, 0);
+        misc.attributes[4] = wow_data::spell::attributes::SPELL_ATTR4_USE_FACING_FROM_SPELL as i32;
+        session.set_spell_misc_store(Arc::new(wow_data::SpellMiscStore::from_entries([misc])));
+        add_canonical_spell_focus_gameobject_on_map_like_cpp(
+            &canonical,
+            focus_guid,
+            9_015,
+            181,
+            10,
+            focus_position,
+            571,
+            0,
+        );
+
+        session
+            .execute_spell_with_visual_and_target_data(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual {
+                    spell_visual_id: 710,
+                    script_visual_id: 0,
+                },
+                SpellTargetData::default(),
+            )
+            .await
+            .expect("focus implicit destination with facing attr should execute");
+
+        let manager = canonical.lock().unwrap();
+        let managed = manager.find_map(571, 0).expect("canonical map");
+        let summoned_guid = session
+            .client_visible_guids_like_cpp
+            .iter()
+            .copied()
+            .filter(ObjectGuid::is_game_object)
+            .find(|guid| {
+                managed
+                    .map()
+                    .get_typed_game_object(*guid)
+                    .is_some_and(|go| go.world().object().entry() == template_entry)
+            })
+            .expect("focus-destination summon should be visible");
+        let summoned = managed
+            .map()
+            .get_typed_game_object(summoned_guid)
+            .expect("summoned GO should be map-owned");
+        assert_eq!(
+            summoned.world().position(),
+            Position::new(
+                focus_position.x,
+                focus_position.y,
+                focus_position.z,
+                effect_position_facing
+            ),
+            "C++ SPELL_ATTR4_USE_FACING_FROM_SPELL overrides focusObject destination orientation with SpellEffectInfo::PositionFacing"
+        );
+        drop(manager);
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert!(
+            update_object_packet_count_like_cpp(&packets) >= 1,
+            "focus-destination summon should trigger represented visibility create/update delivery"
         );
     }
 
