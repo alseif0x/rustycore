@@ -8264,6 +8264,34 @@ impl WorldSession {
         ));
     }
 
+    /// C++ `CollectionMgr::AddHeirloom` / `UpdateAccountHeirlooms`.
+    pub(crate) fn add_account_heirloom_like_cpp(&mut self, item_id: u32, flags: u32) -> bool {
+        if self
+            .represented_account_heirlooms_like_cpp
+            .contains_key(&item_id)
+        {
+            return false;
+        }
+
+        self.represented_account_heirlooms_like_cpp
+            .insert(item_id, flags);
+        true
+    }
+
+    /// C++ `Player::AddHeirloom`, called from `CollectionMgr::AddHeirloom`
+    /// after the account collection accepts a new heirloom.
+    pub(crate) fn add_player_heirloom_dynamic_fields_like_cpp(
+        &mut self,
+        item_id: u32,
+        flags: u32,
+    ) -> Option<wow_entities::PlayerValuesUpdate> {
+        let item_id = i32::try_from(item_id).ok()?;
+        self.mutate_canonical_player_like_cpp(|player| {
+            player.add_heirloom_like_cpp(item_id, flags);
+            player.values_update(true)
+        })
+    }
+
     /// C++ `CollectionMgr::LoadAccountToys`.
     pub(crate) fn load_represented_account_toys_like_cpp(
         &mut self,
@@ -51407,6 +51435,58 @@ mod tests {
                 item_id: 44_000,
                 flags: 0x03,
             }]
+        );
+    }
+
+    #[test]
+    fn add_account_heirloom_and_player_dynamic_fields_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 77);
+        let player_position = Position::new(10.0, 0.0, 0.0, 0.0);
+
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
+        session.mutate_canonical_player_like_cpp(|player| player.clear_data_changes());
+
+        assert!(session.add_account_heirloom_like_cpp(44_000, 0x03));
+        assert!(!session.add_account_heirloom_like_cpp(44_000, 0x04));
+        let update = session
+            .add_player_heirloom_dynamic_fields_like_cpp(44_000, 0x03)
+            .expect("canonical current player should receive Player::AddHeirloom dynamic fields");
+
+        assert_eq!(
+            session.account_heirloom_rows_like_cpp(),
+            vec![(44_000, 0x03)]
+        );
+        assert_eq!(
+            session
+                .mutate_canonical_player_like_cpp(|player| {
+                    (
+                        player.heirlooms_like_cpp().to_vec(),
+                        player.heirloom_flags_like_cpp().to_vec(),
+                    )
+                })
+                .unwrap(),
+            (vec![44_000], vec![0x03])
+        );
+        assert!(
+            update
+                .active_player_data
+                .as_ref()
+                .unwrap()
+                .mask
+                .is_set(wow_entities::ACTIVE_PLAYER_DATA_HEIRLOOMS_BIT)
+        );
+        assert!(
+            update
+                .active_player_data
+                .as_ref()
+                .unwrap()
+                .mask
+                .is_set(wow_entities::ACTIVE_PLAYER_DATA_HEIRLOOM_FLAGS_BIT)
         );
     }
 

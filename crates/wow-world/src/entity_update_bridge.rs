@@ -851,6 +851,10 @@ fn active_player_data_update_to_packet(
         .copy_from_slice(&update.values.inv_slots);
     packet_update.buyback_price = update.values.buyback_price;
     packet_update.buyback_timestamp = update.values.buyback_timestamp;
+    packet_update.heirlooms = update.values.heirlooms.clone();
+    packet_update.heirlooms_update_mask = update.values.heirlooms_update_mask.clone();
+    packet_update.heirloom_flags = update.values.heirloom_flags.clone();
+    packet_update.heirloom_flags_update_mask = update.values.heirloom_flags_update_mask.clone();
     packet_update.toys = update.values.toys.clone();
     packet_update.toys_update_mask = update.values.toys_update_mask.clone();
     packet_update.transmog = update.values.transmog.clone();
@@ -882,7 +886,8 @@ mod tests {
     use super::*;
     use wow_core::ObjectGuid;
     use wow_entities::{
-        ACTIVE_PLAYER_DATA_COINAGE_BIT, ACTIVE_PLAYER_DATA_HONOR_BIT,
+        ACTIVE_PLAYER_DATA_COINAGE_BIT, ACTIVE_PLAYER_DATA_HEIRLOOM_FLAGS_BIT,
+        ACTIVE_PLAYER_DATA_HEIRLOOMS_BIT, ACTIVE_PLAYER_DATA_HONOR_BIT,
         ACTIVE_PLAYER_DATA_HONOR_NEXT_LEVEL_BIT, ACTIVE_PLAYER_DATA_HONOR_PARENT_BIT,
         ACTIVE_PLAYER_DATA_PARENT_BIT, ACTIVE_PLAYER_DATA_QUEST_COMPLETED_FIRST_BIT,
         ACTIVE_PLAYER_DATA_QUEST_COMPLETED_PARENT_BIT, ACTIVE_PLAYER_DATA_TOYS_BIT,
@@ -980,6 +985,35 @@ mod tests {
         ));
         assert_eq!(active.honor, 1_234);
         assert_eq!(active.honor_next_level, 8_800);
+    }
+
+    #[test]
+    fn bridges_active_player_heirloom_dynamic_fields_like_cpp() {
+        let mut player = Player::new(Some(7), true);
+        player.clear_data_changes();
+
+        player.add_heirloom_like_cpp(44_000, 0x03);
+
+        let update = player.values_update(true);
+        let packet_update = player_values_update_to_packet(&update).unwrap();
+        let active = packet_update.active_player_data.unwrap();
+
+        assert!(mask_has(
+            &active.active_player_data_mask,
+            ACTIVE_PLAYER_DATA_PARENT_BIT
+        ));
+        assert!(mask_has(
+            &active.active_player_data_mask,
+            ACTIVE_PLAYER_DATA_HEIRLOOMS_BIT
+        ));
+        assert!(mask_has(
+            &active.active_player_data_mask,
+            ACTIVE_PLAYER_DATA_HEIRLOOM_FLAGS_BIT
+        ));
+        assert_eq!(active.heirlooms, vec![44_000]);
+        assert_eq!(active.heirlooms_update_mask, Some(vec![1]));
+        assert_eq!(active.heirloom_flags, vec![0x03]);
+        assert_eq!(active.heirloom_flags_update_mask, Some(vec![1]));
     }
 
     #[test]
