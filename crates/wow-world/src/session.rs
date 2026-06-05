@@ -24148,6 +24148,19 @@ impl WorldSession {
                         );
                     }
                 }
+                x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL_MECHANICAL => {
+                    if let Ok(heal_amount) = u32::try_from(direct_effect_base_points) {
+                        self.apply_heal(target_guid, heal_amount).await?;
+                    } else {
+                        debug!(
+                            account = self.account_id,
+                            spell_id,
+                            effect_index = direct_effect_index,
+                            effect_base_points = direct_effect_base_points,
+                            "Skipping SPELL_EFFECT_HEAL_MECHANICAL because C++ EffectHealMechanical returns when damage < 0"
+                        );
+                    }
+                }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL_MAX_HEALTH => {
                     self.apply_heal_max_health_like_cpp(direct_effect_base_points, target_guid)
                         .await?;
@@ -24259,6 +24272,7 @@ impl WorldSession {
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_ENVIRONMENTAL_DAMAGE
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL
+                || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL_MECHANICAL
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL_MAX_HEALTH
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL_PCT
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEALTH_LEECH
@@ -41632,6 +41646,133 @@ mod tests {
         let opcodes = drain_server_opcodes(&send_rx);
         assert_eq!(
             opcodes,
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_heal_mechanical_effect_row_heals_player_like_cpp_without_type_gate() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 742_i32;
+        let player_guid = ObjectGuid::create_player(1, 59);
+        session.set_player_guid(Some(player_guid));
+        session.set_player_health_like_cpp(40, 100);
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL_MECHANICAL,
+                    effect_base_points: 35,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("represented mechanical heal effect row should execute");
+
+        assert_eq!(session.player_health_like_cpp(), 75);
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![
+                ServerOpcodes::SpellGo,
+                ServerOpcodes::UpdateObject,
+                ServerOpcodes::CooldownEvent,
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn primary_heal_mechanical_heals_player_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 743_i32;
+        let player_guid = ObjectGuid::create_player(1, 60);
+        session.set_player_guid(Some(player_guid));
+        session.set_player_health_like_cpp(25, 80);
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL_MECHANICAL,
+                effect_base_points: 30,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: Vec::new(),
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("represented primary mechanical heal should execute");
+
+        assert_eq!(session.player_health_like_cpp(), 55);
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![
+                ServerOpcodes::SpellGo,
+                ServerOpcodes::UpdateObject,
+                ServerOpcodes::CooldownEvent,
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_heal_mechanical_negative_amount_is_noop_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 744_i32;
+        let player_guid = ObjectGuid::create_player(1, 61);
+        session.set_player_guid(Some(player_guid));
+        session.set_player_health_like_cpp(50, 100);
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL_MECHANICAL,
+                effect_base_points: -10,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: Vec::new(),
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("negative represented mechanical heal should execute as C++ no-op effect");
+
+        assert_eq!(session.player_health_like_cpp(), 50);
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
             vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
         );
     }
