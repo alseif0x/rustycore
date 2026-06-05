@@ -63,6 +63,7 @@ pub const UNIT_DATA_POWER_FIRST_BIT: usize = 137;
 pub const UNIT_DATA_MAX_POWER_FIRST_BIT: usize = 147;
 pub const UNIT_DATA_VIRTUAL_ITEMS_PARENT_BIT: usize = 167;
 pub const UNIT_DATA_VIRTUAL_ITEMS_FIRST_BIT: usize = 168;
+pub const UNIT_DATA_WILD_BATTLE_PET_LEVEL_BIT: usize = 99;
 
 pub const BASE_MOVE_SPEED: [f32; MAX_MOVE_TYPE] =
     [2.5, 7.0, 4.5, 4.722222, 2.5, 3.141594, 7.0, 4.5, 3.14];
@@ -96,6 +97,7 @@ pub struct UnitDataValues {
     pub pvp_flags: u8,
     pub pet_flags: u8,
     pub shapeshift_form: u8,
+    pub wild_battle_pet_level: i32,
     pub npc_flags: [u32; 2],
     pub power: [i32; MAX_POWERS_PER_CLASS],
     pub max_power: [i32; MAX_POWERS_PER_CLASS],
@@ -132,6 +134,7 @@ impl Default for UnitDataValues {
             pvp_flags: 0,
             pet_flags: 0,
             shapeshift_form: ShapeShiftForm::None as u8,
+            wild_battle_pet_level: 0,
             npc_flags: [0; 2],
             power: [0; MAX_POWERS_PER_CLASS],
             max_power: [0; MAX_POWERS_PER_CLASS],
@@ -1753,6 +1756,12 @@ impl Unit {
         if value < current {
             self.set_health(value);
         }
+    }
+
+    pub fn set_wild_battle_pet_level_like_cpp(&mut self, level: u32) {
+        self.set_i32_field(UNIT_DATA_WILD_BATTLE_PET_LEVEL_BIT, level as i32, |data| {
+            &mut data.wild_battle_pet_level
+        });
     }
 
     pub fn set_power_index(&mut self, power: PowerType, index: Option<usize>) {

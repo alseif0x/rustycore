@@ -668,12 +668,14 @@ pub const PLAYER_DATA_FLAGS_EX_BIT: usize = 8;
 pub const PLAYER_DATA_NUM_BANK_SLOTS_BIT: usize = 12;
 pub const PLAYER_DATA_NATIVE_SEX_BIT: usize = 13;
 pub const PLAYER_DATA_CURRENT_SPEC_ID_BIT: usize = 24;
+pub const PLAYER_DATA_CURRENT_BATTLE_PET_BREED_QUALITY_BIT: usize = 26;
 pub const PLAYER_DATA_HONOR_LEVEL_BIT: usize = 27;
 pub const PLAYER_DATA_VISIBLE_ITEMS_PARENT_BIT: usize = 61;
 pub const PLAYER_DATA_VISIBLE_ITEMS_FIRST_BIT: usize = 62;
 
 pub const ACTIVE_PLAYER_DATA_PARENT_BIT: usize = 0;
 pub const ACTIVE_PLAYER_DATA_FARSIGHT_OBJECT_BIT: usize = 26;
+pub const ACTIVE_PLAYER_DATA_SUMMONED_BATTLE_PET_GUID_BIT: usize = 27;
 pub const ACTIVE_PLAYER_DATA_COINAGE_BIT: usize = 28;
 pub const ACTIVE_PLAYER_DATA_XP_BIT: usize = 29;
 pub const ACTIVE_PLAYER_DATA_NEXT_LEVEL_XP_BIT: usize = 30;
@@ -2717,6 +2719,7 @@ pub struct PlayerDataValues {
     pub num_bank_slots: u8,
     pub native_sex: u8,
     pub current_spec_id: u32,
+    pub current_battle_pet_breed_quality: u8,
     pub honor_level: i32,
     pub visible_items: [VisibleItemValues; EQUIPMENT_SLOT_END as usize],
 }
@@ -2730,6 +2733,7 @@ impl Default for PlayerDataValues {
             num_bank_slots: 0,
             native_sex: Gender::Male as u8,
             current_spec_id: 0,
+            current_battle_pet_breed_quality: 0,
             honor_level: 0,
             visible_items: [VisibleItemValues::default(); EQUIPMENT_SLOT_END as usize],
         }
@@ -2739,6 +2743,7 @@ impl Default for PlayerDataValues {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ActivePlayerDataValues {
     pub farsight_object: ObjectGuid,
+    pub summoned_battle_pet_guid: ObjectGuid,
     pub coinage: u64,
     pub xp: i32,
     pub next_level_xp: i32,
@@ -2767,6 +2772,7 @@ impl Default for ActivePlayerDataValues {
     fn default() -> Self {
         Self {
             farsight_object: ObjectGuid::EMPTY,
+            summoned_battle_pet_guid: ObjectGuid::EMPTY,
             coinage: 0,
             xp: 0,
             next_level_xp: 0,
@@ -3305,6 +3311,14 @@ impl Player {
         });
     }
 
+    pub fn set_current_battle_pet_breed_quality_like_cpp(&mut self, quality: u8) {
+        self.set_player_u8(
+            PLAYER_DATA_CURRENT_BATTLE_PET_BREED_QUALITY_BIT,
+            quality,
+            |data| &mut data.current_battle_pet_breed_quality,
+        );
+    }
+
     pub fn set_honor_level_like_cpp(&mut self, level: i32) {
         self.set_player_i32(PLAYER_DATA_HONOR_LEVEL_BIT, level, |data| {
             &mut data.honor_level
@@ -3356,6 +3370,25 @@ impl Player {
         });
         self.unit_mut()
             .set_seer_can_always_see_target_guid_like_cpp(guid);
+    }
+
+    pub fn set_summoned_battle_pet_guid_like_cpp(&mut self, guid: ObjectGuid) {
+        self.set_active_guid(
+            ACTIVE_PLAYER_DATA_SUMMONED_BATTLE_PET_GUID_BIT,
+            guid,
+            |data| &mut data.summoned_battle_pet_guid,
+        );
+    }
+
+    pub fn set_battle_pet_data_like_cpp(&mut self, pet_guid: ObjectGuid, quality: u8, level: u16) {
+        self.set_summoned_battle_pet_guid_like_cpp(pet_guid);
+        self.set_current_battle_pet_breed_quality_like_cpp(quality);
+        self.unit_mut()
+            .set_wild_battle_pet_level_like_cpp(u32::from(level));
+    }
+
+    pub fn clear_battle_pet_data_like_cpp(&mut self) {
+        self.set_battle_pet_data_like_cpp(ObjectGuid::EMPTY, 0, 0);
     }
 
     pub fn sync_farsight_visibility_detection_like_cpp(&mut self) {
@@ -12492,6 +12525,45 @@ mod tests {
             (1 << TYPEID_PLAYER) | (1 << TYPEID_ACTIVE_PLAYER)
         );
         assert!(self_view.active_player_data.is_some());
+    }
+
+    #[test]
+    fn set_battle_pet_data_marks_cpp_player_active_and_unit_fields() {
+        let mut player = Player::new(None, false);
+        let pet_guid = ObjectGuid::create_global(wow_core::guid::HighGuid::BattlePet, 0, 42);
+        player.clear_data_changes();
+
+        player.set_battle_pet_data_like_cpp(pet_guid, 3, 17);
+
+        assert_eq!(player.active_data().summoned_battle_pet_guid, pet_guid);
+        assert_eq!(player.data().current_battle_pet_breed_quality, 3);
+        assert_eq!(player.unit().data().wild_battle_pet_level, 17);
+        assert!(
+            player
+                .active_player_data_changes_mask()
+                .is_set(ACTIVE_PLAYER_DATA_PARENT_BIT)
+        );
+        assert!(
+            player
+                .active_player_data_changes_mask()
+                .is_set(ACTIVE_PLAYER_DATA_SUMMONED_BATTLE_PET_GUID_BIT)
+        );
+        assert!(
+            player
+                .player_data_changes_mask()
+                .is_set(PLAYER_DATA_PARENT_BIT)
+        );
+        assert!(
+            player
+                .player_data_changes_mask()
+                .is_set(PLAYER_DATA_CURRENT_BATTLE_PET_BREED_QUALITY_BIT)
+        );
+        assert!(
+            player
+                .unit()
+                .unit_data_changes_mask()
+                .is_set(crate::UNIT_DATA_WILD_BATTLE_PET_LEVEL_BIT)
+        );
     }
 
     #[test]

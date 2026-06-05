@@ -335,6 +335,7 @@ fn copy_player_data_update(
     packet_update.num_bank_slots = update.values.num_bank_slots;
     packet_update.native_sex = update.values.native_sex;
     packet_update.current_spec_id = update.values.current_spec_id;
+    packet_update.current_battle_pet_breed_quality = update.values.current_battle_pet_breed_quality;
     packet_update.honor_level = update.values.honor_level;
 
     for (dst, src) in packet_update
@@ -382,6 +383,7 @@ fn unit_data_update_to_packet(update: &UnitDataUpdate) -> UnitDataValuesDeltaUpd
     packet_update.pvp_flags = update.values.pvp_flags;
     packet_update.pet_flags = update.values.pet_flags;
     packet_update.shapeshift_form = update.values.shapeshift_form;
+    packet_update.wild_battle_pet_level = update.values.wild_battle_pet_level;
     packet_update.power = update.values.power;
     packet_update.max_power = update.values.max_power;
 
@@ -846,6 +848,7 @@ fn active_player_data_update_to_packet(
     packet_update.watched_faction_index = update.values.watched_faction_index;
     packet_update.num_backpack_slots = update.values.num_backpack_slots;
     packet_update.farsight_object = update.values.farsight_object;
+    packet_update.summoned_battle_pet_guid = update.values.summoned_battle_pet_guid;
     packet_update
         .inv_slots
         .copy_from_slice(&update.values.inv_slots);

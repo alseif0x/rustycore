@@ -18047,17 +18047,21 @@ impl WorldSession {
 
     /// C++ `BattlePetMgr::UpdateBattlePetData`, represented at the gate level.
     pub(crate) fn battle_pet_update_notify_like_cpp(&mut self, pet_guid: ObjectGuid) -> bool {
-        if !self
+        let Some(pet) = self
             .represented_battle_pets_like_cpp
-            .contains_key(&pet_guid)
-        {
+            .get(&pet_guid)
+            .cloned()
+        else {
             return false;
-        }
+        };
 
         if self.represented_summoned_battle_pet_guid_like_cpp != Some(pet_guid) {
             return false;
         }
 
+        let _ = self.mutate_canonical_player_like_cpp(|player| {
+            player.set_battle_pet_data_like_cpp(pet_guid, pet.quality, pet.level);
+        });
         self.represented_battle_pet_data_updates_like_cpp
             .push(pet_guid);
         true
@@ -52913,6 +52917,79 @@ mod tests {
             session.represented_battle_pet_data_updates_like_cpp(),
             &[pet_guid]
         );
+    }
+
+    #[test]
+    fn battle_pet_update_notify_sets_canonical_player_pet_data_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let canonical = Arc::new(std::sync::Mutex::new(wow_map::MapManager::new(60_000, 1)));
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x132);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+            },
+        ])));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "PetOwner".to_string(),
+            Position::new(10.0, 20.0, 30.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session
+            .ensure_canonical_world_map_for_current_player_like_cpp()
+            .expect("canonical player map");
+        session.add_represented_battle_pet_packet_info_like_cpp(
+            pet_guid,
+            RepresentedBattlePetDataLikeCpp {
+                species: 11,
+                creature_id: 22,
+                display_id: 33,
+                breed: 44,
+                level: 17,
+                exp: 0,
+                flags: 0,
+                power: 0,
+                health: 0,
+                max_health: 0,
+                speed: 0,
+                quality: 3,
+                owner_info: None,
+                name: String::new(),
+                save_info: RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+            },
+        );
+        assert!(session.battle_pet_summon_toggle_like_cpp(pet_guid));
+
+        assert!(session.battle_pet_update_notify_like_cpp(pet_guid));
+
+        let (summoned_guid, quality, level, player_mask, active_mask, unit_mask) = session
+            .mutate_canonical_player_like_cpp(|player| {
+                (
+                    player.active_data().summoned_battle_pet_guid,
+                    player.data().current_battle_pet_breed_quality,
+                    player.unit().data().wild_battle_pet_level,
+                    player.player_data_changes_mask().clone(),
+                    player.active_player_data_changes_mask().clone(),
+                    player.unit().unit_data_changes_mask().clone(),
+                )
+            })
+            .expect("canonical player");
+        assert_eq!(summoned_guid, pet_guid);
+        assert_eq!(quality, 3);
+        assert_eq!(level, 17);
+        assert!(player_mask.is_set(wow_entities::PLAYER_DATA_CURRENT_BATTLE_PET_BREED_QUALITY_BIT));
+        assert!(active_mask.is_set(wow_entities::ACTIVE_PLAYER_DATA_SUMMONED_BATTLE_PET_GUID_BIT));
+        assert!(unit_mask.is_set(wow_entities::UNIT_DATA_WILD_BATTLE_PET_LEVEL_BIT));
     }
 
     #[test]
