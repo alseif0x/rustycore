@@ -24176,6 +24176,9 @@ impl WorldSession {
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_BLOCK => {
                     self.apply_block_effect_like_cpp()?;
                 }
+                x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_GIVE_HONOR => {
+                    self.apply_give_honor_effect_like_cpp(direct_effect_base_points, target_guid)?;
+                }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_QUEST_COMPLETE => {
                     self.apply_quest_complete_effect_like_cpp(
                         target_guid,
@@ -24290,6 +24293,7 @@ impl WorldSession {
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_DUAL_WIELD
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_PARRY
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_BLOCK
+                || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_GIVE_HONOR
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_QUEST_COMPLETE
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_KILL_CREDIT
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_KILL_CREDIT2
@@ -25503,6 +25507,29 @@ impl WorldSession {
             player.unit_mut().set_can_block_like_cpp(true);
         });
 
+        Ok(())
+    }
+
+    fn apply_give_honor_effect_like_cpp(
+        &mut self,
+        damage: i32,
+        target_guid: ObjectGuid,
+    ) -> Result<(), &'static str> {
+        let player_guid = self.player_guid().ok_or("No player GUID")?;
+        if target_guid != player_guid {
+            return Ok(());
+        }
+
+        // C++ `Spell::EffectGiveHonor` sets only `Honor` and `OriginalHonor`
+        // before `SendDirectMessage(packet.Write())`; `Target` and `Rank`
+        // remain default-initialized. `Player::AddHonorXP` itself is still
+        // unrepresented until Rust owns honor progression/update fields.
+        self.send_packet(&wow_packet::packets::combat::PvpCredit {
+            original_honor: damage,
+            honor: damage,
+            target: ObjectGuid::EMPTY,
+            rank: 0,
+        });
         Ok(())
     }
 
@@ -42495,6 +42522,112 @@ mod tests {
                 ServerOpcodes::QuestUpdateComplete,
                 ServerOpcodes::CooldownEvent,
             ]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_give_honor_effect_row_sends_pvp_credit_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 747_i32;
+        let player_guid = ObjectGuid::create_player(1, 64);
+        session.set_player_guid(Some(player_guid));
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_GIVE_HONOR,
+                    effect_base_points: 25,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("represented give-honor spell row should execute");
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        let opcodes: Vec<_> = packets
+            .iter()
+            .filter_map(|bytes| wow_packet::WorldPacket::from_bytes(bytes).server_opcode())
+            .collect();
+        assert_eq!(
+            opcodes,
+            vec![
+                ServerOpcodes::SpellGo,
+                ServerOpcodes::PvpCredit,
+                ServerOpcodes::CooldownEvent,
+            ]
+        );
+        let mut credit = wow_packet::WorldPacket::from_bytes(&packets[1]);
+        assert_eq!(
+            credit.read_uint16().expect("opcode"),
+            ServerOpcodes::PvpCredit as u16
+        );
+        assert_eq!(credit.read_int32().expect("OriginalHonor"), 25);
+        assert_eq!(credit.read_int32().expect("Honor"), 25);
+        assert_eq!(
+            credit.read_packed_guid().expect("Target"),
+            ObjectGuid::EMPTY,
+            "C++ EffectGiveHonor leaves PvPCredit.Target default-initialized"
+        );
+        assert_eq!(credit.read_int32().expect("Rank"), 0);
+        assert!(credit.is_empty());
+    }
+
+    #[tokio::test]
+    async fn spell_give_honor_effect_row_requires_current_player_target_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 748_i32;
+        let player_guid = ObjectGuid::create_player(1, 65);
+        let other_player_guid = ObjectGuid::create_player(1, 66);
+        session.set_player_guid(Some(player_guid));
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_GIVE_HONOR,
+                    effect_base_points: 25,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, other_player_guid)
+            .await
+            .expect("represented give-honor non-current player target should no-op");
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
         );
     }
 

@@ -278,6 +278,34 @@ impl ServerPacket for EnvironmentalDamageLog {
     }
 }
 
+// ── PvPCredit (SMSG_PVP_CREDIT) ──────────────────────────────────
+
+/// Direct honor-credit packet emitted by C++ `Spell::EffectGiveHonor` after
+/// `Player::AddHonorXP`.
+///
+/// C++ anchor: `WorldPackets::Combat::PvPCredit::Write` writes
+/// `int32(OriginalHonor)`, `int32(Honor)`, `ObjectGuid Target`, then
+/// `int32(Rank)`. The C++ `ObjectGuid` stream operator uses the packed GUID
+/// format in `ObjectGuid.cpp`.
+#[derive(Debug, Clone)]
+pub struct PvpCredit {
+    pub original_honor: i32,
+    pub honor: i32,
+    pub target: ObjectGuid,
+    pub rank: i32,
+}
+
+impl ServerPacket for PvpCredit {
+    const OPCODE: ServerOpcodes = ServerOpcodes::PvpCredit;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_int32(self.original_honor);
+        pkt.write_int32(self.honor);
+        pkt.write_packed_guid(&self.target);
+        pkt.write_int32(self.rank);
+    }
+}
+
 // ── AttackSwingError (SMSG_ATTACK_SWING_ERROR) ───────────────────
 
 #[derive(Debug, Clone)]
@@ -415,6 +443,29 @@ mod tests {
         assert_eq!(pkt.read_int32().expect("resisted"), 0);
         assert_eq!(pkt.read_int32().expect("absorbed"), 0);
         assert!(!pkt.has_bit().expect("has log data"));
+        assert!(pkt.is_empty());
+    }
+
+    #[test]
+    fn pvp_credit_writes_cpp_field_order_like_cpp() {
+        let target = ObjectGuid::create_player(1, 0x0102_0304_0506_0708);
+        let bytes = PvpCredit {
+            original_honor: 42,
+            honor: 40,
+            target,
+            rank: 7,
+        }
+        .to_bytes();
+
+        let mut pkt = WorldPacket::from_bytes(&bytes);
+        assert_eq!(
+            pkt.read_uint16().expect("opcode"),
+            ServerOpcodes::PvpCredit as u16
+        );
+        assert_eq!(pkt.read_int32().expect("OriginalHonor"), 42);
+        assert_eq!(pkt.read_int32().expect("Honor"), 40);
+        assert_eq!(pkt.read_packed_guid().expect("Target"), target);
+        assert_eq!(pkt.read_int32().expect("Rank"), 7);
         assert!(pkt.is_empty());
     }
 

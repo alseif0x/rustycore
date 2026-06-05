@@ -138,6 +138,7 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_TAKE_SCREENSHOT: u32 = 250;
     pub const SPELL_EFFECT_SET_GARRISON_CACHE_SIZE: u32 = 251;
     pub const SPELL_EFFECT_TELEPORT_UNITS: u32 = 252;
+    pub const SPELL_EFFECT_GIVE_HONOR: u32 = 253;
     pub const SPELL_EFFECT_256: u32 = 256;
     pub const SPELL_EFFECT_257: u32 = 257;
     pub const SPELL_EFFECT_MODIFY_KEYSTONE: u32 = 258;
@@ -1202,6 +1203,8 @@ mod tests {
             spell_effect_types::SPELL_EFFECT_SET_GARRISON_CACHE_SIZE,
             251
         );
+        assert_eq!(spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS, 252);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_GIVE_HONOR, 253);
         assert_eq!(spell_effect_types::SPELL_EFFECT_256, 256);
         assert_eq!(spell_effect_types::SPELL_EFFECT_257, 257);
         assert_eq!(spell_effect_types::SPELL_EFFECT_MODIFY_KEYSTONE, 258);
@@ -1439,7 +1442,21 @@ mod tests {
             spell_effect_types::SPELL_EFFECT_QUEST_COMPLETE
         ));
         for real_handler_effect in [
-            243, 245, 252, 253, 254, 255, 284, 286, 289, 290, 291, 292, 293, 303, 304,
+            243,
+            245,
+            spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS,
+            spell_effect_types::SPELL_EFFECT_GIVE_HONOR,
+            254,
+            255,
+            284,
+            286,
+            289,
+            290,
+            291,
+            292,
+            293,
+            303,
+            304,
         ] {
             assert!(
                 !spell_effect_types::is_cpp_null_or_unused_noop(real_handler_effect),
