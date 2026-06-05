@@ -8589,6 +8589,35 @@ impl WorldSession {
             return;
         }
 
+        let destroyed_entry_id = item.entry_id;
+        if self
+            .destroy_direct_inventory_full_stack_like_cpp(slot, item, runtime_item, "DestroyItem")
+            .await
+        {
+            info!(
+                "Destroyed item entry={} at slot {} for {:?}",
+                destroyed_entry_id, slot, player_guid
+            );
+        }
+    }
+
+    /// C++ `Player::DestroyItem(..., update=true)` for a direct inventory full-stack item.
+    pub(crate) async fn destroy_direct_inventory_full_stack_like_cpp(
+        &mut self,
+        slot: u8,
+        item: crate::session::InventoryItem,
+        runtime_item: Option<wow_entities::Item>,
+        context: &str,
+    ) -> bool {
+        let player_guid = match self.player_guid() {
+            Some(guid) => guid,
+            None => return false,
+        };
+        let char_db = match self.char_db() {
+            Some(db) => Arc::clone(db),
+            None => return false,
+        };
+
         let mut tx = SqlTransaction::new();
         let should_expire_refund = runtime_item
             .as_ref()
@@ -8609,11 +8638,11 @@ impl WorldSession {
         tx.append(del_item);
 
         if let Err(e) = char_db.commit_transaction(tx).await {
-            warn!("DestroyItem: delete transaction failed: {e}");
+            warn!("{context}: delete transaction failed: {e}");
             self.send_packet(&InventoryChangeFailure::error(
                 InventoryResult::InternalBagError,
             ));
-            return;
+            return false;
         }
 
         self.remove_inventory_item_like_cpp(slot);
@@ -8626,7 +8655,6 @@ impl WorldSession {
             });
         }
 
-        // Send VALUES update to clear the slot
         let inv_slot_changes = vec![(slot, ObjectGuid::EMPTY)];
         let mut visible_item_changes = Vec::new();
         let mut virtual_item_changes = Vec::new();
@@ -8634,7 +8662,7 @@ impl WorldSession {
         if (slot as usize) < 19 {
             visible_item_changes.push((slot, 0i32, 0u16, 0u16));
         }
-        if slot >= 15 && slot <= 17 {
+        if (15..=17).contains(&slot) {
             virtual_item_changes.push((slot - 15, 0i32, 0u16, 0u16));
         }
 
@@ -8646,15 +8674,11 @@ impl WorldSession {
             None,
         );
 
-        // If destroyed item was in a gear slot (0-18), recalculate stats
         if slot < 19 {
             self.send_stat_update();
         }
 
-        info!(
-            "Destroyed item entry={} at slot {} for {:?}",
-            item.entry_id, slot, player_guid
-        );
+        true
     }
 
     /// Find the first empty slot in the default backpack (slots 35-58).

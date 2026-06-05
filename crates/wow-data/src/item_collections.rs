@@ -403,6 +403,12 @@ impl ToyStore {
             source_type_enum: r.get_field_i8(idx, 4),
         })
     }
+
+    /// C++ `DB2Manager::IsToyItem` indexes toys by `ToyEntry::ItemID`.
+    pub fn get_by_item_id_like_cpp(&self, item_id: u32) -> Option<&ToyEntry> {
+        self.values()
+            .find(|entry| u32::try_from(entry.item_id).ok() == Some(item_id))
+    }
 }
 
 impl TransmogHolidayStore {
@@ -573,6 +579,20 @@ mod tests {
         assert_eq!(store.get(42).unwrap().upgrade_item_bonus_list_id[0], 11);
         assert_eq!(store.get_by_item_id_like_cpp(100).unwrap().id, 42);
         assert!(store.get_by_item_id_like_cpp(404).is_none());
+    }
+
+    #[test]
+    fn toy_store_indexes_by_item_id_like_cpp() {
+        let store = ToyStore::from_entries([ToyEntry {
+            id: 7,
+            source_text: "drop".to_string(),
+            item_id: 30_000,
+            flags: 2,
+            source_type_enum: 4,
+        }]);
+
+        assert_eq!(store.get_by_item_id_like_cpp(30_000).unwrap().id, 7);
+        assert!(store.get_by_item_id_like_cpp(40_000).is_none());
     }
 
     #[test]

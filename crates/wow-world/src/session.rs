@@ -65,7 +65,7 @@ use wow_data::{
     PlayerConditionQuestKillLikeCpp, PlayerConditionReputationLikeCpp, PlayerConditionSkillLikeCpp,
     PlayerConditionStore, PlayerStatsStore, RandPropPointsStore, SkillLineStore, SkillStore,
     SpellDurationStore, SpellItemEnchantmentStore, SpellMiscStore, SpellRadiusStore,
-    SpellRangeStore, SpellStore, SpellTargetPositionStoreLikeCpp, SummonPropertiesEntry,
+    SpellRangeStore, SpellStore, SpellTargetPositionStoreLikeCpp, SummonPropertiesEntry, ToyStore,
     TransmogSetEntry, TransmogSetItemStore, VEHICLE_SEAT_FLAG_CAN_ATTACK,
     VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
     is_player_meeting_condition_like_cpp,
@@ -2072,6 +2072,9 @@ pub struct WorldSession {
     // Heirloom store (Heirloom.db2 data)
     heirloom_store: Option<Arc<HeirloomStore>>,
 
+    // Toy store (Toy.db2 data)
+    toy_store: Option<Arc<ToyStore>>,
+
     // Transmog set item store (TransmogSetItem.db2 data)
     transmog_set_item_store: Option<Arc<TransmogSetItemStore>>,
 
@@ -3236,6 +3239,7 @@ impl WorldSession {
             item_modified_appearance_store: None,
             item_search_name_store: None,
             heirloom_store: None,
+            toy_store: None,
             transmog_set_item_store: None,
             item_price_base_store: None,
             item_limit_category_store: None,
@@ -7740,6 +7744,16 @@ impl WorldSession {
         self.heirloom_store.as_ref()
     }
 
+    /// Set the toy store for this session.
+    pub fn set_toy_store(&mut self, store: Arc<ToyStore>) {
+        self.toy_store = Some(store);
+    }
+
+    /// Get the toy store reference.
+    pub fn toy_store(&self) -> Option<&Arc<ToyStore>> {
+        self.toy_store.as_ref()
+    }
+
     /// Set the transmog set item store for this session.
     pub fn set_transmog_set_item_store(&mut self, store: Arc<TransmogSetItemStore>) {
         self.transmog_set_item_store = Some(store);
@@ -8207,6 +8221,40 @@ impl WorldSession {
         self.send_packet(&AccountToyUpdate::full(
             self.account_toy_packet_rows_like_cpp(),
         ));
+    }
+
+    /// C++ `DB2Manager::IsToyItem`.
+    pub(crate) fn is_toy_item_like_cpp(&self, item_id: u32) -> bool {
+        self.toy_store
+            .as_ref()
+            .and_then(|store| store.get_by_item_id_like_cpp(item_id))
+            .is_some()
+    }
+
+    /// C++ `CollectionMgr::AddToy` / `UpdateAccountToys`.
+    pub(crate) fn add_account_toy_like_cpp(
+        &mut self,
+        item_id: u32,
+        is_favorite: bool,
+        has_fanfare: bool,
+    ) -> bool {
+        if self
+            .represented_account_toys_like_cpp
+            .contains_key(&item_id)
+        {
+            return false;
+        }
+
+        let mut flags = 0_u32;
+        if is_favorite {
+            flags |= TOY_FLAG_FAVORITE_LIKE_CPP;
+        }
+        if has_fanfare {
+            flags |= TOY_FLAG_HAS_FANFARE_LIKE_CPP;
+        }
+        self.represented_account_toys_like_cpp
+            .insert(item_id, flags);
+        true
     }
 
     /// C++ `CollectionMgr::LoadAccountItemAppearances`.
@@ -14740,6 +14788,9 @@ impl WorldSession {
             }
             ClientOpcodes::CollectionItemSetFavorite => {
                 self.handle_collection_item_set_favorite(pkt).await;
+            }
+            ClientOpcodes::AddToy => {
+                self.handle_add_toy(pkt).await;
             }
             ClientOpcodes::RequestBattlefieldStatus => {
                 self.handle_request_battlefield_status(pkt).await;
@@ -27053,7 +27104,7 @@ mod tests {
         ItemRandomSuffixStore, ItemRecord, ItemSearchNameEntry, ItemSearchNameStore,
         ItemSparseTemplateEntry, ItemSpecOverrideEntry, ItemSpecOverrideStore, ItemStatsStore,
         ItemStore, LockEntry, LockStore, PlayerConditionEntry, PlayerConditionStore,
-        SpellItemEnchantmentEntry, SpellItemEnchantmentStore, TransmogSetEntry,
+        SpellItemEnchantmentEntry, SpellItemEnchantmentStore, ToyEntry, ToyStore, TransmogSetEntry,
         TransmogSetItemEntry, TransmogSetItemStore,
         progression_rewards::{
             FactionEntry, FactionStore, QUEST_PACKAGE_FILTER_CLASS_LIKE_CPP,
@@ -50951,6 +51002,34 @@ mod tests {
                 },
             ]
         );
+    }
+
+    #[test]
+    fn add_account_toy_inserts_once_like_cpp() {
+        let (mut session, _, _) = make_session();
+
+        assert!(session.add_account_toy_like_cpp(30_000, false, false));
+        assert!(!session.add_account_toy_like_cpp(30_000, true, true));
+
+        assert_eq!(
+            session.account_toy_rows_like_cpp(),
+            vec![(30_000, false, false)]
+        );
+    }
+
+    #[test]
+    fn is_toy_item_uses_toy_db2_item_id_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_toy_store(Arc::new(ToyStore::from_entries([ToyEntry {
+            id: 9,
+            source_text: "known".to_string(),
+            item_id: 30_000,
+            flags: 0,
+            source_type_enum: 0,
+        }])));
+
+        assert!(session.is_toy_item_like_cpp(30_000));
+        assert!(!session.is_toy_item_like_cpp(30_001));
     }
 
     #[test]

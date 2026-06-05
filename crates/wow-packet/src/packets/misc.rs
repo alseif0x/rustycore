@@ -1563,6 +1563,24 @@ impl ServerPacket for AccountToyUpdate {
     }
 }
 
+// ── AddToy (CMSG 0x3299) ─────────────────────────────────────────────
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AddToy {
+    pub item_guid: ObjectGuid,
+}
+
+impl ClientPacket for AddToy {
+    const OPCODE: ClientOpcodes = ClientOpcodes::AddToy;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        pkt.skip_opcode();
+        Ok(Self {
+            item_guid: pkt.read_packed_guid()?,
+        })
+    }
+}
+
 // ── LoadCufProfiles (SMSG 0x25bc) ────────────────────────────────────
 
 /// Compact Unit Frame profiles. Empty for fresh characters.
@@ -3555,6 +3573,17 @@ mod tests {
             30_001
         );
         assert_eq!(bytes[23], 0b1001_0000);
+    }
+
+    #[test]
+    fn add_toy_reads_cpp_guid_payload() {
+        let guid = ObjectGuid::create_item(1, 99);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(ClientOpcodes::AddToy as u16);
+        pkt.write_packed_guid(&guid);
+
+        let decoded = AddToy::read(&mut pkt).unwrap();
+        assert_eq!(decoded.item_guid, guid);
     }
 
     #[test]

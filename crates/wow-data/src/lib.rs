@@ -168,8 +168,8 @@ pub use item_bonus::{
 };
 pub use item_class::{ItemClassEntry, ItemClassStore};
 pub use item_collections::{
-    HeirloomEntry, HeirloomStore, TransmogSetEntry, TransmogSetItemEntry, TransmogSetItemStore,
-    TransmogSetStore,
+    HeirloomEntry, HeirloomStore, ToyEntry, ToyStore, TransmogSetEntry, TransmogSetItemEntry,
+    TransmogSetItemStore, TransmogSetStore,
 };
 pub use item_currency_cost::{ItemCurrencyCostEntry, ItemCurrencyCostStore};
 pub use item_disenchant_loot::{ItemDisenchantLootEntry, ItemDisenchantLootStore};

@@ -8,7 +8,7 @@
 //! TaxiNodeStatusQuery, ChatJoinChannel.
 
 use tracing::{debug, info, warn};
-use wow_constants::{ClientOpcodes, ItemExtendedCostFlags};
+use wow_constants::{ClientOpcodes, InventoryResult, ItemExtendedCostFlags};
 use wow_database::{SqlTransaction, WorldStatements};
 use wow_entities::{
     GAMEOBJECT_TYPE_BARBER_CHAIR, GAMEOBJECT_TYPE_BUTTON, GAMEOBJECT_TYPE_CAMERA,
@@ -30,12 +30,13 @@ use wow_packet::packets::instance::{
     PendingRaidLock,
 };
 use wow_packet::packets::item::{
-    GetItemPurchaseData, ItemPurchaseContents, ItemPurchaseRefundCurrency, ItemPurchaseRefundItem,
-    SetItemPurchaseData,
+    GetItemPurchaseData, InventoryChangeFailure, ItemPurchaseContents, ItemPurchaseRefundCurrency,
+    ItemPurchaseRefundItem, SetItemPurchaseData,
 };
 use wow_packet::packets::loot::{LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHING_LIKE_CPP};
 use wow_packet::packets::misc::{
-    FarSight, MountSetFavorite, RatedPvpInfo, RequestCemeteryListResponse, TaxiNodeStatusPkt,
+    AddToy, FarSight, MountSetFavorite, RatedPvpInfo, RequestCemeteryListResponse,
+    TaxiNodeStatusPkt,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -134,6 +135,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_mount_clear_fanfare",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::AddToy,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_add_toy",
     }
 }
 
@@ -819,6 +829,67 @@ impl crate::session::WorldSession {
     /// CMSG_MOUNT_CLEAR_FANFARE — C++ currently logs only.
     pub async fn handle_mount_clear_fanfare(&mut self, _pkt: wow_packet::WorldPacket) {
         debug!(account = self.account_id, "Mount fanfare cleared");
+    }
+
+    /// CMSG_ADD_TOY — learn a Toy.db2 item and consume the inventory item.
+    ///
+    /// C++ ref: `WorldSession::HandleAddToy` validates the item guid, checks
+    /// `sDB2Manager.IsToyItem(item->GetEntry())`, calls
+    /// `CollectionMgr::AddToy(item->GetEntry(), false, false)`, then destroys
+    /// the item only when the account toy was newly inserted. Rust still lacks
+    /// the live `Player::AddToy` dynamic-field bridge, so this handler updates
+    /// the represented account collection and consumes the item without claiming
+    /// full client-field parity.
+    pub async fn handle_add_toy(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let request = match AddToy::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(account = self.account_id, "AddToy parse failed: {error}");
+                return;
+            }
+        };
+
+        if request.item_guid == wow_core::ObjectGuid::EMPTY {
+            return;
+        }
+
+        let Some((slot, item)) = self
+            .inventory_items_like_cpp()
+            .iter()
+            .find(|(_, item)| item.guid == request.item_guid)
+            .map(|(&slot, item)| (slot, item.clone()))
+        else {
+            self.send_packet(&InventoryChangeFailure::error(
+                InventoryResult::ItemNotFound,
+            ));
+            return;
+        };
+
+        if !self.is_toy_item_like_cpp(item.entry_id) {
+            return;
+        }
+
+        if !self.add_account_toy_like_cpp(item.entry_id, false, false) {
+            return;
+        }
+
+        let runtime_item = self
+            .inventory_item_objects_like_cpp()
+            .get(&item.guid)
+            .cloned();
+        let destroyed_entry_id = item.entry_id;
+        if self
+            .destroy_direct_inventory_full_stack_like_cpp(slot, item, runtime_item, "AddToy")
+            .await
+        {
+            info!(
+                "Added toy item={} from slot {} for account {}",
+                destroyed_entry_id, slot, self.account_id
+            );
+        } else {
+            self.represented_account_toys_like_cpp
+                .remove(&destroyed_entry_id);
+        }
     }
 
     // ── QueryTime ─────────────────────────────────────────────────────────────

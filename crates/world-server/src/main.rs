@@ -1045,6 +1045,11 @@ async fn main() -> Result<()> {
         "Loaded {} heirlooms from Heirloom.db2",
         heirloom_store.len()
     );
+    let toy_store = Arc::new(
+        wow_data::ToyStore::load(&data_dir, &locale)
+            .context("Failed to load Toy.db2 — check DataDir and DBC.Locale config")?,
+    );
+    info!("Loaded {} toys from Toy.db2", toy_store.len());
     let difficulty_store = Arc::new(
         wow_data::DifficultyStore::load(&data_dir, &locale)
             .context("Failed to load Difficulty.db2 — check DataDir and DBC.Locale config")?,
@@ -2028,6 +2033,7 @@ async fn main() -> Result<()> {
         item_modified_appearance_store: Some(Arc::clone(&item_modified_appearance_store)),
         item_search_name_store: Some(Arc::clone(&item_search_name_store)),
         heirloom_store: Some(Arc::clone(&heirloom_store)),
+        toy_store: Some(Arc::clone(&toy_store)),
         transmog_set_item_store: Some(Arc::clone(&transmog_set_item_store)),
         item_price_base_store: Some(Arc::clone(&item_price_base_store)),
         item_limit_category_store: Some(Arc::clone(&item_limit_category_store)),
@@ -7045,6 +7051,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.heirloom_store {
         session.set_heirloom_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.toy_store {
+        session.set_toy_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.transmog_set_item_store {
         session.set_transmog_set_item_store(Arc::clone(store));
