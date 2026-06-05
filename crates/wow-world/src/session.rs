@@ -65,9 +65,9 @@ use wow_data::{
     PlayerConditionQuestKillLikeCpp, PlayerConditionReputationLikeCpp, PlayerConditionSkillLikeCpp,
     PlayerConditionStore, PlayerStatsStore, RandPropPointsStore, SkillLineStore, SkillStore,
     SpellDurationStore, SpellItemEnchantmentStore, SpellMiscStore, SpellRadiusStore,
-    SpellRangeStore, SpellStore, SummonPropertiesEntry, VEHICLE_SEAT_FLAG_CAN_ATTACK,
-    VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
-    is_player_meeting_condition_like_cpp,
+    SpellRangeStore, SpellStore, SpellTargetPositionStoreLikeCpp, SummonPropertiesEntry,
+    VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore,
+    VehicleTemplateStoreLikeCpp, is_player_meeting_condition_like_cpp,
     progression_rewards::{
         ContentTuningStore, FactionEntry, FactionStore, FactionTemplateStore,
         FriendshipRepReactionStore, ParagonReputationStore, QuestFactionRewardStore,
@@ -2471,6 +2471,7 @@ pub struct WorldSession {
     spell_duration_store: Option<Arc<SpellDurationStore>>,
     spell_radius_store: Option<Arc<SpellRadiusStore>>,
     spell_range_store: Option<Arc<SpellRangeStore>>,
+    spell_target_position_store: Option<Arc<SpellTargetPositionStoreLikeCpp>>,
     gameobject_template_lifecycle_store: Option<Arc<GameObjectTemplateLifecycleStoreLikeCpp>>,
     /// Currently active spell cast (if any). Set when a cast starts, cleared when it completes.
     pub(crate) active_spell_cast: Option<SpellCastState>,
@@ -3328,6 +3329,7 @@ impl WorldSession {
             spell_duration_store: None,
             spell_radius_store: None,
             spell_range_store: None,
+            spell_target_position_store: None,
             gameobject_template_lifecycle_store: None,
             quest_store: None,
             quest_pool_store: None,
@@ -9768,6 +9770,10 @@ impl WorldSession {
 
     pub(crate) fn spell_range_store(&self) -> Option<&Arc<SpellRangeStore>> {
         self.spell_range_store.as_ref()
+    }
+
+    pub fn set_spell_target_position_store(&mut self, store: Arc<SpellTargetPositionStoreLikeCpp>) {
+        self.spell_target_position_store = Some(store);
     }
 
     pub fn set_gameobject_template_lifecycle_store(
@@ -23949,8 +23955,14 @@ impl WorldSession {
                     &target_data,
                     represented_focus_object,
                 );
+            let represented_db_target_data = if represented_focus_target_data.is_none() {
+                self.represented_db_destination_target_data_like_cpp(spell_id, effect, &target_data)
+            } else {
+                None
+            };
             let effect_target_data = represented_focus_target_data
                 .as_ref()
+                .or(represented_db_target_data.as_ref())
                 .unwrap_or(&target_data);
             if let Some(outcome) = self.apply_effect_summon_object_wild_with_focus_like_cpp(
                 spell_id,
@@ -24048,15 +24060,7 @@ impl WorldSession {
             return None;
         }
 
-        let has_implicit_conditions = self
-            .spell_store
-            .as_deref()
-            .and_then(|store| {
-                store.implicit_target_conditions_like_cpp(spell_id, effect.effect_index)
-            })
-            .and_then(|conditions| conditions.upgrade())
-            .is_some_and(|conditions| !conditions.is_empty());
-        if has_implicit_conditions {
+        if self.effect_has_implicit_target_conditions_like_cpp(spell_id, effect.effect_index) {
             return None;
         }
 
@@ -24080,6 +24084,72 @@ impl WorldSession {
             position: focus_position,
         });
         Some(target_data)
+    }
+
+    fn represented_db_destination_target_data_like_cpp(
+        &self,
+        spell_id: i32,
+        effect: &wow_data::SpellEffectInfo,
+        target_data: &SpellTargetData,
+    ) -> Option<SpellTargetData> {
+        if target_data.dst_location.is_some()
+            || !matches!(
+                effect.implicit_target_1,
+                wow_data::spell::implicit_targets::TARGET_DEST_NEARBY_ENTRY_OR_DB
+            ) && !matches!(
+                effect.implicit_target_2,
+                wow_data::spell::implicit_targets::TARGET_DEST_NEARBY_ENTRY_OR_DB
+            )
+        {
+            return None;
+        }
+
+        if self.effect_has_implicit_target_conditions_like_cpp(spell_id, effect.effect_index) {
+            return None;
+        }
+
+        let spell_id_u32 = u32::try_from(spell_id).ok()?;
+        let target_position = self
+            .spell_target_position_store
+            .as_deref()?
+            .get(spell_id_u32, effect.effect_index)?;
+        if target_position.target_map_id != self.player_map_id_like_cpp() {
+            return None;
+        }
+
+        let caster_position = self.player_position_like_cpp()?;
+        let range = self
+            .spell_misc_store
+            .as_deref()
+            .and_then(|store| store.get_by_spell_id(spell_id_u32))
+            .and_then(|misc| {
+                self.spell_range_store
+                    .as_deref()
+                    .and_then(|store| store.get(u32::from(misc.range_index)))
+            })
+            .map(|range| range.range_max[0].max(range.range_max[1]))?;
+        if caster_position.distance(&target_position.position) > range {
+            return None;
+        }
+
+        let mut target_data = target_data.clone();
+        target_data.dst_location = Some(wow_packet::packets::spell::TargetLocation {
+            transport: ObjectGuid::EMPTY,
+            position: target_position.position,
+        });
+        Some(target_data)
+    }
+
+    fn effect_has_implicit_target_conditions_like_cpp(
+        &self,
+        spell_id: i32,
+        effect_index: u32,
+    ) -> bool {
+        self.spell_store
+            .as_deref()
+            .and_then(|store| store.implicit_target_conditions_like_cpp(spell_id, effect_index))
+            .and_then(|conditions| conditions.upgrade())
+            .is_some_and(|conditions| !conditions.is_empty())
     }
 
     /// Live bounded C++ `Spell::EffectAddFarsight` consumer.
@@ -29876,6 +29946,107 @@ mod tests {
         assert!(
             update_object_packet_count_like_cpp(&packets) >= 1,
             "focus-destination summon should trigger represented visibility create/update delivery"
+        );
+    }
+
+    #[tokio::test]
+    async fn db_implicit_destination_or_db_uses_spell_target_position_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 711_i32;
+        let template_entry = 9016_u32;
+        let player_guid = ObjectGuid::create_player(1, 7016);
+        let player_position = Position::new(200.0, 300.0, 40.0, 0.0);
+        let db_destination = Position::new(206.0, 304.0, 41.0, 1.375);
+        let canonical = shared_canonical_map_manager();
+        let mut summon_effect =
+            summon_object_wild_effect_like_cpp(i32::try_from(template_entry).unwrap());
+        summon_effect.implicit_target_1 =
+            wow_data::spell::implicit_targets::TARGET_DEST_NEARBY_ENTRY_OR_DB;
+        let spell_info =
+            gameobject_summon_spell_info_like_cpp(spell_id, 0, vec![summon_effect.clone()]);
+
+        configure_gameobject_summon_live_session_like_cpp(
+            &mut session,
+            &canonical,
+            player_guid,
+            player_position,
+            summon_go_template_store_like_cpp(template_entry),
+            spell_info.clone(),
+        );
+        let mut misc = summon_go_spell_misc_entry_like_cpp(spell_id as u32, 0);
+        misc.range_index = 88;
+        session.set_spell_misc_store(Arc::new(wow_data::SpellMiscStore::from_entries([misc])));
+        session.set_spell_range_store(Arc::new(wow_data::SpellRangeStore::from_entries([
+            wow_data::SpellRangeEntry {
+                id: 88,
+                display_name: String::new(),
+                display_name_short: String::new(),
+                flags: 0,
+                range_min: [0.0, 0.0],
+                range_max: [50.0, 50.0],
+            },
+        ])));
+        let mut target_spell_store = wow_data::SpellStore::new();
+        target_spell_store.insert(spell_id, spell_info);
+        session.set_spell_target_position_store(Arc::new(
+            wow_data::SpellTargetPositionStoreLikeCpp::from_rows_like_cpp(
+                [wow_data::SpellTargetPositionRowLikeCpp {
+                    spell_id: spell_id as u32,
+                    effect_index: summon_effect.effect_index,
+                    target_map_id: 571,
+                    x: db_destination.x,
+                    y: db_destination.y,
+                    z: db_destination.z,
+                    orientation: Some(db_destination.orientation),
+                }],
+                &target_spell_store,
+                |map_id| map_id == 571,
+            ),
+        ));
+
+        session
+            .execute_spell_with_visual_and_target_data(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual {
+                    spell_visual_id: 711,
+                    script_visual_id: 0,
+                },
+                SpellTargetData::default(),
+            )
+            .await
+            .expect("OR_DB implicit destination with DB target should execute");
+
+        let manager = canonical.lock().unwrap();
+        let managed = manager.find_map(571, 0).expect("canonical map");
+        let summoned_guid = session
+            .client_visible_guids_like_cpp
+            .iter()
+            .copied()
+            .filter(ObjectGuid::is_game_object)
+            .find(|guid| {
+                managed
+                    .map()
+                    .get_typed_game_object(*guid)
+                    .is_some_and(|go| go.world().object().entry() == template_entry)
+            })
+            .expect("DB-destination summon should be visible");
+        let summoned = managed
+            .map()
+            .get_typed_game_object(summoned_guid)
+            .expect("summoned GO should be map-owned");
+        assert_eq!(
+            summoned.world().position(),
+            db_destination,
+            "C++ TARGET_DEST_NEARBY_ENTRY_OR_DB uses spell_target_position when same-map and in range"
+        );
+        drop(manager);
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert!(
+            update_object_packet_count_like_cpp(&packets) >= 1,
+            "DB-destination summon should trigger represented visibility create/update delivery"
         );
     }
 

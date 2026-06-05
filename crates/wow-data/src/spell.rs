@@ -13,10 +13,11 @@
 //! - Effect parameters (base points, bonus coefficients)
 
 use std::collections::HashMap;
+use std::f32::consts::TAU;
 
 use anyhow::Result;
 use tracing::info;
-use wow_database::HotfixDatabase;
+use wow_database::{HotfixDatabase, WorldDatabase};
 
 use crate::{ConditionEntriesByTypeStore, ConditionsReference};
 
@@ -60,6 +61,7 @@ pub mod aura_types {
 
 /// Selected `Targets` ids from C++ `SpellImplicitTargetInfo::_data`.
 pub mod implicit_targets {
+    pub const TARGET_DEST_DB: u32 = 17;
     pub const TARGET_DEST_NEARBY_ENTRY: u32 = 46;
     pub const TARGET_DEST_NEARBY_ENTRY_2: u32 = 107;
     pub const TARGET_DEST_NEARBY_ENTRY_OR_DB: u32 = 142;
@@ -112,6 +114,39 @@ pub struct SpellEffectInfo {
     pub chain_targets: i32,
     pub implicit_target_1: u32,
     pub implicit_target_2: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SpellTargetPositionLikeCpp {
+    pub target_map_id: u16,
+    pub position: wow_core::Position,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SpellTargetPositionRowLikeCpp {
+    pub spell_id: u32,
+    pub effect_index: u32,
+    pub target_map_id: u16,
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+    pub orientation: Option<f32>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SpellTargetPositionLoadReportLikeCpp {
+    pub loaded: usize,
+    pub skipped_missing_map: usize,
+    pub skipped_missing_spell: usize,
+    pub skipped_missing_effect: usize,
+    pub skipped_zero_position: usize,
+    pub skipped_unsupported_target: usize,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct SpellTargetPositionStoreLikeCpp {
+    positions: HashMap<(u32, u32), SpellTargetPositionLikeCpp>,
+    load_report: SpellTargetPositionLoadReportLikeCpp,
 }
 
 impl SpellInfo {
@@ -185,6 +220,124 @@ impl SpellEffectInfo {
             || implicit_target_category_accepts_conditions_like_cpp(self.implicit_target_1)
             || implicit_target_category_accepts_conditions_like_cpp(self.implicit_target_2)
             || spell_effect_accepts_implicit_target_conditions_like_cpp(self.effect)
+    }
+
+    pub fn has_spell_target_position_target_like_cpp(&self) -> bool {
+        matches!(
+            self.implicit_target_1,
+            implicit_targets::TARGET_DEST_DB | implicit_targets::TARGET_DEST_NEARBY_ENTRY_OR_DB
+        ) || matches!(
+            self.implicit_target_2,
+            implicit_targets::TARGET_DEST_DB | implicit_targets::TARGET_DEST_NEARBY_ENTRY_OR_DB
+        )
+    }
+}
+
+impl SpellTargetPositionStoreLikeCpp {
+    pub fn from_rows_like_cpp(
+        rows: impl IntoIterator<Item = SpellTargetPositionRowLikeCpp>,
+        spells: &SpellStore,
+        mut map_exists: impl FnMut(u16) -> bool,
+    ) -> Self {
+        let mut store = Self::default();
+
+        for row in rows {
+            if !map_exists(row.target_map_id) {
+                store.load_report.skipped_missing_map += 1;
+                continue;
+            }
+
+            if row.x == 0.0 && row.y == 0.0 && row.z == 0.0 {
+                store.load_report.skipped_zero_position += 1;
+                continue;
+            }
+
+            let Some(spell) = spells.get(row.spell_id as i32) else {
+                store.load_report.skipped_missing_spell += 1;
+                continue;
+            };
+            let Some(effect) = spell
+                .effects()
+                .iter()
+                .find(|effect| effect.effect_index == row.effect_index)
+            else {
+                store.load_report.skipped_missing_effect += 1;
+                continue;
+            };
+
+            if !effect.has_spell_target_position_target_like_cpp() {
+                store.load_report.skipped_unsupported_target += 1;
+                continue;
+            }
+
+            let orientation = row.orientation.unwrap_or_else(|| {
+                if effect.position_facing > TAU {
+                    effect.position_facing * std::f32::consts::PI / 180.0
+                } else {
+                    effect.position_facing
+                }
+            });
+
+            store.positions.insert(
+                (row.spell_id, row.effect_index),
+                SpellTargetPositionLikeCpp {
+                    target_map_id: row.target_map_id,
+                    position: wow_core::Position::new(row.x, row.y, row.z, orientation),
+                },
+            );
+            store.load_report.loaded += 1;
+        }
+
+        store
+    }
+
+    pub async fn load_like_cpp(
+        db: &WorldDatabase,
+        spells: &SpellStore,
+        map_exists: impl FnMut(u16) -> bool,
+    ) -> Result<Self> {
+        let mut result = db
+            .direct_query(
+                "SELECT ID, EffectIndex, MapID, PositionX, PositionY, PositionZ, Orientation FROM spell_target_position",
+            )
+            .await?;
+        let mut rows = Vec::new();
+
+        if !result.is_empty() {
+            loop {
+                rows.push(SpellTargetPositionRowLikeCpp {
+                    spell_id: result.try_read::<u32>(0).unwrap_or(0),
+                    effect_index: result.try_read::<u8>(1).unwrap_or(0) as u32,
+                    target_map_id: result.try_read::<u16>(2).unwrap_or(0),
+                    x: result.try_read::<f32>(3).unwrap_or(0.0),
+                    y: result.try_read::<f32>(4).unwrap_or(0.0),
+                    z: result.try_read::<f32>(5).unwrap_or(0.0),
+                    orientation: result.try_read::<Option<f32>>(6).unwrap_or(None),
+                });
+
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+
+        Ok(Self::from_rows_like_cpp(rows, spells, map_exists))
+    }
+
+    pub fn get(&self, spell_id: u32, effect_index: u32) -> Option<&SpellTargetPositionLikeCpp> {
+        self.positions.get(&(spell_id, effect_index))
+    }
+
+    pub fn len(&self) -> usize {
+        self.positions.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.positions.is_empty()
+    }
+
+    pub fn load_report_like_cpp(&self) -> &SpellTargetPositionLoadReportLikeCpp {
+        &self.load_report
     }
 }
 
@@ -639,6 +792,136 @@ mod tests {
 
         effect.implicit_target_2 = 40;
         assert!(!effect.has_focus_destination_implicit_target_like_cpp());
+    }
+
+    #[test]
+    fn spell_target_position_store_loads_or_db_targets_like_cpp() {
+        let mut spell_store = SpellStore::new();
+        spell_store.insert(
+            710,
+            SpellInfo {
+                spell_id: 710,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![SpellEffectInfo {
+                    effect_index: 1,
+                    implicit_target_1: implicit_targets::TARGET_DEST_NEARBY_ENTRY_OR_DB,
+                    ..Default::default()
+                }],
+            },
+        );
+
+        let store = SpellTargetPositionStoreLikeCpp::from_rows_like_cpp(
+            [SpellTargetPositionRowLikeCpp {
+                spell_id: 710,
+                effect_index: 1,
+                target_map_id: 571,
+                x: 100.0,
+                y: 200.0,
+                z: 30.0,
+                orientation: Some(1.25),
+            }],
+            &spell_store,
+            |map_id| map_id == 571,
+        );
+
+        assert_eq!(store.load_report_like_cpp().loaded, 1);
+        assert_eq!(
+            store.get(710, 1).map(|target| target.position),
+            Some(wow_core::Position::new(100.0, 200.0, 30.0, 1.25))
+        );
+    }
+
+    #[test]
+    fn spell_target_position_store_uses_effect_facing_when_orientation_is_null_like_cpp() {
+        let mut spell_store = SpellStore::new();
+        spell_store.insert(
+            9268,
+            SpellInfo {
+                spell_id: 9268,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![SpellEffectInfo {
+                    effect_index: 0,
+                    position_facing: 90.0,
+                    implicit_target_1: implicit_targets::TARGET_DEST_DB,
+                    ..Default::default()
+                }],
+            },
+        );
+
+        let store = SpellTargetPositionStoreLikeCpp::from_rows_like_cpp(
+            [SpellTargetPositionRowLikeCpp {
+                spell_id: 9268,
+                effect_index: 0,
+                target_map_id: 0,
+                x: -10.0,
+                y: 20.0,
+                z: 5.0,
+                orientation: None,
+            }],
+            &spell_store,
+            |map_id| map_id == 0,
+        );
+
+        let position = store.get(9268, 0).expect("target position").position;
+        assert!((position.orientation - std::f32::consts::FRAC_PI_2).abs() < 0.0001);
+    }
+
+    #[test]
+    fn spell_target_position_store_rejects_wrong_effect_target_like_cpp() {
+        let mut spell_store = SpellStore::new();
+        spell_store.insert(
+            711,
+            SpellInfo {
+                spell_id: 711,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![SpellEffectInfo {
+                    effect_index: 0,
+                    implicit_target_1: implicit_targets::TARGET_DEST_NEARBY_ENTRY,
+                    ..Default::default()
+                }],
+            },
+        );
+
+        let store = SpellTargetPositionStoreLikeCpp::from_rows_like_cpp(
+            [SpellTargetPositionRowLikeCpp {
+                spell_id: 711,
+                effect_index: 0,
+                target_map_id: 571,
+                x: 1.0,
+                y: 2.0,
+                z: 3.0,
+                orientation: Some(0.0),
+            }],
+            &spell_store,
+            |_| true,
+        );
+
+        assert!(store.is_empty());
+        assert_eq!(store.load_report_like_cpp().skipped_unsupported_target, 1);
     }
 
     #[test]

@@ -1658,6 +1658,34 @@ async fn main() -> Result<()> {
             .load_report_like_cpp()
             .invalid_user_type_logged_but_loaded_like_cpp
     );
+    let spell_target_position_store = Arc::new(
+        wow_data::SpellTargetPositionStoreLikeCpp::load_like_cpp(
+            world_db.as_ref(),
+            &spell_store,
+            |map_id| map_store.get(u32::from(map_id)).is_some(),
+        )
+        .await
+        .context("Failed to load C++ spell_target_position rows")?,
+    );
+    info!(
+        "Loaded {} C++ spell_target_position rows ({} missing maps, {} missing spells, {} missing effects, {} zero positions, {} unsupported target rows skipped)",
+        spell_target_position_store.len(),
+        spell_target_position_store
+            .load_report_like_cpp()
+            .skipped_missing_map,
+        spell_target_position_store
+            .load_report_like_cpp()
+            .skipped_missing_spell,
+        spell_target_position_store
+            .load_report_like_cpp()
+            .skipped_missing_effect,
+        spell_target_position_store
+            .load_report_like_cpp()
+            .skipped_zero_position,
+        spell_target_position_store
+            .load_report_like_cpp()
+            .skipped_unsupported_target
+    );
     let spell_store = Arc::new(spell_store);
 
     // Shared group registry and pending invites
@@ -1978,6 +2006,7 @@ async fn main() -> Result<()> {
         spell_duration_store: Some(Arc::clone(&spell_duration_store)),
         spell_radius_store: Some(Arc::clone(&spell_radius_store)),
         spell_range_store: Some(Arc::clone(&spell_range_store)),
+        spell_target_position_store: Some(Arc::clone(&spell_target_position_store)),
         gameobject_template_lifecycle_store: Some(Arc::clone(&gameobject_template_lifecycle_store)),
         area_table_store: Some(Arc::clone(&area_table_store)),
         fishing_base_skill_store: Some(Arc::clone(&fishing_base_skill_store)),
@@ -7039,6 +7068,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.spell_range_store {
         session.set_spell_range_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.spell_target_position_store {
+        session.set_spell_target_position_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.gameobject_template_lifecycle_store {
         session.set_gameobject_template_lifecycle_store(Arc::clone(store));

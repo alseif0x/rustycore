@@ -281,7 +281,11 @@ pub use spawn_group::{
     SpawnGroupTemplate, SpawnGroupTemplateLoadReport, SpawnGroupTemplateRow,
     SpawnGroupTemplateStore,
 };
-pub use spell::{SpellEffectInfo, SpellInfo, SpellStore};
+pub use spell::{
+    SpellEffectInfo, SpellInfo, SpellStore, SpellTargetPositionLikeCpp,
+    SpellTargetPositionLoadReportLikeCpp, SpellTargetPositionRowLikeCpp,
+    SpellTargetPositionStoreLikeCpp,
+};
 pub use spell_click::{
     NpcSpellClickLoadReportLikeCpp, NpcSpellClickRowLikeCpp, NpcSpellClickStoreLikeCpp,
     SPELL_CLICK_USER_ANY_LIKE_CPP, SPELL_CLICK_USER_FRIEND_LIKE_CPP, SPELL_CLICK_USER_MAX_LIKE_CPP,
