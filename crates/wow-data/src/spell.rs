@@ -139,6 +139,8 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_SET_GARRISON_CACHE_SIZE: u32 = 251;
     pub const SPELL_EFFECT_TELEPORT_UNITS: u32 = 252;
     pub const SPELL_EFFECT_GIVE_HONOR: u32 = 253;
+    pub const SPELL_EFFECT_JUMP_CHARGE: u32 = 254;
+    pub const SPELL_EFFECT_LEARN_TRANSMOG_SET: u32 = 255;
     pub const SPELL_EFFECT_256: u32 = 256;
     pub const SPELL_EFFECT_257: u32 = 257;
     pub const SPELL_EFFECT_MODIFY_KEYSTONE: u32 = 258;
@@ -158,6 +160,7 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_CRAFT_RUNEFORGE_LEGENDARY: u32 = 273;
     pub const SPELL_EFFECT_274: u32 = 274;
     pub const SPELL_EFFECT_275: u32 = 275;
+    pub const SPELL_EFFECT_LEARN_TRANSMOG_ILLUSION: u32 = 276;
     pub const SPELL_EFFECT_SET_CHROMIE_TIME: u32 = 277;
     pub const SPELL_EFFECT_278: u32 = 278;
     pub const SPELL_EFFECT_LEARN_GARR_TALENT: u32 = 279;
@@ -1205,6 +1208,8 @@ mod tests {
         );
         assert_eq!(spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS, 252);
         assert_eq!(spell_effect_types::SPELL_EFFECT_GIVE_HONOR, 253);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_JUMP_CHARGE, 254);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_LEARN_TRANSMOG_SET, 255);
         assert_eq!(spell_effect_types::SPELL_EFFECT_256, 256);
         assert_eq!(spell_effect_types::SPELL_EFFECT_257, 257);
         assert_eq!(spell_effect_types::SPELL_EFFECT_MODIFY_KEYSTONE, 258);
@@ -1242,6 +1247,10 @@ mod tests {
         );
         assert_eq!(spell_effect_types::SPELL_EFFECT_274, 274);
         assert_eq!(spell_effect_types::SPELL_EFFECT_275, 275);
+        assert_eq!(
+            spell_effect_types::SPELL_EFFECT_LEARN_TRANSMOG_ILLUSION,
+            276
+        );
         assert_eq!(spell_effect_types::SPELL_EFFECT_SET_CHROMIE_TIME, 277);
         assert_eq!(spell_effect_types::SPELL_EFFECT_278, 278);
         assert_eq!(spell_effect_types::SPELL_EFFECT_LEARN_GARR_TALENT, 279);
@@ -1446,8 +1455,9 @@ mod tests {
             245,
             spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS,
             spell_effect_types::SPELL_EFFECT_GIVE_HONOR,
-            254,
-            255,
+            spell_effect_types::SPELL_EFFECT_JUMP_CHARGE,
+            spell_effect_types::SPELL_EFFECT_LEARN_TRANSMOG_SET,
+            spell_effect_types::SPELL_EFFECT_LEARN_TRANSMOG_ILLUSION,
             284,
             286,
             289,
