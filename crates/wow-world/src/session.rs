@@ -122,8 +122,8 @@ use wow_packet::packets::item::{
     ItemPushResult, ItemPushResultDisplayType, ItemTimeUpdate,
 };
 use wow_packet::packets::misc::{
-    AccountHeirloom, AccountHeirloomUpdate, AccountMount, AccountMountUpdate, BuyFailed,
-    SellResponse,
+    AccountHeirloom, AccountHeirloomUpdate, AccountMount, AccountMountUpdate, AccountToy,
+    AccountToyUpdate, BuyFailed, SellResponse,
 };
 use wow_packet::packets::quest::{
     QuestGiverOfferReward, QuestGiverQuestDetails, QuestGiverQuestList, QuestGiverRequestItems,
@@ -1447,6 +1447,8 @@ pub(crate) const SKILL_FISHING_LIKE_CPP: u16 = 356;
 pub(crate) const SKILL_RIDING_LIKE_CPP: u16 = 762;
 pub const LIQUID_MAP_IN_WATER_LIKE_CPP: u32 = 0x0000_0004;
 pub const LIQUID_MAP_UNDER_WATER_LIKE_CPP: u32 = 0x0000_0008;
+const TOY_FLAG_FAVORITE_LIKE_CPP: u32 = 0x01;
+const TOY_FLAG_HAS_FANFARE_LIKE_CPP: u32 = 0x02;
 const DAMAGE_FALL_LIKE_CPP: u8 = 2;
 const DAMAGE_FIRE_LIKE_CPP: u8 = 5;
 const DAMAGE_FALL_TO_VOID_LIKE_CPP: u8 = 6;
@@ -2583,6 +2585,8 @@ pub struct WorldSession {
     pub(crate) seasonal_quest_changed_like_cpp: bool,
     /// C++ `CollectionMgr::_heirlooms`, represented until account collection runtime is complete.
     pub(crate) represented_account_heirlooms_like_cpp: BTreeMap<u32, u32>,
+    /// C++ `CollectionMgr::_toys`, represented until account collection runtime is complete.
+    pub(crate) represented_account_toys_like_cpp: BTreeMap<u32, u32>,
     /// C++ `CollectionMgr::_appearances`, represented until account collection persistence is ported.
     pub(crate) represented_item_appearances_like_cpp: HashSet<u32>,
     /// C++ `CollectionMgr::_temporaryAppearances`, represented until account collection persistence is ported.
@@ -3472,6 +3476,7 @@ impl WorldSession {
             seasonal_quests_like_cpp: BTreeMap::new(),
             seasonal_quest_changed_like_cpp: false,
             represented_account_heirlooms_like_cpp: BTreeMap::new(),
+            represented_account_toys_like_cpp: BTreeMap::new(),
             represented_item_appearances_like_cpp: HashSet::new(),
             represented_temporary_item_appearances_like_cpp: HashMap::new(),
             represented_favorite_item_appearances_like_cpp: HashMap::new(),
@@ -8149,6 +8154,58 @@ impl WorldSession {
     pub fn send_account_heirlooms_like_cpp(&self) {
         self.send_packet(&AccountHeirloomUpdate::full(
             self.account_heirloom_packet_rows_like_cpp(),
+        ));
+    }
+
+    /// C++ `CollectionMgr::LoadAccountToys`.
+    pub(crate) fn load_represented_account_toys_like_cpp(
+        &mut self,
+        toy_rows: impl IntoIterator<Item = (u32, bool, bool)>,
+    ) {
+        self.represented_account_toys_like_cpp.clear();
+        for (item_id, is_favorite, has_fanfare) in toy_rows {
+            let mut flags = 0_u32;
+            if is_favorite {
+                flags |= TOY_FLAG_FAVORITE_LIKE_CPP;
+            }
+            if has_fanfare {
+                flags |= TOY_FLAG_HAS_FANFARE_LIKE_CPP;
+            }
+            self.represented_account_toys_like_cpp
+                .insert(item_id, flags);
+        }
+    }
+
+    /// C++ `CollectionMgr::SaveAccountToys`.
+    pub(crate) fn account_toy_rows_like_cpp(&self) -> Vec<(u32, bool, bool)> {
+        self.represented_account_toys_like_cpp
+            .iter()
+            .map(|(&item_id, &flags)| {
+                (
+                    item_id,
+                    (flags & TOY_FLAG_FAVORITE_LIKE_CPP) != 0,
+                    (flags & TOY_FLAG_HAS_FANFARE_LIKE_CPP) != 0,
+                )
+            })
+            .collect()
+    }
+
+    /// C++ `CollectionMgr::GetAccountToys` full update payload.
+    pub(crate) fn account_toy_packet_rows_like_cpp(&self) -> Vec<AccountToy> {
+        self.represented_account_toys_like_cpp
+            .iter()
+            .map(|(&item_id, &flags)| AccountToy {
+                item_id,
+                is_favorite: (flags & TOY_FLAG_FAVORITE_LIKE_CPP) != 0,
+                has_fanfare: (flags & TOY_FLAG_HAS_FANFARE_LIKE_CPP) != 0,
+            })
+            .collect()
+    }
+
+    /// C++ `WorldPackets::Toy::AccountToyUpdate` full login update.
+    pub fn send_account_toys_like_cpp(&self) {
+        self.send_packet(&AccountToyUpdate::full(
+            self.account_toy_packet_rows_like_cpp(),
         ));
     }
 
@@ -50865,6 +50922,34 @@ mod tests {
                 item_id: 44_000,
                 flags: 0x03,
             }]
+        );
+    }
+
+    #[test]
+    fn account_toy_rows_preserve_cpp_flags_like_cpp() {
+        let (mut session, _, _) = make_session();
+
+        session
+            .load_represented_account_toys_like_cpp([(30_001, false, true), (30_000, true, false)]);
+
+        assert_eq!(
+            session.account_toy_rows_like_cpp(),
+            vec![(30_000, true, false), (30_001, false, true)]
+        );
+        assert_eq!(
+            session.account_toy_packet_rows_like_cpp(),
+            vec![
+                AccountToy {
+                    item_id: 30_000,
+                    is_favorite: true,
+                    has_fanfare: false,
+                },
+                AccountToy {
+                    item_id: 30_001,
+                    is_favorite: false,
+                    has_fanfare: true,
+                },
+            ]
         );
     }
 

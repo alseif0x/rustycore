@@ -1518,19 +1518,47 @@ impl ClientPacket for MountSetFavorite {
 
 // ── AccountToyUpdate (SMSG 0x25b0) ───────────────────────────────────
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AccountToy {
+    pub item_id: u32,
+    pub is_favorite: bool,
+    pub has_fanfare: bool,
+}
+
 /// Account-wide toy collection. Sent with IsFullUpdate=true on login.
-pub struct AccountToyUpdate;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AccountToyUpdate {
+    pub is_full_update: bool,
+    pub toys: Vec<AccountToy>,
+}
+
+impl AccountToyUpdate {
+    pub fn full(toys: Vec<AccountToy>) -> Self {
+        Self {
+            is_full_update: true,
+            toys,
+        }
+    }
+}
 
 impl ServerPacket for AccountToyUpdate {
     const OPCODE: ServerOpcodes = ServerOpcodes::AccountToyUpdate;
 
     fn write(&self, pkt: &mut WorldPacket) {
-        pkt.write_bit(true); // IsFullUpdate
-        // write_int32 auto-flushes the pending bit
-        pkt.write_int32(0); // ToyItemIDs.Count
-        pkt.write_int32(0); // IsToyFavorite.Count (same)
-        pkt.write_int32(0); // HasFanfare.Count (same)
-        // No entries — each would have i32 key, then per-item bits
+        pkt.write_bit(self.is_full_update);
+        pkt.flush_bits();
+        pkt.write_int32(self.toys.len() as i32);
+        pkt.write_int32(self.toys.len() as i32);
+        pkt.write_int32(self.toys.len() as i32);
+        for toy in &self.toys {
+            pkt.write_uint32(toy.item_id);
+        }
+        for toy in &self.toys {
+            pkt.write_bit(toy.is_favorite);
+        }
+        for toy in &self.toys {
+            pkt.write_bit(toy.has_fanfare);
+        }
         pkt.flush_bits();
     }
 }
@@ -3480,12 +3508,53 @@ mod tests {
 
     #[test]
     fn account_toy_update_empty() {
-        let pkt = AccountToyUpdate;
+        let pkt = AccountToyUpdate::full(Vec::new());
         let bytes = pkt.to_bytes();
         // opcode(2) + 1 bit(padded to 1 byte) + 3*i32(12) = 15
         assert_eq!(bytes.len(), 15);
         let opcode = u16::from_le_bytes([bytes[0], bytes[1]]);
         assert_eq!(opcode, 0x25b0);
+    }
+
+    #[test]
+    fn account_toy_update_writes_ids_then_flag_bits_like_cpp() {
+        let pkt = AccountToyUpdate::full(vec![
+            AccountToy {
+                item_id: 30_000,
+                is_favorite: true,
+                has_fanfare: false,
+            },
+            AccountToy {
+                item_id: 30_001,
+                is_favorite: false,
+                has_fanfare: true,
+            },
+        ]);
+        let bytes = pkt.to_bytes();
+
+        assert_eq!(u16::from_le_bytes([bytes[0], bytes[1]]), 0x25b0);
+        assert_eq!(bytes[2], 0x80);
+        assert_eq!(
+            i32::from_le_bytes([bytes[3], bytes[4], bytes[5], bytes[6]]),
+            2
+        );
+        assert_eq!(
+            i32::from_le_bytes([bytes[7], bytes[8], bytes[9], bytes[10]]),
+            2
+        );
+        assert_eq!(
+            i32::from_le_bytes([bytes[11], bytes[12], bytes[13], bytes[14]]),
+            2
+        );
+        assert_eq!(
+            u32::from_le_bytes([bytes[15], bytes[16], bytes[17], bytes[18]]),
+            30_000
+        );
+        assert_eq!(
+            u32::from_le_bytes([bytes[19], bytes[20], bytes[21], bytes[22]]),
+            30_001
+        );
+        assert_eq!(bytes[23], 0b1001_0000);
     }
 
     #[test]
