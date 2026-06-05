@@ -37,8 +37,9 @@ use wow_packet::packets::item::{
 use wow_packet::packets::loot::{LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHING_LIKE_CPP};
 use wow_packet::packets::misc::{
     AddToy, BattlePetClearFanfare, BattlePetSetBattleSlot, BattlePetSetFlags, BattlePetSummon,
-    BattlePetUpdateNotify, FarSight, MountSetFavorite, RatedPvpInfo, RequestCemeteryListResponse,
-    TaxiNodeStatusPkt, ToyClearFanfare, UseToy,
+    BattlePetUpdateNotify, FarSight, MountSetFavorite, QueryBattlePetName,
+    QueryBattlePetNameResponse, RatedPvpInfo, RequestCemeteryListResponse, TaxiNodeStatusPkt,
+    ToyClearFanfare, UseToy,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -448,6 +449,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_battle_pet_update_notify",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::QueryBattlePetName,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_query_battle_pet_name",
     }
 }
 
@@ -1516,6 +1526,28 @@ impl crate::session::WorldSession {
         };
 
         self.battle_pet_update_notify_like_cpp(request.pet_guid);
+    }
+
+    /// CMSG_QUERY_BATTLE_PET_NAME — represented negative lookup response.
+    ///
+    /// C++ always sends `QueryBattlePetNameResponse`; until the live summoned
+    /// battle-pet creature/name runtime exists, Rust can faithfully close the
+    /// unresolved branch (`Allow=false`, zero creature/timestamp).
+    pub async fn handle_query_battle_pet_name(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let request = match QueryBattlePetName::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "QueryBattlePetName parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        self.send_packet(&QueryBattlePetNameResponse::not_allowed(
+            request.battle_pet_id,
+        ));
     }
     pub async fn handle_arena_team_roster(&mut self, _pkt: wow_packet::WorldPacket) {}
     pub async fn handle_request_raid_info(&mut self, _pkt: wow_packet::WorldPacket) {
@@ -3174,6 +3206,17 @@ mod tests {
         pkt
     }
 
+    fn query_battle_pet_name_packet(
+        battle_pet_id: ObjectGuid,
+        unit_guid: ObjectGuid,
+    ) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(ClientOpcodes::QueryBattlePetName as u16);
+        pkt.write_packed_guid(&battle_pet_id);
+        pkt.write_packed_guid(&unit_guid);
+        pkt
+    }
+
     fn battle_pet_request_journal_lock_packet() -> WorldPacket {
         let mut pkt = WorldPacket::new_empty();
         pkt.write_uint16(ClientOpcodes::BattlePetRequestJournalLock as u16);
@@ -3398,6 +3441,29 @@ mod tests {
 
         assert_eq!(session.represented_battle_pet_data_updates_like_cpp(), &[]);
         assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn query_battle_pet_name_sends_negative_response_like_cpp_until_runtime_exists() {
+        let (mut session, send_rx) = make_session();
+        let battle_pet_id = ObjectGuid::new(0, 0x22d);
+        let unit_guid = ObjectGuid::new(0, 0x22e);
+
+        session
+            .handle_query_battle_pet_name(query_battle_pet_name_packet(battle_pet_id, unit_guid))
+            .await;
+
+        let bytes = send_rx.try_recv().expect("query battle pet name response");
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::QueryBattlePetNameResponse as u16
+        );
+        let mut body = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(body.read_packed_guid().unwrap(), battle_pet_id);
+        assert_eq!(body.read_int32().unwrap(), 0);
+        assert_eq!(body.read_int64().unwrap(), 0);
+        assert!(!body.read_bit().unwrap());
+        assert_eq!(body.remaining(), 0);
     }
 
     #[tokio::test]

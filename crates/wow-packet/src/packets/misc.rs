@@ -1729,6 +1729,60 @@ impl ClientPacket for BattlePetUpdateNotify {
     }
 }
 
+/// C++ `WorldPackets::BattlePet::QueryBattlePetName`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct QueryBattlePetName {
+    pub battle_pet_id: ObjectGuid,
+    pub unit_guid: ObjectGuid,
+}
+
+impl ClientPacket for QueryBattlePetName {
+    const OPCODE: ClientOpcodes = ClientOpcodes::QueryBattlePetName;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        pkt.skip_opcode();
+        Ok(Self {
+            battle_pet_id: pkt.read_packed_guid()?,
+            unit_guid: pkt.read_packed_guid()?,
+        })
+    }
+}
+
+/// C++ `WorldPackets::BattlePet::QueryBattlePetNameResponse`.
+///
+/// This currently supports the negative `Allow=false` shape used by C++ when
+/// the queried summon/pet cannot be resolved. The positive name payload depends
+/// on the live battle-pet companion runtime and declined-name model.
+pub struct QueryBattlePetNameResponse {
+    pub battle_pet_id: ObjectGuid,
+    pub creature_id: i32,
+    pub timestamp: i64,
+    pub allow: bool,
+}
+
+impl QueryBattlePetNameResponse {
+    pub fn not_allowed(battle_pet_id: ObjectGuid) -> Self {
+        Self {
+            battle_pet_id,
+            creature_id: 0,
+            timestamp: 0,
+            allow: false,
+        }
+    }
+}
+
+impl ServerPacket for QueryBattlePetNameResponse {
+    const OPCODE: ServerOpcodes = ServerOpcodes::QueryBattlePetNameResponse;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_packed_guid(&self.battle_pet_id);
+        pkt.write_int32(self.creature_id);
+        pkt.write_int64(self.timestamp);
+        pkt.write_bit(self.allow);
+        pkt.flush_bits();
+    }
+}
+
 /// C++ `WorldPackets::BattlePet::BattlePetSetFlags`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BattlePetSetFlags {
@@ -3878,6 +3932,43 @@ mod tests {
 
         let decoded = BattlePetUpdateNotify::read(&mut pkt).unwrap();
         assert_eq!(decoded, BattlePetUpdateNotify { pet_guid });
+    }
+
+    #[test]
+    fn query_battle_pet_name_reads_cpp_shape() {
+        let battle_pet_id = ObjectGuid::new(0, 0x4326);
+        let unit_guid = ObjectGuid::new(0, 0x4327);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(ClientOpcodes::QueryBattlePetName as u16);
+        pkt.write_packed_guid(&battle_pet_id);
+        pkt.write_packed_guid(&unit_guid);
+
+        let decoded = QueryBattlePetName::read(&mut pkt).unwrap();
+        assert_eq!(
+            decoded,
+            QueryBattlePetName {
+                battle_pet_id,
+                unit_guid,
+            }
+        );
+    }
+
+    #[test]
+    fn query_battle_pet_name_response_writes_negative_cpp_shape() {
+        let battle_pet_id = ObjectGuid::new(0, 0x4328);
+        let response = QueryBattlePetNameResponse::not_allowed(battle_pet_id);
+        let bytes = response.to_bytes();
+
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::QueryBattlePetNameResponse as u16
+        );
+        let mut body = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(body.read_packed_guid().unwrap(), battle_pet_id);
+        assert_eq!(body.read_int32().unwrap(), 0);
+        assert_eq!(body.read_int64().unwrap(), 0);
+        assert!(!body.read_bit().unwrap());
+        assert_eq!(body.remaining(), 0);
     }
 
     #[test]
