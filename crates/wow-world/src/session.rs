@@ -42845,8 +42845,16 @@ mod tests {
         let mut spell_store = wow_data::SpellStore::new();
         let primary_noop_spells = [
             (
+                856_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_CREATE_HOUSE,
+            ),
+            (
                 750_i32,
                 wow_data::spell::spell_effect_types::SPELL_EFFECT_BIND_SIGHT,
+            ),
+            (
+                756_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_CREATE_HOUSE,
             ),
             (
                 757_i32,

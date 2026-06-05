@@ -61,6 +61,7 @@ pub mod spell_effect_types {
     /// `Spell::EffectSummonObjectWild` (`SpellEffects.cpp:2937-2986`).
     pub const SPELL_EFFECT_SUMMON_OBJECT_WILD: u32 = 76;
     pub const SPELL_EFFECT_ATTACK: u32 = 78;
+    pub const SPELL_EFFECT_CREATE_HOUSE: u32 = 81;
     pub const SPELL_EFFECT_BIND_SIGHT: u32 = 82;
     pub const SPELL_EFFECT_KILL_CREDIT: u32 = 90;
     pub const SPELL_EFFECT_THREAT_ALL: u32 = 91;
@@ -214,6 +215,7 @@ pub mod spell_effect_types {
                 | SPELL_EFFECT_GUARANTEE_HIT
                 | SPELL_EFFECT_APPLY_AREA_AURA_RAID
                 | SPELL_EFFECT_ATTACK
+                | SPELL_EFFECT_CREATE_HOUSE
                 | SPELL_EFFECT_BIND_SIGHT
                 | SPELL_EFFECT_THREAT_ALL
                 | SPELL_EFFECT_SURVEY
@@ -1081,6 +1083,7 @@ mod tests {
         assert_eq!(spell_effect_types::SPELL_EFFECT_HEAL_MAX_HEALTH, 67);
         assert_eq!(spell_effect_types::SPELL_EFFECT_HEAL_MECHANICAL, 75);
         assert_eq!(spell_effect_types::SPELL_EFFECT_ATTACK, 78);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_CREATE_HOUSE, 81);
         assert_eq!(spell_effect_types::SPELL_EFFECT_BIND_SIGHT, 82);
         assert_eq!(spell_effect_types::SPELL_EFFECT_KILL_CREDIT, 90);
         assert_eq!(spell_effect_types::SPELL_EFFECT_THREAT_ALL, 91);
@@ -1303,6 +1306,7 @@ mod tests {
             spell_effect_types::SPELL_EFFECT_GUARANTEE_HIT,
             spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_RAID,
             spell_effect_types::SPELL_EFFECT_ATTACK,
+            spell_effect_types::SPELL_EFFECT_CREATE_HOUSE,
             spell_effect_types::SPELL_EFFECT_BIND_SIGHT,
             spell_effect_types::SPELL_EFFECT_THREAT_ALL,
             spell_effect_types::SPELL_EFFECT_SURVEY,
