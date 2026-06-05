@@ -1480,6 +1480,7 @@ const DEFAULT_TRANSMOG_ILLUSIONS_LIKE_CPP: [u32; 7] = [
 pub(crate) const BATTLE_PET_FLAG_FANFARE_NEEDED_LIKE_CPP: u16 = 0x01;
 pub(crate) const BATTLE_PET_FLAGS_CONTROL_TYPE_APPLY_LIKE_CPP: u8 = 1;
 pub(crate) const BATTLE_PET_SLOT_COUNT_LIKE_CPP: usize = 3;
+pub(crate) const BATTLE_PET_CAGE_ITEM_ID_LIKE_CPP: u32 = 82_800;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RepresentedBattlePetSaveInfoLikeCpp {
@@ -1487,6 +1488,27 @@ pub(crate) enum RepresentedBattlePetSaveInfoLikeCpp {
     Changed,
     Unchanged,
     Removed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedBattlePetCageItemLikeCpp {
+    pub(crate) item_id: u32,
+    pub(crate) species_id: u32,
+    pub(crate) breed_data: u32,
+    pub(crate) level: u16,
+    pub(crate) display_id: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RepresentedBattlePetCageOutcomeLikeCpp {
+    Caged(RepresentedBattlePetCageItemLikeCpp),
+    NoJournalLock,
+    UnknownPet,
+    NotTradable,
+    InBattleSlot,
+    Damaged,
+    InventoryUnavailable,
+    StoreFailed,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2811,6 +2833,8 @@ pub struct WorldSession {
         [RepresentedBattlePetSlotLikeCpp; BATTLE_PET_SLOT_COUNT_LIKE_CPP],
     /// C++ `ActivePlayerData::SummonedBattlePetGUID`, represented until battle-pet summon runtime is live.
     pub(crate) represented_summoned_battle_pet_guid_like_cpp: Option<ObjectGuid>,
+    /// Represented caged-item creations from C++ `BattlePetMgr::CageBattlePet`.
+    pub(crate) represented_battle_pet_cage_items_like_cpp: Vec<RepresentedBattlePetCageItemLikeCpp>,
     /// Evidence for represented `BattlePetMgr::UpdateBattlePetData` calls.
     pub(crate) represented_battle_pet_data_updates_like_cpp: Vec<ObjectGuid>,
     /// Session-local evidence for represented `Player::RemoveTimedQuest` calls.
@@ -3708,6 +3732,7 @@ impl WorldSession {
                 RepresentedBattlePetSlotLikeCpp::locked_empty(index as u8)
             }),
             represented_summoned_battle_pet_guid_like_cpp: None,
+            represented_battle_pet_cage_items_like_cpp: Vec::new(),
             represented_battle_pet_data_updates_like_cpp: Vec::new(),
             represented_timed_quest_removals_like_cpp: Vec::new(),
             represented_quest_reward_skill_updates_like_cpp: Vec::new(),
@@ -17971,6 +17996,75 @@ impl WorldSession {
         true
     }
 
+    /// C++ `BattlePetMgr::CageBattlePet`, represented at the battle-pet state
+    /// boundary. Inventory placement is still external: the caller must pass
+    /// the already-resolved `CanStoreNewItem`/`StoreNewItem` outcomes.
+    pub(crate) fn battle_pet_cage_battle_pet_represented_like_cpp(
+        &mut self,
+        pet_guid: ObjectGuid,
+        species_not_tradable: bool,
+        inventory_can_store: bool,
+        item_stored: bool,
+    ) -> RepresentedBattlePetCageOutcomeLikeCpp {
+        if !self.has_represented_battle_pet_journal_lock_like_cpp() {
+            return RepresentedBattlePetCageOutcomeLikeCpp::NoJournalLock;
+        }
+
+        let Some(pet) = self
+            .represented_battle_pets_like_cpp
+            .get(&pet_guid)
+            .cloned()
+        else {
+            return RepresentedBattlePetCageOutcomeLikeCpp::UnknownPet;
+        };
+
+        if species_not_tradable {
+            return RepresentedBattlePetCageOutcomeLikeCpp::NotTradable;
+        }
+
+        if self
+            .represented_battle_pet_slots_like_cpp
+            .iter()
+            .any(|slot| slot.pet_guid == Some(pet_guid))
+        {
+            return RepresentedBattlePetCageOutcomeLikeCpp::InBattleSlot;
+        }
+
+        if pet.health < pet.max_health {
+            return RepresentedBattlePetCageOutcomeLikeCpp::Damaged;
+        }
+
+        if !inventory_can_store {
+            return RepresentedBattlePetCageOutcomeLikeCpp::InventoryUnavailable;
+        }
+
+        if !item_stored {
+            return RepresentedBattlePetCageOutcomeLikeCpp::StoreFailed;
+        }
+
+        let cage_item = RepresentedBattlePetCageItemLikeCpp {
+            item_id: BATTLE_PET_CAGE_ITEM_ID_LIKE_CPP,
+            species_id: pet.species,
+            breed_data: u32::from(pet.breed) | (u32::from(pet.quality) << 24),
+            level: pet.level,
+            display_id: pet.display_id,
+        };
+        self.represented_battle_pet_cage_items_like_cpp
+            .push(cage_item);
+
+        let _ = self.battle_pet_remove_pet_like_cpp(pet_guid);
+        self.send_packet(&wow_packet::packets::misc::BattlePetDeleted { pet_guid });
+
+        if self.represented_summoned_battle_pet_guid_like_cpp == Some(pet_guid) {
+            self.represented_summoned_battle_pet_guid_like_cpp = None;
+            let _ = self.mutate_canonical_player_like_cpp(|player| {
+                player.clear_battle_pet_data_like_cpp();
+            });
+        }
+
+        RepresentedBattlePetCageOutcomeLikeCpp::Caged(cage_item)
+    }
+
     /// C++ `BattlePetMgr::ModifyName`, represented without live summoned-creature
     /// timestamp propagation until the companion creature runtime exists.
     pub(crate) fn battle_pet_modify_name_like_cpp(
@@ -18164,6 +18258,12 @@ impl WorldSession {
 
     pub(crate) fn represented_summoned_battle_pet_guid_like_cpp(&self) -> Option<ObjectGuid> {
         self.represented_summoned_battle_pet_guid_like_cpp
+    }
+
+    pub(crate) fn represented_battle_pet_cage_items_like_cpp(
+        &self,
+    ) -> &[RepresentedBattlePetCageItemLikeCpp] {
+        &self.represented_battle_pet_cage_items_like_cpp
     }
 
     /// C++ `BattlePetMgr::UpdateBattlePetData`, represented at the gate level.
@@ -52926,6 +53026,194 @@ mod tests {
         let journal = session.represented_battle_pet_journal_like_cpp();
         assert!(journal.pets.is_empty());
         assert_eq!(journal.slots[1].pet_guid, pet_guid);
+    }
+
+    #[test]
+    fn battle_pet_cage_battle_pet_applies_cpp_gates_without_side_effects() {
+        let (mut session, _, send_rx) = make_session();
+        let pet_guid = ObjectGuid::new(0, 0x180);
+        let slotted_guid = ObjectGuid::new(0, 0x181);
+        let damaged_guid = ObjectGuid::new(0, 0x182);
+        let unknown_guid = ObjectGuid::new(0, 0x183);
+
+        session.add_represented_battle_pet_packet_info_like_cpp(
+            pet_guid,
+            RepresentedBattlePetDataLikeCpp {
+                species: 11,
+                creature_id: 22,
+                display_id: 33,
+                breed: 44,
+                level: 17,
+                exp: 0,
+                flags: 0,
+                power: 0,
+                health: 100,
+                max_health: 100,
+                speed: 0,
+                quality: 3,
+                owner_info: None,
+                name: String::new(),
+                name_timestamp: 0,
+                declined_names: None,
+                save_info: RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+            },
+        );
+        session.add_represented_battle_pet_packet_info_like_cpp(
+            slotted_guid,
+            RepresentedBattlePetDataLikeCpp {
+                species: 12,
+                health: 100,
+                max_health: 100,
+                ..RepresentedBattlePetDataLikeCpp::minimal_like_cpp(
+                    0,
+                    RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+                )
+            },
+        );
+        session.add_represented_battle_pet_packet_info_like_cpp(
+            damaged_guid,
+            RepresentedBattlePetDataLikeCpp {
+                species: 13,
+                health: 99,
+                max_health: 100,
+                ..RepresentedBattlePetDataLikeCpp::minimal_like_cpp(
+                    0,
+                    RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+                )
+            },
+        );
+        assert!(session.battle_pet_set_battle_slot_like_cpp(slotted_guid, 1));
+
+        assert_eq!(
+            session.battle_pet_cage_battle_pet_represented_like_cpp(pet_guid, false, true, true),
+            RepresentedBattlePetCageOutcomeLikeCpp::NoJournalLock
+        );
+        session.send_battle_pet_journal_lock_status_like_cpp();
+        let _ = drain_server_packet_bytes(&send_rx);
+
+        assert_eq!(
+            session.battle_pet_cage_battle_pet_represented_like_cpp(
+                unknown_guid,
+                false,
+                true,
+                true
+            ),
+            RepresentedBattlePetCageOutcomeLikeCpp::UnknownPet
+        );
+        assert_eq!(
+            session.battle_pet_cage_battle_pet_represented_like_cpp(pet_guid, true, true, true),
+            RepresentedBattlePetCageOutcomeLikeCpp::NotTradable
+        );
+        assert_eq!(
+            session.battle_pet_cage_battle_pet_represented_like_cpp(
+                slotted_guid,
+                false,
+                true,
+                true
+            ),
+            RepresentedBattlePetCageOutcomeLikeCpp::InBattleSlot
+        );
+        assert_eq!(
+            session.battle_pet_cage_battle_pet_represented_like_cpp(
+                damaged_guid,
+                false,
+                true,
+                true
+            ),
+            RepresentedBattlePetCageOutcomeLikeCpp::Damaged
+        );
+        assert_eq!(
+            session.battle_pet_cage_battle_pet_represented_like_cpp(pet_guid, false, false, true),
+            RepresentedBattlePetCageOutcomeLikeCpp::InventoryUnavailable
+        );
+        assert_eq!(
+            session.battle_pet_cage_battle_pet_represented_like_cpp(pet_guid, false, true, false),
+            RepresentedBattlePetCageOutcomeLikeCpp::StoreFailed
+        );
+
+        assert!(
+            session
+                .represented_battle_pet_cage_items_like_cpp()
+                .is_empty()
+        );
+        assert_eq!(
+            session
+                .represented_battle_pet_like_cpp(pet_guid)
+                .expect("pet still present")
+                .save_info,
+            RepresentedBattlePetSaveInfoLikeCpp::Unchanged
+        );
+        assert!(drain_server_packet_bytes(&send_rx).is_empty());
+    }
+
+    #[test]
+    fn battle_pet_cage_battle_pet_creates_cage_item_removes_and_deletes_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let pet_guid = ObjectGuid::new(0, 0x184);
+        let expected_item = RepresentedBattlePetCageItemLikeCpp {
+            item_id: BATTLE_PET_CAGE_ITEM_ID_LIKE_CPP,
+            species_id: 11,
+            breed_data: 44 | (3 << 24),
+            level: 17,
+            display_id: 33,
+        };
+
+        session.add_represented_battle_pet_packet_info_like_cpp(
+            pet_guid,
+            RepresentedBattlePetDataLikeCpp {
+                species: 11,
+                creature_id: 22,
+                display_id: 33,
+                breed: 44,
+                level: 17,
+                exp: 0,
+                flags: 0,
+                power: 0,
+                health: 100,
+                max_health: 100,
+                speed: 0,
+                quality: 3,
+                owner_info: None,
+                name: String::new(),
+                name_timestamp: 0,
+                declined_names: None,
+                save_info: RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+            },
+        );
+        assert!(session.battle_pet_summon_toggle_like_cpp(pet_guid));
+        session.send_battle_pet_journal_lock_status_like_cpp();
+        let _ = drain_server_packet_bytes(&send_rx);
+
+        assert_eq!(
+            session.battle_pet_cage_battle_pet_represented_like_cpp(pet_guid, false, true, true),
+            RepresentedBattlePetCageOutcomeLikeCpp::Caged(expected_item)
+        );
+
+        assert_eq!(
+            session.represented_battle_pet_cage_items_like_cpp(),
+            &[expected_item]
+        );
+        assert_eq!(
+            session
+                .represented_battle_pet_like_cpp(pet_guid)
+                .expect("removed pet row remains represented")
+                .save_info,
+            RepresentedBattlePetSaveInfoLikeCpp::Removed
+        );
+        assert_eq!(
+            session.represented_summoned_battle_pet_guid_like_cpp(),
+            None
+        );
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(packets.len(), 1);
+        let mut packet = wow_packet::WorldPacket::from_bytes(&packets[0]);
+        assert_eq!(
+            packet.read_uint16().expect("opcode"),
+            ServerOpcodes::BattlePetDeleted as u16
+        );
+        assert_eq!(packet.read_packed_guid().expect("pet guid"), pet_guid);
+        assert_eq!(packet.remaining(), 0);
     }
 
     #[test]
