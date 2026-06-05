@@ -1765,6 +1765,26 @@ impl BattlePetDeletePet {
     }
 }
 
+/// C++ `WorldPackets::BattlePet::CageBattlePet`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CageBattlePet {
+    pub pet_guid: ObjectGuid,
+}
+
+impl CageBattlePet {
+    /// Reads C++ `CageBattlePet::Read`.
+    ///
+    /// The archived C++ opcode table maps `CMSG_CAGE_BATTLE_PET` to the shared
+    /// `0xBADD` placeholder. Rust must not register production dispatch until
+    /// the real opcode mapping is known.
+    pub fn read_like_cpp(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        pkt.skip_opcode();
+        Ok(Self {
+            pet_guid: pkt.read_packed_guid()?,
+        })
+    }
+}
+
 /// C++ `DeclinedName`, represented for battle-pet rename packets.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeclinedNamesLikeCpp {
@@ -4211,6 +4231,18 @@ mod tests {
 
         let decoded = BattlePetDeletePet::read_like_cpp(&mut pkt).unwrap();
         assert_eq!(decoded, BattlePetDeletePet { pet_guid });
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn cage_battle_pet_reads_placeholder_cpp_shape() {
+        let pet_guid = ObjectGuid::new(0, 0x4334);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(0xBADD);
+        pkt.write_packed_guid(&pet_guid);
+
+        let decoded = CageBattlePet::read_like_cpp(&mut pkt).unwrap();
+        assert_eq!(decoded, CageBattlePet { pet_guid });
         assert_eq!(pkt.remaining(), 0);
     }
 
