@@ -1958,12 +1958,70 @@ pub fn empty_battle_pet_guid_like_cpp() -> ObjectGuid {
     ObjectGuid::create_global(HighGuid::BattlePet, 0, 0)
 }
 
+/// C++ `WorldPackets::BattlePet::BattlePetOwnerInfo`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BattlePetJournalPetOwnerInfo {
+    pub guid: ObjectGuid,
+    pub player_virtual_realm: u32,
+    pub player_native_realm: u32,
+}
+
+/// C++ `WorldPackets::BattlePet::BattlePet`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BattlePetJournalPet {
+    pub guid: ObjectGuid,
+    pub species: u32,
+    pub creature_id: u32,
+    pub display_id: u32,
+    pub breed: u16,
+    pub level: u16,
+    pub exp: u16,
+    pub flags: u16,
+    pub power: u32,
+    pub health: u32,
+    pub max_health: u32,
+    pub speed: u32,
+    pub quality: u8,
+    pub owner_info: Option<BattlePetJournalPetOwnerInfo>,
+    pub name: String,
+}
+
+impl BattlePetJournalPet {
+    fn write_like_cpp(&self, pkt: &mut WorldPacket) {
+        pkt.write_packed_guid(&self.guid);
+        pkt.write_uint32(self.species);
+        pkt.write_uint32(self.creature_id);
+        pkt.write_uint32(self.display_id);
+        pkt.write_uint16(self.breed);
+        pkt.write_uint16(self.level);
+        pkt.write_uint16(self.exp);
+        pkt.write_uint16(self.flags);
+        pkt.write_uint32(self.power);
+        pkt.write_uint32(self.health);
+        pkt.write_uint32(self.max_health);
+        pkt.write_uint32(self.speed);
+        pkt.write_uint8(self.quality);
+        pkt.write_bits(self.name.len() as u32, 7);
+        pkt.write_bit(self.owner_info.is_some());
+        pkt.write_bit(false); // NoRename
+        pkt.flush_bits();
+        pkt.write_string(&self.name);
+
+        if let Some(owner_info) = self.owner_info {
+            pkt.write_packed_guid(&owner_info.guid);
+            pkt.write_uint32(owner_info.player_virtual_realm);
+            pkt.write_uint32(owner_info.player_native_realm);
+        }
+    }
+}
+
 /// C++ `WorldPackets::BattlePet::BattlePetJournal`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BattlePetJournal {
     pub trap: u16,
     pub has_journal_lock: bool,
     pub slots: Vec<BattlePetJournalSlot>,
+    pub pets: Vec<BattlePetJournalPet>,
 }
 
 impl BattlePetJournal {
@@ -1972,6 +2030,7 @@ impl BattlePetJournal {
             trap: 0,
             has_journal_lock,
             slots: (0..3).map(BattlePetJournalSlot::locked_empty).collect(),
+            pets: Vec::new(),
         }
     }
 }
@@ -1982,7 +2041,7 @@ impl ServerPacket for BattlePetJournal {
     fn write(&self, pkt: &mut WorldPacket) {
         pkt.write_uint16(self.trap);
         pkt.write_uint32(self.slots.len() as u32);
-        pkt.write_uint32(0); // Pets.Size; full BattlePet packet rows are not represented yet.
+        pkt.write_uint32(self.pets.len() as u32);
         pkt.write_bit(self.has_journal_lock);
         pkt.flush_bits();
 
@@ -1992,6 +2051,10 @@ impl ServerPacket for BattlePetJournal {
             pkt.write_uint8(slot.index);
             pkt.write_bit(slot.locked);
             pkt.flush_bits();
+        }
+
+        for pet in &self.pets {
+            pet.write_like_cpp(pkt);
         }
     }
 }
@@ -4185,6 +4248,66 @@ mod tests {
             assert_eq!(body.read_uint8().unwrap(), index);
             assert!(body.read_bit().unwrap());
         }
+        assert_eq!(body.remaining(), 0);
+    }
+
+    #[test]
+    fn battle_pet_journal_writes_pet_rows_like_cpp() {
+        let pet_guid = ObjectGuid::new(0, 0x4335);
+        let owner_guid = ObjectGuid::create_player(1, 77);
+        let bytes = BattlePetJournal {
+            trap: 9,
+            has_journal_lock: true,
+            slots: Vec::new(),
+            pets: vec![BattlePetJournalPet {
+                guid: pet_guid,
+                species: 11,
+                creature_id: 22,
+                display_id: 33,
+                breed: 44,
+                level: 55,
+                exp: 66,
+                flags: 77,
+                power: 88,
+                health: 99,
+                max_health: 111,
+                speed: 222,
+                quality: 3,
+                owner_info: Some(BattlePetJournalPetOwnerInfo {
+                    guid: owner_guid,
+                    player_virtual_realm: 123,
+                    player_native_realm: 456,
+                }),
+                name: "Misha".to_string(),
+            }],
+        }
+        .to_bytes();
+
+        let mut body = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(body.read_uint16().unwrap(), 9);
+        assert_eq!(body.read_uint32().unwrap(), 0);
+        assert_eq!(body.read_uint32().unwrap(), 1);
+        assert!(body.read_bit().unwrap());
+        assert_eq!(body.read_packed_guid().unwrap(), pet_guid);
+        assert_eq!(body.read_uint32().unwrap(), 11);
+        assert_eq!(body.read_uint32().unwrap(), 22);
+        assert_eq!(body.read_uint32().unwrap(), 33);
+        assert_eq!(body.read_uint16().unwrap(), 44);
+        assert_eq!(body.read_uint16().unwrap(), 55);
+        assert_eq!(body.read_uint16().unwrap(), 66);
+        assert_eq!(body.read_uint16().unwrap(), 77);
+        assert_eq!(body.read_uint32().unwrap(), 88);
+        assert_eq!(body.read_uint32().unwrap(), 99);
+        assert_eq!(body.read_uint32().unwrap(), 111);
+        assert_eq!(body.read_uint32().unwrap(), 222);
+        assert_eq!(body.read_uint8().unwrap(), 3);
+        assert_eq!(body.read_bits(7).unwrap(), 5);
+        assert!(body.read_bit().unwrap());
+        assert!(!body.read_bit().unwrap());
+        assert_eq!(body.read_string(5).unwrap(), "Misha");
+        assert_eq!(body.read_packed_guid().unwrap(), owner_guid);
+        assert_eq!(body.read_uint32().unwrap(), 123);
+        assert_eq!(body.read_uint32().unwrap(), 456);
         assert_eq!(body.remaining(), 0);
     }
 
