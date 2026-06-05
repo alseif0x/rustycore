@@ -1638,6 +1638,17 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   cover the C++ recast aura-preservation branch, different-spell aura cleanup, and missing-GUID slot
   clear. Scope remains pre-create only: no new GameObject creation, phase inheritance,
   `Map::AddToMap`, final slot write, scripts, packets, DB, or cooldown event emission.
+- 2026-06-05 — Map-owned `EffectSummonObject` create/add/slot body boundary
+  `#NEXT.RUNTIME.L3.031e8`: contrasted C++ `Spell::EffectSummonObject` create body
+  (`SpellEffects.cpp:3565-3597`) and `GameObject::Create` (`GameObject.cpp:179-229`). Rust now
+  exposes `gameobject_summon_object_for_owner_slot_like_cpp`, which consumes an already-resolved
+  GameObject template, destination and duration, generates a map-owned GameObject GUID, creates a
+  ready dynamic spell-owned GameObject, copies caster faction/level, applies respawn seconds and
+  spell id, performs the represented `Unit::AddGameObject` owner link before `Map::AddToMap`, then
+  writes the represented owner slot after AddToMap. Tests cover the successful create/add/slot path
+  and the missing-owner guard without low-GUID consumption. Scope remains bounded: no DB/template
+  lookup, spell target resolution/GetClosePoint, real phase inheritance, scripts, packets, or
+  cooldown event emission.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

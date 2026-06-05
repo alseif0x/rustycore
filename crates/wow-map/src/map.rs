@@ -43,7 +43,8 @@ use wow_entities::{
     DynamicObjectType, DynamicObjectValuesUpdate, GAMEOBJECT_TYPE_CAPTURE_POINT,
     GAMEOBJECT_TYPE_CHEST, GAMEOBJECT_TYPE_DOOR, GAMEOBJECT_TYPE_GOOBER,
     GAMEOBJECT_TYPE_MAP_OBJ_TRANSPORT, GAMEOBJECT_TYPE_NEW_FLAG, GAMEOBJECT_TYPE_NEW_FLAG_DROP,
-    GAMEOBJECT_TYPE_TRANSPORT, GO_FLAG_NODESPAWN, GameObject,
+    GAMEOBJECT_TYPE_TRANSPORT, GO_FLAG_NODESPAWN, GameObject, GameObjectCreateLifecycleRecord,
+    GameObjectLifecycleError, GameObjectTemplateLifecycleRecord,
     GameObjectUpdateOutcomeLikeCpp as EntityGameObjectUpdateOutcomeLikeCpp,
     GameObjectUpdateStatusLikeCpp as EntityGameObjectUpdateStatusLikeCpp, GoState, INVALID_HEIGHT,
     LineOfSightQuery, LootState, MAX_VISIBILITY_DISTANCE, MapBindingError, MapObjectRecord,
@@ -60,6 +61,11 @@ const GAMEOBJECT_TYPE_GENERIC_LIKE_CPP: u32 = 5;
 /// C++ `DynamicTree.cpp:34-38` `CHECK_TREE_PERIOD = 200`.
 const DYNAMIC_MAP_TREE_CHECK_PERIOD_MS_LIKE_CPP: u32 = 200;
 const WEATHER_UPDATE_INTERVAL_MS_LIKE_CPP: u32 = 1_000;
+
+fn gameobject_local_rotation_from_orientation_like_cpp(orientation: f32) -> [f32; 4] {
+    let half = orientation * 0.5;
+    [0.0, 0.0, half.sin(), half.cos()]
+}
 
 #[derive(Clone, Copy)]
 struct CombatUnitSnapshotLikeCpp<'a> {
@@ -9430,6 +9436,251 @@ where
         }
     }
 
+    /// Bounded map-owned body for C++ `Spell::EffectSummonObject`.
+    ///
+    /// C++ anchors:
+    /// - `SpellEffects.cpp:3565-3597`: after old-slot cleanup and destination
+    ///   resolution, create a ready GameObject from `effectInfo->MiscValue`,
+    ///   inherit phase, copy caster faction/level, set respawn from spell
+    ///   duration, set `SpellId`, call `Unit::AddGameObject`, execute the
+    ///   summon-object log boundary, add to map, then write `m_ObjectSlot[slot]`.
+    /// - `GameObject.cpp:179-229`: `GameObject::Create` binds the object to the
+    ///   map/position/rotation/template before `Map::AddToMap`.
+    ///
+    /// Scope: the caller supplies an already-resolved template, destination and
+    /// duration. This helper does not load DB/templates, resolve spell targets,
+    /// inherit real phase masks, execute scripts, send packets, or emit cooldown
+    /// events.
+    pub fn gameobject_summon_object_for_owner_slot_like_cpp(
+        &mut self,
+        owner_guid: ObjectGuid,
+        slot: usize,
+        spell_id: u32,
+        template: GameObjectTemplateLifecycleRecord,
+        position: Position,
+        duration_ms: i32,
+    ) -> GameObjectSummonObjectForOwnerSlotOutcomeLikeCpp {
+        let template_entry = template.entry;
+        let Some(owner) = self
+            .map_object_record(owner_guid)
+            .and_then(Self::map_record_unit_like_cpp)
+        else {
+            return GameObjectSummonObjectForOwnerSlotOutcomeLikeCpp {
+                owner_guid,
+                slot,
+                spell_id,
+                template_entry,
+                status: GameObjectSummonObjectForOwnerSlotStatusLikeCpp::MissingOwner,
+                guid: None,
+                low_guid: None,
+                create_error: None,
+                add_to_map: None,
+                add_owner_slot: None,
+                respawn_time_secs: None,
+                caster_faction: None,
+                caster_level: None,
+                phase_inherit_represented: false,
+                execute_log_represented: false,
+                cooldown_event_represented: false,
+            };
+        };
+
+        let caster_faction = owner.data().faction_template.max(0) as u32;
+        let caster_level = owner.data().level.max(0) as u32;
+        let respawn_time_secs = if duration_ms > 0 {
+            duration_ms / 1_000
+        } else {
+            0
+        };
+        let low_guid = match self.generate_low_guid_like_cpp(HighGuid::GameObject) {
+            Ok(low) => low,
+            Err(_) => {
+                return GameObjectSummonObjectForOwnerSlotOutcomeLikeCpp {
+                    owner_guid,
+                    slot,
+                    spell_id,
+                    template_entry,
+                    status: GameObjectSummonObjectForOwnerSlotStatusLikeCpp::LowGuidUnavailable,
+                    guid: None,
+                    low_guid: None,
+                    create_error: None,
+                    add_to_map: None,
+                    add_owner_slot: None,
+                    respawn_time_secs: Some(respawn_time_secs),
+                    caster_faction: Some(caster_faction),
+                    caster_level: Some(caster_level),
+                    phase_inherit_represented: false,
+                    execute_log_represented: false,
+                    cooldown_event_represented: false,
+                };
+            }
+        };
+        let guid = ObjectGuid::create_world_object(
+            HighGuid::GameObject,
+            0,
+            1,
+            self.map_id as u16,
+            self.instance_id,
+            template_entry,
+            low_guid,
+        );
+        let rotation = gameobject_local_rotation_from_orientation_like_cpp(position.orientation);
+        let record = GameObjectCreateLifecycleRecord {
+            guid,
+            map_id: self.map_id,
+            instance_id: self.instance_id,
+            position,
+            rotation,
+            anim_progress: u8::MAX,
+            go_state: GoState::Ready,
+            art_kit: 0,
+            dynamic: true,
+            spawn_id: 0,
+            template,
+        };
+
+        let mut game_object = match GameObject::try_create_from_lifecycle(record) {
+            Ok(game_object) => game_object,
+            Err(error) => {
+                return GameObjectSummonObjectForOwnerSlotOutcomeLikeCpp {
+                    owner_guid,
+                    slot,
+                    spell_id,
+                    template_entry,
+                    status: GameObjectSummonObjectForOwnerSlotStatusLikeCpp::CreateFailed,
+                    guid: Some(guid),
+                    low_guid: Some(low_guid),
+                    create_error: Some(error),
+                    add_to_map: None,
+                    add_owner_slot: None,
+                    respawn_time_secs: Some(respawn_time_secs),
+                    caster_faction: Some(caster_faction),
+                    caster_level: Some(caster_level),
+                    phase_inherit_represented: false,
+                    execute_log_represented: false,
+                    cooldown_event_represented: false,
+                };
+            }
+        };
+        game_object.set_faction(caster_faction);
+        game_object.set_level(caster_level);
+        game_object.set_respawn_time(i64::from(respawn_time_secs));
+        game_object.set_spell_id(spell_id);
+        game_object.set_owner_guid_like_cpp(owner_guid);
+
+        let mut registered_owned_gameobject = false;
+        let mut creature_ai_callback_represented = false;
+        if let Some(record) = self.map_objects.get_mut(&owner_guid) {
+            if let Some(owner) = Self::map_record_unit_mut_like_cpp(record) {
+                owner
+                    .subsystems_mut()
+                    .control
+                    .register_owned_gameobject_like_cpp(guid);
+                registered_owned_gameobject = true;
+            }
+            creature_ai_callback_represented = match record.kind() {
+                AccessorObjectKind::Creature => record
+                    .creature_mut()
+                    .map(|creature| {
+                        creature
+                            .unit_mut()
+                            .subsystems_mut()
+                            .ai
+                            .just_summoned_gameobject_like_cpp()
+                    })
+                    .unwrap_or(false),
+                AccessorObjectKind::Pet => record
+                    .pet_mut()
+                    .map(|pet| {
+                        pet.creature_mut()
+                            .unit_mut()
+                            .subsystems_mut()
+                            .ai
+                            .just_summoned_gameobject_like_cpp()
+                    })
+                    .unwrap_or(false),
+                _ => false,
+            };
+        }
+        let add_owner = GameObjectAddToOwnerOutcomeLikeCpp {
+            guid,
+            owner_guid,
+            owner_found_as_unit_like: true,
+            gameobject_found: true,
+            owner_guid_before: ObjectGuid::EMPTY,
+            owner_guid_after: owner_guid,
+            gameobject_owner_empty_before: true,
+            registered_owned_gameobject,
+            owner_guid_set: registered_owned_gameobject,
+            cooldown_start_represented: false,
+            creature_ai_callback_represented,
+        };
+
+        let add_to_map = self
+            .add_map_object_record_to_map_like_cpp(
+                MapObjectRecord::new_game_object(game_object)
+                    .expect("GameObject lifecycle create must produce a typed GameObject record"),
+            )
+            .ok();
+        let add_owner_slot = if add_to_map.is_some() {
+            let mut slot_previous_guid = ObjectGuid::EMPTY;
+            let mut slot_set = false;
+            if let Some(owner) = self
+                .map_objects
+                .get_mut(&owner_guid)
+                .and_then(Self::map_record_unit_mut_like_cpp)
+            {
+                if let Some(previous) = owner
+                    .subsystems()
+                    .control
+                    .gameobject_slots
+                    .get(slot)
+                    .copied()
+                {
+                    slot_previous_guid = previous;
+                }
+                slot_set = owner
+                    .subsystems_mut()
+                    .control
+                    .set_gameobject_slot(slot, guid);
+            }
+            Some(GameObjectAddToOwnerSlotOutcomeLikeCpp {
+                add_owner,
+                slot,
+                slot_previous_guid,
+                slot_set,
+            })
+        } else {
+            None
+        };
+        let execute_log_represented = add_owner_slot.as_ref().is_some_and(|outcome| {
+            outcome.add_owner.registered_owned_gameobject && outcome.slot_set
+        });
+
+        GameObjectSummonObjectForOwnerSlotOutcomeLikeCpp {
+            owner_guid,
+            slot,
+            spell_id,
+            template_entry,
+            status: if execute_log_represented {
+                GameObjectSummonObjectForOwnerSlotStatusLikeCpp::CreatedAddedAndSlotted
+            } else {
+                GameObjectSummonObjectForOwnerSlotStatusLikeCpp::AddToMapOrOwnerFailed
+            },
+            guid: Some(guid),
+            low_guid: Some(low_guid),
+            create_error: None,
+            add_to_map,
+            add_owner_slot,
+            respawn_time_secs: Some(respawn_time_secs),
+            caster_faction: Some(caster_faction),
+            caster_level: Some(caster_level),
+            phase_inherit_represented: false,
+            execute_log_represented,
+            cooldown_event_represented: false,
+        }
+    }
+
     /// Bounded map-owned representation of C++ `Unit::RemoveGameObject(uint32
     /// spellid, bool del)`.
     ///
@@ -12353,6 +12604,35 @@ pub struct GameObjectPrepareOwnerSlotForSummonOutcomeLikeCpp {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GameObjectSummonObjectForOwnerSlotStatusLikeCpp {
+    MissingOwner,
+    LowGuidUnavailable,
+    CreateFailed,
+    AddToMapOrOwnerFailed,
+    CreatedAddedAndSlotted,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct GameObjectSummonObjectForOwnerSlotOutcomeLikeCpp {
+    pub owner_guid: ObjectGuid,
+    pub slot: usize,
+    pub spell_id: u32,
+    pub template_entry: u32,
+    pub status: GameObjectSummonObjectForOwnerSlotStatusLikeCpp,
+    pub guid: Option<ObjectGuid>,
+    pub low_guid: Option<i64>,
+    pub create_error: Option<GameObjectLifecycleError>,
+    pub add_to_map: Option<AddToMapOutcome>,
+    pub add_owner_slot: Option<GameObjectAddToOwnerSlotOutcomeLikeCpp>,
+    pub respawn_time_secs: Option<i32>,
+    pub caster_faction: Option<u32>,
+    pub caster_level: Option<u32>,
+    pub phase_inherit_represented: bool,
+    pub execute_log_represented: bool,
+    pub cooldown_event_represented: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct UnitRemoveGameObjectsBySpellOutcomeLikeCpp {
     pub owner_guid: ObjectGuid,
     pub spell_id: u32,
@@ -14905,6 +15185,102 @@ mod tests {
     }
 
     #[test]
+    fn gameobject_summon_object_for_owner_slot_creates_adds_and_slots_like_cpp() {
+        let mut map = test_map();
+        let mut owner = test_player_for_viewpoint(4822001);
+        let owner_guid = owner.guid();
+        owner.unit_mut().set_faction(1735);
+        owner.unit_mut().set_level(47);
+        map.insert_map_object_record(MapObjectRecord::new_player(owner).unwrap())
+            .unwrap();
+        let position = Position::new(10.0, 11.0, 12.0, 1.25);
+        let template =
+            summon_gameobject_template_like_cpp(4822002, GAMEOBJECT_TYPE_GENERIC_LIKE_CPP);
+
+        let outcome = map.gameobject_summon_object_for_owner_slot_like_cpp(
+            owner_guid, 1, 4822010, template, position, 12_345,
+        );
+
+        assert_eq!(
+            outcome.status,
+            GameObjectSummonObjectForOwnerSlotStatusLikeCpp::CreatedAddedAndSlotted
+        );
+        assert_eq!(outcome.low_guid, Some(1));
+        let guid = outcome
+            .guid
+            .expect("summon should allocate a GameObject guid");
+        assert_eq!(guid.entry(), 4822002);
+        assert_eq!(outcome.respawn_time_secs, Some(12));
+        assert_eq!(outcome.caster_faction, Some(1735));
+        assert_eq!(outcome.caster_level, Some(47));
+        assert!(!outcome.phase_inherit_represented);
+        assert!(outcome.execute_log_represented);
+        assert!(!outcome.cooldown_event_represented);
+        assert!(outcome.add_to_map.as_ref().is_some_and(|add| add.inserted));
+        assert!(outcome.add_to_map.as_ref().is_some_and(|add| {
+            add.gameobject_store_inserted_before_add_to_world == Some(true)
+                && add
+                    .add_to_map_tail
+                    .as_ref()
+                    .is_some_and(|tail| tail.update_object_visibility_on_create_represented)
+        }));
+        let add_owner_slot = outcome.add_owner_slot.unwrap();
+        assert!(add_owner_slot.add_owner.registered_owned_gameobject);
+        assert!(add_owner_slot.slot_set);
+
+        let owner = map
+            .map_object_record(owner_guid)
+            .and_then(MapObjectRecord::player)
+            .unwrap();
+        assert_eq!(owner.unit().subsystems().control.gameobject_slots[1], guid);
+        assert_eq!(
+            owner.unit().subsystems().control.owned_gameobjects,
+            vec![guid]
+        );
+        let gameobject = map
+            .map_object_record(guid)
+            .and_then(MapObjectRecord::game_object)
+            .unwrap();
+        assert_eq!(gameobject.owner_guid(), owner_guid);
+        assert_eq!(gameobject.spell_id(), 4822010);
+        assert_eq!(gameobject.respawn_time(), 12);
+        assert_eq!(gameobject.data().faction_template, 1735);
+        assert_eq!(gameobject.data().level, 47);
+        assert_eq!(gameobject.data().state, GoState::Ready as i8);
+        assert_eq!(gameobject.world().position(), position);
+        assert_eq!(
+            gameobject.local_rotation_like_cpp(),
+            gameobject_local_rotation_from_orientation_like_cpp(position.orientation)
+        );
+        assert_eq!(gameobject.spawn_id(), 0);
+        assert!(!gameobject.respawn_compatibility_mode());
+    }
+
+    #[test]
+    fn gameobject_summon_object_for_owner_slot_missing_owner_does_not_consume_guid_like_cpp() {
+        let mut map = test_map();
+        let template = summon_gameobject_template_like_cpp(4822102, 5);
+
+        let outcome = map.gameobject_summon_object_for_owner_slot_like_cpp(
+            ObjectGuid::create_player(1, 4822101),
+            0,
+            4822110,
+            template,
+            Position::xyz(1.0, 2.0, 3.0),
+            -1,
+        );
+
+        assert_eq!(
+            outcome.status,
+            GameObjectSummonObjectForOwnerSlotStatusLikeCpp::MissingOwner
+        );
+        assert!(outcome.guid.is_none());
+        assert!(outcome.add_to_map.is_none());
+        assert!(outcome.add_owner_slot.is_none());
+        assert_eq!(map.get_max_low_guid_like_cpp(HighGuid::GameObject), Ok(1));
+    }
+
+    #[test]
     fn unit_remove_gameobjects_by_spell_filters_owner_list_without_slot_cleanup_like_cpp() {
         let mut map = test_map();
         let owner = test_player_for_viewpoint(4821401);
@@ -17086,6 +17462,27 @@ mod tests {
         gameobject.world_mut().object_mut().add_to_world();
         gameobject.set_spawn_id(spawn_id);
         gameobject
+    }
+
+    fn summon_gameobject_template_like_cpp(
+        entry: u32,
+        go_type: u32,
+    ) -> GameObjectTemplateLifecycleRecord {
+        GameObjectTemplateLifecycleRecord {
+            entry,
+            name: "spell summoned gameobject".to_string(),
+            go_type,
+            display_id: 400,
+            scale: 1.0,
+            faction: 35,
+            flags: 0,
+            data: [0; wow_entities::MAX_GAMEOBJECT_DATA],
+            world_effect_id: 0,
+            anim_kit_id: 0,
+            level: 1,
+            percent_health: 100,
+            custom_param: 0,
+        }
     }
 
     fn test_transport(counter: i64, in_world: bool) -> wow_entities::Transport {
