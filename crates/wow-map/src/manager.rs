@@ -2206,23 +2206,28 @@ mod tests {
         assert_eq!(managed_map.update_calls(), &[1]);
         assert_eq!(managed_map.delayed_update_calls(), &[1]);
         assert_eq!(managed_map.map().objects_to_remove_count_like_cpp(), 0);
+        let mut expected_summary = GameObjectsUpdateSummaryLikeCpp {
+            visited: 1,
+            updated: 0,
+            despawn_remove_queued: 1,
+            missing_or_stale: 0,
+            not_game_object: 0,
+            not_in_world: 0,
+            linked_traps_removed: 0,
+            loot_cleared: 0,
+            goober_spell_casts_represented: 0,
+            goober_users_cleared: 0,
+            goober_state_reset: 0,
+            goober_nodespawn_returns: 0,
+            generic_visual_despawn_represented: 1,
+            ..GameObjectsUpdateSummaryLikeCpp::default()
+        };
+        expected_summary
+            .generic_visual_despawn_guids
+            .push(game_object_guid);
         assert_eq!(
             managed_map.last_game_objects_update_summary(),
-            GameObjectsUpdateSummaryLikeCpp {
-                visited: 1,
-                updated: 0,
-                despawn_remove_queued: 1,
-                missing_or_stale: 0,
-                not_game_object: 0,
-                not_in_world: 0,
-                linked_traps_removed: 0,
-                loot_cleared: 0,
-                goober_spell_casts_represented: 0,
-                goober_users_cleared: 0,
-                goober_state_reset: 0,
-                goober_nodespawn_returns: 0,
-                ..GameObjectsUpdateSummaryLikeCpp::default()
-            }
+            expected_summary
         );
         assert!(
             managed_map
@@ -2242,9 +2247,8 @@ mod tests {
         assert_eq!(manager.update(1), Some(1));
 
         let managed_map = manager.find_map(1, 0).unwrap();
-        assert_eq!(
-            managed_map.last_game_objects_update_summary(),
-            GameObjectsUpdateSummaryLikeCpp {
+        assert_eq!(managed_map.last_game_objects_update_summary(), {
+            let mut expected_summary = GameObjectsUpdateSummaryLikeCpp {
                 visited: 1,
                 updated: 0,
                 despawn_remove_queued: 1,
@@ -2254,9 +2258,14 @@ mod tests {
                 summoned_expired_respawn_time_zeroed: 1,
                 summoned_expired_despawn_represented: 1,
                 summoned_expired_go_state_ready: 1,
+                generic_visual_despawn_represented: 1,
                 ..GameObjectsUpdateSummaryLikeCpp::default()
-            }
-        );
+            };
+            expected_summary
+                .generic_visual_despawn_guids
+                .push(game_object_guid);
+            expected_summary
+        });
         // `MapManager::update` immediately follows `Map::Update` with
         // `Map::DelayedUpdate`, which drains the represented remove-list.
         assert_eq!(managed_map.map().objects_to_remove_count_like_cpp(), 0);
@@ -2289,9 +2298,8 @@ mod tests {
         );
 
         let managed_map = manager.find_map(1, 0).unwrap();
-        assert_eq!(
-            managed_map.last_game_objects_update_summary(),
-            GameObjectsUpdateSummaryLikeCpp {
+        assert_eq!(managed_map.last_game_objects_update_summary(), {
+            let mut expected_summary = GameObjectsUpdateSummaryLikeCpp {
                 visited: 1,
                 updated: 0,
                 despawn_remove_queued: 0,
@@ -2301,9 +2309,14 @@ mod tests {
                 summoned_expired_respawn_time_zeroed: 1,
                 summoned_expired_despawn_represented: 1,
                 summoned_expired_go_state_ready: 1,
+                generic_visual_despawn_represented: 1,
                 ..GameObjectsUpdateSummaryLikeCpp::default()
-            }
-        );
+            };
+            expected_summary
+                .generic_visual_despawn_guids
+                .push(game_object_guid);
+            expected_summary
+        });
         assert_eq!(managed_map.map().objects_to_remove_count_like_cpp(), 0);
         // Without the loaded-grid loader from 031dx, pool-data advances and the
         // represented `Despawn1Object<GameObject>` removes the trigger, but the
@@ -2374,9 +2387,8 @@ mod tests {
 
         let managed_map = manager.find_map(1, 0).unwrap();
         assert_eq!(loader_calls, 1);
-        assert_eq!(
-            managed_map.last_game_objects_update_summary(),
-            GameObjectsUpdateSummaryLikeCpp {
+        assert_eq!(managed_map.last_game_objects_update_summary(), {
+            let mut expected_summary = GameObjectsUpdateSummaryLikeCpp {
                 visited: 1,
                 updated: 0,
                 despawn_remove_queued: 0,
@@ -2386,9 +2398,14 @@ mod tests {
                 summoned_expired_respawn_time_zeroed: 1,
                 summoned_expired_despawn_represented: 1,
                 summoned_expired_go_state_ready: 1,
+                generic_visual_despawn_represented: 1,
                 ..GameObjectsUpdateSummaryLikeCpp::default()
-            }
-        );
+            };
+            expected_summary
+                .generic_visual_despawn_guids
+                .push(game_object_guid);
+            expected_summary
+        });
         assert_eq!(managed_map.map().objects_to_remove_count_like_cpp(), 0);
         // Loaded-grid replacement materialization is wired here. With the
         // spawn-id index populated before AddToMap, the represented

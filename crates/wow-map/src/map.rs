@@ -889,6 +889,7 @@ pub struct GameObjectUpdateOutcomeLikeCpp {
     pub new_flag_drop_owner_wrong_kind: bool,
     pub new_flag_drop_owner_not_new_flag: bool,
     pub generic_not_ready: bool,
+    pub generic_capture_point_removed_represented: bool,
     pub generic_visual_despawn_represented: bool,
     pub generic_flags_restored_represented: bool,
     pub generic_zero_respawn_delay_return: bool,
@@ -957,6 +958,25 @@ impl GameObjectVisualDespawnGuidsLikeCpp {
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct GameObjectCapturePointRemovedGuidsLikeCpp {
+    guids: Vec<ObjectGuid>,
+}
+
+impl GameObjectCapturePointRemovedGuidsLikeCpp {
+    pub fn push(&mut self, guid: ObjectGuid) {
+        self.guids.push(guid);
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &ObjectGuid> {
+        self.guids.iter()
+    }
+
+    pub fn as_slice(&self) -> &[ObjectGuid] {
+        self.guids.as_slice()
+    }
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct GameObjectsUpdateSummaryLikeCpp {
     pub visited: usize,
     pub updated: usize,
@@ -987,6 +1007,8 @@ pub struct GameObjectsUpdateSummaryLikeCpp {
     pub new_flag_drop_owner_wrong_kind: usize,
     pub new_flag_drop_owner_not_new_flag: usize,
     pub generic_not_ready: usize,
+    pub generic_capture_point_removed_represented: usize,
+    pub generic_capture_point_removed_guids: GameObjectCapturePointRemovedGuidsLikeCpp,
     pub generic_visual_despawn_represented: usize,
     pub generic_visual_despawn_guids: GameObjectVisualDespawnGuidsLikeCpp,
     pub generic_flags_restored_represented: usize,
@@ -5140,6 +5162,7 @@ where
                 new_flag_drop_owner_wrong_kind: false,
                 new_flag_drop_owner_not_new_flag: false,
                 generic_not_ready: false,
+                generic_capture_point_removed_represented: false,
                 generic_visual_despawn_represented: false,
                 generic_flags_restored_represented: false,
                 generic_zero_respawn_delay_return: false,
@@ -5194,6 +5217,7 @@ where
                 new_flag_drop_owner_wrong_kind: false,
                 new_flag_drop_owner_not_new_flag: false,
                 generic_not_ready: false,
+                generic_capture_point_removed_represented: false,
                 generic_visual_despawn_represented: false,
                 generic_flags_restored_represented: false,
                 generic_zero_respawn_delay_return: false,
@@ -5248,6 +5272,7 @@ where
                 new_flag_drop_owner_wrong_kind: false,
                 new_flag_drop_owner_not_new_flag: false,
                 generic_not_ready: false,
+                generic_capture_point_removed_represented: false,
                 generic_visual_despawn_represented: false,
                 generic_flags_restored_represented: false,
                 generic_zero_respawn_delay_return: false,
@@ -5304,6 +5329,7 @@ where
                 new_flag_drop_owner_wrong_kind: false,
                 new_flag_drop_owner_not_new_flag: false,
                 generic_not_ready: false,
+                generic_capture_point_removed_represented: false,
                 generic_visual_despawn_represented: false,
                 generic_flags_restored_represented: false,
                 generic_zero_respawn_delay_return: false,
@@ -5359,6 +5385,7 @@ where
                     new_flag_drop_owner_wrong_kind: false,
                     new_flag_drop_owner_not_new_flag: false,
                     generic_not_ready: false,
+                    generic_capture_point_removed_represented: false,
                     generic_visual_despawn_represented: false,
                     generic_flags_restored_represented: false,
                     generic_zero_respawn_delay_return: false,
@@ -5412,6 +5439,7 @@ where
                     new_flag_drop_owner_wrong_kind: false,
                     new_flag_drop_owner_not_new_flag: false,
                     generic_not_ready: false,
+                    generic_capture_point_removed_represented: false,
                     generic_visual_despawn_represented: false,
                     generic_flags_restored_represented: false,
                     generic_zero_respawn_delay_return: false,
@@ -5823,6 +5851,12 @@ where
                 pool_update,
                 load_record.as_mut().map(|loader| &mut **loader),
             );
+            let generic_capture_point_removed_represented = delete
+                .as_ref()
+                .is_some_and(|delete| delete.capture_point_packet_represented);
+            let delete_visual_despawn_represented = delete
+                .as_ref()
+                .is_some_and(|delete| delete.despawn_packet_represented);
             let (status, remove_list) = match delete {
                 Some(delete) if delete.pool_update_represented && delete.remove_list.is_none() => {
                     (GameObjectUpdateStatusLikeCpp::DespawnPoolUpdated, None)
@@ -5872,7 +5906,9 @@ where
                 new_flag_drop_owner_wrong_kind,
                 new_flag_drop_owner_not_new_flag,
                 generic_not_ready,
-                generic_visual_despawn_represented,
+                generic_capture_point_removed_represented,
+                generic_visual_despawn_represented: generic_visual_despawn_represented
+                    || delete_visual_despawn_represented,
                 generic_flags_restored_represented,
                 generic_zero_respawn_delay_return,
                 generic_despawn_at_action_source_missing,
@@ -5891,6 +5927,12 @@ where
                 pool_update,
                 load_record.as_mut().map(|loader| &mut **loader),
             );
+            let generic_capture_point_removed_represented = delete
+                .as_ref()
+                .is_some_and(|delete| delete.capture_point_packet_represented);
+            let delete_visual_despawn_represented = delete
+                .as_ref()
+                .is_some_and(|delete| delete.despawn_packet_represented);
             let (status, remove_list) = match delete {
                 Some(delete) if delete.pool_update_represented && delete.remove_list.is_none() => {
                     (GameObjectUpdateStatusLikeCpp::DespawnPoolUpdated, None)
@@ -5940,7 +5982,8 @@ where
                 new_flag_drop_owner_wrong_kind: false,
                 new_flag_drop_owner_not_new_flag: false,
                 generic_not_ready: false,
-                generic_visual_despawn_represented: false,
+                generic_capture_point_removed_represented,
+                generic_visual_despawn_represented: delete_visual_despawn_represented,
                 generic_flags_restored_represented: false,
                 generic_zero_respawn_delay_return: false,
                 generic_despawn_at_action_source_missing: false,
@@ -5993,6 +6036,7 @@ where
                 new_flag_drop_owner_wrong_kind,
                 new_flag_drop_owner_not_new_flag,
                 generic_not_ready,
+                generic_capture_point_removed_represented: false,
                 generic_visual_despawn_represented,
                 generic_flags_restored_represented,
                 generic_zero_respawn_delay_return,
@@ -6160,6 +6204,12 @@ where
             }
             if outcome.generic_not_ready {
                 summary.generic_not_ready += 1;
+            }
+            if outcome.generic_capture_point_removed_represented {
+                summary.generic_capture_point_removed_represented += 1;
+                summary
+                    .generic_capture_point_removed_guids
+                    .push(outcome.game_object_guid);
             }
             if outcome.generic_visual_despawn_represented {
                 summary.generic_visual_despawn_represented += 1;

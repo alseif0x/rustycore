@@ -1544,6 +1544,18 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   advances pool data without materializing the replacement. Remaining gaps: DB save/delete effects,
   capture-point/session fanout, broader `GameObject::Delete` side effects outside this bounded
   seam, full object lifecycle side effects, and live client/server validation remain open.
+- 2026-06-05 — Canonical `GameObject::Delete` capture-point/despawn packet delivery
+  `#NEXT.RUNTIME.L3.031dz`: contrasted against C++ `GameObject::Delete` (`GameObject.cpp:1740-1764`),
+  `SendGameObjectDespawn` (`GameObject.cpp:1766-1771`), `GameObjectDespawn::Write`
+  (`GameObjectPackets.cpp:30-34`), and `CapturePointRemoved::Write`
+  (`BattlegroundPackets.cpp:436-439`). Rust now records delete-time `CapturePointRemoved` GUIDs in
+  `GameObjectsUpdateSummaryLikeCpp`, propagates `Delete()->SendGameObjectDespawn()` through the
+  existing visual-despawn summary, and has `WorldSession::process_pending` deliver capture-point
+  removal before visual despawn. Because `MapManager::update` may drain `DelayedUpdate` before the
+  session consumes the summary, deleted GO routing falls back to represented `HaveAtClient` when the
+  canonical record has already been physically removed. Remaining gaps: real non-placeholder
+  `SMSG_CAPTURE_POINT_REMOVED` opcode confirmation, exact ObjectAccessor/cell traversal, DB
+  save/delete effects, and live client/server validation.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

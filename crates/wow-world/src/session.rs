@@ -2617,6 +2617,10 @@ pub struct WorldSession {
     /// consumed from the last map-owned `GameObject::Update` summary.
     represented_gameobject_visual_despawns_delivered_like_cpp:
         std::collections::HashSet<(u32, u32, u64, wow_core::ObjectGuid)>,
+    /// Session-local delivery guard for represented CapturePointRemoved packets
+    /// consumed from the last map-owned `GameObject::Delete` summary.
+    represented_capture_point_removed_delivered_like_cpp:
+        std::collections::HashSet<(u32, u32, u64, wow_core::ObjectGuid)>,
     /// Represented C++ `GameObject::GetPhaseShift()` for visible DB-spawned
     /// gameobjects until canonical gameobject map ownership lands.
     pub(crate) represented_gameobject_phase_shifts:
@@ -3320,6 +3324,7 @@ impl WorldSession {
                 std::collections::HashSet::new(),
             represented_gameobject_visual_despawns_delivered_like_cpp:
                 std::collections::HashSet::new(),
+            represented_capture_point_removed_delivered_like_cpp: std::collections::HashSet::new(),
             represented_gameobject_phase_shifts: std::collections::HashMap::new(),
             represented_player_phase_shift: PhaseShift::default(),
             last_visibility_pos: None,
@@ -12734,6 +12739,7 @@ impl WorldSession {
             self.tick_represented_loot_rolls_like_cpp().await;
             self.tick_represented_gameobject_update_like_cpp();
             self.send_represented_gameobject_visibility_on_destroy_from_last_update_like_cpp();
+            self.send_represented_capture_point_removed_from_last_update_like_cpp();
             self.send_represented_gameobject_visual_despawn_from_last_update_like_cpp();
             self.tick_active_spell_cast().await;
             self.sync_represented_farsight_clear_from_canonical_like_cpp();
@@ -16934,6 +16940,12 @@ impl WorldSession {
         });
     }
 
+    fn send_represented_capture_point_removed_like_cpp(&mut self, gameobject_guid: ObjectGuid) {
+        self.send_packet(&wow_packet::packets::misc::CapturePointRemoved {
+            capture_point_guid: gameobject_guid,
+        });
+    }
+
     fn send_represented_gameobject_despawn_to_visible_set_like_cpp(
         &mut self,
         gameobject_guid: ObjectGuid,
@@ -20483,6 +20495,172 @@ impl WorldSession {
         sent
     }
 
+    fn visible_gameobject_guids_from_last_update_summary_like_cpp<F>(
+        &self,
+        select_guids: F,
+    ) -> Option<(u32, u32, u64, Vec<ObjectGuid>)>
+    where
+        F: FnOnce(&wow_map::map::GameObjectsUpdateSummaryLikeCpp) -> Vec<ObjectGuid>,
+    {
+        let key = self.current_canonical_player_map_key_like_cpp()?;
+        let manager = self.canonical_map_manager.as_ref()?;
+        let player_guid = self.player_guid()?;
+        let represented_seer_guid = self.represented_seer_guid_like_cpp;
+        let direct_target_seer_gate_allows_send = represented_seer_guid.is_none_or(|seer_guid| {
+            seer_guid.is_empty()
+                || seer_guid == player_guid
+                || self.represented_player_has_active_vehicle_like_cpp()
+        });
+
+        let manager = manager.lock().ok()?;
+        let managed_map = manager.find_map(key.map_id, key.instance_id)?;
+        let map = managed_map.map();
+        let player = map.get_typed_player(player_guid)?;
+        if !player.unit().world().object().is_in_world() {
+            return None;
+        }
+        let player_position = player.unit().world().position();
+        let player_phase_shift = player.unit().world().phase_shift().clone();
+        let visibility_range = map.visibility_range();
+        let represented_gameobject_phase_shifts = &self.represented_gameobject_phase_shifts;
+        let mut shared_vision_target_guids = map
+            .typed_combat_unit_guids_like_cpp()
+            .into_iter()
+            .filter(|target_guid| *target_guid != player_guid)
+            .filter(|target_guid| {
+                represented_seer_guid.is_some_and(|seer_guid| seer_guid == *target_guid)
+            })
+            .filter(|target_guid| {
+                map.get_typed_player(*target_guid).is_some_and(|target| {
+                    target.unit().world().object().is_in_world()
+                        && target
+                            .unit()
+                            .subsystems()
+                            .control
+                            .shared_vision_guids
+                            .contains(&player_guid)
+                }) || map.get_typed_creature(*target_guid).is_some_and(|target| {
+                    target.unit().world().object().is_in_world()
+                        && target
+                            .unit()
+                            .subsystems()
+                            .control
+                            .shared_vision_guids
+                            .contains(&player_guid)
+                })
+            })
+            .collect::<Vec<_>>();
+        shared_vision_target_guids.sort_by_key(|guid| (guid.high_value(), guid.low_value()));
+        let dynamic_object_target_guid = represented_seer_guid.filter(|seer_guid| {
+            if !seer_guid.is_dynamic_object() {
+                return false;
+            }
+            let Some(dynamic_object) = map.get_typed_dynamic_object(*seer_guid) else {
+                return false;
+            };
+            if !dynamic_object.world().object().is_in_world() {
+                return false;
+            }
+            let caster_guid = dynamic_object
+                .bound_caster()
+                .unwrap_or_else(|| dynamic_object.caster_guid());
+            caster_guid == player_guid && caster_guid.is_player()
+        });
+        let summary = managed_map.last_game_objects_update_summary();
+        let guids = select_guids(&summary)
+            .into_iter()
+            .filter(|guid| {
+                if !guid.is_game_object() {
+                    return false;
+                }
+                let Some(gameobject) = map.get_typed_game_object(*guid) else {
+                    return self.client_visible_guids_like_cpp.contains(guid);
+                };
+                if !gameobject.world().object().is_in_world() {
+                    return false;
+                }
+                let gameobject_phase_shift = represented_gameobject_phase_shifts
+                    .get(guid)
+                    .unwrap_or_else(|| gameobject.world().phase_shift());
+                let gameobject_position = gameobject.world().position();
+                let direct_target_allows = direct_target_seer_gate_allows_send
+                    && player_phase_shift.can_see(gameobject_phase_shift)
+                    && gameobject_position.is_within_dist_2d(&player_position, visibility_range);
+                if direct_target_allows {
+                    return true;
+                }
+                if shared_vision_target_guids.iter().any(|target_guid| {
+                    if let Some(target) = map.get_typed_player(*target_guid) {
+                        let target_world = target.unit().world();
+                        target_world.phase_shift().can_see(gameobject_phase_shift)
+                            && gameobject_position
+                                .is_within_dist_2d(&target_world.position(), visibility_range)
+                    } else if let Some(target) = map.get_typed_creature(*target_guid) {
+                        let target_world = target.unit().world();
+                        target_world.phase_shift().can_see(gameobject_phase_shift)
+                            && gameobject_position
+                                .is_within_dist_2d(&target_world.position(), visibility_range)
+                    } else {
+                        false
+                    }
+                }) {
+                    return true;
+                }
+                dynamic_object_target_guid.is_some_and(|dynamic_object_guid| {
+                    map.get_typed_dynamic_object(dynamic_object_guid)
+                        .is_some_and(|dynamic_object| {
+                            let dynamic_object_world = dynamic_object.world();
+                            dynamic_object_world
+                                .phase_shift()
+                                .can_see(gameobject_phase_shift)
+                                && gameobject_position.is_within_dist_2d(
+                                    &dynamic_object_world.position(),
+                                    visibility_range,
+                                )
+                        })
+                })
+            })
+            .collect::<Vec<_>>();
+        Some((
+            key.map_id,
+            key.instance_id,
+            managed_map.update_calls().len() as u64,
+            guids,
+        ))
+    }
+
+    pub(crate) fn send_represented_capture_point_removed_from_last_update_like_cpp(
+        &mut self,
+    ) -> usize {
+        let Some((map_id, instance_id, update_generation, removable_guids)) = self
+            .visible_gameobject_guids_from_last_update_summary_like_cpp(|summary| {
+                summary
+                    .generic_capture_point_removed_guids
+                    .as_slice()
+                    .to_vec()
+            })
+        else {
+            return 0;
+        };
+
+        let mut seen = std::collections::HashSet::new();
+        let mut sent = 0;
+        for guid in removable_guids {
+            if !seen.insert(guid) || !self.client_visible_guids_like_cpp.contains(&guid) {
+                continue;
+            }
+            if !self
+                .represented_capture_point_removed_delivered_like_cpp
+                .insert((map_id, instance_id, update_generation, guid))
+            {
+                continue;
+            }
+            self.send_represented_capture_point_removed_like_cpp(guid);
+            sent += 1;
+        }
+        sent
+    }
+
     /// Consume map-owned represented `GameObject::Update` `SendGameObjectDespawn()`
     /// evidence into this session's outbound stream without mutating canonical map
     /// state or erasing `Player::m_clientGUIDs` represented visibility.
@@ -20603,7 +20781,7 @@ impl WorldSession {
                         return false;
                     }
                     let Some(gameobject) = map.get_typed_game_object(*guid) else {
-                        return false;
+                        return self.client_visible_guids_like_cpp.contains(guid);
                     };
                     if !gameobject.world().object().is_in_world() {
                         return false;
@@ -28833,6 +29011,41 @@ mod tests {
             .unwrap();
     }
 
+    fn add_canonical_capture_point_delete_gameobject_like_cpp(
+        canonical: &SharedCanonicalMapManager,
+        guid: ObjectGuid,
+        entry: u32,
+        spawn_id: u32,
+        position: Position,
+        map_id: u32,
+        instance_id: u32,
+    ) {
+        let mut gameobject = GameObject::new();
+        gameobject.world_mut().object_mut().create(guid);
+        gameobject.world_mut().object_mut().set_entry(entry);
+        gameobject.world_mut().set_map(map_id, instance_id).unwrap();
+        gameobject.world_mut().relocate(position);
+        gameobject.set_go_type(wow_entities::GAMEOBJECT_TYPE_CAPTURE_POINT as u8);
+        gameobject.set_spawn_id(u64::from(spawn_id));
+        gameobject.set_spawned_by_default(true);
+        gameobject.set_represented_gameobject_data_present_like_cpp(true);
+        assert!(gameobject.schedule_despawn_or_unsummon_like_cpp(1, 0));
+        gameobject.set_respawn_delay_time(0);
+        gameobject.set_loot_state(wow_entities::LootState::JustDeactivated, None);
+
+        let mut guard = canonical.lock().unwrap();
+        let map = guard.create_world_map(map_id, instance_id);
+        let _ = map
+            .map_mut()
+            .add_to_map_like_cpp(AccessorObjectKind::GameObject, gameobject.world().clone());
+        gameobject.world_mut().object_mut().add_to_world();
+        map.map_mut()
+            .insert_map_object_record(
+                wow_entities::MapObjectRecord::new_game_object(gameobject).unwrap(),
+            )
+            .unwrap();
+    }
+
     fn test_dynamic_object_guid(entry: u32, counter: i64) -> ObjectGuid {
         ObjectGuid::create_world_object(
             wow_core::guid::HighGuid::DynamicObject,
@@ -30404,6 +30617,67 @@ mod tests {
             session.send_represented_gameobject_visual_despawn_from_last_update_like_cpp(),
             0
         );
+        assert_eq!(drain_server_opcodes(&send_rx), Vec::<ServerOpcodes>::new());
+    }
+
+    #[tokio::test]
+    async fn capture_point_delete_sends_removed_before_despawn_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let canonical = Arc::new(std::sync::Mutex::new(wow_map::MapManager::new(60_000, 1)));
+        let player_guid = ObjectGuid::create_player(1, 50_572);
+        let gameobject_guid = test_gameobject_guid(605_072, 50_573);
+
+        configure_dynamic_object_values_snapshot_session_like_cpp(
+            &mut session,
+            &canonical,
+            player_guid,
+            571,
+            7,
+        );
+        add_canonical_capture_point_delete_gameobject_like_cpp(
+            &canonical,
+            gameobject_guid,
+            605_072,
+            5_050_573,
+            Position::new(11.0, 21.0, 31.0, 0.0),
+            571,
+            7,
+        );
+        assert_eq!(canonical.lock().unwrap().update(60_000), Some(60_000));
+        let summary = canonical
+            .lock()
+            .unwrap()
+            .find_map(571, 7)
+            .unwrap()
+            .last_game_objects_update_summary();
+        assert_eq!(
+            summary.generic_capture_point_removed_guids.as_slice(),
+            &[gameobject_guid]
+        );
+        assert_eq!(
+            summary.generic_visual_despawn_guids.as_slice(),
+            &[gameobject_guid]
+        );
+        session
+            .client_visible_guids_like_cpp
+            .insert(gameobject_guid);
+
+        session.process_pending().await;
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![
+                ServerOpcodes::UpdateCapturePoint,
+                ServerOpcodes::GameObjectDespawn
+            ]
+        );
+        assert!(
+            session
+                .client_visible_guids_like_cpp
+                .contains(&gameobject_guid)
+        );
+
+        session.process_pending().await;
         assert_eq!(drain_server_opcodes(&send_rx), Vec::<ServerOpcodes>::new());
     }
 
