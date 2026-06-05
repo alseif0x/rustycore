@@ -5033,10 +5033,15 @@ where
         diff_ms: u32,
         game_time_secs: i64,
     ) -> GameObjectUpdateOutcomeLikeCpp {
-        self.update_game_object_with_optional_pool_update_like_cpp(
+        self.update_game_object_with_optional_pool_update_like_cpp::<fn(
+            &mut Self,
+            SpawnObjectType,
+            SpawnId,
+        ) -> Option<LoadedGridRespawnRecordsLikeCpp>>(
             game_object_guid,
             diff_ms,
             game_time_secs,
+            None,
             None,
         )
     }
@@ -5054,16 +5059,48 @@ where
             diff_ms,
             game_time_secs,
             Some((spawn_store, pool_mgr)),
+            None::<
+                &mut fn(
+                    &mut Self,
+                    SpawnObjectType,
+                    SpawnId,
+                ) -> Option<LoadedGridRespawnRecordsLikeCpp>,
+            >,
         )
     }
 
-    fn update_game_object_with_optional_pool_update_like_cpp(
+    pub fn update_game_object_with_pool_update_loaded_grid_records_like_cpp<L>(
+        &mut self,
+        game_object_guid: ObjectGuid,
+        diff_ms: u32,
+        game_time_secs: i64,
+        spawn_store: &SpawnStore,
+        pool_mgr: &PoolMgrLikeCpp,
+        mut load_record: L,
+    ) -> GameObjectUpdateOutcomeLikeCpp
+    where
+        L: FnMut(&mut Self, SpawnObjectType, SpawnId) -> Option<LoadedGridRespawnRecordsLikeCpp>,
+    {
+        self.update_game_object_with_optional_pool_update_like_cpp(
+            game_object_guid,
+            diff_ms,
+            game_time_secs,
+            Some((spawn_store, pool_mgr)),
+            Some(&mut load_record),
+        )
+    }
+
+    fn update_game_object_with_optional_pool_update_like_cpp<L>(
         &mut self,
         game_object_guid: ObjectGuid,
         diff_ms: u32,
         game_time_secs: i64,
         pool_update: Option<(&SpawnStore, &PoolMgrLikeCpp)>,
-    ) -> GameObjectUpdateOutcomeLikeCpp {
+        mut load_record: Option<&mut L>,
+    ) -> GameObjectUpdateOutcomeLikeCpp
+    where
+        L: FnMut(&mut Self, SpawnObjectType, SpawnId) -> Option<LoadedGridRespawnRecordsLikeCpp>,
+    {
         let Some(record) = self.map_object_record(game_object_guid) else {
             return GameObjectUpdateOutcomeLikeCpp {
                 game_object_guid,
@@ -5423,7 +5460,11 @@ where
                         return (Some(linked_guid), false, false, true);
                     }
 
-                    match self.gameobject_delete_from_update_like_cpp(linked_guid, pool_update) {
+                    match self.gameobject_delete_from_update_with_optional_loader_like_cpp(
+                        linked_guid,
+                        pool_update,
+                        load_record.as_mut().map(|loader| &mut **loader),
+                    ) {
                         Some(delete) => (
                             Some(linked_guid),
                             false,
@@ -5777,7 +5818,11 @@ where
                 && !generic_zero_respawn_delay_return
                 && !generic_visibility_on_destroy_represented)
         {
-            let delete = self.gameobject_delete_from_update_like_cpp(game_object_guid, pool_update);
+            let delete = self.gameobject_delete_from_update_with_optional_loader_like_cpp(
+                game_object_guid,
+                pool_update,
+                load_record.as_mut().map(|loader| &mut **loader),
+            );
             let (status, remove_list) = match delete {
                 Some(delete) if delete.pool_update_represented && delete.remove_list.is_none() => {
                     (GameObjectUpdateStatusLikeCpp::DespawnPoolUpdated, None)
@@ -5841,7 +5886,11 @@ where
                 generic_visibility_on_destroy_represented,
             }
         } else if entity_update.status == EntityGameObjectUpdateStatusLikeCpp::DespawnRequested {
-            let delete = self.gameobject_delete_from_update_like_cpp(game_object_guid, pool_update);
+            let delete = self.gameobject_delete_from_update_with_optional_loader_like_cpp(
+                game_object_guid,
+                pool_update,
+                load_record.as_mut().map(|loader| &mut **loader),
+            );
             let (status, remove_list) = match delete {
                 Some(delete) if delete.pool_update_represented && delete.remove_list.is_none() => {
                     (GameObjectUpdateStatusLikeCpp::DespawnPoolUpdated, None)
@@ -5972,7 +6021,11 @@ where
         diff_ms: u32,
         game_time_secs: i64,
     ) -> GameObjectsUpdateSummaryLikeCpp {
-        self.update_game_objects_with_optional_pool_update_like_cpp(diff_ms, game_time_secs, None)
+        self.update_game_objects_with_optional_pool_update_like_cpp::<fn(
+            &mut Self,
+            SpawnObjectType,
+            SpawnId,
+        ) -> Option<LoadedGridRespawnRecordsLikeCpp>>(diff_ms, game_time_secs, None, None)
     }
 
     pub fn update_game_objects_with_pool_update_like_cpp(
@@ -5986,15 +6039,45 @@ where
             diff_ms,
             game_time_secs,
             Some((spawn_store, pool_mgr)),
+            None::<
+                &mut fn(
+                    &mut Self,
+                    SpawnObjectType,
+                    SpawnId,
+                ) -> Option<LoadedGridRespawnRecordsLikeCpp>,
+            >,
         )
     }
 
-    fn update_game_objects_with_optional_pool_update_like_cpp(
+    pub fn update_game_objects_with_pool_update_loaded_grid_records_like_cpp<L>(
+        &mut self,
+        diff_ms: u32,
+        game_time_secs: i64,
+        spawn_store: &SpawnStore,
+        pool_mgr: &PoolMgrLikeCpp,
+        mut load_record: L,
+    ) -> GameObjectsUpdateSummaryLikeCpp
+    where
+        L: FnMut(&mut Self, SpawnObjectType, SpawnId) -> Option<LoadedGridRespawnRecordsLikeCpp>,
+    {
+        self.update_game_objects_with_optional_pool_update_like_cpp(
+            diff_ms,
+            game_time_secs,
+            Some((spawn_store, pool_mgr)),
+            Some(&mut load_record),
+        )
+    }
+
+    fn update_game_objects_with_optional_pool_update_like_cpp<L>(
         &mut self,
         diff_ms: u32,
         game_time_secs: i64,
         pool_update: Option<(&SpawnStore, &PoolMgrLikeCpp)>,
-    ) -> GameObjectsUpdateSummaryLikeCpp {
+        mut load_record: Option<&mut L>,
+    ) -> GameObjectsUpdateSummaryLikeCpp
+    where
+        L: FnMut(&mut Self, SpawnObjectType, SpawnId) -> Option<LoadedGridRespawnRecordsLikeCpp>,
+    {
         let game_object_guids = self
             .map_objects
             .iter()
@@ -6012,6 +6095,7 @@ where
                 diff_ms,
                 game_time_secs,
                 pool_update,
+                load_record.as_mut().map(|loader| &mut **loader),
             );
             if outcome.linked_trap_removed {
                 summary.linked_traps_removed += 1;
@@ -9142,19 +9226,34 @@ where
         })
     }
 
-    fn gameobject_delete_from_update_like_cpp(
+    fn gameobject_delete_from_update_with_optional_loader_like_cpp<L>(
         &mut self,
         guid: ObjectGuid,
         pool_update: Option<(&SpawnStore, &PoolMgrLikeCpp)>,
-    ) -> Option<GameObjectDeleteOutcomeLikeCpp> {
+        load_record: Option<&mut L>,
+    ) -> Option<GameObjectDeleteOutcomeLikeCpp>
+    where
+        L: FnMut(&mut Self, SpawnObjectType, SpawnId) -> Option<LoadedGridRespawnRecordsLikeCpp>,
+    {
         match pool_update {
-            Some((spawn_store, pool_mgr)) => self.gameobject_delete_with_pool_update_like_cpp(
-                guid,
-                spawn_store,
-                pool_mgr,
-                |_, _| 0.0,
-                |_candidates, count| (0..count).collect(),
-            ),
+            Some((spawn_store, pool_mgr)) => match load_record {
+                Some(loader) => self
+                    .gameobject_delete_with_pool_update_loaded_grid_records_like_cpp(
+                        guid,
+                        spawn_store,
+                        pool_mgr,
+                        |_, _| 0.0,
+                        |_candidates, count| (0..count).collect(),
+                        loader,
+                    ),
+                None => self.gameobject_delete_with_pool_update_like_cpp(
+                    guid,
+                    spawn_store,
+                    pool_mgr,
+                    |_, _| 0.0,
+                    |_candidates, count| (0..count).collect(),
+                ),
+            },
             None => self.gameobject_delete_like_cpp(guid),
         }
     }
@@ -9176,12 +9275,64 @@ where
         guid: ObjectGuid,
         spawn_store: &SpawnStore,
         pool_mgr: &PoolMgrLikeCpp,
-        mut explicit_roll_for: R,
-        mut choose_equal: C,
+        explicit_roll_for: R,
+        choose_equal: C,
     ) -> Option<GameObjectDeleteOutcomeLikeCpp>
     where
         R: FnMut(PoolMemberKindLikeCpp, u32) -> f32,
         C: FnMut(&[PoolObjectLikeCpp], usize) -> Vec<usize>,
+    {
+        self.gameobject_delete_with_optional_pool_update_loader_like_cpp::<R, C, fn(
+            &mut Self,
+            SpawnObjectType,
+            SpawnId,
+        ) -> Option<LoadedGridRespawnRecordsLikeCpp>>(
+            guid,
+            spawn_store,
+            pool_mgr,
+            explicit_roll_for,
+            choose_equal,
+            None,
+        )
+    }
+
+    pub fn gameobject_delete_with_pool_update_loaded_grid_records_like_cpp<R, C, L>(
+        &mut self,
+        guid: ObjectGuid,
+        spawn_store: &SpawnStore,
+        pool_mgr: &PoolMgrLikeCpp,
+        explicit_roll_for: R,
+        choose_equal: C,
+        load_record: L,
+    ) -> Option<GameObjectDeleteOutcomeLikeCpp>
+    where
+        R: FnMut(PoolMemberKindLikeCpp, u32) -> f32,
+        C: FnMut(&[PoolObjectLikeCpp], usize) -> Vec<usize>,
+        L: FnMut(&mut Self, SpawnObjectType, SpawnId) -> Option<LoadedGridRespawnRecordsLikeCpp>,
+    {
+        self.gameobject_delete_with_optional_pool_update_loader_like_cpp(
+            guid,
+            spawn_store,
+            pool_mgr,
+            explicit_roll_for,
+            choose_equal,
+            Some(load_record),
+        )
+    }
+
+    fn gameobject_delete_with_optional_pool_update_loader_like_cpp<R, C, L>(
+        &mut self,
+        guid: ObjectGuid,
+        spawn_store: &SpawnStore,
+        pool_mgr: &PoolMgrLikeCpp,
+        mut explicit_roll_for: R,
+        mut choose_equal: C,
+        load_record: Option<L>,
+    ) -> Option<GameObjectDeleteOutcomeLikeCpp>
+    where
+        R: FnMut(PoolMemberKindLikeCpp, u32) -> f32,
+        C: FnMut(&[PoolObjectLikeCpp], usize) -> Vec<usize>,
+        L: FnMut(&mut Self, SpawnObjectType, SpawnId) -> Option<LoadedGridRespawnRecordsLikeCpp>,
     {
         let (go_type, spawn_id, respawn_compatibility_mode, represented_gameobject_data_present) =
             self.map_object_record(guid)
@@ -9247,11 +9398,20 @@ where
             ) {
                 Ok(plan) => {
                     let mut summary = ProcessRespawnsSafeSideEffectsSummaryLikeCpp::default();
-                    self.apply_pool_typed_spawn_plan_safe_map_actions_like_cpp(
-                        &plan,
-                        spawn_store,
-                        &mut summary,
-                    );
+                    if let Some(mut load_record) = load_record {
+                        self.apply_pool_typed_spawn_plan_loaded_grid_records_like_cpp(
+                            &plan,
+                            spawn_store,
+                            &mut summary,
+                            Some(&mut load_record),
+                        );
+                    } else {
+                        self.apply_pool_typed_spawn_plan_safe_map_actions_like_cpp(
+                            &plan,
+                            spawn_store,
+                            &mut summary,
+                        );
+                    }
                     pool_update_summary = Some(summary);
                     pool_update_plan = Some(plan);
                 }
@@ -26644,6 +26804,164 @@ mod tests {
         assert_eq!(
             map.pool_data_like_cpp().get_spawned_objects_like_cpp(464),
             1
+        );
+    }
+
+    #[test]
+    fn gameobject_delete_pool_update_loaded_grid_loader_adds_replacement_like_cpp() {
+        let mut map = test_map();
+        let mut store = SpawnStore::new();
+        let active = spawn_group(4640120, SpawnGroupFlags::NONE);
+        let mut trigger_spawn = spawn_data(SpawnObjectType::GameObject, 4640121, active.clone());
+        trigger_spawn.pool_id = 464;
+        let mut replacement_spawn = spawn_data(SpawnObjectType::GameObject, 4640122, active);
+        replacement_spawn.pool_id = 464;
+        store.add_object_spawn(&trigger_spawn, |_| false);
+        store.add_object_spawn(&replacement_spawn, |_| false);
+
+        let mut pool_mgr = PoolMgrLikeCpp::new();
+        pool_mgr.insert_template_like_cpp(464, PoolTemplateDataLikeCpp::new(1, 571));
+        let mut group = PoolGroupLikeCpp::with_pool_id(PoolMemberKindLikeCpp::GameObject, 464);
+        group.add_entry_like_cpp(PoolObjectLikeCpp::new(4640122, 0.0), 1);
+        group.add_entry_like_cpp(PoolObjectLikeCpp::new(4640121, 0.0), 1);
+        pool_mgr
+            .insert_or_replace_group_like_cpp(PoolMemberKindLikeCpp::GameObject, 464, group)
+            .expect("test pool group");
+        pool_mgr
+            .register_spawn_pool_relation_like_cpp(PoolMemberKindLikeCpp::GameObject, 4640121, 464)
+            .expect("test pool relation");
+
+        map.ensure_grid_loaded(&cell_from_world(1.0, 2.0));
+        let mut gameobject = game_object_with_counter(4640121, 571, 7, false);
+        let gameobject_guid = gameobject.world().guid();
+        gameobject.set_go_type(GAMEOBJECT_TYPE_GENERIC_LIKE_CPP as u8);
+        gameobject.world_mut().object_mut().set_entry(190_121);
+        gameobject.set_spawn_id(4640121);
+        gameobject.set_represented_gameobject_data_present_like_cpp(true);
+        gameobject.set_respawn_compatibility_mode(true);
+        gameobject.set_respawn_time(0);
+        gameobject.set_loot_state(LootState::JustDeactivated, None);
+        map.add_map_object_record_to_map_like_cpp(
+            MapObjectRecord::new_game_object(gameobject).unwrap(),
+        )
+        .unwrap();
+        map.pool_data_mut_like_cpp()
+            .add_spawn_like_cpp(SpawnObjectType::GameObject, 4640121, 464)
+            .expect("trigger spawned in pool");
+
+        let replacement_guid = guid(HighGuid::GameObject, 4640122);
+        let mut loader_calls = 0usize;
+        let outcome = map
+            .gameobject_delete_with_pool_update_loaded_grid_records_like_cpp(
+                gameobject_guid,
+                &store,
+                &pool_mgr,
+                |_, _| 0.0,
+                |_candidates, count| (0..count).collect(),
+                |_, object_type, spawn_id| {
+                    loader_calls += 1;
+                    assert_eq!(object_type, SpawnObjectType::GameObject);
+                    assert_eq!(spawn_id, 4640122);
+                    Some(LoadedGridRespawnRecordsLikeCpp::primary_only(
+                        MapObjectRecord::new_game_object(test_gameobject_for_spawn(
+                            spawn_id, 4640122,
+                        ))
+                        .unwrap(),
+                    ))
+                },
+            )
+            .expect("pool-aware delete outcome");
+
+        assert_eq!(loader_calls, 1);
+        assert!(outcome.pool_update_represented);
+        let summary = outcome.pool_update_summary.expect("pool update summary");
+        assert_eq!(summary.executed_loaded_grid_respawns, 1);
+        assert_eq!(summary.pool_spawn_actions_blocked_loaded_grid, 0);
+        assert_eq!(summary.pool_spawn_actions_skipped_unloaded_grid, 0);
+        assert_eq!(summary.pool_spawn_action_load_plans, vec![]);
+        assert!(map.map_object_record(replacement_guid).is_some());
+        assert_eq!(map.gameobject_spawn_id_store_count_like_cpp(4640122), 1);
+        assert!(
+            map.pool_data_like_cpp()
+                .is_spawned_gameobject_like_cpp(4640122)
+        );
+    }
+
+    #[test]
+    fn gameobject_update_pool_update_loaded_grid_loader_adds_replacement_like_cpp() {
+        let mut map = test_map();
+        let mut store = SpawnStore::new();
+        let active = spawn_group(4640130, SpawnGroupFlags::NONE);
+        let mut trigger_spawn = spawn_data(SpawnObjectType::GameObject, 4640131, active.clone());
+        trigger_spawn.pool_id = 464;
+        let mut replacement_spawn = spawn_data(SpawnObjectType::GameObject, 4640132, active);
+        replacement_spawn.pool_id = 464;
+        store.add_object_spawn(&trigger_spawn, |_| false);
+        store.add_object_spawn(&replacement_spawn, |_| false);
+
+        let mut pool_mgr = PoolMgrLikeCpp::new();
+        pool_mgr.insert_template_like_cpp(464, PoolTemplateDataLikeCpp::new(1, 571));
+        let mut group = PoolGroupLikeCpp::with_pool_id(PoolMemberKindLikeCpp::GameObject, 464);
+        group.add_entry_like_cpp(PoolObjectLikeCpp::new(4640132, 0.0), 1);
+        group.add_entry_like_cpp(PoolObjectLikeCpp::new(4640131, 0.0), 1);
+        pool_mgr
+            .insert_or_replace_group_like_cpp(PoolMemberKindLikeCpp::GameObject, 464, group)
+            .expect("test pool group");
+        pool_mgr
+            .register_spawn_pool_relation_like_cpp(PoolMemberKindLikeCpp::GameObject, 4640131, 464)
+            .expect("test pool relation");
+
+        map.ensure_grid_loaded(&cell_from_world(1.0, 2.0));
+        let mut gameobject = game_object_with_counter(4640131, 571, 7, false);
+        let gameobject_guid = gameobject.world().guid();
+        gameobject.set_go_type(GAMEOBJECT_TYPE_GENERIC_LIKE_CPP as u8);
+        gameobject.world_mut().object_mut().set_entry(190_131);
+        gameobject.set_spawn_id(4640131);
+        gameobject.set_represented_gameobject_data_present_like_cpp(true);
+        gameobject.set_respawn_compatibility_mode(true);
+        gameobject.set_created_by(guid(HighGuid::Player, 4640199));
+        gameobject.set_respawn_time(0);
+        gameobject.set_loot_state(LootState::JustDeactivated, None);
+        map.add_map_object_record_to_map_like_cpp(
+            MapObjectRecord::new_game_object(gameobject).unwrap(),
+        )
+        .unwrap();
+        map.pool_data_mut_like_cpp()
+            .add_spawn_like_cpp(SpawnObjectType::GameObject, 4640131, 464)
+            .expect("trigger spawned in pool");
+
+        let replacement_guid = guid(HighGuid::GameObject, 4640132);
+        let mut loader_calls = 0usize;
+        let outcome = map.update_game_object_with_pool_update_loaded_grid_records_like_cpp(
+            gameobject_guid,
+            1,
+            1_000,
+            &store,
+            &pool_mgr,
+            |_, object_type, spawn_id| {
+                loader_calls += 1;
+                assert_eq!(object_type, SpawnObjectType::GameObject);
+                assert_eq!(spawn_id, 4640132);
+                Some(LoadedGridRespawnRecordsLikeCpp::primary_only(
+                    MapObjectRecord::new_game_object(test_gameobject_for_spawn(spawn_id, 4640132))
+                        .unwrap(),
+                ))
+            },
+        );
+
+        assert_eq!(
+            outcome.status,
+            GameObjectUpdateStatusLikeCpp::DespawnPoolUpdated
+        );
+        assert_eq!(loader_calls, 1);
+        assert!(outcome.summoned_expired_delete);
+        assert!(outcome.remove_list.is_none());
+        assert_eq!(map.objects_to_remove_count_like_cpp(), 0);
+        assert!(map.map_object_record(gameobject_guid).is_none());
+        assert!(map.map_object_record(replacement_guid).is_some());
+        assert!(
+            map.pool_data_like_cpp()
+                .is_spawned_gameobject_like_cpp(4640132)
         );
     }
 
