@@ -2880,6 +2880,31 @@ pub(crate) const SPELL_AURA_INTERRUPT_FLAG2_JUMP_LIKE_CPP: u32 = 0x0000_0020;
 pub(crate) const PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP: u32 = 0x0000_8000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
+pub(crate) enum ApplyEffectSummonObjectWildSessionStatusLikeCpp {
+    InvalidTemplateEntry,
+    MissingTemplateStore,
+    MissingTemplate,
+    MissingExplicitDestination,
+    MissingCaster,
+    MissingCanonicalMapManager,
+    MissingCanonicalPlayerMap,
+    MissingManagedMap,
+    MapResolved,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+#[allow(dead_code)]
+pub(crate) struct ApplyEffectSummonObjectWildSessionOutcomeLikeCpp {
+    pub status: ApplyEffectSummonObjectWildSessionStatusLikeCpp,
+    pub template_entry: Option<u32>,
+    pub duration_ms: Option<i32>,
+    pub explicit_destination_used: bool,
+    pub close_point_fallback_represented: bool,
+    pub map_outcome: Option<wow_map::map::SpellEffectSummonObjectWildOutcomeLikeCpp>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RepresentedAuraEffectLikeCpp {
     FeignDeath,
     FeatherFall,
@@ -23822,6 +23847,144 @@ impl WorldSession {
         ))
     }
 
+    /// Dormant live resolver for C++ `Spell::EffectSummonObjectWild`.
+    ///
+    /// C++ anchors: `SpellEffects.cpp:2937-2986` and
+    /// `GameObject.cpp:1187-1200`. This resolves the DB-backed template,
+    /// explicit spell destination and spell duration, then delegates the
+    /// map-owned body to `wow_map`. The no-destination fallback is intentionally
+    /// left unrepresented here because C++ uses `DEFAULT_PLAYER_BOUNDING_RADIUS`
+    /// and the focus object's orientation, not the generic combat-reach summon
+    /// fallback.
+    #[allow(dead_code)]
+    pub(crate) fn apply_effect_summon_object_wild_like_cpp(
+        &mut self,
+        spell_id: i32,
+        effect: &wow_data::SpellEffectInfo,
+        target_data: &SpellTargetData,
+    ) -> Option<ApplyEffectSummonObjectWildSessionOutcomeLikeCpp> {
+        if effect.effect != wow_data::spell::spell_effect_types::SPELL_EFFECT_SUMMON_OBJECT_WILD {
+            return None;
+        }
+        let Ok(template_entry) = u32::try_from(effect.effect_misc_value_1) else {
+            return Some(ApplyEffectSummonObjectWildSessionOutcomeLikeCpp {
+                status: ApplyEffectSummonObjectWildSessionStatusLikeCpp::InvalidTemplateEntry,
+                template_entry: None,
+                duration_ms: None,
+                explicit_destination_used: false,
+                close_point_fallback_represented: false,
+                map_outcome: None,
+            });
+        };
+        let Some(template_store) = self.gameobject_template_lifecycle_store.as_deref() else {
+            return Some(ApplyEffectSummonObjectWildSessionOutcomeLikeCpp {
+                status: ApplyEffectSummonObjectWildSessionStatusLikeCpp::MissingTemplateStore,
+                template_entry: Some(template_entry),
+                duration_ms: None,
+                explicit_destination_used: false,
+                close_point_fallback_represented: false,
+                map_outcome: None,
+            });
+        };
+        let Some(template) = template_store.get(template_entry) else {
+            return Some(ApplyEffectSummonObjectWildSessionOutcomeLikeCpp {
+                status: ApplyEffectSummonObjectWildSessionStatusLikeCpp::MissingTemplate,
+                template_entry: Some(template_entry),
+                duration_ms: None,
+                explicit_destination_used: false,
+                close_point_fallback_represented: false,
+                map_outcome: None,
+            });
+        };
+        let Some(dest) = target_data.dst_location else {
+            return Some(ApplyEffectSummonObjectWildSessionOutcomeLikeCpp {
+                status: ApplyEffectSummonObjectWildSessionStatusLikeCpp::MissingExplicitDestination,
+                template_entry: Some(template_entry),
+                duration_ms: None,
+                explicit_destination_used: false,
+                close_point_fallback_represented: false,
+                map_outcome: None,
+            });
+        };
+        let Some(caster_guid) = self.player_guid() else {
+            return Some(ApplyEffectSummonObjectWildSessionOutcomeLikeCpp {
+                status: ApplyEffectSummonObjectWildSessionStatusLikeCpp::MissingCaster,
+                template_entry: Some(template_entry),
+                duration_ms: None,
+                explicit_destination_used: true,
+                close_point_fallback_represented: false,
+                map_outcome: None,
+            });
+        };
+        let Some(manager) = self.canonical_map_manager.as_ref().cloned() else {
+            return Some(ApplyEffectSummonObjectWildSessionOutcomeLikeCpp {
+                status: ApplyEffectSummonObjectWildSessionStatusLikeCpp::MissingCanonicalMapManager,
+                template_entry: Some(template_entry),
+                duration_ms: None,
+                explicit_destination_used: true,
+                close_point_fallback_represented: false,
+                map_outcome: None,
+            });
+        };
+        let Some(player_map_key) = self.current_canonical_player_map_key_like_cpp() else {
+            return Some(ApplyEffectSummonObjectWildSessionOutcomeLikeCpp {
+                status: ApplyEffectSummonObjectWildSessionStatusLikeCpp::MissingCanonicalPlayerMap,
+                template_entry: Some(template_entry),
+                duration_ms: None,
+                explicit_destination_used: true,
+                close_point_fallback_represented: false,
+                map_outcome: None,
+            });
+        };
+        let spell_id_u32 = u32::try_from(spell_id).unwrap_or(0);
+        let duration_index = self
+            .spell_misc_store
+            .as_deref()
+            .and_then(|store| store.get_by_spell_id(spell_id_u32))
+            .map(|entry| u32::from(entry.duration_index))
+            .unwrap_or(0);
+        let duration_ms =
+            spell_duration_ms_like_cpp(duration_index, self.spell_duration_store.as_deref());
+        let lifecycle_record = wow_data::gameobject_template_lifecycle_record_like_cpp(template);
+        let Ok(mut manager) = manager.lock() else {
+            return Some(ApplyEffectSummonObjectWildSessionOutcomeLikeCpp {
+                status: ApplyEffectSummonObjectWildSessionStatusLikeCpp::MissingCanonicalMapManager,
+                template_entry: Some(template_entry),
+                duration_ms: Some(duration_ms),
+                explicit_destination_used: true,
+                close_point_fallback_represented: false,
+                map_outcome: None,
+            });
+        };
+        let Some(managed) = manager.find_map_mut(player_map_key.map_id, player_map_key.instance_id)
+        else {
+            return Some(ApplyEffectSummonObjectWildSessionOutcomeLikeCpp {
+                status: ApplyEffectSummonObjectWildSessionStatusLikeCpp::MissingManagedMap,
+                template_entry: Some(template_entry),
+                duration_ms: Some(duration_ms),
+                explicit_destination_used: true,
+                close_point_fallback_represented: false,
+                map_outcome: None,
+            });
+        };
+        let map_outcome = managed.map_mut().spell_effect_summon_object_wild_like_cpp(
+            caster_guid,
+            spell_id_u32,
+            lifecycle_record,
+            dest.position,
+            duration_ms,
+        );
+
+        Some(ApplyEffectSummonObjectWildSessionOutcomeLikeCpp {
+            status: ApplyEffectSummonObjectWildSessionStatusLikeCpp::MapResolved,
+            template_entry: Some(template_entry),
+            duration_ms: Some(duration_ms),
+            explicit_destination_used: true,
+            close_point_fallback_represented: false,
+            map_outcome: Some(map_outcome),
+        })
+    }
+
     /// Consume represented C++ `DynamicObject::SetCasterViewpoint()` ->
     /// `Player::SetViewpoint(..., true)` evidence into this live session's
     /// represented `Player::m_seer` seam after the canonical map mutation has
@@ -28170,6 +28333,233 @@ mod tests {
         assert_eq!(lifecycle_record.level, 80);
         assert_eq!(lifecycle_record.world_effect_id, 9);
         assert_eq!(lifecycle_record.anim_kit_id, 3);
+    }
+
+    fn summon_go_template_store_like_cpp(
+        entry: u32,
+    ) -> Arc<wow_data::GameObjectTemplateLifecycleStoreLikeCpp> {
+        Arc::new(
+            wow_data::GameObjectTemplateLifecycleStoreLikeCpp::from_templates([
+                wow_data::GameObjectTemplateLifecycleRecordLikeCpp {
+                    entry,
+                    go_type: 6,
+                    display_id: 44,
+                    name: "spell summoned gameobject".to_string(),
+                    size: 1.0,
+                    data: [0; wow_entities::MAX_GAMEOBJECT_DATA],
+                    content_tuning_id: 80,
+                    ai_name: String::new(),
+                    script_name: String::new(),
+                    string_id: String::new(),
+                    addon: None,
+                },
+            ]),
+        )
+    }
+
+    fn summon_go_spell_misc_entry_like_cpp(
+        spell_id: u32,
+        duration_index: u16,
+    ) -> wow_data::SpellMiscEntry {
+        wow_data::SpellMiscEntry {
+            id: spell_id,
+            attributes: [0; 15],
+            difficulty_id: 0,
+            casting_time_index: 0,
+            duration_index,
+            range_index: 0,
+            school_mask: 0,
+            speed: 0.0,
+            launch_delay: 0.0,
+            min_duration: 0.0,
+            spell_icon_file_data_id: 0,
+            active_icon_file_data_id: 0,
+            content_tuning_id: 0,
+            show_future_spell_player_condition_id: 0,
+            spell_id,
+        }
+    }
+
+    fn summon_object_wild_effect_like_cpp(entry: i32) -> wow_data::SpellEffectInfo {
+        wow_data::SpellEffectInfo {
+            effect_index: 0,
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_SUMMON_OBJECT_WILD,
+            effect_misc_value_1: entry,
+            ..Default::default()
+        }
+    }
+
+    fn target_data_with_destination_like_cpp(position: Position) -> SpellTargetData {
+        SpellTargetData {
+            dst_location: Some(wow_packet::packets::spell::TargetLocation {
+                transport: ObjectGuid::EMPTY,
+                position,
+            }),
+            ..Default::default()
+        }
+    }
+
+    fn insert_test_player_into_canonical_map_like_cpp(
+        canonical: &SharedCanonicalMapManager,
+        player_guid: ObjectGuid,
+        map_id: u32,
+        instance_id: u32,
+        position: Position,
+    ) {
+        let mut player = Player::new(Some(7), false);
+        player
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .create(player_guid);
+        player
+            .unit_mut()
+            .world_mut()
+            .set_map(map_id, instance_id)
+            .unwrap();
+        player.unit_mut().world_mut().relocate(position);
+        player.unit_mut().world_mut().object_mut().add_to_world();
+
+        let mut manager = canonical.lock().unwrap();
+        manager
+            .create_world_map(map_id, instance_id)
+            .map_mut()
+            .add_map_object_record_to_map_like_cpp(
+                wow_entities::MapObjectRecord::new_player(player).unwrap(),
+            )
+            .unwrap();
+    }
+
+    #[test]
+    fn summon_object_wild_session_resolver_ignores_other_effects_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let effect = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL,
+            ..Default::default()
+        };
+
+        assert!(
+            session
+                .apply_effect_summon_object_wild_like_cpp(
+                    700,
+                    &effect,
+                    &target_data_with_destination_like_cpp(Position::ZERO),
+                )
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn summon_object_wild_session_resolver_rejects_missing_template_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_gameobject_template_lifecycle_store(Arc::new(
+            wow_data::GameObjectTemplateLifecycleStoreLikeCpp::default(),
+        ));
+
+        let outcome = session
+            .apply_effect_summon_object_wild_like_cpp(
+                700,
+                &summon_object_wild_effect_like_cpp(9001),
+                &target_data_with_destination_like_cpp(Position::new(1.0, 2.0, 3.0, 0.5)),
+            )
+            .expect("wild effect should return represented outcome");
+
+        assert_eq!(
+            outcome.status,
+            ApplyEffectSummonObjectWildSessionStatusLikeCpp::MissingTemplate
+        );
+        assert_eq!(outcome.template_entry, Some(9001));
+        assert!(outcome.map_outcome.is_none());
+    }
+
+    #[test]
+    fn summon_object_wild_session_resolver_rejects_missing_destination_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_gameobject_template_lifecycle_store(summon_go_template_store_like_cpp(9001));
+
+        let outcome = session
+            .apply_effect_summon_object_wild_like_cpp(
+                700,
+                &summon_object_wild_effect_like_cpp(9001),
+                &SpellTargetData::default(),
+            )
+            .expect("wild effect should return represented outcome");
+
+        assert_eq!(
+            outcome.status,
+            ApplyEffectSummonObjectWildSessionStatusLikeCpp::MissingExplicitDestination
+        );
+        assert!(!outcome.close_point_fallback_represented);
+        assert!(outcome.map_outcome.is_none());
+    }
+
+    #[test]
+    fn summon_object_wild_session_resolver_creates_go_with_explicit_destination_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let spell_id = 700_u32;
+        let template_entry = 9001_u32;
+        let player_guid = ObjectGuid::create_player(1, 7001);
+        let canonical = shared_canonical_map_manager();
+        let player_position = Position::new(10.0, 20.0, 30.0, 1.0);
+        let destination = Position::new(11.0, 22.0, 33.0, 0.75);
+        insert_test_player_into_canonical_map_like_cpp(
+            &canonical,
+            player_guid,
+            571,
+            0,
+            player_position,
+        );
+        session.set_player_guid(Some(player_guid));
+        session.set_player_map_position_like_cpp(571, player_position);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_gameobject_template_lifecycle_store(summon_go_template_store_like_cpp(
+            template_entry,
+        ));
+        session.set_spell_misc_store(Arc::new(wow_data::SpellMiscStore::from_entries([
+            summon_go_spell_misc_entry_like_cpp(spell_id, 77),
+        ])));
+        session.set_spell_duration_store(Arc::new(wow_data::SpellDurationStore::from_entries([
+            wow_data::SpellDurationEntry {
+                id: 77,
+                duration: 5_000,
+                duration_per_level: 0,
+                max_duration: 0,
+            },
+        ])));
+
+        let outcome = session
+            .apply_effect_summon_object_wild_like_cpp(
+                i32::try_from(spell_id).unwrap(),
+                &summon_object_wild_effect_like_cpp(i32::try_from(template_entry).unwrap()),
+                &target_data_with_destination_like_cpp(destination),
+            )
+            .expect("wild effect should return represented outcome");
+
+        assert_eq!(
+            outcome.status,
+            ApplyEffectSummonObjectWildSessionStatusLikeCpp::MapResolved
+        );
+        assert_eq!(outcome.template_entry, Some(template_entry));
+        assert_eq!(outcome.duration_ms, Some(5_000));
+        assert!(outcome.explicit_destination_used);
+        assert!(!outcome.close_point_fallback_represented);
+        let map_outcome = outcome.map_outcome.expect("map body should run");
+        assert_eq!(
+            map_outcome.status,
+            wow_map::map::SpellEffectSummonObjectWildStatusLikeCpp::CreatedAddedToMap
+        );
+        assert_eq!(map_outcome.template_entry, template_entry);
+        assert_eq!(map_outcome.spell_id, spell_id);
+        assert_eq!(map_outcome.respawn_time_secs, Some(5));
+        let go_guid = map_outcome.guid.expect("created GO guid");
+        let manager = canonical.lock().unwrap();
+        let go = manager
+            .find_map(571, 0)
+            .and_then(|managed| managed.map().get_typed_game_object(go_guid))
+            .expect("summoned GO should be in canonical map");
+        assert_eq!(go.world().position(), destination);
+        assert_eq!(go.spell_id(), spell_id);
+        assert_eq!(go.respawn_time(), 5);
     }
 
     #[test]

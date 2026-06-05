@@ -1703,6 +1703,19 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   stored template and convert it through `gameobject_template_lifecycle_record_like_cpp`. Scope
   remains bounded: no effect-handler wiring, target/fallback resolution, map mutation, packets,
   linked traps, or owner-slot cleanup.
+- 2026-06-05 — Dormant session resolver for `EffectSummonObjectWild`
+  `#NEXT.RUNTIME.L3.031ee`: contrasted C++ `Spell::EffectSummonObjectWild`
+  (`SpellEffects.cpp:2937-2986`), `SpellInfo::CalcDuration` (`SpellInfo.cpp:3894-3910`) and
+  `GameObject::CreateGameObject` (`GameObject.cpp:1187-1200`). Rust adds spell-effect constants
+  for wild/slot summons and `WorldSession::apply_effect_summon_object_wild_like_cpp`, which is
+  deliberately not connected to the live spell loop yet. The resolver validates effect 76, resolves
+  `effect_misc_value_1` through the session's DB-backed GameObject template lifecycle store,
+  converts template+addon, computes duration through `SpellMiscStore`/`SpellDurationStore`, requires
+  an explicit destination, locates the caster's canonical map, and delegates to the map-owned
+  `spell_effect_summon_object_wild_like_cpp` body. Tests cover non-wild no-op, missing template,
+  missing destination, and explicit-destination creation with respawn/spell id. Scope remains
+  bounded: no live handler wiring, no no-destination fallback/focusObject orientation, no real phase
+  inheritance, linked trap, battleground flag mutation, packets, or scripts.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

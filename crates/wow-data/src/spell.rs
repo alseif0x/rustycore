@@ -26,7 +26,13 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_HEAL: u32 = 6;
     pub const SPELL_EFFECT_PERSISTENT_AREA_AURA: u32 = 27;
     pub const SPELL_EFFECT_APPLY_AURA: u32 = 35;
+    /// C++ `SPELL_EFFECT_SUMMON_OBJECT_WILD`; see
+    /// `Spell::EffectSummonObjectWild` (`SpellEffects.cpp:2937-2986`).
+    pub const SPELL_EFFECT_SUMMON_OBJECT_WILD: u32 = 76;
     pub const SPELL_EFFECT_ADD_FARSIGHT: u32 = 72;
+    /// First C++ `SPELL_EFFECT_SUMMON_OBJECT_SLOT*` value; see
+    /// `Spell::EffectSummonObject` (`SpellEffects.cpp:3541-3597`).
+    pub const SPELL_EFFECT_SUMMON_OBJECT_SLOT1: u32 = 104;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_PARTY: u32 = 35;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_RAID: u32 = 65;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_PET: u32 = 119;
