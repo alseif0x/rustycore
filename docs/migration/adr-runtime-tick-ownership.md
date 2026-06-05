@@ -1731,6 +1731,19 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   and live spell-loop wiring remain open. The C++ `DEFAULT_PLAYER_BOUNDING_RADIUS` comment is
   suspicious (`correctly?`), but this slice ports the legacy behavior literally before any separate
   bug-fix decision.
+- 2026-06-05 — Dormant session resolver for `EffectSummonObject`
+  `#NEXT.RUNTIME.L3.031eg`: contrasted C++ `Spell::EffectSummonObject`
+  (`SpellEffects.cpp:3541-3597`), `Unit::RemoveGameObject(GameObject*, true)`
+  (`Unit.cpp:5213-5251`), `MAX_GAMEOBJECT_SLOT` / `m_ObjectSlot` (`Unit.h:1421`) and
+  `GameObject::CreateGameObject` (`GameObject.cpp:1187-1200`). Rust now exposes
+  `WorldSession::apply_effect_summon_object_slot_like_cpp`, deliberately dormant. It derives the
+  slot from `effectInfo->Effect - SPELL_EFFECT_SUMMON_OBJECT_SLOT1`, rejects indexes outside the
+  represented 4-slot `m_ObjectSlot` shape, resolves the DB-backed template, explicit destination or
+  caster close-point fallback, duration and canonical map, then invokes the map-owned old-slot
+  cleanup followed by `gameobject_summon_object_for_owner_slot_like_cpp`. Tests prove non-slot no-op,
+  invalid-slot guard, and recast cleanup plus fallback-position creation. Scope remains bounded: no
+  live spell-loop wiring, focusObject/RequiresSpellFocus handling, real phase inheritance,
+  cooldown-event semantics, packets/scripts, or manual client/server validation.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
