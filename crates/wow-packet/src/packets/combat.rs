@@ -223,6 +223,37 @@ impl ServerPacket for HealthUpdate {
     }
 }
 
+// ── EnvironmentalDamageLog (SMSG_ENVIRONMENTAL_DAMAGE_LOG) ───────
+
+/// Combat-log packet emitted by C++ `Player::EnvironmentalDamage` after
+/// applying represented environmental damage.
+///
+/// C++ anchor: `WorldPackets::CombatLog::EnvironmentalDamageLog::Write`
+/// writes `Victim`, `uint8(Type)`, `int32(Amount)`, `int32(Resisted)`,
+/// `int32(Absorbed)`, then the empty `CombatLogServerPacket` log-data bit.
+#[derive(Debug, Clone)]
+pub struct EnvironmentalDamageLog {
+    pub victim: ObjectGuid,
+    pub damage_type: u8,
+    pub amount: i32,
+    pub resisted: i32,
+    pub absorbed: i32,
+}
+
+impl ServerPacket for EnvironmentalDamageLog {
+    const OPCODE: ServerOpcodes = ServerOpcodes::EnvironmentalDamageLog;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_packed_guid(&self.victim);
+        pkt.write_uint8(self.damage_type);
+        pkt.write_int32(self.amount);
+        pkt.write_int32(self.resisted);
+        pkt.write_int32(self.absorbed);
+        pkt.write_bit(false); // no LogData
+        pkt.flush_bits();
+    }
+}
+
 // ── AttackSwingError (SMSG_ATTACK_SWING_ERROR) ───────────────────
 
 #[derive(Debug, Clone)]
@@ -334,6 +365,32 @@ mod tests {
         );
         assert_eq!(pkt.read_packed_guid().expect("guid"), guid);
         assert_eq!(pkt.read_int64().expect("health"), 83);
+        assert!(pkt.is_empty());
+    }
+
+    #[test]
+    fn environmental_damage_log_writes_cpp_shape_without_log_data() {
+        let victim = ObjectGuid::create_player(1, 0x0102_0304_0506_0708);
+        let bytes = EnvironmentalDamageLog {
+            victim,
+            damage_type: 2,
+            amount: 117,
+            resisted: 0,
+            absorbed: 0,
+        }
+        .to_bytes();
+
+        let mut pkt = WorldPacket::from_bytes(&bytes);
+        assert_eq!(
+            pkt.read_uint16().expect("opcode"),
+            ServerOpcodes::EnvironmentalDamageLog as u16
+        );
+        assert_eq!(pkt.read_packed_guid().expect("victim"), victim);
+        assert_eq!(pkt.read_uint8().expect("type"), 2);
+        assert_eq!(pkt.read_int32().expect("amount"), 117);
+        assert_eq!(pkt.read_int32().expect("resisted"), 0);
+        assert_eq!(pkt.read_int32().expect("absorbed"), 0);
+        assert!(!pkt.has_bit().expect("has log data"));
         assert!(pkt.is_empty());
     }
 }

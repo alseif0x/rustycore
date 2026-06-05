@@ -621,6 +621,9 @@ mod tests {
         let sent = send_rx.try_recv().expect("fall health update");
         let opcode = u16::from_le_bytes([sent[0], sent[1]]);
         assert_eq!(opcode, ServerOpcodes::HealthUpdate as u16);
+        let sent = send_rx.try_recv().expect("fall environmental damage log");
+        let opcode = u16::from_le_bytes([sent[0], sent[1]]);
+        assert_eq!(opcode, ServerOpcodes::EnvironmentalDamageLog as u16);
 
         let mut harmless = MovementInfo::default();
         harmless.position.z = 99.0;
@@ -720,6 +723,9 @@ mod tests {
         let sent = send_rx.try_recv().expect("void health update");
         let opcode = u16::from_le_bytes([sent[0], sent[1]]);
         assert_eq!(opcode, ServerOpcodes::HealthUpdate as u16);
+        let sent = send_rx.try_recv().expect("void environmental damage log");
+        let opcode = u16::from_le_bytes([sent[0], sent[1]]);
+        assert_eq!(opcode, ServerOpcodes::EnvironmentalDamageLog as u16);
 
         info.position.z = -499.0;
         session.apply_movement_side_effects_like_cpp(Some(ClientOpcodes::MoveHeartbeat), &info);

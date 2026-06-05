@@ -1406,6 +1406,8 @@ pub(crate) const SKILL_FISHING_LIKE_CPP: u16 = 356;
 pub(crate) const SKILL_RIDING_LIKE_CPP: u16 = 762;
 pub const LIQUID_MAP_IN_WATER_LIKE_CPP: u32 = 0x0000_0004;
 pub const LIQUID_MAP_UNDER_WATER_LIKE_CPP: u32 = 0x0000_0008;
+const DAMAGE_FALL_LIKE_CPP: u8 = 2;
+const DAMAGE_FALL_TO_VOID_LIKE_CPP: u8 = 6;
 pub type SharedCanonicalMapManager = Arc<Mutex<wow_map::MapManager>>;
 
 pub(crate) fn relocate_canonical_creature_map_object_on_map_like_cpp(
@@ -9019,6 +9021,27 @@ impl WorldSession {
         });
     }
 
+    fn send_environmental_damage_log_like_cpp(
+        &self,
+        victim: ObjectGuid,
+        damage_type: u8,
+        amount: u32,
+        resisted: u32,
+        absorbed: u32,
+    ) {
+        self.send_packet(&wow_packet::packets::combat::EnvironmentalDamageLog {
+            victim,
+            damage_type: if damage_type == DAMAGE_FALL_TO_VOID_LIKE_CPP {
+                DAMAGE_FALL_LIKE_CPP
+            } else {
+                damage_type
+            },
+            amount: amount.min(i32::MAX as u32) as i32,
+            resisted: resisted.min(i32::MAX as u32) as i32,
+            absorbed: absorbed.min(i32::MAX as u32) as i32,
+        });
+    }
+
     pub(crate) fn can_destroy_direct_item_like_cpp(
         &self,
         slot: u8,
@@ -15356,6 +15379,13 @@ impl WorldSession {
                 player_guid,
                 u64::from(self.player_health_like_cpp),
             );
+            self.send_environmental_damage_log_like_cpp(
+                player_guid,
+                DAMAGE_FALL_LIKE_CPP,
+                damage,
+                0,
+                0,
+            );
         }
 
         let event = MovementFallDamageEvent {
@@ -15465,6 +15495,13 @@ impl WorldSession {
             self.send_player_health_update_like_cpp(
                 player_guid,
                 u64::from(self.player_health_like_cpp),
+            );
+            self.send_environmental_damage_log_like_cpp(
+                player_guid,
+                DAMAGE_FALL_TO_VOID_LIKE_CPP,
+                damage,
+                0,
+                0,
             );
         }
 

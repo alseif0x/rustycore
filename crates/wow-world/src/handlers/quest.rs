@@ -14415,6 +14415,13 @@ mod tests {
             u16::from_le_bytes([health_update[0], health_update[1]]),
             wow_constants::ServerOpcodes::HealthUpdate as u16
         );
+        let damage_log = receiver_rx
+            .try_recv()
+            .expect("void environmental damage log");
+        assert_eq!(
+            u16::from_le_bytes([damage_log[0], damage_log[1]]),
+            wow_constants::ServerOpcodes::EnvironmentalDamageLog as u16
+        );
 
         run_push_quest_to_party(&mut session, 7114).await;
 
