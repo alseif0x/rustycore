@@ -223,6 +223,30 @@ impl ServerPacket for HealthUpdate {
     }
 }
 
+// ── SpellInstakillLog (SMSG_SPELL_INSTAKILL_LOG) ─────────────────
+
+/// Combat-log packet emitted by C++ `Spell::EffectInstaKill` before
+/// `Unit::Kill`.
+///
+/// C++ anchor: `WorldPackets::CombatLog::SpellInstakillLog::Write` streams
+/// `Target`, `Caster`, then `int32(SpellID)`.
+#[derive(Debug, Clone)]
+pub struct SpellInstakillLog {
+    pub target: ObjectGuid,
+    pub caster: ObjectGuid,
+    pub spell_id: i32,
+}
+
+impl ServerPacket for SpellInstakillLog {
+    const OPCODE: ServerOpcodes = ServerOpcodes::SpellInstakillLog;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_packed_guid(&self.target);
+        pkt.write_packed_guid(&self.caster);
+        pkt.write_int32(self.spell_id);
+    }
+}
+
 // ── EnvironmentalDamageLog (SMSG_ENVIRONMENTAL_DAMAGE_LOG) ───────
 
 /// Combat-log packet emitted by C++ `Player::EnvironmentalDamage` after
@@ -391,6 +415,36 @@ mod tests {
         assert_eq!(pkt.read_int32().expect("resisted"), 0);
         assert_eq!(pkt.read_int32().expect("absorbed"), 0);
         assert!(!pkt.has_bit().expect("has log data"));
+        assert!(pkt.is_empty());
+    }
+
+    #[test]
+    fn spell_instakill_log_writes_target_caster_and_spell_like_cpp() {
+        let target = ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::Creature,
+            0,
+            1,
+            0,
+            0,
+            9_001,
+            44,
+        );
+        let caster = ObjectGuid::create_player(1, 0x0102_0304_0506_0708);
+        let bytes = SpellInstakillLog {
+            target,
+            caster,
+            spell_id: 5_333,
+        }
+        .to_bytes();
+
+        let mut pkt = WorldPacket::from_bytes(&bytes);
+        assert_eq!(
+            pkt.read_uint16().expect("opcode"),
+            ServerOpcodes::SpellInstakillLog as u16
+        );
+        assert_eq!(pkt.read_packed_guid().expect("target"), target);
+        assert_eq!(pkt.read_packed_guid().expect("caster"), caster);
+        assert_eq!(pkt.read_int32().expect("spell id"), 5_333);
         assert!(pkt.is_empty());
     }
 }

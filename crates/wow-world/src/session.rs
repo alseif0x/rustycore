@@ -23883,7 +23883,7 @@ impl WorldSession {
     /// Execute a spell with full visual/cast info — apply effects, set cooldown, send SMSG_SPELL_GO.
     ///
     /// Called after cast time completes or for instant-cast spells.
-    /// Supports: heal (type 10), damage (type 2), aura application (type 6).
+    /// Supports: instakill (type 1), damage (type 2), aura application (type 6), heal (type 10).
     pub async fn execute_spell_with_visual(
         &mut self,
         spell_id: i32,
@@ -24107,6 +24107,9 @@ impl WorldSession {
             direct_spell_effects_like_cpp
         {
             match direct_effect_type {
+                x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_INSTAKILL => {
+                    self.apply_instakill_like_cpp(spell_id, target_guid).await?;
+                }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL => {
                     if let Ok(heal_amount) = u32::try_from(direct_effect_base_points) {
                         self.apply_heal(target_guid, heal_amount).await?;
@@ -25245,6 +25248,29 @@ impl WorldSession {
         }
 
         Ok(())
+    }
+
+    async fn apply_instakill_like_cpp(
+        &mut self,
+        spell_id: i32,
+        target_guid: ObjectGuid,
+    ) -> Result<(), &'static str> {
+        let caster = self.player_guid().ok_or("No player GUID")?;
+        let Some(current_hp) = self
+            .mutate_world_creature(target_guid, |creature| {
+                creature.is_alive().then_some(creature.current_hp())
+            })
+            .flatten()
+        else {
+            return Ok(());
+        };
+
+        self.send_packet(&wow_packet::packets::combat::SpellInstakillLog {
+            target: target_guid,
+            caster,
+            spell_id,
+        });
+        self.apply_damage(target_guid, current_hp).await
     }
 
     /// Helper: apply damage to target creature.
@@ -40926,6 +40952,78 @@ mod tests {
                 ServerOpcodes::CooldownEvent,
             ]
         );
+    }
+
+    #[tokio::test]
+    async fn spell_instakill_effect_row_kills_creature_and_logs_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let manager = shared_map_manager();
+        let spell_id = 728_i32;
+        let guid = test_creature_guid(18_013);
+        let player_guid = ObjectGuid::create_player(1, 56);
+        session.player_guid = Some(player_guid);
+        session.set_player_level_like_cpp(80);
+        register_test_creature(&mut session, manager.clone(), guid, 40);
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_INSTAKILL,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, guid)
+            .await
+            .expect("represented instakill effect row should execute");
+
+        let manager = manager.read().unwrap();
+        let world_creature = manager.find_creature(0, 0, guid).unwrap();
+        assert_eq!(world_creature.current_hp(), 0);
+        assert!(
+            !world_creature.creature.is_alive(),
+            "C++ EffectInstaKill delegates to Unit::Kill after logging"
+        );
+        drop(manager);
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        let opcodes: Vec<_> = packets
+            .iter()
+            .filter_map(|bytes| wow_packet::WorldPacket::from_bytes(bytes).server_opcode())
+            .collect();
+        assert_eq!(
+            opcodes,
+            vec![
+                ServerOpcodes::SpellGo,
+                ServerOpcodes::SpellInstakillLog,
+                ServerOpcodes::CooldownEvent
+            ]
+        );
+        let mut instakill = wow_packet::WorldPacket::from_bytes(&packets[1]);
+        assert_eq!(
+            instakill.read_uint16().expect("opcode"),
+            ServerOpcodes::SpellInstakillLog as u16
+        );
+        assert_eq!(instakill.read_packed_guid().expect("target"), guid);
+        assert_eq!(instakill.read_packed_guid().expect("caster"), player_guid);
+        assert_eq!(instakill.read_int32().expect("spell id"), spell_id);
+        assert!(instakill.is_empty());
     }
 
     #[tokio::test]
