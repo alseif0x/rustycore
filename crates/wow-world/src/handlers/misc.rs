@@ -8,7 +8,7 @@
 //! TaxiNodeStatusQuery, ChatJoinChannel.
 
 use tracing::{debug, info, warn};
-use wow_constants::{ClientOpcodes, InventoryResult, ItemExtendedCostFlags};
+use wow_constants::{ClientOpcodes, InventoryResult, ItemExtendedCostFlags, SpellCastResult};
 use wow_database::{SqlTransaction, WorldStatements};
 use wow_entities::{
     GAMEOBJECT_TYPE_BARBER_CHAIR, GAMEOBJECT_TYPE_BUTTON, GAMEOBJECT_TYPE_CAMERA,
@@ -42,7 +42,7 @@ use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
     SetWatchedFaction,
 };
-use wow_packet::packets::spell::{SpellCastVisual, SpellPreparePkt, SpellStartPkt};
+use wow_packet::packets::spell::{CastFailed, SpellCastVisual, SpellPreparePkt, SpellStartPkt};
 
 use crate::handlers::loot::represented_gameobject_interaction_distance_like_cpp;
 use crate::session::{
@@ -919,6 +919,29 @@ impl crate::session::WorldSession {
         };
 
         if self.player_is_possessing_like_cpp() {
+            return;
+        }
+
+        let toy_cooldown_ms =
+            self.toy_item_spell_cooldown_ms_like_cpp(item_id, request.cast.spell_id, &spell_info);
+        if let Some(remaining_ms) = self.represented_spell_cooldown_remaining_ms_like_cpp(
+            request.cast.spell_id,
+            toy_cooldown_ms,
+        ) {
+            debug!(
+                account = self.account_id,
+                item_id,
+                spell_id = request.cast.spell_id,
+                remaining_ms,
+                "UseToy rejected by represented item-backed cooldown"
+            );
+            self.send_packet(&CastFailed {
+                cast_id: request.cast.cast_id,
+                spell_id: request.cast.spell_id,
+                reason: SpellCastResult::NotReady as i32,
+                fail_arg1: 0,
+                fail_arg2: 0,
+            });
             return;
         }
 
