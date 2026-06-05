@@ -36,8 +36,8 @@ use wow_packet::packets::item::{
 };
 use wow_packet::packets::loot::{LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHING_LIKE_CPP};
 use wow_packet::packets::misc::{
-    AddToy, BattlePetClearFanfare, BattlePetSetBattleSlot, BattlePetSetFlags, FarSight,
-    MountSetFavorite, RatedPvpInfo, RequestCemeteryListResponse, TaxiNodeStatusPkt,
+    AddToy, BattlePetClearFanfare, BattlePetSetBattleSlot, BattlePetSetFlags, BattlePetSummon,
+    FarSight, MountSetFavorite, RatedPvpInfo, RequestCemeteryListResponse, TaxiNodeStatusPkt,
     ToyClearFanfare, UseToy,
 };
 use wow_packet::packets::reputation::{
@@ -430,6 +430,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_battle_pet_set_battle_slot",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::BattlePetSummon,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_battle_pet_summon",
     }
 }
 
@@ -1457,6 +1466,27 @@ impl crate::session::WorldSession {
         };
 
         self.battle_pet_set_battle_slot_like_cpp(request.pet_guid, request.slot);
+    }
+
+    /// CMSG_BATTLE_PET_SUMMON — toggle represented summoned battle-pet guid.
+    ///
+    /// C++ compares `ActivePlayerData::SummonedBattlePetGUID`; unknown pets are
+    /// ignored by `BattlePetMgr::SummonPet`, and matching active pets dismiss.
+    /// Full spell cast, creature summon/despawn and `SetBattlePetData` update
+    /// fields remain part of the later live battle-pet runtime.
+    pub async fn handle_battle_pet_summon(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let request = match BattlePetSummon::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "BattlePetSummon parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        self.battle_pet_summon_toggle_like_cpp(request.pet_guid);
     }
     pub async fn handle_arena_team_roster(&mut self, _pkt: wow_packet::WorldPacket) {}
     pub async fn handle_request_raid_info(&mut self, _pkt: wow_packet::WorldPacket) {
@@ -3101,6 +3131,13 @@ mod tests {
         pkt
     }
 
+    fn battle_pet_summon_packet(pet_guid: ObjectGuid) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(ClientOpcodes::BattlePetSummon as u16);
+        pkt.write_packed_guid(&pet_guid);
+        pkt
+    }
+
     fn battle_pet_request_journal_lock_packet() -> WorldPacket {
         let mut pkt = WorldPacket::new_empty();
         pkt.write_uint16(ClientOpcodes::BattlePetRequestJournalLock as u16);
@@ -3235,6 +3272,51 @@ mod tests {
             .handle_battle_pet_set_battle_slot(battle_pet_set_battle_slot_packet(unknown_guid, 2))
             .await;
         assert_eq!(session.represented_battle_pet_slot_like_cpp(2), None);
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn battle_pet_summon_toggles_known_pet_silently_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let pet_guid = ObjectGuid::new(0, 0x228);
+        session.add_represented_battle_pet_like_cpp(
+            pet_guid,
+            0,
+            crate::session::RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+        );
+
+        session
+            .handle_battle_pet_summon(battle_pet_summon_packet(pet_guid))
+            .await;
+        assert_eq!(
+            session.represented_summoned_battle_pet_guid_like_cpp(),
+            Some(pet_guid)
+        );
+        assert!(send_rx.try_recv().is_err());
+
+        session
+            .handle_battle_pet_summon(battle_pet_summon_packet(pet_guid))
+            .await;
+        assert_eq!(
+            session.represented_summoned_battle_pet_guid_like_cpp(),
+            None
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn battle_pet_summon_ignores_unknown_pet_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let pet_guid = ObjectGuid::new(0, 0x229);
+
+        session
+            .handle_battle_pet_summon(battle_pet_summon_packet(pet_guid))
+            .await;
+
+        assert_eq!(
+            session.represented_summoned_battle_pet_guid_like_cpp(),
+            None
+        );
         assert!(send_rx.try_recv().is_err());
     }
 

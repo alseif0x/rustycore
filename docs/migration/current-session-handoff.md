@@ -2138,3 +2138,13 @@ C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entit
 Implemented Rust seam: `crates/wow-entities/src/creature.rs` now uses the existing represented `aim_initialize_like_cpp()` decision during `JustRespawned`; when that outcome says `MotionMaster::Initialize` is represented, it calls `MotionSubsystem::direct_initialize_like_cpp()` and resets local motion to idle. For represented non-leader formation members, Rust deliberately preserves the previous motion because exact C++ behavior depends on live `CreatureGroup::IsFormed` and cross-member motion mutation that is not represented yet.
 
 Validation evidence: focused respawn tests assert non-formation respawn resets a dirty chase generator to idle, while represented non-leader formation respawn preserves the generator and documents the remaining live `CreatureGroup` gap.
+
+### #NEXT.RUNTIME.L3.031hn — represented battle pet summon toggle
+
+Status: represented-closeout for the bounded `CMSG_BATTLE_PET_SUMMON` dispatch/toggle subset; not manual-test-ready.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:123` maps `CMSG_BATTLE_PET_SUMMON = 0x362A`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:242` registers it as logged-in/inplace; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/BattlePetPackets.cpp:202-205` reads one `PetGuid`; `/home/server/woltk-trinity-legacy/src/server/game/Handlers/BattlePetHandler.cpp:123-129` toggles against `ActivePlayerData::SummonedBattlePetGUID`; `/home/server/woltk-trinity-legacy/src/server/game/BattlePets/BattlePetMgr.cpp:838-867` silently ignores unknown pets, validates species, copies battle-pet data, casts the summon spell, and dismisses by despawning the summoned companion and clearing battle-pet data.
+
+Implemented Rust seam: `crates/wow-packet/src/packets/misc.rs` now represents `BattlePetSummon` with the single packed pet guid; `crates/wow-world/src/handlers/misc.rs` registers/dispatches `BattlePetSummon` as logged-in/inplace; `crates/wow-world/src/session.rs` carries represented `ActivePlayerData::SummonedBattlePetGUID` state and toggles it only for known represented pets, matching the C++ unknown-pet no-op and active-pet dismiss branch at the represented-state layer.
+
+Validation evidence: focused packet tests assert the C++ packet shape; focused session/handler tests assert known-pet summon, switching active pet, dismissing the active pet, unknown-pet no-op, and no direct response packets. Remaining gaps: full `BattlePetMgr::SummonPet` species lookup, `SetBattlePetData`, spell cast, companion creature summon/despawn, update-field fanout, and `UpdateBattlePetData`.

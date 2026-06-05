@@ -2712,6 +2712,8 @@ pub struct WorldSession {
     /// C++ `BattlePetMgr::_slots`, represented minimally by slotted pet guid.
     pub(crate) represented_battle_pet_slots_like_cpp:
         [Option<ObjectGuid>; BATTLE_PET_SLOT_COUNT_LIKE_CPP],
+    /// C++ `ActivePlayerData::SummonedBattlePetGUID`, represented until battle-pet summon runtime is live.
+    pub(crate) represented_summoned_battle_pet_guid_like_cpp: Option<ObjectGuid>,
     /// Session-local evidence for represented `Player::RemoveTimedQuest` calls.
     pub(crate) represented_timed_quest_removals_like_cpp: Vec<u32>,
     /// Session-local evidence for represented quest reward `Player::UpdateSkillPro` calls.
@@ -3604,6 +3606,7 @@ impl WorldSession {
             represented_battle_pets_like_cpp: HashMap::new(),
             represented_battle_pet_journal_lock_like_cpp: false,
             represented_battle_pet_slots_like_cpp: [None; BATTLE_PET_SLOT_COUNT_LIKE_CPP],
+            represented_summoned_battle_pet_guid_like_cpp: None,
             represented_timed_quest_removals_like_cpp: Vec::new(),
             represented_quest_reward_skill_updates_like_cpp: Vec::new(),
             represented_quest_reward_spell_casts_like_cpp: Vec::new(),
@@ -15606,6 +15609,9 @@ impl WorldSession {
             ClientOpcodes::BattlePetSetBattleSlot => {
                 self.handle_battle_pet_set_battle_slot(pkt).await;
             }
+            ClientOpcodes::BattlePetSummon => {
+                self.handle_battle_pet_summon(pkt).await;
+            }
             ClientOpcodes::ArenaTeamRoster => {
                 self.handle_arena_team_roster(pkt).await;
             }
@@ -17880,6 +17886,31 @@ impl WorldSession {
             .get(slot as usize)
             .copied()
             .flatten()
+    }
+
+    /// C++ `WorldSession::HandleBattlePetSummon` represented toggle.
+    ///
+    /// `BattlePetMgr::SummonPet` silently ignores unknown pets before casting
+    /// the summon spell; `DismissPet` clears the active summoned companion.
+    pub(crate) fn battle_pet_summon_toggle_like_cpp(&mut self, pet_guid: ObjectGuid) -> bool {
+        if self.represented_summoned_battle_pet_guid_like_cpp == Some(pet_guid) {
+            self.represented_summoned_battle_pet_guid_like_cpp = None;
+            return true;
+        }
+
+        if !self
+            .represented_battle_pets_like_cpp
+            .contains_key(&pet_guid)
+        {
+            return false;
+        }
+
+        self.represented_summoned_battle_pet_guid_like_cpp = Some(pet_guid);
+        true
+    }
+
+    pub(crate) fn represented_summoned_battle_pet_guid_like_cpp(&self) -> Option<ObjectGuid> {
+        self.represented_summoned_battle_pet_guid_like_cpp
     }
 
     pub(crate) fn represented_battle_pet_like_cpp(
@@ -52651,6 +52682,49 @@ mod tests {
         assert_eq!(
             session.represented_battle_pet_slot_like_cpp(2),
             Some(pet_guid)
+        );
+    }
+
+    #[test]
+    fn battle_pet_summon_toggles_known_pet_and_ignores_unknown_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let pet_guid = ObjectGuid::new(0, 0x12c);
+        let other_guid = ObjectGuid::new(0, 0x12d);
+        let unknown_guid = ObjectGuid::new(0, 0x12e);
+
+        session.add_represented_battle_pet_like_cpp(
+            pet_guid,
+            0,
+            RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+        );
+        session.add_represented_battle_pet_like_cpp(
+            other_guid,
+            0,
+            RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+        );
+
+        assert!(session.battle_pet_summon_toggle_like_cpp(pet_guid));
+        assert_eq!(
+            session.represented_summoned_battle_pet_guid_like_cpp(),
+            Some(pet_guid)
+        );
+
+        assert!(session.battle_pet_summon_toggle_like_cpp(other_guid));
+        assert_eq!(
+            session.represented_summoned_battle_pet_guid_like_cpp(),
+            Some(other_guid)
+        );
+
+        assert!(session.battle_pet_summon_toggle_like_cpp(other_guid));
+        assert_eq!(
+            session.represented_summoned_battle_pet_guid_like_cpp(),
+            None
+        );
+
+        assert!(!session.battle_pet_summon_toggle_like_cpp(unknown_guid));
+        assert_eq!(
+            session.represented_summoned_battle_pet_guid_like_cpp(),
+            None
         );
     }
 
