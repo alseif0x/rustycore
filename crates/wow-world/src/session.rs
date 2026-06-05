@@ -43082,6 +43082,34 @@ mod tests {
                 wow_data::spell::spell_effect_types::SPELL_EFFECT_GIVE_ARTIFACT_POWER_NO_BONUS,
             ),
             (
+                849_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_FOLLOWER_ABILITY,
+            ),
+            (
+                850_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_FINISH_GARRISON_MISSION,
+            ),
+            (
+                851_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_ADD_GARRISON_MISSION_SET,
+            ),
+            (
+                852_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_FINISH_SHIPMENT,
+            ),
+            (
+                853_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_FORCE_EQUIP_ITEM,
+            ),
+            (
+                854_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_TAKE_SCREENSHOT,
+            ),
+            (
+                855_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_SET_GARRISON_CACHE_SIZE,
+            ),
+            (
                 806_i32,
                 wow_data::spell::spell_effect_types::SPELL_EFFECT_MODIFY_KEYSTONE,
             ),

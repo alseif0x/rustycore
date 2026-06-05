@@ -129,6 +129,13 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_GIVE_ARTIFACT_POWER: u32 = 240;
     pub const SPELL_EFFECT_241: u32 = 241;
     pub const SPELL_EFFECT_GIVE_ARTIFACT_POWER_NO_BONUS: u32 = 242;
+    pub const SPELL_EFFECT_LEARN_FOLLOWER_ABILITY: u32 = 244;
+    pub const SPELL_EFFECT_FINISH_GARRISON_MISSION: u32 = 246;
+    pub const SPELL_EFFECT_ADD_GARRISON_MISSION_SET: u32 = 247;
+    pub const SPELL_EFFECT_FINISH_SHIPMENT: u32 = 248;
+    pub const SPELL_EFFECT_FORCE_EQUIP_ITEM: u32 = 249;
+    pub const SPELL_EFFECT_TAKE_SCREENSHOT: u32 = 250;
+    pub const SPELL_EFFECT_SET_GARRISON_CACHE_SIZE: u32 = 251;
     pub const SPELL_EFFECT_TELEPORT_UNITS: u32 = 252;
     pub const SPELL_EFFECT_256: u32 = 256;
     pub const SPELL_EFFECT_257: u32 = 257;
@@ -268,6 +275,13 @@ pub mod spell_effect_types {
                 | SPELL_EFFECT_GIVE_ARTIFACT_POWER
                 | SPELL_EFFECT_241
                 | SPELL_EFFECT_GIVE_ARTIFACT_POWER_NO_BONUS
+                | SPELL_EFFECT_LEARN_FOLLOWER_ABILITY
+                | SPELL_EFFECT_FINISH_GARRISON_MISSION
+                | SPELL_EFFECT_ADD_GARRISON_MISSION_SET
+                | SPELL_EFFECT_FINISH_SHIPMENT
+                | SPELL_EFFECT_FORCE_EQUIP_ITEM
+                | SPELL_EFFECT_TAKE_SCREENSHOT
+                | SPELL_EFFECT_SET_GARRISON_CACHE_SIZE
                 | SPELL_EFFECT_256
                 | SPELL_EFFECT_257
                 | SPELL_EFFECT_MODIFY_KEYSTONE
@@ -1169,6 +1183,22 @@ mod tests {
             spell_effect_types::SPELL_EFFECT_GIVE_ARTIFACT_POWER_NO_BONUS,
             242
         );
+        assert_eq!(spell_effect_types::SPELL_EFFECT_LEARN_FOLLOWER_ABILITY, 244);
+        assert_eq!(
+            spell_effect_types::SPELL_EFFECT_FINISH_GARRISON_MISSION,
+            246
+        );
+        assert_eq!(
+            spell_effect_types::SPELL_EFFECT_ADD_GARRISON_MISSION_SET,
+            247
+        );
+        assert_eq!(spell_effect_types::SPELL_EFFECT_FINISH_SHIPMENT, 248);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_FORCE_EQUIP_ITEM, 249);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_TAKE_SCREENSHOT, 250);
+        assert_eq!(
+            spell_effect_types::SPELL_EFFECT_SET_GARRISON_CACHE_SIZE,
+            251
+        );
         assert_eq!(spell_effect_types::SPELL_EFFECT_256, 256);
         assert_eq!(spell_effect_types::SPELL_EFFECT_257, 257);
         assert_eq!(spell_effect_types::SPELL_EFFECT_MODIFY_KEYSTONE, 258);
@@ -1334,6 +1364,13 @@ mod tests {
             spell_effect_types::SPELL_EFFECT_GIVE_ARTIFACT_POWER,
             spell_effect_types::SPELL_EFFECT_241,
             spell_effect_types::SPELL_EFFECT_GIVE_ARTIFACT_POWER_NO_BONUS,
+            spell_effect_types::SPELL_EFFECT_LEARN_FOLLOWER_ABILITY,
+            spell_effect_types::SPELL_EFFECT_FINISH_GARRISON_MISSION,
+            spell_effect_types::SPELL_EFFECT_ADD_GARRISON_MISSION_SET,
+            spell_effect_types::SPELL_EFFECT_FINISH_SHIPMENT,
+            spell_effect_types::SPELL_EFFECT_FORCE_EQUIP_ITEM,
+            spell_effect_types::SPELL_EFFECT_TAKE_SCREENSHOT,
+            spell_effect_types::SPELL_EFFECT_SET_GARRISON_CACHE_SIZE,
             spell_effect_types::SPELL_EFFECT_256,
             spell_effect_types::SPELL_EFFECT_257,
             spell_effect_types::SPELL_EFFECT_MODIFY_KEYSTONE,
@@ -1397,7 +1434,9 @@ mod tests {
         assert!(!spell_effect_types::is_cpp_null_or_unused_noop(
             spell_effect_types::SPELL_EFFECT_QUEST_COMPLETE
         ));
-        for real_handler_effect in [284, 286, 289, 290, 291, 292, 293, 303, 304] {
+        for real_handler_effect in [
+            243, 245, 252, 253, 254, 255, 284, 286, 289, 290, 291, 292, 293, 303, 304,
+        ] {
             assert!(
                 !spell_effect_types::is_cpp_null_or_unused_noop(real_handler_effect),
                 "effect {real_handler_effect} has a real C++ dispatch handler in this range"
