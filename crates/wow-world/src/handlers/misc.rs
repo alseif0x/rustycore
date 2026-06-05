@@ -37,8 +37,8 @@ use wow_packet::packets::item::{
 use wow_packet::packets::loot::{LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHING_LIKE_CPP};
 use wow_packet::packets::misc::{
     AddToy, BattlePetClearFanfare, BattlePetSetBattleSlot, BattlePetSetFlags, BattlePetSummon,
-    FarSight, MountSetFavorite, RatedPvpInfo, RequestCemeteryListResponse, TaxiNodeStatusPkt,
-    ToyClearFanfare, UseToy,
+    BattlePetUpdateNotify, FarSight, MountSetFavorite, RatedPvpInfo, RequestCemeteryListResponse,
+    TaxiNodeStatusPkt, ToyClearFanfare, UseToy,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -439,6 +439,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_battle_pet_summon",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::BattlePetUpdateNotify,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_battle_pet_update_notify",
     }
 }
 
@@ -1487,6 +1496,26 @@ impl crate::session::WorldSession {
         };
 
         self.battle_pet_summon_toggle_like_cpp(request.pet_guid);
+    }
+
+    /// CMSG_BATTLE_PET_UPDATE_NOTIFY — represented update of active companion data.
+    ///
+    /// C++ `BattlePetMgr::UpdateBattlePetData` ignores unknown pets and only
+    /// updates player/summoned-creature battle-pet fields when the currently
+    /// summoned companion GUID matches the requested pet GUID.
+    pub async fn handle_battle_pet_update_notify(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let request = match BattlePetUpdateNotify::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "BattlePetUpdateNotify parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        self.battle_pet_update_notify_like_cpp(request.pet_guid);
     }
     pub async fn handle_arena_team_roster(&mut self, _pkt: wow_packet::WorldPacket) {}
     pub async fn handle_request_raid_info(&mut self, _pkt: wow_packet::WorldPacket) {
@@ -3138,6 +3167,13 @@ mod tests {
         pkt
     }
 
+    fn battle_pet_update_notify_packet(pet_guid: ObjectGuid) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(ClientOpcodes::BattlePetUpdateNotify as u16);
+        pkt.write_packed_guid(&pet_guid);
+        pkt
+    }
+
     fn battle_pet_request_journal_lock_packet() -> WorldPacket {
         let mut pkt = WorldPacket::new_empty();
         pkt.write_uint16(ClientOpcodes::BattlePetRequestJournalLock as u16);
@@ -3317,6 +3353,50 @@ mod tests {
             session.represented_summoned_battle_pet_guid_like_cpp(),
             None
         );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn battle_pet_update_notify_updates_known_active_pet_silently_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let pet_guid = ObjectGuid::new(0, 0x22a);
+        session.add_represented_battle_pet_like_cpp(
+            pet_guid,
+            0,
+            crate::session::RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+        );
+        assert!(session.battle_pet_summon_toggle_like_cpp(pet_guid));
+
+        session
+            .handle_battle_pet_update_notify(battle_pet_update_notify_packet(pet_guid))
+            .await;
+
+        assert_eq!(
+            session.represented_battle_pet_data_updates_like_cpp(),
+            &[pet_guid]
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn battle_pet_update_notify_ignores_inactive_or_unknown_pet_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let pet_guid = ObjectGuid::new(0, 0x22b);
+        let unknown_guid = ObjectGuid::new(0, 0x22c);
+        session.add_represented_battle_pet_like_cpp(
+            pet_guid,
+            0,
+            crate::session::RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+        );
+
+        session
+            .handle_battle_pet_update_notify(battle_pet_update_notify_packet(pet_guid))
+            .await;
+        session
+            .handle_battle_pet_update_notify(battle_pet_update_notify_packet(unknown_guid))
+            .await;
+
+        assert_eq!(session.represented_battle_pet_data_updates_like_cpp(), &[]);
         assert!(send_rx.try_recv().is_err());
     }
 

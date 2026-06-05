@@ -2714,6 +2714,8 @@ pub struct WorldSession {
         [Option<ObjectGuid>; BATTLE_PET_SLOT_COUNT_LIKE_CPP],
     /// C++ `ActivePlayerData::SummonedBattlePetGUID`, represented until battle-pet summon runtime is live.
     pub(crate) represented_summoned_battle_pet_guid_like_cpp: Option<ObjectGuid>,
+    /// Evidence for represented `BattlePetMgr::UpdateBattlePetData` calls.
+    pub(crate) represented_battle_pet_data_updates_like_cpp: Vec<ObjectGuid>,
     /// Session-local evidence for represented `Player::RemoveTimedQuest` calls.
     pub(crate) represented_timed_quest_removals_like_cpp: Vec<u32>,
     /// Session-local evidence for represented quest reward `Player::UpdateSkillPro` calls.
@@ -3607,6 +3609,7 @@ impl WorldSession {
             represented_battle_pet_journal_lock_like_cpp: false,
             represented_battle_pet_slots_like_cpp: [None; BATTLE_PET_SLOT_COUNT_LIKE_CPP],
             represented_summoned_battle_pet_guid_like_cpp: None,
+            represented_battle_pet_data_updates_like_cpp: Vec::new(),
             represented_timed_quest_removals_like_cpp: Vec::new(),
             represented_quest_reward_skill_updates_like_cpp: Vec::new(),
             represented_quest_reward_spell_casts_like_cpp: Vec::new(),
@@ -15612,6 +15615,9 @@ impl WorldSession {
             ClientOpcodes::BattlePetSummon => {
                 self.handle_battle_pet_summon(pkt).await;
             }
+            ClientOpcodes::BattlePetUpdateNotify => {
+                self.handle_battle_pet_update_notify(pkt).await;
+            }
             ClientOpcodes::ArenaTeamRoster => {
                 self.handle_arena_team_roster(pkt).await;
             }
@@ -17911,6 +17917,28 @@ impl WorldSession {
 
     pub(crate) fn represented_summoned_battle_pet_guid_like_cpp(&self) -> Option<ObjectGuid> {
         self.represented_summoned_battle_pet_guid_like_cpp
+    }
+
+    /// C++ `BattlePetMgr::UpdateBattlePetData`, represented at the gate level.
+    pub(crate) fn battle_pet_update_notify_like_cpp(&mut self, pet_guid: ObjectGuid) -> bool {
+        if !self
+            .represented_battle_pets_like_cpp
+            .contains_key(&pet_guid)
+        {
+            return false;
+        }
+
+        if self.represented_summoned_battle_pet_guid_like_cpp != Some(pet_guid) {
+            return false;
+        }
+
+        self.represented_battle_pet_data_updates_like_cpp
+            .push(pet_guid);
+        true
+    }
+
+    pub(crate) fn represented_battle_pet_data_updates_like_cpp(&self) -> &[ObjectGuid] {
+        &self.represented_battle_pet_data_updates_like_cpp
     }
 
     pub(crate) fn represented_battle_pet_like_cpp(
@@ -52725,6 +52753,39 @@ mod tests {
         assert_eq!(
             session.represented_summoned_battle_pet_guid_like_cpp(),
             None
+        );
+    }
+
+    #[test]
+    fn battle_pet_update_notify_requires_known_active_pet_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let pet_guid = ObjectGuid::new(0, 0x12f);
+        let other_guid = ObjectGuid::new(0, 0x130);
+        let unknown_guid = ObjectGuid::new(0, 0x131);
+
+        session.add_represented_battle_pet_like_cpp(
+            pet_guid,
+            0,
+            RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+        );
+        session.add_represented_battle_pet_like_cpp(
+            other_guid,
+            0,
+            RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+        );
+
+        assert!(!session.battle_pet_update_notify_like_cpp(pet_guid));
+        assert_eq!(session.represented_battle_pet_data_updates_like_cpp(), &[]);
+
+        assert!(session.battle_pet_summon_toggle_like_cpp(pet_guid));
+        assert!(!session.battle_pet_update_notify_like_cpp(other_guid));
+        assert!(!session.battle_pet_update_notify_like_cpp(unknown_guid));
+        assert_eq!(session.represented_battle_pet_data_updates_like_cpp(), &[]);
+
+        assert!(session.battle_pet_update_notify_like_cpp(pet_guid));
+        assert_eq!(
+            session.represented_battle_pet_data_updates_like_cpp(),
+            &[pet_guid]
         );
     }
 

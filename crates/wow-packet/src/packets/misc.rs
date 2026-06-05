@@ -1712,6 +1712,23 @@ impl ClientPacket for BattlePetSummon {
     }
 }
 
+/// C++ `WorldPackets::BattlePet::BattlePetUpdateNotify`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BattlePetUpdateNotify {
+    pub pet_guid: ObjectGuid,
+}
+
+impl ClientPacket for BattlePetUpdateNotify {
+    const OPCODE: ClientOpcodes = ClientOpcodes::BattlePetUpdateNotify;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        pkt.skip_opcode();
+        Ok(Self {
+            pet_guid: pkt.read_packed_guid()?,
+        })
+    }
+}
+
 /// C++ `WorldPackets::BattlePet::BattlePetSetFlags`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BattlePetSetFlags {
@@ -3850,6 +3867,17 @@ mod tests {
 
         let decoded = BattlePetSummon::read(&mut pkt).unwrap();
         assert_eq!(decoded, BattlePetSummon { pet_guid });
+    }
+
+    #[test]
+    fn battle_pet_update_notify_reads_packed_guid_like_cpp() {
+        let pet_guid = ObjectGuid::new(0, 0x4325);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(ClientOpcodes::BattlePetUpdateNotify as u16);
+        pkt.write_packed_guid(&pet_guid);
+
+        let decoded = BattlePetUpdateNotify::read(&mut pkt).unwrap();
+        assert_eq!(decoded, BattlePetUpdateNotify { pet_guid });
     }
 
     #[test]
