@@ -9465,6 +9465,8 @@ impl WorldSession {
             // StateFlags: 0=None, 1=Complete (QuestSlotStateMask)
             let quest_log: Vec<(u32, u32, i64, [u16; 24])> =
                 self.quest_log_create_entries_like_cpp();
+            let account_toys = self.account_toy_active_player_rows_like_cpp();
+            let account_heirlooms = self.account_heirloom_active_player_rows_like_cpp();
 
             let mut player_pkt = UpdateObject::create_player(
                 guid,
@@ -9484,6 +9486,8 @@ impl WorldSession {
                 self.player_gold_like_cpp(),
                 quest_log,
             );
+            player_pkt
+                .set_player_collection_dynamic_fields_like_cpp(account_toys, account_heirlooms);
 
             if !item_creates.is_empty() {
                 info!(

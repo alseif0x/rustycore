@@ -8257,6 +8257,14 @@ impl WorldSession {
             .collect()
     }
 
+    /// C++ `CollectionMgr::LoadHeirlooms` active-player create data order.
+    pub(crate) fn account_heirloom_active_player_rows_like_cpp(&self) -> Vec<(i32, u32)> {
+        self.represented_account_heirlooms_like_cpp
+            .iter()
+            .filter_map(|(&item_id, &flags)| Some((i32::try_from(item_id).ok()?, flags)))
+            .collect()
+    }
+
     /// C++ `WorldPackets::Misc::AccountHeirloomUpdate` full login update.
     pub fn send_account_heirlooms_like_cpp(&self) {
         self.send_packet(&AccountHeirloomUpdate::full(
@@ -8334,6 +8342,14 @@ impl WorldSession {
                 is_favorite: (flags & TOY_FLAG_FAVORITE_LIKE_CPP) != 0,
                 has_fanfare: (flags & TOY_FLAG_HAS_FANFARE_LIKE_CPP) != 0,
             })
+            .collect()
+    }
+
+    /// C++ `CollectionMgr::LoadToys` active-player create data order.
+    pub(crate) fn account_toy_active_player_rows_like_cpp(&self) -> Vec<i32> {
+        self.represented_account_toys_like_cpp
+            .keys()
+            .filter_map(|&item_id| i32::try_from(item_id).ok())
             .collect()
     }
 
@@ -51436,6 +51452,10 @@ mod tests {
                 flags: 0x03,
             }]
         );
+        assert_eq!(
+            session.account_heirloom_active_player_rows_like_cpp(),
+            vec![(44_000, 0x03)]
+        );
     }
 
     #[test]
@@ -51515,6 +51535,10 @@ mod tests {
                     has_fanfare: true,
                 },
             ]
+        );
+        assert_eq!(
+            session.account_toy_active_player_rows_like_cpp(),
+            vec![30_000, 30_001]
         );
     }
 

@@ -1441,6 +1441,12 @@ pub struct PlayerCreateData {
     pub coinage: u64,
     /// ActivePlayerData::WatchedFactionIndex.
     pub watched_faction_index: i32,
+    /// ActivePlayerData::Heirlooms.
+    pub heirlooms: Vec<i32>,
+    /// ActivePlayerData::HeirloomFlags.
+    pub heirloom_flags: Vec<u32>,
+    /// ActivePlayerData::Toys.
+    pub toys: Vec<i32>,
 }
 
 impl PlayerCreateData {
@@ -2142,9 +2148,9 @@ impl PlayerCreateData {
         buf.write_int32(0);
 
         // Heirlooms.Size, HeirloomFlags.Size, Toys.Size, Transmog.Size
-        buf.write_int32(0);
-        buf.write_int32(0);
-        buf.write_int32(0);
+        buf.write_int32(self.heirlooms.len() as i32);
+        buf.write_int32(self.heirloom_flags.len() as i32);
+        buf.write_int32(self.toys.len() as i32);
         buf.write_int32(0);
 
         // ConditionalTransmog.Size, SelfResSpells.Size, CharacterRestrictions.Size
@@ -2183,7 +2189,17 @@ impl PlayerCreateData {
         // NumStableSlots
         buf.write_uint8(0);
 
-        // Dynamic arrays: all empty (KnownTitles, DailyQuests, etc.) — sizes were 0
+        for value in &self.heirlooms {
+            buf.write_int32(*value);
+        }
+        for value in &self.heirloom_flags {
+            buf.write_uint32(*value);
+        }
+        for value in &self.toys {
+            buf.write_int32(*value);
+        }
+
+        // Remaining dynamic arrays are empty (KnownTitles, DailyQuests, etc.).
 
         // PvpInfo[7].WriteCreate (each: i8 Bracket + 16 i32/u32 fields + bit Disqualified)
         for _ in 0..7 {
@@ -2927,6 +2943,9 @@ impl UpdateObject {
             skill_info,
             coinage,
             watched_faction_index: -1,
+            heirlooms: Vec::new(),
+            heirloom_flags: Vec::new(),
+            toys: Vec::new(),
             quest_log,
         };
 
@@ -2954,6 +2973,31 @@ impl UpdateObject {
                 create_data,
                 is_self,
             }],
+        }
+    }
+
+    /// Populate account collection dynamic fields on the player CREATE block.
+    ///
+    /// C++ `CollectionMgr::LoadToys` / `LoadHeirlooms` mutates
+    /// `ActivePlayerData` before the create values are written during login.
+    pub fn set_player_collection_dynamic_fields_like_cpp(
+        &mut self,
+        toys: Vec<i32>,
+        heirlooms: Vec<(i32, u32)>,
+    ) {
+        for block in &mut self.blocks {
+            if let UpdateBlock::CreateObject {
+                create_data,
+                is_self: true,
+                ..
+            } = block
+            {
+                create_data.toys = toys;
+                create_data.heirlooms = heirlooms.iter().map(|(item_id, _)| *item_id).collect();
+                create_data.heirloom_flags =
+                    heirlooms.into_iter().map(|(_, flags)| flags).collect();
+                return;
+            }
         }
     }
 
@@ -9008,6 +9052,9 @@ mod tests {
             quest_log: Vec::new(),
             coinage: 0,
             watched_faction_index: -1,
+            heirlooms: Vec::new(),
+            heirloom_flags: Vec::new(),
+            toys: Vec::new(),
         }
     }
 
@@ -9033,6 +9080,35 @@ mod tests {
         assert_eq!(
             &data[summoned_battle_pet_offset..summoned_battle_pet_offset + 2],
             [0, 0]
+        );
+    }
+
+    #[test]
+    fn active_player_create_writes_collection_dynamic_fields_like_cpp() {
+        let mut create = test_player_create_data_with_farsight(ObjectGuid::EMPTY);
+        create.heirlooms = vec![44_000, 44_001];
+        create.heirloom_flags = vec![0x03, 0x04];
+        create.toys = vec![30_000];
+
+        let mut packet = WorldPacket::new_empty();
+        create.write_active_player_data(&mut packet);
+        let data = packet.data();
+
+        assert!(data.windows(12).any(|window| {
+            window
+                == [
+                    2, 0, 0, 0, // Heirlooms.Size
+                    2, 0, 0, 0, // HeirloomFlags.Size
+                    1, 0, 0, 0, // Toys.Size
+                ]
+        }));
+        assert!(
+            data.windows(12)
+                .any(|window| window == [224, 171, 0, 0, 225, 171, 0, 0, 3, 0, 0, 0])
+        );
+        assert!(
+            data.windows(8)
+                .any(|window| window == [4, 0, 0, 0, 48, 117, 0, 0])
         );
     }
 
