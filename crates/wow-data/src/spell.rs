@@ -97,7 +97,25 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_TELEPORT_TO_DIGSITE: u32 = 191;
     pub const SPELL_EFFECT_START_PET_BATTLE: u32 = 193;
     pub const SPELL_EFFECT_194: u32 = 194;
+    pub const SPELL_EFFECT_DESPAWN_SUMMON: u32 = 199;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_SUMMONS: u32 = 202;
+    pub const SPELL_EFFECT_ALTER_ITEM: u32 = 206;
+    pub const SPELL_EFFECT_LAUNCH_QUEST_TASK: u32 = 207;
+    pub const SPELL_EFFECT_SET_REPUTATION: u32 = 208;
+    pub const SPELL_EFFECT_209: u32 = 209;
+    pub const SPELL_EFFECT_LEARN_GARRISON_BUILDING: u32 = 210;
+    pub const SPELL_EFFECT_LEARN_GARRISON_SPECIALIZATION: u32 = 211;
+    pub const SPELL_EFFECT_CREATE_GARRISON: u32 = 214;
+    pub const SPELL_EFFECT_UPGRADE_CHARACTER_SPELLS: u32 = 215;
+    pub const SPELL_EFFECT_CREATE_SHIPMENT: u32 = 216;
+    pub const SPELL_EFFECT_UPGRADE_GARRISON: u32 = 217;
+    pub const SPELL_EFFECT_218: u32 = 218;
+    pub const SPELL_EFFECT_ADD_GARRISON_FOLLOWER: u32 = 220;
+    pub const SPELL_EFFECT_ADD_GARRISON_MISSION: u32 = 221;
+    pub const SPELL_EFFECT_CHANGE_ITEM_BONUSES: u32 = 223;
+    pub const SPELL_EFFECT_ACTIVATE_GARRISON_BUILDING: u32 = 224;
+    pub const SPELL_EFFECT_TRIGGER_ACTION_SET: u32 = 226;
+    pub const SPELL_EFFECT_TELEPORT_TO_LFG_DUNGEON: u32 = 227;
     pub const SPELL_EFFECT_TELEPORT_UNITS: u32 = 252;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_PARTY_NONRANDOM: u32 = 271;
 
@@ -157,6 +175,25 @@ pub mod spell_effect_types {
                 | SPELL_EFFECT_TELEPORT_TO_DIGSITE
                 | SPELL_EFFECT_START_PET_BATTLE
                 | SPELL_EFFECT_194
+                | SPELL_EFFECT_DESPAWN_SUMMON
+                | SPELL_EFFECT_APPLY_AREA_AURA_SUMMONS
+                | SPELL_EFFECT_ALTER_ITEM
+                | SPELL_EFFECT_LAUNCH_QUEST_TASK
+                | SPELL_EFFECT_SET_REPUTATION
+                | SPELL_EFFECT_209
+                | SPELL_EFFECT_LEARN_GARRISON_BUILDING
+                | SPELL_EFFECT_LEARN_GARRISON_SPECIALIZATION
+                | SPELL_EFFECT_CREATE_GARRISON
+                | SPELL_EFFECT_UPGRADE_CHARACTER_SPELLS
+                | SPELL_EFFECT_CREATE_SHIPMENT
+                | SPELL_EFFECT_UPGRADE_GARRISON
+                | SPELL_EFFECT_218
+                | SPELL_EFFECT_ADD_GARRISON_FOLLOWER
+                | SPELL_EFFECT_ADD_GARRISON_MISSION
+                | SPELL_EFFECT_CHANGE_ITEM_BONUSES
+                | SPELL_EFFECT_ACTIVATE_GARRISON_BUILDING
+                | SPELL_EFFECT_TRIGGER_ACTION_SET
+                | SPELL_EFFECT_TELEPORT_TO_LFG_DUNGEON
         )
     }
 }
@@ -947,6 +984,43 @@ mod tests {
         assert_eq!(spell_effect_types::SPELL_EFFECT_TELEPORT_TO_DIGSITE, 191);
         assert_eq!(spell_effect_types::SPELL_EFFECT_START_PET_BATTLE, 193);
         assert_eq!(spell_effect_types::SPELL_EFFECT_194, 194);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_DESPAWN_SUMMON, 199);
+        assert_eq!(
+            spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_SUMMONS,
+            202
+        );
+        assert_eq!(spell_effect_types::SPELL_EFFECT_ALTER_ITEM, 206);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_LAUNCH_QUEST_TASK, 207);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_SET_REPUTATION, 208);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_209, 209);
+        assert_eq!(
+            spell_effect_types::SPELL_EFFECT_LEARN_GARRISON_BUILDING,
+            210
+        );
+        assert_eq!(
+            spell_effect_types::SPELL_EFFECT_LEARN_GARRISON_SPECIALIZATION,
+            211
+        );
+        assert_eq!(spell_effect_types::SPELL_EFFECT_CREATE_GARRISON, 214);
+        assert_eq!(
+            spell_effect_types::SPELL_EFFECT_UPGRADE_CHARACTER_SPELLS,
+            215
+        );
+        assert_eq!(spell_effect_types::SPELL_EFFECT_CREATE_SHIPMENT, 216);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_UPGRADE_GARRISON, 217);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_218, 218);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_ADD_GARRISON_FOLLOWER, 220);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_ADD_GARRISON_MISSION, 221);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_CHANGE_ITEM_BONUSES, 223);
+        assert_eq!(
+            spell_effect_types::SPELL_EFFECT_ACTIVATE_GARRISON_BUILDING,
+            224
+        );
+        assert_eq!(spell_effect_types::SPELL_EFFECT_TRIGGER_ACTION_SET, 226);
+        assert_eq!(
+            spell_effect_types::SPELL_EFFECT_TELEPORT_TO_LFG_DUNGEON,
+            227
+        );
     }
 
     #[test]
@@ -1001,6 +1075,25 @@ mod tests {
             spell_effect_types::SPELL_EFFECT_TELEPORT_TO_DIGSITE,
             spell_effect_types::SPELL_EFFECT_START_PET_BATTLE,
             spell_effect_types::SPELL_EFFECT_194,
+            spell_effect_types::SPELL_EFFECT_DESPAWN_SUMMON,
+            spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_SUMMONS,
+            spell_effect_types::SPELL_EFFECT_ALTER_ITEM,
+            spell_effect_types::SPELL_EFFECT_LAUNCH_QUEST_TASK,
+            spell_effect_types::SPELL_EFFECT_SET_REPUTATION,
+            spell_effect_types::SPELL_EFFECT_209,
+            spell_effect_types::SPELL_EFFECT_LEARN_GARRISON_BUILDING,
+            spell_effect_types::SPELL_EFFECT_LEARN_GARRISON_SPECIALIZATION,
+            spell_effect_types::SPELL_EFFECT_CREATE_GARRISON,
+            spell_effect_types::SPELL_EFFECT_UPGRADE_CHARACTER_SPELLS,
+            spell_effect_types::SPELL_EFFECT_CREATE_SHIPMENT,
+            spell_effect_types::SPELL_EFFECT_UPGRADE_GARRISON,
+            spell_effect_types::SPELL_EFFECT_218,
+            spell_effect_types::SPELL_EFFECT_ADD_GARRISON_FOLLOWER,
+            spell_effect_types::SPELL_EFFECT_ADD_GARRISON_MISSION,
+            spell_effect_types::SPELL_EFFECT_CHANGE_ITEM_BONUSES,
+            spell_effect_types::SPELL_EFFECT_ACTIVATE_GARRISON_BUILDING,
+            spell_effect_types::SPELL_EFFECT_TRIGGER_ACTION_SET,
+            spell_effect_types::SPELL_EFFECT_TELEPORT_TO_LFG_DUNGEON,
         ] {
             assert!(
                 spell_effect_types::is_cpp_null_or_unused_noop(effect),

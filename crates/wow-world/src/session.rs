@@ -42835,6 +42835,8 @@ mod tests {
                     wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_OWNER,
                     wow_data::spell::spell_effect_types::SPELL_EFFECT_178,
                     wow_data::spell::spell_effect_types::SPELL_EFFECT_194,
+                    wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_SUMMONS,
+                    wow_data::spell::spell_effect_types::SPELL_EFFECT_209,
                 ]
                 .into_iter()
                 .enumerate()
@@ -42956,6 +42958,74 @@ mod tests {
             (
                 777_i32,
                 wow_data::spell::spell_effect_types::SPELL_EFFECT_START_PET_BATTLE,
+            ),
+            (
+                778_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_DESPAWN_SUMMON,
+            ),
+            (
+                779_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_ALTER_ITEM,
+            ),
+            (
+                780_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_LAUNCH_QUEST_TASK,
+            ),
+            (
+                781_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_SET_REPUTATION,
+            ),
+            (
+                782_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_GARRISON_BUILDING,
+            ),
+            (
+                783_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_GARRISON_SPECIALIZATION,
+            ),
+            (
+                784_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_CREATE_GARRISON,
+            ),
+            (
+                785_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_UPGRADE_CHARACTER_SPELLS,
+            ),
+            (
+                786_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_CREATE_SHIPMENT,
+            ),
+            (
+                787_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_UPGRADE_GARRISON,
+            ),
+            (
+                788_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_218,
+            ),
+            (
+                789_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_ADD_GARRISON_FOLLOWER,
+            ),
+            (
+                790_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_ADD_GARRISON_MISSION,
+            ),
+            (
+                791_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_CHANGE_ITEM_BONUSES,
+            ),
+            (
+                792_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_ACTIVATE_GARRISON_BUILDING,
+            ),
+            (
+                793_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_TRIGGER_ACTION_SET,
+            ),
+            (
+                794_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_TELEPORT_TO_LFG_DUNGEON,
             ),
         ];
         for (spell_id, effect_type) in primary_noop_spells {
