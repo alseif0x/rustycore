@@ -23,7 +23,8 @@ use wow_entities::{
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
 use wow_packet::ClientPacket;
 use wow_packet::packets::collection::{
-    COLLECTION_TYPE_APPEARANCE_LIKE_CPP, COLLECTION_TYPE_TOYBOX_LIKE_CPP, CollectionItemSetFavorite,
+    COLLECTION_TYPE_APPEARANCE_LIKE_CPP, COLLECTION_TYPE_TOYBOX_LIKE_CPP,
+    CollectionItemSetFavorite, TransmogrifyItems,
 };
 use wow_packet::packets::instance::{
     InstanceInfo, InstanceLockInfo, InstanceLockResponse, InstanceReset, InstanceResetFailed,
@@ -853,6 +854,33 @@ impl crate::session::WorldSession {
             }
             _ => {}
         }
+    }
+
+    /// CMSG_TRANSMOGRIFY_ITEMS — parsed only; full C++ handler is not ported yet.
+    ///
+    /// C++ `WorldSession::HandleTransmogrifyItems` also validates the NPC
+    /// interaction, inventory items, appearances, costs, modifiers, and reset
+    /// paths before applying changes. This Rust slice only represents the
+    /// client packet and keeps gameplay state unchanged.
+    pub async fn handle_transmogrify_items(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let request = match TransmogrifyItems::read_like_cpp(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "TransmogrifyItems parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        debug!(
+            account = self.account_id,
+            npc = ?request.npc,
+            item_count = request.items.len(),
+            current_spec_only = request.current_spec_only,
+            "TransmogrifyItems parsed; full C++ transmogrification application is pending"
+        );
     }
 
     /// CMSG_MOUNT_CLEAR_FANFARE — C++ currently logs only.

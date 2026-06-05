@@ -6,6 +6,7 @@
 //! Collection and transmogrification packet definitions.
 
 use wow_constants::{ClientOpcodes, ServerOpcodes};
+use wow_core::ObjectGuid;
 
 use crate::world_packet::{PacketError, WorldPacket};
 use crate::{ClientPacket, ServerPacket};
@@ -13,6 +14,7 @@ use crate::{ClientPacket, ServerPacket};
 pub const COLLECTION_TYPE_TOYBOX_LIKE_CPP: u32 = 1;
 pub const COLLECTION_TYPE_APPEARANCE_LIKE_CPP: u32 = 3;
 pub const COLLECTION_TYPE_TRANSMOG_SET_LIKE_CPP: u32 = 4;
+pub const MAX_TRANSMOGRIFY_ITEMS_LIKE_CPP: usize = 13;
 
 // ── CollectionItemSetFavorite (CMSG 0x3634) ───────────────────────
 
@@ -36,6 +38,59 @@ impl ClientPacket for CollectionItemSetFavorite {
             collection_type,
             id,
             is_favorite,
+        })
+    }
+}
+
+// ── TransmogrifyItems (CMSG 0xBADD unresolved placeholder) ──────────
+
+/// C++ `WorldPackets::Transmogrification::TransmogrifyItem`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TransmogrifyItem {
+    pub item_modified_appearance_id: i32,
+    pub slot: u32,
+    pub spell_item_enchantment_id: i32,
+    pub secondary_item_modified_appearance_id: i32,
+}
+
+/// C++ `WorldPackets::Transmogrification::TransmogrifyItems`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TransmogrifyItems {
+    pub npc: ObjectGuid,
+    pub items: Vec<TransmogrifyItem>,
+    pub current_spec_only: bool,
+}
+
+impl TransmogrifyItems {
+    /// Reads C++ `TransmogrifyItems::Read`.
+    ///
+    /// The archived C++ opcode table maps `CMSG_TRANSMOGRIFY_ITEMS` to the
+    /// shared `0xBADD` placeholder. Rust cannot register that opcode while it
+    /// is also used by other placeholder CMSGs, so production dispatch is
+    /// intentionally left unresolved until the real opcode mapping is known.
+    pub fn read_like_cpp(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        pkt.skip_opcode();
+        let item_count = pkt.read_uint32()? as usize;
+        if item_count > MAX_TRANSMOGRIFY_ITEMS_LIKE_CPP {
+            return Err(PacketError::TooLarge { size: item_count });
+        }
+
+        let npc = pkt.read_packed_guid()?;
+        let mut items = Vec::with_capacity(item_count);
+        for _ in 0..item_count {
+            items.push(TransmogrifyItem {
+                item_modified_appearance_id: pkt.read_int32()?,
+                slot: pkt.read_uint32()?,
+                spell_item_enchantment_id: pkt.read_int32()?,
+                secondary_item_modified_appearance_id: pkt.read_int32()?,
+            });
+        }
+        let current_spec_only = pkt.read_bit()?;
+
+        Ok(Self {
+            npc,
+            items,
+            current_spec_only,
         })
     }
 }
@@ -107,6 +162,60 @@ mod tests {
                 is_favorite: true,
             }
         );
+    }
+
+    #[test]
+    fn transmogrify_items_reads_cpp_field_order() {
+        let npc = ObjectGuid::new(0, 0x1234_5678_90ab_cdef);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(0xbadd);
+        pkt.write_uint32(2);
+        pkt.write_packed_guid(&npc);
+        pkt.write_int32(101);
+        pkt.write_uint32(4);
+        pkt.write_int32(0);
+        pkt.write_int32(202);
+        pkt.write_int32(-303);
+        pkt.write_uint32(8);
+        pkt.write_int32(404);
+        pkt.write_int32(0);
+        pkt.write_bit(true);
+        pkt.flush_bits();
+
+        let decoded = TransmogrifyItems::read_like_cpp(&mut pkt).unwrap();
+        assert_eq!(decoded.npc, npc);
+        assert!(decoded.current_spec_only);
+        assert_eq!(
+            decoded.items,
+            vec![
+                TransmogrifyItem {
+                    item_modified_appearance_id: 101,
+                    slot: 4,
+                    spell_item_enchantment_id: 0,
+                    secondary_item_modified_appearance_id: 202,
+                },
+                TransmogrifyItem {
+                    item_modified_appearance_id: -303,
+                    slot: 8,
+                    spell_item_enchantment_id: 404,
+                    secondary_item_modified_appearance_id: 0,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn transmogrify_items_rejects_items_over_cpp_max() {
+        let npc = ObjectGuid::new(0, 0x1234);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(0xbadd);
+        pkt.write_uint32((MAX_TRANSMOGRIFY_ITEMS_LIKE_CPP + 1) as u32);
+        pkt.write_packed_guid(&npc);
+
+        assert!(matches!(
+            TransmogrifyItems::read_like_cpp(&mut pkt),
+            Err(PacketError::TooLarge { size }) if size == MAX_TRANSMOGRIFY_ITEMS_LIKE_CPP + 1
+        ));
     }
 
     #[test]
