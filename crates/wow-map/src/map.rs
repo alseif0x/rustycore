@@ -59,6 +59,7 @@ use wow_entities::{
 const GRID_SLOT_COUNT: usize = (MAX_NUMBER_OF_GRIDS * MAX_NUMBER_OF_GRIDS) as usize;
 #[cfg(test)]
 const GAMEOBJECT_TYPE_GENERIC_LIKE_CPP: u32 = 5;
+pub const DEFAULT_PLAYER_BOUNDING_RADIUS_LIKE_CPP: f32 = 0.388_999_998_569_489;
 /// C++ `DynamicTree.cpp:34-38` `CHECK_TREE_PERIOD = 200`.
 const DYNAMIC_MAP_TREE_CHECK_PERIOD_MS_LIKE_CPP: u32 = 200;
 const WEATHER_UPDATE_INTERVAL_MS_LIKE_CPP: u32 = 1_000;
@@ -117,6 +118,70 @@ pub fn world_object_summon_gameobject_position_from_coords_like_cpp(
         normalized_map_coords: false,
         collision_los_adjustment_represented: false,
     }
+}
+
+/// Position resolver for C++ `Spell::EffectSummonObjectWild`.
+///
+/// C++ anchors:
+/// - `SpellEffects.cpp:2946-2954`: explicit destination wins; otherwise call
+///   `m_caster->GetClosePoint(..., DEFAULT_PLAYER_BOUNDING_RADIUS)` and use
+///   `target->GetOrientation()`.
+/// - `ObjectDefines.h:39`: `DEFAULT_PLAYER_BOUNDING_RADIUS`.
+/// - `Object.cpp:3341-3408`: `GetClosePoint` delegates to `GetNearPoint`
+///   with `searcher == nullptr`, so 2D distance is caster combat reach plus
+///   the provided size.
+///
+/// Scope: this represents deterministic 2D fallback and map-coordinate
+/// normalization. `focusObject` selection, height correction, collision, LOS
+/// search and terrain queries remain caller/runtime gaps.
+pub fn spell_effect_summon_object_wild_position_like_cpp(
+    caster_position: Position,
+    caster_combat_reach: f32,
+    target_orientation: f32,
+    explicit_destination: Option<Position>,
+) -> SpellEffectSummonObjectWildPositionOutcomeLikeCpp {
+    if let Some(position) = explicit_destination {
+        return SpellEffectSummonObjectWildPositionOutcomeLikeCpp {
+            position,
+            explicit_destination_used: true,
+            close_point_fallback_used: false,
+            normalized_map_coords: false,
+            focus_object_orientation_represented: target_orientation != caster_position.orientation,
+            collision_los_adjustment_represented: false,
+        };
+    }
+
+    let distance = caster_combat_reach.max(0.0) + DEFAULT_PLAYER_BOUNDING_RADIUS_LIKE_CPP;
+    let mut resolved_x = caster_position.x + distance * caster_position.orientation.cos();
+    let mut resolved_y = caster_position.y + distance * caster_position.orientation.sin();
+    let before_normalize_x = resolved_x;
+    let before_normalize_y = resolved_y;
+    normalize_map_coord(&mut resolved_x);
+    normalize_map_coord(&mut resolved_y);
+
+    SpellEffectSummonObjectWildPositionOutcomeLikeCpp {
+        position: Position::new(
+            resolved_x,
+            resolved_y,
+            caster_position.z,
+            target_orientation,
+        ),
+        explicit_destination_used: false,
+        close_point_fallback_used: true,
+        normalized_map_coords: resolved_x != before_normalize_x || resolved_y != before_normalize_y,
+        focus_object_orientation_represented: target_orientation != caster_position.orientation,
+        collision_los_adjustment_represented: false,
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SpellEffectSummonObjectWildPositionOutcomeLikeCpp {
+    pub position: Position,
+    pub explicit_destination_used: bool,
+    pub close_point_fallback_used: bool,
+    pub normalized_map_coords: bool,
+    pub focus_object_orientation_represented: bool,
+    pub collision_los_adjustment_represented: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -15813,6 +15878,44 @@ mod tests {
         assert!((y_outcome.position.y - 24.0).abs() < 0.00001);
         assert_eq!(y_outcome.position.z, 30.0);
         assert_eq!(y_outcome.position.orientation, std::f32::consts::FRAC_PI_2);
+    }
+
+    #[test]
+    fn summon_object_wild_position_keeps_explicit_destination_like_cpp() {
+        let caster = Position::new(10.0, 20.0, 30.0, 1.5);
+        let destination = Position::new(4.0, 5.0, 6.0, 0.75);
+
+        let outcome =
+            spell_effect_summon_object_wild_position_like_cpp(caster, 2.0, 2.25, Some(destination));
+
+        assert_eq!(outcome.position, destination);
+        assert!(outcome.explicit_destination_used);
+        assert!(!outcome.close_point_fallback_used);
+        assert!(!outcome.normalized_map_coords);
+        assert!(outcome.focus_object_orientation_represented);
+        assert!(!outcome.collision_los_adjustment_represented);
+    }
+
+    #[test]
+    fn summon_object_wild_position_missing_dst_uses_default_player_radius_like_cpp() {
+        let caster = Position::new(10.0, 20.0, 30.0, 0.0);
+
+        let outcome = spell_effect_summon_object_wild_position_like_cpp(caster, 1.25, 0.75, None);
+
+        assert_eq!(
+            outcome.position,
+            Position::new(
+                10.0 + 1.25 + DEFAULT_PLAYER_BOUNDING_RADIUS_LIKE_CPP,
+                20.0,
+                30.0,
+                0.75
+            )
+        );
+        assert!(!outcome.explicit_destination_used);
+        assert!(outcome.close_point_fallback_used);
+        assert!(!outcome.normalized_map_coords);
+        assert!(outcome.focus_object_orientation_represented);
+        assert!(!outcome.collision_los_adjustment_represented);
     }
 
     #[test]

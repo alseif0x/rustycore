@@ -1716,6 +1716,21 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   missing destination, and explicit-destination creation with respawn/spell id. Scope remains
   bounded: no live handler wiring, no no-destination fallback/focusObject orientation, no real phase
   inheritance, linked trap, battleground flag mutation, packets, or scripts.
+- 2026-06-05 — No-destination fallback for dormant `EffectSummonObjectWild`
+  `#NEXT.RUNTIME.L3.031ef`: contrasted C++ `Spell::EffectSummonObjectWild`
+  (`SpellEffects.cpp:2946-2954`), `DEFAULT_PLAYER_BOUNDING_RADIUS` (`ObjectDefines.h:39`) and
+  `WorldObject::GetClosePoint` / `GetNearPoint` (`Object.cpp:3341-3408`). Rust now exposes
+  `DEFAULT_PLAYER_BOUNDING_RADIUS_LIKE_CPP` and
+  `spell_effect_summon_object_wild_position_like_cpp`: explicit destinations still win, while a
+  missing destination resolves to the C++ close-point fallback at caster combat reach plus
+  `DEFAULT_PLAYER_BOUNDING_RADIUS`, with map-coordinate normalization evidence. The dormant session
+  resolver uses this caster fallback instead of rejecting missing `dst`, and tests prove it creates
+  the canonical spell GameObject at that fallback position. Scope remains bounded: focusObject
+  selection/orientation is not fully represented beyond the caster fallback, and height correction,
+  collision/LOS/terrain search, phase inheritance, linked traps, battleground state, packets/scripts,
+  and live spell-loop wiring remain open. The C++ `DEFAULT_PLAYER_BOUNDING_RADIUS` comment is
+  suspicious (`correctly?`), but this slice ports the legacy behavior literally before any separate
+  bug-fix decision.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

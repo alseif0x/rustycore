@@ -2887,6 +2887,7 @@ pub(crate) enum ApplyEffectSummonObjectWildSessionStatusLikeCpp {
     MissingTemplate,
     MissingExplicitDestination,
     MissingCaster,
+    MissingCasterPosition,
     MissingCanonicalMapManager,
     MissingCanonicalPlayerMap,
     MissingManagedMap,
@@ -23896,16 +23897,6 @@ impl WorldSession {
                 map_outcome: None,
             });
         };
-        let Some(dest) = target_data.dst_location else {
-            return Some(ApplyEffectSummonObjectWildSessionOutcomeLikeCpp {
-                status: ApplyEffectSummonObjectWildSessionStatusLikeCpp::MissingExplicitDestination,
-                template_entry: Some(template_entry),
-                duration_ms: None,
-                explicit_destination_used: false,
-                close_point_fallback_represented: false,
-                map_outcome: None,
-            });
-        };
         let Some(caster_guid) = self.player_guid() else {
             return Some(ApplyEffectSummonObjectWildSessionOutcomeLikeCpp {
                 status: ApplyEffectSummonObjectWildSessionStatusLikeCpp::MissingCaster,
@@ -23916,13 +23907,38 @@ impl WorldSession {
                 map_outcome: None,
             });
         };
+        let position_outcome = if let Some(dest) = target_data.dst_location {
+            wow_map::map::spell_effect_summon_object_wild_position_like_cpp(
+                Position::ZERO,
+                0.0,
+                0.0,
+                Some(dest.position),
+            )
+        } else {
+            let Some(caster_position) = self.player_position_like_cpp() else {
+                return Some(ApplyEffectSummonObjectWildSessionOutcomeLikeCpp {
+                    status: ApplyEffectSummonObjectWildSessionStatusLikeCpp::MissingCasterPosition,
+                    template_entry: Some(template_entry),
+                    duration_ms: None,
+                    explicit_destination_used: false,
+                    close_point_fallback_represented: false,
+                    map_outcome: None,
+                });
+            };
+            wow_map::map::spell_effect_summon_object_wild_position_like_cpp(
+                caster_position,
+                self.canonical_player_combat_reach_snapshot_like_cpp(),
+                caster_position.orientation,
+                None,
+            )
+        };
         let Some(manager) = self.canonical_map_manager.as_ref().cloned() else {
             return Some(ApplyEffectSummonObjectWildSessionOutcomeLikeCpp {
                 status: ApplyEffectSummonObjectWildSessionStatusLikeCpp::MissingCanonicalMapManager,
                 template_entry: Some(template_entry),
                 duration_ms: None,
-                explicit_destination_used: true,
-                close_point_fallback_represented: false,
+                explicit_destination_used: position_outcome.explicit_destination_used,
+                close_point_fallback_represented: position_outcome.close_point_fallback_used,
                 map_outcome: None,
             });
         };
@@ -23931,8 +23947,8 @@ impl WorldSession {
                 status: ApplyEffectSummonObjectWildSessionStatusLikeCpp::MissingCanonicalPlayerMap,
                 template_entry: Some(template_entry),
                 duration_ms: None,
-                explicit_destination_used: true,
-                close_point_fallback_represented: false,
+                explicit_destination_used: position_outcome.explicit_destination_used,
+                close_point_fallback_represented: position_outcome.close_point_fallback_used,
                 map_outcome: None,
             });
         };
@@ -23951,8 +23967,8 @@ impl WorldSession {
                 status: ApplyEffectSummonObjectWildSessionStatusLikeCpp::MissingCanonicalMapManager,
                 template_entry: Some(template_entry),
                 duration_ms: Some(duration_ms),
-                explicit_destination_used: true,
-                close_point_fallback_represented: false,
+                explicit_destination_used: position_outcome.explicit_destination_used,
+                close_point_fallback_represented: position_outcome.close_point_fallback_used,
                 map_outcome: None,
             });
         };
@@ -23962,8 +23978,8 @@ impl WorldSession {
                 status: ApplyEffectSummonObjectWildSessionStatusLikeCpp::MissingManagedMap,
                 template_entry: Some(template_entry),
                 duration_ms: Some(duration_ms),
-                explicit_destination_used: true,
-                close_point_fallback_represented: false,
+                explicit_destination_used: position_outcome.explicit_destination_used,
+                close_point_fallback_represented: position_outcome.close_point_fallback_used,
                 map_outcome: None,
             });
         };
@@ -23971,7 +23987,7 @@ impl WorldSession {
             caster_guid,
             spell_id_u32,
             lifecycle_record,
-            dest.position,
+            position_outcome.position,
             duration_ms,
         );
 
@@ -23979,8 +23995,8 @@ impl WorldSession {
             status: ApplyEffectSummonObjectWildSessionStatusLikeCpp::MapResolved,
             template_entry: Some(template_entry),
             duration_ms: Some(duration_ms),
-            explicit_destination_used: true,
-            close_point_fallback_represented: false,
+            explicit_destination_used: position_outcome.explicit_destination_used,
+            close_point_fallback_represented: position_outcome.close_point_fallback_used,
             map_outcome: Some(map_outcome),
         })
     }
@@ -28473,24 +28489,57 @@ mod tests {
     }
 
     #[test]
-    fn summon_object_wild_session_resolver_rejects_missing_destination_like_cpp() {
+    fn summon_object_wild_session_resolver_uses_caster_close_point_when_dst_missing_like_cpp() {
         let (mut session, _, _) = make_session();
-        session.set_gameobject_template_lifecycle_store(summon_go_template_store_like_cpp(9001));
+        let spell_id = 700_u32;
+        let template_entry = 9001_u32;
+        let player_guid = ObjectGuid::create_player(1, 7002);
+        let canonical = shared_canonical_map_manager();
+        let player_position = Position::new(10.0, 20.0, 30.0, 0.0);
+        insert_test_player_into_canonical_map_like_cpp(
+            &canonical,
+            player_guid,
+            571,
+            0,
+            player_position,
+        );
+        session.set_player_guid(Some(player_guid));
+        session.set_player_map_position_like_cpp(571, player_position);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_gameobject_template_lifecycle_store(summon_go_template_store_like_cpp(
+            template_entry,
+        ));
 
         let outcome = session
             .apply_effect_summon_object_wild_like_cpp(
-                700,
-                &summon_object_wild_effect_like_cpp(9001),
+                i32::try_from(spell_id).unwrap(),
+                &summon_object_wild_effect_like_cpp(i32::try_from(template_entry).unwrap()),
                 &SpellTargetData::default(),
             )
             .expect("wild effect should return represented outcome");
 
         assert_eq!(
             outcome.status,
-            ApplyEffectSummonObjectWildSessionStatusLikeCpp::MissingExplicitDestination
+            ApplyEffectSummonObjectWildSessionStatusLikeCpp::MapResolved
         );
-        assert!(!outcome.close_point_fallback_represented);
-        assert!(outcome.map_outcome.is_none());
+        assert!(!outcome.explicit_destination_used);
+        assert!(outcome.close_point_fallback_represented);
+        let map_outcome = outcome.map_outcome.expect("map body should run");
+        let go_guid = map_outcome.guid.expect("created GO guid");
+        let manager = canonical.lock().unwrap();
+        let go = manager
+            .find_map(571, 0)
+            .and_then(|managed| managed.map().get_typed_game_object(go_guid))
+            .expect("summoned GO should be in canonical map");
+        assert_eq!(
+            go.world().position(),
+            Position::new(
+                10.0 + wow_map::map::DEFAULT_PLAYER_BOUNDING_RADIUS_LIKE_CPP,
+                20.0,
+                30.0,
+                0.0
+            )
+        );
     }
 
     #[test]
