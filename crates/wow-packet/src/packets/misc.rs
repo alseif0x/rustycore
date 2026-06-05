@@ -1743,6 +1743,83 @@ impl ClientPacket for BattlePetUpdateNotify {
     }
 }
 
+pub const MAX_DECLINED_NAME_CASES_LIKE_CPP: usize = 5;
+
+/// C++ `WorldPackets::BattlePet::BattlePetDeletePet`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BattlePetDeletePet {
+    pub pet_guid: ObjectGuid,
+}
+
+impl BattlePetDeletePet {
+    /// Reads C++ `BattlePetDeletePet::Read`.
+    ///
+    /// The archived C++ opcode table maps `CMSG_BATTLE_PET_DELETE_PET` to the
+    /// shared `0xBADD` placeholder. Rust must not register production dispatch
+    /// until the real opcode mapping is known.
+    pub fn read_like_cpp(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        pkt.skip_opcode();
+        Ok(Self {
+            pet_guid: pkt.read_packed_guid()?,
+        })
+    }
+}
+
+/// C++ `DeclinedName`, represented for battle-pet rename packets.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeclinedNamesLikeCpp {
+    pub names: [String; MAX_DECLINED_NAME_CASES_LIKE_CPP],
+}
+
+/// C++ `WorldPackets::BattlePet::BattlePetModifyName`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BattlePetModifyName {
+    pub pet_guid: ObjectGuid,
+    pub name: String,
+    pub declined_names: Option<DeclinedNamesLikeCpp>,
+}
+
+impl BattlePetModifyName {
+    /// Reads C++ `BattlePetModifyName::Read`.
+    ///
+    /// The archived C++ opcode table maps `CMSG_BATTLE_PET_MODIFY_NAME` to the
+    /// shared `0xBADD` placeholder. Rust must not register production dispatch
+    /// until the real opcode mapping is known.
+    pub fn read_like_cpp(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        pkt.skip_opcode();
+        let pet_guid = pkt.read_packed_guid()?;
+        let name_length = pkt.read_bits(7)? as usize;
+        let has_declined_names = pkt.read_bit()?;
+
+        let declined_names = if has_declined_names {
+            let mut lengths = [0usize; MAX_DECLINED_NAME_CASES_LIKE_CPP];
+            for length in &mut lengths {
+                *length = pkt.read_bits(7)? as usize;
+            }
+
+            let names_vec: Vec<String> = lengths
+                .iter()
+                .map(|length| pkt.read_string(*length))
+                .collect::<Result<_, _>>()?;
+            let names: [String; MAX_DECLINED_NAME_CASES_LIKE_CPP] =
+                names_vec.try_into().map_err(|_| PacketError::TooLarge {
+                    size: MAX_DECLINED_NAME_CASES_LIKE_CPP + 1,
+                })?;
+            Some(DeclinedNamesLikeCpp { names })
+        } else {
+            None
+        };
+
+        let name = pkt.read_string(name_length)?;
+
+        Ok(Self {
+            pet_guid,
+            name,
+            declined_names,
+        })
+    }
+}
+
 /// C++ `WorldPackets::BattlePet::QueryBattlePetName`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct QueryBattlePetName {
@@ -4123,6 +4200,67 @@ mod tests {
 
         let decoded = BattlePetUpdateNotify::read(&mut pkt).unwrap();
         assert_eq!(decoded, BattlePetUpdateNotify { pet_guid });
+    }
+
+    #[test]
+    fn battle_pet_delete_pet_reads_placeholder_cpp_shape() {
+        let pet_guid = ObjectGuid::new(0, 0x4331);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(0xBADD);
+        pkt.write_packed_guid(&pet_guid);
+
+        let decoded = BattlePetDeletePet::read_like_cpp(&mut pkt).unwrap();
+        assert_eq!(decoded, BattlePetDeletePet { pet_guid });
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn battle_pet_modify_name_reads_without_declined_names_like_cpp() {
+        let pet_guid = ObjectGuid::new(0, 0x4332);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(0xBADD);
+        pkt.write_packed_guid(&pet_guid);
+        pkt.write_bits(5, 7);
+        pkt.write_bit(false);
+        pkt.write_string("Misha");
+
+        let decoded = BattlePetModifyName::read_like_cpp(&mut pkt).unwrap();
+        assert_eq!(
+            decoded,
+            BattlePetModifyName {
+                pet_guid,
+                name: "Misha".to_string(),
+                declined_names: None,
+            }
+        );
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn battle_pet_modify_name_reads_declined_names_before_name_like_cpp() {
+        let pet_guid = ObjectGuid::new(0, 0x4333);
+        let declined = ["Mishy", "Mishys", "Mishyu", "Mishy2", "Mishy3"];
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(0xBADD);
+        pkt.write_packed_guid(&pet_guid);
+        pkt.write_bits(5, 7);
+        pkt.write_bit(true);
+        for name in declined {
+            pkt.write_bits(name.len() as u32, 7);
+        }
+        for name in declined {
+            pkt.write_string(name);
+        }
+        pkt.write_string("Misha");
+
+        let decoded = BattlePetModifyName::read_like_cpp(&mut pkt).unwrap();
+        assert_eq!(decoded.pet_guid, pet_guid);
+        assert_eq!(decoded.name, "Misha");
+        assert_eq!(
+            decoded.declined_names.unwrap().names,
+            declined.map(str::to_string)
+        );
+        assert_eq!(pkt.remaining(), 0);
     }
 
     #[test]
