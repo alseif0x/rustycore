@@ -1609,6 +1609,14 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   after `Map::AddToMap`. Cooldown start remains blocked, not implemented: Rust lacks a runtime
   equivalent of `SpellInfo::IsCooldownStartedOnEvent()` over both spell attributes and category
   flags, plus Trinity-equivalent category-aware `SpellHistory::StartCooldown` semantics.
+- 2026-06-05 — Map-owned `EffectSummonObject` owner-slot tail boundary
+  `#NEXT.RUNTIME.L3.031e5`: contrasted C++ `Spell::EffectSummonObject` slot handling
+  (`SpellEffects.cpp:3541-3597`). Rust now exposes `gameobject_add_to_owner_slot_like_cpp`, which
+  reuses the `Unit::AddGameObject` owner-link representation and then writes the requested
+  `m_ObjectSlot[slot]` equivalent only when the owner-link guard succeeds. This is intentionally the
+  post-create tail only: it does not clear/delete the previous slot occupant, create the
+  GameObject, compute spell duration/location, inherit phase, call `Map::AddToMap`, execute scripts,
+  or send packets.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

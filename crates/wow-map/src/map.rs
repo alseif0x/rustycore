@@ -9256,6 +9256,59 @@ where
         }
     }
 
+    /// Bounded map-owned tail for C++ `Spell::EffectSummonObject`.
+    ///
+    /// C++ anchors:
+    /// - `SpellEffects.cpp:3548-3563`: the caller clears any previous
+    ///   `m_ObjectSlot[slot]` and deletes the old GameObject before creating
+    ///   the replacement.
+    /// - `SpellEffects.cpp:3590-3597`: after `Unit::AddGameObject(go)` and
+    ///   `Map::AddToMap(go)`, the caster writes `m_ObjectSlot[slot]`.
+    ///
+    /// Scope: this helper represents only the post-create owner link and final
+    /// slot assignment for an already map-owned GameObject. It does not create
+    /// the GameObject, clear/delete an old slot occupant, compute spell
+    /// duration/location, inherit phase, or send packets.
+    pub fn gameobject_add_to_owner_slot_like_cpp(
+        &mut self,
+        owner_guid: ObjectGuid,
+        guid: ObjectGuid,
+        slot: usize,
+    ) -> GameObjectAddToOwnerSlotOutcomeLikeCpp {
+        let add_owner = self.gameobject_add_to_owner_like_cpp(owner_guid, guid);
+        let mut slot_previous_guid = ObjectGuid::EMPTY;
+        let mut slot_set = false;
+
+        if add_owner.registered_owned_gameobject {
+            if let Some(owner) = self
+                .map_objects
+                .get_mut(&owner_guid)
+                .and_then(Self::map_record_unit_mut_like_cpp)
+            {
+                if let Some(previous) = owner
+                    .subsystems()
+                    .control
+                    .gameobject_slots
+                    .get(slot)
+                    .copied()
+                {
+                    slot_previous_guid = previous;
+                }
+                slot_set = owner
+                    .subsystems_mut()
+                    .control
+                    .set_gameobject_slot(slot, guid);
+            }
+        }
+
+        GameObjectAddToOwnerSlotOutcomeLikeCpp {
+            add_owner,
+            slot,
+            slot_previous_guid,
+            slot_set,
+        }
+    }
+
     /// Bounded map-owned representation of C++ `GameObject::RemoveFromOwner()`
     /// during `GameObject::RemoveFromWorld()`.
     ///
@@ -12050,6 +12103,14 @@ pub struct GameObjectAddToOwnerOutcomeLikeCpp {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GameObjectAddToOwnerSlotOutcomeLikeCpp {
+    pub add_owner: GameObjectAddToOwnerOutcomeLikeCpp,
+    pub slot: usize,
+    pub slot_previous_guid: ObjectGuid,
+    pub slot_set: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GameObjectRemoveFromOwnerOutcomeLikeCpp {
     pub guid: ObjectGuid,
     pub owner_guid_before: ObjectGuid,
@@ -14273,6 +14334,91 @@ mod tests {
         assert!(missing.gameobject_found);
         assert!(!missing.registered_owned_gameobject);
         assert_eq!(missing.owner_guid_after, ObjectGuid::EMPTY);
+    }
+
+    #[test]
+    fn gameobject_add_to_owner_slot_sets_effect_summon_slot_tail_like_cpp() {
+        let mut map = test_map();
+        let owner = test_player_for_viewpoint(4821101);
+        let owner_guid = owner.guid();
+        let gameobject = test_gameobject_for_spawn(48211, 4821102);
+        let guid = gameobject.world().guid();
+
+        map.insert_map_object_record(MapObjectRecord::new_player(owner).unwrap())
+            .unwrap();
+        map.insert_map_object_record(MapObjectRecord::new_game_object(gameobject).unwrap())
+            .unwrap();
+
+        let add_slot = map.gameobject_add_to_owner_slot_like_cpp(owner_guid, guid, 2);
+
+        assert!(add_slot.add_owner.registered_owned_gameobject);
+        assert_eq!(add_slot.slot, 2);
+        assert_eq!(add_slot.slot_previous_guid, ObjectGuid::EMPTY);
+        assert!(add_slot.slot_set);
+        let owner = map
+            .map_object_record(owner_guid)
+            .and_then(MapObjectRecord::player)
+            .unwrap();
+        assert_eq!(owner.unit().subsystems().control.gameobject_slots[2], guid);
+    }
+
+    #[test]
+    fn gameobject_add_to_owner_slot_keeps_cpp_guards_visible() {
+        let mut invalid_slot_map = test_map();
+        let owner = test_player_for_viewpoint(4821201);
+        let owner_guid = owner.guid();
+        let gameobject = test_gameobject_for_spawn(48212, 4821202);
+        let guid = gameobject.world().guid();
+        invalid_slot_map
+            .insert_map_object_record(MapObjectRecord::new_player(owner).unwrap())
+            .unwrap();
+        invalid_slot_map
+            .insert_map_object_record(MapObjectRecord::new_game_object(gameobject).unwrap())
+            .unwrap();
+
+        let invalid_slot =
+            invalid_slot_map.gameobject_add_to_owner_slot_like_cpp(owner_guid, guid, 99);
+        assert!(invalid_slot.add_owner.registered_owned_gameobject);
+        assert!(!invalid_slot.slot_set);
+        let owner = invalid_slot_map
+            .map_object_record(owner_guid)
+            .and_then(MapObjectRecord::player)
+            .unwrap();
+        assert!(
+            owner
+                .unit()
+                .subsystems()
+                .control
+                .gameobject_slots
+                .iter()
+                .all(ObjectGuid::is_empty)
+        );
+
+        let mut preowned_map = test_map();
+        let owner = test_player_for_viewpoint(4821301);
+        let owner_guid = owner.guid();
+        let existing_owner_guid = ObjectGuid::create_player(1, 4821303);
+        let mut gameobject = test_gameobject_for_spawn(48213, 4821302);
+        let guid = gameobject.world().guid();
+        gameobject.set_owner_guid_like_cpp(existing_owner_guid);
+        preowned_map
+            .insert_map_object_record(MapObjectRecord::new_player(owner).unwrap())
+            .unwrap();
+        preowned_map
+            .insert_map_object_record(MapObjectRecord::new_game_object(gameobject).unwrap())
+            .unwrap();
+
+        let preowned_slot = preowned_map.gameobject_add_to_owner_slot_like_cpp(owner_guid, guid, 1);
+        assert!(!preowned_slot.add_owner.registered_owned_gameobject);
+        assert!(!preowned_slot.slot_set);
+        let owner = preowned_map
+            .map_object_record(owner_guid)
+            .and_then(MapObjectRecord::player)
+            .unwrap();
+        assert_eq!(
+            owner.unit().subsystems().control.gameobject_slots[1],
+            ObjectGuid::EMPTY
+        );
     }
 
     #[test]
