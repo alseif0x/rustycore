@@ -1455,6 +1455,17 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `m_despawnRespawnTime`/`SaveRespawnTime`/DB/PoolMgr nuances, capture-point packet runtime,
   scripts/GO AI, ObjectAccessor/session fanout beyond represented packets, and live client/server
   validation.
+- 2026-06-04 — Canonical remove-list same-pass linked-trap drain `#NEXT.RUNTIME.L3.031ds`:
+  contrasted against C++ `Map::RemoveAllObjectsInRemoveList`, which uses
+  `while (!i_objectsToRemove.empty())` (`Map.cpp:2574-2646`), and `GameObject::RemoveFromWorld`,
+  which calls `GetLinkedTrap()->DespawnOrUnsummon()` before object-store removal
+  (`GameObject.cpp:926-948`). Rust now processes `objects_to_remove` until empty instead of
+  draining a snapshot, and canonical `GameObject::RemoveFromWorld` linked-trap cleanup routes the
+  trap through `gameobject_delete_like_cpp`/remove-list rather than direct physical removal. Focused
+  tests assert direct `remove_from_map_like_cpp` leaves linked traps queued, while
+  `remove_all_objects_in_remove_list_like_cpp` removes both owner and newly queued trap in the same
+  call. Remaining gaps: full PoolMgr/DB/capture-point packet runtime, real ObjectAccessor/session
+  fanout, scripts/GO AI, and live client/server validation.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

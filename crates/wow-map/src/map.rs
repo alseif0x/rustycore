@@ -7191,10 +7191,8 @@ where
     ) -> RemoveAllObjectsInRemoveListOutcomeLikeCpp {
         let mut switches = self.objects_to_switch.drain().collect::<Vec<_>>();
         switches.sort_by_key(|(guid, _)| guid.to_raw_bytes());
-        let guids = self.objects_to_remove.drain().collect::<Vec<_>>();
         let mut outcome = RemoveAllObjectsInRemoveListOutcomeLikeCpp {
             switch_processed: switches.len(),
-            processed: guids.len(),
             ..Default::default()
         };
 
@@ -7213,7 +7211,9 @@ where
             }
         }
 
-        for guid in guids {
+        while let Some(guid) = self.objects_to_remove.iter().next().copied() {
+            self.objects_to_remove.remove(&guid);
+            outcome.processed += 1;
             let Some(kind) = self.map_object_record(guid).map(MapObjectRecord::kind) else {
                 outcome.missing_or_stale += 1;
                 continue;
@@ -9085,28 +9085,31 @@ where
             linked_guid == guid
                 || (!linked_trap_cycle_guarded && self.map_object_record(linked_guid).is_none())
         });
-        let linked_trap_removed = if let Some(linked_guid) = linked_trap_guid {
+        let linked_trap_delete = if let Some(linked_guid) = linked_trap_guid {
             if linked_guid == guid
                 || linked_trap_cycle_guarded
                 || self.map_object_record(linked_guid).is_none()
             {
-                false
+                None
             } else {
-                self.remove_from_map_like_cpp_inner(linked_guid, true, remove_from_map_in_progress)
-                    .is_ok()
+                self.gameobject_delete_like_cpp(linked_guid)
             }
         } else {
-            false
+            None
         };
+        let linked_trap_remove_queued = linked_trap_delete
+            .as_ref()
+            .is_some_and(|delete| delete.remove_list.queued || delete.remove_list.duplicate);
 
         Some(GameObjectRemoveLinkedTrapOutcomeLikeCpp {
             guid,
             linked_trap_guid,
             owner_present_before_linked_trap_remove,
-            linked_trap_removed,
+            linked_trap_removed: false,
+            linked_trap_remove_queued,
             linked_trap_missing_or_self,
             linked_trap_cycle_guarded,
-            despawn_or_unsummon_scheduler_represented: false,
+            despawn_or_unsummon_scheduler_represented: linked_trap_delete.is_some(),
             object_accessor_fanout_represented: false,
         })
     }
@@ -11455,6 +11458,7 @@ pub struct GameObjectRemoveLinkedTrapOutcomeLikeCpp {
     pub linked_trap_guid: Option<ObjectGuid>,
     pub owner_present_before_linked_trap_remove: bool,
     pub linked_trap_removed: bool,
+    pub linked_trap_remove_queued: bool,
     pub linked_trap_missing_or_self: bool,
     pub linked_trap_cycle_guarded: bool,
     pub despawn_or_unsummon_scheduler_represented: bool,
@@ -13660,14 +13664,16 @@ mod tests {
         assert_eq!(linked_trap.guid, owner_guid);
         assert_eq!(linked_trap.linked_trap_guid, Some(trap_guid));
         assert!(linked_trap.owner_present_before_linked_trap_remove);
-        assert!(linked_trap.linked_trap_removed);
+        assert!(!linked_trap.linked_trap_removed);
+        assert!(linked_trap.linked_trap_remove_queued);
         assert!(!linked_trap.linked_trap_missing_or_self);
         assert!(!linked_trap.linked_trap_cycle_guarded);
-        assert!(!linked_trap.despawn_or_unsummon_scheduler_represented);
+        assert!(linked_trap.despawn_or_unsummon_scheduler_represented);
         assert!(!linked_trap.object_accessor_fanout_represented);
         assert!(outcome.gameobject_model_remove.is_some());
         assert!(map.map_object_record(owner_guid).is_none());
-        assert!(map.map_object_record(trap_guid).is_none());
+        assert!(map.map_object_record(trap_guid).is_some());
+        assert_eq!(map.objects_to_remove_count_like_cpp(), 1);
         assert!(!map.contains_gameobject_model_like_cpp(owner_model_key));
     }
 
@@ -13694,11 +13700,14 @@ mod tests {
         assert_eq!(linked_trap.guid, owner_guid);
         assert_eq!(linked_trap.linked_trap_guid, Some(trap_guid));
         assert!(linked_trap.owner_present_before_linked_trap_remove);
-        assert!(linked_trap.linked_trap_removed);
+        assert!(!linked_trap.linked_trap_removed);
+        assert!(linked_trap.linked_trap_remove_queued);
         assert!(!linked_trap.linked_trap_missing_or_self);
         assert!(!linked_trap.linked_trap_cycle_guarded);
+        assert!(linked_trap.despawn_or_unsummon_scheduler_represented);
         assert!(map.map_object_record(owner_guid).is_none());
-        assert!(map.map_object_record(trap_guid).is_none());
+        assert!(map.map_object_record(trap_guid).is_some());
+        assert_eq!(map.objects_to_remove_count_like_cpp(), 1);
     }
 
     #[test]
@@ -16233,6 +16242,12 @@ mod tests {
 
         map.remove_from_map_like_cpp(owner_guid, true).unwrap();
         assert!(map.map_object_record(owner_guid).is_none());
+        assert!(map.map_object_record(trap_guid).is_some());
+        assert_eq!(map.objects_to_remove_count_like_cpp(), 1);
+
+        let remove_list = map.remove_all_objects_in_remove_list_like_cpp();
+        assert_eq!(remove_list.processed, 1);
+        assert_eq!(remove_list.removed, 1);
         assert!(map.map_object_record(trap_guid).is_none());
     }
 
@@ -26996,7 +27011,8 @@ mod tests {
 
         let outcome = map.remove_all_objects_in_remove_list_like_cpp();
 
-        assert_eq!(outcome.removed, 1);
+        assert_eq!(outcome.processed, 2);
+        assert_eq!(outcome.removed, 2);
         assert_eq!(map.objects_to_remove_count_like_cpp(), 0);
         assert!(map.map_object_record(owner_guid).is_none());
         assert!(map.map_object_record(trap_guid).is_none());
@@ -27026,7 +27042,8 @@ mod tests {
 
         assert_eq!(removed.guid, owner_guid);
         assert!(map.map_object_record(owner_guid).is_none());
-        assert!(map.map_object_record(trap_guid).is_none());
+        assert!(map.map_object_record(trap_guid).is_some());
+        assert_eq!(map.objects_to_remove_count_like_cpp(), 1);
         assert!(map.map_object_record(unrelated_guid).is_some());
     }
 
