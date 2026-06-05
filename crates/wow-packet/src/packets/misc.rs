@@ -1663,6 +1663,19 @@ impl ServerPacket for AuraUpdate {
 
 // ── Battle pet journal lock packets ─────────────────────────────────
 
+/// C++ `WorldPackets::BattlePet::BattlePetRequestJournal`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BattlePetRequestJournal;
+
+impl ClientPacket for BattlePetRequestJournal {
+    const OPCODE: ClientOpcodes = ClientOpcodes::BattlePetRequestJournal;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        pkt.skip_opcode();
+        Ok(Self)
+    }
+}
+
 /// C++ `WorldPackets::BattlePet::BattlePetRequestJournalLock`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BattlePetRequestJournalLock;
@@ -1821,6 +1834,63 @@ impl ClientPacket for BattlePetClearFanfare {
         Ok(Self {
             pet_guid: pkt.read_packed_guid()?,
         })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BattlePetJournalSlot {
+    pub pet_guid: ObjectGuid,
+    pub collar_id: u32,
+    pub index: u8,
+    pub locked: bool,
+}
+
+impl BattlePetJournalSlot {
+    pub fn locked_empty(index: u8) -> Self {
+        Self {
+            pet_guid: ObjectGuid::EMPTY,
+            collar_id: 0,
+            index,
+            locked: true,
+        }
+    }
+}
+
+/// C++ `WorldPackets::BattlePet::BattlePetJournal`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BattlePetJournal {
+    pub trap: u16,
+    pub has_journal_lock: bool,
+    pub slots: Vec<BattlePetJournalSlot>,
+}
+
+impl BattlePetJournal {
+    pub fn empty_with_default_slots(has_journal_lock: bool) -> Self {
+        Self {
+            trap: 0,
+            has_journal_lock,
+            slots: (0..3).map(BattlePetJournalSlot::locked_empty).collect(),
+        }
+    }
+}
+
+impl ServerPacket for BattlePetJournal {
+    const OPCODE: ServerOpcodes = ServerOpcodes::BattlePetJournal;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_uint16(self.trap);
+        pkt.write_uint32(self.slots.len() as u32);
+        pkt.write_uint32(0); // Pets.Size; full BattlePet packet rows are not represented yet.
+        pkt.write_bit(self.has_journal_lock);
+        pkt.flush_bits();
+
+        for slot in &self.slots {
+            pkt.write_packed_guid(&slot.pet_guid);
+            pkt.write_uint32(slot.collar_id);
+            pkt.write_uint8(slot.index);
+            pkt.write_bit(slot.locked);
+            pkt.flush_bits();
+        }
     }
 }
 
@@ -3889,6 +3959,18 @@ mod tests {
     }
 
     #[test]
+    fn battle_pet_request_journal_reads_empty_payload_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(ClientOpcodes::BattlePetRequestJournal as u16);
+
+        assert_eq!(
+            BattlePetRequestJournal::read(&mut pkt).unwrap(),
+            BattlePetRequestJournal
+        );
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
     fn battle_pet_request_journal_lock_reads_empty_payload_like_cpp() {
         let mut pkt = WorldPacket::new_empty();
         pkt.write_uint16(ClientOpcodes::BattlePetRequestJournalLock as u16);
@@ -3898,6 +3980,29 @@ mod tests {
             BattlePetRequestJournalLock
         );
         assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn battle_pet_journal_writes_empty_default_slots_like_cpp() {
+        let bytes = BattlePetJournal::empty_with_default_slots(true).to_bytes();
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::BattlePetJournal as u16
+        );
+
+        let mut body = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(body.read_uint16().unwrap(), 0);
+        assert_eq!(body.read_uint32().unwrap(), 3);
+        assert_eq!(body.read_uint32().unwrap(), 0);
+        assert!(body.read_bit().unwrap());
+
+        for index in 0..3 {
+            assert_eq!(body.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
+            assert_eq!(body.read_uint32().unwrap(), 0);
+            assert_eq!(body.read_uint8().unwrap(), index);
+            assert!(body.read_bit().unwrap());
+        }
+        assert_eq!(body.remaining(), 0);
     }
 
     #[test]

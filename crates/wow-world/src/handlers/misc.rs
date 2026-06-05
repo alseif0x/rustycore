@@ -36,10 +36,10 @@ use wow_packet::packets::item::{
 };
 use wow_packet::packets::loot::{LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHING_LIKE_CPP};
 use wow_packet::packets::misc::{
-    AddToy, BattlePetClearFanfare, BattlePetSetBattleSlot, BattlePetSetFlags, BattlePetSummon,
-    BattlePetUpdateNotify, FarSight, MountSetFavorite, QueryBattlePetName,
-    QueryBattlePetNameResponse, RatedPvpInfo, RequestCemeteryListResponse, TaxiNodeStatusPkt,
-    ToyClearFanfare, UseToy,
+    AddToy, BattlePetClearFanfare, BattlePetJournal, BattlePetRequestJournal,
+    BattlePetSetBattleSlot, BattlePetSetFlags, BattlePetSummon, BattlePetUpdateNotify, FarSight,
+    MountSetFavorite, QueryBattlePetName, QueryBattlePetNameResponse, RatedPvpInfo,
+    RequestCemeteryListResponse, TaxiNodeStatusPkt, ToyClearFanfare, UseToy,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -1415,7 +1415,28 @@ impl crate::session::WorldSession {
         _pkt: wow_packet::WorldPacket,
     ) {
     }
-    pub async fn handle_battle_pet_request_journal(&mut self, _pkt: wow_packet::WorldPacket) {}
+    /// CMSG_BATTLE_PET_REQUEST_JOURNAL — send represented journal.
+    ///
+    /// C++ `BattlePetMgr::SendJournal` first acquires/sends journal-lock status
+    /// when needed, then sends `SMSG_BATTLE_PET_JOURNAL`. Rust currently emits
+    /// the faithful empty-pet/default-locked-slot journal subset.
+    pub async fn handle_battle_pet_request_journal(&mut self, mut pkt: wow_packet::WorldPacket) {
+        if let Err(error) = BattlePetRequestJournal::read(&mut pkt) {
+            warn!(
+                account = self.account_id,
+                "BattlePetRequestJournal parse failed: {error}"
+            );
+            return;
+        }
+
+        if !self.has_represented_battle_pet_journal_lock_like_cpp() {
+            self.send_battle_pet_journal_lock_status_like_cpp();
+        }
+
+        self.send_packet(&BattlePetJournal::empty_with_default_slots(
+            self.has_represented_battle_pet_journal_lock_like_cpp(),
+        ));
+    }
 
     /// CMSG_BATTLE_PET_REQUEST_JOURNAL_LOCK — acquire represented journal lock.
     ///
@@ -3223,6 +3244,12 @@ mod tests {
         pkt
     }
 
+    fn battle_pet_request_journal_packet() -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(ClientOpcodes::BattlePetRequestJournal as u16);
+        pkt
+    }
+
     #[tokio::test]
     async fn battle_pet_request_journal_lock_sends_acquired_like_cpp() {
         let (mut session, send_rx) = make_session();
@@ -3240,6 +3267,58 @@ mod tests {
             ServerOpcodes::BattlePetJournalLockAcquired as u16
         );
         assert_eq!(bytes.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn battle_pet_request_journal_acquires_lock_then_sends_empty_journal_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_battle_pet_request_journal(battle_pet_request_journal_packet())
+            .await;
+
+        let lock_bytes = send_rx.try_recv().expect("journal lock acquired packet");
+        assert_eq!(
+            u16::from_le_bytes([lock_bytes[0], lock_bytes[1]]),
+            ServerOpcodes::BattlePetJournalLockAcquired as u16
+        );
+
+        let journal_bytes = send_rx.try_recv().expect("battle pet journal packet");
+        assert_eq!(
+            u16::from_le_bytes([journal_bytes[0], journal_bytes[1]]),
+            ServerOpcodes::BattlePetJournal as u16
+        );
+        let mut body = WorldPacket::from_bytes(&journal_bytes[2..]);
+        assert_eq!(body.read_uint16().unwrap(), 0);
+        assert_eq!(body.read_uint32().unwrap(), 3);
+        assert_eq!(body.read_uint32().unwrap(), 0);
+        assert!(body.read_bit().unwrap());
+        for index in 0..3 {
+            assert_eq!(body.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
+            assert_eq!(body.read_uint32().unwrap(), 0);
+            assert_eq!(body.read_uint8().unwrap(), index);
+            assert!(body.read_bit().unwrap());
+        }
+        assert_eq!(body.remaining(), 0);
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn battle_pet_request_journal_with_lock_sends_only_journal_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        session.send_battle_pet_journal_lock_status_like_cpp();
+        let _ = send_rx.try_recv().expect("initial lock packet");
+
+        session
+            .handle_battle_pet_request_journal(battle_pet_request_journal_packet())
+            .await;
+
+        let journal_bytes = send_rx.try_recv().expect("battle pet journal packet");
+        assert_eq!(
+            u16::from_le_bytes([journal_bytes[0], journal_bytes[1]]),
+            ServerOpcodes::BattlePetJournal as u16
+        );
+        assert!(send_rx.try_recv().is_err());
     }
 
     #[tokio::test]
