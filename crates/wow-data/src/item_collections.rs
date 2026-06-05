@@ -51,6 +51,21 @@ pub struct BattlePetBreedStateEntry {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BattlePetSpeciesEntry {
+    pub id: u32,
+    pub description: String,
+    pub source_text: String,
+    pub creature_id: i32,
+    pub summon_spell_id: i32,
+    pub icon_file_data_id: i32,
+    pub pet_type_enum: u8,
+    pub flags: i32,
+    pub source_type_enum: i8,
+    pub card_ui_model_scene_id: i32,
+    pub loadout_ui_model_scene_id: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BattlePetSpeciesStateEntry {
     pub id: u32,
     pub battle_pet_state_id: u8,
@@ -68,6 +83,8 @@ pub struct BattlePetCalculatedStatsLikeCpp {
 pub const BATTLE_PET_STATE_STAT_POWER_LIKE_CPP: u8 = 18;
 pub const BATTLE_PET_STATE_STAT_STAMINA_LIKE_CPP: u8 = 19;
 pub const BATTLE_PET_STATE_STAT_SPEED_LIKE_CPP: u8 = 20;
+pub const BATTLE_PET_SPECIES_FLAG_NOT_TRADABLE_LIKE_CPP: i32 = 0x00010;
+pub const BATTLE_PET_SPECIES_FLAG_CANT_BATTLE_LIKE_CPP: i32 = 0x00080;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CurrencyContainerEntry {
@@ -176,6 +193,7 @@ db2_store!(BankBagSlotPricesStore, BankBagSlotPricesEntry);
 db2_store!(BattlePetAbilityStore, BattlePetAbilityEntry);
 db2_store!(BattlePetBreedQualityStore, BattlePetBreedQualityEntry);
 db2_store!(BattlePetBreedStateStore, BattlePetBreedStateEntry);
+db2_store!(BattlePetSpeciesStore, BattlePetSpeciesEntry);
 db2_store!(BattlePetSpeciesStateStore, BattlePetSpeciesStateEntry);
 db2_store!(CurrencyContainerStore, CurrencyContainerEntry);
 db2_store!(HeirloomStore, HeirloomEntry);
@@ -442,6 +460,40 @@ impl BattlePetBreedStateStore {
     }
 }
 
+impl BattlePetSpeciesEntry {
+    pub fn has_flag_like_cpp(&self, flag: i32) -> bool {
+        self.flags & flag != 0
+    }
+
+    pub fn cant_battle_like_cpp(&self) -> bool {
+        self.has_flag_like_cpp(BATTLE_PET_SPECIES_FLAG_CANT_BATTLE_LIKE_CPP)
+    }
+
+    pub fn not_tradable_like_cpp(&self) -> bool {
+        self.has_flag_like_cpp(BATTLE_PET_SPECIES_FLAG_NOT_TRADABLE_LIKE_CPP)
+    }
+}
+
+impl BattlePetSpeciesStore {
+    pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
+        load_store(data_dir, locale, "BattlePetSpecies.db2", |id, idx, r| {
+            BattlePetSpeciesEntry {
+                id,
+                description: r.get_field_string(idx, 0),
+                source_text: r.get_field_string(idx, 1),
+                creature_id: r.get_field_i32(idx, 3),
+                summon_spell_id: r.get_field_i32(idx, 4),
+                icon_file_data_id: r.get_field_i32(idx, 5),
+                pet_type_enum: r.get_field_u8(idx, 6),
+                flags: r.get_field_i32(idx, 7),
+                source_type_enum: r.get_field_i8(idx, 8),
+                card_ui_model_scene_id: r.get_field_i32(idx, 9),
+                loadout_ui_model_scene_id: r.get_field_i32(idx, 10),
+            }
+        })
+    }
+}
+
 impl BattlePetSpeciesStateStore {
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(
@@ -655,6 +707,7 @@ impl_from_entries!(BankBagSlotPricesStore, BankBagSlotPricesEntry);
 impl_from_entries!(BattlePetAbilityStore, BattlePetAbilityEntry);
 impl_from_entries!(BattlePetBreedQualityStore, BattlePetBreedQualityEntry);
 impl_from_entries!(BattlePetBreedStateStore, BattlePetBreedStateEntry);
+impl_from_entries!(BattlePetSpeciesStore, BattlePetSpeciesEntry);
 impl_from_entries!(BattlePetSpeciesStateStore, BattlePetSpeciesStateEntry);
 impl_from_entries!(CurrencyContainerStore, CurrencyContainerEntry);
 impl_from_entries!(HeirloomStore, HeirloomEntry);
@@ -667,6 +720,28 @@ impl_from_entries!(TransmogSetItemStore, TransmogSetItemEntry);
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn battle_pet_species_flags_match_cpp_masks() {
+        let entry = BattlePetSpeciesEntry {
+            id: 11,
+            description: String::new(),
+            source_text: String::new(),
+            creature_id: 0,
+            summon_spell_id: 0,
+            icon_file_data_id: 0,
+            pet_type_enum: 0,
+            flags: BATTLE_PET_SPECIES_FLAG_CANT_BATTLE_LIKE_CPP
+                | BATTLE_PET_SPECIES_FLAG_NOT_TRADABLE_LIKE_CPP,
+            source_type_enum: 0,
+            card_ui_model_scene_id: 0,
+            loadout_ui_model_scene_id: 0,
+        };
+
+        assert!(entry.cant_battle_like_cpp());
+        assert!(entry.not_tradable_like_cpp());
+        assert!(!entry.has_flag_like_cpp(0x00020));
+    }
 
     #[test]
     fn calculate_battle_pet_stats_matches_cpp_formula() {

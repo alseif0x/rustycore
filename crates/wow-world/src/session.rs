@@ -51,11 +51,12 @@ use wow_constants::{
 use wow_core::{ObjectGuid, ObjectGuidGenerator, Position, guid::HighGuid};
 use wow_data::{
     AreaTableStore, AreaTriggerStore, BattlePetBreedQualityStore, BattlePetBreedStateStore,
-    BattlePetSpeciesStateStore, BattlePetXpGameTableLikeCpp, ChrSpecializationStore,
-    ConditionEntriesByTypeStore, CreatureDisplayInfoStore, CreatureModelDataStore,
-    CreatureTemplateMountStoreLikeCpp, CurrencyTypesEntry, CurrencyTypesStore, DISABLE_TYPE_MAP,
-    DisableMgrLikeCpp, DisableWorldObjectRefLikeCpp, DungeonEncounterStore, DurabilityCostsStore,
-    DurabilityQualityStore, FishingBaseSkillStoreLikeCpp, GameObjectDisplayInfoStore,
+    BattlePetSpeciesStateStore, BattlePetSpeciesStore, BattlePetXpGameTableLikeCpp,
+    ChrSpecializationStore, ConditionEntriesByTypeStore, CreatureDisplayInfoStore,
+    CreatureModelDataStore, CreatureTemplateMountStoreLikeCpp, CurrencyTypesEntry,
+    CurrencyTypesStore, DISABLE_TYPE_MAP, DisableMgrLikeCpp, DisableWorldObjectRefLikeCpp,
+    DungeonEncounterStore, DurabilityCostsStore, DurabilityQualityStore,
+    FishingBaseSkillStoreLikeCpp, GameObjectDisplayInfoStore,
     GameObjectTemplateLifecycleStoreLikeCpp, HeirloomEntry, HeirloomStore, HotfixBlobCache,
     ImportPriceStores, ItemAppearanceStore, ItemClassStore, ItemCurrencyCostStore,
     ItemDisenchantLootStore, ItemEffectStore, ItemExtendedCostStore,
@@ -2354,6 +2355,7 @@ pub struct WorldSession {
     // Battle-pet stat stores used by C++ `BattlePet::CalculateStats`.
     battle_pet_breed_quality_store: Option<Arc<BattlePetBreedQualityStore>>,
     battle_pet_breed_state_store: Option<Arc<BattlePetBreedStateStore>>,
+    battle_pet_species_store: Option<Arc<BattlePetSpeciesStore>>,
     battle_pet_species_state_store: Option<Arc<BattlePetSpeciesStateStore>>,
     battle_pet_xp_game_table: Option<Arc<BattlePetXpGameTableLikeCpp>>,
 
@@ -3550,6 +3552,7 @@ impl WorldSession {
             toy_store: None,
             battle_pet_breed_quality_store: None,
             battle_pet_breed_state_store: None,
+            battle_pet_species_store: None,
             battle_pet_species_state_store: None,
             battle_pet_xp_game_table: None,
             transmog_set_item_store: None,
@@ -8134,6 +8137,10 @@ impl WorldSession {
         self.battle_pet_breed_state_store = Some(store);
     }
 
+    pub fn set_battle_pet_species_store(&mut self, store: Arc<BattlePetSpeciesStore>) {
+        self.battle_pet_species_store = Some(store);
+    }
+
     pub fn set_battle_pet_species_state_store(&mut self, store: Arc<BattlePetSpeciesStateStore>) {
         self.battle_pet_species_state_store = Some(store);
     }
@@ -9622,6 +9629,13 @@ impl WorldSession {
                     .get(&level)
                     .copied()
             })
+    }
+
+    fn battle_pet_species_has_flag_like_cpp(&self, species: u32, flag: i32) -> bool {
+        self.battle_pet_species_store
+            .as_ref()
+            .and_then(|store| store.get(species))
+            .is_some_and(|entry| entry.has_flag_like_cpp(flag))
     }
 
     pub(crate) fn represented_faction_reaction_to_like_cpp(
@@ -18128,7 +18142,6 @@ impl WorldSession {
     pub(crate) fn battle_pet_cage_battle_pet_represented_like_cpp(
         &mut self,
         pet_guid: ObjectGuid,
-        species_not_tradable: bool,
         inventory_can_store: bool,
         item_stored: bool,
     ) -> RepresentedBattlePetCageOutcomeLikeCpp {
@@ -18144,7 +18157,10 @@ impl WorldSession {
             return RepresentedBattlePetCageOutcomeLikeCpp::UnknownPet;
         };
 
-        if species_not_tradable {
+        if self.battle_pet_species_has_flag_like_cpp(
+            pet.species,
+            wow_data::BATTLE_PET_SPECIES_FLAG_NOT_TRADABLE_LIKE_CPP,
+        ) {
             return RepresentedBattlePetCageOutcomeLikeCpp::NotTradable;
         }
 
@@ -18348,14 +18364,13 @@ impl WorldSession {
         pet.health = pet.max_health;
     }
 
-    /// C++ `BattlePetMgr::ChangeBattlePetQuality`, represented after external
-    /// species-flag lookup. `BattlePet::CalculateStats` may return early when
-    /// breed-state DB2 rows are missing; that does not abort the quality change.
+    /// C++ `BattlePetMgr::ChangeBattlePetQuality`. `BattlePet::CalculateStats`
+    /// may return early when breed-state DB2 rows are missing; that does not
+    /// abort the quality change.
     pub(crate) fn battle_pet_change_battle_pet_quality_represented_like_cpp(
         &mut self,
         pet_guid: ObjectGuid,
         quality: u8,
-        species_cant_battle: bool,
     ) -> RepresentedBattlePetQualityOutcomeLikeCpp {
         if !self.has_represented_battle_pet_journal_lock_like_cpp() {
             return RepresentedBattlePetQualityOutcomeLikeCpp::NoJournalLock;
@@ -18369,7 +18384,10 @@ impl WorldSession {
             return RepresentedBattlePetQualityOutcomeLikeCpp::QualityAboveRare;
         }
 
-        if species_cant_battle {
+        if self.battle_pet_species_has_flag_like_cpp(
+            pet.species,
+            wow_data::BATTLE_PET_SPECIES_FLAG_CANT_BATTLE_LIKE_CPP,
+        ) {
             return RepresentedBattlePetQualityOutcomeLikeCpp::CantBattle;
         }
 
@@ -18398,14 +18416,13 @@ impl WorldSession {
         RepresentedBattlePetQualityOutcomeLikeCpp::Changed
     }
 
-    /// C++ `BattlePetMgr::GrantBattlePetLevel`, represented after external
-    /// species-flag lookup. `BattlePet::CalculateStats` may return early when
-    /// breed-state DB2 rows are missing; that does not abort the level grant.
+    /// C++ `BattlePetMgr::GrantBattlePetLevel`. `BattlePet::CalculateStats`
+    /// may return early when breed-state DB2 rows are missing; that does not
+    /// abort the level grant.
     pub(crate) fn battle_pet_grant_battle_pet_level_represented_like_cpp(
         &mut self,
         pet_guid: ObjectGuid,
         granted_levels: u16,
-        species_cant_battle: bool,
     ) -> RepresentedBattlePetGrantLevelOutcomeLikeCpp {
         if !self.has_represented_battle_pet_journal_lock_like_cpp() {
             return RepresentedBattlePetGrantLevelOutcomeLikeCpp::NoJournalLock;
@@ -18415,7 +18432,10 @@ impl WorldSession {
             return RepresentedBattlePetGrantLevelOutcomeLikeCpp::UnknownPet;
         };
 
-        if species_cant_battle {
+        if self.battle_pet_species_has_flag_like_cpp(
+            pet.species,
+            wow_data::BATTLE_PET_SPECIES_FLAG_CANT_BATTLE_LIKE_CPP,
+        ) {
             return RepresentedBattlePetGrantLevelOutcomeLikeCpp::CantBattle;
         }
 
@@ -18470,13 +18490,12 @@ impl WorldSession {
     }
 
     /// C++ `BattlePetMgr::GrantBattlePetExperience`, represented after
-    /// external species-flag lookup and aura multiplier resolution.
+    /// external aura multiplier resolution.
     pub(crate) fn battle_pet_grant_battle_pet_experience_represented_like_cpp(
         &mut self,
         pet_guid: ObjectGuid,
         xp: u16,
         xp_source: RepresentedBattlePetXpSourceLikeCpp,
-        species_cant_battle: bool,
         pet_battle_xp_multiplier: f32,
     ) -> RepresentedBattlePetGrantExperienceOutcomeLikeCpp {
         if !self.has_represented_battle_pet_journal_lock_like_cpp() {
@@ -18491,7 +18510,10 @@ impl WorldSession {
             return RepresentedBattlePetGrantExperienceOutcomeLikeCpp::InvalidXpOrSource;
         }
 
-        if species_cant_battle {
+        if self.battle_pet_species_has_flag_like_cpp(
+            pet.species,
+            wow_data::BATTLE_PET_SPECIES_FLAG_CANT_BATTLE_LIKE_CPP,
+        ) {
             return RepresentedBattlePetGrantExperienceOutcomeLikeCpp::CantBattle;
         }
 
@@ -53471,49 +53493,40 @@ mod tests {
         assert!(session.battle_pet_set_battle_slot_like_cpp(slotted_guid, 1));
 
         assert_eq!(
-            session.battle_pet_cage_battle_pet_represented_like_cpp(pet_guid, false, true, true),
+            session.battle_pet_cage_battle_pet_represented_like_cpp(pet_guid, true, true),
             RepresentedBattlePetCageOutcomeLikeCpp::NoJournalLock
         );
         session.send_battle_pet_journal_lock_status_like_cpp();
         let _ = drain_server_packet_bytes(&send_rx);
 
         assert_eq!(
-            session.battle_pet_cage_battle_pet_represented_like_cpp(
-                unknown_guid,
-                false,
-                true,
-                true
-            ),
+            session.battle_pet_cage_battle_pet_represented_like_cpp(unknown_guid, true, true),
             RepresentedBattlePetCageOutcomeLikeCpp::UnknownPet
         );
-        assert_eq!(
-            session.battle_pet_cage_battle_pet_represented_like_cpp(pet_guid, true, true, true),
-            RepresentedBattlePetCageOutcomeLikeCpp::NotTradable
+        install_represented_battle_pet_species_flags_like_cpp(
+            &mut session,
+            11,
+            wow_data::BATTLE_PET_SPECIES_FLAG_NOT_TRADABLE_LIKE_CPP,
         );
         assert_eq!(
-            session.battle_pet_cage_battle_pet_represented_like_cpp(
-                slotted_guid,
-                false,
-                true,
-                true
-            ),
+            session.battle_pet_cage_battle_pet_represented_like_cpp(pet_guid, true, true),
+            RepresentedBattlePetCageOutcomeLikeCpp::NotTradable
+        );
+        install_represented_battle_pet_species_flags_like_cpp(&mut session, 11, 0);
+        assert_eq!(
+            session.battle_pet_cage_battle_pet_represented_like_cpp(slotted_guid, true, true),
             RepresentedBattlePetCageOutcomeLikeCpp::InBattleSlot
         );
         assert_eq!(
-            session.battle_pet_cage_battle_pet_represented_like_cpp(
-                damaged_guid,
-                false,
-                true,
-                true
-            ),
+            session.battle_pet_cage_battle_pet_represented_like_cpp(damaged_guid, true, true),
             RepresentedBattlePetCageOutcomeLikeCpp::Damaged
         );
         assert_eq!(
-            session.battle_pet_cage_battle_pet_represented_like_cpp(pet_guid, false, false, true),
+            session.battle_pet_cage_battle_pet_represented_like_cpp(pet_guid, false, true),
             RepresentedBattlePetCageOutcomeLikeCpp::InventoryUnavailable
         );
         assert_eq!(
-            session.battle_pet_cage_battle_pet_represented_like_cpp(pet_guid, false, true, false),
+            session.battle_pet_cage_battle_pet_represented_like_cpp(pet_guid, true, false),
             RepresentedBattlePetCageOutcomeLikeCpp::StoreFailed
         );
 
@@ -53571,7 +53584,7 @@ mod tests {
         let _ = drain_server_packet_bytes(&send_rx);
 
         assert_eq!(
-            session.battle_pet_cage_battle_pet_represented_like_cpp(pet_guid, false, true, true),
+            session.battle_pet_cage_battle_pet_represented_like_cpp(pet_guid, true, true),
             RepresentedBattlePetCageOutcomeLikeCpp::Caged(expected_item)
         );
 
@@ -54012,30 +54025,32 @@ mod tests {
         );
 
         assert_eq!(
-            session.battle_pet_change_battle_pet_quality_represented_like_cpp(pet_guid, 3, false),
+            session.battle_pet_change_battle_pet_quality_represented_like_cpp(pet_guid, 3),
             RepresentedBattlePetQualityOutcomeLikeCpp::NoJournalLock
         );
         session.send_battle_pet_journal_lock_status_like_cpp();
         let _ = drain_server_packet_bytes(&send_rx);
 
         assert_eq!(
-            session.battle_pet_change_battle_pet_quality_represented_like_cpp(
-                unknown_guid,
-                3,
-                false
-            ),
+            session.battle_pet_change_battle_pet_quality_represented_like_cpp(unknown_guid, 3),
             RepresentedBattlePetQualityOutcomeLikeCpp::UnknownPet
         );
         assert_eq!(
-            session.battle_pet_change_battle_pet_quality_represented_like_cpp(pet_guid, 4, false),
+            session.battle_pet_change_battle_pet_quality_represented_like_cpp(pet_guid, 4),
             RepresentedBattlePetQualityOutcomeLikeCpp::QualityAboveRare
         );
-        assert_eq!(
-            session.battle_pet_change_battle_pet_quality_represented_like_cpp(pet_guid, 3, true),
-            RepresentedBattlePetQualityOutcomeLikeCpp::CantBattle
+        install_represented_battle_pet_species_flags_like_cpp(
+            &mut session,
+            11,
+            wow_data::BATTLE_PET_SPECIES_FLAG_CANT_BATTLE_LIKE_CPP,
         );
         assert_eq!(
-            session.battle_pet_change_battle_pet_quality_represented_like_cpp(pet_guid, 2, false),
+            session.battle_pet_change_battle_pet_quality_represented_like_cpp(pet_guid, 3),
+            RepresentedBattlePetQualityOutcomeLikeCpp::CantBattle
+        );
+        install_represented_battle_pet_species_flags_like_cpp(&mut session, 11, 0);
+        assert_eq!(
+            session.battle_pet_change_battle_pet_quality_represented_like_cpp(pet_guid, 2),
             RepresentedBattlePetQualityOutcomeLikeCpp::NotUpgrade
         );
 
@@ -54106,6 +54121,28 @@ mod tests {
         ));
     }
 
+    fn install_represented_battle_pet_species_flags_like_cpp(
+        session: &mut WorldSession,
+        species: u32,
+        flags: i32,
+    ) {
+        session.set_battle_pet_species_store(Arc::new(
+            wow_data::BattlePetSpeciesStore::from_entries([wow_data::BattlePetSpeciesEntry {
+                id: species,
+                description: String::new(),
+                source_text: String::new(),
+                creature_id: 0,
+                summon_spell_id: 0,
+                icon_file_data_id: 0,
+                pet_type_enum: 0,
+                flags,
+                source_type_enum: 0,
+                card_ui_model_scene_id: 0,
+                loadout_ui_model_scene_id: 0,
+            }]),
+        ));
+    }
+
     #[test]
     fn battle_pet_change_quality_applies_stats_heals_and_sends_update_like_cpp() {
         let (mut session, _, send_rx) = make_session();
@@ -54138,7 +54175,7 @@ mod tests {
         let _ = drain_server_packet_bytes(&send_rx);
 
         assert_eq!(
-            session.battle_pet_change_battle_pet_quality_represented_like_cpp(pet_guid, 3, false),
+            session.battle_pet_change_battle_pet_quality_represented_like_cpp(pet_guid, 3),
             RepresentedBattlePetQualityOutcomeLikeCpp::Changed
         );
 
@@ -54204,7 +54241,7 @@ mod tests {
         let _ = drain_server_packet_bytes(&send_rx);
 
         assert_eq!(
-            session.battle_pet_change_battle_pet_quality_represented_like_cpp(pet_guid, 3, false),
+            session.battle_pet_change_battle_pet_quality_represented_like_cpp(pet_guid, 3),
             RepresentedBattlePetQualityOutcomeLikeCpp::Changed
         );
 
@@ -54282,26 +54319,32 @@ mod tests {
         );
 
         assert_eq!(
-            session.battle_pet_grant_battle_pet_level_represented_like_cpp(pet_guid, 1, false),
+            session.battle_pet_grant_battle_pet_level_represented_like_cpp(pet_guid, 1),
             RepresentedBattlePetGrantLevelOutcomeLikeCpp::NoJournalLock
         );
         session.send_battle_pet_journal_lock_status_like_cpp();
         let _ = drain_server_packet_bytes(&send_rx);
 
         assert_eq!(
-            session.battle_pet_grant_battle_pet_level_represented_like_cpp(unknown_guid, 1, false),
+            session.battle_pet_grant_battle_pet_level_represented_like_cpp(unknown_guid, 1),
             RepresentedBattlePetGrantLevelOutcomeLikeCpp::UnknownPet
         );
-        assert_eq!(
-            session.battle_pet_grant_battle_pet_level_represented_like_cpp(pet_guid, 1, true),
-            RepresentedBattlePetGrantLevelOutcomeLikeCpp::CantBattle
+        install_represented_battle_pet_species_flags_like_cpp(
+            &mut session,
+            11,
+            wow_data::BATTLE_PET_SPECIES_FLAG_CANT_BATTLE_LIKE_CPP,
         );
         assert_eq!(
-            session.battle_pet_grant_battle_pet_level_represented_like_cpp(max_guid, 1, false),
+            session.battle_pet_grant_battle_pet_level_represented_like_cpp(pet_guid, 1),
+            RepresentedBattlePetGrantLevelOutcomeLikeCpp::CantBattle
+        );
+        install_represented_battle_pet_species_flags_like_cpp(&mut session, 11, 0);
+        assert_eq!(
+            session.battle_pet_grant_battle_pet_level_represented_like_cpp(max_guid, 1),
             RepresentedBattlePetGrantLevelOutcomeLikeCpp::AlreadyMaxLevel
         );
         assert_eq!(
-            session.battle_pet_grant_battle_pet_level_represented_like_cpp(pet_guid, 0, false),
+            session.battle_pet_grant_battle_pet_level_represented_like_cpp(pet_guid, 0),
             RepresentedBattlePetGrantLevelOutcomeLikeCpp::NoGrantedLevels
         );
 
@@ -54356,7 +54399,7 @@ mod tests {
         let _ = drain_server_packet_bytes(&send_rx);
 
         assert_eq!(
-            session.battle_pet_grant_battle_pet_level_represented_like_cpp(pet_guid, 5, false),
+            session.battle_pet_grant_battle_pet_level_represented_like_cpp(pet_guid, 5),
             RepresentedBattlePetGrantLevelOutcomeLikeCpp::Changed
         );
 
@@ -54437,7 +54480,7 @@ mod tests {
         let _ = drain_server_packet_bytes(&send_rx);
 
         assert_eq!(
-            session.battle_pet_grant_battle_pet_level_represented_like_cpp(pet_guid, 1, false),
+            session.battle_pet_grant_battle_pet_level_represented_like_cpp(pet_guid, 1),
             RepresentedBattlePetGrantLevelOutcomeLikeCpp::Changed
         );
 
@@ -54505,7 +54548,6 @@ mod tests {
                 pet_guid,
                 1,
                 RepresentedBattlePetXpSourceLikeCpp::SpellEffect,
-                false,
                 1.0,
             ),
             RepresentedBattlePetGrantExperienceOutcomeLikeCpp::NoJournalLock
@@ -54518,7 +54560,6 @@ mod tests {
                 unknown_guid,
                 1,
                 RepresentedBattlePetXpSourceLikeCpp::SpellEffect,
-                false,
                 1.0,
             ),
             RepresentedBattlePetGrantExperienceOutcomeLikeCpp::UnknownPet
@@ -54528,7 +54569,6 @@ mod tests {
                 pet_guid,
                 0,
                 RepresentedBattlePetXpSourceLikeCpp::SpellEffect,
-                false,
                 1.0,
             ),
             RepresentedBattlePetGrantExperienceOutcomeLikeCpp::InvalidXpOrSource
@@ -54538,27 +54578,30 @@ mod tests {
                 pet_guid,
                 1,
                 RepresentedBattlePetXpSourceLikeCpp::Invalid,
-                false,
                 1.0,
             ),
             RepresentedBattlePetGrantExperienceOutcomeLikeCpp::InvalidXpOrSource
+        );
+        install_represented_battle_pet_species_flags_like_cpp(
+            &mut session,
+            11,
+            wow_data::BATTLE_PET_SPECIES_FLAG_CANT_BATTLE_LIKE_CPP,
         );
         assert_eq!(
             session.battle_pet_grant_battle_pet_experience_represented_like_cpp(
                 pet_guid,
                 1,
                 RepresentedBattlePetXpSourceLikeCpp::SpellEffect,
-                true,
                 1.0,
             ),
             RepresentedBattlePetGrantExperienceOutcomeLikeCpp::CantBattle
         );
+        install_represented_battle_pet_species_flags_like_cpp(&mut session, 11, 0);
         assert_eq!(
             session.battle_pet_grant_battle_pet_experience_represented_like_cpp(
                 max_guid,
                 1,
                 RepresentedBattlePetXpSourceLikeCpp::SpellEffect,
-                false,
                 1.0,
             ),
             RepresentedBattlePetGrantExperienceOutcomeLikeCpp::AlreadyMaxLevel
@@ -54568,7 +54611,6 @@ mod tests {
                 pet_guid,
                 1,
                 RepresentedBattlePetXpSourceLikeCpp::SpellEffect,
-                false,
                 1.0,
             ),
             RepresentedBattlePetGrantExperienceOutcomeLikeCpp::MissingXpRow
@@ -54632,7 +54674,6 @@ mod tests {
                 pet_guid,
                 150,
                 RepresentedBattlePetXpSourceLikeCpp::SpellEffect,
-                false,
                 9.0,
             ),
             RepresentedBattlePetGrantExperienceOutcomeLikeCpp::Changed
@@ -54732,7 +54773,6 @@ mod tests {
                 pet_guid,
                 150,
                 RepresentedBattlePetXpSourceLikeCpp::SpellEffect,
-                false,
                 1.0,
             ),
             RepresentedBattlePetGrantExperienceOutcomeLikeCpp::Changed
@@ -54781,7 +54821,6 @@ mod tests {
                 pet_guid,
                 200,
                 RepresentedBattlePetXpSourceLikeCpp::PetBattle,
-                false,
                 1.5,
             ),
             RepresentedBattlePetGrantExperienceOutcomeLikeCpp::Changed
@@ -54851,7 +54890,6 @@ mod tests {
                 pet_guid,
                 250,
                 RepresentedBattlePetXpSourceLikeCpp::PetBattle,
-                false,
                 1.0,
             ),
             RepresentedBattlePetGrantExperienceOutcomeLikeCpp::MissingXpRow

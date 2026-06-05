@@ -1188,6 +1188,10 @@ async fn main() -> Result<()> {
             "Failed to load BattlePetBreedState.db2 — check DataDir and DBC.Locale config",
         )?,
     );
+    let battle_pet_species_entry_store = Arc::new(
+        wow_data::BattlePetSpeciesStore::load(&data_dir, &locale)
+            .context("Failed to load BattlePetSpecies.db2 — check DataDir and DBC.Locale config")?,
+    );
     let battle_pet_species_state_store = Arc::new(
         wow_data::BattlePetSpeciesStateStore::load(&data_dir, &locale).context(
             "Failed to load BattlePetSpeciesState.db2 — check DataDir and DBC.Locale config",
@@ -1198,9 +1202,10 @@ async fn main() -> Result<()> {
             .context("Failed to load gt/BattlePetXP.txt — check DataDir config")?,
     );
     info!(
-        "Loaded battle-pet stat DB2 stores: {} quality rows, {} breed-state rows, {} species-state rows; BattlePetXP rows={}",
+        "Loaded battle-pet stat DB2 stores: {} quality rows, {} breed-state rows, {} species rows, {} species-state rows; BattlePetXP rows={}",
         battle_pet_breed_quality_store.len(),
         battle_pet_breed_state_store.len(),
+        battle_pet_species_entry_store.len(),
         battle_pet_species_state_store.len(),
         battle_pet_xp_game_table.len()
     );
@@ -2073,6 +2078,7 @@ async fn main() -> Result<()> {
         toy_store: Some(Arc::clone(&toy_store)),
         battle_pet_breed_quality_store: Some(Arc::clone(&battle_pet_breed_quality_store)),
         battle_pet_breed_state_store: Some(Arc::clone(&battle_pet_breed_state_store)),
+        battle_pet_species_store: Some(Arc::clone(&battle_pet_species_entry_store)),
         battle_pet_species_state_store: Some(Arc::clone(&battle_pet_species_state_store)),
         battle_pet_xp_game_table: Some(Arc::clone(&battle_pet_xp_game_table)),
         transmog_set_item_store: Some(Arc::clone(&transmog_set_item_store)),
@@ -7102,6 +7108,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.battle_pet_breed_state_store {
         session.set_battle_pet_breed_state_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.battle_pet_species_store {
+        session.set_battle_pet_species_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.battle_pet_species_state_store {
         session.set_battle_pet_species_state_store(Arc::clone(store));
