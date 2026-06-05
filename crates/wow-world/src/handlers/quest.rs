@@ -14410,6 +14410,11 @@ mod tests {
                 .expect("receiver registry snapshot")
                 .is_alive
         );
+        let health_update = receiver_rx.try_recv().expect("void health update");
+        assert_eq!(
+            u16::from_le_bytes([health_update[0], health_update[1]]),
+            wow_constants::ServerOpcodes::HealthUpdate as u16
+        );
 
         run_push_quest_to_party(&mut session, 7114).await;
 

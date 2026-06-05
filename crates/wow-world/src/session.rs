@@ -9012,6 +9012,13 @@ impl WorldSession {
         }
     }
 
+    fn send_player_health_update_like_cpp(&self, guid: ObjectGuid, health: u64) {
+        self.send_packet(&wow_packet::packets::combat::HealthUpdate {
+            guid,
+            health: health.min(i64::MAX as u64) as i64,
+        });
+    }
+
     pub(crate) fn can_destroy_direct_item_like_cpp(
         &self,
         slot: u8,
@@ -15342,6 +15349,14 @@ impl WorldSession {
             self.player_alive_like_cpp = false;
         }
         self.sync_player_registry_state_like_cpp();
+        if final_damage > 0
+            && let Some(player_guid) = self.player_guid()
+        {
+            self.send_player_health_update_like_cpp(
+                player_guid,
+                u64::from(self.player_health_like_cpp),
+            );
+        }
 
         let event = MovementFallDamageEvent {
             z_diff,
@@ -15438,10 +15453,19 @@ impl WorldSession {
         }
 
         self.player_out_of_bounds_like_cpp = true;
+        let original_health = self.player_health_like_cpp;
         let damage = self.player_max_health_like_cpp;
         self.player_health_like_cpp = self.player_health_like_cpp.saturating_sub(damage);
         if self.player_health_like_cpp == 0 {
             self.player_alive_like_cpp = false;
+        }
+        if self.player_health_like_cpp != original_health
+            && let Some(player_guid) = self.player_guid()
+        {
+            self.send_player_health_update_like_cpp(
+                player_guid,
+                u64::from(self.player_health_like_cpp),
+            );
         }
 
         // C++ calls KillPlayer if EnvironmentalDamage did not kill due to GM/immunity.

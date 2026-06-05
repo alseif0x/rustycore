@@ -495,14 +495,19 @@ mod tests {
         MovementSpeedAckActionLikeCpp, RepresentedAuraEffectLikeCpp,
         RepresentedTaxiFlightNodeLikeCpp, UnitMoveTypeLikeCpp,
     };
+    use wow_constants::ServerOpcodes;
     use wow_constants::movement::MovementFlag;
     use wow_constants::unit::UnitFlags;
     use wow_core::ObjectGuid;
 
     fn make_session() -> WorldSession {
+        make_session_with_send_rx().0
+    }
+
+    fn make_session_with_send_rx() -> (WorldSession, flume::Receiver<Vec<u8>>) {
         let (_pkt_tx, pkt_rx) = flume::bounded(8);
-        let (send_tx, _send_rx) = flume::bounded(8);
-        WorldSession::new(
+        let (send_tx, send_rx) = flume::bounded(8);
+        let session = WorldSession::new(
             1,
             "MovementTest".into(),
             0,
@@ -513,7 +518,8 @@ mod tests {
             "esES".into(),
             pkt_rx,
             send_tx,
-        )
+        );
+        (session, send_rx)
     }
 
     fn visible_aura(slot: u8, flags: u32, flags2: u32) -> AuraApplication {
@@ -597,7 +603,8 @@ mod tests {
 
     #[test]
     fn movement_fall_land_applies_cpp_base_fall_damage_and_updates_fall_info() {
-        let mut session = make_session();
+        let (mut session, send_rx) = make_session_with_send_rx();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 41)));
         session.set_player_health_like_cpp(1_000, 1_000);
         session.set_fall_information_like_cpp(1_200, 120.0);
         let mut info = MovementInfo::default();
@@ -611,6 +618,9 @@ mod tests {
         assert_eq!(events[0].damage, 117);
         assert_eq!(events[0].final_damage, 117);
         assert_eq!(session.player_health_like_cpp(), 883);
+        let sent = send_rx.try_recv().expect("fall health update");
+        let opcode = u16::from_le_bytes([sent[0], sent[1]]);
+        assert_eq!(opcode, ServerOpcodes::HealthUpdate as u16);
 
         let mut harmless = MovementInfo::default();
         harmless.position.z = 99.0;
@@ -691,7 +701,8 @@ mod tests {
 
     #[test]
     fn movement_under_map_applies_cpp_void_damage_and_flag() {
-        let mut session = make_session();
+        let (mut session, send_rx) = make_session_with_send_rx();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
         session.set_player_health_like_cpp(1_000, 1_000);
         let mut info = MovementInfo::default();
         info.position.z = -501.0;
@@ -706,6 +717,9 @@ mod tests {
         assert_eq!(session.player_health_like_cpp(), 0);
         assert!(!session.player_is_alive_like_cpp());
         assert!(session.player_out_of_bounds_like_cpp());
+        let sent = send_rx.try_recv().expect("void health update");
+        let opcode = u16::from_le_bytes([sent[0], sent[1]]);
+        assert_eq!(opcode, ServerOpcodes::HealthUpdate as u16);
 
         info.position.z = -499.0;
         session.apply_movement_side_effects_like_cpp(Some(ClientOpcodes::MoveHeartbeat), &info);
