@@ -2465,6 +2465,7 @@ mod tests {
             effect_bonus_coefficient: 0.0,
             aura_type: None,
             display_flags: 0,
+            requires_spell_focus: 0,
             effects: Vec::new(),
         }
     }
@@ -3577,6 +3578,7 @@ mod tests {
                 effect_bonus_coefficient: 0.0,
                 aura_type: None,
                 display_flags: 0,
+                requires_spell_focus: 0,
                 effects: vec![
                     crate::SpellEffectInfo {
                         effect_index: 0,

@@ -1744,6 +1744,15 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   invalid-slot guard, and recast cleanup plus fallback-position creation. Scope remains bounded: no
   live spell-loop wiring, focusObject/RequiresSpellFocus handling, real phase inheritance,
   cooldown-event semantics, packets/scripts, or manual client/server validation.
+- 2026-06-05 — `SpellInfo::RequiresSpellFocus` data bridge
+  `#NEXT.RUNTIME.L3.031eh`: contrasted C++ `SpellInfo` hydration from
+  `SpellCastingRequirementsEntry` (`SpellInfo.cpp:1233-1239`, `SpellMgr.cpp:2884-2892`) and the
+  `Spell::CheckCast` focus-object gate (`Spell.cpp:5951-5956`). Rust now carries
+  `SpellInfo::requires_spell_focus: u32`, exposes `requires_spell_focus_like_cpp()`, and hydrates
+  it from `hotfixes.spell_casting_requirements.RequiresSpellFocus` in `SpellStore::load`. All
+  existing fixtures keep the C++ default zero, and unit coverage proves nonzero values are
+  distinguishable. Scope remains bounded: no `SearchSpellFocus`, no represented `focusObject`
+  target/orientation, no cast-failure packet path, and no live summon dispatch wiring yet.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

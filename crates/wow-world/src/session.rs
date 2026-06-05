@@ -30129,6 +30129,7 @@ mod tests {
                 effect_bonus_coefficient: 0.0,
                 aura_type: None,
                 display_flags: 0,
+                requires_spell_focus: 0,
                 effects: vec![wow_data::SpellEffectInfo {
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_ADD_FARSIGHT,
                     effect_radius_index_1: 11,

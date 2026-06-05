@@ -78,6 +78,9 @@ pub struct SpellInfo {
     pub aura_type: Option<i32>,
     /// Display flags (channelled, etc.)
     pub display_flags: u32,
+    /// C++ `SpellInfo::RequiresSpellFocus`, hydrated from
+    /// `SpellCastingRequirementsEntry::RequiresSpellFocus`.
+    pub requires_spell_focus: u32,
     /// Spell effects keyed by C++ `SpellEffectInfo::EffectIndex`.
     pub effects: Vec<SpellEffectInfo>,
 }
@@ -117,6 +120,10 @@ impl SpellInfo {
         self.effects
             .iter()
             .any(|effect| effect.effect_aura == aura_type)
+    }
+
+    pub fn requires_spell_focus_like_cpp(&self) -> bool {
+        self.requires_spell_focus != 0
     }
 
     pub fn normalized_implicit_target_effect_mask_like_cpp(&self, mut effect_mask: u32) -> u32 {
@@ -271,10 +278,13 @@ SELECT
     CAST(COALESCE(se.EffectIndex, 0) AS UNSIGNED) as effect_index,
     CAST(COALESCE(se.EffectChainTargets, 0) AS SIGNED) as effect_chain_targets,
     CAST(COALESCE(se.ImplicitTarget1, 0) AS UNSIGNED) as implicit_target_1,
-    CAST(COALESCE(se.ImplicitTarget2, 0) AS UNSIGNED) as implicit_target_2
+    CAST(COALESCE(se.ImplicitTarget2, 0) AS UNSIGNED) as implicit_target_2,
+    CAST(COALESCE(scr.RequiresSpellFocus, 0) AS UNSIGNED) as requires_spell_focus
 FROM hotfixes.spell_misc sm
 LEFT JOIN hotfixes.spell_effect se 
     ON sm.ID = se.SpellID AND se.DifficultyID = 0
+LEFT JOIN hotfixes.spell_casting_requirements scr
+    ON sm.ID = scr.SpellID AND scr.DifficultyID = 0
 ORDER BY sm.ID, se.EffectIndex
         "#;
 
@@ -297,6 +307,7 @@ ORDER BY sm.ID, se.EffectIndex
                 let effect_chain_targets: i32 = result.try_read(12).unwrap_or(0);
                 let implicit_target_1: u32 = result.try_read(13).unwrap_or(0);
                 let implicit_target_2: u32 = result.try_read(14).unwrap_or(0);
+                let requires_spell_focus: u32 = result.try_read(15).unwrap_or(0);
 
                 let spell_info = store.spells.entry(spell_id).or_insert_with(|| SpellInfo {
                     spell_id,
@@ -308,6 +319,7 @@ ORDER BY sm.ID, se.EffectIndex
                     effect_bonus_coefficient,
                     aura_type,
                     display_flags: 0,
+                    requires_spell_focus,
                     effects: Vec::new(),
                 });
 
@@ -428,6 +440,7 @@ mod tests {
             effect_bonus_coefficient: 0.5,
             aura_type: None,
             display_flags: 0,
+            requires_spell_focus: 0,
             effects: Vec::new(),
         };
 
@@ -444,11 +457,33 @@ mod tests {
             effect_bonus_coefficient: 0.5,
             aura_type: None,
             display_flags: 0,
+            requires_spell_focus: 0,
             effects: Vec::new(),
         };
 
         // GCD is the limit
         assert_eq!(instant.effective_cooldown_ms(), 1500);
+    }
+
+    #[test]
+    fn spell_info_requires_spell_focus_matches_cpp_field() {
+        let mut spell = SpellInfo {
+            spell_id: 100,
+            cast_time_ms: 0,
+            cooldown_ms: 0,
+            recovery_time_ms: 0,
+            effect_type: 0,
+            effect_base_points: 0,
+            effect_bonus_coefficient: 0.0,
+            aura_type: None,
+            display_flags: 0,
+            requires_spell_focus: 0,
+            effects: Vec::new(),
+        };
+
+        assert!(!spell.requires_spell_focus_like_cpp());
+        spell.requires_spell_focus = 181;
+        assert!(spell.requires_spell_focus_like_cpp());
     }
 
     #[test]
@@ -463,6 +498,7 @@ mod tests {
             effect_bonus_coefficient: 0.0,
             aura_type: None,
             display_flags: 0,
+            requires_spell_focus: 0,
             effects: vec![
                 SpellEffectInfo {
                     effect_index: 0,
@@ -547,6 +583,7 @@ mod tests {
                 effect_bonus_coefficient: 0.0,
                 aura_type: None,
                 display_flags: 0,
+                requires_spell_focus: 0,
                 effects: vec![
                     SpellEffectInfo {
                         effect_index: 0,
