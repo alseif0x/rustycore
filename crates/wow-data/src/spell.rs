@@ -150,6 +150,35 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_274: u32 = 274;
     pub const SPELL_EFFECT_275: u32 = 275;
     pub const SPELL_EFFECT_SET_CHROMIE_TIME: u32 = 277;
+    pub const SPELL_EFFECT_278: u32 = 278;
+    pub const SPELL_EFFECT_LEARN_GARR_TALENT: u32 = 279;
+    pub const SPELL_EFFECT_280: u32 = 280;
+    pub const SPELL_EFFECT_LEARN_SOULBIND_CONDUIT: u32 = 281;
+    pub const SPELL_EFFECT_CONVERT_ITEMS_TO_CURRENCY: u32 = 282;
+    pub const SPELL_EFFECT_COMPLETE_CAMPAIGN: u32 = 283;
+    pub const SPELL_EFFECT_MODIFY_KEYSTONE_2: u32 = 285;
+    pub const SPELL_EFFECT_SET_GARRISON_FOLLOWER_LEVEL: u32 = 287;
+    pub const SPELL_EFFECT_CRAFT_ITEM: u32 = 288;
+    pub const SPELL_EFFECT_CRAFT_LOOT: u32 = 294;
+    pub const SPELL_EFFECT_SALVAGE_ITEM: u32 = 295;
+    pub const SPELL_EFFECT_CRAFT_SALVAGE_ITEM: u32 = 296;
+    pub const SPELL_EFFECT_RECRAFT_ITEM: u32 = 297;
+    pub const SPELL_EFFECT_CANCEL_ALL_PRIVATE_CONVERSATIONS: u32 = 298;
+    pub const SPELL_EFFECT_299: u32 = 299;
+    pub const SPELL_EFFECT_300: u32 = 300;
+    pub const SPELL_EFFECT_CRAFT_ENCHANT: u32 = 301;
+    pub const SPELL_EFFECT_GATHERING: u32 = 302;
+    pub const SPELL_EFFECT_305: u32 = 305;
+    pub const SPELL_EFFECT_UPDATE_INTERACTIONS: u32 = 306;
+    pub const SPELL_EFFECT_307: u32 = 307;
+    pub const SPELL_EFFECT_CANCEL_PRELOAD_WORLD: u32 = 308;
+    pub const SPELL_EFFECT_PRELOAD_WORLD: u32 = 309;
+    pub const SPELL_EFFECT_310: u32 = 310;
+    pub const SPELL_EFFECT_ENSURE_WORLD_LOADED: u32 = 311;
+    pub const SPELL_EFFECT_312: u32 = 312;
+    pub const SPELL_EFFECT_CHANGE_ITEM_BONUSES_2: u32 = 313;
+    pub const SPELL_EFFECT_ADD_SOCKET_BONUS: u32 = 314;
+    pub const SPELL_EFFECT_LEARN_TRANSMOG_APPEARANCE_FROM_ITEM_MOD_APPEARANCE_GROUP: u32 = 315;
 
     /// C++ dispatch entries that intentionally run `EffectNULL` or
     /// `EffectUnused` in `SpellEffects.cpp` for the represented early effect
@@ -259,6 +288,35 @@ pub mod spell_effect_types {
                 | SPELL_EFFECT_274
                 | SPELL_EFFECT_275
                 | SPELL_EFFECT_SET_CHROMIE_TIME
+                | SPELL_EFFECT_278
+                | SPELL_EFFECT_LEARN_GARR_TALENT
+                | SPELL_EFFECT_280
+                | SPELL_EFFECT_LEARN_SOULBIND_CONDUIT
+                | SPELL_EFFECT_CONVERT_ITEMS_TO_CURRENCY
+                | SPELL_EFFECT_COMPLETE_CAMPAIGN
+                | SPELL_EFFECT_MODIFY_KEYSTONE_2
+                | SPELL_EFFECT_SET_GARRISON_FOLLOWER_LEVEL
+                | SPELL_EFFECT_CRAFT_ITEM
+                | SPELL_EFFECT_CRAFT_LOOT
+                | SPELL_EFFECT_SALVAGE_ITEM
+                | SPELL_EFFECT_CRAFT_SALVAGE_ITEM
+                | SPELL_EFFECT_RECRAFT_ITEM
+                | SPELL_EFFECT_CANCEL_ALL_PRIVATE_CONVERSATIONS
+                | SPELL_EFFECT_299
+                | SPELL_EFFECT_300
+                | SPELL_EFFECT_CRAFT_ENCHANT
+                | SPELL_EFFECT_GATHERING
+                | SPELL_EFFECT_305
+                | SPELL_EFFECT_UPDATE_INTERACTIONS
+                | SPELL_EFFECT_307
+                | SPELL_EFFECT_CANCEL_PRELOAD_WORLD
+                | SPELL_EFFECT_PRELOAD_WORLD
+                | SPELL_EFFECT_310
+                | SPELL_EFFECT_ENSURE_WORLD_LOADED
+                | SPELL_EFFECT_312
+                | SPELL_EFFECT_CHANGE_ITEM_BONUSES_2
+                | SPELL_EFFECT_ADD_SOCKET_BONUS
+                | SPELL_EFFECT_LEARN_TRANSMOG_APPEARANCE_FROM_ITEM_MOD_APPEARANCE_GROUP
         )
     }
 }
@@ -1149,6 +1207,47 @@ mod tests {
         assert_eq!(spell_effect_types::SPELL_EFFECT_274, 274);
         assert_eq!(spell_effect_types::SPELL_EFFECT_275, 275);
         assert_eq!(spell_effect_types::SPELL_EFFECT_SET_CHROMIE_TIME, 277);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_278, 278);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_LEARN_GARR_TALENT, 279);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_280, 280);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_LEARN_SOULBIND_CONDUIT, 281);
+        assert_eq!(
+            spell_effect_types::SPELL_EFFECT_CONVERT_ITEMS_TO_CURRENCY,
+            282
+        );
+        assert_eq!(spell_effect_types::SPELL_EFFECT_COMPLETE_CAMPAIGN, 283);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_MODIFY_KEYSTONE_2, 285);
+        assert_eq!(
+            spell_effect_types::SPELL_EFFECT_SET_GARRISON_FOLLOWER_LEVEL,
+            287
+        );
+        assert_eq!(spell_effect_types::SPELL_EFFECT_CRAFT_ITEM, 288);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_CRAFT_LOOT, 294);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_SALVAGE_ITEM, 295);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_CRAFT_SALVAGE_ITEM, 296);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_RECRAFT_ITEM, 297);
+        assert_eq!(
+            spell_effect_types::SPELL_EFFECT_CANCEL_ALL_PRIVATE_CONVERSATIONS,
+            298
+        );
+        assert_eq!(spell_effect_types::SPELL_EFFECT_299, 299);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_300, 300);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_CRAFT_ENCHANT, 301);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_GATHERING, 302);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_305, 305);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_UPDATE_INTERACTIONS, 306);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_307, 307);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_CANCEL_PRELOAD_WORLD, 308);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_PRELOAD_WORLD, 309);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_310, 310);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_ENSURE_WORLD_LOADED, 311);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_312, 312);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_CHANGE_ITEM_BONUSES_2, 313);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_ADD_SOCKET_BONUS, 314);
+        assert_eq!(
+            spell_effect_types::SPELL_EFFECT_LEARN_TRANSMOG_APPEARANCE_FROM_ITEM_MOD_APPEARANCE_GROUP,
+            315
+        );
     }
 
     #[test]
@@ -1255,6 +1354,35 @@ mod tests {
             spell_effect_types::SPELL_EFFECT_274,
             spell_effect_types::SPELL_EFFECT_275,
             spell_effect_types::SPELL_EFFECT_SET_CHROMIE_TIME,
+            spell_effect_types::SPELL_EFFECT_278,
+            spell_effect_types::SPELL_EFFECT_LEARN_GARR_TALENT,
+            spell_effect_types::SPELL_EFFECT_280,
+            spell_effect_types::SPELL_EFFECT_LEARN_SOULBIND_CONDUIT,
+            spell_effect_types::SPELL_EFFECT_CONVERT_ITEMS_TO_CURRENCY,
+            spell_effect_types::SPELL_EFFECT_COMPLETE_CAMPAIGN,
+            spell_effect_types::SPELL_EFFECT_MODIFY_KEYSTONE_2,
+            spell_effect_types::SPELL_EFFECT_SET_GARRISON_FOLLOWER_LEVEL,
+            spell_effect_types::SPELL_EFFECT_CRAFT_ITEM,
+            spell_effect_types::SPELL_EFFECT_CRAFT_LOOT,
+            spell_effect_types::SPELL_EFFECT_SALVAGE_ITEM,
+            spell_effect_types::SPELL_EFFECT_CRAFT_SALVAGE_ITEM,
+            spell_effect_types::SPELL_EFFECT_RECRAFT_ITEM,
+            spell_effect_types::SPELL_EFFECT_CANCEL_ALL_PRIVATE_CONVERSATIONS,
+            spell_effect_types::SPELL_EFFECT_299,
+            spell_effect_types::SPELL_EFFECT_300,
+            spell_effect_types::SPELL_EFFECT_CRAFT_ENCHANT,
+            spell_effect_types::SPELL_EFFECT_GATHERING,
+            spell_effect_types::SPELL_EFFECT_305,
+            spell_effect_types::SPELL_EFFECT_UPDATE_INTERACTIONS,
+            spell_effect_types::SPELL_EFFECT_307,
+            spell_effect_types::SPELL_EFFECT_CANCEL_PRELOAD_WORLD,
+            spell_effect_types::SPELL_EFFECT_PRELOAD_WORLD,
+            spell_effect_types::SPELL_EFFECT_310,
+            spell_effect_types::SPELL_EFFECT_ENSURE_WORLD_LOADED,
+            spell_effect_types::SPELL_EFFECT_312,
+            spell_effect_types::SPELL_EFFECT_CHANGE_ITEM_BONUSES_2,
+            spell_effect_types::SPELL_EFFECT_ADD_SOCKET_BONUS,
+            spell_effect_types::SPELL_EFFECT_LEARN_TRANSMOG_APPEARANCE_FROM_ITEM_MOD_APPEARANCE_GROUP,
         ] {
             assert!(
                 spell_effect_types::is_cpp_null_or_unused_noop(effect),
@@ -1269,6 +1397,12 @@ mod tests {
         assert!(!spell_effect_types::is_cpp_null_or_unused_noop(
             spell_effect_types::SPELL_EFFECT_QUEST_COMPLETE
         ));
+        for real_handler_effect in [284, 286, 289, 290, 291, 292, 293, 303, 304] {
+            assert!(
+                !spell_effect_types::is_cpp_null_or_unused_noop(real_handler_effect),
+                "effect {real_handler_effect} has a real C++ dispatch handler in this range"
+            );
+        }
     }
 
     #[test]

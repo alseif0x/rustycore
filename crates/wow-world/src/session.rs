@@ -42845,6 +42845,8 @@ mod tests {
                     wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_PARTY_NONRANDOM,
                     wow_data::spell::spell_effect_types::SPELL_EFFECT_274,
                     wow_data::spell::spell_effect_types::SPELL_EFFECT_275,
+                    wow_data::spell::spell_effect_types::SPELL_EFFECT_280,
+                    wow_data::spell::spell_effect_types::SPELL_EFFECT_300,
                 ]
                 .into_iter()
                 .enumerate()
@@ -43134,6 +43136,122 @@ mod tests {
             (
                 819_i32,
                 wow_data::spell::spell_effect_types::SPELL_EFFECT_SET_CHROMIE_TIME,
+            ),
+            (
+                820_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_278,
+            ),
+            (
+                821_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_GARR_TALENT,
+            ),
+            (
+                822_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_280,
+            ),
+            (
+                823_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_SOULBIND_CONDUIT,
+            ),
+            (
+                824_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_CONVERT_ITEMS_TO_CURRENCY,
+            ),
+            (
+                825_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_COMPLETE_CAMPAIGN,
+            ),
+            (
+                826_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_MODIFY_KEYSTONE_2,
+            ),
+            (
+                827_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_SET_GARRISON_FOLLOWER_LEVEL,
+            ),
+            (
+                828_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_CRAFT_ITEM,
+            ),
+            (
+                829_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_CRAFT_LOOT,
+            ),
+            (
+                830_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_SALVAGE_ITEM,
+            ),
+            (
+                831_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_CRAFT_SALVAGE_ITEM,
+            ),
+            (
+                832_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_RECRAFT_ITEM,
+            ),
+            (
+                833_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_CANCEL_ALL_PRIVATE_CONVERSATIONS,
+            ),
+            (
+                834_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_299,
+            ),
+            (
+                835_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_300,
+            ),
+            (
+                836_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_CRAFT_ENCHANT,
+            ),
+            (
+                837_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_GATHERING,
+            ),
+            (
+                838_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_305,
+            ),
+            (
+                839_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_UPDATE_INTERACTIONS,
+            ),
+            (
+                840_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_307,
+            ),
+            (
+                841_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_CANCEL_PRELOAD_WORLD,
+            ),
+            (
+                842_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_PRELOAD_WORLD,
+            ),
+            (
+                843_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_310,
+            ),
+            (
+                844_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_ENSURE_WORLD_LOADED,
+            ),
+            (
+                845_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_312,
+            ),
+            (
+                846_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_CHANGE_ITEM_BONUSES_2,
+            ),
+            (
+                847_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_ADD_SOCKET_BONUS,
+            ),
+            (
+                848_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_TRANSMOG_APPEARANCE_FROM_ITEM_MOD_APPEARANCE_GROUP,
             ),
         ];
         for (spell_id, effect_type) in primary_noop_spells {
