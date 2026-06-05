@@ -23922,16 +23922,6 @@ impl WorldSession {
             .and_then(|store| store.get(spell_id))
             .cloned()
             .ok_or("Spell not found")?;
-        let mounted_aura_effect = spell_info
-            .effects()
-            .iter()
-            .find(|effect| effect.is_mounted_aura_like_cpp())
-            .cloned();
-        let provide_spell_focus_aura_effect = spell_info
-            .effects()
-            .iter()
-            .find(|effect| effect.is_provide_spell_focus_aura_like_cpp())
-            .cloned();
         let effect_type = spell_info.effect_type;
         let effect_base_points = spell_info.effect_base_points;
 
@@ -24147,19 +24137,27 @@ impl WorldSession {
             }
         }
 
-        // Aplicar efecto primario histórico para ramas representadas que aún no
-        // tienen un consumer per-effect completo.
-        match effect_type {
-            x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA => {
-                if let Some(effect) = mounted_aura_effect.as_ref() {
+        if !spell_info.effects().is_empty() {
+            for effect in spell_info.effects().iter().filter(|effect| {
+                effect.effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA
+            }) {
+                if effect.is_mounted_aura_like_cpp() {
                     self.apply_represented_mounted_aura_like_cpp(spell_id, player_guid, effect)?;
-                } else if let Some(effect) = provide_spell_focus_aura_effect.as_ref() {
+                } else if effect.is_provide_spell_focus_aura_like_cpp() {
                     self.apply_represented_provide_spell_focus_aura_like_cpp(
                         spell_id,
                         player_guid,
                         effect,
                     )?;
-                } else {
+                }
+            }
+        }
+
+        // Aplicar efecto primario histórico para ramas representadas que aún no
+        // tienen un consumer per-effect completo.
+        match effect_type {
+            x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA => {
+                if spell_info.effects().is_empty() {
                     self.apply_aura(spell_id, player_guid, 30000, 0x00000001)?;
                 }
             }
@@ -31629,6 +31627,69 @@ mod tests {
         assert!(
             update_object_packet_count_like_cpp(&packets) >= 1,
             "focus aura bypass should still trigger represented visibility create/update delivery"
+        );
+    }
+
+    #[tokio::test]
+    async fn represented_provide_spell_focus_aura_uses_spell_effect_row_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 725_i32;
+        let player_guid = ObjectGuid::create_player(1, 7030);
+        session.set_player_guid(Some(player_guid));
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 1,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_PROVIDE_SPELL_FOCUS,
+                    effect_misc_value_1: 181,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell_with_visual_and_target_data(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual {
+                    spell_visual_id: 725,
+                    script_visual_id: 0,
+                },
+                SpellTargetData::default(),
+            )
+            .await
+            .expect("represented apply-aura effect row should execute");
+
+        assert!(
+            session.has_represented_aura_effect_with_misc_value_like_cpp(
+                RepresentedAuraEffectLikeCpp::ProvideSpellFocus,
+                181
+            ),
+            "C++ HandleEffects dispatches SPELL_EFFECT_APPLY_AURA from SpellEffectInfo rows"
+        );
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert_eq!(
+            opcodes,
+            vec![
+                ServerOpcodes::SpellGo,
+                ServerOpcodes::AuraUpdate,
+                ServerOpcodes::CooldownEvent
+            ]
         );
     }
 
