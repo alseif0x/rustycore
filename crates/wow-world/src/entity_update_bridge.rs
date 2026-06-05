@@ -851,6 +851,8 @@ fn active_player_data_update_to_packet(
         .copy_from_slice(&update.values.inv_slots);
     packet_update.buyback_price = update.values.buyback_price;
     packet_update.buyback_timestamp = update.values.buyback_timestamp;
+    packet_update.toys = update.values.toys.clone();
+    packet_update.toys_update_mask = update.values.toys_update_mask.clone();
     packet_update.transmog = update.values.transmog.clone();
     packet_update.transmog_update_mask = update.values.transmog_update_mask.clone();
     packet_update.conditional_transmog = update.values.conditional_transmog.clone();
@@ -883,12 +885,12 @@ mod tests {
         ACTIVE_PLAYER_DATA_COINAGE_BIT, ACTIVE_PLAYER_DATA_HONOR_BIT,
         ACTIVE_PLAYER_DATA_HONOR_NEXT_LEVEL_BIT, ACTIVE_PLAYER_DATA_HONOR_PARENT_BIT,
         ACTIVE_PLAYER_DATA_PARENT_BIT, ACTIVE_PLAYER_DATA_QUEST_COMPLETED_FIRST_BIT,
-        ACTIVE_PLAYER_DATA_QUEST_COMPLETED_PARENT_BIT, ACTIVE_PLAYER_DATA_TRANSMOG_BIT,
-        ACTIVE_PLAYER_DATA_WATCHED_FACTION_INDEX_BIT, AREA_TRIGGER_DATA_DURATION_BIT,
-        AREA_TRIGGER_DATA_PARENT_BIT, Bag, CONTAINER_DATA_NUM_SLOTS_BIT,
-        CONVERSATION_DATA_LAST_LINE_END_TIME_BIT, CONVERSATION_DATA_PARENT_BIT,
-        CORPSE_DATA_DISPLAY_ID_BIT, CORPSE_DATA_PARENT_BIT, Corpse, CorpseType,
-        DYNAMIC_OBJECT_DATA_PARENT_BIT, DYNAMIC_OBJECT_DATA_RADIUS_BIT, DynamicObject,
+        ACTIVE_PLAYER_DATA_QUEST_COMPLETED_PARENT_BIT, ACTIVE_PLAYER_DATA_TOYS_BIT,
+        ACTIVE_PLAYER_DATA_TRANSMOG_BIT, ACTIVE_PLAYER_DATA_WATCHED_FACTION_INDEX_BIT,
+        AREA_TRIGGER_DATA_DURATION_BIT, AREA_TRIGGER_DATA_PARENT_BIT, Bag,
+        CONTAINER_DATA_NUM_SLOTS_BIT, CONVERSATION_DATA_LAST_LINE_END_TIME_BIT,
+        CONVERSATION_DATA_PARENT_BIT, CORPSE_DATA_DISPLAY_ID_BIT, CORPSE_DATA_PARENT_BIT, Corpse,
+        CorpseType, DYNAMIC_OBJECT_DATA_PARENT_BIT, DYNAMIC_OBJECT_DATA_RADIUS_BIT, DynamicObject,
         GAME_OBJECT_DATA_CREATED_BY_BIT, GAME_OBJECT_DATA_DISPLAY_ID_BIT,
         GAME_OBJECT_DATA_PARENT_BIT, GameObject, ITEM_DATA_STACK_COUNT_BIT, Item,
         PLAYER_DATA_FLAGS_BIT, PLAYER_DATA_HONOR_LEVEL_BIT, PLAYER_DATA_PARENT_BIT, Player,
@@ -978,6 +980,29 @@ mod tests {
         ));
         assert_eq!(active.honor, 1_234);
         assert_eq!(active.honor_next_level, 8_800);
+    }
+
+    #[test]
+    fn bridges_active_player_toys_dynamic_field_like_cpp() {
+        let mut player = Player::new(Some(7), true);
+        player.clear_data_changes();
+
+        player.add_toy_like_cpp(30_000);
+
+        let update = player.values_update(true);
+        let packet_update = player_values_update_to_packet(&update).unwrap();
+        let active = packet_update.active_player_data.unwrap();
+
+        assert!(mask_has(
+            &active.active_player_data_mask,
+            ACTIVE_PLAYER_DATA_PARENT_BIT
+        ));
+        assert!(mask_has(
+            &active.active_player_data_mask,
+            ACTIVE_PLAYER_DATA_TOYS_BIT
+        ));
+        assert_eq!(active.toys, vec![30_000]);
+        assert_eq!(active.toys_update_mask, Some(vec![1]));
     }
 
     #[test]

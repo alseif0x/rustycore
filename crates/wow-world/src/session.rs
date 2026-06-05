@@ -8411,6 +8411,19 @@ impl WorldSession {
         true
     }
 
+    /// C++ `Player::AddToy`, called from `CollectionMgr::AddToy` after the
+    /// account collection accepts a new toy.
+    pub(crate) fn add_player_toy_dynamic_field_like_cpp(
+        &mut self,
+        item_id: u32,
+    ) -> Option<wow_entities::PlayerValuesUpdate> {
+        let item_id = i32::try_from(item_id).ok()?;
+        self.mutate_canonical_player_like_cpp(|player| {
+            player.add_toy_like_cpp(item_id);
+            player.values_update(true)
+        })
+    }
+
     /// C++ `CollectionMgr::ToyClearFanfare`.
     pub(crate) fn toy_clear_fanfare_like_cpp(&mut self, item_id: u32) -> bool {
         let Some(flags) = self.represented_account_toys_like_cpp.get_mut(&item_id) else {

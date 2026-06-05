@@ -678,6 +678,7 @@ pub const ACTIVE_PLAYER_DATA_COINAGE_BIT: usize = 28;
 pub const ACTIVE_PLAYER_DATA_XP_BIT: usize = 29;
 pub const ACTIVE_PLAYER_DATA_NEXT_LEVEL_XP_BIT: usize = 30;
 pub const ACTIVE_PLAYER_DATA_CHARACTER_POINTS_BIT: usize = 33;
+pub const ACTIVE_PLAYER_DATA_TOYS_BIT: usize = 9;
 pub const ACTIVE_PLAYER_DATA_TRANSMOG_BIT: usize = 10;
 pub const ACTIVE_PLAYER_DATA_CONDITIONAL_TRANSMOG_BIT: usize = 11;
 pub const ACTIVE_PLAYER_DATA_HONOR_PARENT_BIT: usize = 102;
@@ -2747,6 +2748,8 @@ pub struct ActivePlayerDataValues {
     pub inv_slots: [ObjectGuid; PLAYER_SLOT_END],
     pub buyback_price: [u32; BUYBACK_SLOT_COUNT],
     pub buyback_timestamp: [i64; BUYBACK_SLOT_COUNT],
+    pub toys: Vec<i32>,
+    pub toys_update_mask: Option<Vec<u32>>,
     pub transmog: Vec<u32>,
     pub transmog_update_mask: Option<Vec<u32>>,
     pub conditional_transmog: Vec<i32>,
@@ -2769,6 +2772,8 @@ impl Default for ActivePlayerDataValues {
             inv_slots: [ObjectGuid::EMPTY; PLAYER_SLOT_END],
             buyback_price: [0; BUYBACK_SLOT_COUNT],
             buyback_timestamp: [0; BUYBACK_SLOT_COUNT],
+            toys: Vec::new(),
+            toys_update_mask: None,
             transmog: Vec::new(),
             transmog_update_mask: None,
             conditional_transmog: Vec::new(),
@@ -6908,6 +6913,19 @@ impl Player {
             ACTIVE_PLAYER_DATA_BUYBACK_TIMESTAMP_FIRST_BIT,
             slot,
         );
+    }
+
+    /// C++ `Player::AddToy`.
+    pub fn add_toy_like_cpp(&mut self, item_id: i32) -> usize {
+        let index = self.active_data.toys.len();
+        self.active_data.toys.push(item_id);
+        Self::set_dynamic_update_mask_index(&mut self.active_data.toys_update_mask, index);
+        self.mark_active_player_data(ACTIVE_PLAYER_DATA_TOYS_BIT);
+        index
+    }
+
+    pub fn toys_like_cpp(&self) -> &[i32] {
+        &self.active_data.toys
     }
 
     /// C++ `Player::AddTransmogBlock`.
@@ -12414,6 +12432,30 @@ mod tests {
             (1 << TYPEID_PLAYER) | (1 << TYPEID_ACTIVE_PLAYER)
         );
         assert!(self_view.active_player_data.is_some());
+    }
+
+    #[test]
+    fn add_toy_marks_active_player_toys_dynamic_field_like_cpp() {
+        let mut player = Player::new(None, false);
+        player.clear_active_player_data_changes();
+
+        assert_eq!(player.add_toy_like_cpp(30_000), 0);
+        assert_eq!(player.toys_like_cpp(), &[30_000]);
+        assert!(
+            player
+                .active_player_data_changes_mask()
+                .is_set(ACTIVE_PLAYER_DATA_PARENT_BIT)
+        );
+        assert!(
+            player
+                .active_player_data_changes_mask()
+                .is_set(ACTIVE_PLAYER_DATA_TOYS_BIT)
+        );
+        assert_eq!(player.active_data().toys_update_mask, Some(vec![1]));
+
+        assert_eq!(player.add_toy_like_cpp(30_001), 1);
+        assert_eq!(player.toys_like_cpp(), &[30_000, 30_001]);
+        assert_eq!(player.active_data().toys_update_mask, Some(vec![3]));
     }
 
     #[test]

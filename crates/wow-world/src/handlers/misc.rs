@@ -44,6 +44,7 @@ use wow_packet::packets::reputation::{
 };
 use wow_packet::packets::spell::{CastFailed, SpellCastVisual, SpellPreparePkt, SpellStartPkt};
 
+use crate::entity_update_bridge::player_values_update_to_update_object;
 use crate::handlers::loot::represented_gameobject_interaction_distance_like_cpp;
 use crate::session::{
     CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP, RepresentedGameObjectAccessLikeCpp,
@@ -1037,11 +1038,9 @@ impl crate::session::WorldSession {
     ///
     /// C++ ref: `WorldSession::HandleAddToy` validates the item guid, checks
     /// `sDB2Manager.IsToyItem(item->GetEntry())`, calls
-    /// `CollectionMgr::AddToy(item->GetEntry(), false, false)`, then destroys
-    /// the item only when the account toy was newly inserted. Rust still lacks
-    /// the live `Player::AddToy` dynamic-field bridge, so this handler updates
-    /// the represented account collection and consumes the item without claiming
-    /// full client-field parity.
+    /// `CollectionMgr::AddToy(item->GetEntry(), false, false)`, which inserts
+    /// the account row and calls `Player::AddToy`, then destroys the item only
+    /// when the account toy was newly inserted.
     pub async fn handle_add_toy(&mut self, mut pkt: wow_packet::WorldPacket) {
         let request = match AddToy::read(&mut pkt) {
             Ok(request) => request,
@@ -1087,6 +1086,17 @@ impl crate::session::WorldSession {
             .destroy_inventory_full_stack_by_pos_like_cpp(bag, slot, item, runtime_item, "AddToy")
             .await
         {
+            if let Some(update) = self.add_player_toy_dynamic_field_like_cpp(destroyed_entry_id) {
+                if let Some(guid) = self.player_guid() {
+                    if let Some(packet) = player_values_update_to_update_object(
+                        guid,
+                        self.player_map_id_like_cpp(),
+                        &update,
+                    ) {
+                        self.send_packet(&packet);
+                    }
+                }
+            }
             info!(
                 "Added toy item={} from bag {} slot {} for account {}",
                 destroyed_entry_id, bag, slot, self.account_id
@@ -2076,7 +2086,7 @@ impl crate::session::WorldSession {
 mod tests {
     use super::*;
     use std::collections::HashSet;
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex};
     use wow_constants::{ClientOpcodes, ServerOpcodes};
     use wow_core::{ObjectGuid, Position};
     use wow_data::progression_rewards::{FactionEntry, FactionStore};
@@ -2256,6 +2266,37 @@ mod tests {
                 [],
             ),
         ));
+    }
+
+    fn shared_canonical_map_manager_for_misc_test() -> crate::session::SharedCanonicalMapManager {
+        Arc::new(Mutex::new(wow_map::MapManager::default()))
+    }
+
+    fn add_canonical_test_player_on_map_for_misc_test(
+        canonical: &crate::session::SharedCanonicalMapManager,
+        guid: ObjectGuid,
+        position: Position,
+        map_id: u32,
+        instance_id: u32,
+    ) {
+        let mut player = wow_entities::Player::new(Some(1), false);
+        player.unit_mut().world_mut().object_mut().create(guid);
+        player.unit_mut().world_mut().set_name("ToyDynamicTester");
+        player
+            .unit_mut()
+            .world_mut()
+            .set_map(map_id, instance_id)
+            .unwrap();
+        player.unit_mut().world_mut().relocate(position);
+        player.unit_mut().world_mut().object_mut().add_to_world();
+
+        canonical
+            .lock()
+            .unwrap()
+            .create_world_map(map_id, instance_id)
+            .map_mut()
+            .insert_map_object_record(wow_entities::MapObjectRecord::new_player(player).unwrap())
+            .unwrap();
     }
 
     #[tokio::test]
@@ -2660,6 +2701,160 @@ mod tests {
             .to_bytes()
         );
         assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn add_toy_rolls_back_without_player_toys_update_when_destroy_fails_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager_for_misc_test();
+        let player_guid = ObjectGuid::create_player(1, 55);
+        let toy_guid = ObjectGuid::create_item(1, 1_003);
+        let toy_slot = 5;
+        let toy_item_id = 30_000_u32;
+        let toy_item_id_i32 = i32::try_from(toy_item_id).unwrap();
+        let player_position = Position::new(10.0, 0.0, 0.0, 0.0);
+
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(crate::session::SessionPlayerController::new(
+            player_guid,
+            "ToyDynamicTester".to_string(),
+            player_position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map_for_misc_test(
+            &canonical,
+            player_guid,
+            player_position,
+            571,
+            0,
+        );
+        session.mutate_canonical_player_like_cpp(|player| player.clear_data_changes());
+        install_add_toy_item_templates(&mut session, toy_item_id, 0);
+        session.set_toy_store(Arc::new(wow_data::ToyStore::from_entries([
+            wow_data::ToyEntry {
+                id: 1,
+                source_text: "known".to_string(),
+                item_id: toy_item_id_i32,
+                flags: 0,
+                source_type_enum: 0,
+            },
+        ])));
+        session.insert_inventory_item_like_cpp(
+            toy_slot,
+            crate::session::InventoryItem {
+                guid: toy_guid,
+                entry_id: toy_item_id,
+                db_guid: toy_guid.counter() as u64,
+                inventory_type: Some(wow_constants::InventoryType::NonEquip as u8),
+            },
+        );
+        let toy_item = session.make_inventory_item_object(
+            toy_guid,
+            toy_item_id,
+            player_guid,
+            1,
+            0,
+            wow_constants::ItemContext::None,
+            toy_slot,
+        );
+        session.insert_inventory_item_object(toy_item);
+
+        let (_, _, preflight_item) = session
+            .get_inventory_item_by_guid_like_cpp(toy_guid)
+            .expect("toy item guid should resolve before AddToy");
+        assert!(session.is_toy_item_like_cpp(preflight_item.entry_id));
+        let runtime_item = session
+            .inventory_item_objects_like_cpp()
+            .get(&preflight_item.guid)
+            .cloned();
+        assert_eq!(
+            session.can_use_inventory_item_represented_like_cpp(
+                &preflight_item,
+                runtime_item.as_ref()
+            ),
+            InventoryResult::Ok
+        );
+
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(ClientOpcodes::AddToy as u16);
+        pkt.write_packed_guid(&toy_guid);
+
+        session.handle_add_toy(pkt).await;
+
+        let first_packet = send_rx.try_recv().ok();
+        assert!(session.account_toy_rows_like_cpp().is_empty());
+        assert_eq!(
+            session
+                .mutate_canonical_player_like_cpp(|player| player.toys_like_cpp().to_vec())
+                .unwrap(),
+            Vec::<i32>::new()
+        );
+        assert!(
+            first_packet.is_none(),
+            "first sent packet: {:?}",
+            first_packet
+        );
+    }
+
+    #[tokio::test]
+    async fn add_player_toy_dynamic_field_sends_update_object_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager_for_misc_test();
+        let player_guid = ObjectGuid::create_player(1, 56);
+        let toy_item_id = 30_000_u32;
+        let toy_item_id_i32 = i32::try_from(toy_item_id).unwrap();
+        let player_position = Position::new(10.0, 0.0, 0.0, 0.0);
+
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(crate::session::SessionPlayerController::new(
+            player_guid,
+            "ToyDynamicTester".to_string(),
+            player_position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map_for_misc_test(
+            &canonical,
+            player_guid,
+            player_position,
+            571,
+            0,
+        );
+        session.mutate_canonical_player_like_cpp(|player| player.clear_data_changes());
+
+        let update = session
+            .add_player_toy_dynamic_field_like_cpp(toy_item_id)
+            .expect("canonical current player should receive Player::AddToy dynamic field");
+        if let Some(packet) = player_values_update_to_update_object(
+            player_guid,
+            session.player_map_id_like_cpp(),
+            &update,
+        ) {
+            session.send_packet(&packet);
+        }
+
+        assert_eq!(
+            session
+                .mutate_canonical_player_like_cpp(|player| player.toys_like_cpp().to_vec())
+                .unwrap(),
+            vec![toy_item_id_i32]
+        );
+        let update_packet = send_rx.try_recv().expect("Player::AddToy values update");
+        assert_eq!(
+            u16::from_le_bytes([update_packet[0], update_packet[1]]),
+            ServerOpcodes::UpdateObject as u16
+        );
     }
 
     fn collection_item_set_favorite_packet(
