@@ -8328,6 +8328,52 @@ impl WorldSession {
         })
     }
 
+    /// C++ `CollectionMgr::UpgradeHeirloom`.
+    pub(crate) fn upgrade_account_heirloom_like_cpp(
+        &mut self,
+        item_id: u32,
+        cast_item: i32,
+    ) -> Option<wow_entities::PlayerValuesUpdate> {
+        let heirloom = self
+            .heirloom_store
+            .as_ref()?
+            .get_by_item_id_like_cpp(item_id)?
+            .clone();
+        let current_flags = self
+            .represented_account_heirlooms_like_cpp
+            .get(&item_id)?
+            .flags;
+        let active_item_id = i32::try_from(item_id).ok()?;
+        let active_offset = self.mutate_canonical_player_like_cpp(|player| {
+            player
+                .heirlooms_like_cpp()
+                .iter()
+                .position(|&heirloom_item_id| heirloom_item_id == active_item_id)
+        })??;
+
+        let mut flags = current_flags;
+        let mut bonus_id = 0_u32;
+        for (upgrade_level, &upgrade_item_id) in heirloom.upgrade_item_id.iter().enumerate() {
+            if upgrade_item_id == cast_item {
+                flags |= 1_u32 << upgrade_level;
+                bonus_id = u32::from(heirloom.upgrade_item_bonus_list_id[upgrade_level]);
+            }
+        }
+
+        let update = self.mutate_canonical_player_like_cpp(|player| {
+            player
+                .set_heirloom_flags_like_cpp(active_offset, flags)
+                .then(|| player.values_update(true))
+        })??;
+
+        let data = self
+            .represented_account_heirlooms_like_cpp
+            .get_mut(&item_id)?;
+        data.flags = flags;
+        data.bonus_id = bonus_id;
+        Some(update)
+    }
+
     /// C++ `CollectionMgr::LoadAccountToys`.
     pub(crate) fn load_represented_account_toys_like_cpp(
         &mut self,
@@ -51539,6 +51585,81 @@ mod tests {
                 .mask
                 .is_set(wow_entities::ACTIVE_PLAYER_DATA_HEIRLOOM_FLAGS_BIT)
         );
+    }
+
+    #[test]
+    fn upgrade_account_heirloom_updates_flags_bonus_and_active_player_field_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 78);
+        let player_position = Position::new(10.0, 0.0, 0.0, 0.0);
+
+        session.set_heirloom_store(Arc::new(HeirloomStore::from_entries([HeirloomEntry {
+            id: 1,
+            source_text: "known".to_string(),
+            item_id: 44_000,
+            legacy_upgraded_item_id: 0,
+            static_upgraded_item_id: 0,
+            source_type_enum: 0,
+            flags: 0,
+            legacy_item_id: 0,
+            upgrade_item_id: [90_001, 90_002, 0, 0, 0, 0],
+            upgrade_item_bonus_list_id: [101, 202, 0, 0, 0, 0],
+        }])));
+        session.load_represented_account_heirlooms_like_cpp([(44_000, 0x01)]);
+
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
+        session
+            .add_player_heirloom_dynamic_fields_like_cpp(44_000, 0x01)
+            .unwrap();
+        session.mutate_canonical_player_like_cpp(|player| player.clear_data_changes());
+
+        let update = session
+            .upgrade_account_heirloom_like_cpp(44_000, 90_002)
+            .expect("known owned heirloom should upgrade");
+
+        assert_eq!(
+            session.account_heirloom_rows_like_cpp(),
+            vec![(44_000, 0x03)]
+        );
+        assert_eq!(session.account_heirloom_bonus_like_cpp(44_000), 202);
+        assert_eq!(
+            session
+                .mutate_canonical_player_like_cpp(|player| {
+                    (
+                        player.heirlooms_like_cpp().to_vec(),
+                        player.heirloom_flags_like_cpp().to_vec(),
+                    )
+                })
+                .unwrap(),
+            (vec![44_000], vec![0x03])
+        );
+        let active_update = update.active_player_data.as_ref().unwrap();
+        assert!(
+            !active_update
+                .mask
+                .is_set(wow_entities::ACTIVE_PLAYER_DATA_HEIRLOOMS_BIT)
+        );
+        assert!(
+            active_update
+                .mask
+                .is_set(wow_entities::ACTIVE_PLAYER_DATA_HEIRLOOM_FLAGS_BIT)
+        );
+
+        session.mutate_canonical_player_like_cpp(|player| player.clear_data_changes());
+        assert!(
+            session
+                .upgrade_account_heirloom_like_cpp(44_000, 123_456)
+                .is_some()
+        );
+        assert_eq!(
+            session.account_heirloom_rows_like_cpp(),
+            vec![(44_000, 0x03)]
+        );
+        assert_eq!(session.account_heirloom_bonus_like_cpp(44_000), 0);
     }
 
     #[test]
