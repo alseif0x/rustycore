@@ -1187,6 +1187,25 @@ impl ServerPacket for BindPointUpdate {
     }
 }
 
+// ── PlayerBound (SMSG 0x2ff8) ───────────────────────────────────────
+
+/// Sent after the player's home bind has changed.
+///
+/// C++ `WorldPackets::Misc::PlayerBound::Write`: ObjectGuid stream + uint32 AreaID.
+pub struct PlayerBound {
+    pub binder_id: wow_core::ObjectGuid,
+    pub area_id: u32,
+}
+
+impl ServerPacket for PlayerBound {
+    const OPCODE: ServerOpcodes = ServerOpcodes::PlayerBound;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_packed_guid(&self.binder_id);
+        pkt.write_uint32(self.area_id);
+    }
+}
+
 // ── WorldServerInfo (SMSG 0x25ad) ───────────────────────────────────
 
 /// World server info sent during login.
@@ -3166,6 +3185,24 @@ mod tests {
         assert_eq!(bytes.len(), 22);
         let opcode = u16::from_le_bytes([bytes[0], bytes[1]]);
         assert_eq!(opcode, 0x257d);
+    }
+
+    #[test]
+    fn player_bound_serializes_packed_guid_and_area_like_cpp() {
+        let binder_id = wow_core::ObjectGuid::new(0x0102_0304_0506_0708, 0x1112_1314_1516_1718);
+        let pkt = PlayerBound {
+            binder_id,
+            area_id: 42,
+        };
+
+        let bytes = pkt.to_bytes();
+        let opcode = u16::from_le_bytes([bytes[0], bytes[1]]);
+        assert_eq!(opcode, 0x2ff8);
+
+        let mut payload = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(payload.read_packed_guid().unwrap(), binder_id);
+        assert_eq!(payload.read_uint32().unwrap(), 42);
+        assert_eq!(payload.remaining(), 0);
     }
 
     #[test]
