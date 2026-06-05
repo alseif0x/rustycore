@@ -23,7 +23,7 @@ use wow_entities::{
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
 use wow_packet::ClientPacket;
 use wow_packet::packets::collection::{
-    COLLECTION_TYPE_APPEARANCE_LIKE_CPP, CollectionItemSetFavorite,
+    COLLECTION_TYPE_APPEARANCE_LIKE_CPP, COLLECTION_TYPE_TOYBOX_LIKE_CPP, CollectionItemSetFavorite,
 };
 use wow_packet::packets::instance::{
     InstanceInfo, InstanceLockInfo, InstanceLockResponse, InstanceReset, InstanceResetFailed,
@@ -819,11 +819,13 @@ impl crate::session::WorldSession {
         self.mount_set_favorite_like_cpp(request.mount_spell_id, request.is_favorite);
     }
 
-    /// CMSG_COLLECTION_ITEM_SET_FAVORITE — toggle favorite state for a collected appearance.
+    /// CMSG_COLLECTION_ITEM_SET_FAVORITE — toggle favorite state for supported collections.
     ///
-    /// C++ ref: `WorldSession::HandleCollectionItemSetFavorite` only forwards
-    /// appearance favorites when `CollectionMgr::HasItemAppearance(id)` returns a
-    /// permanent appearance; temporary appearances and unknown ids are ignored.
+    /// C++ ref: `WorldSession::HandleCollectionItemSetFavorite` forwards TOYBOX
+    /// ids to `CollectionMgr::ToySetFavorite`, and only forwards APPEARANCE ids
+    /// when `CollectionMgr::HasItemAppearance(id)` returns a permanent
+    /// appearance. Temporary appearances, unknown ids, and unsupported collection
+    /// types are ignored.
     pub async fn handle_collection_item_set_favorite(&mut self, mut pkt: wow_packet::WorldPacket) {
         let request = match CollectionItemSetFavorite::read(&mut pkt) {
             Ok(request) => request,
@@ -836,16 +838,20 @@ impl crate::session::WorldSession {
             }
         };
 
-        if request.collection_type != COLLECTION_TYPE_APPEARANCE_LIKE_CPP {
-            return;
-        }
+        match request.collection_type {
+            COLLECTION_TYPE_TOYBOX_LIKE_CPP => {
+                self.toy_set_favorite_like_cpp(request.id, request.is_favorite);
+            }
+            COLLECTION_TYPE_APPEARANCE_LIKE_CPP => {
+                let (has_appearance, is_temporary) = self.has_item_appearance_like_cpp(request.id);
+                if !has_appearance || is_temporary {
+                    return;
+                }
 
-        let (has_appearance, is_temporary) = self.has_item_appearance_like_cpp(request.id);
-        if !has_appearance || is_temporary {
-            return;
+                self.set_appearance_is_favorite_like_cpp(request.id, request.is_favorite);
+            }
+            _ => {}
         }
-
-        self.set_appearance_is_favorite_like_cpp(request.id, request.is_favorite);
     }
 
     /// CMSG_MOUNT_CLEAR_FANFARE — C++ currently logs only.
@@ -2426,6 +2432,42 @@ mod tests {
         assert_eq!(u32::from_le_bytes(bytes[3..7].try_into().unwrap()), 1);
         assert_eq!(u32::from_le_bytes(bytes[7..11].try_into().unwrap()), 0);
         assert_eq!(u32::from_le_bytes(bytes[11..15].try_into().unwrap()), 65);
+    }
+
+    #[tokio::test]
+    async fn collection_item_set_favorite_toggles_known_toy_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        session.load_represented_account_toys_like_cpp([(30_000, false, true)]);
+
+        session
+            .handle_collection_item_set_favorite(collection_item_set_favorite_packet(
+                COLLECTION_TYPE_TOYBOX_LIKE_CPP,
+                30_000,
+                true,
+            ))
+            .await;
+
+        assert_eq!(
+            session.account_toy_rows_like_cpp(),
+            vec![(30_000, true, true)]
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn collection_item_set_favorite_ignores_unknown_toy_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_collection_item_set_favorite(collection_item_set_favorite_packet(
+                COLLECTION_TYPE_TOYBOX_LIKE_CPP,
+                40_000,
+                true,
+            ))
+            .await;
+
+        assert!(session.account_toy_rows_like_cpp().is_empty());
+        assert!(send_rx.try_recv().is_err());
     }
 
     #[tokio::test]

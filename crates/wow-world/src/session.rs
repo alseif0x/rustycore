@@ -8421,6 +8421,20 @@ impl WorldSession {
         true
     }
 
+    /// C++ `CollectionMgr::ToySetFavorite`.
+    pub(crate) fn toy_set_favorite_like_cpp(&mut self, item_id: u32, favorite: bool) -> bool {
+        let Some(flags) = self.represented_account_toys_like_cpp.get_mut(&item_id) else {
+            return false;
+        };
+
+        if favorite {
+            *flags |= TOY_FLAG_FAVORITE_LIKE_CPP;
+        } else {
+            *flags &= !TOY_FLAG_FAVORITE_LIKE_CPP;
+        }
+        true
+    }
+
     /// C++ `CollectionMgr::LoadAccountItemAppearances`.
     pub(crate) fn load_represented_account_item_appearances_like_cpp(
         &mut self,
@@ -51250,6 +51264,25 @@ mod tests {
         assert_eq!(
             session.account_toy_rows_like_cpp(),
             vec![(30_000, true, false), (30_001, false, true)]
+        );
+    }
+
+    #[test]
+    fn toy_set_favorite_toggles_known_toy_only_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.load_represented_account_toys_like_cpp([(30_000, false, true)]);
+
+        assert!(session.toy_set_favorite_like_cpp(30_000, true));
+        assert_eq!(
+            session.account_toy_rows_like_cpp(),
+            vec![(30_000, true, true)]
+        );
+
+        assert!(session.toy_set_favorite_like_cpp(30_000, false));
+        assert!(!session.toy_set_favorite_like_cpp(40_000, true));
+        assert_eq!(
+            session.account_toy_rows_like_cpp(),
+            vec![(30_000, false, true)]
         );
     }
 
