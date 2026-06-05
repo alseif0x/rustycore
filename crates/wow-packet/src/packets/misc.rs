@@ -1663,6 +1663,23 @@ impl ServerPacket for AuraUpdate {
 
 // ── BattlePetJournalLockAcquired (SMSG 0x25ed) ──────────────────────
 
+/// C++ `WorldPackets::BattlePet::BattlePetClearFanfare`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BattlePetClearFanfare {
+    pub pet_guid: ObjectGuid,
+}
+
+impl ClientPacket for BattlePetClearFanfare {
+    const OPCODE: ClientOpcodes = ClientOpcodes::BattlePetClearFanfare;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        pkt.skip_opcode();
+        Ok(Self {
+            pet_guid: pkt.read_packed_guid()?,
+        })
+    }
+}
+
 /// Tells the client that the battle pet journal lock has been acquired.
 /// Empty packet (opcode only, no payload).
 pub struct BattlePetJournalLockAcquired;
@@ -3704,6 +3721,17 @@ mod tests {
         assert_eq!(bytes.len(), 2);
         let opcode = u16::from_le_bytes([bytes[0], bytes[1]]);
         assert_eq!(opcode, 0x25ed);
+    }
+
+    #[test]
+    fn battle_pet_clear_fanfare_reads_packed_guid_like_cpp() {
+        let pet_guid = ObjectGuid::new(0, 0x4321);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(ClientOpcodes::BattlePetClearFanfare as u16);
+        pkt.write_packed_guid(&pet_guid);
+
+        let decoded = BattlePetClearFanfare::read(&mut pkt).unwrap();
+        assert_eq!(decoded.pet_guid, pet_guid);
     }
 
     #[test]

@@ -1477,6 +1477,21 @@ const DEFAULT_TRANSMOG_ILLUSIONS_LIKE_CPP: [u32; 7] = [
     44, // Titanguard
 ];
 
+pub(crate) const BATTLE_PET_FLAG_FANFARE_NEEDED_LIKE_CPP: u16 = 0x01;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RepresentedBattlePetSaveInfoLikeCpp {
+    New,
+    Changed,
+    Unchanged,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedBattlePetDataLikeCpp {
+    pub(crate) flags: u16,
+    pub(crate) save_info: RepresentedBattlePetSaveInfoLikeCpp,
+}
+
 fn heirloom_bonus_for_flags_like_cpp(heirloom: &HeirloomEntry, flags: u32) -> u32 {
     for upgrade_level in (0..heirloom.upgrade_item_id.len()).rev() {
         if flags & (1_u32 << upgrade_level) != 0 {
@@ -2687,6 +2702,9 @@ pub struct WorldSession {
         HashMap<u32, FavoriteAppearanceStateLikeCpp>,
     /// C++ `CollectionMgr::_transmogIllusions`, represented until account collection runtime is complete.
     pub(crate) represented_transmog_illusions_like_cpp: HashSet<u32>,
+    /// C++ `BattlePetMgr::_pets`, represented minimally until full battle-pet runtime is ported.
+    pub(crate) represented_battle_pets_like_cpp:
+        HashMap<ObjectGuid, RepresentedBattlePetDataLikeCpp>,
     /// Session-local evidence for represented `Player::RemoveTimedQuest` calls.
     pub(crate) represented_timed_quest_removals_like_cpp: Vec<u32>,
     /// Session-local evidence for represented quest reward `Player::UpdateSkillPro` calls.
@@ -3576,6 +3594,7 @@ impl WorldSession {
             represented_temporary_item_appearances_like_cpp: HashMap::new(),
             represented_favorite_item_appearances_like_cpp: HashMap::new(),
             represented_transmog_illusions_like_cpp: HashSet::new(),
+            represented_battle_pets_like_cpp: HashMap::new(),
             represented_timed_quest_removals_like_cpp: Vec::new(),
             represented_quest_reward_skill_updates_like_cpp: Vec::new(),
             represented_quest_reward_spell_casts_like_cpp: Vec::new(),
@@ -15566,6 +15585,9 @@ impl WorldSession {
             ClientOpcodes::BattlePetRequestJournal => {
                 self.handle_battle_pet_request_journal(pkt).await;
             }
+            ClientOpcodes::BattlePetClearFanfare => {
+                self.handle_battle_pet_clear_fanfare(pkt).await;
+            }
             ClientOpcodes::ArenaTeamRoster => {
                 self.handle_arena_team_roster(pkt).await;
             }
@@ -17749,6 +17771,41 @@ impl WorldSession {
         }
 
         true
+    }
+
+    /// Test/setup seam for represented `BattlePetMgr::_pets`.
+    pub(crate) fn add_represented_battle_pet_like_cpp(
+        &mut self,
+        pet_guid: ObjectGuid,
+        flags: u16,
+        save_info: RepresentedBattlePetSaveInfoLikeCpp,
+    ) {
+        self.represented_battle_pets_like_cpp.insert(
+            pet_guid,
+            RepresentedBattlePetDataLikeCpp { flags, save_info },
+        );
+    }
+
+    /// C++ `BattlePetMgr::ClearFanfare`.
+    pub(crate) fn battle_pet_clear_fanfare_like_cpp(&mut self, pet_guid: ObjectGuid) -> bool {
+        let Some(pet) = self.represented_battle_pets_like_cpp.get_mut(&pet_guid) else {
+            return false;
+        };
+
+        pet.flags &= !BATTLE_PET_FLAG_FANFARE_NEEDED_LIKE_CPP;
+        if pet.save_info != RepresentedBattlePetSaveInfoLikeCpp::New {
+            pet.save_info = RepresentedBattlePetSaveInfoLikeCpp::Changed;
+        }
+        true
+    }
+
+    pub(crate) fn represented_battle_pet_like_cpp(
+        &self,
+        pet_guid: ObjectGuid,
+    ) -> Option<RepresentedBattlePetDataLikeCpp> {
+        self.represented_battle_pets_like_cpp
+            .get(&pet_guid)
+            .copied()
     }
 
     pub(crate) fn represented_player_reject_battleground_object_vehicle_like_cpp(
@@ -52384,6 +52441,44 @@ mod tests {
         assert_eq!(
             session.account_toy_rows_like_cpp(),
             vec![(30_000, true, false), (30_001, false, true)]
+        );
+    }
+
+    #[test]
+    fn battle_pet_clear_fanfare_clears_known_pet_only_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let pet_guid = ObjectGuid::new(0, 0x123);
+        let new_pet_guid = ObjectGuid::new(0, 0x124);
+        let unknown_guid = ObjectGuid::new(0, 0x125);
+
+        session.add_represented_battle_pet_like_cpp(
+            pet_guid,
+            BATTLE_PET_FLAG_FANFARE_NEEDED_LIKE_CPP | 0x10,
+            RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+        );
+        session.add_represented_battle_pet_like_cpp(
+            new_pet_guid,
+            BATTLE_PET_FLAG_FANFARE_NEEDED_LIKE_CPP,
+            RepresentedBattlePetSaveInfoLikeCpp::New,
+        );
+
+        assert!(session.battle_pet_clear_fanfare_like_cpp(pet_guid));
+        assert!(session.battle_pet_clear_fanfare_like_cpp(new_pet_guid));
+        assert!(!session.battle_pet_clear_fanfare_like_cpp(unknown_guid));
+
+        assert_eq!(
+            session.represented_battle_pet_like_cpp(pet_guid),
+            Some(RepresentedBattlePetDataLikeCpp {
+                flags: 0x10,
+                save_info: RepresentedBattlePetSaveInfoLikeCpp::Changed,
+            })
+        );
+        assert_eq!(
+            session.represented_battle_pet_like_cpp(new_pet_guid),
+            Some(RepresentedBattlePetDataLikeCpp {
+                flags: 0,
+                save_info: RepresentedBattlePetSaveInfoLikeCpp::New,
+            })
         );
     }
 

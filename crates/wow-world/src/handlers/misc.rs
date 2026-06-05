@@ -36,8 +36,8 @@ use wow_packet::packets::item::{
 };
 use wow_packet::packets::loot::{LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHING_LIKE_CPP};
 use wow_packet::packets::misc::{
-    AddToy, FarSight, MountSetFavorite, RatedPvpInfo, RequestCemeteryListResponse,
-    TaxiNodeStatusPkt, ToyClearFanfare, UseToy,
+    AddToy, BattlePetClearFanfare, FarSight, MountSetFavorite, RatedPvpInfo,
+    RequestCemeteryListResponse, TaxiNodeStatusPkt, ToyClearFanfare, UseToy,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -393,6 +393,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_battle_pet_request_journal",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::BattlePetClearFanfare,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_battle_pet_clear_fanfare",
     }
 }
 
@@ -1351,6 +1360,26 @@ impl crate::session::WorldSession {
     ) {
     }
     pub async fn handle_battle_pet_request_journal(&mut self, _pkt: wow_packet::WorldPacket) {}
+
+    /// CMSG_BATTLE_PET_CLEAR_FANFARE — clear the account battle-pet fanfare bit.
+    ///
+    /// C++ ref: `WorldSession::HandleBattlePetClearFanfare` forwards only the
+    /// pet guid to `BattlePetMgr::ClearFanfare`, which silently ignores unknown
+    /// pets.
+    pub async fn handle_battle_pet_clear_fanfare(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let request = match BattlePetClearFanfare::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "BattlePetClearFanfare parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        self.battle_pet_clear_fanfare_like_cpp(request.pet_guid);
+    }
     pub async fn handle_arena_team_roster(&mut self, _pkt: wow_packet::WorldPacket) {}
     pub async fn handle_request_raid_info(&mut self, _pkt: wow_packet::WorldPacket) {
         let locks = match (self.player_guid(), self.instance_lock_mgr.as_ref()) {
@@ -2962,6 +2991,50 @@ mod tests {
             .await;
 
         assert!(session.account_toy_rows_like_cpp().is_empty());
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    fn battle_pet_clear_fanfare_packet(pet_guid: ObjectGuid) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(ClientOpcodes::BattlePetClearFanfare as u16);
+        pkt.write_packed_guid(&pet_guid);
+        pkt
+    }
+
+    #[tokio::test]
+    async fn battle_pet_clear_fanfare_clears_known_pet_silently_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let pet_guid = ObjectGuid::new(0, 0x223);
+        session.add_represented_battle_pet_like_cpp(
+            pet_guid,
+            crate::session::BATTLE_PET_FLAG_FANFARE_NEEDED_LIKE_CPP | 0x20,
+            crate::session::RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+        );
+
+        session
+            .handle_battle_pet_clear_fanfare(battle_pet_clear_fanfare_packet(pet_guid))
+            .await;
+
+        assert_eq!(
+            session.represented_battle_pet_like_cpp(pet_guid),
+            Some(crate::session::RepresentedBattlePetDataLikeCpp {
+                flags: 0x20,
+                save_info: crate::session::RepresentedBattlePetSaveInfoLikeCpp::Changed,
+            })
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn battle_pet_clear_fanfare_ignores_unknown_pet_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let pet_guid = ObjectGuid::new(0, 0x224);
+
+        session
+            .handle_battle_pet_clear_fanfare(battle_pet_clear_fanfare_packet(pet_guid))
+            .await;
+
+        assert!(session.represented_battle_pet_like_cpp(pet_guid).is_none());
         assert!(send_rx.try_recv().is_err());
     }
 
