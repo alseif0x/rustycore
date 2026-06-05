@@ -80,6 +80,15 @@ pub enum ActiveObjectKind {
     NonPlayer,
 }
 
+/// C++ `GOSummonType` (`ObjectDefines.h:81-85`) is intentionally separate
+/// from creature temporary summon types.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u32)]
+pub enum GameObjectSummonTypeLikeCpp {
+    TimedOrCorpseDespawn = 0,
+    TimedDespawn = 1,
+}
+
 impl From<AccessorObjectKind> for ActiveObjectKind {
     fn from(kind: AccessorObjectKind) -> Self {
         match kind {
@@ -9324,6 +9333,218 @@ where
         }
     }
 
+    /// Bounded map-owned representation of C++ `WorldObject::SummonGameObject`.
+    ///
+    /// C++ anchors:
+    /// - `Object.cpp:2067-2090`: `WorldObject::SummonGameObject(entry, pos,
+    ///   rot, respawnTime, summonType)` requires an in-world summoner, creates
+    ///   a ready dynamic GameObject from the already-resolved template,
+    ///   inherits phase, sets respawn time, either calls `ToUnit()->AddGameObject`
+    ///   for Player / Unit + `GO_SUMMON_TIMED_OR_CORPSE_DESPAWN`, or marks the
+    ///   object not spawned by default, then calls `Map::AddToMap`.
+    /// - `GameObject.cpp:1187-1200`: `GameObject::CreateGameObject` delegates
+    ///   to `GameObject::Create` and returns null on missing template/create
+    ///   failure.
+    ///
+    /// Scope: the caller supplies an already-resolved template, position and
+    /// respawn seconds. This helper does not load DB/templates, compute
+    /// `GetClosePoint`, inherit real phase masks, dispatch scripts, send
+    /// packets, create linked traps, or emit spell execute logs.
+    pub fn world_object_summon_gameobject_like_cpp(
+        &mut self,
+        summoner_guid: ObjectGuid,
+        template: GameObjectTemplateLifecycleRecord,
+        position: Position,
+        respawn_time_secs: i64,
+        summon_type: GameObjectSummonTypeLikeCpp,
+    ) -> WorldObjectSummonGameObjectOutcomeLikeCpp {
+        let template_entry = template.entry;
+        let Some(summoner_record) = self.map_object_record(summoner_guid) else {
+            return WorldObjectSummonGameObjectOutcomeLikeCpp {
+                summoner_guid,
+                template_entry,
+                summon_type,
+                status: WorldObjectSummonGameObjectStatusLikeCpp::MissingSummoner,
+                guid: None,
+                low_guid: None,
+                create_error: None,
+                add_to_map: None,
+                add_owner: None,
+                respawn_time_secs,
+                phase_inherit_represented: false,
+                spawned_by_default_forced_false: false,
+            };
+        };
+        if !summoner_record.object().object().is_in_world() {
+            return WorldObjectSummonGameObjectOutcomeLikeCpp {
+                summoner_guid,
+                template_entry,
+                summon_type,
+                status: WorldObjectSummonGameObjectStatusLikeCpp::SummonerNotInWorld,
+                guid: None,
+                low_guid: None,
+                create_error: None,
+                add_to_map: None,
+                add_owner: None,
+                respawn_time_secs,
+                phase_inherit_represented: false,
+                spawned_by_default_forced_false: false,
+            };
+        }
+        let summoner_is_player = summoner_record.kind() == AccessorObjectKind::Player;
+        let summoner_is_unit_like =
+            Self::map_record_is_unit_like_gameobject_owner_like_cpp(summoner_record);
+        let should_add_to_owner = summoner_is_player
+            || (summoner_is_unit_like
+                && summon_type == GameObjectSummonTypeLikeCpp::TimedOrCorpseDespawn);
+
+        let low_guid = match self.generate_low_guid_like_cpp(HighGuid::GameObject) {
+            Ok(low) => low,
+            Err(_) => {
+                return WorldObjectSummonGameObjectOutcomeLikeCpp {
+                    summoner_guid,
+                    template_entry,
+                    summon_type,
+                    status: WorldObjectSummonGameObjectStatusLikeCpp::LowGuidUnavailable,
+                    guid: None,
+                    low_guid: None,
+                    create_error: None,
+                    add_to_map: None,
+                    add_owner: None,
+                    respawn_time_secs,
+                    phase_inherit_represented: false,
+                    spawned_by_default_forced_false: false,
+                };
+            }
+        };
+        let guid = ObjectGuid::create_world_object(
+            HighGuid::GameObject,
+            0,
+            1,
+            self.map_id as u16,
+            self.instance_id,
+            template_entry,
+            low_guid,
+        );
+        let record = GameObjectCreateLifecycleRecord {
+            guid,
+            map_id: self.map_id,
+            instance_id: self.instance_id,
+            position,
+            rotation: gameobject_local_rotation_from_orientation_like_cpp(position.orientation),
+            anim_progress: u8::MAX,
+            go_state: GoState::Ready,
+            art_kit: 0,
+            dynamic: true,
+            spawn_id: 0,
+            template,
+        };
+
+        let mut game_object = match GameObject::try_create_from_lifecycle(record) {
+            Ok(game_object) => game_object,
+            Err(error) => {
+                return WorldObjectSummonGameObjectOutcomeLikeCpp {
+                    summoner_guid,
+                    template_entry,
+                    summon_type,
+                    status: WorldObjectSummonGameObjectStatusLikeCpp::CreateFailed,
+                    guid: Some(guid),
+                    low_guid: Some(low_guid),
+                    create_error: Some(error),
+                    add_to_map: None,
+                    add_owner: None,
+                    respawn_time_secs,
+                    phase_inherit_represented: false,
+                    spawned_by_default_forced_false: false,
+                };
+            }
+        };
+        game_object.set_respawn_time(respawn_time_secs);
+
+        let mut add_owner = None;
+        let mut spawned_by_default_forced_false = false;
+        if should_add_to_owner {
+            game_object.set_owner_guid_like_cpp(summoner_guid);
+            let mut registered_owned_gameobject = false;
+            let mut creature_ai_callback_represented = false;
+            if let Some(record) = self.map_objects.get_mut(&summoner_guid) {
+                if let Some(owner) = Self::map_record_unit_mut_like_cpp(record) {
+                    owner
+                        .subsystems_mut()
+                        .control
+                        .register_owned_gameobject_like_cpp(guid);
+                    registered_owned_gameobject = true;
+                }
+                creature_ai_callback_represented = match record.kind() {
+                    AccessorObjectKind::Creature => record
+                        .creature_mut()
+                        .map(|creature| {
+                            creature
+                                .unit_mut()
+                                .subsystems_mut()
+                                .ai
+                                .just_summoned_gameobject_like_cpp()
+                        })
+                        .unwrap_or(false),
+                    AccessorObjectKind::Pet => record
+                        .pet_mut()
+                        .map(|pet| {
+                            pet.creature_mut()
+                                .unit_mut()
+                                .subsystems_mut()
+                                .ai
+                                .just_summoned_gameobject_like_cpp()
+                        })
+                        .unwrap_or(false),
+                    _ => false,
+                };
+            }
+            add_owner = Some(GameObjectAddToOwnerOutcomeLikeCpp {
+                guid,
+                owner_guid: summoner_guid,
+                owner_found_as_unit_like: summoner_is_unit_like,
+                gameobject_found: true,
+                owner_guid_before: ObjectGuid::EMPTY,
+                owner_guid_after: summoner_guid,
+                gameobject_owner_empty_before: true,
+                registered_owned_gameobject,
+                owner_guid_set: registered_owned_gameobject,
+                cooldown_start_represented: false,
+                creature_ai_callback_represented,
+            });
+        } else {
+            game_object.set_spawned_by_default(false);
+            spawned_by_default_forced_false = true;
+        }
+
+        let add_to_map = self
+            .add_map_object_record_to_map_like_cpp(
+                MapObjectRecord::new_game_object(game_object)
+                    .expect("GameObject lifecycle create must produce a typed GameObject record"),
+            )
+            .ok();
+        let status = if add_to_map.is_some() {
+            WorldObjectSummonGameObjectStatusLikeCpp::CreatedAddedToMap
+        } else {
+            WorldObjectSummonGameObjectStatusLikeCpp::AddToMapFailed
+        };
+
+        WorldObjectSummonGameObjectOutcomeLikeCpp {
+            summoner_guid,
+            template_entry,
+            summon_type,
+            status,
+            guid: Some(guid),
+            low_guid: Some(low_guid),
+            create_error: None,
+            add_to_map,
+            add_owner,
+            respawn_time_secs,
+            phase_inherit_represented: false,
+            spawned_by_default_forced_false,
+        }
+    }
+
     /// Bounded map-owned pre-create cleanup for C++ `Spell::EffectSummonObject`.
     ///
     /// C++ anchors:
@@ -12633,6 +12854,32 @@ pub struct GameObjectSummonObjectForOwnerSlotOutcomeLikeCpp {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WorldObjectSummonGameObjectStatusLikeCpp {
+    MissingSummoner,
+    SummonerNotInWorld,
+    LowGuidUnavailable,
+    CreateFailed,
+    AddToMapFailed,
+    CreatedAddedToMap,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct WorldObjectSummonGameObjectOutcomeLikeCpp {
+    pub summoner_guid: ObjectGuid,
+    pub template_entry: u32,
+    pub summon_type: GameObjectSummonTypeLikeCpp,
+    pub status: WorldObjectSummonGameObjectStatusLikeCpp,
+    pub guid: Option<ObjectGuid>,
+    pub low_guid: Option<i64>,
+    pub create_error: Option<GameObjectLifecycleError>,
+    pub add_to_map: Option<AddToMapOutcome>,
+    pub add_owner: Option<GameObjectAddToOwnerOutcomeLikeCpp>,
+    pub respawn_time_secs: i64,
+    pub phase_inherit_represented: bool,
+    pub spawned_by_default_forced_false: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct UnitRemoveGameObjectsBySpellOutcomeLikeCpp {
     pub owner_guid: ObjectGuid,
     pub spell_id: u32,
@@ -15277,6 +15524,139 @@ mod tests {
         assert!(outcome.guid.is_none());
         assert!(outcome.add_to_map.is_none());
         assert!(outcome.add_owner_slot.is_none());
+        assert_eq!(map.get_max_low_guid_like_cpp(HighGuid::GameObject), Ok(1));
+    }
+
+    #[test]
+    fn world_object_summon_gameobject_player_owner_branch_like_cpp() {
+        let mut map = test_map();
+        let owner = test_player_for_viewpoint(4822201);
+        let owner_guid = owner.guid();
+        map.insert_map_object_record(MapObjectRecord::new_player(owner).unwrap())
+            .unwrap();
+        let position = Position::new(4.0, 5.0, 6.0, 0.75);
+        let template =
+            summon_gameobject_template_like_cpp(4822202, GAMEOBJECT_TYPE_GENERIC_LIKE_CPP);
+
+        let outcome = map.world_object_summon_gameobject_like_cpp(
+            owner_guid,
+            template,
+            position,
+            45,
+            GameObjectSummonTypeLikeCpp::TimedDespawn,
+        );
+
+        assert_eq!(
+            outcome.status,
+            WorldObjectSummonGameObjectStatusLikeCpp::CreatedAddedToMap
+        );
+        assert_eq!(outcome.low_guid, Some(1));
+        assert!(!outcome.phase_inherit_represented);
+        assert!(!outcome.spawned_by_default_forced_false);
+        assert!(outcome.add_to_map.as_ref().is_some_and(|add| add.inserted));
+        let add_owner = outcome
+            .add_owner
+            .expect("player summoner always calls Unit::AddGameObject");
+        assert!(add_owner.registered_owned_gameobject);
+        assert!(add_owner.owner_guid_set);
+        let guid = outcome.guid.unwrap();
+
+        let owner = map
+            .map_object_record(owner_guid)
+            .and_then(MapObjectRecord::player)
+            .unwrap();
+        assert_eq!(
+            owner.unit().subsystems().control.owned_gameobjects,
+            vec![guid]
+        );
+        let gameobject = map
+            .map_object_record(guid)
+            .and_then(MapObjectRecord::game_object)
+            .unwrap();
+        assert_eq!(gameobject.owner_guid(), owner_guid);
+        assert_eq!(gameobject.respawn_time(), 45);
+        assert_eq!(gameobject.world().position(), position);
+        assert!(gameobject.world().object().is_in_world());
+        assert!(!gameobject.spawned_by_default());
+        assert_eq!(gameobject.spell_id(), 0);
+    }
+
+    #[test]
+    fn world_object_summon_gameobject_unit_timed_despawn_forces_non_default_like_cpp() {
+        let mut map = test_map();
+        let owner = test_creature_for_spawn(48223, 4822301, true);
+        let owner_guid = owner.guid();
+        map.insert_map_object_record(MapObjectRecord::new_creature(owner).unwrap())
+            .unwrap();
+        let template =
+            summon_gameobject_template_like_cpp(4822302, GAMEOBJECT_TYPE_GENERIC_LIKE_CPP);
+
+        let outcome = map.world_object_summon_gameobject_like_cpp(
+            owner_guid,
+            template,
+            Position::xyz(7.0, 8.0, 9.0),
+            12,
+            GameObjectSummonTypeLikeCpp::TimedDespawn,
+        );
+
+        assert_eq!(
+            outcome.status,
+            WorldObjectSummonGameObjectStatusLikeCpp::CreatedAddedToMap
+        );
+        assert!(outcome.add_owner.is_none());
+        assert!(outcome.spawned_by_default_forced_false);
+        let guid = outcome.guid.unwrap();
+        let owner = map
+            .map_object_record(owner_guid)
+            .and_then(MapObjectRecord::creature)
+            .unwrap();
+        assert!(
+            owner
+                .unit()
+                .subsystems()
+                .control
+                .owned_gameobjects
+                .is_empty()
+        );
+        let gameobject = map
+            .map_object_record(guid)
+            .and_then(MapObjectRecord::game_object)
+            .unwrap();
+        assert_eq!(gameobject.owner_guid(), ObjectGuid::EMPTY);
+        assert!(!gameobject.spawned_by_default());
+        assert_eq!(gameobject.respawn_time(), 12);
+    }
+
+    #[test]
+    fn world_object_summon_gameobject_not_in_world_does_not_consume_guid_like_cpp() {
+        let mut map = test_map();
+        let mut owner = test_player_for_viewpoint(4822401);
+        let owner_guid = owner.guid();
+        owner
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .remove_from_world();
+        map.insert_map_object_record(MapObjectRecord::new_player(owner).unwrap())
+            .unwrap();
+        let template =
+            summon_gameobject_template_like_cpp(4822402, GAMEOBJECT_TYPE_GENERIC_LIKE_CPP);
+
+        let outcome = map.world_object_summon_gameobject_like_cpp(
+            owner_guid,
+            template,
+            Position::xyz(1.0, 2.0, 3.0),
+            30,
+            GameObjectSummonTypeLikeCpp::TimedOrCorpseDespawn,
+        );
+
+        assert_eq!(
+            outcome.status,
+            WorldObjectSummonGameObjectStatusLikeCpp::SummonerNotInWorld
+        );
+        assert!(outcome.guid.is_none());
+        assert!(outcome.add_to_map.is_none());
+        assert!(outcome.add_owner.is_none());
         assert_eq!(map.get_max_low_guid_like_cpp(HighGuid::GameObject), Ok(1));
     }
 

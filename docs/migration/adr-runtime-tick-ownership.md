@@ -1649,6 +1649,18 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   and the missing-owner guard without low-GUID consumption. Scope remains bounded: no DB/template
   lookup, spell target resolution/GetClosePoint, real phase inheritance, scripts, packets, or
   cooldown event emission.
+- 2026-06-05 — Map-owned `WorldObject::SummonGameObject` generic boundary
+  `#NEXT.RUNTIME.L3.031e9`: contrasted C++ `WorldObject::SummonGameObject` (`Object.cpp:2067-2090`),
+  `GOSummonType` (`ObjectDefines.h:81-85`) and `GameObject::CreateGameObject`
+  (`GameObject.cpp:1187-1200`). Rust now exposes `GameObjectSummonTypeLikeCpp` and
+  `world_object_summon_gameobject_like_cpp`, consuming an already-resolved template, position and
+  respawn seconds, requiring the summoner to be in world before low-GUID consumption, creating a
+  ready dynamic GameObject, representing the pending phase-inherit boundary, linking owner before
+  `Map::AddToMap` only for Player or Unit + `TimedOrCorpseDespawn`, and otherwise forcing
+  `spawned_by_default=false`. Tests cover the player owner branch, Unit + `TimedDespawn` non-owner
+  branch, and not-in-world/no-low-guid-consumption. Scope remains bounded: no DB/template lookup,
+  spell target resolution/GetClosePoint, real phase inheritance, scripts, packets, linked traps, or
+  spell execute logs.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
