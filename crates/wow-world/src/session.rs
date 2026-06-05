@@ -24106,25 +24106,30 @@ impl WorldSession {
             self.force_update_visibility_like_cpp().await;
         }
 
-        let direct_spell_effects_like_cpp: Vec<(u32, i32, u32)> = if spell_info.effects().is_empty()
-        {
-            vec![(effect_type, effect_base_points, 0)]
-        } else {
-            spell_info
-                .effects()
-                .iter()
-                .filter(|effect| effect.effect != 0)
-                .map(|effect| {
-                    (
-                        effect.effect,
-                        effect.effect_base_points,
-                        effect.effect_index,
-                    )
-                })
-                .collect()
-        };
-        for (direct_effect_type, direct_effect_base_points, direct_effect_index) in
-            direct_spell_effects_like_cpp
+        let direct_spell_effects_like_cpp: Vec<(u32, i32, u32, i32)> =
+            if spell_info.effects().is_empty() {
+                vec![(effect_type, effect_base_points, 0, 0)]
+            } else {
+                spell_info
+                    .effects()
+                    .iter()
+                    .filter(|effect| effect.effect != 0)
+                    .map(|effect| {
+                        (
+                            effect.effect,
+                            effect.effect_base_points,
+                            effect.effect_index,
+                            effect.effect_misc_value_1,
+                        )
+                    })
+                    .collect()
+            };
+        for (
+            direct_effect_type,
+            direct_effect_base_points,
+            direct_effect_index,
+            direct_effect_misc_value_1,
+        ) in direct_spell_effects_like_cpp
         {
             match direct_effect_type {
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_INSTAKILL => {
@@ -24154,6 +24159,22 @@ impl WorldSession {
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEALTH_LEECH => {
                     self.apply_health_leech_like_cpp(direct_effect_base_points, target_guid)
                         .await?;
+                }
+                x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_KILL_CREDIT => {
+                    self.apply_kill_credit_effect_like_cpp(
+                        target_guid,
+                        direct_effect_misc_value_1,
+                        false,
+                    )
+                    .await?;
+                }
+                x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_KILL_CREDIT2 => {
+                    self.apply_kill_credit_effect_like_cpp(
+                        target_guid,
+                        direct_effect_misc_value_1,
+                        true,
+                    )
+                    .await?;
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE => {
                     if let Ok(damage_amount) = u32::try_from(direct_effect_base_points) {
@@ -24241,6 +24262,8 @@ impl WorldSession {
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL_MAX_HEALTH
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL_PCT
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEALTH_LEECH
+                || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_KILL_CREDIT
+                || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_KILL_CREDIT2
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_BIND
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS => {}
             _ => {
@@ -25415,6 +25438,40 @@ impl WorldSession {
         if effective_damage > 0 && self.player_alive_like_cpp {
             self.apply_heal(player_guid, effective_damage).await?;
         }
+        Ok(())
+    }
+
+    async fn apply_kill_credit_effect_like_cpp(
+        &mut self,
+        target_guid: ObjectGuid,
+        creature_entry: i32,
+        group_reward_like_cpp: bool,
+    ) -> Result<(), &'static str> {
+        let player_guid = self.player_guid().ok_or("No player GUID")?;
+        if target_guid != player_guid {
+            return Ok(());
+        }
+
+        let Ok(creature_entry) = u32::try_from(creature_entry) else {
+            debug!(
+                account = self.account_id,
+                "Skipping represented kill-credit spell effect with negative MiscValue"
+            );
+            return Ok(());
+        };
+        if creature_entry == 0 {
+            return Ok(());
+        }
+
+        if group_reward_like_cpp {
+            debug!(
+                account = self.account_id,
+                creature_entry,
+                "Represented SPELL_EFFECT_KILL_CREDIT2 applies current-session credit only; C++ group fanout remains unrepresented"
+            );
+        }
+        self.on_creature_killed(creature_entry, ObjectGuid::EMPTY)
+            .await;
         Ok(())
     }
 
@@ -42046,6 +42103,170 @@ mod tests {
         assert_eq!(
             opcodes,
             vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_kill_credit_effect_row_rewards_player_monster_objective_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 740_i32;
+        let player_guid = ObjectGuid::create_player(1, 57);
+        let quest_id = 12_540;
+        let creature_entry = 9_940;
+        let mut quest = test_quest_template(quest_id);
+        quest.flags |= 0x0000_0400; // C++ QUEST_FLAGS_TRACKING_EVENT.
+        quest.objectives.push(wow_data::quest::QuestObjective {
+            id: quest_id * 10,
+            quest_id,
+            obj_type: 0, // C++ QUEST_OBJECTIVE_MONSTER.
+            order: 0,
+            storage_index: 0,
+            object_id: creature_entry as i32,
+            amount: 1,
+            flags: 0,
+            flags2: 0,
+            progress_bar_weight: 0.0,
+            description: String::new(),
+        });
+        session.set_player_guid(Some(player_guid));
+        session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
+            [quest],
+        )));
+        session.player_quests.insert(
+            quest_id,
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![0],
+                slot: 0,
+            },
+        );
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_KILL_CREDIT,
+                    effect_misc_value_1: creature_entry as i32,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("represented kill-credit spell row should execute");
+
+        assert!(!session.player_quests.contains_key(&quest_id));
+        assert!(session.rewarded_quests.contains(&quest_id));
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![
+                ServerOpcodes::SpellGo,
+                ServerOpcodes::QuestUpdateAddCredit,
+                ServerOpcodes::QuestGiverQuestComplete,
+                ServerOpcodes::QuestUpdateComplete,
+                ServerOpcodes::CooldownEvent,
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_kill_credit2_effect_row_rewards_current_session_like_cpp_without_group_fanout() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 741_i32;
+        let player_guid = ObjectGuid::create_player(1, 58);
+        let quest_id = 12_541;
+        let creature_entry = 9_941;
+        let mut quest = test_quest_template(quest_id);
+        quest.flags |= 0x0000_0400; // C++ QUEST_FLAGS_TRACKING_EVENT.
+        quest.objectives.push(wow_data::quest::QuestObjective {
+            id: quest_id * 10,
+            quest_id,
+            obj_type: 0, // C++ QUEST_OBJECTIVE_MONSTER.
+            order: 0,
+            storage_index: 0,
+            object_id: creature_entry as i32,
+            amount: 1,
+            flags: 0,
+            flags2: 0,
+            progress_bar_weight: 0.0,
+            description: String::new(),
+        });
+        session.set_player_guid(Some(player_guid));
+        session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
+            [quest],
+        )));
+        session.player_quests.insert(
+            quest_id,
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![0],
+                slot: 0,
+            },
+        );
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_KILL_CREDIT2,
+                    effect_misc_value_1: creature_entry as i32,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("represented kill-credit2 spell row should execute");
+
+        assert!(!session.player_quests.contains_key(&quest_id));
+        assert!(session.rewarded_quests.contains(&quest_id));
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![
+                ServerOpcodes::SpellGo,
+                ServerOpcodes::QuestUpdateAddCredit,
+                ServerOpcodes::QuestGiverQuestComplete,
+                ServerOpcodes::QuestUpdateComplete,
+                ServerOpcodes::CooldownEvent,
+            ]
         );
     }
 

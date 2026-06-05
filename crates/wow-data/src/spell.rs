@@ -35,6 +35,8 @@ pub mod spell_effect_types {
     /// `Spell::EffectSummonObjectWild` (`SpellEffects.cpp:2937-2986`).
     pub const SPELL_EFFECT_SUMMON_OBJECT_WILD: u32 = 76;
     pub const SPELL_EFFECT_HEAL_MAX_HEALTH: u32 = 67;
+    pub const SPELL_EFFECT_KILL_CREDIT: u32 = 90;
+    pub const SPELL_EFFECT_KILL_CREDIT2: u32 = 134;
     pub const SPELL_EFFECT_HEAL_PCT: u32 = 136;
     pub const SPELL_EFFECT_ADD_FARSIGHT: u32 = 72;
     /// First C++ `SPELL_EFFECT_SUMMON_OBJECT_SLOT*` value; see
@@ -774,6 +776,8 @@ mod tests {
         assert_eq!(spell_effect_types::SPELL_EFFECT_BIND, 11);
         assert_eq!(spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_PARTY, 35);
         assert_eq!(spell_effect_types::SPELL_EFFECT_HEAL_MAX_HEALTH, 67);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_KILL_CREDIT, 90);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_KILL_CREDIT2, 134);
         assert_eq!(spell_effect_types::SPELL_EFFECT_HEAL_PCT, 136);
     }
 
