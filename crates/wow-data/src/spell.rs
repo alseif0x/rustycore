@@ -27,6 +27,7 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_SCHOOL_DAMAGE: u32 = 2;
     pub const SPELL_EFFECT_ENVIRONMENTAL_DAMAGE: u32 = 7;
     pub const SPELL_EFFECT_APPLY_AURA: u32 = 6;
+    pub const SPELL_EFFECT_HEALTH_LEECH: u32 = 9;
     pub const SPELL_EFFECT_HEAL: u32 = 10;
     pub const SPELL_EFFECT_BIND: u32 = 11;
     pub const SPELL_EFFECT_PERSISTENT_AREA_AURA: u32 = 27;
@@ -768,6 +769,7 @@ mod tests {
         assert_eq!(spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE, 2);
         assert_eq!(spell_effect_types::SPELL_EFFECT_APPLY_AURA, 6);
         assert_eq!(spell_effect_types::SPELL_EFFECT_ENVIRONMENTAL_DAMAGE, 7);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_HEALTH_LEECH, 9);
         assert_eq!(spell_effect_types::SPELL_EFFECT_HEAL, 10);
         assert_eq!(spell_effect_types::SPELL_EFFECT_BIND, 11);
         assert_eq!(spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_PARTY, 35);
