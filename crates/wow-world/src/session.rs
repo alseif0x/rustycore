@@ -2962,6 +2962,7 @@ pub enum RepresentedAuraEffectLikeCpp {
     ModifyFallDamagePct,
     ModFactionReputationGain,
     ModReputationGain,
+    ProvideSpellFocus,
     Stealth,
     WaterWalk,
 }
@@ -12326,6 +12327,44 @@ impl WorldSession {
         Ok(())
     }
 
+    fn apply_represented_provide_spell_focus_aura_like_cpp(
+        &mut self,
+        spell_id: i32,
+        caster_guid: ObjectGuid,
+        effect: &wow_data::SpellEffectInfo,
+    ) -> Result<(), &'static str> {
+        let mut slot = 0u8;
+        while self.visible_auras.contains_key(&slot) && slot < 255 {
+            slot += 1;
+        }
+
+        if slot >= 255 {
+            return Err("No free aura slots");
+        }
+
+        let aura = AuraApplication {
+            spell_id,
+            caster_guid,
+            slot,
+            duration_total: 30_000,
+            duration_remaining: 30_000,
+            stack_count: 1,
+            aura_flags: 0x0000_0001,
+            aura_interrupt_flags: 0,
+            aura_interrupt_flags2: 0,
+            represented_effect: Some(RepresentedAuraEffectLikeCpp::ProvideSpellFocus),
+            represented_amount: effect.effect_base_points,
+            represented_misc_value: Some(effect.effect_misc_value_1),
+            represented_multiplier: 1.0,
+            applied_at: Instant::now(),
+        };
+
+        self.visible_auras.insert(slot, aura);
+        self.send_aura_update_applied(spell_id, slot, caster_guid, 30_000, 0x0000_0001);
+
+        Ok(())
+    }
+
     fn create_player_mount_vehicle_kit_like_cpp(
         &mut self,
         vehicle_id: u32,
@@ -15300,6 +15339,17 @@ impl WorldSession {
         self.visible_auras
             .values()
             .any(|aura| aura.represented_effect == Some(effect))
+    }
+
+    fn has_represented_aura_effect_with_misc_value_like_cpp(
+        &self,
+        effect: RepresentedAuraEffectLikeCpp,
+        misc_value: i32,
+    ) -> bool {
+        self.visible_auras.values().any(|aura| {
+            aura.represented_effect == Some(effect)
+                && aura.represented_misc_value == Some(misc_value)
+        })
     }
 
     fn total_represented_aura_modifier_like_cpp(
@@ -23798,6 +23848,11 @@ impl WorldSession {
             .iter()
             .find(|effect| effect.is_mounted_aura_like_cpp())
             .cloned();
+        let provide_spell_focus_aura_effect = spell_info
+            .effects()
+            .iter()
+            .find(|effect| effect.is_provide_spell_focus_aura_like_cpp())
+            .cloned();
         let effect_type = spell_info.effect_type;
         let effect_base_points = spell_info.effect_base_points;
 
@@ -23846,8 +23901,15 @@ impl WorldSession {
             effect.effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_SUMMON_OBJECT_WILD
                 || spell_effect_is_represented_summon_object_slot_like_cpp(effect.effect)
         });
+        let represented_spell_focus_aura_satisfies_check_cast = spell_info
+            .requires_spell_focus_like_cpp()
+            && self.has_represented_aura_effect_with_misc_value_like_cpp(
+                RepresentedAuraEffectLikeCpp::ProvideSpellFocus,
+                i32::try_from(spell_info.requires_spell_focus).unwrap_or(i32::MAX),
+            );
         let represented_focus_object = if spell_info.requires_spell_focus_like_cpp()
             && has_represented_gameobject_summon_effect
+            && !represented_spell_focus_aura_satisfies_check_cast
         {
             self.search_spell_focus_like_cpp(spell_info.requires_spell_focus)
         } else {
@@ -23856,6 +23918,7 @@ impl WorldSession {
         let mut force_visibility_after_gameobject_summon = false;
         if spell_info.requires_spell_focus_like_cpp()
             && has_represented_gameobject_summon_effect
+            && !represented_spell_focus_aura_satisfies_check_cast
             && represented_focus_object.is_none()
         {
             debug!(
@@ -23917,6 +23980,12 @@ impl WorldSession {
                 // SPELL_EFFECT_APPLY_AURA
                 if let Some(effect) = mounted_aura_effect.as_ref() {
                     self.apply_represented_mounted_aura_like_cpp(spell_id, player_guid, effect)?;
+                } else if let Some(effect) = provide_spell_focus_aura_effect.as_ref() {
+                    self.apply_represented_provide_spell_focus_aura_like_cpp(
+                        spell_id,
+                        player_guid,
+                        effect,
+                    )?;
                 } else {
                     self.apply_aura(spell_id, player_guid, 30000, 0x00000001)?;
                 }
@@ -29529,7 +29598,7 @@ mod tests {
                 .iter()
                 .copied()
                 .all(|guid| !guid.is_game_object()),
-            "focus-required summons must not fabricate a caster-based GO before SearchSpellFocus is ported"
+            "focus-required summons must not fabricate a caster-based GO without SearchSpellFocus or aura bypass"
         );
         let manager = canonical.lock().unwrap();
         let managed = manager.find_map(571, 0).expect("canonical map");
@@ -29544,6 +29613,130 @@ mod tests {
             update_object_packet_count_like_cpp(&packets),
             0,
             "focus-required guarded summon must not send a fabricated GameObject create"
+        );
+    }
+
+    #[tokio::test]
+    async fn summon_object_live_spell_requires_focus_allows_matching_focus_aura_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let focus_aura_spell_id = 707_i32;
+        let spell_id = 706_i32;
+        let template_entry = 9008_u32;
+        let player_guid = ObjectGuid::create_player(1, 7009);
+        let player_position = Position::new(170.0, 270.0, 37.0, 0.5);
+        let canonical = shared_canonical_map_manager();
+        let summon_spell_info = gameobject_summon_spell_info_like_cpp(
+            spell_id,
+            181,
+            vec![summon_object_wild_effect_like_cpp(
+                i32::try_from(template_entry).unwrap(),
+            )],
+        );
+        configure_gameobject_summon_live_session_like_cpp(
+            &mut session,
+            &canonical,
+            player_guid,
+            player_position,
+            summon_go_template_store_like_cpp(template_entry),
+            summon_spell_info.clone(),
+        );
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            focus_aura_spell_id,
+            wow_data::SpellInfo {
+                spell_id: focus_aura_spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_PROVIDE_SPELL_FOCUS),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_PROVIDE_SPELL_FOCUS,
+                    effect_misc_value_1: 181,
+                    ..Default::default()
+                }],
+            },
+        );
+        spell_store.insert(spell_id, summon_spell_info);
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell_with_visual_and_target_data(
+                focus_aura_spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual {
+                    spell_visual_id: 707,
+                    script_visual_id: 0,
+                },
+                SpellTargetData::default(),
+            )
+            .await
+            .expect("represented provide-spell-focus aura should apply");
+        assert!(
+            session.has_represented_aura_effect_with_misc_value_like_cpp(
+                RepresentedAuraEffectLikeCpp::ProvideSpellFocus,
+                181
+            )
+        );
+
+        session
+            .execute_spell_with_visual_and_target_data(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual {
+                    spell_visual_id: 706,
+                    script_visual_id: 0,
+                },
+                SpellTargetData::default(),
+            )
+            .await
+            .expect("focus aura should satisfy represented CheckCast focus gate");
+
+        let manager = canonical.lock().unwrap();
+        let managed = manager.find_map(571, 0).expect("canonical map");
+        let summoned_guid = session
+            .client_visible_guids_like_cpp
+            .iter()
+            .copied()
+            .filter(ObjectGuid::is_game_object)
+            .find(|guid| {
+                managed
+                    .map()
+                    .get_typed_game_object(*guid)
+                    .is_some_and(|go| go.world().object().entry() == template_entry)
+            })
+            .expect("aura-bypassed focus-required summon should be visible");
+        let summoned = managed
+            .map()
+            .get_typed_game_object(summoned_guid)
+            .expect("summoned GO should be map-owned");
+        assert_eq!(
+            summoned.world().position(),
+            Position::new(
+                player_position.x
+                    + wow_map::map::DEFAULT_PLAYER_BOUNDING_RADIUS_LIKE_CPP
+                        * player_position.orientation.cos(),
+                player_position.y
+                    + wow_map::map::DEFAULT_PLAYER_BOUNDING_RADIUS_LIKE_CPP
+                        * player_position.orientation.sin(),
+                player_position.z,
+                player_position.orientation,
+            )
+        );
+        drop(manager);
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert!(
+            update_object_packet_count_like_cpp(&packets) >= 1,
+            "focus aura bypass should still trigger represented visibility create/update delivery"
         );
     }
 

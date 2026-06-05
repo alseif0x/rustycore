@@ -55,6 +55,7 @@ pub mod aura_types {
     pub const SPELL_AURA_MODIFY_DAMAGE_PERCENT_TAKEN: i32 = 31;
     pub const SPELL_AURA_HASTE_SPELLS: i32 = 73;
     pub const SPELL_AURA_MOUNTED: i32 = 78;
+    pub const SPELL_AURA_PROVIDE_SPELL_FOCUS: i32 = 281;
 }
 
 /// Metadata for a spell from Spell.db2 and related tables.
@@ -146,6 +147,11 @@ impl SpellEffectInfo {
     pub fn is_mounted_aura_like_cpp(&self) -> bool {
         self.effect == spell_effect_types::SPELL_EFFECT_APPLY_AURA
             && self.effect_aura == aura_types::SPELL_AURA_MOUNTED
+    }
+
+    pub fn is_provide_spell_focus_aura_like_cpp(&self) -> bool {
+        self.effect == spell_effect_types::SPELL_EFFECT_APPLY_AURA
+            && self.effect_aura == aura_types::SPELL_AURA_PROVIDE_SPELL_FOCUS
     }
 
     pub fn accepts_implicit_target_conditions_like_cpp(&self) -> bool {
@@ -566,6 +572,25 @@ mod tests {
         assert_eq!(mounted.effect_base_points, 11);
         assert_eq!(mounted.effect_misc_value_1, 22);
         assert_eq!(mounted.effect_misc_value_2, 33);
+    }
+
+    #[test]
+    fn spell_effect_detects_provide_spell_focus_aura_like_cpp() {
+        let focus = SpellEffectInfo {
+            effect: spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: aura_types::SPELL_AURA_PROVIDE_SPELL_FOCUS,
+            effect_misc_value_1: 181,
+            ..Default::default()
+        };
+        let other_effect = SpellEffectInfo {
+            effect: spell_effect_types::SPELL_EFFECT_HEAL,
+            effect_aura: aura_types::SPELL_AURA_PROVIDE_SPELL_FOCUS,
+            ..Default::default()
+        };
+
+        assert!(focus.is_provide_spell_focus_aura_like_cpp());
+        assert!(!other_effect.is_provide_spell_focus_aura_like_cpp());
+        assert_eq!(focus.effect_misc_value_1, 181);
     }
 
     #[test]
