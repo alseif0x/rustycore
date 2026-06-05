@@ -18181,6 +18181,35 @@ impl WorldSession {
         sent_count
     }
 
+    /// C++ `BattlePetMgr::HealBattlePetsPct`.
+    ///
+    /// Fidelity note: legacy C++ does not skip removed pets and would rewrite a
+    /// damaged `BATTLE_PET_REMOVED` row to `BATTLE_PET_CHANGED`. Rust keeps the
+    /// represented removed row immutable here; if we decide to patch that legacy
+    /// bug upstream, this is the intended shared behavior.
+    pub(crate) fn battle_pet_heal_battle_pets_pct_like_cpp(&mut self, pct: u8) -> usize {
+        let mut updated = Vec::new();
+
+        for (pet_guid, pet) in &mut self.represented_battle_pets_like_cpp {
+            if pet.save_info == RepresentedBattlePetSaveInfoLikeCpp::Removed {
+                continue;
+            }
+
+            if pet.health == pet.max_health {
+                continue;
+            }
+
+            let heal = (pet.max_health as f32 * f32::from(pct) / 100.0f32) as u32;
+            pet.health = pet.health.saturating_add(heal).min(pet.max_health);
+            if pet.save_info != RepresentedBattlePetSaveInfoLikeCpp::New {
+                pet.save_info = RepresentedBattlePetSaveInfoLikeCpp::Changed;
+            }
+            updated.push(*pet_guid);
+        }
+
+        self.send_battle_pet_updates_like_cpp(&updated, false)
+    }
+
     pub(crate) fn represented_battle_pet_slot_like_cpp(&self, slot: u8) -> Option<ObjectGuid> {
         self.represented_battle_pet_slots_like_cpp
             .get(slot as usize)
@@ -53470,6 +53499,138 @@ mod tests {
         assert_eq!(packet.read_packed_guid().expect("pet guid"), pet_guid);
         assert_eq!(packet.read_uint32().expect("species"), 11);
         assert_eq!(packet.read_uint32().expect("creature"), 22);
+    }
+
+    #[test]
+    fn battle_pet_heal_battle_pets_pct_heals_damaged_pets_and_sends_updates_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x185);
+        let full_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x186);
+
+        session.add_represented_battle_pet_packet_info_like_cpp(
+            pet_guid,
+            RepresentedBattlePetDataLikeCpp {
+                species: 11,
+                creature_id: 22,
+                display_id: 33,
+                breed: 44,
+                level: 17,
+                exp: 0,
+                flags: 0,
+                power: 0,
+                health: 40,
+                max_health: 101,
+                speed: 0,
+                quality: 3,
+                owner_info: None,
+                name: String::new(),
+                name_timestamp: 0,
+                declined_names: None,
+                save_info: RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+            },
+        );
+        session.add_represented_battle_pet_packet_info_like_cpp(
+            full_guid,
+            RepresentedBattlePetDataLikeCpp {
+                species: 12,
+                health: 100,
+                max_health: 100,
+                ..RepresentedBattlePetDataLikeCpp::minimal_like_cpp(
+                    0,
+                    RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+                )
+            },
+        );
+
+        assert_eq!(session.battle_pet_heal_battle_pets_pct_like_cpp(50), 1);
+
+        let pet = session
+            .represented_battle_pet_like_cpp(pet_guid)
+            .expect("healed pet");
+        assert_eq!(pet.health, 90, "CalculatePct(101, 50) truncates to 50");
+        assert_eq!(pet.save_info, RepresentedBattlePetSaveInfoLikeCpp::Changed);
+        assert_eq!(
+            session
+                .represented_battle_pet_like_cpp(full_guid)
+                .expect("full pet")
+                .save_info,
+            RepresentedBattlePetSaveInfoLikeCpp::Unchanged
+        );
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(packets.len(), 1);
+        let mut packet = wow_packet::WorldPacket::from_bytes(&packets[0]);
+        assert_eq!(
+            packet.read_uint16().expect("opcode"),
+            ServerOpcodes::BattlePetUpdates as u16
+        );
+        assert_eq!(packet.read_uint32().expect("pet count"), 1);
+        assert!(!packet.read_bit().expect("pet added"));
+        assert_eq!(packet.read_packed_guid().expect("pet guid"), pet_guid);
+        assert_eq!(packet.read_uint32().expect("species"), 11);
+        assert_eq!(packet.read_uint32().expect("creature"), 22);
+    }
+
+    #[test]
+    fn battle_pet_heal_battle_pets_pct_preserves_new_and_removed_rows() {
+        let (mut session, _, send_rx) = make_session();
+        let new_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x187);
+        let removed_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x188);
+
+        session.add_represented_battle_pet_packet_info_like_cpp(
+            new_guid,
+            RepresentedBattlePetDataLikeCpp {
+                species: 11,
+                health: 10,
+                max_health: 100,
+                save_info: RepresentedBattlePetSaveInfoLikeCpp::New,
+                ..RepresentedBattlePetDataLikeCpp::minimal_like_cpp(
+                    0,
+                    RepresentedBattlePetSaveInfoLikeCpp::New,
+                )
+            },
+        );
+        session.add_represented_battle_pet_packet_info_like_cpp(
+            removed_guid,
+            RepresentedBattlePetDataLikeCpp {
+                species: 12,
+                health: 10,
+                max_health: 100,
+                save_info: RepresentedBattlePetSaveInfoLikeCpp::Removed,
+                ..RepresentedBattlePetDataLikeCpp::minimal_like_cpp(
+                    0,
+                    RepresentedBattlePetSaveInfoLikeCpp::Removed,
+                )
+            },
+        );
+
+        assert_eq!(session.battle_pet_heal_battle_pets_pct_like_cpp(50), 1);
+
+        let new_pet = session
+            .represented_battle_pet_like_cpp(new_guid)
+            .expect("new pet");
+        assert_eq!(new_pet.health, 60);
+        assert_eq!(new_pet.save_info, RepresentedBattlePetSaveInfoLikeCpp::New);
+
+        let removed_pet = session
+            .represented_battle_pet_like_cpp(removed_guid)
+            .expect("removed pet");
+        assert_eq!(removed_pet.health, 10);
+        assert_eq!(
+            removed_pet.save_info,
+            RepresentedBattlePetSaveInfoLikeCpp::Removed
+        );
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(packets.len(), 1);
+        let mut packet = wow_packet::WorldPacket::from_bytes(&packets[0]);
+        assert_eq!(
+            packet.read_uint16().expect("opcode"),
+            ServerOpcodes::BattlePetUpdates as u16
+        );
+        assert_eq!(packet.read_uint32().expect("pet count"), 1);
+        assert!(!packet.read_bit().expect("pet added"));
+        assert_eq!(packet.read_packed_guid().expect("pet guid"), new_guid);
     }
 
     #[test]
