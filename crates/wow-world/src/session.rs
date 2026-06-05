@@ -51,10 +51,10 @@ use wow_constants::{
 use wow_core::{ObjectGuid, ObjectGuidGenerator, Position, guid::HighGuid};
 use wow_data::{
     AreaTableStore, AreaTriggerStore, BattlePetBreedQualityStore, BattlePetBreedStateStore,
-    BattlePetSpeciesStateStore, ChrSpecializationStore, ConditionEntriesByTypeStore,
-    CreatureDisplayInfoStore, CreatureModelDataStore, CreatureTemplateMountStoreLikeCpp,
-    CurrencyTypesEntry, CurrencyTypesStore, DISABLE_TYPE_MAP, DisableMgrLikeCpp,
-    DisableWorldObjectRefLikeCpp, DungeonEncounterStore, DurabilityCostsStore,
+    BattlePetSpeciesStateStore, BattlePetXpGameTableLikeCpp, ChrSpecializationStore,
+    ConditionEntriesByTypeStore, CreatureDisplayInfoStore, CreatureModelDataStore,
+    CreatureTemplateMountStoreLikeCpp, CurrencyTypesEntry, CurrencyTypesStore, DISABLE_TYPE_MAP,
+    DisableMgrLikeCpp, DisableWorldObjectRefLikeCpp, DungeonEncounterStore, DurabilityCostsStore,
     DurabilityQualityStore, FishingBaseSkillStoreLikeCpp, GameObjectDisplayInfoStore,
     GameObjectTemplateLifecycleStoreLikeCpp, HeirloomEntry, HeirloomStore, HotfixBlobCache,
     ImportPriceStores, ItemAppearanceStore, ItemClassStore, ItemCurrencyCostStore,
@@ -2355,6 +2355,7 @@ pub struct WorldSession {
     battle_pet_breed_quality_store: Option<Arc<BattlePetBreedQualityStore>>,
     battle_pet_breed_state_store: Option<Arc<BattlePetBreedStateStore>>,
     battle_pet_species_state_store: Option<Arc<BattlePetSpeciesStateStore>>,
+    battle_pet_xp_game_table: Option<Arc<BattlePetXpGameTableLikeCpp>>,
 
     // Transmog set item store (TransmogSetItem.db2 data)
     transmog_set_item_store: Option<Arc<TransmogSetItemStore>>,
@@ -3550,6 +3551,7 @@ impl WorldSession {
             battle_pet_breed_quality_store: None,
             battle_pet_breed_state_store: None,
             battle_pet_species_state_store: None,
+            battle_pet_xp_game_table: None,
             transmog_set_item_store: None,
             item_price_base_store: None,
             item_limit_category_store: None,
@@ -8136,6 +8138,10 @@ impl WorldSession {
         self.battle_pet_species_state_store = Some(store);
     }
 
+    pub fn set_battle_pet_xp_game_table(&mut self, table: Arc<BattlePetXpGameTableLikeCpp>) {
+        self.battle_pet_xp_game_table = Some(table);
+    }
+
     pub(crate) fn battle_pet_calculate_stats_like_cpp(
         &self,
         breed: u16,
@@ -9605,6 +9611,17 @@ impl WorldSession {
             standing,
             self.friendship_rep_reaction_store.as_deref(),
         )
+    }
+
+    fn battle_pet_xp_per_level_like_cpp(&self, level: u16) -> Option<u16> {
+        self.battle_pet_xp_game_table
+            .as_ref()
+            .and_then(|table| table.xp_per_level_like_cpp(level))
+            .or_else(|| {
+                self.represented_battle_pet_xp_per_level_like_cpp
+                    .get(&level)
+                    .copied()
+            })
     }
 
     pub(crate) fn represented_faction_reaction_to_like_cpp(
@@ -18483,11 +18500,7 @@ impl WorldSession {
             return RepresentedBattlePetGrantExperienceOutcomeLikeCpp::AlreadyMaxLevel;
         }
 
-        let Some(mut next_level_xp) = self
-            .represented_battle_pet_xp_per_level_like_cpp
-            .get(&level)
-            .copied()
-        else {
+        let Some(mut next_level_xp) = self.battle_pet_xp_per_level_like_cpp(level) else {
             return RepresentedBattlePetGrantExperienceOutcomeLikeCpp::MissingXpRow;
         };
 
@@ -18505,11 +18518,7 @@ impl WorldSession {
             total_xp = total_xp.saturating_sub(next_level_xp);
             level += 1;
 
-            let Some(row_xp) = self
-                .represented_battle_pet_xp_per_level_like_cpp
-                .get(&level)
-                .copied()
-            else {
+            let Some(row_xp) = self.battle_pet_xp_per_level_like_cpp(level) else {
                 return RepresentedBattlePetGrantExperienceOutcomeLikeCpp::MissingXpRow;
             };
             next_level_xp = row_xp;
@@ -54673,6 +54682,67 @@ mod tests {
         assert_eq!(packet.read_uint32().expect("max health"), 1180);
         assert_eq!(packet.read_uint32().expect("speed"), 81);
         assert_eq!(packet.read_uint8().expect("quality"), 3);
+    }
+
+    #[test]
+    fn battle_pet_grant_experience_prefers_real_game_table_over_represented_projection_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x197);
+        install_represented_battle_pet_stat_stores_like_cpp(&mut session);
+        session.set_represented_battle_pet_xp_per_level_like_cpp(23, 999);
+        session.set_represented_battle_pet_xp_per_level_like_cpp(24, 999);
+
+        let mut rows = vec![wow_data::BattlePetXpEntryLikeCpp::default(); 24];
+        rows[22] = wow_data::BattlePetXpEntryLikeCpp {
+            wins: 2.0,
+            xp: 50.0,
+        };
+        rows[23] = wow_data::BattlePetXpEntryLikeCpp {
+            wins: 4.0,
+            xp: 25.0,
+        };
+        session.set_battle_pet_xp_game_table(Arc::new(
+            wow_data::BattlePetXpGameTableLikeCpp::from_rows(rows),
+        ));
+
+        session.add_represented_battle_pet_packet_info_like_cpp(
+            pet_guid,
+            RepresentedBattlePetDataLikeCpp {
+                species: 11,
+                breed: 7,
+                level: 23,
+                exp: 20,
+                power: 10,
+                health: 50,
+                max_health: 100,
+                speed: 20,
+                quality: 3,
+                save_info: RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+                ..RepresentedBattlePetDataLikeCpp::minimal_like_cpp(
+                    0,
+                    RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+                )
+            },
+        );
+        session.send_battle_pet_journal_lock_status_like_cpp();
+        let _ = drain_server_packet_bytes(&send_rx);
+
+        assert_eq!(
+            session.battle_pet_grant_battle_pet_experience_represented_like_cpp(
+                pet_guid,
+                150,
+                RepresentedBattlePetXpSourceLikeCpp::SpellEffect,
+                false,
+                1.0,
+            ),
+            RepresentedBattlePetGrantExperienceOutcomeLikeCpp::Changed
+        );
+
+        let pet = session
+            .represented_battle_pet_like_cpp(pet_guid)
+            .expect("experienced pet");
+        assert_eq!(pet.level, 24);
+        assert_eq!(pet.exp, 70);
     }
 
     #[test]

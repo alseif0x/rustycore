@@ -1193,11 +1193,16 @@ async fn main() -> Result<()> {
             "Failed to load BattlePetSpeciesState.db2 — check DataDir and DBC.Locale config",
         )?,
     );
+    let battle_pet_xp_game_table = Arc::new(
+        wow_data::BattlePetXpGameTableLikeCpp::load(&data_dir)
+            .context("Failed to load gt/BattlePetXP.txt — check DataDir config")?,
+    );
     info!(
-        "Loaded battle-pet stat DB2 stores: {} quality rows, {} breed-state rows, {} species-state rows",
+        "Loaded battle-pet stat DB2 stores: {} quality rows, {} breed-state rows, {} species-state rows; BattlePetXP rows={}",
         battle_pet_breed_quality_store.len(),
         battle_pet_breed_state_store.len(),
-        battle_pet_species_state_store.len()
+        battle_pet_species_state_store.len(),
+        battle_pet_xp_game_table.len()
     );
 
     // Load TransmogSet.db2 and TransmogSetItem.db2 for DB2Manager transmog indexes.
@@ -2069,6 +2074,7 @@ async fn main() -> Result<()> {
         battle_pet_breed_quality_store: Some(Arc::clone(&battle_pet_breed_quality_store)),
         battle_pet_breed_state_store: Some(Arc::clone(&battle_pet_breed_state_store)),
         battle_pet_species_state_store: Some(Arc::clone(&battle_pet_species_state_store)),
+        battle_pet_xp_game_table: Some(Arc::clone(&battle_pet_xp_game_table)),
         transmog_set_item_store: Some(Arc::clone(&transmog_set_item_store)),
         item_price_base_store: Some(Arc::clone(&item_price_base_store)),
         item_limit_category_store: Some(Arc::clone(&item_limit_category_store)),
@@ -7099,6 +7105,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.battle_pet_species_state_store {
         session.set_battle_pet_species_state_store(Arc::clone(store));
+    }
+    if let Some(ref table) = resources.battle_pet_xp_game_table {
+        session.set_battle_pet_xp_game_table(Arc::clone(table));
     }
     if let Some(ref store) = resources.transmog_set_item_store {
         session.set_transmog_set_item_store(Arc::clone(store));

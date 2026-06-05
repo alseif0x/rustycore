@@ -22,6 +22,7 @@ pub mod difficulty;
 pub mod disable_mgr;
 pub mod dungeon_encounter;
 pub mod entities_movement;
+pub mod game_tables;
 pub mod gameobject_template;
 pub mod gossip;
 pub mod graveyard;
@@ -131,6 +132,9 @@ pub use entities_movement::{
     EmotesTextSoundStore, EmotesTextStore, GameObjectArtKitEntry, GameObjectArtKitStore,
     GameObjectDisplayInfoEntry, GameObjectDisplayInfoStore, GameObjectsEntry, GameObjectsStore,
     UnitConditionEntry, UnitConditionStore, UnitPowerBarEntry, UnitPowerBarStore,
+};
+pub use game_tables::{
+    BattlePetXpEntryLikeCpp, BattlePetXpGameTableLikeCpp, battle_pet_xp_per_level_like_cpp,
 };
 pub use gameobject_template::{
     GameObjectOverrideLifecycleRecordLikeCpp, GameObjectOverrideLifecycleStoreLikeCpp,
