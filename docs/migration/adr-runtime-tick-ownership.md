@@ -1490,6 +1490,19 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   Remaining gaps: startup/runtime wiring of this helper from live delete call sites, DB save/delete
   effects, DB-backed entity fabrication, capture-point/session fanout, and live client/server
   validation.
+- 2026-06-04 — Pool-aware `GameObject::Update` delete seam `#NEXT.RUNTIME.L3.031dv`: contrasted
+  against the `GameObject::Update` `GO_JUST_DEACTIVATED` branches that call `Delete()` for
+  owner/spell-created expired objects (`GameObject.cpp:1625-1636`) and the subsequent pooled
+  `GameObject::Delete` branch (`GameObject.cpp:1759-1763`). Rust now keeps
+  `update_game_object_like_cpp` / `update_game_objects_like_cpp` as no-metadata wrappers, adds
+  pool-aware variants that pass `SpawnStore` + `PoolMgrLikeCpp`, and routes update-time `Delete()`
+  consumption through the pooled helper when metadata is supplied. `GameObjectUpdateStatusLikeCpp`
+  now distinguishes `DespawnPoolUpdated` from direct remove-list queueing, so tests do not falsely
+  report `AddObjectToRemoveList` when C++ would call `PoolMgr::UpdatePool`. Focused tests cover an
+  owner-created expired pooled GameObject reaching `DespawnPoolUpdated` without direct remove-list,
+  while existing no-metadata update/delete tests preserve prior behavior. Remaining gaps:
+  `ManagedMap`/`MapManager`/`world-server` metadata wiring, DB save/delete effects, DB-backed
+  entity fabrication, capture-point/session fanout, and live client/server validation.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
