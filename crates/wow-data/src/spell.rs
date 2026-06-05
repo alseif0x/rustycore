@@ -130,7 +130,26 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_241: u32 = 241;
     pub const SPELL_EFFECT_GIVE_ARTIFACT_POWER_NO_BONUS: u32 = 242;
     pub const SPELL_EFFECT_TELEPORT_UNITS: u32 = 252;
+    pub const SPELL_EFFECT_256: u32 = 256;
+    pub const SPELL_EFFECT_257: u32 = 257;
+    pub const SPELL_EFFECT_MODIFY_KEYSTONE: u32 = 258;
+    pub const SPELL_EFFECT_RESPEC_AZERITE_EMPOWERED_ITEM: u32 = 259;
+    pub const SPELL_EFFECT_SUMMON_STABLED_PET: u32 = 260;
+    pub const SPELL_EFFECT_SCRAP_ITEM: u32 = 261;
+    pub const SPELL_EFFECT_262: u32 = 262;
+    pub const SPELL_EFFECT_REPAIR_ITEM: u32 = 263;
+    pub const SPELL_EFFECT_REMOVE_GEM: u32 = 264;
+    pub const SPELL_EFFECT_LEARN_AZERITE_ESSENCE_POWER: u32 = 265;
+    pub const SPELL_EFFECT_SET_ITEM_BONUS_LIST_GROUP_ENTRY: u32 = 266;
+    pub const SPELL_EFFECT_APPLY_MOUNT_EQUIPMENT: u32 = 268;
+    pub const SPELL_EFFECT_INCREASE_ITEM_BONUS_LIST_GROUP_STEP: u32 = 269;
+    pub const SPELL_EFFECT_270: u32 = 270;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_PARTY_NONRANDOM: u32 = 271;
+    pub const SPELL_EFFECT_SET_COVENANT: u32 = 272;
+    pub const SPELL_EFFECT_CRAFT_RUNEFORGE_LEGENDARY: u32 = 273;
+    pub const SPELL_EFFECT_274: u32 = 274;
+    pub const SPELL_EFFECT_275: u32 = 275;
+    pub const SPELL_EFFECT_SET_CHROMIE_TIME: u32 = 277;
 
     /// C++ dispatch entries that intentionally run `EffectNULL` or
     /// `EffectUnused` in `SpellEffects.cpp` for the represented early effect
@@ -220,6 +239,26 @@ pub mod spell_effect_types {
                 | SPELL_EFFECT_GIVE_ARTIFACT_POWER
                 | SPELL_EFFECT_241
                 | SPELL_EFFECT_GIVE_ARTIFACT_POWER_NO_BONUS
+                | SPELL_EFFECT_256
+                | SPELL_EFFECT_257
+                | SPELL_EFFECT_MODIFY_KEYSTONE
+                | SPELL_EFFECT_RESPEC_AZERITE_EMPOWERED_ITEM
+                | SPELL_EFFECT_SUMMON_STABLED_PET
+                | SPELL_EFFECT_SCRAP_ITEM
+                | SPELL_EFFECT_262
+                | SPELL_EFFECT_REPAIR_ITEM
+                | SPELL_EFFECT_REMOVE_GEM
+                | SPELL_EFFECT_LEARN_AZERITE_ESSENCE_POWER
+                | SPELL_EFFECT_SET_ITEM_BONUS_LIST_GROUP_ENTRY
+                | SPELL_EFFECT_APPLY_MOUNT_EQUIPMENT
+                | SPELL_EFFECT_INCREASE_ITEM_BONUS_LIST_GROUP_STEP
+                | SPELL_EFFECT_270
+                | SPELL_EFFECT_APPLY_AREA_AURA_PARTY_NONRANDOM
+                | SPELL_EFFECT_SET_COVENANT
+                | SPELL_EFFECT_CRAFT_RUNEFORGE_LEGENDARY
+                | SPELL_EFFECT_274
+                | SPELL_EFFECT_275
+                | SPELL_EFFECT_SET_CHROMIE_TIME
         )
     }
 }
@@ -1072,6 +1111,44 @@ mod tests {
             spell_effect_types::SPELL_EFFECT_GIVE_ARTIFACT_POWER_NO_BONUS,
             242
         );
+        assert_eq!(spell_effect_types::SPELL_EFFECT_256, 256);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_257, 257);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_MODIFY_KEYSTONE, 258);
+        assert_eq!(
+            spell_effect_types::SPELL_EFFECT_RESPEC_AZERITE_EMPOWERED_ITEM,
+            259
+        );
+        assert_eq!(spell_effect_types::SPELL_EFFECT_SUMMON_STABLED_PET, 260);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_SCRAP_ITEM, 261);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_262, 262);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_REPAIR_ITEM, 263);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_REMOVE_GEM, 264);
+        assert_eq!(
+            spell_effect_types::SPELL_EFFECT_LEARN_AZERITE_ESSENCE_POWER,
+            265
+        );
+        assert_eq!(
+            spell_effect_types::SPELL_EFFECT_SET_ITEM_BONUS_LIST_GROUP_ENTRY,
+            266
+        );
+        assert_eq!(spell_effect_types::SPELL_EFFECT_APPLY_MOUNT_EQUIPMENT, 268);
+        assert_eq!(
+            spell_effect_types::SPELL_EFFECT_INCREASE_ITEM_BONUS_LIST_GROUP_STEP,
+            269
+        );
+        assert_eq!(spell_effect_types::SPELL_EFFECT_270, 270);
+        assert_eq!(
+            spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_PARTY_NONRANDOM,
+            271
+        );
+        assert_eq!(spell_effect_types::SPELL_EFFECT_SET_COVENANT, 272);
+        assert_eq!(
+            spell_effect_types::SPELL_EFFECT_CRAFT_RUNEFORGE_LEGENDARY,
+            273
+        );
+        assert_eq!(spell_effect_types::SPELL_EFFECT_274, 274);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_275, 275);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_SET_CHROMIE_TIME, 277);
     }
 
     #[test]
@@ -1158,6 +1235,26 @@ mod tests {
             spell_effect_types::SPELL_EFFECT_GIVE_ARTIFACT_POWER,
             spell_effect_types::SPELL_EFFECT_241,
             spell_effect_types::SPELL_EFFECT_GIVE_ARTIFACT_POWER_NO_BONUS,
+            spell_effect_types::SPELL_EFFECT_256,
+            spell_effect_types::SPELL_EFFECT_257,
+            spell_effect_types::SPELL_EFFECT_MODIFY_KEYSTONE,
+            spell_effect_types::SPELL_EFFECT_RESPEC_AZERITE_EMPOWERED_ITEM,
+            spell_effect_types::SPELL_EFFECT_SUMMON_STABLED_PET,
+            spell_effect_types::SPELL_EFFECT_SCRAP_ITEM,
+            spell_effect_types::SPELL_EFFECT_262,
+            spell_effect_types::SPELL_EFFECT_REPAIR_ITEM,
+            spell_effect_types::SPELL_EFFECT_REMOVE_GEM,
+            spell_effect_types::SPELL_EFFECT_LEARN_AZERITE_ESSENCE_POWER,
+            spell_effect_types::SPELL_EFFECT_SET_ITEM_BONUS_LIST_GROUP_ENTRY,
+            spell_effect_types::SPELL_EFFECT_APPLY_MOUNT_EQUIPMENT,
+            spell_effect_types::SPELL_EFFECT_INCREASE_ITEM_BONUS_LIST_GROUP_STEP,
+            spell_effect_types::SPELL_EFFECT_270,
+            spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_PARTY_NONRANDOM,
+            spell_effect_types::SPELL_EFFECT_SET_COVENANT,
+            spell_effect_types::SPELL_EFFECT_CRAFT_RUNEFORGE_LEGENDARY,
+            spell_effect_types::SPELL_EFFECT_274,
+            spell_effect_types::SPELL_EFFECT_275,
+            spell_effect_types::SPELL_EFFECT_SET_CHROMIE_TIME,
         ] {
             assert!(
                 spell_effect_types::is_cpp_null_or_unused_noop(effect),

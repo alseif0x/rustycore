@@ -42839,6 +42839,12 @@ mod tests {
                     wow_data::spell::spell_effect_types::SPELL_EFFECT_209,
                     wow_data::spell::spell_effect_types::SPELL_EFFECT_235,
                     wow_data::spell::spell_effect_types::SPELL_EFFECT_241,
+                    wow_data::spell::spell_effect_types::SPELL_EFFECT_256,
+                    wow_data::spell::spell_effect_types::SPELL_EFFECT_257,
+                    wow_data::spell::spell_effect_types::SPELL_EFFECT_262,
+                    wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_PARTY_NONRANDOM,
+                    wow_data::spell::spell_effect_types::SPELL_EFFECT_274,
+                    wow_data::spell::spell_effect_types::SPELL_EFFECT_275,
                 ]
                 .into_iter()
                 .enumerate()
@@ -43073,6 +43079,62 @@ mod tests {
                 805_i32,
                 wow_data::spell::spell_effect_types::SPELL_EFFECT_GIVE_ARTIFACT_POWER_NO_BONUS,
             ),
+            (
+                806_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_MODIFY_KEYSTONE,
+            ),
+            (
+                807_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_RESPEC_AZERITE_EMPOWERED_ITEM,
+            ),
+            (
+                808_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_SUMMON_STABLED_PET,
+            ),
+            (
+                809_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_SCRAP_ITEM,
+            ),
+            (
+                810_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_REPAIR_ITEM,
+            ),
+            (
+                811_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_REMOVE_GEM,
+            ),
+            (
+                812_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_AZERITE_ESSENCE_POWER,
+            ),
+            (
+                813_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_SET_ITEM_BONUS_LIST_GROUP_ENTRY,
+            ),
+            (
+                814_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_MOUNT_EQUIPMENT,
+            ),
+            (
+                815_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_INCREASE_ITEM_BONUS_LIST_GROUP_STEP,
+            ),
+            (
+                816_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_270,
+            ),
+            (
+                817_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_SET_COVENANT,
+            ),
+            (
+                818_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_CRAFT_RUNEFORGE_LEGENDARY,
+            ),
+            (
+                819_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_SET_CHROMIE_TIME,
+            ),
         ];
         for (spell_id, effect_type) in primary_noop_spells {
             spell_store.insert(
@@ -43094,16 +43156,18 @@ mod tests {
         }
         session.set_spell_store(Arc::new(spell_store));
 
+        let mut observed_opcodes = Vec::new();
         for (spell_id, _) in primary_noop_spells {
             session
                 .execute_spell(spell_id, player_guid)
                 .await
                 .expect("represented C++ EffectNULL primary field should no-op");
+            observed_opcodes.extend(drain_server_opcodes(&send_rx));
         }
 
         assert_eq!(session.player_health_like_cpp(), 88);
         assert_eq!(
-            drain_server_opcodes(&send_rx),
+            observed_opcodes,
             primary_noop_spells
                 .iter()
                 .flat_map(|_| [ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent])
