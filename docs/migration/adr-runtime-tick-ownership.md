@@ -1693,6 +1693,16 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   not apply spawn overrides because `CreateGameObject` for spell-created GOs has no DB spawn row.
   Tests cover with/without addon. Scope remains bounded: no spell handler wiring, target/duration
   resolution, map mutation, linked-trap creation, scripts, or packets.
+- 2026-06-05 — Session wiring for spell-created GameObject template lifecycle store
+  `#NEXT.RUNTIME.L3.031ed`: contrasted C++ `Spell::EffectSummonObjectWild`
+  (`SpellEffects.cpp:2937-2986`) and `Spell::EffectSummonObject`
+  (`SpellEffects.cpp:3541-3597`): both ultimately call `GameObject::CreateGameObject` with
+  `effectInfo->MiscValue`, so live callers need the DB-backed template/addon lifecycle store.
+  Rust now carries `GameObjectTemplateLifecycleStoreLikeCpp` through `SessionResources` into
+  `WorldSession`, with a setter/getter and test coverage proving session callers can retrieve a
+  stored template and convert it through `gameobject_template_lifecycle_record_like_cpp`. Scope
+  remains bounded: no effect-handler wiring, target/fallback resolution, map mutation, packets,
+  linked traps, or owner-slot cleanup.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

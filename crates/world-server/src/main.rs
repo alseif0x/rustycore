@@ -1978,6 +1978,7 @@ async fn main() -> Result<()> {
         spell_duration_store: Some(Arc::clone(&spell_duration_store)),
         spell_radius_store: Some(Arc::clone(&spell_radius_store)),
         spell_range_store: Some(Arc::clone(&spell_range_store)),
+        gameobject_template_lifecycle_store: Some(Arc::clone(&gameobject_template_lifecycle_store)),
         area_table_store: Some(Arc::clone(&area_table_store)),
         fishing_base_skill_store: Some(Arc::clone(&fishing_base_skill_store)),
         area_trigger_store: Some(Arc::clone(&area_trigger_store)),
@@ -7038,6 +7039,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.spell_range_store {
         session.set_spell_range_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.gameobject_template_lifecycle_store {
+        session.set_gameobject_template_lifecycle_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.area_table_store {
         session.set_area_table_store(Arc::clone(store));

@@ -52,12 +52,13 @@ use wow_data::{
     CurrencyTypesEntry, CurrencyTypesStore, DISABLE_TYPE_MAP, DisableMgrLikeCpp,
     DisableWorldObjectRefLikeCpp, DungeonEncounterStore, DurabilityCostsStore,
     DurabilityQualityStore, FishingBaseSkillStoreLikeCpp, GameObjectDisplayInfoStore,
-    HotfixBlobCache, ImportPriceStores, ItemAppearanceStore, ItemClassStore, ItemCurrencyCostStore,
-    ItemDisenchantLootStore, ItemExtendedCostStore, ItemLimitCategoryConditionStore,
-    ItemLimitCategoryStore, ItemModifiedAppearanceStore, ItemPriceBaseStore,
-    ItemRandomEnchantmentTemplateStore, ItemRandomPropertiesStore, ItemRandomPropertyTemplateEntry,
-    ItemRandomSuffixStore, ItemStatsStore, ItemStore, LfgDungeonsStore, LockStore,
-    MapDifficultyStore, MapDifficultyXConditionStore, MapStore, MountCapabilityStore, MountStore,
+    GameObjectTemplateLifecycleStoreLikeCpp, HotfixBlobCache, ImportPriceStores,
+    ItemAppearanceStore, ItemClassStore, ItemCurrencyCostStore, ItemDisenchantLootStore,
+    ItemExtendedCostStore, ItemLimitCategoryConditionStore, ItemLimitCategoryStore,
+    ItemModifiedAppearanceStore, ItemPriceBaseStore, ItemRandomEnchantmentTemplateStore,
+    ItemRandomPropertiesStore, ItemRandomPropertyTemplateEntry, ItemRandomSuffixStore,
+    ItemStatsStore, ItemStore, LfgDungeonsStore, LockStore, MapDifficultyStore,
+    MapDifficultyXConditionStore, MapStore, MountCapabilityStore, MountStore,
     MountTypeXCapabilityStore, MountXDisplayStore, NpcSpellClickStoreLikeCpp, PhaseGroupStore,
     PhaseStore, PlayerConditionAuraLikeCpp, PlayerConditionContextLikeCpp,
     PlayerConditionCountLikeCpp, PlayerConditionPartyStatusLikeCpp,
@@ -2463,6 +2464,7 @@ pub struct WorldSession {
     spell_duration_store: Option<Arc<SpellDurationStore>>,
     spell_radius_store: Option<Arc<SpellRadiusStore>>,
     spell_range_store: Option<Arc<SpellRangeStore>>,
+    gameobject_template_lifecycle_store: Option<Arc<GameObjectTemplateLifecycleStoreLikeCpp>>,
     /// Currently active spell cast (if any). Set when a cast starts, cleared when it completes.
     pub(crate) active_spell_cast: Option<SpellCastState>,
     /// Last time a spell was executed (used to enforce global cooldown timers).
@@ -3256,6 +3258,7 @@ impl WorldSession {
             spell_duration_store: None,
             spell_radius_store: None,
             spell_range_store: None,
+            gameobject_template_lifecycle_store: None,
             quest_store: None,
             quest_pool_store: None,
             quest_xp_store: None,
@@ -9645,6 +9648,19 @@ impl WorldSession {
 
     pub(crate) fn spell_range_store(&self) -> Option<&Arc<SpellRangeStore>> {
         self.spell_range_store.as_ref()
+    }
+
+    pub fn set_gameobject_template_lifecycle_store(
+        &mut self,
+        store: Arc<GameObjectTemplateLifecycleStoreLikeCpp>,
+    ) {
+        self.gameobject_template_lifecycle_store = Some(store);
+    }
+
+    pub(crate) fn gameobject_template_lifecycle_store(
+        &self,
+    ) -> Option<&Arc<GameObjectTemplateLifecycleStoreLikeCpp>> {
+        self.gameobject_template_lifecycle_store.as_ref()
     }
 
     pub fn set_area_table_store(&mut self, store: Arc<AreaTableStore>) {
@@ -28110,6 +28126,50 @@ mod tests {
                 .represented_mount_aura_display_candidates_like_cpp(999)
                 .is_empty()
         );
+    }
+
+    #[test]
+    fn session_wires_gameobject_template_lifecycle_store_for_spell_summons_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let store = Arc::new(
+            wow_data::GameObjectTemplateLifecycleStoreLikeCpp::from_templates([
+                wow_data::GameObjectTemplateLifecycleRecordLikeCpp {
+                    entry: 7001,
+                    go_type: 6,
+                    display_id: 44,
+                    name: "spell summoned gameobject".to_string(),
+                    size: 1.0,
+                    data: [0; wow_entities::MAX_GAMEOBJECT_DATA],
+                    content_tuning_id: 80,
+                    ai_name: String::new(),
+                    script_name: String::new(),
+                    string_id: String::new(),
+                    addon: Some(wow_data::GameObjectTemplateAddonLifecycleRecordLikeCpp {
+                        entry: 7001,
+                        faction: 35,
+                        flags: 0x20,
+                        world_effect_id: 9,
+                        anim_kit_id: 3,
+                    }),
+                },
+            ]),
+        );
+
+        assert!(session.gameobject_template_lifecycle_store().is_none());
+        session.set_gameobject_template_lifecycle_store(Arc::clone(&store));
+
+        let template = session
+            .gameobject_template_lifecycle_store()
+            .and_then(|store| store.get(7001))
+            .expect("template store should be available to spell summon callers");
+        let lifecycle_record = wow_data::gameobject_template_lifecycle_record_like_cpp(template);
+        assert_eq!(lifecycle_record.entry, 7001);
+        assert_eq!(lifecycle_record.go_type, 6);
+        assert_eq!(lifecycle_record.faction, 35);
+        assert_eq!(lifecycle_record.flags, 0x20);
+        assert_eq!(lifecycle_record.level, 80);
+        assert_eq!(lifecycle_record.world_effect_id, 9);
+        assert_eq!(lifecycle_record.anim_kit_id, 3);
     }
 
     #[test]
