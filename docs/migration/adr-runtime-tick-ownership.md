@@ -1477,6 +1477,19 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   gaps: connecting canonical `GameObjectDeleteOutcomeLikeCpp.capture_point_packet_represented` to
   `SendIfVisibleLikeCpp`/session fanout, confirming the real client opcode if/when available,
   PoolMgr/DB delete branches, and live client/server validation.
+- 2026-06-04 — Pooled `GameObject::Delete` compatibility branch `#NEXT.RUNTIME.L3.031du`:
+  contrasted against C++ `GameObject::Delete`, where `m_respawnCompatibilityMode && poolid` calls
+  `sPoolMgr->UpdatePool<GameObject>(..., poolid, GetSpawnId())` instead of `AddObjectToRemoveList`
+  (`GameObject.cpp:1759-1763`), and against `PoolMgr::UpdatePool<T>` dispatch
+  (`PoolMgr.cpp:891-905`). Rust now has a bounded map-owned
+  `Map::gameobject_delete_with_pool_update_like_cpp` helper: the non-pooled/default branch still
+  queues the remove-list, while the pooled compatibility branch consumes the existing
+  `PoolMgrLikeCpp::update_pool_plan_like_cpp` plan, mutates map-owned `SpawnedPoolDataLikeCpp`, and
+  applies only already-represented safe map-local side effects. Focused tests assert pooled delete
+  updates PoolMgr state without remove-list and non-compatibility delete keeps remove-list behavior.
+  Remaining gaps: startup/runtime wiring of this helper from live delete call sites, DB save/delete
+  effects, DB-backed entity fabrication, capture-point/session fanout, and live client/server
+  validation.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

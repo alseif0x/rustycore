@@ -902,7 +902,7 @@ pub struct GameObjectUpdateOutcomeLikeCpp {
     pub generic_visibility_on_destroy_represented: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct GameObjectDeleteOutcomeLikeCpp {
     pub guid: ObjectGuid,
     pub remove_from_owner: Option<GameObjectRemoveFromOwnerOutcomeLikeCpp>,
@@ -911,7 +911,10 @@ pub struct GameObjectDeleteOutcomeLikeCpp {
     pub go_state_ready: bool,
     pub flags_restored: bool,
     pub pool_update_represented: bool,
-    pub remove_list: AddObjectToRemoveListOutcomeLikeCpp,
+    pub pool_update_plan: Option<PoolTypedSpawnPlanLikeCpp>,
+    pub pool_update_error: Option<PoolMgrPlanErrorLikeCpp>,
+    pub pool_update_summary: Option<ProcessRespawnsSafeSideEffectsSummaryLikeCpp>,
+    pub remove_list: Option<AddObjectToRemoveListOutcomeLikeCpp>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -5391,7 +5394,10 @@ where
                         Some(delete) => (
                             Some(linked_guid),
                             false,
-                            delete.remove_list.queued || delete.remove_list.duplicate,
+                            delete
+                                .remove_list
+                                .as_ref()
+                                .is_some_and(|remove| remove.queued || remove.duplicate),
                             false,
                         ),
                         None => (Some(linked_guid), false, false, true),
@@ -9050,6 +9056,128 @@ where
             go_state_ready,
             flags_restored,
             pool_update_represented: false,
+            pool_update_plan: None,
+            pool_update_error: None,
+            pool_update_summary: None,
+            remove_list: Some(remove_list),
+        })
+    }
+
+    /// Bounded map-owned representation of C++ `GameObject::Delete()` with
+    /// the compatibility-mode `PoolMgr::UpdatePool<GameObject>` branch.
+    ///
+    /// C++ anchors:
+    /// - `GameObject.cpp:1759-1763`: if `m_respawnCompatibilityMode && poolid`,
+    ///   call `sPoolMgr->UpdatePool<GameObject>(..., poolid, GetSpawnId())`;
+    ///   otherwise call `AddObjectToRemoveList()`.
+    /// - `PoolMgr.cpp:891-905`: `UpdatePool<T>` either updates a mother pool
+    ///   or spawns from the typed pool using the triggering spawn id.
+    ///
+    /// This helper consumes only the represented map-owned PoolMgr plan. It does
+    /// not perform DB writes, fabricate DB-backed GameObjects, or fan out packets.
+    pub fn gameobject_delete_with_pool_update_like_cpp<R, C>(
+        &mut self,
+        guid: ObjectGuid,
+        spawn_store: &SpawnStore,
+        pool_mgr: &PoolMgrLikeCpp,
+        mut explicit_roll_for: R,
+        mut choose_equal: C,
+    ) -> Option<GameObjectDeleteOutcomeLikeCpp>
+    where
+        R: FnMut(PoolMemberKindLikeCpp, u32) -> f32,
+        C: FnMut(&[PoolObjectLikeCpp], usize) -> Vec<usize>,
+    {
+        let (go_type, spawn_id, respawn_compatibility_mode, represented_gameobject_data_present) =
+            self.map_object_record(guid)
+                .filter(|record| record.kind() == AccessorObjectKind::GameObject)
+                .and_then(MapObjectRecord::game_object)
+                .map(|game_object| {
+                    (
+                        game_object.data().type_id as u32,
+                        game_object.spawn_id(),
+                        game_object.respawn_compatibility_mode(),
+                        game_object.has_represented_gameobject_data_like_cpp(),
+                    )
+                })?;
+
+        if let Some(game_object) = self
+            .map_objects
+            .get_mut(&guid)
+            .and_then(MapObjectRecord::game_object_mut)
+        {
+            game_object.set_loot_state(LootState::NotReady, None);
+        }
+        let remove_from_owner = self.gameobject_remove_from_owner_like_cpp(guid);
+        let capture_point_packet_represented = go_type == GAMEOBJECT_TYPE_CAPTURE_POINT;
+        let despawn_packet_represented = true;
+
+        let (go_state_ready, flags_restored) = self
+            .map_objects
+            .get_mut(&guid)
+            .and_then(MapObjectRecord::game_object_mut)
+            .map(|game_object| {
+                let go_state_ready = go_type != GAMEOBJECT_TYPE_TRANSPORT;
+                if go_state_ready {
+                    game_object.set_go_state(GoState::Ready);
+                }
+                let flags_restored = game_object.restore_represented_baseline_flags_like_cpp();
+                (go_state_ready, flags_restored)
+            })
+            .unwrap_or((false, false));
+
+        let pool_id =
+            if respawn_compatibility_mode && represented_gameobject_data_present && spawn_id != 0 {
+                spawn_store
+                    .spawn_data(SpawnObjectType::GameObject, spawn_id)
+                    .map(|spawn| spawn.pool_id)
+                    .unwrap_or(0)
+            } else {
+                0
+            };
+
+        let mut pool_update_plan = None;
+        let mut pool_update_error = None;
+        let mut pool_update_summary = None;
+        let mut remove_list = None;
+
+        if pool_id != 0 {
+            match pool_mgr.update_pool_plan_like_cpp(
+                &mut self.pool_data,
+                pool_id,
+                SpawnObjectType::GameObject,
+                spawn_id,
+                &mut explicit_roll_for,
+                &mut choose_equal,
+            ) {
+                Ok(plan) => {
+                    let mut summary = ProcessRespawnsSafeSideEffectsSummaryLikeCpp::default();
+                    self.apply_pool_typed_spawn_plan_safe_map_actions_like_cpp(
+                        &plan,
+                        spawn_store,
+                        &mut summary,
+                    );
+                    pool_update_summary = Some(summary);
+                    pool_update_plan = Some(plan);
+                }
+                Err(error) => {
+                    pool_update_error = Some(error);
+                }
+            }
+        } else {
+            remove_list = Some(self.add_object_to_remove_list_like_cpp(guid));
+        }
+
+        Some(GameObjectDeleteOutcomeLikeCpp {
+            guid,
+            remove_from_owner,
+            capture_point_packet_represented,
+            despawn_packet_represented,
+            go_state_ready,
+            flags_restored,
+            pool_update_represented: pool_update_plan.is_some(),
+            pool_update_plan,
+            pool_update_error,
+            pool_update_summary,
             remove_list,
         })
     }
@@ -9097,9 +9225,12 @@ where
         } else {
             None
         };
-        let linked_trap_remove_queued = linked_trap_delete
-            .as_ref()
-            .is_some_and(|delete| delete.remove_list.queued || delete.remove_list.duplicate);
+        let linked_trap_remove_queued = linked_trap_delete.as_ref().is_some_and(|delete| {
+            delete
+                .remove_list
+                .as_ref()
+                .is_some_and(|remove| remove.queued || remove.duplicate)
+        });
 
         Some(GameObjectRemoveLinkedTrapOutcomeLikeCpp {
             guid,
@@ -27045,6 +27176,124 @@ mod tests {
         assert!(map.map_object_record(trap_guid).is_some());
         assert_eq!(map.objects_to_remove_count_like_cpp(), 1);
         assert!(map.map_object_record(unrelated_guid).is_some());
+    }
+
+    #[test]
+    fn gameobject_delete_compatibility_pool_updates_pool_without_remove_list_like_cpp() {
+        let mut map = test_map();
+        let mut store = SpawnStore::new();
+        let active = spawn_group(531, SpawnGroupFlags::NONE);
+        let mut trigger_spawn = spawn_data(SpawnObjectType::GameObject, 53101, active.clone());
+        trigger_spawn.pool_id = 55;
+        let mut replacement_spawn = spawn_data(SpawnObjectType::GameObject, 53102, active);
+        replacement_spawn.pool_id = 55;
+        store.add_object_spawn(&trigger_spawn, |_| false);
+        store.add_object_spawn(&replacement_spawn, |_| false);
+
+        let mut pool_mgr = PoolMgrLikeCpp::new();
+        pool_mgr.insert_template_like_cpp(55, PoolTemplateDataLikeCpp::new(1, 571));
+        let mut group = PoolGroupLikeCpp::with_pool_id(PoolMemberKindLikeCpp::GameObject, 55);
+        group.add_entry_like_cpp(PoolObjectLikeCpp::new(53101, 0.0), 1);
+        group.add_entry_like_cpp(PoolObjectLikeCpp::new(53102, 0.0), 1);
+        pool_mgr
+            .insert_or_replace_group_like_cpp(PoolMemberKindLikeCpp::GameObject, 55, group)
+            .expect("test pool group");
+        pool_mgr
+            .register_spawn_pool_relation_like_cpp(PoolMemberKindLikeCpp::GameObject, 53101, 55)
+            .expect("test pool relation");
+
+        let mut gameobject = test_gameobject_for_spawn(53101, 5310101);
+        let guid = gameobject.world().guid();
+        gameobject.set_respawn_compatibility_mode(true);
+        gameobject.set_represented_gameobject_data_present_like_cpp(true);
+        gameobject.set_go_state(GoState::Active);
+        map.add_map_object_record_to_map_like_cpp(
+            MapObjectRecord::new_game_object(gameobject).unwrap(),
+        )
+        .unwrap();
+        assert!(
+            map.pool_data_mut_like_cpp()
+                .add_spawn_like_cpp(SpawnObjectType::GameObject, 53101, 55)
+                .is_ok()
+        );
+
+        let outcome = map
+            .gameobject_delete_with_pool_update_like_cpp(
+                guid,
+                &store,
+                &pool_mgr,
+                |_, _| 0.0,
+                |_candidates, _count| vec![1],
+            )
+            .expect("delete outcome");
+
+        assert!(outcome.pool_update_represented);
+        assert!(outcome.pool_update_error.is_none());
+        assert!(outcome.pool_update_plan.is_some());
+        assert!(outcome.pool_update_summary.is_some());
+        assert!(outcome.remove_list.is_none());
+        assert_eq!(map.objects_to_remove_count_like_cpp(), 0);
+        let summary = outcome.pool_update_summary.as_ref().unwrap();
+        assert_eq!(summary.pool_objects_removed, 1);
+        assert_eq!(summary.pool_spawn_actions_skipped_unloaded_grid, 1);
+        assert!(
+            map.pool_data_like_cpp()
+                .is_spawned_gameobject_like_cpp(53102)
+        );
+        assert_eq!(map.pool_data_like_cpp().get_spawned_objects_like_cpp(55), 1);
+        assert!(map.map_object_record(guid).is_none());
+    }
+
+    #[test]
+    fn gameobject_delete_without_compatibility_pool_keeps_remove_list_like_cpp() {
+        let mut map = test_map();
+        let mut store = SpawnStore::new();
+        let active = spawn_group(532, SpawnGroupFlags::NONE);
+        let mut trigger_spawn = spawn_data(SpawnObjectType::GameObject, 53201, active);
+        trigger_spawn.pool_id = 56;
+        store.add_object_spawn(&trigger_spawn, |_| false);
+
+        let mut pool_mgr = PoolMgrLikeCpp::new();
+        pool_mgr.insert_template_like_cpp(56, PoolTemplateDataLikeCpp::new(1, 571));
+        let mut group = PoolGroupLikeCpp::with_pool_id(PoolMemberKindLikeCpp::GameObject, 56);
+        group.add_entry_like_cpp(PoolObjectLikeCpp::new(53201, 0.0), 1);
+        pool_mgr
+            .insert_or_replace_group_like_cpp(PoolMemberKindLikeCpp::GameObject, 56, group)
+            .expect("test pool group");
+        pool_mgr
+            .register_spawn_pool_relation_like_cpp(PoolMemberKindLikeCpp::GameObject, 53201, 56)
+            .expect("test pool relation");
+
+        let mut gameobject = test_gameobject_for_spawn(53201, 5320101);
+        let guid = gameobject.world().guid();
+        gameobject.set_respawn_compatibility_mode(false);
+        gameobject.set_represented_gameobject_data_present_like_cpp(true);
+        map.add_map_object_record_to_map_like_cpp(
+            MapObjectRecord::new_game_object(gameobject).unwrap(),
+        )
+        .unwrap();
+
+        let outcome = map
+            .gameobject_delete_with_pool_update_like_cpp(
+                guid,
+                &store,
+                &pool_mgr,
+                |_, _| 0.0,
+                |_candidates, count| (0..count).collect(),
+            )
+            .expect("delete outcome");
+
+        assert!(!outcome.pool_update_represented);
+        assert!(outcome.pool_update_plan.is_none());
+        assert!(outcome.pool_update_summary.is_none());
+        assert!(
+            outcome
+                .remove_list
+                .as_ref()
+                .is_some_and(|remove| remove.queued)
+        );
+        assert_eq!(map.objects_to_remove_count_like_cpp(), 1);
+        assert_eq!(map.pool_data_like_cpp().get_spawned_objects_like_cpp(56), 0);
     }
 
     #[test]
