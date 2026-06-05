@@ -58,6 +58,13 @@ pub mod aura_types {
     pub const SPELL_AURA_PROVIDE_SPELL_FOCUS: i32 = 281;
 }
 
+/// Selected `Targets` ids from C++ `SpellImplicitTargetInfo::_data`.
+pub mod implicit_targets {
+    pub const TARGET_DEST_NEARBY_ENTRY: u32 = 46;
+    pub const TARGET_DEST_NEARBY_ENTRY_2: u32 = 107;
+    pub const TARGET_DEST_NEARBY_ENTRY_OR_DB: u32 = 142;
+}
+
 /// Metadata for a spell from Spell.db2 and related tables.
 #[derive(Debug, Clone)]
 pub struct SpellInfo {
@@ -152,6 +159,20 @@ impl SpellEffectInfo {
     pub fn is_provide_spell_focus_aura_like_cpp(&self) -> bool {
         self.effect == spell_effect_types::SPELL_EFFECT_APPLY_AURA
             && self.effect_aura == aura_types::SPELL_AURA_PROVIDE_SPELL_FOCUS
+    }
+
+    pub fn has_focus_destination_implicit_target_like_cpp(&self) -> bool {
+        matches!(
+            self.implicit_target_1,
+            implicit_targets::TARGET_DEST_NEARBY_ENTRY
+                | implicit_targets::TARGET_DEST_NEARBY_ENTRY_2
+                | implicit_targets::TARGET_DEST_NEARBY_ENTRY_OR_DB
+        ) || matches!(
+            self.implicit_target_2,
+            implicit_targets::TARGET_DEST_NEARBY_ENTRY
+                | implicit_targets::TARGET_DEST_NEARBY_ENTRY_2
+                | implicit_targets::TARGET_DEST_NEARBY_ENTRY_OR_DB
+        )
     }
 
     pub fn accepts_implicit_target_conditions_like_cpp(&self) -> bool {
@@ -591,6 +612,25 @@ mod tests {
         assert!(focus.is_provide_spell_focus_aura_like_cpp());
         assert!(!other_effect.is_provide_spell_focus_aura_like_cpp());
         assert_eq!(focus.effect_misc_value_1, 181);
+    }
+
+    #[test]
+    fn spell_effect_detects_focus_destination_implicit_targets_like_cpp() {
+        let mut effect = SpellEffectInfo {
+            implicit_target_1: implicit_targets::TARGET_DEST_NEARBY_ENTRY,
+            ..Default::default()
+        };
+        assert!(effect.has_focus_destination_implicit_target_like_cpp());
+
+        effect.implicit_target_1 = 0;
+        effect.implicit_target_2 = implicit_targets::TARGET_DEST_NEARBY_ENTRY_2;
+        assert!(effect.has_focus_destination_implicit_target_like_cpp());
+
+        effect.implicit_target_2 = implicit_targets::TARGET_DEST_NEARBY_ENTRY_OR_DB;
+        assert!(effect.has_focus_destination_implicit_target_like_cpp());
+
+        effect.implicit_target_2 = 40;
+        assert!(!effect.has_focus_destination_implicit_target_like_cpp());
     }
 
     #[test]

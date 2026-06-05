@@ -23942,10 +23942,20 @@ impl WorldSession {
 
         let mut force_visibility_after_gameobject_summon = false;
         for effect in spell_info.effects() {
+            let represented_focus_target_data = self
+                .represented_focus_destination_target_data_like_cpp(
+                    spell_id,
+                    effect,
+                    &target_data,
+                    represented_focus_object,
+                );
+            let effect_target_data = represented_focus_target_data
+                .as_ref()
+                .unwrap_or(&target_data);
             if let Some(outcome) = self.apply_effect_summon_object_wild_with_focus_like_cpp(
                 spell_id,
                 effect,
-                &target_data,
+                effect_target_data,
                 represented_focus_object,
             ) {
                 if outcome.map_outcome.as_ref().is_some_and(|map_outcome| {
@@ -23958,9 +23968,11 @@ impl WorldSession {
             }
 
             if spell_effect_is_represented_summon_object_slot_like_cpp(effect.effect) {
-                if let Some(outcome) =
-                    self.apply_effect_summon_object_slot_like_cpp(spell_id, effect, &target_data)
-                {
+                if let Some(outcome) = self.apply_effect_summon_object_slot_like_cpp(
+                    spell_id,
+                    effect,
+                    effect_target_data,
+                ) {
                     if outcome.map_outcome.as_ref().is_some_and(|map_outcome| {
                         map_outcome.status
                             == wow_map::map::GameObjectSummonObjectForOwnerSlotStatusLikeCpp::CreatedAddedAndSlotted
@@ -24020,6 +24032,40 @@ impl WorldSession {
         });
 
         Ok(())
+    }
+
+    fn represented_focus_destination_target_data_like_cpp(
+        &self,
+        spell_id: i32,
+        effect: &wow_data::SpellEffectInfo,
+        target_data: &SpellTargetData,
+        focus_object: Option<RepresentedSpellFocusObjectLikeCpp>,
+    ) -> Option<SpellTargetData> {
+        let focus_object = focus_object?;
+        if target_data.dst_location.is_some()
+            || !effect.has_focus_destination_implicit_target_like_cpp()
+        {
+            return None;
+        }
+
+        let has_implicit_conditions = self
+            .spell_store
+            .as_deref()
+            .and_then(|store| {
+                store.implicit_target_conditions_like_cpp(spell_id, effect.effect_index)
+            })
+            .and_then(|conditions| conditions.upgrade())
+            .is_some_and(|conditions| !conditions.is_empty());
+        if has_implicit_conditions {
+            return None;
+        }
+
+        let mut target_data = target_data.clone();
+        target_data.dst_location = Some(wow_packet::packets::spell::TargetLocation {
+            transport: ObjectGuid::EMPTY,
+            position: focus_object.position,
+        });
+        Some(target_data)
     }
 
     /// Live bounded C++ `Spell::EffectAddFarsight` consumer.
@@ -29561,6 +29607,172 @@ mod tests {
         assert!(
             update_object_packet_count_like_cpp(&packets) >= 1,
             "focus-backed summon should trigger represented visibility create/update delivery"
+        );
+    }
+
+    #[tokio::test]
+    async fn summon_object_wild_focus_implicit_destination_uses_focus_position_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 708_i32;
+        let template_entry = 9009_u32;
+        let player_guid = ObjectGuid::create_player(1, 7010);
+        let focus_guid = test_gameobject_guid(9011, 7011);
+        let player_position = Position::new(180.0, 280.0, 38.0, 0.0);
+        let focus_position = Position::new(184.0, 282.0, 38.5, 2.0);
+        let canonical = shared_canonical_map_manager();
+        let mut summon_effect =
+            summon_object_wild_effect_like_cpp(i32::try_from(template_entry).unwrap());
+        summon_effect.implicit_target_1 =
+            wow_data::spell::implicit_targets::TARGET_DEST_NEARBY_ENTRY_OR_DB;
+        configure_gameobject_summon_live_session_like_cpp(
+            &mut session,
+            &canonical,
+            player_guid,
+            player_position,
+            summon_go_template_store_like_cpp(template_entry),
+            gameobject_summon_spell_info_like_cpp(spell_id, 181, vec![summon_effect]),
+        );
+        add_canonical_spell_focus_gameobject_on_map_like_cpp(
+            &canonical,
+            focus_guid,
+            9_011,
+            181,
+            10,
+            focus_position,
+            571,
+            0,
+        );
+
+        session
+            .execute_spell_with_visual_and_target_data(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual {
+                    spell_visual_id: 708,
+                    script_visual_id: 0,
+                },
+                SpellTargetData::default(),
+            )
+            .await
+            .expect("focus implicit destination should execute");
+
+        let manager = canonical.lock().unwrap();
+        let managed = manager.find_map(571, 0).expect("canonical map");
+        let summoned_guid = session
+            .client_visible_guids_like_cpp
+            .iter()
+            .copied()
+            .filter(ObjectGuid::is_game_object)
+            .find(|guid| {
+                managed
+                    .map()
+                    .get_typed_game_object(*guid)
+                    .is_some_and(|go| go.world().object().entry() == template_entry)
+            })
+            .expect("focus-destination summon should be visible");
+        let summoned = managed
+            .map()
+            .get_typed_game_object(summoned_guid)
+            .expect("summoned GO should be map-owned");
+        assert_eq!(
+            summoned.world().position(),
+            focus_position,
+            "C++ TARGET_OBJECT_TYPE_DEST emergency branch sets m_targets.dst from focusObject before EffectSummonObjectWild"
+        );
+        drop(manager);
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert!(
+            update_object_packet_count_like_cpp(&packets) >= 1,
+            "focus-destination summon should trigger represented visibility create/update delivery"
+        );
+    }
+
+    #[tokio::test]
+    async fn summon_object_slot_focus_implicit_destination_uses_focus_position_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 709_i32;
+        let template_entry = 9012_u32;
+        let player_guid = ObjectGuid::create_player(1, 7012);
+        let focus_guid = test_gameobject_guid(9013, 7013);
+        let player_position = Position::new(190.0, 290.0, 39.0, 0.0);
+        let focus_position = Position::new(193.0, 294.0, 39.5, 2.4);
+        let canonical = shared_canonical_map_manager();
+        let mut summon_effect =
+            summon_object_slot_effect_like_cpp(i32::try_from(template_entry).unwrap(), 0);
+        summon_effect.implicit_target_1 =
+            wow_data::spell::implicit_targets::TARGET_DEST_NEARBY_ENTRY;
+        configure_gameobject_summon_live_session_like_cpp(
+            &mut session,
+            &canonical,
+            player_guid,
+            player_position,
+            summon_go_template_store_like_cpp(template_entry),
+            gameobject_summon_spell_info_like_cpp(spell_id, 181, vec![summon_effect]),
+        );
+        add_canonical_spell_focus_gameobject_on_map_like_cpp(
+            &canonical,
+            focus_guid,
+            9_013,
+            181,
+            10,
+            focus_position,
+            571,
+            0,
+        );
+
+        session
+            .execute_spell_with_visual_and_target_data(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual {
+                    spell_visual_id: 709,
+                    script_visual_id: 0,
+                },
+                SpellTargetData::default(),
+            )
+            .await
+            .expect("focus implicit destination slotted summon should execute");
+
+        let manager = canonical.lock().unwrap();
+        let managed = manager.find_map(571, 0).expect("canonical map");
+        let summoned_guid = session
+            .client_visible_guids_like_cpp
+            .iter()
+            .copied()
+            .filter(ObjectGuid::is_game_object)
+            .find(|guid| {
+                managed
+                    .map()
+                    .get_typed_game_object(*guid)
+                    .is_some_and(|go| go.world().object().entry() == template_entry)
+            })
+            .expect("focus-destination slotted summon should be visible");
+        let owner = managed
+            .map()
+            .get_typed_player(player_guid)
+            .expect("player remains slot owner");
+        assert_eq!(
+            owner.unit().subsystems().control.gameobject_slots[0],
+            summoned_guid
+        );
+        let summoned = managed
+            .map()
+            .get_typed_game_object(summoned_guid)
+            .expect("summoned GO should be map-owned");
+        assert_eq!(
+            summoned.world().position(),
+            focus_position,
+            "C++ m_targets.dst from focusObject is consumed by EffectSummonObject before its caster close-point fallback"
+        );
+        drop(manager);
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert!(
+            update_object_packet_count_like_cpp(&packets) >= 1,
+            "focus-destination slotted summon should trigger represented visibility create/update delivery"
         );
     }
 
