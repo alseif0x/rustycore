@@ -6187,7 +6187,11 @@ fn canonical_map_update_tick_set_inactive_like_cpp(
     condition_store: &wow_data::ConditionEntriesByTypeStore,
     loaded_grid_creature_respawn_caches: &LoadedGridCreatureRespawnCachesLikeCpp,
 ) -> Option<CanonicalSpawnGroupConditionTickSummaryLikeCpp> {
-    let Some(effective_diff_ms) = manager.update(diff_ms) else {
+    let Some(effective_diff_ms) = manager.update_with_pool_update_context(
+        diff_ms,
+        canonical_spawn_metadata.spawn_store(),
+        canonical_spawn_metadata.pool_mgr_like_cpp(),
+    ) else {
         return None;
     };
     if !scheduler.update(effective_diff_ms) {

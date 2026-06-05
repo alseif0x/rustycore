@@ -22,7 +22,8 @@ use crate::map::{
     SceneObjectsUpdateSummaryLikeCpp, ScriptScheduleProcessSummaryLikeCpp,
     SendObjectUpdatesSummaryLikeCpp, TransportsUpdateSummaryLikeCpp, WeatherUpdateSummaryLikeCpp,
 };
-use crate::spawn::Difficulty;
+use crate::pool::PoolMgrLikeCpp;
+use crate::spawn::{Difficulty, SpawnStore};
 use wow_core::GameTime;
 use wow_entities::CreatureRuntimeUpdateContext;
 
@@ -410,6 +411,23 @@ impl ManagedMap {
     }
 
     fn update(&mut self, diff_ms: u32) {
+        self.update_with_optional_pool_update_context(diff_ms, None);
+    }
+
+    fn update_with_pool_update_context(
+        &mut self,
+        diff_ms: u32,
+        spawn_store: &SpawnStore,
+        pool_mgr: &PoolMgrLikeCpp,
+    ) {
+        self.update_with_optional_pool_update_context(diff_ms, Some((spawn_store, pool_mgr)));
+    }
+
+    fn update_with_optional_pool_update_context(
+        &mut self,
+        diff_ms: u32,
+        pool_update: Option<(&SpawnStore, &PoolMgrLikeCpp)>,
+    ) {
         // C++ `Map::Update` starts with `_dynamicTree.update(t_diff)` before
         // world sessions, respawns, ObjectUpdater families, SendObjectUpdates,
         // scripts, weather, personal phase, move lists, relocation notifies, and
@@ -434,8 +452,17 @@ impl ManagedMap {
         // map-owned GameObject records. C++ real order is TypeContainerVisitor
         // nearby-cell/active-object traversal; this Rust insertion only adds the
         // missing family and leaves AI/go-type/per-player/packet/DB gaps open.
-        self.last_game_objects_update_summary =
-            self.map.update_game_objects_like_cpp(diff_ms, now_secs);
+        self.last_game_objects_update_summary = match pool_update {
+            Some((spawn_store, pool_mgr)) => {
+                self.map.update_game_objects_with_pool_update_like_cpp(
+                    diff_ms,
+                    now_secs,
+                    spawn_store,
+                    pool_mgr,
+                )
+            }
+            None => self.map.update_game_objects_like_cpp(diff_ms, now_secs),
+        };
         // Partial C++ transport seam: after the represented GameObject/ObjectUpdater
         // family and before later represented families, visit typed canonical
         // Transports. This does not reproduce exact C++ cell visitor ordering nor
@@ -1062,6 +1089,23 @@ impl MapManager {
     }
 
     pub fn update(&mut self, diff_ms: u32) -> Option<u32> {
+        self.update_with_optional_pool_update_context(diff_ms, None)
+    }
+
+    pub fn update_with_pool_update_context(
+        &mut self,
+        diff_ms: u32,
+        spawn_store: &SpawnStore,
+        pool_mgr: &PoolMgrLikeCpp,
+    ) -> Option<u32> {
+        self.update_with_optional_pool_update_context(diff_ms, Some((spawn_store, pool_mgr)))
+    }
+
+    fn update_with_optional_pool_update_context(
+        &mut self,
+        diff_ms: u32,
+        pool_update: Option<(&SpawnStore, &PoolMgrLikeCpp)>,
+    ) -> Option<u32> {
         self.timer.update(diff_ms);
         if !self.timer.passed() {
             return None;
@@ -1084,9 +1128,24 @@ impl MapManager {
             }
 
             if self.updater.activated() {
-                self.updater.schedule_update(map, current);
+                match pool_update {
+                    Some((spawn_store, pool_mgr)) => {
+                        self.updater.schedule_update_with_pool_update_context(
+                            map,
+                            current,
+                            spawn_store,
+                            pool_mgr,
+                        )
+                    }
+                    None => self.updater.schedule_update(map, current),
+                }
             } else {
-                map.update(current);
+                match pool_update {
+                    Some((spawn_store, pool_mgr)) => {
+                        map.update_with_pool_update_context(current, spawn_store, pool_mgr);
+                    }
+                    None => map.update(current),
+                }
             }
         }
 
@@ -1232,6 +1291,19 @@ impl MapUpdater {
         self.update_finished();
     }
 
+    pub fn schedule_update_with_pool_update_context(
+        &mut self,
+        map: &mut ManagedMap,
+        diff_ms: u32,
+        spawn_store: &SpawnStore,
+        pool_mgr: &PoolMgrLikeCpp,
+    ) {
+        self.pending_requests += 1;
+        self.scheduled_updates += 1;
+        map.update_with_pool_update_context(diff_ms, spawn_store, pool_mgr);
+        self.update_finished();
+    }
+
     pub fn wait(&mut self) {
         self.wait_calls += 1;
         debug_assert_eq!(self.pending_requests, 0);
@@ -1261,13 +1333,16 @@ mod tests {
         MapObjectMoveListFamilyLikeCpp, RepresentedFarSpellCallbackActionLikeCpp,
         RepresentedFarSpellCallbackLikeCpp,
     };
-    use crate::spawn::{SpawnGroupFlags, SpawnGroupTemplateData};
+    use crate::pool::{
+        PoolGroupLikeCpp, PoolMemberKindLikeCpp, PoolObjectLikeCpp, PoolTemplateDataLikeCpp,
+    };
+    use crate::spawn::{SpawnData, SpawnGroupFlags, SpawnGroupTemplateData, SpawnObjectType};
     use wow_constants::{DeathState, TypeId, TypeMask};
     use wow_core::{ObjectGuid, Position, guid::HighGuid};
     use wow_entities::{
-        AccessorObjectKind, AreaTrigger, Conversation, Creature, DynamicObject, GameObject,
-        LootState, MapObjectRecord, ObjectNotifyFlags, Player, SceneObject, Transport,
-        TransportPathLeg, TransportTemplate, WorldObject,
+        AccessorObjectKind, AreaTrigger, Conversation, Creature, DynamicObject,
+        GAMEOBJECT_TYPE_GENERIC, GameObject, LootState, MapObjectRecord, ObjectNotifyFlags, Player,
+        SceneObject, Transport, TransportPathLeg, TransportTemplate, WorldObject,
     };
 
     #[test]
@@ -2035,6 +2110,96 @@ mod tests {
                 .map()
                 .map_object_record(game_object_guid)
                 .is_none()
+        );
+    }
+
+    #[test]
+    fn map_manager_game_object_update_without_pool_context_keeps_remove_list_like_cpp() {
+        let mut manager = MapManager::new(MIN_GRID_DELAY_MS, 1);
+        manager.create_world_map(1, 0);
+        let game_object_guid =
+            insert_pool_compatible_owner_created_game_object_for_update(&mut manager, 4642101, 464);
+
+        assert_eq!(manager.update(1), Some(1));
+
+        let managed_map = manager.find_map(1, 0).unwrap();
+        assert_eq!(
+            managed_map.last_game_objects_update_summary(),
+            GameObjectsUpdateSummaryLikeCpp {
+                visited: 1,
+                updated: 0,
+                despawn_remove_queued: 1,
+                despawn_pool_updated: 0,
+                loot_cleared: 1,
+                summoned_expired_deletes: 1,
+                summoned_expired_respawn_time_zeroed: 1,
+                summoned_expired_despawn_represented: 1,
+                summoned_expired_go_state_ready: 1,
+                ..GameObjectsUpdateSummaryLikeCpp::default()
+            }
+        );
+        // `MapManager::update` immediately follows `Map::Update` with
+        // `Map::DelayedUpdate`, which drains the represented remove-list.
+        assert_eq!(managed_map.map().objects_to_remove_count_like_cpp(), 0);
+        assert!(
+            managed_map
+                .map()
+                .map_object_record(game_object_guid)
+                .is_none()
+        );
+        assert!(
+            !managed_map
+                .map()
+                .pool_data_like_cpp()
+                .is_spawned_gameobject_like_cpp(4642102)
+        );
+    }
+
+    #[test]
+    fn map_manager_game_object_update_with_pool_context_updates_pool_like_cpp() {
+        let mut manager = MapManager::new(MIN_GRID_DELAY_MS, 1);
+        manager.create_world_map(1, 0);
+        let game_object_guid =
+            insert_pool_compatible_owner_created_game_object_for_update(&mut manager, 4642201, 464);
+        let (spawn_store, pool_mgr) =
+            gameobject_pool_update_context_for_manager_like_cpp(464, 4642201, 4642202);
+
+        assert_eq!(
+            manager.update_with_pool_update_context(1, &spawn_store, &pool_mgr),
+            Some(1)
+        );
+
+        let managed_map = manager.find_map(1, 0).unwrap();
+        assert_eq!(
+            managed_map.last_game_objects_update_summary(),
+            GameObjectsUpdateSummaryLikeCpp {
+                visited: 1,
+                updated: 0,
+                despawn_remove_queued: 0,
+                despawn_pool_updated: 1,
+                loot_cleared: 1,
+                summoned_expired_deletes: 1,
+                summoned_expired_respawn_time_zeroed: 1,
+                summoned_expired_despawn_represented: 1,
+                summoned_expired_go_state_ready: 1,
+                ..GameObjectsUpdateSummaryLikeCpp::default()
+            }
+        );
+        assert_eq!(managed_map.map().objects_to_remove_count_like_cpp(), 0);
+        // 031dw wires the pool-update context into the live manager path. Full
+        // PoolMgr live despawn/fabrication remains a later slice; the old record
+        // still exists even though pool-data advanced to the replacement.
+        assert!(
+            managed_map
+                .map()
+                .map_object_record(game_object_guid)
+                .is_some()
+        );
+        assert!(
+            managed_map
+                .map()
+                .pool_data_like_cpp()
+                .is_spawned_gameobject_like_cpp(4642202)
         );
     }
 
@@ -3298,6 +3463,116 @@ mod tests {
             map.insert_map_object_record(record).unwrap();
         }
         dynamic_object_guid
+    }
+
+    fn insert_pool_compatible_owner_created_game_object_for_update(
+        manager: &mut MapManager,
+        spawn_id: u64,
+        pool_id: u32,
+    ) -> ObjectGuid {
+        let game_object_guid = insert_game_object_for_update(manager, spawn_id as i64, 0, true);
+        {
+            let game_object = manager
+                .find_map_mut(1, 0)
+                .unwrap()
+                .map_mut()
+                .get_typed_game_object_mut(game_object_guid)
+                .unwrap();
+            game_object.set_go_type(GAMEOBJECT_TYPE_GENERIC as u8);
+            game_object.world_mut().object_mut().set_entry(190_011);
+            game_object.set_spawn_id(spawn_id);
+            game_object.set_represented_gameobject_data_present_like_cpp(true);
+            game_object.set_respawn_compatibility_mode(true);
+            game_object.set_created_by(guid(HighGuid::Player, spawn_id as i64 + 99, 1, 0));
+            game_object.set_respawn_time(0);
+            game_object.set_loot_state(LootState::JustDeactivated, None);
+        }
+        manager
+            .find_map_mut(1, 0)
+            .unwrap()
+            .map_mut()
+            .pool_data_mut_like_cpp()
+            .add_spawn_like_cpp(SpawnObjectType::GameObject, spawn_id, pool_id)
+            .expect("spawned pool state");
+        game_object_guid
+    }
+
+    fn gameobject_pool_update_context_for_manager_like_cpp(
+        pool_id: u32,
+        despawned_spawn_id: u64,
+        replacement_spawn_id: u64,
+    ) -> (SpawnStore, PoolMgrLikeCpp) {
+        let mut store = SpawnStore::new();
+        let active = spawn_group_for_manager_like_cpp(pool_id + 100, SpawnGroupFlags::NONE);
+        let mut despawned_spawn = spawn_data_for_manager_like_cpp(
+            SpawnObjectType::GameObject,
+            despawned_spawn_id,
+            active.clone(),
+        );
+        despawned_spawn.pool_id = pool_id;
+        let mut replacement_spawn = spawn_data_for_manager_like_cpp(
+            SpawnObjectType::GameObject,
+            replacement_spawn_id,
+            active,
+        );
+        replacement_spawn.pool_id = pool_id;
+        store.add_object_spawn(&despawned_spawn, |_| false);
+        store.add_object_spawn(&replacement_spawn, |_| false);
+
+        let mut pool_mgr = PoolMgrLikeCpp::new();
+        pool_mgr.insert_template_like_cpp(pool_id, PoolTemplateDataLikeCpp::new(1, 1));
+        let mut group = PoolGroupLikeCpp::with_pool_id(PoolMemberKindLikeCpp::GameObject, pool_id);
+        group.add_entry_like_cpp(PoolObjectLikeCpp::new(replacement_spawn_id, 0.0), 1);
+        group.add_entry_like_cpp(PoolObjectLikeCpp::new(despawned_spawn_id, 0.0), 1);
+        pool_mgr
+            .insert_or_replace_group_like_cpp(PoolMemberKindLikeCpp::GameObject, pool_id, group)
+            .expect("test pool group");
+        pool_mgr
+            .register_spawn_pool_relation_like_cpp(
+                PoolMemberKindLikeCpp::GameObject,
+                despawned_spawn_id,
+                pool_id,
+            )
+            .expect("test pool relation");
+
+        (store, pool_mgr)
+    }
+
+    fn spawn_group_for_manager_like_cpp(
+        group_id: u32,
+        flags: SpawnGroupFlags,
+    ) -> SpawnGroupTemplateData {
+        SpawnGroupTemplateData {
+            group_id,
+            name: format!("manager-group-{group_id}"),
+            map_id: 1,
+            flags,
+        }
+    }
+
+    fn spawn_data_for_manager_like_cpp(
+        object_type: SpawnObjectType,
+        spawn_id: u64,
+        spawn_group: SpawnGroupTemplateData,
+    ) -> SpawnData {
+        SpawnData {
+            object_type,
+            spawn_id,
+            map_id: 1,
+            db_data: true,
+            spawn_group,
+            id: 99,
+            spawn_point: crate::spawn::SpawnPosition::new(0.0, 0.0, 0.0, 0.0),
+            phase_use_flags: 0,
+            phase_id: 0,
+            phase_group: 0,
+            terrain_swap_map: 0,
+            pool_id: 0,
+            spawn_time_secs: 0,
+            spawn_difficulties: vec![1],
+            script_id: 0,
+            string_id: String::new(),
+        }
     }
 
     fn insert_game_object_for_update(

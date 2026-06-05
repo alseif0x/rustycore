@@ -1503,6 +1503,19 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   while existing no-metadata update/delete tests preserve prior behavior. Remaining gaps:
   `ManagedMap`/`MapManager`/`world-server` metadata wiring, DB save/delete effects, DB-backed
   entity fabrication, capture-point/session fanout, and live client/server validation.
+- 2026-06-05 — Canonical map manager pool metadata wiring `#NEXT.RUNTIME.L3.031dw`: follow-up to
+  `031dv`, still anchored to C++ `GameObject::Update` owner/spell-created `Delete()` branches
+  (`GameObject.cpp:1625-1636`), pooled `GameObject::Delete` (`GameObject.cpp:1759-1763`), and
+  `PoolMgr::UpdatePool<T>` (`PoolMgr.cpp:891-905`). Rust now carries `SpawnStore` +
+  `PoolMgrLikeCpp` through `ManagedMap::update_with_pool_update_context`,
+  `MapManager::update_with_pool_update_context`, and the synchronous `MapUpdater` schedule path,
+  while preserving no-metadata `update()` wrappers. `world-server`'s canonical map update tick now
+  supplies `CanonicalSpawnMetadataLikeCpp::spawn_store()` and `pool_mgr_like_cpp()`, making the
+  represented pooled GameObject update/delete branch reachable from the real canonical loop.
+  Focused manager tests cover both the old no-metadata remove-list path and the pool-aware
+  `DespawnPoolUpdated` path. Remaining gaps: full PoolMgr live despawn/fabrication is not yet
+  represented in the manager path (pool-data can advance while the old live record remains), DB
+  save/delete effects, capture-point/session fanout, and live client/server validation.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
