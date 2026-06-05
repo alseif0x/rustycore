@@ -24147,6 +24147,10 @@ impl WorldSession {
                     self.apply_heal_max_health_like_cpp(direct_effect_base_points, target_guid)
                         .await?;
                 }
+                x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL_PCT => {
+                    self.apply_heal_pct_like_cpp(direct_effect_base_points, target_guid)
+                        .await?;
+                }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE => {
                     if let Ok(damage_amount) = u32::try_from(direct_effect_base_points) {
                         self.apply_damage(target_guid, damage_amount).await?;
@@ -24231,6 +24235,7 @@ impl WorldSession {
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_ENVIRONMENTAL_DAMAGE
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL_MAX_HEALTH
+                || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL_PCT
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_BIND
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS => {}
             _ => {
@@ -25327,6 +25332,45 @@ impl WorldSession {
             target_missing_health
         };
 
+        if heal_amount == 0 {
+            return Ok(());
+        }
+        self.apply_heal(target_guid, heal_amount).await
+    }
+
+    async fn apply_heal_pct_like_cpp(
+        &mut self,
+        damage: i32,
+        target_guid: ObjectGuid,
+    ) -> Result<(), &'static str> {
+        if damage < 0 {
+            debug!(
+                account = self.account_id,
+                heal_pct = damage,
+                "Skipping SPELL_EFFECT_HEAL_PCT because C++ EffectHealPct returns when damage < 0"
+            );
+            return Ok(());
+        }
+
+        let player_guid = self.player_guid().ok_or("No player GUID")?;
+        let target_max_health = if target_guid == player_guid {
+            if !self.player_alive_like_cpp {
+                return Ok(());
+            }
+            self.player_max_health_like_cpp
+        } else {
+            let Some(max_health) = self
+                .mutate_world_creature(target_guid, |creature| {
+                    creature.is_alive().then(|| creature.max_hp())
+                })
+                .flatten()
+            else {
+                return Ok(());
+            };
+            max_health
+        };
+
+        let heal_amount = ((target_max_health as f32) * (damage as f32) / 100.0) as u32;
         if heal_amount == 0 {
             return Ok(());
         }
@@ -41621,6 +41665,160 @@ mod tests {
                 ServerOpcodes::UpdateObject,
                 ServerOpcodes::CooldownEvent
             ]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_heal_pct_effect_row_heals_percent_of_target_max_health_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let manager = shared_map_manager();
+        let spell_id = 734_i32;
+        let player_guid = ObjectGuid::create_player(1, 51);
+        let creature_guid = test_creature_guid(18_016);
+        session.set_player_guid(Some(player_guid));
+        session.set_player_health_like_cpp(65, 100);
+        session.client_visible_guids_like_cpp.insert(creature_guid);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 40);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.take_damage(30);
+                creature.creature.clear_data_changes();
+            })
+            .unwrap();
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL_PCT,
+                    effect_base_points: 25,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, creature_guid)
+            .await
+            .expect("represented heal-pct row should execute");
+
+        let manager = manager.read().unwrap();
+        let world_creature = manager.find_creature(0, 0, creature_guid).unwrap();
+        assert_eq!(
+            world_creature.current_hp(),
+            20,
+            "C++ CountPctFromMaxHealth(25) heals 10 from a 40 max-health target"
+        );
+        drop(manager);
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert_eq!(
+            opcodes,
+            vec![
+                ServerOpcodes::SpellGo,
+                ServerOpcodes::UpdateObject,
+                ServerOpcodes::CooldownEvent
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn primary_heal_pct_heals_percent_of_player_max_health_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 735_i32;
+        let player_guid = ObjectGuid::create_player(1, 52);
+        session.set_player_guid(Some(player_guid));
+        session.set_player_health_like_cpp(35, 80);
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL_PCT,
+                effect_base_points: 50,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: Vec::new(),
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("represented primary heal-pct should execute");
+
+        assert_eq!(
+            session.player_health_like_cpp(),
+            75,
+            "C++ CountPctFromMaxHealth(50) heals 40 from an 80 max-health target"
+        );
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert_eq!(
+            opcodes,
+            vec![
+                ServerOpcodes::SpellGo,
+                ServerOpcodes::UpdateObject,
+                ServerOpcodes::CooldownEvent
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_heal_pct_negative_amount_is_noop_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 736_i32;
+        let player_guid = ObjectGuid::create_player(1, 53);
+        session.set_player_guid(Some(player_guid));
+        session.set_player_health_like_cpp(35, 80);
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL_PCT,
+                effect_base_points: -50,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: Vec::new(),
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("negative represented heal-pct should execute as C++ no-op effect");
+
+        assert_eq!(session.player_health_like_cpp(), 35);
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert_eq!(
+            opcodes,
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
         );
     }
 
