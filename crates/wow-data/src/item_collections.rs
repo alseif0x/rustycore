@@ -168,7 +168,51 @@ db2_store!(ToyStore, ToyEntry);
 db2_store!(TransmogHolidayStore, TransmogHolidayEntry);
 db2_store!(TransmogSetStore, TransmogSetEntry);
 db2_store!(TransmogSetGroupStore, TransmogSetGroupEntry);
-db2_store!(TransmogSetItemStore, TransmogSetItemEntry);
+
+pub struct TransmogSetItemStore {
+    entries: HashMap<u32, TransmogSetItemEntry>,
+    by_transmog_set: HashMap<u32, Vec<TransmogSetItemEntry>>,
+}
+
+impl TransmogSetItemStore {
+    pub fn from_entries(entries: impl IntoIterator<Item = TransmogSetItemEntry>) -> Self {
+        let mut by_id = HashMap::new();
+        let mut by_transmog_set = HashMap::<u32, Vec<TransmogSetItemEntry>>::new();
+        for entry in entries {
+            by_transmog_set
+                .entry(entry.transmog_set_id)
+                .or_default()
+                .push(entry.clone());
+            by_id.insert(entry.id, entry);
+        }
+
+        Self {
+            entries: by_id,
+            by_transmog_set,
+        }
+    }
+
+    pub fn get(&self, id: u32) -> Option<&TransmogSetItemEntry> {
+        self.entries.get(&id)
+    }
+
+    pub fn get_transmog_set_items_like_cpp(
+        &self,
+        transmog_set_id: u32,
+    ) -> Option<&[TransmogSetItemEntry]> {
+        self.by_transmog_set
+            .get(&transmog_set_id)
+            .map(Vec::as_slice)
+    }
+
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+}
 
 impl AuctionHouseStore {
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
@@ -440,6 +484,42 @@ mod tests {
 
         assert_eq!(store.get(42).unwrap().upgrade_item_id[5], 6);
         assert_eq!(store.get(42).unwrap().upgrade_item_bonus_list_id[0], 11);
+    }
+
+    #[test]
+    fn transmog_set_items_keep_cpp_secondary_index_shape() {
+        let store = TransmogSetItemStore::from_entries([
+            TransmogSetItemEntry {
+                id: 10,
+                transmog_set_id: 7,
+                item_modified_appearance_id: 100,
+                flags: 0,
+            },
+            TransmogSetItemEntry {
+                id: 11,
+                transmog_set_id: 8,
+                item_modified_appearance_id: 200,
+                flags: 1,
+            },
+            TransmogSetItemEntry {
+                id: 12,
+                transmog_set_id: 7,
+                item_modified_appearance_id: 101,
+                flags: 2,
+            },
+        ]);
+
+        assert_eq!(store.get(11).unwrap().item_modified_appearance_id, 200);
+        assert_eq!(
+            store
+                .get_transmog_set_items_like_cpp(7)
+                .unwrap()
+                .iter()
+                .map(|entry| entry.item_modified_appearance_id)
+                .collect::<Vec<_>>(),
+            vec![100, 101]
+        );
+        assert!(store.get_transmog_set_items_like_cpp(99).is_none());
     }
 
     #[test]
