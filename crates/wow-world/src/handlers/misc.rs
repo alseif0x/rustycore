@@ -3380,6 +3380,8 @@ mod tests {
                     player_native_realm: 456,
                 }),
                 name: "Misha".to_string(),
+                name_timestamp: 0,
+                declined_names: None,
                 save_info: crate::session::RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
             },
         );

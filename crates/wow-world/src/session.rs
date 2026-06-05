@@ -1505,6 +1505,8 @@ pub(crate) struct RepresentedBattlePetDataLikeCpp {
     pub(crate) quality: u8,
     pub(crate) owner_info: Option<wow_packet::packets::misc::BattlePetJournalPetOwnerInfo>,
     pub(crate) name: String,
+    pub(crate) name_timestamp: i64,
+    pub(crate) declined_names: Option<wow_packet::packets::misc::DeclinedNamesLikeCpp>,
     pub(crate) save_info: RepresentedBattlePetSaveInfoLikeCpp,
 }
 
@@ -1528,6 +1530,8 @@ impl RepresentedBattlePetDataLikeCpp {
             quality: 0,
             owner_info: None,
             name: String::new(),
+            name_timestamp: 0,
+            declined_names: None,
             save_info,
         }
     }
@@ -17931,6 +17935,32 @@ impl WorldSession {
         };
 
         pet.save_info = RepresentedBattlePetSaveInfoLikeCpp::Removed;
+        true
+    }
+
+    /// C++ `BattlePetMgr::ModifyName`, represented without live summoned-creature
+    /// timestamp propagation until the companion creature runtime exists.
+    pub(crate) fn battle_pet_modify_name_like_cpp(
+        &mut self,
+        pet_guid: ObjectGuid,
+        name: String,
+        declined_names: Option<wow_packet::packets::misc::DeclinedNamesLikeCpp>,
+        timestamp: i64,
+    ) -> bool {
+        if !self.has_represented_battle_pet_journal_lock_like_cpp() {
+            return false;
+        }
+
+        let Some(pet) = self.represented_battle_pets_like_cpp.get_mut(&pet_guid) else {
+            return false;
+        };
+
+        pet.name = name;
+        pet.name_timestamp = timestamp;
+        pet.declined_names = declined_names;
+        if pet.save_info != RepresentedBattlePetSaveInfoLikeCpp::New {
+            pet.save_info = RepresentedBattlePetSaveInfoLikeCpp::Changed;
+        }
         true
     }
 
@@ -52822,11 +52852,83 @@ mod tests {
     }
 
     #[test]
-    fn battle_pet_set_flags_applies_or_removes_known_pet_only_like_cpp() {
+    fn battle_pet_modify_name_requires_lock_and_updates_name_state_like_cpp() {
         let (mut session, _, _) = make_session();
         let pet_guid = ObjectGuid::new(0, 0x128);
         let new_pet_guid = ObjectGuid::new(0, 0x129);
         let unknown_guid = ObjectGuid::new(0, 0x12a);
+        let declined = wow_packet::packets::misc::DeclinedNamesLikeCpp {
+            names: ["Alpha", "Betas", "Gamma", "Delta", "Epsil"].map(str::to_string),
+        };
+
+        session.add_represented_battle_pet_like_cpp(
+            pet_guid,
+            0x10,
+            RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+        );
+        session.add_represented_battle_pet_like_cpp(
+            new_pet_guid,
+            0,
+            RepresentedBattlePetSaveInfoLikeCpp::New,
+        );
+
+        assert!(
+            !session.battle_pet_modify_name_like_cpp(pet_guid, "NoLock".to_string(), None, 10,)
+        );
+        assert_eq!(
+            session.represented_battle_pet_like_cpp(pet_guid),
+            Some(RepresentedBattlePetDataLikeCpp::minimal_like_cpp(
+                0x10,
+                RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+            ))
+        );
+
+        session.send_battle_pet_journal_lock_status_like_cpp();
+        assert!(!session.battle_pet_modify_name_like_cpp(
+            unknown_guid,
+            "Ghost".to_string(),
+            None,
+            11,
+        ));
+        assert!(session.battle_pet_modify_name_like_cpp(
+            pet_guid,
+            "Misha".to_string(),
+            Some(declined.clone()),
+            12_345,
+        ));
+        assert!(session.battle_pet_modify_name_like_cpp(
+            new_pet_guid,
+            "Newbie".to_string(),
+            None,
+            12_346,
+        ));
+
+        let changed_pet = session
+            .represented_battle_pet_like_cpp(pet_guid)
+            .expect("changed pet");
+        assert_eq!(changed_pet.name, "Misha");
+        assert_eq!(changed_pet.name_timestamp, 12_345);
+        assert_eq!(changed_pet.declined_names, Some(declined));
+        assert_eq!(
+            changed_pet.save_info,
+            RepresentedBattlePetSaveInfoLikeCpp::Changed
+        );
+
+        let new_pet = session
+            .represented_battle_pet_like_cpp(new_pet_guid)
+            .expect("new pet");
+        assert_eq!(new_pet.name, "Newbie");
+        assert_eq!(new_pet.name_timestamp, 12_346);
+        assert_eq!(new_pet.declined_names, None);
+        assert_eq!(new_pet.save_info, RepresentedBattlePetSaveInfoLikeCpp::New);
+    }
+
+    #[test]
+    fn battle_pet_set_flags_applies_or_removes_known_pet_only_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let pet_guid = ObjectGuid::new(0, 0x12b);
+        let new_pet_guid = ObjectGuid::new(0, 0x12c);
+        let unknown_guid = ObjectGuid::new(0, 0x12d);
 
         session.add_represented_battle_pet_like_cpp(
             pet_guid,
@@ -52879,9 +52981,9 @@ mod tests {
     #[test]
     fn battle_pet_set_battle_slot_assigns_known_pet_to_valid_slot_like_cpp() {
         let (mut session, _, _) = make_session();
-        let pet_guid = ObjectGuid::new(0, 0x12b);
-        let other_guid = ObjectGuid::new(0, 0x12c);
-        let unknown_guid = ObjectGuid::new(0, 0x12d);
+        let pet_guid = ObjectGuid::new(0, 0x12e);
+        let other_guid = ObjectGuid::new(0, 0x12f);
+        let unknown_guid = ObjectGuid::new(0, 0x130);
 
         session.add_represented_battle_pet_like_cpp(
             pet_guid,
@@ -52913,9 +53015,9 @@ mod tests {
     #[test]
     fn battle_pet_summon_toggles_known_pet_and_ignores_unknown_like_cpp() {
         let (mut session, _, _) = make_session();
-        let pet_guid = ObjectGuid::new(0, 0x12e);
-        let other_guid = ObjectGuid::new(0, 0x12f);
-        let unknown_guid = ObjectGuid::new(0, 0x130);
+        let pet_guid = ObjectGuid::new(0, 0x131);
+        let other_guid = ObjectGuid::new(0, 0x132);
+        let unknown_guid = ObjectGuid::new(0, 0x133);
 
         session.add_represented_battle_pet_like_cpp(
             pet_guid,
@@ -52956,9 +53058,9 @@ mod tests {
     #[test]
     fn battle_pet_update_notify_requires_known_active_pet_like_cpp() {
         let (mut session, _, _) = make_session();
-        let pet_guid = ObjectGuid::new(0, 0x131);
-        let other_guid = ObjectGuid::new(0, 0x132);
-        let unknown_guid = ObjectGuid::new(0, 0x133);
+        let pet_guid = ObjectGuid::new(0, 0x134);
+        let other_guid = ObjectGuid::new(0, 0x135);
+        let unknown_guid = ObjectGuid::new(0, 0x136);
 
         session.add_represented_battle_pet_like_cpp(
             pet_guid,
@@ -52991,7 +53093,7 @@ mod tests {
         let (mut session, _, _) = make_session();
         let canonical = Arc::new(std::sync::Mutex::new(wow_map::MapManager::new(60_000, 1)));
         let player_guid = ObjectGuid::create_player(1, 42);
-        let pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x134);
+        let pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x137);
         session.set_canonical_map_manager(Arc::clone(&canonical));
         session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
             wow_data::MapEntry {
@@ -53032,6 +53134,8 @@ mod tests {
                 quality: 3,
                 owner_info: None,
                 name: String::new(),
+                name_timestamp: 0,
+                declined_names: None,
                 save_info: RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
             },
         );
