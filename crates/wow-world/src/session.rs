@@ -24179,10 +24179,10 @@ impl WorldSession {
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_GIVE_HONOR => {
                     self.apply_give_honor_effect_like_cpp(direct_effect_base_points, target_guid)?;
                 }
-                x if x
-                    == wow_data::spell::spell_effect_types::SPELL_EFFECT_PULL
+                x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_PULL
                     || x
-                        == wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_TRANSMOG_ILLUSION => {}
+                        == wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_TRANSMOG_ILLUSION
+                    || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_TRADE_SKILL => {}
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_QUEST_COMPLETE => {
                     self.apply_quest_complete_effect_like_cpp(
                         target_guid,
@@ -24300,6 +24300,7 @@ impl WorldSession {
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_GIVE_HONOR
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_PULL
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_TRANSMOG_ILLUSION
+                || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_TRADE_SKILL
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_QUEST_COMPLETE
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_KILL_CREDIT
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_KILL_CREDIT2
@@ -43088,6 +43089,8 @@ mod tests {
         let primary_spell_id = 858_i32;
         let pull_hydrated_spell_id = 859_i32;
         let pull_primary_spell_id = 860_i32;
+        let trade_skill_hydrated_spell_id = 861_i32;
+        let trade_skill_primary_spell_id = 862_i32;
         let mut spell_store = wow_data::SpellStore::new();
         spell_store.insert(
             hydrated_spell_id,
@@ -43164,6 +43167,44 @@ mod tests {
                 effects: Vec::new(),
             },
         );
+        spell_store.insert(
+            trade_skill_hydrated_spell_id,
+            wow_data::SpellInfo {
+                spell_id: trade_skill_hydrated_spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 75,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_TRADE_SKILL,
+                    effect_misc_value_1: 164,
+                    effect_base_points: 75,
+                    ..Default::default()
+                }],
+            },
+        );
+        spell_store.insert(
+            trade_skill_primary_spell_id,
+            wow_data::SpellInfo {
+                spell_id: trade_skill_primary_spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_TRADE_SKILL,
+                effect_base_points: 75,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: Vec::new(),
+            },
+        );
         session.set_spell_store(Arc::new(spell_store));
 
         for spell_id in [
@@ -43171,6 +43212,8 @@ mod tests {
             primary_spell_id,
             pull_hydrated_spell_id,
             pull_primary_spell_id,
+            trade_skill_hydrated_spell_id,
+            trade_skill_primary_spell_id,
         ] {
             session
                 .execute_spell(spell_id, player_guid)

@@ -49,6 +49,7 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_LANGUAGE: u32 = 39;
     pub const SPELL_EFFECT_DUAL_WIELD: u32 = 40;
     pub const SPELL_EFFECT_SPAWN: u32 = 46;
+    pub const SPELL_EFFECT_TRADE_SKILL: u32 = 47;
     pub const SPELL_EFFECT_STEALTH: u32 = 48;
     pub const SPELL_EFFECT_DETECT: u32 = 49;
     pub const SPELL_EFFECT_FORCE_CRITICAL_HIT: u32 = 51;
@@ -1080,6 +1081,7 @@ mod tests {
         assert_eq!(spell_effect_types::SPELL_EFFECT_LANGUAGE, 39);
         assert_eq!(spell_effect_types::SPELL_EFFECT_DUAL_WIELD, 40);
         assert_eq!(spell_effect_types::SPELL_EFFECT_SPAWN, 46);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_TRADE_SKILL, 47);
         assert_eq!(spell_effect_types::SPELL_EFFECT_STEALTH, 48);
         assert_eq!(spell_effect_types::SPELL_EFFECT_DETECT, 49);
         assert_eq!(spell_effect_types::SPELL_EFFECT_FORCE_CRITICAL_HIT, 51);
