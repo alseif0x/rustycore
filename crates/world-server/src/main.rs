@@ -1177,6 +1177,29 @@ async fn main() -> Result<()> {
         item_search_name_store.len()
     );
 
+    // Load battle-pet stat DB2 stores used by BattlePet::CalculateStats.
+    let battle_pet_breed_quality_store = Arc::new(
+        wow_data::BattlePetBreedQualityStore::load(&data_dir, &locale).context(
+            "Failed to load BattlePetBreedQuality.db2 — check DataDir and DBC.Locale config",
+        )?,
+    );
+    let battle_pet_breed_state_store = Arc::new(
+        wow_data::BattlePetBreedStateStore::load(&data_dir, &locale).context(
+            "Failed to load BattlePetBreedState.db2 — check DataDir and DBC.Locale config",
+        )?,
+    );
+    let battle_pet_species_state_store = Arc::new(
+        wow_data::BattlePetSpeciesStateStore::load(&data_dir, &locale).context(
+            "Failed to load BattlePetSpeciesState.db2 — check DataDir and DBC.Locale config",
+        )?,
+    );
+    info!(
+        "Loaded battle-pet stat DB2 stores: {} quality rows, {} breed-state rows, {} species-state rows",
+        battle_pet_breed_quality_store.len(),
+        battle_pet_breed_state_store.len(),
+        battle_pet_species_state_store.len()
+    );
+
     // Load TransmogSet.db2 and TransmogSetItem.db2 for DB2Manager transmog indexes.
     let transmog_set_store = Arc::new(
         wow_data::TransmogSetStore::load(&data_dir, &locale)
@@ -2043,6 +2066,9 @@ async fn main() -> Result<()> {
         item_search_name_store: Some(Arc::clone(&item_search_name_store)),
         heirloom_store: Some(Arc::clone(&heirloom_store)),
         toy_store: Some(Arc::clone(&toy_store)),
+        battle_pet_breed_quality_store: Some(Arc::clone(&battle_pet_breed_quality_store)),
+        battle_pet_breed_state_store: Some(Arc::clone(&battle_pet_breed_state_store)),
+        battle_pet_species_state_store: Some(Arc::clone(&battle_pet_species_state_store)),
         transmog_set_item_store: Some(Arc::clone(&transmog_set_item_store)),
         item_price_base_store: Some(Arc::clone(&item_price_base_store)),
         item_limit_category_store: Some(Arc::clone(&item_limit_category_store)),
@@ -7064,6 +7090,15 @@ async fn create_session(
     }
     if let Some(ref store) = resources.toy_store {
         session.set_toy_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.battle_pet_breed_quality_store {
+        session.set_battle_pet_breed_quality_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.battle_pet_breed_state_store {
+        session.set_battle_pet_breed_state_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.battle_pet_species_state_store {
+        session.set_battle_pet_species_state_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.transmog_set_item_store {
         session.set_transmog_set_item_store(Arc::clone(store));

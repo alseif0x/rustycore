@@ -50,7 +50,8 @@ use wow_constants::{
 };
 use wow_core::{ObjectGuid, ObjectGuidGenerator, Position, guid::HighGuid};
 use wow_data::{
-    AreaTableStore, AreaTriggerStore, ChrSpecializationStore, ConditionEntriesByTypeStore,
+    AreaTableStore, AreaTriggerStore, BattlePetBreedQualityStore, BattlePetBreedStateStore,
+    BattlePetSpeciesStateStore, ChrSpecializationStore, ConditionEntriesByTypeStore,
     CreatureDisplayInfoStore, CreatureModelDataStore, CreatureTemplateMountStoreLikeCpp,
     CurrencyTypesEntry, CurrencyTypesStore, DISABLE_TYPE_MAP, DisableMgrLikeCpp,
     DisableWorldObjectRefLikeCpp, DungeonEncounterStore, DurabilityCostsStore,
@@ -72,7 +73,7 @@ use wow_data::{
     SpellRangeStore, SpellStore, SpellTargetPositionStoreLikeCpp, SummonPropertiesEntry, ToyStore,
     TransmogSetEntry, TransmogSetItemStore, VEHICLE_SEAT_FLAG_CAN_ATTACK,
     VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
-    is_player_meeting_condition_like_cpp,
+    calculate_battle_pet_stats_like_cpp, is_player_meeting_condition_like_cpp,
     progression_rewards::{
         ContentTuningStore, FactionEntry, FactionStore, FactionTemplateStore,
         FriendshipRepReactionStore, ParagonReputationStore, QuestFactionRewardStore,
@@ -2332,6 +2333,11 @@ pub struct WorldSession {
     // Toy store (Toy.db2 data)
     toy_store: Option<Arc<ToyStore>>,
 
+    // Battle-pet stat stores used by C++ `BattlePet::CalculateStats`.
+    battle_pet_breed_quality_store: Option<Arc<BattlePetBreedQualityStore>>,
+    battle_pet_breed_state_store: Option<Arc<BattlePetBreedStateStore>>,
+    battle_pet_species_state_store: Option<Arc<BattlePetSpeciesStateStore>>,
+
     // Transmog set item store (TransmogSetItem.db2 data)
     transmog_set_item_store: Option<Arc<TransmogSetItemStore>>,
 
@@ -3518,6 +3524,9 @@ impl WorldSession {
             item_search_name_store: None,
             heirloom_store: None,
             toy_store: None,
+            battle_pet_breed_quality_store: None,
+            battle_pet_breed_state_store: None,
+            battle_pet_species_state_store: None,
             transmog_set_item_store: None,
             item_price_base_store: None,
             item_limit_category_store: None,
@@ -8088,6 +8097,42 @@ impl WorldSession {
     /// Get the toy store reference.
     pub fn toy_store(&self) -> Option<&Arc<ToyStore>> {
         self.toy_store.as_ref()
+    }
+
+    pub fn set_battle_pet_breed_quality_store(&mut self, store: Arc<BattlePetBreedQualityStore>) {
+        self.battle_pet_breed_quality_store = Some(store);
+    }
+
+    pub fn set_battle_pet_breed_state_store(&mut self, store: Arc<BattlePetBreedStateStore>) {
+        self.battle_pet_breed_state_store = Some(store);
+    }
+
+    pub fn set_battle_pet_species_state_store(&mut self, store: Arc<BattlePetSpeciesStateStore>) {
+        self.battle_pet_species_state_store = Some(store);
+    }
+
+    pub(crate) fn battle_pet_calculate_stats_like_cpp(
+        &self,
+        breed: u16,
+        species: u32,
+        quality: u8,
+        level: u16,
+    ) -> Option<RepresentedBattlePetCalculatedStatsLikeCpp> {
+        let stats = calculate_battle_pet_stats_like_cpp(
+            breed,
+            species,
+            quality,
+            level,
+            self.battle_pet_breed_state_store.as_ref()?,
+            self.battle_pet_species_state_store.as_ref()?,
+            self.battle_pet_breed_quality_store.as_ref()?,
+        )?;
+
+        Some(RepresentedBattlePetCalculatedStatsLikeCpp {
+            max_health: stats.max_health,
+            power: stats.power,
+            speed: stats.speed,
+        })
     }
 
     /// Set the transmog set item store for this session.
@@ -53927,6 +53972,80 @@ mod tests {
         assert_eq!(packet.read_uint32().expect("max health"), 123);
         assert_eq!(packet.read_uint32().expect("speed"), 67);
         assert_eq!(packet.read_uint8().expect("quality"), 3);
+    }
+
+    #[test]
+    fn battle_pet_calculate_stats_uses_cpp_db2_state_stores() {
+        let (mut session, _, _) = make_session();
+        assert_eq!(
+            session.battle_pet_calculate_stats_like_cpp(7, 11, 3, 2),
+            None
+        );
+
+        session.set_battle_pet_breed_state_store(Arc::new(BattlePetBreedStateStore::from_entries(
+            [
+                wow_data::BattlePetBreedStateEntry {
+                    id: 1,
+                    battle_pet_state_id: wow_data::BATTLE_PET_STATE_STAT_STAMINA_LIKE_CPP,
+                    value: 500,
+                    battle_pet_breed_id: 7,
+                },
+                wow_data::BattlePetBreedStateEntry {
+                    id: 2,
+                    battle_pet_state_id: wow_data::BATTLE_PET_STATE_STAT_POWER_LIKE_CPP,
+                    value: 300,
+                    battle_pet_breed_id: 7,
+                },
+                wow_data::BattlePetBreedStateEntry {
+                    id: 3,
+                    battle_pet_state_id: wow_data::BATTLE_PET_STATE_STAT_SPEED_LIKE_CPP,
+                    value: 200,
+                    battle_pet_breed_id: 7,
+                },
+            ],
+        )));
+        session.set_battle_pet_species_state_store(Arc::new(
+            BattlePetSpeciesStateStore::from_entries([
+                wow_data::BattlePetSpeciesStateEntry {
+                    id: 10,
+                    battle_pet_state_id: wow_data::BATTLE_PET_STATE_STAT_STAMINA_LIKE_CPP,
+                    value: 100,
+                    battle_pet_species_id: 11,
+                },
+                wow_data::BattlePetSpeciesStateEntry {
+                    id: 11,
+                    battle_pet_state_id: wow_data::BATTLE_PET_STATE_STAT_POWER_LIKE_CPP,
+                    value: 50,
+                    battle_pet_species_id: 11,
+                },
+                wow_data::BattlePetSpeciesStateEntry {
+                    id: 12,
+                    battle_pet_state_id: wow_data::BATTLE_PET_STATE_STAT_SPEED_LIKE_CPP,
+                    value: 25,
+                    battle_pet_species_id: 11,
+                },
+            ]),
+        ));
+        session.set_battle_pet_breed_quality_store(Arc::new(
+            BattlePetBreedQualityStore::from_entries([wow_data::BattlePetBreedQualityEntry {
+                id: 20,
+                state_multiplier: 1.5,
+                quality_enum: 3,
+            }]),
+        ));
+
+        assert_eq!(
+            session.battle_pet_calculate_stats_like_cpp(7, 11, 3, 2),
+            Some(RepresentedBattlePetCalculatedStatsLikeCpp {
+                max_health: 190,
+                power: 11,
+                speed: 7,
+            })
+        );
+        assert_eq!(
+            session.battle_pet_calculate_stats_like_cpp(8, 11, 3, 2),
+            None
+        );
     }
 
     #[test]

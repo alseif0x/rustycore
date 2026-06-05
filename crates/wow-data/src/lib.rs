@@ -168,8 +168,12 @@ pub use item_bonus::{
 };
 pub use item_class::{ItemClassEntry, ItemClassStore};
 pub use item_collections::{
-    HeirloomEntry, HeirloomStore, ToyEntry, ToyStore, TransmogSetEntry, TransmogSetItemEntry,
-    TransmogSetItemStore, TransmogSetStore,
+    BATTLE_PET_STATE_STAT_POWER_LIKE_CPP, BATTLE_PET_STATE_STAT_SPEED_LIKE_CPP,
+    BATTLE_PET_STATE_STAT_STAMINA_LIKE_CPP, BattlePetBreedQualityEntry, BattlePetBreedQualityStore,
+    BattlePetBreedStateEntry, BattlePetBreedStateStore, BattlePetCalculatedStatsLikeCpp,
+    BattlePetSpeciesStateEntry, BattlePetSpeciesStateStore, HeirloomEntry, HeirloomStore, ToyEntry,
+    ToyStore, TransmogSetEntry, TransmogSetItemEntry, TransmogSetItemStore, TransmogSetStore,
+    calculate_battle_pet_stats_like_cpp,
 };
 pub use item_currency_cost::{ItemCurrencyCostEntry, ItemCurrencyCostStore};
 pub use item_disenchant_loot::{ItemDisenchantLootEntry, ItemDisenchantLootStore};

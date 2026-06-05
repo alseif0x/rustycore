@@ -58,6 +58,17 @@ pub struct BattlePetSpeciesStateEntry {
     pub battle_pet_species_id: u32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BattlePetCalculatedStatsLikeCpp {
+    pub max_health: u32,
+    pub power: u32,
+    pub speed: u32,
+}
+
+pub const BATTLE_PET_STATE_STAT_POWER_LIKE_CPP: u8 = 18;
+pub const BATTLE_PET_STATE_STAT_STAMINA_LIKE_CPP: u8 = 19;
+pub const BATTLE_PET_STATE_STAT_SPEED_LIKE_CPP: u8 = 20;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CurrencyContainerEntry {
     pub id: u32,
@@ -172,6 +183,103 @@ db2_store!(ToyStore, ToyEntry);
 db2_store!(TransmogHolidayStore, TransmogHolidayEntry);
 db2_store!(TransmogSetStore, TransmogSetEntry);
 db2_store!(TransmogSetGroupStore, TransmogSetGroupEntry);
+
+pub fn calculate_battle_pet_stats_like_cpp(
+    breed: u16,
+    species: u32,
+    quality: u8,
+    level: u16,
+    breed_states: &BattlePetBreedStateStore,
+    species_states: &BattlePetSpeciesStateStore,
+    breed_qualities: &BattlePetBreedQualityStore,
+) -> Option<BattlePetCalculatedStatsLikeCpp> {
+    let breed_id = u32::from(breed);
+    if !breed_states
+        .values()
+        .any(|entry| entry.battle_pet_breed_id == breed_id)
+    {
+        return None;
+    }
+
+    let mut health = battle_pet_breed_state_value_like_cpp(
+        breed_states,
+        breed_id,
+        BATTLE_PET_STATE_STAT_STAMINA_LIKE_CPP,
+    ) as f32;
+    let mut power = battle_pet_breed_state_value_like_cpp(
+        breed_states,
+        breed_id,
+        BATTLE_PET_STATE_STAT_POWER_LIKE_CPP,
+    ) as f32;
+    let mut speed = battle_pet_breed_state_value_like_cpp(
+        breed_states,
+        breed_id,
+        BATTLE_PET_STATE_STAT_SPEED_LIKE_CPP,
+    ) as f32;
+
+    health += battle_pet_species_state_value_like_cpp(
+        species_states,
+        species,
+        BATTLE_PET_STATE_STAT_STAMINA_LIKE_CPP,
+    ) as f32;
+    power += battle_pet_species_state_value_like_cpp(
+        species_states,
+        species,
+        BATTLE_PET_STATE_STAT_POWER_LIKE_CPP,
+    ) as f32;
+    speed += battle_pet_species_state_value_like_cpp(
+        species_states,
+        species,
+        BATTLE_PET_STATE_STAT_SPEED_LIKE_CPP,
+    ) as f32;
+
+    if let Some(quality_entry) = breed_qualities
+        .values()
+        .find(|entry| entry.quality_enum == quality)
+    {
+        health *= quality_entry.state_multiplier;
+        power *= quality_entry.state_multiplier;
+        speed *= quality_entry.state_multiplier;
+    }
+
+    health *= f32::from(level);
+    power *= f32::from(level);
+    speed *= f32::from(level);
+
+    Some(BattlePetCalculatedStatsLikeCpp {
+        max_health: (health / 20.0).round() as u32 + 100,
+        power: (power / 100.0).round() as u32,
+        speed: (speed / 100.0).round() as u32,
+    })
+}
+
+fn battle_pet_breed_state_value_like_cpp(
+    store: &BattlePetBreedStateStore,
+    breed_id: u32,
+    state_id: u8,
+) -> u16 {
+    store
+        .values()
+        .find(|entry| {
+            entry.battle_pet_breed_id == breed_id && entry.battle_pet_state_id == state_id
+        })
+        .map(|entry| entry.value)
+        .unwrap_or(0)
+}
+
+fn battle_pet_species_state_value_like_cpp(
+    store: &BattlePetSpeciesStateStore,
+    species_id: u32,
+    state_id: u8,
+) -> i32 {
+    store
+        .values()
+        .find(|entry| {
+            entry.battle_pet_species_id == species_id && entry.battle_pet_state_id == state_id
+        })
+        .map(|entry| entry.value)
+        .unwrap_or(0)
+}
 
 pub struct TransmogSetItemStore {
     entries: HashMap<u32, TransmogSetItemEntry>,
@@ -559,6 +667,119 @@ impl_from_entries!(TransmogSetItemStore, TransmogSetItemEntry);
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn calculate_battle_pet_stats_matches_cpp_formula() {
+        let breed_states = BattlePetBreedStateStore::from_entries([
+            BattlePetBreedStateEntry {
+                id: 1,
+                battle_pet_state_id: BATTLE_PET_STATE_STAT_STAMINA_LIKE_CPP,
+                value: 500,
+                battle_pet_breed_id: 7,
+            },
+            BattlePetBreedStateEntry {
+                id: 2,
+                battle_pet_state_id: BATTLE_PET_STATE_STAT_POWER_LIKE_CPP,
+                value: 300,
+                battle_pet_breed_id: 7,
+            },
+            BattlePetBreedStateEntry {
+                id: 3,
+                battle_pet_state_id: BATTLE_PET_STATE_STAT_SPEED_LIKE_CPP,
+                value: 200,
+                battle_pet_breed_id: 7,
+            },
+        ]);
+        let species_states = BattlePetSpeciesStateStore::from_entries([
+            BattlePetSpeciesStateEntry {
+                id: 10,
+                battle_pet_state_id: BATTLE_PET_STATE_STAT_STAMINA_LIKE_CPP,
+                value: 100,
+                battle_pet_species_id: 11,
+            },
+            BattlePetSpeciesStateEntry {
+                id: 11,
+                battle_pet_state_id: BATTLE_PET_STATE_STAT_POWER_LIKE_CPP,
+                value: 50,
+                battle_pet_species_id: 11,
+            },
+            BattlePetSpeciesStateEntry {
+                id: 12,
+                battle_pet_state_id: BATTLE_PET_STATE_STAT_SPEED_LIKE_CPP,
+                value: 25,
+                battle_pet_species_id: 11,
+            },
+        ]);
+        let qualities = BattlePetBreedQualityStore::from_entries([BattlePetBreedQualityEntry {
+            id: 20,
+            state_multiplier: 1.5,
+            quality_enum: 3,
+        }]);
+
+        assert_eq!(
+            calculate_battle_pet_stats_like_cpp(
+                7,
+                11,
+                3,
+                2,
+                &breed_states,
+                &species_states,
+                &qualities,
+            ),
+            Some(BattlePetCalculatedStatsLikeCpp {
+                max_health: 190,
+                power: 11,
+                speed: 7,
+            })
+        );
+    }
+
+    #[test]
+    fn calculate_battle_pet_stats_requires_existing_breed_but_defaults_missing_states_like_cpp() {
+        let breed_states = BattlePetBreedStateStore::from_entries([BattlePetBreedStateEntry {
+            id: 1,
+            battle_pet_state_id: BATTLE_PET_STATE_STAT_POWER_LIKE_CPP,
+            value: 250,
+            battle_pet_breed_id: 7,
+        }]);
+        let species_states =
+            BattlePetSpeciesStateStore::from_entries([BattlePetSpeciesStateEntry {
+                id: 10,
+                battle_pet_state_id: BATTLE_PET_STATE_STAT_STAMINA_LIKE_CPP,
+                value: 80,
+                battle_pet_species_id: 11,
+            }]);
+        let qualities = BattlePetBreedQualityStore::from_entries([]);
+
+        assert_eq!(
+            calculate_battle_pet_stats_like_cpp(
+                7,
+                11,
+                9,
+                3,
+                &breed_states,
+                &species_states,
+                &qualities,
+            ),
+            Some(BattlePetCalculatedStatsLikeCpp {
+                max_health: 112,
+                power: 8,
+                speed: 0,
+            })
+        );
+        assert_eq!(
+            calculate_battle_pet_stats_like_cpp(
+                8,
+                11,
+                9,
+                3,
+                &breed_states,
+                &species_states,
+                &qualities,
+            ),
+            None
+        );
+    }
 
     #[test]
     fn heirloom_store_preserves_cpp_upgrade_arrays() {
