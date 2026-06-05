@@ -9197,22 +9197,39 @@ where
             }
         }
 
-        let (unit_owned_gameobject_list_removed, unit_object_slot_cleared) =
-            if owner_found_as_unit_like {
-                self.map_objects
-                    .get_mut(&owner_guid_before)
-                    .and_then(Self::map_record_unit_mut_like_cpp)
-                    .map(|owner| {
-                        let control = &mut owner.subsystems_mut().control;
-                        (
-                            control.remove_owned_gameobject_like_cpp(guid),
-                            control.clear_gameobject_slot_for_guid_like_cpp(guid),
-                        )
-                    })
-                    .unwrap_or((false, false))
-            } else {
-                (false, false)
-            };
+        let (
+            unit_owned_gameobject_list_removed,
+            unit_object_slot_cleared,
+            aura_cleanup_removed_count,
+        ) = if owner_found_as_unit_like {
+            self.map_objects
+                .get_mut(&owner_guid_before)
+                .and_then(Self::map_record_unit_mut_like_cpp)
+                .map(|owner| {
+                    let subsystems = owner.subsystems_mut();
+                    let control = &mut subsystems.control;
+                    let unit_owned_gameobject_list_removed =
+                        control.remove_owned_gameobject_like_cpp(guid);
+                    let unit_object_slot_cleared =
+                        control.clear_gameobject_slot_for_guid_like_cpp(guid);
+                    let aura_cleanup_removed_count = (spell_id != 0)
+                        .then(|| {
+                            subsystems
+                                .auras
+                                .remove_auras_due_to_spell_like_cpp(spell_id, ObjectGuid::EMPTY, 0)
+                                .len()
+                        })
+                        .unwrap_or(0);
+                    (
+                        unit_owned_gameobject_list_removed,
+                        unit_object_slot_cleared,
+                        aura_cleanup_removed_count,
+                    )
+                })
+                .unwrap_or((false, false, 0))
+        } else {
+            (false, false, 0)
+        };
 
         Some(GameObjectRemoveFromOwnerOutcomeLikeCpp {
             guid,
@@ -9228,7 +9245,8 @@ where
             unit_side_effects_represented: owner_found_as_unit_like,
             unit_owned_gameobject_list_removed,
             unit_object_slot_cleared,
-            aura_cleanup_represented: false,
+            aura_cleanup_represented: spell_id != 0 && owner_found_as_unit_like,
+            aura_cleanup_removed_count,
             cooldown_event_represented: false,
             creature_ai_callback_represented: false,
         })
@@ -11903,6 +11921,7 @@ pub struct GameObjectRemoveFromOwnerOutcomeLikeCpp {
     pub unit_owned_gameobject_list_removed: bool,
     pub unit_object_slot_cleared: bool,
     pub aura_cleanup_represented: bool,
+    pub aura_cleanup_removed_count: usize,
     pub cooldown_event_represented: bool,
     pub creature_ai_callback_represented: bool,
 }
@@ -13156,7 +13175,7 @@ mod tests {
     use wow_entities::{
         AccessorObjectRef, AppliedAuraRef, Creature, CreatureAddToWorldVehicleResetContextLikeCpp,
         CreatureFormationInfoLikeCpp, GameObject, GameObjectLootSource, GameObjectOwnedLoot,
-        GooberUseSource, ObjectAccessor, ObjectNotifyFlags, Player,
+        GooberUseSource, ObjectAccessor, ObjectNotifyFlags, OwnedAuraRef, Player,
         SPELL_AURA_INTERRUPT_FLAG_ENTER_WORLD_LIKE_CPP, Transport, VehicleAccessory,
         VehicleSeatAddon, VehicleSeatInfo, VehicleSpellImmunity, VehicleSpellImmunityKind,
     };
@@ -13990,6 +14009,9 @@ mod tests {
 
         let mut gameobject = test_gameobject_for_spawn(48201, 4820102);
         let guid = gameobject.world().guid();
+        let removed_aura = AppliedAuraRef::new(482001, owner_guid, 0, 0x1);
+        let removed_owned_aura = OwnedAuraRef::new(482001, owner_guid, None);
+        let kept_aura = AppliedAuraRef::new(482002, owner_guid, 1, 0x1);
         owner
             .unit_mut()
             .subsystems_mut()
@@ -14002,6 +14024,21 @@ mod tests {
                 .control
                 .set_gameobject_slot(1, guid)
         );
+        owner
+            .unit_mut()
+            .subsystems_mut()
+            .auras
+            .add_applied(removed_aura);
+        owner
+            .unit_mut()
+            .subsystems_mut()
+            .auras
+            .add_owned(removed_owned_aura);
+        owner
+            .unit_mut()
+            .subsystems_mut()
+            .auras
+            .add_applied(kept_aura);
         map.insert_map_object_record(MapObjectRecord::new_player(owner).unwrap())
             .unwrap();
 
@@ -14027,7 +14064,8 @@ mod tests {
         assert!(remove_owner.unit_side_effects_represented);
         assert!(remove_owner.unit_owned_gameobject_list_removed);
         assert!(remove_owner.unit_object_slot_cleared);
-        assert!(!remove_owner.aura_cleanup_represented);
+        assert!(remove_owner.aura_cleanup_represented);
+        assert_eq!(remove_owner.aura_cleanup_removed_count, 1);
         assert!(!remove_owner.cooldown_event_represented);
         assert!(!remove_owner.creature_ai_callback_represented);
         assert!(outcome.gameobject_model_remove.is_some());
@@ -14053,6 +14091,19 @@ mod tests {
                 .iter()
                 .all(ObjectGuid::is_empty)
         );
+        assert!(!owner.unit().subsystems().auras.has_applied(removed_aura));
+        assert!(owner.unit().subsystems().auras.has_applied(kept_aura));
+        assert_eq!(
+            owner.unit().subsystems().auras.removed_auras,
+            vec![removed_aura.aura_ref()]
+        );
+        assert!(
+            !owner
+                .unit()
+                .subsystems()
+                .auras
+                .has_owned(removed_owned_aura)
+        );
     }
 
     #[test]
@@ -14073,6 +14124,8 @@ mod tests {
         assert!(!remove_owner.owner_found_as_unit_like);
         assert!(remove_owner.cleared_owner);
         assert!(!remove_owner.unit_side_effects_represented);
+        assert!(!remove_owner.aura_cleanup_represented);
+        assert_eq!(remove_owner.aura_cleanup_removed_count, 0);
     }
 
     #[test]
@@ -14094,6 +14147,8 @@ mod tests {
         assert_eq!(empty_owner.owner_guid_after, ObjectGuid::EMPTY);
         assert!(!empty_owner.owner_found_as_unit_like);
         assert!(!empty_owner.cleared_owner);
+        assert!(!empty_owner.aura_cleanup_represented);
+        assert_eq!(empty_owner.aura_cleanup_removed_count, 0);
 
         let mut generic_map = test_map();
         let generic_object =

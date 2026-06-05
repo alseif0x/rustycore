@@ -1578,6 +1578,17 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `RemoveAurasDueToSpell`, cooldown event emission, `CreatureAI::SummonedGameobjectDespawn`,
   automatic owner-list population at all creation call sites, DB effects, and live client/server
   validation.
+- 2026-06-05 — Map-owned `RemoveFromOwner` aura cleanup `#NEXT.RUNTIME.L3.031e2`: contrasted C++
+  `Unit::RemoveGameObject(GameObject*, false)` spell branch (`Unit.cpp:5229-5233`) and
+  `Unit::RemoveAurasDueToSpell` filtering (`Unit.cpp:3806-3819`). Rust now adds a bounded
+  `AuraSubsystem::remove_auras_due_to_spell_like_cpp` helper and invokes it from map-owned
+  `gameobject_remove_from_owner_like_cpp` when the resolved owner exists and the GameObject has a
+  non-zero spell id. This records the branch and removes represented applied aura refs matching
+  spell id / optional caster / required effect mask plus their matching represented owned-aura base
+  refs when present. Scope boundary: this is not full C++
+  `Aura::Remove`; aura scripts/procs/update-field packet fanout, cooldown event emission,
+  `CreatureAI::SummonedGameobjectDespawn`, creation-time owner-list population, DB effects, and live
+  client/server validation remain open.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

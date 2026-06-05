@@ -164,6 +164,12 @@ impl AuraSubsystem {
         before != self.owned_auras.len()
     }
 
+    pub fn remove_owned_by_aura_ref_like_cpp(&mut self, aura: AuraRef) -> bool {
+        let before = self.owned_auras.len();
+        self.owned_auras.retain(|known| known.aura_ref() != aura);
+        before != self.owned_auras.len()
+    }
+
     pub fn has_owned(&self, aura: OwnedAuraRef) -> bool {
         self.owned_auras.contains(&aura)
     }
@@ -257,6 +263,34 @@ impl AuraSubsystem {
             .unwrap_or_default();
         for aura in &removed {
             self.unapply_aura(*aura, 1);
+        }
+        removed
+    }
+
+    /// Bounded representation of C++ `Unit::RemoveAurasDueToSpell`.
+    ///
+    /// This removes represented applied aura refs matching `spell_id`, optional
+    /// caster, and required effect mask. It does not run aura scripts/procs or
+    /// packet fanout; callers use `removed_auras` evidence for that later layer.
+    pub fn remove_auras_due_to_spell_like_cpp(
+        &mut self,
+        spell_id: u32,
+        caster_guid: ObjectGuid,
+        req_eff_mask: u32,
+    ) -> Vec<AppliedAuraRef> {
+        let removed: Vec<_> = self
+            .applied_auras
+            .iter()
+            .copied()
+            .filter(|aura| {
+                aura.spell_id == spell_id
+                    && (aura.effect_mask & req_eff_mask) == req_eff_mask
+                    && (caster_guid.is_empty() || aura.caster_guid == caster_guid)
+            })
+            .collect();
+        for aura in &removed {
+            self.unapply_aura(*aura, 1);
+            self.remove_owned_by_aura_ref_like_cpp(aura.aura_ref());
         }
         removed
     }
@@ -4348,6 +4382,45 @@ mod unit_subsystems_tests {
         assert!(!auras.has_aura_type_like_cpp(93));
         assert!(auras.has_aura_type_like_cpp(8));
         assert_eq!(auras.removed_count(), 2);
+    }
+
+    #[test]
+    fn remove_auras_due_to_spell_matches_cpp_filters() {
+        let mut auras = AuraSubsystem::default();
+        let caster = guid(1);
+        let other = guid(2);
+        let exact = AppliedAuraRef::new(400, caster, 0, 0x3);
+        let missing_effect = AppliedAuraRef::new(400, caster, 1, 0x1);
+        let other_caster = AppliedAuraRef::new(400, other, 2, 0x3);
+        let different_spell = AppliedAuraRef::new(401, caster, 3, 0x3);
+        let exact_owned = OwnedAuraRef::new(400, caster, None);
+        let other_owned = OwnedAuraRef::new(400, other, None);
+
+        for aura in [exact, missing_effect, other_caster, different_spell] {
+            auras.add_applied(aura);
+        }
+        auras.add_owned(exact_owned);
+        auras.add_owned(other_owned);
+
+        assert_eq!(
+            auras.remove_auras_due_to_spell_like_cpp(400, caster, 0x3),
+            vec![exact]
+        );
+        assert!(!auras.has_applied(exact));
+        assert!(!auras.has_owned(exact_owned));
+        assert!(auras.has_owned(other_owned));
+        assert!(auras.has_applied(missing_effect));
+        assert!(auras.has_applied(other_caster));
+        assert!(auras.has_applied(different_spell));
+        assert_eq!(auras.removed_auras, vec![exact.aura_ref()]);
+
+        assert_eq!(
+            auras.remove_auras_due_to_spell_like_cpp(400, ObjectGuid::EMPTY, 0),
+            vec![missing_effect, other_caster]
+        );
+        assert_eq!(auras.removed_count(), 3);
+        assert!(!auras.has_owned(other_owned));
+        assert!(auras.has_applied(different_spell));
     }
 
     #[test]
