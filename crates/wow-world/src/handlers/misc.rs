@@ -914,6 +914,10 @@ impl crate::session::WorldSession {
             return;
         }
 
+        if self.player_is_possessing_like_cpp() {
+            return;
+        }
+
         debug!(
             account = self.account_id,
             item_id,

@@ -3918,6 +3918,53 @@ impl WorldSession {
         result
     }
 
+    pub(crate) fn player_is_possessing_like_cpp(&self) -> bool {
+        let Some(player_guid) = self.player_guid else {
+            return false;
+        };
+        let map_id = u32::from(self.player_map_id_like_cpp());
+        let Some(manager) = self.canonical_map_manager.as_ref() else {
+            return false;
+        };
+        let Ok(manager) = manager.lock() else {
+            return false;
+        };
+
+        let mut result = None;
+        manager.do_for_all_maps_with_map_id(map_id, |managed| {
+            if result.is_some() {
+                return;
+            }
+
+            let map = managed.map();
+            let Some(player) = map.get_typed_player(player_guid) else {
+                return;
+            };
+            let Some(charmed_guid) = player.unit().subsystems().control.charmed_guid else {
+                result = Some(false);
+                return;
+            };
+
+            let target_possessed_by_player = map
+                .get_typed_player(charmed_guid)
+                .map(|target| {
+                    let control = &target.unit().subsystems().control;
+                    control.charmer_guid == Some(player_guid) && control.is_possessed()
+                })
+                .or_else(|| {
+                    map.get_typed_creature(charmed_guid).map(|target| {
+                        let control = &target.unit().subsystems().control;
+                        control.charmer_guid == Some(player_guid) && control.is_possessed()
+                    })
+                })
+                .unwrap_or(false);
+
+            result = Some(target_possessed_by_player);
+        });
+
+        result.unwrap_or(false)
+    }
+
     fn attack_reputation_faction_snapshot_like_cpp(
         &self,
         creature: &wow_entities::Creature,
@@ -27153,10 +27200,10 @@ mod tests {
         reputation::ReputationFlagsLikeCpp,
     };
     use wow_entities::{
-        AccessorObjectRef, BANK_SLOT_BAG_START, EQUIPMENT_SLOT_CHEST, INVENTORY_SLOT_BAG_START,
-        INVENTORY_SLOT_ITEM_START, REAGENT_BAG_SLOT_START, SendNewItemInstancePlan,
-        SendNewItemModifier, TYPEID_UNIT, UNIT_DATA_BITS, UnitDataUpdate, UnitDataValues,
-        UnitValuesUpdate, UpdateMask,
+        AccessorObjectRef, BANK_SLOT_BAG_START, CharmType, EQUIPMENT_SLOT_CHEST,
+        INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, REAGENT_BAG_SLOT_START,
+        SendNewItemInstancePlan, SendNewItemModifier, TYPEID_UNIT, UNIT_DATA_BITS, UnitDataUpdate,
+        UnitDataValues, UnitValuesUpdate, UpdateMask,
     };
     use wow_movement::MoveSplineFlag;
     use wow_network::{
@@ -51106,6 +51153,69 @@ mod tests {
         assert!(session.toy_item_has_spell_effect_like_cpp(30_000, 12_345));
         assert!(!session.toy_item_has_spell_effect_like_cpp(30_000, 54_321));
         assert!(!session.toy_item_has_spell_effect_like_cpp(30_001, 12_345));
+    }
+
+    #[test]
+    fn player_is_possessing_requires_possessed_charmed_unit_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 31_000);
+        let controlled_guid = test_creature_guid(31_001);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_player_guid(Some(player_guid));
+        session.set_player_map_position_like_cpp(571, Position::new(10.0, 10.0, 0.0, 0.0));
+        add_canonical_test_player_on_map(
+            &canonical,
+            player_guid,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            571,
+            0,
+        );
+        add_canonical_test_creature(
+            &canonical,
+            controlled_guid,
+            9001,
+            Position::new(11.0, 10.0, 0.0, 0.0),
+            0,
+        );
+
+        {
+            let mut guard = canonical.lock().unwrap();
+            let map = guard.find_map_mut(571, 0).unwrap().map_mut();
+            map.get_typed_player_mut(player_guid)
+                .unwrap()
+                .unit_mut()
+                .subsystems_mut()
+                .control
+                .apply_charm_as_controller(controlled_guid, true);
+            assert!(
+                map.get_typed_creature_mut(controlled_guid)
+                    .unwrap()
+                    .unit_mut()
+                    .subsystems_mut()
+                    .control
+                    .apply_charmed_by(player_guid, CharmType::Charm, true, None, false)
+            );
+        }
+
+        assert!(!session.player_is_possessing_like_cpp());
+
+        {
+            let mut guard = canonical.lock().unwrap();
+            guard
+                .find_map_mut(571, 0)
+                .unwrap()
+                .map_mut()
+                .get_typed_creature_mut(controlled_guid)
+                .unwrap()
+                .unit_mut()
+                .subsystems_mut()
+                .control
+                .charm_type = Some(CharmType::Possess);
+        }
+
+        assert!(session.player_is_possessing_like_cpp());
     }
 
     #[test]
