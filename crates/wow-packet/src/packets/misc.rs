@@ -1860,15 +1860,14 @@ impl ClientPacket for QueryBattlePetName {
 }
 
 /// C++ `WorldPackets::BattlePet::QueryBattlePetNameResponse`.
-///
-/// This currently supports the negative `Allow=false` shape used by C++ when
-/// the queried summon/pet cannot be resolved. The positive name payload depends
-/// on the live battle-pet companion runtime and declined-name model.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QueryBattlePetNameResponse {
     pub battle_pet_id: ObjectGuid,
     pub creature_id: i32,
     pub timestamp: i64,
     pub allow: bool,
+    pub name: String,
+    pub declined_names: Option<DeclinedNamesLikeCpp>,
 }
 
 impl QueryBattlePetNameResponse {
@@ -1878,6 +1877,25 @@ impl QueryBattlePetNameResponse {
             creature_id: 0,
             timestamp: 0,
             allow: false,
+            name: String::new(),
+            declined_names: None,
+        }
+    }
+
+    pub fn allowed(
+        battle_pet_id: ObjectGuid,
+        creature_id: i32,
+        timestamp: i64,
+        name: String,
+        declined_names: Option<DeclinedNamesLikeCpp>,
+    ) -> Self {
+        Self {
+            battle_pet_id,
+            creature_id,
+            timestamp,
+            allow: true,
+            name,
+            declined_names,
         }
     }
 }
@@ -1890,6 +1908,25 @@ impl ServerPacket for QueryBattlePetNameResponse {
         pkt.write_int32(self.creature_id);
         pkt.write_int64(self.timestamp);
         pkt.write_bit(self.allow);
+        if self.allow {
+            pkt.write_bits(self.name.len() as u32, 8);
+            pkt.write_bit(self.declined_names.is_some());
+
+            let declined_names = self.declined_names.as_ref().map(|declined| &declined.names);
+            for index in 0..MAX_DECLINED_NAME_CASES_LIKE_CPP {
+                let length = declined_names
+                    .map(|names| names[index].len())
+                    .unwrap_or_default();
+                pkt.write_bits(length as u32, 7);
+            }
+
+            if let Some(names) = declined_names {
+                for name in names {
+                    pkt.write_string(name);
+                }
+            }
+            pkt.write_string(&self.name);
+        }
         pkt.flush_bits();
     }
 }
@@ -4566,6 +4603,72 @@ mod tests {
         assert_eq!(body.read_int32().unwrap(), 0);
         assert_eq!(body.read_int64().unwrap(), 0);
         assert!(!body.read_bit().unwrap());
+        assert_eq!(body.remaining(), 0);
+    }
+
+    #[test]
+    fn query_battle_pet_name_response_writes_positive_without_declined_names_like_cpp() {
+        let battle_pet_id = ObjectGuid::new(0, 0x4329);
+        let response = QueryBattlePetNameResponse::allowed(
+            battle_pet_id,
+            91_001,
+            1_717_000_123,
+            "Rusty".to_string(),
+            None,
+        );
+        let bytes = response.to_bytes();
+
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::QueryBattlePetNameResponse as u16
+        );
+        let mut body = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(body.read_packed_guid().unwrap(), battle_pet_id);
+        assert_eq!(body.read_int32().unwrap(), 91_001);
+        assert_eq!(body.read_int64().unwrap(), 1_717_000_123);
+        assert!(body.read_bit().unwrap());
+        assert_eq!(body.read_bits(8).unwrap(), 5);
+        assert!(!body.read_bit().unwrap());
+        for _ in 0..MAX_DECLINED_NAME_CASES_LIKE_CPP {
+            assert_eq!(body.read_bits(7).unwrap(), 0);
+        }
+        assert_eq!(body.read_string(5).unwrap(), "Rusty");
+        assert_eq!(body.remaining(), 0);
+    }
+
+    #[test]
+    fn query_battle_pet_name_response_writes_positive_with_declined_names_like_cpp() {
+        let battle_pet_id = ObjectGuid::new(0, 0x432a);
+        let declined = ["Alpha", "Betas", "Gamma", "Delta", "Epsil"].map(str::to_string);
+        let response = QueryBattlePetNameResponse::allowed(
+            battle_pet_id,
+            91_002,
+            1_717_000_456,
+            "Companion".to_string(),
+            Some(DeclinedNamesLikeCpp {
+                names: declined.clone(),
+            }),
+        );
+        let bytes = response.to_bytes();
+
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::QueryBattlePetNameResponse as u16
+        );
+        let mut body = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(body.read_packed_guid().unwrap(), battle_pet_id);
+        assert_eq!(body.read_int32().unwrap(), 91_002);
+        assert_eq!(body.read_int64().unwrap(), 1_717_000_456);
+        assert!(body.read_bit().unwrap());
+        assert_eq!(body.read_bits(8).unwrap(), 9);
+        assert!(body.read_bit().unwrap());
+        for name in &declined {
+            assert_eq!(body.read_bits(7).unwrap(), name.len() as u32);
+        }
+        for name in &declined {
+            assert_eq!(body.read_string(name.len()).unwrap(), *name);
+        }
+        assert_eq!(body.read_string(9).unwrap(), "Companion");
         assert_eq!(body.remaining(), 0);
     }
 
