@@ -66,8 +66,9 @@ use wow_data::{
     PlayerConditionStore, PlayerStatsStore, RandPropPointsStore, SkillLineStore, SkillStore,
     SpellDurationStore, SpellItemEnchantmentStore, SpellMiscStore, SpellRadiusStore,
     SpellRangeStore, SpellStore, SpellTargetPositionStoreLikeCpp, SummonPropertiesEntry,
-    VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore,
-    VehicleTemplateStoreLikeCpp, is_player_meeting_condition_like_cpp,
+    TransmogSetItemStore, VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp,
+    VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
+    is_player_meeting_condition_like_cpp,
     progression_rewards::{
         ContentTuningStore, FactionEntry, FactionStore, FactionTemplateStore,
         FriendshipRepReactionStore, ParagonReputationStore, QuestFactionRewardStore,
@@ -2023,6 +2024,9 @@ pub struct WorldSession {
     // Item modified appearance store (ItemModifiedAppearance.db2 data)
     item_modified_appearance_store: Option<Arc<ItemModifiedAppearanceStore>>,
 
+    // Transmog set item store (TransmogSetItem.db2 data)
+    transmog_set_item_store: Option<Arc<TransmogSetItemStore>>,
+
     // Item price base store (ItemPriceBase.db2 data)
     item_price_base_store: Option<Arc<ItemPriceBaseStore>>,
 
@@ -3128,6 +3132,7 @@ impl WorldSession {
             item_store: None,
             item_appearance_store: None,
             item_modified_appearance_store: None,
+            transmog_set_item_store: None,
             item_price_base_store: None,
             item_limit_category_store: None,
             item_limit_category_condition_store: None,
@@ -7599,6 +7604,26 @@ impl WorldSession {
     /// Get the item modified appearance store reference.
     pub fn item_modified_appearance_store(&self) -> Option<&Arc<ItemModifiedAppearanceStore>> {
         self.item_modified_appearance_store.as_ref()
+    }
+
+    /// Set the transmog set item store for this session.
+    pub fn set_transmog_set_item_store(&mut self, store: Arc<TransmogSetItemStore>) {
+        self.transmog_set_item_store = Some(store);
+    }
+
+    /// Get the transmog set item store reference.
+    pub fn transmog_set_item_store(&self) -> Option<&Arc<TransmogSetItemStore>> {
+        self.transmog_set_item_store.as_ref()
+    }
+
+    /// C++ `DB2Manager::GetTransmogSetItems`.
+    pub fn transmog_set_items_like_cpp(
+        &self,
+        transmog_set_id: u32,
+    ) -> Option<&[wow_data::TransmogSetItemEntry]> {
+        self.transmog_set_item_store
+            .as_ref()
+            .and_then(|store| store.get_transmog_set_items_like_cpp(transmog_set_id))
     }
 
     /// Build the closure result expected by `Item::visible_entry` and
@@ -25987,7 +26012,7 @@ mod tests {
         ItemRandomPropertyTemplateEntry, ItemRandomSuffixEntry, ItemRandomSuffixStore, ItemRecord,
         ItemSparseTemplateEntry, ItemStatsStore, ItemStore, LockEntry, LockStore,
         PlayerConditionEntry, PlayerConditionStore, SpellItemEnchantmentEntry,
-        SpellItemEnchantmentStore,
+        SpellItemEnchantmentStore, TransmogSetItemEntry, TransmogSetItemStore,
         progression_rewards::{FactionEntry, FactionStore},
         reputation::ReputationFlagsLikeCpp,
     };
@@ -48897,6 +48922,43 @@ mod tests {
         assert_eq!(session.item_display_id(100, 2), Some(777));
         assert_eq!(session.item_display_id(100, 9), Some(555));
         assert_eq!(session.item_display_id(101, 0), None);
+    }
+
+    #[test]
+    fn transmog_set_items_helper_uses_cpp_lookup_shape() {
+        let (mut session, _, _) = make_session();
+        session.set_transmog_set_item_store(Arc::new(TransmogSetItemStore::from_entries([
+            TransmogSetItemEntry {
+                id: 1,
+                transmog_set_id: 70,
+                item_modified_appearance_id: 1000,
+                flags: 0,
+            },
+            TransmogSetItemEntry {
+                id: 2,
+                transmog_set_id: 71,
+                item_modified_appearance_id: 2000,
+                flags: 0,
+            },
+            TransmogSetItemEntry {
+                id: 3,
+                transmog_set_id: 70,
+                item_modified_appearance_id: 1001,
+                flags: 0,
+            },
+        ])));
+
+        let items = session
+            .transmog_set_items_like_cpp(70)
+            .expect("transmog set should have indexed items");
+        assert_eq!(
+            items
+                .iter()
+                .map(|item| item.item_modified_appearance_id)
+                .collect::<Vec<_>>(),
+            vec![1000, 1001]
+        );
+        assert!(session.transmog_set_items_like_cpp(99).is_none());
     }
 
     #[test]

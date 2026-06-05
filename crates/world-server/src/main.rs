@@ -1150,6 +1150,16 @@ async fn main() -> Result<()> {
         item_modified_appearance_store.len()
     );
 
+    // Load TransmogSetItem.db2 for DB2Manager::GetTransmogSetItems-style lookup.
+    let transmog_set_item_store = Arc::new(
+        wow_data::TransmogSetItemStore::load(&data_dir, &locale)
+            .context("Failed to load TransmogSetItem.db2 — check DataDir and DBC.Locale config")?,
+    );
+    info!(
+        "Loaded {} transmog set items from TransmogSetItem.db2",
+        transmog_set_item_store.len()
+    );
+
     // Load player level stats from world DB
     let player_stats = Arc::new(
         wow_data::PlayerStatsStore::load(&world_db)
@@ -1976,6 +1986,7 @@ async fn main() -> Result<()> {
         item_store: Some(Arc::clone(&item_store)),
         item_appearance_store: Some(Arc::clone(&item_appearance_store)),
         item_modified_appearance_store: Some(Arc::clone(&item_modified_appearance_store)),
+        transmog_set_item_store: Some(Arc::clone(&transmog_set_item_store)),
         item_price_base_store: Some(Arc::clone(&item_price_base_store)),
         item_limit_category_store: Some(Arc::clone(&item_limit_category_store)),
         item_limit_category_condition_store: Some(Arc::clone(&item_limit_category_condition_store)),
@@ -6984,6 +6995,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.item_modified_appearance_store {
         session.set_item_modified_appearance_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.transmog_set_item_store {
+        session.set_transmog_set_item_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.item_price_base_store {
         session.set_item_price_base_store(Arc::clone(store));
