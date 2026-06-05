@@ -9318,6 +9318,118 @@ where
         }
     }
 
+    /// Bounded map-owned pre-create cleanup for C++ `Spell::EffectSummonObject`.
+    ///
+    /// C++ anchors:
+    /// - `SpellEffects.cpp:3548-3563`: before creating the replacement object,
+    ///   clear the existing `m_ObjectSlot[slot]`; if the old GameObject exists,
+    ///   null its spell id in the recast case, call `Unit::RemoveGameObject(obj,
+    ///   true)`, then clear the slot.
+    /// - `Unit.cpp:5213-5251`: pointer-overload removal clears owner/list/slot,
+    ///   removes spell auras when `GetSpellId() != 0`, emits the represented AI
+    ///   despawn boundary, then `SetRespawnTime(0); Delete()` when `del=true`.
+    ///
+    /// Scope: this represents only the old-slot cleanup before a new object is
+    /// created. It does not create the new GameObject, write the replacement
+    /// slot, inherit phase, execute scripts, send packets, or emit cooldown
+    /// events.
+    pub fn gameobject_prepare_owner_slot_for_summon_like_cpp(
+        &mut self,
+        owner_guid: ObjectGuid,
+        slot: usize,
+        spell_id: u32,
+    ) -> GameObjectPrepareOwnerSlotForSummonOutcomeLikeCpp {
+        let owner_found_as_unit_like = self
+            .map_object_record(owner_guid)
+            .is_some_and(Self::map_record_is_unit_like_gameobject_owner_like_cpp);
+        let slot_guid_before = self
+            .map_object_record(owner_guid)
+            .and_then(Self::map_record_unit_like_cpp)
+            .and_then(|owner| {
+                owner
+                    .subsystems()
+                    .control
+                    .gameobject_slots
+                    .get(slot)
+                    .copied()
+            })
+            .unwrap_or(ObjectGuid::EMPTY);
+
+        let mut gameobject_found = false;
+        let mut recast_spell_id_cleared = false;
+        let mut unit_pointer_owner_match = false;
+        let mut remove_from_owner = None;
+        let mut respawn_time_cleared = false;
+        let mut delete_outcome = None;
+        let mut slot_cleared = false;
+
+        if owner_found_as_unit_like && !slot_guid_before.is_empty() {
+            gameobject_found = self
+                .map_object_record(slot_guid_before)
+                .and_then(MapObjectRecord::game_object)
+                .is_some();
+
+            if gameobject_found {
+                unit_pointer_owner_match = self
+                    .map_object_record(slot_guid_before)
+                    .and_then(MapObjectRecord::game_object)
+                    .is_some_and(|gameobject| gameobject.owner_guid() == owner_guid);
+                if let Some(gameobject) = self
+                    .map_objects
+                    .get_mut(&slot_guid_before)
+                    .and_then(MapObjectRecord::game_object_mut)
+                {
+                    if gameobject.spell_id() == spell_id {
+                        gameobject.set_spell_id(0);
+                        recast_spell_id_cleared = true;
+                    }
+                }
+
+                if unit_pointer_owner_match {
+                    remove_from_owner =
+                        self.gameobject_remove_from_owner_like_cpp(slot_guid_before);
+                    if let Some(gameobject) = self
+                        .map_objects
+                        .get_mut(&slot_guid_before)
+                        .and_then(MapObjectRecord::game_object_mut)
+                    {
+                        gameobject.set_respawn_time(0);
+                        respawn_time_cleared = true;
+                    }
+                    delete_outcome = self.gameobject_delete_like_cpp(slot_guid_before);
+                }
+            }
+
+            if let Some(owner) = self
+                .map_objects
+                .get_mut(&owner_guid)
+                .and_then(Self::map_record_unit_mut_like_cpp)
+            {
+                slot_cleared = owner
+                    .subsystems_mut()
+                    .control
+                    .set_gameobject_slot(slot, ObjectGuid::EMPTY);
+            }
+        }
+
+        GameObjectPrepareOwnerSlotForSummonOutcomeLikeCpp {
+            owner_guid,
+            slot,
+            spell_id,
+            owner_found_as_unit_like,
+            slot_guid_before,
+            slot_had_guid: !slot_guid_before.is_empty(),
+            gameobject_found,
+            recast_spell_id_cleared,
+            unit_pointer_owner_match,
+            remove_from_owner,
+            respawn_time_cleared,
+            delete_outcome,
+            slot_cleared,
+            cooldown_event_represented: false,
+        }
+    }
+
     /// Bounded map-owned representation of C++ `Unit::RemoveGameObject(uint32
     /// spellid, bool del)`.
     ///
@@ -12222,6 +12334,24 @@ pub struct GameObjectAddToOwnerSlotOutcomeLikeCpp {
     pub slot_set: bool,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct GameObjectPrepareOwnerSlotForSummonOutcomeLikeCpp {
+    pub owner_guid: ObjectGuid,
+    pub slot: usize,
+    pub spell_id: u32,
+    pub owner_found_as_unit_like: bool,
+    pub slot_guid_before: ObjectGuid,
+    pub slot_had_guid: bool,
+    pub gameobject_found: bool,
+    pub recast_spell_id_cleared: bool,
+    pub unit_pointer_owner_match: bool,
+    pub remove_from_owner: Option<GameObjectRemoveFromOwnerOutcomeLikeCpp>,
+    pub respawn_time_cleared: bool,
+    pub delete_outcome: Option<GameObjectDeleteOutcomeLikeCpp>,
+    pub slot_cleared: bool,
+    pub cooldown_event_represented: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct UnitRemoveGameObjectsBySpellOutcomeLikeCpp {
     pub owner_guid: ObjectGuid,
@@ -14547,6 +14677,229 @@ mod tests {
             .unwrap();
         assert_eq!(
             owner.unit().subsystems().control.gameobject_slots[1],
+            ObjectGuid::EMPTY
+        );
+    }
+
+    #[test]
+    fn gameobject_prepare_owner_slot_for_summon_recast_preserves_owner_auras_like_cpp() {
+        let mut map = test_map();
+        let mut owner = test_player_for_viewpoint(4821601);
+        let owner_guid = owner.guid();
+        let spell_id = 4821610;
+        let recast_aura = AppliedAuraRef::new(spell_id, owner_guid, 0, 0x1);
+        owner
+            .unit_mut()
+            .subsystems_mut()
+            .auras
+            .add_applied(recast_aura);
+        let mut gameobject = test_gameobject_for_spawn(48216, 4821602);
+        let guid = gameobject.world().guid();
+        gameobject.set_spell_id(spell_id);
+        gameobject.set_respawn_time(60);
+
+        map.insert_map_object_record(MapObjectRecord::new_player(owner).unwrap())
+            .unwrap();
+        map.insert_map_object_record(MapObjectRecord::new_game_object(gameobject).unwrap())
+            .unwrap();
+        assert!(
+            map.gameobject_add_to_owner_slot_like_cpp(owner_guid, guid, 0)
+                .slot_set
+        );
+
+        let cleanup =
+            map.gameobject_prepare_owner_slot_for_summon_like_cpp(owner_guid, 0, spell_id);
+
+        assert_eq!(cleanup.owner_guid, owner_guid);
+        assert_eq!(cleanup.slot, 0);
+        assert_eq!(cleanup.slot_guid_before, guid);
+        assert!(cleanup.slot_had_guid);
+        assert!(cleanup.gameobject_found);
+        assert!(cleanup.recast_spell_id_cleared);
+        assert!(cleanup.unit_pointer_owner_match);
+        assert!(cleanup.respawn_time_cleared);
+        assert!(cleanup.slot_cleared);
+        assert!(!cleanup.cooldown_event_represented);
+        let remove_owner = cleanup.remove_from_owner.unwrap();
+        assert_eq!(remove_owner.spell_id, 0);
+        assert!(remove_owner.unit_owned_gameobject_list_removed);
+        assert!(remove_owner.unit_object_slot_cleared);
+        assert!(!remove_owner.aura_cleanup_represented);
+        assert_eq!(remove_owner.aura_cleanup_removed_count, 0);
+        assert!(cleanup.delete_outcome.is_some());
+        assert_eq!(map.objects_to_remove_count_like_cpp(), 1);
+
+        let owner = map
+            .map_object_record(owner_guid)
+            .and_then(MapObjectRecord::player)
+            .unwrap();
+        assert!(
+            owner
+                .unit()
+                .subsystems()
+                .control
+                .owned_gameobjects
+                .is_empty()
+        );
+        assert_eq!(
+            owner.unit().subsystems().control.gameobject_slots[0],
+            ObjectGuid::EMPTY
+        );
+        assert!(owner.unit().subsystems().auras.has_applied(recast_aura));
+        let gameobject = map
+            .map_object_record(guid)
+            .and_then(MapObjectRecord::game_object)
+            .unwrap();
+        assert_eq!(gameobject.owner_guid(), ObjectGuid::EMPTY);
+        assert_eq!(gameobject.spell_id(), 0);
+        assert_eq!(gameobject.respawn_time(), 0);
+    }
+
+    #[test]
+    fn gameobject_prepare_owner_slot_for_summon_different_spell_removes_old_aura_like_cpp() {
+        let mut map = test_map();
+        let mut owner = test_player_for_viewpoint(4821701);
+        let owner_guid = owner.guid();
+        let old_spell_id = 4821710;
+        let new_spell_id = 4821720;
+        let old_aura = AppliedAuraRef::new(old_spell_id, owner_guid, 0, 0x1);
+        owner
+            .unit_mut()
+            .subsystems_mut()
+            .auras
+            .add_applied(old_aura);
+        let mut gameobject = test_gameobject_for_spawn(48217, 4821702);
+        let guid = gameobject.world().guid();
+        gameobject.set_spell_id(old_spell_id);
+
+        map.insert_map_object_record(MapObjectRecord::new_player(owner).unwrap())
+            .unwrap();
+        map.insert_map_object_record(MapObjectRecord::new_game_object(gameobject).unwrap())
+            .unwrap();
+        assert!(
+            map.gameobject_add_to_owner_slot_like_cpp(owner_guid, guid, 1)
+                .slot_set
+        );
+
+        let cleanup =
+            map.gameobject_prepare_owner_slot_for_summon_like_cpp(owner_guid, 1, new_spell_id);
+
+        assert!(cleanup.gameobject_found);
+        assert!(!cleanup.recast_spell_id_cleared);
+        assert!(cleanup.unit_pointer_owner_match);
+        let remove_owner = cleanup.remove_from_owner.unwrap();
+        assert_eq!(remove_owner.spell_id, old_spell_id);
+        assert!(remove_owner.aura_cleanup_represented);
+        assert_eq!(remove_owner.aura_cleanup_removed_count, 1);
+        assert!(cleanup.delete_outcome.is_some());
+
+        let owner = map
+            .map_object_record(owner_guid)
+            .and_then(MapObjectRecord::player)
+            .unwrap();
+        assert!(!owner.unit().subsystems().auras.has_applied(old_aura));
+        assert_eq!(
+            owner.unit().subsystems().control.gameobject_slots[1],
+            ObjectGuid::EMPTY
+        );
+    }
+
+    #[test]
+    fn gameobject_prepare_owner_slot_for_summon_clears_missing_guid_without_delete_like_cpp() {
+        let mut map = test_map();
+        let mut owner = test_player_for_viewpoint(4821801);
+        let owner_guid = owner.guid();
+        let missing_guid = guid(HighGuid::GameObject, 4821802);
+        assert!(
+            owner
+                .unit_mut()
+                .subsystems_mut()
+                .control
+                .set_gameobject_slot(3, missing_guid)
+        );
+        map.insert_map_object_record(MapObjectRecord::new_player(owner).unwrap())
+            .unwrap();
+
+        let cleanup = map.gameobject_prepare_owner_slot_for_summon_like_cpp(owner_guid, 3, 4821810);
+
+        assert!(cleanup.owner_found_as_unit_like);
+        assert_eq!(cleanup.slot_guid_before, missing_guid);
+        assert!(cleanup.slot_had_guid);
+        assert!(!cleanup.gameobject_found);
+        assert!(!cleanup.recast_spell_id_cleared);
+        assert!(!cleanup.unit_pointer_owner_match);
+        assert!(cleanup.remove_from_owner.is_none());
+        assert!(!cleanup.respawn_time_cleared);
+        assert!(cleanup.delete_outcome.is_none());
+        assert!(cleanup.slot_cleared);
+        assert_eq!(map.objects_to_remove_count_like_cpp(), 0);
+        let owner = map
+            .map_object_record(owner_guid)
+            .and_then(MapObjectRecord::player)
+            .unwrap();
+        assert_eq!(
+            owner.unit().subsystems().control.gameobject_slots[3],
+            ObjectGuid::EMPTY
+        );
+
+        let invalid_slot =
+            map.gameobject_prepare_owner_slot_for_summon_like_cpp(owner_guid, 99, 4821810);
+        assert!(invalid_slot.owner_found_as_unit_like);
+        assert_eq!(invalid_slot.slot_guid_before, ObjectGuid::EMPTY);
+        assert!(!invalid_slot.slot_had_guid);
+        assert!(!invalid_slot.slot_cleared);
+    }
+
+    #[test]
+    fn gameobject_prepare_owner_slot_for_summon_owner_mismatch_keeps_object_like_cpp() {
+        let mut map = test_map();
+        let mut owner = test_player_for_viewpoint(4821901);
+        let owner_guid = owner.guid();
+        let other_owner_guid = ObjectGuid::create_player(1, 4821903);
+        let spell_id = 4821910;
+        let guid = guid(HighGuid::GameObject, 4821902);
+        assert!(
+            owner
+                .unit_mut()
+                .subsystems_mut()
+                .control
+                .set_gameobject_slot(2, guid)
+        );
+        let mut gameobject = test_gameobject_for_spawn(48219, 4821902);
+        gameobject.set_owner_guid_like_cpp(other_owner_guid);
+        gameobject.set_spell_id(spell_id);
+        gameobject.set_respawn_time(90);
+
+        map.insert_map_object_record(MapObjectRecord::new_player(owner).unwrap())
+            .unwrap();
+        map.insert_map_object_record(MapObjectRecord::new_game_object(gameobject).unwrap())
+            .unwrap();
+
+        let cleanup =
+            map.gameobject_prepare_owner_slot_for_summon_like_cpp(owner_guid, 2, spell_id);
+
+        assert!(cleanup.gameobject_found);
+        assert!(cleanup.recast_spell_id_cleared);
+        assert!(!cleanup.unit_pointer_owner_match);
+        assert!(cleanup.remove_from_owner.is_none());
+        assert!(!cleanup.respawn_time_cleared);
+        assert!(cleanup.delete_outcome.is_none());
+        assert!(cleanup.slot_cleared);
+        assert_eq!(map.objects_to_remove_count_like_cpp(), 0);
+
+        let gameobject = map
+            .map_object_record(guid)
+            .and_then(MapObjectRecord::game_object)
+            .unwrap();
+        assert_eq!(gameobject.owner_guid(), other_owner_guid);
+        assert_eq!(gameobject.spell_id(), 0);
+        assert_eq!(gameobject.respawn_time(), 90);
+        let owner = map
+            .map_object_record(owner_guid)
+            .and_then(MapObjectRecord::player)
+            .unwrap();
+        assert_eq!(
+            owner.unit().subsystems().control.gameobject_slots[2],
             ObjectGuid::EMPTY
         );
     }

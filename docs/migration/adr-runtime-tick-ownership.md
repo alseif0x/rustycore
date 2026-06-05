@@ -1627,6 +1627,17 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   CreatureAI despawn callback because this C++ overload does not perform those pointer-overload side
   effects. Tests preserve the C++ quirk that `m_ObjectSlot` can remain pointing at a removed
   spell-owned GameObject.
+- 2026-06-05 — Map-owned `EffectSummonObject` old-slot cleanup boundary
+  `#NEXT.RUNTIME.L3.031e7`: contrasted C++ `Spell::EffectSummonObject` pre-create cleanup
+  (`SpellEffects.cpp:3548-3563`) and pointer-overload `Unit::RemoveGameObject(GameObject*, true)`
+  (`Unit.cpp:5213-5251`). Rust now exposes
+  `gameobject_prepare_owner_slot_for_summon_like_cpp`, which reads the owner's represented
+  `m_ObjectSlot[slot]`, nulls the old GameObject spell id for exact recasts before owner removal,
+  routes through the pointer-overload owner cleanup, sets respawn time to zero, queues represented
+  `GameObject::Delete`, and clears the slot even when the referenced GameObject is missing. Tests
+  cover the C++ recast aura-preservation branch, different-spell aura cleanup, and missing-GUID slot
+  clear. Scope remains pre-create only: no new GameObject creation, phase inheritance,
+  `Map::AddToMap`, final slot write, scripts, packets, DB, or cooldown event emission.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
