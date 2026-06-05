@@ -1249,6 +1249,16 @@ async fn main() -> Result<()> {
         item_random_properties_store.len()
     );
 
+    // Load ItemSpecOverride.db2 for C++ ObjectMgr::LoadItemTemplates ItemSpecClassMask primary path.
+    let item_spec_override_store = Arc::new(
+        wow_data::ItemSpecOverrideStore::load(&data_dir, &locale)
+            .context("Failed to load ItemSpecOverride.db2 — check DataDir and DBC.Locale config")?,
+    );
+    info!(
+        "Loaded {} item spec overrides from ItemSpecOverride.db2",
+        item_spec_override_store.len()
+    );
+
     let rand_prop_points_store = Arc::new(
         wow_data::RandPropPointsStore::load(&data_dir, &locale)
             .context("Failed to load RandPropPoints.db2 — check DataDir and DBC.Locale config")?,
@@ -2019,6 +2029,7 @@ async fn main() -> Result<()> {
         durability_quality_store: Some(Arc::clone(&durability_quality_store)),
         item_random_suffix_store: Some(Arc::clone(&item_random_suffix_store)),
         item_random_properties_store: Some(Arc::clone(&item_random_properties_store)),
+        item_spec_override_store: Some(Arc::clone(&item_spec_override_store)),
         rand_prop_points_store: Some(Arc::clone(&rand_prop_points_store)),
         item_random_enchantment_template_store: Some(Arc::clone(
             &item_random_enchantment_template_store,
@@ -7052,6 +7063,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.item_random_properties_store {
         session.set_item_random_properties_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.item_spec_override_store {
+        session.set_item_spec_override_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.rand_prop_points_store {
         session.set_rand_prop_points_store(Arc::clone(store));

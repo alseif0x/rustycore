@@ -108,6 +108,7 @@ pub struct SessionResources {
     pub rand_prop_points_store: Option<Arc<wow_data::RandPropPointsStore>>,
     pub item_random_enchantment_template_store:
         Option<Arc<wow_data::ItemRandomEnchantmentTemplateStore>>,
+    pub item_spec_override_store: Option<Arc<wow_data::ItemSpecOverrideStore>>,
     pub item_disenchant_loot_store: Option<Arc<wow_data::ItemDisenchantLootStore>>,
     pub loot_stores: Option<Arc<wow_loot::LootStores>>,
     pub condition_store: Option<Arc<wow_data::ConditionEntriesByTypeStore>>,

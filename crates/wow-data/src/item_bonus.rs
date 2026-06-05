@@ -213,8 +213,48 @@ db2_store!(ItemSearchNameStore, ItemSearchNameEntry);
 db2_store!(ItemSetStore, ItemSetEntry);
 db2_store!(ItemSetSpellStore, ItemSetSpellEntry);
 db2_store!(ItemSpecStore, ItemSpecEntry);
-db2_store!(ItemSpecOverrideStore, ItemSpecOverrideEntry);
 db2_store!(ItemXBonusTreeStore, ItemXBonusTreeEntry);
+
+pub struct ItemSpecOverrideStore {
+    entries: HashMap<u32, ItemSpecOverrideEntry>,
+    by_item_id: HashMap<u32, Vec<ItemSpecOverrideEntry>>,
+}
+
+impl ItemSpecOverrideStore {
+    pub fn from_entries(entries: impl IntoIterator<Item = ItemSpecOverrideEntry>) -> Self {
+        let mut by_id = HashMap::new();
+        let mut by_item_id = HashMap::<u32, Vec<ItemSpecOverrideEntry>>::new();
+        for entry in entries {
+            by_item_id
+                .entry(entry.item_id)
+                .or_default()
+                .push(entry.clone());
+            by_id.insert(entry.id, entry);
+        }
+
+        Self {
+            entries: by_id,
+            by_item_id,
+        }
+    }
+
+    pub fn get(&self, id: u32) -> Option<&ItemSpecOverrideEntry> {
+        self.entries.get(&id)
+    }
+
+    /// C++ `DB2Manager::GetItemSpecOverrides`.
+    pub fn overrides_for_item_like_cpp(&self, item_id: u32) -> Option<&[ItemSpecOverrideEntry]> {
+        self.by_item_id.get(&item_id).map(Vec::as_slice)
+    }
+
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+}
 
 impl ItemBonusDb2Store {
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
@@ -563,6 +603,40 @@ mod tests {
         }]);
 
         assert_eq!(store.get(1).unwrap().value[3], 40);
+    }
+
+    #[test]
+    fn item_spec_override_store_groups_rows_by_item_like_cpp_db2_manager() {
+        let store = ItemSpecOverrideStore::from_entries([
+            ItemSpecOverrideEntry {
+                id: 1,
+                spec_id: 66,
+                item_id: 777,
+            },
+            ItemSpecOverrideEntry {
+                id: 2,
+                spec_id: 70,
+                item_id: 778,
+            },
+            ItemSpecOverrideEntry {
+                id: 3,
+                spec_id: 65,
+                item_id: 777,
+            },
+        ]);
+
+        assert_eq!(store.get(2).unwrap().spec_id, 70);
+        let overrides = store
+            .overrides_for_item_like_cpp(777)
+            .expect("C++ DB2Manager returns a vector for items with override rows");
+        assert_eq!(
+            overrides
+                .iter()
+                .map(|entry| entry.spec_id)
+                .collect::<Vec<_>>(),
+            vec![66, 65]
+        );
+        assert!(store.overrides_for_item_like_cpp(999).is_none());
     }
 
     #[test]

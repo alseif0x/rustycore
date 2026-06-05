@@ -57,11 +57,11 @@ use wow_data::{
     ItemExtendedCostStore, ItemLimitCategoryConditionStore, ItemLimitCategoryStore,
     ItemModifiedAppearanceStore, ItemPriceBaseStore, ItemRandomEnchantmentTemplateStore,
     ItemRandomPropertiesStore, ItemRandomPropertyTemplateEntry, ItemRandomSuffixStore,
-    ItemSearchNameStore, ItemStatsStore, ItemStore, LfgDungeonsStore, LockStore,
-    MapDifficultyStore, MapDifficultyXConditionStore, MapStore, MountCapabilityStore, MountStore,
-    MountTypeXCapabilityStore, MountXDisplayStore, MovieStore, NpcSpellClickStoreLikeCpp,
-    PhaseGroupStore, PhaseStore, PlayerConditionAuraLikeCpp, PlayerConditionContextLikeCpp,
-    PlayerConditionCountLikeCpp, PlayerConditionPartyStatusLikeCpp,
+    ItemSearchNameStore, ItemSpecOverrideStore, ItemStatsStore, ItemStore, LfgDungeonsStore,
+    LockStore, MapDifficultyStore, MapDifficultyXConditionStore, MapStore, MountCapabilityStore,
+    MountStore, MountTypeXCapabilityStore, MountXDisplayStore, MovieStore,
+    NpcSpellClickStoreLikeCpp, PhaseGroupStore, PhaseStore, PlayerConditionAuraLikeCpp,
+    PlayerConditionContextLikeCpp, PlayerConditionCountLikeCpp, PlayerConditionPartyStatusLikeCpp,
     PlayerConditionQuestKillLikeCpp, PlayerConditionReputationLikeCpp, PlayerConditionSkillLikeCpp,
     PlayerConditionStore, PlayerStatsStore, RandPropPointsStore, SkillLineStore, SkillStore,
     SpellDurationStore, SpellItemEnchantmentStore, SpellMiscStore, SpellRadiusStore,
@@ -2075,6 +2075,9 @@ pub struct WorldSession {
     // item_random_enchantment_template rows grouped like C++ ItemEnchantmentMgr.
     item_random_enchantment_template_store: Option<Arc<ItemRandomEnchantmentTemplateStore>>,
 
+    // ItemSpecOverride.db2 rows grouped by item id like C++ DB2Manager.
+    item_spec_override_store: Option<Arc<ItemSpecOverrideStore>>,
+
     // ItemDisenchantLoot store (ItemDisenchantLoot.db2 data)
     item_disenchant_loot_store: Option<Arc<ItemDisenchantLootStore>>,
 
@@ -3208,6 +3211,7 @@ impl WorldSession {
             item_random_properties_store: None,
             rand_prop_points_store: None,
             item_random_enchantment_template_store: None,
+            item_spec_override_store: None,
             item_disenchant_loot_store: None,
             loot_stores: None,
             condition_store: None,
@@ -7936,12 +7940,75 @@ impl WorldSession {
             .contains(&item_modified_appearance_id)
     }
 
+    fn item_spec_class_mask_from_overrides_like_cpp(&self, item_id: u32) -> Option<u32> {
+        let overrides = self
+            .item_spec_override_store
+            .as_ref()?
+            .overrides_for_item_like_cpp(item_id)?;
+        let chr_specializations = self.chr_specialization_store.as_ref()?;
+
+        let mut mask = 0_u32;
+        for item_spec_override in overrides {
+            if let Some(specialization) =
+                chr_specializations.get(u32::from(item_spec_override.spec_id))
+            {
+                mask |= player_class_mask_for_transmog_like_cpp(specialization.class_id);
+            }
+        }
+
+        Some(mask)
+    }
+
+    /// Bounded represented C++ `Player::_LoadQuestStatusRewarded` item-appearance replay.
+    ///
+    /// This covers direct reward items plus the `GetQuestPackageItems` branch that uses
+    /// `ItemTemplate::ItemSpecClassMask & Player::GetClassMask`. The mask is currently represented
+    /// only through `ItemSpecOverride.db2`, matching C++'s primary `ObjectMgr::LoadItemTemplates`
+    /// branch. The C++ fallback that derives `ItemSpecClassMask` from `ItemSpecStats` is intentionally
+    /// not guessed here because Rust does not yet represent the sparse stat-modifier bonus fields.
+    pub fn replay_rewarded_quest_item_appearances_like_cpp(
+        &mut self,
+        quest: &wow_data::quest::QuestTemplate,
+    ) -> Option<wow_entities::PlayerValuesUpdate> {
+        let mut last_update = self.replay_rewarded_quest_direct_item_appearances_like_cpp(quest);
+        let player_class_mask =
+            player_class_mask_for_transmog_like_cpp(self.player_class_like_cpp());
+        let package_item_ids = self
+            .quest_package_item_store
+            .as_ref()
+            .map(|store| {
+                store
+                    .quest_package_items_like_cpp(quest.quest_package_id)
+                    .filter_map(|item| u32::try_from(item.item_id).ok())
+                    .filter(|item_id| *item_id != 0)
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+
+        for item_id in package_item_ids {
+            let Some(item_spec_class_mask) =
+                self.item_spec_class_mask_from_overrides_like_cpp(item_id)
+            else {
+                continue;
+            };
+            if (item_spec_class_mask & player_class_mask) == 0 {
+                continue;
+            }
+
+            if let Some(update) = self.add_item_appearance_for_item_like_cpp(item_id, 0) {
+                last_update = Some(update);
+            }
+        }
+
+        last_update
+    }
+
     /// Bounded direct-item part of C++ `Player::_LoadQuestStatusRewarded`.
     ///
     /// C++ replays reward choice item ids and fixed reward item ids through
-    /// `CollectionMgr::AddItemAppearance(itemId)`. Quest-package replay is not
-    /// folded in here because C++ gates it with `ItemTemplate::ItemSpecClassMask`,
-    /// which Rust does not yet represent.
+    /// `CollectionMgr::AddItemAppearance(itemId)`. Use
+    /// `replay_rewarded_quest_item_appearances_like_cpp` for the combined direct + represented
+    /// quest-package replay.
     pub fn replay_rewarded_quest_direct_item_appearances_like_cpp(
         &mut self,
         quest: &wow_data::quest::QuestTemplate,
@@ -8244,6 +8311,14 @@ impl WorldSession {
     /// Set the item stats store for this session.
     pub fn set_item_stats_store(&mut self, store: Arc<ItemStatsStore>) {
         self.item_stats_store = Some(store);
+    }
+
+    pub fn set_item_spec_override_store(&mut self, store: Arc<ItemSpecOverrideStore>) {
+        self.item_spec_override_store = Some(store);
+    }
+
+    pub fn item_spec_override_store(&self) -> Option<&Arc<ItemSpecOverrideStore>> {
+        self.item_spec_override_store.as_ref()
     }
 
     /// Set the C++ `sDurabilityCostsStore` equivalent for this session.
@@ -26636,21 +26711,25 @@ mod tests {
     };
     use wow_core::{Position, guid::HighGuid};
     use wow_data::{
-        Condition, DurabilityCostsEntry, DurabilityCostsStore, DurabilityQualityEntry,
-        DurabilityQualityStore, ImportPriceArmorEntry, ImportPriceArmorStore,
-        ImportPriceQualityEntry, ImportPriceQualityStore, ImportPriceShieldEntry,
-        ImportPriceShieldStore, ImportPriceStores, ImportPriceWeaponEntry, ImportPriceWeaponStore,
-        ItemAppearanceEntry, ItemAppearanceStore, ItemClassEntry, ItemClassStore,
-        ItemCurrencyCostEntry, ItemCurrencyCostStore, ItemDisenchantLootEntry,
-        ItemDisenchantLootStore, ItemLimitCategoryConditionEntry, ItemLimitCategoryConditionStore,
-        ItemLimitCategoryEntry, ItemLimitCategoryStore, ItemModifiedAppearanceEntry,
-        ItemModifiedAppearanceStore, ItemPriceBaseEntry, ItemPriceBaseStore,
-        ItemRandomPropertyTemplateEntry, ItemRandomSuffixEntry, ItemRandomSuffixStore, ItemRecord,
-        ItemSearchNameEntry, ItemSearchNameStore, ItemSparseTemplateEntry, ItemStatsStore,
+        ChrSpecializationEntry, ChrSpecializationStore, Condition, DurabilityCostsEntry,
+        DurabilityCostsStore, DurabilityQualityEntry, DurabilityQualityStore,
+        ImportPriceArmorEntry, ImportPriceArmorStore, ImportPriceQualityEntry,
+        ImportPriceQualityStore, ImportPriceShieldEntry, ImportPriceShieldStore, ImportPriceStores,
+        ImportPriceWeaponEntry, ImportPriceWeaponStore, ItemAppearanceEntry, ItemAppearanceStore,
+        ItemClassEntry, ItemClassStore, ItemCurrencyCostEntry, ItemCurrencyCostStore,
+        ItemDisenchantLootEntry, ItemDisenchantLootStore, ItemLimitCategoryConditionEntry,
+        ItemLimitCategoryConditionStore, ItemLimitCategoryEntry, ItemLimitCategoryStore,
+        ItemModifiedAppearanceEntry, ItemModifiedAppearanceStore, ItemPriceBaseEntry,
+        ItemPriceBaseStore, ItemRandomPropertyTemplateEntry, ItemRandomSuffixEntry,
+        ItemRandomSuffixStore, ItemRecord, ItemSearchNameEntry, ItemSearchNameStore,
+        ItemSparseTemplateEntry, ItemSpecOverrideEntry, ItemSpecOverrideStore, ItemStatsStore,
         ItemStore, LockEntry, LockStore, PlayerConditionEntry, PlayerConditionStore,
         SpellItemEnchantmentEntry, SpellItemEnchantmentStore, TransmogSetEntry,
         TransmogSetItemEntry, TransmogSetItemStore,
-        progression_rewards::{FactionEntry, FactionStore},
+        progression_rewards::{
+            FactionEntry, FactionStore, QUEST_PACKAGE_FILTER_CLASS_LIKE_CPP,
+            QUEST_PACKAGE_FILTER_UNMATCHED_LIKE_CPP, QuestPackageItemEntry, QuestPackageItemStore,
+        },
         reputation::ReputationFlagsLikeCpp,
     };
     use wow_entities::{
@@ -50249,6 +50328,226 @@ mod tests {
                 .replay_rewarded_quest_direct_item_appearances_like_cpp(&quest)
                 .is_none()
         );
+    }
+
+    #[test]
+    fn item_spec_class_mask_from_overrides_uses_chr_specialization_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_item_spec_override_store(Arc::new(ItemSpecOverrideStore::from_entries([
+            ItemSpecOverrideEntry {
+                id: 1,
+                spec_id: 66,
+                item_id: 777,
+            },
+            ItemSpecOverrideEntry {
+                id: 2,
+                spec_id: 70,
+                item_id: 777,
+            },
+            ItemSpecOverrideEntry {
+                id: 3,
+                spec_id: 999,
+                item_id: 778,
+            },
+        ])));
+        session.set_chr_specialization_store(Arc::new(ChrSpecializationStore::from_entries([
+            ChrSpecializationEntry {
+                id: 66,
+                class_id: 2,
+                order_index: 0,
+                role: 0,
+            },
+            ChrSpecializationEntry {
+                id: 70,
+                class_id: 3,
+                order_index: 0,
+                role: 0,
+            },
+        ])));
+
+        assert_eq!(
+            session.item_spec_class_mask_from_overrides_like_cpp(777),
+            Some((1 << 1) | (1 << 2))
+        );
+        assert_eq!(
+            session.item_spec_class_mask_from_overrides_like_cpp(778),
+            Some(0)
+        );
+        assert_eq!(
+            session.item_spec_class_mask_from_overrides_like_cpp(999),
+            None
+        );
+    }
+
+    #[test]
+    fn replay_rewarded_quest_package_item_appearances_uses_item_spec_class_mask_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 79);
+        let player_position = Position::new(10.0, 0.0, 0.0, 0.0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "RewardedQuestPackageAppearanceTester".to_string(),
+            player_position,
+            571,
+            1,
+            2,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
+        session.set_item_modified_appearance_store(Arc::new(
+            ItemModifiedAppearanceStore::from_entries([
+                ItemModifiedAppearanceEntry {
+                    id: 65,
+                    item_id: 777,
+                    item_appearance_modifier_id: 0,
+                    item_appearance_id: 9_000,
+                    order_index: 0,
+                    transmog_source_type_enum: 0,
+                },
+                ItemModifiedAppearanceEntry {
+                    id: 96,
+                    item_id: 778,
+                    item_appearance_modifier_id: 0,
+                    item_appearance_id: 9_001,
+                    order_index: 0,
+                    transmog_source_type_enum: 0,
+                },
+                ItemModifiedAppearanceEntry {
+                    id: 97,
+                    item_id: 779,
+                    item_appearance_modifier_id: 0,
+                    item_appearance_id: 9_002,
+                    order_index: 0,
+                    transmog_source_type_enum: 0,
+                },
+                ItemModifiedAppearanceEntry {
+                    id: 98,
+                    item_id: 780,
+                    item_appearance_modifier_id: 0,
+                    item_appearance_id: 9_003,
+                    order_index: 0,
+                    transmog_source_type_enum: 0,
+                },
+            ]),
+        ));
+        install_transmog_can_add_test_items(
+            &mut session,
+            [
+                (
+                    777,
+                    ItemClass::Armor,
+                    ItemSubClassArmor::Plate as u8,
+                    InventoryType::Chest,
+                    ItemQuality::Uncommon,
+                    [0, 0, 0, 0],
+                    0,
+                ),
+                (
+                    778,
+                    ItemClass::Armor,
+                    ItemSubClassArmor::Plate as u8,
+                    InventoryType::Chest,
+                    ItemQuality::Uncommon,
+                    [0, 0, 0, 0],
+                    0,
+                ),
+                (
+                    779,
+                    ItemClass::Armor,
+                    ItemSubClassArmor::Plate as u8,
+                    InventoryType::Chest,
+                    ItemQuality::Uncommon,
+                    [0, 0, 0, 0],
+                    0,
+                ),
+                (
+                    780,
+                    ItemClass::Armor,
+                    ItemSubClassArmor::Plate as u8,
+                    InventoryType::Chest,
+                    ItemQuality::Uncommon,
+                    [0, 0, 0, 0],
+                    0,
+                ),
+            ],
+        );
+        session.set_chr_specialization_store(Arc::new(ChrSpecializationStore::from_entries([
+            ChrSpecializationEntry {
+                id: 66,
+                class_id: 2,
+                order_index: 0,
+                role: 0,
+            },
+            ChrSpecializationEntry {
+                id: 70,
+                class_id: 3,
+                order_index: 0,
+                role: 0,
+            },
+        ])));
+        session.set_item_spec_override_store(Arc::new(ItemSpecOverrideStore::from_entries([
+            ItemSpecOverrideEntry {
+                id: 1,
+                spec_id: 66,
+                item_id: 777,
+            },
+            ItemSpecOverrideEntry {
+                id: 2,
+                spec_id: 70,
+                item_id: 778,
+            },
+            ItemSpecOverrideEntry {
+                id: 3,
+                spec_id: 66,
+                item_id: 779,
+            },
+        ])));
+        session.set_quest_package_item_store(Arc::new(QuestPackageItemStore::from_entries([
+            QuestPackageItemEntry {
+                id: 1,
+                package_id: 44,
+                item_id: 777,
+                item_quantity: 1,
+                display_type: QUEST_PACKAGE_FILTER_CLASS_LIKE_CPP,
+            },
+            QuestPackageItemEntry {
+                id: 2,
+                package_id: 44,
+                item_id: 778,
+                item_quantity: 1,
+                display_type: QUEST_PACKAGE_FILTER_CLASS_LIKE_CPP,
+            },
+            QuestPackageItemEntry {
+                id: 3,
+                package_id: 44,
+                item_id: 779,
+                item_quantity: 1,
+                display_type: QUEST_PACKAGE_FILTER_UNMATCHED_LIKE_CPP,
+            },
+            QuestPackageItemEntry {
+                id: 4,
+                package_id: 44,
+                item_id: 780,
+                item_quantity: 1,
+                display_type: QUEST_PACKAGE_FILTER_CLASS_LIKE_CPP,
+            },
+        ])));
+        let mut quest = test_quest_template(7_778);
+        quest.quest_package_id = 44;
+        session.mutate_canonical_player_like_cpp(|player| player.clear_data_changes());
+
+        assert!(
+            session
+                .replay_rewarded_quest_item_appearances_like_cpp(&quest)
+                .is_some()
+        );
+        assert!(session.represented_has_item_appearance_like_cpp(65));
+        assert!(!session.represented_has_item_appearance_like_cpp(96));
+        assert!(!session.represented_has_item_appearance_like_cpp(97));
+        assert!(!session.represented_has_item_appearance_like_cpp(98));
     }
 
     #[test]
