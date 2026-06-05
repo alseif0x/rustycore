@@ -52,7 +52,7 @@ use wow_data::{
     CurrencyTypesEntry, CurrencyTypesStore, DISABLE_TYPE_MAP, DisableMgrLikeCpp,
     DisableWorldObjectRefLikeCpp, DungeonEncounterStore, DurabilityCostsStore,
     DurabilityQualityStore, FishingBaseSkillStoreLikeCpp, GameObjectDisplayInfoStore,
-    GameObjectTemplateLifecycleStoreLikeCpp, HotfixBlobCache, ImportPriceStores,
+    GameObjectTemplateLifecycleStoreLikeCpp, HeirloomStore, HotfixBlobCache, ImportPriceStores,
     ItemAppearanceStore, ItemClassStore, ItemCurrencyCostStore, ItemDisenchantLootStore,
     ItemExtendedCostStore, ItemLimitCategoryConditionStore, ItemLimitCategoryStore,
     ItemModifiedAppearanceStore, ItemPriceBaseStore, ItemRandomEnchantmentTemplateStore,
@@ -121,7 +121,10 @@ use wow_packet::packets::item::{
     InventoryChangeFailure, ItemEnchantTimeUpdate, ItemInstance, ItemMod, ItemModList,
     ItemPushResult, ItemPushResultDisplayType, ItemTimeUpdate,
 };
-use wow_packet::packets::misc::{AccountMount, AccountMountUpdate, BuyFailed, SellResponse};
+use wow_packet::packets::misc::{
+    AccountHeirloom, AccountHeirloomUpdate, AccountMount, AccountMountUpdate, BuyFailed,
+    SellResponse,
+};
 use wow_packet::packets::quest::{
     QuestGiverOfferReward, QuestGiverQuestDetails, QuestGiverQuestList, QuestGiverRequestItems,
     QuestGiverRequestItemsCollect, QuestGiverRequestItemsCurrency, QuestListEntry,
@@ -2064,6 +2067,9 @@ pub struct WorldSession {
     // Item search-name store (ItemSearchName.db2 data)
     item_search_name_store: Option<Arc<ItemSearchNameStore>>,
 
+    // Heirloom store (Heirloom.db2 data)
+    heirloom_store: Option<Arc<HeirloomStore>>,
+
     // Transmog set item store (TransmogSetItem.db2 data)
     transmog_set_item_store: Option<Arc<TransmogSetItemStore>>,
 
@@ -2575,6 +2581,8 @@ pub struct WorldSession {
     pub(crate) seasonal_quests_like_cpp: BTreeMap<u16, BTreeMap<u32, u64>>,
     /// C++ `Player::m_SeasonalQuestChanged` represented flag.
     pub(crate) seasonal_quest_changed_like_cpp: bool,
+    /// C++ `CollectionMgr::_heirlooms`, represented until account collection runtime is complete.
+    pub(crate) represented_account_heirlooms_like_cpp: BTreeMap<u32, u32>,
     /// C++ `CollectionMgr::_appearances`, represented until account collection persistence is ported.
     pub(crate) represented_item_appearances_like_cpp: HashSet<u32>,
     /// C++ `CollectionMgr::_temporaryAppearances`, represented until account collection persistence is ported.
@@ -3223,6 +3231,7 @@ impl WorldSession {
             item_appearance_store: None,
             item_modified_appearance_store: None,
             item_search_name_store: None,
+            heirloom_store: None,
             transmog_set_item_store: None,
             item_price_base_store: None,
             item_limit_category_store: None,
@@ -3462,6 +3471,7 @@ impl WorldSession {
             quest_high_level_hide_diff_like_cpp: 7,
             seasonal_quests_like_cpp: BTreeMap::new(),
             seasonal_quest_changed_like_cpp: false,
+            represented_account_heirlooms_like_cpp: BTreeMap::new(),
             represented_item_appearances_like_cpp: HashSet::new(),
             represented_temporary_item_appearances_like_cpp: HashMap::new(),
             represented_favorite_item_appearances_like_cpp: HashMap::new(),
@@ -7715,6 +7725,16 @@ impl WorldSession {
         self.item_search_name_store.as_ref()
     }
 
+    /// Set the heirloom store for this session.
+    pub fn set_heirloom_store(&mut self, store: Arc<HeirloomStore>) {
+        self.heirloom_store = Some(store);
+    }
+
+    /// Get the heirloom store reference.
+    pub fn heirloom_store(&self) -> Option<&Arc<HeirloomStore>> {
+        self.heirloom_store.as_ref()
+    }
+
     /// Set the transmog set item store for this session.
     pub fn set_transmog_set_item_store(&mut self, store: Arc<TransmogSetItemStore>) {
         self.transmog_set_item_store = Some(store);
@@ -8083,6 +8103,53 @@ impl WorldSession {
         }
 
         (false, false)
+    }
+
+    /// C++ `CollectionMgr::LoadAccountHeirlooms`.
+    pub(crate) fn load_represented_account_heirlooms_like_cpp(
+        &mut self,
+        heirloom_rows: impl IntoIterator<Item = (u32, u32)>,
+    ) {
+        self.represented_account_heirlooms_like_cpp.clear();
+        for (item_id, flags) in heirloom_rows {
+            if self
+                .heirloom_store
+                .as_ref()
+                .is_some_and(|store| store.get_by_item_id_like_cpp(item_id).is_none())
+            {
+                continue;
+            }
+            self.represented_account_heirlooms_like_cpp
+                .insert(item_id, flags);
+        }
+    }
+
+    /// C++ `CollectionMgr::SaveAccountHeirlooms`.
+    pub(crate) fn account_heirloom_rows_like_cpp(&self) -> Vec<(u32, u32)> {
+        self.represented_account_heirlooms_like_cpp
+            .iter()
+            .map(|(&item_id, &flags)| (item_id, flags))
+            .collect()
+    }
+
+    /// C++ `CollectionMgr::GetAccountHeirlooms` full update payload.
+    pub(crate) fn account_heirloom_packet_rows_like_cpp(&self) -> Vec<AccountHeirloom> {
+        self.represented_account_heirlooms_like_cpp
+            .iter()
+            .filter_map(|(&item_id, &flags)| {
+                Some(AccountHeirloom {
+                    item_id: i32::try_from(item_id).ok()?,
+                    flags,
+                })
+            })
+            .collect()
+    }
+
+    /// C++ `WorldPackets::Misc::AccountHeirloomUpdate` full login update.
+    pub fn send_account_heirlooms_like_cpp(&self) {
+        self.send_packet(&AccountHeirloomUpdate::full(
+            self.account_heirloom_packet_rows_like_cpp(),
+        ));
     }
 
     /// C++ `CollectionMgr::LoadAccountItemAppearances`.
@@ -26917,8 +26984,8 @@ mod tests {
     use wow_core::{Position, guid::HighGuid};
     use wow_data::{
         ChrSpecializationEntry, ChrSpecializationStore, Condition, DurabilityCostsEntry,
-        DurabilityCostsStore, DurabilityQualityEntry, DurabilityQualityStore,
-        ImportPriceArmorEntry, ImportPriceArmorStore, ImportPriceQualityEntry,
+        DurabilityCostsStore, DurabilityQualityEntry, DurabilityQualityStore, HeirloomEntry,
+        HeirloomStore, ImportPriceArmorEntry, ImportPriceArmorStore, ImportPriceQualityEntry,
         ImportPriceQualityStore, ImportPriceShieldEntry, ImportPriceShieldStore, ImportPriceStores,
         ImportPriceWeaponEntry, ImportPriceWeaponStore, ItemAppearanceEntry, ItemAppearanceStore,
         ItemClassEntry, ItemClassStore, ItemCurrencyCostEntry, ItemCurrencyCostStore,
@@ -50768,6 +50835,37 @@ mod tests {
 
         session.represented_item_appearances_like_cpp.insert(65);
         assert_eq!(session.has_item_appearance_like_cpp(65), (true, false));
+    }
+
+    #[test]
+    fn account_heirloom_rows_filter_by_heirloom_store_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_heirloom_store(Arc::new(HeirloomStore::from_entries([HeirloomEntry {
+            id: 1,
+            source_text: "known".to_string(),
+            item_id: 44_000,
+            legacy_upgraded_item_id: 0,
+            static_upgraded_item_id: 0,
+            source_type_enum: 0,
+            flags: 0,
+            legacy_item_id: 0,
+            upgrade_item_id: [0; 6],
+            upgrade_item_bonus_list_id: [0; 6],
+        }])));
+
+        session.load_represented_account_heirlooms_like_cpp([(44_000, 0x03), (44_001, 0x01)]);
+
+        assert_eq!(
+            session.account_heirloom_rows_like_cpp(),
+            vec![(44_000, 0x03)]
+        );
+        assert_eq!(
+            session.account_heirloom_packet_rows_like_cpp(),
+            vec![AccountHeirloom {
+                item_id: 44_000,
+                flags: 0x03,
+            }]
+        );
     }
 
     #[test]

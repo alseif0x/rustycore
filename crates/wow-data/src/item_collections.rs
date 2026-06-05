@@ -385,6 +385,12 @@ impl HeirloomStore {
             }
         })
     }
+
+    /// C++ `DB2Manager::GetHeirloomByItemId`.
+    pub fn get_by_item_id_like_cpp(&self, item_id: u32) -> Option<&HeirloomEntry> {
+        self.values()
+            .find(|entry| u32::try_from(entry.item_id).ok() == Some(item_id))
+    }
 }
 
 impl ToyStore {
@@ -565,6 +571,8 @@ mod tests {
 
         assert_eq!(store.get(42).unwrap().upgrade_item_id[5], 6);
         assert_eq!(store.get(42).unwrap().upgrade_item_bonus_list_id[0], 11);
+        assert_eq!(store.get_by_item_id_like_cpp(100).unwrap().id, 42);
+        assert!(store.get_by_item_id_like_cpp(404).is_none());
     }
 
     #[test]

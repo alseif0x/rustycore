@@ -2180,6 +2180,7 @@ impl WorldSession {
         self.clear_buyback_on_logout().await;
         self.save_current_player_to_db_like_cpp().await;
         self.save_account_mounts_like_cpp().await;
+        self.save_account_heirlooms_like_cpp().await;
         self.save_account_item_appearances_like_cpp().await;
 
         if let Some(player_guid) = self.player_guid() {
@@ -2348,6 +2349,27 @@ impl WorldSession {
                     bnet_account = self.battlenet_account_id(),
                     mount_spell_id,
                     "Failed to save account mount flags: {error}"
+                );
+            }
+        }
+    }
+
+    async fn save_account_heirlooms_like_cpp(&self) {
+        let Some(login_db) = self.login_db() else {
+            return;
+        };
+
+        for (item_id, flags) in self.account_heirloom_rows_like_cpp() {
+            let mut stmt = login_db.prepare(LoginStatements::REP_ACCOUNT_HEIRLOOMS);
+            stmt.set_u32(0, self.battlenet_account_id());
+            stmt.set_u32(1, item_id);
+            stmt.set_u32(2, flags);
+            if let Err(error) = login_db.execute(&stmt).await {
+                warn!(
+                    account = self.account_id,
+                    bnet_account = self.battlenet_account_id(),
+                    item_id,
+                    "Failed to save account heirloom flags: {error}"
                 );
             }
         }
@@ -3088,6 +3110,7 @@ impl WorldSession {
 
         // Load active quests from characters DB
         self.load_player_quests().await;
+        self.load_account_heirlooms_like_cpp().await;
         self.load_account_item_appearances_like_cpp().await;
         let account_mounts = self.load_account_mounts_like_cpp().await;
 
@@ -9053,6 +9076,45 @@ impl WorldSession {
         mounts
     }
 
+    async fn load_account_heirlooms_like_cpp(&mut self) {
+        let Some(login_db) = self.login_db() else {
+            self.load_represented_account_heirlooms_like_cpp([]);
+            return;
+        };
+
+        let bnet_account_id = self.battlenet_account_id();
+        let mut stmt = login_db.prepare(LoginStatements::SEL_ACCOUNT_HEIRLOOMS);
+        stmt.set_u32(0, bnet_account_id);
+        let rows = match login_db.query(&stmt).await {
+            Ok(mut result) => {
+                let mut rows = Vec::new();
+                if !result.is_empty() {
+                    loop {
+                        let item_id = result.try_read::<i32>(0).unwrap_or(0);
+                        let flags = result.try_read::<u32>(1).unwrap_or(0);
+                        if let Ok(item_id) = u32::try_from(item_id) {
+                            rows.push((item_id, flags));
+                        }
+                        if !result.next_row() {
+                            break;
+                        }
+                    }
+                }
+                rows
+            }
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    bnet_account = bnet_account_id,
+                    "Failed to load account heirlooms: {error}"
+                );
+                Vec::new()
+            }
+        };
+
+        self.load_represented_account_heirlooms_like_cpp(rows);
+    }
+
     async fn load_account_item_appearances_like_cpp(&mut self) {
         let Some(login_db) = self.login_db() else {
             self.load_represented_account_item_appearances_like_cpp([], []);
@@ -9268,15 +9330,16 @@ impl WorldSession {
         // 24. AccountToyUpdate (empty, full update)
         self.send_packet(&AccountToyUpdate);
 
-        // TODO(port): C++ sends AccountHeirloomUpdate here before favorite appearances.
+        // 25. AccountHeirloomUpdate
+        self.send_account_heirlooms_like_cpp();
 
-        // 25. AccountTransmogUpdate favorite appearances
+        // 26. AccountTransmogUpdate favorite appearances
         self.send_favorite_appearances_like_cpp();
 
-        // 26. InitialSetup (expansion level)
+        // 27. InitialSetup (expansion level)
         self.send_packet(&InitialSetup::wotlk());
 
-        // 26b. MoveSetActiveMover — CRITICAL: tells the client which unit it
+        // 27b. MoveSetActiveMover — CRITICAL: tells the client which unit it
         //      controls for movement. Without this, `m_mover` is null and the
         //      client crashes with ACCESS_VIOLATION when processing movement.
         //      C# sends via SetMovedUnit(this) at Player.cs line 5610.

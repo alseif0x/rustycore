@@ -1446,6 +1446,54 @@ impl ServerPacket for AccountMountUpdate {
     }
 }
 
+// ── AccountHeirloomUpdate (SMSG 0xBADD placeholder) ─────────────────
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AccountHeirloom {
+    pub item_id: i32,
+    pub flags: u32,
+}
+
+/// C++ `WorldPackets::Misc::AccountHeirloomUpdate`.
+///
+/// The archived C++ opcode table uses the shared `0xBADD` placeholder for this
+/// packet, so Rust reuses the existing `UpdateCapturePoint` discriminant while
+/// keeping a distinct packet type.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AccountHeirloomUpdate {
+    pub is_full_update: bool,
+    pub unk: i32,
+    pub heirlooms: Vec<AccountHeirloom>,
+}
+
+impl AccountHeirloomUpdate {
+    pub fn full(heirlooms: Vec<AccountHeirloom>) -> Self {
+        Self {
+            is_full_update: true,
+            unk: 0,
+            heirlooms,
+        }
+    }
+}
+
+impl ServerPacket for AccountHeirloomUpdate {
+    const OPCODE: ServerOpcodes = ServerOpcodes::UpdateCapturePoint;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_bit(self.is_full_update);
+        pkt.flush_bits();
+        pkt.write_int32(self.unk);
+        pkt.write_uint32(self.heirlooms.len() as u32);
+        pkt.write_uint32(self.heirlooms.len() as u32);
+        for heirloom in &self.heirlooms {
+            pkt.write_int32(heirloom.item_id);
+        }
+        for heirloom in &self.heirlooms {
+            pkt.write_uint32(heirloom.flags);
+        }
+    }
+}
+
 // ── MountSetFavorite (CMSG 0x3633) ─────────────────────────────────
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -3345,6 +3393,55 @@ mod tests {
             200
         );
         assert_eq!(bytes[16], 0x20);
+    }
+
+    #[test]
+    fn account_heirloom_update_writes_items_then_flags_like_cpp() {
+        let pkt = AccountHeirloomUpdate::full(vec![
+            AccountHeirloom {
+                item_id: 44_000,
+                flags: 0x01,
+            },
+            AccountHeirloom {
+                item_id: 44_001,
+                flags: 0x04,
+            },
+        ]);
+        let bytes = pkt.to_bytes();
+
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::UpdateCapturePoint as u16
+        );
+        assert_eq!(bytes[2], 0x80);
+        assert_eq!(
+            i32::from_le_bytes([bytes[3], bytes[4], bytes[5], bytes[6]]),
+            0
+        );
+        assert_eq!(
+            u32::from_le_bytes([bytes[7], bytes[8], bytes[9], bytes[10]]),
+            2
+        );
+        assert_eq!(
+            u32::from_le_bytes([bytes[11], bytes[12], bytes[13], bytes[14]]),
+            2
+        );
+        assert_eq!(
+            i32::from_le_bytes([bytes[15], bytes[16], bytes[17], bytes[18]]),
+            44_000
+        );
+        assert_eq!(
+            i32::from_le_bytes([bytes[19], bytes[20], bytes[21], bytes[22]]),
+            44_001
+        );
+        assert_eq!(
+            u32::from_le_bytes([bytes[23], bytes[24], bytes[25], bytes[26]]),
+            0x01
+        );
+        assert_eq!(
+            u32::from_le_bytes([bytes[27], bytes[28], bytes[29], bytes[30]]),
+            0x04
+        );
     }
 
     #[test]
