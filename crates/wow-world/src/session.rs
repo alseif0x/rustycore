@@ -2532,6 +2532,8 @@ pub struct WorldSession {
     pub(crate) seasonal_quests_like_cpp: BTreeMap<u16, BTreeMap<u32, u64>>,
     /// C++ `Player::m_SeasonalQuestChanged` represented flag.
     pub(crate) seasonal_quest_changed_like_cpp: bool,
+    /// C++ `CollectionMgr::_appearances`, represented until account collection persistence is ported.
+    pub(crate) represented_item_appearances_like_cpp: HashSet<u32>,
     /// Session-local evidence for represented `Player::RemoveTimedQuest` calls.
     pub(crate) represented_timed_quest_removals_like_cpp: Vec<u32>,
     /// Session-local evidence for represented quest reward `Player::UpdateSkillPro` calls.
@@ -3372,6 +3374,7 @@ impl WorldSession {
             quest_high_level_hide_diff_like_cpp: 7,
             seasonal_quests_like_cpp: BTreeMap::new(),
             seasonal_quest_changed_like_cpp: false,
+            represented_item_appearances_like_cpp: HashSet::new(),
             represented_timed_quest_removals_like_cpp: Vec::new(),
             represented_quest_reward_skill_updates_like_cpp: Vec::new(),
             represented_quest_reward_spell_casts_like_cpp: Vec::new(),
@@ -7647,6 +7650,39 @@ impl WorldSession {
             .iter()
             .filter_map(|item| item_modified_appearance_store.get(item.item_modified_appearance_id))
             .collect()
+    }
+
+    /// Bounded C++ `CollectionMgr::AddItemAppearance`.
+    pub fn add_item_appearance_like_cpp(
+        &mut self,
+        item_modified_appearance_id: u32,
+    ) -> Option<wow_entities::PlayerValuesUpdate> {
+        let block_index = usize::try_from(item_modified_appearance_id / 32).ok()?;
+        let bit_index = item_modified_appearance_id % 32;
+        let flag = 1_u32.checked_shl(bit_index)?;
+
+        let result = self.mutate_canonical_player_like_cpp(|player| {
+            while player.transmog_blocks_like_cpp().len() <= block_index {
+                player.add_transmog_block_like_cpp(0);
+            }
+
+            player
+                .add_transmog_flag_like_cpp(block_index, flag)
+                .then(|| player.values_update(true))
+        })??;
+
+        self.represented_item_appearances_like_cpp
+            .insert(item_modified_appearance_id);
+        Some(result)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_has_item_appearance_like_cpp(
+        &self,
+        item_modified_appearance_id: u32,
+    ) -> bool {
+        self.represented_item_appearances_like_cpp
+            .contains(&item_modified_appearance_id)
     }
 
     /// Build the closure result expected by `Item::visible_entry` and
@@ -49181,6 +49217,49 @@ mod tests {
                 .transmog_set_item_modified_appearances_like_cpp(99)
                 .is_empty()
         );
+    }
+
+    #[test]
+    fn add_item_appearance_resizes_blocks_and_marks_flag_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 71);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        let player_position = Position::new(10.0, 0.0, 0.0, 0.0);
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TransmogTester".to_string(),
+            player_position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
+        session.mutate_canonical_player_like_cpp(|player| player.clear_data_changes());
+
+        let update = session
+            .add_item_appearance_like_cpp(65)
+            .expect("represented current player should receive transmog appearance");
+        let active = update
+            .active_player_data
+            .expect("transmog appearance should mark active player data");
+
+        assert!(session.represented_has_item_appearance_like_cpp(65));
+        assert_eq!(active.values.transmog, vec![0, 0, 1 << 1]);
+        assert_eq!(active.values.transmog_update_mask, Some(vec![0b111]));
+        assert!(
+            active
+                .mask
+                .is_set(wow_entities::ACTIVE_PLAYER_DATA_PARENT_BIT)
+        );
+        assert!(
+            active
+                .mask
+                .is_set(wow_entities::ACTIVE_PLAYER_DATA_TRANSMOG_BIT)
+        );
+        assert!(session.add_item_appearance_like_cpp(65).is_none());
     }
 
     #[test]
