@@ -24020,7 +24020,6 @@ impl WorldSession {
             self.apply_effect_teleport_units_like_cpp(effect, target_guid, effect_target_data)
                 .await;
             self.apply_effect_bind_like_cpp(effect, player_guid, target_guid, effect_target_data);
-            self.apply_effect_environmental_damage_like_cpp(effect, target_guid);
         }
 
         let mut force_visibility_after_gameobject_summon = false;
@@ -24135,6 +24134,19 @@ impl WorldSession {
                             "Skipping SPELL_EFFECT_SCHOOL_DAMAGE because C++ only applies positive m_damage"
                         );
                     }
+                }
+                x if x
+                    == wow_data::spell::spell_effect_types::SPELL_EFFECT_ENVIRONMENTAL_DAMAGE =>
+                {
+                    self.apply_effect_environmental_damage_like_cpp(
+                        &wow_data::SpellEffectInfo {
+                            effect_index: direct_effect_index,
+                            effect: direct_effect_type,
+                            effect_base_points: direct_effect_base_points,
+                            ..Default::default()
+                        },
+                        target_guid,
+                    );
                 }
                 _ => {}
             }
@@ -31384,6 +31396,98 @@ mod tests {
             DAMAGE_FIRE_LIKE_CPP
         );
         assert_eq!(damage_log.read_int32().expect("amount"), 73);
+        assert_eq!(damage_log.read_int32().expect("resisted"), 0);
+        assert_eq!(damage_log.read_int32().expect("absorbed"), 0);
+        assert!(!damage_log.has_bit().expect("has log data"));
+    }
+
+    #[tokio::test]
+    async fn primary_environmental_damage_spell_damages_player_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 729_i32;
+        let player_guid = ObjectGuid::create_player(1, 7028);
+        let player_position = Position::new(301.0, 401.0, 61.0, 1.0);
+        let canonical = shared_canonical_map_manager();
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "PrimaryEnvironmentalTarget".to_string(),
+            player_position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_player_health_like_cpp(1_000, 1_000);
+        add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_ENVIRONMENTAL_DAMAGE,
+                effect_base_points: 81,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: Vec::new(),
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell_with_visual_and_target_data(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual {
+                    spell_visual_id: 729,
+                    script_visual_id: 0,
+                },
+                SpellTargetData {
+                    flags: 0x2,
+                    unit: player_guid,
+                    ..SpellTargetData::default()
+                },
+            )
+            .await
+            .expect("represented primary environmental damage spell should execute");
+
+        assert_eq!(session.player_health_like_cpp(), 919);
+        let packets = drain_server_packet_bytes(&send_rx);
+        let opcodes: Vec<_> = packets
+            .iter()
+            .filter_map(|bytes| wow_packet::WorldPacket::from_bytes(bytes).server_opcode())
+            .collect();
+        assert_eq!(
+            opcodes,
+            vec![
+                ServerOpcodes::SpellGo,
+                ServerOpcodes::HealthUpdate,
+                ServerOpcodes::EnvironmentalDamageLog,
+                ServerOpcodes::CooldownEvent,
+            ],
+            "C++ dispatches primary SPELL_EFFECT_ENVIRONMENTAL_DAMAGE through EffectEnvironmentalDMG"
+        );
+
+        let mut damage_log = wow_packet::WorldPacket::from_bytes(&packets[2]);
+        assert_eq!(
+            damage_log.read_uint16().expect("opcode"),
+            ServerOpcodes::EnvironmentalDamageLog as u16
+        );
+        assert_eq!(damage_log.read_packed_guid().expect("victim"), player_guid);
+        assert_eq!(
+            damage_log.read_uint8().expect("environmental type"),
+            DAMAGE_FIRE_LIKE_CPP
+        );
+        assert_eq!(damage_log.read_int32().expect("amount"), 81);
         assert_eq!(damage_log.read_int32().expect("resisted"), 0);
         assert_eq!(damage_log.read_int32().expect("absorbed"), 0);
         assert!(!damage_log.has_bit().expect("has log data"));
