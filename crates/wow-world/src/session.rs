@@ -7969,6 +7969,61 @@ impl WorldSession {
         self.add_item_appearance_like_cpp(item_modified_appearance_id)
     }
 
+    /// Bounded C++ `CollectionMgr::AddItemAppearance(Item*)`.
+    pub(crate) fn add_item_appearance_for_runtime_item_like_cpp(
+        &mut self,
+        item: &wow_entities::Item,
+    ) -> Option<wow_entities::PlayerValuesUpdate> {
+        if !item.is_soul_bound() {
+            return None;
+        }
+
+        let item_id = item.object().entry();
+        let appearance_mod_id = item.visible_appearance_mod_id(0, |appearance_id| {
+            self.item_modified_appearance_ref(appearance_id)
+        });
+        let item_modified_appearance_id =
+            self.item_modified_appearance_for_item(item_id, u32::from(appearance_mod_id))?;
+        if !self.can_add_item_appearance_represented_like_cpp(item_modified_appearance_id) {
+            return None;
+        }
+
+        if item.is_bop_tradeable() || item.is_refundable() {
+            return self.add_temporary_item_appearance_like_cpp(
+                item_modified_appearance_id,
+                item.object().guid(),
+            );
+        }
+
+        self.add_item_appearance_like_cpp(item_modified_appearance_id)
+    }
+
+    /// Bounded C++ `CollectionMgr::OnItemAdded`.
+    pub(crate) fn on_item_added_to_collection_like_cpp(
+        &mut self,
+        item: &wow_entities::Item,
+    ) -> Vec<wow_entities::PlayerValuesUpdate> {
+        let item_id = item.object().entry();
+        let mut updates = Vec::new();
+
+        if self
+            .heirloom_store
+            .as_ref()
+            .and_then(|store| store.get_by_item_id_like_cpp(item_id))
+            .is_some()
+            && self.add_account_heirloom_like_cpp(item_id, 0)
+            && let Some(update) = self.add_player_heirloom_dynamic_fields_like_cpp(item_id, 0)
+        {
+            updates.push(update);
+        }
+
+        if let Some(update) = self.add_item_appearance_for_runtime_item_like_cpp(item) {
+            updates.push(update);
+        }
+
+        updates
+    }
+
     /// Bounded C++ `CollectionMgr::CanAddAppearance`.
     ///
     /// This covers the DB2/template, represented `CanUseItem` class/proficiency,
@@ -10604,6 +10659,20 @@ impl WorldSession {
         let update = player.values_update(true);
         if let Some(packet) =
             player_values_update_to_update_object(guid, self.player_map_id_like_cpp(), &update)
+        {
+            self.send_packet(&packet);
+        }
+    }
+
+    pub(crate) fn send_player_values_update_like_cpp(
+        &self,
+        update: &wow_entities::PlayerValuesUpdate,
+    ) {
+        let Some(guid) = self.player_guid() else {
+            return;
+        };
+        if let Some(packet) =
+            player_values_update_to_update_object(guid, self.player_map_id_like_cpp(), update)
         {
             self.send_packet(&packet);
         }
@@ -51106,6 +51175,135 @@ mod tests {
             session
                 .add_item_appearance_for_item_like_cpp(778, 2)
                 .is_none()
+        );
+    }
+
+    #[test]
+    fn on_item_added_adds_heirloom_and_permanent_appearance_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 86);
+        let player_position = Position::new(10.0, 0.0, 0.0, 0.0);
+        let item_guid = ObjectGuid::create_item(1, 86_777);
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
+        session.set_heirloom_store(Arc::new(HeirloomStore::from_entries([HeirloomEntry {
+            id: 1,
+            source_text: "collection item".to_string(),
+            item_id: 44_000,
+            legacy_upgraded_item_id: 0,
+            static_upgraded_item_id: 0,
+            source_type_enum: 0,
+            flags: 0,
+            legacy_item_id: 0,
+            upgrade_item_id: [0; 6],
+            upgrade_item_bonus_list_id: [0; 6],
+        }])));
+        session.set_item_modified_appearance_store(Arc::new(
+            ItemModifiedAppearanceStore::from_entries([ItemModifiedAppearanceEntry {
+                id: 65,
+                item_id: 44_000,
+                item_appearance_modifier_id: 0,
+                item_appearance_id: 9_000,
+                order_index: 0,
+                transmog_source_type_enum: 0,
+            }]),
+        ));
+        install_transmog_can_add_test_item(
+            &mut session,
+            44_000,
+            ItemClass::Weapon,
+            ItemSubClassWeapon::Sword as u8,
+            InventoryType::Weapon,
+            ItemQuality::Uncommon,
+            [0, 0, 0, 0],
+            0,
+        );
+        session.mutate_canonical_player_like_cpp(|player| player.clear_data_changes());
+        let mut item = session.make_inventory_item_object(
+            item_guid,
+            44_000,
+            player_guid,
+            1,
+            0,
+            ItemContext::None,
+            23,
+        );
+        item.set_item_flag(ItemFieldFlags::SOULBOUND);
+
+        let updates = session.on_item_added_to_collection_like_cpp(&item);
+
+        assert_eq!(updates.len(), 2);
+        assert_eq!(session.account_heirloom_rows_like_cpp(), vec![(44_000, 0)]);
+        assert!(session.represented_has_item_appearance_like_cpp(65));
+        let canonical_fields = session
+            .mutate_canonical_player_like_cpp(|player| {
+                (
+                    player.heirlooms_like_cpp().to_vec(),
+                    player.heirloom_flags_like_cpp().to_vec(),
+                    player.transmog_blocks_like_cpp().to_vec(),
+                )
+            })
+            .unwrap();
+        assert_eq!(
+            canonical_fields,
+            (vec![44_000], vec![0], vec![0, 0, 1 << 1])
+        );
+    }
+
+    #[test]
+    fn on_item_added_records_refundable_appearance_as_temporary_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 87);
+        let player_position = Position::new(10.0, 0.0, 0.0, 0.0);
+        let item_guid = ObjectGuid::create_item(1, 87_777);
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
+        session.set_item_modified_appearance_store(Arc::new(
+            ItemModifiedAppearanceStore::from_entries([ItemModifiedAppearanceEntry {
+                id: 96,
+                item_id: 44_100,
+                item_appearance_modifier_id: 0,
+                item_appearance_id: 9_100,
+                order_index: 0,
+                transmog_source_type_enum: 0,
+            }]),
+        ));
+        install_transmog_can_add_test_item(
+            &mut session,
+            44_100,
+            ItemClass::Weapon,
+            ItemSubClassWeapon::Sword as u8,
+            InventoryType::Weapon,
+            ItemQuality::Uncommon,
+            [0, 0, 0, 0],
+            0,
+        );
+        session.mutate_canonical_player_like_cpp(|player| player.clear_data_changes());
+        let mut item = session.make_inventory_item_object(
+            item_guid,
+            44_100,
+            player_guid,
+            1,
+            0,
+            ItemContext::Vendor,
+            23,
+        );
+        item.set_item_flag(ItemFieldFlags::SOULBOUND | ItemFieldFlags::REFUNDABLE);
+
+        let updates = session.on_item_added_to_collection_like_cpp(&item);
+
+        assert_eq!(updates.len(), 1);
+        assert_eq!(session.has_item_appearance_like_cpp(96), (true, true));
+        assert!(!session.represented_has_item_appearance_like_cpp(96));
+        assert_eq!(
+            session.items_providing_temporary_appearance_like_cpp(96),
+            HashSet::from([item_guid])
         );
     }
 

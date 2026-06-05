@@ -6891,6 +6891,7 @@ impl WorldSession {
         }
 
         let inv_type = self.item_template_inventory_type(buy.item_id as u32);
+        let mut collection_updates = Vec::new();
         for &(slot, db_guid, item_guid, stack_count) in &new_stacks {
             self.insert_inventory_item_like_cpp(
                 slot,
@@ -6916,6 +6917,7 @@ impl WorldSession {
                 item_object.set_paid_money(buy_price);
                 item_object.set_paid_extended_cost(vendor_item.extended_cost as u32);
             }
+            collection_updates.extend(self.on_item_added_to_collection_like_cpp(&item_object));
             self.insert_inventory_item_object(item_object);
         }
         self.sync_object_accessor_player();
@@ -6987,6 +6989,9 @@ impl WorldSession {
             &[],
             Some(self.player_gold_like_cpp()),
         );
+        for update in &collection_updates {
+            self.send_player_values_update_like_cpp(update);
+        }
     }
 
     /// Handle CMSG_BUY_BACK_ITEM — player buys back an item from a vendor.

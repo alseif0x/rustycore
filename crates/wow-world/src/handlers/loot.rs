@@ -6326,6 +6326,7 @@ impl WorldSession {
             });
         }
 
+        let mut collection_updates = Vec::new();
         for (stack, db_guid, item_guid) in &created_new_stacks {
             self.insert_inventory_item_like_cpp(
                 stack.slot,
@@ -6351,6 +6352,7 @@ impl WorldSession {
             if stack.random_properties_seed != 0 {
                 item_object.set_property_seed(stack.random_properties_seed);
             }
+            collection_updates.extend(self.on_item_added_to_collection_like_cpp(&item_object));
             self.insert_inventory_item_object(item_object);
         }
         self.sync_object_accessor_player();
@@ -6415,6 +6417,9 @@ impl WorldSession {
                 .map(|(stack, _, item_guid)| (stack.slot, *item_guid))
                 .collect();
             self.send_player_values_update_from_entity_bridge(&changed_slots, &[], &[], &[], None);
+        }
+        for update in &collection_updates {
+            self.send_player_values_update_like_cpp(update);
         }
 
         self.sync_player_registry_state_like_cpp();
