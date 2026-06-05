@@ -6940,6 +6940,18 @@ impl Player {
         index
     }
 
+    /// C++ `Player::SetHeirloom`.
+    pub fn set_heirloom_like_cpp(&mut self, index: usize, item_id: i32) -> bool {
+        let Some(slot) = self.active_data.heirlooms.get_mut(index) else {
+            return false;
+        };
+
+        *slot = item_id;
+        Self::set_dynamic_update_mask_index(&mut self.active_data.heirlooms_update_mask, index);
+        self.mark_active_player_data(ACTIVE_PLAYER_DATA_HEIRLOOMS_BIT);
+        true
+    }
+
     /// C++ `Player::SetHeirloomFlags`.
     pub fn set_heirloom_flags_like_cpp(&mut self, index: usize, flags: u32) -> bool {
         let Some(slot) = self.active_data.heirloom_flags.get_mut(index) else {
@@ -12555,6 +12567,39 @@ mod tests {
             player.active_data().heirloom_flags_update_mask,
             Some(vec![0b10])
         );
+    }
+
+    #[test]
+    fn set_heirloom_marks_only_heirlooms_dynamic_field_like_cpp() {
+        let mut player = Player::new(None, false);
+        player.add_heirloom_like_cpp(44_000, 0x01);
+        player.add_heirloom_like_cpp(44_001, 0x02);
+        player.clear_active_player_data_changes();
+        player.active_data.heirlooms_update_mask = None;
+        player.active_data.heirloom_flags_update_mask = None;
+
+        assert!(player.set_heirloom_like_cpp(0, 44_002));
+        assert!(!player.set_heirloom_like_cpp(2, 44_003));
+
+        assert_eq!(player.heirlooms_like_cpp(), &[44_002, 44_001]);
+        assert_eq!(player.heirloom_flags_like_cpp(), &[0x01, 0x02]);
+        assert!(
+            player
+                .active_player_data_changes_mask()
+                .is_set(ACTIVE_PLAYER_DATA_PARENT_BIT)
+        );
+        assert!(
+            player
+                .active_player_data_changes_mask()
+                .is_set(ACTIVE_PLAYER_DATA_HEIRLOOMS_BIT)
+        );
+        assert!(
+            !player
+                .active_player_data_changes_mask()
+                .is_set(ACTIVE_PLAYER_DATA_HEIRLOOM_FLAGS_BIT)
+        );
+        assert_eq!(player.active_data().heirlooms_update_mask, Some(vec![1]));
+        assert_eq!(player.active_data().heirloom_flags_update_mask, None);
     }
 
     #[test]

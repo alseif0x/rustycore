@@ -8374,6 +8374,87 @@ impl WorldSession {
         Some(update)
     }
 
+    /// C++ `Player::GetItemByEntry(entry, ItemSearchLocation::Default)`.
+    fn represented_player_has_default_item_entry_like_cpp(&self, item_id: u32) -> bool {
+        let Some(player) = self.direct_inventory_player_snapshot() else {
+            return false;
+        };
+        let item_objects = self.inventory_item_objects_like_cpp();
+        let mut found = false;
+        player.for_each_item_guid(wow_entities::ItemSearchLocation::DEFAULT, |item_guid| {
+            if item_objects
+                .get(&item_guid)
+                .is_some_and(|item| item.object().entry() == item_id)
+            {
+                found = true;
+                wow_entities::ItemSearchCallbackResult::Stop
+            } else {
+                wow_entities::ItemSearchCallbackResult::Continue
+            }
+        });
+        found
+    }
+
+    /// C++ `CollectionMgr::CheckHeirloomUpgrades`.
+    pub(crate) fn check_account_heirloom_upgrades_like_cpp(
+        &mut self,
+        item_id: u32,
+    ) -> Option<wow_entities::PlayerValuesUpdate> {
+        let heirloom_store = Arc::clone(self.heirloom_store.as_ref()?);
+        let heirloom = heirloom_store.get_by_item_id_like_cpp(item_id)?;
+        self.represented_account_heirlooms_like_cpp.get(&item_id)?;
+
+        let mut heirloom_item_id = u32::try_from(heirloom.static_upgraded_item_id).ok()?;
+        let mut new_item_id = 0_u32;
+        while let Some(heirloom_diff) = heirloom_store.get_by_item_id_like_cpp(heirloom_item_id) {
+            let diff_item_id = u32::try_from(heirloom_diff.item_id).ok()?;
+            if self.represented_player_has_default_item_entry_like_cpp(diff_item_id) {
+                new_item_id = diff_item_id;
+            }
+
+            let Some(heirloom_sub_item_id) = u32::try_from(heirloom_diff.static_upgraded_item_id)
+                .ok()
+                .and_then(|static_item_id| {
+                    heirloom_store
+                        .get_by_item_id_like_cpp(static_item_id)
+                        .and_then(|heirloom_sub| u32::try_from(heirloom_sub.item_id).ok())
+                })
+            else {
+                break;
+            };
+            heirloom_item_id = heirloom_sub_item_id;
+        }
+
+        if new_item_id == 0 {
+            return None;
+        }
+
+        let active_item_id = i32::try_from(item_id).ok()?;
+        let active_new_item_id = i32::try_from(new_item_id).ok()?;
+        let active_offset = self.mutate_canonical_player_like_cpp(|player| {
+            player
+                .heirlooms_like_cpp()
+                .iter()
+                .position(|&heirloom_item_id| heirloom_item_id == active_item_id)
+        })??;
+
+        let update = self.mutate_canonical_player_like_cpp(|player| {
+            let set_item = player.set_heirloom_like_cpp(active_offset, active_new_item_id);
+            let set_flags = player.set_heirloom_flags_like_cpp(active_offset, 0);
+            (set_item && set_flags).then(|| player.values_update(true))
+        })??;
+
+        self.represented_account_heirlooms_like_cpp.remove(&item_id);
+        self.represented_account_heirlooms_like_cpp.insert(
+            new_item_id,
+            AccountHeirloomDataLikeCpp {
+                flags: 0,
+                bonus_id: 0,
+            },
+        );
+        Some(update)
+    }
+
     /// C++ `CollectionMgr::LoadAccountToys`.
     pub(crate) fn load_represented_account_toys_like_cpp(
         &mut self,
@@ -51785,6 +51866,101 @@ mod tests {
                 ServerOpcodes::UpdateObject,
                 ServerOpcodes::CooldownEvent,
             ]
+        );
+    }
+
+    #[test]
+    fn check_account_heirloom_upgrades_promotes_static_owned_variant_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 80);
+        let player_position = Position::new(10.0, 0.0, 0.0, 0.0);
+        let owned_upgrade_guid = ObjectGuid::create_item(1, 90_002);
+
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
+        session.set_heirloom_store(Arc::new(HeirloomStore::from_entries([
+            HeirloomEntry {
+                id: 1,
+                source_text: "base".to_string(),
+                item_id: 44_000,
+                legacy_upgraded_item_id: 0,
+                static_upgraded_item_id: 44_001,
+                source_type_enum: 0,
+                flags: 0,
+                legacy_item_id: 0,
+                upgrade_item_id: [0; 6],
+                upgrade_item_bonus_list_id: [0; 6],
+            },
+            HeirloomEntry {
+                id: 2,
+                source_text: "heroic".to_string(),
+                item_id: 44_001,
+                legacy_upgraded_item_id: 0,
+                static_upgraded_item_id: 44_002,
+                source_type_enum: 0,
+                flags: 0,
+                legacy_item_id: 0,
+                upgrade_item_id: [0; 6],
+                upgrade_item_bonus_list_id: [0; 6],
+            },
+            HeirloomEntry {
+                id: 3,
+                source_text: "mythic".to_string(),
+                item_id: 44_002,
+                legacy_upgraded_item_id: 0,
+                static_upgraded_item_id: 0,
+                source_type_enum: 0,
+                flags: 0,
+                legacy_item_id: 0,
+                upgrade_item_id: [0; 6],
+                upgrade_item_bonus_list_id: [0; 6],
+            },
+        ])));
+        session.load_represented_account_heirlooms_like_cpp([(44_000, 0x03)]);
+        session
+            .add_player_heirloom_dynamic_fields_like_cpp(44_000, 0x03)
+            .unwrap();
+        session.mutate_canonical_player_like_cpp(|player| player.clear_data_changes());
+        insert_open_item_top_level(
+            &mut session,
+            player_guid,
+            23,
+            owned_upgrade_guid,
+            44_002,
+            true,
+        );
+
+        let update = session
+            .check_account_heirloom_upgrades_like_cpp(44_000)
+            .expect("owned static upgrade should promote the account heirloom row");
+
+        assert_eq!(session.account_heirloom_rows_like_cpp(), vec![(44_002, 0)]);
+        assert_eq!(session.account_heirloom_bonus_like_cpp(44_000), 0);
+        assert_eq!(session.account_heirloom_bonus_like_cpp(44_002), 0);
+        assert_eq!(
+            session
+                .mutate_canonical_player_like_cpp(|player| {
+                    (
+                        player.heirlooms_like_cpp().to_vec(),
+                        player.heirloom_flags_like_cpp().to_vec(),
+                    )
+                })
+                .unwrap(),
+            (vec![44_002], vec![0])
+        );
+        let active_update = update.active_player_data.as_ref().unwrap();
+        assert!(
+            active_update
+                .mask
+                .is_set(wow_entities::ACTIVE_PLAYER_DATA_HEIRLOOMS_BIT)
+        );
+        assert!(
+            active_update
+                .mask
+                .is_set(wow_entities::ACTIVE_PLAYER_DATA_HEIRLOOM_FLAGS_BIT)
         );
     }
 
