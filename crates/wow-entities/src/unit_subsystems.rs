@@ -4118,6 +4118,7 @@ pub struct AiSubsystem {
     pub last_update_diff_ms: u32,
     pub hostile_reaction_count: u32,
     pub call_assistance_count: u32,
+    pub summoned_gameobject_despawn_count: u32,
 }
 
 impl AiSubsystem {
@@ -4173,6 +4174,15 @@ impl AiSubsystem {
 
     pub fn call_assistance_like_cpp(&mut self) {
         self.call_assistance_count = self.call_assistance_count.saturating_add(1);
+    }
+
+    pub fn summoned_gameobject_despawn_like_cpp(&mut self) -> bool {
+        if !self.is_enabled() {
+            return false;
+        }
+        self.summoned_gameobject_despawn_count =
+            self.summoned_gameobject_despawn_count.saturating_add(1);
+        true
     }
 
     pub fn schedule_change(&mut self) {
@@ -5653,6 +5663,8 @@ mod unit_subsystems_tests {
         assert!(ai.update_tick(50));
         assert_eq!(ai.update_ticks, 1);
         assert_eq!(ai.last_update_diff_ms, 50);
+        assert!(ai.summoned_gameobject_despawn_like_cpp());
+        assert_eq!(ai.summoned_gameobject_despawn_count, 1);
 
         ai.push("CombatAI");
         assert_eq!(ai.active_ai.as_deref(), Some("CombatAI"));
@@ -5670,6 +5682,10 @@ mod unit_subsystems_tests {
         ai.apply_scheduled_change("RestoredAI", false);
         assert_eq!(ai.active_ai.as_deref(), Some("RestoredAI"));
         assert!(!ai.scheduled_change_pending);
+
+        let mut disabled = AiSubsystem::default();
+        assert!(!disabled.summoned_gameobject_despawn_like_cpp());
+        assert_eq!(disabled.summoned_gameobject_despawn_count, 0);
     }
 
     #[test]

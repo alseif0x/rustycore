@@ -1589,6 +1589,14 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `Aura::Remove`; aura scripts/procs/update-field packet fanout, cooldown event emission,
   `CreatureAI::SummonedGameobjectDespawn`, creation-time owner-list population, DB effects, and live
   client/server validation remain open.
+- 2026-06-05 — Map-owned `RemoveFromOwner` creature-AI despawn callback boundary
+  `#NEXT.RUNTIME.L3.031e3`: contrasted C++ `Unit::RemoveGameObject(GameObject*, false)` AI callback
+  branch (`Unit.cpp:5241-5244`) and the virtual callback declaration (`CreatureAI.h:118-119`). Rust
+  now records the represented `SummonedGameobjectDespawn` dispatch boundary for Creature/Pet owners
+  whose `AiSubsystem` is enabled, incrementing a local evidence counter. This intentionally does not
+  execute script AI or SmartAI behavior; cooldown event emission, creation-time owner-list
+  population, DB effects, real script callback runtime, and live client/server validation remain
+  open.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

@@ -9201,11 +9201,37 @@ where
             unit_owned_gameobject_list_removed,
             unit_object_slot_cleared,
             aura_cleanup_removed_count,
+            creature_ai_callback_represented,
         ) = if owner_found_as_unit_like {
             self.map_objects
                 .get_mut(&owner_guid_before)
-                .and_then(Self::map_record_unit_mut_like_cpp)
-                .map(|owner| {
+                .map(|record| {
+                    let creature_ai_callback_represented = match record.kind() {
+                        AccessorObjectKind::Creature => record
+                            .creature_mut()
+                            .map(|creature| {
+                                creature
+                                    .unit_mut()
+                                    .subsystems_mut()
+                                    .ai
+                                    .summoned_gameobject_despawn_like_cpp()
+                            })
+                            .unwrap_or(false),
+                        AccessorObjectKind::Pet => record
+                            .pet_mut()
+                            .map(|pet| {
+                                pet.creature_mut()
+                                    .unit_mut()
+                                    .subsystems_mut()
+                                    .ai
+                                    .summoned_gameobject_despawn_like_cpp()
+                            })
+                            .unwrap_or(false),
+                        _ => false,
+                    };
+                    let Some(owner) = Self::map_record_unit_mut_like_cpp(record) else {
+                        return (false, false, 0, creature_ai_callback_represented);
+                    };
                     let subsystems = owner.subsystems_mut();
                     let control = &mut subsystems.control;
                     let unit_owned_gameobject_list_removed =
@@ -9224,11 +9250,12 @@ where
                         unit_owned_gameobject_list_removed,
                         unit_object_slot_cleared,
                         aura_cleanup_removed_count,
+                        creature_ai_callback_represented,
                     )
                 })
-                .unwrap_or((false, false, 0))
+                .unwrap_or((false, false, 0, false))
         } else {
-            (false, false, 0)
+            (false, false, 0, false)
         };
 
         Some(GameObjectRemoveFromOwnerOutcomeLikeCpp {
@@ -9248,7 +9275,7 @@ where
             aura_cleanup_represented: spell_id != 0 && owner_found_as_unit_like,
             aura_cleanup_removed_count,
             cooldown_event_represented: false,
-            creature_ai_callback_represented: false,
+            creature_ai_callback_represented,
         })
     }
 
@@ -14126,6 +14153,76 @@ mod tests {
         assert!(!remove_owner.unit_side_effects_represented);
         assert!(!remove_owner.aura_cleanup_represented);
         assert_eq!(remove_owner.aura_cleanup_removed_count, 0);
+    }
+
+    #[test]
+    fn gameobject_remove_from_owner_dispatches_creature_ai_despawn_boundary_like_cpp() {
+        let mut map = test_map();
+        let mut owner = test_creature_for_spawn(48204, 4820401, true);
+        let owner_guid = owner.guid();
+        owner
+            .unit_mut()
+            .subsystems_mut()
+            .ai
+            .set_active(Some("NullCreatureAI"));
+
+        let mut gameobject = test_gameobject_for_spawn(48204, 4820402);
+        let guid = gameobject.world().guid();
+        owner
+            .unit_mut()
+            .subsystems_mut()
+            .control
+            .register_owned_gameobject_like_cpp(guid);
+        gameobject.set_owner_guid_like_cpp(owner_guid);
+
+        map.insert_map_object_record(MapObjectRecord::new_creature(owner).unwrap())
+            .unwrap();
+        map.insert_map_object_record(MapObjectRecord::new_game_object(gameobject).unwrap())
+            .unwrap();
+
+        let remove_owner = map
+            .remove_from_map_like_cpp(guid, true)
+            .unwrap()
+            .gameobject_remove_from_owner
+            .unwrap();
+
+        assert!(remove_owner.owner_found_as_unit_like);
+        assert!(remove_owner.creature_ai_callback_represented);
+        let owner = map
+            .map_object_record(owner_guid)
+            .and_then(MapObjectRecord::creature)
+            .unwrap();
+        assert_eq!(
+            owner
+                .unit()
+                .subsystems()
+                .ai
+                .summoned_gameobject_despawn_count,
+            1
+        );
+
+        let mut disabled_map = test_map();
+        let disabled_owner = test_creature_for_spawn(48205, 4820501, true);
+        let disabled_owner_guid = disabled_owner.guid();
+        let mut disabled_gameobject = test_gameobject_for_spawn(48205, 4820502);
+        let disabled_guid = disabled_gameobject.world().guid();
+        disabled_gameobject.set_owner_guid_like_cpp(disabled_owner_guid);
+        disabled_map
+            .insert_map_object_record(MapObjectRecord::new_creature(disabled_owner).unwrap())
+            .unwrap();
+        disabled_map
+            .insert_map_object_record(
+                MapObjectRecord::new_game_object(disabled_gameobject).unwrap(),
+            )
+            .unwrap();
+
+        let disabled_remove_owner = disabled_map
+            .remove_from_map_like_cpp(disabled_guid, true)
+            .unwrap()
+            .gameobject_remove_from_owner
+            .unwrap();
+        assert!(disabled_remove_owner.owner_found_as_unit_like);
+        assert!(!disabled_remove_owner.creature_ai_callback_represented);
     }
 
     #[test]
