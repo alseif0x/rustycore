@@ -1567,6 +1567,17 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   duplicate discriminants. This closes the "confirm non-placeholder opcode" TODO as unavailable from
   current C++ sources; a real opcode would require client-sniff/opcode-table research outside the
   port source-of-truth.
+- 2026-06-05 — Map-owned `RemoveFromOwner` local owner cleanup `#NEXT.RUNTIME.L3.031e1`: contrasted
+  C++ `GameObject::Delete -> RemoveFromOwner` (`GameObject.cpp:1740-1764`, `GameObject.cpp:880-897`)
+  and `Unit::RemoveGameObject(GameObject*, false)` (`Unit.cpp:5213-5245`) plus `Unit.h` storage
+  (`m_ObjectSlot`, `m_gameObj`). Rust now represents the local owner state needed by that call:
+  `ControlSubsystem` carries `gameobject_slots` and `owned_gameobjects`, and map-owned
+  `gameobject_remove_from_owner_like_cpp` clears the GO owner, removes the GO from the owner list,
+  and clears the first matching object slot for Player/Creature/Pet owners. This also fixes the
+  map-local Unit resolver to include Player, matching C++ `ObjectAccessor::GetUnit`. Remaining gaps:
+  `RemoveAurasDueToSpell`, cooldown event emission, `CreatureAI::SummonedGameobjectDespawn`,
+  automatic owner-list population at all creation call sites, DB effects, and live client/server
+  validation.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

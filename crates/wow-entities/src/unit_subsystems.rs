@@ -3438,6 +3438,7 @@ pub const SUMMON_SLOT_TOTEM_4: usize = 4;
 pub const SUMMON_SLOT_MINIPET: usize = 5;
 pub const SUMMON_SLOT_QUEST: usize = 6;
 pub const MAX_SUMMON_SLOT: usize = 7;
+pub const MAX_GAMEOBJECT_SLOT: usize = 4;
 pub const MAX_TOTEM_SLOT: usize = 5;
 pub const MAX_UNIT_ACTION_BAR_INDEX: usize = 10;
 pub const MAX_SPELL_CHARM: usize = 4;
@@ -3487,6 +3488,8 @@ pub struct ControlSubsystem {
     pub owner_guid: Option<ObjectGuid>,
     pub minion_guid: Option<ObjectGuid>,
     pub summon_slots: [ObjectGuid; MAX_SUMMON_SLOT],
+    pub gameobject_slots: [ObjectGuid; MAX_GAMEOBJECT_SLOT],
+    pub owned_gameobjects: Vec<ObjectGuid>,
     pub last_charmer_guid: Option<ObjectGuid>,
     pub charmer_guid: Option<ObjectGuid>,
     pub charmed_guid: Option<ObjectGuid>,
@@ -3508,6 +3511,8 @@ impl Default for ControlSubsystem {
             owner_guid: None,
             minion_guid: None,
             summon_slots: [ObjectGuid::EMPTY; MAX_SUMMON_SLOT],
+            gameobject_slots: [ObjectGuid::EMPTY; MAX_GAMEOBJECT_SLOT],
+            owned_gameobjects: Vec::new(),
             last_charmer_guid: None,
             charmer_guid: None,
             charmed_guid: None,
@@ -3555,6 +3560,34 @@ impl ControlSubsystem {
         let previous = *target;
         *target = ObjectGuid::EMPTY;
         Some(previous)
+    }
+
+    pub fn set_gameobject_slot(&mut self, slot: usize, guid: ObjectGuid) -> bool {
+        let Some(target) = self.gameobject_slots.get_mut(slot) else {
+            return false;
+        };
+        *target = guid;
+        true
+    }
+
+    pub fn register_owned_gameobject_like_cpp(&mut self, guid: ObjectGuid) {
+        self.owned_gameobjects.push(guid);
+    }
+
+    pub fn remove_owned_gameobject_like_cpp(&mut self, guid: ObjectGuid) -> bool {
+        let before = self.owned_gameobjects.len();
+        self.owned_gameobjects.retain(|known| *known != guid);
+        before != self.owned_gameobjects.len()
+    }
+
+    pub fn clear_gameobject_slot_for_guid_like_cpp(&mut self, guid: ObjectGuid) -> bool {
+        for slot in &mut self.gameobject_slots {
+            if *slot == guid {
+                *slot = ObjectGuid::EMPTY;
+                return true;
+            }
+        }
+        false
     }
 
     pub fn set_charmer(&mut self, charmer: ObjectGuid, controlled_by_player: bool) {
@@ -5576,11 +5609,13 @@ mod unit_subsystems_tests {
         assert_eq!(SUMMON_SLOT_MINIPET, 5);
         assert_eq!(SUMMON_SLOT_QUEST, 6);
         assert_eq!(MAX_SUMMON_SLOT, 7);
+        assert_eq!(MAX_GAMEOBJECT_SLOT, 4);
         assert_eq!(MAX_TOTEM_SLOT, 5);
 
         let mut control = ControlSubsystem::default();
         let pet = guid(40);
         let totem = guid(41);
+        let gameobject = guid(43);
 
         assert_eq!(control.pet_guid(), ObjectGuid::EMPTY);
         control.set_pet_guid(pet);
@@ -5590,6 +5625,16 @@ mod unit_subsystems_tests {
         assert!(!control.set_summon_slot(MAX_SUMMON_SLOT, guid(42)));
         assert_eq!(control.clear_summon_slot(SUMMON_SLOT_TOTEM_3), Some(totem));
         assert_eq!(control.summon_slots[SUMMON_SLOT_TOTEM_3], ObjectGuid::EMPTY);
+
+        control.register_owned_gameobject_like_cpp(gameobject);
+        control.register_owned_gameobject_like_cpp(gameobject);
+        assert_eq!(control.owned_gameobjects, vec![gameobject, gameobject]);
+        assert!(control.set_gameobject_slot(2, gameobject));
+        assert!(!control.set_gameobject_slot(MAX_GAMEOBJECT_SLOT, gameobject));
+        assert!(control.clear_gameobject_slot_for_guid_like_cpp(gameobject));
+        assert_eq!(control.gameobject_slots[2], ObjectGuid::EMPTY);
+        assert!(control.remove_owned_gameobject_like_cpp(gameobject));
+        assert!(control.owned_gameobjects.is_empty());
     }
 
     #[test]

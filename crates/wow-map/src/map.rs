@@ -4445,6 +4445,7 @@ where
 
     fn map_record_unit_mut_like_cpp(record: &mut MapObjectRecord) -> Option<&mut Unit> {
         match record.kind() {
+            AccessorObjectKind::Player => record.player_mut().map(Player::unit_mut),
             AccessorObjectKind::Creature => record.creature_mut().map(Creature::unit_mut),
             AccessorObjectKind::Pet => record.pet_mut().map(|pet| pet.creature_mut().unit_mut()),
             _ => None,
@@ -9196,6 +9197,23 @@ where
             }
         }
 
+        let (unit_owned_gameobject_list_removed, unit_object_slot_cleared) =
+            if owner_found_as_unit_like {
+                self.map_objects
+                    .get_mut(&owner_guid_before)
+                    .and_then(Self::map_record_unit_mut_like_cpp)
+                    .map(|owner| {
+                        let control = &mut owner.subsystems_mut().control;
+                        (
+                            control.remove_owned_gameobject_like_cpp(guid),
+                            control.clear_gameobject_slot_for_guid_like_cpp(guid),
+                        )
+                    })
+                    .unwrap_or((false, false))
+            } else {
+                (false, false)
+            };
+
         Some(GameObjectRemoveFromOwnerOutcomeLikeCpp {
             guid,
             owner_guid_before,
@@ -9207,9 +9225,9 @@ where
             owner_found_as_unit_like,
             cleared_owner,
             spell_id,
-            unit_side_effects_represented: false,
-            unit_owned_gameobject_list_removed: false,
-            unit_object_slot_cleared: false,
+            unit_side_effects_represented: owner_found_as_unit_like,
+            unit_owned_gameobject_list_removed,
+            unit_object_slot_cleared,
             aura_cleanup_represented: false,
             cooldown_event_represented: false,
             creature_ai_callback_represented: false,
@@ -13967,13 +13985,26 @@ mod tests {
     #[test]
     fn gameobject_remove_from_owner_clears_owner_before_model_remove_like_cpp() {
         let mut map = test_map();
-        let owner = test_player_for_viewpoint(4820101);
+        let mut owner = test_player_for_viewpoint(4820101);
         let owner_guid = owner.guid();
-        map.insert_map_object_record(MapObjectRecord::new_player(owner).unwrap())
-            .unwrap();
 
         let mut gameobject = test_gameobject_for_spawn(48201, 4820102);
         let guid = gameobject.world().guid();
+        owner
+            .unit_mut()
+            .subsystems_mut()
+            .control
+            .register_owned_gameobject_like_cpp(guid);
+        assert!(
+            owner
+                .unit_mut()
+                .subsystems_mut()
+                .control
+                .set_gameobject_slot(1, guid)
+        );
+        map.insert_map_object_record(MapObjectRecord::new_player(owner).unwrap())
+            .unwrap();
+
         let key = RepresentedGameObjectModelKeyLikeCpp { owner_guid: guid };
         gameobject.set_owner_guid_like_cpp(owner_guid);
         gameobject.set_spell_id(482001);
@@ -13993,14 +14024,35 @@ mod tests {
         assert!(remove_owner.owner_found_as_unit_like);
         assert!(remove_owner.cleared_owner);
         assert_eq!(remove_owner.spell_id, 482001);
-        assert!(!remove_owner.unit_side_effects_represented);
-        assert!(!remove_owner.unit_owned_gameobject_list_removed);
-        assert!(!remove_owner.unit_object_slot_cleared);
+        assert!(remove_owner.unit_side_effects_represented);
+        assert!(remove_owner.unit_owned_gameobject_list_removed);
+        assert!(remove_owner.unit_object_slot_cleared);
         assert!(!remove_owner.aura_cleanup_represented);
         assert!(!remove_owner.cooldown_event_represented);
         assert!(!remove_owner.creature_ai_callback_represented);
         assert!(outcome.gameobject_model_remove.is_some());
         assert!(!map.contains_gameobject_model_like_cpp(key));
+        let owner = map
+            .map_object_record(owner_guid)
+            .and_then(MapObjectRecord::player)
+            .unwrap();
+        assert!(
+            owner
+                .unit()
+                .subsystems()
+                .control
+                .owned_gameobjects
+                .is_empty()
+        );
+        assert!(
+            owner
+                .unit()
+                .subsystems()
+                .control
+                .gameobject_slots
+                .iter()
+                .all(ObjectGuid::is_empty)
+        );
     }
 
     #[test]
