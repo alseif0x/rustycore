@@ -2706,6 +2706,8 @@ pub struct WorldSession {
     /// C++ `BattlePetMgr::_pets`, represented minimally until full battle-pet runtime is ported.
     pub(crate) represented_battle_pets_like_cpp:
         HashMap<ObjectGuid, RepresentedBattlePetDataLikeCpp>,
+    /// C++ `BattlePetMgr::_hasJournalLock`, represented until full battle-pet runtime is ported.
+    pub(crate) represented_battle_pet_journal_lock_like_cpp: bool,
     /// Session-local evidence for represented `Player::RemoveTimedQuest` calls.
     pub(crate) represented_timed_quest_removals_like_cpp: Vec<u32>,
     /// Session-local evidence for represented quest reward `Player::UpdateSkillPro` calls.
@@ -3596,6 +3598,7 @@ impl WorldSession {
             represented_favorite_item_appearances_like_cpp: HashMap::new(),
             represented_transmog_illusions_like_cpp: HashSet::new(),
             represented_battle_pets_like_cpp: HashMap::new(),
+            represented_battle_pet_journal_lock_like_cpp: false,
             represented_timed_quest_removals_like_cpp: Vec::new(),
             represented_quest_reward_skill_updates_like_cpp: Vec::new(),
             represented_quest_reward_spell_casts_like_cpp: Vec::new(),
@@ -15586,6 +15589,9 @@ impl WorldSession {
             ClientOpcodes::BattlePetRequestJournal => {
                 self.handle_battle_pet_request_journal(pkt).await;
             }
+            ClientOpcodes::BattlePetRequestJournalLock => {
+                self.handle_battle_pet_request_journal_lock(pkt).await;
+            }
             ClientOpcodes::BattlePetClearFanfare => {
                 self.handle_battle_pet_clear_fanfare(pkt).await;
             }
@@ -17788,6 +17794,18 @@ impl WorldSession {
             pet_guid,
             RepresentedBattlePetDataLikeCpp { flags, save_info },
         );
+    }
+
+    /// C++ `BattlePetMgr::HasJournalLock`.
+    pub(crate) fn has_represented_battle_pet_journal_lock_like_cpp(&self) -> bool {
+        self.represented_battle_pet_journal_lock_like_cpp
+    }
+
+    /// C++ `BattlePetMgr::SendJournalLockStatus`, represented as the successful
+    /// local acquisition path until the global world journal-lock owner exists.
+    pub(crate) fn send_battle_pet_journal_lock_status_like_cpp(&mut self) {
+        self.represented_battle_pet_journal_lock_like_cpp = true;
+        self.send_packet(&wow_packet::packets::misc::BattlePetJournalLockAcquired);
     }
 
     /// C++ `BattlePetMgr::ClearFanfare`.

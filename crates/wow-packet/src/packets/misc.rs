@@ -1661,7 +1661,20 @@ impl ServerPacket for AuraUpdate {
     }
 }
 
-// ── BattlePetJournalLockAcquired (SMSG 0x25ed) ──────────────────────
+// ── Battle pet journal lock packets ─────────────────────────────────
+
+/// C++ `WorldPackets::BattlePet::BattlePetRequestJournalLock`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BattlePetRequestJournalLock;
+
+impl ClientPacket for BattlePetRequestJournalLock {
+    const OPCODE: ClientOpcodes = ClientOpcodes::BattlePetRequestJournalLock;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        pkt.skip_opcode();
+        Ok(Self)
+    }
+}
 
 /// C++ `WorldPackets::BattlePet::BattlePetSetFlags`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1710,6 +1723,18 @@ pub struct BattlePetJournalLockAcquired;
 
 impl ServerPacket for BattlePetJournalLockAcquired {
     const OPCODE: ServerOpcodes = ServerOpcodes::BattlePetJournalLockAcquired;
+
+    fn write(&self, _pkt: &mut WorldPacket) {
+        // Empty packet — no payload
+    }
+}
+
+/// Tells the client that the battle pet journal lock was denied.
+/// Empty packet (opcode only, no payload).
+pub struct BattlePetJournalLockDenied;
+
+impl ServerPacket for BattlePetJournalLockDenied {
+    const OPCODE: ServerOpcodes = ServerOpcodes::BattlePetJournalLockDenied;
 
     fn write(&self, _pkt: &mut WorldPacket) {
         // Empty packet — no payload
@@ -3745,6 +3770,27 @@ mod tests {
         assert_eq!(bytes.len(), 2);
         let opcode = u16::from_le_bytes([bytes[0], bytes[1]]);
         assert_eq!(opcode, 0x25ed);
+    }
+
+    #[test]
+    fn battle_pet_journal_lock_denied_empty() {
+        let pkt = BattlePetJournalLockDenied;
+        let bytes = pkt.to_bytes();
+        assert_eq!(bytes.len(), 2);
+        let opcode = u16::from_le_bytes([bytes[0], bytes[1]]);
+        assert_eq!(opcode, 0x25ee);
+    }
+
+    #[test]
+    fn battle_pet_request_journal_lock_reads_empty_payload_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(ClientOpcodes::BattlePetRequestJournalLock as u16);
+
+        assert_eq!(
+            BattlePetRequestJournalLock::read(&mut pkt).unwrap(),
+            BattlePetRequestJournalLock
+        );
+        assert_eq!(pkt.remaining(), 0);
     }
 
     #[test]

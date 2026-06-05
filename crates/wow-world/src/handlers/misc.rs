@@ -398,6 +398,15 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
+        opcode: ClientOpcodes::BattlePetRequestJournalLock,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_battle_pet_request_journal_lock",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
         opcode: ClientOpcodes::BattlePetClearFanfare,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
@@ -1370,6 +1379,15 @@ impl crate::session::WorldSession {
     }
     pub async fn handle_battle_pet_request_journal(&mut self, _pkt: wow_packet::WorldPacket) {}
 
+    /// CMSG_BATTLE_PET_REQUEST_JOURNAL_LOCK — acquire represented journal lock.
+    ///
+    /// C++ `HandleBattlePetRequestJournalLock` sends lock status and, when the
+    /// lock is held, sends the journal. Rust does not yet represent the full
+    /// `SMSG_BATTLE_PET_JOURNAL`, so this slice closes the lock-status part.
+    pub async fn handle_battle_pet_request_journal_lock(&mut self, _pkt: wow_packet::WorldPacket) {
+        self.send_battle_pet_journal_lock_status_like_cpp();
+    }
+
     /// CMSG_BATTLE_PET_CLEAR_FANFARE — clear the account battle-pet fanfare bit.
     ///
     /// C++ ref: `WorldSession::HandleBattlePetClearFanfare` forwards only the
@@ -1393,8 +1411,7 @@ impl crate::session::WorldSession {
     /// CMSG_BATTLE_PET_SET_FLAGS — apply/remove represented battle-pet flags.
     ///
     /// C++ first requires the journal lock and then silently ignores unknown
-    /// pets. Rust's represented journal lock is not complete yet, so this
-    /// bounded handler preserves the pet lookup and flag mutation semantics.
+    /// pets.
     pub async fn handle_battle_pet_set_flags(&mut self, mut pkt: wow_packet::WorldPacket) {
         let request = match BattlePetSetFlags::read(&mut pkt) {
             Ok(request) => request,
@@ -1406,6 +1423,10 @@ impl crate::session::WorldSession {
                 return;
             }
         };
+
+        if !self.has_represented_battle_pet_journal_lock_like_cpp() {
+            return;
+        }
 
         self.battle_pet_set_flags_like_cpp(request.pet_guid, request.flags, request.control_type);
     }
@@ -3044,6 +3065,31 @@ mod tests {
         pkt
     }
 
+    fn battle_pet_request_journal_lock_packet() -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(ClientOpcodes::BattlePetRequestJournalLock as u16);
+        pkt
+    }
+
+    #[tokio::test]
+    async fn battle_pet_request_journal_lock_sends_acquired_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_battle_pet_request_journal_lock(battle_pet_request_journal_lock_packet())
+            .await;
+
+        assert!(session.has_represented_battle_pet_journal_lock_like_cpp());
+        let bytes = send_rx
+            .try_recv()
+            .expect("battle pet journal lock acquired packet");
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::BattlePetJournalLockAcquired as u16
+        );
+        assert_eq!(bytes.len(), 2);
+    }
+
     #[tokio::test]
     async fn battle_pet_clear_fanfare_clears_known_pet_silently_like_cpp() {
         let (mut session, send_rx) = make_session();
@@ -3090,6 +3136,27 @@ mod tests {
             0x01,
             crate::session::RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
         );
+
+        session
+            .handle_battle_pet_set_flags(battle_pet_set_flags_packet(
+                pet_guid,
+                0x04,
+                crate::session::BATTLE_PET_FLAGS_CONTROL_TYPE_APPLY_LIKE_CPP,
+            ))
+            .await;
+        assert_eq!(
+            session.represented_battle_pet_like_cpp(pet_guid),
+            Some(crate::session::RepresentedBattlePetDataLikeCpp {
+                flags: 0x01,
+                save_info: crate::session::RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+            })
+        );
+        assert!(send_rx.try_recv().is_err());
+
+        session
+            .handle_battle_pet_request_journal_lock(battle_pet_request_journal_lock_packet())
+            .await;
+        let _ = send_rx.try_recv().expect("lock acquired packet");
 
         session
             .handle_battle_pet_set_flags(battle_pet_set_flags_packet(
