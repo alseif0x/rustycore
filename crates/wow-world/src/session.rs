@@ -1852,6 +1852,10 @@ impl SessionPlayerController {
         &self.name
     }
 
+    pub(crate) fn set_name(&mut self, name: String) {
+        self.name = name;
+    }
+
     pub(crate) fn position(&self) -> wow_core::Position {
         self.position
     }
@@ -10678,6 +10682,15 @@ impl WorldSession {
         }
     }
 
+    /// C++ `Player::_LoadInventory` collection side effects for a loaded item.
+    pub(crate) fn apply_loaded_inventory_item_collection_hooks_like_cpp(
+        &mut self,
+        item: &wow_entities::Item,
+    ) {
+        let _ = self.check_account_heirloom_upgrades_like_cpp(item.object().entry());
+        let _ = self.add_item_appearance_for_runtime_item_like_cpp(item);
+    }
+
     fn send_player_health_values_update_like_cpp(&self, guid: ObjectGuid, health: u64) {
         let mut mask = UpdateMask::new(UNIT_DATA_HEALTH_BIT + 1);
         mask.set(UNIT_DATA_HEALTH_BIT);
@@ -16141,6 +16154,9 @@ impl WorldSession {
     }
 
     pub(crate) fn set_loaded_player_name_like_cpp(&mut self, name: String) {
+        if let Some(controller) = &mut self.player_controller {
+            controller.set_name(name.clone());
+        }
         self.player_name = Some(name);
     }
 
@@ -16190,6 +16206,31 @@ impl WorldSession {
         self.represented_seer_guid_like_cpp = Some(controller.guid());
         self.player_controller = Some(controller);
         self.initialize_reputation_mgr_like_cpp();
+    }
+
+    pub(crate) fn ensure_login_player_controller_like_cpp(
+        &mut self,
+        guid: ObjectGuid,
+        name: String,
+        position: wow_core::Position,
+        map_id: u16,
+        race: u8,
+        class: u8,
+        level: u8,
+        gender: u8,
+    ) -> bool {
+        if self.player_controller.is_none() {
+            self.attach_player_controller_like_cpp(SessionPlayerController::new(
+                guid, name, position, map_id, race, class, level, gender,
+            ));
+            true
+        } else {
+            self.set_player_guid(Some(guid));
+            self.set_loaded_player_name_like_cpp(name);
+            self.set_loaded_player_identity_like_cpp(map_id, race, class, level, gender);
+            self.set_player_map_position_like_cpp(map_id, position);
+            false
+        }
     }
 
     pub(crate) fn set_player_map_position_like_cpp(
@@ -41283,6 +41324,56 @@ mod tests {
         session.set_player_guid(None);
         assert_eq!(session.player_guid(), None);
         assert!(session.player_controller.is_none());
+    }
+
+    #[test]
+    fn ensure_login_player_controller_is_idempotent_like_cpp() {
+        let (mut session, _pkt_tx, _send_rx) = make_session();
+        let guid = ObjectGuid::create_player(1, 43);
+        let start = Position::new(1.0, 2.0, 3.0, 4.0);
+
+        assert!(session.ensure_login_player_controller_like_cpp(
+            guid,
+            "LoginTester".to_string(),
+            start,
+            571,
+            1,
+            8,
+            70,
+            0,
+        ));
+        assert_eq!(session.player_guid(), Some(guid));
+        assert_eq!(session.player_name_like_cpp(), Some("LoginTester"));
+        assert_eq!(session.player_position_like_cpp(), Some(start));
+        assert_eq!(session.player_map_id_like_cpp(), 571);
+
+        session.set_player_gold_like_cpp(1234);
+        session.set_player_xp_like_cpp(55);
+        session.set_known_spells_like_cpp(vec![118, 133]);
+
+        let moved = Position::new(5.0, 6.0, 7.0, 8.0);
+        assert!(!session.ensure_login_player_controller_like_cpp(
+            guid,
+            "LoginTesterRenamed".to_string(),
+            moved,
+            1,
+            2,
+            3,
+            71,
+            1,
+        ));
+
+        assert_eq!(session.player_guid(), Some(guid));
+        assert_eq!(session.player_name_like_cpp(), Some("LoginTesterRenamed"));
+        assert_eq!(session.player_position_like_cpp(), Some(moved));
+        assert_eq!(session.player_map_id_like_cpp(), 1);
+        assert_eq!(session.player_race_like_cpp(), 2);
+        assert_eq!(session.player_class_like_cpp(), 3);
+        assert_eq!(session.player_level_like_cpp(), 71);
+        assert_eq!(session.player_gender_like_cpp(), 1);
+        assert_eq!(session.player_gold_like_cpp(), 1234);
+        assert_eq!(session.player_xp_like_cpp(), 55);
+        assert_eq!(session.known_spells_like_cpp(), &[118, 133]);
     }
 
     fn test_creature_create_data(

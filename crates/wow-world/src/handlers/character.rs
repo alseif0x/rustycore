@@ -2538,6 +2538,26 @@ impl WorldSession {
         self.level_played_time = result.try_read::<u32>(16).unwrap_or(0);
         self.set_player_gold_like_cpp(result.try_read::<u64>(17).unwrap_or(0));
         self.set_player_xp_like_cpp(result.try_read::<u32>(18).unwrap_or(0));
+        self.set_player_guid(Some(guid));
+        self.set_loaded_player_identity_like_cpp(map_id as u16, race, class, level, gender);
+        self.refresh_next_level_xp();
+        if self.ensure_login_player_controller_like_cpp(
+            guid,
+            name.clone(),
+            position,
+            map_id as u16,
+            race,
+            class,
+            level,
+            gender,
+        ) {
+            let _ = self.ensure_canonical_world_map_for_current_player_like_cpp();
+        }
+
+        self.load_account_toys_like_cpp().await;
+        self.load_account_heirlooms_like_cpp().await;
+        self.load_account_item_appearances_like_cpp().await;
+        let account_mounts = self.load_account_mounts_like_cpp().await;
 
         // Load equipped items for visible display + inventory objects
         let mut visible_items = [(0i32, 0u16, 0u16); 19];
@@ -2646,6 +2666,9 @@ impl WorldSession {
                                     item_object
                                         .set_paid_extended_cost(u32::from(paid_extended_cost));
                                 }
+                                self.apply_loaded_inventory_item_collection_hooks_like_cpp(
+                                    &item_object,
+                                );
                                 item_object.set_state(ItemUpdateState::Unchanged);
                                 self.insert_inventory_item_object(item_object);
                                 // Slots 0-18 also populate VisibleItems for character model
@@ -2718,6 +2741,9 @@ impl WorldSession {
                                         );
                                         item_object
                                             .set_container_guid_and_slot(bag_item_guid, bag_slot);
+                                        self.apply_loaded_inventory_item_collection_hooks_like_cpp(
+                                            &item_object,
+                                        );
                                         item_object.set_state(ItemUpdateState::Unchanged);
                                         self.insert_inventory_item_object(item_object);
                                     } else {
@@ -3133,10 +3159,6 @@ impl WorldSession {
 
         // Load active quests from characters DB
         self.load_player_quests().await;
-        self.load_account_toys_like_cpp().await;
-        self.load_account_heirlooms_like_cpp().await;
-        self.load_account_item_appearances_like_cpp().await;
-        let account_mounts = self.load_account_mounts_like_cpp().await;
 
         self.send_login_sequence(
             guid,
@@ -9546,7 +9568,7 @@ impl WorldSession {
 
         // 30. Set session state to LoggedIn, store player GUID and initial position.
         self.set_state(crate::session::SessionState::LoggedIn);
-        self.attach_player_controller_like_cpp(crate::session::SessionPlayerController::new(
+        let attached_controller = self.ensure_login_player_controller_like_cpp(
             guid,
             self.player_name_like_cpp()
                 .map(ToOwned::to_owned)
@@ -9557,8 +9579,10 @@ impl WorldSession {
             class,
             level,
             sex,
-        ));
-        let _ = self.ensure_canonical_world_map_for_current_player_like_cpp();
+        );
+        if attached_controller {
+            let _ = self.ensure_canonical_world_map_for_current_player_like_cpp();
+        }
         self.set_player_health_like_cpp(
             combat.health.max(0).min(u32::MAX as i64) as u32,
             combat.max_health.max(1).min(u32::MAX as i64) as u32,
