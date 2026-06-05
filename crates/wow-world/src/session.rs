@@ -7626,6 +7626,25 @@ impl WorldSession {
             .and_then(|store| store.get_transmog_set_items_like_cpp(transmog_set_id))
     }
 
+    /// C++ `CollectionMgr::AddTransmogSet` expansion before `AddItemAppearance`.
+    pub fn transmog_set_item_modified_appearances_like_cpp(
+        &self,
+        transmog_set_id: u32,
+    ) -> Vec<&wow_data::ItemModifiedAppearanceEntry> {
+        let Some(items) = self.transmog_set_items_like_cpp(transmog_set_id) else {
+            return Vec::new();
+        };
+        let Some(item_modified_appearance_store) = self.item_modified_appearance_store.as_ref()
+        else {
+            return Vec::new();
+        };
+
+        items
+            .iter()
+            .filter_map(|item| item_modified_appearance_store.get(item.item_modified_appearance_id))
+            .collect()
+    }
+
     /// Build the closure result expected by `Item::visible_entry` and
     /// `Item::visible_appearance_mod_id` from `ItemModifiedAppearance.db2`.
     pub fn item_modified_appearance_ref(&self, id: u32) -> Option<(u32, u16)> {
@@ -48959,6 +48978,45 @@ mod tests {
             vec![1000, 1001]
         );
         assert!(session.transmog_set_items_like_cpp(99).is_none());
+    }
+
+    #[test]
+    fn transmog_set_item_modified_appearances_skip_missing_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_transmog_set_item_store(Arc::new(TransmogSetItemStore::from_entries([
+            TransmogSetItemEntry {
+                id: 1,
+                transmog_set_id: 70,
+                item_modified_appearance_id: 1000,
+                flags: 0,
+            },
+            TransmogSetItemEntry {
+                id: 2,
+                transmog_set_id: 70,
+                item_modified_appearance_id: 1001,
+                flags: 0,
+            },
+        ])));
+        session.set_item_modified_appearance_store(Arc::new(
+            ItemModifiedAppearanceStore::from_entries([ItemModifiedAppearanceEntry {
+                id: 1001,
+                item_id: 777,
+                item_appearance_modifier_id: 0,
+                item_appearance_id: 9000,
+                order_index: 0,
+                transmog_source_type_enum: 0,
+            }]),
+        ));
+
+        let appearances = session.transmog_set_item_modified_appearances_like_cpp(70);
+        assert_eq!(appearances.len(), 1);
+        assert_eq!(appearances[0].id, 1001);
+        assert_eq!(appearances[0].item_id, 777);
+        assert!(
+            session
+                .transmog_set_item_modified_appearances_like_cpp(99)
+                .is_empty()
+        );
     }
 
     #[test]
