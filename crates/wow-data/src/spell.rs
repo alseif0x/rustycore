@@ -39,6 +39,8 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_QUEST_COMPLETE: u32 = 16;
     pub const SPELL_EFFECT_DODGE: u32 = 20;
     pub const SPELL_EFFECT_EVADE: u32 = 21;
+    pub const SPELL_EFFECT_PARRY: u32 = 22;
+    pub const SPELL_EFFECT_BLOCK: u32 = 23;
     pub const SPELL_EFFECT_WEAPON: u32 = 25;
     pub const SPELL_EFFECT_DEFENSE: u32 = 26;
     pub const SPELL_EFFECT_PERSISTENT_AREA_AURA: u32 = 27;
@@ -832,6 +834,8 @@ mod tests {
         assert_eq!(spell_effect_types::SPELL_EFFECT_QUEST_COMPLETE, 16);
         assert_eq!(spell_effect_types::SPELL_EFFECT_DODGE, 20);
         assert_eq!(spell_effect_types::SPELL_EFFECT_EVADE, 21);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_PARRY, 22);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_BLOCK, 23);
         assert_eq!(spell_effect_types::SPELL_EFFECT_WEAPON, 25);
         assert_eq!(spell_effect_types::SPELL_EFFECT_DEFENSE, 26);
         assert_eq!(spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_PARTY, 35);

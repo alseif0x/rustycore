@@ -24177,6 +24177,12 @@ impl WorldSession {
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_DUAL_WIELD => {
                     self.apply_dual_wield_effect_like_cpp(target_guid)?;
                 }
+                x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_PARRY => {
+                    self.apply_parry_effect_like_cpp()?;
+                }
+                x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_BLOCK => {
+                    self.apply_block_effect_like_cpp()?;
+                }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_QUEST_COMPLETE => {
                     self.apply_quest_complete_effect_like_cpp(
                         target_guid,
@@ -24289,6 +24295,8 @@ impl WorldSession {
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL_PCT
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEALTH_LEECH
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_DUAL_WIELD
+                || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_PARRY
+                || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_BLOCK
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_QUEST_COMPLETE
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_KILL_CREDIT
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_KILL_CREDIT2
@@ -25480,6 +25488,26 @@ impl WorldSession {
 
         let _ = self.mutate_canonical_player_like_cpp(|player| {
             player.unit_mut().set_can_dual_wield_like_cpp(true);
+        });
+
+        Ok(())
+    }
+
+    fn apply_parry_effect_like_cpp(&mut self) -> Result<(), &'static str> {
+        let _ = self.player_guid().ok_or("No player GUID")?;
+
+        let _ = self.mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_can_parry_like_cpp(true);
+        });
+
+        Ok(())
+    }
+
+    fn apply_block_effect_like_cpp(&mut self) -> Result<(), &'static str> {
+        let _ = self.player_guid().ok_or("No player GUID")?;
+
+        let _ = self.mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_can_block_like_cpp(true);
         });
 
         Ok(())
@@ -43000,6 +43028,249 @@ mod tests {
         assert_eq!(
             drain_server_opcodes(&send_rx),
             vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_parry_effect_row_sets_canonical_caster_flag_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 753_i32;
+        let player_guid = ObjectGuid::create_player(1, 71);
+        let other_guid = ObjectGuid::create_player(1, 72);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_COMMON,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+            },
+        ])));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "ParryCaster".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        assert_eq!(
+            session
+                .mutate_canonical_player_like_cpp(|player| { player.unit().can_parry_like_cpp() }),
+            Some(false)
+        );
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_PARRY,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, other_guid)
+            .await
+            .expect("represented parry spell row should set caster flag");
+
+        assert_eq!(
+            session
+                .mutate_canonical_player_like_cpp(|player| { player.unit().can_parry_like_cpp() }),
+            Some(true)
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_block_effect_row_sets_canonical_caster_flag_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 754_i32;
+        let player_guid = ObjectGuid::create_player(1, 73);
+        let other_guid = ObjectGuid::create_player(1, 74);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_COMMON,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+            },
+        ])));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "BlockCaster".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        assert_eq!(
+            session
+                .mutate_canonical_player_like_cpp(|player| { player.unit().can_block_like_cpp() }),
+            Some(false)
+        );
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_BLOCK,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, other_guid)
+            .await
+            .expect("represented block spell row should set caster flag");
+
+        assert_eq!(
+            session
+                .mutate_canonical_player_like_cpp(|player| { player.unit().can_block_like_cpp() }),
+            Some(true)
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_parry_and_block_primary_fields_set_caster_flags_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let parry_spell_id = 755_i32;
+        let block_spell_id = 756_i32;
+        let player_guid = ObjectGuid::create_player(1, 75);
+        let target_guid = ObjectGuid::create_player(1, 76);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_COMMON,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+            },
+        ])));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "PrimaryDefensiveCaster".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            parry_spell_id,
+            wow_data::SpellInfo {
+                spell_id: parry_spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_PARRY,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: Vec::new(),
+            },
+        );
+        spell_store.insert(
+            block_spell_id,
+            wow_data::SpellInfo {
+                spell_id: block_spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_BLOCK,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: Vec::new(),
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(parry_spell_id, target_guid)
+            .await
+            .expect("represented primary parry spell should set caster flag");
+        session
+            .execute_spell(block_spell_id, target_guid)
+            .await
+            .expect("represented primary block spell should set caster flag");
+
+        assert_eq!(
+            session.mutate_canonical_player_like_cpp(|player| {
+                (
+                    player.unit().can_parry_like_cpp(),
+                    player.unit().can_block_like_cpp(),
+                )
+            }),
+            Some((true, true))
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![
+                ServerOpcodes::SpellGo,
+                ServerOpcodes::CooldownEvent,
+                ServerOpcodes::SpellGo,
+                ServerOpcodes::CooldownEvent,
+            ]
         );
     }
 

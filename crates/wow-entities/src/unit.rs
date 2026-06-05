@@ -327,6 +327,8 @@ pub struct Unit {
     attack_timer: [u32; MAX_ATTACK],
     weapon_damage: [[f32; 2]; MAX_ATTACK],
     can_dual_wield: bool,
+    can_parry: bool,
+    can_block: bool,
     emote_state: u32,
     speed_rate: [f32; MAX_MOVE_TYPE],
     ai_anim_kit_id: u16,
@@ -360,6 +362,8 @@ impl Unit {
             attack_timer: [0; MAX_ATTACK],
             weapon_damage: [[BASE_MINDAMAGE, BASE_MAXDAMAGE]; MAX_ATTACK],
             can_dual_wield: false,
+            can_parry: false,
+            can_block: false,
             emote_state: 0,
             speed_rate: [1.0; MAX_MOVE_TYPE],
             ai_anim_kit_id: 0,
@@ -1330,6 +1334,22 @@ impl Unit {
         self.can_dual_wield = can_dual_wield;
     }
 
+    pub const fn can_parry_like_cpp(&self) -> bool {
+        self.can_parry
+    }
+
+    pub fn set_can_parry_like_cpp(&mut self, can_parry: bool) {
+        self.can_parry = can_parry;
+    }
+
+    pub const fn can_block_like_cpp(&self) -> bool {
+        self.can_block
+    }
+
+    pub fn set_can_block_like_cpp(&mut self, can_block: bool) {
+        self.can_block = can_block;
+    }
+
     pub const fn emote_state_like_cpp(&self) -> u32 {
         self.emote_state
     }
@@ -1954,6 +1974,8 @@ mod tests {
         assert_eq!(unit.attack_timer(WeaponAttackType::BaseAttack), 0);
         assert_eq!(unit.attack_timer(WeaponAttackType::OffAttack), 0);
         assert!(!unit.can_dual_wield_like_cpp());
+        assert!(!unit.can_parry_like_cpp());
+        assert!(!unit.can_block_like_cpp());
         assert_eq!(unit.emote_state_like_cpp(), 0);
         assert_eq!(unit.weapon_damage(WeaponAttackType::BaseAttack), [1.0, 2.0]);
         assert_eq!(unit.speed_rate(), [1.0; MAX_MOVE_TYPE]);
@@ -1998,6 +2020,20 @@ mod tests {
         assert!(!unit.subsystems().ai.locked);
         assert!(!unit.subsystems().ai.scheduled_change_pending);
         assert!(!unit.unit_data_changes_mask().is_any_set());
+    }
+
+    #[test]
+    fn unit_defensive_capability_flags_roundtrip_like_cpp() {
+        let mut unit = Unit::new(true);
+
+        assert!(!unit.can_parry_like_cpp());
+        assert!(!unit.can_block_like_cpp());
+
+        unit.set_can_parry_like_cpp(true);
+        unit.set_can_block_like_cpp(true);
+
+        assert!(unit.can_parry_like_cpp());
+        assert!(unit.can_block_like_cpp());
     }
 
     #[test]
