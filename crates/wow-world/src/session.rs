@@ -24138,6 +24138,13 @@ impl WorldSession {
         }
 
         if !spell_info.effects().is_empty() {
+            let apply_aura_rows_like_cpp = spell_info
+                .effects()
+                .iter()
+                .filter(|effect| {
+                    effect.effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA
+                })
+                .count();
             let generic_apply_aura_rows_like_cpp = spell_info
                 .effects()
                 .iter()
@@ -24158,7 +24165,7 @@ impl WorldSession {
                         player_guid,
                         effect,
                     )?;
-                } else if generic_apply_aura_rows_like_cpp == 1 {
+                } else if generic_apply_aura_rows_like_cpp == 1 && apply_aura_rows_like_cpp == 1 {
                     self.apply_aura(spell_id, player_guid, 30000, 0x00000001)?;
                 } else {
                     debug!(
@@ -31764,6 +31771,82 @@ mod tests {
         assert_eq!(aura.caster_guid, player_guid);
         assert_eq!(aura.duration_total, 30_000);
         assert_eq!(aura.aura_flags, 0x0000_0001);
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert_eq!(
+            opcodes,
+            vec![
+                ServerOpcodes::SpellGo,
+                ServerOpcodes::AuraUpdate,
+                ServerOpcodes::CooldownEvent
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn generic_apply_aura_multi_row_waits_for_effect_mask_grouping_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 727_i32;
+        let player_guid = ObjectGuid::create_player(1, 7032);
+        session.set_player_guid(Some(player_guid));
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![
+                    wow_data::SpellEffectInfo {
+                        effect_index: 0,
+                        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                        effect_aura: wow_data::spell::aura_types::SPELL_AURA_PROVIDE_SPELL_FOCUS,
+                        effect_misc_value_1: 182,
+                        ..Default::default()
+                    },
+                    wow_data::SpellEffectInfo {
+                        effect_index: 2,
+                        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                        effect_aura: wow_data::spell::aura_types::SPELL_AURA_DUMMY,
+                        ..Default::default()
+                    },
+                ],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell_with_visual_and_target_data(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual {
+                    spell_visual_id: 727,
+                    script_visual_id: 0,
+                },
+                SpellTargetData::default(),
+            )
+            .await
+            .expect("represented apply-aura rows should not fabricate extra generic aura slots");
+
+        assert!(
+            session.has_represented_aura_effect_with_misc_value_like_cpp(
+                RepresentedAuraEffectLikeCpp::ProvideSpellFocus,
+                182
+            ),
+            "special represented aura row still executes"
+        );
+        assert_eq!(
+            session.visible_auras.len(),
+            1,
+            "C++ groups apply-aura rows through one AuraApplication effect mask; Rust must not fabricate a second generic slot"
+        );
         let opcodes = drain_server_opcodes(&send_rx);
         assert_eq!(
             opcodes,
