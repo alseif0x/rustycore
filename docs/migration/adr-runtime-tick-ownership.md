@@ -1671,6 +1671,16 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `GetNearPoint2D` composition. It applies map-coordinate normalization and explicitly reports that
   height correction, collision detection and LOS fallback search are still runtime gaps. Tests cover
   explicit coordinates plus X/Y-axis close-point fallback.
+- 2026-06-05 — Map-owned `EffectSummonObjectWild` body boundary
+  `#NEXT.RUNTIME.L3.031eb`: contrasted C++ `Spell::EffectSummonObjectWild`
+  (`SpellEffects.cpp:2937-2986`) and `GameObject::GetLinkedTrap` (`GameObject.cpp:3909-3912`).
+  Rust now exposes `spell_effect_summon_object_wild_like_cpp`, consuming an already-resolved caster,
+  template, destination, spell id and duration, creating a ready dynamic spell GameObject without
+  owner linkage, setting respawn seconds and spell id, and representing the execute-log boundary
+  when `Map::AddToMap` succeeds. It records the FlagDrop player branch but does not claim
+  Battleground `SetDroppedFlagGUID`; linked-trap phase/respawn/spell/log side effects remain
+  unrepresented until Rust has real linked-trap creation/resolution for this path. Tests cover
+  normal wild summon, FlagDrop branch evidence, and missing-caster/no-low-guid-consumption.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

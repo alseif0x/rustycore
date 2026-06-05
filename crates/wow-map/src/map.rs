@@ -42,7 +42,7 @@ use wow_entities::{
     Corpse, Creature, CreatureAimInitializeOutcomeLikeCpp, CreatureRuntimePlan,
     CreatureRuntimeUpdateContext, CreatureSearchFormationOutcomeLikeCpp, DynamicObject,
     DynamicObjectType, DynamicObjectValuesUpdate, GAMEOBJECT_TYPE_CAPTURE_POINT,
-    GAMEOBJECT_TYPE_CHEST, GAMEOBJECT_TYPE_DOOR, GAMEOBJECT_TYPE_GOOBER,
+    GAMEOBJECT_TYPE_CHEST, GAMEOBJECT_TYPE_DOOR, GAMEOBJECT_TYPE_FLAGDROP, GAMEOBJECT_TYPE_GOOBER,
     GAMEOBJECT_TYPE_MAP_OBJ_TRANSPORT, GAMEOBJECT_TYPE_NEW_FLAG, GAMEOBJECT_TYPE_NEW_FLAG_DROP,
     GAMEOBJECT_TYPE_TRANSPORT, GO_FLAG_NODESPAWN, GameObject, GameObjectCreateLifecycleRecord,
     GameObjectLifecycleError, GameObjectTemplateLifecycleRecord,
@@ -9597,6 +9597,167 @@ where
         }
     }
 
+    /// Bounded map-owned body for C++ `Spell::EffectSummonObjectWild`.
+    ///
+    /// C++ anchors:
+    /// - `SpellEffects.cpp:2937-2971`: launch-only spell effect resolves the
+    ///   destination before this seam, creates a ready GameObject from
+    ///   `effectInfo->MiscValue`, inherits phase from `m_caster`, sets respawn
+    ///   seconds from positive duration, sets `SpellId`, executes the summon log,
+    ///   and calls `Map::AddToMap` without owner linkage.
+    /// - `SpellEffects.cpp:2973-2986`: flag-drop battleground state and linked
+    ///   trap phase/respawn/spell/log are runtime side effects after AddToMap.
+    ///
+    /// Scope: the caller supplies an already-resolved template, position,
+    /// duration and spell id. This helper does not load DB/templates, resolve
+    /// spell targets/GetClosePoint, inherit real phase masks, dispatch scripts,
+    /// send packets, update battleground state, or create/resolve linked traps.
+    pub fn spell_effect_summon_object_wild_like_cpp(
+        &mut self,
+        caster_guid: ObjectGuid,
+        spell_id: u32,
+        template: GameObjectTemplateLifecycleRecord,
+        position: Position,
+        duration_ms: i32,
+    ) -> SpellEffectSummonObjectWildOutcomeLikeCpp {
+        let template_entry = template.entry;
+        let Some(caster_record) = self.map_object_record(caster_guid) else {
+            return SpellEffectSummonObjectWildOutcomeLikeCpp {
+                caster_guid,
+                spell_id,
+                template_entry,
+                status: SpellEffectSummonObjectWildStatusLikeCpp::MissingCaster,
+                guid: None,
+                low_guid: None,
+                create_error: None,
+                add_to_map: None,
+                respawn_time_secs: None,
+                phase_inherit_represented: false,
+                execute_log_represented: false,
+                owner_linked: false,
+                flagdrop_type: false,
+                flagdrop_player_branch_reached: false,
+                flagdrop_battleground_update_represented: false,
+                linked_trap_guid: None,
+                linked_trap_side_effect_represented: false,
+            };
+        };
+        let caster_is_player = caster_record.kind() == AccessorObjectKind::Player;
+        let respawn_time_secs = if duration_ms > 0 {
+            duration_ms / 1_000
+        } else {
+            0
+        };
+        let flagdrop_type = template.go_type == GAMEOBJECT_TYPE_FLAGDROP;
+
+        let low_guid = match self.generate_low_guid_like_cpp(HighGuid::GameObject) {
+            Ok(low) => low,
+            Err(_) => {
+                return SpellEffectSummonObjectWildOutcomeLikeCpp {
+                    caster_guid,
+                    spell_id,
+                    template_entry,
+                    status: SpellEffectSummonObjectWildStatusLikeCpp::LowGuidUnavailable,
+                    guid: None,
+                    low_guid: None,
+                    create_error: None,
+                    add_to_map: None,
+                    respawn_time_secs: Some(respawn_time_secs),
+                    phase_inherit_represented: false,
+                    execute_log_represented: false,
+                    owner_linked: false,
+                    flagdrop_type,
+                    flagdrop_player_branch_reached: false,
+                    flagdrop_battleground_update_represented: false,
+                    linked_trap_guid: None,
+                    linked_trap_side_effect_represented: false,
+                };
+            }
+        };
+        let guid = ObjectGuid::create_world_object(
+            HighGuid::GameObject,
+            0,
+            1,
+            self.map_id as u16,
+            self.instance_id,
+            template_entry,
+            low_guid,
+        );
+        let record = GameObjectCreateLifecycleRecord {
+            guid,
+            map_id: self.map_id,
+            instance_id: self.instance_id,
+            position,
+            rotation: gameobject_local_rotation_from_orientation_like_cpp(position.orientation),
+            anim_progress: u8::MAX,
+            go_state: GoState::Ready,
+            art_kit: 0,
+            dynamic: true,
+            spawn_id: 0,
+            template,
+        };
+
+        let mut game_object = match GameObject::try_create_from_lifecycle(record) {
+            Ok(game_object) => game_object,
+            Err(error) => {
+                return SpellEffectSummonObjectWildOutcomeLikeCpp {
+                    caster_guid,
+                    spell_id,
+                    template_entry,
+                    status: SpellEffectSummonObjectWildStatusLikeCpp::CreateFailed,
+                    guid: Some(guid),
+                    low_guid: Some(low_guid),
+                    create_error: Some(error),
+                    add_to_map: None,
+                    respawn_time_secs: Some(respawn_time_secs),
+                    phase_inherit_represented: false,
+                    execute_log_represented: false,
+                    owner_linked: false,
+                    flagdrop_type,
+                    flagdrop_player_branch_reached: false,
+                    flagdrop_battleground_update_represented: false,
+                    linked_trap_guid: None,
+                    linked_trap_side_effect_represented: false,
+                };
+            }
+        };
+        game_object.set_respawn_time(i64::from(respawn_time_secs));
+        game_object.set_spell_id(spell_id);
+        let linked_trap_guid = game_object.linked_trap_guid_like_cpp();
+
+        let add_to_map = self
+            .add_map_object_record_to_map_like_cpp(
+                MapObjectRecord::new_game_object(game_object)
+                    .expect("GameObject lifecycle create must produce a typed GameObject record"),
+            )
+            .ok();
+        let execute_log_represented = add_to_map.is_some();
+
+        SpellEffectSummonObjectWildOutcomeLikeCpp {
+            caster_guid,
+            spell_id,
+            template_entry,
+            status: if execute_log_represented {
+                SpellEffectSummonObjectWildStatusLikeCpp::CreatedAddedToMap
+            } else {
+                SpellEffectSummonObjectWildStatusLikeCpp::AddToMapFailed
+            },
+            guid: Some(guid),
+            low_guid: Some(low_guid),
+            create_error: None,
+            add_to_map,
+            respawn_time_secs: Some(respawn_time_secs),
+            phase_inherit_represented: false,
+            execute_log_represented,
+            owner_linked: false,
+            flagdrop_type,
+            flagdrop_player_branch_reached: flagdrop_type && caster_is_player,
+            flagdrop_battleground_update_represented: false,
+            linked_trap_guid: (!linked_trap_guid.is_empty()).then_some(linked_trap_guid),
+            linked_trap_side_effect_represented: false,
+        }
+    }
+
     /// Bounded map-owned pre-create cleanup for C++ `Spell::EffectSummonObject`.
     ///
     /// C++ anchors:
@@ -12940,6 +13101,36 @@ pub struct WorldObjectSummonGameObjectPositionOutcomeLikeCpp {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpellEffectSummonObjectWildStatusLikeCpp {
+    MissingCaster,
+    LowGuidUnavailable,
+    CreateFailed,
+    AddToMapFailed,
+    CreatedAddedToMap,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SpellEffectSummonObjectWildOutcomeLikeCpp {
+    pub caster_guid: ObjectGuid,
+    pub spell_id: u32,
+    pub template_entry: u32,
+    pub status: SpellEffectSummonObjectWildStatusLikeCpp,
+    pub guid: Option<ObjectGuid>,
+    pub low_guid: Option<i64>,
+    pub create_error: Option<GameObjectLifecycleError>,
+    pub add_to_map: Option<AddToMapOutcome>,
+    pub respawn_time_secs: Option<i32>,
+    pub phase_inherit_represented: bool,
+    pub execute_log_represented: bool,
+    pub owner_linked: bool,
+    pub flagdrop_type: bool,
+    pub flagdrop_player_branch_reached: bool,
+    pub flagdrop_battleground_update_represented: bool,
+    pub linked_trap_guid: Option<ObjectGuid>,
+    pub linked_trap_side_effect_represented: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct UnitRemoveGameObjectsBySpellOutcomeLikeCpp {
     pub owner_guid: ObjectGuid,
     pub spell_id: u32,
@@ -15754,6 +15945,123 @@ mod tests {
         assert!(outcome.guid.is_none());
         assert!(outcome.add_to_map.is_none());
         assert!(outcome.add_owner.is_none());
+        assert_eq!(map.get_max_low_guid_like_cpp(HighGuid::GameObject), Ok(1));
+    }
+
+    #[test]
+    fn spell_effect_summon_object_wild_creates_spell_go_without_owner_like_cpp() {
+        let mut map = test_map();
+        let caster = test_player_for_viewpoint(4822501);
+        let caster_guid = caster.guid();
+        map.insert_map_object_record(MapObjectRecord::new_player(caster).unwrap())
+            .unwrap();
+        let template =
+            summon_gameobject_template_like_cpp(4822502, GAMEOBJECT_TYPE_GENERIC_LIKE_CPP);
+        let position = Position::new(14.0, 15.0, 16.0, 1.5);
+
+        let outcome = map.spell_effect_summon_object_wild_like_cpp(
+            caster_guid,
+            4822510,
+            template,
+            position,
+            23_456,
+        );
+
+        assert_eq!(
+            outcome.status,
+            SpellEffectSummonObjectWildStatusLikeCpp::CreatedAddedToMap
+        );
+        assert_eq!(outcome.low_guid, Some(1));
+        assert_eq!(outcome.respawn_time_secs, Some(23));
+        assert!(!outcome.phase_inherit_represented);
+        assert!(outcome.execute_log_represented);
+        assert!(!outcome.owner_linked);
+        assert!(!outcome.flagdrop_type);
+        assert!(!outcome.flagdrop_player_branch_reached);
+        assert!(!outcome.flagdrop_battleground_update_represented);
+        assert!(outcome.linked_trap_guid.is_none());
+        assert!(!outcome.linked_trap_side_effect_represented);
+        assert!(outcome.add_to_map.as_ref().is_some_and(|add| add.inserted));
+
+        let guid = outcome.guid.unwrap();
+        let gameobject = map
+            .map_object_record(guid)
+            .and_then(MapObjectRecord::game_object)
+            .unwrap();
+        assert_eq!(gameobject.owner_guid(), ObjectGuid::EMPTY);
+        assert_eq!(gameobject.spell_id(), 4822510);
+        assert_eq!(gameobject.respawn_time(), 23);
+        assert_eq!(gameobject.world().position(), position);
+        assert!(gameobject.world().object().is_in_world());
+        assert!(!gameobject.spawned_by_default());
+        let caster = map
+            .map_object_record(caster_guid)
+            .and_then(MapObjectRecord::player)
+            .unwrap();
+        assert!(
+            caster
+                .unit()
+                .subsystems()
+                .control
+                .owned_gameobjects
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn spell_effect_summon_object_wild_flagdrop_records_unrepresented_bg_branch_like_cpp() {
+        let mut map = test_map();
+        let caster = test_player_for_viewpoint(4822601);
+        let caster_guid = caster.guid();
+        map.insert_map_object_record(MapObjectRecord::new_player(caster).unwrap())
+            .unwrap();
+        let template = summon_gameobject_template_like_cpp(4822602, GAMEOBJECT_TYPE_FLAGDROP);
+
+        let outcome = map.spell_effect_summon_object_wild_like_cpp(
+            caster_guid,
+            4822610,
+            template,
+            Position::xyz(1.0, 2.0, 3.0),
+            0,
+        );
+
+        assert_eq!(
+            outcome.status,
+            SpellEffectSummonObjectWildStatusLikeCpp::CreatedAddedToMap
+        );
+        assert!(outcome.flagdrop_type);
+        assert!(outcome.flagdrop_player_branch_reached);
+        assert!(!outcome.flagdrop_battleground_update_represented);
+        assert_eq!(outcome.respawn_time_secs, Some(0));
+        let gameobject = map
+            .map_object_record(outcome.guid.unwrap())
+            .and_then(MapObjectRecord::game_object)
+            .unwrap();
+        assert_eq!(gameobject.data().type_id, GAMEOBJECT_TYPE_FLAGDROP as i8);
+        assert_eq!(gameobject.spell_id(), 4822610);
+        assert_eq!(gameobject.respawn_time(), 0);
+    }
+
+    #[test]
+    fn spell_effect_summon_object_wild_missing_caster_does_not_consume_guid_like_cpp() {
+        let mut map = test_map();
+        let template =
+            summon_gameobject_template_like_cpp(4822702, GAMEOBJECT_TYPE_GENERIC_LIKE_CPP);
+
+        let outcome = map.spell_effect_summon_object_wild_like_cpp(
+            ObjectGuid::create_player(1, 4822701),
+            4822710,
+            template,
+            Position::xyz(1.0, 2.0, 3.0),
+            -1,
+        );
+
+        assert_eq!(
+            outcome.status,
+            SpellEffectSummonObjectWildStatusLikeCpp::MissingCaster
+        );
+        assert!(outcome.guid.is_none());
+        assert!(outcome.add_to_map.is_none());
         assert_eq!(map.get_max_low_guid_like_cpp(HighGuid::GameObject), Ok(1));
     }
 
