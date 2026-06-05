@@ -210,6 +210,8 @@ fn skip_crafting_reagent(pkt: &mut WorldPacket) -> Result<(), PacketError> {
 pub struct CastSpellRequest {
     /// Client-generated cast ID (an ObjectGuid used as a unique cast token).
     pub cast_id: ObjectGuid,
+    /// C++ `SpellCastRequest::Misc`; toys use `Misc[0]` as the item id.
+    pub misc: [i32; 2],
     /// The spell being cast.
     pub spell_id: i32,
     /// Spell visual IDs.
@@ -223,8 +225,8 @@ impl ClientPacket for CastSpellRequest {
 
     fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
         let cast_id = pkt.read_packed_guid()?;
-        let _misc0 = pkt.read_int32()?;
-        let _misc1 = pkt.read_int32()?;
+        let misc0 = pkt.read_int32()?;
+        let misc1 = pkt.read_int32()?;
         let spell_id = pkt.read_int32()?;
         let visual = SpellCastVisual::read(pkt)?;
 
@@ -280,6 +282,7 @@ impl ClientPacket for CastSpellRequest {
             // our básicos implementation — just stop early.
             return Ok(Self {
                 cast_id,
+                misc: [misc0, misc1],
                 spell_id,
                 visual,
                 target,
@@ -296,6 +299,7 @@ impl ClientPacket for CastSpellRequest {
 
         Ok(Self {
             cast_id,
+            misc: [misc0, misc1],
             spell_id,
             visual,
             target,
@@ -629,5 +633,42 @@ mod tests {
         assert_eq!(parsed.map_id, None);
         assert!(parsed.name.is_empty());
         assert!(pkt.is_empty());
+    }
+
+    fn write_minimal_spell_cast_request(
+        pkt: &mut WorldPacket,
+        cast_id: ObjectGuid,
+        misc: [i32; 2],
+        spell_id: i32,
+    ) {
+        pkt.write_packed_guid(&cast_id);
+        pkt.write_int32(misc[0]);
+        pkt.write_int32(misc[1]);
+        pkt.write_int32(spell_id);
+        SpellCastVisual::default().write(pkt);
+        pkt.write_float(0.0);
+        pkt.write_float(0.0);
+        pkt.write_packed_guid(&ObjectGuid::EMPTY);
+        pkt.write_uint32(0);
+        pkt.write_uint32(0);
+        pkt.write_uint32(0);
+        pkt.write_bits(0, 5);
+        pkt.write_bit(false);
+        pkt.write_bits(0, 2);
+        pkt.write_bit(false);
+        pkt.flush_bits();
+        SpellTargetData::default().write(pkt);
+    }
+
+    #[test]
+    fn cast_spell_request_preserves_misc_like_cpp() {
+        let cast_id = ObjectGuid::create_player(1, 77);
+        let mut pkt = WorldPacket::new_empty();
+        write_minimal_spell_cast_request(&mut pkt, cast_id, [30_000, 9], 12_345);
+
+        let parsed = CastSpellRequest::read(&mut pkt).unwrap();
+        assert_eq!(parsed.cast_id, cast_id);
+        assert_eq!(parsed.misc, [30_000, 9]);
+        assert_eq!(parsed.spell_id, 12_345);
     }
 }

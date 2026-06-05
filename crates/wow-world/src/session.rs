@@ -54,12 +54,12 @@ use wow_data::{
     DurabilityQualityStore, FishingBaseSkillStoreLikeCpp, GameObjectDisplayInfoStore,
     GameObjectTemplateLifecycleStoreLikeCpp, HeirloomStore, HotfixBlobCache, ImportPriceStores,
     ItemAppearanceStore, ItemClassStore, ItemCurrencyCostStore, ItemDisenchantLootStore,
-    ItemExtendedCostStore, ItemLimitCategoryConditionStore, ItemLimitCategoryStore,
-    ItemModifiedAppearanceStore, ItemPriceBaseStore, ItemRandomEnchantmentTemplateStore,
-    ItemRandomPropertiesStore, ItemRandomPropertyTemplateEntry, ItemRandomSuffixStore,
-    ItemSearchNameStore, ItemSpecOverrideStore, ItemStatsStore, ItemStore, LfgDungeonsStore,
-    LockStore, MapDifficultyStore, MapDifficultyXConditionStore, MapStore, MountCapabilityStore,
-    MountStore, MountTypeXCapabilityStore, MountXDisplayStore, MovieStore,
+    ItemEffectStore, ItemExtendedCostStore, ItemLimitCategoryConditionStore,
+    ItemLimitCategoryStore, ItemModifiedAppearanceStore, ItemPriceBaseStore,
+    ItemRandomEnchantmentTemplateStore, ItemRandomPropertiesStore, ItemRandomPropertyTemplateEntry,
+    ItemRandomSuffixStore, ItemSearchNameStore, ItemSpecOverrideStore, ItemStatsStore, ItemStore,
+    LfgDungeonsStore, LockStore, MapDifficultyStore, MapDifficultyXConditionStore, MapStore,
+    MountCapabilityStore, MountStore, MountTypeXCapabilityStore, MountXDisplayStore, MovieStore,
     NpcSpellClickStoreLikeCpp, PhaseGroupStore, PhaseStore, PlayerConditionAuraLikeCpp,
     PlayerConditionContextLikeCpp, PlayerConditionCountLikeCpp, PlayerConditionPartyStatusLikeCpp,
     PlayerConditionQuestKillLikeCpp, PlayerConditionReputationLikeCpp, PlayerConditionSkillLikeCpp,
@@ -2094,6 +2094,7 @@ pub struct WorldSession {
     item_stats_store: Option<Arc<ItemStatsStore>>,
     durability_costs_store: Option<Arc<DurabilityCostsStore>>,
     durability_quality_store: Option<Arc<DurabilityQualityStore>>,
+    item_effect_store: Option<Arc<ItemEffectStore>>,
     item_template_addon_quest_log_item_ids_like_cpp: HashMap<u32, u32>,
 
     // Item random suffix store (ItemRandomSuffix.db2 data)
@@ -3248,6 +3249,7 @@ impl WorldSession {
             item_stats_store: None,
             durability_costs_store: None,
             durability_quality_store: None,
+            item_effect_store: None,
             item_template_addon_quest_log_item_ids_like_cpp: HashMap::new(),
             item_random_suffix_store: None,
             item_random_properties_store: None,
@@ -8231,6 +8233,20 @@ impl WorldSession {
             .is_some()
     }
 
+    /// C++ `CollectionMgr::HasToy`.
+    pub(crate) fn has_account_toy_like_cpp(&self, item_id: u32) -> bool {
+        self.represented_account_toys_like_cpp
+            .contains_key(&item_id)
+    }
+
+    /// C++ `std::find_if(item->Effects, spellId)` in `HandleUseToy`.
+    pub(crate) fn toy_item_has_spell_effect_like_cpp(&self, item_id: u32, spell_id: i32) -> bool {
+        self.item_effect_store
+            .as_ref()
+            .and_then(|store| store.effect_for_item_spell_like_cpp(item_id, spell_id))
+            .is_some()
+    }
+
     /// C++ `CollectionMgr::AddToy` / `UpdateAccountToys`.
     pub(crate) fn add_account_toy_like_cpp(
         &mut self,
@@ -8715,6 +8731,10 @@ impl WorldSession {
         self.durability_quality_store = Some(store);
     }
 
+    pub fn set_item_effect_store(&mut self, store: Arc<ItemEffectStore>) {
+        self.item_effect_store = Some(store);
+    }
+
     pub fn set_loot_drop_rates_like_cpp(&mut self, rates: LootDropRatesLikeCpp) {
         self.loot_drop_rates = rates;
     }
@@ -9062,6 +9082,10 @@ impl WorldSession {
     /// Get the durability quality store reference.
     pub fn durability_quality_store(&self) -> Option<&Arc<DurabilityQualityStore>> {
         self.durability_quality_store.as_ref()
+    }
+
+    pub fn item_effect_store(&self) -> Option<&Arc<ItemEffectStore>> {
+        self.item_effect_store.as_ref()
     }
 
     /// C++ `Item::CalculateDurabilityRepairCost`.
@@ -14804,6 +14828,9 @@ impl WorldSession {
             }
             ClientOpcodes::ToyClearFanfare => {
                 self.handle_toy_clear_fanfare(pkt).await;
+            }
+            ClientOpcodes::UseToy => {
+                self.handle_use_toy(pkt).await;
             }
             ClientOpcodes::RequestBattlefieldStatus => {
                 self.handle_request_battlefield_status(pkt).await;
@@ -27110,15 +27137,15 @@ mod tests {
         ImportPriceQualityStore, ImportPriceShieldEntry, ImportPriceShieldStore, ImportPriceStores,
         ImportPriceWeaponEntry, ImportPriceWeaponStore, ItemAppearanceEntry, ItemAppearanceStore,
         ItemClassEntry, ItemClassStore, ItemCurrencyCostEntry, ItemCurrencyCostStore,
-        ItemDisenchantLootEntry, ItemDisenchantLootStore, ItemLimitCategoryConditionEntry,
-        ItemLimitCategoryConditionStore, ItemLimitCategoryEntry, ItemLimitCategoryStore,
-        ItemModifiedAppearanceEntry, ItemModifiedAppearanceStore, ItemPriceBaseEntry,
-        ItemPriceBaseStore, ItemRandomPropertyTemplateEntry, ItemRandomSuffixEntry,
-        ItemRandomSuffixStore, ItemRecord, ItemSearchNameEntry, ItemSearchNameStore,
-        ItemSparseTemplateEntry, ItemSpecOverrideEntry, ItemSpecOverrideStore, ItemStatsStore,
-        ItemStore, LockEntry, LockStore, PlayerConditionEntry, PlayerConditionStore,
-        SpellItemEnchantmentEntry, SpellItemEnchantmentStore, ToyEntry, ToyStore, TransmogSetEntry,
-        TransmogSetItemEntry, TransmogSetItemStore,
+        ItemDisenchantLootEntry, ItemDisenchantLootStore, ItemEffectEntry, ItemEffectStore,
+        ItemLimitCategoryConditionEntry, ItemLimitCategoryConditionStore, ItemLimitCategoryEntry,
+        ItemLimitCategoryStore, ItemModifiedAppearanceEntry, ItemModifiedAppearanceStore,
+        ItemPriceBaseEntry, ItemPriceBaseStore, ItemRandomPropertyTemplateEntry,
+        ItemRandomSuffixEntry, ItemRandomSuffixStore, ItemRecord, ItemSearchNameEntry,
+        ItemSearchNameStore, ItemSparseTemplateEntry, ItemSpecOverrideEntry, ItemSpecOverrideStore,
+        ItemStatsStore, ItemStore, LockEntry, LockStore, PlayerConditionEntry,
+        PlayerConditionStore, SpellItemEnchantmentEntry, SpellItemEnchantmentStore, ToyEntry,
+        ToyStore, TransmogSetEntry, TransmogSetItemEntry, TransmogSetItemStore,
         progression_rewards::{
             FactionEntry, FactionStore, QUEST_PACKAGE_FILTER_CLASS_LIKE_CPP,
             QUEST_PACKAGE_FILTER_UNMATCHED_LIKE_CPP, QuestPackageItemEntry, QuestPackageItemStore,
@@ -51058,6 +51085,27 @@ mod tests {
 
         assert!(session.is_toy_item_like_cpp(30_000));
         assert!(!session.is_toy_item_like_cpp(30_001));
+    }
+
+    #[test]
+    fn toy_item_spell_effect_guard_uses_item_effect_parent_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_item_effect_store(Arc::new(ItemEffectStore::from_entries([ItemEffectEntry {
+            id: 1,
+            legacy_slot_index: 0,
+            trigger_type: 0,
+            charges: 0,
+            cooldown_msec: 0,
+            category_cooldown_msec: 0,
+            spell_category_id: 0,
+            spell_id: 12_345,
+            chr_specialization_id: 0,
+            parent_item_id: 30_000,
+        }])));
+
+        assert!(session.toy_item_has_spell_effect_like_cpp(30_000, 12_345));
+        assert!(!session.toy_item_has_spell_effect_like_cpp(30_000, 54_321));
+        assert!(!session.toy_item_has_spell_effect_like_cpp(30_001, 12_345));
     }
 
     #[test]

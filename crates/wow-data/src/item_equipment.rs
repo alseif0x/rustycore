@@ -106,6 +106,10 @@ macro_rules! db2_store {
                 self.entries.get(&id)
             }
 
+            pub fn values(&self) -> impl Iterator<Item = &$entry> {
+                self.entries.values()
+            }
+
             pub fn len(&self) -> usize {
                 self.entries.len()
             }
@@ -269,6 +273,16 @@ impl ItemEffectStore {
             }
         })
     }
+
+    /// C++ toy use checks `item->Effects` for the requested spell id.
+    pub fn effect_for_item_spell_like_cpp(
+        &self,
+        item_id: u32,
+        spell_id: i32,
+    ) -> Option<&ItemEffectEntry> {
+        self.values()
+            .find(|entry| entry.parent_item_id == item_id && entry.spell_id == spell_id)
+    }
 }
 
 fn load_store<T, S>(
@@ -351,6 +365,49 @@ mod tests {
         let entry = store.get(10).unwrap();
         assert_eq!(entry.weapon_sub_class_cost[20], 7);
         assert_eq!(entry.armor_sub_class_cost[7], 3);
+    }
+
+    #[test]
+    fn item_effect_store_finds_item_spell_like_cpp() {
+        let store = ItemEffectStore::from_entries([
+            ItemEffectEntry {
+                id: 1,
+                legacy_slot_index: 0,
+                trigger_type: 0,
+                charges: 0,
+                cooldown_msec: 0,
+                category_cooldown_msec: 0,
+                spell_category_id: 0,
+                spell_id: 12_345,
+                chr_specialization_id: 0,
+                parent_item_id: 30_000,
+            },
+            ItemEffectEntry {
+                id: 2,
+                legacy_slot_index: 0,
+                trigger_type: 0,
+                charges: 0,
+                cooldown_msec: 0,
+                category_cooldown_msec: 0,
+                spell_category_id: 0,
+                spell_id: 99_999,
+                chr_specialization_id: 0,
+                parent_item_id: 30_001,
+            },
+        ]);
+
+        assert_eq!(
+            store
+                .effect_for_item_spell_like_cpp(30_000, 12_345)
+                .unwrap()
+                .id,
+            1
+        );
+        assert!(
+            store
+                .effect_for_item_spell_like_cpp(30_000, 99_999)
+                .is_none()
+        );
     }
 
     #[test]

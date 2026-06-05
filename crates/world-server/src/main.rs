@@ -1233,6 +1233,15 @@ async fn main() -> Result<()> {
         durability_quality_store.len()
     );
 
+    let item_effect_store = Arc::new(
+        wow_data::ItemEffectStore::load(&data_dir, &locale)
+            .context("Failed to load ItemEffect.db2 — check DataDir and DBC.Locale config")?,
+    );
+    info!(
+        "Loaded {} item effects from ItemEffect.db2",
+        item_effect_store.len()
+    );
+
     // Load Lock.db2 for C++ sLockStore existence checks during CMSG_OPEN_ITEM.
     let lock_store = Arc::new(
         wow_data::LockStore::load(&data_dir, &locale)
@@ -2042,6 +2051,7 @@ async fn main() -> Result<()> {
         item_stats_store: Some(Arc::clone(&item_stats_store)),
         durability_costs_store: Some(Arc::clone(&durability_costs_store)),
         durability_quality_store: Some(Arc::clone(&durability_quality_store)),
+        item_effect_store: Some(Arc::clone(&item_effect_store)),
         item_random_suffix_store: Some(Arc::clone(&item_random_suffix_store)),
         item_random_properties_store: Some(Arc::clone(&item_random_properties_store)),
         item_spec_override_store: Some(Arc::clone(&item_spec_override_store)),
@@ -7078,6 +7088,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.durability_quality_store {
         session.set_durability_quality_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.item_effect_store {
+        session.set_item_effect_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.item_random_suffix_store {
         session.set_item_random_suffix_store(Arc::clone(store));

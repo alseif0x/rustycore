@@ -8,6 +8,7 @@
 use wow_constants::{ClientOpcodes, ServerOpcodes};
 use wow_core::{ObjectGuid, Position};
 
+use crate::packets::spell::CastSpellRequest;
 use crate::world_packet::PacketError;
 use crate::{ClientPacket, ServerPacket, WorldPacket};
 
@@ -1595,6 +1596,24 @@ impl ClientPacket for ToyClearFanfare {
         pkt.skip_opcode();
         Ok(Self {
             item_id: pkt.read_uint32()?,
+        })
+    }
+}
+
+// ── UseToy (CMSG 0x329a) ─────────────────────────────────────────────
+
+#[derive(Debug, Clone)]
+pub struct UseToy {
+    pub cast: CastSpellRequest,
+}
+
+impl ClientPacket for UseToy {
+    const OPCODE: ClientOpcodes = ClientOpcodes::UseToy;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        pkt.skip_opcode();
+        Ok(Self {
+            cast: CastSpellRequest::read(pkt)?,
         })
     }
 }
@@ -3612,6 +3631,46 @@ mod tests {
 
         let decoded = ToyClearFanfare::read(&mut pkt).unwrap();
         assert_eq!(decoded.item_id, 30_000);
+    }
+
+    fn write_minimal_toy_spell_cast(
+        pkt: &mut WorldPacket,
+        cast_id: ObjectGuid,
+        item_id: i32,
+        spell_id: i32,
+    ) {
+        use crate::packets::spell::{SpellCastVisual, SpellTargetData};
+
+        pkt.write_packed_guid(&cast_id);
+        pkt.write_int32(item_id);
+        pkt.write_int32(0);
+        pkt.write_int32(spell_id);
+        SpellCastVisual::default().write(pkt);
+        pkt.write_float(0.0);
+        pkt.write_float(0.0);
+        pkt.write_packed_guid(&ObjectGuid::EMPTY);
+        pkt.write_uint32(0);
+        pkt.write_uint32(0);
+        pkt.write_uint32(0);
+        pkt.write_bits(0, 5);
+        pkt.write_bit(false);
+        pkt.write_bits(0, 2);
+        pkt.write_bit(false);
+        pkt.flush_bits();
+        SpellTargetData::default().write(pkt);
+    }
+
+    #[test]
+    fn use_toy_reads_spell_cast_request_like_cpp() {
+        let cast_id = ObjectGuid::create_player(1, 123);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(ClientOpcodes::UseToy as u16);
+        write_minimal_toy_spell_cast(&mut pkt, cast_id, 30_000, 12_345);
+
+        let decoded = UseToy::read(&mut pkt).unwrap();
+        assert_eq!(decoded.cast.cast_id, cast_id);
+        assert_eq!(decoded.cast.misc[0], 30_000);
+        assert_eq!(decoded.cast.spell_id, 12_345);
     }
 
     #[test]

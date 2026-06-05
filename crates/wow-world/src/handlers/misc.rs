@@ -36,7 +36,7 @@ use wow_packet::packets::item::{
 use wow_packet::packets::loot::{LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHING_LIKE_CPP};
 use wow_packet::packets::misc::{
     AddToy, FarSight, MountSetFavorite, RatedPvpInfo, RequestCemeteryListResponse,
-    TaxiNodeStatusPkt, ToyClearFanfare,
+    TaxiNodeStatusPkt, ToyClearFanfare, UseToy,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -153,6 +153,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_toy_clear_fanfare",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::UseToy,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_use_toy",
     }
 }
 
@@ -857,6 +866,60 @@ impl crate::session::WorldSession {
         };
 
         self.toy_clear_fanfare_like_cpp(request.item_id);
+    }
+
+    /// CMSG_USE_TOY — bounded C++ guard path before spell execution.
+    ///
+    /// C++ `HandleUseToy` validates item template, `CollectionMgr::HasToy`,
+    /// item effect spell membership, `SpellMgr::GetSpellInfo`, possession, and
+    /// then creates/prepares a `Spell` with toy-specific flags. This slice
+    /// ports the parser and data guards only; actual `Spell::prepare` parity is
+    /// intentionally left as the next slice.
+    pub async fn handle_use_toy(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let request = match UseToy::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(account = self.account_id, "UseToy parse failed: {error}");
+                return;
+            }
+        };
+
+        let item_id = match u32::try_from(request.cast.misc[0]) {
+            Ok(item_id) if item_id != 0 => item_id,
+            _ => return,
+        };
+
+        if self.item_storage_template(item_id).is_none() {
+            return;
+        }
+
+        if !self.has_account_toy_like_cpp(item_id) {
+            return;
+        }
+
+        if !self.toy_item_has_spell_effect_like_cpp(item_id, request.cast.spell_id) {
+            return;
+        }
+
+        let Some(spell_store) = self.spell_store() else {
+            return;
+        };
+        if spell_store.get(request.cast.spell_id).is_none() {
+            warn!(
+                account = self.account_id,
+                spell_id = request.cast.spell_id,
+                item_id,
+                "HandleUseToy: unknown spell id used by toy item"
+            );
+            return;
+        }
+
+        debug!(
+            account = self.account_id,
+            item_id,
+            spell_id = request.cast.spell_id,
+            "UseToy passed represented guards; spell execution not ported yet"
+        );
     }
 
     /// CMSG_ADD_TOY — learn a Toy.db2 item and consume the inventory item.
