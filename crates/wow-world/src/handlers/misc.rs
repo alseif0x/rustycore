@@ -1067,14 +1067,21 @@ impl crate::session::WorldSession {
             return;
         }
 
-        if !self.add_account_toy_like_cpp(item.entry_id, false, false) {
-            return;
-        }
-
         let runtime_item = self
             .inventory_item_objects_like_cpp()
             .get(&item.guid)
             .cloned();
+        let can_use_result =
+            self.can_use_inventory_item_represented_like_cpp(&item, runtime_item.as_ref());
+        if can_use_result != InventoryResult::Ok {
+            self.send_equip_error(can_use_result, Some(item.guid), None, 0, 0);
+            return;
+        }
+
+        if !self.add_account_toy_like_cpp(item.entry_id, false, false) {
+            return;
+        }
+
         let destroyed_entry_id = item.entry_id;
         if self
             .destroy_inventory_full_stack_by_pos_like_cpp(bag, slot, item, runtime_item, "AddToy")
@@ -2074,7 +2081,11 @@ mod tests {
     use wow_core::{ObjectGuid, Position};
     use wow_data::progression_rewards::{FactionEntry, FactionStore};
     use wow_data::reputation::{ReputationFlagsLikeCpp, ReputationRankLikeCpp};
-    use wow_data::{MapDifficultyEntry, MapDifficultyStore, MapEntry, MapStore};
+    use wow_data::{
+        ItemRecord, ItemSearchNameEntry, ItemSearchNameStore, ItemSparseTemplateEntry,
+        ItemStatsStore, ItemStore, MapDifficultyEntry, MapDifficultyStore, MapEntry, MapStore,
+    };
+    use wow_packet::ServerPacket;
     use wow_packet::WorldPacket;
 
     #[test]
@@ -2121,6 +2132,130 @@ mod tests {
             ),
             send_rx,
         )
+    }
+
+    fn install_add_toy_item_templates(
+        session: &mut crate::session::WorldSession,
+        toy_item_id: u32,
+        toy_flags2: u32,
+    ) {
+        session.set_item_store(Arc::new(ItemStore::from_records([
+            ItemRecord {
+                id: 101,
+                class_id: wow_constants::ItemClass::Container as u8,
+                subclass_id: 0,
+                material: 0,
+                inventory_type: wow_constants::InventoryType::Bag as i8,
+                sheathe_type: 0,
+                random_select: 0,
+                random_suffix_group_id: 0,
+            },
+            ItemRecord {
+                id: toy_item_id,
+                class_id: wow_constants::ItemClass::Miscellaneous as u8,
+                subclass_id: 0,
+                material: 0,
+                inventory_type: wow_constants::InventoryType::NonEquip as i8,
+                sheathe_type: 0,
+                random_select: 0,
+                random_suffix_group_id: 0,
+            },
+        ])));
+        session.set_item_search_name_store(Arc::new(ItemSearchNameStore::from_entries([
+            ItemSearchNameEntry {
+                id: 101,
+                allowable_race: 0,
+                display: String::new(),
+                overall_quality_id: 1,
+                expansion_id: 0,
+                min_faction_id: 0,
+                min_reputation: 0,
+                allowable_class: 0,
+                required_level: 0,
+                required_skill: 0,
+                required_skill_rank: 0,
+                required_ability: 0,
+                item_level: 1,
+                flags: [0; 4],
+            },
+            ItemSearchNameEntry {
+                id: toy_item_id,
+                allowable_race: 0,
+                display: String::new(),
+                overall_quality_id: 1,
+                expansion_id: 0,
+                min_faction_id: 0,
+                min_reputation: 0,
+                allowable_class: 0,
+                required_level: 0,
+                required_skill: 0,
+                required_skill_rank: 0,
+                required_ability: 0,
+                item_level: 1,
+                flags: [0; 4],
+            },
+        ])));
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [
+                    (
+                        101,
+                        ItemSparseTemplateEntry {
+                            flags: [0; 4],
+                            bag_family: 0,
+                            start_quest_id: 0,
+                            stackable: 1,
+                            max_count: 0,
+                            lock_id: 0,
+                            required_reputation_rank: 0,
+                            sell_price: 0,
+                            buy_price: 0,
+                            vendor_stack_count: 1,
+                            price_variance: 0.0,
+                            price_random_value: 0.0,
+                            max_durability: 0,
+                            limit_category: 0,
+                            instance_bound: 0,
+                            zone_bound: [0, 0],
+                            required_reputation_faction: 0,
+                            allowable_class: 0,
+                            required_expansion: 0,
+                            bonding: wow_constants::ItemBondingType::None as u8,
+                            container_slots: 12,
+                            inventory_type: wow_constants::InventoryType::Bag as i8,
+                        },
+                    ),
+                    (
+                        toy_item_id,
+                        ItemSparseTemplateEntry {
+                            flags: [0, toy_flags2, 0, 0],
+                            bag_family: 0,
+                            start_quest_id: 0,
+                            stackable: 1,
+                            max_count: 0,
+                            lock_id: 0,
+                            required_reputation_rank: 0,
+                            sell_price: 0,
+                            buy_price: 0,
+                            vendor_stack_count: 1,
+                            price_variance: 0.0,
+                            price_random_value: 0.0,
+                            max_durability: 0,
+                            limit_category: 0,
+                            instance_bound: 0,
+                            zone_bound: [0, 0],
+                            required_reputation_faction: 0,
+                            allowable_class: 0,
+                            required_expansion: 0,
+                            bonding: wow_constants::ItemBondingType::None as u8,
+                            container_slots: 0,
+                            inventory_type: wow_constants::InventoryType::NonEquip as i8,
+                        },
+                    ),
+                ],
+                [],
+            ),
+        ));
     }
 
     #[tokio::test]
@@ -2398,6 +2533,7 @@ mod tests {
         let toy_item_id_i32 = i32::try_from(toy_item_id).unwrap();
 
         session.set_player_guid(Some(player_guid));
+        install_add_toy_item_templates(&mut session, toy_item_id, 0);
         session.set_toy_store(Arc::new(wow_data::ToyStore::from_entries([
             wow_data::ToyEntry {
                 id: 1,
@@ -2453,6 +2589,75 @@ mod tests {
             session
                 .inventory_item_objects_like_cpp()
                 .contains_key(&toy_guid)
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn add_toy_uses_can_use_item_faction_gate_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 55);
+        let toy_guid = ObjectGuid::create_item(1, 1_002);
+        let toy_slot = 23;
+        let toy_item_id = 30_000_u32;
+        let toy_item_id_i32 = i32::try_from(toy_item_id).unwrap();
+
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        install_add_toy_item_templates(
+            &mut session,
+            toy_item_id,
+            wow_constants::ItemFlags2::FactionHorde as u32,
+        );
+        session.set_toy_store(Arc::new(wow_data::ToyStore::from_entries([
+            wow_data::ToyEntry {
+                id: 1,
+                source_text: "known".to_string(),
+                item_id: toy_item_id_i32,
+                flags: 0,
+                source_type_enum: 0,
+            },
+        ])));
+        session.insert_inventory_item_like_cpp(
+            toy_slot,
+            crate::session::InventoryItem {
+                guid: toy_guid,
+                entry_id: toy_item_id,
+                db_guid: toy_guid.counter() as u64,
+                inventory_type: Some(wow_constants::InventoryType::NonEquip as u8),
+            },
+        );
+        let toy_item = session.make_inventory_item_object(
+            toy_guid,
+            toy_item_id,
+            player_guid,
+            1,
+            0,
+            wow_constants::ItemContext::None,
+            toy_slot,
+        );
+        session.insert_inventory_item_object(toy_item);
+
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(ClientOpcodes::AddToy as u16);
+        pkt.write_packed_guid(&toy_guid);
+
+        session.handle_add_toy(pkt).await;
+
+        assert!(session.account_toy_rows_like_cpp().is_empty());
+        assert!(
+            session
+                .inventory_item_objects_like_cpp()
+                .contains_key(&toy_guid)
+        );
+        assert_eq!(
+            send_rx.try_recv().unwrap(),
+            InventoryChangeFailure::new(
+                InventoryResult::CantEquipEver,
+                toy_guid,
+                ObjectGuid::EMPTY
+            )
+            .to_bytes()
         );
         assert!(send_rx.try_recv().is_err());
     }

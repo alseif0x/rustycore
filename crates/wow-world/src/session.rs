@@ -95,15 +95,15 @@ use wow_entities::{
     AccessorObjectKind, ApplyEnchantmentEffectRef, ApplyEnchantmentRandomSuffixRef,
     ApplyEnchantmentTemplateRef, BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_COUNT,
     BUYBACK_SLOT_END, BUYBACK_SLOT_START, BagTemplateRef, CanStoreItemArgs, CanUnequipItemArgs,
-    EQUIPMENT_SLOT_BACK, EQUIPMENT_SLOT_BODY, EQUIPMENT_SLOT_CHEST, EQUIPMENT_SLOT_END,
-    EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_HANDS, EQUIPMENT_SLOT_HEAD, EQUIPMENT_SLOT_LEGS,
-    EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND, EQUIPMENT_SLOT_SHOULDERS,
-    EQUIPMENT_SLOT_TABARD, EQUIPMENT_SLOT_WAIST, EQUIPMENT_SLOT_WRISTS, GameObject,
-    INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START,
-    INVENTORY_SLOT_ITEM_START, ITEM_DATA_BITS, ITEM_DATA_DURABILITY_BIT, Item, ItemCreateInfo,
-    ItemDataUpdate, ItemLimitCategoryTemplate, ItemPosCount, ItemSlotRef, ItemStorageRef,
-    ItemStorageTemplate, ItemValuesUpdate, MAX_BAG_SIZE, MAX_ITEM_SPELLS, MAX_MONEY_AMOUNT,
-    NULL_BAG, NULL_SLOT, ObjectAccessor, PLAYER_SLOT_END, PhaseShift, Player,
+    CanUseItemArgs, CanUseItemTemplateArgs, EQUIPMENT_SLOT_BACK, EQUIPMENT_SLOT_BODY,
+    EQUIPMENT_SLOT_CHEST, EQUIPMENT_SLOT_END, EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_HANDS,
+    EQUIPMENT_SLOT_HEAD, EQUIPMENT_SLOT_LEGS, EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND,
+    EQUIPMENT_SLOT_SHOULDERS, EQUIPMENT_SLOT_TABARD, EQUIPMENT_SLOT_WAIST, EQUIPMENT_SLOT_WRISTS,
+    GameObject, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END,
+    INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, ITEM_DATA_BITS, ITEM_DATA_DURABILITY_BIT,
+    Item, ItemCreateInfo, ItemDataUpdate, ItemLimitCategoryTemplate, ItemPosCount, ItemSlotRef,
+    ItemStorageRef, ItemStorageTemplate, ItemValuesUpdate, MAX_BAG_SIZE, MAX_ITEM_SPELLS,
+    MAX_MONEY_AMOUNT, NULL_BAG, NULL_SLOT, ObjectAccessor, PLAYER_SLOT_END, PhaseShift, Player,
     PlayerEnchantTimeUpdate, PlayerInventoryStorage, PlayerItemTimeUpdate,
     QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE, REAGENT_BAG_SLOT_END,
     REAGENT_BAG_SLOT_START, SendNewItemDelivery, SendNewItemDisplayText, SendNewItemPlan,
@@ -10072,6 +10072,157 @@ impl WorldSession {
         self.get_inventory_item_by_pos(bag, slot)
             .filter(|item| item.guid == item_guid)
             .map(|item| (bag, slot, item))
+    }
+
+    pub(crate) fn can_use_inventory_item_represented_like_cpp(
+        &self,
+        item: &InventoryItem,
+        runtime_item: Option<&Item>,
+    ) -> InventoryResult {
+        let Some(player) = self.direct_inventory_player_snapshot() else {
+            return InventoryResult::ItemNotFound;
+        };
+        let proto = self.item_storage_template(item.entry_id);
+        let sparse = self
+            .item_stats_store
+            .as_ref()
+            .and_then(|store| store.sparse_template(item.entry_id));
+        let search = self
+            .item_search_name_store
+            .as_ref()
+            .and_then(|store| store.get(item.entry_id));
+
+        let flags2 = sparse.map_or(0, |template| template.flags[1]);
+        let player_class_mask = self
+            .player_class_like_cpp()
+            .checked_sub(1)
+            .and_then(|shift| 1u32.checked_shl(u32::from(shift)))
+            .unwrap_or(0);
+        let player_race_mask = self
+            .player_race_like_cpp()
+            .checked_sub(1)
+            .and_then(|shift| 1i64.checked_shl(u32::from(shift)))
+            .unwrap_or(0);
+        let allowable_class_matches = search
+            .map(|entry| {
+                entry.allowable_class == 0
+                    || (entry.allowable_class & player_class_mask as i32) != 0
+            })
+            .unwrap_or(true);
+        let allowable_race_matches = search
+            .map(|entry| {
+                entry.allowable_race == 0 || (entry.allowable_race & player_race_mask) != 0
+            })
+            .unwrap_or(true);
+        let required_skill = search.map_or(0, |entry| u32::from(entry.required_skill));
+        let required_skill_rank = search.map_or(0, |entry| u32::from(entry.required_skill_rank));
+        let required_skill_value = u16::try_from(required_skill)
+            .ok()
+            .map(|skill| u32::from(self.player_skill_value_like_cpp(skill)))
+            .unwrap_or(0);
+        let required_spell = search.map_or(0, |entry| entry.required_ability);
+        let has_required_spell = required_spell == 0
+            || i32::try_from(required_spell)
+                .ok()
+                .is_some_and(|spell_id| self.known_spells_like_cpp().contains(&spell_id));
+        let base_required_level = search
+            .and_then(|entry| u8::try_from(entry.required_level.max(0)).ok())
+            .unwrap_or(0);
+        let required_reputation_faction = sparse.map_or(0, |template| {
+            u32::from(template.required_reputation_faction)
+        });
+        let required_reputation_rank = sparse
+            .and_then(|template| u32::try_from(template.required_reputation_rank.max(0)).ok())
+            .unwrap_or(0);
+        let player_reputation_rank = if required_reputation_faction == 0 {
+            0
+        } else {
+            self.faction_store
+                .as_ref()
+                .and_then(|store| store.get(required_reputation_faction))
+                .map(|faction| {
+                    let standing = self
+                        .reputation_mgr_like_cpp()
+                        .reputation_for_faction_like_cpp(
+                            faction,
+                            self.player_race_like_cpp(),
+                            self.player_class_like_cpp(),
+                        );
+                    u32::from(
+                        reputation_to_rank_like_cpp(
+                            faction,
+                            standing,
+                            self.friendship_rep_reaction_store.as_deref(),
+                        )
+                        .as_u8(),
+                    )
+                })
+                .unwrap_or(0)
+        };
+        let mut item_effect_spell_ids: Vec<(u8, i32)> = self
+            .item_effect_store
+            .as_ref()
+            .map(|store| {
+                store
+                    .values()
+                    .filter(|effect| effect.parent_item_id == item.entry_id)
+                    .map(|effect| (effect.legacy_slot_index, effect.spell_id))
+                    .collect()
+            })
+            .unwrap_or_default();
+        item_effect_spell_ids.sort_by_key(|(slot, _)| *slot);
+        let effect0_spell_id = item_effect_spell_ids
+            .first()
+            .and_then(|(_, spell_id)| u32::try_from(*spell_id).ok());
+        let effect1_spell_id = item_effect_spell_ids
+            .get(1)
+            .and_then(|(_, spell_id)| u32::try_from(*spell_id).ok());
+        let has_effect1_spell = effect1_spell_id
+            .and_then(|spell_id| i32::try_from(spell_id).ok())
+            .is_some_and(|spell_id| self.known_spells_like_cpp().contains(&spell_id));
+        let quality = self.item_template_quality(item.entry_id).unwrap_or(0);
+
+        player.can_use_item(CanUseItemArgs {
+            source_item: runtime_item,
+            proto: proto.as_ref(),
+            not_loading: true,
+            is_alive: true,
+            player_level: self.player_level_like_cpp(),
+            item_required_level: base_required_level,
+            source_bop_trade_allowed_for_player: false,
+            template_args: CanUseItemTemplateArgs {
+                proto: proto.as_ref(),
+                skip_required_level_check: false,
+                player_level: self.player_level_like_cpp(),
+                team: player_team_id_for_race_cpp(self.player_race_like_cpp()),
+                allowable_class_matches,
+                allowable_race_matches,
+                internal_item: (flags2 & ItemFlags2::InternalItem as u32) != 0,
+                faction_horde: (flags2 & ItemFlags2::FactionHorde as u32) != 0,
+                faction_alliance: (flags2 & ItemFlags2::FactionAlliance as u32) != 0,
+                required_skill,
+                required_skill_rank,
+                required_skill_value,
+                required_spell,
+                has_required_spell,
+                base_required_level,
+                holiday_id: 0,
+                holiday_active: false,
+                required_reputation_faction,
+                required_reputation_rank,
+                player_reputation_rank,
+                effect0_spell_id,
+                effect1_spell_id,
+                has_effect1_spell,
+                artifact_specialization: None,
+                primary_specialization: self.loot_specialization_id,
+            },
+            item_skill: 0,
+            item_skill_value: 0,
+            has_item_skill: false,
+            player_class: self.player_class_like_cpp(),
+            proto_is_heirloom: quality == ItemQuality::Heirloom as i8,
+        })
     }
 
     pub(crate) fn select_buyback_slot_cpp(&self) -> u8 {
