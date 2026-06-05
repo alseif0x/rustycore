@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 use wow_database::WorldDatabase;
-use wow_entities::MAX_GAMEOBJECT_DATA;
+use wow_entities::{GameObjectTemplateLifecycleRecord, MAX_GAMEOBJECT_DATA};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct GameObjectTemplateAddonLifecycleRecordLikeCpp {
@@ -145,6 +145,37 @@ impl GameObjectTemplateLifecycleStoreLikeCpp {
     }
 }
 
+/// Converts a DB-backed `gameobject_template` / `gameobject_template_addon`
+/// record into the entity lifecycle template consumed by represented
+/// GameObject creation paths that do not have a DB spawn row.
+///
+/// C++ anchors:
+/// - `ObjectMgr.cpp:7552-7610` loads `gameobject_template`.
+/// - `ObjectMgr.cpp:7770-7854` loads `gameobject_template_addon`.
+/// - `GameObject.cpp:1187-1200` `GameObject::CreateGameObject` consults only
+///   the template/addon sources for spell-created dynamic GameObjects; spawn
+///   overrides are a `LoadFromDB` concern and are intentionally not applied.
+pub fn gameobject_template_lifecycle_record_like_cpp(
+    template: &GameObjectTemplateLifecycleRecordLikeCpp,
+) -> GameObjectTemplateLifecycleRecord {
+    let addon = template.addon;
+    GameObjectTemplateLifecycleRecord {
+        entry: template.entry,
+        name: template.name.clone(),
+        go_type: template.go_type,
+        display_id: template.display_id,
+        scale: template.size,
+        faction: addon.map(|record| record.faction).unwrap_or(0),
+        flags: addon.map(|record| record.flags).unwrap_or(0),
+        data: template.data,
+        world_effect_id: addon.map(|record| record.world_effect_id).unwrap_or(0),
+        anim_kit_id: addon.map(|record| record.anim_kit_id).unwrap_or(0),
+        level: template.content_tuning_id,
+        percent_health: 100,
+        custom_param: 0,
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct GameObjectOverrideLifecycleStoreLikeCpp {
     overrides: HashMap<u64, GameObjectOverrideLifecycleRecordLikeCpp>,
@@ -195,5 +226,68 @@ impl GameObjectOverrideLifecycleStoreLikeCpp {
 
     pub fn is_empty(&self) -> bool {
         self.overrides.is_empty()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn template(
+        addon: Option<GameObjectTemplateAddonLifecycleRecordLikeCpp>,
+    ) -> GameObjectTemplateLifecycleRecordLikeCpp {
+        let mut data = [0_u32; MAX_GAMEOBJECT_DATA];
+        data[3] = 333;
+        GameObjectTemplateLifecycleRecordLikeCpp {
+            entry: 42,
+            go_type: 5,
+            display_id: 700,
+            name: "summoned object".to_string(),
+            size: 1.25,
+            data,
+            content_tuning_id: 80,
+            ai_name: "SmartGameObjectAI".to_string(),
+            script_name: "scripted_go".to_string(),
+            string_id: "string-id".to_string(),
+            addon,
+        }
+    }
+
+    #[test]
+    fn gameobject_template_lifecycle_record_without_addon_uses_cpp_create_defaults() {
+        let resolved = gameobject_template_lifecycle_record_like_cpp(&template(None));
+
+        assert_eq!(resolved.entry, 42);
+        assert_eq!(resolved.name, "summoned object");
+        assert_eq!(resolved.go_type, 5);
+        assert_eq!(resolved.display_id, 700);
+        assert_eq!(resolved.scale, 1.25);
+        assert_eq!(resolved.data[3], 333);
+        assert_eq!(resolved.faction, 0);
+        assert_eq!(resolved.flags, 0);
+        assert_eq!(resolved.world_effect_id, 0);
+        assert_eq!(resolved.anim_kit_id, 0);
+        assert_eq!(resolved.level, 80);
+        assert_eq!(resolved.percent_health, 100);
+        assert_eq!(resolved.custom_param, 0);
+    }
+
+    #[test]
+    fn gameobject_template_lifecycle_record_applies_template_addon_like_cpp() {
+        let addon = GameObjectTemplateAddonLifecycleRecordLikeCpp {
+            entry: 42,
+            faction: 35,
+            flags: 0x20,
+            world_effect_id: 77,
+            anim_kit_id: 9,
+        };
+
+        let resolved = gameobject_template_lifecycle_record_like_cpp(&template(Some(addon)));
+
+        assert_eq!(resolved.faction, 35);
+        assert_eq!(resolved.flags, 0x20);
+        assert_eq!(resolved.world_effect_id, 77);
+        assert_eq!(resolved.anim_kit_id, 9);
+        assert_eq!(resolved.level, 80);
     }
 }

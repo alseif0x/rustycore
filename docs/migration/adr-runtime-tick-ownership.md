@@ -1681,6 +1681,18 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   Battleground `SetDroppedFlagGUID`; linked-trap phase/respawn/spell/log side effects remain
   unrepresented until Rust has real linked-trap creation/resolution for this path. Tests cover
   normal wild summon, FlagDrop branch evidence, and missing-caster/no-low-guid-consumption.
+- 2026-06-05 — DB-backed GameObject template lifecycle bridge for spell-created GOs
+  `#NEXT.RUNTIME.L3.031ec`: contrasted C++ `ObjectMgr::LoadGameObjectTemplate`
+  (`ObjectMgr.cpp:7552-7610`), `LoadGameObjectTemplateAddons` (`ObjectMgr.cpp:7770-7854`) and
+  `GameObject::CreateGameObject` (`GameObject.cpp:1187-1200`). Rust now exposes
+  `wow_data::gameobject_template_lifecycle_record_like_cpp`, converting
+  `GameObjectTemplateLifecycleRecordLikeCpp` plus optional template addon into the
+  `wow_entities::GameObjectTemplateLifecycleRecord` consumed by spell-created dynamic GO helpers.
+  The bridge applies addon faction/flags/worldEffect/animKit, maps `ContentTuningId` to the
+  represented GameObject level, preserves template data/name/display/size, and intentionally does
+  not apply spawn overrides because `CreateGameObject` for spell-created GOs has no DB spawn row.
+  Tests cover with/without addon. Scope remains bounded: no spell handler wiring, target/duration
+  resolution, map mutation, linked-trap creation, scripts, or packets.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real

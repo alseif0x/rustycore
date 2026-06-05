@@ -135,7 +135,7 @@ pub use entities_movement::{
 pub use gameobject_template::{
     GameObjectOverrideLifecycleRecordLikeCpp, GameObjectOverrideLifecycleStoreLikeCpp,
     GameObjectTemplateAddonLifecycleRecordLikeCpp, GameObjectTemplateLifecycleRecordLikeCpp,
-    GameObjectTemplateLifecycleStoreLikeCpp,
+    GameObjectTemplateLifecycleStoreLikeCpp, gameobject_template_lifecycle_record_like_cpp,
 };
 pub use gossip::{GossipConditionAttachmentReport, GossipMenu, GossipMenuItem, GossipStore};
 pub use graveyard::{
