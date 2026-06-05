@@ -2305,14 +2305,20 @@ mod tests {
             }
         );
         assert_eq!(managed_map.map().objects_to_remove_count_like_cpp(), 0);
-        // 031dw wires the pool-update context into the live manager path. Without
-        // the loaded-grid loader from 031dx, pool-data advances but the live
-        // replacement is not materialized.
+        // Without the loaded-grid loader from 031dx, pool-data advances and the
+        // represented `Despawn1Object<GameObject>` removes the trigger, but the
+        // live replacement is not materialized.
         assert!(
             managed_map
                 .map()
                 .map_object_record(game_object_guid)
-                .is_some()
+                .is_none()
+        );
+        assert!(
+            managed_map
+                .map()
+                .map_object_record(guid(HighGuid::GameObject, 4642202, 1, 0))
+                .is_none()
         );
         assert!(
             managed_map
@@ -2384,14 +2390,15 @@ mod tests {
             }
         );
         assert_eq!(managed_map.map().objects_to_remove_count_like_cpp(), 0);
-        // Loaded-grid replacement materialization is wired here. Full C++
-        // Despawn1Object/AddObjectToRemoveList physical removal for the trigger
-        // remains a follow-up lifecycle slice.
+        // Loaded-grid replacement materialization is wired here. With the
+        // spawn-id index populated before AddToMap, the represented
+        // `Despawn1Object<GameObject>` removes the trigger before inserting the
+        // replacement.
         assert!(
             managed_map
                 .map()
                 .map_object_record(game_object_guid)
-                .is_some()
+                .is_none()
         );
         assert!(
             managed_map
@@ -3680,28 +3687,32 @@ mod tests {
         spawn_id: u64,
         pool_id: u32,
     ) -> ObjectGuid {
-        let game_object_guid = insert_game_object_for_update(manager, spawn_id as i64, 0, true);
-        {
-            let game_object = manager
-                .find_map_mut(1, 0)
-                .unwrap()
-                .map_mut()
-                .get_typed_game_object_mut(game_object_guid)
-                .unwrap();
-            game_object.set_go_type(GAMEOBJECT_TYPE_GENERIC as u8);
-            game_object.world_mut().object_mut().set_entry(190_011);
-            game_object.set_spawn_id(spawn_id);
-            game_object.set_represented_gameobject_data_present_like_cpp(true);
-            game_object.set_respawn_compatibility_mode(true);
-            game_object.set_created_by(guid(HighGuid::Player, spawn_id as i64 + 99, 1, 0));
-            game_object.set_respawn_time(0);
-            game_object.set_loot_state(LootState::JustDeactivated, None);
-        }
-        manager
-            .find_map_mut(1, 0)
-            .unwrap()
-            .map_mut()
-            .pool_data_mut_like_cpp()
+        let game_object_guid = guid(HighGuid::GameObject, spawn_id as i64, 1, 0);
+        let mut game_object = GameObject::new();
+        game_object
+            .world_mut()
+            .object_mut()
+            .create(game_object_guid);
+        game_object.world_mut().set_map(1, 0).unwrap();
+        game_object
+            .world_mut()
+            .relocate(Position::xyz(13.0, 23.0, 33.0));
+        game_object.world_mut().object_mut().add_to_world();
+        game_object.set_go_type(GAMEOBJECT_TYPE_GENERIC as u8);
+        game_object.world_mut().object_mut().set_entry(190_011);
+        game_object.set_spawn_id(spawn_id);
+        game_object.set_represented_gameobject_data_present_like_cpp(true);
+        game_object.set_respawn_compatibility_mode(true);
+        game_object.set_created_by(guid(HighGuid::Player, spawn_id as i64 + 99, 1, 0));
+        game_object.set_respawn_time(0);
+        game_object.set_loot_state(LootState::JustDeactivated, None);
+
+        let map = manager.find_map_mut(1, 0).unwrap().map_mut();
+        map.add_map_object_record_to_map_like_cpp(
+            MapObjectRecord::new_game_object(game_object).unwrap(),
+        )
+        .unwrap();
+        map.pool_data_mut_like_cpp()
             .add_spawn_like_cpp(SpawnObjectType::GameObject, spawn_id, pool_id)
             .expect("spawned pool state");
         game_object_guid

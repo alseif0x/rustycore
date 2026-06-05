@@ -1538,11 +1538,12 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   accept a loaded-grid record loader and `world-server` passes the existing DB-backed
   `build_loaded_grid_gameobject_respawn_record_like_cpp` from the canonical map update tick.
   Focused manager coverage proves the live manager path can materialize a replacement pooled
-  GameObject on a loaded grid while the old no-loader context still preserves the previous
-  pool-data-only behavior. Remaining gaps: the trigger's full C++ `Despawn1Object` /
-  `AddObjectToRemoveList` physical-removal lifecycle is still not represented in this manager
-  path; DB save/delete effects, capture-point/session fanout, full object lifecycle side effects,
-  and live client/server validation remain open.
+  GameObject on a loaded grid, and now verifies the trigger is removed through represented
+  `DespawnOne -> remove_from_map_like_cpp` when its spawn-id index is populated before `AddToMap`,
+  matching the C++ `Despawn1Object<GameObject>` lookup by spawn id. The old no-loader context still
+  advances pool data without materializing the replacement. Remaining gaps: DB save/delete effects,
+  capture-point/session fanout, broader `GameObject::Delete` side effects outside this bounded
+  seam, full object lifecycle side effects, and live client/server validation remain open.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
