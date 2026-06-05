@@ -173,6 +173,7 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_CONVERT_ITEMS_TO_CURRENCY: u32 = 282;
     pub const SPELL_EFFECT_COMPLETE_CAMPAIGN: u32 = 283;
     pub const SPELL_EFFECT_MODIFY_KEYSTONE_2: u32 = 285;
+    pub const SPELL_EFFECT_GRANT_BATTLEPET_EXPERIENCE: u32 = 286;
     pub const SPELL_EFFECT_SET_GARRISON_FOLLOWER_LEVEL: u32 = 287;
     pub const SPELL_EFFECT_CRAFT_ITEM: u32 = 288;
     pub const SPELL_EFFECT_CRAFT_LOOT: u32 = 294;
@@ -1271,6 +1272,10 @@ mod tests {
         assert_eq!(spell_effect_types::SPELL_EFFECT_COMPLETE_CAMPAIGN, 283);
         assert_eq!(spell_effect_types::SPELL_EFFECT_MODIFY_KEYSTONE_2, 285);
         assert_eq!(
+            spell_effect_types::SPELL_EFFECT_GRANT_BATTLEPET_EXPERIENCE,
+            286
+        );
+        assert_eq!(
             spell_effect_types::SPELL_EFFECT_SET_GARRISON_FOLLOWER_LEVEL,
             287
         );
@@ -1467,7 +1472,7 @@ mod tests {
             spell_effect_types::SPELL_EFFECT_LEARN_TRANSMOG_SET,
             spell_effect_types::SPELL_EFFECT_LEARN_TRANSMOG_ILLUSION,
             284,
-            286,
+            spell_effect_types::SPELL_EFFECT_GRANT_BATTLEPET_EXPERIENCE,
             289,
             290,
             291,
