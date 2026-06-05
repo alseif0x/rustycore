@@ -1923,6 +1923,53 @@ impl ServerPacket for BattlePetJournalLockDenied {
     }
 }
 
+/// C++ `WorldPackets::BattlePet::BattlePetDeleted`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BattlePetDeleted {
+    pub pet_guid: ObjectGuid,
+}
+
+impl ServerPacket for BattlePetDeleted {
+    const OPCODE: ServerOpcodes = ServerOpcodes::BattlePetDeleted;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_packed_guid(&self.pet_guid);
+    }
+}
+
+/// C++ `BattlePets::BattlePetError` values.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BattlePetErrorCodeLikeCpp {
+    CantHaveMorePetsOfType = 3,
+    CantHaveMorePets = 4,
+    TooHighLevelToUncage = 7,
+}
+
+/// C++ `WorldPackets::BattlePet::BattlePetError`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BattlePetError {
+    pub result: u8,
+    pub creature_id: i32,
+}
+
+impl BattlePetError {
+    pub fn new(result: BattlePetErrorCodeLikeCpp, creature_id: i32) -> Self {
+        Self {
+            result: result as u8,
+            creature_id,
+        }
+    }
+}
+
+impl ServerPacket for BattlePetError {
+    const OPCODE: ServerOpcodes = ServerOpcodes::BattlePetError;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_bits(self.result as u32, 4);
+        pkt.write_int32(self.creature_id);
+    }
+}
+
 // ── DungeonDifficultySet (SMSG 0x26a4) ───────────────────────────────
 
 /// Sets the current dungeon difficulty. Sent BEFORE LoginVerifyWorld.
@@ -3961,6 +4008,38 @@ mod tests {
         assert_eq!(bytes.len(), 2);
         let opcode = u16::from_le_bytes([bytes[0], bytes[1]]);
         assert_eq!(opcode, 0x25ee);
+    }
+
+    #[test]
+    fn battle_pet_deleted_writes_packed_guid_like_cpp() {
+        let pet_guid = ObjectGuid::new(0, 0x4330);
+        let bytes = BattlePetDeleted { pet_guid }.to_bytes();
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::BattlePetDeleted as u16
+        );
+
+        let mut body = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(body.read_packed_guid().unwrap(), pet_guid);
+        assert_eq!(body.remaining(), 0);
+    }
+
+    #[test]
+    fn battle_pet_error_writes_result_bits_then_creature_id_like_cpp() {
+        let bytes =
+            BattlePetError::new(BattlePetErrorCodeLikeCpp::TooHighLevelToUncage, 12_345).to_bytes();
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::BattlePetError as u16
+        );
+
+        let mut body = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(
+            body.read_bits(4).unwrap(),
+            BattlePetErrorCodeLikeCpp::TooHighLevelToUncage as u32
+        );
+        assert_eq!(body.read_int32().unwrap(), 12_345);
+        assert_eq!(body.remaining(), 0);
     }
 
     #[test]
