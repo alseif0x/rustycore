@@ -181,7 +181,21 @@ pub struct TransmogSetItemStore {
 
 impl TransmogSetItemStore {
     pub fn from_entries(entries: impl IntoIterator<Item = TransmogSetItemEntry>) -> Self {
-        Self::from_entries_and_sets(entries, [])
+        let mut by_id = HashMap::new();
+        let mut by_transmog_set = HashMap::<u32, Vec<TransmogSetItemEntry>>::new();
+        for entry in entries {
+            by_transmog_set
+                .entry(entry.transmog_set_id)
+                .or_default()
+                .push(entry.clone());
+            by_id.insert(entry.id, entry);
+        }
+
+        Self {
+            entries: by_id,
+            by_transmog_set,
+            by_item_modified_appearance: HashMap::new(),
+        }
     }
 
     /// Build C++ `DB2Manager` transmog secondary indexes.
@@ -195,7 +209,6 @@ impl TransmogSetItemStore {
             .into_iter()
             .map(|set| (set.id, set))
             .collect::<HashMap<_, _>>();
-        let validate_sets = !sets_by_id.is_empty();
         let mut by_item_modified_appearance = HashMap::<u32, Vec<TransmogSetEntry>>::new();
         for entry in entries {
             if let Some(set) = sets_by_id.get(&entry.transmog_set_id) {
@@ -203,7 +216,7 @@ impl TransmogSetItemStore {
                     .entry(entry.item_modified_appearance_id)
                     .or_default()
                     .push(set.clone());
-            } else if validate_sets {
+            } else {
                 continue;
             }
             by_transmog_set
