@@ -7,7 +7,10 @@
 //! [`WorldSocket`](wow_network::WorldSocket) and dispatches them to handlers.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{
+    Arc, Mutex, OnceLock,
+    atomic::{AtomicI64, Ordering},
+};
 use std::time::{Duration, Instant};
 
 use parking_lot::RwLock;
@@ -45,7 +48,7 @@ use wow_constants::{
     ItemClass, ItemContext, ItemEnchantmentType, ItemFlags, ItemFlags2, ItemFlags3, ItemQuality,
     ItemSubClassArmor, ItemSubClassWeapon, SellResult, SpellCastResult, TypeId, UnitState,
 };
-use wow_core::{ObjectGuid, ObjectGuidGenerator, Position};
+use wow_core::{ObjectGuid, ObjectGuidGenerator, Position, guid::HighGuid};
 use wow_data::{
     AreaTableStore, AreaTriggerStore, ChrSpecializationStore, ConditionEntriesByTypeStore,
     CreatureDisplayInfoStore, CreatureModelDataStore, CreatureTemplateMountStoreLikeCpp,
@@ -505,6 +508,9 @@ const MAP_BATTLEGROUND_LIKE_CPP: i8 = 3;
 const MAP_ARENA_LIKE_CPP: i8 = 4;
 const GROUP_XP_DISTANCE_LIKE_CPP: f32 = 74.0;
 const BATTLEGROUND_WS_LIKE_CPP: u32 = 2;
+const SPELL_CAST_SOURCE_NORMAL_LIKE_CPP: u8 = 0;
+pub(crate) const CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP: u32 = 0x08000;
+static NEXT_REPRESENTED_SPELL_CAST_COUNTER_LIKE_CPP: AtomicI64 = AtomicI64::new(1);
 const BATTLEGROUND_EY_LIKE_CPP: u32 = 7;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1976,6 +1982,42 @@ pub enum SessionState {
     Disconnecting,
 }
 
+/// Additional spell cast metadata that C++ stores on `Spell` before `prepare`.
+///
+/// Default values preserve the represented normal-cast path: `OriginalCastID`
+/// is the same as `CastID`, `CastFlagsEx` is zero, and no item entry/misc data
+/// is attached.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellCastMetadata {
+    pub from_client: bool,
+    pub misc: [i32; 2],
+    pub cast_item_entry: Option<u32>,
+    pub cast_flags_ex: u32,
+    pub original_cast_id: ObjectGuid,
+}
+
+impl Default for SpellCastMetadata {
+    fn default() -> Self {
+        Self {
+            from_client: false,
+            misc: [0, 0],
+            cast_item_entry: None,
+            cast_flags_ex: 0,
+            original_cast_id: ObjectGuid::EMPTY,
+        }
+    }
+}
+
+impl SpellCastMetadata {
+    pub fn original_cast_id_or(self, cast_id: ObjectGuid) -> ObjectGuid {
+        if self.original_cast_id.is_empty() {
+            cast_id
+        } else {
+            self.original_cast_id
+        }
+    }
+}
+
 /// Spell casting state — tracks an in-progress spell cast with a timer.
 ///
 /// Used for spells with cast time > 0. When the player initiates a cast,
@@ -1997,6 +2039,8 @@ pub struct SpellCastState {
     pub cast_time_ms: u32,
     /// Spell visual IDs.
     pub spell_visual: wow_packet::packets::spell::SpellCastVisual,
+    /// C++ `Spell` metadata that must survive delayed completion.
+    pub metadata: SpellCastMetadata,
 }
 
 /// Per-player session on the world server.
@@ -24306,18 +24350,20 @@ impl WorldSession {
             let target_data = cast_state.target_data.clone();
             let cast_id = cast_state.cast_id;
             let spell_visual = cast_state.spell_visual.clone();
+            let metadata = cast_state.metadata;
 
             self.active_spell_cast = None;
             self.last_spell_cast_time = Some(Instant::now());
 
             // ← AQUÍ: Ejecutar spell
             if let Err(e) = self
-                .execute_spell_with_visual_and_target_data(
+                .execute_spell_with_visual_and_target_data_with_metadata(
                     spell_id,
                     target,
                     cast_id,
                     spell_visual,
                     target_data,
+                    metadata,
                 )
                 .await
             {
@@ -25042,6 +25088,25 @@ impl WorldSession {
         .await
     }
 
+    /// Represented `Spell::m_castId` generation.
+    ///
+    /// C++ creates a `HighGuid::Cast` with `SPELL_CAST_SOURCE_NORMAL`, map id,
+    /// spell id, and `Map::GenerateLowGuid<HighGuid::Cast>()`. Rust does not
+    /// yet expose the map low-guid allocator for casts, so this uses a process
+    /// local monotonic counter while preserving the visible GUID shape.
+    pub(crate) fn next_represented_spell_cast_guid_like_cpp(&self, spell_id: i32) -> ObjectGuid {
+        let counter = NEXT_REPRESENTED_SPELL_CAST_COUNTER_LIKE_CPP.fetch_add(1, Ordering::Relaxed);
+        ObjectGuid::create_world_object(
+            HighGuid::Cast,
+            SPELL_CAST_SOURCE_NORMAL_LIKE_CPP,
+            1,
+            self.player_map_id_like_cpp(),
+            0,
+            u32::try_from(spell_id).unwrap_or_default(),
+            counter,
+        )
+    }
+
     pub async fn execute_spell_with_visual_and_target_data(
         &mut self,
         spell_id: i32,
@@ -25049,6 +25114,26 @@ impl WorldSession {
         cast_id: ObjectGuid,
         spell_visual: wow_packet::packets::spell::SpellCastVisual,
         target_data: SpellTargetData,
+    ) -> Result<(), &'static str> {
+        self.execute_spell_with_visual_and_target_data_with_metadata(
+            spell_id,
+            target_guid,
+            cast_id,
+            spell_visual,
+            target_data,
+            SpellCastMetadata::default(),
+        )
+        .await
+    }
+
+    pub async fn execute_spell_with_visual_and_target_data_with_metadata(
+        &mut self,
+        spell_id: i32,
+        target_guid: ObjectGuid,
+        cast_id: ObjectGuid,
+        spell_visual: wow_packet::packets::spell::SpellCastVisual,
+        target_data: SpellTargetData,
+        metadata: SpellCastMetadata,
     ) -> Result<(), &'static str> {
         let player_guid = self.player_guid().ok_or("No player GUID")?;
 
@@ -25119,8 +25204,10 @@ impl WorldSession {
         let go_pkt = SpellGoPkt {
             caster: player_guid,
             cast_id,
+            original_cast_id: metadata.original_cast_id_or(cast_id),
             spell_id,
             visual: spell_visual,
+            cast_flags_ex: metadata.cast_flags_ex,
             target: target_data.clone(),
             hit_targets: vec![target_guid],
         };
@@ -51153,6 +51240,123 @@ mod tests {
         assert!(session.toy_item_has_spell_effect_like_cpp(30_000, 12_345));
         assert!(!session.toy_item_has_spell_effect_like_cpp(30_000, 54_321));
         assert!(!session.toy_item_has_spell_effect_like_cpp(30_001, 12_345));
+    }
+
+    fn write_minimal_use_toy_packet_like_cpp(
+        item_id: u32,
+        spell_id: i32,
+        cast_id: ObjectGuid,
+    ) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(ClientOpcodes::UseToy as u16);
+        pkt.write_packed_guid(&cast_id);
+        pkt.write_int32(i32::try_from(item_id).unwrap());
+        pkt.write_int32(0);
+        pkt.write_int32(spell_id);
+        wow_packet::packets::spell::SpellCastVisual::default().write(&mut pkt);
+        pkt.write_float(0.0);
+        pkt.write_float(0.0);
+        pkt.write_packed_guid(&ObjectGuid::EMPTY);
+        pkt.write_uint32(0);
+        pkt.write_uint32(0);
+        pkt.write_uint32(0);
+        pkt.write_bits(0, 5);
+        pkt.write_bit(false);
+        pkt.write_bits(0, 2);
+        pkt.write_bit(false);
+        pkt.flush_bits();
+        SpellTargetData::default().write(&mut pkt);
+        pkt
+    }
+
+    fn instant_toy_spell_info_like_cpp(spell_id: i32) -> wow_data::SpellInfo {
+        wow_data::SpellInfo {
+            spell_id,
+            cast_time_ms: 0,
+            cooldown_ms: 0,
+            recovery_time_ms: 0,
+            effect_type: 0,
+            effect_base_points: 0,
+            effect_bonus_coefficient: 0.0,
+            aura_type: None,
+            display_flags: 0,
+            requires_spell_focus: 0,
+            effects: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn handle_use_toy_sends_prepare_and_toy_cast_flags_like_cpp() {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(async {
+                let (mut session, _, send_rx) = make_session();
+                let player_guid = ObjectGuid::create_player(1, 31_100);
+                let client_cast_id = ObjectGuid::create_player(1, 31_101);
+                let item_id = 30_000;
+                let spell_id = 12_345;
+
+                session.set_player_guid(Some(player_guid));
+                session.set_player_map_position_like_cpp(571, Position::new(10.0, 10.0, 0.0, 0.0));
+                install_stackable_test_item_template(&mut session, item_id, 1);
+                session.load_represented_account_toys_like_cpp([(item_id, false, false)]);
+                session.set_item_effect_store(Arc::new(ItemEffectStore::from_entries([
+                    ItemEffectEntry {
+                        id: 1,
+                        legacy_slot_index: 0,
+                        trigger_type: 0,
+                        charges: 0,
+                        cooldown_msec: 0,
+                        category_cooldown_msec: 0,
+                        spell_category_id: 0,
+                        spell_id,
+                        chr_specialization_id: 0,
+                        parent_item_id: item_id,
+                    },
+                ])));
+                let mut spell_store = SpellStore::new();
+                spell_store.insert(spell_id, instant_toy_spell_info_like_cpp(spell_id));
+                session.set_spell_store(Arc::new(spell_store));
+
+                session
+                    .handle_use_toy(write_minimal_use_toy_packet_like_cpp(
+                        item_id,
+                        spell_id,
+                        client_cast_id,
+                    ))
+                    .await;
+
+                let prepare = send_rx.try_recv().expect("SpellPrepare packet");
+                assert_eq!(
+                    wow_packet::WorldPacket::from_bytes(&prepare).server_opcode(),
+                    Some(ServerOpcodes::SpellPrepare)
+                );
+                let mut prepare_body = WorldPacket::from_bytes(&prepare[2..]);
+                assert_eq!(prepare_body.read_packed_guid().unwrap(), client_cast_id);
+                let server_cast_id = prepare_body.read_packed_guid().unwrap();
+                assert_eq!(server_cast_id.high_type(), HighGuid::Cast);
+
+                let go = send_rx.try_recv().expect("SpellGo packet");
+                assert_eq!(
+                    wow_packet::WorldPacket::from_bytes(&go).server_opcode(),
+                    Some(ServerOpcodes::SpellGo)
+                );
+                let mut go_body = WorldPacket::from_bytes(&go[2..]);
+                assert_eq!(go_body.read_packed_guid().unwrap(), player_guid);
+                assert_eq!(go_body.read_packed_guid().unwrap(), player_guid);
+                assert_eq!(go_body.read_packed_guid().unwrap(), server_cast_id);
+                assert_eq!(go_body.read_packed_guid().unwrap(), client_cast_id);
+                assert_eq!(go_body.read_int32().unwrap(), spell_id);
+                let _visual = wow_packet::packets::spell::SpellCastVisual::read(&mut go_body)
+                    .expect("SpellVisual");
+                assert_eq!(go_body.read_uint32().unwrap(), 0);
+                assert_eq!(
+                    go_body.read_uint32().unwrap(),
+                    CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP
+                );
+            });
     }
 
     #[test]

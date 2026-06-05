@@ -345,8 +345,10 @@ fn write_spell_cast_data(
     pkt: &mut WorldPacket,
     caster: &ObjectGuid,
     cast_id: &ObjectGuid,
+    original_cast_id: &ObjectGuid,
     spell_id: i32,
     visual: &SpellCastVisual,
+    cast_flags_ex: u32,
     cast_time_ms: u32,
     target: &SpellTargetData,
     hit_targets: &[ObjectGuid],
@@ -355,7 +357,7 @@ fn write_spell_cast_data(
     pkt.write_packed_guid(caster);
     pkt.write_packed_guid(caster); // CasterUnit = same for player spells
     pkt.write_packed_guid(cast_id);
-    pkt.write_packed_guid(cast_id); // OriginalCastID = CastID
+    pkt.write_packed_guid(original_cast_id);
 
     // SpellID + visual
     pkt.write_int32(spell_id);
@@ -363,7 +365,7 @@ fn write_spell_cast_data(
 
     // CastFlags, CastFlagsEx, CastTime
     pkt.write_uint32(0); // CastFlags
-    pkt.write_uint32(0); // CastFlagsEx
+    pkt.write_uint32(cast_flags_ex);
     pkt.write_uint32(cast_time_ms);
 
     // MissileTrajectoryResult: TravelTime(i32) + Pitch(f32)
@@ -403,6 +405,25 @@ fn write_spell_cast_data(
     // (no MissTargets, MissStatus, RemainingPower, Runes, TargetPoints, Ammo)
 }
 
+// ── SMSG_SPELL_PREPARE ───────────────────────────────────────────
+
+/// `SMSG_SPELL_PREPARE` — maps the client cast id to the server spell cast id.
+///
+/// C++ ref: `WorldPackets::Spells::SpellPrepare::Write`.
+pub struct SpellPreparePkt {
+    pub client_cast_id: ObjectGuid,
+    pub server_cast_id: ObjectGuid,
+}
+
+impl ServerPacket for SpellPreparePkt {
+    const OPCODE: ServerOpcodes = ServerOpcodes::SpellPrepare;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_packed_guid(&self.client_cast_id);
+        pkt.write_packed_guid(&self.server_cast_id);
+    }
+}
+
 // ── SMSG_SPELL_START ─────────────────────────────────────────────
 
 /// `SMSG_SPELL_START` — notifies client a spell cast has begun.
@@ -410,8 +431,10 @@ fn write_spell_cast_data(
 pub struct SpellStartPkt {
     pub caster: ObjectGuid,
     pub cast_id: ObjectGuid,
+    pub original_cast_id: ObjectGuid,
     pub spell_id: i32,
     pub visual: SpellCastVisual,
+    pub cast_flags_ex: u32,
     /// Cast time in milliseconds (0 for instant).
     pub cast_time_ms: u32,
     pub target: SpellTargetData,
@@ -425,8 +448,10 @@ impl ServerPacket for SpellStartPkt {
             pkt,
             &self.caster,
             &self.cast_id,
+            &self.original_cast_id,
             self.spell_id,
             &self.visual,
+            self.cast_flags_ex,
             self.cast_time_ms,
             &self.target,
             &[], // no hit targets in SPELL_START
@@ -443,8 +468,10 @@ impl ServerPacket for SpellStartPkt {
 pub struct SpellGoPkt {
     pub caster: ObjectGuid,
     pub cast_id: ObjectGuid,
+    pub original_cast_id: ObjectGuid,
     pub spell_id: i32,
     pub visual: SpellCastVisual,
+    pub cast_flags_ex: u32,
     pub target: SpellTargetData,
     /// GUIDs that were hit by the spell.
     pub hit_targets: Vec<ObjectGuid>,
@@ -459,8 +486,10 @@ impl ServerPacket for SpellGoPkt {
             pkt,
             &self.caster,
             &self.cast_id,
+            &self.original_cast_id,
             self.spell_id,
             &self.visual,
+            self.cast_flags_ex,
             0, // CastTime
             &self.target,
             &self.hit_targets,
@@ -670,5 +699,74 @@ mod tests {
         assert_eq!(parsed.cast_id, cast_id);
         assert_eq!(parsed.misc, [30_000, 9]);
         assert_eq!(parsed.spell_id, 12_345);
+    }
+
+    #[test]
+    fn spell_prepare_writes_client_and_server_cast_ids_like_cpp() {
+        let client_cast_id = ObjectGuid::create_player(1, 77);
+        let server_cast_id = ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::Cast,
+            0,
+            1,
+            571,
+            0,
+            12_345,
+            9,
+        );
+
+        let bytes = SpellPreparePkt {
+            client_cast_id,
+            server_cast_id,
+        }
+        .to_bytes();
+
+        assert_eq!(
+            &bytes[0..2],
+            &(ServerOpcodes::SpellPrepare as u16).to_le_bytes()
+        );
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_packed_guid().unwrap(), client_cast_id);
+        assert_eq!(pkt.read_packed_guid().unwrap(), server_cast_id);
+        assert!(pkt.is_empty());
+    }
+
+    #[test]
+    fn spell_go_preserves_original_cast_id_and_cast_flags_ex_like_cpp() {
+        let caster = ObjectGuid::create_player(1, 77);
+        let client_cast_id = ObjectGuid::create_player(1, 99);
+        let server_cast_id = ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::Cast,
+            0,
+            1,
+            571,
+            0,
+            12_345,
+            9,
+        );
+
+        let bytes = SpellGoPkt {
+            caster,
+            cast_id: server_cast_id,
+            original_cast_id: client_cast_id,
+            spell_id: 12_345,
+            visual: SpellCastVisual::default(),
+            cast_flags_ex: 0x08000,
+            target: SpellTargetData::default(),
+            hit_targets: Vec::new(),
+        }
+        .to_bytes();
+
+        assert_eq!(&bytes[0..2], &(ServerOpcodes::SpellGo as u16).to_le_bytes());
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_packed_guid().unwrap(), caster);
+        assert_eq!(pkt.read_packed_guid().unwrap(), caster);
+        assert_eq!(pkt.read_packed_guid().unwrap(), server_cast_id);
+        assert_eq!(pkt.read_packed_guid().unwrap(), client_cast_id);
+        assert_eq!(pkt.read_int32().unwrap(), 12_345);
+        let visual = SpellCastVisual::read(&mut pkt).unwrap();
+        assert_eq!(visual.spell_visual_id, 0);
+        assert_eq!(visual.script_visual_id, 0);
+        assert_eq!(pkt.read_uint32().unwrap(), 0);
+        assert_eq!(pkt.read_uint32().unwrap(), 0x08000);
     }
 }

@@ -42,9 +42,13 @@ use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
     SetWatchedFaction,
 };
+use wow_packet::packets::spell::{SpellCastVisual, SpellPreparePkt, SpellStartPkt};
 
 use crate::handlers::loot::represented_gameobject_interaction_distance_like_cpp;
-use crate::session::{RepresentedGameObjectAccessLikeCpp, RepresentedGameObjectUseEffect};
+use crate::session::{
+    CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP, RepresentedGameObjectAccessLikeCpp,
+    RepresentedGameObjectUseEffect, SpellCastMetadata,
+};
 
 // ── inventory registrations ───────────────────────────────────────────────────
 
@@ -872,9 +876,9 @@ impl crate::session::WorldSession {
     ///
     /// C++ `HandleUseToy` validates item template, `CollectionMgr::HasToy`,
     /// item effect spell membership, `SpellMgr::GetSpellInfo`, possession, and
-    /// then creates/prepares a `Spell` with toy-specific flags. This slice
-    /// ports the parser and data guards only; actual `Spell::prepare` parity is
-    /// intentionally left as the next slice.
+    /// then creates/prepares a `Spell` with toy-specific flags. Rust still uses
+    /// the represented spell executor, but preserves the C++ toy metadata that
+    /// must reach `SpellCastData`.
     pub async fn handle_use_toy(&mut self, mut pkt: wow_packet::WorldPacket) {
         let request = match UseToy::read(&mut pkt) {
             Ok(request) => request,
@@ -904,7 +908,7 @@ impl crate::session::WorldSession {
         let Some(spell_store) = self.spell_store() else {
             return;
         };
-        if spell_store.get(request.cast.spell_id).is_none() {
+        let Some(spell_info) = spell_store.get(request.cast.spell_id).cloned() else {
             warn!(
                 account = self.account_id,
                 spell_id = request.cast.spell_id,
@@ -912,17 +916,91 @@ impl crate::session::WorldSession {
                 "HandleUseToy: unknown spell id used by toy item"
             );
             return;
-        }
+        };
 
         if self.player_is_possessing_like_cpp() {
             return;
+        }
+
+        let Some(player_guid) = self.player_guid() else {
+            return;
+        };
+
+        let server_cast_id = self.next_represented_spell_cast_guid_like_cpp(request.cast.spell_id);
+        self.send_packet(&SpellPreparePkt {
+            client_cast_id: request.cast.cast_id,
+            server_cast_id,
+        });
+
+        let metadata = SpellCastMetadata {
+            from_client: true,
+            misc: request.cast.misc,
+            cast_item_entry: Some(item_id),
+            cast_flags_ex: CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP,
+            original_cast_id: request.cast.cast_id,
+        };
+
+        let mut spell_target = request.cast.target.clone();
+        let target_guid = if !spell_target.unit.is_empty() {
+            spell_target.unit
+        } else {
+            spell_target.flags |= 0x2; // SpellCastTargetFlags::Unit
+            spell_target.unit = player_guid;
+            player_guid
+        };
+
+        let spell_visual = SpellCastVisual {
+            spell_visual_id: request.cast.visual.spell_visual_id,
+            script_visual_id: 0,
+        };
+
+        if spell_info.has_cast_time() {
+            let start_pkt = SpellStartPkt {
+                caster: player_guid,
+                cast_id: server_cast_id,
+                original_cast_id: request.cast.cast_id,
+                spell_id: request.cast.spell_id,
+                visual: spell_visual.clone(),
+                cast_flags_ex: CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP,
+                cast_time_ms: spell_info.cast_time_ms,
+                target: spell_target.clone(),
+            };
+            self.send_packet(&start_pkt);
+
+            self.active_spell_cast = Some(crate::session::SpellCastState {
+                spell_id: request.cast.spell_id,
+                target_guid,
+                target_data: spell_target,
+                cast_id: server_cast_id,
+                cast_start_time: std::time::Instant::now(),
+                cast_time_ms: spell_info.cast_time_ms,
+                spell_visual,
+                metadata,
+            });
+        } else if let Err(error) = self
+            .execute_spell_with_visual_and_target_data_with_metadata(
+                request.cast.spell_id,
+                target_guid,
+                server_cast_id,
+                spell_visual,
+                spell_target,
+                metadata,
+            )
+            .await
+        {
+            warn!(
+                account = self.account_id,
+                spell_id = request.cast.spell_id,
+                item_id,
+                "UseToy represented spell execution failed: {error}"
+            );
         }
 
         debug!(
             account = self.account_id,
             item_id,
             spell_id = request.cast.spell_id,
-            "UseToy passed represented guards; spell execution not ported yet"
+            "UseToy executed through represented spell path"
         );
     }
 

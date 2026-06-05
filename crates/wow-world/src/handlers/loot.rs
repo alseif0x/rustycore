@@ -8974,6 +8974,7 @@ mod tests {
                 spell_visual_id: 1,
                 script_visual_id: 0,
             },
+            metadata: crate::session::SpellCastMetadata::default(),
         });
     }
 
