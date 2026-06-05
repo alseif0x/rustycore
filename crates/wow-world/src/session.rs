@@ -23883,7 +23883,7 @@ impl WorldSession {
     /// Execute a spell with full visual/cast info — apply effects, set cooldown, send SMSG_SPELL_GO.
     ///
     /// Called after cast time completes or for instant-cast spells.
-    /// Supports: heal (type 6), damage (type 2), aura application (type 35).
+    /// Supports: heal (type 10), damage (type 2), aura application (type 6).
     pub async fn execute_spell_with_visual(
         &mut self,
         spell_id: i32,
@@ -24099,8 +24099,16 @@ impl WorldSession {
         // Aplicar efecto según type
         match effect_type {
             x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL => {
-                let heal_amount = effect_base_points as u32;
-                self.apply_heal(target_guid, heal_amount).await?;
+                if let Ok(heal_amount) = u32::try_from(effect_base_points) {
+                    self.apply_heal(target_guid, heal_amount).await?;
+                } else {
+                    debug!(
+                        account = self.account_id,
+                        spell_id,
+                        effect_base_points,
+                        "Skipping SPELL_EFFECT_HEAL because C++ EffectHeal returns when damage < 0"
+                    );
+                }
             }
             x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE => {
                 let damage_amount = effect_base_points as u32;
@@ -25108,6 +25116,14 @@ impl WorldSession {
 
         // Si target es el mismo jugador
         if target_guid == player_guid {
+            if !self.player_alive_like_cpp {
+                debug!(
+                    account = self.account_id,
+                    heal = heal_amount,
+                    "Skipping self heal because C++ EffectHeal requires alive target"
+                );
+                return Ok(());
+            }
             info!(account = self.account_id, heal = heal_amount, "Healed self");
             let current = self.player_health_like_cpp;
             let healed = current
@@ -25130,6 +25146,15 @@ impl WorldSession {
         let account_id = self.account_id;
         let values_update = self
             .mutate_world_creature(target_guid, |creature| {
+                if !creature.is_alive() {
+                    debug!(
+                        account = account_id,
+                        creature = ?target_guid,
+                        heal = heal_amount,
+                        "Skipping creature heal because C++ EffectHeal requires alive target"
+                    );
+                    return None;
+                }
                 info!(
                     account = account_id,
                     creature = ?target_guid,
@@ -25145,11 +25170,12 @@ impl WorldSession {
                     unit.set_health(healed);
                 }
 
-                creature.creature.unit().values_update()
+                Some(creature.creature.unit().values_update())
             })
             .ok_or("Target not found")?;
 
-        if self.client_visible_guids_like_cpp.contains(&target_guid)
+        if let Some(values_update) = values_update
+            && self.client_visible_guids_like_cpp.contains(&target_guid)
             && let Some(update) = self.represented_unit_values_update_to_update_object_like_cpp(
                 target_guid,
                 self.player_map_id_like_cpp(),
@@ -40517,6 +40543,33 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn spell_heal_skips_dead_creature_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let manager = shared_map_manager();
+        let guid = test_creature_guid(18_004);
+        session.player_guid = Some(ObjectGuid::create_player(1, 45));
+        session.client_visible_guids_like_cpp.insert(guid);
+        register_test_creature(&mut session, manager.clone(), guid, 40);
+        session
+            .mutate_world_creature(guid, |creature| {
+                creature.take_damage(20);
+                creature
+                    .creature
+                    .unit_mut()
+                    .set_death_state(wow_constants::DeathState::Corpse);
+                creature.creature.clear_data_changes();
+            })
+            .unwrap();
+
+        session.apply_heal(guid, 7).await.unwrap();
+
+        let manager = manager.read().unwrap();
+        let world_creature = manager.find_creature(0, 0, guid).unwrap();
+        assert_eq!(world_creature.current_hp(), 20);
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
     async fn spell_self_heal_syncs_player_health_like_cpp() {
         let (mut session, _, send_rx) = make_session();
         let guid = ObjectGuid::create_player(1, 44);
@@ -40555,6 +40608,59 @@ mod tests {
         let sent = send_rx.try_recv().unwrap();
         let opcode = u16::from_le_bytes([sent[0], sent[1]]);
         assert_eq!(opcode, ServerOpcodes::UpdateObject as u16);
+    }
+
+    #[tokio::test]
+    async fn spell_self_heal_skips_dead_player_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let guid = ObjectGuid::create_player(1, 46);
+        session.set_player_guid(Some(guid));
+        session.set_player_health_like_cpp(0, 100);
+
+        session.apply_heal(guid, 20).await.unwrap();
+
+        assert_eq!(session.player_health_like_cpp(), 0);
+        assert!(!session.player_is_alive_like_cpp());
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn spell_effect_heal_negative_amount_is_noop_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 722_i32;
+        let player_guid = ObjectGuid::create_player(1, 47);
+        session.set_player_guid(Some(player_guid));
+        session.set_player_health_like_cpp(50, 100);
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL,
+                effect_base_points: -10,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: Vec::new(),
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("negative represented heal should execute as C++ no-op effect");
+
+        assert_eq!(session.player_health_like_cpp(), 50);
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert_eq!(
+            opcodes,
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
     }
 
     #[tokio::test]
