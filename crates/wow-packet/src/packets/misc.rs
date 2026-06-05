@@ -217,6 +217,27 @@ impl ServerPacket for GameObjectDespawn {
     }
 }
 
+// ── CapturePointRemoved (SMSG 0xbadd placeholder) ───────────────────
+
+/// C++ `WorldPackets::Battleground::CapturePointRemoved`.
+///
+/// The legacy C++ opcode table still marks this battleground packet as
+/// `0xBADD`; keep it distinct from `UpdateCapturePoint` because the payload is
+/// only the removed capture-point GUID.
+pub struct CapturePointRemoved {
+    pub capture_point_guid: ObjectGuid,
+}
+
+impl ServerPacket for CapturePointRemoved {
+    const OPCODE: ServerOpcodes = ServerOpcodes::UpdateCapturePoint;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        for byte in self.capture_point_guid.to_raw_bytes() {
+            pkt.write_uint8(byte);
+        }
+    }
+}
+
 // ── GameObjectSetStateLocal (SMSG 0x2806) ───────────────────────────
 
 /// Sets a gameobject state only for the receiving client.
@@ -3801,6 +3822,29 @@ mod tests {
         assert_eq!(
             bytes[0..2],
             (ServerOpcodes::GameObjectDespawn as u16).to_le_bytes()
+        );
+        assert_eq!(&bytes[2..18], &guid.to_raw_bytes());
+        assert_eq!(bytes.len(), 18);
+    }
+
+    #[test]
+    fn capture_point_removed_writes_only_raw_guid_like_cpp() {
+        let guid = ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::GameObject,
+            0,
+            1,
+            571,
+            0,
+            777,
+            24,
+        );
+        let bytes = CapturePointRemoved {
+            capture_point_guid: guid,
+        }
+        .to_bytes();
+        assert_eq!(
+            bytes[0..2],
+            (ServerOpcodes::UpdateCapturePoint as u16).to_le_bytes()
         );
         assert_eq!(&bytes[2..18], &guid.to_raw_bytes());
         assert_eq!(bytes.len(), 18);

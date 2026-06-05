@@ -1466,6 +1466,17 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `remove_all_objects_in_remove_list_like_cpp` removes both owner and newly queued trap in the same
   call. Remaining gaps: full PoolMgr/DB/capture-point packet runtime, real ObjectAccessor/session
   fanout, scripts/GO AI, and live client/server validation.
+- 2026-06-04 — Capture-point delete packet serialization `#NEXT.RUNTIME.L3.031dt`: contrasted
+  against C++ `GameObject::Delete`, which sends `WorldPackets::Battleground::CapturePointRemoved`
+  for `GAMEOBJECT_TYPE_CAPTURE_POINT` before `SendGameObjectDespawn` (`GameObject.cpp:1740-1764`),
+  and `CapturePointRemoved::Write`, whose payload is only `CapturePointGUID`
+  (`BattlegroundPackets.cpp:436-439`). Rust now has a `wow-packet` `CapturePointRemoved` packet that
+  writes exactly opcode placeholder `0xBADD` plus the raw GUID. Because the legacy C++ opcode table
+  gives both update and remove capture-point packets the same placeholder, Rust reuses
+  `ServerOpcodes::UpdateCapturePoint` intentionally and keeps the payload type distinct. Remaining
+  gaps: connecting canonical `GameObjectDeleteOutcomeLikeCpp.capture_point_packet_represented` to
+  `SendIfVisibleLikeCpp`/session fanout, confirming the real client opcode if/when available,
+  PoolMgr/DB delete branches, and live client/server validation.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
