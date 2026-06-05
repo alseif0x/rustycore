@@ -8257,6 +8257,16 @@ impl WorldSession {
         true
     }
 
+    /// C++ `CollectionMgr::ToyClearFanfare`.
+    pub(crate) fn toy_clear_fanfare_like_cpp(&mut self, item_id: u32) -> bool {
+        let Some(flags) = self.represented_account_toys_like_cpp.get_mut(&item_id) else {
+            return false;
+        };
+
+        *flags &= !TOY_FLAG_HAS_FANFARE_LIKE_CPP;
+        true
+    }
+
     /// C++ `CollectionMgr::LoadAccountItemAppearances`.
     pub(crate) fn load_represented_account_item_appearances_like_cpp(
         &mut self,
@@ -14791,6 +14801,9 @@ impl WorldSession {
             }
             ClientOpcodes::AddToy => {
                 self.handle_add_toy(pkt).await;
+            }
+            ClientOpcodes::ToyClearFanfare => {
+                self.handle_toy_clear_fanfare(pkt).await;
             }
             ClientOpcodes::RequestBattlefieldStatus => {
                 self.handle_request_battlefield_status(pkt).await;
@@ -51014,6 +51027,21 @@ mod tests {
         assert_eq!(
             session.account_toy_rows_like_cpp(),
             vec![(30_000, false, false)]
+        );
+    }
+
+    #[test]
+    fn toy_clear_fanfare_clears_known_toy_only_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session
+            .load_represented_account_toys_like_cpp([(30_000, true, true), (30_001, false, true)]);
+
+        assert!(session.toy_clear_fanfare_like_cpp(30_000));
+        assert!(!session.toy_clear_fanfare_like_cpp(40_000));
+
+        assert_eq!(
+            session.account_toy_rows_like_cpp(),
+            vec![(30_000, true, false), (30_001, false, true)]
         );
     }
 

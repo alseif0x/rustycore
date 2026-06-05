@@ -1581,6 +1581,24 @@ impl ClientPacket for AddToy {
     }
 }
 
+// ── ToyClearFanfare (CMSG 0x3128) ────────────────────────────────────
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ToyClearFanfare {
+    pub item_id: u32,
+}
+
+impl ClientPacket for ToyClearFanfare {
+    const OPCODE: ClientOpcodes = ClientOpcodes::ToyClearFanfare;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        pkt.skip_opcode();
+        Ok(Self {
+            item_id: pkt.read_uint32()?,
+        })
+    }
+}
+
 // ── LoadCufProfiles (SMSG 0x25bc) ────────────────────────────────────
 
 /// Compact Unit Frame profiles. Empty for fresh characters.
@@ -3584,6 +3602,16 @@ mod tests {
 
         let decoded = AddToy::read(&mut pkt).unwrap();
         assert_eq!(decoded.item_guid, guid);
+    }
+
+    #[test]
+    fn toy_clear_fanfare_reads_cpp_item_id_payload() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(ClientOpcodes::ToyClearFanfare as u16);
+        pkt.write_uint32(30_000);
+
+        let decoded = ToyClearFanfare::read(&mut pkt).unwrap();
+        assert_eq!(decoded.item_id, 30_000);
     }
 
     #[test]

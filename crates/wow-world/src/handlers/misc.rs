@@ -36,7 +36,7 @@ use wow_packet::packets::item::{
 use wow_packet::packets::loot::{LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHING_LIKE_CPP};
 use wow_packet::packets::misc::{
     AddToy, FarSight, MountSetFavorite, RatedPvpInfo, RequestCemeteryListResponse,
-    TaxiNodeStatusPkt,
+    TaxiNodeStatusPkt, ToyClearFanfare,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -144,6 +144,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_add_toy",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::ToyClearFanfare,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_toy_clear_fanfare",
     }
 }
 
@@ -829,6 +838,25 @@ impl crate::session::WorldSession {
     /// CMSG_MOUNT_CLEAR_FANFARE — C++ currently logs only.
     pub async fn handle_mount_clear_fanfare(&mut self, _pkt: wow_packet::WorldPacket) {
         debug!(account = self.account_id, "Mount fanfare cleared");
+    }
+
+    /// CMSG_TOY_CLEAR_FANFARE — clear the account toy fanfare bit.
+    ///
+    /// C++ ref: `WorldSession::HandleToyClearFanfare` forwards only the item id
+    /// to `CollectionMgr::ToyClearFanfare`, which silently ignores unknown toys.
+    pub async fn handle_toy_clear_fanfare(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let request = match ToyClearFanfare::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "ToyClearFanfare parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        self.toy_clear_fanfare_like_cpp(request.item_id);
     }
 
     /// CMSG_ADD_TOY — learn a Toy.db2 item and consume the inventory item.
@@ -2153,6 +2181,38 @@ mod tests {
         session.handle_mount_set_favorite(pkt).await;
 
         assert!(session.account_mounts_like_cpp().is_empty());
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn toy_clear_fanfare_clears_known_toy_without_packet_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        session.load_represented_account_toys_like_cpp([(30_000, true, true)]);
+
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(ClientOpcodes::ToyClearFanfare as u16);
+        pkt.write_uint32(30_000);
+
+        session.handle_toy_clear_fanfare(pkt).await;
+
+        assert_eq!(
+            session.account_toy_rows_like_cpp(),
+            vec![(30_000, true, false)]
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn toy_clear_fanfare_ignores_unknown_toy_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(ClientOpcodes::ToyClearFanfare as u16);
+        pkt.write_uint32(40_000);
+
+        session.handle_toy_clear_fanfare(pkt).await;
+
+        assert!(session.account_toy_rows_like_cpp().is_empty());
         assert!(send_rx.try_recv().is_err());
     }
 
