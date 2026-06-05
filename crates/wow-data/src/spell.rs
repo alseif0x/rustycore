@@ -116,6 +116,19 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_ACTIVATE_GARRISON_BUILDING: u32 = 224;
     pub const SPELL_EFFECT_TRIGGER_ACTION_SET: u32 = 226;
     pub const SPELL_EFFECT_TELEPORT_TO_LFG_DUNGEON: u32 = 227;
+    pub const SPELL_EFFECT_228: u32 = 228;
+    pub const SPELL_EFFECT_SET_FOLLOWER_QUALITY: u32 = 229;
+    pub const SPELL_EFFECT_230: u32 = 230;
+    pub const SPELL_EFFECT_INCREASE_FOLLOWER_EXPERIENCE: u32 = 231;
+    pub const SPELL_EFFECT_REMOVE_PHASE: u32 = 232;
+    pub const SPELL_EFFECT_RANDOMIZE_FOLLOWER_ABILITIES: u32 = 233;
+    pub const SPELL_EFFECT_234: u32 = 234;
+    pub const SPELL_EFFECT_235: u32 = 235;
+    pub const SPELL_EFFECT_INCREASE_SKILL: u32 = 238;
+    pub const SPELL_EFFECT_END_GARRISON_BUILDING_CONSTRUCTION: u32 = 239;
+    pub const SPELL_EFFECT_GIVE_ARTIFACT_POWER: u32 = 240;
+    pub const SPELL_EFFECT_241: u32 = 241;
+    pub const SPELL_EFFECT_GIVE_ARTIFACT_POWER_NO_BONUS: u32 = 242;
     pub const SPELL_EFFECT_TELEPORT_UNITS: u32 = 252;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_PARTY_NONRANDOM: u32 = 271;
 
@@ -194,6 +207,19 @@ pub mod spell_effect_types {
                 | SPELL_EFFECT_ACTIVATE_GARRISON_BUILDING
                 | SPELL_EFFECT_TRIGGER_ACTION_SET
                 | SPELL_EFFECT_TELEPORT_TO_LFG_DUNGEON
+                | SPELL_EFFECT_228
+                | SPELL_EFFECT_SET_FOLLOWER_QUALITY
+                | SPELL_EFFECT_230
+                | SPELL_EFFECT_INCREASE_FOLLOWER_EXPERIENCE
+                | SPELL_EFFECT_REMOVE_PHASE
+                | SPELL_EFFECT_RANDOMIZE_FOLLOWER_ABILITIES
+                | SPELL_EFFECT_234
+                | SPELL_EFFECT_235
+                | SPELL_EFFECT_INCREASE_SKILL
+                | SPELL_EFFECT_END_GARRISON_BUILDING_CONSTRUCTION
+                | SPELL_EFFECT_GIVE_ARTIFACT_POWER
+                | SPELL_EFFECT_241
+                | SPELL_EFFECT_GIVE_ARTIFACT_POWER_NO_BONUS
         )
     }
 }
@@ -1021,6 +1047,31 @@ mod tests {
             spell_effect_types::SPELL_EFFECT_TELEPORT_TO_LFG_DUNGEON,
             227
         );
+        assert_eq!(spell_effect_types::SPELL_EFFECT_228, 228);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_SET_FOLLOWER_QUALITY, 229);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_230, 230);
+        assert_eq!(
+            spell_effect_types::SPELL_EFFECT_INCREASE_FOLLOWER_EXPERIENCE,
+            231
+        );
+        assert_eq!(spell_effect_types::SPELL_EFFECT_REMOVE_PHASE, 232);
+        assert_eq!(
+            spell_effect_types::SPELL_EFFECT_RANDOMIZE_FOLLOWER_ABILITIES,
+            233
+        );
+        assert_eq!(spell_effect_types::SPELL_EFFECT_234, 234);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_235, 235);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_INCREASE_SKILL, 238);
+        assert_eq!(
+            spell_effect_types::SPELL_EFFECT_END_GARRISON_BUILDING_CONSTRUCTION,
+            239
+        );
+        assert_eq!(spell_effect_types::SPELL_EFFECT_GIVE_ARTIFACT_POWER, 240);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_241, 241);
+        assert_eq!(
+            spell_effect_types::SPELL_EFFECT_GIVE_ARTIFACT_POWER_NO_BONUS,
+            242
+        );
     }
 
     #[test]
@@ -1094,6 +1145,19 @@ mod tests {
             spell_effect_types::SPELL_EFFECT_ACTIVATE_GARRISON_BUILDING,
             spell_effect_types::SPELL_EFFECT_TRIGGER_ACTION_SET,
             spell_effect_types::SPELL_EFFECT_TELEPORT_TO_LFG_DUNGEON,
+            spell_effect_types::SPELL_EFFECT_228,
+            spell_effect_types::SPELL_EFFECT_SET_FOLLOWER_QUALITY,
+            spell_effect_types::SPELL_EFFECT_230,
+            spell_effect_types::SPELL_EFFECT_INCREASE_FOLLOWER_EXPERIENCE,
+            spell_effect_types::SPELL_EFFECT_REMOVE_PHASE,
+            spell_effect_types::SPELL_EFFECT_RANDOMIZE_FOLLOWER_ABILITIES,
+            spell_effect_types::SPELL_EFFECT_234,
+            spell_effect_types::SPELL_EFFECT_235,
+            spell_effect_types::SPELL_EFFECT_INCREASE_SKILL,
+            spell_effect_types::SPELL_EFFECT_END_GARRISON_BUILDING_CONSTRUCTION,
+            spell_effect_types::SPELL_EFFECT_GIVE_ARTIFACT_POWER,
+            spell_effect_types::SPELL_EFFECT_241,
+            spell_effect_types::SPELL_EFFECT_GIVE_ARTIFACT_POWER_NO_BONUS,
         ] {
             assert!(
                 spell_effect_types::is_cpp_null_or_unused_noop(effect),

@@ -42837,6 +42837,8 @@ mod tests {
                     wow_data::spell::spell_effect_types::SPELL_EFFECT_194,
                     wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_SUMMONS,
                     wow_data::spell::spell_effect_types::SPELL_EFFECT_209,
+                    wow_data::spell::spell_effect_types::SPELL_EFFECT_235,
+                    wow_data::spell::spell_effect_types::SPELL_EFFECT_241,
                 ]
                 .into_iter()
                 .enumerate()
@@ -43026,6 +43028,50 @@ mod tests {
             (
                 794_i32,
                 wow_data::spell::spell_effect_types::SPELL_EFFECT_TELEPORT_TO_LFG_DUNGEON,
+            ),
+            (
+                795_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_228,
+            ),
+            (
+                796_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_SET_FOLLOWER_QUALITY,
+            ),
+            (
+                797_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_230,
+            ),
+            (
+                798_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_INCREASE_FOLLOWER_EXPERIENCE,
+            ),
+            (
+                799_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_REMOVE_PHASE,
+            ),
+            (
+                800_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_RANDOMIZE_FOLLOWER_ABILITIES,
+            ),
+            (
+                801_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_234,
+            ),
+            (
+                802_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_INCREASE_SKILL,
+            ),
+            (
+                803_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_END_GARRISON_BUILDING_CONSTRUCTION,
+            ),
+            (
+                804_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_GIVE_ARTIFACT_POWER,
+            ),
+            (
+                805_i32,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_GIVE_ARTIFACT_POWER_NO_BONUS,
             ),
         ];
         for (spell_id, effect_type) in primary_noop_spells {
