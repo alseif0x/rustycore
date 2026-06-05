@@ -2183,6 +2183,7 @@ impl WorldSession {
         self.save_account_toys_like_cpp().await;
         self.save_account_heirlooms_like_cpp().await;
         self.save_account_item_appearances_like_cpp().await;
+        self.save_account_transmog_illusions_like_cpp().await;
 
         if let Some(player_guid) = self.player_guid() {
             self.close_active_loot_windows_like_cpp(player_guid);
@@ -2438,6 +2439,34 @@ impl WorldSession {
         }
     }
 
+    async fn save_account_transmog_illusions_like_cpp(&self) {
+        let Some(login_db) = self.login_db().map(Arc::clone) else {
+            return;
+        };
+        let plan = self.account_transmog_illusion_save_plan_like_cpp();
+        if plan.is_empty() {
+            return;
+        }
+
+        let bnet_account_id = self.battlenet_account_id();
+        let mut tx = SqlTransaction::new();
+        for (block_index, illusion_mask) in plan.illusion_blocks {
+            let mut stmt = login_db.prepare(LoginStatements::INS_BNET_TRANSMOG_ILLUSIONS);
+            stmt.set_u32(0, bnet_account_id);
+            stmt.set_u32(1, block_index);
+            stmt.set_u32(2, illusion_mask);
+            tx.append(stmt);
+        }
+
+        if let Err(error) = login_db.commit_transaction(tx).await {
+            warn!(
+                account = self.account_id,
+                bnet_account = bnet_account_id,
+                "Failed to save account transmog illusions: {error}"
+            );
+        }
+    }
+
     /// Handle ConnectToFailed — client couldn't connect to instance port.
     ///
     /// Retry with the next serial, or fall back to direct login if all retries
@@ -2557,6 +2586,7 @@ impl WorldSession {
         self.load_account_toys_like_cpp().await;
         self.load_account_heirlooms_like_cpp().await;
         self.load_account_item_appearances_like_cpp().await;
+        self.load_account_transmog_illusions_like_cpp().await;
         let account_mounts = self.load_account_mounts_like_cpp().await;
 
         // Load equipped items for visible display + inventory objects
@@ -9320,6 +9350,45 @@ impl WorldSession {
             appearance_blocks,
             favorite_appearances,
         );
+    }
+
+    async fn load_account_transmog_illusions_like_cpp(&mut self) {
+        let Some(login_db) = self.login_db() else {
+            self.load_represented_account_transmog_illusions_like_cpp([]);
+            return;
+        };
+
+        let bnet_account_id = self.battlenet_account_id();
+        let mut stmt = login_db.prepare(LoginStatements::SEL_BNET_TRANSMOG_ILLUSIONS);
+        stmt.set_u32(0, bnet_account_id);
+        let illusion_blocks = match login_db.query(&stmt).await {
+            Ok(mut result) => {
+                let mut blocks = Vec::new();
+                if !result.is_empty() {
+                    loop {
+                        let block_index = result.try_read::<i32>(0).unwrap_or(0);
+                        let illusion_mask = result.try_read::<u32>(1).unwrap_or(0);
+                        if let Ok(block_index) = u32::try_from(block_index) {
+                            blocks.push((block_index, illusion_mask));
+                        }
+                        if !result.next_row() {
+                            break;
+                        }
+                    }
+                }
+                blocks
+            }
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    bnet_account = bnet_account_id,
+                    "Failed to load account transmog illusions: {error}"
+                );
+                Vec::new()
+            }
+        };
+
+        self.load_represented_account_transmog_illusions_like_cpp(illusion_blocks);
     }
 
     /// Send the player login packet sequence to the client.

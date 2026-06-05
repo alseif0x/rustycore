@@ -1456,6 +1456,27 @@ impl AccountItemAppearanceSavePlanLikeCpp {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub(crate) struct AccountTransmogIllusionSavePlanLikeCpp {
+    pub(crate) illusion_blocks: Vec<(u32, u32)>,
+}
+
+impl AccountTransmogIllusionSavePlanLikeCpp {
+    pub(crate) fn is_empty(&self) -> bool {
+        self.illusion_blocks.is_empty()
+    }
+}
+
+const DEFAULT_TRANSMOG_ILLUSIONS_LIKE_CPP: [u32; 7] = [
+    3,  // Lifestealing
+    13, // Crusader
+    22, // Striking
+    23, // Agility
+    34, // Hide Weapon Enchant
+    43, // Beastslayer
+    44, // Titanguard
+];
+
 fn heirloom_bonus_for_flags_like_cpp(heirloom: &HeirloomEntry, flags: u32) -> u32 {
     for upgrade_level in (0..heirloom.upgrade_item_id.len()).rev() {
         if flags & (1_u32 << upgrade_level) != 0 {
@@ -2664,6 +2685,8 @@ pub struct WorldSession {
     /// C++ `CollectionMgr::_favoriteAppearances`, represented until account collection persistence is ported.
     pub(crate) represented_favorite_item_appearances_like_cpp:
         HashMap<u32, FavoriteAppearanceStateLikeCpp>,
+    /// C++ `CollectionMgr::_transmogIllusions`, represented until account collection runtime is complete.
+    pub(crate) represented_transmog_illusions_like_cpp: HashSet<u32>,
     /// Session-local evidence for represented `Player::RemoveTimedQuest` calls.
     pub(crate) represented_timed_quest_removals_like_cpp: Vec<u32>,
     /// Session-local evidence for represented quest reward `Player::UpdateSkillPro` calls.
@@ -3552,6 +3575,7 @@ impl WorldSession {
             represented_item_appearances_like_cpp: HashSet::new(),
             represented_temporary_item_appearances_like_cpp: HashMap::new(),
             represented_favorite_item_appearances_like_cpp: HashMap::new(),
+            represented_transmog_illusions_like_cpp: HashSet::new(),
             represented_timed_quest_removals_like_cpp: Vec::new(),
             represented_quest_reward_skill_updates_like_cpp: Vec::new(),
             represented_quest_reward_spell_casts_like_cpp: Vec::new(),
@@ -8870,6 +8894,56 @@ impl WorldSession {
             favorite_appearances,
             new_appearances: Vec::new(),
         });
+    }
+
+    /// C++ `CollectionMgr::LoadAccountTransmogIllusions`.
+    pub(crate) fn load_represented_account_transmog_illusions_like_cpp(
+        &mut self,
+        known_illusion_blocks: impl IntoIterator<Item = (u32, u32)>,
+    ) {
+        self.represented_transmog_illusions_like_cpp.clear();
+
+        for (block_index, illusion_mask) in known_illusion_blocks {
+            for bit_index in 0..32 {
+                if (illusion_mask & (1_u32 << bit_index)) != 0 {
+                    self.represented_transmog_illusions_like_cpp
+                        .insert(block_index * 32 + bit_index);
+                }
+            }
+        }
+
+        for illusion_id in DEFAULT_TRANSMOG_ILLUSIONS_LIKE_CPP {
+            self.represented_transmog_illusions_like_cpp
+                .insert(illusion_id);
+        }
+    }
+
+    /// C++ `CollectionMgr::HasTransmogIllusion`.
+    #[allow(dead_code)]
+    pub(crate) fn has_transmog_illusion_like_cpp(&self, transmog_illusion_id: u32) -> bool {
+        self.represented_transmog_illusions_like_cpp
+            .contains(&transmog_illusion_id)
+    }
+
+    /// C++ `CollectionMgr::SaveAccountTransmogIllusions`.
+    pub(crate) fn account_transmog_illusion_save_plan_like_cpp(
+        &self,
+    ) -> AccountTransmogIllusionSavePlanLikeCpp {
+        let mut blocks = BTreeMap::<u32, u32>::new();
+        for &illusion_id in &self.represented_transmog_illusions_like_cpp {
+            let block_index = illusion_id / 32;
+            let bit_index = illusion_id % 32;
+            if let Some(flag) = 1_u32.checked_shl(bit_index) {
+                *blocks.entry(block_index).or_default() |= flag;
+            }
+        }
+
+        AccountTransmogIllusionSavePlanLikeCpp {
+            illusion_blocks: blocks
+                .into_iter()
+                .filter(|(_, illusion_mask)| *illusion_mask != 0)
+                .collect(),
+        }
     }
 
     #[cfg(test)]
@@ -52780,6 +52854,45 @@ mod tests {
             session.represented_favorite_item_appearance_state_like_cpp(97),
             Some(FavoriteAppearanceStateLikeCpp::Unchanged)
         );
+    }
+
+    #[test]
+    fn load_account_transmog_illusions_includes_static_defaults_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.represented_transmog_illusions_like_cpp.insert(999);
+
+        session.load_represented_account_transmog_illusions_like_cpp([
+            (0, 1_u32 << 1),
+            (2, 1_u32 << 3),
+        ]);
+
+        assert!(session.has_transmog_illusion_like_cpp(1));
+        assert!(session.has_transmog_illusion_like_cpp(67));
+        for illusion_id in DEFAULT_TRANSMOG_ILLUSIONS_LIKE_CPP {
+            assert!(session.has_transmog_illusion_like_cpp(illusion_id));
+        }
+        assert!(!session.has_transmog_illusion_like_cpp(999));
+    }
+
+    #[test]
+    fn account_transmog_illusion_save_plan_writes_non_empty_blocks_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.load_represented_account_transmog_illusions_like_cpp([(2, 1_u32 << 3)]);
+
+        let plan = session.account_transmog_illusion_save_plan_like_cpp();
+
+        assert_eq!(
+            plan.illusion_blocks,
+            vec![
+                (
+                    0,
+                    (1_u32 << 3) | (1_u32 << 13) | (1_u32 << 22) | (1_u32 << 23),
+                ),
+                (1, (1_u32 << 2) | (1_u32 << 11) | (1_u32 << 12)),
+                (2, 1_u32 << 3),
+            ]
+        );
+        assert!(!plan.is_empty());
     }
 
     #[test]
