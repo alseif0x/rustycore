@@ -24173,6 +24173,13 @@ impl WorldSession {
                     self.apply_health_leech_like_cpp(direct_effect_base_points, target_guid)
                         .await?;
                 }
+                x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_QUEST_COMPLETE => {
+                    self.apply_quest_complete_effect_like_cpp(
+                        target_guid,
+                        direct_effect_misc_value_1,
+                    )
+                    .await?;
+                }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_KILL_CREDIT => {
                     self.apply_kill_credit_effect_like_cpp(
                         target_guid,
@@ -24276,6 +24283,7 @@ impl WorldSession {
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL_MAX_HEALTH
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL_PCT
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEALTH_LEECH
+                || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_QUEST_COMPLETE
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_KILL_CREDIT
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_KILL_CREDIT2
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_BIND
@@ -25452,6 +25460,72 @@ impl WorldSession {
         if effective_damage > 0 && self.player_alive_like_cpp {
             self.apply_heal(player_guid, effective_damage).await?;
         }
+        Ok(())
+    }
+
+    async fn apply_quest_complete_effect_like_cpp(
+        &mut self,
+        target_guid: ObjectGuid,
+        quest_id: i32,
+    ) -> Result<(), &'static str> {
+        const QUEST_FLAGS_TRACKING_EVENT_LIKE_CPP_LOCAL: u32 = 0x0000_0400;
+
+        let player_guid = self.player_guid().ok_or("No player GUID")?;
+        if target_guid != player_guid {
+            return Ok(());
+        }
+
+        let Ok(quest_id) = u32::try_from(quest_id) else {
+            debug!(
+                account = self.account_id,
+                "Skipping represented quest-complete spell effect with negative MiscValue"
+            );
+            return Ok(());
+        };
+        if quest_id == 0 {
+            return Ok(());
+        }
+
+        let Some(quest) = self
+            .quest_store
+            .as_deref()
+            .and_then(|store| store.get(quest_id))
+            .cloned()
+        else {
+            return Ok(());
+        };
+
+        let mut should_send_event_complete = false;
+        let quest_is_in_log = if let Some(status) = self.player_quests.get_mut(&quest_id) {
+            if !status.explored && status.status != crate::conditions::QUEST_STATUS_FAILED_LIKE_CPP
+            {
+                status.explored = true;
+                should_send_event_complete = true;
+            }
+            true
+        } else {
+            false
+        };
+
+        if quest_is_in_log {
+            if should_send_event_complete {
+                self.send_packet(&wow_packet::packets::quest::QuestUpdateComplete { quest_id });
+            }
+            self.complete_represented_quest_after_add_if_ready_like_cpp(&quest)
+                .await;
+        } else if (quest.flags & QUEST_FLAGS_TRACKING_EVENT_LIKE_CPP_LOCAL) != 0 {
+            self.rewarded_quests.insert(quest_id);
+            let quest_bit = self
+                .quest_v2_store
+                .as_deref()
+                .map(|store| store.get_quest_unique_bit_flag_like_cpp(quest_id))
+                .unwrap_or(0);
+            if quest_bit != 0 {
+                self.set_loaded_quest_completed_bit_like_cpp(quest_bit);
+            }
+            self.sync_player_registry_state_like_cpp();
+        }
+
         Ok(())
     }
 
@@ -42408,6 +42482,275 @@ mod tests {
                 ServerOpcodes::QuestUpdateComplete,
                 ServerOpcodes::CooldownEvent,
             ]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_quest_complete_effect_marks_active_event_quest_complete_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 745_i32;
+        let player_guid = ObjectGuid::create_player(1, 62);
+        let quest_id = 12_542;
+        let mut quest = test_quest_template(quest_id);
+        quest.flags |= 0x0000_0002; // C++ QUEST_FLAGS_COMPLETION_EVENT.
+        session.set_player_guid(Some(player_guid));
+        session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
+            [quest],
+        )));
+        session.player_quests.insert(
+            quest_id,
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![],
+                slot: 0,
+            },
+        );
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_QUEST_COMPLETE,
+                    effect_misc_value_1: quest_id as i32,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("represented quest-complete spell row should execute");
+
+        let status = session
+            .player_quests
+            .get(&quest_id)
+            .expect("non-tracking quest remains in log");
+        assert!(status.explored);
+        assert_eq!(
+            status.status,
+            crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP
+        );
+        assert!(!session.rewarded_quests.contains(&quest_id));
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![
+                ServerOpcodes::SpellGo,
+                ServerOpcodes::QuestUpdateComplete,
+                ServerOpcodes::CooldownEvent,
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_quest_complete_effect_auto_rewards_active_tracking_event_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 746_i32;
+        let player_guid = ObjectGuid::create_player(1, 63);
+        let quest_id = 12_543;
+        let mut quest = test_quest_template(quest_id);
+        quest.flags |= 0x0000_0002; // C++ QUEST_FLAGS_COMPLETION_EVENT.
+        quest.flags |= 0x0000_0400; // C++ QUEST_FLAGS_TRACKING_EVENT.
+        session.set_player_guid(Some(player_guid));
+        session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
+            [quest],
+        )));
+        session.player_quests.insert(
+            quest_id,
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![],
+                slot: 0,
+            },
+        );
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_QUEST_COMPLETE,
+                    effect_misc_value_1: quest_id as i32,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("represented tracking quest-complete spell row should execute");
+
+        assert!(!session.player_quests.contains_key(&quest_id));
+        assert!(session.rewarded_quests.contains(&quest_id));
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![
+                ServerOpcodes::SpellGo,
+                ServerOpcodes::QuestUpdateComplete,
+                ServerOpcodes::QuestGiverQuestComplete,
+                ServerOpcodes::QuestUpdateComplete,
+                ServerOpcodes::CooldownEvent,
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_quest_complete_effect_rewards_unlogged_tracking_event_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 747_i32;
+        let player_guid = ObjectGuid::create_player(1, 64);
+        let quest_id = 12_544;
+        let mut quest = test_quest_template(quest_id);
+        quest.flags |= 0x0000_0400; // C++ QUEST_FLAGS_TRACKING_EVENT.
+        session.set_player_guid(Some(player_guid));
+        session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
+            [quest],
+        )));
+        session.set_quest_v2_store(Arc::new(QuestV2Store::from_entries([
+            wow_data::progression_rewards::QuestV2Entry {
+                id: quest_id,
+                unique_bit_flag: 65,
+            },
+        ])));
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_QUEST_COMPLETE,
+                    effect_misc_value_1: quest_id as i32,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("represented unlogged tracking quest-complete spell row should execute");
+
+        assert!(session.rewarded_quests.contains(&quest_id));
+        assert!(
+            session
+                .represented_quest_completed_bits_like_cpp
+                .contains(&65)
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_quest_complete_effect_keeps_failed_active_quest_unchanged_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 748_i32;
+        let player_guid = ObjectGuid::create_player(1, 65);
+        let quest_id = 12_545;
+        let mut quest = test_quest_template(quest_id);
+        quest.flags |= 0x0000_0002; // C++ QUEST_FLAGS_COMPLETION_EVENT.
+        session.set_player_guid(Some(player_guid));
+        session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
+            [quest],
+        )));
+        session.player_quests.insert(
+            quest_id,
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_FAILED_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![],
+                slot: 0,
+            },
+        );
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_QUEST_COMPLETE,
+                    effect_misc_value_1: quest_id as i32,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("represented failed quest-complete spell row should execute as no-op");
+
+        let status = session.player_quests.get(&quest_id).expect("quest remains");
+        assert!(!status.explored);
+        assert_eq!(
+            status.status,
+            crate::conditions::QUEST_STATUS_FAILED_LIKE_CPP
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
         );
     }
 

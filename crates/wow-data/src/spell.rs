@@ -30,6 +30,7 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_HEALTH_LEECH: u32 = 9;
     pub const SPELL_EFFECT_HEAL: u32 = 10;
     pub const SPELL_EFFECT_BIND: u32 = 11;
+    pub const SPELL_EFFECT_QUEST_COMPLETE: u32 = 16;
     pub const SPELL_EFFECT_PERSISTENT_AREA_AURA: u32 = 27;
     /// C++ `SPELL_EFFECT_SUMMON_OBJECT_WILD`; see
     /// `Spell::EffectSummonObjectWild` (`SpellEffects.cpp:2937-2986`).
@@ -775,6 +776,7 @@ mod tests {
         assert_eq!(spell_effect_types::SPELL_EFFECT_HEALTH_LEECH, 9);
         assert_eq!(spell_effect_types::SPELL_EFFECT_HEAL, 10);
         assert_eq!(spell_effect_types::SPELL_EFFECT_BIND, 11);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_QUEST_COMPLETE, 16);
         assert_eq!(spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_PARTY, 35);
         assert_eq!(spell_effect_types::SPELL_EFFECT_HEAL_MAX_HEALTH, 67);
         assert_eq!(spell_effect_types::SPELL_EFFECT_HEAL_MECHANICAL, 75);
