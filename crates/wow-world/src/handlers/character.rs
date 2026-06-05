@@ -2180,6 +2180,7 @@ impl WorldSession {
         self.clear_buyback_on_logout().await;
         self.save_current_player_to_db_like_cpp().await;
         self.save_account_mounts_like_cpp().await;
+        self.save_account_item_appearances_like_cpp().await;
 
         if let Some(player_guid) = self.player_guid() {
             self.close_active_loot_windows_like_cpp(player_guid);
@@ -2349,6 +2350,46 @@ impl WorldSession {
                     "Failed to save account mount flags: {error}"
                 );
             }
+        }
+    }
+
+    async fn save_account_item_appearances_like_cpp(&mut self) {
+        let Some(login_db) = self.login_db().map(Arc::clone) else {
+            return;
+        };
+        let plan = self.account_item_appearance_save_plan_like_cpp();
+        if plan.is_empty() {
+            return;
+        }
+
+        let bnet_account_id = self.battlenet_account_id();
+        let mut tx = SqlTransaction::new();
+        for (block_index, appearance_mask) in plan.appearance_blocks {
+            let mut stmt = login_db.prepare(LoginStatements::INS_BNET_ITEM_APPEARANCES);
+            stmt.set_u32(0, bnet_account_id);
+            stmt.set_u32(1, block_index);
+            stmt.set_u32(2, appearance_mask);
+            tx.append(stmt);
+        }
+        for item_modified_appearance_id in plan.favorite_inserts {
+            let mut stmt = login_db.prepare(LoginStatements::INS_BNET_ITEM_FAVORITE_APPEARANCE);
+            stmt.set_u32(0, bnet_account_id);
+            stmt.set_u32(1, item_modified_appearance_id);
+            tx.append(stmt);
+        }
+        for item_modified_appearance_id in plan.favorite_deletes {
+            let mut stmt = login_db.prepare(LoginStatements::DEL_BNET_ITEM_FAVORITE_APPEARANCE);
+            stmt.set_u32(0, bnet_account_id);
+            stmt.set_u32(1, item_modified_appearance_id);
+            tx.append(stmt);
+        }
+
+        if let Err(error) = login_db.commit_transaction(tx).await {
+            warn!(
+                account = self.account_id,
+                bnet_account = bnet_account_id,
+                "Failed to save account item appearances: {error}"
+            );
         }
     }
 
@@ -3047,6 +3088,7 @@ impl WorldSession {
 
         // Load active quests from characters DB
         self.load_player_quests().await;
+        self.load_account_item_appearances_like_cpp().await;
         let account_mounts = self.load_account_mounts_like_cpp().await;
 
         self.send_login_sequence(
@@ -9011,6 +9053,79 @@ impl WorldSession {
         mounts
     }
 
+    async fn load_account_item_appearances_like_cpp(&mut self) {
+        let Some(login_db) = self.login_db() else {
+            self.load_represented_account_item_appearances_like_cpp([], []);
+            return;
+        };
+
+        let bnet_account_id = self.battlenet_account_id();
+        let mut appearance_stmt = login_db.prepare(LoginStatements::SEL_BNET_ITEM_APPEARANCES);
+        appearance_stmt.set_u32(0, bnet_account_id);
+        let appearance_blocks = match login_db.query(&appearance_stmt).await {
+            Ok(mut result) => {
+                let mut blocks = Vec::new();
+                if !result.is_empty() {
+                    loop {
+                        let block_index = result.try_read::<i32>(0).unwrap_or(0);
+                        let appearance_mask = result.try_read::<u32>(1).unwrap_or(0);
+                        if let Ok(block_index) = u32::try_from(block_index) {
+                            blocks.push((block_index, appearance_mask));
+                        }
+                        if !result.next_row() {
+                            break;
+                        }
+                    }
+                }
+                blocks
+            }
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    bnet_account = bnet_account_id,
+                    "Failed to load account item appearances: {error}"
+                );
+                Vec::new()
+            }
+        };
+
+        let mut favorite_stmt =
+            login_db.prepare(LoginStatements::SEL_BNET_ITEM_FAVORITE_APPEARANCES);
+        favorite_stmt.set_u32(0, bnet_account_id);
+        let favorite_appearances = match login_db.query(&favorite_stmt).await {
+            Ok(mut result) => {
+                let mut favorites = Vec::new();
+                if !result.is_empty() {
+                    loop {
+                        let item_modified_appearance_id = result.try_read::<i32>(0).unwrap_or(0);
+                        if let Ok(item_modified_appearance_id) =
+                            u32::try_from(item_modified_appearance_id)
+                        {
+                            favorites.push(item_modified_appearance_id);
+                        }
+                        if !result.next_row() {
+                            break;
+                        }
+                    }
+                }
+                favorites
+            }
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    bnet_account = bnet_account_id,
+                    "Failed to load account favorite item appearances: {error}"
+                );
+                Vec::new()
+            }
+        };
+
+        self.load_represented_account_item_appearances_like_cpp(
+            appearance_blocks,
+            favorite_appearances,
+        );
+    }
+
     /// Send the player login packet sequence to the client.
     ///
     /// Follows the exact C# RustyCore order:
@@ -9153,10 +9268,15 @@ impl WorldSession {
         // 24. AccountToyUpdate (empty, full update)
         self.send_packet(&AccountToyUpdate);
 
-        // 25. InitialSetup (expansion level)
+        // TODO(port): C++ sends AccountHeirloomUpdate here before favorite appearances.
+
+        // 25. AccountTransmogUpdate favorite appearances
+        self.send_favorite_appearances_like_cpp();
+
+        // 26. InitialSetup (expansion level)
         self.send_packet(&InitialSetup::wotlk());
 
-        // 25b. MoveSetActiveMover — CRITICAL: tells the client which unit it
+        // 26b. MoveSetActiveMover — CRITICAL: tells the client which unit it
         //      controls for movement. Without this, `m_mover` is null and the
         //      client crashes with ACCESS_VIOLATION when processing movement.
         //      C# sends via SetMovedUnit(this) at Player.cs line 5610.

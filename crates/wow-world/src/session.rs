@@ -1424,6 +1424,21 @@ pub(crate) enum FavoriteAppearanceStateLikeCpp {
     Unchanged,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub(crate) struct AccountItemAppearanceSavePlanLikeCpp {
+    pub(crate) appearance_blocks: Vec<(u32, u32)>,
+    pub(crate) favorite_inserts: Vec<u32>,
+    pub(crate) favorite_deletes: Vec<u32>,
+}
+
+impl AccountItemAppearanceSavePlanLikeCpp {
+    pub(crate) fn is_empty(&self) -> bool {
+        self.appearance_blocks.is_empty()
+            && self.favorite_inserts.is_empty()
+            && self.favorite_deletes.is_empty()
+    }
+}
+
 pub type SharedObjectAccessor = Arc<RwLock<ObjectAccessor>>;
 pub(crate) const SKILL_FISHING_LIKE_CPP: u16 = 356;
 pub(crate) const SKILL_RIDING_LIKE_CPP: u16 = 762;
@@ -8068,6 +8083,101 @@ impl WorldSession {
         }
 
         (false, false)
+    }
+
+    /// C++ `CollectionMgr::LoadAccountItemAppearances`.
+    pub(crate) fn load_represented_account_item_appearances_like_cpp(
+        &mut self,
+        known_appearance_blocks: impl IntoIterator<Item = (u32, u32)>,
+        favorite_appearances: impl IntoIterator<Item = u32>,
+    ) {
+        self.represented_item_appearances_like_cpp.clear();
+        self.represented_favorite_item_appearances_like_cpp.clear();
+
+        let mut blocks = BTreeMap::new();
+        for (block_index, appearance_mask) in known_appearance_blocks {
+            if appearance_mask != 0 {
+                blocks.insert(block_index, appearance_mask);
+            }
+        }
+
+        for (&block_index, &appearance_mask) in &blocks {
+            for bit_index in 0..32 {
+                if (appearance_mask & (1_u32 << bit_index)) != 0 {
+                    self.represented_item_appearances_like_cpp
+                        .insert(block_index * 32 + bit_index);
+                }
+            }
+        }
+
+        if let Some((&highest_block, _)) = blocks.iter().next_back() {
+            self.mutate_canonical_player_like_cpp(|player| {
+                while player.transmog_blocks_like_cpp().len() <= highest_block as usize {
+                    player.add_transmog_block_like_cpp(0);
+                }
+
+                for (&block_index, &appearance_mask) in &blocks {
+                    if appearance_mask != 0 {
+                        player.add_transmog_flag_like_cpp(block_index as usize, appearance_mask);
+                    }
+                }
+            });
+        }
+
+        for item_modified_appearance_id in favorite_appearances {
+            self.represented_favorite_item_appearances_like_cpp.insert(
+                item_modified_appearance_id,
+                FavoriteAppearanceStateLikeCpp::Unchanged,
+            );
+        }
+    }
+
+    /// C++ `CollectionMgr::SaveAccountItemAppearances`.
+    pub(crate) fn account_item_appearance_save_plan_like_cpp(
+        &mut self,
+    ) -> AccountItemAppearanceSavePlanLikeCpp {
+        let mut blocks = BTreeMap::<u32, u32>::new();
+        for &item_modified_appearance_id in &self.represented_item_appearances_like_cpp {
+            let block_index = item_modified_appearance_id / 32;
+            let bit_index = item_modified_appearance_id % 32;
+            if let Some(flag) = 1_u32.checked_shl(bit_index) {
+                *blocks.entry(block_index).or_default() |= flag;
+            }
+        }
+
+        let mut favorite_inserts = Vec::new();
+        let mut favorite_deletes = Vec::new();
+        let favorite_states = self
+            .represented_favorite_item_appearances_like_cpp
+            .iter()
+            .map(|(&appearance, &state)| (appearance, state))
+            .collect::<BTreeMap<_, _>>();
+        for (item_modified_appearance_id, state) in favorite_states {
+            match state {
+                FavoriteAppearanceStateLikeCpp::New => {
+                    favorite_inserts.push(item_modified_appearance_id);
+                    self.represented_favorite_item_appearances_like_cpp.insert(
+                        item_modified_appearance_id,
+                        FavoriteAppearanceStateLikeCpp::Unchanged,
+                    );
+                }
+                FavoriteAppearanceStateLikeCpp::Removed => {
+                    favorite_deletes.push(item_modified_appearance_id);
+                    self.represented_favorite_item_appearances_like_cpp
+                        .remove(&item_modified_appearance_id);
+                }
+                FavoriteAppearanceStateLikeCpp::Unchanged => {}
+            }
+        }
+
+        AccountItemAppearanceSavePlanLikeCpp {
+            appearance_blocks: blocks
+                .into_iter()
+                .filter(|(_, appearance_mask)| *appearance_mask != 0)
+                .collect(),
+            favorite_inserts,
+            favorite_deletes,
+        }
     }
 
     /// C++ `CollectionMgr::SetAppearanceIsFavorite`.
@@ -50694,6 +50804,73 @@ mod tests {
         assert!(session.set_appearance_is_favorite_like_cpp(96, true));
         assert_eq!(
             session.represented_favorite_item_appearance_state_like_cpp(96),
+            Some(FavoriteAppearanceStateLikeCpp::Unchanged)
+        );
+    }
+
+    #[test]
+    fn load_account_item_appearances_rebuilds_blocks_and_favorites_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.represented_item_appearances_like_cpp.insert(999);
+        session
+            .represented_favorite_item_appearances_like_cpp
+            .insert(998, FavoriteAppearanceStateLikeCpp::New);
+
+        session.load_represented_account_item_appearances_like_cpp(
+            [(2, 1_u32), (0, (1_u32 << 1) | (1_u32 << 31)), (1, 0_u32)],
+            [65, 96],
+        );
+
+        assert_eq!(
+            session.represented_item_appearances_like_cpp,
+            HashSet::from([1, 31, 64])
+        );
+        assert_eq!(
+            session.represented_favorite_item_appearance_state_like_cpp(65),
+            Some(FavoriteAppearanceStateLikeCpp::Unchanged)
+        );
+        assert_eq!(
+            session.represented_favorite_item_appearance_state_like_cpp(96),
+            Some(FavoriteAppearanceStateLikeCpp::Unchanged)
+        );
+        assert_eq!(
+            session.represented_favorite_item_appearance_state_like_cpp(998),
+            None
+        );
+    }
+
+    #[test]
+    fn account_item_appearance_save_plan_matches_collection_mgr_state_transitions_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.represented_item_appearances_like_cpp = HashSet::from([1, 31, 64]);
+        session
+            .represented_favorite_item_appearances_like_cpp
+            .insert(65, FavoriteAppearanceStateLikeCpp::New);
+        session
+            .represented_favorite_item_appearances_like_cpp
+            .insert(96, FavoriteAppearanceStateLikeCpp::Removed);
+        session
+            .represented_favorite_item_appearances_like_cpp
+            .insert(97, FavoriteAppearanceStateLikeCpp::Unchanged);
+
+        let plan = session.account_item_appearance_save_plan_like_cpp();
+
+        assert_eq!(
+            plan.appearance_blocks,
+            vec![(0, (1_u32 << 1) | (1_u32 << 31)), (2, 1_u32)]
+        );
+        assert_eq!(plan.favorite_inserts, vec![65]);
+        assert_eq!(plan.favorite_deletes, vec![96]);
+        assert_eq!(
+            session.represented_favorite_item_appearance_state_like_cpp(65),
+            Some(FavoriteAppearanceStateLikeCpp::Unchanged)
+        );
+        assert_eq!(
+            session.represented_favorite_item_appearance_state_like_cpp(96),
+            None
+        );
+        assert_eq!(
+            session.represented_favorite_item_appearance_state_like_cpp(97),
             Some(FavoriteAppearanceStateLikeCpp::Unchanged)
         );
     }
