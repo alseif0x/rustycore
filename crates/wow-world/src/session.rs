@@ -1479,6 +1479,7 @@ const DEFAULT_TRANSMOG_ILLUSIONS_LIKE_CPP: [u32; 7] = [
 
 pub(crate) const BATTLE_PET_FLAG_FANFARE_NEEDED_LIKE_CPP: u16 = 0x01;
 pub(crate) const BATTLE_PET_FLAGS_CONTROL_TYPE_APPLY_LIKE_CPP: u8 = 1;
+pub(crate) const BATTLE_PET_SLOT_COUNT_LIKE_CPP: usize = 3;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RepresentedBattlePetSaveInfoLikeCpp {
@@ -2708,6 +2709,9 @@ pub struct WorldSession {
         HashMap<ObjectGuid, RepresentedBattlePetDataLikeCpp>,
     /// C++ `BattlePetMgr::_hasJournalLock`, represented until full battle-pet runtime is ported.
     pub(crate) represented_battle_pet_journal_lock_like_cpp: bool,
+    /// C++ `BattlePetMgr::_slots`, represented minimally by slotted pet guid.
+    pub(crate) represented_battle_pet_slots_like_cpp:
+        [Option<ObjectGuid>; BATTLE_PET_SLOT_COUNT_LIKE_CPP],
     /// Session-local evidence for represented `Player::RemoveTimedQuest` calls.
     pub(crate) represented_timed_quest_removals_like_cpp: Vec<u32>,
     /// Session-local evidence for represented quest reward `Player::UpdateSkillPro` calls.
@@ -3599,6 +3603,7 @@ impl WorldSession {
             represented_transmog_illusions_like_cpp: HashSet::new(),
             represented_battle_pets_like_cpp: HashMap::new(),
             represented_battle_pet_journal_lock_like_cpp: false,
+            represented_battle_pet_slots_like_cpp: [None; BATTLE_PET_SLOT_COUNT_LIKE_CPP],
             represented_timed_quest_removals_like_cpp: Vec::new(),
             represented_quest_reward_skill_updates_like_cpp: Vec::new(),
             represented_quest_reward_spell_casts_like_cpp: Vec::new(),
@@ -15598,6 +15603,9 @@ impl WorldSession {
             ClientOpcodes::BattlePetSetFlags => {
                 self.handle_battle_pet_set_flags(pkt).await;
             }
+            ClientOpcodes::BattlePetSetBattleSlot => {
+                self.handle_battle_pet_set_battle_slot(pkt).await;
+            }
             ClientOpcodes::ArenaTeamRoster => {
                 self.handle_arena_team_roster(pkt).await;
             }
@@ -17842,6 +17850,36 @@ impl WorldSession {
             pet.save_info = RepresentedBattlePetSaveInfoLikeCpp::Changed;
         }
         true
+    }
+
+    /// C++ `WorldSession::HandleBattlePetSetBattleSlot`.
+    pub(crate) fn battle_pet_set_battle_slot_like_cpp(
+        &mut self,
+        pet_guid: ObjectGuid,
+        slot: u8,
+    ) -> bool {
+        if !self
+            .represented_battle_pets_like_cpp
+            .contains_key(&pet_guid)
+        {
+            return false;
+        }
+
+        let Some(slot_ref) = self
+            .represented_battle_pet_slots_like_cpp
+            .get_mut(slot as usize)
+        else {
+            return false;
+        };
+        *slot_ref = Some(pet_guid);
+        true
+    }
+
+    pub(crate) fn represented_battle_pet_slot_like_cpp(&self, slot: u8) -> Option<ObjectGuid> {
+        self.represented_battle_pet_slots_like_cpp
+            .get(slot as usize)
+            .copied()
+            .flatten()
     }
 
     pub(crate) fn represented_battle_pet_like_cpp(
@@ -52580,6 +52618,40 @@ mod tests {
             0x01,
             BATTLE_PET_FLAGS_CONTROL_TYPE_APPLY_LIKE_CPP
         ));
+    }
+
+    #[test]
+    fn battle_pet_set_battle_slot_assigns_known_pet_to_valid_slot_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let pet_guid = ObjectGuid::new(0, 0x129);
+        let other_guid = ObjectGuid::new(0, 0x12a);
+        let unknown_guid = ObjectGuid::new(0, 0x12b);
+
+        session.add_represented_battle_pet_like_cpp(
+            pet_guid,
+            0,
+            RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+        );
+        session.add_represented_battle_pet_like_cpp(
+            other_guid,
+            0,
+            RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+        );
+
+        assert!(session.battle_pet_set_battle_slot_like_cpp(pet_guid, 2));
+        assert_eq!(
+            session.represented_battle_pet_slot_like_cpp(2),
+            Some(pet_guid)
+        );
+
+        assert!(!session.battle_pet_set_battle_slot_like_cpp(unknown_guid, 1));
+        assert_eq!(session.represented_battle_pet_slot_like_cpp(1), None);
+
+        assert!(!session.battle_pet_set_battle_slot_like_cpp(other_guid, 3));
+        assert_eq!(
+            session.represented_battle_pet_slot_like_cpp(2),
+            Some(pet_guid)
+        );
     }
 
     #[test]

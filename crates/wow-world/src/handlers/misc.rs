@@ -36,8 +36,9 @@ use wow_packet::packets::item::{
 };
 use wow_packet::packets::loot::{LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHING_LIKE_CPP};
 use wow_packet::packets::misc::{
-    AddToy, BattlePetClearFanfare, BattlePetSetFlags, FarSight, MountSetFavorite, RatedPvpInfo,
-    RequestCemeteryListResponse, TaxiNodeStatusPkt, ToyClearFanfare, UseToy,
+    AddToy, BattlePetClearFanfare, BattlePetSetBattleSlot, BattlePetSetFlags, FarSight,
+    MountSetFavorite, RatedPvpInfo, RequestCemeteryListResponse, TaxiNodeStatusPkt,
+    ToyClearFanfare, UseToy,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -420,6 +421,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_battle_pet_set_flags",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::BattlePetSetBattleSlot,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_battle_pet_set_battle_slot",
     }
 }
 
@@ -1429,6 +1439,24 @@ impl crate::session::WorldSession {
         }
 
         self.battle_pet_set_flags_like_cpp(request.pet_guid, request.flags, request.control_type);
+    }
+
+    /// CMSG_BATTLE_PET_SET_BATTLE_SLOT — assign an owned pet to a battle slot.
+    ///
+    /// C++ silently ignores unknown pets and invalid slots.
+    pub async fn handle_battle_pet_set_battle_slot(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let request = match BattlePetSetBattleSlot::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "BattlePetSetBattleSlot parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        self.battle_pet_set_battle_slot_like_cpp(request.pet_guid, request.slot);
     }
     pub async fn handle_arena_team_roster(&mut self, _pkt: wow_packet::WorldPacket) {}
     pub async fn handle_request_raid_info(&mut self, _pkt: wow_packet::WorldPacket) {
@@ -3065,6 +3093,14 @@ mod tests {
         pkt
     }
 
+    fn battle_pet_set_battle_slot_packet(pet_guid: ObjectGuid, slot: u8) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(ClientOpcodes::BattlePetSetBattleSlot as u16);
+        pkt.write_packed_guid(&pet_guid);
+        pkt.write_uint8(slot);
+        pkt
+    }
+
     fn battle_pet_request_journal_lock_packet() -> WorldPacket {
         let mut pkt = WorldPacket::new_empty();
         pkt.write_uint16(ClientOpcodes::BattlePetRequestJournalLock as u16);
@@ -3173,6 +3209,32 @@ mod tests {
                 save_info: crate::session::RepresentedBattlePetSaveInfoLikeCpp::Changed,
             })
         );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn battle_pet_set_battle_slot_assigns_known_pet_silently_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let pet_guid = ObjectGuid::new(0, 0x226);
+        let unknown_guid = ObjectGuid::new(0, 0x227);
+        session.add_represented_battle_pet_like_cpp(
+            pet_guid,
+            0,
+            crate::session::RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+        );
+
+        session
+            .handle_battle_pet_set_battle_slot(battle_pet_set_battle_slot_packet(pet_guid, 1))
+            .await;
+        assert_eq!(
+            session.represented_battle_pet_slot_like_cpp(1),
+            Some(pet_guid)
+        );
+
+        session
+            .handle_battle_pet_set_battle_slot(battle_pet_set_battle_slot_packet(unknown_guid, 2))
+            .await;
+        assert_eq!(session.represented_battle_pet_slot_like_cpp(2), None);
         assert!(send_rx.try_recv().is_err());
     }
 

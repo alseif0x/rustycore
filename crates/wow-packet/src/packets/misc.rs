@@ -1676,6 +1676,25 @@ impl ClientPacket for BattlePetRequestJournalLock {
     }
 }
 
+/// C++ `WorldPackets::BattlePet::BattlePetSetBattleSlot`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BattlePetSetBattleSlot {
+    pub pet_guid: ObjectGuid,
+    pub slot: u8,
+}
+
+impl ClientPacket for BattlePetSetBattleSlot {
+    const OPCODE: ClientOpcodes = ClientOpcodes::BattlePetSetBattleSlot;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        pkt.skip_opcode();
+        Ok(Self {
+            pet_guid: pkt.read_packed_guid()?,
+            slot: pkt.read_uint8()?,
+        })
+    }
+}
+
 /// C++ `WorldPackets::BattlePet::BattlePetSetFlags`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BattlePetSetFlags {
@@ -3791,6 +3810,18 @@ mod tests {
             BattlePetRequestJournalLock
         );
         assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn battle_pet_set_battle_slot_reads_cpp_shape() {
+        let pet_guid = ObjectGuid::new(0, 0x4323);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(ClientOpcodes::BattlePetSetBattleSlot as u16);
+        pkt.write_packed_guid(&pet_guid);
+        pkt.write_uint8(2);
+
+        let decoded = BattlePetSetBattleSlot::read(&mut pkt).unwrap();
+        assert_eq!(decoded, BattlePetSetBattleSlot { pet_guid, slot: 2 });
     }
 
     #[test]
