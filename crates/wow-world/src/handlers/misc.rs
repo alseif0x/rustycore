@@ -1441,10 +1441,12 @@ impl crate::session::WorldSession {
     /// CMSG_BATTLE_PET_REQUEST_JOURNAL_LOCK — acquire represented journal lock.
     ///
     /// C++ `HandleBattlePetRequestJournalLock` sends lock status and, when the
-    /// lock is held, sends the journal. Rust does not yet represent the full
-    /// `SMSG_BATTLE_PET_JOURNAL`, so this slice closes the lock-status part.
+    /// lock is held, sends the journal.
     pub async fn handle_battle_pet_request_journal_lock(&mut self, _pkt: wow_packet::WorldPacket) {
         self.send_battle_pet_journal_lock_status_like_cpp();
+        if self.has_represented_battle_pet_journal_lock_like_cpp() {
+            self.send_packet(&BattlePetJournal::empty_with_default_slots(true));
+        }
     }
 
     /// CMSG_BATTLE_PET_CLEAR_FANFARE — clear the account battle-pet fanfare bit.
@@ -3252,7 +3254,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn battle_pet_request_journal_lock_sends_acquired_like_cpp() {
+    async fn battle_pet_request_journal_lock_sends_acquired_then_journal_like_cpp() {
         let (mut session, send_rx) = make_session();
 
         session
@@ -3268,6 +3270,13 @@ mod tests {
             ServerOpcodes::BattlePetJournalLockAcquired as u16
         );
         assert_eq!(bytes.len(), 2);
+
+        let journal_bytes = send_rx.try_recv().expect("battle pet journal packet");
+        assert_eq!(
+            u16::from_le_bytes([journal_bytes[0], journal_bytes[1]]),
+            ServerOpcodes::BattlePetJournal as u16
+        );
+        assert!(send_rx.try_recv().is_err());
     }
 
     #[tokio::test]
