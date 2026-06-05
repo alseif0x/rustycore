@@ -217,13 +217,16 @@ impl ServerPacket for GameObjectDespawn {
     }
 }
 
-// ── CapturePointRemoved (SMSG 0xbadd placeholder) ───────────────────
+// ── CapturePointRemoved (SMSG 0xbadd/UNKNOWN placeholder) ────────────
 
 /// C++ `WorldPackets::Battleground::CapturePointRemoved`.
 ///
 /// The legacy C++ opcode table still marks this battleground packet as
-/// `0xBADD`; keep it distinct from `UpdateCapturePoint` because the payload is
-/// only the removed capture-point GUID.
+/// `0xBADD`; the archived TrinityCore source marks it as `UNKNOWN_OPCODE` too.
+/// Rust cannot model two `ServerOpcodes` enum variants with the same numeric
+/// placeholder, so this serializer intentionally shares the current
+/// `UpdateCapturePoint` placeholder while preserving the distinct packet type
+/// and payload shape.
 pub struct CapturePointRemoved {
     pub capture_point_guid: ObjectGuid,
 }

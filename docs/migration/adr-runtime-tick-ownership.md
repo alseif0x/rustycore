@@ -1553,9 +1553,20 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   existing visual-despawn summary, and has `WorldSession::process_pending` deliver capture-point
   removal before visual despawn. Because `MapManager::update` may drain `DelayedUpdate` before the
   session consumes the summary, deleted GO routing falls back to represented `HaveAtClient` when the
-  canonical record has already been physically removed. Remaining gaps: real non-placeholder
-  `SMSG_CAPTURE_POINT_REMOVED` opcode confirmation, exact ObjectAccessor/cell traversal, DB
-  save/delete effects, and live client/server validation.
+  canonical record has already been physically removed. Follow-up audit `#NEXT.RUNTIME.L3.031e0`
+  confirmed that both the live legacy C++ opcode table and archived TrinityCore source leave
+  `SMSG_CAPTURE_POINT_REMOVED` as `0xBADD`/`UNKNOWN_OPCODE`; Rust therefore keeps the distinct packet
+  type and GUID-only payload without inventing a client opcode. Remaining gaps: exact
+  ObjectAccessor/cell traversal, DB save/delete effects, and live client/server validation.
+- 2026-06-05 — Capture-point removed opcode audit `#NEXT.RUNTIME.L3.031e0`: contrasted
+  `SMSG_CAPTURE_POINT_REMOVED` and `SMSG_UPDATE_CAPTURE_POINT` against legacy C++
+  `Opcodes.h:1920/2152` plus archived TrinityCore `Opcodes.h:1779/1916`. Both sources leave these
+  battleground packets on placeholder/unknown opcodes. Rust's `CapturePointRemoved` serializer keeps
+  a separate packet type and the C++ GUID-only `Write()` payload, but intentionally reuses the only
+  available `ServerOpcodes::UpdateCapturePoint = 0xBADD` placeholder because Rust enums cannot expose
+  duplicate discriminants. This closes the "confirm non-placeholder opcode" TODO as unavailable from
+  current C++ sources; a real opcode would require client-sniff/opcode-table research outside the
+  port source-of-truth.
 - 2026-05-30 — Runtime loop smoke `#NEXT.RUNTIME.L3.032`: added 4B.2a coverage for the real
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
