@@ -24,6 +24,7 @@ use crate::{ConditionEntriesByTypeStore, ConditionsReference};
 /// Spell effect types (from SpellEffectType enum)
 pub mod spell_effect_types {
     pub const SPELL_EFFECT_SCHOOL_DAMAGE: u32 = 2;
+    pub const SPELL_EFFECT_ENVIRONMENTAL_DAMAGE: u32 = 7;
     pub const SPELL_EFFECT_HEAL: u32 = 6;
     pub const SPELL_EFFECT_BIND: u32 = 11;
     pub const SPELL_EFFECT_PERSISTENT_AREA_AURA: u32 = 27;
