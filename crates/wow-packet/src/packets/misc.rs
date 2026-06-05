@@ -6,6 +6,7 @@
 //! Miscellaneous login-sequence packets sent to the client during character login.
 
 use wow_constants::{ClientOpcodes, ServerOpcodes};
+use wow_core::guid::HighGuid;
 use wow_core::{ObjectGuid, Position};
 
 use crate::packets::spell::CastSpellRequest;
@@ -1848,12 +1849,16 @@ pub struct BattlePetJournalSlot {
 impl BattlePetJournalSlot {
     pub fn locked_empty(index: u8) -> Self {
         Self {
-            pet_guid: ObjectGuid::EMPTY,
+            pet_guid: empty_battle_pet_guid_like_cpp(),
             collar_id: 0,
             index,
             locked: true,
         }
     }
+}
+
+pub fn empty_battle_pet_guid_like_cpp() -> ObjectGuid {
+    ObjectGuid::create_global(HighGuid::BattlePet, 0, 0)
 }
 
 /// C++ `WorldPackets::BattlePet::BattlePetJournal`.
@@ -3997,7 +4002,9 @@ mod tests {
         assert!(body.read_bit().unwrap());
 
         for index in 0..3 {
-            assert_eq!(body.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
+            let slot_guid = body.read_packed_guid().unwrap();
+            assert_eq!(slot_guid, empty_battle_pet_guid_like_cpp());
+            assert_eq!(slot_guid.high_type(), HighGuid::BattlePet);
             assert_eq!(body.read_uint32().unwrap(), 0);
             assert_eq!(body.read_uint8().unwrap(), index);
             assert!(body.read_bit().unwrap());

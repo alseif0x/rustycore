@@ -2344,6 +2344,7 @@ mod tests {
     };
     use wow_packet::ServerPacket;
     use wow_packet::WorldPacket;
+    use wow_packet::packets::misc::empty_battle_pet_guid_like_cpp;
 
     #[test]
     fn item_purchase_contents_skip_season_earned_currency_like_cpp() {
@@ -3294,7 +3295,10 @@ mod tests {
         assert_eq!(body.read_uint32().unwrap(), 0);
         assert!(body.read_bit().unwrap());
         for index in 0..3 {
-            assert_eq!(body.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
+            assert_eq!(
+                body.read_packed_guid().unwrap(),
+                empty_battle_pet_guid_like_cpp()
+            );
             assert_eq!(body.read_uint32().unwrap(), 0);
             assert_eq!(body.read_uint8().unwrap(), index);
             assert!(body.read_bit().unwrap());
