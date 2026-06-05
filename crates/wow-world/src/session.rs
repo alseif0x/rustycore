@@ -141,6 +141,12 @@ const MAX_GAMEOBJECT_SLOT_LIKE_CPP: usize = 4;
 const PLAYER_FLAGS_UBER_LIKE_CPP: u32 = 0x0008_0000;
 const PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP: u32 = 0x0000_0100;
 
+fn spell_effect_is_represented_summon_object_slot_like_cpp(effect: u32) -> bool {
+    let slot_base = wow_data::spell::spell_effect_types::SPELL_EFFECT_SUMMON_OBJECT_SLOT1;
+    let slot_end = slot_base + u32::try_from(MAX_GAMEOBJECT_SLOT_LIKE_CPP).unwrap_or(0);
+    (slot_base..slot_end).contains(&effect)
+}
+
 fn quest_has_represented_item_objective_like_cpp(quest: &wow_data::quest::QuestTemplate) -> bool {
     quest
         .objectives
@@ -23746,7 +23752,6 @@ impl WorldSession {
         );
 
         // Send SMSG_SPELL_GO
-        use wow_packet::ServerPacket;
         use wow_packet::packets::spell::SpellGoPkt;
 
         let spell_visual_id = spell_visual.spell_visual_id;
@@ -23776,6 +23781,54 @@ impl WorldSession {
             }
         }
         if force_visibility_after_add_farsight {
+            self.force_update_visibility_like_cpp().await;
+        }
+
+        let mut force_visibility_after_gameobject_summon = false;
+        if spell_info.requires_spell_focus_like_cpp() {
+            if spell_info.effects().iter().any(|effect| {
+                effect.effect
+                    == wow_data::spell::spell_effect_types::SPELL_EFFECT_SUMMON_OBJECT_WILD
+                    || spell_effect_is_represented_summon_object_slot_like_cpp(effect.effect)
+            }) {
+                debug!(
+                    account = self.account_id,
+                    spell_id = spell_id,
+                    requires_spell_focus = spell_info.requires_spell_focus,
+                    "Skipping live GameObject summon until C++ SearchSpellFocus/focusObject is represented"
+                );
+            }
+        } else {
+            for effect in spell_info.effects() {
+                if let Some(outcome) =
+                    self.apply_effect_summon_object_wild_like_cpp(spell_id, effect, &target_data)
+                {
+                    if outcome.map_outcome.as_ref().is_some_and(|map_outcome| {
+                        map_outcome.status
+                            == wow_map::map::SpellEffectSummonObjectWildStatusLikeCpp::CreatedAddedToMap
+                    }) {
+                        force_visibility_after_gameobject_summon = true;
+                    }
+                    continue;
+                }
+
+                if spell_effect_is_represented_summon_object_slot_like_cpp(effect.effect) {
+                    if let Some(outcome) = self.apply_effect_summon_object_slot_like_cpp(
+                        spell_id,
+                        effect,
+                        &target_data,
+                    ) {
+                        if outcome.map_outcome.as_ref().is_some_and(|map_outcome| {
+                            map_outcome.status
+                                == wow_map::map::GameObjectSummonObjectForOwnerSlotStatusLikeCpp::CreatedAddedAndSlotted
+                        }) {
+                            force_visibility_after_gameobject_summon = true;
+                        }
+                    }
+                }
+            }
+        }
+        if force_visibility_after_gameobject_summon {
             self.force_update_visibility_like_cpp().await;
         }
 
@@ -28630,6 +28683,63 @@ mod tests {
         }
     }
 
+    fn gameobject_summon_spell_info_like_cpp(
+        spell_id: i32,
+        requires_spell_focus: u32,
+        effects: Vec<wow_data::SpellEffectInfo>,
+    ) -> wow_data::SpellInfo {
+        wow_data::SpellInfo {
+            spell_id,
+            cast_time_ms: 0,
+            cooldown_ms: 0,
+            recovery_time_ms: 0,
+            effect_type: 0,
+            effect_base_points: 0,
+            effect_bonus_coefficient: 0.0,
+            aura_type: None,
+            display_flags: 0,
+            requires_spell_focus,
+            effects,
+        }
+    }
+
+    fn configure_gameobject_summon_live_session_like_cpp(
+        session: &mut WorldSession,
+        canonical: &SharedCanonicalMapManager,
+        player_guid: ObjectGuid,
+        player_position: Position,
+        template_store: Arc<wow_data::GameObjectTemplateLifecycleStoreLikeCpp>,
+        spell_info: wow_data::SpellInfo,
+    ) {
+        session.set_canonical_map_manager(Arc::clone(canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "Summoner".to_string(),
+            player_position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map(canonical, player_guid, player_position, 571, 0);
+        session.set_gameobject_template_lifecycle_store(template_store);
+        session.set_spell_misc_store(Arc::new(wow_data::SpellMiscStore::from_entries([
+            summon_go_spell_misc_entry_like_cpp(spell_info.spell_id as u32, 0),
+        ])));
+        session.set_spell_duration_store(Arc::new(wow_data::SpellDurationStore::from_entries([
+            wow_data::SpellDurationEntry {
+                id: 0,
+                duration: 0,
+                duration_per_level: 0,
+                max_duration: 0,
+            },
+        ])));
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(spell_info.spell_id, spell_info);
+        session.set_spell_store(Arc::new(spell_store));
+    }
+
     fn target_data_with_destination_like_cpp(position: Position) -> SpellTargetData {
         SpellTargetData {
             dst_location: Some(wow_packet::packets::spell::TargetLocation {
@@ -28985,6 +29095,205 @@ mod tests {
             )
         );
         assert_eq!(go.spell_id(), spell_id);
+    }
+
+    #[tokio::test]
+    async fn summon_object_wild_live_spell_without_focus_creates_visible_gameobject_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 702_i32;
+        let template_entry = 9003_u32;
+        let player_guid = ObjectGuid::create_player(1, 7004);
+        let player_position = Position::new(100.0, 200.0, 30.0, 0.0);
+        let canonical = shared_canonical_map_manager();
+        configure_gameobject_summon_live_session_like_cpp(
+            &mut session,
+            &canonical,
+            player_guid,
+            player_position,
+            summon_go_template_store_like_cpp(template_entry),
+            gameobject_summon_spell_info_like_cpp(
+                spell_id,
+                0,
+                vec![summon_object_wild_effect_like_cpp(
+                    i32::try_from(template_entry).unwrap(),
+                )],
+            ),
+        );
+
+        session
+            .execute_spell_with_visual_and_target_data(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual {
+                    spell_visual_id: 702,
+                    script_visual_id: 0,
+                },
+                SpellTargetData::default(),
+            )
+            .await
+            .expect("live non-focus wild GameObject summon should execute");
+
+        let summoned_guid = session
+            .client_visible_guids_like_cpp
+            .iter()
+            .copied()
+            .find(ObjectGuid::is_game_object)
+            .expect("force visibility should make the newly summoned GameObject visible");
+        let manager = canonical.lock().unwrap();
+        let managed = manager.find_map(571, 0).expect("canonical map");
+        assert_eq!(managed.map().map_object_count(), 2);
+        let gameobject = managed
+            .map()
+            .get_typed_game_object(summoned_guid)
+            .expect("visible summoned GO should be map-owned");
+        assert_eq!(gameobject.world().object().entry(), template_entry);
+        assert_eq!(
+            gameobject.world().position(),
+            Position::new(
+                player_position.x + wow_map::map::DEFAULT_PLAYER_BOUNDING_RADIUS_LIKE_CPP,
+                player_position.y,
+                player_position.z,
+                player_position.orientation
+            )
+        );
+        drop(manager);
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert!(
+            update_object_packet_count_like_cpp(&packets) >= 1,
+            "live summon should trigger represented visibility create/update delivery"
+        );
+    }
+
+    #[tokio::test]
+    async fn summon_object_slot_live_spell_without_focus_creates_visible_slotted_go_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 703_i32;
+        let template_entry = 9004_u32;
+        let player_guid = ObjectGuid::create_player(1, 7005);
+        let player_position = Position::new(120.0, 220.0, 32.0, 0.0);
+        let canonical = shared_canonical_map_manager();
+        configure_gameobject_summon_live_session_like_cpp(
+            &mut session,
+            &canonical,
+            player_guid,
+            player_position,
+            summon_go_template_store_like_cpp(template_entry),
+            gameobject_summon_spell_info_like_cpp(
+                spell_id,
+                0,
+                vec![summon_object_slot_effect_like_cpp(
+                    i32::try_from(template_entry).unwrap(),
+                    0,
+                )],
+            ),
+        );
+
+        session
+            .execute_spell_with_visual_and_target_data(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual {
+                    spell_visual_id: 703,
+                    script_visual_id: 0,
+                },
+                SpellTargetData::default(),
+            )
+            .await
+            .expect("live non-focus slotted GameObject summon should execute");
+
+        let summoned_guid = session
+            .client_visible_guids_like_cpp
+            .iter()
+            .copied()
+            .find(ObjectGuid::is_game_object)
+            .expect("force visibility should make the newly slotted GameObject visible");
+        let manager = canonical.lock().unwrap();
+        let managed = manager.find_map(571, 0).expect("canonical map");
+        let owner = managed
+            .map()
+            .get_typed_player(player_guid)
+            .expect("player remains slot owner");
+        assert_eq!(
+            owner.unit().subsystems().control.gameobject_slots[0],
+            summoned_guid
+        );
+        let gameobject = managed
+            .map()
+            .get_typed_game_object(summoned_guid)
+            .expect("visible slotted GO should be map-owned");
+        assert_eq!(gameobject.world().object().entry(), template_entry);
+        drop(manager);
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert!(
+            update_object_packet_count_like_cpp(&packets) >= 1,
+            "live slotted summon should trigger represented visibility create/update delivery"
+        );
+    }
+
+    #[tokio::test]
+    async fn summon_object_live_spell_requires_focus_waits_for_search_spell_focus_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 704_i32;
+        let template_entry = 9005_u32;
+        let player_guid = ObjectGuid::create_player(1, 7006);
+        let player_position = Position::new(140.0, 240.0, 34.0, 0.0);
+        let canonical = shared_canonical_map_manager();
+        configure_gameobject_summon_live_session_like_cpp(
+            &mut session,
+            &canonical,
+            player_guid,
+            player_position,
+            summon_go_template_store_like_cpp(template_entry),
+            gameobject_summon_spell_info_like_cpp(
+                spell_id,
+                181,
+                vec![
+                    summon_object_wild_effect_like_cpp(i32::try_from(template_entry).unwrap()),
+                    summon_object_slot_effect_like_cpp(i32::try_from(template_entry).unwrap(), 0),
+                ],
+            ),
+        );
+
+        session
+            .execute_spell_with_visual_and_target_data(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual {
+                    spell_visual_id: 704,
+                    script_visual_id: 0,
+                },
+                SpellTargetData::default(),
+            )
+            .await
+            .expect("represented spell loop should not fail the cast without SearchSpellFocus");
+
+        assert!(
+            session
+                .client_visible_guids_like_cpp
+                .iter()
+                .copied()
+                .all(|guid| !guid.is_game_object()),
+            "focus-required summons must not fabricate a caster-based GO before SearchSpellFocus is ported"
+        );
+        let manager = canonical.lock().unwrap();
+        let managed = manager.find_map(571, 0).expect("canonical map");
+        assert_eq!(
+            managed.map().map_object_count(),
+            1,
+            "only the canonical player should exist while focusObject is unrepresented"
+        );
+        drop(manager);
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(
+            update_object_packet_count_like_cpp(&packets),
+            0,
+            "focus-required guarded summon must not send a fabricated GameObject create"
+        );
     }
 
     #[test]
