@@ -42,8 +42,8 @@ use wow_constants::unit::{
 };
 use wow_constants::{
     BagFamilyMask, BuyResult, ClientOpcodes, InventoryResult, InventoryType, ItemBondingType,
-    ItemClass, ItemContext, ItemEnchantmentType, ItemFlags, ItemFlags2, ItemQuality, SellResult,
-    SpellCastResult, TypeId, UnitState,
+    ItemClass, ItemContext, ItemEnchantmentType, ItemFlags, ItemFlags2, ItemFlags3, ItemQuality,
+    ItemSubClassArmor, ItemSubClassWeapon, SellResult, SpellCastResult, TypeId, UnitState,
 };
 use wow_core::{ObjectGuid, ObjectGuidGenerator, Position};
 use wow_data::{
@@ -57,8 +57,8 @@ use wow_data::{
     ItemExtendedCostStore, ItemLimitCategoryConditionStore, ItemLimitCategoryStore,
     ItemModifiedAppearanceStore, ItemPriceBaseStore, ItemRandomEnchantmentTemplateStore,
     ItemRandomPropertiesStore, ItemRandomPropertyTemplateEntry, ItemRandomSuffixStore,
-    ItemStatsStore, ItemStore, LfgDungeonsStore, LockStore, MapDifficultyStore,
-    MapDifficultyXConditionStore, MapStore, MountCapabilityStore, MountStore,
+    ItemSearchNameStore, ItemStatsStore, ItemStore, LfgDungeonsStore, LockStore,
+    MapDifficultyStore, MapDifficultyXConditionStore, MapStore, MountCapabilityStore, MountStore,
     MountTypeXCapabilityStore, MountXDisplayStore, MovieStore, NpcSpellClickStoreLikeCpp,
     PhaseGroupStore, PhaseStore, PlayerConditionAuraLikeCpp, PlayerConditionContextLikeCpp,
     PlayerConditionCountLikeCpp, PlayerConditionPartyStatusLikeCpp,
@@ -2039,6 +2039,9 @@ pub struct WorldSession {
     // Item modified appearance store (ItemModifiedAppearance.db2 data)
     item_modified_appearance_store: Option<Arc<ItemModifiedAppearanceStore>>,
 
+    // Item search-name store (ItemSearchName.db2 data)
+    item_search_name_store: Option<Arc<ItemSearchNameStore>>,
+
     // Transmog set item store (TransmogSetItem.db2 data)
     transmog_set_item_store: Option<Arc<TransmogSetItemStore>>,
 
@@ -3110,6 +3113,42 @@ fn is_represented_bag_slot(slot: u8) -> bool {
         || (REAGENT_BAG_SLOT_START..REAGENT_BAG_SLOT_END).contains(&slot)
 }
 
+fn player_class_mask_for_transmog_like_cpp(class_id: u8) -> u32 {
+    if class_id == 0 || class_id > 32 {
+        0
+    } else {
+        1_u32 << u32::from(class_id - 1)
+    }
+}
+
+fn player_class_by_armor_subclass_like_cpp(subclass: u32) -> u32 {
+    match subclass {
+        x if x == ItemSubClassArmor::Miscellaneous as u32 => 0x0FFF,
+        x if x == ItemSubClassArmor::Cloth as u32 => {
+            (1 << (5 - 1)) | (1 << (8 - 1)) | (1 << (9 - 1))
+        }
+        x if x == ItemSubClassArmor::Leather as u32 => {
+            (1 << (4 - 1)) | (1 << (10 - 1)) | (1 << (11 - 1)) | (1 << (12 - 1))
+        }
+        x if x == ItemSubClassArmor::Mail as u32 => (1 << (3 - 1)) | (1 << (7 - 1)),
+        x if x == ItemSubClassArmor::Plate as u32 => {
+            (1 << (1 - 1)) | (1 << (2 - 1)) | (1 << (6 - 1))
+        }
+        x if x == ItemSubClassArmor::Cosmetic as u32 => 0x0FFF,
+        x if x == ItemSubClassArmor::Shield as u32 => {
+            (1 << (1 - 1)) | (1 << (2 - 1)) | (1 << (7 - 1))
+        }
+        x if x == ItemSubClassArmor::Libram as u32 => 1 << (2 - 1),
+        x if x == ItemSubClassArmor::Idol as u32 => 1 << (11 - 1),
+        x if x == ItemSubClassArmor::Totem as u32 => 1 << (7 - 1),
+        x if x == ItemSubClassArmor::Sigil as u32 => 1 << (6 - 1),
+        x if x == ItemSubClassArmor::Relic as u32 => {
+            (1 << (2 - 1)) | (1 << (6 - 1)) | (1 << (7 - 1)) | (1 << (11 - 1))
+        }
+        _ => 0,
+    }
+}
+
 impl WorldSession {
     /// Create a new session with the given account info and channels.
     pub fn new(
@@ -3155,6 +3194,7 @@ impl WorldSession {
             item_store: None,
             item_appearance_store: None,
             item_modified_appearance_store: None,
+            item_search_name_store: None,
             transmog_set_item_store: None,
             item_price_base_store: None,
             item_limit_category_store: None,
@@ -7635,6 +7675,16 @@ impl WorldSession {
         self.item_modified_appearance_store.as_ref()
     }
 
+    /// Set the item search-name store for this session.
+    pub fn set_item_search_name_store(&mut self, store: Arc<ItemSearchNameStore>) {
+        self.item_search_name_store = Some(store);
+    }
+
+    /// Get the item search-name store reference.
+    pub fn item_search_name_store(&self) -> Option<&Arc<ItemSearchNameStore>> {
+        self.item_search_name_store.as_ref()
+    }
+
     /// Set the transmog set item store for this session.
     pub fn set_transmog_set_item_store(&mut self, store: Arc<TransmogSetItemStore>) {
         self.transmog_set_item_store = Some(store);
@@ -7733,7 +7783,157 @@ impl WorldSession {
     ) -> Option<wow_entities::PlayerValuesUpdate> {
         let item_modified_appearance_id =
             self.item_modified_appearance_for_item(item_id, appearance_mod_id)?;
+        if !self.can_add_item_appearance_represented_like_cpp(item_modified_appearance_id) {
+            return None;
+        }
         self.add_item_appearance_like_cpp(item_modified_appearance_id)
+    }
+
+    /// Bounded C++ `CollectionMgr::CanAddAppearance`.
+    ///
+    /// This covers the DB2/template, represented `CanUseItem` class/proficiency,
+    /// transmog source, quality/flags, item class/subclass/inventory and duplicate
+    /// gates that Rust currently represents. Full `Player::CanUseItem` remains
+    /// wider than this helper.
+    pub fn can_add_item_appearance_represented_like_cpp(
+        &self,
+        item_modified_appearance_id: u32,
+    ) -> bool {
+        let Some(item_modified_appearance) = self
+            .item_modified_appearance_store
+            .as_ref()
+            .and_then(|store| store.get(item_modified_appearance_id))
+        else {
+            return false;
+        };
+
+        if matches!(item_modified_appearance.transmog_source_type_enum, 6 | 9) {
+            return false;
+        }
+
+        let Ok(item_id) = u32::try_from(item_modified_appearance.item_id) else {
+            return false;
+        };
+        if self
+            .item_search_name_store
+            .as_ref()
+            .and_then(|store| store.get(item_id))
+            .is_none()
+        {
+            return false;
+        }
+
+        let Some(item_record) = self
+            .item_store
+            .as_ref()
+            .and_then(|store| store.get(item_id))
+        else {
+            return false;
+        };
+        let Some(sparse_template) = self
+            .item_stats_store
+            .as_ref()
+            .and_then(|store| store.sparse_template(item_id))
+        else {
+            return false;
+        };
+        let Some(template) = self.item_storage_template(item_id) else {
+            return false;
+        };
+        if self.player_guid().is_none() {
+            return false;
+        }
+
+        let player_class_mask =
+            player_class_mask_for_transmog_like_cpp(self.player_class_like_cpp());
+        if sparse_template.allowable_class != 0
+            && (u32::try_from(sparse_template.allowable_class).unwrap_or(0) & player_class_mask)
+                == 0
+        {
+            return false;
+        }
+
+        let flags2 = sparse_template.flags[1];
+        let flags3 = sparse_template.flags[2];
+        if (flags2 & ItemFlags2::NoSourceForItemVisual as u32) != 0 {
+            return false;
+        }
+        let Some(quality) = self.item_template_quality(item_id) else {
+            return false;
+        };
+        if quality == ItemQuality::Artifact as i8 {
+            return false;
+        }
+
+        match template.class_id {
+            ItemClass::Weapon => {
+                let subclass = u32::from(item_record.subclass_id);
+                if subclass >= 32 {
+                    return false;
+                }
+                let weapon_proficiency =
+                    wow_packet::packets::misc::SetProficiency::default_weapons(
+                        self.player_class_like_cpp(),
+                    )
+                    .proficiency_mask;
+                if (weapon_proficiency & (1_u32 << subclass)) == 0 {
+                    return false;
+                }
+                if matches!(
+                    subclass,
+                    x if x == ItemSubClassWeapon::Exotic as u32
+                        || x == ItemSubClassWeapon::Exotic2 as u32
+                        || x == ItemSubClassWeapon::Miscellaneous as u32
+                        || x == ItemSubClassWeapon::Thrown as u32
+                        || x == ItemSubClassWeapon::Spear as u32
+                        || x == ItemSubClassWeapon::FishingPole as u32
+                ) {
+                    return false;
+                }
+            }
+            ItemClass::Armor => {
+                let subclass = u32::from(item_record.subclass_id);
+                match template.inventory_type {
+                    InventoryType::Body
+                    | InventoryType::Shield
+                    | InventoryType::Cloak
+                    | InventoryType::Tabard
+                    | InventoryType::Holdable => {}
+                    InventoryType::Head
+                    | InventoryType::Shoulders
+                    | InventoryType::Chest
+                    | InventoryType::Waist
+                    | InventoryType::Legs
+                    | InventoryType::Feet
+                    | InventoryType::Wrists
+                    | InventoryType::Hands
+                    | InventoryType::Robe => {
+                        if subclass == ItemSubClassArmor::Miscellaneous as u32 {
+                            return false;
+                        }
+                    }
+                    _ => return false,
+                }
+
+                if template.inventory_type != InventoryType::Cloak
+                    && (player_class_by_armor_subclass_like_cpp(subclass) & player_class_mask) == 0
+                {
+                    return false;
+                }
+            }
+            _ => return false,
+        }
+
+        if quality < ItemQuality::Uncommon as i8
+            && ((flags2 & ItemFlags2::IgnoreQualityForItemVisualSource as u32) == 0
+                || (flags3 & ItemFlags3::ActsAsTransmogHiddenVisualOption as u32) == 0)
+        {
+            return false;
+        }
+
+        !self
+            .represented_item_appearances_like_cpp
+            .contains(&item_modified_appearance_id)
     }
 
     /// Bounded direct-item part of C++ `Player::_LoadQuestStatusRewarded`.
@@ -26446,9 +26646,10 @@ mod tests {
         ItemLimitCategoryEntry, ItemLimitCategoryStore, ItemModifiedAppearanceEntry,
         ItemModifiedAppearanceStore, ItemPriceBaseEntry, ItemPriceBaseStore,
         ItemRandomPropertyTemplateEntry, ItemRandomSuffixEntry, ItemRandomSuffixStore, ItemRecord,
-        ItemSparseTemplateEntry, ItemStatsStore, ItemStore, LockEntry, LockStore,
-        PlayerConditionEntry, PlayerConditionStore, SpellItemEnchantmentEntry,
-        SpellItemEnchantmentStore, TransmogSetEntry, TransmogSetItemEntry, TransmogSetItemStore,
+        ItemSearchNameEntry, ItemSearchNameStore, ItemSparseTemplateEntry, ItemStatsStore,
+        ItemStore, LockEntry, LockStore, PlayerConditionEntry, PlayerConditionStore,
+        SpellItemEnchantmentEntry, SpellItemEnchantmentStore, TransmogSetEntry,
+        TransmogSetItemEntry, TransmogSetItemStore,
         progression_rewards::{FactionEntry, FactionStore},
         reputation::ReputationFlagsLikeCpp,
     };
@@ -49604,6 +49805,129 @@ mod tests {
         assert!(session.add_item_appearance_like_cpp(65).is_none());
     }
 
+    fn install_transmog_can_add_test_item(
+        session: &mut WorldSession,
+        item_id: u32,
+        class_id: ItemClass,
+        subclass_id: u8,
+        inventory_type: InventoryType,
+        quality: ItemQuality,
+        flags: [u32; 4],
+        allowable_class: i16,
+    ) {
+        install_transmog_can_add_test_items(
+            session,
+            [(
+                item_id,
+                class_id,
+                subclass_id,
+                inventory_type,
+                quality,
+                flags,
+                allowable_class,
+            )],
+        );
+    }
+
+    fn install_transmog_can_add_test_items<const N: usize>(
+        session: &mut WorldSession,
+        items: [(
+            u32,
+            ItemClass,
+            u8,
+            InventoryType,
+            ItemQuality,
+            [u32; 4],
+            i16,
+        ); N],
+    ) {
+        session.set_item_store(Arc::new(ItemStore::from_records(
+            items.iter().copied().map(
+                |(item_id, class_id, subclass_id, inventory_type, _, _, _)| ItemRecord {
+                    id: item_id,
+                    class_id: class_id as u8,
+                    subclass_id,
+                    material: 0,
+                    inventory_type: inventory_type as i8,
+                    sheathe_type: 0,
+                    random_select: 0,
+                    random_suffix_group_id: 0,
+                },
+            ),
+        )));
+        session.set_item_search_name_store(Arc::new(ItemSearchNameStore::from_entries(
+            items
+                .iter()
+                .copied()
+                .map(
+                    |(item_id, _, _, _, quality, flags, allowable_class)| ItemSearchNameEntry {
+                        id: item_id,
+                        allowable_race: 0,
+                        display: String::new(),
+                        overall_quality_id: quality as u8,
+                        expansion_id: 0,
+                        min_faction_id: 0,
+                        min_reputation: 0,
+                        allowable_class: i32::from(allowable_class),
+                        required_level: 0,
+                        required_skill: 0,
+                        required_skill_rank: 0,
+                        required_ability: 0,
+                        item_level: 1,
+                        flags: flags.map(|flag| flag as i32),
+                    },
+                ),
+        )));
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                items.iter().copied().map(
+                    |(item_id, _, _, inventory_type, _, flags, allowable_class)| {
+                        (
+                            item_id,
+                            ItemSparseTemplateEntry {
+                                flags,
+                                bag_family: 0,
+                                start_quest_id: 0,
+                                stackable: 1,
+                                max_count: 0,
+                                lock_id: 0,
+                                required_reputation_rank: 0,
+                                sell_price: 0,
+                                buy_price: 0,
+                                vendor_stack_count: 1,
+                                price_variance: 0.0,
+                                price_random_value: 0.0,
+                                max_durability: 0,
+                                limit_category: 0,
+                                instance_bound: 0,
+                                zone_bound: [0, 0],
+                                required_reputation_faction: 0,
+                                allowable_class,
+                                required_expansion: 0,
+                                bonding: ItemBondingType::None as u8,
+                                container_slots: 0,
+                                inventory_type: inventory_type as i8,
+                            },
+                        )
+                    },
+                ),
+                items
+                    .iter()
+                    .copied()
+                    .map(|(item_id, _, _, inventory_type, quality, _, _)| {
+                        (
+                            item_id,
+                            ItemRandomPropertyTemplateEntry {
+                                item_level: 1,
+                                quality: quality as i8,
+                                inventory_type: inventory_type as i8,
+                            },
+                        )
+                    }),
+            ),
+        ));
+    }
+
     #[test]
     fn add_item_appearance_for_item_resolves_modified_appearance_like_cpp() {
         let (mut session, _, _) = make_session();
@@ -49632,6 +49956,16 @@ mod tests {
                 transmog_source_type_enum: 0,
             }]),
         ));
+        install_transmog_can_add_test_item(
+            &mut session,
+            777,
+            ItemClass::Weapon,
+            ItemSubClassWeapon::Sword as u8,
+            InventoryType::Weapon,
+            ItemQuality::Uncommon,
+            [0, 0, 0, 0],
+            0,
+        );
         session.mutate_canonical_player_like_cpp(|player| player.clear_data_changes());
 
         let update = session
@@ -49653,6 +49987,183 @@ mod tests {
                 .add_item_appearance_for_item_like_cpp(778, 2)
                 .is_none()
         );
+    }
+
+    #[test]
+    fn can_add_item_appearance_represented_applies_cpp_gates() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 79);
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TransmogCanAddTester".to_string(),
+            Position::new(0.0, 0.0, 0.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_item_modified_appearance_store(Arc::new(
+            ItemModifiedAppearanceStore::from_entries([
+                ItemModifiedAppearanceEntry {
+                    id: 65,
+                    item_id: 777,
+                    item_appearance_modifier_id: 0,
+                    item_appearance_id: 9_000,
+                    order_index: 0,
+                    transmog_source_type_enum: 0,
+                },
+                ItemModifiedAppearanceEntry {
+                    id: 66,
+                    item_id: 778,
+                    item_appearance_modifier_id: 0,
+                    item_appearance_id: 9_001,
+                    order_index: 0,
+                    transmog_source_type_enum: 6,
+                },
+                ItemModifiedAppearanceEntry {
+                    id: 67,
+                    item_id: 779,
+                    item_appearance_modifier_id: 0,
+                    item_appearance_id: 9_002,
+                    order_index: 0,
+                    transmog_source_type_enum: 0,
+                },
+                ItemModifiedAppearanceEntry {
+                    id: 68,
+                    item_id: 780,
+                    item_appearance_modifier_id: 0,
+                    item_appearance_id: 9_003,
+                    order_index: 0,
+                    transmog_source_type_enum: 0,
+                },
+                ItemModifiedAppearanceEntry {
+                    id: 69,
+                    item_id: 781,
+                    item_appearance_modifier_id: 0,
+                    item_appearance_id: 9_004,
+                    order_index: 0,
+                    transmog_source_type_enum: 0,
+                },
+                ItemModifiedAppearanceEntry {
+                    id: 70,
+                    item_id: 782,
+                    item_appearance_modifier_id: 0,
+                    item_appearance_id: 9_005,
+                    order_index: 0,
+                    transmog_source_type_enum: 0,
+                },
+                ItemModifiedAppearanceEntry {
+                    id: 71,
+                    item_id: 783,
+                    item_appearance_modifier_id: 0,
+                    item_appearance_id: 9_006,
+                    order_index: 0,
+                    transmog_source_type_enum: 0,
+                },
+                ItemModifiedAppearanceEntry {
+                    id: 72,
+                    item_id: 784,
+                    item_appearance_modifier_id: 0,
+                    item_appearance_id: 9_007,
+                    order_index: 0,
+                    transmog_source_type_enum: 0,
+                },
+            ]),
+        ));
+        install_transmog_can_add_test_items(
+            &mut session,
+            [
+                (
+                    777,
+                    ItemClass::Weapon,
+                    ItemSubClassWeapon::Sword as u8,
+                    InventoryType::Weapon,
+                    ItemQuality::Uncommon,
+                    [0, 0, 0, 0],
+                    0,
+                ),
+                (
+                    778,
+                    ItemClass::Weapon,
+                    ItemSubClassWeapon::Sword as u8,
+                    InventoryType::Weapon,
+                    ItemQuality::Uncommon,
+                    [0, 0, 0, 0],
+                    0,
+                ),
+                (
+                    779,
+                    ItemClass::Weapon,
+                    ItemSubClassWeapon::Sword as u8,
+                    InventoryType::Weapon,
+                    ItemQuality::Artifact,
+                    [0, 0, 0, 0],
+                    0,
+                ),
+                (
+                    780,
+                    ItemClass::Weapon,
+                    ItemSubClassWeapon::Sword as u8,
+                    InventoryType::Weapon,
+                    ItemQuality::Uncommon,
+                    [0, ItemFlags2::NoSourceForItemVisual as u32, 0, 0],
+                    0,
+                ),
+                (
+                    781,
+                    ItemClass::Armor,
+                    ItemSubClassArmor::Miscellaneous as u8,
+                    InventoryType::Cloak,
+                    ItemQuality::Normal,
+                    [0, 0, 0, 0],
+                    0,
+                ),
+                (
+                    782,
+                    ItemClass::Armor,
+                    ItemSubClassArmor::Miscellaneous as u8,
+                    InventoryType::Cloak,
+                    ItemQuality::Normal,
+                    [
+                        0,
+                        ItemFlags2::IgnoreQualityForItemVisualSource as u32,
+                        ItemFlags3::ActsAsTransmogHiddenVisualOption as u32,
+                        0,
+                    ],
+                    0,
+                ),
+                (
+                    783,
+                    ItemClass::Armor,
+                    ItemSubClassArmor::Cloth as u8,
+                    InventoryType::Chest,
+                    ItemQuality::Uncommon,
+                    [0, 0, 0, 0],
+                    0,
+                ),
+                (
+                    784,
+                    ItemClass::Weapon,
+                    ItemSubClassWeapon::Thrown as u8,
+                    InventoryType::Weapon,
+                    ItemQuality::Uncommon,
+                    [0, 0, 0, 0],
+                    0,
+                ),
+            ],
+        );
+
+        assert!(session.can_add_item_appearance_represented_like_cpp(65));
+        assert!(!session.can_add_item_appearance_represented_like_cpp(66));
+        assert!(!session.can_add_item_appearance_represented_like_cpp(67));
+        assert!(!session.can_add_item_appearance_represented_like_cpp(68));
+        assert!(!session.can_add_item_appearance_represented_like_cpp(69));
+        assert!(session.can_add_item_appearance_represented_like_cpp(70));
+        assert!(!session.can_add_item_appearance_represented_like_cpp(71));
+        assert!(!session.can_add_item_appearance_represented_like_cpp(72));
+        session.represented_item_appearances_like_cpp.insert(65);
+        assert!(!session.can_add_item_appearance_represented_like_cpp(65));
     }
 
     #[test]
@@ -49693,6 +50204,29 @@ mod tests {
                 },
             ]),
         ));
+        install_transmog_can_add_test_items(
+            &mut session,
+            [
+                (
+                    777,
+                    ItemClass::Weapon,
+                    ItemSubClassWeapon::Sword as u8,
+                    InventoryType::Weapon,
+                    ItemQuality::Uncommon,
+                    [0, 0, 0, 0],
+                    0,
+                ),
+                (
+                    778,
+                    ItemClass::Armor,
+                    ItemSubClassArmor::Plate as u8,
+                    InventoryType::Chest,
+                    ItemQuality::Uncommon,
+                    [0, 0, 0, 0],
+                    0,
+                ),
+            ],
+        );
         let mut quest = test_quest_template(7_777);
         quest.reward_choice_items[0] = (777, 1);
         quest.reward_choice_items[1] = (0, 1);

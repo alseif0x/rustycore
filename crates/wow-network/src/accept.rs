@@ -94,6 +94,7 @@ pub struct SessionResources {
     pub item_appearance_store: Option<Arc<wow_data::ItemAppearanceStore>>,
     pub item_store: Option<Arc<wow_data::ItemStore>>,
     pub item_modified_appearance_store: Option<Arc<wow_data::ItemModifiedAppearanceStore>>,
+    pub item_search_name_store: Option<Arc<wow_data::ItemSearchNameStore>>,
     pub transmog_set_item_store: Option<Arc<wow_data::TransmogSetItemStore>>,
     pub item_price_base_store: Option<Arc<wow_data::ItemPriceBaseStore>>,
     pub item_limit_category_store: Option<Arc<wow_data::ItemLimitCategoryStore>>,

@@ -1154,6 +1154,16 @@ async fn main() -> Result<()> {
         item_modified_appearance_store.len()
     );
 
+    // Load ItemSearchName.db2 for CollectionMgr::CanAddAppearance item-name existence gate.
+    let item_search_name_store = Arc::new(
+        wow_data::ItemSearchNameStore::load(&data_dir, &locale)
+            .context("Failed to load ItemSearchName.db2 — check DataDir and DBC.Locale config")?,
+    );
+    info!(
+        "Loaded {} item search-name rows from ItemSearchName.db2",
+        item_search_name_store.len()
+    );
+
     // Load TransmogSet.db2 and TransmogSetItem.db2 for DB2Manager transmog indexes.
     let transmog_set_store = Arc::new(
         wow_data::TransmogSetStore::load(&data_dir, &locale)
@@ -1998,6 +2008,7 @@ async fn main() -> Result<()> {
         item_store: Some(Arc::clone(&item_store)),
         item_appearance_store: Some(Arc::clone(&item_appearance_store)),
         item_modified_appearance_store: Some(Arc::clone(&item_modified_appearance_store)),
+        item_search_name_store: Some(Arc::clone(&item_search_name_store)),
         transmog_set_item_store: Some(Arc::clone(&transmog_set_item_store)),
         item_price_base_store: Some(Arc::clone(&item_price_base_store)),
         item_limit_category_store: Some(Arc::clone(&item_limit_category_store)),
@@ -7008,6 +7019,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.item_modified_appearance_store {
         session.set_item_modified_appearance_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.item_search_name_store {
+        session.set_item_search_name_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.transmog_set_item_store {
         session.set_transmog_set_item_store(Arc::clone(store));
