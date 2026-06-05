@@ -42828,7 +42828,7 @@ mod tests {
                 requires_spell_focus: 0,
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
-                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_PORTAL_TELEPORT,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_ATTACK,
                     ..Default::default()
                 }],
             },
@@ -42850,20 +42850,37 @@ mod tests {
     #[tokio::test]
     async fn spell_cpp_null_primary_effect_is_represented_noop_like_cpp() {
         let (mut session, _, send_rx) = make_session();
-        let spell_id = 750_i32;
+        let bind_sight_spell_id = 750_i32;
+        let threat_all_spell_id = 757_i32;
         let player_guid = ObjectGuid::create_player(1, 67);
         session.set_player_guid(Some(player_guid));
         session.set_player_health_like_cpp(88, 100);
 
         let mut spell_store = wow_data::SpellStore::new();
         spell_store.insert(
-            spell_id,
+            bind_sight_spell_id,
             wow_data::SpellInfo {
-                spell_id,
+                spell_id: bind_sight_spell_id,
                 cast_time_ms: 0,
                 cooldown_ms: 0,
                 recovery_time_ms: 0,
-                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_PORTAL,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_BIND_SIGHT,
+                effect_base_points: 99,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: Vec::new(),
+            },
+        );
+        spell_store.insert(
+            threat_all_spell_id,
+            wow_data::SpellInfo {
+                spell_id: threat_all_spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_THREAT_ALL,
                 effect_base_points: 99,
                 effect_bonus_coefficient: 0.0,
                 aura_type: None,
@@ -42875,14 +42892,23 @@ mod tests {
         session.set_spell_store(Arc::new(spell_store));
 
         session
-            .execute_spell(spell_id, player_guid)
+            .execute_spell(bind_sight_spell_id, player_guid)
+            .await
+            .expect("represented C++ EffectNULL primary field should no-op");
+        session
+            .execute_spell(threat_all_spell_id, player_guid)
             .await
             .expect("represented C++ EffectNULL primary field should no-op");
 
         assert_eq!(session.player_health_like_cpp(), 88);
         assert_eq!(
             drain_server_opcodes(&send_rx),
-            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+            vec![
+                ServerOpcodes::SpellGo,
+                ServerOpcodes::CooldownEvent,
+                ServerOpcodes::SpellGo,
+                ServerOpcodes::CooldownEvent,
+            ]
         );
     }
 

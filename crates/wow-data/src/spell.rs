@@ -66,6 +66,9 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_FORCE_CRITICAL_HIT: u32 = 51;
     pub const SPELL_EFFECT_GUARANTEE_HIT: u32 = 52;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_RAID: u32 = 65;
+    pub const SPELL_EFFECT_ATTACK: u32 = 78;
+    pub const SPELL_EFFECT_BIND_SIGHT: u32 = 82;
+    pub const SPELL_EFFECT_THREAT_ALL: u32 = 91;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_PET: u32 = 119;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_FRIEND: u32 = 128;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_ENEMY: u32 = 129;
@@ -101,6 +104,9 @@ pub mod spell_effect_types {
                 | SPELL_EFFECT_FORCE_CRITICAL_HIT
                 | SPELL_EFFECT_GUARANTEE_HIT
                 | SPELL_EFFECT_APPLY_AREA_AURA_RAID
+                | SPELL_EFFECT_ATTACK
+                | SPELL_EFFECT_BIND_SIGHT
+                | SPELL_EFFECT_THREAT_ALL
         )
     }
 }
@@ -850,7 +856,10 @@ mod tests {
         assert_eq!(spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_RAID, 65);
         assert_eq!(spell_effect_types::SPELL_EFFECT_HEAL_MAX_HEALTH, 67);
         assert_eq!(spell_effect_types::SPELL_EFFECT_HEAL_MECHANICAL, 75);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_ATTACK, 78);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_BIND_SIGHT, 82);
         assert_eq!(spell_effect_types::SPELL_EFFECT_KILL_CREDIT, 90);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_THREAT_ALL, 91);
         assert_eq!(spell_effect_types::SPELL_EFFECT_KILL_CREDIT2, 134);
         assert_eq!(spell_effect_types::SPELL_EFFECT_HEAL_PCT, 136);
     }
@@ -877,6 +886,9 @@ mod tests {
             spell_effect_types::SPELL_EFFECT_FORCE_CRITICAL_HIT,
             spell_effect_types::SPELL_EFFECT_GUARANTEE_HIT,
             spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_RAID,
+            spell_effect_types::SPELL_EFFECT_ATTACK,
+            spell_effect_types::SPELL_EFFECT_BIND_SIGHT,
+            spell_effect_types::SPELL_EFFECT_THREAT_ALL,
         ] {
             assert!(
                 spell_effect_types::is_cpp_null_or_unused_noop(effect),
