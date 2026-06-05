@@ -25,6 +25,7 @@ use crate::{ConditionEntriesByTypeStore, ConditionsReference};
 pub mod spell_effect_types {
     pub const SPELL_EFFECT_SCHOOL_DAMAGE: u32 = 2;
     pub const SPELL_EFFECT_HEAL: u32 = 6;
+    pub const SPELL_EFFECT_BIND: u32 = 11;
     pub const SPELL_EFFECT_PERSISTENT_AREA_AURA: u32 = 27;
     pub const SPELL_EFFECT_APPLY_AURA: u32 = 35;
     /// C++ `SPELL_EFFECT_SUMMON_OBJECT_WILD`; see
@@ -42,6 +43,7 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_APPLY_AREA_AURA_OWNER: u32 = 143;
     pub const SPELL_EFFECT_APPLY_AURA_ON_PET: u32 = 174;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_SUMMONS: u32 = 202;
+    pub const SPELL_EFFECT_TELEPORT_UNITS: u32 = 252;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_PARTY_NONRANDOM: u32 = 271;
 }
 

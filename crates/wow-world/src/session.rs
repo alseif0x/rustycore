@@ -23956,7 +23956,18 @@ impl WorldSession {
                     represented_focus_object,
                 );
             let represented_db_target_data = if represented_focus_target_data.is_none() {
-                self.represented_db_destination_target_data_like_cpp(spell_id, effect, &target_data)
+                self.represented_db_caster_destination_target_data_like_cpp(
+                    &spell_info,
+                    effect,
+                    &target_data,
+                )
+                .or_else(|| {
+                    self.represented_db_nearby_destination_target_data_like_cpp(
+                        spell_id,
+                        effect,
+                        &target_data,
+                    )
+                })
             } else {
                 None
             };
@@ -24086,7 +24097,52 @@ impl WorldSession {
         Some(target_data)
     }
 
-    fn represented_db_destination_target_data_like_cpp(
+    fn represented_db_caster_destination_target_data_like_cpp(
+        &self,
+        spell_info: &wow_data::SpellInfo,
+        effect: &wow_data::SpellEffectInfo,
+        target_data: &SpellTargetData,
+    ) -> Option<SpellTargetData> {
+        if target_data.dst_location.is_some()
+            || !matches!(
+                effect.implicit_target_1,
+                wow_data::spell::implicit_targets::TARGET_DEST_DB
+            ) && !matches!(
+                effect.implicit_target_2,
+                wow_data::spell::implicit_targets::TARGET_DEST_DB
+            )
+        {
+            return None;
+        }
+
+        let spell_id_u32 = u32::try_from(spell_info.spell_id).ok()?;
+        let target_position = self
+            .spell_target_position_store
+            .as_deref()?
+            .get(spell_id_u32, effect.effect_index)?;
+        let cross_map_allowed = spell_info.effects().iter().any(|candidate| {
+            matches!(
+                candidate.effect,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS
+                    | wow_data::spell::spell_effect_types::SPELL_EFFECT_BIND
+            )
+        });
+        if !cross_map_allowed && target_position.target_map_id != self.player_map_id_like_cpp() {
+            return None;
+        }
+
+        let mut target_data = target_data.clone();
+        target_data.dst_location = Some(wow_packet::packets::spell::TargetLocation {
+            transport: ObjectGuid::EMPTY,
+            position: target_position.position,
+        });
+        if cross_map_allowed {
+            target_data.map_id = Some(i32::from(target_position.target_map_id));
+        }
+        Some(target_data)
+    }
+
+    fn represented_db_nearby_destination_target_data_like_cpp(
         &self,
         spell_id: i32,
         effect: &wow_data::SpellEffectInfo,
@@ -30047,6 +30103,190 @@ mod tests {
         assert!(
             update_object_packet_count_like_cpp(&packets) >= 1,
             "DB-destination summon should trigger represented visibility create/update delivery"
+        );
+    }
+
+    #[tokio::test]
+    async fn db_implicit_caster_destination_uses_spell_target_position_same_map_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 712_i32;
+        let template_entry = 9017_u32;
+        let player_guid = ObjectGuid::create_player(1, 7017);
+        let player_position = Position::new(210.0, 310.0, 42.0, 0.0);
+        let db_destination = Position::new(216.0, 314.0, 43.0, 1.875);
+        let canonical = shared_canonical_map_manager();
+        let mut summon_effect =
+            summon_object_wild_effect_like_cpp(i32::try_from(template_entry).unwrap());
+        summon_effect.implicit_target_1 = wow_data::spell::implicit_targets::TARGET_DEST_DB;
+        let spell_info =
+            gameobject_summon_spell_info_like_cpp(spell_id, 0, vec![summon_effect.clone()]);
+
+        configure_gameobject_summon_live_session_like_cpp(
+            &mut session,
+            &canonical,
+            player_guid,
+            player_position,
+            summon_go_template_store_like_cpp(template_entry),
+            spell_info.clone(),
+        );
+        let mut target_spell_store = wow_data::SpellStore::new();
+        target_spell_store.insert(spell_id, spell_info);
+        session.set_spell_target_position_store(Arc::new(
+            wow_data::SpellTargetPositionStoreLikeCpp::from_rows_like_cpp(
+                [wow_data::SpellTargetPositionRowLikeCpp {
+                    spell_id: spell_id as u32,
+                    effect_index: summon_effect.effect_index,
+                    target_map_id: 571,
+                    x: db_destination.x,
+                    y: db_destination.y,
+                    z: db_destination.z,
+                    orientation: Some(db_destination.orientation),
+                }],
+                &target_spell_store,
+                |map_id| map_id == 571,
+            ),
+        ));
+
+        session
+            .execute_spell_with_visual_and_target_data(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual {
+                    spell_visual_id: 712,
+                    script_visual_id: 0,
+                },
+                SpellTargetData::default(),
+            )
+            .await
+            .expect("TARGET_DEST_DB implicit caster destination should execute");
+
+        let manager = canonical.lock().unwrap();
+        let managed = manager.find_map(571, 0).expect("canonical map");
+        let summoned_guid = session
+            .client_visible_guids_like_cpp
+            .iter()
+            .copied()
+            .filter(ObjectGuid::is_game_object)
+            .find(|guid| {
+                managed
+                    .map()
+                    .get_typed_game_object(*guid)
+                    .is_some_and(|go| go.world().object().entry() == template_entry)
+            })
+            .expect("DB caster-destination summon should be visible");
+        let summoned = managed
+            .map()
+            .get_typed_game_object(summoned_guid)
+            .expect("summoned GO should be map-owned");
+        assert_eq!(
+            summoned.world().position(),
+            db_destination,
+            "C++ TARGET_DEST_DB caster destination uses spell_target_position on the caster map without a range check"
+        );
+        drop(manager);
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert!(
+            update_object_packet_count_like_cpp(&packets) >= 1,
+            "DB caster-destination summon should trigger represented visibility create/update delivery"
+        );
+    }
+
+    #[tokio::test]
+    async fn db_implicit_caster_destination_ignores_other_map_for_non_teleport_bind_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 713_i32;
+        let template_entry = 9018_u32;
+        let player_guid = ObjectGuid::create_player(1, 7018);
+        let player_position = Position::new(220.0, 320.0, 44.0, 0.25);
+        let other_map_destination = Position::new(226.0, 324.0, 45.0, 2.125);
+        let canonical = shared_canonical_map_manager();
+        let mut summon_effect =
+            summon_object_wild_effect_like_cpp(i32::try_from(template_entry).unwrap());
+        summon_effect.implicit_target_1 = wow_data::spell::implicit_targets::TARGET_DEST_DB;
+        let spell_info =
+            gameobject_summon_spell_info_like_cpp(spell_id, 0, vec![summon_effect.clone()]);
+
+        configure_gameobject_summon_live_session_like_cpp(
+            &mut session,
+            &canonical,
+            player_guid,
+            player_position,
+            summon_go_template_store_like_cpp(template_entry),
+            spell_info.clone(),
+        );
+        let mut target_spell_store = wow_data::SpellStore::new();
+        target_spell_store.insert(spell_id, spell_info);
+        session.set_spell_target_position_store(Arc::new(
+            wow_data::SpellTargetPositionStoreLikeCpp::from_rows_like_cpp(
+                [wow_data::SpellTargetPositionRowLikeCpp {
+                    spell_id: spell_id as u32,
+                    effect_index: summon_effect.effect_index,
+                    target_map_id: 1,
+                    x: other_map_destination.x,
+                    y: other_map_destination.y,
+                    z: other_map_destination.z,
+                    orientation: Some(other_map_destination.orientation),
+                }],
+                &target_spell_store,
+                |map_id| matches!(map_id, 1 | 571),
+            ),
+        ));
+
+        session
+            .execute_spell_with_visual_and_target_data(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual {
+                    spell_visual_id: 713,
+                    script_visual_id: 0,
+                },
+                SpellTargetData::default(),
+            )
+            .await
+            .expect("other-map TARGET_DEST_DB non-teleport summon should execute via fallback");
+
+        let manager = canonical.lock().unwrap();
+        let managed = manager.find_map(571, 0).expect("canonical map");
+        let summoned_guid = session
+            .client_visible_guids_like_cpp
+            .iter()
+            .copied()
+            .filter(ObjectGuid::is_game_object)
+            .find(|guid| {
+                managed
+                    .map()
+                    .get_typed_game_object(*guid)
+                    .is_some_and(|go| go.world().object().entry() == template_entry)
+            })
+            .expect("fallback summon should be visible on caster map");
+        let summoned = managed
+            .map()
+            .get_typed_game_object(summoned_guid)
+            .expect("summoned GO should be map-owned");
+        assert_eq!(
+            summoned.world().position(),
+            Position::new(
+                player_position.x
+                    + wow_map::map::DEFAULT_PLAYER_BOUNDING_RADIUS_LIKE_CPP
+                        * player_position.orientation.cos(),
+                player_position.y
+                    + wow_map::map::DEFAULT_PLAYER_BOUNDING_RADIUS_LIKE_CPP
+                        * player_position.orientation.sin(),
+                player_position.z,
+                player_position.orientation,
+            ),
+            "C++ TARGET_DEST_DB ignores other-map spell_target_position unless the spell has TELEPORT_UNITS or BIND"
+        );
+        assert_ne!(summoned.world().position(), other_map_destination);
+        drop(manager);
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert!(
+            update_object_packet_count_like_cpp(&packets) >= 1,
+            "fallback summon should trigger represented visibility create/update delivery"
         );
     }
 
