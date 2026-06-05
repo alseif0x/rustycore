@@ -1510,6 +1510,36 @@ pub(crate) struct RepresentedBattlePetDataLikeCpp {
     pub(crate) save_info: RepresentedBattlePetSaveInfoLikeCpp,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedBattlePetSlotLikeCpp {
+    pub(crate) pet_guid: Option<ObjectGuid>,
+    pub(crate) collar_id: u32,
+    pub(crate) index: u8,
+    pub(crate) locked: bool,
+}
+
+impl RepresentedBattlePetSlotLikeCpp {
+    pub(crate) fn locked_empty(index: u8) -> Self {
+        Self {
+            pet_guid: None,
+            collar_id: 0,
+            index,
+            locked: true,
+        }
+    }
+
+    fn packet_slot_like_cpp(&self) -> wow_packet::packets::misc::BattlePetJournalSlot {
+        wow_packet::packets::misc::BattlePetJournalSlot {
+            pet_guid: self
+                .pet_guid
+                .unwrap_or_else(wow_packet::packets::misc::empty_battle_pet_guid_like_cpp),
+            collar_id: self.collar_id,
+            index: self.index,
+            locked: self.locked,
+        }
+    }
+}
+
 impl RepresentedBattlePetDataLikeCpp {
     pub(crate) fn minimal_like_cpp(
         flags: u16,
@@ -2775,9 +2805,10 @@ pub struct WorldSession {
         HashMap<ObjectGuid, RepresentedBattlePetDataLikeCpp>,
     /// C++ `BattlePetMgr::_hasJournalLock`, represented until full battle-pet runtime is ported.
     pub(crate) represented_battle_pet_journal_lock_like_cpp: bool,
-    /// C++ `BattlePetMgr::_slots`, represented minimally by slotted pet guid.
+    /// C++ `BattlePetMgr::_slots`, represented until full battle-pet slot
+    /// persistence is ported.
     pub(crate) represented_battle_pet_slots_like_cpp:
-        [Option<ObjectGuid>; BATTLE_PET_SLOT_COUNT_LIKE_CPP],
+        [RepresentedBattlePetSlotLikeCpp; BATTLE_PET_SLOT_COUNT_LIKE_CPP],
     /// C++ `ActivePlayerData::SummonedBattlePetGUID`, represented until battle-pet summon runtime is live.
     pub(crate) represented_summoned_battle_pet_guid_like_cpp: Option<ObjectGuid>,
     /// Evidence for represented `BattlePetMgr::UpdateBattlePetData` calls.
@@ -3673,7 +3704,9 @@ impl WorldSession {
             represented_transmog_illusions_like_cpp: HashSet::new(),
             represented_battle_pets_like_cpp: HashMap::new(),
             represented_battle_pet_journal_lock_like_cpp: false,
-            represented_battle_pet_slots_like_cpp: [None; BATTLE_PET_SLOT_COUNT_LIKE_CPP],
+            represented_battle_pet_slots_like_cpp: std::array::from_fn(|index| {
+                RepresentedBattlePetSlotLikeCpp::locked_empty(index as u8)
+            }),
             represented_summoned_battle_pet_guid_like_cpp: None,
             represented_battle_pet_data_updates_like_cpp: Vec::new(),
             represented_timed_quest_removals_like_cpp: Vec::new(),
@@ -18006,15 +18039,43 @@ impl WorldSession {
         else {
             return false;
         };
-        *slot_ref = Some(pet_guid);
+        slot_ref.pet_guid = Some(pet_guid);
+        true
+    }
+
+    /// C++ `BattlePetMgr::UnlockSlot`.
+    pub(crate) fn battle_pet_unlock_slot_like_cpp(&mut self, slot: u8) -> bool {
+        let Some(slot_ref) = self
+            .represented_battle_pet_slots_like_cpp
+            .get_mut(slot as usize)
+        else {
+            return false;
+        };
+
+        if !slot_ref.locked {
+            return false;
+        }
+
+        slot_ref.locked = false;
+        let packet_slot = slot_ref.packet_slot_like_cpp();
+        self.send_packet(&wow_packet::packets::misc::PetBattleSlotUpdates {
+            slots: vec![packet_slot],
+            auto_slotted: false,
+            new_slot: true,
+        });
         true
     }
 
     pub(crate) fn represented_battle_pet_slot_like_cpp(&self, slot: u8) -> Option<ObjectGuid> {
         self.represented_battle_pet_slots_like_cpp
             .get(slot as usize)
-            .copied()
-            .flatten()
+            .and_then(|slot| slot.pet_guid)
+    }
+
+    pub(crate) fn represented_battle_pet_slot_locked_like_cpp(&self, slot: u8) -> Option<bool> {
+        self.represented_battle_pet_slots_like_cpp
+            .get(slot as usize)
+            .map(|slot| slot.locked)
     }
 
     /// C++ `BattlePetMgr::SendJournal` packet body builder.
@@ -18044,21 +18105,16 @@ impl WorldSession {
             journal.pets.push(pet.packet_info_like_cpp(*pet_guid));
         }
 
-        for (index, pet_guid) in self
-            .represented_battle_pet_slots_like_cpp
-            .iter()
-            .enumerate()
-        {
-            journal
-                .slots
-                .push(wow_packet::packets::misc::BattlePetJournalSlot {
-                    pet_guid: pet_guid
-                        .filter(|guid| self.represented_battle_pets_like_cpp.contains_key(guid))
-                        .unwrap_or_else(wow_packet::packets::misc::empty_battle_pet_guid_like_cpp),
-                    collar_id: 0,
-                    index: index as u8,
-                    locked: true,
-                });
+        for slot in &self.represented_battle_pet_slots_like_cpp {
+            let mut packet_slot = slot.packet_slot_like_cpp();
+            if packet_slot.pet_guid != wow_packet::packets::misc::empty_battle_pet_guid_like_cpp()
+                && !self
+                    .represented_battle_pets_like_cpp
+                    .contains_key(&packet_slot.pet_guid)
+            {
+                packet_slot.pet_guid = wow_packet::packets::misc::empty_battle_pet_guid_like_cpp();
+            }
+            journal.slots.push(packet_slot);
         }
 
         journal
@@ -53013,11 +53069,52 @@ mod tests {
     }
 
     #[test]
+    fn battle_pet_unlock_slot_sends_slot_update_once_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let pet_guid = ObjectGuid::new(0, 0x131);
+
+        assert_eq!(
+            session.represented_battle_pet_slot_locked_like_cpp(1),
+            Some(true)
+        );
+        assert!(!session.battle_pet_unlock_slot_like_cpp(3));
+
+        session.add_represented_battle_pet_like_cpp(
+            pet_guid,
+            0,
+            RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+        );
+        assert!(session.battle_pet_set_battle_slot_like_cpp(pet_guid, 1));
+        assert!(session.battle_pet_unlock_slot_like_cpp(1));
+        assert_eq!(
+            session.represented_battle_pet_slot_locked_like_cpp(1),
+            Some(false)
+        );
+        assert!(!session.battle_pet_unlock_slot_like_cpp(1));
+
+        let bytes = send_rx.try_recv().expect("slot update packet");
+        assert!(send_rx.try_recv().is_err(), "unlock sends once");
+        let mut packet = wow_packet::WorldPacket::from_bytes(&bytes);
+        assert_eq!(
+            packet.read_uint16().expect("opcode"),
+            ServerOpcodes::PetBattleSlotUpdates as u16
+        );
+        assert_eq!(packet.read_uint32().expect("slot count"), 1);
+        assert!(packet.read_bit().expect("new slot"));
+        assert!(!packet.read_bit().expect("auto slotted"));
+        assert_eq!(packet.read_packed_guid().expect("pet guid"), pet_guid);
+        assert_eq!(packet.read_uint32().expect("collar"), 0);
+        assert_eq!(packet.read_uint8().expect("index"), 1);
+        assert!(!packet.read_bit().expect("locked"));
+        assert_eq!(packet.remaining(), 0);
+    }
+
+    #[test]
     fn battle_pet_summon_toggles_known_pet_and_ignores_unknown_like_cpp() {
         let (mut session, _, _) = make_session();
-        let pet_guid = ObjectGuid::new(0, 0x131);
-        let other_guid = ObjectGuid::new(0, 0x132);
-        let unknown_guid = ObjectGuid::new(0, 0x133);
+        let pet_guid = ObjectGuid::new(0, 0x132);
+        let other_guid = ObjectGuid::new(0, 0x133);
+        let unknown_guid = ObjectGuid::new(0, 0x134);
 
         session.add_represented_battle_pet_like_cpp(
             pet_guid,
@@ -53058,9 +53155,9 @@ mod tests {
     #[test]
     fn battle_pet_update_notify_requires_known_active_pet_like_cpp() {
         let (mut session, _, _) = make_session();
-        let pet_guid = ObjectGuid::new(0, 0x134);
-        let other_guid = ObjectGuid::new(0, 0x135);
-        let unknown_guid = ObjectGuid::new(0, 0x136);
+        let pet_guid = ObjectGuid::new(0, 0x135);
+        let other_guid = ObjectGuid::new(0, 0x136);
+        let unknown_guid = ObjectGuid::new(0, 0x137);
 
         session.add_represented_battle_pet_like_cpp(
             pet_guid,
@@ -53093,7 +53190,7 @@ mod tests {
         let (mut session, _, _) = make_session();
         let canonical = Arc::new(std::sync::Mutex::new(wow_map::MapManager::new(60_000, 1)));
         let player_guid = ObjectGuid::create_player(1, 42);
-        let pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x137);
+        let pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x138);
         session.set_canonical_map_manager(Arc::clone(&canonical));
         session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
             wow_data::MapEntry {
