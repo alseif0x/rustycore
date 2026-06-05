@@ -22,6 +22,9 @@ use wow_entities::{
 };
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
 use wow_packet::ClientPacket;
+use wow_packet::packets::collection::{
+    COLLECTION_TYPE_APPEARANCE_LIKE_CPP, CollectionItemSetFavorite,
+};
 use wow_packet::packets::instance::{
     InstanceInfo, InstanceLockInfo, InstanceLockResponse, InstanceReset, InstanceResetFailed,
     PendingRaidLock,
@@ -113,6 +116,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_mount_set_favorite",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::CollectionItemSetFavorite,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_collection_item_set_favorite",
     }
 }
 
@@ -773,6 +785,35 @@ impl crate::session::WorldSession {
         };
 
         self.mount_set_favorite_like_cpp(request.mount_spell_id, request.is_favorite);
+    }
+
+    /// CMSG_COLLECTION_ITEM_SET_FAVORITE — toggle favorite state for a collected appearance.
+    ///
+    /// C++ ref: `WorldSession::HandleCollectionItemSetFavorite` only forwards
+    /// appearance favorites when `CollectionMgr::HasItemAppearance(id)` returns a
+    /// permanent appearance; temporary appearances and unknown ids are ignored.
+    pub async fn handle_collection_item_set_favorite(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let request = match CollectionItemSetFavorite::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "CollectionItemSetFavorite parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        if request.collection_type != COLLECTION_TYPE_APPEARANCE_LIKE_CPP {
+            return;
+        }
+
+        let (has_appearance, is_temporary) = self.has_item_appearance_like_cpp(request.id);
+        if !has_appearance || is_temporary {
+            return;
+        }
+
+        self.set_appearance_is_favorite_like_cpp(request.id, request.is_favorite);
     }
 
     /// CMSG_MOUNT_CLEAR_FANFARE — C++ currently logs only.
@@ -1758,6 +1799,7 @@ impl crate::session::WorldSession {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashSet;
     use std::sync::Arc;
     use wow_constants::{ClientOpcodes, ServerOpcodes};
     use wow_core::{ObjectGuid, Position};
@@ -2040,6 +2082,85 @@ mod tests {
         session.handle_mount_set_favorite(pkt).await;
 
         assert!(session.account_mounts_like_cpp().is_empty());
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    fn collection_item_set_favorite_packet(
+        collection_type: u32,
+        id: u32,
+        favorite: bool,
+    ) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(ClientOpcodes::CollectionItemSetFavorite as u16);
+        pkt.write_uint32(collection_type);
+        pkt.write_uint32(id);
+        pkt.write_bit(favorite);
+        pkt.flush_bits();
+        pkt
+    }
+
+    #[tokio::test]
+    async fn collection_item_set_favorite_marks_permanent_appearance_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        session.represented_item_appearances_like_cpp.insert(65);
+
+        session
+            .handle_collection_item_set_favorite(collection_item_set_favorite_packet(
+                COLLECTION_TYPE_APPEARANCE_LIKE_CPP,
+                65,
+                true,
+            ))
+            .await;
+
+        assert_eq!(
+            session.represented_favorite_item_appearance_state_like_cpp(65),
+            Some(crate::session::FavoriteAppearanceStateLikeCpp::New)
+        );
+        let bytes = send_rx
+            .try_recv()
+            .expect("partial transmog favorite update");
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::UpdateCapturePoint as u16
+        );
+        assert_eq!(bytes[2], 0b0100_0000);
+        assert_eq!(u32::from_le_bytes(bytes[3..7].try_into().unwrap()), 1);
+        assert_eq!(u32::from_le_bytes(bytes[7..11].try_into().unwrap()), 0);
+        assert_eq!(u32::from_le_bytes(bytes[11..15].try_into().unwrap()), 65);
+    }
+
+    #[tokio::test]
+    async fn collection_item_set_favorite_ignores_temporary_or_unknown_appearance_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        session
+            .represented_temporary_item_appearances_like_cpp
+            .insert(65, HashSet::from([ObjectGuid::create_item(1, 900)]));
+
+        session
+            .handle_collection_item_set_favorite(collection_item_set_favorite_packet(
+                COLLECTION_TYPE_APPEARANCE_LIKE_CPP,
+                65,
+                true,
+            ))
+            .await;
+        session
+            .handle_collection_item_set_favorite(collection_item_set_favorite_packet(
+                COLLECTION_TYPE_APPEARANCE_LIKE_CPP,
+                96,
+                true,
+            ))
+            .await;
+
+        assert!(
+            session
+                .represented_favorite_item_appearance_state_like_cpp(65)
+                .is_none()
+        );
+        assert!(
+            session
+                .represented_favorite_item_appearance_state_like_cpp(96)
+                .is_none()
+        );
         assert!(send_rx.try_recv().is_err());
     }
 

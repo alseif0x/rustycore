@@ -10,6 +10,7 @@ pub mod auth;
 pub mod battlenet;
 pub mod character;
 pub mod chat;
+pub mod collection;
 pub mod combat;
 pub mod gossip;
 pub mod inspect;

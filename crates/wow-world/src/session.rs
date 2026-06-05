@@ -1417,6 +1417,13 @@ pub(crate) enum RepresentedTransmogCriteriaEvent {
     },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum FavoriteAppearanceStateLikeCpp {
+    New,
+    Removed,
+    Unchanged,
+}
+
 pub type SharedObjectAccessor = Arc<RwLock<ObjectAccessor>>;
 pub(crate) const SKILL_FISHING_LIKE_CPP: u16 = 356;
 pub(crate) const SKILL_RIDING_LIKE_CPP: u16 = 762;
@@ -2557,6 +2564,9 @@ pub struct WorldSession {
     pub(crate) represented_item_appearances_like_cpp: HashSet<u32>,
     /// C++ `CollectionMgr::_temporaryAppearances`, represented until account collection persistence is ported.
     pub(crate) represented_temporary_item_appearances_like_cpp: HashMap<u32, HashSet<ObjectGuid>>,
+    /// C++ `CollectionMgr::_favoriteAppearances`, represented until account collection persistence is ported.
+    pub(crate) represented_favorite_item_appearances_like_cpp:
+        HashMap<u32, FavoriteAppearanceStateLikeCpp>,
     /// Session-local evidence for represented `Player::RemoveTimedQuest` calls.
     pub(crate) represented_timed_quest_removals_like_cpp: Vec<u32>,
     /// Session-local evidence for represented quest reward `Player::UpdateSkillPro` calls.
@@ -3439,6 +3449,7 @@ impl WorldSession {
             seasonal_quest_changed_like_cpp: false,
             represented_item_appearances_like_cpp: HashSet::new(),
             represented_temporary_item_appearances_like_cpp: HashMap::new(),
+            represented_favorite_item_appearances_like_cpp: HashMap::new(),
             represented_timed_quest_removals_like_cpp: Vec::new(),
             represented_quest_reward_skill_updates_like_cpp: Vec::new(),
             represented_quest_reward_spell_casts_like_cpp: Vec::new(),
@@ -8057,6 +8068,87 @@ impl WorldSession {
         }
 
         (false, false)
+    }
+
+    /// C++ `CollectionMgr::SetAppearanceIsFavorite`.
+    pub fn set_appearance_is_favorite_like_cpp(
+        &mut self,
+        item_modified_appearance_id: u32,
+        apply: bool,
+    ) -> bool {
+        use FavoriteAppearanceStateLikeCpp::{New, Removed, Unchanged};
+        use std::collections::hash_map::Entry;
+
+        let changed = if apply {
+            match self
+                .represented_favorite_item_appearances_like_cpp
+                .entry(item_modified_appearance_id)
+            {
+                Entry::Vacant(entry) => {
+                    entry.insert(New);
+                    true
+                }
+                Entry::Occupied(mut entry) if *entry.get() == Removed => {
+                    entry.insert(Unchanged);
+                    true
+                }
+                Entry::Occupied(_) => false,
+            }
+        } else {
+            match self
+                .represented_favorite_item_appearances_like_cpp
+                .entry(item_modified_appearance_id)
+            {
+                Entry::Occupied(entry) if *entry.get() == New => {
+                    entry.remove();
+                    true
+                }
+                Entry::Occupied(mut entry) => {
+                    entry.insert(Removed);
+                    true
+                }
+                Entry::Vacant(_) => false,
+            }
+        };
+
+        if changed {
+            self.send_packet(
+                &wow_packet::packets::collection::AccountTransmogUpdate::favorite_delta(
+                    item_modified_appearance_id,
+                    apply,
+                ),
+            );
+        }
+
+        changed
+    }
+
+    /// C++ `CollectionMgr::SendFavoriteAppearances`.
+    pub fn send_favorite_appearances_like_cpp(&self) {
+        let favorite_appearances = self
+            .represented_favorite_item_appearances_like_cpp
+            .iter()
+            .filter_map(|(&appearance, &state)| {
+                (state != FavoriteAppearanceStateLikeCpp::Removed).then_some(appearance)
+            })
+            .collect::<Vec<_>>();
+
+        self.send_packet(&wow_packet::packets::collection::AccountTransmogUpdate {
+            is_full_update: true,
+            is_set_favorite: false,
+            favorite_appearances,
+            new_appearances: Vec::new(),
+        });
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_favorite_item_appearance_state_like_cpp(
+        &self,
+        item_modified_appearance_id: u32,
+    ) -> Option<FavoriteAppearanceStateLikeCpp> {
+        self.represented_favorite_item_appearances_like_cpp
+            .get(&item_modified_appearance_id)
+            .copied()
     }
 
     /// C++ `CollectionMgr::AddTemporaryAppearance`.
@@ -14411,6 +14503,9 @@ impl WorldSession {
             }
             ClientOpcodes::SetWatchedFaction => {
                 self.handle_set_watched_faction(pkt).await;
+            }
+            ClientOpcodes::CollectionItemSetFavorite => {
+                self.handle_collection_item_set_favorite(pkt).await;
             }
             ClientOpcodes::RequestBattlefieldStatus => {
                 self.handle_request_battlefield_status(pkt).await;
@@ -50563,6 +50658,44 @@ mod tests {
 
         session.represented_item_appearances_like_cpp.insert(65);
         assert_eq!(session.has_item_appearance_like_cpp(65), (true, false));
+    }
+
+    #[test]
+    fn appearance_favorite_state_transitions_match_collection_mgr_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+
+        assert!(session.set_appearance_is_favorite_like_cpp(65, true));
+        assert_eq!(
+            session.represented_favorite_item_appearance_state_like_cpp(65),
+            Some(FavoriteAppearanceStateLikeCpp::New)
+        );
+        assert!(send_rx.try_recv().is_ok());
+        assert!(!session.set_appearance_is_favorite_like_cpp(65, true));
+        assert!(send_rx.try_recv().is_err());
+
+        assert!(session.set_appearance_is_favorite_like_cpp(65, false));
+        assert_eq!(
+            session.represented_favorite_item_appearance_state_like_cpp(65),
+            None
+        );
+        assert!(send_rx.try_recv().is_ok());
+        assert!(!session.set_appearance_is_favorite_like_cpp(65, false));
+        assert!(send_rx.try_recv().is_err());
+
+        session
+            .represented_favorite_item_appearances_like_cpp
+            .insert(96, FavoriteAppearanceStateLikeCpp::Unchanged);
+        assert!(session.set_appearance_is_favorite_like_cpp(96, false));
+        assert_eq!(
+            session.represented_favorite_item_appearance_state_like_cpp(96),
+            Some(FavoriteAppearanceStateLikeCpp::Removed)
+        );
+        assert!(send_rx.try_recv().is_ok());
+        assert!(session.set_appearance_is_favorite_like_cpp(96, true));
+        assert_eq!(
+            session.represented_favorite_item_appearance_state_like_cpp(96),
+            Some(FavoriteAppearanceStateLikeCpp::Unchanged)
+        );
     }
 
     #[test]
