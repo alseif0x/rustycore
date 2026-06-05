@@ -1478,6 +1478,7 @@ const DEFAULT_TRANSMOG_ILLUSIONS_LIKE_CPP: [u32; 7] = [
 ];
 
 pub(crate) const BATTLE_PET_FLAG_FANFARE_NEEDED_LIKE_CPP: u16 = 0x01;
+pub(crate) const BATTLE_PET_FLAGS_CONTROL_TYPE_APPLY_LIKE_CPP: u8 = 1;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RepresentedBattlePetSaveInfoLikeCpp {
@@ -15588,6 +15589,9 @@ impl WorldSession {
             ClientOpcodes::BattlePetClearFanfare => {
                 self.handle_battle_pet_clear_fanfare(pkt).await;
             }
+            ClientOpcodes::BattlePetSetFlags => {
+                self.handle_battle_pet_set_flags(pkt).await;
+            }
             ClientOpcodes::ArenaTeamRoster => {
                 self.handle_arena_team_roster(pkt).await;
             }
@@ -17793,6 +17797,29 @@ impl WorldSession {
         };
 
         pet.flags &= !BATTLE_PET_FLAG_FANFARE_NEEDED_LIKE_CPP;
+        if pet.save_info != RepresentedBattlePetSaveInfoLikeCpp::New {
+            pet.save_info = RepresentedBattlePetSaveInfoLikeCpp::Changed;
+        }
+        true
+    }
+
+    /// C++ `WorldSession::HandleBattlePetSetFlags` flag mutation.
+    pub(crate) fn battle_pet_set_flags_like_cpp(
+        &mut self,
+        pet_guid: ObjectGuid,
+        flags: u16,
+        control_type: u8,
+    ) -> bool {
+        let Some(pet) = self.represented_battle_pets_like_cpp.get_mut(&pet_guid) else {
+            return false;
+        };
+
+        if control_type == BATTLE_PET_FLAGS_CONTROL_TYPE_APPLY_LIKE_CPP {
+            pet.flags |= flags;
+        } else {
+            pet.flags &= !flags;
+        }
+
         if pet.save_info != RepresentedBattlePetSaveInfoLikeCpp::New {
             pet.save_info = RepresentedBattlePetSaveInfoLikeCpp::Changed;
         }
@@ -52480,6 +52507,61 @@ mod tests {
                 save_info: RepresentedBattlePetSaveInfoLikeCpp::New,
             })
         );
+    }
+
+    #[test]
+    fn battle_pet_set_flags_applies_or_removes_known_pet_only_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let pet_guid = ObjectGuid::new(0, 0x126);
+        let new_pet_guid = ObjectGuid::new(0, 0x127);
+        let unknown_guid = ObjectGuid::new(0, 0x128);
+
+        session.add_represented_battle_pet_like_cpp(
+            pet_guid,
+            0x10,
+            RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+        );
+        session.add_represented_battle_pet_like_cpp(
+            new_pet_guid,
+            0x30,
+            RepresentedBattlePetSaveInfoLikeCpp::New,
+        );
+
+        assert!(session.battle_pet_set_flags_like_cpp(
+            pet_guid,
+            0x02,
+            BATTLE_PET_FLAGS_CONTROL_TYPE_APPLY_LIKE_CPP
+        ));
+        assert_eq!(
+            session.represented_battle_pet_like_cpp(pet_guid),
+            Some(RepresentedBattlePetDataLikeCpp {
+                flags: 0x12,
+                save_info: RepresentedBattlePetSaveInfoLikeCpp::Changed,
+            })
+        );
+
+        assert!(session.battle_pet_set_flags_like_cpp(pet_guid, 0x10, 2));
+        assert_eq!(
+            session.represented_battle_pet_like_cpp(pet_guid),
+            Some(RepresentedBattlePetDataLikeCpp {
+                flags: 0x02,
+                save_info: RepresentedBattlePetSaveInfoLikeCpp::Changed,
+            })
+        );
+
+        assert!(session.battle_pet_set_flags_like_cpp(new_pet_guid, 0x10, 0));
+        assert_eq!(
+            session.represented_battle_pet_like_cpp(new_pet_guid),
+            Some(RepresentedBattlePetDataLikeCpp {
+                flags: 0x20,
+                save_info: RepresentedBattlePetSaveInfoLikeCpp::New,
+            })
+        );
+        assert!(!session.battle_pet_set_flags_like_cpp(
+            unknown_guid,
+            0x01,
+            BATTLE_PET_FLAGS_CONTROL_TYPE_APPLY_LIKE_CPP
+        ));
     }
 
     #[test]

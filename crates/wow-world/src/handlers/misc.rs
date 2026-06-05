@@ -36,7 +36,7 @@ use wow_packet::packets::item::{
 };
 use wow_packet::packets::loot::{LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHING_LIKE_CPP};
 use wow_packet::packets::misc::{
-    AddToy, BattlePetClearFanfare, FarSight, MountSetFavorite, RatedPvpInfo,
+    AddToy, BattlePetClearFanfare, BattlePetSetFlags, FarSight, MountSetFavorite, RatedPvpInfo,
     RequestCemeteryListResponse, TaxiNodeStatusPkt, ToyClearFanfare, UseToy,
 };
 use wow_packet::packets::reputation::{
@@ -402,6 +402,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_battle_pet_clear_fanfare",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::BattlePetSetFlags,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_battle_pet_set_flags",
     }
 }
 
@@ -1379,6 +1388,26 @@ impl crate::session::WorldSession {
         };
 
         self.battle_pet_clear_fanfare_like_cpp(request.pet_guid);
+    }
+
+    /// CMSG_BATTLE_PET_SET_FLAGS — apply/remove represented battle-pet flags.
+    ///
+    /// C++ first requires the journal lock and then silently ignores unknown
+    /// pets. Rust's represented journal lock is not complete yet, so this
+    /// bounded handler preserves the pet lookup and flag mutation semantics.
+    pub async fn handle_battle_pet_set_flags(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let request = match BattlePetSetFlags::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "BattlePetSetFlags parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        self.battle_pet_set_flags_like_cpp(request.pet_guid, request.flags, request.control_type);
     }
     pub async fn handle_arena_team_roster(&mut self, _pkt: wow_packet::WorldPacket) {}
     pub async fn handle_request_raid_info(&mut self, _pkt: wow_packet::WorldPacket) {
@@ -3001,6 +3030,20 @@ mod tests {
         pkt
     }
 
+    fn battle_pet_set_flags_packet(
+        pet_guid: ObjectGuid,
+        flags: u16,
+        control_type: u8,
+    ) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(ClientOpcodes::BattlePetSetFlags as u16);
+        pkt.write_packed_guid(&pet_guid);
+        pkt.write_uint16(flags);
+        pkt.write_bits(u32::from(control_type), 2);
+        pkt.flush_bits();
+        pkt
+    }
+
     #[tokio::test]
     async fn battle_pet_clear_fanfare_clears_known_pet_silently_like_cpp() {
         let (mut session, send_rx) = make_session();
@@ -3035,6 +3078,34 @@ mod tests {
             .await;
 
         assert!(session.represented_battle_pet_like_cpp(pet_guid).is_none());
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn battle_pet_set_flags_applies_known_pet_silently_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let pet_guid = ObjectGuid::new(0, 0x225);
+        session.add_represented_battle_pet_like_cpp(
+            pet_guid,
+            0x01,
+            crate::session::RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+        );
+
+        session
+            .handle_battle_pet_set_flags(battle_pet_set_flags_packet(
+                pet_guid,
+                0x04,
+                crate::session::BATTLE_PET_FLAGS_CONTROL_TYPE_APPLY_LIKE_CPP,
+            ))
+            .await;
+
+        assert_eq!(
+            session.represented_battle_pet_like_cpp(pet_guid),
+            Some(crate::session::RepresentedBattlePetDataLikeCpp {
+                flags: 0x05,
+                save_info: crate::session::RepresentedBattlePetSaveInfoLikeCpp::Changed,
+            })
+        );
         assert!(send_rx.try_recv().is_err());
     }
 

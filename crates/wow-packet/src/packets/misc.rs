@@ -1663,6 +1663,30 @@ impl ServerPacket for AuraUpdate {
 
 // ── BattlePetJournalLockAcquired (SMSG 0x25ed) ──────────────────────
 
+/// C++ `WorldPackets::BattlePet::BattlePetSetFlags`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BattlePetSetFlags {
+    pub pet_guid: ObjectGuid,
+    pub flags: u16,
+    pub control_type: u8,
+}
+
+impl ClientPacket for BattlePetSetFlags {
+    const OPCODE: ClientOpcodes = ClientOpcodes::BattlePetSetFlags;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        pkt.skip_opcode();
+        let pet_guid = pkt.read_packed_guid()?;
+        let flags = pkt.read_uint16()?;
+        let control_type = pkt.read_bits(2)? as u8;
+        Ok(Self {
+            pet_guid,
+            flags,
+            control_type,
+        })
+    }
+}
+
 /// C++ `WorldPackets::BattlePet::BattlePetClearFanfare`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BattlePetClearFanfare {
@@ -3732,6 +3756,27 @@ mod tests {
 
         let decoded = BattlePetClearFanfare::read(&mut pkt).unwrap();
         assert_eq!(decoded.pet_guid, pet_guid);
+    }
+
+    #[test]
+    fn battle_pet_set_flags_reads_cpp_shape() {
+        let pet_guid = ObjectGuid::new(0, 0x4322);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(ClientOpcodes::BattlePetSetFlags as u16);
+        pkt.write_packed_guid(&pet_guid);
+        pkt.write_uint16(0x12);
+        pkt.write_bits(1, 2);
+        pkt.flush_bits();
+
+        let decoded = BattlePetSetFlags::read(&mut pkt).unwrap();
+        assert_eq!(
+            decoded,
+            BattlePetSetFlags {
+                pet_guid,
+                flags: 0x12,
+                control_type: 1,
+            }
+        );
     }
 
     #[test]
