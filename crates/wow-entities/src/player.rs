@@ -692,6 +692,9 @@ pub const ACTIVE_PLAYER_DATA_QUEST_COMPLETED_FIRST_BIT: usize = 637;
 pub const ACTIVE_PLAYER_DATA_WATCHED_FACTION_INDEX_BIT: usize = 92;
 pub const QUESTS_COMPLETED_BITS_SIZE: usize = 875;
 pub const QUESTS_COMPLETED_BITS_PER_BLOCK: u32 = 64;
+pub const PLAYER_MAX_HONOR_LEVEL_LIKE_CPP: i32 = 500;
+pub const PLAYER_LEVEL_MIN_HONOR_LIKE_CPP: u8 = 10;
+pub const PLAYER_HONOR_NEXT_LEVEL_XP_LIKE_CPP: i32 = 8_800;
 pub const PLAYER_SLOT_END: usize = 141;
 pub const INVENTORY_DEFAULT_SIZE: u8 = 16;
 pub const INVENTORY_SLOT_BAG_START: u8 = 30;
@@ -3385,6 +3388,48 @@ impl Player {
             xp,
             |data| &mut data.honor_next_level,
         );
+    }
+
+    pub fn update_honor_next_level_like_cpp(&mut self) {
+        self.set_honor_next_level_like_cpp(PLAYER_HONOR_NEXT_LEVEL_XP_LIKE_CPP);
+    }
+
+    pub fn is_max_honor_level_like_cpp(&self) -> bool {
+        self.data.honor_level >= PLAYER_MAX_HONOR_LEVEL_LIKE_CPP
+    }
+
+    pub fn add_honor_xp_like_cpp(&mut self, xp: u32, player_level: u8) -> bool {
+        if xp < 1
+            || player_level < PLAYER_LEVEL_MIN_HONOR_LIKE_CPP
+            || self.is_max_honor_level_like_cpp()
+        {
+            return false;
+        }
+
+        if self.active_data.honor_next_level <= 0 {
+            self.update_honor_next_level_like_cpp();
+        }
+
+        let mut new_honor_xp = self.active_data.honor.max(0) as u32;
+        new_honor_xp = new_honor_xp.saturating_add(xp);
+        let mut next_honor_level_xp = self.active_data.honor_next_level.max(1) as u32;
+
+        while new_honor_xp >= next_honor_level_xp && !self.is_max_honor_level_like_cpp() {
+            new_honor_xp -= next_honor_level_xp;
+
+            let next_level = (self.data.honor_level + 1).min(PLAYER_MAX_HONOR_LEVEL_LIKE_CPP);
+            self.set_honor_level_like_cpp(next_level);
+            self.update_honor_next_level_like_cpp();
+            next_honor_level_xp = self.active_data.honor_next_level.max(1) as u32;
+        }
+
+        let residual = if self.is_max_honor_level_like_cpp() {
+            0
+        } else {
+            new_honor_xp.min(i32::MAX as u32) as i32
+        };
+        self.set_honor_like_cpp(residual);
+        true
     }
 
     pub fn set_free_primary_professions(&mut self, points: u16) {
@@ -12060,6 +12105,52 @@ mod tests {
                 .active_player_data_changes_mask()
                 .is_set(ACTIVE_PLAYER_DATA_INV_SLOTS_FIRST_BIT + 3)
         );
+    }
+
+    #[test]
+    fn add_honor_xp_matches_cpp_level_gate_threshold_and_max_shape() {
+        let mut low_level = Player::new(None, false);
+        assert!(!low_level.add_honor_xp_like_cpp(100, PLAYER_LEVEL_MIN_HONOR_LIKE_CPP - 1));
+        assert_eq!(low_level.active_data().honor, 0);
+        assert!(!low_level.active_player_data_changes_mask().is_any_set());
+
+        let mut player = Player::new(None, false);
+        assert!(player.add_honor_xp_like_cpp(PLAYER_HONOR_NEXT_LEVEL_XP_LIKE_CPP as u32 + 25, 10));
+        assert_eq!(player.data().honor_level, 1);
+        assert_eq!(player.active_data().honor, 25);
+        assert_eq!(
+            player.active_data().honor_next_level,
+            PLAYER_HONOR_NEXT_LEVEL_XP_LIKE_CPP
+        );
+        assert!(
+            player
+                .player_data_changes_mask()
+                .is_set(PLAYER_DATA_HONOR_LEVEL_BIT)
+        );
+        assert!(
+            player
+                .active_player_data_changes_mask()
+                .is_set(ACTIVE_PLAYER_DATA_HONOR_PARENT_BIT)
+        );
+        assert!(
+            player
+                .active_player_data_changes_mask()
+                .is_set(ACTIVE_PLAYER_DATA_HONOR_BIT)
+        );
+        assert!(
+            player
+                .active_player_data_changes_mask()
+                .is_set(ACTIVE_PLAYER_DATA_HONOR_NEXT_LEVEL_BIT)
+        );
+
+        player.clear_data_changes();
+        player.set_honor_level_like_cpp(PLAYER_MAX_HONOR_LEVEL_LIKE_CPP - 1);
+        player.set_honor_like_cpp(PLAYER_HONOR_NEXT_LEVEL_XP_LIKE_CPP - 1);
+        player.clear_data_changes();
+
+        assert!(player.add_honor_xp_like_cpp(1, 80));
+        assert_eq!(player.data().honor_level, PLAYER_MAX_HONOR_LEVEL_LIKE_CPP);
+        assert_eq!(player.active_data().honor, 0);
     }
 
     #[test]

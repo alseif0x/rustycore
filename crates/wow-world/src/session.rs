@@ -25523,17 +25523,41 @@ impl WorldSession {
             return Ok(());
         }
 
+        let honor_update = self.add_honor_xp_to_current_player_like_cpp(damage);
+
         // C++ `Spell::EffectGiveHonor` sets only `Honor` and `OriginalHonor`
         // before `SendDirectMessage(packet.Write())`; `Target` and `Rank`
-        // remain default-initialized. `Player::AddHonorXP` itself is still
-        // unrepresented until Rust owns honor progression/update fields.
+        // remain default-initialized.
         self.send_packet(&wow_packet::packets::combat::PvpCredit {
             original_honor: damage,
             honor: damage,
             target: ObjectGuid::EMPTY,
             rank: 0,
         });
+        if let Some(update) = honor_update
+            && let Some(packet) = player_values_update_to_update_object(
+                player_guid,
+                self.player_map_id_like_cpp(),
+                &update,
+            )
+        {
+            self.send_packet(&packet);
+        }
         Ok(())
+    }
+
+    fn add_honor_xp_to_current_player_like_cpp(
+        &mut self,
+        xp: i32,
+    ) -> Option<wow_entities::PlayerValuesUpdate> {
+        let xp = u32::try_from(xp).ok()?;
+        let player_level = self.player_level_like_cpp();
+        self.mutate_canonical_player_like_cpp(|player| {
+            player
+                .add_honor_xp_like_cpp(xp, player_level)
+                .then(|| player.values_update(true))
+        })
+        .flatten()
     }
 
     async fn apply_quest_complete_effect_like_cpp(
@@ -42590,6 +42614,85 @@ mod tests {
         );
         assert_eq!(credit.read_int32().expect("Rank"), 0);
         assert!(credit.is_empty());
+    }
+
+    #[tokio::test]
+    async fn spell_give_honor_effect_row_adds_honor_xp_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 749_i32;
+        let player_guid = ObjectGuid::create_player(1, 67);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_COMMON,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+            },
+        ])));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "Honor".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            10,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_GIVE_HONOR,
+                    effect_base_points: 8_825,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("represented give-honor spell row should add honor XP");
+
+        assert_eq!(
+            session.mutate_canonical_player_like_cpp(|player| {
+                (
+                    player.data().honor_level,
+                    player.active_data().honor,
+                    player.active_data().honor_next_level,
+                )
+            }),
+            Some((1, 25, 8_800))
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![
+                ServerOpcodes::SpellGo,
+                ServerOpcodes::PvpCredit,
+                ServerOpcodes::UpdateObject,
+                ServerOpcodes::CooldownEvent,
+            ]
+        );
     }
 
     #[tokio::test]
