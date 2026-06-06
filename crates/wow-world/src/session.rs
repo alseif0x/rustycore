@@ -18379,6 +18379,18 @@ impl WorldSession {
         sent_count
     }
 
+    /// C++ `BattlePetMgr::SendError`.
+    pub(crate) fn battle_pet_send_error_like_cpp(
+        &mut self,
+        error: wow_packet::packets::misc::BattlePetErrorCodeLikeCpp,
+        creature_id: u32,
+    ) {
+        self.send_packet(&wow_packet::packets::misc::BattlePetError::new(
+            error,
+            i32::try_from(creature_id).unwrap_or(i32::MAX),
+        ));
+    }
+
     /// C++ `BattlePetMgr::HealBattlePetsPct`.
     ///
     /// Fidelity note: legacy C++ does not skip removed pets and would rewrite a
@@ -54185,6 +54197,30 @@ mod tests {
         assert_eq!(packet.read_packed_guid().expect("pet guid"), pet_guid);
         assert_eq!(packet.read_uint32().expect("species"), 11);
         assert_eq!(packet.read_uint32().expect("creature"), 22);
+    }
+
+    #[test]
+    fn battle_pet_send_error_emits_cpp_error_packet_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+
+        session.battle_pet_send_error_like_cpp(
+            wow_packet::packets::misc::BattlePetErrorCodeLikeCpp::TooHighLevelToUncage,
+            12_345,
+        );
+
+        let bytes = send_rx.try_recv().expect("battle pet error packet");
+        assert!(send_rx.try_recv().is_err(), "error sends once");
+        let mut packet = wow_packet::WorldPacket::from_bytes(&bytes);
+        assert_eq!(
+            packet.read_uint16().expect("opcode"),
+            ServerOpcodes::BattlePetError as u16
+        );
+        assert_eq!(
+            packet.read_bits(4).expect("result"),
+            wow_packet::packets::misc::BattlePetErrorCodeLikeCpp::TooHighLevelToUncage as u32
+        );
+        assert_eq!(packet.read_int32().expect("creature id"), 12_345);
+        assert_eq!(packet.remaining(), 0);
     }
 
     #[test]
