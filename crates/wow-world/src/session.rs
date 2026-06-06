@@ -26800,6 +26800,25 @@ impl WorldSession {
             return Ok(());
         }
 
+        if let Some(reason) =
+            self.check_represented_battle_pet_spell_like_cpp(&spell_info, metadata)
+        {
+            self.send_packet(&wow_packet::packets::spell::CastFailed {
+                cast_id,
+                spell_id,
+                reason: reason as i32,
+                fail_arg1: 0,
+                fail_arg2: 0,
+            });
+            debug!(
+                account = self.account_id,
+                spell_id = spell_id,
+                reason = reason as i32,
+                "Failing represented battle-pet spell because C++ Spell::CheckCast rejected it"
+            );
+            return Ok(());
+        }
+
         // Send SMSG_SPELL_GO
         use wow_packet::packets::spell::SpellGoPkt;
 
@@ -27274,6 +27293,78 @@ impl WorldSession {
             RepresentedBattlePetXpSourceLikeCpp::SpellEffect,
             1.0,
         );
+    }
+
+    /// C++ `Spell::CheckCast` gates for battle-pet unit-target effects.
+    fn check_represented_battle_pet_spell_like_cpp(
+        &self,
+        spell_info: &wow_data::SpellInfo,
+        metadata: SpellCastMetadata,
+    ) -> Option<SpellCastResult> {
+        for effect in spell_info.effects() {
+            let is_battle_pet_effect = effect.effect
+                == wow_data::spell::spell_effect_types::SPELL_EFFECT_CHANGE_BATTLEPET_QUALITY
+                || effect.effect
+                    == wow_data::spell::spell_effect_types::SPELL_EFFECT_GRANT_BATTLEPET_LEVEL
+                || effect.effect
+                    == wow_data::spell::spell_effect_types::SPELL_EFFECT_GRANT_BATTLEPET_EXPERIENCE;
+            if !is_battle_pet_effect {
+                continue;
+            }
+
+            let Some(companion_guid) = metadata.unit_target_battle_pet_companion_guid else {
+                return Some(SpellCastResult::BadTargets);
+            };
+
+            if !self.has_represented_battle_pet_journal_lock_like_cpp() {
+                return Some(SpellCastResult::CantDoThatRightNow);
+            }
+
+            let summoned_guid = self.represented_summoned_battle_pet_guid_like_cpp();
+            if summoned_guid.is_none() || companion_guid.is_empty() {
+                return Some(SpellCastResult::NoPet);
+            }
+
+            if summoned_guid != Some(companion_guid) {
+                return Some(SpellCastResult::BadTargets);
+            }
+
+            let Some(pet) = self.represented_battle_pets_like_cpp.get(&companion_guid) else {
+                continue;
+            };
+
+            if let Some(species) = self
+                .battle_pet_species_store
+                .as_ref()
+                .and_then(|store| store.get(pet.species))
+            {
+                let battle_pet_type = effect.effect_misc_value_1 as u32;
+                if battle_pet_type != 0 {
+                    let type_mask = 1u32
+                        .checked_shl(u32::from(species.pet_type_enum))
+                        .unwrap_or(0);
+                    if battle_pet_type & type_mask == 0 {
+                        return Some(SpellCastResult::WrongBattlePetType);
+                    }
+                }
+
+                if (effect.effect
+                    == wow_data::spell::spell_effect_types::SPELL_EFFECT_GRANT_BATTLEPET_LEVEL
+                    || effect.effect
+                        == wow_data::spell::spell_effect_types::SPELL_EFFECT_GRANT_BATTLEPET_EXPERIENCE)
+                    && pet.level >= MAX_BATTLE_PET_LEVEL_LIKE_CPP
+                {
+                    return Some(SpellCastResult::GrantPetLevelFail);
+                }
+
+                if species.has_flag_like_cpp(wow_data::BATTLE_PET_SPECIES_FLAG_CANT_BATTLE_LIKE_CPP)
+                {
+                    return Some(SpellCastResult::BadTargets);
+                }
+            }
+        }
+
+        None
     }
 
     async fn apply_effect_teleport_units_like_cpp(
@@ -54901,7 +54992,7 @@ mod tests {
         );
         assert_eq!(
             drain_server_opcodes(&send_rx),
-            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+            vec![ServerOpcodes::CastFailed]
         );
     }
 
@@ -54941,6 +55032,7 @@ mod tests {
         );
         session.send_battle_pet_journal_lock_status_like_cpp();
         let _ = drain_server_packet_bytes(&send_rx);
+        assert!(session.battle_pet_summon_toggle_like_cpp(pet_guid));
 
         let mut spell_store = wow_data::SpellStore::new();
         spell_store.insert(
@@ -55011,6 +55103,278 @@ mod tests {
                 ServerOpcodes::BattlePetUpdates,
                 ServerOpcodes::CooldownEvent,
             ]
+        );
+    }
+
+    #[tokio::test]
+    async fn battle_pet_spell_check_cast_uses_cpp_error_order_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 222);
+        let pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x1A2);
+        let other_pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x1A3);
+        let creature_guid = ObjectGuid::create_global(HighGuid::Creature, 0, 0xCB00);
+        let spell_id = 77_288;
+
+        session.set_player_guid(Some(player_guid));
+        session.add_represented_battle_pet_packet_info_like_cpp(
+            pet_guid,
+            RepresentedBattlePetDataLikeCpp {
+                species: 11,
+                level: 23,
+                ..RepresentedBattlePetDataLikeCpp::minimal_like_cpp(
+                    0,
+                    RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+                )
+            },
+        );
+        assert!(session.battle_pet_summon_toggle_like_cpp(pet_guid));
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_GRANT_BATTLEPET_LEVEL,
+                    effect_base_points: 1,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell_with_visual_and_target_data_with_metadata(
+                spell_id,
+                creature_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual::default(),
+                SpellTargetData {
+                    flags: 0x2,
+                    unit: creature_guid,
+                    ..SpellTargetData::default()
+                },
+                SpellCastMetadata {
+                    unit_target_battle_pet_companion_guid: Some(other_pet_guid),
+                    ..SpellCastMetadata::default()
+                },
+            )
+            .await
+            .expect("represented checkcast failure should be sent");
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(packets.len(), 1);
+        let mut packet = wow_packet::WorldPacket::from_bytes(&packets[0]);
+        assert_eq!(
+            packet.read_uint16().expect("opcode"),
+            ServerOpcodes::CastFailed as u16
+        );
+        let _cast_id = packet.read_packed_guid().expect("cast id");
+        assert_eq!(packet.read_int32().expect("spell id"), spell_id);
+        assert_eq!(
+            packet.read_int32().expect("reason"),
+            SpellCastResult::CantDoThatRightNow as i32
+        );
+
+        session.send_battle_pet_journal_lock_status_like_cpp();
+        let _ = drain_server_packet_bytes(&send_rx);
+        session
+            .execute_spell_with_visual_and_target_data_with_metadata(
+                spell_id,
+                creature_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual::default(),
+                SpellTargetData {
+                    flags: 0x2,
+                    unit: creature_guid,
+                    ..SpellTargetData::default()
+                },
+                SpellCastMetadata {
+                    unit_target_battle_pet_companion_guid: Some(other_pet_guid),
+                    ..SpellCastMetadata::default()
+                },
+            )
+            .await
+            .expect("represented checkcast failure should be sent");
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(packets.len(), 1);
+        let mut packet = wow_packet::WorldPacket::from_bytes(&packets[0]);
+        assert_eq!(
+            packet.read_uint16().expect("opcode"),
+            ServerOpcodes::CastFailed as u16
+        );
+        let _cast_id = packet.read_packed_guid().expect("cast id");
+        assert_eq!(packet.read_int32().expect("spell id"), spell_id);
+        assert_eq!(
+            packet.read_int32().expect("reason"),
+            SpellCastResult::BadTargets as i32
+        );
+    }
+
+    #[tokio::test]
+    async fn battle_pet_spell_check_cast_species_type_and_level_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 223);
+        let pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x1A4);
+        let creature_guid = ObjectGuid::create_global(HighGuid::Creature, 0, 0xCB01);
+        let spell_id = 77_289;
+
+        session.set_player_guid(Some(player_guid));
+        session.add_represented_battle_pet_packet_info_like_cpp(
+            pet_guid,
+            RepresentedBattlePetDataLikeCpp {
+                species: 11,
+                level: MAX_BATTLE_PET_LEVEL_LIKE_CPP,
+                ..RepresentedBattlePetDataLikeCpp::minimal_like_cpp(
+                    0,
+                    RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+                )
+            },
+        );
+        session.set_battle_pet_species_store(Arc::new(
+            wow_data::BattlePetSpeciesStore::from_entries([wow_data::BattlePetSpeciesEntry {
+                id: 11,
+                description: String::new(),
+                source_text: String::new(),
+                creature_id: 0,
+                summon_spell_id: 0,
+                icon_file_data_id: 0,
+                pet_type_enum: 2,
+                flags: 0,
+                source_type_enum: 0,
+                card_ui_model_scene_id: 0,
+                loadout_ui_model_scene_id: 0,
+            }]),
+        ));
+        session.send_battle_pet_journal_lock_status_like_cpp();
+        let _ = drain_server_packet_bytes(&send_rx);
+        assert!(session.battle_pet_summon_toggle_like_cpp(pet_guid));
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_GRANT_BATTLEPET_EXPERIENCE,
+                    effect_base_points: 1,
+                    effect_misc_value_1: 1 << 1,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell_with_visual_and_target_data_with_metadata(
+                spell_id,
+                creature_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual::default(),
+                SpellTargetData {
+                    flags: 0x2,
+                    unit: creature_guid,
+                    ..SpellTargetData::default()
+                },
+                SpellCastMetadata {
+                    unit_target_battle_pet_companion_guid: Some(pet_guid),
+                    ..SpellCastMetadata::default()
+                },
+            )
+            .await
+            .expect("represented checkcast failure should be sent");
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(packets.len(), 1);
+        let mut packet = wow_packet::WorldPacket::from_bytes(&packets[0]);
+        assert_eq!(
+            packet.read_uint16().expect("opcode"),
+            ServerOpcodes::CastFailed as u16
+        );
+        let _cast_id = packet.read_packed_guid().expect("cast id");
+        assert_eq!(packet.read_int32().expect("spell id"), spell_id);
+        assert_eq!(
+            packet.read_int32().expect("reason"),
+            SpellCastResult::WrongBattlePetType as i32
+        );
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_GRANT_BATTLEPET_EXPERIENCE,
+                    effect_base_points: 1,
+                    effect_misc_value_1: 1 << 2,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell_with_visual_and_target_data_with_metadata(
+                spell_id,
+                creature_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual::default(),
+                SpellTargetData {
+                    flags: 0x2,
+                    unit: creature_guid,
+                    ..SpellTargetData::default()
+                },
+                SpellCastMetadata {
+                    unit_target_battle_pet_companion_guid: Some(pet_guid),
+                    ..SpellCastMetadata::default()
+                },
+            )
+            .await
+            .expect("represented checkcast failure should be sent");
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(packets.len(), 1);
+        let mut packet = wow_packet::WorldPacket::from_bytes(&packets[0]);
+        assert_eq!(
+            packet.read_uint16().expect("opcode"),
+            ServerOpcodes::CastFailed as u16
+        );
+        let _cast_id = packet.read_packed_guid().expect("cast id");
+        assert_eq!(packet.read_int32().expect("spell id"), spell_id);
+        assert_eq!(
+            packet.read_int32().expect("reason"),
+            SpellCastResult::GrantPetLevelFail as i32
         );
     }
 

@@ -103,6 +103,7 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_194: u32 = 194;
     pub const SPELL_EFFECT_DESPAWN_SUMMON: u32 = 199;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_SUMMONS: u32 = 202;
+    pub const SPELL_EFFECT_CHANGE_BATTLEPET_QUALITY: u32 = 204;
     pub const SPELL_EFFECT_ALTER_ITEM: u32 = 206;
     pub const SPELL_EFFECT_LAUNCH_QUEST_TASK: u32 = 207;
     pub const SPELL_EFFECT_SET_REPUTATION: u32 = 208;
@@ -118,6 +119,7 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_ADD_GARRISON_MISSION: u32 = 221;
     pub const SPELL_EFFECT_CHANGE_ITEM_BONUSES: u32 = 223;
     pub const SPELL_EFFECT_ACTIVATE_GARRISON_BUILDING: u32 = 224;
+    pub const SPELL_EFFECT_GRANT_BATTLEPET_LEVEL: u32 = 225;
     pub const SPELL_EFFECT_TRIGGER_ACTION_SET: u32 = 226;
     pub const SPELL_EFFECT_TELEPORT_TO_LFG_DUNGEON: u32 = 227;
     pub const SPELL_EFFECT_228: u32 = 228;
@@ -1141,6 +1143,10 @@ mod tests {
             spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_SUMMONS,
             202
         );
+        assert_eq!(
+            spell_effect_types::SPELL_EFFECT_CHANGE_BATTLEPET_QUALITY,
+            204
+        );
         assert_eq!(spell_effect_types::SPELL_EFFECT_ALTER_ITEM, 206);
         assert_eq!(spell_effect_types::SPELL_EFFECT_LAUNCH_QUEST_TASK, 207);
         assert_eq!(spell_effect_types::SPELL_EFFECT_SET_REPUTATION, 208);
@@ -1168,6 +1174,7 @@ mod tests {
             spell_effect_types::SPELL_EFFECT_ACTIVATE_GARRISON_BUILDING,
             224
         );
+        assert_eq!(spell_effect_types::SPELL_EFFECT_GRANT_BATTLEPET_LEVEL, 225);
         assert_eq!(spell_effect_types::SPELL_EFFECT_TRIGGER_ACTION_SET, 226);
         assert_eq!(
             spell_effect_types::SPELL_EFFECT_TELEPORT_TO_LFG_DUNGEON,
@@ -1464,6 +1471,8 @@ mod tests {
             spell_effect_types::SPELL_EFFECT_QUEST_COMPLETE
         ));
         for real_handler_effect in [
+            spell_effect_types::SPELL_EFFECT_CHANGE_BATTLEPET_QUALITY,
+            spell_effect_types::SPELL_EFFECT_GRANT_BATTLEPET_LEVEL,
             243,
             spell_effect_types::SPELL_EFFECT_UPGRADE_HEIRLOOM,
             spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS,
