@@ -9,6 +9,7 @@
 
 use tracing::{debug, info, warn};
 use wow_constants::{ClientOpcodes, InventoryResult, ItemExtendedCostFlags, SpellCastResult};
+use wow_core::GameTime;
 use wow_database::{SqlTransaction, WorldStatements};
 use wow_entities::{
     GAMEOBJECT_TYPE_BARBER_CHAIR, GAMEOBJECT_TYPE_BUTTON, GAMEOBJECT_TYPE_CAMERA,
@@ -36,10 +37,11 @@ use wow_packet::packets::item::{
 };
 use wow_packet::packets::loot::{LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHING_LIKE_CPP};
 use wow_packet::packets::misc::{
-    AddToy, BattlePetClearFanfare, BattlePetDeletePet, BattlePetRequestJournal,
-    BattlePetSetBattleSlot, BattlePetSetFlags, BattlePetSummon, BattlePetUpdateNotify,
-    CageBattlePet, FarSight, MountSetFavorite, QueryBattlePetName, QueryBattlePetNameResponse,
-    RatedPvpInfo, RequestCemeteryListResponse, TaxiNodeStatusPkt, ToyClearFanfare, UseToy,
+    AddToy, BattlePetClearFanfare, BattlePetDeletePet, BattlePetModifyName,
+    BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags, BattlePetSummon,
+    BattlePetUpdateNotify, CageBattlePet, FarSight, MountSetFavorite, QueryBattlePetName,
+    QueryBattlePetNameResponse, RatedPvpInfo, RequestCemeteryListResponse, TaxiNodeStatusPkt,
+    ToyClearFanfare, UseToy,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -1526,6 +1528,37 @@ impl crate::session::WorldSession {
         };
 
         let _ = self.battle_pet_cage_battle_pet_represented_like_cpp(request.pet_guid, true, true);
+    }
+
+    /// CMSG_BATTLE_PET_MODIFY_NAME — represented rename body.
+    ///
+    /// C++ registers this handler and forwards the parsed guid/name/declined
+    /// names to `BattlePetMgr::ModifyName`, which stamps `GameTime::GetGameTime`
+    /// inside the manager. The archived opcode id remains the unresolved
+    /// `0xBADD` placeholder, so this method is intentionally not registered for
+    /// production dispatch until the real client opcode is known.
+    pub async fn handle_battle_pet_modify_name_represented_like_cpp(
+        &mut self,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
+        let request = match BattlePetModifyName::read_like_cpp(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "BattlePetModifyName parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        let timestamp = i64::try_from(GameTime::now().as_secs()).unwrap_or(i64::MAX);
+        let _ = self.battle_pet_modify_name_like_cpp(
+            request.pet_guid,
+            request.name,
+            request.declined_names,
+            timestamp,
+        );
     }
 
     /// CMSG_BATTLE_PET_SET_FLAGS — apply/remove represented battle-pet flags.
@@ -3274,6 +3307,28 @@ mod tests {
         pkt
     }
 
+    fn battle_pet_modify_name_packet(
+        pet_guid: ObjectGuid,
+        name: &str,
+        declined_names: Option<[&str; 5]>,
+    ) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(0xBADD);
+        pkt.write_packed_guid(&pet_guid);
+        pkt.write_bits(name.len() as u32, 7);
+        pkt.write_bit(declined_names.is_some());
+        if let Some(declined_names) = declined_names {
+            for declined_name in declined_names {
+                pkt.write_bits(declined_name.len() as u32, 7);
+            }
+            for declined_name in declined_names {
+                pkt.write_string(declined_name);
+            }
+        }
+        pkt.write_string(name);
+        pkt
+    }
+
     fn battle_pet_set_flags_packet(
         pet_guid: ObjectGuid,
         flags: u16,
@@ -3725,6 +3780,78 @@ mod tests {
         );
         assert_eq!(packet.read_packed_guid().expect("pet guid"), pet_guid);
         assert_eq!(packet.remaining(), 0);
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn battle_pet_modify_name_requires_lock_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let pet_guid = ObjectGuid::new(0, 0x2245);
+        session.add_represented_battle_pet_like_cpp(
+            pet_guid,
+            0x01,
+            crate::session::RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+        );
+
+        session
+            .handle_battle_pet_modify_name_represented_like_cpp(battle_pet_modify_name_packet(
+                pet_guid, "Misha", None,
+            ))
+            .await;
+
+        let pet = session
+            .represented_battle_pet_like_cpp(pet_guid)
+            .expect("pet remains");
+        assert_eq!(pet.name, "");
+        assert_eq!(pet.name_timestamp, 0);
+        assert_eq!(pet.declined_names, None);
+        assert_eq!(
+            pet.save_info,
+            crate::session::RepresentedBattlePetSaveInfoLikeCpp::Unchanged
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn battle_pet_modify_name_handler_delegates_to_manager_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let pet_guid = ObjectGuid::new(0, 0x2246);
+        let declined = ["Alpha", "Betas", "Gamma", "Delta", "Epsil"];
+        session.add_represented_battle_pet_like_cpp(
+            pet_guid,
+            0x01,
+            crate::session::RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+        );
+
+        session
+            .handle_battle_pet_request_journal_lock(battle_pet_request_journal_lock_packet())
+            .await;
+        let _ = send_rx.try_recv().expect("lock acquired packet");
+        let _ = send_rx.try_recv().expect("battle pet journal packet");
+        let before = i64::try_from(GameTime::now().as_secs()).unwrap_or(i64::MAX);
+
+        session
+            .handle_battle_pet_modify_name_represented_like_cpp(battle_pet_modify_name_packet(
+                pet_guid,
+                "Misha",
+                Some(declined),
+            ))
+            .await;
+
+        let after = i64::try_from(GameTime::now().as_secs()).unwrap_or(i64::MAX);
+        let pet = session
+            .represented_battle_pet_like_cpp(pet_guid)
+            .expect("pet renamed");
+        assert_eq!(pet.name, "Misha");
+        assert!((before..=after).contains(&pet.name_timestamp));
+        assert_eq!(
+            pet.declined_names.as_ref().expect("declined names").names,
+            declined.map(str::to_string)
+        );
+        assert_eq!(
+            pet.save_info,
+            crate::session::RepresentedBattlePetSaveInfoLikeCpp::Changed
+        );
         assert!(send_rx.try_recv().is_err());
     }
 
