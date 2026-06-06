@@ -43,6 +43,74 @@ impl SpellCastVisual {
     }
 }
 
+/// C++ `WorldPackets::Spells::PlaySpellVisual`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlaySpellVisual {
+    pub source: ObjectGuid,
+    pub target: ObjectGuid,
+    pub transport: ObjectGuid,
+    pub target_position: Position,
+    pub spell_visual_id: u32,
+    pub travel_speed: f32,
+    pub hit_reason: u16,
+    pub miss_reason: u16,
+    pub reflect_status: u16,
+    pub launch_delay: f32,
+    pub min_duration: f32,
+    pub speed_as_time: bool,
+}
+
+impl PlaySpellVisual {
+    pub fn self_target(
+        source: ObjectGuid,
+        target_position: Position,
+        spell_visual_id: u32,
+    ) -> Self {
+        Self {
+            source,
+            target: source,
+            transport: ObjectGuid::EMPTY,
+            target_position,
+            spell_visual_id,
+            travel_speed: 0.0,
+            hit_reason: 0,
+            miss_reason: 0,
+            reflect_status: 0,
+            launch_delay: 0.0,
+            min_duration: 0.0,
+            speed_as_time: false,
+        }
+    }
+}
+
+impl ServerPacket for PlaySpellVisual {
+    const OPCODE: ServerOpcodes = ServerOpcodes::PlaySpellVisual;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        for byte in self.source.to_raw_bytes() {
+            pkt.write_uint8(byte);
+        }
+        for byte in self.target.to_raw_bytes() {
+            pkt.write_uint8(byte);
+        }
+        for byte in self.transport.to_raw_bytes() {
+            pkt.write_uint8(byte);
+        }
+        pkt.write_float(self.target_position.x);
+        pkt.write_float(self.target_position.y);
+        pkt.write_float(self.target_position.z);
+        pkt.write_uint32(self.spell_visual_id);
+        pkt.write_float(self.travel_speed);
+        pkt.write_uint16(self.hit_reason);
+        pkt.write_uint16(self.miss_reason);
+        pkt.write_uint16(self.reflect_status);
+        pkt.write_float(self.launch_delay);
+        pkt.write_float(self.min_duration);
+        pkt.write_bit(self.speed_as_time);
+        pkt.flush_bits();
+    }
+}
+
 /// Spell target location payload: transport GUID followed by XYZ only.
 ///
 /// Trinity carries optional orientation separately in `SpellTargetData` rather
@@ -727,6 +795,46 @@ mod tests {
         let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
         assert_eq!(pkt.read_packed_guid().unwrap(), client_cast_id);
         assert_eq!(pkt.read_packed_guid().unwrap(), server_cast_id);
+        assert!(pkt.is_empty());
+    }
+
+    #[test]
+    fn play_spell_visual_writes_cpp_field_order() {
+        let guid = ObjectGuid::create_player(1, 77);
+        let target_position = Position::new(1.25, -2.5, 3.75, 0.5);
+        let bytes = PlaySpellVisual::self_target(guid, target_position, 222).to_bytes();
+        let mut pkt = WorldPacket::from_bytes(&bytes);
+
+        assert_eq!(
+            pkt.read_uint16().expect("opcode"),
+            ServerOpcodes::PlaySpellVisual as u16
+        );
+        let mut source = [0u8; 16];
+        for byte in &mut source {
+            *byte = pkt.read_uint8().expect("source byte");
+        }
+        assert_eq!(ObjectGuid::from_raw_bytes(&source), guid);
+        let mut target = [0u8; 16];
+        for byte in &mut target {
+            *byte = pkt.read_uint8().expect("target byte");
+        }
+        assert_eq!(ObjectGuid::from_raw_bytes(&target), guid);
+        let mut transport = [0u8; 16];
+        for byte in &mut transport {
+            *byte = pkt.read_uint8().expect("transport byte");
+        }
+        assert_eq!(ObjectGuid::from_raw_bytes(&transport), ObjectGuid::EMPTY);
+        assert_eq!(pkt.read_float().expect("target x"), 1.25);
+        assert_eq!(pkt.read_float().expect("target y"), -2.5);
+        assert_eq!(pkt.read_float().expect("target z"), 3.75);
+        assert_eq!(pkt.read_uint32().expect("visual"), 222);
+        assert_eq!(pkt.read_float().expect("travel speed"), 0.0);
+        assert_eq!(pkt.read_uint16().expect("hit reason"), 0);
+        assert_eq!(pkt.read_uint16().expect("miss reason"), 0);
+        assert_eq!(pkt.read_uint16().expect("reflect status"), 0);
+        assert_eq!(pkt.read_float().expect("launch delay"), 0.0);
+        assert_eq!(pkt.read_float().expect("min duration"), 0.0);
+        assert!(!pkt.read_bit().expect("speed as time"));
         assert!(pkt.is_empty());
     }
 

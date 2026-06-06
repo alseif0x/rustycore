@@ -1485,6 +1485,7 @@ pub(crate) const BATTLE_PET_FLAGS_CONTROL_TYPE_APPLY_LIKE_CPP: u8 = 1;
 pub(crate) const BATTLE_PET_SLOT_COUNT_LIKE_CPP: usize = 3;
 pub(crate) const BATTLE_PET_CAGE_ITEM_ID_LIKE_CPP: u32 = 82_800;
 pub(crate) const BATTLE_PET_BREED_QUALITY_RARE_LIKE_CPP: u8 = 3;
+pub(crate) const BATTLE_PET_SPELL_VISUAL_UNCAGE_PET_LIKE_CPP: u32 = 222;
 pub(crate) const DEFAULT_MAX_BATTLE_PETS_PER_SPECIES_LIKE_CPP: u8 = 3;
 pub(crate) const MAX_BATTLE_PET_LEVEL_LIKE_CPP: u16 = 25;
 
@@ -27634,6 +27635,13 @@ impl WorldSession {
             quality,
             modifiers.level,
         );
+        if let Some(player_guid) = self.player_guid() {
+            self.send_packet(&wow_packet::packets::spell::PlaySpellVisual::self_target(
+                player_guid,
+                self.player_position_like_cpp().unwrap_or(Position::ZERO),
+                BATTLE_PET_SPELL_VISUAL_UNCAGE_PET_LIKE_CPP,
+            ));
+        }
     }
 
     /// C++ `Spell::EffectGrantBattlePetExperience`.
@@ -56034,6 +56042,7 @@ mod tests {
             vec![
                 ServerOpcodes::SpellGo as u16,
                 ServerOpcodes::BattlePetUpdates as u16,
+                ServerOpcodes::PlaySpellVisual as u16,
                 ServerOpcodes::CooldownEvent as u16,
             ]
         );
@@ -56064,6 +56073,39 @@ mod tests {
         assert_eq!(update.read_uint32().expect("virtual realm"), 1);
         assert_eq!(update.read_uint32().expect("native realm"), 1);
         assert_eq!(update.remaining(), 0);
+
+        let mut visual = wow_packet::WorldPacket::from_bytes(&packets[2]);
+        let _ = visual.read_uint16().expect("opcode");
+        let mut source = [0u8; 16];
+        for byte in &mut source {
+            *byte = visual.read_uint8().expect("visual source byte");
+        }
+        assert_eq!(ObjectGuid::from_raw_bytes(&source), player_guid);
+        let mut target = [0u8; 16];
+        for byte in &mut target {
+            *byte = visual.read_uint8().expect("visual target byte");
+        }
+        assert_eq!(ObjectGuid::from_raw_bytes(&target), player_guid);
+        let mut transport = [0u8; 16];
+        for byte in &mut transport {
+            *byte = visual.read_uint8().expect("visual transport byte");
+        }
+        assert_eq!(ObjectGuid::from_raw_bytes(&transport), ObjectGuid::EMPTY);
+        assert_eq!(visual.read_float().expect("target x"), 0.0);
+        assert_eq!(visual.read_float().expect("target y"), 0.0);
+        assert_eq!(visual.read_float().expect("target z"), 0.0);
+        assert_eq!(
+            visual.read_uint32().expect("spell visual id"),
+            BATTLE_PET_SPELL_VISUAL_UNCAGE_PET_LIKE_CPP
+        );
+        assert_eq!(visual.read_float().expect("travel speed"), 0.0);
+        assert_eq!(visual.read_uint16().expect("hit reason"), 0);
+        assert_eq!(visual.read_uint16().expect("miss reason"), 0);
+        assert_eq!(visual.read_uint16().expect("reflect status"), 0);
+        assert_eq!(visual.read_float().expect("launch delay"), 0.0);
+        assert_eq!(visual.read_float().expect("min duration"), 0.0);
+        assert!(!visual.read_bit().expect("speed as time"));
+        assert_eq!(visual.remaining(), 0);
 
         let pet = session
             .represented_battle_pet_like_cpp(pet_guid)
