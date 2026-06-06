@@ -360,6 +360,7 @@ pub mod aura_types {
     pub const SPELL_AURA_HASTE_SPELLS: i32 = 73;
     pub const SPELL_AURA_MOUNTED: i32 = 78;
     pub const SPELL_AURA_PROVIDE_SPELL_FOCUS: i32 = 281;
+    pub const SPELL_AURA_MOD_BATTLE_PET_XP_PCT: i32 = 420;
 }
 
 /// Selected `Targets` ids from C++ `SpellImplicitTargetInfo::_data`.
@@ -502,6 +503,11 @@ impl SpellEffectInfo {
     pub fn is_provide_spell_focus_aura_like_cpp(&self) -> bool {
         self.effect == spell_effect_types::SPELL_EFFECT_APPLY_AURA
             && self.effect_aura == aura_types::SPELL_AURA_PROVIDE_SPELL_FOCUS
+    }
+
+    pub fn is_battle_pet_xp_pct_aura_like_cpp(&self) -> bool {
+        self.effect == spell_effect_types::SPELL_EFFECT_APPLY_AURA
+            && self.effect_aura == aura_types::SPELL_AURA_MOD_BATTLE_PET_XP_PCT
     }
 
     pub fn has_focus_destination_implicit_target_like_cpp(&self) -> bool {
@@ -1313,6 +1319,9 @@ mod tests {
             spell_effect_types::SPELL_EFFECT_LEARN_TRANSMOG_APPEARANCE_FROM_ITEM_MOD_APPEARANCE_GROUP,
             315
         );
+
+        // C++ `SpellAuraDefines.h`: selected `AuraType` enum anchors.
+        assert_eq!(aura_types::SPELL_AURA_MOD_BATTLE_PET_XP_PCT, 420);
     }
 
     #[test]

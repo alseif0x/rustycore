@@ -3360,6 +3360,7 @@ pub enum RepresentedAuraEffectLikeCpp {
     MountedFlightSpeed,
     ModifyFallDamagePct,
     ModFactionReputationGain,
+    ModBattlePetXpPct,
     ModReputationGain,
     ProvideSpellFocus,
     Stealth,
@@ -14496,6 +14497,45 @@ impl WorldSession {
         Ok(())
     }
 
+    fn apply_represented_battle_pet_xp_pct_aura_like_cpp(
+        &mut self,
+        spell_id: i32,
+        caster_guid: ObjectGuid,
+        effect: &wow_data::SpellEffectInfo,
+    ) -> Result<(), &'static str> {
+        let mut slot = 0u8;
+        while self.visible_auras.contains_key(&slot) && slot < 255 {
+            slot += 1;
+        }
+
+        if slot >= 255 {
+            return Err("No free aura slots");
+        }
+
+        let multiplier = 1.0 + (effect.effect_base_points as f32 / 100.0);
+        let aura = AuraApplication {
+            spell_id,
+            caster_guid,
+            slot,
+            duration_total: 30_000,
+            duration_remaining: 30_000,
+            stack_count: 1,
+            aura_flags: 0x0000_0001,
+            aura_interrupt_flags: 0,
+            aura_interrupt_flags2: 0,
+            represented_effect: Some(RepresentedAuraEffectLikeCpp::ModBattlePetXpPct),
+            represented_amount: effect.effect_base_points,
+            represented_misc_value: None,
+            represented_multiplier: multiplier,
+            applied_at: Instant::now(),
+        };
+
+        self.visible_auras.insert(slot, aura);
+        self.send_aura_update_applied(spell_id, slot, caster_guid, 30_000, 0x0000_0001);
+
+        Ok(())
+    }
+
     fn create_player_mount_vehicle_kit_like_cpp(
         &mut self,
         vehicle_id: u32,
@@ -18577,6 +18617,25 @@ impl WorldSession {
 
         self.send_battle_pet_updates_like_cpp(&[pet_guid], false);
         RepresentedBattlePetGrantExperienceOutcomeLikeCpp::Changed
+    }
+
+    pub(crate) fn battle_pet_grant_battle_pet_experience_with_owner_auras_like_cpp(
+        &mut self,
+        pet_guid: ObjectGuid,
+        xp: u16,
+        xp_source: RepresentedBattlePetXpSourceLikeCpp,
+    ) -> RepresentedBattlePetGrantExperienceOutcomeLikeCpp {
+        let multiplier = if xp_source == RepresentedBattlePetXpSourceLikeCpp::PetBattle {
+            self.total_represented_aura_multiplier_like_cpp(
+                RepresentedAuraEffectLikeCpp::ModBattlePetXpPct,
+            )
+        } else {
+            1.0
+        };
+
+        self.battle_pet_grant_battle_pet_experience_represented_like_cpp(
+            pet_guid, xp, xp_source, multiplier,
+        )
     }
 
     pub(crate) fn represented_battle_pet_level_criteria_like_cpp(
@@ -27132,6 +27191,7 @@ impl WorldSession {
                     effect.effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA
                         && !effect.is_mounted_aura_like_cpp()
                         && !effect.is_provide_spell_focus_aura_like_cpp()
+                        && !effect.is_battle_pet_xp_pct_aura_like_cpp()
                 })
                 .count();
             for effect in spell_info.effects().iter().filter(|effect| {
@@ -27141,6 +27201,12 @@ impl WorldSession {
                     self.apply_represented_mounted_aura_like_cpp(spell_id, player_guid, effect)?;
                 } else if effect.is_provide_spell_focus_aura_like_cpp() {
                     self.apply_represented_provide_spell_focus_aura_like_cpp(
+                        spell_id,
+                        player_guid,
+                        effect,
+                    )?;
+                } else if effect.is_battle_pet_xp_pct_aura_like_cpp() {
+                    self.apply_represented_battle_pet_xp_pct_aura_like_cpp(
                         spell_id,
                         player_guid,
                         effect,
@@ -35568,6 +35634,78 @@ mod tests {
         let opcodes = drain_server_opcodes(&send_rx);
         assert_eq!(
             opcodes,
+            vec![
+                ServerOpcodes::SpellGo,
+                ServerOpcodes::AuraUpdate,
+                ServerOpcodes::CooldownEvent
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn battle_pet_xp_pct_aura_registers_cpp_multiplier_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 728_i32;
+        let player_guid = ObjectGuid::create_player(1, 7033);
+        session.set_player_guid(Some(player_guid));
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_BATTLE_PET_XP_PCT,
+                    effect_base_points: 50,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell_with_visual_and_target_data(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual {
+                    spell_visual_id: 728,
+                    script_visual_id: 0,
+                },
+                SpellTargetData::default(),
+            )
+            .await
+            .expect("represented battle-pet XP aura should execute");
+
+        let aura = session
+            .visible_auras
+            .values()
+            .find(|aura| aura.spell_id == spell_id)
+            .expect("battle-pet XP aura");
+        assert_eq!(
+            aura.represented_effect,
+            Some(RepresentedAuraEffectLikeCpp::ModBattlePetXpPct)
+        );
+        assert_eq!(aura.represented_amount, 50);
+        assert_eq!(aura.represented_multiplier, 1.5);
+        assert_eq!(
+            session.total_represented_aura_multiplier_like_cpp(
+                RepresentedAuraEffectLikeCpp::ModBattlePetXpPct
+            ),
+            1.5
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
             vec![
                 ServerOpcodes::SpellGo,
                 ServerOpcodes::AuraUpdate,
@@ -55668,6 +55806,91 @@ mod tests {
         assert_eq!(
             session.represented_battle_pet_active_level_criteria_like_cpp(),
             &expected
+        );
+    }
+
+    #[test]
+    fn battle_pet_grant_experience_pet_battle_uses_owner_xp_aura_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x1A7);
+        let player_guid = ObjectGuid::create_player(1, 226);
+        install_represented_battle_pet_stat_stores_like_cpp(&mut session);
+        session.set_player_guid(Some(player_guid));
+        session.set_represented_battle_pet_xp_per_level_like_cpp(23, 100);
+        session.set_represented_battle_pet_xp_per_level_like_cpp(24, 100);
+        session.set_represented_battle_pet_xp_per_level_like_cpp(25, 100);
+
+        session.add_represented_battle_pet_packet_info_like_cpp(
+            pet_guid,
+            RepresentedBattlePetDataLikeCpp {
+                species: 11,
+                breed: 7,
+                level: 23,
+                exp: 0,
+                power: 10,
+                health: 50,
+                max_health: 100,
+                speed: 20,
+                quality: 3,
+                save_info: RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+                ..RepresentedBattlePetDataLikeCpp::minimal_like_cpp(
+                    0,
+                    RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+                )
+            },
+        );
+        session.send_battle_pet_journal_lock_status_like_cpp();
+        let _ = drain_server_packet_bytes(&send_rx);
+        session
+            .apply_represented_battle_pet_xp_pct_aura_like_cpp(
+                99_991,
+                player_guid,
+                &wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_BATTLE_PET_XP_PCT,
+                    effect_base_points: 50,
+                    ..Default::default()
+                },
+            )
+            .expect("represented pet-battle XP aura");
+        let _ = drain_server_packet_bytes(&send_rx);
+
+        assert_eq!(
+            session.battle_pet_grant_battle_pet_experience_with_owner_auras_like_cpp(
+                pet_guid,
+                200,
+                RepresentedBattlePetXpSourceLikeCpp::PetBattle,
+            ),
+            RepresentedBattlePetGrantExperienceOutcomeLikeCpp::Changed
+        );
+
+        let pet = session
+            .represented_battle_pet_like_cpp(pet_guid)
+            .expect("experienced pet");
+        assert_eq!(pet.level, MAX_BATTLE_PET_LEVEL_LIKE_CPP);
+        assert_eq!(pet.exp, 0);
+        let expected = [
+            RepresentedBattlePetLevelCriteriaLikeCpp {
+                species: 11,
+                level: 24,
+            },
+            RepresentedBattlePetLevelCriteriaLikeCpp {
+                species: 11,
+                level: 25,
+            },
+        ];
+        assert_eq!(
+            session.represented_battle_pet_level_criteria_like_cpp(),
+            &expected
+        );
+        assert_eq!(
+            session.represented_battle_pet_active_level_criteria_like_cpp(),
+            &expected
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::BattlePetUpdates]
         );
     }
 
