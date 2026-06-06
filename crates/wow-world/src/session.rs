@@ -18379,6 +18379,16 @@ impl WorldSession {
         sent_count
     }
 
+    /// C++ `BattlePetMgr::GetMaxPetLevel`.
+    pub(crate) fn battle_pet_max_pet_level_like_cpp(&self) -> u16 {
+        self.represented_battle_pets_like_cpp
+            .values()
+            .filter(|pet| pet.save_info != RepresentedBattlePetSaveInfoLikeCpp::Removed)
+            .map(|pet| pet.level)
+            .max()
+            .unwrap_or(0)
+    }
+
     /// C++ `BattlePetMgr::SendError`.
     pub(crate) fn battle_pet_send_error_like_cpp(
         &mut self,
@@ -54221,6 +54231,52 @@ mod tests {
         );
         assert_eq!(packet.read_int32().expect("creature id"), 12_345);
         assert_eq!(packet.remaining(), 0);
+    }
+
+    #[test]
+    fn battle_pet_max_pet_level_ignores_removed_rows_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let low_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x1b0);
+        let high_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x1b1);
+        let removed_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x1b2);
+
+        assert_eq!(session.battle_pet_max_pet_level_like_cpp(), 0);
+
+        session.add_represented_battle_pet_packet_info_like_cpp(
+            low_guid,
+            RepresentedBattlePetDataLikeCpp {
+                level: 7,
+                save_info: RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+                ..RepresentedBattlePetDataLikeCpp::minimal_like_cpp(
+                    0,
+                    RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+                )
+            },
+        );
+        session.add_represented_battle_pet_packet_info_like_cpp(
+            high_guid,
+            RepresentedBattlePetDataLikeCpp {
+                level: 19,
+                save_info: RepresentedBattlePetSaveInfoLikeCpp::New,
+                ..RepresentedBattlePetDataLikeCpp::minimal_like_cpp(
+                    0,
+                    RepresentedBattlePetSaveInfoLikeCpp::New,
+                )
+            },
+        );
+        session.add_represented_battle_pet_packet_info_like_cpp(
+            removed_guid,
+            RepresentedBattlePetDataLikeCpp {
+                level: 25,
+                save_info: RepresentedBattlePetSaveInfoLikeCpp::Removed,
+                ..RepresentedBattlePetDataLikeCpp::minimal_like_cpp(
+                    0,
+                    RepresentedBattlePetSaveInfoLikeCpp::Removed,
+                )
+            },
+        );
+
+        assert_eq!(session.battle_pet_max_pet_level_like_cpp(), 19);
     }
 
     #[test]
