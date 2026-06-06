@@ -36,10 +36,10 @@ use wow_packet::packets::item::{
 };
 use wow_packet::packets::loot::{LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHING_LIKE_CPP};
 use wow_packet::packets::misc::{
-    AddToy, BattlePetClearFanfare, BattlePetRequestJournal, BattlePetSetBattleSlot,
-    BattlePetSetFlags, BattlePetSummon, BattlePetUpdateNotify, FarSight, MountSetFavorite,
-    QueryBattlePetName, QueryBattlePetNameResponse, RatedPvpInfo, RequestCemeteryListResponse,
-    TaxiNodeStatusPkt, ToyClearFanfare, UseToy,
+    AddToy, BattlePetClearFanfare, BattlePetDeletePet, BattlePetRequestJournal,
+    BattlePetSetBattleSlot, BattlePetSetFlags, BattlePetSummon, BattlePetUpdateNotify, FarSight,
+    MountSetFavorite, QueryBattlePetName, QueryBattlePetNameResponse, RatedPvpInfo,
+    RequestCemeteryListResponse, TaxiNodeStatusPkt, ToyClearFanfare, UseToy,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -1474,6 +1474,31 @@ impl crate::session::WorldSession {
         };
 
         self.battle_pet_clear_fanfare_like_cpp(request.pet_guid);
+    }
+
+    /// CMSG_BATTLE_PET_DELETE_PET — represented battle-pet removal body.
+    ///
+    /// C++ registers this handler and forwards only the pet guid to
+    /// `BattlePetMgr::RemovePet`, which requires the journal lock and silently
+    /// ignores unknown pets. The archived opcode id is the unresolved `0xBADD`
+    /// placeholder, so this method is intentionally not registered for
+    /// production dispatch until the real client opcode is known.
+    pub async fn handle_battle_pet_delete_pet_represented_like_cpp(
+        &mut self,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
+        let request = match BattlePetDeletePet::read_like_cpp(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "BattlePetDeletePet parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        self.battle_pet_remove_pet_like_cpp(request.pet_guid);
     }
 
     /// CMSG_BATTLE_PET_SET_FLAGS — apply/remove represented battle-pet flags.
@@ -3208,6 +3233,13 @@ mod tests {
         pkt
     }
 
+    fn battle_pet_delete_pet_packet(pet_guid: ObjectGuid) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(0xBADD);
+        pkt.write_packed_guid(&pet_guid);
+        pkt
+    }
+
     fn battle_pet_set_flags_packet(
         pet_guid: ObjectGuid,
         flags: u16,
@@ -3469,6 +3501,74 @@ mod tests {
 
         session
             .handle_battle_pet_clear_fanfare(battle_pet_clear_fanfare_packet(pet_guid))
+            .await;
+
+        assert!(session.represented_battle_pet_like_cpp(pet_guid).is_none());
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn battle_pet_delete_pet_requires_lock_and_marks_removed_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let pet_guid = ObjectGuid::new(0, 0x2241);
+        session.add_represented_battle_pet_like_cpp(
+            pet_guid,
+            0x01,
+            crate::session::RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+        );
+
+        session
+            .handle_battle_pet_delete_pet_represented_like_cpp(battle_pet_delete_pet_packet(
+                pet_guid,
+            ))
+            .await;
+        assert_eq!(
+            session.represented_battle_pet_like_cpp(pet_guid),
+            Some(
+                crate::session::RepresentedBattlePetDataLikeCpp::minimal_like_cpp(
+                    0x01,
+                    crate::session::RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+                )
+            )
+        );
+        assert!(send_rx.try_recv().is_err());
+
+        session
+            .handle_battle_pet_request_journal_lock(battle_pet_request_journal_lock_packet())
+            .await;
+        let _ = send_rx.try_recv().expect("lock acquired packet");
+        let _ = send_rx.try_recv().expect("battle pet journal packet");
+
+        session
+            .handle_battle_pet_delete_pet_represented_like_cpp(battle_pet_delete_pet_packet(
+                pet_guid,
+            ))
+            .await;
+        assert_eq!(
+            session
+                .represented_battle_pet_like_cpp(pet_guid)
+                .expect("represented pet row remains until DB save")
+                .save_info,
+            crate::session::RepresentedBattlePetSaveInfoLikeCpp::Removed
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn battle_pet_delete_pet_ignores_unknown_pet_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let pet_guid = ObjectGuid::new(0, 0x2242);
+
+        session
+            .handle_battle_pet_request_journal_lock(battle_pet_request_journal_lock_packet())
+            .await;
+        let _ = send_rx.try_recv().expect("lock acquired packet");
+        let _ = send_rx.try_recv().expect("battle pet journal packet");
+
+        session
+            .handle_battle_pet_delete_pet_represented_like_cpp(battle_pet_delete_pet_packet(
+                pet_guid,
+            ))
             .await;
 
         assert!(session.represented_battle_pet_like_cpp(pet_guid).is_none());
