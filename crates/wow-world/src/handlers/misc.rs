@@ -37,9 +37,9 @@ use wow_packet::packets::item::{
 use wow_packet::packets::loot::{LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHING_LIKE_CPP};
 use wow_packet::packets::misc::{
     AddToy, BattlePetClearFanfare, BattlePetDeletePet, BattlePetRequestJournal,
-    BattlePetSetBattleSlot, BattlePetSetFlags, BattlePetSummon, BattlePetUpdateNotify, FarSight,
-    MountSetFavorite, QueryBattlePetName, QueryBattlePetNameResponse, RatedPvpInfo,
-    RequestCemeteryListResponse, TaxiNodeStatusPkt, ToyClearFanfare, UseToy,
+    BattlePetSetBattleSlot, BattlePetSetFlags, BattlePetSummon, BattlePetUpdateNotify,
+    CageBattlePet, FarSight, MountSetFavorite, QueryBattlePetName, QueryBattlePetNameResponse,
+    RatedPvpInfo, RequestCemeteryListResponse, TaxiNodeStatusPkt, ToyClearFanfare, UseToy,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -1499,6 +1499,33 @@ impl crate::session::WorldSession {
         };
 
         self.battle_pet_remove_pet_like_cpp(request.pet_guid);
+    }
+
+    /// CMSG_CAGE_BATTLE_PET — represented cage body.
+    ///
+    /// C++ registers this handler and forwards only the pet guid to
+    /// `BattlePetMgr::CageBattlePet`. The manager then performs the journal,
+    /// species, slot, health, inventory, item-store, remove, deleted-packet,
+    /// and summoned-companion gates. The archived opcode id is still the
+    /// unresolved `0xBADD` placeholder, so this method remains intentionally
+    /// unregistered for production dispatch. Until the real inventory path is
+    /// wired, this represented body exercises the successful inventory seam.
+    pub async fn handle_cage_battle_pet_represented_like_cpp(
+        &mut self,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
+        let request = match CageBattlePet::read_like_cpp(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "CageBattlePet parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        let _ = self.battle_pet_cage_battle_pet_represented_like_cpp(request.pet_guid, true, true);
     }
 
     /// CMSG_BATTLE_PET_SET_FLAGS — apply/remove represented battle-pet flags.
@@ -3240,6 +3267,13 @@ mod tests {
         pkt
     }
 
+    fn cage_battle_pet_packet(pet_guid: ObjectGuid) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(0xBADD);
+        pkt.write_packed_guid(&pet_guid);
+        pkt
+    }
+
     fn battle_pet_set_flags_packet(
         pet_guid: ObjectGuid,
         flags: u16,
@@ -3572,6 +3606,125 @@ mod tests {
             .await;
 
         assert!(session.represented_battle_pet_like_cpp(pet_guid).is_none());
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn cage_battle_pet_requires_lock_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let pet_guid = ObjectGuid::new(0, 0x2243);
+        session.add_represented_battle_pet_packet_info_like_cpp(
+            pet_guid,
+            crate::session::RepresentedBattlePetDataLikeCpp {
+                species: 11,
+                creature_id: 22,
+                display_id: 33,
+                breed: 44,
+                level: 17,
+                exp: 0,
+                flags: 0,
+                power: 0,
+                health: 100,
+                max_health: 100,
+                speed: 0,
+                quality: 3,
+                owner_info: None,
+                name: String::new(),
+                name_timestamp: 0,
+                declined_names: None,
+                save_info: crate::session::RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+            },
+        );
+
+        session
+            .handle_cage_battle_pet_represented_like_cpp(cage_battle_pet_packet(pet_guid))
+            .await;
+
+        assert_eq!(
+            session
+                .represented_battle_pet_like_cpp(pet_guid)
+                .expect("pet remains")
+                .save_info,
+            crate::session::RepresentedBattlePetSaveInfoLikeCpp::Unchanged
+        );
+        assert!(
+            session
+                .represented_battle_pet_cage_items_like_cpp()
+                .is_empty()
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn cage_battle_pet_handler_delegates_to_represented_manager_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let pet_guid = ObjectGuid::new(0, 0x2244);
+        let expected_item = crate::session::RepresentedBattlePetCageItemLikeCpp {
+            item_id: crate::session::BATTLE_PET_CAGE_ITEM_ID_LIKE_CPP,
+            species_id: 11,
+            breed_data: 44 | (3 << 24),
+            level: 17,
+            display_id: 33,
+        };
+
+        session.add_represented_battle_pet_packet_info_like_cpp(
+            pet_guid,
+            crate::session::RepresentedBattlePetDataLikeCpp {
+                species: 11,
+                creature_id: 22,
+                display_id: 33,
+                breed: 44,
+                level: 17,
+                exp: 0,
+                flags: 0,
+                power: 0,
+                health: 100,
+                max_health: 100,
+                speed: 0,
+                quality: 3,
+                owner_info: None,
+                name: String::new(),
+                name_timestamp: 0,
+                declined_names: None,
+                save_info: crate::session::RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+            },
+        );
+        assert!(session.battle_pet_summon_toggle_like_cpp(pet_guid));
+
+        session
+            .handle_battle_pet_request_journal_lock(battle_pet_request_journal_lock_packet())
+            .await;
+        let _ = send_rx.try_recv().expect("lock acquired packet");
+        let _ = send_rx.try_recv().expect("battle pet journal packet");
+
+        session
+            .handle_cage_battle_pet_represented_like_cpp(cage_battle_pet_packet(pet_guid))
+            .await;
+
+        assert_eq!(
+            session.represented_battle_pet_cage_items_like_cpp(),
+            &[expected_item]
+        );
+        assert_eq!(
+            session
+                .represented_battle_pet_like_cpp(pet_guid)
+                .expect("removed pet row remains represented")
+                .save_info,
+            crate::session::RepresentedBattlePetSaveInfoLikeCpp::Removed
+        );
+        assert_eq!(
+            session.represented_summoned_battle_pet_guid_like_cpp(),
+            None
+        );
+
+        let packet_bytes = send_rx.try_recv().expect("battle pet deleted packet");
+        let mut packet = wow_packet::WorldPacket::from_bytes(&packet_bytes);
+        assert_eq!(
+            packet.read_uint16().expect("opcode"),
+            ServerOpcodes::BattlePetDeleted as u16
+        );
+        assert_eq!(packet.read_packed_guid().expect("pet guid"), pet_guid);
+        assert_eq!(packet.remaining(), 0);
         assert!(send_rx.try_recv().is_err());
     }
 
