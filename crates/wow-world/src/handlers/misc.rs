@@ -1650,11 +1650,12 @@ impl crate::session::WorldSession {
     pub async fn handle_battle_pet_update_display_notify(&mut self, _pkt: wow_packet::WorldPacket) {
     }
 
-    /// CMSG_QUERY_BATTLE_PET_NAME — represented negative lookup response.
+    /// CMSG_QUERY_BATTLE_PET_NAME — represented summoned-companion name lookup.
     ///
-    /// C++ always sends `QueryBattlePetNameResponse`; until the live summoned
-    /// battle-pet creature/name runtime exists, Rust can faithfully close the
-    /// unresolved branch (`Allow=false`, zero creature/timestamp).
+    /// C++ first resolves the requested unit through ObjectAccessor and requires
+    /// a summon. Only after that does it copy `CreatureID` and companion-name
+    /// timestamp, then it gates on player owner, known battle-pet row, and a
+    /// non-empty name before setting `Allow=true`.
     pub async fn handle_query_battle_pet_name(&mut self, mut pkt: wow_packet::WorldPacket) {
         let request = match QueryBattlePetName::read(&mut pkt) {
             Ok(request) => request,
@@ -1667,9 +1668,40 @@ impl crate::session::WorldSession {
             }
         };
 
-        self.send_packet(&QueryBattlePetNameResponse::not_allowed(
-            request.battle_pet_id,
-        ));
+        let Some(companion) =
+            self.represented_battle_pet_query_companion_like_cpp(request.unit_guid)
+        else {
+            self.send_packet(&QueryBattlePetNameResponse::not_allowed(
+                request.battle_pet_id,
+            ));
+            return;
+        };
+
+        if !companion.is_summon {
+            self.send_packet(&QueryBattlePetNameResponse::not_allowed(
+                request.battle_pet_id,
+            ));
+            return;
+        }
+
+        let mut response = QueryBattlePetNameResponse {
+            battle_pet_id: request.battle_pet_id,
+            creature_id: companion.creature_id,
+            timestamp: companion.name_timestamp,
+            allow: false,
+            name: String::new(),
+            declined_names: None,
+        };
+
+        if companion.owner_is_player {
+            if let Some(pet) = self.represented_battle_pet_like_cpp(request.battle_pet_id) {
+                response.name = pet.name;
+                response.declined_names = pet.declined_names;
+                response.allow = !response.name.is_empty();
+            }
+        }
+
+        self.send_packet(&response);
     }
     pub async fn handle_arena_team_roster(&mut self, _pkt: wow_packet::WorldPacket) {}
     pub async fn handle_request_raid_info(&mut self, _pkt: wow_packet::WorldPacket) {
@@ -4070,6 +4102,127 @@ mod tests {
         assert_eq!(body.read_int32().unwrap(), 0);
         assert_eq!(body.read_int64().unwrap(), 0);
         assert!(!body.read_bit().unwrap());
+        assert_eq!(body.remaining(), 0);
+    }
+
+    #[tokio::test]
+    async fn query_battle_pet_name_non_summon_keeps_zero_response_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let battle_pet_id = ObjectGuid::new(0, 0x22f);
+        let unit_guid = ObjectGuid::new(0, 0x230);
+        session.set_represented_battle_pet_query_companion_like_cpp(
+            unit_guid,
+            crate::session::RepresentedBattlePetQueryCompanionLikeCpp {
+                creature_id: 777,
+                name_timestamp: 1234,
+                is_summon: false,
+                owner_is_player: true,
+            },
+        );
+
+        session
+            .handle_query_battle_pet_name(query_battle_pet_name_packet(battle_pet_id, unit_guid))
+            .await;
+
+        let bytes = send_rx.try_recv().expect("query battle pet name response");
+        let mut body = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(body.read_packed_guid().unwrap(), battle_pet_id);
+        assert_eq!(body.read_int32().unwrap(), 0);
+        assert_eq!(body.read_int64().unwrap(), 0);
+        assert!(!body.read_bit().unwrap());
+        assert_eq!(body.remaining(), 0);
+    }
+
+    #[tokio::test]
+    async fn query_battle_pet_name_preserves_summon_identity_until_allow_gate_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let battle_pet_id = ObjectGuid::new(0, 0x231);
+        let unit_guid = ObjectGuid::new(0, 0x232);
+        session.set_represented_battle_pet_query_companion_like_cpp(
+            unit_guid,
+            crate::session::RepresentedBattlePetQueryCompanionLikeCpp {
+                creature_id: 777,
+                name_timestamp: 1234,
+                is_summon: true,
+                owner_is_player: false,
+            },
+        );
+
+        session
+            .handle_query_battle_pet_name(query_battle_pet_name_packet(battle_pet_id, unit_guid))
+            .await;
+
+        let bytes = send_rx.try_recv().expect("query battle pet name response");
+        let mut body = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(body.read_packed_guid().unwrap(), battle_pet_id);
+        assert_eq!(body.read_int32().unwrap(), 777);
+        assert_eq!(body.read_int64().unwrap(), 1234);
+        assert!(!body.read_bit().unwrap());
+        assert_eq!(body.remaining(), 0);
+    }
+
+    #[tokio::test]
+    async fn query_battle_pet_name_allows_known_named_player_pet_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let battle_pet_id = ObjectGuid::new(0, 0x233);
+        let unit_guid = ObjectGuid::new(0, 0x234);
+        let declined = wow_packet::packets::misc::DeclinedNamesLikeCpp {
+            names: ["Alpha", "Betas", "Gamma", "Delta", "Epsil"].map(str::to_string),
+        };
+        session.set_represented_battle_pet_query_companion_like_cpp(
+            unit_guid,
+            crate::session::RepresentedBattlePetQueryCompanionLikeCpp {
+                creature_id: 777,
+                name_timestamp: 1234,
+                is_summon: true,
+                owner_is_player: true,
+            },
+        );
+        session.add_represented_battle_pet_packet_info_like_cpp(
+            battle_pet_id,
+            crate::session::RepresentedBattlePetDataLikeCpp {
+                species: 11,
+                creature_id: 777,
+                display_id: 33,
+                breed: 44,
+                level: 17,
+                exp: 0,
+                flags: 0,
+                power: 0,
+                health: 100,
+                max_health: 100,
+                speed: 0,
+                quality: 3,
+                owner_info: None,
+                name: "Misha".to_string(),
+                name_timestamp: 1234,
+                declined_names: Some(declined.clone()),
+                save_info: crate::session::RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+            },
+        );
+
+        session
+            .handle_query_battle_pet_name(query_battle_pet_name_packet(battle_pet_id, unit_guid))
+            .await;
+
+        let bytes = send_rx.try_recv().expect("query battle pet name response");
+        let mut body = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(body.read_packed_guid().unwrap(), battle_pet_id);
+        assert_eq!(body.read_int32().unwrap(), 777);
+        assert_eq!(body.read_int64().unwrap(), 1234);
+        assert!(body.read_bit().unwrap());
+        assert_eq!(body.read_bits(8).unwrap(), 5);
+        assert!(body.read_bit().unwrap());
+        let mut declined_lengths = [0usize; 5];
+        for length in &mut declined_lengths {
+            *length = body.read_bits(7).unwrap() as usize;
+        }
+        let declined_names = declined_lengths
+            .iter()
+            .map(|length| body.read_string(*length).unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(declined_names, declined.names);
+        assert_eq!(body.read_string(5).unwrap(), "Misha");
         assert_eq!(body.remaining(), 0);
     }
 

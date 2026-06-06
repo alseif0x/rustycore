@@ -1587,6 +1587,16 @@ pub(crate) struct RepresentedBattlePetDataLikeCpp {
     pub(crate) save_info: RepresentedBattlePetSaveInfoLikeCpp,
 }
 
+/// Represented ObjectAccessor/TempSummon facts needed by
+/// `WorldSession::HandleQueryBattlePetName`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedBattlePetQueryCompanionLikeCpp {
+    pub(crate) creature_id: i32,
+    pub(crate) name_timestamp: i64,
+    pub(crate) is_summon: bool,
+    pub(crate) owner_is_player: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedBattlePetSlotLikeCpp {
     pub(crate) pet_guid: Option<ObjectGuid>,
@@ -2897,6 +2907,9 @@ pub struct WorldSession {
         [RepresentedBattlePetSlotLikeCpp; BATTLE_PET_SLOT_COUNT_LIKE_CPP],
     /// C++ `ActivePlayerData::SummonedBattlePetGUID`, represented until battle-pet summon runtime is live.
     pub(crate) represented_summoned_battle_pet_guid_like_cpp: Option<ObjectGuid>,
+    /// C++ ObjectAccessor/TempSummon query state for `CMSG_QUERY_BATTLE_PET_NAME`.
+    pub(crate) represented_battle_pet_query_companions_like_cpp:
+        HashMap<ObjectGuid, RepresentedBattlePetQueryCompanionLikeCpp>,
     /// Represented caged-item creations from C++ `BattlePetMgr::CageBattlePet`.
     pub(crate) represented_battle_pet_cage_items_like_cpp: Vec<RepresentedBattlePetCageItemLikeCpp>,
     /// C++ `sBattlePetXPGameTable` projected as level -> `uint16(Wins * Xp)`.
@@ -3810,6 +3823,7 @@ impl WorldSession {
                 RepresentedBattlePetSlotLikeCpp::locked_empty(index as u8)
             }),
             represented_summoned_battle_pet_guid_like_cpp: None,
+            represented_battle_pet_query_companions_like_cpp: HashMap::new(),
             represented_battle_pet_cage_items_like_cpp: Vec::new(),
             represented_battle_pet_xp_per_level_like_cpp: BTreeMap::new(),
             represented_battle_pet_level_criteria_like_cpp: Vec::new(),
@@ -18733,6 +18747,24 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedBattlePetCageItemLikeCpp] {
         &self.represented_battle_pet_cage_items_like_cpp
+    }
+
+    pub(crate) fn set_represented_battle_pet_query_companion_like_cpp(
+        &mut self,
+        unit_guid: ObjectGuid,
+        companion: RepresentedBattlePetQueryCompanionLikeCpp,
+    ) {
+        self.represented_battle_pet_query_companions_like_cpp
+            .insert(unit_guid, companion);
+    }
+
+    pub(crate) fn represented_battle_pet_query_companion_like_cpp(
+        &self,
+        unit_guid: ObjectGuid,
+    ) -> Option<RepresentedBattlePetQueryCompanionLikeCpp> {
+        self.represented_battle_pet_query_companions_like_cpp
+            .get(&unit_guid)
+            .copied()
     }
 
     /// C++ `BattlePetMgr::UpdateBattlePetData`, represented at the gate level.
