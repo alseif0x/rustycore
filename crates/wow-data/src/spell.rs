@@ -99,6 +99,7 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_LOOT: u32 = 189;
     pub const SPELL_EFFECT_CHANGE_PARTY_MEMBERS: u32 = 190;
     pub const SPELL_EFFECT_TELEPORT_TO_DIGSITE: u32 = 191;
+    pub const SPELL_EFFECT_UNCAGE_BATTLEPET: u32 = 192;
     pub const SPELL_EFFECT_START_PET_BATTLE: u32 = 193;
     pub const SPELL_EFFECT_194: u32 = 194;
     pub const SPELL_EFFECT_DESPAWN_SUMMON: u32 = 199;
@@ -1142,6 +1143,7 @@ mod tests {
         assert_eq!(spell_effect_types::SPELL_EFFECT_LOOT, 189);
         assert_eq!(spell_effect_types::SPELL_EFFECT_CHANGE_PARTY_MEMBERS, 190);
         assert_eq!(spell_effect_types::SPELL_EFFECT_TELEPORT_TO_DIGSITE, 191);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_UNCAGE_BATTLEPET, 192);
         assert_eq!(spell_effect_types::SPELL_EFFECT_START_PET_BATTLE, 193);
         assert_eq!(spell_effect_types::SPELL_EFFECT_194, 194);
         assert_eq!(spell_effect_types::SPELL_EFFECT_DESPAWN_SUMMON, 199);

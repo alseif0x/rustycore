@@ -2232,10 +2232,19 @@ pub enum SessionState {
 /// is the same as `CastID`, `CastFlagsEx` is zero, and no item entry/misc data
 /// is attached.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellCastBattlePetItemModifiersLikeCpp {
+    pub species_id: u32,
+    pub breed_data: u32,
+    pub level: u16,
+    pub display_id: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SpellCastMetadata {
     pub from_client: bool,
     pub misc: [i32; 2],
     pub cast_item_entry: Option<u32>,
+    pub cast_item_battle_pet_modifiers: Option<SpellCastBattlePetItemModifiersLikeCpp>,
     pub cast_flags_ex: u32,
     pub original_cast_id: ObjectGuid,
     pub unit_target_battle_pet_companion_guid: Option<ObjectGuid>,
@@ -2247,6 +2256,7 @@ impl Default for SpellCastMetadata {
             from_client: false,
             misc: [0, 0],
             cast_item_entry: None,
+            cast_item_battle_pet_modifiers: None,
             cast_flags_ex: 0,
             original_cast_id: ObjectGuid::EMPTY,
             unit_target_battle_pet_companion_guid: None,
@@ -27215,6 +27225,9 @@ impl WorldSession {
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_UPGRADE_HEIRLOOM => {
                     self.apply_upgrade_heirloom_effect_like_cpp(metadata);
                 }
+                x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_UNCAGE_BATTLEPET => {
+                    self.apply_uncage_battle_pet_effect_like_cpp(spell_id, cast_id, metadata);
+                }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_GRANT_BATTLEPET_LEVEL =>
                 {
                     self.apply_grant_battle_pet_level_effect_like_cpp(
@@ -27361,6 +27374,7 @@ impl WorldSession {
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_PLAY_MOVIE
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_TRANSMOG_SET
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_UPGRADE_HEIRLOOM
+                || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_UNCAGE_BATTLEPET
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_CHANGE_BATTLEPET_QUALITY
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_GRANT_BATTLEPET_LEVEL
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_GRANT_BATTLEPET_EXPERIENCE
@@ -27464,6 +27478,60 @@ impl WorldSession {
             &update,
         ) {
             self.send_packet(&packet);
+        }
+    }
+
+    /// C++ `Spell::EffectCreateBattlePet` / `SPELL_EFFECT_UNCAGE_BATTLEPET`,
+    /// represented up to the failure gates. The successful `BattlePetMgr::AddPet`
+    /// branch is kept for a later slice because it needs GUID allocation,
+    /// criteria updates, and DB-backed persistence.
+    fn apply_uncage_battle_pet_effect_like_cpp(
+        &mut self,
+        spell_id: i32,
+        cast_id: ObjectGuid,
+        metadata: SpellCastMetadata,
+    ) {
+        let Some(modifiers) = metadata.cast_item_battle_pet_modifiers else {
+            return;
+        };
+
+        let Some(species_entry) = self
+            .battle_pet_species_store
+            .as_ref()
+            .and_then(|store| store.get(modifiers.species_id))
+            .cloned()
+        else {
+            return;
+        };
+
+        let creature_id = u32::try_from(species_entry.creature_id).unwrap_or_default();
+        if self.battle_pet_max_pet_level_like_cpp() < modifiers.level {
+            self.battle_pet_send_error_like_cpp(
+                wow_packet::packets::misc::BattlePetErrorCodeLikeCpp::TooHighLevelToUncage,
+                creature_id,
+            );
+            self.send_packet(&wow_packet::packets::spell::CastFailed {
+                cast_id,
+                spell_id,
+                reason: SpellCastResult::CantAddBattlePet as i32,
+                fail_arg1: 0,
+                fail_arg2: 0,
+            });
+            return;
+        }
+
+        if self.battle_pet_has_max_pet_count_like_cpp(modifiers.species_id, self.player_guid()) {
+            self.battle_pet_send_error_like_cpp(
+                wow_packet::packets::misc::BattlePetErrorCodeLikeCpp::CantHaveMorePetsOfType,
+                creature_id,
+            );
+            self.send_packet(&wow_packet::packets::spell::CastFailed {
+                cast_id,
+                spell_id,
+                reason: SpellCastResult::CantAddBattlePet as i32,
+                fail_arg1: 0,
+                fail_arg2: 0,
+            });
         }
     }
 
@@ -53556,6 +53624,7 @@ mod tests {
                     from_client: true,
                     misc: [44_000, 0],
                     cast_item_entry: Some(90_002),
+                    cast_item_battle_pet_modifiers: None,
                     cast_flags_ex: CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP,
                     original_cast_id: ObjectGuid::EMPTY,
                     unit_target_battle_pet_companion_guid: None,
@@ -54713,12 +54782,21 @@ mod tests {
         species: u32,
         flags: i32,
     ) {
+        install_represented_battle_pet_species_like_cpp(session, species, 0, flags);
+    }
+
+    fn install_represented_battle_pet_species_like_cpp(
+        session: &mut WorldSession,
+        species: u32,
+        creature_id: i32,
+        flags: i32,
+    ) {
         session.set_battle_pet_species_store(Arc::new(
             wow_data::BattlePetSpeciesStore::from_entries([wow_data::BattlePetSpeciesEntry {
                 id: species,
                 description: String::new(),
                 source_text: String::new(),
-                creature_id: 0,
+                creature_id,
                 summon_spell_id: 0,
                 icon_file_data_id: 0,
                 pet_type_enum: 0,
@@ -55569,6 +55647,201 @@ mod tests {
                 ServerOpcodes::BattlePetUpdates,
                 ServerOpcodes::CooldownEvent,
             ]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_effect_uncage_battle_pet_rejects_too_high_level_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 230);
+        let existing_pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x1bc);
+        let spell_id = 77_290;
+
+        session.set_player_guid(Some(player_guid));
+        install_represented_battle_pet_species_like_cpp(&mut session, 11, 9001, 0);
+        session.add_represented_battle_pet_packet_info_like_cpp(
+            existing_pet_guid,
+            RepresentedBattlePetDataLikeCpp {
+                species: 12,
+                level: 10,
+                save_info: RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+                ..RepresentedBattlePetDataLikeCpp::minimal_like_cpp(
+                    0,
+                    RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+                )
+            },
+        );
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_UNCAGE_BATTLEPET,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell_with_visual_and_target_data_with_metadata(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual::default(),
+                SpellTargetData {
+                    flags: 0x2,
+                    unit: player_guid,
+                    ..SpellTargetData::default()
+                },
+                SpellCastMetadata {
+                    cast_item_battle_pet_modifiers: Some(SpellCastBattlePetItemModifiersLikeCpp {
+                        species_id: 11,
+                        breed_data: 7 | (3 << 24),
+                        level: 11,
+                        display_id: 33,
+                    }),
+                    ..SpellCastMetadata::default()
+                },
+            )
+            .await
+            .expect("represented uncage failure should send packets");
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(packets.len(), 4);
+        assert_eq!(
+            packets
+                .iter()
+                .map(|bytes| {
+                    let mut packet = wow_packet::WorldPacket::from_bytes(bytes);
+                    packet.read_uint16().expect("opcode")
+                })
+                .collect::<Vec<_>>(),
+            vec![
+                ServerOpcodes::SpellGo as u16,
+                ServerOpcodes::BattlePetError as u16,
+                ServerOpcodes::CastFailed as u16,
+                ServerOpcodes::CooldownEvent as u16,
+            ]
+        );
+
+        let mut error = wow_packet::WorldPacket::from_bytes(&packets[1]);
+        let _ = error.read_uint16().expect("opcode");
+        assert_eq!(
+            error.read_bits(4).expect("result"),
+            wow_packet::packets::misc::BattlePetErrorCodeLikeCpp::TooHighLevelToUncage as u32
+        );
+        assert_eq!(error.read_int32().expect("creature id"), 9001);
+
+        let mut failed = wow_packet::WorldPacket::from_bytes(&packets[2]);
+        let _ = failed.read_uint16().expect("opcode");
+        let _ = failed.read_packed_guid().expect("cast id");
+        assert_eq!(failed.read_int32().expect("spell id"), spell_id);
+        assert_eq!(
+            failed.read_int32().expect("reason"),
+            SpellCastResult::CantAddBattlePet as i32
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_effect_uncage_battle_pet_rejects_max_species_count_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 231);
+        let spell_id = 77_291;
+
+        session.set_player_guid(Some(player_guid));
+        install_represented_battle_pet_species_like_cpp(&mut session, 11, 9002, 0);
+        for counter in 0x1bd..=0x1bf {
+            session.add_represented_battle_pet_packet_info_like_cpp(
+                ObjectGuid::create_global(HighGuid::BattlePet, 0, counter),
+                RepresentedBattlePetDataLikeCpp {
+                    species: 11,
+                    level: 25,
+                    save_info: RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+                    ..RepresentedBattlePetDataLikeCpp::minimal_like_cpp(
+                        0,
+                        RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+                    )
+                },
+            );
+        }
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_UNCAGE_BATTLEPET,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell_with_visual_and_target_data_with_metadata(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual::default(),
+                SpellTargetData {
+                    flags: 0x2,
+                    unit: player_guid,
+                    ..SpellTargetData::default()
+                },
+                SpellCastMetadata {
+                    cast_item_battle_pet_modifiers: Some(SpellCastBattlePetItemModifiersLikeCpp {
+                        species_id: 11,
+                        breed_data: 7 | (3 << 24),
+                        level: 1,
+                        display_id: 33,
+                    }),
+                    ..SpellCastMetadata::default()
+                },
+            )
+            .await
+            .expect("represented uncage max-count failure should send packets");
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(packets.len(), 4);
+        let mut error = wow_packet::WorldPacket::from_bytes(&packets[1]);
+        let _ = error.read_uint16().expect("opcode");
+        assert_eq!(
+            error.read_bits(4).expect("result"),
+            wow_packet::packets::misc::BattlePetErrorCodeLikeCpp::CantHaveMorePetsOfType as u32
+        );
+        assert_eq!(error.read_int32().expect("creature id"), 9002);
+
+        let mut failed = wow_packet::WorldPacket::from_bytes(&packets[2]);
+        let _ = failed.read_uint16().expect("opcode");
+        let _ = failed.read_packed_guid().expect("cast id");
+        assert_eq!(failed.read_int32().expect("spell id"), spell_id);
+        assert_eq!(
+            failed.read_int32().expect("reason"),
+            SpellCastResult::CantAddBattlePet as i32
         );
     }
 

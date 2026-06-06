@@ -1070,6 +1070,7 @@ impl crate::session::WorldSession {
             from_client: true,
             misc: request.cast.misc,
             cast_item_entry: Some(item_id),
+            cast_item_battle_pet_modifiers: None,
             cast_flags_ex: CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP,
             original_cast_id: request.cast.cast_id,
             unit_target_battle_pet_companion_guid: None,
