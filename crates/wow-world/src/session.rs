@@ -1484,6 +1484,7 @@ pub(crate) const BATTLE_PET_FLAGS_CONTROL_TYPE_APPLY_LIKE_CPP: u8 = 1;
 pub(crate) const BATTLE_PET_SLOT_COUNT_LIKE_CPP: usize = 3;
 pub(crate) const BATTLE_PET_CAGE_ITEM_ID_LIKE_CPP: u32 = 82_800;
 pub(crate) const BATTLE_PET_BREED_QUALITY_RARE_LIKE_CPP: u8 = 3;
+pub(crate) const DEFAULT_MAX_BATTLE_PETS_PER_SPECIES_LIKE_CPP: u8 = 3;
 pub(crate) const MAX_BATTLE_PET_LEVEL_LIKE_CPP: u16 = 25;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -18387,6 +18388,64 @@ impl WorldSession {
             .map(|pet| pet.level)
             .max()
             .unwrap_or(0)
+    }
+
+    /// C++ `BattlePetMgr::GetPetCount`.
+    pub(crate) fn battle_pet_count_like_cpp(
+        &self,
+        species: u32,
+        owner_guid: Option<ObjectGuid>,
+    ) -> u8 {
+        let species_flags = self
+            .battle_pet_species_store
+            .as_ref()
+            .and_then(|store| store.get(species))
+            .map(|entry| entry.flags)
+            .unwrap_or(0);
+        let not_account_wide =
+            species_flags & wow_data::BATTLE_PET_SPECIES_FLAG_NOT_ACCOUNT_WIDE_LIKE_CPP != 0;
+
+        let count = self
+            .represented_battle_pets_like_cpp
+            .values()
+            .filter(|pet| pet.species == species)
+            .filter(|pet| pet.save_info != RepresentedBattlePetSaveInfoLikeCpp::Removed)
+            .filter(|pet| {
+                if not_account_wide {
+                    if let (Some(owner_guid), Some(owner_info)) = (owner_guid, pet.owner_info) {
+                        return owner_info.guid == owner_guid;
+                    }
+                }
+                true
+            })
+            .count();
+
+        u8::try_from(count).unwrap_or(u8::MAX)
+    }
+
+    /// C++ `BattlePetMgr::HasMaxPetCount`.
+    pub(crate) fn battle_pet_has_max_pet_count_like_cpp(
+        &self,
+        species: u32,
+        owner_guid: Option<ObjectGuid>,
+    ) -> bool {
+        let Some(species_entry) = self
+            .battle_pet_species_store
+            .as_ref()
+            .and_then(|store| store.get(species))
+        else {
+            return false;
+        };
+
+        let max_pets_per_species = if species_entry
+            .has_flag_like_cpp(wow_data::BATTLE_PET_SPECIES_FLAG_LEGACY_ACCOUNT_UNIQUE_LIKE_CPP)
+        {
+            1
+        } else {
+            DEFAULT_MAX_BATTLE_PETS_PER_SPECIES_LIKE_CPP
+        };
+
+        self.battle_pet_count_like_cpp(species, owner_guid) >= max_pets_per_species
     }
 
     /// C++ `BattlePetMgr::SendError`.
@@ -54277,6 +54336,126 @@ mod tests {
         );
 
         assert_eq!(session.battle_pet_max_pet_level_like_cpp(), 19);
+    }
+
+    #[test]
+    fn battle_pet_has_max_pet_count_uses_cpp_default_species_limit() {
+        let (mut session, _, _) = make_session();
+        install_represented_battle_pet_species_flags_like_cpp(&mut session, 11, 0);
+
+        for counter in 0x1b3..=0x1b5 {
+            session.add_represented_battle_pet_packet_info_like_cpp(
+                ObjectGuid::create_global(HighGuid::BattlePet, 0, counter),
+                RepresentedBattlePetDataLikeCpp {
+                    species: 11,
+                    save_info: RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+                    ..RepresentedBattlePetDataLikeCpp::minimal_like_cpp(
+                        0,
+                        RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+                    )
+                },
+            );
+        }
+        session.add_represented_battle_pet_packet_info_like_cpp(
+            ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x1b6),
+            RepresentedBattlePetDataLikeCpp {
+                species: 11,
+                save_info: RepresentedBattlePetSaveInfoLikeCpp::Removed,
+                ..RepresentedBattlePetDataLikeCpp::minimal_like_cpp(
+                    0,
+                    RepresentedBattlePetSaveInfoLikeCpp::Removed,
+                )
+            },
+        );
+        session.add_represented_battle_pet_packet_info_like_cpp(
+            ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x1b7),
+            RepresentedBattlePetDataLikeCpp {
+                species: 12,
+                save_info: RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+                ..RepresentedBattlePetDataLikeCpp::minimal_like_cpp(
+                    0,
+                    RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+                )
+            },
+        );
+
+        assert_eq!(session.battle_pet_count_like_cpp(11, None), 3);
+        assert!(session.battle_pet_has_max_pet_count_like_cpp(11, None));
+        assert!(!session.battle_pet_has_max_pet_count_like_cpp(12, None));
+    }
+
+    #[test]
+    fn battle_pet_has_max_pet_count_honors_legacy_account_unique_like_cpp() {
+        let (mut session, _, _) = make_session();
+        install_represented_battle_pet_species_flags_like_cpp(
+            &mut session,
+            11,
+            wow_data::BATTLE_PET_SPECIES_FLAG_LEGACY_ACCOUNT_UNIQUE_LIKE_CPP,
+        );
+
+        session.add_represented_battle_pet_packet_info_like_cpp(
+            ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x1b8),
+            RepresentedBattlePetDataLikeCpp {
+                species: 11,
+                save_info: RepresentedBattlePetSaveInfoLikeCpp::New,
+                ..RepresentedBattlePetDataLikeCpp::minimal_like_cpp(
+                    0,
+                    RepresentedBattlePetSaveInfoLikeCpp::New,
+                )
+            },
+        );
+
+        assert_eq!(session.battle_pet_count_like_cpp(11, None), 1);
+        assert!(session.battle_pet_has_max_pet_count_like_cpp(11, None));
+    }
+
+    #[test]
+    fn battle_pet_count_filters_not_account_wide_owner_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let owner_a = ObjectGuid::create_global(HighGuid::Player, 0, 0x20a);
+        let owner_b = ObjectGuid::create_global(HighGuid::Player, 0, 0x20b);
+        install_represented_battle_pet_species_flags_like_cpp(
+            &mut session,
+            11,
+            wow_data::BATTLE_PET_SPECIES_FLAG_NOT_ACCOUNT_WIDE_LIKE_CPP,
+        );
+
+        for (counter, owner_info) in [
+            (
+                0x1b9,
+                Some(wow_packet::packets::misc::BattlePetJournalPetOwnerInfo {
+                    guid: owner_a,
+                    player_virtual_realm: 1,
+                    player_native_realm: 1,
+                }),
+            ),
+            (
+                0x1ba,
+                Some(wow_packet::packets::misc::BattlePetJournalPetOwnerInfo {
+                    guid: owner_b,
+                    player_virtual_realm: 1,
+                    player_native_realm: 1,
+                }),
+            ),
+            (0x1bb, None),
+        ] {
+            session.add_represented_battle_pet_packet_info_like_cpp(
+                ObjectGuid::create_global(HighGuid::BattlePet, 0, counter),
+                RepresentedBattlePetDataLikeCpp {
+                    species: 11,
+                    owner_info,
+                    save_info: RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+                    ..RepresentedBattlePetDataLikeCpp::minimal_like_cpp(
+                        0,
+                        RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+                    )
+                },
+            );
+        }
+
+        assert_eq!(session.battle_pet_count_like_cpp(11, Some(owner_a)), 2);
+        assert_eq!(session.battle_pet_count_like_cpp(11, Some(owner_b)), 2);
+        assert_eq!(session.battle_pet_count_like_cpp(11, None), 3);
     }
 
     #[test]

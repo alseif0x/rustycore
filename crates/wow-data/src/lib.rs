@@ -172,14 +172,16 @@ pub use item_bonus::{
 };
 pub use item_class::{ItemClassEntry, ItemClassStore};
 pub use item_collections::{
-    BATTLE_PET_SPECIES_FLAG_CANT_BATTLE_LIKE_CPP, BATTLE_PET_SPECIES_FLAG_NOT_TRADABLE_LIKE_CPP,
-    BATTLE_PET_STATE_STAT_POWER_LIKE_CPP, BATTLE_PET_STATE_STAT_SPEED_LIKE_CPP,
-    BATTLE_PET_STATE_STAT_STAMINA_LIKE_CPP, BattlePetBreedQualityEntry, BattlePetBreedQualityStore,
-    BattlePetBreedStateEntry, BattlePetBreedStateStore, BattlePetCalculatedStatsLikeCpp,
-    BattlePetSpeciesEntry, BattlePetSpeciesStateEntry, BattlePetSpeciesStateStore,
-    BattlePetSpeciesStore, HeirloomEntry, HeirloomStore, ToyEntry, ToyStore, TransmogSetEntry,
-    TransmogSetItemEntry, TransmogSetItemStore, TransmogSetStore,
-    calculate_battle_pet_stats_like_cpp,
+    BATTLE_PET_SPECIES_FLAG_CANT_BATTLE_LIKE_CPP,
+    BATTLE_PET_SPECIES_FLAG_LEGACY_ACCOUNT_UNIQUE_LIKE_CPP,
+    BATTLE_PET_SPECIES_FLAG_NOT_ACCOUNT_WIDE_LIKE_CPP,
+    BATTLE_PET_SPECIES_FLAG_NOT_TRADABLE_LIKE_CPP, BATTLE_PET_STATE_STAT_POWER_LIKE_CPP,
+    BATTLE_PET_STATE_STAT_SPEED_LIKE_CPP, BATTLE_PET_STATE_STAT_STAMINA_LIKE_CPP,
+    BattlePetBreedQualityEntry, BattlePetBreedQualityStore, BattlePetBreedStateEntry,
+    BattlePetBreedStateStore, BattlePetCalculatedStatsLikeCpp, BattlePetSpeciesEntry,
+    BattlePetSpeciesStateEntry, BattlePetSpeciesStateStore, BattlePetSpeciesStore, HeirloomEntry,
+    HeirloomStore, ToyEntry, ToyStore, TransmogSetEntry, TransmogSetItemEntry,
+    TransmogSetItemStore, TransmogSetStore, calculate_battle_pet_stats_like_cpp,
 };
 pub use item_currency_cost::{ItemCurrencyCostEntry, ItemCurrencyCostStore};
 pub use item_disenchant_loot::{ItemDisenchantLootEntry, ItemDisenchantLootStore};
