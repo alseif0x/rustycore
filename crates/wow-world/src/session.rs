@@ -514,6 +514,7 @@ const BATTLEGROUND_WS_LIKE_CPP: u32 = 2;
 const SPELL_CAST_SOURCE_NORMAL_LIKE_CPP: u8 = 0;
 pub(crate) const CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP: u32 = 0x08000;
 static NEXT_REPRESENTED_SPELL_CAST_COUNTER_LIKE_CPP: AtomicI64 = AtomicI64::new(1);
+static NEXT_REPRESENTED_BATTLE_PET_COUNTER_LIKE_CPP: AtomicI64 = AtomicI64::new(1);
 const BATTLEGROUND_EY_LIKE_CPP: u32 = 7;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2931,6 +2932,10 @@ pub struct WorldSession {
     /// Represented `CriteriaType::ActivelyEarnPetLevel` events from pet-battle XP grants.
     pub(crate) represented_battle_pet_active_level_criteria_like_cpp:
         Vec<RepresentedBattlePetLevelCriteriaLikeCpp>,
+    /// Represented `CriteriaType::UniquePetsOwned` updates from `BattlePetMgr::AddPet`.
+    pub(crate) represented_battle_pet_unique_owned_criteria_like_cpp: u32,
+    /// Represented `CriteriaType::LearnedNewPet` updates from `BattlePetMgr::AddPet`.
+    pub(crate) represented_battle_pet_learned_new_pet_criteria_like_cpp: Vec<u32>,
     /// Evidence for represented `BattlePetMgr::UpdateBattlePetData` calls.
     pub(crate) represented_battle_pet_data_updates_like_cpp: Vec<ObjectGuid>,
     /// Session-local evidence for represented `Player::RemoveTimedQuest` calls.
@@ -3839,6 +3844,8 @@ impl WorldSession {
             represented_battle_pet_xp_per_level_like_cpp: BTreeMap::new(),
             represented_battle_pet_level_criteria_like_cpp: Vec::new(),
             represented_battle_pet_active_level_criteria_like_cpp: Vec::new(),
+            represented_battle_pet_unique_owned_criteria_like_cpp: 0,
+            represented_battle_pet_learned_new_pet_criteria_like_cpp: Vec::new(),
             represented_battle_pet_data_updates_like_cpp: Vec::new(),
             represented_timed_quest_removals_like_cpp: Vec::new(),
             represented_quest_reward_skill_updates_like_cpp: Vec::new(),
@@ -18458,6 +18465,81 @@ impl WorldSession {
         self.battle_pet_count_like_cpp(species, owner_guid) >= max_pets_per_species
     }
 
+    fn next_represented_battle_pet_guid_like_cpp() -> ObjectGuid {
+        let counter = NEXT_REPRESENTED_BATTLE_PET_COUNTER_LIKE_CPP.fetch_add(1, Ordering::Relaxed);
+        ObjectGuid::create_global(HighGuid::BattlePet, 0, counter)
+    }
+
+    /// C++ `BattlePetMgr::AddPet`, represented without DB persistence and with
+    /// a local GUID counter until `sObjectMgr->GetGenerator<HighGuid::BattlePet>()`
+    /// is ported.
+    pub(crate) fn battle_pet_add_pet_represented_like_cpp(
+        &mut self,
+        species: u32,
+        display_id: u32,
+        breed: u16,
+        quality: u8,
+        level: u16,
+    ) -> Option<ObjectGuid> {
+        let species_entry = self
+            .battle_pet_species_store
+            .as_ref()
+            .and_then(|store| store.get(species))
+            .cloned()?;
+
+        if !species_entry.has_flag_like_cpp(wow_data::BATTLE_PET_SPECIES_FLAG_WELL_KNOWN_LIKE_CPP) {
+            return None;
+        }
+
+        let calculated_stats =
+            self.battle_pet_calculate_stats_like_cpp(breed, species, quality, level);
+        let pet_guid = Self::next_represented_battle_pet_guid_like_cpp();
+        let owner_info = if species_entry
+            .has_flag_like_cpp(wow_data::BATTLE_PET_SPECIES_FLAG_NOT_ACCOUNT_WIDE_LIKE_CPP)
+        {
+            self.player_guid().map(
+                |guid| wow_packet::packets::misc::BattlePetJournalPetOwnerInfo {
+                    guid,
+                    player_virtual_realm: 1,
+                    player_native_realm: 1,
+                },
+            )
+        } else {
+            None
+        };
+
+        let mut pet = RepresentedBattlePetDataLikeCpp {
+            species,
+            creature_id: u32::try_from(species_entry.creature_id).unwrap_or_default(),
+            display_id,
+            breed,
+            level,
+            exp: 0,
+            flags: 0,
+            power: 0,
+            health: 0,
+            max_health: 0,
+            speed: 0,
+            quality,
+            owner_info,
+            name: String::new(),
+            name_timestamp: 0,
+            declined_names: None,
+            save_info: RepresentedBattlePetSaveInfoLikeCpp::New,
+        };
+        Self::apply_battle_pet_calculated_stats_like_cpp(&mut pet, calculated_stats);
+
+        self.represented_battle_pets_like_cpp.insert(pet_guid, pet);
+        self.send_battle_pet_updates_like_cpp(&[pet_guid], true);
+        self.represented_battle_pet_unique_owned_criteria_like_cpp = self
+            .represented_battle_pet_unique_owned_criteria_like_cpp
+            .saturating_add(1);
+        self.represented_battle_pet_learned_new_pet_criteria_like_cpp
+            .push(species);
+
+        Some(pet_guid)
+    }
+
     /// C++ `BattlePetMgr::SendError`.
     pub(crate) fn battle_pet_send_error_like_cpp(
         &mut self,
@@ -18753,6 +18835,14 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedBattlePetLevelCriteriaLikeCpp] {
         &self.represented_battle_pet_active_level_criteria_like_cpp
+    }
+
+    pub(crate) fn represented_battle_pet_unique_owned_criteria_like_cpp(&self) -> u32 {
+        self.represented_battle_pet_unique_owned_criteria_like_cpp
+    }
+
+    pub(crate) fn represented_battle_pet_learned_new_pet_criteria_like_cpp(&self) -> &[u32] {
+        &self.represented_battle_pet_learned_new_pet_criteria_like_cpp
     }
 
     pub(crate) fn represented_battle_pet_slot_like_cpp(&self, slot: u8) -> Option<ObjectGuid> {
@@ -27532,7 +27622,18 @@ impl WorldSession {
                 fail_arg1: 0,
                 fail_arg2: 0,
             });
+            return;
         }
+
+        let breed = (modifiers.breed_data & 0x00FF_FFFF) as u16;
+        let quality = ((modifiers.breed_data >> 24) & 0xFF) as u8;
+        let _ = self.battle_pet_add_pet_represented_like_cpp(
+            modifiers.species_id,
+            modifiers.display_id,
+            breed,
+            quality,
+            modifiers.level,
+        );
     }
 
     /// C++ `Spell::EffectGrantBattlePetExperience`.
@@ -55842,6 +55943,139 @@ mod tests {
         assert_eq!(
             failed.read_int32().expect("reason"),
             SpellCastResult::CantAddBattlePet as i32
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_effect_uncage_battle_pet_adds_pet_and_updates_criteria_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 232);
+        let existing_pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x1c0);
+        let spell_id = 77_292;
+
+        session.set_player_guid(Some(player_guid));
+        install_represented_battle_pet_stat_stores_like_cpp(&mut session);
+        install_represented_battle_pet_species_like_cpp(
+            &mut session,
+            11,
+            9003,
+            wow_data::BATTLE_PET_SPECIES_FLAG_WELL_KNOWN_LIKE_CPP
+                | wow_data::BATTLE_PET_SPECIES_FLAG_NOT_ACCOUNT_WIDE_LIKE_CPP,
+        );
+        session.add_represented_battle_pet_packet_info_like_cpp(
+            existing_pet_guid,
+            RepresentedBattlePetDataLikeCpp {
+                species: 12,
+                level: 25,
+                save_info: RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+                ..RepresentedBattlePetDataLikeCpp::minimal_like_cpp(
+                    0,
+                    RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+                )
+            },
+        );
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_UNCAGE_BATTLEPET,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell_with_visual_and_target_data_with_metadata(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual::default(),
+                SpellTargetData {
+                    flags: 0x2,
+                    unit: player_guid,
+                    ..SpellTargetData::default()
+                },
+                SpellCastMetadata {
+                    cast_item_battle_pet_modifiers: Some(SpellCastBattlePetItemModifiersLikeCpp {
+                        species_id: 11,
+                        breed_data: 7 | (3 << 24),
+                        level: 3,
+                        display_id: 33,
+                    }),
+                    ..SpellCastMetadata::default()
+                },
+            )
+            .await
+            .expect("represented uncage success should add a battle pet");
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(
+            packets
+                .iter()
+                .map(|bytes| {
+                    let mut packet = wow_packet::WorldPacket::from_bytes(bytes);
+                    packet.read_uint16().expect("opcode")
+                })
+                .collect::<Vec<_>>(),
+            vec![
+                ServerOpcodes::SpellGo as u16,
+                ServerOpcodes::BattlePetUpdates as u16,
+                ServerOpcodes::CooldownEvent as u16,
+            ]
+        );
+
+        let mut update = wow_packet::WorldPacket::from_bytes(&packets[1]);
+        let _ = update.read_uint16().expect("opcode");
+        assert_eq!(update.read_uint32().expect("pet count"), 1);
+        assert!(update.read_bit().expect("pet added"));
+        let pet_guid = update.read_packed_guid().expect("pet guid");
+        assert_eq!(update.read_uint32().expect("species"), 11);
+        assert_eq!(update.read_uint32().expect("creature"), 9003);
+        assert_eq!(update.read_uint32().expect("display"), 33);
+        assert_eq!(update.read_uint16().expect("breed"), 7);
+        assert_eq!(update.read_uint16().expect("level"), 3);
+        assert_eq!(update.read_uint16().expect("exp"), 0);
+        assert_eq!(update.read_uint16().expect("flags"), 0);
+        assert_eq!(update.read_uint32().expect("power"), 16);
+        assert_eq!(update.read_uint32().expect("health"), 235);
+        assert_eq!(update.read_uint32().expect("max health"), 235);
+        assert_eq!(update.read_uint32().expect("speed"), 10);
+        assert_eq!(update.read_uint8().expect("quality"), 3);
+        assert_eq!(update.read_bits(7).expect("name length"), 0);
+        assert!(update.read_bit().expect("has owner info"));
+        assert!(!update.read_bit().expect("no rename"));
+        update.flush_bits();
+        assert_eq!(update.read_string(0).expect("empty name"), "");
+        assert_eq!(update.read_packed_guid().expect("owner guid"), player_guid);
+        assert_eq!(update.read_uint32().expect("virtual realm"), 1);
+        assert_eq!(update.read_uint32().expect("native realm"), 1);
+        assert_eq!(update.remaining(), 0);
+
+        let pet = session
+            .represented_battle_pet_like_cpp(pet_guid)
+            .expect("added represented pet");
+        assert_eq!(pet.save_info, RepresentedBattlePetSaveInfoLikeCpp::New);
+        assert_eq!(
+            session.represented_battle_pet_unique_owned_criteria_like_cpp(),
+            1
+        );
+        assert_eq!(
+            session.represented_battle_pet_learned_new_pet_criteria_like_cpp(),
+            &[11]
         );
     }
 
