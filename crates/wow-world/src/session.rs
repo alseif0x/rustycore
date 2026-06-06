@@ -27043,6 +27043,13 @@ impl WorldSession {
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_UPGRADE_HEIRLOOM => {
                     self.apply_upgrade_heirloom_effect_like_cpp(metadata);
                 }
+                x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_GRANT_BATTLEPET_LEVEL =>
+                {
+                    self.apply_grant_battle_pet_level_effect_like_cpp(
+                        metadata,
+                        direct_effect_base_points as u16,
+                    );
+                }
                 x if x
                     == wow_data::spell::spell_effect_types::SPELL_EFFECT_GRANT_BATTLEPET_EXPERIENCE =>
                 {
@@ -27173,6 +27180,7 @@ impl WorldSession {
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_PLAY_MOVIE
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_TRANSMOG_SET
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_UPGRADE_HEIRLOOM
+                || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_GRANT_BATTLEPET_LEVEL
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_GRANT_BATTLEPET_EXPERIENCE
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_PULL
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_TRANSMOG_ILLUSION
@@ -27293,6 +27301,20 @@ impl WorldSession {
             RepresentedBattlePetXpSourceLikeCpp::SpellEffect,
             1.0,
         );
+    }
+
+    /// C++ `Spell::EffectGrantBattlePetLevel`.
+    fn apply_grant_battle_pet_level_effect_like_cpp(
+        &mut self,
+        metadata: SpellCastMetadata,
+        granted_levels: u16,
+    ) {
+        let Some(pet_guid) = metadata.unit_target_battle_pet_companion_guid else {
+            return;
+        };
+
+        let _ =
+            self.battle_pet_grant_battle_pet_level_represented_like_cpp(pet_guid, granted_levels);
     }
 
     /// C++ `Spell::CheckCast` gates for battle-pet unit-target effects.
@@ -55375,6 +55397,120 @@ mod tests {
         assert_eq!(
             packet.read_int32().expect("reason"),
             SpellCastResult::GrantPetLevelFail as i32
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_effect_grant_battle_pet_level_uses_unit_companion_guid_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 224);
+        let pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x1A5);
+        let creature_guid = ObjectGuid::create_global(HighGuid::Creature, 0, 0xCB02);
+        let spell_id = 77_290;
+
+        session.set_player_guid(Some(player_guid));
+        install_represented_battle_pet_stat_stores_like_cpp(&mut session);
+        session.add_represented_battle_pet_packet_info_like_cpp(
+            pet_guid,
+            RepresentedBattlePetDataLikeCpp {
+                species: 11,
+                creature_id: 22,
+                display_id: 33,
+                breed: 7,
+                level: 23,
+                exp: 5,
+                flags: 6,
+                power: 10,
+                health: 50,
+                max_health: 100,
+                speed: 20,
+                quality: 3,
+                save_info: RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+                ..RepresentedBattlePetDataLikeCpp::minimal_like_cpp(
+                    0,
+                    RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+                )
+            },
+        );
+        session.send_battle_pet_journal_lock_status_like_cpp();
+        let _ = drain_server_packet_bytes(&send_rx);
+        assert!(session.battle_pet_summon_toggle_like_cpp(pet_guid));
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_GRANT_BATTLEPET_LEVEL,
+                    effect_base_points: 2,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell_with_visual_and_target_data_with_metadata(
+                spell_id,
+                creature_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual::default(),
+                SpellTargetData {
+                    flags: 0x2,
+                    unit: creature_guid,
+                    ..SpellTargetData::default()
+                },
+                SpellCastMetadata {
+                    unit_target_battle_pet_companion_guid: Some(pet_guid),
+                    ..SpellCastMetadata::default()
+                },
+            )
+            .await
+            .expect("represented battle-pet level spell effect should execute");
+
+        let pet = session
+            .represented_battle_pet_like_cpp(pet_guid)
+            .expect("leveled pet");
+        assert_eq!(pet.level, MAX_BATTLE_PET_LEVEL_LIKE_CPP);
+        assert_eq!(pet.exp, 0);
+        assert_eq!(pet.health, 1225);
+        assert_eq!(pet.max_health, 1225);
+        assert_eq!(
+            session.represented_battle_pet_level_criteria_like_cpp(),
+            &[
+                RepresentedBattlePetLevelCriteriaLikeCpp {
+                    species: 11,
+                    level: 24
+                },
+                RepresentedBattlePetLevelCriteriaLikeCpp {
+                    species: 11,
+                    level: 25
+                }
+            ]
+        );
+        assert!(
+            session
+                .represented_battle_pet_active_level_criteria_like_cpp()
+                .is_empty()
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![
+                ServerOpcodes::SpellGo,
+                ServerOpcodes::BattlePetUpdates,
+                ServerOpcodes::CooldownEvent,
+            ]
         );
     }
 
