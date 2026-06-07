@@ -1169,6 +1169,16 @@ pub(crate) struct RepresentedSpellClickPlanLikeCpp {
     pub ai_on_spell_click_unrepresented: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) struct RepresentedSpellClickExecutionOutcomeLikeCpp {
+    pub planned_casts: usize,
+    pub executed_casts: usize,
+    pub skipped_unrepresented_caster: usize,
+    pub skipped_unrepresented_target: usize,
+    pub skipped_unrepresented_original_caster: usize,
+    pub failed_casts: usize,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 struct RepresentedSpellClickCreatureSnapshotLikeCpp {
     guid: ObjectGuid,
@@ -6401,6 +6411,72 @@ impl WorldSession {
             plan.ai_on_spell_click_unrepresented = true;
         }
         plan
+    }
+
+    pub(crate) async fn execute_represented_spell_click_plan_like_cpp(
+        &mut self,
+        creature_guid: ObjectGuid,
+        plan: &RepresentedSpellClickPlanLikeCpp,
+    ) -> RepresentedSpellClickExecutionOutcomeLikeCpp {
+        let Some(player_guid) = self.player_guid() else {
+            return RepresentedSpellClickExecutionOutcomeLikeCpp {
+                planned_casts: plan.casts.len(),
+                failed_casts: plan.casts.len(),
+                ..Default::default()
+            };
+        };
+
+        let mut outcome = RepresentedSpellClickExecutionOutcomeLikeCpp {
+            planned_casts: plan.casts.len(),
+            ..Default::default()
+        };
+
+        for cast in &plan.casts {
+            if cast.caster != RepresentedSpellClickUnitRefLikeCpp::Clicker {
+                outcome.skipped_unrepresented_caster += 1;
+                continue;
+            }
+            if cast.original_caster != RepresentedSpellClickUnitRefLikeCpp::Clicker {
+                outcome.skipped_unrepresented_original_caster += 1;
+                continue;
+            }
+
+            let target_guid = match cast.target {
+                RepresentedSpellClickUnitRefLikeCpp::Clicker => player_guid,
+                RepresentedSpellClickUnitRefLikeCpp::Clickee => creature_guid,
+                RepresentedSpellClickUnitRefLikeCpp::Owner => {
+                    outcome.skipped_unrepresented_target += 1;
+                    continue;
+                }
+            };
+            let Ok(spell_id) = i32::try_from(cast.spell_id) else {
+                outcome.failed_casts += 1;
+                continue;
+            };
+            let cast_id = self.next_represented_spell_cast_guid_like_cpp(spell_id);
+
+            let result = self
+                .execute_spell_with_visual_and_target_data(
+                    spell_id,
+                    target_guid,
+                    cast_id,
+                    wow_packet::packets::spell::SpellCastVisual::default(),
+                    SpellTargetData {
+                        flags: 0x2,
+                        unit: target_guid,
+                        item: ObjectGuid::EMPTY,
+                        ..SpellTargetData::default()
+                    },
+                )
+                .await;
+            if result.is_ok() {
+                outcome.executed_casts += 1;
+            } else {
+                outcome.failed_casts += 1;
+            }
+        }
+
+        outcome
     }
 
     pub(crate) fn represented_viewer_dependent_creature_npc_flags_like_cpp(
@@ -42331,6 +42407,169 @@ mod tests {
             plan.casts[0].original_caster,
             RepresentedSpellClickUnitRefLikeCpp::Clicker
         );
+    }
+
+    #[tokio::test]
+    async fn represented_spellclick_executes_clicker_cast_to_clickee_like_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        let manager = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let creature_guid = test_creature_guid(226);
+        let spell_id = 907_i32;
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "Tester".to_string(),
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.client_visible_guids_like_cpp.insert(creature_guid);
+        session.set_map_manager(manager.clone());
+        session.register_world_creature(
+            571,
+            Position::new(12.0, 0.0, 0.0, 0.0),
+            test_creature_create_data(creature_guid, 9001, 40),
+            3,
+            5,
+            20.0,
+            0,
+            0,
+            0,
+            0,
+            None,
+            0,
+            0,
+            0,
+            0,
+            -1,
+        );
+        add_canonical_test_creature(
+            &canonical,
+            creature_guid,
+            9001,
+            Position::new(12.0, 0.0, 0.0, 0.0),
+            UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP as u32,
+        );
+        session.set_condition_store(Arc::new(ConditionEntriesByTypeStore::default()));
+        session.set_npc_spell_click_store(Arc::new(NpcSpellClickStoreLikeCpp::from_rows_like_cpp(
+            [wow_data::NpcSpellClickRowLikeCpp {
+                npc_entry: 9001,
+                spell_id: u32::try_from(spell_id).unwrap(),
+                cast_flags: NPC_CLICK_CAST_CASTER_CLICKER_LIKE_CPP,
+                user_type: wow_data::SPELL_CLICK_USER_ANY_LIKE_CPP,
+            }],
+            |entry| entry == 9001,
+            |spell| spell == u32::try_from(spell_id).unwrap(),
+        )));
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE,
+                effect_base_points: 7,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: Vec::new(),
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        let plan = session.represented_handle_spell_click_plan_like_cpp(creature_guid);
+        let outcome = session
+            .execute_represented_spell_click_plan_like_cpp(creature_guid, &plan)
+            .await;
+
+        assert_eq!(
+            outcome,
+            RepresentedSpellClickExecutionOutcomeLikeCpp {
+                planned_casts: 1,
+                executed_casts: 1,
+                ..Default::default()
+            }
+        );
+        let manager = manager.read().unwrap();
+        let world_creature = manager.find_creature(571, 0, creature_guid).unwrap();
+        assert_eq!(
+            world_creature.current_hp(),
+            33,
+            "C++ Unit::HandleSpellClick casts the row spell when caster=clicker and target=clickee"
+        );
+        drop(manager);
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert_eq!(
+            opcodes,
+            vec![
+                ServerOpcodes::SpellGo,
+                ServerOpcodes::UpdateObject,
+                ServerOpcodes::CooldownEvent
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn represented_spellclick_skips_clickee_caster_until_creature_casting_exists_like_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let creature_guid = test_creature_guid(227);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "Tester".to_string(),
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_creature(
+            &canonical,
+            creature_guid,
+            9002,
+            Position::new(12.0, 0.0, 0.0, 0.0),
+            UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP as u32,
+        );
+        session.set_condition_store(Arc::new(ConditionEntriesByTypeStore::default()));
+        session.set_npc_spell_click_store(Arc::new(NpcSpellClickStoreLikeCpp::from_rows_like_cpp(
+            [wow_data::NpcSpellClickRowLikeCpp {
+                npc_entry: 9002,
+                spell_id: 908,
+                cast_flags: 0,
+                user_type: wow_data::SPELL_CLICK_USER_ANY_LIKE_CPP,
+            }],
+            |entry| entry == 9002,
+            |spell| spell == 908,
+        )));
+
+        let plan = session.represented_handle_spell_click_plan_like_cpp(creature_guid);
+        let outcome = session
+            .execute_represented_spell_click_plan_like_cpp(creature_guid, &plan)
+            .await;
+
+        assert_eq!(
+            outcome,
+            RepresentedSpellClickExecutionOutcomeLikeCpp {
+                planned_casts: 1,
+                skipped_unrepresented_caster: 1,
+                ..Default::default()
+            },
+            "C++ may cast from the clickee; Rust must not fake that through the player-caster spell rail"
+        );
+        assert!(drain_server_packet_bytes(&send_rx).is_empty());
     }
 
     #[test]

@@ -1784,6 +1784,12 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   cast flags, and marks party/raid/summon/friend exact context plus AI callback as unrepresented.
   This is still dormant planning only: no live object lookup, vehicle seat handling, spell/aura
   execution, or AI callback has been activated.
+- 2026-06-07 — WotLK spellclick clicker-cast execution `#NEXT.RUNTIME.L3.031j23`: contrasted the
+  non-vehicle `Unit::HandleSpellClick` `CastSpell` branch against C++. Rust now executes represented
+  spellclick rows only when the C++ row resolves `caster == clicker` and `origCasterGUID == clicker`,
+  because the current Rust spell rail is still player/session-caster based. Rows that need
+  `caster == clickee`, owner original-caster, vehicle seat spell mods, or AI callback remain
+  explicit skipped/unrepresented counts rather than being faked as player casts.
 
 ## References
 

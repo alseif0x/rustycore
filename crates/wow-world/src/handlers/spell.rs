@@ -1645,6 +1645,20 @@ impl WorldSession {
             ai_on_spell_click_unrepresented = plan.ai_on_spell_click_unrepresented,
             "CMSG_SPELL_CLICK represented execution plan"
         );
+        let outcome = self
+            .execute_represented_spell_click_plan_like_cpp(spell_click.unit_guid, &plan)
+            .await;
+        debug!(
+            account = self.account_id,
+            target = ?spell_click.unit_guid,
+            planned_casts = outcome.planned_casts,
+            executed_casts = outcome.executed_casts,
+            skipped_unrepresented_caster = outcome.skipped_unrepresented_caster,
+            skipped_unrepresented_target = outcome.skipped_unrepresented_target,
+            skipped_unrepresented_original_caster = outcome.skipped_unrepresented_original_caster,
+            failed_casts = outcome.failed_casts,
+            "CMSG_SPELL_CLICK represented execution outcome"
+        );
     }
 
     /// Handle `CMSG_CANCEL_CAST` — player cancels an in-progress cast.
