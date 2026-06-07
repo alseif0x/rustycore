@@ -16546,6 +16546,9 @@ impl WorldSession {
             ClientOpcodes::ConvertRaid => {
                 self.handle_convert_raid(pkt).await;
             }
+            ClientOpcodes::ChangeSubGroup => {
+                self.handle_change_sub_group(pkt).await;
+            }
             ClientOpcodes::SetLootMethod => {
                 self.handle_set_loot_method(pkt).await;
             }

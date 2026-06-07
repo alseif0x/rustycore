@@ -45,6 +45,35 @@ impl ClientPacket for ConvertRaid {
     }
 }
 
+// ── ChangeSubGroup (CMSG_CHANGE_SUB_GROUP) ─────────────────────────
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ChangeSubGroup {
+    pub target_guid: ObjectGuid,
+    pub party_index: Option<u8>,
+    pub new_subgroup: u8,
+}
+
+impl ClientPacket for ChangeSubGroup {
+    const OPCODE: ClientOpcodes = ClientOpcodes::ChangeSubGroup;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let target_guid = pkt.read_packed_guid()?;
+        let new_subgroup = pkt.read_uint8()?;
+        let party_index = if pkt.read_bit()? {
+            Some(pkt.read_uint8()?)
+        } else {
+            None
+        };
+
+        Ok(Self {
+            target_guid,
+            party_index,
+            new_subgroup,
+        })
+    }
+}
+
 // ── SetLootMethod (CMSG_SET_LOOT_METHOD) ─────────────────────────
 
 /// Client request to change party loot method.
@@ -409,7 +438,8 @@ impl ServerPacket for PartyMemberFullState {
 #[cfg(test)]
 mod tests {
     use super::{
-        ConvertRaid, OptOutOfLoot, PartyMemberPhase, PartyMemberPhaseStates, SetLootMethod,
+        ChangeSubGroup, ConvertRaid, OptOutOfLoot, PartyMemberPhase, PartyMemberPhaseStates,
+        SetLootMethod,
     };
     use crate::{ClientPacket, WorldPacket};
     use wow_core::ObjectGuid;
@@ -455,6 +485,40 @@ mod tests {
         let convert = ConvertRaid::read(&mut pkt).unwrap();
 
         assert!(convert.raid);
+    }
+
+    #[test]
+    fn change_subgroup_reads_cpp_guid_subgroup_bit_party_index_order() {
+        let target = ObjectGuid::create_player(1, 77);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_packed_guid(&target);
+        pkt.write_uint8(6);
+        pkt.write_bit(true);
+        pkt.write_uint8(0);
+        pkt.reset_read();
+
+        let change = ChangeSubGroup::read(&mut pkt).unwrap();
+
+        assert_eq!(change.target_guid, target);
+        assert_eq!(change.new_subgroup, 6);
+        assert_eq!(change.party_index, Some(0));
+    }
+
+    #[test]
+    fn change_subgroup_reads_cpp_optional_none_bit() {
+        let target = ObjectGuid::create_player(1, 78);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_packed_guid(&target);
+        pkt.write_uint8(2);
+        pkt.write_bit(false);
+        pkt.flush_bits();
+        pkt.reset_read();
+
+        let change = ChangeSubGroup::read(&mut pkt).unwrap();
+
+        assert_eq!(change.target_guid, target);
+        assert_eq!(change.new_subgroup, 2);
+        assert_eq!(change.party_index, None);
     }
 
     #[test]

@@ -64,6 +64,15 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
+        opcode: ClientOpcodes::ChangeSubGroup,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_change_sub_group",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
         opcode: ClientOpcodes::SetLootMethod,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
@@ -843,6 +852,91 @@ impl WorldSession {
         let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
     }
 
+    /// CMSG_CHANGE_SUB_GROUP.
+    ///
+    /// C++ `WorldPackets::Party::ChangeSubGroup::Read` reads target GUID,
+    /// target subgroup, then an optional party index bit/value.
+    pub async fn handle_change_sub_group(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let change = match wow_packet::packets::party::ChangeSubGroup::read(&mut pkt) {
+            Ok(change) => change,
+            Err(e) => {
+                warn!("Bad ChangeSubGroup: {e}");
+                return;
+            }
+        };
+
+        let sender_guid = match self.player_guid() {
+            Some(guid) => guid,
+            None => return,
+        };
+        if usize::from(change.new_subgroup) >= wow_network::MAX_RAID_SUBGROUPS_LIKE_CPP {
+            return;
+        }
+
+        let group_reg = match self.group_registry() {
+            Some(registry) => std::sync::Arc::clone(registry),
+            None => return,
+        };
+        let registry = match self.player_registry() {
+            Some(registry) => std::sync::Arc::clone(registry),
+            None => return,
+        };
+        let vra = self.virtual_realm_address();
+
+        let group_guid = match self.group_guid {
+            Some(group_guid) => group_guid,
+            None => match group_reg
+                .iter()
+                .find(|entry| entry.value().members.contains(&sender_guid))
+                .map(|entry| *entry.key())
+            {
+                Some(group_guid) => group_guid,
+                None => return,
+            },
+        };
+
+        let mut subgroup_update: Option<(ObjectGuid, u8)> = None;
+        {
+            let mut group = match group_reg.get_mut(&group_guid) {
+                Some(group) => group,
+                None => return,
+            };
+            let sender_is_assistant = group.member_slot_like_cpp(sender_guid).is_some_and(|slot| {
+                (slot.flags & wow_network::MEMBER_FLAG_ASSISTANT_LIKE_CPP)
+                    == wow_network::MEMBER_FLAG_ASSISTANT_LIKE_CPP
+            });
+            if group.leader_guid != sender_guid && !sender_is_assistant {
+                return;
+            }
+            if !group.has_free_slot_sub_group_like_cpp(change.new_subgroup) {
+                return;
+            }
+            if group.change_member_group_like_cpp(change.target_guid, change.new_subgroup) {
+                subgroup_update = Some((change.target_guid, change.new_subgroup));
+            }
+        }
+
+        let Some((target_guid, new_subgroup)) = subgroup_update else {
+            return;
+        };
+
+        if let Some(char_db) = self.char_db().map(std::sync::Arc::clone) {
+            let stmt = group_member_subgroup_update_statement_like_cpp(target_guid, new_subgroup);
+            if let Err(error) = char_db.execute(&stmt).await {
+                warn!(
+                    member_guid = target_guid.counter(),
+                    subgroup = new_subgroup,
+                    %error,
+                    "failed to persist represented group subgroup change"
+                );
+            }
+        }
+
+        if let Some(group) = group_reg.get(&group_guid) {
+            send_party_update(&group, &registry, vra);
+        }
+    }
+
     /// CMSG_SET_LOOT_METHOD.
     ///
     /// This Trinity branch parses the packet but has the entire mutation block
@@ -981,6 +1075,23 @@ mod tests {
     fn convert_raid_packet(raid: bool) -> WorldPacket {
         let mut pkt = WorldPacket::new_empty();
         pkt.write_bit(raid);
+        pkt.flush_bits();
+        pkt.reset_read();
+        pkt
+    }
+
+    fn change_sub_group_packet(
+        target_guid: ObjectGuid,
+        new_subgroup: u8,
+        party_index: Option<u8>,
+    ) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_packed_guid(&target_guid);
+        pkt.write_uint8(new_subgroup);
+        pkt.write_bit(party_index.is_some());
+        if let Some(party_index) = party_index {
+            pkt.write_uint8(party_index);
+        }
         pkt.flush_bits();
         pkt.reset_read();
         pkt
@@ -1391,6 +1502,110 @@ mod tests {
             group_registry
                 .get(&group_guid)
                 .is_some_and(|group| group.is_raid_group())
+        );
+    }
+
+    #[tokio::test]
+    async fn change_sub_group_leader_moves_member_and_fans_out_update_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send();
+        let leader = ObjectGuid::create_player(1, 42);
+        let member = ObjectGuid::create_player(1, 43);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+        group.convert_to_raid_like_cpp();
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (leader_tx, leader_rx) = bounded(8);
+        let (member_tx, member_rx) = bounded(8);
+        player_registry.insert(leader, broadcast_info(leader, leader_tx));
+        player_registry.insert(member, broadcast_info(member, member_tx));
+
+        session.set_player_guid(Some(leader));
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(Arc::clone(&player_registry));
+        session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
+
+        session
+            .handle_change_sub_group(change_sub_group_packet(member, 2, Some(0)))
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+        let group = group_registry.get(&group_guid).unwrap();
+        assert_eq!(group.member_group_like_cpp(member), 2);
+        assert!(group.has_free_slot_sub_group_like_cpp(0));
+        let leader_update = leader_rx.try_recv().expect("leader party update");
+        assert_eq!(
+            u16::from_le_bytes([leader_update[0], leader_update[1]]),
+            ServerOpcodes::PartyUpdate as u16
+        );
+        let member_update = member_rx.try_recv().expect("member party update");
+        assert_eq!(
+            u16::from_le_bytes([member_update[0], member_update[1]]),
+            ServerOpcodes::PartyUpdate as u16
+        );
+    }
+
+    #[tokio::test]
+    async fn change_sub_group_assistant_allowed_but_regular_member_rejected_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send();
+        let leader = ObjectGuid::create_player(1, 42);
+        let assistant = ObjectGuid::create_player(1, 43);
+        let target = ObjectGuid::create_player(1, 44);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.add_member(assistant);
+        group.add_member(target);
+        group.convert_to_raid_like_cpp();
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (leader_tx, _leader_rx) = bounded(8);
+        let (assistant_tx, _assistant_rx) = bounded(8);
+        let (target_tx, _target_rx) = bounded(8);
+        player_registry.insert(leader, broadcast_info(leader, leader_tx));
+        player_registry.insert(assistant, broadcast_info(assistant, assistant_tx));
+        player_registry.insert(target, broadcast_info(target, target_tx));
+
+        session.set_player_guid(Some(assistant));
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(Arc::clone(&player_registry));
+        session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
+
+        session
+            .handle_change_sub_group(change_sub_group_packet(target, 2, None))
+            .await;
+        assert_eq!(
+            group_registry
+                .get(&group_guid)
+                .unwrap()
+                .member_group_like_cpp(target),
+            0
+        );
+
+        {
+            let mut group = group_registry.get_mut(&group_guid).unwrap();
+            let slot = group
+                .member_slots
+                .iter_mut()
+                .find(|slot| slot.guid == assistant)
+                .unwrap();
+            slot.flags |= wow_network::MEMBER_FLAG_ASSISTANT_LIKE_CPP;
+        }
+
+        session
+            .handle_change_sub_group(change_sub_group_packet(target, 2, None))
+            .await;
+
+        assert_eq!(
+            group_registry
+                .get(&group_guid)
+                .unwrap()
+                .member_group_like_cpp(target),
+            2
         );
     }
 
