@@ -1810,6 +1810,13 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   target and uses the creature entry for represented planning. Remaining vehicle gaps are explicit:
   represented `VehicleKit()->GetCreatureEntry()`, triggered vehicle flags, seat-id validation,
   aura basepoint override, passenger state, and AI callback.
+- 2026-06-07 — WotLK spellclick pet lookup evidence `#NEXT.RUNTIME.L3.031j27`: contrasted the
+  `guid.IsPet()` branch of C++ `ObjectAccessor::GetCreatureOrPetOrVehicle`. Rust's canonical
+  spellclick snapshot resolves `HighGuid::Pet` through typed `MapObjectRecord::pet()`, uses the
+  embedded creature entry for spellclick rows, and preserves the canonical `Pet::owner_guid()` for
+  owner-original-caster planning. This is lookup/snapshot evidence only; live pet summon lifecycle,
+  pet/creature caster execution, non-clicker original-caster propagation, and AI callback remain
+  open.
 
 ## References
 

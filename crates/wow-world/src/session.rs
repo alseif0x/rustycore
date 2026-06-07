@@ -36954,6 +36954,10 @@ mod tests {
         ObjectGuid::create_world_object(wow_core::guid::HighGuid::Vehicle, 0, 1, 0, 0, 2, counter)
     }
 
+    fn test_pet_guid(counter: i64) -> ObjectGuid {
+        ObjectGuid::create_world_object(wow_core::guid::HighGuid::Pet, 0, 1, 0, 0, 3, counter)
+    }
+
     fn test_gameobject_guid(entry: u32, counter: i64) -> ObjectGuid {
         ObjectGuid::create_world_object(
             wow_core::guid::HighGuid::GameObject,
@@ -37066,6 +37070,55 @@ mod tests {
             .insert_map_object_record(
                 wow_entities::MapObjectRecord::new_creature(creature).unwrap(),
             )
+            .unwrap();
+    }
+
+    fn add_canonical_test_pet(
+        canonical: &SharedCanonicalMapManager,
+        guid: ObjectGuid,
+        owner_guid: ObjectGuid,
+        entry: u32,
+        position: Position,
+        npc_flags: u32,
+    ) {
+        let mut pet = wow_entities::Pet::new(owner_guid, wow_entities::PetType::Summon);
+        pet.creature_mut()
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .create(guid);
+        pet.creature_mut()
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .set_entry(entry);
+        pet.creature_mut()
+            .unit_mut()
+            .world_mut()
+            .set_map(571, 0)
+            .unwrap();
+        pet.creature_mut().unit_mut().world_mut().relocate(position);
+        pet.creature_mut()
+            .unit_mut()
+            .world_mut()
+            .set_combat_reach(1.0);
+        pet.creature_mut().unit_mut().set_level(80);
+        pet.creature_mut().unit_mut().set_max_health(100);
+        pet.creature_mut().unit_mut().set_health(100);
+        pet.creature_mut()
+            .set_ai_identity_runtime(1, 35, npc_flags, 0);
+        pet.creature_mut()
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .add_to_world();
+
+        canonical
+            .lock()
+            .unwrap()
+            .create_world_map(571, 0)
+            .map_mut()
+            .insert_map_object_record(wow_entities::MapObjectRecord::new_pet(pet).unwrap())
             .unwrap();
     }
 
@@ -42238,6 +42291,61 @@ mod tests {
         assert_eq!(
             plan.casts[0].target,
             RepresentedSpellClickUnitRefLikeCpp::Clickee
+        );
+    }
+
+    #[test]
+    fn represented_spellclick_accepts_pet_guid_through_get_pet_like_cpp() {
+        let (mut session, _pkt_tx, _send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let pet_guid = test_pet_guid(232);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "Tester".to_string(),
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_condition_store(Arc::new(ConditionEntriesByTypeStore::default()));
+        session.set_npc_spell_click_store(Arc::new(NpcSpellClickStoreLikeCpp::from_rows_like_cpp(
+            [wow_data::NpcSpellClickRowLikeCpp {
+                npc_entry: 9007,
+                spell_id: 913,
+                cast_flags: NPC_CLICK_CAST_CASTER_CLICKER_LIKE_CPP
+                    | NPC_CLICK_CAST_ORIG_CASTER_OWNER_LIKE_CPP,
+                user_type: wow_data::SPELL_CLICK_USER_ANY_LIKE_CPP,
+            }],
+            |entry| entry == 9007,
+            |spell| spell == 913,
+        )));
+        add_canonical_test_pet(
+            &canonical,
+            pet_guid,
+            player_guid,
+            9007,
+            Position::new(12.0, 0.0, 0.0, 0.0),
+            UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP as u32,
+        );
+
+        assert!(pet_guid.is_pet());
+        assert_eq!(
+            session.represented_can_see_spell_click_on_creature_like_cpp(pet_guid),
+            RepresentedCanSeeSpellClickOutcomeLikeCpp::Visible,
+            "C++ ObjectAccessor::GetCreatureOrPetOrVehicle resolves pet GUIDs through GetPet"
+        );
+        let plan = session.represented_handle_spell_click_plan_like_cpp(pet_guid);
+        assert_eq!(plan.casts.len(), 1);
+        assert_eq!(plan.casts[0].spell_id, 913);
+        assert_eq!(
+            plan.casts[0].original_caster,
+            RepresentedSpellClickUnitRefLikeCpp::Owner,
+            "Rust keeps the canonical Pet owner GUID so owner-original-caster rows are not collapsed into the clicker during planning"
         );
     }
 

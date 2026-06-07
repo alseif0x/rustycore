@@ -2280,3 +2280,13 @@ C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Globa
 Implemented Rust seam: no production change was needed. `MapObjectRecord` already maps `HighGuid::Vehicle` to the creature accessor kind, and the represented spellclick snapshot already accepts `guid.is_any_type_creature()`. A focused test now inserts a canonical creature record with a `HighGuid::Vehicle` GUID and proves represented spellclick visibility/planning uses it as a C++ creature-or-vehicle target.
 
 Validation evidence: `cargo test -p wow-world represented_spellclick_accepts_vehicle_guid_as_creature_or_vehicle_like_cpp --lib`. Remaining gaps: real `VehicleKit()->GetCreatureEntry()`, vehicle triggered flags, seat-id validation, `SPELL_AURA_CONTROL_VEHICLE` basepoint override, passenger lifecycle, creature/pet caster rail, AI callback, multi-session fanout, and live client/bot validation.
+
+### #NEXT.RUNTIME.L3.031j27 — WotLK spellclick pet lookup evidence
+
+Status: bounded `ObjectAccessor::GetCreatureOrPetOrVehicle` evidence for pet GUIDs; not full pet runtime or pet-caster spellclick parity.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectAccessor.cpp:241-249` first checks `guid.IsPet()` and resolves that through `GetPet`; `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SpellHandler.cpp:432-444` applies the same in-world gate before `Unit::HandleSpellClick`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:11909-11913` uses `GetOwnerGUID()` when `NPC_CLICK_CAST_ORIG_CASTER_OWNER` is set.
+
+Implemented Rust seam: no production change was needed. The represented canonical spellclick snapshot already resolves `HighGuid::Pet` through typed `MapObjectRecord::pet()`, uses the embedded creature entry for row lookup, and carries `Pet::owner_guid()` so owner-original-caster rows remain explicit in the plan.
+
+Validation evidence: `cargo test -p wow-world represented_spellclick_accepts_pet_guid_through_get_pet_like_cpp --lib`. Remaining gaps: live pet summon/despawn lifecycle, pet/creature caster spell execution, original-caster propagation for non-clicker owners, full `GetOwnerGUID` population for all summon types, AI callback, multi-session fanout, and live client/bot validation.
