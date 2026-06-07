@@ -1,14 +1,40 @@
 //! Shared registry of active groups for cross-session party management.
 
 use dashmap::DashMap;
-use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use std::sync::{
+    Mutex,
+    atomic::{AtomicU32, AtomicU64, Ordering},
+};
 use wow_core::ObjectGuid;
 
 static NEXT_GROUP_ID: AtomicU64 = AtomicU64::new(1);
 static NEXT_GROUP_DB_STORE_ID: AtomicU32 = AtomicU32::new(1);
+static FREED_GROUP_DB_STORE_IDS: Mutex<Vec<u32>> = Mutex::new(Vec::new());
 
 pub const GROUP_FLAG_RAID_LIKE_CPP: u16 = 0x002;
 pub const LOOT_METHOD_PERSONAL_LIKE_CPP: u8 = 5;
+
+fn generate_group_db_store_id_like_cpp() -> u32 {
+    if let Ok(mut freed) = FREED_GROUP_DB_STORE_IDS.lock() {
+        if let Some((index, _)) = freed.iter().enumerate().min_by_key(|(_, id)| *id) {
+            return freed.swap_remove(index);
+        }
+    }
+
+    NEXT_GROUP_DB_STORE_ID.fetch_add(1, Ordering::Relaxed)
+}
+
+pub fn free_group_db_store_id_like_cpp(storage_id: u32) {
+    if storage_id == 0 {
+        return;
+    }
+
+    if let Ok(mut freed) = FREED_GROUP_DB_STORE_IDS.lock() {
+        if !freed.contains(&storage_id) {
+            freed.push(storage_id);
+        }
+    }
+}
 
 /// Information about one group/party.
 #[derive(Debug, Clone)]
@@ -34,7 +60,7 @@ impl GroupInfo {
     pub fn new(leader: ObjectGuid) -> Self {
         Self {
             group_guid: NEXT_GROUP_ID.fetch_add(1, Ordering::Relaxed),
-            db_store_id: NEXT_GROUP_DB_STORE_ID.fetch_add(1, Ordering::Relaxed),
+            db_store_id: generate_group_db_store_id_like_cpp(),
             leader_guid: leader,
             members: vec![leader],
             loot_method: LOOT_METHOD_PERSONAL_LIKE_CPP,
@@ -108,5 +134,10 @@ mod tests {
 
         assert_ne!(group.db_store_id, 0);
         assert_ne!(group.group_guid, 0);
+    }
+
+    #[test]
+    fn free_group_db_store_id_ignores_zero_like_cpp_unallocated_storage() {
+        free_group_db_store_id_like_cpp(0);
     }
 }

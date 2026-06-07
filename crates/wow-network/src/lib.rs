@@ -18,7 +18,7 @@ pub use accept::{
 };
 pub use group_registry::{
     GROUP_FLAG_RAID_LIKE_CPP, GroupInfo, GroupRegistry, LOOT_METHOD_PERSONAL_LIKE_CPP,
-    PendingInvites,
+    PendingInvites, free_group_db_store_id_like_cpp,
 };
 pub use player_registry::{
     ApplyCreatureMeleeDamageLikeCppCommand, CreatureAttackStartLikeCppCommand,

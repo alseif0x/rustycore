@@ -10,7 +10,7 @@ use wow_constants::ClientOpcodes;
 use wow_core::ObjectGuid;
 use wow_database::{CharStatements, PreparedStatement, StatementDef};
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
-use wow_network::{GroupInfo, PlayerRegistry};
+use wow_network::{GroupInfo, PlayerRegistry, free_group_db_store_id_like_cpp};
 use wow_packet::packets::party::{
     GroupDecline, GroupDestroyed, GroupUninvite, OptOutOfLoot, PartyCommandResult,
     PartyDifficultySettings, PartyInviteServer, PartyLootSettings, PartyMemberFullState,
@@ -640,6 +640,7 @@ impl WorldSession {
 
         // 2. Remove self from the group.
         let dissolve_remaining: Option<Vec<ObjectGuid>>;
+        let mut dissolved_db_store_id: Option<u32> = None;
         let mut group_leave_statements: Vec<PreparedStatement> = Vec::new();
         {
             let mut group = match group_reg.get_mut(&gid) {
@@ -654,6 +655,7 @@ impl WorldSession {
                 group_leave_statements
                     .push(group_member_delete_all_statement_like_cpp(db_store_id));
                 group_leave_statements.push(group_lfg_data_delete_statement_like_cpp(db_store_id));
+                dissolved_db_store_id = Some(db_store_id);
                 dissolve_remaining = Some(group.members.clone());
             } else {
                 dissolve_remaining = None;
@@ -697,6 +699,9 @@ impl WorldSession {
         if let Some(remaining) = dissolve_remaining {
             // Group dissolved — notify last remaining member (if any).
             group_reg.remove(&gid);
+            if let Some(db_store_id) = dissolved_db_store_id {
+                free_group_db_store_id_like_cpp(db_store_id);
+            }
             if let Some(&last_guid) = remaining.first() {
                 if let Some(last_entry) = registry.get(&last_guid) {
                     let _ = last_entry.send_tx.send(GroupDestroyed.to_bytes());
