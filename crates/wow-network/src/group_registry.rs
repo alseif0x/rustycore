@@ -29,6 +29,10 @@ pub const TARGET_ICONS_COUNT_LIKE_CPP: usize = 8;
 pub const EMPTY_TARGET_ICON_RAW_LIKE_CPP: [u8; 16] = [0; 16];
 pub const LFG_STATE_DUNGEON_LIKE_CPP: u8 = 5;
 pub const LFG_STATE_FINISHED_DUNGEON_LIKE_CPP: u8 = 6;
+pub const MAX_GROUP_SIZE_LIKE_CPP: usize = 5;
+pub const MAX_RAID_SIZE_LIKE_CPP: usize = 40;
+pub const MAX_RAID_SUBGROUPS_LIKE_CPP: usize = MAX_RAID_SIZE_LIKE_CPP / MAX_GROUP_SIZE_LIKE_CPP;
+pub const MISSING_MEMBER_GROUP_LIKE_CPP: u8 = (MAX_RAID_SUBGROUPS_LIKE_CPP as u8) + 1;
 
 fn generate_group_db_store_id_like_cpp() -> u32 {
     if let Ok(mut freed) = FREED_GROUP_DB_STORE_IDS.lock() {
@@ -207,6 +211,7 @@ pub struct GroupInfo {
     pub legacy_raid_difficulty_id: u32,
     pub target_icons: [[u8; 16]; TARGET_ICONS_COUNT_LIKE_CPP],
     pub lfg_db_state: Option<GroupLfgDbStateLikeCpp>,
+    pub raid_subgroup_counts: Option<[u8; MAX_RAID_SUBGROUPS_LIKE_CPP]>,
     pub sequence_num: u32,
     pub group_flags: u16,
 }
@@ -237,6 +242,7 @@ impl GroupInfo {
             legacy_raid_difficulty_id: DIFFICULTY_10_N_LIKE_CPP,
             target_icons: [EMPTY_TARGET_ICON_RAW_LIKE_CPP; TARGET_ICONS_COUNT_LIKE_CPP],
             lfg_db_state: None,
+            raid_subgroup_counts: None,
             sequence_num: 1,
             group_flags: 0,
         }
@@ -271,6 +277,11 @@ impl GroupInfo {
             legacy_raid_difficulty_id,
             target_icons: [EMPTY_TARGET_ICON_RAW_LIKE_CPP; TARGET_ICONS_COUNT_LIKE_CPP],
             lfg_db_state: None,
+            raid_subgroup_counts: if (group_flags & GROUP_FLAG_RAID_LIKE_CPP) != 0 {
+                Some([0; MAX_RAID_SUBGROUPS_LIKE_CPP])
+            } else {
+                None
+            },
             sequence_num: 1,
             group_flags,
         }
@@ -341,6 +352,9 @@ impl GroupInfo {
 
     pub fn add_member(&mut self, guid: ObjectGuid) {
         if !self.members.contains(&guid) {
+            if !self.subgroup_counter_increase_like_cpp(0) {
+                return;
+            }
             self.members.push(guid);
             self.member_slots.push(GroupMemberSlotLikeCpp {
                 guid,
@@ -358,6 +372,51 @@ impl GroupInfo {
 
     pub fn member_slot_like_cpp(&self, guid: ObjectGuid) -> Option<&GroupMemberSlotLikeCpp> {
         self.member_slots.iter().find(|slot| slot.guid == guid)
+    }
+
+    pub fn member_group_like_cpp(&self, guid: ObjectGuid) -> u8 {
+        self.member_slot_like_cpp(guid)
+            .map(|slot| slot.subgroup)
+            .unwrap_or(MISSING_MEMBER_GROUP_LIKE_CPP)
+    }
+
+    pub fn has_free_slot_sub_group_like_cpp(&self, subgroup: u8) -> bool {
+        let Some(counts) = self.raid_subgroup_counts else {
+            return false;
+        };
+        counts
+            .get(usize::from(subgroup))
+            .is_some_and(|count| usize::from(*count) < MAX_GROUP_SIZE_LIKE_CPP)
+    }
+
+    fn subgroup_counter_increase_like_cpp(&mut self, subgroup: u8) -> bool {
+        let Some(counts) = self.raid_subgroup_counts.as_mut() else {
+            return true;
+        };
+        let Some(count) = counts.get_mut(usize::from(subgroup)) else {
+            return false;
+        };
+        *count = count.saturating_add(1);
+        true
+    }
+
+    fn subgroup_counter_decrease_like_cpp(&mut self, subgroup: u8) {
+        let Some(counts) = self.raid_subgroup_counts.as_mut() else {
+            return;
+        };
+        if let Some(count) = counts.get_mut(usize::from(subgroup)) {
+            *count = count.saturating_sub(1);
+        }
+    }
+
+    fn init_raid_subgroups_counter_like_cpp(&mut self) {
+        let mut counts = [0u8; MAX_RAID_SUBGROUPS_LIKE_CPP];
+        for slot in &self.member_slots {
+            if let Some(count) = counts.get_mut(usize::from(slot.subgroup)) {
+                *count = (*count).saturating_add(1);
+            }
+        }
+        self.raid_subgroup_counts = Some(counts);
     }
 
     pub fn load_member_from_db_like_cpp(
@@ -379,9 +438,20 @@ impl GroupInfo {
         let Ok(guid_db_id) = i64::try_from(guid_low) else {
             return false;
         };
+        if self.raid_subgroup_counts.is_some()
+            && usize::from(subgroup) >= MAX_RAID_SUBGROUPS_LIKE_CPP
+        {
+            return false;
+        }
         let guid = ObjectGuid::create_player(1, guid_db_id);
+        if let Some(slot) = self.member_slots.iter().find(|slot| slot.guid == guid) {
+            self.subgroup_counter_decrease_like_cpp(slot.subgroup);
+        }
         self.members.retain(|member_guid| *member_guid != guid);
         self.member_slots.retain(|slot| slot.guid != guid);
+        if !self.subgroup_counter_increase_like_cpp(subgroup) {
+            return false;
+        }
         self.members.push(guid);
         self.member_slots.push(GroupMemberSlotLikeCpp {
             guid,
@@ -403,6 +473,7 @@ impl GroupInfo {
     pub fn convert_to_raid_like_cpp(&mut self) {
         if !self.is_raid_group() {
             self.group_flags |= GROUP_FLAG_RAID_LIKE_CPP;
+            self.init_raid_subgroups_counter_like_cpp();
             self.sequence_num += 1;
         }
     }
@@ -413,12 +484,16 @@ impl GroupInfo {
         }
         if self.is_raid_group() {
             self.group_flags &= !GROUP_FLAG_RAID_LIKE_CPP;
+            self.raid_subgroup_counts = None;
             self.sequence_num += 1;
         }
         true
     }
 
     pub fn remove_member(&mut self, guid: &ObjectGuid) {
+        if let Some(slot) = self.member_slots.iter().find(|slot| &slot.guid == guid) {
+            self.subgroup_counter_decrease_like_cpp(slot.subgroup);
+        }
         self.members.retain(|g| g != guid);
         self.member_slots.retain(|slot| &slot.guid != guid);
         self.sequence_num += 1;
@@ -777,6 +852,99 @@ mod tests {
             slot.flags & MEMBER_FLAG_ASSISTANT_LIKE_CPP,
             MEMBER_FLAG_ASSISTANT_LIKE_CPP
         );
+    }
+
+    #[test]
+    fn loaded_raid_group_tracks_subgroup_counts_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let mut group = GroupInfo::loaded_from_db_like_cpp(
+            906,
+            23,
+            leader,
+            LOOT_METHOD_PERSONAL_LIKE_CPP,
+            leader,
+            ITEM_QUALITY_UNCOMMON_LIKE_CPP,
+            GROUP_FLAG_RAID_LIKE_CPP,
+            DIFFICULTY_NORMAL_LIKE_CPP,
+            DIFFICULTY_NORMAL_RAID_LIKE_CPP,
+            DIFFICULTY_10_N_LIKE_CPP,
+            ObjectGuid::EMPTY,
+        );
+
+        assert!(group.has_free_slot_sub_group_like_cpp(3));
+        for guid_low in 100..105 {
+            assert!(group.load_member_from_db_like_cpp(
+                guid_low,
+                0,
+                3,
+                0,
+                Some(GroupMemberCharacterLikeCpp {
+                    name: format!("Member{guid_low}"),
+                    race: 1,
+                    class: 1,
+                }),
+            ));
+        }
+
+        assert!(!group.has_free_slot_sub_group_like_cpp(3));
+        assert_eq!(
+            group.member_group_like_cpp(ObjectGuid::create_player(1, 104)),
+            3
+        );
+        assert_eq!(
+            group.member_group_like_cpp(ObjectGuid::create_player(1, 999)),
+            MISSING_MEMBER_GROUP_LIKE_CPP
+        );
+
+        group.remove_member(&ObjectGuid::create_player(1, 104));
+        assert!(group.has_free_slot_sub_group_like_cpp(3));
+    }
+
+    #[test]
+    fn convert_to_raid_initializes_subgroup_counts_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let mut group = GroupInfo::new(leader);
+        assert!(!group.has_free_slot_sub_group_like_cpp(0));
+
+        group.convert_to_raid_like_cpp();
+
+        assert!(group.has_free_slot_sub_group_like_cpp(0));
+        for guid_low in 200..204 {
+            group.add_member(ObjectGuid::create_player(1, guid_low));
+        }
+        assert!(!group.has_free_slot_sub_group_like_cpp(0));
+    }
+
+    #[test]
+    fn loaded_raid_group_rejects_out_of_range_subgroup_without_panicking_boundary() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let mut group = GroupInfo::loaded_from_db_like_cpp(
+            906,
+            24,
+            leader,
+            LOOT_METHOD_PERSONAL_LIKE_CPP,
+            leader,
+            ITEM_QUALITY_UNCOMMON_LIKE_CPP,
+            GROUP_FLAG_RAID_LIKE_CPP,
+            DIFFICULTY_NORMAL_LIKE_CPP,
+            DIFFICULTY_NORMAL_RAID_LIKE_CPP,
+            DIFFICULTY_10_N_LIKE_CPP,
+            ObjectGuid::EMPTY,
+        );
+
+        assert!(!group.load_member_from_db_like_cpp(
+            300,
+            0,
+            MAX_RAID_SUBGROUPS_LIKE_CPP as u8,
+            0,
+            Some(GroupMemberCharacterLikeCpp {
+                name: "Invalid".to_string(),
+                race: 1,
+                class: 1,
+            }),
+        ));
+        assert!(group.members.is_empty());
+        assert!(group.member_slots.is_empty());
     }
 
     #[test]

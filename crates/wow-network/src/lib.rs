@@ -21,9 +21,11 @@ pub use group_registry::{
     GroupDbRowLikeCpp, GroupInfo, GroupLfgDbStateLikeCpp, GroupLoadSummaryLikeCpp,
     GroupMemberCharacterLikeCpp, GroupMemberDbRowLikeCpp, GroupMemberSlotLikeCpp, GroupRegistry,
     LFG_STATE_DUNGEON_LIKE_CPP, LFG_STATE_FINISHED_DUNGEON_LIKE_CPP, LOOT_METHOD_PERSONAL_LIKE_CPP,
-    PendingInvites, TARGET_ICONS_COUNT_LIKE_CPP, free_group_db_store_id_like_cpp,
-    get_group_by_db_store_id_like_cpp, group_guid_by_db_store_id_like_cpp,
-    load_groups_from_db_rows_like_cpp, register_group_db_store_id_like_cpp,
+    MAX_GROUP_SIZE_LIKE_CPP, MAX_RAID_SIZE_LIKE_CPP, MAX_RAID_SUBGROUPS_LIKE_CPP,
+    MISSING_MEMBER_GROUP_LIKE_CPP, PendingInvites, TARGET_ICONS_COUNT_LIKE_CPP,
+    free_group_db_store_id_like_cpp, get_group_by_db_store_id_like_cpp,
+    group_guid_by_db_store_id_like_cpp, load_groups_from_db_rows_like_cpp,
+    register_group_db_store_id_like_cpp,
 };
 pub use player_registry::{
     ApplyCreatureMeleeDamageLikeCppCommand, CreatureAttackStartLikeCppCommand,
