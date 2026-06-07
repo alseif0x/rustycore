@@ -271,7 +271,7 @@ Leyenda:
 | `Mails/MailMgr` | (no existe) | ❌ | sistema de correo COD/items |
 | `AuctionHouse/AuctionMgr` | (no existe) | ❌ | listing, bidding, expiración |
 | `AuctionHouseBot/` | (no existe) | ❌ | bot que compra/vende |
-| `BlackMarket/` | (no existe) | ❌ | subastas especiales |
+| `BlackMarket/` | dormant/no-op only | n/a | fuera de WotLK; frozen/future-version only, no credit toward WotLK progress |
 | `Calendar/CalendarMgr` | (no existe) | ❌ | eventos del calendario |
 | `Achievements/AchievementMgr` | wow-achievement (vacío) | ❌ | criterios + progreso |
 | `Groups/Group` | wow-social | ⚠️ | invite/accept/leave; falta loot rules, ready check, role check |

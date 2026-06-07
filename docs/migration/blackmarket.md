@@ -6,8 +6,17 @@
 > **Status:** ❌ not started — **intentionally unported** (post-MoP content); audit confirms 0 lines + dead enum variants
 > **Audited vs C++:** ✅ complete
 > **Audited vs Rust impl:** ✅ 2026-05-01
-> **Last updated:** 2026-05-01
+> **Last updated:** 2026-06-07
 > **WoLK 3.4.3 relevance:** ❌ **Post-WoLK content (Mists of Pandaria 5.4, October 2013).** The Black Market Auction House was added in patch 5.4 and does **not** exist on a vanilla 3.3.5 client. The fact that this file is in the WotLK Classic branch is purely because TrinityCore's WotLK Classic fork was created from the modern (BfA-era) main branch and never deleted MoP+ subsystems. The 3.4.3.54261 client should never send `CMSG_BLACK_MARKET_OPEN` or `..._BID_ON_ITEM` — and the corresponding opcodes (already defined in our `wow-constants/src/opcodes.rs`) are vestigial. **Do not implement for the WoLK Classic relaunch.** Document for completeness, then either no-op or hard-reject the opcodes.
+
+## 2026-06-07 scope freeze
+
+BlackMarket is frozen under the same rule as BattlePets:
+
+- Do not select BlackMarket implementation slices for WotLK progress.
+- Do not count BlackMarket work toward the honest WotLK completion percentage.
+- Preserve the C++ coverage, packet/opcode inventory, and docs for future MoP+/modern-client targets.
+- For the current WotLK target, any BlackMarket opcode/config surface should stay dormant, no-op, or explicitly rejected unless the target version changes.
 
 ---
 
