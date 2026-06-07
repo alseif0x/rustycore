@@ -389,6 +389,32 @@ impl GroupInfo {
             .is_some_and(|count| usize::from(*count) < MAX_GROUP_SIZE_LIKE_CPP)
     }
 
+    pub fn change_member_group_like_cpp(&mut self, guid: ObjectGuid, subgroup: u8) -> bool {
+        if !self.is_raid_group() {
+            return false;
+        }
+        if usize::from(subgroup) >= MAX_RAID_SUBGROUPS_LIKE_CPP {
+            return false;
+        }
+        if !self.has_free_slot_sub_group_like_cpp(subgroup) {
+            return false;
+        }
+
+        let Some(slot_index) = self.member_slots.iter().position(|slot| slot.guid == guid) else {
+            return false;
+        };
+        let previous_subgroup = self.member_slots[slot_index].subgroup;
+        if previous_subgroup == subgroup {
+            return false;
+        }
+
+        self.member_slots[slot_index].subgroup = subgroup;
+        self.subgroup_counter_increase_like_cpp(subgroup);
+        self.subgroup_counter_decrease_like_cpp(previous_subgroup);
+        self.sequence_num += 1;
+        true
+    }
+
     fn subgroup_counter_increase_like_cpp(&mut self, subgroup: u8) -> bool {
         let Some(counts) = self.raid_subgroup_counts.as_mut() else {
             return true;
@@ -945,6 +971,92 @@ mod tests {
         ));
         assert!(group.members.is_empty());
         assert!(group.member_slots.is_empty());
+    }
+
+    #[test]
+    fn change_member_group_updates_raid_subgroup_counts_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let mut group = GroupInfo::loaded_from_db_like_cpp(
+            907,
+            25,
+            leader,
+            LOOT_METHOD_PERSONAL_LIKE_CPP,
+            leader,
+            ITEM_QUALITY_UNCOMMON_LIKE_CPP,
+            GROUP_FLAG_RAID_LIKE_CPP,
+            DIFFICULTY_NORMAL_LIKE_CPP,
+            DIFFICULTY_NORMAL_RAID_LIKE_CPP,
+            DIFFICULTY_10_N_LIKE_CPP,
+            ObjectGuid::EMPTY,
+        );
+        let member = ObjectGuid::create_player(1, 400);
+        assert!(group.load_member_from_db_like_cpp(
+            400,
+            0,
+            0,
+            0,
+            Some(GroupMemberCharacterLikeCpp {
+                name: "Mover".to_string(),
+                race: 1,
+                class: 1,
+            }),
+        ));
+
+        assert!(group.change_member_group_like_cpp(member, 2));
+        assert_eq!(group.member_group_like_cpp(member), 2);
+
+        for guid_low in 401..406 {
+            assert!(group.load_member_from_db_like_cpp(
+                guid_low,
+                0,
+                0,
+                0,
+                Some(GroupMemberCharacterLikeCpp {
+                    name: format!("Member{guid_low}"),
+                    race: 1,
+                    class: 1,
+                }),
+            ));
+        }
+        assert!(!group.has_free_slot_sub_group_like_cpp(0));
+        assert!(group.has_free_slot_sub_group_like_cpp(2));
+    }
+
+    #[test]
+    fn change_member_group_rejects_non_raid_missing_full_or_same_group_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let member = ObjectGuid::create_player(1, 500);
+        let mut party = GroupInfo::new(leader);
+        party.add_member(member);
+        assert!(!party.change_member_group_like_cpp(member, 1));
+
+        let mut raid = GroupInfo::loaded_from_db_like_cpp(
+            908,
+            26,
+            leader,
+            LOOT_METHOD_PERSONAL_LIKE_CPP,
+            leader,
+            ITEM_QUALITY_UNCOMMON_LIKE_CPP,
+            GROUP_FLAG_RAID_LIKE_CPP,
+            DIFFICULTY_NORMAL_LIKE_CPP,
+            DIFFICULTY_NORMAL_RAID_LIKE_CPP,
+            DIFFICULTY_10_N_LIKE_CPP,
+            ObjectGuid::EMPTY,
+        );
+        assert!(!raid.change_member_group_like_cpp(member, 1));
+        assert!(raid.load_member_from_db_like_cpp(
+            500,
+            0,
+            0,
+            0,
+            Some(GroupMemberCharacterLikeCpp {
+                name: "Mover".to_string(),
+                race: 1,
+                class: 1,
+            }),
+        ));
+        assert!(!raid.change_member_group_like_cpp(member, 0));
+        assert!(!raid.change_member_group_like_cpp(member, MAX_RAID_SUBGROUPS_LIKE_CPP as u8));
     }
 
     #[test]

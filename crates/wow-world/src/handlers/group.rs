@@ -270,6 +270,16 @@ fn group_member_insert_statement_like_cpp(
     stmt
 }
 
+fn group_member_subgroup_update_statement_like_cpp(
+    member_guid: ObjectGuid,
+    subgroup: u8,
+) -> PreparedStatement {
+    let mut stmt = PreparedStatement::new(CharStatements::UPD_GROUP_MEMBER_SUBGROUP.sql());
+    stmt.set_u8(0, subgroup);
+    stmt.set_u64(1, member_guid.counter() as u64);
+    stmt
+}
+
 fn group_member_delete_statement_like_cpp(member_guid: ObjectGuid) -> PreparedStatement {
     let mut stmt = PreparedStatement::new(CharStatements::DEL_GROUP_MEMBER.sql());
     stmt.set_u64(0, member_guid.counter() as u64);
@@ -872,7 +882,8 @@ mod tests {
         group_insert_statement_like_cpp, group_leader_update_statement_like_cpp,
         group_lfg_data_delete_statement_like_cpp, group_member_delete_all_statement_like_cpp,
         group_member_delete_statement_like_cpp, group_member_insert_statement_like_cpp,
-        group_type_update_statement_like_cpp, party_player_info_like_cpp, send_party_update,
+        group_member_subgroup_update_statement_like_cpp, group_type_update_statement_like_cpp,
+        party_player_info_like_cpp, send_party_update,
     };
     use flume::bounded;
     use std::sync::Arc;
@@ -1087,6 +1098,18 @@ mod tests {
                 SqlParam::U8(3),
                 SqlParam::U8(2)
             ]
+        );
+    }
+
+    #[test]
+    fn group_member_subgroup_update_statement_binds_cpp_member_row_like_cpp() {
+        let member = ObjectGuid::create_player(1, 42);
+        let stmt = group_member_subgroup_update_statement_like_cpp(member, 6);
+
+        assert_eq!(stmt.sql(), CharStatements::UPD_GROUP_MEMBER_SUBGROUP.sql());
+        assert_eq!(
+            stmt.params(),
+            &[SqlParam::U8(6), SqlParam::U64(member.counter() as u64)]
         );
     }
 

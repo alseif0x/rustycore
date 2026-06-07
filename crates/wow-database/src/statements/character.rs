@@ -116,6 +116,8 @@ pub enum CharStatements {
     INS_GROUP,
     /// INSERT INTO group_member (guid, memberGuid, memberFlags, subgroup, roles) VALUES(?, ?, ?, ?, ?)
     INS_GROUP_MEMBER,
+    /// UPDATE group_member SET subgroup = ? WHERE memberGuid = ?
+    UPD_GROUP_MEMBER_SUBGROUP,
     /// DELETE FROM group_member WHERE memberGuid = ?
     DEL_GROUP_MEMBER,
     /// DELETE FROM `groups` WHERE guid = ?
@@ -427,6 +429,9 @@ impl StatementDef for CharStatements {
             }
             Self::INS_GROUP_MEMBER => {
                 "INSERT INTO group_member (guid, memberGuid, memberFlags, subgroup, roles) VALUES(?, ?, ?, ?, ?)"
+            }
+            Self::UPD_GROUP_MEMBER_SUBGROUP => {
+                "UPDATE group_member SET subgroup = ? WHERE memberGuid = ?"
             }
             Self::DEL_GROUP_MEMBER => "DELETE FROM group_member WHERE memberGuid = ?",
             Self::DEL_GROUP => "DELETE FROM `groups` WHERE guid = ?",
@@ -783,6 +788,21 @@ mod tests {
         assert_eq!(
             CharStatements::INS_GROUP_MEMBER.sql().matches('?').count(),
             5
+        );
+    }
+
+    #[test]
+    fn group_member_subgroup_update_statement_matches_cpp_exactly() {
+        assert_eq!(
+            CharStatements::UPD_GROUP_MEMBER_SUBGROUP.sql(),
+            "UPDATE group_member SET subgroup = ? WHERE memberGuid = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_GROUP_MEMBER_SUBGROUP
+                .sql()
+                .matches('?')
+                .count(),
+            2
         );
     }
 
@@ -1506,6 +1526,13 @@ mod tests {
         assert_eq!(
             CharStatements::INS_GROUP_MEMBER.sql().matches('?').count(),
             5
+        );
+        assert_eq!(
+            CharStatements::UPD_GROUP_MEMBER_SUBGROUP
+                .sql()
+                .matches('?')
+                .count(),
+            2
         );
         assert_eq!(
             CharStatements::DEL_GROUP_MEMBER.sql().matches('?').count(),
