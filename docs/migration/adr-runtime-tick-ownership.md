@@ -1771,6 +1771,12 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   the map-update interval when `RustyCore.LegacyCreatureGlobalRuntime` is enabled. This advances
   manual-test readiness but does not mark 4B.2 complete until the server is actually run with a
   client.
+- 2026-06-07 — WotLK spellclick packet/dispatch seam `#NEXT.RUNTIME.L3.031j21`: contrasted
+  `CMSG_SPELL_CLICK` opcode metadata, packet read order, `WorldSession::HandleSpellClick`, and
+  `Unit::HandleSpellClick` against C++. Rust now parses GUID + `TryAutoDismount` and dispatches the
+  logged-in/inplace opcode, but intentionally stops before spellclick execution. Remaining runtime
+  work: live creature/pet/vehicle lookup, in-world gate, spellclick relation/condition execution,
+  cast flag routing, vehicle seat handling, real spell/aura execution, and AI `OnSpellClick`.
 
 ## References
 

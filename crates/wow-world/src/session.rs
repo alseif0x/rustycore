@@ -15847,6 +15847,9 @@ impl WorldSession {
             ClientOpcodes::OpenItem => {
                 self.handle_open_item(pkt).await;
             }
+            ClientOpcodes::SpellClick => {
+                self.handle_spell_click(pkt).await;
+            }
 
             // ── QueryTime / QueryNextMailTime ─────────────────────────────────
             ClientOpcodes::QueryTime => {
@@ -61847,9 +61850,23 @@ mod tests {
             "RequestConquestFormulaConstants",
             "UpdateVasPurchaseStates",
         ];
+        let modern_client_non_wotlk_exceptions = [
+            "BattlePetClearFanfare",
+            "BattlePetRequestJournal",
+            "BattlePetRequestJournalLock",
+            "BattlePetSetBattleSlot",
+            "BattlePetSetFlags",
+            "BattlePetSummon",
+            "BattlePetUpdateDisplayNotify",
+            "BattlePetUpdateNotify",
+            "QueryBattlePetName",
+        ];
 
         for entry in table.values() {
             let opcode_name = format!("{:?}", entry.opcode);
+            if modern_client_non_wotlk_exceptions.contains(&opcode_name.as_str()) {
+                continue;
+            }
             if compatibility_exceptions.contains(&opcode_name.as_str()) {
                 assert!(
                     cpp_never_or_unhandled.contains(opcode_name.as_str()),

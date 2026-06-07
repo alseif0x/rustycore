@@ -395,6 +395,27 @@ impl ClientPacket for OpenItem {
     }
 }
 
+/// `CMSG_SPELL_CLICK` payload.
+///
+/// C++ `WorldPackets::Spells::SpellClick::Read` reads the clicked unit GUID
+/// followed by the `TryAutoDismount` bit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellClick {
+    pub unit_guid: ObjectGuid,
+    pub try_auto_dismount: bool,
+}
+
+impl ClientPacket for SpellClick {
+    const OPCODE: ClientOpcodes = ClientOpcodes::SpellClick;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            unit_guid: pkt.read_packed_guid()?,
+            try_auto_dismount: pkt.read_bit()?,
+        })
+    }
+}
+
 // ── Server packet helpers ─────────────────────────────────────────
 
 /// Write a minimal `SpellCastData` (used by both SpellStart and SpellGo).
@@ -668,6 +689,22 @@ mod tests {
         let open = OpenItem::read(&mut pkt).unwrap();
         assert_eq!(open.slot, 0xFF);
         assert_eq!(open.pack_slot, 0x24);
+    }
+
+    #[test]
+    fn spell_click_reads_cpp_guid_then_try_auto_dismount_bit() {
+        let guid = ObjectGuid::new(0x0102_0304_0506_0708, 0x1112_1314_1516_1718);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(ClientOpcodes::SpellClick as u16);
+        pkt.write_packed_guid(&guid);
+        pkt.write_bit(true);
+        pkt.flush_bits();
+        pkt.reset_read();
+        pkt.skip_opcode();
+
+        let spell_click = SpellClick::read(&mut pkt).unwrap();
+        assert_eq!(spell_click.unit_guid, guid);
+        assert!(spell_click.try_auto_dismount);
     }
 
     #[test]

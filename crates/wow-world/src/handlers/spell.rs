@@ -46,7 +46,7 @@ use wow_packet::packets::loot::{
     CreatureLoot, LOOT_TYPE_ITEM_LIKE_CPP, LootEntry, LootEntryFlags, LootItemData, LootResponse,
 };
 use wow_packet::packets::spell::{
-    CastFailed, CastSpellRequest, OpenItem, SpellCastVisual, SpellStartPkt,
+    CastFailed, CastSpellRequest, OpenItem, SpellCastVisual, SpellClick, SpellStartPkt,
 };
 
 use crate::session::WorldSession;
@@ -101,6 +101,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_open_item",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::SpellClick,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_spell_click",
     }
 }
 
@@ -1599,6 +1608,33 @@ impl WorldSession {
                 "failed to save stored item loot rows"
             );
         }
+    }
+
+    /// Handle `CMSG_SPELL_CLICK`.
+    ///
+    /// C++ `WorldSession::HandleSpellClick` resolves an in-world creature, pet,
+    /// or vehicle and then delegates to `Unit::HandleSpellClick`. Rust already
+    /// represents the packet shape plus spellclick stores/conditions/visibility;
+    /// executing spellclick casts, vehicle seat handling, and AI callbacks stays
+    /// in the next bounded runtime slice.
+    pub async fn handle_spell_click(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let spell_click = match SpellClick::read(&mut pkt) {
+            Ok(spell_click) => spell_click,
+            Err(e) => {
+                warn!(
+                    account = self.account_id,
+                    "Failed to parse CMSG_SPELL_CLICK: {e}"
+                );
+                return;
+            }
+        };
+
+        debug!(
+            account = self.account_id,
+            target = ?spell_click.unit_guid,
+            try_auto_dismount = spell_click.try_auto_dismount,
+            "CMSG_SPELL_CLICK represented seam"
+        );
     }
 
     /// Handle `CMSG_CANCEL_CAST` — player cancels an in-progress cast.

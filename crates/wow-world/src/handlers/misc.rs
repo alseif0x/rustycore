@@ -170,7 +170,7 @@ inventory::submit! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::UseToy,
         status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
+        processing: PacketProcessing::Inplace,
         handler_name: "handle_use_toy",
     }
 }
