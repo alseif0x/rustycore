@@ -21,6 +21,8 @@ pub const ITEM_QUALITY_UNCOMMON_LIKE_CPP: u8 = 2;
 pub const DIFFICULTY_NORMAL_LIKE_CPP: u32 = 1;
 pub const DIFFICULTY_NORMAL_RAID_LIKE_CPP: u32 = 14;
 pub const DIFFICULTY_10_N_LIKE_CPP: u32 = 3;
+pub const TARGET_ICONS_COUNT_LIKE_CPP: usize = 8;
+pub const EMPTY_TARGET_ICON_RAW_LIKE_CPP: [u8; 16] = [0; 16];
 
 fn generate_group_db_store_id_like_cpp() -> u32 {
     if let Ok(mut freed) = FREED_GROUP_DB_STORE_IDS.lock() {
@@ -88,6 +90,24 @@ pub struct GroupMemberSlotLikeCpp {
     pub ready_checked: bool,
 }
 
+/// Row shape selected by C++ `GroupMgr::LoadGroups` for `Group::LoadGroupFromDB`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GroupDbRowLikeCpp {
+    pub leader_guid_low: u64,
+    pub loot_method: u8,
+    pub looter_guid_low: u64,
+    pub loot_threshold: u8,
+    pub target_icons: [[u8; 16]; TARGET_ICONS_COUNT_LIKE_CPP],
+    pub group_flags: u16,
+    pub dungeon_difficulty_id: u32,
+    pub raid_difficulty_id: u32,
+    pub legacy_raid_difficulty_id: u32,
+    pub master_looter_guid_low: u64,
+    pub db_store_id: u32,
+    pub lfg_dungeon_id: Option<u32>,
+    pub lfg_state: Option<u8>,
+}
+
 /// Information about one group/party.
 #[derive(Debug, Clone)]
 pub struct GroupInfo {
@@ -111,6 +131,7 @@ pub struct GroupInfo {
     pub dungeon_difficulty_id: u32,
     pub raid_difficulty_id: u32,
     pub legacy_raid_difficulty_id: u32,
+    pub target_icons: [[u8; 16]; TARGET_ICONS_COUNT_LIKE_CPP],
     pub sequence_num: u32,
     pub group_flags: u16,
 }
@@ -139,6 +160,7 @@ impl GroupInfo {
             dungeon_difficulty_id: DIFFICULTY_NORMAL_LIKE_CPP,
             raid_difficulty_id: DIFFICULTY_NORMAL_RAID_LIKE_CPP,
             legacy_raid_difficulty_id: DIFFICULTY_10_N_LIKE_CPP,
+            target_icons: [EMPTY_TARGET_ICON_RAW_LIKE_CPP; TARGET_ICONS_COUNT_LIKE_CPP],
             sequence_num: 1,
             group_flags: 0,
         }
@@ -171,6 +193,7 @@ impl GroupInfo {
             dungeon_difficulty_id,
             raid_difficulty_id,
             legacy_raid_difficulty_id,
+            target_icons: [EMPTY_TARGET_ICON_RAW_LIKE_CPP; TARGET_ICONS_COUNT_LIKE_CPP],
             sequence_num: 1,
             group_flags,
         }
@@ -205,6 +228,36 @@ impl GroupInfo {
                 .check_loaded_legacy_raid_difficulty_id_like_cpp(legacy_raid_difficulty_id),
             master_looter_guid,
         )
+    }
+
+    pub fn load_group_from_db_row_validated_like_cpp(
+        runtime_group_guid: u64,
+        row: GroupDbRowLikeCpp,
+        leader: Option<GroupMemberCharacterLikeCpp>,
+        difficulty_store: &DifficultyStore,
+    ) -> Option<Self> {
+        leader?;
+        let leader_guid = ObjectGuid::create_player(1, i64::try_from(row.leader_guid_low).ok()?);
+        let looter_guid = ObjectGuid::create_player(1, i64::try_from(row.looter_guid_low).ok()?);
+        let master_looter_guid =
+            ObjectGuid::create_player(1, i64::try_from(row.master_looter_guid_low).ok()?);
+
+        let mut group = Self::loaded_from_db_validated_like_cpp(
+            runtime_group_guid,
+            row.db_store_id,
+            leader_guid,
+            row.loot_method,
+            looter_guid,
+            row.loot_threshold,
+            row.group_flags,
+            row.dungeon_difficulty_id,
+            row.raid_difficulty_id,
+            row.legacy_raid_difficulty_id,
+            master_looter_guid,
+            difficulty_store,
+        );
+        group.target_icons = row.target_icons;
+        Some(group)
     }
 
     pub fn add_member(&mut self, guid: ObjectGuid) {
@@ -588,5 +641,98 @@ mod tests {
             slot.flags & MEMBER_FLAG_ASSISTANT_LIKE_CPP,
             MEMBER_FLAG_ASSISTANT_LIKE_CPP
         );
+    }
+
+    #[test]
+    fn load_group_from_db_row_preserves_target_icons_and_validates_difficulties_like_cpp() {
+        let difficulty_store = DifficultyStore::from_entries([
+            wow_data::DifficultyEntry {
+                id: 2,
+                instance_type: 1,
+                flags: wow_constants::shared::DifficultyFlags::CAN_SELECT.bits(),
+            },
+            wow_data::DifficultyEntry {
+                id: 15,
+                instance_type: 2,
+                flags: wow_constants::shared::DifficultyFlags::CAN_SELECT.bits(),
+            },
+            wow_data::DifficultyEntry {
+                id: 3,
+                instance_type: 2,
+                flags: (wow_constants::shared::DifficultyFlags::CAN_SELECT
+                    | wow_constants::shared::DifficultyFlags::LEGACY)
+                    .bits(),
+            },
+        ]);
+        let mut target_icons = [EMPTY_TARGET_ICON_RAW_LIKE_CPP; TARGET_ICONS_COUNT_LIKE_CPP];
+        target_icons[0] = [1; 16];
+        target_icons[7] = [8; 16];
+
+        let group = GroupInfo::load_group_from_db_row_validated_like_cpp(
+            906,
+            GroupDbRowLikeCpp {
+                leader_guid_low: 42,
+                loot_method: 3,
+                looter_guid_low: 77,
+                loot_threshold: 4,
+                target_icons,
+                group_flags: GROUP_FLAG_RAID_LIKE_CPP,
+                dungeon_difficulty_id: 15,
+                raid_difficulty_id: 3,
+                legacy_raid_difficulty_id: 15,
+                master_looter_guid_low: 88,
+                db_store_id: 23,
+                lfg_dungeon_id: Some(100),
+                lfg_state: Some(2),
+            },
+            Some(GroupMemberCharacterLikeCpp {
+                name: "Leader".to_string(),
+                race: 1,
+                class: 1,
+            }),
+            &difficulty_store,
+        )
+        .expect("valid leader projection should hydrate represented group row");
+
+        assert_eq!(group.group_guid, 906);
+        assert_eq!(group.db_store_id, 23);
+        assert_eq!(group.leader_guid, ObjectGuid::create_player(1, 42));
+        assert_eq!(group.loot_method, 3);
+        assert_eq!(group.looter_guid, ObjectGuid::create_player(1, 77));
+        assert_eq!(group.loot_threshold, 4);
+        assert_eq!(group.group_flags, GROUP_FLAG_RAID_LIKE_CPP);
+        assert_eq!(group.dungeon_difficulty_id, DIFFICULTY_NORMAL_LIKE_CPP);
+        assert_eq!(group.raid_difficulty_id, DIFFICULTY_NORMAL_RAID_LIKE_CPP);
+        assert_eq!(group.legacy_raid_difficulty_id, DIFFICULTY_10_N_LIKE_CPP);
+        assert_eq!(group.master_looter_guid, ObjectGuid::create_player(1, 88));
+        assert_eq!(group.target_icons[0], [1; 16]);
+        assert_eq!(group.target_icons[7], [8; 16]);
+    }
+
+    #[test]
+    fn load_group_from_db_row_skips_missing_leader_character_like_cpp_cleanup_boundary() {
+        let difficulty_store = DifficultyStore::from_entries([]);
+        let group = GroupInfo::load_group_from_db_row_validated_like_cpp(
+            907,
+            GroupDbRowLikeCpp {
+                leader_guid_low: 42,
+                loot_method: LOOT_METHOD_PERSONAL_LIKE_CPP,
+                looter_guid_low: 42,
+                loot_threshold: ITEM_QUALITY_UNCOMMON_LIKE_CPP,
+                target_icons: [EMPTY_TARGET_ICON_RAW_LIKE_CPP; TARGET_ICONS_COUNT_LIKE_CPP],
+                group_flags: 0,
+                dungeon_difficulty_id: DIFFICULTY_NORMAL_LIKE_CPP,
+                raid_difficulty_id: DIFFICULTY_NORMAL_RAID_LIKE_CPP,
+                legacy_raid_difficulty_id: DIFFICULTY_10_N_LIKE_CPP,
+                master_looter_guid_low: 0,
+                db_store_id: 24,
+                lfg_dungeon_id: None,
+                lfg_state: None,
+            },
+            None,
+            &difficulty_store,
+        );
+
+        assert!(group.is_none());
     }
 }
