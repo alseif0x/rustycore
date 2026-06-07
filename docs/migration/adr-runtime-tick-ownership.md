@@ -1827,6 +1827,15 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   side effects. Remaining gaps are still explicit: creature-caster target=clicker/player damage,
   aura/non-damage effects, full spell bonuses/resistances/procs, vehicle seat/basepoint handling,
   fallback aura creation, AI `OnSpellClick`, multi-session fanout, and live client/bot validation.
+- 2026-06-07 — WotLK spellclick clickee-caster clicker target `#NEXT.RUNTIME.L3.031j29`:
+  contrasted the same C++ non-vehicle `caster->CastSpell(target, ...)` branch for
+  `caster == this,target == clicker`. Rust now permits the bounded direct
+  `SPELL_EFFECT_SCHOOL_DAMAGE` creature-caster rail to target the current clicker, emits
+  `SMSG_SPELL_GO` with the clicked creature as caster and the player as hit target, updates the
+  represented/canonical current-player health seam, and sends `SMSG_HEALTH_UPDATE`. This does not
+  claim the full player damage model: spell hit/miss/resist/absorb, proc hooks, combat logs,
+  threat/combat entry side effects, non-current-player fanout, vehicle seat paths, and live
+  client/bot validation remain open.
 
 ## References
 
