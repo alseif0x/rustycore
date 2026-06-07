@@ -1801,6 +1801,15 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   clickee owner GUID evidence. Rust executes this flag only when the owner resolves to the current
   clicker/player, because that is byte-equivalent to the current player-caster spell rail; empty or
   different owners remain skipped/unrepresented instead of being collapsed into the clicker.
+- 2026-06-07 — WotLK spellclick creature-or-vehicle lookup evidence `#NEXT.RUNTIME.L3.031j26`:
+  contrasted C++ `ObjectAccessor::GetCreatureOrPetOrVehicle` (`guid.IsPet()` -> `GetPet`,
+  `guid.IsCreatureOrVehicle()` -> `GetCreature`) and the non-kit branch of
+  `Unit::HandleSpellClick` (`GetVehicleKit() ? GetCreatureEntry() : GetEntry()`). Rust already maps
+  `HighGuid::Vehicle` records through the canonical creature snapshot; focused tests now lock that
+  a vehicle GUID with no represented `VehicleKit` is accepted as a creature-or-vehicle spellclick
+  target and uses the creature entry for represented planning. Remaining vehicle gaps are explicit:
+  represented `VehicleKit()->GetCreatureEntry()`, triggered vehicle flags, seat-id validation,
+  aura basepoint override, passenger state, and AI callback.
 
 ## References
 

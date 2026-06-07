@@ -2270,3 +2270,13 @@ C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entit
 Implemented Rust seam: `crates/wow-world/src/session.rs` now carries owner GUID evidence in the represented spellclick snapshot, sourced from canonical Pet owner data or the represented Unit control owner. `execute_represented_spell_click_plan_like_cpp` now executes owner-original-caster rows only when the owner is the current clicker/player, which is equivalent to the existing player-caster spell rail. Missing or different owner GUIDs remain explicit `skipped_unrepresented_original_caster` outcomes.
 
 Validation evidence: focused spellclick tests cover `ORIG_CASTER_OWNER` executing when the clicked creature owner is the current player and skipping with no packets when the owner is another player. Remaining gaps: original-caster propagation for non-clicker owners, true creature/pet caster spell rail, full `GetOwnerGUID` lifecycle population for all summon types, vehicle `seatId` path, AI callback, multi-session fanout, and live client/bot validation.
+
+### #NEXT.RUNTIME.L3.031j26 — WotLK spellclick creature-or-vehicle lookup evidence
+
+Status: bounded `ObjectAccessor::GetCreatureOrPetOrVehicle` evidence for vehicle GUIDs without represented `VehicleKit`; not full vehicle spellclick parity.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectAccessor.cpp:241-249` resolves pets through `GetPet` and creature-or-vehicle GUIDs through `GetCreature`; `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SpellHandler.cpp:432-444` delegates the in-world result to `Unit::HandleSpellClick`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:11892-11898` uses `GetVehicleKit()->GetCreatureEntry()` only when a vehicle kit exists, otherwise `GetEntry()`.
+
+Implemented Rust seam: no production change was needed. `MapObjectRecord` already maps `HighGuid::Vehicle` to the creature accessor kind, and the represented spellclick snapshot already accepts `guid.is_any_type_creature()`. A focused test now inserts a canonical creature record with a `HighGuid::Vehicle` GUID and proves represented spellclick visibility/planning uses it as a C++ creature-or-vehicle target.
+
+Validation evidence: `cargo test -p wow-world represented_spellclick_accepts_vehicle_guid_as_creature_or_vehicle_like_cpp --lib`. Remaining gaps: real `VehicleKit()->GetCreatureEntry()`, vehicle triggered flags, seat-id validation, `SPELL_AURA_CONTROL_VEHICLE` basepoint override, passenger lifecycle, creature/pet caster rail, AI callback, multi-session fanout, and live client/bot validation.

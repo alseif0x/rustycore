@@ -36950,6 +36950,10 @@ mod tests {
         ObjectGuid::create_world_object(wow_core::guid::HighGuid::Creature, 0, 1, 0, 0, 1, counter)
     }
 
+    fn test_vehicle_guid(counter: i64) -> ObjectGuid {
+        ObjectGuid::create_world_object(wow_core::guid::HighGuid::Vehicle, 0, 1, 0, 0, 2, counter)
+    }
+
     fn test_gameobject_guid(entry: u32, counter: i64) -> ObjectGuid {
         ObjectGuid::create_world_object(
             wow_core::guid::HighGuid::GameObject,
@@ -42178,6 +42182,62 @@ mod tests {
         assert_eq!(
             session.represented_can_see_spell_click_on_creature_like_cpp(creature_guid),
             RepresentedCanSeeSpellClickOutcomeLikeCpp::Visible
+        );
+    }
+
+    #[test]
+    fn represented_spellclick_accepts_vehicle_guid_as_creature_or_vehicle_like_cpp() {
+        let (mut session, _pkt_tx, _send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let vehicle_guid = test_vehicle_guid(231);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "Tester".to_string(),
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_condition_store(Arc::new(ConditionEntriesByTypeStore::default()));
+        session.set_npc_spell_click_store(Arc::new(NpcSpellClickStoreLikeCpp::from_rows_like_cpp(
+            [wow_data::NpcSpellClickRowLikeCpp {
+                npc_entry: 9006,
+                spell_id: 912,
+                cast_flags: NPC_CLICK_CAST_CASTER_CLICKER_LIKE_CPP,
+                user_type: wow_data::SPELL_CLICK_USER_ANY_LIKE_CPP,
+            }],
+            |entry| entry == 9006,
+            |spell| spell == 912,
+        )));
+        add_canonical_test_creature(
+            &canonical,
+            vehicle_guid,
+            9006,
+            Position::new(12.0, 0.0, 0.0, 0.0),
+            UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP as u32,
+        );
+
+        assert!(vehicle_guid.is_vehicle());
+        assert_eq!(
+            session.represented_can_see_spell_click_on_creature_like_cpp(vehicle_guid),
+            RepresentedCanSeeSpellClickOutcomeLikeCpp::Visible,
+            "C++ ObjectAccessor::GetCreatureOrPetOrVehicle accepts guid.IsCreatureOrVehicle()"
+        );
+        let plan = session.represented_handle_spell_click_plan_like_cpp(vehicle_guid);
+        assert_eq!(plan.casts.len(), 1);
+        assert_eq!(plan.casts[0].spell_id, 912);
+        assert_eq!(
+            plan.casts[0].caster,
+            RepresentedSpellClickUnitRefLikeCpp::Clicker
+        );
+        assert_eq!(
+            plan.casts[0].target,
+            RepresentedSpellClickUnitRefLikeCpp::Clickee
         );
     }
 
