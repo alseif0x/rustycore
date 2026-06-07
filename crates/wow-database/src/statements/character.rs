@@ -110,6 +110,8 @@ pub enum CharStatements {
 
     /// UPDATE `groups` SET groupType = ? WHERE guid = ?
     UPD_GROUP_TYPE,
+    /// INSERT INTO group_member (guid, memberGuid, memberFlags, subgroup, roles) VALUES(?, ?, ?, ?, ?)
+    INS_GROUP_MEMBER,
 
     /// UPDATE characters SET totaltime = ?, leveltime = ? WHERE guid = ?
     UPD_CHAR_PLAYED_TIME,
@@ -395,6 +397,9 @@ impl StatementDef for CharStatements {
                  VALUES (?, 0, 0, ?, ?, ?)"
             }
             Self::UPD_GROUP_TYPE => "UPDATE `groups` SET groupType = ? WHERE guid = ?",
+            Self::INS_GROUP_MEMBER => {
+                "INSERT INTO group_member (guid, memberGuid, memberFlags, subgroup, roles) VALUES(?, ?, ?, ?, ?)"
+            }
             Self::UPD_CHAR_PLAYED_TIME => {
                 "UPDATE characters SET totaltime = ?, leveltime = ? WHERE guid = ?"
             }
@@ -717,6 +722,18 @@ mod tests {
             "UPDATE `groups` SET groupType = ? WHERE guid = ?"
         );
         assert_eq!(CharStatements::UPD_GROUP_TYPE.sql().matches('?').count(), 2);
+    }
+
+    #[test]
+    fn group_member_insert_statement_matches_cpp_exactly() {
+        assert_eq!(
+            CharStatements::INS_GROUP_MEMBER.sql(),
+            "INSERT INTO group_member (guid, memberGuid, memberFlags, subgroup, roles) VALUES(?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::INS_GROUP_MEMBER.sql().matches('?').count(),
+            5
+        );
     }
 
     #[test]
@@ -1358,6 +1375,10 @@ mod tests {
         assert_eq!(CharStatements::SEL_RESPAWNS.sql().matches('?').count(), 2);
         assert_eq!(CharStatements::REP_RESPAWN.sql().matches('?').count(), 5);
         assert_eq!(CharStatements::DEL_RESPAWN.sql().matches('?').count(), 4);
+        assert_eq!(
+            CharStatements::INS_GROUP_MEMBER.sql().matches('?').count(),
+            5
+        );
         assert_eq!(
             CharStatements::DEL_ALL_RESPAWNS.sql().matches('?').count(),
             2

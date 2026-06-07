@@ -199,6 +199,22 @@ fn group_type_update_statement_like_cpp(group_flags: u16, db_store_id: u32) -> P
     stmt
 }
 
+fn group_member_insert_statement_like_cpp(
+    db_store_id: u32,
+    member_guid: ObjectGuid,
+    member_flags: u8,
+    subgroup: u8,
+    roles: u8,
+) -> PreparedStatement {
+    let mut stmt = PreparedStatement::new(CharStatements::INS_GROUP_MEMBER.sql());
+    stmt.set_u32(0, db_store_id);
+    stmt.set_u64(1, member_guid.counter() as u64);
+    stmt.set_u8(2, member_flags);
+    stmt.set_u8(3, subgroup);
+    stmt.set_u8(4, roles);
+    stmt
+}
+
 // ── Handler implementations ───────────────────────────────────────────────────
 
 impl WorldSession {
@@ -428,6 +444,7 @@ impl WorldSession {
             .map(|entry| *entry.key());
 
         let mut refresh_visible_gameobjects_or_spellclicks = false;
+        let persist_member_row = existing_gid.is_some();
         let group_guid = if let Some(gid) = existing_gid {
             if let Some(mut g) = group_reg.get_mut(&gid) {
                 g.add_member(my_guid);
@@ -447,6 +464,22 @@ impl WorldSession {
         self.group_guid = Some(group_guid);
         if refresh_visible_gameobjects_or_spellclicks {
             let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
+        }
+
+        if let (true, Some(db_store_id), Some(char_db)) = (
+            persist_member_row,
+            u32::try_from(group_guid).ok(),
+            self.char_db().map(std::sync::Arc::clone),
+        ) {
+            let stmt = group_member_insert_statement_like_cpp(db_store_id, my_guid, 0, 0, 0);
+            if let Err(error) = char_db.execute(&stmt).await {
+                warn!(
+                    group_guid = db_store_id,
+                    member_guid = my_guid.counter(),
+                    %error,
+                    "failed to persist represented group member"
+                );
+            }
         }
 
         // 4. Send PartyUpdate + PartyMemberFullState to all members.
@@ -674,7 +707,10 @@ impl WorldSession {
 
 #[cfg(test)]
 mod tests {
-    use super::{group_type_update_statement_like_cpp, send_party_update};
+    use super::{
+        group_member_insert_statement_like_cpp, group_type_update_statement_like_cpp,
+        send_party_update,
+    };
     use flume::bounded;
     use std::sync::Arc;
     use wow_constants::ServerOpcodes;
@@ -869,6 +905,24 @@ mod tests {
             &[
                 SqlParam::U16(wow_network::GROUP_FLAG_RAID_LIKE_CPP),
                 SqlParam::U32(77)
+            ]
+        );
+    }
+
+    #[test]
+    fn group_member_insert_statement_binds_cpp_member_row_like_cpp() {
+        let member = ObjectGuid::create_player(1, 42);
+        let stmt = group_member_insert_statement_like_cpp(77, member, 0, 3, 2);
+
+        assert_eq!(stmt.sql(), CharStatements::INS_GROUP_MEMBER.sql());
+        assert_eq!(
+            stmt.params(),
+            &[
+                SqlParam::U32(77),
+                SqlParam::U64(member.counter() as u64),
+                SqlParam::U8(0),
+                SqlParam::U8(3),
+                SqlParam::U8(2)
             ]
         );
     }
