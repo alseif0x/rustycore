@@ -9,9 +9,9 @@ use wow_constants::{
 use wow_core::{ObjectGuid, Position};
 
 use crate::{
-    BASE_MAXDAMAGE, BASE_MINDAMAGE, MovementGeneratorKind, UNIT_MASK_CONTROLABLE_GUARDIAN,
-    UNIT_MASK_GUARDIAN, UNIT_MASK_TOTEM, UNIT_MASK_VEHICLE, Unit, VehicleAccessory,
-    VehicleSeatAddon, VehicleSeatInfo, VisibilityDistanceTypeLikeCpp,
+    BASE_MAXDAMAGE, BASE_MINDAMAGE, MoveFallPlan, MovementGeneratorKind,
+    UNIT_MASK_CONTROLABLE_GUARDIAN, UNIT_MASK_GUARDIAN, UNIT_MASK_TOTEM, UNIT_MASK_VEHICLE, Unit,
+    VehicleAccessory, VehicleSeatAddon, VehicleSeatInfo, VisibilityDistanceTypeLikeCpp,
 };
 
 pub const CREATURE_REGEN_INTERVAL_MS: u32 = 2_000;
@@ -615,6 +615,7 @@ pub enum CreatureRuntimeAction {
     ClearMount,
     Deactivate,
     ClearAssistanceSearch,
+    MoveFall,
     ClearTapList,
     ResetPlayerDamageReq,
     ResetCannotReachTarget,
@@ -646,6 +647,15 @@ pub enum CreatureRuntimeAction {
     RegenerateHealth,
     RegeneratePower,
     Evade(CreatureRuntimeEvadeReason),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CreatureDeathFallContextLikeCpp {
+    pub is_underwater: bool,
+    pub has_valid_ground_height: bool,
+    pub vertical_delta: f32,
+    pub movement_id: u32,
+    pub duration_ms: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2512,11 +2522,24 @@ impl Creature {
     }
 
     pub fn set_death_state_runtime(&mut self, state: DeathState, now: i64) -> CreatureRuntimePlan {
+        self.set_death_state_runtime_with_fall_like_cpp(state, now, None)
+    }
+
+    pub fn set_death_state_runtime_with_fall_like_cpp(
+        &mut self,
+        state: DeathState,
+        now: i64,
+        death_fall: Option<CreatureDeathFallContextLikeCpp>,
+    ) -> CreatureRuntimePlan {
         let mut plan = CreatureRuntimePlan::new();
         self.unit.set_death_state(state);
 
         match state {
             DeathState::JustDied => {
+                let needs_falling = death_fall.filter(|context| {
+                    (self.is_flying_like_cpp() || self.is_hovering_like_cpp())
+                        && !context.is_underwater
+                });
                 self.corpse_remove_time = now.saturating_add(self.corpse_delay as i64);
                 let respawn_delay = self.respawn_delay as i64;
                 self.respawn_time = if self.respawn_compatibility_mode {
@@ -2593,6 +2616,22 @@ impl Creature {
                     CreatureRuntimeAction::Deactivate,
                     CreatureRuntimeAction::ClearAssistanceSearch,
                 ]);
+                if let Some(context) = needs_falling {
+                    let has_root_or_stun_state = self
+                        .unit
+                        .has_unit_state((UnitState::ROOT | UnitState::STUNNED).bits());
+                    let fall_plan = self.unit.subsystems_mut().motion.move_fall_like_cpp(
+                        context.movement_id,
+                        context.duration_ms,
+                        context.has_valid_ground_height,
+                        context.vertical_delta,
+                        has_root_or_stun_state,
+                        false,
+                    );
+                    if matches!(fall_plan, MoveFallPlan::SplineStarted) {
+                        plan.push(CreatureRuntimeAction::MoveFall);
+                    }
+                }
                 self.unit.set_death_state(DeathState::Corpse);
             }
             DeathState::JustRespawned => {
@@ -5157,6 +5196,10 @@ mod tests {
         assert!(plan.contains(CreatureRuntimeAction::ReleaseSpellFocus));
         assert!(plan.contains(CreatureRuntimeAction::CancelSpellFocusReacquire));
         assert!(plan.contains(CreatureRuntimeAction::ClearTarget));
+        assert!(
+            !plan.contains(CreatureRuntimeAction::MoveFall),
+            "the legacy death-state entry point has no map-height context, so it must not fake C++ MoveFall"
+        );
 
         let mut non_compat = Creature::new(false);
         non_compat.set_respawn_compatibility_mode(false);
@@ -5166,6 +5209,73 @@ mod tests {
         assert_eq!(non_compat.respawn_time(), now + 45);
         assert_eq!(non_compat.corpse_remove_time(), now + 15);
         assert_eq!(non_compat.unit().death_state(), DeathState::Corpse);
+    }
+
+    #[test]
+    fn creature_runtime_just_died_can_start_represented_move_fall_with_map_context_like_cpp() {
+        let mut creature = Creature::new(false);
+        creature.set_movement_flags_runtime_like_cpp(MovementFlag::HOVER);
+
+        let plan = creature.set_death_state_runtime_with_fall_like_cpp(
+            DeathState::JustDied,
+            1_000,
+            Some(CreatureDeathFallContextLikeCpp {
+                is_underwater: false,
+                has_valid_ground_height: true,
+                vertical_delta: 12.5,
+                movement_id: 77,
+                duration_ms: 850,
+            }),
+        );
+
+        assert!(
+            plan.contains(CreatureRuntimeAction::MoveFall),
+            "C++ Creature::setDeathState(JUST_DIED) calls MoveFall after clearing hover/gravity when the pre-clear state was flying/hovering"
+        );
+        assert_eq!(creature.unit().death_state(), DeathState::Corpse);
+        assert_eq!(creature.movement_flags_like_cpp(), MovementFlag::empty());
+        let current = creature
+            .unit()
+            .subsystems()
+            .motion
+            .current_movement_generator();
+        assert_eq!(current.kind, MovementGeneratorKind::Effect);
+        assert_eq!(current.movement_id, 77);
+        assert_eq!(current.duration_ms, Some(850));
+    }
+
+    #[test]
+    fn creature_runtime_just_died_move_fall_honors_cpp_underwater_and_root_guards() {
+        let mut underwater = Creature::new(false);
+        underwater.set_movement_flags_runtime_like_cpp(MovementFlag::HOVER);
+        let underwater_plan = underwater.set_death_state_runtime_with_fall_like_cpp(
+            DeathState::JustDied,
+            1_000,
+            Some(CreatureDeathFallContextLikeCpp {
+                is_underwater: true,
+                has_valid_ground_height: true,
+                vertical_delta: 12.5,
+                movement_id: 77,
+                duration_ms: 850,
+            }),
+        );
+        assert!(!underwater_plan.contains(CreatureRuntimeAction::MoveFall));
+
+        let mut rooted = Creature::new(false);
+        rooted.set_movement_flags_runtime_like_cpp(MovementFlag::HOVER);
+        rooted.unit_mut().add_unit_state(UnitState::ROOT.bits());
+        let rooted_plan = rooted.set_death_state_runtime_with_fall_like_cpp(
+            DeathState::JustDied,
+            1_000,
+            Some(CreatureDeathFallContextLikeCpp {
+                is_underwater: false,
+                has_valid_ground_height: true,
+                vertical_delta: 12.5,
+                movement_id: 77,
+                duration_ms: 850,
+            }),
+        );
+        assert!(!rooted_plan.contains(CreatureRuntimeAction::MoveFall));
     }
 
     #[test]

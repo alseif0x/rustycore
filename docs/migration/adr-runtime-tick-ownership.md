@@ -817,8 +817,17 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   `Unit::SetDisableGravity(false,false)` (`Unit.cpp:12580-12613`, `Unit.cpp:12793-12835`). Rust now
   removes represented `MOVEMENTFLAG_HOVER` and `MOVEMENTFLAG_DISABLE_GRAVITY` during creature
   death while preserving `CAN_FLY`/`FLYING`, which those C++ calls do not clear. The follow-up
-  `MoveFall()` spline/fanout remains open because it needs real MotionMaster ground-height/runtime
-  ownership rather than just entity-field mutation.
+  `MoveFall()` map-height seam is now represented by `#NEXT.RUNTIME.L3.031j20`; live map caller
+  wiring and packet/fanout remain open.
+- 2026-06-07 — Represented creature death `MoveFall` seam `#NEXT.RUNTIME.L3.031j20`:
+  contrasted against C++ `Creature::setDeathState(JUST_DIED)` (`Creature.cpp:2238-2247`) and
+  `MotionMaster::MoveFall` (`MotionMaster.cpp:1008-1044`). Rust now exposes explicit
+  `CreatureDeathFallContextLikeCpp` for callers that can provide real map-height/underwater
+  context, keeps the existing `set_death_state_runtime` behavior unchanged when no context exists,
+  and starts the represented highest-priority effect fall generator only when the C++ pre-clear
+  flying/hovering + not-underwater + valid-height/vertical-distance/root-stun gates pass. This
+  deliberately does not invent terrain in the entity layer; feeding the context from the live
+  map/terrain owner and emitting real fall spline packets remain follow-up runtime work.
 - 2026-05-31 — Represented creature death StopOnDeath wiring `#NEXT.RUNTIME.L3.031av`:
   ports the represented subset of C++ `Unit::setDeathState(JUST_DIED)` movement shutdown
   (`Unit.cpp:8554-8561`, `MotionMaster.cpp:548-566`, `Unit.cpp:9915-9931`, `Unit.cpp:622-625`).
@@ -887,8 +896,9 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   creature templates and the C++ `0 < pct <= 100` rule, preserves the percentage as `f32` rather
   than the previous lossy `u8`, randomly selects a value through the map-owned RNG seam, and applies
   it to loaded creatures so represented sparring damage/fake-damage uses the DB-backed float
-  threshold. Exact addon reload is still a separate gap; `MoveFall()` remains intentionally open
-  because the C++ path also needs `IsUnderWater()` plus real MotionMaster terrain/spline execution.
+  threshold. Exact addon reload is still a separate gap; `MoveFall()` now has the bounded
+  context-driven entity seam from `#NEXT.RUNTIME.L3.031j20`, while live map/terrain caller wiring
+  and packet/fanout remain open.
 - 2026-05-31 — Represented creature death spell-focus cleanup `#NEXT.RUNTIME.L3.031bd`:
   ports the bounded state cleanup from C++ `Creature::setDeathState(JUST_DIED)`
   `ReleaseSpellFocus(nullptr, false)` and `DoNotReacquireSpellFocusTarget()`
