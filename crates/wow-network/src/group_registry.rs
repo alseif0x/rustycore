@@ -6,6 +6,7 @@ use std::sync::{
     atomic::{AtomicU32, AtomicU64, Ordering},
 };
 use wow_core::ObjectGuid;
+use wow_data::DifficultyStore;
 
 static NEXT_GROUP_ID: AtomicU64 = AtomicU64::new(1);
 static NEXT_GROUP_DB_STORE_ID: AtomicU32 = AtomicU32::new(1);
@@ -137,6 +138,37 @@ impl GroupInfo {
             sequence_num: 1,
             group_flags,
         }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn loaded_from_db_validated_like_cpp(
+        runtime_group_guid: u64,
+        db_store_id: u32,
+        leader_guid: ObjectGuid,
+        loot_method: u8,
+        looter_guid: ObjectGuid,
+        loot_threshold: u8,
+        group_flags: u16,
+        dungeon_difficulty_id: u32,
+        raid_difficulty_id: u32,
+        legacy_raid_difficulty_id: u32,
+        master_looter_guid: ObjectGuid,
+        difficulty_store: &DifficultyStore,
+    ) -> Self {
+        Self::loaded_from_db_like_cpp(
+            runtime_group_guid,
+            db_store_id,
+            leader_guid,
+            loot_method,
+            looter_guid,
+            loot_threshold,
+            group_flags,
+            difficulty_store.check_loaded_dungeon_difficulty_id_like_cpp(dungeon_difficulty_id),
+            difficulty_store.check_loaded_raid_difficulty_id_like_cpp(raid_difficulty_id),
+            difficulty_store
+                .check_loaded_legacy_raid_difficulty_id_like_cpp(legacy_raid_difficulty_id),
+            master_looter_guid,
+        )
     }
 
     pub fn add_member(&mut self, guid: ObjectGuid) {
@@ -306,5 +338,65 @@ mod tests {
         assert_eq!(group.raid_difficulty_id, 15);
         assert_eq!(group.legacy_raid_difficulty_id, 5);
         assert_eq!(group.master_looter_guid, master);
+    }
+
+    #[test]
+    fn loaded_group_row_validates_difficulties_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let difficulty_store = DifficultyStore::from_entries([
+            wow_data::DifficultyEntry {
+                id: 2,
+                instance_type: 1,
+                flags: wow_constants::shared::DifficultyFlags::CAN_SELECT.bits(),
+            },
+            wow_data::DifficultyEntry {
+                id: 15,
+                instance_type: 2,
+                flags: wow_constants::shared::DifficultyFlags::CAN_SELECT.bits(),
+            },
+            wow_data::DifficultyEntry {
+                id: 3,
+                instance_type: 2,
+                flags: (wow_constants::shared::DifficultyFlags::CAN_SELECT
+                    | wow_constants::shared::DifficultyFlags::LEGACY)
+                    .bits(),
+            },
+        ]);
+
+        let valid = GroupInfo::loaded_from_db_validated_like_cpp(
+            901,
+            18,
+            leader,
+            LOOT_METHOD_PERSONAL_LIKE_CPP,
+            leader,
+            ITEM_QUALITY_UNCOMMON_LIKE_CPP,
+            0,
+            2,
+            15,
+            3,
+            ObjectGuid::EMPTY,
+            &difficulty_store,
+        );
+        assert_eq!(valid.dungeon_difficulty_id, 2);
+        assert_eq!(valid.raid_difficulty_id, 15);
+        assert_eq!(valid.legacy_raid_difficulty_id, 3);
+
+        let fallback = GroupInfo::loaded_from_db_validated_like_cpp(
+            902,
+            19,
+            leader,
+            LOOT_METHOD_PERSONAL_LIKE_CPP,
+            leader,
+            ITEM_QUALITY_UNCOMMON_LIKE_CPP,
+            0,
+            15,
+            3,
+            15,
+            ObjectGuid::EMPTY,
+            &difficulty_store,
+        );
+        assert_eq!(fallback.dungeon_difficulty_id, DIFFICULTY_NORMAL_LIKE_CPP);
+        assert_eq!(fallback.raid_difficulty_id, DIFFICULTY_NORMAL_RAID_LIKE_CPP);
+        assert_eq!(fallback.legacy_raid_difficulty_id, DIFFICULTY_10_N_LIKE_CPP);
     }
 }
