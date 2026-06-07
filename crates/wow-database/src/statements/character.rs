@@ -124,6 +124,18 @@ pub enum CharStatements {
     DEL_GROUP_MEMBER_ALL,
     /// DELETE FROM lfg_data WHERE guid = ?
     DEL_LFG_DATA,
+    /// DELETE FROM group_member WHERE memberGuid NOT IN (SELECT guid FROM characters)
+    DEL_GROUP_MEMBERS_WITHOUT_CHARACTER,
+    /// DELETE FROM `groups` WHERE leaderGuid NOT IN (SELECT guid FROM characters)
+    DEL_GROUPS_WITHOUT_LEADER,
+    /// DELETE FROM `groups` WHERE guid NOT IN (SELECT guid FROM group_member GROUP BY guid HAVING COUNT(guid) > 1)
+    DEL_GROUPS_WITH_FEWER_THAN_TWO_MEMBERS,
+    /// DELETE FROM group_member WHERE guid NOT IN (SELECT guid FROM `groups`)
+    DEL_GROUP_MEMBERS_WITHOUT_GROUP,
+    /// SELECT C++ GroupMgr::LoadGroups group rows.
+    SEL_GROUPS,
+    /// SELECT C++ GroupMgr::LoadGroups member rows.
+    SEL_GROUP_MEMBERS,
 
     /// UPDATE characters SET totaltime = ?, leveltime = ? WHERE guid = ?
     UPD_CHAR_PLAYED_TIME,
@@ -420,6 +432,24 @@ impl StatementDef for CharStatements {
             Self::DEL_GROUP => "DELETE FROM `groups` WHERE guid = ?",
             Self::DEL_GROUP_MEMBER_ALL => "DELETE FROM group_member WHERE guid = ?",
             Self::DEL_LFG_DATA => "DELETE FROM lfg_data WHERE guid = ?",
+            Self::DEL_GROUP_MEMBERS_WITHOUT_CHARACTER => {
+                "DELETE FROM group_member WHERE memberGuid NOT IN (SELECT guid FROM characters)"
+            }
+            Self::DEL_GROUPS_WITHOUT_LEADER => {
+                "DELETE FROM `groups` WHERE leaderGuid NOT IN (SELECT guid FROM characters)"
+            }
+            Self::DEL_GROUPS_WITH_FEWER_THAN_TWO_MEMBERS => {
+                "DELETE FROM `groups` WHERE guid NOT IN (SELECT guid FROM group_member GROUP BY guid HAVING COUNT(guid) > 1)"
+            }
+            Self::DEL_GROUP_MEMBERS_WITHOUT_GROUP => {
+                "DELETE FROM group_member WHERE guid NOT IN (SELECT guid FROM `groups`)"
+            }
+            Self::SEL_GROUPS => {
+                "SELECT g.leaderGuid, g.lootMethod, g.looterGuid, g.lootThreshold, g.icon1, g.icon2, g.icon3, g.icon4, g.icon5, g.icon6, g.icon7, g.icon8, g.groupType, g.difficulty, g.raiddifficulty, g.legacyRaidDifficulty, g.masterLooterGuid, g.guid, lfg.dungeon, lfg.state FROM `groups` g LEFT JOIN lfg_data lfg ON lfg.guid = g.guid ORDER BY g.guid ASC"
+            }
+            Self::SEL_GROUP_MEMBERS => {
+                "SELECT guid, memberGuid, memberFlags, subgroup, roles FROM group_member ORDER BY guid"
+            }
             Self::UPD_CHAR_PLAYED_TIME => {
                 "UPDATE characters SET totaltime = ?, leveltime = ? WHERE guid = ?"
             }
@@ -786,6 +816,46 @@ mod tests {
         assert_eq!(
             CharStatements::DEL_LFG_DATA.sql(),
             "DELETE FROM lfg_data WHERE guid = ?"
+        );
+    }
+
+    #[test]
+    fn group_startup_load_statements_match_cpp_exactly() {
+        assert_eq!(
+            CharStatements::DEL_GROUP_MEMBERS_WITHOUT_CHARACTER.sql(),
+            "DELETE FROM group_member WHERE memberGuid NOT IN (SELECT guid FROM characters)"
+        );
+        assert_eq!(
+            CharStatements::DEL_GROUPS_WITHOUT_LEADER.sql(),
+            "DELETE FROM `groups` WHERE leaderGuid NOT IN (SELECT guid FROM characters)"
+        );
+        assert_eq!(
+            CharStatements::DEL_GROUPS_WITH_FEWER_THAN_TWO_MEMBERS.sql(),
+            "DELETE FROM `groups` WHERE guid NOT IN (SELECT guid FROM group_member GROUP BY guid HAVING COUNT(guid) > 1)"
+        );
+        assert_eq!(
+            CharStatements::DEL_GROUP_MEMBERS_WITHOUT_GROUP.sql(),
+            "DELETE FROM group_member WHERE guid NOT IN (SELECT guid FROM `groups`)"
+        );
+        assert_eq!(
+            CharStatements::SEL_GROUPS.sql(),
+            "SELECT g.leaderGuid, g.lootMethod, g.looterGuid, g.lootThreshold, g.icon1, g.icon2, g.icon3, g.icon4, g.icon5, g.icon6, g.icon7, g.icon8, g.groupType, g.difficulty, g.raiddifficulty, g.legacyRaidDifficulty, g.masterLooterGuid, g.guid, lfg.dungeon, lfg.state FROM `groups` g LEFT JOIN lfg_data lfg ON lfg.guid = g.guid ORDER BY g.guid ASC"
+        );
+        assert_eq!(
+            CharStatements::SEL_GROUP_MEMBERS.sql(),
+            "SELECT guid, memberGuid, memberFlags, subgroup, roles FROM group_member ORDER BY guid"
+        );
+        assert_eq!(
+            CharStatements::DEL_GROUP_MEMBERS_WITHOUT_CHARACTER
+                .sql()
+                .matches('?')
+                .count(),
+            0
+        );
+        assert_eq!(CharStatements::SEL_GROUPS.sql().matches('?').count(), 0);
+        assert_eq!(
+            CharStatements::SEL_GROUP_MEMBERS.sql().matches('?').count(),
+            0
         );
     }
 
@@ -1453,6 +1523,39 @@ mod tests {
         assert_eq!(
             CharStatements::DEL_ALL_RESPAWNS.sql().matches('?').count(),
             2
+        );
+        assert_eq!(
+            CharStatements::DEL_GROUP_MEMBERS_WITHOUT_CHARACTER
+                .sql()
+                .matches('?')
+                .count(),
+            0
+        );
+        assert_eq!(
+            CharStatements::DEL_GROUPS_WITHOUT_LEADER
+                .sql()
+                .matches('?')
+                .count(),
+            0
+        );
+        assert_eq!(
+            CharStatements::DEL_GROUPS_WITH_FEWER_THAN_TWO_MEMBERS
+                .sql()
+                .matches('?')
+                .count(),
+            0
+        );
+        assert_eq!(
+            CharStatements::DEL_GROUP_MEMBERS_WITHOUT_GROUP
+                .sql()
+                .matches('?')
+                .count(),
+            0
+        );
+        assert_eq!(CharStatements::SEL_GROUPS.sql().matches('?').count(), 0);
+        assert_eq!(
+            CharStatements::SEL_GROUP_MEMBERS.sql().matches('?').count(),
+            0
         );
         assert_eq!(
             CharStatements::SEL_GAME_EVENT_CONDITION_SAVES
