@@ -20,6 +20,12 @@ use wow_packet::{ClientPacket, ServerPacket};
 
 use crate::session::WorldSession;
 
+const ITEM_QUALITY_UNCOMMON_LIKE_CPP: u8 = 2;
+const DIFFICULTY_NORMAL_LIKE_CPP: u32 = 1;
+const DIFFICULTY_NORMAL_RAID_LIKE_CPP: u32 = 14;
+const DIFFICULTY_10_N_LIKE_CPP: u32 = 3;
+const EMPTY_TARGET_ICON_RAW_LIKE_CPP: [u8; 16] = [0; 16];
+
 // ── inventory registrations ───────────────────────────────────────────────────
 
 inventory::submit! {
@@ -196,6 +202,24 @@ fn group_type_update_statement_like_cpp(group_flags: u16, db_store_id: u32) -> P
     let mut stmt = PreparedStatement::new(CharStatements::UPD_GROUP_TYPE.sql());
     stmt.set_u16(0, group_flags);
     stmt.set_u32(1, db_store_id);
+    stmt
+}
+
+fn group_insert_statement_like_cpp(group: &GroupInfo, db_store_id: u32) -> PreparedStatement {
+    let mut stmt = PreparedStatement::new(CharStatements::INS_GROUP.sql());
+    stmt.set_u32(0, db_store_id);
+    stmt.set_u64(1, group.leader_guid.counter() as u64);
+    stmt.set_u8(2, group.loot_method);
+    stmt.set_u64(3, group.leader_guid.counter() as u64);
+    stmt.set_u8(4, ITEM_QUALITY_UNCOMMON_LIKE_CPP);
+    for index in 0..8 {
+        stmt.set_bytes(5 + index, EMPTY_TARGET_ICON_RAW_LIKE_CPP.to_vec());
+    }
+    stmt.set_u16(13, group.group_flags);
+    stmt.set_u32(14, DIFFICULTY_NORMAL_LIKE_CPP);
+    stmt.set_u32(15, DIFFICULTY_NORMAL_RAID_LIKE_CPP);
+    stmt.set_u32(16, DIFFICULTY_10_N_LIKE_CPP);
+    stmt.set_u64(17, group.master_looter_guid.counter() as u64);
     stmt
 }
 
@@ -444,6 +468,7 @@ impl WorldSession {
             .map(|entry| *entry.key());
 
         let mut refresh_visible_gameobjects_or_spellclicks = false;
+        let mut group_creation_statements: Vec<PreparedStatement> = Vec::new();
         let persist_member_row = existing_gid.is_some();
         let group_guid = if let Some(gid) = existing_gid {
             if let Some(mut g) = group_reg.get_mut(&gid) {
@@ -456,6 +481,24 @@ impl WorldSession {
             let mut new_group = GroupInfo::new(inviter_guid);
             new_group.add_member(my_guid);
             let gid = new_group.group_guid;
+            if let Ok(db_store_id) = u32::try_from(gid) {
+                group_creation_statements
+                    .push(group_insert_statement_like_cpp(&new_group, db_store_id));
+                group_creation_statements.push(group_member_insert_statement_like_cpp(
+                    db_store_id,
+                    inviter_guid,
+                    0,
+                    0,
+                    0,
+                ));
+                group_creation_statements.push(group_member_insert_statement_like_cpp(
+                    db_store_id,
+                    my_guid,
+                    0,
+                    0,
+                    0,
+                ));
+            }
             group_reg.insert(gid, new_group);
             gid
         };
@@ -479,6 +522,21 @@ impl WorldSession {
                     %error,
                     "failed to persist represented group member"
                 );
+            }
+        }
+
+        if !group_creation_statements.is_empty() {
+            if let Some(char_db) = self.char_db().map(std::sync::Arc::clone) {
+                for stmt in group_creation_statements {
+                    if let Err(error) = char_db.execute(&stmt).await {
+                        warn!(
+                            group_guid = group_guid,
+                            %error,
+                            "failed to persist represented group creation"
+                        );
+                        break;
+                    }
+                }
             }
         }
 
@@ -708,8 +766,8 @@ impl WorldSession {
 #[cfg(test)]
 mod tests {
     use super::{
-        group_member_insert_statement_like_cpp, group_type_update_statement_like_cpp,
-        send_party_update,
+        group_insert_statement_like_cpp, group_member_insert_statement_like_cpp,
+        group_type_update_statement_like_cpp, send_party_update,
     };
     use flume::bounded;
     use std::sync::Arc;
@@ -925,6 +983,32 @@ mod tests {
                 SqlParam::U8(2)
             ]
         );
+    }
+
+    #[test]
+    fn group_insert_statement_binds_cpp_group_row_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let group = GroupInfo::new(leader);
+        let stmt = group_insert_statement_like_cpp(&group, 77);
+
+        assert_eq!(stmt.sql(), CharStatements::INS_GROUP.sql());
+        assert_eq!(stmt.params().len(), 18);
+        assert_eq!(stmt.params()[0], SqlParam::U32(77));
+        assert_eq!(stmt.params()[1], SqlParam::U64(leader.counter() as u64));
+        assert_eq!(
+            stmt.params()[2],
+            SqlParam::U8(wow_network::LOOT_METHOD_PERSONAL_LIKE_CPP)
+        );
+        assert_eq!(stmt.params()[3], SqlParam::U64(leader.counter() as u64));
+        assert_eq!(stmt.params()[4], SqlParam::U8(2));
+        for param in &stmt.params()[5..13] {
+            assert_eq!(param, &SqlParam::Bytes(vec![0; 16]));
+        }
+        assert_eq!(stmt.params()[13], SqlParam::U16(0));
+        assert_eq!(stmt.params()[14], SqlParam::U32(1));
+        assert_eq!(stmt.params()[15], SqlParam::U32(14));
+        assert_eq!(stmt.params()[16], SqlParam::U32(3));
+        assert_eq!(stmt.params()[17], SqlParam::U64(0));
     }
 
     #[test]

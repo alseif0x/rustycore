@@ -7,6 +7,7 @@ use wow_core::ObjectGuid;
 static NEXT_GROUP_ID: AtomicU64 = AtomicU64::new(1);
 
 pub const GROUP_FLAG_RAID_LIKE_CPP: u16 = 0x002;
+pub const LOOT_METHOD_PERSONAL_LIKE_CPP: u8 = 5;
 
 /// Information about one group/party.
 #[derive(Debug, Clone)]
@@ -28,7 +29,7 @@ impl GroupInfo {
             group_guid: NEXT_GROUP_ID.fetch_add(1, Ordering::Relaxed),
             leader_guid: leader,
             members: vec![leader],
-            loot_method: 0,
+            loot_method: LOOT_METHOD_PERSONAL_LIKE_CPP,
             master_looter_guid: ObjectGuid::EMPTY,
             sequence_num: 1,
             group_flags: 0,
@@ -79,3 +80,16 @@ pub type GroupRegistry = DashMap<u64, GroupInfo>;
 
 /// Pending invites: invited_guid → inviter_guid.
 pub type PendingInvites = DashMap<ObjectGuid, ObjectGuid>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn new_group_uses_cpp_personal_loot_default() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let group = GroupInfo::new(leader);
+
+        assert_eq!(group.loot_method, LOOT_METHOD_PERSONAL_LIKE_CPP);
+    }
+}
