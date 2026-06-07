@@ -74,6 +74,36 @@ impl ClientPacket for ChangeSubGroup {
     }
 }
 
+// ── SwapSubGroups (CMSG_SWAP_SUB_GROUPS) ─────────────────────────
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SwapSubGroups {
+    pub first_target: ObjectGuid,
+    pub second_target: ObjectGuid,
+    pub party_index: Option<u8>,
+}
+
+impl ClientPacket for SwapSubGroups {
+    const OPCODE: ClientOpcodes = ClientOpcodes::SwapSubGroups;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let has_party_index = pkt.read_bit()?;
+        let first_target = pkt.read_packed_guid()?;
+        let second_target = pkt.read_packed_guid()?;
+        let party_index = if has_party_index {
+            Some(pkt.read_uint8()?)
+        } else {
+            None
+        };
+
+        Ok(Self {
+            first_target,
+            second_target,
+            party_index,
+        })
+    }
+}
+
 // ── SetLootMethod (CMSG_SET_LOOT_METHOD) ─────────────────────────
 
 /// Client request to change party loot method.
@@ -439,7 +469,7 @@ impl ServerPacket for PartyMemberFullState {
 mod tests {
     use super::{
         ChangeSubGroup, ConvertRaid, OptOutOfLoot, PartyMemberPhase, PartyMemberPhaseStates,
-        SetLootMethod,
+        SetLootMethod, SwapSubGroups,
     };
     use crate::{ClientPacket, WorldPacket};
     use wow_core::ObjectGuid;
@@ -502,6 +532,42 @@ mod tests {
         assert_eq!(change.target_guid, target);
         assert_eq!(change.new_subgroup, 6);
         assert_eq!(change.party_index, Some(0));
+    }
+
+    #[test]
+    fn swap_subgroups_reads_cpp_bit_first_guid_second_guid_party_index_order() {
+        let first = ObjectGuid::create_player(1, 77);
+        let second = ObjectGuid::create_player(1, 78);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(true);
+        pkt.write_packed_guid(&first);
+        pkt.write_packed_guid(&second);
+        pkt.write_uint8(0);
+        pkt.reset_read();
+
+        let swap = SwapSubGroups::read(&mut pkt).unwrap();
+
+        assert_eq!(swap.first_target, first);
+        assert_eq!(swap.second_target, second);
+        assert_eq!(swap.party_index, Some(0));
+    }
+
+    #[test]
+    fn swap_subgroups_reads_cpp_optional_none_bit_before_guids() {
+        let first = ObjectGuid::create_player(1, 79);
+        let second = ObjectGuid::create_player(1, 80);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(false);
+        pkt.write_packed_guid(&first);
+        pkt.write_packed_guid(&second);
+        pkt.flush_bits();
+        pkt.reset_read();
+
+        let swap = SwapSubGroups::read(&mut pkt).unwrap();
+
+        assert_eq!(swap.first_target, first);
+        assert_eq!(swap.second_target, second);
+        assert_eq!(swap.party_index, None);
     }
 
     #[test]

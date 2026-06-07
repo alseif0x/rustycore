@@ -389,6 +389,40 @@ impl GroupInfo {
             .is_some_and(|count| usize::from(*count) < MAX_GROUP_SIZE_LIKE_CPP)
     }
 
+    pub fn swap_members_groups_like_cpp(
+        &mut self,
+        first: ObjectGuid,
+        second: ObjectGuid,
+    ) -> Option<[(ObjectGuid, u8); 2]> {
+        if !self.is_raid_group() {
+            return None;
+        }
+
+        let first_index = self
+            .member_slots
+            .iter()
+            .position(|slot| slot.guid == first)?;
+        let second_index = self
+            .member_slots
+            .iter()
+            .position(|slot| slot.guid == second)?;
+        if first_index == second_index {
+            return None;
+        }
+
+        let first_subgroup = self.member_slots[first_index].subgroup;
+        let second_subgroup = self.member_slots[second_index].subgroup;
+        if first_subgroup == second_subgroup {
+            return None;
+        }
+
+        self.member_slots[first_index].subgroup = second_subgroup;
+        self.member_slots[second_index].subgroup = first_subgroup;
+        self.sequence_num += 1;
+
+        Some([(first, second_subgroup), (second, first_subgroup)])
+    }
+
     pub fn change_member_group_like_cpp(&mut self, guid: ObjectGuid, subgroup: u8) -> bool {
         if !self.is_raid_group() {
             return false;
@@ -1057,6 +1091,120 @@ mod tests {
         ));
         assert!(!raid.change_member_group_like_cpp(member, 0));
         assert!(!raid.change_member_group_like_cpp(member, MAX_RAID_SUBGROUPS_LIKE_CPP as u8));
+    }
+
+    #[test]
+    fn swap_members_groups_like_cpp_swaps_raid_members_without_counter_drift() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let first = ObjectGuid::create_player(1, 600);
+        let second = ObjectGuid::create_player(1, 601);
+        let mut group = GroupInfo::loaded_from_db_like_cpp(
+            909,
+            27,
+            leader,
+            LOOT_METHOD_PERSONAL_LIKE_CPP,
+            leader,
+            ITEM_QUALITY_UNCOMMON_LIKE_CPP,
+            GROUP_FLAG_RAID_LIKE_CPP,
+            DIFFICULTY_NORMAL_LIKE_CPP,
+            DIFFICULTY_NORMAL_RAID_LIKE_CPP,
+            DIFFICULTY_10_N_LIKE_CPP,
+            ObjectGuid::EMPTY,
+        );
+        assert!(group.load_member_from_db_like_cpp(
+            600,
+            0,
+            1,
+            0,
+            Some(GroupMemberCharacterLikeCpp {
+                name: "First".to_string(),
+                race: 1,
+                class: 1,
+            }),
+        ));
+        assert!(group.load_member_from_db_like_cpp(
+            601,
+            0,
+            2,
+            0,
+            Some(GroupMemberCharacterLikeCpp {
+                name: "Second".to_string(),
+                race: 1,
+                class: 1,
+            }),
+        ));
+        let counts_before = group.raid_subgroup_counts;
+        let sequence_before = group.sequence_num;
+
+        let updates = group
+            .swap_members_groups_like_cpp(first, second)
+            .expect("different raid subgroups should swap");
+
+        assert_eq!(updates, [(first, 2), (second, 1)]);
+        assert_eq!(group.member_group_like_cpp(first), 2);
+        assert_eq!(group.member_group_like_cpp(second), 1);
+        assert_eq!(group.raid_subgroup_counts, counts_before);
+        assert!(group.has_free_slot_sub_group_like_cpp(1));
+        assert!(group.has_free_slot_sub_group_like_cpp(2));
+        assert_eq!(group.sequence_num, sequence_before + 1);
+    }
+
+    #[test]
+    fn swap_members_groups_like_cpp_rejects_party_missing_member_or_same_subgroup() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let first = ObjectGuid::create_player(1, 610);
+        let second = ObjectGuid::create_player(1, 611);
+        let missing = ObjectGuid::create_player(1, 612);
+
+        let mut party = GroupInfo::new(leader);
+        party.add_member(first);
+        party.add_member(second);
+        assert_eq!(party.swap_members_groups_like_cpp(first, second), None);
+
+        let mut raid = GroupInfo::loaded_from_db_like_cpp(
+            910,
+            28,
+            leader,
+            LOOT_METHOD_PERSONAL_LIKE_CPP,
+            leader,
+            ITEM_QUALITY_UNCOMMON_LIKE_CPP,
+            GROUP_FLAG_RAID_LIKE_CPP,
+            DIFFICULTY_NORMAL_LIKE_CPP,
+            DIFFICULTY_NORMAL_RAID_LIKE_CPP,
+            DIFFICULTY_10_N_LIKE_CPP,
+            ObjectGuid::EMPTY,
+        );
+        assert!(raid.load_member_from_db_like_cpp(
+            610,
+            0,
+            3,
+            0,
+            Some(GroupMemberCharacterLikeCpp {
+                name: "First".to_string(),
+                race: 1,
+                class: 1,
+            }),
+        ));
+        assert!(raid.load_member_from_db_like_cpp(
+            611,
+            0,
+            3,
+            0,
+            Some(GroupMemberCharacterLikeCpp {
+                name: "Second".to_string(),
+                race: 1,
+                class: 1,
+            }),
+        ));
+        let counts_before = raid.raid_subgroup_counts;
+        let sequence_before = raid.sequence_num;
+
+        assert_eq!(raid.swap_members_groups_like_cpp(first, missing), None);
+        assert_eq!(raid.swap_members_groups_like_cpp(first, second), None);
+        assert_eq!(raid.member_group_like_cpp(first), 3);
+        assert_eq!(raid.member_group_like_cpp(second), 3);
+        assert_eq!(raid.raid_subgroup_counts, counts_before);
+        assert_eq!(raid.sequence_num, sequence_before);
     }
 
     #[test]

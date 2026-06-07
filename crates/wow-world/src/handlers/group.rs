@@ -73,6 +73,15 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
+        opcode: ClientOpcodes::SwapSubGroups,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_swap_sub_groups",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
         opcode: ClientOpcodes::SetLootMethod,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
@@ -937,6 +946,91 @@ impl WorldSession {
         }
     }
 
+    /// CMSG_SWAP_SUB_GROUPS.
+    ///
+    /// C++ `WorldPackets::Party::SwapSubGroups::Read` reads the optional
+    /// party-index bit first, then first/second target GUIDs, then `PartyIndex`
+    /// when present. `PartyIndex` is parsed but remains a represented boundary
+    /// here: BG/BF/original-group selection is not full parity yet. The bounded
+    /// source of truth is the represented `GroupRegistry` state; if a character
+    /// DB is attached, the two C++ subgroup update statements are executed in
+    /// order after the registry mutation. C++ wraps those statements in a
+    /// transaction; Rust does not have real transaction/rollback parity yet.
+    pub async fn handle_swap_sub_groups(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let swap = match wow_packet::packets::party::SwapSubGroups::read(&mut pkt) {
+            Ok(swap) => swap,
+            Err(e) => {
+                warn!("Bad SwapSubGroups: {e}");
+                return;
+            }
+        };
+        let _represented_party_index_boundary = swap.party_index;
+
+        let sender_guid = match self.player_guid() {
+            Some(guid) => guid,
+            None => return,
+        };
+        let group_reg = match self.group_registry() {
+            Some(registry) => std::sync::Arc::clone(registry),
+            None => return,
+        };
+        let registry = match self.player_registry() {
+            Some(registry) => std::sync::Arc::clone(registry),
+            None => return,
+        };
+        let vra = self.virtual_realm_address();
+
+        let group_guid = match self.group_guid {
+            Some(group_guid) => group_guid,
+            None => match group_reg
+                .iter()
+                .find(|entry| entry.value().members.contains(&sender_guid))
+                .map(|entry| *entry.key())
+            {
+                Some(group_guid) => group_guid,
+                None => return,
+            },
+        };
+
+        let subgroup_updates = {
+            let mut group = match group_reg.get_mut(&group_guid) {
+                Some(group) => group,
+                None => return,
+            };
+            let sender_is_assistant = group.member_slot_like_cpp(sender_guid).is_some_and(|slot| {
+                (slot.flags & wow_network::MEMBER_FLAG_ASSISTANT_LIKE_CPP)
+                    == wow_network::MEMBER_FLAG_ASSISTANT_LIKE_CPP
+            });
+            if group.leader_guid != sender_guid && !sender_is_assistant {
+                return;
+            }
+
+            group.swap_members_groups_like_cpp(swap.first_target, swap.second_target)
+        };
+
+        let Some(subgroup_updates) = subgroup_updates else {
+            return;
+        };
+
+        if let Some(char_db) = self.char_db().map(std::sync::Arc::clone) {
+            for (member_guid, subgroup) in subgroup_updates {
+                let stmt = group_member_subgroup_update_statement_like_cpp(member_guid, subgroup);
+                if let Err(error) = char_db.execute(&stmt).await {
+                    warn!(
+                        member_guid = member_guid.counter(),
+                        subgroup,
+                        %error,
+                        "failed to persist represented group subgroup swap"
+                    );
+                }
+            }
+        }
+
+        if let Some(group) = group_reg.get(&group_guid) {
+            send_party_update(&group, &registry, vra);
+        }
+    }
+
     /// CMSG_SET_LOOT_METHOD.
     ///
     /// This Trinity branch parses the packet but has the entire mutation block
@@ -1093,6 +1187,24 @@ mod tests {
             pkt.write_uint8(party_index);
         }
         pkt.flush_bits();
+        pkt.reset_read();
+        pkt
+    }
+
+    fn swap_sub_groups_packet(
+        first_target: ObjectGuid,
+        second_target: ObjectGuid,
+        party_index: Option<u8>,
+    ) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(party_index.is_some());
+        pkt.write_packed_guid(&first_target);
+        pkt.write_packed_guid(&second_target);
+        if let Some(party_index) = party_index {
+            pkt.write_uint8(party_index);
+        } else {
+            pkt.flush_bits();
+        }
         pkt.reset_read();
         pkt
     }
@@ -1607,6 +1719,195 @@ mod tests {
                 .member_group_like_cpp(target),
             2
         );
+    }
+
+    #[tokio::test]
+    async fn swap_sub_groups_leader_swaps_members_and_fans_out_update_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send();
+        let leader = ObjectGuid::create_player(1, 42);
+        let first = ObjectGuid::create_player(1, 43);
+        let second = ObjectGuid::create_player(1, 44);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.add_member(first);
+        group.add_member(second);
+        group.convert_to_raid_like_cpp();
+        assert!(group.change_member_group_like_cpp(second, 2));
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (leader_tx, leader_rx) = bounded(8);
+        let (first_tx, first_rx) = bounded(8);
+        let (second_tx, second_rx) = bounded(8);
+        player_registry.insert(leader, broadcast_info(leader, leader_tx));
+        player_registry.insert(first, broadcast_info(first, first_tx));
+        player_registry.insert(second, broadcast_info(second, second_tx));
+
+        session.set_player_guid(Some(leader));
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(Arc::clone(&player_registry));
+        session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
+
+        session
+            .handle_swap_sub_groups(swap_sub_groups_packet(first, second, Some(0)))
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+        let group = group_registry.get(&group_guid).unwrap();
+        assert_eq!(group.member_group_like_cpp(first), 2);
+        assert_eq!(group.member_group_like_cpp(second), 0);
+        let leader_update = leader_rx.try_recv().expect("leader party update");
+        assert_eq!(
+            u16::from_le_bytes([leader_update[0], leader_update[1]]),
+            ServerOpcodes::PartyUpdate as u16
+        );
+        let first_update = first_rx.try_recv().expect("first member party update");
+        assert_eq!(
+            u16::from_le_bytes([first_update[0], first_update[1]]),
+            ServerOpcodes::PartyUpdate as u16
+        );
+        let second_update = second_rx.try_recv().expect("second member party update");
+        assert_eq!(
+            u16::from_le_bytes([second_update[0], second_update[1]]),
+            ServerOpcodes::PartyUpdate as u16
+        );
+    }
+
+    #[tokio::test]
+    async fn swap_sub_groups_assistant_allowed_but_regular_member_rejected_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send();
+        let leader = ObjectGuid::create_player(1, 42);
+        let assistant = ObjectGuid::create_player(1, 43);
+        let first = ObjectGuid::create_player(1, 44);
+        let second = ObjectGuid::create_player(1, 45);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.add_member(assistant);
+        group.add_member(first);
+        group.add_member(second);
+        group.convert_to_raid_like_cpp();
+        assert!(group.change_member_group_like_cpp(second, 2));
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (leader_tx, _leader_rx) = bounded(8);
+        let (assistant_tx, _assistant_rx) = bounded(8);
+        let (first_tx, first_rx) = bounded(8);
+        let (second_tx, second_rx) = bounded(8);
+        player_registry.insert(leader, broadcast_info(leader, leader_tx));
+        player_registry.insert(assistant, broadcast_info(assistant, assistant_tx));
+        player_registry.insert(first, broadcast_info(first, first_tx));
+        player_registry.insert(second, broadcast_info(second, second_tx));
+
+        session.set_player_guid(Some(assistant));
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(Arc::clone(&player_registry));
+        session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
+
+        session
+            .handle_swap_sub_groups(swap_sub_groups_packet(first, second, None))
+            .await;
+        assert_eq!(
+            group_registry
+                .get(&group_guid)
+                .unwrap()
+                .member_group_like_cpp(first),
+            0
+        );
+        assert_eq!(
+            group_registry
+                .get(&group_guid)
+                .unwrap()
+                .member_group_like_cpp(second),
+            2
+        );
+        assert!(first_rx.try_recv().is_err());
+        assert!(second_rx.try_recv().is_err());
+
+        {
+            let mut group = group_registry.get_mut(&group_guid).unwrap();
+            let slot = group
+                .member_slots
+                .iter_mut()
+                .find(|slot| slot.guid == assistant)
+                .expect("assistant slot exists");
+            slot.flags |= wow_network::MEMBER_FLAG_ASSISTANT_LIKE_CPP;
+        }
+
+        session
+            .handle_swap_sub_groups(swap_sub_groups_packet(first, second, None))
+            .await;
+
+        assert_eq!(
+            group_registry
+                .get(&group_guid)
+                .unwrap()
+                .member_group_like_cpp(first),
+            2
+        );
+        assert_eq!(
+            group_registry
+                .get(&group_guid)
+                .unwrap()
+                .member_group_like_cpp(second),
+            0
+        );
+        let first_update = first_rx
+            .try_recv()
+            .expect("first update after assistant swap");
+        assert_eq!(
+            u16::from_le_bytes([first_update[0], first_update[1]]),
+            ServerOpcodes::PartyUpdate as u16
+        );
+        let second_update = second_rx
+            .try_recv()
+            .expect("second update after assistant swap");
+        assert_eq!(
+            u16::from_le_bytes([second_update[0], second_update[1]]),
+            ServerOpcodes::PartyUpdate as u16
+        );
+    }
+
+    #[tokio::test]
+    async fn swap_sub_groups_missing_or_same_subgroup_does_not_fanout_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send();
+        let leader = ObjectGuid::create_player(1, 42);
+        let first = ObjectGuid::create_player(1, 43);
+        let second = ObjectGuid::create_player(1, 44);
+        let missing = ObjectGuid::create_player(1, 45);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.add_member(first);
+        group.add_member(second);
+        group.convert_to_raid_like_cpp();
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (first_tx, first_rx) = bounded(8);
+        let (second_tx, second_rx) = bounded(8);
+        player_registry.insert(first, broadcast_info(first, first_tx));
+        player_registry.insert(second, broadcast_info(second, second_tx));
+
+        session.set_player_guid(Some(leader));
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(Arc::clone(&player_registry));
+        session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
+
+        session
+            .handle_swap_sub_groups(swap_sub_groups_packet(first, missing, None))
+            .await;
+        session
+            .handle_swap_sub_groups(swap_sub_groups_packet(first, second, None))
+            .await;
+
+        let group = group_registry.get(&group_guid).unwrap();
+        assert_eq!(group.member_group_like_cpp(first), 0);
+        assert_eq!(group.member_group_like_cpp(second), 0);
+        assert!(first_rx.try_recv().is_err());
+        assert!(second_rx.try_recv().is_err());
     }
 
     #[tokio::test]

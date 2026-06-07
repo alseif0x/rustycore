@@ -16549,6 +16549,9 @@ impl WorldSession {
             ClientOpcodes::ChangeSubGroup => {
                 self.handle_change_sub_group(pkt).await;
             }
+            ClientOpcodes::SwapSubGroups => {
+                self.handle_swap_sub_groups(pkt).await;
+            }
             ClientOpcodes::SetLootMethod => {
                 self.handle_set_loot_method(pkt).await;
             }
