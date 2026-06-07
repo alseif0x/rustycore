@@ -17,6 +17,7 @@ static FREED_GROUP_DB_STORE_IDS: Mutex<Vec<u32>> = Mutex::new(Vec::new());
 static GROUP_DB_STORE: Mutex<Vec<Option<u64>>> = Mutex::new(Vec::new());
 
 pub const GROUP_FLAG_RAID_LIKE_CPP: u16 = 0x002;
+pub const GROUP_FLAG_LFG_LIKE_CPP: u16 = 0x008;
 pub const GROUP_FLAG_EVERYONE_ASSISTANT_LIKE_CPP: u16 = 0x040;
 pub const MEMBER_FLAG_ASSISTANT_LIKE_CPP: u8 = 0x01;
 pub const LOOT_METHOD_PERSONAL_LIKE_CPP: u8 = 5;
@@ -26,6 +27,8 @@ pub const DIFFICULTY_NORMAL_RAID_LIKE_CPP: u32 = 14;
 pub const DIFFICULTY_10_N_LIKE_CPP: u32 = 3;
 pub const TARGET_ICONS_COUNT_LIKE_CPP: usize = 8;
 pub const EMPTY_TARGET_ICON_RAW_LIKE_CPP: [u8; 16] = [0; 16];
+pub const LFG_STATE_DUNGEON_LIKE_CPP: u8 = 5;
+pub const LFG_STATE_FINISHED_DUNGEON_LIKE_CPP: u8 = 6;
 
 fn generate_group_db_store_id_like_cpp() -> u32 {
     if let Ok(mut freed) = FREED_GROUP_DB_STORE_IDS.lock() {
@@ -48,6 +51,30 @@ fn advance_next_group_db_store_id_after_load_like_cpp(storage_id: u32) {
         Ordering::Relaxed,
         Ordering::Relaxed,
     );
+}
+
+fn represented_lfg_db_state_like_cpp(
+    group_flags: u16,
+    dungeon_id: Option<u32>,
+    state: Option<u8>,
+) -> Option<GroupLfgDbStateLikeCpp> {
+    if (group_flags & GROUP_FLAG_LFG_LIKE_CPP) == 0 {
+        return None;
+    }
+
+    let dungeon_id = dungeon_id.unwrap_or_default();
+    let state = state.unwrap_or_default();
+    if dungeon_id == 0 || state == 0 {
+        return None;
+    }
+
+    Some(GroupLfgDbStateLikeCpp {
+        dungeon_id,
+        state: match state {
+            LFG_STATE_DUNGEON_LIKE_CPP | LFG_STATE_FINISHED_DUNGEON_LIKE_CPP => Some(state),
+            _ => None,
+        },
+    })
 }
 
 pub fn free_group_db_store_id_like_cpp(storage_id: u32) {
@@ -145,6 +172,16 @@ pub struct GroupLoadSummaryLikeCpp {
     pub skipped_member_rows: usize,
 }
 
+/// Represented subset restored by C++ `LFGMgr::_LoadFromDB` for LFG groups.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GroupLfgDbStateLikeCpp {
+    pub dungeon_id: u32,
+    /// C++ restores only `LFG_STATE_DUNGEON` and
+    /// `LFG_STATE_FINISHED_DUNGEON`; other non-zero states keep the dungeon
+    /// but leave LFG state at its default.
+    pub state: Option<u8>,
+}
+
 /// Information about one group/party.
 #[derive(Debug, Clone)]
 pub struct GroupInfo {
@@ -169,6 +206,7 @@ pub struct GroupInfo {
     pub raid_difficulty_id: u32,
     pub legacy_raid_difficulty_id: u32,
     pub target_icons: [[u8; 16]; TARGET_ICONS_COUNT_LIKE_CPP],
+    pub lfg_db_state: Option<GroupLfgDbStateLikeCpp>,
     pub sequence_num: u32,
     pub group_flags: u16,
 }
@@ -198,6 +236,7 @@ impl GroupInfo {
             raid_difficulty_id: DIFFICULTY_NORMAL_RAID_LIKE_CPP,
             legacy_raid_difficulty_id: DIFFICULTY_10_N_LIKE_CPP,
             target_icons: [EMPTY_TARGET_ICON_RAW_LIKE_CPP; TARGET_ICONS_COUNT_LIKE_CPP],
+            lfg_db_state: None,
             sequence_num: 1,
             group_flags: 0,
         }
@@ -231,6 +270,7 @@ impl GroupInfo {
             raid_difficulty_id,
             legacy_raid_difficulty_id,
             target_icons: [EMPTY_TARGET_ICON_RAW_LIKE_CPP; TARGET_ICONS_COUNT_LIKE_CPP],
+            lfg_db_state: None,
             sequence_num: 1,
             group_flags,
         }
@@ -294,6 +334,8 @@ impl GroupInfo {
             difficulty_store,
         );
         group.target_icons = row.target_icons;
+        group.lfg_db_state =
+            represented_lfg_db_state_like_cpp(row.group_flags, row.lfg_dungeon_id, row.lfg_state);
         Some(group)
     }
 
@@ -801,6 +843,7 @@ mod tests {
         assert_eq!(group.master_looter_guid, ObjectGuid::create_player(1, 88));
         assert_eq!(group.target_icons[0], [1; 16]);
         assert_eq!(group.target_icons[7], [8; 16]);
+        assert_eq!(group.lfg_db_state, None);
     }
 
     #[test]
@@ -828,6 +871,114 @@ mod tests {
         );
 
         assert!(group.is_none());
+    }
+
+    #[test]
+    fn load_group_from_db_row_restores_lfg_dungeon_and_dungeon_state_like_cpp() {
+        let difficulty_store = DifficultyStore::from_entries([]);
+        let group = GroupInfo::load_group_from_db_row_validated_like_cpp(
+            908,
+            GroupDbRowLikeCpp {
+                leader_guid_low: 42,
+                loot_method: LOOT_METHOD_PERSONAL_LIKE_CPP,
+                looter_guid_low: 42,
+                loot_threshold: ITEM_QUALITY_UNCOMMON_LIKE_CPP,
+                target_icons: [EMPTY_TARGET_ICON_RAW_LIKE_CPP; TARGET_ICONS_COUNT_LIKE_CPP],
+                group_flags: GROUP_FLAG_LFG_LIKE_CPP,
+                dungeon_difficulty_id: DIFFICULTY_NORMAL_LIKE_CPP,
+                raid_difficulty_id: DIFFICULTY_NORMAL_RAID_LIKE_CPP,
+                legacy_raid_difficulty_id: DIFFICULTY_10_N_LIKE_CPP,
+                master_looter_guid_low: 0,
+                db_store_id: 25,
+                lfg_dungeon_id: Some(123),
+                lfg_state: Some(LFG_STATE_DUNGEON_LIKE_CPP),
+            },
+            Some(GroupMemberCharacterLikeCpp {
+                name: "Leader".to_string(),
+                race: 1,
+                class: 1,
+            }),
+            &difficulty_store,
+        )
+        .expect("valid LFG group row should hydrate");
+
+        assert_eq!(
+            group.lfg_db_state,
+            Some(GroupLfgDbStateLikeCpp {
+                dungeon_id: 123,
+                state: Some(LFG_STATE_DUNGEON_LIKE_CPP),
+            })
+        );
+    }
+
+    #[test]
+    fn load_group_from_db_row_preserves_lfg_dungeon_without_unsupported_state_like_cpp() {
+        let difficulty_store = DifficultyStore::from_entries([]);
+        let group = GroupInfo::load_group_from_db_row_validated_like_cpp(
+            909,
+            GroupDbRowLikeCpp {
+                leader_guid_low: 42,
+                loot_method: LOOT_METHOD_PERSONAL_LIKE_CPP,
+                looter_guid_low: 42,
+                loot_threshold: ITEM_QUALITY_UNCOMMON_LIKE_CPP,
+                target_icons: [EMPTY_TARGET_ICON_RAW_LIKE_CPP; TARGET_ICONS_COUNT_LIKE_CPP],
+                group_flags: GROUP_FLAG_LFG_LIKE_CPP,
+                dungeon_difficulty_id: DIFFICULTY_NORMAL_LIKE_CPP,
+                raid_difficulty_id: DIFFICULTY_NORMAL_RAID_LIKE_CPP,
+                legacy_raid_difficulty_id: DIFFICULTY_10_N_LIKE_CPP,
+                master_looter_guid_low: 0,
+                db_store_id: 26,
+                lfg_dungeon_id: Some(124),
+                lfg_state: Some(2),
+            },
+            Some(GroupMemberCharacterLikeCpp {
+                name: "Leader".to_string(),
+                race: 1,
+                class: 1,
+            }),
+            &difficulty_store,
+        )
+        .expect("valid LFG group row should hydrate");
+
+        assert_eq!(
+            group.lfg_db_state,
+            Some(GroupLfgDbStateLikeCpp {
+                dungeon_id: 124,
+                state: None,
+            })
+        );
+    }
+
+    #[test]
+    fn load_group_from_db_row_ignores_lfg_columns_when_group_is_not_lfg_like_cpp() {
+        let difficulty_store = DifficultyStore::from_entries([]);
+        let group = GroupInfo::load_group_from_db_row_validated_like_cpp(
+            910,
+            GroupDbRowLikeCpp {
+                leader_guid_low: 42,
+                loot_method: LOOT_METHOD_PERSONAL_LIKE_CPP,
+                looter_guid_low: 42,
+                loot_threshold: ITEM_QUALITY_UNCOMMON_LIKE_CPP,
+                target_icons: [EMPTY_TARGET_ICON_RAW_LIKE_CPP; TARGET_ICONS_COUNT_LIKE_CPP],
+                group_flags: 0,
+                dungeon_difficulty_id: DIFFICULTY_NORMAL_LIKE_CPP,
+                raid_difficulty_id: DIFFICULTY_NORMAL_RAID_LIKE_CPP,
+                legacy_raid_difficulty_id: DIFFICULTY_10_N_LIKE_CPP,
+                master_looter_guid_low: 0,
+                db_store_id: 27,
+                lfg_dungeon_id: Some(125),
+                lfg_state: Some(LFG_STATE_FINISHED_DUNGEON_LIKE_CPP),
+            },
+            Some(GroupMemberCharacterLikeCpp {
+                name: "Leader".to_string(),
+                race: 1,
+                class: 1,
+            }),
+            &difficulty_store,
+        )
+        .expect("valid non-LFG group row should hydrate");
+
+        assert_eq!(group.lfg_db_state, None);
     }
 
     #[test]
