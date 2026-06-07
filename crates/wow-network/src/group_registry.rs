@@ -14,6 +14,8 @@ static FREED_GROUP_DB_STORE_IDS: Mutex<Vec<u32>> = Mutex::new(Vec::new());
 static GROUP_DB_STORE: Mutex<Vec<Option<u64>>> = Mutex::new(Vec::new());
 
 pub const GROUP_FLAG_RAID_LIKE_CPP: u16 = 0x002;
+pub const GROUP_FLAG_EVERYONE_ASSISTANT_LIKE_CPP: u16 = 0x040;
+pub const MEMBER_FLAG_ASSISTANT_LIKE_CPP: u8 = 0x01;
 pub const LOOT_METHOD_PERSONAL_LIKE_CPP: u8 = 5;
 pub const ITEM_QUALITY_UNCOMMON_LIKE_CPP: u8 = 2;
 pub const DIFFICULTY_NORMAL_LIKE_CPP: u32 = 1;
@@ -65,6 +67,27 @@ pub fn group_guid_by_db_store_id_like_cpp(storage_id: u32) -> Option<u64> {
         .and_then(|store| store.get(storage_id as usize).copied().flatten())
 }
 
+/// Character-cache projection used by C++ `Group::LoadMemberFromDB`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GroupMemberCharacterLikeCpp {
+    pub name: String,
+    pub race: u8,
+    pub class: u8,
+}
+
+/// C++ `MemberSlot` subset needed by represented group load/update flows.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GroupMemberSlotLikeCpp {
+    pub guid: ObjectGuid,
+    pub name: String,
+    pub race: u8,
+    pub class: u8,
+    pub subgroup: u8,
+    pub flags: u8,
+    pub roles: u8,
+    pub ready_checked: bool,
+}
+
 /// Information about one group/party.
 #[derive(Debug, Clone)]
 pub struct GroupInfo {
@@ -78,6 +101,8 @@ pub struct GroupInfo {
     pub leader_guid: ObjectGuid,
     /// All member GUIDs (including leader), in join order.
     pub members: Vec<ObjectGuid>,
+    /// C++ `Group::m_memberSlots` represented metadata.
+    pub member_slots: Vec<GroupMemberSlotLikeCpp>,
     /// 0=FreeForAll, 1=RoundRobin, 2=MasterLoot, 3=GroupLoot, 4=NeedBeforeGreed
     pub loot_method: u8,
     pub looter_guid: ObjectGuid,
@@ -97,6 +122,16 @@ impl GroupInfo {
             db_store_id: generate_group_db_store_id_like_cpp(),
             leader_guid: leader,
             members: vec![leader],
+            member_slots: vec![GroupMemberSlotLikeCpp {
+                guid: leader,
+                name: String::new(),
+                race: 0,
+                class: 0,
+                subgroup: 0,
+                flags: 0,
+                roles: 0,
+                ready_checked: false,
+            }],
             loot_method: LOOT_METHOD_PERSONAL_LIKE_CPP,
             looter_guid: leader,
             loot_threshold: ITEM_QUALITY_UNCOMMON_LIKE_CPP,
@@ -128,6 +163,7 @@ impl GroupInfo {
             db_store_id,
             leader_guid,
             members: Vec::new(),
+            member_slots: Vec::new(),
             loot_method,
             looter_guid,
             loot_threshold,
@@ -174,8 +210,58 @@ impl GroupInfo {
     pub fn add_member(&mut self, guid: ObjectGuid) {
         if !self.members.contains(&guid) {
             self.members.push(guid);
+            self.member_slots.push(GroupMemberSlotLikeCpp {
+                guid,
+                name: String::new(),
+                race: 0,
+                class: 0,
+                subgroup: 0,
+                flags: 0,
+                roles: 0,
+                ready_checked: false,
+            });
             self.sequence_num += 1;
         }
+    }
+
+    pub fn member_slot_like_cpp(&self, guid: ObjectGuid) -> Option<&GroupMemberSlotLikeCpp> {
+        self.member_slots.iter().find(|slot| slot.guid == guid)
+    }
+
+    pub fn load_member_from_db_like_cpp(
+        &mut self,
+        guid_low: u64,
+        mut member_flags: u8,
+        subgroup: u8,
+        roles: u8,
+        character: Option<GroupMemberCharacterLikeCpp>,
+    ) -> bool {
+        let Some(character) = character else {
+            return false;
+        };
+
+        if (self.group_flags & GROUP_FLAG_EVERYONE_ASSISTANT_LIKE_CPP) != 0 {
+            member_flags |= MEMBER_FLAG_ASSISTANT_LIKE_CPP;
+        }
+
+        let Ok(guid_db_id) = i64::try_from(guid_low) else {
+            return false;
+        };
+        let guid = ObjectGuid::create_player(1, guid_db_id);
+        self.members.retain(|member_guid| *member_guid != guid);
+        self.member_slots.retain(|slot| slot.guid != guid);
+        self.members.push(guid);
+        self.member_slots.push(GroupMemberSlotLikeCpp {
+            guid,
+            name: character.name,
+            race: character.race,
+            class: character.class,
+            subgroup,
+            flags: member_flags,
+            roles,
+            ready_checked: false,
+        });
+        true
     }
 
     pub fn is_raid_group(&self) -> bool {
@@ -202,6 +288,7 @@ impl GroupInfo {
 
     pub fn remove_member(&mut self, guid: &ObjectGuid) {
         self.members.retain(|g| g != guid);
+        self.member_slots.retain(|slot| &slot.guid != guid);
         self.sequence_num += 1;
     }
 
@@ -398,5 +485,108 @@ mod tests {
         assert_eq!(fallback.dungeon_difficulty_id, DIFFICULTY_NORMAL_LIKE_CPP);
         assert_eq!(fallback.raid_difficulty_id, DIFFICULTY_NORMAL_RAID_LIKE_CPP);
         assert_eq!(fallback.legacy_raid_difficulty_id, DIFFICULTY_10_N_LIKE_CPP);
+    }
+
+    #[test]
+    fn load_member_from_db_skips_missing_character_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let mut group = GroupInfo::loaded_from_db_like_cpp(
+            903,
+            20,
+            leader,
+            LOOT_METHOD_PERSONAL_LIKE_CPP,
+            leader,
+            ITEM_QUALITY_UNCOMMON_LIKE_CPP,
+            0,
+            DIFFICULTY_NORMAL_LIKE_CPP,
+            DIFFICULTY_NORMAL_RAID_LIKE_CPP,
+            DIFFICULTY_10_N_LIKE_CPP,
+            ObjectGuid::EMPTY,
+        );
+
+        assert!(!group.load_member_from_db_like_cpp(77, 0, 1, 2, None));
+        assert!(group.members.is_empty());
+        assert!(group.member_slots.is_empty());
+    }
+
+    #[test]
+    fn load_member_from_db_preserves_slot_fields_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let mut group = GroupInfo::loaded_from_db_like_cpp(
+            904,
+            21,
+            leader,
+            LOOT_METHOD_PERSONAL_LIKE_CPP,
+            leader,
+            ITEM_QUALITY_UNCOMMON_LIKE_CPP,
+            GROUP_FLAG_RAID_LIKE_CPP,
+            DIFFICULTY_NORMAL_LIKE_CPP,
+            DIFFICULTY_NORMAL_RAID_LIKE_CPP,
+            DIFFICULTY_10_N_LIKE_CPP,
+            ObjectGuid::EMPTY,
+        );
+
+        assert!(group.load_member_from_db_like_cpp(
+            77,
+            0x04,
+            3,
+            2,
+            Some(GroupMemberCharacterLikeCpp {
+                name: "Member".to_string(),
+                race: 4,
+                class: 8,
+            }),
+        ));
+
+        let member_guid = ObjectGuid::create_player(1, 77);
+        assert_eq!(group.members, vec![member_guid]);
+        let slot = group
+            .member_slot_like_cpp(member_guid)
+            .expect("loaded DB member should have a represented slot");
+        assert_eq!(slot.name, "Member");
+        assert_eq!(slot.race, 4);
+        assert_eq!(slot.class, 8);
+        assert_eq!(slot.subgroup, 3);
+        assert_eq!(slot.flags, 0x04);
+        assert_eq!(slot.roles, 2);
+        assert!(!slot.ready_checked);
+    }
+
+    #[test]
+    fn load_member_from_db_everyone_assistant_adds_assistant_flag_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let mut group = GroupInfo::loaded_from_db_like_cpp(
+            905,
+            22,
+            leader,
+            LOOT_METHOD_PERSONAL_LIKE_CPP,
+            leader,
+            ITEM_QUALITY_UNCOMMON_LIKE_CPP,
+            GROUP_FLAG_EVERYONE_ASSISTANT_LIKE_CPP,
+            DIFFICULTY_NORMAL_LIKE_CPP,
+            DIFFICULTY_NORMAL_RAID_LIKE_CPP,
+            DIFFICULTY_10_N_LIKE_CPP,
+            ObjectGuid::EMPTY,
+        );
+
+        assert!(group.load_member_from_db_like_cpp(
+            78,
+            0,
+            0,
+            0,
+            Some(GroupMemberCharacterLikeCpp {
+                name: "Assistant".to_string(),
+                race: 1,
+                class: 2,
+            }),
+        ));
+
+        let slot = group
+            .member_slot_like_cpp(ObjectGuid::create_player(1, 78))
+            .expect("loaded DB member should have a represented slot");
+        assert_eq!(
+            slot.flags & MEMBER_FLAG_ASSISTANT_LIKE_CPP,
+            MEMBER_FLAG_ASSISTANT_LIKE_CPP
+        );
     }
 }

@@ -91,6 +91,39 @@ fn class_to_power_type(class: u8) -> u8 {
     }
 }
 
+fn party_player_info_like_cpp(
+    group: &GroupInfo,
+    registry: &PlayerRegistry,
+    guid: ObjectGuid,
+) -> Option<PartyPlayerInfo> {
+    let slot = group.member_slot_like_cpp(guid);
+    registry.get(&guid).map(|entry| {
+        let race = if entry.race == 0 {
+            slot.map(|slot| slot.race).unwrap_or_default()
+        } else {
+            entry.race
+        };
+        PartyPlayerInfo {
+            guid,
+            name: if entry.player_name.is_empty() {
+                slot.map(|slot| slot.name.clone()).unwrap_or_default()
+            } else {
+                entry.player_name.clone()
+            },
+            class: if entry.class == 0 {
+                slot.map(|slot| slot.class).unwrap_or_default()
+            } else {
+                entry.class
+            },
+            subgroup: slot.map(|slot| slot.subgroup).unwrap_or_default(),
+            flags: slot.map(|slot| slot.flags).unwrap_or_default(),
+            roles_assigned: slot.map(|slot| slot.roles).unwrap_or_default(),
+            faction_group: if race <= 5 { 1 } else { 2 },
+            connected: true,
+        }
+    })
+}
+
 /// Sends `PartyUpdate` + `PartyMemberFullState` to every member of `group`.
 ///
 /// Each member gets a `PartyUpdate` where their own `my_index` reflects their
@@ -101,18 +134,7 @@ fn send_party_update(group: &GroupInfo, registry: &PlayerRegistry, _vra: u32) {
     let all_players: Vec<PartyPlayerInfo> = group
         .members
         .iter()
-        .filter_map(|&guid| {
-            registry.get(&guid).map(|entry| PartyPlayerInfo {
-                guid,
-                name: entry.player_name.clone(),
-                class: entry.class,
-                subgroup: 0,
-                flags: 0,
-                roles_assigned: 0,
-                faction_group: if entry.race <= 5 { 1 } else { 2 },
-                connected: true,
-            })
-        })
+        .filter_map(|&guid| party_player_info_like_cpp(group, registry, guid))
         .collect();
 
     for (my_idx, &member_guid) in group.members.iter().enumerate() {
@@ -850,7 +872,7 @@ mod tests {
         group_insert_statement_like_cpp, group_leader_update_statement_like_cpp,
         group_lfg_data_delete_statement_like_cpp, group_member_delete_all_statement_like_cpp,
         group_member_delete_statement_like_cpp, group_member_insert_statement_like_cpp,
-        group_type_update_statement_like_cpp, send_party_update,
+        group_type_update_statement_like_cpp, party_player_info_like_cpp, send_party_update,
     };
     use flume::bounded;
     use std::sync::Arc;
@@ -858,8 +880,8 @@ mod tests {
     use wow_core::{ObjectGuid, Position};
     use wow_database::{CharStatements, SqlParam, StatementDef};
     use wow_network::{
-        GroupInfo, GroupRegistry, PendingInvites, PlayerBroadcastInfo, PlayerRegistry,
-        SessionCommand,
+        GroupInfo, GroupMemberCharacterLikeCpp, GroupRegistry, PendingInvites, PlayerBroadcastInfo,
+        PlayerRegistry, SessionCommand,
     };
     use wow_packet::WorldPacket;
 
@@ -1188,6 +1210,54 @@ mod tests {
                 .windows(phase_bytes.len())
                 .any(|window| window == phase_bytes)
         );
+    }
+
+    #[test]
+    fn group_party_update_member_info_uses_loaded_member_slot_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let member = ObjectGuid::create_player(1, 77);
+        let mut group = GroupInfo::loaded_from_db_like_cpp(
+            900,
+            17,
+            leader,
+            5,
+            leader,
+            2,
+            0,
+            1,
+            14,
+            3,
+            ObjectGuid::EMPTY,
+        );
+        assert!(group.load_member_from_db_like_cpp(
+            77,
+            0x04,
+            3,
+            2,
+            Some(GroupMemberCharacterLikeCpp {
+                name: "LoadedMember".to_string(),
+                race: 8,
+                class: 9,
+            }),
+        ));
+
+        let registry = PlayerRegistry::default();
+        let (tx, _rx) = bounded(1);
+        registry.insert(member, broadcast_info(member, tx));
+        if let Some(mut entry) = registry.get_mut(&member) {
+            entry.player_name.clear();
+            entry.race = 0;
+            entry.class = 0;
+        }
+
+        let info = party_player_info_like_cpp(&group, &registry, member)
+            .expect("connected represented member should produce party info");
+        assert_eq!(info.name, "LoadedMember");
+        assert_eq!(info.class, 9);
+        assert_eq!(info.subgroup, 3);
+        assert_eq!(info.flags, 0x04);
+        assert_eq!(info.roles_assigned, 2);
+        assert_eq!(info.faction_group, 2);
     }
 
     #[tokio::test]

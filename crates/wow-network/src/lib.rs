@@ -17,9 +17,10 @@ pub use accept::{
     start_world_listener,
 };
 pub use group_registry::{
-    GROUP_FLAG_RAID_LIKE_CPP, GroupInfo, GroupRegistry, LOOT_METHOD_PERSONAL_LIKE_CPP,
-    PendingInvites, free_group_db_store_id_like_cpp, get_group_by_db_store_id_like_cpp,
-    group_guid_by_db_store_id_like_cpp, register_group_db_store_id_like_cpp,
+    GROUP_FLAG_RAID_LIKE_CPP, GroupInfo, GroupMemberCharacterLikeCpp, GroupMemberSlotLikeCpp,
+    GroupRegistry, LOOT_METHOD_PERSONAL_LIKE_CPP, PendingInvites, free_group_db_store_id_like_cpp,
+    get_group_by_db_store_id_like_cpp, group_guid_by_db_store_id_like_cpp,
+    register_group_db_store_id_like_cpp,
 };
 pub use player_registry::{
     ApplyCreatureMeleeDamageLikeCppCommand, CreatureAttackStartLikeCppCommand,
