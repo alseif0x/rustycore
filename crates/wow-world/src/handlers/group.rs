@@ -515,9 +515,11 @@ impl WorldSession {
         let mut refresh_visible_gameobjects_or_spellclicks = false;
         let mut group_creation_statements: Vec<PreparedStatement> = Vec::new();
         let persist_member_row = existing_gid.is_some();
+        let mut existing_db_store_id: Option<u32> = None;
         let group_guid = if let Some(gid) = existing_gid {
             if let Some(mut g) = group_reg.get_mut(&gid) {
                 g.add_member(my_guid);
+                existing_db_store_id = Some(g.db_store_id);
                 refresh_visible_gameobjects_or_spellclicks = g.is_raid_group();
             }
             gid
@@ -526,24 +528,23 @@ impl WorldSession {
             let mut new_group = GroupInfo::new(inviter_guid);
             new_group.add_member(my_guid);
             let gid = new_group.group_guid;
-            if let Ok(db_store_id) = u32::try_from(gid) {
-                group_creation_statements
-                    .push(group_insert_statement_like_cpp(&new_group, db_store_id));
-                group_creation_statements.push(group_member_insert_statement_like_cpp(
-                    db_store_id,
-                    inviter_guid,
-                    0,
-                    0,
-                    0,
-                ));
-                group_creation_statements.push(group_member_insert_statement_like_cpp(
-                    db_store_id,
-                    my_guid,
-                    0,
-                    0,
-                    0,
-                ));
-            }
+            let db_store_id = new_group.db_store_id;
+            group_creation_statements
+                .push(group_insert_statement_like_cpp(&new_group, db_store_id));
+            group_creation_statements.push(group_member_insert_statement_like_cpp(
+                db_store_id,
+                inviter_guid,
+                0,
+                0,
+                0,
+            ));
+            group_creation_statements.push(group_member_insert_statement_like_cpp(
+                db_store_id,
+                my_guid,
+                0,
+                0,
+                0,
+            ));
             group_reg.insert(gid, new_group);
             gid
         };
@@ -556,7 +557,7 @@ impl WorldSession {
 
         if let (true, Some(db_store_id), Some(char_db)) = (
             persist_member_row,
-            u32::try_from(group_guid).ok(),
+            existing_db_store_id,
             self.char_db().map(std::sync::Arc::clone),
         ) {
             let stmt = group_member_insert_statement_like_cpp(db_store_id, my_guid, 0, 0, 0);
@@ -646,29 +647,25 @@ impl WorldSession {
                 None => return,
             };
             group.remove_member(&my_guid);
+            let db_store_id = group.db_store_id;
 
             if group.members.len() < 2 {
-                if let Ok(db_store_id) = u32::try_from(gid) {
-                    group_leave_statements.push(group_delete_statement_like_cpp(db_store_id));
-                    group_leave_statements
-                        .push(group_member_delete_all_statement_like_cpp(db_store_id));
-                    group_leave_statements
-                        .push(group_lfg_data_delete_statement_like_cpp(db_store_id));
-                }
+                group_leave_statements.push(group_delete_statement_like_cpp(db_store_id));
+                group_leave_statements
+                    .push(group_member_delete_all_statement_like_cpp(db_store_id));
+                group_leave_statements.push(group_lfg_data_delete_statement_like_cpp(db_store_id));
                 dissolve_remaining = Some(group.members.clone());
             } else {
                 dissolve_remaining = None;
-                if let Ok(db_store_id) = u32::try_from(gid) {
-                    group_leave_statements.push(group_member_delete_statement_like_cpp(my_guid));
-                    if group.leader_guid == my_guid {
-                        if let Some(new_leader) =
-                            first_connected_group_member_like_cpp(&group, &registry)
-                        {
-                            group_leave_statements.push(group_leader_update_statement_like_cpp(
-                                new_leader,
-                                db_store_id,
-                            ));
-                        }
+                group_leave_statements.push(group_member_delete_statement_like_cpp(my_guid));
+                if group.leader_guid == my_guid {
+                    if let Some(new_leader) =
+                        first_connected_group_member_like_cpp(&group, &registry)
+                    {
+                        group_leave_statements.push(group_leader_update_statement_like_cpp(
+                            new_leader,
+                            db_store_id,
+                        ));
                     }
                 }
                 // Reassign leader if needed.
@@ -773,16 +770,12 @@ impl WorldSession {
 
             if convert.raid {
                 group.convert_to_raid_like_cpp();
-                group_type_persistence = u32::try_from(group.group_guid)
-                    .ok()
-                    .map(|db_guid| (group.group_flags, db_guid));
+                group_type_persistence = Some((group.group_flags, group.db_store_id));
                 true
             } else {
                 let converted = group.convert_to_group_like_cpp();
                 if converted {
-                    group_type_persistence = u32::try_from(group.group_guid)
-                        .ok()
-                        .map(|db_guid| (group.group_flags, db_guid));
+                    group_type_persistence = Some((group.group_flags, group.db_store_id));
                 }
                 converted
             }
