@@ -5,7 +5,18 @@
 > **Layer:** L7 (game system, but **not applicable to WotLK 3.4.3 client** — see §1)
 > **Status:** ⚠️ **N/A for WoLK 3.4.3.** The opcodes exist in the WoLK Trinity-Legacy codebase because that fork tracks a forward-ported feature surface, but a 3.4.3.54261 client has no Pet Battle UI, no companion summoning that resolves to a `BattlePet` species entry, and no journal screen. The only thing the Rust port needs to do is **not break the login flow** by sending a token `BattlePetJournalLockAcquired` (already done) and silently accept any of the 9 CMSG_BATTLEPET_* opcodes if a modded client ever sends them. **Do not implement the system.**
 > **Audited vs C++:** ✅ n/a confirmed (2026-05-01) — post-MoP feature; 3.4.3 client never sends BattlePet opcodes; existing `BattlePetJournalLockAcquired` proactive send flagged for removal/Denied switch
-> **Last updated:** 2026-05-01
+> **Last updated:** 2026-06-07
+
+## 2026-06-07 scope freeze
+
+Recent Rust slices represented parts of the forward-ported `BattlePetMgr` surface from `/home/server/woltk-trinity-legacy` (journal packets, slots, summon/name handlers, errors, updates, uncage helpers). That work is **preserved** because it may be useful if RustyCore later targets a MoP+ or modern-client feature set.
+
+For the current WotLK port, however, BattlePets is frozen:
+
+- Do not select new BattlePet runtime slices for WotLK progress.
+- Do not count BattlePet represented work toward the honest WotLK completion percentage.
+- Keep existing code dormant or compatibility-only unless the target version explicitly changes.
+- If a 3.4.3 client path needs pet work, route it through WotLK systems: hunter/warlock pets, minions, stable, cosmetic critter/companion summon, pet spellbook, and normal item/spell learning.
 
 ---
 

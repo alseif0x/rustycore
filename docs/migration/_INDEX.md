@@ -101,7 +101,7 @@ Layer: L0–L8 según `MIGRATION_ROADMAP.md` § 2.
 | L6 | Reputation | `src/server/game/Reputation/` | [reputation.md](reputation.md) | ⚠️ ~3% (1000 zero-pairs) | ⚠️ |
 | L6 | Skills | `src/server/game/Skills/` | [skills.md](skills.md) | ⚠️ ~10-15% | ⚠️ |
 | L6 | BlackMarket | `src/server/game/BlackMarket/` | [blackmarket.md](blackmarket.md) | ❌ (n/a — post-MoP) | ✅ |
-| L6 | BattlePets | `src/server/game/BattlePets/` | [battlepets.md](battlepets.md) | n/a (post-WoLK) | ✅ |
+| L6 | BattlePets | `src/server/game/BattlePets/` | [battlepets.md](battlepets.md) | n/a for WotLK; frozen/future-version only | ✅ |
 | L6 | Petitions | `src/server/game/Petitions/` | [petitions.md](petitions.md) | ❌ (charter UI hang) | ⚠️ |
 | L6 | Pools | `src/server/game/Pools/` | [pools.md](pools.md) | ❌ | ✅ |
 | L6 | Conditions | `src/server/game/Conditions/` | [conditions.md](conditions.md) | ❌ (default-true keystone) | ⚠️ |

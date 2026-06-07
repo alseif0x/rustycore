@@ -279,7 +279,7 @@ Leyenda:
 | `Petitions/Petition` | (no existe) | ❌ | charter para guilds/arenas |
 | `Pools/PoolMgr` | (no existe) | ❌ | spawn pools (rotación de NPCs raros) |
 | `Conditions/ConditionMgr` | (no existe) | ❌ | condiciones para drops, gossip, spells |
-| `BattlePets/BattlePetMgr` | (no existe) | ❌ | sistema de mascotas combatientes (fuera de WoLK) |
+| `BattlePets/BattlePetMgr` | represented/dormant seams only | n/a | fuera de WotLK; frozen/future-version only, no credit toward WotLK progress |
 | `OutdoorPvP/OutdoorPvP` (WG, EP, etc.) | wow-pvp (vacío) | ❌ | zonas PvP de mundo abierto |
 | `Battlefield/Battlefield` (Wintergrasp) | wow-pvp | ❌ | WG es batalla de zona programada |
 
