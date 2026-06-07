@@ -116,7 +116,7 @@ pub use creature_template::{
 };
 pub use currency::{CurrencyTypesEntry, CurrencyTypesStore};
 pub use db2_id_store::Db2IdStore;
-pub use difficulty::DifficultyStore;
+pub use difficulty::{DifficultyEntry, DifficultyStore};
 pub use disable_mgr::{
     DISABLE_TYPE_BATTLEGROUND, DISABLE_TYPE_CRITERIA, DISABLE_TYPE_LFG_MAP, DISABLE_TYPE_MAP,
     DISABLE_TYPE_MMAP, DISABLE_TYPE_OUTDOORPVP, DISABLE_TYPE_QUEST, DISABLE_TYPE_SPELL,
