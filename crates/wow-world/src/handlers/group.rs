@@ -239,6 +239,40 @@ fn group_member_insert_statement_like_cpp(
     stmt
 }
 
+fn group_member_delete_statement_like_cpp(member_guid: ObjectGuid) -> PreparedStatement {
+    let mut stmt = PreparedStatement::new(CharStatements::DEL_GROUP_MEMBER.sql());
+    stmt.set_u64(0, member_guid.counter() as u64);
+    stmt
+}
+
+fn group_leader_update_statement_like_cpp(
+    new_leader_guid: ObjectGuid,
+    db_store_id: u32,
+) -> PreparedStatement {
+    let mut stmt = PreparedStatement::new(CharStatements::UPD_GROUP_LEADER.sql());
+    stmt.set_u64(0, new_leader_guid.counter() as u64);
+    stmt.set_u32(1, db_store_id);
+    stmt
+}
+
+fn group_delete_statement_like_cpp(db_store_id: u32) -> PreparedStatement {
+    let mut stmt = PreparedStatement::new(CharStatements::DEL_GROUP.sql());
+    stmt.set_u32(0, db_store_id);
+    stmt
+}
+
+fn group_member_delete_all_statement_like_cpp(db_store_id: u32) -> PreparedStatement {
+    let mut stmt = PreparedStatement::new(CharStatements::DEL_GROUP_MEMBER_ALL.sql());
+    stmt.set_u32(0, db_store_id);
+    stmt
+}
+
+fn group_lfg_data_delete_statement_like_cpp(db_store_id: u32) -> PreparedStatement {
+    let mut stmt = PreparedStatement::new(CharStatements::DEL_LFG_DATA.sql());
+    stmt.set_u32(0, db_store_id);
+    stmt
+}
+
 // ── Handler implementations ───────────────────────────────────────────────────
 
 impl WorldSession {
@@ -594,6 +628,7 @@ impl WorldSession {
 
         // 2. Remove self from the group.
         let dissolve_remaining: Option<Vec<ObjectGuid>>;
+        let mut group_leave_statements: Vec<PreparedStatement> = Vec::new();
         {
             let mut group = match group_reg.get_mut(&gid) {
                 Some(g) => g,
@@ -602,13 +637,46 @@ impl WorldSession {
             group.remove_member(&my_guid);
 
             if group.members.len() < 2 {
+                if let Ok(db_store_id) = u32::try_from(gid) {
+                    group_leave_statements.push(group_delete_statement_like_cpp(db_store_id));
+                    group_leave_statements
+                        .push(group_member_delete_all_statement_like_cpp(db_store_id));
+                    group_leave_statements
+                        .push(group_lfg_data_delete_statement_like_cpp(db_store_id));
+                }
                 dissolve_remaining = Some(group.members.clone());
             } else {
                 dissolve_remaining = None;
+                if let Ok(db_store_id) = u32::try_from(gid) {
+                    group_leave_statements.push(group_member_delete_statement_like_cpp(my_guid));
+                    if group.leader_guid == my_guid {
+                        if let Some(&new_leader) = group.members.first() {
+                            group_leave_statements.push(group_leader_update_statement_like_cpp(
+                                new_leader,
+                                db_store_id,
+                            ));
+                        }
+                    }
+                }
                 // Reassign leader if needed.
                 if group.leader_guid == my_guid {
                     if let Some(&new_leader) = group.members.first() {
                         group.leader_guid = new_leader;
+                    }
+                }
+            }
+        }
+
+        if !group_leave_statements.is_empty() {
+            if let Some(char_db) = self.char_db().map(std::sync::Arc::clone) {
+                for stmt in group_leave_statements {
+                    if let Err(error) = char_db.execute(&stmt).await {
+                        warn!(
+                            group_guid = gid,
+                            %error,
+                            "failed to persist represented group leave"
+                        );
+                        break;
                     }
                 }
             }
@@ -766,8 +834,11 @@ impl WorldSession {
 #[cfg(test)]
 mod tests {
     use super::{
-        group_insert_statement_like_cpp, group_member_insert_statement_like_cpp,
-        group_type_update_statement_like_cpp, send_party_update,
+        group_delete_statement_like_cpp, group_insert_statement_like_cpp,
+        group_leader_update_statement_like_cpp, group_lfg_data_delete_statement_like_cpp,
+        group_member_delete_all_statement_like_cpp, group_member_delete_statement_like_cpp,
+        group_member_insert_statement_like_cpp, group_type_update_statement_like_cpp,
+        send_party_update,
     };
     use flume::bounded;
     use std::sync::Arc;
@@ -1009,6 +1080,38 @@ mod tests {
         assert_eq!(stmt.params()[15], SqlParam::U32(14));
         assert_eq!(stmt.params()[16], SqlParam::U32(3));
         assert_eq!(stmt.params()[17], SqlParam::U64(0));
+    }
+
+    #[test]
+    fn group_leave_statements_bind_cpp_cleanup_rows_like_cpp() {
+        let old_member = ObjectGuid::create_player(1, 42);
+        let new_leader = ObjectGuid::create_player(1, 77);
+
+        let stmt = group_member_delete_statement_like_cpp(old_member);
+        assert_eq!(stmt.sql(), CharStatements::DEL_GROUP_MEMBER.sql());
+        assert_eq!(stmt.params(), &[SqlParam::U64(old_member.counter() as u64)]);
+
+        let stmt = group_leader_update_statement_like_cpp(new_leader, 99);
+        assert_eq!(stmt.sql(), CharStatements::UPD_GROUP_LEADER.sql());
+        assert_eq!(
+            stmt.params(),
+            &[
+                SqlParam::U64(new_leader.counter() as u64),
+                SqlParam::U32(99)
+            ]
+        );
+
+        let stmt = group_delete_statement_like_cpp(99);
+        assert_eq!(stmt.sql(), CharStatements::DEL_GROUP.sql());
+        assert_eq!(stmt.params(), &[SqlParam::U32(99)]);
+
+        let stmt = group_member_delete_all_statement_like_cpp(99);
+        assert_eq!(stmt.sql(), CharStatements::DEL_GROUP_MEMBER_ALL.sql());
+        assert_eq!(stmt.params(), &[SqlParam::U32(99)]);
+
+        let stmt = group_lfg_data_delete_statement_like_cpp(99);
+        assert_eq!(stmt.sql(), CharStatements::DEL_LFG_DATA.sql());
+        assert_eq!(stmt.params(), &[SqlParam::U32(99)]);
     }
 
     #[test]

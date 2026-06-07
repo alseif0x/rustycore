@@ -110,10 +110,20 @@ pub enum CharStatements {
 
     /// UPDATE `groups` SET groupType = ? WHERE guid = ?
     UPD_GROUP_TYPE,
+    /// UPDATE `groups` SET leaderGuid = ? WHERE guid = ?
+    UPD_GROUP_LEADER,
     /// INSERT INTO `groups` (guid, leaderGuid, lootMethod, looterGuid, lootThreshold, icon1, icon2, icon3, icon4, icon5, icon6, icon7, icon8, groupType, difficulty, raidDifficulty, legacyRaidDifficulty, masterLooterGuid) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     INS_GROUP,
     /// INSERT INTO group_member (guid, memberGuid, memberFlags, subgroup, roles) VALUES(?, ?, ?, ?, ?)
     INS_GROUP_MEMBER,
+    /// DELETE FROM group_member WHERE memberGuid = ?
+    DEL_GROUP_MEMBER,
+    /// DELETE FROM `groups` WHERE guid = ?
+    DEL_GROUP,
+    /// DELETE FROM group_member WHERE guid = ?
+    DEL_GROUP_MEMBER_ALL,
+    /// DELETE FROM lfg_data WHERE guid = ?
+    DEL_LFG_DATA,
 
     /// UPDATE characters SET totaltime = ?, leveltime = ? WHERE guid = ?
     UPD_CHAR_PLAYED_TIME,
@@ -399,12 +409,17 @@ impl StatementDef for CharStatements {
                  VALUES (?, 0, 0, ?, ?, ?)"
             }
             Self::UPD_GROUP_TYPE => "UPDATE `groups` SET groupType = ? WHERE guid = ?",
+            Self::UPD_GROUP_LEADER => "UPDATE `groups` SET leaderGuid = ? WHERE guid = ?",
             Self::INS_GROUP => {
                 "INSERT INTO `groups` (guid, leaderGuid, lootMethod, looterGuid, lootThreshold, icon1, icon2, icon3, icon4, icon5, icon6, icon7, icon8, groupType, difficulty, raidDifficulty, legacyRaidDifficulty, masterLooterGuid) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             }
             Self::INS_GROUP_MEMBER => {
                 "INSERT INTO group_member (guid, memberGuid, memberFlags, subgroup, roles) VALUES(?, ?, ?, ?, ?)"
             }
+            Self::DEL_GROUP_MEMBER => "DELETE FROM group_member WHERE memberGuid = ?",
+            Self::DEL_GROUP => "DELETE FROM `groups` WHERE guid = ?",
+            Self::DEL_GROUP_MEMBER_ALL => "DELETE FROM group_member WHERE guid = ?",
+            Self::DEL_LFG_DATA => "DELETE FROM lfg_data WHERE guid = ?",
             Self::UPD_CHAR_PLAYED_TIME => {
                 "UPDATE characters SET totaltime = ?, leveltime = ? WHERE guid = ?"
             }
@@ -748,6 +763,30 @@ mod tests {
             "INSERT INTO `groups` (guid, leaderGuid, lootMethod, looterGuid, lootThreshold, icon1, icon2, icon3, icon4, icon5, icon6, icon7, icon8, groupType, difficulty, raidDifficulty, legacyRaidDifficulty, masterLooterGuid) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         );
         assert_eq!(CharStatements::INS_GROUP.sql().matches('?').count(), 18);
+    }
+
+    #[test]
+    fn group_delete_and_leader_statements_match_cpp_exactly() {
+        assert_eq!(
+            CharStatements::UPD_GROUP_LEADER.sql(),
+            "UPDATE `groups` SET leaderGuid = ? WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_GROUP_MEMBER.sql(),
+            "DELETE FROM group_member WHERE memberGuid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_GROUP.sql(),
+            "DELETE FROM `groups` WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_GROUP_MEMBER_ALL.sql(),
+            "DELETE FROM group_member WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_LFG_DATA.sql(),
+            "DELETE FROM lfg_data WHERE guid = ?"
+        );
     }
 
     #[test]
@@ -1389,11 +1428,28 @@ mod tests {
         assert_eq!(CharStatements::SEL_RESPAWNS.sql().matches('?').count(), 2);
         assert_eq!(CharStatements::REP_RESPAWN.sql().matches('?').count(), 5);
         assert_eq!(CharStatements::DEL_RESPAWN.sql().matches('?').count(), 4);
+        assert_eq!(
+            CharStatements::UPD_GROUP_LEADER.sql().matches('?').count(),
+            2
+        );
         assert_eq!(CharStatements::INS_GROUP.sql().matches('?').count(), 18);
         assert_eq!(
             CharStatements::INS_GROUP_MEMBER.sql().matches('?').count(),
             5
         );
+        assert_eq!(
+            CharStatements::DEL_GROUP_MEMBER.sql().matches('?').count(),
+            1
+        );
+        assert_eq!(CharStatements::DEL_GROUP.sql().matches('?').count(), 1);
+        assert_eq!(
+            CharStatements::DEL_GROUP_MEMBER_ALL
+                .sql()
+                .matches('?')
+                .count(),
+            1
+        );
+        assert_eq!(CharStatements::DEL_LFG_DATA.sql().matches('?').count(), 1);
         assert_eq!(
             CharStatements::DEL_ALL_RESPAWNS.sql().matches('?').count(),
             2
