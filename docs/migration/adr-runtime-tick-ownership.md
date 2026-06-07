@@ -1795,6 +1795,12 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   spellclick snapshot now carries canonical `Object::is_in_world`, and Rust suppresses visibility
   and execution planning for canonical creature/pet/vehicle records that exist but are not in world,
   matching C++'s silent `if (!unit->IsInWorld()) return;` guard.
+- 2026-06-07 — WotLK spellclick owner original-caster bridge `#NEXT.RUNTIME.L3.031j25`:
+  contrasted C++ `Unit::HandleSpellClick` `origCasterGUID = GetOwnerGUID()` for
+  `NPC_CLICK_CAST_ORIG_CASTER_OWNER`. The represented canonical spellclick snapshot now carries
+  clickee owner GUID evidence. Rust executes this flag only when the owner resolves to the current
+  clicker/player, because that is byte-equivalent to the current player-caster spell rail; empty or
+  different owners remain skipped/unrepresented instead of being collapsed into the clicker.
 
 ## References
 

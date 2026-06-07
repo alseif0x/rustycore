@@ -2260,3 +2260,13 @@ C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Handl
 Implemented Rust seam: `crates/wow-world/src/session.rs` now treats canonical creature/pet records that exist but are not in world as non-clickable for represented spellclick visibility and returns an empty spellclick execution plan, so no represented cast can fire on a removed/out-of-world target.
 
 Validation evidence: focused spellclick test inserts a canonical creature record without `add_to_world()`, then asserts spellclick visibility is hidden, the execution plan is default/empty, execution outcome is default, and no packets are emitted. Remaining gaps: full `ObjectAccessor::GetCreatureOrPetOrVehicle` search semantics across creature/pet/vehicle, vehicle `seatId` entry path, creature-caster spell rail, owner original-caster, AI callback, multi-session fanout, and live client/bot validation.
+
+### #NEXT.RUNTIME.L3.031j25 — WotLK spellclick owner original-caster bridge
+
+Status: bounded `NPC_CLICK_CAST_ORIG_CASTER_OWNER` execution bridge for the exact owner-is-clicker case; not full original-caster parity.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:11909-11913` resolves `caster`, `target`, and `origCasterGUID`, using `GetOwnerGUID()` when `NPC_CLICK_CAST_ORIG_CASTER_OWNER` is set. `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.h:1135` shows `GetOwnerGUID()` is backed by summoned-by owner data, not by the clicker unless the clickee is actually owned by that player.
+
+Implemented Rust seam: `crates/wow-world/src/session.rs` now carries owner GUID evidence in the represented spellclick snapshot, sourced from canonical Pet owner data or the represented Unit control owner. `execute_represented_spell_click_plan_like_cpp` now executes owner-original-caster rows only when the owner is the current clicker/player, which is equivalent to the existing player-caster spell rail. Missing or different owner GUIDs remain explicit `skipped_unrepresented_original_caster` outcomes.
+
+Validation evidence: focused spellclick tests cover `ORIG_CASTER_OWNER` executing when the clicked creature owner is the current player and skipping with no packets when the owner is another player. Remaining gaps: original-caster propagation for non-clicker owners, true creature/pet caster spell rail, full `GetOwnerGUID` lifecycle population for all summon types, vehicle `seatId` path, AI callback, multi-session fanout, and live client/bot validation.

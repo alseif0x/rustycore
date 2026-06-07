@@ -1195,6 +1195,7 @@ struct RepresentedSpellClickCreatureSnapshotLikeCpp {
     is_alive: bool,
     is_in_world: bool,
     is_summon: bool,
+    owner_guid: Option<ObjectGuid>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -6081,10 +6082,12 @@ impl WorldSession {
         };
         let map = manager.find_map(u32::from(self.player_map_id_like_cpp()), 0)?;
         let record = map.map().map_object_record(guid)?;
-        let creature = if guid.is_pet() {
-            record.pet()?.creature()
+        let (creature, owner_guid) = if guid.is_pet() {
+            let pet = record.pet()?;
+            (pet.creature(), Some(pet.owner_guid()))
         } else {
-            record.creature()?
+            let creature = record.creature()?;
+            (creature, creature.unit().subsystems().control.owner_guid)
         };
 
         Some(RepresentedSpellClickCreatureSnapshotLikeCpp {
@@ -6102,6 +6105,7 @@ impl WorldSession {
             is_alive: creature.is_alive(),
             is_in_world: creature.unit().world().object().is_in_world(),
             is_summon: creature.is_summon_like_cpp(),
+            owner_guid,
         })
     }
 
@@ -6433,6 +6437,9 @@ impl WorldSession {
                 ..Default::default()
             };
         };
+        let clickee_owner_guid = self
+            .represented_spell_click_creature_snapshot_like_cpp(creature_guid)
+            .and_then(|creature| creature.owner_guid);
 
         let mut outcome = RepresentedSpellClickExecutionOutcomeLikeCpp {
             planned_casts: plan.casts.len(),
@@ -6444,9 +6451,14 @@ impl WorldSession {
                 outcome.skipped_unrepresented_caster += 1;
                 continue;
             }
-            if cast.original_caster != RepresentedSpellClickUnitRefLikeCpp::Clicker {
-                outcome.skipped_unrepresented_original_caster += 1;
-                continue;
+            match cast.original_caster {
+                RepresentedSpellClickUnitRefLikeCpp::Clicker => {}
+                RepresentedSpellClickUnitRefLikeCpp::Owner
+                    if clickee_owner_guid == Some(player_guid) => {}
+                _ => {
+                    outcome.skipped_unrepresented_original_caster += 1;
+                    continue;
+                }
             }
 
             let target_guid = match cast.target {
@@ -36991,6 +37003,30 @@ mod tests {
         instance_id: u32,
         is_in_world: bool,
     ) {
+        add_canonical_test_creature_on_map_with_world_state_and_owner(
+            canonical,
+            guid,
+            entry,
+            position,
+            npc_flags,
+            map_id,
+            instance_id,
+            is_in_world,
+            None,
+        );
+    }
+
+    fn add_canonical_test_creature_on_map_with_world_state_and_owner(
+        canonical: &SharedCanonicalMapManager,
+        guid: ObjectGuid,
+        entry: u32,
+        position: Position,
+        npc_flags: u32,
+        map_id: u32,
+        instance_id: u32,
+        is_in_world: bool,
+        owner_guid: Option<ObjectGuid>,
+    ) {
         let mut creature = wow_entities::Creature::new(false);
         creature.unit_mut().world_mut().object_mut().create(guid);
         creature
@@ -37009,6 +37045,11 @@ mod tests {
         creature.unit_mut().set_max_health(100);
         creature.unit_mut().set_health(100);
         creature.set_ai_identity_runtime(1, 35, npc_flags, 0);
+        creature
+            .unit_mut()
+            .subsystems_mut()
+            .control
+            .set_owner_guid(owner_guid);
         if is_in_world {
             creature.unit_mut().world_mut().object_mut().add_to_world();
         }
@@ -42657,6 +42698,181 @@ mod tests {
                 ..Default::default()
             },
             "C++ may cast from the clickee; Rust must not fake that through the player-caster spell rail"
+        );
+        assert!(drain_server_packet_bytes(&send_rx).is_empty());
+    }
+
+    #[tokio::test]
+    async fn represented_spellclick_executes_owner_original_caster_when_owner_is_clicker_like_cpp()
+    {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        let manager = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let creature_guid = test_creature_guid(229);
+        let spell_id = 910_i32;
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "Tester".to_string(),
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.client_visible_guids_like_cpp.insert(creature_guid);
+        session.set_map_manager(manager.clone());
+        session.register_world_creature(
+            571,
+            Position::new(12.0, 0.0, 0.0, 0.0),
+            test_creature_create_data(creature_guid, 9004, 40),
+            3,
+            5,
+            20.0,
+            0,
+            0,
+            0,
+            0,
+            None,
+            0,
+            0,
+            0,
+            0,
+            -1,
+        );
+        add_canonical_test_creature_on_map_with_world_state_and_owner(
+            &canonical,
+            creature_guid,
+            9004,
+            Position::new(12.0, 0.0, 0.0, 0.0),
+            UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP as u32,
+            571,
+            0,
+            true,
+            Some(player_guid),
+        );
+        session.set_condition_store(Arc::new(ConditionEntriesByTypeStore::default()));
+        session.set_npc_spell_click_store(Arc::new(NpcSpellClickStoreLikeCpp::from_rows_like_cpp(
+            [wow_data::NpcSpellClickRowLikeCpp {
+                npc_entry: 9004,
+                spell_id: u32::try_from(spell_id).unwrap(),
+                cast_flags: NPC_CLICK_CAST_CASTER_CLICKER_LIKE_CPP
+                    | NPC_CLICK_CAST_ORIG_CASTER_OWNER_LIKE_CPP,
+                user_type: wow_data::SPELL_CLICK_USER_ANY_LIKE_CPP,
+            }],
+            |entry| entry == 9004,
+            |spell| spell == u32::try_from(spell_id).unwrap(),
+        )));
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE,
+                effect_base_points: 7,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: Vec::new(),
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        let plan = session.represented_handle_spell_click_plan_like_cpp(creature_guid);
+        assert_eq!(
+            plan.casts[0].original_caster,
+            RepresentedSpellClickUnitRefLikeCpp::Owner
+        );
+        let outcome = session
+            .execute_represented_spell_click_plan_like_cpp(creature_guid, &plan)
+            .await;
+
+        assert_eq!(
+            outcome,
+            RepresentedSpellClickExecutionOutcomeLikeCpp {
+                planned_casts: 1,
+                executed_casts: 1,
+                ..Default::default()
+            },
+            "C++ GetOwnerGUID resolves to the clicker here, so Rust can use the player-caster rail without faking original caster"
+        );
+        let manager = manager.read().unwrap();
+        let world_creature = manager.find_creature(571, 0, creature_guid).unwrap();
+        assert_eq!(world_creature.current_hp(), 33);
+        drop(manager);
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![
+                ServerOpcodes::SpellGo,
+                ServerOpcodes::UpdateObject,
+                ServerOpcodes::CooldownEvent
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn represented_spellclick_skips_owner_original_caster_for_other_owner_like_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let other_owner_guid = ObjectGuid::create_player(1, 99);
+        let creature_guid = test_creature_guid(230);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "Tester".to_string(),
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_creature_on_map_with_world_state_and_owner(
+            &canonical,
+            creature_guid,
+            9005,
+            Position::new(12.0, 0.0, 0.0, 0.0),
+            UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP as u32,
+            571,
+            0,
+            true,
+            Some(other_owner_guid),
+        );
+        session.set_condition_store(Arc::new(ConditionEntriesByTypeStore::default()));
+        session.set_npc_spell_click_store(Arc::new(NpcSpellClickStoreLikeCpp::from_rows_like_cpp(
+            [wow_data::NpcSpellClickRowLikeCpp {
+                npc_entry: 9005,
+                spell_id: 911,
+                cast_flags: NPC_CLICK_CAST_CASTER_CLICKER_LIKE_CPP
+                    | NPC_CLICK_CAST_ORIG_CASTER_OWNER_LIKE_CPP,
+                user_type: wow_data::SPELL_CLICK_USER_ANY_LIKE_CPP,
+            }],
+            |entry| entry == 9005,
+            |spell| spell == 911,
+        )));
+
+        let plan = session.represented_handle_spell_click_plan_like_cpp(creature_guid);
+        let outcome = session
+            .execute_represented_spell_click_plan_like_cpp(creature_guid, &plan)
+            .await;
+
+        assert_eq!(
+            outcome,
+            RepresentedSpellClickExecutionOutcomeLikeCpp {
+                planned_casts: 1,
+                skipped_unrepresented_original_caster: 1,
+                ..Default::default()
+            },
+            "C++ would use the clickee owner as original caster; Rust must not collapse another owner into the clicker"
         );
         assert!(drain_server_packet_bytes(&send_rx).is_empty());
     }
