@@ -181,6 +181,17 @@ fn send_party_update(group: &GroupInfo, registry: &PlayerRegistry, _vra: u32) {
     }
 }
 
+fn first_connected_group_member_like_cpp(
+    group: &GroupInfo,
+    registry: &PlayerRegistry,
+) -> Option<ObjectGuid> {
+    group
+        .members
+        .iter()
+        .copied()
+        .find(|member_guid| registry.contains_key(member_guid))
+}
+
 fn queue_visible_gameobjects_or_spellclicks_refresh_like_cpp(
     group: &GroupInfo,
     registry: &PlayerRegistry,
@@ -650,7 +661,9 @@ impl WorldSession {
                 if let Ok(db_store_id) = u32::try_from(gid) {
                     group_leave_statements.push(group_member_delete_statement_like_cpp(my_guid));
                     if group.leader_guid == my_guid {
-                        if let Some(&new_leader) = group.members.first() {
+                        if let Some(new_leader) =
+                            first_connected_group_member_like_cpp(&group, &registry)
+                        {
                             group_leave_statements.push(group_leader_update_statement_like_cpp(
                                 new_leader,
                                 db_store_id,
@@ -660,7 +673,9 @@ impl WorldSession {
                 }
                 // Reassign leader if needed.
                 if group.leader_guid == my_guid {
-                    if let Some(&new_leader) = group.members.first() {
+                    if let Some(new_leader) =
+                        first_connected_group_member_like_cpp(&group, &registry)
+                    {
                         group.leader_guid = new_leader;
                     }
                 }
@@ -834,11 +849,11 @@ impl WorldSession {
 #[cfg(test)]
 mod tests {
     use super::{
-        group_delete_statement_like_cpp, group_insert_statement_like_cpp,
-        group_leader_update_statement_like_cpp, group_lfg_data_delete_statement_like_cpp,
-        group_member_delete_all_statement_like_cpp, group_member_delete_statement_like_cpp,
-        group_member_insert_statement_like_cpp, group_type_update_statement_like_cpp,
-        send_party_update,
+        first_connected_group_member_like_cpp, group_delete_statement_like_cpp,
+        group_insert_statement_like_cpp, group_leader_update_statement_like_cpp,
+        group_lfg_data_delete_statement_like_cpp, group_member_delete_all_statement_like_cpp,
+        group_member_delete_statement_like_cpp, group_member_insert_statement_like_cpp,
+        group_type_update_statement_like_cpp, send_party_update,
     };
     use flume::bounded;
     use std::sync::Arc;
@@ -1112,6 +1127,26 @@ mod tests {
         let stmt = group_lfg_data_delete_statement_like_cpp(99);
         assert_eq!(stmt.sql(), CharStatements::DEL_LFG_DATA.sql());
         assert_eq!(stmt.params(), &[SqlParam::U32(99)]);
+    }
+
+    #[test]
+    fn group_leave_selects_first_connected_new_leader_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let disconnected = ObjectGuid::create_player(1, 77);
+        let connected = ObjectGuid::create_player(1, 88);
+        let mut group = GroupInfo::new(leader);
+        group.add_member(disconnected);
+        group.add_member(connected);
+        group.remove_member(&leader);
+
+        let registry = PlayerRegistry::default();
+        let (tx, _rx) = bounded(1);
+        registry.insert(connected, broadcast_info(connected, tx));
+
+        assert_eq!(
+            first_connected_group_member_like_cpp(&group, &registry),
+            Some(connected)
+        );
     }
 
     #[test]
