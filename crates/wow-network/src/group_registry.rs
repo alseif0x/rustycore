@@ -1,9 +1,12 @@
 //! Shared registry of active groups for cross-session party management.
 
 use dashmap::DashMap;
-use std::sync::{
-    Mutex,
-    atomic::{AtomicU32, AtomicU64, Ordering},
+use std::{
+    collections::BTreeMap,
+    sync::{
+        Mutex,
+        atomic::{AtomicU32, AtomicU64, Ordering},
+    },
 };
 use wow_core::ObjectGuid;
 use wow_data::DifficultyStore;
@@ -32,6 +35,19 @@ fn generate_group_db_store_id_like_cpp() -> u32 {
     }
 
     NEXT_GROUP_DB_STORE_ID.fetch_add(1, Ordering::Relaxed)
+}
+
+fn generate_group_id_like_cpp() -> u64 {
+    NEXT_GROUP_ID.fetch_add(1, Ordering::Relaxed)
+}
+
+fn advance_next_group_db_store_id_after_load_like_cpp(storage_id: u32) {
+    let _ = NEXT_GROUP_DB_STORE_ID.compare_exchange(
+        storage_id,
+        storage_id.saturating_add(1),
+        Ordering::Relaxed,
+        Ordering::Relaxed,
+    );
 }
 
 pub fn free_group_db_store_id_like_cpp(storage_id: u32) {
@@ -108,6 +124,27 @@ pub struct GroupDbRowLikeCpp {
     pub lfg_state: Option<u8>,
 }
 
+/// Row shape selected by C++ `GroupMgr::LoadGroups` for `Group::LoadMemberFromDB`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GroupMemberDbRowLikeCpp {
+    pub db_store_id: u32,
+    pub member_guid_low: u64,
+    pub member_flags: u8,
+    pub subgroup: u8,
+    pub roles: u8,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct GroupLoadSummaryLikeCpp {
+    pub loaded_groups: usize,
+    /// C++ increments the loaded-member counter for every member row it reads,
+    /// even when the referenced group is missing and only an error is logged.
+    pub loaded_member_rows: usize,
+    pub loaded_members: usize,
+    pub skipped_group_rows: usize,
+    pub skipped_member_rows: usize,
+}
+
 /// Information about one group/party.
 #[derive(Debug, Clone)]
 pub struct GroupInfo {
@@ -139,7 +176,7 @@ pub struct GroupInfo {
 impl GroupInfo {
     pub fn new(leader: ObjectGuid) -> Self {
         Self {
-            group_guid: NEXT_GROUP_ID.fetch_add(1, Ordering::Relaxed),
+            group_guid: generate_group_id_like_cpp(),
             db_store_id: generate_group_db_store_id_like_cpp(),
             leader_guid: leader,
             members: vec![leader],
@@ -359,6 +396,63 @@ pub fn get_group_by_db_store_id_like_cpp(
 ) -> Option<GroupInfo> {
     let group_guid = group_guid_by_db_store_id_like_cpp(storage_id)?;
     registry.get(&group_guid).map(|group| group.clone())
+}
+
+pub fn load_groups_from_db_rows_like_cpp(
+    registry: &GroupRegistry,
+    group_rows: impl IntoIterator<Item = GroupDbRowLikeCpp>,
+    member_rows: impl IntoIterator<Item = GroupMemberDbRowLikeCpp>,
+    character_cache: &BTreeMap<u64, GroupMemberCharacterLikeCpp>,
+    difficulty_store: &DifficultyStore,
+) -> GroupLoadSummaryLikeCpp {
+    let mut summary = GroupLoadSummaryLikeCpp::default();
+
+    for row in group_rows {
+        let db_store_id = row.db_store_id;
+        let leader = character_cache.get(&row.leader_guid_low).cloned();
+        let Some(group) = GroupInfo::load_group_from_db_row_validated_like_cpp(
+            generate_group_id_like_cpp(),
+            row,
+            leader,
+            difficulty_store,
+        ) else {
+            summary.skipped_group_rows += 1;
+            continue;
+        };
+
+        let runtime_group_guid = group.group_guid;
+        registry.insert(runtime_group_guid, group);
+        register_group_db_store_id_like_cpp(db_store_id, runtime_group_guid);
+        advance_next_group_db_store_id_after_load_like_cpp(db_store_id);
+        summary.loaded_groups += 1;
+    }
+
+    for row in member_rows {
+        summary.loaded_member_rows += 1;
+        let Some(runtime_group_guid) = group_guid_by_db_store_id_like_cpp(row.db_store_id) else {
+            summary.skipped_member_rows += 1;
+            continue;
+        };
+        let Some(mut group) = registry.get_mut(&runtime_group_guid) else {
+            summary.skipped_member_rows += 1;
+            continue;
+        };
+
+        let character = character_cache.get(&row.member_guid_low).cloned();
+        if group.load_member_from_db_like_cpp(
+            row.member_guid_low,
+            row.member_flags,
+            row.subgroup,
+            row.roles,
+            character,
+        ) {
+            summary.loaded_members += 1;
+        } else {
+            summary.skipped_member_rows += 1;
+        }
+    }
+
+    summary
 }
 
 /// Pending invites: invited_guid → inviter_guid.
@@ -734,5 +828,224 @@ mod tests {
         );
 
         assert!(group.is_none());
+    }
+
+    #[test]
+    fn load_groups_from_db_rows_registers_groups_and_members_like_cpp() {
+        let registry = GroupRegistry::default();
+        let difficulty_store = DifficultyStore::from_entries([]);
+        let mut character_cache = BTreeMap::new();
+        character_cache.insert(
+            5001,
+            GroupMemberCharacterLikeCpp {
+                name: "Leader".to_string(),
+                race: 1,
+                class: 2,
+            },
+        );
+        character_cache.insert(
+            5002,
+            GroupMemberCharacterLikeCpp {
+                name: "Member".to_string(),
+                race: 3,
+                class: 4,
+            },
+        );
+
+        let summary = load_groups_from_db_rows_like_cpp(
+            &registry,
+            [GroupDbRowLikeCpp {
+                leader_guid_low: 5001,
+                loot_method: 3,
+                looter_guid_low: 5001,
+                loot_threshold: 4,
+                target_icons: [EMPTY_TARGET_ICON_RAW_LIKE_CPP; TARGET_ICONS_COUNT_LIKE_CPP],
+                group_flags: GROUP_FLAG_RAID_LIKE_CPP,
+                dungeon_difficulty_id: DIFFICULTY_NORMAL_LIKE_CPP,
+                raid_difficulty_id: DIFFICULTY_NORMAL_RAID_LIKE_CPP,
+                legacy_raid_difficulty_id: DIFFICULTY_10_N_LIKE_CPP,
+                master_looter_guid_low: 0,
+                db_store_id: 5501,
+                lfg_dungeon_id: None,
+                lfg_state: None,
+            }],
+            [
+                GroupMemberDbRowLikeCpp {
+                    db_store_id: 5501,
+                    member_guid_low: 5001,
+                    member_flags: 0,
+                    subgroup: 0,
+                    roles: 1,
+                },
+                GroupMemberDbRowLikeCpp {
+                    db_store_id: 5501,
+                    member_guid_low: 5002,
+                    member_flags: 0x04,
+                    subgroup: 2,
+                    roles: 3,
+                },
+            ],
+            &character_cache,
+            &difficulty_store,
+        );
+
+        assert_eq!(
+            summary,
+            GroupLoadSummaryLikeCpp {
+                loaded_groups: 1,
+                loaded_member_rows: 2,
+                loaded_members: 2,
+                skipped_group_rows: 0,
+                skipped_member_rows: 0,
+            }
+        );
+
+        let group = get_group_by_db_store_id_like_cpp(&registry, 5501)
+            .expect("loaded group should be registered by DB-store id");
+        assert_eq!(group.db_store_id, 5501);
+        assert_eq!(group.members.len(), 2);
+        let slot = group
+            .member_slot_like_cpp(ObjectGuid::create_player(1, 5002))
+            .expect("loaded member row should preserve its slot");
+        assert_eq!(slot.name, "Member");
+        assert_eq!(slot.subgroup, 2);
+        assert_eq!(slot.flags, 0x04);
+        assert_eq!(slot.roles, 3);
+    }
+
+    #[test]
+    fn load_groups_from_db_rows_skips_missing_character_cache_rows_like_cpp_boundary() {
+        let registry = GroupRegistry::default();
+        let difficulty_store = DifficultyStore::from_entries([]);
+        let mut character_cache = BTreeMap::new();
+        character_cache.insert(
+            5101,
+            GroupMemberCharacterLikeCpp {
+                name: "Leader".to_string(),
+                race: 1,
+                class: 1,
+            },
+        );
+
+        let summary = load_groups_from_db_rows_like_cpp(
+            &registry,
+            [
+                GroupDbRowLikeCpp {
+                    leader_guid_low: 5101,
+                    loot_method: LOOT_METHOD_PERSONAL_LIKE_CPP,
+                    looter_guid_low: 5101,
+                    loot_threshold: ITEM_QUALITY_UNCOMMON_LIKE_CPP,
+                    target_icons: [EMPTY_TARGET_ICON_RAW_LIKE_CPP; TARGET_ICONS_COUNT_LIKE_CPP],
+                    group_flags: 0,
+                    dungeon_difficulty_id: DIFFICULTY_NORMAL_LIKE_CPP,
+                    raid_difficulty_id: DIFFICULTY_NORMAL_RAID_LIKE_CPP,
+                    legacy_raid_difficulty_id: DIFFICULTY_10_N_LIKE_CPP,
+                    master_looter_guid_low: 0,
+                    db_store_id: 5601,
+                    lfg_dungeon_id: None,
+                    lfg_state: None,
+                },
+                GroupDbRowLikeCpp {
+                    leader_guid_low: 999_999,
+                    loot_method: LOOT_METHOD_PERSONAL_LIKE_CPP,
+                    looter_guid_low: 999_999,
+                    loot_threshold: ITEM_QUALITY_UNCOMMON_LIKE_CPP,
+                    target_icons: [EMPTY_TARGET_ICON_RAW_LIKE_CPP; TARGET_ICONS_COUNT_LIKE_CPP],
+                    group_flags: 0,
+                    dungeon_difficulty_id: DIFFICULTY_NORMAL_LIKE_CPP,
+                    raid_difficulty_id: DIFFICULTY_NORMAL_RAID_LIKE_CPP,
+                    legacy_raid_difficulty_id: DIFFICULTY_10_N_LIKE_CPP,
+                    master_looter_guid_low: 0,
+                    db_store_id: 5602,
+                    lfg_dungeon_id: None,
+                    lfg_state: None,
+                },
+            ],
+            [
+                GroupMemberDbRowLikeCpp {
+                    db_store_id: 5601,
+                    member_guid_low: 5102,
+                    member_flags: 0,
+                    subgroup: 0,
+                    roles: 0,
+                },
+                GroupMemberDbRowLikeCpp {
+                    db_store_id: 888_888,
+                    member_guid_low: 5101,
+                    member_flags: 0,
+                    subgroup: 0,
+                    roles: 0,
+                },
+            ],
+            &character_cache,
+            &difficulty_store,
+        );
+
+        assert_eq!(summary.loaded_groups, 1);
+        assert_eq!(summary.skipped_group_rows, 1);
+        assert_eq!(summary.loaded_member_rows, 2);
+        assert_eq!(summary.loaded_members, 0);
+        assert_eq!(summary.skipped_member_rows, 2);
+        assert!(get_group_by_db_store_id_like_cpp(&registry, 5601).is_some());
+        assert!(get_group_by_db_store_id_like_cpp(&registry, 5602).is_none());
+    }
+
+    #[test]
+    fn load_groups_from_db_rows_advances_next_storage_id_for_ordered_rows_like_cpp() {
+        let registry = GroupRegistry::default();
+        let difficulty_store = DifficultyStore::from_entries([]);
+        let mut character_cache = BTreeMap::new();
+        for guid_low in [900_001, 900_002] {
+            character_cache.insert(
+                guid_low,
+                GroupMemberCharacterLikeCpp {
+                    name: format!("Leader{guid_low}"),
+                    race: 1,
+                    class: 1,
+                },
+            );
+        }
+
+        NEXT_GROUP_DB_STORE_ID.store(900_001, Ordering::Relaxed);
+        load_groups_from_db_rows_like_cpp(
+            &registry,
+            [
+                GroupDbRowLikeCpp {
+                    leader_guid_low: 900_001,
+                    loot_method: LOOT_METHOD_PERSONAL_LIKE_CPP,
+                    looter_guid_low: 900_001,
+                    loot_threshold: ITEM_QUALITY_UNCOMMON_LIKE_CPP,
+                    target_icons: [EMPTY_TARGET_ICON_RAW_LIKE_CPP; TARGET_ICONS_COUNT_LIKE_CPP],
+                    group_flags: 0,
+                    dungeon_difficulty_id: DIFFICULTY_NORMAL_LIKE_CPP,
+                    raid_difficulty_id: DIFFICULTY_NORMAL_RAID_LIKE_CPP,
+                    legacy_raid_difficulty_id: DIFFICULTY_10_N_LIKE_CPP,
+                    master_looter_guid_low: 0,
+                    db_store_id: 900_001,
+                    lfg_dungeon_id: None,
+                    lfg_state: None,
+                },
+                GroupDbRowLikeCpp {
+                    leader_guid_low: 900_002,
+                    loot_method: LOOT_METHOD_PERSONAL_LIKE_CPP,
+                    looter_guid_low: 900_002,
+                    loot_threshold: ITEM_QUALITY_UNCOMMON_LIKE_CPP,
+                    target_icons: [EMPTY_TARGET_ICON_RAW_LIKE_CPP; TARGET_ICONS_COUNT_LIKE_CPP],
+                    group_flags: 0,
+                    dungeon_difficulty_id: DIFFICULTY_NORMAL_LIKE_CPP,
+                    raid_difficulty_id: DIFFICULTY_NORMAL_RAID_LIKE_CPP,
+                    legacy_raid_difficulty_id: DIFFICULTY_10_N_LIKE_CPP,
+                    master_looter_guid_low: 0,
+                    db_store_id: 900_002,
+                    lfg_dungeon_id: None,
+                    lfg_state: None,
+                },
+            ],
+            [],
+            &character_cache,
+            &difficulty_store,
+        );
+
+        assert_eq!(NEXT_GROUP_DB_STORE_ID.load(Ordering::Relaxed), 900_003);
     }
 }

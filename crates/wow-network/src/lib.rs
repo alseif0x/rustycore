@@ -18,10 +18,11 @@ pub use accept::{
 };
 pub use group_registry::{
     EMPTY_TARGET_ICON_RAW_LIKE_CPP, GROUP_FLAG_RAID_LIKE_CPP, GroupDbRowLikeCpp, GroupInfo,
-    GroupMemberCharacterLikeCpp, GroupMemberSlotLikeCpp, GroupRegistry,
-    LOOT_METHOD_PERSONAL_LIKE_CPP, PendingInvites, TARGET_ICONS_COUNT_LIKE_CPP,
-    free_group_db_store_id_like_cpp, get_group_by_db_store_id_like_cpp,
-    group_guid_by_db_store_id_like_cpp, register_group_db_store_id_like_cpp,
+    GroupLoadSummaryLikeCpp, GroupMemberCharacterLikeCpp, GroupMemberDbRowLikeCpp,
+    GroupMemberSlotLikeCpp, GroupRegistry, LOOT_METHOD_PERSONAL_LIKE_CPP, PendingInvites,
+    TARGET_ICONS_COUNT_LIKE_CPP, free_group_db_store_id_like_cpp,
+    get_group_by_db_store_id_like_cpp, group_guid_by_db_store_id_like_cpp,
+    load_groups_from_db_rows_like_cpp, register_group_db_store_id_like_cpp,
 };
 pub use player_registry::{
     ApplyCreatureMeleeDamageLikeCppCommand, CreatureAttackStartLikeCppCommand,
