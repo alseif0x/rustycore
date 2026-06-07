@@ -1193,6 +1193,7 @@ struct RepresentedSpellClickCreatureSnapshotLikeCpp {
     health: u64,
     max_health: u64,
     is_alive: bool,
+    is_in_world: bool,
     is_summon: bool,
 }
 
@@ -6099,6 +6100,7 @@ impl WorldSession {
             health: creature.current_health(),
             max_health: creature.max_health(),
             is_alive: creature.is_alive(),
+            is_in_world: creature.unit().world().object().is_in_world(),
             is_summon: creature.is_summon_like_cpp(),
         })
     }
@@ -6117,6 +6119,9 @@ impl WorldSession {
         else {
             return RepresentedCanSeeSpellClickOutcomeLikeCpp::ExactContextUnrepresented;
         };
+        if !creature.is_in_world {
+            return RepresentedCanSeeSpellClickOutcomeLikeCpp::Hidden;
+        }
 
         if (u64::from(creature.npc_flags) & UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP) == 0 {
             return RepresentedCanSeeSpellClickOutcomeLikeCpp::Hidden;
@@ -6260,6 +6265,9 @@ impl WorldSession {
         else {
             return plan;
         };
+        if !creature.is_in_world {
+            return plan;
+        }
 
         let click_bounds = spell_click_store.spell_click_info_map_bounds_like_cpp(creature.entry);
         if click_bounds.is_empty() {
@@ -36961,6 +36969,28 @@ mod tests {
         map_id: u32,
         instance_id: u32,
     ) {
+        add_canonical_test_creature_on_map_with_world_state(
+            canonical,
+            guid,
+            entry,
+            position,
+            npc_flags,
+            map_id,
+            instance_id,
+            true,
+        );
+    }
+
+    fn add_canonical_test_creature_on_map_with_world_state(
+        canonical: &SharedCanonicalMapManager,
+        guid: ObjectGuid,
+        entry: u32,
+        position: Position,
+        npc_flags: u32,
+        map_id: u32,
+        instance_id: u32,
+        is_in_world: bool,
+    ) {
         let mut creature = wow_entities::Creature::new(false);
         creature.unit_mut().world_mut().object_mut().create(guid);
         creature
@@ -36979,7 +37009,9 @@ mod tests {
         creature.unit_mut().set_max_health(100);
         creature.unit_mut().set_health(100);
         creature.set_ai_identity_runtime(1, 35, npc_flags, 0);
-        creature.unit_mut().world_mut().object_mut().add_to_world();
+        if is_in_world {
+            creature.unit_mut().world_mut().object_mut().add_to_world();
+        }
 
         canonical
             .lock()
@@ -42407,6 +42439,63 @@ mod tests {
             plan.casts[0].original_caster,
             RepresentedSpellClickUnitRefLikeCpp::Clicker
         );
+    }
+
+    #[tokio::test]
+    async fn represented_spellclick_ignores_not_in_world_creature_like_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let creature_guid = test_creature_guid(228);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "Tester".to_string(),
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_condition_store(Arc::new(ConditionEntriesByTypeStore::default()));
+        session.set_npc_spell_click_store(Arc::new(NpcSpellClickStoreLikeCpp::from_rows_like_cpp(
+            [wow_data::NpcSpellClickRowLikeCpp {
+                npc_entry: 9003,
+                spell_id: 909,
+                cast_flags: NPC_CLICK_CAST_CASTER_CLICKER_LIKE_CPP,
+                user_type: wow_data::SPELL_CLICK_USER_ANY_LIKE_CPP,
+            }],
+            |entry| entry == 9003,
+            |spell| spell == 909,
+        )));
+        add_canonical_test_creature_on_map_with_world_state(
+            &canonical,
+            creature_guid,
+            9003,
+            Position::new(12.0, 0.0, 0.0, 0.0),
+            UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP as u32,
+            571,
+            0,
+            false,
+        );
+
+        assert_eq!(
+            session.represented_can_see_spell_click_on_creature_like_cpp(creature_guid),
+            RepresentedCanSeeSpellClickOutcomeLikeCpp::Hidden,
+            "C++ HandleSpellClick returns silently when ObjectAccessor finds a unit that is not in world"
+        );
+        let plan = session.represented_handle_spell_click_plan_like_cpp(creature_guid);
+        assert_eq!(plan, RepresentedSpellClickPlanLikeCpp::default());
+        let outcome = session
+            .execute_represented_spell_click_plan_like_cpp(creature_guid, &plan)
+            .await;
+        assert_eq!(
+            outcome,
+            RepresentedSpellClickExecutionOutcomeLikeCpp::default()
+        );
+        assert!(drain_server_packet_bytes(&send_rx).is_empty());
     }
 
     #[tokio::test]

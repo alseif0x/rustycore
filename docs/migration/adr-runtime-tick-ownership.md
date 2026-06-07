@@ -1790,6 +1790,11 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   because the current Rust spell rail is still player/session-caster based. Rows that need
   `caster == clickee`, owner original-caster, vehicle seat spell mods, or AI callback remain
   explicit skipped/unrepresented counts rather than being faked as player casts.
+- 2026-06-07 — WotLK spellclick in-world target gate `#NEXT.RUNTIME.L3.031j24`: contrasted
+  `WorldSession::HandleSpellClick` against C++ `SpellHandler.cpp:432-444`. The represented
+  spellclick snapshot now carries canonical `Object::is_in_world`, and Rust suppresses visibility
+  and execution planning for canonical creature/pet/vehicle records that exist but are not in world,
+  matching C++'s silent `if (!unit->IsInWorld()) return;` guard.
 
 ## References
 
