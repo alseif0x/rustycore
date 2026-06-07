@@ -2290,3 +2290,13 @@ C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Globa
 Implemented Rust seam: no production change was needed. The represented canonical spellclick snapshot already resolves `HighGuid::Pet` through typed `MapObjectRecord::pet()`, uses the embedded creature entry for row lookup, and carries `Pet::owner_guid()` so owner-original-caster rows remain explicit in the plan.
 
 Validation evidence: `cargo test -p wow-world represented_spellclick_accepts_pet_guid_through_get_pet_like_cpp --lib`. Remaining gaps: live pet summon/despawn lifecycle, pet/creature caster spell execution, original-caster propagation for non-clicker owners, full `GetOwnerGUID` population for all summon types, AI callback, multi-session fanout, and live client/bot validation.
+
+### #NEXT.RUNTIME.L3.031j28 — WotLK spellclick clickee-caster self damage
+
+Status: bounded creature-caster execution for one non-vehicle `Unit::HandleSpellClick` branch; not a full `Unit::CastSpell` port.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:11909-11963` resolves `caster = this` when `NPC_CLICK_CAST_CASTER_CLICKER` is absent, `target = this` when `NPC_CLICK_CAST_TARGET_CLICKER` is absent, then calls `caster->CastSpell(...)` for non-seat spellclick rows. `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellEffects.cpp:496-549` applies `SPELL_EFFECT_SCHOOL_DAMAGE` only to a live unit target and accumulates direct damage.
+
+Implemented Rust seam: `crates/wow-world/src/session.rs` now executes the narrow represented case `caster == Clickee`, `target == Clickee`, original caster is the clicker or the clicker-owned clickee, and the spell is direct `SPELL_EFFECT_SCHOOL_DAMAGE`. It emits `SMSG_SPELL_GO` with the clicked creature GUID as caster and applies health/update state to the clicked creature without using the player-caster `apply_damage` path, so no false player tap/loot/XP side effects are introduced.
+
+Validation evidence: `cargo test -p wow-world represented_spellclick --lib` now covers `represented_spellclick_executes_clickee_caster_self_damage_like_cpp`, asserting creature health drops, `SpellGo` is emitted with the creature GUID as both caster GUID fields, and an `UpdateObject` follows. Remaining gaps: creature-caster target=clicker/player damage, pet/vehicle caster execution beyond the same represented row shape, non-damage/aura effects, full spell bonus/resistance/proc model, vehicle seat/basepoint/fallback aura path, AI `OnSpellClick`, multi-session fanout, and live client/bot validation.

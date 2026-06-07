@@ -1817,6 +1817,16 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   owner-original-caster planning. This is lookup/snapshot evidence only; live pet summon lifecycle,
   pet/creature caster execution, non-clicker original-caster propagation, and AI callback remain
   open.
+- 2026-06-07 — WotLK spellclick clickee-caster self damage `#NEXT.RUNTIME.L3.031j28`: contrasted
+  C++ `Unit::HandleSpellClick` caster/target selection and the non-vehicle `caster->CastSpell`
+  branch plus `Spell::EffectSchoolDMG`. Rust now executes the bounded case where a represented
+  spellclick row resolves `caster == this`, `target == this`, original caster is the clicker or the
+  clicker-owned clickee, and the spell is instant direct `SPELL_EFFECT_SCHOOL_DAMAGE`. The executor
+  emits `SMSG_SPELL_GO` with the clickee creature GUID as caster and applies creature health/update
+  state without reusing the player-caster `apply_damage` helper, avoiding false player tap/loot/XP
+  side effects. Remaining gaps are still explicit: creature-caster target=clicker/player damage,
+  aura/non-damage effects, full spell bonuses/resistances/procs, vehicle seat/basepoint handling,
+  fallback aura creation, AI `OnSpellClick`, multi-session fanout, and live client/bot validation.
 
 ## References
 
