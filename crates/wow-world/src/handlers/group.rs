@@ -20,10 +20,6 @@ use wow_packet::{ClientPacket, ServerPacket};
 
 use crate::session::WorldSession;
 
-const ITEM_QUALITY_UNCOMMON_LIKE_CPP: u8 = 2;
-const DIFFICULTY_NORMAL_LIKE_CPP: u32 = 1;
-const DIFFICULTY_NORMAL_RAID_LIKE_CPP: u32 = 14;
-const DIFFICULTY_10_N_LIKE_CPP: u32 = 3;
 const EMPTY_TARGET_ICON_RAW_LIKE_CPP: [u8; 16] = [0; 16];
 
 // ── inventory registrations ───────────────────────────────────────────────────
@@ -140,12 +136,12 @@ fn send_party_update(group: &GroupInfo, registry: &PlayerRegistry, _vra: u32) {
                 } else {
                     ObjectGuid::EMPTY
                 },
-                threshold: 2,
+                threshold: group.loot_threshold,
             }),
             difficulty_settings: Some(PartyDifficultySettings {
-                dungeon_difficulty_id: 1,
-                raid_difficulty_id: 14,
-                legacy_raid_difficulty_id: 3,
+                dungeon_difficulty_id: group.dungeon_difficulty_id,
+                raid_difficulty_id: group.raid_difficulty_id,
+                legacy_raid_difficulty_id: group.legacy_raid_difficulty_id,
             }),
         };
 
@@ -221,15 +217,15 @@ fn group_insert_statement_like_cpp(group: &GroupInfo, db_store_id: u32) -> Prepa
     stmt.set_u32(0, db_store_id);
     stmt.set_u64(1, group.leader_guid.counter() as u64);
     stmt.set_u8(2, group.loot_method);
-    stmt.set_u64(3, group.leader_guid.counter() as u64);
-    stmt.set_u8(4, ITEM_QUALITY_UNCOMMON_LIKE_CPP);
+    stmt.set_u64(3, group.looter_guid.counter() as u64);
+    stmt.set_u8(4, group.loot_threshold);
     for index in 0..8 {
         stmt.set_bytes(5 + index, EMPTY_TARGET_ICON_RAW_LIKE_CPP.to_vec());
     }
     stmt.set_u16(13, group.group_flags);
-    stmt.set_u32(14, DIFFICULTY_NORMAL_LIKE_CPP);
-    stmt.set_u32(15, DIFFICULTY_NORMAL_RAID_LIKE_CPP);
-    stmt.set_u32(16, DIFFICULTY_10_N_LIKE_CPP);
+    stmt.set_u32(14, group.dungeon_difficulty_id);
+    stmt.set_u32(15, group.raid_difficulty_id);
+    stmt.set_u32(16, group.legacy_raid_difficulty_id);
     stmt.set_u64(17, group.master_looter_guid.counter() as u64);
     stmt
 }

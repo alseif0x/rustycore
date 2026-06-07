@@ -13,6 +13,10 @@ static FREED_GROUP_DB_STORE_IDS: Mutex<Vec<u32>> = Mutex::new(Vec::new());
 
 pub const GROUP_FLAG_RAID_LIKE_CPP: u16 = 0x002;
 pub const LOOT_METHOD_PERSONAL_LIKE_CPP: u8 = 5;
+pub const ITEM_QUALITY_UNCOMMON_LIKE_CPP: u8 = 2;
+pub const DIFFICULTY_NORMAL_LIKE_CPP: u32 = 1;
+pub const DIFFICULTY_NORMAL_RAID_LIKE_CPP: u32 = 14;
+pub const DIFFICULTY_10_N_LIKE_CPP: u32 = 3;
 
 fn generate_group_db_store_id_like_cpp() -> u32 {
     if let Ok(mut freed) = FREED_GROUP_DB_STORE_IDS.lock() {
@@ -51,7 +55,12 @@ pub struct GroupInfo {
     pub members: Vec<ObjectGuid>,
     /// 0=FreeForAll, 1=RoundRobin, 2=MasterLoot, 3=GroupLoot, 4=NeedBeforeGreed
     pub loot_method: u8,
+    pub looter_guid: ObjectGuid,
+    pub loot_threshold: u8,
     pub master_looter_guid: ObjectGuid,
+    pub dungeon_difficulty_id: u32,
+    pub raid_difficulty_id: u32,
+    pub legacy_raid_difficulty_id: u32,
     pub sequence_num: u32,
     pub group_flags: u16,
 }
@@ -64,9 +73,45 @@ impl GroupInfo {
             leader_guid: leader,
             members: vec![leader],
             loot_method: LOOT_METHOD_PERSONAL_LIKE_CPP,
+            looter_guid: leader,
+            loot_threshold: ITEM_QUALITY_UNCOMMON_LIKE_CPP,
             master_looter_guid: ObjectGuid::EMPTY,
+            dungeon_difficulty_id: DIFFICULTY_NORMAL_LIKE_CPP,
+            raid_difficulty_id: DIFFICULTY_NORMAL_RAID_LIKE_CPP,
+            legacy_raid_difficulty_id: DIFFICULTY_10_N_LIKE_CPP,
             sequence_num: 1,
             group_flags: 0,
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn loaded_from_db_like_cpp(
+        runtime_group_guid: u64,
+        db_store_id: u32,
+        leader_guid: ObjectGuid,
+        loot_method: u8,
+        looter_guid: ObjectGuid,
+        loot_threshold: u8,
+        group_flags: u16,
+        dungeon_difficulty_id: u32,
+        raid_difficulty_id: u32,
+        legacy_raid_difficulty_id: u32,
+        master_looter_guid: ObjectGuid,
+    ) -> Self {
+        Self {
+            group_guid: runtime_group_guid,
+            db_store_id,
+            leader_guid,
+            members: Vec::new(),
+            loot_method,
+            looter_guid,
+            loot_threshold,
+            master_looter_guid,
+            dungeon_difficulty_id,
+            raid_difficulty_id,
+            legacy_raid_difficulty_id,
+            sequence_num: 1,
+            group_flags,
         }
     }
 
@@ -125,6 +170,11 @@ mod tests {
         let group = GroupInfo::new(leader);
 
         assert_eq!(group.loot_method, LOOT_METHOD_PERSONAL_LIKE_CPP);
+        assert_eq!(group.looter_guid, leader);
+        assert_eq!(group.loot_threshold, ITEM_QUALITY_UNCOMMON_LIKE_CPP);
+        assert_eq!(group.dungeon_difficulty_id, DIFFICULTY_NORMAL_LIKE_CPP);
+        assert_eq!(group.raid_difficulty_id, DIFFICULTY_NORMAL_RAID_LIKE_CPP);
+        assert_eq!(group.legacy_raid_difficulty_id, DIFFICULTY_10_N_LIKE_CPP);
     }
 
     #[test]
@@ -139,5 +189,38 @@ mod tests {
     #[test]
     fn free_group_db_store_id_ignores_zero_like_cpp_unallocated_storage() {
         free_group_db_store_id_like_cpp(0);
+    }
+
+    #[test]
+    fn loaded_group_row_preserves_cpp_group_db_fields_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let looter = ObjectGuid::create_player(1, 77);
+        let master = ObjectGuid::create_player(1, 88);
+        let group = GroupInfo::loaded_from_db_like_cpp(
+            900,
+            17,
+            leader,
+            3,
+            looter,
+            4,
+            GROUP_FLAG_RAID_LIKE_CPP,
+            2,
+            15,
+            5,
+            master,
+        );
+
+        assert_eq!(group.group_guid, 900);
+        assert_eq!(group.db_store_id, 17);
+        assert_eq!(group.leader_guid, leader);
+        assert!(group.members.is_empty());
+        assert_eq!(group.loot_method, 3);
+        assert_eq!(group.looter_guid, looter);
+        assert_eq!(group.loot_threshold, 4);
+        assert_eq!(group.group_flags, GROUP_FLAG_RAID_LIKE_CPP);
+        assert_eq!(group.dungeon_difficulty_id, 2);
+        assert_eq!(group.raid_difficulty_id, 15);
+        assert_eq!(group.legacy_raid_difficulty_id, 5);
+        assert_eq!(group.master_looter_guid, master);
     }
 }
