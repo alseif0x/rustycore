@@ -10,6 +10,7 @@ use wow_core::ObjectGuid;
 static NEXT_GROUP_ID: AtomicU64 = AtomicU64::new(1);
 static NEXT_GROUP_DB_STORE_ID: AtomicU32 = AtomicU32::new(1);
 static FREED_GROUP_DB_STORE_IDS: Mutex<Vec<u32>> = Mutex::new(Vec::new());
+static GROUP_DB_STORE: Mutex<Vec<Option<u64>>> = Mutex::new(Vec::new());
 
 pub const GROUP_FLAG_RAID_LIKE_CPP: u16 = 0x002;
 pub const LOOT_METHOD_PERSONAL_LIKE_CPP: u8 = 5;
@@ -33,11 +34,34 @@ pub fn free_group_db_store_id_like_cpp(storage_id: u32) {
         return;
     }
 
+    if let Ok(mut store) = GROUP_DB_STORE.lock() {
+        if let Some(slot) = store.get_mut(storage_id as usize) {
+            *slot = None;
+        }
+    }
+
     if let Ok(mut freed) = FREED_GROUP_DB_STORE_IDS.lock() {
         if !freed.contains(&storage_id) {
             freed.push(storage_id);
         }
     }
+}
+
+pub fn register_group_db_store_id_like_cpp(storage_id: u32, runtime_group_guid: u64) {
+    if let Ok(mut store) = GROUP_DB_STORE.lock() {
+        let index = storage_id as usize;
+        if index >= store.len() {
+            store.resize(index + 1, None);
+        }
+        store[index] = Some(runtime_group_guid);
+    }
+}
+
+pub fn group_guid_by_db_store_id_like_cpp(storage_id: u32) -> Option<u64> {
+    GROUP_DB_STORE
+        .lock()
+        .ok()
+        .and_then(|store| store.get(storage_id as usize).copied().flatten())
 }
 
 /// Information about one group/party.
@@ -47,8 +71,8 @@ pub struct GroupInfo {
     /// C++ `Group::m_dbStoreId`: persistent `groups.guid` storage id.
     ///
     /// This is intentionally distinct from `group_guid`/`m_guid`, which is the
-    /// runtime ObjectGuid counter. C++ can reuse freed storage ids; Rust keeps
-    /// allocation monotonic until the represented `GroupMgr` free-list lands.
+    /// runtime ObjectGuid counter. Rust also keeps the represented
+    /// `GroupDbStore` index used by `GetGroupByDbStoreId`.
     pub db_store_id: u32,
     pub leader_guid: ObjectGuid,
     /// All member GUIDs (including leader), in join order.
@@ -157,6 +181,14 @@ impl GroupInfo {
 /// Thread-safe registry of all active groups, keyed by group GUID.
 pub type GroupRegistry = DashMap<u64, GroupInfo>;
 
+pub fn get_group_by_db_store_id_like_cpp(
+    registry: &GroupRegistry,
+    storage_id: u32,
+) -> Option<GroupInfo> {
+    let group_guid = group_guid_by_db_store_id_like_cpp(storage_id)?;
+    registry.get(&group_guid).map(|group| group.clone())
+}
+
 /// Pending invites: invited_guid → inviter_guid.
 pub type PendingInvites = DashMap<ObjectGuid, ObjectGuid>;
 
@@ -189,6 +221,58 @@ mod tests {
     #[test]
     fn free_group_db_store_id_ignores_zero_like_cpp_unallocated_storage() {
         free_group_db_store_id_like_cpp(0);
+    }
+
+    #[test]
+    fn group_db_store_registers_and_finds_group_by_storage_id_like_cpp() {
+        let registry = GroupRegistry::default();
+        let leader = ObjectGuid::create_player(1, 42);
+        let group = GroupInfo::loaded_from_db_like_cpp(
+            90,
+            1234,
+            leader,
+            LOOT_METHOD_PERSONAL_LIKE_CPP,
+            leader,
+            ITEM_QUALITY_UNCOMMON_LIKE_CPP,
+            0,
+            DIFFICULTY_NORMAL_LIKE_CPP,
+            DIFFICULTY_NORMAL_RAID_LIKE_CPP,
+            DIFFICULTY_10_N_LIKE_CPP,
+            ObjectGuid::EMPTY,
+        );
+        registry.insert(group.group_guid, group);
+
+        register_group_db_store_id_like_cpp(1234, 90);
+
+        let found = get_group_by_db_store_id_like_cpp(&registry, 1234)
+            .expect("registered storage id should resolve to its group");
+        assert_eq!(found.group_guid, 90);
+        assert_eq!(found.db_store_id, 1234);
+    }
+
+    #[test]
+    fn group_db_store_free_clears_lookup_like_cpp() {
+        let registry = GroupRegistry::default();
+        let leader = ObjectGuid::create_player(1, 43);
+        let group = GroupInfo::loaded_from_db_like_cpp(
+            91,
+            1235,
+            leader,
+            LOOT_METHOD_PERSONAL_LIKE_CPP,
+            leader,
+            ITEM_QUALITY_UNCOMMON_LIKE_CPP,
+            0,
+            DIFFICULTY_NORMAL_LIKE_CPP,
+            DIFFICULTY_NORMAL_RAID_LIKE_CPP,
+            DIFFICULTY_10_N_LIKE_CPP,
+            ObjectGuid::EMPTY,
+        );
+        registry.insert(group.group_guid, group);
+        register_group_db_store_id_like_cpp(1235, 91);
+
+        free_group_db_store_id_like_cpp(1235);
+
+        assert!(get_group_by_db_store_id_like_cpp(&registry, 1235).is_none());
     }
 
     #[test]

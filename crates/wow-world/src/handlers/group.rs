@@ -10,7 +10,9 @@ use wow_constants::ClientOpcodes;
 use wow_core::ObjectGuid;
 use wow_database::{CharStatements, PreparedStatement, StatementDef};
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
-use wow_network::{GroupInfo, PlayerRegistry, free_group_db_store_id_like_cpp};
+use wow_network::{
+    GroupInfo, PlayerRegistry, free_group_db_store_id_like_cpp, register_group_db_store_id_like_cpp,
+};
 use wow_packet::packets::party::{
     GroupDecline, GroupDestroyed, GroupUninvite, OptOutOfLoot, PartyCommandResult,
     PartyDifficultySettings, PartyInviteServer, PartyLootSettings, PartyMemberFullState,
@@ -542,6 +544,7 @@ impl WorldSession {
                 0,
             ));
             group_reg.insert(gid, new_group);
+            register_group_db_store_id_like_cpp(db_store_id, gid);
             gid
         };
 
