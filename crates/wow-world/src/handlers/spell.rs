@@ -1633,7 +1633,17 @@ impl WorldSession {
             account = self.account_id,
             target = ?spell_click.unit_guid,
             try_auto_dismount = spell_click.try_auto_dismount,
-            "CMSG_SPELL_CLICK represented seam"
+            "CMSG_SPELL_CLICK"
+        );
+
+        let plan = self.represented_handle_spell_click_plan_like_cpp(spell_click.unit_guid);
+        debug!(
+            account = self.account_id,
+            target = ?spell_click.unit_guid,
+            casts = plan.casts.len(),
+            exact_context_unrepresented = plan.exact_context_unrepresented,
+            ai_on_spell_click_unrepresented = plan.ai_on_spell_click_unrepresented,
+            "CMSG_SPELL_CLICK represented execution plan"
         );
     }
 

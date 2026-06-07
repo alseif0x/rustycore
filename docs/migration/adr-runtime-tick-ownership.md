@@ -1777,6 +1777,13 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   logged-in/inplace opcode, but intentionally stops before spellclick execution. Remaining runtime
   work: live creature/pet/vehicle lookup, in-world gate, spellclick relation/condition execution,
   cast flag routing, vehicle seat handling, real spell/aura execution, and AI `OnSpellClick`.
+- 2026-06-07 — WotLK spellclick execution-plan seam `#NEXT.RUNTIME.L3.031j22`: contrasted
+  `Unit::HandleSpellClick`, `SpellClickInfo::IsFitToRequirements`, and `SPELL_CLICK_USER_*` /
+  `NPC_CLICK_CAST_*` constants against C++. Rust now builds a represented plan for eligible
+  spellclick rows, preserves C++ row-by-row `continue` behavior, maps caster/target/original-caster
+  cast flags, and marks party/raid/summon/friend exact context plus AI callback as unrepresented.
+  This is still dormant planning only: no live object lookup, vehicle seat handling, spell/aura
+  execution, or AI callback has been activated.
 
 ## References
 
