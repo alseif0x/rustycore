@@ -17,7 +17,8 @@ use wow_network::{
 use wow_packet::packets::party::{
     GroupDecline, GroupDestroyed, GroupUninvite, OptOutOfLoot, PartyCommandResult,
     PartyDifficultySettings, PartyInviteServer, PartyLootSettings, PartyMemberFullState,
-    PartyPlayerInfo, PartyUpdate, SetAssistantLeader, SetLootMethod, party_result,
+    PartyPlayerInfo, PartyUpdate, SetAssistantLeader, SetEveryoneIsAssistant, SetLootMethod,
+    party_result,
 };
 use wow_packet::{ClientPacket, ServerPacket};
 
@@ -96,6 +97,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_assistant_leader",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::SetEveryoneIsAssistant,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_set_everyone_is_assistant",
     }
 }
 
@@ -1133,6 +1143,76 @@ impl WorldSession {
         }
     }
 
+    /// CMSG_SET_EVERYONE_IS_ASSISTANT.
+    ///
+    /// C++ resolves `GetPlayer()->GetGroup(packet.PartyIndex)`, rejects missing
+    /// group and non-leader senders, then calls `Group::SetEveryoneIsAssistant`.
+    /// Rust parses PartyIndex but keeps BG/BF/original-group selection as a
+    /// represented boundary over the current `GroupRegistry` group.
+    pub async fn handle_set_everyone_is_assistant(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let set_everyone = match SetEveryoneIsAssistant::read(&mut pkt) {
+            Ok(set_everyone) => set_everyone,
+            Err(e) => {
+                warn!("Bad SetEveryoneIsAssistant: {e}");
+                return;
+            }
+        };
+        let _represented_party_index_boundary = set_everyone.party_index;
+
+        let sender_guid = match self.player_guid() {
+            Some(guid) => guid,
+            None => return,
+        };
+        let group_reg = match self.group_registry() {
+            Some(registry) => std::sync::Arc::clone(registry),
+            None => return,
+        };
+        let registry = match self.player_registry() {
+            Some(registry) => std::sync::Arc::clone(registry),
+            None => return,
+        };
+        let vra = self.virtual_realm_address();
+
+        let group_guid = match self.group_guid {
+            Some(group_guid) => group_guid,
+            None => match group_reg
+                .iter()
+                .find(|entry| entry.value().members.contains(&sender_guid))
+                .map(|entry| *entry.key())
+            {
+                Some(group_guid) => group_guid,
+                None => return,
+            },
+        };
+
+        let (group_flags, db_store_id) = {
+            let mut group = match group_reg.get_mut(&group_guid) {
+                Some(group) => group,
+                None => return,
+            };
+            if group.leader_guid != sender_guid {
+                return;
+            }
+            group.set_everyone_is_assistant_like_cpp(set_everyone.everyone_is_assistant)
+        };
+
+        if let Some(char_db) = self.char_db().map(std::sync::Arc::clone) {
+            let stmt = group_type_update_statement_like_cpp(group_flags, db_store_id);
+            if let Err(error) = char_db.execute(&stmt).await {
+                warn!(
+                    group_flags,
+                    db_store_id,
+                    %error,
+                    "failed to persist represented everyone-assistant group flags"
+                );
+            }
+        }
+
+        if let Some(group) = group_reg.get(&group_guid) {
+            send_party_update(&group, &registry, vra);
+        }
+    }
+
     /// CMSG_SET_LOOT_METHOD.
     ///
     /// This Trinity branch parses the packet but has the entire mutation block
@@ -1320,6 +1400,22 @@ mod tests {
         pkt.write_bit(party_index.is_some());
         pkt.write_bit(apply);
         pkt.write_packed_guid(&target);
+        if let Some(party_index) = party_index {
+            pkt.write_uint8(party_index);
+        } else {
+            pkt.flush_bits();
+        }
+        pkt.reset_read();
+        pkt
+    }
+
+    fn set_everyone_is_assistant_packet(
+        everyone_is_assistant: bool,
+        party_index: Option<u8>,
+    ) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(party_index.is_some());
+        pkt.write_bit(everyone_is_assistant);
         if let Some(party_index) = party_index {
             pkt.write_uint8(party_index);
         } else {
@@ -1851,6 +1947,176 @@ mod tests {
                 .member_group_like_cpp(target),
             2
         );
+    }
+
+    #[tokio::test]
+    async fn set_everyone_is_assistant_leader_applies_to_all_members_and_fans_out_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send();
+        let leader = ObjectGuid::create_player(1, 42);
+        let member = ObjectGuid::create_player(1, 43);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (leader_tx, leader_rx) = bounded(8);
+        let (member_tx, member_rx) = bounded(8);
+        player_registry.insert(leader, broadcast_info(leader, leader_tx));
+        player_registry.insert(member, broadcast_info(member, member_tx));
+
+        session.set_player_guid(Some(leader));
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(Arc::clone(&player_registry));
+        session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
+
+        session
+            .handle_set_everyone_is_assistant(set_everyone_is_assistant_packet(true, Some(0)))
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+        let group = group_registry.get(&group_guid).unwrap();
+        assert_eq!(
+            group.group_flags & wow_network::GROUP_FLAG_EVERYONE_ASSISTANT_LIKE_CPP,
+            wow_network::GROUP_FLAG_EVERYONE_ASSISTANT_LIKE_CPP
+        );
+        for guid in [leader, member] {
+            assert_eq!(
+                group.member_slot_like_cpp(guid).unwrap().flags
+                    & wow_network::MEMBER_FLAG_ASSISTANT_LIKE_CPP,
+                wow_network::MEMBER_FLAG_ASSISTANT_LIKE_CPP
+            );
+        }
+        let leader_update = leader_rx.try_recv().expect("leader party update");
+        assert_eq!(
+            u16::from_le_bytes([leader_update[0], leader_update[1]]),
+            ServerOpcodes::PartyUpdate as u16
+        );
+        let member_update = member_rx.try_recv().expect("member party update");
+        assert_eq!(
+            u16::from_le_bytes([member_update[0], member_update[1]]),
+            ServerOpcodes::PartyUpdate as u16
+        );
+    }
+
+    #[tokio::test]
+    async fn set_everyone_is_assistant_leader_clears_all_members_and_fans_out_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send();
+        let leader = ObjectGuid::create_player(1, 42);
+        let member = ObjectGuid::create_player(1, 43);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+        group.set_everyone_is_assistant_like_cpp(true);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (leader_tx, leader_rx) = bounded(8);
+        let (member_tx, member_rx) = bounded(8);
+        player_registry.insert(leader, broadcast_info(leader, leader_tx));
+        player_registry.insert(member, broadcast_info(member, member_tx));
+
+        session.set_player_guid(Some(leader));
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(Arc::clone(&player_registry));
+        session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
+
+        session
+            .handle_set_everyone_is_assistant(set_everyone_is_assistant_packet(false, None))
+            .await;
+
+        let group = group_registry.get(&group_guid).unwrap();
+        assert_eq!(
+            group.group_flags & wow_network::GROUP_FLAG_EVERYONE_ASSISTANT_LIKE_CPP,
+            0
+        );
+        for guid in [leader, member] {
+            assert_eq!(
+                group.member_slot_like_cpp(guid).unwrap().flags
+                    & wow_network::MEMBER_FLAG_ASSISTANT_LIKE_CPP,
+                0
+            );
+        }
+        assert!(leader_rx.try_recv().is_ok());
+        assert!(member_rx.try_recv().is_ok());
+    }
+
+    #[tokio::test]
+    async fn set_everyone_is_assistant_rejects_non_leader_without_mutation_or_fanout_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send();
+        let leader = ObjectGuid::create_player(1, 42);
+        let member = ObjectGuid::create_player(1, 43);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (leader_tx, leader_rx) = bounded(8);
+        let (member_tx, member_rx) = bounded(8);
+        player_registry.insert(leader, broadcast_info(leader, leader_tx));
+        player_registry.insert(member, broadcast_info(member, member_tx));
+
+        session.set_player_guid(Some(member));
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(Arc::clone(&player_registry));
+        session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
+
+        session
+            .handle_set_everyone_is_assistant(set_everyone_is_assistant_packet(true, None))
+            .await;
+
+        let group = group_registry.get(&group_guid).unwrap();
+        assert_eq!(
+            group.group_flags & wow_network::GROUP_FLAG_EVERYONE_ASSISTANT_LIKE_CPP,
+            0
+        );
+        assert_eq!(
+            group.member_slot_like_cpp(member).unwrap().flags
+                & wow_network::MEMBER_FLAG_ASSISTANT_LIKE_CPP,
+            0
+        );
+        assert!(leader_rx.try_recv().is_err());
+        assert!(member_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn set_everyone_is_assistant_idempotent_still_fans_out_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send();
+        let leader = ObjectGuid::create_player(1, 42);
+        let member = ObjectGuid::create_player(1, 43);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+        group.set_everyone_is_assistant_like_cpp(true);
+        let sequence_after_apply = group.sequence_num;
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (leader_tx, leader_rx) = bounded(8);
+        let (member_tx, member_rx) = bounded(8);
+        player_registry.insert(leader, broadcast_info(leader, leader_tx));
+        player_registry.insert(member, broadcast_info(member, member_tx));
+
+        session.set_player_guid(Some(leader));
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(Arc::clone(&player_registry));
+        session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
+
+        session
+            .handle_set_everyone_is_assistant(set_everyone_is_assistant_packet(true, None))
+            .await;
+
+        assert_eq!(
+            group_registry.get(&group_guid).unwrap().sequence_num,
+            sequence_after_apply
+        );
+        assert!(leader_rx.try_recv().is_ok());
+        assert!(member_rx.try_recv().is_ok());
     }
 
     #[tokio::test]

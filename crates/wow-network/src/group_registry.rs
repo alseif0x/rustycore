@@ -469,6 +469,32 @@ impl GroupInfo {
         self.set_group_member_flag_like_cpp(guid, apply, MEMBER_FLAG_ASSISTANT_LIKE_CPP)
     }
 
+    pub fn set_everyone_is_assistant_like_cpp(&mut self, apply: bool) -> (u16, u32) {
+        let previous_group_flags = self.group_flags;
+        if apply {
+            self.group_flags |= GROUP_FLAG_EVERYONE_ASSISTANT_LIKE_CPP;
+        } else {
+            self.group_flags &= !GROUP_FLAG_EVERYONE_ASSISTANT_LIKE_CPP;
+        }
+
+        let mut changed = self.group_flags != previous_group_flags;
+        for slot in &mut self.member_slots {
+            let previous_flags = slot.flags;
+            if apply {
+                slot.flags |= MEMBER_FLAG_ASSISTANT_LIKE_CPP;
+            } else {
+                slot.flags &= !MEMBER_FLAG_ASSISTANT_LIKE_CPP;
+            }
+            changed |= slot.flags != previous_flags;
+        }
+
+        if changed {
+            self.sequence_num += 1;
+        }
+
+        (self.group_flags, self.db_store_id)
+    }
+
     pub fn change_member_group_like_cpp(&mut self, guid: ObjectGuid, subgroup: u8) -> bool {
         if !self.is_raid_group() {
             return false;
@@ -1130,6 +1156,90 @@ mod tests {
         );
         assert_eq!(group.member_slot_like_cpp(member).unwrap().flags, 0);
         assert_eq!(group.sequence_num, sequence_before + 1);
+    }
+
+    #[test]
+    fn everyone_is_assistant_apply_marks_group_and_all_members_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let first = ObjectGuid::create_player(1, 395);
+        let second = ObjectGuid::create_player(1, 396);
+        let mut group = GroupInfo::new(leader);
+        group.add_member(first);
+        group.add_member(second);
+        let sequence_before = group.sequence_num;
+
+        let (group_flags, db_store_id) = group.set_everyone_is_assistant_like_cpp(true);
+
+        assert_eq!(db_store_id, group.db_store_id);
+        assert_eq!(
+            group_flags & GROUP_FLAG_EVERYONE_ASSISTANT_LIKE_CPP,
+            GROUP_FLAG_EVERYONE_ASSISTANT_LIKE_CPP
+        );
+        for guid in [leader, first, second] {
+            assert_eq!(
+                group.member_slot_like_cpp(guid).unwrap().flags & MEMBER_FLAG_ASSISTANT_LIKE_CPP,
+                MEMBER_FLAG_ASSISTANT_LIKE_CPP
+            );
+        }
+        assert_eq!(group.sequence_num, sequence_before + 1);
+    }
+
+    #[test]
+    fn everyone_is_assistant_clear_unmarks_group_and_all_assistants_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let first = ObjectGuid::create_player(1, 397);
+        let mut group = GroupInfo::new(leader);
+        group.add_member(first);
+        group.set_everyone_is_assistant_like_cpp(true);
+        let sequence_after_apply = group.sequence_num;
+
+        let (group_flags, db_store_id) = group.set_everyone_is_assistant_like_cpp(false);
+
+        assert_eq!(db_store_id, group.db_store_id);
+        assert_eq!(group_flags & GROUP_FLAG_EVERYONE_ASSISTANT_LIKE_CPP, 0);
+        for guid in [leader, first] {
+            assert_eq!(
+                group.member_slot_like_cpp(guid).unwrap().flags & MEMBER_FLAG_ASSISTANT_LIKE_CPP,
+                0
+            );
+        }
+        assert_eq!(group.sequence_num, sequence_after_apply + 1);
+    }
+
+    #[test]
+    fn everyone_is_assistant_works_in_non_raid_group_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let member = ObjectGuid::create_player(1, 398);
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+        assert!(!group.is_raid_group());
+
+        group.set_everyone_is_assistant_like_cpp(true);
+
+        assert_eq!(
+            group.group_flags & GROUP_FLAG_EVERYONE_ASSISTANT_LIKE_CPP,
+            GROUP_FLAG_EVERYONE_ASSISTANT_LIKE_CPP
+        );
+        assert_eq!(
+            group.member_slot_like_cpp(member).unwrap().flags & MEMBER_FLAG_ASSISTANT_LIKE_CPP,
+            MEMBER_FLAG_ASSISTANT_LIKE_CPP
+        );
+    }
+
+    #[test]
+    fn everyone_is_assistant_idempotent_returns_final_flags_without_sequence_bump_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let member = ObjectGuid::create_player(1, 399);
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+
+        let (first_flags, first_db_store_id) = group.set_everyone_is_assistant_like_cpp(true);
+        let sequence_after_apply = group.sequence_num;
+        let (second_flags, second_db_store_id) = group.set_everyone_is_assistant_like_cpp(true);
+
+        assert_eq!(second_flags, first_flags);
+        assert_eq!(second_db_store_id, first_db_store_id);
+        assert_eq!(group.sequence_num, sequence_after_apply);
     }
 
     #[test]

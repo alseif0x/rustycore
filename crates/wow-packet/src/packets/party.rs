@@ -104,6 +104,33 @@ impl ClientPacket for SetAssistantLeader {
     }
 }
 
+// ── SetEveryoneIsAssistant (CMSG_SET_EVERYONE_IS_ASSISTANT) ─────────────────────────
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SetEveryoneIsAssistant {
+    pub everyone_is_assistant: bool,
+    pub party_index: Option<u8>,
+}
+
+impl ClientPacket for SetEveryoneIsAssistant {
+    const OPCODE: ClientOpcodes = ClientOpcodes::SetEveryoneIsAssistant;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let has_party_index = pkt.read_bit()?;
+        let everyone_is_assistant = pkt.read_bit()?;
+        let party_index = if has_party_index {
+            Some(pkt.read_uint8()?)
+        } else {
+            None
+        };
+
+        Ok(Self {
+            everyone_is_assistant,
+            party_index,
+        })
+    }
+}
+
 // ── SwapSubGroups (CMSG_SWAP_SUB_GROUPS) ─────────────────────────
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -499,7 +526,7 @@ impl ServerPacket for PartyMemberFullState {
 mod tests {
     use super::{
         ChangeSubGroup, ConvertRaid, OptOutOfLoot, PartyMemberPhase, PartyMemberPhaseStates,
-        SetAssistantLeader, SetLootMethod, SwapSubGroups,
+        SetAssistantLeader, SetEveryoneIsAssistant, SetLootMethod, SwapSubGroups,
     };
     use crate::{ClientPacket, WorldPacket};
     use wow_core::ObjectGuid;
@@ -596,6 +623,34 @@ mod tests {
         assert_eq!(set_assistant.target, target);
         assert!(!set_assistant.apply);
         assert_eq!(set_assistant.party_index, None);
+    }
+
+    #[test]
+    fn set_everyone_is_assistant_reads_cpp_has_party_apply_party_index_order() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(true);
+        pkt.write_bit(true);
+        pkt.write_uint8(0);
+        pkt.reset_read();
+
+        let set_everyone = SetEveryoneIsAssistant::read(&mut pkt).unwrap();
+
+        assert!(set_everyone.everyone_is_assistant);
+        assert_eq!(set_everyone.party_index, Some(0));
+    }
+
+    #[test]
+    fn set_everyone_is_assistant_reads_cpp_optional_none_bit_before_apply() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(false);
+        pkt.write_bit(false);
+        pkt.flush_bits();
+        pkt.reset_read();
+
+        let set_everyone = SetEveryoneIsAssistant::read(&mut pkt).unwrap();
+
+        assert!(!set_everyone.everyone_is_assistant);
+        assert_eq!(set_everyone.party_index, None);
     }
 
     #[test]

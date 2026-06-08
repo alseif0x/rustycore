@@ -16558,6 +16558,9 @@ impl WorldSession {
             ClientOpcodes::SetAssistantLeader => {
                 self.handle_set_assistant_leader(pkt).await;
             }
+            ClientOpcodes::SetEveryoneIsAssistant => {
+                self.handle_set_everyone_is_assistant(pkt).await;
+            }
             ClientOpcodes::OptOutOfLoot => {
                 self.handle_opt_out_of_loot(pkt).await;
             }
