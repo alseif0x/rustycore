@@ -423,6 +423,52 @@ impl GroupInfo {
         Some([(first, second_subgroup), (second, first_subgroup)])
     }
 
+    pub fn set_group_member_flag_like_cpp(
+        &mut self,
+        guid: ObjectGuid,
+        apply: bool,
+        flag: u8,
+    ) -> Option<u8> {
+        if !self.is_raid_group() {
+            return None;
+        }
+
+        let slot_index = self
+            .member_slots
+            .iter()
+            .position(|slot| slot.guid == guid)?;
+        match flag {
+            // C++ `Group::SetGroupMemberFlag` applies no uniqueness rule for
+            // MEMBER_FLAG_ASSISTANT. Main-assist/main-tank uniqueness is outside
+            // this represented slice.
+            MEMBER_FLAG_ASSISTANT_LIKE_CPP => {}
+            _ => return None,
+        }
+
+        let previous_flags = self.member_slots[slot_index].flags;
+        if apply {
+            self.member_slots[slot_index].flags |= flag;
+        } else {
+            self.member_slots[slot_index].flags &= !flag;
+        }
+        let final_flags = self.member_slots[slot_index].flags;
+        if final_flags != previous_flags {
+            self.sequence_num += 1;
+        }
+        // C++ still persists and broadcasts after ToggleGroupMemberFlag even
+        // when the requested bit was already in the desired state. Rust returns
+        // the final flags so callers can perform those side effects.
+        Some(final_flags)
+    }
+
+    pub fn set_assistant_leader_flag_like_cpp(
+        &mut self,
+        guid: ObjectGuid,
+        apply: bool,
+    ) -> Option<u8> {
+        self.set_group_member_flag_like_cpp(guid, apply, MEMBER_FLAG_ASSISTANT_LIKE_CPP)
+    }
+
     pub fn change_member_group_like_cpp(&mut self, guid: ObjectGuid, subgroup: u8) -> bool {
         if !self.is_raid_group() {
             return false;
@@ -1005,6 +1051,85 @@ mod tests {
         ));
         assert!(group.members.is_empty());
         assert!(group.member_slots.is_empty());
+    }
+
+    #[test]
+    fn group_member_flag_toggles_assistant_in_raid_without_uniqueness_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let first = ObjectGuid::create_player(1, 390);
+        let second = ObjectGuid::create_player(1, 391);
+        let mut group = GroupInfo::new(leader);
+        group.add_member(first);
+        group.add_member(second);
+        group.convert_to_raid_like_cpp();
+        let sequence_before = group.sequence_num;
+
+        assert_eq!(
+            group.set_assistant_leader_flag_like_cpp(first, true),
+            Some(MEMBER_FLAG_ASSISTANT_LIKE_CPP)
+        );
+        assert_eq!(
+            group.set_assistant_leader_flag_like_cpp(second, true),
+            Some(MEMBER_FLAG_ASSISTANT_LIKE_CPP)
+        );
+        assert_eq!(
+            group.member_slot_like_cpp(first).unwrap().flags & MEMBER_FLAG_ASSISTANT_LIKE_CPP,
+            MEMBER_FLAG_ASSISTANT_LIKE_CPP
+        );
+        assert_eq!(
+            group.member_slot_like_cpp(second).unwrap().flags & MEMBER_FLAG_ASSISTANT_LIKE_CPP,
+            MEMBER_FLAG_ASSISTANT_LIKE_CPP
+        );
+        assert_eq!(group.sequence_num, sequence_before + 2);
+
+        assert_eq!(
+            group.set_assistant_leader_flag_like_cpp(first, false),
+            Some(0)
+        );
+        assert_eq!(group.member_slot_like_cpp(first).unwrap().flags, 0);
+    }
+
+    #[test]
+    fn group_member_flag_returns_final_flags_even_when_unchanged_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let member = ObjectGuid::create_player(1, 392);
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+        group.convert_to_raid_like_cpp();
+
+        assert_eq!(
+            group.set_assistant_leader_flag_like_cpp(member, true),
+            Some(MEMBER_FLAG_ASSISTANT_LIKE_CPP)
+        );
+        let sequence_after_change = group.sequence_num;
+        assert_eq!(
+            group.set_assistant_leader_flag_like_cpp(member, true),
+            Some(MEMBER_FLAG_ASSISTANT_LIKE_CPP)
+        );
+        assert_eq!(group.sequence_num, sequence_after_change);
+    }
+
+    #[test]
+    fn group_member_flag_rejects_non_raid_missing_or_unsupported_flag_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let member = ObjectGuid::create_player(1, 393);
+        let missing = ObjectGuid::create_player(1, 394);
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+        let sequence_before = group.sequence_num;
+
+        assert_eq!(group.set_assistant_leader_flag_like_cpp(member, true), None);
+        group.convert_to_raid_like_cpp();
+        assert_eq!(
+            group.set_assistant_leader_flag_like_cpp(missing, true),
+            None
+        );
+        assert_eq!(
+            group.set_group_member_flag_like_cpp(member, true, 0x02),
+            None
+        );
+        assert_eq!(group.member_slot_like_cpp(member).unwrap().flags, 0);
+        assert_eq!(group.sequence_num, sequence_before + 1);
     }
 
     #[test]

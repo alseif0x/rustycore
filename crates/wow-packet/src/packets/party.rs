@@ -74,6 +74,36 @@ impl ClientPacket for ChangeSubGroup {
     }
 }
 
+// ── SetAssistantLeader (CMSG_SET_ASSISTANT_LEADER) ─────────────────────────
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SetAssistantLeader {
+    pub target: ObjectGuid,
+    pub apply: bool,
+    pub party_index: Option<u8>,
+}
+
+impl ClientPacket for SetAssistantLeader {
+    const OPCODE: ClientOpcodes = ClientOpcodes::SetAssistantLeader;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let has_party_index = pkt.read_bit()?;
+        let apply = pkt.read_bit()?;
+        let target = pkt.read_packed_guid()?;
+        let party_index = if has_party_index {
+            Some(pkt.read_uint8()?)
+        } else {
+            None
+        };
+
+        Ok(Self {
+            target,
+            apply,
+            party_index,
+        })
+    }
+}
+
 // ── SwapSubGroups (CMSG_SWAP_SUB_GROUPS) ─────────────────────────
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -469,7 +499,7 @@ impl ServerPacket for PartyMemberFullState {
 mod tests {
     use super::{
         ChangeSubGroup, ConvertRaid, OptOutOfLoot, PartyMemberPhase, PartyMemberPhaseStates,
-        SetLootMethod, SwapSubGroups,
+        SetAssistantLeader, SetLootMethod, SwapSubGroups,
     };
     use crate::{ClientPacket, WorldPacket};
     use wow_core::ObjectGuid;
@@ -532,6 +562,40 @@ mod tests {
         assert_eq!(change.target_guid, target);
         assert_eq!(change.new_subgroup, 6);
         assert_eq!(change.party_index, Some(0));
+    }
+
+    #[test]
+    fn set_assistant_leader_reads_cpp_has_party_apply_guid_party_index_order() {
+        let target = ObjectGuid::create_player(1, 77);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(true);
+        pkt.write_bit(true);
+        pkt.write_packed_guid(&target);
+        pkt.write_uint8(0);
+        pkt.reset_read();
+
+        let set_assistant = SetAssistantLeader::read(&mut pkt).unwrap();
+
+        assert_eq!(set_assistant.target, target);
+        assert!(set_assistant.apply);
+        assert_eq!(set_assistant.party_index, Some(0));
+    }
+
+    #[test]
+    fn set_assistant_leader_reads_cpp_optional_none_bit_before_apply() {
+        let target = ObjectGuid::create_player(1, 78);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(false);
+        pkt.write_bit(false);
+        pkt.write_packed_guid(&target);
+        pkt.flush_bits();
+        pkt.reset_read();
+
+        let set_assistant = SetAssistantLeader::read(&mut pkt).unwrap();
+
+        assert_eq!(set_assistant.target, target);
+        assert!(!set_assistant.apply);
+        assert_eq!(set_assistant.party_index, None);
     }
 
     #[test]

@@ -118,6 +118,8 @@ pub enum CharStatements {
     INS_GROUP_MEMBER,
     /// UPDATE group_member SET subgroup = ? WHERE memberGuid = ?
     UPD_GROUP_MEMBER_SUBGROUP,
+    /// UPDATE group_member SET memberFlags = ? WHERE memberGuid = ?
+    UPD_GROUP_MEMBER_FLAG,
     /// DELETE FROM group_member WHERE memberGuid = ?
     DEL_GROUP_MEMBER,
     /// DELETE FROM `groups` WHERE guid = ?
@@ -432,6 +434,9 @@ impl StatementDef for CharStatements {
             }
             Self::UPD_GROUP_MEMBER_SUBGROUP => {
                 "UPDATE group_member SET subgroup = ? WHERE memberGuid = ?"
+            }
+            Self::UPD_GROUP_MEMBER_FLAG => {
+                "UPDATE group_member SET memberFlags = ? WHERE memberGuid = ?"
             }
             Self::DEL_GROUP_MEMBER => "DELETE FROM group_member WHERE memberGuid = ?",
             Self::DEL_GROUP => "DELETE FROM `groups` WHERE guid = ?",
@@ -799,6 +804,21 @@ mod tests {
         );
         assert_eq!(
             CharStatements::UPD_GROUP_MEMBER_SUBGROUP
+                .sql()
+                .matches('?')
+                .count(),
+            2
+        );
+    }
+
+    #[test]
+    fn group_member_flag_update_statement_matches_cpp_exactly() {
+        assert_eq!(
+            CharStatements::UPD_GROUP_MEMBER_FLAG.sql(),
+            "UPDATE group_member SET memberFlags = ? WHERE memberGuid = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_GROUP_MEMBER_FLAG
                 .sql()
                 .matches('?')
                 .count(),
