@@ -164,6 +164,55 @@ impl ClientPacket for SetPartyAssignment {
     }
 }
 
+// ── Role poll / LFG roles (CMSG_SET_ROLE / CMSG_INITIATE_ROLE_POLL) ───────────
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SetRole {
+    pub target_guid: ObjectGuid,
+    pub role: u8,
+    pub party_index: Option<u8>,
+}
+
+impl ClientPacket for SetRole {
+    const OPCODE: ClientOpcodes = ClientOpcodes::SetRole;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let has_party_index = pkt.read_bit()?;
+        let target_guid = pkt.read_packed_guid()?;
+        let role = pkt.read_uint8()?;
+        let party_index = if has_party_index {
+            Some(pkt.read_uint8()?)
+        } else {
+            None
+        };
+
+        Ok(Self {
+            target_guid,
+            role,
+            party_index,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InitiateRolePoll {
+    pub party_index: Option<u8>,
+}
+
+impl ClientPacket for InitiateRolePoll {
+    const OPCODE: ClientOpcodes = ClientOpcodes::InitiateRolePoll;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let party_index = if pkt.read_bit()? {
+            Some(pkt.read_uint8()?)
+        } else {
+            None
+        };
+
+        Ok(Self { party_index })
+    }
+}
+
 // ── ReadyCheck (CMSG_DO_READY_CHECK / CMSG_READY_CHECK_RESPONSE) ──────────────
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -486,6 +535,42 @@ impl ServerPacket for ReadyCheckCompleted {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RoleChangedInform {
+    pub party_index: u8,
+    pub from: ObjectGuid,
+    pub changed_unit: ObjectGuid,
+    pub old_role: u8,
+    pub new_role: u8,
+}
+
+impl ServerPacket for RoleChangedInform {
+    const OPCODE: ServerOpcodes = ServerOpcodes::RoleChangedInform;
+
+    fn write(&self, w: &mut WorldPacket) {
+        w.write_uint8(self.party_index);
+        w.write_packed_guid(&self.from);
+        w.write_packed_guid(&self.changed_unit);
+        w.write_uint8(self.old_role);
+        w.write_uint8(self.new_role);
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RolePollInform {
+    pub party_index: i8,
+    pub from: ObjectGuid,
+}
+
+impl ServerPacket for RolePollInform {
+    const OPCODE: ServerOpcodes = ServerOpcodes::RolePollInform;
+
+    fn write(&self, w: &mut WorldPacket) {
+        w.write_int8(self.party_index);
+        w.write_packed_guid(&self.from);
+    }
+}
+
 pub struct PartyDifficultySettings {
     pub dungeon_difficulty_id: u32,
     pub raid_difficulty_id: u32,
@@ -655,10 +740,11 @@ impl ServerPacket for PartyMemberFullState {
 #[cfg(test)]
 mod tests {
     use super::{
-        ChangeSubGroup, ConvertRaid, DoReadyCheck, OptOutOfLoot, PartyMemberPhase,
-        PartyMemberPhaseStates, ReadyCheckCompleted, ReadyCheckResponse, ReadyCheckResponseClient,
-        ReadyCheckStarted, SetAssistantLeader, SetEveryoneIsAssistant, SetLootMethod,
-        SetPartyAssignment, SwapSubGroups,
+        ChangeSubGroup, ConvertRaid, DoReadyCheck, InitiateRolePoll, OptOutOfLoot,
+        PartyMemberPhase, PartyMemberPhaseStates, ReadyCheckCompleted, ReadyCheckResponse,
+        ReadyCheckResponseClient, ReadyCheckStarted, RoleChangedInform, RolePollInform,
+        SetAssistantLeader, SetEveryoneIsAssistant, SetLootMethod, SetPartyAssignment, SetRole,
+        SwapSubGroups,
     };
     use crate::{ClientPacket, ServerPacket, WorldPacket};
     use wow_core::ObjectGuid;
@@ -821,6 +907,101 @@ mod tests {
         assert_eq!(assignment.target, target);
         assert!(!assignment.apply);
         assert_eq!(assignment.party_index, None);
+    }
+
+    #[test]
+    fn set_role_reads_cpp_has_party_guid_role_party_index_order() {
+        let target = ObjectGuid::create_player(1, 77);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(true);
+        pkt.write_packed_guid(&target);
+        pkt.write_uint8(4);
+        pkt.write_uint8(0);
+        pkt.reset_read();
+
+        let set_role = SetRole::read(&mut pkt).unwrap();
+
+        assert_eq!(set_role.target_guid, target);
+        assert_eq!(set_role.role, 4);
+        assert_eq!(set_role.party_index, Some(0));
+    }
+
+    #[test]
+    fn set_role_reads_cpp_optional_none_before_guid_role() {
+        let target = ObjectGuid::create_player(1, 78);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(false);
+        pkt.write_packed_guid(&target);
+        pkt.write_uint8(2);
+        pkt.flush_bits();
+        pkt.reset_read();
+
+        let set_role = SetRole::read(&mut pkt).unwrap();
+
+        assert_eq!(set_role.target_guid, target);
+        assert_eq!(set_role.role, 2);
+        assert_eq!(set_role.party_index, None);
+    }
+
+    #[test]
+    fn role_changed_inform_writes_cpp_party_from_changed_old_new_order() {
+        let from = ObjectGuid::create_player(1, 42);
+        let changed = ObjectGuid::create_player(1, 43);
+        let mut pkt = WorldPacket::new_empty();
+        RoleChangedInform {
+            party_index: 0,
+            from,
+            changed_unit: changed,
+            old_role: 1,
+            new_role: 4,
+        }
+        .write(&mut pkt);
+        pkt.reset_read();
+
+        assert_eq!(pkt.read_uint8().unwrap(), 0);
+        assert_eq!(pkt.read_packed_guid().unwrap(), from);
+        assert_eq!(pkt.read_packed_guid().unwrap(), changed);
+        assert_eq!(pkt.read_uint8().unwrap(), 1);
+        assert_eq!(pkt.read_uint8().unwrap(), 4);
+    }
+
+    #[test]
+    fn role_poll_reads_cpp_optional_party_index() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(true);
+        pkt.write_uint8(0);
+        pkt.reset_read();
+
+        let role_poll = InitiateRolePoll::read(&mut pkt).unwrap();
+
+        assert_eq!(role_poll.party_index, Some(0));
+    }
+
+    #[test]
+    fn role_poll_reads_cpp_absent_party_index() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(false);
+        pkt.flush_bits();
+        pkt.reset_read();
+
+        let role_poll = InitiateRolePoll::read(&mut pkt).unwrap();
+
+        assert_eq!(role_poll.party_index, None);
+    }
+
+    #[test]
+    fn role_poll_inform_writes_cpp_party_index_then_from() {
+        let from = ObjectGuid::create_player(1, 42);
+        let mut pkt = WorldPacket::new_empty();
+        RolePollInform {
+            party_index: 0,
+            from,
+        }
+        .write(&mut pkt);
+        pkt.reset_read();
+
+        assert_eq!(pkt.read_int8().unwrap(), 0);
+        assert_eq!(pkt.read_packed_guid().unwrap(), from);
     }
 
     #[test]

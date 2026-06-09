@@ -17,11 +17,12 @@ use wow_network::{
     register_group_db_store_id_like_cpp,
 };
 use wow_packet::packets::party::{
-    DoReadyCheck, GroupDecline, GroupDestroyed, GroupUninvite, OptOutOfLoot, PartyCommandResult,
-    PartyDifficultySettings, PartyInviteServer, PartyLootSettings, PartyMemberFullState,
-    PartyPlayerInfo, PartyUpdate, ReadyCheckCompleted, ReadyCheckResponse,
-    ReadyCheckResponseClient, ReadyCheckStarted, SetAssistantLeader, SetEveryoneIsAssistant,
-    SetLootMethod, SetPartyAssignment, party_result,
+    DoReadyCheck, GroupDecline, GroupDestroyed, GroupUninvite, InitiateRolePoll, OptOutOfLoot,
+    PartyCommandResult, PartyDifficultySettings, PartyInviteServer, PartyLootSettings,
+    PartyMemberFullState, PartyPlayerInfo, PartyUpdate, ReadyCheckCompleted, ReadyCheckResponse,
+    ReadyCheckResponseClient, ReadyCheckStarted, RoleChangedInform, RolePollInform,
+    SetAssistantLeader, SetEveryoneIsAssistant, SetLootMethod, SetPartyAssignment, SetRole,
+    party_result,
 };
 use wow_packet::{ClientPacket, ServerPacket};
 
@@ -118,6 +119,24 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_party_assignment",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::SetRole,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_set_role",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::InitiateRolePoll,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_initiate_role_poll",
     }
 }
 
@@ -348,6 +367,44 @@ fn send_ready_check_events_like_cpp(
             let _ = tx.send(bytes.clone());
         }
     }
+}
+
+fn connected_group_member_txs_like_cpp(
+    group: &GroupInfo,
+    registry: &PlayerRegistry,
+) -> Vec<flume::Sender<Vec<u8>>> {
+    group
+        .members
+        .iter()
+        .filter_map(|guid| registry.get(guid).map(|entry| entry.send_tx.clone()))
+        .collect()
+}
+
+fn send_group_packet_bytes_like_cpp(bytes: Vec<u8>, recipients: &[flume::Sender<Vec<u8>>]) {
+    for tx in recipients {
+        let _ = tx.send(bytes.clone());
+    }
+}
+
+fn role_changed_inform_like_cpp(
+    party_index: u8,
+    from: ObjectGuid,
+    changed_unit: ObjectGuid,
+    old_role: u8,
+    new_role: u8,
+) -> Vec<u8> {
+    RoleChangedInform {
+        party_index,
+        from,
+        changed_unit,
+        old_role,
+        new_role,
+    }
+    .to_bytes()
+}
+
+fn role_poll_inform_like_cpp(party_index: i8, from: ObjectGuid) -> Vec<u8> {
+    RolePollInform { party_index, from }.to_bytes()
 }
 
 fn queue_visible_gameobjects_or_spellclicks_refresh_like_cpp(
@@ -1534,6 +1591,166 @@ impl WorldSession {
         }
     }
 
+    /// CMSG_SET_ROLE.
+    ///
+    /// C++ resolves `GetPlayer()->GetGroup(packet.PartyIndex)`, compares the
+    /// target's current in-memory LFG roles, broadcasts `RoleChangedInform` to
+    /// the group before `SetLfgRoles`, or sends only to the caller when no group
+    /// exists. Rust represents PartyIndex as the current `GroupRegistry` group
+    /// boundary and keeps `GroupInfo.member_slots.roles` as the in-memory role
+    /// source of truth without DB persistence.
+    pub async fn handle_set_role(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let set_role = match SetRole::read(&mut pkt) {
+            Ok(set_role) => set_role,
+            Err(e) => {
+                warn!("Bad SetRole: {e}");
+                return;
+            }
+        };
+        let _represented_party_index_boundary = set_role.party_index;
+
+        let sender_guid = match self.player_guid() {
+            Some(guid) => guid,
+            None => return,
+        };
+        let group_reg = match self.group_registry() {
+            Some(registry) => std::sync::Arc::clone(registry),
+            None => {
+                if set_role.role == 0 {
+                    return;
+                }
+                self.send_packet(&RoleChangedInform {
+                    party_index: 0,
+                    from: sender_guid,
+                    changed_unit: set_role.target_guid,
+                    old_role: 0,
+                    new_role: set_role.role,
+                });
+                return;
+            }
+        };
+
+        let group_guid = self.group_guid.or_else(|| {
+            group_reg
+                .iter()
+                .find(|entry| entry.value().members.contains(&sender_guid))
+                .map(|entry| *entry.key())
+        });
+
+        let Some(group_guid) = group_guid else {
+            if set_role.role == 0 {
+                return;
+            }
+            self.send_packet(&RoleChangedInform {
+                party_index: 0,
+                from: sender_guid,
+                changed_unit: set_role.target_guid,
+                old_role: 0,
+                new_role: set_role.role,
+            });
+            return;
+        };
+
+        let registry = self.player_registry().map(std::sync::Arc::clone);
+        let Some((bytes, recipients)) = group_reg.get(&group_guid).and_then(|group| {
+            let old_role = group.get_lfg_roles_like_cpp(set_role.target_guid);
+            if old_role == set_role.role {
+                return None;
+            }
+            let recipients = registry
+                .as_ref()
+                .map(|registry| connected_group_member_txs_like_cpp(&group, registry))
+                .unwrap_or_default();
+            Some((
+                role_changed_inform_like_cpp(
+                    0,
+                    sender_guid,
+                    set_role.target_guid,
+                    old_role,
+                    set_role.role,
+                ),
+                recipients,
+            ))
+        }) else {
+            return;
+        };
+
+        // C++ broadcasts RoleChangedInform, then Group::SetLfgRoles mutates an
+        // existing member slot and calls SendUpdate(). Keep both fanouts outside
+        // the mutable guard and only send PartyUpdate when the slot existed.
+        send_group_packet_bytes_like_cpp(bytes, &recipients);
+
+        let lfg_roles_mutated_existing_target = group_reg
+            .get_mut(&group_guid)
+            .map(|mut group| group.set_lfg_roles_like_cpp(set_role.target_guid, set_role.role))
+            .unwrap_or(false);
+
+        if lfg_roles_mutated_existing_target {
+            if let Some(registry) = registry.as_ref() {
+                let vra = self.virtual_realm_address();
+                if let Some(group) = group_reg.get(&group_guid) {
+                    send_party_update(&group, registry, vra);
+                }
+            }
+        }
+    }
+
+    /// CMSG_INITIATE_ROLE_POLL.
+    ///
+    /// C++ resolves the current group, returns when sender is neither leader nor
+    /// assistant, and broadcasts `RolePollInform` to the group with no state
+    /// mutation. Rust keeps the same represented current-group boundary and uses
+    /// connected PlayerRegistry recipients instead of full ObjectAccessor/sWorld.
+    pub async fn handle_initiate_role_poll(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let role_poll = match InitiateRolePoll::read(&mut pkt) {
+            Ok(role_poll) => role_poll,
+            Err(e) => {
+                warn!("Bad InitiateRolePoll: {e}");
+                return;
+            }
+        };
+        let _represented_party_index_boundary = role_poll.party_index;
+
+        let sender_guid = match self.player_guid() {
+            Some(guid) => guid,
+            None => return,
+        };
+        let group_reg = match self.group_registry() {
+            Some(registry) => std::sync::Arc::clone(registry),
+            None => return,
+        };
+        let registry = match self.player_registry() {
+            Some(registry) => std::sync::Arc::clone(registry),
+            None => return,
+        };
+
+        let group_guid = match self.group_guid {
+            Some(group_guid) => group_guid,
+            None => match group_reg
+                .iter()
+                .find(|entry| entry.value().members.contains(&sender_guid))
+                .map(|entry| *entry.key())
+            {
+                Some(group_guid) => group_guid,
+                None => return,
+            },
+        };
+
+        let Some((bytes, recipients)) = group_reg.get(&group_guid).and_then(|group| {
+            if !sender_can_start_ready_check_like_cpp(&group, sender_guid) {
+                return None;
+            }
+            Some((
+                role_poll_inform_like_cpp(0, sender_guid),
+                connected_group_member_txs_like_cpp(&group, &registry),
+            ))
+        }) else {
+            return;
+        };
+
+        send_group_packet_bytes_like_cpp(bytes, &recipients);
+    }
+
     /// CMSG_SET_LOOT_METHOD.
     ///
     /// This Trinity branch parses the packet but has the entire mutation block
@@ -1758,6 +1975,32 @@ mod tests {
         pkt.write_bit(apply);
         pkt.write_uint8(assignment);
         pkt.write_packed_guid(&target);
+        if let Some(party_index) = party_index {
+            pkt.write_uint8(party_index);
+        } else {
+            pkt.flush_bits();
+        }
+        pkt.reset_read();
+        pkt
+    }
+
+    fn set_role_packet(target: ObjectGuid, role: u8, party_index: Option<u8>) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(party_index.is_some());
+        pkt.write_packed_guid(&target);
+        pkt.write_uint8(role);
+        if let Some(party_index) = party_index {
+            pkt.write_uint8(party_index);
+        } else {
+            pkt.flush_bits();
+        }
+        pkt.reset_read();
+        pkt
+    }
+
+    fn initiate_role_poll_packet(party_index: Option<u8>) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(party_index.is_some());
         if let Some(party_index) = party_index {
             pkt.write_uint8(party_index);
         } else {
@@ -2141,6 +2384,250 @@ mod tests {
         assert_eq!(info.flags, 0x04);
         assert_eq!(info.roles_assigned, 2);
         assert_eq!(info.faction_group, 2);
+    }
+
+    #[tokio::test]
+    async fn set_role_without_group_sends_only_caller_and_idempotent_zero_returns_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send();
+        let sender = ObjectGuid::create_player(1, 42);
+        let target = ObjectGuid::create_player(1, 43);
+        session.set_player_guid(Some(sender));
+
+        session
+            .handle_set_role(set_role_packet(target, 0, None))
+            .await;
+        assert!(send_rx.try_recv().is_err());
+
+        session
+            .handle_set_role(set_role_packet(target, 4, Some(0)))
+            .await;
+
+        let sent = send_rx.try_recv().expect("caller role changed inform");
+        let mut pkt = WorldPacket::from_bytes(&sent);
+        assert_eq!(
+            pkt.read_uint16().unwrap(),
+            ServerOpcodes::RoleChangedInform as u16
+        );
+        assert_eq!(pkt.read_uint8().unwrap(), 0);
+        assert_eq!(pkt.read_packed_guid().unwrap(), sender);
+        assert_eq!(pkt.read_packed_guid().unwrap(), target);
+        assert_eq!(pkt.read_uint8().unwrap(), 0);
+        assert_eq!(pkt.read_uint8().unwrap(), 4);
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn set_role_group_broadcasts_old_new_and_updates_existing_target_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send();
+        let leader = ObjectGuid::create_player(1, 42);
+        let member = ObjectGuid::create_player(1, 43);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+        group.set_lfg_roles_like_cpp(member, 1);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (leader_tx, leader_rx) = bounded(8);
+        let (member_tx, member_rx) = bounded(8);
+        player_registry.insert(leader, broadcast_info(leader, leader_tx));
+        player_registry.insert(member, broadcast_info(member, member_tx));
+
+        session.set_player_guid(Some(leader));
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(player_registry);
+        session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
+
+        session
+            .handle_set_role(set_role_packet(member, 4, None))
+            .await;
+
+        let leader_sent = leader_rx.try_recv().expect("leader fanout");
+        let member_sent = member_rx.try_recv().expect("member fanout");
+        assert_eq!(leader_sent, member_sent);
+        let mut pkt = WorldPacket::from_bytes(&leader_sent);
+        assert_eq!(
+            pkt.read_uint16().unwrap(),
+            ServerOpcodes::RoleChangedInform as u16
+        );
+        assert_eq!(pkt.read_uint8().unwrap(), 0);
+        assert_eq!(pkt.read_packed_guid().unwrap(), leader);
+        assert_eq!(pkt.read_packed_guid().unwrap(), member);
+        assert_eq!(pkt.read_uint8().unwrap(), 1);
+        assert_eq!(pkt.read_uint8().unwrap(), 4);
+
+        let leader_update = leader_rx
+            .try_recv()
+            .expect("leader PartyUpdate after SetLfgRoles");
+        let member_update = member_rx
+            .try_recv()
+            .expect("member PartyUpdate after SetLfgRoles");
+        let mut leader_update_pkt = WorldPacket::from_bytes(&leader_update);
+        let mut member_update_pkt = WorldPacket::from_bytes(&member_update);
+        assert_eq!(
+            leader_update_pkt.read_uint16().unwrap(),
+            ServerOpcodes::PartyUpdate as u16
+        );
+        assert_eq!(
+            member_update_pkt.read_uint16().unwrap(),
+            ServerOpcodes::PartyUpdate as u16
+        );
+        assert_eq!(
+            group_registry
+                .get(&group_guid)
+                .unwrap()
+                .get_lfg_roles_like_cpp(member),
+            4
+        );
+    }
+
+    #[tokio::test]
+    async fn set_role_group_old_equal_returns_without_packet_or_mutation_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send();
+        let leader = ObjectGuid::create_player(1, 42);
+        let member = ObjectGuid::create_player(1, 43);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+        group.set_lfg_roles_like_cpp(member, 2);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (member_tx, member_rx) = bounded(8);
+        player_registry.insert(member, broadcast_info(member, member_tx));
+
+        session.set_player_guid(Some(leader));
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(player_registry);
+        session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
+
+        session
+            .handle_set_role(set_role_packet(member, 2, None))
+            .await;
+
+        assert_eq!(
+            group_registry
+                .get(&group_guid)
+                .unwrap()
+                .get_lfg_roles_like_cpp(member),
+            2
+        );
+        assert!(member_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn set_role_absent_target_broadcasts_but_does_not_mutate_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send();
+        let leader = ObjectGuid::create_player(1, 42);
+        let absent = ObjectGuid::create_player(1, 99);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let group = GroupInfo::new(leader);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (leader_tx, leader_rx) = bounded(8);
+        player_registry.insert(leader, broadcast_info(leader, leader_tx));
+
+        session.set_player_guid(Some(leader));
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(player_registry);
+        session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
+
+        session
+            .handle_set_role(set_role_packet(absent, 4, None))
+            .await;
+
+        let sent = leader_rx.try_recv().expect("broadcast for absent target");
+        let mut pkt = WorldPacket::from_bytes(&sent);
+        assert_eq!(
+            pkt.read_uint16().unwrap(),
+            ServerOpcodes::RoleChangedInform as u16
+        );
+        assert_eq!(pkt.read_uint8().unwrap(), 0);
+        assert_eq!(pkt.read_packed_guid().unwrap(), leader);
+        assert_eq!(pkt.read_packed_guid().unwrap(), absent);
+        assert_eq!(pkt.read_uint8().unwrap(), 0);
+        assert_eq!(pkt.read_uint8().unwrap(), 4);
+        assert_eq!(
+            group_registry
+                .get(&group_guid)
+                .unwrap()
+                .get_lfg_roles_like_cpp(absent),
+            0
+        );
+        assert!(leader_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn initiate_role_poll_rejects_regular_member_without_fanout_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send();
+        let leader = ObjectGuid::create_player(1, 42);
+        let member = ObjectGuid::create_player(1, 43);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (leader_tx, leader_rx) = bounded(8);
+        player_registry.insert(leader, broadcast_info(leader, leader_tx));
+
+        session.set_player_guid(Some(member));
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(player_registry);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+
+        session
+            .handle_initiate_role_poll(initiate_role_poll_packet(None))
+            .await;
+
+        assert!(leader_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn initiate_role_poll_allows_leader_and_assistant_and_sends_connected_members_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send();
+        let leader = ObjectGuid::create_player(1, 42);
+        let assistant = ObjectGuid::create_player(1, 43);
+        let offline = ObjectGuid::create_player(1, 44);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.add_member(assistant);
+        group.add_member(offline);
+        group.convert_to_raid_like_cpp();
+        group
+            .set_assistant_leader_flag_like_cpp(assistant, true)
+            .unwrap();
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (leader_tx, leader_rx) = bounded(8);
+        let (assistant_tx, assistant_rx) = bounded(8);
+        player_registry.insert(leader, broadcast_info(leader, leader_tx));
+        player_registry.insert(assistant, broadcast_info(assistant, assistant_tx));
+
+        session.set_player_guid(Some(assistant));
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(player_registry);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+
+        session
+            .handle_initiate_role_poll(initiate_role_poll_packet(Some(0)))
+            .await;
+
+        let leader_sent = leader_rx.try_recv().expect("leader fanout");
+        let assistant_sent = assistant_rx.try_recv().expect("assistant fanout");
+        assert_eq!(leader_sent, assistant_sent);
+        let mut pkt = WorldPacket::from_bytes(&leader_sent);
+        assert_eq!(
+            pkt.read_uint16().unwrap(),
+            ServerOpcodes::RolePollInform as u16
+        );
+        assert_eq!(pkt.read_int8().unwrap(), 0);
+        assert_eq!(pkt.read_packed_guid().unwrap(), assistant);
+        assert!(leader_rx.try_recv().is_err());
+        assert!(assistant_rx.try_recv().is_err());
     }
 
     #[tokio::test]

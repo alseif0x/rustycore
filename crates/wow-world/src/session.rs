@@ -16564,6 +16564,12 @@ impl WorldSession {
             ClientOpcodes::SetPartyAssignment => {
                 self.handle_set_party_assignment(pkt).await;
             }
+            ClientOpcodes::SetRole => {
+                self.handle_set_role(pkt).await;
+            }
+            ClientOpcodes::InitiateRolePoll => {
+                self.handle_initiate_role_poll(pkt).await;
+            }
             ClientOpcodes::DoReadyCheck => {
                 self.handle_do_ready_check(pkt).await;
             }

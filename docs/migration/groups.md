@@ -3,7 +3,7 @@
 > **C++ canonical path:** `src/server/game/Groups/` + `src/server/game/Handlers/GroupHandler.cpp`
 > **Rust target crate(s):** `crates/wow-network/src/group_registry.rs`, `crates/wow-world/src/handlers/group.rs`, `crates/wow-packet/src/packets/party.rs`
 > **Layer:** L6
-> **Status:** ⚠️ partial — represented invite/accept/decline/leave plus bounded raid conversion, role flags, loot-method/options, assignments, and ready check; no full BG/BF/original-group category parity, no timeout tick, no markers/full DB persistence/manual-test-ready runtime
+> **Status:** ⚠️ partial — represented invite/accept/decline/leave plus bounded raid conversion, role flags, loot-method/options, assignments, ready check, role changes and role poll; no full BG/BF/original-group category parity, no timeout tick, no markers/full DB persistence/manual-test-ready runtime
 > **Audited vs C++:** ✅ complete
 > **Last updated:** 2026-05-01
 
@@ -483,6 +483,7 @@ DBC/DB2 stores read:
 <!-- REFINE.023:END known-divergences -->
 
 - **`READYCHECK_DURATION = 35000`ms** — non-negotiable client-side; do NOT shorten without UI also expecting it.
+- **`Group::SetLfgRoles` sends a group update only after mutating an existing member slot** — C++ `Group.cpp:1426-1434` returns before `SendUpdate()` for absent targets. Rust `CMSG_SET_ROLE` must still preserve the handler `RoleChangedInform` fanout for changed old/new roles, but only emit `PartyUpdate` after `set_lfg_roles_like_cpp` reports an existing-slot mutation. Current status: represented-partial; `PartyIndex` remains current-group only, fanout uses `GroupRegistry`/`PlayerRegistry`, and this is not manual-test-ready.
 - **Group HighGuid is `HighGuid::Party`** in 3.4.3 (later renamed Group). Distinct from `WowAccount` and `Player`. The wire packets compare GUIDs strictly, so use the right HighGuid.
 - **`GROUP_FLAG_FAKE_RAID`** — used for arenas / 5v5 BGs to make a 5-player party render as a "raid" in client UI; cannot be combined with real raid mechanics. Don't auto-enable.
 - **`SMSG_PARTY_UPDATE` size**: in retail (3.4.3) sub-groups, MainTank/MainAssist and ally-vs-enemy fields appear. The full packet is large; cache it instead of rebuilding per recipient.

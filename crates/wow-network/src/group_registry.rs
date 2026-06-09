@@ -412,6 +412,20 @@ impl GroupInfo {
             .unwrap_or(MISSING_MEMBER_GROUP_LIKE_CPP)
     }
 
+    pub fn get_lfg_roles_like_cpp(&self, guid: ObjectGuid) -> u8 {
+        self.member_slot_like_cpp(guid)
+            .map(|slot| slot.roles)
+            .unwrap_or_default()
+    }
+
+    pub fn set_lfg_roles_like_cpp(&mut self, guid: ObjectGuid, roles: u8) -> bool {
+        let Some(slot) = self.member_slots.iter_mut().find(|slot| slot.guid == guid) else {
+            return false;
+        };
+        slot.roles = roles;
+        true
+    }
+
     pub fn has_free_slot_sub_group_like_cpp(&self, subgroup: u8) -> bool {
         let Some(counts) = self.raid_subgroup_counts else {
             return false;
