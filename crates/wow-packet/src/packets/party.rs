@@ -131,6 +131,39 @@ impl ClientPacket for SetEveryoneIsAssistant {
     }
 }
 
+// ── SetPartyAssignment (CMSG_SET_PARTY_ASSIGNMENT) ─────────────────────────
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SetPartyAssignment {
+    pub assignment: u8,
+    pub party_index: Option<u8>,
+    pub target: ObjectGuid,
+    pub apply: bool,
+}
+
+impl ClientPacket for SetPartyAssignment {
+    const OPCODE: ClientOpcodes = ClientOpcodes::SetPartyAssignment;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let has_party_index = pkt.read_bit()?;
+        let apply = pkt.read_bit()?;
+        let assignment = pkt.read_uint8()?;
+        let target = pkt.read_packed_guid()?;
+        let party_index = if has_party_index {
+            Some(pkt.read_uint8()?)
+        } else {
+            None
+        };
+
+        Ok(Self {
+            assignment,
+            party_index,
+            target,
+            apply,
+        })
+    }
+}
+
 // ── SwapSubGroups (CMSG_SWAP_SUB_GROUPS) ─────────────────────────
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -526,7 +559,8 @@ impl ServerPacket for PartyMemberFullState {
 mod tests {
     use super::{
         ChangeSubGroup, ConvertRaid, OptOutOfLoot, PartyMemberPhase, PartyMemberPhaseStates,
-        SetAssistantLeader, SetEveryoneIsAssistant, SetLootMethod, SwapSubGroups,
+        SetAssistantLeader, SetEveryoneIsAssistant, SetLootMethod, SetPartyAssignment,
+        SwapSubGroups,
     };
     use crate::{ClientPacket, WorldPacket};
     use wow_core::ObjectGuid;
@@ -651,6 +685,44 @@ mod tests {
 
         assert!(!set_everyone.everyone_is_assistant);
         assert_eq!(set_everyone.party_index, None);
+    }
+
+    #[test]
+    fn set_party_assignment_reads_cpp_has_party_set_assignment_guid_party_index_order() {
+        let target = ObjectGuid::create_player(1, 77);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(true);
+        pkt.write_bit(true);
+        pkt.write_uint8(1);
+        pkt.write_packed_guid(&target);
+        pkt.write_uint8(0);
+        pkt.reset_read();
+
+        let assignment = SetPartyAssignment::read(&mut pkt).unwrap();
+
+        assert_eq!(assignment.assignment, 1);
+        assert_eq!(assignment.target, target);
+        assert!(assignment.apply);
+        assert_eq!(assignment.party_index, Some(0));
+    }
+
+    #[test]
+    fn set_party_assignment_reads_cpp_optional_none_bit_before_set() {
+        let target = ObjectGuid::create_player(1, 78);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(false);
+        pkt.write_bit(false);
+        pkt.write_uint8(0);
+        pkt.write_packed_guid(&target);
+        pkt.flush_bits();
+        pkt.reset_read();
+
+        let assignment = SetPartyAssignment::read(&mut pkt).unwrap();
+
+        assert_eq!(assignment.assignment, 0);
+        assert_eq!(assignment.target, target);
+        assert!(!assignment.apply);
+        assert_eq!(assignment.party_index, None);
     }
 
     #[test]

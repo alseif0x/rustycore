@@ -16561,6 +16561,9 @@ impl WorldSession {
             ClientOpcodes::SetEveryoneIsAssistant => {
                 self.handle_set_everyone_is_assistant(pkt).await;
             }
+            ClientOpcodes::SetPartyAssignment => {
+                self.handle_set_party_assignment(pkt).await;
+            }
             ClientOpcodes::OptOutOfLoot => {
                 self.handle_opt_out_of_loot(pkt).await;
             }

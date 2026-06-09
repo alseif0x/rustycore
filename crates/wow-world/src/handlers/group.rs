@@ -11,14 +11,15 @@ use wow_core::ObjectGuid;
 use wow_database::{CharStatements, PreparedStatement, StatementDef};
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
 use wow_network::{
-    GroupInfo, MEMBER_FLAG_ASSISTANT_LIKE_CPP, PlayerRegistry, free_group_db_store_id_like_cpp,
-    register_group_db_store_id_like_cpp,
+    GROUP_ASSIGN_MAINASSIST_LIKE_CPP, GROUP_ASSIGN_MAINTANK_LIKE_CPP, GroupInfo,
+    MEMBER_FLAG_ASSISTANT_LIKE_CPP, MEMBER_FLAG_MAINASSIST_LIKE_CPP, MEMBER_FLAG_MAINTANK_LIKE_CPP,
+    PlayerRegistry, free_group_db_store_id_like_cpp, register_group_db_store_id_like_cpp,
 };
 use wow_packet::packets::party::{
     GroupDecline, GroupDestroyed, GroupUninvite, OptOutOfLoot, PartyCommandResult,
     PartyDifficultySettings, PartyInviteServer, PartyLootSettings, PartyMemberFullState,
     PartyPlayerInfo, PartyUpdate, SetAssistantLeader, SetEveryoneIsAssistant, SetLootMethod,
-    party_result,
+    SetPartyAssignment, party_result,
 };
 use wow_packet::{ClientPacket, ServerPacket};
 
@@ -106,6 +107,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_everyone_is_assistant",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::SetPartyAssignment,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_set_party_assignment",
     }
 }
 
@@ -1213,6 +1223,108 @@ impl WorldSession {
         }
     }
 
+    /// CMSG_SET_PARTY_ASSIGNMENT.
+    ///
+    /// C++ resolves `GetPlayer()->GetGroup(packet.PartyIndex)`, requires leader
+    /// or raid assistant, maps `GROUP_ASSIGN_MAINTANK`/`GROUP_ASSIGN_MAINASSIST`
+    /// to the corresponding unique member flag, calls `RemoveUniqueGroupMemberFlag`
+    /// before attempting `SetGroupMemberFlag`, then calls `Group::SendUpdate`
+    /// after the switch. Rust keeps PartyIndex as a represented boundary over
+    /// the current `GroupRegistry` group; represented unique clears are live
+    /// in-memory only, and DB persistence is limited to the target row returned
+    /// by the C++-like `SetGroupMemberFlag` path before PartyUpdate fanout.
+    pub async fn handle_set_party_assignment(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let assignment = match SetPartyAssignment::read(&mut pkt) {
+            Ok(assignment) => assignment,
+            Err(e) => {
+                warn!("Bad SetPartyAssignment: {e}");
+                return;
+            }
+        };
+        let _represented_party_index_boundary = assignment.party_index;
+
+        let sender_guid = match self.player_guid() {
+            Some(guid) => guid,
+            None => return,
+        };
+        let group_reg = match self.group_registry() {
+            Some(registry) => std::sync::Arc::clone(registry),
+            None => return,
+        };
+        let registry = match self.player_registry() {
+            Some(registry) => std::sync::Arc::clone(registry),
+            None => return,
+        };
+        let vra = self.virtual_realm_address();
+
+        let group_guid = match self.group_guid {
+            Some(group_guid) => group_guid,
+            None => match group_reg
+                .iter()
+                .find(|entry| entry.value().members.contains(&sender_guid))
+                .map(|entry| *entry.key())
+            {
+                Some(group_guid) => group_guid,
+                None => return,
+            },
+        };
+
+        let persist_updates = {
+            let mut group = match group_reg.get_mut(&group_guid) {
+                Some(group) => group,
+                None => return,
+            };
+            let sender_is_assistant = group
+                .member_slot_like_cpp(sender_guid)
+                .is_some_and(|slot| (slot.flags & MEMBER_FLAG_ASSISTANT_LIKE_CPP) != 0);
+            if group.leader_guid != sender_guid && !sender_is_assistant {
+                return;
+            }
+
+            match assignment.assignment {
+                GROUP_ASSIGN_MAINASSIST_LIKE_CPP => {
+                    group.remove_unique_group_member_flag_like_cpp(MEMBER_FLAG_MAINASSIST_LIKE_CPP);
+                    group
+                        .set_group_member_flag_updates_like_cpp(
+                            assignment.target,
+                            assignment.apply,
+                            MEMBER_FLAG_MAINASSIST_LIKE_CPP,
+                        )
+                        .unwrap_or_default()
+                }
+                GROUP_ASSIGN_MAINTANK_LIKE_CPP => {
+                    group.remove_unique_group_member_flag_like_cpp(MEMBER_FLAG_MAINTANK_LIKE_CPP);
+                    group
+                        .set_group_member_flag_updates_like_cpp(
+                            assignment.target,
+                            assignment.apply,
+                            MEMBER_FLAG_MAINTANK_LIKE_CPP,
+                        )
+                        .unwrap_or_default()
+                }
+                _ => Vec::new(),
+            }
+        };
+
+        if let Some(char_db) = self.char_db().map(std::sync::Arc::clone) {
+            for (member_guid, final_flags) in persist_updates {
+                let stmt = group_member_flag_update_statement_like_cpp(member_guid, final_flags);
+                if let Err(error) = char_db.execute(&stmt).await {
+                    warn!(
+                        member_guid = member_guid.counter(),
+                        flags = final_flags,
+                        %error,
+                        "failed to persist represented party assignment member flag change"
+                    );
+                }
+            }
+        }
+
+        if let Some(group) = group_reg.get(&group_guid) {
+            send_party_update(&group, &registry, vra);
+        }
+    }
+
     /// CMSG_SET_LOOT_METHOD.
     ///
     /// This Trinity branch parses the packet but has the entire mutation block
@@ -1416,6 +1528,26 @@ mod tests {
         let mut pkt = WorldPacket::new_empty();
         pkt.write_bit(party_index.is_some());
         pkt.write_bit(everyone_is_assistant);
+        if let Some(party_index) = party_index {
+            pkt.write_uint8(party_index);
+        } else {
+            pkt.flush_bits();
+        }
+        pkt.reset_read();
+        pkt
+    }
+
+    fn set_party_assignment_packet(
+        assignment: u8,
+        target: ObjectGuid,
+        apply: bool,
+        party_index: Option<u8>,
+    ) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(party_index.is_some());
+        pkt.write_bit(apply);
+        pkt.write_uint8(assignment);
+        pkt.write_packed_guid(&target);
         if let Some(party_index) = party_index {
             pkt.write_uint8(party_index);
         } else {
@@ -1947,6 +2079,279 @@ mod tests {
                 .member_group_like_cpp(target),
             2
         );
+    }
+
+    #[tokio::test]
+    async fn set_party_assignment_leader_sets_main_tank_and_fans_out_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send();
+        let leader = ObjectGuid::create_player(1, 42);
+        let member = ObjectGuid::create_player(1, 43);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+        group.convert_to_raid_like_cpp();
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (leader_tx, leader_rx) = bounded(8);
+        let (member_tx, member_rx) = bounded(8);
+        player_registry.insert(leader, broadcast_info(leader, leader_tx));
+        player_registry.insert(member, broadcast_info(member, member_tx));
+
+        session.set_player_guid(Some(leader));
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(Arc::clone(&player_registry));
+        session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
+
+        session
+            .handle_set_party_assignment(set_party_assignment_packet(
+                wow_network::GROUP_ASSIGN_MAINTANK_LIKE_CPP,
+                member,
+                true,
+                Some(0),
+            ))
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+        assert_eq!(
+            group_registry
+                .get(&group_guid)
+                .unwrap()
+                .member_slot_like_cpp(member)
+                .unwrap()
+                .flags
+                & wow_network::MEMBER_FLAG_MAINTANK_LIKE_CPP,
+            wow_network::MEMBER_FLAG_MAINTANK_LIKE_CPP
+        );
+        let leader_update = leader_rx.try_recv().expect("leader party update");
+        assert_eq!(
+            u16::from_le_bytes([leader_update[0], leader_update[1]]),
+            ServerOpcodes::PartyUpdate as u16
+        );
+        let member_update = member_rx.try_recv().expect("member party update");
+        assert_eq!(
+            u16::from_le_bytes([member_update[0], member_update[1]]),
+            ServerOpcodes::PartyUpdate as u16
+        );
+    }
+
+    #[tokio::test]
+    async fn set_party_assignment_assistant_sets_main_assist_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send();
+        let leader = ObjectGuid::create_player(1, 42);
+        let assistant = ObjectGuid::create_player(1, 43);
+        let target = ObjectGuid::create_player(1, 44);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.add_member(assistant);
+        group.add_member(target);
+        group.convert_to_raid_like_cpp();
+        group
+            .set_group_member_flag_like_cpp(
+                assistant,
+                true,
+                wow_network::MEMBER_FLAG_ASSISTANT_LIKE_CPP,
+            )
+            .unwrap();
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (leader_tx, leader_rx) = bounded(8);
+        let (assistant_tx, _assistant_rx) = bounded(8);
+        let (target_tx, _target_rx) = bounded(8);
+        player_registry.insert(leader, broadcast_info(leader, leader_tx));
+        player_registry.insert(assistant, broadcast_info(assistant, assistant_tx));
+        player_registry.insert(target, broadcast_info(target, target_tx));
+
+        session.set_player_guid(Some(assistant));
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(Arc::clone(&player_registry));
+        session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
+
+        session
+            .handle_set_party_assignment(set_party_assignment_packet(
+                wow_network::GROUP_ASSIGN_MAINASSIST_LIKE_CPP,
+                target,
+                true,
+                None,
+            ))
+            .await;
+
+        assert_eq!(
+            group_registry
+                .get(&group_guid)
+                .unwrap()
+                .member_slot_like_cpp(target)
+                .unwrap()
+                .flags
+                & wow_network::MEMBER_FLAG_MAINASSIST_LIKE_CPP,
+            wow_network::MEMBER_FLAG_MAINASSIST_LIKE_CPP
+        );
+        assert!(leader_rx.try_recv().is_ok());
+    }
+
+    #[tokio::test]
+    async fn set_party_assignment_rejects_regular_member_without_mutation_or_fanout_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send();
+        let leader = ObjectGuid::create_player(1, 42);
+        let member = ObjectGuid::create_player(1, 43);
+        let target = ObjectGuid::create_player(1, 44);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+        group.add_member(target);
+        group.convert_to_raid_like_cpp();
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (leader_tx, leader_rx) = bounded(8);
+        let (member_tx, member_rx) = bounded(8);
+        let (target_tx, target_rx) = bounded(8);
+        player_registry.insert(leader, broadcast_info(leader, leader_tx));
+        player_registry.insert(member, broadcast_info(member, member_tx));
+        player_registry.insert(target, broadcast_info(target, target_tx));
+
+        session.set_player_guid(Some(member));
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(Arc::clone(&player_registry));
+        session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
+
+        session
+            .handle_set_party_assignment(set_party_assignment_packet(
+                wow_network::GROUP_ASSIGN_MAINTANK_LIKE_CPP,
+                target,
+                true,
+                None,
+            ))
+            .await;
+
+        assert_eq!(
+            group_registry
+                .get(&group_guid)
+                .unwrap()
+                .member_slot_like_cpp(target)
+                .unwrap()
+                .flags,
+            0
+        );
+        assert!(leader_rx.try_recv().is_err());
+        assert!(member_rx.try_recv().is_err());
+        assert!(target_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn set_party_assignment_non_raid_or_missing_target_fans_out_and_missing_clears_unique_like_cpp()
+     {
+        let (mut session, _send_rx) = make_session_with_send();
+        let leader = ObjectGuid::create_player(1, 42);
+        let member = ObjectGuid::create_player(1, 43);
+        let missing = ObjectGuid::create_player(1, 44);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (leader_tx, leader_rx) = bounded(8);
+        let (member_tx, member_rx) = bounded(8);
+        player_registry.insert(leader, broadcast_info(leader, leader_tx));
+        player_registry.insert(member, broadcast_info(member, member_tx));
+
+        session.set_player_guid(Some(leader));
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(Arc::clone(&player_registry));
+        session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
+
+        session
+            .handle_set_party_assignment(set_party_assignment_packet(
+                wow_network::GROUP_ASSIGN_MAINTANK_LIKE_CPP,
+                member,
+                true,
+                None,
+            ))
+            .await;
+        assert_eq!(
+            group_registry
+                .get(&group_guid)
+                .unwrap()
+                .member_slot_like_cpp(member)
+                .unwrap()
+                .flags,
+            0
+        );
+        assert!(leader_rx.try_recv().is_ok());
+        assert!(member_rx.try_recv().is_ok());
+
+        {
+            let mut group = group_registry.get_mut(&group_guid).unwrap();
+            group.convert_to_raid_like_cpp();
+            group
+                .set_group_member_flag_like_cpp(
+                    member,
+                    true,
+                    wow_network::MEMBER_FLAG_MAINTANK_LIKE_CPP,
+                )
+                .unwrap();
+        }
+        session
+            .handle_set_party_assignment(set_party_assignment_packet(
+                wow_network::GROUP_ASSIGN_MAINTANK_LIKE_CPP,
+                missing,
+                true,
+                None,
+            ))
+            .await;
+        assert_eq!(
+            group_registry
+                .get(&group_guid)
+                .unwrap()
+                .member_slot_like_cpp(member)
+                .unwrap()
+                .flags
+                & wow_network::MEMBER_FLAG_MAINTANK_LIKE_CPP,
+            0
+        );
+        assert!(leader_rx.try_recv().is_ok());
+        assert!(member_rx.try_recv().is_ok());
+    }
+
+    #[tokio::test]
+    async fn set_party_assignment_unknown_assignment_fans_out_without_mutation_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send();
+        let leader = ObjectGuid::create_player(1, 42);
+        let member = ObjectGuid::create_player(1, 43);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+        group.convert_to_raid_like_cpp();
+        let sequence_before = group.sequence_num;
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (leader_tx, leader_rx) = bounded(8);
+        let (member_tx, member_rx) = bounded(8);
+        player_registry.insert(leader, broadcast_info(leader, leader_tx));
+        player_registry.insert(member, broadcast_info(member, member_tx));
+
+        session.set_player_guid(Some(leader));
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(Arc::clone(&player_registry));
+        session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
+
+        session
+            .handle_set_party_assignment(set_party_assignment_packet(99, member, true, None))
+            .await;
+
+        let group = group_registry.get(&group_guid).unwrap();
+        assert_eq!(group.sequence_num, sequence_before);
+        assert_eq!(group.member_slot_like_cpp(member).unwrap().flags, 0);
+        assert!(leader_rx.try_recv().is_ok());
+        assert!(member_rx.try_recv().is_ok());
     }
 
     #[tokio::test]
