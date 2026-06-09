@@ -3,7 +3,7 @@
 > **C++ canonical path:** `src/server/game/Groups/` + `src/server/game/Handlers/GroupHandler.cpp`
 > **Rust target crate(s):** `crates/wow-network/src/group_registry.rs`, `crates/wow-world/src/handlers/group.rs`, `crates/wow-packet/src/packets/party.rs`
 > **Layer:** L6
-> **Status:** ⚠️ partial (~15% — invite, accept, decline, leave only; no roles, no loot rules, no ready check, no markers, no DB persistence, no raid conversion)
+> **Status:** ⚠️ partial — represented invite/accept/decline/leave plus bounded raid conversion, role flags, loot-method/options, assignments, and ready check; no full BG/BF/original-group category parity, no timeout tick, no markers/full DB persistence/manual-test-ready runtime
 > **Audited vs C++:** ✅ complete
 > **Last updated:** 2026-05-01
 
@@ -297,7 +297,7 @@ DBC/DB2 stores read:
 - **No kick** — `CMSG_PARTY_UNINVITE` unhandled. Bad players cannot be removed.
 - **No loot method change** — `CMSG_SET_LOOT_METHOD` unhandled. `loot_method` permanently stuck at 0 (FFA). Master-loot, group-loot, NBG, threshold all fixed.
 - **No master looter / round-robin advance** — `UpdateLooterGuid` not implemented, so `looter_guid` is always EMPTY and group looting cannot work.
-- **No ready check** — `CMSG_DO_READY_CHECK`, `CMSG_READY_CHECK_RESPONSE`, no 35s timer, no `SMSG_READY_CHECK_STARTED/RESPONSE/COMPLETED`.
+- **Ready check represented-partial** — `CMSG_DO_READY_CHECK` and `CMSG_READY_CHECK_RESPONSE` parse/dispatch through represented current-group state; `SMSG_READY_CHECK_STARTED/RESPONSE/COMPLETED` writers and connected-member fanout exist, including offline/no-session false response approximation and 35s timer state. Missing: full BG/BF/original-group `PartyIndex` category resolution and real `Group::UpdateReadyCheck` timeout tick loop.
 - **No raid markers** — `m_markers[8]` storage absent. `CMSG_CLEAR_RAID_MARKER`, `SMSG_RAID_MARKERS_CHANGED` unhandled.
 - **No target icons** — `m_targetIcons[8]` storage absent. `CMSG_UPDATE_RAID_TARGET`, `SMSG_RAID_TARGET_UPDATE_SINGLE/_ALL` unhandled. Cannot mark mobs.
 - **No difficulty switching** — hard-coded `1/14/3`. `CMSG_SET_DUNGEON_DIFFICULTY` / `CMSG_SET_RAID_DIFFICULTY` unhandled.
@@ -466,7 +466,7 @@ DBC/DB2 stores read:
 
 | Scope | Decision | C++ retained | Evidence |
 |---|---|---|---|
-| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 10 files / 2815 lines; refs: `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp`, `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.h`, `/home/server/woltk-trinity-legacy/src/server/game/Groups/GroupMgr.cpp` | `crates/wow-network/src/group_registry.rs`, `crates/wow-world/src/handlers/group.rs`, `crates/wow-packet/src/packets/party.rs` \| ⚠️ partial (~15% — invite, accept, decline, leave only; no roles, no loot rules, no ready check, no markers, no DB persistence, no raid conversion) |
+| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 10 files / 2815 lines; refs: `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp`, `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.h`, `/home/server/woltk-trinity-legacy/src/server/game/Groups/GroupMgr.cpp` | `crates/wow-network/src/group_registry.rs`, `crates/wow-world/src/handlers/group.rs`, `crates/wow-packet/src/packets/party.rs` \| ⚠️ partial (~15% — invite, accept, decline, leave only; bounded raid conversion, roles, loot and ready-check represented; no markers/full DB persistence/manual-test-ready runtime) |
 
 <!-- REFINE.025:END product-scope -->
 

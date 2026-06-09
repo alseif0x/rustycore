@@ -13,13 +13,15 @@ use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
 use wow_network::{
     GROUP_ASSIGN_MAINASSIST_LIKE_CPP, GROUP_ASSIGN_MAINTANK_LIKE_CPP, GroupInfo,
     MEMBER_FLAG_ASSISTANT_LIKE_CPP, MEMBER_FLAG_MAINASSIST_LIKE_CPP, MEMBER_FLAG_MAINTANK_LIKE_CPP,
-    PlayerRegistry, free_group_db_store_id_like_cpp, register_group_db_store_id_like_cpp,
+    PlayerRegistry, ReadyCheckEventLikeCpp, free_group_db_store_id_like_cpp,
+    register_group_db_store_id_like_cpp,
 };
 use wow_packet::packets::party::{
-    GroupDecline, GroupDestroyed, GroupUninvite, OptOutOfLoot, PartyCommandResult,
+    DoReadyCheck, GroupDecline, GroupDestroyed, GroupUninvite, OptOutOfLoot, PartyCommandResult,
     PartyDifficultySettings, PartyInviteServer, PartyLootSettings, PartyMemberFullState,
-    PartyPlayerInfo, PartyUpdate, SetAssistantLeader, SetEveryoneIsAssistant, SetLootMethod,
-    SetPartyAssignment, party_result,
+    PartyPlayerInfo, PartyUpdate, ReadyCheckCompleted, ReadyCheckResponse,
+    ReadyCheckResponseClient, ReadyCheckStarted, SetAssistantLeader, SetEveryoneIsAssistant,
+    SetLootMethod, SetPartyAssignment, party_result,
 };
 use wow_packet::{ClientPacket, ServerPacket};
 
@@ -116,6 +118,24 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_party_assignment",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::DoReadyCheck,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_do_ready_check",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::ReadyCheckResponse,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_ready_check_response",
     }
 }
 
@@ -258,6 +278,76 @@ fn first_connected_group_member_like_cpp(
         .iter()
         .copied()
         .find(|member_guid| registry.contains_key(member_guid))
+}
+
+fn sender_can_start_ready_check_like_cpp(group: &GroupInfo, sender_guid: ObjectGuid) -> bool {
+    group.leader_guid == sender_guid
+        || group
+            .member_slot_like_cpp(sender_guid)
+            .is_some_and(|slot| (slot.flags & MEMBER_FLAG_ASSISTANT_LIKE_CPP) != 0)
+}
+
+fn connected_group_members_like_cpp(
+    group: &GroupInfo,
+    registry: &PlayerRegistry,
+) -> Vec<ObjectGuid> {
+    group
+        .members
+        .iter()
+        .copied()
+        .filter(|member_guid| registry.contains_key(member_guid))
+        .collect()
+}
+
+fn send_ready_check_events_like_cpp(
+    events: &[ReadyCheckEventLikeCpp],
+    group: &GroupInfo,
+    registry: &PlayerRegistry,
+) {
+    let recipients: Vec<_> = group
+        .members
+        .iter()
+        .filter_map(|guid| registry.get(guid).map(|entry| entry.send_tx.clone()))
+        .collect();
+
+    for event in events {
+        let bytes = match *event {
+            ReadyCheckEventLikeCpp::Started {
+                party_index,
+                party_guid,
+                initiator_guid,
+                duration_ms,
+            } => ReadyCheckStarted {
+                party_index,
+                party_guid,
+                initiator_guid,
+                duration_ms,
+            }
+            .to_bytes(),
+            ReadyCheckEventLikeCpp::Response {
+                party_guid,
+                player,
+                is_ready,
+            } => ReadyCheckResponse {
+                party_guid,
+                player,
+                is_ready,
+            }
+            .to_bytes(),
+            ReadyCheckEventLikeCpp::Completed {
+                party_index,
+                party_guid,
+            } => ReadyCheckCompleted {
+                party_index,
+                party_guid,
+            }
+            .to_bytes(),
+        };
+
+        for tx in &recipients {
+            let _ = tx.send(bytes.clone());
+        }
+    }
 }
 
 fn queue_visible_gameobjects_or_spellclicks_refresh_like_cpp(
@@ -1223,6 +1313,125 @@ impl WorldSession {
         }
     }
 
+    /// CMSG_DO_READY_CHECK.
+    ///
+    /// C++ resolves `GetPlayer()->GetGroup(packet.PartyIndex)`, returns when no
+    /// group exists, requires leader or assistant, then calls
+    /// `Group::StartReadyCheck`. Rust represents PartyIndex over the current
+    /// GroupRegistry group and approximates offline/no-session via missing
+    /// PlayerRegistry entries. Timeout remains represented state only because
+    /// there is no full `Group::UpdateReadyCheck` tick loop yet.
+    pub async fn handle_do_ready_check(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let ready_check = match DoReadyCheck::read(&mut pkt) {
+            Ok(ready_check) => ready_check,
+            Err(e) => {
+                warn!("Bad DoReadyCheck: {e}");
+                return;
+            }
+        };
+        let _represented_party_index_boundary = ready_check.party_index;
+
+        let sender_guid = match self.player_guid() {
+            Some(guid) => guid,
+            None => return,
+        };
+        let group_reg = match self.group_registry() {
+            Some(registry) => std::sync::Arc::clone(registry),
+            None => return,
+        };
+        let registry = match self.player_registry() {
+            Some(registry) => std::sync::Arc::clone(registry),
+            None => return,
+        };
+
+        let group_guid = match self.group_guid {
+            Some(group_guid) => group_guid,
+            None => match group_reg
+                .iter()
+                .find(|entry| entry.value().members.contains(&sender_guid))
+                .map(|entry| *entry.key())
+            {
+                Some(group_guid) => group_guid,
+                None => return,
+            },
+        };
+
+        let events = {
+            let mut group = match group_reg.get_mut(&group_guid) {
+                Some(group) => group,
+                None => return,
+            };
+            if !sender_can_start_ready_check_like_cpp(&group, sender_guid) {
+                return;
+            }
+            let connected = connected_group_members_like_cpp(&group, &registry);
+            group.start_ready_check_like_cpp(sender_guid, connected)
+        };
+
+        if events.is_empty() {
+            return;
+        }
+        if let Some(group) = group_reg.get(&group_guid) {
+            send_ready_check_events_like_cpp(&events, &group, &registry);
+        }
+    }
+
+    /// CMSG_READY_CHECK_RESPONSE.
+    ///
+    /// C++ resolves the group and calls `Group::SetMemberReadyCheck` with no
+    /// leader/assistant gate. Rust preserves that represented ownership and
+    /// returns with no fanout/state change when no ready check is active.
+    pub async fn handle_ready_check_response(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let response = match ReadyCheckResponseClient::read(&mut pkt) {
+            Ok(response) => response,
+            Err(e) => {
+                warn!("Bad ReadyCheckResponse: {e}");
+                return;
+            }
+        };
+        let _represented_party_index_boundary = response.party_index;
+
+        let sender_guid = match self.player_guid() {
+            Some(guid) => guid,
+            None => return,
+        };
+        let group_reg = match self.group_registry() {
+            Some(registry) => std::sync::Arc::clone(registry),
+            None => return,
+        };
+        let registry = match self.player_registry() {
+            Some(registry) => std::sync::Arc::clone(registry),
+            None => return,
+        };
+
+        let group_guid = match self.group_guid {
+            Some(group_guid) => group_guid,
+            None => match group_reg
+                .iter()
+                .find(|entry| entry.value().members.contains(&sender_guid))
+                .map(|entry| *entry.key())
+            {
+                Some(group_guid) => group_guid,
+                None => return,
+            },
+        };
+
+        let events = {
+            let mut group = match group_reg.get_mut(&group_guid) {
+                Some(group) => group,
+                None => return,
+            };
+            group.set_member_ready_check_like_cpp(sender_guid, response.is_ready)
+        };
+
+        if events.is_empty() {
+            return;
+        }
+        if let Some(group) = group_reg.get(&group_guid) {
+            send_ready_check_events_like_cpp(&events, &group, &registry);
+        }
+    }
+
     /// CMSG_SET_PARTY_ASSIGNMENT.
     ///
     /// C++ resolves `GetPlayer()->GetGroup(packet.PartyIndex)`, requires leader
@@ -1366,6 +1575,7 @@ mod tests {
         group_member_delete_statement_like_cpp, group_member_flag_update_statement_like_cpp,
         group_member_insert_statement_like_cpp, group_member_subgroup_update_statement_like_cpp,
         group_type_update_statement_like_cpp, party_player_info_like_cpp, send_party_update,
+        send_ready_check_events_like_cpp, sender_can_start_ready_check_like_cpp,
     };
     use flume::bounded;
     use std::sync::Arc;
@@ -1374,7 +1584,7 @@ mod tests {
     use wow_database::{CharStatements, SqlParam, StatementDef};
     use wow_network::{
         GroupInfo, GroupMemberCharacterLikeCpp, GroupRegistry, PendingInvites, PlayerBroadcastInfo,
-        PlayerRegistry, SessionCommand,
+        PlayerRegistry, ReadyCheckEventLikeCpp, SessionCommand,
     };
     use wow_packet::WorldPacket;
 
@@ -1816,6 +2026,73 @@ mod tests {
                 .windows(phase_bytes.len())
                 .any(|window| window == phase_bytes)
         );
+    }
+
+    #[test]
+    fn ready_check_start_gate_allows_leader_or_assistant_only_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let assistant = ObjectGuid::create_player(1, 43);
+        let member = ObjectGuid::create_player(1, 44);
+        let mut group = GroupInfo::new(leader);
+        group.add_member(assistant);
+        group.add_member(member);
+        group.convert_to_raid_like_cpp();
+        group
+            .set_assistant_leader_flag_like_cpp(assistant, true)
+            .unwrap();
+
+        assert!(sender_can_start_ready_check_like_cpp(&group, leader));
+        assert!(sender_can_start_ready_check_like_cpp(&group, assistant));
+        assert!(!sender_can_start_ready_check_like_cpp(&group, member));
+    }
+
+    #[test]
+    fn ready_check_fanout_sends_events_only_to_connected_members_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let member = ObjectGuid::create_player(1, 43);
+        let offline = ObjectGuid::create_player(1, 44);
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+        group.add_member(offline);
+
+        let registry = PlayerRegistry::default();
+        let (leader_tx, leader_rx) = bounded(8);
+        let (member_tx, member_rx) = bounded(8);
+        registry.insert(leader, broadcast_info(leader, leader_tx));
+        registry.insert(member, broadcast_info(member, member_tx));
+
+        let events = vec![
+            ReadyCheckEventLikeCpp::Response {
+                party_guid: group.group_guid,
+                player: offline,
+                is_ready: false,
+            },
+            ReadyCheckEventLikeCpp::Started {
+                party_index: 0,
+                party_guid: group.group_guid,
+                initiator_guid: leader,
+                duration_ms: 35_000,
+            },
+        ];
+
+        send_ready_check_events_like_cpp(&events, &group, &registry);
+
+        let leader_first = leader_rx.recv().unwrap();
+        let leader_second = leader_rx.recv().unwrap();
+        let member_first = member_rx.recv().unwrap();
+        let member_second = member_rx.recv().unwrap();
+        assert_eq!(
+            u16::from_le_bytes([leader_first[0], leader_first[1]]),
+            ServerOpcodes::ReadyCheckResponse as u16
+        );
+        assert_eq!(
+            u16::from_le_bytes([leader_second[0], leader_second[1]]),
+            ServerOpcodes::ReadyCheckStarted as u16
+        );
+        assert_eq!(leader_first, member_first);
+        assert_eq!(leader_second, member_second);
+        assert!(leader_rx.try_recv().is_err());
+        assert!(member_rx.try_recv().is_err());
     }
 
     #[test]

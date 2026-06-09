@@ -16564,6 +16564,12 @@ impl WorldSession {
             ClientOpcodes::SetPartyAssignment => {
                 self.handle_set_party_assignment(pkt).await;
             }
+            ClientOpcodes::DoReadyCheck => {
+                self.handle_do_ready_check(pkt).await;
+            }
+            ClientOpcodes::ReadyCheckResponse => {
+                self.handle_ready_check_response(pkt).await;
+            }
             ClientOpcodes::OptOutOfLoot => {
                 self.handle_opt_out_of_loot(pkt).await;
             }

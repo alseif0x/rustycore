@@ -164,6 +164,51 @@ impl ClientPacket for SetPartyAssignment {
     }
 }
 
+// ── ReadyCheck (CMSG_DO_READY_CHECK / CMSG_READY_CHECK_RESPONSE) ──────────────
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DoReadyCheck {
+    pub party_index: Option<u8>,
+}
+
+impl ClientPacket for DoReadyCheck {
+    const OPCODE: ClientOpcodes = ClientOpcodes::DoReadyCheck;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let party_index = if pkt.read_bit()? {
+            Some(pkt.read_uint8()?)
+        } else {
+            None
+        };
+
+        Ok(Self { party_index })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ReadyCheckResponseClient {
+    pub is_ready: bool,
+    pub party_index: Option<u8>,
+}
+
+impl ClientPacket for ReadyCheckResponseClient {
+    const OPCODE: ClientOpcodes = ClientOpcodes::ReadyCheckResponse;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let is_ready = pkt.read_bit()?;
+        let party_index = if pkt.read_bit()? {
+            Some(pkt.read_uint8()?)
+        } else {
+            None
+        };
+
+        Ok(Self {
+            is_ready,
+            party_index,
+        })
+    }
+}
+
 // ── SwapSubGroups (CMSG_SWAP_SUB_GROUPS) ─────────────────────────
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -389,6 +434,58 @@ impl PartyLootSettings {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ReadyCheckStarted {
+    pub party_index: u8,
+    pub party_guid: u64,
+    pub initiator_guid: ObjectGuid,
+    pub duration_ms: i64,
+}
+
+impl ServerPacket for ReadyCheckStarted {
+    const OPCODE: ServerOpcodes = ServerOpcodes::ReadyCheckStarted;
+
+    fn write(&self, w: &mut WorldPacket) {
+        w.write_uint8(self.party_index);
+        w.write_packed_guid(&ObjectGuid::create_group(self.party_guid));
+        w.write_packed_guid(&self.initiator_guid);
+        w.write_int64(self.duration_ms);
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ReadyCheckResponse {
+    pub party_guid: u64,
+    pub player: ObjectGuid,
+    pub is_ready: bool,
+}
+
+impl ServerPacket for ReadyCheckResponse {
+    const OPCODE: ServerOpcodes = ServerOpcodes::ReadyCheckResponse;
+
+    fn write(&self, w: &mut WorldPacket) {
+        w.write_packed_guid(&ObjectGuid::create_group(self.party_guid));
+        w.write_packed_guid(&self.player);
+        w.write_bit(self.is_ready);
+        w.flush_bits();
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ReadyCheckCompleted {
+    pub party_index: u8,
+    pub party_guid: u64,
+}
+
+impl ServerPacket for ReadyCheckCompleted {
+    const OPCODE: ServerOpcodes = ServerOpcodes::ReadyCheckCompleted;
+
+    fn write(&self, w: &mut WorldPacket) {
+        w.write_uint8(self.party_index);
+        w.write_packed_guid(&ObjectGuid::create_group(self.party_guid));
+    }
+}
+
 pub struct PartyDifficultySettings {
     pub dungeon_difficulty_id: u32,
     pub raid_difficulty_id: u32,
@@ -558,11 +655,12 @@ impl ServerPacket for PartyMemberFullState {
 #[cfg(test)]
 mod tests {
     use super::{
-        ChangeSubGroup, ConvertRaid, OptOutOfLoot, PartyMemberPhase, PartyMemberPhaseStates,
-        SetAssistantLeader, SetEveryoneIsAssistant, SetLootMethod, SetPartyAssignment,
-        SwapSubGroups,
+        ChangeSubGroup, ConvertRaid, DoReadyCheck, OptOutOfLoot, PartyMemberPhase,
+        PartyMemberPhaseStates, ReadyCheckCompleted, ReadyCheckResponse, ReadyCheckResponseClient,
+        ReadyCheckStarted, SetAssistantLeader, SetEveryoneIsAssistant, SetLootMethod,
+        SetPartyAssignment, SwapSubGroups,
     };
-    use crate::{ClientPacket, WorldPacket};
+    use crate::{ClientPacket, ServerPacket, WorldPacket};
     use wow_core::ObjectGuid;
 
     #[test]
@@ -723,6 +821,117 @@ mod tests {
         assert_eq!(assignment.target, target);
         assert!(!assignment.apply);
         assert_eq!(assignment.party_index, None);
+    }
+
+    #[test]
+    fn ready_check_do_reads_cpp_has_party_index_then_optional_byte() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(true);
+        pkt.write_uint8(0);
+        pkt.reset_read();
+
+        let ready_check = DoReadyCheck::read(&mut pkt).unwrap();
+
+        assert_eq!(ready_check.party_index, Some(0));
+    }
+
+    #[test]
+    fn ready_check_do_reads_cpp_absent_party_index() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(false);
+        pkt.flush_bits();
+        pkt.reset_read();
+
+        let ready_check = DoReadyCheck::read(&mut pkt).unwrap();
+
+        assert_eq!(ready_check.party_index, None);
+    }
+
+    #[test]
+    fn ready_check_response_reads_cpp_ready_bit_then_has_party_index() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(true);
+        pkt.write_bit(true);
+        pkt.write_uint8(0);
+        pkt.reset_read();
+
+        let response = ReadyCheckResponseClient::read(&mut pkt).unwrap();
+
+        assert!(response.is_ready);
+        assert_eq!(response.party_index, Some(0));
+    }
+
+    #[test]
+    fn ready_check_response_reads_cpp_absent_party_index_after_ready_bit() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(false);
+        pkt.write_bit(false);
+        pkt.flush_bits();
+        pkt.reset_read();
+
+        let response = ReadyCheckResponseClient::read(&mut pkt).unwrap();
+
+        assert!(!response.is_ready);
+        assert_eq!(response.party_index, None);
+    }
+
+    #[test]
+    fn ready_check_started_writes_cpp_party_guid_initiator_duration_order() {
+        let initiator = ObjectGuid::create_player(1, 42);
+        let mut pkt = WorldPacket::new_empty();
+        ReadyCheckStarted {
+            party_index: 0,
+            party_guid: 77,
+            initiator_guid: initiator,
+            duration_ms: 35_000,
+        }
+        .write(&mut pkt);
+        pkt.reset_read();
+
+        assert_eq!(pkt.read_uint8().unwrap(), 0);
+        assert_eq!(
+            pkt.read_packed_guid().unwrap(),
+            ObjectGuid::create_group(77)
+        );
+        assert_eq!(pkt.read_packed_guid().unwrap(), initiator);
+        assert_eq!(pkt.read_int64().unwrap(), 35_000);
+    }
+
+    #[test]
+    fn ready_check_response_writes_cpp_guids_bit_flush_order() {
+        let player = ObjectGuid::create_player(1, 43);
+        let mut pkt = WorldPacket::new_empty();
+        ReadyCheckResponse {
+            party_guid: 78,
+            player,
+            is_ready: true,
+        }
+        .write(&mut pkt);
+        pkt.reset_read();
+
+        assert_eq!(
+            pkt.read_packed_guid().unwrap(),
+            ObjectGuid::create_group(78)
+        );
+        assert_eq!(pkt.read_packed_guid().unwrap(), player);
+        assert!(pkt.read_bit().unwrap());
+    }
+
+    #[test]
+    fn ready_check_completed_writes_cpp_party_index_then_guid() {
+        let mut pkt = WorldPacket::new_empty();
+        ReadyCheckCompleted {
+            party_index: 0,
+            party_guid: 79,
+        }
+        .write(&mut pkt);
+        pkt.reset_read();
+
+        assert_eq!(pkt.read_uint8().unwrap(), 0);
+        assert_eq!(
+            pkt.read_packed_guid().unwrap(),
+            ObjectGuid::create_group(79)
+        );
     }
 
     #[test]

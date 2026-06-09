@@ -37,6 +37,7 @@ pub const MAX_GROUP_SIZE_LIKE_CPP: usize = 5;
 pub const MAX_RAID_SIZE_LIKE_CPP: usize = 40;
 pub const MAX_RAID_SUBGROUPS_LIKE_CPP: usize = MAX_RAID_SIZE_LIKE_CPP / MAX_GROUP_SIZE_LIKE_CPP;
 pub const MISSING_MEMBER_GROUP_LIKE_CPP: u8 = (MAX_RAID_SUBGROUPS_LIKE_CPP as u8) + 1;
+pub const READYCHECK_DURATION_MS_LIKE_CPP: i64 = 35_000;
 
 fn generate_group_db_store_id_like_cpp() -> u32 {
     if let Ok(mut freed) = FREED_GROUP_DB_STORE_IDS.lock() {
@@ -190,6 +191,25 @@ pub struct GroupLfgDbStateLikeCpp {
     pub state: Option<u8>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReadyCheckEventLikeCpp {
+    Started {
+        party_index: u8,
+        party_guid: u64,
+        initiator_guid: ObjectGuid,
+        duration_ms: i64,
+    },
+    Response {
+        party_guid: u64,
+        player: ObjectGuid,
+        is_ready: bool,
+    },
+    Completed {
+        party_index: u8,
+        party_guid: u64,
+    },
+}
+
 /// Information about one group/party.
 #[derive(Debug, Clone)]
 pub struct GroupInfo {
@@ -216,6 +236,10 @@ pub struct GroupInfo {
     pub target_icons: [[u8; 16]; TARGET_ICONS_COUNT_LIKE_CPP],
     pub lfg_db_state: Option<GroupLfgDbStateLikeCpp>,
     pub raid_subgroup_counts: Option<[u8; MAX_RAID_SUBGROUPS_LIKE_CPP]>,
+    pub ready_check_started: bool,
+    /// Represented `Group::m_readyCheckTimer`/duration in milliseconds. Rust does
+    /// not yet have a `Group::Update` tick loop for timeout expiry.
+    pub ready_check_timer_ms: i64,
     pub sequence_num: u32,
     pub group_flags: u16,
 }
@@ -247,6 +271,8 @@ impl GroupInfo {
             target_icons: [EMPTY_TARGET_ICON_RAW_LIKE_CPP; TARGET_ICONS_COUNT_LIKE_CPP],
             lfg_db_state: None,
             raid_subgroup_counts: None,
+            ready_check_started: false,
+            ready_check_timer_ms: 0,
             sequence_num: 1,
             group_flags: 0,
         }
@@ -286,6 +312,8 @@ impl GroupInfo {
             } else {
                 None
             },
+            ready_check_started: false,
+            ready_check_timer_ms: 0,
             sequence_num: 1,
             group_flags,
         }
@@ -650,6 +678,120 @@ impl GroupInfo {
             ready_checked: false,
         });
         true
+    }
+
+    pub fn reset_member_ready_checked_like_cpp(&mut self) {
+        for slot in &mut self.member_slots {
+            slot.ready_checked = false;
+        }
+    }
+
+    pub fn is_ready_check_completed_like_cpp(&self) -> bool {
+        self.member_slots.iter().all(|slot| slot.ready_checked)
+    }
+
+    fn end_ready_check_like_cpp(&mut self, events: &mut Vec<ReadyCheckEventLikeCpp>) {
+        if !self.ready_check_started {
+            return;
+        }
+
+        self.ready_check_started = false;
+        self.ready_check_timer_ms = 0;
+        self.reset_member_ready_checked_like_cpp();
+        events.push(ReadyCheckEventLikeCpp::Completed {
+            party_index: 0,
+            party_guid: self.group_guid,
+        });
+    }
+
+    fn set_member_ready_checked_like_cpp(
+        &mut self,
+        slot_index: usize,
+        events: &mut Vec<ReadyCheckEventLikeCpp>,
+    ) {
+        self.member_slots[slot_index].ready_checked = true;
+        if self.is_ready_check_completed_like_cpp() {
+            self.end_ready_check_like_cpp(events);
+        }
+    }
+
+    fn set_member_ready_check_slot_like_cpp(
+        &mut self,
+        slot_index: usize,
+        ready: bool,
+        events: &mut Vec<ReadyCheckEventLikeCpp>,
+    ) {
+        let player = self.member_slots[slot_index].guid;
+        events.push(ReadyCheckEventLikeCpp::Response {
+            party_guid: self.group_guid,
+            player,
+            is_ready: ready,
+        });
+        self.set_member_ready_checked_like_cpp(slot_index, events);
+    }
+
+    pub fn start_ready_check_like_cpp(
+        &mut self,
+        starter_guid: ObjectGuid,
+        connected_members: impl IntoIterator<Item = ObjectGuid>,
+    ) -> Vec<ReadyCheckEventLikeCpp> {
+        let mut events = Vec::new();
+        if self.ready_check_started {
+            return events;
+        }
+
+        let Some(starter_index) = self
+            .member_slots
+            .iter()
+            .position(|slot| slot.guid == starter_guid)
+        else {
+            return events;
+        };
+
+        self.ready_check_started = true;
+        self.ready_check_timer_ms = READYCHECK_DURATION_MS_LIKE_CPP;
+
+        let connected: Vec<ObjectGuid> = connected_members.into_iter().collect();
+        let offline_indices: Vec<usize> = self
+            .member_slots
+            .iter()
+            .enumerate()
+            .filter_map(|(index, slot)| (!connected.contains(&slot.guid)).then_some(index))
+            .collect();
+        for index in offline_indices {
+            if self.ready_check_started {
+                self.set_member_ready_check_slot_like_cpp(index, false, &mut events);
+            }
+        }
+
+        if self.ready_check_started {
+            self.set_member_ready_checked_like_cpp(starter_index, &mut events);
+        }
+
+        events.push(ReadyCheckEventLikeCpp::Started {
+            party_index: 0,
+            party_guid: self.group_guid,
+            initiator_guid: starter_guid,
+            duration_ms: READYCHECK_DURATION_MS_LIKE_CPP,
+        });
+        events
+    }
+
+    pub fn set_member_ready_check_like_cpp(
+        &mut self,
+        guid: ObjectGuid,
+        ready: bool,
+    ) -> Vec<ReadyCheckEventLikeCpp> {
+        let mut events = Vec::new();
+        if !self.ready_check_started {
+            return events;
+        }
+
+        if let Some(slot_index) = self.member_slots.iter().position(|slot| slot.guid == guid) {
+            self.set_member_ready_check_slot_like_cpp(slot_index, ready, &mut events);
+        }
+
+        events
     }
 
     pub fn is_raid_group(&self) -> bool {
@@ -1796,6 +1938,88 @@ mod tests {
             None
         );
         assert_eq!(group.member_slot_like_cpp(member).unwrap().flags, 0);
+    }
+
+    #[test]
+    fn ready_check_start_marks_offline_starter_and_preserves_cpp_event_order() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let offline = ObjectGuid::create_player(1, 43);
+        let mut group = GroupInfo::new(leader);
+        group.add_member(offline);
+
+        let events = group.start_ready_check_like_cpp(leader, [leader]);
+
+        assert_eq!(group.ready_check_timer_ms, 0);
+        assert!(!group.ready_check_started);
+        assert!(group.member_slots.iter().all(|slot| !slot.ready_checked));
+        assert_eq!(
+            events,
+            vec![
+                ReadyCheckEventLikeCpp::Response {
+                    party_guid: group.group_guid,
+                    player: offline,
+                    is_ready: false,
+                },
+                ReadyCheckEventLikeCpp::Completed {
+                    party_index: 0,
+                    party_guid: group.group_guid,
+                },
+                ReadyCheckEventLikeCpp::Started {
+                    party_index: 0,
+                    party_guid: group.group_guid,
+                    initiator_guid: leader,
+                    duration_ms: READYCHECK_DURATION_MS_LIKE_CPP,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn ready_check_response_before_started_is_cpp_noop() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let member = ObjectGuid::create_player(1, 43);
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+
+        let events = group.set_member_ready_check_like_cpp(member, true);
+
+        assert!(events.is_empty());
+        assert!(!group.member_slot_like_cpp(member).unwrap().ready_checked);
+        assert!(!group.ready_check_started);
+    }
+
+    #[test]
+    fn ready_check_member_response_broadcasts_and_completes_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let member = ObjectGuid::create_player(1, 43);
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+        let start_events = group.start_ready_check_like_cpp(leader, [leader, member]);
+
+        assert_eq!(start_events.len(), 1);
+        assert!(group.ready_check_started);
+        assert!(group.member_slot_like_cpp(leader).unwrap().ready_checked);
+        assert!(!group.member_slot_like_cpp(member).unwrap().ready_checked);
+
+        let events = group.set_member_ready_check_like_cpp(member, true);
+
+        assert_eq!(
+            events,
+            vec![
+                ReadyCheckEventLikeCpp::Response {
+                    party_guid: group.group_guid,
+                    player: member,
+                    is_ready: true,
+                },
+                ReadyCheckEventLikeCpp::Completed {
+                    party_index: 0,
+                    party_guid: group.group_guid,
+                },
+            ]
+        );
+        assert!(!group.ready_check_started);
+        assert_eq!(group.ready_check_timer_ms, 0);
+        assert!(group.member_slots.iter().all(|slot| !slot.ready_checked));
     }
 
     #[test]
