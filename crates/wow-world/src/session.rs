@@ -40,7 +40,7 @@ use wow_constants::creature::{CreatureFlagsExtra, CreatureType, CreatureTypeFlag
 use wow_constants::item::{CurrencyTypes, CurrencyTypesFlags};
 use wow_constants::movement::MovementFlag;
 use wow_constants::unit::{
-    Gender, NPCFlags1, Team, UnitFlags, UnitFlags2, UnitPvpFlags, UnitStandStateType,
+    Gender, NPCFlags1, PowerType, Team, UnitFlags, UnitFlags2, UnitPvpFlags, UnitStandStateType,
     WeaponAttackType,
 };
 use wow_constants::{
@@ -164,6 +164,41 @@ fn party_member_power_type_for_class_like_cpp(class: u8) -> u8 {
         6 => 6, // DeathKnight: RunicPower
         _ => 0, // Mana/default
     }
+}
+
+fn party_member_power_kind_from_u8_like_cpp(power: u8) -> PowerType {
+    match power {
+        1 => PowerType::Rage,
+        2 => PowerType::Focus,
+        3 => PowerType::Energy,
+        4 => PowerType::Happiness,
+        5 => PowerType::Runes,
+        6 => PowerType::RunicPower,
+        7 => PowerType::SoulShards,
+        8 => PowerType::LunarPower,
+        9 => PowerType::HolyPower,
+        10 => PowerType::AlternatePower,
+        11 => PowerType::Maelstrom,
+        12 => PowerType::Chi,
+        13 => PowerType::Insanity,
+        14 => PowerType::ComboPoints,
+        15 => PowerType::DemonicFury,
+        16 => PowerType::ArcaneCharges,
+        17 => PowerType::Fury,
+        18 => PowerType::Pain,
+        19 => PowerType::Essence,
+        20 => PowerType::RuneBlood,
+        21 => PowerType::RuneFrost,
+        22 => PowerType::RuneUnholy,
+        23 => PowerType::AlternateQuest,
+        24 => PowerType::AlternateEncounter,
+        25 => PowerType::AlternateMount,
+        _ => PowerType::Mana,
+    }
+}
+
+fn party_member_power_to_u16_like_cpp(value: i32) -> u16 {
+    u16::try_from(value.max(0)).unwrap_or(u16::MAX)
 }
 
 fn spell_effect_is_represented_summon_object_slot_like_cpp(effect: u32) -> bool {
@@ -11211,6 +11246,18 @@ impl WorldSession {
             .unwrap_or(0.0)
     }
 
+    pub(crate) fn canonical_player_party_power_snapshot_like_cpp(&self) -> Option<(u8, u16, u16)> {
+        self.canonical_player_snapshot_like_cpp(|player| {
+            let power_type = player.unit().data().display_power;
+            let power = party_member_power_kind_from_u8_like_cpp(power_type);
+            (
+                power_type,
+                party_member_power_to_u16_like_cpp(player.get_power(power)),
+                party_member_power_to_u16_like_cpp(player.get_max_power(power)),
+            )
+        })
+    }
+
     pub(crate) fn canonical_player_reputation_standing_like_cpp(
         &self,
         faction_id: u32,
@@ -14241,6 +14288,9 @@ impl WorldSession {
         let is_dnd = self
             .canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_DND_LIKE_CPP)
             .unwrap_or(false);
+        let (power_type, current_power, max_power) = self
+            .canonical_player_party_power_snapshot_like_cpp()
+            .unwrap_or_else(|| (party_member_power_type_for_class_like_cpp(class), 0, 0));
         reg.insert(
             guid,
             PlayerBroadcastInfo {
@@ -14262,9 +14312,9 @@ impl WorldSession {
                 is_alive: self.player_alive_like_cpp,
                 current_health: self.player_health_like_cpp,
                 max_health: self.player_max_health_like_cpp,
-                power_type: party_member_power_type_for_class_like_cpp(class),
-                current_power: 0,
-                max_power: 0,
+                power_type,
+                current_power,
+                max_power,
                 is_pvp: pvp_flags.contains(UnitPvpFlags::PVP),
                 is_ffa_pvp: pvp_flags.contains(UnitPvpFlags::FFA_PVP),
                 is_ghost,
@@ -14342,10 +14392,18 @@ impl WorldSession {
             info.is_alive = self.player_alive_like_cpp;
             info.current_health = self.player_health_like_cpp;
             info.max_health = self.player_max_health_like_cpp;
-            info.power_type =
-                party_member_power_type_for_class_like_cpp(self.player_class_like_cpp());
-            info.current_power = 0;
-            info.max_power = 0;
+            let (power_type, current_power, max_power) = self
+                .canonical_player_party_power_snapshot_like_cpp()
+                .unwrap_or_else(|| {
+                    (
+                        party_member_power_type_for_class_like_cpp(self.player_class_like_cpp()),
+                        0,
+                        0,
+                    )
+                });
+            info.power_type = power_type;
+            info.current_power = current_power;
+            info.max_power = max_power;
             if let Some(guid) = self.player_guid() {
                 let pvp_flags = self
                     .canonical_player_pvp_flags_like_cpp(guid)
@@ -46257,6 +46315,41 @@ mod tests {
         assert_eq!(info.active_quest_objective_counts.get(&300), Some(&vec![7]));
         assert!(info.rewarded_quests.contains(&400));
         assert_eq!(info.inventory_item_counts.get(&9001), Some(&8));
+    }
+
+    #[test]
+    fn player_registry_publishes_canonical_party_power_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let guid = ObjectGuid::create_player(1, 42);
+        let registry = Arc::new(PlayerRegistry::default());
+        let canonical = shared_canonical_map_manager();
+        let position = Position::new(1.0, 2.0, 3.0, 0.0);
+        session.set_player_guid(Some(guid));
+        session.set_player_map_position_like_cpp(571, position);
+        session.player_name = Some("Tester".to_string());
+        session.set_player_registry(Arc::clone(&registry));
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_test_player_on_map(&canonical, guid, position, 571, 0);
+        {
+            let mut guard = canonical.lock().unwrap();
+            let player = guard
+                .find_map_mut(571, 0)
+                .expect("map")
+                .map_mut()
+                .get_typed_player_mut(guid)
+                .expect("player");
+            player.unit_mut().set_display_power(PowerType::Energy);
+            player.set_power_index(PowerType::Energy, Some(3));
+            player.unit_mut().set_max_power(PowerType::Energy, 120);
+            player.unit_mut().set_power(PowerType::Energy, 45);
+        }
+
+        session.register_in_player_registry();
+
+        let info = registry.get(&guid).expect("registered player");
+        assert_eq!(info.power_type, PowerType::Energy as u8);
+        assert_eq!(info.current_power, 45);
+        assert_eq!(info.max_power, 120);
     }
 
     #[test]
