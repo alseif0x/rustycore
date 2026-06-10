@@ -262,6 +262,38 @@ impl ClientPacket for RequestPartyJoinUpdates {
     }
 }
 
+// ── RequestPartyMemberStats (CMSG_REQUEST_PARTY_MEMBER_STATS) ────────────────
+
+/// Client requests one party member's current full-state snapshot.
+///
+/// C++ anchor: `WorldPackets::Party::RequestPartyMemberStats::Read()`
+/// (`PartyPackets.cpp:135-141`) reads bit `hasPartyIndex`, then `TargetGUID`,
+/// then optional `PartyIndex`. The handler reads but ignores `PartyIndex`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RequestPartyMemberStats {
+    pub target_guid: ObjectGuid,
+    pub party_index: Option<u8>,
+}
+
+impl ClientPacket for RequestPartyMemberStats {
+    const OPCODE: ClientOpcodes = ClientOpcodes::RequestPartyMemberStats;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let has_party_index = pkt.read_bit()?;
+        let target_guid = pkt.read_packed_guid()?;
+        let party_index = if has_party_index {
+            Some(pkt.read_uint8()?)
+        } else {
+            None
+        };
+
+        Ok(Self {
+            target_guid,
+            party_index,
+        })
+    }
+}
+
 // ── ReadyCheck (CMSG_DO_READY_CHECK / CMSG_READY_CHECK_RESPONSE) ──────────────
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -941,8 +973,8 @@ mod tests {
         ChangeSubGroup, ConvertRaid, DoReadyCheck, InitiateRolePoll, LowLevelRaid1, LowLevelRaid2,
         MinimapPingClient, OptOutOfLoot, PartyMemberPhase, PartyMemberPhaseStates,
         RaidMarkersChanged, ReadyCheckCompleted, ReadyCheckResponse, ReadyCheckResponseClient,
-        ReadyCheckStarted, RequestPartyJoinUpdates, RoleChangedInform, RolePollInform,
-        SendRaidTargetUpdateAll, SendRaidTargetUpdateSingle, SetAssistantLeader,
+        ReadyCheckStarted, RequestPartyJoinUpdates, RequestPartyMemberStats, RoleChangedInform,
+        RolePollInform, SendRaidTargetUpdateAll, SendRaidTargetUpdateSingle, SetAssistantLeader,
         SetEveryoneIsAssistant, SetLootMethod, SetPartyAssignment, SetRole, SwapSubGroups,
         UpdateRaidTarget,
     };
@@ -1254,6 +1286,36 @@ mod tests {
         let request = RequestPartyJoinUpdates::read(&mut pkt).unwrap();
 
         assert_eq!(request.party_index, Some(0));
+    }
+
+    #[test]
+    fn request_party_member_stats_reads_cpp_bit_guid_without_party_index() {
+        let target = ObjectGuid::create_player(1, 77);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(false);
+        pkt.write_packed_guid(&target);
+        pkt.flush_bits();
+        pkt.reset_read();
+
+        let request = RequestPartyMemberStats::read(&mut pkt).unwrap();
+
+        assert_eq!(request.target_guid, target);
+        assert_eq!(request.party_index, None);
+    }
+
+    #[test]
+    fn request_party_member_stats_reads_cpp_bit_guid_then_party_index() {
+        let target = ObjectGuid::create_player(1, 78);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(true);
+        pkt.write_packed_guid(&target);
+        pkt.write_uint8(1);
+        pkt.reset_read();
+
+        let request = RequestPartyMemberStats::read(&mut pkt).unwrap();
+
+        assert_eq!(request.target_guid, target);
+        assert_eq!(request.party_index, Some(1));
     }
 
     #[test]

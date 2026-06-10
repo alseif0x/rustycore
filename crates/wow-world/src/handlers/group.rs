@@ -22,10 +22,10 @@ use wow_packet::packets::party::{
     LowLevelRaid2, MinimapPing, MinimapPingClient, OptOutOfLoot, PartyCommandResult,
     PartyDifficultySettings, PartyInviteServer, PartyLootSettings, PartyMemberFullState,
     PartyPlayerInfo, PartyUpdate, RaidMarkersChanged, ReadyCheckCompleted, ReadyCheckResponse,
-    ReadyCheckResponseClient, ReadyCheckStarted, RequestPartyJoinUpdates, RoleChangedInform,
-    RolePollInform, SendRaidTargetUpdateAll, SendRaidTargetUpdateSingle, SetAssistantLeader,
-    SetEveryoneIsAssistant, SetLootMethod, SetPartyAssignment, SetRole, UpdateRaidTarget,
-    party_result,
+    ReadyCheckResponseClient, ReadyCheckStarted, RequestPartyJoinUpdates, RequestPartyMemberStats,
+    RoleChangedInform, RolePollInform, SendRaidTargetUpdateAll, SendRaidTargetUpdateSingle,
+    SetAssistantLeader, SetEveryoneIsAssistant, SetLootMethod, SetPartyAssignment, SetRole,
+    UpdateRaidTarget, party_result,
 };
 use wow_packet::{ClientPacket, ServerPacket};
 
@@ -206,6 +206,15 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
+        opcode: ClientOpcodes::RequestPartyMemberStats,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_request_party_member_stats",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
         opcode: ClientOpcodes::DoReadyCheck,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
@@ -266,6 +275,53 @@ fn class_to_power_type(class: u8) -> u8 {
         4 => 3, // Rogue: Energy
         6 => 6, // DeathKnight: RunicPower
         _ => 0, // Mana (default)
+    }
+}
+
+fn party_member_full_state_like_cpp(
+    target_guid: ObjectGuid,
+    registry: Option<&PlayerRegistry>,
+) -> PartyMemberFullState {
+    let Some(entry) = registry.and_then(|registry| registry.get(&target_guid)) else {
+        return PartyMemberFullState {
+            member_guid: target_guid,
+            for_enemy: false,
+            status: 0,
+            power_type: 0,
+            current_health: 0,
+            max_health: 0,
+            current_power: 0,
+            max_power: 0,
+            level: 0,
+            spec_id: 0,
+            zone_id: 0,
+            position_x: 0,
+            position_y: 0,
+            position_z: 0,
+            phases: Default::default(),
+        };
+    };
+
+    let pos = entry.position;
+    // Represented subset of C++ `PartyMemberFullState::Initialize(Player*)`.
+    // TODO(#NEXT.R8.ENTITIES): feed real Player health/power/auras/pet/spec/zone
+    // once those canonical stats are available in `PlayerRegistry`/entities.
+    PartyMemberFullState {
+        member_guid: target_guid,
+        for_enemy: false,
+        status: 1,
+        power_type: class_to_power_type(entry.class),
+        current_health: 1000,
+        max_health: 1000,
+        current_power: 500,
+        max_power: 500,
+        level: entry.level as u16,
+        spec_id: 0,
+        zone_id: 0,
+        position_x: pos.x as i16,
+        position_y: pos.y as i16,
+        position_z: pos.z as i16,
+        phases: entry.party_member_phase_states.clone(),
     }
 }
 
@@ -354,25 +410,8 @@ fn send_party_update(group: &GroupInfo, registry: &PlayerRegistry, _vra: u32) {
             if other_guid == member_guid {
                 continue;
             }
-            if let Some(other) = registry.get(&other_guid) {
-                let pos = other.position;
-                let full_state = PartyMemberFullState {
-                    member_guid: other_guid,
-                    for_enemy: false,
-                    status: 1,
-                    power_type: class_to_power_type(other.class),
-                    current_health: 1000,
-                    max_health: 1000,
-                    current_power: 500,
-                    max_power: 500,
-                    level: other.level as u16,
-                    spec_id: 0,
-                    zone_id: 0,
-                    position_x: pos.x as i16,
-                    position_y: pos.y as i16,
-                    position_z: pos.z as i16,
-                    phases: other.party_member_phase_states.clone(),
-                };
+            if registry.contains_key(&other_guid) {
+                let full_state = party_member_full_state_like_cpp(other_guid, Some(registry));
                 let _ = member_entry.send_tx.send(full_state.to_bytes());
             }
         }
@@ -1902,6 +1941,26 @@ impl WorldSession {
         }
     }
 
+    /// CMSG_REQUEST_PARTY_MEMBER_STATS.
+    ///
+    /// C++ `HandleRequestPartyMemberStatsOpcode` always replies to the requester
+    /// with `SMSG_PARTY_MEMBER_FULL_STATE`: `ObjectAccessor::FindConnectedPlayer`
+    /// drives online/offline status. `PartyIndex` is parsed by the packet layer in
+    /// the same bit/GUID/index order as C++, but the C++ handler ignores it.
+    pub async fn handle_request_party_member_stats(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let request = match RequestPartyMemberStats::read(&mut pkt) {
+            Ok(request) => request,
+            Err(e) => {
+                warn!("Bad RequestPartyMemberStats: {e}");
+                return;
+            }
+        };
+
+        let registry = self.player_registry().map(std::sync::Arc::clone);
+        let state = party_member_full_state_like_cpp(request.target_guid, registry.as_deref());
+        self.send_packet(&state);
+    }
+
     /// CMSG_INITIATE_ROLE_POLL.
     ///
     /// C++ resolves the current group, returns when sender is neither leader nor
@@ -2323,6 +2382,22 @@ mod tests {
     fn initiate_role_poll_packet(party_index: Option<u8>) -> WorldPacket {
         let mut pkt = WorldPacket::new_empty();
         pkt.write_bit(party_index.is_some());
+        if let Some(party_index) = party_index {
+            pkt.write_uint8(party_index);
+        } else {
+            pkt.flush_bits();
+        }
+        pkt.reset_read();
+        pkt
+    }
+
+    fn request_party_member_stats_packet(
+        target_guid: ObjectGuid,
+        party_index: Option<u8>,
+    ) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(party_index.is_some());
+        pkt.write_packed_guid(&target_guid);
         if let Some(party_index) = party_index {
             pkt.write_uint8(party_index);
         } else {
@@ -3016,6 +3091,134 @@ mod tests {
         );
         assert_eq!(&markers[2..], &[0, 0, 0, 0, 0, 0]);
         assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn request_party_member_stats_offline_replies_only_to_requester_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send();
+        let target = ObjectGuid::create_player(1, 77);
+        let registry = Arc::new(PlayerRegistry::default());
+        let (_target_tx, target_rx) = bounded::<Vec<u8>>(4);
+
+        session.set_player_registry(registry);
+
+        session
+            .handle_request_party_member_stats(request_party_member_stats_packet(target, Some(0)))
+            .await;
+
+        let sent = send_rx.try_recv().expect("requester full state");
+        let mut target_guid_pkt = WorldPacket::new_empty();
+        target_guid_pkt.write_packed_guid(&target);
+        let target_guid_bytes = target_guid_pkt.into_data();
+        let mut pkt = WorldPacket::from_bytes(&sent);
+        assert_eq!(
+            pkt.read_uint16().unwrap(),
+            ServerOpcodes::PartyMemberFullState as u16
+        );
+        assert!(!pkt.read_bit().unwrap());
+        assert_eq!(pkt.read_uint8().unwrap(), 0);
+        assert_eq!(pkt.read_uint8().unwrap(), 0);
+        assert_eq!(pkt.read_int16().unwrap(), 0);
+        assert_eq!(pkt.read_uint8().unwrap(), 0);
+        assert_eq!(pkt.read_int16().unwrap(), 0);
+        assert_eq!(pkt.read_int32().unwrap(), 0);
+        assert_eq!(pkt.read_int32().unwrap(), 0);
+        assert_eq!(pkt.read_uint16().unwrap(), 0);
+        assert_eq!(pkt.read_uint16().unwrap(), 0);
+        assert_eq!(pkt.read_uint16().unwrap(), 0);
+        assert_eq!(pkt.read_uint16().unwrap(), 0);
+        assert_eq!(pkt.read_uint16().unwrap(), 0);
+        assert_eq!(pkt.read_uint16().unwrap(), 0);
+        assert_eq!(pkt.read_uint32().unwrap(), 0);
+        assert_eq!(pkt.read_int16().unwrap(), 0);
+        assert_eq!(pkt.read_int16().unwrap(), 0);
+        assert_eq!(pkt.read_int16().unwrap(), 0);
+        assert_eq!(pkt.read_int32().unwrap(), 0);
+        assert_eq!(pkt.read_int32().unwrap(), 0);
+        assert_eq!(pkt.read_uint32().unwrap(), 0);
+        assert_eq!(pkt.read_uint32().unwrap(), 0);
+        assert_eq!(pkt.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
+        assert_eq!(pkt.read_uint32().unwrap(), 0);
+        assert_eq!(pkt.read_uint32().unwrap(), 0);
+        assert_eq!(pkt.read_int32().unwrap(), 0);
+        assert_eq!(pkt.read_uint32().unwrap(), 0);
+        assert!(!pkt.read_bit().unwrap());
+        assert!(sent.ends_with(&target_guid_bytes));
+        assert!(send_rx.try_recv().is_err());
+        assert!(target_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn request_party_member_stats_online_replies_snapshot_without_fanout_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send();
+        let target = ObjectGuid::create_player(1, 78);
+        let (target_tx, target_rx) = bounded::<Vec<u8>>(4);
+        let registry = Arc::new(PlayerRegistry::default());
+        registry.insert(target, broadcast_info(target, target_tx));
+        if let Some(mut info) = registry.get_mut(&target) {
+            info.level = 80;
+            info.class = 4;
+            info.position = Position::new(11.0, 22.0, 33.0, 0.0);
+            info.party_member_phase_states = wow_packet::packets::party::PartyMemberPhaseStates {
+                phase_shift_flags: 0x08,
+                personal_guid: ObjectGuid::EMPTY,
+                phases: vec![wow_packet::packets::party::PartyMemberPhase {
+                    flags: 0x02,
+                    id: 20,
+                }],
+            };
+        }
+        session.set_player_registry(registry);
+
+        session
+            .handle_request_party_member_stats(request_party_member_stats_packet(target, None))
+            .await;
+
+        let sent = send_rx.try_recv().expect("requester full state");
+        let mut target_guid_pkt = WorldPacket::new_empty();
+        target_guid_pkt.write_packed_guid(&target);
+        let target_guid_bytes = target_guid_pkt.into_data();
+        let mut pkt = WorldPacket::from_bytes(&sent);
+        assert_eq!(
+            pkt.read_uint16().unwrap(),
+            ServerOpcodes::PartyMemberFullState as u16
+        );
+        assert!(!pkt.read_bit().unwrap());
+        assert_eq!(pkt.read_uint8().unwrap(), 0);
+        assert_eq!(pkt.read_uint8().unwrap(), 0);
+        assert_eq!(pkt.read_int16().unwrap(), 1);
+        assert_eq!(pkt.read_uint8().unwrap(), 3);
+        assert_eq!(pkt.read_int16().unwrap(), 0);
+        assert_eq!(pkt.read_int32().unwrap(), 1000);
+        assert_eq!(pkt.read_int32().unwrap(), 1000);
+        assert_eq!(pkt.read_uint16().unwrap(), 500);
+        assert_eq!(pkt.read_uint16().unwrap(), 500);
+        assert_eq!(pkt.read_uint16().unwrap(), 80);
+        assert_eq!(pkt.read_uint16().unwrap(), 0);
+        assert_eq!(pkt.read_uint16().unwrap(), 0);
+        assert_eq!(pkt.read_uint16().unwrap(), 0);
+        assert_eq!(pkt.read_uint32().unwrap(), 0);
+        assert_eq!(pkt.read_int16().unwrap(), 11);
+        assert_eq!(pkt.read_int16().unwrap(), 22);
+        assert_eq!(pkt.read_int16().unwrap(), 33);
+        assert_eq!(pkt.read_int32().unwrap(), 0);
+        assert_eq!(pkt.read_int32().unwrap(), 0);
+        assert_eq!(pkt.read_uint32().unwrap(), 0x08);
+        assert_eq!(pkt.read_uint32().unwrap(), 1);
+        assert_eq!(pkt.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
+        assert_eq!(pkt.read_uint32().unwrap(), 0x02);
+        assert_eq!(pkt.read_uint16().unwrap(), 20);
+        assert_eq!(pkt.read_uint32().unwrap(), 0);
+        assert_eq!(pkt.read_int32().unwrap(), 0);
+        assert_eq!(pkt.read_uint32().unwrap(), 0);
+        assert!(!pkt.read_bit().unwrap());
+        assert!(sent.ends_with(&target_guid_bytes));
+        assert!(
+            sent.windows([0x08, 0x00, 0x00, 0x00].len())
+                .any(|window| window == [0x08, 0x00, 0x00, 0x00])
+        );
+        assert!(send_rx.try_recv().is_err());
+        assert!(target_rx.try_recv().is_err());
     }
 
     #[tokio::test]

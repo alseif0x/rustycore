@@ -16576,6 +16576,9 @@ impl WorldSession {
             ClientOpcodes::RequestPartyJoinUpdates => {
                 self.handle_request_party_join_updates(pkt).await;
             }
+            ClientOpcodes::RequestPartyMemberStats => {
+                self.handle_request_party_member_stats(pkt).await;
+            }
             ClientOpcodes::DoReadyCheck => {
                 self.handle_do_ready_check(pkt).await;
             }
