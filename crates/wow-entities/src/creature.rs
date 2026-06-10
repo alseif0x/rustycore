@@ -73,6 +73,12 @@ pub struct CreatureMovementInform {
     pub movement_id: u32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CreatureSpellClickInform {
+    pub clicker: ObjectGuid,
+    pub spell_click_handled: bool,
+}
+
 /// Canonical creature AI state owned by `wow-entities`.
 ///
 /// This mirrors the small legacy runtime state machine used by the world tick
@@ -129,6 +135,7 @@ pub struct CreatureAiOwnershipState {
     pub phase_group_id: u32,
     pub terrain_swap_map: i32,
     pub last_movement_inform: Option<CreatureMovementInform>,
+    pub last_spell_click_inform: Option<CreatureSpellClickInform>,
 }
 
 impl Default for CreatureAiOwnershipState {
@@ -169,6 +176,7 @@ impl Default for CreatureAiOwnershipState {
             phase_group_id: 0,
             terrain_swap_map: -1,
             last_movement_inform: None,
+            last_spell_click_inform: None,
         }
     }
 }
@@ -1539,6 +1547,17 @@ impl Creature {
 
     pub fn take_ai_movement_inform(&mut self) -> Option<CreatureMovementInform> {
         self.ai_ownership.last_movement_inform.take()
+    }
+
+    pub fn record_ai_spell_click_inform(&mut self, clicker: ObjectGuid, spell_click_handled: bool) {
+        self.ai_ownership.last_spell_click_inform = Some(CreatureSpellClickInform {
+            clicker,
+            spell_click_handled,
+        });
+    }
+
+    pub fn take_ai_spell_click_inform(&mut self) -> Option<CreatureSpellClickInform> {
+        self.ai_ownership.last_spell_click_inform.take()
     }
 
     pub const fn ai_position(&self) -> Position {

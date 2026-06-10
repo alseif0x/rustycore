@@ -1173,6 +1173,8 @@ pub(crate) struct RepresentedSpellClickPlanLikeCpp {
 pub(crate) struct RepresentedSpellClickExecutionOutcomeLikeCpp {
     pub planned_casts: usize,
     pub executed_casts: usize,
+    pub ai_on_spell_click_represented: bool,
+    pub ai_on_spell_click_unrepresented: bool,
     pub skipped_unrepresented_caster: usize,
     pub skipped_unrepresented_target: usize,
     pub skipped_unrepresented_original_caster: usize,
@@ -6530,6 +6532,35 @@ impl WorldSession {
                 outcome.executed_casts += 1;
             } else {
                 outcome.failed_casts += 1;
+            }
+        }
+
+        if plan.ai_on_spell_click_unrepresented {
+            let has_unrepresented_or_failed_casts = outcome.skipped_unrepresented_caster > 0
+                || outcome.skipped_unrepresented_target > 0
+                || outcome.skipped_unrepresented_original_caster > 0
+                || outcome.failed_casts > 0;
+            if outcome.executed_casts > 0 {
+                let represented = if self
+                    .mutate_world_creature(creature_guid, |creature| {
+                        creature
+                            .creature
+                            .record_ai_spell_click_inform(player_guid, true);
+                    })
+                    .is_some()
+                {
+                    true
+                } else {
+                    self.mutate_canonical_creature_by_guid_like_cpp(creature_guid, |creature| {
+                        creature.record_ai_spell_click_inform(player_guid, true);
+                    })
+                    .is_some()
+                };
+                outcome.ai_on_spell_click_represented = represented;
+                outcome.ai_on_spell_click_unrepresented =
+                    !represented || has_unrepresented_or_failed_casts;
+            } else {
+                outcome.ai_on_spell_click_unrepresented = true;
             }
         }
 
@@ -43067,6 +43098,7 @@ mod tests {
             RepresentedSpellClickExecutionOutcomeLikeCpp {
                 planned_casts: 1,
                 executed_casts: 1,
+                ai_on_spell_click_represented: true,
                 ..Default::default()
             }
         );
@@ -43076,6 +43108,17 @@ mod tests {
             world_creature.current_hp(),
             33,
             "C++ Unit::HandleSpellClick casts the row spell when caster=clicker and target=clickee"
+        );
+        assert_eq!(
+            world_creature
+                .creature
+                .ai_ownership()
+                .last_spell_click_inform,
+            Some(wow_entities::CreatureSpellClickInform {
+                clicker: player_guid,
+                spell_click_handled: true,
+            }),
+            "C++ calls CreatureAI::OnSpellClick(clicker, true) after a handled spellclick row"
         );
         drop(manager);
         let opcodes = drain_server_opcodes(&send_rx);
@@ -43176,6 +43219,7 @@ mod tests {
             RepresentedSpellClickExecutionOutcomeLikeCpp {
                 planned_casts: 1,
                 executed_casts: 1,
+                ai_on_spell_click_represented: true,
                 ..Default::default()
             },
             "C++ Unit::HandleSpellClick may resolve caster=this and cast from the clickee itself"
@@ -43183,6 +43227,16 @@ mod tests {
         let manager = manager.read().unwrap();
         let world_creature = manager.find_creature(571, 0, creature_guid).unwrap();
         assert_eq!(world_creature.current_hp(), 33);
+        assert_eq!(
+            world_creature
+                .creature
+                .ai_ownership()
+                .last_spell_click_inform,
+            Some(wow_entities::CreatureSpellClickInform {
+                clicker: player_guid,
+                spell_click_handled: true,
+            })
+        );
         drop(manager);
 
         let packets = drain_server_packet_bytes(&send_rx);
@@ -43273,6 +43327,7 @@ mod tests {
             RepresentedSpellClickExecutionOutcomeLikeCpp {
                 planned_casts: 1,
                 executed_casts: 1,
+                ai_on_spell_click_represented: true,
                 ..Default::default()
             },
             "C++ Unit::HandleSpellClick may resolve caster=this,target=clicker"
@@ -43283,6 +43338,17 @@ mod tests {
                 .mutate_canonical_player_like_cpp(|player| player.unit().data().health)
                 .unwrap(),
             41
+        );
+        assert_eq!(
+            session
+                .mutate_canonical_creature_by_guid_like_cpp(creature_guid, |creature| {
+                    creature.ai_ownership().last_spell_click_inform
+                })
+                .unwrap(),
+            Some(wow_entities::CreatureSpellClickInform {
+                clicker: player_guid,
+                spell_click_handled: true,
+            })
         );
 
         let packets = drain_server_packet_bytes(&send_rx);
@@ -43397,6 +43463,7 @@ mod tests {
             RepresentedSpellClickExecutionOutcomeLikeCpp {
                 planned_casts: 1,
                 executed_casts: 1,
+                ai_on_spell_click_represented: true,
                 ..Default::default()
             },
             "C++ GetOwnerGUID resolves to the clicker here, so Rust can use the player-caster rail without faking original caster"
@@ -43404,6 +43471,16 @@ mod tests {
         let manager = manager.read().unwrap();
         let world_creature = manager.find_creature(571, 0, creature_guid).unwrap();
         assert_eq!(world_creature.current_hp(), 33);
+        assert_eq!(
+            world_creature
+                .creature
+                .ai_ownership()
+                .last_spell_click_inform,
+            Some(wow_entities::CreatureSpellClickInform {
+                clicker: player_guid,
+                spell_click_handled: true,
+            })
+        );
         drop(manager);
         assert_eq!(
             drain_server_opcodes(&send_rx),
@@ -43467,6 +43544,7 @@ mod tests {
             outcome,
             RepresentedSpellClickExecutionOutcomeLikeCpp {
                 planned_casts: 1,
+                ai_on_spell_click_unrepresented: true,
                 skipped_unrepresented_original_caster: 1,
                 ..Default::default()
             },
