@@ -11,7 +11,7 @@ use wow_core::ObjectGuid;
 use wow_database::{CharStatements, PreparedStatement, StatementDef};
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
 use wow_network::{
-    GROUP_ASSIGN_MAINASSIST_LIKE_CPP, GROUP_ASSIGN_MAINTANK_LIKE_CPP, GroupInfo,
+    GROUP_ASSIGN_MAINASSIST_LIKE_CPP, GROUP_ASSIGN_MAINTANK_LIKE_CPP, GroupInfo, GroupRegistry,
     MEMBER_FLAG_ASSISTANT_LIKE_CPP, MEMBER_FLAG_MAINASSIST_LIKE_CPP, MEMBER_FLAG_MAINTANK_LIKE_CPP,
     PlayerRegistry, ReadyCheckEventLikeCpp, free_group_db_store_id_like_cpp,
     register_group_db_store_id_like_cpp,
@@ -30,6 +30,45 @@ use wow_packet::{ClientPacket, ServerPacket};
 use crate::session::WorldSession;
 
 const EMPTY_TARGET_ICON_RAW_LIKE_CPP: [u8; 16] = [0; 16];
+
+// ── canonical group lookup ────────────────────────────────────────────────────
+
+/// Canonical represented group lookup matching C++ `Player::GetGroup` semantics.
+///
+/// C++ anchor: `Player::GetGroup(Optional<uint8> partyIndex)` at
+/// `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:23429-23444`.
+///
+/// 1. Validates `cached_group_guid` against canonical `GroupRegistry` membership:
+///    the cached group must exist AND `sender_guid` must be a current member.
+/// 2. If cache is missing or stale (group dissolved, sender removed, cache
+///    points to a group the sender is not in), scans `GroupRegistry` for any
+///    group containing `sender_guid`.
+/// 3. Returns `None` when `sender_guid` is not a member of any represented group.
+///
+/// Boundary: `PartyIndex` / BG / BF / original-group category selection is not
+/// represented here; the lookup always resolves the single represented group
+/// that contains `sender_guid`. Callers that need to distinguish "no group at
+/// all" from "cache stale" should check the return value per their own handler
+/// semantics (e.g. `SetRole` self-only fallback when no group exists).
+fn current_group_guid_like_cpp(
+    group_reg: &GroupRegistry,
+    cached_group_guid: Option<u64>,
+    sender_guid: ObjectGuid,
+) -> Option<u64> {
+    // 1. Validate cache: group must exist AND sender must be a member.
+    if let Some(gid) = cached_group_guid {
+        if let Some(group) = group_reg.get(&gid) {
+            if group.members.contains(&sender_guid) {
+                return Some(gid);
+            }
+        }
+    }
+    // 2. Fallback: scan for any group containing sender.
+    group_reg
+        .iter()
+        .find(|entry| entry.value().members.contains(&sender_guid))
+        .map(|entry| *entry.key())
+}
 
 // ── inventory registrations ───────────────────────────────────────────────────
 
@@ -669,7 +708,7 @@ impl WorldSession {
             None => return,
         };
 
-        if let Some(gid) = self.group_guid {
+        if let Some(gid) = current_group_guid_like_cpp(group_reg, self.group_guid, my_guid) {
             if let Some(g) = group_reg.get(&gid) {
                 if g.members.len() >= 5 {
                     send_result!(party_result::GROUP_FULL);
@@ -887,19 +926,8 @@ impl WorldSession {
         let vra = self.virtual_realm_address();
 
         // 1. Find the group we're currently in.
-        let gid = match self.group_guid {
-            Some(g) => g,
-            None => {
-                // Fallback: search by guid in case group_guid wasn't set.
-                match group_reg
-                    .iter()
-                    .find(|e| e.value().members.contains(&my_guid))
-                    .map(|e| *e.key())
-                {
-                    Some(g) => g,
-                    None => return,
-                }
-            }
+        let Some(gid) = current_group_guid_like_cpp(&group_reg, self.group_guid, my_guid) else {
+            return;
         };
 
         // 2. Remove self from the group.
@@ -1005,13 +1033,13 @@ impl WorldSession {
             Some(guid) => guid,
             None => return,
         };
-        let group_guid = match self.group_guid {
-            Some(group_guid) => group_guid,
-            None => return,
-        };
         let group_reg = match self.group_registry() {
             Some(registry) => std::sync::Arc::clone(registry),
             None => return,
+        };
+        let Some(group_guid) = current_group_guid_like_cpp(&group_reg, self.group_guid, my_guid)
+        else {
+            return;
         };
         let registry = match self.player_registry() {
             Some(registry) => std::sync::Arc::clone(registry),
@@ -1107,16 +1135,10 @@ impl WorldSession {
         };
         let vra = self.virtual_realm_address();
 
-        let group_guid = match self.group_guid {
-            Some(group_guid) => group_guid,
-            None => match group_reg
-                .iter()
-                .find(|entry| entry.value().members.contains(&sender_guid))
-                .map(|entry| *entry.key())
-            {
-                Some(group_guid) => group_guid,
-                None => return,
-            },
+        let Some(group_guid) =
+            current_group_guid_like_cpp(&group_reg, self.group_guid, sender_guid)
+        else {
+            return;
         };
 
         let mut subgroup_update: Option<(ObjectGuid, u8)> = None;
@@ -1195,16 +1217,10 @@ impl WorldSession {
         };
         let vra = self.virtual_realm_address();
 
-        let group_guid = match self.group_guid {
-            Some(group_guid) => group_guid,
-            None => match group_reg
-                .iter()
-                .find(|entry| entry.value().members.contains(&sender_guid))
-                .map(|entry| *entry.key())
-            {
-                Some(group_guid) => group_guid,
-                None => return,
-            },
+        let Some(group_guid) =
+            current_group_guid_like_cpp(&group_reg, self.group_guid, sender_guid)
+        else {
+            return;
         };
 
         let subgroup_updates = {
@@ -1279,16 +1295,10 @@ impl WorldSession {
         };
         let vra = self.virtual_realm_address();
 
-        let group_guid = match self.group_guid {
-            Some(group_guid) => group_guid,
-            None => match group_reg
-                .iter()
-                .find(|entry| entry.value().members.contains(&sender_guid))
-                .map(|entry| *entry.key())
-            {
-                Some(group_guid) => group_guid,
-                None => return,
-            },
+        let Some(group_guid) =
+            current_group_guid_like_cpp(&group_reg, self.group_guid, sender_guid)
+        else {
+            return;
         };
 
         let final_flags = {
@@ -1358,16 +1368,10 @@ impl WorldSession {
         };
         let vra = self.virtual_realm_address();
 
-        let group_guid = match self.group_guid {
-            Some(group_guid) => group_guid,
-            None => match group_reg
-                .iter()
-                .find(|entry| entry.value().members.contains(&sender_guid))
-                .map(|entry| *entry.key())
-            {
-                Some(group_guid) => group_guid,
-                None => return,
-            },
+        let Some(group_guid) =
+            current_group_guid_like_cpp(&group_reg, self.group_guid, sender_guid)
+        else {
+            return;
         };
 
         let (group_flags, db_store_id) = {
@@ -1430,16 +1434,10 @@ impl WorldSession {
             None => return,
         };
 
-        let group_guid = match self.group_guid {
-            Some(group_guid) => group_guid,
-            None => match group_reg
-                .iter()
-                .find(|entry| entry.value().members.contains(&sender_guid))
-                .map(|entry| *entry.key())
-            {
-                Some(group_guid) => group_guid,
-                None => return,
-            },
+        let Some(group_guid) =
+            current_group_guid_like_cpp(&group_reg, self.group_guid, sender_guid)
+        else {
+            return;
         };
 
         let events = {
@@ -1490,16 +1488,10 @@ impl WorldSession {
             None => return,
         };
 
-        let group_guid = match self.group_guid {
-            Some(group_guid) => group_guid,
-            None => match group_reg
-                .iter()
-                .find(|entry| entry.value().members.contains(&sender_guid))
-                .map(|entry| *entry.key())
-            {
-                Some(group_guid) => group_guid,
-                None => return,
-            },
+        let Some(group_guid) =
+            current_group_guid_like_cpp(&group_reg, self.group_guid, sender_guid)
+        else {
+            return;
         };
 
         let events = {
@@ -1552,16 +1544,10 @@ impl WorldSession {
         };
         let vra = self.virtual_realm_address();
 
-        let group_guid = match self.group_guid {
-            Some(group_guid) => group_guid,
-            None => match group_reg
-                .iter()
-                .find(|entry| entry.value().members.contains(&sender_guid))
-                .map(|entry| *entry.key())
-            {
-                Some(group_guid) => group_guid,
-                None => return,
-            },
+        let Some(group_guid) =
+            current_group_guid_like_cpp(&group_reg, self.group_guid, sender_guid)
+        else {
+            return;
         };
 
         let persist_updates = {
@@ -1659,12 +1645,7 @@ impl WorldSession {
             }
         };
 
-        let group_guid = self.group_guid.or_else(|| {
-            group_reg
-                .iter()
-                .find(|entry| entry.value().members.contains(&sender_guid))
-                .map(|entry| *entry.key())
-        });
+        let group_guid = current_group_guid_like_cpp(&group_reg, self.group_guid, sender_guid);
 
         let Some(group_guid) = group_guid else {
             if set_role.role == 0 {
@@ -1753,16 +1734,10 @@ impl WorldSession {
             None => return,
         };
 
-        let group_guid = match self.group_guid {
-            Some(group_guid) => group_guid,
-            None => match group_reg
-                .iter()
-                .find(|entry| entry.value().members.contains(&sender_guid))
-                .map(|entry| *entry.key())
-            {
-                Some(group_guid) => group_guid,
-                None => return,
-            },
+        let Some(group_guid) =
+            current_group_guid_like_cpp(&group_reg, self.group_guid, sender_guid)
+        else {
+            return;
         };
 
         let Some((bytes, recipients)) = group_reg.get(&group_guid).and_then(|group| {
@@ -1873,16 +1848,10 @@ impl WorldSession {
             None => return,
         };
 
-        let group_guid = match self.group_guid {
-            Some(group_guid) => group_guid,
-            None => match group_reg
-                .iter()
-                .find(|entry| entry.value().members.contains(&sender_guid))
-                .map(|entry| *entry.key())
-            {
-                Some(group_guid) => group_guid,
-                None => return,
-            },
+        let Some(group_guid) =
+            current_group_guid_like_cpp(&group_reg, self.group_guid, sender_guid)
+        else {
+            return;
         };
 
         let Some(group) = group_reg.get(&group_guid) else {
@@ -1911,13 +1880,14 @@ impl WorldSession {
 #[cfg(test)]
 mod tests {
     use super::{
-        first_connected_group_member_like_cpp, group_delete_statement_like_cpp,
-        group_insert_statement_like_cpp, group_leader_update_statement_like_cpp,
-        group_lfg_data_delete_statement_like_cpp, group_member_delete_all_statement_like_cpp,
-        group_member_delete_statement_like_cpp, group_member_flag_update_statement_like_cpp,
-        group_member_insert_statement_like_cpp, group_member_subgroup_update_statement_like_cpp,
-        group_type_update_statement_like_cpp, party_player_info_like_cpp, send_party_update,
-        send_ready_check_events_like_cpp, sender_can_start_ready_check_like_cpp,
+        current_group_guid_like_cpp, first_connected_group_member_like_cpp,
+        group_delete_statement_like_cpp, group_insert_statement_like_cpp,
+        group_leader_update_statement_like_cpp, group_lfg_data_delete_statement_like_cpp,
+        group_member_delete_all_statement_like_cpp, group_member_delete_statement_like_cpp,
+        group_member_flag_update_statement_like_cpp, group_member_insert_statement_like_cpp,
+        group_member_subgroup_update_statement_like_cpp, group_type_update_statement_like_cpp,
+        party_player_info_like_cpp, send_party_update, send_ready_check_events_like_cpp,
+        sender_can_start_ready_check_like_cpp,
     };
     use flume::bounded;
     use std::sync::Arc;
@@ -2124,6 +2094,18 @@ mod tests {
     }
 
     fn initiate_role_poll_packet(party_index: Option<u8>) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(party_index.is_some());
+        if let Some(party_index) = party_index {
+            pkt.write_uint8(party_index);
+        } else {
+            pkt.flush_bits();
+        }
+        pkt.reset_read();
+        pkt
+    }
+
+    fn do_ready_check_packet(party_index: Option<u8>) -> WorldPacket {
         let mut pkt = WorldPacket::new_empty();
         pkt.write_bit(party_index.is_some());
         if let Some(party_index) = party_index {
@@ -3951,5 +3933,189 @@ mod tests {
             ServerOpcodes::MinimapPing as u16
         );
         assert_eq!(pkt.read_packed_guid().unwrap(), sender);
+    }
+
+    // ── canonical group lookup architectural tests ─────────────────────────────
+
+    #[test]
+    fn current_group_guid_accepts_valid_cached_group() {
+        let sender = ObjectGuid::create_player(1, 42);
+        let other = ObjectGuid::create_player(1, 43);
+        let group_registry = GroupRegistry::default();
+        let mut group = GroupInfo::new(sender);
+        group.add_member(other);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        let result = current_group_guid_like_cpp(&group_registry, Some(group_guid), sender);
+        assert_eq!(result, Some(group_guid), "valid cache must be accepted");
+    }
+
+    #[test]
+    fn current_group_guid_ignores_stale_cache_and_finds_real_group() {
+        let sender = ObjectGuid::create_player(1, 42);
+        let other = ObjectGuid::create_player(1, 43);
+        let stale_leader = ObjectGuid::create_player(1, 99);
+
+        let group_registry = GroupRegistry::default();
+
+        // Stale group: sender is NOT a member.
+        let mut stale_group = GroupInfo::new(stale_leader);
+        stale_group.add_member(other);
+        let stale_guid = stale_group.group_guid;
+        group_registry.insert(stale_guid, stale_group);
+
+        // Real group: sender IS a member.
+        let mut real_group = GroupInfo::new(sender);
+        real_group.add_member(other);
+        let real_guid = real_group.group_guid;
+        group_registry.insert(real_guid, real_group);
+
+        // Cache points to stale group.
+        let result = current_group_guid_like_cpp(&group_registry, Some(stale_guid), sender);
+        assert_eq!(
+            result,
+            Some(real_guid),
+            "stale cache must be bypassed; real group found by scan"
+        );
+    }
+
+    #[test]
+    fn current_group_guid_returns_none_when_sender_not_in_any_group() {
+        let sender = ObjectGuid::create_player(1, 42);
+        let other = ObjectGuid::create_player(1, 43);
+
+        let group_registry = GroupRegistry::default();
+        let mut group = GroupInfo::new(other);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        let result = current_group_guid_like_cpp(&group_registry, Some(group_guid), sender);
+        assert_eq!(result, None, "sender not in any group must return None");
+
+        let result_no_cache = current_group_guid_like_cpp(&group_registry, None, sender);
+        assert_eq!(
+            result_no_cache, None,
+            "no cache + no membership must return None"
+        );
+    }
+
+    #[tokio::test]
+    async fn minimap_ping_stale_cache_does_not_fanout_to_other_group() {
+        // Scenario: self.group_guid points to a group where sender is NOT a member.
+        // That group has other members who should NOT receive the ping.
+        // A separate group exists where the sender IS a member.
+        let (mut session, _send_rx) = make_session_with_send();
+        let sender = ObjectGuid::create_player(1, 42);
+        let stale_member = ObjectGuid::create_player(1, 43);
+        let real_member = ObjectGuid::create_player(1, 44);
+
+        let group_registry = Arc::new(GroupRegistry::default());
+
+        // Stale group: sender NOT a member.
+        let mut stale_group = GroupInfo::new(stale_member);
+        let stale_guid = stale_group.group_guid;
+        group_registry.insert(stale_guid, stale_group);
+
+        // Real group: sender IS a member.
+        let mut real_group = GroupInfo::new(sender);
+        real_group.add_member(real_member);
+        let real_guid = real_group.group_guid;
+        group_registry.insert(real_guid, real_group);
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (stale_tx, stale_rx) = bounded(8);
+        let (real_tx, real_rx) = bounded(8);
+        player_registry.insert(stale_member, broadcast_info(stale_member, stale_tx));
+        player_registry.insert(real_member, broadcast_info(real_member, real_tx));
+
+        session.set_player_guid(Some(sender));
+        // Cache points to stale group.
+        session.group_guid = Some(stale_guid);
+        session.set_player_registry(player_registry);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+
+        session
+            .handle_minimap_ping(minimap_ping_packet(10.0, 20.0, None))
+            .await;
+
+        // Stale group member must NOT receive the ping.
+        assert!(
+            stale_rx.try_recv().is_err(),
+            "stale group member must not receive minimap ping"
+        );
+
+        // Real group member MUST receive the ping.
+        let sent = real_rx
+            .try_recv()
+            .expect("real group member should receive minimap ping");
+        let mut pkt = WorldPacket::from_bytes(&sent);
+        assert_eq!(
+            pkt.read_uint16().unwrap(),
+            ServerOpcodes::MinimapPing as u16
+        );
+        assert_eq!(pkt.read_packed_guid().unwrap(), sender);
+        assert_eq!(pkt.read_float().unwrap(), 10.0);
+        assert_eq!(pkt.read_float().unwrap(), 20.0);
+    }
+
+    #[tokio::test]
+    async fn ready_check_stale_cache_uses_real_group_for_mutation_and_fanout() {
+        // Scenario: stale cache points to a group where sender is NOT a member.
+        // The real group has sender as leader. Ready check must start on the
+        // real group, not the stale one.
+        let (mut session, _send_rx) = make_session_with_send();
+        let sender = ObjectGuid::create_player(1, 42);
+        let stale_member = ObjectGuid::create_player(1, 43);
+        let real_member = ObjectGuid::create_player(1, 44);
+
+        let group_registry = Arc::new(GroupRegistry::default());
+
+        // Stale group.
+        let mut stale_group = GroupInfo::new(stale_member);
+        let stale_guid = stale_group.group_guid;
+        group_registry.insert(stale_guid, stale_group);
+
+        // Real group: sender is leader.
+        let mut real_group = GroupInfo::new(sender);
+        real_group.add_member(real_member);
+        let real_guid = real_group.group_guid;
+        group_registry.insert(real_guid, real_group);
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (stale_tx, stale_rx) = bounded(8);
+        let (real_tx, _real_rx) = bounded(8);
+        player_registry.insert(stale_member, broadcast_info(stale_member, stale_tx));
+        player_registry.insert(real_member, broadcast_info(real_member, real_tx));
+
+        session.set_player_guid(Some(sender));
+        session.group_guid = Some(stale_guid);
+        session.set_player_registry(player_registry);
+        session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
+
+        session
+            .handle_do_ready_check(do_ready_check_packet(None))
+            .await;
+
+        // Stale group member must NOT receive anything.
+        assert!(
+            stale_rx.try_recv().is_err(),
+            "stale group member must not receive ready check"
+        );
+
+        // Verify the real group has a ready check active (mutation happened on
+        // the correct group, not the stale one).
+        let real_group = group_registry.get(&real_guid).unwrap();
+        assert!(
+            real_group.ready_check_started,
+            "real group must have ready check active"
+        );
+
+        // Stale group must NOT have a ready check.
+        let stale_group = group_registry.get(&stale_guid).unwrap();
+        assert!(
+            !stale_group.ready_check_started,
+            "stale group must not have ready check"
+        );
     }
 }
