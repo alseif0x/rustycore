@@ -10,6 +10,7 @@ use wow_constants::ClientOpcodes;
 use wow_core::ObjectGuid;
 use wow_database::{CharStatements, PreparedStatement, StatementDef};
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
+use wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP;
 use wow_network::{
     GROUP_ASSIGN_MAINASSIST_LIKE_CPP, GROUP_ASSIGN_MAINTANK_LIKE_CPP, GroupInfo, GroupRegistry,
     MEMBER_FLAG_ASSISTANT_LIKE_CPP, MEMBER_FLAG_MAINASSIST_LIKE_CPP, MEMBER_FLAG_MAINTANK_LIKE_CPP,
@@ -38,35 +39,41 @@ const EMPTY_TARGET_ICON_RAW_LIKE_CPP: [u8; 16] = [0; 16];
 /// C++ anchor: `Player::GetGroup(Optional<uint8> partyIndex)` at
 /// `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:23429-23444`.
 ///
-/// 1. Validates `cached_group_guid` against canonical `GroupRegistry` membership:
-///    the cached group must exist AND `sender_guid` must be a current member.
-/// 2. If cache is missing or stale (group dissolved, sender removed, cache
-///    points to a group the sender is not in), scans `GroupRegistry` for any
-///    group containing `sender_guid`.
-/// 3. Returns `None` when `sender_guid` is not a member of any represented group.
+/// 1. Validates `cached_group_guid` against canonical `GroupRegistry` membership
+///    and represented `PartyIndex`/`GroupCategory`: the cached group must exist,
+///    `sender_guid` must be a current member, and the represented category must
+///    match when `party_index` is present.
+/// 2. If cache is missing, stale, or category-mismatched, scans `GroupRegistry`
+///    for a group containing `sender_guid` that also matches `party_index`.
+/// 3. Returns `None` when `sender_guid` is not a member of any represented group
+///    matching the requested category.
 ///
-/// Boundary: `PartyIndex` / BG / BF / original-group category selection is not
-/// represented here; the lookup always resolves the single represented group
-/// that contains `sender_guid`. Callers that need to distinguish "no group at
-/// all" from "cache stale" should check the return value per their own handler
-/// semantics (e.g. `SetRole` self-only fallback when no group exists).
+/// Boundary: RustyCore currently represents HOME groups only by default.
+/// `PartyIndex=Some(1)` / INSTANCE, original-group, BG and BF group ownership do
+/// not fall back to HOME and remain unsupported until real state exists.
 fn current_group_guid_like_cpp(
     group_reg: &GroupRegistry,
     cached_group_guid: Option<u64>,
     sender_guid: ObjectGuid,
+    party_index: Option<u8>,
 ) -> Option<u64> {
-    // 1. Validate cache: group must exist AND sender must be a member.
+    // 1. Validate cache: group must exist, sender must be a member, and category must match.
     if let Some(gid) = cached_group_guid {
         if let Some(group) = group_reg.get(&gid) {
-            if group.members.contains(&sender_guid) {
+            if group.members.contains(&sender_guid)
+                && group.matches_party_index_like_cpp(party_index)
+            {
                 return Some(gid);
             }
         }
     }
-    // 2. Fallback: scan for any group containing sender.
+    // 2. Fallback: scan for any group containing sender in the requested category.
     group_reg
         .iter()
-        .find(|entry| entry.value().members.contains(&sender_guid))
+        .find(|entry| {
+            entry.value().members.contains(&sender_guid)
+                && entry.value().matches_party_index_like_cpp(party_index)
+        })
         .map(|entry| *entry.key())
 }
 
@@ -299,7 +306,7 @@ fn send_party_update(group: &GroupInfo, registry: &PlayerRegistry, _vra: u32) {
 
         let update = PartyUpdate {
             party_flags: group.group_flags,
-            party_index: 0,
+            party_index: group.group_category_like_cpp(),
             party_type: 1,
             my_index: my_idx as i32,
             party_guid: group.group_guid,
@@ -708,7 +715,7 @@ impl WorldSession {
             None => return,
         };
 
-        if let Some(gid) = current_group_guid_like_cpp(group_reg, self.group_guid, my_guid) {
+        if let Some(gid) = current_group_guid_like_cpp(group_reg, self.group_guid, my_guid, None) {
             if let Some(g) = group_reg.get(&gid) {
                 if g.members.len() >= 5 {
                     send_result!(party_result::GROUP_FULL);
@@ -926,7 +933,8 @@ impl WorldSession {
         let vra = self.virtual_realm_address();
 
         // 1. Find the group we're currently in.
-        let Some(gid) = current_group_guid_like_cpp(&group_reg, self.group_guid, my_guid) else {
+        let Some(gid) = current_group_guid_like_cpp(&group_reg, self.group_guid, my_guid, None)
+        else {
             return;
         };
 
@@ -1037,7 +1045,8 @@ impl WorldSession {
             Some(registry) => std::sync::Arc::clone(registry),
             None => return,
         };
-        let Some(group_guid) = current_group_guid_like_cpp(&group_reg, self.group_guid, my_guid)
+        let Some(group_guid) =
+            current_group_guid_like_cpp(&group_reg, self.group_guid, my_guid, None)
         else {
             return;
         };
@@ -1135,9 +1144,12 @@ impl WorldSession {
         };
         let vra = self.virtual_realm_address();
 
-        let Some(group_guid) =
-            current_group_guid_like_cpp(&group_reg, self.group_guid, sender_guid)
-        else {
+        let Some(group_guid) = current_group_guid_like_cpp(
+            &group_reg,
+            self.group_guid,
+            sender_guid,
+            change.party_index,
+        ) else {
             return;
         };
 
@@ -1201,8 +1213,6 @@ impl WorldSession {
                 return;
             }
         };
-        let _represented_party_index_boundary = swap.party_index;
-
         let sender_guid = match self.player_guid() {
             Some(guid) => guid,
             None => return,
@@ -1218,7 +1228,7 @@ impl WorldSession {
         let vra = self.virtual_realm_address();
 
         let Some(group_guid) =
-            current_group_guid_like_cpp(&group_reg, self.group_guid, sender_guid)
+            current_group_guid_like_cpp(&group_reg, self.group_guid, sender_guid, swap.party_index)
         else {
             return;
         };
@@ -1279,8 +1289,6 @@ impl WorldSession {
                 return;
             }
         };
-        let _represented_party_index_boundary = set_assistant.party_index;
-
         let sender_guid = match self.player_guid() {
             Some(guid) => guid,
             None => return,
@@ -1295,9 +1303,12 @@ impl WorldSession {
         };
         let vra = self.virtual_realm_address();
 
-        let Some(group_guid) =
-            current_group_guid_like_cpp(&group_reg, self.group_guid, sender_guid)
-        else {
+        let Some(group_guid) = current_group_guid_like_cpp(
+            &group_reg,
+            self.group_guid,
+            sender_guid,
+            set_assistant.party_index,
+        ) else {
             return;
         };
 
@@ -1352,8 +1363,6 @@ impl WorldSession {
                 return;
             }
         };
-        let _represented_party_index_boundary = set_everyone.party_index;
-
         let sender_guid = match self.player_guid() {
             Some(guid) => guid,
             None => return,
@@ -1368,9 +1377,12 @@ impl WorldSession {
         };
         let vra = self.virtual_realm_address();
 
-        let Some(group_guid) =
-            current_group_guid_like_cpp(&group_reg, self.group_guid, sender_guid)
-        else {
+        let Some(group_guid) = current_group_guid_like_cpp(
+            &group_reg,
+            self.group_guid,
+            sender_guid,
+            set_everyone.party_index,
+        ) else {
             return;
         };
 
@@ -1419,8 +1431,6 @@ impl WorldSession {
                 return;
             }
         };
-        let _represented_party_index_boundary = ready_check.party_index;
-
         let sender_guid = match self.player_guid() {
             Some(guid) => guid,
             None => return,
@@ -1434,9 +1444,12 @@ impl WorldSession {
             None => return,
         };
 
-        let Some(group_guid) =
-            current_group_guid_like_cpp(&group_reg, self.group_guid, sender_guid)
-        else {
+        let Some(group_guid) = current_group_guid_like_cpp(
+            &group_reg,
+            self.group_guid,
+            sender_guid,
+            ready_check.party_index,
+        ) else {
             return;
         };
 
@@ -1473,8 +1486,6 @@ impl WorldSession {
                 return;
             }
         };
-        let _represented_party_index_boundary = response.party_index;
-
         let sender_guid = match self.player_guid() {
             Some(guid) => guid,
             None => return,
@@ -1488,9 +1499,12 @@ impl WorldSession {
             None => return,
         };
 
-        let Some(group_guid) =
-            current_group_guid_like_cpp(&group_reg, self.group_guid, sender_guid)
-        else {
+        let Some(group_guid) = current_group_guid_like_cpp(
+            &group_reg,
+            self.group_guid,
+            sender_guid,
+            response.party_index,
+        ) else {
             return;
         };
 
@@ -1528,8 +1542,6 @@ impl WorldSession {
                 return;
             }
         };
-        let _represented_party_index_boundary = assignment.party_index;
-
         let sender_guid = match self.player_guid() {
             Some(guid) => guid,
             None => return,
@@ -1544,9 +1556,12 @@ impl WorldSession {
         };
         let vra = self.virtual_realm_address();
 
-        let Some(group_guid) =
-            current_group_guid_like_cpp(&group_reg, self.group_guid, sender_guid)
-        else {
+        let Some(group_guid) = current_group_guid_like_cpp(
+            &group_reg,
+            self.group_guid,
+            sender_guid,
+            assignment.party_index,
+        ) else {
             return;
         };
 
@@ -1622,8 +1637,6 @@ impl WorldSession {
                 return;
             }
         };
-        let _represented_party_index_boundary = set_role.party_index;
-
         let sender_guid = match self.player_guid() {
             Some(guid) => guid,
             None => return,
@@ -1635,7 +1648,7 @@ impl WorldSession {
                     return;
                 }
                 self.send_packet(&RoleChangedInform {
-                    party_index: 0,
+                    party_index: GROUP_CATEGORY_HOME_LIKE_CPP,
                     from: sender_guid,
                     changed_unit: set_role.target_guid,
                     old_role: 0,
@@ -1645,14 +1658,19 @@ impl WorldSession {
             }
         };
 
-        let group_guid = current_group_guid_like_cpp(&group_reg, self.group_guid, sender_guid);
+        let group_guid = current_group_guid_like_cpp(
+            &group_reg,
+            self.group_guid,
+            sender_guid,
+            set_role.party_index,
+        );
 
         let Some(group_guid) = group_guid else {
             if set_role.role == 0 {
                 return;
             }
             self.send_packet(&RoleChangedInform {
-                party_index: 0,
+                party_index: GROUP_CATEGORY_HOME_LIKE_CPP,
                 from: sender_guid,
                 changed_unit: set_role.target_guid,
                 old_role: 0,
@@ -1673,7 +1691,7 @@ impl WorldSession {
                 .unwrap_or_default();
             Some((
                 role_changed_inform_like_cpp(
-                    0,
+                    group.group_category_like_cpp(),
                     sender_guid,
                     set_role.target_guid,
                     old_role,
@@ -1719,8 +1737,6 @@ impl WorldSession {
                 return;
             }
         };
-        let _represented_party_index_boundary = role_poll.party_index;
-
         let sender_guid = match self.player_guid() {
             Some(guid) => guid,
             None => return,
@@ -1734,9 +1750,12 @@ impl WorldSession {
             None => return,
         };
 
-        let Some(group_guid) =
-            current_group_guid_like_cpp(&group_reg, self.group_guid, sender_guid)
-        else {
+        let Some(group_guid) = current_group_guid_like_cpp(
+            &group_reg,
+            self.group_guid,
+            sender_guid,
+            role_poll.party_index,
+        ) else {
             return;
         };
 
@@ -1745,7 +1764,7 @@ impl WorldSession {
                 return None;
             }
             Some((
-                role_poll_inform_like_cpp(0, sender_guid),
+                role_poll_inform_like_cpp(group.group_category_like_cpp() as i8, sender_guid),
                 connected_group_member_txs_like_cpp(&group, &registry),
             ))
         }) else {
@@ -1833,8 +1852,6 @@ impl WorldSession {
                 return;
             }
         };
-        let _represented_party_index_boundary = ping.party_index;
-
         let sender_guid = match self.player_guid() {
             Some(guid) => guid,
             None => return,
@@ -1849,7 +1866,7 @@ impl WorldSession {
         };
 
         let Some(group_guid) =
-            current_group_guid_like_cpp(&group_reg, self.group_guid, sender_guid)
+            current_group_guid_like_cpp(&group_reg, self.group_guid, sender_guid, ping.party_index)
         else {
             return;
         };
@@ -1894,6 +1911,7 @@ mod tests {
     use wow_constants::ServerOpcodes;
     use wow_core::{ObjectGuid, Position};
     use wow_database::{CharStatements, SqlParam, StatementDef};
+    use wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP;
     use wow_network::{
         GroupInfo, GroupMemberCharacterLikeCpp, GroupRegistry, PendingInvites, PlayerBroadcastInfo,
         PlayerRegistry, ReadyCheckEventLikeCpp, SessionCommand,
@@ -2418,7 +2436,7 @@ mod tests {
                 is_ready: false,
             },
             ReadyCheckEventLikeCpp::Started {
-                party_index: 0,
+                party_index: GROUP_CATEGORY_HOME_LIKE_CPP,
                 party_guid: group.group_guid,
                 initiator_guid: leader,
                 duration_ms: 35_000,
@@ -3899,6 +3917,42 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn minimap_ping_party_index_none_keeps_home_fanout_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send();
+        let sender = ObjectGuid::create_player(1, 42);
+        let other = ObjectGuid::create_player(1, 43);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(sender);
+        group.add_member(other);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (sender_tx, sender_rx) = bounded(8);
+        let (other_tx, other_rx) = bounded(8);
+        player_registry.insert(sender, broadcast_info(sender, sender_tx));
+        player_registry.insert(other, broadcast_info(other, other_tx));
+
+        session.set_player_guid(Some(sender));
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(player_registry);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+
+        session
+            .handle_minimap_ping(minimap_ping_packet(3.0, 4.0, None))
+            .await;
+
+        assert!(
+            sender_rx.try_recv().is_err(),
+            "sender must not receive own minimap ping"
+        );
+        assert!(
+            other_rx.try_recv().is_ok(),
+            "PartyIndex=None must keep represented HOME fanout"
+        );
+    }
+
+    #[tokio::test]
     async fn minimap_ping_sender_not_in_registry_skips_sending_like_cpp() {
         let (mut session, _send_rx) = make_session_with_send();
         let sender = ObjectGuid::create_player(1, 42);
@@ -3947,7 +4001,7 @@ mod tests {
         let group_guid = group.group_guid;
         group_registry.insert(group_guid, group);
 
-        let result = current_group_guid_like_cpp(&group_registry, Some(group_guid), sender);
+        let result = current_group_guid_like_cpp(&group_registry, Some(group_guid), sender, None);
         assert_eq!(result, Some(group_guid), "valid cache must be accepted");
     }
 
@@ -3972,7 +4026,7 @@ mod tests {
         group_registry.insert(real_guid, real_group);
 
         // Cache points to stale group.
-        let result = current_group_guid_like_cpp(&group_registry, Some(stale_guid), sender);
+        let result = current_group_guid_like_cpp(&group_registry, Some(stale_guid), sender, None);
         assert_eq!(
             result,
             Some(real_guid),
@@ -3986,14 +4040,14 @@ mod tests {
         let other = ObjectGuid::create_player(1, 43);
 
         let group_registry = GroupRegistry::default();
-        let mut group = GroupInfo::new(other);
+        let group = GroupInfo::new(other);
         let group_guid = group.group_guid;
         group_registry.insert(group_guid, group);
 
-        let result = current_group_guid_like_cpp(&group_registry, Some(group_guid), sender);
+        let result = current_group_guid_like_cpp(&group_registry, Some(group_guid), sender, None);
         assert_eq!(result, None, "sender not in any group must return None");
 
-        let result_no_cache = current_group_guid_like_cpp(&group_registry, None, sender);
+        let result_no_cache = current_group_guid_like_cpp(&group_registry, None, sender, None);
         assert_eq!(
             result_no_cache, None,
             "no cache + no membership must return None"
@@ -4013,7 +4067,7 @@ mod tests {
         let group_registry = Arc::new(GroupRegistry::default());
 
         // Stale group: sender NOT a member.
-        let mut stale_group = GroupInfo::new(stale_member);
+        let stale_group = GroupInfo::new(stale_member);
         let stale_guid = stale_group.group_guid;
         group_registry.insert(stale_guid, stale_group);
 
@@ -4072,7 +4126,7 @@ mod tests {
         let group_registry = Arc::new(GroupRegistry::default());
 
         // Stale group.
-        let mut stale_group = GroupInfo::new(stale_member);
+        let stale_group = GroupInfo::new(stale_member);
         let stale_guid = stale_group.group_guid;
         group_registry.insert(stale_guid, stale_group);
 
@@ -4117,5 +4171,136 @@ mod tests {
             !stale_group.ready_check_started,
             "stale group must not have ready check"
         );
+    }
+
+    #[test]
+    fn current_group_guid_respects_party_index_category_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 42);
+        let home_member = ObjectGuid::create_player(1, 43);
+        let instance_member = ObjectGuid::create_player(1, 44);
+        let stale_leader = ObjectGuid::create_player(1, 99);
+
+        let group_registry = GroupRegistry::default();
+
+        let mut home_group = GroupInfo::new(sender);
+        home_group.add_member(home_member);
+        let home_guid = home_group.group_guid;
+        group_registry.insert(home_guid, home_group);
+
+        let mut stale_group = GroupInfo::new(stale_leader);
+        stale_group.add_member(instance_member);
+        let stale_guid = stale_group.group_guid;
+        group_registry.insert(stale_guid, stale_group);
+
+        assert_eq!(
+            current_group_guid_like_cpp(&group_registry, Some(home_guid), sender, None),
+            Some(home_guid),
+            "PartyIndex=None keeps represented #791 current-group semantics"
+        );
+        assert_eq!(
+            current_group_guid_like_cpp(&group_registry, Some(home_guid), sender, Some(0)),
+            Some(home_guid),
+            "PartyIndex HOME resolves represented HOME group"
+        );
+        assert_eq!(
+            current_group_guid_like_cpp(&group_registry, Some(home_guid), sender, Some(1)),
+            None,
+            "PartyIndex INSTANCE must not fall back to represented HOME group"
+        );
+        assert_eq!(
+            current_group_guid_like_cpp(&group_registry, Some(home_guid), sender, Some(2)),
+            None,
+            "PartyIndex >= MAX_GROUP_CATEGORY returns None"
+        );
+        assert_eq!(
+            current_group_guid_like_cpp(&group_registry, Some(stale_guid), sender, Some(0)),
+            Some(home_guid),
+            "stale cache cannot authorize, fallback membership still respects HOME category"
+        );
+        assert_eq!(
+            current_group_guid_like_cpp(&group_registry, Some(stale_guid), sender, Some(1)),
+            None,
+            "stale cache fallback must not resolve HOME for requested INSTANCE"
+        );
+    }
+
+    #[tokio::test]
+    async fn minimap_ping_party_index_instance_does_not_fanout_home_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send();
+        let sender = ObjectGuid::create_player(1, 42);
+        let other = ObjectGuid::create_player(1, 43);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(sender);
+        group.add_member(other);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (sender_tx, sender_rx) = bounded(8);
+        let (other_tx, other_rx) = bounded(8);
+        player_registry.insert(sender, broadcast_info(sender, sender_tx));
+        player_registry.insert(other, broadcast_info(other, other_tx));
+
+        session.set_player_guid(Some(sender));
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(player_registry);
+        session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
+
+        session
+            .handle_minimap_ping(minimap_ping_packet(1.0, 2.0, Some(1)))
+            .await;
+
+        assert!(
+            sender_rx.try_recv().is_err(),
+            "sender must not receive a fanout"
+        );
+        assert!(
+            other_rx.try_recv().is_err(),
+            "HOME member must not receive minimap ping for PartyIndex INSTANCE"
+        );
+    }
+
+    #[tokio::test]
+    async fn initiate_role_poll_uses_resolved_group_category_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send();
+        let leader = ObjectGuid::create_player(1, 42);
+        let member = ObjectGuid::create_player(1, 43);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.group_category = wow_network::group_registry::GROUP_CATEGORY_INSTANCE_LIKE_CPP;
+        group.add_member(member);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (leader_tx, leader_rx) = bounded(8);
+        let (member_tx, member_rx) = bounded(8);
+        player_registry.insert(leader, broadcast_info(leader, leader_tx));
+        player_registry.insert(member, broadcast_info(member, member_tx));
+
+        session.set_player_guid(Some(leader));
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(player_registry);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+
+        session
+            .handle_initiate_role_poll(initiate_role_poll_packet(Some(1)))
+            .await;
+
+        for sent in [
+            leader_rx.try_recv().expect("leader role poll inform"),
+            member_rx.try_recv().expect("member role poll inform"),
+        ] {
+            let mut pkt = WorldPacket::from_bytes(&sent);
+            assert_eq!(
+                pkt.read_uint16().unwrap(),
+                ServerOpcodes::RolePollInform as u16
+            );
+            assert_eq!(
+                pkt.read_int8().unwrap(),
+                wow_network::group_registry::GROUP_CATEGORY_INSTANCE_LIKE_CPP as i8
+            );
+            assert_eq!(pkt.read_packed_guid().unwrap(), leader);
+        }
     }
 }

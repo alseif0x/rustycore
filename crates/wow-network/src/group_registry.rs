@@ -24,6 +24,10 @@ pub const MEMBER_FLAG_MAINTANK_LIKE_CPP: u8 = 0x02;
 pub const MEMBER_FLAG_MAINASSIST_LIKE_CPP: u8 = 0x04;
 pub const GROUP_ASSIGN_MAINTANK_LIKE_CPP: u8 = 0;
 pub const GROUP_ASSIGN_MAINASSIST_LIKE_CPP: u8 = 1;
+/// C++ `GroupCategory` values (`Group.h:110-116`) represented for HOME/INSTANCE filtering.
+pub const GROUP_CATEGORY_HOME_LIKE_CPP: u8 = 0;
+pub const GROUP_CATEGORY_INSTANCE_LIKE_CPP: u8 = 1;
+pub const MAX_GROUP_CATEGORY_LIKE_CPP: u8 = 2;
 pub const LOOT_METHOD_PERSONAL_LIKE_CPP: u8 = 5;
 pub const ITEM_QUALITY_UNCOMMON_LIKE_CPP: u8 = 2;
 pub const DIFFICULTY_NORMAL_LIKE_CPP: u32 = 1;
@@ -221,6 +225,11 @@ pub struct GroupInfo {
     /// `GroupDbStore` index used by `GetGroupByDbStoreId`.
     pub db_store_id: u32,
     pub leader_guid: ObjectGuid,
+    /// C++ `Group::GetGroupCategory()` represented category.
+    ///
+    /// RustyCore currently only creates/loads HOME groups; INSTANCE/original/BG/BF
+    /// grouping remains an honest boundary until a real source of truth exists.
+    pub group_category: u8,
     /// All member GUIDs (including leader), in join order.
     pub members: Vec<ObjectGuid>,
     /// C++ `Group::m_memberSlots` represented metadata.
@@ -251,6 +260,7 @@ impl GroupInfo {
             group_guid: generate_group_id_like_cpp(),
             db_store_id: generate_group_db_store_id_like_cpp(),
             leader_guid: leader,
+            group_category: GROUP_CATEGORY_HOME_LIKE_CPP,
             members: vec![leader],
             member_slots: vec![GroupMemberSlotLikeCpp {
                 guid: leader,
@@ -297,6 +307,7 @@ impl GroupInfo {
             group_guid: runtime_group_guid,
             db_store_id,
             leader_guid,
+            group_category: GROUP_CATEGORY_HOME_LIKE_CPP,
             members: Vec::new(),
             member_slots: Vec::new(),
             loot_method,
@@ -381,6 +392,18 @@ impl GroupInfo {
         group.lfg_db_state =
             represented_lfg_db_state_like_cpp(row.group_flags, row.lfg_dungeon_id, row.lfg_state);
         Some(group)
+    }
+
+    pub fn group_category_like_cpp(&self) -> u8 {
+        self.group_category
+    }
+
+    pub fn matches_party_index_like_cpp(&self, party_index: Option<u8>) -> bool {
+        match party_index {
+            None => true,
+            Some(index) if index < MAX_GROUP_CATEGORY_LIKE_CPP => self.group_category == index,
+            Some(_) => false,
+        }
     }
 
     pub fn add_member(&mut self, guid: ObjectGuid) {
