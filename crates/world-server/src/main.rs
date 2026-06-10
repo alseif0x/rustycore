@@ -36,9 +36,9 @@ use wow_network::session_mgr::SessionManager;
 use wow_network::world_socket::{AccountInfo, AccountLookup};
 use wow_network::{
     GameEventQuestCompleteCommandLikeCpp, GameEventQuestCompleteResponseLikeCpp, GroupRegistry,
-    LootDropRatesLikeCpp, PendingInvites, PlayerRegistry, ReputationRatesLikeCpp,
-    ResetSeasonalQuestStatusCommand, SendVisibleObjectValuesUpdateCommand, SessionCommand,
-    SessionResources,
+    LootDropRatesLikeCpp, PendingInvites, PlayerRegistry, ReadyCheckEventLikeCpp,
+    ReputationRatesLikeCpp, ResetSeasonalQuestStatusCommand, SendVisibleObjectValuesUpdateCommand,
+    SessionCommand, SessionResources, tick_all_group_ready_checks_like_cpp,
 };
 use wow_packet::{
     ServerPacket,
@@ -2328,6 +2328,12 @@ async fn main() -> Result<()> {
         Arc::clone(&player_registry),
     );
 
+    let ready_check_tick_handle = spawn_group_ready_check_tick_loop(
+        Arc::clone(&group_registry),
+        Arc::clone(&player_registry),
+        map_update_interval_ms,
+    );
+
     set_realm_online(&login_db, realm_id).await?;
 
     // Wait for shutdown signal
@@ -2353,6 +2359,11 @@ async fn main() -> Result<()> {
         result = legacy_creature_runtime_handle => {
             if let Err(e) = result {
                 tracing::error!("Legacy creature runtime task failed: {e}");
+            }
+        }
+        result = ready_check_tick_handle => {
+            if let Err(e) = result {
+                tracing::error!("Ready-check tick task failed: {e}");
             }
         }
     }
@@ -6559,6 +6570,84 @@ fn canonical_map_update_tick_set_inactive_like_cpp(
     });
 
     Some(summary)
+}
+
+/// C++ `Group::UpdateReadyCheck` tick: decrements every active group's
+/// ready-check timer each `tick_interval_ms` and broadcasts
+/// `ReadyCheckCompleted` to connected members when the timer expires.
+fn spawn_group_ready_check_tick_loop(
+    group_registry: Arc<GroupRegistry>,
+    player_registry: Arc<PlayerRegistry>,
+    tick_interval_ms: u32,
+) -> tokio::task::JoinHandle<()> {
+    use wow_packet::ServerPacket;
+    use wow_packet::packets::party::{ReadyCheckCompleted, ReadyCheckResponse, ReadyCheckStarted};
+
+    tokio::spawn(async move {
+        let mut interval =
+            tokio::time::interval(Duration::from_millis(u64::from(tick_interval_ms)));
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+
+        loop {
+            interval.tick().await;
+
+            let expired = tick_all_group_ready_checks_like_cpp(&group_registry, tick_interval_ms);
+
+            for (group_guid, events) in expired {
+                // Snapshot member txs outside the group lock.
+                let recipients: Vec<flume::Sender<Vec<u8>>> =
+                    if let Some(group) = group_registry.get(&group_guid) {
+                        group
+                            .members
+                            .iter()
+                            .filter_map(|guid| player_registry.get(guid).map(|e| e.send_tx.clone()))
+                            .collect()
+                    } else {
+                        continue;
+                    };
+
+                // Drop the DashMap ref before sending.
+                for event in &events {
+                    let bytes = match *event {
+                        ReadyCheckEventLikeCpp::Started {
+                            party_index,
+                            party_guid,
+                            initiator_guid,
+                            duration_ms,
+                        } => ReadyCheckStarted {
+                            party_index,
+                            party_guid,
+                            initiator_guid,
+                            duration_ms,
+                        }
+                        .to_bytes(),
+                        ReadyCheckEventLikeCpp::Response {
+                            party_guid,
+                            player,
+                            is_ready,
+                        } => ReadyCheckResponse {
+                            party_guid,
+                            player,
+                            is_ready,
+                        }
+                        .to_bytes(),
+                        ReadyCheckEventLikeCpp::Completed {
+                            party_index,
+                            party_guid,
+                        } => ReadyCheckCompleted {
+                            party_index,
+                            party_guid,
+                        }
+                        .to_bytes(),
+                    };
+
+                    for tx in &recipients {
+                        let _ = tx.send(bytes.clone());
+                    }
+                }
+            }
+        }
+    })
 }
 
 fn spawn_canonical_map_update_loop(

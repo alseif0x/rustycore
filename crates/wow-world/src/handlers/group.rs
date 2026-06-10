@@ -1376,8 +1376,9 @@ impl WorldSession {
     /// group exists, requires leader or assistant, then calls
     /// `Group::StartReadyCheck`. Rust represents PartyIndex over the current
     /// GroupRegistry group and approximates offline/no-session via missing
-    /// PlayerRegistry entries. Timeout remains represented state only because
-    /// there is no full `Group::UpdateReadyCheck` tick loop yet.
+    /// PlayerRegistry entries. Timeout expiry is handled by the shared
+    /// `tick_all_group_ready_checks_like_cpp` loop driven from world-server
+    /// main. PartyIndex BG/BF/original-group remains a boundary if open.
     pub async fn handle_do_ready_check(&mut self, mut pkt: wow_packet::WorldPacket) {
         let ready_check = match DoReadyCheck::read(&mut pkt) {
             Ok(ready_check) => ready_check,

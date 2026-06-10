@@ -237,8 +237,9 @@ pub struct GroupInfo {
     pub lfg_db_state: Option<GroupLfgDbStateLikeCpp>,
     pub raid_subgroup_counts: Option<[u8; MAX_RAID_SUBGROUPS_LIKE_CPP]>,
     pub ready_check_started: bool,
-    /// Represented `Group::m_readyCheckTimer`/duration in milliseconds. Rust does
-    /// not yet have a `Group::Update` tick loop for timeout expiry.
+    /// C++ `Group::m_readyCheckTimer` / duration in milliseconds. Decremented
+    /// each shared tick by `update_ready_check_like_cpp`; when <= 0 the ready
+    /// check expires and `end_ready_check_like_cpp` fires.
     pub ready_check_timer_ms: i64,
     pub sequence_num: u32,
     pub group_flags: u16,
@@ -718,6 +719,26 @@ impl GroupInfo {
         });
     }
 
+    /// C++ `Group::UpdateReadyCheck(uint32 diff)` at Group.cpp:1445-1453.
+    ///
+    /// NOOP when no ready check is active. Otherwise subtracts `diff_ms` from
+    /// the timer and, if it has expired (<= 0), calls `end_ready_check_like_cpp`
+    /// which resets all state and emits exactly one `Completed` event.
+    pub fn update_ready_check_like_cpp(&mut self, diff_ms: u32) -> Vec<ReadyCheckEventLikeCpp> {
+        if !self.ready_check_started {
+            return Vec::new();
+        }
+
+        self.ready_check_timer_ms -= i64::from(diff_ms);
+        if self.ready_check_timer_ms <= 0 {
+            let mut events = Vec::new();
+            self.end_ready_check_like_cpp(&mut events);
+            events
+        } else {
+            Vec::new()
+        }
+    }
+
     fn set_member_ready_checked_like_cpp(
         &mut self,
         slot_index: usize,
@@ -848,6 +869,36 @@ impl GroupInfo {
 
 /// Thread-safe registry of all active groups, keyed by group GUID.
 pub type GroupRegistry = DashMap<u64, GroupInfo>;
+
+/// C++ `Group::UpdateReadyCheck` fanout: ticks every active group's
+/// ready-check timer and collects expired `Completed` events without
+/// holding any lock during packet fanout.
+///
+/// Returns `(group_guid, events)` for groups whose ready check expired this
+/// tick. Caller is responsible for broadcasting the events to connected
+/// players via `PlayerRegistry`.
+pub fn tick_all_group_ready_checks_like_cpp(
+    registry: &GroupRegistry,
+    diff_ms: u32,
+) -> Vec<(u64, Vec<ReadyCheckEventLikeCpp>)> {
+    // Collect keys first so we don't hold the iter() ref while mutating.
+    let active_keys: Vec<u64> = registry
+        .iter()
+        .filter(|entry| entry.value().ready_check_started)
+        .map(|entry| *entry.key())
+        .collect();
+
+    let mut results = Vec::new();
+    for group_guid in active_keys {
+        if let Some(mut group) = registry.get_mut(&group_guid) {
+            let events = group.update_ready_check_like_cpp(diff_ms);
+            if !events.is_empty() {
+                results.push((group_guid, events));
+            }
+        }
+    }
+    results
+}
 
 pub fn get_group_by_db_store_id_like_cpp(
     registry: &GroupRegistry,
@@ -2253,5 +2304,90 @@ mod tests {
         );
 
         assert_eq!(NEXT_GROUP_DB_STORE_ID.load(Ordering::Relaxed), 900_003);
+    }
+
+    // ── Ready-check tick tests ──────────────────────────────────────────
+
+    #[test]
+    fn update_ready_check_noop_when_not_started() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let mut group = GroupInfo::new(leader);
+        assert!(!group.ready_check_started);
+
+        let events = group.update_ready_check_like_cpp(500);
+        assert!(events.is_empty());
+        assert!(!group.ready_check_started);
+        assert_eq!(group.ready_check_timer_ms, 0);
+    }
+
+    #[test]
+    fn update_ready_check_decrements_without_completing_when_time_remains() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let mut group = GroupInfo::new(leader);
+        group.ready_check_started = true;
+        group.ready_check_timer_ms = READYCHECK_DURATION_MS_LIKE_CPP;
+
+        // Tick 1000ms — timer should go from 35000 to 34000, no events.
+        let events = group.update_ready_check_like_cpp(1_000);
+        assert!(events.is_empty());
+        assert!(group.ready_check_started);
+        assert_eq!(
+            group.ready_check_timer_ms,
+            READYCHECK_DURATION_MS_LIKE_CPP - 1_000
+        );
+
+        // Tick another 1000ms
+        let events = group.update_ready_check_like_cpp(1_000);
+        assert!(events.is_empty());
+        assert!(group.ready_check_started);
+        assert_eq!(
+            group.ready_check_timer_ms,
+            READYCHECK_DURATION_MS_LIKE_CPP - 2_000
+        );
+    }
+
+    #[test]
+    fn update_ready_check_expires_and_resets_all_state() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let member = ObjectGuid::create_player(1, 99);
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+        group.ready_check_started = true;
+        group.ready_check_timer_ms = READYCHECK_DURATION_MS_LIKE_CPP;
+        // Simulate some members already responded.
+        for slot in &mut group.member_slots {
+            slot.ready_checked = true;
+        }
+
+        // Tick more than remaining — should expire.
+        let events = group.update_ready_check_like_cpp(36_000);
+        assert_eq!(events.len(), 1);
+        match events[0] {
+            ReadyCheckEventLikeCpp::Completed {
+                party_index,
+                party_guid,
+            } => {
+                assert_eq!(party_index, 0);
+                assert_eq!(party_guid, group.group_guid);
+            }
+            _ => panic!("expected Completed event"),
+        }
+        assert!(!group.ready_check_started);
+        assert_eq!(group.ready_check_timer_ms, 0);
+        // All members should have been reset.
+        assert!(group.member_slots.iter().all(|s| !s.ready_checked));
+    }
+
+    #[test]
+    fn update_ready_check_exact_zero_expires() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let mut group = GroupInfo::new(leader);
+        group.ready_check_started = true;
+        group.ready_check_timer_ms = 500;
+
+        let events = group.update_ready_check_like_cpp(500);
+        assert_eq!(events.len(), 1);
+        assert!(!group.ready_check_started);
+        assert_eq!(group.ready_check_timer_ms, 0);
     }
 }
