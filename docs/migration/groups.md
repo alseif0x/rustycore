@@ -144,7 +144,7 @@ Todas las rutas relativas a `/home/server/woltk-trinity-legacy/`.
 | `WorldSession::HandleClearRaidMarker` | Remove one or all markers | `Group::DeleteRaidMarker` |
 | `WorldSession::HandleSetRestrictPingsToAssistants` | Toggle | `Group::SetRestrictPingsToAssistants` |
 | `WorldSession::HandleSendPingUnit` / `HandleSendPingWorldPoint` | Modern raid pings | `BroadcastPacket` |
-| `WorldSession::HandleLowLevelRaid1/2` | Low-level raid restrictions toggle | — |
+| `WorldSession::HandleLowLevelRaid1/2` | Low-level raid restrictions toggle (no-op, debug log only) — **represented-complete** | — |
 | `WorldSession::HandleSilencePartyTalker` | Voice-mute a member (placeholder) | — |
 | `WorldSession::HandleRequestPartyJoinUpdates` | LFG requeue heartbeat | — |
 

@@ -16579,6 +16579,12 @@ impl WorldSession {
             ClientOpcodes::OptOutOfLoot => {
                 self.handle_opt_out_of_loot(pkt).await;
             }
+            ClientOpcodes::LowLevelRaid1 => {
+                self.handle_low_level_raid1(pkt).await;
+            }
+            ClientOpcodes::LowLevelRaid2 => {
+                self.handle_low_level_raid2(pkt).await;
+            }
 
             ClientOpcodes::Inspect => {
                 self.handle_inspect(pkt).await;

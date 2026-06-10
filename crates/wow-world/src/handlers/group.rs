@@ -17,12 +17,12 @@ use wow_network::{
     register_group_db_store_id_like_cpp,
 };
 use wow_packet::packets::party::{
-    DoReadyCheck, GroupDecline, GroupDestroyed, GroupUninvite, InitiateRolePoll, OptOutOfLoot,
-    PartyCommandResult, PartyDifficultySettings, PartyInviteServer, PartyLootSettings,
-    PartyMemberFullState, PartyPlayerInfo, PartyUpdate, ReadyCheckCompleted, ReadyCheckResponse,
-    ReadyCheckResponseClient, ReadyCheckStarted, RoleChangedInform, RolePollInform,
-    SetAssistantLeader, SetEveryoneIsAssistant, SetLootMethod, SetPartyAssignment, SetRole,
-    party_result,
+    DoReadyCheck, GroupDecline, GroupDestroyed, GroupUninvite, InitiateRolePoll, LowLevelRaid1,
+    LowLevelRaid2, OptOutOfLoot, PartyCommandResult, PartyDifficultySettings, PartyInviteServer,
+    PartyLootSettings, PartyMemberFullState, PartyPlayerInfo, PartyUpdate, ReadyCheckCompleted,
+    ReadyCheckResponse, ReadyCheckResponseClient, ReadyCheckStarted, RoleChangedInform,
+    RolePollInform, SetAssistantLeader, SetEveryoneIsAssistant, SetLootMethod, SetPartyAssignment,
+    SetRole, party_result,
 };
 use wow_packet::{ClientPacket, ServerPacket};
 
@@ -164,6 +164,24 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_opt_out_of_loot",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::LowLevelRaid1,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_low_level_raid1",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::LowLevelRaid2,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_low_level_raid2",
     }
 }
 
@@ -1781,6 +1799,30 @@ impl WorldSession {
         }
 
         self.pass_on_group_loot = opt_out.pass_on_loot;
+    }
+
+    /// CMSG_LOW_LEVEL_RAID1 — no-op, C++ only logs at DEBUG level.
+    /// C++ anchor: GroupHandler.cpp:740-745
+    pub async fn handle_low_level_raid1(&mut self, mut pkt: wow_packet::WorldPacket) {
+        if let Err(e) = LowLevelRaid1::read(&mut pkt) {
+            warn!("Bad LowLevelRaid1: {e}");
+            return;
+        }
+        if let Some(guid) = self.player_guid() {
+            tracing::debug!("HandleLowLevelRaid1 - Player {:?}", guid);
+        }
+    }
+
+    /// CMSG_LOW_LEVEL_RAID2 — no-op, C++ only logs at DEBUG level.
+    /// C++ anchor: GroupHandler.cpp:747-751
+    pub async fn handle_low_level_raid2(&mut self, mut pkt: wow_packet::WorldPacket) {
+        if let Err(e) = LowLevelRaid2::read(&mut pkt) {
+            warn!("Bad LowLevelRaid2: {e}");
+            return;
+        }
+        if let Some(guid) = self.player_guid() {
+            tracing::debug!("HandleLowLevelRaid2 - Player {:?}", guid);
+        }
     }
 }
 
@@ -3668,6 +3710,42 @@ mod tests {
             .await;
 
         assert!(!session.pass_on_group_loot);
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    fn low_level_raid_packet() -> WorldPacket {
+        WorldPacket::new_empty()
+    }
+
+    #[tokio::test]
+    async fn low_level_raid1_is_noop_preserves_state_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send();
+        let guid = ObjectGuid::create_player(1, 42);
+        session.set_player_guid(Some(guid));
+        session.pass_on_group_loot = false;
+
+        session
+            .handle_low_level_raid1(low_level_raid_packet())
+            .await;
+
+        assert!(!session.pass_on_group_loot);
+        assert!(session.group_guid.is_none());
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn low_level_raid2_is_noop_preserves_state_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send();
+        let guid = ObjectGuid::create_player(1, 42);
+        session.set_player_guid(Some(guid));
+        session.pass_on_group_loot = false;
+
+        session
+            .handle_low_level_raid2(low_level_raid_packet())
+            .await;
+
+        assert!(!session.pass_on_group_loot);
+        assert!(session.group_guid.is_none());
         assert!(send_rx.try_recv().is_err());
     }
 }

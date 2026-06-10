@@ -340,6 +340,36 @@ impl ClientPacket for OptOutOfLoot {
     }
 }
 
+// ── LowLevelRaid1 (CMSG_LOW_LEVEL_RAID1 0x36A1) ─────────────────────────
+
+/// No-op: C++ `WorldPackets::Party::LowLevelRaid1` has empty `Read()`.
+/// Handler only logs at DEBUG level; no state mutation, no packet send.
+#[derive(Debug, Clone, Copy)]
+pub struct LowLevelRaid1;
+
+impl ClientPacket for LowLevelRaid1 {
+    const OPCODE: ClientOpcodes = ClientOpcodes::LowLevelRaid1;
+
+    fn read(_pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self)
+    }
+}
+
+// ── LowLevelRaid2 (CMSG_LOW_LEVEL_RAID2 0x3512) ─────────────────────────
+
+/// No-op: C++ `WorldPackets::Party::LowLevelRaid2` has empty `Read()`.
+/// Handler only logs at DEBUG level; no state mutation, no packet send.
+#[derive(Debug, Clone, Copy)]
+pub struct LowLevelRaid2;
+
+impl ClientPacket for LowLevelRaid2 {
+    const OPCODE: ClientOpcodes = ClientOpcodes::LowLevelRaid2;
+
+    fn read(_pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self)
+    }
+}
+
 impl ServerPacket for PartyCommandResult {
     const OPCODE: ServerOpcodes = ServerOpcodes::PartyCommandResult;
     fn write(&self, w: &mut WorldPacket) {
@@ -740,11 +770,11 @@ impl ServerPacket for PartyMemberFullState {
 #[cfg(test)]
 mod tests {
     use super::{
-        ChangeSubGroup, ConvertRaid, DoReadyCheck, InitiateRolePoll, OptOutOfLoot,
-        PartyMemberPhase, PartyMemberPhaseStates, ReadyCheckCompleted, ReadyCheckResponse,
-        ReadyCheckResponseClient, ReadyCheckStarted, RoleChangedInform, RolePollInform,
-        SetAssistantLeader, SetEveryoneIsAssistant, SetLootMethod, SetPartyAssignment, SetRole,
-        SwapSubGroups,
+        ChangeSubGroup, ConvertRaid, DoReadyCheck, InitiateRolePoll, LowLevelRaid1, LowLevelRaid2,
+        OptOutOfLoot, PartyMemberPhase, PartyMemberPhaseStates, ReadyCheckCompleted,
+        ReadyCheckResponse, ReadyCheckResponseClient, ReadyCheckStarted, RoleChangedInform,
+        RolePollInform, SetAssistantLeader, SetEveryoneIsAssistant, SetLootMethod,
+        SetPartyAssignment, SetRole, SwapSubGroups,
     };
     use crate::{ClientPacket, ServerPacket, WorldPacket};
     use wow_core::ObjectGuid;
@@ -1192,5 +1222,35 @@ mod tests {
                 0x14, 0x00, // phase.Id
             ]
         );
+    }
+
+    #[test]
+    fn low_level_raid1_accepts_empty_payload_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+
+        let parsed = LowLevelRaid1::read(&mut pkt).unwrap();
+
+        // Empty struct — no fields. C++ Read() is empty body.
+        let _ = parsed;
+    }
+
+    #[test]
+    fn low_level_raid1_opcode_matches_cpp() {
+        assert_eq!(LowLevelRaid1::OPCODE as u16, 0x36A1);
+    }
+
+    #[test]
+    fn low_level_raid2_accepts_empty_payload_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+
+        let parsed = LowLevelRaid2::read(&mut pkt).unwrap();
+
+        // Empty struct — no fields. C++ Read() is empty body.
+        let _ = parsed;
+    }
+
+    #[test]
+    fn low_level_raid2_opcode_matches_cpp() {
+        assert_eq!(LowLevelRaid2::OPCODE as u16, 0x3512);
     }
 }
