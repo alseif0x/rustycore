@@ -152,6 +152,9 @@ const QUEST_OBJECTIVE_FLAG_KILL_PLAYERS_SAME_FACTION_LIKE_CPP: u32 = 0x0080;
 const QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP: u32 = 0x1;
 const MAX_GAMEOBJECT_SLOT_LIKE_CPP: usize = 4;
 const PLAYER_FLAGS_UBER_LIKE_CPP: u32 = 0x0008_0000;
+const PLAYER_FLAGS_AFK_LIKE_CPP: u32 = 0x0000_0002;
+const PLAYER_FLAGS_DND_LIKE_CPP: u32 = 0x0000_0004;
+const PLAYER_FLAGS_GHOST_LIKE_CPP: u32 = 0x0000_0010;
 const PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP: u32 = 0x0000_0100;
 
 fn party_member_power_type_for_class_like_cpp(class: u8) -> u8 {
@@ -14226,6 +14229,18 @@ impl WorldSession {
             self.canonical_player_forced_reputation_faction_ids_snapshot_like_cpp();
         let is_contested_pvp = self.canonical_player_contested_pvp_flag_like_cpp();
         let unit_flags2 = self.canonical_player_unit_flags2_snapshot_like_cpp();
+        let pvp_flags = self
+            .canonical_player_pvp_flags_like_cpp(guid)
+            .unwrap_or_default();
+        let is_ghost = self
+            .canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_GHOST_LIKE_CPP)
+            .unwrap_or(false);
+        let is_afk = self
+            .canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_AFK_LIKE_CPP)
+            .unwrap_or(false);
+        let is_dnd = self
+            .canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_DND_LIKE_CPP)
+            .unwrap_or(false);
         reg.insert(
             guid,
             PlayerBroadcastInfo {
@@ -14250,6 +14265,12 @@ impl WorldSession {
                 power_type: party_member_power_type_for_class_like_cpp(class),
                 current_power: 0,
                 max_power: 0,
+                is_pvp: pvp_flags.contains(UnitPvpFlags::PVP),
+                is_ffa_pvp: pvp_flags.contains(UnitPvpFlags::FFA_PVP),
+                is_ghost,
+                is_afk,
+                is_dnd,
+                in_vehicle: self.player_vehicle_seat_flags_like_cpp.is_some(),
                 zone_id: self.player_zone_area_like_cpp().0,
                 spec_id: self.loot_specialization_id_like_cpp(),
                 unit_flags: self.player_unit_flags_like_cpp.bits(),
@@ -14325,6 +14346,23 @@ impl WorldSession {
                 party_member_power_type_for_class_like_cpp(self.player_class_like_cpp());
             info.current_power = 0;
             info.max_power = 0;
+            if let Some(guid) = self.player_guid() {
+                let pvp_flags = self
+                    .canonical_player_pvp_flags_like_cpp(guid)
+                    .unwrap_or_default();
+                info.is_pvp = pvp_flags.contains(UnitPvpFlags::PVP);
+                info.is_ffa_pvp = pvp_flags.contains(UnitPvpFlags::FFA_PVP);
+                info.is_ghost = self
+                    .canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_GHOST_LIKE_CPP)
+                    .unwrap_or(false);
+                info.is_afk = self
+                    .canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_AFK_LIKE_CPP)
+                    .unwrap_or(false);
+                info.is_dnd = self
+                    .canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_DND_LIKE_CPP)
+                    .unwrap_or(false);
+            }
+            info.in_vehicle = self.player_vehicle_seat_flags_like_cpp.is_some();
             info.zone_id = self.player_zone_area_like_cpp().0;
             info.spec_id = self.loot_specialization_id_like_cpp();
             info.unit_flags = self.player_unit_flags_like_cpp.bits();
@@ -46073,6 +46111,12 @@ mod tests {
             power_type: 0,
             current_power: 0,
             max_power: 0,
+            is_pvp: false,
+            is_ffa_pvp: false,
+            is_ghost: false,
+            is_afk: false,
+            is_dnd: false,
+            in_vehicle: false,
             zone_id: 0,
             spec_id: 0,
             unit_flags: 0,

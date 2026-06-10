@@ -303,6 +303,18 @@ pub struct PlayerBroadcastInfo {
     pub current_power: u16,
     /// Represented `Unit::GetMaxPower(GetPowerType())` snapshot for party member full-state packets.
     pub max_power: u16,
+    /// Represented `Player::IsPvP()` snapshot for party member full-state packets.
+    pub is_pvp: bool,
+    /// Represented `Player::IsFFAPvP()` snapshot for party member full-state packets.
+    pub is_ffa_pvp: bool,
+    /// Represented `Player::HasPlayerFlag(PLAYER_FLAGS_GHOST)` snapshot for party member full-state packets.
+    pub is_ghost: bool,
+    /// Represented `Player::isAFK()` snapshot for party member full-state packets.
+    pub is_afk: bool,
+    /// Represented `Player::isDND()` snapshot for party member full-state packets.
+    pub is_dnd: bool,
+    /// Represented `Player::GetVehicle() != nullptr` snapshot for party member full-state packets.
+    pub in_vehicle: bool,
     /// Represented `Player::GetZoneId()` snapshot for party member full-state packets.
     pub zone_id: u32,
     /// Represented `Player::GetPrimarySpecialization()` snapshot for party member full-state packets.
@@ -409,6 +421,12 @@ mod tests {
             power_type: 0,
             current_power: 0,
             max_power: 0,
+            is_pvp: false,
+            is_ffa_pvp: false,
+            is_ghost: false,
+            is_afk: false,
+            is_dnd: false,
+            in_vehicle: false,
             zone_id: 0,
             spec_id: 0,
             unit_flags: 0,

@@ -298,8 +298,27 @@ fn party_member_full_state_like_cpp(
     // Remaining unsupported packet blocks (auras/pet/vehicle/dungeon score and
     // full power ownership) stay explicit instead of being guessed here.
     let mut status = 1u16; // MEMBER_STATUS_ONLINE
+    if entry.is_pvp {
+        status |= 0x0002; // MEMBER_STATUS_PVP
+    }
     if !entry.is_alive {
-        status |= 0x0004; // MEMBER_STATUS_DEAD
+        if entry.is_ghost {
+            status |= 0x0008; // MEMBER_STATUS_GHOST
+        } else {
+            status |= 0x0004; // MEMBER_STATUS_DEAD
+        }
+    }
+    if entry.is_ffa_pvp {
+        status |= 0x0010; // MEMBER_STATUS_PVP_FFA
+    }
+    if entry.is_afk {
+        status |= 0x0040; // MEMBER_STATUS_AFK
+    }
+    if entry.is_dnd {
+        status |= 0x0080; // MEMBER_STATUS_DND
+    }
+    if entry.in_vehicle {
+        status |= 0x0200; // MEMBER_STATUS_VEHICLE
     }
 
     PartyMemberFullState {
@@ -2174,6 +2193,12 @@ mod tests {
             power_type: 0,
             current_power: 0,
             max_power: 0,
+            is_pvp: false,
+            is_ffa_pvp: false,
+            is_ghost: false,
+            is_afk: false,
+            is_dnd: false,
+            in_vehicle: false,
             zone_id: 0,
             spec_id: 0,
             unit_flags: 0,
@@ -3166,6 +3191,11 @@ mod tests {
             info.power_type = 3;
             info.current_power = 42;
             info.max_power = 100;
+            info.is_pvp = true;
+            info.is_ffa_pvp = true;
+            info.is_afk = true;
+            info.is_dnd = true;
+            info.in_vehicle = true;
             info.zone_id = 618;
             info.spec_id = 260;
             info.position = Position::new(11.0, 22.0, 33.0, 0.0);
@@ -3196,7 +3226,10 @@ mod tests {
         assert!(!pkt.read_bit().unwrap());
         assert_eq!(pkt.read_uint8().unwrap(), 0);
         assert_eq!(pkt.read_uint8().unwrap(), 0);
-        assert_eq!(pkt.read_int16().unwrap(), 1);
+        assert_eq!(
+            pkt.read_int16().unwrap(),
+            0x0001 | 0x0002 | 0x0010 | 0x0040 | 0x0080 | 0x0200
+        );
         assert_eq!(pkt.read_uint8().unwrap(), 3);
         assert_eq!(pkt.read_int16().unwrap(), 0);
         assert_eq!(pkt.read_int32().unwrap(), 77);
