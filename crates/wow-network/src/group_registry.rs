@@ -13,6 +13,7 @@ use wow_data::DifficultyStore;
 
 static NEXT_GROUP_ID: AtomicU64 = AtomicU64::new(1);
 static NEXT_GROUP_DB_STORE_ID: AtomicU32 = AtomicU32::new(1);
+static GROUP_DB_STORE_ID_ALLOCATOR_LOCK: Mutex<()> = Mutex::new(());
 static FREED_GROUP_DB_STORE_IDS: Mutex<Vec<u32>> = Mutex::new(Vec::new());
 static GROUP_DB_STORE: Mutex<Vec<Option<u64>>> = Mutex::new(Vec::new());
 
@@ -44,6 +45,7 @@ pub const MISSING_MEMBER_GROUP_LIKE_CPP: u8 = (MAX_RAID_SUBGROUPS_LIKE_CPP as u8
 pub const READYCHECK_DURATION_MS_LIKE_CPP: i64 = 35_000;
 
 fn generate_group_db_store_id_like_cpp() -> u32 {
+    let _allocator_guard = GROUP_DB_STORE_ID_ALLOCATOR_LOCK.lock().ok();
     if let Ok(mut freed) = FREED_GROUP_DB_STORE_IDS.lock() {
         if let Some((index, _)) = freed.iter().enumerate().min_by_key(|(_, id)| *id) {
             return freed.swap_remove(index);
@@ -1480,7 +1482,7 @@ mod tests {
             None
         );
         assert_eq!(
-            group.set_group_member_flag_like_cpp(member, true, 0x02),
+            group.set_group_member_flag_like_cpp(member, true, 0x08),
             None
         );
         assert_eq!(group.member_slot_like_cpp(member).unwrap().flags, 0);
@@ -2380,8 +2382,9 @@ mod tests {
             );
         }
 
+        let _allocator_guard = GROUP_DB_STORE_ID_ALLOCATOR_LOCK.lock().unwrap();
         NEXT_GROUP_DB_STORE_ID.store(900_001, Ordering::Relaxed);
-        load_groups_from_db_rows_like_cpp(
+        let summary = load_groups_from_db_rows_like_cpp(
             &registry,
             [
                 GroupDbRowLikeCpp {
@@ -2420,6 +2423,7 @@ mod tests {
             &difficulty_store,
         );
 
+        assert_eq!(summary.loaded_groups, 2);
         assert_eq!(NEXT_GROUP_DB_STORE_ID.load(Ordering::Relaxed), 900_003);
     }
 
