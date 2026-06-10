@@ -293,6 +293,20 @@ pub struct PlayerBroadcastInfo {
     pub enchanting_skill: u16,
     /// Represented `Player::IsAlive()` snapshot for cross-session receiver gates.
     pub is_alive: bool,
+    /// Represented `Unit::GetHealth()` snapshot for party member full-state packets.
+    pub current_health: u32,
+    /// Represented `Unit::GetMaxHealth()` snapshot for party member full-state packets.
+    pub max_health: u32,
+    /// Represented `Unit::GetPowerType()` snapshot for party member full-state packets.
+    pub power_type: u8,
+    /// Represented `Unit::GetPower(GetPowerType())` snapshot for party member full-state packets.
+    pub current_power: u16,
+    /// Represented `Unit::GetMaxPower(GetPowerType())` snapshot for party member full-state packets.
+    pub max_power: u16,
+    /// Represented `Player::GetZoneId()` snapshot for party member full-state packets.
+    pub zone_id: u32,
+    /// Represented `Player::GetPrimarySpecialization()` snapshot for party member full-state packets.
+    pub spec_id: u32,
     /// Represented `Unit::GetUnitFlags()` snapshot for global creature targetability gates.
     pub unit_flags: u32,
     /// Represented `Unit::GetUnitFlags2()` snapshot for reputation-ignore gates.
@@ -390,6 +404,13 @@ mod tests {
             pass_on_group_loot: false,
             enchanting_skill: 0,
             is_alive: true,
+            current_health: 100,
+            max_health: 100,
+            power_type: 0,
+            current_power: 0,
+            max_power: 0,
+            zone_id: 0,
+            spec_id: 0,
             unit_flags: 0,
             unit_flags2: 0,
             unit_state: 0,

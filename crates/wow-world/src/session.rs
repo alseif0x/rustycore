@@ -154,6 +154,15 @@ const MAX_GAMEOBJECT_SLOT_LIKE_CPP: usize = 4;
 const PLAYER_FLAGS_UBER_LIKE_CPP: u32 = 0x0008_0000;
 const PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP: u32 = 0x0000_0100;
 
+fn party_member_power_type_for_class_like_cpp(class: u8) -> u8 {
+    match class {
+        1 => 1, // Warrior: Rage
+        4 => 3, // Rogue: Energy
+        6 => 6, // DeathKnight: RunicPower
+        _ => 0, // Mana/default
+    }
+}
+
 fn spell_effect_is_represented_summon_object_slot_like_cpp(effect: u32) -> bool {
     let slot_base = wow_data::spell::spell_effect_types::SPELL_EFFECT_SUMMON_OBJECT_SLOT1;
     let slot_end = slot_base + u32::try_from(MAX_GAMEOBJECT_SLOT_LIKE_CPP).unwrap_or(0);
@@ -14236,6 +14245,13 @@ impl WorldSession {
                 pass_on_group_loot: self.pass_on_group_loot,
                 enchanting_skill: self.represented_enchanting_skill,
                 is_alive: self.player_alive_like_cpp,
+                current_health: self.player_health_like_cpp,
+                max_health: self.player_max_health_like_cpp,
+                power_type: party_member_power_type_for_class_like_cpp(class),
+                current_power: 0,
+                max_power: 0,
+                zone_id: self.player_zone_area_like_cpp().0,
+                spec_id: self.loot_specialization_id_like_cpp(),
                 unit_flags: self.player_unit_flags_like_cpp.bits(),
                 unit_flags2,
                 unit_state: self.player_unit_state_for_registry_like_cpp(),
@@ -14303,6 +14319,14 @@ impl WorldSession {
             info.pass_on_group_loot = self.pass_on_group_loot;
             info.enchanting_skill = self.represented_enchanting_skill;
             info.is_alive = self.player_alive_like_cpp;
+            info.current_health = self.player_health_like_cpp;
+            info.max_health = self.player_max_health_like_cpp;
+            info.power_type =
+                party_member_power_type_for_class_like_cpp(self.player_class_like_cpp());
+            info.current_power = 0;
+            info.max_power = 0;
+            info.zone_id = self.player_zone_area_like_cpp().0;
+            info.spec_id = self.loot_specialization_id_like_cpp();
             info.unit_flags = self.player_unit_flags_like_cpp.bits();
             info.unit_flags2 = self.canonical_player_unit_flags2_snapshot_like_cpp();
             info.unit_state = self.player_unit_state_for_registry_like_cpp();
@@ -17559,7 +17583,6 @@ impl WorldSession {
             .unwrap_or(self.player_gender)
     }
 
-    #[cfg(test)]
     pub(crate) fn loot_specialization_id_like_cpp(&self) -> u32 {
         self.loot_specialization_id
     }
@@ -46045,6 +46068,13 @@ mod tests {
             pass_on_group_loot: false,
             enchanting_skill: 0,
             is_alive: true,
+            current_health: 100,
+            max_health: 100,
+            power_type: 0,
+            current_power: 0,
+            max_power: 0,
+            zone_id: 0,
+            spec_id: 0,
             unit_flags: 0,
             unit_flags2: 0,
             unit_state: 0,

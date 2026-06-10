@@ -269,15 +269,6 @@ inventory::submit! {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-fn class_to_power_type(class: u8) -> u8 {
-    match class {
-        1 => 1, // Warrior: Rage
-        4 => 3, // Rogue: Energy
-        6 => 6, // DeathKnight: RunicPower
-        _ => 0, // Mana (default)
-    }
-}
-
 fn party_member_full_state_like_cpp(
     target_guid: ObjectGuid,
     registry: Option<&PlayerRegistry>,
@@ -304,20 +295,25 @@ fn party_member_full_state_like_cpp(
 
     let pos = entry.position;
     // Represented subset of C++ `PartyMemberFullState::Initialize(Player*)`.
-    // TODO(#NEXT.R8.ENTITIES): feed real Player health/power/auras/pet/spec/zone
-    // once those canonical stats are available in `PlayerRegistry`/entities.
+    // Remaining unsupported packet blocks (auras/pet/vehicle/dungeon score and
+    // full power ownership) stay explicit instead of being guessed here.
+    let mut status = 1u16; // MEMBER_STATUS_ONLINE
+    if !entry.is_alive {
+        status |= 0x0004; // MEMBER_STATUS_DEAD
+    }
+
     PartyMemberFullState {
         member_guid: target_guid,
         for_enemy: false,
-        status: 1,
-        power_type: class_to_power_type(entry.class),
-        current_health: 1000,
-        max_health: 1000,
-        current_power: 500,
-        max_power: 500,
+        status,
+        power_type: entry.power_type,
+        current_health: i32::try_from(entry.current_health).unwrap_or(i32::MAX),
+        max_health: i32::try_from(entry.max_health).unwrap_or(i32::MAX),
+        current_power: entry.current_power,
+        max_power: entry.max_power,
         level: entry.level as u16,
-        spec_id: 0,
-        zone_id: 0,
+        spec_id: entry.spec_id.min(u32::from(u16::MAX)) as u16,
+        zone_id: entry.zone_id.min(u32::from(u16::MAX)) as u16,
         position_x: pos.x as i16,
         position_y: pos.y as i16,
         position_z: pos.z as i16,
@@ -2173,6 +2169,13 @@ mod tests {
             pass_on_group_loot: false,
             enchanting_skill: 0,
             is_alive: true,
+            current_health: 100,
+            max_health: 100,
+            power_type: 0,
+            current_power: 0,
+            max_power: 0,
+            zone_id: 0,
+            spec_id: 0,
             unit_flags: 0,
             unit_flags2: 0,
             unit_state: 0,
@@ -3158,6 +3161,13 @@ mod tests {
         if let Some(mut info) = registry.get_mut(&target) {
             info.level = 80;
             info.class = 4;
+            info.current_health = 77;
+            info.max_health = 123;
+            info.power_type = 3;
+            info.current_power = 42;
+            info.max_power = 100;
+            info.zone_id = 618;
+            info.spec_id = 260;
             info.position = Position::new(11.0, 22.0, 33.0, 0.0);
             info.party_member_phase_states = wow_packet::packets::party::PartyMemberPhaseStates {
                 phase_shift_flags: 0x08,
@@ -3189,13 +3199,13 @@ mod tests {
         assert_eq!(pkt.read_int16().unwrap(), 1);
         assert_eq!(pkt.read_uint8().unwrap(), 3);
         assert_eq!(pkt.read_int16().unwrap(), 0);
-        assert_eq!(pkt.read_int32().unwrap(), 1000);
-        assert_eq!(pkt.read_int32().unwrap(), 1000);
-        assert_eq!(pkt.read_uint16().unwrap(), 500);
-        assert_eq!(pkt.read_uint16().unwrap(), 500);
+        assert_eq!(pkt.read_int32().unwrap(), 77);
+        assert_eq!(pkt.read_int32().unwrap(), 123);
+        assert_eq!(pkt.read_uint16().unwrap(), 42);
+        assert_eq!(pkt.read_uint16().unwrap(), 100);
         assert_eq!(pkt.read_uint16().unwrap(), 80);
-        assert_eq!(pkt.read_uint16().unwrap(), 0);
-        assert_eq!(pkt.read_uint16().unwrap(), 0);
+        assert_eq!(pkt.read_uint16().unwrap(), 260);
+        assert_eq!(pkt.read_uint16().unwrap(), 618);
         assert_eq!(pkt.read_uint16().unwrap(), 0);
         assert_eq!(pkt.read_uint32().unwrap(), 0);
         assert_eq!(pkt.read_int16().unwrap(), 11);
