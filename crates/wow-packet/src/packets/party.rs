@@ -340,6 +340,67 @@ impl ClientPacket for OptOutOfLoot {
     }
 }
 
+// ── MinimapPingClient (CMSG_MINIMAP_PING 0x364E) ────────────────────────
+
+/// Client minimap ping packet.
+///
+/// C++ anchor: `WorldPackets::Party::MinimapPingClient::Read()`
+/// (`PartyPackets.cpp:304-311` / `PartyPackets.h:292-302`)
+///
+/// Wire order: bit `hasPartyIndex`, float `PositionX`, float `PositionY`,
+/// optional u8 `PartyIndex` when bit is set.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MinimapPingClient {
+    pub position_x: f32,
+    pub position_y: f32,
+    pub party_index: Option<u8>,
+}
+
+impl ClientPacket for MinimapPingClient {
+    const OPCODE: ClientOpcodes = ClientOpcodes::MinimapPing;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let has_party_index = pkt.read_bit()?;
+        let position_x = pkt.read_float()?;
+        let position_y = pkt.read_float()?;
+        let party_index = if has_party_index {
+            Some(pkt.read_uint8()?)
+        } else {
+            None
+        };
+
+        Ok(Self {
+            position_x,
+            position_y,
+            party_index,
+        })
+    }
+}
+
+// ── MinimapPing (SMSG_MINIMAP_PING 0x26CE) ──────────────────────────────
+
+/// Server minimap ping broadcast packet.
+///
+/// C++ anchor: `WorldPackets::Party::MinimapPing::Write()`
+/// (`PartyPackets.cpp:313-319` / `PartyPackets.h:304-314`)
+///
+/// Wire order: packed `Sender`, float `PositionX`, float `PositionY`.
+pub struct MinimapPing {
+    pub sender: ObjectGuid,
+    pub position_x: f32,
+    pub position_y: f32,
+}
+
+impl ServerPacket for MinimapPing {
+    const OPCODE: ServerOpcodes = ServerOpcodes::MinimapPing;
+
+    fn write(&self, w: &mut WorldPacket) {
+        w.write_packed_guid(&self.sender);
+        w.write_float(self.position_x);
+        w.write_float(self.position_y);
+    }
+}
+
 // ── LowLevelRaid1 (CMSG_LOW_LEVEL_RAID1 0x36A1) ─────────────────────────
 
 /// No-op: C++ `WorldPackets::Party::LowLevelRaid1` has empty `Read()`.
@@ -771,12 +832,13 @@ impl ServerPacket for PartyMemberFullState {
 mod tests {
     use super::{
         ChangeSubGroup, ConvertRaid, DoReadyCheck, InitiateRolePoll, LowLevelRaid1, LowLevelRaid2,
-        OptOutOfLoot, PartyMemberPhase, PartyMemberPhaseStates, ReadyCheckCompleted,
-        ReadyCheckResponse, ReadyCheckResponseClient, ReadyCheckStarted, RoleChangedInform,
-        RolePollInform, SetAssistantLeader, SetEveryoneIsAssistant, SetLootMethod,
-        SetPartyAssignment, SetRole, SwapSubGroups,
+        MinimapPingClient, OptOutOfLoot, PartyMemberPhase, PartyMemberPhaseStates,
+        ReadyCheckCompleted, ReadyCheckResponse, ReadyCheckResponseClient, ReadyCheckStarted,
+        RoleChangedInform, RolePollInform, SetAssistantLeader, SetEveryoneIsAssistant,
+        SetLootMethod, SetPartyAssignment, SetRole, SwapSubGroups,
     };
     use crate::{ClientPacket, ServerPacket, WorldPacket};
+    use wow_constants::ServerOpcodes;
     use wow_core::ObjectGuid;
 
     #[test]
@@ -1252,5 +1314,66 @@ mod tests {
     #[test]
     fn low_level_raid2_opcode_matches_cpp() {
         assert_eq!(LowLevelRaid2::OPCODE as u16, 0x3512);
+    }
+
+    #[test]
+    fn minimap_ping_client_reads_bit_xy_optional_party_index_like_cpp() {
+        // With party index
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(true);
+        pkt.write_float(123.456);
+        pkt.write_float(-789.012);
+        pkt.write_uint8(3);
+        pkt.flush_bits();
+        pkt.reset_read();
+
+        let ping = MinimapPingClient::read(&mut pkt).unwrap();
+        assert_eq!(ping.position_x, 123.456);
+        assert_eq!(ping.position_y, -789.012);
+        assert_eq!(ping.party_index, Some(3));
+    }
+
+    #[test]
+    fn minimap_ping_client_reads_bit_xy_no_party_index_like_cpp() {
+        // Without party index
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(false);
+        pkt.write_float(42.0);
+        pkt.write_float(99.5);
+        pkt.flush_bits();
+        pkt.reset_read();
+
+        let ping = MinimapPingClient::read(&mut pkt).unwrap();
+        assert_eq!(ping.position_x, 42.0);
+        assert_eq!(ping.position_y, 99.5);
+        assert!(ping.party_index.is_none());
+    }
+
+    #[test]
+    fn minimap_ping_client_opcode_matches_cpp() {
+        assert_eq!(MinimapPingClient::OPCODE as u16, 0x364E);
+    }
+
+    #[test]
+    fn minimap_ping_server_opcode_and_payload_order_like_cpp() {
+        use super::MinimapPing;
+        let sender = ObjectGuid::create_player(1, 42);
+        let pkt = MinimapPing {
+            sender,
+            position_x: 111.222,
+            position_y: 333.444,
+        }
+        .to_bytes();
+
+        assert!(!pkt.is_empty());
+        let mut reader = WorldPacket::from_bytes(&pkt);
+        assert_eq!(
+            reader.read_uint16().unwrap(),
+            ServerOpcodes::MinimapPing as u16
+        );
+        let read_guid = reader.read_packed_guid().unwrap();
+        assert_eq!(read_guid, sender);
+        assert_eq!(reader.read_float().unwrap(), 111.222);
+        assert_eq!(reader.read_float().unwrap(), 333.444);
     }
 }

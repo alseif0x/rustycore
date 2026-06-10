@@ -18,11 +18,12 @@ use wow_network::{
 };
 use wow_packet::packets::party::{
     DoReadyCheck, GroupDecline, GroupDestroyed, GroupUninvite, InitiateRolePoll, LowLevelRaid1,
-    LowLevelRaid2, OptOutOfLoot, PartyCommandResult, PartyDifficultySettings, PartyInviteServer,
-    PartyLootSettings, PartyMemberFullState, PartyPlayerInfo, PartyUpdate, ReadyCheckCompleted,
-    ReadyCheckResponse, ReadyCheckResponseClient, ReadyCheckStarted, RoleChangedInform,
-    RolePollInform, SetAssistantLeader, SetEveryoneIsAssistant, SetLootMethod, SetPartyAssignment,
-    SetRole, party_result,
+    LowLevelRaid2, MinimapPing, MinimapPingClient, OptOutOfLoot, PartyCommandResult,
+    PartyDifficultySettings, PartyInviteServer, PartyLootSettings, PartyMemberFullState,
+    PartyPlayerInfo, PartyUpdate, ReadyCheckCompleted, ReadyCheckResponse,
+    ReadyCheckResponseClient, ReadyCheckStarted, RoleChangedInform, RolePollInform,
+    SetAssistantLeader, SetEveryoneIsAssistant, SetLootMethod, SetPartyAssignment, SetRole,
+    party_result,
 };
 use wow_packet::{ClientPacket, ServerPacket};
 
@@ -182,6 +183,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_low_level_raid2",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::MinimapPing,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_minimap_ping",
     }
 }
 
@@ -1822,6 +1832,78 @@ impl WorldSession {
         }
         if let Some(guid) = self.player_guid() {
             tracing::debug!("HandleLowLevelRaid2 - Player {:?}", guid);
+        }
+    }
+
+    /// CMSG_MINIMAP_PING — broadcasts minimap ping to group members excluding sender.
+    ///
+    /// C++ anchor: `WorldSession::HandleMinimapPingOpcode`
+    /// (`GroupHandler.cpp:401-412`)
+    ///
+    /// Handler reads `MinimapPingClient`, resolves group via `GroupRegistry`
+    /// (finds group containing sender_guid), builds `MinimapPing` server packet
+    /// with `Sender`, `PositionX`, `PositionY`, and sends to all connected
+    /// group members except sender via `PlayerRegistry` send_tx.
+    ///
+    /// Boundary: `PartyIndex` is parsed as `Option<u8>` but only used as a
+    /// represented semantic boundary; the implementation finds the group
+    /// containing the sender_guid in `GroupRegistry` (same pattern as other
+    /// group handlers). Multi-group/raid-subgroup PartyIndex selection is not
+    /// fully modelled.
+    pub async fn handle_minimap_ping(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let ping = match MinimapPingClient::read(&mut pkt) {
+            Ok(ping) => ping,
+            Err(e) => {
+                warn!("Bad MinimapPing: {e}");
+                return;
+            }
+        };
+        let _represented_party_index_boundary = ping.party_index;
+
+        let sender_guid = match self.player_guid() {
+            Some(guid) => guid,
+            None => return,
+        };
+        let group_reg = match self.group_registry() {
+            Some(registry) => std::sync::Arc::clone(registry),
+            None => return,
+        };
+        let registry = match self.player_registry() {
+            Some(registry) => std::sync::Arc::clone(registry),
+            None => return,
+        };
+
+        let group_guid = match self.group_guid {
+            Some(group_guid) => group_guid,
+            None => match group_reg
+                .iter()
+                .find(|entry| entry.value().members.contains(&sender_guid))
+                .map(|entry| *entry.key())
+            {
+                Some(group_guid) => group_guid,
+                None => return,
+            },
+        };
+
+        let Some(group) = group_reg.get(&group_guid) else {
+            return;
+        };
+
+        let bytes = MinimapPing {
+            sender: sender_guid,
+            position_x: ping.position_x,
+            position_y: ping.position_y,
+        }
+        .to_bytes();
+
+        // C++ BroadcastPacket(packet, true, -1, GetPlayer()->GetGUID()) excludes sender.
+        for member_guid in &group.members {
+            if *member_guid == sender_guid {
+                continue;
+            }
+            if let Some(entry) = registry.get(member_guid) {
+                let _ = entry.send_tx.send(bytes.clone());
+            }
         }
     }
 }
@@ -3747,5 +3829,127 @@ mod tests {
         assert!(!session.pass_on_group_loot);
         assert!(session.group_guid.is_none());
         assert!(send_rx.try_recv().is_err());
+    }
+
+    fn minimap_ping_packet(x: f32, y: f32, party_index: Option<u8>) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(party_index.is_some());
+        pkt.write_float(x);
+        pkt.write_float(y);
+        if let Some(idx) = party_index {
+            pkt.write_uint8(idx);
+        }
+        pkt.flush_bits();
+        pkt.reset_read();
+        pkt
+    }
+
+    #[tokio::test]
+    async fn minimap_ping_without_group_returns_silently_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send();
+        let guid = ObjectGuid::create_player(1, 42);
+        session.set_player_guid(Some(guid));
+
+        session
+            .handle_minimap_ping(minimap_ping_packet(10.0, 20.0, None))
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn minimap_ping_without_player_guid_returns_silently_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send();
+
+        session
+            .handle_minimap_ping(minimap_ping_packet(10.0, 20.0, None))
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn minimap_ping_with_group_broadcasts_to_other_members_excluding_sender_like_cpp() {
+        use wow_constants::ServerOpcodes;
+
+        let (mut session, _send_rx) = make_session_with_send();
+        let sender = ObjectGuid::create_player(1, 42);
+        let other = ObjectGuid::create_player(1, 43);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(sender);
+        group.add_member(other);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (sender_tx, sender_rx) = bounded(8);
+        let (other_tx, other_rx) = bounded(8);
+        player_registry.insert(sender, broadcast_info(sender, sender_tx));
+        player_registry.insert(other, broadcast_info(other, other_tx));
+
+        session.set_player_guid(Some(sender));
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(player_registry);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+
+        session
+            .handle_minimap_ping(minimap_ping_packet(123.456, -789.012, Some(0)))
+            .await;
+
+        // Sender should NOT receive the ping (C++ BroadcastPacket excludes sender).
+        assert!(
+            sender_rx.try_recv().is_err(),
+            "sender must not receive own minimap ping"
+        );
+
+        // Other member should receive SMSG_MINIMAP_PING with sender guid + x/y.
+        let sent = other_rx
+            .try_recv()
+            .expect("other member should receive minimap ping");
+        let mut pkt = WorldPacket::from_bytes(&sent);
+        assert_eq!(
+            pkt.read_uint16().unwrap(),
+            ServerOpcodes::MinimapPing as u16
+        );
+        assert_eq!(pkt.read_packed_guid().unwrap(), sender);
+        assert_eq!(pkt.read_float().unwrap(), 123.456);
+        assert_eq!(pkt.read_float().unwrap(), -789.012);
+    }
+
+    #[tokio::test]
+    async fn minimap_ping_sender_not_in_registry_skips_sending_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send();
+        let sender = ObjectGuid::create_player(1, 42);
+        let other = ObjectGuid::create_player(1, 43);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(sender);
+        group.add_member(other);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        // Only register 'other' — sender has no PlayerRegistry entry (edge case).
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (other_tx, other_rx) = bounded(8);
+        player_registry.insert(other, broadcast_info(other, other_tx));
+
+        session.set_player_guid(Some(sender));
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(player_registry);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+
+        session
+            .handle_minimap_ping(minimap_ping_packet(1.0, 2.0, None))
+            .await;
+
+        // Other should still receive (sender is excluded by guid comparison, not by registry).
+        let sent = other_rx
+            .try_recv()
+            .expect("other should receive even if sender not in registry");
+        let mut pkt = WorldPacket::from_bytes(&sent);
+        assert_eq!(
+            pkt.read_uint16().unwrap(),
+            ServerOpcodes::MinimapPing as u16
+        );
+        assert_eq!(pkt.read_packed_guid().unwrap(), sender);
     }
 }

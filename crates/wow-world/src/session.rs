@@ -16585,6 +16585,9 @@ impl WorldSession {
             ClientOpcodes::LowLevelRaid2 => {
                 self.handle_low_level_raid2(pkt).await;
             }
+            ClientOpcodes::MinimapPing => {
+                self.handle_minimap_ping(pkt).await;
+            }
 
             ClientOpcodes::Inspect => {
                 self.handle_inspect(pkt).await;
