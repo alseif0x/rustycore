@@ -213,6 +213,55 @@ impl ClientPacket for InitiateRolePoll {
     }
 }
 
+// ── Raid target icons / join updates ──────────────────────────────────────────
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UpdateRaidTarget {
+    pub party_index: Option<u8>,
+    pub target: ObjectGuid,
+    pub symbol: i8,
+}
+
+impl ClientPacket for UpdateRaidTarget {
+    const OPCODE: ClientOpcodes = ClientOpcodes::UpdateRaidTarget;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let has_party_index = pkt.read_bit()?;
+        let target = pkt.read_packed_guid()?;
+        let symbol = pkt.read_int8()?;
+        let party_index = if has_party_index {
+            Some(pkt.read_uint8()?)
+        } else {
+            None
+        };
+
+        Ok(Self {
+            party_index,
+            target,
+            symbol,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RequestPartyJoinUpdates {
+    pub party_index: Option<u8>,
+}
+
+impl ClientPacket for RequestPartyJoinUpdates {
+    const OPCODE: ClientOpcodes = ClientOpcodes::RequestPartyJoinUpdates;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let party_index = if pkt.read_bit()? {
+            Some(pkt.read_uint8()?)
+        } else {
+            None
+        };
+
+        Ok(Self { party_index })
+    }
+}
+
 // ── ReadyCheck (CMSG_DO_READY_CHECK / CMSG_READY_CHECK_RESPONSE) ──────────────
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -662,6 +711,64 @@ impl ServerPacket for RolePollInform {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SendRaidTargetUpdateSingle {
+    pub party_index: u8,
+    pub target: ObjectGuid,
+    pub changed_by: ObjectGuid,
+    pub symbol: u8,
+}
+
+impl ServerPacket for SendRaidTargetUpdateSingle {
+    const OPCODE: ServerOpcodes = ServerOpcodes::SendRaidTargetUpdateSingle;
+
+    fn write(&self, w: &mut WorldPacket) {
+        w.write_uint8(self.party_index);
+        w.write_uint8(self.symbol);
+        w.write_packed_guid(&self.target);
+        w.write_packed_guid(&self.changed_by);
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SendRaidTargetUpdateAll {
+    pub party_index: u8,
+    /// C++ `SendTargetIconList` inserts all eight symbols in ascending order,
+    /// including empty GUIDs.
+    pub target_icons: Vec<(u8, ObjectGuid)>,
+}
+
+impl ServerPacket for SendRaidTargetUpdateAll {
+    const OPCODE: ServerOpcodes = ServerOpcodes::SendRaidTargetUpdateAll;
+
+    fn write(&self, w: &mut WorldPacket) {
+        w.write_uint8(self.party_index);
+        w.write_uint32(self.target_icons.len() as u32);
+        for (symbol, target) in &self.target_icons {
+            w.write_packed_guid(target);
+            w.write_uint8(*symbol);
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RaidMarkersChanged {
+    pub party_index: u8,
+    pub active_markers: u32,
+}
+
+impl ServerPacket for RaidMarkersChanged {
+    const OPCODE: ServerOpcodes = ServerOpcodes::RaidMarkersChanged;
+
+    fn write(&self, w: &mut WorldPacket) {
+        w.write_uint8(self.party_index);
+        w.write_uint32(self.active_markers);
+        // Represented-minimal join-update path: no RaidMarker entries yet.
+        w.write_bits(0, 4);
+        w.flush_bits();
+    }
+}
+
 pub struct PartyDifficultySettings {
     pub dungeon_difficulty_id: u32,
     pub raid_difficulty_id: u32,
@@ -833,13 +940,21 @@ mod tests {
     use super::{
         ChangeSubGroup, ConvertRaid, DoReadyCheck, InitiateRolePoll, LowLevelRaid1, LowLevelRaid2,
         MinimapPingClient, OptOutOfLoot, PartyMemberPhase, PartyMemberPhaseStates,
-        ReadyCheckCompleted, ReadyCheckResponse, ReadyCheckResponseClient, ReadyCheckStarted,
-        RoleChangedInform, RolePollInform, SetAssistantLeader, SetEveryoneIsAssistant,
-        SetLootMethod, SetPartyAssignment, SetRole, SwapSubGroups,
+        RaidMarkersChanged, ReadyCheckCompleted, ReadyCheckResponse, ReadyCheckResponseClient,
+        ReadyCheckStarted, RequestPartyJoinUpdates, RoleChangedInform, RolePollInform,
+        SendRaidTargetUpdateAll, SendRaidTargetUpdateSingle, SetAssistantLeader,
+        SetEveryoneIsAssistant, SetLootMethod, SetPartyAssignment, SetRole, SwapSubGroups,
+        UpdateRaidTarget,
     };
     use crate::{ClientPacket, ServerPacket, WorldPacket};
     use wow_constants::ServerOpcodes;
     use wow_core::ObjectGuid;
+
+    fn packed_guid_bytes(guid: ObjectGuid) -> Vec<u8> {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_packed_guid(&guid);
+        pkt.into_data()
+    }
 
     #[test]
     fn set_loot_method_reads_cpp_bit_method_master_threshold_party_index_order() {
@@ -1094,6 +1209,119 @@ mod tests {
 
         assert_eq!(pkt.read_int8().unwrap(), 0);
         assert_eq!(pkt.read_packed_guid().unwrap(), from);
+    }
+
+    #[test]
+    fn update_raid_target_reads_cpp_bit_target_symbol_party_index_order() {
+        let target = ObjectGuid::create_player(1, 77);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(true);
+        pkt.write_packed_guid(&target);
+        pkt.write_int8(3);
+        pkt.write_uint8(0);
+        pkt.reset_read();
+
+        let update = UpdateRaidTarget::read(&mut pkt).unwrap();
+
+        assert_eq!(update.party_index, Some(0));
+        assert_eq!(update.target, target);
+        assert_eq!(update.symbol, 3);
+    }
+
+    #[test]
+    fn update_raid_target_reads_cpp_symbol_minus_one_request() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(false);
+        pkt.write_packed_guid(&ObjectGuid::EMPTY);
+        pkt.write_int8(-1);
+        pkt.flush_bits();
+        pkt.reset_read();
+
+        let update = UpdateRaidTarget::read(&mut pkt).unwrap();
+
+        assert_eq!(update.party_index, None);
+        assert_eq!(update.target, ObjectGuid::EMPTY);
+        assert_eq!(update.symbol, -1);
+    }
+
+    #[test]
+    fn request_party_join_updates_reads_cpp_optional_party_index() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(true);
+        pkt.write_uint8(0);
+        pkt.reset_read();
+
+        let request = RequestPartyJoinUpdates::read(&mut pkt).unwrap();
+
+        assert_eq!(request.party_index, Some(0));
+    }
+
+    #[test]
+    fn raid_target_update_single_writes_cpp_party_symbol_target_changed_by_order() {
+        let target = ObjectGuid::create_player(1, 77);
+        let changed_by = ObjectGuid::create_player(1, 42);
+        let target_bytes = packed_guid_bytes(target);
+        let changed_by_bytes = packed_guid_bytes(changed_by);
+        let mut pkt = WorldPacket::new_empty();
+        SendRaidTargetUpdateSingle {
+            party_index: 0,
+            target,
+            changed_by,
+            symbol: 3,
+        }
+        .write(&mut pkt);
+        let data = pkt.into_data();
+
+        assert_eq!(data[0], 0);
+        assert_eq!(data[1], 3);
+        assert_eq!(&data[2..2 + target_bytes.len()], target_bytes.as_slice());
+        assert_eq!(&data[2 + target_bytes.len()..], changed_by_bytes.as_slice());
+    }
+
+    #[test]
+    fn raid_target_update_all_writes_cpp_party_count_all_icons_order() {
+        let first = ObjectGuid::create_player(1, 77);
+        let icons: Vec<_> = (0..8)
+            .map(|symbol| {
+                (
+                    symbol,
+                    if symbol == 0 {
+                        first
+                    } else {
+                        ObjectGuid::EMPTY
+                    },
+                )
+            })
+            .collect();
+        let mut pkt = WorldPacket::new_empty();
+        SendRaidTargetUpdateAll {
+            party_index: 0,
+            target_icons: icons,
+        }
+        .write(&mut pkt);
+        pkt.reset_read();
+
+        assert_eq!(pkt.read_uint8().unwrap(), 0);
+        assert_eq!(pkt.read_uint32().unwrap(), 8);
+        assert_eq!(pkt.read_packed_guid().unwrap(), first);
+        assert_eq!(pkt.read_uint8().unwrap(), 0);
+        for symbol in 1..8 {
+            assert_eq!(pkt.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
+            assert_eq!(pkt.read_uint8().unwrap(), symbol);
+        }
+    }
+
+    #[test]
+    fn raid_markers_changed_writes_empty_represented_join_update_shape() {
+        let mut pkt = WorldPacket::new_empty();
+        RaidMarkersChanged {
+            party_index: 0,
+            active_markers: 0,
+        }
+        .write(&mut pkt);
+        let data = pkt.into_data();
+
+        assert_eq!(data, vec![0, 0, 0, 0, 0, 0]);
     }
 
     #[test]

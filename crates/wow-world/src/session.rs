@@ -16570,6 +16570,12 @@ impl WorldSession {
             ClientOpcodes::InitiateRolePoll => {
                 self.handle_initiate_role_poll(pkt).await;
             }
+            ClientOpcodes::UpdateRaidTarget => {
+                self.handle_update_raid_target(pkt).await;
+            }
+            ClientOpcodes::RequestPartyJoinUpdates => {
+                self.handle_request_party_join_updates(pkt).await;
+            }
             ClientOpcodes::DoReadyCheck => {
                 self.handle_do_ready_check(pkt).await;
             }

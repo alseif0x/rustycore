@@ -589,6 +589,51 @@ impl GroupInfo {
         self.set_group_member_flag_like_cpp(guid, apply, MEMBER_FLAG_ASSISTANT_LIKE_CPP)
     }
 
+    pub fn target_icon_list_like_cpp(&self) -> Vec<(u8, ObjectGuid)> {
+        self.target_icons
+            .iter()
+            .enumerate()
+            .map(|(symbol, raw)| (symbol as u8, ObjectGuid::from_raw_bytes(raw)))
+            .collect()
+    }
+
+    pub fn set_target_icon_like_cpp(
+        &mut self,
+        symbol: u8,
+        target: ObjectGuid,
+    ) -> Option<Vec<(u8, ObjectGuid)>> {
+        let symbol_index = usize::from(symbol);
+        if symbol_index >= TARGET_ICONS_COUNT_LIKE_CPP {
+            return None;
+        }
+
+        let mut updates = Vec::new();
+        if !target.is_empty() {
+            let target_raw = target.to_raw_bytes();
+            for clear_symbol in 0..TARGET_ICONS_COUNT_LIKE_CPP {
+                if self.target_icons[clear_symbol] == target_raw {
+                    self.target_icons[clear_symbol] = EMPTY_TARGET_ICON_RAW_LIKE_CPP;
+                    updates.push((clear_symbol as u8, ObjectGuid::EMPTY));
+                }
+            }
+        }
+
+        self.target_icons[symbol_index] = target.to_raw_bytes();
+        updates.push((symbol, target));
+        self.sequence_num += 1;
+        Some(updates)
+    }
+
+    pub fn is_leader_like_cpp(&self, guid: ObjectGuid) -> bool {
+        self.leader_guid == guid
+    }
+
+    pub fn is_assistant_like_cpp(&self, guid: ObjectGuid) -> bool {
+        self.member_slots
+            .iter()
+            .any(|slot| slot.guid == guid && (slot.flags & MEMBER_FLAG_ASSISTANT_LIKE_CPP) != 0)
+    }
+
     pub fn set_everyone_is_assistant_like_cpp(&mut self, apply: bool) -> (u16, u32) {
         let previous_group_flags = self.group_flags;
         if apply {
@@ -1724,6 +1769,55 @@ mod tests {
         assert_eq!(raid.member_group_like_cpp(second), 3);
         assert_eq!(raid.raid_subgroup_counts, counts_before);
         assert_eq!(raid.sequence_num, sequence_before);
+    }
+
+    #[test]
+    fn target_icon_list_returns_all_eight_symbols_in_cpp_order() {
+        let target = ObjectGuid::create_player(1, 77);
+        let mut group = GroupInfo::new(ObjectGuid::create_player(1, 42));
+        group.target_icons[3] = target.to_raw_bytes();
+
+        let icons = group.target_icon_list_like_cpp();
+
+        assert_eq!(icons.len(), TARGET_ICONS_COUNT_LIKE_CPP);
+        assert_eq!(icons[0], (0, ObjectGuid::EMPTY));
+        assert_eq!(icons[3], (3, target));
+        assert_eq!(icons[7], (7, ObjectGuid::EMPTY));
+    }
+
+    #[test]
+    fn set_target_icon_out_of_range_does_not_mutate_like_cpp() {
+        let target = ObjectGuid::create_player(1, 77);
+        let mut group = GroupInfo::new(ObjectGuid::create_player(1, 42));
+
+        assert_eq!(group.set_target_icon_like_cpp(8, target), None);
+        assert!(
+            group
+                .target_icons
+                .iter()
+                .all(|raw| *raw == EMPTY_TARGET_ICON_RAW_LIKE_CPP)
+        );
+    }
+
+    #[test]
+    fn set_target_icon_clears_duplicate_target_before_assignment_like_cpp() {
+        let target = ObjectGuid::create_player(1, 77);
+        let mut group = GroupInfo::new(ObjectGuid::create_player(1, 42));
+        group.set_target_icon_like_cpp(2, target).unwrap();
+
+        let updates = group.set_target_icon_like_cpp(5, target).unwrap();
+
+        assert_eq!(updates, vec![(2, ObjectGuid::EMPTY), (5, target)]);
+        assert_eq!(group.target_icons[2], EMPTY_TARGET_ICON_RAW_LIKE_CPP);
+        assert_eq!(group.target_icons[5], target.to_raw_bytes());
+        assert_eq!(
+            group
+                .target_icon_list_like_cpp()
+                .into_iter()
+                .filter(|(_, icon_target)| *icon_target == target)
+                .count(),
+            1
+        );
     }
 
     #[test]
