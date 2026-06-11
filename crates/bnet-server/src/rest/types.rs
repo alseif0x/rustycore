@@ -84,3 +84,12 @@ pub struct GameAccountEntry {
 pub struct GameAccountsResponse {
     pub game_accounts: Vec<GameAccountEntry>,
 }
+
+/// Login-ticket refresh response.
+#[derive(Serialize)]
+pub struct LoginRefreshResult {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub login_ticket_expiry: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_expired: Option<bool>,
+}

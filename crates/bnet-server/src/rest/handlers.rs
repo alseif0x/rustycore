@@ -444,19 +444,47 @@ async fn refresh_login_ticket(state: &AppState, headers: &HashMap<String, String
         return json_error_response(401, "Unauthorized", "Missing ticket");
     };
 
-    let expiry = unix_timestamp() + state.ticket_duration;
     let mut stmt = state
         .login_db
-        .prepare(LoginStatements::UPD_BNET_AUTHENTICATION);
-    stmt.set_u64(0, expiry);
-    stmt.set_string(1, &ticket);
-    match state.login_db.execute(&stmt).await {
-        Ok(_) => json_response(serde_json::json!({"login_ticket": ticket})),
+        .prepare(LoginStatements::SEL_BNET_EXISTING_AUTHENTICATION);
+    stmt.set_string(0, &ticket);
+    let result = match state.login_db.query(&stmt).await {
+        Ok(result) => result,
         Err(e) => {
-            tracing::error!("Failed to refresh ticket: {e}");
-            json_error_response(500, "Internal Server Error", "Internal error")
+            tracing::error!("Failed to load login ticket for refresh: {e}");
+            return json_error_response(500, "Internal Server Error", "Internal error");
         }
+    };
+
+    let now = unix_timestamp();
+    let current_expiry = if result.is_empty() {
+        0
+    } else {
+        result.try_read::<u64>(0).unwrap_or(0)
+    };
+
+    if current_expiry <= now {
+        return json_response(LoginRefreshResult {
+            login_ticket_expiry: None,
+            is_expired: Some(true),
+        });
     }
+
+    let new_expiry = now + state.ticket_duration;
+    let mut stmt = state
+        .login_db
+        .prepare(LoginStatements::UPD_BNET_EXISTING_AUTHENTICATION);
+    stmt.set_u64(0, new_expiry);
+    stmt.set_string(1, &ticket);
+    if let Err(e) = state.login_db.execute(&stmt).await {
+        tracing::error!("Failed to refresh ticket: {e}");
+        return json_error_response(500, "Internal Server Error", "Internal error");
+    }
+
+    json_response(LoginRefreshResult {
+        login_ticket_expiry: Some(new_expiry),
+        is_expired: None,
+    })
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -784,6 +812,28 @@ mod tests {
 
         assert_eq!(extract_auth_ticket(&invalid), None);
         assert_eq!(extract_auth_ticket(&empty), None);
+    }
+
+    #[test]
+    fn login_refresh_result_serializes_extended_ticket_shape_like_cpp() {
+        let body = serde_json::to_string(&LoginRefreshResult {
+            login_ticket_expiry: Some(1_700_000_600),
+            is_expired: None,
+        })
+        .unwrap();
+
+        assert_eq!(body, r#"{"login_ticket_expiry":1700000600}"#);
+    }
+
+    #[test]
+    fn login_refresh_result_serializes_expired_ticket_shape_like_cpp() {
+        let body = serde_json::to_string(&LoginRefreshResult {
+            login_ticket_expiry: None,
+            is_expired: Some(true),
+        })
+        .unwrap();
+
+        assert_eq!(body, r#"{"is_expired":true}"#);
     }
 }
 

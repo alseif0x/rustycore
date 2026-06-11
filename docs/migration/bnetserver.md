@@ -578,7 +578,7 @@ Resolved since the original audit: `extract_auth_ticket` now mirrors TC's `Extra
 | `POST /bnetserver/login/srp/` | ✅ `HandlePostLoginSrpChallenge` | ✅ `post_login_srp_challenge` | Same SRP6 challenge response (modulus, generator, salt, public B, hash function name `"SHA-256"`). ✅ parity. |
 | `GET /bnetserver/gameAccounts/` | ✅ `HandleGetGameAccounts` | ✅ `get_game_accounts` | Same query (`SEL_BNET_GAME_ACCOUNT_LIST`). Rust now matches TC `ExtractAuthorization`: optional `Basic ` prefix removal, Base64 decode, then truncate at `:`. |
 | `GET /bnetserver/portal/` | ✅ `HandleGetPortal` | ✅ `get_portal` | TC returns `GetHostnameForClient(remoteIp):port`; Rust returns `X-Forwarded-For`-or-`external_address`:port. Different selection logic but same shape. |
-| `POST /bnetserver/refreshLoginTicket/` | ✅ `HandlePostRefreshLoginTicket` | ✅ `refresh_login_ticket` | TC returns `LoginRefreshResult{login_ticket_expiry}` or `is_expired=true`; Rust returns `{login_ticket: "<TC-…>"}` only. **Divergence in response shape.** Same DB write. |
+| `POST /bnetserver/refreshLoginTicket/` | ✅ `HandlePostRefreshLoginTicket` | ✅ `refresh_login_ticket` | Rust now matches TC response shape: `LoginRefreshResult{login_ticket_expiry}` for valid unexpired tickets, or `is_expired=true` when missing/expired. Same DB write. |
 | `POST /login/srp/` (bot/mobile) | ✅ `HandlePostBotSrpChallenge` | ❌ missing | route returns 404 |
 | `POST /login/` (bot/mobile) | ✅ `HandlePostBotLogin` | ❌ missing | route returns 404 |
 | `OPTIONS *` (CORS preflight) | ❌ none | ❌ none | ✅ parity |
@@ -635,7 +635,7 @@ Add these to §9 (existing tasks #BNET.1–#BNET.14 stand):
 - [ ] **#BNET.20** Add `LOGIN_SEL_IP_INFO` check in `Session::Start`-equivalent: reject TLS handshake if remote IP is in `ip_banned`.
 - [x] **#BNET.21** Persist failed login attempts and autobans per `WrongPass.MaxCount`/`BanTime`/`BanType`/`Logging` for BNet REST login. Rust writes `battlenet_accounts.failed_logins`, `battlenet_account_bans` or `ip_banned`, and resets failed-login count at the configured threshold like TC. Subsumes `#BNET.8`.
 - [ ] **#BNET.22** Install SIGTERM handler alongside `ctrl_c` so `kill <pid>` shuts down cleanly.
-- [ ] **#BNET.23** Match `HandlePostRefreshLoginTicket` response shape: `{ login_ticket_expiry: <unix> }` or `{ is_expired: true }`, not `{ login_ticket: "…" }`.
+- [x] **#BNET.23** Match `HandlePostRefreshLoginTicket` response shape: `{ login_ticket_expiry: <unix> }` or `{ is_expired: true }`, not `{ login_ticket: "…" }`.
 - [ ] **#BNET.24** Resolve `LoginREST.{External,Local}Address` via DNS at startup (TC does, fails fast on bad hostname). Today Rust silently uses the literal string.
 
 ### 13.8 Header status update
