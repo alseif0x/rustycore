@@ -23,6 +23,7 @@ use wow_entities::{
 };
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
 use wow_packet::ClientPacket;
+use wow_packet::packets::chat::{ChannelNotify, JoinChannel};
 use wow_packet::packets::collection::{
     COLLECTION_TYPE_APPEARANCE_LIKE_CPP, COLLECTION_TYPE_TOYBOX_LIKE_CPP,
     CollectionItemSetFavorite, TransmogrifyItems,
@@ -873,12 +874,32 @@ impl crate::session::WorldSession {
     }
 
     /// CMSG_CHAT_JOIN_CHANNEL — player joins a chat channel.
-    /// C# ref: ChannelHandler.HandleJoinChannel
-    /// Stubbed until ChannelManager is implemented.
-    pub async fn handle_chat_join_channel(&mut self, _pkt: wow_packet::WorldPacket) {
-        // TODO: parse channel packet and join via ChannelManager.
-        // Packet structure (bit-packed): channel_id u32, has_voice bit,
-        // name_len bits(7), pass_len bits(7), channel_name, password.
+    /// C++ ref: `WorldSession::HandleJoinChannel`.
+    pub async fn handle_chat_join_channel(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let request = match JoinChannel::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "JoinChannel parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        if request.chat_channel_id == 0
+            && request
+                .channel_name
+                .chars()
+                .next()
+                .is_none_or(|first| first.is_ascii_digit())
+        {
+            self.send_packet(&ChannelNotify::invalid_name(request.channel_name));
+            return;
+        }
+
+        // ChannelMgr, system-zone channel validation, custom channel creation,
+        // password handling, and hyperlink kick checks are not represented yet.
     }
 
     /// CMSG_MOUNT_SET_FAVORITE — toggle the favorite bit on a known account mount.
@@ -5004,6 +5025,33 @@ mod tests {
         assert_eq!(session.gossip_source_guid, Some(active_guid));
         assert_eq!(session.gossip_options.len(), 1);
         assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn chat_join_channel_invalid_custom_name_sends_notice_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_int32(0);
+        pkt.write_bit(false);
+        pkt.write_bit(false);
+        pkt.write_bits(4, 7);
+        pkt.write_bits(0, 7);
+        pkt.write_string("1bad");
+        pkt.reset_read();
+
+        session.handle_chat_join_channel(pkt).await;
+
+        let bytes = send_rx.try_recv().expect("channel notify packet");
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::ChannelNotify as u16
+        );
+        let mut payload = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(
+            payload.read_bits(6).unwrap() as u8,
+            wow_packet::packets::chat::CHAT_INVALID_NAME_NOTICE_LIKE_CPP
+        );
+        assert_eq!(payload.read_bits(7).unwrap(), 4);
     }
 
     #[tokio::test]

@@ -11,6 +11,104 @@ use wow_core::ObjectGuid;
 use crate::world_packet::{PacketError, WorldPacket};
 use crate::{ClientPacket, ServerPacket};
 
+pub const CHAT_INVALID_NAME_NOTICE_LIKE_CPP: u8 = 0x1B;
+
+// ── CMSG_CHAT_JOIN_CHANNEL ────────────────────────────────────────
+
+/// C++ `WorldPackets::Channel::JoinChannel`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JoinChannel {
+    pub chat_channel_id: i32,
+    pub create_voice_session: bool,
+    pub internal: bool,
+    pub channel_name: String,
+    pub password: String,
+}
+
+impl ClientPacket for JoinChannel {
+    const OPCODE: ClientOpcodes = ClientOpcodes::ChatJoinChannel;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let chat_channel_id = pkt.read_int32()?;
+        let create_voice_session = pkt.read_bit()?;
+        let internal = pkt.read_bit()?;
+        let channel_len = pkt.read_bits(7)? as usize;
+        let password_len = pkt.read_bits(7)? as usize;
+        let channel_name = pkt.read_string(channel_len)?;
+        let password = pkt.read_string(password_len)?;
+
+        Ok(Self {
+            chat_channel_id,
+            create_voice_session,
+            internal,
+            channel_name,
+            password,
+        })
+    }
+}
+
+// ── SMSG_CHANNEL_NOTIFY ───────────────────────────────────────────
+
+/// C++ `WorldPackets::Channel::ChannelNotify`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChannelNotify {
+    pub notify_type: u8,
+    pub channel: String,
+    pub sender: String,
+    pub sender_guid: ObjectGuid,
+    pub sender_account_id: ObjectGuid,
+    pub sender_virtual_realm: u32,
+    pub target_guid: ObjectGuid,
+    pub target_virtual_realm: u32,
+    pub chat_channel_id: i32,
+    pub old_flags: u8,
+    pub new_flags: u8,
+}
+
+impl ChannelNotify {
+    pub fn invalid_name(channel: impl Into<String>) -> Self {
+        Self {
+            notify_type: CHAT_INVALID_NAME_NOTICE_LIKE_CPP,
+            channel: channel.into(),
+            sender: String::new(),
+            sender_guid: ObjectGuid::EMPTY,
+            sender_account_id: ObjectGuid::EMPTY,
+            sender_virtual_realm: 0,
+            target_guid: ObjectGuid::EMPTY,
+            target_virtual_realm: 0,
+            chat_channel_id: 0,
+            old_flags: 0,
+            new_flags: 0,
+        }
+    }
+}
+
+impl ServerPacket for ChannelNotify {
+    const OPCODE: ServerOpcodes = ServerOpcodes::ChannelNotify;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_bits(u32::from(self.notify_type), 6);
+        pkt.write_bits(self.channel.len() as u32, 7);
+        pkt.write_bits(self.sender.len() as u32, 6);
+        pkt.flush_bits();
+
+        pkt.write_packed_guid(&self.sender_guid);
+        pkt.write_packed_guid(&self.sender_account_id);
+        pkt.write_uint32(self.sender_virtual_realm);
+        pkt.write_packed_guid(&self.target_guid);
+        pkt.write_uint32(self.target_virtual_realm);
+        pkt.write_int32(self.chat_channel_id);
+
+        if self.notify_type == 0x10 {
+            pkt.write_uint8(self.old_flags);
+            pkt.write_uint8(self.new_flags);
+        }
+
+        pkt.write_string(&self.channel);
+        pkt.write_string(&self.sender);
+    }
+}
+
 // ── Chat message types ────────────────────────────────────────────
 
 /// Chat message type (`ChatMsg` in TrinityCore WotLK Classic).
@@ -436,6 +534,54 @@ mod tests {
         let mut reader = WorldPacket::from_bytes(writer.data());
         let packet = ChatRegisterAddonPrefixes::read(&mut reader).unwrap();
         assert_eq!(packet.prefixes, vec!["ABC", "DEFG"]);
+    }
+
+    #[test]
+    fn join_channel_reads_cpp_layout() {
+        let mut writer = WorldPacket::new_empty();
+        writer.write_int32(0);
+        writer.write_bit(false);
+        writer.write_bit(false);
+        writer.write_bits(5, 7);
+        writer.write_bits(4, 7);
+        writer.write_string("Trade");
+        writer.write_string("pass");
+
+        let mut reader = WorldPacket::from_bytes(writer.data());
+        let packet = JoinChannel::read(&mut reader).unwrap();
+        assert_eq!(packet.chat_channel_id, 0);
+        assert!(!packet.create_voice_session);
+        assert!(!packet.internal);
+        assert_eq!(packet.channel_name, "Trade");
+        assert_eq!(packet.password, "pass");
+    }
+
+    #[test]
+    fn channel_notify_invalid_name_uses_cpp_notice_type() {
+        let bytes = ChannelNotify::invalid_name("1bad").to_bytes();
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::ChannelNotify as u16
+        );
+        // C++ `operator<<(ObjectGuid)` writes packed GUIDs. Empty sender/account/target
+        // GUIDs are 2 bytes each, not three raw 16-byte values.
+        assert_eq!(bytes.len(), 27);
+
+        let mut payload = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(
+            payload.read_bits(6).unwrap() as u8,
+            CHAT_INVALID_NAME_NOTICE_LIKE_CPP
+        );
+        assert_eq!(payload.read_bits(7).unwrap(), 4);
+        assert_eq!(payload.read_bits(6).unwrap(), 0);
+        assert_eq!(payload.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
+        assert_eq!(payload.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
+        assert_eq!(payload.read_uint32().unwrap(), 0);
+        assert_eq!(payload.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
+        assert_eq!(payload.read_uint32().unwrap(), 0);
+        assert_eq!(payload.read_int32().unwrap(), 0);
+        assert_eq!(payload.read_string(4).unwrap(), "1bad");
+        assert!(payload.is_empty());
     }
 
     #[test]
