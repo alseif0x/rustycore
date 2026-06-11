@@ -41,10 +41,11 @@ use wow_packet::packets::misc::{
     BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags, BattlePetSummon,
     BattlePetUpdateNotify, CageBattlePet, CalendarSendCalendar, CalendarSendNumPending,
     CommerceTokenGetLog, CommerceTokenGetLogResponse, DfGetJoinStatus, DfGetSystemInfo, FarSight,
-    GmTicketCaseStatus, LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify,
-    MountSetFavorite, QueryBattlePetName, QueryBattlePetNameResponse, RatedPvpInfo,
-    RequestBattlefieldStatus, RequestCemeteryListResponse, SaveCufProfiles, TaxiNodeStatusPkt,
-    ToyClearFanfare, UseToy, ViolenceLevel,
+    GmTicketCaseStatus, GuildSetAchievementTracking, LfgListBlacklist, LfgPlayerInfo,
+    LfgUpdateStatus, LoadingScreenNotify, MountSetFavorite, QueryBattlePetName,
+    QueryBattlePetNameResponse, RatedPvpInfo, RequestBattlefieldStatus,
+    RequestCemeteryListResponse, SaveCufProfiles, TaxiNodeStatusPkt, ToyClearFanfare, UseToy,
+    ViolenceLevel,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -1316,7 +1317,22 @@ impl crate::session::WorldSession {
             );
         }
     }
-    pub async fn handle_guild_set_achievement_tracking(&mut self, _pkt: wow_packet::WorldPacket) {}
+    pub async fn handle_guild_set_achievement_tracking(
+        &mut self,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
+        if let Err(error) = GuildSetAchievementTracking::read(&mut pkt) {
+            warn!(
+                account = self.account_id,
+                "GuildSetAchievementTracking parse failed: {error}"
+            );
+            return;
+        }
+
+        // C++ only delegates when GetPlayer()->GetGuild() resolves a live guild.
+        // Rust has no represented guild-achievement manager here yet, so the
+        // no-guild branch remains silent.
+    }
     pub async fn handle_get_item_purchase_data(&mut self, mut pkt: wow_packet::WorldPacket) {
         let request = match GetItemPurchaseData::read(&mut pkt) {
             Ok(request) => request,
@@ -4908,6 +4924,20 @@ mod tests {
         session
             .handle_queued_messages_end(WorldPacket::new_empty())
             .await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn guild_set_achievement_tracking_without_guild_is_silent_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(2);
+        pkt.write_uint32(100);
+        pkt.write_uint32(200);
+        pkt.reset_read();
+
+        session.handle_guild_set_achievement_tracking(pkt).await;
 
         assert!(send_rx.try_recv().is_err());
     }

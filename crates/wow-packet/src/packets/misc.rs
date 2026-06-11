@@ -67,6 +67,34 @@ impl ClientPacket for ViolenceLevel {
     }
 }
 
+pub const MAX_GUILD_ACHIEVEMENT_TRACKING_IDS_LIKE_CPP: usize = 10;
+
+/// C++ `WorldPackets::Guild::GuildSetAchievementTracking`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GuildSetAchievementTracking {
+    pub achievement_ids: Vec<u32>,
+}
+
+impl ClientPacket for GuildSetAchievementTracking {
+    const OPCODE: ClientOpcodes = ClientOpcodes::GuildSetAchievementTracking;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let count = pkt.read_uint32()? as usize;
+        if count > MAX_GUILD_ACHIEVEMENT_TRACKING_IDS_LIKE_CPP {
+            return Err(PacketError::StringError(format!(
+                "GuildSetAchievementTracking count {count} exceeds C++ Array<10>"
+            )));
+        }
+
+        let mut achievement_ids = Vec::with_capacity(count);
+        for _ in 0..count {
+            achievement_ids.push(pkt.read_uint32()?);
+        }
+
+        Ok(Self { achievement_ids })
+    }
+}
+
 // ── AccountDataTimes (SMSG 0x270a) ──────────────────────────────────
 
 /// Number of AccountDataTypes (from C# AccountDataTypes.Max = 15).
@@ -4173,6 +4201,28 @@ mod tests {
 
         let parsed = ViolenceLevel::read(&mut pkt).unwrap();
         assert_eq!(parsed.violence_level, 2);
+    }
+
+    #[test]
+    fn guild_set_achievement_tracking_reads_cpp_counted_ids() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(3);
+        pkt.write_uint32(100);
+        pkt.write_uint32(200);
+        pkt.write_uint32(300);
+        pkt.reset_read();
+
+        let parsed = GuildSetAchievementTracking::read(&mut pkt).unwrap();
+        assert_eq!(parsed.achievement_ids, vec![100, 200, 300]);
+    }
+
+    #[test]
+    fn guild_set_achievement_tracking_rejects_above_cpp_array_limit() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32((MAX_GUILD_ACHIEVEMENT_TRACKING_IDS_LIKE_CPP + 1) as u32);
+        pkt.reset_read();
+
+        assert!(GuildSetAchievementTracking::read(&mut pkt).is_err());
     }
 
     #[test]
