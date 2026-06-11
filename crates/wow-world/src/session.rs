@@ -16782,6 +16782,12 @@ impl WorldSession {
             ClientOpcodes::SelfRes => {
                 self.handle_self_res(pkt).await;
             }
+            ClientOpcodes::PetCancelAura => {
+                self.handle_pet_cancel_aura(pkt).await;
+            }
+            ClientOpcodes::TotemDestroyed => {
+                self.handle_totem_destroyed(pkt).await;
+            }
             ClientOpcodes::OpenItem => {
                 self.handle_open_item(pkt).await;
             }

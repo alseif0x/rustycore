@@ -45,11 +45,13 @@ use wow_packet::packets::item::{ItemExpirePurchaseRefund, ItemInstance};
 use wow_packet::packets::loot::{
     CreatureLoot, LOOT_TYPE_ITEM_LIKE_CPP, LootEntry, LootEntryFlags, LootItemData, LootResponse,
 };
+use wow_packet::packets::pet::PetCancelAura;
 use wow_packet::packets::spell::{
     CancelAura, CancelAutoRepeatSpell, CancelCast, CancelChannelling, CancelGrowthAura,
     CancelMountAura, CancelQueuedSpell, CastFailed, CastSpellRequest, OpenItem, SelfRes,
     SpellCastVisual, SpellClick, SpellStartPkt,
 };
+use wow_packet::packets::totem::TotemDestroyed;
 
 use crate::session::WorldSession;
 
@@ -157,6 +159,24 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_self_res",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::PetCancelAura,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_pet_cancel_aura",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::TotemDestroyed,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_totem_destroyed",
     }
 }
 
@@ -1851,6 +1871,48 @@ impl WorldSession {
         );
     }
 
+    /// Handle `CMSG_PET_CANCEL_AURA`.
+    pub async fn handle_pet_cancel_aura(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let request = match PetCancelAura::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "PetCancelAura parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        debug!(
+            account = self.account_id,
+            pet_guid = ?request.pet_guid,
+            spell_id = request.spell_id,
+            "CMSG_PET_CANCEL_AURA parsed; guardian/charmed pet aura runtime is not represented yet"
+        );
+    }
+
+    /// Handle `CMSG_TOTEM_DESTROYED`.
+    pub async fn handle_totem_destroyed(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let request = match TotemDestroyed::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "TotemDestroyed parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        debug!(
+            account = self.account_id,
+            slot = request.slot,
+            totem_guid = ?request.totem_guid,
+            "CMSG_TOTEM_DESTROYED parsed; player summon-slot totem runtime is not represented yet"
+        );
+    }
+
     fn is_spell_disabled_for_player_like_cpp(&self, spell_id: i32) -> bool {
         let Some(disable_mgr) = self.disable_mgr() else {
             return false;
@@ -2346,6 +2408,22 @@ mod tests {
         pkt
     }
 
+    fn pet_cancel_aura_packet(pet_guid: ObjectGuid, spell_id: u32) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_packed_guid(&pet_guid);
+        pkt.write_uint32(spell_id);
+        pkt.reset_read();
+        pkt
+    }
+
+    fn totem_destroyed_packet(slot: u8, totem_guid: ObjectGuid) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint8(slot);
+        pkt.write_packed_guid(&totem_guid);
+        pkt.reset_read();
+        pkt
+    }
+
     #[tokio::test]
     async fn cancel_cast_clears_matching_active_cast_like_cpp() {
         let (mut session, _send_rx) = make_session();
@@ -2442,6 +2520,30 @@ mod tests {
         let (mut session, send_rx) = make_session();
 
         session.handle_self_res(int32_spell_packet(20_000)).await;
+
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn pet_cancel_aura_parses_and_stays_silent_until_pet_runtime_exists() {
+        let (mut session, send_rx) = make_session();
+        let pet_guid = ObjectGuid::create_player(1, 42);
+
+        session
+            .handle_pet_cancel_aura(pet_cancel_aura_packet(pet_guid, 12_345))
+            .await;
+
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn totem_destroyed_parses_and_stays_silent_until_totem_runtime_exists() {
+        let (mut session, send_rx) = make_session();
+        let totem_guid = ObjectGuid::create_player(1, 42);
+
+        session
+            .handle_totem_destroyed(totem_destroyed_packet(2, totem_guid))
+            .await;
 
         assert!(send_rx.is_empty());
     }

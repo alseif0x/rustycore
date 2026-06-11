@@ -26,6 +26,7 @@ pub mod quest;
 pub mod reputation;
 pub mod social;
 pub mod spell;
+pub mod totem;
 pub mod trainer;
 pub mod update;
 pub mod vehicle;

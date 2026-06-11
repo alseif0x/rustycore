@@ -5,10 +5,10 @@
 
 //! Pet packet definitions.
 
-use wow_constants::ServerOpcodes;
+use wow_constants::{ClientOpcodes, ServerOpcodes};
 use wow_core::ObjectGuid;
 
-use crate::{ServerPacket, WorldPacket};
+use crate::{ClientPacket, PacketError, ServerPacket, WorldPacket};
 
 pub const REACT_PASSIVE_LIKE_CPP: u8 = 0;
 pub const REACT_DEFENSIVE_LIKE_CPP: u8 = 1;
@@ -17,6 +17,23 @@ pub const REACT_AGGRESSIVE_LIKE_CPP: u8 = 2;
 pub const COMMAND_STAY_LIKE_CPP: u8 = 0;
 pub const COMMAND_FOLLOW_LIKE_CPP: u8 = 1;
 pub const COMMAND_ATTACK_LIKE_CPP: u8 = 2;
+
+/// C++ `WorldPackets::Pet::PetCancelAura`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PetCancelAura {
+    pub pet_guid: ObjectGuid,
+    pub spell_id: u32,
+}
+
+impl ClientPacket for PetCancelAura {
+    const OPCODE: ClientOpcodes = ClientOpcodes::PetCancelAura;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let pet_guid = pkt.read_packed_guid()?;
+        let spell_id = pkt.read_uint32()?;
+        Ok(Self { pet_guid, spell_id })
+    }
+}
 
 /// Mirrors C++ `WorldPackets::Pet::PetMode`.
 pub struct PetMode {
@@ -64,6 +81,20 @@ impl ServerPacket for PetStableResult {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pet_cancel_aura_reads_cpp_pet_guid_then_spell_id() {
+        let pet_guid = ObjectGuid::create_player(1, 42);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_packed_guid(&pet_guid);
+        pkt.write_uint32(12_345);
+        pkt.reset_read();
+
+        let parsed = PetCancelAura::read(&mut pkt).unwrap();
+        assert_eq!(parsed.pet_guid, pet_guid);
+        assert_eq!(parsed.spell_id, 12_345);
+        assert!(pkt.is_empty());
+    }
 
     #[test]
     fn pet_mode_matches_cpp_opcode_and_tail() {
