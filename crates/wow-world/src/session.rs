@@ -14303,18 +14303,19 @@ impl WorldSession {
 
     fn party_member_party_type_like_cpp(&self) -> [u8; 2] {
         let mut party_type = [wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP; 2];
-        let (Some(group_guid), Some(group_registry), Some(player_guid)) =
-            (self.group_guid, &self.group_registry, self.player_guid())
+        let (Some(group_registry), Some(player_guid)) = (&self.group_registry, self.player_guid())
         else {
             return party_type;
         };
 
-        if let Some(group) = group_registry.get(&group_guid)
-            && group.group_category == wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP
-            && group.members.contains(&player_guid)
-        {
-            party_type[usize::from(wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP)] =
-                wow_network::group_registry::GROUP_TYPE_NORMAL_LIKE_CPP;
+        for group in group_registry.iter() {
+            let category = group.group_category_like_cpp();
+            if category < wow_network::group_registry::MAX_GROUP_CATEGORY_LIKE_CPP
+                && group.members.contains(&player_guid)
+            {
+                party_type[usize::from(category)] =
+                    wow_network::group_registry::GROUP_TYPE_NORMAL_LIKE_CPP;
+            }
         }
 
         party_type
@@ -46635,6 +46636,43 @@ mod tests {
             [
                 wow_network::group_registry::GROUP_TYPE_NORMAL_LIKE_CPP,
                 wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP
+            ]
+        );
+    }
+
+    #[test]
+    fn player_registry_publishes_instance_group_party_type_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let guid = ObjectGuid::create_player(1, 49);
+        let registry = Arc::new(PlayerRegistry::default());
+        let group_registry = Arc::new(GroupRegistry::default());
+        let position = Position::new(1.0, 2.0, 3.0, 0.0);
+
+        let home_group = GroupInfo::new(guid);
+        let home_group_guid = home_group.group_guid;
+        group_registry.insert(home_group_guid, home_group);
+
+        let mut instance_group = GroupInfo::new(guid);
+        instance_group.group_category =
+            wow_network::group_registry::GROUP_CATEGORY_INSTANCE_LIKE_CPP;
+        let instance_group_guid = instance_group.group_guid;
+        group_registry.insert(instance_group_guid, instance_group);
+
+        session.set_player_guid(Some(guid));
+        session.set_player_map_position_like_cpp(571, position);
+        session.player_name = Some("InstancePartyTypeTester".to_string());
+        session.group_guid = Some(home_group_guid);
+        session.set_player_registry(Arc::clone(&registry));
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+
+        session.register_in_player_registry();
+
+        let info = registry.get(&guid).expect("registered player");
+        assert_eq!(
+            info.party_member_party_type,
+            [
+                wow_network::group_registry::GROUP_TYPE_NORMAL_LIKE_CPP,
+                wow_network::group_registry::GROUP_TYPE_NORMAL_LIKE_CPP
             ]
         );
     }
