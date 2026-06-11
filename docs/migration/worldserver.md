@@ -233,7 +233,7 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
 - **`SecretMgr::Initialize(SECRET_OWNER_WORLDSERVER)`**: missing.
 - **`ScanLocalNetworks`**: there is `get_address_for_client` which approximates TC's behaviour but only checks `/24` against `realm_local_address`, not the full set of host interfaces.
 - **`ClearOnlineAccounts` present** at boot and shutdown: Rust clears `account.online` for accounts with characters on this realm, clears `characters.online`, and resets `character_battleground_data.instanceId` like TC.
-- **`UPDATE realmlist SET flag = flag | OFFLINE`** at boot / `& ~OFFLINE` after listener-up / on shutdown: missing. The realm is "always online" from the realmlist's POV.
+- **`UPDATE realmlist SET flag = flag | OFFLINE`** at boot / `& ~OFFLINE` after listener-up / on shutdown: present; Rust marks the realm offline after DB cleanup, online after listeners/runtime tasks are up, and offline again during shutdown.
 - **`LoadRealmInfo`** equivalent: only loads gamebuild/seed/addresses; doesn't populate a global `realm` struct equivalent — addresses are passed via `SessionResources`.
 - **`sRealmList->Initialize(io, RealmsStateUpdateDelay)`** background refresh of cross-realm registry: missing. (Single-realm setups don't notice; multi-realm wouldn't work.)
 - **`sMetric->Initialize`** — no metrics subsystem.
@@ -326,7 +326,7 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
 - [ ] **#WS.2** Implement a global `WorldUpdateLoop` task that ticks `MapManager` + (eventually) every `WorldSession` from one place, at a `MinWorldUpdateTime` cadence. Increment the loop counter each iteration. (XL — coupled to migrating sessions off per-task ticks; cf. `_attic/` notes)
 - [ ] **#WS.3** Implement `FreezeDetector`: `tokio::time::interval(1s)`; reads `m_world_loop_counter`; if unchanged for `MaxCoreStuckTime` ms, `tracing::error!` + `std::process::abort()`. (M)
 - [x] **#WS.4** Implement `ClearOnlineAccounts()` — called at boot and shutdown; mirrors TC's three queries: account online flags for this realm, character online flags, and battleground instance ids.
-- [ ] **#WS.5** Implement realmlist OFFLINE flag toggle at boot + listener-ready + shutdown. (L)
+- [x] **#WS.5** Implement realmlist OFFLINE flag toggle at boot + listener-ready + shutdown: mirrors TC's `flag | OFFLINE` at boot/shutdown and `flag & ~OFFLINE, population = 0` once connectable.
 - [ ] **#WS.6** DB keep-alive: every `MaxPingTime` minutes, `SELECT 1` against each of the 4 pools. (L)
 - [ ] **#WS.7** Implement `AppenderDB` equivalent for `tracing`: a layer that batches log records into `logs.logs` table. Optional. (M)
 - [ ] **#WS.8** Add CLI thread: `tokio::task::spawn_blocking` reading stdin, posting commands to a `CliCommandQueue` consumed in the main tick. Wire a small set of commands first (`server info`, `server shutdown`, `account create`). (H)
@@ -339,7 +339,7 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
 - [ ] **#WS.15** Implement clean shutdown: kick all sessions (send `SMSG_LOGOUT_RESPONSE` then drop), wait up to N seconds for character saves, close listeners, drop registries, close DBs, set realm OFFLINE. (H)
 - [ ] **#WS.16** CLI args via `clap`: `--config`, `--config-dir`, `--update-databases-only`, `--version`, `--help`. (L)
 - [x] **#WS.17** PID file (`PidFile` config): writes `std::process::id()` before DB/network startup and fails startup if the file cannot be created.
-- [ ] **#WS.18** `SIGTERM` handler in addition to `ctrl_c` (`tokio::signal::unix::signal(SIGTERM)`); both should trigger the same shutdown path. (L)
+- [x] **#WS.18** `SIGTERM` handler in addition to `ctrl_c`: Unix `SIGTERM` and Ctrl-C both drive the same shutdown branch.
 - [ ] **#WS.19** Pre-listener startup banner with build hash, sqlx version, rustls version, DB versions (one log line per connected DB). (L)
 - [ ] **#WS.20** Replace per-session `tokio::time::sleep(50ms)` with a `tokio::sync::broadcast` "tick" signal driven by the global `WorldUpdateLoop`. (M, depends on #WS.2)
 - [ ] **#WS.21** Connection-pool sizing: expose `LoginDatabaseInfo.{Sync,Async}.PoolSize` config; pass to `sqlx::PoolOptions`. (L)
@@ -480,7 +480,7 @@ Otherwise the boot sequence is largely on-parity for what's implemented (4 DB po
 | `Trinity::Banner::Show(...)` | one `info!("RustyCore World Server starting...")` | ⚠️ #WS.19 |
 | `OpenSSLCrypto::threadsSetup` + `BigNumber::SetRand` warmup | — | ✅ irrelevant (rustls + getrandom) |
 | `CreatePIDFile(PidFile)` | `create_pid_file_from_config_like_cpp` before DB/network startup | ✅ |
-| `signal_set(SIGINT, SIGTERM)` | only `tokio::signal::ctrl_c()` (line 509) | ❌ SIGTERM missing (#WS.18) |
+| `signal_set(SIGINT, SIGTERM)` | `shutdown_signal()` waits for Ctrl-C or Unix `SIGTERM` | ✅ |
 | `ThreadPool(numThreads)` posting `io->run()` | implicit Tokio workers | ✅ acceptable divergence (don't expose `Network.Threads` literally) |
 | `SetProcessPriority(...)` | — | ❌ out of scope |
 | `StartDB()` opens 4 pools (Login/Character/World/Hotfix) | `LoginDatabase::open` + `CharacterDatabase::open` + `WorldDatabase::open` + `HotfixDatabase::open` (lines 177-228) | ✅ four pools present |
@@ -488,7 +488,7 @@ Otherwise the boot sequence is largely on-parity for what's implemented (4 DB po
 | `realm.Id.Realm` from config; bail if 0 | `RealmID` config (line 390); defaults to 1, no validation | ⚠️ no zero-check |
 | `--update-databases-only` early exit | — | ❌ missing (#WS.16) |
 | `Trinity::Net::ScanLocalNetworks()` | `get_address_for_client` /24 heuristic (line 757) | ⚠️ partial |
-| `UPDATE realmlist SET flag\|=OFFLINE` at boot | — | ❌ missing (#WS.5) |
+| `UPDATE realmlist SET flag\|=OFFLINE` at boot | `set_realm_offline(&login_db, realm_id)` after DB cleanup | ✅ |
 | `sRealmList->Initialize(io, RealmsStateUpdateDelay)` background refresh | — | ❌ missing (#WS.12) |
 | `LoadRealmInfo()` | `load_realm_auth_seed` + `load_realm_addresses` (lines 530, 728) | ⚠️ partial (no global `realm` struct) |
 | `sMetric->Initialize(realmName, io, lambda)` | — | ❌ missing (#WS.13) |
@@ -498,7 +498,7 @@ Otherwise the boot sequence is largely on-parity for what's implemented (4 DB po
 | `if (Ra.Enable) StartRaSocketAcceptor(io)` | — | ❌ missing (#WS.9) |
 | `if (SOAP.Enabled) std::thread(TCSoapThread, ...)` | — | ❌ recommend drop (#WS.10) |
 | `sWorldSocketMgr.StartWorldNetwork(io, ip, worldPort, instancePort, networkThreads)` | `start_world_listener(realm_addr, ...)` + `start_instance_listener(instance_addr, ...)` (lines 473-505) | ✅ functional equivalence |
-| `UPDATE realmlist SET flag &= ~OFFLINE` after listener | — | ❌ missing (#WS.5) |
+| `UPDATE realmlist SET flag &= ~OFFLINE` after listener | `set_realm_online(&login_db, realm_id)` after listeners/runtime tasks are spawned | ✅ |
 | `if (MaxCoreStuckTime > 0) FreezeDetector::Start(...)` | — | ❌ missing (#WS.3) |
 | `sScriptMgr->OnStartup()` | — | ❌ missing (#WS.14) |
 | `if (Console.Enable) std::thread(CliThread)` | — | ❌ missing (#WS.8) |
@@ -508,7 +508,7 @@ Otherwise the boot sequence is largely on-parity for what's implemented (4 DB po
 
 | TC step | Rust equivalent | Parity |
 |---|---|---|
-| `signals.async_wait(SignalHandler)` → `World::StopNow(SHUTDOWN_EXIT_CODE)` | `tokio::select! { ctrl_c => ... }` drops listener handles | ⚠️ no global stop flag, sessions don't see "stopping" state |
+| `signals.async_wait(SignalHandler)` → `World::StopNow(SHUTDOWN_EXIT_CODE)` | `shutdown_signal()` handles Ctrl-C + Unix SIGTERM, then drops listener handles | ⚠️ no global stop flag, sessions don't see "stopping" state |
 | `sWorld->KickAll()` (save + send logout) | — | ❌ missing (#WS.15) |
 | `sWorld->UpdateSessions(1)` final flush | — | ❌ missing |
 | `sWorldSocketMgr.StopNetwork()` | listener task drop | ⚠️ implicit, no drain |
@@ -518,7 +518,7 @@ Otherwise the boot sequence is largely on-parity for what's implemented (4 DB po
 | `threadPool.reset()` | — | ✅ implicit |
 | `sLog->SetSynchronous()` | — | ⚠️ tracing flush not explicit |
 | `sScriptMgr->OnShutdown()` | — | ❌ missing (#WS.14) |
-| `UPDATE realmlist SET flag\|=OFFLINE` on exit | — | ❌ missing (#WS.5) |
+| `UPDATE realmlist SET flag\|=OFFLINE` on exit | `set_realm_offline(&login_db, realm_id)` in the shared shutdown branch | ✅ |
 | `BattlegroundMgr::DeleteAllBattlegrounds → OutdoorPvPMgr::Die → MapMgr::UnloadAll → TerrainMgr::UnloadAll → InstanceLockMgr::Unload` | only partial `MapManager` exists; rest missing | ❌ missing |
 | `return World::GetExitCode()` | always `Ok(())` (exit code 0) | ⚠️ no error-path code |
 
@@ -575,12 +575,12 @@ TC's `DBUpdater` (called by `DatabaseLoader::Load`) hashes every `.sql` in `sql/
 
 | TC | Rust |
 |---|---|
-| `signal_set(io, SIGINT, SIGTERM)` + Win32 SIGBREAK → `World::StopNow(SHUTDOWN_EXIT_CODE)` | `tokio::signal::ctrl_c()` (SIGINT only) → break out of `tokio::select!` and drop listener tasks |
+| `signal_set(io, SIGINT, SIGTERM)` + Win32 SIGBREAK → `World::StopNow(SHUTDOWN_EXIT_CODE)` | `shutdown_signal()` waits for Ctrl-C or Unix `SIGTERM` → break out of `tokio::select!` and run the shared shutdown branch |
 | `signal(SIGABRT, AbortHandler)` writes coredump preamble | — |
 | Signal sets a flag; tick loop notices on next iteration | No flag; the listener tasks are simply abandoned |
 
 Gaps:
-- **SIGTERM is not handled.** A `systemctl stop` will only work because systemd falls back to SIGKILL after the timeout. The graceful path is never executed.
+- **SIGTERM is handled on Unix** through the same shutdown branch as Ctrl-C. The remaining gap is graceful drain: sessions are still dropped abruptly after the select exits.
 - No graceful drain. Sessions are dropped mid-packet.
 - No "kick all + save + close listener + flush DB + exit" sequence.
 
@@ -650,7 +650,7 @@ This is acceptable divergence **for packet dispatch** (Tokio gives us the per-se
 | Global `WorldUpdateLoop` driving `MapManager::update(diff)` + session ticks | **Critical** | #WS.2 |
 | `FreezeDetector` (process abort on tick stall) | High | #WS.3 |
 | `ClearOnlineAccounts` at boot + shutdown | Medium | ✅ #WS.4 |
-| Realmlist OFFLINE flag toggle (boot / listener-up / shutdown) | Medium | #WS.5 |
+| Realmlist OFFLINE flag toggle (boot / listener-up / shutdown) | Medium | ✅ #WS.5 |
 | DB keep-alive ping (`MaxPingTime`) | Medium | #WS.6 |
 | `AppenderDB` for `tracing` (logs into `logs.logs` table) | Low | #WS.7 |
 | CLI thread (`Console.Enable`) | Medium | #WS.8 |
@@ -663,7 +663,7 @@ This is acceptable divergence **for packet dispatch** (Tokio gives us the per-se
 | Graceful shutdown (kick + save + drain + close + DB cleanup) | High | #WS.15 |
 | CLI args (`--config`, `--update-databases-only`, `--version`) | Low | #WS.16 |
 | PID file (`PidFile` config) | Low | ✅ #WS.17 |
-| SIGTERM handler | High | #WS.18 |
+| SIGTERM handler | High | ✅ #WS.18 |
 | Pre-listener startup banner (build hash, DB versions) | Low | #WS.19 |
 | Replace per-session sleep with broadcast tick from global loop | Medium | #WS.20 |
 | Connection-pool sizing config | Low | #WS.21 |
@@ -673,13 +673,11 @@ This is acceptable divergence **for packet dispatch** (Tokio gives us the per-se
 The §9 list is largely correct; recommended **reorder by priority** (no renumbering — sub-task IDs are referenced elsewhere):
 
 1. **#WS.1, #WS.2, #WS.20** (the global tick + driver) — **prerequisite for everything else**, depends on completing the `_attic/`-flagged `MapManager` migration off `WorldSession.creatures`.
-2. **#WS.18** (SIGTERM) — trivial, do immediately.
-3. **#WS.15** (graceful shutdown) — depends on #WS.1.
-4. **#WS.3** (freeze detector) — depends on #WS.2 (needs the loop counter).
-5. **#WS.4, #WS.5** (DB cleanup at boot/shutdown) — independent, do anytime.
-6. **#WS.21** (pool sizing) — independent, trivial.
-7. **#WS.6** (DB keep-alive) — independent.
-8. Everything else as time allows.
+2. **#WS.15** (graceful shutdown) — depends on #WS.1.
+3. **#WS.3** (freeze detector) — depends on #WS.2 (needs the loop counter).
+4. **#WS.21** (pool sizing) — independent, trivial.
+5. **#WS.6** (DB keep-alive) — independent.
+6. Everything else as time allows.
 
 **Add new sub-tasks not currently in §9:**
 

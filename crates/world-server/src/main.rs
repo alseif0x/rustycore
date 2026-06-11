@@ -368,6 +368,7 @@ async fn main() -> Result<()> {
     let hotfix_db = Arc::new(hotfix_db);
     let realm_id: u16 = wow_config::get_value("RealmID").unwrap_or(1);
     clear_online_accounts_like_cpp(&login_db, &char_db, realm_id).await?;
+    set_realm_offline(&login_db, realm_id).await?;
 
     // Initialize GUID generator from MAX(guid) in characters table
     let max_guid = {
@@ -2427,12 +2428,8 @@ async fn main() -> Result<()> {
 }
 
 async fn set_realm_online(login_db: &LoginDatabase, realm_id: u16) -> Result<()> {
-    const REALM_FLAG_OFFLINE: u8 = 0x02;
-
     login_db
-        .direct_execute(&format!(
-            "UPDATE realmlist SET flag = flag & ~{REALM_FLAG_OFFLINE}, population = 0 WHERE id = {realm_id}"
-        ))
+        .direct_execute(&set_realm_online_sql_like_cpp(realm_id))
         .await
         .context("Failed to mark realm online")?;
 
@@ -2494,17 +2491,25 @@ fn create_pid_file_like_cpp(path: impl AsRef<std::path::Path>) -> std::io::Resul
 }
 
 async fn set_realm_offline(login_db: &LoginDatabase, realm_id: u16) -> Result<()> {
-    const REALM_FLAG_OFFLINE: u8 = 0x02;
-
     login_db
-        .direct_execute(&format!(
-            "UPDATE realmlist SET flag = flag | {REALM_FLAG_OFFLINE} WHERE id = {realm_id}"
-        ))
+        .direct_execute(&set_realm_offline_sql_like_cpp(realm_id))
         .await
         .context("Failed to mark realm offline")?;
 
     info!("Realm {realm_id} marked offline");
     Ok(())
+}
+
+fn set_realm_offline_sql_like_cpp(realm_id: u16) -> String {
+    const REALM_FLAG_OFFLINE: u8 = 0x02;
+    format!("UPDATE realmlist SET flag = flag | {REALM_FLAG_OFFLINE} WHERE id = {realm_id}")
+}
+
+fn set_realm_online_sql_like_cpp(realm_id: u16) -> String {
+    const REALM_FLAG_OFFLINE: u8 = 0x02;
+    format!(
+        "UPDATE realmlist SET flag = flag & ~{REALM_FLAG_OFFLINE}, population = 0 WHERE id = {realm_id}"
+    )
 }
 
 #[cfg(unix)]
@@ -8700,9 +8705,9 @@ mod tests {
         run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp,
         run_legacy_creature_melee_tick_and_deliver_once_like_cpp,
         run_legacy_creature_movement_tick_and_deliver_once_like_cpp,
-        run_legacy_creature_runtime_tick_and_deliver_once_like_cpp,
-        spawn_legacy_creature_runtime_update_loop_like_cpp, spawn_store_loader, world_config_bool,
-        world_config_u8, world_config_u16, world_config_u32,
+        run_legacy_creature_runtime_tick_and_deliver_once_like_cpp, set_realm_offline_sql_like_cpp,
+        set_realm_online_sql_like_cpp, spawn_legacy_creature_runtime_update_loop_like_cpp,
+        spawn_store_loader, world_config_bool, world_config_u8, world_config_u16, world_config_u32,
     };
     use std::collections::{BTreeMap, HashSet};
     use std::env;
@@ -9294,6 +9299,18 @@ mod tests {
         assert_eq!(
             battleground_sql,
             "UPDATE character_battleground_data SET instanceId = 0"
+        );
+    }
+
+    #[test]
+    fn realm_online_offline_sql_matches_cpp_lifecycle() {
+        assert_eq!(
+            set_realm_offline_sql_like_cpp(3),
+            "UPDATE realmlist SET flag = flag | 2 WHERE id = 3"
+        );
+        assert_eq!(
+            set_realm_online_sql_like_cpp(3),
+            "UPDATE realmlist SET flag = flag & ~2, population = 0 WHERE id = 3"
         );
     }
 
