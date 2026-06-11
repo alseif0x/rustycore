@@ -124,6 +124,20 @@ impl ClientPacket for SocialContractRequest {
     }
 }
 
+/// CMSG_ACCEPT_SOCIAL_CONTRACT.
+///
+/// C++ `WorldPackets::Account::AcceptSocialContract::Read` is empty.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AcceptSocialContract;
+
+impl ClientPacket for AcceptSocialContract {
+    const OPCODE: ClientOpcodes = ClientOpcodes::AcceptSocialContract;
+
+    fn read(_packet: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self)
+    }
+}
+
 /// SMSG_SOCIAL_CONTRACT_REQUEST_RESPONSE.
 pub struct SocialContractRequestResponse {
     pub show_social_contract: bool,
@@ -296,5 +310,14 @@ mod tests {
         let bytes = response.to_bytes();
 
         assert_eq!(bytes.last().copied(), Some(0));
+    }
+
+    #[test]
+    fn accept_social_contract_reads_empty_like_cpp() {
+        let mut packet = WorldPacket::new_empty();
+        let parsed = AcceptSocialContract::read(&mut packet).expect("accept social contract");
+
+        assert_eq!(parsed, AcceptSocialContract);
+        assert!(packet.is_empty());
     }
 }

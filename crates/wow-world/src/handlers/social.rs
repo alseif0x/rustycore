@@ -16,8 +16,8 @@ use wow_packet::packets::query::{
     NameCacheLookupResult, PlayerGuidLookupData, QueryPlayerNamesResponse,
 };
 use wow_packet::packets::social::{
-    AddIgnore, ContactInfo, ContactListPkt, DelIgnore, FriendStatusPkt, FriendsResult,
-    SetContactNotes, SocialContractRequestResponse,
+    AcceptSocialContract, AddIgnore, ContactInfo, ContactListPkt, DelIgnore, FriendStatusPkt,
+    FriendsResult, SetContactNotes, SocialContractRequestResponse,
 };
 
 use crate::session::{WorldSession, player_team_for_race_cpp};
@@ -89,6 +89,15 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_social_contract_request",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::AcceptSocialContract,
+        status: SessionStatus::Authed,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_accept_social_contract",
     }
 }
 
@@ -572,6 +581,15 @@ impl WorldSession {
         self.send_packet(&SocialContractRequestResponse {
             show_social_contract: false,
         });
+    }
+
+    /// Handle CMSG_ACCEPT_SOCIAL_CONTRACT.
+    ///
+    /// C++ ref: `WorldSession::HandleAcceptSocialContract` currently logs the
+    /// acceptance and leaves account-data persistence as a future hook.
+    pub async fn handle_accept_social_contract(&mut self, _accept: AcceptSocialContract) {
+        // Account-data persistence remains parked until Rust owns the account
+        // data layer. Matching current C++ behavior here means no response.
     }
 
     /// CMSG_SEND_CONTACT_LIST (0x36d7)

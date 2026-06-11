@@ -17045,6 +17045,12 @@ impl WorldSession {
                     Err(e) => warn!("Failed to read SocialContractRequest: {e}"),
                 }
             }
+            ClientOpcodes::AcceptSocialContract => {
+                match wow_packet::packets::social::AcceptSocialContract::read(&mut pkt) {
+                    Ok(accept) => self.handle_accept_social_contract(accept).await,
+                    Err(e) => warn!("Failed to read AcceptSocialContract: {e}"),
+                }
+            }
 
             // ── Group / Party opcodes ─────────────────────────────────────────
             ClientOpcodes::PartyInvite => {
