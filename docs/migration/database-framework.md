@@ -3,7 +3,7 @@
 > **C++ canonical path:** `src/server/database/Database/` + `src/server/database/Updater/`
 > **Rust target crate(s):** `crates/wow-database/`
 > **Layer:** L1 infrastructure (under shared/datastores)
-> **Status:** ⚠️ partial (4 typed pools + prepared-statement enums + transactions + DB updater work; missing: per-pool sync/async split, callback chaining type, QueryHolder, libmysql `Library_Init`)
+> **Status:** ⚠️ partial (4 typed pools + prepared-statement enums + transactions + QueryHolder + DB updater work; missing: per-pool sync/async split, callback chaining type, libmysql `Library_Init`)
 > **Audited vs C++:** ✅ complete (2026-05-01)
 > **Last updated:** 2026-05-01
 
@@ -128,7 +128,7 @@ All paths relative to `/home/server/woltk-trinity-legacy/`.
 | `ResultSet` | class | Text-protocol result iterator — returned by `Query(char const* sql)` |
 | `PreparedResultSet` | class | Binary-protocol result iterator — returned by `Query(PreparedStatement<T>*)` |
 | `QueryCallback` | class | Future + chain queue. `WithCallback` (terminal), `WithChainingCallback` (next callback returns a `QueryCallback` and the chain continues). `InvokeIfReady()` polled from world tick. |
-| `SQLQueryHolderBase` / `SQLQueryHolder<T>` | class / template | Vector of (stmt, future-result) pairs. Used by character-load: fire 30 queries in parallel, get one callback when all done |
+| `SQLQueryHolderBase` / `SQLQueryHolder<T>` | class / template | Fixed-size vector of (stmt, result) slots. Used by character-load: queue one async DB task, execute slots in order, get one callback when all done |
 | `SQLQueryHolderCallback` | class | The "all done" future for a holder |
 | `TransactionBase` / `Transaction<T>` | class / template | Collects raw SQL strings + `unique_ptr<PreparedStatementBase>` ; `Append`/`PAppend` |
 | `TransactionData` | struct | `std::variant<unique_ptr<PreparedStatementBase>, std::string>` (one row of the transaction) |
@@ -160,7 +160,7 @@ All paths relative to `/home/server/woltk-trinity-legacy/`.
 | `DatabaseWorkerPool<T>::Query(sql, conn=null)` | Synchronous query → `QueryResult` | `GetFreeConnection` |
 | `DatabaseWorkerPool<T>::Query(stmt)` | Synchronous prepared query → `PreparedQueryResult` | `GetFreeConnection` |
 | `DatabaseWorkerPool<T>::AsyncQuery(stmt)` | Enqueue prepared query on async sub-pool, return `QueryCallback` | `PreparedStatementTask` |
-| `DatabaseWorkerPool<T>::DelayQueryHolder(holder)` | Enqueue a multi-stmt holder, return `SQLQueryHolderCallback` | `SQLQueryHolderTask` |
+| `DatabaseWorkerPool<T>::DelayQueryHolder(holder)` | Enqueue a multi-stmt holder task, return `SQLQueryHolderCallback` | `SQLQueryHolderTask` |
 | `DatabaseWorkerPool<T>::BeginTransaction()` | `make_shared<Transaction<T>>()` | — |
 | `DatabaseWorkerPool<T>::CommitTransaction(trans)` | Enqueue async commit | `TransactionTask` |
 | `DatabaseWorkerPool<T>::AsyncCommitTransaction(trans)` | Enqueue async commit, return `TransactionCallback` | as above |
@@ -312,7 +312,7 @@ Not applicable — the database framework does not handle WoW client packets. (I
 - **`ConnectionFlags::ASYNC` vs `SYNCH` separation**: TC opens **two sub-pools per logical DB** (configured via `<Db>Database.WorkerThreads` / `<Db>Database.SynchThreads`, e.g. `LoginDatabase.WorkerThreads=1`, `LoginDatabase.SynchThreads=1`). RustyCore's single `sqlx::Pool` blends sync and async traffic, but `world-server` now preserves TC's configured total connection budget by opening the pool with `WorkerThreads + SynchThreads`. (Cross-ref: `worldserver.md` §13.5 sub-task #WS.21 / #DB.1.)
 - **`KeepAlive()` ping internals**: TC's `World::Update` calls `CharacterDatabase.KeepAlive()`, `LoginDatabase.KeepAlive()`, and `WorldDatabase.KeepAlive()` every `MaxPingTime` minutes (default 30). Rust now spawns the same world-server timer and runs `SELECT 1` against those three logical pools. This is operational parity for idle keep-alive, but not an internal 1:1 clone of TC's per-connection ping loop inside `DatabaseWorkerPool<T>`.
 - **`QueryCallback` chaining**: TC's `WithChainingCallback(fn)` lets a callback fire a follow-up query and stay in the same chain (used heavily in account/char load multi-step flows). RustyCore replaces this with `async/await` — the chain becomes a sequence of `await` points in one async fn. **Acceptable divergence** for new code, but porting C++ that uses chaining-callbacks 1:1 needs to flatten into a single `async fn`.
-- **`SQLQueryHolder` / `SQLQueryHolderCallback`**: TC's "fire N queries in parallel, callback when all done" type. Used by `CharacterCache::_LoadCharacterFromDB`, login fan-out, achievement load. RustyCore has no equivalent type — current code awaits queries serially or uses `tokio::try_join!` ad-hoc. No fan-out helper or rollback semantics on partial failure.
+- **`SQLQueryHolder` / `SQLQueryHolderCallback`**: TC's "fixed slots, execute as one async DB task, callback when all done" type. RustyCore now has `SqlQueryHolder` / `SqlQueryHolderResult` plus `Database::delay_query_holder_like_cpp`; callers still need to migrate character/pet loaders onto it.
 - **`Field` DBMS-typed getters**: TC's `Field::GetUInt8()` checks `_meta->Type == DatabaseFieldTypes::UInt8` and warns if mismatched (debug build). RustyCore's `SqlResult::read::<T>(col)` uses sqlx's `Decode` impls and panics on type mismatch, with no per-column metadata typed-name available beyond `column_type_name(idx)`.
 - **`FieldValueConverter` plug-in**: TC's pluggable column converters (e.g. `enum_string` → int, `time_t` → unix-ts) are absent. Rust port relies on direct sqlx decoding; consumers do their own conversion in handler code.
 - **`no QueryProcessor` callback drain**: TC's `WorldSession::Update` polls `_queryProcessor.ProcessReadyCallbacks()` every tick. RustyCore's `WorldSession::process_pending().await` is invoked inside the per-session task loop, but **there is no global tick that drains DB callbacks across all sessions** — each session blocks on its own `.await`. (Cross-ref: `worldserver.md` §13.4 — the missing global tick. Specifically for DB: there is no central place where pending DB futures are reaped, but because each query is awaited directly there's no callback queue to drain in the first place.)
@@ -557,18 +557,18 @@ Not applicable — the database framework does not handle WoW client packets. (I
   Depends on: #REFINE.020, #REFINE.021; execution order finalized by #REFINE.040
   Acceptance: Rust target compiles; behavior and public contracts are checked against the listed C++ file; unit/golden/integration tests are added or marked n/a with reason; divergences are recorded before closing.
   Notes: `ready_for_small_task`; Single source-file coverage task; split further if C++ review exposes multiple independent behaviors. Assignment basis: prefix.
-- [ ] **#DATABASE_FRAMEWORK.WBS.035** Cerrar la migracion auditada de `database/Database/QueryHolder.cpp`
+- [x] **#DATABASE_FRAMEWORK.WBS.035** Cerrar la migracion auditada de `database/Database/QueryHolder.cpp`
   C++ refs: `/home/server/woltk-trinity-legacy/src/server/database/Database/QueryHolder.cpp`
   Rust target: `crates/wow-database`, `crates/wow-database/src`
   Depends on: #REFINE.020, #REFINE.021; execution order finalized by #REFINE.040
   Acceptance: Rust target compiles; behavior and public contracts are checked against the listed C++ file; unit/golden/integration tests are added or marked n/a with reason; divergences are recorded before closing.
-  Notes: `ready_for_small_task`; Single source-file coverage task; split further if C++ review exposes multiple independent behaviors. Assignment basis: prefix.
-- [ ] **#DATABASE_FRAMEWORK.WBS.036** Cerrar la migracion auditada de `database/Database/QueryHolder.h`
+  Notes: closed by `crates/wow-database/src/query_holder.rs` + `Database::delay_query_holder_like_cpp`; slot execution order and empty-result nulling mirror C++.
+- [x] **#DATABASE_FRAMEWORK.WBS.036** Cerrar la migracion auditada de `database/Database/QueryHolder.h`
   C++ refs: `/home/server/woltk-trinity-legacy/src/server/database/Database/QueryHolder.h`
   Rust target: `crates/wow-database`, `crates/wow-database/src`
   Depends on: #REFINE.020, #REFINE.021; execution order finalized by #REFINE.040
   Acceptance: Rust target compiles; behavior and public contracts are checked against the listed C++ file; unit/golden/integration tests are added or marked n/a with reason; divergences are recorded before closing.
-  Notes: `ready_for_small_task`; Single source-file coverage task; split further if C++ review exposes multiple independent behaviors. Assignment basis: prefix.
+  Notes: closed by `SqlQueryHolder` / `SqlQueryHolderResult`; fixed-size slots, out-of-range `false`, and indexed result access mirror C++.
 - [ ] **#DATABASE_FRAMEWORK.WBS.037** Cerrar la migracion auditada de `database/Database/QueryResult.cpp`
   C++ refs: `/home/server/woltk-trinity-legacy/src/server/database/Database/QueryResult.cpp`
   Rust target: `crates/wow-database`, `crates/wow-database/src`
@@ -631,7 +631,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 - [x] **#DB.7** Implement `Updates.ArchivedRedundancy` (default `false`): when false, skip redundancy checks for files that are archived both in the DB and the available update path; when true, changed archived updates can be reapplied. (L)
 - [x] **#DB.8** Implement `Updates.CleanDeadRefMaxCount`: delete `updates` rows whose file no longer exists, up to N per run. Rust now mirrors TC's `cleanDeadReferencesMaxCount < 0 || orphan_count <= cleanDeadReferencesMaxCount` gate and leaves excessive dirty rows in place with an error log. (M)
 - [x] **#DB.9** Add `WarnAboutSyncQueries`-style guard: track a Tokio task-local "in tick" flag and warn when DB calls run inside it. The guard is wired around the current world-server session tick and canonical event DB writes. Same as `worldserver.md` #WS.25. (M)
-- [ ] **#DB.10** Add a `QueryHolder`-style helper: a struct that batches N `PreparedStatement`s, executes them concurrently with `tokio::try_join_all`, returns a `Vec<SqlResult>` indexed by slot. Used by character load. (M)
+- [x] **#DB.10** Add a `QueryHolder`-style helper: `SqlQueryHolder` stores fixed prepared-statement slots, `Database::delay_query_holder_like_cpp` executes set slots in order and returns `SqlQueryHolderResult` indexed by slot. Empty/unset slots return `None`, matching C++ null `PreparedQueryResult`. Caller migration remains under player/pet load tasks. (M)
 - [ ] **#DB.11** Port the remaining ~493 character prepared statements (cross-ref `INVENTORY.md`, `characters.md`). (XL — split per-domain: inventory, achievements, mails, guilds, BG/arena state, etc.)
 - [ ] **#DB.12** Decide hotfix prepared-statement strategy: either port all 327 from `HotfixDatabase.cpp` for runtime hotfix mutations, OR formalize the "merged blob at boot" approach and document that hotfix DB is read-once-at-startup. (H if port; L if formalize)
 - [ ] **#DB.13** Implement TLS connection options: `<Db>DatabaseInfo.SSLMode` config key passed through to sqlx connection options (`ssl-mode=REQUIRED` / `VERIFY_CA` etc.). (M)
@@ -692,7 +692,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 
 | Scope | Decision | C++ retained | Evidence |
 |---|---|---|---|
-| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 44 files / 10590 lines; refs: `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/HotfixDatabase.cpp`, `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/HotfixDatabase.h`, `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/CharacterDatabase.cpp` | `crates/wow-database/` \| ⚠️ partial (4 typed pools + prepared-statement enums + transactions + DB updater work; missing: per-pool sync/async split, callback chaining type, QueryHolder, libmysql `Library_Init`) |
+| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 44 files / 10590 lines; refs: `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/HotfixDatabase.cpp`, `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/HotfixDatabase.h`, `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/CharacterDatabase.cpp` | `crates/wow-database/` \| ⚠️ partial (4 typed pools + prepared-statement enums + transactions + QueryHolder + DB updater work; missing: per-pool sync/async split, callback chaining type, libmysql `Library_Init`) |
 
 <!-- REFINE.025:END product-scope -->
 
@@ -743,8 +743,8 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 | `class PreparedResultSet` (binary protocol) | `SqlResult` returned by `query(&stmt)` | Same type as text; sqlx selects protocol |
 | `class QueryCallback` | `async fn` returning `Result<SqlResult, DatabaseError>` | Chaining = sequential `await` |
 | `qc.WithChainingCallback(fn)` | `let r1 = db.query(s1).await?; let r2 = db.query(s2_built_from(r1)).await?;` | Flatten chains into linear async code |
-| `class SQLQueryHolder<T>` | (none) — use `tokio::try_join!(q1, q2, q3)` ad-hoc | TODO: build a typed helper (#DB.10) |
-| `SQLQueryHolderCallback::AfterComplete(fn)` | `let (r1, r2, r3) = try_join!(...)?; fn(r1, r2, r3)` | — |
+| `class SQLQueryHolder<T>` | `wow_database::SqlQueryHolder` | fixed-size prepared-query slots |
+| `SQLQueryHolderCallback::AfterComplete(fn)` | `.await` the holder future, then call the Rust continuation directly | Callback object eliminated by async/await |
 | `class TransactionBase` / `class Transaction<T>` | `wow_database::SqlTransaction` (untyped) | No `<T>` tag — txns are not type-bound to a DB; runtime check via the pool they're committed against |
 | `trans->Append(sql)` / `trans->Append(stmt)` | `tx.append(stmt)` (no raw-SQL `Append` — wrap raw SQL as a `PreparedStatement::new`) | — |
 | `pool.CommitTransaction(trans)` | `db.commit_transaction(tx).await?` | Async, with serialized deadlock retry for up to 60s |
@@ -753,7 +753,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 | `pool.DirectExecute(sql)` (sync) | `db.direct_execute(sql).await` | All Rust DB ops are async; "direct" = "no transaction" |
 | `pool.PExecute("UPDATE foo SET x = {}", val)` | `db.direct_execute(&format!("UPDATE foo SET x = {val}")).await` | No native string-format wrapper |
 | `pool.AsyncQuery(stmt)` | `db.query(&stmt).await` | sqlx is always-async |
-| `pool.DelayQueryHolder(holder)` | (TODO #DB.10) | — |
+| `pool.DelayQueryHolder(holder)` | `db.delay_query_holder_like_cpp(&holder).await` | Async/await replaces callback object; execution order is slot order like C++ `SQLQueryHolderTask::Execute` |
 | `pool.GetPreparedStatement(idx)` | `db.prepare(LoginStatements::FOO)` | — |
 | `pool.EscapeString(str)` | (none) — use bound parameters | TODO #DB.14 |
 | `pool.KeepAlive()` | `Database::keep_alive_like_cpp()` + world-server keep-alive task | `SELECT 1` every `MaxPingTime` for Character/Login/World |
@@ -789,7 +789,7 @@ The gaps fall in three buckets:
 2. **Statement coverage** (High): login is 137/137 (✅), world is 86/56 (✅, Rust adds extras), characters is 30/523 (❌, ~6% ported), hotfixes is 0/327 (❌, **deliberate divergence** — replaced by DB2-blob cache).
 3. **Updater operator UX** (Medium): `Create`, `updates_include`, and `Updates.CleanDeadRefMaxCount` are now covered for world-server startup.
 
-The `QueryCallback`-chain pattern is **acceptably absent** because Rust's `async/await` covers the same need more directly. The `SQLQueryHolder` fan-out, however, has no Rust equivalent and is needed for character load (#DB.10).
+The `QueryCallback`-chain pattern is **acceptably absent** because Rust's `async/await` covers the same need more directly. `SQLQueryHolder` now exists as an infrastructure helper (#DB.10); the remaining work is migrating character/pet load callers onto it.
 
 ### 13.2 Pool architecture parity
 
@@ -850,7 +850,7 @@ However, **the worldserver audit (`worldserver.md` §13.4) noted there's no glob
 | `QueryCallback::InvokeIfReady` polled from `World::Update` | (none) — `await` inline | ✅ acceptable divergence |
 | `WorldSession::_queryProcessor.AddCallback(cb)` | `WorldSession::process_pending().await` (per-session) | ⚠️ no global drain — see `worldserver.md` |
 | `pool.QueueSize()` for metrics | (none) | ❌ #WS.13 |
-| `class SQLQueryHolder<T>` (fan-out, all-done callback) | (none) — ad-hoc `tokio::try_join!` | ❌ #DB.10 |
+| `class SQLQueryHolder<T>` (fixed slots, all-done callback) | `SqlQueryHolder` + `SqlQueryHolderResult`; callers await `delay_query_holder_like_cpp` | ✅ #DB.10 infra |
 
 ### 13.6 DB Updater
 
@@ -901,7 +901,7 @@ However, **the worldserver audit (`worldserver.md` §13.4) noted there's no glob
 
 ### 13.10 Verdict
 
-**⚠️ partial.** The framework is structurally correct and operates daily. The deferred items (#DB.10 query holder, #DB.11 char statements, and remaining updater/load-tolerance details) are quality-of-life and load-tolerance improvements rather than missing capability. The framework is suitable for the dev-server workload and small-to-medium private-server deployment. It may still behave differently from TC under multi-thousand-concurrent-login conditions because Rust merges TC's sync/async sub-pools into one `sqlx` pool, and the `_attic/` character migration cannot finish until #DB.11 unblocks the prepared-statement set.
+**⚠️ partial.** The framework is structurally correct and operates daily. The deferred items (#DB.11 char statements and remaining updater/load-tolerance details) are quality-of-life and load-tolerance improvements rather than missing capability. The framework is suitable for the dev-server workload and small-to-medium private-server deployment. It may still behave differently from TC under multi-thousand-concurrent-login conditions because Rust merges TC's sync/async sub-pools into one `sqlx` pool, and the `_attic/` character migration cannot finish until #DB.11 unblocks the prepared-statement set.
 
 ---
 

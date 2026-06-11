@@ -2,6 +2,7 @@
 
 use crate::error::DatabaseError;
 use crate::params::PreparedStatement;
+use crate::query_holder::{SqlQueryHolder, SqlQueryHolderResult};
 use crate::result::SqlResult;
 use crate::statements::StatementDef;
 use crate::transaction::{SqlTransaction, bind_param};
@@ -208,6 +209,32 @@ impl<S: StatementDef> Database<S> {
             .execute(&self.pool)
             .await?;
         Ok(())
+    }
+
+    /// Execute a fixed-size holder of prepared queries.
+    ///
+    /// Mirrors `DatabaseWorkerPool<T>::DelayQueryHolder`: the holder is awaited
+    /// asynchronously by the caller, while the queries themselves are executed
+    /// in slot order. Empty result sets are stored as `None`, matching
+    /// `SQLQueryHolderBase::SetPreparedResult`.
+    pub async fn delay_query_holder_like_cpp(
+        &self,
+        holder: &SqlQueryHolder,
+    ) -> Result<SqlQueryHolderResult, DatabaseError> {
+        warn_if_sync_query_like_cpp("delay_query_holder");
+
+        let mut results = Vec::with_capacity(holder.len());
+        for stmt in holder.iter() {
+            let Some(stmt) = stmt else {
+                results.push(None);
+                continue;
+            };
+
+            let result = self.query(stmt).await?;
+            results.push((!result.is_empty()).then_some(result));
+        }
+
+        Ok(SqlQueryHolderResult::new(results))
     }
 
     /// Execute a query or append it to a transaction.

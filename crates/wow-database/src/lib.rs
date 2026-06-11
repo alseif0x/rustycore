@@ -36,6 +36,7 @@
 pub mod database;
 pub mod error;
 pub mod params;
+pub mod query_holder;
 pub mod result;
 pub mod statements;
 pub mod transaction;
@@ -48,6 +49,7 @@ pub use database::{
 };
 pub use error::DatabaseError;
 pub use params::{PreparedStatement, SqlParam};
+pub use query_holder::{SqlQueryHolder, SqlQueryHolderResult};
 pub use result::{SqlFields, SqlResult};
 pub use statements::{
     CharStatements, HotfixStatements, LoginStatements, StatementDef, WorldStatements,
