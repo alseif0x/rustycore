@@ -77,6 +77,28 @@ impl Default for ReputationRatesLikeCpp {
     }
 }
 
+/// C++ `ChatLevelReq.*` represented session snapshot.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ChatLevelRequirementsLikeCpp {
+    pub channel: u8,
+    pub whisper: u8,
+    pub emote: u8,
+    pub say: u8,
+    pub yell: u8,
+}
+
+impl Default for ChatLevelRequirementsLikeCpp {
+    fn default() -> Self {
+        Self {
+            channel: 1,
+            whisper: 1,
+            emote: 1,
+            say: 1,
+            yell: 1,
+        }
+    }
+}
+
 /// Resources needed for creating a WorldSession after authentication.
 ///
 /// Held by the accept loop and cloned for each connection.
@@ -198,6 +220,7 @@ pub struct SessionResources {
     pub quest_high_level_hide_diff: u32,
     pub enable_ae_loot: bool,
     pub chat_fake_message_preventing: bool,
+    pub chat_level_requirements: ChatLevelRequirementsLikeCpp,
     pub realm_id: u16,
     /// External (public) IP from `realmlist.address`.
     pub realm_external_address: [u8; 4],

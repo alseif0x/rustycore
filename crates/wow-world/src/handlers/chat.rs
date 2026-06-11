@@ -38,9 +38,6 @@ use crate::session::{PlayerAwayModeLikeCpp, WorldSession};
 const RANGE_SAY: f32 = 25.0;
 const RANGE_YELL: f32 = 300.0;
 const RANGE_EMOTE: f32 = 25.0;
-const CHAT_SAY_LEVEL_REQ_LIKE_CPP: u8 = 1;
-const CHAT_YELL_LEVEL_REQ_LIKE_CPP: u8 = 1;
-const CHAT_EMOTE_LEVEL_REQ_LIKE_CPP: u8 = 1;
 const LANG_UNIVERSAL_LIKE_CPP: i32 = 0;
 const LANG_ADDON_LIKE_CPP: u32 = 183;
 const LANG_ADDON_LOGGED_LIKE_CPP: u32 = 184;
@@ -382,6 +379,10 @@ impl WorldSession {
             "Whisper"
         );
 
+        if !self.meets_whisper_level_req_like_cpp() {
+            return;
+        }
+
         let (sender_guid, sender_name) = self.player_name_and_guid();
         let virtual_realm = self.virtual_realm_address();
         let target_name = msg.target.clone();
@@ -595,7 +596,7 @@ impl WorldSession {
         if !self.player_is_alive_like_cpp() {
             return;
         }
-        if self.player_level_like_cpp() < CHAT_EMOTE_LEVEL_REQ_LIKE_CPP {
+        if self.player_level_like_cpp() < self.chat_level_requirements_like_cpp().emote {
             return;
         }
 
@@ -1026,12 +1027,18 @@ fn is_known_language_like_cpp(language: i32) -> bool {
 
 impl WorldSession {
     fn meets_chat_level_req_like_cpp(&self, msg_type: ChatMsg) -> bool {
+        let requirements = self.chat_level_requirements_like_cpp();
         let required = match msg_type {
-            ChatMsg::Say => CHAT_SAY_LEVEL_REQ_LIKE_CPP,
-            ChatMsg::Yell => CHAT_YELL_LEVEL_REQ_LIKE_CPP,
+            ChatMsg::Say => requirements.say,
+            ChatMsg::Yell => requirements.yell,
             _ => return true,
         };
         self.player_level_like_cpp() >= required
+    }
+
+    fn meets_whisper_level_req_like_cpp(&self) -> bool {
+        self.player_is_game_master_like_cpp()
+            || self.player_level_like_cpp() >= self.chat_level_requirements_like_cpp().whisper
     }
 
     fn send_whisper_away_reply_like_cpp(&mut self, target_name: &str, auto_reply: &str, afk: bool) {
@@ -1066,7 +1073,9 @@ mod tests {
     use crate::session::AuraApplication;
     use std::collections::{HashMap, HashSet};
     use std::sync::Arc;
-    use wow_network::{PendingInvites, PlayerBroadcastInfo, PlayerRegistry};
+    use wow_network::{
+        ChatLevelRequirementsLikeCpp, PendingInvites, PlayerBroadcastInfo, PlayerRegistry,
+    };
 
     const LANG_COMMON_LIKE_CPP: i32 = 7;
 
@@ -1533,6 +1542,44 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn configured_chat_level_requirements_gate_say_yell_and_emote_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 385);
+        let nearby = ObjectGuid::create_player(1, 386);
+        let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
+        let (nearby_tx, nearby_rx) = flume::bounded(8);
+        player_registry.insert(nearby, broadcast_info(nearby, nearby_tx));
+        session.set_player_level_like_cpp(1);
+        session.set_chat_level_requirements_like_cpp(ChatLevelRequirementsLikeCpp {
+            say: 2,
+            yell: 2,
+            emote: 2,
+            ..ChatLevelRequirementsLikeCpp::default()
+        });
+
+        session
+            .handle_chat_message(
+                chat_message_packet(ClientOpcodes::ChatMessageSay, "too low say"),
+                ChatMsg::Say,
+            )
+            .await;
+        session
+            .handle_chat_message(
+                chat_message_packet(ClientOpcodes::ChatMessageYell, "too low yell"),
+                ChatMsg::Yell,
+            )
+            .await;
+        session
+            .handle_chat_emote(chat_message_packet(
+                ClientOpcodes::ChatMessageEmote,
+                "too low emote",
+            ))
+            .await;
+
+        assert!(sender_rx.try_recv().is_err());
+        assert!(nearby_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
     async fn say_collapses_multiple_spaces_when_fake_message_preventing_enabled_like_cpp() {
         let sender = ObjectGuid::create_player(1, 383);
         let (mut session, _player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
@@ -1702,6 +1749,59 @@ mod tests {
         assert_eq!(packet.read_bits(9).expect("name len"), 7);
         assert_eq!(packet.read_string(7).expect("name"), "Missing");
         assert!(packet.is_empty());
+    }
+
+    #[tokio::test]
+    async fn configured_whisper_level_requirement_blocks_non_gm_sender_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 387);
+        let target = ObjectGuid::create_player(1, 388);
+        let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
+        let (target_tx, target_rx) = flume::bounded(8);
+        let mut target_info = broadcast_info(target, target_tx);
+        target_info.player_name = "Target".to_string();
+        player_registry.insert(target, target_info);
+        session.set_player_level_like_cpp(1);
+        session.set_chat_level_requirements_like_cpp(ChatLevelRequirementsLikeCpp {
+            whisper: 2,
+            ..ChatLevelRequirementsLikeCpp::default()
+        });
+
+        session
+            .handle_chat_whisper(chat_whisper_packet("Target", "too low whisper"))
+            .await;
+
+        assert!(sender_rx.try_recv().is_err());
+        assert!(target_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn configured_whisper_level_requirement_allows_gm_sender_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 389);
+        let target = ObjectGuid::create_player(1, 390);
+        let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
+        let (target_tx, target_rx) = flume::bounded(8);
+        let mut target_info = broadcast_info(target, target_tx);
+        target_info.player_name = "Target".to_string();
+        player_registry.insert(target, target_info);
+        session.set_player_level_like_cpp(1);
+        session.set_player_game_master_like_cpp(true);
+        session.set_chat_level_requirements_like_cpp(ChatLevelRequirementsLikeCpp {
+            whisper: 2,
+            ..ChatLevelRequirementsLikeCpp::default()
+        });
+
+        session
+            .handle_chat_whisper(chat_whisper_packet("Target", "gm whisper"))
+            .await;
+
+        assert_eq!(
+            chat_slash_cmd(&target_rx.try_recv().expect("target whisper")),
+            ChatMsg::Whisper as u8
+        );
+        assert_eq!(
+            chat_slash_cmd(&sender_rx.try_recv().expect("sender inform")),
+            ChatMsg::WhisperInform as u8
+        );
     }
 
     #[tokio::test]

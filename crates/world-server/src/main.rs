@@ -35,10 +35,11 @@ use wow_loot::{
 use wow_network::session_mgr::SessionManager;
 use wow_network::world_socket::{AccountInfo, AccountLookup};
 use wow_network::{
-    GameEventQuestCompleteCommandLikeCpp, GameEventQuestCompleteResponseLikeCpp, GroupRegistry,
-    LootDropRatesLikeCpp, PendingInvites, PlayerRegistry, ReadyCheckEventLikeCpp,
-    ReputationRatesLikeCpp, ResetSeasonalQuestStatusCommand, SendVisibleObjectValuesUpdateCommand,
-    SessionCommand, SessionResources, tick_all_group_ready_checks_like_cpp,
+    ChatLevelRequirementsLikeCpp, GameEventQuestCompleteCommandLikeCpp,
+    GameEventQuestCompleteResponseLikeCpp, GroupRegistry, LootDropRatesLikeCpp, PendingInvites,
+    PlayerRegistry, ReadyCheckEventLikeCpp, ReputationRatesLikeCpp,
+    ResetSeasonalQuestStatusCommand, SendVisibleObjectValuesUpdateCommand, SessionCommand,
+    SessionResources, tick_all_group_ready_checks_like_cpp,
 };
 use wow_packet::{
     ServerPacket,
@@ -2178,6 +2179,13 @@ async fn main() -> Result<()> {
             "CONFIG_CHAT_FAKE_MESSAGE_PREVENTING",
             false,
         ),
+        chat_level_requirements: ChatLevelRequirementsLikeCpp {
+            channel: world_config_u8(&world_configs, "CONFIG_CHAT_CHANNEL_LEVEL_REQ", 1),
+            whisper: world_config_u8(&world_configs, "CONFIG_CHAT_WHISPER_LEVEL_REQ", 1),
+            emote: world_config_u8(&world_configs, "CONFIG_CHAT_EMOTE_LEVEL_REQ", 1),
+            say: world_config_u8(&world_configs, "CONFIG_CHAT_SAY_LEVEL_REQ", 1),
+            yell: world_config_u8(&world_configs, "CONFIG_CHAT_YELL_LEVEL_REQ", 1),
+        },
         realm_id,
         realm_external_address,
         realm_local_address,
@@ -7442,6 +7450,7 @@ async fn create_session(
     session.set_repair_cost_rate_like_cpp(resources.repair_cost_rate);
     session.set_enable_ae_loot_like_cpp(resources.enable_ae_loot);
     session.set_chat_fake_message_preventing_like_cpp(resources.chat_fake_message_preventing);
+    session.set_chat_level_requirements_like_cpp(resources.chat_level_requirements);
     session.set_mmap_runtime_config_like_cpp(mmap_runtime_config);
     if let Some(pathfinder) = mmap_pathfinder {
         session.set_mmap_pathfinder_like_cpp(pathfinder);
@@ -10955,6 +10964,38 @@ MaxRecruitAFriendBonusDistance = 45
             "CONFIG_CHAT_FAKE_MESSAGE_PREVENTING",
             false
         ));
+    }
+
+    #[test]
+    fn chat_level_requirements_use_cpp_world_config_keys() {
+        let _guard = TEST_LOCK.lock().expect("test lock poisoned");
+        wow_config::load_config_from_str(
+            "ChatLevelReq.Channel = 2\n\
+             ChatLevelReq.Whisper = 3\n\
+             ChatLevelReq.Emote = 4\n\
+             ChatLevelReq.Say = 5\n\
+             ChatLevelReq.Yell = 6\n",
+        )
+        .expect("config should load");
+
+        let configs = wow_config::load_world_config_values();
+        assert_eq!(
+            world_config_u8(&configs, "CONFIG_CHAT_CHANNEL_LEVEL_REQ", 1),
+            2
+        );
+        assert_eq!(
+            world_config_u8(&configs, "CONFIG_CHAT_WHISPER_LEVEL_REQ", 1),
+            3
+        );
+        assert_eq!(
+            world_config_u8(&configs, "CONFIG_CHAT_EMOTE_LEVEL_REQ", 1),
+            4
+        );
+        assert_eq!(world_config_u8(&configs, "CONFIG_CHAT_SAY_LEVEL_REQ", 1), 5);
+        assert_eq!(
+            world_config_u8(&configs, "CONFIG_CHAT_YELL_LEVEL_REQ", 1),
+            6
+        );
     }
 
     #[test]

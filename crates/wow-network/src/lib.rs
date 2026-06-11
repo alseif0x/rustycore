@@ -13,8 +13,8 @@ pub mod session_mgr;
 pub mod world_socket;
 
 pub use accept::{
-    LootDropRatesLikeCpp, ReputationRatesLikeCpp, SessionResources, start_instance_listener,
-    start_world_listener,
+    ChatLevelRequirementsLikeCpp, LootDropRatesLikeCpp, ReputationRatesLikeCpp, SessionResources,
+    start_instance_listener, start_world_listener,
 };
 pub use group_registry::{
     EMPTY_TARGET_ICON_RAW_LIKE_CPP, GROUP_ASSIGN_MAINASSIST_LIKE_CPP,

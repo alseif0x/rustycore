@@ -120,9 +120,9 @@ use wow_loot::{LootStoreKind, LootStores};
 use wow_map::coords::SIZE_OF_GRID_CELL;
 use wow_network::session_mgr::{InstanceLink, SessionManager};
 use wow_network::{
-    GameEventQuestCompleteClientOutcomeLikeCpp, GameEventQuestCompleteCommandLikeCpp,
-    GroupRegistry, LootDropRatesLikeCpp, PendingInvites, PlayerBroadcastInfo, PlayerRegistry,
-    ReputationRatesLikeCpp, SessionCommand,
+    ChatLevelRequirementsLikeCpp, GameEventQuestCompleteClientOutcomeLikeCpp,
+    GameEventQuestCompleteCommandLikeCpp, GroupRegistry, LootDropRatesLikeCpp, PendingInvites,
+    PlayerBroadcastInfo, PlayerRegistry, ReputationRatesLikeCpp, SessionCommand,
 };
 use wow_packet::packets::item::{
     InventoryChangeFailure, ItemEnchantTimeUpdate, ItemInstance, ItemMod, ItemModList,
@@ -3121,6 +3121,8 @@ pub struct WorldSession {
     enable_ae_loot_like_cpp: bool,
     /// C++ `CONFIG_CHAT_FAKE_MESSAGE_PREVENTING` represented switch for chat validation.
     chat_fake_message_preventing_like_cpp: bool,
+    /// C++ `CONFIG_CHAT_*_LEVEL_REQ` represented chat level gates.
+    chat_level_requirements_like_cpp: ChatLevelRequirementsLikeCpp,
     /// C++ `CONFIG_ENABLE_MMAPS` + `DataDir` represented until map lifecycle owns real mmaps.
     mmap_runtime_config_like_cpp: MMapRuntimeConfigLikeCpp,
     /// C++ `sWaypointMgr->GetPath(pathId)` resolver for session-created legacy `WorldCreature`
@@ -4025,6 +4027,7 @@ impl WorldSession {
             watched_faction_index_like_cpp: -1,
             enable_ae_loot_like_cpp: false,
             chat_fake_message_preventing_like_cpp: false,
+            chat_level_requirements_like_cpp: ChatLevelRequirementsLikeCpp::default(),
             mmap_runtime_config_like_cpp: MMapRuntimeConfigLikeCpp::default(),
             waypoint_path_resolver_like_cpp: None,
             represented_unique_gameobject_uses: std::collections::HashSet::new(),
@@ -4412,7 +4415,9 @@ impl WorldSession {
         if is_active {
             if text.is_empty() {
                 changed_flags = self
-                    .mutate_canonical_player_like_cpp(|player| player.remove_player_flag(active_flag))
+                    .mutate_canonical_player_like_cpp(|player| {
+                        player.remove_player_flag(active_flag)
+                    })
                     .is_some();
             } else {
                 self.auto_reply_msg_like_cpp = text;
@@ -10604,6 +10609,13 @@ impl WorldSession {
         self.chat_fake_message_preventing_like_cpp = enabled;
     }
 
+    pub fn set_chat_level_requirements_like_cpp(
+        &mut self,
+        requirements: ChatLevelRequirementsLikeCpp,
+    ) {
+        self.chat_level_requirements_like_cpp = requirements;
+    }
+
     pub fn set_mmap_runtime_config_like_cpp(&mut self, config: MMapRuntimeConfigLikeCpp) {
         self.mmap_runtime_config_like_cpp = config;
     }
@@ -10618,6 +10630,14 @@ impl WorldSession {
 
     pub(crate) fn chat_fake_message_preventing_like_cpp(&self) -> bool {
         self.chat_fake_message_preventing_like_cpp
+    }
+
+    pub(crate) fn chat_level_requirements_like_cpp(&self) -> ChatLevelRequirementsLikeCpp {
+        self.chat_level_requirements_like_cpp
+    }
+
+    pub(crate) fn player_is_game_master_like_cpp(&self) -> bool {
+        self.player_game_master_like_cpp
     }
 
     pub fn mmap_runtime_config_like_cpp(&self) -> &MMapRuntimeConfigLikeCpp {
@@ -63361,11 +63381,8 @@ mod tests {
         session.sync_canonical_player_entity_like_cpp(managed, player);
     }
 
-    fn session_with_canonical_player_for_away_like_cpp() -> (
-        WorldSession,
-        SharedCanonicalMapManager,
-        ObjectGuid,
-    ) {
+    fn session_with_canonical_player_for_away_like_cpp()
+    -> (WorldSession, SharedCanonicalMapManager, ObjectGuid) {
         let (mut session, _, _) = make_session();
         let player_guid = ObjectGuid::create_player(1, 0xAFD0);
         session.ensure_login_player_controller_like_cpp(
@@ -63388,10 +63405,10 @@ mod tests {
     fn chat_afk_sets_player_flag_and_auto_reply_like_cpp() {
         let (mut session, _, guid) = session_with_canonical_player_for_away_like_cpp();
 
-        assert!(session.apply_chat_away_mode_like_cpp(
-            PlayerAwayModeLikeCpp::Afk,
-            "back soon".to_string()
-        ));
+        assert!(
+            session
+                .apply_chat_away_mode_like_cpp(PlayerAwayModeLikeCpp::Afk, "back soon".to_string())
+        );
 
         assert_eq!(session.auto_reply_msg_like_cpp(), "back soon");
         assert_eq!(
@@ -63408,10 +63425,7 @@ mod tests {
     fn chat_afk_empty_text_uses_cpp_default_auto_reply_like_cpp() {
         let (mut session, _, guid) = session_with_canonical_player_for_away_like_cpp();
 
-        assert!(session.apply_chat_away_mode_like_cpp(
-            PlayerAwayModeLikeCpp::Afk,
-            String::new()
-        ));
+        assert!(session.apply_chat_away_mode_like_cpp(PlayerAwayModeLikeCpp::Afk, String::new()));
 
         assert_eq!(session.auto_reply_msg_like_cpp(), "Away from Keyboard");
         assert_eq!(
@@ -63427,15 +63441,13 @@ mod tests {
     #[test]
     fn chat_dnd_clears_afk_like_cpp() {
         let (mut session, _, guid) = session_with_canonical_player_for_away_like_cpp();
-        assert!(session.apply_chat_away_mode_like_cpp(
-            PlayerAwayModeLikeCpp::Afk,
-            "afk".to_string()
-        ));
+        assert!(
+            session.apply_chat_away_mode_like_cpp(PlayerAwayModeLikeCpp::Afk, "afk".to_string())
+        );
 
-        assert!(session.apply_chat_away_mode_like_cpp(
-            PlayerAwayModeLikeCpp::Dnd,
-            "busy".to_string()
-        ));
+        assert!(
+            session.apply_chat_away_mode_like_cpp(PlayerAwayModeLikeCpp::Dnd, "busy".to_string())
+        );
 
         assert_eq!(session.auto_reply_msg_like_cpp(), "busy");
         assert_eq!(
@@ -63452,10 +63464,7 @@ mod tests {
     fn chat_dnd_empty_text_uses_cpp_default_auto_reply_like_cpp() {
         let (mut session, _, guid) = session_with_canonical_player_for_away_like_cpp();
 
-        assert!(session.apply_chat_away_mode_like_cpp(
-            PlayerAwayModeLikeCpp::Dnd,
-            String::new()
-        ));
+        assert!(session.apply_chat_away_mode_like_cpp(PlayerAwayModeLikeCpp::Dnd, String::new()));
 
         assert_eq!(session.auto_reply_msg_like_cpp(), "Do not Disturb");
         assert_eq!(
@@ -63473,10 +63482,10 @@ mod tests {
         let (mut session, _, guid) = session_with_canonical_player_for_away_like_cpp();
         session.in_combat = true;
 
-        assert!(!session.apply_chat_away_mode_like_cpp(
-            PlayerAwayModeLikeCpp::Afk,
-            "cannot".to_string()
-        ));
+        assert!(
+            !session
+                .apply_chat_away_mode_like_cpp(PlayerAwayModeLikeCpp::Afk, "cannot".to_string())
+        );
 
         assert!(session.auto_reply_msg_like_cpp().is_empty());
         assert_eq!(
