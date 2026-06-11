@@ -38,6 +38,7 @@ async fn main() -> Result<()> {
     tracing::info!("RustyCore BNet Server starting...");
 
     load_bnet_config()?;
+    create_pid_file_from_config_like_cpp()?;
 
     // Database connection
     let login_info = wow_config::get_database_info_default(
@@ -239,6 +240,24 @@ fn log_database_target_like_cpp(kind: &str, info: &DatabaseInfo) {
     );
 }
 
+fn create_pid_file_from_config_like_cpp() -> Result<Option<u32>> {
+    let pid_file = wow_config::get_string_default("PidFile", "");
+    if pid_file.is_empty() {
+        return Ok(None);
+    }
+
+    let pid = create_pid_file_like_cpp(&pid_file)
+        .with_context(|| format!("Cannot create PID file {pid_file}"))?;
+    tracing::info!("Daemon PID: {pid}");
+    Ok(Some(pid))
+}
+
+fn create_pid_file_like_cpp(path: impl AsRef<std::path::Path>) -> std::io::Result<u32> {
+    let pid = std::process::id();
+    std::fs::write(path, pid.to_string())?;
+    Ok(pid)
+}
+
 #[cfg(unix)]
 async fn shutdown_signal_like_cpp() -> &'static str {
     let ctrl_c = tokio::signal::ctrl_c();
@@ -387,7 +406,9 @@ fn db_keep_alive_interval_duration_like_cpp(interval_minutes: u64) -> std::time:
 
 #[cfg(test)]
 mod tests {
-    use super::{db_keep_alive_interval_duration_like_cpp, load_bnet_config_from};
+    use super::{
+        create_pid_file_like_cpp, db_keep_alive_interval_duration_like_cpp, load_bnet_config_from,
+    };
     use std::env;
     use std::fs;
     use std::path::PathBuf;
@@ -477,6 +498,23 @@ LoginDatabaseInfo = "127.0.0.1;3306;trinity;trinity;auth"
             db_keep_alive_interval_duration_like_cpp(1),
             std::time::Duration::from_secs(60)
         );
+    }
+
+    #[test]
+    fn create_pid_file_writes_current_process_id_like_cpp() {
+        let root = unique_temp_dir("pid_file");
+        fs::create_dir_all(&root).expect("create temp dir failed");
+        let pid_file = root.join("bnetserver.pid");
+
+        let pid = create_pid_file_like_cpp(&pid_file).expect("pid file should be created");
+
+        assert_eq!(pid, std::process::id());
+        assert_eq!(
+            fs::read_to_string(&pid_file).expect("pid file should be readable"),
+            std::process::id().to_string()
+        );
+
+        fs::remove_dir_all(root).expect("cleanup failed");
     }
 
     fn unique_temp_dir(name: &str) -> PathBuf {

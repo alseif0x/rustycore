@@ -236,7 +236,7 @@ HTTP routes (verb + path):
 
 **What's missing vs C++:**
 - **DB keep-alive timer present**. Rust reads `MaxPingTime` and periodically issues `SELECT 1` against `LoginDatabase`; TC calls `LoginDatabase.KeepAlive()` / native connection ping. Behavior is equivalent for keeping the pool warm, though not a per-connection native `mysql_ping()`.
-- **No PID-file creation** (TC: `PidFile` config → `CreatePIDFile(...)`).
+- **PID-file creation present**. Rust reads `PidFile` and writes the current process id before opening DB/network, aborting startup on write failure like TC.
 - **No `IPLocation` DB load**. TC reads `IPLocation.File` (a CSV of GeoIP ranges → countries) and uses it for `lock_country` enforcement and per-country ban policies. Rust never touches this.
 - **No `SecretMgr` initialization** for `SECRET_OWNER_BNETSERVER`. SecretMgr stores HMAC keys for various server-internal purposes (e.g. realm-list signing). Currently every signed message in the Rust port either uses a hardcoded test key or skips signing entirely.
 - **No `Banner::Show`** equivalent (cosmetic, but useful for ops).
@@ -413,7 +413,7 @@ HTTP routes (verb + path):
 - [ ] **#BNET.1** Add CLI parser (`clap`): `--config`, `--config-dir`, `--update-databases-only`, `--version`, `--help`. (L)
 - [ ] **#BNET.2** Read `CertificatesFile` from config; support both PEM-bundle (`pkcs12`-equivalent) and the pair-of-files form. Fallback to current hardcoded names with a warning. (M)
 - [x] **#BNET.3** Implement DB keep-alive timer: every `MaxPingTime` minutes (default 30) issue a `SELECT 1` against `LoginDatabase`. Rust disables the timer with a warning if `MaxPingTime=0` to avoid a zero-period Tokio interval.
-- [ ] **#BNET.4** Implement `CreatePIDFile(path)` equivalent (`std::fs::write(pidFile, std::process::id().to_string())`). (L)
+- [x] **#BNET.4** Implement `CreatePIDFile(path)` equivalent. Rust reads `PidFile`, writes `std::process::id()` before DB/TLS startup, logs the daemon PID, and aborts startup if the file cannot be created.
 - [ ] **#BNET.5** Port `IPLocation` loader: parse CSV from `IPLocation.File`, build a sorted IP-range → country map; expose `lookup(ip)`. Used by `lock_country` and `WrongPass.BanType=BAN_IP` policies. (M)
 - [ ] **#BNET.6** Port `SecretMgr::Initialize(SECRET_OWNER_BNETSERVER)`: persist a per-realm HMAC key in `secrets` table (or local file as TC does); use it for any internal signing. (M)
 - [ ] **#BNET.7** Add the missing REST routes: `POST /login/`, `POST /login/srp/` (bot/mobile clients), `POST /bnetserver/refreshLoginTicket/`. (M)
@@ -519,7 +519,7 @@ HTTP routes (verb + path):
 | `sIPLocation->Load()` | `wow_account::ip_location::load(path) -> IpLocationDb` (TODO) | New module. |
 | `sSecretMgr->Initialize(SECRET_OWNER_BNETSERVER)` | `wow_account::secrets::initialize(SecretOwner::BnetServer).await` (TODO) | New module. |
 | `WinServiceInstall / Uninstall / Run` | (none) | Linux target. |
-| `CreatePIDFile(path)` | `std::fs::write(path, std::process::id().to_string())?` | TODO (#BNET.4). |
+| `CreatePIDFile(path)` | `std::fs::write(path, std::process::id().to_string())?` | Implemented in `create_pid_file_like_cpp`; called only when `PidFile` is non-empty. |
 | `m_ServiceStatus` global + `ServiceStatusWatcher` | (none) | Linux target. |
 
 ---
@@ -534,7 +534,7 @@ HTTP routes (verb + path):
 
 The Rust bnet daemon **reaches the same listening state as TrinityCore** for the happy path: it binds 1119 (TLS, BNet RPC) + 8081 (HTTPS, REST), opens a `LoginDatabase`, runs the `BanExpiryHandler`, polls `realmlist` every `RealmsStateUpdateDelay` s, and wires up the SRPv1/v2 → ticket → `VerifyWebCredentials` → `LogonResult` flow end-to-end. The five core REST endpoints needed for the WoW launcher are present and `cargo test --workspace` passes (395 tests).
 
-What is **not** at parity with TC: encrypted private-key password support, `SecretMgr` (HMAC keys), `IPLocation`, the two "bot" REST routes (`POST /login/`, `POST /login/srp/`), `MigrateLegacyPasswordHashes`, CLI args, PID file, and a graceful in-flight request drain during shutdown. The ALPN / TLS-cipher pinning differs because Rust uses `rustls` (TLS 1.2-only `ServerConfig` with no ALPN) while TC uses Boost.Asio + OpenSSL with `TLS_method` (negotiates anything); for WoW 3.4.3 clients that converge on TLS 1.2 + an `ECDHE-RSA-AES*` suite this is functionally equivalent, but uncommon launcher builds may see different ciphers.
+What is **not** at parity with TC: encrypted private-key password support, `SecretMgr` (HMAC keys), `IPLocation`, the two "bot" REST routes (`POST /login/`, `POST /login/srp/`), `MigrateLegacyPasswordHashes`, CLI args, and a graceful in-flight request drain during shutdown. The ALPN / TLS-cipher pinning differs because Rust uses `rustls` (TLS 1.2-only `ServerConfig` with no ALPN) while TC uses Boost.Asio + OpenSSL with `TLS_method` (negotiates anything); for WoW 3.4.3 clients that converge on TLS 1.2 + an `ECDHE-RSA-AES*` suite this is functionally equivalent, but uncommon launcher builds may see different ciphers.
 
 Resolved since the original audit: `extract_auth_ticket` now mirrors TC's `ExtractAuthorization` by stripping optional `"Basic "`, Base64-decoding the value, and truncating at the first `:`. The failed-login/autoban path now persists `WrongPass.*` effects to `battlenet_accounts.failed_logins`, `battlenet_account_bans`, or `ip_banned`.
 
@@ -551,7 +551,7 @@ Resolved since the original audit: `extract_auth_ticket` now mirrors TC's `Extra
 | `OverrideWithEnvVariablesIfAny` | env var → config override | none | ❌ |
 | `sLog->Initialize` + `Banner::Show` | log to file/console + DB appender | `tracing_subscriber::fmt` + single info line | ⚠️ partial |
 | `OpenSSLCrypto::threadsSetup` | OpenSSL ≤1.0.2 locking callbacks | n/a (rustls) | ✅ N/A |
-| `CreatePIDFile(path)` if `PidFile` set | optional pid file | none | ❌ |
+| `CreatePIDFile(path)` if `PidFile` set | optional pid file | writes current process id before DB/TLS startup and aborts on write failure | ✅ |
 | `SslContext::Initialize()` | reads `CertificatesFile` + `PrivateKeyFile` + `PrivateKeyPassword`; one shared `ssl::context` | reads `CertificatesFile` + `PrivateKeyFile`; `PrivateKeyPassword` non-empty now fails fast because rustls PEM loading does not decrypt encrypted keys; two separate rustls `ServerConfig`s (REST + RPC) | ⚠️ no encrypted-key password |
 | `StartDB()` | single MariaDB pool for `LoginDatabase` | identical (sqlx pool via `wow_database::LoginDatabase`) | ✅ |
 | `--update-databases-only` short-circuit | run updaters then exit | runs `DbUpdater::populate` + `update`, never exits early | ⚠️ different semantics |
