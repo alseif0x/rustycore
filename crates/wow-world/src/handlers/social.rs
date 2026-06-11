@@ -22,6 +22,11 @@ use wow_packet::packets::social::{
 
 use crate::session::{WorldSession, player_team_for_race_cpp};
 
+const FRIEND_STATUS_OFFLINE_LIKE_CPP: u8 = 0x00;
+const FRIEND_STATUS_ONLINE_LIKE_CPP: u8 = 0x01;
+const FRIEND_STATUS_AFK_LIKE_CPP: u8 = 0x02;
+const FRIEND_STATUS_DND_LIKE_CPP: u8 = 0x04;
+
 // ── inventory registrations ───────────────────────────────────────────────────
 
 inventory::submit! {
@@ -90,6 +95,22 @@ inventory::submit! {
 // ── handler implementations ───────────────────────────────────────────────────
 
 impl WorldSession {
+    fn friend_status_for_guid_like_cpp(&self, guid: ObjectGuid) -> u8 {
+        self.player_registry()
+            .and_then(|reg| {
+                reg.get(&guid).map(|entry| {
+                    if entry.is_dnd {
+                        FRIEND_STATUS_DND_LIKE_CPP
+                    } else if entry.is_afk {
+                        FRIEND_STATUS_AFK_LIKE_CPP
+                    } else {
+                        FRIEND_STATUS_ONLINE_LIKE_CPP
+                    }
+                })
+            })
+            .unwrap_or(FRIEND_STATUS_OFFLINE_LIKE_CPP)
+    }
+
     /// CMSG_ADD_FRIEND (0x36d8)
     ///
     /// Parse: bits(9)=name_len, bits(9)=notes_len, string(name), string(notes)
@@ -250,11 +271,9 @@ impl WorldSession {
             return;
         }
 
-        // Is friend online? Check player registry
-        let is_online = self
-            .player_registry()
-            .map(|reg| reg.contains_key(&friend_guid))
-            .unwrap_or(false);
+        // Is friend online? Check player registry.
+        let friend_status = self.friend_status_for_guid_like_cpp(friend_guid);
+        let is_online = friend_status != FRIEND_STATUS_OFFLINE_LIKE_CPP;
 
         let result = if is_online {
             FriendsResult::AddedOnline
@@ -267,7 +286,7 @@ impl WorldSession {
             guid: friend_guid,
             account_guid: ObjectGuid::EMPTY,
             virtual_realm_address: vra,
-            status: if is_online { 1 } else { 0 },
+            status: friend_status,
             area_id: friend_zone,
             level: friend_level,
             class_id: friend_class,
@@ -617,10 +636,7 @@ impl WorldSession {
             let gender: u8 = row.try_get::<u8, _>(8).unwrap_or(0);
 
             let friend_guid = ObjectGuid::create_player(0, friend_raw);
-            let is_online = self
-                .player_registry()
-                .map(|r| r.contains_key(&friend_guid))
-                .unwrap_or(false);
+            let friend_status = self.friend_status_for_guid_like_cpp(friend_guid);
 
             name_data.push(ContactNameData {
                 guid: friend_guid,
@@ -638,7 +654,7 @@ impl WorldSession {
                 native_realm_address: vra,
                 type_flags,
                 note,
-                status: if is_online { 1 } else { 0 },
+                status: friend_status,
                 area_id: zone,
                 level,
                 class_id,

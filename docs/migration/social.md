@@ -183,7 +183,7 @@ Note: `character_social` schema in 3.4.3 is `(guid, friend, flags, note)` — th
 **Suspicious / likely divergent (hipótesis pre-auditoría):**
 - `SELECT … FROM characters WHERE name = ?` is case-sensitive depending on collation; Trinity uses `utf8_general_ci`. Verify schema collation else friend-add-by-typo will fail.
 - `ContactListPkt.contacts` is built lazily but `QueryPlayerNamesResponse` is sent unconditionally even if empty list — minor wire bloat.
-- `FriendStatusPkt.status: u8` is `1` for online, `0` for offline — does NOT include AFK (0x02)/DND (0x04)/RAF (0x08) bitflag composition.
+- `FriendStatusPkt.status: u8` now uses the C++ bit values for online targets visible in `PlayerRegistry`: `ONLINE` (0x01), `AFK` (0x02), `DND` (0x04; checked before AFK). `RAF` (0x08) remains absent until Account/RaF runtime exists.
 - `InspectResult` has `target_name` — but C++ never sends the name (client looks it up); spec parity check needed via packet capture.
 - `RBAC_PERM_TWO_SIDE_ADD_FRIEND` bypass missing → GMs/accounts with that C++ permission cannot cross-faction friend yet; normal players receive `FRIEND_ENEMY`.
 - Inspect handler accesses `entry.visible_items` — assumes the broadcast info is always populated; will crash with `ObjectGuid::EMPTY` if a stale registry entry survives logout.
@@ -210,7 +210,8 @@ Note: `character_social` schema in 3.4.3 is `(guid, friend, flags, note)` — th
 - [ ] **#SOCIAL.11** Enrich `SMSG_INSPECT_RESULT` — add talent-spec, glyphs, item enchants & gems display, transmog appearance, guild snapshot (`InspectGuildData`), specialization id. Complejidad: **H**
 - [ ] **#SOCIAL.12** Implement `CMSG_QUERY_INSPECT_ACHIEVEMENTS` + `SMSG_RESPOND_INSPECT_ACHIEVEMENTS` (compressed achievement bitmap). Complejidad: **M**
 - [ ] **#SOCIAL.13** Implement `CMSG_INSPECT_PVP` + `SMSG_INSPECT_PVP` (6-bracket arena rating array). Complejidad: **M**
-- [ ] **#SOCIAL.14** Compose `FriendStatusPkt.status: u8` as full bitmask (`ONLINE|AFK|DND|RAF`) instead of bool 1/0. Complejidad: **L**
+- [x] **#SOCIAL.14a** Compose friend/contact status as C++ `FriendStatus` bit values for ONLINE/AFK/DND from `PlayerRegistry`. Complejidad: **L**
+- [ ] **#SOCIAL.14b** Add `FRIEND_STATUS_RAF` once Account/RaF recruiter state exists. Complejidad: **M**
 
 ---
 
@@ -314,7 +315,7 @@ Net effect after the represented `CMSG_ADD_IGNORE`/`CMSG_DEL_IGNORE` and `CMSG_C
 - `social.rs:128` — `friend_guid = ObjectGuid::create_player(0, friend_guid_raw)` hardcodes realm `0`; cross-realm friends not handled.
 - `AddFriend` and `AddIgnore` enforce the C++ 50-entry caps. ✅
 - Enemy-faction check is represented for normal players; `RBAC_PERM_TWO_SIDE_ADD_FRIEND` bypass remains missing until Account/RBAC exists.
-- `FriendStatusPkt.status: u8` set to `1` for online / `0` for offline (e.g. `social.rs:190`); never composes the `FriendStatus` bitmask `ONLINE|AFK|DND|RAF`. Followers will never see `AFK`/`DND` flags on a contact, even after AFK/DND is wired (which it isn't yet).
+- `FriendStatusPkt.status: u8` uses `ONLINE`/`AFK`/`DND` bit values for online registry entries; `FRIEND_STATUS_RAF` remains missing because Account/RaF state is not represented.
 - `account_guid: ObjectGuid::EMPTY` everywhere (`social.rs:90,188,235`). `character_social` schema does not include the `accountGuid` column. Account-level ignore is structurally impossible until both schema and capture are added.
 - `inspect.rs:60-78` — only emits `slot + item_id`. No enchant id, no gem ids, no transmog appearance, no talent spec, no glyphs, no guild data, no specialization id, no PvP brackets.
 - No `InspectGuildData`, no `InspectTalentData`, no `PVPBracketData`. The four C++ inspect packet structs are stubbed to one (`InspectResult`).

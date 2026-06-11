@@ -144,7 +144,7 @@ pub struct FriendStatusPkt {
     pub guid: ObjectGuid,
     pub account_guid: ObjectGuid,
     pub virtual_realm_address: u32,
-    /// 0=offline 1=online 2=AFK 3=DND
+    /// FriendStatus bitmask: OFFLINE=0x00, ONLINE=0x01, AFK=0x02, DND=0x04, RAF=0x08.
     pub status: u8,
     pub area_id: i32,
     pub level: i32,
@@ -181,7 +181,7 @@ pub struct ContactInfo {
     /// SocialFlag: 1=friend, 2=ignored, 4=muted
     pub type_flags: u32,
     pub note: String,
-    /// Friend status: 0=offline, 1=online, 2=AFK, 3=DND
+    /// FriendStatus bitmask: OFFLINE=0x00, ONLINE=0x01, AFK=0x02, DND=0x04, RAF=0x08.
     pub status: u8,
     pub area_id: u32,
     pub level: u32,
