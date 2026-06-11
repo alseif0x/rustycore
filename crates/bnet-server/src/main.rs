@@ -87,8 +87,15 @@ async fn main() -> Result<()> {
     // Load TLS certificates — separate configs for REST (HTTPS) and RPC (binary)
     let cert_file = wow_config::get_string_default("CertificatesFile", "./bnetserver.cert.pem");
     let key_file = wow_config::get_string_default("PrivateKeyFile", "./bnetserver.key.pem");
+    let key_password = wow_config::get_string_default("PrivateKeyPassword", "");
+    let key_password = if key_password.is_empty() {
+        None
+    } else {
+        Some(key_password.as_str())
+    };
     let (rest_tls_acceptor, rpc_tls_acceptor) =
-        load_tls_acceptors(&cert_file, &key_file).context("Failed to load TLS certificates")?;
+        load_tls_acceptors(&cert_file, &key_file, key_password)
+            .context("Failed to load TLS certificates")?;
     tracing::info!("TLS certificates loaded");
 
     // Build shared state
@@ -270,10 +277,17 @@ async fn shutdown_signal_like_cpp() -> &'static str {
 fn load_tls_acceptors(
     cert_file_path: &str,
     private_key_file_path: &str,
+    private_key_password: Option<&str>,
 ) -> Result<(TlsAcceptor, TlsAcceptor)> {
     use rustls::ServerConfig;
     use rustls::pki_types::{CertificateDer, PrivateKeyDer};
     use std::io::BufReader;
+
+    if private_key_password.is_some() {
+        anyhow::bail!(
+            "PrivateKeyPassword is configured, but encrypted PEM private keys are not supported by the rustls loader yet"
+        );
+    }
 
     // Load certificates
     let cert_file = std::fs::File::open(cert_file_path)
@@ -394,6 +408,7 @@ BattlenetPort = 1119
 LoginREST.Port = 8081
 CertificatesFile = "/tmp/bnetserver.cert.pem"
 PrivateKeyFile = "/tmp/bnetserver.key.pem"
+PrivateKeyPassword = "secret"
 LoginDatabaseInfo = "127.0.0.1;3306;trinity;trinity;auth"
 "#,
         )
@@ -412,6 +427,10 @@ LoginDatabaseInfo = "127.0.0.1;3306;trinity;trinity;auth"
         assert_eq!(
             wow_config::get_string_default("PrivateKeyFile", ""),
             "/tmp/bnetserver.key.pem"
+        );
+        assert_eq!(
+            wow_config::get_string_default("PrivateKeyPassword", ""),
+            "secret"
         );
         let info = wow_config::get_database_info_default(
             "Login",
