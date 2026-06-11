@@ -14272,6 +14272,35 @@ impl WorldSession {
             .collect()
     }
 
+    fn canonical_unit_party_member_visible_auras_like_cpp(
+        unit: &wow_entities::Unit,
+    ) -> Vec<wow_packet::packets::party::PartyMemberAuraState> {
+        let aura_subsystem = &unit.subsystems().auras;
+        let mut visible: Vec<_> = aura_subsystem.visible_auras.iter().collect();
+        visible.sort_by_key(|(slot, _)| **slot);
+        visible
+            .into_iter()
+            .map(|(_, aura_ref)| {
+                let active_flags = aura_subsystem
+                    .applied_auras
+                    .iter()
+                    .filter(|applied| applied.aura_ref() == *aura_ref)
+                    .fold(0u32, |mask, applied| mask | applied.effect_mask);
+
+                // The canonical pet/unit aura subsystem currently preserves the
+                // visible aura ref and effect mask, but not AuraApplication flags
+                // or AuraEffect amounts. Keep those fields explicit instead of
+                // guessing them.
+                wow_packet::packets::party::PartyMemberAuraState {
+                    spell_id: i32::try_from(aura_ref.spell_id).unwrap_or(i32::MAX),
+                    flags: 0,
+                    active_flags,
+                    points: Vec::new(),
+                }
+            })
+            .collect()
+    }
+
     fn party_member_party_type_like_cpp(&self) -> [u8; 2] {
         let mut party_type = [wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP; 2];
         let (Some(group_guid), Some(group_registry), Some(player_guid)) =
@@ -14316,9 +14345,7 @@ impl WorldSession {
             model_id: unit.data().display_id,
             current_health: i32::try_from(creature.current_health()).unwrap_or(i32::MAX),
             max_health: i32::try_from(creature.max_health()).unwrap_or(i32::MAX),
-            // Pet visible-aura runtime is not represented yet; C++ fills this
-            // from `pet->GetVisibleAuras()` when that state exists.
-            auras: Vec::new(),
+            auras: Self::canonical_unit_party_member_visible_auras_like_cpp(unit),
             name: unit.world().name().to_string(),
         })
     }
@@ -37629,6 +37656,20 @@ mod tests {
         position: Position,
         npc_flags: u32,
     ) {
+        add_canonical_test_pet_with_visible_aura(
+            canonical, guid, owner_guid, entry, position, npc_flags, None,
+        );
+    }
+
+    fn add_canonical_test_pet_with_visible_aura(
+        canonical: &SharedCanonicalMapManager,
+        guid: ObjectGuid,
+        owner_guid: ObjectGuid,
+        entry: u32,
+        position: Position,
+        npc_flags: u32,
+        visible_aura: Option<(u8, u32, ObjectGuid, u32)>,
+    ) {
         let mut pet = wow_entities::Pet::new(owner_guid, wow_entities::PetType::Summon);
         pet.creature_mut()
             .unit_mut()
@@ -37655,6 +37696,19 @@ mod tests {
         pet.creature_mut().unit_mut().set_health(100);
         pet.creature_mut()
             .set_ai_identity_runtime(1, 35, npc_flags, 0);
+        if let Some((slot, spell_id, caster_guid, effect_mask)) = visible_aura {
+            let aura = wow_entities::AppliedAuraRef::new(spell_id, caster_guid, slot, effect_mask);
+            pet.creature_mut()
+                .unit_mut()
+                .subsystems_mut()
+                .auras
+                .add_applied(aura);
+            pet.creature_mut()
+                .unit_mut()
+                .subsystems_mut()
+                .auras
+                .set_visible(slot, aura.aura_ref());
+        }
         pet.creature_mut()
             .unit_mut()
             .world_mut()
@@ -46620,7 +46674,15 @@ mod tests {
         session.set_canonical_map_manager(Arc::clone(&canonical));
         session.set_represented_pet_mode_state_like_cpp(Some(pet_guid), 1, 0);
         add_canonical_test_player_on_map(&canonical, guid, position, 571, 0);
-        add_canonical_test_pet(&canonical, pet_guid, guid, 42_000, position, 0);
+        add_canonical_test_pet_with_visible_aura(
+            &canonical,
+            pet_guid,
+            guid,
+            42_000,
+            position,
+            0,
+            Some((3, 12_345, guid, 0x05)),
+        );
 
         session.register_in_player_registry();
 
@@ -46634,7 +46696,11 @@ mod tests {
         assert_eq!(pet_stats.model_id, 1);
         assert_eq!(pet_stats.current_health, 100);
         assert_eq!(pet_stats.max_health, 100);
-        assert!(pet_stats.auras.is_empty());
+        assert_eq!(pet_stats.auras.len(), 1);
+        assert_eq!(pet_stats.auras[0].spell_id, 12_345);
+        assert_eq!(pet_stats.auras[0].active_flags, 0x05);
+        assert_eq!(pet_stats.auras[0].flags, 0);
+        assert!(pet_stats.auras[0].points.is_empty());
     }
 
     #[test]
