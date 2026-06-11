@@ -24,6 +24,9 @@ use std::process::Command;
 use std::time::Instant;
 use tracing::{info, warn};
 
+const DELETE_UPDATE_ENTRY_BY_NAME_SQL_LIKE_CPP: &str = "DELETE FROM `updates` WHERE `name` = ?";
+const RENAME_UPDATE_ENTRY_SQL_LIKE_CPP: &str = "UPDATE `updates` SET `name` = ? WHERE `name` = ?";
+
 // ─── Public API ─────────────────────────────────────────────────────────────
 
 pub struct DbUpdater {
@@ -252,7 +255,11 @@ impl DbUpdater {
                 None => match renamed_update_decision_like_cpp(&applied, &available_names, &hash) {
                     RenamedUpdateDecisionLikeCpp::Rename { old_name } => {
                         info!("Renaming update '{}' → '{}'", old_name, name);
-                        sqlx::query("UPDATE `updates` SET `name` = ? WHERE `name` = ?")
+                        sqlx::query(DELETE_UPDATE_ENTRY_BY_NAME_SQL_LIKE_CPP)
+                            .bind(&name)
+                            .execute(&self.pool)
+                            .await?;
+                        sqlx::query(RENAME_UPDATE_ENTRY_SQL_LIKE_CPP)
                             .bind(&name)
                             .bind(&old_name)
                             .execute(&self.pool)
@@ -837,7 +844,8 @@ fn default_updates_include_rows_like_cpp(
 #[cfg(test)]
 mod tests {
     use super::{
-        AppliedUpdateFileLikeCpp, PopulateBaseActionLikeCpp, RenamedUpdateDecisionLikeCpp,
+        AppliedUpdateFileLikeCpp, DELETE_UPDATE_ENTRY_BY_NAME_SQL_LIKE_CPP,
+        PopulateBaseActionLikeCpp, RENAME_UPDATE_ENTRY_SQL_LIKE_CPP, RenamedUpdateDecisionLikeCpp,
         UpdateConfigLikeCpp, UpdateDatabaseKindLikeCpp, UpdateDecisionLikeCpp,
         default_updates_include_rows_like_cpp, mysql_cli_args_like_cpp,
         populate_base_action_like_cpp, renamed_update_decision_like_cpp,
@@ -1067,6 +1075,18 @@ mod tests {
         assert_eq!(
             renamed_update_decision_like_cpp(&applied, &available_without_old, "different"),
             RenamedUpdateDecisionLikeCpp::ApplyAsNew
+        );
+    }
+
+    #[test]
+    fn renamed_update_sql_deletes_target_before_renaming_like_cpp() {
+        assert_eq!(
+            DELETE_UPDATE_ENTRY_BY_NAME_SQL_LIKE_CPP,
+            "DELETE FROM `updates` WHERE `name` = ?"
+        );
+        assert_eq!(
+            RENAME_UPDATE_ENTRY_SQL_LIKE_CPP,
+            "UPDATE `updates` SET `name` = ? WHERE `name` = ?"
         );
     }
 
