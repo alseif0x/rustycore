@@ -20,7 +20,7 @@ use wow_packet::packets::social::{
     SetContactNotes, SocialContractRequestResponse,
 };
 
-use crate::session::WorldSession;
+use crate::session::{WorldSession, player_team_for_race_cpp};
 
 // ── inventory registrations ───────────────────────────────────────────────────
 
@@ -171,6 +171,7 @@ impl WorldSession {
 
         use sqlx::Row;
         let friend_guid_raw: i64 = row.try_get(0).unwrap_or(0);
+        let friend_race: u8 = row.try_get(2).unwrap_or(0);
         let friend_class: u32 = row.try_get::<u8, _>(3).unwrap_or(0) as u32;
         let friend_level: i32 = row.try_get::<u8, _>(4).unwrap_or(0) as i32;
         let friend_zone: i32 = row.try_get::<i32, _>(5).unwrap_or(0);
@@ -180,6 +181,17 @@ impl WorldSession {
         // Can't add yourself
         if friend_guid == my_guid {
             send_status!(FriendsResult::Self_, friend_guid);
+            return;
+        }
+
+        // C++: WorldSession::HandleAddFriendOpcode rejects enemy-faction
+        // contacts unless RBAC_PERM_TWO_SIDE_ADD_FRIEND is present. RustyCore
+        // does not yet have AccountMgr/RBAC runtime, so normal-player behavior
+        // is represented conservatively and the GM bypass remains a tracked gap.
+        let player_team = player_team_for_race_cpp(self.player_race_like_cpp());
+        let friend_team = player_team_for_race_cpp(friend_race);
+        if player_team != friend_team {
+            send_status!(FriendsResult::Enemy, friend_guid);
             return;
         }
 

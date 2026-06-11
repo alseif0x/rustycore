@@ -3,9 +3,9 @@
 > **C++ canonical path:** `src/server/game/Handlers/SocialHandler.cpp` + `src/server/game/Entities/Player/SocialMgr.{h,cpp}` + `src/server/game/Globals/ObjectMgr.cpp` (player name cache)
 > **Rust target crate(s):** `crates/wow-social/` (empty placeholder), `crates/wow-world/src/handlers/social.rs`, `crates/wow-world/src/handlers/inspect.rs`, `crates/wow-packet/src/packets/social.rs`, `crates/wow-packet/src/packets/inspect.rs`
 > **Layer:** L6
-> **Status:** ⚠️ partial (~50% — friends list works incl. DB persistence; ignore is missing; mute, account-level ignore, contract, presence updates all missing)
+> **Status:** ⚠️ partial (~55% — friends/ignore DB persistence and social contract work; mute, account-level ignore, RBAC friend bypass, presence updates, and inspect enrichment are still missing)
 > **Audited vs C++:** ✅ audited 2026-05-01 (§13)
-> **Last updated:** 2026-05-01
+> **Last updated:** 2026-06-11
 
 ---
 
@@ -155,7 +155,7 @@ Note: `character_social` schema in 3.4.3 is `(guid, friend, flags, note)` — th
 - `crates/wow-packet/src/packets/inspect.rs` — 120 lines — `InspectItem`, `InspectResult`
 
 **What's implemented:**
-- `CMSG_ADD_FRIEND` — name lookup in `characters` table; self-check; already-friend check; 50-entry cap; ORs `SOCIAL_FLAG_FRIEND` into `character_social` while preserving existing ignore/mute flags; replies with `FRIEND_ADDED_ONLINE`/`OFFLINE`/`ALREADY`/`NOT_FOUND`/`SELF`/`LIST_FULL`.
+- `CMSG_ADD_FRIEND` — name lookup in `characters` table; self-check; normal-player enemy-faction check; already-friend check; 50-entry cap; ORs `SOCIAL_FLAG_FRIEND` into `character_social` while preserving existing ignore/mute flags; replies with `FRIEND_ADDED_ONLINE`/`OFFLINE`/`ALREADY`/`NOT_FOUND`/`SELF`/`ENEMY`/`LIST_FULL`.
 - `CMSG_ADD_IGNORE` — parses C++ `nameLength(9) + AccountGUID + Name`, looks up `characters`, applies self/already/full/not-found gates, and stores per-character `SOCIAL_FLAG_IGNORED` (`flags=2`) in `character_social`. Account-level ignore remains missing.
 - `CMSG_DEL_FRIEND` — parses C++ `QualifiedGUID`, clears `SOCIAL_FLAG_FRIEND` (`flags &= ~1`) and deletes the row only if no flags remain; emits `FRIEND_REMOVED`.
 - `CMSG_DEL_IGNORE` — parses C++ `QualifiedGUID`, clears `SOCIAL_FLAG_IGNORED` (`flags &= ~2`) and deletes the row only if no flags remain; emits `FRIEND_IGNORE_REMOVED`. Account-level ignored-account recompute remains missing.
@@ -169,7 +169,7 @@ Note: `character_social` schema in 3.4.3 is `(guid, friend, flags, note)` — th
 - **Account-level ignore** — `_ignoredAccounts` set + `WowAccountGuid` capture on add — missing entirely. Ignoring an alt does NOT propagate to the other alts.
 - **Mute (`SOCIAL_FLAG_MUTED`)** — unimplemented (would need voice-chat stack anyway, but flag persistence is missing).
 - **Friend-status presence broadcast** — when a player logs in/out/AFK/DND/zones, `SocialMgr::BroadcastToFriendListers` should push `FRIEND_STATUS_ONLINE/AFK/DND/OFFLINE` with new area/level. Rust does NOT broadcast these → friends never see status changes after initial list-fetch.
-- **Enemy-faction check** — `AddFriend` to an enemy is currently allowed; should reply `FRIEND_ENEMY` (0x0A) per Trinity.
+- **RBAC friend bypass** — C++ allows enemy-faction `AddFriend` only with `RBAC_PERM_TWO_SIDE_ADD_FRIEND`; Rust now rejects enemies for normal-player behavior, but the RBAC bypass is impossible until AccountMgr/RBAC exists.
 - **`character_social.accountGuid` column** — schema does not include it; Rust hard-codes `account_guid: ObjectGuid::EMPTY` everywhere.
 - **Inspect-achievements** (`CMSG_QUERY_INSPECT_ACHIEVEMENTS` / `SMSG_RESPOND_INSPECT_ACHIEVEMENTS`) — unhandled.
 - **Inspect-PvP** (`CMSG_INSPECT_PVP`) — unhandled.
@@ -182,7 +182,7 @@ Note: `character_social` schema in 3.4.3 is `(guid, friend, flags, note)` — th
 - `ContactListPkt.contacts` is built lazily but `QueryPlayerNamesResponse` is sent unconditionally even if empty list — minor wire bloat.
 - `FriendStatusPkt.status: u8` is `1` for online, `0` for offline — does NOT include AFK (0x02)/DND (0x04)/RAF (0x08) bitflag composition.
 - `InspectResult` has `target_name` — but C++ never sends the name (client looks it up); spec parity check needed via packet capture.
-- Enemy-faction check still missing → opposite-faction AddFriend may succeed without the C++ `FRIEND_ENEMY` gate.
+- `RBAC_PERM_TWO_SIDE_ADD_FRIEND` bypass missing → GMs/accounts with that C++ permission cannot cross-faction friend yet; normal players receive `FRIEND_ENEMY`.
 - Inspect handler accesses `entry.visible_items` — assumes the broadcast info is always populated; will crash with `ObjectGuid::EMPTY` if a stale registry entry survives logout.
 
 **Tests existing:**
@@ -201,7 +201,7 @@ Note: `character_social` schema in 3.4.3 is `(guid, friend, flags, note)` — th
 - [x] **#SOCIAL.6** Implement `CMSG_SOCIAL_CONTRACT_REQUEST` — reply with `SMSG_SOCIAL_CONTRACT_REQUEST_RESPONSE { ShowSocialContract=false }`. Complejidad: **L**
 - [ ] **#SOCIAL.7** Implement friend-status presence broadcast: on `WorldSession::login`, `logout`, `toggle_afk`, `toggle_dnd`, `change_zone`, call `SocialMgr::broadcast_to_friend_listers` to push `SMSG_FRIEND_STATUS`. Complejidad: **H**
 - [x] **#SOCIAL.8** Enforce 50-entry caps for `AddFriend` (`SOCIALMGR_FRIEND_LIMIT`) and `AddIgnore` (`SOCIALMGR_IGNORE_LIMIT`). Complejidad: **L**
-- [ ] **#SOCIAL.9** Add enemy-faction check on `AddFriend` — reply `FRIEND_ENEMY` (0x0A). Complejidad: **L**
+- [x] **#SOCIAL.9** Add enemy-faction check on `AddFriend` for normal players — reply `FRIEND_ENEMY` (0x0A). `RBAC_PERM_TWO_SIDE_ADD_FRIEND` bypass remains pending under Account/RBAC. Complejidad: **L**
 - [ ] **#SOCIAL.10** Cross-reference ignore list in `handle_chat_whisper` and other chat paths — drop msg if recipient ignores sender (or sender's account). Complejidad: **M**
 - [ ] **#SOCIAL.11** Enrich `SMSG_INSPECT_RESULT` — add talent-spec, glyphs, item enchants & gems display, transmog appearance, guild snapshot (`InspectGuildData`), specialization id. Complejidad: **H**
 - [ ] **#SOCIAL.12** Implement `CMSG_QUERY_INSPECT_ACHIEVEMENTS` + `SMSG_RESPOND_INSPECT_ACHIEVEMENTS` (compressed achievement bitmap). Complejidad: **M**
@@ -285,7 +285,7 @@ Net effect after the represented `CMSG_ADD_IGNORE`/`CMSG_DEL_IGNORE` slices: cli
 
 | C++ opcode handler | Rust | Verdict |
 |---|---|---|
-| `HandleAddFriendOpcode` | ✅ name lookup, self/already/list-full gates, flag-preserving insert/update into `character_social` | partial |
+| `HandleAddFriendOpcode` | ✅ name lookup, self/enemy/already/list-full gates, flag-preserving insert/update into `character_social`; RBAC two-side bypass absent | partial |
 | `HandleDelFriendOpcode` | ✅ `flags &= ~1`, deletes row only when empty | ok |
 | `HandleContactListOpcode` | ✅ `social.rs:249-359` (JOIN `character_social` × `characters`, plus `QueryPlayerNamesResponse` for name cache) | ok |
 | `HandleAddIgnoreOpcode` | ✅ represented per-character `flags=2`, self/already/full/not-found gates | partial |
@@ -306,7 +306,7 @@ Net effect after the represented `CMSG_ADD_IGNORE`/`CMSG_DEL_IGNORE` slices: cli
 - `social.rs:104` — `SELECT … FROM characters WHERE name = ?` collation is whatever the schema uses; no explicit `COLLATE utf8mb4_general_ci` clause. Behaviour depends on table default collation.
 - `social.rs:128` — `friend_guid = ObjectGuid::create_player(0, friend_guid_raw)` hardcodes realm `0`; cross-realm friends not handled.
 - `AddFriend` and `AddIgnore` enforce the C++ 50-entry caps. ✅
-- No enemy-faction check — Alliance can friend Horde without `FRIEND_ENEMY (0x0A)`.
+- Enemy-faction check is represented for normal players; `RBAC_PERM_TWO_SIDE_ADD_FRIEND` bypass remains missing until Account/RBAC exists.
 - `FriendStatusPkt.status: u8` set to `1` for online / `0` for offline (e.g. `social.rs:190`); never composes the `FriendStatus` bitmask `ONLINE|AFK|DND|RAF`. Followers will never see `AFK`/`DND` flags on a contact, even after AFK/DND is wired (which it isn't yet).
 - `account_guid: ObjectGuid::EMPTY` everywhere (`social.rs:90,188,235`). `character_social` schema does not include the `accountGuid` column. Account-level ignore is structurally impossible until both schema and capture are added.
 - `inspect.rs:60-78` — only emits `slot + item_id`. No enchant id, no gem ids, no transmog appearance, no talent spec, no glyphs, no guild data, no specialization id, no PvP brackets.
