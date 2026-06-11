@@ -21,7 +21,7 @@ Bool	CONFIG_SKILL_PROSPECTING	server/game/World/World.h:122	SkillChance.Prospect
 Bool	CONFIG_SKILL_MILLING	server/game/World/World.h:123	SkillChance.Milling	Bool	server/game/World/World.cpp:1214	false		missing_in_rust	-
 Bool	CONFIG_WEATHER	server/game/World/World.h:124	ActivateWeather	Bool	server/game/World/World.cpp:1228	true		missing_in_rust	-
 Bool	CONFIG_QUEST_IGNORE_RAID	server/game/World/World.h:125	Quests.IgnoreRaid	Bool	server/game/World/World.cpp:1265	false		missing_in_rust	-
-Bool	CONFIG_CHAT_PARTY_RAID_WARNINGS	server/game/World/World.h:126	PartyRaidWarnings	Bool	server/game/World/World.cpp:1704	false		missing_in_rust	-
+Bool	CONFIG_CHAT_PARTY_RAID_WARNINGS	server/game/World/World.h:126	PartyRaidWarnings	Bool	server/game/World/World.cpp:1704	false		represented	consumed by WorldSession raid-warning party gate
 Bool	CONFIG_DETECT_POS_COLLISION	server/game/World/World.h:127	DetectPosCollision	Bool	server/game/World/World.cpp:1290	true		missing_in_rust	-
 Bool	CONFIG_RESTRICTED_LFG_CHANNEL	server/game/World/World.h:128	Channel.RestrictedLfg	Bool	server/game/World/World.cpp:1292	true		missing_in_rust	-
 Bool	CONFIG_CHAT_FAKE_MESSAGE_PREVENTING	server/game/World/World.h:129	ChatFakeMessagePreventing	Bool	server/game/World/World.cpp:1294	false		represented	consumed by world-server SessionResources and WorldSession chat validation

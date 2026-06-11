@@ -3121,6 +3121,8 @@ pub struct WorldSession {
     enable_ae_loot_like_cpp: bool,
     /// C++ `CONFIG_CHAT_FAKE_MESSAGE_PREVENTING` represented switch for chat validation.
     chat_fake_message_preventing_like_cpp: bool,
+    /// C++ `CONFIG_CHAT_PARTY_RAID_WARNINGS` represented switch.
+    party_raid_warnings_like_cpp: bool,
     /// C++ `CONFIG_CHAT_*_LEVEL_REQ` represented chat level gates.
     chat_level_requirements_like_cpp: ChatLevelRequirementsLikeCpp,
     /// C++ `CONFIG_ENABLE_MMAPS` + `DataDir` represented until map lifecycle owns real mmaps.
@@ -4027,6 +4029,7 @@ impl WorldSession {
             watched_faction_index_like_cpp: -1,
             enable_ae_loot_like_cpp: false,
             chat_fake_message_preventing_like_cpp: false,
+            party_raid_warnings_like_cpp: false,
             chat_level_requirements_like_cpp: ChatLevelRequirementsLikeCpp::default(),
             mmap_runtime_config_like_cpp: MMapRuntimeConfigLikeCpp::default(),
             waypoint_path_resolver_like_cpp: None,
@@ -10609,6 +10612,10 @@ impl WorldSession {
         self.chat_fake_message_preventing_like_cpp = enabled;
     }
 
+    pub fn set_party_raid_warnings_like_cpp(&mut self, enabled: bool) {
+        self.party_raid_warnings_like_cpp = enabled;
+    }
+
     pub fn set_chat_level_requirements_like_cpp(
         &mut self,
         requirements: ChatLevelRequirementsLikeCpp,
@@ -10630,6 +10637,10 @@ impl WorldSession {
 
     pub(crate) fn chat_fake_message_preventing_like_cpp(&self) -> bool {
         self.chat_fake_message_preventing_like_cpp
+    }
+
+    pub(crate) fn party_raid_warnings_like_cpp(&self) -> bool {
+        self.party_raid_warnings_like_cpp
     }
 
     pub(crate) fn chat_level_requirements_like_cpp(&self) -> ChatLevelRequirementsLikeCpp {

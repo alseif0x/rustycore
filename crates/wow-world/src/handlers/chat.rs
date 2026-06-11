@@ -817,7 +817,7 @@ impl WorldSession {
                 (chat_type, None)
             }
             ChatMsg::RaidWarning => {
-                if !group.is_raid_group()
+                if !(group.is_raid_group() || self.party_raid_warnings_like_cpp())
                     || !(group.is_leader_like_cpp(sender_guid)
                         || group.is_assistant_like_cpp(sender_guid))
                 {
@@ -1392,6 +1392,67 @@ mod tests {
         assert_eq!(
             chat_slash_cmd(&member_rx.try_recv().expect("member raid chat")),
             ChatMsg::RaidLeader as u8
+        );
+    }
+
+    #[tokio::test]
+    async fn raid_warning_in_party_requires_party_raid_warnings_config_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 203);
+        let member = ObjectGuid::create_player(1, 204);
+        let (mut session, player_registry, leader_rx) = session_for_chat_routing_like_cpp(leader);
+        let (member_tx, member_rx) = flume::bounded(8);
+        player_registry.insert(member, broadcast_info(member, member_tx));
+
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+        let group_guid = group.group_guid;
+        let group_registry = Arc::new(wow_network::GroupRegistry::default());
+        group_registry.insert(group_guid, group);
+        session.group_guid = Some(group_guid);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+
+        session
+            .handle_chat_message(
+                chat_message_packet(ClientOpcodes::ChatMessageRaidWarning, "blocked"),
+                ChatMsg::RaidWarning,
+            )
+            .await;
+
+        assert!(leader_rx.try_recv().is_err());
+        assert!(member_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn party_raid_warnings_config_allows_party_raid_warning_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 205);
+        let member = ObjectGuid::create_player(1, 206);
+        let (mut session, player_registry, leader_rx) = session_for_chat_routing_like_cpp(leader);
+        let (member_tx, member_rx) = flume::bounded(8);
+        player_registry.insert(member, broadcast_info(member, member_tx));
+
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+        let group_guid = group.group_guid;
+        let group_registry = Arc::new(wow_network::GroupRegistry::default());
+        group_registry.insert(group_guid, group);
+        session.group_guid = Some(group_guid);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+        session.set_party_raid_warnings_like_cpp(true);
+
+        session
+            .handle_chat_message(
+                chat_message_packet(ClientOpcodes::ChatMessageRaidWarning, "party warning"),
+                ChatMsg::RaidWarning,
+            )
+            .await;
+
+        assert_eq!(
+            chat_slash_cmd(&leader_rx.try_recv().expect("leader warning")),
+            ChatMsg::RaidWarning as u8
+        );
+        assert_eq!(
+            chat_slash_cmd(&member_rx.try_recv().expect("member warning")),
+            ChatMsg::RaidWarning as u8
         );
     }
 
