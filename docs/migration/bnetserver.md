@@ -3,7 +3,7 @@
 > **C++ canonical path:** `src/server/bnetserver/`
 > **Rust target crate(s):** `crates/bnet-server/`
 > **Layer:** binary (executable entry point)
-> **Status:** ⚠️ partial (login flow works; missing freeze detector, IP-Location DB, soap, win32 service, multi-thread io_context, some REST endpoints, SecretMgr, DB keepalive)
+> **Status:** ⚠️ partial (login flow works; missing freeze detector, IP-Location DB, soap, win32 service, some REST endpoints, SecretMgr)
 > **Audited vs C++:** ⚠️ audited (2026-05-01) — see §13
 > **Last updated:** 2026-05-01
 
@@ -245,7 +245,7 @@ HTTP routes (verb + path):
 - **No `POST /bnetserver/refreshLoginTicket/`**. Ticket TTL is fixed at issuance.
 - **No `SOAP` / Win32 service / process priority / processor affinity** — Linux-only Rust target, accepted gap.
 - **`MaxCoreStuckTime` / freeze detector** — bnetserver's main loop is event-driven (not a tight `World::Update` loop), so technically less of a concern, but no equivalent watchdog at all.
-- **No multi-threaded io_context** (`ThreadPool` worker count). Rust runs on the default Tokio multi-thread runtime — fine, but means the `Network.Threads` / `LoginREST.ThreadCount` configs are silently ignored.
+- **Thread-count configs are informational for Rust BNet**. Audited against TC: `Network.Threads` is enforced by `worldserver`, but `bnetserver` starts one `IoContext` and does not gate startup on that key. Rust logs `Network.Threads` / `LoginREST.ThreadCount` for visibility and uses Tokio's multi-thread runtime.
 - **CLI args**: TC supports `--config`, `--config-dir`, `--update-databases-only`, `--service install/uninstall`, `--help`, `--version`. Rust currently parses none.
 - **Encrypted private-key passwords unsupported**. TC's OpenSSL path accepts `PrivateKeyPassword`; Rust reads it and fails fast when non-empty instead of silently ignoring it.
 
@@ -421,7 +421,7 @@ HTTP routes (verb + path):
 - [ ] **#BNET.9** Implement `MigrateLegacyPasswordHashes()`: opt-in one-shot pass that re-derives v2 verifier on first successful v1 login. (M)
 - [ ] **#BNET.10** Add a freeze-style watchdog: if any `tokio::spawn`'d listener task panics or exits unexpectedly, log error and exit non-zero (currently Rust just logs `"REST server stopped"` and waits on the other handle). (L)
 - [x] **#BNET.11** Verify `session_key_bnet` storage format vs TC. Trinity C++ stores **64 raw bytes** with `setBinary` (`client_secret[32] || server_secret[32]`), not a hex string. Rust already wrote raw bytes; the port now enforces the 32+32 byte contract before persisting to avoid invalid keys on malformed realm-list tickets.
-- [ ] **#BNET.12** Multi-thread option: read `Network.Threads` config and (optionally, since Tokio is already multi-threaded) document that the value is informational under the Tokio runtime. (L)
+- [x] **#BNET.12** Multi-thread option audit. Rust now reads/logs `Network.Threads` and `LoginREST.ThreadCount`; they are informational for BNet because TC `bnetserver` does not apply `Network.Threads` to its acceptors, while Rust uses Tokio's multi-thread runtime.
 - [x] **#BNET.13** Add `Banner::Show`-equivalent at startup logging. Rust now logs package version/revision, config file, additional config overlays, env overrides, TLS backend (`rustls`) and relevant dependency versions (`rustls`, `tokio-rustls`, `sqlx`). OpenSSL version is intentionally not logged because Rust uses rustls.
 - [ ] **#BNET.14** Drop-in clean shutdown: on SIGINT/SIGTERM cancel timers, drain in-flight REST requests with a 5 s grace, then `db.close()`. Currently `db.close()` happens but in-flight requests are not drained. (M)
 
@@ -466,7 +466,7 @@ HTTP routes (verb + path):
 
 | Scope | Decision | C++ retained | Evidence |
 |---|---|---|---|
-| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 23 files / 3266 lines; refs: `/home/server/woltk-trinity-legacy/src/server/bnetserver/Server/Session.cpp`, `/home/server/woltk-trinity-legacy/src/server/bnetserver/REST/LoginRESTService.cpp`, `/home/server/woltk-trinity-legacy/src/server/bnetserver/Main.cpp` | `crates/bnet-server/` \| ⚠️ partial (login flow works; missing freeze detector, IP-Location DB, soap, win32 service, multi-thread io_context, some REST endpoints, SecretMgr, DB keepalive) |
+| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 23 files / 3266 lines; refs: `/home/server/woltk-trinity-legacy/src/server/bnetserver/Server/Session.cpp`, `/home/server/woltk-trinity-legacy/src/server/bnetserver/REST/LoginRESTService.cpp`, `/home/server/woltk-trinity-legacy/src/server/bnetserver/Main.cpp` | `crates/bnet-server/` \| ⚠️ partial (login flow works; missing freeze detector, IP-Location DB, soap, win32 service, some REST endpoints, SecretMgr) |
 
 <!-- REFINE.025:END product-scope -->
 

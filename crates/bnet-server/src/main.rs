@@ -37,6 +37,7 @@ async fn main() -> Result<()> {
 
     let config_report = load_bnet_config()?;
     log_startup_banner_like_cpp(&config_report);
+    log_thread_config_like_cpp();
     create_pid_file_from_config_like_cpp()?;
 
     // Database connection
@@ -273,6 +274,38 @@ fn bnet_full_version_like_cpp() -> String {
     )
 }
 
+fn log_thread_config_like_cpp() {
+    let config = bnet_thread_config_from_values_like_cpp(
+        wow_config::get_value("Network.Threads").unwrap_or(1),
+        wow_config::get_value("LoginREST.ThreadCount").unwrap_or(1),
+    );
+
+    tracing::info!(
+        network_threads = config.network_threads,
+        login_rest_thread_count = config.login_rest_thread_count,
+        applies_to_bnet_acceptors = config.applies_to_bnet_acceptors,
+        "BNet thread configuration loaded; Rust uses Tokio's multi-thread runtime and TrinityCore bnetserver does not gate startup on Network.Threads"
+    );
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct BnetThreadConfigLikeCpp {
+    network_threads: i32,
+    login_rest_thread_count: i32,
+    applies_to_bnet_acceptors: bool,
+}
+
+fn bnet_thread_config_from_values_like_cpp(
+    network_threads: i32,
+    login_rest_thread_count: i32,
+) -> BnetThreadConfigLikeCpp {
+    BnetThreadConfigLikeCpp {
+        network_threads,
+        login_rest_thread_count,
+        applies_to_bnet_acceptors: false,
+    }
+}
+
 fn create_pid_file_from_config_like_cpp() -> Result<Option<u32>> {
     let pid_file = wow_config::get_string_default("PidFile", "");
     if pid_file.is_empty() {
@@ -440,8 +473,8 @@ fn db_keep_alive_interval_duration_like_cpp(interval_minutes: u64) -> std::time:
 #[cfg(test)]
 mod tests {
     use super::{
-        bnet_full_version_like_cpp, create_pid_file_like_cpp,
-        db_keep_alive_interval_duration_like_cpp, load_bnet_config_from,
+        bnet_full_version_like_cpp, bnet_thread_config_from_values_like_cpp,
+        create_pid_file_like_cpp, db_keep_alive_interval_duration_like_cpp, load_bnet_config_from,
     };
     use std::env;
     use std::fs;
@@ -532,6 +565,15 @@ LoginDatabaseInfo = "127.0.0.1;3306;trinity;trinity;auth"
             db_keep_alive_interval_duration_like_cpp(1),
             std::time::Duration::from_secs(60)
         );
+    }
+
+    #[test]
+    fn bnet_thread_config_is_observed_but_not_applied_to_acceptors_like_cpp() {
+        let config = bnet_thread_config_from_values_like_cpp(4, 8);
+
+        assert_eq!(config.network_threads, 4);
+        assert_eq!(config.login_rest_thread_count, 8);
+        assert!(!config.applies_to_bnet_acceptors);
     }
 
     #[test]
