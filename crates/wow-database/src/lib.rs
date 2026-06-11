@@ -42,7 +42,10 @@ pub mod transaction;
 pub mod updater;
 
 // Re-export primary types at crate root for convenience.
-pub use database::{Database, build_connection_string};
+pub use database::{
+    Database, build_connection_string, warn_about_sync_queries_enabled_like_cpp,
+    warn_about_sync_queries_scope_like_cpp,
+};
 pub use error::DatabaseError;
 pub use params::{PreparedStatement, SqlParam};
 pub use result::{SqlFields, SqlResult};

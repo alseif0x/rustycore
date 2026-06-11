@@ -23,6 +23,7 @@ use wow_core::{ObjectGuid, ObjectGuidGenerator, guid::HighGuid};
 use wow_database::{
     CharStatements, CharacterDatabase, HotfixDatabase, LoginDatabase, LoginStatements,
     PreparedStatement, SqlTransaction, StatementDef, WorldDatabase, WorldStatements,
+    warn_about_sync_queries_scope_like_cpp,
 };
 use wow_instances::{InstanceLockMgr, MapDb2Entries, MapDifficultyResetInterval};
 use wow_loot::{
@@ -6924,9 +6925,11 @@ fn spawn_canonical_map_update_loop(
                         .collect::<Vec<_>>();
                     (outcome, active_event_ids, db_bridge_summary)
                 };
-                execute_game_event_world_event_state_db_bridge_like_cpp(
-                    character_db.as_ref(),
-                    &mut db_bridge_summary,
+                warn_about_sync_queries_scope_like_cpp(
+                    execute_game_event_world_event_state_db_bridge_like_cpp(
+                        character_db.as_ref(),
+                        &mut db_bridge_summary,
+                    ),
                 )
                 .await;
                 let mut side_effect_summary = {
@@ -6961,9 +6964,11 @@ fn spawn_canonical_map_update_loop(
                         false,
                     )
                 };
-                execute_game_event_seasonal_quest_db_deletes_like_cpp(
-                    character_db.as_ref(),
-                    &mut side_effect_summary,
+                warn_about_sync_queries_scope_like_cpp(
+                    execute_game_event_seasonal_quest_db_deletes_like_cpp(
+                        character_db.as_ref(),
+                        &mut side_effect_summary,
+                    ),
                 )
                 .await;
                 fanout_reset_event_seasonal_quests_to_player_sessions_after_db_delete_like_cpp(
@@ -7671,13 +7676,18 @@ async fn create_session(
 
     // Session update loop
     loop {
-        // Process incoming packets
-        let count = session.update(50);
+        let (count, disconnecting) = warn_about_sync_queries_scope_like_cpp(async {
+            // Process incoming packets
+            let count = session.update(50);
 
-        // Dispatch pending packets (async handlers)
-        session.process_pending().await;
+            // Dispatch pending packets (async handlers)
+            session.process_pending().await;
 
-        if session.is_disconnecting() {
+            (count, session.is_disconnecting())
+        })
+        .await;
+
+        if disconnecting {
             info!("Session for account {} disconnecting", account.id);
             break;
         }

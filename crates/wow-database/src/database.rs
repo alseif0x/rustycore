@@ -7,9 +7,39 @@ use crate::statements::StatementDef;
 use crate::transaction::{SqlTransaction, bind_param};
 use sqlx::MySqlPool;
 use sqlx::mysql::MySqlPoolOptions;
+use std::future::Future;
 use std::marker::PhantomData;
 
 pub const KEEP_ALIVE_SQL_LIKE_CPP: &str = "SELECT 1";
+
+tokio::task_local! {
+    static WARN_SYNC_QUERIES_LIKE_CPP: bool;
+}
+
+/// Run a future under the same diagnostic mode that TC enables around
+/// `WorldUpdateLoop()`: DB calls made inside the scope emit a warning.
+pub async fn warn_about_sync_queries_scope_like_cpp<F>(future: F) -> F::Output
+where
+    F: Future,
+{
+    WARN_SYNC_QUERIES_LIKE_CPP.scope(true, future).await
+}
+
+pub fn warn_about_sync_queries_enabled_like_cpp() -> bool {
+    WARN_SYNC_QUERIES_LIKE_CPP
+        .try_with(|enabled| *enabled)
+        .unwrap_or(false)
+}
+
+fn warn_if_sync_query_like_cpp(operation: &str) {
+    if warn_about_sync_queries_enabled_like_cpp() {
+        tracing::warn!(
+            target: "sql.performances",
+            operation,
+            "Sync-style DB query executed inside a world update tick"
+        );
+    }
+}
 
 /// A type-safe database connection wrapping a [`MySqlPool`].
 ///
@@ -123,6 +153,7 @@ impl<S: StatementDef> Database<S> {
 
     /// Execute a query and return the result rows.
     pub async fn query(&self, stmt: &PreparedStatement) -> Result<SqlResult, DatabaseError> {
+        warn_if_sync_query_like_cpp("query");
         let sql = stmt.sql();
         if sql.is_empty() {
             return Err(DatabaseError::UnregisteredStatement(0));
@@ -141,6 +172,7 @@ impl<S: StatementDef> Database<S> {
     ///
     /// Returns the number of affected rows.
     pub async fn execute(&self, stmt: &PreparedStatement) -> Result<u64, DatabaseError> {
+        warn_if_sync_query_like_cpp("execute");
         let sql = stmt.sql();
         if sql.is_empty() {
             return Err(DatabaseError::UnregisteredStatement(0));
@@ -157,18 +189,21 @@ impl<S: StatementDef> Database<S> {
 
     /// Execute a raw SQL string directly (no prepared statement).
     pub async fn direct_execute(&self, sql: &str) -> Result<u64, DatabaseError> {
+        warn_if_sync_query_like_cpp("direct_execute");
         let result = sqlx::query(sql).execute(&self.pool).await?;
         Ok(result.rows_affected())
     }
 
     /// Execute a raw SQL query directly (no prepared statement).
     pub async fn direct_query(&self, sql: &str) -> Result<SqlResult, DatabaseError> {
+        warn_if_sync_query_like_cpp("direct_query");
         let rows = sqlx::query(sql).fetch_all(&self.pool).await?;
         Ok(SqlResult::new(rows))
     }
 
     /// Ping the database connection pool, mirroring TrinityCore's KeepAlive().
     pub async fn keep_alive_like_cpp(&self) -> Result<(), DatabaseError> {
+        warn_if_sync_query_like_cpp("keep_alive");
         sqlx::query(KEEP_ALIVE_SQL_LIKE_CPP)
             .execute(&self.pool)
             .await?;
@@ -198,6 +233,7 @@ impl<S: StatementDef> Database<S> {
 
     /// Commit a transaction batch atomically.
     pub async fn commit_transaction(&self, trans: SqlTransaction) -> Result<(), DatabaseError> {
+        warn_if_sync_query_like_cpp("commit_transaction");
         trans.commit(&self.pool).await
     }
 
@@ -331,7 +367,8 @@ fn percent_encode_query(value: &str) -> String {
 mod tests {
     use super::{
         build_connection_string, build_server_connection_string_like_cpp,
-        escape_mysql_identifier_like_cpp,
+        escape_mysql_identifier_like_cpp, warn_about_sync_queries_enabled_like_cpp,
+        warn_about_sync_queries_scope_like_cpp,
     };
 
     #[test]
@@ -377,5 +414,18 @@ mod tests {
     fn mysql_identifier_escape_doubles_backticks_like_cpp_create() {
         assert_eq!(escape_mysql_identifier_like_cpp("world"), "world");
         assert_eq!(escape_mysql_identifier_like_cpp("bad`name"), "bad``name");
+    }
+
+    #[tokio::test]
+    async fn sync_query_warning_scope_is_task_local_like_cpp() {
+        assert!(!warn_about_sync_queries_enabled_like_cpp());
+
+        let scoped = warn_about_sync_queries_scope_like_cpp(async {
+            warn_about_sync_queries_enabled_like_cpp()
+        })
+        .await;
+
+        assert!(scoped);
+        assert!(!warn_about_sync_queries_enabled_like_cpp());
     }
 }

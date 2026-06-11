@@ -326,7 +326,7 @@ Not applicable — the database framework does not handle WoW client packets. (I
 - **`UpdateFetcher` "missing files" detection**: RustyCore tracks which applied `updates` rows were matched by source files and deletes orphaned rows using TC's `Updates.CleanDeadRefMaxCount` budget.
 - **`DBUpdater::Populate` / `Update` failures are fatal** in TC (`return false` from `StartDB` aborts boot). RustyCore now propagates populate/update errors from world-server startup with DB-specific context, so a broken or empty DB fails fast instead of booting into later missing-table errors. (Cross-ref: `worldserver.md` §13.6.)
 - **`MySQLConnection::EscapeString` / `mysql_real_escape_string`**: not exposed. sqlx's parameter binding handles escaping, but the "raw escape this user-supplied string for use in a non-prepared SQL fragment" path (used by some chat commands and mass updates in TC) is unavailable.
-- **`DatabaseWorkerPool::WarnAboutSyncQueries`**: no equivalent. Detecting a synchronous query issued from inside a tick (vs an async one) requires some `tokio::task::block_in_place` audit hook that doesn't exist. (Cross-ref: `worldserver.md` sub-task #WS.25.)
+- **`DatabaseWorkerPool::WarnAboutSyncQueries`**: RustyCore now has a task-local diagnostic scope (`warn_about_sync_queries_scope_like_cpp`) used around the current world-server session tick and selected canonical-map DB writes. DB calls made inside that scope emit `sql.performances` warnings. This is an operational diagnostic equivalent, not a sub-pool split: sqlx queries remain async.
 - **`DatabaseWorkerPool::QueueSize`**: no equivalent — no queue exists; sqlx executes immediately on a free pool conn or `await`s for one. The metrics surface that consumed `QueueSize` (`db_queue_*` in TC's metrics) is therefore also gone.
 - **`mysql_library_init` / `mysql_library_end`**: irrelevant — sqlx links against rust-mysql-async/`mysql_async` or against libmysql via FFI, init is automatic.
 - **OpenSSL / TLS to MariaDB**: TC's `MYSQL_OPT_SSL_CA` is not configured in RustyCore; sqlx defaults to `?ssl-mode=PREFERRED` meaning encryption is only negotiated if the server supports it without cert validation.
@@ -630,7 +630,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 - [x] **#DB.6** Implement `Updates.Redundancy` (default `true`) and `Updates.AllowRehash` (default `true`): when redundancy is disabled, skip already-applied files; when rehash is enabled and the stored hash is empty, update the hash without reapplying; when hash matches but state changed, update state only. (L)
 - [x] **#DB.7** Implement `Updates.ArchivedRedundancy` (default `false`): when false, skip redundancy checks for files that are archived both in the DB and the available update path; when true, changed archived updates can be reapplied. (L)
 - [x] **#DB.8** Implement `Updates.CleanDeadRefMaxCount`: delete `updates` rows whose file no longer exists, up to N per run. Rust now mirrors TC's `cleanDeadReferencesMaxCount < 0 || orphan_count <= cleanDeadReferencesMaxCount` gate and leaves excessive dirty rows in place with an error log. (M)
-- [ ] **#DB.9** Add `WarnAboutSyncQueries`-style guard: track a `tokio::task::TaskLocal<bool>` "in tick" flag; warn (or panic in debug) when a sync query runs inside it. Same as `worldserver.md` #WS.25. (M)
+- [x] **#DB.9** Add `WarnAboutSyncQueries`-style guard: track a Tokio task-local "in tick" flag and warn when DB calls run inside it. The guard is wired around the current world-server session tick and canonical event DB writes. Same as `worldserver.md` #WS.25. (M)
 - [ ] **#DB.10** Add a `QueryHolder`-style helper: a struct that batches N `PreparedStatement`s, executes them concurrently with `tokio::try_join_all`, returns a `Vec<SqlResult>` indexed by slot. Used by character load. (M)
 - [ ] **#DB.11** Port the remaining ~493 character prepared statements (cross-ref `INVENTORY.md`, `characters.md`). (XL — split per-domain: inventory, achievements, mails, guilds, BG/arena state, etc.)
 - [ ] **#DB.12** Decide hotfix prepared-statement strategy: either port all 327 from `HotfixDatabase.cpp` for runtime hotfix mutations, OR formalize the "merged blob at boot" approach and document that hotfix DB is read-once-at-startup. (H if port; L if formalize)
@@ -757,7 +757,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 | `pool.GetPreparedStatement(idx)` | `db.prepare(LoginStatements::FOO)` | — |
 | `pool.EscapeString(str)` | (none) — use bound parameters | TODO #DB.14 |
 | `pool.KeepAlive()` | `Database::keep_alive_like_cpp()` + world-server keep-alive task | `SELECT 1` every `MaxPingTime` for Character/Login/World |
-| `pool.WarnAboutSyncQueries(true)` | (TODO #DB.9 / #WS.25) | — |
+| `pool.WarnAboutSyncQueries(true)` | `warn_about_sync_queries_scope_like_cpp(async { ... })` | task-local warning scope, wired into current world-server ticks |
 | `class DatabaseLoader` (5-queue sequencer + close stack) | (inline in `world-server/src/main.rs`) | TODO #DB.21 — formalize into a sequencer struct |
 | `class DBUpdater<T>` | `wow_database::updater::DbUpdater` (single non-generic struct) | The `<T>` tag is replaced by the per-DB connection params passed to `DbUpdater::new` |
 | `DBUpdater::Create(pool)` | `open_with_pool_size_and_auto_create_like_cpp(...)` during world-server pool open | non-interactive; creates schema then retries |
@@ -895,7 +895,7 @@ However, **the worldserver audit (`worldserver.md` §13.4) noted there's no glob
 - **`worldserver.md` §13.5**: world-server now sizes each single `sqlx` pool from TC's `<Db>Database.WorkerThreads + <Db>Database.SynchThreads` keys — same closure as #WS.21 / #DB.1.
 - **`worldserver.md` §13.6**: DB Updater populate/update failures now propagate and abort world-server boot — same closure as #DB.3.
 - **`worldserver.md` #WS.6**: DB keep-alive ping implemented for Character/Login/World — same closure as #DB.2/#DB.20.
-- **`worldserver.md` #WS.25**: `WarnAboutSyncQueries` debug guard missing — #DB.9.
+- **`worldserver.md` #WS.25**: `WarnAboutSyncQueries` debug guard is represented by `wow_database::warn_about_sync_queries_scope_like_cpp` and wired into the current world-server tick paths — #DB.9.
 - **`worldserver.md` §13.4**: no global tick → no central DB callback drain. Acceptable for now because all DB ops are awaited per-session.
 - **`bnetserver.md`**: also notes missing DB keep-alive (same root cause).
 
