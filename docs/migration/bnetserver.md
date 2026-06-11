@@ -239,7 +239,7 @@ HTTP routes (verb + path):
 - **PID-file creation present**. Rust reads `PidFile` and writes the current process id before opening DB/network, aborting startup on write failure like TC.
 - **No `IPLocation` DB load**. TC reads `IPLocation.File` (a CSV of GeoIP ranges → countries) and uses it for `lock_country` enforcement and per-country ban policies. Rust never touches this.
 - **No `SecretMgr` initialization** for `SECRET_OWNER_BNETSERVER`. SecretMgr stores HMAC keys for various server-internal purposes (e.g. realm-list signing). Currently every signed message in the Rust port either uses a hardcoded test key or skips signing entirely.
-- **No `Banner::Show`** equivalent (cosmetic, but useful for ops).
+- **Startup banner present**. Rust logs a `Banner::Show`-style startup summary with package version/revision, config file, overlays, env overrides, TLS backend and relevant dependency versions.
 - **No legacy password migration** (`MigrateLegacyPasswordHashes`). Means accounts on SRPv1 can never be upgraded silently — they have to be deleted and recreated.
 - **No `POST /login/`, `POST /login/srp/`** (the "bot" / mobile-client login routes).
 - **No `POST /bnetserver/refreshLoginTicket/`**. Ticket TTL is fixed at issuance.
@@ -422,7 +422,7 @@ HTTP routes (verb + path):
 - [ ] **#BNET.10** Add a freeze-style watchdog: if any `tokio::spawn`'d listener task panics or exits unexpectedly, log error and exit non-zero (currently Rust just logs `"REST server stopped"` and waits on the other handle). (L)
 - [ ] **#BNET.11** Verify `session_key_bnet` storage format vs TC: should be **hex string** (64 chars) in MySQL, not raw bytes — align bnetserver writer and world-server reader. (M, code-trace)
 - [ ] **#BNET.12** Multi-thread option: read `Network.Threads` config and (optionally, since Tokio is already multi-threaded) document that the value is informational under the Tokio runtime. (L)
-- [ ] **#BNET.13** Add `Banner::Show`-equivalent at startup logging (build hash, openssl version, rustls version, sqlx version). (L)
+- [x] **#BNET.13** Add `Banner::Show`-equivalent at startup logging. Rust now logs package version/revision, config file, additional config overlays, env overrides, TLS backend (`rustls`) and relevant dependency versions (`rustls`, `tokio-rustls`, `sqlx`). OpenSSL version is intentionally not logged because Rust uses rustls.
 - [ ] **#BNET.14** Drop-in clean shutdown: on SIGINT/SIGTERM cancel timers, drain in-flight REST requests with a 5 s grace, then `db.close()`. Currently `db.close()` happens but in-flight requests are not drained. (M)
 
 ---
@@ -515,7 +515,7 @@ HTTP routes (verb + path):
 | `boost::program_options::variables_map` | `clap::Parser` derive | TODO (#BNET.1). |
 | `MySQL::Library_Init()` | (none) | sqlx handles its own MariaDB client init. |
 | `OpenSSLCrypto::threadsSetup(...)` | (none) | Not needed with rustls. |
-| `Trinity::Banner::Show("bnetserver", ...)` | `tracing::info!("RustyCore BNet Server starting...")` | Log build hash with `env!("CARGO_PKG_VERSION")`. |
+| `Trinity::Banner::Show("bnetserver", ...)` | `log_startup_banner_like_cpp` logs package version/revision, config file, overlays, env overrides and Rust TLS/DB dependency versions | OpenSSL version is n/a under rustls. |
 | `sIPLocation->Load()` | `wow_account::ip_location::load(path) -> IpLocationDb` (TODO) | New module. |
 | `sSecretMgr->Initialize(SECRET_OWNER_BNETSERVER)` | `wow_account::secrets::initialize(SecretOwner::BnetServer).await` (TODO) | New module. |
 | `WinServiceInstall / Uninstall / Run` | (none) | Linux target. |
@@ -549,7 +549,7 @@ Resolved since the original audit: `extract_auth_ticket` now mirrors TC's `Extra
 | Win32 service install/uninstall/run | optional | n/a (Linux) | ✅ accepted gap |
 | `sConfigMgr->LoadInitial(...)` + `LoadAdditionalDir(...)` | base + per-dir overrides | `wow_config::load_config` of single file (with `.dist` fallback) | ⚠️ no `conf.d/` |
 | `OverrideWithEnvVariablesIfAny` | env var → config override | none | ❌ |
-| `sLog->Initialize` + `Banner::Show` | log to file/console + DB appender | `tracing_subscriber::fmt` + single info line | ⚠️ partial |
+| `sLog->Initialize` + `Banner::Show` | log to file/console + DB appender plus startup banner | `tracing_subscriber::fmt` + Banner-like startup lines; DB appender not ported | ⚠️ partial |
 | `OpenSSLCrypto::threadsSetup` | OpenSSL ≤1.0.2 locking callbacks | n/a (rustls) | ✅ N/A |
 | `CreatePIDFile(path)` if `PidFile` set | optional pid file | writes current process id before DB/TLS startup and aborts on write failure | ✅ |
 | `SslContext::Initialize()` | reads `CertificatesFile` + `PrivateKeyFile` + `PrivateKeyPassword`; one shared `ssl::context` | reads `CertificatesFile` + `PrivateKeyFile`; `PrivateKeyPassword` non-empty now fails fast because rustls PEM loading does not decrypt encrypted keys; two separate rustls `ServerConfig`s (REST + RPC) | ⚠️ no encrypted-key password |

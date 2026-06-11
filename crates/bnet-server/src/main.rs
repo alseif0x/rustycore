@@ -35,9 +35,8 @@ async fn main() -> Result<()> {
         )
         .init();
 
-    tracing::info!("RustyCore BNet Server starting...");
-
-    load_bnet_config()?;
+    let config_report = load_bnet_config()?;
+    log_startup_banner_like_cpp(&config_report);
     create_pid_file_from_config_like_cpp()?;
 
     // Database connection
@@ -240,6 +239,40 @@ fn log_database_target_like_cpp(kind: &str, info: &DatabaseInfo) {
     );
 }
 
+fn log_startup_banner_like_cpp(config_report: &LoadReport) {
+    tracing::info!("{}", bnet_full_version_like_cpp());
+    tracing::info!(
+        config = %config_report.initial_file,
+        "Using configuration file"
+    );
+    for loaded_file in &config_report.loaded_files {
+        tracing::info!(config = %loaded_file, "Using additional configuration file");
+    }
+    for overridden_key in &config_report.overridden_keys {
+        tracing::info!(
+            key = %overridden_key,
+            "Configuration field was overridden with environment variable"
+        );
+    }
+    tracing::info!(
+        tls_backend = "rustls",
+        rustls = "0.23",
+        tokio_rustls = "0.26",
+        sqlx = "0.8",
+        "Using Rust dependency versions"
+    );
+}
+
+fn bnet_full_version_like_cpp() -> String {
+    let revision = option_env!("GIT_HASH")
+        .or(option_env!("VERGEN_GIT_SHA"))
+        .unwrap_or("unknown");
+    format!(
+        "RustyCore BNet Server {} (rev {revision})",
+        env!("CARGO_PKG_VERSION")
+    )
+}
+
 fn create_pid_file_from_config_like_cpp() -> Result<Option<u32>> {
     let pid_file = wow_config::get_string_default("PidFile", "");
     if pid_file.is_empty() {
@@ -407,7 +440,8 @@ fn db_keep_alive_interval_duration_like_cpp(interval_minutes: u64) -> std::time:
 #[cfg(test)]
 mod tests {
     use super::{
-        create_pid_file_like_cpp, db_keep_alive_interval_duration_like_cpp, load_bnet_config_from,
+        bnet_full_version_like_cpp, create_pid_file_like_cpp,
+        db_keep_alive_interval_duration_like_cpp, load_bnet_config_from,
     };
     use std::env;
     use std::fs;
@@ -515,6 +549,13 @@ LoginDatabaseInfo = "127.0.0.1;3306;trinity;trinity;auth"
         );
 
         fs::remove_dir_all(root).expect("cleanup failed");
+    }
+
+    #[test]
+    fn bnet_full_version_contains_package_version_like_cpp_banner() {
+        let version = bnet_full_version_like_cpp();
+        assert!(version.contains("RustyCore BNet Server"));
+        assert!(version.contains(env!("CARGO_PKG_VERSION")));
     }
 
     fn unique_temp_dir(name: &str) -> PathBuf {
