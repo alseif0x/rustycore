@@ -2421,6 +2421,7 @@ pub struct WorldSession {
     pub build: u32,
     pub session_key: Vec<u8>,
     pub locale: String,
+    mute_time_like_cpp: i64,
 
     // Inbound packet queue (from WorldSocket)
     packet_rx: flume::Receiver<WorldPacket>,
@@ -3708,6 +3709,7 @@ impl WorldSession {
             build,
             session_key,
             locale,
+            mute_time_like_cpp: 0,
             packet_rx,
             send_tx,
             session_command_tx,
@@ -8147,6 +8149,19 @@ impl WorldSession {
 
     pub fn battlenet_account_id(&self) -> u32 {
         self.battlenet_account_id
+    }
+
+    pub fn set_mute_time_like_cpp(&mut self, mute_time: i64) {
+        self.mute_time_like_cpp = mute_time;
+    }
+
+    pub(crate) fn can_speak_like_cpp(&self) -> bool {
+        self.mute_time_like_cpp <= unix_now()
+    }
+
+    pub(crate) fn mute_time_remaining_secs_like_cpp(&self) -> Option<u64> {
+        let remaining = self.mute_time_like_cpp.saturating_sub(unix_now());
+        (remaining > 0).then_some(remaining as u64)
     }
 
     pub fn set_recruiter_id_like_cpp(&mut self, recruiter_id: u32) {

@@ -145,7 +145,7 @@ impl AccountLookup for DbAccountLookup {
             let is_locked: u8 = result.try_read(3).unwrap_or(0);
             let lock_country: String = result.try_read(4).unwrap_or_default();
             let expansion: u8 = result.try_read(5).unwrap_or(2);
-            let _mutetime: i64 = result.try_read(6).unwrap_or(0);
+            let mutetime: i64 = result.try_read(6).unwrap_or(0);
             let locale_raw: String = result
                 .try_read::<u8>(7)
                 .map(|v| v.to_string())
@@ -180,7 +180,7 @@ impl AccountLookup for DbAccountLookup {
                 is_locked_to_ip: is_locked != 0,
                 lock_country,
                 expansion,
-                mute_time: 0,
+                mute_time: mutetime,
                 locale: locale_name,
                 recruiter,
                 os,
@@ -7175,6 +7175,7 @@ async fn create_session(
     }
     session.set_battlenet_account_id(account.battlenet_account_id);
     session.set_recruiter_id_like_cpp(account.recruiter);
+    session.set_mute_time_like_cpp(account.mute_time);
     if let Some(ref generator) = resources.guid_generator {
         session.set_guid_generator(Arc::clone(generator));
     }

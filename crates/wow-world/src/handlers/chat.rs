@@ -250,12 +250,6 @@ impl WorldSession {
             }
         };
 
-        if msg.text.len() > 511 {
-            return;
-        }
-        if msg.text.is_empty() {
-            return;
-        }
         if msg.language == LANG_UNIVERSAL_LIKE_CPP {
             tracing::warn!(
                 account = self.account_id,
@@ -271,6 +265,15 @@ impl WorldSession {
                 language = msg.language,
                 "Chat message rejected: unknown language"
             );
+            return;
+        }
+        if self.send_wait_before_speaking_notification_if_muted_like_cpp() {
+            return;
+        }
+        if msg.text.len() > 511 {
+            return;
+        }
+        if msg.text.is_empty() {
             return;
         }
         if !validate_message_like_cpp(&mut msg.text, self.chat_fake_message_preventing_like_cpp()) {
@@ -370,12 +373,6 @@ impl WorldSession {
             }
         };
 
-        if msg.text.len() > 511 {
-            return;
-        }
-        if msg.text.is_empty() {
-            return;
-        }
         if msg.language == LANG_UNIVERSAL_LIKE_CPP {
             tracing::warn!(
                 account = self.account_id,
@@ -389,6 +386,15 @@ impl WorldSession {
                 language = msg.language,
                 "Whisper rejected: unknown language"
             );
+            return;
+        }
+        if self.send_wait_before_speaking_notification_if_muted_like_cpp() {
+            return;
+        }
+        if msg.text.len() > 511 {
+            return;
+        }
+        if msg.text.is_empty() {
             return;
         }
         if !validate_message_like_cpp(&mut msg.text, self.chat_fake_message_preventing_like_cpp()) {
@@ -496,6 +502,9 @@ impl WorldSession {
             }
         };
 
+        if self.send_wait_before_speaking_notification_if_muted_like_cpp() {
+            return;
+        }
         if msg.text.len() > 511 {
             return;
         }
@@ -526,6 +535,9 @@ impl WorldSession {
             }
         };
 
+        if self.send_wait_before_speaking_notification_if_muted_like_cpp() {
+            return;
+        }
         if msg.text.len() > 511 {
             return;
         }
@@ -618,6 +630,9 @@ impl WorldSession {
             }
         };
 
+        if self.send_wait_before_speaking_notification_if_muted_like_cpp() {
+            return;
+        }
         if msg.text.len() > 511 {
             return;
         }
@@ -704,6 +719,13 @@ impl WorldSession {
                 return;
             }
         };
+
+        if !self.player_is_alive_like_cpp() {
+            return;
+        }
+        if self.send_wait_before_speaking_notification_if_muted_like_cpp() {
+            return;
+        }
 
         debug!(
             account = self.account_id,
@@ -818,6 +840,10 @@ impl WorldSession {
             return;
         }
 
+        if !self.can_speak_like_cpp() {
+            return;
+        }
+
         if packet.prefix.is_empty() || packet.prefix.len() > 16 || packet.text.len() > 255 {
             return;
         }
@@ -876,6 +902,10 @@ impl WorldSession {
         };
 
         if self.has_gm_silence_aura_like_cpp() {
+            return;
+        }
+
+        if !self.can_speak_like_cpp() {
             return;
         }
 
@@ -976,6 +1006,19 @@ impl WorldSession {
         self.send_packet(&PrintNotification {
             notify_text: format!("Silence is ON for {sender_name}"),
         });
+    }
+
+    fn send_wait_before_speaking_notification_if_muted_like_cpp(&self) -> bool {
+        let Some(remaining_secs) = self.mute_time_remaining_secs_like_cpp() else {
+            return false;
+        };
+        self.send_packet(&PrintNotification {
+            notify_text: format!(
+                "You must wait {} before speaking again.",
+                secs_to_full_time_string_like_cpp(remaining_secs)
+            ),
+        });
+        true
     }
 
     /// Serialize `pkt` and broadcast its bytes to all players on the same map
@@ -1286,6 +1329,40 @@ impl WorldSession {
     }
 }
 
+fn secs_to_full_time_string_like_cpp(time_in_secs: u64) -> String {
+    const MINUTE: u64 = 60;
+    const HOUR: u64 = 60 * MINUTE;
+    const DAY: u64 = 24 * HOUR;
+
+    let secs = time_in_secs % MINUTE;
+    let minutes = time_in_secs % HOUR / MINUTE;
+    let hours = time_in_secs % DAY / HOUR;
+    let days = time_in_secs / DAY;
+
+    let mut text = String::new();
+    if days != 0 {
+        text.push_str(&days.to_string());
+        text.push_str(if days == 1 { " Day " } else { " Days " });
+    }
+    if hours != 0 {
+        text.push_str(&hours.to_string());
+        text.push_str(if hours <= 1 { " Hour " } else { " Hours " });
+    }
+    if minutes != 0 {
+        text.push_str(&minutes.to_string());
+        text.push_str(if minutes == 1 {
+            " Minute "
+        } else {
+            " Minutes "
+        });
+    }
+    if secs != 0 || (days == 0 && hours == 0 && minutes == 0) {
+        text.push_str(&secs.to_string());
+        text.push_str(if secs <= 1 { " Second." } else { " Seconds." });
+    }
+    text
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1453,6 +1530,11 @@ mod tests {
         let text = packet.read_string(text_len).expect("notify text");
         assert!(packet.is_empty());
         text
+    }
+
+    fn mute_session_for_seconds_like_cpp(session: &mut WorldSession, seconds: u64) {
+        let mute_until = wow_core::GameTime::now().as_secs().saturating_add(seconds) as i64;
+        session.set_mute_time_like_cpp(mute_until);
     }
 
     fn broadcast_info(guid: ObjectGuid, send_tx: flume::Sender<Vec<u8>>) -> PlayerBroadcastInfo {
@@ -2202,6 +2284,70 @@ mod tests {
         );
         assert!(sender_rx.try_recv().is_err());
         assert!(nearby_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn account_mute_time_rejects_chat_with_wait_notification_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 431);
+        let nearby = ObjectGuid::create_player(1, 432);
+        let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
+        let (nearby_tx, nearby_rx) = flume::bounded(8);
+        player_registry.insert(nearby, broadcast_info(nearby, nearby_tx));
+        mute_session_for_seconds_like_cpp(&mut session, 3_600);
+
+        session
+            .handle_chat_message(
+                chat_message_packet(ClientOpcodes::ChatMessageSay, "mutetime"),
+                ChatMsg::Say,
+            )
+            .await;
+
+        let text = print_notification_text(&sender_rx.try_recv().expect("mute notification"));
+        assert!(text.starts_with("You must wait "));
+        assert!(text.ends_with(" before speaking again."));
+        assert!(sender_rx.try_recv().is_err());
+        assert!(nearby_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn account_mute_time_rejects_afk_without_changing_state_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 433);
+        let (mut session, _, sender_rx) = session_for_chat_routing_like_cpp(sender);
+        mute_session_for_seconds_like_cpp(&mut session, 3_600);
+
+        session.handle_chat_afk(chat_away_packet("away")).await;
+
+        assert!(session.auto_reply_msg_like_cpp().is_empty());
+        let text = print_notification_text(&sender_rx.try_recv().expect("mute notification"));
+        assert!(text.starts_with("You must wait "));
+        assert!(text.ends_with(" before speaking again."));
+        assert!(sender_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn account_mute_time_rejects_addon_whisper_silently_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 434);
+        let (mut session, _, sender_rx) = session_for_chat_routing_like_cpp(sender);
+        mute_session_for_seconds_like_cpp(&mut session, 3_600);
+
+        session
+            .handle_chat_addon_message_whisper(chat_addon_whisper_packet(
+                "Missing", "ABC", "payload",
+            ))
+            .await;
+
+        assert!(sender_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn secs_to_full_time_string_matches_cpp_full_text_shape() {
+        assert_eq!(secs_to_full_time_string_like_cpp(0), "0 Second.");
+        assert_eq!(secs_to_full_time_string_like_cpp(1), "1 Second.");
+        assert_eq!(secs_to_full_time_string_like_cpp(65), "1 Minute 5 Seconds.");
+        assert_eq!(
+            secs_to_full_time_string_like_cpp(90_061),
+            "1 Day 1 Hour 1 Minute 1 Second."
+        );
     }
 
     #[tokio::test]
