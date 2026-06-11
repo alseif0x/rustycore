@@ -96,11 +96,18 @@ impl<S: StatementDef> Database<S> {
         user: &str,
         password: &str,
         database: &str,
+        ssl: bool,
         max_connections: u32,
         auto_create: bool,
     ) -> Result<Self, DatabaseError> {
-        let connection_string =
-            build_connection_string(host, port_or_socket, user, password, database);
+        let connection_string = build_connection_string_with_ssl_like_cpp(
+            host,
+            port_or_socket,
+            user,
+            password,
+            database,
+            ssl,
+        );
 
         match connect_pool_sqlx_like_cpp(&connection_string, max_connections).await {
             Ok(pool) => {
@@ -115,7 +122,8 @@ impl<S: StatementDef> Database<S> {
                     database = %database,
                     "Database does not exist; creating it before reconnecting"
                 );
-                create_database_like_cpp(host, port_or_socket, user, password, database).await?;
+                create_database_like_cpp(host, port_or_socket, user, password, database, ssl)
+                    .await?;
                 let pool = connect_pool_sqlx_like_cpp(&connection_string, max_connections)
                     .await
                     .map_err(|e| DatabaseError::Connection(e.to_string()))?;
@@ -296,9 +304,10 @@ async fn create_database_like_cpp(
     user: &str,
     password: &str,
     database: &str,
+    ssl: bool,
 ) -> Result<(), DatabaseError> {
     let server_connection =
-        build_server_connection_string_like_cpp(host, port_or_socket, user, password);
+        build_server_connection_string_like_cpp(host, port_or_socket, user, password, ssl);
     let pool = connect_pool_like_cpp(&server_connection, 1).await?;
     let sql = format!(
         "CREATE DATABASE `{}` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci",
@@ -339,17 +348,36 @@ pub fn build_connection_string(
     password: &str,
     database: &str,
 ) -> String {
+    build_connection_string_with_ssl_like_cpp(host, port_or_socket, user, password, database, false)
+}
+
+/// Build a MySQL connection string including TC's optional `;ssl` flag.
+///
+/// TrinityCore only enables TLS when the sixth `*DatabaseInfo` field is exactly
+/// `ssl`; otherwise it disables TLS. sqlx's default is `PREFERRED`, so RustyCore
+/// writes an explicit `ssl-mode` to preserve the C++ behavior.
+pub fn build_connection_string_with_ssl_like_cpp(
+    host: &str,
+    port_or_socket: &str,
+    user: &str,
+    password: &str,
+    database: &str,
+    ssl: bool,
+) -> String {
+    let ssl_mode = ssl_mode_query_value_like_cpp(ssl);
     if port_or_socket
         .chars()
         .next()
         .is_some_and(|ch| ch.is_ascii_digit())
     {
-        return format!("mysql://{user}:{password}@{host}:{port_or_socket}/{database}");
+        return format!(
+            "mysql://{user}:{password}@{host}:{port_or_socket}/{database}?ssl-mode={ssl_mode}"
+        );
     }
 
     format!(
-        "mysql://{user}:{password}@localhost/{database}?socket={}",
-        percent_encode_query(port_or_socket)
+        "mysql://{user}:{password}@localhost/{database}?socket={}&ssl-mode={ssl_mode}",
+        percent_encode_query(port_or_socket),
     )
 }
 
@@ -358,19 +386,25 @@ fn build_server_connection_string_like_cpp(
     port_or_socket: &str,
     user: &str,
     password: &str,
+    ssl: bool,
 ) -> String {
+    let ssl_mode = ssl_mode_query_value_like_cpp(ssl);
     if port_or_socket
         .chars()
         .next()
         .is_some_and(|ch| ch.is_ascii_digit())
     {
-        return format!("mysql://{user}:{password}@{host}:{port_or_socket}");
+        return format!("mysql://{user}:{password}@{host}:{port_or_socket}?ssl-mode={ssl_mode}");
     }
 
     format!(
-        "mysql://{user}:{password}@localhost?socket={}",
-        percent_encode_query(port_or_socket)
+        "mysql://{user}:{password}@localhost?socket={}&ssl-mode={ssl_mode}",
+        percent_encode_query(port_or_socket),
     )
+}
+
+fn ssl_mode_query_value_like_cpp(ssl: bool) -> &'static str {
+    if ssl { "REQUIRED" } else { "DISABLED" }
 }
 
 fn escape_mysql_identifier_like_cpp(identifier: &str) -> String {
@@ -393,16 +427,31 @@ fn percent_encode_query(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_connection_string, build_server_connection_string_like_cpp,
-        escape_mysql_identifier_like_cpp, warn_about_sync_queries_enabled_like_cpp,
-        warn_about_sync_queries_scope_like_cpp,
+        build_connection_string, build_connection_string_with_ssl_like_cpp,
+        build_server_connection_string_like_cpp, escape_mysql_identifier_like_cpp,
+        warn_about_sync_queries_enabled_like_cpp, warn_about_sync_queries_scope_like_cpp,
     };
 
     #[test]
     fn build_connection_string_uses_numeric_port() {
         assert_eq!(
             build_connection_string("127.0.0.1", "3306", "trinity", "trinity", "auth"),
-            "mysql://trinity:trinity@127.0.0.1:3306/auth"
+            "mysql://trinity:trinity@127.0.0.1:3306/auth?ssl-mode=DISABLED"
+        );
+    }
+
+    #[test]
+    fn build_connection_string_honors_ssl_flag_like_cpp() {
+        assert_eq!(
+            build_connection_string_with_ssl_like_cpp(
+                "127.0.0.1",
+                "3306",
+                "trinity",
+                "trinity",
+                "auth",
+                true,
+            ),
+            "mysql://trinity:trinity@127.0.0.1:3306/auth?ssl-mode=REQUIRED"
         );
     }
 
@@ -416,15 +465,21 @@ mod tests {
                 "trinity",
                 "world",
             ),
-            "mysql://trinity:trinity@localhost/world?socket=/var/run/mysqld/mysqld.sock"
+            "mysql://trinity:trinity@localhost/world?socket=/var/run/mysqld/mysqld.sock&ssl-mode=DISABLED"
         );
     }
 
     #[test]
     fn build_server_connection_string_omits_database_for_create_like_cpp() {
         assert_eq!(
-            build_server_connection_string_like_cpp("127.0.0.1", "3306", "trinity", "trinity"),
-            "mysql://trinity:trinity@127.0.0.1:3306"
+            build_server_connection_string_like_cpp(
+                "127.0.0.1",
+                "3306",
+                "trinity",
+                "trinity",
+                false,
+            ),
+            "mysql://trinity:trinity@127.0.0.1:3306?ssl-mode=DISABLED"
         );
         assert_eq!(
             build_server_connection_string_like_cpp(
@@ -432,8 +487,9 @@ mod tests {
                 "/var/run/mysqld/mysqld.sock",
                 "trinity",
                 "trinity",
+                true,
             ),
-            "mysql://trinity:trinity@localhost?socket=/var/run/mysqld/mysqld.sock"
+            "mysql://trinity:trinity@localhost?socket=/var/run/mysqld/mysqld.sock&ssl-mode=REQUIRED"
         );
     }
 

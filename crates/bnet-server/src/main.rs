@@ -18,7 +18,7 @@ use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio_rustls::TlsAcceptor;
 use wow_config::{DatabaseInfo, LoadReport};
-use wow_database::{LoginDatabase, LoginStatements, build_connection_string};
+use wow_database::{LoginDatabase, LoginStatements, build_connection_string_with_ssl_like_cpp};
 
 use crate::ip_location::IpLocationStore;
 use crate::state::AppState;
@@ -63,12 +63,13 @@ async fn main() -> Result<()> {
     );
     log_database_target_like_cpp("login", &login_info);
 
-    let conn_str = build_connection_string(
+    let conn_str = build_connection_string_with_ssl_like_cpp(
         &login_info.host,
         &login_info.port_or_socket,
         &login_info.username,
         &login_info.password,
         &login_info.database,
+        login_info.ssl,
     );
     let login_db = LoginDatabase::open(&conn_str)
         .await

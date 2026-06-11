@@ -229,6 +229,7 @@ async fn main() -> Result<()> {
         &login_info.username,
         &login_info.password,
         &login_info.database,
+        login_info.ssl,
         database_pool_size_like_cpp("Login"),
         updates_auto_setup,
     )
@@ -250,6 +251,7 @@ async fn main() -> Result<()> {
         &char_info.username,
         &char_info.password,
         &char_info.database,
+        char_info.ssl,
         database_pool_size_like_cpp("Character"),
         updates_auto_setup,
     )
@@ -271,6 +273,7 @@ async fn main() -> Result<()> {
         &world_info.username,
         &world_info.password,
         &world_info.database,
+        world_info.ssl,
         database_pool_size_like_cpp("World"),
         updates_auto_setup,
     )
@@ -293,6 +296,7 @@ async fn main() -> Result<()> {
         &hotfix_info.username,
         &hotfix_info.password,
         &hotfix_info.database,
+        hotfix_info.ssl,
         database_pool_size_like_cpp("Hotfix"),
         updates_auto_setup,
     )

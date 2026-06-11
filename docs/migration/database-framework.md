@@ -329,7 +329,7 @@ Not applicable — the database framework does not handle WoW client packets. (I
 - **`DatabaseWorkerPool::WarnAboutSyncQueries`**: RustyCore now has a task-local diagnostic scope (`warn_about_sync_queries_scope_like_cpp`) used around the current world-server session tick and selected canonical-map DB writes. DB calls made inside that scope emit `sql.performances` warnings. This is an operational diagnostic equivalent, not a sub-pool split: sqlx queries remain async.
 - **`DatabaseWorkerPool::QueueSize`**: no equivalent — no queue exists; sqlx executes immediately on a free pool conn or `await`s for one. The metrics surface that consumed `QueueSize` (`db_queue_*` in TC's metrics) is therefore also gone.
 - **`mysql_library_init` / `mysql_library_end`**: irrelevant — sqlx links against rust-mysql-async/`mysql_async` or against libmysql via FFI, init is automatic.
-- **OpenSSL / TLS to MariaDB**: TC's `MYSQL_OPT_SSL_CA` is not configured in RustyCore; sqlx defaults to `?ssl-mode=PREFERRED` meaning encryption is only negotiated if the server supports it without cert validation.
+- **OpenSSL / TLS to MariaDB**: RustyCore now propagates TC's sixth `*DatabaseInfo` field: no `;ssl` writes `ssl-mode=DISABLED`, while `;ssl` writes `ssl-mode=REQUIRED`. This mirrors TC's `MYSQL_OPT_SSL_MODE` / `MYSQL_OPT_SSL_ENFORCE` boolean behavior. CA / identity verification remains outside the TC `DatabaseInfo` schema for this branch.
 
 **Suspicious / likely divergent (hipótesis pre-auditoría):**
 - The single 10-connection pool is shared across all 4 logical DBs in *some* views of the code? **(Audit: false — each DB has its own pool, see §13.2.)**
@@ -634,7 +634,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 - [x] **#DB.10** Add a `QueryHolder`-style helper: `SqlQueryHolder` stores fixed prepared-statement slots, `Database::delay_query_holder_like_cpp` executes set slots in order and returns `SqlQueryHolderResult` indexed by slot. Empty/unset slots return `None`, matching C++ null `PreparedQueryResult`. Caller migration remains under player/pet load tasks. (M)
 - [ ] **#DB.11** Port the remaining ~493 character prepared statements (cross-ref `INVENTORY.md`, `characters.md`). (XL — split per-domain: inventory, achievements, mails, guilds, BG/arena state, etc.)
 - [ ] **#DB.12** Decide hotfix prepared-statement strategy: either port all 327 from `HotfixDatabase.cpp` for runtime hotfix mutations, OR formalize the "merged blob at boot" approach and document that hotfix DB is read-once-at-startup. (H if port; L if formalize)
-- [ ] **#DB.13** Implement TLS connection options: `<Db>DatabaseInfo.SSLMode` config key passed through to sqlx connection options (`ssl-mode=REQUIRED` / `VERIFY_CA` etc.). (M)
+- [x] **#DB.13** Implement TLS connection options: the parsed sixth `*DatabaseInfo` field (`;ssl`) is passed through to sqlx as `ssl-mode=REQUIRED`; absence or any other value keeps TC-equivalent `ssl-mode=DISABLED`. (M)
 - [ ] **#DB.14** Implement `EscapeString` for raw-SQL-fragment use cases: expose `MySqlPool::escape` equivalent or document that `direct_execute` consumers must use bound parameters. (L)
 - [x] **#DB.15** Add populate/update error context: Rust reports `Could not populate/update the <DB> database`, and CLI base-file failures include both the SQL file path and `mysql` stderr. `ApplyFile` now also uses TC's `BEGIN; SOURCE file; COMMIT;` wrapper. (L)
 - [ ] **#DB.16** Add integration test harness: spin up an embedded MariaDB (or Docker mariadb:10.6 in CI) and run `populate` + `update` against it; verify updates table population. (H)
@@ -725,7 +725,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 
 | C++ Symbol | Rust Equivalent | Notes |
 |---|---|---|
-| `MySQLConnectionInfo` (parsed `host;port;user;pass;db;ssl`) | `wow_database::database::build_connection_string(host, port, user, pass, db) -> String` | Returns a `mysql://…` URL; sqlx parses |
+| `MySQLConnectionInfo` (parsed `host;port;user;pass;db;ssl`) | `wow_database::database::build_connection_string_with_ssl_like_cpp(host, port, user, pass, db, ssl) -> String` | Returns a `mysql://…` URL with explicit `ssl-mode=DISABLED/REQUIRED`; sqlx parses |
 | `enum ConnectionFlags { ASYNC, SYNCH, BOTH }` | (none) | Single sqlx pool, no sub-pool flag |
 | `class MySQLConnection` | `sqlx::pool::PoolConnection<MySql>` (acquired ad-hoc) | No standalone "connection" struct |
 | `class LoginDatabaseConnection` (and 3 siblings) | (subsumed) | Replaced by `Database<LoginStatements>` (and 3 siblings) — the `<S>` type tag plays the same role as inheritance |
@@ -767,7 +767,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 | `class UpdateException` | `anyhow::Error` (via `Result<()>`) | — |
 | `class MySQLPreparedStatement` | (none — sqlx caches `MYSQL_STMT` per connection internally) | — |
 | `mysql_library_init` / `mysql_library_end` | (none) | sqlx handles |
-| `MYSQL_OPT_SSL_CA` etc. | sqlx connection-string `?ssl-mode=REQUIRED&ssl-ca=…` | TODO #DB.13 |
+| `MYSQL_OPT_SSL_MODE` / `MYSQL_OPT_SSL_ENFORCE` | sqlx connection-string `?ssl-mode=DISABLED/REQUIRED` | Mirrors TC's `;ssl` boolean switch; CA verification is not part of this branch's `DatabaseInfo` schema |
 | `mysql_real_escape_string` | (none) — use bound params | TODO #DB.14 |
 | `Trinity::Asio::IoContext` (per-pool) | implicit Tokio runtime | — |
 
