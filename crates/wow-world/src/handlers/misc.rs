@@ -41,9 +41,10 @@ use wow_packet::packets::misc::{
     BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags, BattlePetSummon,
     BattlePetUpdateNotify, CageBattlePet, CalendarSendCalendar, CalendarSendNumPending,
     CommerceTokenGetLog, CommerceTokenGetLogResponse, DfGetJoinStatus, DfGetSystemInfo, FarSight,
-    GmTicketCaseStatus, LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus, MountSetFavorite,
-    QueryBattlePetName, QueryBattlePetNameResponse, RatedPvpInfo, RequestBattlefieldStatus,
-    RequestCemeteryListResponse, SaveCufProfiles, TaxiNodeStatusPkt, ToyClearFanfare, UseToy,
+    GmTicketCaseStatus, LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify,
+    MountSetFavorite, QueryBattlePetName, QueryBattlePetNameResponse, RatedPvpInfo,
+    RequestBattlefieldStatus, RequestCemeteryListResponse, SaveCufProfiles, TaxiNodeStatusPkt,
+    ToyClearFanfare, UseToy, ViolenceLevel,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -1246,8 +1247,28 @@ impl crate::session::WorldSession {
     // response at this stage (UI state, client-side settings, system queries
     // that return empty data until the respective subsystems are implemented).
 
-    pub async fn handle_loading_screen_notify(&mut self, _pkt: wow_packet::WorldPacket) {}
-    pub async fn handle_violence_level(&mut self, _pkt: wow_packet::WorldPacket) {}
+    pub async fn handle_loading_screen_notify(&mut self, mut pkt: wow_packet::WorldPacket) {
+        if let Err(error) = LoadingScreenNotify::read(&mut pkt) {
+            warn!(
+                account = self.account_id,
+                "LoadingScreenNotify parse failed: {error}"
+            );
+            return;
+        }
+
+        // C++ `HandleLoadScreenOpcode` is a TODO after reading MapID + Showing.
+    }
+    pub async fn handle_violence_level(&mut self, mut pkt: wow_packet::WorldPacket) {
+        if let Err(error) = ViolenceLevel::read(&mut pkt) {
+            warn!(
+                account = self.account_id,
+                "ViolenceLevel parse failed: {error}"
+            );
+            return;
+        }
+
+        // C++ `HandleViolenceLevel` reads ViolenceLvl and has no observable action.
+    }
     pub async fn handle_override_screen_flash(&mut self, _pkt: wow_packet::WorldPacket) {}
     pub async fn handle_queued_messages_end(&mut self, _pkt: wow_packet::WorldPacket) {}
     pub async fn handle_chat_unregister_all_addon_prefixes(
@@ -4837,6 +4858,32 @@ mod tests {
         assert_eq!(pkt.read_uint32().unwrap(), 0); // Invites.Count
         assert_eq!(pkt.read_uint32().unwrap(), 0); // Events.Count
         assert_eq!(pkt.read_uint32().unwrap(), 0); // RaidLockouts.Count
+    }
+
+    #[tokio::test]
+    async fn loading_screen_notify_is_silent_like_cpp_todo_handler() {
+        let (mut session, send_rx) = make_session();
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(571);
+        pkt.write_bit(false);
+        pkt.flush_bits();
+        pkt.reset_read();
+
+        session.handle_loading_screen_notify(pkt).await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn violence_level_is_silent_like_cpp_todo_handler() {
+        let (mut session, send_rx) = make_session();
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint8(2);
+        pkt.reset_read();
+
+        session.handle_violence_level(pkt).await;
+
+        assert!(send_rx.try_recv().is_err());
     }
 
     #[tokio::test]

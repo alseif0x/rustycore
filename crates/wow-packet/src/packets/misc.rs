@@ -33,6 +33,40 @@ impl ClientPacket for FarSight {
     }
 }
 
+/// C++ `WorldPackets::Character::LoadingScreenNotify`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LoadingScreenNotify {
+    pub map_id: u32,
+    pub showing: bool,
+}
+
+impl ClientPacket for LoadingScreenNotify {
+    const OPCODE: ClientOpcodes = ClientOpcodes::LoadingScreenNotify;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            map_id: pkt.read_uint32()?,
+            showing: pkt.read_bit()?,
+        })
+    }
+}
+
+/// C++ `WorldPackets::Misc::ViolenceLevel`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ViolenceLevel {
+    pub violence_level: u8,
+}
+
+impl ClientPacket for ViolenceLevel {
+    const OPCODE: ClientOpcodes = ClientOpcodes::ViolenceLevel;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            violence_level: pkt.read_uint8()?,
+        })
+    }
+}
+
 // ── AccountDataTimes (SMSG 0x270a) ──────────────────────────────────
 
 /// Number of AccountDataTypes (from C# AccountDataTypes.Max = 15).
@@ -4116,6 +4150,29 @@ mod tests {
         let pkt = AccountDataTimes::for_player(guid);
         let bytes = pkt.to_bytes();
         assert!(bytes.len() > 76); // Bigger than empty GUID version
+    }
+
+    #[test]
+    fn loading_screen_notify_reads_cpp_map_and_showing_bit() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(571);
+        pkt.write_bit(true);
+        pkt.flush_bits();
+        pkt.reset_read();
+
+        let parsed = LoadingScreenNotify::read(&mut pkt).unwrap();
+        assert_eq!(parsed.map_id, 571);
+        assert!(parsed.showing);
+    }
+
+    #[test]
+    fn violence_level_reads_cpp_uint8() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint8(2);
+        pkt.reset_read();
+
+        let parsed = ViolenceLevel::read(&mut pkt).unwrap();
+        assert_eq!(parsed.violence_level, 2);
     }
 
     #[test]
