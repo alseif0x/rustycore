@@ -13,11 +13,12 @@ static DEADLOCK_RETRY_LOCK_LIKE_CPP: LazyLock<Mutex<()>> = LazyLock::new(|| Mute
 
 /// A batch of SQL statements to be executed atomically within a transaction.
 ///
-/// Matches the C# `SQLTransaction` pattern: collect statements, then commit
-/// them all at once.
+/// Matches the TC `TransactionBase` / `Transaction<T>` pattern: collect
+/// prepared statements or raw SQL strings, then commit them all at once.
 #[derive(Debug, Default)]
 pub struct SqlTransaction {
     statements: Vec<PreparedStatement>,
+    cleaned_up_like_cpp: bool,
 }
 
 impl SqlTransaction {
@@ -25,12 +26,37 @@ impl SqlTransaction {
     pub fn new() -> Self {
         Self {
             statements: Vec::new(),
+            cleaned_up_like_cpp: false,
         }
     }
 
     /// Append a prepared statement to this transaction.
     pub fn append(&mut self, stmt: PreparedStatement) {
         self.statements.push(stmt);
+    }
+
+    /// Append a raw SQL statement like TC `TransactionBase::Append(char const*)`.
+    ///
+    /// Prefer prepared statements for user input. This is for C++ parity with
+    /// existing raw-SQL transaction call sites and test fixtures.
+    pub fn append_raw_sql_like_cpp(&mut self, sql: impl Into<String>) {
+        self.statements
+            .push(PreparedStatement::raw_sql_like_cpp(sql));
+    }
+
+    /// Clear queued statements once, mirroring TC `TransactionBase::Cleanup`.
+    pub fn cleanup_like_cpp(&mut self) {
+        if self.cleaned_up_like_cpp {
+            return;
+        }
+
+        self.statements.clear();
+        self.cleaned_up_like_cpp = true;
+    }
+
+    /// Whether [`cleanup_like_cpp`](Self::cleanup_like_cpp) already ran.
+    pub fn cleaned_up_like_cpp(&self) -> bool {
+        self.cleaned_up_like_cpp
     }
 
     /// Number of statements in this transaction.
@@ -102,6 +128,11 @@ impl SqlTransaction {
     #[cfg(test)]
     pub(crate) fn deadlock_max_retry_time_like_cpp_for_test() -> Duration {
         DEADLOCK_MAX_RETRY_TIME_LIKE_CPP
+    }
+
+    #[cfg(test)]
+    pub(crate) fn sqls_for_test(&self) -> Vec<&str> {
+        self.statements.iter().map(PreparedStatement::sql).collect()
     }
 
     async fn try_commit(&self, pool: &MySqlPool) -> Result<(), DatabaseError> {
@@ -191,5 +222,27 @@ mod tests {
             SqlTransaction::deadlock_max_retry_time_like_cpp_for_test(),
             Duration::from_secs(60)
         );
+    }
+
+    #[test]
+    fn transaction_accepts_raw_sql_and_cleans_up_once_like_cpp() {
+        let mut tx = SqlTransaction::new();
+        tx.append_raw_sql_like_cpp("DELETE FROM characters WHERE guid = 7");
+
+        assert_eq!(tx.len(), 1);
+        assert_eq!(
+            tx.sqls_for_test(),
+            vec!["DELETE FROM characters WHERE guid = 7"]
+        );
+        assert!(!tx.cleaned_up_like_cpp());
+
+        tx.cleanup_like_cpp();
+        assert!(tx.is_empty());
+        assert!(tx.cleaned_up_like_cpp());
+
+        tx.append_raw_sql_like_cpp("DELETE FROM character_inventory WHERE guid = 7");
+        assert_eq!(tx.len(), 1);
+        tx.cleanup_like_cpp();
+        assert_eq!(tx.len(), 1);
     }
 }

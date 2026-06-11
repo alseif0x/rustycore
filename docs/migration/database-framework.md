@@ -582,18 +582,18 @@ Not applicable — the database framework does not handle WoW client packets. (I
   Depends on: #REFINE.020, #REFINE.021; execution order finalized by #REFINE.040
   Acceptance: Rust target compiles; behavior and public contracts are checked against the listed C++ file; unit/golden/integration tests are added or marked n/a with reason; divergences are recorded before closing.
   Notes: closed by TC-compatible row/field count aliases (`row_count_like_cpp`, `get_row_count_like_cpp`, `get_field_count_like_cpp`) and `fetch_like_cpp`, while retaining existing Rust `read` / `try_read` accessors.
-- [ ] **#DATABASE_FRAMEWORK.WBS.039** Cerrar la migracion auditada de `database/Database/Transaction.cpp`
+- [x] **#DATABASE_FRAMEWORK.WBS.039** Cerrar la migracion auditada de `database/Database/Transaction.cpp`
   C++ refs: `/home/server/woltk-trinity-legacy/src/server/database/Database/Transaction.cpp`
   Rust target: `crates/wow-database`, `crates/wow-database/src`
   Depends on: #REFINE.020, #REFINE.021; execution order finalized by #REFINE.040
   Acceptance: Rust target compiles; behavior and public contracts are checked against the listed C++ file; unit/golden/integration tests are added or marked n/a with reason; divergences are recorded before closing.
-  Notes: `ready_for_small_task`; Single source-file coverage task; split further if C++ review exposes multiple independent behaviors. Assignment basis: prefix.
-- [ ] **#DATABASE_FRAMEWORK.WBS.040** Cerrar la migracion auditada de `database/Database/Transaction.h`
+  Notes: closed by `SqlTransaction` commit/rollback execution, serialized 60s deadlock retry, raw SQL append, and idempotent `cleanup_like_cpp`; live deadlock DB integration remains optional because it requires a real two-connection lock scenario.
+- [x] **#DATABASE_FRAMEWORK.WBS.040** Cerrar la migracion auditada de `database/Database/Transaction.h`
   C++ refs: `/home/server/woltk-trinity-legacy/src/server/database/Database/Transaction.h`
   Rust target: `crates/wow-database`, `crates/wow-database/src`
   Depends on: #REFINE.020, #REFINE.021; execution order finalized by #REFINE.040
   Acceptance: Rust target compiles; behavior and public contracts are checked against the listed C++ file; unit/golden/integration tests are added or marked n/a with reason; divergences are recorded before closing.
-  Notes: `ready_for_small_task`; Single source-file coverage task; split further if C++ review exposes multiple independent behaviors. Assignment basis: prefix.
+  Notes: closed by `SqlTransaction::{append, append_raw_sql_like_cpp, len, cleanup_like_cpp}` and `Database::execute_or_append` / `commit_transaction`. TC `TransactionCallback` is represented by Rust `async/await` rather than a separate callback class.
 - [ ] **#DATABASE_FRAMEWORK.WBS.041** Cerrar la migracion auditada de `database/Updater/DBUpdater.cpp`
   C++ refs: `/home/server/woltk-trinity-legacy/src/server/database/Updater/DBUpdater.cpp`
   Rust target: `crates/wow-database`, `crates/wow-database/src`

@@ -1,5 +1,7 @@
 //! Dynamic SQL parameter types for prepared statements.
 
+use std::borrow::Cow;
+
 /// A dynamically-typed SQL parameter value.
 ///
 /// Used to collect bind parameters before executing a query, matching the
@@ -32,7 +34,7 @@ pub enum SqlParam {
 /// [`Database::execute`]: crate::Database::execute
 #[derive(Debug, Clone)]
 pub struct PreparedStatement {
-    sql: &'static str,
+    sql: Cow<'static, str>,
     params: Vec<SqlParam>,
 }
 
@@ -40,14 +42,22 @@ impl PreparedStatement {
     /// Create a new prepared statement from a static SQL string.
     pub fn new(sql: &'static str) -> Self {
         Self {
-            sql,
+            sql: Cow::Borrowed(sql),
+            params: Vec::new(),
+        }
+    }
+
+    /// Create a statement from owned raw SQL, mirroring TC raw transaction appends.
+    pub fn raw_sql_like_cpp(sql: impl Into<String>) -> Self {
+        Self {
+            sql: Cow::Owned(sql.into()),
             params: Vec::new(),
         }
     }
 
     /// The SQL text of this statement.
-    pub fn sql(&self) -> &'static str {
-        self.sql
+    pub fn sql(&self) -> &str {
+        self.sql.as_ref()
     }
 
     /// The collected parameters, in index order.
