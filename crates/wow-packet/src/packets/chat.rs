@@ -388,6 +388,23 @@ impl ClientPacket for ChatReportIgnored {
     }
 }
 
+// ── CMSG_CHAT_REPORT_FILTERED ────────────────────────────────────
+
+/// C++ `WorldPackets::Chat::ChatReportFiltered::Read`.
+///
+/// The current TrinityCore handler is a spam-reporting stub and the packet
+/// reader intentionally consumes no payload.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChatReportFiltered;
+
+impl ClientPacket for ChatReportFiltered {
+    const OPCODE: ClientOpcodes = ClientOpcodes::ChatReportFiltered;
+
+    fn read(_pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self)
+    }
+}
+
 // ── CMSG_CHAT_MESSAGE_EMOTE ───────────────────────────────────────
 
 #[derive(Debug, Clone)]
@@ -947,6 +964,13 @@ mod tests {
 
         assert_eq!(packet.ignored_guid, ignored_guid);
         assert_eq!(packet.reason, 2);
+        assert!(reader.is_empty());
+    }
+
+    #[test]
+    fn chat_report_filtered_reads_cpp_empty_layout() {
+        let mut reader = WorldPacket::from_bytes(&[]);
+        ChatReportFiltered::read(&mut reader).unwrap();
         assert!(reader.is_empty());
     }
 

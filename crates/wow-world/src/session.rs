@@ -17002,6 +17002,9 @@ impl WorldSession {
             ClientOpcodes::ChatReportIgnored => {
                 self.handle_chat_report_ignored(pkt).await;
             }
+            ClientOpcodes::ChatReportFiltered => {
+                self.handle_chat_report_filtered(pkt).await;
+            }
             ClientOpcodes::ChatMessageEmote => {
                 self.handle_chat_emote(pkt).await;
             }

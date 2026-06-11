@@ -28,8 +28,8 @@ use wow_network::{GroupInfo, SendAddonIfRegisteredLikeCppCommand, SessionCommand
 use wow_packet::packets::chat::{
     CTextEmote, ChatAddonMessage, ChatAddonMessageTargeted, ChatAddonMessageWhisper, ChatMessage,
     ChatMessageAfk, ChatMessageDnd, ChatMessageEmote, ChatMessageWhisper, ChatMsg, ChatPkt,
-    ChatPlayerNotfound, ChatRegisterAddonPrefixes, ChatReportIgnored, EmoteClient, EmoteMessage,
-    STextEmote,
+    ChatPlayerNotfound, ChatRegisterAddonPrefixes, ChatReportFiltered, ChatReportIgnored,
+    EmoteClient, EmoteMessage, STextEmote,
 };
 use wow_packet::{ClientPacket, ServerPacket};
 
@@ -148,6 +148,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_report_ignored",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::ChatReportFiltered,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_chat_report_filtered",
     }
 }
 
@@ -567,6 +576,26 @@ impl WorldSession {
             };
             let _ = tx.send(ignored.to_bytes());
         }
+    }
+
+    /// Handle CMSG_CHAT_REPORT_FILTERED.
+    ///
+    /// C++ ref: `WorldSession::HandleChatReportFiltered`.
+    /// TrinityCore currently reads an empty packet and only logs a TODO for the
+    /// unimplemented spam reporting system.
+    pub async fn handle_chat_report_filtered(&mut self, mut pkt: wow_packet::WorldPacket) {
+        if let Err(e) = ChatReportFiltered::read(&mut pkt) {
+            tracing::warn!(
+                account = self.account_id,
+                "Bad chat report filtered packet: {e}"
+            );
+            return;
+        }
+
+        debug!(
+            account = self.account_id,
+            "ChatReportFiltered received; spam reporting is not represented yet"
+        );
     }
 
     /// Handle emote text (/e).
