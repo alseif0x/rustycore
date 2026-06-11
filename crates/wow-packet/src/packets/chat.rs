@@ -556,6 +556,22 @@ impl ServerPacket for ChatPkt {
     }
 }
 
+/// C++ `WorldPackets::Chat::ChatPlayerNotfound`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChatPlayerNotfound {
+    pub name: String,
+}
+
+impl ServerPacket for ChatPlayerNotfound {
+    const OPCODE: ServerOpcodes = ServerOpcodes::ChatPlayerNotfound;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_bits(self.name.len() as u32, 9);
+        pkt.flush_bits();
+        pkt.write_string(&self.name);
+    }
+}
+
 // ── Emote Packets ─────────────────────────────────────────────────────────────
 
 /// CMSG_EMOTE — client clears its emote state (no body).
@@ -802,6 +818,23 @@ mod tests {
 
         assert_eq!(packet.text, "hello");
         assert!(!packet.is_secure);
+    }
+
+    #[test]
+    fn chat_player_notfound_writes_cpp_layout() {
+        let packet = ChatPlayerNotfound {
+            name: "Missing".to_string(),
+        };
+        let data = packet.to_bytes();
+        let mut payload = WorldPacket::from_bytes(&data);
+
+        assert_eq!(
+            payload.read_uint16().unwrap(),
+            ServerOpcodes::ChatPlayerNotfound as u16
+        );
+        assert_eq!(payload.read_bits(9).unwrap(), 7);
+        assert_eq!(payload.read_string(7).unwrap(), "Missing");
+        assert!(payload.is_empty());
     }
 
     #[test]

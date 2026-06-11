@@ -27,8 +27,8 @@ use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
 use wow_network::{GroupInfo, SendAddonIfRegisteredLikeCppCommand, SessionCommand};
 use wow_packet::packets::chat::{
     CTextEmote, ChatAddonMessage, ChatMessage, ChatMessageAfk, ChatMessageDnd, ChatMessageEmote,
-    ChatMessageWhisper, ChatMsg, ChatPkt, ChatRegisterAddonPrefixes, ChatReportIgnored,
-    EmoteClient, EmoteMessage, STextEmote,
+    ChatMessageWhisper, ChatMsg, ChatPkt, ChatPlayerNotfound, ChatRegisterAddonPrefixes,
+    ChatReportIgnored, EmoteClient, EmoteMessage, STextEmote,
 };
 use wow_packet::{ClientPacket, ServerPacket};
 
@@ -422,20 +422,7 @@ impl WorldSession {
             };
             self.send_packet(&inform);
         } else {
-            // Target not found online — echo back as inform (vanilla behavior).
-            let chat = ChatPkt {
-                msg_type: ChatMsg::WhisperInform,
-                language: msg.language as u32,
-                sender_guid,
-                sender_name,
-                target_guid: ObjectGuid::EMPTY,
-                target_name,
-                prefix: String::new(),
-                channel: String::new(),
-                text: msg.text,
-                virtual_realm,
-            };
-            self.send_packet(&chat);
+            self.send_packet(&ChatPlayerNotfound { name: target_name });
         }
     }
 
@@ -1552,6 +1539,26 @@ mod tests {
 
         assert!(sender_rx.try_recv().is_err());
         assert!(target_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn whisper_to_offline_player_sends_notfound_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 374);
+        let (mut session, _player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
+
+        session
+            .handle_chat_whisper(chat_whisper_packet("Missing", "hello"))
+            .await;
+
+        let bytes = sender_rx.try_recv().expect("notfound packet");
+        let mut packet = wow_packet::WorldPacket::from_bytes(&bytes);
+        assert_eq!(
+            packet.read_uint16().expect("opcode"),
+            wow_constants::ServerOpcodes::ChatPlayerNotfound as u16
+        );
+        assert_eq!(packet.read_bits(9).expect("name len"), 7);
+        assert_eq!(packet.read_string(7).expect("name"), "Missing");
+        assert!(packet.is_empty());
     }
 
     #[tokio::test]
