@@ -33,7 +33,9 @@ use wow_packet::packets::chat::{
 };
 use wow_packet::{ClientPacket, ServerPacket};
 
-use crate::session::{PlayerAwayModeLikeCpp, WorldSession, player_team_for_race_cpp};
+use crate::session::{
+    ChatFloodThrottleIndexLikeCpp, PlayerAwayModeLikeCpp, WorldSession, player_team_for_race_cpp,
+};
 
 // ── Broadcast range constants (C# WorldCfg defaults) ─────────────
 const RANGE_SAY: f32 = 25.0;
@@ -270,6 +272,9 @@ impl WorldSession {
         if self.send_wait_before_speaking_notification_if_muted_like_cpp() {
             return;
         }
+        if !matches!(msg_type, ChatMsg::Afk | ChatMsg::Dnd) {
+            self.update_speak_time_like_cpp(ChatFloodThrottleIndexLikeCpp::Regular);
+        }
         if msg.text.len() > 511 {
             return;
         }
@@ -391,6 +396,7 @@ impl WorldSession {
         if self.send_wait_before_speaking_notification_if_muted_like_cpp() {
             return;
         }
+        self.update_speak_time_like_cpp(ChatFloodThrottleIndexLikeCpp::Regular);
         if msg.text.len() > 511 {
             return;
         }
@@ -505,6 +511,7 @@ impl WorldSession {
         if self.send_wait_before_speaking_notification_if_muted_like_cpp() {
             return;
         }
+        self.update_speak_time_like_cpp(ChatFloodThrottleIndexLikeCpp::Regular);
         if msg.text.len() > 511 {
             return;
         }
@@ -836,15 +843,19 @@ impl WorldSession {
         target: &str,
         _channel_guid: ObjectGuid,
     ) {
+        if packet.prefix.is_empty() || packet.prefix.len() > 16 {
+            return;
+        }
+
         if !self.addon_channel_like_cpp() {
             return;
         }
-
         if !self.can_speak_like_cpp() {
             return;
         }
+        self.update_speak_time_like_cpp(ChatFloodThrottleIndexLikeCpp::Addon);
 
-        if packet.prefix.is_empty() || packet.prefix.len() > 16 || packet.text.len() > 255 {
+        if packet.text.len() > 255 {
             return;
         }
 
@@ -902,10 +913,6 @@ impl WorldSession {
         };
 
         if self.has_gm_silence_aura_like_cpp() {
-            return;
-        }
-
-        if !self.can_speak_like_cpp() {
             return;
         }
 
@@ -1370,7 +1377,8 @@ mod tests {
     use std::collections::{HashMap, HashSet};
     use std::sync::Arc;
     use wow_network::{
-        ChatLevelRequirementsLikeCpp, PendingInvites, PlayerBroadcastInfo, PlayerRegistry,
+        ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, PendingInvites, PlayerBroadcastInfo,
+        PlayerRegistry,
     };
 
     const LANG_COMMON_LIKE_CPP: i32 = 7;
@@ -2325,7 +2333,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn account_mute_time_rejects_addon_whisper_silently_like_cpp() {
+    async fn dedicated_addon_whisper_ignores_account_mute_time_like_cpp() {
         let sender = ObjectGuid::create_player(1, 434);
         let (mut session, _, sender_rx) = session_for_chat_routing_like_cpp(sender);
         mute_session_for_seconds_like_cpp(&mut session, 3_600);
@@ -2336,7 +2344,122 @@ mod tests {
             ))
             .await;
 
+        let bytes = sender_rx
+            .try_recv()
+            .expect("dedicated addon whisper still sends missing target notice");
+        let mut packet = wow_packet::WorldPacket::from_bytes(&bytes);
+        assert_eq!(
+            packet.read_uint16().expect("opcode"),
+            wow_constants::ServerOpcodes::ChatPlayerNotfound as u16
+        );
+        assert_eq!(packet.read_bits(9).expect("name len"), 7);
+        assert_eq!(packet.read_string(7).expect("name"), "Missing");
         assert!(sender_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn chat_flood_regular_mutes_after_limit_for_next_message_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 435);
+        let nearby = ObjectGuid::create_player(1, 436);
+        let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
+        let (nearby_tx, nearby_rx) = flume::bounded(8);
+        player_registry.insert(nearby, broadcast_info(nearby, nearby_tx));
+        session.set_chat_flood_config_like_cpp(ChatFloodConfigLikeCpp {
+            message_count: 2,
+            message_delay_secs: 60,
+            addon_message_count: 100,
+            addon_message_delay_secs: 1,
+            mute_time_secs: 10,
+        });
+
+        session
+            .handle_chat_message(
+                chat_message_packet(ClientOpcodes::ChatMessageSay, "first"),
+                ChatMsg::Say,
+            )
+            .await;
+        session
+            .handle_chat_message(
+                chat_message_packet(ClientOpcodes::ChatMessageSay, "second"),
+                ChatMsg::Say,
+            )
+            .await;
+        session
+            .handle_chat_message(
+                chat_message_packet(ClientOpcodes::ChatMessageSay, "third"),
+                ChatMsg::Say,
+            )
+            .await;
+
+        assert_eq!(
+            chat_text(&sender_rx.try_recv().expect("first sender echo")),
+            "first"
+        );
+        assert_eq!(
+            chat_text(&nearby_rx.try_recv().expect("first nearby")),
+            "first"
+        );
+        assert_eq!(
+            chat_text(&sender_rx.try_recv().expect("second sender echo")),
+            "second"
+        );
+        assert_eq!(
+            chat_text(&nearby_rx.try_recv().expect("second nearby")),
+            "second"
+        );
+        let text = print_notification_text(&sender_rx.try_recv().expect("third mute notice"));
+        assert!(text.starts_with("You must wait "));
+        assert!(text.ends_with(" before speaking again."));
+        assert!(sender_rx.try_recv().is_err());
+        assert!(nearby_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn chat_flood_addon_mutes_after_limit_for_next_generic_addon_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 437);
+        let member = ObjectGuid::create_player(1, 438);
+        let (mut session, player_registry, leader_rx) = session_for_chat_routing_like_cpp(leader);
+        let (member_tx, _member_rx) = flume::bounded(8);
+        let (member_command_tx, member_command_rx) = flume::bounded(8);
+        player_registry.insert(
+            member,
+            broadcast_info_with_command_tx(member, member_tx, member_command_tx),
+        );
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+        let group_guid = group.group_guid;
+        let group_registry = Arc::new(wow_network::GroupRegistry::default());
+        group_registry.insert(group_guid, group);
+        session.group_guid = Some(group_guid);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+        session.set_chat_flood_config_like_cpp(ChatFloodConfigLikeCpp {
+            message_count: 10,
+            message_delay_secs: 1,
+            addon_message_count: 2,
+            addon_message_delay_secs: 60,
+            mute_time_secs: 10,
+        });
+
+        session
+            .handle_chat_addon_message(chat_addon_packet(ChatMsg::Party, "ABC", "first"))
+            .await;
+        session
+            .handle_chat_addon_message(chat_addon_packet(ChatMsg::Party, "ABC", "second"))
+            .await;
+        session
+            .handle_chat_addon_message(chat_addon_packet(ChatMsg::Party, "ABC", "third"))
+            .await;
+
+        assert_eq!(
+            chat_text(&expect_addon_command(&member_command_rx).packet_bytes),
+            "first"
+        );
+        assert_eq!(
+            chat_text(&expect_addon_command(&member_command_rx).packet_bytes),
+            "second"
+        );
+        assert!(member_command_rx.try_recv().is_err());
+        assert!(leader_rx.try_recv().is_err());
     }
 
     #[test]

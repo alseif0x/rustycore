@@ -35,7 +35,7 @@ use wow_loot::{
 use wow_network::session_mgr::SessionManager;
 use wow_network::world_socket::{AccountInfo, AccountLookup};
 use wow_network::{
-    ChatLevelRequirementsLikeCpp, GameEventQuestCompleteCommandLikeCpp,
+    ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, GameEventQuestCompleteCommandLikeCpp,
     GameEventQuestCompleteResponseLikeCpp, GroupRegistry, LootDropRatesLikeCpp, PendingInvites,
     PlayerRegistry, ReadyCheckEventLikeCpp, ReputationRatesLikeCpp,
     ResetSeasonalQuestStatusCommand, SendVisibleObjectValuesUpdateCommand, SessionCommand,
@@ -2196,6 +2196,25 @@ async fn main() -> Result<()> {
             emote: world_config_u8(&world_configs, "CONFIG_CHAT_EMOTE_LEVEL_REQ", 1),
             say: world_config_u8(&world_configs, "CONFIG_CHAT_SAY_LEVEL_REQ", 1),
             yell: world_config_u8(&world_configs, "CONFIG_CHAT_YELL_LEVEL_REQ", 1),
+        },
+        chat_flood_config: ChatFloodConfigLikeCpp {
+            message_count: world_config_u32(&world_configs, "CONFIG_CHATFLOOD_MESSAGE_COUNT", 10),
+            message_delay_secs: world_config_u32(
+                &world_configs,
+                "CONFIG_CHATFLOOD_MESSAGE_DELAY",
+                1,
+            ),
+            addon_message_count: world_config_u32(
+                &world_configs,
+                "CONFIG_CHATFLOOD_ADDON_MESSAGE_COUNT",
+                100,
+            ),
+            addon_message_delay_secs: world_config_u32(
+                &world_configs,
+                "CONFIG_CHATFLOOD_ADDON_MESSAGE_DELAY",
+                1,
+            ),
+            mute_time_secs: world_config_u32(&world_configs, "CONFIG_CHATFLOOD_MUTE_TIME", 10),
         },
         realm_id,
         realm_external_address,
@@ -7466,6 +7485,7 @@ async fn create_session(
     session.set_party_raid_warnings_like_cpp(resources.party_raid_warnings);
     session.set_chat_strict_link_checking_kick_like_cpp(resources.chat_strict_link_checking_kick);
     session.set_chat_level_requirements_like_cpp(resources.chat_level_requirements);
+    session.set_chat_flood_config_like_cpp(resources.chat_flood_config);
     session.set_mmap_runtime_config_like_cpp(mmap_runtime_config);
     if let Some(pathfinder) = mmap_pathfinder {
         session.set_mmap_pathfinder_like_cpp(pathfinder);
@@ -8624,7 +8644,7 @@ mod tests {
         run_legacy_creature_movement_tick_and_deliver_once_like_cpp,
         run_legacy_creature_runtime_tick_and_deliver_once_like_cpp,
         spawn_legacy_creature_runtime_update_loop_like_cpp, spawn_store_loader, world_config_bool,
-        world_config_u8, world_config_u16,
+        world_config_u8, world_config_u16, world_config_u32,
     };
     use std::collections::{BTreeMap, HashSet};
     use std::env;
@@ -11044,6 +11064,41 @@ MaxRecruitAFriendBonusDistance = 45
         assert_eq!(world_config_u8(&configs, "CONFIG_CHAT_SAY_LEVEL_REQ", 1), 5);
         assert_eq!(
             world_config_u8(&configs, "CONFIG_CHAT_YELL_LEVEL_REQ", 1),
+            6
+        );
+    }
+
+    #[test]
+    fn chat_flood_config_uses_cpp_world_config_keys() {
+        let _guard = TEST_LOCK.lock().expect("test lock poisoned");
+        wow_config::load_config_from_str(
+            "ChatFlood.MessageCount = 2\n\
+             ChatFlood.MessageDelay = 3\n\
+             ChatFlood.AddonMessageCount = 4\n\
+             ChatFlood.AddonMessageDelay = 5\n\
+             ChatFlood.MuteTime = 6\n",
+        )
+        .expect("config should load");
+
+        let configs = wow_config::load_world_config_values();
+        assert_eq!(
+            world_config_u32(&configs, "CONFIG_CHATFLOOD_MESSAGE_COUNT", 10),
+            2
+        );
+        assert_eq!(
+            world_config_u32(&configs, "CONFIG_CHATFLOOD_MESSAGE_DELAY", 1),
+            3
+        );
+        assert_eq!(
+            world_config_u32(&configs, "CONFIG_CHATFLOOD_ADDON_MESSAGE_COUNT", 100),
+            4
+        );
+        assert_eq!(
+            world_config_u32(&configs, "CONFIG_CHATFLOOD_ADDON_MESSAGE_DELAY", 1),
+            5
+        );
+        assert_eq!(
+            world_config_u32(&configs, "CONFIG_CHATFLOOD_MUTE_TIME", 10),
             6
         );
     }

@@ -120,9 +120,10 @@ use wow_loot::{LootStoreKind, LootStores};
 use wow_map::coords::SIZE_OF_GRID_CELL;
 use wow_network::session_mgr::{InstanceLink, SessionManager};
 use wow_network::{
-    ChatLevelRequirementsLikeCpp, GameEventQuestCompleteClientOutcomeLikeCpp,
-    GameEventQuestCompleteCommandLikeCpp, GroupRegistry, LootDropRatesLikeCpp, PendingInvites,
-    PlayerBroadcastInfo, PlayerRegistry, ReputationRatesLikeCpp, SessionCommand,
+    ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp,
+    GameEventQuestCompleteClientOutcomeLikeCpp, GameEventQuestCompleteCommandLikeCpp,
+    GroupRegistry, LootDropRatesLikeCpp, PendingInvites, PlayerBroadcastInfo, PlayerRegistry,
+    ReputationRatesLikeCpp, SessionCommand,
 };
 use wow_packet::packets::item::{
     InventoryChangeFailure, ItemEnchantTimeUpdate, ItemInstance, ItemMod, ItemModList,
@@ -1712,6 +1713,18 @@ pub(crate) struct RepresentedBattlePetSlotLikeCpp {
     pub(crate) locked: bool,
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+struct ChatFloodThrottleDataLikeCpp {
+    time: i64,
+    count: u32,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum ChatFloodThrottleIndexLikeCpp {
+    Regular = 0,
+    Addon = 1,
+}
+
 impl RepresentedBattlePetSlotLikeCpp {
     pub(crate) fn locked_empty(index: u8) -> Self {
         Self {
@@ -3130,6 +3143,9 @@ pub struct WorldSession {
     chat_strict_link_checking_kick_like_cpp: bool,
     /// C++ `CONFIG_CHAT_*_LEVEL_REQ` represented chat level gates.
     chat_level_requirements_like_cpp: ChatLevelRequirementsLikeCpp,
+    /// C++ `CONFIG_CHATFLOOD_*` represented chat spam protection.
+    chat_flood_config_like_cpp: ChatFloodConfigLikeCpp,
+    chat_flood_data_like_cpp: [ChatFloodThrottleDataLikeCpp; 2],
     /// C++ `CONFIG_ENABLE_MMAPS` + `DataDir` represented until map lifecycle owns real mmaps.
     mmap_runtime_config_like_cpp: MMapRuntimeConfigLikeCpp,
     /// C++ `sWaypointMgr->GetPath(pathId)` resolver for session-created legacy `WorldCreature`
@@ -4039,6 +4055,8 @@ impl WorldSession {
             party_raid_warnings_like_cpp: false,
             chat_strict_link_checking_kick_like_cpp: false,
             chat_level_requirements_like_cpp: ChatLevelRequirementsLikeCpp::default(),
+            chat_flood_config_like_cpp: ChatFloodConfigLikeCpp::default(),
+            chat_flood_data_like_cpp: [ChatFloodThrottleDataLikeCpp::default(); 2],
             mmap_runtime_config_like_cpp: MMapRuntimeConfigLikeCpp::default(),
             waypoint_path_resolver_like_cpp: None,
             represented_unique_gameobject_uses: std::collections::HashSet::new(),
@@ -10652,6 +10670,10 @@ impl WorldSession {
         self.chat_level_requirements_like_cpp = requirements;
     }
 
+    pub fn set_chat_flood_config_like_cpp(&mut self, config: ChatFloodConfigLikeCpp) {
+        self.chat_flood_config_like_cpp = config;
+    }
+
     pub fn set_mmap_runtime_config_like_cpp(&mut self, config: MMapRuntimeConfigLikeCpp) {
         self.mmap_runtime_config_like_cpp = config;
     }
@@ -10682,6 +10704,49 @@ impl WorldSession {
 
     pub(crate) fn chat_level_requirements_like_cpp(&self) -> ChatLevelRequirementsLikeCpp {
         self.chat_level_requirements_like_cpp
+    }
+
+    pub(crate) fn chat_flood_config_like_cpp(&self) -> ChatFloodConfigLikeCpp {
+        self.chat_flood_config_like_cpp
+    }
+
+    pub(crate) fn update_speak_time_like_cpp(&mut self, index: ChatFloodThrottleIndexLikeCpp) {
+        // C++ skips chat spam checks for RBAC_PERM_SKIP_CHECK_CHAT_SPAM. RustyCore
+        // has no RBAC store yet; represented GM state is the current session seam.
+        if self.player_is_game_master_like_cpp() {
+            return;
+        }
+
+        let config = self.chat_flood_config_like_cpp();
+        let (limit, delay_secs) = match index {
+            ChatFloodThrottleIndexLikeCpp::Regular => {
+                (config.message_count, config.message_delay_secs)
+            }
+            ChatFloodThrottleIndexLikeCpp::Addon => {
+                (config.addon_message_count, config.addon_message_delay_secs)
+            }
+        };
+        let current = unix_now();
+        let data = &mut self.chat_flood_data_like_cpp[index as usize];
+
+        if data.time > current {
+            if limit == 0 {
+                return;
+            }
+
+            data.count = data.count.saturating_add(1);
+            if data.count >= limit {
+                let new_mute = current.saturating_add(i64::from(config.mute_time_secs));
+                if self.mute_time_like_cpp < new_mute {
+                    self.mute_time_like_cpp = new_mute;
+                }
+                data.count = 0;
+            }
+        } else {
+            data.count = 1;
+        }
+
+        data.time = current.saturating_add(i64::from(delay_secs));
     }
 
     pub(crate) fn player_is_game_master_like_cpp(&self) -> bool {

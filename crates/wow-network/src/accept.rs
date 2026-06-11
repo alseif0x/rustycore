@@ -99,6 +99,28 @@ impl Default for ChatLevelRequirementsLikeCpp {
     }
 }
 
+/// C++ `ChatFlood.*` represented session snapshot.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ChatFloodConfigLikeCpp {
+    pub message_count: u32,
+    pub message_delay_secs: u32,
+    pub addon_message_count: u32,
+    pub addon_message_delay_secs: u32,
+    pub mute_time_secs: u32,
+}
+
+impl Default for ChatFloodConfigLikeCpp {
+    fn default() -> Self {
+        Self {
+            message_count: 10,
+            message_delay_secs: 1,
+            addon_message_count: 100,
+            addon_message_delay_secs: 1,
+            mute_time_secs: 10,
+        }
+    }
+}
+
 /// Resources needed for creating a WorldSession after authentication.
 ///
 /// Held by the accept loop and cloned for each connection.
@@ -224,6 +246,7 @@ pub struct SessionResources {
     pub party_raid_warnings: bool,
     pub chat_strict_link_checking_kick: bool,
     pub chat_level_requirements: ChatLevelRequirementsLikeCpp,
+    pub chat_flood_config: ChatFloodConfigLikeCpp,
     pub realm_id: u16,
     /// External (public) IP from `realmlist.address`.
     pub realm_external_address: [u8; 4],
