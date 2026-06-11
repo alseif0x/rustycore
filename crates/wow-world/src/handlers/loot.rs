@@ -9022,6 +9022,7 @@ mod tests {
                 aura_interrupt_flags2: 0,
                 represented_effect: None,
                 represented_amount: 0,
+                represented_effect_amounts: Vec::new(),
                 represented_misc_value: None,
                 represented_multiplier: 1.0,
                 applied_at: std::time::Instant::now(),

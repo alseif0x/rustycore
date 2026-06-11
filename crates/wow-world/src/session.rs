@@ -3403,12 +3403,32 @@ pub struct AuraApplication {
     pub represented_effect: Option<RepresentedAuraEffectLikeCpp>,
     /// C++ `GetTotalAuraModifier` amount for represented integer aura effects.
     pub represented_amount: i32,
+    /// C++ `AuraEffect::GetAmount()` snapshots keyed by effect index for party aura points.
+    pub represented_effect_amounts: Vec<RepresentedAuraEffectAmountLikeCpp>,
     /// C++ aura misc value used by represented `GetTotalAuraModifierByMiscValue` lookups.
     pub represented_misc_value: Option<i32>,
     /// C++ `GetTotalAuraMultiplier` factor for represented multiplier aura effects.
     pub represented_multiplier: f32,
     /// Monotonic timestamp when this aura was applied — used for expiry checks.
     pub applied_at: Instant,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RepresentedAuraEffectAmountLikeCpp {
+    pub effect_index: u8,
+    pub amount: i32,
+}
+
+fn represented_aura_effect_amounts_like_cpp(
+    effect: &wow_data::SpellEffectInfo,
+) -> Vec<RepresentedAuraEffectAmountLikeCpp> {
+    let Some(effect_index) = u8::try_from(effect.effect_index).ok() else {
+        return Vec::new();
+    };
+    vec![RepresentedAuraEffectAmountLikeCpp {
+        effect_index,
+        amount: effect.effect_base_points,
+    }]
 }
 
 const AFLAG_SCALABLE_LIKE_CPP: u32 = 0x0000_0008;
@@ -14255,6 +14275,17 @@ impl WorldSession {
             .into_iter()
             .map(|aura| {
                 let points = if aura.aura_flags & AFLAG_SCALABLE_LIKE_CPP != 0
+                    && !aura.represented_effect_amounts.is_empty()
+                {
+                    aura.represented_effect_amounts
+                        .iter()
+                        .filter(|effect| {
+                            effect.effect_index < u32::BITS as u8
+                                && aura.effect_mask & (1u32 << effect.effect_index) != 0
+                        })
+                        .map(|effect| effect.amount as f32)
+                        .collect()
+                } else if aura.aura_flags & AFLAG_SCALABLE_LIKE_CPP != 0
                     && aura.represented_effect.is_some()
                     && aura.effect_mask.count_ones() == 1
                 {
@@ -15201,6 +15232,7 @@ impl WorldSession {
             aura_interrupt_flags2: 0,
             represented_effect: None,
             represented_amount: 0,
+            represented_effect_amounts: Vec::new(),
             represented_misc_value: None,
             represented_multiplier: 1.0,
             applied_at: Instant::now(),
@@ -15260,6 +15292,7 @@ impl WorldSession {
             aura_interrupt_flags2: 0,
             represented_effect: Some(RepresentedAuraEffectLikeCpp::Mounted),
             represented_amount: effect.effect_base_points,
+            represented_effect_amounts: represented_aura_effect_amounts_like_cpp(effect),
             represented_misc_value: Some(effect.effect_misc_value_1),
             represented_multiplier: 1.0,
             applied_at: Instant::now(),
@@ -15325,6 +15358,7 @@ impl WorldSession {
             aura_interrupt_flags2: 0,
             represented_effect: Some(RepresentedAuraEffectLikeCpp::ProvideSpellFocus),
             represented_amount: effect.effect_base_points,
+            represented_effect_amounts: represented_aura_effect_amounts_like_cpp(effect),
             represented_misc_value: Some(effect.effect_misc_value_1),
             represented_multiplier: 1.0,
             applied_at: Instant::now(),
@@ -15365,6 +15399,7 @@ impl WorldSession {
             aura_interrupt_flags2: 0,
             represented_effect: Some(RepresentedAuraEffectLikeCpp::ModBattlePetXpPct),
             represented_amount: effect.effect_base_points,
+            represented_effect_amounts: represented_aura_effect_amounts_like_cpp(effect),
             represented_misc_value: None,
             represented_multiplier: multiplier,
             applied_at: Instant::now(),
@@ -45057,6 +45092,10 @@ mod tests {
             aura_interrupt_flags2: 0,
             represented_effect: Some(effect),
             represented_amount: amount,
+            represented_effect_amounts: vec![RepresentedAuraEffectAmountLikeCpp {
+                effect_index: 0,
+                amount,
+            }],
             represented_misc_value: misc_value,
             represented_multiplier: 1.0,
             applied_at: std::time::Instant::now(),
@@ -46600,6 +46639,10 @@ mod tests {
             reputation_aura_for_test(1, RepresentedAuraEffectLikeCpp::ModReputationGain, 35, None);
         scalable_aura.aura_flags |= AFLAG_SCALABLE_LIKE_CPP;
         scalable_aura.effect_mask = 0x0000_0002;
+        scalable_aura.represented_effect_amounts = vec![RepresentedAuraEffectAmountLikeCpp {
+            effect_index: 1,
+            amount: 35,
+        }];
         session.visible_auras.insert(1, scalable_aura);
 
         session.register_in_player_registry();
@@ -46613,7 +46656,7 @@ mod tests {
     }
 
     #[test]
-    fn player_registry_keeps_multieffect_scalable_aura_points_empty_until_full_snapshot() {
+    fn player_registry_publishes_multieffect_scalable_aura_points_like_cpp() {
         let (mut session, _, _) = make_session();
         let guid = ObjectGuid::create_player(1, 45);
         let registry = Arc::new(PlayerRegistry::default());
@@ -46625,14 +46668,22 @@ mod tests {
         let mut scalable_aura =
             reputation_aura_for_test(1, RepresentedAuraEffectLikeCpp::ModReputationGain, 35, None);
         scalable_aura.aura_flags |= AFLAG_SCALABLE_LIKE_CPP;
-        scalable_aura.effect_mask = 0x0000_0003;
+        scalable_aura.effect_mask = 0x0000_0005;
+        scalable_aura
+            .represented_effect_amounts
+            .push(RepresentedAuraEffectAmountLikeCpp {
+                effect_index: 2,
+                amount: 71,
+            });
         session.visible_auras.insert(1, scalable_aura);
 
         session.register_in_player_registry();
 
         let info = registry.get(&guid).expect("registered player");
         assert_eq!(info.party_member_auras.len(), 1);
-        assert!(info.party_member_auras[0].points.is_empty());
+        let aura = &info.party_member_auras[0];
+        assert_eq!(aura.active_flags, 0x0000_0005);
+        assert_eq!(aura.points, vec![35.0, 71.0]);
     }
 
     #[test]
