@@ -194,7 +194,7 @@ async fn main() -> Result<()> {
     tokio::select! {
         _ = rest_handle => tracing::warn!("REST server stopped"),
         _ = rpc_handle => tracing::warn!("RPC server stopped"),
-        _ = tokio::signal::ctrl_c() => tracing::info!("Shutting down..."),
+        signal = shutdown_signal_like_cpp() => tracing::info!("Shutting down after {signal}..."),
     }
 
     state.login_db.close().await;
@@ -228,6 +228,40 @@ fn log_database_target_like_cpp(kind: &str, info: &DatabaseInfo) {
         database = %info.database,
         "Connecting to database"
     );
+}
+
+#[cfg(unix)]
+async fn shutdown_signal_like_cpp() -> &'static str {
+    let ctrl_c = tokio::signal::ctrl_c();
+    tokio::pin!(ctrl_c);
+
+    let mut sigterm = match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+    {
+        Ok(signal) => signal,
+        Err(error) => {
+            tracing::warn!("Failed to install SIGTERM handler: {error}");
+            let _ = ctrl_c.await;
+            return "SIGINT";
+        }
+    };
+
+    tokio::select! {
+        result = &mut ctrl_c => {
+            if let Err(error) = result {
+                tracing::warn!("Failed while waiting for SIGINT: {error}");
+            }
+            "SIGINT"
+        }
+        _ = sigterm.recv() => "SIGTERM",
+    }
+}
+
+#[cfg(not(unix))]
+async fn shutdown_signal_like_cpp() -> &'static str {
+    if let Err(error) = tokio::signal::ctrl_c().await {
+        tracing::warn!("Failed while waiting for SIGINT: {error}");
+    }
+    "SIGINT"
 }
 
 /// Load TLS certificates and create two acceptors:

@@ -232,7 +232,7 @@ HTTP routes (verb + path):
 - `realm/` module owns the realm list state with a refresh interval (`RealmsStateUpdateDelay`).
 - REST endpoints: `GET /bnetserver/login/` (form), `POST /bnetserver/login/srp/` (challenge), `POST /bnetserver/login/` (response), `GET /bnetserver/portal/`, `GET /bnetserver/gameAccounts/`. Wrong-password lockout flags (`wrong_pass_max`, `wrong_pass_ban_time`, `wrong_pass_ban_type`) are wired into `AppState`.
 - BNet RPC services: `AccountService`, `AuthenticationService` (Logon flow with SRPv1+v2), `ConnectionService` (Bind/Echo), `GameUtilitiesService` (RealmList + RealmJoin).
-- Shutdown: single `tokio::signal::ctrl_c()` await in `main`. On signal, drops `state.login_db` and exits.
+- Shutdown: `tokio::signal::ctrl_c()` plus Unix `SIGTERM` await in `main`. On signal, drops `state.login_db` and exits; graceful in-flight request drain remains pending.
 
 **What's missing vs C++:**
 - **No DB keep-alive timer**. TC pings every 30 minutes (`KeepDatabaseAliveHandler`) to keep MariaDB's `wait_timeout` from killing idle pool connections. `sqlx` does its own pool health-check on borrow, but TC's behaviour is not exactly equivalent and a long-idle bnetserver may see first-request latency spikes.
@@ -534,7 +534,7 @@ HTTP routes (verb + path):
 
 The Rust bnet daemon **reaches the same listening state as TrinityCore** for the happy path: it binds 1119 (TLS, BNet RPC) + 8081 (HTTPS, REST), opens a `LoginDatabase`, runs the `BanExpiryHandler`, polls `realmlist` every `RealmsStateUpdateDelay` s, and wires up the SRPv1/v2 → ticket → `VerifyWebCredentials` → `LogonResult` flow end-to-end. The five core REST endpoints needed for the WoW launcher are present and `cargo test --workspace` passes (395 tests).
 
-What is **not** at parity with TC: cert path config, DB keep-alive ping, `SecretMgr` (HMAC keys), `IPLocation`, the two "bot" REST routes (`POST /login/`, `POST /login/srp/`), `MigrateLegacyPasswordHashes`, CLI args, PID file, and a graceful drain on SIGTERM. The ALPN / TLS-cipher pinning differs because Rust uses `rustls` (TLS 1.2-only `ServerConfig` with no ALPN) while TC uses Boost.Asio + OpenSSL with `TLS_method` (negotiates anything); for WoW 3.4.3 clients that converge on TLS 1.2 + an `ECDHE-RSA-AES*` suite this is functionally equivalent, but uncommon launcher builds may see different ciphers.
+What is **not** at parity with TC: cert path config, DB keep-alive ping, `SecretMgr` (HMAC keys), `IPLocation`, the two "bot" REST routes (`POST /login/`, `POST /login/srp/`), `MigrateLegacyPasswordHashes`, CLI args, PID file, and a graceful in-flight request drain during shutdown. The ALPN / TLS-cipher pinning differs because Rust uses `rustls` (TLS 1.2-only `ServerConfig` with no ALPN) while TC uses Boost.Asio + OpenSSL with `TLS_method` (negotiates anything); for WoW 3.4.3 clients that converge on TLS 1.2 + an `ECDHE-RSA-AES*` suite this is functionally equivalent, but uncommon launcher builds may see different ciphers.
 
 Resolved since the original audit: `extract_auth_ticket` now mirrors TC's `ExtractAuthorization` by stripping optional `"Basic "`, Base64-decoding the value, and truncating at the first `:`. The failed-login/autoban path now persists `WrongPass.*` effects to `battlenet_accounts.failed_logins`, `battlenet_account_bans`, or `ip_banned`.
 
@@ -561,7 +561,7 @@ Resolved since the original audit: `extract_auth_ticket` now mirrors TC's `Extra
 | `sLoginService.StartNetwork(...)` (DNS-resolves `LoginREST.{External,Local}Address`, registers 8 handlers, calls `_acceptor->AsyncAcceptWithCallback<&OnSocketAccept>()`) | — | bind `tokio::net::TcpListener`, accept-loop spawns one task per conn, no DNS resolution of hostnames | ⚠️ no DNS resolve, fewer handlers |
 | `sRealmList->Initialize(io, RealmsStateUpdateDelay)` | DB poll `LoginDatabase` every N s + initial `LoadBuildInfo` | `realm::init_realm_manager` does the same | ✅ |
 | `sSessionMgr.StartNetwork(io, BindIP, BattlenetPort)` | TLS RPC acceptor on 1119 | identical, separate `TlsAcceptor` | ✅ |
-| `boost::asio::signal_set(SIGINT, SIGTERM)` | graceful shutdown | only `tokio::signal::ctrl_c` (SIGINT); SIGTERM never installed | ❌ |
+| `boost::asio::signal_set(SIGINT, SIGTERM)` | graceful shutdown trigger | `tokio::signal::ctrl_c` plus Unix `SIGTERM` stream; in-flight drain still tracked under clean shutdown | ✅ trigger parity |
 | `SetProcessPriority(...)` | priority/affinity | none | ✅ accepted gap (Linux) |
 | `KeepDatabaseAliveHandler` (every `MaxPingTime` min) | `LoginDatabase.KeepAlive()` | none | ❌ |
 | `BanExpiryHandler` (every `BanExpiryCheckInterval` s) | DEL/UPD expired bans (3 statements) | identical (`start_ban_expiry_timer`) | ✅ |
@@ -634,10 +634,10 @@ Add these to §9 (existing tasks #BNET.1–#BNET.14 stand):
 - [x] **#BNET.19** Distinguish error codes in `VerifyWebCredentials`: emit TC status codes for expired ticket (`ERROR_TIMED_OUT=2`), IP/country lock (`ERROR_RISK_ACCOUNT_LOCKED=0xA413`), permanent ban (`ERROR_GAME_ACCOUNT_BANNED=0x34`) and temporary suspension (`ERROR_GAME_ACCOUNT_SUSPENDED=0x35`).
 - [x] **#BNET.20** Add `LOGIN_SEL_IP_INFO` check in `Session::Start`-equivalent: Rust now mirrors TC by deleting expired IP bans, querying `SEL_IP_INFO`, and closing before TLS when the remote IP is actively banned. Applied to both BNet RPC and REST acceptors because TC's `Session::Start()` and `LoginHttpSession::Start()` share this pre-handshake gate.
 - [x] **#BNET.21** Persist failed login attempts and autobans per `WrongPass.MaxCount`/`BanTime`/`BanType`/`Logging` for BNet REST login. Rust writes `battlenet_accounts.failed_logins`, `battlenet_account_bans` or `ip_banned`, and resets failed-login count at the configured threshold like TC. Subsumes `#BNET.8`.
-- [ ] **#BNET.22** Install SIGTERM handler alongside `ctrl_c` so `kill <pid>` shuts down cleanly.
+- [x] **#BNET.22** Install SIGTERM handler alongside `ctrl_c` so `kill <pid>` shuts down cleanly. Rust now awaits SIGINT or Unix SIGTERM like TC's `boost::asio::signal_set`; graceful in-flight request draining remains under #BNET.14.
 - [x] **#BNET.23** Match `HandlePostRefreshLoginTicket` response shape: `{ login_ticket_expiry: <unix> }` or `{ is_expired: true }`, not `{ login_ticket: "…" }`.
 - [ ] **#BNET.24** Resolve `LoginREST.{External,Local}Address` via DNS at startup (TC does, fails fast on bad hostname). Today Rust silently uses the literal string.
 
 ### 13.8 Header status update
 
-Header status changed from `❌ not audited` → `⚠️ audited (2026-05-01)`. Functional state remains `⚠️ partial` because the audit confirmed gaps; remaining blockers include `IPLocation`/country lock parity, cert path config, bot/mobile REST routes, DB keep-alive, and graceful shutdown details.
+Header status changed from `❌ not audited` → `⚠️ audited (2026-05-01)`. Functional state remains `⚠️ partial` because the audit confirmed gaps; remaining blockers include `IPLocation`/country lock parity, cert path config, bot/mobile REST routes, DB keep-alive, and graceful in-flight shutdown drain.
