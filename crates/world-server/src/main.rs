@@ -2184,6 +2184,11 @@ async fn main() -> Result<()> {
             "CONFIG_CHAT_PARTY_RAID_WARNINGS",
             false,
         ),
+        chat_strict_link_checking_kick: world_config_u8(
+            &world_configs,
+            "CONFIG_CHAT_STRICT_LINK_CHECKING_KICK",
+            0,
+        ) != 0,
         chat_level_requirements: ChatLevelRequirementsLikeCpp {
             channel: world_config_u8(&world_configs, "CONFIG_CHAT_CHANNEL_LEVEL_REQ", 1),
             whisper: world_config_u8(&world_configs, "CONFIG_CHAT_WHISPER_LEVEL_REQ", 1),
@@ -7456,6 +7461,7 @@ async fn create_session(
     session.set_enable_ae_loot_like_cpp(resources.enable_ae_loot);
     session.set_chat_fake_message_preventing_like_cpp(resources.chat_fake_message_preventing);
     session.set_party_raid_warnings_like_cpp(resources.party_raid_warnings);
+    session.set_chat_strict_link_checking_kick_like_cpp(resources.chat_strict_link_checking_kick);
     session.set_chat_level_requirements_like_cpp(resources.chat_level_requirements);
     session.set_mmap_runtime_config_like_cpp(mmap_runtime_config);
     if let Some(pathfinder) = mmap_pathfinder {
@@ -10983,6 +10989,19 @@ MaxRecruitAFriendBonusDistance = 45
             "CONFIG_CHAT_PARTY_RAID_WARNINGS",
             false
         ));
+    }
+
+    #[test]
+    fn chat_strict_link_checking_kick_uses_cpp_world_config_key() {
+        let _guard = TEST_LOCK.lock().expect("test lock poisoned");
+        wow_config::load_config_from_str("ChatStrictLinkChecking.Kick = 1\n")
+            .expect("config should load");
+
+        let configs = wow_config::load_world_config_values();
+        assert_ne!(
+            world_config_u8(&configs, "CONFIG_CHAT_STRICT_LINK_CHECKING_KICK", 0),
+            0
+        );
     }
 
     #[test]

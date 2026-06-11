@@ -221,6 +221,7 @@ pub struct SessionResources {
     pub enable_ae_loot: bool,
     pub chat_fake_message_preventing: bool,
     pub party_raid_warnings: bool,
+    pub chat_strict_link_checking_kick: bool,
     pub chat_level_requirements: ChatLevelRequirementsLikeCpp,
     pub realm_id: u16,
     /// External (public) IP from `realmlist.address`.

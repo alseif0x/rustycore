@@ -198,6 +198,25 @@ inventory::submit! {
 // ── Handler implementations ───────────────────────────────────────
 
 impl WorldSession {
+    /// C++ ref: `WorldSession::ValidateHyperlinksAndMaybeKick`.
+    fn validate_hyperlinks_and_maybe_kick_like_cpp(&mut self, text: &str, context: &str) -> bool {
+        if check_all_links_shape_like_cpp(text) {
+            return true;
+        }
+
+        tracing::warn!(
+            account = self.account_id,
+            context,
+            "Chat message rejected: invalid hyperlink/control sequence"
+        );
+
+        if self.chat_strict_link_checking_kick_like_cpp() {
+            self.kick("WorldSession::ValidateHyperlinksAndMaybeKick Invalid chat link");
+        }
+
+        false
+    }
+
     /// Handle say/yell/party/guild/raid/instance chat messages.
     pub async fn handle_chat_message(
         &mut self,
@@ -254,12 +273,7 @@ impl WorldSession {
             "Chat message"
         );
 
-        if !check_all_links_shape_like_cpp(&msg.text) {
-            tracing::warn!(
-                account = self.account_id,
-                ty = ?msg_type,
-                "Chat message rejected: invalid hyperlink/control sequence"
-            );
+        if !self.validate_hyperlinks_and_maybe_kick_like_cpp(&msg.text, "chat") {
             return;
         }
         if self.has_gm_silence_aura_like_cpp() {
@@ -364,11 +378,7 @@ impl WorldSession {
         if msg.text.is_empty() {
             return;
         }
-        if !check_all_links_shape_like_cpp(&msg.text) {
-            tracing::warn!(
-                account = self.account_id,
-                "Whisper rejected: invalid hyperlink/control sequence"
-            );
+        if !self.validate_hyperlinks_and_maybe_kick_like_cpp(&msg.text, "whisper") {
             return;
         }
 
@@ -469,11 +479,7 @@ impl WorldSession {
             );
             return;
         }
-        if !check_all_links_shape_like_cpp(&msg.text) {
-            tracing::warn!(
-                account = self.account_id,
-                "AFK message rejected: invalid hyperlink/control sequence"
-            );
+        if !self.validate_hyperlinks_and_maybe_kick_like_cpp(&msg.text, "afk") {
             return;
         }
         if self.has_gm_silence_aura_like_cpp() {
@@ -502,11 +508,7 @@ impl WorldSession {
             );
             return;
         }
-        if !check_all_links_shape_like_cpp(&msg.text) {
-            tracing::warn!(
-                account = self.account_id,
-                "DND message rejected: invalid hyperlink/control sequence"
-            );
+        if !self.validate_hyperlinks_and_maybe_kick_like_cpp(&msg.text, "dnd") {
             return;
         }
         if self.has_gm_silence_aura_like_cpp() {
@@ -583,11 +585,7 @@ impl WorldSession {
         if msg.text.is_empty() {
             return;
         }
-        if !check_all_links_shape_like_cpp(&msg.text) {
-            tracing::warn!(
-                account = self.account_id,
-                "Text emote rejected: invalid hyperlink/control sequence"
-            );
+        if !self.validate_hyperlinks_and_maybe_kick_like_cpp(&msg.text, "text_emote") {
             return;
         }
         if self.has_gm_silence_aura_like_cpp() {
@@ -1473,6 +1471,28 @@ mod tests {
 
         assert!(sender_rx.try_recv().is_err());
         assert!(nearby_rx.try_recv().is_err());
+        assert!(!session.is_disconnecting());
+    }
+
+    #[tokio::test]
+    async fn chat_strict_link_checking_kick_disconnects_on_invalid_link_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 353);
+        let nearby = ObjectGuid::create_player(1, 354);
+        let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
+        let (nearby_tx, nearby_rx) = flume::bounded(8);
+        player_registry.insert(nearby, broadcast_info(nearby, nearby_tx));
+        session.set_chat_strict_link_checking_kick_like_cpp(true);
+
+        session
+            .handle_chat_message(
+                chat_message_packet(ClientOpcodes::ChatMessageSay, "forged |x control"),
+                ChatMsg::Say,
+            )
+            .await;
+
+        assert!(sender_rx.try_recv().is_err());
+        assert!(nearby_rx.try_recv().is_err());
+        assert!(session.is_disconnecting());
     }
 
     #[tokio::test]

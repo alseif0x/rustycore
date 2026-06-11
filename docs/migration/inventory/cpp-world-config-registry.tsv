@@ -220,7 +220,7 @@ Int	CONFIG_WORLD_BOSS_LEVEL_DIFF	server/game/World/World.h:316	WorldBossLevelDif
 Int	CONFIG_QUEST_LOW_LEVEL_HIDE_DIFF	server/game/World/World.h:317	Quests.LowLevelHideDiff	Int	server/game/World/World.cpp:1259	4		implemented	#NEXT.R8.ENTITIES.753
 Int	CONFIG_QUEST_HIGH_LEVEL_HIDE_DIFF	server/game/World/World.h:318	Quests.HighLevelHideDiff	Int	server/game/World/World.cpp:1262	7		implemented	#NEXT.R8.ENTITIES.754
 Int	CONFIG_CHAT_STRICT_LINK_CHECKING_SEVERITY	server/game/World/World.h:319	ChatStrictLinkChecking.Severity	Int	server/game/World/World.cpp:1295	0		missing_in_rust	-
-Int	CONFIG_CHAT_STRICT_LINK_CHECKING_KICK	server/game/World/World.h:320	ChatStrictLinkChecking.Kick	Int	server/game/World/World.cpp:1296	0		missing_in_rust	-
+Int	CONFIG_CHAT_STRICT_LINK_CHECKING_KICK	server/game/World/World.h:320	ChatStrictLinkChecking.Kick	Int	server/game/World/World.cpp:1296	0		represented_partial	consumed by represented chat handler hyperlink shape gate; packet parser exception kick and semantic validators pending
 Int	CONFIG_CHAT_CHANNEL_LEVEL_REQ	server/game/World/World.h:321	ChatLevelReq.Channel	Int	server/game/World/World.cpp:785	1		represented_partial	loaded into SessionResources; behavioral gate pending ChannelMgr
 Int	CONFIG_CHAT_WHISPER_LEVEL_REQ	server/game/World/World.h:322	ChatLevelReq.Whisper	Int	server/game/World/World.cpp:786	1		represented	consumed by WorldSession whisper level gate
 Int	CONFIG_CHAT_EMOTE_LEVEL_REQ	server/game/World/World.h:323	ChatLevelReq.Emote	Int	server/game/World/World.cpp:787	1		represented	consumed by WorldSession chat-emote level gate
