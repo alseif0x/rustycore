@@ -3,7 +3,7 @@
 > **C++ canonical path:** `src/server/game/Chat/` + `src/server/game/Handlers/ChatHandler.cpp` + `src/server/game/Handlers/ChannelHandler.cpp`
 > **Rust target crate(s):** `crates/wow-chat/`, `crates/wow-world/src/handlers/chat.rs`, `crates/wow-packet/src/packets/chat.rs`
 > **Layer:** L6
-> **Status:** ⚠️ partial (~35.2% — say/yell/whisper/emote work; Party/Raid/RaidWarning/InstanceChat now use group membership routing; group addon Party/Raid/InstanceChat routing represented; `ValidateMessage` newline/control gates, `LANG_UNIVERSAL` client-cheat rejection, Say/Yell/Emote alive gate, `GM_SILENCE_AURA`, and hyperlink shape/control-sequence rejection represented; ignored-report and AFK/DND status toggles represented; Guild/Officer, channels, targeted addon routing, semantic hyperlink validation, full `LanguageMgr` still missing)
+> **Status:** ⚠️ partial (~35.3% — say/yell/whisper/emote work; Party/Raid/RaidWarning/InstanceChat now use group membership routing; group addon Party/Raid/InstanceChat routing represented; `ValidateMessage` newline/control gates, `LANG_UNIVERSAL` client-cheat rejection, unknown-language rejection, Say/Yell/Emote alive gate, `GM_SILENCE_AURA`, and hyperlink shape/control-sequence rejection represented; ignored-report and AFK/DND status toggles represented; Guild/Officer, channels, targeted addon routing, semantic hyperlink validation, full `LanguageMgr` still missing)
 > **Audited vs C++:** ✅ audited 2026-05-01 (§13)
 > **Last updated:** 2026-06-11
 
@@ -258,7 +258,7 @@ DBC/DB2 stores read:
 - **Built-in channels** (Trade, General, LookingForGroup, GuildRecruitment, LocalDefense) — none auto-joined on zone change.
 - **Custom user channels** — no creation/destruction, no `channels` table read/write.
 - **Moderator/Owner/Banlist** — no `MEMBER_FLAG_*` enforcement, no `KickOrBan`, no `SetMode`, no `SetOwner`, no `Announce` toggle.
-- **Languages** — full `LanguageMgr` not ported; speech is never scrambled and addon lang (183/184) never validated. The first C++ gate rejecting client-sent `LANG_UNIVERSAL` for non-emote chat is represented.
+- **Languages** — full `LanguageMgr` not ported; speech is never scrambled and addon lang (183/184) never validated beyond known-language existence. The first C++ gates rejecting client-sent `LANG_UNIVERSAL` for non-emote chat and rejecting unknown language ids are represented.
 - **Hyperlinks** — shape/control-sequence validation is represented for normal chat, whisper/chat-emote, AFK, and DND, but full C++ semantic validation (`ValidateLinkInfo`: item/spell/quest/achievement/text/color/store lookups) is not ported yet, and mail/other hyperlink gates remain incomplete.
 - **Addon messages** — `CMSG_CHAT_ADDON_MESSAGE` now routes Party/Raid/InstanceChat addon payloads through group membership and receiver-side addon-prefix filtering. Guild/Officer/Channel addon routing and targeted/whisper addon packets remain absent.
 - **AFK/DND** — `CMSG_CHAT_MESSAGE_AFK/DND` now toggles canonical `PLAYER_FLAGS_AFK/DND`, stores represented auto-reply text, applies first-stage `ValidateMessage`/hyperlink shape gates, and rejects represented `GM_SILENCE_AURA=1852`, but real kick-on-bad-link, guild away event, script hook, localized default strings, battleground side-effect, and auto-reply delivery remain missing.
@@ -439,6 +439,7 @@ DBC/DB2 stores read:
 - [x] **#CHAT.14b1** Port first-stage chat `ValidateMessage` gates — length/empty checks for normal chat, newline truncation/rejection, ASCII-control rejection except tab, applied to normal chat, whisper, chat-emote, AFK, and DND. Complejidad: **M**
 - [x] **#CHAT.14b2a** Port represented `GM_SILENCE_AURA=1852` chat gates — non-whisper chat/emote/AFK/DND are rejected, and whispers are rejected unless the receiver is a GM, matching `ChatHandler.cpp` first-stage behavior. Complejidad: **S**
 - [x] **#CHAT.14b2c** Port C++ first-stage language cheat gate — client-sent `LANG_UNIVERSAL` is rejected for non-emote chat/whisper before delivery. Complejidad: **S**
+- [x] **#CHAT.14b2d** Port C++ unknown-language existence gate — normal chat and whisper reject language ids absent from `LanguageMgr::LoadLanguages` / `SharedDefines.h` before delivery; full skill/aura/scrambling logic remains in `#CHAT.17`. Complejidad: **S**
 - [ ] **#CHAT.14b2b** Complete remaining C++ AFK/DND/chat side effects: real hyperlink kick, localized `LANG_GM_SILENCE` notification, guild away event, script hook, localized defaults, battleground leave, actual auto-reply delivery, and config-backed `ChatFakeMessagePreventing` space collapse. Complejidad: **M**
 - [x] **#CHAT.15** Implement `CMSG_CHAT_REPORT_IGNORED` — inform sender they were ignored. Complejidad: **L**
 - [x] **#CHAT.16a** Implement group addon routing for `CMSG_CHAT_ADDON_MESSAGE` Party/Raid/InstanceChat — build `SMSG_CHAT` with real addon prefix, `LANG_ADDON`/`LANG_ADDON_LOGGED`, no sender echo, party subgroup filtering, and receiver-side `IsAddonRegistered(prefix)` gate. Complejidad: **M**
@@ -495,7 +496,7 @@ DBC/DB2 stores read:
 
 | Scope | Decision | C++ retained | Evidence |
 |---|---|---|---|
-| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 21 files / 7293 lines; refs: `/home/server/woltk-trinity-legacy/src/server/game/Chat/Channels/Channel.cpp`, `/home/server/woltk-trinity-legacy/src/server/game/Chat/Chat.cpp`, `/home/server/woltk-trinity-legacy/src/server/game/Chat/Hyperlinks.cpp` | `crates/wow-chat/`, `crates/wow-world/src/handlers/chat.rs`, `crates/wow-packet/src/packets/chat.rs` \| ⚠️ partial (~35.2% — say/yell/whisper/emote work; Party/Raid/RaidWarning/InstanceChat and group addon routing are represented; `ValidateMessage`, `LANG_UNIVERSAL` rejection, Say/Yell/Emote alive gate, `GM_SILENCE_AURA`, and hyperlink shape/control validation represented; ignored-report and AFK/DND status toggles represented; Guild/Officer, channels, targeted addon routing, semantic hyperlink validation, full `LanguageMgr` still missing) |
+| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 21 files / 7293 lines; refs: `/home/server/woltk-trinity-legacy/src/server/game/Chat/Channels/Channel.cpp`, `/home/server/woltk-trinity-legacy/src/server/game/Chat/Chat.cpp`, `/home/server/woltk-trinity-legacy/src/server/game/Chat/Hyperlinks.cpp` | `crates/wow-chat/`, `crates/wow-world/src/handlers/chat.rs`, `crates/wow-packet/src/packets/chat.rs` \| ⚠️ partial (~35.3% — say/yell/whisper/emote work; Party/Raid/RaidWarning/InstanceChat and group addon routing are represented; `ValidateMessage`, `LANG_UNIVERSAL` rejection, unknown-language rejection, Say/Yell/Emote alive gate, `GM_SILENCE_AURA`, and hyperlink shape/control validation represented; ignored-report and AFK/DND status toggles represented; Guild/Officer, channels, targeted addon routing, semantic hyperlink validation, full `LanguageMgr` still missing) |
 
 <!-- REFINE.025:END product-scope -->
 
@@ -576,7 +577,7 @@ The seven distinct inventory entries each list their own `handler_name` (`handle
 | C++ opcode handler | Rust | Verdict |
 |---|---|---|
 | `HandleChatMessageSay/Yell/Emote` | ✅ proximity broadcast for Say/Yell/Emote; ✅ dead players rejected for Say/Yell/chat-emote like C++ |  partial |
-| `HandleChatMessageParty/Raid/RaidWarning/InstanceChat` | ✅ registered, ✅ group-routed via `GroupRegistry`/`PlayerRegistry`; ✅ client-sent `LANG_UNIVERSAL` rejected; residual BG original-group/config/full `LanguageMgr` gates pending | partial |
+| `HandleChatMessageParty/Raid/RaidWarning/InstanceChat` | ✅ registered, ✅ group-routed via `GroupRegistry`/`PlayerRegistry`; ✅ client-sent `LANG_UNIVERSAL` and unknown languages rejected; residual BG original-group/config/full `LanguageMgr` gates pending | partial |
 | `HandleChatMessageGuild/Officer` | Guild registered but drops pending `GuildRegistry`; Officer not represented | missing |
 | `HandleChatMessageWhisper` | ✅ `chat.rs:187-257` via `player_registry` name lookup; offline → inform-only echo |  partial |
 | `HandleChatMessageAFK/DND` | ✅ registered; toggles canonical AFK/DND flags + represented auto-reply |  partial |

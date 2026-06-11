@@ -42,6 +42,12 @@ const LANG_UNIVERSAL_LIKE_CPP: i32 = 0;
 const LANG_ADDON_LIKE_CPP: u32 = 183;
 const LANG_ADDON_LOGGED_LIKE_CPP: u32 = 184;
 const GM_SILENCE_AURA_LIKE_CPP: i32 = 1852;
+const KNOWN_LANGUAGES_LIKE_CPP: &[i32] = &[
+    // C++ `LanguageMgr::LoadLanguages` accepts Languages.db2 entries plus the
+    // code-only languages registered in `SharedDefines.h`.
+    0, 1, 2, 3, 6, 7, 8, 9, 10, 11, 12, 13, 14, 33, 35, 36, 37, 38, 39, 40, 42, 43, 44, 168, 178,
+    179, 180, 181, 182, 183, 184, 285, 287, 288, 290, 291, 292, 293, 294, 295, 296, 297, 298,
+];
 
 // ── Handler registrations ─────────────────────────────────────────
 
@@ -220,6 +226,15 @@ impl WorldSession {
             );
             return;
         }
+        if !is_known_language_like_cpp(msg.language) {
+            tracing::warn!(
+                account = self.account_id,
+                ty = ?msg_type,
+                language = msg.language,
+                "Chat message rejected: unknown language"
+            );
+            return;
+        }
         if !validate_message_like_cpp(&mut msg.text, false) {
             tracing::warn!(
                 account = self.account_id,
@@ -325,6 +340,14 @@ impl WorldSession {
             tracing::warn!(
                 account = self.account_id,
                 "Whisper rejected: client attempted LANG_UNIVERSAL"
+            );
+            return;
+        }
+        if !is_known_language_like_cpp(msg.language) {
+            tracing::warn!(
+                account = self.account_id,
+                language = msg.language,
+                "Whisper rejected: unknown language"
             );
             return;
         }
@@ -985,6 +1008,10 @@ fn chat_msg_from_i32_like_cpp(value: i32) -> Option<ChatMsg> {
     }
 }
 
+fn is_known_language_like_cpp(language: i32) -> bool {
+    KNOWN_LANGUAGES_LIKE_CPP.contains(&language)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1388,6 +1415,29 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn chat_message_rejects_unknown_language_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 370);
+        let nearby = ObjectGuid::create_player(1, 371);
+        let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
+        let (nearby_tx, nearby_rx) = flume::bounded(8);
+        player_registry.insert(nearby, broadcast_info(nearby, nearby_tx));
+
+        session
+            .handle_chat_message(
+                chat_message_packet_with_language(
+                    ClientOpcodes::ChatMessageSay,
+                    999,
+                    "unknown language",
+                ),
+                ChatMsg::Say,
+            )
+            .await;
+
+        assert!(sender_rx.try_recv().is_err());
+        assert!(nearby_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
     async fn dead_player_cannot_send_say_like_cpp() {
         let sender = ObjectGuid::create_player(1, 357);
         let nearby = ObjectGuid::create_player(1, 358);
@@ -1475,6 +1525,28 @@ mod tests {
                 "Target",
                 LANG_UNIVERSAL_LIKE_CPP,
                 "universal",
+            ))
+            .await;
+
+        assert!(sender_rx.try_recv().is_err());
+        assert!(target_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn whisper_rejects_unknown_language_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 372);
+        let target = ObjectGuid::create_player(1, 373);
+        let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
+        let (target_tx, target_rx) = flume::bounded(8);
+        let mut target_info = broadcast_info(target, target_tx);
+        target_info.player_name = "Target".to_string();
+        player_registry.insert(target, target_info);
+
+        session
+            .handle_chat_whisper(chat_whisper_packet_with_language(
+                "Target",
+                999,
+                "unknown language",
             ))
             .await;
 
