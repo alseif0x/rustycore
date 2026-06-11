@@ -242,7 +242,7 @@ HTTP routes (verb + path):
 - **Startup banner present**. Rust logs a `Banner::Show`-style startup summary with package version/revision, config file, overlays, env overrides, TLS backend and relevant dependency versions.
 - **No legacy password migration** (`MigrateLegacyPasswordHashes`). Means accounts on SRPv1 can never be upgraded silently — they have to be deleted and recreated.
 - **No `POST /login/`, `POST /login/srp/`** (the "bot" / mobile-client login routes).
-- **No `POST /bnetserver/refreshLoginTicket/`**. Ticket TTL is fixed at issuance.
+- **`POST /bnetserver/refreshLoginTicket/` present**. Rust matches TC's response shape and DB write for valid/expired tickets.
 - **No `SOAP` / Win32 service / process priority / processor affinity** — Linux-only Rust target, accepted gap.
 - **`MaxCoreStuckTime` / freeze detector** — bnetserver's main loop is event-driven (not a tight `World::Update` loop). Rust now treats REST/RPC listener task exit as fatal instead of a clean shutdown; in-flight graceful drain remains under #BNET.14.
 - **Thread-count configs are informational for Rust BNet**. Audited against TC: `Network.Threads` is enforced by `worldserver`, but `bnetserver` starts one `IoContext` and does not gate startup on that key. Rust logs `Network.Threads` / `LoginREST.ThreadCount` for visibility and uses Tokio's multi-thread runtime.
@@ -254,7 +254,7 @@ HTTP routes (verb + path):
 - **The "BNet RPC" framing** in `rpc/session.rs` claims to mirror C#/TC but the BNet protocol uses a 16-bit length prefix + protobuf with explicit `Header { service_hash, method_id, token, object_id, status, error[], timeout, size }` — verify byte-for-byte that what the client sends is actually decoded correctly (mismatched here ⇒ silent client kick).
 - **`session_key_bnet` storage**: audited against Trinity C++ and closed in #BNET.11. TC writes 64 raw bytes with `setBinary` (`client_secret[32] || server_secret[32]`) into `varbinary(64)`. Rust writes the same raw 64 bytes via `set_bytes`; the world-server reads the raw bytes and hex-encodes only for the internal auth helper.
 - **No legacy v1 migration** could be silent foot-gun if any pre-existing accounts in the DB are still v1 (most TC dumps are v2 since 2018, but worth checking).
-- **Wrong-pass tracking is in-memory**. TC writes failed login attempts to `account_failedlogins` / `ip_auto_banned` so the ban survives a restart. Rust seems to count in `AppState` only.
+- **Wrong-pass tracking persists**. Rust now mirrors TC's configurable `WrongPass.*` policy by updating `battlenet_accounts.failed_logins` and inserting account/IP autobans at the threshold.
 
 **Tests existing:**
 - A handful in `bnet-server/src/rest/` (likely unit tests for SRP). To confirm via `cargo test -p bnet-server`.
@@ -416,8 +416,8 @@ HTTP routes (verb + path):
 - [x] **#BNET.4** Implement `CreatePIDFile(path)` equivalent. Rust reads `PidFile`, writes `std::process::id()` before DB/TLS startup, logs the daemon PID, and aborts startup if the file cannot be created.
 - [ ] **#BNET.5** Port `IPLocation` loader: parse CSV from `IPLocation.File`, build a sorted IP-range → country map; expose `lookup(ip)`. Used by `lock_country` and `WrongPass.BanType=BAN_IP` policies. (M)
 - [ ] **#BNET.6** Port `SecretMgr::Initialize(SECRET_OWNER_BNETSERVER)`: persist a per-realm HMAC key in `secrets` table (or local file as TC does); use it for any internal signing. (M)
-- [ ] **#BNET.7** Add the missing REST routes: `POST /login/`, `POST /login/srp/` (bot/mobile clients), `POST /bnetserver/refreshLoginTicket/`. (M)
-- [ ] **#BNET.8** Persist wrong-pass attempts in `account_failedlogins` + `ip_auto_banned` (don't only track in-memory). (M)
+- [ ] **#BNET.7** Add the missing REST bot/mobile routes: `POST /login/`, `POST /login/srp/`. `POST /bnetserver/refreshLoginTicket/` is already implemented and tracked under #BNET.23. (M)
+- [x] **#BNET.8** Persist wrong-pass attempts in DB. Subsumed by #BNET.21: Rust writes `battlenet_accounts.failed_logins`, `battlenet_account_bans` or `ip_banned`, and resets failed-login count at the configured threshold like TC.
 - [ ] **#BNET.9** Implement `MigrateLegacyPasswordHashes()`: opt-in one-shot pass that re-derives v2 verifier on first successful v1 login. (M)
 - [x] **#BNET.10** Add a freeze-style watchdog for listener tasks: if the REST/RPC listener task exits or panics, Rust now closes the DB and returns an error instead of treating it as a clean shutdown. Signal-driven shutdown remains the normal path; in-flight graceful drain remains #BNET.14.
 - [x] **#BNET.11** Verify `session_key_bnet` storage format vs TC. Trinity C++ stores **64 raw bytes** with `setBinary` (`client_secret[32] || server_secret[32]`), not a hex string. Rust already wrote raw bytes; the port now enforces the 32+32 byte contract before persisting to avoid invalid keys on malformed realm-list tickets.
