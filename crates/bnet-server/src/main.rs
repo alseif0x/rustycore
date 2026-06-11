@@ -140,6 +140,22 @@ async fn main() -> Result<()> {
                     let acceptor = rest_tls_acceptor.clone();
                     let state = Arc::clone(&rest_state);
                     tokio::spawn(async move {
+                        match state
+                            .remote_ip_is_banned_like_cpp(&addr.ip().to_string())
+                            .await
+                        {
+                            Ok(true) => {
+                                tracing::debug!("{addr} tried to log in using banned IP");
+                                return;
+                            }
+                            Ok(false) => {}
+                            Err(error) => {
+                                tracing::warn!(
+                                    "Failed to check REST banned IP status for {addr}: {error}"
+                                );
+                            }
+                        }
+
                         let tls_stream = match acceptor.accept(stream).await {
                             Ok(s) => s,
                             Err(e) => {

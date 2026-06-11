@@ -3,7 +3,7 @@
 use dashmap::DashMap;
 use parking_lot::RwLock;
 use std::collections::HashMap;
-use wow_database::LoginDatabase;
+use wow_database::{DatabaseError, LoginDatabase, LoginStatements};
 
 use crate::realm::RealmManager;
 
@@ -65,6 +65,56 @@ impl AppState {
             rest_sessions: DashMap::new(),
             realm_mgr: RwLock::new(RealmManager::new()),
         }
+    }
+
+    /// Mirror TrinityCore bnetserver's pre-handshake `LOGIN_SEL_IP_INFO` check.
+    ///
+    /// C++ first purges expired IP bans, then closes the socket before TLS if
+    /// any returned row has a non-zero `banned` column.
+    pub async fn remote_ip_is_banned_like_cpp(
+        &self,
+        remote_ip: &str,
+    ) -> Result<bool, DatabaseError> {
+        let delete_expired = self.login_db.prepare(LoginStatements::DEL_EXPIRED_IP_BANS);
+        if let Err(error) = self.login_db.execute(&delete_expired).await {
+            tracing::warn!("Failed to delete expired IP bans before connection check: {error}");
+        }
+
+        let mut stmt = self.login_db.prepare(LoginStatements::SEL_IP_INFO);
+        stmt.set_string(0, remote_ip);
+        let mut result = self.login_db.query(&stmt).await?;
+
+        if result.is_empty() {
+            return Ok(false);
+        }
+
+        loop {
+            if ip_ban_row_is_active_like_cpp(result.try_read::<u64>(0).unwrap_or(0)) {
+                return Ok(true);
+            }
+
+            if !result.next_row() {
+                break;
+            }
+        }
+
+        Ok(false)
+    }
+}
+
+fn ip_ban_row_is_active_like_cpp(banned: u64) -> bool {
+    banned != 0
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ip_ban_row_is_active_like_cpp;
+
+    #[test]
+    fn ip_ban_row_matches_cpp_nonzero_gate() {
+        assert!(!ip_ban_row_is_active_like_cpp(0));
+        assert!(ip_ban_row_is_active_like_cpp(1));
+        assert!(ip_ban_row_is_active_like_cpp(u64::MAX));
     }
 }
 

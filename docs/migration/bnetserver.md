@@ -589,7 +589,7 @@ Resolved since the original audit: `extract_auth_ticket` now mirrors TC's `Extra
 |---|---|---|---|
 | TCP accept → TLS handshake | Boost.Asio `ssl::stream` (TLS_method, OpenSSL cipher list) | `tokio_rustls::TlsAcceptor` (TLS 1.2 only, rustls default ciphers) | ⚠️ rustls cipher set ⊂ OpenSSL |
 | ALPN | not advertised | not advertised | ✅ |
-| `LOGIN_SEL_IP_INFO` ip-ban check on `Start()` | ✅ | ❌ — Rust does not check `ip_banned` at session start (only on bnet REST login attempt) | ❌ |
+| `LOGIN_SEL_IP_INFO` ip-ban check on `Start()` | ✅ | ✅ — Rust now purges expired IP bans and checks `ip_banned` before TLS for both RPC and REST acceptors | ✅ |
 | `ConnectionService::Connect/Bind/Echo/KeepAlive` | full | `Bind`/`Echo` implemented; `Connect`/`KeepAlive` partial | ⚠️ |
 | `AuthenticationService.Logon` | validates program/platform/locale, optional `cached_web_credentials` shortcut, sends `ChallengeExternalRequest` | program+platform+locale validated with TC status codes; `cached_web_credentials` now short-circuits through the same VerifyWebCredentials path; challenge fallback remains | ✅ |
 | `ChallengeListener::OnExternalChallenge` (web auth URL) | sent via `Service<ChallengeListener>` | sent via `send_request(CHALLENGE_LISTENER, 3, …)` | ✅ |
@@ -632,7 +632,7 @@ Add these to §9 (existing tasks #BNET.1–#BNET.14 stand):
 - [x] **#BNET.17** Validate locale in `handle_logon` (TC returns `ERROR_BAD_LOCALE`). Rust now uses the same allow-list as `Common.cpp::localeNames` and returns TC status codes for bad program/platform/locale.
 - [x] **#BNET.18** Honour `cached_web_credentials` in `LogonRequest`: short-circuit straight to `VerifyWebCredentials` instead of always sending the web-auth challenge. Saves one client round-trip.
 - [x] **#BNET.19** Distinguish error codes in `VerifyWebCredentials`: emit TC status codes for expired ticket (`ERROR_TIMED_OUT=2`), IP/country lock (`ERROR_RISK_ACCOUNT_LOCKED=0xA413`), permanent ban (`ERROR_GAME_ACCOUNT_BANNED=0x34`) and temporary suspension (`ERROR_GAME_ACCOUNT_SUSPENDED=0x35`).
-- [ ] **#BNET.20** Add `LOGIN_SEL_IP_INFO` check in `Session::Start`-equivalent: reject TLS handshake if remote IP is in `ip_banned`.
+- [x] **#BNET.20** Add `LOGIN_SEL_IP_INFO` check in `Session::Start`-equivalent: Rust now mirrors TC by deleting expired IP bans, querying `SEL_IP_INFO`, and closing before TLS when the remote IP is actively banned. Applied to both BNet RPC and REST acceptors because TC's `Session::Start()` and `LoginHttpSession::Start()` share this pre-handshake gate.
 - [x] **#BNET.21** Persist failed login attempts and autobans per `WrongPass.MaxCount`/`BanTime`/`BanType`/`Logging` for BNet REST login. Rust writes `battlenet_accounts.failed_logins`, `battlenet_account_bans` or `ip_banned`, and resets failed-login count at the configured threshold like TC. Subsumes `#BNET.8`.
 - [ ] **#BNET.22** Install SIGTERM handler alongside `ctrl_c` so `kill <pid>` shuts down cleanly.
 - [x] **#BNET.23** Match `HandlePostRefreshLoginTicket` response shape: `{ login_ticket_expiry: <unix> }` or `{ is_expired: true }`, not `{ login_ticket: "…" }`.
@@ -640,4 +640,4 @@ Add these to §9 (existing tasks #BNET.1–#BNET.14 stand):
 
 ### 13.8 Header status update
 
-Header status changed from `❌ not audited` → `⚠️ audited (2026-05-01)`. Functional state remains `⚠️ partial` because the audit confirmed gaps; remaining blockers include IP ban at session start, `IPLocation`/country lock parity, cert path config, and bot/mobile REST routes.
+Header status changed from `❌ not audited` → `⚠️ audited (2026-05-01)`. Functional state remains `⚠️ partial` because the audit confirmed gaps; remaining blockers include `IPLocation`/country lock parity, cert path config, bot/mobile REST routes, DB keep-alive, and graceful shutdown details.

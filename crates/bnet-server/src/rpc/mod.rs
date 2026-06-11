@@ -20,6 +20,22 @@ pub async fn accept_loop(listener: TcpListener, state: Arc<AppState>, tls_accept
                 let state = Arc::clone(&state);
                 let acceptor = tls_acceptor.clone();
                 tokio::spawn(async move {
+                    match state
+                        .remote_ip_is_banned_like_cpp(&addr.ip().to_string())
+                        .await
+                    {
+                        Ok(true) => {
+                            tracing::debug!("{addr} tried to log in using banned IP");
+                            return;
+                        }
+                        Ok(false) => {}
+                        Err(error) => {
+                            tracing::warn!(
+                                "Failed to check RPC banned IP status for {addr}: {error}"
+                            );
+                        }
+                    }
+
                     // TLS handshake
                     let tls_stream = match acceptor.accept(stream).await {
                         Ok(s) => s,
