@@ -1496,6 +1496,9 @@ impl crate::session::WorldSession {
         &mut self,
         _pkt: wow_packet::WorldPacket,
     ) {
+        // C++ only sends GuildBankRemainingWithdrawMoney when GetPlayer()->GetGuild()
+        // resolves a live guild. Rust has no represented guild-bank manager here
+        // yet, so the no-guild branch is correctly silent.
     }
     /// CMSG_BATTLE_PET_REQUEST_JOURNAL — send represented journal.
     ///
@@ -4757,6 +4760,17 @@ mod tests {
 
         let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
         assert_eq!(pkt.read_uint32().unwrap(), 0);
+    }
+
+    #[tokio::test]
+    async fn guild_bank_remaining_withdraw_money_without_guild_is_silent_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_guild_bank_remaining_withdraw_money_query(WorldPacket::new_empty())
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
     }
 
     #[tokio::test]

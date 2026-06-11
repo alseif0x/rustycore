@@ -3902,6 +3902,20 @@ impl ClientPacket for ArenaTeamRoster {
     }
 }
 
+/// C++ `WorldPackets::Guild::GuildBankRemainingWithdrawMoney`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct GuildBankRemainingWithdrawMoney {
+    pub remaining_withdraw_money: i64,
+}
+
+impl ServerPacket for GuildBankRemainingWithdrawMoney {
+    const OPCODE: ServerOpcodes = ServerOpcodes::GuildBankRemainingWithdrawMoney;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_int64(self.remaining_withdraw_money);
+    }
+}
+
 /// C++ `WorldPackets::Token::CommerceTokenGetLog`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CommerceTokenGetLog {
@@ -4222,6 +4236,22 @@ mod tests {
 
         let request = ArenaTeamRoster::read(&mut pkt).unwrap();
         assert_eq!(request.team_id, 0x0102_0304);
+    }
+
+    #[test]
+    fn guild_bank_remaining_withdraw_money_matches_cpp_shape() {
+        let bytes = GuildBankRemainingWithdrawMoney {
+            remaining_withdraw_money: 123_456_789,
+        }
+        .to_bytes();
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::GuildBankRemainingWithdrawMoney as u16
+        );
+        assert_eq!(bytes.len(), 2 + 8);
+
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_int64().unwrap(), 123_456_789);
     }
 
     #[test]
