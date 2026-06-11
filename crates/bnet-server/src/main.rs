@@ -8,6 +8,7 @@ mod legacy_password;
 mod realm;
 mod rest;
 mod rpc;
+mod secret_mgr;
 mod state;
 
 use anyhow::{Context, Result};
@@ -89,6 +90,15 @@ async fn main() -> Result<()> {
     if !legacy_password_report.column_present {
         tracing::debug!("Legacy Battle.net sha_pass_hash column not present; skipping migration");
     }
+    let secret_report =
+        secret_mgr::initialize_secret_mgr_like_cpp(&login_db, secret_mgr::SecretOwner::BnetServer)
+            .await
+            .context("Failed to initialize SecretMgr for bnetserver")?;
+    tracing::debug!(
+        totp_master_secret_present = secret_report.totp_master_secret_present,
+        transitioned = secret_report.transitioned,
+        "SecretMgr initialized for bnetserver"
+    );
 
     // Load TLS certificates — separate configs for REST (HTTPS) and RPC (binary)
     let cert_file = wow_config::get_string_default("CertificatesFile", "./bnetserver.cert.pem");

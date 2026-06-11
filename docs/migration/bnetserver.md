@@ -3,7 +3,7 @@
 > **C++ canonical path:** `src/server/bnetserver/`
 > **Rust target crate(s):** `crates/bnet-server/`
 > **Layer:** binary (executable entry point)
-> **Status:** ⚠️ partial (login flow works; missing encrypted private-key support, SecretMgr)
+> **Status:** ⚠️ partial (login flow works; missing encrypted private-key support)
 > **Audited vs C++:** ⚠️ audited (2026-05-01) — see §13
 > **Last updated:** 2026-05-01
 
@@ -238,7 +238,7 @@ HTTP routes (verb + path):
 - **DB keep-alive timer present**. Rust reads `MaxPingTime` and periodically issues `SELECT 1` against `LoginDatabase`; TC calls `LoginDatabase.KeepAlive()` / native connection ping. Behavior is equivalent for keeping the pool warm, though not a per-connection native `mysql_ping()`.
 - **PID-file creation present**. Rust reads `PidFile` and writes the current process id before opening DB/network, aborting startup on write failure like TC.
 - **`IPLocation` DB load present**. Rust reads `IPLocationFile`, parses TC's numeric IPv4 range CSV, and uses it for BNet `lock_country` enforcement. WrongPass IP autobans already persist through the DB path.
-- **No `SecretMgr` initialization** for `SECRET_OWNER_BNETSERVER`. SecretMgr stores HMAC keys for various server-internal purposes (e.g. realm-list signing). Currently every signed message in the Rust port either uses a hardcoded test key or skips signing entirely.
+- **`SecretMgr` initialization present** for `SECRET_OWNER_BNETSERVER`. In this TC tree the only secret is `SECRET_TOTP_MASTER_KEY`: Rust now reads `TOTPMasterSecret` / `TOTPOldMasterSecret`, validates or writes `secret_digest` with TC Argon2id parameters, and transitions `account.totp_secret` using AES-128-GCM with trailing IV+tag like C++.
 - **Startup banner present**. Rust logs a `Banner::Show`-style startup summary with package version/revision, config file, overlays, env overrides, TLS backend and relevant dependency versions.
 - **Legacy password migration present** (`MigrateLegacyPasswordHashes`). Rust now mirrors TC's startup pass: if `battlenet_accounts.sha_pass_hash` exists, rows with non-default legacy hash or missing salt/verifier are converted to SRPv1 salt/verifier and the legacy hash is reset to its column default.
 - **Bot/mobile REST routes present**. Rust implements `POST /login/srp/` and `POST /login/` with the TC bot SRP parameters (`BOT_SRP_N`, broken evidence vectors, same JSON fields).
@@ -415,7 +415,7 @@ HTTP routes (verb + path):
 - [x] **#BNET.3** Implement DB keep-alive timer: every `MaxPingTime` minutes (default 30) issue a `SELECT 1` against `LoginDatabase`. Rust disables the timer with a warning if `MaxPingTime=0` to avoid a zero-period Tokio interval.
 - [x] **#BNET.4** Implement `CreatePIDFile(path)` equivalent. Rust reads `PidFile`, writes `std::process::id()` before DB/TLS startup, logs the daemon PID, and aborts startup if the file cannot be created.
 - [x] **#BNET.5** Port `IPLocation` loader: Rust parses `IPLocationFile` as TC's numeric IPv4 CSV, lowercases country codes, exposes lookup, and enforces BNet `lock_country` in `VerifyWebCredentials` when the account is not locked to a specific IP.
-- [ ] **#BNET.6** Port `SecretMgr::Initialize(SECRET_OWNER_BNETSERVER)`: persist a per-realm HMAC key in `secrets` table (or local file as TC does); use it for any internal signing. (M)
+- [x] **#BNET.6** Port `SecretMgr::Initialize(SECRET_OWNER_BNETSERVER)`: initializes `SECRET_TOTP_MASTER_KEY` from `TOTPMasterSecret`, validates/stores `secret_digest`, and transitions `account.totp_secret` with `TOTPOldMasterSecret` + AES-GCM like TC.
 - [x] **#BNET.7** Add the missing REST bot/mobile routes: `POST /login/`, `POST /login/srp/`. Rust keeps bot SRP state per REST connection like TC `LoginHttpSession`, returns `{salt, public_B}`, verifies `A`/`M1`, stores a `TC-` login ticket, and returns `{M2, login_ticket, session_key}`.
 - [x] **#BNET.8** Persist wrong-pass attempts in DB. Subsumed by #BNET.21: Rust writes `battlenet_accounts.failed_logins`, `battlenet_account_bans` or `ip_banned`, and resets failed-login count at the configured threshold like TC.
 - [x] **#BNET.9** Implement `MigrateLegacyPasswordHashes()`: startup pass that auto-skips when `battlenet_accounts.sha_pass_hash` does not exist; otherwise converts legacy 64-hex `sha_pass_hash` to SRPv1 salt/verifier like TC and resets the legacy column to `DEFAULT(sha_pass_hash)`.
@@ -466,7 +466,7 @@ HTTP routes (verb + path):
 
 | Scope | Decision | C++ retained | Evidence |
 |---|---|---|---|
-| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 23 files / 3266 lines; refs: `/home/server/woltk-trinity-legacy/src/server/bnetserver/Server/Session.cpp`, `/home/server/woltk-trinity-legacy/src/server/bnetserver/REST/LoginRESTService.cpp`, `/home/server/woltk-trinity-legacy/src/server/bnetserver/Main.cpp` | `crates/bnet-server/` \| ⚠️ partial (login flow works; missing encrypted private-key support, SecretMgr) |
+| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 23 files / 3266 lines; refs: `/home/server/woltk-trinity-legacy/src/server/bnetserver/Server/Session.cpp`, `/home/server/woltk-trinity-legacy/src/server/bnetserver/REST/LoginRESTService.cpp`, `/home/server/woltk-trinity-legacy/src/server/bnetserver/Main.cpp` | `crates/bnet-server/` \| ⚠️ partial (login flow works; missing encrypted private-key support) |
 
 <!-- REFINE.025:END product-scope -->
 
@@ -517,7 +517,7 @@ HTTP routes (verb + path):
 | `OpenSSLCrypto::threadsSetup(...)` | (none) | Not needed with rustls. |
 | `Trinity::Banner::Show("bnetserver", ...)` | `log_startup_banner_like_cpp` logs package version/revision, config file, overlays, env overrides and Rust TLS/DB dependency versions | OpenSSL version is n/a under rustls. |
 | `sIPLocation->Load()` | `crates/bnet-server/src/ip_location.rs::IpLocationStore` | Implemented for BNet auth country-lock parity; canonical shared placement can be revisited if worldserver also needs it. |
-| `sSecretMgr->Initialize(SECRET_OWNER_BNETSERVER)` | `wow_account::secrets::initialize(SecretOwner::BnetServer).await` (TODO) | New module. |
+| `sSecretMgr->Initialize(SECRET_OWNER_BNETSERVER)` | `secret_mgr::initialize_secret_mgr_like_cpp(&login_db, SecretOwner::BnetServer).await` | BNet-local module; can be extracted when worldserver wires its owner. |
 | `WinServiceInstall / Uninstall / Run` | (none) | Linux target. |
 | `CreatePIDFile(path)` | `std::fs::write(path, std::process::id().to_string())?` | Implemented in `create_pid_file_like_cpp`; called only when `PidFile` is non-empty. |
 | `m_ServiceStatus` global + `ServiceStatusWatcher` | (none) | Linux target. |
@@ -534,7 +534,7 @@ HTTP routes (verb + path):
 
 The Rust bnet daemon **reaches the same listening state as TrinityCore** for the happy path: it binds 1119 (TLS, BNet RPC) + 8081 (HTTPS, REST), opens a `LoginDatabase`, runs the `BanExpiryHandler`, polls `realmlist` every `RealmsStateUpdateDelay` s, and wires up the SRPv1/v2 → ticket → `VerifyWebCredentials` → `LogonResult` flow end-to-end. The five core REST endpoints needed for the WoW launcher are present and `cargo test --workspace` passes (395 tests).
 
-What is **not** at parity with TC: encrypted private-key password support and `SecretMgr` (HMAC keys). The ALPN / TLS-cipher pinning differs because Rust uses `rustls` (TLS 1.2-only `ServerConfig` with no ALPN) while TC uses Boost.Asio + OpenSSL with `TLS_method` (negotiates anything); for WoW 3.4.3 clients that converge on TLS 1.2 + an `ECDHE-RSA-AES*` suite this is functionally equivalent, but uncommon launcher builds may see different ciphers.
+What is **not** at parity with TC: encrypted private-key password support. The ALPN / TLS-cipher pinning differs because Rust uses `rustls` (TLS 1.2-only `ServerConfig` with no ALPN) while TC uses Boost.Asio + OpenSSL with `TLS_method` (negotiates anything); for WoW 3.4.3 clients that converge on TLS 1.2 + an `ECDHE-RSA-AES*` suite this is functionally equivalent, but uncommon launcher builds may see different ciphers.
 
 Resolved since the original audit: `extract_auth_ticket` now mirrors TC's `ExtractAuthorization` by stripping optional `"Basic "`, Base64-decoding the value, and truncating at the first `:`. The failed-login/autoban path now persists `WrongPass.*` effects to `battlenet_accounts.failed_logins`, `battlenet_account_bans`, or `ip_banned`.
 
@@ -555,7 +555,7 @@ Resolved since the original audit: `extract_auth_ticket` now mirrors TC's `Extra
 | `SslContext::Initialize()` | reads `CertificatesFile` + `PrivateKeyFile` + `PrivateKeyPassword`; one shared `ssl::context` | reads `CertificatesFile` + `PrivateKeyFile`; `PrivateKeyPassword` non-empty now fails fast because rustls PEM loading does not decrypt encrypted keys; two separate rustls `ServerConfig`s (REST + RPC) | ⚠️ no encrypted-key password |
 | `StartDB()` | single MariaDB pool for `LoginDatabase` | identical (sqlx pool via `wow_database::LoginDatabase`) | ✅ |
 | `--update-databases-only` short-circuit | run updaters then exit | runs `DbUpdater::populate` + `update`, closes DB, and exits before TLS/listeners | ✅ |
-| `sSecretMgr->Initialize(SECRET_OWNER_BNETSERVER)` | persist HMAC key | none | ❌ |
+| `sSecretMgr->Initialize(SECRET_OWNER_BNETSERVER)` | load/transition `SECRET_TOTP_MASTER_KEY` using `secret_digest`, `TOTPMasterSecret`, `TOTPOldMasterSecret`, Argon2id, AES-GCM | equivalent BNet owner path in `secret_mgr.rs` | ✅ |
 | `sIPLocation->Load()` | parse GeoIP CSV | parses `IPLocationFile` into sorted numeric IPv4 ranges and enforces BNet `lock_country` | ✅ |
 | `Trinity::Net::ScanLocalNetworks()` | enumerate own subnets for "client is local" check | none — Rust uses literal `127.0.0.1` / same-/24 logic in `realm/mod.rs::select_realm_ip_str` | ⚠️ partial |
 | `sLoginService.StartNetwork(...)` (DNS-resolves `LoginREST.{External,Local}Address`, registers 8 handlers, calls `_acceptor->AsyncAcceptWithCallback<&OnSocketAccept>()`) | — | resolves both LoginREST hostnames to IPv4 at startup, binds `tokio::net::TcpListener`, accept-loop spawns one task per conn | ⚠️ fewer handlers |
@@ -609,7 +609,7 @@ There is **no JWT or HMAC-signed cookie** anywhere. Both TC and Rust use:
 - **Realm-list ticket** = literal ASCII `b"AuthRealmListTicket"` returned in `Param_RealmListTicket`. TC writes the same constant. ✅
 - **`Param_JoinSecret`** = 32 random bytes per `RealmJoinRequest`. Combined with `client_secret` and stored as `session_key_bnet`. ✅
 
-`SecretMgr::Initialize(SECRET_OWNER_BNETSERVER)` in TC does load an HMAC key — but **only worldserver consumes it** (for realm-list signing on the realmlist socket from the connect server). bnetserver itself initializes it but does not sign anything user-facing. So missing-`SecretMgr` is a worldserver-side gap, not a bnetserver one. (See worldserver doc.)
+`SecretMgr::Initialize(SECRET_OWNER_BNETSERVER)` in this TC tree does **not** load a realm-list HMAC key. It owns `SECRET_TOTP_MASTER_KEY` and may encrypt/decrypt per-account `totp_secret` rows while transitioning `secret_digest`. Rust now mirrors that BNet initialization path. Worldserver still needs its own `SecretMgr` wiring (`#WS.11`) against the shared semantics.
 
 ### 13.6 TLS specifics
 
@@ -640,4 +640,4 @@ Add these to §9 (existing tasks #BNET.1–#BNET.14 stand):
 
 ### 13.8 Header status update
 
-Header status changed from `❌ not audited` → `⚠️ audited (2026-05-01)`. Functional state remains `⚠️ partial` because the audit confirmed gaps; remaining blockers include encrypted private-key password support and SecretMgr.
+Header status changed from `❌ not audited` → `⚠️ audited (2026-05-01)`. Functional state remains `⚠️ partial` because the audit confirmed one remaining BNet gap: encrypted private-key password support.

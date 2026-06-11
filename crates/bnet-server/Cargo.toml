@@ -18,7 +18,10 @@ tokio-rustls = { workspace = true }
 rustls = { workspace = true }
 rustls-pemfile = { workspace = true }
 tower = "0.5"
+aes = { workspace = true }
+aes-gcm = { workspace = true }
 anyhow = { workspace = true }
+argon2 = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 serde = { workspace = true }

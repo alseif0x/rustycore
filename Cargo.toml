@@ -92,6 +92,7 @@ aes = "0.8"
 hmac = "0.12"
 sha2 = { version = "0.10", features = ["oid"] }
 sha1 = "0.10"
+argon2 = "0.5.3"
 pbkdf2 = { version = "0.12", features = ["hmac"] }
 ed25519-dalek = { version = "2", features = ["rand_core"] }
 rsa = "0.9"
