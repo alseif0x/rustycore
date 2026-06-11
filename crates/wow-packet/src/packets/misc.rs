@@ -3300,6 +3300,22 @@ impl ClientPacket for RepairItem {
     }
 }
 
+/// C++ `WorldPackets::NPC::RequestStabledPets`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RequestStabledPets {
+    pub stable_master: ObjectGuid,
+}
+
+impl ClientPacket for RequestStabledPets {
+    const OPCODE: wow_constants::ClientOpcodes = wow_constants::ClientOpcodes::RequestStabledPets;
+
+    fn read(pkt: &mut crate::WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            stable_master: pkt.read_packed_guid()?,
+        })
+    }
+}
+
 /// SMSG_SELL_RESPONSE — result of a sell operation.
 /// C#: SellResponse
 pub struct SellResponse {
@@ -5769,6 +5785,27 @@ mod tests {
         assert_eq!(pkt.npc_guid, npc_guid);
         assert_eq!(pkt.item_guid, item_guid);
         assert!(pkt.use_guild_bank);
+    }
+
+    #[test]
+    fn request_stabled_pets_reads_cpp_stable_master_guid() {
+        let stable_master = ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::Creature,
+            0,
+            1,
+            571,
+            0,
+            345,
+            678,
+        );
+        let mut writer = WorldPacket::new_server(ServerOpcodes::DbReply);
+        writer.write_packed_guid(&stable_master);
+
+        let mut reader = WorldPacket::from_bytes(writer.data());
+        reader.skip_opcode();
+        let pkt = RequestStabledPets::read(&mut reader).unwrap();
+
+        assert_eq!(pkt.stable_master, stable_master);
     }
 
     #[test]

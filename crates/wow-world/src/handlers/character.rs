@@ -37,7 +37,6 @@ use wow_entities::{
     is_inventory_pos,
 };
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
-use wow_packet::WorldPacket;
 use wow_packet::packets::auth::{
     ConnectTo, ConnectToAddress, ConnectToFailed, ConnectToKey, ConnectToSerial, ResumeComms,
 };
@@ -47,6 +46,7 @@ use wow_packet::packets::loot::LootReleaseAll;
 use wow_packet::packets::misc::*;
 use wow_packet::packets::quest::QuestGiverStatusMultiple;
 use wow_packet::packets::update::*;
+use wow_packet::{ClientPacket, WorldPacket};
 
 use crate::handlers::quest::RepresentedQuestGiverStatusSourceLikeCpp;
 use crate::reputation::mgr::CharacterReputationRowLikeCpp;
@@ -5845,10 +5845,27 @@ impl WorldSession {
     }
 
     /// CMSG_REQUEST_STABLED_PETS — player opens stable master UI.
-    /// C# ref: NPCHandler.HandleRequestStabledPets
-    /// TODO: query character_pet table and send PetStableList.
-    pub async fn handle_request_stabled_pets(&mut self, _pkt: wow_packet::WorldPacket) {
-        info!("RequestStabledPets account {} (stub)", self.account_id);
+    /// C++ ref: `WorldSession::HandleRequestStabledPets`.
+    pub async fn handle_request_stabled_pets(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let request = match RequestStabledPets::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "RequestStabledPets parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        // C++ returns before sending anything when CheckStableMaster fails.
+        // The live stable-master validation and Player::SetStableMaster update
+        // fields are not ported here yet, so preserve that observable branch.
+        debug!(
+            account = self.account_id,
+            stable_master = ?request.stable_master,
+            "RequestStabledPets ignored without represented stable-master runtime"
+        );
     }
 
     /// Handle CMSG_QUERY_NPC_TEXT — client requests NPC text for gossip.
@@ -9775,6 +9792,19 @@ mod tests {
         session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
         session.set_player_position_like_cpp(Position::new(10.0, 0.0, 0.0, 0.0));
         (session, send_rx)
+    }
+
+    #[tokio::test]
+    async fn request_stabled_pets_without_stable_master_is_silent_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        let stable_master =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 22, 1);
+        let mut request = WorldPacket::new_empty();
+        request.write_packed_guid(&stable_master);
+
+        session.handle_request_stabled_pets(request).await;
+
+        assert!(send_rx.try_recv().is_err());
     }
 
     fn quest_template(id: u32) -> QuestTemplate {

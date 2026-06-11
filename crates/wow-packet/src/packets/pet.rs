@@ -47,6 +47,20 @@ impl ServerPacket for PetMode {
     }
 }
 
+/// C++ `WorldPackets::Pet::PetStableResult`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct PetStableResult {
+    pub result: u8,
+}
+
+impl ServerPacket for PetStableResult {
+    const OPCODE: ServerOpcodes = ServerOpcodes::PetStableResult;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_uint8(self.result);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -64,5 +78,18 @@ mod tests {
             &1u16.to_le_bytes()
         );
         assert_eq!(bytes[bytes.len() - 1], REACT_PASSIVE_LIKE_CPP);
+    }
+
+    #[test]
+    fn pet_stable_result_matches_cpp_shape() {
+        let bytes = PetStableResult { result: 2 }.to_bytes();
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::PetStableResult as u16
+        );
+        assert_eq!(bytes.len(), 2 + 1);
+
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_uint8().unwrap(), 2);
     }
 }
