@@ -104,7 +104,7 @@ Todas las rutas relativas a `/home/server/woltk-trinity-legacy/`.
 - `GameObject` (`GAMEOBJECT_TYPE_CONTROL_ZONE`) + `GameObjectTemplate::controlZone` (event ids)
 - `BroadcastText` (DB2) — defense messages localizados
 - `DisableMgr` (`DISABLE_TYPE_OUTDOORPVP`)
-- `WorldPackets::Chat::DefenseMessage`
+- `WorldPackets::Chat::DefenseMessage` — wire packet represented in `wow-packet`; localized send path still pending here
 
 **Depended on by:**
 - `Player` — `Player::GetOutdoorPvP()` cachea handler activo
@@ -139,7 +139,7 @@ OutdoorPvP no tiene opcodes propios; piggybacks sobre los existentes:
 
 | Opcode | Direction | Sent/Received in |
 |---|---|---|
-| `SMSG_DEFENSE_MESSAGE` | server → client | `OutdoorPvP::SendDefenseMessage` (via `WorldPackets::Chat::DefenseMessage`) |
+| `SMSG_DEFENSE_MESSAGE` | server → client | `OutdoorPvP::SendDefenseMessage` (via `WorldPackets::Chat::DefenseMessage`; wire represented, localized send path pending) |
 | `SMSG_INIT_WORLD_STATES` / `SMSG_UPDATE_WORLD_STATE` | server → client | `WorldStateMgr` (per-map scope), disparado por `SetWorldState` |
 | `SMSG_PLAY_SOUND` (en algunos scripts de zona) | server → client | NA/HP/ZM en captura |
 | `CMSG_AREATRIGGER` | client → server | `OutdoorPvP::HandleAreaTrigger` (SI silithyst flag delivery) |

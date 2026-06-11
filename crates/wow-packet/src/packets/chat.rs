@@ -646,6 +646,58 @@ impl ServerPacket for ChatPlayerNotfound {
     }
 }
 
+/// C++ `WorldPackets::Chat::PrintNotification`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PrintNotification {
+    pub notify_text: String,
+}
+
+impl ServerPacket for PrintNotification {
+    const OPCODE: ServerOpcodes = ServerOpcodes::PrintNotification;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_bits(self.notify_text.len() as u32, 12);
+        pkt.flush_bits();
+        pkt.write_string(&self.notify_text);
+    }
+}
+
+/// C++ `WorldPackets::Chat::ChatServerMessage`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChatServerMessage {
+    pub message_id: i32,
+    pub string_param: String,
+}
+
+impl ServerPacket for ChatServerMessage {
+    const OPCODE: ServerOpcodes = ServerOpcodes::ChatServerMessage;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_int32(self.message_id);
+        pkt.write_bits(self.string_param.len() as u32, 11);
+        pkt.flush_bits();
+        pkt.write_string(&self.string_param);
+    }
+}
+
+/// C++ `WorldPackets::Chat::DefenseMessage`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DefenseMessage {
+    pub zone_id: i32,
+    pub message_text: String,
+}
+
+impl ServerPacket for DefenseMessage {
+    const OPCODE: ServerOpcodes = ServerOpcodes::DefenseMessage;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_int32(self.zone_id);
+        pkt.write_bits(self.message_text.len() as u32, 12);
+        pkt.flush_bits();
+        pkt.write_string(&self.message_text);
+    }
+}
+
 /// C++ `WorldPackets::Chat::ChatPlayerAmbiguous`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChatPlayerAmbiguous {
@@ -989,6 +1041,64 @@ mod tests {
         );
         assert_eq!(payload.read_bits(9).unwrap(), 7);
         assert_eq!(payload.read_string(7).unwrap(), "Missing");
+        assert!(payload.is_empty());
+    }
+
+    #[test]
+    fn print_notification_writes_cpp_layout() {
+        let packet = PrintNotification {
+            notify_text: "Server restarting".to_string(),
+        };
+        let data = packet.to_bytes();
+        let mut payload = WorldPacket::from_bytes(&data);
+
+        assert_eq!(
+            payload.read_uint16().unwrap(),
+            ServerOpcodes::PrintNotification as u16
+        );
+        assert_eq!(payload.read_bits(12).unwrap(), 17);
+        assert_eq!(payload.read_string(17).unwrap(), "Server restarting");
+        assert!(payload.is_empty());
+    }
+
+    #[test]
+    fn chat_server_message_writes_cpp_layout() {
+        let packet = ChatServerMessage {
+            message_id: 42,
+            string_param: "param".to_string(),
+        };
+        let data = packet.to_bytes();
+        let mut payload = WorldPacket::from_bytes(&data);
+
+        assert_eq!(
+            payload.read_uint16().unwrap(),
+            ServerOpcodes::ChatServerMessage as u16
+        );
+        assert_eq!(payload.read_int32().unwrap(), 42);
+        assert_eq!(payload.read_bits(11).unwrap(), 5);
+        assert_eq!(payload.read_string(5).unwrap(), "param");
+        assert!(payload.is_empty());
+    }
+
+    #[test]
+    fn defense_message_writes_cpp_layout() {
+        let packet = DefenseMessage {
+            zone_id: 1519,
+            message_text: "Stormwind is under attack!".to_string(),
+        };
+        let data = packet.to_bytes();
+        let mut payload = WorldPacket::from_bytes(&data);
+
+        assert_eq!(
+            payload.read_uint16().unwrap(),
+            ServerOpcodes::DefenseMessage as u16
+        );
+        assert_eq!(payload.read_int32().unwrap(), 1519);
+        assert_eq!(payload.read_bits(12).unwrap(), 26);
+        assert_eq!(
+            payload.read_string(26).unwrap(),
+            "Stormwind is under attack!"
+        );
         assert!(payload.is_empty());
     }
 
