@@ -303,6 +303,9 @@ impl WorldSession {
             return;
         }
         if !self.meets_chat_level_req_like_cpp(msg_type) {
+            if let Some(required_level) = self.required_chat_level_like_cpp(msg_type) {
+                self.send_chat_say_level_notification_like_cpp(required_level);
+            }
             return;
         }
 
@@ -410,6 +413,9 @@ impl WorldSession {
         );
 
         if !self.meets_whisper_level_req_like_cpp() {
+            self.send_chat_whisper_level_notification_like_cpp(
+                self.chat_level_requirements_like_cpp().whisper,
+            );
             return;
         }
 
@@ -639,6 +645,9 @@ impl WorldSession {
             return;
         }
         if self.player_level_like_cpp() < self.chat_level_requirements_like_cpp().emote {
+            self.send_chat_say_level_notification_like_cpp(
+                self.chat_level_requirements_like_cpp().emote,
+            );
             return;
         }
 
@@ -1218,14 +1227,18 @@ fn is_known_language_like_cpp(language: i32) -> bool {
 }
 
 impl WorldSession {
-    fn meets_chat_level_req_like_cpp(&self, msg_type: ChatMsg) -> bool {
+    fn required_chat_level_like_cpp(&self, msg_type: ChatMsg) -> Option<u8> {
         let requirements = self.chat_level_requirements_like_cpp();
-        let required = match msg_type {
-            ChatMsg::Say => requirements.say,
-            ChatMsg::Yell => requirements.yell,
-            _ => return true,
-        };
-        self.player_level_like_cpp() >= required
+        match msg_type {
+            ChatMsg::Say => Some(requirements.say),
+            ChatMsg::Yell => Some(requirements.yell),
+            _ => None,
+        }
+    }
+
+    fn meets_chat_level_req_like_cpp(&self, msg_type: ChatMsg) -> bool {
+        self.required_chat_level_like_cpp(msg_type)
+            .is_none_or(|required| self.player_level_like_cpp() >= required)
     }
 
     fn meets_whisper_level_req_like_cpp(&self) -> bool {
@@ -1256,6 +1269,20 @@ impl WorldSession {
             virtual_realm: self.virtual_realm_address(),
         };
         self.send_packet(&packet);
+    }
+
+    fn send_chat_say_level_notification_like_cpp(&self, required_level: u8) {
+        self.send_packet(&PrintNotification {
+            notify_text: format!(
+                "You cannot say, yell or emote until you become level {required_level}."
+            ),
+        });
+    }
+
+    fn send_chat_whisper_level_notification_like_cpp(&self, required_level: u8) {
+        self.send_packet(&PrintNotification {
+            notify_text: format!("You cannot whisper until you become level {required_level}."),
+        });
     }
 }
 
@@ -1867,6 +1894,14 @@ mod tests {
             )
             .await;
 
+        assert_eq!(
+            print_notification_text(&sender_rx.try_recv().expect("say level notification")),
+            "You cannot say, yell or emote until you become level 1."
+        );
+        assert_eq!(
+            print_notification_text(&sender_rx.try_recv().expect("yell level notification")),
+            "You cannot say, yell or emote until you become level 1."
+        );
         assert!(sender_rx.try_recv().is_err());
         assert!(nearby_rx.try_recv().is_err());
     }
@@ -1902,6 +1937,18 @@ mod tests {
             .handle_chat_emote(chat_emote_packet("too low emote"))
             .await;
 
+        assert_eq!(
+            print_notification_text(&sender_rx.try_recv().expect("say level notification")),
+            "You cannot say, yell or emote until you become level 2."
+        );
+        assert_eq!(
+            print_notification_text(&sender_rx.try_recv().expect("yell level notification")),
+            "You cannot say, yell or emote until you become level 2."
+        );
+        assert_eq!(
+            print_notification_text(&sender_rx.try_recv().expect("emote level notification")),
+            "You cannot say, yell or emote until you become level 2."
+        );
         assert!(sender_rx.try_recv().is_err());
         assert!(nearby_rx.try_recv().is_err());
     }
@@ -2004,6 +2051,10 @@ mod tests {
             .handle_chat_emote(chat_emote_packet("too low emote"))
             .await;
 
+        assert_eq!(
+            print_notification_text(&sender_rx.try_recv().expect("emote level notification")),
+            "You cannot say, yell or emote until you become level 1."
+        );
         assert!(sender_rx.try_recv().is_err());
         assert!(nearby_rx.try_recv().is_err());
     }
@@ -2091,6 +2142,10 @@ mod tests {
             .handle_chat_whisper(chat_whisper_packet("Target", "too low whisper"))
             .await;
 
+        assert_eq!(
+            print_notification_text(&sender_rx.try_recv().expect("whisper level notification")),
+            "You cannot whisper until you become level 2."
+        );
         assert!(sender_rx.try_recv().is_err());
         assert!(target_rx.try_recv().is_err());
     }
