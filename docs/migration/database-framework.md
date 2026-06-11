@@ -787,7 +787,7 @@ The gaps fall in three buckets:
 
 1. **Pool topology** (Medium): Rust still merges TC's `Sync`/`Async` sub-pools into one `sqlx` pool, but world-server now sizes that pool from TC's `WorkerThreads + SynchThreads` config and runs the `MaxPingTime` keep-alive task. Cross-references the worldserver audit (`worldserver.md` §13.5 / §13.6).
 2. **Statement coverage** (High): login is 137/137 (✅), world is 86/56 (✅, Rust adds extras), characters is 30/523 (❌, ~6% ported), hotfixes is 0/327 (❌, **deliberate divergence** — replaced by DB2-blob cache).
-3. **Updater operator UX** (Medium): `populate` failure is non-fatal; no `Create` step; `updates_include` not bootstrapped on first run; missing `Updates.Redundancy`/`ArchivedRedundancy`/`CleanDeadRefMaxCount` config gates.
+3. **Updater operator UX** (Medium): no `Create` step; `updates_include` not bootstrapped on first run; missing `Updates.Redundancy`/`ArchivedRedundancy`/`CleanDeadRefMaxCount` config gates.
 
 The `QueryCallback`-chain pattern is **acceptably absent** because Rust's `async/await` covers the same need more directly. The `SQLQueryHolder` fan-out, however, has no Rust equivalent and is needed for character load (#DB.10).
 
