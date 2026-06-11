@@ -325,7 +325,7 @@ Not applicable — the database framework does not handle WoW client packets. (I
 - **`updates_include` defaults**: RustyCore now bootstraps default `updates_include` rows for known TC database families when the table is empty, using the WotLK Classic base dump path layout. This also protects existing DBs whose table exists but has no rows before `update(source_dir)` runs.
 - **`UpdateFetcher` "missing files" detection**: RustyCore tracks which applied `updates` rows were matched by source files and deletes orphaned rows using TC's `Updates.CleanDeadRefMaxCount` budget.
 - **`DBUpdater::Populate` / `Update` failures are fatal** in TC (`return false` from `StartDB` aborts boot). RustyCore now propagates populate/update errors from world-server startup with DB-specific context, so a broken or empty DB fails fast instead of booting into later missing-table errors. (Cross-ref: `worldserver.md` §13.6.)
-- **`MySQLConnection::EscapeString` / `mysql_real_escape_string`**: not exposed. sqlx's parameter binding handles escaping, but the "raw escape this user-supplied string for use in a non-prepared SQL fragment" path (used by some chat commands and mass updates in TC) is unavailable.
+- **`MySQLConnection::EscapeString` / `mysql_real_escape_string`**: RustyCore exposes `wow_database::escape_string_like_cpp(value)` plus `Database::escape_string_like_cpp(&self, value)`. Prepared statements remain preferred, but legacy raw-SQL fragment ports now have the same MySQL special-byte escaping surface as TC.
 - **`DatabaseWorkerPool::WarnAboutSyncQueries`**: RustyCore now has a task-local diagnostic scope (`warn_about_sync_queries_scope_like_cpp`) used around the current world-server session tick and selected canonical-map DB writes. DB calls made inside that scope emit `sql.performances` warnings. This is an operational diagnostic equivalent, not a sub-pool split: sqlx queries remain async.
 - **`DatabaseWorkerPool::QueueSize`**: no equivalent — no queue exists; sqlx executes immediately on a free pool conn or `await`s for one. The metrics surface that consumed `QueueSize` (`db_queue_*` in TC's metrics) is therefore also gone.
 - **`mysql_library_init` / `mysql_library_end`**: irrelevant — sqlx links against rust-mysql-async/`mysql_async` or against libmysql via FFI, init is automatic.
@@ -635,7 +635,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 - [ ] **#DB.11** Port the remaining ~493 character prepared statements (cross-ref `INVENTORY.md`, `characters.md`). (XL — split per-domain: inventory, achievements, mails, guilds, BG/arena state, etc.)
 - [ ] **#DB.12** Decide hotfix prepared-statement strategy: either port all 327 from `HotfixDatabase.cpp` for runtime hotfix mutations, OR formalize the "merged blob at boot" approach and document that hotfix DB is read-once-at-startup. (H if port; L if formalize)
 - [x] **#DB.13** Implement TLS connection options: the parsed sixth `*DatabaseInfo` field (`;ssl`) is passed through to sqlx as `ssl-mode=REQUIRED`; absence or any other value keeps TC-equivalent `ssl-mode=DISABLED`. (M)
-- [ ] **#DB.14** Implement `EscapeString` for raw-SQL-fragment use cases: expose `MySqlPool::escape` equivalent or document that `direct_execute` consumers must use bound parameters. (L)
+- [x] **#DB.14** Implement `EscapeString` for raw-SQL-fragment use cases: `escape_string_like_cpp` mirrors `mysql_real_escape_string` special-byte escaping (`NUL`, newline, carriage-return, backslash, quotes, Ctrl-Z) for UTF-8 strings, with a `Database` method for pool-style call sites. (L)
 - [x] **#DB.15** Add populate/update error context: Rust reports `Could not populate/update the <DB> database`, and CLI base-file failures include both the SQL file path and `mysql` stderr. `ApplyFile` now also uses TC's `BEGIN; SOURCE file; COMMIT;` wrapper. (L)
 - [ ] **#DB.16** Add integration test harness: spin up an embedded MariaDB (or Docker mariadb:10.6 in CI) and run `populate` + `update` against it; verify updates table population. (H)
 - [x] **#DB.17** Audit deadlock-retry concurrency: Rust now replicates TC's `_deadlockLock` static mutex and 60-second retry window for transaction deadlocks. (L)
@@ -755,7 +755,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 | `pool.AsyncQuery(stmt)` | `db.query(&stmt).await` | sqlx is always-async |
 | `pool.DelayQueryHolder(holder)` | `db.delay_query_holder_like_cpp(&holder).await` | Async/await replaces callback object; execution order is slot order like C++ `SQLQueryHolderTask::Execute` |
 | `pool.GetPreparedStatement(idx)` | `db.prepare(LoginStatements::FOO)` | — |
-| `pool.EscapeString(str)` | (none) — use bound parameters | TODO #DB.14 |
+| `pool.EscapeString(str)` | `db.escape_string_like_cpp(str)` / `wow_database::escape_string_like_cpp(str)` | Prefer bound parameters; this is for legacy raw-SQL fragments |
 | `pool.KeepAlive()` | `Database::keep_alive_like_cpp()` + world-server keep-alive task | `SELECT 1` every `MaxPingTime` for Character/Login/World |
 | `pool.WarnAboutSyncQueries(true)` | `warn_about_sync_queries_scope_like_cpp(async { ... })` | task-local warning scope, wired into current world-server ticks |
 | `class DatabaseLoader` (5-queue sequencer + close stack) | (inline in `world-server/src/main.rs`) | TODO #DB.21 — formalize into a sequencer struct |
@@ -768,7 +768,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 | `class MySQLPreparedStatement` | (none — sqlx caches `MYSQL_STMT` per connection internally) | — |
 | `mysql_library_init` / `mysql_library_end` | (none) | sqlx handles |
 | `MYSQL_OPT_SSL_MODE` / `MYSQL_OPT_SSL_ENFORCE` | sqlx connection-string `?ssl-mode=DISABLED/REQUIRED` | Mirrors TC's `;ssl` boolean switch; CA verification is not part of this branch's `DatabaseInfo` schema |
-| `mysql_real_escape_string` | (none) — use bound params | TODO #DB.14 |
+| `mysql_real_escape_string` | `escape_string_like_cpp(value)` | Mirrors MySQL special-byte escaping for UTF-8 strings |
 | `Trinity::Asio::IoContext` (per-pool) | implicit Tokio runtime | — |
 
 ---
@@ -867,7 +867,8 @@ However, **the worldserver audit (`worldserver.md` §13.4) noted there's no glob
 | Detects renamed files (same hash, different name) | ✅ (`updater.rs:139-149`) | ✅ |
 | Re-applies CUSTOM-state file on hash change | ✅ (`updater.rs:174-194`) | ✅ |
 | Tracks apply time in `updates.speed` column | ✅ (`updater.rs:166`) | ✅ |
-| `mysql_real_escape_string` / `LOAD DATA INFILE` support | (none) | ❌ #DB.14 |
+| `mysql_real_escape_string` | `escape_string_like_cpp(value)` | ✅ #DB.14 |
+| `LOAD DATA INFILE` support | (none) | ⚠️ not currently used by the Rust updater path |
 | Logger `sql.updates` separate channel | tracing default channel | ⚠️ |
 | SQL splitter handles `DELIMITER //` / triggers | ❌ — splitter only handles comments + strings; triggers blow up | ⚠️ documented in §11; `populate` shells out to CLI specifically to avoid this |
 

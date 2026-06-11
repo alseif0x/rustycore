@@ -210,6 +210,15 @@ impl<S: StatementDef> Database<S> {
         Ok(SqlResult::new(rows))
     }
 
+    /// Escape a string for legacy raw-SQL fragments.
+    ///
+    /// Prefer prepared statements whenever possible. This exists for C++ parity
+    /// with `DatabaseWorkerPool<T>::EscapeString` and `mysql_real_escape_string`
+    /// call sites that build SQL fragments dynamically.
+    pub fn escape_string_like_cpp(&self, value: &str) -> String {
+        escape_string_like_cpp(value)
+    }
+
     /// Ping the database connection pool, mirroring TrinityCore's KeepAlive().
     pub async fn keep_alive_like_cpp(&self) -> Result<(), DatabaseError> {
         warn_if_sync_query_like_cpp("keep_alive");
@@ -407,6 +416,34 @@ fn ssl_mode_query_value_like_cpp(ssl: bool) -> &'static str {
     if ssl { "REQUIRED" } else { "DISABLED" }
 }
 
+/// Escape a string using MySQL's `mysql_real_escape_string` byte mapping.
+///
+/// TrinityCore calls this on a sync connection after setting the connection
+/// character set to `utf8mb4`. For UTF-8 Rust strings the special-byte mapping
+/// is deterministic: NUL, newline, carriage-return, backslash, single quote,
+/// double quote and Ctrl-Z are escaped; all other bytes are copied through.
+pub fn escape_string_like_cpp(value: &str) -> String {
+    if value.is_empty() {
+        return String::new();
+    }
+
+    let mut escaped = String::with_capacity(value.len() * 2);
+    for ch in value.chars() {
+        match ch {
+            '\0' => escaped.push_str("\\0"),
+            '\n' => escaped.push_str("\\n"),
+            '\r' => escaped.push_str("\\r"),
+            '\\' => escaped.push_str("\\\\"),
+            '\'' => escaped.push_str("\\'"),
+            '"' => escaped.push_str("\\\""),
+            '\u{1A}' => escaped.push_str("\\Z"),
+            _ => escaped.push(ch),
+        }
+    }
+
+    escaped
+}
+
 fn escape_mysql_identifier_like_cpp(identifier: &str) -> String {
     identifier.replace('`', "``")
 }
@@ -429,7 +466,8 @@ mod tests {
     use super::{
         build_connection_string, build_connection_string_with_ssl_like_cpp,
         build_server_connection_string_like_cpp, escape_mysql_identifier_like_cpp,
-        warn_about_sync_queries_enabled_like_cpp, warn_about_sync_queries_scope_like_cpp,
+        escape_string_like_cpp, warn_about_sync_queries_enabled_like_cpp,
+        warn_about_sync_queries_scope_like_cpp,
     };
 
     #[test]
@@ -497,6 +535,16 @@ mod tests {
     fn mysql_identifier_escape_doubles_backticks_like_cpp_create() {
         assert_eq!(escape_mysql_identifier_like_cpp("world"), "world");
         assert_eq!(escape_mysql_identifier_like_cpp("bad`name"), "bad``name");
+    }
+
+    #[test]
+    fn escape_string_matches_mysql_real_escape_string_special_bytes_like_cpp() {
+        assert_eq!(escape_string_like_cpp(""), "");
+        assert_eq!(
+            escape_string_like_cpp("a\0b\nc\rd\\e'f\"g\u{1A}h"),
+            "a\\0b\\nc\\rd\\\\e\\'f\\\"g\\Zh"
+        );
+        assert_eq!(escape_string_like_cpp("Grüße"), "Grüße");
     }
 
     #[tokio::test]
