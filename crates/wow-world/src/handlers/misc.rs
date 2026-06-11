@@ -40,8 +40,8 @@ use wow_packet::packets::misc::{
     AddToy, BattlePetClearFanfare, BattlePetDeletePet, BattlePetModifyName,
     BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags, BattlePetSummon,
     BattlePetUpdateNotify, CageBattlePet, FarSight, MountSetFavorite, QueryBattlePetName,
-    QueryBattlePetNameResponse, RatedPvpInfo, RequestCemeteryListResponse, TaxiNodeStatusPkt,
-    ToyClearFanfare, UseToy,
+    QueryBattlePetNameResponse, RatedPvpInfo, RequestCemeteryListResponse, SaveCufProfiles,
+    TaxiNodeStatusPkt, ToyClearFanfare, UseToy,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -1269,7 +1269,26 @@ impl crate::session::WorldSession {
 
         self.represented_set_action_bar_toggles_like_cpp(mask);
     }
-    pub async fn handle_save_cuf_profiles(&mut self, _pkt: wow_packet::WorldPacket) {}
+    pub async fn handle_save_cuf_profiles(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let packet = match SaveCufProfiles::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "SaveCufProfiles parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        if !self.represented_save_cuf_profiles_like_cpp(packet.profiles) {
+            warn!(
+                account = self.account_id,
+                max_profiles = wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP,
+                "SaveCufProfiles ignored profile count above C++ MAX_CUF_PROFILES"
+            );
+        }
+    }
     pub async fn handle_guild_set_achievement_tracking(&mut self, _pkt: wow_packet::WorldPacket) {}
     pub async fn handle_get_item_purchase_data(&mut self, mut pkt: wow_packet::WorldPacket) {
         let request = match GetItemPurchaseData::read(&mut pkt) {
@@ -2568,6 +2587,97 @@ mod tests {
 
         assert_eq!(session.active_player_multi_action_bars_like_cpp(), 0);
         assert!(send_rx.try_recv().is_err());
+    }
+
+    fn save_cuf_profiles_packet(
+        profiles: impl IntoIterator<Item = wow_packet::packets::misc::CufProfile>,
+    ) -> WorldPacket {
+        let profiles: Vec<_> = profiles.into_iter().collect();
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(ClientOpcodes::SaveCufProfiles as u16);
+        pkt.write_uint32(profiles.len() as u32);
+        for profile in profiles {
+            pkt.write_bits(profile.profile_name.len() as u32, 7);
+            for option in 0..wow_packet::packets::misc::CUF_BOOL_OPTIONS_COUNT_LIKE_CPP {
+                pkt.write_bit(profile.bool_options & (1 << option) != 0);
+            }
+            pkt.write_uint16(profile.frame_height);
+            pkt.write_uint16(profile.frame_width);
+            pkt.write_uint8(profile.sort_by);
+            pkt.write_uint8(profile.health_text);
+            pkt.write_uint8(profile.top_point);
+            pkt.write_uint8(profile.bottom_point);
+            pkt.write_uint8(profile.left_point);
+            pkt.write_uint16(profile.top_offset);
+            pkt.write_uint16(profile.bottom_offset);
+            pkt.write_uint16(profile.left_offset);
+            pkt.write_string(&profile.profile_name);
+        }
+        WorldPacket::from_bytes(pkt.data())
+    }
+
+    fn cuf_profile(name: &str, frame_height: u16) -> wow_packet::packets::misc::CufProfile {
+        wow_packet::packets::misc::CufProfile {
+            profile_name: name.to_string(),
+            frame_height,
+            frame_width: 128,
+            sort_by: 2,
+            health_text: 3,
+            top_point: 4,
+            bottom_point: 5,
+            left_point: 6,
+            top_offset: 7,
+            bottom_offset: 8,
+            left_offset: 9,
+            bool_options: (1 << 0) | (1 << 26),
+        }
+    }
+
+    #[tokio::test]
+    async fn save_cuf_profiles_replaces_and_clears_slots_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        assert!(session.represented_save_cuf_profiles_like_cpp(vec![
+            cuf_profile("Old0", 10),
+            cuf_profile("Old1", 11),
+            cuf_profile("Old2", 12),
+        ]));
+
+        session
+            .handle_save_cuf_profiles(save_cuf_profiles_packet([
+                cuf_profile("Raid", 72),
+                cuf_profile("Party", 64),
+            ]))
+            .await;
+
+        let profiles = session.represented_cuf_profiles_like_cpp();
+        assert_eq!(profiles[0].as_ref().unwrap().profile_name, "Raid");
+        assert_eq!(profiles[0].as_ref().unwrap().frame_height, 72);
+        assert_eq!(profiles[1].as_ref().unwrap().profile_name, "Party");
+        assert_eq!(profiles[1].as_ref().unwrap().frame_height, 64);
+        assert!(profiles[2].is_none());
+        assert!(profiles[3].is_none());
+        assert!(profiles[4].is_none());
+    }
+
+    #[tokio::test]
+    async fn save_cuf_profiles_rejects_above_cpp_max_without_mutation() {
+        let (mut session, _send_rx) = make_session();
+        assert!(session.represented_save_cuf_profiles_like_cpp(vec![cuf_profile("Keep", 10)]));
+
+        session
+            .handle_save_cuf_profiles(save_cuf_profiles_packet([
+                cuf_profile("A", 1),
+                cuf_profile("B", 2),
+                cuf_profile("C", 3),
+                cuf_profile("D", 4),
+                cuf_profile("E", 5),
+                cuf_profile("F", 6),
+            ]))
+            .await;
+
+        let profiles = session.represented_cuf_profiles_like_cpp();
+        assert_eq!(profiles[0].as_ref().unwrap().profile_name, "Keep");
+        assert!(profiles[1].is_none());
     }
 
     fn install_add_toy_item_templates(

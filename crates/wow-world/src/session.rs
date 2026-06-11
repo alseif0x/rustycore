@@ -2736,6 +2736,8 @@ pub struct WorldSession {
     known_spells: Vec<i32>,
     /// C++ `CollectionMgr::_mounts` represented account mount collection.
     account_mounts_like_cpp: HashMap<i32, u8>,
+    /// C++ `Player::_CUFProfiles`, represented until full player save/load owns it.
+    cuf_profiles_like_cpp: Vec<Option<wow_packet::packets::misc::CufProfile>>,
 
     // ── Dual-connection (realm + instance) ───────────────────────
     // After ConnectTo completes, the session uses the instance socket for
@@ -3833,6 +3835,7 @@ impl WorldSession {
             loot_specialization_id: 0,
             known_spells: Vec::new(),
             account_mounts_like_cpp: HashMap::new(),
+            cuf_profiles_like_cpp: vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP],
             realm_packet_rx: None,
             realm_send_tx: None,
             player_position: None,
@@ -23367,6 +23370,37 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn active_player_multi_action_bars_like_cpp(&self) -> u8 {
         self.active_player_multi_action_bars_like_cpp
+    }
+
+    pub(crate) fn represented_save_cuf_profiles_like_cpp(
+        &mut self,
+        profiles: Vec<wow_packet::packets::misc::CufProfile>,
+    ) -> bool {
+        if profiles.len() > wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP {
+            return false;
+        }
+
+        if self.cuf_profiles_like_cpp.len() != wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP
+        {
+            self.cuf_profiles_like_cpp =
+                vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP];
+        }
+
+        let profile_count = profiles.len();
+        for (slot, profile) in profiles.into_iter().enumerate() {
+            self.cuf_profiles_like_cpp[slot] = Some(profile);
+        }
+        for slot in self.cuf_profiles_like_cpp.iter_mut().skip(profile_count) {
+            *slot = None;
+        }
+        true
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_cuf_profiles_like_cpp(
+        &self,
+    ) -> &[Option<wow_packet::packets::misc::CufProfile>] {
+        &self.cuf_profiles_like_cpp
     }
 
     #[cfg(test)]

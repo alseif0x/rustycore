@@ -1619,16 +1619,112 @@ impl ClientPacket for UseToy {
     }
 }
 
-// ── LoadCufProfiles (SMSG 0x25bc) ────────────────────────────────────
+// ── Compact Unit Frame profiles ──────────────────────────────────────
 
-/// Compact Unit Frame profiles. Empty for fresh characters.
-pub struct LoadCufProfiles;
+pub const MAX_CUF_PROFILES_LIKE_CPP: usize = 5;
+pub const CUF_BOOL_OPTIONS_COUNT_LIKE_CPP: usize = 27;
+
+/// C++ `CUFProfile`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CufProfile {
+    pub profile_name: String,
+    pub frame_height: u16,
+    pub frame_width: u16,
+    pub sort_by: u8,
+    pub health_text: u8,
+    pub top_point: u8,
+    pub bottom_point: u8,
+    pub left_point: u8,
+    pub top_offset: u16,
+    pub bottom_offset: u16,
+    pub left_offset: u16,
+    pub bool_options: u32,
+}
+
+/// C++ `WorldPackets::Misc::SaveCUFProfiles`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SaveCufProfiles {
+    pub profiles: Vec<CufProfile>,
+}
+
+impl ClientPacket for SaveCufProfiles {
+    const OPCODE: ClientOpcodes = ClientOpcodes::SaveCufProfiles;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        pkt.skip_opcode();
+        let count = pkt.read_uint32()? as usize;
+        let mut profiles = Vec::with_capacity(count);
+        for _ in 0..count {
+            let name_len = pkt.read_bits(7)? as usize;
+            let mut bool_options = 0u32;
+            for option in 0..CUF_BOOL_OPTIONS_COUNT_LIKE_CPP {
+                if pkt.read_bit()? {
+                    bool_options |= 1 << option;
+                }
+            }
+
+            profiles.push(CufProfile {
+                frame_height: pkt.read_uint16()?,
+                frame_width: pkt.read_uint16()?,
+                sort_by: pkt.read_uint8()?,
+                health_text: pkt.read_uint8()?,
+                top_point: pkt.read_uint8()?,
+                bottom_point: pkt.read_uint8()?,
+                left_point: pkt.read_uint8()?,
+                top_offset: pkt.read_uint16()?,
+                bottom_offset: pkt.read_uint16()?,
+                left_offset: pkt.read_uint16()?,
+                profile_name: pkt.read_string(name_len)?,
+                bool_options,
+            });
+        }
+
+        Ok(Self { profiles })
+    }
+}
+
+/// C++ `WorldPackets::Misc::LoadCUFProfiles`.
+pub struct LoadCufProfiles {
+    pub profiles: Vec<CufProfile>,
+}
+
+impl LoadCufProfiles {
+    pub fn empty() -> Self {
+        Self {
+            profiles: Vec::new(),
+        }
+    }
+}
+
+impl Default for LoadCufProfiles {
+    fn default() -> Self {
+        Self::empty()
+    }
+}
 
 impl ServerPacket for LoadCufProfiles {
     const OPCODE: ServerOpcodes = ServerOpcodes::LoadCufProfiles;
 
     fn write(&self, pkt: &mut WorldPacket) {
-        pkt.write_int32(0); // CUFProfiles.Count
+        pkt.write_uint32(self.profiles.len() as u32);
+        for profile in &self.profiles {
+            pkt.write_bits(profile.profile_name.len() as u32, 7);
+            for option in 0..CUF_BOOL_OPTIONS_COUNT_LIKE_CPP {
+                pkt.write_bit(profile.bool_options & (1 << option) != 0);
+            }
+
+            pkt.write_uint16(profile.frame_height);
+            pkt.write_uint16(profile.frame_width);
+            pkt.write_uint8(profile.sort_by);
+            pkt.write_uint8(profile.health_text);
+            pkt.write_uint8(profile.top_point);
+            pkt.write_uint8(profile.bottom_point);
+            pkt.write_uint8(profile.left_point);
+            pkt.write_uint16(profile.top_offset);
+            pkt.write_uint16(profile.bottom_offset);
+            pkt.write_uint16(profile.left_offset);
+            pkt.write_string(&profile.profile_name);
+        }
     }
 }
 
@@ -4112,6 +4208,76 @@ mod tests {
     }
 
     #[test]
+    fn save_cuf_profiles_reads_cpp_shape() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(ClientOpcodes::SaveCufProfiles as u16);
+        pkt.write_uint32(1);
+        pkt.write_bits(4, 7);
+        for option in 0..CUF_BOOL_OPTIONS_COUNT_LIKE_CPP {
+            pkt.write_bit(matches!(option, 0 | 5 | 26));
+        }
+        pkt.write_uint16(72);
+        pkt.write_uint16(128);
+        pkt.write_uint8(2);
+        pkt.write_uint8(3);
+        pkt.write_uint8(4);
+        pkt.write_uint8(5);
+        pkt.write_uint8(6);
+        pkt.write_uint16(7);
+        pkt.write_uint16(8);
+        pkt.write_uint16(9);
+        pkt.write_string("Raid");
+
+        let mut packet = WorldPacket::from_bytes(pkt.data());
+        let parsed = SaveCufProfiles::read(&mut packet).expect("valid SaveCUFProfiles");
+
+        assert_eq!(parsed.profiles.len(), 1);
+        let profile = &parsed.profiles[0];
+        assert_eq!(profile.profile_name, "Raid");
+        assert_eq!(profile.frame_height, 72);
+        assert_eq!(profile.frame_width, 128);
+        assert_eq!(profile.sort_by, 2);
+        assert_eq!(profile.health_text, 3);
+        assert_eq!(profile.top_point, 4);
+        assert_eq!(profile.bottom_point, 5);
+        assert_eq!(profile.left_point, 6);
+        assert_eq!(profile.top_offset, 7);
+        assert_eq!(profile.bottom_offset, 8);
+        assert_eq!(profile.left_offset, 9);
+        assert_eq!(profile.bool_options, (1 << 0) | (1 << 5) | (1 << 26));
+    }
+
+    #[test]
+    fn load_cuf_profiles_writes_count_and_fields_like_cpp() {
+        let bytes = LoadCufProfiles {
+            profiles: vec![CufProfile {
+                profile_name: "Raid".to_string(),
+                frame_height: 72,
+                frame_width: 128,
+                sort_by: 2,
+                health_text: 3,
+                top_point: 4,
+                bottom_point: 5,
+                left_point: 6,
+                top_offset: 7,
+                bottom_offset: 8,
+                left_offset: 9,
+                bool_options: (1 << 0) | (1 << 5) | (1 << 26),
+            }],
+        }
+        .to_bytes();
+
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::LoadCufProfiles as u16
+        );
+        assert_eq!(
+            u32::from_le_bytes([bytes[2], bytes[3], bytes[4], bytes[5]]),
+            1
+        );
+    }
+
+    #[test]
     fn account_toy_update_writes_ids_then_flag_bits_like_cpp() {
         let pkt = AccountToyUpdate::full(vec![
             AccountToy {
@@ -4215,7 +4381,7 @@ mod tests {
 
     #[test]
     fn load_cuf_profiles_empty() {
-        let pkt = LoadCufProfiles;
+        let pkt = LoadCufProfiles::empty();
         let bytes = pkt.to_bytes();
         // opcode(2) + i32(4) = 6
         assert_eq!(bytes.len(), 6);

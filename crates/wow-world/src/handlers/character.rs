@@ -9624,7 +9624,7 @@ impl WorldSession {
         self.send_packet(&InitWorldStates::new(map_id, zone_id));
 
         // 28. LoadCufProfiles (empty — no saved profiles)
-        self.send_packet(&LoadCufProfiles);
+        self.send_packet(&LoadCufProfiles::empty());
 
         // 29. AuraUpdate (empty — no auras on fresh character)
         self.send_packet(&AuraUpdate::empty_for(guid));
