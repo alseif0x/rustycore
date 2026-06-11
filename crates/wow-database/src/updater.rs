@@ -159,8 +159,6 @@ impl DbUpdater {
     pub async fn update(&self, source_dir: &str) -> Result<()> {
         info!("Checking '{}' database for pending updates...", self.db);
         let update_config = UpdateConfigLikeCpp::from_config_like_cpp();
-        let _clean_dead_references_max_count = update_config.clean_dead_references_max_count;
-
         self.ensure_updates_table().await?;
         self.ensure_updates_include_table().await?;
 
@@ -187,7 +185,7 @@ impl DbUpdater {
         }
 
         // Load already-applied files from DB
-        let applied = self.read_applied_files().await?;
+        let mut applied = self.read_applied_files().await?;
 
         let mut updated = 0u32;
 
@@ -204,7 +202,7 @@ impl DbUpdater {
 
             let hash = sha1_hex(&content);
 
-            match applied.get(&name) {
+            match applied.get(&name).cloned() {
                 None => {
                     // Check for renamed file (same hash, different name)
                     if let Some(old_name) = applied.iter().find_map(|(n, applied)| {
@@ -220,6 +218,7 @@ impl DbUpdater {
                             .bind(&old_name)
                             .execute(&self.pool)
                             .await?;
+                        applied.remove(&old_name);
                     } else {
                         info!("Applying '{}' [{}]...", name, &hash[..7]);
                         let t = Instant::now();
@@ -238,11 +237,11 @@ impl DbUpdater {
                         updated += 1;
                     }
                 }
-                Some(applied) => {
+                Some(applied_entry) => {
                     match update_decision_like_cpp(
-                        &applied.hash,
+                        &applied_entry.hash,
                         &hash,
-                        &applied.state,
+                        &applied_entry.state,
                         state,
                         &update_config,
                     ) {
@@ -270,7 +269,7 @@ impl DbUpdater {
                             info!(
                                 "Reapplying '{}' (hash changed {} → {})...",
                                 name,
-                                &applied.hash[..7.min(applied.hash.len())],
+                                &applied_entry.hash[..7.min(applied_entry.hash.len())],
                                 &hash[..7]
                             );
                             let t = Instant::now();
@@ -288,9 +287,16 @@ impl DbUpdater {
                             updated += 1;
                         }
                     }
+                    applied.remove(&name);
                 }
             }
         }
+
+        self.cleanup_orphaned_updates_like_cpp(
+            &applied,
+            update_config.clean_dead_references_max_count,
+        )
+        .await?;
 
         if updated == 0 {
             info!("'{}' database is up-to-date.", self.db);
@@ -409,6 +415,48 @@ impl DbUpdater {
             .map(|(name, hash, state)| (name, AppliedUpdateFileLikeCpp { hash, state }))
             .collect())
     }
+
+    async fn cleanup_orphaned_updates_like_cpp(
+        &self,
+        applied: &HashMap<String, AppliedUpdateFileLikeCpp>,
+        clean_dead_references_max_count: i32,
+    ) -> Result<()> {
+        if applied.is_empty() {
+            return Ok(());
+        }
+
+        let do_cleanup = should_cleanup_orphaned_updates_like_cpp(
+            applied.len(),
+            clean_dead_references_max_count,
+        );
+
+        for name in applied.keys() {
+            warn!(
+                "The file '{}' was applied to the database, but is missing in your update directory now!",
+                name
+            );
+
+            if do_cleanup {
+                info!("Deleting orphaned entry '{}'...", name);
+            }
+        }
+
+        if do_cleanup {
+            for name in applied.keys() {
+                sqlx::query("DELETE FROM `updates` WHERE `name` = ?")
+                    .bind(name)
+                    .execute(&self.pool)
+                    .await?;
+            }
+        } else {
+            tracing::error!(
+                "Cleanup is disabled! There were {} dirty files applied to your database, but they are now missing in your source directory!",
+                applied.len()
+            );
+        }
+
+        Ok(())
+    }
 }
 
 // ─── SQL file helpers ────────────────────────────────────────────────────────
@@ -505,9 +553,21 @@ fn collect_sql_files(dir: &Path) -> Result<Vec<PathBuf>> {
     Ok(files)
 }
 
+fn should_cleanup_orphaned_updates_like_cpp(
+    orphan_count: usize,
+    clean_dead_references_max_count: i32,
+) -> bool {
+    orphan_count == 0
+        || clean_dead_references_max_count < 0
+        || orphan_count <= clean_dead_references_max_count as usize
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{UpdateConfigLikeCpp, UpdateDecisionLikeCpp, update_decision_like_cpp};
+    use super::{
+        UpdateConfigLikeCpp, UpdateDecisionLikeCpp, should_cleanup_orphaned_updates_like_cpp,
+        update_decision_like_cpp,
+    };
 
     fn update_config_like_cpp(
         redundancy_checks: bool,
@@ -584,5 +644,13 @@ mod tests {
             update_decision_like_cpp("same", "same", "RELEASED", "ARCHIVED", &rehash_on),
             UpdateDecisionLikeCpp::UpdateState
         );
+    }
+
+    #[test]
+    fn orphaned_update_cleanup_threshold_matches_cpp() {
+        assert!(should_cleanup_orphaned_updates_like_cpp(0, 3));
+        assert!(should_cleanup_orphaned_updates_like_cpp(3, 3));
+        assert!(!should_cleanup_orphaned_updates_like_cpp(4, 3));
+        assert!(should_cleanup_orphaned_updates_like_cpp(10, -1));
     }
 }
