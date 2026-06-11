@@ -237,7 +237,7 @@ HTTP routes (verb + path):
 **What's missing vs C++:**
 - **DB keep-alive timer present**. Rust reads `MaxPingTime` and periodically issues `SELECT 1` against `LoginDatabase`; TC calls `LoginDatabase.KeepAlive()` / native connection ping. Behavior is equivalent for keeping the pool warm, though not a per-connection native `mysql_ping()`.
 - **PID-file creation present**. Rust reads `PidFile` and writes the current process id before opening DB/network, aborting startup on write failure like TC.
-- **No `IPLocation` DB load**. TC reads `IPLocation.File` (a CSV of GeoIP ranges → countries) and uses it for `lock_country` enforcement and per-country ban policies. Rust never touches this.
+- **`IPLocation` DB load present**. Rust reads `IPLocationFile`, parses TC's numeric IPv4 range CSV, and uses it for BNet `lock_country` enforcement. WrongPass IP autobans already persist through the DB path.
 - **No `SecretMgr` initialization** for `SECRET_OWNER_BNETSERVER`. SecretMgr stores HMAC keys for various server-internal purposes (e.g. realm-list signing). Currently every signed message in the Rust port either uses a hardcoded test key or skips signing entirely.
 - **Startup banner present**. Rust logs a `Banner::Show`-style startup summary with package version/revision, config file, overlays, env overrides, TLS backend and relevant dependency versions.
 - **No legacy password migration** (`MigrateLegacyPasswordHashes`). Means accounts on SRPv1 can never be upgraded silently — they have to be deleted and recreated.
@@ -414,7 +414,7 @@ HTTP routes (verb + path):
 - [ ] **#BNET.2** Read `CertificatesFile` from config; support both PEM-bundle (`pkcs12`-equivalent) and the pair-of-files form. Fallback to current hardcoded names with a warning. (M)
 - [x] **#BNET.3** Implement DB keep-alive timer: every `MaxPingTime` minutes (default 30) issue a `SELECT 1` against `LoginDatabase`. Rust disables the timer with a warning if `MaxPingTime=0` to avoid a zero-period Tokio interval.
 - [x] **#BNET.4** Implement `CreatePIDFile(path)` equivalent. Rust reads `PidFile`, writes `std::process::id()` before DB/TLS startup, logs the daemon PID, and aborts startup if the file cannot be created.
-- [ ] **#BNET.5** Port `IPLocation` loader: parse CSV from `IPLocation.File`, build a sorted IP-range → country map; expose `lookup(ip)`. Used by `lock_country` and `WrongPass.BanType=BAN_IP` policies. (M)
+- [x] **#BNET.5** Port `IPLocation` loader: Rust parses `IPLocationFile` as TC's numeric IPv4 CSV, lowercases country codes, exposes lookup, and enforces BNet `lock_country` in `VerifyWebCredentials` when the account is not locked to a specific IP.
 - [ ] **#BNET.6** Port `SecretMgr::Initialize(SECRET_OWNER_BNETSERVER)`: persist a per-realm HMAC key in `secrets` table (or local file as TC does); use it for any internal signing. (M)
 - [ ] **#BNET.7** Add the missing REST bot/mobile routes: `POST /login/`, `POST /login/srp/`. `POST /bnetserver/refreshLoginTicket/` is already implemented and tracked under #BNET.23. (M)
 - [x] **#BNET.8** Persist wrong-pass attempts in DB. Subsumed by #BNET.21: Rust writes `battlenet_accounts.failed_logins`, `battlenet_account_bans` or `ip_banned`, and resets failed-login count at the configured threshold like TC.
@@ -466,7 +466,7 @@ HTTP routes (verb + path):
 
 | Scope | Decision | C++ retained | Evidence |
 |---|---|---|---|
-| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 23 files / 3266 lines; refs: `/home/server/woltk-trinity-legacy/src/server/bnetserver/Server/Session.cpp`, `/home/server/woltk-trinity-legacy/src/server/bnetserver/REST/LoginRESTService.cpp`, `/home/server/woltk-trinity-legacy/src/server/bnetserver/Main.cpp` | `crates/bnet-server/` \| ⚠️ partial (login flow works; missing IP-Location DB, soap, win32 service, some REST endpoints, SecretMgr) |
+| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 23 files / 3266 lines; refs: `/home/server/woltk-trinity-legacy/src/server/bnetserver/Server/Session.cpp`, `/home/server/woltk-trinity-legacy/src/server/bnetserver/REST/LoginRESTService.cpp`, `/home/server/woltk-trinity-legacy/src/server/bnetserver/Main.cpp` | `crates/bnet-server/` \| ⚠️ partial (login flow works; missing soap, win32 service, bot/mobile REST endpoints, SecretMgr) |
 
 <!-- REFINE.025:END product-scope -->
 
@@ -516,7 +516,7 @@ HTTP routes (verb + path):
 | `MySQL::Library_Init()` | (none) | sqlx handles its own MariaDB client init. |
 | `OpenSSLCrypto::threadsSetup(...)` | (none) | Not needed with rustls. |
 | `Trinity::Banner::Show("bnetserver", ...)` | `log_startup_banner_like_cpp` logs package version/revision, config file, overlays, env overrides and Rust TLS/DB dependency versions | OpenSSL version is n/a under rustls. |
-| `sIPLocation->Load()` | `wow_account::ip_location::load(path) -> IpLocationDb` (TODO) | New module. |
+| `sIPLocation->Load()` | `crates/bnet-server/src/ip_location.rs::IpLocationStore` | Implemented for BNet auth country-lock parity; canonical shared placement can be revisited if worldserver also needs it. |
 | `sSecretMgr->Initialize(SECRET_OWNER_BNETSERVER)` | `wow_account::secrets::initialize(SecretOwner::BnetServer).await` (TODO) | New module. |
 | `WinServiceInstall / Uninstall / Run` | (none) | Linux target. |
 | `CreatePIDFile(path)` | `std::fs::write(path, std::process::id().to_string())?` | Implemented in `create_pid_file_like_cpp`; called only when `PidFile` is non-empty. |
@@ -534,7 +534,7 @@ HTTP routes (verb + path):
 
 The Rust bnet daemon **reaches the same listening state as TrinityCore** for the happy path: it binds 1119 (TLS, BNet RPC) + 8081 (HTTPS, REST), opens a `LoginDatabase`, runs the `BanExpiryHandler`, polls `realmlist` every `RealmsStateUpdateDelay` s, and wires up the SRPv1/v2 → ticket → `VerifyWebCredentials` → `LogonResult` flow end-to-end. The five core REST endpoints needed for the WoW launcher are present and `cargo test --workspace` passes (395 tests).
 
-What is **not** at parity with TC: encrypted private-key password support, `SecretMgr` (HMAC keys), `IPLocation`, the two "bot" REST routes (`POST /login/`, `POST /login/srp/`), `MigrateLegacyPasswordHashes`, CLI args, and a graceful in-flight request drain during shutdown. The ALPN / TLS-cipher pinning differs because Rust uses `rustls` (TLS 1.2-only `ServerConfig` with no ALPN) while TC uses Boost.Asio + OpenSSL with `TLS_method` (negotiates anything); for WoW 3.4.3 clients that converge on TLS 1.2 + an `ECDHE-RSA-AES*` suite this is functionally equivalent, but uncommon launcher builds may see different ciphers.
+What is **not** at parity with TC: encrypted private-key password support, `SecretMgr` (HMAC keys), the two "bot" REST routes (`POST /login/`, `POST /login/srp/`), `MigrateLegacyPasswordHashes`, CLI args, and a graceful in-flight request drain during shutdown. The ALPN / TLS-cipher pinning differs because Rust uses `rustls` (TLS 1.2-only `ServerConfig` with no ALPN) while TC uses Boost.Asio + OpenSSL with `TLS_method` (negotiates anything); for WoW 3.4.3 clients that converge on TLS 1.2 + an `ECDHE-RSA-AES*` suite this is functionally equivalent, but uncommon launcher builds may see different ciphers.
 
 Resolved since the original audit: `extract_auth_ticket` now mirrors TC's `ExtractAuthorization` by stripping optional `"Basic "`, Base64-decoding the value, and truncating at the first `:`. The failed-login/autoban path now persists `WrongPass.*` effects to `battlenet_accounts.failed_logins`, `battlenet_account_bans`, or `ip_banned`.
 
@@ -556,7 +556,7 @@ Resolved since the original audit: `extract_auth_ticket` now mirrors TC's `Extra
 | `StartDB()` | single MariaDB pool for `LoginDatabase` | identical (sqlx pool via `wow_database::LoginDatabase`) | ✅ |
 | `--update-databases-only` short-circuit | run updaters then exit | runs `DbUpdater::populate` + `update`, never exits early | ⚠️ different semantics |
 | `sSecretMgr->Initialize(SECRET_OWNER_BNETSERVER)` | persist HMAC key | none | ❌ |
-| `sIPLocation->Load()` | parse GeoIP CSV | none | ❌ |
+| `sIPLocation->Load()` | parse GeoIP CSV | parses `IPLocationFile` into sorted numeric IPv4 ranges and enforces BNet `lock_country` | ✅ |
 | `Trinity::Net::ScanLocalNetworks()` | enumerate own subnets for "client is local" check | none — Rust uses literal `127.0.0.1` / same-/24 logic in `realm/mod.rs::select_realm_ip_str` | ⚠️ partial |
 | `sLoginService.StartNetwork(...)` (DNS-resolves `LoginREST.{External,Local}Address`, registers 8 handlers, calls `_acceptor->AsyncAcceptWithCallback<&OnSocketAccept>()`) | — | resolves both LoginREST hostnames to IPv4 at startup, binds `tokio::net::TcpListener`, accept-loop spawns one task per conn | ⚠️ fewer handlers |
 | `sRealmList->Initialize(io, RealmsStateUpdateDelay)` | DB poll `LoginDatabase` every N s + initial `LoadBuildInfo` | `realm::init_realm_manager` does the same | ✅ |
@@ -593,8 +593,8 @@ Resolved since the original audit: `extract_auth_ticket` now mirrors TC's `Extra
 | `ConnectionService::Connect/Bind/Echo/KeepAlive` | full | `Bind`/`Echo` implemented; `Connect`/`KeepAlive` partial | ⚠️ |
 | `AuthenticationService.Logon` | validates program/platform/locale, optional `cached_web_credentials` shortcut, sends `ChallengeExternalRequest` | program+platform+locale validated with TC status codes; `cached_web_credentials` now short-circuits through the same VerifyWebCredentials path; challenge fallback remains | ✅ |
 | `ChallengeListener::OnExternalChallenge` (web auth URL) | sent via `Service<ChallengeListener>` | sent via `send_request(CHALLENGE_LISTENER, 3, …)` | ✅ |
-| `AuthenticationService.VerifyWebCredentials` | loads account + char counts + last-played in chained query callback; checks IP lock, country lock (via `IPLocation`), `IsBanned` / `IsPermanenetlyBanned`; sets `_authed` and dispatches `AuthenticationListener::OnLogonComplete` (method 5) | similar; but **no country lock** (no `IPLocation`); 64-byte `session_key` is fresh random per call (TC also random — ✅); error codes used: 3, 12 | ⚠️ no country lock |
-| Error codes on auth failure | `ERROR_DENIED=3`, `ERROR_TIMED_OUT=2`, `ERROR_RISK_ACCOUNT_LOCKED=0xA413`, `ERROR_GAME_ACCOUNT_BANNED=0x34`, `ERROR_GAME_ACCOUNT_SUSPENDED=0x35` | Rust now returns the same RPC status codes for missing/invalid/expired tickets, IP lock mismatch, and permanent/temporary BNet account bans. Country-lock remains blocked on `IPLocation`. | ⚠️ |
+| `AuthenticationService.VerifyWebCredentials` | loads account + char counts + last-played in chained query callback; checks IP lock, country lock (via `IPLocation`), `IsBanned` / `IsPermanenetlyBanned`; sets `_authed` and dispatches `AuthenticationListener::OnLogonComplete` (method 5) | similar; includes `IPLocation` country-lock enforcement and random 64-byte `session_key` like TC | ✅ |
+| Error codes on auth failure | `ERROR_DENIED=3`, `ERROR_TIMED_OUT=2`, `ERROR_RISK_ACCOUNT_LOCKED=0xA413`, `ERROR_GAME_ACCOUNT_BANNED=0x34`, `ERROR_GAME_ACCOUNT_SUSPENDED=0x35` | Rust now returns the same RPC status codes for missing/invalid/expired tickets, IP/country lock mismatch, and permanent/temporary BNet account bans. | ✅ |
 | `GameUtilitiesService.ProcessClientRequest` (RealmList / RealmJoin / LastCharPlayed / RealmListTicket) | full | full | ✅ |
 | `GameUtilitiesService.GetAllValuesForAttribute` (sub-region enumeration) | full | full | ✅ |
 | `AccountService.GetAccountState/GetGameAccountState` | stubs | stubs | ✅ |
@@ -640,4 +640,4 @@ Add these to §9 (existing tasks #BNET.1–#BNET.14 stand):
 
 ### 13.8 Header status update
 
-Header status changed from `❌ not audited` → `⚠️ audited (2026-05-01)`. Functional state remains `⚠️ partial` because the audit confirmed gaps; remaining blockers include `IPLocation`/country lock parity, encrypted private-key password support, bot/mobile REST routes, and graceful in-flight shutdown drain.
+Header status changed from `❌ not audited` → `⚠️ audited (2026-05-01)`. Functional state remains `⚠️ partial` because the audit confirmed gaps; remaining blockers include encrypted private-key password support, bot/mobile REST routes, and graceful in-flight shutdown drain.

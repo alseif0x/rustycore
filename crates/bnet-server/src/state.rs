@@ -5,12 +5,15 @@ use parking_lot::RwLock;
 use std::collections::HashMap;
 use wow_database::{DatabaseError, LoginDatabase, LoginStatements};
 
+use crate::ip_location::IpLocationStore;
 use crate::realm::RealmManager;
 
 /// Shared application state accessible from all handlers.
 pub struct AppState {
     /// Login database connection.
     pub login_db: LoginDatabase,
+    /// IP location database loaded from `IPLocationFile`.
+    pub ip_location: IpLocationStore,
 
     /// External address for clients (e.g., "example.com").
     pub external_address: String,
@@ -41,6 +44,7 @@ pub struct AppState {
 impl AppState {
     pub fn new(
         login_db: LoginDatabase,
+        ip_location: IpLocationStore,
         external_address: String,
         local_address: String,
         rest_port: u16,
@@ -53,6 +57,7 @@ impl AppState {
     ) -> Self {
         Self {
             login_db,
+            ip_location,
             external_address,
             local_address,
             rest_port,

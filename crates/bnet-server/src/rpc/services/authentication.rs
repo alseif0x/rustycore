@@ -288,9 +288,26 @@ async fn verify_web_credentials_like_cpp<S: AsyncRead + AsyncWrite + Unpin>(
     }
 
     // Check IP lock
-    if is_locked_to_ip && last_ip != session.addr().ip().to_string() {
-        tracing::debug!("Account {account_id} is locked to IP {last_ip}");
-        return Err(RpcStatusError::new(status::ERROR_RISK_ACCOUNT_LOCKED).into());
+    if is_locked_to_ip {
+        if last_ip != session.addr().ip().to_string() {
+            tracing::debug!("Account {account_id} is locked to IP {last_ip}");
+            return Err(RpcStatusError::new(status::ERROR_RISK_ACCOUNT_LOCKED).into());
+        }
+    } else {
+        if let Some(country) = state
+            .ip_location
+            .country_for_ip_like_cpp(&session.addr().ip().to_string())
+        {
+            session.ip_country = country.to_string();
+        }
+
+        if bnet_country_lock_rejects_like_cpp(&lock_country, &session.ip_country) {
+            tracing::debug!(
+                "Account {account_id} is locked to country {lock_country}; player country is {}",
+                session.ip_country
+            );
+            return Err(RpcStatusError::new(status::ERROR_RISK_ACCOUNT_LOCKED).into());
+        }
     }
 
     // Check ban
@@ -411,6 +428,13 @@ async fn handle_generate_web_credentials<S: AsyncRead + AsyncWrite + Unpin>(
     Ok(Some(response.encode_to_vec()))
 }
 
+fn bnet_country_lock_rejects_like_cpp(lock_country: &str, ip_country: &str) -> bool {
+    !lock_country.is_empty()
+        && lock_country != "00"
+        && !ip_country.is_empty()
+        && lock_country != ip_country
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -490,5 +514,14 @@ mod tests {
             bnet_account_ban_status_like_cpp(true, false),
             Some(status::ERROR_GAME_ACCOUNT_SUSPENDED)
         );
+    }
+
+    #[test]
+    fn bnet_country_lock_rejects_only_when_cpp_would() {
+        assert!(!bnet_country_lock_rejects_like_cpp("", "us"));
+        assert!(!bnet_country_lock_rejects_like_cpp("00", "us"));
+        assert!(!bnet_country_lock_rejects_like_cpp("us", ""));
+        assert!(!bnet_country_lock_rejects_like_cpp("us", "us"));
+        assert!(bnet_country_lock_rejects_like_cpp("us", "de"));
     }
 }

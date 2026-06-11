@@ -3,6 +3,7 @@
 //! Handles Battle.net account login via REST (HTTPS) and BNet RPC (TLS).
 //! This is a drop-in replacement for the C# BNetServer.
 
+mod ip_location;
 mod realm;
 mod rest;
 mod rpc;
@@ -16,6 +17,7 @@ use tokio_rustls::TlsAcceptor;
 use wow_config::{DatabaseInfo, LoadReport};
 use wow_database::{LoginDatabase, LoginStatements, build_connection_string};
 
+use crate::ip_location::IpLocationStore;
 use crate::state::AppState;
 
 const BNET_CONFIG_CANDIDATES: &[&str] = &[
@@ -123,9 +125,11 @@ async fn main() -> Result<()> {
     let realm_update_delay: u64 = wow_config::get_value("RealmsStateUpdateDelay").unwrap_or(10);
     let ban_check_interval: u64 = wow_config::get_value("BanExpiryCheckInterval").unwrap_or(60);
     let max_ping_time_minutes: u64 = wow_config::get_value("MaxPingTime").unwrap_or(30);
+    let ip_location = load_ip_location_from_config_like_cpp();
 
     let state = Arc::new(AppState::new(
         login_db,
+        ip_location,
         rest_addresses.external_hostname,
         rest_addresses.local_hostname,
         rest_port,
@@ -382,6 +386,33 @@ fn listener_task_exit_like_cpp(
         Ok(()) => anyhow::bail!("{service_name} listener stopped unexpectedly"),
         Err(error) => anyhow::bail!("{service_name} listener task failed: {error}"),
     }
+}
+
+fn load_ip_location_from_config_like_cpp() -> IpLocationStore {
+    tracing::info!("Loading IP Location Database...");
+    let database_file_path = wow_config::get_string_default("IPLocationFile", "");
+    if database_file_path.is_empty() {
+        return IpLocationStore::default();
+    }
+
+    if !std::path::Path::new(&database_file_path).exists() {
+        tracing::error!("IPLocation: No ip database file exists ({database_file_path}).");
+        return IpLocationStore::default();
+    }
+
+    let contents = match std::fs::read_to_string(&database_file_path) {
+        Ok(contents) => contents,
+        Err(error) => {
+            tracing::error!(
+                "IPLocation: Ip database file ({database_file_path}) can not be opened: {error}"
+            );
+            return IpLocationStore::default();
+        }
+    };
+
+    let store = IpLocationStore::from_csv_like_cpp(&contents);
+    tracing::info!(">> Loaded {} ip location entries.", store.len());
+    store
 }
 
 fn create_pid_file_from_config_like_cpp() -> Result<Option<u32>> {
