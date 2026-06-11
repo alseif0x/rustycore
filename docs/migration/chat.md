@@ -3,7 +3,7 @@
 > **C++ canonical path:** `src/server/game/Chat/` + `src/server/game/Handlers/ChatHandler.cpp` + `src/server/game/Handlers/ChannelHandler.cpp`
 > **Rust target crate(s):** `crates/wow-chat/`, `crates/wow-world/src/handlers/chat.rs`, `crates/wow-packet/src/packets/chat.rs`
 > **Layer:** L6
-> **Status:** ⚠️ partial (~34% — say/yell/whisper/emote work; Party/Raid/RaidWarning/InstanceChat now use group membership routing; group addon Party/Raid/InstanceChat routing represented; `ValidateMessage` newline/control gates and hyperlink shape/control-sequence rejection represented; ignored-report and AFK/DND status toggles represented; Guild/Officer, channels, targeted addon routing, semantic hyperlink validation, languages still missing)
+> **Status:** ⚠️ partial (~35% — say/yell/whisper/emote work; Party/Raid/RaidWarning/InstanceChat now use group membership routing; group addon Party/Raid/InstanceChat routing represented; `ValidateMessage` newline/control gates, `LANG_UNIVERSAL` client-cheat rejection, `GM_SILENCE_AURA`, and hyperlink shape/control-sequence rejection represented; ignored-report and AFK/DND status toggles represented; Guild/Officer, channels, targeted addon routing, semantic hyperlink validation, full `LanguageMgr` still missing)
 > **Audited vs C++:** ✅ audited 2026-05-01 (§13)
 > **Last updated:** 2026-06-11
 
@@ -134,7 +134,7 @@ Todas las rutas relativas a `/home/server/woltk-trinity-legacy/`.
 **Depends on:**
 - **Entities/Player** — sender/recipient identity, `PLAYER_FLAGS_AFK/DND/GM`, race→language map
 - **DBC/DB2 stores** — `ChatChannelsStore`, `Languages.db2`, `LanguageWords.db2`, `EmotesText.db2`, `AreaTableStore` for zone-restricted channels
-- **CharacterDatabase** — `channels` table (custom channel persistence) + `character_social` (whisper-block via ignore list — read by `ChatHandler` to drop whispers from ignored senders)
+- **CharacterDatabase** — `channels` table (custom channel persistence) + `character_social` (social/ignore data; C++ uses ignore checks in channels/invites/LFG, but current `CHAT_MSG_WHISPER` contrast does not show a receiver-ignore drop in `ChatHandler`/`Player::Whisper`)
 - **Globals/ObjectAccessor** — find target Player by name for whispers
 - **Groups** — `Group::BroadcastPacket` for party/raid/instance-chat
 - **Guilds** — `Guild::BroadcastToGuild`/`BroadcastToOfficer` for guild/officer chat
@@ -160,7 +160,7 @@ Todas las rutas relativas a `/home/server/woltk-trinity-legacy/`.
 | `CHAR_UPD_CHANNEL_OWNERSHIP` | Toggle `ownership` for a channel by name | character |
 | `CHAR_DEL_CHANNEL` | Delete row when channel destroyed | character |
 | `SEL_CHANNELS` (raw query in `ChannelMgr::LoadFromDB`) | Bulk-load persisted channels at startup | character |
-| Direct `SELECT` of `character_social` flags | Drop whisper from sender on recipient ignore list | character |
+| Direct `SELECT` of `character_social` flags | Future social/channel ignore gates where C++ calls `PlayerSocial::HasIgnore`; do not invent a whisper drop without a C++ call-site | character |
 
 DBC/DB2 stores read:
 
@@ -257,14 +257,14 @@ DBC/DB2 stores read:
 - **Built-in channels** (Trade, General, LookingForGroup, GuildRecruitment, LocalDefense) — none auto-joined on zone change.
 - **Custom user channels** — no creation/destruction, no `channels` table read/write.
 - **Moderator/Owner/Banlist** — no `MEMBER_FLAG_*` enforcement, no `KickOrBan`, no `SetMode`, no `SetOwner`, no `Announce` toggle.
-- **Languages** — `LanguageMgr` not ported; speech is never scrambled, addon lang (183/184) never validated.
+- **Languages** — full `LanguageMgr` not ported; speech is never scrambled and addon lang (183/184) never validated. The first C++ gate rejecting client-sent `LANG_UNIVERSAL` for non-emote chat is represented.
 - **Hyperlinks** — shape/control-sequence validation is represented for normal chat, whisper/chat-emote, AFK, and DND, but full C++ semantic validation (`ValidateLinkInfo`: item/spell/quest/achievement/text/color/store lookups) is not ported yet, and mail/other hyperlink gates remain incomplete.
 - **Addon messages** — `CMSG_CHAT_ADDON_MESSAGE` now routes Party/Raid/InstanceChat addon payloads through group membership and receiver-side addon-prefix filtering. Guild/Officer/Channel addon routing and targeted/whisper addon packets remain absent.
 - **AFK/DND** — `CMSG_CHAT_MESSAGE_AFK/DND` now toggles canonical `PLAYER_FLAGS_AFK/DND`, stores represented auto-reply text, applies first-stage `ValidateMessage`/hyperlink shape gates, and rejects represented `GM_SILENCE_AURA=1852`, but real kick-on-bad-link, guild away event, script hook, localized default strings, battleground side-effect, and auto-reply delivery remain missing.
 - **Whisper offline queue** — no fallback, no `BN_WHISPER_PLAYER_OFFLINE`.
 - **Cross-realm whisper resolution (VirtualRealmAddress)** — partially wired (`virtual_realm_address` field passed) but no name-disambiguation or `SMSG_CHAT_PLAYER_AMBIGUOUS`.
 - **Guild / Officer routing** — `GuildRegistry`/`Guild::BroadcastToGuild` and `BroadcastToOfficer` are still absent. Guild currently drops rather than proximity-leaking.
-- **Group routing residuals** — Party/Raid/RaidWarning/InstanceChat now use group membership routing, but battleground original-group selection, non-default `PartyRaidWarnings` config support, language validation, and full chat-validation gates remain missing.
+- **Group routing residuals** — Party/Raid/RaidWarning/InstanceChat now use group membership routing, but battleground original-group selection, non-default `PartyRaidWarnings` config support, full `LanguageMgr` validation/scrambling, and remaining chat-validation gates remain missing.
 - **Chat commands (`.gm`, `!command`)** — no `ChatCommand` registry, no command parser, no security-level enforcement.
 - **Profanity / spam filter** — absent. `GM_SILENCE_AURA=1852` is now represented for normal chat, chat-emote, AFK/DND, and whisper-to-non-GM gates, but the exact localized notification packet/string is still not ported.
 - **`SMSG_CHAT_PLAYER_AMBIGUOUS`, `SMSG_DEFENSE_MESSAGE`** — never sent.
@@ -423,7 +423,7 @@ DBC/DB2 stores read:
 - [ ] **#CHAT.2** Move `Language` enum + `ChatFlags` enum to `wow-constants`. Complejidad: **L**
 - [x] **#CHAT.3a** Fix Party/Raid/RaidWarning/InstanceChat routing — use `GroupRegistry`/`PlayerRegistry` membership delivery instead of proximity; preserve party subgroup filtering, raid-only gates, leader variants, and raid-warning leader/assistant gate. Complejidad: **M**
 - [ ] **#CHAT.3b** Port Guild/Officer routing — add `GuildRegistry`/`Guild::BroadcastToGuild`/`BroadcastToOfficer`; keep delivery out of proximity routing. Complejidad: **M**
-- [ ] **#CHAT.3c** Finish group-chat residuals — battleground original-group selection, non-default `PartyRaidWarnings` config, language validation, and full C++ chat-validation gates. Complejidad: **M**
+- [ ] **#CHAT.3c** Finish group-chat residuals — battleground original-group selection, non-default `PartyRaidWarnings` config, full `LanguageMgr` validation/scrambling, and remaining C++ chat-validation gates. Complejidad: **M**
 - [ ] **#CHAT.4** Implement `wow-chat::Channel` struct (members map, banned set, password, flags, owner GUID, dirty flag). Complejidad: **M**
 - [ ] **#CHAT.5** Implement `wow-chat::ChannelMgr` (per-team registries, name-indexed), wire into `WorldContext`. Complejidad: **M**
 - [ ] **#CHAT.6** Add `channels` table to character DB schema; load on startup, persist on dirty interval (mirror `CHAR_UPD_CHANNEL` family). Complejidad: **M**
@@ -437,6 +437,7 @@ DBC/DB2 stores read:
 - [x] **#CHAT.14a** Parse and register `CMSG_CHAT_MESSAGE_AFK`/`_DND`; toggle canonical `PLAYER_FLAGS_AFK/DND`, keep them mutually exclusive, and store represented auto-reply text. Complejidad: **L**
 - [x] **#CHAT.14b1** Port first-stage chat `ValidateMessage` gates — length/empty checks for normal chat, newline truncation/rejection, ASCII-control rejection except tab, applied to normal chat, whisper, chat-emote, AFK, and DND. Complejidad: **M**
 - [x] **#CHAT.14b2a** Port represented `GM_SILENCE_AURA=1852` chat gates — non-whisper chat/emote/AFK/DND are rejected, and whispers are rejected unless the receiver is a GM, matching `ChatHandler.cpp` first-stage behavior. Complejidad: **S**
+- [x] **#CHAT.14b2c** Port C++ first-stage language cheat gate — client-sent `LANG_UNIVERSAL` is rejected for non-emote chat/whisper before delivery. Complejidad: **S**
 - [ ] **#CHAT.14b2b** Complete remaining C++ AFK/DND/chat side effects: real hyperlink kick, localized `LANG_GM_SILENCE` notification, guild away event, script hook, localized defaults, battleground leave, actual auto-reply delivery, and config-backed `ChatFakeMessagePreventing` space collapse. Complejidad: **M**
 - [x] **#CHAT.15** Implement `CMSG_CHAT_REPORT_IGNORED` — inform sender they were ignored. Complejidad: **L**
 - [x] **#CHAT.16a** Implement group addon routing for `CMSG_CHAT_ADDON_MESSAGE` Party/Raid/InstanceChat — build `SMSG_CHAT` with real addon prefix, `LANG_ADDON`/`LANG_ADDON_LOGGED`, no sender echo, party subgroup filtering, and receiver-side `IsAddonRegistered(prefix)` gate. Complejidad: **M**
@@ -493,7 +494,7 @@ DBC/DB2 stores read:
 
 | Scope | Decision | C++ retained | Evidence |
 |---|---|---|---|
-| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 21 files / 7293 lines; refs: `/home/server/woltk-trinity-legacy/src/server/game/Chat/Channels/Channel.cpp`, `/home/server/woltk-trinity-legacy/src/server/game/Chat/Chat.cpp`, `/home/server/woltk-trinity-legacy/src/server/game/Chat/Hyperlinks.cpp` | `crates/wow-chat/`, `crates/wow-world/src/handlers/chat.rs`, `crates/wow-packet/src/packets/chat.rs` \| ⚠️ partial (~34% — say/yell/whisper/emote work; Party/Raid/RaidWarning/InstanceChat and group addon routing are represented; `ValidateMessage` and hyperlink shape/control validation represented; ignored-report and AFK/DND status toggles represented; Guild/Officer, channels, targeted addon routing, semantic hyperlink validation, languages still missing) |
+| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 21 files / 7293 lines; refs: `/home/server/woltk-trinity-legacy/src/server/game/Chat/Channels/Channel.cpp`, `/home/server/woltk-trinity-legacy/src/server/game/Chat/Chat.cpp`, `/home/server/woltk-trinity-legacy/src/server/game/Chat/Hyperlinks.cpp` | `crates/wow-chat/`, `crates/wow-world/src/handlers/chat.rs`, `crates/wow-packet/src/packets/chat.rs` \| ⚠️ partial (~35% — say/yell/whisper/emote work; Party/Raid/RaidWarning/InstanceChat and group addon routing are represented; `ValidateMessage`, `LANG_UNIVERSAL` rejection, `GM_SILENCE_AURA`, and hyperlink shape/control validation represented; ignored-report and AFK/DND status toggles represented; Guild/Officer, channels, targeted addon routing, semantic hyperlink validation, full `LanguageMgr` still missing) |
 
 <!-- REFINE.025:END product-scope -->
 
@@ -574,7 +575,7 @@ The seven distinct inventory entries each list their own `handler_name` (`handle
 | C++ opcode handler | Rust | Verdict |
 |---|---|---|
 | `HandleChatMessageSay/Yell/Emote` | ✅ proximity broadcast for Say/Yell/Emote |  partial |
-| `HandleChatMessageParty/Raid/RaidWarning/InstanceChat` | ✅ registered, ✅ group-routed via `GroupRegistry`/`PlayerRegistry`; residual BG original-group/config/language gates pending | partial |
+| `HandleChatMessageParty/Raid/RaidWarning/InstanceChat` | ✅ registered, ✅ group-routed via `GroupRegistry`/`PlayerRegistry`; ✅ client-sent `LANG_UNIVERSAL` rejected; residual BG original-group/config/full `LanguageMgr` gates pending | partial |
 | `HandleChatMessageGuild/Officer` | Guild registered but drops pending `GuildRegistry`; Officer not represented | missing |
 | `HandleChatMessageWhisper` | ✅ `chat.rs:187-257` via `player_registry` name lookup; offline → inform-only echo |  partial |
 | `HandleChatMessageAFK/DND` | ✅ registered; toggles canonical AFK/DND flags + represented auto-reply |  partial |
@@ -593,7 +594,7 @@ The seven distinct inventory entries each list their own `handler_name` (`handle
 - `ValidateMessage` newline/control-char gates are represented for normal chat, whisper, chat-emote, AFK and DND; config-backed duplicate-space collapse remains pending.
 - `GM_SILENCE_AURA = 1852` is now checked via represented visible auras for normal chat, chat-emote, AFK/DND, and whisper-to-non-GM. The remaining gap is notification fidelity (`LANG_GM_SILENCE`) and any path outside represented chat handlers.
 - AFK/DND now toggles canonical flags, applies first-stage validation gates, and stores represented auto-reply text, but C++ guild/script/localized-default/battleground and actual auto-reply delivery paths are still absent.
-- No ignore-list cross-check — whispers from blocked senders pass through (see also `social.md` §13).
+- Earlier notes claimed a missing whisper ignore-list gate, but current C++ contrast found no `PlayerSocial::HasIgnore` call in `WorldSession::HandleChatMessage(... CHAT_MSG_WHISPER ...)` or `Player::Whisper`; do not add a Rust-only whisper drop unless a real C++ call-site is identified.
 
 ### Channels system
 

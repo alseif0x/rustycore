@@ -38,6 +38,7 @@ use crate::session::{PlayerAwayModeLikeCpp, WorldSession};
 const RANGE_SAY: f32 = 25.0;
 const RANGE_YELL: f32 = 300.0;
 const RANGE_EMOTE: f32 = 25.0;
+const LANG_UNIVERSAL_LIKE_CPP: i32 = 0;
 const LANG_ADDON_LIKE_CPP: u32 = 183;
 const LANG_ADDON_LOGGED_LIKE_CPP: u32 = 184;
 const GM_SILENCE_AURA_LIKE_CPP: i32 = 1852;
@@ -211,6 +212,14 @@ impl WorldSession {
         if msg.text.is_empty() {
             return;
         }
+        if msg.language == LANG_UNIVERSAL_LIKE_CPP {
+            tracing::warn!(
+                account = self.account_id,
+                ty = ?msg_type,
+                "Chat message rejected: client attempted LANG_UNIVERSAL"
+            );
+            return;
+        }
         if !validate_message_like_cpp(&mut msg.text, false) {
             tracing::warn!(
                 account = self.account_id,
@@ -307,6 +316,13 @@ impl WorldSession {
             return;
         }
         if msg.text.is_empty() {
+            return;
+        }
+        if msg.language == LANG_UNIVERSAL_LIKE_CPP {
+            tracing::warn!(
+                account = self.account_id,
+                "Whisper rejected: client attempted LANG_UNIVERSAL"
+            );
             return;
         }
         if !validate_message_like_cpp(&mut msg.text, false) {
@@ -971,10 +987,20 @@ mod tests {
     use std::sync::Arc;
     use wow_network::{PendingInvites, PlayerBroadcastInfo, PlayerRegistry};
 
+    const LANG_COMMON_LIKE_CPP: i32 = 7;
+
     fn chat_message_packet(opcode: ClientOpcodes, text: &str) -> wow_packet::WorldPacket {
+        chat_message_packet_with_language(opcode, LANG_COMMON_LIKE_CPP, text)
+    }
+
+    fn chat_message_packet_with_language(
+        opcode: ClientOpcodes,
+        language: i32,
+        text: &str,
+    ) -> wow_packet::WorldPacket {
         let mut writer = wow_packet::WorldPacket::new_empty();
         writer.write_uint16(opcode as u16);
-        writer.write_int32(0);
+        writer.write_int32(language);
         writer.write_bits(text.len() as u32, 11);
         writer.write_bit(false);
         writer.write_string(text);
@@ -996,8 +1022,16 @@ mod tests {
     }
 
     fn chat_whisper_packet(target: &str, text: &str) -> wow_packet::WorldPacket {
+        chat_whisper_packet_with_language(target, LANG_COMMON_LIKE_CPP, text)
+    }
+
+    fn chat_whisper_packet_with_language(
+        target: &str,
+        language: i32,
+        text: &str,
+    ) -> wow_packet::WorldPacket {
         let mut writer = wow_packet::WorldPacket::new_empty();
-        writer.write_int32(0);
+        writer.write_int32(language);
         writer.write_bits(target.len() as u32, 9);
         writer.write_bits(text.len() as u32, 11);
         writer.write_string(target);
@@ -1322,6 +1356,51 @@ mod tests {
 
         assert!(sender_rx.try_recv().is_err());
         assert!(nearby_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn chat_message_rejects_client_universal_language_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 353);
+        let nearby = ObjectGuid::create_player(1, 354);
+        let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
+        let (nearby_tx, nearby_rx) = flume::bounded(8);
+        player_registry.insert(nearby, broadcast_info(nearby, nearby_tx));
+
+        session
+            .handle_chat_message(
+                chat_message_packet_with_language(
+                    ClientOpcodes::ChatMessageSay,
+                    LANG_UNIVERSAL_LIKE_CPP,
+                    "universal",
+                ),
+                ChatMsg::Say,
+            )
+            .await;
+
+        assert!(sender_rx.try_recv().is_err());
+        assert!(nearby_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn whisper_rejects_client_universal_language_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 355);
+        let target = ObjectGuid::create_player(1, 356);
+        let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
+        let (target_tx, target_rx) = flume::bounded(8);
+        let mut target_info = broadcast_info(target, target_tx);
+        target_info.player_name = "Target".to_string();
+        player_registry.insert(target, target_info);
+
+        session
+            .handle_chat_whisper(chat_whisper_packet_with_language(
+                "Target",
+                LANG_UNIVERSAL_LIKE_CPP,
+                "universal",
+            ))
+            .await;
+
+        assert!(sender_rx.try_recv().is_err());
+        assert!(target_rx.try_recv().is_err());
     }
 
     #[tokio::test]
