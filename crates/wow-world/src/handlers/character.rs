@@ -5765,10 +5765,40 @@ impl WorldSession {
     }
 
     /// CMSG_SPIRIT_HEALER_ACTIVATE — ghost uses spirit healer.
-    /// C# ref: NPCHandler.HandleSpiritHealerActivate → SendSpiritResurrect
-    /// TODO: full resurrection logic (durability loss, corpse spawn, teleport).
-    pub async fn handle_spirit_healer_activate(&mut self, _pkt: wow_packet::WorldPacket) {
-        info!("SpiritHealerActivate account {} (stub)", self.account_id);
+    /// C++ ref: `WorldSession::HandleSpiritHealerActivate`.
+    pub async fn handle_spirit_healer_activate(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let request = match SpiritHealerActivate::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "SpiritHealerActivate parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        let Some(_healer) = self.represented_npc_can_interact_with_like_cpp(
+            request.healer,
+            NPCFlags1::SPIRIT_HEALER.bits(),
+            0,
+        ) else {
+            debug!(
+                account = self.account_id,
+                healer = ?request.healer,
+                "SpiritHealerActivate ignored without represented spirit healer"
+            );
+            return;
+        };
+
+        // C++ continues into SendSpiritResurrect here: resurrect 50%, durability
+        // loss, corpse-bones spawn, and possible graveyard teleport. That player
+        // corpse/death runtime is not represented in this handler yet.
+        debug!(
+            account = self.account_id,
+            healer = ?request.healer,
+            "SpiritHealerActivate validated; resurrection runtime pending"
+        );
     }
 
     /// CMSG_REPAIR_ITEM — player repairs item at a repair vendor.
@@ -9803,6 +9833,18 @@ mod tests {
         request.write_packed_guid(&stable_master);
 
         session.handle_request_stabled_pets(request).await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn spirit_healer_activate_without_interactable_healer_is_silent_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        let healer = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9, 1);
+        let mut request = WorldPacket::new_empty();
+        request.write_packed_guid(&healer);
+
+        session.handle_spirit_healer_activate(request).await;
 
         assert!(send_rx.try_recv().is_err());
     }

@@ -3300,6 +3300,22 @@ impl ClientPacket for RepairItem {
     }
 }
 
+/// C++ `WorldPackets::NPC::SpiritHealerActivate`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpiritHealerActivate {
+    pub healer: ObjectGuid,
+}
+
+impl ClientPacket for SpiritHealerActivate {
+    const OPCODE: wow_constants::ClientOpcodes = wow_constants::ClientOpcodes::SpiritHealerActivate;
+
+    fn read(pkt: &mut crate::WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            healer: pkt.read_packed_guid()?,
+        })
+    }
+}
+
 /// C++ `WorldPackets::NPC::RequestStabledPets`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RequestStabledPets {
@@ -5806,6 +5822,20 @@ mod tests {
         let pkt = RequestStabledPets::read(&mut reader).unwrap();
 
         assert_eq!(pkt.stable_master, stable_master);
+    }
+
+    #[test]
+    fn spirit_healer_activate_reads_cpp_healer_guid() {
+        let healer =
+            ObjectGuid::create_world_object(wow_core::guid::HighGuid::Creature, 0, 1, 571, 0, 9, 1);
+        let mut writer = WorldPacket::new_server(ServerOpcodes::DbReply);
+        writer.write_packed_guid(&healer);
+
+        let mut reader = WorldPacket::from_bytes(writer.data());
+        reader.skip_opcode();
+        let pkt = SpiritHealerActivate::read(&mut reader).unwrap();
+
+        assert_eq!(pkt.healer, healer);
     }
 
     #[test]
