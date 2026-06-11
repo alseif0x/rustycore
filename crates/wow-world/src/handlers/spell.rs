@@ -46,7 +46,8 @@ use wow_packet::packets::loot::{
     CreatureLoot, LOOT_TYPE_ITEM_LIKE_CPP, LootEntry, LootEntryFlags, LootItemData, LootResponse,
 };
 use wow_packet::packets::spell::{
-    CastFailed, CastSpellRequest, OpenItem, SpellCastVisual, SpellClick, SpellStartPkt,
+    CancelCast, CancelChannelling, CastFailed, CastSpellRequest, OpenItem, SpellCastVisual,
+    SpellClick, SpellStartPkt,
 };
 
 use crate::session::WorldSession;
@@ -1662,13 +1663,48 @@ impl WorldSession {
     }
 
     /// Handle `CMSG_CANCEL_CAST` — player cancels an in-progress cast.
-    pub async fn handle_cancel_cast(&mut self, _pkt: wow_packet::WorldPacket) {
-        // TODO: Phase 3 — implement cancel cast
+    pub async fn handle_cancel_cast(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let request = match CancelCast::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "CancelCast parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        let Some(active_cast) = self.active_spell_cast.as_ref() else {
+            return;
+        };
+
+        if request.spell_id != 0 && active_cast.spell_id != request.spell_id as i32 {
+            return;
+        }
+
+        self.active_spell_cast = None;
     }
 
     /// Handle `CMSG_CANCEL_CHANNELLING` — player stops a channelled spell.
-    pub async fn handle_cancel_channelling(&mut self, _pkt: wow_packet::WorldPacket) {
-        // TODO: Phase 3 — implement cancel channelling
+    pub async fn handle_cancel_channelling(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let request = match CancelChannelling::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "CancelChannelling parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        debug!(
+            account = self.account_id,
+            channel_spell = request.channel_spell,
+            reason = request.reason,
+            "CMSG_CANCEL_CHANNELLING parsed; current channeled player spell runtime is not represented yet"
+        );
     }
 
     fn is_spell_disabled_for_player_like_cpp(&self, spell_id: i32) -> bool {
@@ -2066,13 +2102,15 @@ mod tests {
     use rand::{SeedableRng, rngs::StdRng};
 
     use wow_constants::{BagFamilyMask, ItemContext, ItemFieldFlags, ItemFlags, ItemUpdateState};
-    use wow_core::ObjectGuid;
+    use wow_core::{ObjectGuid, guid::HighGuid};
     use wow_entities::{Item, ItemCreateInfo, MAX_ITEM_SPELLS};
     use wow_loot::{
         LootConditionRowLikeCpp, condition_compare_values_like_cpp,
         loot_conditions_allow_player_like_cpp_representable,
     };
+    use wow_packet::WorldPacket;
     use wow_packet::packets::loot::{LootEntry, LootEntryFlags};
+    use wow_packet::packets::spell::SpellTargetData;
 
     use super::{
         ITEM_FLAGS_CU_FOLLOW_LOOT_RULES_LIKE_CPP, ITEM_FLAGS_CU_IGNORE_QUEST_STATUS_LIKE_CPP,
@@ -2085,6 +2123,112 @@ mod tests {
         roll_group_loot_row_like_cpp, stored_item_row_can_load_like_cpp_representable,
         stored_loot_item_should_persist_like_cpp,
     };
+    use crate::session::{SpellCastMetadata, SpellCastState};
+
+    fn make_session() -> (crate::session::WorldSession, flume::Receiver<Vec<u8>>) {
+        let (_pkt_tx, pkt_rx) = flume::bounded(100);
+        let (send_tx, send_rx) = flume::bounded(100);
+
+        (
+            crate::session::WorldSession::new(
+                1,
+                "TestAccount".into(),
+                0,
+                2,
+                9,
+                54261,
+                vec![0u8; 40],
+                "esES".into(),
+                pkt_rx,
+                send_tx,
+            ),
+            send_rx,
+        )
+    }
+
+    fn install_active_spell_cast(
+        session: &mut crate::session::WorldSession,
+        spell_id: i32,
+        cast_id: ObjectGuid,
+    ) {
+        let player_guid = ObjectGuid::create_player(1, 42);
+        session.active_spell_cast = Some(SpellCastState {
+            spell_id,
+            target_guid: player_guid,
+            target_data: SpellTargetData {
+                flags: 0x2, // SpellCastTargetFlags::Unit
+                unit: player_guid,
+                ..Default::default()
+            },
+            cast_id,
+            cast_start_time: std::time::Instant::now(),
+            cast_time_ms: 30_000,
+            spell_visual: super::SpellCastVisual {
+                spell_visual_id: 1,
+                script_visual_id: 0,
+            },
+            metadata: SpellCastMetadata::default(),
+        });
+    }
+
+    fn cancel_cast_packet(cast_id: ObjectGuid, spell_id: u32) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_packed_guid(&cast_id);
+        pkt.write_uint32(spell_id);
+        pkt.reset_read();
+        pkt
+    }
+
+    fn cancel_channelling_packet(channel_spell: i32, reason: i32) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_int32(channel_spell);
+        pkt.write_int32(reason);
+        pkt.reset_read();
+        pkt
+    }
+
+    #[tokio::test]
+    async fn cancel_cast_clears_matching_active_cast_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        let cast_id = ObjectGuid::create_world_object(HighGuid::Cast, 0, 1, 0, 0, 1, 7);
+        install_active_spell_cast(&mut session, 12_345, cast_id);
+
+        session
+            .handle_cancel_cast(cancel_cast_packet(cast_id, 12_345))
+            .await;
+
+        assert!(session.active_spell_cast.is_none());
+    }
+
+    #[tokio::test]
+    async fn cancel_cast_mismatched_spell_preserves_active_cast_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        let cast_id = ObjectGuid::create_world_object(HighGuid::Cast, 0, 1, 0, 0, 1, 7);
+        install_active_spell_cast(&mut session, 12_345, cast_id);
+
+        session
+            .handle_cancel_cast(cancel_cast_packet(cast_id, 67_890))
+            .await;
+
+        assert_eq!(
+            session
+                .active_spell_cast
+                .as_ref()
+                .map(|active_cast| active_cast.spell_id),
+            Some(12_345)
+        );
+    }
+
+    #[tokio::test]
+    async fn cancel_channelling_parses_and_stays_silent_until_channel_runtime_exists() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_cancel_channelling(cancel_channelling_packet(12_345, 40))
+            .await;
+
+        assert!(send_rx.is_empty());
+    }
 
     #[test]
     fn open_item_wrapped_without_has_loot_uses_gift_row_like_cpp() {

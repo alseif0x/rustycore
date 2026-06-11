@@ -20,6 +20,43 @@ use wow_core::{ObjectGuid, Position};
 use crate::world_packet::{PacketError, WorldPacket};
 use crate::{ClientPacket, ServerPacket};
 
+/// C++ `WorldPackets::Spells::CancelCast`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CancelCast {
+    pub cast_id: ObjectGuid,
+    pub spell_id: u32,
+}
+
+impl ClientPacket for CancelCast {
+    const OPCODE: ClientOpcodes = ClientOpcodes::CancelCast;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let cast_id = pkt.read_packed_guid()?;
+        let spell_id = pkt.read_uint32()?;
+        Ok(Self { cast_id, spell_id })
+    }
+}
+
+/// C++ `WorldPackets::Spells::CancelChannelling`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CancelChannelling {
+    pub channel_spell: i32,
+    pub reason: i32,
+}
+
+impl ClientPacket for CancelChannelling {
+    const OPCODE: ClientOpcodes = ClientOpcodes::CancelChannelling;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let channel_spell = pkt.read_int32()?;
+        let reason = pkt.read_int32()?;
+        Ok(Self {
+            channel_spell,
+            reason,
+        })
+    }
+}
+
 // ── Sub-structures ────────────────────────────────────────────────
 
 /// SpellCastVisual — two visual IDs packed inline.
@@ -680,6 +717,33 @@ impl ServerPacket for SpellCooldownPkt {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cancel_cast_reads_cpp_cast_id_then_spell_id() {
+        let cast_id = ObjectGuid::create_player(1, 77);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_packed_guid(&cast_id);
+        pkt.write_uint32(12_345);
+        pkt.reset_read();
+
+        let parsed = CancelCast::read(&mut pkt).unwrap();
+        assert_eq!(parsed.cast_id, cast_id);
+        assert_eq!(parsed.spell_id, 12_345);
+        assert!(pkt.is_empty());
+    }
+
+    #[test]
+    fn cancel_channelling_reads_cpp_channel_spell_then_reason() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_int32(12_345);
+        pkt.write_int32(40);
+        pkt.reset_read();
+
+        let parsed = CancelChannelling::read(&mut pkt).unwrap();
+        assert_eq!(parsed.channel_spell, 12_345);
+        assert_eq!(parsed.reason, 40);
+        assert!(pkt.is_empty());
+    }
 
     #[test]
     fn open_item_reads_cpp_slot_then_pack_slot() {
