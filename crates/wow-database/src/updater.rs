@@ -349,9 +349,9 @@ impl DbUpdater {
         }
 
         cmd.arg("--default-character-set=utf8")
-            .arg("--max-allowed-packet=1073741824")
+            .arg("--max-allowed-packet=1GB")
             .arg("-e")
-            .arg(format!("SOURCE {};", path))
+            .arg(format!("BEGIN; SOURCE {}; COMMIT;", path))
             .arg(&self.db);
 
         let out = cmd.output()?;
