@@ -207,6 +207,8 @@ async fn post_login(
     // Columns: id(0), srp_version(1), salt(2), verifier(3), failed_logins(4),
     //          LoginTicket(5), LoginTicketExpiry(6), isBanned(7)
     let account_id: u32 = result.read(0);
+    let failed_logins: u32 = result.try_read::<u32>(4).unwrap_or(0);
+    let is_banned: bool = result.try_read::<bool>(7).unwrap_or(false);
     // Note: srp_version is tinyint(4) (signed) in MySQL → i8 in sqlx
     let srp_version: u8 = result.try_read::<i8>(1).map(|v| v as u8).unwrap_or(1);
     let salt: Vec<u8> = result.try_read::<Vec<u8>>(2).unwrap_or_default();
@@ -256,7 +258,15 @@ async fn post_login(
             Err(e) => json_response(error_result(&e.to_string())),
         }
     } else {
-        increment_failed_logins(state, &email_upper).await;
+        apply_wrong_password_policy_like_cpp(
+            state,
+            account_id,
+            &email_upper,
+            failed_logins,
+            is_banned,
+            headers,
+        )
+        .await;
         json_response(error_result("Invalid credentials"))
     }
 }
@@ -526,14 +536,76 @@ async fn create_login_ticket(state: &AppState, account_id: u32) -> anyhow::Resul
     Ok(ticket)
 }
 
-async fn increment_failed_logins(state: &AppState, email: &str) {
+async fn apply_wrong_password_policy_like_cpp(
+    state: &AppState,
+    account_id: u32,
+    email: &str,
+    failed_logins: u32,
+    is_banned: bool,
+    headers: &HashMap<String, String>,
+) {
+    if is_banned {
+        return;
+    }
+
+    if state.wrong_pass_max == 0 {
+        return;
+    }
+
+    let next_failed_logins = failed_logins.saturating_add(1);
     let mut stmt = state
         .login_db
         .prepare(LoginStatements::UPD_BNET_FAILED_LOGINS);
-    stmt.set_string(0, email);
-    if let Err(e) = state.login_db.execute(&stmt).await {
-        tracing::warn!("Failed to increment failed logins for {email}: {e}");
+    stmt.set_u32(0, account_id);
+
+    let mut trans = wow_database::SqlTransaction::new();
+    trans.append(stmt);
+
+    if next_failed_logins >= state.wrong_pass_max {
+        if state.wrong_pass_ban_type == 1 {
+            let mut stmt = state
+                .login_db
+                .prepare(LoginStatements::INS_BNET_ACCOUNT_AUTO_BANNED);
+            stmt.set_u32(0, account_id);
+            stmt.set_u32(1, state.wrong_pass_ban_time);
+            trans.append(stmt);
+        } else {
+            let mut stmt = state.login_db.prepare(LoginStatements::INS_IP_AUTO_BANNED);
+            stmt.set_string(0, &wrong_password_remote_ip_like_cpp(state, headers));
+            stmt.set_u32(1, state.wrong_pass_ban_time);
+            trans.append(stmt);
+        }
+
+        let mut stmt = state
+            .login_db
+            .prepare(LoginStatements::UPD_BNET_RESET_FAILED_LOGINS);
+        stmt.set_u32(0, account_id);
+        trans.append(stmt);
     }
+
+    if let Err(e) = state.login_db.commit_transaction(trans).await {
+        tracing::warn!("Failed to apply WrongPass policy for account {account_id} ({email}): {e}");
+    }
+}
+
+fn wrong_password_remote_ip_like_cpp(
+    state: &AppState,
+    headers: &HashMap<String, String>,
+) -> String {
+    wrong_password_remote_ip_from_headers_like_cpp(headers, &state.external_address)
+}
+
+fn wrong_password_remote_ip_from_headers_like_cpp(
+    headers: &HashMap<String, String>,
+    fallback: &str,
+) -> String {
+    headers
+        .get("x-forwarded-for")
+        .and_then(|value| value.split(',').next())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(fallback)
+        .to_string()
 }
 
 /// C# returns "DONE" with no other fields for wrong password / account not found
@@ -558,6 +630,34 @@ fn unix_timestamp() -> u64 {
 
 fn hex_encode(data: &[u8]) -> String {
     data.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn wrong_password_remote_ip_uses_forwarded_for_first_hop_like_cpp() {
+        let headers = HashMap::from([(
+            "x-forwarded-for".to_string(),
+            "198.51.100.7, 198.51.100.8".to_string(),
+        )]);
+
+        assert_eq!(
+            wrong_password_remote_ip_from_headers_like_cpp(&headers, "203.0.113.10"),
+            "198.51.100.7"
+        );
+    }
+
+    #[test]
+    fn wrong_password_remote_ip_falls_back_to_external_address_like_cpp() {
+        let headers = HashMap::new();
+
+        assert_eq!(
+            wrong_password_remote_ip_from_headers_like_cpp(&headers, "203.0.113.10"),
+            "203.0.113.10"
+        );
+    }
 }
 
 fn hex_decode(hex: &str) -> Vec<u8> {

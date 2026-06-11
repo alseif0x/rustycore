@@ -164,7 +164,7 @@ impl StatementDef for LoginStatements {
                 "SELECT unbandate > UNIX_TIMESTAMP() OR unbandate = bandate AS banned, NULL as country FROM ip_banned WHERE ip = ?"
             }
             Self::INS_IP_AUTO_BANNED => {
-                "INSERT INTO ip_banned (ip, bandate, unbandate, bannedby, banreason) VALUES (?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()+?, 'Cypher Auth', 'Failed login autoban')"
+                "INSERT INTO ip_banned (ip, bandate, unbandate, bannedby, banreason) VALUES (?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()+?, 'Trinity Auth', 'Failed login autoban')"
             }
             Self::SEL_ACCOUNT_BANNED_ALL => {
                 "SELECT account.id, username FROM account, account_banned WHERE account.id = account_banned.id AND active = 1 GROUP BY account.id"
@@ -427,7 +427,7 @@ impl StatementDef for LoginStatements {
                 "UPDATE battlenet_accounts SET failed_logins = failed_logins + 1 WHERE id = ?"
             }
             Self::INS_BNET_ACCOUNT_AUTO_BANNED => {
-                "INSERT INTO battlenet_account_bans(id, bandate, unbandate, bannedby, banreason) VALUES(?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()+?, 'Cypher Auth', 'Failed login autoban')"
+                "INSERT INTO battlenet_account_bans(id, bandate, unbandate, bannedby, banreason) VALUES(?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()+?, 'Trinity Auth', 'Failed login autoban')"
             }
             Self::DEL_BNET_EXPIRED_ACCOUNT_BANNED => {
                 "DELETE FROM battlenet_account_bans WHERE unbandate<>bandate AND unbandate<=UNIX_TIMESTAMP()"
