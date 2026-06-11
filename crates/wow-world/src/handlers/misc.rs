@@ -1269,8 +1269,12 @@ impl crate::session::WorldSession {
 
         // C++ `HandleViolenceLevel` reads ViolenceLvl and has no observable action.
     }
-    pub async fn handle_override_screen_flash(&mut self, _pkt: wow_packet::WorldPacket) {}
-    pub async fn handle_queued_messages_end(&mut self, _pkt: wow_packet::WorldPacket) {}
+    pub async fn handle_override_screen_flash(&mut self, _pkt: wow_packet::WorldPacket) {
+        // C++ registers CMSG_OVERRIDE_SCREEN_FLASH as STATUS_UNHANDLED/Handle_NULL.
+    }
+    pub async fn handle_queued_messages_end(&mut self, _pkt: wow_packet::WorldPacket) {
+        // C++ registers CMSG_QUEUED_MESSAGES_END as STATUS_LOGGEDIN/Handle_NULL.
+    }
     pub async fn handle_chat_unregister_all_addon_prefixes(
         &mut self,
         _pkt: wow_packet::WorldPacket,
@@ -4882,6 +4886,28 @@ mod tests {
         pkt.reset_read();
 
         session.handle_violence_level(pkt).await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn override_screen_flash_is_handle_null_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_override_screen_flash(WorldPacket::new_empty())
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn queued_messages_end_is_handle_null_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_queued_messages_end(WorldPacket::new_empty())
+            .await;
 
         assert!(send_rx.try_recv().is_err());
     }
