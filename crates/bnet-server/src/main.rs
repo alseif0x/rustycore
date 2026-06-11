@@ -148,14 +148,17 @@ async fn main() -> Result<()> {
         .with_context(|| format!("Failed to bind REST on {rest_addr}"))?;
     tracing::info!("REST API (HTTPS) listening on {rest_addr}");
 
+    let rest_drain = rest::RestDrain::new();
     let rest_state = Arc::clone(&state);
-    let rest_handle = tokio::spawn(async move {
+    let rest_drain_for_accept = rest_drain.clone();
+    let mut rest_handle = tokio::spawn(async move {
         loop {
             match rest_listener.accept().await {
                 Ok((stream, addr)) => {
                     tracing::debug!("REST: new connection from {addr}");
                     let acceptor = rest_tls_acceptor.clone();
                     let state = Arc::clone(&rest_state);
+                    let drain = rest_drain_for_accept.clone();
                     tokio::spawn(async move {
                         match state
                             .remote_ip_is_banned_like_cpp(&addr.ip().to_string())
@@ -183,7 +186,7 @@ async fn main() -> Result<()> {
                         tracing::debug!("REST: TLS established with {addr}");
                         // Use raw HTTP handler — avoids hyper's TLS CloseNotify
                         // that the WoW client doesn't handle correctly.
-                        rest::handle_rest_connection(tls_stream, state, addr).await;
+                        rest::handle_rest_connection(tls_stream, state, addr, drain).await;
                     });
                 }
                 Err(e) => {
@@ -201,7 +204,7 @@ async fn main() -> Result<()> {
     tracing::info!("BNet RPC (TLS) listening on {rpc_addr}");
 
     let rpc_state = Arc::clone(&state);
-    let rpc_handle = tokio::spawn(async move {
+    let mut rpc_handle = tokio::spawn(async move {
         rpc::accept_loop(rpc_listener, rpc_state, rpc_tls_acceptor).await;
     });
 
@@ -211,10 +214,14 @@ async fn main() -> Result<()> {
     // TC treats network initialization/runtime failures as fatal, while signals
     // are the normal path that stops the io_context.
     let shutdown_result = tokio::select! {
-        result = rest_handle => listener_task_exit_like_cpp("REST", result),
-        result = rpc_handle => listener_task_exit_like_cpp("RPC", result),
+        result = &mut rest_handle => listener_task_exit_like_cpp("REST", result),
+        result = &mut rpc_handle => listener_task_exit_like_cpp("RPC", result),
         signal = shutdown_signal_like_cpp() => {
             tracing::info!("Shutting down after {signal}...");
+            rest_handle.abort();
+            rpc_handle.abort();
+            rest_drain.begin_shutdown();
+            drain_rest_requests_like_cpp(&rest_drain, std::time::Duration::from_secs(5)).await;
             Ok(())
         },
     };
@@ -222,6 +229,28 @@ async fn main() -> Result<()> {
     state.login_db.close().await;
     tracing::info!("BNet Server stopped.");
     shutdown_result
+}
+
+async fn drain_rest_requests_like_cpp(drain: &rest::RestDrain, grace: std::time::Duration) {
+    if drain.in_flight() == 0 {
+        return;
+    }
+
+    tracing::info!(
+        in_flight_rest_requests = drain.in_flight(),
+        grace_ms = grace.as_millis(),
+        "Waiting for in-flight REST requests to finish before closing LoginDatabase"
+    );
+
+    if tokio::time::timeout(grace, drain.wait_for_idle())
+        .await
+        .is_err()
+    {
+        tracing::warn!(
+            in_flight_rest_requests = drain.in_flight(),
+            "REST shutdown drain grace period expired"
+        );
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

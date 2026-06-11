@@ -18,8 +18,10 @@ pub mod types;
 
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::sync::Notify;
 
 use crate::state::AppState;
 
@@ -33,19 +35,114 @@ pub struct HttpResponse {
     pub body: String,
 }
 
+/// Tracks REST requests that have been read and are still producing/writing a response.
+///
+/// The raw REST connection may stay open waiting for the client after a response;
+/// that idle wait is not counted as in-flight work, matching the shutdown goal of
+/// letting active responses finish without waiting forever for keep-alive clients.
+#[derive(Clone, Debug)]
+pub struct RestDrain {
+    inner: Arc<RestDrainInner>,
+}
+
+#[derive(Debug, Default)]
+struct RestDrainInner {
+    shutting_down: AtomicBool,
+    in_flight: AtomicUsize,
+    idle: Notify,
+}
+
+impl RestDrain {
+    pub fn new() -> Self {
+        Self {
+            inner: Arc::new(RestDrainInner::default()),
+        }
+    }
+
+    pub fn begin_shutdown(&self) {
+        self.inner.shutting_down.store(true, Ordering::SeqCst);
+        self.inner.idle.notify_waiters();
+    }
+
+    pub fn is_shutting_down(&self) -> bool {
+        self.inner.shutting_down.load(Ordering::SeqCst)
+    }
+
+    pub fn in_flight(&self) -> usize {
+        self.inner.in_flight.load(Ordering::SeqCst)
+    }
+
+    fn begin_request(&self) -> Option<RestRequestGuard> {
+        if self.is_shutting_down() {
+            return None;
+        }
+
+        self.inner.in_flight.fetch_add(1, Ordering::SeqCst);
+        if self.is_shutting_down() {
+            self.finish_request();
+            return None;
+        }
+
+        Some(RestRequestGuard {
+            drain: self.clone(),
+        })
+    }
+
+    fn finish_request(&self) {
+        if self.inner.in_flight.fetch_sub(1, Ordering::SeqCst) == 1 {
+            self.inner.idle.notify_waiters();
+        }
+    }
+
+    pub async fn wait_for_idle(&self) {
+        loop {
+            if self.in_flight() == 0 {
+                return;
+            }
+
+            self.inner.idle.notified().await;
+        }
+    }
+}
+
+impl Default for RestDrain {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+struct RestRequestGuard {
+    drain: RestDrain,
+}
+
+impl Drop for RestRequestGuard {
+    fn drop(&mut self) {
+        self.drain.finish_request();
+    }
+}
+
 /// Handle a single REST (HTTPS) connection using raw HTTP.
 ///
 /// After writing the response, the server keeps the TLS connection open
 /// and waits for the client to close it. This matches C#'s SslStream
 /// behavior where the stream stays open after WriteAsync() completes.
-pub async fn handle_rest_connection<S>(stream: S, state: Arc<AppState>, addr: std::net::SocketAddr)
-where
+pub async fn handle_rest_connection<S>(
+    stream: S,
+    state: Arc<AppState>,
+    addr: std::net::SocketAddr,
+    drain: RestDrain,
+) where
     S: AsyncRead + AsyncWrite + Unpin,
 {
     let mut buf_stream = BufReader::new(stream);
     let mut connection_state = handlers::RestConnectionState::default();
 
     loop {
+        if drain.is_shutting_down() {
+            tracing::debug!("REST: closing idle connection from {addr} during shutdown");
+            return;
+        }
+
         // Read the HTTP request
         let request = match read_http_request(&mut buf_stream).await {
             Some(req) => req,
@@ -53,6 +150,10 @@ where
                 tracing::debug!("REST: connection from {addr} closed by client");
                 return;
             }
+        };
+        let Some(_request_guard) = drain.begin_request() else {
+            tracing::debug!("REST: refusing request from {addr} during shutdown");
+            return;
         };
 
         tracing::info!("REST {} {} (from {addr})", request.method, request.path);
@@ -194,4 +295,41 @@ where
         headers,
         body,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::RestDrain;
+
+    #[test]
+    fn rest_drain_rejects_new_requests_after_shutdown_like_cpp_stop_accepting() {
+        let drain = RestDrain::new();
+
+        let guard = drain.begin_request().expect("request before shutdown");
+        assert_eq!(drain.in_flight(), 1);
+
+        drain.begin_shutdown();
+        assert!(drain.begin_request().is_none());
+        assert_eq!(drain.in_flight(), 1);
+
+        drop(guard);
+        assert_eq!(drain.in_flight(), 0);
+    }
+
+    #[tokio::test]
+    async fn rest_drain_waits_until_active_request_finishes() {
+        let drain = RestDrain::new();
+        let guard = drain.begin_request().expect("request before shutdown");
+
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_millis(10), drain.wait_for_idle())
+                .await
+                .is_err()
+        );
+
+        drop(guard);
+        tokio::time::timeout(std::time::Duration::from_millis(10), drain.wait_for_idle())
+            .await
+            .expect("drain should complete");
+    }
 }

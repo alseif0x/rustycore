@@ -3,7 +3,7 @@
 > **C++ canonical path:** `src/server/bnetserver/`
 > **Rust target crate(s):** `crates/bnet-server/`
 > **Layer:** binary (executable entry point)
-> **Status:** ⚠️ partial (login flow works; missing encrypted private-key support, SecretMgr, legacy password migration, graceful shutdown drain)
+> **Status:** ⚠️ partial (login flow works; missing encrypted private-key support, SecretMgr, legacy password migration)
 > **Audited vs C++:** ⚠️ audited (2026-05-01) — see §13
 > **Last updated:** 2026-05-01
 
@@ -232,7 +232,7 @@ HTTP routes (verb + path):
 - `realm/` module owns the realm list state with a refresh interval (`RealmsStateUpdateDelay`).
 - REST endpoints: `GET /bnetserver/login/` (form), `POST /bnetserver/login/srp/` (challenge), `POST /bnetserver/login/` (response), `GET /bnetserver/portal/`, `GET /bnetserver/gameAccounts/`. Wrong-password lockout flags (`wrong_pass_max`, `wrong_pass_ban_time`, `wrong_pass_ban_type`) are wired into `AppState`.
 - BNet RPC services: `AccountService`, `AuthenticationService` (Logon flow with SRPv1+v2), `ConnectionService` (Bind/Echo), `GameUtilitiesService` (RealmList + RealmJoin).
-- Shutdown: `tokio::signal::ctrl_c()` plus Unix `SIGTERM` await in `main`. On signal, drops `state.login_db` and exits; graceful in-flight request drain remains pending.
+- Shutdown: `tokio::signal::ctrl_c()` plus Unix `SIGTERM` await in `main`. On signal, stops REST/RPC accept loops, marks REST shutdown, waits up to 5s for active REST responses to finish, then closes `LoginDatabase`.
 
 **What's missing vs C++:**
 - **DB keep-alive timer present**. Rust reads `MaxPingTime` and periodically issues `SELECT 1` against `LoginDatabase`; TC calls `LoginDatabase.KeepAlive()` / native connection ping. Behavior is equivalent for keeping the pool warm, though not a per-connection native `mysql_ping()`.
@@ -244,7 +244,7 @@ HTTP routes (verb + path):
 - **Bot/mobile REST routes present**. Rust implements `POST /login/srp/` and `POST /login/` with the TC bot SRP parameters (`BOT_SRP_N`, broken evidence vectors, same JSON fields).
 - **`POST /bnetserver/refreshLoginTicket/` present**. Rust matches TC's response shape and DB write for valid/expired tickets.
 - **No `SOAP` / Win32 service / process priority / processor affinity** — Linux-only Rust target, accepted gap.
-- **`MaxCoreStuckTime` / freeze detector** — bnetserver's main loop is event-driven (not a tight `World::Update` loop). Rust now treats REST/RPC listener task exit as fatal instead of a clean shutdown; in-flight graceful drain remains under #BNET.14.
+- **`MaxCoreStuckTime` / freeze detector** — bnetserver's main loop is event-driven (not a tight `World::Update` loop). Rust treats REST/RPC listener task exit as fatal instead of a clean shutdown; signal shutdown drains active REST responses before closing DB.
 - **Thread-count configs are informational for Rust BNet**. Audited against TC: `Network.Threads` is enforced by `worldserver`, but `bnetserver` starts one `IoContext` and does not gate startup on that key. Rust logs `Network.Threads` / `LoginREST.ThreadCount` for visibility and uses Tokio's multi-thread runtime.
 - **CLI args present for portable TC options**: Rust supports `--config`/`-c`, `--config-dir`/`-cd`, `--update-databases-only`/`-u`, `--help`/`-h`, and `--version`/`-v`, while ignoring unknown flags like TC's `allow_unregistered()`. Win32 `--service` remains an accepted Linux-target gap.
 - **Encrypted private-key passwords unsupported**. TC's OpenSSL path accepts `PrivateKeyPassword`; Rust reads it and fails fast when non-empty instead of silently ignoring it.
@@ -419,11 +419,11 @@ HTTP routes (verb + path):
 - [x] **#BNET.7** Add the missing REST bot/mobile routes: `POST /login/`, `POST /login/srp/`. Rust keeps bot SRP state per REST connection like TC `LoginHttpSession`, returns `{salt, public_B}`, verifies `A`/`M1`, stores a `TC-` login ticket, and returns `{M2, login_ticket, session_key}`.
 - [x] **#BNET.8** Persist wrong-pass attempts in DB. Subsumed by #BNET.21: Rust writes `battlenet_accounts.failed_logins`, `battlenet_account_bans` or `ip_banned`, and resets failed-login count at the configured threshold like TC.
 - [ ] **#BNET.9** Implement `MigrateLegacyPasswordHashes()`: opt-in one-shot pass that re-derives v2 verifier on first successful v1 login. (M)
-- [x] **#BNET.10** Add a freeze-style watchdog for listener tasks: if the REST/RPC listener task exits or panics, Rust now closes the DB and returns an error instead of treating it as a clean shutdown. Signal-driven shutdown remains the normal path; in-flight graceful drain remains #BNET.14.
+- [x] **#BNET.10** Add a freeze-style watchdog for listener tasks: if the REST/RPC listener task exits or panics, Rust now closes the DB and returns an error instead of treating it as a clean shutdown. Signal-driven shutdown remains the normal path; REST drain is closed under #BNET.14.
 - [x] **#BNET.11** Verify `session_key_bnet` storage format vs TC. Trinity C++ stores **64 raw bytes** with `setBinary` (`client_secret[32] || server_secret[32]`), not a hex string. Rust already wrote raw bytes; the port now enforces the 32+32 byte contract before persisting to avoid invalid keys on malformed realm-list tickets.
 - [x] **#BNET.12** Multi-thread option audit. Rust now reads/logs `Network.Threads` and `LoginREST.ThreadCount`; they are informational for BNet because TC `bnetserver` does not apply `Network.Threads` to its acceptors, while Rust uses Tokio's multi-thread runtime.
 - [x] **#BNET.13** Add `Banner::Show`-equivalent at startup logging. Rust now logs package version/revision, config file, additional config overlays, env overrides, TLS backend (`rustls`) and relevant dependency versions (`rustls`, `tokio-rustls`, `sqlx`). OpenSSL version is intentionally not logged because Rust uses rustls.
-- [ ] **#BNET.14** Drop-in clean shutdown: on SIGINT/SIGTERM cancel timers, drain in-flight REST requests with a 5 s grace, then `db.close()`. Currently `db.close()` happens but in-flight requests are not drained. (M)
+- [x] **#BNET.14** Drop-in clean shutdown: on SIGINT/SIGTERM stop REST/RPC accept loops, mark REST shutdown, drain in-flight REST responses with a 5s grace, then close `LoginDatabase`.
 
 ---
 
@@ -452,7 +452,7 @@ HTTP routes (verb + path):
 - [ ] Test: `realmlist` BNet realm-list response decompressed equals what TC produces for the same DB content (golden file).
 - [ ] Test: TLS handshake on 1119 with the WoW client cipher list (`ECDHE-RSA-AES256-SHA384`, etc.) succeeds.
 - [ ] Test: bnetserver continues to accept connections after a 30-minute idle window (validates DB keep-alive once #BNET.3 lands).
-- [ ] Test: SIGTERM during an in-flight `POST /bnetserver/login/srp/` still finishes the response before the process exits.
+- [ ] Integration/manual test: SIGTERM during an in-flight `POST /bnetserver/login/srp/` still finishes the response before the process exits. Unit coverage exists for the REST drain tracker; this remains an end-to-end signal test.
 
 ---
 
@@ -466,7 +466,7 @@ HTTP routes (verb + path):
 
 | Scope | Decision | C++ retained | Evidence |
 |---|---|---|---|
-| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 23 files / 3266 lines; refs: `/home/server/woltk-trinity-legacy/src/server/bnetserver/Server/Session.cpp`, `/home/server/woltk-trinity-legacy/src/server/bnetserver/REST/LoginRESTService.cpp`, `/home/server/woltk-trinity-legacy/src/server/bnetserver/Main.cpp` | `crates/bnet-server/` \| ⚠️ partial (login flow works; missing encrypted private-key support, SecretMgr, legacy password migration, graceful shutdown drain) |
+| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 23 files / 3266 lines; refs: `/home/server/woltk-trinity-legacy/src/server/bnetserver/Server/Session.cpp`, `/home/server/woltk-trinity-legacy/src/server/bnetserver/REST/LoginRESTService.cpp`, `/home/server/woltk-trinity-legacy/src/server/bnetserver/Main.cpp` | `crates/bnet-server/` \| ⚠️ partial (login flow works; missing encrypted private-key support, SecretMgr, legacy password migration) |
 
 <!-- REFINE.025:END product-scope -->
 
@@ -534,7 +534,7 @@ HTTP routes (verb + path):
 
 The Rust bnet daemon **reaches the same listening state as TrinityCore** for the happy path: it binds 1119 (TLS, BNet RPC) + 8081 (HTTPS, REST), opens a `LoginDatabase`, runs the `BanExpiryHandler`, polls `realmlist` every `RealmsStateUpdateDelay` s, and wires up the SRPv1/v2 → ticket → `VerifyWebCredentials` → `LogonResult` flow end-to-end. The five core REST endpoints needed for the WoW launcher are present and `cargo test --workspace` passes (395 tests).
 
-What is **not** at parity with TC: encrypted private-key password support, `SecretMgr` (HMAC keys), `MigrateLegacyPasswordHashes`, and a graceful in-flight request drain during shutdown. The ALPN / TLS-cipher pinning differs because Rust uses `rustls` (TLS 1.2-only `ServerConfig` with no ALPN) while TC uses Boost.Asio + OpenSSL with `TLS_method` (negotiates anything); for WoW 3.4.3 clients that converge on TLS 1.2 + an `ECDHE-RSA-AES*` suite this is functionally equivalent, but uncommon launcher builds may see different ciphers.
+What is **not** at parity with TC: encrypted private-key password support, `SecretMgr` (HMAC keys), and `MigrateLegacyPasswordHashes`. The ALPN / TLS-cipher pinning differs because Rust uses `rustls` (TLS 1.2-only `ServerConfig` with no ALPN) while TC uses Boost.Asio + OpenSSL with `TLS_method` (negotiates anything); for WoW 3.4.3 clients that converge on TLS 1.2 + an `ECDHE-RSA-AES*` suite this is functionally equivalent, but uncommon launcher builds may see different ciphers.
 
 Resolved since the original audit: `extract_auth_ticket` now mirrors TC's `ExtractAuthorization` by stripping optional `"Basic "`, Base64-decoding the value, and truncating at the first `:`. The failed-login/autoban path now persists `WrongPass.*` effects to `battlenet_accounts.failed_logins`, `battlenet_account_bans`, or `ip_banned`.
 
@@ -561,13 +561,13 @@ Resolved since the original audit: `extract_auth_ticket` now mirrors TC's `Extra
 | `sLoginService.StartNetwork(...)` (DNS-resolves `LoginREST.{External,Local}Address`, registers 8 handlers, calls `_acceptor->AsyncAcceptWithCallback<&OnSocketAccept>()`) | — | resolves both LoginREST hostnames to IPv4 at startup, binds `tokio::net::TcpListener`, accept-loop spawns one task per conn | ⚠️ fewer handlers |
 | `sRealmList->Initialize(io, RealmsStateUpdateDelay)` | DB poll `LoginDatabase` every N s + initial `LoadBuildInfo` | `realm::init_realm_manager` does the same | ✅ |
 | `sSessionMgr.StartNetwork(io, BindIP, BattlenetPort)` | TLS RPC acceptor on 1119 | identical, separate `TlsAcceptor` | ✅ |
-| `boost::asio::signal_set(SIGINT, SIGTERM)` | graceful shutdown trigger | `tokio::signal::ctrl_c` plus Unix `SIGTERM` stream; in-flight drain still tracked under clean shutdown | ✅ trigger parity |
+| `boost::asio::signal_set(SIGINT, SIGTERM)` | graceful shutdown trigger | `tokio::signal::ctrl_c` plus Unix `SIGTERM` stream; REST drain closes active responses before DB close | ✅ trigger parity |
 | `SetProcessPriority(...)` | priority/affinity | none | ✅ accepted gap (Linux) |
 | `KeepDatabaseAliveHandler` (every `MaxPingTime` min) | `LoginDatabase.KeepAlive()` | `start_database_keep_alive_timer` issues `SELECT 1` every configured `MaxPingTime` minutes | ✅ |
 | `BanExpiryHandler` (every `BanExpiryCheckInterval` s) | DEL/UPD expired bans (3 statements) | identical (`start_ban_expiry_timer`) | ✅ |
 | `ServiceStatusWatcher` (Win32) | pump `m_ServiceStatus` | n/a | ✅ N/A |
 | `ioContext->run()` | block main | `tokio::select! { rest_handle, rpc_handle, ctrl_c }` | ✅ |
-| Shutdown: `signals.cancel()`, `LoginDatabase.Close()`, `MySQL::Library_End()` | clean drain | `state.login_db.close().await` only — no in-flight request drain, listener tasks just dropped | ⚠️ partial |
+| Shutdown: `signals.cancel()`, `LoginDatabase.Close()`, `MySQL::Library_End()` | stop io loop and close DB | signal path aborts accept loops, drains active REST responses up to 5s, then `state.login_db.close().await` | ✅ |
 
 ### 13.3 REST endpoint coverage
 
@@ -634,10 +634,10 @@ Add these to §9 (existing tasks #BNET.1–#BNET.14 stand):
 - [x] **#BNET.19** Distinguish error codes in `VerifyWebCredentials`: emit TC status codes for expired ticket (`ERROR_TIMED_OUT=2`), IP/country lock (`ERROR_RISK_ACCOUNT_LOCKED=0xA413`), permanent ban (`ERROR_GAME_ACCOUNT_BANNED=0x34`) and temporary suspension (`ERROR_GAME_ACCOUNT_SUSPENDED=0x35`).
 - [x] **#BNET.20** Add `LOGIN_SEL_IP_INFO` check in `Session::Start`-equivalent: Rust now mirrors TC by deleting expired IP bans, querying `SEL_IP_INFO`, and closing before TLS when the remote IP is actively banned. Applied to both BNet RPC and REST acceptors because TC's `Session::Start()` and `LoginHttpSession::Start()` share this pre-handshake gate.
 - [x] **#BNET.21** Persist failed login attempts and autobans per `WrongPass.MaxCount`/`BanTime`/`BanType`/`Logging` for BNet REST login. Rust writes `battlenet_accounts.failed_logins`, `battlenet_account_bans` or `ip_banned`, and resets failed-login count at the configured threshold like TC. Subsumes `#BNET.8`.
-- [x] **#BNET.22** Install SIGTERM handler alongside `ctrl_c` so `kill <pid>` shuts down cleanly. Rust now awaits SIGINT or Unix SIGTERM like TC's `boost::asio::signal_set`; graceful in-flight request draining remains under #BNET.14.
+- [x] **#BNET.22** Install SIGTERM handler alongside `ctrl_c` so `kill <pid>` shuts down cleanly. Rust now awaits SIGINT or Unix SIGTERM like TC's `boost::asio::signal_set`; REST in-flight drain is closed under #BNET.14.
 - [x] **#BNET.23** Match `HandlePostRefreshLoginTicket` response shape: `{ login_ticket_expiry: <unix> }` or `{ is_expired: true }`, not `{ login_ticket: "…" }`.
 - [x] **#BNET.24** Resolve `LoginREST.{External,Local}Address` via DNS at startup. Rust now mirrors TC by resolving both hostnames as IPv4 using the REST port and failing startup if either cannot resolve, while preserving the original hostname strings for URLs/cookies.
 
 ### 13.8 Header status update
 
-Header status changed from `❌ not audited` → `⚠️ audited (2026-05-01)`. Functional state remains `⚠️ partial` because the audit confirmed gaps; remaining blockers include encrypted private-key password support and graceful in-flight shutdown drain.
+Header status changed from `❌ not audited` → `⚠️ audited (2026-05-01)`. Functional state remains `⚠️ partial` because the audit confirmed gaps; remaining blockers include encrypted private-key password support, SecretMgr, and legacy password migration.
