@@ -17011,6 +17011,9 @@ impl WorldSession {
             ClientOpcodes::ChatAddonMessage => {
                 self.handle_chat_addon_message(pkt).await;
             }
+            ClientOpcodes::ChatAddonMessageWhisper => {
+                self.handle_chat_addon_message_whisper(pkt).await;
+            }
 
             // ── Spell cast ────────────────────────────────────────────────────
             ClientOpcodes::CastSpell => {

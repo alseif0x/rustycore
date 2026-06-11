@@ -26,13 +26,13 @@ use wow_core::guid::HighGuid;
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
 use wow_network::{GroupInfo, SendAddonIfRegisteredLikeCppCommand, SessionCommand};
 use wow_packet::packets::chat::{
-    CTextEmote, ChatAddonMessage, ChatMessage, ChatMessageAfk, ChatMessageDnd, ChatMessageEmote,
-    ChatMessageWhisper, ChatMsg, ChatPkt, ChatPlayerNotfound, ChatRegisterAddonPrefixes,
-    ChatReportIgnored, EmoteClient, EmoteMessage, STextEmote,
+    CTextEmote, ChatAddonMessage, ChatAddonMessageWhisper, ChatMessage, ChatMessageAfk,
+    ChatMessageDnd, ChatMessageEmote, ChatMessageWhisper, ChatMsg, ChatPkt, ChatPlayerNotfound,
+    ChatRegisterAddonPrefixes, ChatReportIgnored, EmoteClient, EmoteMessage, STextEmote,
 };
 use wow_packet::{ClientPacket, ServerPacket};
 
-use crate::session::{PlayerAwayModeLikeCpp, WorldSession};
+use crate::session::{PlayerAwayModeLikeCpp, WorldSession, player_team_for_race_cpp};
 
 // ── Broadcast range constants (C# WorldCfg defaults) ─────────────
 const RANGE_SAY: f32 = 25.0;
@@ -192,6 +192,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_addon_message",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::ChatAddonMessageWhisper,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_chat_addon_message_whisper",
     }
 }
 
@@ -765,6 +774,74 @@ impl WorldSession {
         }
     }
 
+    /// CMSG_CHAT_ADDON_MESSAGE_WHISPER.
+    ///
+    /// C++ ref: `WorldSession::HandleChatAddonMessageWhisper`.
+    pub async fn handle_chat_addon_message_whisper(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let packet = match ChatAddonMessageWhisper::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(e) => {
+                tracing::warn!(account = self.account_id, "Bad addon whisper packet: {e}");
+                return;
+            }
+        };
+
+        let target_name = packet.target.clone();
+        let target_info = self.player_registry().and_then(|reg| {
+            reg.iter()
+                .find(|e| e.value().player_name.eq_ignore_ascii_case(&target_name))
+                .map(|e| {
+                    (
+                        *e.key(),
+                        e.value().command_tx.clone(),
+                        e.value().race,
+                        e.value().player_name.clone(),
+                    )
+                })
+        });
+
+        let Some((target_guid, command_tx, target_race, target_name)) = target_info else {
+            self.send_packet(&ChatPlayerNotfound { name: target_name });
+            return;
+        };
+
+        if self.has_gm_silence_aura_like_cpp() {
+            return;
+        }
+
+        if self.player_level_like_cpp() < self.chat_level_requirements_like_cpp().whisper {
+            return;
+        }
+
+        if player_team_for_race_cpp(self.player_race_like_cpp())
+            != player_team_for_race_cpp(target_race)
+        {
+            self.send_packet(&ChatPlayerNotfound { name: target_name });
+            return;
+        }
+
+        let (sender_guid, sender_name) = self.player_name_and_guid();
+        let chat = ChatPkt {
+            msg_type: ChatMsg::Whisper,
+            language: LANG_ADDON_LIKE_CPP,
+            sender_guid,
+            sender_name,
+            target_guid,
+            target_name: target_name.clone(),
+            prefix: packet.prefix.clone(),
+            channel: String::new(),
+            text: packet.message,
+            virtual_realm: self.virtual_realm_address(),
+        };
+
+        let command =
+            SessionCommand::SendAddonIfRegisteredLikeCpp(SendAddonIfRegisteredLikeCppCommand {
+                prefix: packet.prefix,
+                packet_bytes: chat.to_bytes(),
+            });
+        let _ = command_tx.try_send(command);
+    }
+
     // ── Helpers ──────────────────────────────────────────────────
 
     fn player_name_and_guid(&self) -> (wow_core::ObjectGuid, String) {
@@ -1110,6 +1187,21 @@ mod tests {
         writer.write_int32(msg_type as i32);
         writer.write_string(prefix);
         writer.write_string(text);
+        wow_packet::WorldPacket::from_bytes(writer.data())
+    }
+
+    fn chat_addon_whisper_packet(
+        target: &str,
+        prefix: &str,
+        message: &str,
+    ) -> wow_packet::WorldPacket {
+        let mut writer = wow_packet::WorldPacket::new_empty();
+        writer.write_bits(target.len() as u32, 9);
+        writer.write_bits(prefix.len() as u32, 5);
+        writer.write_bits(message.len() as u32, 8);
+        writer.write_string(target);
+        writer.write_string(prefix);
+        writer.write_string(message);
         wow_packet::WorldPacket::from_bytes(writer.data())
     }
 
@@ -2097,6 +2189,77 @@ mod tests {
             .await;
 
         assert!(member_command_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn addon_whisper_routes_to_named_registered_target_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 421);
+        let target = ObjectGuid::create_player(1, 422);
+        let (mut session, player_registry, _sender_rx) = session_for_chat_routing_like_cpp(sender);
+        let (target_tx, _target_rx) = flume::bounded(8);
+        let (target_command_tx, target_command_rx) = flume::bounded(8);
+        let mut target_info = broadcast_info_with_command_tx(target, target_tx, target_command_tx);
+        target_info.player_name = "Target".to_string();
+        player_registry.insert(target, target_info);
+
+        session
+            .handle_chat_addon_message_whisper(chat_addon_whisper_packet(
+                "Target", "ABC", "payload",
+            ))
+            .await;
+
+        let command = expect_addon_command(&target_command_rx);
+        assert_eq!(command.prefix, "ABC");
+        assert_eq!(
+            chat_slash_cmd(&command.packet_bytes),
+            ChatMsg::Whisper as u8
+        );
+        assert_eq!(chat_language(&command.packet_bytes), LANG_ADDON_LIKE_CPP);
+        assert_eq!(chat_text(&command.packet_bytes), "payload");
+    }
+
+    #[tokio::test]
+    async fn addon_whisper_missing_target_sends_notfound_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 431);
+        let (mut session, _player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
+
+        session
+            .handle_chat_addon_message_whisper(chat_addon_whisper_packet(
+                "Missing", "ABC", "payload",
+            ))
+            .await;
+
+        let notfound = sender_rx.try_recv().expect("notfound packet");
+        let mut packet = wow_packet::WorldPacket::from_bytes(&notfound);
+        assert_eq!(
+            packet.read_uint16().expect("opcode"),
+            wow_constants::ServerOpcodes::ChatPlayerNotfound as u16
+        );
+    }
+
+    #[tokio::test]
+    async fn addon_whisper_level_requirement_blocks_delivery_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 441);
+        let target = ObjectGuid::create_player(1, 442);
+        let (mut session, player_registry, _sender_rx) = session_for_chat_routing_like_cpp(sender);
+        let (target_tx, _target_rx) = flume::bounded(8);
+        let (target_command_tx, target_command_rx) = flume::bounded(8);
+        let mut target_info = broadcast_info_with_command_tx(target, target_tx, target_command_tx);
+        target_info.player_name = "Target".to_string();
+        player_registry.insert(target, target_info);
+        session.set_player_level_like_cpp(1);
+        session.set_chat_level_requirements_like_cpp(ChatLevelRequirementsLikeCpp {
+            whisper: 2,
+            ..ChatLevelRequirementsLikeCpp::default()
+        });
+
+        session
+            .handle_chat_addon_message_whisper(chat_addon_whisper_packet(
+                "Target", "ABC", "payload",
+            ))
+            .await;
+
+        assert!(target_command_rx.try_recv().is_err());
     }
 
     #[tokio::test]

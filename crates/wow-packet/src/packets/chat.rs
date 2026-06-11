@@ -464,6 +464,34 @@ impl ClientPacket for ChatAddonMessage {
     }
 }
 
+/// CMSG_CHAT_ADDON_MESSAGE_WHISPER payload.
+///
+/// C++ ref: `WorldPackets::Chat::ChatAddonMessageWhisper::Read`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChatAddonMessageWhisper {
+    pub target: String,
+    pub prefix: String,
+    pub message: String,
+}
+
+impl ClientPacket for ChatAddonMessageWhisper {
+    const OPCODE: ClientOpcodes = ClientOpcodes::ChatAddonMessageWhisper;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let target_len = pkt.read_bits(9)? as usize;
+        let prefix_len = pkt.read_bits(5)? as usize;
+        let message_len = pkt.read_bits(8)? as usize;
+        let target = pkt.read_string(target_len)?;
+        let prefix = pkt.read_string(prefix_len)?;
+        let message = pkt.read_string(message_len)?;
+        Ok(Self {
+            target,
+            prefix,
+            message,
+        })
+    }
+}
+
 // ── SMSG_CHAT ─────────────────────────────────────────────────────
 
 /// Server sends this to broadcast a chat message to nearby players.
@@ -802,6 +830,23 @@ mod tests {
         assert_eq!(packet.prefix, "ABC");
         assert_eq!(packet.text, "hello");
         assert!(packet.is_logged);
+    }
+
+    #[test]
+    fn chat_addon_message_whisper_reads_cpp_layout() {
+        let mut writer = WorldPacket::new_empty();
+        writer.write_bits(6, 9);
+        writer.write_bits(3, 5);
+        writer.write_bits(5, 8);
+        writer.write_string("Target");
+        writer.write_string("ABC");
+        writer.write_string("hello");
+
+        let mut reader = WorldPacket::from_bytes(writer.data());
+        let packet = ChatAddonMessageWhisper::read(&mut reader).unwrap();
+        assert_eq!(packet.target, "Target");
+        assert_eq!(packet.prefix, "ABC");
+        assert_eq!(packet.message, "hello");
     }
 
     #[test]
