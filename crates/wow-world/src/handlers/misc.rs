@@ -39,9 +39,9 @@ use wow_packet::packets::loot::{LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHI
 use wow_packet::packets::misc::{
     AddToy, BattlePetClearFanfare, BattlePetDeletePet, BattlePetModifyName,
     BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags, BattlePetSummon,
-    BattlePetUpdateNotify, CageBattlePet, FarSight, MountSetFavorite, QueryBattlePetName,
-    QueryBattlePetNameResponse, RatedPvpInfo, RequestCemeteryListResponse, SaveCufProfiles,
-    TaxiNodeStatusPkt, ToyClearFanfare, UseToy,
+    BattlePetUpdateNotify, CageBattlePet, FarSight, LfgUpdateStatus, MountSetFavorite,
+    QueryBattlePetName, QueryBattlePetNameResponse, RatedPvpInfo, RequestCemeteryListResponse,
+    SaveCufProfiles, TaxiNodeStatusPkt, ToyClearFanfare, UseToy,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -1951,7 +1951,12 @@ impl crate::session::WorldSession {
     ) {
     }
     pub async fn handle_request_lfg_list_blacklist(&mut self, _pkt: wow_packet::WorldPacket) {}
-    pub async fn handle_lfg_list_get_status(&mut self, _pkt: wow_packet::WorldPacket) {}
+    pub async fn handle_lfg_list_get_status(&mut self, _pkt: wow_packet::WorldPacket) {
+        // C++ `HandleLfgListGetStatus` always sends LFGUpdateStatus for a live
+        // player. Until `sLFGMgr` state is ported, Rust represents the
+        // well-defined no-ticket/no-queue branch.
+        self.send_packet(&LfgUpdateStatus::removed_from_queue());
+    }
     pub async fn handle_get_account_character_list(&mut self, _pkt: wow_packet::WorldPacket) {}
     pub async fn handle_cancel_trade(&mut self, _pkt: wow_packet::WorldPacket) {
         // C++ calls Player::TradeCancel(true) only when a player is present.
@@ -4537,6 +4542,46 @@ mod tests {
             bytes.len(),
             2 + wow_packet::packets::misc::RATED_PVP_BRACKET_COUNT_LIKE_CPP * (19 * 4 + 1)
         );
+    }
+
+    #[tokio::test]
+    async fn lfg_list_get_status_sends_removed_from_queue_like_cpp_without_lfg_state() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_lfg_list_get_status(WorldPacket::new_empty())
+            .await;
+
+        let bytes = send_rx.try_recv().expect("LFG update status packet");
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::LfgUpdateStatus as u16
+        );
+
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
+        assert_eq!(pkt.read_uint32().unwrap(), 0); // Ticket.Id
+        assert_eq!(pkt.read_uint32().unwrap(), 0); // Ticket.Type
+        assert_eq!(pkt.read_int64().unwrap(), 0); // Ticket.Time
+        assert!(!pkt.has_bit().unwrap()); // Ticket.Unknown925
+        assert_eq!(
+            pkt.read_uint8().unwrap(),
+            wow_packet::packets::misc::LFG_QUEUE_DUNGEON_LIKE_CPP
+        );
+        assert_eq!(
+            pkt.read_uint8().unwrap(),
+            wow_packet::packets::misc::LFG_UPDATE_TYPE_REMOVED_FROM_QUEUE_LIKE_CPP
+        );
+        assert_eq!(pkt.read_uint32().unwrap(), 0); // Slots.Count
+        assert_eq!(pkt.read_uint8().unwrap(), 0); // RequestedRoles
+        assert_eq!(pkt.read_uint32().unwrap(), 0); // SuspendedPlayers.Count
+        assert_eq!(pkt.read_uint32().unwrap(), 0); // QueueMapID
+        assert!(!pkt.has_bit().unwrap()); // IsParty
+        assert!(pkt.has_bit().unwrap()); // NotifyUI
+        assert!(!pkt.has_bit().unwrap()); // Joined
+        assert!(!pkt.has_bit().unwrap()); // LfgJoined
+        assert!(!pkt.has_bit().unwrap()); // Queued
+        assert!(!pkt.has_bit().unwrap()); // Unused
     }
 
     #[tokio::test]

@@ -3536,6 +3536,115 @@ impl ServerPacket for MailQueryNextTimeResult {
     }
 }
 
+// ── LFG list status ──────────────────────────────────────────────────────────
+
+/// C++ `lfg::LFG_QUEUE_DUNGEON`.
+pub const LFG_QUEUE_DUNGEON_LIKE_CPP: u8 = 1;
+/// C++ `lfg::LFG_UPDATETYPE_REMOVED_FROM_QUEUE`.
+pub const LFG_UPDATE_TYPE_REMOVED_FROM_QUEUE_LIKE_CPP: u8 = 8;
+
+/// C++ `WorldPackets::LFG::RideTicket`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LfgRideTicket {
+    pub requester_guid: ObjectGuid,
+    pub id: u32,
+    pub ride_type: u32,
+    pub time: i64,
+    pub unknown925: bool,
+}
+
+impl Default for LfgRideTicket {
+    fn default() -> Self {
+        Self {
+            requester_guid: ObjectGuid::EMPTY,
+            id: 0,
+            ride_type: 0,
+            time: 0,
+            unknown925: false,
+        }
+    }
+}
+
+impl LfgRideTicket {
+    fn write_like_cpp(&self, pkt: &mut WorldPacket) {
+        pkt.write_packed_guid(&self.requester_guid);
+        pkt.write_uint32(self.id);
+        pkt.write_uint32(self.ride_type);
+        pkt.write_int64(self.time);
+        pkt.write_bit(self.unknown925);
+        pkt.flush_bits();
+    }
+}
+
+/// C++ `WorldPackets::LFG::LFGUpdateStatus`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LfgUpdateStatus {
+    pub ticket: LfgRideTicket,
+    pub sub_type: u8,
+    pub reason: u8,
+    pub slots: Vec<u32>,
+    pub requested_roles: u8,
+    pub suspended_players: Vec<ObjectGuid>,
+    pub queue_map_id: u32,
+    pub notify_ui: bool,
+    pub is_party: bool,
+    pub joined: bool,
+    pub lfg_joined: bool,
+    pub queued: bool,
+    pub unused: bool,
+}
+
+impl LfgUpdateStatus {
+    /// C++ `HandleLfgListGetStatus` branch when `sLFGMgr` has no state/ticket.
+    pub fn removed_from_queue() -> Self {
+        Self {
+            ticket: LfgRideTicket::default(),
+            sub_type: LFG_QUEUE_DUNGEON_LIKE_CPP,
+            reason: LFG_UPDATE_TYPE_REMOVED_FROM_QUEUE_LIKE_CPP,
+            slots: Vec::new(),
+            requested_roles: 0,
+            suspended_players: Vec::new(),
+            queue_map_id: 0,
+            notify_ui: true,
+            is_party: false,
+            joined: false,
+            lfg_joined: false,
+            queued: false,
+            unused: false,
+        }
+    }
+}
+
+impl ServerPacket for LfgUpdateStatus {
+    const OPCODE: ServerOpcodes = ServerOpcodes::LfgUpdateStatus;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        self.ticket.write_like_cpp(pkt);
+        pkt.write_uint8(self.sub_type);
+        pkt.write_uint8(self.reason);
+        pkt.write_uint32(self.slots.len() as u32);
+        pkt.write_uint8(self.requested_roles);
+        pkt.write_uint32(self.suspended_players.len() as u32);
+        pkt.write_uint32(self.queue_map_id);
+
+        for slot in &self.slots {
+            pkt.write_uint32(*slot);
+        }
+
+        for suspended_player in &self.suspended_players {
+            pkt.write_packed_guid(suspended_player);
+        }
+
+        pkt.write_bit(self.is_party);
+        pkt.write_bit(self.notify_ui);
+        pkt.write_bit(self.joined);
+        pkt.write_bit(self.lfg_joined);
+        pkt.write_bit(self.queued);
+        pkt.write_bit(self.unused);
+        pkt.flush_bits();
+    }
+}
+
 // ── RatedPvpInfo ─────────────────────────────────────────────────────────────
 
 /// C++ `WorldPackets::Battleground::RatedPvpInfo`.
@@ -3652,6 +3761,37 @@ mod tests {
             }
             assert!(!pkt.has_bit().unwrap());
         }
+    }
+
+    #[test]
+    fn lfg_update_status_removed_from_queue_matches_cpp_empty_branch() {
+        let bytes = LfgUpdateStatus::removed_from_queue().to_bytes();
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::LfgUpdateStatus as u16
+        );
+
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
+        assert_eq!(pkt.read_uint32().unwrap(), 0);
+        assert_eq!(pkt.read_uint32().unwrap(), 0);
+        assert_eq!(pkt.read_int64().unwrap(), 0);
+        assert!(!pkt.has_bit().unwrap());
+        assert_eq!(pkt.read_uint8().unwrap(), LFG_QUEUE_DUNGEON_LIKE_CPP);
+        assert_eq!(
+            pkt.read_uint8().unwrap(),
+            LFG_UPDATE_TYPE_REMOVED_FROM_QUEUE_LIKE_CPP
+        );
+        assert_eq!(pkt.read_uint32().unwrap(), 0);
+        assert_eq!(pkt.read_uint8().unwrap(), 0);
+        assert_eq!(pkt.read_uint32().unwrap(), 0);
+        assert_eq!(pkt.read_uint32().unwrap(), 0);
+        assert!(!pkt.has_bit().unwrap());
+        assert!(pkt.has_bit().unwrap());
+        assert!(!pkt.has_bit().unwrap());
+        assert!(!pkt.has_bit().unwrap());
+        assert!(!pkt.has_bit().unwrap());
+        assert!(!pkt.has_bit().unwrap());
     }
 
     #[test]
