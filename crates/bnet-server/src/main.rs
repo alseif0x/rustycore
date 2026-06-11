@@ -200,16 +200,21 @@ async fn main() -> Result<()> {
 
     tracing::info!("BNet Server ready");
 
-    // Wait for shutdown
-    tokio::select! {
-        _ = rest_handle => tracing::warn!("REST server stopped"),
-        _ = rpc_handle => tracing::warn!("RPC server stopped"),
-        signal = shutdown_signal_like_cpp() => tracing::info!("Shutting down after {signal}..."),
-    }
+    // Wait for shutdown. A listener task ending is not a graceful shutdown signal:
+    // TC treats network initialization/runtime failures as fatal, while signals
+    // are the normal path that stops the io_context.
+    let shutdown_result = tokio::select! {
+        result = rest_handle => listener_task_exit_like_cpp("REST", result),
+        result = rpc_handle => listener_task_exit_like_cpp("RPC", result),
+        signal = shutdown_signal_like_cpp() => {
+            tracing::info!("Shutting down after {signal}...");
+            Ok(())
+        },
+    };
 
     state.login_db.close().await;
     tracing::info!("BNet Server stopped.");
-    Ok(())
+    shutdown_result
 }
 
 fn load_bnet_config() -> Result<LoadReport> {
@@ -303,6 +308,16 @@ fn bnet_thread_config_from_values_like_cpp(
         network_threads,
         login_rest_thread_count,
         applies_to_bnet_acceptors: false,
+    }
+}
+
+fn listener_task_exit_like_cpp(
+    service_name: &str,
+    result: std::result::Result<(), tokio::task::JoinError>,
+) -> Result<()> {
+    match result {
+        Ok(()) => anyhow::bail!("{service_name} listener stopped unexpectedly"),
+        Err(error) => anyhow::bail!("{service_name} listener task failed: {error}"),
     }
 }
 
@@ -474,7 +489,8 @@ fn db_keep_alive_interval_duration_like_cpp(interval_minutes: u64) -> std::time:
 mod tests {
     use super::{
         bnet_full_version_like_cpp, bnet_thread_config_from_values_like_cpp,
-        create_pid_file_like_cpp, db_keep_alive_interval_duration_like_cpp, load_bnet_config_from,
+        create_pid_file_like_cpp, db_keep_alive_interval_duration_like_cpp,
+        listener_task_exit_like_cpp, load_bnet_config_from,
     };
     use std::env;
     use std::fs;
@@ -574,6 +590,18 @@ LoginDatabaseInfo = "127.0.0.1;3306;trinity;trinity;auth"
         assert_eq!(config.network_threads, 4);
         assert_eq!(config.login_rest_thread_count, 8);
         assert!(!config.applies_to_bnet_acceptors);
+    }
+
+    #[test]
+    fn listener_task_clean_exit_is_fatal_like_cpp_network_failure() {
+        let error =
+            listener_task_exit_like_cpp("REST", Ok(())).expect_err("listener exit must fail");
+
+        assert!(
+            error
+                .to_string()
+                .contains("REST listener stopped unexpectedly")
+        );
     }
 
     #[test]
