@@ -285,7 +285,7 @@ Not applicable — the database framework does not handle WoW client packets. (I
 **Files in `/home/server/rustycore`:**
 - `crates/wow-database/src/lib.rs` — 58 lines — public re-exports + four `LoginDatabase`/`WorldDatabase`/`CharacterDatabase`/`HotfixDatabase` type aliases
 - `crates/wow-database/src/database.rs` — 178 lines — `Database<S: StatementDef>` wrapper around `sqlx::MySqlPool`
-- `crates/wow-database/src/error.rs` — 21 lines — `DatabaseError` enum (`Connection`/`Query`/`UnregisteredStatement`)
+- `crates/wow-database/src/error.rs` — `DatabaseError` enum (`Connection`/`Query`/`TableMissing`/`UnregisteredStatement`) with MySQL `ER_NO_SUCH_TABLE` classification.
 - `crates/wow-database/src/params.rs` — 208 lines — `PreparedStatement` (SQL + `Vec<SqlParam>`) + `SqlParam` (15 variants matching TC's `PreparedStatementData`)
 - `crates/wow-database/src/result.rs` — 198 lines — `SqlResult` (cursor over `Vec<MySqlRow>`) + `SqlFields` (single-row borrowed view)
 - `crates/wow-database/src/transaction.rs` — `SqlTransaction` (collects + commits with TC-style serialized deadlock retry) + private `bind_param` helper
@@ -639,7 +639,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 - [x] **#DB.15** Add populate/update error context: Rust reports `Could not populate/update the <DB> database`, and CLI base-file failures include both the SQL file path and `mysql` stderr. `ApplyFile` now also uses TC's `BEGIN; SOURCE file; COMMIT;` wrapper. (L)
 - [ ] **#DB.16** Add integration test harness: spin up an embedded MariaDB (or Docker mariadb:10.6 in CI) and run `populate` + `update` against it; verify updates table population. (H)
 - [x] **#DB.17** Audit deadlock-retry concurrency: Rust now replicates TC's `_deadlockLock` static mutex and 60-second retry window for transaction deadlocks. (L)
-- [ ] **#DB.18** Add a `DatabaseError::TableMissing` variant so callers can distinguish "DB not populated" from "query syntax error". (L)
+- [x] **#DB.18** Add a `DatabaseError::TableMissing` variant so callers can distinguish "DB not populated / structure out of date" from generic query errors. Rust maps MySQL `ER_NO_SUCH_TABLE` (`1146`, SQLSTATE `42S02`) into this variant, matching C++'s special handling of `ER_NO_SUCH_TABLE` in `_HandleMySQLErrno`. (L)
 - [ ] **#DB.19** Add a `Field`-style typed accessor with metadata: `SqlResult::read_typed::<u8>(col)` that checks `column_type_name == "TINYINT UNSIGNED"` before decoding. Optional, debug-only. (M)
 - [x] **#DB.20** Implement async `KeepAlive` from a free-standing `tokio::spawn` while the global world tick is still pending. Covered by #DB.2 / #WS.6; if a future global tick centralizes this, keep the same Character/Login/World-only scope.
 - [ ] **#DB.21** Add a `DatabaseLoader`-style sequencer: a struct that registers (open / populate / update / close) closures per DB and rolls back on failure. Currently `world-server/main.rs` does this inline 4× with no rollback. (M)
