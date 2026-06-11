@@ -43,6 +43,7 @@ where
     S: AsyncRead + AsyncWrite + Unpin,
 {
     let mut buf_stream = BufReader::new(stream);
+    let mut connection_state = handlers::RestConnectionState::default();
 
     loop {
         // Read the HTTP request
@@ -66,6 +67,7 @@ where
             &request.path,
             &request.headers,
             request.body.as_deref(),
+            &mut connection_state,
         )
         .await;
 

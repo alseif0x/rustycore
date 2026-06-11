@@ -3,7 +3,7 @@
 > **C++ canonical path:** `src/server/bnetserver/`
 > **Rust target crate(s):** `crates/bnet-server/`
 > **Layer:** binary (executable entry point)
-> **Status:** ⚠️ partial (login flow works; missing IP-Location DB, soap, win32 service, some REST endpoints, SecretMgr)
+> **Status:** ⚠️ partial (login flow works; missing encrypted private-key support, SecretMgr, CLI/migration gaps, graceful shutdown drain)
 > **Audited vs C++:** ⚠️ audited (2026-05-01) — see §13
 > **Last updated:** 2026-05-01
 
@@ -241,7 +241,7 @@ HTTP routes (verb + path):
 - **No `SecretMgr` initialization** for `SECRET_OWNER_BNETSERVER`. SecretMgr stores HMAC keys for various server-internal purposes (e.g. realm-list signing). Currently every signed message in the Rust port either uses a hardcoded test key or skips signing entirely.
 - **Startup banner present**. Rust logs a `Banner::Show`-style startup summary with package version/revision, config file, overlays, env overrides, TLS backend and relevant dependency versions.
 - **No legacy password migration** (`MigrateLegacyPasswordHashes`). Means accounts on SRPv1 can never be upgraded silently — they have to be deleted and recreated.
-- **No `POST /login/`, `POST /login/srp/`** (the "bot" / mobile-client login routes).
+- **Bot/mobile REST routes present**. Rust implements `POST /login/srp/` and `POST /login/` with the TC bot SRP parameters (`BOT_SRP_N`, broken evidence vectors, same JSON fields).
 - **`POST /bnetserver/refreshLoginTicket/` present**. Rust matches TC's response shape and DB write for valid/expired tickets.
 - **No `SOAP` / Win32 service / process priority / processor affinity** — Linux-only Rust target, accepted gap.
 - **`MaxCoreStuckTime` / freeze detector** — bnetserver's main loop is event-driven (not a tight `World::Update` loop). Rust now treats REST/RPC listener task exit as fatal instead of a clean shutdown; in-flight graceful drain remains under #BNET.14.
@@ -416,7 +416,7 @@ HTTP routes (verb + path):
 - [x] **#BNET.4** Implement `CreatePIDFile(path)` equivalent. Rust reads `PidFile`, writes `std::process::id()` before DB/TLS startup, logs the daemon PID, and aborts startup if the file cannot be created.
 - [x] **#BNET.5** Port `IPLocation` loader: Rust parses `IPLocationFile` as TC's numeric IPv4 CSV, lowercases country codes, exposes lookup, and enforces BNet `lock_country` in `VerifyWebCredentials` when the account is not locked to a specific IP.
 - [ ] **#BNET.6** Port `SecretMgr::Initialize(SECRET_OWNER_BNETSERVER)`: persist a per-realm HMAC key in `secrets` table (or local file as TC does); use it for any internal signing. (M)
-- [ ] **#BNET.7** Add the missing REST bot/mobile routes: `POST /login/`, `POST /login/srp/`. `POST /bnetserver/refreshLoginTicket/` is already implemented and tracked under #BNET.23. (M)
+- [x] **#BNET.7** Add the missing REST bot/mobile routes: `POST /login/`, `POST /login/srp/`. Rust keeps bot SRP state per REST connection like TC `LoginHttpSession`, returns `{salt, public_B}`, verifies `A`/`M1`, stores a `TC-` login ticket, and returns `{M2, login_ticket, session_key}`.
 - [x] **#BNET.8** Persist wrong-pass attempts in DB. Subsumed by #BNET.21: Rust writes `battlenet_accounts.failed_logins`, `battlenet_account_bans` or `ip_banned`, and resets failed-login count at the configured threshold like TC.
 - [ ] **#BNET.9** Implement `MigrateLegacyPasswordHashes()`: opt-in one-shot pass that re-derives v2 verifier on first successful v1 login. (M)
 - [x] **#BNET.10** Add a freeze-style watchdog for listener tasks: if the REST/RPC listener task exits or panics, Rust now closes the DB and returns an error instead of treating it as a clean shutdown. Signal-driven shutdown remains the normal path; in-flight graceful drain remains #BNET.14.
@@ -466,7 +466,7 @@ HTTP routes (verb + path):
 
 | Scope | Decision | C++ retained | Evidence |
 |---|---|---|---|
-| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 23 files / 3266 lines; refs: `/home/server/woltk-trinity-legacy/src/server/bnetserver/Server/Session.cpp`, `/home/server/woltk-trinity-legacy/src/server/bnetserver/REST/LoginRESTService.cpp`, `/home/server/woltk-trinity-legacy/src/server/bnetserver/Main.cpp` | `crates/bnet-server/` \| ⚠️ partial (login flow works; missing soap, win32 service, bot/mobile REST endpoints, SecretMgr) |
+| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 23 files / 3266 lines; refs: `/home/server/woltk-trinity-legacy/src/server/bnetserver/Server/Session.cpp`, `/home/server/woltk-trinity-legacy/src/server/bnetserver/REST/LoginRESTService.cpp`, `/home/server/woltk-trinity-legacy/src/server/bnetserver/Main.cpp` | `crates/bnet-server/` \| ⚠️ partial (login flow works; missing encrypted private-key support, SecretMgr, CLI/migration gaps, graceful shutdown drain) |
 
 <!-- REFINE.025:END product-scope -->
 
@@ -534,7 +534,7 @@ HTTP routes (verb + path):
 
 The Rust bnet daemon **reaches the same listening state as TrinityCore** for the happy path: it binds 1119 (TLS, BNet RPC) + 8081 (HTTPS, REST), opens a `LoginDatabase`, runs the `BanExpiryHandler`, polls `realmlist` every `RealmsStateUpdateDelay` s, and wires up the SRPv1/v2 → ticket → `VerifyWebCredentials` → `LogonResult` flow end-to-end. The five core REST endpoints needed for the WoW launcher are present and `cargo test --workspace` passes (395 tests).
 
-What is **not** at parity with TC: encrypted private-key password support, `SecretMgr` (HMAC keys), the two "bot" REST routes (`POST /login/`, `POST /login/srp/`), `MigrateLegacyPasswordHashes`, CLI args, and a graceful in-flight request drain during shutdown. The ALPN / TLS-cipher pinning differs because Rust uses `rustls` (TLS 1.2-only `ServerConfig` with no ALPN) while TC uses Boost.Asio + OpenSSL with `TLS_method` (negotiates anything); for WoW 3.4.3 clients that converge on TLS 1.2 + an `ECDHE-RSA-AES*` suite this is functionally equivalent, but uncommon launcher builds may see different ciphers.
+What is **not** at parity with TC: encrypted private-key password support, `SecretMgr` (HMAC keys), `MigrateLegacyPasswordHashes`, CLI args, and a graceful in-flight request drain during shutdown. The ALPN / TLS-cipher pinning differs because Rust uses `rustls` (TLS 1.2-only `ServerConfig` with no ALPN) while TC uses Boost.Asio + OpenSSL with `TLS_method` (negotiates anything); for WoW 3.4.3 clients that converge on TLS 1.2 + an `ECDHE-RSA-AES*` suite this is functionally equivalent, but uncommon launcher builds may see different ciphers.
 
 Resolved since the original audit: `extract_auth_ticket` now mirrors TC's `ExtractAuthorization` by stripping optional `"Basic "`, Base64-decoding the value, and truncating at the first `:`. The failed-login/autoban path now persists `WrongPass.*` effects to `battlenet_accounts.failed_logins`, `battlenet_account_bans`, or `ip_banned`.
 
@@ -579,8 +579,8 @@ Resolved since the original audit: `extract_auth_ticket` now mirrors TC's `Extra
 | `GET /bnetserver/gameAccounts/` | ✅ `HandleGetGameAccounts` | ✅ `get_game_accounts` | Same query (`SEL_BNET_GAME_ACCOUNT_LIST`). Rust now matches TC `ExtractAuthorization`: optional `Basic ` prefix removal, Base64 decode, then truncate at `:`. |
 | `GET /bnetserver/portal/` | ✅ `HandleGetPortal` | ✅ `get_portal` | TC returns `GetHostnameForClient(remoteIp):port`; Rust returns `X-Forwarded-For`-or-`external_address`:port. Different selection logic but same shape. |
 | `POST /bnetserver/refreshLoginTicket/` | ✅ `HandlePostRefreshLoginTicket` | ✅ `refresh_login_ticket` | Rust now matches TC response shape: `LoginRefreshResult{login_ticket_expiry}` for valid unexpired tickets, or `is_expired=true` when missing/expired. Same DB write. |
-| `POST /login/srp/` (bot/mobile) | ✅ `HandlePostBotSrpChallenge` | ❌ missing | route returns 404 |
-| `POST /login/` (bot/mobile) | ✅ `HandlePostBotLogin` | ❌ missing | route returns 404 |
+| `POST /login/srp/` (bot/mobile) | ✅ `HandlePostBotSrpChallenge` | ✅ `post_bot_srp_challenge` | Uses TC `BOT_SRP_N`, fixed-32 `k` input, and broken evidence-vector convention. |
+| `POST /login/` (bot/mobile) | ✅ `HandlePostBotLogin` | ✅ `post_bot_login` | Verifies same-connection Bot SRP state, stores login ticket, returns `M2`, `login_ticket`, `session_key`. |
 | `OPTIONS *` (CORS preflight) | ❌ none | ❌ none | ✅ parity |
 
 ### 13.4 Auth flow divergences (port 1119, BNet RPC)
@@ -640,4 +640,4 @@ Add these to §9 (existing tasks #BNET.1–#BNET.14 stand):
 
 ### 13.8 Header status update
 
-Header status changed from `❌ not audited` → `⚠️ audited (2026-05-01)`. Functional state remains `⚠️ partial` because the audit confirmed gaps; remaining blockers include encrypted private-key password support, bot/mobile REST routes, and graceful in-flight shutdown drain.
+Header status changed from `❌ not audited` → `⚠️ audited (2026-05-01)`. Functional state remains `⚠️ partial` because the audit confirmed gaps; remaining blockers include encrypted private-key password support and graceful in-flight shutdown drain.

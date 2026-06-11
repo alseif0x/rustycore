@@ -29,6 +29,9 @@ flate2 = { workspace = true }
 rand = { workspace = true }
 dashmap = { workspace = true }
 parking_lot = { workspace = true }
+num-bigint = { workspace = true }
+num-traits = { workspace = true }
+sha2 = { workspace = true }
 wow-core = { workspace = true }
 wow-config = { workspace = true }
 wow-logging = { workspace = true }

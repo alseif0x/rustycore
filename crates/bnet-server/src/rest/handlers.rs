@@ -1,5 +1,9 @@
 //! REST API handler implementations.
 
+use num_bigint::BigUint;
+use num_traits::Zero;
+use rand::Rng;
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use wow_crypto::{BnetSrp6, SrpHashFunction, SrpVersion, srp_username};
 use wow_database::LoginStatements;
@@ -8,6 +12,55 @@ use super::HttpResponse;
 use super::types::*;
 use crate::state::{AppState, RestSessionState};
 
+const BOT_SRP_N_HEX: &str = "894B645E89E1535BBDAD5B8B290650530801B18EBFBF5E8FAB3C82872A3E9BB7";
+
+#[derive(Default)]
+pub struct RestConnectionState {
+    bot_srp: Option<BotSrpState>,
+}
+
+struct BotSrpState {
+    username: String,
+    verifier: BigUint,
+    b: BigUint,
+    public_b: BigUint,
+}
+
+struct BotSrpProof {
+    server_m2: BigUint,
+    session_key: Vec<u8>,
+}
+
+#[derive(serde::Deserialize)]
+struct BotSrpChallengeRequest {
+    username: Option<String>,
+    password: Option<String>,
+}
+
+#[derive(serde::Deserialize)]
+struct BotLoginRequest {
+    username: Option<String>,
+    #[serde(rename = "A")]
+    public_a: Option<String>,
+    #[serde(rename = "M1")]
+    client_m1: Option<String>,
+}
+
+#[derive(serde::Serialize)]
+struct BotSrpChallengeResponse {
+    salt: String,
+    #[serde(rename = "public_B")]
+    public_b: String,
+}
+
+#[derive(serde::Serialize)]
+struct BotLoginResponse {
+    #[serde(rename = "M2")]
+    server_m2: String,
+    login_ticket: String,
+    session_key: String,
+}
+
 /// Route an HTTP request to the appropriate handler.
 pub async fn route(
     state: &AppState,
@@ -15,11 +68,14 @@ pub async fn route(
     path: &str,
     headers: &HashMap<String, String>,
     body: Option<&[u8]>,
+    connection_state: &mut RestConnectionState,
 ) -> HttpResponse {
     match (method, path) {
         ("GET", "/bnetserver/login/") => get_form(state),
         ("POST", "/bnetserver/login/") => post_login(state, headers, body).await,
         ("POST", "/bnetserver/login/srp/") => post_login_srp_challenge(state, headers, body).await,
+        ("POST", "/login/srp/") => post_bot_srp_challenge(connection_state, body),
+        ("POST", "/login/") => post_bot_login(state, connection_state, body).await,
         ("GET", "/bnetserver/gameAccounts/") => get_game_accounts(state, headers).await,
         ("GET", "/bnetserver/portal/") => get_portal(state, headers),
         ("POST", "/bnetserver/refreshLoginTicket/") => refresh_login_ticket(state, headers).await,
@@ -33,6 +89,129 @@ pub async fn route(
             }
         }
     }
+}
+
+fn post_bot_srp_challenge(
+    connection_state: &mut RestConnectionState,
+    body: Option<&[u8]>,
+) -> HttpResponse {
+    let Some(body_bytes) = body else {
+        return empty_response(400, "Bad Request");
+    };
+
+    let request: BotSrpChallengeRequest = match serde_json::from_slice(body_bytes) {
+        Ok(request) => request,
+        Err(_) => return empty_response(400, "Bad Request"),
+    };
+
+    let Some(username) = request.username.filter(|value| !value.is_empty()) else {
+        return empty_response(400, "Bad Request");
+    };
+    let Some(password) = request.password.filter(|value| !value.is_empty()) else {
+        return empty_response(400, "Bad Request");
+    };
+
+    let mut salt = [0u8; 32];
+    rand::thread_rng().fill(&mut salt);
+    let up_hash = Sha256::digest(format!("{username}:{password}").as_bytes());
+    let mut x_input = salt.to_vec();
+    x_input.extend_from_slice(&up_hash);
+    let x = BigUint::from_bytes_be(&Sha256::digest(&x_input));
+
+    let n = bot_srp_n_like_cpp();
+    let g = BigUint::from(2u32);
+    let k = bot_srp_k_like_cpp(&n, &g);
+    let verifier = g.modpow(&x, &n);
+    let b = bot_srp_private_b_like_cpp(&n);
+    let public_b = (g.modpow(&b, &n) + (&verifier * &k)) % &n;
+
+    connection_state.bot_srp = Some(BotSrpState {
+        username,
+        verifier,
+        b,
+        public_b: public_b.clone(),
+    });
+
+    json_response_with_content_type(
+        BotSrpChallengeResponse {
+            salt: hex_encode_upper(&salt),
+            public_b: public_b.to_str_radix(16).to_uppercase(),
+        },
+        "application/json",
+    )
+}
+
+async fn post_bot_login(
+    state: &AppState,
+    connection_state: &mut RestConnectionState,
+    body: Option<&[u8]>,
+) -> HttpResponse {
+    let Some(body_bytes) = body else {
+        return empty_response(400, "Bad Request");
+    };
+
+    let request: BotLoginRequest = match serde_json::from_slice(body_bytes) {
+        Ok(request) => request,
+        Err(_) => return empty_response(400, "Bad Request"),
+    };
+
+    let Some(username) = request.username.filter(|value| !value.is_empty()) else {
+        return empty_response(400, "Bad Request");
+    };
+    let Some(public_a_hex) = request.public_a.filter(|value| !value.is_empty()) else {
+        return empty_response(400, "Bad Request");
+    };
+    let Some(client_m1_hex) = request.client_m1.filter(|value| !value.is_empty()) else {
+        return empty_response(400, "Bad Request");
+    };
+
+    let Some(bot_srp) = connection_state.bot_srp.as_ref() else {
+        return empty_response(400, "Bad Request");
+    };
+    if bot_srp.username != username {
+        return empty_response(400, "Bad Request");
+    }
+
+    let Some(proof) = verify_bot_srp_evidence_like_cpp(bot_srp, &public_a_hex, &client_m1_hex)
+    else {
+        return empty_response(401, "Unauthorized");
+    };
+    let login_ticket = make_login_ticket();
+
+    let mut stmt = state
+        .login_db
+        .prepare(LoginStatements::SEL_BNET_ACCOUNT_ID_BY_EMAIL);
+    stmt.set_string(0, &username);
+    let result = match state.login_db.query(&stmt).await {
+        Ok(result) => result,
+        Err(error) => {
+            tracing::error!("DB error during bot login account lookup: {error}");
+            return json_error_response(500, "Internal Server Error", "Internal error");
+        }
+    };
+    if result.is_empty() {
+        return json_error_response_with_content_type(
+            401,
+            "Unauthorized",
+            "account_not_found",
+            "application/json",
+        );
+    }
+
+    let account_id: u32 = result.read(0);
+    if let Err(error) = store_login_ticket(state, account_id, &login_ticket).await {
+        tracing::error!("DB error storing bot login ticket for account {account_id}: {error}");
+        return json_error_response(500, "Internal Server Error", "Internal error");
+    }
+
+    json_response_with_content_type(
+        BotLoginResponse {
+            server_m2: proof.server_m2.to_str_radix(16).to_uppercase(),
+            login_ticket,
+            session_key: hex_encode_upper(&proof.session_key),
+        },
+        "application/json",
+    )
 }
 
 // ── Handlers ─────────────────────────────────────────────────────────────────
@@ -490,22 +669,52 @@ async fn refresh_login_ticket(state: &AppState, headers: &HashMap<String, String
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 fn json_response<T: serde::Serialize>(value: T) -> HttpResponse {
+    json_response_with_content_type(value, "application/json;charset=utf-8")
+}
+
+fn json_response_with_content_type<T: serde::Serialize>(
+    value: T,
+    content_type: &'static str,
+) -> HttpResponse {
     let body = serde_json::to_string(&value).unwrap_or_default();
     HttpResponse {
         status_code: 200,
         status_text: "OK",
-        headers: vec![("Content-Type", "application/json;charset=utf-8".to_string())],
+        headers: vec![("Content-Type", content_type.to_string())],
         body,
     }
 }
 
 fn json_error_response(status_code: u16, status_text: &'static str, error: &str) -> HttpResponse {
+    json_error_response_with_content_type(
+        status_code,
+        status_text,
+        error,
+        "application/json;charset=utf-8",
+    )
+}
+
+fn json_error_response_with_content_type(
+    status_code: u16,
+    status_text: &'static str,
+    error: &str,
+    content_type: &'static str,
+) -> HttpResponse {
     let body = serde_json::to_string(&serde_json::json!({"error": error})).unwrap_or_default();
     HttpResponse {
         status_code,
         status_text,
-        headers: vec![("Content-Type", "application/json;charset=utf-8".to_string())],
+        headers: vec![("Content-Type", content_type.to_string())],
         body,
+    }
+}
+
+fn empty_response(status_code: u16, status_text: &'static str) -> HttpResponse {
+    HttpResponse {
+        status_code,
+        status_text,
+        headers: vec![],
+        body: String::new(),
     }
 }
 
@@ -562,19 +771,24 @@ fn make_login_ticket() -> String {
 
 async fn create_login_ticket(state: &AppState, account_id: u32) -> anyhow::Result<String> {
     let ticket = make_login_ticket();
+    store_login_ticket(state, account_id, &ticket).await?;
+
+    tracing::info!("Login ticket created for account_id={account_id}: {ticket}");
+    Ok(ticket)
+}
+
+async fn store_login_ticket(state: &AppState, account_id: u32, ticket: &str) -> anyhow::Result<()> {
     let expiry = unix_timestamp() + state.ticket_duration;
 
     // UPD_BNET_AUTHENTICATION: SET LoginTicket = ?, LoginTicketExpiry = ? WHERE id = ?
     let mut stmt = state
         .login_db
         .prepare(LoginStatements::UPD_BNET_AUTHENTICATION);
-    stmt.set_string(0, &ticket);
+    stmt.set_string(0, ticket);
     stmt.set_u64(1, expiry);
     stmt.set_u32(2, account_id);
     state.login_db.execute(&stmt).await?;
-
-    tracing::info!("Login ticket created for account_id={account_id}: {ticket}");
-    Ok(ticket)
+    Ok(())
 }
 
 async fn apply_wrong_password_policy_like_cpp(
@@ -689,6 +903,110 @@ fn hex_encode(data: &[u8]) -> String {
     data.iter().map(|b| format!("{b:02x}")).collect()
 }
 
+fn hex_encode_upper(data: &[u8]) -> String {
+    data.iter().map(|b| format!("{b:02X}")).collect()
+}
+
+fn bot_srp_n_like_cpp() -> BigUint {
+    BigUint::parse_bytes(BOT_SRP_N_HEX.as_bytes(), 16).expect("valid bot SRP modulus")
+}
+
+fn bot_srp_k_like_cpp(n: &BigUint, g: &BigUint) -> BigUint {
+    let mut data = bot_fixed_32_be_like_cpp(n);
+    data.extend_from_slice(&bot_fixed_32_be_like_cpp(g));
+    BigUint::from_bytes_be(&Sha256::digest(data))
+}
+
+fn bot_srp_private_b_like_cpp(n: &BigUint) -> BigUint {
+    let mut bytes = vec![0u8; n.bits().div_ceil(8) as usize];
+    rand::thread_rng().fill(bytes.as_mut_slice());
+    let n_minus_one = n - BigUint::from(1u32);
+    BigUint::from_bytes_be(&bytes) % n_minus_one
+}
+
+fn bot_fixed_32_be_like_cpp(value: &BigUint) -> Vec<u8> {
+    let bytes = value.to_bytes_be();
+    if bytes.len() >= 32 {
+        return bytes;
+    }
+
+    let mut padded = vec![0u8; 32 - bytes.len()];
+    padded.extend_from_slice(&bytes);
+    padded
+}
+
+fn bot_broken_evidence_vector_like_cpp(value: &BigUint) -> Vec<u8> {
+    let target_len = (value.bits() as usize + 8) >> 3;
+    let bytes = value.to_bytes_be();
+    if bytes.len() >= target_len {
+        return bytes;
+    }
+
+    let mut padded = vec![0u8; target_len - bytes.len()];
+    padded.extend_from_slice(&bytes);
+    padded
+}
+
+fn bot_srp_evidence_hash_like_cpp(values: &[&BigUint]) -> BigUint {
+    let chunks = values
+        .iter()
+        .map(|value| bot_broken_evidence_vector_like_cpp(value))
+        .collect::<Vec<_>>();
+    bot_srp_evidence_hash_from_bytes_like_cpp(&chunks)
+}
+
+fn bot_srp_evidence_hash_from_bytes_like_cpp(chunks: &[Vec<u8>]) -> BigUint {
+    let mut data = Vec::new();
+    for chunk in chunks {
+        data.extend_from_slice(chunk);
+    }
+
+    BigUint::from_bytes_be(&Sha256::digest(data))
+}
+
+fn verify_bot_srp_evidence_like_cpp(
+    bot_srp: &BotSrpState,
+    public_a_hex: &str,
+    client_m1_hex: &str,
+) -> Option<BotSrpProof> {
+    let public_a = BigUint::parse_bytes(public_a_hex.as_bytes(), 16)?;
+    let client_m1 = BigUint::parse_bytes(client_m1_hex.as_bytes(), 16)?;
+
+    let n = bot_srp_n_like_cpp();
+    if (&public_a % &n).is_zero() {
+        return None;
+    }
+
+    let u = BigUint::from_bytes_be(&Sha256::digest(
+        [
+            bot_fixed_32_be_like_cpp(&public_a).as_slice(),
+            bot_fixed_32_be_like_cpp(&bot_srp.public_b).as_slice(),
+        ]
+        .concat(),
+    ));
+    if (&u % &n).is_zero() {
+        return None;
+    }
+
+    let s = (&public_a * bot_srp.verifier.modpow(&u, &n)).modpow(&bot_srp.b, &n);
+    let expected_m1 = bot_srp_evidence_hash_like_cpp(&[&public_a, &bot_srp.public_b, &s]);
+    if expected_m1 != client_m1 {
+        return None;
+    }
+
+    let session_key = Sha256::digest(bot_broken_evidence_vector_like_cpp(&s)).to_vec();
+    let server_m2 = bot_srp_evidence_hash_from_bytes_like_cpp(&[
+        bot_broken_evidence_vector_like_cpp(&public_a),
+        bot_broken_evidence_vector_like_cpp(&client_m1),
+        session_key.clone(),
+    ]);
+
+    Some(BotSrpProof {
+        server_m2,
+        session_key,
+    })
+}
+
 fn decode_base64_standard_like_cpp(input: &str) -> Option<Vec<u8>> {
     fn value(byte: u8) -> Option<u8> {
         match byte {
@@ -776,6 +1094,106 @@ mod tests {
         assert_eq!(
             wrong_password_remote_ip_from_headers_like_cpp(&headers, "203.0.113.10"),
             "203.0.113.10"
+        );
+    }
+
+    #[test]
+    fn bot_srp_challenge_rejects_malformed_or_missing_inputs_like_cpp() {
+        let mut connection_state = RestConnectionState::default();
+
+        let bad_json = post_bot_srp_challenge(&mut connection_state, Some(b"not-json"));
+        assert_eq!(bad_json.status_code, 400);
+        assert!(bad_json.body.is_empty());
+
+        let missing_password =
+            post_bot_srp_challenge(&mut connection_state, Some(br#"{"username":"user"}"#));
+        assert_eq!(missing_password.status_code, 400);
+        assert!(missing_password.body.is_empty());
+    }
+
+    #[test]
+    fn bot_srp_challenge_returns_cpp_shape_and_connection_state() {
+        let mut connection_state = RestConnectionState::default();
+
+        let response = post_bot_srp_challenge(
+            &mut connection_state,
+            Some(br#"{"username":"user@example.com","password":"secret"}"#),
+        );
+
+        assert_eq!(response.status_code, 200);
+        assert_eq!(
+            response.headers,
+            vec![("Content-Type", "application/json".to_string())]
+        );
+        let body: serde_json::Value = serde_json::from_str(&response.body).unwrap();
+        assert!(body.get("salt").and_then(|value| value.as_str()).is_some());
+        assert!(
+            body.get("public_B")
+                .and_then(|value| value.as_str())
+                .is_some()
+        );
+        assert!(connection_state.bot_srp.is_some());
+    }
+
+    #[test]
+    fn bot_srp_fixed_32_and_broken_vectors_match_cpp_lengths() {
+        assert_eq!(bot_fixed_32_be_like_cpp(&BigUint::from(2u32)).len(), 32);
+        assert_eq!(
+            hex_encode_upper(&bot_fixed_32_be_like_cpp(&BigUint::from(2u32))),
+            "0000000000000000000000000000000000000000000000000000000000000002"
+        );
+
+        assert_eq!(
+            bot_broken_evidence_vector_like_cpp(&BigUint::from(0x1234u32)),
+            vec![0x12, 0x34]
+        );
+        assert_eq!(
+            bot_broken_evidence_vector_like_cpp(&BigUint::from(0x80u32)),
+            vec![0x00, 0x80]
+        );
+    }
+
+    #[test]
+    fn bot_srp_evidence_verifies_matching_client_proof_like_cpp() {
+        let n = bot_srp_n_like_cpp();
+        let g = BigUint::from(2u32);
+        let k = bot_srp_k_like_cpp(&n, &g);
+        let x = BigUint::from(11u32);
+        let a = BigUint::from(17u32);
+        let b = BigUint::from(19u32);
+        let verifier = g.modpow(&x, &n);
+        let public_a = g.modpow(&a, &n);
+        let public_b = (g.modpow(&b, &n) + (&verifier * &k)) % &n;
+
+        let u = BigUint::from_bytes_be(&Sha256::digest(
+            [
+                bot_fixed_32_be_like_cpp(&public_a).as_slice(),
+                bot_fixed_32_be_like_cpp(&public_b).as_slice(),
+            ]
+            .concat(),
+        ));
+        let gx = g.modpow(&x, &n);
+        let base = (&public_b + &n - ((&k * &gx) % &n)) % &n;
+        let client_s = base.modpow(&(&a + (&u * &x)), &n);
+        let client_m1 = bot_srp_evidence_hash_like_cpp(&[&public_a, &public_b, &client_s]);
+
+        let bot_srp = BotSrpState {
+            username: "user@example.com".to_string(),
+            verifier,
+            b,
+            public_b,
+        };
+        let proof = verify_bot_srp_evidence_like_cpp(
+            &bot_srp,
+            &public_a.to_str_radix(16),
+            &client_m1.to_str_radix(16),
+        )
+        .expect("matching bot proof");
+
+        assert_eq!(proof.session_key.len(), 32);
+        assert!(
+            verify_bot_srp_evidence_like_cpp(&bot_srp, &public_a.to_str_radix(16), "deadbeef")
+                .is_none()
         );
     }
 
