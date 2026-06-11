@@ -23,7 +23,9 @@ use wow_entities::{
 };
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
 use wow_packet::ClientPacket;
-use wow_packet::packets::chat::{ChannelNotify, JoinChannel};
+use wow_packet::packets::chat::{
+    ChannelNotify, JoinChannel, MAX_CHANNEL_NAME_STR_LIKE_CPP, MAX_CHANNEL_PASS_STR_LIKE_CPP,
+};
 use wow_packet::packets::collection::{
     COLLECTION_TYPE_APPEARANCE_LIKE_CPP, COLLECTION_TYPE_TOYBOX_LIKE_CPP,
     CollectionItemSetFavorite, TransmogrifyItems,
@@ -133,6 +135,38 @@ inventory::submit! {
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_mount_set_favorite",
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum JoinChannelPrecheckLikeCpp {
+    Continue,
+    InvalidName,
+    PasswordTooLong,
+}
+
+fn join_channel_custom_precheck_like_cpp(request: &JoinChannel) -> JoinChannelPrecheckLikeCpp {
+    if request.chat_channel_id != 0 {
+        return JoinChannelPrecheckLikeCpp::Continue;
+    }
+
+    if request
+        .channel_name
+        .chars()
+        .next()
+        .is_none_or(|first| first.is_ascii_digit())
+    {
+        return JoinChannelPrecheckLikeCpp::InvalidName;
+    }
+
+    if request.channel_name.chars().count() > MAX_CHANNEL_NAME_STR_LIKE_CPP {
+        return JoinChannelPrecheckLikeCpp::InvalidName;
+    }
+
+    if request.password.len() > MAX_CHANNEL_PASS_STR_LIKE_CPP {
+        return JoinChannelPrecheckLikeCpp::PasswordTooLong;
+    }
+
+    JoinChannelPrecheckLikeCpp::Continue
 }
 
 inventory::submit! {
@@ -887,19 +921,26 @@ impl crate::session::WorldSession {
             }
         };
 
-        if request.chat_channel_id == 0
-            && request
-                .channel_name
-                .chars()
-                .next()
-                .is_none_or(|first| first.is_ascii_digit())
-        {
-            self.send_packet(&ChannelNotify::invalid_name(request.channel_name));
-            return;
+        match join_channel_custom_precheck_like_cpp(&request) {
+            JoinChannelPrecheckLikeCpp::Continue => {}
+            JoinChannelPrecheckLikeCpp::InvalidName => {
+                self.send_packet(&ChannelNotify::invalid_name(request.channel_name));
+                return;
+            }
+            JoinChannelPrecheckLikeCpp::PasswordTooLong => {
+                warn!(
+                    account = self.account_id,
+                    password_len = request.password.len(),
+                    max_password_len = MAX_CHANNEL_PASS_STR_LIKE_CPP,
+                    "JoinChannel password too long"
+                );
+                return;
+            }
         }
 
         // ChannelMgr, system-zone channel validation, custom channel creation,
-        // password handling, and hyperlink kick checks are not represented yet.
+        // password handling, hyperlink kick checks, and system channel validation
+        // are not represented yet.
     }
 
     /// CMSG_MOUNT_SET_FAVORITE — toggle the favorite bit on a known account mount.
@@ -5052,6 +5093,50 @@ mod tests {
             wow_packet::packets::chat::CHAT_INVALID_NAME_NOTICE_LIKE_CPP
         );
         assert_eq!(payload.read_bits(7).unwrap(), 4);
+    }
+
+    #[tokio::test]
+    async fn chat_join_channel_too_long_custom_name_sends_notice_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let channel_name = "A".repeat(MAX_CHANNEL_NAME_STR_LIKE_CPP + 1);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_int32(0);
+        pkt.write_bit(false);
+        pkt.write_bit(false);
+        pkt.write_bits(channel_name.len() as u32, 7);
+        pkt.write_bits(0, 7);
+        pkt.write_string(&channel_name);
+        pkt.reset_read();
+
+        session.handle_chat_join_channel(pkt).await;
+
+        let bytes = send_rx.try_recv().expect("channel notify packet");
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::ChannelNotify as u16
+        );
+        let mut payload = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(
+            payload.read_bits(6).unwrap() as u8,
+            wow_packet::packets::chat::CHAT_INVALID_NAME_NOTICE_LIKE_CPP
+        );
+        assert_eq!(payload.read_bits(7).unwrap(), channel_name.len() as u32);
+    }
+
+    #[test]
+    fn chat_join_channel_precheck_rejects_too_long_password_like_cpp() {
+        let request = JoinChannel {
+            chat_channel_id: 0,
+            create_voice_session: false,
+            internal: false,
+            channel_name: "Valid".to_string(),
+            password: "p".repeat(MAX_CHANNEL_PASS_STR_LIKE_CPP + 1),
+        };
+
+        assert_eq!(
+            join_channel_custom_precheck_like_cpp(&request),
+            JoinChannelPrecheckLikeCpp::PasswordTooLong
+        );
     }
 
     #[tokio::test]

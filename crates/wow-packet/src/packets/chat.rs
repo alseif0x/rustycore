@@ -12,6 +12,8 @@ use crate::world_packet::{PacketError, WorldPacket};
 use crate::{ClientPacket, ServerPacket};
 
 pub const CHAT_INVALID_NAME_NOTICE_LIKE_CPP: u8 = 0x1B;
+pub const MAX_CHANNEL_NAME_STR_LIKE_CPP: usize = 31;
+pub const MAX_CHANNEL_PASS_STR_LIKE_CPP: usize = 127;
 
 // ── CMSG_CHAT_JOIN_CHANNEL ────────────────────────────────────────
 
