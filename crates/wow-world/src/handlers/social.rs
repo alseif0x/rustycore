@@ -3,7 +3,7 @@
 // Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! Handlers for social opcodes: AddFriend, DelFriend, SendContactList.
+//! Handlers for social opcodes: AddFriend, AddIgnore, DelFriend, SendContactList.
 
 use std::sync::Arc;
 
@@ -11,11 +11,12 @@ use tracing::{info, warn};
 use wow_constants::ClientOpcodes;
 use wow_core::ObjectGuid;
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
-use wow_packet::ServerPacket;
 use wow_packet::packets::query::{
     NameCacheLookupResult, PlayerGuidLookupData, QueryPlayerNamesResponse,
 };
-use wow_packet::packets::social::{ContactInfo, ContactListPkt, FriendStatusPkt, FriendsResult};
+use wow_packet::packets::social::{
+    AddIgnore, ContactInfo, ContactListPkt, FriendStatusPkt, FriendsResult,
+};
 
 use crate::session::WorldSession;
 
@@ -27,6 +28,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_add_friend",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::AddIgnore,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_add_ignore",
     }
 }
 
@@ -208,6 +218,121 @@ impl WorldSession {
         info!(
             "Player {:?} added friend {:?} ({})",
             my_guid, friend_guid, name
+        );
+    }
+
+    /// Handle CMSG_ADD_IGNORE.
+    ///
+    /// C++ ref: `WorldSession::HandleAddIgnoreOpcode`.
+    ///
+    /// This represents the per-character ignore list (`SOCIAL_FLAG_IGNORED`).
+    /// Account-level ignore remains parked until Rust owns `character_social.accountGuid`
+    /// and an in-memory `PlayerSocial::_ignoredAccounts` equivalent.
+    pub async fn handle_add_ignore(&mut self, ignore: AddIgnore) {
+        let my_guid = match self.player_guid() {
+            Some(g) => g,
+            None => return,
+        };
+
+        let char_db = match self.char_db() {
+            Some(db) => Arc::clone(db),
+            None => return,
+        };
+
+        let vra = self.virtual_realm_address();
+        macro_rules! send_status {
+            ($result:expr, $guid:expr) => {
+                self.send_packet(&FriendStatusPkt {
+                    result: $result,
+                    guid: $guid,
+                    account_guid: ObjectGuid::EMPTY,
+                    virtual_realm_address: vra,
+                    status: 0,
+                    area_id: 0,
+                    level: 0,
+                    class_id: 0,
+                    notes: String::new(),
+                });
+            };
+        }
+
+        let row = sqlx::query("SELECT CAST(guid AS SIGNED) FROM characters WHERE name = ? LIMIT 1")
+            .bind(&ignore.name)
+            .fetch_optional(char_db.pool())
+            .await;
+
+        let row = match row {
+            Ok(Some(row)) => row,
+            Ok(None) => {
+                send_status!(FriendsResult::IgnoreNotFound, ObjectGuid::EMPTY);
+                return;
+            }
+            Err(e) => {
+                warn!("AddIgnore DB error looking up '{}': {}", ignore.name, e);
+                return;
+            }
+        };
+
+        use sqlx::Row;
+        let ignore_guid_raw: i64 = row.try_get(0).unwrap_or(0);
+        let ignore_guid = ObjectGuid::create_player(0, ignore_guid_raw);
+
+        if ignore_guid == my_guid {
+            send_status!(FriendsResult::IgnoreSelf, ignore_guid);
+            return;
+        }
+
+        let already_row = sqlx::query(
+            "SELECT COUNT(*) FROM character_social WHERE guid = ? AND friend = ? AND flags & 2",
+        )
+        .bind(my_guid.counter())
+        .bind(ignore_guid_raw)
+        .fetch_one(char_db.pool())
+        .await;
+
+        let already = match already_row {
+            Ok(row) => row.try_get::<i64, _>(0).unwrap_or(0) > 0,
+            Err(_) => false,
+        };
+
+        if already {
+            send_status!(FriendsResult::IgnoreAlready, ignore_guid);
+            return;
+        }
+
+        let ignore_count_row =
+            sqlx::query("SELECT COUNT(*) FROM character_social WHERE guid = ? AND flags & 2")
+                .bind(my_guid.counter())
+                .fetch_one(char_db.pool())
+                .await;
+
+        let ignore_count = match ignore_count_row {
+            Ok(row) => row.try_get::<i64, _>(0).unwrap_or(0),
+            Err(_) => 0,
+        };
+        if ignore_count >= 50 {
+            send_status!(FriendsResult::IgnoreFull, ignore_guid);
+            return;
+        }
+
+        let insert = sqlx::query(
+            "INSERT INTO character_social (guid, friend, flags, note) VALUES (?, ?, 2, '') \
+             ON DUPLICATE KEY UPDATE flags = flags | 2",
+        )
+        .bind(my_guid.counter())
+        .bind(ignore_guid_raw)
+        .execute(char_db.pool())
+        .await;
+
+        if let Err(e) = insert {
+            warn!("AddIgnore insert error: {}", e);
+            return;
+        }
+
+        send_status!(FriendsResult::IgnoreAdded, ignore_guid);
+        info!(
+            "Player {:?} ignored {:?} ({})",
+            my_guid, ignore_guid, ignore.name
         );
     }
 

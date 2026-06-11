@@ -17012,6 +17012,12 @@ impl WorldSession {
             ClientOpcodes::AddFriend => {
                 self.handle_add_friend(pkt).await;
             }
+            ClientOpcodes::AddIgnore => {
+                match wow_packet::packets::social::AddIgnore::read(&mut pkt) {
+                    Ok(ignore) => self.handle_add_ignore(ignore).await,
+                    Err(e) => warn!("Failed to read AddIgnore: {e}"),
+                }
+            }
             ClientOpcodes::DelFriend => {
                 self.handle_del_friend(pkt).await;
             }

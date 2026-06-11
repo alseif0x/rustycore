@@ -5,13 +5,13 @@
 
 //! Social packet definitions: SMSG_FRIEND_STATUS, SMSG_CONTACT_LIST.
 
-use crate::{ServerPacket, WorldPacket};
-use wow_constants::ServerOpcodes;
+use crate::{ClientPacket, PacketError, ServerPacket, WorldPacket};
+use wow_constants::{ClientOpcodes, ServerOpcodes};
 use wow_core::ObjectGuid;
 
 /// FriendsResult enum values (byte).
 #[repr(u8)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FriendsResult {
     DbError = 0x00,
     ListFull = 0x01,
@@ -24,6 +24,42 @@ pub enum FriendsResult {
     Already = 0x08,
     Self_ = 0x09,
     Enemy = 0x0A,
+    IgnoreFull = 0x0B,
+    IgnoreSelf = 0x0C,
+    IgnoreNotFound = 0x0D,
+    IgnoreAlready = 0x0E,
+    IgnoreAdded = 0x0F,
+    IgnoreRemoved = 0x10,
+    IgnoreAmbiguous = 0x11,
+    MuteFull = 0x12,
+    MuteSelf = 0x13,
+    MuteNotFound = 0x14,
+    MuteAlready = 0x15,
+    MuteAdded = 0x16,
+    MuteRemoved = 0x17,
+    MuteAmbiguous = 0x18,
+    Unknown = 0x1C,
+}
+
+/// CMSG_ADD_IGNORE.
+///
+/// C++ `WorldPackets::Social::AddIgnore::Read` reads a 9-bit name length,
+/// then an account GUID, then the name string.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AddIgnore {
+    pub name: String,
+    pub account_guid: ObjectGuid,
+}
+
+impl ClientPacket for AddIgnore {
+    const OPCODE: ClientOpcodes = ClientOpcodes::AddIgnore;
+
+    fn read(packet: &mut WorldPacket) -> Result<Self, PacketError> {
+        let name_len = packet.read_bits(9)? as usize;
+        let account_guid = packet.read_packed_guid()?;
+        let name = packet.read_string(name_len)?;
+        Ok(Self { name, account_guid })
+    }
 }
 
 /// SMSG_FRIEND_STATUS (0x278d)
@@ -113,5 +149,35 @@ impl ServerPacket for ContactListPkt {
         for c in &self.contacts {
             c.write(w);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn add_ignore_reads_cpp_name_length_account_guid_name_order() {
+        let account_guid = ObjectGuid::create_player(1, 0xAABBCC);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bits(6, 9);
+        pkt.write_packed_guid(&account_guid);
+        pkt.write_string("Thrall");
+
+        let parsed = AddIgnore::read(&mut pkt).expect("add ignore packet");
+
+        assert_eq!(parsed.account_guid, account_guid);
+        assert_eq!(parsed.name, "Thrall");
+        assert!(pkt.is_empty());
+    }
+
+    #[test]
+    fn friends_result_ignore_values_match_cpp_social_mgr() {
+        assert_eq!(FriendsResult::IgnoreFull as u8, 0x0B);
+        assert_eq!(FriendsResult::IgnoreSelf as u8, 0x0C);
+        assert_eq!(FriendsResult::IgnoreNotFound as u8, 0x0D);
+        assert_eq!(FriendsResult::IgnoreAlready as u8, 0x0E);
+        assert_eq!(FriendsResult::IgnoreAdded as u8, 0x0F);
+        assert_eq!(FriendsResult::IgnoreRemoved as u8, 0x10);
     }
 }
