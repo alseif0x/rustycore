@@ -40,6 +40,7 @@ const RANGE_YELL: f32 = 300.0;
 const RANGE_EMOTE: f32 = 25.0;
 const LANG_ADDON_LIKE_CPP: u32 = 183;
 const LANG_ADDON_LOGGED_LIKE_CPP: u32 = 184;
+const GM_SILENCE_AURA_LIKE_CPP: i32 = 1852;
 
 // ── Handler registrations ─────────────────────────────────────────
 
@@ -237,6 +238,9 @@ impl WorldSession {
             );
             return;
         }
+        if self.has_gm_silence_aura_like_cpp() {
+            return;
+        }
 
         let (sender_guid, sender_name) = self.player_name_and_guid();
         let virtual_realm = self.virtual_realm_address();
@@ -335,13 +339,17 @@ impl WorldSession {
         let target_name = msg.target.clone();
 
         // Try to deliver to the target player via the registry.
-        let target_tx = self.player_registry().and_then(|reg| {
+        let target_info = self.player_registry().and_then(|reg| {
             reg.iter()
                 .find(|e| e.value().player_name.eq_ignore_ascii_case(&target_name))
-                .map(|e| e.value().send_tx.clone())
+                .map(|e| (e.value().send_tx.clone(), e.value().is_game_master))
         });
 
-        if let Some(tx) = target_tx {
+        if let Some((tx, target_is_game_master)) = target_info {
+            if self.has_gm_silence_aura_like_cpp() && !target_is_game_master {
+                return;
+            }
+
             // Forward the whisper to the target as a normal Say-whisper.
             let to_target = ChatPkt {
                 msg_type: ChatMsg::Whisper,
@@ -416,6 +424,9 @@ impl WorldSession {
             );
             return;
         }
+        if self.has_gm_silence_aura_like_cpp() {
+            return;
+        }
         let _ = self.apply_chat_away_mode_like_cpp(PlayerAwayModeLikeCpp::Afk, msg.text);
     }
 
@@ -444,6 +455,9 @@ impl WorldSession {
                 account = self.account_id,
                 "DND message rejected: invalid hyperlink/control sequence"
             );
+            return;
+        }
+        if self.has_gm_silence_aura_like_cpp() {
             return;
         }
         let _ = self.apply_chat_away_mode_like_cpp(PlayerAwayModeLikeCpp::Dnd, msg.text);
@@ -522,6 +536,9 @@ impl WorldSession {
                 account = self.account_id,
                 "Text emote rejected: invalid hyperlink/control sequence"
             );
+            return;
+        }
+        if self.has_gm_silence_aura_like_cpp() {
             return;
         }
 
@@ -694,6 +711,12 @@ impl WorldSession {
         let guid = self.player_guid().unwrap_or(wow_core::ObjectGuid::EMPTY);
         let name = self.player_name_like_cpp().unwrap_or_default().to_string();
         (guid, name)
+    }
+
+    fn has_gm_silence_aura_like_cpp(&self) -> bool {
+        self.visible_auras
+            .values()
+            .any(|aura| aura.spell_id == GM_SILENCE_AURA_LIKE_CPP)
     }
 
     /// Serialize `pkt` and broadcast its bytes to all players on the same map
@@ -943,6 +966,7 @@ fn chat_msg_from_i32_like_cpp(value: i32) -> Option<ChatMsg> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::session::AuraApplication;
     use std::collections::{HashMap, HashSet};
     use std::sync::Arc;
     use wow_network::{PendingInvites, PlayerBroadcastInfo, PlayerRegistry};
@@ -967,6 +991,23 @@ mod tests {
         writer.write_bit(false);
         writer.write_int32(msg_type as i32);
         writer.write_string(prefix);
+        writer.write_string(text);
+        wow_packet::WorldPacket::from_bytes(writer.data())
+    }
+
+    fn chat_whisper_packet(target: &str, text: &str) -> wow_packet::WorldPacket {
+        let mut writer = wow_packet::WorldPacket::new_empty();
+        writer.write_int32(0);
+        writer.write_bits(target.len() as u32, 9);
+        writer.write_bits(text.len() as u32, 11);
+        writer.write_string(target);
+        writer.write_string(text);
+        wow_packet::WorldPacket::from_bytes(writer.data())
+    }
+
+    fn chat_away_packet(text: &str) -> wow_packet::WorldPacket {
+        let mut writer = wow_packet::WorldPacket::new_empty();
+        writer.write_bits(text.len() as u32, 11);
         writer.write_string(text);
         wow_packet::WorldPacket::from_bytes(writer.data())
     }
@@ -1093,6 +1134,27 @@ mod tests {
             yesterday_honorable_kills: 0,
             lifetime_max_rank: 0,
             honor_level: 0,
+        }
+    }
+
+    fn gm_silence_aura(slot: u8) -> AuraApplication {
+        AuraApplication {
+            spell_id: GM_SILENCE_AURA_LIKE_CPP,
+            caster_guid: ObjectGuid::EMPTY,
+            slot,
+            duration_total: 30_000,
+            duration_remaining: 30_000,
+            stack_count: 1,
+            aura_flags: 0x1,
+            effect_mask: 0x1,
+            aura_interrupt_flags: 0,
+            aura_interrupt_flags2: 0,
+            represented_effect: None,
+            represented_amount: 0,
+            represented_effect_amounts: Vec::new(),
+            represented_misc_value: None,
+            represented_multiplier: 1.0,
+            applied_at: std::time::Instant::now(),
         }
     }
 
@@ -1260,6 +1322,83 @@ mod tests {
 
         assert!(sender_rx.try_recv().is_err());
         assert!(nearby_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn gm_silence_aura_rejects_non_whisper_chat_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 361);
+        let nearby = ObjectGuid::create_player(1, 362);
+        let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
+        let (nearby_tx, nearby_rx) = flume::bounded(8);
+        player_registry.insert(nearby, broadcast_info(nearby, nearby_tx));
+        session.visible_auras.insert(1, gm_silence_aura(1));
+
+        session
+            .handle_chat_message(
+                chat_message_packet(ClientOpcodes::ChatMessageSay, "muted"),
+                ChatMsg::Say,
+            )
+            .await;
+
+        assert!(sender_rx.try_recv().is_err());
+        assert!(nearby_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn gm_silence_aura_rejects_afk_toggle_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 363);
+        let (mut session, _, _) = session_for_chat_routing_like_cpp(sender);
+        session.visible_auras.insert(1, gm_silence_aura(1));
+
+        session.handle_chat_afk(chat_away_packet("away")).await;
+
+        assert!(session.auto_reply_msg_like_cpp().is_empty());
+    }
+
+    #[tokio::test]
+    async fn gm_silence_aura_rejects_whisper_to_non_gm_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 364);
+        let target = ObjectGuid::create_player(1, 365);
+        let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
+        let (target_tx, target_rx) = flume::bounded(8);
+        let mut target_info = broadcast_info(target, target_tx);
+        target_info.player_name = "Target".to_string();
+        target_info.is_game_master = false;
+        player_registry.insert(target, target_info);
+        session.visible_auras.insert(1, gm_silence_aura(1));
+
+        session
+            .handle_chat_whisper(chat_whisper_packet("Target", "muted"))
+            .await;
+
+        assert!(sender_rx.try_recv().is_err());
+        assert!(target_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn gm_silence_aura_allows_whisper_to_gm_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 366);
+        let target = ObjectGuid::create_player(1, 367);
+        let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
+        let (target_tx, target_rx) = flume::bounded(8);
+        let mut target_info = broadcast_info(target, target_tx);
+        target_info.player_name = "Target".to_string();
+        target_info.is_game_master = true;
+        player_registry.insert(target, target_info);
+        session.visible_auras.insert(1, gm_silence_aura(1));
+
+        session
+            .handle_chat_whisper(chat_whisper_packet("Target", "gm only"))
+            .await;
+
+        assert_eq!(
+            chat_slash_cmd(&target_rx.try_recv().expect("target whisper")),
+            ChatMsg::Whisper as u8
+        );
+        assert_eq!(
+            chat_slash_cmd(&sender_rx.try_recv().expect("sender inform")),
+            ChatMsg::WhisperInform as u8
+        );
     }
 
     #[tokio::test]

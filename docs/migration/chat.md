@@ -260,13 +260,13 @@ DBC/DB2 stores read:
 - **Languages** — `LanguageMgr` not ported; speech is never scrambled, addon lang (183/184) never validated.
 - **Hyperlinks** — shape/control-sequence validation is represented for normal chat, whisper/chat-emote, AFK, and DND, but full C++ semantic validation (`ValidateLinkInfo`: item/spell/quest/achievement/text/color/store lookups) is not ported yet, and mail/other hyperlink gates remain incomplete.
 - **Addon messages** — `CMSG_CHAT_ADDON_MESSAGE` now routes Party/Raid/InstanceChat addon payloads through group membership and receiver-side addon-prefix filtering. Guild/Officer/Channel addon routing and targeted/whisper addon packets remain absent.
-- **AFK/DND** — `CMSG_CHAT_MESSAGE_AFK/DND` now toggles canonical `PLAYER_FLAGS_AFK/DND`, stores represented auto-reply text, and applies first-stage `ValidateMessage`/hyperlink shape gates, but real kick-on-bad-link, `GM_SILENCE_AURA`, guild away event, script hook, localized default strings, battleground side-effect, and auto-reply delivery remain missing.
+- **AFK/DND** — `CMSG_CHAT_MESSAGE_AFK/DND` now toggles canonical `PLAYER_FLAGS_AFK/DND`, stores represented auto-reply text, applies first-stage `ValidateMessage`/hyperlink shape gates, and rejects represented `GM_SILENCE_AURA=1852`, but real kick-on-bad-link, guild away event, script hook, localized default strings, battleground side-effect, and auto-reply delivery remain missing.
 - **Whisper offline queue** — no fallback, no `BN_WHISPER_PLAYER_OFFLINE`.
 - **Cross-realm whisper resolution (VirtualRealmAddress)** — partially wired (`virtual_realm_address` field passed) but no name-disambiguation or `SMSG_CHAT_PLAYER_AMBIGUOUS`.
 - **Guild / Officer routing** — `GuildRegistry`/`Guild::BroadcastToGuild` and `BroadcastToOfficer` are still absent. Guild currently drops rather than proximity-leaking.
 - **Group routing residuals** — Party/Raid/RaidWarning/InstanceChat now use group membership routing, but battleground original-group selection, non-default `PartyRaidWarnings` config support, language validation, and full chat-validation gates remain missing.
 - **Chat commands (`.gm`, `!command`)** — no `ChatCommand` registry, no command parser, no security-level enforcement.
-- **Profanity / spam filter / mute aura (GM_SILENCE_AURA 1852)** — no enforcement.
+- **Profanity / spam filter** — absent. `GM_SILENCE_AURA=1852` is now represented for normal chat, chat-emote, AFK/DND, and whisper-to-non-GM gates, but the exact localized notification packet/string is still not ported.
 - **`SMSG_CHAT_PLAYER_AMBIGUOUS`, `SMSG_DEFENSE_MESSAGE`** — never sent.
 
 **Suspicious / likely divergent (hipótesis pre-auditoría):**
@@ -436,7 +436,8 @@ DBC/DB2 stores read:
 - [ ] **#CHAT.13** Build `SMSG_CHANNEL_LIST` packet + member-flag serialisation. Complejidad: **M**
 - [x] **#CHAT.14a** Parse and register `CMSG_CHAT_MESSAGE_AFK`/`_DND`; toggle canonical `PLAYER_FLAGS_AFK/DND`, keep them mutually exclusive, and store represented auto-reply text. Complejidad: **L**
 - [x] **#CHAT.14b1** Port first-stage chat `ValidateMessage` gates — length/empty checks for normal chat, newline truncation/rejection, ASCII-control rejection except tab, applied to normal chat, whisper, chat-emote, AFK, and DND. Complejidad: **M**
-- [ ] **#CHAT.14b2** Complete remaining C++ AFK/DND/chat side effects: real hyperlink kick, `GM_SILENCE_AURA`, guild away event, script hook, localized defaults, battleground leave, actual auto-reply delivery, and config-backed `ChatFakeMessagePreventing` space collapse. Complejidad: **M**
+- [x] **#CHAT.14b2a** Port represented `GM_SILENCE_AURA=1852` chat gates — non-whisper chat/emote/AFK/DND are rejected, and whispers are rejected unless the receiver is a GM, matching `ChatHandler.cpp` first-stage behavior. Complejidad: **S**
+- [ ] **#CHAT.14b2b** Complete remaining C++ AFK/DND/chat side effects: real hyperlink kick, localized `LANG_GM_SILENCE` notification, guild away event, script hook, localized defaults, battleground leave, actual auto-reply delivery, and config-backed `ChatFakeMessagePreventing` space collapse. Complejidad: **M**
 - [x] **#CHAT.15** Implement `CMSG_CHAT_REPORT_IGNORED` — inform sender they were ignored. Complejidad: **L**
 - [x] **#CHAT.16a** Implement group addon routing for `CMSG_CHAT_ADDON_MESSAGE` Party/Raid/InstanceChat — build `SMSG_CHAT` with real addon prefix, `LANG_ADDON`/`LANG_ADDON_LOGGED`, no sender echo, party subgroup filtering, and receiver-side `IsAddonRegistered(prefix)` gate. Complejidad: **M**
 - [ ] **#CHAT.16b** Implement Guild/Officer/Channel addon routing once `GuildRegistry`/`ChannelMgr` exist. Complejidad: **M**
@@ -590,7 +591,7 @@ The seven distinct inventory entries each list their own `handler_name` (`handle
 - `chat.rs:208-212` — whisper target lookup is O(N) iter over the entire `PlayerRegistry` per whisper (`reg.iter().find(|e| e.value().player_name.eq_ignore_ascii_case(&target_name))`). At realm scale this is a per-message linear scan.
 - Hyperlinks no longer pass completely unchecked for normal chat: illegal control sequences, malformed envelopes, invalid color hex, and unknown tags are rejected. Fake-but-structurally-valid item/spell/etc. payloads still require C++ `ValidateLinkInfo` semantic validators.
 - `ValidateMessage` newline/control-char gates are represented for normal chat, whisper, chat-emote, AFK and DND; config-backed duplicate-space collapse remains pending.
-- No `GM_SILENCE_AURA = 1852` check; muted players can still chat.
+- `GM_SILENCE_AURA = 1852` is now checked via represented visible auras for normal chat, chat-emote, AFK/DND, and whisper-to-non-GM. The remaining gap is notification fidelity (`LANG_GM_SILENCE`) and any path outside represented chat handlers.
 - AFK/DND now toggles canonical flags, applies first-stage validation gates, and stores represented auto-reply text, but C++ guild/script/localized-default/battleground and actual auto-reply delivery paths are still absent.
 - No ignore-list cross-check — whispers from blocked senders pass through (see also `social.md` §13).
 
