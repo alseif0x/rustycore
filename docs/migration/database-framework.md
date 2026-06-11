@@ -3,7 +3,7 @@
 > **C++ canonical path:** `src/server/database/Database/` + `src/server/database/Updater/`
 > **Rust target crate(s):** `crates/wow-database/`
 > **Layer:** L1 infrastructure (under shared/datastores)
-> **Status:** ⚠️ partial (4 typed pools + prepared-statement enums + transactions + DB updater work; missing: per-pool sync/async split, callback chaining type, QueryHolder, KeepAlive, configurable pool sizing, libmysql `Library_Init`)
+> **Status:** ⚠️ partial (4 typed pools + prepared-statement enums + transactions + DB updater work; missing: per-pool sync/async split, callback chaining type, QueryHolder, libmysql `Library_Init`)
 > **Audited vs C++:** ✅ complete (2026-05-01)
 > **Last updated:** 2026-05-01
 
@@ -310,7 +310,7 @@ Not applicable — the database framework does not handle WoW client packets. (I
 
 **What's missing vs C++:**
 - **`ConnectionFlags::ASYNC` vs `SYNCH` separation**: TC opens **two sub-pools per logical DB** (configured via `<Db>Database.WorkerThreads` / `<Db>Database.SynchThreads`, e.g. `LoginDatabase.WorkerThreads=1`, `LoginDatabase.SynchThreads=1`). RustyCore's single `sqlx::Pool` blends sync and async traffic, but `world-server` now preserves TC's configured total connection budget by opening the pool with `WorkerThreads + SynchThreads`. (Cross-ref: `worldserver.md` §13.5 sub-task #WS.21 / #DB.1.)
-- **`KeepAlive()` ping**: TC's `World::Update` calls `LoginDatabase.KeepAlive()` etc. every `MaxPingTime` minutes (default 30) so MySQL's `wait_timeout` doesn't kill idle pool connections. There is no Rust equivalent — sqlx's `idle_timeout=1800s` recycles idle conns but doesn't actively `SELECT 1`. (Cross-ref: `worldserver.md` §13.6, sub-task #WS.6.)
+- **`KeepAlive()` ping internals**: TC's `World::Update` calls `CharacterDatabase.KeepAlive()`, `LoginDatabase.KeepAlive()`, and `WorldDatabase.KeepAlive()` every `MaxPingTime` minutes (default 30). Rust now spawns the same world-server timer and runs `SELECT 1` against those three logical pools. This is operational parity for idle keep-alive, but not an internal 1:1 clone of TC's per-connection ping loop inside `DatabaseWorkerPool<T>`.
 - **`QueryCallback` chaining**: TC's `WithChainingCallback(fn)` lets a callback fire a follow-up query and stay in the same chain (used heavily in account/char load multi-step flows). RustyCore replaces this with `async/await` — the chain becomes a sequence of `await` points in one async fn. **Acceptable divergence** for new code, but porting C++ that uses chaining-callbacks 1:1 needs to flatten into a single `async fn`.
 - **`SQLQueryHolder` / `SQLQueryHolderCallback`**: TC's "fire N queries in parallel, callback when all done" type. Used by `CharacterCache::_LoadCharacterFromDB`, login fan-out, achievement load. RustyCore has no equivalent type — current code awaits queries serially or uses `tokio::try_join!` ad-hoc. No fan-out helper or rollback semantics on partial failure.
 - **`Field` DBMS-typed getters**: TC's `Field::GetUInt8()` checks `_meta->Type == DatabaseFieldTypes::UInt8` and warns if mismatched (debug build). RustyCore's `SqlResult::read::<T>(col)` uses sqlx's `Decode` impls and panics on type mismatch, with no per-column metadata typed-name available beyond `column_type_name(idx)`.
@@ -623,7 +623,7 @@ Not applicable — the database framework does not handle WoW client packets. (I
 Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h, **M** 1-4h, **H** 4-12h, **XL** >12h.
 
 - [x] **#DB.1** Use TC database thread-count config for world-server pools: read `<Db>Database.WorkerThreads` + `<Db>Database.SynchThreads` for Login/Character/World/Hotfix and pass their sum to `Database::open_with_pool_size`. Defaults follow TC's loader default of `1 + 1`; invalid values fall back to `1` per side with a warning. (L) — **same as `worldserver.md` #WS.21**
-- [ ] **#DB.2** Implement DB keep-alive: spawn one `tokio::time::interval(MaxPingTime minutes)` task per pool that runs `SELECT 1` against the pool. Re-use single shared task that pings all four. Default `MaxPingTime=30` (TC default). (L) — **same as #WS.6**
+- [x] **#DB.2** Implement DB keep-alive: spawn one shared world-server task using `MaxPingTime` (default 30) that runs `SELECT 1` against Character/Login/World, matching TC's `World::Update` keep-alive pool set. Hotfix is intentionally excluded because TC does not call `HotfixDatabase.KeepAlive()` here. (L) — **same as #WS.6**
 - [ ] **#DB.3** Make `DbUpdater::populate` failure fatal when `Updates.AutoSetup=1`: return error from `world-server/main.rs` instead of `tracing::warn!`. Boot must abort if base SQL is missing or DB is empty + populate fails. (L)
 - [ ] **#DB.4** Bootstrap `updates_include` rows on first `populate`: insert `('$/sql/updates/auth', 'RELEASED')` etc. so a fresh install actually applies updates without operator intervention. (M)
 - [ ] **#DB.5** Implement `DBUpdater::Create` equivalent: detect "Unknown database" sqlx error on initial connect, run `CREATE DATABASE IF NOT EXISTS` via a connection string with no DB name, retry. (M)
@@ -641,7 +641,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 - [ ] **#DB.17** Audit deadlock-retry concurrency: replicate TC's `_deadlockLock` static mutex (or document why concurrent retries are fine). (L)
 - [ ] **#DB.18** Add a `DatabaseError::TableMissing` variant so callers can distinguish "DB not populated" from "query syntax error". (L)
 - [ ] **#DB.19** Add a `Field`-style typed accessor with metadata: `SqlResult::read_typed::<u8>(col)` that checks `column_type_name == "TINYINT UNSIGNED"` before decoding. Optional, debug-only. (M)
-- [ ] **#DB.20** Implement async `KeepAlive` from a global tick (cf. `worldserver.md` #WS.2 prerequisite for the global tick). Without that tick, the keep-alive can be a free-standing `tokio::spawn` instead. (Already covered by #DB.2.)
+- [x] **#DB.20** Implement async `KeepAlive` from a free-standing `tokio::spawn` while the global world tick is still pending. Covered by #DB.2 / #WS.6; if a future global tick centralizes this, keep the same Character/Login/World-only scope.
 - [ ] **#DB.21** Add a `DatabaseLoader`-style sequencer: a struct that registers (open / populate / update / close) closures per DB and rolls back on failure. Currently `world-server/main.rs` does this inline 4× with no rollback. (M)
 
 ---
@@ -674,7 +674,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 - [ ] Test: `split_sql` correctly handles `--` line comments, `#` comments, `/* */` blocks, `'\''` escapes, and `\"` escapes (existing behaviour; pin in tests).
 - [ ] Test: `SqlResult::read_string` on a `VARBINARY` column returns the UTF-8 string (not panic).
 - [ ] Test: `PreparedStatement` indexed setters with sparse indices fill intermediates with `SqlParam::Null` (already covered).
-- [ ] Test: keep-alive ping (#DB.2) fires every `MaxPingTime` minutes (use `tokio::time::pause`).
+- [x] Test: keep-alive config/scope/SQL mirrors C++ (`MaxPingTime`, Character/Login/World only, `SELECT 1`). Runtime timer firing remains a service/integration concern rather than a paused Tokio unit fake.
 - [ ] Test: `Updates.AutoSetup=0` skips both `populate` and `update`; the `updates` table is not created.
 - [ ] Test: `populate` failure aborts boot when `Updates.AutoSetup=1` and the base file is missing (#DB.3).
 - [ ] Test: `Database<LoginStatements>::prepare(LoginStatements::SEL_REALMLIST)` and `Database<WorldStatements>::prepare(WorldStatements::DEL_LINKED_RESPAWN)` produce different `&'static str` SQL — and using `LoginStatements::SEL_REALMLIST` on a `Database<WorldStatements>` is a compile error (compile-fail test via `trybuild`).
@@ -692,7 +692,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 
 | Scope | Decision | C++ retained | Evidence |
 |---|---|---|---|
-| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 44 files / 10590 lines; refs: `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/HotfixDatabase.cpp`, `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/HotfixDatabase.h`, `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/CharacterDatabase.cpp` | `crates/wow-database/` \| ⚠️ partial (4 typed pools + prepared-statement enums + transactions + DB updater work; missing: per-pool sync/async split, callback chaining type, QueryHolder, KeepAlive, configurable pool sizing, libmysql `Library_Init`) |
+| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 44 files / 10590 lines; refs: `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/HotfixDatabase.cpp`, `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/HotfixDatabase.h`, `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/CharacterDatabase.cpp` | `crates/wow-database/` \| ⚠️ partial (4 typed pools + prepared-statement enums + transactions + DB updater work; missing: per-pool sync/async split, callback chaining type, QueryHolder, libmysql `Library_Init`) |
 
 <!-- REFINE.025:END product-scope -->
 
@@ -756,7 +756,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 | `pool.DelayQueryHolder(holder)` | (TODO #DB.10) | — |
 | `pool.GetPreparedStatement(idx)` | `db.prepare(LoginStatements::FOO)` | — |
 | `pool.EscapeString(str)` | (none) — use bound parameters | TODO #DB.14 |
-| `pool.KeepAlive()` | (TODO #DB.2) | `SELECT 1` per pool every `MaxPingTime` |
+| `pool.KeepAlive()` | `Database::keep_alive_like_cpp()` + world-server keep-alive task | `SELECT 1` every `MaxPingTime` for Character/Login/World |
 | `pool.WarnAboutSyncQueries(true)` | (TODO #DB.9 / #WS.25) | — |
 | `class DatabaseLoader` (5-queue sequencer + close stack) | (inline in `world-server/src/main.rs`) | TODO #DB.21 — formalize into a sequencer struct |
 | `class DBUpdater<T>` | `wow_database::updater::DbUpdater` (single non-generic struct) | The `<T>` tag is replaced by the per-DB connection params passed to `DbUpdater::new` |
@@ -785,7 +785,7 @@ The Rust port covers the **shape** of TC's database framework correctly: four ty
 
 The gaps fall in three buckets:
 
-1. **Pool sizing** (Critical): single 10-conn pool, no `Sync`/`Async` split, no per-pool config, no keep-alive. Cross-references the worldserver audit (`worldserver.md` §13.5).
+1. **Pool topology** (Medium): Rust still merges TC's `Sync`/`Async` sub-pools into one `sqlx` pool, but world-server now sizes that pool from TC's `WorkerThreads + SynchThreads` config and runs the `MaxPingTime` keep-alive task. Cross-references the worldserver audit (`worldserver.md` §13.5 / §13.6).
 2. **Statement coverage** (High): login is 137/137 (✅), world is 86/56 (✅, Rust adds extras), characters is 30/523 (❌, ~6% ported), hotfixes is 0/327 (❌, **deliberate divergence** — replaced by DB2-blob cache).
 3. **Updater operator UX** (Medium): `populate` failure is non-fatal; no `Create` step; `updates_include` not bootstrapped on first run; missing `Updates.Redundancy`/`ArchivedRedundancy`/`CleanDeadRefMaxCount` config gates.
 
@@ -799,11 +799,11 @@ The `QueryCallback`-chain pattern is **acceptably absent** because Rust's `async
 | Two sub-pools per DB: `_connections[IDX_ASYNC]` (N conns) + `_connections[IDX_SYNCH]` (M conns) | One `sqlx::Pool<MySql>` per DB | ⚠️ merged |
 | `<Db>Database.WorkerThreads` / `.SynchThreads` config | read in `world-server` and summed into `open_with_pool_size` | ✅ #DB.1 |
 | Per-pool `Trinity::Asio::IoContext` | implicit Tokio runtime | ✅ acceptable divergence |
-| `MaxPingTime` keep-alive every N minutes | (none) | ❌ #DB.2 |
+| `MaxPingTime` keep-alive every N minutes | world-server task calls `keep_alive_like_cpp` for Character/Login/World | ✅ #DB.2 |
 | `mysql_options(MYSQL_OPT_RECONNECT, 0)` + manual `_HandleMySQLErrno` retry (5 attempts) | sqlx auto-reconnect via pool acquisition | ⚠️ different mechanism, similar effect |
 | `idle_timeout` ~ default | `idle_timeout=1800s` (`database.rs:47`) | ✅ matches TC operational expectation |
 | `WarnAboutSyncQueries` debug guard | (none) | ❌ #DB.9 |
-| `KeepAlive()` ping per pool conn | (none) | ❌ #DB.2 |
+| `KeepAlive()` ping per pool conn | `SELECT 1` against each logical `sqlx` pool, not forced per internal connection | ⚠️ operational parity |
 | Four logical pools (login/character/world/hotfix) | Four type aliases (`LoginDatabase` / `CharacterDatabase` / `WorldDatabase` / `HotfixDatabase`) | ✅ |
 | Pool open in `worldserver/Main.cpp::StartDB` | Pool open in `world-server/src/main.rs` lines 177-228 | ✅ wired |
 | `<Db>DatabaseInfo.{Host,Port,Username,Password,Database}` config keys | Same keys read via `wow_config::get_string_default` | ✅ |
@@ -894,7 +894,7 @@ However, **the worldserver audit (`worldserver.md` §13.4) noted there's no glob
 
 - **`worldserver.md` §13.5**: world-server now sizes each single `sqlx` pool from TC's `<Db>Database.WorkerThreads + <Db>Database.SynchThreads` keys — same closure as #WS.21 / #DB.1.
 - **`worldserver.md` §13.6**: DB Updater is implemented but populate/update failures are warn-not-fatal — same finding, #DB.3.
-- **`worldserver.md` #WS.6**: DB keep-alive ping missing — #DB.2.
+- **`worldserver.md` #WS.6**: DB keep-alive ping implemented for Character/Login/World — same closure as #DB.2/#DB.20.
 - **`worldserver.md` #WS.25**: `WarnAboutSyncQueries` debug guard missing — #DB.9.
 - **`worldserver.md` §13.4**: no global tick → no central DB callback drain. Acceptable for now because all DB ops are awaited per-session.
 - **`bnetserver.md`**: also notes missing DB keep-alive (same root cause).
