@@ -18,6 +18,7 @@ pub struct AuraSubsystem {
     pub applied_auras: Vec<AppliedAuraRef>,
     pub applied_aura_types: HashMap<i32, Vec<AppliedAuraRef>>,
     pub visible_auras: HashMap<u8, AuraRef>,
+    pub visible_aura_applications_like_cpp: HashMap<u8, VisibleAuraApplicationLikeCpp>,
     pub visible_auras_to_update: HashSet<u8>,
     pub removed_auras: Vec<AuraRef>,
     pub removed_auras_count: u32,
@@ -94,6 +95,32 @@ impl AppliedAuraRef {
 
     pub const fn aura_ref(self) -> AuraRef {
         AuraRef::new(self.spell_id, self.caster_guid)
+    }
+}
+
+/// Bounded snapshot of the C++ `AuraApplication` fields needed by
+/// `PartyMemberAuraStates`.
+///
+/// This is only representation data. It does not own aura lifetime, scripts,
+/// effect recalculation, proc state, or packet fanout.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct VisibleAuraApplicationLikeCpp {
+    pub flags: u32,
+    pub effect_amounts: Vec<VisibleAuraEffectAmountLikeCpp>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VisibleAuraEffectAmountLikeCpp {
+    pub effect_index: u8,
+    pub amount: i32,
+}
+
+impl VisibleAuraApplicationLikeCpp {
+    pub fn new(flags: u32, effect_amounts: Vec<VisibleAuraEffectAmountLikeCpp>) -> Self {
+        Self {
+            flags,
+            effect_amounts,
+        }
     }
 }
 
@@ -297,11 +324,25 @@ impl AuraSubsystem {
 
     pub fn set_visible(&mut self, slot: u8, aura: AuraRef) {
         self.visible_auras.insert(slot, aura);
+        self.visible_aura_applications_like_cpp.remove(&slot);
+        self.visible_auras_to_update.insert(slot);
+    }
+
+    pub fn set_visible_with_application_like_cpp(
+        &mut self,
+        slot: u8,
+        aura: AuraRef,
+        application: VisibleAuraApplicationLikeCpp,
+    ) {
+        self.visible_auras.insert(slot, aura);
+        self.visible_aura_applications_like_cpp
+            .insert(slot, application);
         self.visible_auras_to_update.insert(slot);
     }
 
     pub fn clear_visible(&mut self, slot: u8) -> Option<AuraRef> {
         self.visible_auras_to_update.remove(&slot);
+        self.visible_aura_applications_like_cpp.remove(&slot);
         self.visible_auras.remove(&slot)
     }
 

@@ -14280,22 +14280,37 @@ impl WorldSession {
         visible.sort_by_key(|(slot, _)| **slot);
         visible
             .into_iter()
-            .map(|(_, aura_ref)| {
+            .map(|(slot, aura_ref)| {
                 let active_flags = aura_subsystem
                     .applied_auras
                     .iter()
                     .filter(|applied| applied.aura_ref() == *aura_ref)
                     .fold(0u32, |mask, applied| mask | applied.effect_mask);
+                let application = aura_subsystem.visible_aura_applications_like_cpp.get(slot);
+                let flags = application.map_or(0, |application| application.flags);
+                let points = if flags & AFLAG_SCALABLE_LIKE_CPP != 0 {
+                    application
+                        .map(|application| {
+                            application
+                                .effect_amounts
+                                .iter()
+                                .filter(|effect| {
+                                    effect.effect_index < u32::BITS as u8
+                                        && active_flags & (1u32 << effect.effect_index) != 0
+                                })
+                                .map(|effect| effect.amount as f32)
+                                .collect()
+                        })
+                        .unwrap_or_default()
+                } else {
+                    Vec::new()
+                };
 
-                // The canonical pet/unit aura subsystem currently preserves the
-                // visible aura ref and effect mask, but not AuraApplication flags
-                // or AuraEffect amounts. Keep those fields explicit instead of
-                // guessing them.
                 wow_packet::packets::party::PartyMemberAuraState {
                     spell_id: i32::try_from(aura_ref.spell_id).unwrap_or(i32::MAX),
-                    flags: 0,
+                    flags: flags.min(u32::from(u16::MAX)) as u16,
                     active_flags,
-                    points: Vec::new(),
+                    points,
                 }
             })
             .collect()
@@ -37658,7 +37673,7 @@ mod tests {
         npc_flags: u32,
     ) {
         add_canonical_test_pet_with_visible_aura(
-            canonical, guid, owner_guid, entry, position, npc_flags, None,
+            canonical, guid, owner_guid, entry, position, npc_flags, None, None,
         );
     }
 
@@ -37670,6 +37685,7 @@ mod tests {
         position: Position,
         npc_flags: u32,
         visible_aura: Option<(u8, u32, ObjectGuid, u32)>,
+        visible_application: Option<wow_entities::VisibleAuraApplicationLikeCpp>,
     ) {
         let mut pet = wow_entities::Pet::new(owner_guid, wow_entities::PetType::Summon);
         pet.creature_mut()
@@ -37704,11 +37720,19 @@ mod tests {
                 .subsystems_mut()
                 .auras
                 .add_applied(aura);
-            pet.creature_mut()
-                .unit_mut()
-                .subsystems_mut()
-                .auras
-                .set_visible(slot, aura.aura_ref());
+            if let Some(application) = visible_application {
+                pet.creature_mut()
+                    .unit_mut()
+                    .subsystems_mut()
+                    .auras
+                    .set_visible_with_application_like_cpp(slot, aura.aura_ref(), application);
+            } else {
+                pet.creature_mut()
+                    .unit_mut()
+                    .subsystems_mut()
+                    .auras
+                    .set_visible(slot, aura.aura_ref());
+            }
         }
         pet.creature_mut()
             .unit_mut()
@@ -46720,6 +46744,7 @@ mod tests {
             position,
             0,
             Some((3, 12_345, guid, 0x05)),
+            None,
         );
 
         session.register_in_player_registry();
@@ -46739,6 +46764,59 @@ mod tests {
         assert_eq!(pet_stats.auras[0].active_flags, 0x05);
         assert_eq!(pet_stats.auras[0].flags, 0);
         assert!(pet_stats.auras[0].points.is_empty());
+    }
+
+    #[test]
+    fn player_registry_publishes_party_member_pet_aura_flags_and_points_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let guid = ObjectGuid::create_player(1, 50);
+        let pet_guid = ObjectGuid::create_world_object(HighGuid::Pet, 0, 1, 571, 0, 42_001, 101);
+        let registry = Arc::new(PlayerRegistry::default());
+        let canonical = shared_canonical_map_manager();
+        let position = Position::new(1.0, 2.0, 3.0, 0.0);
+        session.set_player_guid(Some(guid));
+        session.set_player_map_position_like_cpp(571, position);
+        session.player_name = Some("PetAuraOwnerTester".to_string());
+        session.set_player_registry(Arc::clone(&registry));
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_represented_pet_mode_state_like_cpp(Some(pet_guid), 1, 0);
+        add_canonical_test_player_on_map(&canonical, guid, position, 571, 0);
+        add_canonical_test_pet_with_visible_aura(
+            &canonical,
+            pet_guid,
+            guid,
+            42_001,
+            position,
+            0,
+            Some((3, 12_346, guid, 0x04)),
+            Some(wow_entities::VisibleAuraApplicationLikeCpp::new(
+                AFLAG_SCALABLE_LIKE_CPP | 0x0001,
+                vec![
+                    wow_entities::VisibleAuraEffectAmountLikeCpp {
+                        effect_index: 0,
+                        amount: 11,
+                    },
+                    wow_entities::VisibleAuraEffectAmountLikeCpp {
+                        effect_index: 2,
+                        amount: 37,
+                    },
+                ],
+            )),
+        );
+
+        session.register_in_player_registry();
+
+        let info = registry.get(&guid).expect("registered player");
+        let pet_stats = info
+            .party_member_pet_stats
+            .as_ref()
+            .expect("pet stats are published");
+        assert_eq!(pet_stats.auras.len(), 1);
+        let aura = &pet_stats.auras[0];
+        assert_eq!(aura.spell_id, 12_346);
+        assert_eq!(aura.active_flags, 0x04);
+        assert_eq!(aura.flags, (AFLAG_SCALABLE_LIKE_CPP | 0x0001) as u16);
+        assert_eq!(aura.points, vec![37.0]);
     }
 
     #[test]

@@ -313,7 +313,7 @@ pub use unit_subsystems::{
     ThreatReferenceState, ThreatTauntState, UnitSubsystems,
     VehicleKitAddToWorldResetOutcomeLikeCpp, VehicleKitCreateOutcomeLikeCpp,
     VehicleKitInstallOutcomeLikeCpp, VehicleKitRemoveOutcomeLikeCpp, VehicleKitState,
-    VehicleSubsystem,
+    VehicleSubsystem, VisibleAuraApplicationLikeCpp, VisibleAuraEffectAmountLikeCpp,
 };
 pub use update_fields::{
     ACTIVE_PLAYER_DATA_BITS, AREA_TRIGGER_DATA_BITS, CONTAINER_DATA_BITS, CONVERSATION_DATA_BITS,
