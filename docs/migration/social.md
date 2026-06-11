@@ -157,9 +157,9 @@ Note: `character_social` schema in 3.4.3 is `(guid, friend, flags, note)` — th
 **Files in `/home/server/rustycore`:**
 - `crates/wow-social/src/lib.rs` — **0 lines** (empty stub; should host `PlayerSocial`, `SocialMgr`, presence-broadcast logic)
 - `crates/wow-world/src/handlers/social.rs` — covers ~55% of `Handlers/SocialHandler.cpp`
-- `crates/wow-world/src/handlers/inspect.rs` — covers basic inspect (identity + visible items) and `CMSG_REQUEST_HONOR_STATS`.
+- `crates/wow-world/src/handlers/inspect.rs` — covers basic inspect (identity + visible items), `CMSG_REQUEST_HONOR_STATS`, and empty `CMSG_QUERY_INSPECT_ACHIEVEMENTS`.
 - `crates/wow-packet/src/packets/social.rs` — `AddIgnore`, `DelIgnore`, `SetContactNotes`, `SocialContractRequest(Response)`, `AcceptSocialContract`, `ContactInfo`, `ContactListPkt`, `FriendStatusPkt`, `FriendsResult`
-- `crates/wow-packet/src/packets/inspect.rs` — `InspectItem`, `InspectResult`, `RequestHonorStats`, `InspectHonorStatsResponse`
+- `crates/wow-packet/src/packets/inspect.rs` — `InspectItem`, `InspectResult`, `RequestHonorStats`, `InspectHonorStatsResponse`, `QueryInspectAchievements`, `RespondInspectAchievements`
 
 **What's implemented:**
 - `CMSG_ADD_FRIEND` — name lookup in `characters` table; self-check; normal-player enemy-faction check; already-friend check; 50-entry cap; ORs `SOCIAL_FLAG_FRIEND` into `character_social` while preserving existing ignore/mute flags; replies with `FRIEND_ADDED_ONLINE`/`OFFLINE`/`ALREADY`/`NOT_FOUND`/`SELF`/`ENEMY`/`LIST_FULL`.
@@ -173,6 +173,7 @@ Note: `character_social` schema in 3.4.3 is `(guid, friend, flags, note)` — th
 - `CMSG_SEND_CONTACT_LIST` — JOINs `character_social` × `characters`; populates `ContactInfo`; also emits `QueryPlayerNamesResponse` (name cache) so client can render names.
 - `CMSG_INSPECT` — registry lookup of target's broadcast info; sends `SMSG_INSPECT_RESULT` with target's race, class, level, gender + visible-items array (item_id only).
 - `CMSG_REQUEST_HONOR_STATS` — parses C++ target GUID; if the target is online in `PlayerRegistry`, sends `SMSG_INSPECT_HONOR_STATS` with the C++ field order. `HonorLevel` comes from the canonical player snapshot; the six historical HK/contribution/rank counters stay zero until Rust ports the missing `ActivePlayerData` honor-counter state.
+- `CMSG_QUERY_INSPECT_ACHIEVEMENTS` — parses C++ target GUID; gates online target, same map, 2D `INSPECT_DISTANCE=28.0`, and a conservative represented hostile-faction reject; sends structurally correct empty `SMSG_RESPOND_INSPECT_ACHIEVEMENTS` until `PlayerAchievementMgr` is ported.
 - `FriendsResult` enum exists with the 28-ish variants (need full audit).
 
 **What's missing vs C++:**
@@ -181,7 +182,7 @@ Note: `character_social` schema in 3.4.3 is `(guid, friend, flags, note)` — th
 - **Friend-status presence broadcast** — when a player logs in/out/AFK/DND/zones, `SocialMgr::BroadcastToFriendListers` should push `FRIEND_STATUS_ONLINE/AFK/DND/OFFLINE` with new area/level. Rust does NOT broadcast these → friends never see status changes after initial list-fetch.
 - **RBAC friend bypass** — C++ allows enemy-faction `AddFriend` only with `RBAC_PERM_TWO_SIDE_ADD_FRIEND`; Rust now rejects enemies for normal-player behavior, but the RBAC bypass is impossible until AccountMgr/RBAC exists.
 - **`character_social.accountGuid` column** — schema does not include it; Rust hard-codes `account_guid: ObjectGuid::EMPTY` everywhere.
-- **Inspect-achievements** (`CMSG_QUERY_INSPECT_ACHIEVEMENTS` / `SMSG_RESPOND_INSPECT_ACHIEVEMENTS`) — unhandled.
+- **Inspect-achievements content** — opcode/empty response represented, but real `PlayerAchievementMgr` earned/progress data is still missing.
 - **Inspect-PvP** (`CMSG_INSPECT_PVP`) — unhandled.
 - **Inspect-result enrichment** — no talent spec, no glyphs, no transmog, no enchant displays, no guild data, no specialization id.
 - **Loaded `PlayerSocial::HasIgnore` integration** — Rust has no loaded per-session social container, so C++ server-side ignore gates in channels/groups/guild/LFG and account-level ignore are still absent. Direct player whispers now support the C++ `CMSG_CHAT_REPORT_IGNORED` feedback path, but the real social state remains incomplete.
@@ -310,7 +311,7 @@ Net effect after the represented `CMSG_ADD_IGNORE`/`CMSG_DEL_IGNORE` and `CMSG_C
 | `HandleChatIgnoredOpcode` | ✅ parses `IgnoredGUID + Reason`, sends `CHAT_MSG_IGNORED` to ignored online player | ok |
 | `HandleInspectOpcode` | ✅ `inspect.rs:33-81` (race/class/level/gender + visible-items only) | partial |
 | `HandleRequestHonorStats` | ✅ returns `SMSG_INSPECT_HONOR_STATS` for online targets | partial: `HonorLevel` real, HK/contribution/rank counters pending missing ActivePlayerData state |
-| `HandleQueryInspectAchievements` | ❌ unregistered |  |
+| `HandleQueryInspectAchievements` | ✅ registered, gates target/range and sends empty `RespondInspectAchievements` | partial: real earned/progress data missing |
 | `HandleInspectPVP` | ❌ unregistered |  |
 | `SocialMgr::BroadcastToFriendListers` (presence updates on login/logout/AFK/DND/zone) | ❌ none | bug |
 | `_ignoredAccounts` set + `WowAccountGuid` capture | ❌ none |  |
@@ -327,7 +328,7 @@ Net effect after the represented `CMSG_ADD_IGNORE`/`CMSG_DEL_IGNORE` and `CMSG_C
 - `FriendStatusPkt.status: u8` uses `ONLINE`/`AFK`/`DND` bit values for online registry entries; `FRIEND_STATUS_RAF` remains missing because Account/RaF state is not represented.
 - `account_guid: ObjectGuid::EMPTY` everywhere (`social.rs:90,188,235`). `character_social` schema does not include the `accountGuid` column. Account-level ignore is structurally impossible until both schema and capture are added.
 - `inspect.rs:60-78` — only emits `slot + item_id`. No enchant id, no gem ids, no transmog appearance, no talent spec, no glyphs, no guild data, no specialization id, no PvP brackets.
-- No `InspectGuildData`, no `InspectTalentData`, no `PVPBracketData`. `RequestHonorStats`/`InspectHonorStatsResponse` are represented; `HonorLevel` is sourced from the current player snapshot, while the missing ActivePlayerData honor-counter fields remain a PvP/runtime gap.
+- No `InspectGuildData`, no `InspectTalentData`, no `PVPBracketData`. `RequestHonorStats`/`InspectHonorStatsResponse` are represented; `HonorLevel` is sourced from the current player snapshot, while the missing ActivePlayerData honor-counter fields remain a PvP/runtime gap. `QueryInspectAchievements` no longer falls through unhandled, but returns empty data until the achievement manager is ported.
 - `crates/wow-social/src/lib.rs` confirmed 0 bytes; no `PlayerSocial`, no `SocialMgr` anywhere in the workspace.
 
-**Verdict:** flagged divergence partly reduced. Friends list works for add/delete/list (~50% of `SocialHandler.cpp`). Per-character `AddIgnore`/`DelIgnore` now write and clear `SOCIAL_FLAG_IGNORED`, and `CMSG_CHAT_REPORT_IGNORED` feedback is represented. Account-level ignore, loaded `PlayerSocial`, and server-side `HasIgnore` gates outside the client-report whisper path remain open. Inspect is ~25% (basic items + identity); achievements/PvP/talents/glyphs absent. Presence broadcast (`SMSG_FRIEND_STATUS` on login/logout/AFK/zone) is 0%.
+**Verdict:** flagged divergence partly reduced. Friends list works for add/delete/list (~50% of `SocialHandler.cpp`). Per-character `AddIgnore`/`DelIgnore` now write and clear `SOCIAL_FLAG_IGNORED`, and `CMSG_CHAT_REPORT_IGNORED` feedback is represented. Account-level ignore, loaded `PlayerSocial`, and server-side `HasIgnore` gates outside the client-report whisper path remain open. Inspect covers basic items/identity plus honor-stats and empty inspect-achievements response; PvP brackets, real achievement content, talents/glyphs and guild data remain absent. Presence broadcast (`SMSG_FRIEND_STATUS` on login/logout/AFK/zone) is 0%.

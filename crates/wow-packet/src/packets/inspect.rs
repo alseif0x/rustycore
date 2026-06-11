@@ -28,6 +28,25 @@ impl ClientPacket for RequestHonorStats {
     }
 }
 
+/// CMSG_QUERY_INSPECT_ACHIEVEMENTS.
+///
+/// C++ `WorldPackets::Inspect::QueryInspectAchievements::Read` reads a target
+/// `ObjectGuid`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct QueryInspectAchievements {
+    pub guid: ObjectGuid,
+}
+
+impl ClientPacket for QueryInspectAchievements {
+    const OPCODE: ClientOpcodes = ClientOpcodes::QueryInspectAchievements;
+
+    fn read(packet: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            guid: packet.read_packed_guid()?,
+        })
+    }
+}
+
 /// An equipped item for the inspect result.
 pub struct InspectItem {
     pub slot: u8,
@@ -169,6 +188,25 @@ impl ServerPacket for InspectHonorStatsResponse {
     }
 }
 
+/// SMSG_RESPOND_INSPECT_ACHIEVEMENTS.
+///
+/// C++ writes `Player` followed by `AllAchievements`: earned count, progress
+/// count, then both arrays. Rust represents the empty achievement-manager
+/// branch until `PlayerAchievementMgr` is ported.
+pub struct RespondInspectAchievements {
+    pub player: ObjectGuid,
+}
+
+impl ServerPacket for RespondInspectAchievements {
+    const OPCODE: ServerOpcodes = ServerOpcodes::RespondInspectAchievements;
+
+    fn write(&self, w: &mut WorldPacket) {
+        w.write_packed_guid(&self.player);
+        w.write_uint32(0); // Earned.Count
+        w.write_uint32(0); // Progress.Count
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -184,6 +222,19 @@ mod tests {
         let parsed = RequestHonorStats::read(&mut packet).expect("request honor stats");
 
         assert_eq!(parsed.target, guid);
+    }
+
+    #[test]
+    fn query_inspect_achievements_reads_target_guid_like_cpp() {
+        let guid = ObjectGuid::create_player(1, 0x5678);
+        let mut writer = WorldPacket::new_empty();
+        writer.write_packed_guid(&guid);
+
+        let mut packet = WorldPacket::from_bytes(&writer.into_data());
+        let parsed =
+            QueryInspectAchievements::read(&mut packet).expect("query inspect achievements");
+
+        assert_eq!(parsed.guid, guid);
     }
 
     #[test]
@@ -214,5 +265,20 @@ mod tests {
         assert_eq!(packet.read_uint16().expect("YesterdayHK"), 5);
         assert_eq!(packet.read_uint32().expect("LifetimeMaxRank"), 6);
         assert_eq!(packet.read_uint32().expect("HonorLevel"), 7);
+    }
+
+    #[test]
+    fn respond_inspect_achievements_writes_empty_all_achievements_like_cpp() {
+        let guid = ObjectGuid::create_player(1, 0x99);
+        let bytes = RespondInspectAchievements { player: guid }.to_bytes();
+
+        let mut packet = WorldPacket::from_bytes(&bytes);
+        assert_eq!(
+            packet.read_uint16().expect("opcode"),
+            ServerOpcodes::RespondInspectAchievements as u16
+        );
+        assert_eq!(packet.read_packed_guid().expect("player"), guid);
+        assert_eq!(packet.read_uint32().expect("Earned.Count"), 0);
+        assert_eq!(packet.read_uint32().expect("Progress.Count"), 0);
     }
 }

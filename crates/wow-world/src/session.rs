@@ -17177,6 +17177,9 @@ impl WorldSession {
             ClientOpcodes::RequestHonorStats => {
                 self.handle_request_honor_stats(pkt).await;
             }
+            ClientOpcodes::QueryInspectAchievements => {
+                self.handle_query_inspect_achievements(pkt).await;
+            }
 
             // Empty stubs matching C# — these client opcodes are sent during
             // character select but require no response (Blizzard services).
@@ -18065,6 +18068,10 @@ impl WorldSession {
             .as_ref()
             .map(SessionPlayerController::map_id)
             .unwrap_or(self.current_map_id)
+    }
+
+    pub(crate) fn player_faction_template_id_like_cpp(&self) -> Option<u32> {
+        self.player_faction_template_like_cpp
     }
 
     pub(crate) fn player_movement_flags_like_cpp(&self) -> MovementFlag {
