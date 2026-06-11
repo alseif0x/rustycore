@@ -3,7 +3,7 @@
 // Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! Handlers for social opcodes: AddFriend, AddIgnore, DelFriend, SendContactList.
+//! Handlers for social opcodes: AddFriend, AddIgnore, DelFriend, DelIgnore, SendContactList.
 
 use std::sync::Arc;
 
@@ -15,7 +15,7 @@ use wow_packet::packets::query::{
     NameCacheLookupResult, PlayerGuidLookupData, QueryPlayerNamesResponse,
 };
 use wow_packet::packets::social::{
-    AddIgnore, ContactInfo, ContactListPkt, FriendStatusPkt, FriendsResult,
+    AddIgnore, ContactInfo, ContactListPkt, DelIgnore, FriendStatusPkt, FriendsResult,
 };
 
 use crate::session::WorldSession;
@@ -46,6 +46,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_del_friend",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::DelIgnore,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_del_ignore",
     }
 }
 
@@ -360,12 +369,30 @@ impl WorldSession {
             None => return,
         };
 
-        let _ =
-            sqlx::query("DELETE FROM character_social WHERE guid = ? AND friend = ? AND flags & 1")
+        let update = sqlx::query(
+            "UPDATE character_social SET flags = flags & 254 \
+             WHERE guid = ? AND friend = ? AND flags & 1",
+        )
+        .bind(my_guid.counter())
+        .bind(friend_guid.counter())
+        .execute(char_db.pool())
+        .await;
+
+        if let Err(e) = update {
+            warn!("DelFriend update error: {}", e);
+            return;
+        }
+
+        if let Err(e) =
+            sqlx::query("DELETE FROM character_social WHERE guid = ? AND friend = ? AND flags = 0")
                 .bind(my_guid.counter())
                 .bind(friend_guid.counter())
                 .execute(char_db.pool())
-                .await;
+                .await
+        {
+            warn!("DelFriend cleanup error: {}", e);
+            return;
+        }
 
         let p = FriendStatusPkt {
             result: FriendsResult::Removed,
@@ -379,6 +406,64 @@ impl WorldSession {
             notes: String::new(),
         };
         self.send_packet(&p);
+    }
+
+    /// Handle CMSG_DEL_IGNORE.
+    ///
+    /// C++ ref: `WorldSession::HandleDelIgnoreOpcode` delegates to
+    /// `PlayerSocial::RemoveFromSocialList(..., SOCIAL_FLAG_IGNORED)`, which
+    /// clears only the ignored bit and deletes the row only when no social flags
+    /// remain.
+    pub async fn handle_del_ignore(&mut self, ignore: DelIgnore) {
+        let my_guid = match self.player_guid() {
+            Some(g) => g,
+            None => return,
+        };
+
+        let char_db = match self.char_db() {
+            Some(db) => Arc::clone(db),
+            None => return,
+        };
+
+        let target_guid = ignore.player_guid;
+        let target_counter = target_guid.counter();
+
+        let update = sqlx::query(
+            "UPDATE character_social SET flags = flags & 253 \
+             WHERE guid = ? AND friend = ? AND flags & 2",
+        )
+        .bind(my_guid.counter())
+        .bind(target_counter)
+        .execute(char_db.pool())
+        .await;
+
+        if let Err(e) = update {
+            warn!("DelIgnore update error: {}", e);
+            return;
+        }
+
+        if let Err(e) =
+            sqlx::query("DELETE FROM character_social WHERE guid = ? AND friend = ? AND flags = 0")
+                .bind(my_guid.counter())
+                .bind(target_counter)
+                .execute(char_db.pool())
+                .await
+        {
+            warn!("DelIgnore cleanup error: {}", e);
+            return;
+        }
+
+        self.send_packet(&FriendStatusPkt {
+            result: FriendsResult::IgnoreRemoved,
+            guid: target_guid,
+            account_guid: ObjectGuid::EMPTY,
+            virtual_realm_address: self.virtual_realm_address(),
+            status: 0,
+            area_id: 0,
+            level: 0,
+            class_id: 0,
+            notes: String::new(),
+        });
     }
 
     /// CMSG_SEND_CONTACT_LIST (0x36d7)

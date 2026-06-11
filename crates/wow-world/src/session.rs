@@ -102,12 +102,12 @@ use wow_entities::{
     EQUIPMENT_SLOT_BACK, EQUIPMENT_SLOT_BODY, EQUIPMENT_SLOT_CHEST, EQUIPMENT_SLOT_END,
     EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_HANDS, EQUIPMENT_SLOT_HEAD, EQUIPMENT_SLOT_LEGS,
     EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND, EQUIPMENT_SLOT_SHOULDERS,
-    EQUIPMENT_SLOT_TABARD, EQUIPMENT_SLOT_WAIST,
-    EQUIPMENT_SLOT_WRISTS, GameObject, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0,
-    INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, ITEM_DATA_BITS,
-    ITEM_DATA_DURABILITY_BIT, Item, ItemCreateInfo, ItemDataUpdate, ItemLimitCategoryTemplate,
-    ItemPosCount, ItemSlotRef, ItemStorageRef, ItemStorageTemplate, ItemValuesUpdate, MAX_BAG_SIZE,
-    MAX_ITEM_SPELLS, MAX_MONEY_AMOUNT, NULL_BAG, NULL_SLOT, ObjectAccessor, PLAYER_SLOT_END, PhaseShift, Player,
+    EQUIPMENT_SLOT_TABARD, EQUIPMENT_SLOT_WAIST, EQUIPMENT_SLOT_WRISTS, GameObject,
+    INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START,
+    INVENTORY_SLOT_ITEM_START, ITEM_DATA_BITS, ITEM_DATA_DURABILITY_BIT, Item, ItemCreateInfo,
+    ItemDataUpdate, ItemLimitCategoryTemplate, ItemPosCount, ItemSlotRef, ItemStorageRef,
+    ItemStorageTemplate, ItemValuesUpdate, MAX_BAG_SIZE, MAX_ITEM_SPELLS, MAX_MONEY_AMOUNT,
+    NULL_BAG, NULL_SLOT, ObjectAccessor, PLAYER_SLOT_END, PhaseShift, Player,
     PlayerEnchantTimeUpdate, PlayerInventoryStorage, PlayerItemTimeUpdate,
     QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE, REAGENT_BAG_SLOT_END,
     REAGENT_BAG_SLOT_START, SendNewItemDelivery, SendNewItemDisplayText, SendNewItemPlan,
@@ -17020,6 +17020,12 @@ impl WorldSession {
             }
             ClientOpcodes::DelFriend => {
                 self.handle_del_friend(pkt).await;
+            }
+            ClientOpcodes::DelIgnore => {
+                match wow_packet::packets::social::DelIgnore::read(&mut pkt) {
+                    Ok(ignore) => self.handle_del_ignore(ignore).await,
+                    Err(e) => warn!("Failed to read DelIgnore: {e}"),
+                }
             }
             ClientOpcodes::SendContactList => {
                 self.handle_send_contact_list(pkt).await;
@@ -64311,8 +64317,9 @@ mod tests {
                 .unwrap()
         );
         assert_eq!(
-            session.inventory_item_objects_like_cpp()[&item_guid].data().enchantments
-                [EnchantmentSlot::EnhancementTemporary as usize]
+            session.inventory_item_objects_like_cpp()[&item_guid]
+                .data()
+                .enchantments[EnchantmentSlot::EnhancementTemporary as usize]
                 .id,
             905
         );

@@ -62,6 +62,29 @@ impl ClientPacket for AddIgnore {
     }
 }
 
+/// CMSG_DEL_IGNORE.
+///
+/// C++ `WorldPackets::Social::DelIgnore::Read` reads a `QualifiedGUID`
+/// (`ObjectGuid` plus virtual realm address).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DelIgnore {
+    pub player_guid: ObjectGuid,
+    pub virtual_realm_address: u32,
+}
+
+impl ClientPacket for DelIgnore {
+    const OPCODE: ClientOpcodes = ClientOpcodes::DelIgnore;
+
+    fn read(packet: &mut WorldPacket) -> Result<Self, PacketError> {
+        let player_guid = packet.read_packed_guid()?;
+        let virtual_realm_address = packet.read_uint32()?;
+        Ok(Self {
+            player_guid,
+            virtual_realm_address,
+        })
+    }
+}
+
 /// SMSG_FRIEND_STATUS (0x278d)
 pub struct FriendStatusPkt {
     pub result: FriendsResult,
@@ -179,5 +202,19 @@ mod tests {
         assert_eq!(FriendsResult::IgnoreAlready as u8, 0x0E);
         assert_eq!(FriendsResult::IgnoreAdded as u8, 0x0F);
         assert_eq!(FriendsResult::IgnoreRemoved as u8, 0x10);
+    }
+
+    #[test]
+    fn del_ignore_reads_cpp_qualified_guid_order() {
+        let player_guid = ObjectGuid::create_player(1, 0x00CCBBAA);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_packed_guid(&player_guid);
+        pkt.write_uint32(0xAABBCCDD);
+
+        let parsed = DelIgnore::read(&mut pkt).expect("del ignore packet");
+
+        assert_eq!(parsed.player_guid, player_guid);
+        assert_eq!(parsed.virtual_realm_address, 0xAABBCCDD);
+        assert!(pkt.is_empty());
     }
 }

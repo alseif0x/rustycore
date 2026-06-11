@@ -149,21 +149,21 @@ Note: `character_social` schema in 3.4.3 is `(guid, friend, flags, note)` — th
 
 **Files in `/home/server/rustycore`:**
 - `crates/wow-social/src/lib.rs` — **0 lines** (empty stub; should host `PlayerSocial`, `SocialMgr`, presence-broadcast logic)
-- `crates/wow-world/src/handlers/social.rs` — 360 lines — covers ~50% of `Handlers/SocialHandler.cpp`
+- `crates/wow-world/src/handlers/social.rs` — covers ~55% of `Handlers/SocialHandler.cpp`
 - `crates/wow-world/src/handlers/inspect.rs` — 82 lines — covers ~30% of inspect (basic items + race/class/level only)
-- `crates/wow-packet/src/packets/social.rs` — 117 lines — `ContactInfo`, `ContactListPkt`, `FriendStatusPkt`, `FriendsResult`
+- `crates/wow-packet/src/packets/social.rs` — `AddIgnore`, `DelIgnore`, `ContactInfo`, `ContactListPkt`, `FriendStatusPkt`, `FriendsResult`
 - `crates/wow-packet/src/packets/inspect.rs` — 120 lines — `InspectItem`, `InspectResult`
 
 **What's implemented:**
 - `CMSG_ADD_FRIEND` — name lookup in `characters` table; self-check; already-friend check; insert into `character_social` with `flags=1` (FRIEND); replies with `FRIEND_ADDED_ONLINE`/`OFFLINE`/`ALREADY`/`NOT_FOUND`/`SELF`.
 - `CMSG_ADD_IGNORE` — parses C++ `nameLength(9) + AccountGUID + Name`, looks up `characters`, applies self/already/full/not-found gates, and stores per-character `SOCIAL_FLAG_IGNORED` (`flags=2`) in `character_social`. Account-level ignore remains missing.
-- `CMSG_DEL_FRIEND` — DELETE row, emits `FRIEND_REMOVED`.
+- `CMSG_DEL_FRIEND` — parses C++ `QualifiedGUID`, clears `SOCIAL_FLAG_FRIEND` (`flags &= ~1`) and deletes the row only if no flags remain; emits `FRIEND_REMOVED`.
+- `CMSG_DEL_IGNORE` — parses C++ `QualifiedGUID`, clears `SOCIAL_FLAG_IGNORED` (`flags &= ~2`) and deletes the row only if no flags remain; emits `FRIEND_IGNORE_REMOVED`. Account-level ignored-account recompute remains missing.
 - `CMSG_SEND_CONTACT_LIST` — JOINs `character_social` × `characters`; populates `ContactInfo`; also emits `QueryPlayerNamesResponse` (name cache) so client can render names.
 - `CMSG_INSPECT` — registry lookup of target's broadcast info; sends `SMSG_INSPECT_RESULT` with target's race, class, level, gender + visible-items array (item_id only).
 - `FriendsResult` enum exists with the 28-ish variants (need full audit).
 
 **What's missing vs C++:**
-- **`CMSG_DEL_IGNORE`** — unhandled.
 - **Account-level ignore** — `_ignoredAccounts` set + `WowAccountGuid` capture on add — missing entirely. Ignoring an alt does NOT propagate to the other alts.
 - **Mute (`SOCIAL_FLAG_MUTED`)** — unimplemented (would need voice-chat stack anyway, but flag persistence is missing).
 - **`CMSG_SET_CONTACT_NOTES`** — unhandled. Notes set at AddFriend time can't be edited afterward.
@@ -194,7 +194,7 @@ Note: `character_social` schema in 3.4.3 is `(guid, friend, flags, note)` — th
 
 ## 9. Migration sub-tasks
 
-- [ ] **#SOCIAL.1** Implement `CMSG_DEL_IGNORE` and complete ignore chat-blocking integration. `CMSG_ADD_IGNORE` is represented for per-character `flags=2` but account-level ignore/chat suppression remain pending. Complejidad: **M**
+- [ ] **#SOCIAL.1** Complete ignore chat-blocking integration. `CMSG_ADD_IGNORE`/`CMSG_DEL_IGNORE` are represented for per-character `flags=2`, but account-level ignore/chat suppression remain pending. Complejidad: **M**
 - [ ] **#SOCIAL.2** Capture `WowAccountGuid` on AddIgnore (JOIN `characters c` ON account → `account` table → derive `accountGuid`); store in new `character_social.accountGuid` column. Complejidad: **M**
 - [ ] **#SOCIAL.3** Add migration: `ALTER TABLE character_social ADD COLUMN accountGuid BIGINT UNSIGNED DEFAULT 0`. Complejidad: **L**
 - [ ] **#SOCIAL.4** Build `PlayerSocial` in `crates/wow-social` with in-memory `_playerSocialMap` + `_ignoredAccounts`; load on character entry-world; persist diffs on save. Complejidad: **H**
@@ -277,20 +277,20 @@ Side-by-side audit of `crates/wow-social/src/lib.rs` (empty) + `crates/wow-world
 **`/ignore` does not filter whispers — CONFIRMED.**
 Two-part proof:
 
-1. `crates/wow-world/src/handlers/social.rs:22-47` registers exactly three handlers via `inventory::submit!`: `AddFriend`, `DelFriend`, `SendContactList`. **No `AddIgnore`, no `DelIgnore`, no `SetContactNotes`, no `SocialContractRequest`.** A `grep -n "Ignore\|ignore" handlers/social.rs` returns zero matches. The ignore list does not exist on the server side; flag bit 2 (`SOCIAL_FLAG_IGNORED`) is never written.
+1. `crates/wow-world/src/handlers/social.rs` now registers per-character `AddIgnore`/`DelIgnore`, so flag bit 2 (`SOCIAL_FLAG_IGNORED`) can be written and cleared. There is still no loaded `PlayerSocial`, no account-level `_ignoredAccounts`, and no `SetContactNotes`/`SocialContractRequest`.
 2. `crates/wow-world/src/handlers/chat.rs:187-257` (`handle_chat_whisper`) looks up the target by name in `player_registry()`, builds a `ChatPkt::Whisper`, and unconditionally `tx.send(to_target.to_bytes())` (`chat.rs:227`). There is no membership check against any per-recipient ignore set. The corresponding C++ path (`ChatHandler.cpp` whisper) calls `player->GetSocial()->HasIgnore(senderGuid, senderAccount)` and short-circuits with `WORLD_PACKET_IGNORE_TYPE_*` if true.
 
-Net effect after the represented `CMSG_ADD_IGNORE` slice: clicking `Ignore Player` writes the per-character `SOCIAL_FLAG_IGNORED` row to `character_social`, but `handle_chat_whisper` still does not consult that row and account-level ignore is still unavailable. The originator's ignore list can now persist/display, but chat blocking remains incomplete.
+Net effect after the represented `CMSG_ADD_IGNORE`/`CMSG_DEL_IGNORE` slices: clicking `Ignore Player` writes the per-character `SOCIAL_FLAG_IGNORED` row to `character_social`, and removing it clears only that flag like C++. `handle_chat_whisper` still does not consult that row and account-level ignore is still unavailable. The originator's ignore list can now persist/display, but chat blocking remains incomplete.
 
 ### Coverage matrix
 
 | C++ opcode handler | Rust | Verdict |
 |---|---|---|
 | `HandleAddFriendOpcode` | ✅ `social.rs:55-201` (name lookup, self-check, already-friend check, INSERT IGNORE → `character_social`) | partial |
-| `HandleDelFriendOpcode` | ✅ `social.rs:206-244` (`DELETE WHERE flags & 1`) | ok |
+| `HandleDelFriendOpcode` | ✅ `flags &= ~1`, deletes row only when empty | ok |
 | `HandleContactListOpcode` | ✅ `social.rs:249-359` (JOIN `character_social` × `characters`, plus `QueryPlayerNamesResponse` for name cache) | ok |
 | `HandleAddIgnoreOpcode` | ✅ represented per-character `flags=2`, self/already/full/not-found gates | partial |
-| `HandleDelIgnoreOpcode` | ❌ unregistered | bug |
+| `HandleDelIgnoreOpcode` | ✅ represented per-character `flags &= ~2`, deletes row only when empty | partial |
 | `HandleSetContactNotesOpcode` | ❌ unregistered |  |
 | `HandleSocialContractRequest` | ❌ unregistered |  |
 | `HandleInspectOpcode` | ✅ `inspect.rs:33-81` (race/class/level/gender + visible-items only) | partial |
@@ -301,7 +301,7 @@ Net effect after the represented `CMSG_ADD_IGNORE` slice: clicking `Ignore Playe
 
 ### Other observed bugs / divergences
 
-- `social.rs:160` — `INSERT IGNORE` is used for friend insert. If the row already exists with a different flag bit set (e.g. `flags=2` ignore), the new friend bit is silently dropped instead of being OR'd. Trinity uses `REPLACE INTO` semantics (`CHAR_REP_CHARACTER_SOCIAL`) with application-level OR; the Rust path will fail to add a friend who is already on the user's ignore list, even after the user un-ignores them.
+- `social.rs:160` — `INSERT IGNORE` is used for friend insert. If the row already exists with a different flag bit set (e.g. `flags=2` ignore), the new friend bit is silently dropped instead of being OR'd. Trinity uses `REPLACE INTO` semantics (`CHAR_REP_CHARACTER_SOCIAL`) with application-level OR; the Rust path will fail to add a friend who is already on the user's ignore list.
 - `social.rs:131-133` — self-check returns `FriendsResult::Self_` correctly. ✅
 - `social.rs:156` — already-friend check returns `Already`. ✅
 - `social.rs:104` — `SELECT … FROM characters WHERE name = ?` collation is whatever the schema uses; no explicit `COLLATE utf8mb4_general_ci` clause. Behaviour depends on table default collation.
@@ -314,4 +314,4 @@ Net effect after the represented `CMSG_ADD_IGNORE` slice: clicking `Ignore Playe
 - No `InspectGuildData`, no `InspectTalentData`, no `PVPBracketData`. The four C++ inspect packet structs are stubbed to one (`InspectResult`).
 - `crates/wow-social/src/lib.rs` confirmed 0 bytes; no `PlayerSocial`, no `SocialMgr` anywhere in the workspace.
 
-**Verdict:** flagged divergence partly reduced. Friends list works for add/delete/list (~50% of `SocialHandler.cpp`). Per-character `AddIgnore` now writes `SOCIAL_FLAG_IGNORED`, but `DelIgnore`, account-level ignore, loaded `PlayerSocial`, and whisper/chat suppression remain open. Inspect is ~25% (basic items + identity); achievements/PvP/talents/glyphs absent. Presence broadcast (`SMSG_FRIEND_STATUS` on login/logout/AFK/zone) is 0%.
+**Verdict:** flagged divergence partly reduced. Friends list works for add/delete/list (~50% of `SocialHandler.cpp`). Per-character `AddIgnore`/`DelIgnore` now write and clear `SOCIAL_FLAG_IGNORED`, but account-level ignore, loaded `PlayerSocial`, and whisper/chat suppression remain open. Inspect is ~25% (basic items + identity); achievements/PvP/talents/glyphs absent. Presence broadcast (`SMSG_FRIEND_STATUS` on login/logout/AFK/zone) is 0%.
