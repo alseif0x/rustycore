@@ -250,6 +250,9 @@ impl WorldSession {
         if self.has_gm_silence_aura_like_cpp() {
             return;
         }
+        if matches!(msg_type, ChatMsg::Say | ChatMsg::Yell) && !self.player_is_alive_like_cpp() {
+            return;
+        }
 
         let (sender_guid, sender_name) = self.player_name_and_guid();
         let virtual_realm = self.virtual_realm_address();
@@ -555,6 +558,9 @@ impl WorldSession {
             return;
         }
         if self.has_gm_silence_aura_like_cpp() {
+            return;
+        }
+        if !self.player_is_alive_like_cpp() {
             return;
         }
 
@@ -1375,6 +1381,79 @@ mod tests {
                 ),
                 ChatMsg::Say,
             )
+            .await;
+
+        assert!(sender_rx.try_recv().is_err());
+        assert!(nearby_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn dead_player_cannot_send_say_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 357);
+        let nearby = ObjectGuid::create_player(1, 358);
+        let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
+        let (nearby_tx, nearby_rx) = flume::bounded(8);
+        player_registry.insert(nearby, broadcast_info(nearby, nearby_tx));
+        session.set_player_alive_like_cpp(false);
+
+        session
+            .handle_chat_message(
+                chat_message_packet(ClientOpcodes::ChatMessageSay, "dead say"),
+                ChatMsg::Say,
+            )
+            .await;
+
+        assert!(sender_rx.try_recv().is_err());
+        assert!(nearby_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn dead_player_party_chat_is_not_rejected_by_say_alive_gate_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 359);
+        let member = ObjectGuid::create_player(1, 360);
+        let (mut session, player_registry, leader_rx) = session_for_chat_routing_like_cpp(leader);
+        let (member_tx, member_rx) = flume::bounded(8);
+        player_registry.insert(member, broadcast_info(member, member_tx));
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+        let group_guid = group.group_guid;
+        let group_registry = Arc::new(wow_network::GroupRegistry::default());
+        group_registry.insert(group_guid, group);
+        session.group_guid = Some(group_guid);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+        session.set_player_alive_like_cpp(false);
+
+        session
+            .handle_chat_message(
+                chat_message_packet(ClientOpcodes::ChatMessageParty, "dead party"),
+                ChatMsg::Party,
+            )
+            .await;
+
+        assert_eq!(
+            chat_slash_cmd(&leader_rx.try_recv().expect("leader party echo")),
+            ChatMsg::PartyLeader as u8
+        );
+        assert_eq!(
+            chat_slash_cmd(&member_rx.try_recv().expect("member party chat")),
+            ChatMsg::PartyLeader as u8
+        );
+    }
+
+    #[tokio::test]
+    async fn dead_player_cannot_send_chat_emote_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 368);
+        let nearby = ObjectGuid::create_player(1, 369);
+        let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
+        let (nearby_tx, nearby_rx) = flume::bounded(8);
+        player_registry.insert(nearby, broadcast_info(nearby, nearby_tx));
+        session.set_player_alive_like_cpp(false);
+
+        session
+            .handle_chat_emote(chat_message_packet(
+                ClientOpcodes::ChatMessageEmote,
+                "dead emote",
+            ))
             .await;
 
         assert!(sender_rx.try_recv().is_err());
