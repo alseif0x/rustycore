@@ -37,6 +37,72 @@ pub struct DbUpdater {
     db: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum UpdateDecisionLikeCpp {
+    Skip,
+    Apply,
+    Rehash,
+    UpdateState,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct UpdateConfigLikeCpp {
+    redundancy_checks: bool,
+    allow_rehash: bool,
+    archived_redundancy: bool,
+    clean_dead_references_max_count: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct AppliedUpdateFileLikeCpp {
+    hash: String,
+    state: String,
+}
+
+impl UpdateConfigLikeCpp {
+    fn from_config_like_cpp() -> Self {
+        Self {
+            redundancy_checks: wow_config::get_value_default("Updates.Redundancy", true),
+            allow_rehash: wow_config::get_value_default("Updates.AllowRehash", true),
+            archived_redundancy: wow_config::get_value_default("Updates.ArchivedRedundancy", false),
+            clean_dead_references_max_count: wow_config::get_value_default(
+                "Updates.CleanDeadRefMaxCount",
+                3,
+            ),
+        }
+    }
+}
+
+fn update_decision_like_cpp(
+    existing_hash: &str,
+    available_hash: &str,
+    applied_state: &str,
+    available_state: &str,
+    config: &UpdateConfigLikeCpp,
+) -> UpdateDecisionLikeCpp {
+    if !config.redundancy_checks {
+        return UpdateDecisionLikeCpp::Skip;
+    }
+
+    if !config.archived_redundancy && applied_state == "ARCHIVED" && available_state == "ARCHIVED" {
+        return UpdateDecisionLikeCpp::Skip;
+    }
+
+    if config.allow_rehash && existing_hash.is_empty() {
+        return UpdateDecisionLikeCpp::Rehash;
+    }
+
+    if existing_hash != available_hash {
+        return UpdateDecisionLikeCpp::Apply;
+    }
+
+    if applied_state != available_state {
+        return UpdateDecisionLikeCpp::UpdateState;
+    }
+
+    UpdateDecisionLikeCpp::Skip
+}
+
 impl DbUpdater {
     pub fn new(
         pool: MySqlPool,
@@ -92,6 +158,8 @@ impl DbUpdater {
     /// `source_dir` is the project root (where `sql/` lives).
     pub async fn update(&self, source_dir: &str) -> Result<()> {
         info!("Checking '{}' database for pending updates...", self.db);
+        let update_config = UpdateConfigLikeCpp::from_config_like_cpp();
+        let _clean_dead_references_max_count = update_config.clean_dead_references_max_count;
 
         self.ensure_updates_table().await?;
         self.ensure_updates_include_table().await?;
@@ -139,14 +207,17 @@ impl DbUpdater {
             match applied.get(&name) {
                 None => {
                     // Check for renamed file (same hash, different name)
-                    if let Some(old_name) = applied
-                        .iter()
-                        .find_map(|(n, h)| if h == &hash { Some(n) } else { None })
-                    {
+                    if let Some(old_name) = applied.iter().find_map(|(n, applied)| {
+                        if applied.hash == hash {
+                            Some(n.clone())
+                        } else {
+                            None
+                        }
+                    }) {
                         info!("Renaming update '{}' → '{}'", old_name, name);
                         sqlx::query("UPDATE `updates` SET `name` = ? WHERE `name` = ?")
                             .bind(&name)
-                            .bind(old_name)
+                            .bind(&old_name)
                             .execute(&self.pool)
                             .await?;
                     } else {
@@ -167,28 +238,56 @@ impl DbUpdater {
                         updated += 1;
                     }
                 }
-                Some(existing_hash) => {
-                    if existing_hash != &hash && state != "ARCHIVED" {
-                        info!(
-                            "Reapplying '{}' (hash changed {} → {})...",
-                            name,
-                            &existing_hash[..7.min(existing_hash.len())],
-                            &hash[..7]
-                        );
-                        let t = Instant::now();
-                        self.apply_sql_file(path, &content).await?;
-                        let ms = t.elapsed().as_millis() as u32;
-                        sqlx::query(
-                            "UPDATE `updates` SET `hash` = ?, `speed` = ? WHERE `name` = ?",
-                        )
-                        .bind(&hash)
-                        .bind(ms)
-                        .bind(&name)
-                        .execute(&self.pool)
-                        .await?;
-                        updated += 1;
+                Some(applied) => {
+                    match update_decision_like_cpp(
+                        &applied.hash,
+                        &hash,
+                        &applied.state,
+                        state,
+                        &update_config,
+                    ) {
+                        UpdateDecisionLikeCpp::Skip => {}
+                        UpdateDecisionLikeCpp::UpdateState => {
+                            info!("Updating state for '{}' to '{}'...", name, state);
+                            sqlx::query("UPDATE `updates` SET `state` = ? WHERE `name` = ?")
+                                .bind(state.as_str())
+                                .bind(&name)
+                                .execute(&self.pool)
+                                .await?;
+                        }
+                        UpdateDecisionLikeCpp::Rehash => {
+                            info!("Rehashing '{}' [{}]...", name, &hash[..7]);
+                            sqlx::query(
+                                "UPDATE `updates` SET `hash` = ?, `state` = ? WHERE `name` = ?",
+                            )
+                            .bind(&hash)
+                            .bind(state.as_str())
+                            .bind(&name)
+                            .execute(&self.pool)
+                            .await?;
+                        }
+                        UpdateDecisionLikeCpp::Apply => {
+                            info!(
+                                "Reapplying '{}' (hash changed {} → {})...",
+                                name,
+                                &applied.hash[..7.min(applied.hash.len())],
+                                &hash[..7]
+                            );
+                            let t = Instant::now();
+                            self.apply_sql_file(path, &content).await?;
+                            let ms = t.elapsed().as_millis() as u32;
+                            sqlx::query(
+                                "UPDATE `updates` SET `hash` = ?, `state` = ?, `speed` = ? WHERE `name` = ?",
+                            )
+                            .bind(&hash)
+                            .bind(state.as_str())
+                            .bind(ms)
+                            .bind(&name)
+                            .execute(&self.pool)
+                            .await?;
+                            updated += 1;
+                        }
                     }
-                    // else: hash matches → already up-to-date, skip
                 }
             }
         }
@@ -300,11 +399,15 @@ impl DbUpdater {
         Ok(rows)
     }
 
-    async fn read_applied_files(&self) -> Result<HashMap<String, String>> {
-        let rows: Vec<(String, String)> = sqlx::query_as("SELECT `name`, `hash` FROM `updates`")
-            .fetch_all(&self.pool)
-            .await?;
-        Ok(rows.into_iter().collect())
+    async fn read_applied_files(&self) -> Result<HashMap<String, AppliedUpdateFileLikeCpp>> {
+        let rows: Vec<(String, String, String)> =
+            sqlx::query_as("SELECT `name`, `hash`, `state` FROM `updates`")
+                .fetch_all(&self.pool)
+                .await?;
+        Ok(rows
+            .into_iter()
+            .map(|(name, hash, state)| (name, AppliedUpdateFileLikeCpp { hash, state }))
+            .collect())
     }
 }
 
@@ -400,4 +503,86 @@ fn collect_sql_files(dir: &Path) -> Result<Vec<PathBuf>> {
         }
     }
     Ok(files)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{UpdateConfigLikeCpp, UpdateDecisionLikeCpp, update_decision_like_cpp};
+
+    fn update_config_like_cpp(
+        redundancy_checks: bool,
+        allow_rehash: bool,
+        archived_redundancy: bool,
+    ) -> UpdateConfigLikeCpp {
+        UpdateConfigLikeCpp {
+            redundancy_checks,
+            allow_rehash,
+            archived_redundancy,
+            clean_dead_references_max_count: 3,
+        }
+    }
+
+    #[test]
+    fn update_decision_honors_cpp_redundancy_and_archived_gates() {
+        let redundancy_off = update_config_like_cpp(false, true, true);
+        assert_eq!(
+            update_decision_like_cpp(
+                "oldhash",
+                "newhash",
+                "RELEASED",
+                "RELEASED",
+                &redundancy_off,
+            ),
+            UpdateDecisionLikeCpp::Skip
+        );
+
+        let archived_gate_off = update_config_like_cpp(true, true, false);
+        assert_eq!(
+            update_decision_like_cpp(
+                "oldhash",
+                "newhash",
+                "ARCHIVED",
+                "ARCHIVED",
+                &archived_gate_off,
+            ),
+            UpdateDecisionLikeCpp::Skip
+        );
+
+        let archived_gate_on = update_config_like_cpp(true, true, true);
+        assert_eq!(
+            update_decision_like_cpp(
+                "oldhash",
+                "newhash",
+                "ARCHIVED",
+                "ARCHIVED",
+                &archived_gate_on,
+            ),
+            UpdateDecisionLikeCpp::Apply
+        );
+    }
+
+    #[test]
+    fn update_decision_honors_cpp_rehash_gate_and_changed_hashes() {
+        let rehash_on = update_config_like_cpp(true, true, false);
+        assert_eq!(
+            update_decision_like_cpp("", "newhash", "RELEASED", "RELEASED", &rehash_on),
+            UpdateDecisionLikeCpp::Rehash
+        );
+
+        let rehash_off = update_config_like_cpp(true, false, false);
+        assert_eq!(
+            update_decision_like_cpp("", "newhash", "RELEASED", "RELEASED", &rehash_off),
+            UpdateDecisionLikeCpp::Apply
+        );
+
+        assert_eq!(
+            update_decision_like_cpp("same", "same", "RELEASED", "RELEASED", &rehash_on),
+            UpdateDecisionLikeCpp::Skip
+        );
+
+        assert_eq!(
+            update_decision_like_cpp("same", "same", "RELEASED", "ARCHIVED", &rehash_on),
+            UpdateDecisionLikeCpp::UpdateState
+        );
+    }
 }

@@ -321,7 +321,7 @@ Not applicable — the database framework does not handle WoW client packets. (I
 - **Hotfix prepared statements**: 1 placeholder vs TC's 327. Hotfix data flow in RustyCore goes through DB2 readers + `HotfixBlobCache` (`crates/wow-data/src/hotfix_blob_cache.rs`), not through prepared statements against `hotfixes.*` tables. This is a deliberate divergence — the C++ hotfix system uses MySQL-resident DB2 deltas that the world server merges with disk DB2 at load; RustyCore so far precomputes the merged blob.
 - **Character prepared statements**: 30 vs TC's 523. Most character persistence flows are still missing port (cf. `INVENTORY.md` lookup). The 30 ported cover: char enum, create, delete, login, save (basic fields), max-guid lookup, online flag, name lookup, position update.
 - **`DBUpdater::Create`**: not implemented. `populate` requires the database to already exist (the connection string would fail otherwise, before sqlx ever connects). TC's `DBUpdater::Create` runs `mysql -e "CREATE DATABASE …"` when the connection itself fails because the DB doesn't exist. Operator must pre-create databases.
-- **`Updates.Redundancy`**, **`Updates.ArchivedRedundancy`**, **`Updates.AllowRehash`**, **`Updates.CleanDeadRefMaxCount`** config keys: ignored. RustyCore always re-applies on hash change for non-ARCHIVED state; never deletes orphaned `updates` rows; never re-hashes existing applied files to detect post-hoc edits.
+- **`Updates.CleanDeadRefMaxCount`** config key: read but not acted on yet. RustyCore still never deletes orphaned `updates` rows, so a removed file leaves a stale row. `Updates.Redundancy`, `Updates.AllowRehash`, and `Updates.ArchivedRedundancy` are now honored in the update decision path.
 - **`updates_include` defaults**: TC bootstraps `updates_include` rows on first `Populate` (e.g. `('$/sql/updates/auth', 'RELEASED')`). RustyCore creates the table empty and warns "no updates_include entries" if operator hasn't populated it. **First-boot UX gap**: a fresh install will skip applying any updates until the operator manually inserts rows.
 - **`UpdateFetcher` "missing files" detection**: TC removes `updates` rows whose `.sql` file is no longer present (with `Updates.CleanDeadRefMaxCount` budget). RustyCore never deletes from `updates`, so a removed file leaves a stale row.
 - **`DBUpdater::Populate` / `Update` failures are fatal** in TC (`return false` from `StartDB` aborts boot). RustyCore now propagates populate/update errors from world-server startup with DB-specific context, so a broken or empty DB fails fast instead of booting into later missing-table errors. (Cross-ref: `worldserver.md` §13.6.)
@@ -627,8 +627,8 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 - [x] **#DB.3** Make `DbUpdater::populate` / `update` failure fatal when `Updates.AutoSetup=1`: return error from `world-server/main.rs` instead of `tracing::warn!`. Boot now aborts if base SQL is missing, the DB is empty + populate fails, or an enabled update step fails. (L)
 - [ ] **#DB.4** Bootstrap `updates_include` rows on first `populate`: insert `('$/sql/updates/auth', 'RELEASED')` etc. so a fresh install actually applies updates without operator intervention. (M)
 - [ ] **#DB.5** Implement `DBUpdater::Create` equivalent: detect "Unknown database" sqlx error on initial connect, run `CREATE DATABASE IF NOT EXISTS` via a connection string with no DB name, retry. (M)
-- [ ] **#DB.6** Implement `Updates.Redundancy` (default `true`): when set, re-run an applied update if its hash changed. RustyCore already does this — confirm + add config gate. (L)
-- [ ] **#DB.7** Implement `Updates.ArchivedRedundancy` (default `false`): when true, replay archived updates. Currently the Rust port has `state != "ARCHIVED"` hardcoded — add config gate. (L)
+- [x] **#DB.6** Implement `Updates.Redundancy` (default `true`) and `Updates.AllowRehash` (default `true`): when redundancy is disabled, skip already-applied files; when rehash is enabled and the stored hash is empty, update the hash without reapplying; when hash matches but state changed, update state only. (L)
+- [x] **#DB.7** Implement `Updates.ArchivedRedundancy` (default `false`): when false, skip redundancy checks for files that are archived both in the DB and the available update path; when true, changed archived updates can be reapplied. (L)
 - [ ] **#DB.8** Implement `Updates.CleanDeadRefMaxCount`: delete `updates` rows whose file no longer exists, up to N per run. (M)
 - [ ] **#DB.9** Add `WarnAboutSyncQueries`-style guard: track a `tokio::task::TaskLocal<bool>` "in tick" flag; warn (or panic in debug) when a sync query runs inside it. Same as `worldserver.md` #WS.25. (M)
 - [ ] **#DB.10** Add a `QueryHolder`-style helper: a struct that batches N `PreparedStatement`s, executes them concurrently with `tokio::try_join_all`, returns a `Vec<SqlResult>` indexed by slot. Used by character load. (M)
@@ -668,8 +668,8 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 - [ ] Test: `DbUpdater::populate` is a no-op on a non-empty DB (returns `Ok(false)`).
 - [ ] Test: `DbUpdater::populate` invokes `mysql` CLI exactly once and the database has the expected tables afterward.
 - [ ] Test: `DbUpdater::update` applies new files in lexicographic order, records SHA1, and skips already-applied entries.
-- [ ] Test: `DbUpdater::update` re-applies a CUSTOM-state file whose hash changed; updates the `hash` column.
-- [ ] Test: `DbUpdater::update` does **not** re-apply an ARCHIVED-state file even if its hash changed.
+- [x] Test: update decision honors `Updates.Redundancy=false`, `Updates.AllowRehash`, and changed hashes.
+- [x] Test: update decision does **not** re-apply an ARCHIVED-state file when `Updates.ArchivedRedundancy=false`, and does when enabled.
 - [ ] Test: `DbUpdater::update` detects a renamed file (same hash, different filename) and updates the `name` column instead of re-applying.
 - [ ] Test: `split_sql` correctly handles `--` line comments, `#` comments, `/* */` blocks, `'\''` escapes, and `\"` escapes (existing behaviour; pin in tests).
 - [ ] Test: `SqlResult::read_string` on a `VARBINARY` column returns the UTF-8 string (not panic).
@@ -787,7 +787,7 @@ The gaps fall in three buckets:
 
 1. **Pool topology** (Medium): Rust still merges TC's `Sync`/`Async` sub-pools into one `sqlx` pool, but world-server now sizes that pool from TC's `WorkerThreads + SynchThreads` config and runs the `MaxPingTime` keep-alive task. Cross-references the worldserver audit (`worldserver.md` §13.5 / §13.6).
 2. **Statement coverage** (High): login is 137/137 (✅), world is 86/56 (✅, Rust adds extras), characters is 30/523 (❌, ~6% ported), hotfixes is 0/327 (❌, **deliberate divergence** — replaced by DB2-blob cache).
-3. **Updater operator UX** (Medium): no `Create` step; `updates_include` not bootstrapped on first run; missing `Updates.Redundancy`/`ArchivedRedundancy`/`CleanDeadRefMaxCount` config gates.
+3. **Updater operator UX** (Medium): no `Create` step; `updates_include` not bootstrapped on first run; missing `Updates.CleanDeadRefMaxCount` cleanup.
 
 The `QueryCallback`-chain pattern is **acceptably absent** because Rust's `async/await` covers the same need more directly. The `SQLQueryHolder` fan-out, however, has no Rust equivalent and is needed for character load (#DB.10).
 
@@ -861,8 +861,8 @@ However, **the worldserver audit (`worldserver.md` §13.4) noted there's no glob
 | Failure to populate/update → `false` from `StartDB` → boot abort | startup propagates `populate` / `update` errors with DB-specific context | ✅ #DB.3 |
 | `Update(pool)` — walk `updates_include`, sha1 each `.sql`, apply pending | `update(source_dir)` — walks paths from DB-resident `updates_include` table, sha1, applies via sqlx statement-by-statement | ✅ |
 | Bootstrap `updates_include` rows on first run | (none) — table created empty; no defaults | ❌ #DB.4 |
-| `Updates.Redundancy=true` re-applies non-archived files on hash change | Hardcoded "always re-apply if hash changed and not ARCHIVED" | ⚠️ #DB.6 (just gate it) |
-| `Updates.ArchivedRedundancy=false` skips archived | Hardcoded skip-if-archived | ⚠️ #DB.7 |
+| `Updates.Redundancy=true` / `Updates.AllowRehash=true` gates redundancy checks and empty-hash rehash | Config-backed update decision | ✅ #DB.6 |
+| `Updates.ArchivedRedundancy=false` skips archived redundancy | Config-backed update decision | ✅ #DB.7 |
 | `Updates.CleanDeadRefMaxCount=3` deletes orphaned `updates` rows | (none) | ❌ #DB.8 |
 | Detects renamed files (same hash, different name) | ✅ (`updater.rs:139-149`) | ✅ |
 | Re-applies CUSTOM-state file on hash change | ✅ (`updater.rs:174-194`) | ✅ |
