@@ -24,7 +24,8 @@ use wow_entities::{
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
 use wow_packet::ClientPacket;
 use wow_packet::packets::chat::{
-    ChannelNotify, JoinChannel, MAX_CHANNEL_NAME_STR_LIKE_CPP, MAX_CHANNEL_PASS_STR_LIKE_CPP,
+    ChannelCommand, ChannelNotify, ChannelPassword, ChannelPlayerCommand, JoinChannel,
+    LeaveChannel, MAX_CHANNEL_NAME_STR_LIKE_CPP, MAX_CHANNEL_PASS_STR_LIKE_CPP,
 };
 use wow_packet::packets::collection::{
     COLLECTION_TYPE_APPEARANCE_LIKE_CPP, COLLECTION_TYPE_TOYBOX_LIKE_CPP,
@@ -125,6 +126,66 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_join_channel",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::ChatLeaveChannel,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_chat_leave_channel",
+    }
+}
+
+macro_rules! register_chat_channel_command_handler {
+    ($opcode:ident) => {
+        inventory::submit! {
+            PacketHandlerEntry {
+                opcode: ClientOpcodes::$opcode,
+                status: SessionStatus::LoggedIn,
+                processing: PacketProcessing::ThreadUnsafe,
+                handler_name: "handle_chat_channel_command",
+            }
+        }
+    };
+}
+
+register_chat_channel_command_handler!(ChatChannelAnnouncements);
+register_chat_channel_command_handler!(ChatChannelDeclineInvite);
+register_chat_channel_command_handler!(ChatChannelDisplayList);
+register_chat_channel_command_handler!(ChatChannelList);
+register_chat_channel_command_handler!(ChatChannelOwner);
+
+macro_rules! register_chat_channel_player_command_handler {
+    ($opcode:ident) => {
+        inventory::submit! {
+            PacketHandlerEntry {
+                opcode: ClientOpcodes::$opcode,
+                status: SessionStatus::LoggedIn,
+                processing: PacketProcessing::ThreadUnsafe,
+                handler_name: "handle_chat_channel_player_command",
+            }
+        }
+    };
+}
+
+register_chat_channel_player_command_handler!(ChatChannelBan);
+register_chat_channel_player_command_handler!(ChatChannelInvite);
+register_chat_channel_player_command_handler!(ChatChannelKick);
+register_chat_channel_player_command_handler!(ChatChannelModerator);
+register_chat_channel_player_command_handler!(ChatChannelSetOwner);
+register_chat_channel_player_command_handler!(ChatChannelSilenceAll);
+register_chat_channel_player_command_handler!(ChatChannelUnban);
+register_chat_channel_player_command_handler!(ChatChannelUnmoderator);
+register_chat_channel_player_command_handler!(ChatChannelUnsilenceAll);
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::ChatChannelPassword,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_chat_channel_password",
     }
 }
 
@@ -941,6 +1002,86 @@ impl crate::session::WorldSession {
         // ChannelMgr, system-zone channel validation, custom channel creation,
         // password handling, hyperlink kick checks, and system channel validation
         // are not represented yet.
+    }
+
+    /// CMSG_CHAT_LEAVE_CHANNEL.
+    /// C++ ref: `WorldSession::HandleLeaveChannel`.
+    pub async fn handle_chat_leave_channel(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let request = match LeaveChannel::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "LeaveChannel parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        if request.channel_name.is_empty() && request.zone_channel_id == 0 {
+            return;
+        }
+
+        // ChannelMgr/system-channel zone validation and LeaveChannel fanout are not
+        // represented yet. With no resolved channel this is silent like C++.
+    }
+
+    /// CMSG_CHAT_CHANNEL_{ANNOUNCEMENTS,DECLINE_INVITE,DISPLAY_LIST,LIST,OWNER}.
+    /// C++ ref: `WorldSession::HandleChannelCommand`.
+    pub async fn handle_chat_channel_command(&mut self, mut pkt: wow_packet::WorldPacket) {
+        if let Err(error) = ChannelCommand::read(&mut pkt) {
+            warn!(
+                account = self.account_id,
+                "ChannelCommand parse failed: {error}"
+            );
+        }
+
+        // Channel lookup and command execution require ChannelMgr and are not represented
+        // yet. Missing channel is silent like C++.
+    }
+
+    /// CMSG_CHAT_CHANNEL_* player-targeted commands.
+    /// C++ ref: `WorldSession::HandleChannelPlayerCommand`.
+    pub async fn handle_chat_channel_player_command(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let request = match ChannelPlayerCommand::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "ChannelPlayerCommand parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        if request.name.len() >= MAX_CHANNEL_NAME_STR_LIKE_CPP {
+            return;
+        }
+
+        // normalizePlayerName, ChannelMgr lookup, and the concrete channel action are not
+        // represented yet. Missing/invalid channel remains silent like C++.
+    }
+
+    /// CMSG_CHAT_CHANNEL_PASSWORD.
+    /// C++ ref: `WorldSession::HandleChannelPassword`.
+    pub async fn handle_chat_channel_password(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let request = match ChannelPassword::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "ChannelPassword parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        if request.password.len() > MAX_CHANNEL_PASS_STR_LIKE_CPP {
+            return;
+        }
+
+        // ChannelMgr lookup and Password() mutation are not represented yet. Missing
+        // channel is silent like C++.
     }
 
     /// CMSG_MOUNT_SET_FAVORITE — toggle the favorite bit on a known account mount.
@@ -5137,6 +5278,63 @@ mod tests {
             join_channel_custom_precheck_like_cpp(&request),
             JoinChannelPrecheckLikeCpp::PasswordTooLong
         );
+    }
+
+    #[tokio::test]
+    async fn chat_leave_channel_empty_request_is_silent_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_int32(0);
+        pkt.write_bits(0, 7);
+        pkt.reset_read();
+
+        session.handle_chat_leave_channel(pkt).await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn chat_channel_command_without_channel_mgr_is_silent_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bits(5, 7);
+        pkt.write_string("Trade");
+        pkt.reset_read();
+
+        session.handle_chat_channel_command(pkt).await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn chat_channel_player_command_too_long_name_is_silent_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let player_name = "P".repeat(MAX_CHANNEL_NAME_STR_LIKE_CPP);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bits(5, 7);
+        pkt.write_bits(player_name.len() as u32, 9);
+        pkt.write_string("Trade");
+        pkt.write_string(&player_name);
+        pkt.reset_read();
+
+        session.handle_chat_channel_player_command(pkt).await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn chat_channel_password_without_channel_mgr_is_silent_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bits(5, 7);
+        pkt.write_bits(4, 7);
+        pkt.write_string("Trade");
+        pkt.write_string("pass");
+        pkt.reset_read();
+
+        session.handle_chat_channel_password(pkt).await;
+
+        assert!(send_rx.try_recv().is_err());
     }
 
     #[tokio::test]

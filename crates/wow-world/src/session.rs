@@ -16249,6 +16249,30 @@ impl WorldSession {
             ClientOpcodes::ChatJoinChannel => {
                 self.handle_chat_join_channel(pkt).await;
             }
+            ClientOpcodes::ChatLeaveChannel => {
+                self.handle_chat_leave_channel(pkt).await;
+            }
+            ClientOpcodes::ChatChannelAnnouncements
+            | ClientOpcodes::ChatChannelDeclineInvite
+            | ClientOpcodes::ChatChannelDisplayList
+            | ClientOpcodes::ChatChannelList
+            | ClientOpcodes::ChatChannelOwner => {
+                self.handle_chat_channel_command(pkt).await;
+            }
+            ClientOpcodes::ChatChannelBan
+            | ClientOpcodes::ChatChannelInvite
+            | ClientOpcodes::ChatChannelKick
+            | ClientOpcodes::ChatChannelModerator
+            | ClientOpcodes::ChatChannelSetOwner
+            | ClientOpcodes::ChatChannelSilenceAll
+            | ClientOpcodes::ChatChannelUnban
+            | ClientOpcodes::ChatChannelUnmoderator
+            | ClientOpcodes::ChatChannelUnsilenceAll => {
+                self.handle_chat_channel_player_command(pkt).await;
+            }
+            ClientOpcodes::ChatChannelPassword => {
+                self.handle_chat_channel_password(pkt).await;
+            }
             ClientOpcodes::DbQueryBulk => {
                 match wow_packet::packets::misc::DbQueryBulk::read(&mut pkt) {
                     Ok(query) => self.handle_db_query_bulk(query).await,

@@ -49,6 +49,81 @@ impl ClientPacket for JoinChannel {
     }
 }
 
+/// C++ `WorldPackets::Channel::LeaveChannel`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LeaveChannel {
+    pub zone_channel_id: i32,
+    pub channel_name: String,
+}
+
+impl ClientPacket for LeaveChannel {
+    const OPCODE: ClientOpcodes = ClientOpcodes::ChatLeaveChannel;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let zone_channel_id = pkt.read_int32()?;
+        let channel_len = pkt.read_bits(7)? as usize;
+        let channel_name = pkt.read_string(channel_len)?;
+
+        Ok(Self {
+            zone_channel_id,
+            channel_name,
+        })
+    }
+}
+
+/// C++ `WorldPackets::Channel::ChannelCommand`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChannelCommand {
+    pub channel_name: String,
+}
+
+impl ChannelCommand {
+    pub fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let channel_len = pkt.read_bits(7)? as usize;
+        let channel_name = pkt.read_string(channel_len)?;
+        Ok(Self { channel_name })
+    }
+}
+
+/// C++ `WorldPackets::Channel::ChannelPlayerCommand`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChannelPlayerCommand {
+    pub channel_name: String,
+    pub name: String,
+}
+
+impl ChannelPlayerCommand {
+    pub fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let channel_len = pkt.read_bits(7)? as usize;
+        let name_len = pkt.read_bits(9)? as usize;
+        let channel_name = pkt.read_string(channel_len)?;
+        let name = pkt.read_string(name_len)?;
+        Ok(Self { channel_name, name })
+    }
+}
+
+/// C++ `WorldPackets::Channel::ChannelPassword`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChannelPassword {
+    pub channel_name: String,
+    pub password: String,
+}
+
+impl ClientPacket for ChannelPassword {
+    const OPCODE: ClientOpcodes = ClientOpcodes::ChatChannelPassword;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let channel_len = pkt.read_bits(7)? as usize;
+        let password_len = pkt.read_bits(7)? as usize;
+        let channel_name = pkt.read_string(channel_len)?;
+        let password = pkt.read_string(password_len)?;
+        Ok(Self {
+            channel_name,
+            password,
+        })
+    }
+}
+
 // ── SMSG_CHANNEL_NOTIFY ───────────────────────────────────────────
 
 /// C++ `WorldPackets::Channel::ChannelNotify`.
@@ -554,6 +629,58 @@ mod tests {
         assert_eq!(packet.chat_channel_id, 0);
         assert!(!packet.create_voice_session);
         assert!(!packet.internal);
+        assert_eq!(packet.channel_name, "Trade");
+        assert_eq!(packet.password, "pass");
+    }
+
+    #[test]
+    fn leave_channel_reads_cpp_layout() {
+        let mut writer = WorldPacket::new_empty();
+        writer.write_int32(2);
+        writer.write_bits(5, 7);
+        writer.write_string("Trade");
+
+        let mut reader = WorldPacket::from_bytes(writer.data());
+        let packet = LeaveChannel::read(&mut reader).unwrap();
+        assert_eq!(packet.zone_channel_id, 2);
+        assert_eq!(packet.channel_name, "Trade");
+    }
+
+    #[test]
+    fn channel_command_reads_cpp_layout() {
+        let mut writer = WorldPacket::new_empty();
+        writer.write_bits(7, 7);
+        writer.write_string("Looking");
+
+        let mut reader = WorldPacket::from_bytes(writer.data());
+        let packet = ChannelCommand::read(&mut reader).unwrap();
+        assert_eq!(packet.channel_name, "Looking");
+    }
+
+    #[test]
+    fn channel_player_command_reads_cpp_layout() {
+        let mut writer = WorldPacket::new_empty();
+        writer.write_bits(5, 7);
+        writer.write_bits(6, 9);
+        writer.write_string("Trade");
+        writer.write_string("Player");
+
+        let mut reader = WorldPacket::from_bytes(writer.data());
+        let packet = ChannelPlayerCommand::read(&mut reader).unwrap();
+        assert_eq!(packet.channel_name, "Trade");
+        assert_eq!(packet.name, "Player");
+    }
+
+    #[test]
+    fn channel_password_reads_cpp_layout() {
+        let mut writer = WorldPacket::new_empty();
+        writer.write_bits(5, 7);
+        writer.write_bits(4, 7);
+        writer.write_string("Trade");
+        writer.write_string("pass");
+
+        let mut reader = WorldPacket::from_bytes(writer.data());
+        let packet = ChannelPassword::read(&mut reader).unwrap();
         assert_eq!(packet.channel_name, "Trade");
         assert_eq!(packet.password, "pass");
     }
