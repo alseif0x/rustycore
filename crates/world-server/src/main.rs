@@ -365,6 +365,8 @@ async fn main() -> Result<()> {
     // ─────────────────────────────────────────────────────────────────────
 
     let hotfix_db = Arc::new(hotfix_db);
+    let realm_id: u16 = wow_config::get_value("RealmID").unwrap_or(1);
+    clear_online_accounts_like_cpp(&login_db, &char_db, realm_id).await?;
 
     // Initialize GUID generator from MAX(guid) in characters table
     let max_guid = {
@@ -1576,9 +1578,7 @@ async fn main() -> Result<()> {
         "Loaded reputation_spillover_template like C++"
     );
 
-    // Get realm ID and load build-specific auth seed
-    let realm_id: u16 = wow_config::get_value("RealmID").unwrap_or(1);
-
+    // Load build-specific auth seed
     let (realm_build, win64_auth_seed) = load_realm_auth_seed(&login_db, realm_id).await?;
     info!("Realm {realm_id} build {realm_build}, Win64AuthSeed loaded");
 
@@ -2413,6 +2413,10 @@ async fn main() -> Result<()> {
 
     game_event_quest_complete_handle.abort();
 
+    if let Err(e) = clear_online_accounts_like_cpp(&login_db, char_db.as_ref(), realm_id).await {
+        tracing::error!("Failed to clear online account state for realm {realm_id}: {e}");
+    }
+
     if let Err(e) = set_realm_offline(&login_db, realm_id).await {
         tracing::error!("Failed to mark realm {realm_id} offline: {e}");
     }
@@ -2433,6 +2437,41 @@ async fn set_realm_online(login_db: &LoginDatabase, realm_id: u16) -> Result<()>
 
     info!("Realm {realm_id} marked online");
     Ok(())
+}
+
+async fn clear_online_accounts_like_cpp(
+    login_db: &LoginDatabase,
+    character_db: &CharacterDatabase,
+    realm_id: u16,
+) -> Result<()> {
+    let [account_sql, character_sql, battleground_sql] =
+        clear_online_accounts_sql_like_cpp(realm_id);
+
+    login_db
+        .direct_execute(&account_sql)
+        .await
+        .context("Failed to clear stale online account flags")?;
+    character_db
+        .direct_execute(&character_sql)
+        .await
+        .context("Failed to clear stale online character flags")?;
+    character_db
+        .direct_execute(&battleground_sql)
+        .await
+        .context("Failed to clear stale battleground instance ids")?;
+
+    info!("Cleared stale online account state for realm {realm_id}");
+    Ok(())
+}
+
+fn clear_online_accounts_sql_like_cpp(realm_id: u16) -> [String; 3] {
+    [
+        format!(
+            "UPDATE account SET online = 0 WHERE online > 0 AND id IN (SELECT acctid FROM realmcharacters WHERE realmid = {realm_id})"
+        ),
+        "UPDATE characters SET online = 0 WHERE online <> 0".to_string(),
+        "UPDATE character_battleground_data SET instanceId = 0".to_string(),
+    ]
 }
 
 async fn set_realm_offline(login_db: &LoginDatabase, realm_id: u16) -> Result<()> {
@@ -8613,7 +8652,7 @@ mod tests {
         build_loaded_grid_creature_respawn_record_like_cpp,
         build_loaded_grid_creature_spawn_group_spawn_record_like_cpp,
         build_loaded_grid_gameobject_respawn_record_like_cpp,
-        canonical_map_update_tick_set_inactive_like_cpp,
+        canonical_map_update_tick_set_inactive_like_cpp, clear_online_accounts_sql_like_cpp,
         collect_legacy_creature_aggro_candidates_like_cpp,
         collect_legacy_creature_aggro_candidates_with_canonical_like_cpp,
         consume_game_event_live_update_side_effects_like_cpp,
@@ -9219,6 +9258,24 @@ mod tests {
                 MapObjectRecord::new_game_object(gameobject).unwrap(),
             )
             .expect("test gameobject add to map");
+    }
+
+    #[test]
+    fn clear_online_accounts_sql_matches_cpp_startdb_cleanup() {
+        let [account_sql, character_sql, battleground_sql] = clear_online_accounts_sql_like_cpp(3);
+
+        assert_eq!(
+            account_sql,
+            "UPDATE account SET online = 0 WHERE online > 0 AND id IN (SELECT acctid FROM realmcharacters WHERE realmid = 3)"
+        );
+        assert_eq!(
+            character_sql,
+            "UPDATE characters SET online = 0 WHERE online <> 0"
+        );
+        assert_eq!(
+            battleground_sql,
+            "UPDATE character_battleground_data SET instanceId = 0"
+        );
     }
 
     #[test]

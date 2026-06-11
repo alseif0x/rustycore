@@ -232,7 +232,7 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
 - **`CreatePIDFile`**: missing.
 - **`SecretMgr::Initialize(SECRET_OWNER_WORLDSERVER)`**: missing.
 - **`ScanLocalNetworks`**: there is `get_address_for_client` which approximates TC's behaviour but only checks `/24` against `realm_local_address`, not the full set of host interfaces.
-- **`ClearOnlineAccounts`** at boot: missing — stale `online = 1` rows linger across crashes.
+- **`ClearOnlineAccounts` present** at boot and shutdown: Rust clears `account.online` for accounts with characters on this realm, clears `characters.online`, and resets `character_battleground_data.instanceId` like TC.
 - **`UPDATE realmlist SET flag = flag | OFFLINE`** at boot / `& ~OFFLINE` after listener-up / on shutdown: missing. The realm is "always online" from the realmlist's POV.
 - **`LoadRealmInfo`** equivalent: only loads gamebuild/seed/addresses; doesn't populate a global `realm` struct equivalent — addresses are passed via `SessionResources`.
 - **`sRealmList->Initialize(io, RealmsStateUpdateDelay)`** background refresh of cross-realm registry: missing. (Single-realm setups don't notice; multi-realm wouldn't work.)
@@ -325,7 +325,7 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
 - [ ] **#WS.1** Implement `World` singleton (or equivalent state holder): `is_stopped() -> bool`, `stop_now(exit_code: i32)`, `get_exit_code() -> i32`, `m_world_loop_counter: AtomicU32`. (M)
 - [ ] **#WS.2** Implement a global `WorldUpdateLoop` task that ticks `MapManager` + (eventually) every `WorldSession` from one place, at a `MinWorldUpdateTime` cadence. Increment the loop counter each iteration. (XL — coupled to migrating sessions off per-task ticks; cf. `_attic/` notes)
 - [ ] **#WS.3** Implement `FreezeDetector`: `tokio::time::interval(1s)`; reads `m_world_loop_counter`; if unchanged for `MaxCoreStuckTime` ms, `tracing::error!` + `std::process::abort()`. (M)
-- [ ] **#WS.4** Implement `ClearOnlineAccounts()` — call at boot and at shutdown; three queries listed in §6. (L)
+- [x] **#WS.4** Implement `ClearOnlineAccounts()` — called at boot and shutdown; mirrors TC's three queries: account online flags for this realm, character online flags, and battleground instance ids.
 - [ ] **#WS.5** Implement realmlist OFFLINE flag toggle at boot + listener-ready + shutdown. (L)
 - [ ] **#WS.6** DB keep-alive: every `MaxPingTime` minutes, `SELECT 1` against each of the 4 pools. (L)
 - [ ] **#WS.7** Implement `AppenderDB` equivalent for `tracing`: a layer that batches log records into `logs.logs` table. Optional. (M)
@@ -512,7 +512,7 @@ Otherwise the boot sequence is largely on-parity for what's implemented (4 DB po
 | `sWorld->KickAll()` (save + send logout) | — | ❌ missing (#WS.15) |
 | `sWorld->UpdateSessions(1)` final flush | — | ❌ missing |
 | `sWorldSocketMgr.StopNetwork()` | listener task drop | ⚠️ implicit, no drain |
-| `ClearOnlineAccounts()` | — | ❌ missing (#WS.4) |
+| `ClearOnlineAccounts()` | `clear_online_accounts_like_cpp` at boot + shutdown | ✅ |
 | `WorldPackets::Auth::ConnectTo::ShutdownEncryption()` / `EnterEncryptedMode::ShutdownEncryption()` | — | ✅ irrelevant (per-session keys in Rust) |
 | `ioContextStopHandle.reset()` | — | ✅ implicit (Tokio runtime drops) |
 | `threadPool.reset()` | — | ✅ implicit |
@@ -649,7 +649,7 @@ This is acceptable divergence **for packet dispatch** (Tokio gives us the per-se
 | Global `World` singleton + `is_stopped()` / `stop_now(exit)` flag | High | #WS.1 |
 | Global `WorldUpdateLoop` driving `MapManager::update(diff)` + session ticks | **Critical** | #WS.2 |
 | `FreezeDetector` (process abort on tick stall) | High | #WS.3 |
-| `ClearOnlineAccounts` at boot + shutdown | Medium | #WS.4 |
+| `ClearOnlineAccounts` at boot + shutdown | Medium | ✅ #WS.4 |
 | Realmlist OFFLINE flag toggle (boot / listener-up / shutdown) | Medium | #WS.5 |
 | DB keep-alive ping (`MaxPingTime`) | Medium | #WS.6 |
 | `AppenderDB` for `tracing` (logs into `logs.logs` table) | Low | #WS.7 |
@@ -687,5 +687,4 @@ The §9 list is largely correct; recommended **reorder by priority** (no renumbe
 - [ ] **#WS.23** Move `time_sync_timer_ms` and `logout_time` ticks (currently in `session.rs:1130-1144`) to the global tick after #WS.2 lands; per-session sleep should only drive packet drain, not gameplay timers. (M)
 - [ ] **#WS.24** Add `sd_notify(WATCHDOG=1)` from the freeze detector when running under systemd, so the supervisor can do its own watchdog independent of `MaxCoreStuckTime`. (S)
 - [ ] **#WS.25** Wire `LoginDatabase.WarnAboutSyncQueries(true)` equivalent: log a warning when a "sync" query is issued from inside a tick (TC's safety net for accidental synchronous DB calls on the world thread). Likely impl: a debug-only `tokio::task::block_in_place` audit. (M)
-
 
