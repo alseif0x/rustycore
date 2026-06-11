@@ -238,7 +238,7 @@ impl WorldSession {
             );
             return;
         }
-        if !validate_message_like_cpp(&mut msg.text, false) {
+        if !validate_message_like_cpp(&mut msg.text, self.chat_fake_message_preventing_like_cpp()) {
             tracing::warn!(
                 account = self.account_id,
                 ty = ?msg_type,
@@ -357,7 +357,7 @@ impl WorldSession {
             );
             return;
         }
-        if !validate_message_like_cpp(&mut msg.text, false) {
+        if !validate_message_like_cpp(&mut msg.text, self.chat_fake_message_preventing_like_cpp()) {
             tracing::warn!(
                 account = self.account_id,
                 "Whisper rejected: invalid character/control sequence"
@@ -461,7 +461,7 @@ impl WorldSession {
         if msg.text.len() > 511 {
             return;
         }
-        if !validate_message_like_cpp(&mut msg.text, false) {
+        if !validate_message_like_cpp(&mut msg.text, self.chat_fake_message_preventing_like_cpp()) {
             tracing::warn!(
                 account = self.account_id,
                 "AFK message rejected: invalid character/control sequence"
@@ -494,7 +494,7 @@ impl WorldSession {
         if msg.text.len() > 511 {
             return;
         }
-        if !validate_message_like_cpp(&mut msg.text, false) {
+        if !validate_message_like_cpp(&mut msg.text, self.chat_fake_message_preventing_like_cpp()) {
             tracing::warn!(
                 account = self.account_id,
                 "DND message rejected: invalid character/control sequence"
@@ -572,7 +572,7 @@ impl WorldSession {
         if msg.text.is_empty() {
             return;
         }
-        if !validate_message_like_cpp(&mut msg.text, false) {
+        if !validate_message_like_cpp(&mut msg.text, self.chat_fake_message_preventing_like_cpp()) {
             tracing::warn!(
                 account = self.account_id,
                 "Text emote rejected: invalid character/control sequence"
@@ -1530,6 +1530,41 @@ mod tests {
 
         assert!(sender_rx.try_recv().is_err());
         assert!(nearby_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn say_collapses_multiple_spaces_when_fake_message_preventing_enabled_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 383);
+        let (mut session, _player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
+        session.set_chat_fake_message_preventing_like_cpp(true);
+
+        session
+            .handle_chat_message(
+                chat_message_packet(ClientOpcodes::ChatMessageSay, "hello   fake    spacing"),
+                ChatMsg::Say,
+            )
+            .await;
+
+        let echo = sender_rx.try_recv().expect("sender echo");
+        assert_eq!(chat_slash_cmd(&echo), ChatMsg::Say as u8);
+        assert_eq!(chat_text(&echo), "hello fake spacing");
+    }
+
+    #[tokio::test]
+    async fn say_preserves_multiple_spaces_when_fake_message_preventing_disabled_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 384);
+        let (mut session, _player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
+
+        session
+            .handle_chat_message(
+                chat_message_packet(ClientOpcodes::ChatMessageSay, "hello   fake    spacing"),
+                ChatMsg::Say,
+            )
+            .await;
+
+        let echo = sender_rx.try_recv().expect("sender echo");
+        assert_eq!(chat_slash_cmd(&echo), ChatMsg::Say as u8);
+        assert_eq!(chat_text(&echo), "hello   fake    spacing");
     }
 
     #[tokio::test]

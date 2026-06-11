@@ -2173,6 +2173,11 @@ async fn main() -> Result<()> {
             7,
         ),
         enable_ae_loot: world_config_bool(&world_configs, "CONFIG_ENABLE_AE_LOOT", false),
+        chat_fake_message_preventing: world_config_bool(
+            &world_configs,
+            "CONFIG_CHAT_FAKE_MESSAGE_PREVENTING",
+            false,
+        ),
         realm_id,
         realm_external_address,
         realm_local_address,
@@ -7436,6 +7441,7 @@ async fn create_session(
     session.set_reputation_rates_like_cpp(resources.reputation_rates);
     session.set_repair_cost_rate_like_cpp(resources.repair_cost_rate);
     session.set_enable_ae_loot_like_cpp(resources.enable_ae_loot);
+    session.set_chat_fake_message_preventing_like_cpp(resources.chat_fake_message_preventing);
     session.set_mmap_runtime_config_like_cpp(mmap_runtime_config);
     if let Some(pathfinder) = mmap_pathfinder {
         session.set_mmap_pathfinder_like_cpp(pathfinder);
@@ -8685,6 +8691,13 @@ mod tests {
             gray_level: 0,
             display_id: 49,
             visible_items: [(0, 0, 0); 19],
+            lifetime_honorable_kills: 0,
+            this_week_contribution: 0,
+            yesterday_contribution: 0,
+            today_honorable_kills: 0,
+            yesterday_honorable_kills: 0,
+            lifetime_max_rank: 0,
+            honor_level: 0,
         }
     }
 
@@ -10931,6 +10944,20 @@ MaxRecruitAFriendBonusDistance = 45
     }
 
     #[test]
+    fn chat_fake_message_preventing_uses_cpp_world_config_key() {
+        let _guard = TEST_LOCK.lock().expect("test lock poisoned");
+        wow_config::load_config_from_str("ChatFakeMessagePreventing = 1\n")
+            .expect("config should load");
+
+        let configs = wow_config::load_world_config_values();
+        assert!(world_config_bool(
+            &configs,
+            "CONFIG_CHAT_FAKE_MESSAGE_PREVENTING",
+            false
+        ));
+    }
+
+    #[test]
     fn mmap_runtime_config_uses_cpp_world_config_key_and_data_dir() {
         let _guard = TEST_LOCK.lock().expect("test lock poisoned");
         wow_config::load_config_from_str(
@@ -13028,6 +13055,7 @@ mmap.enablePathFinding = 0
             sender_name: String::new(),
             target_guid: ObjectGuid::EMPTY,
             target_name: String::new(),
+            prefix: String::new(),
             channel: String::new(),
             text: "|cffff0000[Event Message]: Darkmoon Faire|r".to_string(),
             virtual_realm: 0,
@@ -13119,6 +13147,7 @@ mmap.enablePathFinding = 0
             sender_name: String::new(),
             target_guid: ObjectGuid::EMPTY,
             target_name: String::new(),
+            prefix: String::new(),
             channel: String::new(),
             text: "|cffff0000[Event Message]: Darkmoon Faire|r".to_string(),
             virtual_realm: 0,
@@ -13586,6 +13615,13 @@ mmap.enablePathFinding = 0
                 gray_level: 0,
                 display_id: 49,
                 visible_items: [(0, 0, 0); 19],
+                lifetime_honorable_kills: 0,
+                this_week_contribution: 0,
+                yesterday_contribution: 0,
+                today_honorable_kills: 0,
+                yesterday_honorable_kills: 0,
+                lifetime_max_rank: 0,
+                honor_level: 0,
             },
         );
 

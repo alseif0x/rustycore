@@ -24,7 +24,7 @@ Bool	CONFIG_QUEST_IGNORE_RAID	server/game/World/World.h:125	Quests.IgnoreRaid	Bo
 Bool	CONFIG_CHAT_PARTY_RAID_WARNINGS	server/game/World/World.h:126	PartyRaidWarnings	Bool	server/game/World/World.cpp:1704	false		missing_in_rust	-
 Bool	CONFIG_DETECT_POS_COLLISION	server/game/World/World.h:127	DetectPosCollision	Bool	server/game/World/World.cpp:1290	true		missing_in_rust	-
 Bool	CONFIG_RESTRICTED_LFG_CHANNEL	server/game/World/World.h:128	Channel.RestrictedLfg	Bool	server/game/World/World.cpp:1292	true		missing_in_rust	-
-Bool	CONFIG_CHAT_FAKE_MESSAGE_PREVENTING	server/game/World/World.h:129	ChatFakeMessagePreventing	Bool	server/game/World/World.cpp:1294	false		missing_in_rust	-
+Bool	CONFIG_CHAT_FAKE_MESSAGE_PREVENTING	server/game/World/World.h:129	ChatFakeMessagePreventing	Bool	server/game/World/World.cpp:1294	false		represented	consumed by world-server SessionResources and WorldSession chat validation
 Bool	CONFIG_DEATH_CORPSE_RECLAIM_DELAY_PVP	server/game/World/World.h:130	Death.CorpseReclaimDelay.PvP	Bool	server/game/World/World.cpp:1307	true		missing_in_rust	-
 Bool	CONFIG_DEATH_CORPSE_RECLAIM_DELAY_PVE	server/game/World/World.h:131	Death.CorpseReclaimDelay.PvE	Bool	server/game/World/World.cpp:1308	true		missing_in_rust	-
 Bool	CONFIG_DEATH_BONES_WORLD	server/game/World/World.h:132	Death.Bones.World	Bool	server/game/World/World.cpp:1309	true		missing_in_rust	-

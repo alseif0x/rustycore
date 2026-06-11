@@ -3119,6 +3119,8 @@ pub struct WorldSession {
     watched_faction_index_like_cpp: i32,
     /// C++ `CONFIG_ENABLE_AE_LOOT` represented switch.
     enable_ae_loot_like_cpp: bool,
+    /// C++ `CONFIG_CHAT_FAKE_MESSAGE_PREVENTING` represented switch for chat validation.
+    chat_fake_message_preventing_like_cpp: bool,
     /// C++ `CONFIG_ENABLE_MMAPS` + `DataDir` represented until map lifecycle owns real mmaps.
     mmap_runtime_config_like_cpp: MMapRuntimeConfigLikeCpp,
     /// C++ `sWaypointMgr->GetPath(pathId)` resolver for session-created legacy `WorldCreature`
@@ -4022,6 +4024,7 @@ impl WorldSession {
             reputation_mgr_like_cpp: ReputationMgrLikeCpp::new_like_cpp(),
             watched_faction_index_like_cpp: -1,
             enable_ae_loot_like_cpp: false,
+            chat_fake_message_preventing_like_cpp: false,
             mmap_runtime_config_like_cpp: MMapRuntimeConfigLikeCpp::default(),
             waypoint_path_resolver_like_cpp: None,
             represented_unique_gameobject_uses: std::collections::HashSet::new(),
@@ -10597,6 +10600,10 @@ impl WorldSession {
         self.enable_ae_loot_like_cpp = enabled;
     }
 
+    pub fn set_chat_fake_message_preventing_like_cpp(&mut self, enabled: bool) {
+        self.chat_fake_message_preventing_like_cpp = enabled;
+    }
+
     pub fn set_mmap_runtime_config_like_cpp(&mut self, config: MMapRuntimeConfigLikeCpp) {
         self.mmap_runtime_config_like_cpp = config;
     }
@@ -10607,6 +10614,10 @@ impl WorldSession {
 
     pub(crate) fn enable_ae_loot_like_cpp(&self) -> bool {
         self.enable_ae_loot_like_cpp
+    }
+
+    pub(crate) fn chat_fake_message_preventing_like_cpp(&self) -> bool {
+        self.chat_fake_message_preventing_like_cpp
     }
 
     pub fn mmap_runtime_config_like_cpp(&self) -> &MMapRuntimeConfigLikeCpp {

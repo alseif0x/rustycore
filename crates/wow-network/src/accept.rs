@@ -197,6 +197,7 @@ pub struct SessionResources {
     pub quest_low_level_hide_diff: u32,
     pub quest_high_level_hide_diff: u32,
     pub enable_ae_loot: bool,
+    pub chat_fake_message_preventing: bool,
     pub realm_id: u16,
     /// External (public) IP from `realmlist.address`.
     pub realm_external_address: [u8; 4],
