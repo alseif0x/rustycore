@@ -155,7 +155,7 @@ Note: `character_social` schema in 3.4.3 is `(guid, friend, flags, note)` — th
 - `crates/wow-packet/src/packets/inspect.rs` — 120 lines — `InspectItem`, `InspectResult`
 
 **What's implemented:**
-- `CMSG_ADD_FRIEND` — name lookup in `characters` table; self-check; already-friend check; insert into `character_social` with `flags=1` (FRIEND); replies with `FRIEND_ADDED_ONLINE`/`OFFLINE`/`ALREADY`/`NOT_FOUND`/`SELF`.
+- `CMSG_ADD_FRIEND` — name lookup in `characters` table; self-check; already-friend check; 50-entry cap; ORs `SOCIAL_FLAG_FRIEND` into `character_social` while preserving existing ignore/mute flags; replies with `FRIEND_ADDED_ONLINE`/`OFFLINE`/`ALREADY`/`NOT_FOUND`/`SELF`/`LIST_FULL`.
 - `CMSG_ADD_IGNORE` — parses C++ `nameLength(9) + AccountGUID + Name`, looks up `characters`, applies self/already/full/not-found gates, and stores per-character `SOCIAL_FLAG_IGNORED` (`flags=2`) in `character_social`. Account-level ignore remains missing.
 - `CMSG_DEL_FRIEND` — parses C++ `QualifiedGUID`, clears `SOCIAL_FLAG_FRIEND` (`flags &= ~1`) and deletes the row only if no flags remain; emits `FRIEND_REMOVED`.
 - `CMSG_DEL_IGNORE` — parses C++ `QualifiedGUID`, clears `SOCIAL_FLAG_IGNORED` (`flags &= ~2`) and deletes the row only if no flags remain; emits `FRIEND_IGNORE_REMOVED`. Account-level ignored-account recompute remains missing.
@@ -169,7 +169,6 @@ Note: `character_social` schema in 3.4.3 is `(guid, friend, flags, note)` — th
 - **`CMSG_SET_CONTACT_NOTES`** — unhandled. Notes set at AddFriend time can't be edited afterward.
 - **`CMSG_SOCIAL_CONTRACT_REQUEST`** — unhandled. Some retail clients expect a response and stall the EULA prompt.
 - **Friend-status presence broadcast** — when a player logs in/out/AFK/DND/zones, `SocialMgr::BroadcastToFriendListers` should push `FRIEND_STATUS_ONLINE/AFK/DND/OFFLINE` with new area/level. Rust does NOT broadcast these → friends never see status changes after initial list-fetch.
-- **Friend list limit (`SOCIALMGR_FRIEND_LIMIT=50`)** — not enforced on `AddFriend`; `AddIgnore` enforces `SOCIALMGR_IGNORE_LIMIT=50`.
 - **Enemy-faction check** — `AddFriend` to an enemy is currently allowed; should reply `FRIEND_ENEMY` (0x0A) per Trinity.
 - **`character_social.accountGuid` column** — schema does not include it; Rust hard-codes `account_guid: ObjectGuid::EMPTY` everywhere.
 - **Inspect-achievements** (`CMSG_QUERY_INSPECT_ACHIEVEMENTS` / `SMSG_RESPOND_INSPECT_ACHIEVEMENTS`) — unhandled.
@@ -183,7 +182,7 @@ Note: `character_social` schema in 3.4.3 is `(guid, friend, flags, note)` — th
 - `ContactListPkt.contacts` is built lazily but `QueryPlayerNamesResponse` is sent unconditionally even if empty list — minor wire bloat.
 - `FriendStatusPkt.status: u8` is `1` for online, `0` for offline — does NOT include AFK (0x02)/DND (0x04)/RAF (0x08) bitflag composition.
 - `InspectResult` has `target_name` — but C++ never sends the name (client looks it up); spec parity check needed via packet capture.
-- No 50-entry cap → potential unbounded growth + DoS.
+- Enemy-faction check still missing → opposite-faction AddFriend may succeed without the C++ `FRIEND_ENEMY` gate.
 - Inspect handler accesses `entry.visible_items` — assumes the broadcast info is always populated; will crash with `ObjectGuid::EMPTY` if a stale registry entry survives logout.
 
 **Tests existing:**
@@ -201,7 +200,7 @@ Note: `character_social` schema in 3.4.3 is `(guid, friend, flags, note)` — th
 - [ ] **#SOCIAL.5** Implement `CMSG_SET_CONTACT_NOTES` — UPDATE `character_social` SET note. Complejidad: **L**
 - [ ] **#SOCIAL.6** Implement `CMSG_SOCIAL_CONTRACT_REQUEST` — reply with `SMSG_SOCIAL_CONTRACT_REQUEST_RESPONSE { showed_contract: false }` for now. Complejidad: **L**
 - [ ] **#SOCIAL.7** Implement friend-status presence broadcast: on `WorldSession::login`, `logout`, `toggle_afk`, `toggle_dnd`, `change_zone`, call `SocialMgr::broadcast_to_friend_listers` to push `SMSG_FRIEND_STATUS`. Complejidad: **H**
-- [ ] **#SOCIAL.8** Enforce remaining 50-entry cap for `AddFriend` (`SOCIALMGR_FRIEND_LIMIT`); `AddIgnore` already enforces `SOCIALMGR_IGNORE_LIMIT`. Complejidad: **L**
+- [x] **#SOCIAL.8** Enforce 50-entry caps for `AddFriend` (`SOCIALMGR_FRIEND_LIMIT`) and `AddIgnore` (`SOCIALMGR_IGNORE_LIMIT`). Complejidad: **L**
 - [ ] **#SOCIAL.9** Add enemy-faction check on `AddFriend` — reply `FRIEND_ENEMY` (0x0A). Complejidad: **L**
 - [ ] **#SOCIAL.10** Cross-reference ignore list in `handle_chat_whisper` and other chat paths — drop msg if recipient ignores sender (or sender's account). Complejidad: **M**
 - [ ] **#SOCIAL.11** Enrich `SMSG_INSPECT_RESULT` — add talent-spec, glyphs, item enchants & gems display, transmog appearance, guild snapshot (`InspectGuildData`), specialization id. Complejidad: **H**
@@ -238,7 +237,7 @@ Note: `character_social` schema in 3.4.3 is `(guid, friend, flags, note)` — th
 - **Inspect target must be on the same map** in 3.4.3 (no cross-map inspect). Verify `target.map_id == self.current_map_id` before responding.
 - **`SMSG_FRIEND_STATUS` broadcast vs single** — `result == FRIEND_ONLINE/OFFLINE` triggers broadcast to followers; `result == FRIEND_ADDED_*` is a single send to the action-taker only. Mixing them up causes presence storms.
 - **VirtualRealmAddress** — for connected realms (3.4.3 supports this in cross-realm zones), set `virtual_realm_address` on contact entries to the friend's home realm; `native_realm_address` to the same value if same realm. Mismatch == cross-realm flag in client.
-- **`CHAR_REP_CHARACTER_SOCIAL` (REPLACE INTO)** — `(guid, friend)` is the primary key; flags get OR'd by application logic, not by SQL. The current Rust code uses `INSERT IGNORE` which silently fails on flag-toggle — use `ON DUPLICATE KEY UPDATE flags = flags | VALUES(flags)` instead.
+- **`CHAR_REP_CHARACTER_SOCIAL` (REPLACE INTO)** — `(guid, friend)` is the primary key; flags get OR'd by application logic, not by SQL. Rust now mirrors the flag-preserving behavior for `AddFriend`/`AddIgnore` with `ON DUPLICATE KEY UPDATE flags = flags | ...`.
 - **Account-level ignore is essential for trolls**: if not implemented, /ignore is trivially defeated by relogging an alt.
 - **Inspect leaks information** — `SMSG_INSPECT_RESULT` reveals talent build, gear, achievements. Some retail PvP servers gate this by `WORLD_CONFIG_ALLOW_INSPECT_OTHER_FACTION`.
 
@@ -286,7 +285,7 @@ Net effect after the represented `CMSG_ADD_IGNORE`/`CMSG_DEL_IGNORE` slices: cli
 
 | C++ opcode handler | Rust | Verdict |
 |---|---|---|
-| `HandleAddFriendOpcode` | ✅ `social.rs:55-201` (name lookup, self-check, already-friend check, INSERT IGNORE → `character_social`) | partial |
+| `HandleAddFriendOpcode` | ✅ name lookup, self/already/list-full gates, flag-preserving insert/update into `character_social` | partial |
 | `HandleDelFriendOpcode` | ✅ `flags &= ~1`, deletes row only when empty | ok |
 | `HandleContactListOpcode` | ✅ `social.rs:249-359` (JOIN `character_social` × `characters`, plus `QueryPlayerNamesResponse` for name cache) | ok |
 | `HandleAddIgnoreOpcode` | ✅ represented per-character `flags=2`, self/already/full/not-found gates | partial |
@@ -301,12 +300,12 @@ Net effect after the represented `CMSG_ADD_IGNORE`/`CMSG_DEL_IGNORE` slices: cli
 
 ### Other observed bugs / divergences
 
-- `social.rs:160` — `INSERT IGNORE` is used for friend insert. If the row already exists with a different flag bit set (e.g. `flags=2` ignore), the new friend bit is silently dropped instead of being OR'd. Trinity uses `REPLACE INTO` semantics (`CHAR_REP_CHARACTER_SOCIAL`) with application-level OR; the Rust path will fail to add a friend who is already on the user's ignore list.
-- `social.rs:131-133` — self-check returns `FriendsResult::Self_` correctly. ✅
+- `social.rs` — AddFriend now ORs the friend bit into existing social rows, preserving ignore/mute flags. ✅
+- `social.rs` — self-check returns `FriendsResult::Self_` with the target GUID like C++. ✅
 - `social.rs:156` — already-friend check returns `Already`. ✅
 - `social.rs:104` — `SELECT … FROM characters WHERE name = ?` collation is whatever the schema uses; no explicit `COLLATE utf8mb4_general_ci` clause. Behaviour depends on table default collation.
 - `social.rs:128` — `friend_guid = ObjectGuid::create_player(0, friend_guid_raw)` hardcodes realm `0`; cross-realm friends not handled.
-- No 50-entry cap (`SOCIALMGR_FRIEND_LIMIT`) for friends — `AddFriend` will accept the 51st row. `AddIgnore` enforces the C++ ignore cap.
+- `AddFriend` and `AddIgnore` enforce the C++ 50-entry caps. ✅
 - No enemy-faction check — Alliance can friend Horde without `FRIEND_ENEMY (0x0A)`.
 - `FriendStatusPkt.status: u8` set to `1` for online / `0` for offline (e.g. `social.rs:190`); never composes the `FriendStatus` bitmask `ONLINE|AFK|DND|RAF`. Followers will never see `AFK`/`DND` flags on a contact, even after AFK/DND is wired (which it isn't yet).
 - `account_guid: ObjectGuid::EMPTY` everywhere (`social.rs:90,188,235`). `character_social` schema does not include the `accountGuid` column. Account-level ignore is structurally impossible until both schema and capture are added.

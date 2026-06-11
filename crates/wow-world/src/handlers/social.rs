@@ -159,7 +159,7 @@ impl WorldSession {
 
         // Can't add yourself
         if friend_guid == my_guid {
-            send_status!(FriendsResult::Self_, ObjectGuid::EMPTY);
+            send_status!(FriendsResult::Self_, friend_guid);
             return;
         }
 
@@ -185,9 +185,27 @@ impl WorldSession {
             return;
         }
 
-        // Insert into character_social (flags=1 = SOCIAL_FLAG_FRIEND)
+        let friend_count_row =
+            sqlx::query("SELECT COUNT(*) FROM character_social WHERE guid = ? AND flags & 1")
+                .bind(my_guid.counter())
+                .fetch_one(char_db.pool())
+                .await;
+
+        let friend_count = match friend_count_row {
+            Ok(r) => r.try_get::<i64, _>(0).unwrap_or(0),
+            Err(_) => 0,
+        };
+
+        if friend_count >= 50 {
+            send_status!(FriendsResult::ListFull, friend_guid);
+            return;
+        }
+
+        // AddToSocialList ORs the flag into an existing social row; preserve
+        // ignore/mute bits instead of dropping this request with INSERT IGNORE.
         let insert = sqlx::query(
-            "INSERT IGNORE INTO character_social (guid, friend, flags, note) VALUES (?, ?, 1, ?)",
+            "INSERT INTO character_social (guid, friend, flags, note) VALUES (?, ?, 1, ?) \
+             ON DUPLICATE KEY UPDATE flags = flags | 1, note = VALUES(note)",
         )
         .bind(my_guid.counter())
         .bind(friend_guid_raw)
