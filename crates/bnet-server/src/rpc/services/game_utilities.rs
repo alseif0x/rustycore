@@ -6,8 +6,9 @@ use std::collections::HashMap;
 use wow_database::LoginStatements;
 use wow_proto::bgs::protocol::game_utilities::v1::*;
 use wow_proto::bgs::protocol::{Attribute, Variant};
+use wow_proto::status;
 
-use crate::rpc::session::RpcSession;
+use crate::rpc::session::{RpcSession, RpcStatusError};
 use tokio::io::{AsyncRead, AsyncWrite};
 
 pub async fn handle<S: AsyncRead + AsyncWrite + Unpin>(
@@ -305,14 +306,26 @@ async fn join_realm<S: AsyncRead + AsyncWrite + Unpin>(
     let mut server_secret = vec![0u8; 32];
     rand::Rng::fill(&mut rand::thread_rng(), server_secret.as_mut_slice());
 
-    // Combine client + server secrets for session key
+    // Combine client + server secrets for session key.
+    //
+    // TC builds a fixed std::array<uint8, 64> and stores it with setBinary():
+    // first the 32-byte client secret, then the 32-byte server secret.
     tracing::info!(
         "join_realm: client_secret={} bytes, server_secret={} bytes",
         session.client_secret.len(),
         server_secret.len()
     );
-    let mut combined = session.client_secret.clone();
-    combined.extend_from_slice(&server_secret);
+    let combined = match bnet_session_key_data_like_cpp(&session.client_secret, &server_secret) {
+        Some(key) => key,
+        None => {
+            tracing::warn!(
+                "join_realm: rejecting invalid secret lengths client={} server={}",
+                session.client_secret.len(),
+                server_secret.len()
+            );
+            return Err(RpcStatusError::new(status::ERROR_DENIED).into());
+        }
+    };
     tracing::info!(
         "join_realm: combined session key = {} bytes",
         combined.len()
@@ -406,6 +419,17 @@ fn locale_string_to_id(locale: &str) -> u8 {
     }
 }
 
+fn bnet_session_key_data_like_cpp(client_secret: &[u8], server_secret: &[u8]) -> Option<Vec<u8>> {
+    if client_secret.len() != 32 || server_secret.len() != 32 {
+        return None;
+    }
+
+    let mut key_data = Vec::with_capacity(64);
+    key_data.extend_from_slice(client_secret);
+    key_data.extend_from_slice(server_secret);
+    Some(key_data)
+}
+
 // ── Attribute helpers ───────────────────────────────────────────────────────
 
 fn make_blob_attribute(name: &str, value: &[u8]) -> Attribute {
@@ -435,5 +459,28 @@ fn make_uint_attribute(name: &str, value: u64) -> Attribute {
             uint_value: Some(value),
             ..Default::default()
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::bnet_session_key_data_like_cpp;
+
+    #[test]
+    fn bnet_session_key_data_is_raw_client_then_server_secret_like_cpp() {
+        let client_secret: Vec<u8> = (0..32).collect();
+        let server_secret: Vec<u8> = (32..64).collect();
+
+        let key_data = bnet_session_key_data_like_cpp(&client_secret, &server_secret).unwrap();
+
+        assert_eq!(key_data.len(), 64);
+        assert_eq!(&key_data[..32], client_secret.as_slice());
+        assert_eq!(&key_data[32..], server_secret.as_slice());
+    }
+
+    #[test]
+    fn bnet_session_key_data_rejects_non_32_byte_secrets_like_cpp_array_contract() {
+        assert!(bnet_session_key_data_like_cpp(&[0; 31], &[1; 32]).is_none());
+        assert!(bnet_session_key_data_like_cpp(&[0; 32], &[1; 31]).is_none());
     }
 }

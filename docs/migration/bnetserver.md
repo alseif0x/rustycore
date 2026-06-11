@@ -252,7 +252,7 @@ HTTP routes (verb + path):
 **Suspicious / likely divergent (hipótesis pre-auditoría):**
 - **TLS 1.2 only** is correct (WoW 3.4.3 client doesn't speak 1.3) but the cert-loading path differs from TC's `SslContext::Initialize`, which uses Boost.Asio's OpenSSL backend with explicit cipher list pinning. Some clients on uncommon OS/TLS-stack combos may negotiate different ciphers. Worth a `openssl s_client` capture vs TC.
 - **The "BNet RPC" framing** in `rpc/session.rs` claims to mirror C#/TC but the BNet protocol uses a 16-bit length prefix + protobuf with explicit `Header { service_hash, method_id, token, object_id, status, error[], timeout, size }` — verify byte-for-byte that what the client sends is actually decoded correctly (mismatched here ⇒ silent client kick).
-- **`session_key_bnet` storage**: TC writes 64 hex chars (a 32-byte session key encoded as 64 ASCII). Rust expects 64 raw bytes (`varbinary(64)`) in the world-server reader. If bnetserver writes hex strings in Rust as well, the world-server's `try_read::<Vec<u8>>` would get the ASCII bytes, not 32 bytes of key material.
+- **`session_key_bnet` storage**: audited against Trinity C++ and closed in #BNET.11. TC writes 64 raw bytes with `setBinary` (`client_secret[32] || server_secret[32]`) into `varbinary(64)`. Rust writes the same raw 64 bytes via `set_bytes`; the world-server reads the raw bytes and hex-encodes only for the internal auth helper.
 - **No legacy v1 migration** could be silent foot-gun if any pre-existing accounts in the DB are still v1 (most TC dumps are v2 since 2018, but worth checking).
 - **Wrong-pass tracking is in-memory**. TC writes failed login attempts to `account_failedlogins` / `ip_auto_banned` so the ban survives a restart. Rust seems to count in `AppState` only.
 
@@ -420,7 +420,7 @@ HTTP routes (verb + path):
 - [ ] **#BNET.8** Persist wrong-pass attempts in `account_failedlogins` + `ip_auto_banned` (don't only track in-memory). (M)
 - [ ] **#BNET.9** Implement `MigrateLegacyPasswordHashes()`: opt-in one-shot pass that re-derives v2 verifier on first successful v1 login. (M)
 - [ ] **#BNET.10** Add a freeze-style watchdog: if any `tokio::spawn`'d listener task panics or exits unexpectedly, log error and exit non-zero (currently Rust just logs `"REST server stopped"` and waits on the other handle). (L)
-- [ ] **#BNET.11** Verify `session_key_bnet` storage format vs TC: should be **hex string** (64 chars) in MySQL, not raw bytes — align bnetserver writer and world-server reader. (M, code-trace)
+- [x] **#BNET.11** Verify `session_key_bnet` storage format vs TC. Trinity C++ stores **64 raw bytes** with `setBinary` (`client_secret[32] || server_secret[32]`), not a hex string. Rust already wrote raw bytes; the port now enforces the 32+32 byte contract before persisting to avoid invalid keys on malformed realm-list tickets.
 - [ ] **#BNET.12** Multi-thread option: read `Network.Threads` config and (optionally, since Tokio is already multi-threaded) document that the value is informational under the Tokio runtime. (L)
 - [x] **#BNET.13** Add `Banner::Show`-equivalent at startup logging. Rust now logs package version/revision, config file, additional config overlays, env overrides, TLS backend (`rustls`) and relevant dependency versions (`rustls`, `tokio-rustls`, `sqlx`). OpenSSL version is intentionally not logged because Rust uses rustls.
 - [ ] **#BNET.14** Drop-in clean shutdown: on SIGINT/SIGTERM cancel timers, drain in-flight REST requests with a 5 s grace, then `db.close()`. Currently `db.close()` happens but in-flight requests are not drained. (M)
@@ -598,7 +598,7 @@ Resolved since the original audit: `extract_auth_ticket` now mirrors TC's `Extra
 | `GameUtilitiesService.ProcessClientRequest` (RealmList / RealmJoin / LastCharPlayed / RealmListTicket) | full | full | ✅ |
 | `GameUtilitiesService.GetAllValuesForAttribute` (sub-region enumeration) | full | full | ✅ |
 | `AccountService.GetAccountState/GetGameAccountState` | stubs | stubs | ✅ |
-| `session_key_bnet` / `UPD_BNET_GAME_ACCOUNT_LOGIN_INFO` write | TC writes 64 raw bytes via `setBinary` | Rust writes `combined` (`client_secret ‖ server_secret`, expected 64 raw bytes) via `set_bytes` | ✅ assuming `client_secret` is 32 bytes from launcher |
+| `session_key_bnet` / `UPD_BNET_GAME_ACCOUNT_LOGIN_INFO` write | TC writes 64 raw bytes via `setBinary` | Rust writes `client_secret ‖ server_secret` as raw bytes via `set_bytes` and rejects malformed non-32-byte secrets | ✅ |
 
 ### 13.5 Cookie / token signing
 

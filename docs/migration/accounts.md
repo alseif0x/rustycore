@@ -223,7 +223,7 @@ None directly. `AccountMgr` is invoked indirectly through:
 **Suspicious / likely divergent (hipótesis pre-auditoría):**
 - Without RBAC, every gameplay check that should call `HasPermission` is either always-true or hard-coded by gmlevel — needs an audit of `wow-world` for hidden `gmlevel` constants.
 - BNet REST registration may be silently writing rows that don't satisfy the same invariants as `Battlenet::AccountMgr::CreateBattlenetAccount` (specifically the `GetSrpUsername` = SHA256(email) hashing).
-- The Rust `world-server` reads `account.session_key_bnet` as a 64-byte varbinary while C# wrote it as 64 hex chars — see comment in `world-server/src/main.rs::DbAccountLookup`. Cross-check that the BNet REST writes the right form on Rust.
+- The Rust `world-server` reads `account.session_key_bnet` as a 64-byte varbinary. #BNET.11 closed the old C#/hex ambiguity against Trinity C++: TC writes 64 raw bytes with `setBinary`, and Rust writes the same `client_secret[32] || server_secret[32]` raw bytes.
 - `Utf8ToUpperOnlyLatin` semantics (TC's "upper-case Latin only, leave Cyrillic etc. alone") — Rust `.to_uppercase()` is **not** equivalent. Anything that compares username/password/email against a stored value must match this exact normalization or accounts created on the C++ stack will fail to log in via Rust.
 
 **Tests existing:**
@@ -409,7 +409,7 @@ Numera los items para poder referenciarlos desde `MIGRATION_ROADMAP.md` sección
 - **BNet REST login (read-only path) works** — `crates/bnet-server/src/rest/handlers.rs` (~573 LOC) implements SRPv2 verification inline against `battlenet_accounts`, but does **not** route through any `BattlenetAccountMgr` API layer. Account *creation* via REST is therefore not wired.
 - **World-side session-key fetch works** — `crates/wow-network/src/world_socket.rs` uses `SEL_ACCOUNT_INFO_BY_NAME` to bundle session_key + security + expansion from the realm-join ticket. This is a *fast-path* that bypasses RBAC entirely.
 - **No `OnPasswordChange` / `OnEmailChange` script hooks wired** despite `wow-script(s)` crates existing.
-- **`session_key_bnet` storage format risk** — §8 already flags the 64-byte varbinary vs 64-hex-char ambiguity inherited from C# legacy. Cross-reference next time a regression surfaces in BNet REST writes vs world-socket reads.
+- **`session_key_bnet` storage format** — #BNET.11 closed the 64-byte varbinary vs 64-hex-char ambiguity against Trinity C++: WotLK BNet realm join stores 64 raw bytes, not ASCII hex. Future regressions should verify the 32-byte client secret and 32-byte server secret lengths instead.
 - **GM-command surface (`.account *`, `.rbac *`)** entirely absent — depends on a command dispatcher that doesn't yet exist, so #ACC.18 is correctly deferred to a later wave.
 
 **Status verdict:** ❌ not started (no change). The flagged risks (#ACC.2 SRP normalization, #ACC.8-12 RBAC) are real and high-impact. Recommend the migration order: #ACC.2 → #ACC.5 (verify SRP byte-equivalence on a fixture) → #ACC.4 → #ACC.8 → #ACC.10–12 → #ACC.13. Don't try to land RBAC and AccountMgr in one PR — they're separable.

@@ -102,7 +102,7 @@ impl AccountLookup for DbAccountLookup {
             //
             // Columns returned:
             //  0: a.id                  (account_id)
-            //  1: a.session_key_bnet    (hex session key)
+            //  1: a.session_key_bnet    (64 raw bytes; hex-encoded below for auth helper)
             //  2: ba.last_ip
             //  3: ba.locked
             //  4: ba.lock_country
