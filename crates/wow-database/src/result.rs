@@ -39,25 +39,35 @@ pub fn database_field_type_like_cpp(type_name: &str) -> DatabaseFieldTypeLikeCpp
     let upper = type_name.to_ascii_uppercase();
     let unsigned = upper.contains("UNSIGNED");
 
-    if upper.contains("TINYINT") {
+    if upper == "BIT" || upper.contains("BINARY") || upper.contains("BLOB") || upper == "GEOMETRY" {
+        DatabaseFieldTypeLikeCpp::Binary
+    } else if upper == "YEAR" {
+        DatabaseFieldTypeLikeCpp::UInt16
+    } else if upper.contains("TINYINT") || upper == "TINY" || upper == "UNSIGNED TINY" {
         if unsigned {
             DatabaseFieldTypeLikeCpp::UInt8
         } else {
             DatabaseFieldTypeLikeCpp::Int8
         }
-    } else if upper.contains("SMALLINT") {
+    } else if upper.contains("SMALLINT") || upper == "SHORT" || upper == "UNSIGNED SHORT" {
         if unsigned {
             DatabaseFieldTypeLikeCpp::UInt16
         } else {
             DatabaseFieldTypeLikeCpp::Int16
         }
-    } else if upper.contains("BIGINT") {
+    } else if upper.contains("BIGINT") || upper == "LONGLONG" || upper == "UNSIGNED LONGLONG" {
         if unsigned {
             DatabaseFieldTypeLikeCpp::UInt64
         } else {
             DatabaseFieldTypeLikeCpp::Int64
         }
-    } else if upper.contains("MEDIUMINT") || upper.contains("INT") {
+    } else if upper.contains("MEDIUMINT")
+        || upper.contains("INT")
+        || upper == "INT24"
+        || upper == "UNSIGNED INT24"
+        || upper == "LONG"
+        || upper == "UNSIGNED LONG"
+    {
         if unsigned {
             DatabaseFieldTypeLikeCpp::UInt32
         } else {
@@ -69,24 +79,16 @@ pub fn database_field_type_like_cpp(type_name: &str) -> DatabaseFieldTypeLikeCpp
         DatabaseFieldTypeLikeCpp::Double
     } else if upper.contains("DECIMAL") || upper.contains("NUMERIC") {
         DatabaseFieldTypeLikeCpp::Decimal
-    } else if upper.contains("BINARY")
-        || upper.contains("BLOB")
-        || upper.contains("GEOMETRY")
-        || upper.contains("BIT")
-    {
-        DatabaseFieldTypeLikeCpp::Binary
     } else if upper.contains("CHAR")
         || upper.contains("TEXT")
         || upper.contains("ENUM")
         || upper.contains("SET")
         || upper.contains("JSON")
+        || upper == "STRING"
+        || upper == "VAR_STRING"
     {
         DatabaseFieldTypeLikeCpp::Text
-    } else if upper.contains("DATE")
-        || upper.contains("TIME")
-        || upper.contains("YEAR")
-        || upper.contains("TIMESTAMP")
-    {
+    } else if upper.contains("DATE") || upper.contains("TIME") || upper.contains("TIMESTAMP") {
         DatabaseFieldTypeLikeCpp::Date
     } else if upper.contains("NULL") {
         DatabaseFieldTypeLikeCpp::Null
@@ -172,9 +174,24 @@ impl SqlResult {
         self.rows.len()
     }
 
+    /// Total number of rows, named after TC `ResultSet::GetRowCount`.
+    pub fn row_count_like_cpp(&self) -> usize {
+        self.count()
+    }
+
+    /// Total number of rows, named after TC `ResultSet::GetRowCount`.
+    pub fn get_row_count_like_cpp(&self) -> usize {
+        self.count()
+    }
+
     /// Number of columns in the result (0 if empty).
     pub fn field_count(&self) -> usize {
         self.rows.first().map_or(0, |r| r.columns().len())
+    }
+
+    /// Number of columns, named after TC `ResultSet::GetFieldCount`.
+    pub fn get_field_count_like_cpp(&self) -> usize {
+        self.field_count()
     }
 
     /// Read a typed value from the current row at the given column index.
@@ -289,6 +306,11 @@ impl SqlResult {
         SqlFields {
             row: &self.rows[self.current],
         }
+    }
+
+    /// Fetch the current row like TC `ResultSet::Fetch`.
+    pub fn fetch_like_cpp(&self) -> Option<SqlFields<'_>> {
+        self.rows.get(self.current).map(|row| SqlFields { row })
     }
 
     /// Get the column name at the given index.
@@ -422,11 +444,23 @@ mod tests {
             DatabaseFieldTypeLikeCpp::UInt8
         );
         assert_eq!(
+            database_field_type_like_cpp("UNSIGNED TINY"),
+            DatabaseFieldTypeLikeCpp::UInt8
+        );
+        assert_eq!(
             database_field_type_like_cpp("TINYINT"),
             DatabaseFieldTypeLikeCpp::Int8
         );
         assert_eq!(
             database_field_type_like_cpp("SMALLINT UNSIGNED"),
+            DatabaseFieldTypeLikeCpp::UInt16
+        );
+        assert_eq!(
+            database_field_type_like_cpp("UNSIGNED SHORT"),
+            DatabaseFieldTypeLikeCpp::UInt16
+        );
+        assert_eq!(
+            database_field_type_like_cpp("YEAR"),
             DatabaseFieldTypeLikeCpp::UInt16
         );
         assert_eq!(
@@ -438,8 +472,16 @@ mod tests {
             DatabaseFieldTypeLikeCpp::UInt32
         );
         assert_eq!(
+            database_field_type_like_cpp("UNSIGNED LONG"),
+            DatabaseFieldTypeLikeCpp::UInt32
+        );
+        assert_eq!(
             database_field_type_like_cpp("BIGINT"),
             DatabaseFieldTypeLikeCpp::Int64
+        );
+        assert_eq!(
+            database_field_type_like_cpp("UNSIGNED LONGLONG"),
+            DatabaseFieldTypeLikeCpp::UInt64
         );
         assert_eq!(
             database_field_type_like_cpp("DOUBLE"),
@@ -454,7 +496,19 @@ mod tests {
             DatabaseFieldTypeLikeCpp::Binary
         );
         assert_eq!(
+            database_field_type_like_cpp("LONG_BLOB"),
+            DatabaseFieldTypeLikeCpp::Binary
+        );
+        assert_eq!(
+            database_field_type_like_cpp("BIT"),
+            DatabaseFieldTypeLikeCpp::Binary
+        );
+        assert_eq!(
             database_field_type_like_cpp("VARCHAR"),
+            DatabaseFieldTypeLikeCpp::Text
+        );
+        assert_eq!(
+            database_field_type_like_cpp("VAR_STRING"),
             DatabaseFieldTypeLikeCpp::Text
         );
     }
@@ -473,11 +527,20 @@ mod tests {
         assert!(rust_type_compatible_with_database_field_like_cpp::<i16>(
             "SMALLINT"
         ));
+        assert!(rust_type_compatible_with_database_field_like_cpp::<u16>(
+            "YEAR"
+        ));
         assert!(rust_type_compatible_with_database_field_like_cpp::<u32>(
             "INT UNSIGNED"
         ));
+        assert!(rust_type_compatible_with_database_field_like_cpp::<u32>(
+            "UNSIGNED LONG"
+        ));
         assert!(rust_type_compatible_with_database_field_like_cpp::<i64>(
             "BIGINT"
+        ));
+        assert!(rust_type_compatible_with_database_field_like_cpp::<u64>(
+            "UNSIGNED LONGLONG"
         ));
         assert!(rust_type_compatible_with_database_field_like_cpp::<f32>(
             "FLOAT"

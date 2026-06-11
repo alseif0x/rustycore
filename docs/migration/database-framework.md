@@ -570,18 +570,18 @@ Not applicable — the database framework does not handle WoW client packets. (I
   Depends on: #REFINE.020, #REFINE.021; execution order finalized by #REFINE.040
   Acceptance: Rust target compiles; behavior and public contracts are checked against the listed C++ file; unit/golden/integration tests are added or marked n/a with reason; divergences are recorded before closing.
   Notes: closed by `SqlQueryHolder` / `SqlQueryHolderResult`; fixed-size slots, out-of-range `false`, and indexed result access mirror C++.
-- [ ] **#DATABASE_FRAMEWORK.WBS.037** Cerrar la migracion auditada de `database/Database/QueryResult.cpp`
+- [x] **#DATABASE_FRAMEWORK.WBS.037** Cerrar la migracion auditada de `database/Database/QueryResult.cpp`
   C++ refs: `/home/server/woltk-trinity-legacy/src/server/database/Database/QueryResult.cpp`
   Rust target: `crates/wow-database`, `crates/wow-database/src`
   Depends on: #REFINE.020, #REFINE.021; execution order finalized by #REFINE.040
   Acceptance: Rust target compiles; behavior and public contracts are checked against the listed C++ file; unit/golden/integration tests are added or marked n/a with reason; divergences are recorded before closing.
-  Notes: `ready_for_small_task`; Single source-file coverage task; split further if C++ review exposes multiple independent behaviors. Assignment basis: prefix.
-- [ ] **#DATABASE_FRAMEWORK.WBS.038** Cerrar la migracion auditada de `database/Database/QueryResult.h`
+  Notes: closed by `SqlResult` / `SqlFields` cursor APIs plus C++ `FieldTypeToString` metadata classification coverage (`TINY`, `SHORT`, `LONG`, `LONGLONG`, `YEAR`, `BIT`, `BLOB`, `STRING`, `VAR_STRING`). Live MySQL row-buffer ownership is n/a under sqlx.
+- [x] **#DATABASE_FRAMEWORK.WBS.038** Cerrar la migracion auditada de `database/Database/QueryResult.h`
   C++ refs: `/home/server/woltk-trinity-legacy/src/server/database/Database/QueryResult.h`
   Rust target: `crates/wow-database`, `crates/wow-database/src`
   Depends on: #REFINE.020, #REFINE.021; execution order finalized by #REFINE.040
   Acceptance: Rust target compiles; behavior and public contracts are checked against the listed C++ file; unit/golden/integration tests are added or marked n/a with reason; divergences are recorded before closing.
-  Notes: `ready_for_small_task`; Single source-file coverage task; split further if C++ review exposes multiple independent behaviors. Assignment basis: prefix.
+  Notes: closed by TC-compatible row/field count aliases (`row_count_like_cpp`, `get_row_count_like_cpp`, `get_field_count_like_cpp`) and `fetch_like_cpp`, while retaining existing Rust `read` / `try_read` accessors.
 - [ ] **#DATABASE_FRAMEWORK.WBS.039** Cerrar la migracion auditada de `database/Database/Transaction.cpp`
   C++ refs: `/home/server/woltk-trinity-legacy/src/server/database/Database/Transaction.cpp`
   Rust target: `crates/wow-database`, `crates/wow-database/src`
