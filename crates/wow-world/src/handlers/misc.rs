@@ -40,9 +40,9 @@ use wow_packet::packets::misc::{
     AddToy, ArenaTeamRoster, BattlePetClearFanfare, BattlePetDeletePet, BattlePetModifyName,
     BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags, BattlePetSummon,
     BattlePetUpdateNotify, CageBattlePet, CalendarSendCalendar, CalendarSendNumPending,
-    CommerceTokenGetLog, CommerceTokenGetLogResponse, DfGetJoinStatus, DfGetSystemInfo, FarSight,
-    GmTicketCaseStatus, GuildSetAchievementTracking, LfgListBlacklist, LfgPlayerInfo,
-    LfgUpdateStatus, LoadingScreenNotify, MountSetFavorite, QueryBattlePetName,
+    CloseInteraction, CommerceTokenGetLog, CommerceTokenGetLogResponse, DfGetJoinStatus,
+    DfGetSystemInfo, FarSight, GmTicketCaseStatus, GuildSetAchievementTracking, LfgListBlacklist,
+    LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify, MountSetFavorite, QueryBattlePetName,
     QueryBattlePetNameResponse, RatedPvpInfo, RequestBattlefieldStatus,
     RequestCemeteryListResponse, SaveCufProfiles, TaxiNodeStatusPkt, ToyClearFanfare, UseToy,
     ViolenceLevel,
@@ -2660,9 +2660,26 @@ impl crate::session::WorldSession {
     }
 
     /// CMSG_CLOSE_INTERACTION — player closed an NPC interaction window.
-    /// C# ref: MiscHandler.HandleCloseInteraction → resets interaction data.
-    pub async fn handle_close_interaction(&mut self, _pkt: wow_packet::WorldPacket) {
-        // TODO: reset PlayerTalkClass interaction data and stable master.
+    /// C++ ref: `WorldSession::HandleCloseInteraction`.
+    pub async fn handle_close_interaction(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let request = match CloseInteraction::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "CloseInteraction parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        if self.gossip_source_guid == Some(request.source_guid) {
+            self.gossip_source_guid = None;
+            self.gossip_options.clear();
+        }
+
+        // C++ also clears Player::StableMaster when it matches SourceGuid. Rust
+        // does not expose represented stable-master state yet.
     }
 }
 
@@ -4939,6 +4956,53 @@ mod tests {
 
         session.handle_guild_set_achievement_tracking(pkt).await;
 
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn close_interaction_matching_source_clears_gossip_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let source_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 1, 42);
+        session.gossip_source_guid = Some(source_guid);
+        session
+            .gossip_options
+            .push(crate::session::GossipOptionInfo {
+                gossip_option_id: 1,
+                option_npc: 2,
+                action_menu_id: 3,
+            });
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_packed_guid(&source_guid);
+        pkt.reset_read();
+
+        session.handle_close_interaction(pkt).await;
+
+        assert!(session.gossip_source_guid.is_none());
+        assert!(session.gossip_options.is_empty());
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn close_interaction_nonmatching_source_preserves_gossip_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let active_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 1, 43);
+        let other_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 1, 44);
+        session.gossip_source_guid = Some(active_guid);
+        session
+            .gossip_options
+            .push(crate::session::GossipOptionInfo {
+                gossip_option_id: 1,
+                option_npc: 2,
+                action_menu_id: 3,
+            });
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_packed_guid(&other_guid);
+        pkt.reset_read();
+
+        session.handle_close_interaction(pkt).await;
+
+        assert_eq!(session.gossip_source_guid, Some(active_guid));
+        assert_eq!(session.gossip_options.len(), 1);
         assert!(send_rx.try_recv().is_err());
     }
 

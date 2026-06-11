@@ -95,6 +95,22 @@ impl ClientPacket for GuildSetAchievementTracking {
     }
 }
 
+/// C++ `WorldPackets::Misc::CloseInteraction`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CloseInteraction {
+    pub source_guid: ObjectGuid,
+}
+
+impl ClientPacket for CloseInteraction {
+    const OPCODE: ClientOpcodes = ClientOpcodes::CloseInteraction;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            source_guid: pkt.read_packed_guid()?,
+        })
+    }
+}
+
 // ── AccountDataTimes (SMSG 0x270a) ──────────────────────────────────
 
 /// Number of AccountDataTypes (from C# AccountDataTypes.Max = 15).
@@ -4223,6 +4239,17 @@ mod tests {
         pkt.reset_read();
 
         assert!(GuildSetAchievementTracking::read(&mut pkt).is_err());
+    }
+
+    #[test]
+    fn close_interaction_reads_cpp_source_guid() {
+        let source_guid = ObjectGuid::create_player(1, 42);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_packed_guid(&source_guid);
+        pkt.reset_read();
+
+        let parsed = CloseInteraction::read(&mut pkt).unwrap();
+        assert_eq!(parsed.source_guid, source_guid);
     }
 
     #[test]
