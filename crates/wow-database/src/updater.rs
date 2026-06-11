@@ -35,6 +35,7 @@ pub struct DbUpdater {
     user: String,
     pass: String,
     db: String,
+    ssl: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -125,6 +126,7 @@ impl DbUpdater {
         user: &str,
         pass: &str,
         db: &str,
+        ssl: bool,
     ) -> Self {
         Self {
             pool,
@@ -133,6 +135,7 @@ impl DbUpdater {
             user: user.to_string(),
             pass: pass.to_string(),
             db: db.to_string(),
+            ssl,
         }
     }
 
@@ -346,31 +349,15 @@ impl DbUpdater {
     /// where splitting statements would be unreliable (triggers, DELIMITER, etc.).
     fn apply_file_cli(&self, path: &str) -> Result<()> {
         let mut cmd = Command::new("mysql");
-        cmd.arg(format!("-h{}", self.host))
-            .arg(format!("-u{}", self.user));
-
-        if !self.pass.is_empty() {
-            cmd.arg(format!("-p{}", self.pass));
-        }
-
-        if self
-            .port_or_socket
-            .chars()
-            .next()
-            .is_some_and(|ch| ch.is_ascii_digit())
-        {
-            cmd.arg(format!("-P{}", self.port_or_socket));
-        } else {
-            cmd.arg("-P0")
-                .arg("--protocol=SOCKET")
-                .arg(format!("-S{}", self.port_or_socket));
-        }
-
-        cmd.arg("--default-character-set=utf8")
-            .arg("--max-allowed-packet=1GB")
-            .arg("-e")
-            .arg(format!("BEGIN; SOURCE {}; COMMIT;", path))
-            .arg(&self.db);
+        cmd.args(mysql_cli_args_like_cpp(
+            &self.host,
+            &self.port_or_socket,
+            &self.user,
+            &self.pass,
+            &self.db,
+            self.ssl,
+            path,
+        ));
 
         let out = cmd.output()?;
         if !out.status.success() {
@@ -533,6 +520,68 @@ fn sha1_hex(content: &str) -> String {
     let mut hasher = Sha1::new();
     hasher.update(content.as_bytes());
     format!("{:x}", hasher.finalize())
+}
+
+fn mysql_cli_args_like_cpp(
+    host: &str,
+    port_or_socket: &str,
+    user: &str,
+    password: &str,
+    database: &str,
+    ssl: bool,
+    path: &str,
+) -> Vec<String> {
+    let mut args = Vec::with_capacity(12);
+    args.push(format!("-h{host}"));
+    args.push(format!("-u{user}"));
+
+    if !password.is_empty() {
+        args.push(format!("-p{password}"));
+    }
+
+    #[cfg(windows)]
+    {
+        if host == "." {
+            args.push("--protocol=PIPE".to_string());
+        } else {
+            args.push(format!("-P{port_or_socket}"));
+        }
+    }
+
+    #[cfg(not(windows))]
+    {
+        if !port_or_socket
+            .chars()
+            .next()
+            .is_some_and(|ch| ch.is_ascii_digit())
+        {
+            args.push("-P0".to_string());
+            args.push("--protocol=SOCKET".to_string());
+            args.push(format!("-S{port_or_socket}"));
+        } else {
+            args.push(format!("-P{port_or_socket}"));
+        }
+    }
+
+    args.push("--default-character-set=utf8".to_string());
+    args.push("--max-allowed-packet=1GB".to_string());
+
+    if ssl {
+        args.push(mysql_cli_ssl_arg_like_cpp().to_string());
+    }
+
+    args.push("-e".to_string());
+    args.push(format!("BEGIN; SOURCE {path}; COMMIT;"));
+
+    if !database.is_empty() {
+        args.push(database.to_string());
+    }
+
+    args
+}
+
+fn mysql_cli_ssl_arg_like_cpp() -> &'static str {
+    "--ssl"
 }
 
 /// Split a SQL file into individual statements by `;`.
@@ -740,9 +789,10 @@ fn default_updates_include_rows_like_cpp(
 mod tests {
     use super::{
         PopulateBaseActionLikeCpp, UpdateConfigLikeCpp, UpdateDatabaseKindLikeCpp,
-        UpdateDecisionLikeCpp, default_updates_include_rows_like_cpp,
+        UpdateDecisionLikeCpp, default_updates_include_rows_like_cpp, mysql_cli_args_like_cpp,
         populate_base_action_like_cpp, should_cleanup_orphaned_updates_like_cpp,
-        sort_update_files_like_cpp, update_database_kind_like_cpp, update_decision_like_cpp,
+        sort_update_files_like_cpp, split_sql, update_database_kind_like_cpp,
+        update_decision_like_cpp,
     };
     use std::path::PathBuf;
 
@@ -931,5 +981,77 @@ mod tests {
             ),
         ];
         assert!(sort_update_files_like_cpp(&mut duplicate).is_err());
+    }
+
+    #[test]
+    fn mysql_cli_args_honor_socket_and_ssl_like_cpp() {
+        let tcp_args = mysql_cli_args_like_cpp(
+            "127.0.0.1",
+            "3306",
+            "trinity",
+            "trinity",
+            "auth",
+            true,
+            "/repo/sql/base/auth_database.sql",
+        );
+        assert_eq!(
+            tcp_args,
+            vec![
+                "-h127.0.0.1",
+                "-utrinity",
+                "-ptrinity",
+                "-P3306",
+                "--default-character-set=utf8",
+                "--max-allowed-packet=1GB",
+                "--ssl",
+                "-e",
+                "BEGIN; SOURCE /repo/sql/base/auth_database.sql; COMMIT;",
+                "auth",
+            ]
+        );
+
+        let socket_args = mysql_cli_args_like_cpp(
+            "localhost",
+            "/var/run/mysqld/mysqld.sock",
+            "trinity",
+            "",
+            "",
+            false,
+            "/repo/sql/base/auth_database.sql",
+        );
+        assert_eq!(
+            socket_args,
+            vec![
+                "-hlocalhost",
+                "-utrinity",
+                "-P0",
+                "--protocol=SOCKET",
+                "-S/var/run/mysqld/mysqld.sock",
+                "--default-character-set=utf8",
+                "--max-allowed-packet=1GB",
+                "-e",
+                "BEGIN; SOURCE /repo/sql/base/auth_database.sql; COMMIT;",
+            ]
+        );
+    }
+
+    #[test]
+    fn split_sql_handles_comments_quotes_and_escapes() {
+        let sql = r#"
+            -- a semicolon in a line comment; is ignored
+            CREATE TABLE `a` (`text` varchar(64));
+            # another comment; also ignored
+            INSERT INTO `a` VALUES ('semi;colon', "double;quoted", 'escaped \'; quote');
+            /* block; comment */
+            UPDATE `a` SET `text` = 'tail';
+        "#;
+
+        let statements = split_sql(sql);
+        assert_eq!(statements.len(), 3);
+        assert!(statements[0].contains("CREATE TABLE `a`"));
+        assert!(statements[1].contains("'semi;colon'"));
+        assert!(statements[1].contains("\"double;quoted\""));
+        assert!(statements[1].contains("'escaped \\'; quote'"));
+        assert!(statements[2].contains("UPDATE `a` SET"));
     }
 }

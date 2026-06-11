@@ -317,6 +317,7 @@ async fn main() -> Result<()> {
             &login_info.username,
             &login_info.password,
             &login_info.database,
+            login_info.ssl,
         );
         db_updater_step_like_cpp(
             auth_up
@@ -334,6 +335,7 @@ async fn main() -> Result<()> {
             &char_info.username,
             &char_info.password,
             &char_info.database,
+            char_info.ssl,
         );
         db_updater_step_like_cpp(
             char_up
@@ -352,6 +354,7 @@ async fn main() -> Result<()> {
             &world_info.username,
             &world_info.password,
             &world_info.database,
+            world_info.ssl,
         );
         db_updater_step_like_cpp(world_up.update(&src).await, "World", "update")?;
 
@@ -362,6 +365,7 @@ async fn main() -> Result<()> {
             &hotfix_info.username,
             &hotfix_info.password,
             &hotfix_info.database,
+            hotfix_info.ssl,
         );
         db_updater_step_like_cpp(hotfix_up.update(&src).await, "Hotfix", "update")?;
     }

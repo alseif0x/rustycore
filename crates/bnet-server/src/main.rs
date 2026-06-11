@@ -372,6 +372,7 @@ async fn run_database_updates_like_cpp(login_db: &LoginDatabase, login_info: &Da
         &login_info.username,
         &login_info.password,
         &login_info.database,
+        login_info.ssl,
     );
     if let Err(e) = auth_up
         .populate(&format!("{src}/sql/base/auth_database.sql"))

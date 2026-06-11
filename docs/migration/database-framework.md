@@ -330,7 +330,7 @@ Not applicable — the database framework does not handle WoW client packets. (I
 - **`DatabaseWorkerPool::WarnAboutSyncQueries`**: RustyCore now has a task-local diagnostic scope (`warn_about_sync_queries_scope_like_cpp`) used around the current world-server session tick and selected canonical-map DB writes. DB calls made inside that scope emit `sql.performances` warnings. This is an operational diagnostic equivalent, not a sub-pool split: sqlx queries remain async.
 - **`DatabaseWorkerPool::QueueSize`**: no equivalent — no queue exists; sqlx executes immediately on a free pool conn or `await`s for one. The metrics surface that consumed `QueueSize` (`db_queue_*` in TC's metrics) is therefore also gone.
 - **`mysql_library_init` / `mysql_library_end`**: irrelevant — sqlx links against rust-mysql-async/`mysql_async` or against libmysql via FFI, init is automatic.
-- **OpenSSL / TLS to MariaDB**: RustyCore now propagates TC's sixth `*DatabaseInfo` field: no `;ssl` writes `ssl-mode=DISABLED`, while `;ssl` writes `ssl-mode=REQUIRED`. This mirrors TC's `MYSQL_OPT_SSL_MODE` / `MYSQL_OPT_SSL_ENFORCE` boolean behavior. CA / identity verification remains outside the TC `DatabaseInfo` schema for this branch.
+- **OpenSSL / TLS to MariaDB**: RustyCore now propagates TC's sixth `*DatabaseInfo` field: no `;ssl` writes `ssl-mode=DISABLED`, while `;ssl` writes `ssl-mode=REQUIRED` for sqlx pools, and `DbUpdater` passes TC's `--ssl` flag to the `mysql` CLI when applying base SQL files. This mirrors TC's `MYSQL_OPT_SSL_MODE` / `MYSQL_OPT_SSL_ENFORCE` boolean behavior plus `DBUpdater::ApplyFile` CLI arguments. CA / identity verification remains outside the TC `DatabaseInfo` schema for this branch.
 
 **Suspicious / likely divergent (hipótesis pre-auditoría):**
 - The single 10-connection pool is shared across all 4 logical DBs in *some* views of the code? **(Audit: false — each DB has its own pool, see §13.2.)**
@@ -635,7 +635,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 - [x] **#DB.10** Add a `QueryHolder`-style helper: `SqlQueryHolder` stores fixed prepared-statement slots, `Database::delay_query_holder_like_cpp` executes set slots in order and returns `SqlQueryHolderResult` indexed by slot. Empty/unset slots return `None`, matching C++ null `PreparedQueryResult`. Caller migration remains under player/pet load tasks. (M)
 - [ ] **#DB.11** Port the remaining ~493 character prepared statements (cross-ref `INVENTORY.md`, `characters.md`). (XL — split per-domain: inventory, achievements, mails, guilds, BG/arena state, etc.)
 - [x] **#DB.12** Decide hotfix prepared-statement strategy: formalized as `HotfixStatementStrategyLikeCpp::ControlTablesAndSelectedDb2Overlays`. Rust keeps the three `DB2Manager::LoadHotfix*` control-table statements live, ports selected mirror-table overlays as each typed DB2 store consumes them, and keeps generated base/max-id/locale helpers tested against C++ for future overlay expansion. (L)
-- [x] **#DB.13** Implement TLS connection options: the parsed sixth `*DatabaseInfo` field (`;ssl`) is passed through to sqlx as `ssl-mode=REQUIRED`; absence or any other value keeps TC-equivalent `ssl-mode=DISABLED`. (M)
+- [x] **#DB.13** Implement TLS connection options: the parsed sixth `*DatabaseInfo` field (`;ssl`) is passed through to sqlx as `ssl-mode=REQUIRED`; absence or any other value keeps TC-equivalent `ssl-mode=DISABLED`. `DbUpdater` also passes TC's `--ssl` flag to the `mysql` CLI for base-file imports. (M)
 - [x] **#DB.14** Implement `EscapeString` for raw-SQL-fragment use cases: `escape_string_like_cpp` mirrors `mysql_real_escape_string` special-byte escaping (`NUL`, newline, carriage-return, backslash, quotes, Ctrl-Z) for UTF-8 strings, with a `Database` method for pool-style call sites. (L)
 - [x] **#DB.15** Add populate/update error context: Rust reports `Could not populate/update the <DB> database`, and CLI base-file failures include both the SQL file path and `mysql` stderr. `ApplyFile` now also uses TC's `BEGIN; SOURCE file; COMMIT;` wrapper. (L)
 - [ ] **#DB.16** Add integration test harness: spin up an embedded MariaDB (or Docker mariadb:10.6 in CI) and run `populate` + `update` against it; verify updates table population. (H)
@@ -672,7 +672,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 - [x] Test: update decision honors `Updates.Redundancy=false`, `Updates.AllowRehash`, and changed hashes.
 - [x] Test: update decision does **not** re-apply an ARCHIVED-state file when `Updates.ArchivedRedundancy=false`, and does when enabled.
 - [ ] Test: `DbUpdater::update` detects a renamed file (same hash, different filename) and updates the `name` column instead of re-applying.
-- [ ] Test: `split_sql` correctly handles `--` line comments, `#` comments, `/* */` blocks, `'\''` escapes, and `\"` escapes (existing behaviour; pin in tests).
+- [x] Test: `split_sql` correctly handles `--` line comments, `#` comments, `/* */` blocks, `'\''` escapes, and `\"` escapes (existing behaviour; pin in tests).
 - [ ] Test: `SqlResult::read_string` on a `VARBINARY` column returns the UTF-8 string (not panic).
 - [ ] Test: `PreparedStatement` indexed setters with sparse indices fill intermediates with `SqlParam::Null` (already covered).
 - [x] Test: keep-alive config/scope/SQL mirrors C++ (`MaxPingTime`, Character/Login/World only, `SELECT 1`). Runtime timer firing remains a service/integration concern rather than a paused Tokio unit fake.
@@ -768,7 +768,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 | `class UpdateException` | `anyhow::Error` (via `Result<()>`) | — |
 | `class MySQLPreparedStatement` | (none — sqlx caches `MYSQL_STMT` per connection internally) | — |
 | `mysql_library_init` / `mysql_library_end` | (none) | sqlx handles |
-| `MYSQL_OPT_SSL_MODE` / `MYSQL_OPT_SSL_ENFORCE` | sqlx connection-string `?ssl-mode=DISABLED/REQUIRED` | Mirrors TC's `;ssl` boolean switch; CA verification is not part of this branch's `DatabaseInfo` schema |
+| `MYSQL_OPT_SSL_MODE` / `MYSQL_OPT_SSL_ENFORCE` + `DBUpdater::ApplyFile --ssl` | sqlx connection-string `?ssl-mode=DISABLED/REQUIRED` + updater CLI `--ssl` | Mirrors TC's `;ssl` boolean switch; CA verification is not part of this branch's `DatabaseInfo` schema |
 | `mysql_real_escape_string` | `escape_string_like_cpp(value)` | Mirrors MySQL special-byte escaping for UTF-8 strings |
 | `Trinity::Asio::IoContext` (per-pool) | implicit Tokio runtime | — |
 
