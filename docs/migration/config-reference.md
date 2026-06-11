@@ -3,7 +3,7 @@
 > **C++ canonical path:** `src/server/worldserver/worldserver.conf.dist`, `src/server/bnetserver/bnetserver.conf.dist`
 > **Rust target crate(s):** `crates/wow-config/`, consumers in `crates/world-server/`, `crates/bnet-server/`
 > **Layer:** L0 — Foundation (parsed before anything else; values feed every other layer)
-> **Status:** ⚠️ partial — Rust loads configs but covers ~24 keys vs ~612 in TC `worldserver.conf.dist` (~4 % parity); reload command absent.
+> **Status:** ⚠️ partial — Rust loads configs but covers ~24 keys vs ~612 in TC `worldserver.conf.dist` (~4 % parity); TC-style `0`/`1` booleans are accepted; reload command absent.
 > **Audited vs C++:** ✅ complete (this document)
 > **Last updated:** 2026-05-01
 
@@ -226,7 +226,7 @@ The config layer is process-internal — it does not originate packets. It does,
 ## 9. Migration sub-tasks
 
 - [ ] **#CONFIG.1** Add section-header skipping to `ConfigStore::parse`: lines matching `^\[.*\]$` should be ignored, not error out. Without this fix, **no stock TC `.conf.dist` file is loadable**. (complejidad: L)
-- [ ] **#CONFIG.2** Accept `0`/`1` as bool literals in `get_value::<bool>`. Either add a `get_bool(key, default)` helper that maps `0`/`false`/`no` → false and `1`/`true`/`yes` → true (TC convention), or change the lib so `bool` is parsed via that helper. (complejidad: L)
+- [x] **#CONFIG.2** Accept `0`/`1` as bool literals in `get_value::<bool>`. The global getter now uses the same TC-style bool parser as `WorldConfigSet`: `1`/`true`/`yes`/`on` → true and `0`/`false`/`no`/`off` → false. (complejidad: L)
 - [ ] **#CONFIG.3** Implement TC-style semicolon connection-string parsing: when a key matches `*DatabaseInfo` (no suffix), split on `;` into 5-or-6 fields (`host;port;user;pass;db[;ssl]`) and expose them via a `ConnectionInfo` struct. Update `bnet-server` and `world-server` to read the unified key, not the split `.Host`/`.Port`/etc. variants. (complejidad: M)
 - [ ] **#CONFIG.4** Define the three enum-indexed configuration arrays as Rust `enum WorldIntConfig { … }` + `Vec<u32>` (or `[u32; INT_CONFIG_VALUE_COUNT]`) on a `WorldConfig` struct. Mirror `WorldBoolConfigs`, `WorldFloatConfigs`, `WorldIntConfigs` from `World.h:102-441`. Provide `world_config.get_int(WorldIntConfig::MaxPlayerLevel)`. Move the per-field defaults from scattered call sites into one `WorldConfig::load(path)` function modelled on `World::LoadConfigSettings`. (complejidad: H)
 - [ ] **#CONFIG.5** Implement `world_config.reload()` and wire it to a `.reload config` GM command (chat handler) and to `SIGHUP`. Subsystems that cache config-derived state must subscribe to a reload signal (`tokio::sync::broadcast<()>`). (complejidad: M)
@@ -246,7 +246,7 @@ The config layer is process-internal — it does not originate packets. It does,
 - [x] Test: `LoginDatabaseInfo = "127.0.0.1;3306;trinity;trinity;auth"` from stock TC parses into `DatabaseInfo { host: "127.0.0.1", port_or_socket: "3306", user: "trinity", password: "trinity", database: "auth", ssl: false }`.
 - [x] Test: `LoginDatabaseInfo = "127.0.0.1;3306;trinity;trinity;auth;ssl"` parses with `ssl: true`.
 - [ ] Test: repo-local fixtures for full representative TC `worldserver.conf.dist` and `bnetserver.conf.dist` succeed end-to-end.
-- [ ] Test: bool key `Instance.IgnoreLevel = 0` returns `false`; `Instance.IgnoreLevel = 1` returns `true`; `Instance.IgnoreLevel = true` also returns `true` (both formats accepted).
+- [x] Test: bool key `Instance.IgnoreLevel = 0` returns `false`; `Instance.IgnoreLevel = 1` returns `true`; `Instance.IgnoreLevel = true` also returns `true` (both formats accepted). Covered by `wow-config` global bool parser tests and `WorldConfigSet` bool registry tests.
 - [ ] Test: `WorldConfig::get_int(WorldIntConfig::MaxPlayerLevel)` returns `80` after loading default conf.
 - [ ] Test: reload — load conf, mutate one key on disk, call `reload()`, verify the new value is visible without restarting subsystems that subscribed to the reload broadcast.
 - [ ] Test: missing key falls back to documented default (one regression test per security-critical key in #CONFIG.6).
@@ -262,7 +262,7 @@ The config layer is process-internal — it does not originate packets. It does,
 
 2. **Database connection format is now TC-style semicolon.** Runtime replacement still requires checking the loaded auth/world/characters/hotfix DB names against the C++ deployment before starting Rust.
 
-3. **`0`/`1` as bool**: `FromStr::<bool>` rejects them. Every `*.Enable` / `*.Enabled` / `Allow*` / `Use*` key in TC uses `0`/`1`. Without #CONFIG.2, *every* boolean key from a stock config silently defaults.
+3. **`0`/`1` as bool**: represented. The global getter and `WorldConfigSet` use a TC-style bool parser, so `*.Enable` / `*.Enabled` / `Allow*` / `Use*` keys from stock configs no longer silently default only because they use numeric booleans.
 
 4. **`Updates.EnableDatabases` is a bitmask**, not a bool: `1=login`, `2=character`, `4=world`, `8=hotfix`, `15=all`. Treating it as bool gives nonsensical behaviour.
 
@@ -301,7 +301,7 @@ The config layer is process-internal — it does not originate packets. It does,
 | `ConfigMgr::Reload()` | (call `load_config()` again) | No subsystem callback; manual only |
 | `ConfigMgr::GetIntDefault(name, def)` | `wow_config::get_value_default::<i32>(name, def)` | Generic; `T: FromStr` |
 | `ConfigMgr::GetStringDefault(name, def)` | `wow_config::get_string_default(name, def)` | Returns `String` not `&str` |
-| `ConfigMgr::GetBoolDefault(name, def)` | (no direct equivalent) | `get_value::<bool>` rejects `0`/`1` — see #CONFIG.2 |
+| `ConfigMgr::GetBoolDefault(name, def)` | `wow_config::get_value_default::<bool>(name, def)` | TC-style `1`/`0` and text booleans represented |
 | `ConfigMgr::GetFloatDefault(name, def)` | `wow_config::get_value_default::<f32>(name, def)` | Same generic |
 | `enum WorldIntConfigs` (~210 entries) | planned `enum WorldIntConfig` + `Vec<u32>` array | Not implemented; #CONFIG.4 |
 | `enum WorldBoolConfigs` (~120 entries) | planned `enum WorldBoolConfig` + `Vec<bool>` | Not implemented |
@@ -314,7 +314,7 @@ The config layer is process-internal — it does not originate packets. It does,
 | `Bot.AccountPrefix` | `wow_config::get_string_default("Bot.AccountPrefix", "")` | RustyCore-specific key (not in TC) |
 | `RustyCore.LegacyCreatureGlobalRuntime` | `wow_config::get_value_default::<u8>("RustyCore.LegacyCreatureGlobalRuntime", 0) != 0` | RustyCore-specific experimental key (not in TC); default off |
 | `[worldserver]` / `[bnetserver]` section header | flattened by parser | #CONFIG.1 represented |
-| `0`/`1` boolean values | (would currently return `None` from `get_value::<bool>`) | #CONFIG.2 |
+| `0`/`1` boolean values | `get_value::<bool>` / `WorldConfigSet` bool parser | #CONFIG.2 represented |
 | `.reload config` GM command | (no equivalent) | #CONFIG.5 |
 
 ---
@@ -341,7 +341,7 @@ Cross-checked the canonical `.conf.dist` files line-by-line against the Rust loa
 | **Coverage** (bnet-server) | **~68 %** (17 / 25) — but the 25 includes the `Appender.*` / `Logger.*` family Rust does not parse |
 | Connection-string format mismatch | 0 known for canonical TC semicolon strings; split-format Rust-era subkeys are intentionally ignored |
 | Section headers parsed | 2 out of 2 (`[worldserver]`, `[bnetserver]`) — flattened like C++ single-section configs |
-| Bool keys with `0`/`1` literals in dist | ~120 (every `*.Enable`, `Allow*`, `Use*`, `*.IgnoreLevel`, etc.) — none parse via `get_value::<bool>` today |
+| Bool keys with `0`/`1` literals in dist | ~120 (every `*.Enable`, `Allow*`, `Use*`, `*.IgnoreLevel`, etc.) — parse via `get_value::<bool>` and `WorldConfigSet` today |
 | Hot-path security keys unread | 6 (`MaxOverspeedPings`, `PacketSpoof.Policy`, `PacketSpoof.BanMode`, `PacketSpoof.BanDuration`, `Warden.Enabled`, `SessionAddDelay`) |
 
 ### Behavioural divergences
@@ -350,7 +350,7 @@ Cross-checked the canonical `.conf.dist` files line-by-line against the Rust loa
 
 2. **DB connection-string mismatch** (`#CONFIG.3`): resolved for canonical TC semicolon strings. Operational risk remains high if a local test config points at the wrong DB, so startup/manual-test evidence must include the loaded DB endpoints.
 
-3. **`0`/`1` bool rejection** (`#CONFIG.2`): every `*.Enable=1` from TC is silently treated as missing. Severity: **high** — `Warden.Enabled = 1`, `Updates.AutoSetup = 1`, `AutoBroadcast.On = 1`, `Battleground.CastDeserter = 1`, `AllowLoggingIPAddressesInDatabase = 1` etc. all silently disable.
+3. **`0`/`1` bool parsing** (`#CONFIG.2`): represented for the config API and `WorldConfigSet`. Remaining boolean risk is now semantic coverage: many keys are still unread or not wired to their owning subsystem.
 
 4. **No reload mechanism** (`#CONFIG.5`): operators cannot apply a config change without restarting both daemons. CLAUDE.md acknowledges this. Severity: **medium** for ops, **low** for correctness.
 
@@ -378,18 +378,17 @@ Took 5 keys at random from the dist and verified their Rust handling:
 | `Warden.Enabled` | `0` | (not read) | **MISSING** |
 | `Rate.XP.Kill` | `1` | (not read) | **MISSING** |
 
-2 of 5 sampled keys are still mishandled or missing. Extrapolating to the full 612-key surface and assuming the hot keys Rust *does* read are over-represented in correctness, true coverage is still low; this doc is an operational risk register, not proof of config parity.
+2 of 5 sampled keys are still missing. Extrapolating to the full 612-key surface and assuming the hot keys Rust *does* read are over-represented in correctness, true coverage is still low; this doc is an operational risk register, not proof of config parity.
 
 ### Recommended remediation order
 
-1. **#CONFIG.2** (`0`/`1` bool) — still needed because many TC booleans otherwise silently reject.
-2. **Runtime startup evidence** — verify loaded DB endpoints, ports, cert/key paths, and flags before replacing C++.
-3. **#CONFIG.6** (security-critical keys) — every public realm needs these enforced.
-4. **#CONFIG.9** (TOTP) — security feature, narrow scope, easy to ship.
-5. **#CONFIG.10** (schedules) and **#CONFIG.7** (Rate.\*) — gameplay correctness, large surface.
-6. **#CONFIG.4** (indexed arrays) and **#CONFIG.5** (reload) — infra refactors that enable everything else.
-7. **#CONFIG.8** (logger schema) — quality-of-life for operators.
-8. **#CONFIG.11** (test coverage) and **#CONFIG.12** (docs) — last, after the rest stabilises.
+1. **Runtime startup evidence** — verify loaded DB endpoints, ports, cert/key paths, and flags before replacing C++.
+2. **#CONFIG.6** (security-critical keys) — every public realm needs these enforced.
+3. **#CONFIG.9** (TOTP) — security feature, narrow scope, easy to ship.
+4. **#CONFIG.10** (schedules) and **#CONFIG.7** (Rate.\*) — gameplay correctness, large surface.
+5. **#CONFIG.4** (indexed arrays) and **#CONFIG.5** (reload) — infra refactors that enable everything else.
+6. **#CONFIG.8** (logger schema) — quality-of-life for operators.
+7. **#CONFIG.11** (test coverage) and **#CONFIG.12** (docs) — last, after the rest stabilises.
 
 ### Audit confidence
 

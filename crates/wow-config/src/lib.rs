@@ -15,6 +15,7 @@
 
 use once_cell::sync::Lazy;
 use parking_lot::RwLock;
+use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::env;
 use std::fs;
@@ -354,15 +355,25 @@ pub fn load_config_with_fallbacks(
 ///
 /// Returns `None` when the key is absent **or** the value cannot be parsed
 /// into `T`.
-pub fn get_value<T: FromStr>(key: &str) -> Option<T> {
+pub fn get_value<T: FromStr + 'static>(key: &str) -> Option<T> {
     let store = CONFIG.read();
-    store.get(key).and_then(|v| v.parse::<T>().ok())
+    store.get(key).and_then(parse_config_value::<T>)
 }
 
 /// Retrieve a configuration value parsed as `T`, falling back to `default`
 /// when the key is absent or unparsable.
-pub fn get_value_default<T: FromStr>(key: &str, default: T) -> T {
+pub fn get_value_default<T: FromStr + 'static>(key: &str, default: T) -> T {
     get_value(key).unwrap_or(default)
+}
+
+fn parse_config_value<T: FromStr + 'static>(raw: &str) -> Option<T> {
+    if TypeId::of::<T>() == TypeId::of::<bool>() {
+        let value = parse_config_bool(raw)?;
+        let boxed: Box<dyn Any> = Box::new(value);
+        return boxed.downcast::<T>().ok().map(|value| *value);
+    }
+
+    raw.parse::<T>().ok()
 }
 
 /// Retrieve a string value, returning `default` when the key is absent.
@@ -1150,6 +1161,38 @@ mod tests {
         assert_eq!(get_value::<i32>("TestKey"), Some(42));
         assert_eq!(get_value::<String>("Greeting"), Some("hello world".into()));
         assert_eq!(get_string_default("Greeting", ""), "hello world");
+    }
+
+    #[test]
+    fn test_global_bool_values_accept_cpp_numeric_literals() {
+        let _guard = global_config_lock();
+        load_config_from_str(
+            r#"
+Enabled = 1
+Disabled = 0
+TrueText = true
+FalseText = false
+YesText = yes
+NoText = no
+OnText = on
+OffText = off
+BadBool = maybe
+"#,
+        )
+        .expect("load failed");
+
+        assert_eq!(get_value::<bool>("Enabled"), Some(true));
+        assert_eq!(get_value::<bool>("Disabled"), Some(false));
+        assert_eq!(get_value::<bool>("TrueText"), Some(true));
+        assert_eq!(get_value::<bool>("FalseText"), Some(false));
+        assert_eq!(get_value::<bool>("YesText"), Some(true));
+        assert_eq!(get_value::<bool>("NoText"), Some(false));
+        assert_eq!(get_value::<bool>("OnText"), Some(true));
+        assert_eq!(get_value::<bool>("OffText"), Some(false));
+        assert_eq!(get_value::<bool>("BadBool"), None);
+        assert!(get_value_default("Enabled", false));
+        assert!(!get_value_default("Disabled", true));
+        assert!(get_value_default("BadBool", true));
     }
 
     // -- Error paths --------------------------------------------------------
