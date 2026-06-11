@@ -508,6 +508,7 @@ pub struct ChatPkt {
     pub sender_name: String,
     pub target_guid: ObjectGuid,
     pub target_name: String,
+    pub prefix: String,
     pub channel: String,
     pub text: String,
     pub virtual_realm: u32,
@@ -531,7 +532,7 @@ impl ServerPacket for ChatPkt {
 
         let sender_bytes = self.sender_name.len() as u32;
         let target_bytes = self.target_name.len() as u32;
-        let prefix_bytes = 0u32;
+        let prefix_bytes = self.prefix.len() as u32;
         let channel_bytes = self.channel.len() as u32;
         let text_bytes = self.text.len() as u32;
 
@@ -549,7 +550,7 @@ impl ServerPacket for ChatPkt {
 
         pkt.write_string(&self.sender_name);
         pkt.write_string(&self.target_name);
-        // prefix (empty)
+        pkt.write_string(&self.prefix);
         pkt.write_string(&self.channel);
         pkt.write_string(&self.text);
     }
@@ -853,6 +854,7 @@ mod tests {
             sender_name: String::new(),
             target_guid: ObjectGuid::EMPTY,
             target_name: String::new(),
+            prefix: String::new(),
             channel: String::new(),
             text: "hello".to_string(),
             virtual_realm: 0,

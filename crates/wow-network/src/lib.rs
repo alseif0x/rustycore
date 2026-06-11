@@ -37,7 +37,8 @@ pub use player_registry::{
     GameEventQuestCompleteResponseLikeCpp, LootRollStoreWinnerCommand, LootRollVoteCommand,
     MasterLootGiveCommand, MasterLootGiveResult, PlayerBroadcastInfo, PlayerRegistry,
     RefreshVisibleWorldCreaturesLikeCppCommand, ResetSeasonalQuestStatusCommand,
-    SendIfVisibleLikeCppCommand, SendVisibleObjectValuesUpdateCommand, SessionCommand,
+    SendAddonIfRegisteredLikeCppCommand, SendIfVisibleLikeCppCommand,
+    SendVisibleObjectValuesUpdateCommand, SessionCommand,
 };
 pub use session_mgr::{InstanceLink, SessionManager};
 pub use world_socket::{AccountInfo, SocketReader, SocketWriter, WorldSocket, WorldSocketError};

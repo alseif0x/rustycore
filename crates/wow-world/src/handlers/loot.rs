@@ -50,9 +50,9 @@ use wow_loot::{
 };
 use wow_network::player_registry::{
     ApplyCreatureMeleeDamageLikeCppCommand, CreatureAttackStartLikeCppCommand,
-    RefreshVisibleWorldCreaturesLikeCppCommand, SendIfVisibleLikeCppCommand,
-    SendRepeatableTurnInRequestItemsLikeCppCommand, SetQuestSharingInfoAndSendDetailsCommand,
-    SyncChestGameobjectStateAndRefreshLikeCppCommand,
+    RefreshVisibleWorldCreaturesLikeCppCommand, SendAddonIfRegisteredLikeCppCommand,
+    SendIfVisibleLikeCppCommand, SendRepeatableTurnInRequestItemsLikeCppCommand,
+    SetQuestSharingInfoAndSendDetailsCommand, SyncChestGameobjectStateAndRefreshLikeCppCommand,
     SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
     SyncGooberGameobjectStateAndRefreshLikeCppCommand,
 };
@@ -2824,6 +2824,9 @@ impl WorldSession {
                 SessionCommand::SendIfVisibleLikeCpp(command) => {
                     self.handle_send_if_visible_like_cpp_command_like_cpp(command);
                 }
+                SessionCommand::SendAddonIfRegisteredLikeCpp(command) => {
+                    self.handle_send_addon_if_registered_like_cpp_command_like_cpp(command);
+                }
             }
         }
     }
@@ -3188,6 +3191,23 @@ impl WorldSession {
         }
         // All gates passed — deliver the already-serialised packet as-is.
         self.send_raw_packet(&command.packet_bytes);
+    }
+
+    /// Per-session gate for addon chat delivery.
+    ///
+    /// Mirrors C++ `WorldSession::IsAddonRegistered(prefix)`: when
+    /// `_filterAddonMessages` is false, all prefixes are accepted; otherwise
+    /// the prefix must be in the session-local registered list.
+    fn handle_send_addon_if_registered_like_cpp_command_like_cpp(
+        &mut self,
+        command: SendAddonIfRegisteredLikeCppCommand,
+    ) {
+        if self.state() != crate::session::SessionState::LoggedIn {
+            return;
+        }
+        if self.is_addon_registered_like_cpp(&command.prefix) {
+            self.send_raw_packet(&command.packet_bytes);
+        }
     }
 
     /// Recompute this session's map-owned creature visibility.

@@ -44,6 +44,12 @@ pub enum SessionCommand {
     /// world-server; the per-session gate is in
     /// `handle_send_if_visible_like_cpp_command_like_cpp` (Slice 4A.1b).
     SendIfVisibleLikeCpp(SendIfVisibleLikeCppCommand),
+    /// Deliver an already-built addon chat packet only if this session accepts
+    /// the addon prefix.
+    ///
+    /// Mirrors C++ `WorldSession::IsAddonRegistered(prefix)` used by
+    /// `Group::BroadcastAddonMessagePacket` and `Player::WhisperAddon`.
+    SendAddonIfRegisteredLikeCpp(SendAddonIfRegisteredLikeCppCommand),
 }
 
 /// Payload for a map-owned creature melee hit against one player session.
@@ -92,6 +98,15 @@ pub struct SendIfVisibleLikeCppCommand {
     /// 0 = world/default instance.
     pub instance_id: u32,
     /// Already-serialised wire payload ready to write to the socket.
+    pub packet_bytes: Vec<u8>,
+}
+
+/// Payload for [`SessionCommand::SendAddonIfRegisteredLikeCpp`].
+#[derive(Clone, Debug)]
+pub struct SendAddonIfRegisteredLikeCppCommand {
+    /// Addon prefix checked by the receiver's session-local registration list.
+    pub prefix: String,
+    /// Already-serialised `SMSG_CHAT` addon payload.
     pub packet_bytes: Vec<u8>,
 }
 

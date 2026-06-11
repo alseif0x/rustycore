@@ -4460,6 +4460,7 @@ fn fanout_game_event_announcement_to_player_sessions_like_cpp(
                 sender_name: String::new(),
                 target_guid: ObjectGuid::EMPTY,
                 target_name: String::new(),
+                prefix: String::new(),
                 channel: String::new(),
                 text,
                 virtual_realm: 0,

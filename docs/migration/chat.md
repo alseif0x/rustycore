@@ -3,7 +3,7 @@
 > **C++ canonical path:** `src/server/game/Chat/` + `src/server/game/Handlers/ChatHandler.cpp` + `src/server/game/Handlers/ChannelHandler.cpp`
 > **Rust target crate(s):** `crates/wow-chat/` (empty placeholder), `crates/wow-world/src/handlers/chat.rs`, `crates/wow-packet/src/packets/chat.rs`
 > **Layer:** L6
-> **Status:** ⚠️ partial (~31% — say/yell/whisper/emote work; Party/Raid/RaidWarning/InstanceChat now use group membership routing; ignored-report and AFK/DND status toggles represented; Guild/Officer, channels, addon routing, hyperlinks, languages still missing)
+> **Status:** ⚠️ partial (~32% — say/yell/whisper/emote work; Party/Raid/RaidWarning/InstanceChat now use group membership routing; group addon Party/Raid/InstanceChat routing represented; ignored-report and AFK/DND status toggles represented; Guild/Officer, channels, targeted addon routing, hyperlinks, languages still missing)
 > **Audited vs C++:** ✅ audited 2026-05-01 (§13)
 > **Last updated:** 2026-06-11
 
@@ -237,7 +237,7 @@ DBC/DB2 stores read:
 
 **Files in `/home/server/rustycore`:**
 - `crates/wow-chat/src/lib.rs` — **0 lines** (empty crate stub; should host `Channel`, `ChannelMgr`, `LanguageMgr`, `Hyperlinks`)
-- `crates/wow-world/src/handlers/chat.rs` — 928 lines — covers ~31% of `Handlers/ChatHandler.cpp`
+- `crates/wow-world/src/handlers/chat.rs` — 1182 lines — covers ~32% of `Handlers/ChatHandler.cpp`
 - `crates/wow-packet/src/packets/chat.rs` — 351 lines — `ChatMessage`, `ChatMessageWhisper`, `ChatMessageEmote`, `ChatPkt`, `EmoteMessage`, `STextEmote`, `CTextEmote`, `EmoteClient`, `ChatMsg` enum
 
 **What's implemented:**
@@ -257,7 +257,7 @@ DBC/DB2 stores read:
 - **Moderator/Owner/Banlist** — no `MEMBER_FLAG_*` enforcement, no `KickOrBan`, no `SetMode`, no `SetOwner`, no `Announce` toggle.
 - **Languages** — `LanguageMgr` not ported; speech is never scrambled, addon lang (183/184) never validated.
 - **Hyperlinks** — `Hyperlinks::CheckAllLinks` not ported; client-supplied chat hyperlinks pass through untrusted (forgery vector).
-- **Addon messages** — `CMSG_CHAT_ADDON_MESSAGE`, `_TARGETED`, `_WHISPER` all unhandled → addons relying on inter-client comms break.
+- **Addon messages** — `CMSG_CHAT_ADDON_MESSAGE` now routes Party/Raid/InstanceChat addon payloads through group membership and receiver-side addon-prefix filtering. Guild/Officer/Channel addon routing and targeted/whisper addon packets remain absent.
 - **AFK/DND** — `CMSG_CHAT_MESSAGE_AFK/DND` now toggles canonical `PLAYER_FLAGS_AFK/DND` and stores represented auto-reply text, but full C++ validation (`ValidateMessage`, hyperlink kick), `GM_SILENCE_AURA`, guild away event, script hook, localized default strings, battleground side-effect, and auto-reply delivery remain missing.
 - **Whisper offline queue** — no fallback, no `BN_WHISPER_PLAYER_OFFLINE`.
 - **Cross-realm whisper resolution (VirtualRealmAddress)** — partially wired (`virtual_realm_address` field passed) but no name-disambiguation or `SMSG_CHAT_PLAYER_AMBIGUOUS`.
@@ -435,7 +435,9 @@ DBC/DB2 stores read:
 - [x] **#CHAT.14a** Parse and register `CMSG_CHAT_MESSAGE_AFK`/`_DND`; toggle canonical `PLAYER_FLAGS_AFK/DND`, keep them mutually exclusive, and store represented auto-reply text. Complejidad: **L**
 - [ ] **#CHAT.14b** Complete C++ AFK/DND side effects: `ValidateMessage`, `ValidateHyperlinksAndMaybeKick`, `GM_SILENCE_AURA`, guild away event, script hook, localized defaults, battleground leave, and actual auto-reply delivery. Complejidad: **M**
 - [x] **#CHAT.15** Implement `CMSG_CHAT_REPORT_IGNORED` — inform sender they were ignored. Complejidad: **L**
-- [ ] **#CHAT.16** Implement `CMSG_CHAT_ADDON_MESSAGE` family — separate addon-prefix routing, `LANG_ADDON`/`LANG_ADDON_LOGGED` validation. Complejidad: **M**
+- [x] **#CHAT.16a** Implement group addon routing for `CMSG_CHAT_ADDON_MESSAGE` Party/Raid/InstanceChat — build `SMSG_CHAT` with real addon prefix, `LANG_ADDON`/`LANG_ADDON_LOGGED`, no sender echo, party subgroup filtering, and receiver-side `IsAddonRegistered(prefix)` gate. Complejidad: **M**
+- [ ] **#CHAT.16b** Implement Guild/Officer/Channel addon routing once `GuildRegistry`/`ChannelMgr` exist. Complejidad: **M**
+- [ ] **#CHAT.16c** Implement targeted/whisper addon packet family (`CMSG_CHAT_ADDON_MESSAGE_TARGETED`/whisper) and cross-realm/name resolution. Complejidad: **M**
 - [ ] **#CHAT.17** Port `LanguageMgr` — load `Languages.db2`+`LanguageWords.db2`, scramble text for unknown-language listeners. Complejidad: **H**
 - [ ] **#CHAT.18** Port `Hyperlinks::CheckAllLinks` — full tag table (`item:`, `quest:`, `spell:`, `achievement:`, `talent:`, `enchant:`, `journal:`, `transmog:`, etc.) — drop msg if any link forged. Complejidad: **XL** (split per-tag)
 - [ ] **#CHAT.19** Port `EmotesText.db2` lookup so `/wave` resolves to correct emote-anim-id + sound. Complejidad: **M**
@@ -485,7 +487,7 @@ DBC/DB2 stores read:
 
 | Scope | Decision | C++ retained | Evidence |
 |---|---|---|---|
-| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 21 files / 7293 lines; refs: `/home/server/woltk-trinity-legacy/src/server/game/Chat/Channels/Channel.cpp`, `/home/server/woltk-trinity-legacy/src/server/game/Chat/Chat.cpp`, `/home/server/woltk-trinity-legacy/src/server/game/Chat/Hyperlinks.cpp` | `crates/wow-chat/` (empty placeholder), `crates/wow-world/src/handlers/chat.rs`, `crates/wow-packet/src/packets/chat.rs` \| ⚠️ partial (~31% — say/yell/whisper/emote work; Party/Raid/RaidWarning/InstanceChat now use group membership routing; ignored-report and AFK/DND status toggles represented; Guild/Officer, channels, addon routing, hyperlinks, languages still missing) |
+| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 21 files / 7293 lines; refs: `/home/server/woltk-trinity-legacy/src/server/game/Chat/Channels/Channel.cpp`, `/home/server/woltk-trinity-legacy/src/server/game/Chat/Chat.cpp`, `/home/server/woltk-trinity-legacy/src/server/game/Chat/Hyperlinks.cpp` | `crates/wow-chat/` (empty placeholder), `crates/wow-world/src/handlers/chat.rs`, `crates/wow-packet/src/packets/chat.rs` \| ⚠️ partial (~32% — say/yell/whisper/emote work; Party/Raid/RaidWarning/InstanceChat and group addon routing are represented; ignored-report and AFK/DND status toggles represented; Guild/Officer, channels, targeted addon routing, hyperlinks, languages still missing) |
 
 <!-- REFINE.025:END product-scope -->
 
@@ -539,7 +541,7 @@ DBC/DB2 stores read:
 
 ---
 
-*Template version: 1.0 (2026-05-01).* Status: ⚠️ partial — ~31% of C++ behaviour. The former proximity confidentiality bug is fixed for Party/Raid/RaidWarning/InstanceChat; Guild/Officer remain undelivered until the guild model is ported.
+*Template version: 1.0 (2026-05-01).* Status: ⚠️ partial — ~32% of C++ behaviour. The former proximity confidentiality bug is fixed for Party/Raid/RaidWarning/InstanceChat; group addon routing is represented for Party/Raid/InstanceChat; Guild/Officer remain undelivered until the guild model is ported.
 
 ---
 
@@ -570,7 +572,7 @@ The seven distinct inventory entries each list their own `handler_name` (`handle
 | `HandleChatMessageGuild/Officer` | Guild registered but drops pending `GuildRegistry`; Officer not represented | missing |
 | `HandleChatMessageWhisper` | ✅ `chat.rs:187-257` via `player_registry` name lookup; offline → inform-only echo |  partial |
 | `HandleChatMessageAFK/DND` | ✅ registered; toggles canonical AFK/DND flags + represented auto-reply |  partial |
-| `HandleChatAddonMessage` (3 variants) | ❌ unregistered |  |
+| `HandleChatAddonMessage` (3 variants) | `CMSG_CHAT_ADDON_MESSAGE` registered; Party/Raid/InstanceChat group routing + prefix gate represented; Guild/Officer/Channel/targeted remain missing | partial |
 | `HandleChatIgnoredOpcode` | ✅ `CMSG_CHAT_REPORT_IGNORED` sends `CHAT_MSG_IGNORED` to ignored player |  partial |
 | `HandleEmoteOpcode` | ✅ `chat.rs:297-301` (logs only, no `Unit::SetEmoteState`) | stub |
 | `HandleTextEmoteOpcode` | ✅ `chat.rs:313-358` but no `EmotesText.db2` lookup, no `Player::HandleEmoteCommand` chain |  partial |
@@ -590,4 +592,4 @@ The seven distinct inventory entries each list their own `handler_name` (`handle
 
 Entirely absent. The Trinity `Channel.cpp` (1026 lines), `ChannelMgr.cpp` (287 lines), and `ChannelAppenders.h` (476 lines) have **zero** Rust equivalent. No `CHAT_MSG_CHANNEL` handling, no `SMSG_CHANNEL_NOTIFY` family, no `channels` table read/write, no built-in channel auto-join on zone change. Players cannot create or use Trade/General/LFG/custom channels at all.
 
-**Verdict:** the flagged proximity-broadcast routing bug was real and dangerous. It is now fixed for Party/Raid/RaidWarning/InstanceChat; Guild no longer leaks by proximity but remains undelivered until the guild model exists. Approximately 31% of `ChatHandler.cpp` is ported; channels are 0%. Hyperlink validation, language scrambling, AFK/DND side effects beyond status flags, addon routing, and the `.gm` command parser are still incomplete.
+**Verdict:** the flagged proximity-broadcast routing bug was real and dangerous. It is now fixed for Party/Raid/RaidWarning/InstanceChat; Guild no longer leaks by proximity but remains undelivered until the guild model exists. Approximately 32% of `ChatHandler.cpp` is ported; channels are 0%. Hyperlink validation, language scrambling, AFK/DND side effects beyond status flags, guild/channel/targeted addon routing, and the `.gm` command parser are still incomplete.

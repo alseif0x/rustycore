@@ -22,7 +22,7 @@ use wow_constants::ClientOpcodes;
 use wow_core::ObjectGuid;
 use wow_core::guid::HighGuid;
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
-use wow_network::GroupInfo;
+use wow_network::{GroupInfo, SendAddonIfRegisteredLikeCppCommand, SessionCommand};
 use wow_packet::packets::chat::{
     CTextEmote, ChatAddonMessage, ChatMessage, ChatMessageAfk, ChatMessageDnd, ChatMessageEmote,
     ChatMessageWhisper, ChatMsg, ChatPkt, ChatRegisterAddonPrefixes, ChatReportIgnored,
@@ -36,6 +36,8 @@ use crate::session::{PlayerAwayModeLikeCpp, WorldSession};
 const RANGE_SAY: f32 = 25.0;
 const RANGE_YELL: f32 = 300.0;
 const RANGE_EMOTE: f32 = 25.0;
+const LANG_ADDON_LIKE_CPP: u32 = 183;
+const LANG_ADDON_LOGGED_LIKE_CPP: u32 = 184;
 
 // ── Handler registrations ─────────────────────────────────────────
 
@@ -240,6 +242,7 @@ impl WorldSession {
             sender_name,
             target_guid: wow_core::ObjectGuid::EMPTY,
             target_name: String::new(),
+            prefix: String::new(),
             channel: String::new(),
             text: msg.text,
             virtual_realm,
@@ -294,6 +297,7 @@ impl WorldSession {
                 sender_name: sender_name.clone(),
                 target_guid: ObjectGuid::EMPTY,
                 target_name: target_name.clone(),
+                prefix: String::new(),
                 channel: String::new(),
                 text: msg.text.clone(),
                 virtual_realm,
@@ -308,6 +312,7 @@ impl WorldSession {
                 sender_name: sender_name.clone(),
                 target_guid: ObjectGuid::EMPTY,
                 target_name: target_name.clone(),
+                prefix: String::new(),
                 channel: String::new(),
                 text: msg.text,
                 virtual_realm,
@@ -322,6 +327,7 @@ impl WorldSession {
                 sender_name,
                 target_guid: ObjectGuid::EMPTY,
                 target_name,
+                prefix: String::new(),
                 channel: String::new(),
                 text: msg.text,
                 virtual_realm,
@@ -389,6 +395,7 @@ impl WorldSession {
                 sender_name: reporter_name.clone(),
                 target_guid: reporter_guid,
                 target_name: reporter_name.clone(),
+                prefix: String::new(),
                 channel: String::new(),
                 text: reporter_name,
                 virtual_realm,
@@ -423,6 +430,7 @@ impl WorldSession {
             sender_name,
             target_guid: wow_core::ObjectGuid::EMPTY,
             target_name: String::new(),
+            prefix: String::new(),
             channel: String::new(),
             text: msg.text,
             virtual_realm,
@@ -537,13 +545,36 @@ impl WorldSession {
             return;
         }
 
-        debug!(
-            account = self.account_id,
-            ty = packet.msg_type,
-            prefix = %packet.prefix,
-            logged = packet.is_logged,
-            "Addon chat message ignored until addon routing is ported"
-        );
+        let Some(msg_type) = chat_msg_from_i32_like_cpp(packet.msg_type) else {
+            debug!(
+                account = self.account_id,
+                ty = packet.msg_type,
+                "Unknown addon chat message type ignored"
+            );
+            return;
+        };
+
+        match msg_type {
+            ChatMsg::Party | ChatMsg::Raid | ChatMsg::InstanceChat => {
+                self.broadcast_group_addon_chat_like_cpp(msg_type, packet);
+            }
+            ChatMsg::Guild | ChatMsg::Officer | ChatMsg::Channel | ChatMsg::Whisper => {
+                debug!(
+                    account = self.account_id,
+                    ty = ?msg_type,
+                    prefix = %packet.prefix,
+                    logged = packet.is_logged,
+                    "Addon chat message ignored until guild/channel/targeted addon routing is ported"
+                );
+            }
+            _ => {
+                debug!(
+                    account = self.account_id,
+                    ty = ?msg_type,
+                    "Unsupported addon chat message type ignored"
+                );
+            }
+        }
     }
 
     // ── Helpers ──────────────────────────────────────────────────
@@ -620,11 +651,49 @@ impl WorldSession {
             sender_name,
             target_guid: ObjectGuid::EMPTY,
             target_name: String::new(),
+            prefix: String::new(),
             channel: String::new(),
             text,
             virtual_realm,
         };
         self.broadcast_group_chat_packet_like_cpp(&group, subgroup_filter, chat.to_bytes());
+    }
+
+    fn broadcast_group_addon_chat_like_cpp(&self, msg_type: ChatMsg, packet: ChatAddonMessage) {
+        let (sender_guid, sender_name) = self.player_name_and_guid();
+        let Some(group) = self.current_chat_group_like_cpp(sender_guid) else {
+            return;
+        };
+
+        let subgroup_filter = if msg_type == ChatMsg::Party {
+            Some(group.member_group_like_cpp(sender_guid))
+        } else {
+            None
+        };
+
+        let chat = ChatPkt {
+            msg_type,
+            language: if packet.is_logged {
+                LANG_ADDON_LOGGED_LIKE_CPP
+            } else {
+                LANG_ADDON_LIKE_CPP
+            },
+            sender_guid,
+            sender_name,
+            target_guid: ObjectGuid::EMPTY,
+            target_name: String::new(),
+            prefix: packet.prefix.clone(),
+            channel: String::new(),
+            text: packet.text,
+            virtual_realm: self.virtual_realm_address(),
+        };
+        self.broadcast_group_addon_packet_like_cpp(
+            &group,
+            subgroup_filter,
+            sender_guid,
+            packet.prefix,
+            chat.to_bytes(),
+        );
     }
 
     fn current_chat_group_like_cpp(&self, sender_guid: ObjectGuid) -> Option<GroupInfo> {
@@ -661,6 +730,40 @@ impl WorldSession {
 
             if let Some(member) = registry.get(member_guid) {
                 let _ = member.send_tx.send(bytes.clone());
+            }
+        }
+    }
+
+    fn broadcast_group_addon_packet_like_cpp(
+        &self,
+        group: &GroupInfo,
+        subgroup_filter: Option<u8>,
+        sender_guid: ObjectGuid,
+        prefix: String,
+        bytes: Vec<u8>,
+    ) {
+        let Some(registry) = self.player_registry() else {
+            return;
+        };
+
+        for member_guid in &group.members {
+            if *member_guid == sender_guid {
+                continue;
+            }
+            if let Some(subgroup) = subgroup_filter
+                && group.member_group_like_cpp(*member_guid) != subgroup
+            {
+                continue;
+            }
+
+            if let Some(member) = registry.get(member_guid) {
+                let command = SessionCommand::SendAddonIfRegisteredLikeCpp(
+                    SendAddonIfRegisteredLikeCppCommand {
+                        prefix: prefix.clone(),
+                        packet_bytes: bytes.clone(),
+                    },
+                );
+                let _ = member.command_tx.try_send(command);
             }
         }
     }
@@ -706,6 +809,26 @@ impl WorldSession {
     }
 }
 
+fn chat_msg_from_i32_like_cpp(value: i32) -> Option<ChatMsg> {
+    if value == ChatMsg::Party as i32 {
+        Some(ChatMsg::Party)
+    } else if value == ChatMsg::Raid as i32 {
+        Some(ChatMsg::Raid)
+    } else if value == ChatMsg::Guild as i32 {
+        Some(ChatMsg::Guild)
+    } else if value == ChatMsg::Officer as i32 {
+        Some(ChatMsg::Officer)
+    } else if value == ChatMsg::Whisper as i32 {
+        Some(ChatMsg::Whisper)
+    } else if value == ChatMsg::Channel as i32 {
+        Some(ChatMsg::Channel)
+    } else if value == ChatMsg::InstanceChat as i32 {
+        Some(ChatMsg::InstanceChat)
+    } else {
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -726,14 +849,40 @@ mod tests {
         reader
     }
 
+    fn chat_addon_packet(msg_type: ChatMsg, prefix: &str, text: &str) -> wow_packet::WorldPacket {
+        let mut writer = wow_packet::WorldPacket::new_empty();
+        writer.write_bits(prefix.len() as u32, 5);
+        writer.write_bits(text.len() as u32, 8);
+        writer.write_bit(false);
+        writer.write_int32(msg_type as i32);
+        writer.write_string(prefix);
+        writer.write_string(text);
+        wow_packet::WorldPacket::from_bytes(writer.data())
+    }
+
     fn chat_slash_cmd(bytes: &[u8]) -> u8 {
         let mut packet = wow_packet::WorldPacket::from_bytes(bytes);
         packet.skip_opcode();
         packet.read_uint8().expect("chat slash command")
     }
 
+    fn chat_language(bytes: &[u8]) -> u32 {
+        let mut packet = wow_packet::WorldPacket::from_bytes(bytes);
+        packet.skip_opcode();
+        let _ = packet.read_uint8().expect("chat slash command");
+        packet.read_uint32().expect("chat language")
+    }
+
     fn broadcast_info(guid: ObjectGuid, send_tx: flume::Sender<Vec<u8>>) -> PlayerBroadcastInfo {
         let (command_tx, _command_rx) = flume::bounded(8);
+        broadcast_info_with_command_tx(guid, send_tx, command_tx)
+    }
+
+    fn broadcast_info_with_command_tx(
+        guid: ObjectGuid,
+        send_tx: flume::Sender<Vec<u8>>,
+        command_tx: flume::Sender<SessionCommand>,
+    ) -> PlayerBroadcastInfo {
         PlayerBroadcastInfo {
             map_id: 571,
             instance_id: 0,
@@ -801,6 +950,15 @@ mod tests {
             yesterday_honorable_kills: 0,
             lifetime_max_rank: 0,
             honor_level: 0,
+        }
+    }
+
+    fn expect_addon_command(
+        rx: &flume::Receiver<SessionCommand>,
+    ) -> SendAddonIfRegisteredLikeCppCommand {
+        match rx.try_recv().expect("addon command") {
+            SessionCommand::SendAddonIfRegisteredLikeCpp(command) => command,
+            other => panic!("expected SendAddonIfRegisteredLikeCpp, got {other:?}"),
         }
     }
 
@@ -924,5 +1082,101 @@ mod tests {
 
         assert!(sender_rx.try_recv().is_err());
         assert!(nearby_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn party_addon_routes_to_same_subgroup_except_sender_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 401);
+        let same_subgroup = ObjectGuid::create_player(1, 402);
+        let other_subgroup = ObjectGuid::create_player(1, 403);
+        let (mut session, player_registry, _leader_rx) = session_for_chat_routing_like_cpp(leader);
+        let (same_tx, _same_rx) = flume::bounded(8);
+        let (other_tx, _other_rx) = flume::bounded(8);
+        let (same_command_tx, same_command_rx) = flume::bounded(8);
+        let (other_command_tx, other_command_rx) = flume::bounded(8);
+        player_registry.insert(
+            same_subgroup,
+            broadcast_info_with_command_tx(same_subgroup, same_tx, same_command_tx),
+        );
+        player_registry.insert(
+            other_subgroup,
+            broadcast_info_with_command_tx(other_subgroup, other_tx, other_command_tx),
+        );
+
+        let mut group = GroupInfo::new(leader);
+        group.convert_to_raid_like_cpp();
+        group.add_member(same_subgroup);
+        group.add_member(other_subgroup);
+        assert!(group.change_member_group_like_cpp(other_subgroup, 1));
+        let group_guid = group.group_guid;
+        let group_registry = Arc::new(wow_network::GroupRegistry::default());
+        group_registry.insert(group_guid, group);
+        session.group_guid = Some(group_guid);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+
+        session
+            .handle_chat_addon_message(chat_addon_packet(ChatMsg::Party, "ABC", "payload"))
+            .await;
+
+        let command = expect_addon_command(&same_command_rx);
+        assert_eq!(command.prefix, "ABC");
+        assert_eq!(chat_slash_cmd(&command.packet_bytes), ChatMsg::Party as u8);
+        assert_eq!(chat_language(&command.packet_bytes), LANG_ADDON_LIKE_CPP);
+        assert!(other_command_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn addon_command_delivers_only_when_prefix_registered_like_cpp() {
+        let receiver = ObjectGuid::create_player(1, 501);
+        let (mut session, _, send_rx) = session_for_chat_routing_like_cpp(receiver);
+        session.set_state(crate::session::SessionState::LoggedIn);
+        session.filter_addon_messages = true;
+        session.registered_addon_prefixes = vec!["ABC".to_string()];
+        let packet = ChatPkt {
+            msg_type: ChatMsg::Raid,
+            language: LANG_ADDON_LIKE_CPP,
+            sender_guid: ObjectGuid::create_player(1, 502),
+            sender_name: "Sender".to_string(),
+            target_guid: ObjectGuid::EMPTY,
+            target_name: String::new(),
+            prefix: "ABC".to_string(),
+            channel: String::new(),
+            text: "payload".to_string(),
+            virtual_realm: 0,
+        };
+
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::SendAddonIfRegisteredLikeCpp(
+                SendAddonIfRegisteredLikeCppCommand {
+                    prefix: "XYZ".to_string(),
+                    packet_bytes: packet.to_bytes(),
+                },
+            ))
+            .expect("command queued");
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+        assert!(send_rx.try_recv().is_err());
+
+        let packet = ChatPkt {
+            prefix: "ABC".to_string(),
+            ..packet
+        };
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::SendAddonIfRegisteredLikeCpp(
+                SendAddonIfRegisteredLikeCppCommand {
+                    prefix: "ABC".to_string(),
+                    packet_bytes: packet.to_bytes(),
+                },
+            ))
+            .expect("command queued");
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+        let delivered = send_rx.try_recv().expect("registered prefix delivered");
+        assert_eq!(chat_slash_cmd(&delivered), ChatMsg::Raid as u8);
+        assert_eq!(chat_language(&delivered), LANG_ADDON_LIKE_CPP);
     }
 }
