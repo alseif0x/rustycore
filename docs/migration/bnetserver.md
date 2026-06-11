@@ -3,7 +3,7 @@
 > **C++ canonical path:** `src/server/bnetserver/`
 > **Rust target crate(s):** `crates/bnet-server/`
 > **Layer:** binary (executable entry point)
-> **Status:** ⚠️ partial (login flow works; missing encrypted private-key support, SecretMgr, legacy password migration)
+> **Status:** ⚠️ partial (login flow works; missing encrypted private-key support, SecretMgr)
 > **Audited vs C++:** ⚠️ audited (2026-05-01) — see §13
 > **Last updated:** 2026-05-01
 
@@ -102,13 +102,13 @@ All paths relative to `/home/server/woltk-trinity-legacy/src/server/bnetserver/`
 | `BanExpiryHandler(weak<DeadlineTimer>, intervalSec, error)` | Periodic `DEL_EXPIRED_IP_BANS`, `UPD_EXPIRED_ACCOUNT_BANS`, `DEL_BNET_EXPIRED_ACCOUNT_BANNED` (interval = `BanExpiryCheckInterval` seconds, default 60) | LoginDatabase |
 | `LoginRESTService::StartNetwork(io, ip, port)` | Resolves external+local hostnames, registers HTTP handlers (GET `/bnetserver/login/`, GET `/bnetserver/gameAccounts/`, GET `/bnetserver/portal/`, POST `/bnetserver/login/`, POST `/bnetserver/login/srp/`, POST `/login/srp/`, POST `/login/`, POST `/bnetserver/refreshLoginTicket/`), calls base `HttpService::StartNetwork` | DNS resolver, base http |
 | `LoginRESTService::HandleGetForm(...)` | Returns the JSON `FormInputs` describing the login form (account_name, password, captcha?) | `_formInputs` |
-| `LoginRESTService::HandlePostLogin(...)` | First-stage login: receive credentials, look up account, check ban, issue SRP challenge OR fall through to legacy password migration | `BattlenetAccountMgr`, `Crypto::SRP6` |
+| `LoginRESTService::HandlePostLogin(...)` | First-stage login: receive credentials, look up account, check ban, issue SRP challenge or verify submitted SRP evidence | `BattlenetAccountMgr`, `Crypto::SRP6` |
 | `LoginRESTService::HandlePostLoginSrpChallenge(...)` | Second-stage: client sends `A` + `M1`, server verifies and replies with `LoginResult` (login ticket = `TC-<hex>`) | `BnetSRP6{v1,v2}` |
 | `LoginRESTService::HandlePostBotSrpChallenge / HandlePostBotLogin` | Same flow at `/login/srp/` and `/login/` (mobile / "bot" client paths) | — |
 | `LoginRESTService::HandlePostRefreshLoginTicket(...)` | Refresh an unexpired ticket, extending `loginTicketExpiry` by `LoginREST.TicketDuration` seconds | LoginDatabase |
 | `LoginRESTService::HandleGetGameAccounts(...)` | Returns the list of game accounts (`<bnetId>#1`, `#2`, …) linked to the BNet account from the ticket | LoginDatabase |
 | `LoginRESTService::HandleGetPortal(...)` | Returns "portal address" = `BattlenetPort` host:port for the next stage | config |
-| `LoginRESTService::MigrateLegacyPasswordHashes() const` | One-shot upgrade for accounts still on SRPv1 → v2 | SRP6 |
+| `LoginRESTService::MigrateLegacyPasswordHashes() const` | Startup migration from legacy `sha_pass_hash` text to SRPv1 salt/verifier | SRP6 |
 | `Battlenet::Session::Start()` / `OnRead()` / `HandleAuthChallenge` / `HandleProtoMessage` | TLS handshake, framing, dispatch via `ServiceDispatcher` | dispatcher |
 | `SessionManager::StartNetwork(io, ip, port)` / `OnSocketAccept(...)` | Boost acceptor on port 1119; on accept, allocate `Session`, hand it to `NetworkThread` | base |
 | `SslContext::Initialize()` / `instance()` | Load cert+key once; expose context to `Session`s | OpenSSL |
@@ -127,7 +127,7 @@ All paths relative to `/home/server/woltk-trinity-legacy/src/server/bnetserver/`
 - `protobuf` — BNet RPC messages
 - `rapidjson` — REST JSON serialization (in addition to protobuf-JSON for the form schema)
 - TC `common` libs: `Banner`, `Config`, `Log` (+ `AppenderDB`), `DatabaseLoader`, `LoginDatabase`, `MySQLThreading`, `OpenSSLCrypto`, `SecretMgr` (`SECRET_OWNER_BNETSERVER`), `IPLocation`, `IpNetwork::ScanLocalNetworks`, `Trinity::Asio::*`, `Trinity::Net::Http::*`, `Locale::Init`, `BigNumber`, `ProcessPriority`, `RealmList`
-- `Battlenet::AccountMgr` (lives in game module, but bnetserver links against it for `CreateBattlenetAccount` flows in the legacy migrator)
+- `Battlenet::AccountMgr` (lives in game module; bnetserver shares its SRP/account semantics)
 - The protobuf-generated `*_service.pb.h` set: `account`, `authentication`, `connection`, `game_utilities`, `login`, `error_codes`
 
 **Depended on by:**
@@ -240,7 +240,7 @@ HTTP routes (verb + path):
 - **`IPLocation` DB load present**. Rust reads `IPLocationFile`, parses TC's numeric IPv4 range CSV, and uses it for BNet `lock_country` enforcement. WrongPass IP autobans already persist through the DB path.
 - **No `SecretMgr` initialization** for `SECRET_OWNER_BNETSERVER`. SecretMgr stores HMAC keys for various server-internal purposes (e.g. realm-list signing). Currently every signed message in the Rust port either uses a hardcoded test key or skips signing entirely.
 - **Startup banner present**. Rust logs a `Banner::Show`-style startup summary with package version/revision, config file, overlays, env overrides, TLS backend and relevant dependency versions.
-- **No legacy password migration** (`MigrateLegacyPasswordHashes`). Means accounts on SRPv1 can never be upgraded silently — they have to be deleted and recreated.
+- **Legacy password migration present** (`MigrateLegacyPasswordHashes`). Rust now mirrors TC's startup pass: if `battlenet_accounts.sha_pass_hash` exists, rows with non-default legacy hash or missing salt/verifier are converted to SRPv1 salt/verifier and the legacy hash is reset to its column default.
 - **Bot/mobile REST routes present**. Rust implements `POST /login/srp/` and `POST /login/` with the TC bot SRP parameters (`BOT_SRP_N`, broken evidence vectors, same JSON fields).
 - **`POST /bnetserver/refreshLoginTicket/` present**. Rust matches TC's response shape and DB write for valid/expired tickets.
 - **No `SOAP` / Win32 service / process priority / processor affinity** — Linux-only Rust target, accepted gap.
@@ -253,7 +253,7 @@ HTTP routes (verb + path):
 - **TLS 1.2 only** is correct (WoW 3.4.3 client doesn't speak 1.3) but the cert-loading path differs from TC's `SslContext::Initialize`, which uses Boost.Asio's OpenSSL backend with explicit cipher list pinning. Some clients on uncommon OS/TLS-stack combos may negotiate different ciphers. Worth a `openssl s_client` capture vs TC.
 - **The "BNet RPC" framing** in `rpc/session.rs` claims to mirror C#/TC but the BNet protocol uses a 16-bit length prefix + protobuf with explicit `Header { service_hash, method_id, token, object_id, status, error[], timeout, size }` — verify byte-for-byte that what the client sends is actually decoded correctly (mismatched here ⇒ silent client kick).
 - **`session_key_bnet` storage**: audited against Trinity C++ and closed in #BNET.11. TC writes 64 raw bytes with `setBinary` (`client_secret[32] || server_secret[32]`) into `varbinary(64)`. Rust writes the same raw 64 bytes via `set_bytes`; the world-server reads the raw bytes and hex-encodes only for the internal auth helper.
-- **No legacy v1 migration** could be silent foot-gun if any pre-existing accounts in the DB are still v1 (most TC dumps are v2 since 2018, but worth checking).
+- **Legacy `sha_pass_hash` migration runs at startup** when the compatibility column is present. Invalid legacy hashes fail fast instead of writing a guessed verifier.
 - **Wrong-pass tracking persists**. Rust now mirrors TC's configurable `WrongPass.*` policy by updating `battlenet_accounts.failed_logins` and inserting account/IP autobans at the threshold.
 
 **Tests existing:**
@@ -418,7 +418,7 @@ HTTP routes (verb + path):
 - [ ] **#BNET.6** Port `SecretMgr::Initialize(SECRET_OWNER_BNETSERVER)`: persist a per-realm HMAC key in `secrets` table (or local file as TC does); use it for any internal signing. (M)
 - [x] **#BNET.7** Add the missing REST bot/mobile routes: `POST /login/`, `POST /login/srp/`. Rust keeps bot SRP state per REST connection like TC `LoginHttpSession`, returns `{salt, public_B}`, verifies `A`/`M1`, stores a `TC-` login ticket, and returns `{M2, login_ticket, session_key}`.
 - [x] **#BNET.8** Persist wrong-pass attempts in DB. Subsumed by #BNET.21: Rust writes `battlenet_accounts.failed_logins`, `battlenet_account_bans` or `ip_banned`, and resets failed-login count at the configured threshold like TC.
-- [ ] **#BNET.9** Implement `MigrateLegacyPasswordHashes()`: opt-in one-shot pass that re-derives v2 verifier on first successful v1 login. (M)
+- [x] **#BNET.9** Implement `MigrateLegacyPasswordHashes()`: startup pass that auto-skips when `battlenet_accounts.sha_pass_hash` does not exist; otherwise converts legacy 64-hex `sha_pass_hash` to SRPv1 salt/verifier like TC and resets the legacy column to `DEFAULT(sha_pass_hash)`.
 - [x] **#BNET.10** Add a freeze-style watchdog for listener tasks: if the REST/RPC listener task exits or panics, Rust now closes the DB and returns an error instead of treating it as a clean shutdown. Signal-driven shutdown remains the normal path; REST drain is closed under #BNET.14.
 - [x] **#BNET.11** Verify `session_key_bnet` storage format vs TC. Trinity C++ stores **64 raw bytes** with `setBinary` (`client_secret[32] || server_secret[32]`), not a hex string. Rust already wrote raw bytes; the port now enforces the 32+32 byte contract before persisting to avoid invalid keys on malformed realm-list tickets.
 - [x] **#BNET.12** Multi-thread option audit. Rust now reads/logs `Network.Threads` and `LoginREST.ThreadCount`; they are informational for BNet because TC `bnetserver` does not apply `Network.Threads` to its acceptors, while Rust uses Tokio's multi-thread runtime.
@@ -466,7 +466,7 @@ HTTP routes (verb + path):
 
 | Scope | Decision | C++ retained | Evidence |
 |---|---|---|---|
-| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 23 files / 3266 lines; refs: `/home/server/woltk-trinity-legacy/src/server/bnetserver/Server/Session.cpp`, `/home/server/woltk-trinity-legacy/src/server/bnetserver/REST/LoginRESTService.cpp`, `/home/server/woltk-trinity-legacy/src/server/bnetserver/Main.cpp` | `crates/bnet-server/` \| ⚠️ partial (login flow works; missing encrypted private-key support, SecretMgr, legacy password migration) |
+| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 23 files / 3266 lines; refs: `/home/server/woltk-trinity-legacy/src/server/bnetserver/Server/Session.cpp`, `/home/server/woltk-trinity-legacy/src/server/bnetserver/REST/LoginRESTService.cpp`, `/home/server/woltk-trinity-legacy/src/server/bnetserver/Main.cpp` | `crates/bnet-server/` \| ⚠️ partial (login flow works; missing encrypted private-key support, SecretMgr) |
 
 <!-- REFINE.025:END product-scope -->
 
@@ -488,7 +488,7 @@ HTTP routes (verb + path):
 - **TC also handles `SIGBREAK` on Windows**. Linux target: skip.
 - **Login REST is HTTPS even in development.** The default `bnetserver.cert.pem` / `.key.pem` are self-signed; the WoW client trusts whatever the launcher's CA bundle says — production needs a public CA cert (`bnet_fullchain.pem`).
 - **Wrong-pass ban policy is configurable** but the default in `bnetserver.conf.dist` is **off** (`WrongPass.MaxCount = 0` ⇒ no auto-ban). Don't enable it on test servers without warning users.
-- **`MigrateLegacyPasswordHashes`** runs once on startup *only if* a config flag is set. Don't run it transparently on every boot.
+- **`MigrateLegacyPasswordHashes`** is not config-gated in TC. `LoginRESTService::StartNetwork()` calls it every startup, and the function itself returns immediately when `battlenet_accounts.sha_pass_hash` is absent or no rows need conversion.
 - **`OpenSSLCrypto::threadsSetup` / `threadsCleanup`** is OpenSSL ≤ 1.0.2 ABI compatibility (locking callbacks). OpenSSL 1.1+ doesn't need it. Rust uses `rustls`, so this whole concern is moot — but the cipher-suite negotiation has to match what TC's OpenSSL build offers.
 - **`google::protobuf::ShutdownProtobufLibrary()`** is called from a smart-pointer destructor at process exit. The `prost` ecosystem doesn't need it; safe to ignore.
 - The `bnetserver` binary in C# / Rust **does not** load creature/spell/item data. The DB pool only attaches `LoginDatabase`. Don't drag world data in.
@@ -534,7 +534,7 @@ HTTP routes (verb + path):
 
 The Rust bnet daemon **reaches the same listening state as TrinityCore** for the happy path: it binds 1119 (TLS, BNet RPC) + 8081 (HTTPS, REST), opens a `LoginDatabase`, runs the `BanExpiryHandler`, polls `realmlist` every `RealmsStateUpdateDelay` s, and wires up the SRPv1/v2 → ticket → `VerifyWebCredentials` → `LogonResult` flow end-to-end. The five core REST endpoints needed for the WoW launcher are present and `cargo test --workspace` passes (395 tests).
 
-What is **not** at parity with TC: encrypted private-key password support, `SecretMgr` (HMAC keys), and `MigrateLegacyPasswordHashes`. The ALPN / TLS-cipher pinning differs because Rust uses `rustls` (TLS 1.2-only `ServerConfig` with no ALPN) while TC uses Boost.Asio + OpenSSL with `TLS_method` (negotiates anything); for WoW 3.4.3 clients that converge on TLS 1.2 + an `ECDHE-RSA-AES*` suite this is functionally equivalent, but uncommon launcher builds may see different ciphers.
+What is **not** at parity with TC: encrypted private-key password support and `SecretMgr` (HMAC keys). The ALPN / TLS-cipher pinning differs because Rust uses `rustls` (TLS 1.2-only `ServerConfig` with no ALPN) while TC uses Boost.Asio + OpenSSL with `TLS_method` (negotiates anything); for WoW 3.4.3 clients that converge on TLS 1.2 + an `ECDHE-RSA-AES*` suite this is functionally equivalent, but uncommon launcher builds may see different ciphers.
 
 Resolved since the original audit: `extract_auth_ticket` now mirrors TC's `ExtractAuthorization` by stripping optional `"Basic "`, Base64-decoding the value, and truncating at the first `:`. The failed-login/autoban path now persists `WrongPass.*` effects to `battlenet_accounts.failed_logins`, `battlenet_account_bans`, or `ip_banned`.
 
@@ -640,4 +640,4 @@ Add these to §9 (existing tasks #BNET.1–#BNET.14 stand):
 
 ### 13.8 Header status update
 
-Header status changed from `❌ not audited` → `⚠️ audited (2026-05-01)`. Functional state remains `⚠️ partial` because the audit confirmed gaps; remaining blockers include encrypted private-key password support, SecretMgr, and legacy password migration.
+Header status changed from `❌ not audited` → `⚠️ audited (2026-05-01)`. Functional state remains `⚠️ partial` because the audit confirmed gaps; remaining blockers include encrypted private-key password support and SecretMgr.

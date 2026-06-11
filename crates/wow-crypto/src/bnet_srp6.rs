@@ -299,6 +299,23 @@ pub fn compute_bnet_verifier(
     g.modpow(&x, &n).to_bytes_le()
 }
 
+/// Compute the SRPv1 verifier used by TrinityCore's legacy
+/// `battlenet_accounts.sha_pass_hash` migration.
+///
+/// C++ path: `SHA256(salt || HexStrToByteArray<32>(sha_pass_hash, true))`,
+/// then `BnetSRP6v1Base::g.ModExp(x, N).ToByteVector()`.
+pub fn compute_bnet_v1_verifier_from_legacy_sha_hash(
+    salt: &[u8],
+    legacy_sha_hash_le: &[u8; 32],
+) -> Vec<u8> {
+    let n = parse_modulus(SrpVersion::V1);
+    let g = BigUint::from(G);
+    let mut outer_data = salt.to_vec();
+    outer_data.extend_from_slice(legacy_sha_hash_le);
+    let x = BigUint::from_bytes_le(&Sha256::digest(&outer_data));
+    g.modpow(&x, &n).to_bytes_le()
+}
+
 // ── Private Helpers ─────────────────────────────────────────────────────────
 
 fn parse_modulus(version: SrpVersion) -> BigUint {
@@ -517,6 +534,25 @@ mod tests {
         );
         assert!(srp.check_credentials(&username, password));
         assert!(!srp.check_credentials(&username, "WRONG_PASSWORD"));
+    }
+
+    #[test]
+    fn legacy_sha_hash_migration_matches_v1_verifier_endianness_like_cpp() {
+        let salt = [0xAB; 32];
+        let mut legacy_sha_hash_le = [0u8; 32];
+        for (index, byte) in legacy_sha_hash_le.iter_mut().enumerate() {
+            *byte = index as u8;
+        }
+
+        let migrated = compute_bnet_v1_verifier_from_legacy_sha_hash(&salt, &legacy_sha_hash_le);
+        let n = parse_modulus(SrpVersion::V1);
+        let g = BigUint::from(G);
+        let mut outer_data = salt.to_vec();
+        outer_data.extend_from_slice(&legacy_sha_hash_le);
+        let x = BigUint::from_bytes_le(&Sha256::digest(&outer_data));
+        let expected = g.modpow(&x, &n).to_bytes_le();
+
+        assert_eq!(migrated, expected);
     }
 
     #[test]

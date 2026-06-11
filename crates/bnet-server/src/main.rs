@@ -4,6 +4,7 @@
 //! This is a drop-in replacement for the C# BNetServer.
 
 mod ip_location;
+mod legacy_password;
 mod realm;
 mod rest;
 mod rpc;
@@ -79,6 +80,14 @@ async fn main() -> Result<()> {
         login_db.close().await;
         tracing::info!("Database update-only mode complete.");
         return Ok(());
+    }
+
+    let legacy_password_report =
+        legacy_password::migrate_legacy_password_hashes_like_cpp(&login_db)
+            .await
+            .context("Failed to migrate legacy Battle.net password hashes")?;
+    if !legacy_password_report.column_present {
+        tracing::debug!("Legacy Battle.net sha_pass_hash column not present; skipping migration");
     }
 
     // Load TLS certificates — separate configs for REST (HTTPS) and RPC (binary)

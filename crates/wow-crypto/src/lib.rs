@@ -20,8 +20,9 @@ pub mod world_crypt;
 
 // Re-export the most commonly used types at crate root for convenience.
 pub use bnet_srp6::{
-    BnetSrp6, BnetSrpChallenge, BnetSrpProof, SrpHashFunction, SrpVersion, compute_bnet_verifier,
-    generate_bnet_salt, srp_username,
+    BnetSrp6, BnetSrpChallenge, BnetSrpProof, SrpHashFunction, SrpVersion,
+    compute_bnet_v1_verifier_from_legacy_sha_hash, compute_bnet_verifier, generate_bnet_salt,
+    srp_username,
 };
 pub use hmac_utils::{HmacSha1, HmacSha256};
 pub use sarc4::SArc4;
