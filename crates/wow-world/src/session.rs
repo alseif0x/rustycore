@@ -16780,6 +16780,9 @@ impl WorldSession {
             ClientOpcodes::ChatMessageWhisper => {
                 self.handle_chat_whisper(pkt).await;
             }
+            ClientOpcodes::ChatReportIgnored => {
+                self.handle_chat_report_ignored(pkt).await;
+            }
             ClientOpcodes::ChatMessageEmote => {
                 self.handle_chat_emote(pkt).await;
             }

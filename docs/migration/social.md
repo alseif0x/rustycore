@@ -92,7 +92,7 @@ Todas las rutas relativas a `/home/server/woltk-trinity-legacy/`.
 - **Items/Inventory** (for visible-item slots + transmog/enchant on inspect)
 
 **Depended on by:**
-- **ChatHandler** — drops whispers from senders on the recipient's ignore list (cross-references `PlayerSocial::HasIgnore`)
+- **ChatHandler / Channels / Group / Guild / LFG** — C++ uses `PlayerSocial::HasIgnore` in several server-side routes and handles `CMSG_CHAT_REPORT_IGNORED` for client-side ignored whispers.
 - **Player::SaveToDB** / load — saves social rows together with character
 - **WorldSession::LogoutPlayer** — calls `SocialMgr::RemovePlayerSocial(guid)` and broadcasts `FRIEND_OFFLINE` to followers
 - **AccountMgr / battle.net** — reads `WowAccountGuid` for cross-realm ignore propagation
@@ -133,11 +133,13 @@ Note: `character_social` schema in 3.4.3 is `(guid, friend, flags, note)` — th
 | `CMSG_DEL_IGNORE` | C→S | `HandleDelIgnoreOpcode` |
 | `CMSG_SET_CONTACT_NOTES` | C→S | `HandleSetContactNotesOpcode` |
 | `CMSG_SOCIAL_CONTRACT_REQUEST` | C→S | `HandleSocialContractRequest` |
+| `CMSG_CHAT_REPORT_IGNORED` | C→S | `HandleChatIgnoredOpcode` |
 | `CMSG_INSPECT` | C→S | `HandleInspectOpcode` |
 | `CMSG_QUERY_INSPECT_ACHIEVEMENTS` | C→S | `HandleQueryInspectAchievements` |
 | `CMSG_INSPECT_PVP` | C→S | `HandleInspectPVP` |
 | `SMSG_CONTACT_LIST` | S→C | `PlayerSocial::SendSocialList` |
 | `SMSG_FRIEND_STATUS` | S→C | `SocialMgr::SendFriendStatus` (one row) |
+| `SMSG_CHAT` (`CHAT_MSG_IGNORED`) | S→C | `HandleChatIgnoredOpcode` |
 | `SMSG_SOCIAL_CONTRACT_REQUEST_RESPONSE` | S→C | `HandleSocialContractRequest` |
 | `SMSG_INSPECT_RESULT` | S→C | `HandleInspectOpcode` |
 | `SMSG_RESPOND_INSPECT_ACHIEVEMENTS` | S→C | `HandleQueryInspectAchievements` |
@@ -161,6 +163,7 @@ Note: `character_social` schema in 3.4.3 is `(guid, friend, flags, note)` — th
 - `CMSG_DEL_IGNORE` — parses C++ `QualifiedGUID`, clears `SOCIAL_FLAG_IGNORED` (`flags &= ~2`) and deletes the row only if no flags remain; emits `FRIEND_IGNORE_REMOVED`. Account-level ignored-account recompute remains missing.
 - `CMSG_SET_CONTACT_NOTES` — parses C++ `QualifiedGUID + notes_len(10) + Notes`, truncates to the 48-char DB/client limit and updates `character_social.note` for an existing contact; no response packet, matching C++.
 - `CMSG_SOCIAL_CONTRACT_REQUEST` — empty client packet; replies with `SMSG_SOCIAL_CONTRACT_REQUEST_RESPONSE { ShowSocialContract=false }`, matching C++.
+- `CMSG_CHAT_REPORT_IGNORED` — parses C++ `IgnoredGUID + Reason`; if the ignored player is online, sends them `CHAT_MSG_IGNORED` naming the reporting player, matching `HandleChatIgnoredOpcode`.
 - `CMSG_SEND_CONTACT_LIST` — JOINs `character_social` × `characters`; populates `ContactInfo`; also emits `QueryPlayerNamesResponse` (name cache) so client can render names.
 - `CMSG_INSPECT` — registry lookup of target's broadcast info; sends `SMSG_INSPECT_RESULT` with target's race, class, level, gender + visible-items array (item_id only).
 - `FriendsResult` enum exists with the 28-ish variants (need full audit).
@@ -174,7 +177,7 @@ Note: `character_social` schema in 3.4.3 is `(guid, friend, flags, note)` — th
 - **Inspect-achievements** (`CMSG_QUERY_INSPECT_ACHIEVEMENTS` / `SMSG_RESPOND_INSPECT_ACHIEVEMENTS`) — unhandled.
 - **Inspect-PvP** (`CMSG_INSPECT_PVP`) — unhandled.
 - **Inspect-result enrichment** — no talent spec, no glyphs, no transmog, no enchant displays, no guild data, no specialization id.
-- **Whisper-from-ignored drop** — `chat.rs` does NOT cross-check `PlayerSocial::HasIgnore` because the social state isn't loaded into session. Whispers from an ignored sender still reach the recipient.
+- **Loaded `PlayerSocial::HasIgnore` integration** — Rust has no loaded per-session social container, so C++ server-side ignore gates in channels/groups/guild/LFG and account-level ignore are still absent. Direct player whispers now support the C++ `CMSG_CHAT_REPORT_IGNORED` feedback path, but the real social state remains incomplete.
 - **Cross-realm contact (VirtualRealmAddress, native vs virtual)** — fields are passed through but never differentiated; cross-realm friends won't resolve correctly.
 
 **Suspicious / likely divergent (hipótesis pre-auditoría):**
@@ -202,7 +205,8 @@ Note: `character_social` schema in 3.4.3 is `(guid, friend, flags, note)` — th
 - [ ] **#SOCIAL.7** Implement friend-status presence broadcast: on `WorldSession::login`, `logout`, `toggle_afk`, `toggle_dnd`, `change_zone`, call `SocialMgr::broadcast_to_friend_listers` to push `SMSG_FRIEND_STATUS`. Complejidad: **H**
 - [x] **#SOCIAL.8** Enforce 50-entry caps for `AddFriend` (`SOCIALMGR_FRIEND_LIMIT`) and `AddIgnore` (`SOCIALMGR_IGNORE_LIMIT`). Complejidad: **L**
 - [x] **#SOCIAL.9** Add enemy-faction check on `AddFriend` for normal players — reply `FRIEND_ENEMY` (0x0A). `RBAC_PERM_TWO_SIDE_ADD_FRIEND` bypass remains pending under Account/RBAC. Complejidad: **L**
-- [ ] **#SOCIAL.10** Cross-reference ignore list in `handle_chat_whisper` and other chat paths — drop msg if recipient ignores sender (or sender's account). Complejidad: **M**
+- [x] **#SOCIAL.10a** Implement `CMSG_CHAT_REPORT_IGNORED` → `CHAT_MSG_IGNORED` feedback path, matching `HandleChatIgnoredOpcode`. Complejidad: **L**
+- [ ] **#SOCIAL.10b** Load/use `PlayerSocial::HasIgnore` in server-side routes that C++ gates directly (channels/groups/guild/LFG, account-level ignore). Complejidad: **M**
 - [ ] **#SOCIAL.11** Enrich `SMSG_INSPECT_RESULT` — add talent-spec, glyphs, item enchants & gems display, transmog appearance, guild snapshot (`InspectGuildData`), specialization id. Complejidad: **H**
 - [ ] **#SOCIAL.12** Implement `CMSG_QUERY_INSPECT_ACHIEVEMENTS` + `SMSG_RESPOND_INSPECT_ACHIEVEMENTS` (compressed achievement bitmap). Complejidad: **M**
 - [ ] **#SOCIAL.13** Implement `CMSG_INSPECT_PVP` + `SMSG_INSPECT_PVP` (6-bracket arena rating array). Complejidad: **M**
@@ -217,7 +221,8 @@ Note: `character_social` schema in 3.4.3 is `(guid, friend, flags, note)` — th
 - [ ] Test: AddFriend opposite faction → replies `FRIEND_ENEMY` (0x0A).
 - [ ] Test: AddFriend at 50/50 → replies `FRIEND_LIST_FULL` (0x01).
 - [ ] Test: AddIgnore alt-of-existing-ignored-account → both alts auto-blocked via `_ignoredAccounts`.
-- [ ] Test: Whisper from ignored sender → recipient does NOT receive the chat packet, sender's session receives an inform.
+- [x] Test: `CMSG_CHAT_REPORT_IGNORED` parses `PackedGuid + Reason` like C++.
+- [ ] Test: server-side ignore gates in channel/group/guild/LFG routes reject ignored senders once `PlayerSocial` is loaded.
 - [ ] Test: Friend logging in → all online players who friend them receive `SMSG_FRIEND_STATUS{ONLINE}` within ~200ms.
 - [ ] Test: Friend toggling AFK → followers receive new status with `FRIEND_STATUS_AFK` flag set.
 - [ ] Test: SetContactNotes round-trips through DB and returns in next `SendSocialList`.
@@ -273,13 +278,14 @@ Side-by-side audit of `crates/wow-social/src/lib.rs` (empty) + `crates/wow-world
 
 ### Flagged divergence — verdict
 
-**`/ignore` does not filter whispers — CONFIRMED.**
-Two-part proof:
+**`/ignore` feedback and server-side filtering — PARTIAL.**
+Corrected proof against C++:
 
 1. `crates/wow-world/src/handlers/social.rs` now registers per-character `AddIgnore`/`DelIgnore`, `SetContactNotes`, and `SocialContractRequest`, so flag bit 2 (`SOCIAL_FLAG_IGNORED`) can be written/cleared, contact notes can be edited, and the social-contract request gets the C++ response. There is still no loaded `PlayerSocial` and no account-level `_ignoredAccounts`.
-2. `crates/wow-world/src/handlers/chat.rs:187-257` (`handle_chat_whisper`) looks up the target by name in `player_registry()`, builds a `ChatPkt::Whisper`, and unconditionally `tx.send(to_target.to_bytes())` (`chat.rs:227`). There is no membership check against any per-recipient ignore set. The corresponding C++ path (`ChatHandler.cpp` whisper) calls `player->GetSocial()->HasIgnore(senderGuid, senderAccount)` and short-circuits with `WORLD_PACKET_IGNORE_TYPE_*` if true.
+2. C++ direct whisper (`ChatHandler.cpp` → `Player::Whisper`) does **not** call `PlayerSocial::HasIgnore` in this path. Instead, `CMSG_CHAT_REPORT_IGNORED` is handled by `WorldSession::HandleChatIgnoredOpcode`, which sends `CHAT_MSG_IGNORED` to the ignored player.
+3. Rust now represents that feedback path: `ChatReportIgnored` parses `IgnoredGUID + Reason`, `handle_chat_report_ignored` looks up the ignored player in `PlayerRegistry`, and sends `ChatMsg::Ignored` naming the reporting player.
 
-Net effect after the represented `CMSG_ADD_IGNORE`/`CMSG_DEL_IGNORE` slices: clicking `Ignore Player` writes the per-character `SOCIAL_FLAG_IGNORED` row to `character_social`, and removing it clears only that flag like C++. `handle_chat_whisper` still does not consult that row and account-level ignore is still unavailable. The originator's ignore list can now persist/display, but chat blocking remains incomplete.
+Net effect after the represented `CMSG_ADD_IGNORE`/`CMSG_DEL_IGNORE` and `CMSG_CHAT_REPORT_IGNORED` slices: clicking `Ignore Player` writes the per-character `SOCIAL_FLAG_IGNORED` row to `character_social`, removing it clears only that flag like C++, and the client-side ignored-whisper report can notify the ignored player. Loaded `PlayerSocial`, account-level ignore, and the other C++ server-side `HasIgnore` gates remain incomplete.
 
 ### Coverage matrix
 
@@ -292,6 +298,7 @@ Net effect after the represented `CMSG_ADD_IGNORE`/`CMSG_DEL_IGNORE` slices: cli
 | `HandleDelIgnoreOpcode` | ✅ represented per-character `flags &= ~2`, deletes row only when empty | partial |
 | `HandleSetContactNotesOpcode` | ✅ updates `character_social.note`, truncates to 48 chars | ok |
 | `HandleSocialContractRequest` | ✅ sends `ShowSocialContract=false` response | ok |
+| `HandleChatIgnoredOpcode` | ✅ parses `IgnoredGUID + Reason`, sends `CHAT_MSG_IGNORED` to ignored online player | ok |
 | `HandleInspectOpcode` | ✅ `inspect.rs:33-81` (race/class/level/gender + visible-items only) | partial |
 | `HandleQueryInspectAchievements` | ❌ unregistered |  |
 | `HandleInspectPVP` | ❌ unregistered |  |
@@ -313,4 +320,4 @@ Net effect after the represented `CMSG_ADD_IGNORE`/`CMSG_DEL_IGNORE` slices: cli
 - No `InspectGuildData`, no `InspectTalentData`, no `PVPBracketData`. The four C++ inspect packet structs are stubbed to one (`InspectResult`).
 - `crates/wow-social/src/lib.rs` confirmed 0 bytes; no `PlayerSocial`, no `SocialMgr` anywhere in the workspace.
 
-**Verdict:** flagged divergence partly reduced. Friends list works for add/delete/list (~50% of `SocialHandler.cpp`). Per-character `AddIgnore`/`DelIgnore` now write and clear `SOCIAL_FLAG_IGNORED`, but account-level ignore, loaded `PlayerSocial`, and whisper/chat suppression remain open. Inspect is ~25% (basic items + identity); achievements/PvP/talents/glyphs absent. Presence broadcast (`SMSG_FRIEND_STATUS` on login/logout/AFK/zone) is 0%.
+**Verdict:** flagged divergence partly reduced. Friends list works for add/delete/list (~50% of `SocialHandler.cpp`). Per-character `AddIgnore`/`DelIgnore` now write and clear `SOCIAL_FLAG_IGNORED`, and `CMSG_CHAT_REPORT_IGNORED` feedback is represented. Account-level ignore, loaded `PlayerSocial`, and server-side `HasIgnore` gates outside the client-report whisper path remain open. Inspect is ~25% (basic items + identity); achievements/PvP/talents/glyphs absent. Presence broadcast (`SMSG_FRIEND_STATUS` on login/logout/AFK/zone) is 0%.

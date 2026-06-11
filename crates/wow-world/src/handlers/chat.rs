@@ -24,7 +24,7 @@ use wow_core::guid::HighGuid;
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
 use wow_packet::packets::chat::{
     CTextEmote, ChatAddonMessage, ChatMessage, ChatMessageEmote, ChatMessageWhisper, ChatMsg,
-    ChatPkt, ChatRegisterAddonPrefixes, EmoteClient, EmoteMessage, STextEmote,
+    ChatPkt, ChatRegisterAddonPrefixes, ChatReportIgnored, EmoteClient, EmoteMessage, STextEmote,
 };
 use wow_packet::{ClientPacket, ServerPacket};
 
@@ -106,6 +106,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_whisper",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::ChatReportIgnored,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_chat_report_ignored",
     }
 }
 
@@ -275,6 +284,47 @@ impl WorldSession {
                 virtual_realm,
             };
             self.send_packet(&chat);
+        }
+    }
+
+    /// Handle CMSG_CHAT_REPORT_IGNORED.
+    ///
+    /// C++ ref: `WorldSession::HandleChatIgnoredOpcode`.
+    /// The receiver's client sends this after locally ignoring a chat message;
+    /// the server notifies the ignored player with `CHAT_MSG_IGNORED`.
+    pub async fn handle_chat_report_ignored(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let report = match ChatReportIgnored::read(&mut pkt) {
+            Ok(report) => report,
+            Err(e) => {
+                tracing::warn!(
+                    account = self.account_id,
+                    "Bad chat report ignored packet: {e}"
+                );
+                return;
+            }
+        };
+
+        let (reporter_guid, reporter_name) = self.player_name_and_guid();
+        let virtual_realm = self.virtual_realm_address();
+
+        let ignored_tx = self.player_registry().and_then(|reg| {
+            reg.get(&report.ignored_guid)
+                .map(|entry| entry.send_tx.clone())
+        });
+
+        if let Some(tx) = ignored_tx {
+            let ignored = ChatPkt {
+                msg_type: ChatMsg::Ignored,
+                language: 0,
+                sender_guid: reporter_guid,
+                sender_name: reporter_name.clone(),
+                target_guid: reporter_guid,
+                target_name: reporter_name.clone(),
+                channel: String::new(),
+                text: reporter_name,
+                virtual_realm,
+            };
+            let _ = tx.send(ignored.to_bytes());
         }
     }
 

@@ -332,6 +332,28 @@ impl ClientPacket for ChatMessageWhisper {
     }
 }
 
+// ── CMSG_CHAT_REPORT_IGNORED ─────────────────────────────────────
+
+/// C++ `WorldPackets::Chat::ChatReportIgnored::Read`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChatReportIgnored {
+    pub ignored_guid: ObjectGuid,
+    pub reason: u8,
+}
+
+impl ClientPacket for ChatReportIgnored {
+    const OPCODE: ClientOpcodes = ClientOpcodes::ChatReportIgnored;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let ignored_guid = pkt.read_packed_guid()?;
+        let reason = pkt.read_uint8()?;
+        Ok(Self {
+            ignored_guid,
+            reason,
+        })
+    }
+}
+
 // ── CMSG_CHAT_MESSAGE_EMOTE ───────────────────────────────────────
 
 #[derive(Debug, Clone)]
@@ -745,6 +767,21 @@ mod tests {
 
         assert_eq!(packet.text, "hello");
         assert!(!packet.is_secure);
+    }
+
+    #[test]
+    fn chat_report_ignored_reads_cpp_layout() {
+        let ignored_guid = ObjectGuid::create_player(0, 0x12345);
+        let mut writer = WorldPacket::new_empty();
+        writer.write_packed_guid(&ignored_guid);
+        writer.write_uint8(2);
+
+        let mut reader = WorldPacket::from_bytes(writer.data());
+        let packet = ChatReportIgnored::read(&mut reader).unwrap();
+
+        assert_eq!(packet.ignored_guid, ignored_guid);
+        assert_eq!(packet.reason, 2);
+        assert!(reader.is_empty());
     }
 
     #[test]
