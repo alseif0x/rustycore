@@ -40,7 +40,7 @@ use wow_packet::packets::misc::{
     AddToy, ArenaTeamRoster, BattlePetClearFanfare, BattlePetDeletePet, BattlePetModifyName,
     BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags, BattlePetSummon,
     BattlePetUpdateNotify, CageBattlePet, CalendarSendCalendar, CalendarSendNumPending,
-    CommerceTokenGetLog, CommerceTokenGetLogResponse, DfGetSystemInfo, FarSight,
+    CommerceTokenGetLog, CommerceTokenGetLogResponse, DfGetJoinStatus, DfGetSystemInfo, FarSight,
     GmTicketCaseStatus, LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus, MountSetFavorite,
     QueryBattlePetName, QueryBattlePetNameResponse, RatedPvpInfo, RequestCemeteryListResponse,
     SaveCufProfiles, TaxiNodeStatusPkt, ToyClearFanfare, UseToy,
@@ -1480,7 +1480,19 @@ impl crate::session::WorldSession {
             // here yet, so the no-group branch remains silent.
         }
     }
-    pub async fn handle_df_get_join_status(&mut self, _pkt: wow_packet::WorldPacket) {}
+    pub async fn handle_df_get_join_status(&mut self, mut pkt: wow_packet::WorldPacket) {
+        if let Err(error) = DfGetJoinStatus::read(&mut pkt) {
+            warn!(
+                account = self.account_id,
+                "DFGetJoinStatus parse failed: {error}"
+            );
+            return;
+        }
+
+        // C++ `HandleDFGetJoinStatus` returns before sending anything when
+        // `Player::isUsingLfg()` is false. Rust has no represented active LFG
+        // join state in this handler yet, so preserve that observable branch.
+    }
     pub async fn handle_calendar_get_num_pending(&mut self, _pkt: wow_packet::WorldPacket) {
         // C++ reads `sCalendarMgr->GetPlayerNumPending(playerGuid)` and sends
         // CalendarSendNumPending. Calendar manager state is not ported yet, so
@@ -4722,6 +4734,17 @@ mod tests {
         request.flush_bits();
 
         session.handle_df_get_system_info(request).await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn df_get_join_status_without_active_lfg_is_silent_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_df_get_join_status(WorldPacket::new_empty())
+            .await;
 
         assert!(send_rx.try_recv().is_err());
     }

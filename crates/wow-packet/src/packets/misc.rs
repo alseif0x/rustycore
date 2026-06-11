@@ -3774,6 +3774,18 @@ impl ClientPacket for DfGetSystemInfo {
     }
 }
 
+/// C++ `WorldPackets::LFG::DFGetJoinStatus`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct DfGetJoinStatus;
+
+impl ClientPacket for DfGetJoinStatus {
+    const OPCODE: ClientOpcodes = ClientOpcodes::DfGetJoinStatus;
+
+    fn read(_pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self)
+    }
+}
+
 /// C++ `WorldPackets::LFG::LFGBlackList`.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct LfgBlackList {
@@ -4191,6 +4203,13 @@ mod tests {
         let request = DfGetSystemInfo::read(&mut pkt).unwrap();
         assert!(request.player);
         assert_eq!(request.party_index, Some(7));
+    }
+
+    #[test]
+    fn df_get_join_status_reads_empty_cpp_packet() {
+        let mut pkt = WorldPacket::new_empty();
+        DfGetJoinStatus::read(&mut pkt).unwrap();
+        assert_eq!(pkt.remaining(), 0);
     }
 
     #[test]
