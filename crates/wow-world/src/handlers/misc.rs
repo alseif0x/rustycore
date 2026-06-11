@@ -2044,8 +2044,14 @@ impl crate::session::WorldSession {
         // C++ calls Player::TradeCancel(true) only when a player is present.
         // Full trade state is not ported yet; no active trade means no response.
     }
-    pub async fn handle_report_client_variables(&mut self, _pkt: wow_packet::WorldPacket) {}
-    pub async fn handle_report_enabled_addons(&mut self, _pkt: wow_packet::WorldPacket) {}
+    pub async fn handle_report_client_variables(&mut self, _pkt: wow_packet::WorldPacket) {
+        // C++ registers CMSG_REPORT_CLIENT_VARIABLES as
+        // STATUS_UNHANDLED/Handle_NULL.
+    }
+    pub async fn handle_report_enabled_addons(&mut self, _pkt: wow_packet::WorldPacket) {
+        // C++ registers CMSG_REPORT_ENABLED_ADDONS as
+        // STATUS_UNHANDLED/Handle_NULL.
+    }
     pub async fn handle_report_keybinding_execution_counts(
         &mut self,
         _pkt: wow_packet::WorldPacket,
@@ -4854,6 +4860,28 @@ mod tests {
 
         session
             .handle_get_account_character_list(WorldPacket::new_empty())
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn report_client_variables_is_silent_like_cpp_handle_null() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_report_client_variables(WorldPacket::new_empty())
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn report_enabled_addons_is_silent_like_cpp_handle_null() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_report_enabled_addons(WorldPacket::new_empty())
             .await;
 
         assert!(send_rx.try_recv().is_err());
