@@ -37,7 +37,7 @@ use wow_ai::{
     select_creature_ai_like_cpp,
 };
 use wow_constants::creature::{CreatureFlagsExtra, CreatureType, CreatureTypeFlags};
-use wow_constants::item::{CurrencyTypes, CurrencyTypesFlags};
+use wow_constants::item::{CurrencyTypes, CurrencyTypesFlags, EnchantmentSlot};
 use wow_constants::movement::MovementFlag;
 use wow_constants::unit::{
     Gender, NPCFlags1, PowerType, Team, UnitFlags, UnitFlags2, UnitPvpFlags, UnitStandStateType,
@@ -95,18 +95,19 @@ use wow_database::{
     StatementDef, WorldDatabase,
 };
 use wow_entities::{
-    AccessorObjectKind, ApplyEnchantmentEffectRef, ApplyEnchantmentRandomSuffixRef,
-    ApplyEnchantmentTemplateRef, BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_COUNT,
-    BUYBACK_SLOT_END, BUYBACK_SLOT_START, BagTemplateRef, CanStoreItemArgs, CanUnequipItemArgs,
-    CanUseItemArgs, CanUseItemTemplateArgs, EQUIPMENT_SLOT_BACK, EQUIPMENT_SLOT_BODY,
-    EQUIPMENT_SLOT_CHEST, EQUIPMENT_SLOT_END, EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_HANDS,
-    EQUIPMENT_SLOT_HEAD, EQUIPMENT_SLOT_LEGS, EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND,
-    EQUIPMENT_SLOT_SHOULDERS, EQUIPMENT_SLOT_TABARD, EQUIPMENT_SLOT_WAIST, EQUIPMENT_SLOT_WRISTS,
-    GameObject, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END,
-    INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, ITEM_DATA_BITS, ITEM_DATA_DURABILITY_BIT,
-    Item, ItemCreateInfo, ItemDataUpdate, ItemLimitCategoryTemplate, ItemPosCount, ItemSlotRef,
-    ItemStorageRef, ItemStorageTemplate, ItemValuesUpdate, MAX_BAG_SIZE, MAX_ITEM_SPELLS,
-    MAX_MONEY_AMOUNT, NULL_BAG, NULL_SLOT, ObjectAccessor, PLAYER_SLOT_END, PhaseShift, Player,
+    AccessorObjectKind, ApplyEnchantmentArgs, ApplyEnchantmentEffectRef, ApplyEnchantmentPlan,
+    ApplyEnchantmentRandomSuffixRef, ApplyEnchantmentTemplateRef, BANK_SLOT_BAG_END,
+    BANK_SLOT_BAG_START, BUYBACK_SLOT_COUNT, BUYBACK_SLOT_END, BUYBACK_SLOT_START, BagTemplateRef,
+    CanStoreItemArgs, CanUnequipItemArgs, CanUseItemArgs, CanUseItemTemplateArgs,
+    EQUIPMENT_SLOT_BACK, EQUIPMENT_SLOT_BODY, EQUIPMENT_SLOT_CHEST, EQUIPMENT_SLOT_END,
+    EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_HANDS, EQUIPMENT_SLOT_HEAD, EQUIPMENT_SLOT_LEGS,
+    EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND, EQUIPMENT_SLOT_SHOULDERS,
+    EQUIPMENT_SLOT_TABARD, EQUIPMENT_SLOT_WAIST,
+    EQUIPMENT_SLOT_WRISTS, GameObject, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0,
+    INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, ITEM_DATA_BITS,
+    ITEM_DATA_DURABILITY_BIT, Item, ItemCreateInfo, ItemDataUpdate, ItemLimitCategoryTemplate,
+    ItemPosCount, ItemSlotRef, ItemStorageRef, ItemStorageTemplate, ItemValuesUpdate, MAX_BAG_SIZE,
+    MAX_ITEM_SPELLS, MAX_MONEY_AMOUNT, NULL_BAG, NULL_SLOT, ObjectAccessor, PLAYER_SLOT_END, PhaseShift, Player,
     PlayerEnchantTimeUpdate, PlayerInventoryStorage, PlayerItemTimeUpdate,
     QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE, REAGENT_BAG_SLOT_END,
     REAGENT_BAG_SLOT_START, SendNewItemDelivery, SendNewItemDisplayText, SendNewItemPlan,
@@ -12204,6 +12205,35 @@ impl WorldSession {
                     }
                 })
             })
+    }
+
+    /// C++ `Player::ApplyEnchantment(item, slot, apply, ...)` bridge for a
+    /// represented inventory item owned by the current player.
+    ///
+    /// The item runtime lives in the session inventory while the player state
+    /// lives in the canonical map. This temporarily moves the item out, runs the
+    /// entity-level plan against the canonical player when available, then puts
+    /// the item back without clearing or setting the enchantment field itself.
+    pub(crate) fn apply_current_player_item_enchantment_plan_like_cpp(
+        &mut self,
+        item_guid: ObjectGuid,
+        slot: EnchantmentSlot,
+        args: ApplyEnchantmentArgs,
+    ) -> Option<ApplyEnchantmentPlan> {
+        let mut item = self.remove_inventory_item_object(item_guid)?;
+        let enchantment_id = item.data().enchantments[slot as usize].id;
+        let mut template = self.apply_enchantment_template_ref(enchantment_id, 0, true);
+        if let Some(template) = &mut template {
+            if let Ok(skill_id) = u16::try_from(template.required_skill_id) {
+                template.required_skill_value = self.player_skill_value_like_cpp(skill_id);
+            }
+        }
+
+        let plan = self.mutate_canonical_player_like_cpp(|player| {
+            player.apply_enchantment_plan(Some(&mut item), slot, template, args)
+        });
+        self.insert_inventory_item_object(item);
+        plan
     }
 
     /// Set the hotfix blob cache for this session.
@@ -30522,10 +30552,11 @@ mod tests {
         reputation::ReputationFlagsLikeCpp,
     };
     use wow_entities::{
-        AccessorObjectRef, BANK_SLOT_BAG_START, CharmType, EQUIPMENT_SLOT_CHEST,
-        INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, REAGENT_BAG_SLOT_START,
-        SendNewItemInstancePlan, SendNewItemModifier, TYPEID_UNIT, UNIT_DATA_BITS, UnitDataUpdate,
-        UnitDataValues, UnitValuesUpdate, UpdateMask,
+        AccessorObjectRef, ApplyEnchantmentDurationAction, ApplyEnchantmentResult,
+        BANK_SLOT_BAG_START, CharmType, EQUIPMENT_SLOT_CHEST, INVENTORY_SLOT_BAG_START,
+        INVENTORY_SLOT_ITEM_START, REAGENT_BAG_SLOT_START, SendNewItemInstancePlan,
+        SendNewItemModifier, TYPEID_UNIT, UNIT_DATA_BITS, UnitDataUpdate, UnitDataValues,
+        UnitValuesUpdate, UpdateMask,
     };
     use wow_movement::MoveSplineFlag;
     use wow_network::{
@@ -64179,6 +64210,105 @@ mod tests {
                 ApplyEnchantmentEffectRef::known(ItemEnchantmentType::Stat, (-2i16) as u32, 8),
                 ApplyEnchantmentEffectRef::unknown(250, 30, 9),
             ]
+        );
+    }
+
+    #[test]
+    fn current_player_item_enchantment_plan_removes_canonical_duration_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 90_510);
+        let player_position = Position::new(1.0, 2.0, 3.0, 0.0);
+        let item_guid = ObjectGuid::create_item(1, 90_511);
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_player_skill_values_like_cpp(HashMap::from([(333, 80)]));
+        add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
+        session
+            .mutate_canonical_player_like_cpp(|player| player.unit_mut().set_level(80))
+            .unwrap();
+        session.set_spell_item_enchantment_store(Arc::new(
+            SpellItemEnchantmentStore::from_entries([SpellItemEnchantmentEntry {
+                id: 905,
+                effect_arg: [0; 3],
+                effect_points_min: [0; 3],
+                item_visual: 0,
+                flags: SpellItemEnchantmentFlags::empty(),
+                required_skill_id: 333,
+                required_skill_rank: 75,
+                item_level: 1,
+                charges: 0,
+                effect: [ItemEnchantmentType::None as u8; 3],
+                condition_id: 0,
+                min_level: 1,
+                max_level: 0,
+            }]),
+        ));
+
+        session.insert_inventory_item_like_cpp(
+            EQUIPMENT_SLOT_MAINHAND,
+            InventoryItem {
+                guid: item_guid,
+                entry_id: 700,
+                db_guid: item_guid.counter() as u64,
+                inventory_type: Some(InventoryType::Weapon as u8),
+            },
+        );
+        let mut item = session.make_inventory_item_object(
+            item_guid,
+            700,
+            player_guid,
+            1,
+            0,
+            ItemContext::None,
+            EQUIPMENT_SLOT_MAINHAND,
+        );
+        item.set_enchantment(EnchantmentSlot::EnhancementTemporary, 905, 12_000, 0);
+        session.insert_inventory_item_object(item.clone());
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.add_enchantment_duration(
+                    &mut item,
+                    EnchantmentSlot::EnhancementTemporary,
+                    12_000,
+                );
+                assert_eq!(player.enchant_durations().len(), 1);
+            })
+            .unwrap();
+
+        let plan = session
+            .apply_current_player_item_enchantment_plan_like_cpp(
+                item_guid,
+                EnchantmentSlot::EnhancementTemporary,
+                ApplyEnchantmentArgs::remove(),
+            )
+            .expect("canonical player should receive enchantment remove plan");
+
+        assert!(
+            matches!(
+            plan.result,
+            ApplyEnchantmentResult::Applied {
+                apply: false,
+                duration_action: Some(ApplyEnchantmentDurationAction::Removed {
+                    item_guid: removed_guid,
+                    slot: EnchantmentSlot::EnhancementTemporary,
+                }),
+                ..
+            } if removed_guid == item_guid
+            ),
+            "unexpected plan: {plan:?}"
+        );
+        assert!(
+            session
+                .mutate_canonical_player_like_cpp(|player| player.enchant_durations().is_empty())
+                .unwrap()
+        );
+        assert_eq!(
+            session.inventory_item_objects_like_cpp()[&item_guid].data().enchantments
+                [EnchantmentSlot::EnhancementTemporary as usize]
+                .id,
+            905
         );
     }
 

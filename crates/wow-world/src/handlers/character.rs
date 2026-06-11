@@ -8736,10 +8736,11 @@ impl WorldSession {
             return;
         }
 
-        // C++ applies stat/aura removal before clearing the item field. Rust's
-        // represented player-stat side effects are not yet wired to this handler,
-        // but clearing the represented item enchantment matches the item-field
-        // state transition and marks the item data dirty for the update bridge.
+        let _ = self.apply_current_player_item_enchantment_plan_like_cpp(
+            item.guid,
+            EnchantmentSlot::EnhancementTemporary,
+            wow_entities::ApplyEnchantmentArgs::remove(),
+        );
         self.update_inventory_item_object_like_cpp(item.guid, |item| {
             item.clear_enchantment(EnchantmentSlot::EnhancementTemporary);
         });
