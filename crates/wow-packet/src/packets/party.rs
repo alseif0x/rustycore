@@ -920,6 +920,32 @@ impl PartyMemberAuraState {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct PartyMemberPetStats {
+    pub guid: ObjectGuid,
+    pub model_id: i32,
+    pub current_health: i32,
+    pub max_health: i32,
+    pub auras: Vec<PartyMemberAuraState>,
+    pub name: String,
+}
+
+impl PartyMemberPetStats {
+    fn write(&self, w: &mut WorldPacket) {
+        w.write_packed_guid(&self.guid);
+        w.write_int32(self.model_id);
+        w.write_int32(self.current_health);
+        w.write_int32(self.max_health);
+        w.write_uint32(self.auras.len() as u32);
+        for aura in &self.auras {
+            aura.write(w);
+        }
+        w.write_bits(self.name.len() as u32, 8);
+        w.flush_bits();
+        w.write_string(&self.name);
+    }
+}
+
 pub struct PartyMemberFullState {
     pub member_guid: ObjectGuid,
     pub for_enemy: bool,
@@ -940,6 +966,7 @@ pub struct PartyMemberFullState {
     pub party_type: [u8; 2],
     pub phases: PartyMemberPhaseStates,
     pub auras: Vec<PartyMemberAuraState>,
+    pub pet_stats: Option<PartyMemberPetStats>,
 }
 
 impl ServerPacket for PartyMemberFullState {
@@ -980,7 +1007,7 @@ impl ServerPacket for PartyMemberFullState {
             aura.write(w);
         }
 
-        w.write_bit(false); // PetStats != null → false
+        w.write_bit(self.pet_stats.is_some()); // PetStats != null
         w.flush_bits();
 
         // DungeonScoreSummary.Write() — empty:
@@ -988,7 +1015,10 @@ impl ServerPacket for PartyMemberFullState {
         w.write_float(0.0); // LadderScoreCurrentSeason
         w.write_int32(0); // Runs.Count
 
-        // (no PetStats)
+        if let Some(pet_stats) = &self.pet_stats {
+            pet_stats.write(w);
+        }
+
         w.write_packed_guid(&self.member_guid);
     }
 }

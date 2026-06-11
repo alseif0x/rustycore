@@ -8435,6 +8435,7 @@ mod tests {
             party_member_party_type: [0; 2],
             party_member_phase_states: Default::default(),
             party_member_auras: Vec::new(),
+            party_member_pet_stats: None,
             player_name: format!("Player{}", guid.counter()),
             account_id: guid.counter() as u32,
             recruiter_id: 0,

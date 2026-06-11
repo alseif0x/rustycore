@@ -293,6 +293,7 @@ fn party_member_full_state_like_cpp(
             party_type: [0; 2],
             phases: Default::default(),
             auras: Vec::new(),
+            pet_stats: None,
         };
     };
 
@@ -343,6 +344,7 @@ fn party_member_full_state_like_cpp(
         party_type: entry.party_member_party_type,
         phases: entry.party_member_phase_states.clone(),
         auras: entry.party_member_auras.clone(),
+        pet_stats: entry.party_member_pet_stats.clone(),
     }
 }
 
@@ -2230,6 +2232,7 @@ mod tests {
             party_member_party_type: [0; 2],
             party_member_phase_states: Default::default(),
             party_member_auras: Vec::new(),
+            party_member_pet_stats: None,
             player_name: format!("Player{}", guid.low_value()),
             account_id: 1,
             recruiter_id: 0,
@@ -3224,6 +3227,22 @@ mod tests {
                 active_flags: 0x04,
                 points: vec![17.5],
             }];
+            info.party_member_pet_stats = Some(wow_packet::packets::party::PartyMemberPetStats {
+                guid: ObjectGuid::create_world_object(
+                    wow_core::guid::HighGuid::Pet,
+                    0,
+                    1,
+                    571,
+                    0,
+                    42_000,
+                    100,
+                ),
+                model_id: 987,
+                current_health: 55,
+                max_health: 66,
+                auras: Vec::new(),
+                name: "Wolf".to_string(),
+            });
         }
         session.set_player_registry(registry);
 
@@ -3276,7 +3295,19 @@ mod tests {
         assert_eq!(pkt.read_uint32().unwrap(), 0x04);
         assert_eq!(pkt.read_int32().unwrap(), 1);
         assert_eq!(pkt.read_float().unwrap(), 17.5);
-        assert!(!pkt.read_bit().unwrap());
+        assert!(pkt.read_bit().unwrap());
+        assert_eq!(pkt.read_float().unwrap(), 0.0);
+        assert_eq!(pkt.read_float().unwrap(), 0.0);
+        assert_eq!(pkt.read_int32().unwrap(), 0);
+        let pet_guid = pkt.read_packed_guid().unwrap();
+        assert_eq!(pet_guid.high_type(), wow_core::guid::HighGuid::Pet);
+        assert_eq!(pkt.read_int32().unwrap(), 987);
+        assert_eq!(pkt.read_int32().unwrap(), 55);
+        assert_eq!(pkt.read_int32().unwrap(), 66);
+        assert_eq!(pkt.read_uint32().unwrap(), 0);
+        let pet_name_len = pkt.read_bits(8).unwrap() as usize;
+        assert_eq!(pkt.read_string(pet_name_len).unwrap(), "Wolf");
+        assert_eq!(pkt.read_packed_guid().unwrap(), target);
         assert!(sent.ends_with(&target_guid_bytes));
         assert!(
             sent.windows([0x08, 0x00, 0x00, 0x00].len())

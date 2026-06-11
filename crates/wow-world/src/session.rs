@@ -14291,6 +14291,38 @@ impl WorldSession {
         party_type
     }
 
+    fn party_member_pet_stats_like_cpp(
+        &self,
+    ) -> Option<wow_packet::packets::party::PartyMemberPetStats> {
+        let player_guid = self.player_guid()?;
+        let pet_guid = self.represented_pet_guid_like_cpp?;
+        let map_id = u32::from(self.player_map_id_like_cpp());
+        let instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
+        let manager = manager.lock().ok()?;
+        let map = manager.find_map(map_id, instance_id)?;
+        let pet = map.map().map_object_record(pet_guid)?.pet()?;
+        if pet.owner_guid() != player_guid {
+            return None;
+        }
+
+        let creature = pet.creature();
+        let unit = creature.unit();
+        Some(wow_packet::packets::party::PartyMemberPetStats {
+            guid: pet_guid,
+            model_id: unit.data().display_id,
+            current_health: i32::try_from(creature.current_health()).unwrap_or(i32::MAX),
+            max_health: i32::try_from(creature.max_health()).unwrap_or(i32::MAX),
+            // Pet visible-aura runtime is not represented yet; C++ fills this
+            // from `pet->GetVisibleAuras()` when that state exists.
+            auras: Vec::new(),
+            name: unit.world().name().to_string(),
+        })
+    }
+
     /// Register this session in the player registry.
     /// Called after player login is complete (player_guid + position both set).
     pub(crate) fn register_in_player_registry(&self) {
@@ -14414,6 +14446,7 @@ impl WorldSession {
                 )
                 .unwrap_or_default(),
                 party_member_auras: self.party_member_visible_auras_like_cpp(),
+                party_member_pet_stats: self.party_member_pet_stats_like_cpp(),
                 player_name: name.to_string(),
                 account_id: self.account_id,
                 recruiter_id: self.recruiter_id_like_cpp,
@@ -14526,6 +14559,7 @@ impl WorldSession {
                 party_member_phase_states_like_cpp(self.represented_player_phase_shift_like_cpp())
                     .unwrap_or_default();
             info.party_member_auras = self.party_member_visible_auras_like_cpp();
+            info.party_member_pet_stats = self.party_member_pet_stats_like_cpp();
         }
     }
 
@@ -46292,6 +46326,7 @@ mod tests {
             party_member_party_type: [0; 2],
             party_member_phase_states: Default::default(),
             party_member_auras: Vec::new(),
+            party_member_pet_stats: None,
             player_name: format!("Player{}", guid.counter()),
             account_id: guid.counter() as u32,
             recruiter_id: 0,
@@ -46568,6 +46603,38 @@ mod tests {
         let info = registry.get(&guid).expect("registered player");
         assert!(info.in_vehicle);
         assert_eq!(info.party_member_vehicle_seat, 1001);
+    }
+
+    #[test]
+    fn player_registry_publishes_party_member_pet_stats_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let guid = ObjectGuid::create_player(1, 48);
+        let pet_guid = ObjectGuid::create_world_object(HighGuid::Pet, 0, 1, 571, 0, 42_000, 100);
+        let registry = Arc::new(PlayerRegistry::default());
+        let canonical = shared_canonical_map_manager();
+        let position = Position::new(1.0, 2.0, 3.0, 0.0);
+        session.set_player_guid(Some(guid));
+        session.set_player_map_position_like_cpp(571, position);
+        session.player_name = Some("PetOwnerTester".to_string());
+        session.set_player_registry(Arc::clone(&registry));
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_represented_pet_mode_state_like_cpp(Some(pet_guid), 1, 0);
+        add_canonical_test_player_on_map(&canonical, guid, position, 571, 0);
+        add_canonical_test_pet(&canonical, pet_guid, guid, 42_000, position, 0);
+
+        session.register_in_player_registry();
+
+        let info = registry.get(&guid).expect("registered player");
+        let pet_stats = info
+            .party_member_pet_stats
+            .as_ref()
+            .expect("pet stats are published");
+        assert_eq!(pet_stats.guid, pet_guid);
+        assert_eq!(pet_stats.name, "Pet");
+        assert_eq!(pet_stats.model_id, 1);
+        assert_eq!(pet_stats.current_health, 100);
+        assert_eq!(pet_stats.max_health, 100);
+        assert!(pet_stats.auras.is_empty());
     }
 
     #[test]
