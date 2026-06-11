@@ -277,7 +277,7 @@ Int	CONFIG_CHARDELETE_DEMON_HUNTER_MIN_LEVEL	server/game/World/World.h:373	CharD
 Int	CONFIG_AUTOBROADCAST_CENTER	server/game/World/World.h:374	AutoBroadcast.Center	Int	server/game/World/World.cpp:1626	0		missing_in_rust	-
 Int	CONFIG_AUTOBROADCAST_INTERVAL	server/game/World/World.h:375	AutoBroadcast.Timer	Int	server/game/World/World.cpp:1627	60000		missing_in_rust	-
 Int	CONFIG_MAX_RESULTS_LOOKUP_COMMANDS	server/game/World/World.h:376	Command.LookupMaxResults	Int	server/game/World/World.cpp:1584	0		missing_in_rust	-
-Int	CONFIG_DB_PING_INTERVAL	server/game/World/World.h:377	MaxPingTime	Int	server/game/World/World.cpp:1635	30		missing_in_rust	-
+Int	CONFIG_DB_PING_INTERVAL	server/game/World/World.h:377	MaxPingTime	Int	server/game/World/World.cpp:1635	30	world_config_u32:crates/world-server/src/main.rs	rust_exact_key	-
 Int	CONFIG_PRESERVE_CUSTOM_CHANNEL_DURATION	server/game/World/World.h:378	PreserveCustomChannelDuration	Int	server/game/World/World.cpp:795	14		missing_in_rust	-
 Int	CONFIG_PRESERVE_CUSTOM_CHANNEL_INTERVAL	server/game/World/World.h:379	PreserveCustomChannelInterval	Int	server/game/World/World.cpp:796	5		missing_in_rust	-
 Int	CONFIG_PERSISTENT_CHARACTER_CLEAN_FLAGS	server/game/World/World.h:380	PersistentCharacterCleanFlags	Int	server/game/World/World.cpp:771	0		missing_in_rust	-

@@ -2378,6 +2378,12 @@ async fn main() -> Result<()> {
         Arc::clone(&player_registry),
         map_update_interval_ms,
     );
+    let db_keepalive_handle = spawn_db_keepalive_loop_like_cpp(
+        Arc::clone(&char_db),
+        Arc::clone(&login_db),
+        Arc::clone(&world_db),
+        db_keepalive_interval_minutes_like_cpp(&world_configs),
+    );
 
     set_realm_online(&login_db, realm_id).await?;
 
@@ -2414,6 +2420,9 @@ async fn main() -> Result<()> {
     }
 
     game_event_quest_complete_handle.abort();
+    if let Some(db_keepalive_handle) = db_keepalive_handle {
+        db_keepalive_handle.abort();
+    }
 
     if let Err(e) = clear_online_accounts_like_cpp(&login_db, char_db.as_ref(), realm_id).await {
         tracing::error!("Failed to clear online account state for realm {realm_id}: {e}");
@@ -2510,6 +2519,52 @@ fn set_realm_online_sql_like_cpp(realm_id: u16) -> String {
     format!(
         "UPDATE realmlist SET flag = flag & ~{REALM_FLAG_OFFLINE}, population = 0 WHERE id = {realm_id}"
     )
+}
+
+fn db_keepalive_interval_minutes_like_cpp(configs: &WorldConfigSet) -> u32 {
+    world_config_u32(configs, "CONFIG_DB_PING_INTERVAL", 30)
+}
+
+#[cfg(test)]
+fn db_keepalive_sql_like_cpp() -> &'static str {
+    wow_database::database::KEEP_ALIVE_SQL_LIKE_CPP
+}
+
+fn db_keepalive_database_names_like_cpp() -> [&'static str; 3] {
+    ["Character", "Login", "World"]
+}
+
+fn spawn_db_keepalive_loop_like_cpp(
+    character_db: Arc<CharacterDatabase>,
+    login_db: Arc<LoginDatabase>,
+    world_db: Arc<WorldDatabase>,
+    interval_minutes: u32,
+) -> Option<tokio::task::JoinHandle<()>> {
+    if interval_minutes == 0 {
+        warn!("MaxPingTime is 0; database keep-alive loop disabled");
+        return None;
+    }
+
+    Some(tokio::spawn(async move {
+        let [character_name, login_name, world_name] = db_keepalive_database_names_like_cpp();
+        let interval = Duration::from_secs(u64::from(interval_minutes) * 60);
+        loop {
+            tokio::time::sleep(interval).await;
+            debug!("Ping MySQL to keep connection alive");
+            keepalive_mysql_database_like_cpp(character_name, &character_db).await;
+            keepalive_mysql_database_like_cpp(login_name, &login_db).await;
+            keepalive_mysql_database_like_cpp(world_name, &world_db).await;
+        }
+    }))
+}
+
+async fn keepalive_mysql_database_like_cpp<S: StatementDef>(
+    name: &str,
+    db: &wow_database::Database<S>,
+) {
+    if let Err(error) = db.keep_alive_like_cpp().await {
+        warn!("MySQL keep-alive failed for {name} database: {error}");
+    }
 }
 
 #[cfg(unix)]
@@ -8680,7 +8735,8 @@ mod tests {
         collect_legacy_creature_aggro_candidates_like_cpp,
         collect_legacy_creature_aggro_candidates_with_canonical_like_cpp,
         consume_game_event_live_update_side_effects_like_cpp, create_pid_file_like_cpp,
-        deliver_creature_attack_start_commands_like_cpp,
+        db_keepalive_database_names_like_cpp, db_keepalive_interval_minutes_like_cpp,
+        db_keepalive_sql_like_cpp, deliver_creature_attack_start_commands_like_cpp,
         deliver_creature_melee_damage_commands_like_cpp,
         deliver_refresh_visible_world_creatures_like_cpp, deliver_runtime_plan_like_cpp,
         fanout_game_event_announcement_to_player_sessions_like_cpp,
@@ -10977,6 +11033,24 @@ Expansion = 9
             4465
         );
         assert_eq!(world_config_u8(&configs, "CONFIG_EXPANSION", 2), 9);
+    }
+
+    #[test]
+    fn db_keepalive_config_and_pool_scope_match_cpp() {
+        let _guard = TEST_LOCK.lock().expect("test lock poisoned");
+
+        wow_config::load_config_from_str("").expect("config should load");
+        let configs = wow_config::load_world_config_values();
+        assert_eq!(db_keepalive_interval_minutes_like_cpp(&configs), 30);
+
+        wow_config::load_config_from_str("MaxPingTime = 7\n").expect("config should load");
+        let configs = wow_config::load_world_config_values();
+        assert_eq!(db_keepalive_interval_minutes_like_cpp(&configs), 7);
+        assert_eq!(
+            db_keepalive_database_names_like_cpp(),
+            ["Character", "Login", "World"]
+        );
+        assert_eq!(db_keepalive_sql_like_cpp(), "SELECT 1");
     }
 
     #[test]

@@ -216,7 +216,7 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
   - `session.update(50)` — process inbound queued packets
   - `session.process_pending().await` — async DB callbacks
   - `if disconnecting break` else `tokio::time::sleep(50ms)`
-- Shutdown via `tokio::select! { ctrl_c => ..., listener_join => ... }`.
+- Shutdown via `tokio::select! { shutdown_signal() => ..., listener_join => ... }`, where `shutdown_signal()` handles Ctrl-C and Unix SIGTERM.
 - `get_address_for_client` — replicates TC's `Trinity::Net::SelectAddressForClient`-style "loopback or same /24 → local, else external".
 
 **What's missing vs C++:**
@@ -224,8 +224,8 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
 - **`FreezeDetector`** — there is no equivalent. If the runtime hangs, only an external supervisor (systemd `WatchdogSec=`) catches it.
 - **`MaxCoreStuckTime` config**: read but ignored.
 - **`MinWorldUpdateTime` config**: ignored. The Rust tick is hardcoded `Duration::from_millis(50)`.
-- **`World::IsStopped()` / `World::StopNow(code)` / `World::GetExitCode()`**: there is no `World` singleton. Shutdown is just `ctrl_c` → drop listeners. Exit code always 0.
-- **DB keep-alive timer (`MaxPingTime`)**: not implemented (see same gap in bnetserver).
+- **`World::IsStopped()` / `World::StopNow(code)` / `World::GetExitCode()`**: there is no `World` singleton. Shutdown signal handling exits the top-level select and drops listeners. Exit code always 0.
+- **DB keep-alive timer (`MaxPingTime`) present**: Rust spawns a Tokio keep-alive task that pings Character/Login/World every `MaxPingTime` minutes, matching TC's `World::Update` pool set. Hotfix is intentionally not pinged here because TC does not call `HotfixDatabase.KeepAlive()` in this path.
 - **`AppenderDB`** (logs into `logs.logs` table): not implemented; tracing only goes to stderr / journald.
 - **`Banner::Show`**: only a single `info!("RustyCore World Server starting...")`.
 - **`OpenSSLCrypto` setup / `BigNumber::SetRand(...)` warmup**: irrelevant (rustls / `getrandom`).
@@ -327,7 +327,7 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
 - [ ] **#WS.3** Implement `FreezeDetector`: `tokio::time::interval(1s)`; reads `m_world_loop_counter`; if unchanged for `MaxCoreStuckTime` ms, `tracing::error!` + `std::process::abort()`. (M)
 - [x] **#WS.4** Implement `ClearOnlineAccounts()` — called at boot and shutdown; mirrors TC's three queries: account online flags for this realm, character online flags, and battleground instance ids.
 - [x] **#WS.5** Implement realmlist OFFLINE flag toggle at boot + listener-ready + shutdown: mirrors TC's `flag | OFFLINE` at boot/shutdown and `flag & ~OFFLINE, population = 0` once connectable.
-- [ ] **#WS.6** DB keep-alive: every `MaxPingTime` minutes, `SELECT 1` against each of the 4 pools. (L)
+- [x] **#WS.6** DB keep-alive: every `MaxPingTime` minutes, `SELECT 1` against Character/Login/World pools, matching TC's `World::Update` keep-alive set.
 - [ ] **#WS.7** Implement `AppenderDB` equivalent for `tracing`: a layer that batches log records into `logs.logs` table. Optional. (M)
 - [ ] **#WS.8** Add CLI thread: `tokio::task::spawn_blocking` reading stdin, posting commands to a `CliCommandQueue` consumed in the main tick. Wire a small set of commands first (`server info`, `server shutdown`, `account create`). (H)
 - [ ] **#WS.9** Implement RA listener (`Ra.Enable`): bind on `Ra.IP:Ra.Port`, per-connection auth (gmlevel ≥ `Ra.MinLevel`), pipe commands into the same `CliCommandQueue`. (H)
@@ -367,7 +367,7 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
 - [ ] Test: `FreezeDetector` aborts the process if the global tick counter doesn't advance for > `MaxCoreStuckTime` ms (use a deliberately blocking handler in a test build).
 - [ ] Test: `ClearOnlineAccounts` at boot zeroes `account.online` for accounts with characters on the current realm and **only** that realm.
 - [ ] Test: realmlist `flag` column has `REALM_FLAG_OFFLINE` set during startup (after `StartDB`, before `WorldUpdateLoop`) and again after shutdown.
-- [ ] Test: DB keep-alive ping fires every `MaxPingTime` minutes (use `tokio::time::pause` for time-skipping).
+- [x] Test: DB keep-alive config/scope/SQL mirrors C++ (`MaxPingTime`, `SELECT 1`, Character/Login/World only). Runtime DB-timer integration remains covered by service testing, not a unit fake.
 - [ ] Test: with `Console.Enable=true`, sending `server info\n` to stdin produces an info log; `server shutdown\n` triggers `World::stop_now(SHUTDOWN_EXIT_CODE)`.
 - [ ] Test: with `Ra.Enable=true`, a TCP connection to `Ra.Port` requires a username + password, validates `gmlevel >= Ra.MinLevel`, then runs the same command surface.
 - [ ] Test: shutdown sequence — when SIGINT arrives, every connected session receives `SMSG_LOGOUT_RESPONSE`, character data is saved, then listeners close. Total time bounded by `ShutdownLatencyMax`.
@@ -651,7 +651,7 @@ This is acceptable divergence **for packet dispatch** (Tokio gives us the per-se
 | `FreezeDetector` (process abort on tick stall) | High | #WS.3 |
 | `ClearOnlineAccounts` at boot + shutdown | Medium | ✅ #WS.4 |
 | Realmlist OFFLINE flag toggle (boot / listener-up / shutdown) | Medium | ✅ #WS.5 |
-| DB keep-alive ping (`MaxPingTime`) | Medium | #WS.6 |
+| DB keep-alive ping (`MaxPingTime`) | Medium | ✅ #WS.6 |
 | `AppenderDB` for `tracing` (logs into `logs.logs` table) | Low | #WS.7 |
 | CLI thread (`Console.Enable`) | Medium | #WS.8 |
 | RA listener (`Ra.Enable`, port 3443) | Medium | #WS.9 |
@@ -676,8 +676,7 @@ The §9 list is largely correct; recommended **reorder by priority** (no renumbe
 2. **#WS.15** (graceful shutdown) — depends on #WS.1.
 3. **#WS.3** (freeze detector) — depends on #WS.2 (needs the loop counter).
 4. **#WS.21** (pool sizing) — independent, trivial.
-5. **#WS.6** (DB keep-alive) — independent.
-6. Everything else as time allows.
+5. Everything else as time allows.
 
 **Add new sub-tasks not currently in §9:**
 

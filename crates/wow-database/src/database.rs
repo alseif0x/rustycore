@@ -9,6 +9,8 @@ use sqlx::MySqlPool;
 use sqlx::mysql::MySqlPoolOptions;
 use std::marker::PhantomData;
 
+pub const KEEP_ALIVE_SQL_LIKE_CPP: &str = "SELECT 1";
+
 /// A type-safe database connection wrapping a [`MySqlPool`].
 ///
 /// The type parameter `S` is a statement enum (e.g. `LoginStatements`) that
@@ -127,6 +129,14 @@ impl<S: StatementDef> Database<S> {
     pub async fn direct_query(&self, sql: &str) -> Result<SqlResult, DatabaseError> {
         let rows = sqlx::query(sql).fetch_all(&self.pool).await?;
         Ok(SqlResult::new(rows))
+    }
+
+    /// Ping the database connection pool, mirroring TrinityCore's KeepAlive().
+    pub async fn keep_alive_like_cpp(&self) -> Result<(), DatabaseError> {
+        sqlx::query(KEEP_ALIVE_SQL_LIKE_CPP)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
     }
 
     /// Execute a query or append it to a transaction.
