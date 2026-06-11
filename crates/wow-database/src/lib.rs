@@ -35,6 +35,7 @@
 
 pub mod database;
 pub mod error;
+pub mod loader;
 pub mod params;
 pub mod query_holder;
 pub mod result;
@@ -49,6 +50,11 @@ pub use database::{
     warn_about_sync_queries_scope_like_cpp,
 };
 pub use error::DatabaseError;
+pub use loader::{
+    DATABASE_CHARACTER_LIKE_CPP, DATABASE_HOTFIX_LIKE_CPP, DATABASE_LOGIN_LIKE_CPP,
+    DATABASE_MASK_ALL_LIKE_CPP, DATABASE_NONE_LIKE_CPP, DATABASE_WORLD_LIKE_CPP,
+    DatabaseLoaderLikeCpp,
+};
 pub use params::{PreparedStatement, SqlParam};
 pub use query_holder::{SqlQueryHolder, SqlQueryHolderResult};
 pub use result::{

@@ -383,18 +383,18 @@ Not applicable — the database framework does not handle WoW client packets. (I
   Depends on: #REFINE.020, #REFINE.021; execution order finalized by #REFINE.040
   Acceptance: Rust target compiles; behavior and public contracts are checked against the listed C++ file; unit/golden/integration tests are added or marked n/a with reason; divergences are recorded before closing.
   Notes: `ready_for_small_task`; Single source-file coverage task; split further if C++ review exposes multiple independent behaviors. Assignment basis: prefix.
-- [ ] **#DATABASE_FRAMEWORK.WBS.006** Cerrar la migracion auditada de `database/Database/DatabaseLoader.cpp`
+- [x] **#DATABASE_FRAMEWORK.WBS.006** Cerrar la migracion auditada de `database/Database/DatabaseLoader.cpp`
   C++ refs: `/home/server/woltk-trinity-legacy/src/server/database/Database/DatabaseLoader.cpp`
   Rust target: `crates/wow-database`, `crates/wow-database/src`
   Depends on: #REFINE.020, #REFINE.021; execution order finalized by #REFINE.040
   Acceptance: Rust target compiles; behavior and public contracts are checked against the listed C++ file; unit/golden/integration tests are added or marked n/a with reason; divergences are recorded before closing.
-  Notes: `ready_for_small_task`; Single source-file coverage task; split further if C++ review exposes multiple independent behaviors. Assignment basis: prefix.
-- [ ] **#DATABASE_FRAMEWORK.WBS.007** Cerrar la migracion auditada de `database/Database/DatabaseLoader.h`
+  Notes: Closed by `DatabaseLoaderLikeCpp`: open/populate/update/prepare queues run in C++ order and failure drains the close stack LIFO. Startup wiring into `world-server` remains an explicit later integration slice, not part of this file-level contract.
+- [x] **#DATABASE_FRAMEWORK.WBS.007** Cerrar la migracion auditada de `database/Database/DatabaseLoader.h`
   C++ refs: `/home/server/woltk-trinity-legacy/src/server/database/Database/DatabaseLoader.h`
   Rust target: `crates/wow-database`, `crates/wow-database/src`
   Depends on: #REFINE.020, #REFINE.021; execution order finalized by #REFINE.040
   Acceptance: Rust target compiles; behavior and public contracts are checked against the listed C++ file; unit/golden/integration tests are added or marked n/a with reason; divergences are recorded before closing.
-  Notes: `ready_for_small_task`; Single source-file coverage task; split further if C++ review exposes multiple independent behaviors. Assignment basis: prefix.
+  Notes: Closed by `DatabaseLoaderLikeCpp` public API and TC database mask constants (`DATABASE_LOGIN`, `DATABASE_CHARACTER`, `DATABASE_WORLD`, `DATABASE_HOTFIX`, `DATABASE_MASK_ALL`). Startup wiring into `world-server` remains an explicit later integration slice.
 - [ ] **#DATABASE_FRAMEWORK.WBS.008** Partir y cerrar la migracion auditada de `database/Database/DatabaseWorkerPool.cpp`
   C++ refs: `/home/server/woltk-trinity-legacy/src/server/database/Database/DatabaseWorkerPool.cpp`
   Rust target: `crates/wow-database`, `crates/wow-database/src`
@@ -642,7 +642,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 - [x] **#DB.18** Add a `DatabaseError::TableMissing` variant so callers can distinguish "DB not populated / structure out of date" from generic query errors. Rust maps MySQL `ER_NO_SUCH_TABLE` (`1146`, SQLSTATE `42S02`) into this variant, matching C++'s special handling of `ER_NO_SUCH_TABLE` in `_HandleMySQLErrno`. (L)
 - [x] **#DB.19** Add a `Field`-style typed accessor with metadata: `SqlResult::read_typed::<u8>(col)` / `try_read_typed::<u8>(col)` check `column_type_name` through `DatabaseFieldTypeLikeCpp` before decoding, matching TC's `Field`/`DatabaseFieldTypes` guard. (M)
 - [x] **#DB.20** Implement async `KeepAlive` from a free-standing `tokio::spawn` while the global world tick is still pending. Covered by #DB.2 / #WS.6; if a future global tick centralizes this, keep the same Character/Login/World-only scope.
-- [ ] **#DB.21** Add a `DatabaseLoader`-style sequencer: a struct that registers (open / populate / update / close) closures per DB and rolls back on failure. Currently `world-server/main.rs` does this inline 4× with no rollback. (M)
+- [x] **#DB.21** Add a `DatabaseLoader`-style sequencer: `DatabaseLoaderLikeCpp` queues async open/populate/update/prepare steps, keeps a LIFO close stack, exposes TC's DB update-mask constants, and rolls back registered closers on any phase failure. `world-server/main.rs` startup remains inline and can be migrated onto the sequencer in a later wiring slice. (M)
 
 ---
 
@@ -758,7 +758,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 | `pool.EscapeString(str)` | `db.escape_string_like_cpp(str)` / `wow_database::escape_string_like_cpp(str)` | Prefer bound parameters; this is for legacy raw-SQL fragments |
 | `pool.KeepAlive()` | `Database::keep_alive_like_cpp()` + world-server keep-alive task | `SELECT 1` every `MaxPingTime` for Character/Login/World |
 | `pool.WarnAboutSyncQueries(true)` | `warn_about_sync_queries_scope_like_cpp(async { ... })` | task-local warning scope, wired into current world-server ticks |
-| `class DatabaseLoader` (5-queue sequencer + close stack) | (inline in `world-server/src/main.rs`) | TODO #DB.21 — formalize into a sequencer struct |
+| `class DatabaseLoader` (5-queue sequencer + close stack) | `wow_database::DatabaseLoaderLikeCpp` | Core sequencer + rollback semantics ported; world-server wiring still inline |
 | `class DBUpdater<T>` | `wow_database::updater::DbUpdater` (single non-generic struct) | The `<T>` tag is replaced by the per-DB connection params passed to `DbUpdater::new` |
 | `DBUpdater::Create(pool)` | `open_with_pool_size_and_auto_create_like_cpp(...)` during world-server pool open | non-interactive; creates schema then retries |
 | `DBUpdater::Populate(pool)` | `updater.populate(base_sql).await` | Shells to `mysql` CLI |
