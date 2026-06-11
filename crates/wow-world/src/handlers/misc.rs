@@ -39,10 +39,10 @@ use wow_packet::packets::loot::{LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHI
 use wow_packet::packets::misc::{
     AddToy, BattlePetClearFanfare, BattlePetDeletePet, BattlePetModifyName,
     BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags, BattlePetSummon,
-    BattlePetUpdateNotify, CageBattlePet, DfGetSystemInfo, FarSight, GmTicketCaseStatus,
-    LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus, MountSetFavorite, QueryBattlePetName,
-    QueryBattlePetNameResponse, RatedPvpInfo, RequestCemeteryListResponse, SaveCufProfiles,
-    TaxiNodeStatusPkt, ToyClearFanfare, UseToy,
+    BattlePetUpdateNotify, CageBattlePet, CalendarSendNumPending, DfGetSystemInfo, FarSight,
+    GmTicketCaseStatus, LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus, MountSetFavorite,
+    QueryBattlePetName, QueryBattlePetNameResponse, RatedPvpInfo, RequestCemeteryListResponse,
+    SaveCufProfiles, TaxiNodeStatusPkt, ToyClearFanfare, UseToy,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -1476,7 +1476,12 @@ impl crate::session::WorldSession {
         }
     }
     pub async fn handle_df_get_join_status(&mut self, _pkt: wow_packet::WorldPacket) {}
-    pub async fn handle_calendar_get_num_pending(&mut self, _pkt: wow_packet::WorldPacket) {}
+    pub async fn handle_calendar_get_num_pending(&mut self, _pkt: wow_packet::WorldPacket) {
+        // C++ reads `sCalendarMgr->GetPlayerNumPending(playerGuid)` and sends
+        // CalendarSendNumPending. Calendar manager state is not ported yet, so
+        // represent the empty pending-invite count.
+        self.send_packet(&CalendarSendNumPending { num_pending: 0 });
+    }
     pub async fn handle_gm_ticket_get_case_status(&mut self, _pkt: wow_packet::WorldPacket) {
         // C++ `HandleGMTicketGetCaseStatusOpcode` is still a TODO and sends a
         // default `GMTicketCaseStatus`, i.e. an empty case list.
@@ -4681,6 +4686,24 @@ mod tests {
         assert_eq!(
             u16::from_le_bytes([bytes[0], bytes[1]]),
             ServerOpcodes::GmTicketCaseStatus as u16
+        );
+
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_uint32().unwrap(), 0);
+    }
+
+    #[tokio::test]
+    async fn calendar_get_num_pending_sends_zero_pending_like_cpp_without_calendar_mgr() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_calendar_get_num_pending(WorldPacket::new_empty())
+            .await;
+
+        let bytes = send_rx.try_recv().expect("calendar pending packet");
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::CalendarSendNumPending as u16
         );
 
         let mut pkt = WorldPacket::from_bytes(&bytes[2..]);

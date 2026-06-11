@@ -3800,6 +3800,20 @@ impl ServerPacket for GmTicketCaseStatus {
     }
 }
 
+/// C++ `WorldPackets::Calendar::CalendarSendNumPending`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct CalendarSendNumPending {
+    pub num_pending: u32,
+}
+
+impl ServerPacket for CalendarSendNumPending {
+    const OPCODE: ServerOpcodes = ServerOpcodes::CalendarSendNumPending;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_uint32(self.num_pending);
+    }
+}
+
 // ── RatedPvpInfo ─────────────────────────────────────────────────────────────
 
 /// C++ `WorldPackets::Battleground::RatedPvpInfo`.
@@ -4033,6 +4047,19 @@ mod tests {
 
         let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
         assert_eq!(pkt.read_uint32().unwrap(), 0);
+    }
+
+    #[test]
+    fn calendar_send_num_pending_matches_cpp_shape() {
+        let bytes = CalendarSendNumPending { num_pending: 3 }.to_bytes();
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::CalendarSendNumPending as u16
+        );
+        assert_eq!(bytes.len(), 2 + 4);
+
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_uint32().unwrap(), 3);
     }
 
     #[test]
