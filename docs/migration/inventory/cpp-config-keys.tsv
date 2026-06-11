@@ -229,8 +229,8 @@ CharacterCreating.Disabled.RaceMask	worldserver:server/worldserver/worldserver.c
 CharacterCreating.EvokersPerRealm	worldserver:server/worldserver/worldserver.conf.dist:857	worldserver=1	Int:server/game/World/World.cpp:966	Int=1	CONFIG_CHARACTER_CREATING_EVOKERS_PER_REALM		missing_in_rust	-
 CharacterCreating.MinLevelForDemonHunter	worldserver:server/worldserver/worldserver.conf.dist:866	worldserver=0	Int:server/game/World/World.cpp:973	Int=0	CONFIG_CHARACTER_CREATING_MIN_LEVEL_FOR_DEMON_HUNTER		missing_in_rust	-
 CharacterCreating.MinLevelForEvoker	worldserver:server/worldserver/worldserver.conf.dist:875	worldserver=0	Int:server/game/World/World.cpp:974	Int=50	CONFIG_CHARACTER_CREATING_MIN_LEVEL_FOR_EVOKER		missing_in_rust	-
-CharacterDatabase.SynchThreads	worldserver:server/worldserver/worldserver.conf.dist:151	worldserver=2					missing_in_rust	-
-CharacterDatabase.WorkerThreads	worldserver:server/worldserver/worldserver.conf.dist:135	worldserver=1					missing_in_rust	-
+CharacterDatabase.SynchThreads	worldserver:server/worldserver/worldserver.conf.dist:151	worldserver=2					get_value_default:crates/world-server/src/main.rs	rust_exact_key	#WS.21/#DB.1
+CharacterDatabase.WorkerThreads	worldserver:server/worldserver/worldserver.conf.dist:135	worldserver=1					get_value_default:crates/world-server/src/main.rs	rust_exact_key	#WS.21/#DB.1
 CharacterDatabaseInfo	worldserver:server/worldserver/worldserver.conf.dist:117	worldserver="127.0.0.1;3306;trinity;trinity;characters"					missing_in_rust	Rust usa subclaves CharacterDatabaseInfo.Host/Port/Username/Password/Database; C++ usa valor semicolonado CharacterDatabaseInfo
 CharacterDatabaseInfo.Database						get_string_default:crates/world-server/src/main.rs:189	rust_only_schema_mismatch	subclave Rust incompatible con la clave C++ semicolonada
 CharacterDatabaseInfo.Host						get_string_default:crates/world-server/src/main.rs:184	rust_only_schema_mismatch	subclave Rust incompatible con la clave C++ semicolonada
@@ -335,8 +335,8 @@ HotSwap.EnableReCompiler	worldserver:server/worldserver/worldserver.conf.dist:15
 HotSwap.Enabled	worldserver:server/worldserver/worldserver.conf.dist:1531	worldserver=1	Bool:server/game/World/World.cpp:1693	Bool=true	CONFIG_HOTSWAP_ENABLED		missing_in_rust	-
 HotSwap.ReCompilerBuildType	worldserver:server/worldserver/worldserver.conf.dist:1589	worldserver=""	String:server/game/Scripting/ScriptReloadMgr.cpp:1109	String=""	auto directive		missing_in_rust	-
 HotSwap.ScriptDir	worldserver:server/worldserver/worldserver.conf.dist:1539	worldserver="scripts"	String:server/game/Scripting/ScriptReloadMgr.cpp:556	String="scripts"			missing_in_rust	-
-HotfixDatabase.SynchThreads	worldserver:server/worldserver/worldserver.conf.dist:152	worldserver=1					missing_in_rust	-
-HotfixDatabase.WorkerThreads	worldserver:server/worldserver/worldserver.conf.dist:136	worldserver=1					missing_in_rust	-
+HotfixDatabase.SynchThreads	worldserver:server/worldserver/worldserver.conf.dist:152	worldserver=1					get_value_default:crates/world-server/src/main.rs	rust_exact_key	#WS.21/#DB.1
+HotfixDatabase.WorkerThreads	worldserver:server/worldserver/worldserver.conf.dist:136	worldserver=1					get_value_default:crates/world-server/src/main.rs	rust_exact_key	#WS.21/#DB.1
 HotfixDatabaseInfo	worldserver:server/worldserver/worldserver.conf.dist:118	worldserver="127.0.0.1;3306;trinity;trinity;hotfixes"					missing_in_rust	Rust usa subclaves HotfixDatabaseInfo.Host/Port/Username/Password/Database; C++ usa valor semicolonado HotfixDatabaseInfo
 HotfixDatabaseInfo.Database						get_string_default:crates/world-server/src/main.rs:222	rust_only_schema_mismatch	subclave Rust incompatible con la clave C++ semicolonada
 HotfixDatabaseInfo.Host						get_string_default:crates/world-server/src/main.rs:217	rust_only_schema_mismatch	subclave Rust incompatible con la clave C++ semicolonada
@@ -374,8 +374,8 @@ Logger.session	bnetserver:server/bnetserver/bnetserver.conf.dist:441	bnetserver=
 Logger.session.packets	bnetserver:server/bnetserver/bnetserver.conf.dist:442	bnetserver=3,Console Bnet					missing_in_rust	-
 Logger.sql.sql	worldserver:server/worldserver/worldserver.conf.dist:4184	worldserver=5,Console DBErrors					missing_in_rust	-
 Logger.sql.updates	worldserver:server/worldserver/worldserver.conf.dist:4185|bnetserver:server/bnetserver/bnetserver.conf.dist:443	worldserver=3,Console Server|bnetserver=3,Console Bnet					missing_in_rust	-
-LoginDatabase.SynchThreads	worldserver:server/worldserver/worldserver.conf.dist:149|bnetserver:server/bnetserver/bnetserver.conf.dist:262	worldserver=1|bnetserver=1					missing_in_rust	-
-LoginDatabase.WorkerThreads	worldserver:server/worldserver/worldserver.conf.dist:133|bnetserver:server/bnetserver/bnetserver.conf.dist:255	worldserver=1|bnetserver=1					missing_in_rust	-
+LoginDatabase.SynchThreads	worldserver:server/worldserver/worldserver.conf.dist:149|bnetserver:server/bnetserver/bnetserver.conf.dist:262	worldserver=1|bnetserver=1					get_value_default:crates/world-server/src/main.rs	rust_exact_key_worldserver_only; bnetserver still pending
+LoginDatabase.WorkerThreads	worldserver:server/worldserver/worldserver.conf.dist:133|bnetserver:server/bnetserver/bnetserver.conf.dist:255	worldserver=1|bnetserver=1					get_value_default:crates/world-server/src/main.rs	rust_exact_key_worldserver_only; bnetserver still pending
 LoginDatabaseInfo	worldserver:server/worldserver/worldserver.conf.dist:115|bnetserver:server/bnetserver/bnetserver.conf.dist:246	worldserver="127.0.0.1;3306;trinity;trinity;auth"|bnetserver="127.0.0.1;3306;trinity;trinity;auth"					missing_in_rust	Rust usa subclaves LoginDatabaseInfo.Host/Port/Username/Password/Database; C++ usa valor semicolonado LoginDatabaseInfo
 LoginDatabaseInfo.Database						get_string_default:crates/bnet-server/src/main.rs:41|get_string_default:crates/world-server/src/main.rs:174	rust_only_schema_mismatch	subclave Rust incompatible con la clave C++ semicolonada
 LoginDatabaseInfo.Host						get_string_default:crates/bnet-server/src/main.rs:37|get_string_default:crates/world-server/src/main.rs:170	rust_only_schema_mismatch	subclave Rust incompatible con la clave C++ semicolonada
@@ -651,8 +651,8 @@ Wintergrasp.PlayerMax	worldserver:server/worldserver/worldserver.conf.dist:2933	
 Wintergrasp.PlayerMin	worldserver:server/worldserver/worldserver.conf.dist:2940	worldserver=0	Int:server/game/World/World.cpp:1647	Int=0	CONFIG_WINTERGRASP_PLR_MIN		missing_in_rust	-
 Wintergrasp.PlayerMinLvl	worldserver:server/worldserver/worldserver.conf.dist:2947	worldserver=77	Int:server/game/World/World.cpp:1648	Int=77	CONFIG_WINTERGRASP_PLR_MIN_LVL		missing_in_rust	-
 WorldBossLevelDiff	worldserver:server/worldserver/worldserver.conf.dist:1787	worldserver=3	Int:server/game/World/World.cpp:1254	Int=3	CONFIG_WORLD_BOSS_LEVEL_DIFF		missing_in_rust	-
-WorldDatabase.SynchThreads	worldserver:server/worldserver/worldserver.conf.dist:150	worldserver=1					missing_in_rust	-
-WorldDatabase.WorkerThreads	worldserver:server/worldserver/worldserver.conf.dist:134	worldserver=1					missing_in_rust	-
+WorldDatabase.SynchThreads	worldserver:server/worldserver/worldserver.conf.dist:150	worldserver=1					get_value_default:crates/world-server/src/main.rs	rust_exact_key	#WS.21/#DB.1
+WorldDatabase.WorkerThreads	worldserver:server/worldserver/worldserver.conf.dist:134	worldserver=1					get_value_default:crates/world-server/src/main.rs	rust_exact_key	#WS.21/#DB.1
 WorldDatabaseInfo	worldserver:server/worldserver/worldserver.conf.dist:116	worldserver="127.0.0.1;3306;trinity;trinity;world"					missing_in_rust	Rust usa subclaves WorldDatabaseInfo.Host/Port/Username/Password/Database; C++ usa valor semicolonado WorldDatabaseInfo
 WorldDatabaseInfo.Database						get_string_default:crates/world-server/src/main.rs:205	rust_only_schema_mismatch	subclave Rust incompatible con la clave C++ semicolonada
 WorldDatabaseInfo.Host						get_string_default:crates/world-server/src/main.rs:200	rust_only_schema_mismatch	subclave Rust incompatible con la clave C++ semicolonada

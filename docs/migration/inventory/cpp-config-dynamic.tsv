@@ -4,8 +4,8 @@ appenderName	String	common/Logging/Log.cpp:120	""		clave no literal; requiere re
 loggerName	String	common/Logging/Log.cpp:180	""		clave no literal; requiere revisar flujo C++ local
 thresholdSetting	Int	common/Metric/Metric.cpp:75	0	int thresholdValue	clave no literal; requiere revisar flujo C++ local
 name + "DatabaseInfo"	String	server/database/Database/DatabaseLoader.cpp:39	""	const dbString	clave no literal; requiere revisar flujo C++ local
-name + "Database.WorkerThreads"	Int	server/database/Database/DatabaseLoader.cpp:46	1		clave no literal; requiere revisar flujo C++ local
-name + "Database.SynchThreads"	Int	server/database/Database/DatabaseLoader.cpp:54	1		clave no literal; requiere revisar flujo C++ local
+name + "Database.WorkerThreads"	Int	server/database/Database/DatabaseLoader.cpp:46	1	crates/world-server/src/main.rs:database_pool_size_like_cpp	implemented for world-server pools; bnetserver still pending
+name + "Database.SynchThreads"	Int	server/database/Database/DatabaseLoader.cpp:54	1	crates/world-server/src/main.rs:database_pool_size_like_cpp	implemented for world-server pools; bnetserver still pending
 fieldname	Int	server/game/AuctionHouseBot/AuctionHouseBot.cpp:95	defvalue		clave no literal; requiere revisar flujo C++ local
 fieldname	Int	server/game/AuctionHouseBot/AuctionHouseBot.cpp:106	defvalue		clave no literal; requiere revisar flujo C++ local
 fieldname	Int	server/game/AuctionHouseBot/AuctionHouseBot.cpp:117	defvalue		clave no literal; requiere revisar flujo C++ local

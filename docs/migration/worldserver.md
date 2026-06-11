@@ -256,7 +256,7 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
 - Without `MapManager` running its own tick (creature AI / spawn respawn / movement interpolation between sessions), creatures only "update" when *some* session looks at them. Idle creatures freeze.
 - `tokio::time::sleep(Duration::from_millis(50))` is the *floor*, not the period. If `session.update(50)` blocks for >50 ms, the next tick is delayed. TC's `MinWorldUpdateTime` enforces a *floor* explicitly; we get the same effective behaviour, but TC also logs a warning if `sleepTime >= MaxCoreStuckTime / 2`.
 - Without `sRealmList`, the BNet realm-list response is built from a stale snapshot loaded once at boot; adding a realm row to MySQL won't be picked up.
-- Database connection pool sizing: TC opens three pools per database (`SyncPool` + `AsyncPool` + a small one for callbacks). The Rust `wow-database` opens a single `sqlx::Pool<MySql>` per logical DB. Sizing under heavy login load may differ.
+- Database connection pool sizing: TC opens async/sync connection sets per database via `<DB>Database.WorkerThreads` and `<DB>Database.SynchThreads`. Rust `world-server` opens one `sqlx::Pool<MySql>` per logical DB sized to that configured sum, so sub-pool separation still differs but the connection budget is no longer hardcoded.
 
 **Tests existing:**
 - 0 in `world-server` itself; integration tests live in `wow-world` and `wow-network`.
@@ -342,7 +342,7 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
 - [x] **#WS.18** `SIGTERM` handler in addition to `ctrl_c`: Unix `SIGTERM` and Ctrl-C both drive the same shutdown branch.
 - [ ] **#WS.19** Pre-listener startup banner with build hash, sqlx version, rustls version, DB versions (one log line per connected DB). (L)
 - [ ] **#WS.20** Replace per-session `tokio::time::sleep(50ms)` with a `tokio::sync::broadcast` "tick" signal driven by the global `WorldUpdateLoop`. (M, depends on #WS.2)
-- [ ] **#WS.21** Connection-pool sizing: expose `LoginDatabaseInfo.{Sync,Async}.PoolSize` config; pass to `sqlx::PoolOptions`. (L)
+- [x] **#WS.21** Connection-pool sizing: Rust reads TC's `<DB>Database.WorkerThreads` and `<DB>Database.SynchThreads`, then opens its single `sqlx` pool with their sum.
 
 ---
 
@@ -411,7 +411,7 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
 - **TC's `Trinity::ThreadPool`** runs N threads against a single `io_context`. **Tokio is not the same** — Tokio's worker count is set at runtime construction, and there's no equivalent of "this thread polls io_context until shutdown". Don't try to expose `Network.Threads` literally.
 - **`UPDATE realmlist SET flag = flag | OFFLINE`** at startup tells the bnetserver "don't list this realm to clients". The `flag = flag & ~OFFLINE` after the listener is up reverses it. If you crash between the two, the realm stays OFFLINE in the DB until the next clean run.
 - **WoW client behaviour at shutdown**: if you just close the socket, the client shows "connection lost" and may try to reconnect. To trigger the proper "World server is shutting down" UI, you have to send `SMSG_NOTIFICATION_TEXT` or the queued-shutdown packets from `World::ShutdownServ`. Currently RustyCore does neither.
-- **DB connection-pool sizing**: under heavy login (server reboot at peak), all four pools see a thundering herd. TC tunes `Login.SynchPool=1, Login.AsyncPool=4`. The default sqlx `max_connections=10` may be too low or too high depending on workload.
+- **DB connection-pool sizing**: under heavy login (server reboot at peak), all four pools see a thundering herd. TC tunes this with `<DB>Database.WorkerThreads` and `<DB>Database.SynchThreads`; Rust uses their sum as the single `sqlx` pool size, but still lacks TC's separate sync/async sub-pool isolation.
 - **`character_battleground_data.instanceId = 0`** at boot: if a player was inside a BG when the server crashed, this lets them log back into a fresh location instead of into the dead BG instance.
 - **`Console.Enable`** on Linux: the C++ `CliThread` reads from stdin via `fgets`. If the binary is run via `nohup` or in a systemd unit without `StandardInput=tty`, stdin reads return EOF immediately and the thread exits. Replicate this: `tokio::task::spawn_blocking` reading from stdin, gracefully exit on EOF, do **not** trigger shutdown.
 - **`AsyncAcceptor`** in TC is a thin wrapper over `boost::asio::tcp::acceptor`. The Rust counterpart is whatever `wow-network` exposes (`start_world_listener`, `start_instance_listener`).
@@ -561,11 +561,11 @@ This is the most fundamental architectural difference between the two stacks and
 
 ### 13.5 Connection-pool sizing
 
-TC opens **3 sub-pools per logical DB** (`SyncPool`, `AsyncPool`, callback pool) configured via `<DB>DatabaseInfo.{Synch,Async}.PoolSize` keys.
+TC opens async and sync connection sets per logical DB via `<DB>Database.WorkerThreads` and `<DB>Database.SynchThreads` (`DatabaseLoader.cpp`). The worldserver conf defaults are 1 worker for each DB, 1 sync for Login/World/Hotfix, and 2 sync for Character.
 
-Rust opens **one `sqlx::Pool<MySql>` per logical DB** with `max_connections=10` hardcoded in `Database::open` (`crates/wow-database/src/database.rs:36`). `open_with_pool_size` exists but is not used by `world-server/main.rs`. The four config keys `LoginDatabaseInfo.PoolSize` / `CharacterDatabaseInfo.PoolSize` / `WorldDatabaseInfo.PoolSize` / `HotfixDatabaseInfo.PoolSize` are not read.
+Rust opens **one `sqlx::Pool<MySql>` per logical DB**. It now uses `open_with_pool_size` with `WorkerThreads + SynchThreads` for Login/Character/World/Hotfix. This preserves the configured connection budget even though Rust does not split one pool into TC's separate async/sync worker pools.
 
-Under heavy login churn (server reboot at peak) this single 10-connection pool can become a bottleneck. (#WS.21)
+If either configured value is outside 1..32, Rust logs a warning and falls back to TC's loader default of 1 for that side; this avoids a zero-sized or pathological `sqlx` pool.
 
 ### 13.6 DB updater
 
@@ -666,7 +666,7 @@ This is acceptable divergence **for packet dispatch** (Tokio gives us the per-se
 | SIGTERM handler | High | ✅ #WS.18 |
 | Pre-listener startup banner (build hash, DB versions) | Low | #WS.19 |
 | Replace per-session sleep with broadcast tick from global loop | Medium | #WS.20 |
-| Connection-pool sizing config | Low | #WS.21 |
+| Connection-pool sizing config | Low | ✅ #WS.21 |
 
 ### 13.12 Recommended sub-task ordering / additions
 
@@ -675,8 +675,7 @@ The §9 list is largely correct; recommended **reorder by priority** (no renumbe
 1. **#WS.1, #WS.2, #WS.20** (the global tick + driver) — **prerequisite for everything else**, depends on completing the `_attic/`-flagged `MapManager` migration off `WorldSession.creatures`.
 2. **#WS.15** (graceful shutdown) — depends on #WS.1.
 3. **#WS.3** (freeze detector) — depends on #WS.2 (needs the loop counter).
-4. **#WS.21** (pool sizing) — independent, trivial.
-5. Everything else as time allows.
+4. Everything else as time allows.
 
 **Add new sub-tasks not currently in §9:**
 

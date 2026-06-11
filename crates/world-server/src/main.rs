@@ -229,9 +229,10 @@ async fn main() -> Result<()> {
         &login_info.password,
         &login_info.database,
     );
-    let login_db = LoginDatabase::open(&conn_str)
-        .await
-        .context("Failed to connect to login database")?;
+    let login_db =
+        LoginDatabase::open_with_pool_size(&conn_str, database_pool_size_like_cpp("Login"))
+            .await
+            .context("Failed to connect to login database")?;
 
     info!("Connected to login database");
 
@@ -249,9 +250,12 @@ async fn main() -> Result<()> {
         &char_info.password,
         &char_info.database,
     );
-    let char_db = CharacterDatabase::open(&char_conn_str)
-        .await
-        .context("Failed to connect to character database")?;
+    let char_db = CharacterDatabase::open_with_pool_size(
+        &char_conn_str,
+        database_pool_size_like_cpp("Character"),
+    )
+    .await
+    .context("Failed to connect to character database")?;
 
     info!("Connected to character database");
 
@@ -269,9 +273,10 @@ async fn main() -> Result<()> {
         &world_info.password,
         &world_info.database,
     );
-    let world_db = WorldDatabase::open(&world_conn_str)
-        .await
-        .context("Failed to connect to world database")?;
+    let world_db =
+        WorldDatabase::open_with_pool_size(&world_conn_str, database_pool_size_like_cpp("World"))
+            .await
+            .context("Failed to connect to world database")?;
 
     info!("Connected to world database");
     let world_db = Arc::new(world_db);
@@ -290,9 +295,12 @@ async fn main() -> Result<()> {
         &hotfix_info.password,
         &hotfix_info.database,
     );
-    let hotfix_db = HotfixDatabase::open(&hotfix_conn_str)
-        .await
-        .context("Failed to connect to hotfix database")?;
+    let hotfix_db = HotfixDatabase::open_with_pool_size(
+        &hotfix_conn_str,
+        database_pool_size_like_cpp("Hotfix"),
+    )
+    .await
+    .context("Failed to connect to hotfix database")?;
 
     info!("Connected to hotfix database");
 
@@ -2610,6 +2618,22 @@ fn log_database_target_like_cpp(kind: &str, info: &DatabaseInfo) {
         database = %info.database,
         "Connecting to database"
     );
+}
+
+fn database_pool_size_like_cpp(name: &str) -> u32 {
+    let worker_threads =
+        database_thread_count_like_cpp(&format!("{name}Database.WorkerThreads"), 1);
+    let synch_threads = database_thread_count_like_cpp(&format!("{name}Database.SynchThreads"), 1);
+    worker_threads + synch_threads
+}
+
+fn database_thread_count_like_cpp(key: &str, default: u32) -> u32 {
+    let value = wow_config::get_value_default::<u32>(key, default);
+    if !(1..=32).contains(&value) {
+        warn!("{key}={value} is outside 1..32; using {default}");
+        return default;
+    }
+    value
 }
 
 fn legacy_creature_global_runtime_enabled_from_config_like_cpp() -> bool {
@@ -8735,8 +8759,9 @@ mod tests {
         collect_legacy_creature_aggro_candidates_like_cpp,
         collect_legacy_creature_aggro_candidates_with_canonical_like_cpp,
         consume_game_event_live_update_side_effects_like_cpp, create_pid_file_like_cpp,
-        db_keepalive_database_names_like_cpp, db_keepalive_interval_minutes_like_cpp,
-        db_keepalive_sql_like_cpp, deliver_creature_attack_start_commands_like_cpp,
+        database_pool_size_like_cpp, db_keepalive_database_names_like_cpp,
+        db_keepalive_interval_minutes_like_cpp, db_keepalive_sql_like_cpp,
+        deliver_creature_attack_start_commands_like_cpp,
         deliver_creature_melee_damage_commands_like_cpp,
         deliver_refresh_visible_world_creatures_like_cpp, deliver_runtime_plan_like_cpp,
         fanout_game_event_announcement_to_player_sessions_like_cpp,
@@ -11051,6 +11076,31 @@ Expansion = 9
             ["Character", "Login", "World"]
         );
         assert_eq!(db_keepalive_sql_like_cpp(), "SELECT 1");
+    }
+
+    #[test]
+    fn database_pool_size_uses_cpp_worker_and_synch_thread_keys() {
+        let _guard = TEST_LOCK.lock().expect("test lock poisoned");
+
+        wow_config::load_config_from_str("").expect("config should load");
+        assert_eq!(database_pool_size_like_cpp("Login"), 2);
+        assert_eq!(database_pool_size_like_cpp("Character"), 2);
+
+        wow_config::load_config_from_str(
+            r#"
+LoginDatabase.WorkerThreads = 3
+LoginDatabase.SynchThreads = 5
+CharacterDatabase.WorkerThreads = 1
+CharacterDatabase.SynchThreads = 2
+WorldDatabase.WorkerThreads = 0
+WorldDatabase.SynchThreads = 33
+"#,
+        )
+        .expect("config should load");
+
+        assert_eq!(database_pool_size_like_cpp("Login"), 8);
+        assert_eq!(database_pool_size_like_cpp("Character"), 3);
+        assert_eq!(database_pool_size_like_cpp("World"), 2);
     }
 
     #[test]

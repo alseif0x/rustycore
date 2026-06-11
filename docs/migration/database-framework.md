@@ -297,7 +297,7 @@ Not applicable — the database framework does not handle WoW client packets. (I
 - `crates/wow-database/src/statements/hotfix.rs` — 25 lines — `HotfixStatements::_PLACEHOLDER` only
 
 **What's implemented:**
-- Four logical pools, **each a single `sqlx::Pool<MySql>` with hardcoded `max_connections=10`** (`open_with_pool_size` exists but never invoked). Reachable via `LoginDatabase = Database<LoginStatements>`, `WorldDatabase = Database<WorldStatements>`, `CharacterDatabase = Database<CharStatements>`, `HotfixDatabase = Database<HotfixStatements>` aliases.
+- Four logical pools, **each a single `sqlx::Pool<MySql>` sized by TC's `<Db>Database.WorkerThreads + <Db>Database.SynchThreads` keys in `world-server`**. Reachable via `LoginDatabase = Database<LoginStatements>`, `WorldDatabase = Database<WorldStatements>`, `CharacterDatabase = Database<CharStatements>`, `HotfixDatabase = Database<HotfixStatements>` aliases.
 - Compile-time statement-to-DB binding via the `StatementDef` trait + `PhantomData<S>` on `Database<S>` — using a `WorldStatements` variant on `Database<LoginStatements>` is rejected by `rustc`. Equivalent to TC's `typename T::Statements` typedef but enforced more strongly (TC only enforces it for `GetPreparedStatement`).
 - Full set of typed setters: `set_bool/set_i8/set_u8/set_i16/set_u16/set_i32/set_u32/set_i64/set_u64/set_f32/set_f64/set_string/set_bytes/set_null` matching TC's `setUInt8`…`setBinary` 1:1.
 - Async query API: `db.query(&stmt).await` → `SqlResult` (cursor with `next_row()`, `read::<T>(col)`, `try_read`, `is_null`, `read_string` fallback for `utf8mb4_bin` columns); `db.execute(&stmt).await` for non-result statements; `db.direct_execute(sql)` / `db.direct_query(sql)` for raw SQL.
@@ -309,8 +309,7 @@ Not applicable — the database framework does not handle WoW client packets. (I
 - 13 unit tests in `params.rs` + `statements/mod.rs` covering setter behaviour, sparse indices, statement-table-name presence, `'?'` placeholder counts.
 
 **What's missing vs C++:**
-- **`ConnectionFlags::ASYNC` vs `SYNCH` separation**: TC opens **two sub-pools per logical DB** (configurable via `<Db>DatabaseInfo.SynchPool` / `.AsyncPool` keys, e.g. `LoginDatabase.SynchPool=1`, `LoginDatabase.AsyncPool=4`). RustyCore's single `sqlx::Pool` blends sync and async traffic; under a thundering herd of logins the tunable knob is gone.
-- **Per-pool size config**: `LoginDatabaseInfo.PoolSize` / `CharacterDatabaseInfo.PoolSize` / `WorldDatabaseInfo.PoolSize` / `HotfixDatabaseInfo.PoolSize` are not read. `max_connections=10` is hardcoded in `database.rs:36`. (Cross-ref: `worldserver.md` §13.5 sub-task #WS.21.)
+- **`ConnectionFlags::ASYNC` vs `SYNCH` separation**: TC opens **two sub-pools per logical DB** (configured via `<Db>Database.WorkerThreads` / `<Db>Database.SynchThreads`, e.g. `LoginDatabase.WorkerThreads=1`, `LoginDatabase.SynchThreads=1`). RustyCore's single `sqlx::Pool` blends sync and async traffic, but `world-server` now preserves TC's configured total connection budget by opening the pool with `WorkerThreads + SynchThreads`. (Cross-ref: `worldserver.md` §13.5 sub-task #WS.21 / #DB.1.)
 - **`KeepAlive()` ping**: TC's `World::Update` calls `LoginDatabase.KeepAlive()` etc. every `MaxPingTime` minutes (default 30) so MySQL's `wait_timeout` doesn't kill idle pool connections. There is no Rust equivalent — sqlx's `idle_timeout=1800s` recycles idle conns but doesn't actively `SELECT 1`. (Cross-ref: `worldserver.md` §13.6, sub-task #WS.6.)
 - **`QueryCallback` chaining**: TC's `WithChainingCallback(fn)` lets a callback fire a follow-up query and stay in the same chain (used heavily in account/char load multi-step flows). RustyCore replaces this with `async/await` — the chain becomes a sequence of `await` points in one async fn. **Acceptable divergence** for new code, but porting C++ that uses chaining-callbacks 1:1 needs to flatten into a single `async fn`.
 - **`SQLQueryHolder` / `SQLQueryHolderCallback`**: TC's "fire N queries in parallel, callback when all done" type. Used by `CharacterCache::_LoadCharacterFromDB`, login fan-out, achievement load. RustyCore has no equivalent type — current code awaits queries serially or uses `tokio::try_join!` ad-hoc. No fan-out helper or rollback semantics on partial failure.
@@ -623,7 +622,7 @@ Not applicable — the database framework does not handle WoW client packets. (I
 
 Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h, **M** 1-4h, **H** 4-12h, **XL** >12h.
 
-- [ ] **#DB.1** Expose per-pool `max_connections` config: read `LoginDatabaseInfo.PoolSize`, `CharacterDatabaseInfo.PoolSize`, `WorldDatabaseInfo.PoolSize`, `HotfixDatabaseInfo.PoolSize` in `world-server/src/main.rs`; pass each to `Database::open_with_pool_size`. Default to `8` if unset (matches TC default `LoginDatabase.WorkerThreads + LoginDatabase.SynchPool = 1 + 1` → 2 for login, but 8 is a safer first cut). (L) — **same as `worldserver.md` #WS.21**
+- [x] **#DB.1** Use TC database thread-count config for world-server pools: read `<Db>Database.WorkerThreads` + `<Db>Database.SynchThreads` for Login/Character/World/Hotfix and pass their sum to `Database::open_with_pool_size`. Defaults follow TC's loader default of `1 + 1`; invalid values fall back to `1` per side with a warning. (L) — **same as `worldserver.md` #WS.21**
 - [ ] **#DB.2** Implement DB keep-alive: spawn one `tokio::time::interval(MaxPingTime minutes)` task per pool that runs `SELECT 1` against the pool. Re-use single shared task that pings all four. Default `MaxPingTime=30` (TC default). (L) — **same as #WS.6**
 - [ ] **#DB.3** Make `DbUpdater::populate` failure fatal when `Updates.AutoSetup=1`: return error from `world-server/main.rs` instead of `tracing::warn!`. Boot must abort if base SQL is missing or DB is empty + populate fails. (L)
 - [ ] **#DB.4** Bootstrap `updates_include` rows on first `populate`: insert `('$/sql/updates/auth', 'RELEASED')` etc. so a fresh install actually applies updates without operator intervention. (M)
@@ -709,12 +708,12 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 
 <!-- REFINE.023:END known-divergences -->
 
-- **TC ships two pools per logical DB**; merging them into one `sqlx::Pool` is a deliberate simplification, but at high login churn you can saturate the single pool while a transaction is mid-retry. Consider tuning `<Db>DatabaseInfo.PoolSize` higher than TC's `Sync+Async` sum.
+- **TC ships two pools per logical DB**; merging them into one `sqlx::Pool` is a deliberate simplification, but at high login churn you can saturate the single pool while a transaction is mid-retry. Consider tuning `<Db>Database.WorkerThreads` / `<Db>Database.SynchThreads` upward; Rust will use their sum as the single pool size.
 - **`PreparedStatement<T>` in C++ is type-tagged**; in Rust the tagging is at `Database<S>::prepare(stmt)` ingestion time only. Don't try to add `PhantomData<S>` to `PreparedStatement` itself — the existing test design (compile-fail) covers the misuse case at the right place.
 - **sqlx prepared-statement caching**: sqlx caches prepared `MYSQL_STMT` handles per-connection automatically. First call to a statement on a fresh connection prepares; subsequent calls reuse. This is why we don't need TC's `MySQLConnection::PrepareStatements()` warm-up — but it does mean cold pool acquisitions pay one round-trip extra. Don't `pool.close()` and re-`open()` to "reload" prepared statements; just restart the binary.
 - **`DBUpdater::Update` SQL splitter cannot handle DELIMITER**: TrinityCore's TDB world dump uses `DELIMITER //` for trigger definitions. RustyCore's `populate` shells out to `mysql` CLI specifically for this reason; `update` (which never sees triggers) is statement-by-statement. If a future update adds a trigger or stored procedure, **the splitter will fail** — extend it or fall back to the CLI for that file.
 - **`Updates.AutoSetup=1` default**: a fresh checkout will try to reach a `mysql` CLI binary on `PATH` to run `populate`. If `mysql` is not installed (e.g. a dev VM with only `mariadb-client` symlinked differently), `populate` fails with an opaque `command not found`. Either install `mysql` or pre-populate manually.
-- **`ConnectionFlags::SYNCH` queries in TC are guaranteed to run on a sync sub-pool** so that nothing outside the world thread blocks them. RustyCore loses this guarantee — **a sync query issued from inside an async tick can starve when all 10 conns are mid-async-await**. Watch out under heavy load; tune up `max_connections` (#DB.1) before reaching for a redesign.
+- **`ConnectionFlags::SYNCH` queries in TC are guaranteed to run on a sync sub-pool** so that nothing outside the world thread blocks them. RustyCore loses this guarantee — **a sync query issued from inside an async tick can still starve when the merged pool is saturated by async work**. Watch out under heavy load; tune up `<Db>Database.WorkerThreads` / `<Db>Database.SynchThreads` before reaching for a redesign.
 - **`updates` table schema**: TC's columns are `(name, hash, state, timestamp, speed)` with `state` as an enum. The Rust port creates the same schema with `IF NOT EXISTS` so it's interoperable — you can run TC's `worldserver` against the same DB and Rust will respect its `updates` rows. **Compatibility tested 2026-04: ✅.**
 - **Deadlock retry is single-mutex in TC** (`TransactionTask::_deadlockLock`); RustyCore retries concurrently. In adversarial workloads (e.g. many parallel character-save txns hitting the same row) this can amplify deadlocks rather than suppress them. **#DB.17.**
 - **Boot order matters**: `Database::open` requires the database to exist (sqlx fails on `Unknown database`). TC's `DBUpdater::Create` uses the `mysql` CLI to `CREATE DATABASE` against the server (no DB context) — RustyCore doesn't, so an operator must pre-create the four databases. Document this in `README.md` setup section.
@@ -798,7 +797,7 @@ The `QueryCallback`-chain pattern is **acceptably absent** because Rust's `async
 |---|---|---|
 | `DatabaseWorkerPool<T>` template, one instance per logical DB | `Database<S: StatementDef>`, one instance per logical DB | ✅ |
 | Two sub-pools per DB: `_connections[IDX_ASYNC]` (N conns) + `_connections[IDX_SYNCH]` (M conns) | One `sqlx::Pool<MySql>` per DB | ⚠️ merged |
-| `<Db>DatabaseInfo.SynchPool` / `.AsyncPool` config | (none read) | ❌ #DB.1 |
+| `<Db>Database.WorkerThreads` / `.SynchThreads` config | read in `world-server` and summed into `open_with_pool_size` | ✅ #DB.1 |
 | Per-pool `Trinity::Asio::IoContext` | implicit Tokio runtime | ✅ acceptable divergence |
 | `MaxPingTime` keep-alive every N minutes | (none) | ❌ #DB.2 |
 | `mysql_options(MYSQL_OPT_RECONNECT, 0)` + manual `_HandleMySQLErrno` retry (5 attempts) | sqlx auto-reconnect via pool acquisition | ⚠️ different mechanism, similar effect |
@@ -808,7 +807,7 @@ The `QueryCallback`-chain pattern is **acceptably absent** because Rust's `async
 | Four logical pools (login/character/world/hotfix) | Four type aliases (`LoginDatabase` / `CharacterDatabase` / `WorldDatabase` / `HotfixDatabase`) | ✅ |
 | Pool open in `worldserver/Main.cpp::StartDB` | Pool open in `world-server/src/main.rs` lines 177-228 | ✅ wired |
 | `<Db>DatabaseInfo.{Host,Port,Username,Password,Database}` config keys | Same keys read via `wow_config::get_string_default` | ✅ |
-| Pool size hardcoded? | **`max_connections=10`** (`database.rs:36`) — `open_with_pool_size` exists but unused | ❌ #DB.1 |
+| Pool size hardcoded? | `Database::open` still defaults to 10, but `world-server` uses `open_with_pool_size` from TC thread-count config | ✅ #DB.1 |
 
 ### 13.3 Prepared statement registry
 
@@ -893,7 +892,7 @@ However, **the worldserver audit (`worldserver.md` §13.4) noted there's no glob
 
 ### 13.9 Cross-references
 
-- **`worldserver.md` §13.5**: DB pool hardcoded to 10, no per-pool sizing config — same finding, sub-task #WS.21 / #DB.1.
+- **`worldserver.md` §13.5**: world-server now sizes each single `sqlx` pool from TC's `<Db>Database.WorkerThreads + <Db>Database.SynchThreads` keys — same closure as #WS.21 / #DB.1.
 - **`worldserver.md` §13.6**: DB Updater is implemented but populate/update failures are warn-not-fatal — same finding, #DB.3.
 - **`worldserver.md` #WS.6**: DB keep-alive ping missing — #DB.2.
 - **`worldserver.md` #WS.25**: `WarnAboutSyncQueries` debug guard missing — #DB.9.
@@ -902,7 +901,7 @@ However, **the worldserver audit (`worldserver.md` §13.4) noted there's no glob
 
 ### 13.10 Verdict
 
-**⚠️ partial.** The framework is structurally correct and operates daily. The deferred items (#DB.1 pool sizing, #DB.2 keep-alive, #DB.10 query holder, #DB.11 char statements) are quality-of-life and load-tolerance improvements rather than missing capability. The framework is suitable for the dev-server workload and small-to-medium private-server deployment. It will visibly underperform vs TC under multi-thousand-concurrent-login conditions until #DB.1 + #DB.2 land, and the `_attic/` character migration cannot finish until #DB.11 unblocks the prepared-statement set.
+**⚠️ partial.** The framework is structurally correct and operates daily. The deferred items (#DB.10 query holder, #DB.11 char statements, and remaining updater/load-tolerance details) are quality-of-life and load-tolerance improvements rather than missing capability. The framework is suitable for the dev-server workload and small-to-medium private-server deployment. It may still behave differently from TC under multi-thousand-concurrent-login conditions because Rust merges TC's sync/async sub-pools into one `sqlx` pool, and the `_attic/` character migration cannot finish until #DB.11 unblocks the prepared-statement set.
 
 ---
 
