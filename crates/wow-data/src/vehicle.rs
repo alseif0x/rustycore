@@ -57,11 +57,7 @@ impl VehicleSeatEntry {
     }
 
     pub fn can_enter_or_exit_like_cpp(&self) -> bool {
-        self.has_flag(
-            VEHICLE_SEAT_FLAG_CAN_ENTER_OR_EXIT
-                | VEHICLE_SEAT_FLAG_CAN_CONTROL
-                | VEHICLE_SEAT_FLAG_SHOULD_USE_VEH_SEAT_EXIT_ANIM_ON_VOLUNTARY_EXIT,
-        )
+        vehicle_seat_flags_can_enter_or_exit_like_cpp(self.flags)
     }
 
     pub fn usable_by_override_like_cpp(&self) -> bool {
@@ -99,6 +95,14 @@ impl VehicleSeatEntry {
             keep_pet: self.has_flag_b(VEHICLE_SEAT_FLAG_B_KEEP_PET),
         }
     }
+}
+
+pub fn vehicle_seat_flags_can_enter_or_exit_like_cpp(flags: i32) -> bool {
+    flags
+        & (VEHICLE_SEAT_FLAG_CAN_ENTER_OR_EXIT
+            | VEHICLE_SEAT_FLAG_CAN_CONTROL
+            | VEHICLE_SEAT_FLAG_SHOULD_USE_VEH_SEAT_EXIT_ANIM_ON_VOLUNTARY_EXIT)
+        != 0
 }
 
 pub struct VehicleStore {

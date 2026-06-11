@@ -338,9 +338,10 @@ pub use terrain_swap::{TerrainSwapInfo, TerrainSwapStore, load_terrain_swaps};
 pub use ui_map::{UiMapXMapArtEntry, UiMapXMapArtStore};
 pub use vehicle::{
     VEHICLE_SEAT_FLAG_B_EJECTABLE, VEHICLE_SEAT_FLAG_B_USABLE_FORCED, VEHICLE_SEAT_FLAG_CAN_ATTACK,
-    VEHICLE_SEAT_FLAG_CAN_ENTER_OR_EXIT, VEHICLE_SEAT_FLAG_CAN_SWITCH,
-    VehicleAccessoryStoreLikeCpp, VehicleEntry, VehicleSeatEntry, VehicleSeatStore, VehicleStore,
-    VehicleTemplateStoreLikeCpp,
+    VEHICLE_SEAT_FLAG_CAN_CONTROL, VEHICLE_SEAT_FLAG_CAN_ENTER_OR_EXIT,
+    VEHICLE_SEAT_FLAG_CAN_SWITCH, VehicleAccessoryStoreLikeCpp, VehicleEntry, VehicleSeatEntry,
+    VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
+    vehicle_seat_flags_can_enter_or_exit_like_cpp,
 };
 pub use world_id_store::WorldIdStore;
 pub use world_safe_locs::{
