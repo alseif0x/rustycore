@@ -3391,6 +3391,8 @@ pub struct AuraApplication {
     pub stack_count: u8,
     /// Aura flags (bitmask)
     pub aura_flags: u32,
+    /// C++ `AuraApplication::GetEffectMask()` snapshot.
+    pub effect_mask: u32,
     /// Trinity SpellAuraInterruptFlags bitmask used by represented removal paths.
     pub aura_interrupt_flags: u32,
     /// Trinity SpellAuraInterruptFlags2 bitmask used by represented removal paths.
@@ -14239,6 +14241,26 @@ impl WorldSession {
         0
     }
 
+    fn party_member_visible_auras_like_cpp(
+        &self,
+    ) -> Vec<wow_packet::packets::party::PartyMemberAuraState> {
+        let mut auras: Vec<_> = self.visible_auras.values().collect();
+        auras.sort_by_key(|aura| aura.slot);
+        auras
+            .into_iter()
+            .map(|aura| wow_packet::packets::party::PartyMemberAuraState {
+                spell_id: aura.spell_id,
+                flags: aura.aura_flags.min(u32::from(u16::MAX)) as u16,
+                active_flags: aura.effect_mask,
+                // C++ fills scalable points from AuraEffect amounts when
+                // AFLAG_SCALABLE is present. Rust does not yet retain full
+                // AuraEffect point snapshots on AuraApplication, so keep the
+                // represented packet honest instead of fabricating values.
+                points: Vec::new(),
+            })
+            .collect()
+    }
+
     /// Register this session in the player registry.
     /// Called after player login is complete (player_guid + position both set).
     pub(crate) fn register_in_player_registry(&self) {
@@ -14356,6 +14378,7 @@ impl WorldSession {
                     self.represented_player_phase_shift_like_cpp(),
                 )
                 .unwrap_or_default(),
+                party_member_auras: self.party_member_visible_auras_like_cpp(),
                 player_name: name.to_string(),
                 account_id: self.account_id,
                 recruiter_id: self.recruiter_id_like_cpp,
@@ -14462,6 +14485,7 @@ impl WorldSession {
             info.party_member_phase_states =
                 party_member_phase_states_like_cpp(self.represented_player_phase_shift_like_cpp())
                     .unwrap_or_default();
+            info.party_member_auras = self.party_member_visible_auras_like_cpp();
         }
     }
 
@@ -15019,6 +15043,23 @@ impl WorldSession {
         duration_ms: u32,
         aura_flags: u32,
     ) -> Result<(), &'static str> {
+        self.apply_aura_with_effect_mask_like_cpp(
+            spell_id,
+            caster_guid,
+            duration_ms,
+            aura_flags,
+            0x0000_0001,
+        )
+    }
+
+    fn apply_aura_with_effect_mask_like_cpp(
+        &mut self,
+        spell_id: i32,
+        caster_guid: ObjectGuid,
+        duration_ms: u32,
+        aura_flags: u32,
+        effect_mask: u32,
+    ) -> Result<(), &'static str> {
         // Find a free slot (0-254)
         let mut slot = 0u8;
         while self.visible_auras.contains_key(&slot) && slot < 255 {
@@ -15038,6 +15079,7 @@ impl WorldSession {
             duration_remaining: duration_ms,
             stack_count: 1,
             aura_flags,
+            effect_mask,
             aura_interrupt_flags: 0,
             aura_interrupt_flags2: 0,
             represented_effect: None,
@@ -15096,6 +15138,7 @@ impl WorldSession {
             duration_remaining: 0,
             stack_count: 1,
             aura_flags: 0x0000_0001,
+            effect_mask: 1u32 << effect.effect_index,
             aura_interrupt_flags: 0,
             aura_interrupt_flags2: 0,
             represented_effect: Some(RepresentedAuraEffectLikeCpp::Mounted),
@@ -15160,6 +15203,7 @@ impl WorldSession {
             duration_remaining: 30_000,
             stack_count: 1,
             aura_flags: 0x0000_0001,
+            effect_mask: 1u32 << effect.effect_index,
             aura_interrupt_flags: 0,
             aura_interrupt_flags2: 0,
             represented_effect: Some(RepresentedAuraEffectLikeCpp::ProvideSpellFocus),
@@ -15199,6 +15243,7 @@ impl WorldSession {
             duration_remaining: 30_000,
             stack_count: 1,
             aura_flags: 0x0000_0001,
+            effect_mask: 1u32 << effect.effect_index,
             aura_interrupt_flags: 0,
             aura_interrupt_flags2: 0,
             represented_effect: Some(RepresentedAuraEffectLikeCpp::ModBattlePetXpPct),
@@ -28121,7 +28166,13 @@ impl WorldSession {
                         effect,
                     )?;
                 } else if generic_apply_aura_rows_like_cpp == 1 && apply_aura_rows_like_cpp == 1 {
-                    self.apply_aura(spell_id, player_guid, 30000, 0x00000001)?;
+                    self.apply_aura_with_effect_mask_like_cpp(
+                        spell_id,
+                        player_guid,
+                        30000,
+                        0x00000001,
+                        1u32 << effect.effect_index,
+                    )?;
                 } else {
                     debug!(
                         account = self.account_id,
@@ -44848,6 +44899,7 @@ mod tests {
             duration_remaining: 30_000,
             stack_count: 1,
             aura_flags: 0x0000_0001,
+            effect_mask: 0x0000_0001,
             aura_interrupt_flags: 0,
             aura_interrupt_flags2: 0,
             represented_effect: Some(effect),
@@ -46197,6 +46249,7 @@ mod tests {
             forced_reputation_faction_ids: Vec::new(),
             inventory_item_counts: Default::default(),
             party_member_phase_states: Default::default(),
+            party_member_auras: Vec::new(),
             player_name: format!("Player{}", guid.counter()),
             account_id: guid.counter() as u32,
             recruiter_id: 0,
@@ -46350,6 +46403,31 @@ mod tests {
         assert_eq!(info.power_type, PowerType::Energy as u8);
         assert_eq!(info.current_power, 45);
         assert_eq!(info.max_power, 120);
+    }
+
+    #[test]
+    fn player_registry_publishes_party_member_visible_auras_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let guid = ObjectGuid::create_player(1, 43);
+        let registry = Arc::new(PlayerRegistry::default());
+        let position = Position::new(1.0, 2.0, 3.0, 0.0);
+        session.set_player_guid(Some(guid));
+        session.set_player_map_position_like_cpp(571, position);
+        session.player_name = Some("AuraTester".to_string());
+        session.set_player_registry(Arc::clone(&registry));
+        session
+            .apply_aura_with_effect_mask_like_cpp(12_345, guid, 30_000, 0x21, 0x04)
+            .expect("represented aura applies");
+
+        session.register_in_player_registry();
+
+        let info = registry.get(&guid).expect("registered player");
+        assert_eq!(info.party_member_auras.len(), 1);
+        let aura = &info.party_member_auras[0];
+        assert_eq!(aura.spell_id, 12_345);
+        assert_eq!(aura.flags, 0x21);
+        assert_eq!(aura.active_flags, 0x04);
+        assert!(aura.points.is_empty());
     }
 
     #[test]

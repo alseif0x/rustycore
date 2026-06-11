@@ -900,6 +900,26 @@ impl Default for PartyMemberPhaseStates {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct PartyMemberAuraState {
+    pub spell_id: i32,
+    pub flags: u16,
+    pub active_flags: u32,
+    pub points: Vec<f32>,
+}
+
+impl PartyMemberAuraState {
+    fn write(&self, w: &mut WorldPacket) {
+        w.write_int32(self.spell_id);
+        w.write_uint16(self.flags);
+        w.write_uint32(self.active_flags);
+        w.write_int32(self.points.len() as i32);
+        for point in &self.points {
+            w.write_float(*point);
+        }
+    }
+}
+
 pub struct PartyMemberFullState {
     pub member_guid: ObjectGuid,
     pub for_enemy: bool,
@@ -917,6 +937,7 @@ pub struct PartyMemberFullState {
     pub position_y: i16,
     pub position_z: i16,
     pub phases: PartyMemberPhaseStates,
+    pub auras: Vec<PartyMemberAuraState>,
 }
 
 impl ServerPacket for PartyMemberFullState {
@@ -944,7 +965,7 @@ impl ServerPacket for PartyMemberFullState {
         w.write_int16(self.position_y);
         w.write_int16(self.position_z);
         w.write_int32(0); // VehicleSeat
-        w.write_int32(0); // Auras.Count
+        w.write_uint32(self.auras.len() as u32);
 
         self.phases.write(w);
 
@@ -953,7 +974,10 @@ impl ServerPacket for PartyMemberFullState {
         w.write_int32(0); // Unused901
         w.write_uint32(0); // ExpansionLevelMask
 
-        // (no Auras)
+        for aura in &self.auras {
+            aura.write(w);
+        }
+
         w.write_bit(false); // PetStats != null → false
         w.flush_bits();
 

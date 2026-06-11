@@ -13,7 +13,7 @@ use dashmap::DashMap;
 use std::collections::{HashMap, HashSet};
 use wow_core::{ObjectGuid, Position};
 use wow_packet::packets::loot::LootEntry;
-use wow_packet::packets::party::PartyMemberPhaseStates;
+use wow_packet::packets::party::{PartyMemberAuraState, PartyMemberPhaseStates};
 
 #[derive(Clone, Debug)]
 pub enum SessionCommand {
@@ -360,6 +360,8 @@ pub struct PlayerBroadcastInfo {
     pub inventory_item_counts: HashMap<u32, u32>,
     /// C++ `PartyMemberPhaseStates` snapshot for SMSG_PARTY_MEMBER_FULL_STATE.
     pub party_member_phase_states: PartyMemberPhaseStates,
+    /// C++ `PartyMemberAuraStates` snapshot for SMSG_PARTY_MEMBER_FULL_STATE.
+    pub party_member_auras: Vec<PartyMemberAuraState>,
     /// Character name — used for whisper target lookups.
     pub player_name: String,
     /// Account ID — kept for future same-account filtering.
@@ -449,6 +451,7 @@ mod tests {
             forced_reputation_faction_ids: Vec::new(),
             inventory_item_counts: Default::default(),
             party_member_phase_states: Default::default(),
+            party_member_auras: Vec::new(),
             player_name: "TestPlayer".to_string(),
             account_id: 1,
             recruiter_id: 0,

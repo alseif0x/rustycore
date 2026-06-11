@@ -290,6 +290,7 @@ fn party_member_full_state_like_cpp(
             position_y: 0,
             position_z: 0,
             phases: Default::default(),
+            auras: Vec::new(),
         };
     };
 
@@ -337,6 +338,7 @@ fn party_member_full_state_like_cpp(
         position_y: pos.y as i16,
         position_z: pos.z as i16,
         phases: entry.party_member_phase_states.clone(),
+        auras: entry.party_member_auras.clone(),
     }
 }
 
@@ -2221,6 +2223,7 @@ mod tests {
             forced_reputation_faction_ids: Vec::new(),
             inventory_item_counts: Default::default(),
             party_member_phase_states: Default::default(),
+            party_member_auras: Vec::new(),
             player_name: format!("Player{}", guid.low_value()),
             account_id: 1,
             recruiter_id: 0,
@@ -3207,6 +3210,12 @@ mod tests {
                     id: 20,
                 }],
             };
+            info.party_member_auras = vec![wow_packet::packets::party::PartyMemberAuraState {
+                spell_id: 12_345,
+                flags: 0x21,
+                active_flags: 0x04,
+                points: vec![17.5],
+            }];
         }
         session.set_player_registry(registry);
 
@@ -3245,7 +3254,7 @@ mod tests {
         assert_eq!(pkt.read_int16().unwrap(), 22);
         assert_eq!(pkt.read_int16().unwrap(), 33);
         assert_eq!(pkt.read_int32().unwrap(), 0);
-        assert_eq!(pkt.read_int32().unwrap(), 0);
+        assert_eq!(pkt.read_uint32().unwrap(), 1);
         assert_eq!(pkt.read_uint32().unwrap(), 0x08);
         assert_eq!(pkt.read_uint32().unwrap(), 1);
         assert_eq!(pkt.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
@@ -3254,6 +3263,11 @@ mod tests {
         assert_eq!(pkt.read_uint32().unwrap(), 0);
         assert_eq!(pkt.read_int32().unwrap(), 0);
         assert_eq!(pkt.read_uint32().unwrap(), 0);
+        assert_eq!(pkt.read_int32().unwrap(), 12_345);
+        assert_eq!(pkt.read_uint16().unwrap(), 0x21);
+        assert_eq!(pkt.read_uint32().unwrap(), 0x04);
+        assert_eq!(pkt.read_int32().unwrap(), 1);
+        assert_eq!(pkt.read_float().unwrap(), 17.5);
         assert!(!pkt.read_bit().unwrap());
         assert!(sent.ends_with(&target_guid_bytes));
         assert!(
