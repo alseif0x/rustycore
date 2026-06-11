@@ -594,18 +594,18 @@ Not applicable — the database framework does not handle WoW client packets. (I
   Depends on: #REFINE.020, #REFINE.021; execution order finalized by #REFINE.040
   Acceptance: Rust target compiles; behavior and public contracts are checked against the listed C++ file; unit/golden/integration tests are added or marked n/a with reason; divergences are recorded before closing.
   Notes: closed by `SqlTransaction::{append, append_raw_sql_like_cpp, len, cleanup_like_cpp}` and `Database::execute_or_append` / `commit_transaction`. TC `TransactionCallback` is represented by Rust `async/await` rather than a separate callback class.
-- [ ] **#DATABASE_FRAMEWORK.WBS.041** Cerrar la migracion auditada de `database/Updater/DBUpdater.cpp`
+- [x] **#DATABASE_FRAMEWORK.WBS.041** Cerrar la migracion auditada de `database/Updater/DBUpdater.cpp`
   C++ refs: `/home/server/woltk-trinity-legacy/src/server/database/Updater/DBUpdater.cpp`
   Rust target: `crates/wow-database`, `crates/wow-database/src`
   Depends on: #REFINE.020, #REFINE.021; execution order finalized by #REFINE.040
   Acceptance: Rust target compiles; behavior and public contracts are checked against the listed C++ file; unit/golden/integration tests are added or marked n/a with reason; divergences are recorded before closing.
-  Notes: `ready_for_small_task`; Single source-file coverage task; split further if C++ review exposes multiple independent behaviors. Assignment basis: prefix.
-- [ ] **#DATABASE_FRAMEWORK.WBS.042** Cerrar la migracion auditada de `database/Updater/DBUpdater.h`
+  Notes: closed by `DbUpdater::{populate, update}` plus world-server create-database fallback. `populate` now also mirrors TC's empty-base-file success path. File discovery/diff internals remain tracked under `UpdateFetcher` WBS.
+- [x] **#DATABASE_FRAMEWORK.WBS.042** Cerrar la migracion auditada de `database/Updater/DBUpdater.h`
   C++ refs: `/home/server/woltk-trinity-legacy/src/server/database/Updater/DBUpdater.h`
   Rust target: `crates/wow-database`, `crates/wow-database/src`
   Depends on: #REFINE.020, #REFINE.021; execution order finalized by #REFINE.040
   Acceptance: Rust target compiles; behavior and public contracts are checked against the listed C++ file; unit/golden/integration tests are added or marked n/a with reason; divergences are recorded before closing.
-  Notes: `ready_for_small_task`; Single source-file coverage task; split further if C++ review exposes multiple independent behaviors. Assignment basis: prefix.
+  Notes: closed by `DbUpdater`, `UpdateDatabaseKindLikeCpp`, update-mask constants in `DatabaseLoaderLikeCpp`, and TC-style populate/update config gates. External `mysql` executable auto-detection remains simplified to PATH lookup by `Command::new("mysql")`.
 - [ ] **#DATABASE_FRAMEWORK.WBS.043** Cerrar la migracion auditada de `database/Updater/UpdateFetcher.cpp`
   C++ refs: `/home/server/woltk-trinity-legacy/src/server/database/Updater/UpdateFetcher.cpp`
   Rust target: `crates/wow-database`, `crates/wow-database/src`

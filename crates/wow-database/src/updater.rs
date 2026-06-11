@@ -67,6 +67,12 @@ enum UpdateDatabaseKindLikeCpp {
     Hotfixes,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PopulateBaseActionLikeCpp {
+    SkipNoBaseFile,
+    ApplyBaseFile,
+}
+
 impl UpdateConfigLikeCpp {
     fn from_config_like_cpp() -> Self {
         Self {
@@ -147,6 +153,17 @@ impl DbUpdater {
             "Database '{}' is empty — auto-populating from {}...",
             self.db, base_sql
         );
+
+        if populate_base_action_like_cpp(base_sql) == PopulateBaseActionLikeCpp::SkipNoBaseFile {
+            info!(
+                "No base SQL file provided for '{}'; skipping populate like TC.",
+                self.db
+            );
+            self.ensure_updates_include_table().await?;
+            self.bootstrap_updates_include_if_empty_like_cpp(None)
+                .await?;
+            return Ok(false);
+        }
 
         if !Path::new(base_sql).exists() {
             bail!(
@@ -638,6 +655,14 @@ fn update_database_kind_like_cpp(
     }
 }
 
+fn populate_base_action_like_cpp(base_sql: &str) -> PopulateBaseActionLikeCpp {
+    if base_sql.trim().is_empty() {
+        PopulateBaseActionLikeCpp::SkipNoBaseFile
+    } else {
+        PopulateBaseActionLikeCpp::ApplyBaseFile
+    }
+}
+
 fn default_updates_include_rows_like_cpp(
     kind: UpdateDatabaseKindLikeCpp,
 ) -> &'static [(&'static str, &'static str)] {
@@ -688,8 +713,9 @@ fn default_updates_include_rows_like_cpp(
 #[cfg(test)]
 mod tests {
     use super::{
-        UpdateConfigLikeCpp, UpdateDatabaseKindLikeCpp, UpdateDecisionLikeCpp,
-        default_updates_include_rows_like_cpp, should_cleanup_orphaned_updates_like_cpp,
+        PopulateBaseActionLikeCpp, UpdateConfigLikeCpp, UpdateDatabaseKindLikeCpp,
+        UpdateDecisionLikeCpp, default_updates_include_rows_like_cpp,
+        populate_base_action_like_cpp, should_cleanup_orphaned_updates_like_cpp,
         update_database_kind_like_cpp, update_decision_like_cpp,
     };
 
@@ -818,5 +844,21 @@ mod tests {
         let hotfixes = default_updates_include_rows_like_cpp(UpdateDatabaseKindLikeCpp::Hotfixes);
         assert_eq!(hotfixes[0], ("$/sql/custom/hotfixes", "RELEASED"));
         assert_eq!(hotfixes[7], ("$/sql/updates/hotfixes", "RELEASED"));
+    }
+
+    #[test]
+    fn empty_base_file_skips_populate_like_cpp() {
+        assert_eq!(
+            populate_base_action_like_cpp(""),
+            PopulateBaseActionLikeCpp::SkipNoBaseFile
+        );
+        assert_eq!(
+            populate_base_action_like_cpp("   "),
+            PopulateBaseActionLikeCpp::SkipNoBaseFile
+        );
+        assert_eq!(
+            populate_base_action_like_cpp("/repo/sql/base/auth_database.sql"),
+            PopulateBaseActionLikeCpp::ApplyBaseFile
+        );
     }
 }
