@@ -23,12 +23,13 @@ use wow_core::ObjectGuid;
 use wow_core::guid::HighGuid;
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
 use wow_packet::packets::chat::{
-    CTextEmote, ChatAddonMessage, ChatMessage, ChatMessageEmote, ChatMessageWhisper, ChatMsg,
-    ChatPkt, ChatRegisterAddonPrefixes, ChatReportIgnored, EmoteClient, EmoteMessage, STextEmote,
+    CTextEmote, ChatAddonMessage, ChatMessage, ChatMessageAfk, ChatMessageDnd, ChatMessageEmote,
+    ChatMessageWhisper, ChatMsg, ChatPkt, ChatRegisterAddonPrefixes, ChatReportIgnored,
+    EmoteClient, EmoteMessage, STextEmote,
 };
 use wow_packet::{ClientPacket, ServerPacket};
 
-use crate::session::WorldSession;
+use crate::session::{PlayerAwayModeLikeCpp, WorldSession};
 
 // ── Broadcast range constants (C# WorldCfg defaults) ─────────────
 const RANGE_SAY: f32 = 25.0;
@@ -106,6 +107,24 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_whisper",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::ChatMessageAfk,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_chat_afk",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::ChatMessageDnd,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_chat_dnd",
     }
 }
 
@@ -285,6 +304,32 @@ impl WorldSession {
             };
             self.send_packet(&chat);
         }
+    }
+
+    /// Handle CMSG_CHAT_MESSAGE_AFK.
+    pub async fn handle_chat_afk(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let msg = match ChatMessageAfk::read(&mut pkt) {
+            Ok(m) => m,
+            Err(e) => {
+                tracing::warn!(account = self.account_id, "Bad AFK chat packet: {e}");
+                return;
+            }
+        };
+
+        let _ = self.apply_chat_away_mode_like_cpp(PlayerAwayModeLikeCpp::Afk, msg.text);
+    }
+
+    /// Handle CMSG_CHAT_MESSAGE_DND.
+    pub async fn handle_chat_dnd(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let msg = match ChatMessageDnd::read(&mut pkt) {
+            Ok(m) => m,
+            Err(e) => {
+                tracing::warn!(account = self.account_id, "Bad DND chat packet: {e}");
+                return;
+            }
+        };
+
+        let _ = self.apply_chat_away_mode_like_cpp(PlayerAwayModeLikeCpp::Dnd, msg.text);
     }
 
     /// Handle CMSG_CHAT_REPORT_IGNORED.

@@ -158,6 +158,12 @@ const PLAYER_FLAGS_DND_LIKE_CPP: u32 = 0x0000_0004;
 const PLAYER_FLAGS_GHOST_LIKE_CPP: u32 = 0x0000_0010;
 const PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP: u32 = 0x0000_0100;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PlayerAwayModeLikeCpp {
+    Afk,
+    Dnd,
+}
+
 fn party_member_power_type_for_class_like_cpp(class: u8) -> u8 {
     match class {
         1 => 1, // Warrior: Rage
@@ -2760,6 +2766,8 @@ pub struct WorldSession {
 
     /// Cached character name for chat messages.
     player_name: Option<String>,
+    /// C++ `Player::autoReplyMsg`, represented for AFK/DND until full Player-owned chat state exists.
+    auto_reply_msg_like_cpp: String,
 
     // Addon chat filtering state. Mirrors C++ WorldSession::_registeredAddonPrefixes
     // and _filterAddonMessages.
@@ -3843,6 +3851,7 @@ impl WorldSession {
             player_movement_flags_like_cpp: MovementFlag::NONE,
             player_liquid_status_like_cpp: 0,
             player_name: None,
+            auto_reply_msg_like_cpp: String::new(),
             registered_addon_prefixes: Vec::new(),
             filter_addon_messages: false,
             creature_tick: 0,
@@ -4056,6 +4065,10 @@ impl WorldSession {
 
     pub fn set_canonical_map_manager(&mut self, mgr: SharedCanonicalMapManager) {
         self.canonical_map_manager = Some(mgr);
+    }
+
+    pub(crate) fn auto_reply_msg_like_cpp(&self) -> &str {
+        &self.auto_reply_msg_like_cpp
     }
 
     pub fn set_game_event_quest_complete_sender_like_cpp(
@@ -4357,6 +4370,72 @@ impl WorldSession {
             }
         });
         result
+    }
+
+    pub(crate) fn apply_chat_away_mode_like_cpp(
+        &mut self,
+        mode: PlayerAwayModeLikeCpp,
+        text: String,
+    ) -> bool {
+        if self.in_combat || text.len() > 511 {
+            return false;
+        }
+
+        let Some(guid) = self.player_guid() else {
+            return false;
+        };
+
+        let (active_flag, other_flag, default_text) = match mode {
+            PlayerAwayModeLikeCpp::Afk => (
+                PLAYER_FLAGS_AFK_LIKE_CPP,
+                PLAYER_FLAGS_DND_LIKE_CPP,
+                "Away",
+            ),
+            PlayerAwayModeLikeCpp::Dnd => (
+                PLAYER_FLAGS_DND_LIKE_CPP,
+                PLAYER_FLAGS_AFK_LIKE_CPP,
+                "Busy",
+            ),
+        };
+
+        let is_active = self
+            .canonical_player_has_player_flag_like_cpp(guid, active_flag)
+            .unwrap_or(false);
+        let is_other = self
+            .canonical_player_has_player_flag_like_cpp(guid, other_flag)
+            .unwrap_or(false);
+
+        let mut changed_flags = false;
+        if is_active {
+            if text.is_empty() {
+                changed_flags = self
+                    .mutate_canonical_player_like_cpp(|player| player.remove_player_flag(active_flag))
+                    .is_some();
+            } else {
+                self.auto_reply_msg_like_cpp = text;
+            }
+        } else {
+            self.auto_reply_msg_like_cpp = if text.is_empty() {
+                default_text.to_string()
+            } else {
+                text
+            };
+
+            changed_flags = self
+                .mutate_canonical_player_like_cpp(|player| {
+                    if is_other {
+                        player.remove_player_flag(other_flag);
+                    }
+                    player.set_player_flag(active_flag);
+                })
+                .is_some();
+        }
+
+        if changed_flags {
+            self.sync_player_registry_state_like_cpp();
+        }
+
+        true
     }
 
     fn canonical_player_pvp_flags_like_cpp(&self, guid: ObjectGuid) -> Option<UnitPvpFlags> {
@@ -16833,6 +16912,12 @@ impl WorldSession {
             }
             ClientOpcodes::ChatMessageWhisper => {
                 self.handle_chat_whisper(pkt).await;
+            }
+            ClientOpcodes::ChatMessageAfk => {
+                self.handle_chat_afk(pkt).await;
+            }
+            ClientOpcodes::ChatMessageDnd => {
+                self.handle_chat_dnd(pkt).await;
             }
             ClientOpcodes::ChatReportIgnored => {
                 self.handle_chat_report_ignored(pkt).await;
@@ -46764,6 +46849,13 @@ mod tests {
             gray_level: 0,
             display_id: 49,
             visible_items: [(0, 0, 0); 19],
+            lifetime_honorable_kills: 0,
+            this_week_contribution: 0,
+            yesterday_contribution: 0,
+            today_honorable_kills: 0,
+            yesterday_honorable_kills: 0,
+            lifetime_max_rank: 0,
+            honor_level: 0,
         }
     }
 
@@ -63239,6 +63331,90 @@ mod tests {
         let mut manager = canonical.lock().unwrap();
         let managed = manager.create_world_map(map_id, instance_id);
         session.sync_canonical_player_entity_like_cpp(managed, player);
+    }
+
+    fn session_with_canonical_player_for_away_like_cpp() -> (
+        WorldSession,
+        SharedCanonicalMapManager,
+        ObjectGuid,
+    ) {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 0xAFD0);
+        session.ensure_login_player_controller_like_cpp(
+            player_guid,
+            "AwayTester".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        );
+        let canonical = shared_canonical_map_manager();
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
+        (session, canonical, player_guid)
+    }
+
+    #[test]
+    fn chat_afk_sets_player_flag_and_auto_reply_like_cpp() {
+        let (mut session, _, guid) = session_with_canonical_player_for_away_like_cpp();
+
+        assert!(session.apply_chat_away_mode_like_cpp(
+            PlayerAwayModeLikeCpp::Afk,
+            "back soon".to_string()
+        ));
+
+        assert_eq!(session.auto_reply_msg_like_cpp(), "back soon");
+        assert_eq!(
+            session.canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_AFK_LIKE_CPP),
+            Some(true)
+        );
+        assert_eq!(
+            session.canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_DND_LIKE_CPP),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn chat_dnd_clears_afk_like_cpp() {
+        let (mut session, _, guid) = session_with_canonical_player_for_away_like_cpp();
+        assert!(session.apply_chat_away_mode_like_cpp(
+            PlayerAwayModeLikeCpp::Afk,
+            "afk".to_string()
+        ));
+
+        assert!(session.apply_chat_away_mode_like_cpp(
+            PlayerAwayModeLikeCpp::Dnd,
+            "busy".to_string()
+        ));
+
+        assert_eq!(session.auto_reply_msg_like_cpp(), "busy");
+        assert_eq!(
+            session.canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_AFK_LIKE_CPP),
+            Some(false)
+        );
+        assert_eq!(
+            session.canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_DND_LIKE_CPP),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn chat_away_ignored_while_in_combat_like_cpp() {
+        let (mut session, _, guid) = session_with_canonical_player_for_away_like_cpp();
+        session.in_combat = true;
+
+        assert!(!session.apply_chat_away_mode_like_cpp(
+            PlayerAwayModeLikeCpp::Afk,
+            "cannot".to_string()
+        ));
+
+        assert!(session.auto_reply_msg_like_cpp().is_empty());
+        assert_eq!(
+            session.canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_AFK_LIKE_CPP),
+            Some(false)
+        );
     }
 
     fn set_canonical_player_farsight_object_like_cpp(

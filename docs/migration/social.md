@@ -179,7 +179,7 @@ Note: `character_social` schema in 3.4.3 is `(guid, friend, flags, note)` — th
 **What's missing vs C++:**
 - **Account-level ignore** — `_ignoredAccounts` set + `WowAccountGuid` capture on add — missing entirely. Ignoring an alt does NOT propagate to the other alts.
 - **Mute (`SOCIAL_FLAG_MUTED`)** — unimplemented (would need voice-chat stack anyway, but flag persistence is missing).
-- **Friend-status presence broadcast** — when a player logs in/out/AFK/DND/zones, `SocialMgr::BroadcastToFriendListers` should push `FRIEND_STATUS_ONLINE/AFK/DND/OFFLINE` with new area/level. Rust does NOT broadcast these → friends never see status changes after initial list-fetch.
+- **Friend-status presence broadcast** — when a player logs in/out/AFK/DND/zones, `SocialMgr::BroadcastToFriendListers` should push `FRIEND_STATUS_ONLINE/AFK/DND/OFFLINE` with new area/level. Rust now toggles AFK/DND canonical player flags from chat opcodes and syncs the `PlayerRegistry`, but still does NOT broadcast `SMSG_FRIEND_STATUS` updates → friends only see the new state on the next explicit list/status fetch.
 - **RBAC friend bypass** — C++ allows enemy-faction `AddFriend` only with `RBAC_PERM_TWO_SIDE_ADD_FRIEND`; Rust now rejects enemies for normal-player behavior, but the RBAC bypass is impossible until AccountMgr/RBAC exists.
 - **`character_social.accountGuid` column** — schema does not include it; Rust hard-codes `account_guid: ObjectGuid::EMPTY` everywhere.
 - **Inspect-achievements content** — opcode/empty response represented, but real `PlayerAchievementMgr` earned/progress data is still missing.
@@ -313,7 +313,7 @@ Net effect after the represented `CMSG_ADD_IGNORE`/`CMSG_DEL_IGNORE` and `CMSG_C
 | `HandleRequestHonorStats` | ✅ returns `SMSG_INSPECT_HONOR_STATS` for online targets | partial: `HonorLevel` real, HK/contribution/rank counters pending missing ActivePlayerData state |
 | `HandleQueryInspectAchievements` | ✅ registered, gates target/range and sends empty `RespondInspectAchievements` | partial: real earned/progress data missing |
 | `HandleInspectPVP` | ❌ unregistered |  |
-| `SocialMgr::BroadcastToFriendListers` (presence updates on login/logout/AFK/DND/zone) | ❌ none | bug |
+| `SocialMgr::BroadcastToFriendListers` (presence updates on login/logout/AFK/DND/zone) | ❌ no push broadcast; AFK/DND source flags now represented in registry | bug |
 | `_ignoredAccounts` set + `WowAccountGuid` capture | ❌ none |  |
 
 ### Other observed bugs / divergences
@@ -331,4 +331,4 @@ Net effect after the represented `CMSG_ADD_IGNORE`/`CMSG_DEL_IGNORE` and `CMSG_C
 - No `InspectGuildData`, no `InspectTalentData`, no `PVPBracketData`. `RequestHonorStats`/`InspectHonorStatsResponse` are represented; `HonorLevel` is sourced from the current player snapshot, while the missing ActivePlayerData honor-counter fields remain a PvP/runtime gap. `QueryInspectAchievements` no longer falls through unhandled, but returns empty data until the achievement manager is ported.
 - `crates/wow-social/src/lib.rs` confirmed 0 bytes; no `PlayerSocial`, no `SocialMgr` anywhere in the workspace.
 
-**Verdict:** flagged divergence partly reduced. Friends list works for add/delete/list (~50% of `SocialHandler.cpp`). Per-character `AddIgnore`/`DelIgnore` now write and clear `SOCIAL_FLAG_IGNORED`, and `CMSG_CHAT_REPORT_IGNORED` feedback is represented. Account-level ignore, loaded `PlayerSocial`, and server-side `HasIgnore` gates outside the client-report whisper path remain open. Inspect covers basic items/identity plus honor-stats and empty inspect-achievements response; PvP brackets, real achievement content, talents/glyphs and guild data remain absent. Presence broadcast (`SMSG_FRIEND_STATUS` on login/logout/AFK/zone) is 0%.
+**Verdict:** flagged divergence partly reduced. Friends list works for add/delete/list (~50% of `SocialHandler.cpp`). Per-character `AddIgnore`/`DelIgnore` now write and clear `SOCIAL_FLAG_IGNORED`, and `CMSG_CHAT_REPORT_IGNORED` feedback is represented. Account-level ignore, loaded `PlayerSocial`, and server-side `HasIgnore` gates outside the client-report whisper path remain open. Inspect covers basic items/identity plus honor-stats and empty inspect-achievements response; PvP brackets, real achievement content, talents/glyphs and guild data remain absent. AFK/DND flags are now represented in `PlayerRegistry`, but presence broadcast (`SMSG_FRIEND_STATUS` on login/logout/AFK/zone) is still 0%.

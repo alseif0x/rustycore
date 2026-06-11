@@ -332,6 +332,40 @@ impl ClientPacket for ChatMessageWhisper {
     }
 }
 
+// ── CMSG_CHAT_MESSAGE_AFK / DND ──────────────────────────────────
+
+/// C++ `WorldPackets::Chat::ChatMessageAFK::Read`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChatMessageAfk {
+    pub text: String,
+}
+
+impl ClientPacket for ChatMessageAfk {
+    const OPCODE: ClientOpcodes = ClientOpcodes::ChatMessageAfk;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let len = pkt.read_bits(11)? as usize;
+        let text = pkt.read_string(len)?;
+        Ok(Self { text })
+    }
+}
+
+/// C++ `WorldPackets::Chat::ChatMessageDND::Read`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChatMessageDnd {
+    pub text: String,
+}
+
+impl ClientPacket for ChatMessageDnd {
+    const OPCODE: ClientOpcodes = ClientOpcodes::ChatMessageDnd;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let len = pkt.read_bits(11)? as usize;
+        let text = pkt.read_string(len)?;
+        Ok(Self { text })
+    }
+}
+
 // ── CMSG_CHAT_REPORT_IGNORED ─────────────────────────────────────
 
 /// C++ `WorldPackets::Chat::ChatReportIgnored::Read`.
@@ -781,6 +815,32 @@ mod tests {
 
         assert_eq!(packet.ignored_guid, ignored_guid);
         assert_eq!(packet.reason, 2);
+        assert!(reader.is_empty());
+    }
+
+    #[test]
+    fn chat_message_afk_reads_cpp_layout() {
+        let mut writer = WorldPacket::new_empty();
+        writer.write_bits(9, 11);
+        writer.write_string("bio break");
+
+        let mut reader = WorldPacket::from_bytes(writer.data());
+        let packet = ChatMessageAfk::read(&mut reader).unwrap();
+
+        assert_eq!(packet.text, "bio break");
+        assert!(reader.is_empty());
+    }
+
+    #[test]
+    fn chat_message_dnd_reads_cpp_layout() {
+        let mut writer = WorldPacket::new_empty();
+        writer.write_bits(4, 11);
+        writer.write_string("busy");
+
+        let mut reader = WorldPacket::from_bytes(writer.data());
+        let packet = ChatMessageDnd::read(&mut reader).unwrap();
+
+        assert_eq!(packet.text, "busy");
         assert!(reader.is_empty());
     }
 

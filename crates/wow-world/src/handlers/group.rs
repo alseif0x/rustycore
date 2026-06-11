@@ -2245,6 +2245,13 @@ mod tests {
             gray_level: 0,
             display_id: 49,
             visible_items: [(0, 0, 0); 19],
+            lifetime_honorable_kills: 0,
+            this_week_contribution: 0,
+            yesterday_contribution: 0,
+            today_honorable_kills: 0,
+            yesterday_honorable_kills: 0,
+            lifetime_max_rank: 0,
+            honor_level: 0,
         }
     }
 
