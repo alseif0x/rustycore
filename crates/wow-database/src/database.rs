@@ -44,12 +44,7 @@ impl<S: StatementDef> Database<S> {
         connection_string: &str,
         max_connections: u32,
     ) -> Result<Self, DatabaseError> {
-        let pool = MySqlPoolOptions::new()
-            .max_connections(max_connections)
-            .idle_timeout(std::time::Duration::from_secs(1800))
-            .connect(connection_string)
-            .await
-            .map_err(|e| DatabaseError::Connection(e.to_string()))?;
+        let pool = connect_pool_like_cpp(connection_string, max_connections).await?;
 
         tracing::info!(
             database = %connection_string.split('/').next_back().unwrap_or("?"),
@@ -60,6 +55,47 @@ impl<S: StatementDef> Database<S> {
             pool,
             _marker: PhantomData,
         })
+    }
+
+    /// Open a pool and, if enabled, mirror TC's DBUpdater::Create fallback for
+    /// missing databases before retrying the connection.
+    pub async fn open_with_pool_size_and_auto_create_like_cpp(
+        host: &str,
+        port_or_socket: &str,
+        user: &str,
+        password: &str,
+        database: &str,
+        max_connections: u32,
+        auto_create: bool,
+    ) -> Result<Self, DatabaseError> {
+        let connection_string =
+            build_connection_string(host, port_or_socket, user, password, database);
+
+        match connect_pool_sqlx_like_cpp(&connection_string, max_connections).await {
+            Ok(pool) => {
+                tracing::info!(database = %database, "Connected to MySQL database");
+                Ok(Self {
+                    pool,
+                    _marker: PhantomData,
+                })
+            }
+            Err(err) if auto_create && is_unknown_database_error_like_cpp(&err) => {
+                tracing::info!(
+                    database = %database,
+                    "Database does not exist; creating it before reconnecting"
+                );
+                create_database_like_cpp(host, port_or_socket, user, password, database).await?;
+                let pool = connect_pool_sqlx_like_cpp(&connection_string, max_connections)
+                    .await
+                    .map_err(|e| DatabaseError::Connection(e.to_string()))?;
+                tracing::info!(database = %database, "Connected to MySQL database");
+                Ok(Self {
+                    pool,
+                    _marker: PhantomData,
+                })
+            }
+            Err(err) => Err(DatabaseError::Connection(err.to_string())),
+        }
     }
 
     /// Create a database wrapper from an existing pool.
@@ -171,6 +207,56 @@ impl<S: StatementDef> Database<S> {
     }
 }
 
+async fn connect_pool_like_cpp(
+    connection_string: &str,
+    max_connections: u32,
+) -> Result<MySqlPool, DatabaseError> {
+    connect_pool_sqlx_like_cpp(connection_string, max_connections)
+        .await
+        .map_err(|e| DatabaseError::Connection(e.to_string()))
+}
+
+async fn connect_pool_sqlx_like_cpp(
+    connection_string: &str,
+    max_connections: u32,
+) -> Result<MySqlPool, sqlx::Error> {
+    MySqlPoolOptions::new()
+        .max_connections(max_connections)
+        .idle_timeout(std::time::Duration::from_secs(1800))
+        .connect(connection_string)
+        .await
+}
+
+async fn create_database_like_cpp(
+    host: &str,
+    port_or_socket: &str,
+    user: &str,
+    password: &str,
+    database: &str,
+) -> Result<(), DatabaseError> {
+    let server_connection =
+        build_server_connection_string_like_cpp(host, port_or_socket, user, password);
+    let pool = connect_pool_like_cpp(&server_connection, 1).await?;
+    let sql = format!(
+        "CREATE DATABASE `{}` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci",
+        escape_mysql_identifier_like_cpp(database)
+    );
+    sqlx::query(&sql).execute(&pool).await?;
+    pool.close().await;
+    Ok(())
+}
+
+fn is_unknown_database_error_like_cpp(error: &sqlx::Error) -> bool {
+    match error {
+        sqlx::Error::Database(db_error) => db_error.code().as_deref() == Some("1049"),
+        sqlx::Error::Configuration(source) => source
+            .to_string()
+            .to_ascii_lowercase()
+            .contains("unknown database"),
+        _ => false,
+    }
+}
+
 impl<S: StatementDef> std::fmt::Debug for Database<S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Database")
@@ -204,6 +290,30 @@ pub fn build_connection_string(
     )
 }
 
+fn build_server_connection_string_like_cpp(
+    host: &str,
+    port_or_socket: &str,
+    user: &str,
+    password: &str,
+) -> String {
+    if port_or_socket
+        .chars()
+        .next()
+        .is_some_and(|ch| ch.is_ascii_digit())
+    {
+        return format!("mysql://{user}:{password}@{host}:{port_or_socket}");
+    }
+
+    format!(
+        "mysql://{user}:{password}@localhost?socket={}",
+        percent_encode_query(port_or_socket)
+    )
+}
+
+fn escape_mysql_identifier_like_cpp(identifier: &str) -> String {
+    identifier.replace('`', "``")
+}
+
 fn percent_encode_query(value: &str) -> String {
     let mut encoded = String::new();
     for byte in value.bytes() {
@@ -219,7 +329,10 @@ fn percent_encode_query(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::build_connection_string;
+    use super::{
+        build_connection_string, build_server_connection_string_like_cpp,
+        escape_mysql_identifier_like_cpp,
+    };
 
     #[test]
     fn build_connection_string_uses_numeric_port() {
@@ -241,5 +354,28 @@ mod tests {
             ),
             "mysql://trinity:trinity@localhost/world?socket=/var/run/mysqld/mysqld.sock"
         );
+    }
+
+    #[test]
+    fn build_server_connection_string_omits_database_for_create_like_cpp() {
+        assert_eq!(
+            build_server_connection_string_like_cpp("127.0.0.1", "3306", "trinity", "trinity"),
+            "mysql://trinity:trinity@127.0.0.1:3306"
+        );
+        assert_eq!(
+            build_server_connection_string_like_cpp(
+                ".",
+                "/var/run/mysqld/mysqld.sock",
+                "trinity",
+                "trinity",
+            ),
+            "mysql://trinity:trinity@localhost?socket=/var/run/mysqld/mysqld.sock"
+        );
+    }
+
+    #[test]
+    fn mysql_identifier_escape_doubles_backticks_like_cpp_create() {
+        assert_eq!(escape_mysql_identifier_like_cpp("world"), "world");
+        assert_eq!(escape_mysql_identifier_like_cpp("bad`name"), "bad``name");
     }
 }

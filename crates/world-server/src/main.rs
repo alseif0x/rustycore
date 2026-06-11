@@ -23,7 +23,6 @@ use wow_core::{ObjectGuid, ObjectGuidGenerator, guid::HighGuid};
 use wow_database::{
     CharStatements, CharacterDatabase, HotfixDatabase, LoginDatabase, LoginStatements,
     PreparedStatement, SqlTransaction, StatementDef, WorldDatabase, WorldStatements,
-    build_connection_string,
 };
 use wow_instances::{InstanceLockMgr, MapDb2Entries, MapDifficultyResetInterval};
 use wow_loot::{
@@ -214,6 +213,7 @@ async fn main() -> Result<()> {
     load_world_config()?;
     let world_configs = wow_config::load_world_config_values();
     create_pid_file_from_config_like_cpp()?;
+    let updates_auto_setup = updates_auto_setup_enabled_like_cpp();
 
     // Connect to login database (needed for session key validation)
     let login_info = wow_config::get_database_info_default(
@@ -222,17 +222,17 @@ async fn main() -> Result<()> {
     );
     log_database_target_like_cpp("login", &login_info);
 
-    let conn_str = build_connection_string(
+    let login_db = LoginDatabase::open_with_pool_size_and_auto_create_like_cpp(
         &login_info.host,
         &login_info.port_or_socket,
         &login_info.username,
         &login_info.password,
         &login_info.database,
-    );
-    let login_db =
-        LoginDatabase::open_with_pool_size(&conn_str, database_pool_size_like_cpp("Login"))
-            .await
-            .context("Failed to connect to login database")?;
+        database_pool_size_like_cpp("Login"),
+        updates_auto_setup,
+    )
+    .await
+    .context("Failed to connect to login database")?;
 
     info!("Connected to login database");
 
@@ -243,16 +243,14 @@ async fn main() -> Result<()> {
     );
     log_database_target_like_cpp("character", &char_info);
 
-    let char_conn_str = build_connection_string(
+    let char_db = CharacterDatabase::open_with_pool_size_and_auto_create_like_cpp(
         &char_info.host,
         &char_info.port_or_socket,
         &char_info.username,
         &char_info.password,
         &char_info.database,
-    );
-    let char_db = CharacterDatabase::open_with_pool_size(
-        &char_conn_str,
         database_pool_size_like_cpp("Character"),
+        updates_auto_setup,
     )
     .await
     .context("Failed to connect to character database")?;
@@ -266,17 +264,17 @@ async fn main() -> Result<()> {
     );
     log_database_target_like_cpp("world", &world_info);
 
-    let world_conn_str = build_connection_string(
+    let world_db = WorldDatabase::open_with_pool_size_and_auto_create_like_cpp(
         &world_info.host,
         &world_info.port_or_socket,
         &world_info.username,
         &world_info.password,
         &world_info.database,
-    );
-    let world_db =
-        WorldDatabase::open_with_pool_size(&world_conn_str, database_pool_size_like_cpp("World"))
-            .await
-            .context("Failed to connect to world database")?;
+        database_pool_size_like_cpp("World"),
+        updates_auto_setup,
+    )
+    .await
+    .context("Failed to connect to world database")?;
 
     info!("Connected to world database");
     let world_db = Arc::new(world_db);
@@ -288,16 +286,14 @@ async fn main() -> Result<()> {
     );
     log_database_target_like_cpp("hotfix", &hotfix_info);
 
-    let hotfix_conn_str = build_connection_string(
+    let hotfix_db = HotfixDatabase::open_with_pool_size_and_auto_create_like_cpp(
         &hotfix_info.host,
         &hotfix_info.port_or_socket,
         &hotfix_info.username,
         &hotfix_info.password,
         &hotfix_info.database,
-    );
-    let hotfix_db = HotfixDatabase::open_with_pool_size(
-        &hotfix_conn_str,
         database_pool_size_like_cpp("Hotfix"),
+        updates_auto_setup,
     )
     .await
     .context("Failed to connect to hotfix database")?;
@@ -305,8 +301,7 @@ async fn main() -> Result<()> {
     info!("Connected to hotfix database");
 
     // ── Database auto-update ──────────────────────────────────────────────
-    let auto_setup = wow_config::get_string_default("Updates.AutoSetup", "1");
-    if auto_setup != "0" && auto_setup.to_lowercase() != "false" {
+    if updates_auto_setup {
         use wow_database::updater::DbUpdater;
         let src = wow_config::get_string_default("Updates.SourcePath", ".");
 
@@ -2627,6 +2622,11 @@ fn database_pool_size_like_cpp(name: &str) -> u32 {
         database_thread_count_like_cpp(&format!("{name}Database.WorkerThreads"), 1);
     let synch_threads = database_thread_count_like_cpp(&format!("{name}Database.SynchThreads"), 1);
     worker_threads + synch_threads
+}
+
+fn updates_auto_setup_enabled_like_cpp() -> bool {
+    let auto_setup = wow_config::get_string_default("Updates.AutoSetup", "1");
+    auto_setup != "0" && !auto_setup.eq_ignore_ascii_case("false")
 }
 
 fn database_thread_count_like_cpp(key: &str, default: u32) -> u32 {
@@ -8790,7 +8790,8 @@ mod tests {
         run_legacy_creature_movement_tick_and_deliver_once_like_cpp,
         run_legacy_creature_runtime_tick_and_deliver_once_like_cpp, set_realm_offline_sql_like_cpp,
         set_realm_online_sql_like_cpp, spawn_legacy_creature_runtime_update_loop_like_cpp,
-        spawn_store_loader, world_config_bool, world_config_u8, world_config_u16, world_config_u32,
+        spawn_store_loader, updates_auto_setup_enabled_like_cpp, world_config_bool,
+        world_config_u8, world_config_u16, world_config_u32,
     };
     use std::collections::{BTreeMap, HashSet};
     use std::env;
@@ -11121,6 +11122,24 @@ WorldDatabase.SynchThreads = 33
         assert_eq!(database_pool_size_like_cpp("Login"), 8);
         assert_eq!(database_pool_size_like_cpp("Character"), 3);
         assert_eq!(database_pool_size_like_cpp("World"), 2);
+    }
+
+    #[test]
+    fn updates_auto_setup_defaults_enabled_like_cpp() {
+        let _guard = TEST_LOCK.lock().expect("test lock poisoned");
+
+        wow_config::load_config_from_str("").expect("config should load");
+        assert!(updates_auto_setup_enabled_like_cpp());
+
+        wow_config::load_config_from_str("Updates.AutoSetup = 0\n").expect("config should load");
+        assert!(!updates_auto_setup_enabled_like_cpp());
+
+        wow_config::load_config_from_str("Updates.AutoSetup = false\n")
+            .expect("config should load");
+        assert!(!updates_auto_setup_enabled_like_cpp());
+
+        wow_config::load_config_from_str("Updates.AutoSetup = 1\n").expect("config should load");
+        assert!(updates_auto_setup_enabled_like_cpp());
     }
 
     #[test]
