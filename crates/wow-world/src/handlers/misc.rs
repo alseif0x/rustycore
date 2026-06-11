@@ -2056,8 +2056,13 @@ impl crate::session::WorldSession {
         &mut self,
         _pkt: wow_packet::WorldPacket,
     ) {
+        // C++ registers CMSG_REPORT_KEYBINDING_EXECUTION_COUNTS as
+        // STATUS_UNHANDLED/Handle_NULL.
     }
-    pub async fn handle_request_countdown_timer(&mut self, _pkt: wow_packet::WorldPacket) {}
+    pub async fn handle_request_countdown_timer(&mut self, _pkt: wow_packet::WorldPacket) {
+        // C++ registers CMSG_QUERY_COUNTDOWN_TIMER as
+        // STATUS_UNHANDLED/Handle_NULL.
+    }
     pub async fn handle_calendar_get(&mut self, _pkt: wow_packet::WorldPacket) {
         // C++ fills CalendarSendCalendar from sCalendarMgr and instance locks.
         // Those live managers are not ported here yet, so represent the
@@ -4882,6 +4887,28 @@ mod tests {
 
         session
             .handle_report_enabled_addons(WorldPacket::new_empty())
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn report_keybinding_execution_counts_is_silent_like_cpp_handle_null() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_report_keybinding_execution_counts(WorldPacket::new_empty())
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn query_countdown_timer_is_silent_like_cpp_handle_null() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_request_countdown_timer(WorldPacket::new_empty())
             .await;
 
         assert!(send_rx.try_recv().is_err());
