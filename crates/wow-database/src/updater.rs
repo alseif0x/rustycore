@@ -213,6 +213,7 @@ impl DbUpdater {
                 available.push((f, state.clone()));
             }
         }
+        sort_update_files_like_cpp(&mut available)?;
 
         // Load already-applied files from DB
         let mut applied = self.read_applied_files().await?;
@@ -620,6 +621,31 @@ fn collect_sql_files(dir: &Path) -> Result<Vec<PathBuf>> {
     Ok(files)
 }
 
+fn sort_update_files_like_cpp(files: &mut [(PathBuf, String)]) -> Result<()> {
+    files.sort_by(|left, right| {
+        update_filename_like_cpp(&left.0).cmp(&update_filename_like_cpp(&right.0))
+    });
+
+    for window in files.windows(2) {
+        let left = update_filename_like_cpp(&window[0].0);
+        let right = update_filename_like_cpp(&window[1].0);
+        if left == right {
+            bail!(
+                "Duplicate filename \"{}\" occurred. Because updates are ordered by their filenames, every name needs to be unique!",
+                left
+            );
+        }
+    }
+
+    Ok(())
+}
+
+fn update_filename_like_cpp(path: &Path) -> String {
+    path.file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default()
+}
+
 fn should_cleanup_orphaned_updates_like_cpp(
     orphan_count: usize,
     clean_dead_references_max_count: i32,
@@ -716,8 +742,9 @@ mod tests {
         PopulateBaseActionLikeCpp, UpdateConfigLikeCpp, UpdateDatabaseKindLikeCpp,
         UpdateDecisionLikeCpp, default_updates_include_rows_like_cpp,
         populate_base_action_like_cpp, should_cleanup_orphaned_updates_like_cpp,
-        update_database_kind_like_cpp, update_decision_like_cpp,
+        sort_update_files_like_cpp, update_database_kind_like_cpp, update_decision_like_cpp,
     };
+    use std::path::PathBuf;
 
     fn update_config_like_cpp(
         redundancy_checks: bool,
@@ -860,5 +887,49 @@ mod tests {
             populate_base_action_like_cpp("/repo/sql/base/auth_database.sql"),
             PopulateBaseActionLikeCpp::ApplyBaseFile
         );
+    }
+
+    #[test]
+    fn update_files_sort_by_filename_and_reject_duplicates_like_cpp() {
+        let mut files = vec![
+            (
+                PathBuf::from("/repo/sql/updates/world/2024_02_00_world.sql"),
+                "RELEASED".to_string(),
+            ),
+            (
+                PathBuf::from("/repo/sql/custom/world/2024_01_00_world.sql"),
+                "RELEASED".to_string(),
+            ),
+            (
+                PathBuf::from("/repo/sql/old/world/2023_12_00_world.sql"),
+                "ARCHIVED".to_string(),
+            ),
+        ];
+
+        sort_update_files_like_cpp(&mut files).unwrap();
+        let names: Vec<_> = files
+            .iter()
+            .map(|(path, _)| path.file_name().unwrap().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(
+            names,
+            vec![
+                "2023_12_00_world.sql",
+                "2024_01_00_world.sql",
+                "2024_02_00_world.sql"
+            ]
+        );
+
+        let mut duplicate = vec![
+            (
+                PathBuf::from("/repo/sql/updates/world/2024_01_00_world.sql"),
+                "RELEASED".to_string(),
+            ),
+            (
+                PathBuf::from("/repo/sql/custom/world/2024_01_00_world.sql"),
+                "RELEASED".to_string(),
+            ),
+        ];
+        assert!(sort_update_files_like_cpp(&mut duplicate).is_err());
     }
 }
