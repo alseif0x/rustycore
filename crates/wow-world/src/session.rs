@@ -16761,8 +16761,26 @@ impl WorldSession {
             ClientOpcodes::CancelCast => {
                 self.handle_cancel_cast(pkt).await;
             }
+            ClientOpcodes::CancelAura => {
+                self.handle_cancel_aura(pkt).await;
+            }
+            ClientOpcodes::CancelAutoRepeatSpell => {
+                self.handle_cancel_auto_repeat_spell(pkt).await;
+            }
             ClientOpcodes::CancelChannelling => {
                 self.handle_cancel_channelling(pkt).await;
+            }
+            ClientOpcodes::CancelGrowthAura => {
+                self.handle_cancel_growth_aura(pkt).await;
+            }
+            ClientOpcodes::CancelMountAura => {
+                self.handle_cancel_mount_aura(pkt).await;
+            }
+            ClientOpcodes::CancelQueuedSpell => {
+                self.handle_cancel_queued_spell(pkt).await;
+            }
+            ClientOpcodes::SelfRes => {
+                self.handle_self_res(pkt).await;
             }
             ClientOpcodes::OpenItem => {
                 self.handle_open_item(pkt).await;

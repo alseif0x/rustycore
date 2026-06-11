@@ -20,6 +20,38 @@ use wow_core::{ObjectGuid, Position};
 use crate::world_packet::{PacketError, WorldPacket};
 use crate::{ClientPacket, ServerPacket};
 
+/// C++ `WorldPackets::Spells::CancelAura`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CancelAura {
+    pub spell_id: i32,
+    pub caster_guid: ObjectGuid,
+}
+
+impl ClientPacket for CancelAura {
+    const OPCODE: ClientOpcodes = ClientOpcodes::CancelAura;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let spell_id = pkt.read_int32()?;
+        let caster_guid = pkt.read_packed_guid()?;
+        Ok(Self {
+            spell_id,
+            caster_guid,
+        })
+    }
+}
+
+/// C++ `WorldPackets::Spells::CancelAutoRepeatSpell`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CancelAutoRepeatSpell;
+
+impl ClientPacket for CancelAutoRepeatSpell {
+    const OPCODE: ClientOpcodes = ClientOpcodes::CancelAutoRepeatSpell;
+
+    fn read(_pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self)
+    }
+}
+
 /// C++ `WorldPackets::Spells::CancelCast`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CancelCast {
@@ -54,6 +86,57 @@ impl ClientPacket for CancelChannelling {
             channel_spell,
             reason,
         })
+    }
+}
+
+/// C++ `WorldPackets::Spells::CancelGrowthAura`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CancelGrowthAura;
+
+impl ClientPacket for CancelGrowthAura {
+    const OPCODE: ClientOpcodes = ClientOpcodes::CancelGrowthAura;
+
+    fn read(_pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self)
+    }
+}
+
+/// C++ `WorldPackets::Spells::CancelMountAura`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CancelMountAura;
+
+impl ClientPacket for CancelMountAura {
+    const OPCODE: ClientOpcodes = ClientOpcodes::CancelMountAura;
+
+    fn read(_pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self)
+    }
+}
+
+/// C++ `WorldPackets::Spells::CancelQueuedSpell`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CancelQueuedSpell;
+
+impl ClientPacket for CancelQueuedSpell {
+    const OPCODE: ClientOpcodes = ClientOpcodes::CancelQueuedSpell;
+
+    fn read(_pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self)
+    }
+}
+
+/// C++ `WorldPackets::Spells::SelfRes`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SelfRes {
+    pub spell_id: i32,
+}
+
+impl ClientPacket for SelfRes {
+    const OPCODE: ClientOpcodes = ClientOpcodes::SelfRes;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let spell_id = pkt.read_int32()?;
+        Ok(Self { spell_id })
     }
 }
 
@@ -733,6 +816,20 @@ mod tests {
     }
 
     #[test]
+    fn cancel_aura_reads_cpp_spell_id_then_caster_guid() {
+        let caster_guid = ObjectGuid::create_player(1, 77);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_int32(12_345);
+        pkt.write_packed_guid(&caster_guid);
+        pkt.reset_read();
+
+        let parsed = CancelAura::read(&mut pkt).unwrap();
+        assert_eq!(parsed.spell_id, 12_345);
+        assert_eq!(parsed.caster_guid, caster_guid);
+        assert!(pkt.is_empty());
+    }
+
+    #[test]
     fn cancel_channelling_reads_cpp_channel_spell_then_reason() {
         let mut pkt = WorldPacket::new_empty();
         pkt.write_int32(12_345);
@@ -742,6 +839,37 @@ mod tests {
         let parsed = CancelChannelling::read(&mut pkt).unwrap();
         assert_eq!(parsed.channel_spell, 12_345);
         assert_eq!(parsed.reason, 40);
+        assert!(pkt.is_empty());
+    }
+
+    #[test]
+    fn cancel_empty_spell_packets_match_cpp_empty_reads() {
+        assert_eq!(
+            CancelAutoRepeatSpell::read(&mut WorldPacket::new_empty()).unwrap(),
+            CancelAutoRepeatSpell
+        );
+        assert_eq!(
+            CancelGrowthAura::read(&mut WorldPacket::new_empty()).unwrap(),
+            CancelGrowthAura
+        );
+        assert_eq!(
+            CancelMountAura::read(&mut WorldPacket::new_empty()).unwrap(),
+            CancelMountAura
+        );
+        assert_eq!(
+            CancelQueuedSpell::read(&mut WorldPacket::new_empty()).unwrap(),
+            CancelQueuedSpell
+        );
+    }
+
+    #[test]
+    fn self_res_reads_cpp_spell_id() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_int32(20_000);
+        pkt.reset_read();
+
+        let parsed = SelfRes::read(&mut pkt).unwrap();
+        assert_eq!(parsed.spell_id, 20_000);
         assert!(pkt.is_empty());
     }
 

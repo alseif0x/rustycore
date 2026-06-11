@@ -46,8 +46,9 @@ use wow_packet::packets::loot::{
     CreatureLoot, LOOT_TYPE_ITEM_LIKE_CPP, LootEntry, LootEntryFlags, LootItemData, LootResponse,
 };
 use wow_packet::packets::spell::{
-    CancelCast, CancelChannelling, CastFailed, CastSpellRequest, OpenItem, SpellCastVisual,
-    SpellClick, SpellStartPkt,
+    CancelAura, CancelAutoRepeatSpell, CancelCast, CancelChannelling, CancelGrowthAura,
+    CancelMountAura, CancelQueuedSpell, CastFailed, CastSpellRequest, OpenItem, SelfRes,
+    SpellCastVisual, SpellClick, SpellStartPkt,
 };
 
 use crate::session::WorldSession;
@@ -89,6 +90,24 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
+        opcode: ClientOpcodes::CancelAura,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_cancel_aura",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::CancelAutoRepeatSpell,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_cancel_auto_repeat_spell",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
         opcode: ClientOpcodes::CancelChannelling,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
@@ -98,10 +117,46 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
+        opcode: ClientOpcodes::CancelGrowthAura,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_cancel_growth_aura",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::CancelMountAura,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_cancel_mount_aura",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::CancelQueuedSpell,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_cancel_queued_spell",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
         opcode: ClientOpcodes::OpenItem,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_open_item",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::SelfRes,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_self_res",
     }
 }
 
@@ -1686,6 +1741,39 @@ impl WorldSession {
         self.active_spell_cast = None;
     }
 
+    /// Handle `CMSG_CANCEL_AURA` — player requests removing a cancelable owned aura.
+    pub async fn handle_cancel_aura(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let request = match CancelAura::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "CancelAura parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        debug!(
+            account = self.account_id,
+            spell_id = request.spell_id,
+            caster_guid = ?request.caster_guid,
+            "CMSG_CANCEL_AURA parsed; full owned-aura cancellation runtime is not represented yet"
+        );
+    }
+
+    /// Handle `CMSG_CANCEL_AUTO_REPEAT_SPELL`.
+    pub async fn handle_cancel_auto_repeat_spell(&mut self, mut pkt: wow_packet::WorldPacket) {
+        if let Err(error) = CancelAutoRepeatSpell::read(&mut pkt) {
+            warn!(
+                account = self.account_id,
+                "CancelAutoRepeatSpell parse failed: {error}"
+            );
+        }
+        // C++ interrupts CURRENT_AUTOREPEAT_SPELL. Rust does not yet represent
+        // a separate auto-repeat current-spell slot, so this remains silent.
+    }
+
     /// Handle `CMSG_CANCEL_CHANNELLING` — player stops a channelled spell.
     pub async fn handle_cancel_channelling(&mut self, mut pkt: wow_packet::WorldPacket) {
         let request = match CancelChannelling::read(&mut pkt) {
@@ -1704,6 +1792,62 @@ impl WorldSession {
             channel_spell = request.channel_spell,
             reason = request.reason,
             "CMSG_CANCEL_CHANNELLING parsed; current channeled player spell runtime is not represented yet"
+        );
+    }
+
+    /// Handle `CMSG_CANCEL_GROWTH_AURA`.
+    pub async fn handle_cancel_growth_aura(&mut self, mut pkt: wow_packet::WorldPacket) {
+        if let Err(error) = CancelGrowthAura::read(&mut pkt) {
+            warn!(
+                account = self.account_id,
+                "CancelGrowthAura parse failed: {error}"
+            );
+        }
+        // C++ removes positive, cancelable SPELL_AURA_MOD_SCALE applications.
+        // Rust visible aura slots do not yet carry enough SpellInfo-backed aura
+        // ownership to mutate this faithfully.
+    }
+
+    /// Handle `CMSG_CANCEL_MOUNT_AURA`.
+    pub async fn handle_cancel_mount_aura(&mut self, mut pkt: wow_packet::WorldPacket) {
+        if let Err(error) = CancelMountAura::read(&mut pkt) {
+            warn!(
+                account = self.account_id,
+                "CancelMountAura parse failed: {error}"
+            );
+        }
+        // C++ removes positive, cancelable SPELL_AURA_MOUNTED applications.
+        // Full aura cancellation is left to the aura runtime slice.
+    }
+
+    /// Handle `CMSG_CANCEL_QUEUED_SPELL`.
+    pub async fn handle_cancel_queued_spell(&mut self, mut pkt: wow_packet::WorldPacket) {
+        if let Err(error) = CancelQueuedSpell::read(&mut pkt) {
+            warn!(
+                account = self.account_id,
+                "CancelQueuedSpell parse failed: {error}"
+            );
+            return;
+        }
+        // C++ cancels `Player::CancelPendingCastRequest`, not the current
+        // non-melee spell. Rust does not yet represent that pending request
+        // queue separately, so do not clear `active_spell_cast` here.
+    }
+
+    /// Handle `CMSG_SELF_RES`.
+    pub async fn handle_self_res(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let request = match SelfRes::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(account = self.account_id, "SelfRes parse failed: {error}");
+                return;
+            }
+        };
+
+        debug!(
+            account = self.account_id,
+            spell_id = request.spell_id,
+            "CMSG_SELF_RES parsed; SelfResSpells active-player runtime is not represented yet"
         );
     }
 
@@ -2187,6 +2331,21 @@ mod tests {
         pkt
     }
 
+    fn cancel_aura_packet(spell_id: i32, caster_guid: ObjectGuid) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_int32(spell_id);
+        pkt.write_packed_guid(&caster_guid);
+        pkt.reset_read();
+        pkt
+    }
+
+    fn int32_spell_packet(spell_id: i32) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_int32(spell_id);
+        pkt.reset_read();
+        pkt
+    }
+
     #[tokio::test]
     async fn cancel_cast_clears_matching_active_cast_like_cpp() {
         let (mut session, _send_rx) = make_session();
@@ -2226,6 +2385,63 @@ mod tests {
         session
             .handle_cancel_channelling(cancel_channelling_packet(12_345, 40))
             .await;
+
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn cancel_queued_spell_does_not_clear_current_active_cast_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        let cast_id = ObjectGuid::create_world_object(HighGuid::Cast, 0, 1, 0, 0, 1, 7);
+        install_active_spell_cast(&mut session, 12_345, cast_id);
+
+        session
+            .handle_cancel_queued_spell(WorldPacket::new_empty())
+            .await;
+
+        assert_eq!(
+            session
+                .active_spell_cast
+                .as_ref()
+                .map(|active_cast| active_cast.spell_id),
+            Some(12_345)
+        );
+    }
+
+    #[tokio::test]
+    async fn cancel_aura_parses_and_stays_silent_until_aura_runtime_exists() {
+        let (mut session, send_rx) = make_session();
+        let caster_guid = ObjectGuid::create_player(1, 42);
+
+        session
+            .handle_cancel_aura(cancel_aura_packet(12_345, caster_guid))
+            .await;
+
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn cancel_empty_spell_handlers_stay_silent_without_runtime_slots_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_cancel_auto_repeat_spell(WorldPacket::new_empty())
+            .await;
+        session
+            .handle_cancel_growth_aura(WorldPacket::new_empty())
+            .await;
+        session
+            .handle_cancel_mount_aura(WorldPacket::new_empty())
+            .await;
+
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn self_res_parses_and_stays_silent_until_self_res_runtime_exists() {
+        let (mut session, send_rx) = make_session();
+
+        session.handle_self_res(int32_spell_packet(20_000)).await;
 
         assert!(send_rx.is_empty());
     }
