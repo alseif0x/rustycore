@@ -3,7 +3,7 @@
 > **C++ canonical path:** `src/server/bnetserver/`
 > **Rust target crate(s):** `crates/bnet-server/`
 > **Layer:** binary (executable entry point)
-> **Status:** ⚠️ partial (login flow works; missing encrypted private-key support)
+> **Status:** ⚠️ partial (login flow works; remaining runtime/RPC gaps tracked below)
 > **Audited vs C++:** ⚠️ audited (2026-05-01) — see §13
 > **Last updated:** 2026-05-01
 
@@ -225,7 +225,7 @@ HTTP routes (verb + path):
 **What's implemented:**
 - Tokio runtime, two `tokio::spawn`'d accept loops (REST + RPC).
 - `tokio_rustls::TlsAcceptor` for both ports — separate `ServerConfig` instances; both pinned to TLS 1.2 to match the WoW client. REST has no ALPN (matches the C# port the project was forked from, and TC also doesn't set ALPN here).
-- Cert loading: reads `CertificatesFile` and `PrivateKeyFile` with TC defaults (`./bnetserver.cert.pem`, `./bnetserver.key.pem`). `PrivateKeyPassword` is read but encrypted PEM keys are rejected explicitly because the current rustls loader only handles unencrypted private keys.
+- Cert loading: reads `CertificatesFile` and `PrivateKeyFile` with TC defaults (`./bnetserver.cert.pem`, `./bnetserver.key.pem`). `PrivateKeyPassword` now decrypts modern encrypted PKCS#8 PEM keys (`BEGIN ENCRYPTED PRIVATE KEY`) before handing the DER to rustls.
 - `LoginDatabase` connection via `sqlx` + `wow_database::LoginDatabase`.
 - `wow_database::updater::DbUpdater` runs on startup (`Updates.AutoSetup` config) — executes pending `.sql` files in `sql/updates/` automatically. **This is a port of TC's `DBUpdater`, which lives in TC's common DB layer and is invoked by `DatabaseLoader`** — TC does this on the worldserver too (see worldserver doc), so behaviour matches.
 - Ban-expiry timer (`tokio::time::interval`) running `DEL_EXPIRED_IP_BANS`, `UPD_EXPIRED_ACCOUNT_BANS`, `DEL_BNET_EXPIRED_ACCOUNT_BANNED` every `BanExpiryCheckInterval` seconds — direct functional port of `BanExpiryHandler`.
@@ -247,7 +247,7 @@ HTTP routes (verb + path):
 - **`MaxCoreStuckTime` / freeze detector** — bnetserver's main loop is event-driven (not a tight `World::Update` loop). Rust treats REST/RPC listener task exit as fatal instead of a clean shutdown; signal shutdown drains active REST responses before closing DB.
 - **Thread-count configs are informational for Rust BNet**. Audited against TC: `Network.Threads` is enforced by `worldserver`, but `bnetserver` starts one `IoContext` and does not gate startup on that key. Rust logs `Network.Threads` / `LoginREST.ThreadCount` for visibility and uses Tokio's multi-thread runtime.
 - **CLI args present for portable TC options**: Rust supports `--config`/`-c`, `--config-dir`/`-cd`, `--update-databases-only`/`-u`, `--help`/`-h`, and `--version`/`-v`, while ignoring unknown flags like TC's `allow_unregistered()`. Win32 `--service` remains an accepted Linux-target gap.
-- **Encrypted private-key passwords unsupported**. TC's OpenSSL path accepts `PrivateKeyPassword`; Rust reads it and fails fast when non-empty instead of silently ignoring it.
+- **Encrypted private-key password support present for PKCS#8 PEM**. TC's OpenSSL path accepts `PrivateKeyPassword`; Rust now decrypts modern encrypted PKCS#8 PEM keys. Forced legacy OpenSSL "traditional" encrypted RSA PEM remains a format caveat because rustls/RustCrypto do not parse that legacy PEM encryption path directly.
 
 **Suspicious / likely divergent (hipótesis pre-auditoría):**
 - **TLS 1.2 only** is correct (WoW 3.4.3 client doesn't speak 1.3) but the cert-loading path differs from TC's `SslContext::Initialize`, which uses Boost.Asio's OpenSSL backend with explicit cipher list pinning. Some clients on uncommon OS/TLS-stack combos may negotiate different ciphers. Worth a `openssl s_client` capture vs TC.
@@ -466,7 +466,7 @@ HTTP routes (verb + path):
 
 | Scope | Decision | C++ retained | Evidence |
 |---|---|---|---|
-| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 23 files / 3266 lines; refs: `/home/server/woltk-trinity-legacy/src/server/bnetserver/Server/Session.cpp`, `/home/server/woltk-trinity-legacy/src/server/bnetserver/REST/LoginRESTService.cpp`, `/home/server/woltk-trinity-legacy/src/server/bnetserver/Main.cpp` | `crates/bnet-server/` \| ⚠️ partial (login flow works; missing encrypted private-key support) |
+| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 23 files / 3266 lines; refs: `/home/server/woltk-trinity-legacy/src/server/bnetserver/Server/Session.cpp`, `/home/server/woltk-trinity-legacy/src/server/bnetserver/REST/LoginRESTService.cpp`, `/home/server/woltk-trinity-legacy/src/server/bnetserver/Main.cpp` | `crates/bnet-server/` \| ⚠️ partial (login flow works; runtime/RPC gaps tracked below) |
 
 <!-- REFINE.025:END product-scope -->
 
@@ -534,7 +534,7 @@ HTTP routes (verb + path):
 
 The Rust bnet daemon **reaches the same listening state as TrinityCore** for the happy path: it binds 1119 (TLS, BNet RPC) + 8081 (HTTPS, REST), opens a `LoginDatabase`, runs the `BanExpiryHandler`, polls `realmlist` every `RealmsStateUpdateDelay` s, and wires up the SRPv1/v2 → ticket → `VerifyWebCredentials` → `LogonResult` flow end-to-end. The five core REST endpoints needed for the WoW launcher are present and `cargo test --workspace` passes (395 tests).
 
-What is **not** at parity with TC: encrypted private-key password support. The ALPN / TLS-cipher pinning differs because Rust uses `rustls` (TLS 1.2-only `ServerConfig` with no ALPN) while TC uses Boost.Asio + OpenSSL with `TLS_method` (negotiates anything); for WoW 3.4.3 clients that converge on TLS 1.2 + an `ECDHE-RSA-AES*` suite this is functionally equivalent, but uncommon launcher builds may see different ciphers.
+What is **not** at parity with TC: `rustls` does not expose the full OpenSSL private-key loader surface. `PrivateKeyPassword` now works for modern encrypted PKCS#8 PEM keys, but a forced legacy OpenSSL "traditional" encrypted RSA PEM remains unsupported. The ALPN / TLS-cipher pinning differs because Rust uses `rustls` (TLS 1.2-only `ServerConfig` with no ALPN) while TC uses Boost.Asio + OpenSSL with `TLS_method` (negotiates anything); for WoW 3.4.3 clients that converge on TLS 1.2 + an `ECDHE-RSA-AES*` suite this is functionally equivalent, but uncommon launcher builds may see different ciphers.
 
 Resolved since the original audit: `extract_auth_ticket` now mirrors TC's `ExtractAuthorization` by stripping optional `"Basic "`, Base64-decoding the value, and truncating at the first `:`. The failed-login/autoban path now persists `WrongPass.*` effects to `battlenet_accounts.failed_logins`, `battlenet_account_bans`, or `ip_banned`.
 
@@ -552,7 +552,7 @@ Resolved since the original audit: `extract_auth_ticket` now mirrors TC's `Extra
 | `sLog->Initialize` + `Banner::Show` | log to file/console + DB appender plus startup banner | `tracing_subscriber::fmt` + Banner-like startup lines; DB appender not ported | ⚠️ partial |
 | `OpenSSLCrypto::threadsSetup` | OpenSSL ≤1.0.2 locking callbacks | n/a (rustls) | ✅ N/A |
 | `CreatePIDFile(path)` if `PidFile` set | optional pid file | writes current process id before DB/TLS startup and aborts on write failure | ✅ |
-| `SslContext::Initialize()` | reads `CertificatesFile` + `PrivateKeyFile` + `PrivateKeyPassword`; one shared `ssl::context` | reads `CertificatesFile` + `PrivateKeyFile`; `PrivateKeyPassword` non-empty now fails fast because rustls PEM loading does not decrypt encrypted keys; two separate rustls `ServerConfig`s (REST + RPC) | ⚠️ no encrypted-key password |
+| `SslContext::Initialize()` | reads `CertificatesFile` + `PrivateKeyFile` + `PrivateKeyPassword`; one shared `ssl::context` | reads `CertificatesFile` + `PrivateKeyFile`; `PrivateKeyPassword` decrypts encrypted PKCS#8 PEM keys; two separate rustls `ServerConfig`s (REST + RPC) | ⚠️ legacy OpenSSL traditional encrypted PEM caveat |
 | `StartDB()` | single MariaDB pool for `LoginDatabase` | identical (sqlx pool via `wow_database::LoginDatabase`) | ✅ |
 | `--update-databases-only` short-circuit | run updaters then exit | runs `DbUpdater::populate` + `update`, closes DB, and exits before TLS/listeners | ✅ |
 | `sSecretMgr->Initialize(SECRET_OWNER_BNETSERVER)` | load/transition `SECRET_TOTP_MASTER_KEY` using `secret_digest`, `TOTPMasterSecret`, `TOTPOldMasterSecret`, Argon2id, AES-GCM | equivalent BNet owner path in `secret_mgr.rs` | ✅ |
@@ -618,7 +618,7 @@ There is **no JWT or HMAC-signed cookie** anywhere. Both TC and Rust use:
 | Library | OpenSSL 1.1+/3.0 via Boost.Asio `ssl::context` | `rustls` 0.23 via `tokio-rustls` |
 | Protocol versions | `tls` (= TLS_method, all versions enabled) | TLS 1.2 only (pinned via `builder_with_protocol_versions(&[&TLS12])`) |
 | ALPN | not set | not set |
-| Cert source | `CertificatesFile` (chain), `PrivateKeyFile`, `PrivateKeyPassword` | reads `CertificatesFile` + `PrivateKeyFile` with TC defaults; rejects non-empty `PrivateKeyPassword` explicitly because encrypted PEM private keys are not supported yet |
+| Cert source | `CertificatesFile` (chain), `PrivateKeyFile`, `PrivateKeyPassword` | reads `CertificatesFile` + `PrivateKeyFile` with TC defaults; supports `PrivateKeyPassword` for encrypted PKCS#8 PEM keys |
 | Client auth | none | none |
 | Cipher list | OpenSSL default (`HIGH:!aNULL:!MD5` + system policy) | rustls TLS 1.2 default (ECDHE-{RSA,ECDSA}-AES{128,256}-GCM-SHA{256,384}, plus a few CHACHA20 variants) |
 | Two contexts (REST vs RPC)? | one `ssl::context` shared | two separate `ServerConfig`s (functionally identical, just clones) |
@@ -628,7 +628,7 @@ There is **no JWT or HMAC-signed cookie** anywhere. Both TC and Rust use:
 Add these to §9 (existing tasks #BNET.1–#BNET.14 stand):
 
 - [x] **#BNET.15** Fix `extract_auth_ticket`: Base64-decode the optional-`Basic ` authorization value, then truncate at first `:`. Matches `LoginRESTService::ExtractAuthorization`.
-- [ ] **#BNET.16** TLS cert config parity. Rust now wires `CertificatesFile` and `PrivateKeyFile` with TC defaults and reads `PrivateKeyPassword`; remaining gap is actual encrypted private-key password support. Current behavior fails fast when `PrivateKeyPassword` is non-empty instead of silently ignoring it.
+- [x] **#BNET.16** TLS cert config parity for the supported Rust TLS stack. Rust wires `CertificatesFile`, `PrivateKeyFile`, and `PrivateKeyPassword`; encrypted PKCS#8 PEM private keys are decrypted before building rustls configs. Caveat vs TC/OpenSSL: forced legacy "traditional" encrypted RSA PEM remains unsupported and errors explicitly.
 - [x] **#BNET.17** Validate locale in `handle_logon` (TC returns `ERROR_BAD_LOCALE`). Rust now uses the same allow-list as `Common.cpp::localeNames` and returns TC status codes for bad program/platform/locale.
 - [x] **#BNET.18** Honour `cached_web_credentials` in `LogonRequest`: short-circuit straight to `VerifyWebCredentials` instead of always sending the web-auth challenge. Saves one client round-trip.
 - [x] **#BNET.19** Distinguish error codes in `VerifyWebCredentials`: emit TC status codes for expired ticket (`ERROR_TIMED_OUT=2`), IP/country lock (`ERROR_RISK_ACCOUNT_LOCKED=0xA413`), permanent ban (`ERROR_GAME_ACCOUNT_BANNED=0x34`) and temporary suspension (`ERROR_GAME_ACCOUNT_SUSPENDED=0x35`).
@@ -640,4 +640,4 @@ Add these to §9 (existing tasks #BNET.1–#BNET.14 stand):
 
 ### 13.8 Header status update
 
-Header status changed from `❌ not audited` → `⚠️ audited (2026-05-01)`. Functional state remains `⚠️ partial` because the audit confirmed one remaining BNet gap: encrypted private-key password support.
+Header status changed from `❌ not audited` → `⚠️ audited (2026-05-01)`. Functional state remains `⚠️ partial` because broader runtime/RPC gaps remain tracked above; the modern encrypted-PKCS#8 `PrivateKeyPassword` path is now covered.

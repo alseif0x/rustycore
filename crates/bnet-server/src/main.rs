@@ -610,14 +610,8 @@ fn load_tls_acceptors(
     private_key_password: Option<&str>,
 ) -> Result<(TlsAcceptor, TlsAcceptor)> {
     use rustls::ServerConfig;
-    use rustls::pki_types::{CertificateDer, PrivateKeyDer};
+    use rustls::pki_types::CertificateDer;
     use std::io::BufReader;
-
-    if private_key_password.is_some() {
-        anyhow::bail!(
-            "PrivateKeyPassword is configured, but encrypted PEM private keys are not supported by the rustls loader yet"
-        );
-    }
 
     // Load certificates
     let cert_file = std::fs::File::open(cert_file_path)
@@ -631,13 +625,7 @@ fn load_tls_acceptors(
         anyhow::bail!("No certificates found in {cert_file_path}");
     }
 
-    // Load private key
-    let key_file = std::fs::File::open(private_key_file_path)
-        .with_context(|| format!("Failed to open {private_key_file_path}"))?;
-    let mut key_reader = BufReader::new(key_file);
-    let key: PrivateKeyDer<'static> = rustls_pemfile::private_key(&mut key_reader)
-        .context("Failed to parse private key")?
-        .ok_or_else(|| anyhow::anyhow!("No private key found in {private_key_file_path}"))?;
+    let key = load_private_key_like_cpp(private_key_file_path, private_key_password)?;
 
     tracing::info!(
         "Loaded {} certificate(s) from {cert_file_path}; private key from {private_key_file_path}",
@@ -661,6 +649,54 @@ fn load_tls_acceptors(
         TlsAcceptor::from(Arc::new(rest_config)),
         TlsAcceptor::from(Arc::new(rpc_config)),
     ))
+}
+
+fn load_private_key_like_cpp(
+    private_key_file_path: &str,
+    private_key_password: Option<&str>,
+) -> Result<rustls::pki_types::PrivateKeyDer<'static>> {
+    use rustls::pki_types::{PrivateKeyDer, PrivatePkcs8KeyDer};
+    use std::io::BufReader;
+
+    match private_key_password {
+        None => {
+            let key_file = std::fs::File::open(private_key_file_path)
+                .with_context(|| format!("Failed to open {private_key_file_path}"))?;
+            let mut key_reader = BufReader::new(key_file);
+            rustls_pemfile::private_key(&mut key_reader)
+                .context("Failed to parse private key")?
+                .ok_or_else(|| anyhow::anyhow!("No private key found in {private_key_file_path}"))
+        }
+        Some(password) => {
+            let pem = std::fs::read_to_string(private_key_file_path)
+                .with_context(|| format!("Failed to open {private_key_file_path}"))?;
+            let decrypted =
+                decrypt_pkcs8_private_key_pem_like_cpp(&pem, password).with_context(|| {
+                    format!("Failed to decrypt private key {private_key_file_path}")
+                })?;
+            Ok(PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(decrypted)))
+        }
+    }
+}
+
+fn decrypt_pkcs8_private_key_pem_like_cpp(pem: &str, password: &str) -> Result<Vec<u8>> {
+    use pkcs8::der::Decode;
+    use pkcs8::der::pem::PemLabel;
+
+    let (label, doc) = pkcs8::SecretDocument::from_pem(pem)
+        .context("Failed to parse encrypted PKCS#8 private key PEM")?;
+    if label != pkcs8::EncryptedPrivateKeyInfo::PEM_LABEL {
+        anyhow::bail!(
+            "PrivateKeyPassword is configured, but the key is '{label}', not an encrypted PKCS#8 private key"
+        );
+    }
+
+    let encrypted = pkcs8::EncryptedPrivateKeyInfo::from_der(doc.as_bytes())
+        .context("Failed to parse encrypted PKCS#8 private key")?;
+    let decrypted = encrypted
+        .decrypt(password.as_bytes())
+        .context("Failed to decrypt encrypted PKCS#8 private key")?;
+    Ok(decrypted.as_bytes().to_vec())
 }
 
 /// Periodically clean up expired bans.
@@ -718,8 +754,9 @@ mod tests {
     use super::{
         BnetCliLikeCpp, bnet_cli_help_like_cpp, bnet_full_version_like_cpp,
         bnet_thread_config_from_values_like_cpp, create_pid_file_like_cpp,
-        db_keep_alive_interval_duration_like_cpp, first_ipv4_address_like_cpp,
-        listener_task_exit_like_cpp, load_bnet_config_from,
+        db_keep_alive_interval_duration_like_cpp, decrypt_pkcs8_private_key_pem_like_cpp,
+        first_ipv4_address_like_cpp, listener_task_exit_like_cpp, load_bnet_config_from,
+        load_private_key_like_cpp,
     };
     use std::env;
     use std::fs;
@@ -728,6 +765,24 @@ mod tests {
     use std::sync::Mutex;
 
     static CONFIG_TEST_LOCK: Mutex<()> = Mutex::new(());
+    const ENCRYPTED_PKCS8_TEST_KEY: &str = r#"-----BEGIN ENCRYPTED PRIVATE KEY-----
+MIIC3TBXBgkqhkiG9w0BBQ0wSjApBgkqhkiG9w0BBQwwHAQIUyBCum5/y54CAggA
+MAwGCCqGSIb3DQIJBQAwHQYJYIZIAWUDBAEqBBC/XmvFo8zjwfieHYC70YDrBIIC
+gOZC8gzx2anQD8lvyzVhWKpupCrl0KcOnF78xdY5tka278fTNZHZaiHgG3gN/2BA
+XoZUcoggibt4R5Cv3gVOl+XJazTZVz905nabPKY2DX0mvlkC6QG1eD/QIQSJf3xy
+JIJVz4/EMMpEfoRGzAopvYDT5KOoicWMyOT3wRGjFhQ7pkS8K1gknfOS/nJ2MReo
+huAqvQWzv3QG1k0ywnBNfqLVJIYncAEdJ0EbveFK+iYD3/Ie2RjCRIPVUUx7mQZN
+GdlQYWmJC0XD3YSJlCLwiKDS/4VFMnWZVIvo9Fja+0kVtRnq/Lh5rSXALRP65S+q
+rY84agGD8YvnN1DjC0K/4chisdd4bTBr0U1G6gX6yieNsBzS/1LRIa3NpHvPL6Ta
+atVzEs0R0Rnn2zhdBpixOBvFLOgge+NOPx5twOQUIBlCwgtHxBIFRBcz+9Au+mPH
+bky5a18a2uwIR03v8DKCPX4zZnWsTy5IERcvu+y0m+D9bzNf5p9bob/CQPxx3kUB
+dK42FcCpu0+mnP+SImsdNVufD9qCgmoxgM78kn2mInzdPs7y3otDwc4dfCCxSjyV
+bCb2P11mgDUY1gODqvAmD7DEyghiZtUusCKcphBHFw+vobReIKXFAK9a3xrrux2Y
+wK0J/RFBYJEw9aYFA5iHRQVVmzCyKro+EaQSrN9/Xi2n3YzRqMY/pduQ6qJ4xA5Q
+DkpzLQyZJUrrBCu3ErEKKgJDB4zUoeA2Zx1QI0NffLwF4O0C+2jtVROs887b0kTx
+7e6w3smBjkBREUiXdlDW+PYUpIUDFAqjWF8rxk3tg9H+9qeSz3a+vEnuT10pkq3A
+5llBUo/cIM8wieR7BJNlnVs=
+-----END ENCRYPTED PRIVATE KEY-----"#;
 
     #[test]
     fn bnet_config_resolution_prefers_lowercase_cpp_name() {
@@ -744,6 +799,41 @@ mod tests {
 
         assert_eq!(report.candidate_index, 0);
         assert_eq!(wow_config::get_value::<u16>("BattlenetPort"), Some(1119));
+
+        fs::remove_dir_all(root).expect("cleanup failed");
+    }
+
+    #[test]
+    fn encrypted_pkcs8_private_key_uses_private_key_password_like_cpp() {
+        let der = decrypt_pkcs8_private_key_pem_like_cpp(ENCRYPTED_PKCS8_TEST_KEY, "secret")
+            .expect("encrypted key should decrypt");
+        assert!(matches!(der.first(), Some(0x30)));
+        assert!(rustls::pki_types::PrivateKeyDer::try_from(der).is_ok());
+    }
+
+    #[test]
+    fn encrypted_pkcs8_private_key_rejects_wrong_password_like_cpp() {
+        let error = decrypt_pkcs8_private_key_pem_like_cpp(ENCRYPTED_PKCS8_TEST_KEY, "wrong")
+            .expect_err("wrong password should fail");
+        assert!(error.to_string().contains("Failed to decrypt"));
+    }
+
+    #[test]
+    fn private_key_password_requires_encrypted_pkcs8_pem() {
+        let root = unique_temp_dir("bnet_tls_password_requires_encrypted_pkcs8");
+        let key_path = root.join("key.pem");
+        fs::write(
+            &key_path,
+            r#"-----BEGIN PRIVATE KEY-----
+MAoCAQAwBQYDK2Vw
+-----END PRIVATE KEY-----
+"#,
+        )
+        .expect("write key failed");
+
+        let error = load_private_key_like_cpp(key_path.to_str().unwrap(), Some("secret"))
+            .expect_err("non-encrypted key should fail when password is configured");
+        assert!(format!("{error:#}").contains("not an encrypted PKCS#8"));
 
         fs::remove_dir_all(root).expect("cleanup failed");
     }
