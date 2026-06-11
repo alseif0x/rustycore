@@ -1255,7 +1255,20 @@ impl crate::session::WorldSession {
         self.registered_addon_prefixes.clear();
         self.filter_addon_messages = false;
     }
-    pub async fn handle_set_action_bar_toggles(&mut self, _pkt: wow_packet::WorldPacket) {}
+    pub async fn handle_set_action_bar_toggles(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let mask = match pkt.read_uint8() {
+            Ok(mask) => mask,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "SetActionBarToggles parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        self.represented_set_action_bar_toggles_like_cpp(mask);
+    }
     pub async fn handle_save_cuf_profiles(&mut self, _pkt: wow_packet::WorldPacket) {}
     pub async fn handle_guild_set_achievement_tracking(&mut self, _pkt: wow_packet::WorldPacket) {}
     pub async fn handle_get_item_purchase_data(&mut self, mut pkt: wow_packet::WorldPacket) {
@@ -2524,6 +2537,37 @@ mod tests {
             ),
             send_rx,
         )
+    }
+
+    #[tokio::test]
+    async fn set_action_bar_toggles_updates_active_player_field_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 9001);
+        session.set_player_guid(Some(player_guid));
+        session.set_player_map_position_like_cpp(571, Position::new(1.0, 2.0, 3.0, 0.0));
+
+        session
+            .handle_set_action_bar_toggles(WorldPacket::from_bytes(&[0x2d]))
+            .await;
+
+        assert_eq!(session.active_player_multi_action_bars_like_cpp(), 0x2d);
+        let sent = send_rx.try_recv().expect("VALUES update packet");
+        assert_eq!(
+            u16::from_le_bytes([sent[0], sent[1]]),
+            ServerOpcodes::UpdateObject as u16
+        );
+    }
+
+    #[tokio::test]
+    async fn set_action_bar_toggles_short_packet_does_not_mutate_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 9002)));
+        session
+            .handle_set_action_bar_toggles(WorldPacket::from_bytes(&[]))
+            .await;
+
+        assert_eq!(session.active_player_multi_action_bars_like_cpp(), 0);
+        assert!(send_rx.try_recv().is_err());
     }
 
     fn install_add_toy_item_templates(

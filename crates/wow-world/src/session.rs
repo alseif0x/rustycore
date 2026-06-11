@@ -2831,6 +2831,8 @@ pub struct WorldSession {
     active_player_local_flags_like_cpp: u32,
     /// Represented `ActivePlayerData::TransportServerTime`.
     active_player_transport_server_time_like_cpp: i32,
+    /// Represented `ActivePlayerData::MultiActionBars`.
+    active_player_multi_action_bars_like_cpp: u8,
     /// C++ `Player::GetUnitBeingMoved()` represented GUID.
     player_moved_unit_guid_like_cpp: ObjectGuid,
     /// Count of visibility refreshes requested by movement initialization.
@@ -3867,6 +3869,7 @@ impl WorldSession {
             movement_jump_proc_requests_like_cpp: 0,
             active_player_local_flags_like_cpp: 0,
             active_player_transport_server_time_like_cpp: 0,
+            active_player_multi_action_bars_like_cpp: 0,
             player_moved_unit_guid_like_cpp: ObjectGuid::EMPTY,
             movement_visibility_refresh_requests_like_cpp: 0,
             movement_ack_events_like_cpp: Vec::new(),
@@ -23335,6 +23338,35 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn active_player_transport_server_time_like_cpp(&self) -> i32 {
         self.active_player_transport_server_time_like_cpp
+    }
+
+    pub(crate) fn represented_set_action_bar_toggles_like_cpp(&mut self, mask: u8) -> bool {
+        let Some(guid) = self.player_guid() else {
+            return false;
+        };
+
+        self.active_player_multi_action_bars_like_cpp = mask;
+        self.send_active_player_multi_action_bars_update_like_cpp(guid);
+        true
+    }
+
+    fn send_active_player_multi_action_bars_update_like_cpp(&self, guid: ObjectGuid) {
+        use wow_packet::packets::update::{ActivePlayerDataValuesUpdate, UpdateObject};
+
+        let mut data = ActivePlayerDataValuesUpdate::default();
+        set_active_player_update_bit_like_cpp(&mut data.active_player_data_mask, 70);
+        set_active_player_update_bit_like_cpp(&mut data.active_player_data_mask, 72);
+        data.multi_action_bars = self.active_player_multi_action_bars_like_cpp;
+        self.send_packet(&UpdateObject::full_active_player_values_update(
+            guid,
+            self.player_map_id_like_cpp(),
+            data,
+        ));
+    }
+
+    #[cfg(test)]
+    pub(crate) fn active_player_multi_action_bars_like_cpp(&self) -> u8 {
+        self.active_player_multi_action_bars_like_cpp
     }
 
     #[cfg(test)]
