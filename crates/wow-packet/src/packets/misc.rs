@@ -4011,6 +4011,18 @@ impl ServerPacket for CommerceTokenGetLogResponse {
 
 // ── RatedPvpInfo ─────────────────────────────────────────────────────────────
 
+/// C++ `WorldPackets::Battleground::RequestBattlefieldStatus`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct RequestBattlefieldStatus;
+
+impl ClientPacket for RequestBattlefieldStatus {
+    const OPCODE: ClientOpcodes = ClientOpcodes::RequestBattlefieldStatus;
+
+    fn read(_pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self)
+    }
+}
+
 /// C++ `WorldPackets::Battleground::RatedPvpInfo`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct RatedPvpBracketInfo {
@@ -4125,6 +4137,13 @@ mod tests {
             }
             assert!(!pkt.has_bit().unwrap());
         }
+    }
+
+    #[test]
+    fn request_battlefield_status_reads_empty_cpp_packet() {
+        let mut pkt = WorldPacket::new_empty();
+        RequestBattlefieldStatus::read(&mut pkt).unwrap();
+        assert_eq!(pkt.remaining(), 0);
     }
 
     #[test]

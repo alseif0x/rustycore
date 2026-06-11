@@ -42,8 +42,8 @@ use wow_packet::packets::misc::{
     BattlePetUpdateNotify, CageBattlePet, CalendarSendCalendar, CalendarSendNumPending,
     CommerceTokenGetLog, CommerceTokenGetLogResponse, DfGetJoinStatus, DfGetSystemInfo, FarSight,
     GmTicketCaseStatus, LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus, MountSetFavorite,
-    QueryBattlePetName, QueryBattlePetNameResponse, RatedPvpInfo, RequestCemeteryListResponse,
-    SaveCufProfiles, TaxiNodeStatusPkt, ToyClearFanfare, UseToy,
+    QueryBattlePetName, QueryBattlePetNameResponse, RatedPvpInfo, RequestBattlefieldStatus,
+    RequestCemeteryListResponse, SaveCufProfiles, TaxiNodeStatusPkt, ToyClearFanfare, UseToy,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -1448,7 +1448,20 @@ impl crate::session::WorldSession {
         self.set_watched_faction_index_like_cpp(request.faction_index as i32);
     }
 
-    pub async fn handle_request_battlefield_status(&mut self, _pkt: wow_packet::WorldPacket) {}
+    pub async fn handle_request_battlefield_status(&mut self, mut pkt: wow_packet::WorldPacket) {
+        if let Err(error) = RequestBattlefieldStatus::read(&mut pkt) {
+            warn!(
+                account = self.account_id,
+                "RequestBattlefieldStatus parse failed: {error}"
+            );
+            return;
+        }
+
+        // C++ iterates PLAYER_MAX_BATTLEGROUND_QUEUES and sends active,
+        // confirmation, or queued status only for non-empty queue slots.
+        // Rust has no represented battleground queue state in this handler yet,
+        // so the no-queue branch is silent.
+    }
     pub async fn handle_request_rated_pvp_info(&mut self, _pkt: wow_packet::WorldPacket) {
         self.send_packet(&RatedPvpInfo::default());
     }
@@ -4832,6 +4845,17 @@ mod tests {
 
         session
             .handle_request_pvp_rewards(WorldPacket::new_empty())
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn request_battlefield_status_without_queues_is_silent_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_request_battlefield_status(WorldPacket::new_empty())
             .await;
 
         assert!(send_rx.try_recv().is_err());
