@@ -2174,6 +2174,7 @@ async fn main() -> Result<()> {
             7,
         ),
         enable_ae_loot: world_config_bool(&world_configs, "CONFIG_ENABLE_AE_LOOT", false),
+        addon_channel: world_config_bool(&world_configs, "CONFIG_ADDON_CHANNEL", true),
         chat_fake_message_preventing: world_config_bool(
             &world_configs,
             "CONFIG_CHAT_FAKE_MESSAGE_PREVENTING",
@@ -7459,6 +7460,7 @@ async fn create_session(
     session.set_reputation_rates_like_cpp(resources.reputation_rates);
     session.set_repair_cost_rate_like_cpp(resources.repair_cost_rate);
     session.set_enable_ae_loot_like_cpp(resources.enable_ae_loot);
+    session.set_addon_channel_like_cpp(resources.addon_channel);
     session.set_chat_fake_message_preventing_like_cpp(resources.chat_fake_message_preventing);
     session.set_party_raid_warnings_like_cpp(resources.party_raid_warnings);
     session.set_chat_strict_link_checking_kick_like_cpp(resources.chat_strict_link_checking_kick);
@@ -10962,6 +10964,15 @@ MaxRecruitAFriendBonusDistance = 45
 
         let configs = wow_config::load_world_config_values();
         assert!(world_config_bool(&configs, "CONFIG_ENABLE_AE_LOOT", false));
+    }
+
+    #[test]
+    fn addon_channel_uses_cpp_world_config_key() {
+        let _guard = TEST_LOCK.lock().expect("test lock poisoned");
+        wow_config::load_config_from_str("AddonChannel = 0\n").expect("config should load");
+
+        let configs = wow_config::load_world_config_values();
+        assert!(!world_config_bool(&configs, "CONFIG_ADDON_CHANNEL", true));
     }
 
     #[test]

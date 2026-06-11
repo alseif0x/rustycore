@@ -219,6 +219,7 @@ pub struct SessionResources {
     pub quest_low_level_hide_diff: u32,
     pub quest_high_level_hide_diff: u32,
     pub enable_ae_loot: bool,
+    pub addon_channel: bool,
     pub chat_fake_message_preventing: bool,
     pub party_raid_warnings: bool,
     pub chat_strict_link_checking_kick: bool,

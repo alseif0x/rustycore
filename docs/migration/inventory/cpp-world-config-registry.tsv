@@ -1,6 +1,6 @@
 enum_group	enum_name	enum_ref	key	accessor	cxx_ref	default_expr	rust_refs	status	notes
 Bool	CONFIG_DURABILITY_LOSS_IN_PVP	server/game/World/World.h:104	DurabilityLoss.InPvP	Bool	server/game/World/World.cpp:761	false		missing_in_rust	-
-Bool	CONFIG_ADDON_CHANNEL	server/game/World/World.h:105	AddonChannel	Bool	server/game/World/World.cpp:769	true		missing_in_rust	-
+Bool	CONFIG_ADDON_CHANNEL	server/game/World/World.h:105	AddonChannel	Bool	server/game/World/World.cpp:769	true		represented	consumed by WorldSession addon chat gate before represented addon routing
 Bool	CONFIG_CLEAN_CHARACTER_DB	server/game/World/World.h:106	CleanCharacterDB	Bool	server/game/World/World.cpp:770	false		missing_in_rust	-
 Bool	CONFIG_GRID_UNLOAD	server/game/World/World.h:107	GridUnload	Bool	server/game/World/World.cpp:797	true		missing_in_rust	-
 Bool	CONFIG_STATS_SAVE_ONLY_ON_LOGOUT	server/game/World/World.h:108	PlayerSave.Stats.SaveOnlyOnLogout	Bool	server/game/World/World.cpp:813	true		missing_in_rust	-

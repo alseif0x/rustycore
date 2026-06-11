@@ -725,6 +725,10 @@ impl WorldSession {
             }
         };
 
+        if !self.addon_channel_like_cpp() {
+            return;
+        }
+
         if packet.prefix.is_empty() || packet.prefix.len() > 16 || packet.text.len() > 255 {
             return;
         }
@@ -2065,6 +2069,34 @@ mod tests {
         assert_eq!(chat_slash_cmd(&command.packet_bytes), ChatMsg::Party as u8);
         assert_eq!(chat_language(&command.packet_bytes), LANG_ADDON_LIKE_CPP);
         assert!(other_command_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn addon_channel_config_blocks_addon_delivery_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 411);
+        let member = ObjectGuid::create_player(1, 412);
+        let (mut session, player_registry, _leader_rx) = session_for_chat_routing_like_cpp(leader);
+        let (member_tx, _member_rx) = flume::bounded(8);
+        let (member_command_tx, member_command_rx) = flume::bounded(8);
+        player_registry.insert(
+            member,
+            broadcast_info_with_command_tx(member, member_tx, member_command_tx),
+        );
+
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+        let group_guid = group.group_guid;
+        let group_registry = Arc::new(wow_network::GroupRegistry::default());
+        group_registry.insert(group_guid, group);
+        session.group_guid = Some(group_guid);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+        session.set_addon_channel_like_cpp(false);
+
+        session
+            .handle_chat_addon_message(chat_addon_packet(ChatMsg::Party, "ABC", "payload"))
+            .await;
+
+        assert!(member_command_rx.try_recv().is_err());
     }
 
     #[tokio::test]

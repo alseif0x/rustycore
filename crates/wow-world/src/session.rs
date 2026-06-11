@@ -3119,6 +3119,8 @@ pub struct WorldSession {
     watched_faction_index_like_cpp: i32,
     /// C++ `CONFIG_ENABLE_AE_LOOT` represented switch.
     enable_ae_loot_like_cpp: bool,
+    /// C++ `CONFIG_ADDON_CHANNEL` represented switch.
+    addon_channel_like_cpp: bool,
     /// C++ `CONFIG_CHAT_FAKE_MESSAGE_PREVENTING` represented switch for chat validation.
     chat_fake_message_preventing_like_cpp: bool,
     /// C++ `CONFIG_CHAT_PARTY_RAID_WARNINGS` represented switch.
@@ -4030,6 +4032,7 @@ impl WorldSession {
             reputation_mgr_like_cpp: ReputationMgrLikeCpp::new_like_cpp(),
             watched_faction_index_like_cpp: -1,
             enable_ae_loot_like_cpp: false,
+            addon_channel_like_cpp: true,
             chat_fake_message_preventing_like_cpp: false,
             party_raid_warnings_like_cpp: false,
             chat_strict_link_checking_kick_like_cpp: false,
@@ -10611,6 +10614,10 @@ impl WorldSession {
         self.enable_ae_loot_like_cpp = enabled;
     }
 
+    pub fn set_addon_channel_like_cpp(&mut self, enabled: bool) {
+        self.addon_channel_like_cpp = enabled;
+    }
+
     pub fn set_chat_fake_message_preventing_like_cpp(&mut self, enabled: bool) {
         self.chat_fake_message_preventing_like_cpp = enabled;
     }
@@ -10640,6 +10647,10 @@ impl WorldSession {
 
     pub(crate) fn enable_ae_loot_like_cpp(&self) -> bool {
         self.enable_ae_loot_like_cpp
+    }
+
+    pub(crate) fn addon_channel_like_cpp(&self) -> bool {
+        self.addon_channel_like_cpp
     }
 
     pub(crate) fn chat_fake_message_preventing_like_cpp(&self) -> bool {
