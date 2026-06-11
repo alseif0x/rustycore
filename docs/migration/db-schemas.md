@@ -1,11 +1,11 @@
 # Migration: DB Schemas (`auth` / `characters` / `world` / `hotfixes`)
 
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/sql/`
-> **Rust target crate(s):** `crates/wow-database/` (pools + statement registry); deployment glue is currently **absent**.
+> **Rust target crate(s):** `crates/wow-database/` (pools + statement registry + updater helpers); world-server startup wires the current updater path.
 > **Layer:** L1 (infrastructure — datastores; sits below `datastores.md` which loads DB2/hotfix into typed stores)
-> **Status:** ⚠️ partial — DB pools exist (`Database<S>` + 4 statement enums) but **no schema-deploy / Updater equivalent**. Without the four TC schemas pre-applied to MariaDB by hand, every prepared statement fails with `ER_NO_SUCH_TABLE`.
-> **Audited vs C++:** ⚠️ partial — schemas counted and grouped vs `crates/wow-database/src/statements/*` 2026-05-01.
-> **Last updated:** 2026-05-01
+> **Status:** ⚠️ partial — DB pools, updater helpers, and 4 statement enums exist. Character statement coverage is still partial; hotfix statements use the formal hybrid strategy documented in `database-framework.md`.
+> **Audited vs C++:** ⚠️ partial — schemas counted and grouped vs `crates/wow-database/src/statements/*`; hotfix notes refreshed 2026-06-11.
+> **Last updated:** 2026-06-11
 
 ---
 
@@ -158,7 +158,7 @@ The Rust counterpart is `Database<S: StatementDef>` in `crates/wow-database/src/
 - `crates/wow-database/src/statements/login.rs` (148 statements) — every BNet/world-server credential check.
 - `crates/wow-database/src/statements/character.rs` (~28 statements wired) — character list/create/load/save.
 - `crates/wow-database/src/statements/world.rs` (~120 statements wired) — creature/loot/quest/spell content loaders.
-- `crates/wow-database/src/statements/hotfix.rs` (`_PLACEHOLDER` only) — DB2 overlay (currently never queried).
+- `crates/wow-database/src/statements/hotfix.rs` — 3 hotfix control-table statements, selected typed DB2 overlay statements, and generated base/max-id/locale helpers validated against C++ `HotfixDatabase.cpp`.
 - Every gameplay handler that touches persistent state (almost all of `crates/wow-world/src/handlers/`).
 - `bnet-server` and `world-server` binaries — both refuse to start if `auth.realmlist` is missing.
 
@@ -173,7 +173,7 @@ This module **is** the SQL queries. The exhaustive list lives in `crates/wow-dat
 | `auth` | 148 (`login.rs`, **1 empty stub**: `SEL_BNET_ACCOUNT_SALT_BY_ID`) | 148 (matches) | ✅ ~99% |
 | `characters` | 28 (`character.rs`) | ~280 in TC C++ | ⚠️ ~10% (only login + character-list + minimal save) |
 | `world` | ~120 (`world.rs`, **1 empty stub**: `SEL_GAMEOBJECT_TARGET`) | ~200+ in TC C++ | ⚠️ ~60% |
-| `hotfixes` | 0 (`hotfix.rs` `_PLACEHOLDER`) | ~783 (per-DB2 + 3 control) | ❌ 0% |
+| `hotfixes` | 15 named live statements + generated helpers (`hotfix.rs`) | 325 base + 325 max-id + 95 locale generated families; 3 direct control queries | ⚠️ hybrid strategy |
 
 The 4 schemas are queried by Rust as follows (representative per DB):
 
@@ -187,7 +187,9 @@ The 4 schemas are queried by Rust as follows (representative per DB):
 | `CharStatements::INS_CHARACTER` | Create new player row (22 cols, 22 placeholders) | characters |
 | `WorldStatements::SEL_CREATURE_TEMPLATE` | Load NPC archetype | world |
 | `WorldStatements::SEL_CREATURES_IN_RANGE` | Spatial spawn loader for grid activation | world |
-| `WorldStatements::SEL_HOTFIX_BLOB` | Cross-DB read of `hotfixes.hotfix_blob` from a `world` pool — **only** hotfix table currently queried | hotfixes (via world pool) |
+| `HotfixStatements::SEL_HOTFIX_BLOB` | Load `hotfixes.hotfix_blob` for DB2 cache overlays, matching `DB2Manager::LoadHotfixBlob` | hotfixes |
+| `HotfixStatements::SEL_HOTFIX_DATA` | Load hotfix push metadata, matching `DB2Manager::LoadHotfixData` | hotfixes |
+| `HotfixStatements::SEL_HOTFIX_OPTIONAL_DATA` | Load optional hotfix payloads, matching `DB2Manager::LoadHotfixOptionalData` | hotfixes |
 
 ---
 
@@ -209,11 +211,12 @@ Schemas don't carry opcodes directly, but two packet families are bound to the s
 **Files in `/home/server/rustycore`:**
 
 - `crates/wow-database/src/lib.rs` — pool wrapper (`Database<S>`) over `sqlx::MySql`; one type per DB via the `StatementDef` marker trait.
-- `crates/wow-database/src/statements/mod.rs` — 93 LOC; exports the 4 enums.
+- `crates/wow-database/src/statements/mod.rs` — `StatementDef` trait; exports the 4 statement enums.
 - `crates/wow-database/src/statements/login.rs` — 327 LOC, 148 variants — **complete vs C# `LoginStatements`**.
 - `crates/wow-database/src/statements/character.rs` — 284 LOC, ~28 variants — **partial**, character-creation/login path only; missing inventory save, quest save, mail, AH, guild bank, social, calendar, BG, achievements, instance binds, corpse, talents/glyphs save (~250 missing).
 - `crates/wow-database/src/statements/world.rs` — 371 LOC, ~120 variants — **partial**, focused on spawn/template loading + GM commands.
-- `crates/wow-database/src/statements/hotfix.rs` — 25 LOC, **`_PLACEHOLDER` stub only**.
+- `crates/wow-database/src/statements/hotfix.rs` — formal hybrid strategy: 3 control-table statements, selected typed DB2 overlay statements, and generated C++ hotfix SQL helpers.
+- `crates/wow-data/src/hotfix_cache.rs` — `HotfixBlobCache` plus `hotfix_data` / `hotfix_blob` / `hotfix_optional_data` DB loaders.
 - `crates/wow-database/src/world_ext/` — additional helpers for spawn loading (referenced in CLAUDE.md).
 
 **What's implemented:**
@@ -224,12 +227,12 @@ Schemas don't carry opcodes directly, but two packet families are bound to the s
 
 **What's missing vs C++:**
 
-- **No schema deploy step.** The four `.sql` dumps are not invoked anywhere in `bnet-server` or `world-server` startup; an operator must run `mysql < auth_database.sql` etc. by hand. Without this, a fresh install fails on the first prepared-statement execution.
+- **Schema deploy is service-wired but not fully integration-proven.** world-server can run the current populate/update path when `Updates.AutoSetup` is enabled, but a fresh install still depends on the canonical SQL/base/content files being present and on a real MariaDB/MySQL environment. The missing piece is live clean-install coverage, not an absent updater module.
 - **Updater equivalent now exists.** `DbUpdater::update(source_dir)` reads `updates_include`, walks the configured update directories, hashes files, applies pending deltas, tracks `updates`, and bootstraps default `updates_include` rows when the table is empty for known TC database families. This document's older "no updater" statement is superseded by `docs/migration/database-framework.md`.
 - **No `sql/base/dev/world_database.sql` content rows.** Even if the DDL applies, the world DB is empty (TC ships content separately and the `dev/` dump is DDL-only). Importing TDB (`TDB_full_world_*.sql.7z`) is currently a manual operator step.
-- **Hotfix overlay completely absent.** No `hotfix_data` / `hotfix_blob` / `hotfix_optional_data` reader, no `SMSG_HOTFIX_PUSH` originator, no per-DB2 mirror-table loaders.
+- **Hotfix overlay is partially live.** `hotfix_data` / `hotfix_blob` / `hotfix_optional_data` readers exist and feed `HotfixBlobCache`; selected typed DB2 mirror-table overlay loaders exist as their stores consume them. Full per-DB2 mirror coverage is intentionally incremental.
 - **Characters DB ~90% missing on the write path.** Save-on-logout for inventory/quest/spell-cooldowns/talents/glyphs/auras is not wired.
-- **Charset/collation not enforced from Rust.** Pool URL doesn't append `?charset=utf8mb4` — mismatched client charset will produce `?` for non-ASCII names.
+- **Charset/collation is governed by the server/database schema.** Rust now constructs sqlx URLs with explicit TC-style TLS mode; charset-specific integration coverage is still pending.
 
 **Suspicious / likely divergent (hypothesis pre-audit):**
 
@@ -247,11 +250,11 @@ Schemas don't carry opcodes directly, but two packet families are bound to the s
 
 Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h), **M** (1–4h), **H** (4–12h), **XL** (>12h).
 
-- [ ] **#DBS.1** Add `crates/wow-database/src/installer.rs`: idempotent "run base SQL if `updates` table is empty" routine, called from each binary's startup before pool warmup. (M)
+- [x] **#DBS.1** Add DB populate/update startup support: `DbUpdater::populate` / `update` are wired through world-server startup and abort boot on enabled AutoSetup failures. (M)
 - [ ] **#DBS.2** Vendor (or git-submodule) the four `.sql` dumps from `woltk-trinity-legacy/sql/base/` into `rustycore/sql/base/` so `cargo build` can ship a self-contained installer. (L)
-- [ ] **#DBS.3** Implement an `UpdateFetcher` Rust port: scan `sql/updates/<db>/wotlk_classic/`, hash each file (sha1), apply unapplied entries in lex order, INSERT into `updates(name, hash, state, timestamp, speed)`. (H)
+- [x] **#DBS.3** Implement the Rust updater path: scan include directories, hash SQL files, apply pending entries, record `updates(name, hash, state, timestamp, speed)`, and honor redundancy/rehash/archive/dead-reference gates. (H)
 - [ ] **#DBS.4** Wire pool URLs to append `?charset=utf8mb4&collation=utf8mb4_unicode_ci&time_zone=%2B00%3A00` so non-ASCII player names round-trip. (L)
-- [ ] **#DBS.5** Populate `HotfixStatements` from C# `HotfixDatabase` (~783 statements) and the 3 control-table SELECTs. Either codegen from the C# file or hand-port the 3 controls + the ~30 most-used per-DB2 (`achievement`, `area_table`, `creature_*`, `faction*`, `item_sparse`, `map`, `quest*`, `skill_line*`, `spell_*`). (XL — split across phases) |
+- [x] **#DBS.5** Formalize `HotfixStatements` strategy: 3 live control-table SELECTs, selected typed DB2 overlays, and generated base/max-id/locale helpers tested against C++ `HotfixDatabase.cpp`. Remaining overlay consumers stay in their typed DB2-store tasks. (L)
 - [ ] **#DBS.6** Extend `CharStatements` to cover inventory save (`UPD_ITEM_INSTANCE`, `INS_CHARACTER_INVENTORY`, …), quest save (`INS_CHARACTER_QUESTSTATUS`, `INS_CHARACTER_QUESTSTATUS_OBJECTIVES`, …), social, mail, AH, guild bank — target ~120 of the ~280 C# statements. (XL — split per domain)
 - [ ] **#DBS.7** Document operator install runbook (`docs/operations/db-bootstrap.md`): create user, create 4 DBs, source the 4 base dumps, run TDB world content import, smoke-test connection from `world-server`. (M)
 - [ ] **#DBS.8** Add an integration test target: spin up MariaDB in CI, apply schemas, run pool-warmup + a SELECT on every wired statement to detect column drift before runtime. (H)
@@ -297,12 +300,12 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 | `LoginDatabaseConnection` | `Database<LoginStatements>` | Per-DB type-state guarantees only the right enum is used. |
 | `CharacterDatabaseConnection` | `Database<CharStatements>` | Same. |
 | `WorldDatabaseConnection` | `Database<WorldStatements>` | Same. |
-| `HotfixDatabaseConnection` | `Database<HotfixStatements>` (`_PLACEHOLDER` only) | Stub. |
+| `HotfixDatabaseConnection` | `Database<HotfixStatements>` | Hybrid strategy: control tables live, selected overlays live, generated helpers preserve C++ SQL families. |
 | `enum LoginDatabaseStatements` | `pub enum LoginStatements { … }` (148 variants) | 1:1. |
 | `PreparedStatementBase` | `sqlx::query::Query<MySql, …>` bound at call site | sqlx prepares lazily. |
 | `MySQLConnectionInfo` | Pool URL string in `*.conf`, parsed by `wow-config` | — |
-| `DBUpdater<T>::Update()` | **TODO** — `wow_database::installer::ensure_applied(db)` (#DBS.1, #DBS.3) | Not yet written. |
-| `UpdateFetcher` | **TODO** — `wow_database::updater::UpdateFetcher` (#DBS.3) | Not yet written. |
+| `DBUpdater<T>::Update()` | `wow_database::DbUpdater::update(source_dir)` plus world-server startup orchestration | Implemented for the current service path. |
+| `UpdateFetcher` | `wow_database::updater` scan/hash/apply logic | Implemented as part of `DbUpdater`. |
 | `Field::GetUInt64()` etc. | `Row::try_get::<u64, _>(idx)` (sqlx) | Per-cell typed reads. |
 | `bigint unsigned` (PK guid) | `u64` (ObjectGUID low part); high part reconstructed via `wow_core::ObjectGuid` | — |
 | `binary(32)` (SRP6 salt/verifier) | `[u8; 32]` | Pass through `wow_crypto::srp6` unchanged. |
@@ -325,21 +328,21 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 - **Key-column types:** `account.salt` / `account.verifier` are `binary(32)` (SRP6, 256-bit). `account.session_key_auth` is `binary(40)` (SRP6 K, **not** SHA-1 password hash — clarified in §11). All GUID-bearing columns are `bigint unsigned`. Updater `hash` is `char(40)` for SHA-1 hex.
 - **Updater filename grammar:** Confirmed via `ls sql/updates/*/wotlk_classic/`. Format: `YYYY_MM_DD_NN_<db>[_<short>].sql` (e.g. `2024_08_17_00_auth.sql`, `2025_04_03_01_fix_trainer_npcflag_16276.sql`). Filename lex-sort = apply order.
 - **Foreign keys:** `auth` has 10 FK constraints (battlenet linkage, RBAC); `characters` / `world` / `hotfixes` have **zero** FKs. Migration order is therefore unconstrained at the DB level — the only ordering constraint is *within* `auth` (battlenet_accounts before account; rbac_permissions before rbac_account_permissions).
-- **Rust statement coverage:** auth ~99% (148/148 wired, 1 empty stub); characters ~10% (28/~280); world ~60% (120/~200); hotfixes 0% (`_PLACEHOLDER`). Two intentionally-empty statements: `LoginStatements::SEL_BNET_ACCOUNT_SALT_BY_ID` and `WorldStatements::SEL_GAMEOBJECT_TARGET`.
-- **Schema-deploy gap:** Confirmed by `grep -r 'auth_database.sql\|characters_database.sql\|create_mysql.sql' /home/server/rustycore` — **zero matches**. No code in either binary references the SQL dumps. Operators are silently expected to apply them by hand; without that step the binaries fail at first prepared-statement execution.
-- **No Updater:** No `crates/wow-database/src/updater.rs`, no `installer.rs`, no `updates` table read or written from any Rust call site.
+- **Rust statement coverage:** auth is effectively complete for the login path; characters remains partial; world has a broader loader subset; hotfixes use the formal hybrid strategy (3 control tables + selected overlays + generated C++ SQL helpers). Remaining character persistence is still the largest DB statement gap.
+- **Schema-deploy gap reduced:** world-server now has populate/update orchestration, but the operator still needs the canonical SQL/base/content files available and a real MariaDB/MySQL environment. Full clean-install integration coverage is still pending.
+- **Updater:** `crates/wow-database/src/updater.rs` exists and covers the current scan/hash/apply/update-table path. Live DB integration tests are still pending.
 - **`world_database.sql` is DDL-only.** The `dev/` location and the sibling `DO_NOT_IMPORT_THESE_FILES.txt` (3 lines, names the large content dumps) confirm the actual game content (creature/quest/loot rows, ~hundreds of MB) ships out-of-tree as TDB (`TDB_full_world_<version>.sql.7z`). RustyCore needs a separate import step for content even after schema deploy.
 
 **Critical points:**
 
-1. **Without manual schema deploy, RustyCore is non-bootable on a clean MariaDB.** First contact between the binary and the DB is a prepared-statement fetch; that fails as `ER_NO_SUCH_TABLE`. This is the single highest-priority infrastructure gap.
-2. **TrinityCore Updater auto-applies; RustyCore does not.** Per `worldserver.md` audit, no Rust analogue exists.
-3. **Charset assumption to verify:** the user-spec said "TC uses `utf8mb4_general_ci` or similar"; **the actual answer is `utf8mb4_unicode_ci`** (with `utf8mb4_bin` on player names). RustyCore pool URLs do not currently pin a charset, so a wrong-default client locale silently corrupts non-ASCII text on insert.
-4. **Hotfixes is the largest single coverage gap** (0/783 statements), but it is also the lowest-priority *for boot* — if the `hotfix_data` / `hotfix_blob` / `hotfix_optional_data` tables are simply empty (which happens on a fresh install), the server boots and runs with vanilla DB2 client data. The 3 control-table SELECTs are the minimum to be "non-broken"; the ~440 per-DB2 mirror selects can land per-feature as content is hand-edited.
+1. **Clean-install DB coverage is not proven end-to-end.** RustyCore has populate/update startup support, but still needs a live MariaDB integration test with the canonical SQL files and world content import to prove a fresh machine boots without manual intervention.
+2. **TrinityCore Updater behavior is represented in Rust, but not fully exercised against a live DB in CI.** Unit coverage exists for the scan/hash/apply decisions; the remaining risk is operational coverage, not a missing updater module.
+3. **Charset assumption to verify:** the user-spec said "TC uses `utf8mb4_general_ci` or similar"; **the actual answer is `utf8mb4_unicode_ci`** (with `utf8mb4_bin` on player names). Add a live charset round-trip test before claiming full DB install parity.
+4. **Hotfixes is no longer a placeholder gap.** The 3 control-table SELECTs and cache loaders are present; per-DB2 mirror selects land per feature/store. This is still not "every generated C++ overlay is consumed", but it is an explicit strategy instead of a missing module.
 5. **Characters DB write-side is thinner than reads.** A character can log in, but ~90% of state mutations (inventory pickup, quest accept/complete, talent learn, gold spend, mail receive, AH bid, etc.) lack save statements — meaning a server restart loses recent player progress in many domains.
 
-**Status verdict:** ⚠️ partial. Pools + read-side schema knowledge are usable; deployment, write-side persistence, and hotfix overlay are not. Sub-tasks #DBS.1 (installer), #DBS.3 (Updater port), #DBS.5 (HotfixStatements), and #DBS.6 (CharStatements completion) are the highest-leverage next steps.
+**Status verdict:** ⚠️ partial. Pools, updater helpers, login/world startup DB paths, and hotfix control/cache paths are usable. The largest remaining DB work is character write-side persistence, live MariaDB integration coverage, and per-feature DB2 overlay consumers.
 
 ---
 
-*Doc version: 1.0 (2026-05-01). Update when installer/Updater lands or when statement coverage % changes by ≥5pt.*
+*Doc version: 1.1 (2026-06-11). Updated after updater/hotfix strategy work; refresh when character statement coverage or live DB integration changes materially.*

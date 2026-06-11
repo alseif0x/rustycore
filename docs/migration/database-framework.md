@@ -243,7 +243,7 @@ The framework itself emits very few queries (only schema bookkeeping). The bulk 
 | login (auth) | 137 | 137 (`crates/wow-database/src/statements/login.rs`) |
 | character | 523 | 30 (10% of TC's set; covers char enum/create/login/save/delete/inventory subset) |
 | world | 56 | 86 (Rust adds some lookups not in TC; e.g. quest loaders) |
-| hotfixes | 327 | 1 placeholder (`_PLACEHOLDER`) — Hotfix prepared statements not yet ported; data flows through DB2 readers + `HotfixBlobCache` instead |
+| hotfixes | 325 base + 325 max-id + 95 locale generated families; plus 3 direct `DB2Manager::LoadHotfix*` control queries | 15 named statements (3 control tables + 12 selected DB2 overlays) plus generated base/max-id/locale helpers preserving exact C++ SQL for future store ports |
 
 ---
 
@@ -275,9 +275,9 @@ Not applicable — the database framework does not handle WoW client packets. (I
 | `crates/wow-database/src/statements/login.rs` | `file` | 1 | 327 | `exists_active` | file exists |
 | `crates/wow-database/src/statements/character.rs` | `file` | 1 | 284 | `exists_active` | file exists |
 | `crates/wow-database/src/statements/world.rs` | `file` | 1 | 371 | `exists_active` | file exists |
-| `crates/wow-database/src/statements/hotfix.rs` | `file` | 1 | 25 | `exists_active` | file exists |
-| `crates/world-server/src/main.rs` | `file` | 1 | 818 | `exists_active` | file exists |
-| `crates/wow-data/src/hotfix_blob_cache.rs` | `path` | 0 | 0 | `missing_declared_path` | declared/proposed target does not exist |
+| `crates/wow-database/src/statements/hotfix.rs` | `file` | 1 | current | `exists_active` | named control/overlay statements plus generated C++ hotfix helpers |
+| `crates/world-server/src/main.rs` | `file` | 1 | current | `exists_active` | file exists |
+| `crates/wow-data/src/hotfix_cache.rs` | `file` | 1 | current | `exists_active` | `HotfixBlobCache` + DB control-table loaders |
 | `crates/wow-database/src` | `module_dir` | 12 | 2262 | `exists_active` | directory exists |
 
 <!-- REFINE.021:END rust-target-coverage -->
@@ -290,11 +290,12 @@ Not applicable — the database framework does not handle WoW client packets. (I
 - `crates/wow-database/src/result.rs` — 198 lines — `SqlResult` (cursor over `Vec<MySqlRow>`) + `SqlFields` (single-row borrowed view)
 - `crates/wow-database/src/transaction.rs` — `SqlTransaction` (collects + commits with TC-style serialized deadlock retry) + private `bind_param` helper
 - `crates/wow-database/src/updater.rs` — 391 lines — `DbUpdater::populate(base_sql)` + `update(source_dir)` + SHA1 hashing + statement splitter that handles line/block comments + `'` / `"` strings with escapes
-- `crates/wow-database/src/statements/mod.rs` — 93 lines — `StatementDef` trait + 5 unit tests
+- `crates/wow-database/src/statements/mod.rs` — `StatementDef` trait + unit tests
 - `crates/wow-database/src/statements/login.rs` — 327 lines — `LoginStatements` enum (137 variants) + `sql()` impl
 - `crates/wow-database/src/statements/character.rs` — 284 lines — `CharStatements` enum (30 variants — partial)
 - `crates/wow-database/src/statements/world.rs` — 371 lines — `WorldStatements` enum (86 variants)
-- `crates/wow-database/src/statements/hotfix.rs` — 25 lines — `HotfixStatements::_PLACEHOLDER` only
+- `crates/wow-database/src/statements/hotfix.rs` — `HotfixStatements` strategy marker, 3 control-table statements, selected DB2 overlay statements, and generated base/max-id/locale helpers validated against C++ `HotfixDatabase.cpp`
+- `crates/wow-data/src/hotfix_cache.rs` — `HotfixBlobCache`, `hotfix_data` / `hotfix_blob` / `hotfix_optional_data` loading, locale masks and DBReply blob lookup
 
 **What's implemented:**
 - Four logical pools, **each a single `sqlx::Pool<MySql>` sized by TC's `<Db>Database.WorkerThreads + <Db>Database.SynchThreads` keys in `world-server`**. Reachable via `LoginDatabase = Database<LoginStatements>`, `WorldDatabase = Database<WorldStatements>`, `CharacterDatabase = Database<CharStatements>`, `HotfixDatabase = Database<HotfixStatements>` aliases.
@@ -318,7 +319,7 @@ Not applicable — the database framework does not handle WoW client packets. (I
 - **`no QueryProcessor` callback drain**: TC's `WorldSession::Update` polls `_queryProcessor.ProcessReadyCallbacks()` every tick. RustyCore's `WorldSession::process_pending().await` is invoked inside the per-session task loop, but **there is no global tick that drains DB callbacks across all sessions** — each session blocks on its own `.await`. (Cross-ref: `worldserver.md` §13.4 — the missing global tick. Specifically for DB: there is no central place where pending DB futures are reaped, but because each query is awaited directly there's no callback queue to drain in the first place.)
 - **`PreparedStatement<T>` per-statement compile-time type** (the type tag T): RustyCore's `PreparedStatement` is **not parameterized by `S`** — it's a plain struct with a `&'static str sql`. The DB-binding constraint comes from `Database<S>::prepare(stmt: S)` ingesting an `S: StatementDef` and emitting a non-typed `PreparedStatement`. So once the `PreparedStatement` exists, you could in principle pass it to a different `Database<…>` (no compile-time prevention there) — TC catches this at the `pool.GetPreparedStatement(idx)` site. In practice this isn't exploitable because the `&'static str` is bound to one DB by construction.
 - **`MySQLConnection::PrepareStatements()` actually prepares MYSQL_STMT objects on the server**: TC issues `mysql_stmt_prepare` for every `(connection × statement)` pair at pool `Open`; subsequent executes reuse the prepared handle (fast). sqlx caches prepared statements per-connection internally on first use, so the warm-up effect is amortized rather than upfront — measurable difference on the very first call to each statement, none afterward.
-- **Hotfix prepared statements**: 1 placeholder vs TC's 327. Hotfix data flow in RustyCore goes through DB2 readers + `HotfixBlobCache` (`crates/wow-data/src/hotfix_blob_cache.rs`), not through prepared statements against `hotfixes.*` tables. This is a deliberate divergence — the C++ hotfix system uses MySQL-resident DB2 deltas that the world server merges with disk DB2 at load; RustyCore so far precomputes the merged blob.
+- **Hotfix prepared statements**: deliberate hybrid strategy. RustyCore ports C++ `DB2Manager::LoadHotfixData/Blob/OptionalData` as three named control-table statements and ports DB2 mirror-table statements only when a typed Rust store consumes them (`AreaTable`, `Mount*`, `CreatureDisplayInfo`, `CreatureModelData`, `Vehicle*`, `Phase*`, `UiMapXMapArt`). `HotfixStatements::base/max_id/locale` preserve exact generated C++ SQL for the 325 base, 325 max-id and 95 locale families so future store ports can stay mechanically faithful without pretending every overlay is live.
 - **Character prepared statements**: 30 vs TC's 523. Most character persistence flows are still missing port (cf. `INVENTORY.md` lookup). The 30 ported cover: char enum, create, delete, login, save (basic fields), max-guid lookup, online flag, name lookup, position update.
 - **`DBUpdater::Create`**: world-server now mirrors TC's missing-database fallback: if the first pool open returns MySQL `ER_BAD_DB_ERROR` (`1049`) and `Updates.AutoSetup` is enabled, RustyCore connects without a default schema, creates `CREATE DATABASE \`db\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`, and retries the pool open. Unlike TC it does not prompt on stdin or shell out to the `mysql` CLI for this step; the service-style non-interactive behavior is deliberate.
 - **`Updates.CleanDeadRefMaxCount`** config key: RustyCore now mirrors TC's orphan cleanup gate: after matching all available update files, remaining `updates` rows are considered dirty/missing-source entries and are deleted only when the count is `<= Updates.CleanDeadRefMaxCount` or the value is negative. `Updates.Redundancy`, `Updates.AllowRehash`, and `Updates.ArchivedRedundancy` are also honored in the update decision path.
@@ -633,7 +634,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 - [x] **#DB.9** Add `WarnAboutSyncQueries`-style guard: track a Tokio task-local "in tick" flag and warn when DB calls run inside it. The guard is wired around the current world-server session tick and canonical event DB writes. Same as `worldserver.md` #WS.25. (M)
 - [x] **#DB.10** Add a `QueryHolder`-style helper: `SqlQueryHolder` stores fixed prepared-statement slots, `Database::delay_query_holder_like_cpp` executes set slots in order and returns `SqlQueryHolderResult` indexed by slot. Empty/unset slots return `None`, matching C++ null `PreparedQueryResult`. Caller migration remains under player/pet load tasks. (M)
 - [ ] **#DB.11** Port the remaining ~493 character prepared statements (cross-ref `INVENTORY.md`, `characters.md`). (XL — split per-domain: inventory, achievements, mails, guilds, BG/arena state, etc.)
-- [ ] **#DB.12** Decide hotfix prepared-statement strategy: either port all 327 from `HotfixDatabase.cpp` for runtime hotfix mutations, OR formalize the "merged blob at boot" approach and document that hotfix DB is read-once-at-startup. (H if port; L if formalize)
+- [x] **#DB.12** Decide hotfix prepared-statement strategy: formalized as `HotfixStatementStrategyLikeCpp::ControlTablesAndSelectedDb2Overlays`. Rust keeps the three `DB2Manager::LoadHotfix*` control-table statements live, ports selected mirror-table overlays as each typed DB2 store consumes them, and keeps generated base/max-id/locale helpers tested against C++ for future overlay expansion. (L)
 - [x] **#DB.13** Implement TLS connection options: the parsed sixth `*DatabaseInfo` field (`;ssl`) is passed through to sqlx as `ssl-mode=REQUIRED`; absence or any other value keeps TC-equivalent `ssl-mode=DISABLED`. (M)
 - [x] **#DB.14** Implement `EscapeString` for raw-SQL-fragment use cases: `escape_string_like_cpp` mirrors `mysql_real_escape_string` special-byte escaping (`NUL`, newline, carriage-return, backslash, quotes, Ctrl-Z) for UTF-8 strings, with a `Database` method for pool-style call sites. (L)
 - [x] **#DB.15** Add populate/update error context: Rust reports `Could not populate/update the <DB> database`, and CLI base-file failures include both the SQL file path and `mysql` stderr. `ApplyFile` now also uses TC's `BEGIN; SOURCE file; COMMIT;` wrapper. (L)
@@ -678,7 +679,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 - [ ] Test: `Updates.AutoSetup=0` skips both `populate` and `update`; the `updates` table is not created.
 - [x] Test: startup propagates DB updater failures with DB-specific context when `Updates.AutoSetup=1` (#DB.3).
 - [ ] Test: `Database<LoginStatements>::prepare(LoginStatements::SEL_REALMLIST)` and `Database<WorldStatements>::prepare(WorldStatements::DEL_LINKED_RESPAWN)` produce different `&'static str` SQL — and using `LoginStatements::SEL_REALMLIST` on a `Database<WorldStatements>` is a compile error (compile-fail test via `trybuild`).
-- [ ] Test: `_PLACEHOLDER` HotfixStatement returns empty string; `Database::<HotfixStatements>::query` on it returns `DatabaseError::UnregisteredStatement`.
+- [x] Test: hotfix strategy is explicit (`ControlTablesAndSelectedDb2Overlays`), control-table statements are distinguishable from selected DB2 overlays, and generated base/max-id/locale helpers stay validated against C++ `HotfixDatabase.cpp`.
 
 ---
 
@@ -704,7 +705,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 
 | ID | Rust evidence | C++ evidence | Status | Notes |
 |---|---|---|---|---|
-| `#DATABASE_FRAMEWORK.DIV.001` | `crates/wow-data/src/hotfix_blob_cache.rs` (`missing_declared_path`, 0 Rust lines) | 44 C++ files / 10590 lines assigned; refs: `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/HotfixDatabase.cpp`, `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/HotfixDatabase.h`, `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/CharacterDatabase.cpp` | `missing_declared_path` | Declared/proposed Rust target is absent while C++ coverage exists. declared/proposed target does not exist |
+| `#DATABASE_FRAMEWORK.DIV.001` | `crates/wow-data/src/hotfix_cache.rs` exists and `crates/wow-database/src/statements/hotfix.rs` has named control/overlay statements plus generated helpers | refs: `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Stores.cpp:1539-1726`, `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/HotfixDatabase.cpp`, `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/HotfixDatabase.h` | `resolved-as-strategy` | Former path drift corrected. Remaining work is per-store overlay consumption, not a missing cache module. |
 
 <!-- REFINE.023:END known-divergences -->
 
@@ -777,7 +778,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 
 **Audited:**
 - C++: `/home/server/woltk-trinity-legacy/src/server/database/Database/MySQLConnection.h` (116 lines), `DatabaseWorkerPool.h` (243 lines), `PreparedStatement.h` (125 lines), `Field.h` (142 lines), `QueryCallback.h` (67 lines) + `.cpp` (221 lines), `Transaction.h` (119 lines), `QueryResult.h` (85 lines), `QueryHolder.h` (81 lines), `DatabaseLoader.h` (78 lines), `Implementation/LoginDatabase.h` (195 lines) + `.cpp` (lines 1-80), `Implementation/CharacterDatabase.h`/`HotfixDatabase.h`/`WorldDatabase.h` (counted statements). `Updater/DBUpdater.h` (96 lines) + `.cpp` (1-120). Total ~2200 lines reviewed in detail; ~10 600 lines surveyed.
-- Rust: `/home/server/rustycore/crates/wow-database/src/lib.rs` (58 lines), `database.rs` (178 lines), `params.rs` (208 lines), `result.rs` (198 lines), `transaction.rs` (108 lines), `updater.rs` (391 lines), `statements/mod.rs` (93 lines), `statements/login.rs` (327 lines), `statements/hotfix.rs` (25 lines). Wiring point: `crates/world-server/src/main.rs` lines 170-272.
+- Rust: `/home/server/rustycore/crates/wow-database/src/lib.rs`, `database.rs`, `params.rs`, `result.rs`, `transaction.rs`, `updater.rs`, `loader.rs`, `statements/mod.rs`, `statements/login.rs`, `statements/character.rs`, `statements/world.rs`, `statements/hotfix.rs`. Hotfix runtime cache lives in `crates/wow-data/src/hotfix_cache.rs`; world-server startup wiring lives in `crates/world-server/src/main.rs`.
 
 ### 13.1 Audit summary
 
@@ -786,7 +787,7 @@ The Rust port covers the **shape** of TC's database framework correctly: four ty
 The gaps fall in three buckets:
 
 1. **Pool topology** (Medium): Rust still merges TC's `Sync`/`Async` sub-pools into one `sqlx` pool, but world-server now sizes that pool from TC's `WorkerThreads + SynchThreads` config and runs the `MaxPingTime` keep-alive task. Cross-references the worldserver audit (`worldserver.md` §13.5 / §13.6).
-2. **Statement coverage** (High): login is 137/137 (✅), world is 86/56 (✅, Rust adds extras), characters is 30/523 (❌, ~6% ported), hotfixes is 0/327 (❌, **deliberate divergence** — replaced by DB2-blob cache).
+2. **Statement coverage** (High): login is 137/137 (✅), world is 86/56 (✅, Rust adds extras), characters is 30/523 (❌, ~6% ported), hotfixes use the formal hybrid strategy (3 control tables + selected overlays + generated C++ helpers; remaining overlays land per typed DB2 consumer).
 3. **Updater operator UX** (Medium): `Create`, `updates_include`, and `Updates.CleanDeadRefMaxCount` are now covered for world-server startup.
 
 The `QueryCallback`-chain pattern is **acceptably absent** because Rust's `async/await` covers the same need more directly. `SQLQueryHolder` now exists as an infrastructure helper (#DB.10); the remaining work is migrating character/pet load callers onto it.
@@ -816,11 +817,11 @@ The `QueryCallback`-chain pattern is **acceptably absent** because Rust's `async
 | login (`LoginStatements`) | 137 | 137 | ✅ 100% |
 | character (`CharStatements`) | 523 | 30 | ❌ ~6% |
 | world (`WorldStatements`) | 56 | 86 | ✅ super-set (Rust adds quest/spell loaders not in TC's 56) |
-| hotfix (`HotfixStatements`) | 327 | 1 (`_PLACEHOLDER`) | ❌ 0% — deliberate divergence (cf. §8) |
+| hotfix (`HotfixStatements`) | 325 base + 325 max-id + 95 locale generated families; 3 direct control queries | 15 named live statements + generated helpers | ⚠️ hybrid strategy — control path live; overlays ported per DB2 consumer |
 
 **Registry pattern**: TC binds `enum Statements : uint32` → SQL string in `<Db>DatabaseConnection::DoPrepareStatements()` via `PrepareStatement(idx, sql, flags)` calls (`LoginDatabase.cpp:26` onward). Rust binds via the `StatementDef` trait `fn sql(self) -> &'static str` per enum, with the SQL inline in a `match` arm (`statements/login.rs::sql_for`). Both are static, both are compile-time. **Functional parity for the patterns that are ported.** The mechanism is different but the constraint (one enum value → one SQL string per DB, type-checked) holds.
 
-CLAUDE.md mentions a "prepared statement registry" as completed. Audit confirms: the **infrastructure** is complete; the **statement set** is complete only for login + world. Character and hotfix coverage is partial-or-stub. **Update CLAUDE.md or treat as known partial.**
+CLAUDE.md mentions a "prepared statement registry" as completed. Audit confirms: the **infrastructure** is complete; the **statement set** is complete for login + world, partial for character, and intentionally hybrid for hotfixes. Do not count every C++ hotfix overlay as WotLK runtime-complete until a typed Rust DB2 store consumes it.
 
 ### 13.4 Transactions
 

@@ -9,7 +9,9 @@ pub mod login;
 pub mod world;
 
 pub use character::CharStatements;
-pub use hotfix::HotfixStatements;
+pub use hotfix::{
+    HOTFIX_STATEMENT_STRATEGY_LIKE_CPP, HotfixStatementStrategyLikeCpp, HotfixStatements,
+};
 pub use login::LoginStatements;
 pub use world::WorldStatements;
 

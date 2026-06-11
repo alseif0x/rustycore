@@ -62,7 +62,8 @@ pub use result::{
     rust_type_compatible_with_database_field_like_cpp,
 };
 pub use statements::{
-    CharStatements, HotfixStatements, LoginStatements, StatementDef, WorldStatements,
+    CharStatements, HOTFIX_STATEMENT_STRATEGY_LIKE_CPP, HotfixStatementStrategyLikeCpp,
+    HotfixStatements, LoginStatements, StatementDef, WorldStatements,
 };
 pub use transaction::SqlTransaction;
 

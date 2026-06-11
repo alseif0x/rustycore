@@ -4,6 +4,22 @@
 
 use super::StatementDef;
 
+/// Chosen RustyCore hotfix statement strategy.
+///
+/// C++ generates one prepared statement family per DB2 mirror table, while
+/// `DB2Manager::LoadHotfixData/Blob/OptionalData` still reads the three control
+/// tables directly. RustyCore keeps the control-table statements and ports DB2
+/// mirror-table statements only when a typed store consumes them; the generated
+/// helpers below preserve exact C++ SQL for broader coverage tests and future
+/// store ports.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HotfixStatementStrategyLikeCpp {
+    ControlTablesAndSelectedDb2Overlays,
+}
+
+pub const HOTFIX_STATEMENT_STRATEGY_LIKE_CPP: HotfixStatementStrategyLikeCpp =
+    HotfixStatementStrategyLikeCpp::ControlTablesAndSelectedDb2Overlays;
+
 /// Prepared statements for the hotfix database.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(non_camel_case_types)]
@@ -58,6 +74,33 @@ pub enum HotfixStatements {
 }
 
 impl HotfixStatements {
+    /// Whether this statement backs C++ `DB2Manager::LoadHotfix*`.
+    pub const fn is_control_table_like_cpp(self) -> bool {
+        matches!(
+            self,
+            Self::SEL_HOTFIX_DATA | Self::SEL_HOTFIX_BLOB | Self::SEL_HOTFIX_OPTIONAL_DATA
+        )
+    }
+
+    /// Whether this statement is a typed DB2 mirror-table overlay.
+    pub const fn is_selected_overlay_like_cpp(self) -> bool {
+        matches!(
+            self,
+            Self::SEL_AREA_TABLE
+                | Self::SEL_MOUNT
+                | Self::SEL_MOUNT_CAPABILITY
+                | Self::SEL_MOUNT_TYPE_X_CAPABILITY
+                | Self::SEL_MOUNT_X_DISPLAY
+                | Self::SEL_CREATURE_DISPLAY_INFO
+                | Self::SEL_CREATURE_MODEL_DATA
+                | Self::SEL_VEHICLE
+                | Self::SEL_VEHICLE_SEAT
+                | Self::SEL_PHASE
+                | Self::SEL_PHASE_X_PHASE_GROUP
+                | Self::SEL_UI_MAP_X_MAP_ART
+        )
+    }
+
     /// Build a generated C++ base hotfix statement from exact SQL.
     pub const fn base(sql: &'static str) -> Self {
         Self::GENERATED_BASE { sql }
@@ -175,7 +218,10 @@ impl StatementDef for HotfixStatements {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        HOTFIX_STATEMENT_STRATEGY_LIKE_CPP, HotfixStatementStrategyLikeCpp, HotfixStatements,
+    };
+    use crate::statements::StatementDef;
 
     fn cpp_hotfix_database_cpp() -> &'static str {
         "/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/HotfixDatabase.cpp"
@@ -280,6 +326,21 @@ mod tests {
             .strip_suffix("_locale WHERE (`VerifiedBuild` > 0) = ? AND locale = ?")
             .expect("C++ locale SQL must target table_locale with VerifiedBuild and locale");
         (table, columns)
+    }
+
+    #[test]
+    fn hotfix_strategy_is_control_tables_plus_selected_overlays() {
+        assert_eq!(
+            HOTFIX_STATEMENT_STRATEGY_LIKE_CPP,
+            HotfixStatementStrategyLikeCpp::ControlTablesAndSelectedDb2Overlays
+        );
+        assert!(HotfixStatements::SEL_HOTFIX_DATA.is_control_table_like_cpp());
+        assert!(HotfixStatements::SEL_HOTFIX_BLOB.is_control_table_like_cpp());
+        assert!(HotfixStatements::SEL_HOTFIX_OPTIONAL_DATA.is_control_table_like_cpp());
+        assert!(!HotfixStatements::SEL_AREA_TABLE.is_control_table_like_cpp());
+        assert!(HotfixStatements::SEL_AREA_TABLE.is_selected_overlay_like_cpp());
+        assert!(HotfixStatements::SEL_VEHICLE_SEAT.is_selected_overlay_like_cpp());
+        assert!(!HotfixStatements::SEL_HOTFIX_DATA.is_selected_overlay_like_cpp());
     }
 
     #[test]
