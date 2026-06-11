@@ -25,6 +25,9 @@ pub const MEMBER_FLAG_MAINTANK_LIKE_CPP: u8 = 0x02;
 pub const MEMBER_FLAG_MAINASSIST_LIKE_CPP: u8 = 0x04;
 pub const GROUP_ASSIGN_MAINTANK_LIKE_CPP: u8 = 0;
 pub const GROUP_ASSIGN_MAINASSIST_LIKE_CPP: u8 = 1;
+/// C++ `GroupType` values (`Group.h:86-90`) used by `PlayerData::PartyType`.
+pub const GROUP_TYPE_NONE_LIKE_CPP: u8 = 0;
+pub const GROUP_TYPE_NORMAL_LIKE_CPP: u8 = 1;
 /// C++ `GroupCategory` values (`Group.h:110-116`) represented for HOME/INSTANCE filtering.
 pub const GROUP_CATEGORY_HOME_LIKE_CPP: u8 = 0;
 pub const GROUP_CATEGORY_INSTANCE_LIKE_CPP: u8 = 1;

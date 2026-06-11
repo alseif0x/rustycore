@@ -289,6 +289,7 @@ fn party_member_full_state_like_cpp(
             position_x: 0,
             position_y: 0,
             position_z: 0,
+            party_type: [0; 2],
             phases: Default::default(),
             auras: Vec::new(),
         };
@@ -296,8 +297,8 @@ fn party_member_full_state_like_cpp(
 
     let pos = entry.position;
     // Represented subset of C++ `PartyMemberFullState::Initialize(Player*)`.
-    // Remaining unsupported packet blocks (auras/pet/vehicle/dungeon score and
-    // full power ownership) stay explicit instead of being guessed here.
+    // Remaining unsupported packet blocks (pet/vehicle/dungeon score and
+    // scalable aura points) stay explicit instead of being guessed here.
     let mut status = 1u16; // MEMBER_STATUS_ONLINE
     if entry.is_pvp {
         status |= 0x0002; // MEMBER_STATUS_PVP
@@ -337,6 +338,7 @@ fn party_member_full_state_like_cpp(
         position_x: pos.x as i16,
         position_y: pos.y as i16,
         position_z: pos.z as i16,
+        party_type: entry.party_member_party_type,
         phases: entry.party_member_phase_states.clone(),
         auras: entry.party_member_auras.clone(),
     }
@@ -2222,6 +2224,7 @@ mod tests {
             forced_reputation_ranks: Vec::new(),
             forced_reputation_faction_ids: Vec::new(),
             inventory_item_counts: Default::default(),
+            party_member_party_type: [0; 2],
             party_member_phase_states: Default::default(),
             party_member_auras: Vec::new(),
             player_name: format!("Player{}", guid.low_value()),
@@ -3202,6 +3205,7 @@ mod tests {
             info.zone_id = 618;
             info.spec_id = 260;
             info.position = Position::new(11.0, 22.0, 33.0, 0.0);
+            info.party_member_party_type = [1, 0];
             info.party_member_phase_states = wow_packet::packets::party::PartyMemberPhaseStates {
                 phase_shift_flags: 0x08,
                 personal_guid: ObjectGuid::EMPTY,
@@ -3233,7 +3237,7 @@ mod tests {
             ServerOpcodes::PartyMemberFullState as u16
         );
         assert!(!pkt.read_bit().unwrap());
-        assert_eq!(pkt.read_uint8().unwrap(), 0);
+        assert_eq!(pkt.read_uint8().unwrap(), 1);
         assert_eq!(pkt.read_uint8().unwrap(), 0);
         assert_eq!(
             pkt.read_int16().unwrap(),

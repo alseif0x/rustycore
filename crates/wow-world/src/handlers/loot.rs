@@ -8431,6 +8431,7 @@ mod tests {
             forced_reputation_ranks: Vec::new(),
             forced_reputation_faction_ids: Vec::new(),
             inventory_item_counts: Default::default(),
+            party_member_party_type: [0; 2],
             party_member_phase_states: Default::default(),
             party_member_auras: Vec::new(),
             player_name: format!("Player{}", guid.counter()),

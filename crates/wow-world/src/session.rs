@@ -14261,6 +14261,25 @@ impl WorldSession {
             .collect()
     }
 
+    fn party_member_party_type_like_cpp(&self) -> [u8; 2] {
+        let mut party_type = [wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP; 2];
+        let (Some(group_guid), Some(group_registry), Some(player_guid)) =
+            (self.group_guid, &self.group_registry, self.player_guid())
+        else {
+            return party_type;
+        };
+
+        if let Some(group) = group_registry.get(&group_guid)
+            && group.group_category == wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP
+            && group.members.contains(&player_guid)
+        {
+            party_type[usize::from(wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP)] =
+                wow_network::group_registry::GROUP_TYPE_NORMAL_LIKE_CPP;
+        }
+
+        party_type
+    }
+
     /// Register this session in the player registry.
     /// Called after player login is complete (player_guid + position both set).
     pub(crate) fn register_in_player_registry(&self) {
@@ -14374,6 +14393,7 @@ impl WorldSession {
                 forced_reputation_ranks,
                 forced_reputation_faction_ids,
                 inventory_item_counts: self.represented_inventory_item_counts_like_cpp(),
+                party_member_party_type: self.party_member_party_type_like_cpp(),
                 party_member_phase_states: party_member_phase_states_like_cpp(
                     self.represented_player_phase_shift_like_cpp(),
                 )
@@ -14482,6 +14502,7 @@ impl WorldSession {
             info.forced_reputation_faction_ids =
                 self.canonical_player_forced_reputation_faction_ids_snapshot_like_cpp();
             info.inventory_item_counts = self.represented_inventory_item_counts_like_cpp();
+            info.party_member_party_type = self.party_member_party_type_like_cpp();
             info.party_member_phase_states =
                 party_member_phase_states_like_cpp(self.represented_player_phase_shift_like_cpp())
                     .unwrap_or_default();
@@ -46248,6 +46269,7 @@ mod tests {
             forced_reputation_ranks: Vec::new(),
             forced_reputation_faction_ids: Vec::new(),
             inventory_item_counts: Default::default(),
+            party_member_party_type: [0; 2],
             party_member_phase_states: Default::default(),
             party_member_auras: Vec::new(),
             player_name: format!("Player{}", guid.counter()),
@@ -46428,6 +46450,35 @@ mod tests {
         assert_eq!(aura.flags, 0x21);
         assert_eq!(aura.active_flags, 0x04);
         assert!(aura.points.is_empty());
+    }
+
+    #[test]
+    fn player_registry_publishes_home_group_party_type_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let guid = ObjectGuid::create_player(1, 44);
+        let registry = Arc::new(PlayerRegistry::default());
+        let group_registry = Arc::new(GroupRegistry::default());
+        let position = Position::new(1.0, 2.0, 3.0, 0.0);
+        let group = GroupInfo::new(guid);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+        session.set_player_guid(Some(guid));
+        session.set_player_map_position_like_cpp(571, position);
+        session.player_name = Some("PartyTypeTester".to_string());
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(Arc::clone(&registry));
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+
+        session.register_in_player_registry();
+
+        let info = registry.get(&guid).expect("registered player");
+        assert_eq!(
+            info.party_member_party_type,
+            [
+                wow_network::group_registry::GROUP_TYPE_NORMAL_LIKE_CPP,
+                wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP
+            ]
+        );
     }
 
     #[test]

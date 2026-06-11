@@ -358,6 +358,8 @@ pub struct PlayerBroadcastInfo {
     pub forced_reputation_faction_ids: Vec<u32>,
     /// Direct inventory item counts, keyed by item entry, used for remote quest-loot gates.
     pub inventory_item_counts: HashMap<u32, u32>,
+    /// C++ `PlayerData::PartyType[2]` snapshot for SMSG_PARTY_MEMBER_FULL_STATE.
+    pub party_member_party_type: [u8; 2],
     /// C++ `PartyMemberPhaseStates` snapshot for SMSG_PARTY_MEMBER_FULL_STATE.
     pub party_member_phase_states: PartyMemberPhaseStates,
     /// C++ `PartyMemberAuraStates` snapshot for SMSG_PARTY_MEMBER_FULL_STATE.
@@ -450,6 +452,7 @@ mod tests {
             forced_reputation_ranks: Vec::new(),
             forced_reputation_faction_ids: Vec::new(),
             inventory_item_counts: Default::default(),
+            party_member_party_type: [0; 2],
             party_member_phase_states: Default::default(),
             party_member_auras: Vec::new(),
             player_name: "TestPlayer".to_string(),

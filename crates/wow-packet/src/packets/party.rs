@@ -936,6 +936,7 @@ pub struct PartyMemberFullState {
     pub position_x: i16,
     pub position_y: i16,
     pub position_z: i16,
+    pub party_type: [u8; 2],
     pub phases: PartyMemberPhaseStates,
     pub auras: Vec<PartyMemberAuraState>,
 }
@@ -947,8 +948,8 @@ impl ServerPacket for PartyMemberFullState {
         w.flush_bits();
 
         // PartyMemberStats.Write():
-        w.write_uint8(0); // PartyType[0]
-        w.write_uint8(0); // PartyType[1]
+        w.write_uint8(self.party_type[0]);
+        w.write_uint8(self.party_type[1]);
         w.write_int16(self.status as i16);
         w.write_uint8(self.power_type);
         w.write_int16(0); // PowerDisplayID
