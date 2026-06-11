@@ -229,7 +229,7 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
 - **`AppenderDB`** (logs into `logs.logs` table): not implemented; tracing only goes to stderr / journald.
 - **`Banner::Show`**: only a single `info!("RustyCore World Server starting...")`.
 - **`OpenSSLCrypto` setup / `BigNumber::SetRand(...)` warmup**: irrelevant (rustls / `getrandom`).
-- **`CreatePIDFile`**: missing.
+- **`CreatePIDFile` present**: Rust reads `PidFile`, writes the current process id before DB/network startup, and aborts startup on write failure like TC.
 - **`SecretMgr::Initialize(SECRET_OWNER_WORLDSERVER)`**: missing.
 - **`ScanLocalNetworks`**: there is `get_address_for_client` which approximates TC's behaviour but only checks `/24` against `realm_local_address`, not the full set of host interfaces.
 - **`ClearOnlineAccounts` present** at boot and shutdown: Rust clears `account.online` for accounts with characters on this realm, clears `characters.online`, and resets `character_battleground_data.instanceId` like TC.
@@ -338,7 +338,7 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
 - [ ] **#WS.14** Implement `sScriptMgr->on_startup()` / `on_shutdown()` hooks. (L)
 - [ ] **#WS.15** Implement clean shutdown: kick all sessions (send `SMSG_LOGOUT_RESPONSE` then drop), wait up to N seconds for character saves, close listeners, drop registries, close DBs, set realm OFFLINE. (H)
 - [ ] **#WS.16** CLI args via `clap`: `--config`, `--config-dir`, `--update-databases-only`, `--version`, `--help`. (L)
-- [ ] **#WS.17** PID file (`PidFile` config). (L)
+- [x] **#WS.17** PID file (`PidFile` config): writes `std::process::id()` before DB/network startup and fails startup if the file cannot be created.
 - [ ] **#WS.18** `SIGTERM` handler in addition to `ctrl_c` (`tokio::signal::unix::signal(SIGTERM)`); both should trigger the same shutdown path. (L)
 - [ ] **#WS.19** Pre-listener startup banner with build hash, sqlx version, rustls version, DB versions (one log line per connected DB). (L)
 - [ ] **#WS.20** Replace per-session `tokio::time::sleep(50ms)` with a `tokio::sync::broadcast` "tick" signal driven by the global `WorldUpdateLoop`. (M, depends on #WS.2)
@@ -445,7 +445,7 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
 | `OpenSSLCrypto::threadsSetup(...)` | (none) | rustls. |
 | `ABORT_MSG("World Thread hangs ...")` | `tracing::error!(...); std::process::abort();` | `abort()` not `exit(1)` — for coredump. |
 | `sLog->Initialize(asyncIo)` + `AppenderDB` | `tracing_subscriber::fmt().init()` (currently no DB sink) | TODO #WS.7. |
-| `CreatePIDFile(path)` | `std::fs::write(path, std::process::id().to_string())?` | TODO #WS.17. |
+| `CreatePIDFile(path)` | `std::fs::write(path, std::process::id().to_string())?` | Implemented in `create_pid_file_like_cpp`; called only when `PidFile` is non-empty. |
 | `boost::program_options::variables_map` | `clap::Parser` | TODO #WS.16. |
 
 ---
@@ -464,7 +464,7 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
 
 The doc body's pre-audit hypothesis was correct on the most important point: **there is no `World::Update(diff)` global tick driver in RustyCore.** Each `WorldSession` is owned by its own per-connection Tokio task, runs `session.update(50)` followed by `tokio::time::sleep(50ms)`, and that is the only thing driving creature AI, combat, and aura ticks (`session.rs:1109-1124` calls `tick_creatures_sync`, `tick_combat_sync`, `tick_auras` modulo `creature_tick`). `MapManager` exists as shared state (`SharedMapManager = Arc<RwLock<MapManager>>`) but has **no `update()` / `tick()` method at all** — it is a passive container of grids and creatures, never updated from a single source. The `m_worldLoopCounter` analogue does not exist. Sessions independently tick "their" creatures, which means an idle creature on a map with no nearby session simply does not tick.
 
-Otherwise the boot sequence is largely on-parity for what's implemented (4 DB pools, DB updater, DB2/DBC store loads, dispatch table, listeners on 8085 + 8086, ConnectTo flow, `get_address_for_client` heuristic). The big gaps are in lifecycle/operational infrastructure: no freeze detector, no SIGTERM handler, no realmlist OFFLINE flag toggle, no `ClearOnlineAccounts`, no CLI/RA/SOAP, no graceful shutdown drain (sessions are dropped abruptly when listeners close), no PID file, no `--config` / `--update-databases-only` CLI args.
+Otherwise the boot sequence is largely on-parity for what's implemented (4 DB pools, DB updater, DB2/DBC store loads, dispatch table, listeners on 8085 + 8086, ConnectTo flow, `get_address_for_client` heuristic). The big gaps are in lifecycle/operational infrastructure: no freeze detector, no realmlist OFFLINE flag toggle, no CLI/RA/SOAP, no graceful shutdown drain (sessions are dropped abruptly when listeners close), no `--config` / `--update-databases-only` CLI args.
 
 ### 13.2 Startup parity
 
@@ -479,7 +479,7 @@ Otherwise the boot sequence is largely on-parity for what's implemented (4 DB po
 | `sLog->RegisterAppender<AppenderDB>(); Initialize(asyncIo)` | `tracing_subscriber::fmt().with_env_filter(...)` | ⚠️ no DB sink (#WS.7) |
 | `Trinity::Banner::Show(...)` | one `info!("RustyCore World Server starting...")` | ⚠️ #WS.19 |
 | `OpenSSLCrypto::threadsSetup` + `BigNumber::SetRand` warmup | — | ✅ irrelevant (rustls + getrandom) |
-| `CreatePIDFile(PidFile)` | — | ❌ missing (#WS.17) |
+| `CreatePIDFile(PidFile)` | `create_pid_file_from_config_like_cpp` before DB/network startup | ✅ |
 | `signal_set(SIGINT, SIGTERM)` | only `tokio::signal::ctrl_c()` (line 509) | ❌ SIGTERM missing (#WS.18) |
 | `ThreadPool(numThreads)` posting `io->run()` | implicit Tokio workers | ✅ acceptable divergence (don't expose `Network.Threads` literally) |
 | `SetProcessPriority(...)` | — | ❌ out of scope |
@@ -662,7 +662,7 @@ This is acceptable divergence **for packet dispatch** (Tokio gives us the per-se
 | `ScriptMgr::on_startup` / `on_shutdown` hooks | Low | #WS.14 |
 | Graceful shutdown (kick + save + drain + close + DB cleanup) | High | #WS.15 |
 | CLI args (`--config`, `--update-databases-only`, `--version`) | Low | #WS.16 |
-| PID file (`PidFile` config) | Low | #WS.17 |
+| PID file (`PidFile` config) | Low | ✅ #WS.17 |
 | SIGTERM handler | High | #WS.18 |
 | Pre-listener startup banner (build hash, DB versions) | Low | #WS.19 |
 | Replace per-session sleep with broadcast tick from global loop | Medium | #WS.20 |
@@ -687,4 +687,3 @@ The §9 list is largely correct; recommended **reorder by priority** (no renumbe
 - [ ] **#WS.23** Move `time_sync_timer_ms` and `logout_time` ticks (currently in `session.rs:1130-1144`) to the global tick after #WS.2 lands; per-session sleep should only drive packet drain, not gameplay timers. (M)
 - [ ] **#WS.24** Add `sd_notify(WATCHDOG=1)` from the freeze detector when running under systemd, so the supervisor can do its own watchdog independent of `MaxCoreStuckTime`. (S)
 - [ ] **#WS.25** Wire `LoginDatabase.WarnAboutSyncQueries(true)` equivalent: log a warning when a "sync" query is issued from inside a tick (TC's safety net for accidental synchronous DB calls on the world thread). Likely impl: a debug-only `tokio::task::block_in_place` audit. (M)
-

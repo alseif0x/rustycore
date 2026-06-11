@@ -213,6 +213,7 @@ async fn main() -> Result<()> {
 
     load_world_config()?;
     let world_configs = wow_config::load_world_config_values();
+    create_pid_file_from_config_like_cpp()?;
 
     // Connect to login database (needed for session key validation)
     let login_info = wow_config::get_database_info_default(
@@ -2472,6 +2473,24 @@ fn clear_online_accounts_sql_like_cpp(realm_id: u16) -> [String; 3] {
         "UPDATE characters SET online = 0 WHERE online <> 0".to_string(),
         "UPDATE character_battleground_data SET instanceId = 0".to_string(),
     ]
+}
+
+fn create_pid_file_from_config_like_cpp() -> Result<Option<u32>> {
+    let pid_file = wow_config::get_string_default("PidFile", "");
+    if pid_file.is_empty() {
+        return Ok(None);
+    }
+
+    let pid = create_pid_file_like_cpp(&pid_file)
+        .with_context(|| format!("Cannot create PID file {pid_file}"))?;
+    info!("Daemon PID: {pid}");
+    Ok(Some(pid))
+}
+
+fn create_pid_file_like_cpp(path: impl AsRef<std::path::Path>) -> std::io::Result<u32> {
+    let pid = std::process::id();
+    std::fs::write(path, pid.to_string())?;
+    Ok(pid)
 }
 
 async fn set_realm_offline(login_db: &LoginDatabase, realm_id: u16) -> Result<()> {
@@ -8655,7 +8674,7 @@ mod tests {
         canonical_map_update_tick_set_inactive_like_cpp, clear_online_accounts_sql_like_cpp,
         collect_legacy_creature_aggro_candidates_like_cpp,
         collect_legacy_creature_aggro_candidates_with_canonical_like_cpp,
-        consume_game_event_live_update_side_effects_like_cpp,
+        consume_game_event_live_update_side_effects_like_cpp, create_pid_file_like_cpp,
         deliver_creature_attack_start_commands_like_cpp,
         deliver_creature_melee_damage_commands_like_cpp,
         deliver_refresh_visible_world_creatures_like_cpp, deliver_runtime_plan_like_cpp,
@@ -9276,6 +9295,22 @@ mod tests {
             battleground_sql,
             "UPDATE character_battleground_data SET instanceId = 0"
         );
+    }
+
+    #[test]
+    fn create_pid_file_writes_current_process_id_like_cpp() {
+        let root = unique_temp_dir("pid_file");
+        let pid_file = root.join("world.pid");
+
+        let pid = create_pid_file_like_cpp(&pid_file).expect("pid file should be created");
+
+        assert_eq!(pid, std::process::id());
+        assert_eq!(
+            fs::read_to_string(&pid_file).expect("pid file should be readable"),
+            std::process::id().to_string()
+        );
+
+        fs::remove_dir_all(root).expect("cleanup failed");
     }
 
     #[test]
