@@ -65,6 +65,11 @@ async fn handle_logon<S: AsyncRead + AsyncWrite + Unpin>(
         session.build,
     );
 
+    if let Some(cached_web_credentials) = request.cached_web_credentials {
+        let ticket = cached_web_credentials_like_cpp(cached_web_credentials);
+        return verify_web_credentials_like_cpp(session, ticket).await;
+    }
+
     // Send ChallengeExternalRequest to client with web auth URL
     let state = session.state();
     let web_url = format!(
@@ -133,11 +138,18 @@ async fn handle_verify_web_credentials<S: AsyncRead + AsyncWrite + Unpin>(
 ) -> Result<Option<Vec<u8>>> {
     let request = VerifyWebCredentialsRequest::decode(payload)?;
 
-    let ticket = request
-        .web_credentials
-        .map(|b| String::from_utf8_lossy(&b).to_string())
-        .unwrap_or_default();
+    let ticket = cached_web_credentials_like_cpp(request.web_credentials.unwrap_or_default());
+    verify_web_credentials_like_cpp(session, ticket).await
+}
 
+fn cached_web_credentials_like_cpp(web_credentials: Vec<u8>) -> String {
+    String::from_utf8_lossy(&web_credentials).to_string()
+}
+
+async fn verify_web_credentials_like_cpp<S: AsyncRead + AsyncWrite + Unpin>(
+    session: &mut RpcSession<S>,
+    ticket: String,
+) -> Result<Option<Vec<u8>>> {
     if ticket.is_empty() {
         return send_logon_error(session, 3).await;
     }
@@ -427,6 +439,22 @@ mod tests {
         assert_eq!(
             validate_logon_client_info_like_cpp("WoW", "BadOS", "xxXX"),
             Err(status::ERROR_BAD_PLATFORM)
+        );
+    }
+
+    #[test]
+    fn cached_web_credentials_are_ticket_bytes_like_cpp() {
+        assert_eq!(
+            cached_web_credentials_like_cpp(b"TC-abcdef012345".to_vec()),
+            "TC-abcdef012345"
+        );
+    }
+
+    #[test]
+    fn cached_web_credentials_lossy_decode_matches_existing_verify_path() {
+        assert_eq!(
+            cached_web_credentials_like_cpp(vec![b'T', b'C', b'-', 0xFF]),
+            "TC-\u{FFFD}"
         );
     }
 }
