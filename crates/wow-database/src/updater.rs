@@ -59,6 +59,14 @@ struct AppliedUpdateFileLikeCpp {
     state: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum UpdateDatabaseKindLikeCpp {
+    Auth,
+    Characters,
+    World,
+    Hotfixes,
+}
+
 impl UpdateConfigLikeCpp {
     fn from_config_like_cpp() -> Self {
         Self {
@@ -150,6 +158,9 @@ impl DbUpdater {
         }
 
         self.apply_file_cli(base_sql)?;
+        self.ensure_updates_include_table().await?;
+        self.bootstrap_updates_include_if_empty_like_cpp(Some(base_sql))
+            .await?;
         info!("Done populating '{}'", self.db);
         Ok(true)
     }
@@ -161,6 +172,8 @@ impl DbUpdater {
         let update_config = UpdateConfigLikeCpp::from_config_like_cpp();
         self.ensure_updates_table().await?;
         self.ensure_updates_include_table().await?;
+        self.bootstrap_updates_include_if_empty_like_cpp(None)
+            .await?;
 
         let includes = self.read_updates_include().await?;
         if includes.is_empty() {
@@ -397,6 +410,43 @@ impl DbUpdater {
         Ok(())
     }
 
+    async fn bootstrap_updates_include_if_empty_like_cpp(
+        &self,
+        base_sql_hint: Option<&str>,
+    ) -> Result<()> {
+        let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM `updates_include`")
+            .fetch_one(&self.pool)
+            .await?;
+
+        if row.0 > 0 {
+            return Ok(());
+        }
+
+        let Some(kind) = update_database_kind_like_cpp(base_sql_hint, &self.db) else {
+            warn!(
+                "updates_include is empty for '{}', but the database kind is unknown; skipping default include bootstrap.",
+                self.db
+            );
+            return Ok(());
+        };
+
+        for (path, state) in default_updates_include_rows_like_cpp(kind) {
+            sqlx::query("INSERT IGNORE INTO `updates_include` (`path`, `state`) VALUES (?, ?)")
+                .bind(path)
+                .bind(state)
+                .execute(&self.pool)
+                .await?;
+        }
+
+        info!(
+            "Bootstrapped '{}' updates_include with {} TrinityCore default path(s).",
+            self.db,
+            default_updates_include_rows_like_cpp(kind).len()
+        );
+
+        Ok(())
+    }
+
     async fn read_updates_include(&self) -> Result<Vec<(String, String)>> {
         let rows: Vec<(String, String)> =
             sqlx::query_as("SELECT `path`, `state` FROM `updates_include`")
@@ -562,11 +612,85 @@ fn should_cleanup_orphaned_updates_like_cpp(
         || orphan_count <= clean_dead_references_max_count as usize
 }
 
+fn update_database_kind_like_cpp(
+    base_sql_hint: Option<&str>,
+    database_name: &str,
+) -> Option<UpdateDatabaseKindLikeCpp> {
+    let hinted = base_sql_hint
+        .and_then(|path| Path::new(path).file_name())
+        .and_then(|name| name.to_str())
+        .map(str::to_ascii_lowercase);
+
+    match hinted.as_deref() {
+        Some("auth_database.sql") => return Some(UpdateDatabaseKindLikeCpp::Auth),
+        Some("characters_database.sql") => return Some(UpdateDatabaseKindLikeCpp::Characters),
+        Some("world_database.sql") => return Some(UpdateDatabaseKindLikeCpp::World),
+        Some("hotfixes_database.sql") => return Some(UpdateDatabaseKindLikeCpp::Hotfixes),
+        _ => {}
+    }
+
+    match database_name.to_ascii_lowercase().as_str() {
+        "auth" | "login" => Some(UpdateDatabaseKindLikeCpp::Auth),
+        "characters" | "character" => Some(UpdateDatabaseKindLikeCpp::Characters),
+        "world" => Some(UpdateDatabaseKindLikeCpp::World),
+        "hotfixes" | "hotfix" => Some(UpdateDatabaseKindLikeCpp::Hotfixes),
+        _ => None,
+    }
+}
+
+fn default_updates_include_rows_like_cpp(
+    kind: UpdateDatabaseKindLikeCpp,
+) -> &'static [(&'static str, &'static str)] {
+    match kind {
+        UpdateDatabaseKindLikeCpp::Auth => &[
+            ("$/sql/custom/auth", "RELEASED"),
+            ("$/sql/old/10.x/auth", "ARCHIVED"),
+            ("$/sql/old/3.4.x/auth", "ARCHIVED"),
+            ("$/sql/old/6.x/auth", "ARCHIVED"),
+            ("$/sql/old/7/auth", "ARCHIVED"),
+            ("$/sql/old/8.x/auth", "ARCHIVED"),
+            ("$/sql/old/9.x/auth", "ARCHIVED"),
+            ("$/sql/updates/auth", "RELEASED"),
+        ],
+        UpdateDatabaseKindLikeCpp::Characters => &[
+            ("$/sql/custom/characters", "RELEASED"),
+            ("$/sql/old/10.x/characters", "ARCHIVED"),
+            ("$/sql/old/3.4.x/characters", "ARCHIVED"),
+            ("$/sql/old/6.x/characters", "ARCHIVED"),
+            ("$/sql/old/7/characters", "ARCHIVED"),
+            ("$/sql/old/8.x/characters", "ARCHIVED"),
+            ("$/sql/old/9.x/characters", "ARCHIVED"),
+            ("$/sql/updates/characters", "RELEASED"),
+        ],
+        UpdateDatabaseKindLikeCpp::World => &[
+            ("$/sql/custom/world", "RELEASED"),
+            ("$/sql/old/10.x/world", "ARCHIVED"),
+            ("$/sql/old/3.4.x/world", "ARCHIVED"),
+            ("$/sql/old/6.x/world", "ARCHIVED"),
+            ("$/sql/old/7/world", "ARCHIVED"),
+            ("$/sql/old/8.x/world", "ARCHIVED"),
+            ("$/sql/old/9.x/world", "ARCHIVED"),
+            ("$/sql/updates/world", "RELEASED"),
+        ],
+        UpdateDatabaseKindLikeCpp::Hotfixes => &[
+            ("$/sql/custom/hotfixes", "RELEASED"),
+            ("$/sql/old/10.x/hotfixes", "ARCHIVED"),
+            ("$/sql/old/3.4.x/hotfixes", "ARCHIVED"),
+            ("$/sql/old/6.x/hotfixes", "ARCHIVED"),
+            ("$/sql/old/7/hotfixes", "ARCHIVED"),
+            ("$/sql/old/8.x/hotfixes", "ARCHIVED"),
+            ("$/sql/old/9.x/hotfixes", "ARCHIVED"),
+            ("$/sql/updates/hotfixes", "RELEASED"),
+        ],
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        UpdateConfigLikeCpp, UpdateDecisionLikeCpp, should_cleanup_orphaned_updates_like_cpp,
-        update_decision_like_cpp,
+        UpdateConfigLikeCpp, UpdateDatabaseKindLikeCpp, UpdateDecisionLikeCpp,
+        default_updates_include_rows_like_cpp, should_cleanup_orphaned_updates_like_cpp,
+        update_database_kind_like_cpp, update_decision_like_cpp,
     };
 
     fn update_config_like_cpp(
@@ -652,5 +776,47 @@ mod tests {
         assert!(should_cleanup_orphaned_updates_like_cpp(3, 3));
         assert!(!should_cleanup_orphaned_updates_like_cpp(4, 3));
         assert!(should_cleanup_orphaned_updates_like_cpp(10, -1));
+    }
+
+    #[test]
+    fn update_database_kind_uses_base_sql_hint_before_database_name() {
+        assert_eq!(
+            update_database_kind_like_cpp(Some("/repo/sql/base/auth_database.sql"), "custom"),
+            Some(UpdateDatabaseKindLikeCpp::Auth)
+        );
+        assert_eq!(
+            update_database_kind_like_cpp(
+                Some("/repo/sql/base/dev/hotfixes_database.sql"),
+                "custom"
+            ),
+            Some(UpdateDatabaseKindLikeCpp::Hotfixes)
+        );
+        assert_eq!(
+            update_database_kind_like_cpp(None, "characters"),
+            Some(UpdateDatabaseKindLikeCpp::Characters)
+        );
+        assert_eq!(update_database_kind_like_cpp(None, "unknown"), None);
+    }
+
+    #[test]
+    fn default_updates_include_rows_match_wotlk_classic_layout_like_cpp() {
+        let auth = default_updates_include_rows_like_cpp(UpdateDatabaseKindLikeCpp::Auth);
+        assert_eq!(auth.len(), 8);
+        assert_eq!(auth[0], ("$/sql/custom/auth", "RELEASED"));
+        assert_eq!(auth[2], ("$/sql/old/3.4.x/auth", "ARCHIVED"));
+        assert_eq!(auth[7], ("$/sql/updates/auth", "RELEASED"));
+
+        let characters =
+            default_updates_include_rows_like_cpp(UpdateDatabaseKindLikeCpp::Characters);
+        assert_eq!(characters[0], ("$/sql/custom/characters", "RELEASED"));
+        assert_eq!(characters[7], ("$/sql/updates/characters", "RELEASED"));
+
+        let world = default_updates_include_rows_like_cpp(UpdateDatabaseKindLikeCpp::World);
+        assert_eq!(world[0], ("$/sql/custom/world", "RELEASED"));
+        assert_eq!(world[7], ("$/sql/updates/world", "RELEASED"));
+
+        let hotfixes = default_updates_include_rows_like_cpp(UpdateDatabaseKindLikeCpp::Hotfixes);
+        assert_eq!(hotfixes[0], ("$/sql/custom/hotfixes", "RELEASED"));
+        assert_eq!(hotfixes[7], ("$/sql/updates/hotfixes", "RELEASED"));
     }
 }

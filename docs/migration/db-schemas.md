@@ -225,7 +225,7 @@ Schemas don't carry opcodes directly, but two packet families are bound to the s
 **What's missing vs C++:**
 
 - **No schema deploy step.** The four `.sql` dumps are not invoked anywhere in `bnet-server` or `world-server` startup; an operator must run `mysql < auth_database.sql` etc. by hand. Without this, a fresh install fails on the first prepared-statement execution.
-- **No Updater equivalent.** `sql/updates/<db>/wotlk_classic/*.sql` deltas are not applied. The `updates` / `updates_include` tables are never read or written by Rust.
+- **Updater equivalent now exists.** `DbUpdater::update(source_dir)` reads `updates_include`, walks the configured update directories, hashes files, applies pending deltas, tracks `updates`, and bootstraps default `updates_include` rows when the table is empty for known TC database families. This document's older "no updater" statement is superseded by `docs/migration/database-framework.md`.
 - **No `sql/base/dev/world_database.sql` content rows.** Even if the DDL applies, the world DB is empty (TC ships content separately and the `dev/` dump is DDL-only). Importing TDB (`TDB_full_world_*.sql.7z`) is currently a manual operator step.
 - **Hotfix overlay completely absent.** No `hotfix_data` / `hotfix_blob` / `hotfix_optional_data` reader, no `SMSG_HOTFIX_PUSH` originator, no per-DB2 mirror-table loaders.
 - **Characters DB ~90% missing on the write path.** Save-on-logout for inventory/quest/spell-cooldowns/talents/glyphs/auras is not wired.
