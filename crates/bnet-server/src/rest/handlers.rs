@@ -548,6 +548,16 @@ async fn apply_wrong_password_policy_like_cpp(
         return;
     }
 
+    let remote_ip = wrong_password_remote_ip_like_cpp(state, headers);
+    if state.wrong_pass_logging {
+        tracing::debug!(
+            "[{}, Account {}, Id {}] Attempted to connect with wrong password!",
+            remote_ip,
+            email,
+            account_id
+        );
+    }
+
     if state.wrong_pass_max == 0 {
         return;
     }
@@ -561,6 +571,12 @@ async fn apply_wrong_password_policy_like_cpp(
     let mut trans = wow_database::SqlTransaction::new();
     trans.append(stmt);
 
+    tracing::debug!(
+        "MaxWrongPass : {}, failed_login : {}",
+        state.wrong_pass_max,
+        account_id
+    );
+
     if next_failed_logins >= state.wrong_pass_max {
         if state.wrong_pass_ban_type == 1 {
             let mut stmt = state
@@ -571,7 +587,7 @@ async fn apply_wrong_password_policy_like_cpp(
             trans.append(stmt);
         } else {
             let mut stmt = state.login_db.prepare(LoginStatements::INS_IP_AUTO_BANNED);
-            stmt.set_string(0, &wrong_password_remote_ip_like_cpp(state, headers));
+            stmt.set_string(0, &remote_ip);
             stmt.set_u32(1, state.wrong_pass_ban_time);
             trans.append(stmt);
         }

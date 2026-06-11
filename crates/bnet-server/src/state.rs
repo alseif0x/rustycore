@@ -28,6 +28,8 @@ pub struct AppState {
     pub wrong_pass_ban_time: u32,
     /// Ban type: 0 = IP, 1 = account.
     pub wrong_pass_ban_type: u32,
+    /// Log wrong-password attempts.
+    pub wrong_pass_logging: bool,
 
     /// REST login sessions (JSESSIONID → session state).
     pub rest_sessions: DashMap<String, RestSessionState>,
@@ -47,6 +49,7 @@ impl AppState {
         wrong_pass_max: u32,
         wrong_pass_ban_time: u32,
         wrong_pass_ban_type: u32,
+        wrong_pass_logging: bool,
     ) -> Self {
         Self {
             login_db,
@@ -58,6 +61,7 @@ impl AppState {
             wrong_pass_max,
             wrong_pass_ban_time,
             wrong_pass_ban_type,
+            wrong_pass_logging,
             rest_sessions: DashMap::new(),
             realm_mgr: RwLock::new(RealmManager::new()),
         }

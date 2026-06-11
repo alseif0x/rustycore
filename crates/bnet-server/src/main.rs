@@ -101,6 +101,7 @@ async fn main() -> Result<()> {
     let wrong_pass_max: u32 = wow_config::get_value("WrongPass.MaxCount").unwrap_or(0);
     let wrong_pass_ban_time: u32 = wow_config::get_value("WrongPass.BanTime").unwrap_or(600);
     let wrong_pass_ban_type: u32 = wow_config::get_value("WrongPass.BanType").unwrap_or(0);
+    let wrong_pass_logging: bool = wow_config::get_value_default("WrongPass.Logging", false);
     let realm_update_delay: u64 = wow_config::get_value("RealmsStateUpdateDelay").unwrap_or(10);
     let ban_check_interval: u64 = wow_config::get_value("BanExpiryCheckInterval").unwrap_or(60);
 
@@ -114,6 +115,7 @@ async fn main() -> Result<()> {
         wrong_pass_max,
         wrong_pass_ban_time,
         wrong_pass_ban_type,
+        wrong_pass_logging,
     ));
 
     // Initialize realm manager
