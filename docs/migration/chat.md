@@ -3,7 +3,7 @@
 > **C++ canonical path:** `src/server/game/Chat/` + `src/server/game/Handlers/ChatHandler.cpp` + `src/server/game/Handlers/ChannelHandler.cpp`
 > **Rust target crate(s):** `crates/wow-chat/`, `crates/wow-world/src/handlers/chat.rs`, `crates/wow-packet/src/packets/chat.rs`
 > **Layer:** L6
-> **Status:** ⚠️ partial (~35.4% — say/yell/whisper/emote work; Party/Raid/RaidWarning/InstanceChat now use group membership routing; group addon Party/Raid/InstanceChat routing represented; `ValidateMessage` newline/control gates, `LANG_UNIVERSAL` client-cheat rejection, unknown-language rejection, offline-whisper `SMSG_CHAT_PLAYER_NOTFOUND`, Say/Yell/Emote alive gate, `GM_SILENCE_AURA`, and hyperlink shape/control-sequence rejection represented; ignored-report and AFK/DND status toggles represented; Guild/Officer, channels, targeted addon routing, semantic hyperlink validation, full `LanguageMgr` still missing)
+> **Status:** ⚠️ partial (~35.5% — say/yell/whisper/emote work; Party/Raid/RaidWarning/InstanceChat now use group membership routing; group addon Party/Raid/InstanceChat routing represented; `ValidateMessage` newline/control gates, `LANG_UNIVERSAL` client-cheat rejection, unknown-language rejection, offline-whisper `SMSG_CHAT_PLAYER_NOTFOUND`, Say/Yell/Emote alive and level gates, `GM_SILENCE_AURA`, and hyperlink shape/control-sequence rejection represented; ignored-report and AFK/DND status toggles represented; Guild/Officer, channels, targeted addon routing, semantic hyperlink validation, full `LanguageMgr` still missing)
 > **Audited vs C++:** ✅ audited 2026-05-01 (§13)
 > **Last updated:** 2026-06-11
 
@@ -245,7 +245,7 @@ DBC/DB2 stores read:
 - `CMSG_CHAT_MESSAGE_PARTY` / `_RAID` / `_RAID_WARNING` / `_INSTANCE_CHAT` — route through `GroupRegistry` + `PlayerRegistry`, with C++-style subgroup filtering for party, leader message variants, raid-only gates, and raid-warning leader/assistant gates.
 - `CMSG_CHAT_MESSAGE_GUILD` — intentionally no-op until `GuildRegistry`/`Guild::BroadcastToGuild` is ported; this avoids the previous proximity leak but is still missing guild delivery.
 - `ValidateMessage` first-stage chat validation — normal chat, whisper, chat-emote, AFK, and DND now reject empty/oversized normal chat, reject leading newline/control chars, and truncate at newline/carriage return like C++ default config (`ChatFakeMessagePreventing=false`).
-- Say/Yell/chat-emote now mirror C++ `Player::IsAlive()` cheating gates; group/whisper paths deliberately do not use this gate because their C++ switch cases do not.
+- Say/Yell/chat-emote now mirror C++ `Player::IsAlive()` cheating gates and default `ChatLevelReq.Say/Yell/Emote = 1` level gates; group/whisper paths deliberately do not use these Say/Yell/Emote gates because their C++ switch cases do not.
 - `Hyperlinks::CheckAllLinks` first-stage shape/control validation — `wow_chat::hyperlinks::check_all_links_shape_like_cpp` rejects illegal `|` control sequences, malformed `|c...|H...|h[...]|h|r` links, and unknown link tags before normal chat delivery.
 - `CMSG_CHAT_MESSAGE_WHISPER` — name lookup via `PlayerRegistry`; online target receives `Whisper` and sender receives `WhisperInform`; offline/missing target now receives C++ `SMSG_CHAT_PLAYER_NOTFOUND` instead of a false delivery inform.
 - `CMSG_CHAT_MESSAGE_EMOTE` — broadcasts `CHAT_MSG_EMOTE` packet at 25y range.
@@ -440,6 +440,7 @@ DBC/DB2 stores read:
 - [x] **#CHAT.14b2a** Port represented `GM_SILENCE_AURA=1852` chat gates — non-whisper chat/emote/AFK/DND are rejected, and whispers are rejected unless the receiver is a GM, matching `ChatHandler.cpp` first-stage behavior. Complejidad: **S**
 - [x] **#CHAT.14b2c** Port C++ first-stage language cheat gate — client-sent `LANG_UNIVERSAL` is rejected for non-emote chat/whisper before delivery. Complejidad: **S**
 - [x] **#CHAT.14b2d** Port C++ unknown-language existence gate — normal chat and whisper reject language ids absent from `LanguageMgr::LoadLanguages` / `SharedDefines.h` before delivery; full skill/aura/scrambling logic remains in `#CHAT.17`. Complejidad: **S**
+- [x] **#CHAT.14b2e** Port C++ Say/Yell/Emote level gates — default `ChatLevelReq.Say/Yell/Emote=1` rejects level-0 represented senders before delivery; config-backed runtime overrides remain future work. Complejidad: **S**
 - [ ] **#CHAT.14b2b** Complete remaining C++ AFK/DND/chat side effects: real hyperlink kick, localized `LANG_GM_SILENCE` notification, guild away event, script hook, localized defaults, battleground leave, actual auto-reply delivery, and config-backed `ChatFakeMessagePreventing` space collapse. Complejidad: **M**
 - [x] **#CHAT.15** Implement `CMSG_CHAT_REPORT_IGNORED` — inform sender they were ignored. Complejidad: **L**
 - [x] **#CHAT.16a** Implement group addon routing for `CMSG_CHAT_ADDON_MESSAGE` Party/Raid/InstanceChat — build `SMSG_CHAT` with real addon prefix, `LANG_ADDON`/`LANG_ADDON_LOGGED`, no sender echo, party subgroup filtering, and receiver-side `IsAddonRegistered(prefix)` gate. Complejidad: **M**
@@ -496,7 +497,7 @@ DBC/DB2 stores read:
 
 | Scope | Decision | C++ retained | Evidence |
 |---|---|---|---|
-| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 21 files / 7293 lines; refs: `/home/server/woltk-trinity-legacy/src/server/game/Chat/Channels/Channel.cpp`, `/home/server/woltk-trinity-legacy/src/server/game/Chat/Chat.cpp`, `/home/server/woltk-trinity-legacy/src/server/game/Chat/Hyperlinks.cpp` | `crates/wow-chat/`, `crates/wow-world/src/handlers/chat.rs`, `crates/wow-packet/src/packets/chat.rs` \| ⚠️ partial (~35.4% — say/yell/whisper/emote work; Party/Raid/RaidWarning/InstanceChat and group addon routing are represented; `ValidateMessage`, `LANG_UNIVERSAL` rejection, unknown-language rejection, offline-whisper `SMSG_CHAT_PLAYER_NOTFOUND`, Say/Yell/Emote alive gate, `GM_SILENCE_AURA`, and hyperlink shape/control validation represented; ignored-report and AFK/DND status toggles represented; Guild/Officer, channels, targeted addon routing, semantic hyperlink validation, full `LanguageMgr` still missing) |
+| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 21 files / 7293 lines; refs: `/home/server/woltk-trinity-legacy/src/server/game/Chat/Channels/Channel.cpp`, `/home/server/woltk-trinity-legacy/src/server/game/Chat/Chat.cpp`, `/home/server/woltk-trinity-legacy/src/server/game/Chat/Hyperlinks.cpp` | `crates/wow-chat/`, `crates/wow-world/src/handlers/chat.rs`, `crates/wow-packet/src/packets/chat.rs` \| ⚠️ partial (~35.5% — say/yell/whisper/emote work; Party/Raid/RaidWarning/InstanceChat and group addon routing are represented; `ValidateMessage`, `LANG_UNIVERSAL` rejection, unknown-language rejection, offline-whisper `SMSG_CHAT_PLAYER_NOTFOUND`, Say/Yell/Emote alive and level gates, `GM_SILENCE_AURA`, and hyperlink shape/control validation represented; ignored-report and AFK/DND status toggles represented; Guild/Officer, channels, targeted addon routing, semantic hyperlink validation, full `LanguageMgr` still missing) |
 
 <!-- REFINE.025:END product-scope -->
 
@@ -576,7 +577,7 @@ The seven distinct inventory entries each list their own `handler_name` (`handle
 
 | C++ opcode handler | Rust | Verdict |
 |---|---|---|
-| `HandleChatMessageSay/Yell/Emote` | ✅ proximity broadcast for Say/Yell/Emote; ✅ dead players rejected for Say/Yell/chat-emote like C++ |  partial |
+| `HandleChatMessageSay/Yell/Emote` | ✅ proximity broadcast for Say/Yell/Emote; ✅ dead/level-0 players rejected for Say/Yell/chat-emote like C++ default config |  partial |
 | `HandleChatMessageParty/Raid/RaidWarning/InstanceChat` | ✅ registered, ✅ group-routed via `GroupRegistry`/`PlayerRegistry`; ✅ client-sent `LANG_UNIVERSAL` and unknown languages rejected; residual BG original-group/config/full `LanguageMgr` gates pending | partial |
 | `HandleChatMessageGuild/Officer` | Guild registered but drops pending `GuildRegistry`; Officer not represented | missing |
 | `HandleChatMessageWhisper` | ✅ `chat.rs` via `player_registry` name lookup; online delivery + sender inform; offline/missing target sends `SMSG_CHAT_PLAYER_NOTFOUND` |  partial |

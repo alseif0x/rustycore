@@ -38,6 +38,9 @@ use crate::session::{PlayerAwayModeLikeCpp, WorldSession};
 const RANGE_SAY: f32 = 25.0;
 const RANGE_YELL: f32 = 300.0;
 const RANGE_EMOTE: f32 = 25.0;
+const CHAT_SAY_LEVEL_REQ_LIKE_CPP: u8 = 1;
+const CHAT_YELL_LEVEL_REQ_LIKE_CPP: u8 = 1;
+const CHAT_EMOTE_LEVEL_REQ_LIKE_CPP: u8 = 1;
 const LANG_UNIVERSAL_LIKE_CPP: i32 = 0;
 const LANG_ADDON_LIKE_CPP: u32 = 183;
 const LANG_ADDON_LOGGED_LIKE_CPP: u32 = 184;
@@ -266,6 +269,9 @@ impl WorldSession {
             return;
         }
         if matches!(msg_type, ChatMsg::Say | ChatMsg::Yell) && !self.player_is_alive_like_cpp() {
+            return;
+        }
+        if !self.meets_chat_level_req_like_cpp(msg_type) {
             return;
         }
 
@@ -571,6 +577,9 @@ impl WorldSession {
             return;
         }
         if !self.player_is_alive_like_cpp() {
+            return;
+        }
+        if self.player_level_like_cpp() < CHAT_EMOTE_LEVEL_REQ_LIKE_CPP {
             return;
         }
 
@@ -997,6 +1006,17 @@ fn chat_msg_from_i32_like_cpp(value: i32) -> Option<ChatMsg> {
 
 fn is_known_language_like_cpp(language: i32) -> bool {
     KNOWN_LANGUAGES_LIKE_CPP.contains(&language)
+}
+
+impl WorldSession {
+    fn meets_chat_level_req_like_cpp(&self, msg_type: ChatMsg) -> bool {
+        let required = match msg_type {
+            ChatMsg::Say => CHAT_SAY_LEVEL_REQ_LIKE_CPP,
+            ChatMsg::Yell => CHAT_YELL_LEVEL_REQ_LIKE_CPP,
+            _ => return true,
+        };
+        self.player_level_like_cpp() >= required
+    }
 }
 
 #[cfg(test)]
@@ -1445,6 +1465,32 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn low_level_player_cannot_send_say_or_yell_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 375);
+        let nearby = ObjectGuid::create_player(1, 376);
+        let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
+        let (nearby_tx, nearby_rx) = flume::bounded(8);
+        player_registry.insert(nearby, broadcast_info(nearby, nearby_tx));
+        session.set_player_level_like_cpp(0);
+
+        session
+            .handle_chat_message(
+                chat_message_packet(ClientOpcodes::ChatMessageSay, "too low say"),
+                ChatMsg::Say,
+            )
+            .await;
+        session
+            .handle_chat_message(
+                chat_message_packet(ClientOpcodes::ChatMessageYell, "too low yell"),
+                ChatMsg::Yell,
+            )
+            .await;
+
+        assert!(sender_rx.try_recv().is_err());
+        assert!(nearby_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
     async fn dead_player_party_chat_is_not_rejected_by_say_alive_gate_like_cpp() {
         let leader = ObjectGuid::create_player(1, 359);
         let member = ObjectGuid::create_player(1, 360);
@@ -1490,6 +1536,26 @@ mod tests {
             .handle_chat_emote(chat_message_packet(
                 ClientOpcodes::ChatMessageEmote,
                 "dead emote",
+            ))
+            .await;
+
+        assert!(sender_rx.try_recv().is_err());
+        assert!(nearby_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn low_level_player_cannot_send_chat_emote_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 377);
+        let nearby = ObjectGuid::create_player(1, 378);
+        let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
+        let (nearby_tx, nearby_rx) = flume::bounded(8);
+        player_registry.insert(nearby, broadcast_info(nearby, nearby_tx));
+        session.set_player_level_like_cpp(0);
+
+        session
+            .handle_chat_emote(chat_message_packet(
+                ClientOpcodes::ChatMessageEmote,
+                "too low emote",
             ))
             .await;
 
