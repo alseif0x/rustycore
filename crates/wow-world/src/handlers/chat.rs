@@ -29,7 +29,7 @@ use wow_packet::packets::chat::{
     CTextEmote, ChatAddonMessage, ChatAddonMessageTargeted, ChatAddonMessageWhisper, ChatMessage,
     ChatMessageAfk, ChatMessageDnd, ChatMessageEmote, ChatMessageWhisper, ChatMsg, ChatPkt,
     ChatPlayerNotfound, ChatRegisterAddonPrefixes, ChatReportFiltered, ChatReportIgnored,
-    EmoteClient, EmoteMessage, STextEmote,
+    EmoteClient, EmoteMessage, PrintNotification, STextEmote,
 };
 use wow_packet::{ClientPacket, ServerPacket};
 
@@ -296,6 +296,7 @@ impl WorldSession {
             return;
         }
         if self.has_gm_silence_aura_like_cpp() {
+            self.send_gm_silence_notification_like_cpp();
             return;
         }
         if matches!(msg_type, ChatMsg::Say | ChatMsg::Yell) && !self.player_is_alive_like_cpp() {
@@ -435,6 +436,7 @@ impl WorldSession {
             target_info
         {
             if self.has_gm_silence_aura_like_cpp() && !target_is_game_master {
+                self.send_gm_silence_notification_like_cpp();
                 return;
             }
 
@@ -502,6 +504,7 @@ impl WorldSession {
             return;
         }
         if self.has_gm_silence_aura_like_cpp() {
+            self.send_gm_silence_notification_like_cpp();
             return;
         }
         let _ = self.apply_chat_away_mode_like_cpp(PlayerAwayModeLikeCpp::Afk, msg.text);
@@ -531,6 +534,7 @@ impl WorldSession {
             return;
         }
         if self.has_gm_silence_aura_like_cpp() {
+            self.send_gm_silence_notification_like_cpp();
             return;
         }
         let _ = self.apply_chat_away_mode_like_cpp(PlayerAwayModeLikeCpp::Dnd, msg.text);
@@ -628,6 +632,7 @@ impl WorldSession {
             return;
         }
         if self.has_gm_silence_aura_like_cpp() {
+            self.send_gm_silence_notification_like_cpp();
             return;
         }
         if !self.player_is_alive_like_cpp() {
@@ -955,6 +960,13 @@ impl WorldSession {
         self.visible_auras
             .values()
             .any(|aura| aura.spell_id == GM_SILENCE_AURA_LIKE_CPP)
+    }
+
+    fn send_gm_silence_notification_like_cpp(&self) {
+        let (_, sender_name) = self.player_name_and_guid();
+        self.send_packet(&PrintNotification {
+            notify_text: format!("Silence is ON for {sender_name}"),
+        });
     }
 
     /// Serialize `pkt` and broadcast its bytes to all players on the same map
@@ -1352,6 +1364,13 @@ mod tests {
         wow_packet::WorldPacket::from_bytes(writer.data())
     }
 
+    fn chat_emote_packet(text: &str) -> wow_packet::WorldPacket {
+        let mut writer = wow_packet::WorldPacket::new_empty();
+        writer.write_bits(text.len() as u32, 11);
+        writer.write_string(text);
+        wow_packet::WorldPacket::from_bytes(writer.data())
+    }
+
     fn chat_slash_cmd(bytes: &[u8]) -> u8 {
         let mut packet = wow_packet::WorldPacket::from_bytes(bytes);
         packet.skip_opcode();
@@ -1395,6 +1414,18 @@ mod tests {
         let _ = packet.read_string(prefix_len).expect("prefix");
         let _ = packet.read_string(channel_len).expect("channel");
         packet.read_string(text_len).expect("text")
+    }
+
+    fn print_notification_text(bytes: &[u8]) -> String {
+        let mut packet = wow_packet::WorldPacket::from_bytes(bytes);
+        assert_eq!(
+            packet.read_uint16().expect("opcode"),
+            wow_constants::ServerOpcodes::PrintNotification as u16
+        );
+        let text_len = packet.read_bits(12).expect("notify text len") as usize;
+        let text = packet.read_string(text_len).expect("notify text");
+        assert!(packet.is_empty());
+        text
     }
 
     fn broadcast_info(guid: ObjectGuid, send_tx: flume::Sender<Vec<u8>>) -> PlayerBroadcastInfo {
@@ -1868,10 +1899,7 @@ mod tests {
             )
             .await;
         session
-            .handle_chat_emote(chat_message_packet(
-                ClientOpcodes::ChatMessageEmote,
-                "too low emote",
-            ))
+            .handle_chat_emote(chat_emote_packet("too low emote"))
             .await;
 
         assert!(sender_rx.try_recv().is_err());
@@ -1956,10 +1984,7 @@ mod tests {
         session.set_player_alive_like_cpp(false);
 
         session
-            .handle_chat_emote(chat_message_packet(
-                ClientOpcodes::ChatMessageEmote,
-                "dead emote",
-            ))
+            .handle_chat_emote(chat_emote_packet("dead emote"))
             .await;
 
         assert!(sender_rx.try_recv().is_err());
@@ -1976,10 +2001,7 @@ mod tests {
         session.set_player_level_like_cpp(0);
 
         session
-            .handle_chat_emote(chat_message_packet(
-                ClientOpcodes::ChatMessageEmote,
-                "too low emote",
-            ))
+            .handle_chat_emote(chat_emote_packet("too low emote"))
             .await;
 
         assert!(sender_rx.try_recv().is_err());
@@ -2119,6 +2141,10 @@ mod tests {
             )
             .await;
 
+        assert_eq!(
+            print_notification_text(&sender_rx.try_recv().expect("silence notification")),
+            "Silence is ON for Player361"
+        );
         assert!(sender_rx.try_recv().is_err());
         assert!(nearby_rx.try_recv().is_err());
     }
@@ -2126,12 +2152,54 @@ mod tests {
     #[tokio::test]
     async fn gm_silence_aura_rejects_afk_toggle_like_cpp() {
         let sender = ObjectGuid::create_player(1, 363);
-        let (mut session, _, _) = session_for_chat_routing_like_cpp(sender);
+        let (mut session, _, sender_rx) = session_for_chat_routing_like_cpp(sender);
         session.visible_auras.insert(1, gm_silence_aura(1));
 
         session.handle_chat_afk(chat_away_packet("away")).await;
 
         assert!(session.auto_reply_msg_like_cpp().is_empty());
+        assert_eq!(
+            print_notification_text(&sender_rx.try_recv().expect("silence notification")),
+            "Silence is ON for Player363"
+        );
+        assert!(sender_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn gm_silence_aura_rejects_dnd_toggle_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 430);
+        let (mut session, _, sender_rx) = session_for_chat_routing_like_cpp(sender);
+        session.visible_auras.insert(1, gm_silence_aura(1));
+
+        session.handle_chat_dnd(chat_away_packet("busy")).await;
+
+        assert!(session.auto_reply_msg_like_cpp().is_empty());
+        assert_eq!(
+            print_notification_text(&sender_rx.try_recv().expect("silence notification")),
+            "Silence is ON for Player430"
+        );
+        assert!(sender_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn gm_silence_aura_rejects_chat_emote_with_notification_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 431);
+        let nearby = ObjectGuid::create_player(1, 432);
+        let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
+        let (nearby_tx, nearby_rx) = flume::bounded(8);
+        player_registry.insert(nearby, broadcast_info(nearby, nearby_tx));
+        session.visible_auras.insert(1, gm_silence_aura(1));
+
+        session
+            .handle_chat_emote(chat_emote_packet("muted emote"))
+            .await;
+
+        assert_eq!(
+            print_notification_text(&sender_rx.try_recv().expect("silence notification")),
+            "Silence is ON for Player431"
+        );
+        assert!(sender_rx.try_recv().is_err());
+        assert!(nearby_rx.try_recv().is_err());
     }
 
     #[tokio::test]
@@ -2150,6 +2218,10 @@ mod tests {
             .handle_chat_whisper(chat_whisper_packet("Target", "muted"))
             .await;
 
+        assert_eq!(
+            print_notification_text(&sender_rx.try_recv().expect("silence notification")),
+            "Silence is ON for Player364"
+        );
         assert!(sender_rx.try_recv().is_err());
         assert!(target_rx.try_recv().is_err());
     }
