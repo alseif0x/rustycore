@@ -39,8 +39,8 @@ use wow_packet::packets::loot::{LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHI
 use wow_packet::packets::misc::{
     AddToy, BattlePetClearFanfare, BattlePetDeletePet, BattlePetModifyName,
     BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags, BattlePetSummon,
-    BattlePetUpdateNotify, CageBattlePet, DfGetSystemInfo, FarSight, LfgListBlacklist,
-    LfgPlayerInfo, LfgUpdateStatus, MountSetFavorite, QueryBattlePetName,
+    BattlePetUpdateNotify, CageBattlePet, DfGetSystemInfo, FarSight, GmTicketCaseStatus,
+    LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus, MountSetFavorite, QueryBattlePetName,
     QueryBattlePetNameResponse, RatedPvpInfo, RequestCemeteryListResponse, SaveCufProfiles,
     TaxiNodeStatusPkt, ToyClearFanfare, UseToy,
 };
@@ -1477,7 +1477,11 @@ impl crate::session::WorldSession {
     }
     pub async fn handle_df_get_join_status(&mut self, _pkt: wow_packet::WorldPacket) {}
     pub async fn handle_calendar_get_num_pending(&mut self, _pkt: wow_packet::WorldPacket) {}
-    pub async fn handle_gm_ticket_get_case_status(&mut self, _pkt: wow_packet::WorldPacket) {}
+    pub async fn handle_gm_ticket_get_case_status(&mut self, _pkt: wow_packet::WorldPacket) {
+        // C++ `HandleGMTicketGetCaseStatusOpcode` is still a TODO and sends a
+        // default `GMTicketCaseStatus`, i.e. an empty case list.
+        self.send_packet(&GmTicketCaseStatus::empty());
+    }
     pub async fn handle_guild_bank_remaining_withdraw_money_query(
         &mut self,
         _pkt: wow_packet::WorldPacket,
@@ -4663,6 +4667,24 @@ mod tests {
         session.handle_df_get_system_info(request).await;
 
         assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn gm_ticket_get_case_status_sends_empty_case_status_like_cpp_todo_handler() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_gm_ticket_get_case_status(WorldPacket::new_empty())
+            .await;
+
+        let bytes = send_rx.try_recv().expect("GM ticket case status packet");
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::GmTicketCaseStatus as u16
+        );
+
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_uint32().unwrap(), 0);
     }
 
     #[tokio::test]

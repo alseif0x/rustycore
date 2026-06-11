@@ -3778,6 +3778,28 @@ impl ServerPacket for LfgPartyInfo {
     }
 }
 
+/// C++ `WorldPackets::Ticket::GMTicketCaseStatus`.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct GmTicketCaseStatus {
+    /// Full case rows are not ported yet; C++'s current handler is itself a
+    /// TODO and sends an empty status packet.
+    pub case_count: u32,
+}
+
+impl GmTicketCaseStatus {
+    pub fn empty() -> Self {
+        Self::default()
+    }
+}
+
+impl ServerPacket for GmTicketCaseStatus {
+    const OPCODE: ServerOpcodes = ServerOpcodes::GmTicketCaseStatus;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_uint32(self.case_count);
+    }
+}
+
 // ── RatedPvpInfo ─────────────────────────────────────────────────────────────
 
 /// C++ `WorldPackets::Battleground::RatedPvpInfo`.
@@ -3995,6 +4017,19 @@ mod tests {
             u16::from_le_bytes([bytes[0], bytes[1]]),
             ServerOpcodes::LfgPartyInfo as u16
         );
+
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_uint32().unwrap(), 0);
+    }
+
+    #[test]
+    fn gm_ticket_case_status_empty_matches_cpp_todo_handler_shape() {
+        let bytes = GmTicketCaseStatus::empty().to_bytes();
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::GmTicketCaseStatus as u16
+        );
+        assert_eq!(bytes.len(), 2 + 4);
 
         let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
         assert_eq!(pkt.read_uint32().unwrap(), 0);
