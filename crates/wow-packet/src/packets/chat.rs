@@ -646,6 +646,46 @@ impl ServerPacket for ChatPlayerNotfound {
     }
 }
 
+/// C++ `WorldPackets::Chat::ChatPlayerAmbiguous`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChatPlayerAmbiguous {
+    pub name: String,
+}
+
+impl ServerPacket for ChatPlayerAmbiguous {
+    const OPCODE: ServerOpcodes = ServerOpcodes::ChatPlayerAmbiguous;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_bits(self.name.len() as u32, 9);
+        pkt.write_string(&self.name);
+    }
+}
+
+/// C++ `ChatRestrictionType`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum ChatRestrictionTypeLikeCpp {
+    Restricted = 0,
+    Throttled = 1,
+    UserSquelched = 2,
+    YellRestricted = 3,
+    RaidRestricted = 4,
+}
+
+/// C++ `WorldPackets::Chat::ChatRestricted`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ChatRestricted {
+    pub reason: ChatRestrictionTypeLikeCpp,
+}
+
+impl ServerPacket for ChatRestricted {
+    const OPCODE: ServerOpcodes = ServerOpcodes::ChatRestricted;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_uint8(self.reason as u8);
+    }
+}
+
 // ── Emote Packets ─────────────────────────────────────────────────────────────
 
 /// CMSG_EMOTE — client clears its emote state (no body).
@@ -949,6 +989,39 @@ mod tests {
         );
         assert_eq!(payload.read_bits(9).unwrap(), 7);
         assert_eq!(payload.read_string(7).unwrap(), "Missing");
+        assert!(payload.is_empty());
+    }
+
+    #[test]
+    fn chat_player_ambiguous_writes_cpp_layout() {
+        let packet = ChatPlayerAmbiguous {
+            name: "Jaina".to_string(),
+        };
+        let data = packet.to_bytes();
+        let mut payload = WorldPacket::from_bytes(&data);
+
+        assert_eq!(
+            payload.read_uint16().unwrap(),
+            ServerOpcodes::ChatPlayerAmbiguous as u16
+        );
+        assert_eq!(payload.read_bits(9).unwrap(), 5);
+        assert_eq!(payload.read_string(5).unwrap(), "Jaina");
+        assert!(payload.is_empty());
+    }
+
+    #[test]
+    fn chat_restricted_writes_cpp_layout() {
+        let packet = ChatRestricted {
+            reason: ChatRestrictionTypeLikeCpp::YellRestricted,
+        };
+        let data = packet.to_bytes();
+        let mut payload = WorldPacket::from_bytes(&data);
+
+        assert_eq!(
+            payload.read_uint16().unwrap(),
+            ServerOpcodes::ChatRestricted as u16
+        );
+        assert_eq!(payload.read_uint8().unwrap(), 3);
         assert!(payload.is_empty());
     }
 
