@@ -4451,6 +4451,54 @@ impl WorldSession {
         result.unwrap_or(false)
     }
 
+    pub(crate) fn represented_player_charmed_guid_like_cpp(&self) -> ObjectGuid {
+        let Some(player_guid) = self.player_guid else {
+            return ObjectGuid::EMPTY;
+        };
+        let map_id = u32::from(self.player_map_id_like_cpp());
+        let Some(manager) = self.canonical_map_manager.as_ref() else {
+            return ObjectGuid::EMPTY;
+        };
+        let Ok(manager) = manager.lock() else {
+            return ObjectGuid::EMPTY;
+        };
+
+        let mut result = None;
+        manager.do_for_all_maps_with_map_id(map_id, |managed| {
+            if result.is_some() {
+                return;
+            }
+
+            let Some(player) = managed.map().get_typed_player(player_guid) else {
+                return;
+            };
+            result = Some(
+                player
+                    .unit()
+                    .subsystems()
+                    .control
+                    .charmed_guid
+                    .unwrap_or(ObjectGuid::EMPTY),
+            );
+        });
+
+        result.unwrap_or(ObjectGuid::EMPTY)
+    }
+
+    pub(crate) fn represented_move_dismiss_vehicle_like_cpp(&mut self) -> bool {
+        if self.represented_player_charmed_guid_like_cpp().is_empty() {
+            return false;
+        }
+        if self.player_vehicle_seat_flags_like_cpp.is_none() {
+            return false;
+        }
+
+        self.player_vehicle_seat_flags_like_cpp = None;
+        self.player_vehicle_seat_id_like_cpp = None;
+        self.sync_player_registry_state_like_cpp();
+        true
+    }
+
     fn attack_reputation_faction_snapshot_like_cpp(
         &self,
         creature: &wow_entities::Creature,
@@ -46855,6 +46903,75 @@ mod tests {
         let info = registry.get(&guid).expect("registered player");
         assert!(info.in_vehicle);
         assert_eq!(info.party_member_vehicle_seat, 1002);
+    }
+
+    #[test]
+    fn represented_move_dismiss_vehicle_uses_charmed_guid_gate_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let guid = ObjectGuid::create_player(1, 53);
+        let vehicle_guid = test_creature_guid(53_001);
+        let canonical = shared_canonical_map_manager();
+        let registry = Arc::new(PlayerRegistry::default());
+        let position = Position::new(1.0, 2.0, 3.0, 0.0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_player_guid(Some(guid));
+        session.set_player_map_position_like_cpp(571, position);
+        session.player_name = Some("MoveDismissVehicleTester".to_string());
+        session.player_vehicle_seat_flags_like_cpp = Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK);
+        session.player_vehicle_seat_id_like_cpp = Some(1004);
+        session.set_player_registry(Arc::clone(&registry));
+        add_canonical_test_player_on_map(&canonical, guid, position, 571, 0);
+        {
+            let mut guard = canonical.lock().unwrap();
+            guard
+                .find_map_mut(571, 0)
+                .unwrap()
+                .map_mut()
+                .get_typed_player_mut(guid)
+                .unwrap()
+                .unit_mut()
+                .subsystems_mut()
+                .control
+                .set_charmed(vehicle_guid);
+        }
+        session.register_in_player_registry();
+
+        assert!(session.represented_move_dismiss_vehicle_like_cpp());
+
+        assert!(session.player_vehicle_seat_flags_like_cpp.is_none());
+        assert!(session.player_vehicle_seat_id_like_cpp.is_none());
+        let info = registry.get(&guid).expect("registered player");
+        assert!(!info.in_vehicle);
+        assert_eq!(info.party_member_vehicle_seat, 0);
+    }
+
+    #[test]
+    fn represented_move_dismiss_vehicle_rejects_without_charmed_guid_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let guid = ObjectGuid::create_player(1, 54);
+        let canonical = shared_canonical_map_manager();
+        let registry = Arc::new(PlayerRegistry::default());
+        let position = Position::new(1.0, 2.0, 3.0, 0.0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_player_guid(Some(guid));
+        session.set_player_map_position_like_cpp(571, position);
+        session.player_name = Some("MoveDismissVehicleRejectTester".to_string());
+        session.player_vehicle_seat_flags_like_cpp = Some(wow_data::VEHICLE_SEAT_FLAG_CAN_CONTROL);
+        session.player_vehicle_seat_id_like_cpp = Some(1005);
+        session.set_player_registry(Arc::clone(&registry));
+        add_canonical_test_player_on_map(&canonical, guid, position, 571, 0);
+        session.register_in_player_registry();
+
+        assert!(!session.represented_move_dismiss_vehicle_like_cpp());
+
+        assert_eq!(
+            session.player_vehicle_seat_flags_like_cpp,
+            Some(wow_data::VEHICLE_SEAT_FLAG_CAN_CONTROL)
+        );
+        assert_eq!(session.player_vehicle_seat_id_like_cpp, Some(1005));
+        let info = registry.get(&guid).expect("registered player");
+        assert!(info.in_vehicle);
+        assert_eq!(info.party_member_vehicle_seat, 1005);
     }
 
     #[test]
