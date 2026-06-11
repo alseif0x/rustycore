@@ -191,15 +191,6 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::SocialContractRequest,
-        status: SessionStatus::Authed,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_social_contract_stub",
-    }
-}
-
-inventory::submit! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::DbQueryBulk,
         status: SessionStatus::Authed,
         processing: PacketProcessing::Inplace,

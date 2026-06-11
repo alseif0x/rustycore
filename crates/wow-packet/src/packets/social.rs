@@ -112,6 +112,32 @@ impl ClientPacket for SetContactNotes {
     }
 }
 
+/// CMSG_SOCIAL_CONTRACT_REQUEST.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SocialContractRequest;
+
+impl ClientPacket for SocialContractRequest {
+    const OPCODE: ClientOpcodes = ClientOpcodes::SocialContractRequest;
+
+    fn read(_packet: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self)
+    }
+}
+
+/// SMSG_SOCIAL_CONTRACT_REQUEST_RESPONSE.
+pub struct SocialContractRequestResponse {
+    pub show_social_contract: bool,
+}
+
+impl ServerPacket for SocialContractRequestResponse {
+    const OPCODE: ServerOpcodes = ServerOpcodes::SocialContractRequestResponse;
+
+    fn write(&self, w: &mut WorldPacket) {
+        w.write_bit(self.show_social_contract);
+        w.flush_bits();
+    }
+}
+
 /// SMSG_FRIEND_STATUS (0x278d)
 pub struct FriendStatusPkt {
     pub result: FriendsResult,
@@ -260,5 +286,15 @@ mod tests {
         assert_eq!(parsed.virtual_realm_address, 0x01020304);
         assert_eq!(parsed.notes, "raid leader");
         assert!(pkt.is_empty());
+    }
+
+    #[test]
+    fn social_contract_response_writes_single_false_bit_like_cpp() {
+        let response = SocialContractRequestResponse {
+            show_social_contract: false,
+        };
+        let bytes = response.to_bytes();
+
+        assert_eq!(bytes.last().copied(), Some(0));
     }
 }

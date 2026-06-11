@@ -17036,6 +17036,12 @@ impl WorldSession {
                     Err(e) => warn!("Failed to read SetContactNotes: {e}"),
                 }
             }
+            ClientOpcodes::SocialContractRequest => {
+                match wow_packet::packets::social::SocialContractRequest::read(&mut pkt) {
+                    Ok(_) => self.handle_social_contract_request().await,
+                    Err(e) => warn!("Failed to read SocialContractRequest: {e}"),
+                }
+            }
 
             // ── Group / Party opcodes ─────────────────────────────────────────
             ClientOpcodes::PartyInvite => {
@@ -17110,8 +17116,7 @@ impl WorldSession {
             // character select but require no response (Blizzard services).
             ClientOpcodes::BattlePayGetProductList
             | ClientOpcodes::BattlePayGetPurchaseList
-            | ClientOpcodes::UpdateVasPurchaseStates
-            | ClientOpcodes::SocialContractRequest => {
+            | ClientOpcodes::UpdateVasPurchaseStates => {
                 trace!(
                     "Stub handler for {:?} (0x{:04X}) — no response needed",
                     opcode, opcode_raw

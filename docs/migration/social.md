@@ -151,7 +151,7 @@ Note: `character_social` schema in 3.4.3 is `(guid, friend, flags, note)` — th
 - `crates/wow-social/src/lib.rs` — **0 lines** (empty stub; should host `PlayerSocial`, `SocialMgr`, presence-broadcast logic)
 - `crates/wow-world/src/handlers/social.rs` — covers ~55% of `Handlers/SocialHandler.cpp`
 - `crates/wow-world/src/handlers/inspect.rs` — 82 lines — covers ~30% of inspect (basic items + race/class/level only)
-- `crates/wow-packet/src/packets/social.rs` — `AddIgnore`, `DelIgnore`, `SetContactNotes`, `ContactInfo`, `ContactListPkt`, `FriendStatusPkt`, `FriendsResult`
+- `crates/wow-packet/src/packets/social.rs` — `AddIgnore`, `DelIgnore`, `SetContactNotes`, `SocialContractRequest(Response)`, `ContactInfo`, `ContactListPkt`, `FriendStatusPkt`, `FriendsResult`
 - `crates/wow-packet/src/packets/inspect.rs` — 120 lines — `InspectItem`, `InspectResult`
 
 **What's implemented:**
@@ -160,6 +160,7 @@ Note: `character_social` schema in 3.4.3 is `(guid, friend, flags, note)` — th
 - `CMSG_DEL_FRIEND` — parses C++ `QualifiedGUID`, clears `SOCIAL_FLAG_FRIEND` (`flags &= ~1`) and deletes the row only if no flags remain; emits `FRIEND_REMOVED`.
 - `CMSG_DEL_IGNORE` — parses C++ `QualifiedGUID`, clears `SOCIAL_FLAG_IGNORED` (`flags &= ~2`) and deletes the row only if no flags remain; emits `FRIEND_IGNORE_REMOVED`. Account-level ignored-account recompute remains missing.
 - `CMSG_SET_CONTACT_NOTES` — parses C++ `QualifiedGUID + notes_len(10) + Notes`, truncates to the 48-char DB/client limit and updates `character_social.note` for an existing contact; no response packet, matching C++.
+- `CMSG_SOCIAL_CONTRACT_REQUEST` — empty client packet; replies with `SMSG_SOCIAL_CONTRACT_REQUEST_RESPONSE { ShowSocialContract=false }`, matching C++.
 - `CMSG_SEND_CONTACT_LIST` — JOINs `character_social` × `characters`; populates `ContactInfo`; also emits `QueryPlayerNamesResponse` (name cache) so client can render names.
 - `CMSG_INSPECT` — registry lookup of target's broadcast info; sends `SMSG_INSPECT_RESULT` with target's race, class, level, gender + visible-items array (item_id only).
 - `FriendsResult` enum exists with the 28-ish variants (need full audit).
@@ -167,7 +168,6 @@ Note: `character_social` schema in 3.4.3 is `(guid, friend, flags, note)` — th
 **What's missing vs C++:**
 - **Account-level ignore** — `_ignoredAccounts` set + `WowAccountGuid` capture on add — missing entirely. Ignoring an alt does NOT propagate to the other alts.
 - **Mute (`SOCIAL_FLAG_MUTED`)** — unimplemented (would need voice-chat stack anyway, but flag persistence is missing).
-- **`CMSG_SOCIAL_CONTRACT_REQUEST`** — unhandled. Some retail clients expect a response and stall the EULA prompt.
 - **Friend-status presence broadcast** — when a player logs in/out/AFK/DND/zones, `SocialMgr::BroadcastToFriendListers` should push `FRIEND_STATUS_ONLINE/AFK/DND/OFFLINE` with new area/level. Rust does NOT broadcast these → friends never see status changes after initial list-fetch.
 - **Enemy-faction check** — `AddFriend` to an enemy is currently allowed; should reply `FRIEND_ENEMY` (0x0A) per Trinity.
 - **`character_social.accountGuid` column** — schema does not include it; Rust hard-codes `account_guid: ObjectGuid::EMPTY` everywhere.
@@ -198,7 +198,7 @@ Note: `character_social` schema in 3.4.3 is `(guid, friend, flags, note)` — th
 - [ ] **#SOCIAL.3** Add migration: `ALTER TABLE character_social ADD COLUMN accountGuid BIGINT UNSIGNED DEFAULT 0`. Complejidad: **L**
 - [ ] **#SOCIAL.4** Build `PlayerSocial` in `crates/wow-social` with in-memory `_playerSocialMap` + `_ignoredAccounts`; load on character entry-world; persist diffs on save. Complejidad: **H**
 - [x] **#SOCIAL.5** Implement `CMSG_SET_CONTACT_NOTES` — UPDATE `character_social` SET note with C++ 48-char truncation. Complejidad: **L**
-- [ ] **#SOCIAL.6** Implement `CMSG_SOCIAL_CONTRACT_REQUEST` — reply with `SMSG_SOCIAL_CONTRACT_REQUEST_RESPONSE { showed_contract: false }` for now. Complejidad: **L**
+- [x] **#SOCIAL.6** Implement `CMSG_SOCIAL_CONTRACT_REQUEST` — reply with `SMSG_SOCIAL_CONTRACT_REQUEST_RESPONSE { ShowSocialContract=false }`. Complejidad: **L**
 - [ ] **#SOCIAL.7** Implement friend-status presence broadcast: on `WorldSession::login`, `logout`, `toggle_afk`, `toggle_dnd`, `change_zone`, call `SocialMgr::broadcast_to_friend_listers` to push `SMSG_FRIEND_STATUS`. Complejidad: **H**
 - [x] **#SOCIAL.8** Enforce 50-entry caps for `AddFriend` (`SOCIALMGR_FRIEND_LIMIT`) and `AddIgnore` (`SOCIALMGR_IGNORE_LIMIT`). Complejidad: **L**
 - [ ] **#SOCIAL.9** Add enemy-faction check on `AddFriend` — reply `FRIEND_ENEMY` (0x0A). Complejidad: **L**
@@ -276,7 +276,7 @@ Side-by-side audit of `crates/wow-social/src/lib.rs` (empty) + `crates/wow-world
 **`/ignore` does not filter whispers — CONFIRMED.**
 Two-part proof:
 
-1. `crates/wow-world/src/handlers/social.rs` now registers per-character `AddIgnore`/`DelIgnore` and `SetContactNotes`, so flag bit 2 (`SOCIAL_FLAG_IGNORED`) can be written/cleared and contact notes can be edited. There is still no loaded `PlayerSocial`, no account-level `_ignoredAccounts`, and no `SocialContractRequest`.
+1. `crates/wow-world/src/handlers/social.rs` now registers per-character `AddIgnore`/`DelIgnore`, `SetContactNotes`, and `SocialContractRequest`, so flag bit 2 (`SOCIAL_FLAG_IGNORED`) can be written/cleared, contact notes can be edited, and the social-contract request gets the C++ response. There is still no loaded `PlayerSocial` and no account-level `_ignoredAccounts`.
 2. `crates/wow-world/src/handlers/chat.rs:187-257` (`handle_chat_whisper`) looks up the target by name in `player_registry()`, builds a `ChatPkt::Whisper`, and unconditionally `tx.send(to_target.to_bytes())` (`chat.rs:227`). There is no membership check against any per-recipient ignore set. The corresponding C++ path (`ChatHandler.cpp` whisper) calls `player->GetSocial()->HasIgnore(senderGuid, senderAccount)` and short-circuits with `WORLD_PACKET_IGNORE_TYPE_*` if true.
 
 Net effect after the represented `CMSG_ADD_IGNORE`/`CMSG_DEL_IGNORE` slices: clicking `Ignore Player` writes the per-character `SOCIAL_FLAG_IGNORED` row to `character_social`, and removing it clears only that flag like C++. `handle_chat_whisper` still does not consult that row and account-level ignore is still unavailable. The originator's ignore list can now persist/display, but chat blocking remains incomplete.
@@ -291,7 +291,7 @@ Net effect after the represented `CMSG_ADD_IGNORE`/`CMSG_DEL_IGNORE` slices: cli
 | `HandleAddIgnoreOpcode` | ✅ represented per-character `flags=2`, self/already/full/not-found gates | partial |
 | `HandleDelIgnoreOpcode` | ✅ represented per-character `flags &= ~2`, deletes row only when empty | partial |
 | `HandleSetContactNotesOpcode` | ✅ updates `character_social.note`, truncates to 48 chars | ok |
-| `HandleSocialContractRequest` | ❌ unregistered |  |
+| `HandleSocialContractRequest` | ✅ sends `ShowSocialContract=false` response | ok |
 | `HandleInspectOpcode` | ✅ `inspect.rs:33-81` (race/class/level/gender + visible-items only) | partial |
 | `HandleQueryInspectAchievements` | ❌ unregistered |  |
 | `HandleInspectPVP` | ❌ unregistered |  |

@@ -3,7 +3,8 @@
 // Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! Handlers for social opcodes: AddFriend, AddIgnore, DelFriend, DelIgnore, SendContactList, SetContactNotes.
+//! Handlers for social opcodes: AddFriend, AddIgnore, DelFriend, DelIgnore, SendContactList,
+//! SetContactNotes, SocialContractRequest.
 
 use std::sync::Arc;
 
@@ -16,7 +17,7 @@ use wow_packet::packets::query::{
 };
 use wow_packet::packets::social::{
     AddIgnore, ContactInfo, ContactListPkt, DelIgnore, FriendStatusPkt, FriendsResult,
-    SetContactNotes,
+    SetContactNotes, SocialContractRequestResponse,
 };
 
 use crate::session::WorldSession;
@@ -74,6 +75,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_contact_notes",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::SocialContractRequest,
+        status: SessionStatus::Authed,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_social_contract_request",
     }
 }
 
@@ -521,6 +531,16 @@ impl WorldSession {
         {
             warn!("SetContactNotes update error: {}", e);
         }
+    }
+
+    /// Handle CMSG_SOCIAL_CONTRACT_REQUEST.
+    ///
+    /// C++ ref: `WorldSession::HandleSocialContractRequest` sends a
+    /// `SocialContractRequestResponse` with `ShowSocialContract = false`.
+    pub async fn handle_social_contract_request(&mut self) {
+        self.send_packet(&SocialContractRequestResponse {
+            show_social_contract: false,
+        });
     }
 
     /// CMSG_SEND_CONTACT_LIST (0x36d7)
