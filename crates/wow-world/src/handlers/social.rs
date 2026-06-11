@@ -3,7 +3,7 @@
 // Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! Handlers for social opcodes: AddFriend, AddIgnore, DelFriend, DelIgnore, SendContactList.
+//! Handlers for social opcodes: AddFriend, AddIgnore, DelFriend, DelIgnore, SendContactList, SetContactNotes.
 
 use std::sync::Arc;
 
@@ -16,6 +16,7 @@ use wow_packet::packets::query::{
 };
 use wow_packet::packets::social::{
     AddIgnore, ContactInfo, ContactListPkt, DelIgnore, FriendStatusPkt, FriendsResult,
+    SetContactNotes,
 };
 
 use crate::session::WorldSession;
@@ -64,6 +65,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_send_contact_list",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::SetContactNotes,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_set_contact_notes",
     }
 }
 
@@ -482,6 +492,35 @@ impl WorldSession {
             class_id: 0,
             notes: String::new(),
         });
+    }
+
+    /// Handle CMSG_SET_CONTACT_NOTES.
+    ///
+    /// C++ ref: `WorldSession::HandleSetContactNotesOpcode` delegates to
+    /// `PlayerSocial::SetFriendNote`, which silently returns if the contact is
+    /// not present and truncates the stored note to 48 UTF-8 chars.
+    pub async fn handle_set_contact_notes(&mut self, contact: SetContactNotes) {
+        let my_guid = match self.player_guid() {
+            Some(g) => g,
+            None => return,
+        };
+
+        let char_db = match self.char_db() {
+            Some(db) => Arc::clone(db),
+            None => return,
+        };
+
+        let note: String = contact.notes.chars().take(48).collect();
+        if let Err(e) =
+            sqlx::query("UPDATE character_social SET note = ? WHERE guid = ? AND friend = ?")
+                .bind(note)
+                .bind(my_guid.counter())
+                .bind(contact.player_guid.counter())
+                .execute(char_db.pool())
+                .await
+        {
+            warn!("SetContactNotes update error: {}", e);
+        }
     }
 
     /// CMSG_SEND_CONTACT_LIST (0x36d7)

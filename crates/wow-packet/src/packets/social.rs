@@ -85,6 +85,33 @@ impl ClientPacket for DelIgnore {
     }
 }
 
+/// CMSG_SET_CONTACT_NOTES.
+///
+/// C++ `WorldPackets::Social::SetContactNotes::Read` reads a `QualifiedGUID`,
+/// then a 10-bit note length and the note string.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SetContactNotes {
+    pub player_guid: ObjectGuid,
+    pub virtual_realm_address: u32,
+    pub notes: String,
+}
+
+impl ClientPacket for SetContactNotes {
+    const OPCODE: ClientOpcodes = ClientOpcodes::SetContactNotes;
+
+    fn read(packet: &mut WorldPacket) -> Result<Self, PacketError> {
+        let player_guid = packet.read_packed_guid()?;
+        let virtual_realm_address = packet.read_uint32()?;
+        let notes_len = packet.read_bits(10)? as usize;
+        let notes = packet.read_string(notes_len)?;
+        Ok(Self {
+            player_guid,
+            virtual_realm_address,
+            notes,
+        })
+    }
+}
+
 /// SMSG_FRIEND_STATUS (0x278d)
 pub struct FriendStatusPkt {
     pub result: FriendsResult,
@@ -215,6 +242,23 @@ mod tests {
 
         assert_eq!(parsed.player_guid, player_guid);
         assert_eq!(parsed.virtual_realm_address, 0xAABBCCDD);
+        assert!(pkt.is_empty());
+    }
+
+    #[test]
+    fn set_contact_notes_reads_cpp_qualified_guid_length_notes_order() {
+        let player_guid = ObjectGuid::create_player(1, 0x102030);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_packed_guid(&player_guid);
+        pkt.write_uint32(0x01020304);
+        pkt.write_bits(11, 10);
+        pkt.write_string("raid leader");
+
+        let parsed = SetContactNotes::read(&mut pkt).expect("set contact notes packet");
+
+        assert_eq!(parsed.player_guid, player_guid);
+        assert_eq!(parsed.virtual_realm_address, 0x01020304);
+        assert_eq!(parsed.notes, "raid leader");
         assert!(pkt.is_empty());
     }
 }

@@ -17030,6 +17030,12 @@ impl WorldSession {
             ClientOpcodes::SendContactList => {
                 self.handle_send_contact_list(pkt).await;
             }
+            ClientOpcodes::SetContactNotes => {
+                match wow_packet::packets::social::SetContactNotes::read(&mut pkt) {
+                    Ok(contact) => self.handle_set_contact_notes(contact).await,
+                    Err(e) => warn!("Failed to read SetContactNotes: {e}"),
+                }
+            }
 
             // ── Group / Party opcodes ─────────────────────────────────────────
             ClientOpcodes::PartyInvite => {
