@@ -4389,12 +4389,12 @@ impl WorldSession {
             PlayerAwayModeLikeCpp::Afk => (
                 PLAYER_FLAGS_AFK_LIKE_CPP,
                 PLAYER_FLAGS_DND_LIKE_CPP,
-                "Away",
+                "Away from Keyboard",
             ),
             PlayerAwayModeLikeCpp::Dnd => (
                 PLAYER_FLAGS_DND_LIKE_CPP,
                 PLAYER_FLAGS_AFK_LIKE_CPP,
-                "Busy",
+                "Do not Disturb",
             ),
         };
 
@@ -63394,6 +63394,26 @@ mod tests {
     }
 
     #[test]
+    fn chat_afk_empty_text_uses_cpp_default_auto_reply_like_cpp() {
+        let (mut session, _, guid) = session_with_canonical_player_for_away_like_cpp();
+
+        assert!(session.apply_chat_away_mode_like_cpp(
+            PlayerAwayModeLikeCpp::Afk,
+            String::new()
+        ));
+
+        assert_eq!(session.auto_reply_msg_like_cpp(), "Away from Keyboard");
+        assert_eq!(
+            session.canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_AFK_LIKE_CPP),
+            Some(true)
+        );
+        assert_eq!(
+            session.canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_DND_LIKE_CPP),
+            Some(false)
+        );
+    }
+
+    #[test]
     fn chat_dnd_clears_afk_like_cpp() {
         let (mut session, _, guid) = session_with_canonical_player_for_away_like_cpp();
         assert!(session.apply_chat_away_mode_like_cpp(
@@ -63407,6 +63427,26 @@ mod tests {
         ));
 
         assert_eq!(session.auto_reply_msg_like_cpp(), "busy");
+        assert_eq!(
+            session.canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_AFK_LIKE_CPP),
+            Some(false)
+        );
+        assert_eq!(
+            session.canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_DND_LIKE_CPP),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn chat_dnd_empty_text_uses_cpp_default_auto_reply_like_cpp() {
+        let (mut session, _, guid) = session_with_canonical_player_for_away_like_cpp();
+
+        assert!(session.apply_chat_away_mode_like_cpp(
+            PlayerAwayModeLikeCpp::Dnd,
+            String::new()
+        ));
+
+        assert_eq!(session.auto_reply_msg_like_cpp(), "Do not Disturb");
         assert_eq!(
             session.canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_AFK_LIKE_CPP),
             Some(false)
