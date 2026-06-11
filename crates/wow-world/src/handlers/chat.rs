@@ -390,10 +390,20 @@ impl WorldSession {
         let target_info = self.player_registry().and_then(|reg| {
             reg.iter()
                 .find(|e| e.value().player_name.eq_ignore_ascii_case(&target_name))
-                .map(|e| (e.value().send_tx.clone(), e.value().is_game_master))
+                .map(|e| {
+                    (
+                        e.value().send_tx.clone(),
+                        e.value().is_game_master,
+                        e.value().is_afk,
+                        e.value().is_dnd,
+                        e.value().auto_reply_msg_like_cpp.clone(),
+                    )
+                })
         });
 
-        if let Some((tx, target_is_game_master)) = target_info {
+        if let Some((tx, target_is_game_master, target_is_afk, target_is_dnd, target_auto_reply)) =
+            target_info
+        {
             if self.has_gm_silence_aura_like_cpp() && !target_is_game_master {
                 return;
             }
@@ -427,6 +437,12 @@ impl WorldSession {
                 virtual_realm,
             };
             self.send_packet(&inform);
+
+            if target_is_afk {
+                self.send_whisper_away_reply_like_cpp(&target_name, &target_auto_reply, true);
+            } else if target_is_dnd {
+                self.send_whisper_away_reply_like_cpp(&target_name, &target_auto_reply, false);
+            }
         } else {
             self.send_packet(&ChatPlayerNotfound { name: target_name });
         }
@@ -1017,6 +1033,31 @@ impl WorldSession {
         };
         self.player_level_like_cpp() >= required
     }
+
+    fn send_whisper_away_reply_like_cpp(&mut self, target_name: &str, auto_reply: &str, afk: bool) {
+        let text = if afk {
+            // C++ `LANG_PLAYER_AFK`: "%s is Away from Keyboard: %s".
+            format!("{target_name} is Away from Keyboard: {auto_reply}")
+        } else {
+            // C++ `LANG_PLAYER_DND`: "%s wishes to not be disturbed and cannot receive whisper messages: %s".
+            format!(
+                "{target_name} wishes to not be disturbed and cannot receive whisper messages: {auto_reply}"
+            )
+        };
+        let packet = ChatPkt {
+            msg_type: ChatMsg::System,
+            language: LANG_UNIVERSAL_LIKE_CPP as u32,
+            sender_guid: ObjectGuid::EMPTY,
+            sender_name: String::new(),
+            target_guid: ObjectGuid::EMPTY,
+            target_name: String::new(),
+            prefix: String::new(),
+            channel: String::new(),
+            text,
+            virtual_realm: self.virtual_realm_address(),
+        };
+        self.send_packet(&packet);
+    }
 }
 
 #[cfg(test)]
@@ -1164,6 +1205,7 @@ mod tests {
             is_ghost: false,
             is_afk: false,
             is_dnd: false,
+            auto_reply_msg_like_cpp: String::new(),
             in_vehicle: false,
             party_member_vehicle_seat: 0,
             zone_id: 0,
@@ -1701,6 +1743,70 @@ mod tests {
         assert_eq!(
             chat_slash_cmd(&sender_rx.try_recv().expect("sender inform")),
             ChatMsg::WhisperInform as u8
+        );
+    }
+
+    #[tokio::test]
+    async fn whisper_to_afk_player_sends_auto_reply_to_sender_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 379);
+        let target = ObjectGuid::create_player(1, 380);
+        let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
+        let (target_tx, target_rx) = flume::bounded(8);
+        let mut target_info = broadcast_info(target, target_tx);
+        target_info.player_name = "Target".to_string();
+        target_info.is_afk = true;
+        target_info.auto_reply_msg_like_cpp = "back soon".to_string();
+        player_registry.insert(target, target_info);
+
+        session
+            .handle_chat_whisper(chat_whisper_packet("Target", "hello"))
+            .await;
+
+        assert_eq!(
+            chat_slash_cmd(&target_rx.try_recv().expect("target whisper")),
+            ChatMsg::Whisper as u8
+        );
+        assert_eq!(
+            chat_slash_cmd(&sender_rx.try_recv().expect("sender inform")),
+            ChatMsg::WhisperInform as u8
+        );
+        let system = sender_rx.try_recv().expect("sender afk auto reply");
+        assert_eq!(chat_slash_cmd(&system), ChatMsg::System as u8);
+        assert_eq!(
+            chat_text(&system),
+            "Target is Away from Keyboard: back soon"
+        );
+    }
+
+    #[tokio::test]
+    async fn whisper_to_dnd_player_sends_auto_reply_to_sender_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 381);
+        let target = ObjectGuid::create_player(1, 382);
+        let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
+        let (target_tx, target_rx) = flume::bounded(8);
+        let mut target_info = broadcast_info(target, target_tx);
+        target_info.player_name = "Target".to_string();
+        target_info.is_dnd = true;
+        target_info.auto_reply_msg_like_cpp = "busy".to_string();
+        player_registry.insert(target, target_info);
+
+        session
+            .handle_chat_whisper(chat_whisper_packet("Target", "hello"))
+            .await;
+
+        assert_eq!(
+            chat_slash_cmd(&target_rx.try_recv().expect("target whisper")),
+            ChatMsg::Whisper as u8
+        );
+        assert_eq!(
+            chat_slash_cmd(&sender_rx.try_recv().expect("sender inform")),
+            ChatMsg::WhisperInform as u8
+        );
+        let system = sender_rx.try_recv().expect("sender dnd auto reply");
+        assert_eq!(chat_slash_cmd(&system), ChatMsg::System as u8);
+        assert_eq!(
+            chat_text(&system),
+            "Target wishes to not be disturbed and cannot receive whisper messages: busy"
         );
     }
 

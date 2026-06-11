@@ -2208,6 +2208,7 @@ mod tests {
             is_ghost: false,
             is_afk: false,
             is_dnd: false,
+            auto_reply_msg_like_cpp: String::new(),
             in_vehicle: false,
             party_member_vehicle_seat: 0,
             zone_id: 0,

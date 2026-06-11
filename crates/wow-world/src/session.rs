@@ -14672,6 +14672,7 @@ impl WorldSession {
                 is_ghost,
                 is_afk,
                 is_dnd,
+                auto_reply_msg_like_cpp: self.auto_reply_msg_like_cpp.clone(),
                 in_vehicle: self.player_vehicle_seat_flags_like_cpp.is_some(),
                 party_member_vehicle_seat: self
                     .player_vehicle_seat_id_like_cpp
@@ -14786,6 +14787,7 @@ impl WorldSession {
                     .canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_DND_LIKE_CPP)
                     .unwrap_or(false);
             }
+            info.auto_reply_msg_like_cpp = self.auto_reply_msg_like_cpp.clone();
             info.in_vehicle = self.player_vehicle_seat_flags_like_cpp.is_some();
             info.party_member_vehicle_seat = self
                 .player_vehicle_seat_id_like_cpp
@@ -46826,6 +46828,7 @@ mod tests {
             is_ghost: false,
             is_afk: false,
             is_dnd: false,
+            auto_reply_msg_like_cpp: String::new(),
             in_vehicle: false,
             party_member_vehicle_seat: 0,
             zone_id: 0,

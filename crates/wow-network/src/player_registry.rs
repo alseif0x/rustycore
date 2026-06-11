@@ -330,6 +330,8 @@ pub struct PlayerBroadcastInfo {
     pub is_afk: bool,
     /// Represented `Player::isDND()` snapshot for party member full-state packets.
     pub is_dnd: bool,
+    /// Represented `Player::autoReplyMsg` snapshot used by C++ whisper AFK/DND replies.
+    pub auto_reply_msg_like_cpp: String,
     /// Represented `Player::GetVehicle() != nullptr` snapshot for party member full-state packets.
     pub in_vehicle: bool,
     /// Represented `VehicleSeatEntry::ID` from `Vehicle::GetSeatForPassenger(player)`.
@@ -465,6 +467,7 @@ mod tests {
             is_ghost: false,
             is_afk: false,
             is_dnd: false,
+            auto_reply_msg_like_cpp: String::new(),
             in_vehicle: false,
             party_member_vehicle_seat: 0,
             zone_id: 0,
