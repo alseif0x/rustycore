@@ -9,6 +9,7 @@ mod rpc;
 mod state;
 
 use anyhow::{Context, Result};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio_rustls::TlsAcceptor;
@@ -105,6 +106,15 @@ async fn main() -> Result<()> {
     let rpc_port: u16 = wow_config::get_value("BattlenetPort").unwrap_or(1119);
     let external_address = wow_config::get_string_default("LoginREST.ExternalAddress", "127.0.0.1");
     let local_address = wow_config::get_string_default("LoginREST.LocalAddress", "127.0.0.1");
+    let rest_addresses =
+        resolve_login_rest_addresses_like_cpp(&external_address, &local_address, rest_port).await?;
+    tracing::info!(
+        external_hostname = %rest_addresses.external_hostname,
+        external_address = %rest_addresses.external_address,
+        local_hostname = %rest_addresses.local_hostname,
+        local_address = %rest_addresses.local_address,
+        "LoginREST addresses resolved"
+    );
     let ticket_duration: u64 = wow_config::get_value("LoginREST.TicketDuration").unwrap_or(3600);
     let wrong_pass_max: u32 = wow_config::get_value("WrongPass.MaxCount").unwrap_or(0);
     let wrong_pass_ban_time: u32 = wow_config::get_value("WrongPass.BanTime").unwrap_or(600);
@@ -116,8 +126,8 @@ async fn main() -> Result<()> {
 
     let state = Arc::new(AppState::new(
         login_db,
-        external_address,
-        local_address,
+        rest_addresses.external_hostname,
+        rest_addresses.local_hostname,
         rest_port,
         rpc_port,
         ticket_duration,
@@ -311,6 +321,59 @@ fn bnet_thread_config_from_values_like_cpp(
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct LoginRestResolvedAddressesLikeCpp {
+    external_hostname: String,
+    external_address: Ipv4Addr,
+    local_hostname: String,
+    local_address: Ipv4Addr,
+}
+
+async fn resolve_login_rest_addresses_like_cpp(
+    external_hostname: &str,
+    local_hostname: &str,
+    port: u16,
+) -> Result<LoginRestResolvedAddressesLikeCpp> {
+    let external_address =
+        resolve_login_rest_address_like_cpp("LoginREST.ExternalAddress", external_hostname, port)
+            .await?;
+    let local_address =
+        resolve_login_rest_address_like_cpp("LoginREST.LocalAddress", local_hostname, port).await?;
+
+    Ok(LoginRestResolvedAddressesLikeCpp {
+        external_hostname: external_hostname.to_string(),
+        external_address,
+        local_hostname: local_hostname.to_string(),
+        local_address,
+    })
+}
+
+async fn resolve_login_rest_address_like_cpp(
+    config_key: &str,
+    hostname: &str,
+    port: u16,
+) -> Result<Ipv4Addr> {
+    let endpoints = tokio::net::lookup_host((hostname, port))
+        .await
+        .with_context(|| format!("Could not resolve {config_key} {hostname}"))?;
+    let address = first_ipv4_address_like_cpp(endpoints)
+        .with_context(|| format!("Could not resolve {config_key} {hostname} to an IPv4 address"))?;
+
+    tracing::info!(config_key, hostname, %address, "Resolved LoginREST address");
+    Ok(address)
+}
+
+fn first_ipv4_address_like_cpp(
+    endpoints: impl IntoIterator<Item = SocketAddr>,
+) -> Option<Ipv4Addr> {
+    endpoints
+        .into_iter()
+        .find_map(|endpoint| match endpoint.ip() {
+            IpAddr::V4(address) => Some(address),
+            IpAddr::V6(_) => None,
+        })
+}
+
 fn listener_task_exit_like_cpp(
     service_name: &str,
     result: std::result::Result<(), tokio::task::JoinError>,
@@ -490,10 +553,11 @@ mod tests {
     use super::{
         bnet_full_version_like_cpp, bnet_thread_config_from_values_like_cpp,
         create_pid_file_like_cpp, db_keep_alive_interval_duration_like_cpp,
-        listener_task_exit_like_cpp, load_bnet_config_from,
+        first_ipv4_address_like_cpp, listener_task_exit_like_cpp, load_bnet_config_from,
     };
     use std::env;
     use std::fs;
+    use std::net::{Ipv4Addr, SocketAddr};
     use std::path::PathBuf;
     use std::sync::Mutex;
 
@@ -601,6 +665,23 @@ LoginDatabaseInfo = "127.0.0.1;3306;trinity;trinity;auth"
             error
                 .to_string()
                 .contains("REST listener stopped unexpectedly")
+        );
+    }
+
+    #[test]
+    fn login_rest_resolution_selects_ipv4_endpoint_like_cpp() {
+        let endpoints = [
+            "[::1]:8081".parse::<SocketAddr>().unwrap(),
+            "192.0.2.10:8081".parse::<SocketAddr>().unwrap(),
+        ];
+
+        assert_eq!(
+            first_ipv4_address_like_cpp(endpoints),
+            Some(Ipv4Addr::new(192, 0, 2, 10))
+        );
+        assert_eq!(
+            first_ipv4_address_like_cpp(["[::1]:8081".parse::<SocketAddr>().unwrap()]),
+            None
         );
     }
 

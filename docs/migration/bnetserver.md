@@ -558,7 +558,7 @@ Resolved since the original audit: `extract_auth_ticket` now mirrors TC's `Extra
 | `sSecretMgr->Initialize(SECRET_OWNER_BNETSERVER)` | persist HMAC key | none | ❌ |
 | `sIPLocation->Load()` | parse GeoIP CSV | none | ❌ |
 | `Trinity::Net::ScanLocalNetworks()` | enumerate own subnets for "client is local" check | none — Rust uses literal `127.0.0.1` / same-/24 logic in `realm/mod.rs::select_realm_ip_str` | ⚠️ partial |
-| `sLoginService.StartNetwork(...)` (DNS-resolves `LoginREST.{External,Local}Address`, registers 8 handlers, calls `_acceptor->AsyncAcceptWithCallback<&OnSocketAccept>()`) | — | bind `tokio::net::TcpListener`, accept-loop spawns one task per conn, no DNS resolution of hostnames | ⚠️ no DNS resolve, fewer handlers |
+| `sLoginService.StartNetwork(...)` (DNS-resolves `LoginREST.{External,Local}Address`, registers 8 handlers, calls `_acceptor->AsyncAcceptWithCallback<&OnSocketAccept>()`) | — | resolves both LoginREST hostnames to IPv4 at startup, binds `tokio::net::TcpListener`, accept-loop spawns one task per conn | ⚠️ fewer handlers |
 | `sRealmList->Initialize(io, RealmsStateUpdateDelay)` | DB poll `LoginDatabase` every N s + initial `LoadBuildInfo` | `realm::init_realm_manager` does the same | ✅ |
 | `sSessionMgr.StartNetwork(io, BindIP, BattlenetPort)` | TLS RPC acceptor on 1119 | identical, separate `TlsAcceptor` | ✅ |
 | `boost::asio::signal_set(SIGINT, SIGTERM)` | graceful shutdown trigger | `tokio::signal::ctrl_c` plus Unix `SIGTERM` stream; in-flight drain still tracked under clean shutdown | ✅ trigger parity |
@@ -636,7 +636,7 @@ Add these to §9 (existing tasks #BNET.1–#BNET.14 stand):
 - [x] **#BNET.21** Persist failed login attempts and autobans per `WrongPass.MaxCount`/`BanTime`/`BanType`/`Logging` for BNet REST login. Rust writes `battlenet_accounts.failed_logins`, `battlenet_account_bans` or `ip_banned`, and resets failed-login count at the configured threshold like TC. Subsumes `#BNET.8`.
 - [x] **#BNET.22** Install SIGTERM handler alongside `ctrl_c` so `kill <pid>` shuts down cleanly. Rust now awaits SIGINT or Unix SIGTERM like TC's `boost::asio::signal_set`; graceful in-flight request draining remains under #BNET.14.
 - [x] **#BNET.23** Match `HandlePostRefreshLoginTicket` response shape: `{ login_ticket_expiry: <unix> }` or `{ is_expired: true }`, not `{ login_ticket: "…" }`.
-- [ ] **#BNET.24** Resolve `LoginREST.{External,Local}Address` via DNS at startup (TC does, fails fast on bad hostname). Today Rust silently uses the literal string.
+- [x] **#BNET.24** Resolve `LoginREST.{External,Local}Address` via DNS at startup. Rust now mirrors TC by resolving both hostnames as IPv4 using the REST port and failing startup if either cannot resolve, while preserving the original hostname strings for URLs/cookies.
 
 ### 13.8 Header status update
 
