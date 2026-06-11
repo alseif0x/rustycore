@@ -73,8 +73,9 @@ use wow_data::{
     SpellDurationStore, SpellItemEnchantmentStore, SpellMiscStore, SpellRadiusStore,
     SpellRangeStore, SpellStore, SpellTargetPositionStoreLikeCpp, SummonPropertiesEntry, ToyStore,
     TransmogSetEntry, TransmogSetItemStore, VEHICLE_SEAT_FLAG_CAN_ATTACK,
-    VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
-    calculate_battle_pet_stats_like_cpp, is_player_meeting_condition_like_cpp,
+    VEHICLE_SEAT_FLAG_CAN_ENTER_OR_EXIT, VehicleAccessoryStoreLikeCpp, VehicleSeatStore,
+    VehicleStore, VehicleTemplateStoreLikeCpp, calculate_battle_pet_stats_like_cpp,
+    is_player_meeting_condition_like_cpp,
     progression_rewards::{
         ContentTuningStore, FactionEntry, FactionStore, FactionTemplateStore,
         FriendshipRepReactionStore, ParagonReputationStore, QuestFactionRewardStore,
@@ -18957,6 +18958,20 @@ impl WorldSession {
         self.player_vehicle_seat_flags_like_cpp.is_some()
             || self.player_mounted_like_cpp
             || gameobject_usable_mounted
+    }
+
+    pub(crate) fn represented_request_vehicle_exit_like_cpp(&mut self) -> bool {
+        let Some(seat_flags) = self.player_vehicle_seat_flags_like_cpp else {
+            return false;
+        };
+        if seat_flags & VEHICLE_SEAT_FLAG_CAN_ENTER_OR_EXIT == 0 {
+            return false;
+        }
+
+        self.player_vehicle_seat_flags_like_cpp = None;
+        self.player_vehicle_seat_id_like_cpp = None;
+        self.sync_player_registry_state_like_cpp();
+        true
     }
 
     fn has_recently_dropped_flag_debuff_like_cpp(&self) -> bool {
@@ -46770,6 +46785,56 @@ mod tests {
         let info = registry.get(&guid).expect("registered player");
         assert!(info.in_vehicle);
         assert_eq!(info.party_member_vehicle_seat, 1001);
+    }
+
+    #[test]
+    fn represented_request_vehicle_exit_clears_party_vehicle_state_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let guid = ObjectGuid::create_player(1, 50);
+        let registry = Arc::new(PlayerRegistry::default());
+        let position = Position::new(1.0, 2.0, 3.0, 0.0);
+        session.set_player_guid(Some(guid));
+        session.set_player_map_position_like_cpp(571, position);
+        session.player_name = Some("VehicleExitTester".to_string());
+        session.player_vehicle_seat_flags_like_cpp =
+            Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ENTER_OR_EXIT);
+        session.player_vehicle_seat_id_like_cpp = Some(1001);
+        session.set_player_registry(Arc::clone(&registry));
+        session.register_in_player_registry();
+
+        assert!(session.represented_request_vehicle_exit_like_cpp());
+
+        assert!(session.player_vehicle_seat_flags_like_cpp.is_none());
+        assert!(session.player_vehicle_seat_id_like_cpp.is_none());
+        let info = registry.get(&guid).expect("registered player");
+        assert!(!info.in_vehicle);
+        assert_eq!(info.party_member_vehicle_seat, 0);
+    }
+
+    #[test]
+    fn represented_request_vehicle_exit_rejects_non_exit_seat_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let guid = ObjectGuid::create_player(1, 51);
+        let registry = Arc::new(PlayerRegistry::default());
+        let position = Position::new(1.0, 2.0, 3.0, 0.0);
+        session.set_player_guid(Some(guid));
+        session.set_player_map_position_like_cpp(571, position);
+        session.player_name = Some("VehicleExitRejectTester".to_string());
+        session.player_vehicle_seat_flags_like_cpp = Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK);
+        session.player_vehicle_seat_id_like_cpp = Some(1002);
+        session.set_player_registry(Arc::clone(&registry));
+        session.register_in_player_registry();
+
+        assert!(!session.represented_request_vehicle_exit_like_cpp());
+
+        assert_eq!(
+            session.player_vehicle_seat_flags_like_cpp,
+            Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK)
+        );
+        assert_eq!(session.player_vehicle_seat_id_like_cpp, Some(1002));
+        let info = registry.get(&guid).expect("registered player");
+        assert!(info.in_vehicle);
+        assert_eq!(info.party_member_vehicle_seat, 1002);
     }
 
     #[test]

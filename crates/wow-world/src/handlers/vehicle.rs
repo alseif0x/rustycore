@@ -205,7 +205,9 @@ impl WorldSession {
     pub async fn handle_eject_passenger(&mut self, _packet: EjectPassenger) {}
 
     /// C++ `HandleRequestVehicleExit`.
-    pub async fn handle_request_vehicle_exit(&mut self, _packet: RequestVehicleExit) {}
+    pub async fn handle_request_vehicle_exit(&mut self, _packet: RequestVehicleExit) {
+        self.represented_request_vehicle_exit_like_cpp();
+    }
 }
 
 inventory::submit! {
