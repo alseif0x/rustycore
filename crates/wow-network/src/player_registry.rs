@@ -393,6 +393,20 @@ pub struct PlayerBroadcastInfo {
     pub display_id: u32,
     /// Equipped item display info: (item_entry, enchant_display_id, subclass) per slot 0-18
     pub visible_items: [(i32, u16, u16); 19],
+    /// C++ `ActivePlayerData::LifetimeHonorableKills` snapshot for inspect honor stats.
+    pub lifetime_honorable_kills: u32,
+    /// C++ `ActivePlayerData::ThisWeekContribution` snapshot for inspect honor stats.
+    pub this_week_contribution: u32,
+    /// C++ `ActivePlayerData::YesterdayContribution` snapshot for inspect honor stats.
+    pub yesterday_contribution: u32,
+    /// C++ `ActivePlayerData::TodayHonorableKills` snapshot for inspect honor stats.
+    pub today_honorable_kills: u16,
+    /// C++ `ActivePlayerData::YesterdayHonorableKills` snapshot for inspect honor stats.
+    pub yesterday_honorable_kills: u16,
+    /// C++ `ActivePlayerData::LifetimeMaxRank` snapshot for inspect honor stats.
+    pub lifetime_max_rank: u32,
+    /// C++ `PlayerData::HonorLevel` snapshot for inspect honor stats.
+    pub honor_level: u32,
 }
 
 /// Thread-safe registry of all active player sessions, keyed by player GUID.
@@ -473,6 +487,13 @@ mod tests {
             gray_level: 0,
             display_id: 49,
             visible_items: [(0, 0, 0); 19],
+            lifetime_honorable_kills: 0,
+            this_week_contribution: 0,
+            yesterday_contribution: 0,
+            today_honorable_kills: 0,
+            yesterday_honorable_kills: 0,
+            lifetime_max_rank: 0,
+            honor_level: 0,
         };
         assert_eq!(info.instance_id, 42);
         assert_eq!(info.map_id, 571);

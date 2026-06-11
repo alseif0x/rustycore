@@ -11340,6 +11340,28 @@ impl WorldSession {
         })
     }
 
+    pub(crate) fn canonical_player_honor_stats_snapshot_like_cpp(
+        &self,
+    ) -> (u32, u32, u32, u16, u16, u32, u32) {
+        self.canonical_player_snapshot_like_cpp(|player| {
+            (
+                // C++ reads these six values from `m_activePlayerData`, but
+                // Rust's canonical `ActivePlayerDataValues` does not model the
+                // historic honor counters yet. Keep the packet field order
+                // represented and leave the counters zero until that L4/PvP
+                // state is ported.
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                player.data().honor_level.max(0) as u32,
+            )
+        })
+        .unwrap_or_default()
+    }
+
     pub(crate) fn canonical_player_reputation_standing_like_cpp(
         &self,
         faction_id: u32,
@@ -14533,6 +14555,15 @@ impl WorldSession {
         let (power_type, current_power, max_power) = self
             .canonical_player_party_power_snapshot_like_cpp()
             .unwrap_or_else(|| (party_member_power_type_for_class_like_cpp(class), 0, 0));
+        let (
+            lifetime_honorable_kills,
+            this_week_contribution,
+            yesterday_contribution,
+            today_honorable_kills,
+            yesterday_honorable_kills,
+            lifetime_max_rank,
+            honor_level,
+        ) = self.canonical_player_honor_stats_snapshot_like_cpp();
         reg.insert(
             guid,
             PlayerBroadcastInfo {
@@ -14615,6 +14646,13 @@ impl WorldSession {
                 gray_level: self.gray_level(level),
                 display_id: default_display_id(race, gender),
                 visible_items,
+                lifetime_honorable_kills,
+                this_week_contribution,
+                yesterday_contribution,
+                today_honorable_kills,
+                yesterday_honorable_kills,
+                lifetime_max_rank,
+                honor_level,
             },
         );
         debug!(
@@ -14718,6 +14756,22 @@ impl WorldSession {
                     .unwrap_or_default();
             info.party_member_auras = self.party_member_visible_auras_like_cpp();
             info.party_member_pet_stats = self.party_member_pet_stats_like_cpp();
+            let (
+                lifetime_honorable_kills,
+                this_week_contribution,
+                yesterday_contribution,
+                today_honorable_kills,
+                yesterday_honorable_kills,
+                lifetime_max_rank,
+                honor_level,
+            ) = self.canonical_player_honor_stats_snapshot_like_cpp();
+            info.lifetime_honorable_kills = lifetime_honorable_kills;
+            info.this_week_contribution = this_week_contribution;
+            info.yesterday_contribution = yesterday_contribution;
+            info.today_honorable_kills = today_honorable_kills;
+            info.yesterday_honorable_kills = yesterday_honorable_kills;
+            info.lifetime_max_rank = lifetime_max_rank;
+            info.honor_level = honor_level;
         }
     }
 
@@ -17119,6 +17173,9 @@ impl WorldSession {
 
             ClientOpcodes::Inspect => {
                 self.handle_inspect(pkt).await;
+            }
+            ClientOpcodes::RequestHonorStats => {
+                self.handle_request_honor_stats(pkt).await;
             }
 
             // Empty stubs matching C# — these client opcodes are sent during

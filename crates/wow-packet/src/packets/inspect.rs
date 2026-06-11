@@ -3,11 +3,30 @@
 // Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! Inspect packet definitions: SMSG_INSPECT_RESULT.
+//! Inspect packet definitions: inspect request/response packets.
 
-use crate::{ServerPacket, WorldPacket};
-use wow_constants::ServerOpcodes;
+use crate::{ClientPacket, PacketError, ServerPacket, WorldPacket};
+use wow_constants::{ClientOpcodes, ServerOpcodes};
 use wow_core::ObjectGuid;
+
+/// CMSG_REQUEST_HONOR_STATS.
+///
+/// C++ `WorldPackets::Inspect::RequestHonorStats::Read` reads a target
+/// `ObjectGuid`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RequestHonorStats {
+    pub target: ObjectGuid,
+}
+
+impl ClientPacket for RequestHonorStats {
+    const OPCODE: ClientOpcodes = ClientOpcodes::RequestHonorStats;
+
+    fn read(packet: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            target: packet.read_packed_guid()?,
+        })
+    }
+}
 
 /// An equipped item for the inspect result.
 pub struct InspectItem {
@@ -116,5 +135,84 @@ impl ServerPacket for InspectResult {
         w.write_bits(0u32, 9); // Name length = 0
         w.flush_bits();
         // WriteString("") — empty, nothing written
+    }
+}
+
+/// SMSG_INSPECT_HONOR_STATS.
+///
+/// C++ `WorldPackets::Inspect::InspectHonorStatsResponse::Write` serializes:
+/// `Target`, `LifetimeHK`, `TodayContribution`, `YesterdayContribution`,
+/// `TodayHK`, `YesterdayHK`, `LifetimeMaxRank`, `HonorLevel`.
+pub struct InspectHonorStatsResponse {
+    pub target: ObjectGuid,
+    pub lifetime_hk: u32,
+    pub today_contribution: u32,
+    pub yesterday_contribution: u32,
+    pub today_hk: u16,
+    pub yesterday_hk: u16,
+    pub lifetime_max_rank: u32,
+    pub honor_level: u32,
+}
+
+impl ServerPacket for InspectHonorStatsResponse {
+    const OPCODE: ServerOpcodes = ServerOpcodes::InspectHonorStats;
+
+    fn write(&self, w: &mut WorldPacket) {
+        w.write_packed_guid(&self.target);
+        w.write_uint32(self.lifetime_hk);
+        w.write_uint32(self.today_contribution);
+        w.write_uint32(self.yesterday_contribution);
+        w.write_uint16(self.today_hk);
+        w.write_uint16(self.yesterday_hk);
+        w.write_uint32(self.lifetime_max_rank);
+        w.write_uint32(self.honor_level);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wow_constants::ServerOpcodes;
+
+    #[test]
+    fn request_honor_stats_reads_target_guid_like_cpp() {
+        let guid = ObjectGuid::create_player(1, 0x1234);
+        let mut writer = WorldPacket::new_empty();
+        writer.write_packed_guid(&guid);
+
+        let mut packet = WorldPacket::from_bytes(&writer.into_data());
+        let parsed = RequestHonorStats::read(&mut packet).expect("request honor stats");
+
+        assert_eq!(parsed.target, guid);
+    }
+
+    #[test]
+    fn inspect_honor_stats_response_writes_cpp_order() {
+        let guid = ObjectGuid::create_player(1, 0x55);
+        let bytes = InspectHonorStatsResponse {
+            target: guid,
+            lifetime_hk: 1,
+            today_contribution: 2,
+            yesterday_contribution: 3,
+            today_hk: 4,
+            yesterday_hk: 5,
+            lifetime_max_rank: 6,
+            honor_level: 7,
+        }
+        .to_bytes();
+
+        let mut packet = WorldPacket::from_bytes(&bytes);
+        assert_eq!(
+            packet.read_uint16().expect("opcode"),
+            ServerOpcodes::InspectHonorStats as u16
+        );
+        assert_eq!(packet.read_packed_guid().expect("target"), guid);
+        assert_eq!(packet.read_uint32().expect("LifetimeHK"), 1);
+        assert_eq!(packet.read_uint32().expect("TodayContribution"), 2);
+        assert_eq!(packet.read_uint32().expect("YesterdayContribution"), 3);
+        assert_eq!(packet.read_uint16().expect("TodayHK"), 4);
+        assert_eq!(packet.read_uint16().expect("YesterdayHK"), 5);
+        assert_eq!(packet.read_uint32().expect("LifetimeMaxRank"), 6);
+        assert_eq!(packet.read_uint32().expect("HonorLevel"), 7);
     }
 }

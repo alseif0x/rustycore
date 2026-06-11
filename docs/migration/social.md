@@ -138,6 +138,7 @@ Note: `character_social` schema in 3.4.3 is `(guid, friend, flags, note)` — th
 | `CMSG_ACCEPT_SOCIAL_CONTRACT` | C→S | `HandleAcceptSocialContract` |
 | `CMSG_CHAT_REPORT_IGNORED` | C→S | `HandleChatIgnoredOpcode` |
 | `CMSG_INSPECT` | C→S | `HandleInspectOpcode` |
+| `CMSG_REQUEST_HONOR_STATS` | C→S | `HandleRequestHonorStats` |
 | `CMSG_QUERY_INSPECT_ACHIEVEMENTS` | C→S | `HandleQueryInspectAchievements` |
 | `CMSG_INSPECT_PVP` | C→S | `HandleInspectPVP` |
 | `SMSG_CONTACT_LIST` | S→C | `PlayerSocial::SendSocialList` |
@@ -145,6 +146,7 @@ Note: `character_social` schema in 3.4.3 is `(guid, friend, flags, note)` — th
 | `SMSG_CHAT` (`CHAT_MSG_IGNORED`) | S→C | `HandleChatIgnoredOpcode` |
 | `SMSG_SOCIAL_CONTRACT_REQUEST_RESPONSE` | S→C | `HandleSocialContractRequest` |
 | `SMSG_INSPECT_RESULT` | S→C | `HandleInspectOpcode` |
+| `SMSG_INSPECT_HONOR_STATS` | S→C | `HandleRequestHonorStats` |
 | `SMSG_RESPOND_INSPECT_ACHIEVEMENTS` | S→C | `HandleQueryInspectAchievements` |
 | `SMSG_INSPECT_PVP` | S→C | `HandleInspectPVP` |
 
@@ -155,9 +157,9 @@ Note: `character_social` schema in 3.4.3 is `(guid, friend, flags, note)` — th
 **Files in `/home/server/rustycore`:**
 - `crates/wow-social/src/lib.rs` — **0 lines** (empty stub; should host `PlayerSocial`, `SocialMgr`, presence-broadcast logic)
 - `crates/wow-world/src/handlers/social.rs` — covers ~55% of `Handlers/SocialHandler.cpp`
-- `crates/wow-world/src/handlers/inspect.rs` — 82 lines — covers ~30% of inspect (basic items + race/class/level only)
+- `crates/wow-world/src/handlers/inspect.rs` — covers basic inspect (identity + visible items) and `CMSG_REQUEST_HONOR_STATS`.
 - `crates/wow-packet/src/packets/social.rs` — `AddIgnore`, `DelIgnore`, `SetContactNotes`, `SocialContractRequest(Response)`, `AcceptSocialContract`, `ContactInfo`, `ContactListPkt`, `FriendStatusPkt`, `FriendsResult`
-- `crates/wow-packet/src/packets/inspect.rs` — 120 lines — `InspectItem`, `InspectResult`
+- `crates/wow-packet/src/packets/inspect.rs` — `InspectItem`, `InspectResult`, `RequestHonorStats`, `InspectHonorStatsResponse`
 
 **What's implemented:**
 - `CMSG_ADD_FRIEND` — name lookup in `characters` table; self-check; normal-player enemy-faction check; already-friend check; 50-entry cap; ORs `SOCIAL_FLAG_FRIEND` into `character_social` while preserving existing ignore/mute flags; replies with `FRIEND_ADDED_ONLINE`/`OFFLINE`/`ALREADY`/`NOT_FOUND`/`SELF`/`ENEMY`/`LIST_FULL`.
@@ -170,6 +172,7 @@ Note: `character_social` schema in 3.4.3 is `(guid, friend, flags, note)` — th
 - `CMSG_CHAT_REPORT_IGNORED` — parses C++ `IgnoredGUID + Reason`; if the ignored player is online, sends them `CHAT_MSG_IGNORED` naming the reporting player, matching `HandleChatIgnoredOpcode`.
 - `CMSG_SEND_CONTACT_LIST` — JOINs `character_social` × `characters`; populates `ContactInfo`; also emits `QueryPlayerNamesResponse` (name cache) so client can render names.
 - `CMSG_INSPECT` — registry lookup of target's broadcast info; sends `SMSG_INSPECT_RESULT` with target's race, class, level, gender + visible-items array (item_id only).
+- `CMSG_REQUEST_HONOR_STATS` — parses C++ target GUID; if the target is online in `PlayerRegistry`, sends `SMSG_INSPECT_HONOR_STATS` with the C++ field order. `HonorLevel` comes from the canonical player snapshot; the six historical HK/contribution/rank counters stay zero until Rust ports the missing `ActivePlayerData` honor-counter state.
 - `FriendsResult` enum exists with the 28-ish variants (need full audit).
 
 **What's missing vs C++:**
@@ -306,6 +309,7 @@ Net effect after the represented `CMSG_ADD_IGNORE`/`CMSG_DEL_IGNORE` and `CMSG_C
 | `HandleAcceptSocialContract` | ✅ empty packet/no response; account-data persistence hook absent like current C++ | ok |
 | `HandleChatIgnoredOpcode` | ✅ parses `IgnoredGUID + Reason`, sends `CHAT_MSG_IGNORED` to ignored online player | ok |
 | `HandleInspectOpcode` | ✅ `inspect.rs:33-81` (race/class/level/gender + visible-items only) | partial |
+| `HandleRequestHonorStats` | ✅ returns `SMSG_INSPECT_HONOR_STATS` for online targets | partial: `HonorLevel` real, HK/contribution/rank counters pending missing ActivePlayerData state |
 | `HandleQueryInspectAchievements` | ❌ unregistered |  |
 | `HandleInspectPVP` | ❌ unregistered |  |
 | `SocialMgr::BroadcastToFriendListers` (presence updates on login/logout/AFK/DND/zone) | ❌ none | bug |
@@ -323,7 +327,7 @@ Net effect after the represented `CMSG_ADD_IGNORE`/`CMSG_DEL_IGNORE` and `CMSG_C
 - `FriendStatusPkt.status: u8` uses `ONLINE`/`AFK`/`DND` bit values for online registry entries; `FRIEND_STATUS_RAF` remains missing because Account/RaF state is not represented.
 - `account_guid: ObjectGuid::EMPTY` everywhere (`social.rs:90,188,235`). `character_social` schema does not include the `accountGuid` column. Account-level ignore is structurally impossible until both schema and capture are added.
 - `inspect.rs:60-78` — only emits `slot + item_id`. No enchant id, no gem ids, no transmog appearance, no talent spec, no glyphs, no guild data, no specialization id, no PvP brackets.
-- No `InspectGuildData`, no `InspectTalentData`, no `PVPBracketData`. The four C++ inspect packet structs are stubbed to one (`InspectResult`).
+- No `InspectGuildData`, no `InspectTalentData`, no `PVPBracketData`. `RequestHonorStats`/`InspectHonorStatsResponse` are represented; `HonorLevel` is sourced from the current player snapshot, while the missing ActivePlayerData honor-counter fields remain a PvP/runtime gap.
 - `crates/wow-social/src/lib.rs` confirmed 0 bytes; no `PlayerSocial`, no `SocialMgr` anywhere in the workspace.
 
 **Verdict:** flagged divergence partly reduced. Friends list works for add/delete/list (~50% of `SocialHandler.cpp`). Per-character `AddIgnore`/`DelIgnore` now write and clear `SOCIAL_FLAG_IGNORED`, and `CMSG_CHAT_REPORT_IGNORED` feedback is represented. Account-level ignore, loaded `PlayerSocial`, and server-side `HasIgnore` gates outside the client-report whisper path remain open. Inspect is ~25% (basic items + identity); achievements/PvP/talents/glyphs absent. Presence broadcast (`SMSG_FRIEND_STATUS` on login/logout/AFK/zone) is 0%.
