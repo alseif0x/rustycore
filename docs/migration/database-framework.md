@@ -760,7 +760,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 | `pool.WarnAboutSyncQueries(true)` | (TODO #DB.9 / #WS.25) | — |
 | `class DatabaseLoader` (5-queue sequencer + close stack) | (inline in `world-server/src/main.rs`) | TODO #DB.21 — formalize into a sequencer struct |
 | `class DBUpdater<T>` | `wow_database::updater::DbUpdater` (single non-generic struct) | The `<T>` tag is replaced by the per-DB connection params passed to `DbUpdater::new` |
-| `DBUpdater::Create(pool)` | (TODO #DB.5) | — |
+| `DBUpdater::Create(pool)` | `open_with_pool_size_and_auto_create_like_cpp(...)` during world-server pool open | non-interactive; creates schema then retries |
 | `DBUpdater::Populate(pool)` | `updater.populate(base_sql).await` | Shells to `mysql` CLI |
 | `DBUpdater::Update(pool)` | `updater.update(source_dir).await` | Walks `sql/updates/`, hashes, applies via sqlx |
 | `class UpdateFetcher` | (merged into `DbUpdater::update`) | — |
@@ -787,7 +787,7 @@ The gaps fall in three buckets:
 
 1. **Pool topology** (Medium): Rust still merges TC's `Sync`/`Async` sub-pools into one `sqlx` pool, but world-server now sizes that pool from TC's `WorkerThreads + SynchThreads` config and runs the `MaxPingTime` keep-alive task. Cross-references the worldserver audit (`worldserver.md` §13.5 / §13.6).
 2. **Statement coverage** (High): login is 137/137 (✅), world is 86/56 (✅, Rust adds extras), characters is 30/523 (❌, ~6% ported), hotfixes is 0/327 (❌, **deliberate divergence** — replaced by DB2-blob cache).
-3. **Updater operator UX** (Medium): no `Create` step; `updates_include` and `Updates.CleanDeadRefMaxCount` are now covered.
+3. **Updater operator UX** (Medium): `Create`, `updates_include`, and `Updates.CleanDeadRefMaxCount` are now covered for world-server startup.
 
 The `QueryCallback`-chain pattern is **acceptably absent** because Rust's `async/await` covers the same need more directly. The `SQLQueryHolder` fan-out, however, has no Rust equivalent and is needed for character load (#DB.10).
 
