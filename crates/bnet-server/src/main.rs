@@ -11,6 +11,7 @@ mod state;
 
 use anyhow::{Context, Result};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio_rustls::TlsAcceptor;
@@ -38,7 +39,17 @@ async fn main() -> Result<()> {
         )
         .init();
 
-    let config_report = load_bnet_config()?;
+    let cli = BnetCliLikeCpp::parse_from(std::env::args().skip(1));
+    if cli.show_help {
+        print!("{}", bnet_cli_help_like_cpp());
+        return Ok(());
+    }
+    if cli.show_version {
+        println!("{}", bnet_full_version_like_cpp());
+        return Ok(());
+    }
+
+    let config_report = load_bnet_config(&cli)?;
     log_startup_banner_like_cpp(&config_report);
     log_thread_config_like_cpp();
     create_pid_file_from_config_like_cpp()?;
@@ -63,30 +74,12 @@ async fn main() -> Result<()> {
 
     tracing::info!("Connected to login database");
 
-    // ── Database auto-update (auth only) ─────────────────────────────────
-    let auto_setup = wow_config::get_string_default("Updates.AutoSetup", "1");
-    if auto_setup != "0" && auto_setup.to_lowercase() != "false" {
-        use wow_database::updater::DbUpdater;
-        let src = wow_config::get_string_default("Updates.SourcePath", ".");
-        let auth_up = DbUpdater::new(
-            login_db.pool().clone(),
-            &login_info.host,
-            &login_info.port_or_socket,
-            &login_info.username,
-            &login_info.password,
-            &login_info.database,
-        );
-        if let Err(e) = auth_up
-            .populate(&format!("{src}/sql/base/auth_database.sql"))
-            .await
-        {
-            tracing::warn!("Auth populate skipped: {e}");
-        }
-        if let Err(e) = auth_up.update(&src).await {
-            tracing::warn!("Auth update error: {e}");
-        }
+    run_database_updates_like_cpp(&login_db, &login_info).await;
+    if cli.update_databases_only {
+        login_db.close().await;
+        tracing::info!("Database update-only mode complete.");
+        return Ok(());
     }
-    // ─────────────────────────────────────────────────────────────────────
 
     // Load TLS certificates — separate configs for REST (HTTPS) and RPC (binary)
     let cert_file = wow_config::get_string_default("CertificatesFile", "./bnetserver.cert.pem");
@@ -231,22 +224,115 @@ async fn main() -> Result<()> {
     shutdown_result
 }
 
-fn load_bnet_config() -> Result<LoadReport> {
-    load_bnet_config_from(BNET_CONFIG_CANDIDATES, BNET_CONFIG_DIR)
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct BnetCliLikeCpp {
+    config_file: PathBuf,
+    config_dir: PathBuf,
+    update_databases_only: bool,
+    show_version: bool,
+    show_help: bool,
 }
 
-fn load_bnet_config_from(config_candidates: &[&str], config_dir: &str) -> Result<LoadReport> {
-    let loaded_config = wow_config::load_config_with_fallbacks(config_candidates, config_dir)
+impl BnetCliLikeCpp {
+    fn parse_from(args: impl IntoIterator<Item = String>) -> Self {
+        let mut cli = Self::default();
+        let mut args = args.into_iter();
+
+        while let Some(arg) = args.next() {
+            match arg.as_str() {
+                "--help" | "-h" => cli.show_help = true,
+                "--version" | "-v" => cli.show_version = true,
+                "--update-databases-only" | "-u" => cli.update_databases_only = true,
+                "--config" | "-c" => {
+                    if let Some(value) = args.next() {
+                        cli.config_file = PathBuf::from(value);
+                    }
+                }
+                "--config-dir" | "-cd" => {
+                    if let Some(value) = args.next() {
+                        cli.config_dir = PathBuf::from(value);
+                    }
+                }
+                _ => {
+                    if let Some(value) = arg.strip_prefix("--config=") {
+                        cli.config_file = PathBuf::from(value);
+                    } else if let Some(value) = arg.strip_prefix("--config-dir=") {
+                        cli.config_dir = PathBuf::from(value);
+                    }
+                }
+            }
+        }
+
+        cli
+    }
+}
+
+impl Default for BnetCliLikeCpp {
+    fn default() -> Self {
+        Self {
+            config_file: PathBuf::from(BNET_CONFIG_CANDIDATES[0]),
+            config_dir: PathBuf::from(BNET_CONFIG_DIR),
+            update_databases_only: false,
+            show_version: false,
+            show_help: false,
+        }
+    }
+}
+
+fn bnet_cli_help_like_cpp() -> &'static str {
+    "Allowed options:\n  -h [ --help ]                  print usage message\n  -v [ --version ]               print version build info\n  -c [ --config ] <arg>          use <arg> as configuration file\n  -cd [ --config-dir ] <arg>     use <arg> as directory with additional config files\n  -u [ --update-databases-only ] updates databases only\n"
+}
+
+fn load_bnet_config(cli: &BnetCliLikeCpp) -> Result<LoadReport> {
+    load_bnet_config_from(&cli.config_file, &cli.config_dir)
+}
+
+fn load_bnet_config_from(
+    config_file: &std::path::Path,
+    config_dir: &std::path::Path,
+) -> Result<LoadReport> {
+    let config_file = config_file.to_string_lossy();
+    let config_dir = config_dir.to_string_lossy();
+    let fallback_dist = format!("{config_file}.dist");
+    let candidates = [config_file.as_ref(), fallback_dist.as_str()];
+    let loaded_config = wow_config::load_config_with_fallbacks(&candidates, &config_dir)
         .context("Failed to load bnetserver.conf")?;
 
-    if loaded_config.candidate_index > 1 {
+    if loaded_config.candidate_index > 0 {
         tracing::warn!(
             config = %loaded_config.initial_file,
-            "Using legacy Rust config filename; prefer bnetserver.conf"
+            "Using .dist fallback config file"
         );
     }
 
     Ok(loaded_config)
+}
+
+async fn run_database_updates_like_cpp(login_db: &LoginDatabase, login_info: &DatabaseInfo) {
+    let auto_setup = wow_config::get_string_default("Updates.AutoSetup", "1");
+    if auto_setup == "0" || auto_setup.eq_ignore_ascii_case("false") {
+        return;
+    }
+
+    use wow_database::updater::DbUpdater;
+    let src = wow_config::get_string_default("Updates.SourcePath", ".");
+    let auth_up = DbUpdater::new(
+        login_db.pool().clone(),
+        &login_info.host,
+        &login_info.port_or_socket,
+        &login_info.username,
+        &login_info.password,
+        &login_info.database,
+    );
+    if let Err(e) = auth_up
+        .populate(&format!("{src}/sql/base/auth_database.sql"))
+        .await
+    {
+        tracing::warn!("Auth populate skipped: {e}");
+    }
+    if let Err(e) = auth_up.update(&src).await {
+        tracing::warn!("Auth update error: {e}");
+    }
 }
 
 fn log_database_target_like_cpp(kind: &str, info: &DatabaseInfo) {
@@ -582,9 +668,10 @@ fn db_keep_alive_interval_duration_like_cpp(interval_minutes: u64) -> std::time:
 #[cfg(test)]
 mod tests {
     use super::{
-        bnet_full_version_like_cpp, bnet_thread_config_from_values_like_cpp,
-        create_pid_file_like_cpp, db_keep_alive_interval_duration_like_cpp,
-        first_ipv4_address_like_cpp, listener_task_exit_like_cpp, load_bnet_config_from,
+        BnetCliLikeCpp, bnet_cli_help_like_cpp, bnet_full_version_like_cpp,
+        bnet_thread_config_from_values_like_cpp, create_pid_file_like_cpp,
+        db_keep_alive_interval_duration_like_cpp, first_ipv4_address_like_cpp,
+        listener_task_exit_like_cpp, load_bnet_config_from,
     };
     use std::env;
     use std::fs;
@@ -604,14 +691,8 @@ mod tests {
         fs::write(&lower, "BattlenetPort = 1119\n").expect("write lower failed");
         fs::write(&legacy, "BattlenetPort = 2222\n").expect("write legacy failed");
 
-        let report = load_bnet_config_from(
-            &[
-                lower.to_str().expect("utf8 path"),
-                legacy.to_str().expect("utf8 path"),
-            ],
-            root.join("bnetserver.conf.d").to_str().expect("utf8 path"),
-        )
-        .expect("config should load");
+        let report = load_bnet_config_from(&lower, &root.join("bnetserver.conf.d"))
+            .expect("config should load");
 
         assert_eq!(report.candidate_index, 0);
         assert_eq!(wow_config::get_value::<u16>("BattlenetPort"), Some(1119));
@@ -639,11 +720,7 @@ LoginDatabaseInfo = "127.0.0.1;3306;trinity;trinity;auth"
         )
         .expect("write lower failed");
 
-        load_bnet_config_from(
-            &[lower.to_str().expect("utf8 path")],
-            root.join("bnetserver.conf.d").to_str().expect("utf8 path"),
-        )
-        .expect("config should load");
+        load_bnet_config_from(&lower, &root.join("bnetserver.conf.d")).expect("config should load");
 
         assert_eq!(
             wow_config::get_string_default("CertificatesFile", ""),
@@ -664,6 +741,58 @@ LoginDatabaseInfo = "127.0.0.1;3306;trinity;trinity;auth"
         assert_eq!(info.database, "auth");
 
         fs::remove_dir_all(root).expect("cleanup failed");
+    }
+
+    #[test]
+    fn bnet_config_resolution_uses_dist_fallback_for_explicit_config_like_cpp() {
+        let _guard = CONFIG_TEST_LOCK.lock().expect("config test lock poisoned");
+        let root = unique_temp_dir("bnet_config_dist_fallback");
+        let config = root.join("custom-bnet.conf");
+        let dist = root.join("custom-bnet.conf.dist");
+
+        fs::write(&dist, "BattlenetPort = 3333\n").expect("write dist failed");
+
+        let report = load_bnet_config_from(&config, &root.join("bnetserver.conf.d"))
+            .expect("dist config should load");
+
+        assert_eq!(report.candidate_index, 1);
+        assert_eq!(wow_config::get_value::<u16>("BattlenetPort"), Some(3333));
+
+        fs::remove_dir_all(root).expect("cleanup failed");
+    }
+
+    #[test]
+    fn bnet_cli_parser_accepts_cpp_aliases_and_ignores_unknowns_like_cpp() {
+        let cli = BnetCliLikeCpp::parse_from([
+            "-c".to_string(),
+            "custom.conf".to_string(),
+            "-cd".to_string(),
+            "custom.conf.d".to_string(),
+            "-u".to_string(),
+            "--unknown".to_string(),
+        ]);
+
+        assert_eq!(cli.config_file, PathBuf::from("custom.conf"));
+        assert_eq!(cli.config_dir, PathBuf::from("custom.conf.d"));
+        assert!(cli.update_databases_only);
+        assert!(!cli.show_help);
+        assert!(!cli.show_version);
+    }
+
+    #[test]
+    fn bnet_cli_parser_accepts_long_equals_and_early_exit_flags_like_cpp() {
+        let cli = BnetCliLikeCpp::parse_from([
+            "--config=custom.conf".to_string(),
+            "--config-dir=custom.conf.d".to_string(),
+            "--help".to_string(),
+            "--version".to_string(),
+        ]);
+
+        assert_eq!(cli.config_file, PathBuf::from("custom.conf"));
+        assert_eq!(cli.config_dir, PathBuf::from("custom.conf.d"));
+        assert!(cli.show_help);
+        assert!(cli.show_version);
+        assert!(bnet_cli_help_like_cpp().contains("--update-databases-only"));
     }
 
     #[test]
