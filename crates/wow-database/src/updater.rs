@@ -17,7 +17,7 @@
 use anyhow::{Result, bail};
 use sha1::{Digest, Sha1};
 use sqlx::MySqlPool;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -72,6 +72,13 @@ enum UpdateDatabaseKindLikeCpp {
 enum PopulateBaseActionLikeCpp {
     SkipNoBaseFile,
     ApplyBaseFile,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum RenamedUpdateDecisionLikeCpp {
+    ApplyAsNew,
+    CopyConflict { old_name: String },
+    Rename { old_name: String },
 }
 
 impl UpdateConfigLikeCpp {
@@ -217,6 +224,11 @@ impl DbUpdater {
             }
         }
         sort_update_files_like_cpp(&mut available)?;
+        let available_names: HashSet<String> = available
+            .iter()
+            .filter_map(|(path, _)| path.file_name())
+            .map(|name| name.to_string_lossy().into_owned())
+            .collect();
 
         // Load already-applied files from DB
         let mut applied = self.read_applied_files().await?;
@@ -237,15 +249,8 @@ impl DbUpdater {
             let hash = sha1_hex(&content);
 
             match applied.get(&name).cloned() {
-                None => {
-                    // Check for renamed file (same hash, different name)
-                    if let Some(old_name) = applied.iter().find_map(|(n, applied)| {
-                        if applied.hash == hash {
-                            Some(n.clone())
-                        } else {
-                            None
-                        }
-                    }) {
+                None => match renamed_update_decision_like_cpp(&applied, &available_names, &hash) {
+                    RenamedUpdateDecisionLikeCpp::Rename { old_name } => {
                         info!("Renaming update '{}' → '{}'", old_name, name);
                         sqlx::query("UPDATE `updates` SET `name` = ? WHERE `name` = ?")
                             .bind(&name)
@@ -253,14 +258,19 @@ impl DbUpdater {
                             .execute(&self.pool)
                             .await?;
                         applied.remove(&old_name);
-                    } else {
+                    }
+                    RenamedUpdateDecisionLikeCpp::CopyConflict { old_name } => {
+                        warn!(
+                            "It seems like the update '{}' was renamed, but the old file '{}' is still there; treating it as a new file.",
+                            name, old_name
+                        );
                         info!("Applying '{}' [{}]...", name, &hash[..7]);
                         let t = Instant::now();
                         self.apply_sql_file(path, &content).await?;
                         let ms = t.elapsed().as_millis() as u32;
                         sqlx::query(
                             "REPLACE INTO `updates` (`name`, `hash`, `state`, `speed`) \
-                             VALUES (?, ?, ?, ?)",
+                                 VALUES (?, ?, ?, ?)",
                         )
                         .bind(&name)
                         .bind(&hash)
@@ -270,7 +280,24 @@ impl DbUpdater {
                         .await?;
                         updated += 1;
                     }
-                }
+                    RenamedUpdateDecisionLikeCpp::ApplyAsNew => {
+                        info!("Applying '{}' [{}]...", name, &hash[..7]);
+                        let t = Instant::now();
+                        self.apply_sql_file(path, &content).await?;
+                        let ms = t.elapsed().as_millis() as u32;
+                        sqlx::query(
+                            "REPLACE INTO `updates` (`name`, `hash`, `state`, `speed`) \
+                                 VALUES (?, ?, ?, ?)",
+                        )
+                        .bind(&name)
+                        .bind(&hash)
+                        .bind(state.as_str())
+                        .bind(ms)
+                        .execute(&self.pool)
+                        .await?;
+                        updated += 1;
+                    }
+                },
                 Some(applied_entry) => {
                     match update_decision_like_cpp(
                         &applied_entry.hash,
@@ -695,6 +722,28 @@ fn update_filename_like_cpp(path: &Path) -> String {
         .unwrap_or_default()
 }
 
+fn renamed_update_decision_like_cpp(
+    applied: &HashMap<String, AppliedUpdateFileLikeCpp>,
+    available_names: &HashSet<String>,
+    hash: &str,
+) -> RenamedUpdateDecisionLikeCpp {
+    let Some(old_name) = applied.iter().find_map(|(name, applied)| {
+        if applied.hash == hash {
+            Some(name.clone())
+        } else {
+            None
+        }
+    }) else {
+        return RenamedUpdateDecisionLikeCpp::ApplyAsNew;
+    };
+
+    if available_names.contains(&old_name) {
+        RenamedUpdateDecisionLikeCpp::CopyConflict { old_name }
+    } else {
+        RenamedUpdateDecisionLikeCpp::Rename { old_name }
+    }
+}
+
 fn should_cleanup_orphaned_updates_like_cpp(
     orphan_count: usize,
     clean_dead_references_max_count: i32,
@@ -788,12 +837,14 @@ fn default_updates_include_rows_like_cpp(
 #[cfg(test)]
 mod tests {
     use super::{
-        PopulateBaseActionLikeCpp, UpdateConfigLikeCpp, UpdateDatabaseKindLikeCpp,
-        UpdateDecisionLikeCpp, default_updates_include_rows_like_cpp, mysql_cli_args_like_cpp,
-        populate_base_action_like_cpp, should_cleanup_orphaned_updates_like_cpp,
-        sort_update_files_like_cpp, split_sql, update_database_kind_like_cpp,
-        update_decision_like_cpp,
+        AppliedUpdateFileLikeCpp, PopulateBaseActionLikeCpp, RenamedUpdateDecisionLikeCpp,
+        UpdateConfigLikeCpp, UpdateDatabaseKindLikeCpp, UpdateDecisionLikeCpp,
+        default_updates_include_rows_like_cpp, mysql_cli_args_like_cpp,
+        populate_base_action_like_cpp, renamed_update_decision_like_cpp,
+        should_cleanup_orphaned_updates_like_cpp, sort_update_files_like_cpp, split_sql,
+        update_database_kind_like_cpp, update_decision_like_cpp,
     };
+    use std::collections::{HashMap, HashSet};
     use std::path::PathBuf;
 
     fn update_config_like_cpp(
@@ -981,6 +1032,42 @@ mod tests {
             ),
         ];
         assert!(sort_update_files_like_cpp(&mut duplicate).is_err());
+    }
+
+    #[test]
+    fn renamed_update_decision_requires_old_file_to_be_absent_like_cpp() {
+        let mut applied = HashMap::new();
+        applied.insert(
+            "2024_01_01_old.sql".to_string(),
+            AppliedUpdateFileLikeCpp {
+                hash: "samehash".to_string(),
+                state: "RELEASED".to_string(),
+            },
+        );
+
+        let available_without_old = HashSet::from(["2024_01_02_new.sql".to_string()]);
+        assert_eq!(
+            renamed_update_decision_like_cpp(&applied, &available_without_old, "samehash"),
+            RenamedUpdateDecisionLikeCpp::Rename {
+                old_name: "2024_01_01_old.sql".to_string(),
+            }
+        );
+
+        let available_with_old = HashSet::from([
+            "2024_01_01_old.sql".to_string(),
+            "2024_01_02_new.sql".to_string(),
+        ]);
+        assert_eq!(
+            renamed_update_decision_like_cpp(&applied, &available_with_old, "samehash"),
+            RenamedUpdateDecisionLikeCpp::CopyConflict {
+                old_name: "2024_01_01_old.sql".to_string(),
+            }
+        );
+
+        assert_eq!(
+            renamed_update_decision_like_cpp(&applied, &available_without_old, "different"),
+            RenamedUpdateDecisionLikeCpp::ApplyAsNew
+        );
     }
 
     #[test]
