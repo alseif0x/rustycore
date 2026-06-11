@@ -90,7 +90,7 @@ All paths relative to `/home/server/woltk-trinity-legacy/`.
 | `src/server/database/Database/QueryResult.cpp` | 457 | libmysql `mysql_fetch_row` / `mysql_stmt_fetch` + per-column metadata copy |
 | `src/server/database/Database/QueryHolder.h` | 81 | `SQLQueryHolder<T>` — fixed-size vector of `(stmt, result)` pairs; `SQLQueryHolderCallback` to fire one callback after **all** are ready (used for character-load fan-out) |
 | `src/server/database/Database/QueryHolder.cpp` | 94 | Holder implementation |
-| `src/server/database/Database/Transaction.h` | 119 | `TransactionBase`/`Transaction<T>` (collects queries), `TransactionTask` (5-attempt deadlock retry + `_deadlockLock` static mutex), `TransactionCallback` (future + `AfterComplete`) |
+| `src/server/database/Database/Transaction.h` | 119 | `TransactionBase`/`Transaction<T>` (collects queries), `TransactionTask` (deadlock retry loop capped by `DEADLOCK_MAX_RETRY_TIME_MS` + `_deadlockLock` static mutex), `TransactionCallback` (future + `AfterComplete`) |
 | `src/server/database/Database/Transaction.cpp` | 107 | `Append`, `AppendPreparedStatement`, `Cleanup`, `TryExecute` retry loop |
 | `src/server/database/Database/AdhocStatement.h` / `.cpp` | 34 + 38 | `BasicStatementTask` — runs a non-prepared SQL string on a worker |
 | `src/server/database/Database/MySQLPreparedStatement.h` / `.cpp` | 71 + 201 | Per-connection libmysql `MYSQL_STMT*` wrapper; binds `MYSQL_BIND[]` from `PreparedStatementData` |
@@ -132,7 +132,7 @@ All paths relative to `/home/server/woltk-trinity-legacy/`.
 | `SQLQueryHolderCallback` | class | The "all done" future for a holder |
 | `TransactionBase` / `Transaction<T>` | class / template | Collects raw SQL strings + `unique_ptr<PreparedStatementBase>` ; `Append`/`PAppend` |
 | `TransactionData` | struct | `std::variant<unique_ptr<PreparedStatementBase>, std::string>` (one row of the transaction) |
-| `TransactionTask` | class | Executes a transaction; `TryExecute` retries 5× on deadlock; static `_deadlockLock` mutex |
+| `TransactionTask` | class | Executes a transaction; if the first `TryExecute` deadlocks, retries under static `_deadlockLock` until the 60s retry window expires |
 | `TransactionCallback` | class | Future for an async transaction; `AfterComplete(std::function<void(bool)>)` |
 | `DatabaseLoader` | class | Five work queues (`_open`, `_populate`, `_update`, `_prepare`) + `_close` rollback stack; `Load()` runs them; `DATABASE_LOGIN/CHARACTER/WORLD/HOTFIX` flags |
 | `DBUpdater<T>` | template class | `Create`, `Populate`, `Update`, `Apply`, `ApplyFile`; per-T template specs map `GetConfigEntry()` / `GetTableName()` / `GetBaseFile()` |
@@ -179,7 +179,7 @@ All paths relative to `/home/server/woltk-trinity-legacy/`.
 | `QueryCallback::InvokeIfReady()` | If future ready: pop callback, run; if a chained `SetNextQuery` happened, swap future and recurse | — |
 | `SQLQueryHolderCallback::AfterComplete(fn)` | Set the "all queries done" callback | — |
 | `Transaction<T>::Append(sql)` / `Append(stmt)` | Push a `TransactionData` | — |
-| `TransactionTask::Execute(conn, trans)` | Wrap in mutex `_deadlockLock`, call `TryExecute` up to 5× | `MySQLConnection::ExecuteTransaction` |
+| `TransactionTask::Execute(conn, trans)` | On deadlock, wrap retries in mutex `_deadlockLock` and call `TryExecute` until `DEADLOCK_MAX_RETRY_TIME_MS` expires | `MySQLConnection::ExecuteTransaction` |
 | `DatabaseLoader::AddDatabase(pool, name)` | Lazy-register: push closures into `_open`, `_populate`, `_update`, `_prepare` queues; push close-fn onto `_close` stack | — |
 | `DatabaseLoader::Load()` | Run all four queues in order; on any failure: pop `_close` stack and return `false` | — |
 | `DBUpdater<T>::Create(pool)` | If DB doesn't exist: `mysql -e "CREATE DATABASE …"` via CLI | `DBUpdaterUtil::GetCorrectedMySQLExecutable` |
@@ -288,7 +288,7 @@ Not applicable — the database framework does not handle WoW client packets. (I
 - `crates/wow-database/src/error.rs` — 21 lines — `DatabaseError` enum (`Connection`/`Query`/`UnregisteredStatement`)
 - `crates/wow-database/src/params.rs` — 208 lines — `PreparedStatement` (SQL + `Vec<SqlParam>`) + `SqlParam` (15 variants matching TC's `PreparedStatementData`)
 - `crates/wow-database/src/result.rs` — 198 lines — `SqlResult` (cursor over `Vec<MySqlRow>`) + `SqlFields` (single-row borrowed view)
-- `crates/wow-database/src/transaction.rs` — 108 lines — `SqlTransaction` (collects + commits with 5-attempt deadlock retry) + private `bind_param` helper
+- `crates/wow-database/src/transaction.rs` — `SqlTransaction` (collects + commits with TC-style serialized deadlock retry) + private `bind_param` helper
 - `crates/wow-database/src/updater.rs` — 391 lines — `DbUpdater::populate(base_sql)` + `update(source_dir)` + SHA1 hashing + statement splitter that handles line/block comments + `'` / `"` strings with escapes
 - `crates/wow-database/src/statements/mod.rs` — 93 lines — `StatementDef` trait + 5 unit tests
 - `crates/wow-database/src/statements/login.rs` — 327 lines — `LoginStatements` enum (137 variants) + `sql()` impl
@@ -301,7 +301,7 @@ Not applicable — the database framework does not handle WoW client packets. (I
 - Compile-time statement-to-DB binding via the `StatementDef` trait + `PhantomData<S>` on `Database<S>` — using a `WorldStatements` variant on `Database<LoginStatements>` is rejected by `rustc`. Equivalent to TC's `typename T::Statements` typedef but enforced more strongly (TC only enforces it for `GetPreparedStatement`).
 - Full set of typed setters: `set_bool/set_i8/set_u8/set_i16/set_u16/set_i32/set_u32/set_i64/set_u64/set_f32/set_f64/set_string/set_bytes/set_null` matching TC's `setUInt8`…`setBinary` 1:1.
 - Async query API: `db.query(&stmt).await` → `SqlResult` (cursor with `next_row()`, `read::<T>(col)`, `try_read`, `is_null`, `read_string` fallback for `utf8mb4_bin` columns); `db.execute(&stmt).await` for non-result statements; `db.direct_execute(sql)` / `db.direct_query(sql)` for raw SQL.
-- Transactions: `SqlTransaction { statements: Vec<PreparedStatement> }` + `commit(&pool)` opens a real `sqlx::Transaction`, executes each statement, commits or rolls back. On MySQL error 1213 (deadlock) retries up to 5 times — same retry budget as TC's `TransactionTask::TryExecute`.
+- Transactions: `SqlTransaction { statements: Vec<PreparedStatement> }` + `commit(&pool)` opens a real `sqlx::Transaction`, executes each statement, commits or rolls back. On MySQL error 1213 (deadlock), retries are serialized under a process-wide mutex for up to 60 seconds — same guardrail as TC's `TransactionTask::_deadlockLock` + `DEADLOCK_MAX_RETRY_TIME_MS`.
 - `execute_or_append(trans, stmt)` mirroring TC's `ExecuteOrAppend`.
 - DB Updater (`DbUpdater`): `populate(base_sql)` invokes the `mysql` CLI to apply a base dump if `information_schema.tables` reports 0 tables for the current DB; `update(source_dir)` reads from `updates_include` table, walks `$source_dir/sql/updates/...`, sha1-hashes each `.sql`, applies via sqlx (statement-by-statement using a hand-rolled splitter that respects `--`/`#` line comments, `/* */` block comments, and `'`/`"` string literals with escapes). Tracks applied files in `updates` table with hash + applied-at + apply-time-ms. Detects renames (same hash, different filename) and replays CUSTOM updates whose hash changed. If `updates_include` is empty for a known TC database family, RustyCore bootstraps the same path set used by the WotLK Classic base dumps (`custom`, `old/10.x`, `old/3.4.x`, `old/6.x`, `old/7`, `old/8.x`, `old/9.x`, `updates`).
 - `Updates.AutoSetup` config gate (default `1`) — when off, no auto-update runs.
@@ -333,7 +333,7 @@ Not applicable — the database framework does not handle WoW client packets. (I
 
 **Suspicious / likely divergent (hipótesis pre-auditoría):**
 - The single 10-connection pool is shared across all 4 logical DBs in *some* views of the code? **(Audit: false — each DB has its own pool, see §13.2.)**
-- Transaction deadlock retries deplete the pool's connections quickly under contention. With 5 retries × N concurrent transactions, all 10 conns can be tied up retrying. TC's `_deadlockLock` is a single static mutex, serializing retries; RustyCore retries concurrently.
+- Transaction deadlock retries now mirror TC's single static `_deadlockLock` retry gate. This avoids concurrent retry storms against the same locked rows.
 - `read_string` fallback to `Vec<u8>` on `VARBINARY` columns is a specific quirk of `utf8mb4_bin` collation — character names in `characters.characters` use this collation. Any code using `read::<String>(col)` instead of `read_string(col)` for a name column will panic at runtime.
 - `idle_timeout=1800s` (30 min) coincides with MariaDB's default `wait_timeout=28800s` (8 hours), so connection drops shouldn't be common — but `MaxPingTime` (TC default 30 min) was specifically tuned for shorter timeouts on hosted MariaDB.
 
@@ -638,7 +638,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 - [ ] **#DB.14** Implement `EscapeString` for raw-SQL-fragment use cases: expose `MySqlPool::escape` equivalent or document that `direct_execute` consumers must use bound parameters. (L)
 - [ ] **#DB.15** Add per-connection-attempt logging on populate / update error so operator sees which file failed. Currently the error message includes the path but not stderr from the `mysql` CLI in `populate` failure case. (L)
 - [ ] **#DB.16** Add integration test harness: spin up an embedded MariaDB (or Docker mariadb:10.6 in CI) and run `populate` + `update` against it; verify updates table population. (H)
-- [ ] **#DB.17** Audit deadlock-retry concurrency: replicate TC's `_deadlockLock` static mutex (or document why concurrent retries are fine). (L)
+- [x] **#DB.17** Audit deadlock-retry concurrency: Rust now replicates TC's `_deadlockLock` static mutex and 60-second retry window for transaction deadlocks. (L)
 - [ ] **#DB.18** Add a `DatabaseError::TableMissing` variant so callers can distinguish "DB not populated" from "query syntax error". (L)
 - [ ] **#DB.19** Add a `Field`-style typed accessor with metadata: `SqlResult::read_typed::<u8>(col)` that checks `column_type_name == "TINYINT UNSIGNED"` before decoding. Optional, debug-only. (M)
 - [x] **#DB.20** Implement async `KeepAlive` from a free-standing `tokio::spawn` while the global world tick is still pending. Covered by #DB.2 / #WS.6; if a future global tick centralizes this, keep the same Character/Login/World-only scope.
@@ -664,7 +664,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 <!-- REFINE.024:END tests-required -->
 
 - [ ] Test: `Database::<LoginStatements>::open_with_pool_size(uri, 1)` succeeds; spawn 100 concurrent `query` calls against `SEL_REALMLIST` and verify all complete (queue serialization).
-- [ ] Test: `SqlTransaction::commit` retries on MySQL error 1213 deadlock up to 5 times then surfaces the error (use a mock `MySqlPool` or a deliberate deadlock with `LOCK TABLES`).
+- [x] Test: `SqlTransaction` exposes unit coverage for the process-wide deadlock retry lock and the 60-second C++ retry window. A live MySQL deadlock integration test remains optional because it needs two connections and table locks.
 - [ ] Test: `DbUpdater::populate` is a no-op on a non-empty DB (returns `Ok(false)`).
 - [ ] Test: `DbUpdater::populate` invokes `mysql` CLI exactly once and the database has the expected tables afterward.
 - [ ] Test: `DbUpdater::update` applies new files in lexicographic order, records SHA1, and skips already-applied entries.
@@ -715,7 +715,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 - **`Updates.AutoSetup=1` default**: a fresh checkout will try to reach a `mysql` CLI binary on `PATH` to run `populate`. If `mysql` is not installed (e.g. a dev VM with only `mariadb-client` symlinked differently), `populate` fails with an opaque `command not found`. Either install `mysql` or pre-populate manually.
 - **`ConnectionFlags::SYNCH` queries in TC are guaranteed to run on a sync sub-pool** so that nothing outside the world thread blocks them. RustyCore loses this guarantee — **a sync query issued from inside an async tick can still starve when the merged pool is saturated by async work**. Watch out under heavy load; tune up `<Db>Database.WorkerThreads` / `<Db>Database.SynchThreads` before reaching for a redesign.
 - **`updates` table schema**: TC's columns are `(name, hash, state, timestamp, speed)` with `state` as an enum. The Rust port creates the same schema with `IF NOT EXISTS` so it's interoperable — you can run TC's `worldserver` against the same DB and Rust will respect its `updates` rows. **Compatibility tested 2026-04: ✅.**
-- **Deadlock retry is single-mutex in TC** (`TransactionTask::_deadlockLock`); RustyCore retries concurrently. In adversarial workloads (e.g. many parallel character-save txns hitting the same row) this can amplify deadlocks rather than suppress them. **#DB.17.**
+- **Deadlock retry is single-mutex in TC** (`TransactionTask::_deadlockLock`); RustyCore now mirrors that with a process-wide Tokio mutex and 60-second retry window. **#DB.17 closed.**
 - **Boot order matters**: world-server can now create missing schemas when `Updates.AutoSetup=1`, but `populate` still needs the base SQL files and the `mysql` CLI on `PATH`. If `Updates.AutoSetup=0`, operators must pre-create and import the databases manually.
 - **`max_allowed_packet`**: `populate` passes `--max-allowed-packet=1073741824` (1 GiB) to the CLI. The sqlx pool inherits the server-side default (often 16 MiB). Large blob updates via `update()` may fail with `Packet too large`. Either bump server-side `max_allowed_packet` or chunk the migration.
 
@@ -747,7 +747,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 | `SQLQueryHolderCallback::AfterComplete(fn)` | `let (r1, r2, r3) = try_join!(...)?; fn(r1, r2, r3)` | — |
 | `class TransactionBase` / `class Transaction<T>` | `wow_database::SqlTransaction` (untyped) | No `<T>` tag — txns are not type-bound to a DB; runtime check via the pool they're committed against |
 | `trans->Append(sql)` / `trans->Append(stmt)` | `tx.append(stmt)` (no raw-SQL `Append` — wrap raw SQL as a `PreparedStatement::new`) | — |
-| `pool.CommitTransaction(trans)` | `db.commit_transaction(tx).await?` | Async, with 5-attempt deadlock retry |
+| `pool.CommitTransaction(trans)` | `db.commit_transaction(tx).await?` | Async, with serialized deadlock retry for up to 60s |
 | `class TransactionCallback` (`AfterComplete`) | `db.commit_transaction(tx).await.map(|_| post_action())` | — |
 | `pool.Execute(sql)` (async fire-and-forget) | `tokio::spawn(async move { db.direct_execute(sql).await })` | Awaiting blocks the caller; spawn for fire-and-forget |
 | `pool.DirectExecute(sql)` (sync) | `db.direct_execute(sql).await` | All Rust DB ops are async; "direct" = "no transaction" |
@@ -831,8 +831,8 @@ CLAUDE.md mentions a "prepared statement registry" as completed. Audit confirms:
 | `pool.CommitTransaction(trans)` (async) | `db.commit_transaction(tx).await` | ✅ |
 | `pool.AsyncCommitTransaction(trans)` returns `TransactionCallback` | `commit_transaction` is already async, no separate callback type | ✅ acceptable divergence |
 | `pool.DirectCommitTransaction(trans)` (sync) | (none) — same as commit | ✅ irrelevant in async land |
-| `TransactionTask::TryExecute` retries 5× on deadlock | `SqlTransaction::commit` retries 5× on MySQL error 1213 (`transaction.rs:48-65`) | ✅ |
-| `TransactionTask::_deadlockLock` static mutex serializes retries | (none) — concurrent retries | ⚠️ #DB.17 |
+| `TransactionTask::Execute` retries deadlocks until `DEADLOCK_MAX_RETRY_TIME_MS` | `SqlTransaction::commit` retries MySQL error 1213 for up to 60s | ✅ |
+| `TransactionTask::_deadlockLock` static mutex serializes retries | process-wide Tokio mutex serializes transaction deadlock retries | ✅ #DB.17 |
 | `pool.ExecuteOrAppend(trans, stmt)` | `db.execute_or_append(trans, stmt).await` | ✅ |
 
 ### 13.5 QueryCallback / async chain
