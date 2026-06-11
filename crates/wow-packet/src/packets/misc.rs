@@ -3814,6 +3814,55 @@ impl ServerPacket for CalendarSendNumPending {
     }
 }
 
+/// C++ `WorldPackets::Token::CommerceTokenGetLog`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CommerceTokenGetLog {
+    pub unk_int: u32,
+}
+
+impl ClientPacket for CommerceTokenGetLog {
+    const OPCODE: ClientOpcodes = ClientOpcodes::CommerceTokenGetLog;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            unk_int: pkt.read_uint32()?,
+        })
+    }
+}
+
+/// C++ `TOKEN_RESULT_SUCCESS`.
+pub const TOKEN_RESULT_SUCCESS_LIKE_CPP: u32 = 0;
+
+/// C++ `WorldPackets::Token::CommerceTokenGetLogResponse`.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct CommerceTokenGetLogResponse {
+    pub unk_int: u32,
+    pub result: u32,
+    /// Auctionable token rows are unimplemented in this C++ branch too; the
+    /// handler sends a success response with an empty list.
+    pub auctionable_token_count: u32,
+}
+
+impl CommerceTokenGetLogResponse {
+    pub fn success_empty(unk_int: u32) -> Self {
+        Self {
+            unk_int,
+            result: TOKEN_RESULT_SUCCESS_LIKE_CPP,
+            auctionable_token_count: 0,
+        }
+    }
+}
+
+impl ServerPacket for CommerceTokenGetLogResponse {
+    const OPCODE: ServerOpcodes = ServerOpcodes::CommerceTokenGetLogResponse;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_uint32(self.unk_int);
+        pkt.write_uint32(self.result);
+        pkt.write_uint32(self.auctionable_token_count);
+    }
+}
+
 // ── RatedPvpInfo ─────────────────────────────────────────────────────────────
 
 /// C++ `WorldPackets::Battleground::RatedPvpInfo`.
@@ -4060,6 +4109,30 @@ mod tests {
 
         let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
         assert_eq!(pkt.read_uint32().unwrap(), 3);
+    }
+
+    #[test]
+    fn commerce_token_get_log_reads_cpp_uint32() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(0x1122_3344);
+
+        let request = CommerceTokenGetLog::read(&mut pkt).unwrap();
+        assert_eq!(request.unk_int, 0x1122_3344);
+    }
+
+    #[test]
+    fn commerce_token_get_log_response_success_empty_matches_cpp_todo_handler() {
+        let bytes = CommerceTokenGetLogResponse::success_empty(0x1122_3344).to_bytes();
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::CommerceTokenGetLogResponse as u16
+        );
+        assert_eq!(bytes.len(), 2 + 12);
+
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_uint32().unwrap(), 0x1122_3344);
+        assert_eq!(pkt.read_uint32().unwrap(), TOKEN_RESULT_SUCCESS_LIKE_CPP);
+        assert_eq!(pkt.read_uint32().unwrap(), 0);
     }
 
     #[test]

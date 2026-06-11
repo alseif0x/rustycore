@@ -39,10 +39,11 @@ use wow_packet::packets::loot::{LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHI
 use wow_packet::packets::misc::{
     AddToy, BattlePetClearFanfare, BattlePetDeletePet, BattlePetModifyName,
     BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags, BattlePetSummon,
-    BattlePetUpdateNotify, CageBattlePet, CalendarSendNumPending, DfGetSystemInfo, FarSight,
-    GmTicketCaseStatus, LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus, MountSetFavorite,
-    QueryBattlePetName, QueryBattlePetNameResponse, RatedPvpInfo, RequestCemeteryListResponse,
-    SaveCufProfiles, TaxiNodeStatusPkt, ToyClearFanfare, UseToy,
+    BattlePetUpdateNotify, CageBattlePet, CalendarSendNumPending, CommerceTokenGetLog,
+    CommerceTokenGetLogResponse, DfGetSystemInfo, FarSight, GmTicketCaseStatus, LfgListBlacklist,
+    LfgPlayerInfo, LfgUpdateStatus, MountSetFavorite, QueryBattlePetName,
+    QueryBattlePetNameResponse, RatedPvpInfo, RequestCemeteryListResponse, SaveCufProfiles,
+    TaxiNodeStatusPkt, ToyClearFanfare, UseToy,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -2033,8 +2034,22 @@ impl crate::session::WorldSession {
     }
 
     /// CMSG_COMMERCE_TOKEN_GET_LOG — WoW Token transaction log.
-    /// Not implemented; silently ignored.
-    pub async fn handle_commerce_token_get_log(&mut self, _pkt: wow_packet::WorldPacket) {}
+    pub async fn handle_commerce_token_get_log(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let request = match CommerceTokenGetLog::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "CommerceTokenGetLog parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        // C++ has a TODO here and returns TOKEN_RESULT_SUCCESS with an empty
+        // auctionable-token list while echoing the request integer.
+        self.send_packet(&CommerceTokenGetLogResponse::success_empty(request.unk_int));
+    }
 
     // ── Game object interaction ───────────────────────────────────────────────
 
@@ -4707,6 +4722,29 @@ mod tests {
         );
 
         let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_uint32().unwrap(), 0);
+    }
+
+    #[tokio::test]
+    async fn commerce_token_get_log_echoes_request_and_empty_success_like_cpp_todo_handler() {
+        let (mut session, send_rx) = make_session();
+        let mut request = WorldPacket::new_empty();
+        request.write_uint32(0x1122_3344);
+
+        session.handle_commerce_token_get_log(request).await;
+
+        let bytes = send_rx.try_recv().expect("commerce token get log response");
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::CommerceTokenGetLogResponse as u16
+        );
+
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_uint32().unwrap(), 0x1122_3344);
+        assert_eq!(
+            pkt.read_uint32().unwrap(),
+            wow_packet::packets::misc::TOKEN_RESULT_SUCCESS_LIKE_CPP
+        );
         assert_eq!(pkt.read_uint32().unwrap(), 0);
     }
 
