@@ -189,22 +189,43 @@ impl WorldSession {
     }
 
     /// C++ `HandleRequestVehiclePrevSeat`.
-    pub async fn handle_request_vehicle_prev_seat(&mut self, _packet: RequestVehiclePrevSeat) {}
+    pub async fn handle_request_vehicle_prev_seat(&mut self, _packet: RequestVehiclePrevSeat) {
+        // C++ returns before ChangeSeat when GetVehicleBase() is null. Rust does
+        // not yet expose represented passenger vehicle base/seat state for this
+        // handler, so preserve the no-vehicle branch.
+    }
 
     /// C++ `HandleRequestVehicleNextSeat`.
-    pub async fn handle_request_vehicle_next_seat(&mut self, _packet: RequestVehicleNextSeat) {}
+    pub async fn handle_request_vehicle_next_seat(&mut self, _packet: RequestVehicleNextSeat) {
+        // C++ returns before ChangeSeat when GetVehicleBase() is null. Rust does
+        // not yet expose represented passenger vehicle base/seat state for this
+        // handler, so preserve the no-vehicle branch.
+    }
 
     /// C++ `HandleMoveChangeVehicleSeats`.
-    pub async fn handle_move_change_vehicle_seats(&mut self, _packet: MoveChangeVehicleSeats) {}
+    pub async fn handle_move_change_vehicle_seats(&mut self, _packet: MoveChangeVehicleSeats) {
+        // C++ returns before movement validation when GetVehicleBase() is null.
+        // Full seat switching needs represented vehicle-base movement ownership.
+    }
 
     /// C++ `HandleRequestVehicleSwitchSeat`.
-    pub async fn handle_request_vehicle_switch_seat(&mut self, _packet: RequestVehicleSwitchSeat) {}
+    pub async fn handle_request_vehicle_switch_seat(&mut self, _packet: RequestVehicleSwitchSeat) {
+        // C++ returns before ChangeSeat/HandleSpellClick when GetVehicleBase()
+        // is null. Cross-vehicle spell-click routing is not represented here.
+    }
 
     /// C++ `HandleRideVehicleInteract`.
-    pub async fn handle_ride_vehicle_interact(&mut self, _packet: RideVehicleInteract) {}
+    pub async fn handle_ride_vehicle_interact(&mut self, _packet: RideVehicleInteract) {
+        // C++ only enters when ObjectAccessor finds a player target with a
+        // vehicle kit, raid membership, distance, and non-arena map checks.
+        // Rust has no represented target-player vehicle lookup in this handler.
+    }
 
     /// C++ `HandleEjectPassenger`.
-    pub async fn handle_eject_passenger(&mut self, _packet: EjectPassenger) {}
+    pub async fn handle_eject_passenger(&mut self, _packet: EjectPassenger) {
+        // C++ rejects before passenger lookup when the player has no VehicleKit.
+        // Rust has no represented player vehicle kit/passenger seat map here.
+    }
 
     /// C++ `HandleRequestVehicleExit`.
     pub async fn handle_request_vehicle_exit(&mut self, _packet: RequestVehicleExit) {
