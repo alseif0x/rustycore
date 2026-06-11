@@ -499,10 +499,23 @@ fn extract_session_id(headers: &HashMap<String, String>) -> Option<String> {
 }
 
 fn extract_auth_ticket(headers: &HashMap<String, String>) -> Option<String> {
-    headers
-        .get("authorization")
-        .and_then(|auth| auth.strip_prefix("Basic "))
-        .map(|s| s.to_string())
+    let mut authorization = headers.get("authorization")?.as_str();
+    if let Some(rest) = authorization.strip_prefix("Basic ") {
+        authorization = rest;
+    }
+
+    let decoded = decode_base64_standard_like_cpp(authorization)?;
+    let decoded_header = String::from_utf8(decoded).ok()?;
+    let ticket = decoded_header
+        .split_once(':')
+        .map(|(ticket, _)| ticket)
+        .unwrap_or(&decoded_header);
+
+    if ticket.is_empty() {
+        None
+    } else {
+        Some(ticket.to_string())
+    }
 }
 
 fn generate_session_id() -> String {
@@ -648,6 +661,69 @@ fn hex_encode(data: &[u8]) -> String {
     data.iter().map(|b| format!("{b:02x}")).collect()
 }
 
+fn decode_base64_standard_like_cpp(input: &str) -> Option<Vec<u8>> {
+    fn value(byte: u8) -> Option<u8> {
+        match byte {
+            b'A'..=b'Z' => Some(byte - b'A'),
+            b'a'..=b'z' => Some(byte - b'a' + 26),
+            b'0'..=b'9' => Some(byte - b'0' + 52),
+            b'+' => Some(62),
+            b'/' => Some(63),
+            _ => None,
+        }
+    }
+
+    let mut output = Vec::with_capacity(input.len() * 3 / 4);
+    let mut chunk = [0u8; 4];
+    let mut chunk_len = 0usize;
+    let mut finished_padding = false;
+
+    for byte in input.bytes() {
+        let sextet = if byte == b'=' {
+            finished_padding = true;
+            64
+        } else {
+            if finished_padding {
+                return None;
+            }
+            value(byte)?
+        };
+
+        chunk[chunk_len] = sextet;
+        chunk_len += 1;
+
+        if chunk_len == 4 {
+            if chunk[0] == 64 || chunk[1] == 64 || (chunk[2] == 64 && chunk[3] != 64) {
+                return None;
+            }
+
+            output.push((chunk[0] << 2) | (chunk[1] >> 4));
+            if chunk[2] != 64 {
+                output.push((chunk[1] << 4) | (chunk[2] >> 2));
+            }
+            if chunk[3] != 64 {
+                output.push((chunk[2] << 6) | chunk[3]);
+            }
+
+            chunk_len = 0;
+        }
+    }
+
+    match chunk_len {
+        0 => Some(output),
+        2 if !finished_padding => {
+            output.push((chunk[0] << 2) | (chunk[1] >> 4));
+            Some(output)
+        }
+        3 if !finished_padding => {
+            output.push((chunk[0] << 2) | (chunk[1] >> 4));
+            output.push((chunk[1] << 4) | (chunk[2] >> 2));
+            Some(output)
+        }
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -673,6 +749,41 @@ mod tests {
             wrong_password_remote_ip_from_headers_like_cpp(&headers, "203.0.113.10"),
             "203.0.113.10"
         );
+    }
+
+    #[test]
+    fn extract_auth_ticket_decodes_basic_and_truncates_at_colon_like_cpp() {
+        let headers = HashMap::from([(
+            "authorization".to_string(),
+            "Basic VElDS0VUOnNlY3JldA==".to_string(),
+        )]);
+
+        assert_eq!(extract_auth_ticket(&headers).as_deref(), Some("TICKET"));
+    }
+
+    #[test]
+    fn extract_auth_ticket_decodes_without_basic_prefix_like_cpp() {
+        let headers =
+            HashMap::from([("authorization".to_string(), "VEMtYWJjMTIzOg==".to_string())]);
+
+        assert_eq!(extract_auth_ticket(&headers).as_deref(), Some("TC-abc123"));
+    }
+
+    #[test]
+    fn extract_auth_ticket_accepts_decoded_value_without_colon_like_cpp() {
+        let headers = HashMap::from([("authorization".to_string(), "VEMtcmF3".to_string())]);
+
+        assert_eq!(extract_auth_ticket(&headers).as_deref(), Some("TC-raw"));
+    }
+
+    #[test]
+    fn extract_auth_ticket_rejects_invalid_or_empty_ticket_like_cpp() {
+        let invalid =
+            HashMap::from([("authorization".to_string(), "Basic not base64".to_string())]);
+        let empty = HashMap::from([("authorization".to_string(), "Og==".to_string())]);
+
+        assert_eq!(extract_auth_ticket(&invalid), None);
+        assert_eq!(extract_auth_ticket(&empty), None);
     }
 }
 
