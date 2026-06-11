@@ -3886,6 +3886,22 @@ impl ServerPacket for CalendarSendCalendar {
     }
 }
 
+/// C++ `WorldPackets::ArenaTeam::ArenaTeamRoster`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ArenaTeamRoster {
+    pub team_id: u32,
+}
+
+impl ClientPacket for ArenaTeamRoster {
+    const OPCODE: ClientOpcodes = ClientOpcodes::ArenaTeamRoster;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            team_id: pkt.read_uint32()?,
+        })
+    }
+}
+
 /// C++ `WorldPackets::Token::CommerceTokenGetLog`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CommerceTokenGetLog {
@@ -4197,6 +4213,15 @@ mod tests {
         assert_eq!(pkt.read_uint32().unwrap(), 0); // Invites.Count
         assert_eq!(pkt.read_uint32().unwrap(), 0); // Events.Count
         assert_eq!(pkt.read_uint32().unwrap(), 0); // RaidLockouts.Count
+    }
+
+    #[test]
+    fn arena_team_roster_reads_cpp_team_id() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(0x0102_0304);
+
+        let request = ArenaTeamRoster::read(&mut pkt).unwrap();
+        assert_eq!(request.team_id, 0x0102_0304);
     }
 
     #[test]

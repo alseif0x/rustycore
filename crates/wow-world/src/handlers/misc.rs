@@ -37,7 +37,7 @@ use wow_packet::packets::item::{
 };
 use wow_packet::packets::loot::{LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHING_LIKE_CPP};
 use wow_packet::packets::misc::{
-    AddToy, BattlePetClearFanfare, BattlePetDeletePet, BattlePetModifyName,
+    AddToy, ArenaTeamRoster, BattlePetClearFanfare, BattlePetDeletePet, BattlePetModifyName,
     BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags, BattlePetSummon,
     BattlePetUpdateNotify, CageBattlePet, CalendarSendCalendar, CalendarSendNumPending,
     CommerceTokenGetLog, CommerceTokenGetLogResponse, DfGetSystemInfo, FarSight,
@@ -1452,7 +1452,11 @@ impl crate::session::WorldSession {
     pub async fn handle_request_rated_pvp_info(&mut self, _pkt: wow_packet::WorldPacket) {
         self.send_packet(&RatedPvpInfo::default());
     }
-    pub async fn handle_request_pvp_rewards(&mut self, _pkt: wow_packet::WorldPacket) {}
+    pub async fn handle_request_pvp_rewards(&mut self, _pkt: wow_packet::WorldPacket) {
+        // C++ dispatches to Player::SendPvpRewards(), but that method's
+        // SMSG_REQUEST_PVP_REWARDS_RESPONSE send is commented out in the
+        // canonical source, so the observable behavior is silence.
+    }
     pub async fn handle_df_get_system_info(&mut self, mut pkt: wow_packet::WorldPacket) {
         let request = match DfGetSystemInfo::read(&mut pkt) {
             Ok(request) => request,
@@ -1769,7 +1773,27 @@ impl crate::session::WorldSession {
 
         self.send_packet(&response);
     }
-    pub async fn handle_arena_team_roster(&mut self, _pkt: wow_packet::WorldPacket) {}
+    pub async fn handle_arena_team_roster(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let request = match ArenaTeamRoster::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "ArenaTeamRoster parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        // C++ returns silently when sArenaTeamMgr has no arena team for TeamId.
+        // The live arena-team manager is not ported here yet, so Rust preserves
+        // that unknown-team branch instead of inventing an empty roster packet.
+        debug!(
+            account = self.account_id,
+            team_id = request.team_id,
+            "ArenaTeamRoster ignored without represented arena-team manager"
+        );
+    }
     pub async fn handle_request_raid_info(&mut self, _pkt: wow_packet::WorldPacket) {
         let locks = match (self.player_guid(), self.instance_lock_mgr.as_ref()) {
             (Some(player_guid), Some(instance_lock_mgr)) => {
@@ -1982,6 +2006,8 @@ impl crate::session::WorldSession {
         &mut self,
         _pkt: wow_packet::WorldPacket,
     ) {
+        // C++ registers CMSG_REQUEST_CONQUEST_FORMULA_CONSTANTS as
+        // STATUS_UNHANDLED/Handle_NULL.
     }
     pub async fn handle_request_lfg_list_blacklist(&mut self, _pkt: wow_packet::WorldPacket) {
         // C++ builds this from `sLFGMgr->GetLockedDungeons(playerGuid)`.
@@ -1995,7 +2021,10 @@ impl crate::session::WorldSession {
         // well-defined no-ticket/no-queue branch.
         self.send_packet(&LfgUpdateStatus::removed_from_queue());
     }
-    pub async fn handle_get_account_character_list(&mut self, _pkt: wow_packet::WorldPacket) {}
+    pub async fn handle_get_account_character_list(&mut self, _pkt: wow_packet::WorldPacket) {
+        // C++ registers CMSG_GET_ACCOUNT_CHARACTER_LIST as
+        // STATUS_UNHANDLED/Handle_NULL.
+    }
     pub async fn handle_cancel_trade(&mut self, _pkt: wow_packet::WorldPacket) {
         // C++ calls Player::TradeCancel(true) only when a player is present.
         // Full trade state is not ported yet; no active trade means no response.
@@ -4747,6 +4776,50 @@ mod tests {
         assert_eq!(pkt.read_uint32().unwrap(), 0); // Invites.Count
         assert_eq!(pkt.read_uint32().unwrap(), 0); // Events.Count
         assert_eq!(pkt.read_uint32().unwrap(), 0); // RaidLockouts.Count
+    }
+
+    #[tokio::test]
+    async fn request_pvp_rewards_is_silent_like_cpp_commented_send() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_request_pvp_rewards(WorldPacket::new_empty())
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn arena_team_roster_unknown_team_is_silent_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let mut request = WorldPacket::new_empty();
+        request.write_uint32(1234);
+
+        session.handle_arena_team_roster(request).await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn conquest_formula_constants_is_silent_like_cpp_handle_null() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_request_conquest_formula_constants(WorldPacket::new_empty())
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn get_account_character_list_is_silent_like_cpp_handle_null() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_get_account_character_list(WorldPacket::new_empty())
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
     }
 
     #[tokio::test]
