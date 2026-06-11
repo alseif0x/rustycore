@@ -3645,6 +3645,43 @@ impl ServerPacket for LfgUpdateStatus {
     }
 }
 
+/// C++ `WorldPackets::LFG::LFGListBlacklist::BlacklistEntry`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct LfgListBlacklistEntry {
+    pub slot: u32,
+    pub reason: u32,
+    pub sub_reason1: i32,
+    pub sub_reason2: i32,
+    pub soft_lock: u32,
+}
+
+/// C++ `WorldPackets::LFG::LFGListBlacklist`.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct LfgListBlacklist {
+    pub entries: Vec<LfgListBlacklistEntry>,
+}
+
+impl LfgListBlacklist {
+    pub fn empty() -> Self {
+        Self::default()
+    }
+}
+
+impl ServerPacket for LfgListBlacklist {
+    const OPCODE: ServerOpcodes = ServerOpcodes::LfgListUpdateBlacklist;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_uint32(self.entries.len() as u32);
+        for entry in &self.entries {
+            pkt.write_uint32(entry.slot);
+            pkt.write_uint32(entry.reason);
+            pkt.write_int32(entry.sub_reason1);
+            pkt.write_int32(entry.sub_reason2);
+            pkt.write_uint32(entry.soft_lock);
+        }
+    }
+}
+
 // ── RatedPvpInfo ─────────────────────────────────────────────────────────────
 
 /// C++ `WorldPackets::Battleground::RatedPvpInfo`.
@@ -3792,6 +3829,41 @@ mod tests {
         assert!(!pkt.has_bit().unwrap());
         assert!(!pkt.has_bit().unwrap());
         assert!(!pkt.has_bit().unwrap());
+    }
+
+    #[test]
+    fn lfg_list_blacklist_empty_matches_cpp_shape() {
+        let bytes = LfgListBlacklist::empty().to_bytes();
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::LfgListUpdateBlacklist as u16
+        );
+        assert_eq!(bytes.len(), 2 + 4);
+
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_uint32().unwrap(), 0);
+    }
+
+    #[test]
+    fn lfg_list_blacklist_entry_matches_cpp_order() {
+        let bytes = LfgListBlacklist {
+            entries: vec![LfgListBlacklistEntry {
+                slot: 42,
+                reason: 3,
+                sub_reason1: 123,
+                sub_reason2: -7,
+                soft_lock: 0,
+            }],
+        }
+        .to_bytes();
+
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_uint32().unwrap(), 1);
+        assert_eq!(pkt.read_uint32().unwrap(), 42);
+        assert_eq!(pkt.read_uint32().unwrap(), 3);
+        assert_eq!(pkt.read_int32().unwrap(), 123);
+        assert_eq!(pkt.read_int32().unwrap(), -7);
+        assert_eq!(pkt.read_uint32().unwrap(), 0);
     }
 
     #[test]

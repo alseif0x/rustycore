@@ -39,9 +39,9 @@ use wow_packet::packets::loot::{LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHI
 use wow_packet::packets::misc::{
     AddToy, BattlePetClearFanfare, BattlePetDeletePet, BattlePetModifyName,
     BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags, BattlePetSummon,
-    BattlePetUpdateNotify, CageBattlePet, FarSight, LfgUpdateStatus, MountSetFavorite,
-    QueryBattlePetName, QueryBattlePetNameResponse, RatedPvpInfo, RequestCemeteryListResponse,
-    SaveCufProfiles, TaxiNodeStatusPkt, ToyClearFanfare, UseToy,
+    BattlePetUpdateNotify, CageBattlePet, FarSight, LfgListBlacklist, LfgUpdateStatus,
+    MountSetFavorite, QueryBattlePetName, QueryBattlePetNameResponse, RatedPvpInfo,
+    RequestCemeteryListResponse, SaveCufProfiles, TaxiNodeStatusPkt, ToyClearFanfare, UseToy,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -1950,7 +1950,12 @@ impl crate::session::WorldSession {
         _pkt: wow_packet::WorldPacket,
     ) {
     }
-    pub async fn handle_request_lfg_list_blacklist(&mut self, _pkt: wow_packet::WorldPacket) {}
+    pub async fn handle_request_lfg_list_blacklist(&mut self, _pkt: wow_packet::WorldPacket) {
+        // C++ builds this from `sLFGMgr->GetLockedDungeons(playerGuid)`.
+        // Rust does not have that manager state yet, so represent the
+        // well-defined no-locks response instead of leaving the client waiting.
+        self.send_packet(&LfgListBlacklist::empty());
+    }
     pub async fn handle_lfg_list_get_status(&mut self, _pkt: wow_packet::WorldPacket) {
         // C++ `HandleLfgListGetStatus` always sends LFGUpdateStatus for a live
         // player. Until `sLFGMgr` state is ported, Rust represents the
@@ -4582,6 +4587,24 @@ mod tests {
         assert!(!pkt.has_bit().unwrap()); // LfgJoined
         assert!(!pkt.has_bit().unwrap()); // Queued
         assert!(!pkt.has_bit().unwrap()); // Unused
+    }
+
+    #[tokio::test]
+    async fn request_lfg_list_blacklist_sends_empty_list_like_cpp_without_locks() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_request_lfg_list_blacklist(WorldPacket::new_empty())
+            .await;
+
+        let bytes = send_rx.try_recv().expect("LFG blacklist packet");
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::LfgListUpdateBlacklist as u16
+        );
+
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_uint32().unwrap(), 0);
     }
 
     #[tokio::test]
