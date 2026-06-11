@@ -18,6 +18,7 @@
 
 use tracing::debug;
 
+use wow_chat::hyperlinks::check_all_links_shape_like_cpp;
 use wow_constants::ClientOpcodes;
 use wow_core::ObjectGuid;
 use wow_core::guid::HighGuid;
@@ -208,6 +209,15 @@ impl WorldSession {
             text = %msg.text,
             "Chat message"
         );
+
+        if !check_all_links_shape_like_cpp(&msg.text) {
+            tracing::warn!(
+                account = self.account_id,
+                ty = ?msg_type,
+                "Chat message rejected: invalid hyperlink/control sequence"
+            );
+            return;
+        }
 
         let (sender_guid, sender_name) = self.player_name_and_guid();
         let virtual_realm = self.virtual_realm_address();
@@ -1077,6 +1087,25 @@ mod tests {
             .handle_chat_message(
                 chat_message_packet(ClientOpcodes::ChatMessageGuild, "guild"),
                 ChatMsg::Guild,
+            )
+            .await;
+
+        assert!(sender_rx.try_recv().is_err());
+        assert!(nearby_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn chat_with_invalid_hyperlink_control_sequence_is_rejected_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 351);
+        let nearby = ObjectGuid::create_player(1, 352);
+        let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
+        let (nearby_tx, nearby_rx) = flume::bounded(8);
+        player_registry.insert(nearby, broadcast_info(nearby, nearby_tx));
+
+        session
+            .handle_chat_message(
+                chat_message_packet(ClientOpcodes::ChatMessageSay, "forged |x control"),
+                ChatMsg::Say,
             )
             .await;
 

@@ -19,6 +19,7 @@ wow-crypto = { workspace = true }
 wow-constants = { workspace = true }
 wow-ecs = { workspace = true }
 wow-ai = { workspace = true }
+wow-chat = { workspace = true }
 wow-data = { workspace = true }
 wow-database = { workspace = true }
 wow-entities = { workspace = true }
