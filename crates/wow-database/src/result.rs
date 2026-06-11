@@ -3,8 +3,126 @@
 //! [`SqlResult`] wraps a collection of rows returned by a query, providing a
 //! cursor-style API that matches the C# `SQLResult` / `SQLFields` pattern.
 
+use std::any::TypeId;
+
+use sqlx::MySql;
 use sqlx::mysql::MySqlRow;
 use sqlx::{Column, Row, TypeInfo, ValueRef};
+
+/// TrinityCore-style database field categories derived from MySQL metadata.
+///
+/// C++ stores this as `DatabaseFieldTypes` on `QueryResultFieldMetadata`.
+/// RustyCore receives type names from sqlx, so this enum is a compatibility
+/// classifier used by [`read_typed`](SqlResult::read_typed) and friends.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DatabaseFieldTypeLikeCpp {
+    Null,
+    UInt8,
+    Int8,
+    UInt16,
+    Int16,
+    UInt32,
+    Int32,
+    UInt64,
+    Int64,
+    Float,
+    Double,
+    Decimal,
+    Date,
+    Binary,
+    Text,
+}
+
+/// Classify a sqlx/MySQL type-name into the closest TC `DatabaseFieldTypes`
+/// category.
+pub fn database_field_type_like_cpp(type_name: &str) -> DatabaseFieldTypeLikeCpp {
+    let upper = type_name.to_ascii_uppercase();
+    let unsigned = upper.contains("UNSIGNED");
+
+    if upper.contains("TINYINT") {
+        if unsigned {
+            DatabaseFieldTypeLikeCpp::UInt8
+        } else {
+            DatabaseFieldTypeLikeCpp::Int8
+        }
+    } else if upper.contains("SMALLINT") {
+        if unsigned {
+            DatabaseFieldTypeLikeCpp::UInt16
+        } else {
+            DatabaseFieldTypeLikeCpp::Int16
+        }
+    } else if upper.contains("BIGINT") {
+        if unsigned {
+            DatabaseFieldTypeLikeCpp::UInt64
+        } else {
+            DatabaseFieldTypeLikeCpp::Int64
+        }
+    } else if upper.contains("MEDIUMINT") || upper.contains("INT") {
+        if unsigned {
+            DatabaseFieldTypeLikeCpp::UInt32
+        } else {
+            DatabaseFieldTypeLikeCpp::Int32
+        }
+    } else if upper.contains("FLOAT") {
+        DatabaseFieldTypeLikeCpp::Float
+    } else if upper.contains("DOUBLE") {
+        DatabaseFieldTypeLikeCpp::Double
+    } else if upper.contains("DECIMAL") || upper.contains("NUMERIC") {
+        DatabaseFieldTypeLikeCpp::Decimal
+    } else if upper.contains("BINARY")
+        || upper.contains("BLOB")
+        || upper.contains("GEOMETRY")
+        || upper.contains("BIT")
+    {
+        DatabaseFieldTypeLikeCpp::Binary
+    } else if upper.contains("CHAR")
+        || upper.contains("TEXT")
+        || upper.contains("ENUM")
+        || upper.contains("SET")
+        || upper.contains("JSON")
+    {
+        DatabaseFieldTypeLikeCpp::Text
+    } else if upper.contains("DATE")
+        || upper.contains("TIME")
+        || upper.contains("YEAR")
+        || upper.contains("TIMESTAMP")
+    {
+        DatabaseFieldTypeLikeCpp::Date
+    } else if upper.contains("NULL") {
+        DatabaseFieldTypeLikeCpp::Null
+    } else {
+        DatabaseFieldTypeLikeCpp::Text
+    }
+}
+
+/// Return whether a Rust target type matches the TC-style DB field metadata.
+pub fn rust_type_compatible_with_database_field_like_cpp<T: 'static>(type_name: &str) -> bool {
+    let rust_type = TypeId::of::<T>();
+
+    match database_field_type_like_cpp(type_name) {
+        DatabaseFieldTypeLikeCpp::Null => false,
+        DatabaseFieldTypeLikeCpp::UInt8 => {
+            rust_type == TypeId::of::<u8>() || rust_type == TypeId::of::<bool>()
+        }
+        DatabaseFieldTypeLikeCpp::Int8 => {
+            rust_type == TypeId::of::<i8>() || rust_type == TypeId::of::<bool>()
+        }
+        DatabaseFieldTypeLikeCpp::UInt16 => rust_type == TypeId::of::<u16>(),
+        DatabaseFieldTypeLikeCpp::Int16 => rust_type == TypeId::of::<i16>(),
+        DatabaseFieldTypeLikeCpp::UInt32 => rust_type == TypeId::of::<u32>(),
+        DatabaseFieldTypeLikeCpp::Int32 => rust_type == TypeId::of::<i32>(),
+        DatabaseFieldTypeLikeCpp::UInt64 => rust_type == TypeId::of::<u64>(),
+        DatabaseFieldTypeLikeCpp::Int64 => rust_type == TypeId::of::<i64>(),
+        DatabaseFieldTypeLikeCpp::Float => rust_type == TypeId::of::<f32>(),
+        DatabaseFieldTypeLikeCpp::Double | DatabaseFieldTypeLikeCpp::Decimal => {
+            rust_type == TypeId::of::<f64>()
+        }
+        DatabaseFieldTypeLikeCpp::Date | DatabaseFieldTypeLikeCpp::Text => {
+            rust_type == TypeId::of::<String>()
+        }
+        DatabaseFieldTypeLikeCpp::Binary => rust_type == TypeId::of::<Vec<u8>>(),
+    }
+}
 
 /// Result of a database query, holding zero or more rows.
 ///
@@ -72,6 +190,37 @@ impl SqlResult {
         self.rows[self.current].get(column)
     }
 
+    /// Read a typed value after checking the column metadata like TC `Field`.
+    ///
+    /// This is intentionally stricter than [`read`](Self::read): a DB type /
+    /// Rust type mismatch is reported before decoding.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the result is empty, the column index is out of range, the
+    /// metadata does not match `T`, or the value cannot be decoded as `T`.
+    pub fn read_typed<'r, T>(&'r self, column: usize) -> T
+    where
+        T: sqlx::Decode<'r, MySql> + sqlx::Type<MySql> + 'static,
+    {
+        let type_name = self.column_type_name(column).unwrap_or("<out-of-range>");
+        if !rust_type_compatible_with_database_field_like_cpp::<T>(type_name) {
+            tracing::warn!(
+                target: "sql.sql",
+                column,
+                db_type = type_name,
+                rust_type = std::any::type_name::<T>(),
+                "Database field type mismatch"
+            );
+            panic!(
+                "database field type mismatch at column {column}: DB type {type_name:?} cannot be read as {}",
+                std::any::type_name::<T>()
+            );
+        }
+
+        self.read(column)
+    }
+
     /// Try to read a typed value, returning `None` on failure or `NULL`.
     pub fn try_read<'r, T>(&'r self, column: usize) -> Option<T>
     where
@@ -80,6 +229,26 @@ impl SqlResult {
         self.rows
             .get(self.current)
             .and_then(|row| row.try_get(column).ok())
+    }
+
+    /// Try to read a typed value after checking column metadata.
+    pub fn try_read_typed<'r, T>(&'r self, column: usize) -> Option<T>
+    where
+        T: sqlx::Decode<'r, MySql> + sqlx::Type<MySql> + 'static,
+    {
+        let type_name = self.column_type_name(column)?;
+        if !rust_type_compatible_with_database_field_like_cpp::<T>(type_name) {
+            tracing::warn!(
+                target: "sql.sql",
+                column,
+                db_type = type_name,
+                rust_type = std::any::type_name::<T>(),
+                "Database field type mismatch"
+            );
+            return None;
+        }
+
+        self.try_read(column)
     }
 
     /// Read a string column, handling MySQL binary collation (`VARBINARY`).
@@ -164,12 +333,55 @@ impl<'a> SqlFields<'a> {
         self.row.get(column)
     }
 
+    /// Read a typed value after checking the column metadata like TC `Field`.
+    pub fn read_typed<T>(&self, column: usize) -> T
+    where
+        T: sqlx::Decode<'a, MySql> + sqlx::Type<MySql> + 'static,
+    {
+        let type_name = self.column_type_name(column).unwrap_or("<out-of-range>");
+        if !rust_type_compatible_with_database_field_like_cpp::<T>(type_name) {
+            tracing::warn!(
+                target: "sql.sql",
+                column,
+                db_type = type_name,
+                rust_type = std::any::type_name::<T>(),
+                "Database field type mismatch"
+            );
+            panic!(
+                "database field type mismatch at column {column}: DB type {type_name:?} cannot be read as {}",
+                std::any::type_name::<T>()
+            );
+        }
+
+        self.read(column)
+    }
+
     /// Try to read a typed value, returning `None` on failure or `NULL`.
     pub fn try_read<T>(&self, column: usize) -> Option<T>
     where
         T: sqlx::Decode<'a, sqlx::MySql> + sqlx::Type<sqlx::MySql>,
     {
         self.row.try_get(column).ok()
+    }
+
+    /// Try to read a typed value after checking column metadata.
+    pub fn try_read_typed<T>(&self, column: usize) -> Option<T>
+    where
+        T: sqlx::Decode<'a, MySql> + sqlx::Type<MySql> + 'static,
+    {
+        let type_name = self.column_type_name(column)?;
+        if !rust_type_compatible_with_database_field_like_cpp::<T>(type_name) {
+            tracing::warn!(
+                target: "sql.sql",
+                column,
+                db_type = type_name,
+                rust_type = std::any::type_name::<T>(),
+                "Database field type mismatch"
+            );
+            return None;
+        }
+
+        self.try_read(column)
     }
 
     /// Read multiple columns of the same type into a `Vec`.
@@ -188,5 +400,97 @@ impl<'a> SqlFields<'a> {
     /// Number of columns in this row.
     pub fn field_count(&self) -> usize {
         self.row.columns().len()
+    }
+
+    /// Get the column type name at the given index.
+    pub fn column_type_name(&self, index: usize) -> Option<&str> {
+        self.row.columns().get(index).map(|c| c.type_info().name())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        DatabaseFieldTypeLikeCpp, database_field_type_like_cpp,
+        rust_type_compatible_with_database_field_like_cpp,
+    };
+
+    #[test]
+    fn classifies_database_field_types_like_cpp() {
+        assert_eq!(
+            database_field_type_like_cpp("TINYINT UNSIGNED"),
+            DatabaseFieldTypeLikeCpp::UInt8
+        );
+        assert_eq!(
+            database_field_type_like_cpp("TINYINT"),
+            DatabaseFieldTypeLikeCpp::Int8
+        );
+        assert_eq!(
+            database_field_type_like_cpp("SMALLINT UNSIGNED"),
+            DatabaseFieldTypeLikeCpp::UInt16
+        );
+        assert_eq!(
+            database_field_type_like_cpp("MEDIUMINT"),
+            DatabaseFieldTypeLikeCpp::Int32
+        );
+        assert_eq!(
+            database_field_type_like_cpp("INT UNSIGNED"),
+            DatabaseFieldTypeLikeCpp::UInt32
+        );
+        assert_eq!(
+            database_field_type_like_cpp("BIGINT"),
+            DatabaseFieldTypeLikeCpp::Int64
+        );
+        assert_eq!(
+            database_field_type_like_cpp("DOUBLE"),
+            DatabaseFieldTypeLikeCpp::Double
+        );
+        assert_eq!(
+            database_field_type_like_cpp("DECIMAL"),
+            DatabaseFieldTypeLikeCpp::Decimal
+        );
+        assert_eq!(
+            database_field_type_like_cpp("VARBINARY"),
+            DatabaseFieldTypeLikeCpp::Binary
+        );
+        assert_eq!(
+            database_field_type_like_cpp("VARCHAR"),
+            DatabaseFieldTypeLikeCpp::Text
+        );
+    }
+
+    #[test]
+    fn validates_rust_getter_types_like_cpp() {
+        assert!(rust_type_compatible_with_database_field_like_cpp::<u8>(
+            "TINYINT UNSIGNED"
+        ));
+        assert!(rust_type_compatible_with_database_field_like_cpp::<bool>(
+            "TINYINT"
+        ));
+        assert!(!rust_type_compatible_with_database_field_like_cpp::<u8>(
+            "SMALLINT UNSIGNED"
+        ));
+        assert!(rust_type_compatible_with_database_field_like_cpp::<i16>(
+            "SMALLINT"
+        ));
+        assert!(rust_type_compatible_with_database_field_like_cpp::<u32>(
+            "INT UNSIGNED"
+        ));
+        assert!(rust_type_compatible_with_database_field_like_cpp::<i64>(
+            "BIGINT"
+        ));
+        assert!(rust_type_compatible_with_database_field_like_cpp::<f32>(
+            "FLOAT"
+        ));
+        assert!(rust_type_compatible_with_database_field_like_cpp::<f64>(
+            "DOUBLE"
+        ));
+        assert!(rust_type_compatible_with_database_field_like_cpp::<f64>(
+            "DECIMAL"
+        ));
+        assert!(rust_type_compatible_with_database_field_like_cpp::<String>(
+            "TEXT"
+        ));
+        assert!(rust_type_compatible_with_database_field_like_cpp::<Vec<u8>>("BLOB"));
     }
 }

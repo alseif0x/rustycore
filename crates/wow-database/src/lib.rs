@@ -50,7 +50,10 @@ pub use database::{
 pub use error::DatabaseError;
 pub use params::{PreparedStatement, SqlParam};
 pub use query_holder::{SqlQueryHolder, SqlQueryHolderResult};
-pub use result::{SqlFields, SqlResult};
+pub use result::{
+    DatabaseFieldTypeLikeCpp, SqlFields, SqlResult, database_field_type_like_cpp,
+    rust_type_compatible_with_database_field_like_cpp,
+};
 pub use statements::{
     CharStatements, HotfixStatements, LoginStatements, StatementDef, WorldStatements,
 };
