@@ -3409,6 +3409,8 @@ pub struct AuraApplication {
     pub applied_at: Instant,
 }
 
+const AFLAG_SCALABLE_LIKE_CPP: u32 = 0x0000_0008;
+
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG_LOOTING_LIKE_CPP: u32 = 0x0000_0800;
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG_LANDING_OR_FLIGHT_LIKE_CPP: u32 = 0x0200_0000;
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG2_JUMP_LIKE_CPP: u32 = 0x0000_0020;
@@ -14248,15 +14250,21 @@ impl WorldSession {
         auras.sort_by_key(|aura| aura.slot);
         auras
             .into_iter()
-            .map(|aura| wow_packet::packets::party::PartyMemberAuraState {
-                spell_id: aura.spell_id,
-                flags: aura.aura_flags.min(u32::from(u16::MAX)) as u16,
-                active_flags: aura.effect_mask,
-                // C++ fills scalable points from AuraEffect amounts when
-                // AFLAG_SCALABLE is present. Rust does not yet retain full
-                // AuraEffect point snapshots on AuraApplication, so keep the
-                // represented packet honest instead of fabricating values.
-                points: Vec::new(),
+            .map(|aura| {
+                let points = if aura.aura_flags & AFLAG_SCALABLE_LIKE_CPP != 0
+                    && aura.represented_effect.is_some()
+                    && aura.effect_mask.count_ones() == 1
+                {
+                    vec![aura.represented_amount as f32]
+                } else {
+                    Vec::new()
+                };
+                wow_packet::packets::party::PartyMemberAuraState {
+                    spell_id: aura.spell_id,
+                    flags: aura.aura_flags.min(u32::from(u16::MAX)) as u16,
+                    active_flags: aura.effect_mask,
+                    points,
+                }
             })
             .collect()
     }
@@ -46453,9 +46461,58 @@ mod tests {
     }
 
     #[test]
-    fn player_registry_publishes_home_group_party_type_like_cpp() {
+    fn player_registry_publishes_represented_scalable_aura_point_like_cpp() {
         let (mut session, _, _) = make_session();
         let guid = ObjectGuid::create_player(1, 44);
+        let registry = Arc::new(PlayerRegistry::default());
+        let position = Position::new(1.0, 2.0, 3.0, 0.0);
+        session.set_player_guid(Some(guid));
+        session.set_player_map_position_like_cpp(571, position);
+        session.player_name = Some("ScalableAuraTester".to_string());
+        session.set_player_registry(Arc::clone(&registry));
+        let mut scalable_aura =
+            reputation_aura_for_test(1, RepresentedAuraEffectLikeCpp::ModReputationGain, 35, None);
+        scalable_aura.aura_flags |= AFLAG_SCALABLE_LIKE_CPP;
+        scalable_aura.effect_mask = 0x0000_0002;
+        session.visible_auras.insert(1, scalable_aura);
+
+        session.register_in_player_registry();
+
+        let info = registry.get(&guid).expect("registered player");
+        assert_eq!(info.party_member_auras.len(), 1);
+        let aura = &info.party_member_auras[0];
+        assert_eq!(aura.flags, AFLAG_SCALABLE_LIKE_CPP as u16 | 0x0001);
+        assert_eq!(aura.active_flags, 0x0000_0002);
+        assert_eq!(aura.points, vec![35.0]);
+    }
+
+    #[test]
+    fn player_registry_keeps_multieffect_scalable_aura_points_empty_until_full_snapshot() {
+        let (mut session, _, _) = make_session();
+        let guid = ObjectGuid::create_player(1, 45);
+        let registry = Arc::new(PlayerRegistry::default());
+        let position = Position::new(1.0, 2.0, 3.0, 0.0);
+        session.set_player_guid(Some(guid));
+        session.set_player_map_position_like_cpp(571, position);
+        session.player_name = Some("MultiEffectAuraTester".to_string());
+        session.set_player_registry(Arc::clone(&registry));
+        let mut scalable_aura =
+            reputation_aura_for_test(1, RepresentedAuraEffectLikeCpp::ModReputationGain, 35, None);
+        scalable_aura.aura_flags |= AFLAG_SCALABLE_LIKE_CPP;
+        scalable_aura.effect_mask = 0x0000_0003;
+        session.visible_auras.insert(1, scalable_aura);
+
+        session.register_in_player_registry();
+
+        let info = registry.get(&guid).expect("registered player");
+        assert_eq!(info.party_member_auras.len(), 1);
+        assert!(info.party_member_auras[0].points.is_empty());
+    }
+
+    #[test]
+    fn player_registry_publishes_home_group_party_type_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let guid = ObjectGuid::create_player(1, 46);
         let registry = Arc::new(PlayerRegistry::default());
         let group_registry = Arc::new(GroupRegistry::default());
         let position = Position::new(1.0, 2.0, 3.0, 0.0);
