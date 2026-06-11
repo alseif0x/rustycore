@@ -569,7 +569,7 @@ If either configured value is outside 1..32, Rust logs a warning and falls back 
 
 ### 13.6 DB updater
 
-TC's `DBUpdater` (called by `DatabaseLoader::Load`) hashes every `.sql` in `sql/updates/<db>/`, compares against `updates` table, and applies pending files. Rust port (`crates/wow-database/src/updater.rs`) implements `populate(base_sql)` + `update(source_dir)` and is wired in `world-server/main.rs` lines 232-272. **Parity: ✅ implemented**, including the `auto_setup` flag from config. Failures during populate/update only emit `tracing::warn!` rather than aborting — milder than TC, which `return false` from `StartDB`.
+TC's `DBUpdater` (called by `DatabaseLoader::Load`) hashes every `.sql` in `sql/updates/<db>/`, compares against `updates` table, and applies pending files. Rust port (`crates/wow-database/src/updater.rs`) implements `populate(base_sql)` + `update(source_dir)` and is wired in `world-server/main.rs` lines 232-272. **Parity: ✅ implemented**, including the `auto_setup` flag from config. Populate/update failures now propagate out of startup and abort boot with DB-specific context, matching TC's `return false` from `StartDB`.
 
 ### 13.7 Signal handling
 

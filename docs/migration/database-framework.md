@@ -324,7 +324,7 @@ Not applicable — the database framework does not handle WoW client packets. (I
 - **`Updates.Redundancy`**, **`Updates.ArchivedRedundancy`**, **`Updates.AllowRehash`**, **`Updates.CleanDeadRefMaxCount`** config keys: ignored. RustyCore always re-applies on hash change for non-ARCHIVED state; never deletes orphaned `updates` rows; never re-hashes existing applied files to detect post-hoc edits.
 - **`updates_include` defaults**: TC bootstraps `updates_include` rows on first `Populate` (e.g. `('$/sql/updates/auth', 'RELEASED')`). RustyCore creates the table empty and warns "no updates_include entries" if operator hasn't populated it. **First-boot UX gap**: a fresh install will skip applying any updates until the operator manually inserts rows.
 - **`UpdateFetcher` "missing files" detection**: TC removes `updates` rows whose `.sql` file is no longer present (with `Updates.CleanDeadRefMaxCount` budget). RustyCore never deletes from `updates`, so a removed file leaves a stale row.
-- **`DBUpdater::Populate` failure is fatal in TC** (`return false` from `StartDB` aborts boot). RustyCore only emits `tracing::warn!("Auth populate skipped: {e}")` and continues — the binary keeps going against an empty DB and crashes later when the first query against a missing table fires. (Cross-ref: `worldserver.md` §13.6.)
+- **`DBUpdater::Populate` / `Update` failures are fatal** in TC (`return false` from `StartDB` aborts boot). RustyCore now propagates populate/update errors from world-server startup with DB-specific context, so a broken or empty DB fails fast instead of booting into later missing-table errors. (Cross-ref: `worldserver.md` §13.6.)
 - **`MySQLConnection::EscapeString` / `mysql_real_escape_string`**: not exposed. sqlx's parameter binding handles escaping, but the "raw escape this user-supplied string for use in a non-prepared SQL fragment" path (used by some chat commands and mass updates in TC) is unavailable.
 - **`DatabaseWorkerPool::WarnAboutSyncQueries`**: no equivalent. Detecting a synchronous query issued from inside a tick (vs an async one) requires some `tokio::task::block_in_place` audit hook that doesn't exist. (Cross-ref: `worldserver.md` sub-task #WS.25.)
 - **`DatabaseWorkerPool::QueueSize`**: no equivalent — no queue exists; sqlx executes immediately on a free pool conn or `await`s for one. The metrics surface that consumed `QueueSize` (`db_queue_*` in TC's metrics) is therefore also gone.
@@ -624,7 +624,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 
 - [x] **#DB.1** Use TC database thread-count config for world-server pools: read `<Db>Database.WorkerThreads` + `<Db>Database.SynchThreads` for Login/Character/World/Hotfix and pass their sum to `Database::open_with_pool_size`. Defaults follow TC's loader default of `1 + 1`; invalid values fall back to `1` per side with a warning. (L) — **same as `worldserver.md` #WS.21**
 - [x] **#DB.2** Implement DB keep-alive: spawn one shared world-server task using `MaxPingTime` (default 30) that runs `SELECT 1` against Character/Login/World, matching TC's `World::Update` keep-alive pool set. Hotfix is intentionally excluded because TC does not call `HotfixDatabase.KeepAlive()` here. (L) — **same as #WS.6**
-- [ ] **#DB.3** Make `DbUpdater::populate` failure fatal when `Updates.AutoSetup=1`: return error from `world-server/main.rs` instead of `tracing::warn!`. Boot must abort if base SQL is missing or DB is empty + populate fails. (L)
+- [x] **#DB.3** Make `DbUpdater::populate` / `update` failure fatal when `Updates.AutoSetup=1`: return error from `world-server/main.rs` instead of `tracing::warn!`. Boot now aborts if base SQL is missing, the DB is empty + populate fails, or an enabled update step fails. (L)
 - [ ] **#DB.4** Bootstrap `updates_include` rows on first `populate`: insert `('$/sql/updates/auth', 'RELEASED')` etc. so a fresh install actually applies updates without operator intervention. (M)
 - [ ] **#DB.5** Implement `DBUpdater::Create` equivalent: detect "Unknown database" sqlx error on initial connect, run `CREATE DATABASE IF NOT EXISTS` via a connection string with no DB name, retry. (M)
 - [ ] **#DB.6** Implement `Updates.Redundancy` (default `true`): when set, re-run an applied update if its hash changed. RustyCore already does this — confirm + add config gate. (L)
@@ -676,7 +676,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 - [ ] Test: `PreparedStatement` indexed setters with sparse indices fill intermediates with `SqlParam::Null` (already covered).
 - [x] Test: keep-alive config/scope/SQL mirrors C++ (`MaxPingTime`, Character/Login/World only, `SELECT 1`). Runtime timer firing remains a service/integration concern rather than a paused Tokio unit fake.
 - [ ] Test: `Updates.AutoSetup=0` skips both `populate` and `update`; the `updates` table is not created.
-- [ ] Test: `populate` failure aborts boot when `Updates.AutoSetup=1` and the base file is missing (#DB.3).
+- [x] Test: startup propagates DB updater failures with DB-specific context when `Updates.AutoSetup=1` (#DB.3).
 - [ ] Test: `Database<LoginStatements>::prepare(LoginStatements::SEL_REALMLIST)` and `Database<WorldStatements>::prepare(WorldStatements::DEL_LINKED_RESPAWN)` produce different `&'static str` SQL — and using `LoginStatements::SEL_REALMLIST` on a `Database<WorldStatements>` is a compile error (compile-fail test via `trybuild`).
 - [ ] Test: `_PLACEHOLDER` HotfixStatement returns empty string; `Database::<HotfixStatements>::query` on it returns `DatabaseError::UnregisteredStatement`.
 
@@ -858,7 +858,7 @@ However, **the worldserver audit (`worldserver.md` §13.4) noted there's no glob
 |---|---|---|
 | `Create(pool)` — `mysql -e "CREATE DATABASE …"` if DB missing | (none) | ❌ #DB.5 |
 | `Populate(pool)` — if 0 tables, apply `GetBaseFile()` via `mysql` CLI | `populate(base_sql)` — if `information_schema.tables` count = 0, shell `mysql … -e "SOURCE …;"` | ✅ |
-| Failure to populate → `false` from `StartDB` → boot abort | `tracing::warn!("populate skipped: {e}")` → boot continues | ❌ #DB.3 |
+| Failure to populate/update → `false` from `StartDB` → boot abort | startup propagates `populate` / `update` errors with DB-specific context | ✅ #DB.3 |
 | `Update(pool)` — walk `updates_include`, sha1 each `.sql`, apply pending | `update(source_dir)` — walks paths from DB-resident `updates_include` table, sha1, applies via sqlx statement-by-statement | ✅ |
 | Bootstrap `updates_include` rows on first run | (none) — table created empty; no defaults | ❌ #DB.4 |
 | `Updates.Redundancy=true` re-applies non-archived files on hash change | Hardcoded "always re-apply if hash changed and not ARCHIVED" | ⚠️ #DB.6 (just gate it) |
@@ -893,7 +893,7 @@ However, **the worldserver audit (`worldserver.md` §13.4) noted there's no glob
 ### 13.9 Cross-references
 
 - **`worldserver.md` §13.5**: world-server now sizes each single `sqlx` pool from TC's `<Db>Database.WorkerThreads + <Db>Database.SynchThreads` keys — same closure as #WS.21 / #DB.1.
-- **`worldserver.md` §13.6**: DB Updater is implemented but populate/update failures are warn-not-fatal — same finding, #DB.3.
+- **`worldserver.md` §13.6**: DB Updater populate/update failures now propagate and abort world-server boot — same closure as #DB.3.
 - **`worldserver.md` #WS.6**: DB keep-alive ping implemented for Character/Login/World — same closure as #DB.2/#DB.20.
 - **`worldserver.md` #WS.25**: `WarnAboutSyncQueries` debug guard missing — #DB.9.
 - **`worldserver.md` §13.4**: no global tick → no central DB callback drain. Acceptable for now because all DB ops are awaited per-session.

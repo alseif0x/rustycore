@@ -318,15 +318,14 @@ async fn main() -> Result<()> {
             &login_info.password,
             &login_info.database,
         );
-        if let Err(e) = auth_up
-            .populate(&format!("{src}/sql/base/auth_database.sql"))
-            .await
-        {
-            tracing::warn!("Auth populate skipped: {e}");
-        }
-        if let Err(e) = auth_up.update(&src).await {
-            tracing::warn!("Auth update error: {e}");
-        }
+        db_updater_step_like_cpp(
+            auth_up
+                .populate(&format!("{src}/sql/base/auth_database.sql"))
+                .await,
+            "Login",
+            "populate",
+        )?;
+        db_updater_step_like_cpp(auth_up.update(&src).await, "Login", "update")?;
 
         let char_up = DbUpdater::new(
             char_db.pool().clone(),
@@ -336,15 +335,14 @@ async fn main() -> Result<()> {
             &char_info.password,
             &char_info.database,
         );
-        if let Err(e) = char_up
-            .populate(&format!("{src}/sql/base/characters_database.sql"))
-            .await
-        {
-            tracing::warn!("Characters populate skipped: {e}");
-        }
-        if let Err(e) = char_up.update(&src).await {
-            tracing::warn!("Characters update error: {e}");
-        }
+        db_updater_step_like_cpp(
+            char_up
+                .populate(&format!("{src}/sql/base/characters_database.sql"))
+                .await,
+            "Character",
+            "populate",
+        )?;
+        db_updater_step_like_cpp(char_up.update(&src).await, "Character", "update")?;
 
         // world + hotfixes: only update (base SQL is the full TDB, downloaded separately)
         let world_up = DbUpdater::new(
@@ -355,9 +353,7 @@ async fn main() -> Result<()> {
             &world_info.password,
             &world_info.database,
         );
-        if let Err(e) = world_up.update(&src).await {
-            tracing::warn!("World update error: {e}");
-        }
+        db_updater_step_like_cpp(world_up.update(&src).await, "World", "update")?;
 
         let hotfix_up = DbUpdater::new(
             hotfix_db.pool().clone(),
@@ -367,9 +363,7 @@ async fn main() -> Result<()> {
             &hotfix_info.password,
             &hotfix_info.database,
         );
-        if let Err(e) = hotfix_up.update(&src).await {
-            tracing::warn!("Hotfix update error: {e}");
-        }
+        db_updater_step_like_cpp(hotfix_up.update(&src).await, "Hotfix", "update")?;
     }
     // ─────────────────────────────────────────────────────────────────────
 
@@ -2531,6 +2525,14 @@ fn set_realm_online_sql_like_cpp(realm_id: u16) -> String {
 
 fn db_keepalive_interval_minutes_like_cpp(configs: &WorldConfigSet) -> u32 {
     world_config_u32(configs, "CONFIG_DB_PING_INTERVAL", 30)
+}
+
+fn db_updater_step_like_cpp<T>(
+    result: Result<T>,
+    database_name: &str,
+    operation: &str,
+) -> Result<T> {
+    result.with_context(|| format!("Could not {operation} the {database_name} database"))
 }
 
 #[cfg(test)]
@@ -8761,7 +8763,7 @@ mod tests {
         consume_game_event_live_update_side_effects_like_cpp, create_pid_file_like_cpp,
         database_pool_size_like_cpp, db_keepalive_database_names_like_cpp,
         db_keepalive_interval_minutes_like_cpp, db_keepalive_sql_like_cpp,
-        deliver_creature_attack_start_commands_like_cpp,
+        db_updater_step_like_cpp, deliver_creature_attack_start_commands_like_cpp,
         deliver_creature_melee_damage_commands_like_cpp,
         deliver_refresh_visible_world_creatures_like_cpp, deliver_runtime_plan_like_cpp,
         fanout_game_event_announcement_to_player_sessions_like_cpp,
@@ -11076,6 +11078,24 @@ Expansion = 9
             ["Character", "Login", "World"]
         );
         assert_eq!(db_keepalive_sql_like_cpp(), "SELECT 1");
+    }
+
+    #[test]
+    fn db_updater_step_errors_are_fatal_with_context_like_cpp() {
+        let ok = db_updater_step_like_cpp::<u8>(Ok(7), "Login", "populate")
+            .expect("successful updater step should pass through");
+        assert_eq!(ok, 7);
+
+        let error = db_updater_step_like_cpp::<()>(
+            Err(anyhow::anyhow!("base file missing")),
+            "Character",
+            "populate",
+        )
+        .expect_err("failed updater step should abort startup");
+        let rendered = format!("{error:#}");
+
+        assert!(rendered.contains("Could not populate the Character database"));
+        assert!(rendered.contains("base file missing"));
     }
 
     #[test]
