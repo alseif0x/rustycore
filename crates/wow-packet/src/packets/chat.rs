@@ -464,6 +464,35 @@ impl ClientPacket for ChatAddonMessage {
     }
 }
 
+/// CMSG_CHAT_ADDON_MESSAGE_TARGETED payload.
+///
+/// C++ ref: `WorldPackets::Chat::ChatAddonMessageTargeted::Read`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChatAddonMessageTargeted {
+    pub target: String,
+    pub channel_guid: ObjectGuid,
+    pub params: ChatAddonMessage,
+}
+
+impl ChatAddonMessageTargeted {
+    /// Reads the C++ payload layout without registering a Rust client opcode.
+    ///
+    /// TrinityCore marks this packet as `0xBADD` in the inspected 3.4.3 opcode
+    /// table. Rust's opcode enum cannot safely register that placeholder because
+    /// other unresolved client opcodes already use the same discriminant.
+    pub fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let target_len = pkt.read_bits(9)? as usize;
+        let params = ChatAddonMessage::read(pkt)?;
+        let channel_guid = pkt.read_packed_guid()?;
+        let target = pkt.read_string(target_len)?;
+        Ok(Self {
+            target,
+            channel_guid,
+            params,
+        })
+    }
+}
+
 /// CMSG_CHAT_ADDON_MESSAGE_WHISPER payload.
 ///
 /// C++ ref: `WorldPackets::Chat::ChatAddonMessageWhisper::Read`.
@@ -847,6 +876,30 @@ mod tests {
         assert_eq!(packet.target, "Target");
         assert_eq!(packet.prefix, "ABC");
         assert_eq!(packet.message, "hello");
+    }
+
+    #[test]
+    fn chat_addon_message_targeted_reads_cpp_layout() {
+        let channel_guid = ObjectGuid::create_player(1, 42);
+        let mut writer = WorldPacket::new_empty();
+        writer.write_bits(6, 9);
+        writer.write_bits(3, 5);
+        writer.write_bits(5, 8);
+        writer.write_bit(true);
+        writer.write_int32(ChatMsg::Whisper as i32);
+        writer.write_string("ABC");
+        writer.write_string("hello");
+        writer.write_packed_guid(&channel_guid);
+        writer.write_string("Target");
+
+        let mut reader = WorldPacket::from_bytes(writer.data());
+        let packet = ChatAddonMessageTargeted::read(&mut reader).unwrap();
+        assert_eq!(packet.target, "Target");
+        assert_eq!(packet.channel_guid, channel_guid);
+        assert_eq!(packet.params.msg_type, ChatMsg::Whisper as i32);
+        assert_eq!(packet.params.prefix, "ABC");
+        assert_eq!(packet.params.text, "hello");
+        assert!(packet.params.is_logged);
     }
 
     #[test]
