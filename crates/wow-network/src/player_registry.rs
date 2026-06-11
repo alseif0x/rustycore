@@ -315,6 +315,8 @@ pub struct PlayerBroadcastInfo {
     pub is_dnd: bool,
     /// Represented `Player::GetVehicle() != nullptr` snapshot for party member full-state packets.
     pub in_vehicle: bool,
+    /// Represented `VehicleSeatEntry::ID` from `Vehicle::GetSeatForPassenger(player)`.
+    pub party_member_vehicle_seat: i32,
     /// Represented `Player::GetZoneId()` snapshot for party member full-state packets.
     pub zone_id: u32,
     /// Represented `Player::GetPrimarySpecialization()` snapshot for party member full-state packets.
@@ -431,6 +433,7 @@ mod tests {
             is_afk: false,
             is_dnd: false,
             in_vehicle: false,
+            party_member_vehicle_seat: 0,
             zone_id: 0,
             spec_id: 0,
             unit_flags: 0,

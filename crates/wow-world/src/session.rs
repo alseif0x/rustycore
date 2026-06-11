@@ -2861,6 +2861,8 @@ pub struct WorldSession {
     player_mount_vehicle_usable_seat_count_like_cpp: u8,
     /// Represented current `VehicleSeatEntry::Flags` for C++ `HandleAttackSwingOpcode`.
     player_vehicle_seat_flags_like_cpp: Option<i32>,
+    /// Represented current `VehicleSeatEntry::ID` for C++ party-member stats.
+    player_vehicle_seat_id_like_cpp: Option<u32>,
     /// Represented `Player::GetBattleground()->GetTypeID()` for C++ battleground object use.
     player_battleground_type_id_like_cpp: Option<u32>,
     /// Represented current pet GUID until player-owned pet runtime is canonical.
@@ -3860,6 +3862,7 @@ impl WorldSession {
             player_mount_vehicle_seat_count_like_cpp: 0,
             player_mount_vehicle_usable_seat_count_like_cpp: 0,
             player_vehicle_seat_flags_like_cpp: None,
+            player_vehicle_seat_id_like_cpp: None,
             player_battleground_type_id_like_cpp: None,
             represented_pet_guid_like_cpp: None,
             represented_pet_react_state_like_cpp:
@@ -14370,6 +14373,10 @@ impl WorldSession {
                 is_afk,
                 is_dnd,
                 in_vehicle: self.player_vehicle_seat_flags_like_cpp.is_some(),
+                party_member_vehicle_seat: self
+                    .player_vehicle_seat_id_like_cpp
+                    .and_then(|seat_id| i32::try_from(seat_id).ok())
+                    .unwrap_or(0),
                 zone_id: self.player_zone_area_like_cpp().0,
                 spec_id: self.loot_specialization_id_like_cpp(),
                 unit_flags: self.player_unit_flags_like_cpp.bits(),
@@ -14472,6 +14479,10 @@ impl WorldSession {
                     .unwrap_or(false);
             }
             info.in_vehicle = self.player_vehicle_seat_flags_like_cpp.is_some();
+            info.party_member_vehicle_seat = self
+                .player_vehicle_seat_id_like_cpp
+                .and_then(|seat_id| i32::try_from(seat_id).ok())
+                .unwrap_or(0);
             info.zone_id = self.player_zone_area_like_cpp().0;
             info.spec_id = self.loot_specialization_id_like_cpp();
             info.unit_flags = self.player_unit_flags_like_cpp.bits();
@@ -46256,6 +46267,7 @@ mod tests {
             is_afk: false,
             is_dnd: false,
             in_vehicle: false,
+            party_member_vehicle_seat: 0,
             zone_id: 0,
             spec_id: 0,
             unit_flags: 0,
@@ -46536,6 +46548,26 @@ mod tests {
                 wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP
             ]
         );
+    }
+
+    #[test]
+    fn player_registry_publishes_party_member_vehicle_seat_id_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let guid = ObjectGuid::create_player(1, 47);
+        let registry = Arc::new(PlayerRegistry::default());
+        let position = Position::new(1.0, 2.0, 3.0, 0.0);
+        session.set_player_guid(Some(guid));
+        session.set_player_map_position_like_cpp(571, position);
+        session.player_name = Some("VehicleSeatTester".to_string());
+        session.player_vehicle_seat_flags_like_cpp = Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK);
+        session.player_vehicle_seat_id_like_cpp = Some(1001);
+        session.set_player_registry(Arc::clone(&registry));
+
+        session.register_in_player_registry();
+
+        let info = registry.get(&guid).expect("registered player");
+        assert!(info.in_vehicle);
+        assert_eq!(info.party_member_vehicle_seat, 1001);
     }
 
     #[test]

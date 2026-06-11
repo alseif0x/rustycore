@@ -936,6 +936,7 @@ pub struct PartyMemberFullState {
     pub position_x: i16,
     pub position_y: i16,
     pub position_z: i16,
+    pub vehicle_seat: i32,
     pub party_type: [u8; 2],
     pub phases: PartyMemberPhaseStates,
     pub auras: Vec<PartyMemberAuraState>,
@@ -965,7 +966,7 @@ impl ServerPacket for PartyMemberFullState {
         w.write_int16(self.position_x);
         w.write_int16(self.position_y);
         w.write_int16(self.position_z);
-        w.write_int32(0); // VehicleSeat
+        w.write_int32(self.vehicle_seat);
         w.write_uint32(self.auras.len() as u32);
 
         self.phases.write(w);

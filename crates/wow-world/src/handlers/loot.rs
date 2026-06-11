@@ -8410,6 +8410,7 @@ mod tests {
             is_afk: false,
             is_dnd: false,
             in_vehicle: false,
+            party_member_vehicle_seat: 0,
             zone_id: 0,
             spec_id: 0,
             unit_flags: 0,

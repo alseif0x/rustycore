@@ -289,6 +289,7 @@ fn party_member_full_state_like_cpp(
             position_x: 0,
             position_y: 0,
             position_z: 0,
+            vehicle_seat: 0,
             party_type: [0; 2],
             phases: Default::default(),
             auras: Vec::new(),
@@ -338,6 +339,7 @@ fn party_member_full_state_like_cpp(
         position_x: pos.x as i16,
         position_y: pos.y as i16,
         position_z: pos.z as i16,
+        vehicle_seat: entry.party_member_vehicle_seat,
         party_type: entry.party_member_party_type,
         phases: entry.party_member_phase_states.clone(),
         auras: entry.party_member_auras.clone(),
@@ -2203,6 +2205,7 @@ mod tests {
             is_afk: false,
             is_dnd: false,
             in_vehicle: false,
+            party_member_vehicle_seat: 0,
             zone_id: 0,
             spec_id: 0,
             unit_flags: 0,
@@ -3202,6 +3205,7 @@ mod tests {
             info.is_afk = true;
             info.is_dnd = true;
             info.in_vehicle = true;
+            info.party_member_vehicle_seat = 1001;
             info.zone_id = 618;
             info.spec_id = 260;
             info.position = Position::new(11.0, 22.0, 33.0, 0.0);
@@ -3257,7 +3261,7 @@ mod tests {
         assert_eq!(pkt.read_int16().unwrap(), 11);
         assert_eq!(pkt.read_int16().unwrap(), 22);
         assert_eq!(pkt.read_int16().unwrap(), 33);
-        assert_eq!(pkt.read_int32().unwrap(), 0);
+        assert_eq!(pkt.read_int32().unwrap(), 1001);
         assert_eq!(pkt.read_uint32().unwrap(), 1);
         assert_eq!(pkt.read_uint32().unwrap(), 0x08);
         assert_eq!(pkt.read_uint32().unwrap(), 1);
