@@ -1484,7 +1484,6 @@ impl crate::session::WorldSession {
         _pkt: wow_packet::WorldPacket,
     ) {
         self.registered_addon_prefixes.clear();
-        self.filter_addon_messages = false;
     }
     pub async fn handle_set_action_bar_toggles(&mut self, mut pkt: wow_packet::WorldPacket) {
         let mask = match pkt.read_uint8() {
@@ -2978,6 +2977,22 @@ mod tests {
 
         assert_eq!(session.active_player_multi_action_bars_like_cpp(), 0);
         assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn unregister_all_addon_prefixes_preserves_filter_flag_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        session.registered_addon_prefixes = vec!["ABC".to_string()];
+        session.filter_addon_messages = true;
+        assert!(session.is_addon_registered_like_cpp("ABC"));
+
+        session
+            .handle_chat_unregister_all_addon_prefixes(WorldPacket::from_bytes(&[]))
+            .await;
+
+        assert!(session.registered_addon_prefixes.is_empty());
+        assert!(session.filter_addon_messages);
+        assert!(!session.is_addon_registered_like_cpp("ABC"));
     }
 
     fn save_cuf_profiles_packet(
