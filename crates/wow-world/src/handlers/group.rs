@@ -294,13 +294,14 @@ fn party_member_full_state_like_cpp(
             phases: Default::default(),
             auras: Vec::new(),
             pet_stats: None,
+            dungeon_score: Default::default(),
         };
     };
 
     let pos = entry.position;
     // Represented subset of C++ `PartyMemberFullState::Initialize(Player*)`.
-    // Remaining unsupported packet blocks (pet/vehicle/dungeon score and
-    // scalable aura points) stay explicit instead of being guessed here.
+    // Remaining unsupported runtime-owned fields stay explicit instead of
+    // being guessed here.
     let mut status = 1u16; // MEMBER_STATUS_ONLINE
     if entry.is_pvp {
         status |= 0x0002; // MEMBER_STATUS_PVP
@@ -345,6 +346,7 @@ fn party_member_full_state_like_cpp(
         phases: entry.party_member_phase_states.clone(),
         auras: entry.party_member_auras.clone(),
         pet_stats: entry.party_member_pet_stats.clone(),
+        dungeon_score: Default::default(),
     }
 }
 

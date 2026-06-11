@@ -946,6 +946,44 @@ impl PartyMemberPetStats {
     }
 }
 
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct DungeonScoreMapSummary {
+    pub challenge_mode_id: i32,
+    pub map_score: f32,
+    pub best_run_level: i32,
+    pub best_run_duration_ms: i32,
+    pub finished_success: bool,
+}
+
+impl DungeonScoreMapSummary {
+    fn write(&self, w: &mut WorldPacket) {
+        w.write_int32(self.challenge_mode_id);
+        w.write_float(self.map_score);
+        w.write_int32(self.best_run_level);
+        w.write_int32(self.best_run_duration_ms);
+        w.write_bit(self.finished_success);
+        w.flush_bits();
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct DungeonScoreSummary {
+    pub overall_score_current_season: f32,
+    pub ladder_score_current_season: f32,
+    pub runs: Vec<DungeonScoreMapSummary>,
+}
+
+impl DungeonScoreSummary {
+    fn write(&self, w: &mut WorldPacket) {
+        w.write_float(self.overall_score_current_season);
+        w.write_float(self.ladder_score_current_season);
+        w.write_uint32(self.runs.len() as u32);
+        for run in &self.runs {
+            run.write(w);
+        }
+    }
+}
+
 pub struct PartyMemberFullState {
     pub member_guid: ObjectGuid,
     pub for_enemy: bool,
@@ -967,6 +1005,7 @@ pub struct PartyMemberFullState {
     pub phases: PartyMemberPhaseStates,
     pub auras: Vec<PartyMemberAuraState>,
     pub pet_stats: Option<PartyMemberPetStats>,
+    pub dungeon_score: DungeonScoreSummary,
 }
 
 impl ServerPacket for PartyMemberFullState {
@@ -1010,10 +1049,7 @@ impl ServerPacket for PartyMemberFullState {
         w.write_bit(self.pet_stats.is_some()); // PetStats != null
         w.flush_bits();
 
-        // DungeonScoreSummary.Write() — empty:
-        w.write_float(0.0); // OverallScoreCurrentSeason
-        w.write_float(0.0); // LadderScoreCurrentSeason
-        w.write_int32(0); // Runs.Count
+        self.dungeon_score.write(w);
 
         if let Some(pet_stats) = &self.pet_stats {
             pet_stats.write(w);
@@ -1026,11 +1062,12 @@ impl ServerPacket for PartyMemberFullState {
 #[cfg(test)]
 mod tests {
     use super::{
-        ChangeSubGroup, ConvertRaid, DoReadyCheck, InitiateRolePoll, LowLevelRaid1, LowLevelRaid2,
-        MinimapPingClient, OptOutOfLoot, PartyMemberPhase, PartyMemberPhaseStates,
-        RaidMarkersChanged, ReadyCheckCompleted, ReadyCheckResponse, ReadyCheckResponseClient,
-        ReadyCheckStarted, RequestPartyJoinUpdates, RequestPartyMemberStats, RoleChangedInform,
-        RolePollInform, SendRaidTargetUpdateAll, SendRaidTargetUpdateSingle, SetAssistantLeader,
+        ChangeSubGroup, ConvertRaid, DoReadyCheck, DungeonScoreMapSummary, DungeonScoreSummary,
+        InitiateRolePoll, LowLevelRaid1, LowLevelRaid2, MinimapPingClient, OptOutOfLoot,
+        PartyMemberFullState, PartyMemberPhase, PartyMemberPhaseStates, RaidMarkersChanged,
+        ReadyCheckCompleted, ReadyCheckResponse, ReadyCheckResponseClient, ReadyCheckStarted,
+        RequestPartyJoinUpdates, RequestPartyMemberStats, RoleChangedInform, RolePollInform,
+        SendRaidTargetUpdateAll, SendRaidTargetUpdateSingle, SetAssistantLeader,
         SetEveryoneIsAssistant, SetLootMethod, SetPartyAssignment, SetRole, SwapSubGroups,
         UpdateRaidTarget,
     };
@@ -1042,6 +1079,83 @@ mod tests {
         let mut pkt = WorldPacket::new_empty();
         pkt.write_packed_guid(&guid);
         pkt.into_data()
+    }
+
+    #[test]
+    fn party_member_full_state_writes_dungeon_score_summary_like_cpp() {
+        let member_guid = ObjectGuid::create_player(1, 77);
+        let mut pkt = WorldPacket::new_empty();
+        PartyMemberFullState {
+            member_guid,
+            for_enemy: false,
+            status: 1,
+            power_type: 0,
+            current_health: 100,
+            max_health: 200,
+            current_power: 10,
+            max_power: 20,
+            level: 80,
+            spec_id: 0,
+            zone_id: 571,
+            position_x: 1,
+            position_y: 2,
+            position_z: 3,
+            vehicle_seat: 0,
+            party_type: [0; 2],
+            phases: PartyMemberPhaseStates::default(),
+            auras: Vec::new(),
+            pet_stats: None,
+            dungeon_score: DungeonScoreSummary {
+                overall_score_current_season: 123.5,
+                ladder_score_current_season: 45.25,
+                runs: vec![DungeonScoreMapSummary {
+                    challenge_mode_id: 2,
+                    map_score: 111.0,
+                    best_run_level: 7,
+                    best_run_duration_ms: 900_000,
+                    finished_success: true,
+                }],
+            },
+        }
+        .write(&mut pkt);
+        pkt.reset_read();
+
+        assert!(!pkt.read_bit().unwrap());
+        assert_eq!(pkt.read_uint8().unwrap(), 0);
+        assert_eq!(pkt.read_uint8().unwrap(), 0);
+        assert_eq!(pkt.read_int16().unwrap(), 1);
+        assert_eq!(pkt.read_uint8().unwrap(), 0);
+        assert_eq!(pkt.read_int16().unwrap(), 0);
+        assert_eq!(pkt.read_int32().unwrap(), 100);
+        assert_eq!(pkt.read_int32().unwrap(), 200);
+        assert_eq!(pkt.read_uint16().unwrap(), 10);
+        assert_eq!(pkt.read_uint16().unwrap(), 20);
+        assert_eq!(pkt.read_uint16().unwrap(), 80);
+        assert_eq!(pkt.read_uint16().unwrap(), 0);
+        assert_eq!(pkt.read_uint16().unwrap(), 571);
+        assert_eq!(pkt.read_uint16().unwrap(), 0);
+        assert_eq!(pkt.read_uint32().unwrap(), 0);
+        assert_eq!(pkt.read_int16().unwrap(), 1);
+        assert_eq!(pkt.read_int16().unwrap(), 2);
+        assert_eq!(pkt.read_int16().unwrap(), 3);
+        assert_eq!(pkt.read_int32().unwrap(), 0);
+        assert_eq!(pkt.read_uint32().unwrap(), 0);
+        assert_eq!(pkt.read_uint32().unwrap(), 0);
+        assert_eq!(pkt.read_uint32().unwrap(), 0);
+        assert_eq!(pkt.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
+        assert_eq!(pkt.read_uint32().unwrap(), 0);
+        assert_eq!(pkt.read_uint32().unwrap(), 0);
+        assert_eq!(pkt.read_int32().unwrap(), 0);
+        assert!(!pkt.read_bit().unwrap());
+        assert_eq!(pkt.read_float().unwrap(), 123.5);
+        assert_eq!(pkt.read_float().unwrap(), 45.25);
+        assert_eq!(pkt.read_uint32().unwrap(), 1);
+        assert_eq!(pkt.read_int32().unwrap(), 2);
+        assert_eq!(pkt.read_float().unwrap(), 111.0);
+        assert_eq!(pkt.read_int32().unwrap(), 7);
+        assert_eq!(pkt.read_int32().unwrap(), 900_000);
+        assert!(pkt.read_bit().unwrap());
+        assert_eq!(pkt.read_packed_guid().unwrap(), member_guid);
     }
 
     #[test]
