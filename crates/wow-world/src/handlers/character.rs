@@ -12,9 +12,9 @@ use rand::Rng;
 use tracing::{debug, info, trace, warn};
 use wow_constants::unit::NPCFlags1;
 use wow_constants::{
-    ClientOpcodes, ConditionSourceType, InventoryResult, InventoryType, ItemBondingType,
-    ItemContext, ItemExtendedCostFlags, ItemFieldFlags, ItemFlags, ItemFlags2, ItemUpdateState,
-    ItemVendorType, Team, TypeId, TypeMask, UnitStandStateType,
+    ClientOpcodes, ConditionSourceType, EnchantmentSlot, InventoryResult, InventoryType,
+    ItemBondingType, ItemContext, ItemExtendedCostFlags, ItemFieldFlags, ItemFlags, ItemFlags2,
+    ItemUpdateState, ItemVendorType, Team, TypeId, TypeMask, UnitStandStateType,
 };
 use wow_core::guid::HighGuid;
 use wow_core::{ObjectGuid, Position};
@@ -510,6 +510,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_destroy_item",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::CancelTempEnchantment,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_cancel_temp_enchantment",
     }
 }
 
@@ -8705,6 +8714,38 @@ impl WorldSession {
         }
     }
 
+    /// Handle CMSG_CANCEL_TEMP_ENCHANTMENT.
+    ///
+    /// C++ ref: `WorldSession::HandleCancelTempEnchantmentOpcode`.
+    pub async fn handle_cancel_temp_enchantment(&mut self, cancel: CancelTempEnchantment) {
+        let Ok(slot) = u8::try_from(cancel.slot) else {
+            return;
+        };
+        if !is_equipment_pos(INVENTORY_SLOT_BAG_0, slot) {
+            return;
+        }
+
+        let Some(item) = self.get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, slot) else {
+            return;
+        };
+        let Some(runtime_item) = self.inventory_item_objects_like_cpp().get(&item.guid) else {
+            return;
+        };
+        if runtime_item.data().enchantments[EnchantmentSlot::EnhancementTemporary as usize].id == 0
+        {
+            return;
+        }
+
+        // C++ applies stat/aura removal before clearing the item field. Rust's
+        // represented player-stat side effects are not yet wired to this handler,
+        // but clearing the represented item enchantment matches the item-field
+        // state transition and marks the item data dirty for the update bridge.
+        self.update_inventory_item_object_like_cpp(item.guid, |item| {
+            item.clear_enchantment(EnchantmentSlot::EnhancementTemporary);
+        });
+        self.sync_object_accessor_player();
+    }
+
     /// C++ `Player::DestroyItem(..., update=true)` for a direct inventory full-stack item.
     pub(crate) async fn destroy_direct_inventory_full_stack_like_cpp(
         &mut self,
@@ -10655,6 +10696,107 @@ mod tests {
         assert_eq!(vendor_buy_stock_refill_count(2, 20, 10, 5, 20), (12, false));
         assert_eq!(vendor_buy_stock_refill_count(18, 10, 10, 5, 20), (20, true));
         assert_eq!(vendor_buy_stock_refill_count(2, 9, 10, 5, 20), (2, false));
+    }
+
+    fn insert_cancel_temp_enchant_test_item(
+        session: &mut WorldSession,
+        player_guid: ObjectGuid,
+        slot: u8,
+        enchantment_id: i32,
+    ) -> ObjectGuid {
+        let item_guid = ObjectGuid::create_item(1, 70_000 + i64::from(slot));
+        session.insert_inventory_item_like_cpp(
+            slot,
+            InventoryItem {
+                guid: item_guid,
+                entry_id: 700,
+                db_guid: item_guid.counter() as u64,
+                inventory_type: Some(InventoryType::Weapon as u8),
+            },
+        );
+        let mut item = session.make_inventory_item_object(
+            item_guid,
+            700,
+            player_guid,
+            1,
+            0,
+            ItemContext::None,
+            slot,
+        );
+        item.set_enchantment(
+            EnchantmentSlot::EnhancementTemporary,
+            enchantment_id,
+            12_000,
+            3,
+        );
+        session.insert_inventory_item_object(item);
+        item_guid
+    }
+
+    #[tokio::test]
+    async fn cancel_temp_enchantment_clears_equipped_temporary_enchant_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(8);
+        let player_guid = ObjectGuid::create_player(1, 42);
+        session.set_player_guid(Some(player_guid));
+        let item_guid = insert_cancel_temp_enchant_test_item(&mut session, player_guid, 15, 901);
+
+        session
+            .handle_cancel_temp_enchantment(CancelTempEnchantment { slot: 15 })
+            .await;
+
+        let item = session
+            .inventory_item_objects_like_cpp()
+            .get(&item_guid)
+            .unwrap();
+        assert_eq!(
+            item.data().enchantments[EnchantmentSlot::EnhancementTemporary as usize].id,
+            0
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn cancel_temp_enchantment_ignores_non_equipment_slot_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(8);
+        let player_guid = ObjectGuid::create_player(1, 42);
+        session.set_player_guid(Some(player_guid));
+        let item_guid = insert_cancel_temp_enchant_test_item(&mut session, player_guid, 36, 902);
+
+        session
+            .handle_cancel_temp_enchantment(CancelTempEnchantment { slot: 36 })
+            .await;
+
+        let item = session
+            .inventory_item_objects_like_cpp()
+            .get(&item_guid)
+            .unwrap();
+        assert_eq!(
+            item.data().enchantments[EnchantmentSlot::EnhancementTemporary as usize].id,
+            902
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn cancel_temp_enchantment_ignores_missing_enchant_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(8);
+        let player_guid = ObjectGuid::create_player(1, 42);
+        session.set_player_guid(Some(player_guid));
+        let item_guid = insert_cancel_temp_enchant_test_item(&mut session, player_guid, 15, 0);
+
+        session
+            .handle_cancel_temp_enchantment(CancelTempEnchantment { slot: 15 })
+            .await;
+
+        let item = session
+            .inventory_item_objects_like_cpp()
+            .get(&item_guid)
+            .unwrap();
+        assert_eq!(
+            item.data().enchantments[EnchantmentSlot::EnhancementTemporary as usize].duration,
+            12_000
+        );
+        assert!(send_rx.try_recv().is_err());
     }
 
     #[test]

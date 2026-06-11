@@ -16481,6 +16481,12 @@ impl WorldSession {
                     Err(e) => warn!("Failed to read DestroyItem: {e}"),
                 }
             }
+            ClientOpcodes::CancelTempEnchantment => {
+                match wow_packet::packets::item::CancelTempEnchantment::read(&mut pkt) {
+                    Ok(cancel) => self.handle_cancel_temp_enchantment(cancel).await,
+                    Err(e) => warn!("Failed to read CancelTempEnchantment: {e}"),
+                }
+            }
             ClientOpcodes::ShowTradeSkill => {
                 match wow_packet::packets::misc::ShowTradeSkill::read(&mut pkt) {
                     Ok(show) => self.handle_show_trade_skill(show).await,

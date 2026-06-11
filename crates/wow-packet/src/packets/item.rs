@@ -514,6 +514,25 @@ impl ClientPacket for DestroyItemPkt {
     }
 }
 
+/// CMSG_CANCEL_TEMP_ENCHANTMENT.
+///
+/// C++ `WorldPackets::Item::CancelTempEnchantment::Read` reads one signed
+/// equipment slot index.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CancelTempEnchantment {
+    pub slot: i32,
+}
+
+impl ClientPacket for CancelTempEnchantment {
+    const OPCODE: ClientOpcodes = ClientOpcodes::CancelTempEnchantment;
+
+    fn read(packet: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            slot: packet.read_int32()?,
+        })
+    }
+}
+
 // ── Server packets ──────────────────────────────────────────────────
 
 /// SMSG_INVENTORY_CHANGE_FAILURE: Sent on inventory operation failure.
@@ -800,6 +819,21 @@ mod tests {
         assert_eq!(destroy.count, 1);
         assert_eq!(destroy.container_id, 255);
         assert_eq!(destroy.slot_num, 35);
+    }
+
+    #[test]
+    fn cancel_temp_enchantment_reads_cpp_slot() {
+        let mut pkt = WorldPacket::from_bytes(&[
+            CancelTempEnchantment::OPCODE as u8,
+            (CancelTempEnchantment::OPCODE as u16 >> 8) as u8,
+            15,
+            0,
+            0,
+            0,
+        ]);
+        pkt.skip_opcode();
+        let cancel = CancelTempEnchantment::read(&mut pkt).unwrap();
+        assert_eq!(cancel.slot, 15);
     }
 
     #[test]
