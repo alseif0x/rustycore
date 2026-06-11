@@ -94,14 +94,16 @@ pub mod service_hash {
 pub mod status {
     pub const OK: u32 = 0;
     pub const ERROR_INTERNAL: u32 = 1;
+    pub const ERROR_TIMED_OUT: u32 = 2;
     pub const ERROR_DENIED: u32 = 3;
     pub const ERROR_BAD_PROGRAM: u32 = 0x4D;
     pub const ERROR_BAD_LOCALE: u32 = 0x4E;
     pub const ERROR_BAD_PLATFORM: u32 = 0x4F;
     pub const ERROR_NO_GAME_ACCOUNT: u32 = 12;
+    pub const ERROR_GAME_ACCOUNT_BANNED: u32 = 0x34;
+    pub const ERROR_GAME_ACCOUNT_SUSPENDED: u32 = 0x35;
     pub const ERROR_WOW_SERVICES_GAME_ACCOUNT_LOCKED: u32 = 0x0002_0014;
-    pub const ERROR_GAME_ACCOUNT_BANNED: u32 = 0x0002_000B;
-    pub const ERROR_GAME_ACCOUNT_SUSPENDED: u32 = 0x0002_000C;
+    pub const ERROR_RISK_ACCOUNT_LOCKED: u32 = 0xA413;
 }
 
 /// The special `service_id` value used for response messages.

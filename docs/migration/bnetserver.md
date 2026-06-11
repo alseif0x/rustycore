@@ -594,7 +594,7 @@ Resolved since the original audit: `extract_auth_ticket` now mirrors TC's `Extra
 | `AuthenticationService.Logon` | validates program/platform/locale, optional `cached_web_credentials` shortcut, sends `ChallengeExternalRequest` | program+platform+locale validated with TC status codes; `cached_web_credentials` now short-circuits through the same VerifyWebCredentials path; challenge fallback remains | ✅ |
 | `ChallengeListener::OnExternalChallenge` (web auth URL) | sent via `Service<ChallengeListener>` | sent via `send_request(CHALLENGE_LISTENER, 3, …)` | ✅ |
 | `AuthenticationService.VerifyWebCredentials` | loads account + char counts + last-played in chained query callback; checks IP lock, country lock (via `IPLocation`), `IsBanned` / `IsPermanenetlyBanned`; sets `_authed` and dispatches `AuthenticationListener::OnLogonComplete` (method 5) | similar; but **no country lock** (no `IPLocation`); 64-byte `session_key` is fresh random per call (TC also random — ✅); error codes used: 3, 12 | ⚠️ no country lock |
-| Error codes on auth failure | `ERROR_DENIED=3`, `ERROR_TIMED_OUT=8`, `ERROR_RISK_ACCOUNT_LOCKED=12`, `ERROR_GAME_ACCOUNT_BANNED=14`, `ERROR_GAME_ACCOUNT_SUSPENDED=15` | always uses 3 (DENIED) or 12 (LOCKED) — never distinguishes `BANNED` vs `SUSPENDED` vs `TIMED_OUT` | ❌ |
+| Error codes on auth failure | `ERROR_DENIED=3`, `ERROR_TIMED_OUT=2`, `ERROR_RISK_ACCOUNT_LOCKED=0xA413`, `ERROR_GAME_ACCOUNT_BANNED=0x34`, `ERROR_GAME_ACCOUNT_SUSPENDED=0x35` | Rust now returns the same RPC status codes for missing/invalid/expired tickets, IP lock mismatch, and permanent/temporary BNet account bans. Country-lock remains blocked on `IPLocation`. | ⚠️ |
 | `GameUtilitiesService.ProcessClientRequest` (RealmList / RealmJoin / LastCharPlayed / RealmListTicket) | full | full | ✅ |
 | `GameUtilitiesService.GetAllValuesForAttribute` (sub-region enumeration) | full | full | ✅ |
 | `AccountService.GetAccountState/GetGameAccountState` | stubs | stubs | ✅ |
@@ -631,7 +631,7 @@ Add these to §9 (existing tasks #BNET.1–#BNET.14 stand):
 - [ ] **#BNET.16** Wire `CertificatesFile` config (already read in `main.rs:68` but ignored). Add `PrivateKeyFile` + optional `PrivateKeyPassword`. Fall back to current hardcoded names with a `tracing::warn!`.
 - [x] **#BNET.17** Validate locale in `handle_logon` (TC returns `ERROR_BAD_LOCALE`). Rust now uses the same allow-list as `Common.cpp::localeNames` and returns TC status codes for bad program/platform/locale.
 - [x] **#BNET.18** Honour `cached_web_credentials` in `LogonRequest`: short-circuit straight to `VerifyWebCredentials` instead of always sending the web-auth challenge. Saves one client round-trip.
-- [ ] **#BNET.19** Distinguish error codes in `VerifyWebCredentials`: emit 8 (TIMED_OUT) for expired ticket, 14 (BANNED), 15 (SUSPENDED), 12 (LOCKED) — currently always 3 or 12.
+- [x] **#BNET.19** Distinguish error codes in `VerifyWebCredentials`: emit TC status codes for expired ticket (`ERROR_TIMED_OUT=2`), IP/country lock (`ERROR_RISK_ACCOUNT_LOCKED=0xA413`), permanent ban (`ERROR_GAME_ACCOUNT_BANNED=0x34`) and temporary suspension (`ERROR_GAME_ACCOUNT_SUSPENDED=0x35`).
 - [ ] **#BNET.20** Add `LOGIN_SEL_IP_INFO` check in `Session::Start`-equivalent: reject TLS handshake if remote IP is in `ip_banned`.
 - [x] **#BNET.21** Persist failed login attempts and autobans per `WrongPass.MaxCount`/`BanTime`/`BanType`/`Logging` for BNet REST login. Rust writes `battlenet_accounts.failed_logins`, `battlenet_account_bans` or `ip_banned`, and resets failed-login count at the configured threshold like TC. Subsumes `#BNET.8`.
 - [ ] **#BNET.22** Install SIGTERM handler alongside `ctrl_c` so `kill <pid>` shuts down cleanly.
@@ -640,4 +640,4 @@ Add these to §9 (existing tasks #BNET.1–#BNET.14 stand):
 
 ### 13.8 Header status update
 
-Header status changed from `❌ not audited` → `⚠️ audited (2026-05-01)`. Functional state remains `⚠️ partial` because the audit confirmed gaps; will become `✅` only after #BNET.19 (error codes) plus the remaining startup/runtime gaps such as IP ban at session start.
+Header status changed from `❌ not audited` → `⚠️ audited (2026-05-01)`. Functional state remains `⚠️ partial` because the audit confirmed gaps; remaining blockers include IP ban at session start, `IPLocation`/country lock parity, cert path config, and bot/mobile REST routes.

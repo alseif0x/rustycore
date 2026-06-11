@@ -151,7 +151,7 @@ async fn verify_web_credentials_like_cpp<S: AsyncRead + AsyncWrite + Unpin>(
     ticket: String,
 ) -> Result<Option<Vec<u8>>> {
     if ticket.is_empty() {
-        return send_logon_error(session, 3).await;
+        return Err(RpcStatusError::new(status::ERROR_DENIED).into());
     }
 
     // Query account + game account info using the login ticket.
@@ -170,7 +170,7 @@ async fn verify_web_credentials_like_cpp<S: AsyncRead + AsyncWrite + Unpin>(
 
     if result.is_empty() {
         tracing::debug!("VerifyWebCredentials: invalid ticket");
-        return send_logon_error(session, 3).await;
+        return Err(RpcStatusError::new(status::ERROR_DENIED).into());
     }
 
     // Parse BNet account info from first row
@@ -179,9 +179,14 @@ async fn verify_web_credentials_like_cpp<S: AsyncRead + AsyncWrite + Unpin>(
     let is_locked_to_ip: bool = result.try_read::<bool>(2).unwrap_or(false);
     let lock_country: String = result.try_read::<String>(3).unwrap_or_default();
     let last_ip: String = result.try_read::<String>(4).unwrap_or_default();
-    // Column 5 is LoginTicketExpiry — not needed here
+    let login_ticket_expiry: u64 = result.try_read::<u64>(5).unwrap_or(0);
     let is_banned: bool = result.try_read::<bool>(6).unwrap_or(false);
     let is_permanently_banned: bool = result.try_read::<bool>(7).unwrap_or(false);
+
+    if login_ticket_is_expired_like_cpp(login_ticket_expiry, unix_timestamp_like_cpp()) {
+        tracing::debug!("VerifyWebCredentials: expired ticket for account {account_id}");
+        return Err(RpcStatusError::new(status::ERROR_TIMED_OUT).into());
+    }
 
     // Parse game accounts from all rows (columns 8-12)
     let mut game_accounts = HashMap::new();
@@ -285,13 +290,13 @@ async fn verify_web_credentials_like_cpp<S: AsyncRead + AsyncWrite + Unpin>(
     // Check IP lock
     if is_locked_to_ip && last_ip != session.addr().ip().to_string() {
         tracing::debug!("Account {account_id} is locked to IP {last_ip}");
-        return send_logon_error(session, 12).await;
+        return Err(RpcStatusError::new(status::ERROR_RISK_ACCOUNT_LOCKED).into());
     }
 
     // Check ban
-    if is_banned {
+    if let Some(error_status) = bnet_account_ban_status_like_cpp(is_banned, is_permanently_banned) {
         tracing::debug!("Account {account_id} is banned");
-        return send_logon_error(session, 3).await;
+        return Err(RpcStatusError::new(error_status).into());
     }
 
     // Build LogonResult
@@ -350,6 +355,27 @@ async fn verify_web_credentials_like_cpp<S: AsyncRead + AsyncWrite + Unpin>(
     Ok(None)
 }
 
+fn unix_timestamp_like_cpp() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
+
+fn login_ticket_is_expired_like_cpp(login_ticket_expiry: u64, now: u64) -> bool {
+    login_ticket_expiry < now
+}
+
+fn bnet_account_ban_status_like_cpp(is_banned: bool, is_permanently_banned: bool) -> Option<u32> {
+    if !is_banned {
+        None
+    } else if is_permanently_banned {
+        Some(status::ERROR_GAME_ACCOUNT_BANNED)
+    } else {
+        Some(status::ERROR_GAME_ACCOUNT_SUSPENDED)
+    }
+}
+
 /// Method 8: GenerateWebCredentials
 async fn handle_generate_web_credentials<S: AsyncRead + AsyncWrite + Unpin>(
     session: &mut RpcSession<S>,
@@ -383,27 +409,6 @@ async fn handle_generate_web_credentials<S: AsyncRead + AsyncWrite + Unpin>(
         web_credentials: Some(ticket.into_bytes()),
     };
     Ok(Some(response.encode_to_vec()))
-}
-
-/// Send a LogonResult with an error code to the client.
-async fn send_logon_error<S: AsyncRead + AsyncWrite + Unpin>(
-    session: &mut RpcSession<S>,
-    error_code: u32,
-) -> Result<Option<Vec<u8>>> {
-    let logon_result = LogonResult {
-        error_code,
-        ..Default::default()
-    };
-
-    session
-        .send_request(
-            service_hash::AUTHENTICATION_LISTENER,
-            5,
-            &logon_result.encode_to_vec(),
-        )
-        .await?;
-
-    Ok(None)
 }
 
 #[cfg(test)]
@@ -455,6 +460,35 @@ mod tests {
         assert_eq!(
             cached_web_credentials_like_cpp(vec![b'T', b'C', b'-', 0xFF]),
             "TC-\u{FFFD}"
+        );
+    }
+
+    #[test]
+    fn verify_web_credentials_status_constants_match_cpp() {
+        assert_eq!(status::ERROR_TIMED_OUT, 0x02);
+        assert_eq!(status::ERROR_DENIED, 0x03);
+        assert_eq!(status::ERROR_GAME_ACCOUNT_BANNED, 0x34);
+        assert_eq!(status::ERROR_GAME_ACCOUNT_SUSPENDED, 0x35);
+        assert_eq!(status::ERROR_RISK_ACCOUNT_LOCKED, 0xA413);
+    }
+
+    #[test]
+    fn login_ticket_expiry_uses_cpp_strict_less_than_now() {
+        assert!(login_ticket_is_expired_like_cpp(99, 100));
+        assert!(!login_ticket_is_expired_like_cpp(100, 100));
+        assert!(!login_ticket_is_expired_like_cpp(101, 100));
+    }
+
+    #[test]
+    fn bnet_account_ban_status_distinguishes_permanent_and_temporary_like_cpp() {
+        assert_eq!(bnet_account_ban_status_like_cpp(false, false), None);
+        assert_eq!(
+            bnet_account_ban_status_like_cpp(true, true),
+            Some(status::ERROR_GAME_ACCOUNT_BANNED)
+        );
+        assert_eq!(
+            bnet_account_ban_status_like_cpp(true, false),
+            Some(status::ERROR_GAME_ACCOUNT_SUSPENDED)
         );
     }
 }
