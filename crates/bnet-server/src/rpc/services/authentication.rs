@@ -6,9 +6,9 @@ use wow_database::LoginStatements;
 use wow_proto::bgs::protocol::EntityId;
 use wow_proto::bgs::protocol::authentication::v1::*;
 use wow_proto::bgs::protocol::challenge::v1::ChallengeExternalRequest;
-use wow_proto::service_hash;
+use wow_proto::{service_hash, status};
 
-use crate::rpc::session::RpcSession;
+use crate::rpc::session::{RpcSession, RpcStatusError};
 use crate::state::{AccountInfo, GameAccountInfo, LastPlayedCharInfo};
 use std::collections::HashMap;
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -36,22 +36,18 @@ async fn handle_logon<S: AsyncRead + AsyncWrite + Unpin>(
 ) -> Result<Option<Vec<u8>>> {
     let request = LogonRequest::decode(payload)?;
 
-    // Validate program
     let program = request.program.as_deref().unwrap_or("");
-    if program != "WoW" {
-        tracing::warn!("Invalid program: {program}");
-        return Ok(None);
-    }
-
-    // Validate platform
     let platform = request.platform.as_deref().unwrap_or("");
-    if !matches!(platform, "Win" | "Wn64" | "Mc64") {
-        tracing::warn!("Invalid platform: {platform}");
-        return Ok(None);
+    let locale = request.locale.as_deref().unwrap_or("");
+    if let Err(error_status) = validate_logon_client_info_like_cpp(program, platform, locale) {
+        tracing::warn!(
+            "Invalid logon client info: program={program} platform={platform} locale={locale} status={error_status}"
+        );
+        return Err(RpcStatusError::new(error_status).into());
     }
 
     // Store session info
-    session.locale = request.locale.clone().unwrap_or_default();
+    session.locale = locale.to_string();
     session.os = platform.to_string();
     session.build = request.application_version.unwrap_or(0) as u32;
 
@@ -91,6 +87,43 @@ async fn handle_logon<S: AsyncRead + AsyncWrite + Unpin>(
         .await?;
 
     Ok(None)
+}
+
+fn validate_logon_client_info_like_cpp(
+    program: &str,
+    platform: &str,
+    locale: &str,
+) -> std::result::Result<(), u32> {
+    if program != "WoW" {
+        return Err(status::ERROR_BAD_PROGRAM);
+    }
+
+    if !matches!(platform, "Win" | "Wn64" | "Mc64") {
+        return Err(status::ERROR_BAD_PLATFORM);
+    }
+
+    if !is_valid_locale_like_cpp(locale) {
+        return Err(status::ERROR_BAD_LOCALE);
+    }
+
+    Ok(())
+}
+
+fn is_valid_locale_like_cpp(locale: &str) -> bool {
+    matches!(
+        locale,
+        "enUS"
+            | "koKR"
+            | "frFR"
+            | "deDE"
+            | "zhCN"
+            | "zhTW"
+            | "esES"
+            | "esMX"
+            | "ruRU"
+            | "ptBR"
+            | "itIT"
+    )
 }
 
 /// Method 7: VerifyWebCredentials — validates login ticket and sends LogonResult.
@@ -359,4 +392,41 @@ async fn send_logon_error<S: AsyncRead + AsyncWrite + Unpin>(
         .await?;
 
     Ok(None)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn logon_client_info_accepts_cpp_supported_locales() {
+        for locale in [
+            "enUS", "koKR", "frFR", "deDE", "zhCN", "zhTW", "esES", "esMX", "ruRU", "ptBR", "itIT",
+        ] {
+            assert_eq!(
+                validate_logon_client_info_like_cpp("WoW", "Wn64", locale),
+                Ok(())
+            );
+        }
+    }
+
+    #[test]
+    fn logon_client_info_rejects_bad_locale_like_cpp() {
+        assert_eq!(
+            validate_logon_client_info_like_cpp("WoW", "Wn64", "xxXX"),
+            Err(status::ERROR_BAD_LOCALE)
+        );
+    }
+
+    #[test]
+    fn logon_client_info_preserves_cpp_validation_order() {
+        assert_eq!(
+            validate_logon_client_info_like_cpp("Diablo", "BadOS", "xxXX"),
+            Err(status::ERROR_BAD_PROGRAM)
+        );
+        assert_eq!(
+            validate_logon_client_info_like_cpp("WoW", "BadOS", "xxXX"),
+            Err(status::ERROR_BAD_PLATFORM)
+        );
+    }
 }

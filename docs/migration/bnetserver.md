@@ -591,7 +591,7 @@ Resolved since the original audit: `extract_auth_ticket` now mirrors TC's `Extra
 | ALPN | not advertised | not advertised | ✅ |
 | `LOGIN_SEL_IP_INFO` ip-ban check on `Start()` | ✅ | ❌ — Rust does not check `ip_banned` at session start (only on bnet REST login attempt) | ❌ |
 | `ConnectionService::Connect/Bind/Echo/KeepAlive` | full | `Bind`/`Echo` implemented; `Connect`/`KeepAlive` partial | ⚠️ |
-| `AuthenticationService.Logon` | validates program/platform/locale, optional `cached_web_credentials` shortcut, sends `ChallengeExternalRequest` | program+platform validated; **locale not validated**; `cached_web_credentials` shortcut **not** wired | ⚠️ |
+| `AuthenticationService.Logon` | validates program/platform/locale, optional `cached_web_credentials` shortcut, sends `ChallengeExternalRequest` | program+platform+locale validated with TC status codes; `cached_web_credentials` shortcut **not** wired | ⚠️ |
 | `ChallengeListener::OnExternalChallenge` (web auth URL) | sent via `Service<ChallengeListener>` | sent via `send_request(CHALLENGE_LISTENER, 3, …)` | ✅ |
 | `AuthenticationService.VerifyWebCredentials` | loads account + char counts + last-played in chained query callback; checks IP lock, country lock (via `IPLocation`), `IsBanned` / `IsPermanenetlyBanned`; sets `_authed` and dispatches `AuthenticationListener::OnLogonComplete` (method 5) | similar; but **no country lock** (no `IPLocation`); 64-byte `session_key` is fresh random per call (TC also random — ✅); error codes used: 3, 12 | ⚠️ no country lock |
 | Error codes on auth failure | `ERROR_DENIED=3`, `ERROR_TIMED_OUT=8`, `ERROR_RISK_ACCOUNT_LOCKED=12`, `ERROR_GAME_ACCOUNT_BANNED=14`, `ERROR_GAME_ACCOUNT_SUSPENDED=15` | always uses 3 (DENIED) or 12 (LOCKED) — never distinguishes `BANNED` vs `SUSPENDED` vs `TIMED_OUT` | ❌ |
@@ -629,7 +629,7 @@ Add these to §9 (existing tasks #BNET.1–#BNET.14 stand):
 
 - [x] **#BNET.15** Fix `extract_auth_ticket`: Base64-decode the optional-`Basic ` authorization value, then truncate at first `:`. Matches `LoginRESTService::ExtractAuthorization`.
 - [ ] **#BNET.16** Wire `CertificatesFile` config (already read in `main.rs:68` but ignored). Add `PrivateKeyFile` + optional `PrivateKeyPassword`. Fall back to current hardcoded names with a `tracing::warn!`.
-- [ ] **#BNET.17** Validate locale in `handle_logon` (TC returns `ERROR_BAD_LOCALE`). Use the same allow-list as `wow_constants::LocaleConstant`.
+- [x] **#BNET.17** Validate locale in `handle_logon` (TC returns `ERROR_BAD_LOCALE`). Rust now uses the same allow-list as `Common.cpp::localeNames` and returns TC status codes for bad program/platform/locale.
 - [ ] **#BNET.18** Honour `cached_web_credentials` in `LogonRequest`: short-circuit straight to `VerifyWebCredentials` instead of always sending the web-auth challenge. Saves one client round-trip.
 - [ ] **#BNET.19** Distinguish error codes in `VerifyWebCredentials`: emit 8 (TIMED_OUT) for expired ticket, 14 (BANNED), 15 (SUSPENDED), 12 (LOCKED) — currently always 3 or 12.
 - [ ] **#BNET.20** Add `LOGIN_SEL_IP_INFO` check in `Session::Start`-equivalent: reject TLS handshake if remote IP is in `ip_banned`.

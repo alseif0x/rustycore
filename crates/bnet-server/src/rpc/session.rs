@@ -10,6 +10,7 @@
 use anyhow::{Context, Result, bail};
 use prost::Message;
 use std::collections::HashMap;
+use std::fmt;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
@@ -17,6 +18,30 @@ use wow_proto::bgs::protocol::Header;
 use wow_proto::{RESPONSE_SERVICE_ID, service_hash};
 
 use crate::state::{AccountInfo, AppState};
+
+/// Service handler error that should be returned as a BNet RPC status code.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RpcStatusError {
+    status: u32,
+}
+
+impl RpcStatusError {
+    pub const fn new(status: u32) -> Self {
+        Self { status }
+    }
+
+    pub const fn status(self) -> u32 {
+        self.status
+    }
+}
+
+impl fmt::Display for RpcStatusError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "BNet RPC status {}", self.status)
+    }
+}
+
+impl std::error::Error for RpcStatusError {}
 
 /// A single BNet RPC session, generic over the stream type.
 ///
@@ -177,7 +202,11 @@ impl<S: AsyncRead + AsyncWrite + Unpin> RpcSession<S> {
             }
             Err(e) => {
                 tracing::debug!("Service {hash:#010x}:{method} error: {e}");
-                self.send_response_status(token, 1).await?;
+                let status = e
+                    .downcast_ref::<RpcStatusError>()
+                    .map(|error| error.status())
+                    .unwrap_or(1);
+                self.send_response_status(token, status).await?;
             }
         }
         Ok(())
