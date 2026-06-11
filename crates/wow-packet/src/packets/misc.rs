@@ -3682,6 +3682,102 @@ impl ServerPacket for LfgListBlacklist {
     }
 }
 
+/// C++ `WorldPackets::LFG::DFGetSystemInfo`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DfGetSystemInfo {
+    pub player: bool,
+    pub party_index: Option<u8>,
+}
+
+impl ClientPacket for DfGetSystemInfo {
+    const OPCODE: ClientOpcodes = ClientOpcodes::DfGetSystemInfo;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let player = pkt.read_bit()?;
+        let has_party_index = pkt.read_bit()?;
+        let party_index = if has_party_index {
+            Some(pkt.read_uint8()?)
+        } else {
+            None
+        };
+        Ok(Self {
+            player,
+            party_index,
+        })
+    }
+}
+
+/// C++ `WorldPackets::LFG::LFGBlackList`.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct LfgBlackList {
+    pub player_guid: Option<ObjectGuid>,
+    pub slots: Vec<LfgListBlacklistEntry>,
+}
+
+impl LfgBlackList {
+    fn write_like_cpp(&self, pkt: &mut WorldPacket) {
+        pkt.write_bit(self.player_guid.is_some());
+        pkt.write_uint32(self.slots.len() as u32);
+        if let Some(player_guid) = self.player_guid {
+            pkt.write_packed_guid(&player_guid);
+        }
+        for slot in &self.slots {
+            pkt.write_uint32(slot.slot);
+            pkt.write_uint32(slot.reason);
+            pkt.write_int32(slot.sub_reason1);
+            pkt.write_int32(slot.sub_reason2);
+            pkt.write_uint32(slot.soft_lock);
+        }
+    }
+}
+
+/// C++ `WorldPackets::LFG::LfgPlayerInfo`.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct LfgPlayerInfo {
+    pub blacklist: LfgBlackList,
+    /// Full dungeon/reward rows depend on `sLFGMgr`; empty is the well-defined
+    /// response when no random/seasonal dungeon data is represented.
+    pub dungeon_count: u32,
+}
+
+impl LfgPlayerInfo {
+    pub fn empty() -> Self {
+        Self::default()
+    }
+}
+
+impl ServerPacket for LfgPlayerInfo {
+    const OPCODE: ServerOpcodes = ServerOpcodes::LfgPlayerInfo;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_uint32(self.dungeon_count);
+        self.blacklist.write_like_cpp(pkt);
+    }
+}
+
+/// C++ `WorldPackets::LFG::LfgPartyInfo`.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct LfgPartyInfo {
+    pub players: Vec<LfgBlackList>,
+}
+
+impl LfgPartyInfo {
+    pub fn empty() -> Self {
+        Self::default()
+    }
+}
+
+impl ServerPacket for LfgPartyInfo {
+    const OPCODE: ServerOpcodes = ServerOpcodes::LfgPartyInfo;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_uint32(self.players.len() as u32);
+        for player in &self.players {
+            player.write_like_cpp(pkt);
+        }
+    }
+}
+
 // ── RatedPvpInfo ─────────────────────────────────────────────────────────────
 
 /// C++ `WorldPackets::Battleground::RatedPvpInfo`.
@@ -3863,6 +3959,44 @@ mod tests {
         assert_eq!(pkt.read_uint32().unwrap(), 3);
         assert_eq!(pkt.read_int32().unwrap(), 123);
         assert_eq!(pkt.read_int32().unwrap(), -7);
+        assert_eq!(pkt.read_uint32().unwrap(), 0);
+    }
+
+    #[test]
+    fn df_get_system_info_reads_cpp_bits() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(true); // Player
+        pkt.write_bit(true); // PartyIndex.HasValue
+        pkt.write_uint8(7);
+
+        let request = DfGetSystemInfo::read(&mut pkt).unwrap();
+        assert!(request.player);
+        assert_eq!(request.party_index, Some(7));
+    }
+
+    #[test]
+    fn lfg_player_info_empty_matches_cpp_shape() {
+        let bytes = LfgPlayerInfo::empty().to_bytes();
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::LfgPlayerInfo as u16
+        );
+
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_uint32().unwrap(), 0); // Dungeon.Count
+        assert!(!pkt.has_bit().unwrap()); // BlackList.PlayerGuid.HasValue
+        assert_eq!(pkt.read_uint32().unwrap(), 0); // BlackList.Slot.Count
+    }
+
+    #[test]
+    fn lfg_party_info_empty_matches_cpp_shape() {
+        let bytes = LfgPartyInfo::empty().to_bytes();
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::LfgPartyInfo as u16
+        );
+
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
         assert_eq!(pkt.read_uint32().unwrap(), 0);
     }
 

@@ -39,9 +39,10 @@ use wow_packet::packets::loot::{LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHI
 use wow_packet::packets::misc::{
     AddToy, BattlePetClearFanfare, BattlePetDeletePet, BattlePetModifyName,
     BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags, BattlePetSummon,
-    BattlePetUpdateNotify, CageBattlePet, FarSight, LfgListBlacklist, LfgUpdateStatus,
-    MountSetFavorite, QueryBattlePetName, QueryBattlePetNameResponse, RatedPvpInfo,
-    RequestCemeteryListResponse, SaveCufProfiles, TaxiNodeStatusPkt, ToyClearFanfare, UseToy,
+    BattlePetUpdateNotify, CageBattlePet, DfGetSystemInfo, FarSight, LfgListBlacklist,
+    LfgPlayerInfo, LfgUpdateStatus, MountSetFavorite, QueryBattlePetName,
+    QueryBattlePetNameResponse, RatedPvpInfo, RequestCemeteryListResponse, SaveCufProfiles,
+    TaxiNodeStatusPkt, ToyClearFanfare, UseToy,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -1451,7 +1452,29 @@ impl crate::session::WorldSession {
         self.send_packet(&RatedPvpInfo::default());
     }
     pub async fn handle_request_pvp_rewards(&mut self, _pkt: wow_packet::WorldPacket) {}
-    pub async fn handle_df_get_system_info(&mut self, _pkt: wow_packet::WorldPacket) {}
+    pub async fn handle_df_get_system_info(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let request = match DfGetSystemInfo::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "DFGetSystemInfo parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        if request.player {
+            // C++ `SendLfgPlayerLockInfo`: blacklist + random/seasonal dungeon
+            // rows from `sLFGMgr`. Until that manager is ported, represent the
+            // empty lock/dungeon response.
+            self.send_packet(&LfgPlayerInfo::empty());
+        } else {
+            // C++ `SendLfgPartyLockInfo` returns before sending when the player
+            // is not in a group. Rust does not expose a live LFG group manager
+            // here yet, so the no-group branch remains silent.
+        }
+    }
     pub async fn handle_df_get_join_status(&mut self, _pkt: wow_packet::WorldPacket) {}
     pub async fn handle_calendar_get_num_pending(&mut self, _pkt: wow_packet::WorldPacket) {}
     pub async fn handle_gm_ticket_get_case_status(&mut self, _pkt: wow_packet::WorldPacket) {}
@@ -4605,6 +4628,41 @@ mod tests {
 
         let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
         assert_eq!(pkt.read_uint32().unwrap(), 0);
+    }
+
+    #[tokio::test]
+    async fn df_get_system_info_player_sends_empty_player_info_like_cpp_without_lfg_mgr() {
+        let (mut session, send_rx) = make_session();
+        let mut request = WorldPacket::new_empty();
+        request.write_bit(true); // Player
+        request.write_bit(false); // PartyIndex.HasValue
+        request.flush_bits();
+
+        session.handle_df_get_system_info(request).await;
+
+        let bytes = send_rx.try_recv().expect("LFG player info packet");
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::LfgPlayerInfo as u16
+        );
+
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_uint32().unwrap(), 0); // Dungeon.Count
+        assert!(!pkt.has_bit().unwrap()); // BlackList.PlayerGuid.HasValue
+        assert_eq!(pkt.read_uint32().unwrap(), 0); // BlackList.Slot.Count
+    }
+
+    #[tokio::test]
+    async fn df_get_system_info_party_without_group_is_silent_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let mut request = WorldPacket::new_empty();
+        request.write_bit(false); // Player
+        request.write_bit(false); // PartyIndex.HasValue
+        request.flush_bits();
+
+        session.handle_df_get_system_info(request).await;
+
+        assert!(send_rx.try_recv().is_err());
     }
 
     #[tokio::test]
