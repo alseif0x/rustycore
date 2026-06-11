@@ -19,6 +19,7 @@
 use tracing::debug;
 
 use wow_chat::hyperlinks::check_all_links_shape_like_cpp;
+use wow_chat::validation::validate_message_like_cpp;
 use wow_constants::ClientOpcodes;
 use wow_core::ObjectGuid;
 use wow_core::guid::HighGuid;
@@ -195,13 +196,31 @@ impl WorldSession {
         mut pkt: wow_packet::WorldPacket,
         msg_type: ChatMsg,
     ) {
-        let msg = match ChatMessage::read(&mut pkt) {
+        let mut msg = match ChatMessage::read(&mut pkt) {
             Ok(m) => m,
             Err(e) => {
                 tracing::warn!(account = self.account_id, "Bad chat packet: {e}");
                 return;
             }
         };
+
+        if msg.text.len() > 511 {
+            return;
+        }
+        if msg.text.is_empty() {
+            return;
+        }
+        if !validate_message_like_cpp(&mut msg.text, false) {
+            tracing::warn!(
+                account = self.account_id,
+                ty = ?msg_type,
+                "Chat message rejected: invalid character/control sequence"
+            );
+            return;
+        }
+        if msg.text.is_empty() {
+            return;
+        }
 
         debug!(
             account = self.account_id,
@@ -272,13 +291,37 @@ impl WorldSession {
 
     /// Handle whisper messages.
     pub async fn handle_chat_whisper(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let msg = match ChatMessageWhisper::read(&mut pkt) {
+        let mut msg = match ChatMessageWhisper::read(&mut pkt) {
             Ok(m) => m,
             Err(e) => {
                 tracing::warn!(account = self.account_id, "Bad whisper packet: {e}");
                 return;
             }
         };
+
+        if msg.text.len() > 511 {
+            return;
+        }
+        if msg.text.is_empty() {
+            return;
+        }
+        if !validate_message_like_cpp(&mut msg.text, false) {
+            tracing::warn!(
+                account = self.account_id,
+                "Whisper rejected: invalid character/control sequence"
+            );
+            return;
+        }
+        if msg.text.is_empty() {
+            return;
+        }
+        if !check_all_links_shape_like_cpp(&msg.text) {
+            tracing::warn!(
+                account = self.account_id,
+                "Whisper rejected: invalid hyperlink/control sequence"
+            );
+            return;
+        }
 
         debug!(
             account = self.account_id,
@@ -348,7 +391,7 @@ impl WorldSession {
 
     /// Handle CMSG_CHAT_MESSAGE_AFK.
     pub async fn handle_chat_afk(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let msg = match ChatMessageAfk::read(&mut pkt) {
+        let mut msg = match ChatMessageAfk::read(&mut pkt) {
             Ok(m) => m,
             Err(e) => {
                 tracing::warn!(account = self.account_id, "Bad AFK chat packet: {e}");
@@ -356,12 +399,29 @@ impl WorldSession {
             }
         };
 
+        if msg.text.len() > 511 {
+            return;
+        }
+        if !validate_message_like_cpp(&mut msg.text, false) {
+            tracing::warn!(
+                account = self.account_id,
+                "AFK message rejected: invalid character/control sequence"
+            );
+            return;
+        }
+        if !check_all_links_shape_like_cpp(&msg.text) {
+            tracing::warn!(
+                account = self.account_id,
+                "AFK message rejected: invalid hyperlink/control sequence"
+            );
+            return;
+        }
         let _ = self.apply_chat_away_mode_like_cpp(PlayerAwayModeLikeCpp::Afk, msg.text);
     }
 
     /// Handle CMSG_CHAT_MESSAGE_DND.
     pub async fn handle_chat_dnd(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let msg = match ChatMessageDnd::read(&mut pkt) {
+        let mut msg = match ChatMessageDnd::read(&mut pkt) {
             Ok(m) => m,
             Err(e) => {
                 tracing::warn!(account = self.account_id, "Bad DND chat packet: {e}");
@@ -369,6 +429,23 @@ impl WorldSession {
             }
         };
 
+        if msg.text.len() > 511 {
+            return;
+        }
+        if !validate_message_like_cpp(&mut msg.text, false) {
+            tracing::warn!(
+                account = self.account_id,
+                "DND message rejected: invalid character/control sequence"
+            );
+            return;
+        }
+        if !check_all_links_shape_like_cpp(&msg.text) {
+            tracing::warn!(
+                account = self.account_id,
+                "DND message rejected: invalid hyperlink/control sequence"
+            );
+            return;
+        }
         let _ = self.apply_chat_away_mode_like_cpp(PlayerAwayModeLikeCpp::Dnd, msg.text);
     }
 
@@ -416,13 +493,37 @@ impl WorldSession {
 
     /// Handle emote text (/e).
     pub async fn handle_chat_emote(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let msg = match ChatMessageEmote::read(&mut pkt) {
+        let mut msg = match ChatMessageEmote::read(&mut pkt) {
             Ok(m) => m,
             Err(e) => {
                 tracing::warn!(account = self.account_id, "Bad emote packet: {e}");
                 return;
             }
         };
+
+        if msg.text.len() > 511 {
+            return;
+        }
+        if msg.text.is_empty() {
+            return;
+        }
+        if !validate_message_like_cpp(&mut msg.text, false) {
+            tracing::warn!(
+                account = self.account_id,
+                "Text emote rejected: invalid character/control sequence"
+            );
+            return;
+        }
+        if msg.text.is_empty() {
+            return;
+        }
+        if !check_all_links_shape_like_cpp(&msg.text) {
+            tracing::warn!(
+                account = self.account_id,
+                "Text emote rejected: invalid hyperlink/control sequence"
+            );
+            return;
+        }
 
         debug!(
             account = self.account_id,
@@ -883,6 +984,38 @@ mod tests {
         packet.read_uint32().expect("chat language")
     }
 
+    fn chat_text(bytes: &[u8]) -> String {
+        let mut packet = wow_packet::WorldPacket::from_bytes(bytes);
+        packet.skip_opcode();
+        let _ = packet.read_uint8().expect("chat slash command");
+        let _ = packet.read_uint32().expect("chat language");
+        let _ = packet.read_packed_guid().expect("sender guid");
+        let _ = packet.read_packed_guid().expect("sender guild guid");
+        let _ = packet.read_packed_guid().expect("sender account guid");
+        let _ = packet.read_packed_guid().expect("target guid");
+        let _ = packet.read_uint32().expect("target virtual realm");
+        let _ = packet.read_uint32().expect("sender virtual realm");
+        let _ = packet.read_int32().expect("achievement id");
+        let _ = packet.read_float().expect("display time");
+        let _ = packet.read_int32().expect("spell id");
+        let sender_len = packet.read_bits(11).expect("sender len") as usize;
+        let target_len = packet.read_bits(11).expect("target len") as usize;
+        let prefix_len = packet.read_bits(5).expect("prefix len") as usize;
+        let channel_len = packet.read_bits(7).expect("channel len") as usize;
+        let text_len = packet.read_bits(12).expect("text len") as usize;
+        let _ = packet.read_bits(15).expect("chat flags");
+        let _ = packet.read_bit().expect("hide chat log");
+        let _ = packet.read_bit().expect("fake sender");
+        let _ = packet.read_bit().expect("unused 801");
+        let _ = packet.read_bit().expect("channel guid");
+        packet.flush_bits();
+        let _ = packet.read_string(sender_len).expect("sender name");
+        let _ = packet.read_string(target_len).expect("target name");
+        let _ = packet.read_string(prefix_len).expect("prefix");
+        let _ = packet.read_string(channel_len).expect("channel");
+        packet.read_string(text_len).expect("text")
+    }
+
     fn broadcast_info(guid: ObjectGuid, send_tx: flume::Sender<Vec<u8>>) -> PlayerBroadcastInfo {
         let (command_tx, _command_rx) = flume::bounded(8);
         broadcast_info_with_command_tx(guid, send_tx, command_tx)
@@ -1092,6 +1225,22 @@ mod tests {
 
         assert!(sender_rx.try_recv().is_err());
         assert!(nearby_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn chat_message_truncates_at_newline_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 331);
+        let (mut session, _player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
+
+        session
+            .handle_chat_message(
+                chat_message_packet(ClientOpcodes::ChatMessageSay, "visible\nhidden"),
+                ChatMsg::Say,
+            )
+            .await;
+
+        let delivered = sender_rx.try_recv().expect("sender echo");
+        assert_eq!(chat_text(&delivered), "visible");
     }
 
     #[tokio::test]
