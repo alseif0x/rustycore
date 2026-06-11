@@ -2877,6 +2877,41 @@ fn unix_timestamp() -> i64 {
         .as_secs() as i64
 }
 
+fn wow_time_packed_from_unix_seconds(unix_seconds: i64) -> u32 {
+    let days = unix_seconds.div_euclid(86_400);
+    let seconds_of_day = unix_seconds.rem_euclid(86_400);
+    let (year, month, month_day) = civil_from_days(days);
+    let week_day = (days + 4).rem_euclid(7) as u32;
+    let hour = (seconds_of_day / 3_600) as u32;
+    let minute = ((seconds_of_day % 3_600) / 60) as u32;
+
+    let year_field = ((year - 2000).rem_euclid(100) as u32) & 0x1f;
+    let month_field = (month - 1) & 0x0f;
+    let month_day_field = (month_day - 1) & 0x3f;
+
+    (year_field << 24)
+        | (month_field << 20)
+        | (month_day_field << 14)
+        | ((week_day & 0x07) << 11)
+        | ((hour & 0x1f) << 6)
+        | (minute & 0x3f)
+}
+
+fn civil_from_days(days_since_unix_epoch: i64) -> (i32, u32, u32) {
+    let z = days_since_unix_epoch + 719_468;
+    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = mp + if mp < 10 { 3 } else { -9 };
+    let year = y + i64::from(month <= 2);
+
+    (year as i32, month as u32, day as u32)
+}
+
 // ── ShowTradeSkill (client → server) ────────────────────────────────────────
 // Sent when the player opens their own profession window from the spellbook,
 // or when clicking a trade skill link to view another player's profession.
@@ -3814,6 +3849,43 @@ impl ServerPacket for CalendarSendNumPending {
     }
 }
 
+/// C++ `WorldPackets::Calendar::CalendarSendCalendar`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CalendarSendCalendar {
+    pub server_time_packed: u32,
+    pub invite_count: u32,
+    pub event_count: u32,
+    pub raid_lockout_count: u32,
+}
+
+impl CalendarSendCalendar {
+    /// Represent the empty calendar state used until calendar/event/lockout
+    /// managers are wired into the session.
+    pub fn empty_now() -> Self {
+        Self::empty_at_unix(unix_timestamp())
+    }
+
+    pub fn empty_at_unix(unix_seconds: i64) -> Self {
+        Self {
+            server_time_packed: wow_time_packed_from_unix_seconds(unix_seconds),
+            invite_count: 0,
+            event_count: 0,
+            raid_lockout_count: 0,
+        }
+    }
+}
+
+impl ServerPacket for CalendarSendCalendar {
+    const OPCODE: ServerOpcodes = ServerOpcodes::CalendarSendCalendar;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_uint32(self.server_time_packed);
+        pkt.write_uint32(self.invite_count);
+        pkt.write_uint32(self.event_count);
+        pkt.write_uint32(self.raid_lockout_count);
+    }
+}
+
 /// C++ `WorldPackets::Token::CommerceTokenGetLog`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CommerceTokenGetLog {
@@ -4109,6 +4181,22 @@ mod tests {
 
         let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
         assert_eq!(pkt.read_uint32().unwrap(), 3);
+    }
+
+    #[test]
+    fn calendar_send_calendar_empty_matches_cpp_header_shape() {
+        let bytes = CalendarSendCalendar::empty_at_unix(946_684_800).to_bytes();
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::CalendarSendCalendar as u16
+        );
+        assert_eq!(bytes.len(), 2 + 4 + 4 + 4 + 4);
+
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_uint32().unwrap(), 0x0000_3000); // 2000-01-01 00:00 UTC
+        assert_eq!(pkt.read_uint32().unwrap(), 0); // Invites.Count
+        assert_eq!(pkt.read_uint32().unwrap(), 0); // Events.Count
+        assert_eq!(pkt.read_uint32().unwrap(), 0); // RaidLockouts.Count
     }
 
     #[test]

@@ -39,11 +39,11 @@ use wow_packet::packets::loot::{LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHI
 use wow_packet::packets::misc::{
     AddToy, BattlePetClearFanfare, BattlePetDeletePet, BattlePetModifyName,
     BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags, BattlePetSummon,
-    BattlePetUpdateNotify, CageBattlePet, CalendarSendNumPending, CommerceTokenGetLog,
-    CommerceTokenGetLogResponse, DfGetSystemInfo, FarSight, GmTicketCaseStatus, LfgListBlacklist,
-    LfgPlayerInfo, LfgUpdateStatus, MountSetFavorite, QueryBattlePetName,
-    QueryBattlePetNameResponse, RatedPvpInfo, RequestCemeteryListResponse, SaveCufProfiles,
-    TaxiNodeStatusPkt, ToyClearFanfare, UseToy,
+    BattlePetUpdateNotify, CageBattlePet, CalendarSendCalendar, CalendarSendNumPending,
+    CommerceTokenGetLog, CommerceTokenGetLogResponse, DfGetSystemInfo, FarSight,
+    GmTicketCaseStatus, LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus, MountSetFavorite,
+    QueryBattlePetName, QueryBattlePetNameResponse, RatedPvpInfo, RequestCemeteryListResponse,
+    SaveCufProfiles, TaxiNodeStatusPkt, ToyClearFanfare, UseToy,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -2008,7 +2008,12 @@ impl crate::session::WorldSession {
     ) {
     }
     pub async fn handle_request_countdown_timer(&mut self, _pkt: wow_packet::WorldPacket) {}
-    pub async fn handle_calendar_get(&mut self, _pkt: wow_packet::WorldPacket) {}
+    pub async fn handle_calendar_get(&mut self, _pkt: wow_packet::WorldPacket) {
+        // C++ fills CalendarSendCalendar from sCalendarMgr and instance locks.
+        // Those live managers are not ported here yet, so represent the
+        // well-defined empty calendar/lockout lists with current server time.
+        self.send_packet(&CalendarSendCalendar::empty_now());
+    }
 
     // ── Auction house list stubs ──────────────────────────────────────────────
 
@@ -4723,6 +4728,25 @@ mod tests {
 
         let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
         assert_eq!(pkt.read_uint32().unwrap(), 0);
+    }
+
+    #[tokio::test]
+    async fn calendar_get_sends_empty_calendar_like_cpp_without_calendar_mgr() {
+        let (mut session, send_rx) = make_session();
+
+        session.handle_calendar_get(WorldPacket::new_empty()).await;
+
+        let bytes = send_rx.try_recv().expect("calendar send calendar packet");
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::CalendarSendCalendar as u16
+        );
+
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        let _server_time = pkt.read_uint32().unwrap();
+        assert_eq!(pkt.read_uint32().unwrap(), 0); // Invites.Count
+        assert_eq!(pkt.read_uint32().unwrap(), 0); // Events.Count
+        assert_eq!(pkt.read_uint32().unwrap(), 0); // RaidLockouts.Count
     }
 
     #[tokio::test]
