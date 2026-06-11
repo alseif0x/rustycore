@@ -111,6 +111,7 @@ async fn main() -> Result<()> {
     let wrong_pass_logging: bool = wow_config::get_value_default("WrongPass.Logging", false);
     let realm_update_delay: u64 = wow_config::get_value("RealmsStateUpdateDelay").unwrap_or(10);
     let ban_check_interval: u64 = wow_config::get_value("BanExpiryCheckInterval").unwrap_or(60);
+    let max_ping_time_minutes: u64 = wow_config::get_value("MaxPingTime").unwrap_or(30);
 
     let state = Arc::new(AppState::new(
         login_db,
@@ -130,6 +131,7 @@ async fn main() -> Result<()> {
 
     // Start ban expiry timer
     start_ban_expiry_timer(Arc::clone(&state), ban_check_interval);
+    start_database_keep_alive_timer(Arc::clone(&state), max_ping_time_minutes);
 
     // Start REST API server (HTTPS)
     let rest_addr = format!("{bind_ip}:{rest_port}");
@@ -359,9 +361,33 @@ fn start_ban_expiry_timer(state: Arc<AppState>, interval_secs: u64) {
     });
 }
 
+/// Periodically ping LoginDatabase like TrinityCore's `KeepDatabaseAliveHandler`.
+fn start_database_keep_alive_timer(state: Arc<AppState>, interval_minutes: u64) {
+    if interval_minutes == 0 {
+        tracing::warn!("MaxPingTime is 0; database keep-alive timer disabled");
+        return;
+    }
+
+    tokio::spawn(async move {
+        let mut interval =
+            tokio::time::interval(db_keep_alive_interval_duration_like_cpp(interval_minutes));
+        loop {
+            interval.tick().await;
+            tracing::info!("Ping MySQL to keep connection alive");
+            if let Err(error) = state.login_db.direct_query("SELECT 1").await {
+                tracing::warn!("Failed to keep LoginDatabase alive: {error}");
+            }
+        }
+    });
+}
+
+fn db_keep_alive_interval_duration_like_cpp(interval_minutes: u64) -> std::time::Duration {
+    std::time::Duration::from_secs(interval_minutes.saturating_mul(60))
+}
+
 #[cfg(test)]
 mod tests {
-    use super::load_bnet_config_from;
+    use super::{db_keep_alive_interval_duration_like_cpp, load_bnet_config_from};
     use std::env;
     use std::fs;
     use std::path::PathBuf;
@@ -439,6 +465,18 @@ LoginDatabaseInfo = "127.0.0.1;3306;trinity;trinity;auth"
         assert_eq!(info.database, "auth");
 
         fs::remove_dir_all(root).expect("cleanup failed");
+    }
+
+    #[test]
+    fn db_keep_alive_interval_is_configured_in_minutes_like_cpp() {
+        assert_eq!(
+            db_keep_alive_interval_duration_like_cpp(30),
+            std::time::Duration::from_secs(30 * 60)
+        );
+        assert_eq!(
+            db_keep_alive_interval_duration_like_cpp(1),
+            std::time::Duration::from_secs(60)
+        );
     }
 
     fn unique_temp_dir(name: &str) -> PathBuf {
