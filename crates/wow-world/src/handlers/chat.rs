@@ -22,6 +22,7 @@ use wow_constants::ClientOpcodes;
 use wow_core::ObjectGuid;
 use wow_core::guid::HighGuid;
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
+use wow_network::GroupInfo;
 use wow_packet::packets::chat::{
     CTextEmote, ChatAddonMessage, ChatMessage, ChatMessageAfk, ChatMessageDnd, ChatMessageEmote,
     ChatMessageWhisper, ChatMsg, ChatPkt, ChatRegisterAddonPrefixes, ChatReportIgnored,
@@ -208,6 +209,29 @@ impl WorldSession {
 
         let (sender_guid, sender_name) = self.player_name_and_guid();
         let virtual_realm = self.virtual_realm_address();
+
+        if matches!(
+            msg_type,
+            ChatMsg::Party | ChatMsg::Raid | ChatMsg::RaidWarning | ChatMsg::InstanceChat
+        ) {
+            self.broadcast_group_chat_like_cpp(
+                msg_type,
+                msg.language as u32,
+                sender_guid,
+                sender_name,
+                msg.text,
+                virtual_realm,
+            );
+            return;
+        }
+
+        if msg_type == ChatMsg::Guild {
+            debug!(
+                account = self.account_id,
+                "Guild chat ignored until GuildRegistry/BroadcastToGuild is ported"
+            );
+            return;
+        }
 
         let chat = ChatPkt {
             msg_type,
@@ -536,6 +560,111 @@ impl WorldSession {
         self.broadcast_raw_packet(pkt.to_bytes(), range);
     }
 
+    fn broadcast_group_chat_like_cpp(
+        &self,
+        requested_type: ChatMsg,
+        language: u32,
+        sender_guid: ObjectGuid,
+        sender_name: String,
+        text: String,
+        virtual_realm: u32,
+    ) {
+        let Some(group) = self.current_chat_group_like_cpp(sender_guid) else {
+            return;
+        };
+
+        let (chat_type, subgroup_filter) = match requested_type {
+            ChatMsg::Party => {
+                let chat_type = if group.is_leader_like_cpp(sender_guid) {
+                    ChatMsg::PartyLeader
+                } else {
+                    ChatMsg::Party
+                };
+                (chat_type, Some(group.member_group_like_cpp(sender_guid)))
+            }
+            ChatMsg::Raid => {
+                if !group.is_raid_group() {
+                    return;
+                }
+                let chat_type = if group.is_leader_like_cpp(sender_guid) {
+                    ChatMsg::RaidLeader
+                } else {
+                    ChatMsg::Raid
+                };
+                (chat_type, None)
+            }
+            ChatMsg::RaidWarning => {
+                if !group.is_raid_group()
+                    || !(group.is_leader_like_cpp(sender_guid)
+                        || group.is_assistant_like_cpp(sender_guid))
+                {
+                    return;
+                }
+                (ChatMsg::RaidWarning, None)
+            }
+            ChatMsg::InstanceChat => {
+                let chat_type = if group.is_leader_like_cpp(sender_guid) {
+                    ChatMsg::InstanceChatLeader
+                } else {
+                    ChatMsg::InstanceChat
+                };
+                (chat_type, None)
+            }
+            _ => return,
+        };
+
+        let chat = ChatPkt {
+            msg_type: chat_type,
+            language,
+            sender_guid,
+            sender_name,
+            target_guid: ObjectGuid::EMPTY,
+            target_name: String::new(),
+            channel: String::new(),
+            text,
+            virtual_realm,
+        };
+        self.broadcast_group_chat_packet_like_cpp(&group, subgroup_filter, chat.to_bytes());
+    }
+
+    fn current_chat_group_like_cpp(&self, sender_guid: ObjectGuid) -> Option<GroupInfo> {
+        let registry = self.group_registry()?;
+        if let Some(group_guid) = self.group_guid
+            && let Some(group) = registry.get(&group_guid)
+            && group.members.contains(&sender_guid)
+        {
+            return Some(group.clone());
+        }
+
+        registry
+            .iter()
+            .find(|entry| entry.value().members.contains(&sender_guid))
+            .map(|entry| entry.value().clone())
+    }
+
+    fn broadcast_group_chat_packet_like_cpp(
+        &self,
+        group: &GroupInfo,
+        subgroup_filter: Option<u8>,
+        bytes: Vec<u8>,
+    ) {
+        let Some(registry) = self.player_registry() else {
+            return;
+        };
+
+        for member_guid in &group.members {
+            if let Some(subgroup) = subgroup_filter
+                && group.member_group_like_cpp(*member_guid) != subgroup
+            {
+                continue;
+            }
+
+            if let Some(member) = registry.get(member_guid) {
+                let _ = member.send_tx.send(bytes.clone());
+            }
+        }
+    }
+
     /// Send pre-serialised packet `bytes` to all players on the same map
     /// within `range` yards, excluding this session's player.
     fn broadcast_raw_packet(&self, bytes: Vec<u8>, range: f32) {
@@ -574,5 +703,226 @@ impl WorldSession {
 
             let _ = info.send_tx.send(bytes.clone());
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::{HashMap, HashSet};
+    use std::sync::Arc;
+    use wow_network::{PendingInvites, PlayerBroadcastInfo, PlayerRegistry};
+
+    fn chat_message_packet(opcode: ClientOpcodes, text: &str) -> wow_packet::WorldPacket {
+        let mut writer = wow_packet::WorldPacket::new_empty();
+        writer.write_uint16(opcode as u16);
+        writer.write_int32(0);
+        writer.write_bits(text.len() as u32, 11);
+        writer.write_bit(false);
+        writer.write_string(text);
+
+        let mut reader = wow_packet::WorldPacket::from_bytes(writer.data());
+        reader.skip_opcode();
+        reader
+    }
+
+    fn chat_slash_cmd(bytes: &[u8]) -> u8 {
+        let mut packet = wow_packet::WorldPacket::from_bytes(bytes);
+        packet.skip_opcode();
+        packet.read_uint8().expect("chat slash command")
+    }
+
+    fn broadcast_info(guid: ObjectGuid, send_tx: flume::Sender<Vec<u8>>) -> PlayerBroadcastInfo {
+        let (command_tx, _command_rx) = flume::bounded(8);
+        PlayerBroadcastInfo {
+            map_id: 571,
+            instance_id: 0,
+            position: wow_core::Position::ZERO,
+            combat_reach: 0.0,
+            liquid_status: 0,
+            is_in_world: true,
+            send_tx,
+            command_tx,
+            active_loot_rolls: Vec::new(),
+            pass_on_group_loot: false,
+            enchanting_skill: 0,
+            is_alive: true,
+            current_health: 100,
+            max_health: 100,
+            power_type: 0,
+            current_power: 0,
+            max_power: 0,
+            is_pvp: false,
+            is_ffa_pvp: false,
+            is_ghost: false,
+            is_afk: false,
+            is_dnd: false,
+            in_vehicle: false,
+            party_member_vehicle_seat: 0,
+            zone_id: 0,
+            spec_id: 0,
+            unit_flags: 0,
+            unit_flags2: 0,
+            unit_state: 0,
+            is_game_master: false,
+            is_contested_pvp: false,
+            active_expansion: 2,
+            pending_quest_sharing: None,
+            known_spells: Vec::new(),
+            active_quest_statuses: HashMap::new(),
+            active_quest_objective_counts: HashMap::new(),
+            rewarded_quests: HashSet::new(),
+            daily_quests_completed: HashSet::new(),
+            df_quests: HashSet::new(),
+            faction_template_id: 0,
+            reputation_standings: Vec::new(),
+            reputation_state_flags: Vec::new(),
+            forced_reputation_ranks: Vec::new(),
+            forced_reputation_faction_ids: Vec::new(),
+            inventory_item_counts: HashMap::new(),
+            party_member_party_type: [0; 2],
+            party_member_phase_states: Default::default(),
+            party_member_auras: Vec::new(),
+            party_member_pet_stats: None,
+            player_name: format!("Player{}", guid.counter()),
+            account_id: guid.counter() as u32,
+            recruiter_id: 0,
+            race: 1,
+            class: 1,
+            sex: 0,
+            level: 80,
+            gray_level: 0,
+            display_id: 49,
+            visible_items: [(0, 0, 0); 19],
+            lifetime_honorable_kills: 0,
+            this_week_contribution: 0,
+            yesterday_contribution: 0,
+            today_honorable_kills: 0,
+            yesterday_honorable_kills: 0,
+            lifetime_max_rank: 0,
+            honor_level: 0,
+        }
+    }
+
+    fn session_for_chat_routing_like_cpp(
+        sender_guid: ObjectGuid,
+    ) -> (WorldSession, Arc<PlayerRegistry>, flume::Receiver<Vec<u8>>) {
+        let (packet_tx, packet_rx) = flume::bounded(8);
+        drop(packet_tx);
+        let (send_tx, send_rx) = flume::bounded(8);
+        let mut session = WorldSession::new(
+            1,
+            "TestAccount".to_string(),
+            0,
+            2,
+            9,
+            54261,
+            vec![0; 40],
+            "enUS".to_string(),
+            packet_rx,
+            send_tx.clone(),
+        );
+        session.set_player_guid(Some(sender_guid));
+        session.set_loaded_player_name_like_cpp(format!("Player{}", sender_guid.counter()));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_player_map_position_like_cpp(571, wow_core::Position::ZERO);
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        player_registry.insert(sender_guid, broadcast_info(sender_guid, send_tx));
+        session.set_player_registry(Arc::clone(&player_registry));
+        (session, player_registry, send_rx)
+    }
+
+    #[tokio::test]
+    async fn party_chat_routes_only_to_sender_subgroup_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 101);
+        let same_subgroup = ObjectGuid::create_player(1, 102);
+        let other_subgroup = ObjectGuid::create_player(1, 103);
+        let (mut session, player_registry, leader_rx) = session_for_chat_routing_like_cpp(leader);
+        let (same_tx, same_rx) = flume::bounded(8);
+        let (other_tx, other_rx) = flume::bounded(8);
+        player_registry.insert(same_subgroup, broadcast_info(same_subgroup, same_tx));
+        player_registry.insert(other_subgroup, broadcast_info(other_subgroup, other_tx));
+
+        let mut group = GroupInfo::new(leader);
+        group.convert_to_raid_like_cpp();
+        group.add_member(same_subgroup);
+        group.add_member(other_subgroup);
+        assert!(group.change_member_group_like_cpp(other_subgroup, 1));
+        let group_guid = group.group_guid;
+        let group_registry = Arc::new(wow_network::GroupRegistry::default());
+        group_registry.insert(group_guid, group);
+        session.group_guid = Some(group_guid);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+
+        session
+            .handle_chat_message(
+                chat_message_packet(ClientOpcodes::ChatMessageParty, "party"),
+                ChatMsg::Party,
+            )
+            .await;
+
+        assert_eq!(
+            chat_slash_cmd(&leader_rx.try_recv().expect("leader party echo")),
+            ChatMsg::PartyLeader as u8
+        );
+        assert_eq!(
+            chat_slash_cmd(&same_rx.try_recv().expect("same subgroup party chat")),
+            ChatMsg::PartyLeader as u8
+        );
+        assert!(other_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn raid_chat_routes_to_all_raid_members_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 201);
+        let member = ObjectGuid::create_player(1, 202);
+        let (mut session, player_registry, leader_rx) = session_for_chat_routing_like_cpp(leader);
+        let (member_tx, member_rx) = flume::bounded(8);
+        player_registry.insert(member, broadcast_info(member, member_tx));
+
+        let mut group = GroupInfo::new(leader);
+        group.convert_to_raid_like_cpp();
+        group.add_member(member);
+        let group_guid = group.group_guid;
+        let group_registry = Arc::new(wow_network::GroupRegistry::default());
+        group_registry.insert(group_guid, group);
+        session.group_guid = Some(group_guid);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+
+        session
+            .handle_chat_message(
+                chat_message_packet(ClientOpcodes::ChatMessageRaid, "raid"),
+                ChatMsg::Raid,
+            )
+            .await;
+
+        assert_eq!(
+            chat_slash_cmd(&leader_rx.try_recv().expect("leader raid echo")),
+            ChatMsg::RaidLeader as u8
+        );
+        assert_eq!(
+            chat_slash_cmd(&member_rx.try_recv().expect("member raid chat")),
+            ChatMsg::RaidLeader as u8
+        );
+    }
+
+    #[tokio::test]
+    async fn guild_chat_does_not_leak_to_nearby_players_without_guild_registry_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 301);
+        let nearby = ObjectGuid::create_player(1, 302);
+        let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
+        let (nearby_tx, nearby_rx) = flume::bounded(8);
+        player_registry.insert(nearby, broadcast_info(nearby, nearby_tx));
+
+        session
+            .handle_chat_message(
+                chat_message_packet(ClientOpcodes::ChatMessageGuild, "guild"),
+                ChatMsg::Guild,
+            )
+            .await;
+
+        assert!(sender_rx.try_recv().is_err());
+        assert!(nearby_rx.try_recv().is_err());
     }
 }
