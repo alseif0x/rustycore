@@ -519,6 +519,66 @@ pub enum CharStatements {
     /// WHERE item_guid = ? AND player_guid = ? LIMIT 1
     SEL_ITEM_REFUNDS,
 
+    /// SELECT allowedPlayers FROM item_soulbound_trade_data WHERE itemGuid = ? LIMIT 1
+    SEL_ITEM_BOP_TRADE,
+
+    /// DELETE FROM item_soulbound_trade_data WHERE itemGuid = ? LIMIT 1
+    DEL_ITEM_BOP_TRADE,
+
+    /// INSERT INTO item_soulbound_trade_data VALUES (?, ?)
+    INS_ITEM_BOP_TRADE,
+
+    /// C++ `CHAR_REP_INVENTORY_ITEM` canonical statement name.
+    REP_INVENTORY_ITEM,
+
+    /// C++ `CHAR_REP_ITEM_INSTANCE` full item persistence replace statement.
+    REP_ITEM_INSTANCE,
+
+    /// C++ `CHAR_UPD_ITEM_INSTANCE` full item persistence update statement.
+    UPD_ITEM_INSTANCE,
+
+    /// UPDATE item_instance SET duration = ?, flags = ?, durability = ? WHERE guid = ?
+    UPD_ITEM_INSTANCE_ON_LOAD,
+
+    /// DELETE FROM item_instance WHERE owner_guid = ?
+    DEL_ITEM_INSTANCE_BY_OWNER,
+
+    /// INSERT INTO item_instance_gems.
+    INS_ITEM_INSTANCE_GEMS,
+
+    /// DELETE FROM item_instance_gems WHERE itemGuid = ?
+    DEL_ITEM_INSTANCE_GEMS,
+
+    /// DELETE item gems by item owner.
+    DEL_ITEM_INSTANCE_GEMS_BY_OWNER,
+
+    /// INSERT INTO item_instance_transmog.
+    INS_ITEM_INSTANCE_TRANSMOG,
+
+    /// DELETE FROM item_instance_transmog WHERE itemGuid = ?
+    DEL_ITEM_INSTANCE_TRANSMOG,
+
+    /// DELETE item transmogs by item owner.
+    DEL_ITEM_INSTANCE_TRANSMOG_BY_OWNER,
+
+    /// UPDATE character_gifts SET guid = ? WHERE item_guid = ?
+    UPD_GIFT_OWNER,
+
+    /// SELECT account FROM characters WHERE name = ?
+    SEL_ACCOUNT_BY_NAME,
+
+    /// UPDATE characters SET account = ? WHERE guid = ?
+    UPD_ACCOUNT_BY_GUID,
+
+    /// SELECT matchMakerRating FROM character_arena_stats WHERE guid = ? AND slot = ?
+    SEL_MATCH_MAKER_RATING,
+
+    /// SELECT account, COUNT(guid) FROM characters WHERE account = ? GROUP BY account
+    SEL_CHARACTER_COUNT,
+
+    /// UPDATE characters SET name = ? WHERE guid = ?
+    UPD_NAME_BY_GUID,
+
     /// SELECT bag_ci.slot, ci.slot, ii.itemEntry, ci.item, ii.count, ii.durability, ii.context,
     /// ii.flags, ii.playedTime, ir.paidMoney, ir.paidExtendedCost
     /// FROM character_inventory ci
@@ -1107,6 +1167,56 @@ impl StatementDef for CharStatements {
                 "REPLACE INTO character_inventory (guid, bag, slot, item) VALUES (?, ?, ?, ?)"
             }
             Self::DEL_ITEM_INSTANCE => "DELETE FROM item_instance WHERE guid = ?",
+            Self::SEL_ITEM_REFUNDS => {
+                "SELECT paidMoney, paidExtendedCost \
+                 FROM item_refund_instance WHERE item_guid = ? AND player_guid = ? LIMIT 1"
+            }
+            Self::SEL_ITEM_BOP_TRADE => {
+                "SELECT allowedPlayers FROM item_soulbound_trade_data WHERE itemGuid = ? LIMIT 1"
+            }
+            Self::DEL_ITEM_BOP_TRADE => {
+                "DELETE FROM item_soulbound_trade_data WHERE itemGuid = ? LIMIT 1"
+            }
+            Self::INS_ITEM_BOP_TRADE => "INSERT INTO item_soulbound_trade_data VALUES (?, ?)",
+            Self::REP_INVENTORY_ITEM => {
+                "REPLACE INTO character_inventory (guid, bag, slot, item) VALUES (?, ?, ?, ?)"
+            }
+            Self::REP_ITEM_INSTANCE => {
+                "REPLACE INTO item_instance (itemEntry, owner_guid, creatorGuid, giftCreatorGuid, count, duration, charges, flags, enchantments, durability, playedTime, text, battlePetSpeciesId, battlePetBreedData, battlePetLevel, battlePetDisplayId, randomPropertiesId, randomPropertiesSeed, context, guid) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            }
+            Self::UPD_ITEM_INSTANCE => {
+                "UPDATE item_instance SET itemEntry = ?, owner_guid = ?, creatorGuid = ?, giftCreatorGuid = ?, count = ?, duration = ?, charges = ?, flags = ?, enchantments = ?, durability = ?, playedTime = ?, text = ?, battlePetSpeciesId = ?, battlePetBreedData = ?, battlePetLevel = ?, battlePetDisplayId = ?, randomPropertiesId = ?, randomPropertiesSeed = ?, context = ? WHERE guid = ?"
+            }
+            Self::UPD_ITEM_INSTANCE_ON_LOAD => {
+                "UPDATE item_instance SET duration = ?, flags = ?, durability = ? WHERE guid = ?"
+            }
+            Self::DEL_ITEM_INSTANCE_BY_OWNER => "DELETE FROM item_instance WHERE owner_guid = ?",
+            Self::INS_ITEM_INSTANCE_GEMS => {
+                "INSERT INTO item_instance_gems (itemGuid, gemItemId1, gemBonuses1, gemContext1, gemItemId2, gemBonuses2, gemContext2, gemItemId3, gemBonuses3, gemContext3) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            }
+            Self::DEL_ITEM_INSTANCE_GEMS => "DELETE FROM item_instance_gems WHERE itemGuid = ?",
+            Self::DEL_ITEM_INSTANCE_GEMS_BY_OWNER => {
+                "DELETE iig FROM item_instance_gems iig LEFT JOIN item_instance ii ON iig.itemGuid = ii.guid WHERE ii.owner_guid = ?"
+            }
+            Self::INS_ITEM_INSTANCE_TRANSMOG => {
+                "INSERT INTO item_instance_transmog (itemGuid, itemModifiedAppearanceAllSpecs, itemModifiedAppearanceSpec1, itemModifiedAppearanceSpec2, itemModifiedAppearanceSpec3, itemModifiedAppearanceSpec4, itemModifiedAppearanceSpec5, spellItemEnchantmentAllSpecs, spellItemEnchantmentSpec1, spellItemEnchantmentSpec2, spellItemEnchantmentSpec3, spellItemEnchantmentSpec4, spellItemEnchantmentSpec5, secondaryItemModifiedAppearanceAllSpecs, secondaryItemModifiedAppearanceSpec1, secondaryItemModifiedAppearanceSpec2, secondaryItemModifiedAppearanceSpec3, secondaryItemModifiedAppearanceSpec4, secondaryItemModifiedAppearanceSpec5) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            }
+            Self::DEL_ITEM_INSTANCE_TRANSMOG => {
+                "DELETE FROM item_instance_transmog WHERE itemGuid = ?"
+            }
+            Self::DEL_ITEM_INSTANCE_TRANSMOG_BY_OWNER => {
+                "DELETE iit FROM item_instance_transmog iit LEFT JOIN item_instance ii ON iit.itemGuid = ii.guid WHERE ii.owner_guid = ?"
+            }
+            Self::UPD_GIFT_OWNER => "UPDATE character_gifts SET guid = ? WHERE item_guid = ?",
+            Self::SEL_ACCOUNT_BY_NAME => "SELECT account FROM characters WHERE name = ?",
+            Self::UPD_ACCOUNT_BY_GUID => "UPDATE characters SET account = ? WHERE guid = ?",
+            Self::SEL_MATCH_MAKER_RATING => {
+                "SELECT matchMakerRating FROM character_arena_stats WHERE guid = ? AND slot = ?"
+            }
+            Self::SEL_CHARACTER_COUNT => {
+                "SELECT account, COUNT(guid) FROM characters WHERE account = ? GROUP BY account"
+            }
+            Self::UPD_NAME_BY_GUID => "UPDATE characters SET name = ? WHERE guid = ?",
             Self::SEL_CHAR_BAG_CONTENTS => {
                 "SELECT bag_ci.slot, ci.slot, ii.itemEntry, ci.item, ii.count, ii.durability, ii.context, \
                  ii.flags, ii.playedTime, ir.paidMoney, ir.paidExtendedCost \
@@ -1119,10 +1229,6 @@ impl StatementDef for CharStatements {
                  WHERE ci.guid = ? AND bag_ci.bag = 0 AND ((bag_ci.slot >= 30 AND bag_ci.slot < 34) OR \
                  (bag_ci.slot >= 87 AND bag_ci.slot < 94) OR \
                  (bag_ci.slot >= 34 AND bag_ci.slot < 35))"
-            }
-            Self::SEL_ITEM_REFUNDS => {
-                "SELECT paidMoney, paidExtendedCost \
-                 FROM item_refund_instance WHERE item_guid = ? AND player_guid = ? LIMIT 1"
             }
             Self::DEL_ITEM_REFUND_INSTANCE => {
                 "DELETE FROM item_refund_instance WHERE item_guid = ?"
@@ -2113,6 +2219,98 @@ mod tests {
             "REPLACE INTO character_inventory (guid, bag, slot, item) VALUES (?, ?, ?, ?)"
         );
         assert_eq!(sql.matches('?').count(), 4);
+    }
+
+    #[test]
+    fn item_trade_and_persistence_statements_match_cpp_sql_exactly() {
+        assert_eq!(
+            CharStatements::SEL_ITEM_REFUNDS.sql(),
+            "SELECT paidMoney, paidExtendedCost FROM item_refund_instance WHERE item_guid = ? AND player_guid = ? LIMIT 1"
+        );
+        assert_eq!(
+            CharStatements::SEL_ITEM_BOP_TRADE.sql(),
+            "SELECT allowedPlayers FROM item_soulbound_trade_data WHERE itemGuid = ? LIMIT 1"
+        );
+        assert_eq!(
+            CharStatements::DEL_ITEM_BOP_TRADE.sql(),
+            "DELETE FROM item_soulbound_trade_data WHERE itemGuid = ? LIMIT 1"
+        );
+        assert_eq!(
+            CharStatements::INS_ITEM_BOP_TRADE.sql(),
+            "INSERT INTO item_soulbound_trade_data VALUES (?, ?)"
+        );
+        assert_eq!(
+            CharStatements::REP_INVENTORY_ITEM.sql(),
+            "REPLACE INTO character_inventory (guid, bag, slot, item) VALUES (?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::REP_ITEM_INSTANCE.sql(),
+            "REPLACE INTO item_instance (itemEntry, owner_guid, creatorGuid, giftCreatorGuid, count, duration, charges, flags, enchantments, durability, playedTime, text, battlePetSpeciesId, battlePetBreedData, battlePetLevel, battlePetDisplayId, randomPropertiesId, randomPropertiesSeed, context, guid) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::UPD_ITEM_INSTANCE.sql(),
+            "UPDATE item_instance SET itemEntry = ?, owner_guid = ?, creatorGuid = ?, giftCreatorGuid = ?, count = ?, duration = ?, charges = ?, flags = ?, enchantments = ?, durability = ?, playedTime = ?, text = ?, battlePetSpeciesId = ?, battlePetBreedData = ?, battlePetLevel = ?, battlePetDisplayId = ?, randomPropertiesId = ?, randomPropertiesSeed = ?, context = ? WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_ITEM_INSTANCE_ON_LOAD.sql(),
+            "UPDATE item_instance SET duration = ?, flags = ?, durability = ? WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_ITEM_INSTANCE_BY_OWNER.sql(),
+            "DELETE FROM item_instance WHERE owner_guid = ?"
+        );
+    }
+
+    #[test]
+    fn item_gem_transmog_and_character_transfer_statements_match_cpp_sql_exactly() {
+        assert_eq!(
+            CharStatements::INS_ITEM_INSTANCE_GEMS.sql(),
+            "INSERT INTO item_instance_gems (itemGuid, gemItemId1, gemBonuses1, gemContext1, gemItemId2, gemBonuses2, gemContext2, gemItemId3, gemBonuses3, gemContext3) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_ITEM_INSTANCE_GEMS.sql(),
+            "DELETE FROM item_instance_gems WHERE itemGuid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_ITEM_INSTANCE_GEMS_BY_OWNER.sql(),
+            "DELETE iig FROM item_instance_gems iig LEFT JOIN item_instance ii ON iig.itemGuid = ii.guid WHERE ii.owner_guid = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_ITEM_INSTANCE_TRANSMOG.sql(),
+            "INSERT INTO item_instance_transmog (itemGuid, itemModifiedAppearanceAllSpecs, itemModifiedAppearanceSpec1, itemModifiedAppearanceSpec2, itemModifiedAppearanceSpec3, itemModifiedAppearanceSpec4, itemModifiedAppearanceSpec5, spellItemEnchantmentAllSpecs, spellItemEnchantmentSpec1, spellItemEnchantmentSpec2, spellItemEnchantmentSpec3, spellItemEnchantmentSpec4, spellItemEnchantmentSpec5, secondaryItemModifiedAppearanceAllSpecs, secondaryItemModifiedAppearanceSpec1, secondaryItemModifiedAppearanceSpec2, secondaryItemModifiedAppearanceSpec3, secondaryItemModifiedAppearanceSpec4, secondaryItemModifiedAppearanceSpec5) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_ITEM_INSTANCE_TRANSMOG.sql(),
+            "DELETE FROM item_instance_transmog WHERE itemGuid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_ITEM_INSTANCE_TRANSMOG_BY_OWNER.sql(),
+            "DELETE iit FROM item_instance_transmog iit LEFT JOIN item_instance ii ON iit.itemGuid = ii.guid WHERE ii.owner_guid = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_GIFT_OWNER.sql(),
+            "UPDATE character_gifts SET guid = ? WHERE item_guid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_ACCOUNT_BY_NAME.sql(),
+            "SELECT account FROM characters WHERE name = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_ACCOUNT_BY_GUID.sql(),
+            "UPDATE characters SET account = ? WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_MATCH_MAKER_RATING.sql(),
+            "SELECT matchMakerRating FROM character_arena_stats WHERE guid = ? AND slot = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHARACTER_COUNT.sql(),
+            "SELECT account, COUNT(guid) FROM characters WHERE account = ? GROUP BY account"
+        );
+        assert_eq!(
+            CharStatements::UPD_NAME_BY_GUID.sql(),
+            "UPDATE characters SET name = ? WHERE guid = ?"
+        );
     }
 
     #[test]
