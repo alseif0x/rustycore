@@ -217,8 +217,8 @@ Anticheat is reactive — it does not originate opcodes, it inspects them. Touch
 - [x] **#AC.6** Complete the per-opcode rate-limit table from `WorldSession.cpp:1313-1500` exhaustively. Rust now mirrors the C++ limit groups (`0`, `200`, `50`, `MAX_QUEST_LOG_SIZE`, `20`, `10`, `3`, `PLAYER_SLOTS_COUNT`, `1`, default `100`) and has a table-level regression test. (M)
 - [x] **#AC.7a** Plumb `PacketSpoof.Policy` / `PacketSpoof.BanMode` / `PacketSpoof.BanDuration` from `WorldServer.conf` → `wow-config` → `WorldSession`. (L)
 - [x] **#AC.8** Implement ban/kick escalation: `KickPolicy::Ban` writes to `auth.account_banned` or `auth.ip_banned`, drops the offending connection, and queues C++-style kicks for other online sessions matched by the affected account/IP set. (M)
-- [ ] **#AC.9** Server-authoritative fall-damage: track previous Z, on land compute `fall_distance`, apply environmental damage if > 13 yards. Mirror `Player::HandleFall`. (M)
-- [ ] **#AC.10** Move broadcast in `movement.rs:127` to **after** validation strip; otherwise peers receive un-sanitized flags. (L — but high-impact correctness fix)
+- [x] **#AC.9** Server-authoritative fall-damage: track previous Z, on land compute `fall_distance`, apply environmental damage if > 13 yards. Mirrors `Player::HandleFall` with represented safe-fall/feather/fly/god/GM/immunity guards and update/log packets. (M)
+- [x] **#AC.10** Move broadcast in `movement.rs:127` to **after** validation strip; peers now receive the sanitized `MovementInfo` flags, matching C++ `ValidateMovementInfo` before `SendMessageToSet`. (L — but high-impact correctness fix)
 - [ ] **#AC.11** Add structured trace event `anticheat.violation { rule, account, character, opcode, severity }` for telemetry. (L)
 - [ ] **#AC.12** Add `wow-anticheat` integration test that replays a known-bad fly-hack capture and asserts the strip + kick path. (M)
 

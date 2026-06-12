@@ -159,6 +159,16 @@ impl WorldSession {
             }
         }
 
+        let removed_movement_flags =
+            self.sanitize_movement_info_flags_represented_like_cpp(&mut info.info);
+        if !removed_movement_flags.is_empty() {
+            trace!(
+                account = self.account_id,
+                removed = ?removed_movement_flags,
+                "MovementInfo flags sanitized before position update and broadcast"
+            );
+        }
+
         self.apply_movement_side_effects_like_cpp(opcode, &info.info);
         info.info.time = self.adjust_client_movement_time_like_cpp(info.info.time);
         self.set_player_movement_time_like_cpp(info.info.time);
@@ -1174,6 +1184,51 @@ mod tests {
                 .contains(MovementFlag::FLYING | MovementFlag::CAN_FLY)
         );
         assert!(info.flags.contains(MovementFlag::SPLINE_ELEVATION));
+    }
+
+    #[tokio::test]
+    async fn handle_movement_broadcasts_sanitized_flags_like_cpp() {
+        let mut session = make_session();
+        let guid = ObjectGuid::create_player(1, 42);
+        let other_guid = ObjectGuid::create_player(1, 43);
+        let registry = std::sync::Arc::new(wow_network::PlayerRegistry::default());
+        let (self_tx, self_rx) = flume::bounded(1);
+        let (other_tx, other_rx) = flume::bounded(1);
+
+        session.set_player_guid(Some(guid));
+        session.set_player_registry(std::sync::Arc::clone(&registry));
+        registry.insert(guid, broadcast_info(guid, self_tx));
+        registry.insert(other_guid, broadcast_info(other_guid, other_tx));
+
+        let movement = MovementInfo {
+            guid,
+            flags: MovementFlag::FORWARD
+                | MovementFlag::BACKWARD
+                | MovementFlag::HOVER
+                | MovementFlag::WATER_WALK,
+            position: wow_core::Position::new(10.0, 20.0, 30.0, 1.0),
+            ..MovementInfo::default()
+        };
+        let mut inbound = wow_packet::WorldPacket::new_empty();
+        inbound.write_uint16(ClientOpcodes::MoveHeartbeat as u16);
+        movement.write(&mut inbound);
+        inbound.read_uint16().expect("movement opcode");
+        session.handle_movement(inbound).await;
+
+        assert!(self_rx.try_recv().is_err());
+        let bytes = other_rx.try_recv().expect("movement broadcast");
+        let mut packet = wow_packet::WorldPacket::from_bytes(&bytes);
+        assert_eq!(
+            packet.server_opcode(),
+            Some(wow_constants::ServerOpcodes::MoveUpdate)
+        );
+        packet.read_uint16().expect("move update opcode");
+        let sanitized = MovementInfo::read(&mut packet).expect("move update status");
+        assert_eq!(sanitized.flags, MovementFlag::empty());
+        assert_eq!(
+            session.player_movement_flags_like_cpp(),
+            MovementFlag::empty()
+        );
     }
 
     #[test]
