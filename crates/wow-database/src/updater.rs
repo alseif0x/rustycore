@@ -868,7 +868,7 @@ fn default_updates_include_rows_like_cpp(
 #[cfg(test)]
 mod tests {
     use crate::database::{Database, build_connection_string_with_ssl_like_cpp};
-    use crate::statements::WorldStatements;
+    use crate::statements::{LoginStatements, WorldStatements};
 
     use super::{
         AppliedUpdateFileLikeCpp, DELETE_UPDATE_ENTRY_BY_NAME_SQL_LIKE_CPP, DbUpdater,
@@ -883,6 +883,7 @@ mod tests {
     use std::collections::{HashMap, HashSet};
     use std::fs;
     use std::path::PathBuf;
+    use std::sync::Arc;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     struct LiveMariaDbConfig {
@@ -1459,6 +1460,51 @@ mod tests {
                 "Crème",
                 "SqlFields::read_string must share the VARBINARY fallback"
             );
+
+            database_wrapper
+                .direct_execute(
+                    "CREATE TABLE `realmlist` (
+                        `id` INT UNSIGNED NOT NULL PRIMARY KEY,
+                        `name` VARCHAR(32) NOT NULL,
+                        `address` VARCHAR(255) NOT NULL,
+                        `localAddress` VARCHAR(255) NOT NULL,
+                        `port` SMALLINT UNSIGNED NOT NULL,
+                        `icon` TINYINT UNSIGNED NOT NULL,
+                        `flag` TINYINT UNSIGNED NOT NULL,
+                        `timezone` TINYINT UNSIGNED NOT NULL,
+                        `allowedSecurityLevel` TINYINT UNSIGNED NOT NULL,
+                        `population` FLOAT NOT NULL,
+                        `gamebuild` INT UNSIGNED NOT NULL,
+                        `Region` TINYINT UNSIGNED NOT NULL,
+                        `Battlegroup` TINYINT UNSIGNED NOT NULL
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+                )
+                .await?;
+            database_wrapper
+                .direct_execute(
+                    "INSERT INTO `realmlist`
+                     (`id`, `name`, `address`, `localAddress`, `port`, `icon`, `flag`,
+                      `timezone`, `allowedSecurityLevel`, `population`, `gamebuild`, `Region`, `Battlegroup`)
+                     VALUES (1, 'RustyCore', '127.0.0.1', '127.0.0.1', 8085, 1, 0, 1, 0, 0.5, 51943, 1, 1)",
+                )
+                .await?;
+            let login_db = Arc::new(
+                Database::<LoginStatements>::open_with_pool_size(&database_url, 1).await?,
+            );
+            let mut handles = Vec::with_capacity(100);
+            for _ in 0..100 {
+                let login_db = Arc::clone(&login_db);
+                handles.push(tokio::spawn(async move {
+                    let stmt = login_db.prepare(LoginStatements::SEL_REALMLIST);
+                    let result = login_db.query(&stmt).await?;
+                    anyhow::ensure!(result.row_count_like_cpp() == 1);
+                    anyhow::ensure!(result.read_string(1) == "RustyCore");
+                    anyhow::Ok(())
+                }));
+            }
+            for handle in handles {
+                handle.await??;
+            }
 
             Ok(())
         }
