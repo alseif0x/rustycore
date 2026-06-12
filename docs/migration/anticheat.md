@@ -230,7 +230,7 @@ Anticheat is reactive — it does not originate opcodes, it inspects them. Touch
 - [x] **#AC.8** Implement ban/kick escalation: `KickPolicy::Ban` writes to `auth.account_banned` or `auth.ip_banned`, drops the offending connection, and queues C++-style kicks for other online sessions matched by the affected account/IP set. (M)
 - [x] **#AC.9** Server-authoritative fall-damage: track previous Z, on land compute `fall_distance`, apply environmental damage if > 13 yards. Mirrors `Player::HandleFall` with represented safe-fall/feather/fly/god/GM/immunity guards and update/log packets. (M)
 - [x] **#AC.10** Move broadcast in `movement.rs:127` to **after** validation strip; peers now receive the sanitized `MovementInfo` flags, matching C++ `ValidateMovementInfo` before `SendMessageToSet`. (L — but high-impact correctness fix)
-- [ ] **#AC.11** Add structured trace event `anticheat.violation { rule, account, character, opcode, severity }` for telemetry. (L)
+- [x] **#AC.11** Add structured trace event `anticheat.violation { rule, account, character, opcode, severity }` for represented movement anticheat decisions: movement GUID/coordinate rejects, `ValidateMovementInfo` flag strips, speed ACK correction/kick and movement-force magnitude kick. (L)
 - [ ] **#AC.12** Add `wow-anticheat` integration test that replays a known-bad fly-hack capture and asserts the strip + kick path. (M)
 
 ---

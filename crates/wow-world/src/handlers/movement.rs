@@ -108,6 +108,11 @@ impl WorldSession {
 
         // C++ rejects any movement packet whose guid does not match the current mover.
         if info.info.guid != player_guid {
+            self.trace_anticheat_violation_like_cpp(
+                "HandleMovementOpcode.GuidMismatch",
+                opcode,
+                "reject",
+            );
             warn!(
                 account = self.account_id,
                 "Movement GUID mismatch: expected {:?}, got {:?}", player_guid, info.info.guid
@@ -117,6 +122,11 @@ impl WorldSession {
 
         let pos = info.info.position;
         if !pos.is_valid_map_coord_like_cpp() {
+            self.trace_anticheat_violation_like_cpp(
+                "HandleMovementOpcode.InvalidPosition",
+                opcode,
+                "reject",
+            );
             warn!(
                 account = self.account_id,
                 "Invalid movement position: {pos:?}"
@@ -162,6 +172,11 @@ impl WorldSession {
         let removed_movement_flags =
             self.sanitize_movement_info_flags_represented_like_cpp(&mut info.info);
         if !removed_movement_flags.is_empty() {
+            self.trace_anticheat_violation_like_cpp(
+                "Player.ValidateMovementInfo.MovementFlags",
+                opcode,
+                "strip",
+            );
             trace!(
                 account = self.account_id,
                 removed = ?removed_movement_flags,

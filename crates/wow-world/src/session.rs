@@ -25117,6 +25117,23 @@ impl WorldSession {
             * self.movement_speed_rates_like_cpp[move_type.index()]
     }
 
+    pub(crate) fn trace_anticheat_violation_like_cpp(
+        &self,
+        rule: &'static str,
+        opcode: Option<ClientOpcodes>,
+        severity: &'static str,
+    ) {
+        trace!(
+            target: "anticheat.violation",
+            rule,
+            account = self.account_id,
+            character = ?self.player_guid(),
+            ?opcode,
+            severity,
+            "anticheat.violation"
+        );
+    }
+
     pub(crate) fn handle_force_speed_change_ack_like_cpp(
         &mut self,
         opcode: ClientOpcodes,
@@ -25124,6 +25141,11 @@ impl WorldSession {
         speed: f32,
     ) -> bool {
         let Some(move_type) = Self::movement_speed_ack_move_type_like_cpp(opcode) else {
+            self.trace_anticheat_violation_like_cpp(
+                "HandleForceSpeedChangeAck.UnknownMoveType",
+                Some(opcode),
+                "kick",
+            );
             self.movement_speed_ack_events_like_cpp
                 .push(MovementSpeedAckEventLikeCpp {
                     opcode,
@@ -25137,6 +25159,11 @@ impl WorldSession {
         };
 
         if !self.record_validated_movement_ack_like_cpp(opcode, ack, Some(speed)) {
+            self.trace_anticheat_violation_like_cpp(
+                "HandleForceSpeedChangeAck.InvalidMovementAck",
+                Some(opcode),
+                "kick",
+            );
             self.movement_speed_ack_events_like_cpp
                 .push(MovementSpeedAckEventLikeCpp {
                     opcode,
@@ -25172,8 +25199,18 @@ impl WorldSession {
         {
             if expected_speed > speed {
                 // C++ calls SetSpeedRate(GetSpeedRate()) to force the client back to the server value.
+                self.trace_anticheat_violation_like_cpp(
+                    "HandleForceSpeedChangeAck.ClientSpeedLower",
+                    Some(opcode),
+                    "correct",
+                );
                 MovementSpeedAckActionLikeCpp::Corrected
             } else {
+                self.trace_anticheat_violation_like_cpp(
+                    "HandleForceSpeedChangeAck.ClientSpeedHigher",
+                    Some(opcode),
+                    "kick",
+                );
                 self.kick("WorldSession::HandleForceSpeedChangeAck Incorrect speed");
                 MovementSpeedAckActionLikeCpp::Kicked
             }
@@ -25200,6 +25237,11 @@ impl WorldSession {
         speed: f32,
     ) -> bool {
         if !self.record_validated_movement_ack_like_cpp(opcode, ack, Some(speed)) {
+            self.trace_anticheat_violation_like_cpp(
+                "HandleMoveSetModMovementForceMagnitudeAck.InvalidMovementAck",
+                Some(opcode),
+                "kick",
+            );
             self.movement_speed_ack_events_like_cpp
                 .push(MovementSpeedAckEventLikeCpp {
                     opcode,
@@ -25220,6 +25262,11 @@ impl WorldSession {
             if self.movement_force_mod_magnitude_changes_like_cpp == 0
                 && (self.movement_force_mod_magnitude_like_cpp - speed).abs() > 0.01
             {
+                self.trace_anticheat_violation_like_cpp(
+                    "HandleMoveSetModMovementForceMagnitudeAck.IncorrectMagnitude",
+                    Some(opcode),
+                    "kick",
+                );
                 self.kick(
                     "WorldSession::HandleMoveSetModMovementForceMagnitudeAck Incorrect magnitude",
                 );
