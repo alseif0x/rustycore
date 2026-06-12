@@ -91,8 +91,8 @@ use wow_data::{
     spell_duration_ms_like_cpp, spell_effect_radius_like_cpp,
 };
 use wow_database::{
-    CharStatements, CharacterDatabase, LoginDatabase, PreparedStatement, SqlTransaction,
-    StatementDef, WorldDatabase,
+    CharStatements, CharacterDatabase, LoginDatabase, LoginStatements, PreparedStatement,
+    SqlTransaction, StatementDef, WorldDatabase,
 };
 use wow_entities::{
     AccessorObjectKind, ApplyEnchantmentArgs, ApplyEnchantmentEffectRef, ApplyEnchantmentPlan,
@@ -308,6 +308,21 @@ pub(crate) struct RepresentedPendingQuestSharingLikeCpp {
 struct PacketCounterLikeCpp {
     last_receive_time_secs: u64,
     amount_counter: u32,
+}
+
+const PACKET_SPOOF_BAN_REASON_LIKE_CPP: &str = "DOS (Packet Flooding/Spoofing";
+const PACKET_SPOOF_BAN_AUTHOR_LIKE_CPP: &str = "Server: AutoDOS";
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum PacketSpoofPendingBanTargetLikeCpp {
+    Account { account_id: u32 },
+    Ip { address: String },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PacketSpoofPendingBanLikeCpp {
+    target: PacketSpoofPendingBanTargetLikeCpp,
+    duration_secs: u32,
 }
 
 /// Evidence for the bounded `HandleQuestPushResult` sender-match seam.
@@ -2460,6 +2475,8 @@ pub struct WorldSession {
     socket_timeout_deadline_like_cpp: Instant,
     packet_spoof_config_like_cpp: PacketSpoofConfigLikeCpp,
     packet_throttling_like_cpp: HashMap<u16, PacketCounterLikeCpp>,
+    remote_address_like_cpp: Option<String>,
+    pending_packet_spoof_ban_like_cpp: Option<PacketSpoofPendingBanLikeCpp>,
 
     // Dispatch table (built once, shared ref)
     dispatch_table: HashMap<ClientOpcodes, &'static PacketHandlerEntry>,
@@ -3748,6 +3765,8 @@ impl WorldSession {
                 + Duration::from_secs(SocketTimeoutsLikeCpp::default().unauthenticated_secs),
             packet_spoof_config_like_cpp: PacketSpoofConfigLikeCpp::default(),
             packet_throttling_like_cpp: HashMap::new(),
+            remote_address_like_cpp: None,
+            pending_packet_spoof_ban_like_cpp: None,
             dispatch_table: build_dispatch_table(),
             char_db: None,
             login_db: None,
@@ -10699,6 +10718,10 @@ impl WorldSession {
         self.packet_spoof_config_like_cpp = config;
     }
 
+    pub fn set_remote_address_like_cpp(&mut self, address: Option<String>) {
+        self.remote_address_like_cpp = address;
+    }
+
     pub fn set_mmap_runtime_config_like_cpp(&mut self, config: MMapRuntimeConfigLikeCpp) {
         self.mmap_runtime_config_like_cpp = config;
     }
@@ -10984,18 +11007,88 @@ impl WorldSession {
                 false
             }
             PacketSpoofConfigLikeCpp::POLICY_BAN => {
-                // C++ calls World::BanAccount here. RustyCore has no represented
-                // account/IP ban runtime on WorldSession yet, so the safety action
-                // is the same immediate kick and the DB ban remains an explicit gap.
-                warn!(
-                    "AntiDOS: represented ban requested (mode {}, duration {}s) but ban persistence is pending",
-                    self.packet_spoof_config_like_cpp.ban_mode,
-                    self.packet_spoof_config_like_cpp.ban_duration_secs
-                );
+                self.stage_packet_spoof_ban_like_cpp();
                 self.kick("WorldSession::DosProtection::EvaluateOpcode AntiDOS");
                 false
             }
             _ => true,
+        }
+    }
+
+    fn stage_packet_spoof_ban_like_cpp(&mut self) {
+        let target = match self.packet_spoof_config_like_cpp.ban_mode {
+            PacketSpoofConfigLikeCpp::BAN_IP => {
+                let Some(address) = self.remote_address_like_cpp.clone() else {
+                    warn!(
+                        account = self.account_id,
+                        "AntiDOS: PacketSpoof BAN_IP requested but remote address is unavailable; kicking without persistent IP ban"
+                    );
+                    return;
+                };
+                PacketSpoofPendingBanTargetLikeCpp::Ip { address }
+            }
+            _ => {
+                // TrinityCore's AntiDOS path maps BAN_CHARACTER to account bans because
+                // character-level packet spoof bans are not implemented there either.
+                PacketSpoofPendingBanTargetLikeCpp::Account {
+                    account_id: self.account_id,
+                }
+            }
+        };
+
+        self.pending_packet_spoof_ban_like_cpp = Some(PacketSpoofPendingBanLikeCpp {
+            target,
+            duration_secs: self.packet_spoof_config_like_cpp.ban_duration_secs,
+        });
+    }
+
+    async fn flush_packet_spoof_ban_like_cpp(&mut self) {
+        let Some(plan) = self.pending_packet_spoof_ban_like_cpp.take() else {
+            return;
+        };
+        let Some(login_db) = self.login_db.as_ref() else {
+            warn!(
+                account = self.account_id,
+                "AntiDOS: PacketSpoof ban requested but login DB is unavailable"
+            );
+            self.pending_packet_spoof_ban_like_cpp = Some(plan);
+            return;
+        };
+
+        let result = match &plan.target {
+            PacketSpoofPendingBanTargetLikeCpp::Account { account_id } => {
+                let mut tx = SqlTransaction::new();
+                let mut clear_active = login_db.prepare(LoginStatements::UPD_ACCOUNT_NOT_BANNED);
+                clear_active.set_u32(0, *account_id);
+                tx.append(clear_active);
+
+                let mut insert = login_db.prepare(LoginStatements::INS_ACCOUNT_BANNED);
+                insert.set_u32(0, *account_id);
+                insert.set_u32(1, plan.duration_secs);
+                insert.set_string(2, PACKET_SPOOF_BAN_AUTHOR_LIKE_CPP);
+                insert.set_string(3, PACKET_SPOOF_BAN_REASON_LIKE_CPP);
+                tx.append(insert);
+
+                login_db.commit_transaction(tx).await
+            }
+            PacketSpoofPendingBanTargetLikeCpp::Ip { address } => {
+                let mut insert = login_db.prepare(LoginStatements::INS_IP_BANNED);
+                insert.set_string(0, address);
+                insert.set_u32(1, plan.duration_secs);
+                insert.set_string(2, PACKET_SPOOF_BAN_AUTHOR_LIKE_CPP);
+                insert.set_string(3, PACKET_SPOOF_BAN_REASON_LIKE_CPP);
+
+                login_db.execute(&insert).await.map(|_| ())
+            }
+        };
+
+        if let Err(error) = result {
+            warn!(
+                account = self.account_id,
+                error = %error,
+                "AntiDOS: failed to persist PacketSpoof ban"
+            );
+            self.pending_packet_spoof_ban_like_cpp = Some(plan);
         }
     }
 
@@ -16632,6 +16725,7 @@ impl WorldSession {
 
     /// Process pending packets asynchronously. Call after `update()`.
     pub async fn process_pending(&mut self) {
+        self.flush_packet_spoof_ban_like_cpp().await;
         self.process_represented_session_commands_like_cpp().await;
         self.process_pending_creature_kills_like_cpp().await;
 
@@ -55702,6 +55796,63 @@ mod tests {
         assert_eq!(session.update(100), 2);
         assert_eq!(session.pending_packets.len(), 2);
         assert!(!session.is_disconnecting());
+    }
+
+    #[test]
+    fn packet_spoof_policy_ban_stages_account_ban_like_cpp() {
+        let hotfix_opcode = (ClientOpcodes::HotfixRequest as u16).to_le_bytes();
+        let (mut session, pkt_tx, _) = make_session();
+        session.set_packet_spoof_config_like_cpp(PacketSpoofConfigLikeCpp {
+            policy: PacketSpoofConfigLikeCpp::POLICY_BAN,
+            ban_mode: PacketSpoofConfigLikeCpp::BAN_ACCOUNT,
+            ban_duration_secs: 3_600,
+        });
+        pkt_tx
+            .send(WorldPacket::from_bytes(&hotfix_opcode))
+            .expect("first packet queued");
+        pkt_tx
+            .send(WorldPacket::from_bytes(&hotfix_opcode))
+            .expect("second packet queued");
+
+        assert_eq!(session.update(100), 1);
+        assert!(session.is_disconnecting());
+        assert_eq!(
+            session.pending_packet_spoof_ban_like_cpp,
+            Some(PacketSpoofPendingBanLikeCpp {
+                target: PacketSpoofPendingBanTargetLikeCpp::Account { account_id: 1 },
+                duration_secs: 3_600,
+            })
+        );
+    }
+
+    #[test]
+    fn packet_spoof_policy_ban_stages_ip_ban_from_remote_address_like_cpp() {
+        let hotfix_opcode = (ClientOpcodes::HotfixRequest as u16).to_le_bytes();
+        let (mut session, pkt_tx, _) = make_session();
+        session.set_remote_address_like_cpp(Some("203.0.113.77".to_string()));
+        session.set_packet_spoof_config_like_cpp(PacketSpoofConfigLikeCpp {
+            policy: PacketSpoofConfigLikeCpp::POLICY_BAN,
+            ban_mode: PacketSpoofConfigLikeCpp::BAN_IP,
+            ban_duration_secs: 7_200,
+        });
+        pkt_tx
+            .send(WorldPacket::from_bytes(&hotfix_opcode))
+            .expect("first packet queued");
+        pkt_tx
+            .send(WorldPacket::from_bytes(&hotfix_opcode))
+            .expect("second packet queued");
+
+        assert_eq!(session.update(100), 1);
+        assert!(session.is_disconnecting());
+        assert_eq!(
+            session.pending_packet_spoof_ban_like_cpp,
+            Some(PacketSpoofPendingBanLikeCpp {
+                target: PacketSpoofPendingBanTargetLikeCpp::Ip {
+                    address: "203.0.113.77".to_string(),
+                },
+                duration_secs: 7_200,
+            })
+        );
     }
 
     #[test]

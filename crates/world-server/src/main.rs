@@ -7493,6 +7493,7 @@ async fn create_session(
     if let Some(ref db) = resources.login_db {
         session.set_login_db(Arc::clone(db));
     }
+    session.set_remote_address_like_cpp(account.client_address.map(|addr| addr.to_string()));
     session.set_battlenet_account_id(account.battlenet_account_id);
     session.set_recruiter_id_like_cpp(account.recruiter);
     session.set_mute_time_like_cpp(account.mute_time);
