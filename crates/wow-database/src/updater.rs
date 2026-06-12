@@ -1342,11 +1342,19 @@ mod tests {
 
             let base_sql = root.join("base.sql");
             let update_name = "2026_01_01_00_live_db_updater.sql";
+            let update_tail_name = "2026_01_02_00_live_db_updater_tail.sql";
             let update_sql = updates_dir.join(update_name);
+            let update_tail_sql = updates_dir.join(update_tail_name);
             fs::write(
                 &update_sql,
                 "CREATE TABLE `update_marker` (`id` INT NOT NULL PRIMARY KEY);\n\
-                 INSERT INTO `update_marker` (`id`) VALUES (7);\n",
+                 CREATE TABLE `update_order` (`id` INT NOT NULL PRIMARY KEY);\n\
+                 INSERT INTO `update_marker` (`id`) VALUES (7);\n\
+                 INSERT INTO `update_order` (`id`) VALUES (1);\n",
+            )?;
+            fs::write(
+                &update_tail_sql,
+                "INSERT INTO `update_order` (`id`) VALUES (2);\n",
             )?;
             fs::write(
                 &base_sql,
@@ -1368,6 +1376,12 @@ mod tests {
                 "empty database must be populated through the mysql CLI like C++ DBUpdater::Populate"
             );
             updater.update(root.to_str().unwrap()).await?;
+            updater.update(root.to_str().unwrap()).await?;
+
+            assert!(
+                !updater.populate(base_sql.to_str().unwrap()).await?,
+                "non-empty database must skip populate like C++ DBUpdater::Populate"
+            );
 
             let base_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM `base_marker`")
                 .fetch_one(&pool)
@@ -1379,11 +1393,28 @@ mod tests {
                 .await?;
             assert_eq!(update_count.0, 1);
 
+            let order_rows: Vec<(i32,)> =
+                sqlx::query_as("SELECT `id` FROM `update_order` ORDER BY `id`")
+                    .fetch_all(&pool)
+                    .await?;
+            assert_eq!(
+                order_rows,
+                vec![(1,), (2,)],
+                "the second update depends on the first, proving filename-ordered application"
+            );
+
             let applied: Vec<(String, String)> =
                 sqlx::query_as("SELECT `name`, `state` FROM `updates` ORDER BY `name`")
                     .fetch_all(&pool)
                     .await?;
-            assert_eq!(applied, vec![(update_name.to_string(), "RELEASED".to_string())]);
+            assert_eq!(
+                applied,
+                vec![
+                    (update_name.to_string(), "RELEASED".to_string()),
+                    (update_tail_name.to_string(), "RELEASED".to_string())
+                ],
+                "re-running update must skip already-applied files instead of duplicating rows"
+            );
 
             Ok(())
         }
