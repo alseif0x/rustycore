@@ -595,6 +595,87 @@ pub enum CharStatements {
     /// UPDATE characters position by guid and current map.
     UPD_CHARACTER_POSITION_BY_MAPID,
 
+    /// SELECT frozen aura rows for spell 9454.
+    SEL_CHARACTER_AURA_FROZEN,
+
+    /// SELECT online character names/accounts/maps/zones.
+    SEL_CHARACTER_ONLINE,
+
+    /// SELECT deleted character info by guid.
+    SEL_CHAR_DEL_INFO_BY_GUID,
+
+    /// SELECT deleted character info by deleted name.
+    SEL_CHAR_DEL_INFO_BY_NAME,
+
+    /// SELECT deleted character info for all deleted characters.
+    SEL_CHAR_DEL_INFO,
+
+    /// SELECT guid FROM characters WHERE account = ?
+    SEL_CHARS_BY_ACCOUNT_ID,
+
+    /// SELECT character pinfo row.
+    SEL_CHAR_PINFO,
+
+    /// SELECT pinfo ban row.
+    SEL_PINFO_BANS,
+
+    /// SELECT pinfo mail counters.
+    SEL_PINFO_MAILS,
+
+    /// SELECT pinfo xp and guild row.
+    SEL_PINFO_XP,
+
+    /// SELECT homebind row using C++ `CHAR_SEL_CHAR_HOMEBIND` name.
+    SEL_CHAR_HOMEBIND,
+
+    /// SELECT guid, name, online FROM characters WHERE account = ?
+    SEL_CHAR_GUID_NAME_BY_ACC,
+
+    /// SELECT name, race, class, gender, at_login FROM characters WHERE guid = ?
+    SEL_CHAR_CUSTOMIZE_INFO,
+
+    /// SELECT race/faction change info.
+    SEL_CHAR_RACE_OR_FACTION_CHANGE_INFOS,
+
+    /// SELECT COD item mail rows.
+    SEL_CHAR_COD_ITEM_MAIL,
+
+    /// SELECT DISTINCT guid FROM character_social WHERE friend = ?
+    SEL_CHAR_SOCIAL,
+
+    /// SELECT old deleted character rows.
+    SEL_CHAR_OLD_CHARS,
+
+    /// SELECT full mail list rows ordered by id.
+    SEL_MAIL,
+
+    /// DELETE FROM character_aura WHERE spell = 9454 AND guid = ?
+    DEL_CHAR_AURA_FROZEN,
+
+    /// SELECT count of character inventory rows by item entry.
+    SEL_CHAR_INVENTORY_COUNT_ITEM,
+
+    /// SELECT count of mail item rows by item entry.
+    SEL_MAIL_COUNT_ITEM,
+
+    /// SELECT count of auction item rows by item entry.
+    SEL_AUCTIONHOUSE_COUNT_ITEM,
+
+    /// SELECT count of guild bank item rows by item entry.
+    SEL_GUILD_BANK_COUNT_ITEM,
+
+    /// SELECT character inventory item rows by entry.
+    SEL_CHAR_INVENTORY_ITEM_BY_ENTRY,
+
+    /// SELECT mail item rows by entry.
+    SEL_MAIL_ITEMS_BY_ENTRY,
+
+    /// SELECT auction item rows by entry.
+    SEL_AUCTIONHOUSE_ITEM_BY_ENTRY,
+
+    /// SELECT guild bank item rows by entry.
+    SEL_GUILD_BANK_ITEM_BY_ENTRY,
+
     // Quest status
     SEL_CHAR_QUEST_STATUS,
     /// SELECT quest, objective, data FROM character_queststatus_objectives WHERE guid = ?
@@ -1691,6 +1772,83 @@ impl StatementDef for CharStatements {
             }
             Self::UPD_CHARACTER_POSITION_BY_MAPID => {
                 "UPDATE characters SET position_x = ?, position_y = ?, position_z = ?, orientation = ?, map = ?, zone = ?, trans_x = 0, trans_y = 0, trans_z = 0, transguid = 0, taxi_path = '', cinematic = 1 WHERE guid = ? AND map = ?"
+            }
+            Self::SEL_CHARACTER_AURA_FROZEN => {
+                "SELECT characters.name, character_aura.remainTime FROM characters LEFT JOIN character_aura ON (characters.guid = character_aura.guid) WHERE character_aura.spell = 9454"
+            }
+            Self::SEL_CHARACTER_ONLINE => {
+                "SELECT name, account, map, zone FROM characters WHERE online > 0"
+            }
+            Self::SEL_CHAR_DEL_INFO_BY_GUID => {
+                "SELECT guid, deleteInfos_Name, deleteInfos_Account, deleteDate FROM characters WHERE deleteDate IS NOT NULL AND guid = ?"
+            }
+            Self::SEL_CHAR_DEL_INFO_BY_NAME => {
+                "SELECT guid, deleteInfos_Name, deleteInfos_Account, deleteDate FROM characters WHERE deleteDate IS NOT NULL AND deleteInfos_Name LIKE CONCAT('%%', ?, '%%')"
+            }
+            Self::SEL_CHAR_DEL_INFO => {
+                "SELECT guid, deleteInfos_Name, deleteInfos_Account, deleteDate FROM characters WHERE deleteDate IS NOT NULL"
+            }
+            Self::SEL_CHARS_BY_ACCOUNT_ID => "SELECT guid FROM characters WHERE account = ?",
+            Self::SEL_CHAR_PINFO => {
+                "SELECT totaltime, level, money, account, race, class, map, zone, gender, health, playerFlags FROM characters WHERE guid = ?"
+            }
+            Self::SEL_PINFO_BANS => {
+                "SELECT unbandate, bandate = unbandate, bannedby, banreason FROM character_banned WHERE guid = ? AND active ORDER BY bandate ASC LIMIT 1"
+            }
+            Self::SEL_PINFO_MAILS => {
+                "SELECT SUM(CASE WHEN (checked & 1) THEN 1 ELSE 0 END) AS 'readmail', COUNT(*) AS 'totalmail' FROM mail WHERE `receiver` = ?"
+            }
+            Self::SEL_PINFO_XP => {
+                "SELECT a.xp, b.guid FROM characters a LEFT JOIN guild_member b ON a.guid = b.guid WHERE a.guid = ?"
+            }
+            Self::SEL_CHAR_HOMEBIND => {
+                "SELECT mapId, zoneId, posX, posY, posZ, orientation FROM character_homebind WHERE guid = ?"
+            }
+            Self::SEL_CHAR_GUID_NAME_BY_ACC => {
+                "SELECT guid, name, online FROM characters WHERE account = ?"
+            }
+            Self::SEL_CHAR_CUSTOMIZE_INFO => {
+                "SELECT name, race, class, gender, at_login FROM characters WHERE guid = ?"
+            }
+            Self::SEL_CHAR_RACE_OR_FACTION_CHANGE_INFOS => {
+                "SELECT c.at_login, c.knownTitles, gm.guid FROM characters c LEFT JOIN group_member gm ON c.guid = gm.memberGuid WHERE c.guid = ?"
+            }
+            Self::SEL_CHAR_COD_ITEM_MAIL => {
+                "SELECT id, messageType, mailTemplateId, sender, subject, body, money, has_items FROM mail WHERE receiver = ? AND has_items <> 0 AND cod <> 0"
+            }
+            Self::SEL_CHAR_SOCIAL => "SELECT DISTINCT guid FROM character_social WHERE friend = ?",
+            Self::SEL_CHAR_OLD_CHARS => {
+                "SELECT guid, deleteInfos_Account FROM characters WHERE deleteDate IS NOT NULL AND deleteDate < ?"
+            }
+            Self::SEL_MAIL => {
+                "SELECT id, messageType, sender, receiver, subject, body, expire_time, deliver_time, money, cod, checked, stationery, mailTemplateId FROM mail WHERE receiver = ? ORDER BY id DESC"
+            }
+            Self::DEL_CHAR_AURA_FROZEN => {
+                "DELETE FROM character_aura WHERE spell = 9454 AND guid = ?"
+            }
+            Self::SEL_CHAR_INVENTORY_COUNT_ITEM => {
+                "SELECT COUNT(itemEntry) FROM character_inventory ci INNER JOIN item_instance ii ON ii.guid = ci.item WHERE itemEntry = ?"
+            }
+            Self::SEL_MAIL_COUNT_ITEM => {
+                "SELECT COUNT(itemEntry) FROM mail_items mi INNER JOIN item_instance ii ON ii.guid = mi.item_guid WHERE itemEntry = ?"
+            }
+            Self::SEL_AUCTIONHOUSE_COUNT_ITEM => {
+                "SELECT COUNT(*) FROM auction_items ai INNER JOIN item_instance ii ON ii.guid = ai.itemGuid WHERE ii.itemEntry = ?"
+            }
+            Self::SEL_GUILD_BANK_COUNT_ITEM => {
+                "SELECT COUNT(itemEntry) FROM guild_bank_item gbi INNER JOIN item_instance ii ON ii.guid = gbi.item_guid WHERE itemEntry = ?"
+            }
+            Self::SEL_CHAR_INVENTORY_ITEM_BY_ENTRY => {
+                "SELECT ci.item, cb.slot AS bag, ci.slot, ci.guid, c.account, c.name FROM characters c INNER JOIN character_inventory ci ON ci.guid = c.guid INNER JOIN item_instance ii ON ii.guid = ci.item LEFT JOIN character_inventory cb ON cb.item = ci.bag WHERE ii.itemEntry = ? LIMIT ?"
+            }
+            Self::SEL_MAIL_ITEMS_BY_ENTRY => {
+                "SELECT mi.item_guid, m.sender, m.receiver, cs.account, cs.name, cr.account, cr.name FROM mail m INNER JOIN mail_items mi ON mi.mail_id = m.id INNER JOIN item_instance ii ON ii.guid = mi.item_guid INNER JOIN characters cs ON cs.guid = m.sender INNER JOIN characters cr ON cr.guid = m.receiver WHERE ii.itemEntry = ? LIMIT ?"
+            }
+            Self::SEL_AUCTIONHOUSE_ITEM_BY_ENTRY => {
+                "SELECT ai.itemGuid, c.guid, c.account, c.name FROM auctionhouse ah INNER JOIN auction_items ai ON ah.id = ai.auctionId INNER JOIN characters c ON c.guid = ah.owner INNER JOIN item_instance ii ON ii.guid = ai.itemGuid WHERE ii.itemEntry = ? LIMIT ?"
+            }
+            Self::SEL_GUILD_BANK_ITEM_BY_ENTRY => {
+                "SELECT gi.item_guid, gi.guildid, g.name FROM guild_bank_item gi INNER JOIN guild g ON g.guildid = gi.guildid INNER JOIN item_instance ii ON ii.guid = gi.item_guid WHERE ii.itemEntry = ? LIMIT ?"
             }
             Self::UPD_CHAR_XP => "UPDATE characters SET xp = ? WHERE guid = ?",
             Self::UPD_CHAR_LEVEL => "UPDATE characters SET level = ?, xp = ? WHERE guid = ?",
@@ -3125,6 +3283,118 @@ mod tests {
         assert_eq!(
             CharStatements::UPD_CHARACTER_POSITION_BY_MAPID.sql(),
             "UPDATE characters SET position_x = ?, position_y = ?, position_z = ?, orientation = ?, map = ?, zone = ?, trans_x = 0, trans_y = 0, trans_z = 0, transguid = 0, taxi_path = '', cinematic = 1 WHERE guid = ? AND map = ?"
+        );
+    }
+
+    #[test]
+    fn character_admin_lookup_and_item_search_statements_match_cpp_sql_exactly() {
+        assert_eq!(
+            CharStatements::SEL_CHARACTER_AURA_FROZEN.sql(),
+            "SELECT characters.name, character_aura.remainTime FROM characters LEFT JOIN character_aura ON (characters.guid = character_aura.guid) WHERE character_aura.spell = 9454"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHARACTER_ONLINE.sql(),
+            "SELECT name, account, map, zone FROM characters WHERE online > 0"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHAR_DEL_INFO_BY_GUID.sql(),
+            "SELECT guid, deleteInfos_Name, deleteInfos_Account, deleteDate FROM characters WHERE deleteDate IS NOT NULL AND guid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHAR_DEL_INFO_BY_NAME.sql(),
+            "SELECT guid, deleteInfos_Name, deleteInfos_Account, deleteDate FROM characters WHERE deleteDate IS NOT NULL AND deleteInfos_Name LIKE CONCAT('%%', ?, '%%')"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHAR_DEL_INFO.sql(),
+            "SELECT guid, deleteInfos_Name, deleteInfos_Account, deleteDate FROM characters WHERE deleteDate IS NOT NULL"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHARS_BY_ACCOUNT_ID.sql(),
+            "SELECT guid FROM characters WHERE account = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHAR_PINFO.sql(),
+            "SELECT totaltime, level, money, account, race, class, map, zone, gender, health, playerFlags FROM characters WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_PINFO_BANS.sql(),
+            "SELECT unbandate, bandate = unbandate, bannedby, banreason FROM character_banned WHERE guid = ? AND active ORDER BY bandate ASC LIMIT 1"
+        );
+        assert_eq!(
+            CharStatements::SEL_PINFO_MAILS.sql(),
+            "SELECT SUM(CASE WHEN (checked & 1) THEN 1 ELSE 0 END) AS 'readmail', COUNT(*) AS 'totalmail' FROM mail WHERE `receiver` = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_PINFO_XP.sql(),
+            "SELECT a.xp, b.guid FROM characters a LEFT JOIN guild_member b ON a.guid = b.guid WHERE a.guid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHAR_HOMEBIND.sql(),
+            "SELECT mapId, zoneId, posX, posY, posZ, orientation FROM character_homebind WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHAR_GUID_NAME_BY_ACC.sql(),
+            "SELECT guid, name, online FROM characters WHERE account = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHAR_CUSTOMIZE_INFO.sql(),
+            "SELECT name, race, class, gender, at_login FROM characters WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHAR_RACE_OR_FACTION_CHANGE_INFOS.sql(),
+            "SELECT c.at_login, c.knownTitles, gm.guid FROM characters c LEFT JOIN group_member gm ON c.guid = gm.memberGuid WHERE c.guid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHAR_COD_ITEM_MAIL.sql(),
+            "SELECT id, messageType, mailTemplateId, sender, subject, body, money, has_items FROM mail WHERE receiver = ? AND has_items <> 0 AND cod <> 0"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHAR_SOCIAL.sql(),
+            "SELECT DISTINCT guid FROM character_social WHERE friend = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHAR_OLD_CHARS.sql(),
+            "SELECT guid, deleteInfos_Account FROM characters WHERE deleteDate IS NOT NULL AND deleteDate < ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_MAIL.sql(),
+            "SELECT id, messageType, sender, receiver, subject, body, expire_time, deliver_time, money, cod, checked, stationery, mailTemplateId FROM mail WHERE receiver = ? ORDER BY id DESC"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_AURA_FROZEN.sql(),
+            "DELETE FROM character_aura WHERE spell = 9454 AND guid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHAR_INVENTORY_COUNT_ITEM.sql(),
+            "SELECT COUNT(itemEntry) FROM character_inventory ci INNER JOIN item_instance ii ON ii.guid = ci.item WHERE itemEntry = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_MAIL_COUNT_ITEM.sql(),
+            "SELECT COUNT(itemEntry) FROM mail_items mi INNER JOIN item_instance ii ON ii.guid = mi.item_guid WHERE itemEntry = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_AUCTIONHOUSE_COUNT_ITEM.sql(),
+            "SELECT COUNT(*) FROM auction_items ai INNER JOIN item_instance ii ON ii.guid = ai.itemGuid WHERE ii.itemEntry = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_GUILD_BANK_COUNT_ITEM.sql(),
+            "SELECT COUNT(itemEntry) FROM guild_bank_item gbi INNER JOIN item_instance ii ON ii.guid = gbi.item_guid WHERE itemEntry = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHAR_INVENTORY_ITEM_BY_ENTRY.sql(),
+            "SELECT ci.item, cb.slot AS bag, ci.slot, ci.guid, c.account, c.name FROM characters c INNER JOIN character_inventory ci ON ci.guid = c.guid INNER JOIN item_instance ii ON ii.guid = ci.item LEFT JOIN character_inventory cb ON cb.item = ci.bag WHERE ii.itemEntry = ? LIMIT ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_MAIL_ITEMS_BY_ENTRY.sql(),
+            "SELECT mi.item_guid, m.sender, m.receiver, cs.account, cs.name, cr.account, cr.name FROM mail m INNER JOIN mail_items mi ON mi.mail_id = m.id INNER JOIN item_instance ii ON ii.guid = mi.item_guid INNER JOIN characters cs ON cs.guid = m.sender INNER JOIN characters cr ON cr.guid = m.receiver WHERE ii.itemEntry = ? LIMIT ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_AUCTIONHOUSE_ITEM_BY_ENTRY.sql(),
+            "SELECT ai.itemGuid, c.guid, c.account, c.name FROM auctionhouse ah INNER JOIN auction_items ai ON ah.id = ai.auctionId INNER JOIN characters c ON c.guid = ah.owner INNER JOIN item_instance ii ON ii.guid = ai.itemGuid WHERE ii.itemEntry = ? LIMIT ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_GUILD_BANK_ITEM_BY_ENTRY.sql(),
+            "SELECT gi.item_guid, gi.guildid, g.name FROM guild_bank_item gi INNER JOIN guild g ON g.guildid = gi.guildid INNER JOIN item_instance ii ON ii.guid = gi.item_guid WHERE ii.itemEntry = ? LIMIT ?"
         );
     }
 
