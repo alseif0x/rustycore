@@ -390,19 +390,17 @@ pub fn build_connection_string_with_ssl_like_cpp(
     database: &str,
     ssl: bool,
 ) -> String {
-    let ssl_mode = ssl_mode_query_value_like_cpp(ssl);
+    let query = mysql_connection_query_suffix_like_cpp(ssl);
     if port_or_socket
         .chars()
         .next()
         .is_some_and(|ch| ch.is_ascii_digit())
     {
-        return format!(
-            "mysql://{user}:{password}@{host}:{port_or_socket}/{database}?ssl-mode={ssl_mode}"
-        );
+        return format!("mysql://{user}:{password}@{host}:{port_or_socket}/{database}?{query}");
     }
 
     format!(
-        "mysql://{user}:{password}@localhost/{database}?socket={}&ssl-mode={ssl_mode}",
+        "mysql://{user}:{password}@localhost/{database}?socket={}&{query}",
         percent_encode_query(port_or_socket),
     )
 }
@@ -414,18 +412,28 @@ fn build_server_connection_string_like_cpp(
     password: &str,
     ssl: bool,
 ) -> String {
-    let ssl_mode = ssl_mode_query_value_like_cpp(ssl);
+    let query = mysql_connection_query_suffix_like_cpp(ssl);
     if port_or_socket
         .chars()
         .next()
         .is_some_and(|ch| ch.is_ascii_digit())
     {
-        return format!("mysql://{user}:{password}@{host}:{port_or_socket}?ssl-mode={ssl_mode}");
+        return format!("mysql://{user}:{password}@{host}:{port_or_socket}?{query}");
     }
 
     format!(
-        "mysql://{user}:{password}@localhost?socket={}&ssl-mode={ssl_mode}",
+        "mysql://{user}:{password}@localhost?socket={}&{query}",
         percent_encode_query(port_or_socket),
+    )
+}
+
+fn mysql_connection_query_suffix_like_cpp(ssl: bool) -> String {
+    // C++ sets MYSQL_SET_CHARSET_NAME/mysql_set_character_set("utf8mb4").
+    // sqlx accepts `timezone` or `time-zone`; `time_zone` is ignored by its URL parser.
+    format!(
+        "ssl-mode={}&charset=utf8mb4&collation=utf8mb4_unicode_ci&timezone={}",
+        ssl_mode_query_value_like_cpp(ssl),
+        percent_encode_query("+00:00")
     )
 }
 
@@ -486,12 +494,14 @@ mod tests {
         escape_string_like_cpp, warn_about_sync_queries_enabled_like_cpp,
         warn_about_sync_queries_scope_like_cpp,
     };
+    use sqlx::mysql::MySqlConnectOptions;
+    use std::str::FromStr;
 
     #[test]
     fn build_connection_string_uses_numeric_port() {
         assert_eq!(
             build_connection_string("127.0.0.1", "3306", "trinity", "trinity", "auth"),
-            "mysql://trinity:trinity@127.0.0.1:3306/auth?ssl-mode=DISABLED"
+            "mysql://trinity:trinity@127.0.0.1:3306/auth?ssl-mode=DISABLED&charset=utf8mb4&collation=utf8mb4_unicode_ci&timezone=%2B00%3A00"
         );
     }
 
@@ -506,7 +516,20 @@ mod tests {
                 "auth",
                 true,
             ),
-            "mysql://trinity:trinity@127.0.0.1:3306/auth?ssl-mode=REQUIRED"
+            "mysql://trinity:trinity@127.0.0.1:3306/auth?ssl-mode=REQUIRED&charset=utf8mb4&collation=utf8mb4_unicode_ci&timezone=%2B00%3A00"
+        );
+    }
+
+    #[test]
+    fn build_connection_string_sets_utf8mb4_session_options_like_cpp() {
+        let url = build_connection_string("127.0.0.1", "3306", "trinity", "trinity", "characters");
+        let options = MySqlConnectOptions::from_str(&url).expect("sqlx should parse generated URL");
+
+        assert_eq!(options.get_charset(), "utf8mb4");
+        assert_eq!(options.get_collation(), Some("utf8mb4_unicode_ci"));
+        assert!(
+            url.contains("timezone=%2B00%3A00"),
+            "sqlx-mysql parses `timezone`/`time-zone`, not `time_zone`"
         );
     }
 
@@ -520,7 +543,7 @@ mod tests {
                 "trinity",
                 "world",
             ),
-            "mysql://trinity:trinity@localhost/world?socket=/var/run/mysqld/mysqld.sock&ssl-mode=DISABLED"
+            "mysql://trinity:trinity@localhost/world?socket=/var/run/mysqld/mysqld.sock&ssl-mode=DISABLED&charset=utf8mb4&collation=utf8mb4_unicode_ci&timezone=%2B00%3A00"
         );
     }
 
@@ -534,7 +557,7 @@ mod tests {
                 "trinity",
                 false,
             ),
-            "mysql://trinity:trinity@127.0.0.1:3306?ssl-mode=DISABLED"
+            "mysql://trinity:trinity@127.0.0.1:3306?ssl-mode=DISABLED&charset=utf8mb4&collation=utf8mb4_unicode_ci&timezone=%2B00%3A00"
         );
         assert_eq!(
             build_server_connection_string_like_cpp(
@@ -544,7 +567,7 @@ mod tests {
                 "trinity",
                 true,
             ),
-            "mysql://trinity:trinity@localhost?socket=/var/run/mysqld/mysqld.sock&ssl-mode=REQUIRED"
+            "mysql://trinity:trinity@localhost?socket=/var/run/mysqld/mysqld.sock&ssl-mode=REQUIRED&charset=utf8mb4&collation=utf8mb4_unicode_ci&timezone=%2B00%3A00"
         );
     }
 

@@ -254,7 +254,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 - [x] **#DBS.1** Add DB populate/update startup support: `DbUpdater::populate` / `update` are wired through world-server startup and abort boot on enabled AutoSetup failures. (M)
 - [ ] **#DBS.2** Vendor (or git-submodule) the four `.sql` dumps from `woltk-trinity-legacy/sql/base/` into `rustycore/sql/base/` so `cargo build` can ship a self-contained installer. (L)
 - [x] **#DBS.3** Implement the Rust updater path: scan include directories, hash SQL files, apply pending entries, record `updates(name, hash, state, timestamp, speed)`, and honor redundancy/rehash/archive/dead-reference gates. (H)
-- [ ] **#DBS.4** Wire pool URLs to append `?charset=utf8mb4&collation=utf8mb4_unicode_ci&time_zone=%2B00%3A00` so non-ASCII player names round-trip. (L)
+- [x] **#DBS.4** Wire pool URLs to append `charset=utf8mb4&collation=utf8mb4_unicode_ci&timezone=%2B00%3A00` so non-ASCII player names round-trip. `sqlx-mysql` uses `timezone` / `time-zone`; `time_zone` would be ignored by its URL parser. (L)
 - [x] **#DBS.5** Formalize `HotfixStatements` strategy: 3 live control-table SELECTs, selected typed DB2 overlays, and generated base/max-id/locale helpers tested against C++ `HotfixDatabase.cpp`. Remaining overlay consumers stay in their typed DB2-store tasks. (L)
 - [ ] **#DBS.6** Extend `CharStatements` to cover inventory save (`UPD_ITEM_INSTANCE`, `INS_CHARACTER_INVENTORY`, …), quest save (`INS_CHARACTER_QUESTSTATUS`, `INS_CHARACTER_QUESTSTATUS_OBJECTIVES`, …), social, mail, AH, guild bank — target ~120 of the ~280 C# statements. (XL — split per domain)
 - [ ] **#DBS.7** Document operator install runbook (`docs/operations/db-bootstrap.md`): create user, create 4 DBs, source the 4 base dumps, run TDB world content import, smoke-test connection from `world-server`. (M)
@@ -313,7 +313,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 | `binary(40)` (`session_key_auth`) | `[u8; 40]` | SRP6 K, not SHA1. |
 | `varbinary(64)` (`session_key_bnet`) | `Vec<u8>` (length 64) | — |
 | `enum('RELEASED','ARCHIVED')` | `enum UpdateState { Released, Archived }` (TODO) | Updater port. |
-| `utf8mb4_bin` collation | URL param + per-column comparison rules | Handle in pool config (#DBS.4). |
+| `utf8mb4_bin` collation | URL param + per-column comparison rules | Pool config now sets `utf8mb4` / `utf8mb4_unicode_ci`; preserve `utf8mb4_bin` case-sensitive name comparisons at query/column level. |
 | `mutetime bigint` | `i64` | Don't truncate to `i32`. |
 
 ---
@@ -338,7 +338,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 
 1. **Clean-install DB coverage is not proven end-to-end.** RustyCore has populate/update startup support, but still needs a live MariaDB integration test with the canonical SQL files and world content import to prove a fresh machine boots without manual intervention.
 2. **TrinityCore Updater behavior is represented in Rust and exercised against a live DB fixture in CI.** Remaining risk is clean-install coverage using the real canonical base/content files, not the absence of an updater module or harness.
-3. **Charset assumption verified:** the user-spec said "TC uses `utf8mb4_general_ci` or similar"; **the actual answer is `utf8mb4_unicode_ci`** (with `utf8mb4_bin` on player names). The live fixture harness now covers a utf8mb4 Cyrillic/CJK round-trip; full DB install parity still requires the real canonical base/content import.
+3. **Charset assumption verified and wired:** the user-spec said "TC uses `utf8mb4_general_ci` or similar"; **the actual answer is `utf8mb4_unicode_ci`** (with `utf8mb4_bin` on player names). Rust pool URLs now force `charset=utf8mb4`, `collation=utf8mb4_unicode_ci`, and UTC `timezone=%2B00%3A00`; the live fixture harness covers a utf8mb4 Cyrillic/CJK round-trip. Full DB install parity still requires the real canonical base/content import.
 4. **Hotfixes is no longer a placeholder gap.** The 3 control-table SELECTs and cache loaders are present; per-DB2 mirror selects land per feature/store. This is still not "every generated C++ overlay is consumed", but it is an explicit strategy instead of a missing module.
 5. **Characters DB write-side callsites remain thinner than the statement registry.** The active WotLK prepared statement names are present, but many gameplay systems still need their runtime save/load paths wired and validated through feature-level tests.
 
