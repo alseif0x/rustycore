@@ -1508,11 +1508,18 @@ impl WorldSession {
                 let pos_x: f32 = result.try_read(8).unwrap_or(0.0);
                 let pos_y: f32 = result.try_read(9).unwrap_or(0.0);
                 let pos_z: f32 = result.try_read(10).unwrap_or(0.0);
-                let _guild_id: u64 = result.try_read(11).unwrap_or(0); // bigint unsigned via IFNULL
+                let guild_id: u64 = result.try_read(11).unwrap_or(0); // nullable gm.guildid
                 let player_flags: u32 = result.try_read(12).unwrap_or(0);
                 let at_login_flags: u16 = result.try_read(13).unwrap_or(0); // smallint unsigned
-                let equipment_cache: String = result.try_read(14).unwrap_or_default();
-                let last_login_build: u32 = result.try_read(15).unwrap_or(54261);
+                let _pet_entry: u32 = result.try_read(14).unwrap_or(0);
+                let pet_display_id: u32 = result.try_read(15).unwrap_or(0);
+                let pet_level: u32 = result.try_read(16).unwrap_or(0);
+                let equipment_cache: String = result.try_read(17).unwrap_or_default();
+                let _banned_guid: u64 = result.try_read(18).unwrap_or(0);
+                let list_slot: u8 = result.try_read(19).unwrap_or(characters.len() as u8);
+                let last_played_time: i64 = result.try_read(20).unwrap_or(0);
+                let active_talent_group: i16 = result.try_read::<u8>(21).unwrap_or(0) as i16;
+                let last_login_build: u32 = result.try_read(22).unwrap_or(54261);
 
                 let realm_id = self.realm_id();
                 let guid = ObjectGuid::create_player(realm_id, guid_low as i64);
@@ -1557,7 +1564,7 @@ impl WorldSession {
                     guid,
                     guild_club_member_id: 0,
                     name,
-                    list_position: characters.len() as u8,
+                    list_position: list_slot,
                     race_id: race,
                     class_id: class,
                     sex_id: gender,
@@ -1565,19 +1572,23 @@ impl WorldSession {
                     zone_id: zone,
                     map_id: map,
                     position: Position::new(pos_x, pos_y, pos_z, 0.0),
-                    guild_guid: ObjectGuid::EMPTY,
+                    guild_guid: if guild_id == 0 {
+                        ObjectGuid::EMPTY
+                    } else {
+                        ObjectGuid::create_guild(HighGuid::Guild, realm_id, guild_id as i64)
+                    },
                     flags: char_flags,
                     flags2: char_flags2,
                     flags3: 0,
                     flags4: 0,
                     first_login: (at_login_flags & 0x20) != 0, // AT_LOGIN_FIRST
-                    pet_display_id: 0,
-                    pet_level: 0,
+                    pet_display_id,
+                    pet_level,
                     pet_family: 0,
                     profession_ids: [0; 2],
                     equipment: parse_equipment_cache(&equipment_cache),
-                    last_played_time: 0,
-                    spec_id: 0,
+                    last_played_time,
+                    spec_id: active_talent_group,
                     last_login_version: last_login_build as i32,
                     override_select_screen_file_data_id: 0,
                 };

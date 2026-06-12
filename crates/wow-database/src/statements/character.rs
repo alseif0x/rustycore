@@ -395,10 +395,15 @@ impl StatementDef for CharStatements {
             }
             Self::SEL_ENUM => {
                 "SELECT c.guid, c.name, c.race, c.class, c.gender, c.level, c.zone, c.map, \
-                 c.position_x, c.position_y, c.position_z, IFNULL(gm.guildid, 0), c.playerFlags, \
-                 c.at_login, c.equipmentCache, c.lastLoginBuild \
-                 FROM characters AS c \
+                 c.position_x, c.position_y, c.position_z, gm.guildid, c.playerFlags, \
+                 c.at_login, cp.entry, cp.modelid, cp.level, c.equipmentCache, cb.guid, \
+                 c.slot, c.logout_time, c.activeTalentGroup, c.lastLoginBuild, \
+                 c.personalTabardEmblemStyle, c.personalTabardEmblemColor, \
+                 c.personalTabardBorderStyle, c.personalTabardBorderColor, \
+                 c.personalTabardBackgroundColor \
+                 FROM characters AS c LEFT JOIN character_pet AS cp ON c.summonedPetNumber = cp.id \
                  LEFT JOIN guild_member AS gm ON c.guid = gm.guid \
+                 LEFT JOIN character_banned AS cb ON c.guid = cb.guid AND cb.active = 1 \
                  WHERE c.account = ? AND c.deleteInfos_Name IS NULL"
             }
             Self::SEL_CHECK_NAME => "SELECT 1 FROM characters WHERE name = ?",
@@ -1067,6 +1072,15 @@ mod tests {
             CharStatements::SEL_MAIL_LIST_ITEMS.sql(),
             "SELECT itemEntry,count FROM item_instance WHERE guid = ?"
         );
+    }
+
+    #[test]
+    fn character_enum_statement_matches_cpp_column_order_exactly() {
+        assert_eq!(
+            CharStatements::SEL_ENUM.sql(),
+            "SELECT c.guid, c.name, c.race, c.class, c.gender, c.level, c.zone, c.map, c.position_x, c.position_y, c.position_z, gm.guildid, c.playerFlags, c.at_login, cp.entry, cp.modelid, cp.level, c.equipmentCache, cb.guid, c.slot, c.logout_time, c.activeTalentGroup, c.lastLoginBuild, c.personalTabardEmblemStyle, c.personalTabardEmblemColor, c.personalTabardBorderStyle, c.personalTabardBorderColor, c.personalTabardBackgroundColor FROM characters AS c LEFT JOIN character_pet AS cp ON c.summonedPetNumber = cp.id LEFT JOIN guild_member AS gm ON c.guid = gm.guid LEFT JOIN character_banned AS cb ON c.guid = cb.guid AND cb.active = 1 WHERE c.account = ? AND c.deleteInfos_Name IS NULL"
+        );
+        assert_eq!(CharStatements::SEL_ENUM.sql().matches('?').count(), 1);
     }
 
     #[test]
