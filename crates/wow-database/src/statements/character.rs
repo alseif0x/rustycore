@@ -424,6 +424,57 @@ pub enum CharStatements {
     /// DELETE FROM respawn WHERE mapId = ? AND instanceId = ?
     DEL_ALL_RESPAWNS,
 
+    /// SELECT id, playerGuid, note, createTime, mapId, posX, posY, posZ, facing, closedBy, assignedTo, comment FROM gm_bug
+    SEL_GM_BUGS,
+
+    /// REPLACE INTO gm_bug.
+    REP_GM_BUG,
+
+    /// DELETE FROM gm_bug WHERE id = ?
+    DEL_GM_BUG,
+
+    /// DELETE FROM gm_bug
+    DEL_ALL_GM_BUGS,
+
+    /// SELECT gm_complaint rows.
+    SEL_GM_COMPLAINTS,
+
+    /// REPLACE INTO gm_complaint.
+    REP_GM_COMPLAINT,
+
+    /// DELETE FROM gm_complaint WHERE id = ?
+    DEL_GM_COMPLAINT,
+
+    /// SELECT timestamp, text FROM gm_complaint_chatlog WHERE complaintId = ? ORDER BY lineId ASC
+    SEL_GM_COMPLAINT_CHATLINES,
+
+    /// INSERT INTO gm_complaint_chatlog.
+    INS_GM_COMPLAINT_CHATLINE,
+
+    /// DELETE FROM gm_complaint_chatlog WHERE complaintId = ?
+    DEL_GM_COMPLAINT_CHATLOG,
+
+    /// DELETE FROM gm_complaint
+    DEL_ALL_GM_COMPLAINTS,
+
+    /// DELETE FROM gm_complaint_chatlog
+    DEL_ALL_GM_COMPLAINT_CHATLOGS,
+
+    /// SELECT gm_suggestion rows.
+    SEL_GM_SUGGESTIONS,
+
+    /// REPLACE INTO gm_suggestion.
+    REP_GM_SUGGESTION,
+
+    /// DELETE FROM gm_suggestion WHERE id = ?
+    DEL_GM_SUGGESTION,
+
+    /// DELETE FROM gm_suggestion
+    DEL_ALL_GM_SUGGESTIONS,
+
+    /// INSERT INTO lfg_data (guid, dungeon, state) VALUES (?, ?, ?)
+    INS_LFG_DATA,
+
     /// DELETE FROM game_event_save WHERE eventEntry = ?
     DEL_GAME_EVENT_SAVE,
     /// INSERT INTO game_event_save (eventEntry, state, next_start) VALUES (?, ?, ?)
@@ -1412,6 +1463,41 @@ impl StatementDef for CharStatements {
                 "DELETE FROM respawn WHERE type = ? AND spawnId = ? AND mapId = ? AND instanceId = ?"
             }
             Self::DEL_ALL_RESPAWNS => "DELETE FROM respawn WHERE mapId = ? AND instanceId = ?",
+            Self::SEL_GM_BUGS => {
+                "SELECT id, playerGuid, note, createTime, mapId, posX, posY, posZ, facing, closedBy, assignedTo, comment FROM gm_bug"
+            }
+            Self::REP_GM_BUG => {
+                "REPLACE INTO gm_bug (id, playerGuid, note, createTime, mapId, posX, posY, posZ, facing, closedBy, assignedTo, comment) VALUES (?, ?, ?, UNIX_TIMESTAMP(NOW()), ?, ?, ?, ?, ?, ?, ?, ?)"
+            }
+            Self::DEL_GM_BUG => "DELETE FROM gm_bug WHERE id = ?",
+            Self::DEL_ALL_GM_BUGS => "DELETE FROM gm_bug",
+            Self::SEL_GM_COMPLAINTS => {
+                "SELECT id, playerGuid, note, createTime, mapId, posX, posY, posZ, facing, targetCharacterGuid, reportType, reportMajorCategory, reportMinorCategoryFlags, reportLineIndex, assignedTo, closedBy, comment FROM gm_complaint"
+            }
+            Self::REP_GM_COMPLAINT => {
+                "REPLACE INTO gm_complaint (id, playerGuid, note, createTime, mapId, posX, posY, posZ, facing, targetCharacterGuid, reportType, reportMajorCategory, reportMinorCategoryFlags, reportLineIndex, assignedTo, closedBy, comment) VALUES (?, ?, ?, UNIX_TIMESTAMP(NOW()), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            }
+            Self::DEL_GM_COMPLAINT => "DELETE FROM gm_complaint WHERE id = ?",
+            Self::SEL_GM_COMPLAINT_CHATLINES => {
+                "SELECT timestamp, text FROM gm_complaint_chatlog WHERE complaintId = ? ORDER BY lineId ASC"
+            }
+            Self::INS_GM_COMPLAINT_CHATLINE => {
+                "INSERT INTO gm_complaint_chatlog (complaintId, lineId, timestamp, text) VALUES (?, ?, ?, ?)"
+            }
+            Self::DEL_GM_COMPLAINT_CHATLOG => {
+                "DELETE FROM gm_complaint_chatlog WHERE complaintId = ?"
+            }
+            Self::DEL_ALL_GM_COMPLAINTS => "DELETE FROM gm_complaint",
+            Self::DEL_ALL_GM_COMPLAINT_CHATLOGS => "DELETE FROM gm_complaint_chatlog",
+            Self::SEL_GM_SUGGESTIONS => {
+                "SELECT id, playerGuid, note, createTime, mapId, posX, posY, posZ, facing, closedBy, assignedTo, comment FROM gm_suggestion"
+            }
+            Self::REP_GM_SUGGESTION => {
+                "REPLACE INTO gm_suggestion (id, playerGuid, note, createTime, mapId, posX, posY, posZ, facing, closedBy, assignedTo, comment) VALUES (?, ?, ?, UNIX_TIMESTAMP(NOW()), ?, ?, ?, ?, ?, ? ,? ,?)"
+            }
+            Self::DEL_GM_SUGGESTION => "DELETE FROM gm_suggestion WHERE id = ?",
+            Self::DEL_ALL_GM_SUGGESTIONS => "DELETE FROM gm_suggestion",
+            Self::INS_LFG_DATA => "INSERT INTO lfg_data (guid, dungeon, state) VALUES (?, ?, ?)",
             Self::DEL_GAME_EVENT_SAVE => "DELETE FROM game_event_save WHERE eventEntry = ?",
             Self::INS_GAME_EVENT_SAVE => {
                 "INSERT INTO game_event_save (eventEntry, state, next_start) VALUES (?, ?, ?)"
@@ -2754,6 +2840,79 @@ mod tests {
         assert_eq!(
             CharStatements::REP_WORLD_STATE.sql(),
             "REPLACE INTO world_state_value (Id, Value) VALUES (?, ?)"
+        );
+    }
+
+    #[test]
+    fn gm_ticket_and_lfg_statements_match_cpp_sql_exactly() {
+        assert_eq!(
+            CharStatements::SEL_GM_BUGS.sql(),
+            "SELECT id, playerGuid, note, createTime, mapId, posX, posY, posZ, facing, closedBy, assignedTo, comment FROM gm_bug"
+        );
+        assert_eq!(
+            CharStatements::REP_GM_BUG.sql(),
+            "REPLACE INTO gm_bug (id, playerGuid, note, createTime, mapId, posX, posY, posZ, facing, closedBy, assignedTo, comment) VALUES (?, ?, ?, UNIX_TIMESTAMP(NOW()), ?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_GM_BUG.sql(),
+            "DELETE FROM gm_bug WHERE id = ?"
+        );
+        assert_eq!(CharStatements::DEL_ALL_GM_BUGS.sql(), "DELETE FROM gm_bug");
+        assert_eq!(
+            CharStatements::SEL_GM_COMPLAINTS.sql(),
+            "SELECT id, playerGuid, note, createTime, mapId, posX, posY, posZ, facing, targetCharacterGuid, reportType, reportMajorCategory, reportMinorCategoryFlags, reportLineIndex, assignedTo, closedBy, comment FROM gm_complaint"
+        );
+        assert_eq!(
+            CharStatements::REP_GM_COMPLAINT.sql(),
+            "REPLACE INTO gm_complaint (id, playerGuid, note, createTime, mapId, posX, posY, posZ, facing, targetCharacterGuid, reportType, reportMajorCategory, reportMinorCategoryFlags, reportLineIndex, assignedTo, closedBy, comment) VALUES (?, ?, ?, UNIX_TIMESTAMP(NOW()), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_GM_COMPLAINT.sql(),
+            "DELETE FROM gm_complaint WHERE id = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_GM_COMPLAINT_CHATLINES.sql(),
+            "SELECT timestamp, text FROM gm_complaint_chatlog WHERE complaintId = ? ORDER BY lineId ASC"
+        );
+        assert_eq!(
+            CharStatements::INS_GM_COMPLAINT_CHATLINE.sql(),
+            "INSERT INTO gm_complaint_chatlog (complaintId, lineId, timestamp, text) VALUES (?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_GM_COMPLAINT_CHATLOG.sql(),
+            "DELETE FROM gm_complaint_chatlog WHERE complaintId = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_ALL_GM_COMPLAINTS.sql(),
+            "DELETE FROM gm_complaint"
+        );
+        assert_eq!(
+            CharStatements::DEL_ALL_GM_COMPLAINT_CHATLOGS.sql(),
+            "DELETE FROM gm_complaint_chatlog"
+        );
+        assert_eq!(
+            CharStatements::SEL_GM_SUGGESTIONS.sql(),
+            "SELECT id, playerGuid, note, createTime, mapId, posX, posY, posZ, facing, closedBy, assignedTo, comment FROM gm_suggestion"
+        );
+        assert_eq!(
+            CharStatements::REP_GM_SUGGESTION.sql(),
+            "REPLACE INTO gm_suggestion (id, playerGuid, note, createTime, mapId, posX, posY, posZ, facing, closedBy, assignedTo, comment) VALUES (?, ?, ?, UNIX_TIMESTAMP(NOW()), ?, ?, ?, ?, ?, ? ,? ,?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_GM_SUGGESTION.sql(),
+            "DELETE FROM gm_suggestion WHERE id = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_ALL_GM_SUGGESTIONS.sql(),
+            "DELETE FROM gm_suggestion"
+        );
+        assert_eq!(
+            CharStatements::INS_LFG_DATA.sql(),
+            "INSERT INTO lfg_data (guid, dungeon, state) VALUES (?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_LFG_DATA.sql(),
+            "DELETE FROM lfg_data WHERE guid = ?"
         );
     }
 
