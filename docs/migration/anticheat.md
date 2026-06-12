@@ -242,7 +242,9 @@ Anticheat is reactive — it does not originate opcodes, it inspects them. Touch
 - [x] Test: fixed-position vehicle context preserves `MOVEMENTFLAG_ROOT`, but strips `MOVEMENTFLAG_MASK_MOVING` when `ROOT` is combined with movement flags.
 - [x] Test: `MOVEMENTFLAG_FLYING` from non-GM with no fly aura → flag stripped.
 - [x] Test: `MOVEMENTFLAG_HOVER` with hover aura present → not stripped.
+- [x] Test: each C++ incompatible pair is stripped independently: `ASCENDING|DESCENDING`, `LEFT|RIGHT`, `STRAFE_LEFT|STRAFE_RIGHT`, `PITCH_UP|PITCH_DOWN`, `FORWARD|BACKWARD`.
 - [x] Test: `LEFT | RIGHT` simultaneously → both stripped.
+- [x] Test: `MOVEMENTFLAG_WATER_WALK` is preserved for represented `SPELL_AURA_GHOST`, matching the C++ ghost exception.
 - [x] Test: speed ack 8.0 vs server 7.0 with no transport → kick fires; ban table not touched (kick policy).
 - [x] Test: speed ack 6.0 vs server 7.0 → correction is recorded, no kick, and no packet is emitted because legacy `SetSpeedRate(GetSpeedRate())` returns early on unchanged rate.
 - [x] Test: repeated `CMSG_PLAYER_LOGIN` packets in one second remain allowed because C++ puts it in the zero-limit group (`maxPacketCounterAllowed == 0`); do **not** add a kick expectation here.

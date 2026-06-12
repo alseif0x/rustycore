@@ -1199,6 +1199,28 @@ mod tests {
     }
 
     #[test]
+    fn validate_movement_info_strips_each_cpp_incompatible_pair() {
+        let session = make_session();
+        for (left, right) in [
+            (MovementFlag::ASCENDING, MovementFlag::DESCENDING),
+            (MovementFlag::LEFT, MovementFlag::RIGHT),
+            (MovementFlag::STRAFE_LEFT, MovementFlag::STRAFE_RIGHT),
+            (MovementFlag::PITCH_UP, MovementFlag::PITCH_DOWN),
+            (MovementFlag::FORWARD, MovementFlag::BACKWARD),
+        ] {
+            let mut info = MovementInfo {
+                flags: left | right,
+                ..MovementInfo::default()
+            };
+
+            let removed = session.sanitize_movement_info_flags_represented_like_cpp(&mut info);
+
+            assert!(removed.contains(left | right), "{left:?} | {right:?}");
+            assert!(info.flags.is_empty(), "{left:?} | {right:?}");
+        }
+    }
+
+    #[test]
     fn validate_movement_info_root_order_matches_cpp_without_fixed_vehicle() {
         let session = make_session();
         let mut info = MovementInfo {
@@ -1273,6 +1295,23 @@ mod tests {
                 .contains(MovementFlag::FLYING | MovementFlag::CAN_FLY)
         );
         assert!(info.flags.contains(MovementFlag::SPLINE_ELEVATION));
+    }
+
+    #[test]
+    fn validate_movement_info_keeps_water_walk_for_ghost_like_cpp() {
+        let mut session = make_session();
+        session
+            .visible_auras
+            .insert(1, fall_aura(1, RepresentedAuraEffectLikeCpp::Ghost, 0, 1.0));
+        let mut info = MovementInfo {
+            flags: MovementFlag::WATER_WALK,
+            ..MovementInfo::default()
+        };
+
+        let removed = session.sanitize_movement_info_flags_represented_like_cpp(&mut info);
+
+        assert!(removed.is_empty());
+        assert!(info.flags.contains(MovementFlag::WATER_WALK));
     }
 
     #[tokio::test]
