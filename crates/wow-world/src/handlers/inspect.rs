@@ -40,7 +40,7 @@ inventory::submit! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QueryInspectAchievements,
         status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
+        processing: PacketProcessing::Inplace,
         handler_name: "handle_query_inspect_achievements",
     }
 }
