@@ -687,6 +687,75 @@ pub enum CharStatements {
     DEL_CHAR_QUEST_STATUS_OBJECTIVES_BY_QUEST,
     REP_CHAR_QUEST_STATUS_OBJECTIVES,
 
+    /// DELETE FROM character_achievement WHERE guid = ?
+    DEL_CHAR_ACHIEVEMENT,
+
+    /// DELETE FROM character_achievement_progress WHERE guid = ?
+    DEL_CHAR_ACHIEVEMENT_PROGRESS,
+
+    /// INSERT INTO character_achievement (guid, achievement, date) VALUES (?, ?, ?)
+    INS_CHAR_ACHIEVEMENT,
+
+    /// DELETE FROM character_achievement_progress WHERE guid = ? AND criteria = ?
+    DEL_CHAR_ACHIEVEMENT_PROGRESS_BY_CRITERIA,
+
+    /// INSERT INTO character_achievement_progress (guid, criteria, counter, date) VALUES (?, ?, ?, ?)
+    INS_CHAR_ACHIEVEMENT_PROGRESS,
+
+    /// INSERT INTO character_gifts (guid, item_guid, entry, flags) VALUES (?, ?, ?, ?)
+    INS_CHAR_GIFT,
+
+    /// DELETE FROM mail_items WHERE mail_id = ?
+    DEL_MAIL_ITEM_BY_ID,
+
+    /// INSERT INTO petition (ownerguid, petitionguid, name) VALUES (?, ?, ?)
+    INS_PETITION,
+
+    /// DELETE FROM petition WHERE petitionguid = ?
+    DEL_PETITION_BY_GUID,
+
+    /// DELETE FROM petition_sign WHERE petitionguid = ?
+    DEL_PETITION_SIGNATURE_BY_GUID,
+
+    /// DELETE FROM character_declinedname WHERE guid = ?
+    DEL_CHAR_DECLINED_NAME,
+
+    /// INSERT INTO character_declinedname.
+    INS_CHAR_DECLINED_NAME,
+
+    /// UPDATE characters SET race = ?, extra_flags = extra_flags | ? WHERE guid = ?
+    UPD_CHAR_RACE,
+
+    /// DELETE language skills for a character.
+    DEL_CHAR_SKILL_LANGUAGES,
+
+    /// INSERT INTO `character_skills` language row.
+    INS_CHAR_SKILL_LANGUAGE,
+
+    /// UPDATE characters SET taxi_path = '' WHERE guid = ?
+    UPD_CHAR_TAXI_PATH,
+
+    /// UPDATE characters SET taximask = ? WHERE guid = ?
+    UPD_CHAR_TAXIMASK,
+
+    /// DELETE FROM character_queststatus WHERE guid = ?
+    DEL_CHAR_QUESTSTATUS,
+
+    /// DELETE FROM character_queststatus_objectives WHERE guid = ?
+    DEL_CHAR_QUESTSTATUS_OBJECTIVES,
+
+    /// DELETE FROM character_queststatus_objectives_criteria WHERE guid = ?
+    DEL_CHAR_QUESTSTATUS_OBJECTIVES_CRITERIA,
+
+    /// DELETE FROM character_queststatus_objectives_criteria_progress WHERE guid = ?
+    DEL_CHAR_QUESTSTATUS_OBJECTIVES_CRITERIA_PROGRESS,
+
+    /// DELETE FROM character_queststatus_objectives_criteria_progress WHERE guid = ? AND criteriaId = ?
+    DEL_CHAR_QUESTSTATUS_OBJECTIVES_CRITERIA_PROGRESS_BY_CRITERIA,
+
+    /// DELETE FROM character_social WHERE guid = ?
+    DEL_CHAR_SOCIAL_BY_GUID,
+
     /// UPDATE characters SET money = ? WHERE guid = ?
     UPD_CHAR_MONEY,
     /// UPDATE characters SET xp = ? WHERE guid = ?
@@ -1850,6 +1919,59 @@ impl StatementDef for CharStatements {
             Self::SEL_GUILD_BANK_ITEM_BY_ENTRY => {
                 "SELECT gi.item_guid, gi.guildid, g.name FROM guild_bank_item gi INNER JOIN guild g ON g.guildid = gi.guildid INNER JOIN item_instance ii ON ii.guid = gi.item_guid WHERE ii.itemEntry = ? LIMIT ?"
             }
+            Self::DEL_CHAR_ACHIEVEMENT => "DELETE FROM character_achievement WHERE guid = ?",
+            Self::DEL_CHAR_ACHIEVEMENT_PROGRESS => {
+                "DELETE FROM character_achievement_progress WHERE guid = ?"
+            }
+            Self::INS_CHAR_ACHIEVEMENT => {
+                "INSERT INTO character_achievement (guid, achievement, date) VALUES (?, ?, ?)"
+            }
+            Self::DEL_CHAR_ACHIEVEMENT_PROGRESS_BY_CRITERIA => {
+                "DELETE FROM character_achievement_progress WHERE guid = ? AND criteria = ?"
+            }
+            Self::INS_CHAR_ACHIEVEMENT_PROGRESS => {
+                "INSERT INTO character_achievement_progress (guid, criteria, counter, date) VALUES (?, ?, ?, ?)"
+            }
+            Self::INS_CHAR_GIFT => {
+                "INSERT INTO character_gifts (guid, item_guid, entry, flags) VALUES (?, ?, ?, ?)"
+            }
+            Self::DEL_MAIL_ITEM_BY_ID => "DELETE FROM mail_items WHERE mail_id = ?",
+            Self::INS_PETITION => {
+                "INSERT INTO petition (ownerguid, petitionguid, name) VALUES (?, ?, ?)"
+            }
+            Self::DEL_PETITION_BY_GUID => "DELETE FROM petition WHERE petitionguid = ?",
+            Self::DEL_PETITION_SIGNATURE_BY_GUID => {
+                "DELETE FROM petition_sign WHERE petitionguid = ?"
+            }
+            Self::DEL_CHAR_DECLINED_NAME => "DELETE FROM character_declinedname WHERE guid = ?",
+            Self::INS_CHAR_DECLINED_NAME => {
+                "INSERT INTO character_declinedname (guid, genitive, dative, accusative, instrumental, prepositional) VALUES (?, ?, ?, ?, ?, ?)"
+            }
+            Self::UPD_CHAR_RACE => {
+                "UPDATE characters SET race = ?, extra_flags = extra_flags | ? WHERE guid = ?"
+            }
+            Self::DEL_CHAR_SKILL_LANGUAGES => {
+                "DELETE FROM character_skills WHERE skill IN (98, 113, 759, 111, 313, 109, 115, 315, 673, 137) AND guid = ?"
+            }
+            Self::INS_CHAR_SKILL_LANGUAGE => {
+                "INSERT INTO `character_skills` (guid, skill, value, max) VALUES (?, ?, 300, 300)"
+            }
+            Self::UPD_CHAR_TAXI_PATH => "UPDATE characters SET taxi_path = '' WHERE guid = ?",
+            Self::UPD_CHAR_TAXIMASK => "UPDATE characters SET taximask = ? WHERE guid = ?",
+            Self::DEL_CHAR_QUESTSTATUS => "DELETE FROM character_queststatus WHERE guid = ?",
+            Self::DEL_CHAR_QUESTSTATUS_OBJECTIVES => {
+                "DELETE FROM character_queststatus_objectives WHERE guid = ?"
+            }
+            Self::DEL_CHAR_QUESTSTATUS_OBJECTIVES_CRITERIA => {
+                "DELETE FROM character_queststatus_objectives_criteria WHERE guid = ?"
+            }
+            Self::DEL_CHAR_QUESTSTATUS_OBJECTIVES_CRITERIA_PROGRESS => {
+                "DELETE FROM character_queststatus_objectives_criteria_progress WHERE guid = ?"
+            }
+            Self::DEL_CHAR_QUESTSTATUS_OBJECTIVES_CRITERIA_PROGRESS_BY_CRITERIA => {
+                "DELETE FROM character_queststatus_objectives_criteria_progress WHERE guid = ? AND criteriaId = ?"
+            }
+            Self::DEL_CHAR_SOCIAL_BY_GUID => "DELETE FROM character_social WHERE guid = ?",
             Self::UPD_CHAR_XP => "UPDATE characters SET xp = ? WHERE guid = ?",
             Self::UPD_CHAR_LEVEL => "UPDATE characters SET level = ?, xp = ? WHERE guid = ?",
             Self::UPD_CHAR_MONEY => "UPDATE characters SET money = ? WHERE guid = ?",
@@ -3395,6 +3517,102 @@ mod tests {
         assert_eq!(
             CharStatements::SEL_GUILD_BANK_ITEM_BY_ENTRY.sql(),
             "SELECT gi.item_guid, gi.guildid, g.name FROM guild_bank_item gi INNER JOIN guild g ON g.guildid = gi.guildid INNER JOIN item_instance ii ON ii.guid = gi.item_guid WHERE ii.itemEntry = ? LIMIT ?"
+        );
+    }
+
+    #[test]
+    fn character_achievement_petition_declined_and_cleanup_statements_match_cpp_sql_exactly() {
+        assert_eq!(
+            CharStatements::DEL_CHAR_ACHIEVEMENT.sql(),
+            "DELETE FROM character_achievement WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_ACHIEVEMENT_PROGRESS.sql(),
+            "DELETE FROM character_achievement_progress WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_CHAR_ACHIEVEMENT.sql(),
+            "INSERT INTO character_achievement (guid, achievement, date) VALUES (?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_ACHIEVEMENT_PROGRESS_BY_CRITERIA.sql(),
+            "DELETE FROM character_achievement_progress WHERE guid = ? AND criteria = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_CHAR_ACHIEVEMENT_PROGRESS.sql(),
+            "INSERT INTO character_achievement_progress (guid, criteria, counter, date) VALUES (?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::INS_CHAR_GIFT.sql(),
+            "INSERT INTO character_gifts (guid, item_guid, entry, flags) VALUES (?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_MAIL_ITEM_BY_ID.sql(),
+            "DELETE FROM mail_items WHERE mail_id = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_PETITION.sql(),
+            "INSERT INTO petition (ownerguid, petitionguid, name) VALUES (?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_PETITION_BY_GUID.sql(),
+            "DELETE FROM petition WHERE petitionguid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_PETITION_SIGNATURE_BY_GUID.sql(),
+            "DELETE FROM petition_sign WHERE petitionguid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_DECLINED_NAME.sql(),
+            "DELETE FROM character_declinedname WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_CHAR_DECLINED_NAME.sql(),
+            "INSERT INTO character_declinedname (guid, genitive, dative, accusative, instrumental, prepositional) VALUES (?, ?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::UPD_CHAR_RACE.sql(),
+            "UPDATE characters SET race = ?, extra_flags = extra_flags | ? WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_SKILL_LANGUAGES.sql(),
+            "DELETE FROM character_skills WHERE skill IN (98, 113, 759, 111, 313, 109, 115, 315, 673, 137) AND guid = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_CHAR_SKILL_LANGUAGE.sql(),
+            "INSERT INTO `character_skills` (guid, skill, value, max) VALUES (?, ?, 300, 300)"
+        );
+        assert_eq!(
+            CharStatements::UPD_CHAR_TAXI_PATH.sql(),
+            "UPDATE characters SET taxi_path = '' WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_CHAR_TAXIMASK.sql(),
+            "UPDATE characters SET taximask = ? WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_QUESTSTATUS.sql(),
+            "DELETE FROM character_queststatus WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_QUESTSTATUS_OBJECTIVES.sql(),
+            "DELETE FROM character_queststatus_objectives WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_QUESTSTATUS_OBJECTIVES_CRITERIA.sql(),
+            "DELETE FROM character_queststatus_objectives_criteria WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_QUESTSTATUS_OBJECTIVES_CRITERIA_PROGRESS.sql(),
+            "DELETE FROM character_queststatus_objectives_criteria_progress WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_QUESTSTATUS_OBJECTIVES_CRITERIA_PROGRESS_BY_CRITERIA.sql(),
+            "DELETE FROM character_queststatus_objectives_criteria_progress WHERE guid = ? AND criteriaId = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_SOCIAL_BY_GUID.sql(),
+            "DELETE FROM character_social WHERE guid = ?"
         );
     }
 
