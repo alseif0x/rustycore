@@ -51,10 +51,27 @@ fn warn_if_sync_query_like_cpp(operation: &str) {
 ///
 /// # Example
 ///
-/// ```ignore
-/// let db: Database<LoginStatements> = Database::open("mysql://...").await?;
+/// ```no_run
+/// # use wow_database::{Database, statements::LoginStatements};
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// let db: Database<LoginStatements> =
+///     Database::open("mysql://user:pass@127.0.0.1:3306/auth").await?;
 /// let mut stmt = db.prepare(LoginStatements::SEL_REALMLIST);
 /// let result = db.query(&stmt).await?;
+/// # Ok(())
+/// # }
+/// ```
+///
+/// A statement enum from a different database cannot be prepared on this
+/// typed pool. This mirrors TC's `DatabaseWorkerPool<T>` / `PreparedStatement<T>`
+/// binding at the Rust type boundary.
+///
+/// ```compile_fail
+/// use wow_database::{Database, statements::{LoginStatements, WorldStatements}};
+///
+/// fn wrong_statement_type(db: &Database<WorldStatements>) {
+///     let _stmt = db.prepare(LoginStatements::SEL_REALMLIST);
+/// }
 /// ```
 pub struct Database<S: StatementDef> {
     pool: MySqlPool,

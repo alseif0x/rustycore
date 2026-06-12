@@ -682,7 +682,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 - [x] Test: `Updates.EnableDatabases` mask mirrors C++ `DatabaseLoader` / `DBUpdater<T>::IsEnabled`: default `15` enables Login/Character/World/Hotfix, partial masks gate per-DB auto-create and updater work, and mask `0` disables all updater work.
 - [x] Test: `Updates.AutoSetup=0` mirrors C++ source semantics: it disables missing-database auto-create, but does **not** disable `Populate`/`Update`; `Updates.EnableDatabases=0` is the C++ switch that disables updater work.
 - [x] Test: startup propagates DB updater failures with DB-specific context when `Updates.AutoSetup=1` (#DB.3).
-- [ ] Test: `Database<LoginStatements>::prepare(LoginStatements::SEL_REALMLIST)` and `Database<WorldStatements>::prepare(WorldStatements::DEL_LINKED_RESPAWN)` produce different `&'static str` SQL — and using `LoginStatements::SEL_REALMLIST` on a `Database<WorldStatements>` is a compile error (compile-fail test via `trybuild`).
+- [x] Test: `LoginStatements::SEL_REALMLIST` and `WorldStatements::DEL_LINKED_RESPAWN` produce different `&'static str` SQL, and using `LoginStatements::SEL_REALMLIST` on a `Database<WorldStatements>` is covered by a rustdoc `compile_fail` test on `Database<S>::prepare`.
 - [x] Test: hotfix strategy is explicit (`ControlTablesAndSelectedDb2Overlays`), control-table statements are distinguishable from selected DB2 overlays, and generated base/max-id/locale helpers stay validated against C++ `HotfixDatabase.cpp`.
 
 ---

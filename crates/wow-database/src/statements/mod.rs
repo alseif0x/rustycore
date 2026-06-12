@@ -82,6 +82,20 @@ mod tests {
     }
 
     #[test]
+    fn login_and_world_prepared_statement_sql_are_distinct_like_cpp() {
+        assert_ne!(
+            LoginStatements::SEL_REALMLIST.sql(),
+            WorldStatements::DEL_LINKED_RESPAWN.sql()
+        );
+        assert!(LoginStatements::SEL_REALMLIST.sql().contains("realmlist"));
+        assert!(
+            WorldStatements::DEL_LINKED_RESPAWN
+                .sql()
+                .contains("linked_respawn")
+        );
+    }
+
+    #[test]
     fn gameobjects_in_range_sql_uses_cpp_override_template_addon_priority() {
         let sql = WorldStatements::SEL_GAMEOBJECTS_IN_RANGE.sql();
         assert!(sql.contains("LEFT JOIN gameobject_template_addon gta ON gta.entry = g.id"));
