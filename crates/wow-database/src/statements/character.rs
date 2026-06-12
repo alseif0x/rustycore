@@ -323,6 +323,70 @@ pub enum CharStatements {
 
     /// SELECT instanceId, releaseTime FROM account_instance_times WHERE accountId = ?
     SEL_ACCOUNT_INSTANCELOCKTIMES,
+
+    /// SELECT id, auctionHouseId, owner, bidder, minBid, buyoutOrUnitPrice, deposit, bidAmount, startTime, endTime, serverFlags FROM auctionhouse
+    SEL_AUCTIONS,
+
+    /// INSERT INTO auction_items (auctionId, itemGuid) VALUES (?, ?)
+    INS_AUCTION_ITEMS,
+
+    /// DELETE FROM auction_items WHERE itemGuid = ?
+    DEL_AUCTION_ITEMS_BY_ITEM,
+
+    /// SELECT auctionId, playerGuid FROM auction_bidders
+    SEL_AUCTION_BIDDERS,
+
+    /// INSERT INTO auction_bidders (auctionId, playerGuid) VALUES (?, ?)
+    INS_AUCTION_BIDDER,
+
+    /// DELETE FROM auction_bidders WHERE playerGuid = ?
+    DEL_AUCTION_BIDDER_BY_PLAYER,
+
+    /// INSERT INTO auctionhouse (id, auctionHouseId, owner, bidder, minBid, buyoutOrUnitPrice, deposit, bidAmount, startTime, endTime, serverFlags) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INS_AUCTION,
+
+    /// DELETE a, ab, ai FROM auctionhouse a LEFT JOIN auction_items ai ON a.id = ai.auctionId LEFT JOIN auction_bidders ab ON a.id = ab.auctionId WHERE a.id = ?
+    DEL_AUCTION,
+
+    /// UPDATE auctionhouse SET bidder = ?, bidAmount = ?, serverFlags = ? WHERE id = ?
+    UPD_AUCTION_BID,
+
+    /// UPDATE auctionhouse SET endTime = ? WHERE id = ?
+    UPD_AUCTION_EXPIRATION,
+
+    /// INSERT INTO mail(id, messageType, stationery, mailTemplateId, sender, receiver, subject, body, has_items, expire_time, deliver_time, money, cod, checked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INS_MAIL,
+
+    /// DELETE FROM mail WHERE id = ?
+    DEL_MAIL_BY_ID,
+
+    /// INSERT INTO mail_items(mail_id, item_guid, receiver) VALUES (?, ?, ?)
+    INS_MAIL_ITEM,
+
+    /// DELETE FROM mail_items WHERE item_guid = ?
+    DEL_MAIL_ITEM,
+
+    /// DELETE FROM mail_items WHERE item_guid = ?
+    DEL_INVALID_MAIL_ITEM,
+
+    /// DELETE FROM mail WHERE expire_time < ? AND has_items = 0 AND body = ''
+    DEL_EMPTY_EXPIRED_MAIL,
+
+    /// SELECT id, messageType, sender, receiver, has_items, expire_time, cod, checked, mailTemplateId FROM mail WHERE expire_time < ?
+    SEL_EXPIRED_MAIL,
+
+    /// SELECT item_guid, itemEntry, mail_id FROM mail_items mi INNER JOIN item_instance ii ON ii.guid = mi.item_guid LEFT JOIN mail mm ON mi.mail_id = mm.id WHERE mm.id IS NOT NULL AND mm.expire_time < ?
+    SEL_EXPIRED_MAIL_ITEMS,
+
+    /// UPDATE mail SET sender = ?, receiver = ?, expire_time = ?, deliver_time = ?, cod = 0, checked = ? WHERE id = ?
+    UPD_MAIL_RETURNED,
+
+    /// UPDATE mail_items SET receiver = ? WHERE item_guid = ?
+    UPD_MAIL_ITEM_RECEIVER,
+
+    /// UPDATE item_instance SET owner_guid = ? WHERE guid = ?
+    UPD_ITEM_OWNER,
+
     /// DELETE FROM account_instance_times WHERE accountId = ?
     DEL_ACCOUNT_INSTANCE_LOCK_TIMES,
     /// INSERT INTO account_instance_times (accountId, instanceId, releaseTime) VALUES (?, ?, ?)
@@ -858,6 +922,55 @@ impl StatementDef for CharStatements {
             Self::SEL_ACCOUNT_INSTANCELOCKTIMES => {
                 "SELECT instanceId, releaseTime FROM account_instance_times WHERE accountId = ?"
             }
+            Self::SEL_AUCTIONS => {
+                "SELECT id, auctionHouseId, owner, bidder, minBid, buyoutOrUnitPrice, deposit, bidAmount, startTime, endTime, serverFlags FROM auctionhouse"
+            }
+            Self::INS_AUCTION_ITEMS => {
+                "INSERT INTO auction_items (auctionId, itemGuid) VALUES (?, ?)"
+            }
+            Self::DEL_AUCTION_ITEMS_BY_ITEM => "DELETE FROM auction_items WHERE itemGuid = ?",
+            Self::SEL_AUCTION_BIDDERS => "SELECT auctionId, playerGuid FROM auction_bidders",
+            Self::INS_AUCTION_BIDDER => {
+                "INSERT INTO auction_bidders (auctionId, playerGuid) VALUES (?, ?)"
+            }
+            Self::DEL_AUCTION_BIDDER_BY_PLAYER => {
+                "DELETE FROM auction_bidders WHERE playerGuid = ?"
+            }
+            Self::INS_AUCTION => {
+                "INSERT INTO auctionhouse (id, auctionHouseId, owner, bidder, minBid, buyoutOrUnitPrice, deposit, bidAmount, startTime, endTime, serverFlags) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            }
+            Self::DEL_AUCTION => {
+                "DELETE a, ab, ai FROM auctionhouse a LEFT JOIN auction_items ai ON a.id = ai.auctionId LEFT JOIN auction_bidders ab ON a.id = ab.auctionId WHERE a.id = ?"
+            }
+            Self::UPD_AUCTION_BID => {
+                "UPDATE auctionhouse SET bidder = ?, bidAmount = ?, serverFlags = ? WHERE id = ?"
+            }
+            Self::UPD_AUCTION_EXPIRATION => "UPDATE auctionhouse SET endTime = ? WHERE id = ?",
+            Self::INS_MAIL => {
+                "INSERT INTO mail(id, messageType, stationery, mailTemplateId, sender, receiver, subject, body, has_items, expire_time, deliver_time, money, cod, checked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            }
+            Self::DEL_MAIL_BY_ID => "DELETE FROM mail WHERE id = ?",
+            Self::INS_MAIL_ITEM => {
+                "INSERT INTO mail_items(mail_id, item_guid, receiver) VALUES (?, ?, ?)"
+            }
+            Self::DEL_MAIL_ITEM => "DELETE FROM mail_items WHERE item_guid = ?",
+            Self::DEL_INVALID_MAIL_ITEM => "DELETE FROM mail_items WHERE item_guid = ?",
+            Self::DEL_EMPTY_EXPIRED_MAIL => {
+                "DELETE FROM mail WHERE expire_time < ? AND has_items = 0 AND body = ''"
+            }
+            Self::SEL_EXPIRED_MAIL => {
+                "SELECT id, messageType, sender, receiver, has_items, expire_time, cod, checked, mailTemplateId FROM mail WHERE expire_time < ?"
+            }
+            Self::SEL_EXPIRED_MAIL_ITEMS => {
+                "SELECT item_guid, itemEntry, mail_id FROM mail_items mi INNER JOIN item_instance ii ON ii.guid = mi.item_guid LEFT JOIN mail mm ON mi.mail_id = mm.id WHERE mm.id IS NOT NULL AND mm.expire_time < ?"
+            }
+            Self::UPD_MAIL_RETURNED => {
+                "UPDATE mail SET sender = ?, receiver = ?, expire_time = ?, deliver_time = ?, cod = 0, checked = ? WHERE id = ?"
+            }
+            Self::UPD_MAIL_ITEM_RECEIVER => {
+                "UPDATE mail_items SET receiver = ? WHERE item_guid = ?"
+            }
+            Self::UPD_ITEM_OWNER => "UPDATE item_instance SET owner_guid = ? WHERE guid = ?",
             Self::DEL_ACCOUNT_INSTANCE_LOCK_TIMES => {
                 "DELETE FROM account_instance_times WHERE accountId = ?"
             }
@@ -1590,6 +1703,98 @@ mod tests {
         assert_eq!(
             CharStatements::DEL_CHARACTER_FAVORITE_AUCTIONS_BY_CHAR.sql(),
             "DELETE FROM character_favorite_auctions WHERE guid = ?"
+        );
+    }
+
+    #[test]
+    fn character_auction_statements_match_cpp_exactly() {
+        assert_eq!(
+            CharStatements::SEL_AUCTIONS.sql(),
+            "SELECT id, auctionHouseId, owner, bidder, minBid, buyoutOrUnitPrice, deposit, bidAmount, startTime, endTime, serverFlags FROM auctionhouse"
+        );
+        assert_eq!(
+            CharStatements::INS_AUCTION_ITEMS.sql(),
+            "INSERT INTO auction_items (auctionId, itemGuid) VALUES (?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_AUCTION_ITEMS_BY_ITEM.sql(),
+            "DELETE FROM auction_items WHERE itemGuid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_AUCTION_BIDDERS.sql(),
+            "SELECT auctionId, playerGuid FROM auction_bidders"
+        );
+        assert_eq!(
+            CharStatements::INS_AUCTION_BIDDER.sql(),
+            "INSERT INTO auction_bidders (auctionId, playerGuid) VALUES (?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_AUCTION_BIDDER_BY_PLAYER.sql(),
+            "DELETE FROM auction_bidders WHERE playerGuid = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_AUCTION.sql(),
+            "INSERT INTO auctionhouse (id, auctionHouseId, owner, bidder, minBid, buyoutOrUnitPrice, deposit, bidAmount, startTime, endTime, serverFlags) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_AUCTION.sql(),
+            "DELETE a, ab, ai FROM auctionhouse a LEFT JOIN auction_items ai ON a.id = ai.auctionId LEFT JOIN auction_bidders ab ON a.id = ab.auctionId WHERE a.id = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_AUCTION_BID.sql(),
+            "UPDATE auctionhouse SET bidder = ?, bidAmount = ?, serverFlags = ? WHERE id = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_AUCTION_EXPIRATION.sql(),
+            "UPDATE auctionhouse SET endTime = ? WHERE id = ?"
+        );
+    }
+
+    #[test]
+    fn character_mail_lifecycle_statements_match_cpp_exactly() {
+        assert_eq!(
+            CharStatements::INS_MAIL.sql(),
+            "INSERT INTO mail(id, messageType, stationery, mailTemplateId, sender, receiver, subject, body, has_items, expire_time, deliver_time, money, cod, checked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_MAIL_BY_ID.sql(),
+            "DELETE FROM mail WHERE id = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_MAIL_ITEM.sql(),
+            "INSERT INTO mail_items(mail_id, item_guid, receiver) VALUES (?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_MAIL_ITEM.sql(),
+            "DELETE FROM mail_items WHERE item_guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_INVALID_MAIL_ITEM.sql(),
+            "DELETE FROM mail_items WHERE item_guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_EMPTY_EXPIRED_MAIL.sql(),
+            "DELETE FROM mail WHERE expire_time < ? AND has_items = 0 AND body = ''"
+        );
+        assert_eq!(
+            CharStatements::SEL_EXPIRED_MAIL.sql(),
+            "SELECT id, messageType, sender, receiver, has_items, expire_time, cod, checked, mailTemplateId FROM mail WHERE expire_time < ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_EXPIRED_MAIL_ITEMS.sql(),
+            "SELECT item_guid, itemEntry, mail_id FROM mail_items mi INNER JOIN item_instance ii ON ii.guid = mi.item_guid LEFT JOIN mail mm ON mi.mail_id = mm.id WHERE mm.id IS NOT NULL AND mm.expire_time < ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_MAIL_RETURNED.sql(),
+            "UPDATE mail SET sender = ?, receiver = ?, expire_time = ?, deliver_time = ?, cod = 0, checked = ? WHERE id = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_MAIL_ITEM_RECEIVER.sql(),
+            "UPDATE mail_items SET receiver = ? WHERE item_guid = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_ITEM_OWNER.sql(),
+            "UPDATE item_instance SET owner_guid = ? WHERE guid = ?"
         );
     }
 
