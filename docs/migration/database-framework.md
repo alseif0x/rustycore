@@ -639,6 +639,10 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 - [x] **#DB.14** Implement `EscapeString` for raw-SQL-fragment use cases: `escape_string_like_cpp` mirrors `mysql_real_escape_string` special-byte escaping (`NUL`, newline, carriage-return, backslash, quotes, Ctrl-Z) for UTF-8 strings, with a `Database` method for pool-style call sites. (L)
 - [x] **#DB.15** Add populate/update error context: Rust reports `Could not populate/update the <DB> database`, and CLI base-file failures include both the SQL file path and `mysql` stderr. `ApplyFile` now also uses TC's `BEGIN; SOURCE file; COMMIT;` wrapper. (L)
 - [ ] **#DB.16** Add integration test harness: spin up an embedded MariaDB (or Docker mariadb:10.6 in CI) and run `populate` + `update` against it; verify updates table population. (H)
+  - [x] **#DB.16a** Add a gated live MariaDB harness (`updater::tests::live_mariadb_populate_and_update_records_updates_like_cpp`, ignored by default) that creates a disposable `rustycore_it_*` schema, applies a base SQL through the same `mysql -e "BEGIN; SOURCE ...; COMMIT;"` path used by TC/Rust `populate`, runs `update`, and verifies `base_marker`, `update_marker`, and the `updates` tracking row.
+    Run manually with a MariaDB server and `mysql` CLI available:
+    `RUSTYCORE_DB_IT_USER=trinity RUSTYCORE_DB_IT_PASS=trinity RUSTYCORE_DB_IT_HOST=127.0.0.1 RUSTYCORE_DB_IT_PORT=3306 cargo test -p wow-database live_mariadb_populate_and_update_records_updates_like_cpp -- --ignored --nocapture`.
+  - [ ] **#DB.16b** Wire the live harness into CI with an ephemeral MariaDB service/container. Until this is automated, `#DB.16` remains open even though the local harness exists.
 - [x] **#DB.17** Audit deadlock-retry concurrency: Rust now replicates TC's `_deadlockLock` static mutex and 60-second retry window for transaction deadlocks. (L)
 - [x] **#DB.18** Add a `DatabaseError::TableMissing` variant so callers can distinguish "DB not populated / structure out of date" from generic query errors. Rust maps MySQL `ER_NO_SUCH_TABLE` (`1146`, SQLSTATE `42S02`) into this variant, matching C++'s special handling of `ER_NO_SUCH_TABLE` in `_HandleMySQLErrno`. (L)
 - [x] **#DB.19** Add a `Field`-style typed accessor with metadata: `SqlResult::read_typed::<u8>(col)` / `try_read_typed::<u8>(col)` check `column_type_name` through `DatabaseFieldTypeLikeCpp` before decoding, matching TC's `Field`/`DatabaseFieldTypes` guard. (M)
@@ -667,8 +671,8 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 - [ ] Test: `Database::<LoginStatements>::open_with_pool_size(uri, 1)` succeeds; spawn 100 concurrent `query` calls against `SEL_REALMLIST` and verify all complete (queue serialization).
 - [x] Test: `SqlTransaction` exposes unit coverage for the process-wide deadlock retry lock and the 60-second C++ retry window. A live MySQL deadlock integration test remains optional because it needs two connections and table locks.
 - [ ] Test: `DbUpdater::populate` is a no-op on a non-empty DB (returns `Ok(false)`).
-- [ ] Test: `DbUpdater::populate` invokes `mysql` CLI exactly once and the database has the expected tables afterward.
-- [ ] Test: `DbUpdater::update` applies new files in lexicographic order, records SHA1, and skips already-applied entries.
+- [x] Test: `DbUpdater::populate` invokes `mysql` CLI and the database has the expected tables afterward. Covered by the ignored live MariaDB harness under `#DB.16a`; normal unit runs keep it skipped.
+- [ ] Test: `DbUpdater::update` applies new files in lexicographic order, records SHA1, and skips already-applied entries. The first-apply + tracking-row path is covered by the ignored live MariaDB harness under `#DB.16a`; skip/idempotency still needs a pure or live assertion.
 - [x] Test: update decision honors `Updates.Redundancy=false`, `Updates.AllowRehash`, and changed hashes.
 - [x] Test: update decision does **not** re-apply an ARCHIVED-state file when `Updates.ArchivedRedundancy=false`, and does when enabled.
 - [ ] Test: `DbUpdater::update` detects a renamed file (same hash, different filename) and updates the `name` column instead of re-applying. Pure C++ decision coverage is present, including the "old file still exists => treat as copy/new file" guard; live DB verification remains under #DB.16.

@@ -867,8 +867,10 @@ fn default_updates_include_rows_like_cpp(
 
 #[cfg(test)]
 mod tests {
+    use crate::database::build_connection_string_with_ssl_like_cpp;
+
     use super::{
-        AppliedUpdateFileLikeCpp, DELETE_UPDATE_ENTRY_BY_NAME_SQL_LIKE_CPP,
+        AppliedUpdateFileLikeCpp, DELETE_UPDATE_ENTRY_BY_NAME_SQL_LIKE_CPP, DbUpdater,
         PopulateBaseActionLikeCpp, RENAME_UPDATE_ENTRY_SQL_LIKE_CPP, RenamedUpdateDecisionLikeCpp,
         UpdateConfigLikeCpp, UpdateDatabaseKindLikeCpp, UpdateDecisionLikeCpp, collect_sql_files,
         default_updates_include_rows_like_cpp, mysql_cli_args_like_cpp,
@@ -876,10 +878,66 @@ mod tests {
         should_cleanup_orphaned_updates_like_cpp, sort_update_files_like_cpp, split_sql,
         update_database_kind_like_cpp, update_decision_like_cpp, update_state_like_cpp,
     };
+    use sqlx::mysql::MySqlPoolOptions;
     use std::collections::{HashMap, HashSet};
     use std::fs;
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    struct LiveMariaDbConfig {
+        host: String,
+        port_or_socket: String,
+        user: String,
+        password: String,
+        ssl: bool,
+    }
+
+    fn live_mariadb_config_from_env() -> Option<LiveMariaDbConfig> {
+        let user = std::env::var("RUSTYCORE_DB_IT_USER").ok()?;
+        Some(LiveMariaDbConfig {
+            host: std::env::var("RUSTYCORE_DB_IT_HOST").unwrap_or_else(|_| "127.0.0.1".to_string()),
+            port_or_socket: std::env::var("RUSTYCORE_DB_IT_PORT")
+                .unwrap_or_else(|_| "3306".to_string()),
+            user,
+            password: std::env::var("RUSTYCORE_DB_IT_PASS").unwrap_or_default(),
+            ssl: std::env::var("RUSTYCORE_DB_IT_SSL")
+                .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
+                .unwrap_or(false),
+        })
+    }
+
+    fn live_mariadb_server_url(config: &LiveMariaDbConfig) -> String {
+        let ssl_mode = if config.ssl { "REQUIRED" } else { "DISABLED" };
+        if config
+            .port_or_socket
+            .chars()
+            .next()
+            .is_some_and(|ch| ch.is_ascii_digit())
+        {
+            return format!(
+                "mysql://{}:{}@{}:{}?ssl-mode={ssl_mode}",
+                config.user, config.password, config.host, config.port_or_socket
+            );
+        }
+
+        format!(
+            "mysql://{}:{}@localhost?socket={}&ssl-mode={ssl_mode}",
+            config.user, config.password, config.port_or_socket
+        )
+    }
+
+    fn unique_live_test_database_name() -> String {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        format!("rustycore_it_{}_{}", std::process::id(), unique)
+    }
+
+    fn sql_string_literal(value: &str) -> String {
+        let escaped = value.replace('\\', "\\\\").replace('\'', "\\'");
+        format!("'{escaped}'")
+    }
 
     fn update_config_like_cpp(
         redundancy_checks: bool,
@@ -1231,5 +1289,111 @@ mod tests {
         assert!(statements[1].contains("\"double;quoted\""));
         assert!(statements[1].contains("'escaped \\'; quote'"));
         assert!(statements[2].contains("UPDATE `a` SET"));
+    }
+
+    #[tokio::test]
+    #[ignore = "requires live MariaDB plus mysql CLI; see docs/migration/database-framework.md #DB.16"]
+    async fn live_mariadb_populate_and_update_records_updates_like_cpp() -> anyhow::Result<()> {
+        let Some(config) = live_mariadb_config_from_env() else {
+            eprintln!(
+                "skipping live DB updater test: set RUSTYCORE_DB_IT_USER/host/port/pass to run"
+            );
+            return Ok(());
+        };
+
+        let database = unique_live_test_database_name();
+        let root = std::env::temp_dir().join(format!("rustycore_db_updater_live_{database}"));
+        let updates_dir = root.join("updates");
+        fs::create_dir_all(&updates_dir)?;
+
+        let server_pool = MySqlPoolOptions::new()
+            .max_connections(1)
+            .connect(&live_mariadb_server_url(&config))
+            .await?;
+
+        sqlx::query(&format!(
+            "CREATE DATABASE `{database}` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+        ))
+        .execute(&server_pool)
+        .await?;
+
+        let test_result: anyhow::Result<()> = async {
+            let database_url = build_connection_string_with_ssl_like_cpp(
+                &config.host,
+                &config.port_or_socket,
+                &config.user,
+                &config.password,
+                &database,
+                config.ssl,
+            );
+            let pool = MySqlPoolOptions::new()
+                .max_connections(2)
+                .connect(&database_url)
+                .await?;
+            let updater = DbUpdater::new(
+                pool.clone(),
+                &config.host,
+                &config.port_or_socket,
+                &config.user,
+                &config.password,
+                &database,
+                config.ssl,
+            );
+
+            let base_sql = root.join("base.sql");
+            let update_name = "2026_01_01_00_live_db_updater.sql";
+            let update_sql = updates_dir.join(update_name);
+            fs::write(
+                &update_sql,
+                "CREATE TABLE `update_marker` (`id` INT NOT NULL PRIMARY KEY);\n\
+                 INSERT INTO `update_marker` (`id`) VALUES (7);\n",
+            )?;
+            fs::write(
+                &base_sql,
+                format!(
+                    "CREATE TABLE `base_marker` (`id` INT NOT NULL PRIMARY KEY);\n\
+                     INSERT INTO `base_marker` (`id`) VALUES (1);\n\
+                     CREATE TABLE `updates_include` (\n\
+                         `path` VARCHAR(200) NOT NULL,\n\
+                         `state` ENUM('RELEASED','ARCHIVED') NOT NULL DEFAULT 'RELEASED',\n\
+                         PRIMARY KEY (`path`)\n\
+                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;\n\
+                     INSERT INTO `updates_include` (`path`, `state`) VALUES ({}, 'RELEASED');\n",
+                    sql_string_literal(&updates_dir.to_string_lossy())
+                ),
+            )?;
+
+            assert!(
+                updater.populate(base_sql.to_str().unwrap()).await?,
+                "empty database must be populated through the mysql CLI like C++ DBUpdater::Populate"
+            );
+            updater.update(root.to_str().unwrap()).await?;
+
+            let base_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM `base_marker`")
+                .fetch_one(&pool)
+                .await?;
+            assert_eq!(base_count.0, 1);
+
+            let update_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM `update_marker`")
+                .fetch_one(&pool)
+                .await?;
+            assert_eq!(update_count.0, 1);
+
+            let applied: Vec<(String, String)> =
+                sqlx::query_as("SELECT `name`, `state` FROM `updates` ORDER BY `name`")
+                    .fetch_all(&pool)
+                    .await?;
+            assert_eq!(applied, vec![(update_name.to_string(), "RELEASED".to_string())]);
+
+            Ok(())
+        }
+        .await;
+
+        let _ = sqlx::query(&format!("DROP DATABASE IF EXISTS `{database}`"))
+            .execute(&server_pool)
+            .await;
+        let _ = fs::remove_dir_all(&root);
+
+        test_result
     }
 }
