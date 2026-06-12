@@ -113,6 +113,9 @@ pub enum CharStatements {
     /// chrCustomizationChoiceID) VALUES (?,?,?)
     INS_CHAR_CUSTOMIZATION,
 
+    /// C++ `CHAR_INS_CHARACTER_CUSTOMIZATION` alias for the same customization insert.
+    INS_CHARACTER_CUSTOMIZATION,
+
     /// UPDATE characters SET at_login = at_login | ? WHERE guid = ?
     UPD_ADD_AT_LOGIN_FLAG,
 
@@ -678,14 +681,19 @@ pub enum CharStatements {
 
     // Quest status
     SEL_CHAR_QUEST_STATUS,
+    SEL_CHARACTER_QUESTSTATUS,
     /// SELECT quest, objective, data FROM character_queststatus_objectives WHERE guid = ?
     SEL_CHAR_QUEST_STATUS_OBJECTIVES,
+    /// C++ `CHAR_SEL_CHARACTER_QUESTSTATUS_OBJECTIVES` alias.
+    SEL_CHARACTER_QUESTSTATUS_OBJECTIVES,
     /// SELECT quest, event, completedTime FROM character_queststatus_seasonal WHERE guid = ?
     SEL_CHAR_QUEST_STATUS_SEASONAL,
     INS_CHAR_QUEST_STATUS,
     DEL_CHAR_QUEST_STATUS,
     DEL_CHAR_QUEST_STATUS_OBJECTIVES_BY_QUEST,
+    DEL_CHAR_QUESTSTATUS_OBJECTIVES_BY_QUEST,
     REP_CHAR_QUEST_STATUS_OBJECTIVES,
+    REP_CHAR_QUESTSTATUS_OBJECTIVES,
 
     /// DELETE FROM character_achievement WHERE guid = ?
     DEL_CHAR_ACHIEVEMENT,
@@ -974,6 +982,177 @@ pub enum CharStatements {
 
     /// DELETE FROM character_trait_config WHERE guid = ?
     DEL_CHAR_TRAIT_CONFIGS_BY_CHAR,
+
+    /// DELETE FROM character_queststatus_daily
+    DEL_RESET_CHARACTER_QUESTSTATUS_DAILY,
+
+    /// DELETE FROM character_queststatus_weekly
+    DEL_RESET_CHARACTER_QUESTSTATUS_WEEKLY,
+
+    /// DELETE FROM character_queststatus_monthly
+    DEL_RESET_CHARACTER_QUESTSTATUS_MONTHLY,
+
+    /// SELECT itemId, itemEntry, slot, creatorGuid, fixedScalingLevel, randomPropertiesId, randomPropertiesSeed, context FROM character_void_storage WHERE playerGuid = ?
+    SEL_CHAR_VOID_STORAGE,
+
+    /// REPLACE INTO character_void_storage (itemId, playerGuid, itemEntry, slot, creatorGuid, fixedScalingLevel, randomPropertiesId, randomPropertiesSeed, context) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    REP_CHAR_VOID_STORAGE_ITEM,
+
+    /// DELETE FROM character_void_storage WHERE playerGuid = ?
+    DEL_CHAR_VOID_STORAGE_ITEM_BY_CHAR_GUID,
+
+    /// DELETE FROM character_void_storage WHERE slot = ? AND playerGuid = ?
+    DEL_CHAR_VOID_STORAGE_ITEM_BY_SLOT,
+
+    /// SELECT character_cuf_profiles rows.
+    SEL_CHAR_CUF_PROFILES,
+
+    /// REPLACE INTO character_cuf_profiles.
+    REP_CHAR_CUF_PROFILES,
+
+    /// DELETE FROM character_cuf_profiles WHERE guid = ? AND id = ?
+    DEL_CHAR_CUF_PROFILES_BY_ID,
+
+    /// DELETE FROM character_cuf_profiles WHERE guid = ?
+    DEL_CHAR_CUF_PROFILES,
+
+    /// REPLACE INTO calendar_events.
+    REP_CALENDAR_EVENT,
+
+    /// DELETE FROM calendar_events WHERE EventID = ?
+    DEL_CALENDAR_EVENT,
+
+    /// REPLACE INTO calendar_invites.
+    REP_CALENDAR_INVITE,
+
+    /// DELETE FROM calendar_invites WHERE InviteID = ?
+    DEL_CALENDAR_INVITE,
+
+    /// SELECT id FROM character_pet WHERE owner = ?
+    SEL_CHAR_PET_IDS,
+
+    /// DELETE FROM character_pet_declinedname WHERE owner = ?
+    DEL_CHAR_PET_DECLINEDNAME_BY_OWNER,
+
+    /// DELETE FROM character_pet_declinedname WHERE id = ?
+    DEL_CHAR_PET_DECLINEDNAME,
+
+    /// INSERT INTO character_pet_declinedname.
+    INS_CHAR_PET_DECLINEDNAME,
+
+    /// SELECT casterGuid, spell, effectMask, recalculateMask, difficulty, stackCount, maxDuration, remainTime, remainCharges FROM pet_aura WHERE guid = ?
+    SEL_PET_AURA,
+
+    /// SELECT casterGuid, spell, effectMask, effectIndex, amount, baseAmount FROM pet_aura_effect WHERE guid = ?
+    SEL_PET_AURA_EFFECT,
+
+    /// SELECT spell, active FROM pet_spell WHERE guid = ?
+    SEL_PET_SPELL,
+
+    /// SELECT spell, time, categoryId, categoryEnd FROM pet_spell_cooldown WHERE guid = ? AND time > UNIX_TIMESTAMP()
+    SEL_PET_SPELL_COOLDOWN,
+
+    /// SELECT genitive, dative, accusative, instrumental, prepositional FROM character_pet_declinedname WHERE owner = ? AND id = ?
+    SEL_PET_DECLINED_NAME,
+
+    /// DELETE FROM pet_aura WHERE guid = ?
+    DEL_PET_AURAS,
+
+    /// DELETE FROM pet_aura_effect WHERE guid = ?
+    DEL_PET_AURA_EFFECTS,
+
+    /// DELETE FROM pet_spell WHERE guid = ?
+    DEL_PET_SPELLS,
+
+    /// DELETE FROM pet_spell_cooldown WHERE guid = ?
+    DEL_PET_SPELL_COOLDOWNS,
+
+    /// INSERT INTO pet_spell_cooldown (guid, spell, time, categoryId, categoryEnd) VALUES (?, ?, ?, ?, ?)
+    INS_PET_SPELL_COOLDOWN,
+
+    /// SELECT categoryId, rechargeStart, rechargeEnd FROM pet_spell_charges WHERE guid = ? AND rechargeEnd > UNIX_TIMESTAMP() ORDER BY rechargeEnd
+    SEL_PET_SPELL_CHARGES,
+
+    /// DELETE FROM pet_spell_charges WHERE guid = ?
+    DEL_PET_SPELL_CHARGES,
+
+    /// INSERT INTO pet_spell_charges (guid, categoryId, rechargeStart, rechargeEnd) VALUES (?, ?, ?, ?)
+    INS_PET_SPELL_CHARGES,
+
+    /// DELETE FROM pet_spell WHERE guid = ? and spell = ?
+    DEL_PET_SPELL_BY_SPELL,
+
+    /// INSERT INTO pet_spell (guid, spell, active) VALUES (?, ?, ?)
+    INS_PET_SPELL,
+
+    /// INSERT INTO pet_aura full row.
+    INS_PET_AURA,
+
+    /// INSERT INTO pet_aura_effect full row.
+    INS_PET_AURA_EFFECT,
+
+    /// SELECT character_pet rows by owner.
+    SEL_CHAR_PETS,
+
+    /// DELETE FROM character_pet WHERE owner = ?
+    DEL_CHAR_PET_BY_OWNER,
+
+    /// UPDATE character_pet SET name = ?, renamed = 1 WHERE owner = ? AND id = ?
+    UPD_CHAR_PET_NAME,
+
+    /// UPDATE character_pet SET slot = ? WHERE owner = ? AND id = ?
+    UPD_CHAR_PET_SLOT_BY_ID,
+
+    /// DELETE FROM character_pet WHERE id = ?
+    DEL_CHAR_PET_BY_ID,
+
+    /// DELETE FROM pet_spell WHERE guid in (SELECT id FROM character_pet WHERE owner=?)
+    DEL_ALL_PET_SPELLS_BY_OWNER,
+
+    /// UPDATE character_pet SET specialization = 0 WHERE owner=?
+    UPD_PET_SPECS_BY_OWNER,
+
+    /// INSERT INTO character_pet full row.
+    INS_PET,
+
+    /// SELECT MAX(id) FROM pvpstats_battlegrounds
+    SEL_PVPSTATS_MAXID,
+
+    /// INSERT INTO pvpstats_battlegrounds.
+    INS_PVPSTATS_BATTLEGROUND,
+
+    /// INSERT INTO pvpstats_players.
+    INS_PVPSTATS_PLAYER,
+
+    /// SELECT winner_faction, COUNT(*) AS count FROM pvpstats_battlegrounds WHERE DATEDIFF(NOW(), date) < 7 GROUP BY winner_faction ORDER BY winner_faction ASC
+    SEL_PVPSTATS_FACTIONS_OVERALL,
+
+    /// INSERT INTO quest_tracker (id, character_guid, quest_accept_time, core_hash, core_revision) VALUES (?, ?, NOW(), ?, ?)
+    INS_QUEST_TRACK,
+
+    /// UPDATE quest_tracker SET completed_by_gm = 1 WHERE id = ? AND character_guid = ? ORDER BY quest_accept_time DESC LIMIT 1
+    UPD_QUEST_TRACK_GM_COMPLETE,
+
+    /// UPDATE quest_tracker SET quest_complete_time = NOW() WHERE id = ? AND character_guid = ? ORDER BY quest_accept_time DESC LIMIT 1
+    UPD_QUEST_TRACK_COMPLETE_TIME,
+
+    /// UPDATE quest_tracker SET quest_abandon_time = NOW() WHERE id = ? AND character_guid = ? ORDER BY quest_accept_time DESC LIMIT 1
+    UPD_QUEST_TRACK_ABANDON_TIME,
+
+    /// SELECT Spell, MapId, PositionX, PositionY, PositionZ, Orientation FROM character_aura_stored_location WHERE Guid = ?
+    SEL_CHARACTER_AURA_STORED_LOCATIONS,
+
+    /// DELETE FROM character_aura_stored_location WHERE Guid = ?
+    DEL_CHARACTER_AURA_STORED_LOCATIONS_BY_GUID,
+
+    /// DELETE FROM character_aura_stored_location WHERE Guid = ? AND Spell = ?
+    DEL_CHARACTER_AURA_STORED_LOCATION,
+
+    /// INSERT INTO character_aura_stored_location.
+    INS_CHARACTER_AURA_STORED_LOCATION,
+
+    /// SELECT race, COUNT(guid) FROM characters WHERE ((playerFlags & ?) = ?) AND logout_time >= (UNIX_TIMESTAMP() - 604800) GROUP BY race
+    SEL_WAR_MODE_TUNING,
 
     /// UPDATE characters SET money = ? WHERE guid = ?
     UPD_CHAR_MONEY,
@@ -1603,6 +1782,9 @@ impl StatementDef for CharStatements {
                 "UPDATE characters SET name=?,race=?,class=?,gender=?,level=?,xp=?,money=?,inventorySlots=?,bankSlots=?,restState=?,playerFlags=?,playerFlagsEx=?,map=?,instance_id=?,dungeonDifficulty=?,raidDifficulty=?,legacyRaidDifficulty=?,position_x=?,position_y=?,position_z=?,orientation=?,trans_x=?,trans_y=?,trans_z=?,trans_o=?,transguid=?,taximask=?,cinematic=?,totaltime=?,leveltime=?,rest_bonus=?,logout_time=?,is_logout_resting=?,resettalents_cost=?,resettalents_time=?,numRespecs=?,activeTalentGroup=?,bonusTalentGroups=?,extra_flags=?,summonedPetNumber=?,at_login=?,zone=?,death_expire_time=?,taxi_path=?,totalKills=?,todayKills=?,yesterdayKills=?,chosenTitle=?,watchedFaction=?,drunk=?,health=?,power1=?,power2=?,power3=?,power4=?,power5=?,power6=?,power7=?,power8=?,power9=?,power10=?,latency=?,lootSpecId=?,exploredZones=?,equipmentCache=?,knownTitles=?,actionBars=?,online=?,honor=?,honorLevel=?,honorRestState=?,honorRestBonus=?,lastLoginBuild=? WHERE guid=?"
             }
             Self::INS_CHAR_CUSTOMIZATION => {
+                "INSERT INTO character_customizations (guid, chrCustomizationOptionID, chrCustomizationChoiceID) VALUES (?, ?, ?)"
+            }
+            Self::INS_CHARACTER_CUSTOMIZATION => {
                 "INSERT INTO character_customizations (guid, chrCustomizationOptionID, chrCustomizationChoiceID) VALUES (?, ?, ?)"
             }
             Self::UPD_ADD_AT_LOGIN_FLAG => {
@@ -2372,6 +2554,147 @@ impl StatementDef for CharStatements {
             Self::DEL_CHAR_TRAIT_CONFIGS_BY_CHAR => {
                 "DELETE FROM character_trait_config WHERE guid = ?"
             }
+            Self::DEL_RESET_CHARACTER_QUESTSTATUS_DAILY => {
+                "DELETE FROM character_queststatus_daily"
+            }
+            Self::DEL_RESET_CHARACTER_QUESTSTATUS_WEEKLY => {
+                "DELETE FROM character_queststatus_weekly"
+            }
+            Self::DEL_RESET_CHARACTER_QUESTSTATUS_MONTHLY => {
+                "DELETE FROM character_queststatus_monthly"
+            }
+            Self::SEL_CHAR_VOID_STORAGE => {
+                "SELECT itemId, itemEntry, slot, creatorGuid, fixedScalingLevel, randomPropertiesId, randomPropertiesSeed, context FROM character_void_storage WHERE playerGuid = ?"
+            }
+            Self::REP_CHAR_VOID_STORAGE_ITEM => {
+                "REPLACE INTO character_void_storage (itemId, playerGuid, itemEntry, slot, creatorGuid, fixedScalingLevel, randomPropertiesId, randomPropertiesSeed, context) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            }
+            Self::DEL_CHAR_VOID_STORAGE_ITEM_BY_CHAR_GUID => {
+                "DELETE FROM character_void_storage WHERE playerGuid = ?"
+            }
+            Self::DEL_CHAR_VOID_STORAGE_ITEM_BY_SLOT => {
+                "DELETE FROM character_void_storage WHERE slot = ? AND playerGuid = ?"
+            }
+            Self::SEL_CHAR_CUF_PROFILES => {
+                "SELECT id, name, frameHeight, frameWidth, sortBy, healthText, boolOptions, topPoint, bottomPoint, leftPoint, topOffset, bottomOffset, leftOffset FROM character_cuf_profiles WHERE guid = ?"
+            }
+            Self::REP_CHAR_CUF_PROFILES => {
+                "REPLACE INTO character_cuf_profiles (guid, id, name, frameHeight, frameWidth, sortBy, healthText, boolOptions, topPoint, bottomPoint, leftPoint, topOffset, bottomOffset, leftOffset) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            }
+            Self::DEL_CHAR_CUF_PROFILES_BY_ID => {
+                "DELETE FROM character_cuf_profiles WHERE guid = ? AND id = ?"
+            }
+            Self::DEL_CHAR_CUF_PROFILES => "DELETE FROM character_cuf_profiles WHERE guid = ?",
+            Self::REP_CALENDAR_EVENT => {
+                "REPLACE INTO calendar_events (EventID, Owner, Title, Description, EventType, TextureID, Date, Flags, LockDate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            }
+            Self::DEL_CALENDAR_EVENT => "DELETE FROM calendar_events WHERE EventID = ?",
+            Self::REP_CALENDAR_INVITE => {
+                "REPLACE INTO calendar_invites (InviteID, EventID, Invitee, Sender, Status, ResponseTime, ModerationRank, Note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+            }
+            Self::DEL_CALENDAR_INVITE => "DELETE FROM calendar_invites WHERE InviteID = ?",
+            Self::SEL_CHAR_PET_IDS => "SELECT id FROM character_pet WHERE owner = ?",
+            Self::DEL_CHAR_PET_DECLINEDNAME_BY_OWNER => {
+                "DELETE FROM character_pet_declinedname WHERE owner = ?"
+            }
+            Self::DEL_CHAR_PET_DECLINEDNAME => {
+                "DELETE FROM character_pet_declinedname WHERE id = ?"
+            }
+            Self::INS_CHAR_PET_DECLINEDNAME => {
+                "INSERT INTO character_pet_declinedname (id, owner, genitive, dative, accusative, instrumental, prepositional) VALUES (?, ?, ?, ?, ?, ?, ?)"
+            }
+            Self::SEL_PET_AURA => {
+                "SELECT casterGuid, spell, effectMask, recalculateMask, difficulty, stackCount, maxDuration, remainTime, remainCharges FROM pet_aura WHERE guid = ?"
+            }
+            Self::SEL_PET_AURA_EFFECT => {
+                "SELECT casterGuid, spell, effectMask, effectIndex, amount, baseAmount FROM pet_aura_effect WHERE guid = ?"
+            }
+            Self::SEL_PET_SPELL => "SELECT spell, active FROM pet_spell WHERE guid = ?",
+            Self::SEL_PET_SPELL_COOLDOWN => {
+                "SELECT spell, time, categoryId, categoryEnd FROM pet_spell_cooldown WHERE guid = ? AND time > UNIX_TIMESTAMP()"
+            }
+            Self::SEL_PET_DECLINED_NAME => {
+                "SELECT genitive, dative, accusative, instrumental, prepositional FROM character_pet_declinedname WHERE owner = ? AND id = ?"
+            }
+            Self::DEL_PET_AURAS => "DELETE FROM pet_aura WHERE guid = ?",
+            Self::DEL_PET_AURA_EFFECTS => "DELETE FROM pet_aura_effect WHERE guid = ?",
+            Self::DEL_PET_SPELLS => "DELETE FROM pet_spell WHERE guid = ?",
+            Self::DEL_PET_SPELL_COOLDOWNS => "DELETE FROM pet_spell_cooldown WHERE guid = ?",
+            Self::INS_PET_SPELL_COOLDOWN => {
+                "INSERT INTO pet_spell_cooldown (guid, spell, time, categoryId, categoryEnd) VALUES (?, ?, ?, ?, ?)"
+            }
+            Self::SEL_PET_SPELL_CHARGES => {
+                "SELECT categoryId, rechargeStart, rechargeEnd FROM pet_spell_charges WHERE guid = ? AND rechargeEnd > UNIX_TIMESTAMP() ORDER BY rechargeEnd"
+            }
+            Self::DEL_PET_SPELL_CHARGES => "DELETE FROM pet_spell_charges WHERE guid = ?",
+            Self::INS_PET_SPELL_CHARGES => {
+                "INSERT INTO pet_spell_charges (guid, categoryId, rechargeStart, rechargeEnd) VALUES (?, ?, ?, ?)"
+            }
+            Self::DEL_PET_SPELL_BY_SPELL => "DELETE FROM pet_spell WHERE guid = ? and spell = ?",
+            Self::INS_PET_SPELL => "INSERT INTO pet_spell (guid, spell, active) VALUES (?, ?, ?)",
+            Self::INS_PET_AURA => {
+                "INSERT INTO pet_aura (guid, casterGuid, spell, effectMask, recalculateMask, difficulty, stackCount, maxDuration, remainTime, remainCharges) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            }
+            Self::INS_PET_AURA_EFFECT => {
+                "INSERT INTO pet_aura_effect (guid, casterGuid, spell, effectMask, effectIndex, amount, baseAmount) VALUES (?, ?, ?, ?, ?, ?, ?)"
+            }
+            Self::SEL_CHAR_PETS => {
+                "SELECT id, entry, modelid, level, exp, Reactstate, slot, name, renamed, curhealth, curmana, abdata, savetime, CreatedBySpell, PetType, specialization FROM character_pet WHERE owner = ?"
+            }
+            Self::DEL_CHAR_PET_BY_OWNER => "DELETE FROM character_pet WHERE owner = ?",
+            Self::UPD_CHAR_PET_NAME => {
+                "UPDATE character_pet SET name = ?, renamed = 1 WHERE owner = ? AND id = ?"
+            }
+            Self::UPD_CHAR_PET_SLOT_BY_ID => {
+                "UPDATE character_pet SET slot = ? WHERE owner = ? AND id = ?"
+            }
+            Self::DEL_CHAR_PET_BY_ID => "DELETE FROM character_pet WHERE id = ?",
+            Self::DEL_ALL_PET_SPELLS_BY_OWNER => {
+                "DELETE FROM pet_spell WHERE guid in (SELECT id FROM character_pet WHERE owner=?)"
+            }
+            Self::UPD_PET_SPECS_BY_OWNER => {
+                "UPDATE character_pet SET specialization = 0 WHERE owner=?"
+            }
+            Self::INS_PET => {
+                "INSERT INTO character_pet (id, entry, owner, modelid, level, exp, Reactstate, slot, name, renamed, curhealth, curmana, abdata, savetime, CreatedBySpell, PetType, specialization) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            }
+            Self::SEL_PVPSTATS_MAXID => "SELECT MAX(id) FROM pvpstats_battlegrounds",
+            Self::INS_PVPSTATS_BATTLEGROUND => {
+                "INSERT INTO pvpstats_battlegrounds (id, winner_faction, bracket_id, type, date) VALUES (?, ?, ?, ?, NOW())"
+            }
+            Self::INS_PVPSTATS_PLAYER => {
+                "INSERT INTO pvpstats_players (battleground_id, character_guid, winner, score_killing_blows, score_deaths, score_honorable_kills, score_bonus_honor, score_damage_done, score_healing_done, attr_1, attr_2, attr_3, attr_4, attr_5) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            }
+            Self::SEL_PVPSTATS_FACTIONS_OVERALL => {
+                "SELECT winner_faction, COUNT(*) AS count FROM pvpstats_battlegrounds WHERE DATEDIFF(NOW(), date) < 7 GROUP BY winner_faction ORDER BY winner_faction ASC"
+            }
+            Self::INS_QUEST_TRACK => {
+                "INSERT INTO quest_tracker (id, character_guid, quest_accept_time, core_hash, core_revision) VALUES (?, ?, NOW(), ?, ?)"
+            }
+            Self::UPD_QUEST_TRACK_GM_COMPLETE => {
+                "UPDATE quest_tracker SET completed_by_gm = 1 WHERE id = ? AND character_guid = ? ORDER BY quest_accept_time DESC LIMIT 1"
+            }
+            Self::UPD_QUEST_TRACK_COMPLETE_TIME => {
+                "UPDATE quest_tracker SET quest_complete_time = NOW() WHERE id = ? AND character_guid = ? ORDER BY quest_accept_time DESC LIMIT 1"
+            }
+            Self::UPD_QUEST_TRACK_ABANDON_TIME => {
+                "UPDATE quest_tracker SET quest_abandon_time = NOW() WHERE id = ? AND character_guid = ? ORDER BY quest_accept_time DESC LIMIT 1"
+            }
+            Self::SEL_CHARACTER_AURA_STORED_LOCATIONS => {
+                "SELECT Spell, MapId, PositionX, PositionY, PositionZ, Orientation FROM character_aura_stored_location WHERE Guid = ?"
+            }
+            Self::DEL_CHARACTER_AURA_STORED_LOCATIONS_BY_GUID => {
+                "DELETE FROM character_aura_stored_location WHERE Guid = ?"
+            }
+            Self::DEL_CHARACTER_AURA_STORED_LOCATION => {
+                "DELETE FROM character_aura_stored_location WHERE Guid = ? AND Spell = ?"
+            }
+            Self::INS_CHARACTER_AURA_STORED_LOCATION => {
+                "INSERT INTO character_aura_stored_location (Guid, Spell, MapId, PositionX, PositionY, PositionZ, Orientation) VALUES (?, ?, ?, ?, ?, ?, ?)"
+            }
+            Self::SEL_WAR_MODE_TUNING => {
+                "SELECT race, COUNT(guid) FROM characters WHERE ((playerFlags & ?) = ?) AND logout_time >= (UNIX_TIMESTAMP() - 604800) GROUP BY race"
+            }
             Self::UPD_CHAR_XP => "UPDATE characters SET xp = ? WHERE guid = ?",
             Self::UPD_CHAR_LEVEL => "UPDATE characters SET level = ?, xp = ? WHERE guid = ?",
             Self::UPD_CHAR_MONEY => "UPDATE characters SET money = ? WHERE guid = ?",
@@ -2768,7 +3091,13 @@ impl StatementDef for CharStatements {
             Self::SEL_CHAR_QUEST_STATUS => {
                 "SELECT quest, status, explored, acceptTime, endTime FROM character_queststatus WHERE guid = ? AND status <> 0"
             }
+            Self::SEL_CHARACTER_QUESTSTATUS => {
+                "SELECT quest, status, explored, acceptTime, endTime FROM character_queststatus WHERE guid = ? AND status <> 0"
+            }
             Self::SEL_CHAR_QUEST_STATUS_OBJECTIVES => {
+                "SELECT quest, objective, data FROM character_queststatus_objectives WHERE guid = ?"
+            }
+            Self::SEL_CHARACTER_QUESTSTATUS_OBJECTIVES => {
                 "SELECT quest, objective, data FROM character_queststatus_objectives WHERE guid = ?"
             }
             Self::SEL_CHAR_QUEST_STATUS_SEASONAL => {
@@ -2783,7 +3112,13 @@ impl StatementDef for CharStatements {
             Self::DEL_CHAR_QUEST_STATUS_OBJECTIVES_BY_QUEST => {
                 "DELETE FROM character_queststatus_objectives WHERE guid = ? AND quest = ?"
             }
+            Self::DEL_CHAR_QUESTSTATUS_OBJECTIVES_BY_QUEST => {
+                "DELETE FROM character_queststatus_objectives WHERE guid = ? AND quest = ?"
+            }
             Self::REP_CHAR_QUEST_STATUS_OBJECTIVES => {
+                "REPLACE INTO character_queststatus_objectives (guid, quest, objective, data) VALUES (?, ?, ?, ?)"
+            }
+            Self::REP_CHAR_QUESTSTATUS_OBJECTIVES => {
                 "REPLACE INTO character_queststatus_objectives (guid, quest, objective, data) VALUES (?, ?, ?, ?)"
             }
         }
@@ -3090,6 +3425,10 @@ mod tests {
         assert_eq!(
             CharStatements::INS_CHAR_CUSTOMIZATION.sql(),
             "INSERT INTO character_customizations (guid, chrCustomizationOptionID, chrCustomizationChoiceID) VALUES (?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::INS_CHARACTER_CUSTOMIZATION.sql(),
+            CharStatements::INS_CHAR_CUSTOMIZATION.sql()
         );
         assert_eq!(
             CharStatements::DEL_CHARACTER_CUSTOMIZATIONS.sql(),
@@ -4225,6 +4564,22 @@ mod tests {
             "INSERT INTO character_queststatus_objectives_criteria (guid, questObjectiveId) VALUES (?, ?)"
         );
         assert_eq!(
+            CharStatements::SEL_CHARACTER_QUESTSTATUS.sql(),
+            CharStatements::SEL_CHAR_QUEST_STATUS.sql()
+        );
+        assert_eq!(
+            CharStatements::SEL_CHARACTER_QUESTSTATUS_OBJECTIVES.sql(),
+            CharStatements::SEL_CHAR_QUEST_STATUS_OBJECTIVES.sql()
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_QUESTSTATUS_OBJECTIVES_BY_QUEST.sql(),
+            CharStatements::DEL_CHAR_QUEST_STATUS_OBJECTIVES_BY_QUEST.sql()
+        );
+        assert_eq!(
+            CharStatements::REP_CHAR_QUESTSTATUS_OBJECTIVES.sql(),
+            CharStatements::REP_CHAR_QUEST_STATUS_OBJECTIVES.sql()
+        );
+        assert_eq!(
             CharStatements::INS_CHAR_QUESTSTATUS_OBJECTIVES_CRITERIA_PROGRESS.sql(),
             "INSERT INTO character_queststatus_objectives_criteria_progress (guid, criteriaId, counter, date) VALUES (?, ?, ?, ?)"
         );
@@ -4358,6 +4713,247 @@ mod tests {
         assert_eq!(
             CharStatements::DEL_CHAR_TRAIT_CONFIGS_BY_CHAR.sql(),
             "DELETE FROM character_trait_config WHERE guid = ?"
+        );
+    }
+
+    #[test]
+    fn character_void_calendar_pet_pvp_questtrack_spell_location_statements_match_cpp_sql_exactly()
+    {
+        assert_eq!(
+            CharStatements::DEL_RESET_CHARACTER_QUESTSTATUS_DAILY.sql(),
+            "DELETE FROM character_queststatus_daily"
+        );
+        assert_eq!(
+            CharStatements::DEL_RESET_CHARACTER_QUESTSTATUS_WEEKLY.sql(),
+            "DELETE FROM character_queststatus_weekly"
+        );
+        assert_eq!(
+            CharStatements::DEL_RESET_CHARACTER_QUESTSTATUS_MONTHLY.sql(),
+            "DELETE FROM character_queststatus_monthly"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHAR_VOID_STORAGE.sql(),
+            "SELECT itemId, itemEntry, slot, creatorGuid, fixedScalingLevel, randomPropertiesId, randomPropertiesSeed, context FROM character_void_storage WHERE playerGuid = ?"
+        );
+        assert_eq!(
+            CharStatements::REP_CHAR_VOID_STORAGE_ITEM.sql(),
+            "REPLACE INTO character_void_storage (itemId, playerGuid, itemEntry, slot, creatorGuid, fixedScalingLevel, randomPropertiesId, randomPropertiesSeed, context) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_VOID_STORAGE_ITEM_BY_CHAR_GUID.sql(),
+            "DELETE FROM character_void_storage WHERE playerGuid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_VOID_STORAGE_ITEM_BY_SLOT.sql(),
+            "DELETE FROM character_void_storage WHERE slot = ? AND playerGuid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHAR_CUF_PROFILES.sql(),
+            "SELECT id, name, frameHeight, frameWidth, sortBy, healthText, boolOptions, topPoint, bottomPoint, leftPoint, topOffset, bottomOffset, leftOffset FROM character_cuf_profiles WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::REP_CHAR_CUF_PROFILES.sql(),
+            "REPLACE INTO character_cuf_profiles (guid, id, name, frameHeight, frameWidth, sortBy, healthText, boolOptions, topPoint, bottomPoint, leftPoint, topOffset, bottomOffset, leftOffset) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::REP_CHAR_CUF_PROFILES
+                .sql()
+                .matches('?')
+                .count(),
+            14
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_CUF_PROFILES_BY_ID.sql(),
+            "DELETE FROM character_cuf_profiles WHERE guid = ? AND id = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_CUF_PROFILES.sql(),
+            "DELETE FROM character_cuf_profiles WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::REP_CALENDAR_EVENT.sql(),
+            "REPLACE INTO calendar_events (EventID, Owner, Title, Description, EventType, TextureID, Date, Flags, LockDate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_CALENDAR_EVENT.sql(),
+            "DELETE FROM calendar_events WHERE EventID = ?"
+        );
+        assert_eq!(
+            CharStatements::REP_CALENDAR_INVITE.sql(),
+            "REPLACE INTO calendar_invites (InviteID, EventID, Invitee, Sender, Status, ResponseTime, ModerationRank, Note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_CALENDAR_INVITE.sql(),
+            "DELETE FROM calendar_invites WHERE InviteID = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHAR_PET_IDS.sql(),
+            "SELECT id FROM character_pet WHERE owner = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_PET_DECLINEDNAME_BY_OWNER.sql(),
+            "DELETE FROM character_pet_declinedname WHERE owner = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_PET_DECLINEDNAME.sql(),
+            "DELETE FROM character_pet_declinedname WHERE id = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_CHAR_PET_DECLINEDNAME.sql(),
+            "INSERT INTO character_pet_declinedname (id, owner, genitive, dative, accusative, instrumental, prepositional) VALUES (?, ?, ?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::SEL_PET_AURA.sql(),
+            "SELECT casterGuid, spell, effectMask, recalculateMask, difficulty, stackCount, maxDuration, remainTime, remainCharges FROM pet_aura WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_PET_AURA_EFFECT.sql(),
+            "SELECT casterGuid, spell, effectMask, effectIndex, amount, baseAmount FROM pet_aura_effect WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_PET_SPELL.sql(),
+            "SELECT spell, active FROM pet_spell WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_PET_SPELL_COOLDOWN.sql(),
+            "SELECT spell, time, categoryId, categoryEnd FROM pet_spell_cooldown WHERE guid = ? AND time > UNIX_TIMESTAMP()"
+        );
+        assert_eq!(
+            CharStatements::SEL_PET_DECLINED_NAME.sql(),
+            "SELECT genitive, dative, accusative, instrumental, prepositional FROM character_pet_declinedname WHERE owner = ? AND id = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_PET_AURAS.sql(),
+            "DELETE FROM pet_aura WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_PET_AURA_EFFECTS.sql(),
+            "DELETE FROM pet_aura_effect WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_PET_SPELLS.sql(),
+            "DELETE FROM pet_spell WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_PET_SPELL_COOLDOWNS.sql(),
+            "DELETE FROM pet_spell_cooldown WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_PET_SPELL_COOLDOWN.sql(),
+            "INSERT INTO pet_spell_cooldown (guid, spell, time, categoryId, categoryEnd) VALUES (?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::SEL_PET_SPELL_CHARGES.sql(),
+            "SELECT categoryId, rechargeStart, rechargeEnd FROM pet_spell_charges WHERE guid = ? AND rechargeEnd > UNIX_TIMESTAMP() ORDER BY rechargeEnd"
+        );
+        assert_eq!(
+            CharStatements::DEL_PET_SPELL_CHARGES.sql(),
+            "DELETE FROM pet_spell_charges WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_PET_SPELL_CHARGES.sql(),
+            "INSERT INTO pet_spell_charges (guid, categoryId, rechargeStart, rechargeEnd) VALUES (?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_PET_SPELL_BY_SPELL.sql(),
+            "DELETE FROM pet_spell WHERE guid = ? and spell = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_PET_SPELL.sql(),
+            "INSERT INTO pet_spell (guid, spell, active) VALUES (?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::INS_PET_AURA.sql(),
+            "INSERT INTO pet_aura (guid, casterGuid, spell, effectMask, recalculateMask, difficulty, stackCount, maxDuration, remainTime, remainCharges) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::INS_PET_AURA_EFFECT.sql(),
+            "INSERT INTO pet_aura_effect (guid, casterGuid, spell, effectMask, effectIndex, amount, baseAmount) VALUES (?, ?, ?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHAR_PETS.sql(),
+            "SELECT id, entry, modelid, level, exp, Reactstate, slot, name, renamed, curhealth, curmana, abdata, savetime, CreatedBySpell, PetType, specialization FROM character_pet WHERE owner = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_PET_BY_OWNER.sql(),
+            "DELETE FROM character_pet WHERE owner = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_CHAR_PET_NAME.sql(),
+            "UPDATE character_pet SET name = ?, renamed = 1 WHERE owner = ? AND id = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_CHAR_PET_SLOT_BY_ID.sql(),
+            "UPDATE character_pet SET slot = ? WHERE owner = ? AND id = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_PET_BY_ID.sql(),
+            "DELETE FROM character_pet WHERE id = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_ALL_PET_SPELLS_BY_OWNER.sql(),
+            "DELETE FROM pet_spell WHERE guid in (SELECT id FROM character_pet WHERE owner=?)"
+        );
+        assert_eq!(
+            CharStatements::UPD_PET_SPECS_BY_OWNER.sql(),
+            "UPDATE character_pet SET specialization = 0 WHERE owner=?"
+        );
+        assert_eq!(
+            CharStatements::INS_PET.sql(),
+            "INSERT INTO character_pet (id, entry, owner, modelid, level, exp, Reactstate, slot, name, renamed, curhealth, curmana, abdata, savetime, CreatedBySpell, PetType, specialization) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+        assert_eq!(CharStatements::INS_PET.sql().matches('?').count(), 17);
+        assert_eq!(
+            CharStatements::SEL_PVPSTATS_MAXID.sql(),
+            "SELECT MAX(id) FROM pvpstats_battlegrounds"
+        );
+        assert_eq!(
+            CharStatements::INS_PVPSTATS_BATTLEGROUND.sql(),
+            "INSERT INTO pvpstats_battlegrounds (id, winner_faction, bracket_id, type, date) VALUES (?, ?, ?, ?, NOW())"
+        );
+        assert_eq!(
+            CharStatements::INS_PVPSTATS_PLAYER.sql(),
+            "INSERT INTO pvpstats_players (battleground_id, character_guid, winner, score_killing_blows, score_deaths, score_honorable_kills, score_bonus_honor, score_damage_done, score_healing_done, attr_1, attr_2, attr_3, attr_4, attr_5) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::SEL_PVPSTATS_FACTIONS_OVERALL.sql(),
+            "SELECT winner_faction, COUNT(*) AS count FROM pvpstats_battlegrounds WHERE DATEDIFF(NOW(), date) < 7 GROUP BY winner_faction ORDER BY winner_faction ASC"
+        );
+        assert_eq!(
+            CharStatements::INS_QUEST_TRACK.sql(),
+            "INSERT INTO quest_tracker (id, character_guid, quest_accept_time, core_hash, core_revision) VALUES (?, ?, NOW(), ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::UPD_QUEST_TRACK_GM_COMPLETE.sql(),
+            "UPDATE quest_tracker SET completed_by_gm = 1 WHERE id = ? AND character_guid = ? ORDER BY quest_accept_time DESC LIMIT 1"
+        );
+        assert_eq!(
+            CharStatements::UPD_QUEST_TRACK_COMPLETE_TIME.sql(),
+            "UPDATE quest_tracker SET quest_complete_time = NOW() WHERE id = ? AND character_guid = ? ORDER BY quest_accept_time DESC LIMIT 1"
+        );
+        assert_eq!(
+            CharStatements::UPD_QUEST_TRACK_ABANDON_TIME.sql(),
+            "UPDATE quest_tracker SET quest_abandon_time = NOW() WHERE id = ? AND character_guid = ? ORDER BY quest_accept_time DESC LIMIT 1"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHARACTER_AURA_STORED_LOCATIONS.sql(),
+            "SELECT Spell, MapId, PositionX, PositionY, PositionZ, Orientation FROM character_aura_stored_location WHERE Guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHARACTER_AURA_STORED_LOCATIONS_BY_GUID.sql(),
+            "DELETE FROM character_aura_stored_location WHERE Guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHARACTER_AURA_STORED_LOCATION.sql(),
+            "DELETE FROM character_aura_stored_location WHERE Guid = ? AND Spell = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_CHARACTER_AURA_STORED_LOCATION.sql(),
+            "INSERT INTO character_aura_stored_location (Guid, Spell, MapId, PositionX, PositionY, PositionZ, Orientation) VALUES (?, ?, ?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::SEL_WAR_MODE_TUNING.sql(),
+            "SELECT race, COUNT(guid) FROM characters WHERE ((playerFlags & ?) = ?) AND logout_time >= (UNIX_TIMESTAMP() - 604800) GROUP BY race"
         );
     }
 
