@@ -278,7 +278,7 @@ impl SqlResult {
             return s;
         }
         if let Some(bytes) = self.try_read::<Vec<u8>>(column) {
-            return String::from_utf8_lossy(&bytes).into_owned();
+            return string_from_binary_field_like_cpp(&bytes);
         }
         String::new()
     }
@@ -414,6 +414,17 @@ impl<'a> SqlFields<'a> {
         (start..start + count).map(|i| self.row.get(i)).collect()
     }
 
+    /// Read a string column, handling MySQL binary collation (`VARBINARY`).
+    pub fn read_string(&self, column: usize) -> String {
+        if let Some(s) = self.try_read::<String>(column) {
+            return s;
+        }
+        if let Some(bytes) = self.try_read::<Vec<u8>>(column) {
+            return string_from_binary_field_like_cpp(&bytes);
+        }
+        String::new()
+    }
+
     /// Check if a column is `NULL`.
     pub fn is_null(&self, column: usize) -> bool {
         self.row.try_get_raw(column).map_or(true, |v| v.is_null())
@@ -430,11 +441,15 @@ impl<'a> SqlFields<'a> {
     }
 }
 
+fn string_from_binary_field_like_cpp(bytes: &[u8]) -> String {
+    String::from_utf8_lossy(bytes).into_owned()
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         DatabaseFieldTypeLikeCpp, database_field_type_like_cpp,
-        rust_type_compatible_with_database_field_like_cpp,
+        rust_type_compatible_with_database_field_like_cpp, string_from_binary_field_like_cpp,
     };
 
     #[test]
@@ -555,5 +570,17 @@ mod tests {
             "TEXT"
         ));
         assert!(rust_type_compatible_with_database_field_like_cpp::<Vec<u8>>("BLOB"));
+    }
+
+    #[test]
+    fn string_from_binary_field_preserves_utf8_bytes_like_cpp() {
+        assert_eq!(
+            string_from_binary_field_like_cpp("Thráll".as_bytes()),
+            "Thráll"
+        );
+        assert_eq!(
+            string_from_binary_field_like_cpp(b"Name\0WithNul"),
+            "Name\0WithNul"
+        );
     }
 }

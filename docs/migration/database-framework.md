@@ -673,7 +673,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 - [x] Test: update decision does **not** re-apply an ARCHIVED-state file when `Updates.ArchivedRedundancy=false`, and does when enabled.
 - [ ] Test: `DbUpdater::update` detects a renamed file (same hash, different filename) and updates the `name` column instead of re-applying. Pure C++ decision coverage is present, including the "old file still exists => treat as copy/new file" guard; live DB verification remains under #DB.16.
 - [x] Test: `split_sql` correctly handles `--` line comments, `#` comments, `/* */` blocks, `'\''` escapes, and `\"` escapes (existing behaviour; pin in tests).
-- [ ] Test: `SqlResult::read_string` on a `VARBINARY` column returns the UTF-8 string (not panic).
+- [ ] Test: `SqlResult::read_string` on a `VARBINARY` column returns the UTF-8 string (not panic). Pure fallback conversion is covered and shared by `SqlResult`/`SqlFields`; a real `MySqlRow` VARBINARY test remains under #DB.16 integration.
 - [ ] Test: `PreparedStatement` indexed setters with sparse indices fill intermediates with `SqlParam::Null` (already covered).
 - [x] Test: keep-alive config/scope/SQL mirrors C++ (`MaxPingTime`, Character/Login/World only, `SELECT 1`). Runtime timer firing remains a service/integration concern rather than a paused Tokio unit fake.
 - [ ] Test: `Updates.AutoSetup=0` skips both `populate` and `update`; the `updates` table is not created.
