@@ -69,7 +69,7 @@ impl PreparedStatement {
 
     fn ensure_capacity(&mut self, index: usize) {
         if self.params.len() <= index {
-            self.params.resize(index + 1, SqlParam::Null);
+            self.params.resize(index + 1, SqlParam::Bool(false));
         }
     }
 
@@ -171,8 +171,8 @@ mod tests {
         // Set index 2 first (skip 0, 1)
         stmt.set_i64(2, 999);
         assert_eq!(stmt.params().len(), 3);
-        assert!(matches!(stmt.params()[0], SqlParam::Null));
-        assert!(matches!(stmt.params()[1], SqlParam::Null));
+        assert!(matches!(stmt.params()[0], SqlParam::Bool(false)));
+        assert!(matches!(stmt.params()[1], SqlParam::Bool(false)));
         assert!(matches!(stmt.params()[2], SqlParam::I64(999)));
     }
 
