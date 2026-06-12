@@ -1418,6 +1418,24 @@ mod tests {
                 "re-running update must skip already-applied files instead of duplicating rows"
             );
 
+            let renamed_tail_name = "2026_01_03_00_live_db_updater_tail_renamed.sql";
+            let renamed_tail_sql = updates_dir.join(renamed_tail_name);
+            fs::rename(&update_tail_sql, &renamed_tail_sql)?;
+            updater.update(root.to_str().unwrap()).await?;
+
+            let renamed_applied: Vec<(String, String)> =
+                sqlx::query_as("SELECT `name`, `state` FROM `updates` ORDER BY `name`")
+                    .fetch_all(&pool)
+                    .await?;
+            assert_eq!(
+                renamed_applied,
+                vec![
+                    (update_name.to_string(), "RELEASED".to_string()),
+                    (renamed_tail_name.to_string(), "RELEASED".to_string())
+                ],
+                "same-hash renamed updates must rename the tracking row, not reapply SQL"
+            );
+
             database_wrapper
                 .direct_execute(
                     "CREATE TABLE `binary_marker` (
