@@ -121,7 +121,7 @@ All paths relative to `/home/server/woltk-trinity-legacy/`.
 
 - `Realm`, `Database` — `LoginDatabaseInfo`, `WorldDatabaseInfo`, `CharacterDatabaseInfo`, `HotfixDatabaseInfo`, `*.WorkerThreads`, `*.SynchThreads`, `MaxPingTime`, `RealmID`
 - `WorldSocket` / `WorldSocketMgr` — `WorldServerPort`, `InstanceServerPort`, `BindIP`, `Network.Threads`, `Network.{OutKBuff,OutUBuff,TcpNodelay}`, `SocketTimeOutTime{,Active}`, `CONFIG_COMPRESSION`, `PacketSpoof.{Policy,BanMode,BanDuration}`
-- `WorldSession` — `SessionAddDelay`, `MaxOverspeedPings`, `Auth*`, `WrongPass.*`, `Bot.AccountPrefix`
+- `WorldSocket` / `WorldSession` — `MaxOverspeedPings`, `SessionAddDelay`, `Auth*`, `WrongPass.*`, `Bot.AccountPrefix`
 - `Map` / `MapManager` — `GridUnload`, `BaseMapLoadAllGrids`, `InstanceMapLoadAllGrids`, `BattlegroundMapLoadAllGrids`, `GridCleanUpDelay`, `MinWorldUpdateTime`, `MapUpdateInterval`, `RustyCore.LegacyCreatureGlobalRuntime`
 - `Player` — every `Rate.XP.*`, `Rate.Health/Mana/...`, `MaxPlayerLevel`, `StartPlayerLevel`, `StartPlayerMoney`, `Death.*`, `CharDelete.*`, `Visibility.*`, `Stats.Limits.*`
 - `Creature` — `Rate.Creature.{Damage,SpellDamage,HP}.*`, `Corpse.Decay.*`, `Rate.Creature.Aggro`
@@ -161,7 +161,7 @@ The config layer is process-internal — it does not originate packets. It does,
 
 - `PacketSpoof.Policy` decides what `WorldSocket::HandleAuthSession()` does on a header-tag mismatch.
 - `Warden.*` decides whether `SMSG_WARDEN_DATA` is even constructed for a session.
-- `MaxOverspeedPings` decides when `WorldSession::HandleMovementOpcodes()` calls `KickPlayer`.
+- `MaxOverspeedPings` decides when `WorldSocket::HandlePing()` closes a socket after too many consecutive `CMSG_PING` packets faster than 27 seconds.
 - `ChatFlood.*` drives C++ `Player::UpdateSpeakTime`: when the per-session counter exceeds the configured count inside the delay window, `m_muteTime` is advanced and the next speak attempt is rejected by `CanSpeak()`.
 - `AllowTwoSide.Trade` decides whether `CMSG_INITIATE_TRADE` is rejected cross-faction.
 
@@ -191,11 +191,11 @@ The config layer is process-internal — it does not originate packets. It does,
 
 **What's missing vs C++:**
 
-- ❌ **The `m_int_configs` / `m_bool_configs` / `m_float_configs` arrays do not exist.** RustyCore reads keys ad-hoc at the call site instead of caching them in indexed arrays. This means every `getIntConfig` equivalent is a `HashMap` lookup instead of an `O(1)` array index — fine functionally but a perf gap on hot paths (e.g. movement validation reads `MaxOverspeedPings` per packet).
+- ❌ **The `m_int_configs` / `m_bool_configs` / `m_float_configs` arrays do not exist.** RustyCore reads keys ad-hoc at the call site instead of caching them in indexed arrays. This means every `getIntConfig` equivalent is a `HashMap` lookup instead of an `O(1)` array index — fine functionally for represented keys, but still a parity/perf gap versus TC's cached config arrays.
 - ❌ **No `World::LoadConfigSettings()` equivalent.** Subsystems that need values fetch them lazily; there is no startup pass that validates every expected key is present and warns on missing/malformed entries. Silent fall-through to hardcoded Rust defaults.
 - ❌ **No `.reload config` command.** `wow_config::load_config` *can* be called again to replace values, but no GM command, no signal handler, and no `OnConfigReload` hook fires in subsystems. CLAUDE.md acknowledges this.
 - ❌ ~588 of ~612 `worldserver.conf` keys are unread. Examples grouped by criticality:
-  - **Security-critical (silently default to Rust hardcoded values)**: `MaxOverspeedPings`, `PacketSpoof.{Policy,BanMode,BanDuration}`, `Warden.*`, `SocketTimeOutTime{,Active}`, `SessionAddDelay`. `WrongPass.*` is now read and enforced in bnet REST login. `ChatFlood.*` is now read/enforced for represented chat, with RBAC-exact exemption and DB persistence still pending.
+  - **Security-critical (silently default to Rust hardcoded values)**: `PacketSpoof.{Policy,BanMode,BanDuration}`, `Warden.*`, `SocketTimeOutTime{,Active}`, `SessionAddDelay`. `MaxOverspeedPings` is now read by `world-server` and enforced in `wow-network::WorldSocket` for normal sockets; the exact RBAC permission exemption remains pending with the RBAC port. `WrongPass.*` is now read and enforced in bnet REST login. `ChatFlood.*` is now read/enforced for represented chat, with RBAC-exact exemption and DB persistence still pending.
   - **Economy / progression**: every `Rate.XP.*`, `Rate.Drop.*`, `Rate.Creature.*`, `Rate.Quest.Money.*`, `Rate.Health`, `Rate.Mana`, `StartPlayerLevel`, `StartPlayerMoney`.
   - **Server identity**: `GameType`, `RealmZone`, `Expansion`, `MaxPlayerLevel`, `RealmsStateUpdateDelay` (only bnet side reads).
   - **Logging**: `Appender.*` / `Logger.*` not parsed at all — Rust uses `tracing` with a hardcoded `EnvFilter` from `RUST_LOG`.
@@ -230,7 +230,7 @@ The config layer is process-internal — it does not originate packets. It does,
 - [ ] **#CONFIG.3** Implement TC-style semicolon connection-string parsing: when a key matches `*DatabaseInfo` (no suffix), split on `;` into 5-or-6 fields (`host;port;user;pass;db[;ssl]`) and expose them via a `ConnectionInfo` struct. Update `bnet-server` and `world-server` to read the unified key, not the split `.Host`/`.Port`/etc. variants. (complejidad: M)
 - [ ] **#CONFIG.4** Define the three enum-indexed configuration arrays as Rust `enum WorldIntConfig { … }` + `Vec<u32>` (or `[u32; INT_CONFIG_VALUE_COUNT]`) on a `WorldConfig` struct. Mirror `WorldBoolConfigs`, `WorldFloatConfigs`, `WorldIntConfigs` from `World.h:102-441`. Provide `world_config.get_int(WorldIntConfig::MaxPlayerLevel)`. Move the per-field defaults from scattered call sites into one `WorldConfig::load(path)` function modelled on `World::LoadConfigSettings`. (complejidad: H)
 - [ ] **#CONFIG.5** Implement `world_config.reload()` and wire it to a `.reload config` GM command (chat handler) and to `SIGHUP`. Subsystems that cache config-derived state must subscribe to a reload signal (`tokio::sync::broadcast<()>`). (complejidad: M)
-- [ ] **#CONFIG.6** Port the remaining security-critical keys first: `MaxOverspeedPings`, `PacketSpoof.{Policy,BanMode,BanDuration}`, `Warden.{Enabled,…}` (gated on Warden module being ported), `SocketTimeOutTime{,Active}`. `WrongPass.*` is now enforced in bnet REST login by optionally logging wrong-password attempts, incrementing `failed_logins`, inserting BNet account/IP autobans, and resetting failed-login count at the threshold, matching C++. `ChatFlood.{MessageCount,MessageDelay,AddonMessageCount,AddonMessageDelay,MuteTime}` is now read and enforced in represented chat handlers, but RBAC-exact exemption and DB persistence of newly assigned mutes remain pending. Ship the corresponding handler-side enforcement; without `MaxOverspeedPings` enforcement, speed exploits are **unrate-limited**. (complejidad: H)
+- [ ] **#CONFIG.6** Port the remaining security-critical keys first: `PacketSpoof.{Policy,BanMode,BanDuration}`, `Warden.{Enabled,…}` (gated on Warden module being ported), `SocketTimeOutTime{,Active}`. `MaxOverspeedPings` is now validated, read by `world-server`, and enforced in `WorldSocket::HandlePing` style (`CMSG_PING` faster than 27s increments the counter; `0` disables; kick after `> maxAllowed`), but the exact `RBAC_PERM_SKIP_CHECK_OVERSPEED_PING` exemption remains pending until RBAC is represented. `WrongPass.*` is now enforced in bnet REST login by optionally logging wrong-password attempts, incrementing `failed_logins`, inserting BNet account/IP autobans, and resetting failed-login count at the threshold, matching C++. `ChatFlood.{MessageCount,MessageDelay,AddonMessageCount,AddonMessageDelay,MuteTime}` is now read and enforced in represented chat handlers, but RBAC-exact exemption and DB persistence of newly assigned mutes remain pending. Ship the corresponding handler-side enforcement. (complejidad: H)
 - [ ] **#CONFIG.7** Port the `Rate.*` family (~60 keys) — XP, drops, money, health/mana, creature damage/HP, repair, rest, reputation, instance reset. Each needs an audit of where it's read in C++ and the equivalent multiplication site in Rust. (complejidad: H)
 - [ ] **#CONFIG.8** Port the `Appender.*` / `Logger.*` schema into a `tracing` configuration: parse the `Type,LogLevel,Flags[,opt1,opt2,opt3]` format and build a `tracing_subscriber` layer accordingly. Today RustyCore ignores these and uses `RUST_LOG`; operators editing the conf get no effect. (complejidad: H)
 - [ ] **#CONFIG.9** Port `TOTPMasterSecret` to bnet-server: AES-decrypt `account.totp_secret` rows with the configured key, expose a `verify_totp(account_id, code)` helper, gate `.account 2fa` commands. (complejidad: M)
@@ -266,11 +266,11 @@ The config layer is process-internal — it does not originate packets. It does,
 
 4. **`Updates.EnableDatabases` is a bitmask**, not a bool: `1=login`, `2=character`, `4=world`, `8=hotfix`, `15=all`. Treating it as bool gives nonsensical behaviour.
 
-5. **`m_int_configs` / `m_bool_configs` / `m_float_configs` are read on every tick** in C++ for things like `MapUpdateInterval`, `MaxOverspeedPings`, `Visibility.Distance.*`. The hash-map lookup RustyCore does today is functionally equivalent but ~10–30× slower. For now this is fine (no key is read at packet-handler hot-path frequency *yet*); when the corresponding handlers land, port them onto an indexed array (#CONFIG.4).
+5. **`m_int_configs` / `m_bool_configs` / `m_float_configs` are read on hot paths** in C++ for things like `MapUpdateInterval`, `MaxOverspeedPings`, `Visibility.Distance.*`. RustyCore currently snapshots some keys into runtime structs (`MaxOverspeedPings`, chat flood, loot/reputation rates) while other call sites still use ad-hoc lookups. Functionally fine for represented keys, but the indexed array port remains the eventual parity target (#CONFIG.4).
 
 6. **`PacketSpoof.Policy = 1` is the default in TC** — log + kick. RustyCore has no enforcement at all today: a malformed header just logs and drops the packet, the connection stays open. A determined attacker can probe handlers indefinitely. This needs #CONFIG.6 + the matching enforcement code.
 
-7. **`MaxOverspeedPings = 2`**: TC kicks after 2 overspeed reports. RustyCore has no overspeed accounting. Speed exploits are unrate-limited. Same #CONFIG.6.
+7. **`MaxOverspeedPings = 2`**: TC kicks after 2 consecutive fast ping reports (`WorldSocket::HandlePing`, diff < 27s). RustyCore now mirrors the counter in `wow-network::WorldSocket`; exact RBAC permission bypass is still pending with RBAC.
 
 8. **`ChatFlood.*` defaults**: 10 messages per second + 1-second delay between messages + 100-message addon allowance. RustyCore now mirrors the C++ session-local `UpdateSpeakTime` counters for represented chat handlers; RBAC-exact exemption and DB persistence of new flood mutes remain open.
 
@@ -342,7 +342,7 @@ Cross-checked the canonical `.conf.dist` files line-by-line against the Rust loa
 | Connection-string format mismatch | 0 known for canonical TC semicolon strings; split-format Rust-era subkeys are intentionally ignored |
 | Section headers parsed | 2 out of 2 (`[worldserver]`, `[bnetserver]`) — flattened like C++ single-section configs |
 | Bool keys with `0`/`1` literals in dist | ~120 (every `*.Enable`, `Allow*`, `Use*`, `*.IgnoreLevel`, etc.) — parse via `get_value::<bool>` and `WorldConfigSet` today |
-| Hot-path security keys unread | 6 (`MaxOverspeedPings`, `PacketSpoof.Policy`, `PacketSpoof.BanMode`, `PacketSpoof.BanDuration`, `Warden.Enabled`, `SessionAddDelay`) |
+| Hot-path security keys unread | 5 (`PacketSpoof.Policy`, `PacketSpoof.BanMode`, `PacketSpoof.BanDuration`, `Warden.Enabled`, `SessionAddDelay`); `MaxOverspeedPings` is read/enforced, with RBAC-exact bypass pending |
 
 ### Behavioural divergences
 
@@ -364,7 +364,7 @@ Cross-checked the canonical `.conf.dist` files line-by-line against the Rust loa
 
 9. **`Rate.*` family unread** (`#CONFIG.7`): roughly 60 keys controlling XP, drop, money, creature damage/HP rates. Each currently defaults to `1.0` somewhere implicit in the code. Operators expecting `Rate.XP.Kill = 5.0` for a rate-modified server get vanilla rates with no error. Severity: **high** for private-server operators (this is a primary differentiator).
 
-10. **Anti-cheat / anti-spam unread**: `MaxOverspeedPings`, `PacketSpoof.*`, `SocketTimeOutTime{,Active}`. `WrongPass.*` and `ChatFlood.*` are now represented for their current login/chat paths, but without the remaining keys enforced **the server still lacks rate-limiting on speed exploits, kicking on packet spoofing, and idle-disconnect**. Severity: **critical** for any realm exposed to the public internet.
+10. **Anti-cheat / anti-spam unread**: `PacketSpoof.*`, `SocketTimeOutTime{,Active}`. `MaxOverspeedPings`, `WrongPass.*`, and `ChatFlood.*` are now represented for their current paths, but RBAC-exact exemptions remain pending for some checks; without the remaining keys enforced **the server still lacks kicking on packet spoofing and idle-disconnect**. Severity: **critical** for any realm exposed to the public internet.
 
 ### Sample arity check
 

@@ -207,7 +207,7 @@ Int	CONFIG_SKILL_CHANCE_MINING_STEPS	server/game/World/World.h:303	SkillChance.M
 Int	CONFIG_SKILL_CHANCE_SKINNING_STEPS	server/game/World/World.h:304	SkillChance.SkinningSteps	Int	server/game/World/World.cpp:1211	75		missing_in_rust	-
 Int	CONFIG_SKILL_GAIN_CRAFTING	server/game/World/World.h:305	SkillGain.Crafting	Int	server/game/World/World.cpp:1216	1		missing_in_rust	-
 Int	CONFIG_SKILL_GAIN_GATHERING	server/game/World/World.h:306	SkillGain.Gathering	Int	server/game/World/World.cpp:1218	1		missing_in_rust	-
-Int	CONFIG_MAX_OVERSPEED_PINGS	server/game/World/World.h:307	MaxOverspeedPings	Int	server/game/World/World.cpp:1220	2		missing_in_rust	-
+Int	CONFIG_MAX_OVERSPEED_PINGS	server/game/World/World.h:307	MaxOverspeedPings	Int	server/game/World/World.cpp:1220	2	crates/wow-config/src/lib.rs; crates/world-server/src/main.rs; crates/wow-network/src/world_socket.rs	represented_rust	RustyCore validates 0-or-2..infinity, reads CONFIG_MAX_OVERSPEED_PINGS into SessionResources, and enforces the WorldSocket::HandlePing fast-ping counter; RBAC_PERM_SKIP_CHECK_OVERSPEED_PING bypass pending with RBAC
 Int	CONFIG_EXPANSION	server/game/World/World.h:308	Expansion	Int	server/game/World/World.cpp:1239	CURRENT_EXPANSION		missing_in_rust	-
 Int	CONFIG_CHATFLOOD_MESSAGE_COUNT	server/game/World/World.h:309	ChatFlood.MessageCount	Int	server/game/World/World.cpp:1241	10		missing_in_rust	-
 Int	CONFIG_CHATFLOOD_MESSAGE_DELAY	server/game/World/World.h:310	ChatFlood.MessageDelay	Int	server/game/World/World.cpp:1242	1		missing_in_rust	-

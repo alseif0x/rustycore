@@ -247,6 +247,7 @@ pub struct SessionResources {
     pub chat_strict_link_checking_kick: bool,
     pub chat_level_requirements: ChatLevelRequirementsLikeCpp,
     pub chat_flood_config: ChatFloodConfigLikeCpp,
+    pub max_overspeed_pings: u32,
     pub realm_id: u16,
     /// External (public) IP from `realmlist.address`.
     pub realm_external_address: [u8; 4],
@@ -304,6 +305,7 @@ where
 
         tokio::spawn(async move {
             let mut socket = WorldSocket::new(stream, addr);
+            socket.set_max_overspeed_pings_like_cpp(res.max_overspeed_pings);
 
             // Phase 1: Handshake (connection strings + auth challenge)
             if let Err(e) = socket.start().await {

@@ -119,7 +119,7 @@ Sample of explicit per-opcode caps (from the ~190-case switch):
 | `CMSG_OPT_OUT_OF_LOOT` | 1 |
 | (default for unlisted) | unlimited (returns 0 ⇒ "no cap") |
 
-`MaxOverspeedPings = 2` is a separate counter — number of consecutive overspeed-detection events before disconnect (referenced by older builds; in this repo the literal kick happens on first speed-mismatch in `HandleForceSpeedChangeAck`).
+`MaxOverspeedPings = 2` is a separate socket ping counter in this C++ tree: `WorldSocket::HandlePing` increments `_OverSpeedPings` when consecutive `CMSG_PING` packets arrive faster than 27 seconds and closes the socket after `> maxAllowed`, unless RBAC grants `RBAC_PERM_SKIP_CHECK_OVERSPEED_PING`.
 
 ---
 
@@ -194,7 +194,7 @@ Anticheat is reactive — it does not originate opcodes, it inspects them. Touch
 - Fall-damage server-authoritative computation.
 - DOS / packet-rate protection (`DosProtection::EvaluateOpcode` + the per-opcode threshold table).
 - Ban / kick policy escalation (no `world.policy` config consumed).
-- `MaxOverspeedPings` counter.
+- `MaxOverspeedPings` socket-ping counter (`WorldSocket::HandlePing`), now represented in RustyCore for normal sockets; RBAC-exact bypass remains pending with RBAC.
 - Mover-mismatch warning (`HandleSetActiveMoverOpcode`).
 - Move-time-skipped sanity logging.
 
@@ -247,7 +247,7 @@ Anticheat is reactive — it does not originate opcodes, it inspects them. Touch
 - `m_forced_speed_changes` exists specifically to absorb the mount/run double-ack quirk — without it, every mount toggle kicks the player. Port faithfully.
 - `DosProtection::EvaluateOpcode` runs in the network thread, before `STATUS_LOGGEDIN` is enforced. Caps for unauthenticated opcodes (`CMSG_AUTH_SESSION` etc.) are critical — set them to **1/sec**.
 - The default (unlisted) cap is **0**, which means "no cap" — the explicit list is the entire policy. Do not invert this in Rust to fail-closed; that would break dozens of legitimate high-rate opcodes (movement, spell cast).
-- `MaxOverspeedPings = 2` (worldserver.conf line 296) is a stale config in modern TC builds — the actual mechanism in `HandleForceSpeedChangeAck` kicks on first detection. Keep the conf key for compatibility but document that it's ignored.
+- `MaxOverspeedPings = 2` (worldserver.conf line 296) is active in this C++ tree through `WorldSocket::HandlePing`, not the speed-ACK handler. RustyCore now mirrors the counter in `wow-network::WorldSocket`; the exact RBAC bypass remains a follow-up.
 - Wallhack / position-jump detection (a "you teleported 50 yards in 1 tick" check) does **not** exist in TC inline anticheat. The closest analogue is the dynamic visibility window — unrealistic positions simply move out of range. Don't promise a wallhack detector that isn't in the upstream.
 - Warden does the actual binary-tampering / module-injection detection. Anything in this doc is **complementary**, not a replacement.
 

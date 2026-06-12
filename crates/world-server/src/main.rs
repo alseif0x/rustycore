@@ -2260,6 +2260,7 @@ async fn main() -> Result<()> {
             ),
             mute_time_secs: world_config_u32(&world_configs, "CONFIG_CHATFLOOD_MUTE_TIME", 10),
         },
+        max_overspeed_pings: world_config_u32(&world_configs, "CONFIG_MAX_OVERSPEED_PINGS", 2),
         realm_id,
         realm_external_address,
         realm_local_address,
@@ -11635,6 +11636,18 @@ MaxRecruitAFriendBonusDistance = 45
         assert_eq!(
             world_config_u32(&configs, "CONFIG_CHATFLOOD_MUTE_TIME", 10),
             6
+        );
+    }
+
+    #[test]
+    fn max_overspeed_pings_reads_cpp_world_config_key() {
+        let _guard = TEST_LOCK.lock().expect("test lock poisoned");
+        wow_config::load_config_from_str("MaxOverspeedPings = 7\n").expect("config should load");
+
+        let configs = wow_config::load_world_config_values();
+        assert_eq!(
+            world_config_u32(&configs, "CONFIG_MAX_OVERSPEED_PINGS", 2),
+            7
         );
     }
 

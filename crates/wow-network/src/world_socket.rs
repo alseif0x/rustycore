@@ -20,6 +20,7 @@
 use std::future::Future;
 use std::net::SocketAddr;
 use std::pin::Pin;
+use std::time::{Duration, Instant};
 
 use bytes::BytesMut;
 use num_traits::ToPrimitive;
@@ -64,6 +65,9 @@ const ENABLE_ENCRYPTION_SEED: [u8; 16] = [
 const ENABLE_ENCRYPTION_CONTEXT: [u8; 16] = [
     0xA7, 0x1F, 0xB6, 0x9B, 0xC9, 0x7C, 0xDD, 0x96, 0xE9, 0xBB, 0xB8, 0x21, 0x39, 0x8D, 0x5A, 0xD4,
 ];
+
+const DEFAULT_MAX_OVERSPEED_PINGS_LIKE_CPP: u32 = 2;
+const OVERSPEED_PING_WINDOW_LIKE_CPP: Duration = Duration::from_secs(27);
 
 // Build-specific auth seeds are loaded from the `build_info` DB table at startup
 // and stored in SessionResources. They are passed to AccountInfo during lookup.
@@ -180,6 +184,9 @@ pub struct WorldSocket {
     // unencrypted packets (AuthSession, EnterEncryptedModeAck). The SocketReader
     // must start its client counter at this offset to decrypt correctly.
     unencrypted_packets_received: u64,
+
+    max_overspeed_pings_like_cpp: u32,
+    overspeed_ping_tracker_like_cpp: OverspeedPingTrackerLikeCpp,
 }
 
 impl WorldSocket {
@@ -201,7 +208,14 @@ impl WorldSocket {
             account_info: None,
             unencrypted_packets_sent: 0,
             unencrypted_packets_received: 0,
+            max_overspeed_pings_like_cpp: DEFAULT_MAX_OVERSPEED_PINGS_LIKE_CPP,
+            overspeed_ping_tracker_like_cpp: OverspeedPingTrackerLikeCpp::default(),
         }
+    }
+
+    /// Configure `MaxOverspeedPings`, matching TC's validated 0-or-2..infinity range.
+    pub fn set_max_overspeed_pings_like_cpp(&mut self, max_overspeed_pings: u32) {
+        self.max_overspeed_pings_like_cpp = max_overspeed_pings;
     }
 
     /// Set the session channel for forwarding packets to the WorldSession.
@@ -657,6 +671,16 @@ impl WorldSocket {
                 let mut pkt = pkt;
                 pkt.skip_opcode();
                 if let Ok(ping) = Ping::read(&mut pkt) {
+                    if self
+                        .overspeed_ping_tracker_like_cpp
+                        .record_ping(Instant::now(), self.max_overspeed_pings_like_cpp)
+                    {
+                        warn!(
+                            "WorldSocket::HandlePing: {} kicked for over-speed pings",
+                            self.addr
+                        );
+                        return Err(WorldSocketError::Closed);
+                    }
                     let pong = Pong {
                         serial: ping.serial,
                     };
@@ -735,6 +759,8 @@ impl WorldSocket {
             session_tx,
             pong_tx,
             addr: self.addr,
+            max_overspeed_pings_like_cpp: self.max_overspeed_pings_like_cpp,
+            overspeed_ping_tracker_like_cpp: self.overspeed_ping_tracker_like_cpp,
         };
 
         // The writer must start at the number of unencrypted packets sent,
@@ -778,6 +804,8 @@ pub struct SocketReader {
     /// Sends serialized Pong packets to the write loop (bypasses session).
     pong_tx: flume::Sender<Vec<u8>>,
     addr: SocketAddr,
+    max_overspeed_pings_like_cpp: u32,
+    overspeed_ping_tracker_like_cpp: OverspeedPingTrackerLikeCpp,
 }
 
 impl SocketReader {
@@ -849,6 +877,16 @@ impl SocketReader {
                 let mut pkt = pkt;
                 pkt.skip_opcode();
                 if let Ok(ping) = Ping::read(&mut pkt) {
+                    if self
+                        .overspeed_ping_tracker_like_cpp
+                        .record_ping(Instant::now(), self.max_overspeed_pings_like_cpp)
+                    {
+                        warn!(
+                            "WorldSocket::HandlePing: {} kicked for over-speed pings",
+                            self.addr
+                        );
+                        return Err(WorldSocketError::Closed);
+                    }
                     let pong = Pong {
                         serial: ping.serial,
                     };
@@ -967,6 +1005,34 @@ impl SocketWriter {
     }
 }
 
+#[derive(Debug, Default)]
+struct OverspeedPingTrackerLikeCpp {
+    last_ping_time: Option<Instant>,
+    overspeed_pings: u32,
+}
+
+impl OverspeedPingTrackerLikeCpp {
+    /// Returns true when TC's `WorldSocket::HandlePing` would close the socket.
+    fn record_ping(&mut self, now: Instant, max_allowed: u32) -> bool {
+        match self.last_ping_time.replace(now) {
+            None => false,
+            Some(last_ping_time) => {
+                let diff = now
+                    .checked_duration_since(last_ping_time)
+                    .unwrap_or(Duration::ZERO);
+
+                if diff < OVERSPEED_PING_WINDOW_LIKE_CPP {
+                    self.overspeed_pings = self.overspeed_pings.saturating_add(1);
+                    max_allowed != 0 && self.overspeed_pings > max_allowed
+                } else {
+                    self.overspeed_pings = 0;
+                    false
+                }
+            }
+        }
+    }
+}
+
 // ── Account lookup trait ─────────────────────────────────────────
 
 /// Trait for looking up account information during authentication.
@@ -1066,5 +1132,37 @@ mod tests {
     #[test]
     fn private_key_is_32_bytes() {
         assert_eq!(ENTER_ENCRYPTED_MODE_PRIVATE_KEY.len(), 32);
+    }
+
+    #[test]
+    fn overspeed_ping_tracker_matches_cpp_threshold() {
+        let mut tracker = OverspeedPingTrackerLikeCpp::default();
+        let start = Instant::now();
+
+        assert!(!tracker.record_ping(start, 2));
+        assert!(!tracker.record_ping(start + Duration::from_secs(1), 2));
+        assert!(!tracker.record_ping(start + Duration::from_secs(2), 2));
+        assert!(tracker.record_ping(start + Duration::from_secs(3), 2));
+    }
+
+    #[test]
+    fn overspeed_ping_tracker_resets_after_cpp_window() {
+        let mut tracker = OverspeedPingTrackerLikeCpp::default();
+        let start = Instant::now();
+
+        assert!(!tracker.record_ping(start, 2));
+        assert!(!tracker.record_ping(start + Duration::from_secs(1), 2));
+        assert!(!tracker.record_ping(start + Duration::from_secs(28), 2));
+        assert!(!tracker.record_ping(start + Duration::from_secs(29), 2));
+    }
+
+    #[test]
+    fn overspeed_ping_tracker_can_be_disabled_like_cpp() {
+        let mut tracker = OverspeedPingTrackerLikeCpp::default();
+        let start = Instant::now();
+
+        for offset in 0..10 {
+            assert!(!tracker.record_ping(start + Duration::from_secs(offset), 0));
+        }
     }
 }
