@@ -1182,6 +1182,21 @@ mod tests {
     }
 
     #[test]
+    fn validate_movement_info_root_order_matches_cpp_without_fixed_vehicle() {
+        let session = make_session();
+        let mut info = MovementInfo {
+            flags: MovementFlag::ROOT | MovementFlag::FORWARD,
+            ..MovementInfo::default()
+        };
+
+        let removed = session.sanitize_movement_info_flags_represented_like_cpp(&mut info);
+
+        assert!(removed.contains(MovementFlag::ROOT));
+        assert!(!removed.contains(MovementFlag::FORWARD));
+        assert_eq!(info.flags, MovementFlag::FORWARD);
+    }
+
+    #[test]
     fn validate_movement_info_keeps_represented_allowed_aura_flags() {
         let mut session = make_session();
         session

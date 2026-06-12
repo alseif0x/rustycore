@@ -79,6 +79,11 @@ Paths relative to `/home/server/woltk-trinity-legacy/`.
 | 13 | `SPLINE_ELEVATION` flag set with `stepUpStartElevation == 0.0f` | `SPLINE_ELEVATION` | flag/value mismatch |
 | 14 | inverse: `stepUpStartElevation != 0.0f` but flag absent | (force-add `SPLINE_ELEVATION`) | client-side validator order |
 
+**Order nuance:** with the current represented model there is no fixed-position vehicle runtime, so
+Rust mirrors the common C++ path where rule 1 removes `ROOT` first. In that path `ROOT | FORWARD`
+becomes `FORWARD`, not `ROOT`. Rule 2 only removes moving flags when `ROOT` survives rule 1, which
+requires a fixed-position vehicle context that remains pending with Vehicle runtime.
+
 ### 4.2 Speed-change kick path
 
 `HandleForceSpeedChangeAck` (line 470):
@@ -215,7 +220,7 @@ Anticheat is reactive — it does not originate opcodes, it inspects them. Touch
 ## 9. Migration sub-tasks
 
 - [ ] **#AC.1** Create `crates/wow-anticheat/` skeleton crate with `pub fn validate_movement_info(&mut MovementInfo, &PlayerState) -> ValidationResult`. (M)
-- [ ] **#AC.2** Port all 14 `ValidateMovementInfo` rules with one unit test per rule. (H)
+- [ ] **#AC.2** Port all 14 `ValidateMovementInfo` rules with one unit test per rule. Represented Rust sanitizer already covers the portable rules and has broadcast integration; remaining exactness is fixed-position vehicle context and one-test-per-rule coverage. (H)
 - [x] **#AC.3** Implement represented speed ACK tracker in `crates/wow-world/src/session.rs`: `forced_speed_changes_like_cpp: [u8; 9]`, represented movement speed rates per move-type, C++ `playerBaseMoveSpeed * rate` expected speed, mismatch threshold `0.01`, transport bypass and event audit. (M)
 - [x] **#AC.4** Wire `HandleForceSpeedChangeAck` / `HandleMoveSetModMovementForceMagnitudeAck`: Rust validates movement ACKs, decrements the C++ counters, skips pending forced changes, records correction when client speed is lower, kicks on client speed/magnitude above server truth, and mirrors the legacy correction path's no-packet behavior caused by `SetSpeedRate(GetSpeedRate())` returning early. Productive `Unit::SetSpeedRate` packet emission remains under Unit runtime, not this represented ACK slice. (M)
 - [x] **#AC.5a** Implement represented `DosProtection` in `WorldSession`: per-session opcode counters keyed by `ClientOpcodes`, evaluated before packets enter `pending_packets`; `Policy=0` logs/allows, `Policy=1` kicks, `Policy=2` kicks and stages a C++-style ban plan. (M)
@@ -232,16 +237,16 @@ Anticheat is reactive — it does not originate opcodes, it inspects them. Touch
 
 ## 10. Regression tests to write
 
-- [ ] Test: `MOVEMENTFLAG_ROOT | MOVEMENTFLAG_FORWARD` arriving in a packet → after `validate_movement_info`, only ROOT remains, all moving flags stripped.
-- [ ] Test: `MOVEMENTFLAG_FLYING` from non-GM with no fly aura → flag stripped.
-- [ ] Test: `MOVEMENTFLAG_HOVER` with hover aura present → not stripped.
-- [ ] Test: `LEFT | RIGHT` simultaneously → both stripped.
+- [x] Test: `MOVEMENTFLAG_ROOT | MOVEMENTFLAG_FORWARD` without fixed-position vehicle → after `validate_movement_info`, `ROOT` is stripped first and `FORWARD` remains, matching actual C++ rule order.
+- [x] Test: `MOVEMENTFLAG_FLYING` from non-GM with no fly aura → flag stripped.
+- [x] Test: `MOVEMENTFLAG_HOVER` with hover aura present → not stripped.
+- [x] Test: `LEFT | RIGHT` simultaneously → both stripped.
 - [x] Test: speed ack 8.0 vs server 7.0 with no transport → kick fires; ban table not touched (kick policy).
 - [x] Test: speed ack 6.0 vs server 7.0 → correction is recorded, no kick, and no packet is emitted because legacy `SetSpeedRate(GetSpeedRate())` returns early on unchanged rate.
 - [ ] Test: 200 `CMSG_PLAYER_LOGIN` packets in 1 second → DosProtection trips at packet #2, kick fires.
 - [ ] Test: NaN x in position → reject without panic, do not advance `player_position`.
 - [ ] Test: GUID mismatch → reject without state mutation.
-- [ ] Test: SPLINE_ELEVATION flag with elevation == 0 → flag stripped; non-zero elevation without flag → flag added.
+- [x] Test: SPLINE_ELEVATION flag with elevation == 0 → flag stripped; non-zero elevation without flag → flag added.
 - [ ] Test: golden — feed a 60-second movement capture, assert exactly N flag-strip events occur (regression-fence the rule set).
 
 ---
