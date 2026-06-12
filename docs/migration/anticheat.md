@@ -1,9 +1,9 @@
 # Migration: anticheat (cross-cutting reference)
 
 > **C++ canonical path:** scattered — primarily `src/server/game/Entities/Player/Player.cpp`, `src/server/game/Handlers/MovementHandler.cpp`, `src/server/game/Server/WorldSession.cpp`
-> **Rust target crate(s):** `crates/wow-world/` (handler-level), eventual `crates/wow-anticheat/` (none yet exists)
+> **Rust target crate(s):** `crates/wow-world/` (handler-level), `crates/wow-anticheat/` (portable movement sanitizer core)
 > **Layer:** L8 (game-rule policy / enforcement)
-> **Status:** ❌ not started — only ad-hoc finite-position guard
+> **Status:** 🔧 partial — movement sanitizer core exists, handler/runtime integration still represented
 > **Audited vs C++:** ⚠️ partial (this document is the audit)
 > **Last updated:** 2026-05-01
 
