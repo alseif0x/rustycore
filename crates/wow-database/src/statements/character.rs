@@ -864,6 +864,54 @@ pub enum CharStatements {
     /// UPDATE arena_team SET name = ? WHERE arenaTeamId = ?
     UPD_ARENA_TEAM_NAME,
 
+    /// INSERT INTO character_battleground_data.
+    INS_PLAYER_BGDATA,
+
+    /// DELETE FROM character_battleground_data WHERE guid = ?
+    DEL_PLAYER_BGDATA,
+
+    /// INSERT INTO character_homebind.
+    INS_PLAYER_HOMEBIND,
+
+    /// UPDATE character_homebind SET map/zone/position.
+    UPD_PLAYER_HOMEBIND,
+
+    /// DELETE FROM character_homebind WHERE guid = ?
+    DEL_PLAYER_HOMEBIND,
+
+    /// SELECT corpse rows for one map and instance.
+    SEL_CORPSES,
+
+    /// INSERT INTO corpse.
+    INS_CORPSE,
+
+    /// DELETE FROM corpse WHERE guid = ?
+    DEL_CORPSE,
+
+    /// DELETE corpses and auxiliary rows for one map and instance.
+    DEL_CORPSES_FROM_MAP,
+
+    /// SELECT corpse phases for one map and instance.
+    SEL_CORPSE_PHASES,
+
+    /// INSERT INTO corpse_phases.
+    INS_CORPSE_PHASES,
+
+    /// DELETE FROM corpse_phases WHERE OwnerGuid = ?
+    DEL_CORPSE_PHASES,
+
+    /// SELECT corpse customizations for one map and instance.
+    SEL_CORPSE_CUSTOMIZATIONS,
+
+    /// INSERT INTO corpse_customizations.
+    INS_CORPSE_CUSTOMIZATIONS,
+
+    /// DELETE FROM corpse_customizations WHERE ownerGuid = ?
+    DEL_CORPSE_CUSTOMIZATIONS,
+
+    /// SELECT mapId, posX, posY, posZ, orientation FROM corpse WHERE guid = ?
+    SEL_CORPSE_LOCATION,
+
     /// SELECT bag_ci.slot, ci.slot, ii.itemEntry, ci.item, ii.count, ii.durability, ii.context,
     /// ii.flags, ii.playedTime, ir.paidMoney, ir.paidExtendedCost
     /// FROM character_inventory ci
@@ -1717,6 +1765,46 @@ impl StatementDef for CharStatements {
                 "REPLACE INTO character_arena_stats (guid, slot, matchMakerRating) VALUES (?, ?, ?)"
             }
             Self::UPD_ARENA_TEAM_NAME => "UPDATE arena_team SET name = ? WHERE arenaTeamId = ?",
+            Self::INS_PLAYER_BGDATA => {
+                "INSERT INTO character_battleground_data (guid, instanceId, team, joinX, joinY, joinZ, joinO, joinMapId, taxiStart, taxiEnd, mountSpell, queueId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            }
+            Self::DEL_PLAYER_BGDATA => "DELETE FROM character_battleground_data WHERE guid = ?",
+            Self::INS_PLAYER_HOMEBIND => {
+                "INSERT INTO character_homebind (guid, mapId, zoneId, posX, posY, posZ, orientation) VALUES (?, ?, ?, ?, ?, ?, ?)"
+            }
+            Self::UPD_PLAYER_HOMEBIND => {
+                "UPDATE character_homebind SET mapId = ?, zoneId = ?, posX = ?, posY = ?, posZ = ?, orientation = ? WHERE guid = ?"
+            }
+            Self::DEL_PLAYER_HOMEBIND => "DELETE FROM character_homebind WHERE guid = ?",
+            Self::SEL_CORPSES => {
+                "SELECT posX, posY, posZ, orientation, mapId, displayId, itemCache, race, class, gender, flags, dynFlags, time, corpseType, instanceId, guid FROM corpse WHERE mapId = ? AND instanceId = ?"
+            }
+            Self::INS_CORPSE => {
+                "INSERT INTO corpse (guid, posX, posY, posZ, orientation, mapId, displayId, itemCache, race, class, gender, flags, dynFlags, time, corpseType, instanceId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            }
+            Self::DEL_CORPSE => "DELETE FROM corpse WHERE guid = ?",
+            Self::DEL_CORPSES_FROM_MAP => {
+                "DELETE c, cc, cp FROM corpse c LEFT JOIN corpse_customizations cc ON c.guid = cc.ownerGuid LEFT JOIN corpse_phases cp ON c.guid = cp.OwnerGuid WHERE c.mapId = ? AND c.instanceId = ?"
+            }
+            Self::SEL_CORPSE_PHASES => {
+                "SELECT cp.OwnerGuid, cp.PhaseId FROM corpse_phases cp LEFT JOIN corpse c ON cp.OwnerGuid = c.guid WHERE c.mapId = ? AND c.instanceId = ?"
+            }
+            Self::INS_CORPSE_PHASES => {
+                "INSERT INTO corpse_phases (OwnerGuid, PhaseId) VALUES (?, ?)"
+            }
+            Self::DEL_CORPSE_PHASES => "DELETE FROM corpse_phases WHERE OwnerGuid = ?",
+            Self::SEL_CORPSE_CUSTOMIZATIONS => {
+                "SELECT cc.ownerGuid, cc.chrCustomizationOptionID, cc.chrCustomizationChoiceID FROM corpse_customizations cc LEFT JOIN corpse c ON cc.ownerGuid = c.guid WHERE c.mapId = ? AND c.instanceId = ? ORDER BY cc.ownerGuid, cc.chrCustomizationOptionID"
+            }
+            Self::INS_CORPSE_CUSTOMIZATIONS => {
+                "INSERT INTO corpse_customizations (ownerGuid, chrCustomizationOptionID, chrCustomizationChoiceID) VALUES (?, ?, ?)"
+            }
+            Self::DEL_CORPSE_CUSTOMIZATIONS => {
+                "DELETE FROM corpse_customizations WHERE ownerGuid = ?"
+            }
+            Self::SEL_CORPSE_LOCATION => {
+                "SELECT mapId, posX, posY, posZ, orientation FROM corpse WHERE guid = ?"
+            }
             Self::SEL_CHAR_BAG_CONTENTS => {
                 "SELECT bag_ci.slot, ci.slot, ii.itemEntry, ci.item, ii.count, ii.durability, ii.context, \
                  ii.flags, ii.playedTime, ir.paidMoney, ir.paidExtendedCost \
@@ -3222,6 +3310,78 @@ mod tests {
         assert_eq!(
             CharStatements::UPD_ARENA_TEAM_NAME.sql(),
             "UPDATE arena_team SET name = ? WHERE arenaTeamId = ?"
+        );
+    }
+
+    #[test]
+    fn battleground_and_homebind_statements_match_cpp_sql_exactly() {
+        assert_eq!(
+            CharStatements::INS_PLAYER_BGDATA.sql(),
+            "INSERT INTO character_battleground_data (guid, instanceId, team, joinX, joinY, joinZ, joinO, joinMapId, taxiStart, taxiEnd, mountSpell, queueId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_PLAYER_BGDATA.sql(),
+            "DELETE FROM character_battleground_data WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_PLAYER_HOMEBIND.sql(),
+            "INSERT INTO character_homebind (guid, mapId, zoneId, posX, posY, posZ, orientation) VALUES (?, ?, ?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::UPD_PLAYER_HOMEBIND.sql(),
+            "UPDATE character_homebind SET mapId = ?, zoneId = ?, posX = ?, posY = ?, posZ = ?, orientation = ? WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_PLAYER_HOMEBIND.sql(),
+            "DELETE FROM character_homebind WHERE guid = ?"
+        );
+    }
+
+    #[test]
+    fn corpse_statements_match_cpp_sql_exactly() {
+        assert_eq!(
+            CharStatements::SEL_CORPSES.sql(),
+            "SELECT posX, posY, posZ, orientation, mapId, displayId, itemCache, race, class, gender, flags, dynFlags, time, corpseType, instanceId, guid FROM corpse WHERE mapId = ? AND instanceId = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_CORPSE.sql(),
+            "INSERT INTO corpse (guid, posX, posY, posZ, orientation, mapId, displayId, itemCache, race, class, gender, flags, dynFlags, time, corpseType, instanceId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_CORPSE.sql(),
+            "DELETE FROM corpse WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CORPSES_FROM_MAP.sql(),
+            "DELETE c, cc, cp FROM corpse c LEFT JOIN corpse_customizations cc ON c.guid = cc.ownerGuid LEFT JOIN corpse_phases cp ON c.guid = cp.OwnerGuid WHERE c.mapId = ? AND c.instanceId = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_CORPSE_PHASES.sql(),
+            "SELECT cp.OwnerGuid, cp.PhaseId FROM corpse_phases cp LEFT JOIN corpse c ON cp.OwnerGuid = c.guid WHERE c.mapId = ? AND c.instanceId = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_CORPSE_PHASES.sql(),
+            "INSERT INTO corpse_phases (OwnerGuid, PhaseId) VALUES (?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_CORPSE_PHASES.sql(),
+            "DELETE FROM corpse_phases WHERE OwnerGuid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_CORPSE_CUSTOMIZATIONS.sql(),
+            "SELECT cc.ownerGuid, cc.chrCustomizationOptionID, cc.chrCustomizationChoiceID FROM corpse_customizations cc LEFT JOIN corpse c ON cc.ownerGuid = c.guid WHERE c.mapId = ? AND c.instanceId = ? ORDER BY cc.ownerGuid, cc.chrCustomizationOptionID"
+        );
+        assert_eq!(
+            CharStatements::INS_CORPSE_CUSTOMIZATIONS.sql(),
+            "INSERT INTO corpse_customizations (ownerGuid, chrCustomizationOptionID, chrCustomizationChoiceID) VALUES (?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_CORPSE_CUSTOMIZATIONS.sql(),
+            "DELETE FROM corpse_customizations WHERE ownerGuid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_CORPSE_LOCATION.sql(),
+            "SELECT mapId, posX, posY, posZ, orientation FROM corpse WHERE guid = ?"
         );
     }
 
