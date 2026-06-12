@@ -756,6 +756,117 @@ pub enum CharStatements {
     /// DELETE FROM character_social WHERE guid = ?
     DEL_CHAR_SOCIAL_BY_GUID,
 
+    /// DELETE FROM character_social WHERE friend = ?
+    DEL_CHAR_SOCIAL_BY_FRIEND,
+
+    /// DELETE FROM character_achievement WHERE achievement = ? AND guid = ?
+    DEL_CHAR_ACHIEVEMENT_BY_ACHIEVEMENT,
+
+    /// UPDATE character_achievement SET achievement = ? where achievement = ? AND guid = ?
+    UPD_CHAR_ACHIEVEMENT,
+
+    /// UPDATE item_instance ii, character_inventory ci SET ii.itemEntry = ? WHERE ii.itemEntry = ? AND ci.guid = ? AND ci.item = ii.guid
+    UPD_CHAR_INVENTORY_FACTION_CHANGE,
+
+    /// DELETE FROM character_spell WHERE spell = ? AND guid = ?
+    DEL_CHAR_SPELL_BY_SPELL,
+
+    /// UPDATE character_spell SET spell = ? where spell = ? AND guid = ?
+    UPD_CHAR_SPELL_FACTION_CHANGE,
+
+    /// SELECT standing FROM character_reputation WHERE faction = ? AND guid = ?
+    SEL_CHAR_REP_BY_FACTION,
+
+    /// DELETE FROM character_reputation WHERE faction = ? AND guid = ?
+    DEL_CHAR_REP_BY_FACTION,
+
+    /// UPDATE character_reputation SET faction = ?, standing = ? WHERE faction = ? AND guid = ?
+    UPD_CHAR_REP_FACTION_CHANGE,
+
+    /// UPDATE characters SET knownTitles = ? WHERE guid = ?
+    UPD_CHAR_TITLES_FACTION_CHANGE,
+
+    /// UPDATE characters SET chosenTitle = 0 WHERE guid = ?
+    RES_CHAR_TITLES_FACTION_CHANGE,
+
+    /// DELETE FROM character_spell_cooldown WHERE guid = ?
+    DEL_CHAR_SPELL_COOLDOWNS,
+
+    /// INSERT INTO character_spell_cooldown (guid, spell, item, time, categoryId, categoryEnd) VALUES (?, ?, ?, ?, ?, ?)
+    INS_CHAR_SPELL_COOLDOWN,
+
+    /// DELETE FROM character_spell_charges WHERE guid = ?
+    DEL_CHAR_SPELL_CHARGES,
+
+    /// INSERT INTO character_spell_charges (guid, categoryId, rechargeStart, rechargeEnd) VALUES (?, ?, ?, ?)
+    INS_CHAR_SPELL_CHARGES,
+
+    /// DELETE FROM character_action WHERE guid = ?
+    DEL_CHAR_ACTION,
+
+    /// DELETE FROM character_aura WHERE guid = ?
+    DEL_CHAR_AURA,
+
+    /// DELETE FROM character_aura_effect WHERE guid = ?
+    DEL_CHAR_AURA_EFFECT,
+
+    /// DELETE FROM character_gifts WHERE guid = ?
+    DEL_CHAR_GIFT,
+
+    /// DELETE FROM character_inventory WHERE guid = ?
+    DEL_CHAR_INVENTORY,
+
+    /// DELETE FROM character_queststatus_rewarded WHERE guid = ?
+    DEL_CHAR_QUESTSTATUS_REWARDED,
+
+    /// DELETE FROM character_spell WHERE guid = ?
+    DEL_CHAR_SPELL,
+
+    /// DELETE FROM mail WHERE receiver = ?
+    DEL_MAIL,
+
+    /// DELETE FROM mail_items WHERE receiver = ?
+    DEL_MAIL_ITEMS,
+
+    /// DELETE FROM character_achievement WHERE guid = ? AND achievement NOT IN (...)
+    DEL_CHAR_ACHIEVEMENTS,
+
+    /// DELETE FROM character_equipmentsets WHERE guid = ?
+    DEL_CHAR_EQUIPMENTSETS,
+
+    /// DELETE FROM character_transmog_outfits WHERE guid = ?
+    DEL_CHAR_TRANSMOG_OUTFITS,
+
+    /// DELETE FROM guild_eventlog WHERE PlayerGuid1 = ? OR PlayerGuid2 = ?
+    DEL_GUILD_EVENTLOG_BY_PLAYER,
+
+    /// DELETE FROM guild_bank_eventlog WHERE PlayerGuid = ?
+    DEL_GUILD_BANK_EVENTLOG_BY_PLAYER,
+
+    /// DELETE FROM character_glyphs WHERE guid = ?
+    DEL_CHAR_GLYPHS,
+
+    /// DELETE FROM character_talent WHERE guid = ?
+    DEL_CHAR_TALENT,
+
+    /// DELETE FROM character_skills WHERE guid = ?
+    DEL_CHAR_SKILLS,
+
+    /// INSERT INTO character_action (guid, spec, traitConfigId, button, action, type) VALUES (?, ?, ?, ?, ?, ?)
+    INS_CHAR_ACTION,
+
+    /// UPDATE character_action SET action = ?, type = ? WHERE guid = ? AND button = ? AND spec = ? AND traitConfigId = ?
+    UPD_CHAR_ACTION,
+
+    /// DELETE FROM character_action WHERE guid = ? and button = ? and spec = ? AND traitConfigId = ?
+    DEL_CHAR_ACTION_BY_BUTTON_SPEC,
+
+    /// DELETE FROM character_action WHERE guid = ? AND traitConfigId = ?
+    DEL_CHAR_ACTION_BY_TRAIT_CONFIG,
+
+    /// DELETE FROM character_inventory WHERE item = ?
+    DEL_CHAR_INVENTORY_BY_ITEM,
+
     /// UPDATE characters SET money = ? WHERE guid = ?
     UPD_CHAR_MONEY,
     /// UPDATE characters SET xp = ? WHERE guid = ?
@@ -1972,6 +2083,85 @@ impl StatementDef for CharStatements {
                 "DELETE FROM character_queststatus_objectives_criteria_progress WHERE guid = ? AND criteriaId = ?"
             }
             Self::DEL_CHAR_SOCIAL_BY_GUID => "DELETE FROM character_social WHERE guid = ?",
+            Self::DEL_CHAR_SOCIAL_BY_FRIEND => "DELETE FROM character_social WHERE friend = ?",
+            Self::DEL_CHAR_ACHIEVEMENT_BY_ACHIEVEMENT => {
+                "DELETE FROM character_achievement WHERE achievement = ? AND guid = ?"
+            }
+            Self::UPD_CHAR_ACHIEVEMENT => {
+                "UPDATE character_achievement SET achievement = ? where achievement = ? AND guid = ?"
+            }
+            Self::UPD_CHAR_INVENTORY_FACTION_CHANGE => {
+                "UPDATE item_instance ii, character_inventory ci SET ii.itemEntry = ? WHERE ii.itemEntry = ? AND ci.guid = ? AND ci.item = ii.guid"
+            }
+            Self::DEL_CHAR_SPELL_BY_SPELL => {
+                "DELETE FROM character_spell WHERE spell = ? AND guid = ?"
+            }
+            Self::UPD_CHAR_SPELL_FACTION_CHANGE => {
+                "UPDATE character_spell SET spell = ? where spell = ? AND guid = ?"
+            }
+            Self::SEL_CHAR_REP_BY_FACTION => {
+                "SELECT standing FROM character_reputation WHERE faction = ? AND guid = ?"
+            }
+            Self::DEL_CHAR_REP_BY_FACTION => {
+                "DELETE FROM character_reputation WHERE faction = ? AND guid = ?"
+            }
+            Self::UPD_CHAR_REP_FACTION_CHANGE => {
+                "UPDATE character_reputation SET faction = ?, standing = ? WHERE faction = ? AND guid = ?"
+            }
+            Self::UPD_CHAR_TITLES_FACTION_CHANGE => {
+                "UPDATE characters SET knownTitles = ? WHERE guid = ?"
+            }
+            Self::RES_CHAR_TITLES_FACTION_CHANGE => {
+                "UPDATE characters SET chosenTitle = 0 WHERE guid = ?"
+            }
+            Self::DEL_CHAR_SPELL_COOLDOWNS => "DELETE FROM character_spell_cooldown WHERE guid = ?",
+            Self::INS_CHAR_SPELL_COOLDOWN => {
+                "INSERT INTO character_spell_cooldown (guid, spell, item, time, categoryId, categoryEnd) VALUES (?, ?, ?, ?, ?, ?)"
+            }
+            Self::DEL_CHAR_SPELL_CHARGES => "DELETE FROM character_spell_charges WHERE guid = ?",
+            Self::INS_CHAR_SPELL_CHARGES => {
+                "INSERT INTO character_spell_charges (guid, categoryId, rechargeStart, rechargeEnd) VALUES (?, ?, ?, ?)"
+            }
+            Self::DEL_CHAR_ACTION => "DELETE FROM character_action WHERE guid = ?",
+            Self::DEL_CHAR_AURA => "DELETE FROM character_aura WHERE guid = ?",
+            Self::DEL_CHAR_AURA_EFFECT => "DELETE FROM character_aura_effect WHERE guid = ?",
+            Self::DEL_CHAR_GIFT => "DELETE FROM character_gifts WHERE guid = ?",
+            Self::DEL_CHAR_INVENTORY => "DELETE FROM character_inventory WHERE guid = ?",
+            Self::DEL_CHAR_QUESTSTATUS_REWARDED => {
+                "DELETE FROM character_queststatus_rewarded WHERE guid = ?"
+            }
+            Self::DEL_CHAR_SPELL => "DELETE FROM character_spell WHERE guid = ?",
+            Self::DEL_MAIL => "DELETE FROM mail WHERE receiver = ?",
+            Self::DEL_MAIL_ITEMS => "DELETE FROM mail_items WHERE receiver = ?",
+            Self::DEL_CHAR_ACHIEVEMENTS => {
+                "DELETE FROM character_achievement WHERE guid = ? AND achievement NOT IN (456,457,458,459,460,461,462,463,464,465,466,467,1400,1402,1404,1405,1406,1407,1408,1409,1410,1411,1412,1413,1414,1415,1416,1417,1418,1419,1420,1421,1422,1423,1424,1425,1426,1427,1463,3117,3259,4078,4576,4998,4999,5000,5001,5002,5003,5004,5005,5006,5007,5008,5381,5382,5383,5384,5385,5386,5387,5388,5389,5390,5391,5392,5393,5394,5395,5396,6433,6523,6524,6743,6744,6745,6746,6747,6748,6749,6750,6751,6752,6829,6859,6860,6861,6862,6863,6864,6865,6866,6867,6868,6869,6870,6871,6872,6873)"
+            }
+            Self::DEL_CHAR_EQUIPMENTSETS => "DELETE FROM character_equipmentsets WHERE guid = ?",
+            Self::DEL_CHAR_TRANSMOG_OUTFITS => {
+                "DELETE FROM character_transmog_outfits WHERE guid = ?"
+            }
+            Self::DEL_GUILD_EVENTLOG_BY_PLAYER => {
+                "DELETE FROM guild_eventlog WHERE PlayerGuid1 = ? OR PlayerGuid2 = ?"
+            }
+            Self::DEL_GUILD_BANK_EVENTLOG_BY_PLAYER => {
+                "DELETE FROM guild_bank_eventlog WHERE PlayerGuid = ?"
+            }
+            Self::DEL_CHAR_GLYPHS => "DELETE FROM character_glyphs WHERE guid = ?",
+            Self::DEL_CHAR_TALENT => "DELETE FROM character_talent WHERE guid = ?",
+            Self::DEL_CHAR_SKILLS => "DELETE FROM character_skills WHERE guid = ?",
+            Self::INS_CHAR_ACTION => {
+                "INSERT INTO character_action (guid, spec, traitConfigId, button, action, type) VALUES (?, ?, ?, ?, ?, ?)"
+            }
+            Self::UPD_CHAR_ACTION => {
+                "UPDATE character_action SET action = ?, type = ? WHERE guid = ? AND button = ? AND spec = ? AND traitConfigId = ?"
+            }
+            Self::DEL_CHAR_ACTION_BY_BUTTON_SPEC => {
+                "DELETE FROM character_action WHERE guid = ? and button = ? and spec = ? AND traitConfigId = ?"
+            }
+            Self::DEL_CHAR_ACTION_BY_TRAIT_CONFIG => {
+                "DELETE FROM character_action WHERE guid = ? AND traitConfigId = ?"
+            }
+            Self::DEL_CHAR_INVENTORY_BY_ITEM => "DELETE FROM character_inventory WHERE item = ?",
             Self::UPD_CHAR_XP => "UPDATE characters SET xp = ? WHERE guid = ?",
             Self::UPD_CHAR_LEVEL => "UPDATE characters SET level = ?, xp = ? WHERE guid = ?",
             Self::UPD_CHAR_MONEY => "UPDATE characters SET money = ? WHERE guid = ?",
@@ -3613,6 +3803,184 @@ mod tests {
         assert_eq!(
             CharStatements::DEL_CHAR_SOCIAL_BY_GUID.sql(),
             "DELETE FROM character_social WHERE guid = ?"
+        );
+    }
+
+    #[test]
+    fn character_faction_change_cooldown_delete_and_action_statements_match_cpp_sql_exactly() {
+        assert_eq!(
+            CharStatements::DEL_CHAR_SOCIAL_BY_FRIEND.sql(),
+            "DELETE FROM character_social WHERE friend = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_ACHIEVEMENT_BY_ACHIEVEMENT.sql(),
+            "DELETE FROM character_achievement WHERE achievement = ? AND guid = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_CHAR_ACHIEVEMENT.sql(),
+            "UPDATE character_achievement SET achievement = ? where achievement = ? AND guid = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_CHAR_INVENTORY_FACTION_CHANGE.sql(),
+            "UPDATE item_instance ii, character_inventory ci SET ii.itemEntry = ? WHERE ii.itemEntry = ? AND ci.guid = ? AND ci.item = ii.guid"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_SPELL_BY_SPELL.sql(),
+            "DELETE FROM character_spell WHERE spell = ? AND guid = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_CHAR_SPELL_FACTION_CHANGE.sql(),
+            "UPDATE character_spell SET spell = ? where spell = ? AND guid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHAR_REP_BY_FACTION.sql(),
+            "SELECT standing FROM character_reputation WHERE faction = ? AND guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_REP_BY_FACTION.sql(),
+            "DELETE FROM character_reputation WHERE faction = ? AND guid = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_CHAR_REP_FACTION_CHANGE.sql(),
+            "UPDATE character_reputation SET faction = ?, standing = ? WHERE faction = ? AND guid = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_CHAR_TITLES_FACTION_CHANGE.sql(),
+            "UPDATE characters SET knownTitles = ? WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::RES_CHAR_TITLES_FACTION_CHANGE.sql(),
+            "UPDATE characters SET chosenTitle = 0 WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_SPELL_COOLDOWNS.sql(),
+            "DELETE FROM character_spell_cooldown WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_CHAR_SPELL_COOLDOWN.sql(),
+            "INSERT INTO character_spell_cooldown (guid, spell, item, time, categoryId, categoryEnd) VALUES (?, ?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_SPELL_CHARGES.sql(),
+            "DELETE FROM character_spell_charges WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_CHAR_SPELL_CHARGES.sql(),
+            "INSERT INTO character_spell_charges (guid, categoryId, rechargeStart, rechargeEnd) VALUES (?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHARACTER.sql(),
+            "DELETE FROM characters WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_ACTION.sql(),
+            "DELETE FROM character_action WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_AURA.sql(),
+            "DELETE FROM character_aura WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_AURA_EFFECT.sql(),
+            "DELETE FROM character_aura_effect WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_GIFT.sql(),
+            "DELETE FROM character_gifts WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_INVENTORY.sql(),
+            "DELETE FROM character_inventory WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_QUESTSTATUS_REWARDED.sql(),
+            "DELETE FROM character_queststatus_rewarded WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_REPUTATION.sql(),
+            "DELETE FROM character_reputation WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_SPELL.sql(),
+            "DELETE FROM character_spell WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_MAIL.sql(),
+            "DELETE FROM mail WHERE receiver = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_MAIL_ITEMS.sql(),
+            "DELETE FROM mail_items WHERE receiver = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_EQUIPMENTSETS.sql(),
+            "DELETE FROM character_equipmentsets WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_TRANSMOG_OUTFITS.sql(),
+            "DELETE FROM character_transmog_outfits WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_GUILD_EVENTLOG_BY_PLAYER.sql(),
+            "DELETE FROM guild_eventlog WHERE PlayerGuid1 = ? OR PlayerGuid2 = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_GUILD_BANK_EVENTLOG_BY_PLAYER.sql(),
+            "DELETE FROM guild_bank_eventlog WHERE PlayerGuid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_GLYPHS.sql(),
+            "DELETE FROM character_glyphs WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_TALENT.sql(),
+            "DELETE FROM character_talent WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_SKILLS.sql(),
+            "DELETE FROM character_skills WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_CHAR_MONEY.sql(),
+            "UPDATE characters SET money = ? WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_CHAR_ACTION.sql(),
+            "INSERT INTO character_action (guid, spec, traitConfigId, button, action, type) VALUES (?, ?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::INS_CHAR_ACTION.sql().matches('?').count(),
+            6
+        );
+        assert_eq!(
+            CharStatements::UPD_CHAR_ACTION.sql(),
+            "UPDATE character_action SET action = ?, type = ? WHERE guid = ? AND button = ? AND spec = ? AND traitConfigId = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_CHAR_ACTION.sql().matches('?').count(),
+            6
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_ACTION_BY_BUTTON_SPEC.sql(),
+            "DELETE FROM character_action WHERE guid = ? and button = ? and spec = ? AND traitConfigId = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_ACTION_BY_TRAIT_CONFIG.sql(),
+            "DELETE FROM character_action WHERE guid = ? AND traitConfigId = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_INVENTORY_BY_ITEM.sql(),
+            "DELETE FROM character_inventory WHERE item = ?"
+        );
+        assert!(CharStatements::DEL_CHAR_ACHIEVEMENTS.sql().starts_with(
+            "DELETE FROM character_achievement WHERE guid = ? AND achievement NOT IN"
+        ));
+        assert_eq!(
+            CharStatements::DEL_CHAR_ACHIEVEMENTS
+                .sql()
+                .matches('?')
+                .count(),
+            1
         );
     }
 
