@@ -220,8 +220,8 @@ Anticheat is reactive — it does not originate opcodes, it inspects them. Touch
 
 ## 9. Migration sub-tasks
 
-- [ ] **#AC.1** Create `crates/wow-anticheat/` skeleton crate with `pub fn validate_movement_info(&mut MovementInfo, &PlayerState) -> ValidationResult`. (M)
-- [ ] **#AC.2** Port all 14 `ValidateMovementInfo` rules with one unit test per rule. Represented Rust sanitizer covers the portable rules, fixed-position vehicle `ROOT` ordering, and broadcast integration; remaining exactness is full Unit/Aura/Vehicle runtime context and exhaustive one-test-per-rule coverage. (H)
+- [x] **#AC.1** Create `crates/wow-anticheat/` skeleton crate with `pub fn validate_movement_info(&mut MovementInfo, &PlayerState) -> ValidationResult`. The crate is workspace-owned, independent from `wow-world`, and has C++-ordered rule evidence for the portable `Player::ValidateMovementInfo` state. (M)
+- [ ] **#AC.2** Port all 14 `ValidateMovementInfo` rules with one unit test per rule. `wow-anticheat` now owns the portable rule order/API, and the represented Rust sanitizer covers fixed-position vehicle `ROOT` ordering, aura/security exceptions, and broadcast integration; remaining exactness is full Unit/Aura/Vehicle runtime context plus wiring `wow-world` to the crate without losing trace evidence. (H)
 - [x] **#AC.3** Implement represented speed ACK tracker in `crates/wow-world/src/session.rs`: `forced_speed_changes_like_cpp: [u8; 9]`, represented movement speed rates per move-type, C++ `playerBaseMoveSpeed * rate` expected speed, mismatch threshold `0.01`, transport bypass and event audit. (M)
 - [x] **#AC.4** Wire `HandleForceSpeedChangeAck` / `HandleMoveSetModMovementForceMagnitudeAck`: Rust validates movement ACKs, decrements the C++ counters, skips pending forced changes, records correction when client speed is lower, kicks on client speed/magnitude above server truth, and mirrors the legacy correction path's no-packet behavior caused by `SetSpeedRate(GetSpeedRate())` returning early. Productive `Unit::SetSpeedRate` packet emission remains under Unit runtime, not this represented ACK slice. (M)
 - [x] **#AC.5a** Implement represented `DosProtection` in `WorldSession`: per-session opcode counters keyed by `ClientOpcodes`, evaluated before packets enter `pending_packets`; `Policy=0` logs/allows, `Policy=1` kicks, `Policy=2` kicks and stages a C++-style ban plan. (M)
@@ -247,6 +247,7 @@ Anticheat is reactive — it does not originate opcodes, it inspects them. Touch
 - [x] Test: `MOVEMENTFLAG_WATER_WALK` is preserved for represented `SPELL_AURA_GHOST`, matching the C++ ghost exception.
 - [x] Test: `MOVEMENTFLAG_FLYING | MOVEMENTFLAG_CAN_FLY` is preserved for GM/security-bypassed movement, matching `GetSession()->GetSecurity() != SEC_PLAYER`.
 - [x] Test: `MOVEMENTFLAG_FLYING | MOVEMENTFLAG_CAN_FLY` is preserved for represented `SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED`.
+- [x] Test: standalone `wow-anticheat::validate_movement_info` preserves the C++ rule order and mutation-only behavior independently of `WorldSession`.
 - [x] Test: speed ack 8.0 vs server 7.0 with no transport → kick fires; ban table not touched (kick policy).
 - [x] Test: speed ack 6.0 vs server 7.0 → correction is recorded, no kick, and no packet is emitted because legacy `SetSpeedRate(GetSpeedRate())` returns early on unchanged rate.
 - [x] Test: repeated `CMSG_PLAYER_LOGIN` packets in one second remain allowed because C++ puts it in the zero-limit group (`maxPacketCounterAllowed == 0`); do **not** add a kick expectation here.

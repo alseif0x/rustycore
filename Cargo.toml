@@ -30,6 +30,7 @@ members = [
     "crates/wow-instances",
     "crates/wow-pvp",
     "crates/wow-achievement",
+    "crates/wow-anticheat",
     "crates/wow-data",
     "crates/wow-script",
     "crates/wow-scripts",
@@ -166,6 +167,7 @@ wow-loot = { path = "crates/wow-loot" }
 wow-instances = { path = "crates/wow-instances" }
 wow-pvp = { path = "crates/wow-pvp" }
 wow-achievement = { path = "crates/wow-achievement" }
+wow-anticheat = { path = "crates/wow-anticheat" }
 wow-data = { path = "crates/wow-data" }
 wow-script = { path = "crates/wow-script" }
 wow-scripts = { path = "crates/wow-scripts" }

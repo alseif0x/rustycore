@@ -1,0 +1,10 @@
+[package]
+name = "wow-anticheat"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+wow-constants = { workspace = true }
+wow-packet = { workspace = true }

@@ -3085,6 +3085,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "wow-anticheat"
+version = "0.1.0"
+dependencies = [
+ "wow-constants",
+ "wow-packet",
+]
+
+[[package]]
 name = "wow-chat"
 version = "0.1.0"
 dependencies = [
