@@ -700,11 +700,19 @@ fn split_sql(content: &str) -> Vec<&str> {
 
 /// Recursively collect all `.sql` files under a directory.
 fn collect_sql_files(dir: &Path) -> Result<Vec<PathBuf>> {
+    collect_sql_files_with_depth_like_cpp(dir, 1)
+}
+
+fn collect_sql_files_with_depth_like_cpp(dir: &Path, depth: u32) -> Result<Vec<PathBuf>> {
+    const MAX_DEPTH_LIKE_CPP: u32 = 10;
+
     let mut files = vec![];
     for entry in fs::read_dir(dir)? {
         let path = entry?.path();
         if path.is_dir() {
-            files.extend(collect_sql_files(&path)?);
+            if depth < MAX_DEPTH_LIKE_CPP {
+                files.extend(collect_sql_files_with_depth_like_cpp(&path, depth + 1)?);
+            }
         } else if path.extension().map_or(false, |e| e == "sql") {
             files.push(path);
         }
@@ -862,14 +870,16 @@ mod tests {
     use super::{
         AppliedUpdateFileLikeCpp, DELETE_UPDATE_ENTRY_BY_NAME_SQL_LIKE_CPP,
         PopulateBaseActionLikeCpp, RENAME_UPDATE_ENTRY_SQL_LIKE_CPP, RenamedUpdateDecisionLikeCpp,
-        UpdateConfigLikeCpp, UpdateDatabaseKindLikeCpp, UpdateDecisionLikeCpp,
+        UpdateConfigLikeCpp, UpdateDatabaseKindLikeCpp, UpdateDecisionLikeCpp, collect_sql_files,
         default_updates_include_rows_like_cpp, mysql_cli_args_like_cpp,
         populate_base_action_like_cpp, renamed_update_decision_like_cpp,
         should_cleanup_orphaned_updates_like_cpp, sort_update_files_like_cpp, split_sql,
         update_database_kind_like_cpp, update_decision_like_cpp, update_state_like_cpp,
     };
     use std::collections::{HashMap, HashSet};
+    use std::fs;
     use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     fn update_config_like_cpp(
         redundancy_checks: bool,
@@ -1065,6 +1075,42 @@ mod tests {
             ),
         ];
         assert!(sort_update_files_like_cpp(&mut duplicate).is_err());
+    }
+
+    #[test]
+    fn collect_update_files_stops_at_cpp_max_depth() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "rustycore_update_depth_{}_{}",
+            std::process::id(),
+            unique
+        ));
+
+        let mut current = root.clone();
+        for depth in 1..=11 {
+            fs::create_dir_all(&current).unwrap();
+            if depth == 10 {
+                fs::write(current.join("depth10.sql"), "SELECT 10;").unwrap();
+            }
+            if depth == 11 {
+                fs::write(current.join("depth11.sql"), "SELECT 11;").unwrap();
+            }
+            current = current.join(format!("d{depth}"));
+        }
+
+        let files = collect_sql_files(&root).unwrap();
+        let names: HashSet<_> = files
+            .iter()
+            .map(|path| path.file_name().unwrap().to_string_lossy().into_owned())
+            .collect();
+
+        assert!(names.contains("depth10.sql"));
+        assert!(!names.contains("depth11.sql"));
+
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
