@@ -11,7 +11,7 @@ use std::sync::{
     Arc, Mutex, OnceLock,
     atomic::{AtomicI64, Ordering},
 };
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use parking_lot::RwLock;
 use rand::seq::SliceRandom;
@@ -122,8 +122,9 @@ use wow_network::session_mgr::{InstanceLink, SessionManager};
 use wow_network::{
     ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp,
     GameEventQuestCompleteClientOutcomeLikeCpp, GameEventQuestCompleteCommandLikeCpp,
-    GroupRegistry, LootDropRatesLikeCpp, PendingInvites, PlayerBroadcastInfo, PlayerRegistry,
-    ReputationRatesLikeCpp, SessionCommand, SocketTimeoutsLikeCpp,
+    GroupRegistry, LootDropRatesLikeCpp, PacketSpoofConfigLikeCpp, PendingInvites,
+    PlayerBroadcastInfo, PlayerRegistry, ReputationRatesLikeCpp, SessionCommand,
+    SocketTimeoutsLikeCpp,
 };
 use wow_packet::packets::item::{
     InventoryChangeFailure, ItemEnchantTimeUpdate, ItemInstance, ItemMod, ItemModList,
@@ -301,6 +302,12 @@ pub(crate) struct SeasonalQuestStatusDbRowLikeCpp {
 pub(crate) struct RepresentedPendingQuestSharingLikeCpp {
     pub sender_guid: ObjectGuid,
     pub quest_id: u32,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct PacketCounterLikeCpp {
+    last_receive_time_secs: u64,
+    amount_counter: u32,
 }
 
 /// Evidence for the bounded `HandleQuestPushResult` sender-match seam.
@@ -2451,6 +2458,8 @@ pub struct WorldSession {
     last_packet_time: Instant,
     socket_timeouts_like_cpp: SocketTimeoutsLikeCpp,
     socket_timeout_deadline_like_cpp: Instant,
+    packet_spoof_config_like_cpp: PacketSpoofConfigLikeCpp,
+    packet_throttling_like_cpp: HashMap<u16, PacketCounterLikeCpp>,
 
     // Dispatch table (built once, shared ref)
     dispatch_table: HashMap<ClientOpcodes, &'static PacketHandlerEntry>,
@@ -3737,6 +3746,8 @@ impl WorldSession {
             socket_timeouts_like_cpp: SocketTimeoutsLikeCpp::default(),
             socket_timeout_deadline_like_cpp: Instant::now()
                 + Duration::from_secs(SocketTimeoutsLikeCpp::default().unauthenticated_secs),
+            packet_spoof_config_like_cpp: PacketSpoofConfigLikeCpp::default(),
+            packet_throttling_like_cpp: HashMap::new(),
             dispatch_table: build_dispatch_table(),
             char_db: None,
             login_db: None,
@@ -10684,6 +10695,10 @@ impl WorldSession {
         self.reset_timeout_time_like_cpp(false);
     }
 
+    pub fn set_packet_spoof_config_like_cpp(&mut self, config: PacketSpoofConfigLikeCpp) {
+        self.packet_spoof_config_like_cpp = config;
+    }
+
     pub fn set_mmap_runtime_config_like_cpp(&mut self, config: MMapRuntimeConfigLikeCpp) {
         self.mmap_runtime_config_like_cpp = config;
     }
@@ -10741,6 +10756,247 @@ impl WorldSession {
 
     pub(crate) fn is_connection_idle_like_cpp(&self) -> bool {
         Instant::now() > self.socket_timeout_deadline_like_cpp
+    }
+
+    fn packet_spoof_now_secs_like_cpp() -> u64 {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs()
+    }
+
+    fn packet_spoof_max_packet_counter_allowed_like_cpp(opcode: ClientOpcodes) -> u32 {
+        match opcode {
+            // C++ returns 0 for cheap/no-query opcodes: no AntiDOS limit.
+            ClientOpcodes::PlayerLogin
+            | ClientOpcodes::QueryPlayerNames
+            | ClientOpcodes::AttackStop
+            | ClientOpcodes::LogoutRequest
+            | ClientOpcodes::CompleteCinematic
+            | ClientOpcodes::BankerActivate
+            | ClientOpcodes::BuyBankSlot
+            | ClientOpcodes::DuelResponse
+            | ClientOpcodes::CalendarComplain
+            | ClientOpcodes::QueryQuestInfo
+            | ClientOpcodes::QueryGameObject
+            | ClientOpcodes::QueryCreature
+            | ClientOpcodes::QuestGiverStatusQuery
+            | ClientOpcodes::QueryGuildInfo
+            | ClientOpcodes::TaxiNodeStatusQuery
+            | ClientOpcodes::TaxiQueryAvailableNodes
+            | ClientOpcodes::QuestGiverQueryQuest
+            | ClientOpcodes::QueryPageText
+            | ClientOpcodes::GuildBankTextQuery
+            | ClientOpcodes::MoveSetFacing
+            | ClientOpcodes::MoveSetPitch
+            | ClientOpcodes::RequestPartyMemberStats
+            | ClientOpcodes::QuestGiverCompleteQuest
+            | ClientOpcodes::SetActionButton
+            | ClientOpcodes::SetActionBarToggles
+            | ClientOpcodes::ResetInstances
+            | ClientOpcodes::HearthAndResurrect
+            | ClientOpcodes::TogglePvp
+            | ClientOpcodes::PetAbandon
+            | ClientOpcodes::ActivateTaxi
+            | ClientOpcodes::SelfRes
+            | ClientOpcodes::UnlearnSkill
+            | ClientOpcodes::SaveEquipmentSet
+            | ClientOpcodes::DeleteEquipmentSet
+            | ClientOpcodes::DismissCritter
+            | ClientOpcodes::RepopRequest
+            | ClientOpcodes::PartyInvite
+            | ClientOpcodes::PartyInviteResponse
+            | ClientOpcodes::PartyUninvite
+            | ClientOpcodes::LeaveGroup
+            | ClientOpcodes::BattlemasterJoinArena
+            | ClientOpcodes::BattlefieldLeave
+            | ClientOpcodes::GuildBankLogQuery
+            | ClientOpcodes::LogoutCancel
+            | ClientOpcodes::AlterAppearance
+            | ClientOpcodes::QuestConfirmAccept
+            | ClientOpcodes::GuildEventLogQuery
+            | ClientOpcodes::QuestGiverStatusMultipleQuery
+            | ClientOpcodes::BeginTrade
+            | ClientOpcodes::InitiateTrade
+            | ClientOpcodes::ChatAddonMessage
+            | ClientOpcodes::ChatAddonMessageWhisper
+            | ClientOpcodes::ChatMessageAfk
+            | ClientOpcodes::ChatMessageChannel
+            | ClientOpcodes::ChatMessageDnd
+            | ClientOpcodes::ChatMessageEmote
+            | ClientOpcodes::ChatMessageGuild
+            | ClientOpcodes::ChatMessageOfficer
+            | ClientOpcodes::ChatMessageParty
+            | ClientOpcodes::ChatMessageRaid
+            | ClientOpcodes::ChatMessageRaidWarning
+            | ClientOpcodes::ChatMessageSay
+            | ClientOpcodes::ChatMessageWhisper
+            | ClientOpcodes::ChatMessageYell
+            | ClientOpcodes::Inspect
+            | ClientOpcodes::AreaSpiritHealerQuery
+            | ClientOpcodes::StandStateChange
+            | ClientOpcodes::RandomRoll
+            | ClientOpcodes::TimeSyncResponse
+            | ClientOpcodes::TimeSyncResponseDropped
+            | ClientOpcodes::TimeSyncResponseFailed
+            | ClientOpcodes::MoveForceRunSpeedChangeAck
+            | ClientOpcodes::MoveForceSwimSpeedChangeAck
+            | ClientOpcodes::MoveForceSwimBackSpeedChangeAck
+            | ClientOpcodes::MoveForceRunBackSpeedChangeAck
+            | ClientOpcodes::MoveForceFlightSpeedChangeAck
+            | ClientOpcodes::MoveForceFlightBackSpeedChangeAck
+            | ClientOpcodes::MoveForceWalkSpeedChangeAck
+            | ClientOpcodes::MoveForceTurnRateChangeAck
+            | ClientOpcodes::MoveForcePitchRateChangeAck => 0,
+
+            ClientOpcodes::QuestGiverAcceptQuest
+            | ClientOpcodes::QuestLogRemoveQuest
+            | ClientOpcodes::QuestGiverChooseReward
+            | ClientOpcodes::SendContactList
+            | ClientOpcodes::AutobankItem
+            | ClientOpcodes::AutostoreBankItem
+            | ClientOpcodes::Who
+            | ClientOpcodes::RideVehicleInteract
+            | ClientOpcodes::MoveHeartbeat => 200,
+
+            ClientOpcodes::GuildSetMemberNote
+            | ClientOpcodes::SetContactNotes
+            | ClientOpcodes::CalendarGet
+            | ClientOpcodes::GuildBankQueryTab
+            | ClientOpcodes::QueryInspectAchievements
+            | ClientOpcodes::GameObjReportUse
+            | ClientOpcodes::GameObjUse
+            | ClientOpcodes::DeclinePetition => 50,
+
+            ClientOpcodes::QuestPoiQuery => 25,
+
+            ClientOpcodes::SpellClick | ClientOpcodes::MoveDismissVehicle => 20,
+
+            ClientOpcodes::SignPetition
+            | ClientOpcodes::TurnInPetition
+            | ClientOpcodes::ChangeSubGroup
+            | ClientOpcodes::QueryPetition
+            | ClientOpcodes::CharCustomize
+            | ClientOpcodes::CharRaceOrFactionChange
+            | ClientOpcodes::CharDelete
+            | ClientOpcodes::DelFriend
+            | ClientOpcodes::AddFriend
+            | ClientOpcodes::CharacterRenameRequest
+            | ClientOpcodes::BugReport
+            | ClientOpcodes::SetPartyLeader
+            | ClientOpcodes::ConvertRaid
+            | ClientOpcodes::SetAssistantLeader
+            | ClientOpcodes::MoveChangeVehicleSeats
+            | ClientOpcodes::PetitionBuy
+            | ClientOpcodes::RequestVehiclePrevSeat
+            | ClientOpcodes::RequestVehicleNextSeat
+            | ClientOpcodes::RequestVehicleSwitchSeat
+            | ClientOpcodes::RequestVehicleExit
+            | ClientOpcodes::EjectPassenger
+            | ClientOpcodes::ItemPurchaseRefund
+            | ClientOpcodes::SocketGems
+            | ClientOpcodes::WrapItem
+            | ClientOpcodes::ReportPvpPlayerAfk => 10,
+
+            ClientOpcodes::CreateCharacter
+            | ClientOpcodes::EnumCharacters
+            | ClientOpcodes::EnumCharactersDeletedByClient
+            | ClientOpcodes::SubmitUserFeedback
+            | ClientOpcodes::SupportTicketSubmitComplaint
+            | ClientOpcodes::CalendarAddEvent
+            | ClientOpcodes::CalendarUpdateEvent
+            | ClientOpcodes::CalendarRemoveEvent
+            | ClientOpcodes::CalendarCopyEvent
+            | ClientOpcodes::CalendarInvite
+            | ClientOpcodes::CalendarEventSignUp
+            | ClientOpcodes::CalendarRsvp
+            | ClientOpcodes::CalendarModeratorStatus
+            | ClientOpcodes::CalendarRemoveInvite
+            | ClientOpcodes::SetLootMethod
+            | ClientOpcodes::GuildInviteByName
+            | ClientOpcodes::AcceptGuildInvite
+            | ClientOpcodes::GuildDeclineInvitation
+            | ClientOpcodes::GuildLeave
+            | ClientOpcodes::GuildDelete
+            | ClientOpcodes::GuildSetGuildMaster
+            | ClientOpcodes::GuildUpdateMotdText
+            | ClientOpcodes::GuildSetRankPermissions
+            | ClientOpcodes::GuildAddRank
+            | ClientOpcodes::GuildDeleteRank
+            | ClientOpcodes::GuildUpdateInfoText
+            | ClientOpcodes::GuildBankDepositMoney
+            | ClientOpcodes::GuildBankWithdrawMoney
+            | ClientOpcodes::GuildBankBuyTab
+            | ClientOpcodes::GuildBankUpdateTab
+            | ClientOpcodes::GuildBankSetTabText
+            | ClientOpcodes::SaveGuildEmblem
+            | ClientOpcodes::PetitionRenameGuild
+            | ClientOpcodes::ConfirmRespecWipe
+            | ClientOpcodes::SetDungeonDifficulty
+            | ClientOpcodes::SetRaidDifficulty
+            | ClientOpcodes::SetPartyAssignment
+            | ClientOpcodes::DoReadyCheck => 3,
+
+            ClientOpcodes::GetItemPurchaseData => 150,
+            ClientOpcodes::HotfixRequest => 1,
+            _ => 100,
+        }
+    }
+
+    fn evaluate_packet_spoof_like_cpp(&mut self, pkt: &WorldPacket) -> bool {
+        let Some(opcode) = pkt.client_opcode() else {
+            return true;
+        };
+        let max_packet_counter_allowed =
+            Self::packet_spoof_max_packet_counter_allowed_like_cpp(opcode);
+        if max_packet_counter_allowed == 0 {
+            return true;
+        }
+
+        let now = Self::packet_spoof_now_secs_like_cpp();
+        let counter = self
+            .packet_throttling_like_cpp
+            .entry(pkt.opcode_raw())
+            .or_default();
+        if counter.last_receive_time_secs != now {
+            counter.last_receive_time_secs = now;
+            counter.amount_counter = 0;
+        }
+        counter.amount_counter = counter.amount_counter.saturating_add(1);
+        if counter.amount_counter <= max_packet_counter_allowed {
+            return true;
+        }
+        let amount_counter = counter.amount_counter;
+
+        warn!(
+            "AntiDOS: Account {}, Character: {:?}, flooding packet (opc: {:?} (0x{:X}), count: {})",
+            self.account_id,
+            self.player_name_like_cpp(),
+            opcode,
+            pkt.opcode_raw(),
+            amount_counter
+        );
+
+        match self.packet_spoof_config_like_cpp.policy {
+            PacketSpoofConfigLikeCpp::POLICY_LOG => true,
+            PacketSpoofConfigLikeCpp::POLICY_KICK => {
+                self.kick("WorldSession::DosProtection::EvaluateOpcode AntiDOS");
+                false
+            }
+            PacketSpoofConfigLikeCpp::POLICY_BAN => {
+                // C++ calls World::BanAccount here. RustyCore has no represented
+                // account/IP ban runtime on WorldSession yet, so the safety action
+                // is the same immediate kick and the DB ban remains an explicit gap.
+                warn!(
+                    "AntiDOS: represented ban requested (mode {}, duration {}s) but ban persistence is pending",
+                    self.packet_spoof_config_like_cpp.ban_mode,
+                    self.packet_spoof_config_like_cpp.ban_duration_secs
+                );
+                self.kick("WorldSession::DosProtection::EvaluateOpcode AntiDOS");
+                false
+            }
+            _ => true,
+        }
     }
 
     pub(crate) fn update_speak_time_like_cpp(&mut self, index: ChatFloodThrottleIndexLikeCpp) {
@@ -15518,6 +15774,9 @@ impl WorldSession {
 
             self.last_packet_time = Instant::now();
             self.reset_timeout_time_for_packet_like_cpp(pkt.opcode_raw());
+            if !self.evaluate_packet_spoof_like_cpp(&pkt) {
+                break;
+            }
             self.pending_packets.push(pkt);
             processed += 1;
         }
@@ -15530,6 +15789,9 @@ impl WorldSession {
                     Ok(pkt) => {
                         self.last_packet_time = Instant::now();
                         self.reset_timeout_time_for_packet_like_cpp(pkt.opcode_raw());
+                        if !self.evaluate_packet_spoof_like_cpp(&pkt) {
+                            break;
+                        }
                         self.pending_packets.push(pkt);
                         processed += 1;
                     }
@@ -55398,6 +55660,68 @@ mod tests {
 
         assert_eq!(logged_in_session.update(100), 1);
         assert!(!logged_in_session.is_disconnecting());
+    }
+
+    #[test]
+    fn packet_spoof_policy_kick_blocks_over_limit_opcode_like_cpp() {
+        let hotfix_opcode = (ClientOpcodes::HotfixRequest as u16).to_le_bytes();
+        let (mut session, pkt_tx, _) = make_session();
+        session.set_packet_spoof_config_like_cpp(PacketSpoofConfigLikeCpp {
+            policy: PacketSpoofConfigLikeCpp::POLICY_KICK,
+            ban_mode: PacketSpoofConfigLikeCpp::BAN_ACCOUNT,
+            ban_duration_secs: 86_400,
+        });
+        pkt_tx
+            .send(WorldPacket::from_bytes(&hotfix_opcode))
+            .expect("first packet queued");
+        pkt_tx
+            .send(WorldPacket::from_bytes(&hotfix_opcode))
+            .expect("second packet queued");
+
+        assert_eq!(session.update(100), 1);
+        assert_eq!(session.pending_packets.len(), 1);
+        assert!(session.is_disconnecting());
+    }
+
+    #[test]
+    fn packet_spoof_policy_log_keeps_over_limit_opcode_like_cpp() {
+        let hotfix_opcode = (ClientOpcodes::HotfixRequest as u16).to_le_bytes();
+        let (mut session, pkt_tx, _) = make_session();
+        session.set_packet_spoof_config_like_cpp(PacketSpoofConfigLikeCpp {
+            policy: PacketSpoofConfigLikeCpp::POLICY_LOG,
+            ban_mode: PacketSpoofConfigLikeCpp::BAN_ACCOUNT,
+            ban_duration_secs: 86_400,
+        });
+        pkt_tx
+            .send(WorldPacket::from_bytes(&hotfix_opcode))
+            .expect("first packet queued");
+        pkt_tx
+            .send(WorldPacket::from_bytes(&hotfix_opcode))
+            .expect("second packet queued");
+
+        assert_eq!(session.update(100), 2);
+        assert_eq!(session.pending_packets.len(), 2);
+        assert!(!session.is_disconnecting());
+    }
+
+    #[test]
+    fn packet_spoof_zero_limit_opcode_is_unlimited_like_cpp() {
+        let player_login_opcode = (ClientOpcodes::PlayerLogin as u16).to_le_bytes();
+        let (mut session, pkt_tx, _) = make_session();
+        session.set_packet_spoof_config_like_cpp(PacketSpoofConfigLikeCpp {
+            policy: PacketSpoofConfigLikeCpp::POLICY_KICK,
+            ban_mode: PacketSpoofConfigLikeCpp::BAN_ACCOUNT,
+            ban_duration_secs: 86_400,
+        });
+        for _ in 0..5 {
+            pkt_tx
+                .send(WorldPacket::from_bytes(&player_login_opcode))
+                .expect("packet queued");
+        }
+
+        assert_eq!(session.update(100), 5);
+        assert_eq!(session.pending_packets.len(), 5);
+        assert!(!session.is_disconnecting());
     }
 
     #[test]

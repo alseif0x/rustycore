@@ -137,6 +137,32 @@ impl Default for SocketTimeoutsLikeCpp {
     }
 }
 
+/// C++ `PacketSpoof.*` policy carried by `WorldSession::DosProtection`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PacketSpoofConfigLikeCpp {
+    pub policy: u32,
+    pub ban_mode: u32,
+    pub ban_duration_secs: u32,
+}
+
+impl PacketSpoofConfigLikeCpp {
+    pub const POLICY_LOG: u32 = 0;
+    pub const POLICY_KICK: u32 = 1;
+    pub const POLICY_BAN: u32 = 2;
+    pub const BAN_ACCOUNT: u32 = 0;
+    pub const BAN_IP: u32 = 2;
+}
+
+impl Default for PacketSpoofConfigLikeCpp {
+    fn default() -> Self {
+        Self {
+            policy: Self::POLICY_KICK,
+            ban_mode: Self::BAN_ACCOUNT,
+            ban_duration_secs: 86_400,
+        }
+    }
+}
+
 /// Resources needed for creating a WorldSession after authentication.
 ///
 /// Held by the accept loop and cloned for each connection.
@@ -265,6 +291,7 @@ pub struct SessionResources {
     pub chat_flood_config: ChatFloodConfigLikeCpp,
     pub max_overspeed_pings: u32,
     pub socket_timeouts: SocketTimeoutsLikeCpp,
+    pub packet_spoof_config: PacketSpoofConfigLikeCpp,
     pub realm_id: u16,
     /// External (public) IP from `realmlist.address`.
     pub realm_external_address: [u8; 4],

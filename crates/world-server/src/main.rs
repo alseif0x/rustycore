@@ -37,10 +37,10 @@ use wow_network::session_mgr::SessionManager;
 use wow_network::world_socket::{AccountInfo, AccountLookup};
 use wow_network::{
     ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, GameEventQuestCompleteCommandLikeCpp,
-    GameEventQuestCompleteResponseLikeCpp, GroupRegistry, LootDropRatesLikeCpp, PendingInvites,
-    PlayerRegistry, ReadyCheckEventLikeCpp, ReputationRatesLikeCpp,
-    ResetSeasonalQuestStatusCommand, SendVisibleObjectValuesUpdateCommand, SessionCommand,
-    SessionResources, SocketTimeoutsLikeCpp, tick_all_group_ready_checks_like_cpp,
+    GameEventQuestCompleteResponseLikeCpp, GroupRegistry, LootDropRatesLikeCpp,
+    PacketSpoofConfigLikeCpp, PendingInvites, PlayerRegistry, ReadyCheckEventLikeCpp,
+    ReputationRatesLikeCpp, ResetSeasonalQuestStatusCommand, SendVisibleObjectValuesUpdateCommand,
+    SessionCommand, SessionResources, SocketTimeoutsLikeCpp, tick_all_group_ready_checks_like_cpp,
 };
 use wow_packet::{
     ServerPacket,
@@ -2272,6 +2272,15 @@ async fn main() -> Result<()> {
                 "CONFIG_SOCKET_TIMEOUTTIME_ACTIVE",
                 60,
             )),
+        },
+        packet_spoof_config: PacketSpoofConfigLikeCpp {
+            policy: world_config_u32(&world_configs, "CONFIG_PACKET_SPOOF_POLICY", 1),
+            ban_mode: world_config_u32(&world_configs, "CONFIG_PACKET_SPOOF_BANMODE", 0),
+            ban_duration_secs: world_config_u32(
+                &world_configs,
+                "CONFIG_PACKET_SPOOF_BANDURATION",
+                86_400,
+            ),
         },
         realm_id,
         realm_external_address,
@@ -7779,6 +7788,7 @@ async fn create_session(
     session.set_chat_level_requirements_like_cpp(resources.chat_level_requirements);
     session.set_chat_flood_config_like_cpp(resources.chat_flood_config);
     session.set_socket_timeouts_like_cpp(resources.socket_timeouts);
+    session.set_packet_spoof_config_like_cpp(resources.packet_spoof_config);
     session.set_mmap_runtime_config_like_cpp(mmap_runtime_config);
     if let Some(pathfinder) = mmap_pathfinder {
         session.set_mmap_pathfinder_like_cpp(pathfinder);
@@ -11691,6 +11701,35 @@ MaxRecruitAFriendBonusDistance = 45
             wow_network::SocketTimeoutsLikeCpp {
                 unauthenticated_secs: 120,
                 active_secs: 45,
+            }
+        );
+    }
+
+    #[test]
+    fn packet_spoof_config_reads_cpp_world_config_keys() {
+        let _guard = TEST_LOCK.lock().expect("test lock poisoned");
+        wow_config::load_config_from_str(
+            "PacketSpoof.Policy = 2\nPacketSpoof.BanMode = 2\nPacketSpoof.BanDuration = 12345\n",
+        )
+        .expect("config should load");
+
+        let configs = wow_config::load_world_config_values();
+        let packet_spoof = wow_network::PacketSpoofConfigLikeCpp {
+            policy: world_config_u32(&configs, "CONFIG_PACKET_SPOOF_POLICY", 1),
+            ban_mode: world_config_u32(&configs, "CONFIG_PACKET_SPOOF_BANMODE", 0),
+            ban_duration_secs: world_config_u32(
+                &configs,
+                "CONFIG_PACKET_SPOOF_BANDURATION",
+                86_400,
+            ),
+        };
+
+        assert_eq!(
+            packet_spoof,
+            wow_network::PacketSpoofConfigLikeCpp {
+                policy: 2,
+                ban_mode: 2,
+                ban_duration_secs: 12_345,
             }
         );
     }

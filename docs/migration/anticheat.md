@@ -202,7 +202,7 @@ Anticheat is reactive — it does not originate opcodes, it inspects them. Touch
 - Movement broadcast is unconditional at `movement.rs` line 127-138 — peers see flags **before** any anticheat strip. Even after #AC.2 implements rule sanitization, the broadcast must be delayed until after the strip, or peers see `MOVEMENTFLAG_FLYING` from a fly-hacker and propagate it.
 - No session-level "this player is being moved by who" tracking → cannot implement mover-mismatch check (rule analogue at `MovementHandler.cpp:543`).
 
-**Tests existing:** **none** for anticheat. `crates/wow-world/src/handlers/movement.rs` has no unit tests for the finite-position guard.
+**Tests existing:** represented AntiDOS unit tests cover `PacketSpoof.Policy` log/kick behavior, C++ `HotfixRequest` limit `1/sec`, and unlimited `PlayerLogin`; movement anticheat still lacks finite-position guard tests.
 
 ---
 
@@ -212,9 +212,10 @@ Anticheat is reactive — it does not originate opcodes, it inspects them. Touch
 - [ ] **#AC.2** Port all 14 `ValidateMovementInfo` rules with one unit test per rule. (H)
 - [ ] **#AC.3** Implement `SpeedTracker` in `crates/wow-world/src/session.rs`: `forced_speed_changes: [u32; 9]`, expected speeds per move-type, mismatch threshold 0.01. (M)
 - [ ] **#AC.4** Wire `HandleForceSpeedChangeAck` → `SpeedTracker::evaluate` → kick on client < server, resync on client > server. Send `SMSG_FORCE_*_SPEED_CHANGE` on resync. (M)
-- [ ] **#AC.5** Implement `DosProtection`: `DashMap<ClientOpcodes, PacketCounter>` per session, `evaluate(opcode, now)` returning `Allow / Drop / Kick / Ban`. (H)
-- [ ] **#AC.6** Hard-code the per-opcode rate-limit table from `WorldSession.cpp:1313-1500` verbatim. Generate a `lookup(ClientOpcodes) -> u32` from a const array. (M)
-- [ ] **#AC.7** Plumb `PacketSpoof.Policy` / `PacketSpoof.BanMode` / `PacketSpoof.BanDuration` from `WorldServer.conf` → `wow-config` → `DosProtection`. (L)
+- [x] **#AC.5a** Implement represented `DosProtection` in `WorldSession`: per-session opcode counters keyed by `ClientOpcodes`, evaluated before packets enter `pending_packets`; `Policy=0` logs/allows, `Policy=1` kicks, `Policy=2` currently kicks and records the missing ban-persistence gap. (M)
+- [ ] **#AC.5b** Finish `Policy=2` ban persistence using a real `World::BanAccount` equivalent for `auth.account_banned` / `auth.ip_banned`. (M)
+- [ ] **#AC.6** Complete the per-opcode rate-limit table from `WorldSession.cpp:1313-1500` exhaustively. The represented table currently covers the opcodes present in Rust's active handler set plus C++ default `100`; a full audit/generator is still needed. (M)
+- [x] **#AC.7a** Plumb `PacketSpoof.Policy` / `PacketSpoof.BanMode` / `PacketSpoof.BanDuration` from `WorldServer.conf` → `wow-config` → `WorldSession`. (L)
 - [ ] **#AC.8** Implement ban/kick escalation: `KickPolicy::Ban` writes to `auth.account_banned` or `auth.ip_banned` then drops the connection. (M)
 - [ ] **#AC.9** Server-authoritative fall-damage: track previous Z, on land compute `fall_distance`, apply environmental damage if > 13 yards. Mirror `Player::HandleFall`. (M)
 - [ ] **#AC.10** Move broadcast in `movement.rs:127` to **after** validation strip; otherwise peers receive un-sanitized flags. (L — but high-impact correctness fix)
