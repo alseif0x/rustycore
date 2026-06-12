@@ -66,6 +66,8 @@ pub enum WorldStatements {
     SEL_WORLD_STATE_IDS,
     /// Load C++ WorldStateMgr templates/default metadata.
     SEL_WORLD_STATES,
+    /// C++ World::LoadDBVersion startup query.
+    SEL_WORLD_DB_VERSION,
     /// C++ ObjectMgr::LoadReputationRewardRate startup query.
     SEL_REPUTATION_REWARD_RATE,
     /// C++ ObjectMgr::LoadReputationOnKill startup query.
@@ -463,6 +465,7 @@ impl StatementDef for WorldStatements {
             Self::SEL_WORLD_STATES => {
                 "SELECT ID, DefaultValue, MapIDs, AreaIDs, ScriptName FROM world_state"
             }
+            Self::SEL_WORLD_DB_VERSION => "SELECT db_version, cache_id FROM version LIMIT 1",
             Self::SEL_REPUTATION_REWARD_RATE => {
                 "SELECT faction, quest_rate, quest_daily_rate, quest_weekly_rate, quest_monthly_rate, quest_repeatable_rate, creature_rate, spell_rate FROM reputation_reward_rate"
             }
@@ -1006,6 +1009,14 @@ mod tests {
             WorldStatements::SEL_WORLD_STATE_IDS.sql(),
             "SELECT ID FROM world_state"
         );
+    }
+
+    #[test]
+    fn world_db_version_statement_matches_cpp_sql_exactly() {
+        let sql = WorldStatements::SEL_WORLD_DB_VERSION.sql();
+
+        assert_eq!(sql, "SELECT db_version, cache_id FROM version LIMIT 1");
+        assert_eq!(sql.matches('?').count(), 0);
     }
 
     #[test]

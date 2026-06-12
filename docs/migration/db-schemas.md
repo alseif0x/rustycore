@@ -11,7 +11,7 @@
 
 ## 1. Purpose
 
-TrinityCore (and its wotlk_classic fork at `woltk-trinity-legacy`) ships **four MariaDB/MySQL schemas** that together store every piece of mutable + content data the server uses: account credentials, banlists, realms (`auth`); player save-state (`characters`); GM-curated game content — spawns, loot tables, quests, scripts (`world`); and the server-authored DB2 hotfix overlay that overrides client static data at runtime (`hotfixes`). The Trinity binary contains an **Updater** subsystem that diffs `sql/updates/<db>/<branch>/` against an `updates` table and auto-applies pending deltas at startup. RustyCore now has a `DbUpdater` counterpart and world-server startup wiring for missing-schema create/populate/update, plus a live MariaDB harness for the updater path. Full clean-install parity is still not proven because the canonical base/content files must be present and the large out-of-tree TDB content import is not exercised by CI.
+TrinityCore (and its wotlk_classic fork at `woltk-trinity-legacy`) ships **four MariaDB/MySQL schemas** that together store every piece of mutable + content data the server uses: account credentials, banlists, realms (`auth`); player save-state (`characters`); GM-curated game content — spawns, loot tables, quests, scripts (`world`); and the server-authored DB2 hotfix overlay that overrides client static data at runtime (`hotfixes`). The Trinity binary contains an **Updater** subsystem that diffs `sql/updates/<db>/<branch>/` against an `updates` table and auto-applies pending deltas at startup. RustyCore now has a `DbUpdater` counterpart and world-server startup wiring for missing-schema create/populate/update, a live MariaDB harness for the updater path, and a startup sentinel that refuses a non-current world content DB (`world.version.db_version='TDB 343.24081'`, `cache_id=24081`). Full clean-install parity is still not proven because the canonical base/content files must be present and the large out-of-tree TDB content import is not exercised by CI.
 
 ---
 
@@ -260,7 +260,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 - [ ] **#DBS.7** Document operator install runbook (`docs/operations/db-bootstrap.md`): create user, create 4 DBs, source the 4 base dumps, run TDB world content import, smoke-test connection from `world-server`. (M)
 - [ ] **#DBS.8** Add an integration test target: spin up MariaDB in CI, apply schemas, run pool-warmup + a SELECT on every wired statement to detect column drift before runtime. (H)
 - [x] **#DBS.9** Resolve `SEL_GAMEOBJECT_TARGET` / `SEL_BNET_ACCOUNT_SALT_BY_ID` empty-string stubs: removed Rust-only `SEL_BNET_ACCOUNT_SALT_BY_ID`; kept `SEL_GAMEOBJECT_TARGET` as an explicit C++ enum-without-`PrepareStatement` mirror instead of inventing non-canonical SQL. (L)
-- [ ] **#DBS.10** Add a schema-version sentinel in code (`pub const REQUIRED_TDB_VERSION: &str = "TDB_full_world_3.4.3_…";`) compared against `world.version` table on boot. (L)
+- [x] **#DBS.10** Add a schema-version sentinel in code compared against `world.version` on boot. C++ reads `SELECT db_version, cache_id FROM version LIMIT 1`; the current canonical `wotlk_classic` update sets `db_version='TDB 343.24081'` and `cache_id=24081`, so RustyCore aborts startup on any other world content version. (L)
 
 ---
 
@@ -341,9 +341,10 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 3. **Charset assumption verified and wired:** the user-spec said "TC uses `utf8mb4_general_ci` or similar"; **the actual answer is `utf8mb4_unicode_ci`** (with `utf8mb4_bin` on player names). Rust pool URLs now force `charset=utf8mb4`, `collation=utf8mb4_unicode_ci`, and UTC `timezone=%2B00%3A00`; the live fixture harness covers a utf8mb4 Cyrillic/CJK round-trip. Full DB install parity still requires the real canonical base/content import.
 4. **Hotfixes is no longer a placeholder gap.** The 3 control-table SELECTs and cache loaders are present; per-DB2 mirror selects land per feature/store. This is still not "every generated C++ overlay is consumed", but it is an explicit strategy instead of a missing module.
 5. **Characters DB write-side callsites remain thinner than the statement registry.** The active WotLK prepared statement names are present, but many gameplay systems still need their runtime save/load paths wired and validated through feature-level tests.
+6. **World content version is now fail-fast.** RustyCore mirrors C++ `World::LoadDBVersion` with `SELECT db_version, cache_id FROM version LIMIT 1` and refuses to boot unless the loaded content DB reports `TDB 343.24081` / `24081`. This catches wrong or missing TDB imports before gameplay loaders run.
 
-**Status verdict:** ⚠️ partial. Pools, updater helpers, login/world startup DB paths, active-WotLK character statement names, hotfix control/cache paths, and a fixture live MariaDB updater harness are usable. The largest remaining DB work is full canonical clean-install/content validation, character write-side runtime callsites, and per-feature DB2 overlay consumers.
+**Status verdict:** ⚠️ partial. Pools, updater helpers, login/world startup DB paths, the world DB version sentinel, active-WotLK character statement names, hotfix control/cache paths, and a fixture live MariaDB updater harness are usable. The largest remaining DB work is full canonical clean-install/content validation, character write-side runtime callsites, and per-feature DB2 overlay consumers.
 
 ---
 
-*Doc version: 1.1 (2026-06-11). Updated after updater/hotfix strategy work; refresh when character statement coverage or live DB integration changes materially.*
+*Doc version: 1.2 (2026-06-12). Updated after world DB version sentinel work; refresh when character statement coverage or live DB integration changes materially.*

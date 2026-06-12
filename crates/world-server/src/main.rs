@@ -405,6 +405,8 @@ async fn main() -> Result<()> {
     }
     // ─────────────────────────────────────────────────────────────────────
 
+    verify_world_db_version_like_cpp(world_db.as_ref()).await?;
+
     let hotfix_db = Arc::new(hotfix_db);
     let realm_id: u16 = wow_config::get_value("RealmID").unwrap_or(1);
     clear_online_accounts_like_cpp(&login_db, &char_db, realm_id).await?;
@@ -2571,6 +2573,76 @@ fn db_updater_step_like_cpp<T>(
     operation: &str,
 ) -> Result<T> {
     result.with_context(|| format!("Could not {operation} the {database_name} database"))
+}
+
+const REQUIRED_TDB_VERSION_LIKE_CPP: &str = "TDB 343.24081";
+const REQUIRED_TDB_CACHE_ID_LIKE_CPP: i32 = 24081;
+const UNKNOWN_WORLD_DATABASE_LIKE_CPP: &str = "Unknown world database.";
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct WorldDbVersionLikeCpp {
+    db_version: String,
+    cache_id: i32,
+}
+
+fn world_db_version_matches_required_like_cpp(version: &WorldDbVersionLikeCpp) -> bool {
+    version.db_version == REQUIRED_TDB_VERSION_LIKE_CPP
+        && version.cache_id == REQUIRED_TDB_CACHE_ID_LIKE_CPP
+}
+
+fn world_db_version_mismatch_message_like_cpp(version: Option<&WorldDbVersionLikeCpp>) -> String {
+    let found = version
+        .map(|version| format!("{} / cache_id {}", version.db_version, version.cache_id))
+        .unwrap_or_else(|| UNKNOWN_WORLD_DATABASE_LIKE_CPP.to_string());
+
+    format!(
+        "World database version mismatch: expected {REQUIRED_TDB_VERSION_LIKE_CPP} / cache_id {REQUIRED_TDB_CACHE_ID_LIKE_CPP}, found {found}"
+    )
+}
+
+async fn load_world_db_version_like_cpp(
+    world_db: &WorldDatabase,
+) -> Result<Option<WorldDbVersionLikeCpp>> {
+    let stmt = world_db.prepare(WorldStatements::SEL_WORLD_DB_VERSION);
+    let result = world_db
+        .query(&stmt)
+        .await
+        .context("Failed to query world database version")?;
+
+    if result.is_empty() {
+        return Ok(None);
+    }
+
+    let db_version = result.read_string(0);
+    if db_version.is_empty() {
+        return Ok(None);
+    }
+
+    Ok(Some(WorldDbVersionLikeCpp {
+        db_version,
+        cache_id: result.try_read(1).unwrap_or(0),
+    }))
+}
+
+async fn verify_world_db_version_like_cpp(world_db: &WorldDatabase) -> Result<()> {
+    let version = load_world_db_version_like_cpp(world_db).await?;
+    if version
+        .as_ref()
+        .is_some_and(world_db_version_matches_required_like_cpp)
+    {
+        let version = version.expect("checked Some above");
+        info!(
+            db_version = %version.db_version,
+            cache_id = version.cache_id,
+            "Using World DB"
+        );
+        return Ok(());
+    }
+
+    anyhow::bail!(
+        "{}",
+        world_db_version_mismatch_message_like_cpp(version.as_ref())
+    );
 }
 
 #[cfg(test)]
@@ -8819,8 +8891,9 @@ mod tests {
         GameEventWorldEventStateDbOperationKindLikeCpp, GameEventWorldEventStateDbOperationLikeCpp,
         GameEventWorldEventStateDbStatementKindLikeCpp, LoadedGridCreatureRespawnCachesLikeCpp,
         PersistedRespawnLoadReportLikeCpp, PersistedRespawnRowLikeCpp,
-        PersistedRespawnTimesLikeCpp, RespawnDbDeleteQueueOutcomeLikeCpp,
-        RespawnDbSaveQueueOutcomeLikeCpp,
+        PersistedRespawnTimesLikeCpp, REQUIRED_TDB_CACHE_ID_LIKE_CPP,
+        REQUIRED_TDB_VERSION_LIKE_CPP, RespawnDbDeleteQueueOutcomeLikeCpp,
+        RespawnDbSaveQueueOutcomeLikeCpp, WorldDbVersionLikeCpp,
         apply_canonical_spawn_group_condition_update_loaded_grid_records_like_cpp,
         build_loaded_grid_creature_respawn_record_like_cpp,
         build_loaded_grid_creature_spawn_group_spawn_record_like_cpp,
@@ -8861,7 +8934,8 @@ mod tests {
         set_realm_online_sql_like_cpp, spawn_legacy_creature_runtime_update_loop_like_cpp,
         spawn_store_loader, updates_auto_setup_enabled_like_cpp, updates_database_mask_like_cpp,
         updates_enabled_for_database_like_cpp, world_config_bool, world_config_u8,
-        world_config_u16, world_config_u32,
+        world_config_u16, world_config_u32, world_db_version_matches_required_like_cpp,
+        world_db_version_mismatch_message_like_cpp,
     };
     use std::collections::{BTreeMap, HashSet};
     use std::env;
@@ -11171,6 +11245,46 @@ Expansion = 9
 
         assert!(rendered.contains("Could not populate the Character database"));
         assert!(rendered.contains("base file missing"));
+    }
+
+    #[test]
+    fn world_db_version_sentinel_accepts_only_current_tdb_like_cpp() {
+        assert_eq!(REQUIRED_TDB_VERSION_LIKE_CPP, "TDB 343.24081");
+        assert_eq!(REQUIRED_TDB_CACHE_ID_LIKE_CPP, 24081);
+
+        let current = WorldDbVersionLikeCpp {
+            db_version: REQUIRED_TDB_VERSION_LIKE_CPP.to_string(),
+            cache_id: REQUIRED_TDB_CACHE_ID_LIKE_CPP,
+        };
+        assert!(world_db_version_matches_required_like_cpp(&current));
+
+        let wrong_version = WorldDbVersionLikeCpp {
+            db_version: "TDB 343.24080".to_string(),
+            cache_id: REQUIRED_TDB_CACHE_ID_LIKE_CPP,
+        };
+        assert!(!world_db_version_matches_required_like_cpp(&wrong_version));
+
+        let wrong_cache = WorldDbVersionLikeCpp {
+            db_version: REQUIRED_TDB_VERSION_LIKE_CPP.to_string(),
+            cache_id: 24080,
+        };
+        assert!(!world_db_version_matches_required_like_cpp(&wrong_cache));
+    }
+
+    #[test]
+    fn world_db_version_mismatch_reports_expected_and_found_like_cpp() {
+        let mismatch = WorldDbVersionLikeCpp {
+            db_version: "TDB 343.00000".to_string(),
+            cache_id: 0,
+        };
+        let message = world_db_version_mismatch_message_like_cpp(Some(&mismatch));
+
+        assert!(message.contains("World database version mismatch"));
+        assert!(message.contains("expected TDB 343.24081 / cache_id 24081"));
+        assert!(message.contains("found TDB 343.00000 / cache_id 0"));
+
+        let missing = world_db_version_mismatch_message_like_cpp(None);
+        assert!(missing.contains("Unknown world database."));
     }
 
     #[test]
