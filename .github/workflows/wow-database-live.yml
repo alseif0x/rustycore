@@ -1,0 +1,68 @@
+name: wow-database live MariaDB
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/wow-database-live.yml"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "crates/wow-database/**"
+  push:
+    branches:
+      - develop
+      - main
+    paths:
+      - ".github/workflows/wow-database-live.yml"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "crates/wow-database/**"
+  workflow_dispatch:
+
+jobs:
+  live-db-updater:
+    name: DbUpdater populate/update against MariaDB 10.6
+    runs-on: ubuntu-latest
+
+    services:
+      mariadb:
+        image: mariadb:10.6
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot --silent"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install MySQL-compatible client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y default-mysql-client
+
+      - name: Wait for MariaDB
+        run: |
+          for i in {1..60}; do
+            if mysqladmin ping -h127.0.0.1 -P3306 -uroot -proot --silent; then
+              exit 0
+            fi
+            sleep 1
+          done
+          mysqladmin ping -h127.0.0.1 -P3306 -uroot -proot --silent
+
+      - name: Run live DbUpdater harness
+        env:
+          RUSTYCORE_DB_IT_HOST: 127.0.0.1
+          RUSTYCORE_DB_IT_PORT: "3306"
+          RUSTYCORE_DB_IT_USER: root
+          RUSTYCORE_DB_IT_PASS: root
+        run: |
+          cargo test -p wow-database live_mariadb_populate_and_update_records_updates_like_cpp -- --ignored --nocapture
