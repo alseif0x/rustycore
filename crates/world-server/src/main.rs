@@ -21,9 +21,10 @@ use tracing::{debug, info, warn};
 use wow_config::{DatabaseInfo, LoadReport, WorldConfigSet};
 use wow_core::{ObjectGuid, ObjectGuidGenerator, guid::HighGuid};
 use wow_database::{
-    CharStatements, CharacterDatabase, HotfixDatabase, LoginDatabase, LoginStatements,
-    PreparedStatement, SqlTransaction, StatementDef, WorldDatabase, WorldStatements,
-    warn_about_sync_queries_scope_like_cpp,
+    CharStatements, CharacterDatabase, DATABASE_CHARACTER_LIKE_CPP, DATABASE_HOTFIX_LIKE_CPP,
+    DATABASE_LOGIN_LIKE_CPP, DATABASE_MASK_ALL_LIKE_CPP, DATABASE_WORLD_LIKE_CPP, HotfixDatabase,
+    LoginDatabase, LoginStatements, PreparedStatement, SqlTransaction, StatementDef, WorldDatabase,
+    WorldStatements, warn_about_sync_queries_scope_like_cpp,
 };
 use wow_instances::{InstanceLockMgr, MapDb2Entries, MapDifficultyResetInterval};
 use wow_loot::{
@@ -215,6 +216,15 @@ async fn main() -> Result<()> {
     let world_configs = wow_config::load_world_config_values();
     create_pid_file_from_config_like_cpp()?;
     let updates_auto_setup = updates_auto_setup_enabled_like_cpp();
+    let updates_database_mask = updates_database_mask_like_cpp();
+    let login_updates_enabled =
+        updates_enabled_for_database_like_cpp(updates_database_mask, DATABASE_LOGIN_LIKE_CPP);
+    let character_updates_enabled =
+        updates_enabled_for_database_like_cpp(updates_database_mask, DATABASE_CHARACTER_LIKE_CPP);
+    let world_updates_enabled =
+        updates_enabled_for_database_like_cpp(updates_database_mask, DATABASE_WORLD_LIKE_CPP);
+    let hotfix_updates_enabled =
+        updates_enabled_for_database_like_cpp(updates_database_mask, DATABASE_HOTFIX_LIKE_CPP);
 
     // Connect to login database (needed for session key validation)
     let login_info = wow_config::get_database_info_default(
@@ -231,7 +241,11 @@ async fn main() -> Result<()> {
         &login_info.database,
         login_info.ssl,
         database_pool_size_like_cpp("Login"),
-        updates_auto_setup,
+        database_auto_create_enabled_like_cpp(
+            updates_auto_setup,
+            updates_database_mask,
+            DATABASE_LOGIN_LIKE_CPP,
+        ),
     )
     .await
     .context("Failed to connect to login database")?;
@@ -253,7 +267,11 @@ async fn main() -> Result<()> {
         &char_info.database,
         char_info.ssl,
         database_pool_size_like_cpp("Character"),
-        updates_auto_setup,
+        database_auto_create_enabled_like_cpp(
+            updates_auto_setup,
+            updates_database_mask,
+            DATABASE_CHARACTER_LIKE_CPP,
+        ),
     )
     .await
     .context("Failed to connect to character database")?;
@@ -275,7 +293,11 @@ async fn main() -> Result<()> {
         &world_info.database,
         world_info.ssl,
         database_pool_size_like_cpp("World"),
-        updates_auto_setup,
+        database_auto_create_enabled_like_cpp(
+            updates_auto_setup,
+            updates_database_mask,
+            DATABASE_WORLD_LIKE_CPP,
+        ),
     )
     .await
     .context("Failed to connect to world database")?;
@@ -298,7 +320,11 @@ async fn main() -> Result<()> {
         &hotfix_info.database,
         hotfix_info.ssl,
         database_pool_size_like_cpp("Hotfix"),
-        updates_auto_setup,
+        database_auto_create_enabled_like_cpp(
+            updates_auto_setup,
+            updates_database_mask,
+            DATABASE_HOTFIX_LIKE_CPP,
+        ),
     )
     .await
     .context("Failed to connect to hotfix database")?;
@@ -306,68 +332,76 @@ async fn main() -> Result<()> {
     info!("Connected to hotfix database");
 
     // ── Database auto-update ──────────────────────────────────────────────
-    if updates_auto_setup {
+    if updates_database_mask != 0 {
         use wow_database::updater::DbUpdater;
         let src = wow_config::get_string_default("Updates.SourcePath", ".");
 
-        let auth_up = DbUpdater::new(
-            login_db.pool().clone(),
-            &login_info.host,
-            &login_info.port_or_socket,
-            &login_info.username,
-            &login_info.password,
-            &login_info.database,
-            login_info.ssl,
-        );
-        db_updater_step_like_cpp(
-            auth_up
-                .populate(&format!("{src}/sql/base/auth_database.sql"))
-                .await,
-            "Login",
-            "populate",
-        )?;
-        db_updater_step_like_cpp(auth_up.update(&src).await, "Login", "update")?;
+        if login_updates_enabled {
+            let auth_up = DbUpdater::new(
+                login_db.pool().clone(),
+                &login_info.host,
+                &login_info.port_or_socket,
+                &login_info.username,
+                &login_info.password,
+                &login_info.database,
+                login_info.ssl,
+            );
+            db_updater_step_like_cpp(
+                auth_up
+                    .populate(&format!("{src}/sql/base/auth_database.sql"))
+                    .await,
+                "Login",
+                "populate",
+            )?;
+            db_updater_step_like_cpp(auth_up.update(&src).await, "Login", "update")?;
+        }
 
-        let char_up = DbUpdater::new(
-            char_db.pool().clone(),
-            &char_info.host,
-            &char_info.port_or_socket,
-            &char_info.username,
-            &char_info.password,
-            &char_info.database,
-            char_info.ssl,
-        );
-        db_updater_step_like_cpp(
-            char_up
-                .populate(&format!("{src}/sql/base/characters_database.sql"))
-                .await,
-            "Character",
-            "populate",
-        )?;
-        db_updater_step_like_cpp(char_up.update(&src).await, "Character", "update")?;
+        if character_updates_enabled {
+            let char_up = DbUpdater::new(
+                char_db.pool().clone(),
+                &char_info.host,
+                &char_info.port_or_socket,
+                &char_info.username,
+                &char_info.password,
+                &char_info.database,
+                char_info.ssl,
+            );
+            db_updater_step_like_cpp(
+                char_up
+                    .populate(&format!("{src}/sql/base/characters_database.sql"))
+                    .await,
+                "Character",
+                "populate",
+            )?;
+            db_updater_step_like_cpp(char_up.update(&src).await, "Character", "update")?;
+        }
 
         // world + hotfixes: only update (base SQL is the full TDB, downloaded separately)
-        let world_up = DbUpdater::new(
-            world_db.pool().clone(),
-            &world_info.host,
-            &world_info.port_or_socket,
-            &world_info.username,
-            &world_info.password,
-            &world_info.database,
-            world_info.ssl,
-        );
-        db_updater_step_like_cpp(world_up.update(&src).await, "World", "update")?;
+        if world_updates_enabled {
+            let world_up = DbUpdater::new(
+                world_db.pool().clone(),
+                &world_info.host,
+                &world_info.port_or_socket,
+                &world_info.username,
+                &world_info.password,
+                &world_info.database,
+                world_info.ssl,
+            );
+            db_updater_step_like_cpp(world_up.update(&src).await, "World", "update")?;
+        }
 
-        let hotfix_up = DbUpdater::new(
-            hotfix_db.pool().clone(),
-            &hotfix_info.host,
-            &hotfix_info.port_or_socket,
-            &hotfix_info.username,
-            &hotfix_info.password,
-            &hotfix_info.database,
-            hotfix_info.ssl,
-        );
-        db_updater_step_like_cpp(hotfix_up.update(&src).await, "Hotfix", "update")?;
+        if hotfix_updates_enabled {
+            let hotfix_up = DbUpdater::new(
+                hotfix_db.pool().clone(),
+                &hotfix_info.host,
+                &hotfix_info.port_or_socket,
+                &hotfix_info.username,
+                &hotfix_info.password,
+                &hotfix_info.database,
+                hotfix_info.ssl,
+            );
+            db_updater_step_like_cpp(hotfix_up.update(&src).await, "Hotfix", "update")?;
+        }
     }
     // ─────────────────────────────────────────────────────────────────────
 
@@ -2636,6 +2670,22 @@ fn database_pool_size_like_cpp(name: &str) -> u32 {
 fn updates_auto_setup_enabled_like_cpp() -> bool {
     let auto_setup = wow_config::get_string_default("Updates.AutoSetup", "1");
     auto_setup != "0" && !auto_setup.eq_ignore_ascii_case("false")
+}
+
+fn updates_database_mask_like_cpp() -> u32 {
+    wow_config::get_value_default("Updates.EnableDatabases", DATABASE_MASK_ALL_LIKE_CPP)
+}
+
+fn updates_enabled_for_database_like_cpp(update_mask: u32, database_flag: u32) -> bool {
+    update_mask & database_flag != 0
+}
+
+fn database_auto_create_enabled_like_cpp(
+    auto_setup: bool,
+    update_mask: u32,
+    database_flag: u32,
+) -> bool {
+    auto_setup && updates_enabled_for_database_like_cpp(update_mask, database_flag)
 }
 
 fn database_thread_count_like_cpp(key: &str, default: u32) -> u32 {
@@ -8779,9 +8829,10 @@ mod tests {
         collect_legacy_creature_aggro_candidates_like_cpp,
         collect_legacy_creature_aggro_candidates_with_canonical_like_cpp,
         consume_game_event_live_update_side_effects_like_cpp, create_pid_file_like_cpp,
-        database_pool_size_like_cpp, db_keepalive_database_names_like_cpp,
-        db_keepalive_interval_minutes_like_cpp, db_keepalive_sql_like_cpp,
-        db_updater_step_like_cpp, deliver_creature_attack_start_commands_like_cpp,
+        database_auto_create_enabled_like_cpp, database_pool_size_like_cpp,
+        db_keepalive_database_names_like_cpp, db_keepalive_interval_minutes_like_cpp,
+        db_keepalive_sql_like_cpp, db_updater_step_like_cpp,
+        deliver_creature_attack_start_commands_like_cpp,
         deliver_creature_melee_damage_commands_like_cpp,
         deliver_refresh_visible_world_creatures_like_cpp, deliver_runtime_plan_like_cpp,
         fanout_game_event_announcement_to_player_sessions_like_cpp,
@@ -8808,8 +8859,9 @@ mod tests {
         run_legacy_creature_movement_tick_and_deliver_once_like_cpp,
         run_legacy_creature_runtime_tick_and_deliver_once_like_cpp, set_realm_offline_sql_like_cpp,
         set_realm_online_sql_like_cpp, spawn_legacy_creature_runtime_update_loop_like_cpp,
-        spawn_store_loader, updates_auto_setup_enabled_like_cpp, world_config_bool,
-        world_config_u8, world_config_u16, world_config_u32,
+        spawn_store_loader, updates_auto_setup_enabled_like_cpp, updates_database_mask_like_cpp,
+        updates_enabled_for_database_like_cpp, world_config_bool, world_config_u8,
+        world_config_u16, world_config_u32,
     };
     use std::collections::{BTreeMap, HashSet};
     use std::env;
@@ -8820,7 +8872,11 @@ mod tests {
     use wow_constants::{ConditionSourceType, ConditionType};
     use wow_core::{ObjectGuid, Position, guid::HighGuid};
     use wow_data::{Condition, ConditionEntriesByTypeStore};
-    use wow_database::{CharStatements, SqlParam, StatementDef};
+    use wow_database::{
+        CharStatements, DATABASE_CHARACTER_LIKE_CPP, DATABASE_HOTFIX_LIKE_CPP,
+        DATABASE_LOGIN_LIKE_CPP, DATABASE_MASK_ALL_LIKE_CPP, DATABASE_WORLD_LIKE_CPP, SqlParam,
+        StatementDef,
+    };
     use wow_entities::{Creature, GameObject, MapObjectRecord, Player};
     use wow_map::{
         LinkedRespawnStoreLikeCpp, PoolGroupLikeCpp, PoolMemberKindLikeCpp, PoolMgrLikeCpp,
@@ -11158,6 +11214,81 @@ WorldDatabase.SynchThreads = 33
 
         wow_config::load_config_from_str("Updates.AutoSetup = 1\n").expect("config should load");
         assert!(updates_auto_setup_enabled_like_cpp());
+    }
+
+    #[test]
+    fn updates_enable_databases_mask_matches_cpp() {
+        let _guard = TEST_LOCK.lock().expect("test lock poisoned");
+
+        wow_config::load_config_from_str("").expect("config should load");
+        assert_eq!(updates_database_mask_like_cpp(), DATABASE_MASK_ALL_LIKE_CPP);
+        for flag in [
+            DATABASE_LOGIN_LIKE_CPP,
+            DATABASE_CHARACTER_LIKE_CPP,
+            DATABASE_WORLD_LIKE_CPP,
+            DATABASE_HOTFIX_LIKE_CPP,
+        ] {
+            assert!(updates_enabled_for_database_like_cpp(
+                updates_database_mask_like_cpp(),
+                flag
+            ));
+        }
+
+        wow_config::load_config_from_str("Updates.EnableDatabases = 5\n")
+            .expect("config should load");
+        let mask = updates_database_mask_like_cpp();
+        assert!(updates_enabled_for_database_like_cpp(
+            mask,
+            DATABASE_LOGIN_LIKE_CPP
+        ));
+        assert!(!updates_enabled_for_database_like_cpp(
+            mask,
+            DATABASE_CHARACTER_LIKE_CPP
+        ));
+        assert!(updates_enabled_for_database_like_cpp(
+            mask,
+            DATABASE_WORLD_LIKE_CPP
+        ));
+        assert!(!updates_enabled_for_database_like_cpp(
+            mask,
+            DATABASE_HOTFIX_LIKE_CPP
+        ));
+
+        wow_config::load_config_from_str("Updates.EnableDatabases = 0\n")
+            .expect("config should load");
+        let mask = updates_database_mask_like_cpp();
+        assert!(!updates_enabled_for_database_like_cpp(
+            mask,
+            DATABASE_LOGIN_LIKE_CPP
+        ));
+        assert!(!updates_enabled_for_database_like_cpp(
+            mask,
+            DATABASE_CHARACTER_LIKE_CPP
+        ));
+        assert!(!updates_enabled_for_database_like_cpp(
+            mask,
+            DATABASE_WORLD_LIKE_CPP
+        ));
+        assert!(!updates_enabled_for_database_like_cpp(
+            mask,
+            DATABASE_HOTFIX_LIKE_CPP
+        ));
+
+        assert!(!database_auto_create_enabled_like_cpp(
+            true,
+            mask,
+            DATABASE_LOGIN_LIKE_CPP
+        ));
+        assert!(!database_auto_create_enabled_like_cpp(
+            false,
+            DATABASE_MASK_ALL_LIKE_CPP,
+            DATABASE_LOGIN_LIKE_CPP
+        ));
+        assert!(database_auto_create_enabled_like_cpp(
+            true,
+            DATABASE_MASK_ALL_LIKE_CPP,
+            DATABASE_LOGIN_LIKE_CPP
+        ));
     }
 
     #[test]
