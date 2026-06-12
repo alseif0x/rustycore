@@ -804,6 +804,66 @@ pub enum CharStatements {
     /// DELETE FROM account_tutorial WHERE accountId = ?
     DEL_TUTORIALS,
 
+    /// SELECT ownerguid, name FROM petition WHERE petitionguid = ?
+    SEL_PETITION,
+
+    /// SELECT playerguid FROM petition_sign WHERE petitionguid = ?
+    SEL_PETITION_SIGNATURE,
+
+    /// DELETE FROM petition_sign WHERE playerguid = ?
+    DEL_ALL_PETITION_SIGNATURES,
+
+    /// SELECT petitionguid FROM petition WHERE ownerguid = ?
+    SEL_PETITION_BY_OWNER,
+
+    /// SELECT ownerguid plus signature count for a petition.
+    SEL_PETITION_SIGNATURES,
+
+    /// SELECT playerguid FROM petition_sign WHERE player_account = ? AND petitionguid = ?
+    SEL_PETITION_SIG_BY_ACCOUNT,
+
+    /// SELECT ownerguid FROM petition WHERE petitionguid = ?
+    SEL_PETITION_OWNER_BY_GUID,
+
+    /// SELECT ownerguid, petitionguid FROM petition_sign WHERE playerguid = ?
+    SEL_PETITION_SIG_BY_GUID,
+
+    /// SELECT arenaTeamId, weekGames, seasonGames, seasonWins, personalRating FROM arena_team_member WHERE guid = ?
+    SEL_CHARACTER_ARENAINFO,
+
+    /// INSERT INTO arena_team.
+    INS_ARENA_TEAM,
+
+    /// INSERT INTO arena_team_member.
+    INS_ARENA_TEAM_MEMBER,
+
+    /// DELETE FROM arena_team where arenaTeamId = ?
+    DEL_ARENA_TEAM,
+
+    /// DELETE FROM arena_team_member WHERE arenaTeamId = ?
+    DEL_ARENA_TEAM_MEMBERS,
+
+    /// UPDATE arena_team SET captainGuid = ? WHERE arenaTeamId = ?
+    UPD_ARENA_TEAM_CAPTAIN,
+
+    /// DELETE FROM arena_team_member WHERE arenaTeamId = ? AND guid = ?
+    DEL_ARENA_TEAM_MEMBER,
+
+    /// UPDATE arena_team SET rating/week/season stats.
+    UPD_ARENA_TEAM_STATS,
+
+    /// UPDATE arena_team_member personal and weekly stats.
+    UPD_ARENA_TEAM_MEMBER,
+
+    /// DELETE FROM character_arena_stats WHERE guid = ?
+    DEL_CHARACTER_ARENA_STATS,
+
+    /// REPLACE INTO character_arena_stats.
+    REP_CHARACTER_ARENA_STATS,
+
+    /// UPDATE arena_team SET name = ? WHERE arenaTeamId = ?
+    UPD_ARENA_TEAM_NAME,
+
     /// SELECT bag_ci.slot, ci.slot, ii.itemEntry, ci.item, ii.count, ii.durability, ii.context,
     /// ii.flags, ii.playedTime, ir.paidMoney, ir.paidExtendedCost
     /// FROM character_inventory ci
@@ -1611,6 +1671,52 @@ impl StatementDef for CharStatements {
                 "UPDATE account_tutorial SET tut0 = ?, tut1 = ?, tut2 = ?, tut3 = ?, tut4 = ?, tut5 = ?, tut6 = ?, tut7 = ? WHERE accountId = ?"
             }
             Self::DEL_TUTORIALS => "DELETE FROM account_tutorial WHERE accountId = ?",
+            Self::SEL_PETITION => "SELECT ownerguid, name FROM petition WHERE petitionguid = ?",
+            Self::SEL_PETITION_SIGNATURE => {
+                "SELECT playerguid FROM petition_sign WHERE petitionguid = ?"
+            }
+            Self::DEL_ALL_PETITION_SIGNATURES => "DELETE FROM petition_sign WHERE playerguid = ?",
+            Self::SEL_PETITION_BY_OWNER => "SELECT petitionguid FROM petition WHERE ownerguid = ?",
+            Self::SEL_PETITION_SIGNATURES => {
+                "SELECT ownerguid, (SELECT COUNT(playerguid) FROM petition_sign WHERE petition_sign.petitionguid = ?) AS signs FROM petition WHERE petitionguid = ?"
+            }
+            Self::SEL_PETITION_SIG_BY_ACCOUNT => {
+                "SELECT playerguid FROM petition_sign WHERE player_account = ? AND petitionguid = ?"
+            }
+            Self::SEL_PETITION_OWNER_BY_GUID => {
+                "SELECT ownerguid FROM petition WHERE petitionguid = ?"
+            }
+            Self::SEL_PETITION_SIG_BY_GUID => {
+                "SELECT ownerguid, petitionguid FROM petition_sign WHERE playerguid = ?"
+            }
+            Self::SEL_CHARACTER_ARENAINFO => {
+                "SELECT arenaTeamId, weekGames, seasonGames, seasonWins, personalRating FROM arena_team_member WHERE guid = ?"
+            }
+            Self::INS_ARENA_TEAM => {
+                "INSERT INTO arena_team (arenaTeamId, name, captainGuid, type, rating, backgroundColor, emblemStyle, emblemColor, borderStyle, borderColor) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            }
+            Self::INS_ARENA_TEAM_MEMBER => {
+                "INSERT INTO arena_team_member (arenaTeamId, guid, personalRating) VALUES (?, ?, ?)"
+            }
+            Self::DEL_ARENA_TEAM => "DELETE FROM arena_team where arenaTeamId = ?",
+            Self::DEL_ARENA_TEAM_MEMBERS => "DELETE FROM arena_team_member WHERE arenaTeamId = ?",
+            Self::UPD_ARENA_TEAM_CAPTAIN => {
+                "UPDATE arena_team SET captainGuid = ? WHERE arenaTeamId = ?"
+            }
+            Self::DEL_ARENA_TEAM_MEMBER => {
+                "DELETE FROM arena_team_member WHERE arenaTeamId = ? AND guid = ?"
+            }
+            Self::UPD_ARENA_TEAM_STATS => {
+                "UPDATE arena_team SET rating = ?, weekGames = ?, weekWins = ?, seasonGames = ?, seasonWins = ?, `rank` = ? WHERE arenaTeamId = ?"
+            }
+            Self::UPD_ARENA_TEAM_MEMBER => {
+                "UPDATE arena_team_member SET personalRating = ?, weekGames = ?, weekWins = ?, seasonGames = ?, seasonWins = ? WHERE arenaTeamId = ? AND guid = ?"
+            }
+            Self::DEL_CHARACTER_ARENA_STATS => "DELETE FROM character_arena_stats WHERE guid = ?",
+            Self::REP_CHARACTER_ARENA_STATS => {
+                "REPLACE INTO character_arena_stats (guid, slot, matchMakerRating) VALUES (?, ?, ?)"
+            }
+            Self::UPD_ARENA_TEAM_NAME => "UPDATE arena_team SET name = ? WHERE arenaTeamId = ?",
             Self::SEL_CHAR_BAG_CONTENTS => {
                 "SELECT bag_ci.slot, ci.slot, ii.itemEntry, ci.item, ii.count, ii.durability, ii.context, \
                  ii.flags, ii.playedTime, ir.paidMoney, ir.paidExtendedCost \
@@ -3028,6 +3134,94 @@ mod tests {
         assert_eq!(
             CharStatements::DEL_TUTORIALS.sql(),
             "DELETE FROM account_tutorial WHERE accountId = ?"
+        );
+    }
+
+    #[test]
+    fn petition_statements_match_cpp_sql_exactly() {
+        assert_eq!(
+            CharStatements::SEL_PETITION.sql(),
+            "SELECT ownerguid, name FROM petition WHERE petitionguid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_PETITION_SIGNATURE.sql(),
+            "SELECT playerguid FROM petition_sign WHERE petitionguid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_ALL_PETITION_SIGNATURES.sql(),
+            "DELETE FROM petition_sign WHERE playerguid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_PETITION_BY_OWNER.sql(),
+            "SELECT petitionguid FROM petition WHERE ownerguid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_PETITION_SIGNATURES.sql(),
+            "SELECT ownerguid, (SELECT COUNT(playerguid) FROM petition_sign WHERE petition_sign.petitionguid = ?) AS signs FROM petition WHERE petitionguid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_PETITION_SIG_BY_ACCOUNT.sql(),
+            "SELECT playerguid FROM petition_sign WHERE player_account = ? AND petitionguid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_PETITION_OWNER_BY_GUID.sql(),
+            "SELECT ownerguid FROM petition WHERE petitionguid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_PETITION_SIG_BY_GUID.sql(),
+            "SELECT ownerguid, petitionguid FROM petition_sign WHERE playerguid = ?"
+        );
+    }
+
+    #[test]
+    fn arena_team_statements_match_cpp_sql_exactly() {
+        assert_eq!(
+            CharStatements::SEL_CHARACTER_ARENAINFO.sql(),
+            "SELECT arenaTeamId, weekGames, seasonGames, seasonWins, personalRating FROM arena_team_member WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_ARENA_TEAM.sql(),
+            "INSERT INTO arena_team (arenaTeamId, name, captainGuid, type, rating, backgroundColor, emblemStyle, emblemColor, borderStyle, borderColor) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::INS_ARENA_TEAM_MEMBER.sql(),
+            "INSERT INTO arena_team_member (arenaTeamId, guid, personalRating) VALUES (?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_ARENA_TEAM.sql(),
+            "DELETE FROM arena_team where arenaTeamId = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_ARENA_TEAM_MEMBERS.sql(),
+            "DELETE FROM arena_team_member WHERE arenaTeamId = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_ARENA_TEAM_CAPTAIN.sql(),
+            "UPDATE arena_team SET captainGuid = ? WHERE arenaTeamId = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_ARENA_TEAM_MEMBER.sql(),
+            "DELETE FROM arena_team_member WHERE arenaTeamId = ? AND guid = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_ARENA_TEAM_STATS.sql(),
+            "UPDATE arena_team SET rating = ?, weekGames = ?, weekWins = ?, seasonGames = ?, seasonWins = ?, `rank` = ? WHERE arenaTeamId = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_ARENA_TEAM_MEMBER.sql(),
+            "UPDATE arena_team_member SET personalRating = ?, weekGames = ?, weekWins = ?, seasonGames = ?, seasonWins = ? WHERE arenaTeamId = ? AND guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHARACTER_ARENA_STATS.sql(),
+            "DELETE FROM character_arena_stats WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::REP_CHARACTER_ARENA_STATS.sql(),
+            "REPLACE INTO character_arena_stats (guid, slot, matchMakerRating) VALUES (?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::UPD_ARENA_TEAM_NAME.sql(),
+            "UPDATE arena_team SET name = ? WHERE arenaTeamId = ?"
         );
     }
 
