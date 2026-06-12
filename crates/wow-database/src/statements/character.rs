@@ -277,6 +277,9 @@ pub enum CharStatements {
     /// VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     REP_PLAYER_CURRENCY,
 
+    /// DELETE FROM character_currency WHERE CharacterGuid = ?
+    DEL_PLAYER_CURRENCY,
+
     /// SELECT button, action, type FROM character_action
     /// WHERE guid = ? AND spec = ? AND traitConfigId = ? ORDER BY button
     SEL_CHARACTER_ACTIONS_SPEC,
@@ -732,6 +735,75 @@ pub enum CharStatements {
     /// INSERT/UPDATE guild_newslog.
     INS_GUILD_NEWS,
 
+    /// INSERT/UPDATE channel row.
+    UPD_CHANNEL,
+
+    /// UPDATE channels SET lastUsed = UNIX_TIMESTAMP() WHERE name = ? AND team = ?
+    UPD_CHANNEL_USAGE,
+
+    /// UPDATE channels SET ownership = ? WHERE name LIKE ?
+    UPD_CHANNEL_OWNERSHIP,
+
+    /// DELETE FROM channels WHERE name = ? AND team = ?
+    DEL_CHANNEL,
+
+    /// DELETE old owned custom channels.
+    DEL_OLD_CHANNELS,
+
+    /// UPDATE character_equipmentsets.
+    UPD_EQUIP_SET,
+
+    /// INSERT INTO character_equipmentsets.
+    INS_EQUIP_SET,
+
+    /// DELETE FROM character_equipmentsets WHERE setguid=?
+    DEL_EQUIP_SET,
+
+    /// UPDATE character_transmog_outfits.
+    UPD_TRANSMOG_OUTFIT,
+
+    /// INSERT INTO character_transmog_outfits.
+    INS_TRANSMOG_OUTFIT,
+
+    /// DELETE FROM character_transmog_outfits WHERE setguid=?
+    DEL_TRANSMOG_OUTFIT,
+
+    /// INSERT INTO character_aura.
+    INS_AURA,
+
+    /// INSERT INTO character_aura_effect.
+    INS_AURA_EFFECT,
+
+    /// SELECT type, time, data FROM account_data WHERE accountId = ?
+    SEL_ACCOUNT_DATA,
+
+    /// REPLACE INTO account_data.
+    REP_ACCOUNT_DATA,
+
+    /// DELETE FROM account_data WHERE accountId = ?
+    DEL_ACCOUNT_DATA,
+
+    /// SELECT type, time, data FROM character_account_data WHERE guid = ?
+    SEL_PLAYER_ACCOUNT_DATA,
+
+    /// REPLACE INTO character_account_data.
+    REP_PLAYER_ACCOUNT_DATA,
+
+    /// DELETE FROM character_account_data WHERE guid = ?
+    DEL_PLAYER_ACCOUNT_DATA,
+
+    /// SELECT tutorials row for account.
+    SEL_TUTORIALS,
+
+    /// INSERT INTO account_tutorial.
+    INS_TUTORIALS,
+
+    /// UPDATE account_tutorial.
+    UPD_TUTORIALS,
+
+    /// DELETE FROM account_tutorial WHERE accountId = ?
+    DEL_TUTORIALS,
+
     /// SELECT bag_ci.slot, ci.slot, ii.itemEntry, ci.item, ii.count, ii.durability, ii.context,
     /// ii.flags, ii.playedTime, ir.paidMoney, ir.paidExtendedCost
     /// FROM character_inventory ci
@@ -1085,6 +1157,7 @@ impl StatementDef for CharStatements {
                   IncreasedCapQuantity, EarnedQuantity, Flags) \
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
             }
+            Self::DEL_PLAYER_CURRENCY => "DELETE FROM character_currency WHERE CharacterGuid = ?",
             Self::SEL_CHARACTER_ACTIONS_SPEC => {
                 "SELECT button, action, type FROM character_action \
                  WHERE guid = ? AND spec = ? AND traitConfigId = ? ORDER BY button"
@@ -1483,6 +1556,61 @@ impl StatementDef for CharStatements {
             Self::INS_GUILD_NEWS => {
                 "INSERT INTO guild_newslog (guildid, LogGuid, EventType, PlayerGuid, Flags, Value, Timestamp) VALUES (?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE LogGuid = VALUES (LogGuid), EventType = VALUES (EventType), PlayerGuid = VALUES (PlayerGuid), Flags = VALUES (Flags), Value = VALUES (Value), Timestamp = VALUES (Timestamp)"
             }
+            Self::UPD_CHANNEL => {
+                "INSERT INTO channels (name, team, announce, ownership, password, bannedList, lastUsed) VALUES (?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP()) ON DUPLICATE KEY UPDATE announce=VALUES(announce), ownership=VALUES(ownership), password=VALUES(password), bannedList=VALUES(bannedList), lastUsed=VALUES(lastUsed)"
+            }
+            Self::UPD_CHANNEL_USAGE => {
+                "UPDATE channels SET lastUsed = UNIX_TIMESTAMP() WHERE name = ? AND team = ?"
+            }
+            Self::UPD_CHANNEL_OWNERSHIP => "UPDATE channels SET ownership = ? WHERE name LIKE ?",
+            Self::DEL_CHANNEL => "DELETE FROM channels WHERE name = ? AND team = ?",
+            Self::DEL_OLD_CHANNELS => {
+                "DELETE FROM channels WHERE ownership = 1 AND lastUsed + ? < UNIX_TIMESTAMP()"
+            }
+            Self::UPD_EQUIP_SET => {
+                "UPDATE character_equipmentsets SET name=?, iconname=?, ignore_mask=?, AssignedSpecIndex=?, item0=?, item1=?, item2=?, item3=?, item4=?, item5=?, item6=?, item7=?, item8=?, item9=?, item10=?, item11=?, item12=?, item13=?, item14=?, item15=?, item16=?, item17=?, item18=? WHERE guid=? AND setguid=? AND setindex=?"
+            }
+            Self::INS_EQUIP_SET => {
+                "INSERT INTO character_equipmentsets (guid, setguid, setindex, name, iconname, ignore_mask, AssignedSpecIndex, item0, item1, item2, item3, item4, item5, item6, item7, item8, item9, item10, item11, item12, item13, item14, item15, item16, item17, item18) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            }
+            Self::DEL_EQUIP_SET => "DELETE FROM character_equipmentsets WHERE setguid=?",
+            Self::UPD_TRANSMOG_OUTFIT => {
+                "UPDATE character_transmog_outfits SET name=?, iconname=?, ignore_mask=?, appearance0=?, appearance1=?, appearance2=?, appearance3=?, appearance4=?, appearance5=?, appearance6=?, appearance7=?, appearance8=?, appearance9=?, appearance10=?, appearance11=?, appearance12=?, appearance13=?, appearance14=?, appearance15=?, appearance16=?, appearance17=?, appearance18=?, mainHandEnchant=?, offHandEnchant=? WHERE guid=? AND setguid=? AND setindex=?"
+            }
+            Self::INS_TRANSMOG_OUTFIT => {
+                "INSERT INTO character_transmog_outfits (guid, setguid, setindex, name, iconname, ignore_mask, appearance0, appearance1, appearance2, appearance3, appearance4, appearance5, appearance6, appearance7, appearance8, appearance9, appearance10, appearance11, appearance12, appearance13, appearance14, appearance15, appearance16, appearance17, appearance18, mainHandEnchant, offHandEnchant) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            }
+            Self::DEL_TRANSMOG_OUTFIT => "DELETE FROM character_transmog_outfits WHERE setguid=?",
+            Self::INS_AURA => {
+                "INSERT INTO character_aura (guid, casterGuid, itemGuid, spell, effectMask, recalculateMask, difficulty, stackCount, maxDuration, remainTime, remainCharges, castItemId, castItemLevel) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            }
+            Self::INS_AURA_EFFECT => {
+                "INSERT INTO character_aura_effect (guid, casterGuid, itemGuid, spell, effectMask, effectIndex, amount, baseAmount) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+            }
+            Self::SEL_ACCOUNT_DATA => {
+                "SELECT type, time, data FROM account_data WHERE accountId = ?"
+            }
+            Self::REP_ACCOUNT_DATA => {
+                "REPLACE INTO account_data (accountId, type, time, data) VALUES (?, ?, ?, ?)"
+            }
+            Self::DEL_ACCOUNT_DATA => "DELETE FROM account_data WHERE accountId = ?",
+            Self::SEL_PLAYER_ACCOUNT_DATA => {
+                "SELECT type, time, data FROM character_account_data WHERE guid = ?"
+            }
+            Self::REP_PLAYER_ACCOUNT_DATA => {
+                "REPLACE INTO character_account_data(guid, type, time, data) VALUES (?, ?, ?, ?)"
+            }
+            Self::DEL_PLAYER_ACCOUNT_DATA => "DELETE FROM character_account_data WHERE guid = ?",
+            Self::SEL_TUTORIALS => {
+                "SELECT tut0, tut1, tut2, tut3, tut4, tut5, tut6, tut7 FROM account_tutorial WHERE accountId = ?"
+            }
+            Self::INS_TUTORIALS => {
+                "INSERT INTO account_tutorial(tut0, tut1, tut2, tut3, tut4, tut5, tut6, tut7, accountId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            }
+            Self::UPD_TUTORIALS => {
+                "UPDATE account_tutorial SET tut0 = ?, tut1 = ?, tut2 = ?, tut3 = ?, tut4 = ?, tut5 = ?, tut6 = ?, tut7 = ? WHERE accountId = ?"
+            }
+            Self::DEL_TUTORIALS => "DELETE FROM account_tutorial WHERE accountId = ?",
             Self::SEL_CHAR_BAG_CONTENTS => {
                 "SELECT bag_ci.slot, ci.slot, ii.itemEntry, ci.item, ii.count, ii.durability, ii.context, \
                  ii.flags, ii.playedTime, ir.paidMoney, ir.paidExtendedCost \
@@ -2796,6 +2924,110 @@ mod tests {
         assert_eq!(
             CharStatements::INS_GUILD_NEWS.sql(),
             "INSERT INTO guild_newslog (guildid, LogGuid, EventType, PlayerGuid, Flags, Value, Timestamp) VALUES (?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE LogGuid = VALUES (LogGuid), EventType = VALUES (EventType), PlayerGuid = VALUES (PlayerGuid), Flags = VALUES (Flags), Value = VALUES (Value), Timestamp = VALUES (Timestamp)"
+        );
+    }
+
+    #[test]
+    fn channel_equipment_transmog_aura_statements_match_cpp_sql_exactly() {
+        assert_eq!(
+            CharStatements::UPD_CHANNEL.sql(),
+            "INSERT INTO channels (name, team, announce, ownership, password, bannedList, lastUsed) VALUES (?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP()) ON DUPLICATE KEY UPDATE announce=VALUES(announce), ownership=VALUES(ownership), password=VALUES(password), bannedList=VALUES(bannedList), lastUsed=VALUES(lastUsed)"
+        );
+        assert_eq!(
+            CharStatements::UPD_CHANNEL_USAGE.sql(),
+            "UPDATE channels SET lastUsed = UNIX_TIMESTAMP() WHERE name = ? AND team = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_CHANNEL_OWNERSHIP.sql(),
+            "UPDATE channels SET ownership = ? WHERE name LIKE ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHANNEL.sql(),
+            "DELETE FROM channels WHERE name = ? AND team = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_OLD_CHANNELS.sql(),
+            "DELETE FROM channels WHERE ownership = 1 AND lastUsed + ? < UNIX_TIMESTAMP()"
+        );
+        assert_eq!(
+            CharStatements::UPD_EQUIP_SET.sql(),
+            "UPDATE character_equipmentsets SET name=?, iconname=?, ignore_mask=?, AssignedSpecIndex=?, item0=?, item1=?, item2=?, item3=?, item4=?, item5=?, item6=?, item7=?, item8=?, item9=?, item10=?, item11=?, item12=?, item13=?, item14=?, item15=?, item16=?, item17=?, item18=? WHERE guid=? AND setguid=? AND setindex=?"
+        );
+        assert_eq!(
+            CharStatements::INS_EQUIP_SET.sql(),
+            "INSERT INTO character_equipmentsets (guid, setguid, setindex, name, iconname, ignore_mask, AssignedSpecIndex, item0, item1, item2, item3, item4, item5, item6, item7, item8, item9, item10, item11, item12, item13, item14, item15, item16, item17, item18) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_EQUIP_SET.sql(),
+            "DELETE FROM character_equipmentsets WHERE setguid=?"
+        );
+        assert_eq!(
+            CharStatements::UPD_TRANSMOG_OUTFIT.sql(),
+            "UPDATE character_transmog_outfits SET name=?, iconname=?, ignore_mask=?, appearance0=?, appearance1=?, appearance2=?, appearance3=?, appearance4=?, appearance5=?, appearance6=?, appearance7=?, appearance8=?, appearance9=?, appearance10=?, appearance11=?, appearance12=?, appearance13=?, appearance14=?, appearance15=?, appearance16=?, appearance17=?, appearance18=?, mainHandEnchant=?, offHandEnchant=? WHERE guid=? AND setguid=? AND setindex=?"
+        );
+        assert_eq!(
+            CharStatements::INS_TRANSMOG_OUTFIT.sql(),
+            "INSERT INTO character_transmog_outfits (guid, setguid, setindex, name, iconname, ignore_mask, appearance0, appearance1, appearance2, appearance3, appearance4, appearance5, appearance6, appearance7, appearance8, appearance9, appearance10, appearance11, appearance12, appearance13, appearance14, appearance15, appearance16, appearance17, appearance18, mainHandEnchant, offHandEnchant) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_TRANSMOG_OUTFIT.sql(),
+            "DELETE FROM character_transmog_outfits WHERE setguid=?"
+        );
+        assert_eq!(
+            CharStatements::INS_AURA.sql(),
+            "INSERT INTO character_aura (guid, casterGuid, itemGuid, spell, effectMask, recalculateMask, difficulty, stackCount, maxDuration, remainTime, remainCharges, castItemId, castItemLevel) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::INS_AURA_EFFECT.sql(),
+            "INSERT INTO character_aura_effect (guid, casterGuid, itemGuid, spell, effectMask, effectIndex, amount, baseAmount) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+    }
+
+    #[test]
+    fn currency_account_data_and_tutorial_statements_match_cpp_sql_exactly() {
+        assert_eq!(
+            CharStatements::DEL_PLAYER_CURRENCY.sql(),
+            "DELETE FROM character_currency WHERE CharacterGuid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_ACCOUNT_DATA.sql(),
+            "SELECT type, time, data FROM account_data WHERE accountId = ?"
+        );
+        assert_eq!(
+            CharStatements::REP_ACCOUNT_DATA.sql(),
+            "REPLACE INTO account_data (accountId, type, time, data) VALUES (?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_ACCOUNT_DATA.sql(),
+            "DELETE FROM account_data WHERE accountId = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_PLAYER_ACCOUNT_DATA.sql(),
+            "SELECT type, time, data FROM character_account_data WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::REP_PLAYER_ACCOUNT_DATA.sql(),
+            "REPLACE INTO character_account_data(guid, type, time, data) VALUES (?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_PLAYER_ACCOUNT_DATA.sql(),
+            "DELETE FROM character_account_data WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_TUTORIALS.sql(),
+            "SELECT tut0, tut1, tut2, tut3, tut4, tut5, tut6, tut7 FROM account_tutorial WHERE accountId = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_TUTORIALS.sql(),
+            "INSERT INTO account_tutorial(tut0, tut1, tut2, tut3, tut4, tut5, tut6, tut7, accountId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::UPD_TUTORIALS.sql(),
+            "UPDATE account_tutorial SET tut0 = ?, tut1 = ?, tut2 = ?, tut3 = ?, tut4 = ?, tut5 = ?, tut6 = ?, tut7 = ? WHERE accountId = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_TUTORIALS.sql(),
+            "DELETE FROM account_tutorial WHERE accountId = ?"
         );
     }
 
