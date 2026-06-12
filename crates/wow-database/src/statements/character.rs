@@ -1094,6 +1094,18 @@ pub enum CharStatements {
     /// SELECT character_pet rows by owner.
     SEL_CHAR_PETS,
 
+    /// C++ `CHAR_SEL_CHARACTER_INVENTORY` with `SelectItemInstanceContent` expanded.
+    SEL_CHARACTER_INVENTORY,
+
+    /// C++ `CHAR_SEL_MAILITEMS` with `SelectItemInstanceContent` expanded.
+    SEL_MAILITEMS,
+
+    /// C++ `CHAR_SEL_AUCTION_ITEMS` with `SelectItemInstanceContent` expanded.
+    SEL_AUCTION_ITEMS,
+
+    /// C++ `CHAR_SEL_GUILD_BANK_ITEMS` with `SelectItemInstanceContent` expanded.
+    SEL_GUILD_BANK_ITEMS,
+
     /// DELETE FROM character_pet WHERE owner = ?
     DEL_CHAR_PET_BY_OWNER,
 
@@ -2640,6 +2652,18 @@ impl StatementDef for CharStatements {
             }
             Self::SEL_CHAR_PETS => {
                 "SELECT id, entry, modelid, level, exp, Reactstate, slot, name, renamed, curhealth, curmana, abdata, savetime, CreatedBySpell, PetType, specialization FROM character_pet WHERE owner = ?"
+            }
+            Self::SEL_CHARACTER_INVENTORY => {
+                "SELECT ii.guid, ii.itemEntry, ii.creatorGuid, ii.giftCreatorGuid, ii.count, ii.duration, ii.charges, ii.flags, ii.enchantments, ii.durability, ii.playedTime, ii.text, ii.battlePetSpeciesId, ii.battlePetBreedData, ii.battlePetLevel, ii.battlePetDisplayId, ii.randomPropertiesId, ii.randomPropertiesSeed, ii.context, iit.itemModifiedAppearanceAllSpecs, iit.itemModifiedAppearanceSpec1, iit.itemModifiedAppearanceSpec2, iit.itemModifiedAppearanceSpec3, iit.itemModifiedAppearanceSpec4, iit.itemModifiedAppearanceSpec5, iit.spellItemEnchantmentAllSpecs, iit.spellItemEnchantmentSpec1, iit.spellItemEnchantmentSpec2, iit.spellItemEnchantmentSpec3, iit.spellItemEnchantmentSpec4, iit.spellItemEnchantmentSpec5, iit.secondaryItemModifiedAppearanceAllSpecs, iit.secondaryItemModifiedAppearanceSpec1, iit.secondaryItemModifiedAppearanceSpec2, iit.secondaryItemModifiedAppearanceSpec3, iit.secondaryItemModifiedAppearanceSpec4, iit.itemModifiedAppearanceSpec5, ig.gemItemId1, ig.gemBonuses1, ig.gemContext1, ig.gemItemId2, ig.gemBonuses2, ig.gemContext2, ig.gemItemId3, ig.gemBonuses3, ig.gemContext3, bag, slot FROM character_inventory ci JOIN item_instance ii ON ci.item = ii.guid LEFT JOIN item_instance_gems ig ON ii.guid = ig.itemGuid LEFT JOIN item_instance_transmog iit ON ii.guid = iit.itemGuid WHERE ci.guid = ? ORDER BY (ii.flags & 0x80000) ASC, bag ASC, slot ASC"
+            }
+            Self::SEL_MAILITEMS => {
+                "SELECT ii.guid, ii.itemEntry, ii.creatorGuid, ii.giftCreatorGuid, ii.count, ii.duration, ii.charges, ii.flags, ii.enchantments, ii.durability, ii.playedTime, ii.text, ii.battlePetSpeciesId, ii.battlePetBreedData, ii.battlePetLevel, ii.battlePetDisplayId, ii.randomPropertiesId, ii.randomPropertiesSeed, ii.context, iit.itemModifiedAppearanceAllSpecs, iit.itemModifiedAppearanceSpec1, iit.itemModifiedAppearanceSpec2, iit.itemModifiedAppearanceSpec3, iit.itemModifiedAppearanceSpec4, iit.itemModifiedAppearanceSpec5, iit.spellItemEnchantmentAllSpecs, iit.spellItemEnchantmentSpec1, iit.spellItemEnchantmentSpec2, iit.spellItemEnchantmentSpec3, iit.spellItemEnchantmentSpec4, iit.spellItemEnchantmentSpec5, iit.secondaryItemModifiedAppearanceAllSpecs, iit.secondaryItemModifiedAppearanceSpec1, iit.secondaryItemModifiedAppearanceSpec2, iit.secondaryItemModifiedAppearanceSpec3, iit.secondaryItemModifiedAppearanceSpec4, iit.itemModifiedAppearanceSpec5, ig.gemItemId1, ig.gemBonuses1, ig.gemContext1, ig.gemItemId2, ig.gemBonuses2, ig.gemContext2, ig.gemItemId3, ig.gemBonuses3, ig.gemContext3, ii.owner_guid, m.id FROM mail_items mi INNER JOIN mail m ON mi.mail_id = m.id LEFT JOIN item_instance ii ON mi.item_guid = ii.guid LEFT JOIN item_instance_gems ig ON ii.guid = ig.itemGuid LEFT JOIN item_instance_transmog iit ON ii.guid = iit.itemGuid WHERE m.receiver = ?"
+            }
+            Self::SEL_AUCTION_ITEMS => {
+                "SELECT ii.guid, ii.itemEntry, ii.creatorGuid, ii.giftCreatorGuid, ii.count, ii.duration, ii.charges, ii.flags, ii.enchantments, ii.durability, ii.playedTime, ii.text, ii.battlePetSpeciesId, ii.battlePetBreedData, ii.battlePetLevel, ii.battlePetDisplayId, ii.randomPropertiesId, ii.randomPropertiesSeed, ii.context, iit.itemModifiedAppearanceAllSpecs, iit.itemModifiedAppearanceSpec1, iit.itemModifiedAppearanceSpec2, iit.itemModifiedAppearanceSpec3, iit.itemModifiedAppearanceSpec4, iit.itemModifiedAppearanceSpec5, iit.spellItemEnchantmentAllSpecs, iit.spellItemEnchantmentSpec1, iit.spellItemEnchantmentSpec2, iit.spellItemEnchantmentSpec3, iit.spellItemEnchantmentSpec4, iit.spellItemEnchantmentSpec5, iit.secondaryItemModifiedAppearanceAllSpecs, iit.secondaryItemModifiedAppearanceSpec1, iit.secondaryItemModifiedAppearanceSpec2, iit.secondaryItemModifiedAppearanceSpec3, iit.secondaryItemModifiedAppearanceSpec4, iit.itemModifiedAppearanceSpec5, ig.gemItemId1, ig.gemBonuses1, ig.gemContext1, ig.gemItemId2, ig.gemBonuses2, ig.gemContext2, ig.gemItemId3, ig.gemBonuses3, ig.gemContext3, ii.owner_guid, ai.auctionId FROM auction_items ai INNER JOIN item_instance ii ON ai.itemGuid = ii.guid LEFT JOIN item_instance_gems ig ON ii.guid = ig.itemGuid LEFT JOIN item_instance_transmog iit ON ii.guid = iit.itemGuid"
+            }
+            Self::SEL_GUILD_BANK_ITEMS => {
+                "SELECT ii.guid, ii.itemEntry, ii.creatorGuid, ii.giftCreatorGuid, ii.count, ii.duration, ii.charges, ii.flags, ii.enchantments, ii.durability, ii.playedTime, ii.text, ii.battlePetSpeciesId, ii.battlePetBreedData, ii.battlePetLevel, ii.battlePetDisplayId, ii.randomPropertiesId, ii.randomPropertiesSeed, ii.context, iit.itemModifiedAppearanceAllSpecs, iit.itemModifiedAppearanceSpec1, iit.itemModifiedAppearanceSpec2, iit.itemModifiedAppearanceSpec3, iit.itemModifiedAppearanceSpec4, iit.itemModifiedAppearanceSpec5, iit.spellItemEnchantmentAllSpecs, iit.spellItemEnchantmentSpec1, iit.spellItemEnchantmentSpec2, iit.spellItemEnchantmentSpec3, iit.spellItemEnchantmentSpec4, iit.spellItemEnchantmentSpec5, iit.secondaryItemModifiedAppearanceAllSpecs, iit.secondaryItemModifiedAppearanceSpec1, iit.secondaryItemModifiedAppearanceSpec2, iit.secondaryItemModifiedAppearanceSpec3, iit.secondaryItemModifiedAppearanceSpec4, iit.itemModifiedAppearanceSpec5, ig.gemItemId1, ig.gemBonuses1, ig.gemContext1, ig.gemItemId2, ig.gemBonuses2, ig.gemContext2, ig.gemItemId3, ig.gemBonuses3, ig.gemContext3, guildid, TabId, SlotId FROM guild_bank_item gbi INNER JOIN item_instance ii ON gbi.item_guid = ii.guid LEFT JOIN item_instance_gems ig ON ii.guid = ig.itemGuid LEFT JOIN item_instance_transmog iit ON ii.guid = iit.itemGuid"
             }
             Self::DEL_CHAR_PET_BY_OWNER => "DELETE FROM character_pet WHERE owner = ?",
             Self::UPD_CHAR_PET_NAME => {
@@ -4954,6 +4978,71 @@ mod tests {
         assert_eq!(
             CharStatements::SEL_WAR_MODE_TUNING.sql(),
             "SELECT race, COUNT(guid) FROM characters WHERE ((playerFlags & ?) = ?) AND logout_time >= (UNIX_TIMESTAMP() - 604800) GROUP BY race"
+        );
+    }
+
+    #[test]
+    fn character_select_item_instance_content_aliases_match_cpp_expansion_exactly() {
+        let cpp_sql = cpp_character_sql();
+        let aliases = [
+            CharStatements::SEL_CHARACTER_INVENTORY,
+            CharStatements::SEL_MAILITEMS,
+            CharStatements::SEL_AUCTION_ITEMS,
+            CharStatements::SEL_GUILD_BANK_ITEMS,
+        ];
+
+        for statement in aliases {
+            assert!(
+                cpp_sql.iter().any(|sql| sql == statement.sql()),
+                "{} must match expanded C++ SelectItemInstanceContent SQL",
+                statement.sql()
+            );
+            assert!(
+                statement.sql().contains(
+                    "iit.secondaryItemModifiedAppearanceSpec4, iit.itemModifiedAppearanceSpec5"
+                ),
+                "port preserves the exact C++ macro tail, including the suspicious Spec5 column"
+            );
+        }
+
+        assert_eq!(
+            CharStatements::SEL_CHARACTER_INVENTORY
+                .sql()
+                .matches('?')
+                .count(),
+            1
+        );
+        assert_eq!(CharStatements::SEL_MAILITEMS.sql().matches('?').count(), 1);
+        assert_eq!(
+            CharStatements::SEL_AUCTION_ITEMS.sql().matches('?').count(),
+            0
+        );
+        assert_eq!(
+            CharStatements::SEL_GUILD_BANK_ITEMS
+                .sql()
+                .matches('?')
+                .count(),
+            0
+        );
+        assert!(
+            CharStatements::SEL_CHARACTER_INVENTORY
+                .sql()
+                .contains(", bag, slot FROM character_inventory")
+        );
+        assert!(
+            CharStatements::SEL_MAILITEMS
+                .sql()
+                .contains(", ii.owner_guid, m.id FROM mail_items")
+        );
+        assert!(
+            CharStatements::SEL_AUCTION_ITEMS
+                .sql()
+                .contains(", ii.owner_guid, ai.auctionId FROM auction_items")
+        );
+        assert!(
+            CharStatements::SEL_GUILD_BANK_ITEMS
+                .sql()
+                .contains(", guildid, TabId, SlotId FROM guild_bank_item")
         );
     }
 
