@@ -103,15 +103,39 @@ pub enum CharStatements {
     /// INSERT INTO character_battleground_random (guid) VALUES (?)
     INS_BATTLEGROUND_RANDOM,
 
-    /// INSERT INTO characters (guid, account, name, race, class, gender, level, money,
-    /// zone, map, position_x, position_y, position_z, orientation,
-    /// taximask, createTime, createMode, playerFlags, at_login,
-    /// health, power1, lastLoginBuild) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    /// C++ `CHAR_INS_CHARACTER` full character persistence insert.
     INS_CHARACTER,
+
+    /// C++ `CHAR_UPD_CHARACTER` full character persistence update.
+    UPD_CHARACTER,
 
     /// INSERT INTO character_customizations (guid, chrCustomizationOptionID,
     /// chrCustomizationChoiceID) VALUES (?,?,?)
     INS_CHAR_CUSTOMIZATION,
+
+    /// UPDATE characters SET at_login = at_login | ? WHERE guid = ?
+    UPD_ADD_AT_LOGIN_FLAG,
+
+    /// UPDATE characters set at_login = at_login & ~ ? WHERE guid = ?
+    UPD_REM_AT_LOGIN_FLAG,
+
+    /// UPDATE characters SET at_login = at_login | ?
+    UPD_ALL_AT_LOGIN_FLAGS,
+
+    /// INSERT INTO bugreport (type, content) VALUES(?, ?)
+    INS_BUG_REPORT,
+
+    /// UPDATE petition SET name = ? WHERE petitionguid = ?
+    UPD_PETITION_NAME,
+
+    /// INSERT INTO petition_sign.
+    INS_PETITION_SIGNATURE,
+
+    /// UPDATE characters SET online = 0 WHERE account = ?
+    UPD_ACCOUNT_ONLINE,
+
+    /// DELETE FROM character_customizations WHERE guid = ?
+    DEL_CHARACTER_CUSTOMIZATIONS,
 
     /// DELETE FROM characters WHERE guid = ?
     DEL_CHARACTER,
@@ -1144,15 +1168,29 @@ impl StatementDef for CharStatements {
                 "INSERT INTO character_battleground_random (guid) VALUES (?)"
             }
             Self::INS_CHARACTER => {
-                "INSERT INTO characters (guid, account, name, race, class, gender, level, money, \
-                 zone, map, position_x, position_y, position_z, orientation, \
-                 taximask, createTime, createMode, playerFlags, at_login, \
-                 health, power1, lastLoginBuild) \
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+                "INSERT INTO characters (guid, account, name, race, class, gender, level, xp, money, inventorySlots, bankSlots, restState, playerFlags, playerFlagsEx, map, instance_id, dungeonDifficulty, raidDifficulty, legacyRaidDifficulty, position_x, position_y, position_z, orientation, trans_x, trans_y, trans_z, trans_o, transguid, taximask, createTime, createMode, cinematic, totaltime, leveltime, rest_bonus, logout_time, is_logout_resting, resettalents_cost, resettalents_time, activeTalentGroup, bonusTalentGroups,extra_flags, summonedPetNumber, at_login, death_expire_time, taxi_path, totalKills, todayKills, yesterdayKills, chosenTitle, watchedFaction, drunk, health, power1, power2, power3, power4, power5, power6, power7, power8, power9, power10, latency, lootSpecId, exploredZones, equipmentCache, knownTitles, actionBars, lastLoginBuild) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+            }
+            Self::UPD_CHARACTER => {
+                "UPDATE characters SET name=?,race=?,class=?,gender=?,level=?,xp=?,money=?,inventorySlots=?,bankSlots=?,restState=?,playerFlags=?,playerFlagsEx=?,map=?,instance_id=?,dungeonDifficulty=?,raidDifficulty=?,legacyRaidDifficulty=?,position_x=?,position_y=?,position_z=?,orientation=?,trans_x=?,trans_y=?,trans_z=?,trans_o=?,transguid=?,taximask=?,cinematic=?,totaltime=?,leveltime=?,rest_bonus=?,logout_time=?,is_logout_resting=?,resettalents_cost=?,resettalents_time=?,numRespecs=?,activeTalentGroup=?,bonusTalentGroups=?,extra_flags=?,summonedPetNumber=?,at_login=?,zone=?,death_expire_time=?,taxi_path=?,totalKills=?,todayKills=?,yesterdayKills=?,chosenTitle=?,watchedFaction=?,drunk=?,health=?,power1=?,power2=?,power3=?,power4=?,power5=?,power6=?,power7=?,power8=?,power9=?,power10=?,latency=?,lootSpecId=?,exploredZones=?,equipmentCache=?,knownTitles=?,actionBars=?,online=?,honor=?,honorLevel=?,honorRestState=?,honorRestBonus=?,lastLoginBuild=? WHERE guid=?"
             }
             Self::INS_CHAR_CUSTOMIZATION => {
-                "INSERT INTO character_customizations (guid, chrCustomizationOptionID, \
-                 chrCustomizationChoiceID) VALUES (?,?,?)"
+                "INSERT INTO character_customizations (guid, chrCustomizationOptionID, chrCustomizationChoiceID) VALUES (?, ?, ?)"
+            }
+            Self::UPD_ADD_AT_LOGIN_FLAG => {
+                "UPDATE characters SET at_login = at_login | ? WHERE guid = ?"
+            }
+            Self::UPD_REM_AT_LOGIN_FLAG => {
+                "UPDATE characters set at_login = at_login & ~ ? WHERE guid = ?"
+            }
+            Self::UPD_ALL_AT_LOGIN_FLAGS => "UPDATE characters SET at_login = at_login | ?",
+            Self::INS_BUG_REPORT => "INSERT INTO bugreport (type, content) VALUES(?, ?)",
+            Self::UPD_PETITION_NAME => "UPDATE petition SET name = ? WHERE petitionguid = ?",
+            Self::INS_PETITION_SIGNATURE => {
+                "INSERT INTO petition_sign (ownerguid, petitionguid, playerguid, player_account) VALUES (?, ?, ?, ?)"
+            }
+            Self::UPD_ACCOUNT_ONLINE => "UPDATE characters SET online = 0 WHERE account = ?",
+            Self::DEL_CHARACTER_CUSTOMIZATIONS => {
+                "DELETE FROM character_customizations WHERE guid = ?"
             }
             Self::DEL_CHARACTER => "DELETE FROM characters WHERE guid = ?",
             Self::DEL_CHAR_REPUTATION_BY_FACTION => {
@@ -2217,6 +2255,54 @@ mod tests {
         assert_eq!(
             CharStatements::SEL_CHAR_CREATE_INFO.sql(),
             "SELECT level, race, class FROM characters WHERE account = ? LIMIT 0, ?"
+        );
+    }
+
+    #[test]
+    fn character_save_statements_match_cpp_sql_exactly() {
+        assert_eq!(
+            CharStatements::INS_CHARACTER.sql(),
+            "INSERT INTO characters (guid, account, name, race, class, gender, level, xp, money, inventorySlots, bankSlots, restState, playerFlags, playerFlagsEx, map, instance_id, dungeonDifficulty, raidDifficulty, legacyRaidDifficulty, position_x, position_y, position_z, orientation, trans_x, trans_y, trans_z, trans_o, transguid, taximask, createTime, createMode, cinematic, totaltime, leveltime, rest_bonus, logout_time, is_logout_resting, resettalents_cost, resettalents_time, activeTalentGroup, bonusTalentGroups,extra_flags, summonedPetNumber, at_login, death_expire_time, taxi_path, totalKills, todayKills, yesterdayKills, chosenTitle, watchedFaction, drunk, health, power1, power2, power3, power4, power5, power6, power7, power8, power9, power10, latency, lootSpecId, exploredZones, equipmentCache, knownTitles, actionBars, lastLoginBuild) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+        );
+        assert_eq!(
+            CharStatements::UPD_CHARACTER.sql(),
+            "UPDATE characters SET name=?,race=?,class=?,gender=?,level=?,xp=?,money=?,inventorySlots=?,bankSlots=?,restState=?,playerFlags=?,playerFlagsEx=?,map=?,instance_id=?,dungeonDifficulty=?,raidDifficulty=?,legacyRaidDifficulty=?,position_x=?,position_y=?,position_z=?,orientation=?,trans_x=?,trans_y=?,trans_z=?,trans_o=?,transguid=?,taximask=?,cinematic=?,totaltime=?,leveltime=?,rest_bonus=?,logout_time=?,is_logout_resting=?,resettalents_cost=?,resettalents_time=?,numRespecs=?,activeTalentGroup=?,bonusTalentGroups=?,extra_flags=?,summonedPetNumber=?,at_login=?,zone=?,death_expire_time=?,taxi_path=?,totalKills=?,todayKills=?,yesterdayKills=?,chosenTitle=?,watchedFaction=?,drunk=?,health=?,power1=?,power2=?,power3=?,power4=?,power5=?,power6=?,power7=?,power8=?,power9=?,power10=?,latency=?,lootSpecId=?,exploredZones=?,equipmentCache=?,knownTitles=?,actionBars=?,online=?,honor=?,honorLevel=?,honorRestState=?,honorRestBonus=?,lastLoginBuild=? WHERE guid=?"
+        );
+        assert_eq!(
+            CharStatements::UPD_ADD_AT_LOGIN_FLAG.sql(),
+            "UPDATE characters SET at_login = at_login | ? WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_REM_AT_LOGIN_FLAG.sql(),
+            "UPDATE characters set at_login = at_login & ~ ? WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_ALL_AT_LOGIN_FLAGS.sql(),
+            "UPDATE characters SET at_login = at_login | ?"
+        );
+        assert_eq!(
+            CharStatements::INS_BUG_REPORT.sql(),
+            "INSERT INTO bugreport (type, content) VALUES(?, ?)"
+        );
+        assert_eq!(
+            CharStatements::UPD_PETITION_NAME.sql(),
+            "UPDATE petition SET name = ? WHERE petitionguid = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_PETITION_SIGNATURE.sql(),
+            "INSERT INTO petition_sign (ownerguid, petitionguid, playerguid, player_account) VALUES (?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::UPD_ACCOUNT_ONLINE.sql(),
+            "UPDATE characters SET online = 0 WHERE account = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_CHAR_CUSTOMIZATION.sql(),
+            "INSERT INTO character_customizations (guid, chrCustomizationOptionID, chrCustomizationChoiceID) VALUES (?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHARACTER_CUSTOMIZATIONS.sql(),
+            "DELETE FROM character_customizations WHERE guid = ?"
         );
     }
 
@@ -3620,8 +3706,8 @@ mod tests {
         assert_eq!(CharStatements::SEL_CHECK_NAME.sql().matches('?').count(), 1);
         // SEL_SUM_CHARS has 1 placeholder
         assert_eq!(CharStatements::SEL_SUM_CHARS.sql().matches('?').count(), 1);
-        // INS_CHARACTER has 22 placeholders
-        assert_eq!(CharStatements::INS_CHARACTER.sql().matches('?').count(), 22);
+        // INS_CHARACTER follows the full Trinity character row.
+        assert_eq!(CharStatements::INS_CHARACTER.sql().matches('?').count(), 70);
         // INS_CHAR_CUSTOMIZATION has 3 placeholders
         assert_eq!(
             CharStatements::INS_CHAR_CUSTOMIZATION

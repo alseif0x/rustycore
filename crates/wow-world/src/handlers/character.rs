@@ -576,6 +576,7 @@ pub(crate) fn default_display_id(race: u8, sex: u8) -> u32 {
 }
 
 /// Default zone ID for a starting position.
+#[cfg_attr(not(test), allow(dead_code))]
 fn start_zone(race: u8) -> i32 {
     match race {
         1 | 22 => 12, // Human / Worgen: Elwynn Forest
@@ -1719,7 +1720,6 @@ impl WorldSession {
 
         // Get start position
         let (map_id, x, y, z, o) = start_position(pkt.race);
-        let zone = start_zone(pkt.race);
         let sex = if pkt.sex < 0 { 0u8 } else { pkt.sex as u8 };
 
         // Default health/power for a fresh level 1 character
@@ -1730,7 +1730,8 @@ impl WorldSession {
             .unwrap_or_default()
             .as_secs() as i64;
 
-        // Insert character — columns match the real 3.4.3 characters table
+        // Insert character using the full Trinity-style persistence row. Fields that the
+        // simplified path previously left to DB defaults are bound explicitly here.
         let mut ins_stmt = char_db.prepare(CharStatements::INS_CHARACTER);
         ins_stmt.set_u64(0, new_guid_counter as u64); // guid (bigint unsigned)
         ins_stmt.set_u32(1, self.account_id); // account
@@ -1739,21 +1740,69 @@ impl WorldSession {
         ins_stmt.set_u8(4, pkt.class); // class
         ins_stmt.set_u8(5, sex); // gender
         ins_stmt.set_u8(6, 1); // level
-        ins_stmt.set_u64(7, 0); // money (bigint unsigned)
-        ins_stmt.set_i32(8, zone); // zone (smallint unsigned)
-        ins_stmt.set_i32(9, map_id); // map (smallint unsigned)
-        ins_stmt.set_f32(10, x); // position_x
-        ins_stmt.set_f32(11, y); // position_y
-        ins_stmt.set_f32(12, z); // position_z
-        ins_stmt.set_f32(13, o); // orientation
-        ins_stmt.set_string(14, ""); // taximask (text NOT NULL)
-        ins_stmt.set_i64(15, create_time); // createTime (bigint)
-        ins_stmt.set_u8(16, 0); // createMode
-        ins_stmt.set_u32(17, 0); // playerFlags
-        ins_stmt.set_u32(18, 0x20); // at_login (AT_LOGIN_FIRST)
-        ins_stmt.set_u32(19, health); // health
-        ins_stmt.set_u32(20, mana); // power1 (mana)
-        ins_stmt.set_u32(21, self.build); // lastLoginBuild
+        ins_stmt.set_u64(7, 0); // xp
+        ins_stmt.set_u64(8, 0); // money
+        ins_stmt.set_u32(9, 0); // inventorySlots
+        ins_stmt.set_u32(10, 0); // bankSlots
+        ins_stmt.set_u8(11, 0); // restState
+        ins_stmt.set_u32(12, 0); // playerFlags
+        ins_stmt.set_u32(13, 0); // playerFlagsEx
+        ins_stmt.set_i32(14, map_id); // map
+        ins_stmt.set_u32(15, 0); // instance_id
+        ins_stmt.set_u8(16, 0); // dungeonDifficulty
+        ins_stmt.set_u8(17, 0); // raidDifficulty
+        ins_stmt.set_u8(18, 0); // legacyRaidDifficulty
+        ins_stmt.set_f32(19, x); // position_x
+        ins_stmt.set_f32(20, y); // position_y
+        ins_stmt.set_f32(21, z); // position_z
+        ins_stmt.set_f32(22, o); // orientation
+        ins_stmt.set_f32(23, 0.0); // trans_x
+        ins_stmt.set_f32(24, 0.0); // trans_y
+        ins_stmt.set_f32(25, 0.0); // trans_z
+        ins_stmt.set_f32(26, 0.0); // trans_o
+        ins_stmt.set_u64(27, 0); // transguid
+        ins_stmt.set_string(28, ""); // taximask
+        ins_stmt.set_i64(29, create_time); // createTime
+        ins_stmt.set_u8(30, 0); // createMode
+        ins_stmt.set_u8(31, 0); // cinematic
+        ins_stmt.set_u32(32, 0); // totaltime
+        ins_stmt.set_u32(33, 0); // leveltime
+        ins_stmt.set_f32(34, 0.0); // rest_bonus
+        ins_stmt.set_u32(35, 0); // logout_time
+        ins_stmt.set_u8(36, 0); // is_logout_resting
+        ins_stmt.set_u32(37, 0); // resettalents_cost
+        ins_stmt.set_u32(38, 0); // resettalents_time
+        ins_stmt.set_u8(39, 0); // activeTalentGroup
+        ins_stmt.set_u8(40, 0); // bonusTalentGroups
+        ins_stmt.set_u32(41, 0); // extra_flags
+        ins_stmt.set_u32(42, 0); // summonedPetNumber
+        ins_stmt.set_u32(43, 0x20); // at_login (AT_LOGIN_FIRST)
+        ins_stmt.set_u32(44, 0); // death_expire_time
+        ins_stmt.set_string(45, ""); // taxi_path
+        ins_stmt.set_u32(46, 0); // totalKills
+        ins_stmt.set_u32(47, 0); // todayKills
+        ins_stmt.set_u32(48, 0); // yesterdayKills
+        ins_stmt.set_u32(49, 0); // chosenTitle
+        ins_stmt.set_i32(50, 0); // watchedFaction
+        ins_stmt.set_u8(51, 0); // drunk
+        ins_stmt.set_u32(52, health); // health
+        ins_stmt.set_u32(53, mana); // power1
+        ins_stmt.set_u32(54, 0); // power2
+        ins_stmt.set_u32(55, 0); // power3
+        ins_stmt.set_u32(56, 0); // power4
+        ins_stmt.set_u32(57, 0); // power5
+        ins_stmt.set_u32(58, 0); // power6
+        ins_stmt.set_u32(59, 0); // power7
+        ins_stmt.set_u32(60, 0); // power8
+        ins_stmt.set_u32(61, 0); // power9
+        ins_stmt.set_u32(62, 0); // power10
+        ins_stmt.set_u32(63, 0); // latency
+        ins_stmt.set_u32(64, 0); // lootSpecId
+        ins_stmt.set_string(65, ""); // exploredZones
+        ins_stmt.set_string(66, ""); // equipmentCache
+        ins_stmt.set_string(67, ""); // knownTitles
+        ins_stmt.set_u8(68, 0); // actionBars
+        ins_stmt.set_u32(69, self.build); // lastLoginBuild
 
         match char_db.execute(&ins_stmt).await {
             Ok(_) => {
