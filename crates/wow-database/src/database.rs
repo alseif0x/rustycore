@@ -2,7 +2,7 @@
 
 use crate::error::DatabaseError;
 use crate::params::PreparedStatement;
-use crate::query_holder::{SqlQueryHolder, SqlQueryHolderResult};
+use crate::query_holder::{SqlQueryHolder, SqlQueryHolderResult, prepared_result_slot_like_cpp};
 use crate::result::SqlResult;
 use crate::statements::StatementDef;
 use crate::transaction::{SqlTransaction, bind_param};
@@ -248,7 +248,7 @@ impl<S: StatementDef> Database<S> {
             };
 
             let result = self.query(stmt).await?;
-            results.push((!result.is_empty()).then_some(result));
+            results.push(prepared_result_slot_like_cpp(result));
         }
 
         Ok(SqlQueryHolderResult::new(results))

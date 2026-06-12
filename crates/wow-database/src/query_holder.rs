@@ -87,10 +87,14 @@ impl SqlQueryHolderResult {
     }
 }
 
+pub(crate) fn prepared_result_slot_like_cpp(result: SqlResult) -> Option<SqlResult> {
+    (!result.is_empty()).then_some(result)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::SqlQueryHolder;
-    use crate::PreparedStatement;
+    use super::{SqlQueryHolder, prepared_result_slot_like_cpp};
+    use crate::{PreparedStatement, result::SqlResult};
 
     #[test]
     fn holder_set_size_creates_fixed_slots_like_cpp() {
@@ -107,5 +111,10 @@ mod tests {
         assert!(holder.set_prepared_query(0, PreparedStatement::new("SELECT 1")));
         assert!(!holder.set_prepared_query(1, PreparedStatement::new("SELECT 2")));
         assert_eq!(holder.iter().filter(Option::is_some).count(), 1);
+    }
+
+    #[test]
+    fn holder_empty_prepared_result_is_null_like_cpp() {
+        assert!(prepared_result_slot_like_cpp(SqlResult::empty()).is_none());
     }
 }
