@@ -125,9 +125,7 @@ pub enum CharStatements {
     /// DELETE FROM character_reputation WHERE guid = ?
     DEL_CHAR_REPUTATION,
 
-    /// SELECT guid, account, name, race, class, gender, level, zone, map,
-    /// position_x, position_y, position_z, orientation, playerFlags, at_login
-    /// FROM characters WHERE guid = ?
+    /// C++ `CHAR_SEL_CHARACTER` full character load row.
     SEL_CHARACTER,
 
     /// SELECT chrCustomizationOptionID, chrCustomizationChoiceID FROM character_customizations WHERE guid = ? ORDER BY chrCustomizationOptionID
@@ -657,10 +655,19 @@ impl StatementDef for CharStatements {
             }
             Self::DEL_CHAR_REPUTATION => "DELETE FROM character_reputation WHERE guid = ?",
             Self::SEL_CHARACTER => {
-                "SELECT guid, account, name, race, class, gender, level, zone, map, \
-                 position_x, position_y, position_z, orientation, playerFlags, at_login, \
-                 totaltime, leveltime, money, xp \
-                 FROM characters WHERE guid = ?"
+                "SELECT c.guid, account, name, race, class, gender, level, xp, money, inventorySlots, \
+                 bankSlots, restState, playerFlags, playerFlagsEx, position_x, position_y, position_z, \
+                 map, orientation, taximask, createTime, createMode, cinematic, totaltime, leveltime, \
+                 rest_bonus, logout_time, is_logout_resting, resettalents_cost, resettalents_time, \
+                 activeTalentGroup, bonusTalentGroups, trans_x, trans_y, trans_z, trans_o, transguid, \
+                 extra_flags, summonedPetNumber, at_login, zone, online, death_expire_time, taxi_path, \
+                 dungeonDifficulty, totalKills, todayKills, yesterdayKills, chosenTitle, watchedFaction, \
+                 drunk, health, power1, power2, power3, power4, power5, power6, power7, power8, power9, \
+                 power10, instance_id, lootSpecId, exploredZones, knownTitles, actionBars, raidDifficulty, \
+                 legacyRaidDifficulty, fishingSteps, honor, honorLevel, honorRestState, honorRestBonus, \
+                 numRespecs, personalTabardEmblemStyle, personalTabardEmblemColor, \
+                 personalTabardBorderStyle, personalTabardBorderColor, personalTabardBackgroundColor \
+                 FROM characters c LEFT JOIN character_fishingsteps cfs ON c.guid = cfs.guid WHERE c.guid = ?"
             }
             Self::SEL_CHARACTER_CUSTOMIZATIONS => {
                 "SELECT chrCustomizationOptionID, chrCustomizationChoiceID FROM character_customizations WHERE guid = ? ORDER BY chrCustomizationOptionID"
@@ -1427,6 +1434,15 @@ mod tests {
             CharStatements::INS_BATTLEGROUND_RANDOM.sql(),
             "INSERT INTO character_battleground_random (guid) VALUES (?)"
         );
+    }
+
+    #[test]
+    fn character_full_load_statement_matches_cpp_column_order_exactly() {
+        assert_eq!(
+            CharStatements::SEL_CHARACTER.sql(),
+            "SELECT c.guid, account, name, race, class, gender, level, xp, money, inventorySlots, bankSlots, restState, playerFlags, playerFlagsEx, position_x, position_y, position_z, map, orientation, taximask, createTime, createMode, cinematic, totaltime, leveltime, rest_bonus, logout_time, is_logout_resting, resettalents_cost, resettalents_time, activeTalentGroup, bonusTalentGroups, trans_x, trans_y, trans_z, trans_o, transguid, extra_flags, summonedPetNumber, at_login, zone, online, death_expire_time, taxi_path, dungeonDifficulty, totalKills, todayKills, yesterdayKills, chosenTitle, watchedFaction, drunk, health, power1, power2, power3, power4, power5, power6, power7, power8, power9, power10, instance_id, lootSpecId, exploredZones, knownTitles, actionBars, raidDifficulty, legacyRaidDifficulty, fishingSteps, honor, honorLevel, honorRestState, honorRestBonus, numRespecs, personalTabardEmblemStyle, personalTabardEmblemColor, personalTabardBorderStyle, personalTabardBorderColor, personalTabardBackgroundColor FROM characters c LEFT JOIN character_fishingsteps cfs ON c.guid = cfs.guid WHERE c.guid = ?"
+        );
+        assert_eq!(CharStatements::SEL_CHARACTER.sql().matches('?').count(), 1);
     }
 
     #[test]

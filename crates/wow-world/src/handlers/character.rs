@@ -2562,22 +2562,23 @@ impl WorldSession {
         let class: u8 = result.read(4);
         let gender: u8 = result.read(5);
         let level: u8 = result.read(6);
-        let zone: i32 = result.try_read::<u16>(7).unwrap_or(0) as i32; // smallint unsigned
-        let map_id: i32 = result.try_read::<u16>(8).unwrap_or(0) as i32; // smallint unsigned
-        let pos_x: f32 = result.try_read(9).unwrap_or(0.0);
-        let pos_y: f32 = result.try_read(10).unwrap_or(0.0);
-        let pos_z: f32 = result.try_read(11).unwrap_or(0.0);
-        let orientation: f32 = result.try_read(12).unwrap_or(0.0);
+        // C++ CHAR_SEL_CHARACTER column order:
+        // 7=xp, 8=money, 14..18=position/map/orientation, 23..24=played time, 40=zone.
+        let zone: i32 = result.try_read::<u16>(40).unwrap_or(0) as i32; // smallint unsigned
+        let map_id: i32 = result.try_read::<u16>(17).unwrap_or(0) as i32; // smallint unsigned
+        let pos_x: f32 = result.try_read(14).unwrap_or(0.0);
+        let pos_y: f32 = result.try_read(15).unwrap_or(0.0);
+        let pos_z: f32 = result.try_read(16).unwrap_or(0.0);
+        let orientation: f32 = result.try_read(18).unwrap_or(0.0);
 
         let position = Position::new(pos_x, pos_y, pos_z, orientation);
         let display_id = default_display_id(race, gender);
 
-        // Load played time + money from DB.
-        // Cols: 15=totaltime, 16=leveltime, 17=money (bigint unsigned).
-        self.total_played_time = result.try_read::<u32>(15).unwrap_or(0);
-        self.level_played_time = result.try_read::<u32>(16).unwrap_or(0);
-        self.set_player_gold_like_cpp(result.try_read::<u64>(17).unwrap_or(0));
-        self.set_player_xp_like_cpp(result.try_read::<u32>(18).unwrap_or(0));
+        // Load played time + money/xp from DB using C++ CHAR_SEL_CHARACTER order.
+        self.total_played_time = result.try_read::<u32>(23).unwrap_or(0);
+        self.level_played_time = result.try_read::<u32>(24).unwrap_or(0);
+        self.set_player_gold_like_cpp(result.try_read::<u64>(8).unwrap_or(0));
+        self.set_player_xp_like_cpp(result.try_read::<u32>(7).unwrap_or(0));
         self.set_player_guid(Some(guid));
         self.set_loaded_player_identity_like_cpp(map_id as u16, race, class, level, gender);
         self.refresh_next_level_xp();
