@@ -10793,11 +10793,22 @@ impl WorldSession {
             // C++ returns 0 for cheap/no-query opcodes: no AntiDOS limit.
             ClientOpcodes::PlayerLogin
             | ClientOpcodes::QueryPlayerNames
+            | ClientOpcodes::QueryPetName
+            | ClientOpcodes::QueryNpcText
             | ClientOpcodes::AttackStop
+            | ClientOpcodes::QueryTime
+            | ClientOpcodes::QueryCorpseTransport
+            | ClientOpcodes::MoveTimeSkipped
+            | ClientOpcodes::QueryNextMailTime
+            | ClientOpcodes::SetSheathed
+            | ClientOpcodes::UpdateRaidTarget
             | ClientOpcodes::LogoutRequest
+            | ClientOpcodes::PetRename
+            | ClientOpcodes::QuestGiverRequestReward
             | ClientOpcodes::CompleteCinematic
             | ClientOpcodes::BankerActivate
             | ClientOpcodes::BuyBankSlot
+            | ClientOpcodes::OptOutOfLoot
             | ClientOpcodes::DuelResponse
             | ClientOpcodes::CalendarComplain
             | ClientOpcodes::QueryQuestInfo
@@ -10810,7 +10821,9 @@ impl WorldSession {
             | ClientOpcodes::QuestGiverQueryQuest
             | ClientOpcodes::QueryPageText
             | ClientOpcodes::GuildBankTextQuery
+            | ClientOpcodes::QueryCorpseLocationFromClient
             | ClientOpcodes::MoveSetFacing
+            | ClientOpcodes::MoveSetFacingHeartbeat
             | ClientOpcodes::MoveSetPitch
             | ClientOpcodes::RequestPartyMemberStats
             | ClientOpcodes::QuestGiverCompleteQuest
@@ -10891,7 +10904,9 @@ impl WorldSession {
             | ClientOpcodes::GameObjUse
             | ClientOpcodes::DeclinePetition => 50,
 
-            ClientOpcodes::QuestPoiQuery => 25,
+            ClientOpcodes::QuestPoiQuery => {
+                crate::handlers::quest::MAX_QUEST_LOG_SIZE_LIKE_CPP as u32
+            }
 
             ClientOpcodes::SpellClick | ClientOpcodes::MoveDismissVehicle => 20,
 
@@ -10960,7 +10975,7 @@ impl WorldSession {
             | ClientOpcodes::SetPartyAssignment
             | ClientOpcodes::DoReadyCheck => 3,
 
-            ClientOpcodes::GetItemPurchaseData => 150,
+            ClientOpcodes::GetItemPurchaseData => PLAYER_SLOT_END as u32,
             ClientOpcodes::HotfixRequest => 1,
             _ => 100,
         }
@@ -31484,7 +31499,7 @@ mod tests {
 
     #[tokio::test]
     async fn game_event_quest_complete_notify_reports_missing_sender_like_cpp() {
-        let (mut session, _, _) = make_session();
+        let (session, _, _) = make_session();
 
         let outcome = session.notify_game_event_quest_complete_like_cpp(42).await;
 
@@ -55994,6 +56009,261 @@ mod tests {
             command_rx_c.try_recv(),
             Ok(SessionCommand::KickLikeCpp(_))
         ));
+    }
+
+    #[test]
+    fn packet_spoof_cpp_opcode_limit_table_is_exhaustive_like_cpp() {
+        for opcode in [
+            ClientOpcodes::PlayerLogin,
+            ClientOpcodes::QueryPlayerNames,
+            ClientOpcodes::QueryPetName,
+            ClientOpcodes::QueryNpcText,
+            ClientOpcodes::AttackStop,
+            ClientOpcodes::QueryTime,
+            ClientOpcodes::QueryCorpseTransport,
+            ClientOpcodes::MoveTimeSkipped,
+            ClientOpcodes::QueryNextMailTime,
+            ClientOpcodes::SetSheathed,
+            ClientOpcodes::UpdateRaidTarget,
+            ClientOpcodes::LogoutRequest,
+            ClientOpcodes::PetRename,
+            ClientOpcodes::QuestGiverRequestReward,
+            ClientOpcodes::CompleteCinematic,
+            ClientOpcodes::BankerActivate,
+            ClientOpcodes::BuyBankSlot,
+            ClientOpcodes::OptOutOfLoot,
+            ClientOpcodes::DuelResponse,
+            ClientOpcodes::CalendarComplain,
+            ClientOpcodes::QueryQuestInfo,
+            ClientOpcodes::QueryGameObject,
+            ClientOpcodes::QueryCreature,
+            ClientOpcodes::QuestGiverStatusQuery,
+            ClientOpcodes::QueryGuildInfo,
+            ClientOpcodes::TaxiNodeStatusQuery,
+            ClientOpcodes::TaxiQueryAvailableNodes,
+            ClientOpcodes::QuestGiverQueryQuest,
+            ClientOpcodes::QueryPageText,
+            ClientOpcodes::GuildBankTextQuery,
+            ClientOpcodes::QueryCorpseLocationFromClient,
+            ClientOpcodes::MoveSetFacing,
+            ClientOpcodes::MoveSetFacingHeartbeat,
+            ClientOpcodes::MoveSetPitch,
+            ClientOpcodes::RequestPartyMemberStats,
+            ClientOpcodes::QuestGiverCompleteQuest,
+            ClientOpcodes::SetActionButton,
+            ClientOpcodes::SetActionBarToggles,
+            ClientOpcodes::ResetInstances,
+            ClientOpcodes::HearthAndResurrect,
+            ClientOpcodes::TogglePvp,
+            ClientOpcodes::PetAbandon,
+            ClientOpcodes::ActivateTaxi,
+            ClientOpcodes::SelfRes,
+            ClientOpcodes::UnlearnSkill,
+            ClientOpcodes::SaveEquipmentSet,
+            ClientOpcodes::DeleteEquipmentSet,
+            ClientOpcodes::DismissCritter,
+            ClientOpcodes::RepopRequest,
+            ClientOpcodes::PartyInvite,
+            ClientOpcodes::PartyInviteResponse,
+            ClientOpcodes::PartyUninvite,
+            ClientOpcodes::LeaveGroup,
+            ClientOpcodes::BattlemasterJoinArena,
+            ClientOpcodes::BattlefieldLeave,
+            ClientOpcodes::GuildBankLogQuery,
+            ClientOpcodes::LogoutCancel,
+            ClientOpcodes::AlterAppearance,
+            ClientOpcodes::QuestConfirmAccept,
+            ClientOpcodes::GuildEventLogQuery,
+            ClientOpcodes::QuestGiverStatusMultipleQuery,
+            ClientOpcodes::BeginTrade,
+            ClientOpcodes::InitiateTrade,
+            ClientOpcodes::ChatAddonMessage,
+            ClientOpcodes::ChatAddonMessageWhisper,
+            ClientOpcodes::ChatMessageAfk,
+            ClientOpcodes::ChatMessageChannel,
+            ClientOpcodes::ChatMessageDnd,
+            ClientOpcodes::ChatMessageEmote,
+            ClientOpcodes::ChatMessageGuild,
+            ClientOpcodes::ChatMessageOfficer,
+            ClientOpcodes::ChatMessageParty,
+            ClientOpcodes::ChatMessageRaid,
+            ClientOpcodes::ChatMessageRaidWarning,
+            ClientOpcodes::ChatMessageSay,
+            ClientOpcodes::ChatMessageWhisper,
+            ClientOpcodes::ChatMessageYell,
+            ClientOpcodes::Inspect,
+            ClientOpcodes::AreaSpiritHealerQuery,
+            ClientOpcodes::StandStateChange,
+            ClientOpcodes::RandomRoll,
+            ClientOpcodes::TimeSyncResponse,
+            ClientOpcodes::TimeSyncResponseDropped,
+            ClientOpcodes::TimeSyncResponseFailed,
+            ClientOpcodes::MoveForceRunSpeedChangeAck,
+            ClientOpcodes::MoveForceSwimSpeedChangeAck,
+            ClientOpcodes::MoveForceSwimBackSpeedChangeAck,
+            ClientOpcodes::MoveForceRunBackSpeedChangeAck,
+            ClientOpcodes::MoveForceFlightSpeedChangeAck,
+            ClientOpcodes::MoveForceFlightBackSpeedChangeAck,
+            ClientOpcodes::MoveForceWalkSpeedChangeAck,
+            ClientOpcodes::MoveForceTurnRateChangeAck,
+            ClientOpcodes::MoveForcePitchRateChangeAck,
+        ] {
+            assert_eq!(
+                WorldSession::packet_spoof_max_packet_counter_allowed_like_cpp(opcode),
+                0,
+                "{opcode:?}"
+            );
+        }
+
+        for opcode in [
+            ClientOpcodes::QuestGiverAcceptQuest,
+            ClientOpcodes::QuestLogRemoveQuest,
+            ClientOpcodes::QuestGiverChooseReward,
+            ClientOpcodes::SendContactList,
+            ClientOpcodes::AutobankItem,
+            ClientOpcodes::AutostoreBankItem,
+            ClientOpcodes::Who,
+            ClientOpcodes::RideVehicleInteract,
+            ClientOpcodes::MoveHeartbeat,
+        ] {
+            assert_eq!(
+                WorldSession::packet_spoof_max_packet_counter_allowed_like_cpp(opcode),
+                200,
+                "{opcode:?}"
+            );
+        }
+
+        for opcode in [
+            ClientOpcodes::GuildSetMemberNote,
+            ClientOpcodes::SetContactNotes,
+            ClientOpcodes::CalendarGet,
+            ClientOpcodes::GuildBankQueryTab,
+            ClientOpcodes::QueryInspectAchievements,
+            ClientOpcodes::GameObjReportUse,
+            ClientOpcodes::GameObjUse,
+            ClientOpcodes::DeclinePetition,
+        ] {
+            assert_eq!(
+                WorldSession::packet_spoof_max_packet_counter_allowed_like_cpp(opcode),
+                50,
+                "{opcode:?}"
+            );
+        }
+
+        assert_eq!(
+            WorldSession::packet_spoof_max_packet_counter_allowed_like_cpp(
+                ClientOpcodes::QuestPoiQuery
+            ),
+            crate::handlers::quest::MAX_QUEST_LOG_SIZE_LIKE_CPP as u32
+        );
+
+        for opcode in [ClientOpcodes::SpellClick, ClientOpcodes::MoveDismissVehicle] {
+            assert_eq!(
+                WorldSession::packet_spoof_max_packet_counter_allowed_like_cpp(opcode),
+                20,
+                "{opcode:?}"
+            );
+        }
+
+        for opcode in [
+            ClientOpcodes::SignPetition,
+            ClientOpcodes::TurnInPetition,
+            ClientOpcodes::ChangeSubGroup,
+            ClientOpcodes::QueryPetition,
+            ClientOpcodes::CharCustomize,
+            ClientOpcodes::CharRaceOrFactionChange,
+            ClientOpcodes::CharDelete,
+            ClientOpcodes::DelFriend,
+            ClientOpcodes::AddFriend,
+            ClientOpcodes::CharacterRenameRequest,
+            ClientOpcodes::BugReport,
+            ClientOpcodes::SetPartyLeader,
+            ClientOpcodes::ConvertRaid,
+            ClientOpcodes::SetAssistantLeader,
+            ClientOpcodes::MoveChangeVehicleSeats,
+            ClientOpcodes::PetitionBuy,
+            ClientOpcodes::RequestVehiclePrevSeat,
+            ClientOpcodes::RequestVehicleNextSeat,
+            ClientOpcodes::RequestVehicleSwitchSeat,
+            ClientOpcodes::RequestVehicleExit,
+            ClientOpcodes::EjectPassenger,
+            ClientOpcodes::ItemPurchaseRefund,
+            ClientOpcodes::SocketGems,
+            ClientOpcodes::WrapItem,
+            ClientOpcodes::ReportPvpPlayerAfk,
+        ] {
+            assert_eq!(
+                WorldSession::packet_spoof_max_packet_counter_allowed_like_cpp(opcode),
+                10,
+                "{opcode:?}"
+            );
+        }
+
+        for opcode in [
+            ClientOpcodes::CreateCharacter,
+            ClientOpcodes::EnumCharacters,
+            ClientOpcodes::EnumCharactersDeletedByClient,
+            ClientOpcodes::SubmitUserFeedback,
+            ClientOpcodes::SupportTicketSubmitComplaint,
+            ClientOpcodes::CalendarAddEvent,
+            ClientOpcodes::CalendarUpdateEvent,
+            ClientOpcodes::CalendarRemoveEvent,
+            ClientOpcodes::CalendarCopyEvent,
+            ClientOpcodes::CalendarInvite,
+            ClientOpcodes::CalendarEventSignUp,
+            ClientOpcodes::CalendarRsvp,
+            ClientOpcodes::CalendarModeratorStatus,
+            ClientOpcodes::CalendarRemoveInvite,
+            ClientOpcodes::SetLootMethod,
+            ClientOpcodes::GuildInviteByName,
+            ClientOpcodes::AcceptGuildInvite,
+            ClientOpcodes::GuildDeclineInvitation,
+            ClientOpcodes::GuildLeave,
+            ClientOpcodes::GuildDelete,
+            ClientOpcodes::GuildSetGuildMaster,
+            ClientOpcodes::GuildUpdateMotdText,
+            ClientOpcodes::GuildSetRankPermissions,
+            ClientOpcodes::GuildAddRank,
+            ClientOpcodes::GuildDeleteRank,
+            ClientOpcodes::GuildUpdateInfoText,
+            ClientOpcodes::GuildBankDepositMoney,
+            ClientOpcodes::GuildBankWithdrawMoney,
+            ClientOpcodes::GuildBankBuyTab,
+            ClientOpcodes::GuildBankUpdateTab,
+            ClientOpcodes::GuildBankSetTabText,
+            ClientOpcodes::SaveGuildEmblem,
+            ClientOpcodes::PetitionRenameGuild,
+            ClientOpcodes::ConfirmRespecWipe,
+            ClientOpcodes::SetDungeonDifficulty,
+            ClientOpcodes::SetRaidDifficulty,
+            ClientOpcodes::SetPartyAssignment,
+            ClientOpcodes::DoReadyCheck,
+        ] {
+            assert_eq!(
+                WorldSession::packet_spoof_max_packet_counter_allowed_like_cpp(opcode),
+                3,
+                "{opcode:?}"
+            );
+        }
+
+        assert_eq!(
+            WorldSession::packet_spoof_max_packet_counter_allowed_like_cpp(
+                ClientOpcodes::GetItemPurchaseData
+            ),
+            PLAYER_SLOT_END as u32
+        );
+        assert_eq!(
+            WorldSession::packet_spoof_max_packet_counter_allowed_like_cpp(
+                ClientOpcodes::HotfixRequest
+            ),
+            1
+        );
+        assert_eq!(
+            WorldSession::packet_spoof_max_packet_counter_allowed_like_cpp(
+                ClientOpcodes::AuthSession
+            ),
+            100
+        );
     }
 
     #[test]
