@@ -937,6 +937,40 @@ mod tests {
         assert!(session.is_disconnecting());
     }
 
+    #[tokio::test]
+    async fn movement_speed_ack_correction_matches_legacy_no_resync_packet() {
+        let (mut session, send_rx) = make_session_with_send_rx();
+        let guid = ObjectGuid::create_player(1, 42);
+        session.set_player_guid(Some(guid));
+        session.set_player_movement_speed_rate_like_cpp(UnitMoveTypeLikeCpp::Run, 1.0);
+
+        session
+            .handle_movement_speed_ack(
+                ClientOpcodes::MoveForceRunSpeedChangeAck,
+                wow_packet::packets::movement::MovementSpeedAck {
+                    ack: wow_packet::packets::movement::MovementAck {
+                        status: MovementInfo {
+                            guid,
+                            time: 1_000,
+                            position: wow_core::Position::new(10.0, 20.0, 30.0, 1.5),
+                            ..MovementInfo::default()
+                        },
+                        ack_index: 10,
+                    },
+                    speed: 6.0,
+                },
+            )
+            .await;
+
+        let corrected = session.movement_speed_ack_events_like_cpp().last().unwrap();
+        assert_eq!(corrected.expected_speed, Some(7.0));
+        assert_eq!(corrected.action, MovementSpeedAckActionLikeCpp::Corrected);
+        assert!(
+            send_rx.try_recv().is_err(),
+            "legacy C++ calls SetSpeedRate(GetSpeedRate()), but Unit::SetSpeedRate returns early when the rate is unchanged"
+        );
+    }
+
     #[test]
     fn movement_force_magnitude_ack_matches_cpp_counter_validation() {
         let mut session = make_session();

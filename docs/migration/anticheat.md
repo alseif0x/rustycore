@@ -86,8 +86,14 @@ Paths relative to `/home/server/woltk-trinity-legacy/`.
 1. Look up expected `move_type` from opcode (9-case switch).
 2. If `_player->m_forced_speed_changes[move_type] > 0`, decrement and skip last-only ack-filter (handles run/mount one-ack quirk).
 3. If `!GetTransport()` and `|GetSpeed(move_type) − packet.Speed| > 0.01`:
-   - server-side speed > ack: log + force-resync (`SetSpeedRate`).
+   - server-side speed > ack: log + call `SetSpeedRate(GetSpeedRate())`.
    - server-side speed < ack: **`KickPlayer("Incorrect speed")`** with debug log including account id.
+
+**Legacy nuance / possible C++ bug:** in this tree, `Unit::SetSpeedRate` returns early when the
+rate is unchanged (`Unit.cpp:8464-8465`). Because the correction path passes the current
+`GetSpeedRate(move_type)`, the "force-resync" comment does not actually emit a movement speed packet.
+Rust mirrors the observable behavior by recording the correction without sending a packet; fixing this
+would be a deliberate behavioral change, not a pure port.
 
 ### 4.3 DosProtection rate limit
 
@@ -159,12 +165,12 @@ Anticheat is reactive — it does not originate opcodes, it inspects them. Touch
 | Opcode | Direction | Inspected by | Action on violation |
 |---|---|---|---|
 | `CMSG_MOVE_*` (60+ variants) | C→S | `HandleMovementOpcode` → `ValidateMovementInfo` | Strip flags (silent) |
-| `CMSG_MOVE_FORCE_*_SPEED_CHANGE_ACK` (9) | C→S | `HandleForceSpeedChangeAck` | Resync or KickPlayer |
+| `CMSG_MOVE_FORCE_*_SPEED_CHANGE_ACK` (9) | C→S | `HandleForceSpeedChangeAck` | Record correction/no-resync in this legacy tree, or KickPlayer |
 | `CMSG_MOVE_TIME_SKIPPED` | C→S | `HandleMoveTimeSkippedOpcode` | Log only |
 | `CMSG_MOVE_KNOCK_BACK_ACK` | C→S | `HandleMoveKnockBackAck` | Validate + relay `MoveUpdateKnockBack` |
 | `CMSG_MOVE_SET_COLLISION_HEIGHT_ACK` | C→S | `HandleSetCollisionHeightAck` | Validate |
 | **all** CMSG | C→S | `DosProtection::EvaluateOpcode` | Log/Kick/Ban |
-| `SMSG_FORCE_*_SPEED_CHANGE` (9) | S→C | emitted on resync | — |
+| `SMSG_FORCE_*_SPEED_CHANGE` (9) | S→C | emitted by productive `Unit::SetSpeedRate`; not emitted by this legacy correction branch because the rate is unchanged | — |
 | `SMSG_MOVE_KNOCK_BACK` | S→C | emitted on knockback | — |
 
 ---
@@ -210,8 +216,8 @@ Anticheat is reactive — it does not originate opcodes, it inspects them. Touch
 
 - [ ] **#AC.1** Create `crates/wow-anticheat/` skeleton crate with `pub fn validate_movement_info(&mut MovementInfo, &PlayerState) -> ValidationResult`. (M)
 - [ ] **#AC.2** Port all 14 `ValidateMovementInfo` rules with one unit test per rule. (H)
-- [ ] **#AC.3** Implement `SpeedTracker` in `crates/wow-world/src/session.rs`: `forced_speed_changes: [u32; 9]`, expected speeds per move-type, mismatch threshold 0.01. (M)
-- [ ] **#AC.4** Wire `HandleForceSpeedChangeAck` → `SpeedTracker::evaluate` → kick on client < server, resync on client > server. Send `SMSG_FORCE_*_SPEED_CHANGE` on resync. (M)
+- [x] **#AC.3** Implement represented speed ACK tracker in `crates/wow-world/src/session.rs`: `forced_speed_changes_like_cpp: [u8; 9]`, represented movement speed rates per move-type, C++ `playerBaseMoveSpeed * rate` expected speed, mismatch threshold `0.01`, transport bypass and event audit. (M)
+- [x] **#AC.4** Wire `HandleForceSpeedChangeAck` / `HandleMoveSetModMovementForceMagnitudeAck`: Rust validates movement ACKs, decrements the C++ counters, skips pending forced changes, records correction when client speed is lower, kicks on client speed/magnitude above server truth, and mirrors the legacy correction path's no-packet behavior caused by `SetSpeedRate(GetSpeedRate())` returning early. Productive `Unit::SetSpeedRate` packet emission remains under Unit runtime, not this represented ACK slice. (M)
 - [x] **#AC.5a** Implement represented `DosProtection` in `WorldSession`: per-session opcode counters keyed by `ClientOpcodes`, evaluated before packets enter `pending_packets`; `Policy=0` logs/allows, `Policy=1` kicks, `Policy=2` kicks and stages a C++-style ban plan. (M)
 - [x] **#AC.5b** Finish `Policy=2` ban persistence using a real `World::BanAccount` equivalent for `auth.account_banned` / `auth.ip_banned`. Account/IP rows are now persisted from `WorldSession::process_pending()` using `UPD_ACCOUNT_NOT_BANNED` + `INS_ACCOUNT_BANNED` or `INS_IP_BANNED`, with `BAN_IP` sourced from the real `AccountInfo.client_address` set by the accept loop. Rust also mirrors the online-session eviction shape: account bans target that account id directly; IP bans query affected accounts with `SEL_ACCOUNT_BY_IP`; matching active sessions receive `KickLikeCpp` through `PlayerRegistry`. (M)
 - [x] **#AC.6** Complete the per-opcode rate-limit table from `WorldSession.cpp:1313-1500` exhaustively. Rust now mirrors the C++ limit groups (`0`, `200`, `50`, `MAX_QUEST_LOG_SIZE`, `20`, `10`, `3`, `PLAYER_SLOTS_COUNT`, `1`, default `100`) and has a table-level regression test. (M)
@@ -230,8 +236,8 @@ Anticheat is reactive — it does not originate opcodes, it inspects them. Touch
 - [ ] Test: `MOVEMENTFLAG_FLYING` from non-GM with no fly aura → flag stripped.
 - [ ] Test: `MOVEMENTFLAG_HOVER` with hover aura present → not stripped.
 - [ ] Test: `LEFT | RIGHT` simultaneously → both stripped.
-- [ ] Test: speed ack 8.0 vs server 7.0 with no transport → kick fires; ban table not touched (kick policy).
-- [ ] Test: speed ack 6.0 vs server 7.0 → resync packet emitted, no kick.
+- [x] Test: speed ack 8.0 vs server 7.0 with no transport → kick fires; ban table not touched (kick policy).
+- [x] Test: speed ack 6.0 vs server 7.0 → correction is recorded, no kick, and no packet is emitted because legacy `SetSpeedRate(GetSpeedRate())` returns early on unchanged rate.
 - [ ] Test: 200 `CMSG_PLAYER_LOGIN` packets in 1 second → DosProtection trips at packet #2, kick fires.
 - [ ] Test: NaN x in position → reject without panic, do not advance `player_position`.
 - [ ] Test: GUID mismatch → reject without state mutation.
