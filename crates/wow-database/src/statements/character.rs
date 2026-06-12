@@ -324,6 +324,12 @@ pub enum CharStatements {
     UPD_GROUP_MEMBER_SUBGROUP,
     /// UPDATE group_member SET memberFlags = ? WHERE memberGuid = ?
     UPD_GROUP_MEMBER_FLAG,
+    /// UPDATE `groups` SET difficulty = ? WHERE guid = ?
+    UPD_GROUP_DIFFICULTY,
+    /// UPDATE `groups` SET raidDifficulty = ? WHERE guid = ?
+    UPD_GROUP_RAID_DIFFICULTY,
+    /// UPDATE `groups` SET legacyRaidDifficulty = ? WHERE guid = ?
+    UPD_GROUP_LEGACY_RAID_DIFFICULTY,
     /// DELETE FROM group_member WHERE memberGuid = ?
     DEL_GROUP_MEMBER,
     /// DELETE FROM `groups` WHERE guid = ?
@@ -534,6 +540,60 @@ pub enum CharStatements {
     /// REPLACE INTO world_state_value (Id, Value) VALUES (?, ?)
     /// Future C++ SetValueAndSaveInDb persistence statement; not wired by #NEXT.R8.ENTITIES.575.
     REP_WORLD_STATE,
+
+    /// REPLACE INTO world_variable (Id, Value) VALUES (?, ?)
+    REP_WORLD_VARIABLE,
+
+    /// DELETE FROM character_spell WHERE spell = ?
+    DEL_INVALID_SPELL_SPELLS,
+
+    /// UPDATE characters delete-info fields for soft deletion.
+    UPD_DELETE_INFO,
+
+    /// UPDATE characters restore delete-info fields.
+    UPD_RESTORE_DELETE_INFO,
+
+    /// UPDATE characters SET zone = ? WHERE guid = ?
+    UPD_ZONE,
+
+    /// UPDATE characters SET level = ?, xp = 0 WHERE guid = ?
+    UPD_LEVEL,
+
+    /// DELETE FROM character_achievement_progress WHERE criteria = ?
+    DEL_INVALID_ACHIEV_PROGRESS_CRITERIA,
+
+    /// DELETE FROM guild_achievement_progress WHERE criteria = ?
+    DEL_INVALID_ACHIEV_PROGRESS_CRITERIA_GUILD,
+
+    /// DELETE FROM character_achievement WHERE achievement = ?
+    DEL_INVALID_ACHIEVMENT,
+
+    /// DELETE FROM pet_spell WHERE spell = ?
+    DEL_INVALID_PET_SPELL,
+
+    /// UPDATE characters SET name = ?, at_login = ? WHERE guid = ?
+    UPD_CHAR_NAME_AT_LOGIN,
+
+    /// DELETE FROM character_skills WHERE guid = ? AND skill = ?
+    DEL_CHARACTER_SKILL,
+
+    /// UPDATE character_social SET flags = ? WHERE guid = ? AND friend = ?
+    UPD_CHARACTER_SOCIAL_FLAGS,
+
+    /// INSERT INTO character_social (guid, friend, flags) VALUES (?, ?, ?)
+    INS_CHARACTER_SOCIAL,
+
+    /// DELETE FROM character_social WHERE guid = ? AND friend = ?
+    DEL_CHARACTER_SOCIAL,
+
+    /// UPDATE character_social SET note = ? WHERE guid = ? AND friend = ?
+    UPD_CHARACTER_SOCIAL_NOTE,
+
+    /// UPDATE characters position by guid.
+    UPD_CHARACTER_POSITION,
+
+    /// UPDATE characters position by guid and current map.
+    UPD_CHARACTER_POSITION_BY_MAPID,
 
     // Quest status
     SEL_CHAR_QUEST_STATUS,
@@ -1377,6 +1437,13 @@ impl StatementDef for CharStatements {
             Self::UPD_GROUP_MEMBER_FLAG => {
                 "UPDATE group_member SET memberFlags = ? WHERE memberGuid = ?"
             }
+            Self::UPD_GROUP_DIFFICULTY => "UPDATE `groups` SET difficulty = ? WHERE guid = ?",
+            Self::UPD_GROUP_RAID_DIFFICULTY => {
+                "UPDATE `groups` SET raidDifficulty = ? WHERE guid = ?"
+            }
+            Self::UPD_GROUP_LEGACY_RAID_DIFFICULTY => {
+                "UPDATE `groups` SET legacyRaidDifficulty = ? WHERE guid = ?"
+            }
             Self::DEL_GROUP_MEMBER => "DELETE FROM group_member WHERE memberGuid = ?",
             Self::DEL_GROUP => "DELETE FROM `groups` WHERE guid = ?",
             Self::DEL_GROUP_MEMBER_ALL => "DELETE FROM group_member WHERE guid = ?",
@@ -1581,6 +1648,50 @@ impl StatementDef for CharStatements {
             }
             Self::SEL_WORLD_STATE_VALUES => "SELECT Id, Value FROM world_state_value",
             Self::REP_WORLD_STATE => "REPLACE INTO world_state_value (Id, Value) VALUES (?, ?)",
+            Self::REP_WORLD_VARIABLE => "REPLACE INTO world_variable (Id, Value) VALUES (?, ?)",
+            Self::DEL_INVALID_SPELL_SPELLS => "DELETE FROM character_spell WHERE spell = ?",
+            Self::UPD_DELETE_INFO => {
+                "UPDATE characters SET deleteInfos_Name = name, deleteInfos_Account = account, deleteDate = UNIX_TIMESTAMP(), name = '', account = 0 WHERE guid = ?"
+            }
+            Self::UPD_RESTORE_DELETE_INFO => {
+                "UPDATE characters SET name = ?, account = ?, deleteDate = NULL, deleteInfos_Name = NULL, deleteInfos_Account = NULL WHERE deleteDate IS NOT NULL AND guid = ?"
+            }
+            Self::UPD_ZONE => "UPDATE characters SET zone = ? WHERE guid = ?",
+            Self::UPD_LEVEL => "UPDATE characters SET level = ?, xp = 0 WHERE guid = ?",
+            Self::DEL_INVALID_ACHIEV_PROGRESS_CRITERIA => {
+                "DELETE FROM character_achievement_progress WHERE criteria = ?"
+            }
+            Self::DEL_INVALID_ACHIEV_PROGRESS_CRITERIA_GUILD => {
+                "DELETE FROM guild_achievement_progress WHERE criteria = ?"
+            }
+            Self::DEL_INVALID_ACHIEVMENT => {
+                "DELETE FROM character_achievement WHERE achievement = ?"
+            }
+            Self::DEL_INVALID_PET_SPELL => "DELETE FROM pet_spell WHERE spell = ?",
+            Self::UPD_CHAR_NAME_AT_LOGIN => {
+                "UPDATE characters SET name = ?, at_login = ? WHERE guid = ?"
+            }
+            Self::DEL_CHARACTER_SKILL => {
+                "DELETE FROM character_skills WHERE guid = ? AND skill = ?"
+            }
+            Self::UPD_CHARACTER_SOCIAL_FLAGS => {
+                "UPDATE character_social SET flags = ? WHERE guid = ? AND friend = ?"
+            }
+            Self::INS_CHARACTER_SOCIAL => {
+                "INSERT INTO character_social (guid, friend, flags) VALUES (?, ?, ?)"
+            }
+            Self::DEL_CHARACTER_SOCIAL => {
+                "DELETE FROM character_social WHERE guid = ? AND friend = ?"
+            }
+            Self::UPD_CHARACTER_SOCIAL_NOTE => {
+                "UPDATE character_social SET note = ? WHERE guid = ? AND friend = ?"
+            }
+            Self::UPD_CHARACTER_POSITION => {
+                "UPDATE characters SET position_x = ?, position_y = ?, position_z = ?, orientation = ?, map = ?, zone = ?, trans_x = 0, trans_y = 0, trans_z = 0, transguid = 0, taxi_path = '', cinematic = 1 WHERE guid = ?"
+            }
+            Self::UPD_CHARACTER_POSITION_BY_MAPID => {
+                "UPDATE characters SET position_x = ?, position_y = ?, position_z = ?, orientation = ?, map = ?, zone = ?, trans_x = 0, trans_y = 0, trans_z = 0, transguid = 0, taxi_path = '', cinematic = 1 WHERE guid = ? AND map = ?"
+            }
             Self::UPD_CHAR_XP => "UPDATE characters SET xp = ? WHERE guid = ?",
             Self::UPD_CHAR_LEVEL => "UPDATE characters SET level = ?, xp = ? WHERE guid = ?",
             Self::UPD_CHAR_MONEY => "UPDATE characters SET money = ? WHERE guid = ?",
@@ -2926,6 +3037,94 @@ mod tests {
         assert_eq!(
             CharStatements::REP_WORLD_STATE.sql(),
             "REPLACE INTO world_state_value (Id, Value) VALUES (?, ?)"
+        );
+    }
+
+    #[test]
+    fn character_maintenance_social_and_position_statements_match_cpp_sql_exactly() {
+        assert_eq!(
+            CharStatements::UPD_GROUP_DIFFICULTY.sql(),
+            "UPDATE `groups` SET difficulty = ? WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_GROUP_RAID_DIFFICULTY.sql(),
+            "UPDATE `groups` SET raidDifficulty = ? WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_GROUP_LEGACY_RAID_DIFFICULTY.sql(),
+            "UPDATE `groups` SET legacyRaidDifficulty = ? WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_INVALID_SPELL_SPELLS.sql(),
+            "DELETE FROM character_spell WHERE spell = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_DELETE_INFO.sql(),
+            "UPDATE characters SET deleteInfos_Name = name, deleteInfos_Account = account, deleteDate = UNIX_TIMESTAMP(), name = '', account = 0 WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_RESTORE_DELETE_INFO.sql(),
+            "UPDATE characters SET name = ?, account = ?, deleteDate = NULL, deleteInfos_Name = NULL, deleteInfos_Account = NULL WHERE deleteDate IS NOT NULL AND guid = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_ZONE.sql(),
+            "UPDATE characters SET zone = ? WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_LEVEL.sql(),
+            "UPDATE characters SET level = ?, xp = 0 WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_INVALID_ACHIEV_PROGRESS_CRITERIA.sql(),
+            "DELETE FROM character_achievement_progress WHERE criteria = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_INVALID_ACHIEV_PROGRESS_CRITERIA_GUILD.sql(),
+            "DELETE FROM guild_achievement_progress WHERE criteria = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_INVALID_ACHIEVMENT.sql(),
+            "DELETE FROM character_achievement WHERE achievement = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_INVALID_PET_SPELL.sql(),
+            "DELETE FROM pet_spell WHERE spell = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_CHAR_NAME_AT_LOGIN.sql(),
+            "UPDATE characters SET name = ?, at_login = ? WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::REP_WORLD_VARIABLE.sql(),
+            "REPLACE INTO world_variable (Id, Value) VALUES (?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHARACTER_SKILL.sql(),
+            "DELETE FROM character_skills WHERE guid = ? AND skill = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_CHARACTER_SOCIAL_FLAGS.sql(),
+            "UPDATE character_social SET flags = ? WHERE guid = ? AND friend = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_CHARACTER_SOCIAL.sql(),
+            "INSERT INTO character_social (guid, friend, flags) VALUES (?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHARACTER_SOCIAL.sql(),
+            "DELETE FROM character_social WHERE guid = ? AND friend = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_CHARACTER_SOCIAL_NOTE.sql(),
+            "UPDATE character_social SET note = ? WHERE guid = ? AND friend = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_CHARACTER_POSITION.sql(),
+            "UPDATE characters SET position_x = ?, position_y = ?, position_z = ?, orientation = ?, map = ?, zone = ?, trans_x = 0, trans_y = 0, trans_z = 0, transguid = 0, taxi_path = '', cinematic = 1 WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_CHARACTER_POSITION_BY_MAPID.sql(),
+            "UPDATE characters SET position_x = ?, position_y = ?, position_z = ?, orientation = ?, map = ?, zone = ?, trans_x = 0, trans_y = 0, trans_z = 0, transguid = 0, taxi_path = '', cinematic = 1 WHERE guid = ? AND map = ?"
         );
     }
 
