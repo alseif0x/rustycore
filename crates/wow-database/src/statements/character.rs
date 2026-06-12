@@ -579,6 +579,129 @@ pub enum CharStatements {
     /// UPDATE characters SET name = ? WHERE guid = ?
     UPD_NAME_BY_GUID,
 
+    /// INSERT INTO guild.
+    INS_GUILD,
+
+    /// DELETE FROM guild WHERE guildid = ?
+    DEL_GUILD,
+
+    /// UPDATE guild SET name = ? WHERE guildid = ?
+    UPD_GUILD_NAME,
+
+    /// INSERT INTO guild_member.
+    INS_GUILD_MEMBER,
+
+    /// DELETE FROM guild_member WHERE guid = ?
+    DEL_GUILD_MEMBER,
+
+    /// DELETE FROM guild_member WHERE guildid = ?
+    DEL_GUILD_MEMBERS,
+
+    /// INSERT INTO guild_rank.
+    INS_GUILD_RANK,
+
+    /// DELETE FROM guild_rank WHERE guildid = ?
+    DEL_GUILD_RANKS,
+
+    /// DELETE FROM guild_rank WHERE guildid = ? AND rid = ?
+    DEL_GUILD_RANK,
+
+    /// INSERT INTO guild_bank_tab.
+    INS_GUILD_BANK_TAB,
+
+    /// DELETE FROM guild_bank_tab WHERE guildid = ? AND TabId = ?
+    DEL_GUILD_BANK_TAB,
+
+    /// DELETE FROM guild_bank_tab WHERE guildid = ?
+    DEL_GUILD_BANK_TABS,
+
+    /// INSERT INTO guild_bank_item.
+    INS_GUILD_BANK_ITEM,
+
+    /// DELETE FROM guild_bank_item WHERE guildid = ? AND TabId = ? AND SlotId = ?
+    DEL_GUILD_BANK_ITEM,
+
+    /// DELETE FROM guild_bank_item WHERE guildid = ?
+    DEL_GUILD_BANK_ITEMS,
+
+    /// INSERT INTO guild_bank_right.
+    INS_GUILD_BANK_RIGHT,
+
+    /// DELETE FROM guild_bank_right WHERE guildid = ?
+    DEL_GUILD_BANK_RIGHTS,
+
+    /// DELETE FROM guild_bank_right WHERE guildid = ? AND rid = ?
+    DEL_GUILD_BANK_RIGHTS_FOR_RANK,
+
+    /// INSERT INTO guild_bank_eventlog.
+    INS_GUILD_BANK_EVENTLOG,
+
+    /// DELETE FROM guild_bank_eventlog WHERE guildid = ? AND LogGuid = ? AND TabId = ?
+    DEL_GUILD_BANK_EVENTLOG,
+
+    /// DELETE FROM guild_bank_eventlog WHERE guildid = ?
+    DEL_GUILD_BANK_EVENTLOGS,
+
+    /// INSERT INTO guild_eventlog.
+    INS_GUILD_EVENTLOG,
+
+    /// DELETE FROM guild_eventlog WHERE guildid = ? AND LogGuid = ?
+    DEL_GUILD_EVENTLOG,
+
+    /// DELETE FROM guild_eventlog WHERE guildid = ?
+    DEL_GUILD_EVENTLOGS,
+
+    /// UPDATE guild_member SET pnote = ? WHERE guid = ?
+    UPD_GUILD_MEMBER_PNOTE,
+
+    /// UPDATE guild_member SET offnote = ? WHERE guid = ?
+    UPD_GUILD_MEMBER_OFFNOTE,
+
+    /// UPDATE guild_member SET `rank` = ? WHERE guid = ?
+    UPD_GUILD_MEMBER_RANK,
+
+    /// UPDATE guild SET motd = ? WHERE guildid = ?
+    UPD_GUILD_MOTD,
+
+    /// UPDATE guild SET info = ? WHERE guildid = ?
+    UPD_GUILD_INFO,
+
+    /// UPDATE guild SET leaderguid = ? WHERE guildid = ?
+    UPD_GUILD_LEADER,
+
+    /// UPDATE guild_rank SET RankOrder = ? WHERE rid = ? AND guildid = ?
+    UPD_GUILD_RANK_ORDER,
+
+    /// UPDATE guild_rank SET rname = ? WHERE rid = ? AND guildid = ?
+    UPD_GUILD_RANK_NAME,
+
+    /// UPDATE guild_rank SET rights = ? WHERE rid = ? AND guildid = ?
+    UPD_GUILD_RANK_RIGHTS,
+
+    /// UPDATE guild emblem fields.
+    UPD_GUILD_EMBLEM_INFO,
+
+    /// UPDATE guild_bank_tab SET TabName = ?, TabIcon = ? WHERE guildid = ? AND TabId = ?
+    UPD_GUILD_BANK_TAB_INFO,
+
+    /// UPDATE guild SET BankMoney = ? WHERE guildid = ?
+    UPD_GUILD_BANK_MONEY,
+
+    /// UPDATE guild_rank SET BankMoneyPerDay = ? WHERE rid = ? AND guildid = ?
+    UPD_GUILD_RANK_BANK_MONEY,
+
+    /// UPDATE guild_bank_tab SET TabText = ? WHERE guildid = ? AND TabId = ?
+    UPD_GUILD_BANK_TAB_TEXT,
+
+    /// INSERT/UPDATE guild_member_withdraw tab limits.
+    INS_GUILD_MEMBER_WITHDRAW_TABS,
+
+    /// INSERT/UPDATE guild_member_withdraw money limit.
+    INS_GUILD_MEMBER_WITHDRAW_MONEY,
+
+    /// DELETE FROM guild_member_withdraw
+    DEL_GUILD_MEMBER_WITHDRAW,
+
     /// SELECT bag_ci.slot, ci.slot, ii.itemEntry, ci.item, ii.count, ii.durability, ii.context,
     /// ii.flags, ii.playedTime, ir.paidMoney, ir.paidExtendedCost
     /// FROM character_inventory ci
@@ -1217,6 +1340,89 @@ impl StatementDef for CharStatements {
                 "SELECT account, COUNT(guid) FROM characters WHERE account = ? GROUP BY account"
             }
             Self::UPD_NAME_BY_GUID => "UPDATE characters SET name = ? WHERE guid = ?",
+            Self::INS_GUILD => {
+                "INSERT INTO guild (guildid, name, leaderguid, info, motd, createdate, EmblemStyle, EmblemColor, BorderStyle, BorderColor, BackgroundColor, BankMoney) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            }
+            Self::DEL_GUILD => "DELETE FROM guild WHERE guildid = ?",
+            Self::UPD_GUILD_NAME => "UPDATE guild SET name = ? WHERE guildid = ?",
+            Self::INS_GUILD_MEMBER => {
+                "INSERT INTO guild_member (guildid, guid, `rank`, pnote, offnote) VALUES (?, ?, ?, ?, ?)"
+            }
+            Self::DEL_GUILD_MEMBER => "DELETE FROM guild_member WHERE guid = ?",
+            Self::DEL_GUILD_MEMBERS => "DELETE FROM guild_member WHERE guildid = ?",
+            Self::INS_GUILD_RANK => {
+                "INSERT INTO guild_rank (guildid, rid, RankOrder, rname, rights, BankMoneyPerDay) VALUES (?, ?, ?, ?, ?, ?)"
+            }
+            Self::DEL_GUILD_RANKS => "DELETE FROM guild_rank WHERE guildid = ?",
+            Self::DEL_GUILD_RANK => "DELETE FROM guild_rank WHERE guildid = ? AND rid = ?",
+            Self::INS_GUILD_BANK_TAB => "INSERT INTO guild_bank_tab (guildid, TabId) VALUES (?, ?)",
+            Self::DEL_GUILD_BANK_TAB => {
+                "DELETE FROM guild_bank_tab WHERE guildid = ? AND TabId = ?"
+            }
+            Self::DEL_GUILD_BANK_TABS => "DELETE FROM guild_bank_tab WHERE guildid = ?",
+            Self::INS_GUILD_BANK_ITEM => {
+                "INSERT INTO guild_bank_item (guildid, TabId, SlotId, item_guid) VALUES (?, ?, ?, ?)"
+            }
+            Self::DEL_GUILD_BANK_ITEM => {
+                "DELETE FROM guild_bank_item WHERE guildid = ? AND TabId = ? AND SlotId = ?"
+            }
+            Self::DEL_GUILD_BANK_ITEMS => "DELETE FROM guild_bank_item WHERE guildid = ?",
+            Self::INS_GUILD_BANK_RIGHT => {
+                "INSERT INTO guild_bank_right (guildid, TabId, rid, gbright, SlotPerDay) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE gbright = VALUES(gbright), SlotPerDay = VALUES(SlotPerDay)"
+            }
+            Self::DEL_GUILD_BANK_RIGHTS => "DELETE FROM guild_bank_right WHERE guildid = ?",
+            Self::DEL_GUILD_BANK_RIGHTS_FOR_RANK => {
+                "DELETE FROM guild_bank_right WHERE guildid = ? AND rid = ?"
+            }
+            Self::INS_GUILD_BANK_EVENTLOG => {
+                "INSERT INTO guild_bank_eventlog (guildid, LogGuid, TabId, EventType, PlayerGuid, ItemOrMoney, ItemStackCount, DestTabId, TimeStamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            }
+            Self::DEL_GUILD_BANK_EVENTLOG => {
+                "DELETE FROM guild_bank_eventlog WHERE guildid = ? AND LogGuid = ? AND TabId = ?"
+            }
+            Self::DEL_GUILD_BANK_EVENTLOGS => "DELETE FROM guild_bank_eventlog WHERE guildid = ?",
+            Self::INS_GUILD_EVENTLOG => {
+                "INSERT INTO guild_eventlog (guildid, LogGuid, EventType, PlayerGuid1, PlayerGuid2, NewRank, TimeStamp) VALUES (?, ?, ?, ?, ?, ?, ?)"
+            }
+            Self::DEL_GUILD_EVENTLOG => {
+                "DELETE FROM guild_eventlog WHERE guildid = ? AND LogGuid = ?"
+            }
+            Self::DEL_GUILD_EVENTLOGS => "DELETE FROM guild_eventlog WHERE guildid = ?",
+            Self::UPD_GUILD_MEMBER_PNOTE => "UPDATE guild_member SET pnote = ? WHERE guid = ?",
+            Self::UPD_GUILD_MEMBER_OFFNOTE => "UPDATE guild_member SET offnote = ? WHERE guid = ?",
+            Self::UPD_GUILD_MEMBER_RANK => "UPDATE guild_member SET `rank` = ? WHERE guid = ?",
+            Self::UPD_GUILD_MOTD => "UPDATE guild SET motd = ? WHERE guildid = ?",
+            Self::UPD_GUILD_INFO => "UPDATE guild SET info = ? WHERE guildid = ?",
+            Self::UPD_GUILD_LEADER => "UPDATE guild SET leaderguid = ? WHERE guildid = ?",
+            Self::UPD_GUILD_RANK_ORDER => {
+                "UPDATE guild_rank SET RankOrder = ? WHERE rid = ? AND guildid = ?"
+            }
+            Self::UPD_GUILD_RANK_NAME => {
+                "UPDATE guild_rank SET rname = ? WHERE rid = ? AND guildid = ?"
+            }
+            Self::UPD_GUILD_RANK_RIGHTS => {
+                "UPDATE guild_rank SET rights = ? WHERE rid = ? AND guildid = ?"
+            }
+            Self::UPD_GUILD_EMBLEM_INFO => {
+                "UPDATE guild SET EmblemStyle = ?, EmblemColor = ?, BorderStyle = ?, BorderColor = ?, BackgroundColor = ? WHERE guildid = ?"
+            }
+            Self::UPD_GUILD_BANK_TAB_INFO => {
+                "UPDATE guild_bank_tab SET TabName = ?, TabIcon = ? WHERE guildid = ? AND TabId = ?"
+            }
+            Self::UPD_GUILD_BANK_MONEY => "UPDATE guild SET BankMoney = ? WHERE guildid = ?",
+            Self::UPD_GUILD_RANK_BANK_MONEY => {
+                "UPDATE guild_rank SET BankMoneyPerDay = ? WHERE rid = ? AND guildid = ?"
+            }
+            Self::UPD_GUILD_BANK_TAB_TEXT => {
+                "UPDATE guild_bank_tab SET TabText = ? WHERE guildid = ? AND TabId = ?"
+            }
+            Self::INS_GUILD_MEMBER_WITHDRAW_TABS => {
+                "INSERT INTO guild_member_withdraw (guid, tab0, tab1, tab2, tab3, tab4, tab5, tab6, tab7) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE tab0 = VALUES (tab0), tab1 = VALUES (tab1), tab2 = VALUES (tab2), tab3 = VALUES (tab3), tab4 = VALUES (tab4), tab5 = VALUES (tab5), tab6 = VALUES (tab6), tab7 = VALUES (tab7)"
+            }
+            Self::INS_GUILD_MEMBER_WITHDRAW_MONEY => {
+                "INSERT INTO guild_member_withdraw (guid, money) VALUES (?, ?) ON DUPLICATE KEY UPDATE money = VALUES (money)"
+            }
+            Self::DEL_GUILD_MEMBER_WITHDRAW => "DELETE FROM guild_member_withdraw",
             Self::SEL_CHAR_BAG_CONTENTS => {
                 "SELECT bag_ci.slot, ci.slot, ii.itemEntry, ci.item, ii.count, ii.durability, ii.context, \
                  ii.flags, ii.playedTime, ir.paidMoney, ir.paidExtendedCost \
@@ -2310,6 +2516,182 @@ mod tests {
         assert_eq!(
             CharStatements::UPD_NAME_BY_GUID.sql(),
             "UPDATE characters SET name = ? WHERE guid = ?"
+        );
+    }
+
+    #[test]
+    fn guild_core_and_rank_statements_match_cpp_sql_exactly() {
+        assert_eq!(
+            CharStatements::INS_GUILD.sql(),
+            "INSERT INTO guild (guildid, name, leaderguid, info, motd, createdate, EmblemStyle, EmblemColor, BorderStyle, BorderColor, BackgroundColor, BankMoney) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_GUILD.sql(),
+            "DELETE FROM guild WHERE guildid = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_GUILD_NAME.sql(),
+            "UPDATE guild SET name = ? WHERE guildid = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_GUILD_MEMBER.sql(),
+            "INSERT INTO guild_member (guildid, guid, `rank`, pnote, offnote) VALUES (?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_GUILD_MEMBER.sql(),
+            "DELETE FROM guild_member WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_GUILD_MEMBERS.sql(),
+            "DELETE FROM guild_member WHERE guildid = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_GUILD_RANK.sql(),
+            "INSERT INTO guild_rank (guildid, rid, RankOrder, rname, rights, BankMoneyPerDay) VALUES (?, ?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_GUILD_RANKS.sql(),
+            "DELETE FROM guild_rank WHERE guildid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_GUILD_RANK.sql(),
+            "DELETE FROM guild_rank WHERE guildid = ? AND rid = ?"
+        );
+    }
+
+    #[test]
+    fn guild_bank_and_log_statements_match_cpp_sql_exactly() {
+        assert_eq!(
+            CharStatements::INS_GUILD_BANK_TAB.sql(),
+            "INSERT INTO guild_bank_tab (guildid, TabId) VALUES (?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_GUILD_BANK_TAB.sql(),
+            "DELETE FROM guild_bank_tab WHERE guildid = ? AND TabId = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_GUILD_BANK_TABS.sql(),
+            "DELETE FROM guild_bank_tab WHERE guildid = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_GUILD_BANK_ITEM.sql(),
+            "INSERT INTO guild_bank_item (guildid, TabId, SlotId, item_guid) VALUES (?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_GUILD_BANK_ITEM.sql(),
+            "DELETE FROM guild_bank_item WHERE guildid = ? AND TabId = ? AND SlotId = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_GUILD_BANK_ITEMS.sql(),
+            "DELETE FROM guild_bank_item WHERE guildid = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_GUILD_BANK_RIGHT.sql(),
+            "INSERT INTO guild_bank_right (guildid, TabId, rid, gbright, SlotPerDay) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE gbright = VALUES(gbright), SlotPerDay = VALUES(SlotPerDay)"
+        );
+        assert_eq!(
+            CharStatements::DEL_GUILD_BANK_RIGHTS.sql(),
+            "DELETE FROM guild_bank_right WHERE guildid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_GUILD_BANK_RIGHTS_FOR_RANK.sql(),
+            "DELETE FROM guild_bank_right WHERE guildid = ? AND rid = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_GUILD_BANK_EVENTLOG.sql(),
+            "INSERT INTO guild_bank_eventlog (guildid, LogGuid, TabId, EventType, PlayerGuid, ItemOrMoney, ItemStackCount, DestTabId, TimeStamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_GUILD_BANK_EVENTLOG.sql(),
+            "DELETE FROM guild_bank_eventlog WHERE guildid = ? AND LogGuid = ? AND TabId = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_GUILD_BANK_EVENTLOGS.sql(),
+            "DELETE FROM guild_bank_eventlog WHERE guildid = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_GUILD_EVENTLOG.sql(),
+            "INSERT INTO guild_eventlog (guildid, LogGuid, EventType, PlayerGuid1, PlayerGuid2, NewRank, TimeStamp) VALUES (?, ?, ?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_GUILD_EVENTLOG.sql(),
+            "DELETE FROM guild_eventlog WHERE guildid = ? AND LogGuid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_GUILD_EVENTLOGS.sql(),
+            "DELETE FROM guild_eventlog WHERE guildid = ?"
+        );
+    }
+
+    #[test]
+    fn guild_update_and_withdraw_statements_match_cpp_sql_exactly() {
+        assert_eq!(
+            CharStatements::UPD_GUILD_MEMBER_PNOTE.sql(),
+            "UPDATE guild_member SET pnote = ? WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_GUILD_MEMBER_OFFNOTE.sql(),
+            "UPDATE guild_member SET offnote = ? WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_GUILD_MEMBER_RANK.sql(),
+            "UPDATE guild_member SET `rank` = ? WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_GUILD_MOTD.sql(),
+            "UPDATE guild SET motd = ? WHERE guildid = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_GUILD_INFO.sql(),
+            "UPDATE guild SET info = ? WHERE guildid = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_GUILD_LEADER.sql(),
+            "UPDATE guild SET leaderguid = ? WHERE guildid = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_GUILD_RANK_ORDER.sql(),
+            "UPDATE guild_rank SET RankOrder = ? WHERE rid = ? AND guildid = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_GUILD_RANK_NAME.sql(),
+            "UPDATE guild_rank SET rname = ? WHERE rid = ? AND guildid = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_GUILD_RANK_RIGHTS.sql(),
+            "UPDATE guild_rank SET rights = ? WHERE rid = ? AND guildid = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_GUILD_EMBLEM_INFO.sql(),
+            "UPDATE guild SET EmblemStyle = ?, EmblemColor = ?, BorderStyle = ?, BorderColor = ?, BackgroundColor = ? WHERE guildid = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_GUILD_BANK_TAB_INFO.sql(),
+            "UPDATE guild_bank_tab SET TabName = ?, TabIcon = ? WHERE guildid = ? AND TabId = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_GUILD_BANK_MONEY.sql(),
+            "UPDATE guild SET BankMoney = ? WHERE guildid = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_GUILD_RANK_BANK_MONEY.sql(),
+            "UPDATE guild_rank SET BankMoneyPerDay = ? WHERE rid = ? AND guildid = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_GUILD_BANK_TAB_TEXT.sql(),
+            "UPDATE guild_bank_tab SET TabText = ? WHERE guildid = ? AND TabId = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_GUILD_MEMBER_WITHDRAW_TABS.sql(),
+            "INSERT INTO guild_member_withdraw (guid, tab0, tab1, tab2, tab3, tab4, tab5, tab6, tab7) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE tab0 = VALUES (tab0), tab1 = VALUES (tab1), tab2 = VALUES (tab2), tab3 = VALUES (tab3), tab4 = VALUES (tab4), tab5 = VALUES (tab5), tab6 = VALUES (tab6), tab7 = VALUES (tab7)"
+        );
+        assert_eq!(
+            CharStatements::INS_GUILD_MEMBER_WITHDRAW_MONEY.sql(),
+            "INSERT INTO guild_member_withdraw (guid, money) VALUES (?, ?) ON DUPLICATE KEY UPDATE money = VALUES (money)"
+        );
+        assert_eq!(
+            CharStatements::DEL_GUILD_MEMBER_WITHDRAW.sql(),
+            "DELETE FROM guild_member_withdraw"
         );
     }
 
