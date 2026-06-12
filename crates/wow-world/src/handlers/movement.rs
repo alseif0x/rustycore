@@ -1314,6 +1314,45 @@ mod tests {
         assert!(info.flags.contains(MovementFlag::WATER_WALK));
     }
 
+    #[test]
+    fn validate_movement_info_keeps_fly_for_gm_like_cpp() {
+        let mut session = make_session();
+        session.set_player_game_master_like_cpp(true);
+        let mut info = MovementInfo {
+            flags: MovementFlag::FLYING | MovementFlag::CAN_FLY,
+            ..MovementInfo::default()
+        };
+
+        let removed = session.sanitize_movement_info_flags_represented_like_cpp(&mut info);
+
+        assert!(removed.is_empty());
+        assert!(
+            info.flags
+                .contains(MovementFlag::FLYING | MovementFlag::CAN_FLY)
+        );
+    }
+
+    #[test]
+    fn validate_movement_info_keeps_fly_for_mounted_flight_speed_aura_like_cpp() {
+        let mut session = make_session();
+        session.visible_auras.insert(
+            1,
+            fall_aura(1, RepresentedAuraEffectLikeCpp::MountedFlightSpeed, 0, 1.0),
+        );
+        let mut info = MovementInfo {
+            flags: MovementFlag::FLYING | MovementFlag::CAN_FLY,
+            ..MovementInfo::default()
+        };
+
+        let removed = session.sanitize_movement_info_flags_represented_like_cpp(&mut info);
+
+        assert!(removed.is_empty());
+        assert!(
+            info.flags
+                .contains(MovementFlag::FLYING | MovementFlag::CAN_FLY)
+        );
+    }
+
     #[tokio::test]
     async fn handle_movement_broadcasts_sanitized_flags_like_cpp() {
         let mut session = make_session();

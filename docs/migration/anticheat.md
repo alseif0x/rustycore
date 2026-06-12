@@ -245,6 +245,8 @@ Anticheat is reactive — it does not originate opcodes, it inspects them. Touch
 - [x] Test: each C++ incompatible pair is stripped independently: `ASCENDING|DESCENDING`, `LEFT|RIGHT`, `STRAFE_LEFT|STRAFE_RIGHT`, `PITCH_UP|PITCH_DOWN`, `FORWARD|BACKWARD`.
 - [x] Test: `LEFT | RIGHT` simultaneously → both stripped.
 - [x] Test: `MOVEMENTFLAG_WATER_WALK` is preserved for represented `SPELL_AURA_GHOST`, matching the C++ ghost exception.
+- [x] Test: `MOVEMENTFLAG_FLYING | MOVEMENTFLAG_CAN_FLY` is preserved for GM/security-bypassed movement, matching `GetSession()->GetSecurity() != SEC_PLAYER`.
+- [x] Test: `MOVEMENTFLAG_FLYING | MOVEMENTFLAG_CAN_FLY` is preserved for represented `SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED`.
 - [x] Test: speed ack 8.0 vs server 7.0 with no transport → kick fires; ban table not touched (kick policy).
 - [x] Test: speed ack 6.0 vs server 7.0 → correction is recorded, no kick, and no packet is emitted because legacy `SetSpeedRate(GetSpeedRate())` returns early on unchanged rate.
 - [x] Test: repeated `CMSG_PLAYER_LOGIN` packets in one second remain allowed because C++ puts it in the zero-limit group (`maxPacketCounterAllowed == 0`); do **not** add a kick expectation here.
