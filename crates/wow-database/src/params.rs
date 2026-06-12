@@ -41,9 +41,17 @@ pub struct PreparedStatement {
 impl PreparedStatement {
     /// Create a new prepared statement from a static SQL string.
     pub fn new(sql: &'static str) -> Self {
+        Self::with_capacity_like_cpp(sql, sql.matches('?').count())
+    }
+
+    /// Create a statement with TC's fixed bind-parameter capacity.
+    ///
+    /// C++ `PreparedStatementBase(index, capacity)` pre-allocates exactly
+    /// `capacity` parameters and every setter asserts `index < size`.
+    pub fn with_capacity_like_cpp(sql: &'static str, capacity: usize) -> Self {
         Self {
             sql: Cow::Borrowed(sql),
-            params: Vec::new(),
+            params: vec![SqlParam::Bool(false); capacity],
         }
     }
 
@@ -87,9 +95,12 @@ impl PreparedStatement {
     // -- Typed setters matching C# PreparedStatement API ----------------------
 
     fn ensure_capacity(&mut self, index: usize) {
-        if self.params.len() <= index {
-            self.params.resize(index + 1, SqlParam::Bool(false));
-        }
+        assert!(
+            index < self.params.len(),
+            "prepared statement parameter index {} out of bounds for capacity {}",
+            index,
+            self.params.len()
+        );
     }
 
     pub fn set_bool(&mut self, index: usize, value: bool) {
@@ -235,7 +246,7 @@ mod tests {
 
     #[test]
     fn prepared_statement_all_types() {
-        let mut stmt = PreparedStatement::new("");
+        let mut stmt = PreparedStatement::with_capacity_like_cpp("", 14);
         stmt.set_bool(0, true);
         stmt.set_i8(1, -1);
         stmt.set_u8(2, 255);
@@ -290,5 +301,12 @@ mod tests {
             stmt.expanded_sql_like_cpp(),
             "INSERT INTO foo VALUES (0, 0, 999)"
         );
+    }
+
+    #[test]
+    #[should_panic(expected = "prepared statement parameter index 1 out of bounds for capacity 1")]
+    fn prepared_statement_rejects_out_of_capacity_index_like_cpp() {
+        let mut stmt = PreparedStatement::new("SELECT ?");
+        stmt.set_u32(1, 42);
     }
 }
