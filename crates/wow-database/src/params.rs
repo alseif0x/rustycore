@@ -65,6 +65,25 @@ impl PreparedStatement {
         &self.params
     }
 
+    /// Expand `?` placeholders for debug output like TC
+    /// `MySQLPreparedStatement::getQueryString`.
+    pub fn expanded_sql_like_cpp(&self) -> String {
+        let mut expanded = self.sql().to_string();
+        let mut search_start = 0;
+
+        for param in &self.params {
+            let Some(relative_pos) = expanded[search_start..].find('?') else {
+                break;
+            };
+            let pos = search_start + relative_pos;
+            let replacement = param.to_debug_sql_like_cpp();
+            expanded.replace_range(pos..pos + 1, &replacement);
+            search_start = pos + replacement.len();
+        }
+
+        expanded
+    }
+
     // -- Typed setters matching C# PreparedStatement API ----------------------
 
     fn ensure_capacity(&mut self, index: usize) {
@@ -149,6 +168,27 @@ impl PreparedStatement {
     }
 }
 
+impl SqlParam {
+    fn to_debug_sql_like_cpp(&self) -> String {
+        match self {
+            SqlParam::Null => "NULL".to_string(),
+            SqlParam::Bool(value) => u32::from(*value).to_string(),
+            SqlParam::I8(value) => i32::from(*value).to_string(),
+            SqlParam::U8(value) => u32::from(*value).to_string(),
+            SqlParam::I16(value) => value.to_string(),
+            SqlParam::U16(value) => value.to_string(),
+            SqlParam::I32(value) => value.to_string(),
+            SqlParam::U32(value) => value.to_string(),
+            SqlParam::I64(value) => value.to_string(),
+            SqlParam::U64(value) => value.to_string(),
+            SqlParam::F32(value) => value.to_string(),
+            SqlParam::F64(value) => value.to_string(),
+            SqlParam::String(value) => format!("'{value}'"),
+            SqlParam::Bytes(_) => "BINARY".to_string(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -214,5 +254,41 @@ mod tests {
         assert_eq!(stmt.params().len(), 14);
         assert!(matches!(stmt.params()[0], SqlParam::Bool(true)));
         assert!(matches!(stmt.params()[13], SqlParam::Null));
+    }
+
+    #[test]
+    fn prepared_statement_expands_debug_sql_like_cpp() {
+        let mut stmt = PreparedStatement::new(
+            "INSERT INTO foo VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        );
+        stmt.set_bool(0, true);
+        stmt.set_u8(1, 255);
+        stmt.set_i8(2, -1);
+        stmt.set_u16(3, 60000);
+        stmt.set_i16(4, -1000);
+        stmt.set_u32(5, 4_000_000);
+        stmt.set_i32(6, -100_000);
+        stmt.set_u64(7, 9_999_999_999);
+        stmt.set_i64(8, -1_000_000_000);
+        stmt.set_f32(9, 3.5);
+        stmt.set_f64(10, 2.25);
+        stmt.set_string(11, "abc");
+        stmt.set_bytes(12, vec![0xDE, 0xAD]);
+        stmt.set_null(13);
+
+        assert_eq!(
+            stmt.expanded_sql_like_cpp(),
+            "INSERT INTO foo VALUES (1, 255, -1, 60000, -1000, 4000000, -100000, 9999999999, -1000000000, 3.5, 2.25, 'abc', BINARY, NULL)"
+        );
+    }
+
+    #[test]
+    fn prepared_statement_expands_sparse_defaults_like_cpp() {
+        let mut stmt = PreparedStatement::new("INSERT INTO foo VALUES (?, ?, ?)");
+        stmt.set_i64(2, 999);
+        assert_eq!(
+            stmt.expanded_sql_like_cpp(),
+            "INSERT INTO foo VALUES (0, 0, 999)"
+        );
     }
 }
