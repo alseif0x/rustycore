@@ -867,7 +867,8 @@ fn default_updates_include_rows_like_cpp(
 
 #[cfg(test)]
 mod tests {
-    use crate::database::build_connection_string_with_ssl_like_cpp;
+    use crate::database::{Database, build_connection_string_with_ssl_like_cpp};
+    use crate::statements::WorldStatements;
 
     use super::{
         AppliedUpdateFileLikeCpp, DELETE_UPDATE_ENTRY_BY_NAME_SQL_LIKE_CPP, DbUpdater,
@@ -1330,6 +1331,7 @@ mod tests {
                 .max_connections(2)
                 .connect(&database_url)
                 .await?;
+            let database_wrapper = Database::<WorldStatements>::from_pool(pool.clone());
             let updater = DbUpdater::new(
                 pool.clone(),
                 &config.host,
@@ -1414,6 +1416,30 @@ mod tests {
                     (update_tail_name.to_string(), "RELEASED".to_string())
                 ],
                 "re-running update must skip already-applied files instead of duplicating rows"
+            );
+
+            database_wrapper
+                .direct_execute(
+                    "CREATE TABLE `binary_marker` (
+                        `name` VARBINARY(32) NOT NULL
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+                )
+                .await?;
+            database_wrapper
+                .direct_execute("INSERT INTO `binary_marker` (`name`) VALUES ('Crème')")
+                .await?;
+            let binary_result = database_wrapper
+                .direct_query("SELECT `name` FROM `binary_marker`")
+                .await?;
+            assert_eq!(
+                binary_result.read_string(0),
+                "Crème",
+                "SqlResult::read_string must mirror C++ Field::GetString for binary-classified text"
+            );
+            assert_eq!(
+                binary_result.fields().read_string(0),
+                "Crème",
+                "SqlFields::read_string must share the VARBINARY fallback"
             );
 
             Ok(())
