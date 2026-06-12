@@ -130,6 +130,18 @@ pub enum CharStatements {
     /// FROM characters WHERE guid = ?
     SEL_CHARACTER,
 
+    /// SELECT chrCustomizationOptionID, chrCustomizationChoiceID FROM character_customizations WHERE guid = ? ORDER BY chrCustomizationOptionID
+    SEL_CHARACTER_CUSTOMIZATIONS,
+
+    /// SELECT guid FROM group_member WHERE memberGuid = ?
+    SEL_GROUP_MEMBER,
+
+    /// SELECT casterGuid, itemGuid, spell, effectMask, recalculateMask, difficulty, stackCount, maxDuration, remainTime, remainCharges, castItemId, castItemLevel FROM character_aura WHERE guid = ?
+    SEL_CHARACTER_AURAS,
+
+    /// SELECT casterGuid, itemGuid, spell, effectMask, effectIndex, amount, baseAmount FROM character_aura_effect WHERE guid = ?
+    SEL_CHARACTER_AURA_EFFECTS,
+
     /// UPDATE characters SET online = 1 WHERE guid = ?
     UPD_CHAR_ONLINE,
 
@@ -162,8 +174,95 @@ pub enum CharStatements {
     /// SELECT spell, active, disabled FROM character_spell WHERE guid = ?
     SEL_CHARACTER_SPELL,
 
+    /// SELECT spell FROM character_spell_favorite WHERE guid = ?
+    SEL_CHARACTER_SPELL_FAVORITES,
+
+    /// SELECT questObjectiveId FROM character_queststatus_objectives_criteria WHERE guid = ?
+    SEL_CHARACTER_QUESTSTATUS_OBJECTIVES_CRITERIA,
+
+    /// SELECT criteriaId, counter, date FROM character_queststatus_objectives_criteria_progress WHERE guid = ?
+    SEL_CHARACTER_QUESTSTATUS_OBJECTIVES_CRITERIA_PROGRESS,
+
+    /// SELECT quest, time FROM character_queststatus_daily WHERE guid = ?
+    SEL_CHARACTER_QUESTSTATUS_DAILY,
+
+    /// SELECT quest FROM character_queststatus_weekly WHERE guid = ?
+    SEL_CHARACTER_QUESTSTATUS_WEEKLY,
+
+    /// SELECT quest FROM character_queststatus_monthly WHERE guid = ?
+    SEL_CHARACTER_QUESTSTATUS_MONTHLY,
+
+    /// SELECT quest, event, completedTime FROM character_queststatus_seasonal WHERE guid = ?
+    SEL_CHARACTER_QUESTSTATUS_SEASONAL,
+
     /// SELECT faction, standing, flags FROM character_reputation WHERE guid = ?
     SEL_CHARACTER_REPUTATION,
+
+    /// SELECT COUNT(*) FROM mail WHERE receiver = ?
+    SEL_MAIL_COUNT,
+
+    /// SELECT cs.friend, c.account, cs.flags, cs.note FROM character_social cs JOIN characters c ON c.guid = cs.friend WHERE cs.guid = ? AND c.deleteinfos_name IS NULL LIMIT 255
+    SEL_CHARACTER_SOCIALLIST,
+
+    /// SELECT mapId, zoneId, posX, posY, posZ, orientation FROM character_homebind WHERE guid = ?
+    SEL_CHARACTER_HOMEBIND,
+
+    /// SELECT spell, item, time, categoryId, categoryEnd FROM character_spell_cooldown WHERE guid = ? AND time > UNIX_TIMESTAMP()
+    SEL_CHARACTER_SPELLCOOLDOWNS,
+
+    /// SELECT categoryId, rechargeStart, rechargeEnd FROM character_spell_charges WHERE guid = ? AND rechargeEnd > UNIX_TIMESTAMP() ORDER BY rechargeEnd
+    SEL_CHARACTER_SPELL_CHARGES,
+
+    /// SELECT genitive, dative, accusative, instrumental, prepositional FROM character_declinedname WHERE guid = ?
+    SEL_CHARACTER_DECLINEDNAMES,
+
+    /// SELECT guildid, `rank` FROM guild_member WHERE guid = ?
+    SEL_GUILD_MEMBER,
+
+    /// SELECT extended guild membership data for one character.
+    SEL_GUILD_MEMBER_EXTENDED,
+
+    /// SELECT achievement, date FROM character_achievement WHERE guid = ?
+    SEL_CHARACTER_ACHIEVEMENTS,
+
+    /// SELECT criteria, counter, date FROM character_achievement_progress WHERE guid = ?
+    SEL_CHARACTER_CRITERIAPROGRESS,
+
+    /// SELECT character equipment sets.
+    SEL_CHARACTER_EQUIPMENTSETS,
+
+    /// SELECT character transmog outfits.
+    SEL_CHARACTER_TRANSMOG_OUTFITS,
+
+    /// SELECT instanceId, team, joinX, joinY, joinZ, joinO, joinMapId, taxiStart, taxiEnd, mountSpell, queueId FROM character_battleground_data WHERE guid = ?
+    SEL_CHARACTER_BGDATA,
+
+    /// SELECT talentGroup, glyphSlot, glyphId FROM character_glyphs WHERE guid = ?
+    SEL_CHARACTER_GLYPHS,
+
+    /// SELECT talentId, talentRank, talentGroup FROM character_talent WHERE guid = ?
+    SEL_CHARACTER_TALENTS,
+
+    /// SELECT guid FROM character_battleground_random WHERE guid = ?
+    SEL_CHARACTER_RANDOMBG,
+
+    /// SELECT guid FROM character_banned WHERE guid = ? AND active = 1
+    SEL_CHARACTER_BANNED,
+
+    /// SELECT quest FROM character_queststatus_rewarded WHERE guid = ? AND active = 1
+    SEL_CHARACTER_QUESTSTATUSREW,
+
+    /// SELECT `order`, itemId, itemLevel, battlePetSpeciesId, suffixItemNameDescriptionId FROM character_favorite_auctions WHERE guid = ? ORDER BY `order`
+    SEL_CHARACTER_FAVORITE_AUCTIONS,
+
+    /// INSERT INTO character_favorite_auctions (guid, `order`, itemId, itemLevel, battlePetSpeciesId, suffixItemNameDescriptionId) VALUE (?, ?, ?, ?, ?, ?)
+    INS_CHARACTER_FAVORITE_AUCTION,
+
+    /// DELETE FROM character_favorite_auctions WHERE guid = ? AND `order` = ?
+    DEL_CHARACTER_FAVORITE_AUCTION,
+
+    /// DELETE FROM character_favorite_auctions WHERE guid = ?
+    DEL_CHARACTER_FAVORITE_AUCTIONS_BY_CHAR,
 
     /// SELECT Currency, Quantity, WeeklyQuantity, TrackedQuantity,
     /// IncreasedCapQuantity, EarnedQuantity, Flags FROM character_currency
@@ -563,6 +662,16 @@ impl StatementDef for CharStatements {
                  totaltime, leveltime, money, xp \
                  FROM characters WHERE guid = ?"
             }
+            Self::SEL_CHARACTER_CUSTOMIZATIONS => {
+                "SELECT chrCustomizationOptionID, chrCustomizationChoiceID FROM character_customizations WHERE guid = ? ORDER BY chrCustomizationOptionID"
+            }
+            Self::SEL_GROUP_MEMBER => "SELECT guid FROM group_member WHERE memberGuid = ?",
+            Self::SEL_CHARACTER_AURAS => {
+                "SELECT casterGuid, itemGuid, spell, effectMask, recalculateMask, difficulty, stackCount, maxDuration, remainTime, remainCharges, castItemId, castItemLevel FROM character_aura WHERE guid = ?"
+            }
+            Self::SEL_CHARACTER_AURA_EFFECTS => {
+                "SELECT casterGuid, itemGuid, spell, effectMask, effectIndex, amount, baseAmount FROM character_aura_effect WHERE guid = ?"
+            }
             Self::UPD_CHAR_ONLINE => "UPDATE characters SET online = 1 WHERE guid = ?",
             Self::UPD_CHAR_OFFLINE => "UPDATE characters SET online = 0 WHERE guid = ?",
             Self::SEL_CHAR_DEL_CHECK => {
@@ -590,8 +699,91 @@ impl StatementDef for CharStatements {
             Self::SEL_CHARACTER_SPELL => {
                 "SELECT spell, active, disabled FROM character_spell WHERE guid = ?"
             }
+            Self::SEL_CHARACTER_SPELL_FAVORITES => {
+                "SELECT spell FROM character_spell_favorite WHERE guid = ?"
+            }
+            Self::SEL_CHARACTER_QUESTSTATUS_OBJECTIVES_CRITERIA => {
+                "SELECT questObjectiveId FROM character_queststatus_objectives_criteria WHERE guid = ?"
+            }
+            Self::SEL_CHARACTER_QUESTSTATUS_OBJECTIVES_CRITERIA_PROGRESS => {
+                "SELECT criteriaId, counter, date FROM character_queststatus_objectives_criteria_progress WHERE guid = ?"
+            }
+            Self::SEL_CHARACTER_QUESTSTATUS_DAILY => {
+                "SELECT quest, time FROM character_queststatus_daily WHERE guid = ?"
+            }
+            Self::SEL_CHARACTER_QUESTSTATUS_WEEKLY => {
+                "SELECT quest FROM character_queststatus_weekly WHERE guid = ?"
+            }
+            Self::SEL_CHARACTER_QUESTSTATUS_MONTHLY => {
+                "SELECT quest FROM character_queststatus_monthly WHERE guid = ?"
+            }
+            Self::SEL_CHARACTER_QUESTSTATUS_SEASONAL => {
+                "SELECT quest, event, completedTime FROM character_queststatus_seasonal WHERE guid = ?"
+            }
             Self::SEL_CHARACTER_REPUTATION => {
                 "SELECT faction, standing, flags FROM character_reputation WHERE guid = ?"
+            }
+            Self::SEL_MAIL_COUNT => "SELECT COUNT(*) FROM mail WHERE receiver = ?",
+            Self::SEL_CHARACTER_SOCIALLIST => {
+                "SELECT cs.friend, c.account, cs.flags, cs.note FROM character_social cs JOIN characters c ON c.guid = cs.friend WHERE cs.guid = ? AND c.deleteinfos_name IS NULL LIMIT 255"
+            }
+            Self::SEL_CHARACTER_HOMEBIND => {
+                "SELECT mapId, zoneId, posX, posY, posZ, orientation FROM character_homebind WHERE guid = ?"
+            }
+            Self::SEL_CHARACTER_SPELLCOOLDOWNS => {
+                "SELECT spell, item, time, categoryId, categoryEnd FROM character_spell_cooldown WHERE guid = ? AND time > UNIX_TIMESTAMP()"
+            }
+            Self::SEL_CHARACTER_SPELL_CHARGES => {
+                "SELECT categoryId, rechargeStart, rechargeEnd FROM character_spell_charges WHERE guid = ? AND rechargeEnd > UNIX_TIMESTAMP() ORDER BY rechargeEnd"
+            }
+            Self::SEL_CHARACTER_DECLINEDNAMES => {
+                "SELECT genitive, dative, accusative, instrumental, prepositional FROM character_declinedname WHERE guid = ?"
+            }
+            Self::SEL_GUILD_MEMBER => "SELECT guildid, `rank` FROM guild_member WHERE guid = ?",
+            Self::SEL_GUILD_MEMBER_EXTENDED => {
+                "SELECT g.guildid, g.name, gr.rname, gr.rid, gm.pnote, gm.offnote FROM guild g JOIN guild_member gm ON g.guildid = gm.guildid JOIN guild_rank gr ON g.guildid = gr.guildid AND gm.`rank` = gr.rid WHERE gm.guid = ?"
+            }
+            Self::SEL_CHARACTER_ACHIEVEMENTS => {
+                "SELECT achievement, date FROM character_achievement WHERE guid = ?"
+            }
+            Self::SEL_CHARACTER_CRITERIAPROGRESS => {
+                "SELECT criteria, counter, date FROM character_achievement_progress WHERE guid = ?"
+            }
+            Self::SEL_CHARACTER_EQUIPMENTSETS => {
+                "SELECT setguid, setindex, name, iconname, ignore_mask, AssignedSpecIndex, item0, item1, item2, item3, item4, item5, item6, item7, item8, item9, item10, item11, item12, item13, item14, item15, item16, item17, item18 FROM character_equipmentsets WHERE guid = ? ORDER BY setindex"
+            }
+            Self::SEL_CHARACTER_TRANSMOG_OUTFITS => {
+                "SELECT setguid, setindex, name, iconname, ignore_mask, appearance0, appearance1, appearance2, appearance3, appearance4, appearance5, appearance6, appearance7, appearance8, appearance9, appearance10, appearance11, appearance12, appearance13, appearance14, appearance15, appearance16, appearance17, appearance18, mainHandEnchant, offHandEnchant FROM character_transmog_outfits WHERE guid = ? ORDER BY setindex"
+            }
+            Self::SEL_CHARACTER_BGDATA => {
+                "SELECT instanceId, team, joinX, joinY, joinZ, joinO, joinMapId, taxiStart, taxiEnd, mountSpell, queueId FROM character_battleground_data WHERE guid = ?"
+            }
+            Self::SEL_CHARACTER_GLYPHS => {
+                "SELECT talentGroup, glyphSlot, glyphId FROM character_glyphs WHERE guid = ?"
+            }
+            Self::SEL_CHARACTER_TALENTS => {
+                "SELECT talentId, talentRank, talentGroup FROM character_talent WHERE guid = ?"
+            }
+            Self::SEL_CHARACTER_RANDOMBG => {
+                "SELECT guid FROM character_battleground_random WHERE guid = ?"
+            }
+            Self::SEL_CHARACTER_BANNED => {
+                "SELECT guid FROM character_banned WHERE guid = ? AND active = 1"
+            }
+            Self::SEL_CHARACTER_QUESTSTATUSREW => {
+                "SELECT quest FROM character_queststatus_rewarded WHERE guid = ? AND active = 1"
+            }
+            Self::SEL_CHARACTER_FAVORITE_AUCTIONS => {
+                "SELECT `order`, itemId, itemLevel, battlePetSpeciesId, suffixItemNameDescriptionId FROM character_favorite_auctions WHERE guid = ? ORDER BY `order`"
+            }
+            Self::INS_CHARACTER_FAVORITE_AUCTION => {
+                "INSERT INTO character_favorite_auctions (guid, `order`, itemId, itemLevel, battlePetSpeciesId, suffixItemNameDescriptionId) VALUE (?, ?, ?, ?, ?, ?)"
+            }
+            Self::DEL_CHARACTER_FAVORITE_AUCTION => {
+                "DELETE FROM character_favorite_auctions WHERE guid = ? AND `order` = ?"
+            }
+            Self::DEL_CHARACTER_FAVORITE_AUCTIONS_BY_CHAR => {
+                "DELETE FROM character_favorite_auctions WHERE guid = ?"
             }
             Self::SEL_PLAYER_CURRENCY => {
                 "SELECT Currency, Quantity, WeeklyQuantity, TrackedQuantity, \
@@ -1234,6 +1426,154 @@ mod tests {
         assert_eq!(
             CharStatements::INS_BATTLEGROUND_RANDOM.sql(),
             "INSERT INTO character_battleground_random (guid) VALUES (?)"
+        );
+    }
+
+    #[test]
+    fn character_load_auxiliary_statements_match_cpp_exactly() {
+        assert_eq!(
+            CharStatements::SEL_CHARACTER_CUSTOMIZATIONS.sql(),
+            "SELECT chrCustomizationOptionID, chrCustomizationChoiceID FROM character_customizations WHERE guid = ? ORDER BY chrCustomizationOptionID"
+        );
+        assert_eq!(
+            CharStatements::SEL_GROUP_MEMBER.sql(),
+            "SELECT guid FROM group_member WHERE memberGuid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHARACTER_AURAS.sql(),
+            "SELECT casterGuid, itemGuid, spell, effectMask, recalculateMask, difficulty, stackCount, maxDuration, remainTime, remainCharges, castItemId, castItemLevel FROM character_aura WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHARACTER_AURA_EFFECTS.sql(),
+            "SELECT casterGuid, itemGuid, spell, effectMask, effectIndex, amount, baseAmount FROM character_aura_effect WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHARACTER_SPELL_FAVORITES.sql(),
+            "SELECT spell FROM character_spell_favorite WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHARACTER_REPUTATION.sql(),
+            "SELECT faction, standing, flags FROM character_reputation WHERE guid = ?"
+        );
+    }
+
+    #[test]
+    fn character_quest_load_statements_match_cpp_exactly() {
+        assert_eq!(
+            CharStatements::SEL_CHARACTER_QUESTSTATUS_OBJECTIVES_CRITERIA.sql(),
+            "SELECT questObjectiveId FROM character_queststatus_objectives_criteria WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHARACTER_QUESTSTATUS_OBJECTIVES_CRITERIA_PROGRESS.sql(),
+            "SELECT criteriaId, counter, date FROM character_queststatus_objectives_criteria_progress WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHARACTER_QUESTSTATUS_DAILY.sql(),
+            "SELECT quest, time FROM character_queststatus_daily WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHARACTER_QUESTSTATUS_WEEKLY.sql(),
+            "SELECT quest FROM character_queststatus_weekly WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHARACTER_QUESTSTATUS_MONTHLY.sql(),
+            "SELECT quest FROM character_queststatus_monthly WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHARACTER_QUESTSTATUS_SEASONAL.sql(),
+            "SELECT quest, event, completedTime FROM character_queststatus_seasonal WHERE guid = ?"
+        );
+    }
+
+    #[test]
+    fn character_social_guild_bg_and_favorite_statements_match_cpp_exactly() {
+        assert_eq!(
+            CharStatements::SEL_MAIL_COUNT.sql(),
+            "SELECT COUNT(*) FROM mail WHERE receiver = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHARACTER_SOCIALLIST.sql(),
+            "SELECT cs.friend, c.account, cs.flags, cs.note FROM character_social cs JOIN characters c ON c.guid = cs.friend WHERE cs.guid = ? AND c.deleteinfos_name IS NULL LIMIT 255"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHARACTER_HOMEBIND.sql(),
+            "SELECT mapId, zoneId, posX, posY, posZ, orientation FROM character_homebind WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHARACTER_SPELLCOOLDOWNS.sql(),
+            "SELECT spell, item, time, categoryId, categoryEnd FROM character_spell_cooldown WHERE guid = ? AND time > UNIX_TIMESTAMP()"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHARACTER_SPELL_CHARGES.sql(),
+            "SELECT categoryId, rechargeStart, rechargeEnd FROM character_spell_charges WHERE guid = ? AND rechargeEnd > UNIX_TIMESTAMP() ORDER BY rechargeEnd"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHARACTER_DECLINEDNAMES.sql(),
+            "SELECT genitive, dative, accusative, instrumental, prepositional FROM character_declinedname WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_GUILD_MEMBER.sql(),
+            "SELECT guildid, `rank` FROM guild_member WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_GUILD_MEMBER_EXTENDED.sql(),
+            "SELECT g.guildid, g.name, gr.rname, gr.rid, gm.pnote, gm.offnote FROM guild g JOIN guild_member gm ON g.guildid = gm.guildid JOIN guild_rank gr ON g.guildid = gr.guildid AND gm.`rank` = gr.rid WHERE gm.guid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHARACTER_ACHIEVEMENTS.sql(),
+            "SELECT achievement, date FROM character_achievement WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHARACTER_CRITERIAPROGRESS.sql(),
+            "SELECT criteria, counter, date FROM character_achievement_progress WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHARACTER_EQUIPMENTSETS.sql(),
+            "SELECT setguid, setindex, name, iconname, ignore_mask, AssignedSpecIndex, item0, item1, item2, item3, item4, item5, item6, item7, item8, item9, item10, item11, item12, item13, item14, item15, item16, item17, item18 FROM character_equipmentsets WHERE guid = ? ORDER BY setindex"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHARACTER_TRANSMOG_OUTFITS.sql(),
+            "SELECT setguid, setindex, name, iconname, ignore_mask, appearance0, appearance1, appearance2, appearance3, appearance4, appearance5, appearance6, appearance7, appearance8, appearance9, appearance10, appearance11, appearance12, appearance13, appearance14, appearance15, appearance16, appearance17, appearance18, mainHandEnchant, offHandEnchant FROM character_transmog_outfits WHERE guid = ? ORDER BY setindex"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHARACTER_BGDATA.sql(),
+            "SELECT instanceId, team, joinX, joinY, joinZ, joinO, joinMapId, taxiStart, taxiEnd, mountSpell, queueId FROM character_battleground_data WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHARACTER_GLYPHS.sql(),
+            "SELECT talentGroup, glyphSlot, glyphId FROM character_glyphs WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHARACTER_TALENTS.sql(),
+            "SELECT talentId, talentRank, talentGroup FROM character_talent WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHARACTER_RANDOMBG.sql(),
+            "SELECT guid FROM character_battleground_random WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHARACTER_BANNED.sql(),
+            "SELECT guid FROM character_banned WHERE guid = ? AND active = 1"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHARACTER_QUESTSTATUSREW.sql(),
+            "SELECT quest FROM character_queststatus_rewarded WHERE guid = ? AND active = 1"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHARACTER_FAVORITE_AUCTIONS.sql(),
+            "SELECT `order`, itemId, itemLevel, battlePetSpeciesId, suffixItemNameDescriptionId FROM character_favorite_auctions WHERE guid = ? ORDER BY `order`"
+        );
+        assert_eq!(
+            CharStatements::INS_CHARACTER_FAVORITE_AUCTION.sql(),
+            "INSERT INTO character_favorite_auctions (guid, `order`, itemId, itemLevel, battlePetSpeciesId, suffixItemNameDescriptionId) VALUE (?, ?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHARACTER_FAVORITE_AUCTION.sql(),
+            "DELETE FROM character_favorite_auctions WHERE guid = ? AND `order` = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHARACTER_FAVORITE_AUCTIONS_BY_CHAR.sql(),
+            "DELETE FROM character_favorite_auctions WHERE guid = ?"
         );
     }
 
