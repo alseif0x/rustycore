@@ -120,15 +120,17 @@ Sample of explicit per-opcode caps (from the ~190-case switch):
 
 | Opcode | Max/sec |
 |---|---:|
-| `CMSG_PLAYER_LOGIN` | 1 |
-| `CMSG_LOGOUT_REQUEST` | 1 |
-| `CMSG_QUERY_PLAYER_NAMES` | 1 |
-| `CMSG_QUERY_TIME` | 1 |
-| `CMSG_ATTACK_STOP` | 1 |
-| `CMSG_MOVE_TIME_SKIPPED` | 1 |
-| `CMSG_BANKER_ACTIVATE` | 1 |
-| `CMSG_OPT_OUT_OF_LOOT` | 1 |
-| (default for unlisted) | unlimited (returns 0 ⇒ "no cap") |
+| `CMSG_PLAYER_LOGIN` | 0 (unlimited) |
+| `CMSG_LOGOUT_REQUEST` | 0 (unlimited) |
+| `CMSG_QUERY_PLAYER_NAMES` | 0 (unlimited) |
+| `CMSG_QUERY_TIME` | 0 (unlimited) |
+| `CMSG_ATTACK_STOP` | 0 (unlimited) |
+| `CMSG_MOVE_TIME_SKIPPED` | 0 (unlimited) |
+| `CMSG_BANKER_ACTIVATE` | 0 (unlimited) |
+| `CMSG_OPT_OUT_OF_LOOT` | 0 (unlimited) |
+| `CMSG_MOVE_HEARTBEAT` | 200 |
+| `CMSG_HOTFIX_REQUEST` | 1 |
+| (default for unlisted) | 100 |
 
 `MaxOverspeedPings = 2` is a separate socket ping counter in this C++ tree: `WorldSocket::HandlePing` increments `_OverSpeedPings` when consecutive `CMSG_PING` packets arrive faster than 27 seconds and closes the socket after `> maxAllowed`, unless RBAC grants `RBAC_PERM_SKIP_CHECK_OVERSPEED_PING`.
 
@@ -210,10 +212,9 @@ Anticheat is reactive — it does not originate opcodes, it inspects them. Touch
 - Move-time-skipped sanity logging.
 
 **Suspicious / likely divergent:**
-- Movement broadcast is unconditional at `movement.rs` line 127-138 — peers see flags **before** any anticheat strip. Even after #AC.2 implements rule sanitization, the broadcast must be delayed until after the strip, or peers see `MOVEMENTFLAG_FLYING` from a fly-hacker and propagate it.
 - No session-level "this player is being moved by who" tracking → cannot implement mover-mismatch check (rule analogue at `MovementHandler.cpp:543`).
 
-**Tests existing:** represented AntiDOS unit tests cover `PacketSpoof.Policy` log/kick/ban staging behavior, C++ `HotfixRequest` limit `1/sec`, unlimited `PlayerLogin`, account-ban staging, and IP-ban staging from the real socket address; movement anticheat still lacks finite-position guard tests.
+**Tests existing:** represented AntiDOS unit tests cover `PacketSpoof.Policy` log/kick/ban staging behavior, C++ `HotfixRequest` limit `1/sec`, unlimited `PlayerLogin`, account-ban staging, and IP-ban staging from the real socket address. Movement anticheat also covers GUID mismatch and invalid-coordinate rejection without state mutation or broadcast.
 
 ---
 
@@ -243,7 +244,7 @@ Anticheat is reactive — it does not originate opcodes, it inspects them. Touch
 - [x] Test: `LEFT | RIGHT` simultaneously → both stripped.
 - [x] Test: speed ack 8.0 vs server 7.0 with no transport → kick fires; ban table not touched (kick policy).
 - [x] Test: speed ack 6.0 vs server 7.0 → correction is recorded, no kick, and no packet is emitted because legacy `SetSpeedRate(GetSpeedRate())` returns early on unchanged rate.
-- [ ] Test: 200 `CMSG_PLAYER_LOGIN` packets in 1 second → DosProtection trips at packet #2, kick fires.
+- [x] Test: repeated `CMSG_PLAYER_LOGIN` packets in one second remain allowed because C++ puts it in the zero-limit group (`maxPacketCounterAllowed == 0`); do **not** add a kick expectation here.
 - [x] Test: NaN x in position → reject without panic, do not advance `player_position`, do not broadcast.
 - [x] Test: GUID mismatch → reject without state mutation, do not broadcast.
 - [x] Test: SPLINE_ELEVATION flag with elevation == 0 → flag stripped; non-zero elevation without flag → flag added.
