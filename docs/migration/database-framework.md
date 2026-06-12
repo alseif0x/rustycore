@@ -104,7 +104,7 @@ All paths relative to `/home/server/woltk-trinity-legacy/`.
 | `src/server/database/Database/Implementation/HotfixDatabase.h` / `.cpp` | 1122 + 1916 | `HotfixDatabaseStatements` enum (327 values) + prepare bodies |
 | `src/server/database/Database/FieldValueConverter.{h,cpp}` / `FieldValueConverters.h` | 50 + 48 + 112 | Pluggable column converters (e.g. enum string → int) |
 | `src/server/database/Updater/DBUpdater.h` / `.cpp` | 96 + 445 | `DBUpdater<T>::Create`/`Populate`/`Update` static methods; per-DB `GetConfigEntry`/`GetTableName`/`GetBaseFile` template specializations |
-| `src/server/database/Updater/UpdateFetcher.h` / `.cpp` | 143 + 424 | Walks `sql/updates/<type>/`, hashes files (SHA1), compares against `updates` + `updates_include` tables, computes RELEASED/CUSTOM/ARCHIVED state, archives obsolete |
+| `src/server/database/Updater/UpdateFetcher.h` / `.cpp` | 143 + 424 | Walks `sql/updates/<type>/`, hashes files (SHA1), compares against `updates` + `updates_include` tables, computes RELEASED/ARCHIVED state, archives obsolete |
 
 ---
 
@@ -139,7 +139,7 @@ All paths relative to `/home/server/woltk-trinity-legacy/`.
 | `DBUpdaterUtil` | class | Locates a `mysql` CLI binary on PATH for `ApplyFile` of large dump files |
 | `BaseLocation` | enum | `LOCATION_REPOSITORY` (sql/ in repo) vs `LOCATION_DOWNLOAD` (TDB tarball) |
 | `UpdateException` | class | Thrown on update failure |
-| `UpdateFetcher` | class (in Updater/) | Walks `sql/updates/<type>/`, hashes, sorts, computes state |
+| `UpdateFetcher` | class (in Updater/) | Walks `sql/updates/<type>/`, hashes, sorts, computes RELEASED/ARCHIVED state |
 
 ---
 
@@ -223,7 +223,7 @@ The framework itself emits very few queries (only schema bookkeeping). The bulk 
 |---|---|---|
 | `CREATE DATABASE IF NOT EXISTS \`x\` DEFAULT CHARACTER SET utf8mb4 …` | `DBUpdater::Create` (via `mysql` CLI when DB missing) | any |
 | `INSERT INTO \`updates\` (\`name\`, \`hash\`, \`state\`, \`speed\`) VALUES (?, ?, ?, ?)` | Record an applied update (TC variant uses `INSERT ... ON DUPLICATE KEY UPDATE`) | any |
-| `UPDATE \`updates\` SET \`hash\` = ?, \`speed\` = ? WHERE \`name\` = ?` | Re-apply a CUSTOM update whose hash changed | any |
+| `UPDATE \`updates\` SET \`hash\` = ?, \`speed\` = ? WHERE \`name\` = ?` | Re-apply an update whose hash changed | any |
 | `UPDATE \`updates\` SET \`name\` = ? WHERE \`name\` = ?` | Detect rename (same hash, different filename) | any |
 | `DELETE FROM \`updates\` WHERE \`name\` = ?` | Mark obsolete update as unapplied | any |
 | `SELECT \`name\`, \`hash\`, \`state\` FROM \`updates\` ORDER BY \`name\`` | List applied updates | any |
@@ -304,8 +304,8 @@ Not applicable — the database framework does not handle WoW client packets. (I
 - Async query API: `db.query(&stmt).await` → `SqlResult` (cursor with `next_row()`, `read::<T>(col)`, `try_read`, `read_typed::<T>(col)` / `try_read_typed`, `is_null`, `read_string` fallback for `utf8mb4_bin` columns); `db.execute(&stmt).await` for non-result statements; `db.direct_execute(sql)` / `db.direct_query(sql)` for raw SQL.
 - Transactions: `SqlTransaction { statements: Vec<PreparedStatement> }` + `commit(&pool)` opens a real `sqlx::Transaction`, executes each statement, commits or rolls back. On MySQL error 1213 (deadlock), retries are serialized under a process-wide mutex for up to 60 seconds — same guardrail as TC's `TransactionTask::_deadlockLock` + `DEADLOCK_MAX_RETRY_TIME_MS`.
 - `execute_or_append(trans, stmt)` mirroring TC's `ExecuteOrAppend`.
-- DB Updater (`DbUpdater`): `populate(base_sql)` invokes the `mysql` CLI to apply a base dump if `information_schema.tables` reports 0 tables for the current DB; the CLI command mirrors TC's transactional `BEGIN; SOURCE file; COMMIT;` wrapper and preserves the CLI stderr in the returned error. `update(source_dir)` reads from `updates_include` table, walks `$source_dir/sql/updates/...`, sha1-hashes each `.sql`, applies via sqlx (statement-by-statement using a hand-rolled splitter that respects `--`/`#` line comments, `/* */` block comments, and `'` / `"` strings with escapes). Tracks applied files in `updates` table with hash + applied-at + apply-time-ms. Detects renames (same hash, different filename) and replays CUSTOM updates whose hash changed. If `updates_include` is empty for a known TC database family, RustyCore bootstraps the same path set used by the WotLK Classic base dumps (`custom`, `old/10.x`, `old/3.4.x`, `old/6.x`, `old/7`, `old/8.x`, `old/9.x`, `updates`).
-- `Updates.AutoSetup` config gate (default `1`) — when off, no auto-update runs.
+- DB Updater (`DbUpdater`): `populate(base_sql)` invokes the `mysql` CLI to apply a base dump if `information_schema.tables` reports 0 tables for the current DB; the CLI command mirrors TC's transactional `BEGIN; SOURCE file; COMMIT;` wrapper and preserves the CLI stderr in the returned error. `update(source_dir)` reads from `updates_include` table, walks `$source_dir/sql/updates/...`, sha1-hashes each `.sql`, applies via sqlx (statement-by-statement using a hand-rolled splitter that respects `--`/`#` line comments, `/* */` block comments, and `'` / `"` strings with escapes). Tracks applied files in `updates` table with hash + applied-at + apply-time-ms. Detects renames (same hash, different filename) and reapplies updates whose hash changed. State handling now mirrors this WotLK C++ branch's two-state `StateConvert`: exact `RELEASED` stays released; any other value is treated as `ARCHIVED`. If `updates_include` is empty for a known TC database family, RustyCore bootstraps the same path set used by the WotLK Classic base dumps (`custom`, `old/10.x`, `old/3.4.x`, `old/6.x`, `old/7`, `old/8.x`, `old/9.x`, `updates`).
+- `Updates.AutoSetup` config gate (default `1`) — controls only TC-style missing-database auto-create; `Populate` / `Update` are governed by `Updates.EnableDatabases`.
 - All four DBs are wired in `crates/world-server/src/main.rs` lines 170-272: open pool, `DbUpdater::new(pool, …).populate(...).update(...)` for auth + characters; `update(...)` only for world + hotfix (because base SQL for those is the TDB tarball, not in repo).
 - Unit tests in `params.rs`, `statements/mod.rs`, and `updater.rs` cover setter behaviour, sparse indices, statement-table-name presence, `'?'` placeholder counts, updater redundancy gates, orphan cleanup threshold, and `updates_include` default path selection.
 
@@ -625,7 +625,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 
 - [x] **#DB.1** Use TC database thread-count config for world-server pools: read `<Db>Database.WorkerThreads` + `<Db>Database.SynchThreads` for Login/Character/World/Hotfix and pass their sum to `Database::open_with_pool_size`. Defaults follow TC's loader default of `1 + 1`; invalid values fall back to `1` per side with a warning. (L) — **same as `worldserver.md` #WS.21**
 - [x] **#DB.2** Implement DB keep-alive: spawn one shared world-server task using `MaxPingTime` (default 30) that runs `SELECT 1` against Character/Login/World, matching TC's `World::Update` keep-alive pool set. Hotfix is intentionally excluded because TC does not call `HotfixDatabase.KeepAlive()` here. (L) — **same as #WS.6**
-- [x] **#DB.3** Make `DbUpdater::populate` / `update` failure fatal when `Updates.AutoSetup=1`: return error from `world-server/main.rs` instead of `tracing::warn!`. Boot now aborts if base SQL is missing, the DB is empty + populate fails, or an enabled update step fails. (L)
+- [x] **#DB.3** Make enabled `DbUpdater::populate` / `update` failures fatal: return error from `world-server/main.rs` instead of `tracing::warn!`. Boot now aborts if base SQL is missing, the DB is empty + populate fails, or an enabled update step fails. (L)
 - [x] **#DB.4** Bootstrap `updates_include` rows on first `populate` / first empty-table `update`: insert the WotLK Classic default path set for auth, characters, world, and hotfixes so a fresh install actually applies updates without operator intervention. (M)
 - [x] **#DB.5** Implement `DBUpdater::Create` equivalent for world-server startup: detect MySQL `Unknown database` (`1049`) on initial pool open, connect without a DB name, run TC's `CREATE DATABASE ... DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`, and retry. (M)
 - [x] **#DB.6** Implement `Updates.Redundancy` (default `true`) and `Updates.AllowRehash` (default `true`): when redundancy is disabled, skip already-applied files; when rehash is enabled and the stored hash is empty, update the hash without reapplying; when hash matches but state changed, update state only. (L)
@@ -717,7 +717,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 - **`PreparedStatement<T>` in C++ is type-tagged**; in Rust the tagging is at `Database<S>::prepare(stmt)` ingestion time only. Don't try to add `PhantomData<S>` to `PreparedStatement` itself — the existing test design (compile-fail) covers the misuse case at the right place.
 - **sqlx prepared-statement caching**: sqlx caches prepared `MYSQL_STMT` handles per-connection automatically. First call to a statement on a fresh connection prepares; subsequent calls reuse. This is why we don't need TC's `MySQLConnection::PrepareStatements()` warm-up — but it does mean cold pool acquisitions pay one round-trip extra. Don't `pool.close()` and re-`open()` to "reload" prepared statements; just restart the binary.
 - **`DBUpdater::Update` SQL splitter cannot handle DELIMITER**: TrinityCore's TDB world dump uses `DELIMITER //` for trigger definitions. RustyCore's `populate` shells out to `mysql` CLI specifically for this reason; `update` (which never sees triggers) is statement-by-statement. If a future update adds a trigger or stored procedure, **the splitter will fail** — extend it or fall back to the CLI for that file.
-- **`Updates.AutoSetup=1` default**: a fresh checkout will try to reach a `mysql` CLI binary on `PATH` to run `populate`. If `mysql` is not installed (e.g. a dev VM with only `mariadb-client` symlinked differently), `populate` fails with an opaque `command not found`. Either install `mysql` or pre-populate manually.
+- **`Updates.EnableDatabases` default**: enabled database updater phases can try to reach a `mysql` CLI binary on `PATH` to run `populate`. If `mysql` is not installed (e.g. a dev VM with only `mariadb-client` symlinked differently), `populate` fails with an opaque `command not found`. Either install `mysql` or pre-populate manually.
 - **`ConnectionFlags::SYNCH` queries in TC are guaranteed to run on a sync sub-pool** so that nothing outside the world thread blocks them. RustyCore loses this guarantee — **a sync query issued from inside an async tick can still starve when the merged pool is saturated by async work**. Watch out under heavy load; tune up `<Db>Database.WorkerThreads` / `<Db>Database.SynchThreads` before reaching for a redesign.
 - **`updates` table schema**: TC's columns are `(name, hash, state, timestamp, speed)` with `state` as an enum. The Rust port creates the same schema with `IF NOT EXISTS` so it's interoperable — you can run TC's `worldserver` against the same DB and Rust will respect its `updates` rows. **Compatibility tested 2026-04: ✅.**
 - **Deadlock retry is single-mutex in TC** (`TransactionTask::_deadlockLock`); RustyCore now mirrors that with a process-wide Tokio mutex and 60-second retry window. **#DB.17 closed.**
@@ -870,7 +870,7 @@ However, **the worldserver audit (`worldserver.md` §13.4) noted there's no glob
 | `Updates.ArchivedRedundancy=false` skips archived redundancy | Config-backed update decision | ✅ #DB.7 |
 | `Updates.CleanDeadRefMaxCount=3` deletes orphaned `updates` rows | tracks unmatched applied rows and deletes them when TC's cleanup budget allows | ✅ #DB.8 |
 | Detects renamed files (same hash, different name) | ✅ (`updater.rs:139-149`) | ✅ |
-| Re-applies CUSTOM-state file on hash change | ✅ (`updater.rs:174-194`) | ✅ |
+| Re-applies changed update file on hash mismatch | ✅ (`updater.rs:174-194`) | ✅ |
 | Tracks apply time in `updates.speed` column | ✅ (`updater.rs:166`) | ✅ |
 | `mysql_real_escape_string` | `escape_string_like_cpp(value)` | ✅ #DB.14 |
 | `LOAD DATA INFILE` support | (none) | ⚠️ not currently used by the Rust updater path |

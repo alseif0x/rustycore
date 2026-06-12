@@ -281,7 +281,7 @@ impl DbUpdater {
                         )
                         .bind(&name)
                         .bind(&hash)
-                        .bind(state.as_str())
+                        .bind(update_state_like_cpp(state))
                         .bind(ms)
                         .execute(&self.pool)
                         .await?;
@@ -298,7 +298,7 @@ impl DbUpdater {
                         )
                         .bind(&name)
                         .bind(&hash)
-                        .bind(state.as_str())
+                        .bind(update_state_like_cpp(state))
                         .bind(ms)
                         .execute(&self.pool)
                         .await?;
@@ -317,7 +317,7 @@ impl DbUpdater {
                         UpdateDecisionLikeCpp::UpdateState => {
                             info!("Updating state for '{}' to '{}'...", name, state);
                             sqlx::query("UPDATE `updates` SET `state` = ? WHERE `name` = ?")
-                                .bind(state.as_str())
+                                .bind(update_state_like_cpp(state))
                                 .bind(&name)
                                 .execute(&self.pool)
                                 .await?;
@@ -328,7 +328,7 @@ impl DbUpdater {
                                 "UPDATE `updates` SET `hash` = ?, `state` = ? WHERE `name` = ?",
                             )
                             .bind(&hash)
-                            .bind(state.as_str())
+                            .bind(update_state_like_cpp(state))
                             .bind(&name)
                             .execute(&self.pool)
                             .await?;
@@ -347,7 +347,7 @@ impl DbUpdater {
                                 "UPDATE `updates` SET `hash` = ?, `state` = ?, `speed` = ? WHERE `name` = ?",
                             )
                             .bind(&hash)
-                            .bind(state.as_str())
+                            .bind(update_state_like_cpp(state))
                             .bind(ms)
                             .bind(&name)
                             .execute(&self.pool)
@@ -425,7 +425,7 @@ impl DbUpdater {
             "CREATE TABLE IF NOT EXISTS `updates` (
                 `name`      VARCHAR(200) NOT NULL COMMENT 'filename of the update',
                 `hash`      VARCHAR(40)  NOT NULL DEFAULT '' COMMENT 'SHA1 of the SQL file',
-                `state`     ENUM('RELEASED','ARCHIVED','CUSTOM') NOT NULL DEFAULT 'RELEASED',
+                `state`     ENUM('RELEASED','ARCHIVED') NOT NULL DEFAULT 'RELEASED',
                 `timestamp` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 `speed`     INT UNSIGNED NOT NULL DEFAULT 0 COMMENT 'apply time in ms',
                 PRIMARY KEY (`name`)
@@ -440,7 +440,7 @@ impl DbUpdater {
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS `updates_include` (
                 `path`  VARCHAR(200) NOT NULL COMMENT 'path to a directory with update files',
-                `state` ENUM('RELEASED','ARCHIVED','CUSTOM') NOT NULL DEFAULT 'RELEASED',
+                `state` ENUM('RELEASED','ARCHIVED') NOT NULL DEFAULT 'RELEASED',
                 PRIMARY KEY (`path`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
         )
@@ -472,7 +472,7 @@ impl DbUpdater {
         for (path, state) in default_updates_include_rows_like_cpp(kind) {
             sqlx::query("INSERT IGNORE INTO `updates_include` (`path`, `state`) VALUES (?, ?)")
                 .bind(path)
-                .bind(state)
+                .bind(update_state_like_cpp(state))
                 .execute(&self.pool)
                 .await?;
         }
@@ -501,7 +501,15 @@ impl DbUpdater {
                 .await?;
         Ok(rows
             .into_iter()
-            .map(|(name, hash, state)| (name, AppliedUpdateFileLikeCpp { hash, state }))
+            .map(|(name, hash, state)| {
+                (
+                    name,
+                    AppliedUpdateFileLikeCpp {
+                        hash,
+                        state: update_state_like_cpp(&state).to_string(),
+                    },
+                )
+            })
             .collect())
     }
 
@@ -729,6 +737,14 @@ fn update_filename_like_cpp(path: &Path) -> String {
         .unwrap_or_default()
 }
 
+fn update_state_like_cpp(state: &str) -> &'static str {
+    if state == "RELEASED" {
+        "RELEASED"
+    } else {
+        "ARCHIVED"
+    }
+}
+
 fn renamed_update_decision_like_cpp(
     applied: &HashMap<String, AppliedUpdateFileLikeCpp>,
     available_names: &HashSet<String>,
@@ -850,7 +866,7 @@ mod tests {
         default_updates_include_rows_like_cpp, mysql_cli_args_like_cpp,
         populate_base_action_like_cpp, renamed_update_decision_like_cpp,
         should_cleanup_orphaned_updates_like_cpp, sort_update_files_like_cpp, split_sql,
-        update_database_kind_like_cpp, update_decision_like_cpp,
+        update_database_kind_like_cpp, update_decision_like_cpp, update_state_like_cpp,
     };
     use std::collections::{HashMap, HashSet};
     use std::path::PathBuf;
@@ -930,6 +946,15 @@ mod tests {
             update_decision_like_cpp("same", "same", "RELEASED", "ARCHIVED", &rehash_on),
             UpdateDecisionLikeCpp::UpdateState
         );
+    }
+
+    #[test]
+    fn update_state_conversion_matches_cpp_two_state_model() {
+        assert_eq!(update_state_like_cpp("RELEASED"), "RELEASED");
+        assert_eq!(update_state_like_cpp("ARCHIVED"), "ARCHIVED");
+        assert_eq!(update_state_like_cpp("CUSTOM"), "ARCHIVED");
+        assert_eq!(update_state_like_cpp(""), "ARCHIVED");
+        assert_eq!(update_state_like_cpp("released"), "ARCHIVED");
     }
 
     #[test]
