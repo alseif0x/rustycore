@@ -867,6 +867,114 @@ pub enum CharStatements {
     /// DELETE FROM character_inventory WHERE item = ?
     DEL_CHAR_INVENTORY_BY_ITEM,
 
+    /// DELETE FROM character_inventory WHERE bag = ? AND slot = ? AND guid = ?
+    DEL_CHAR_INVENTORY_BY_BAG_SLOT,
+
+    /// UPDATE mail SET has_items = ?, expire_time = ?, deliver_time = ?, money = ?, cod = ?, checked = ? WHERE id = ?
+    UPD_MAIL,
+
+    /// REPLACE INTO character_queststatus (guid, quest, status, explored, acceptTime, endTime) VALUES (?, ?, ?, ?, ?, ?)
+    REP_CHAR_QUESTSTATUS,
+
+    /// DELETE FROM character_queststatus WHERE guid = ? AND quest = ?
+    DEL_CHAR_QUESTSTATUS_BY_QUEST,
+
+    /// INSERT INTO character_queststatus_objectives_criteria (guid, questObjectiveId) VALUES (?, ?)
+    INS_CHAR_QUESTSTATUS_OBJECTIVES_CRITERIA,
+
+    /// INSERT INTO character_queststatus_objectives_criteria_progress (guid, criteriaId, counter, date) VALUES (?, ?, ?, ?)
+    INS_CHAR_QUESTSTATUS_OBJECTIVES_CRITERIA_PROGRESS,
+
+    /// INSERT IGNORE INTO character_queststatus_rewarded (guid, quest, active) VALUES (?, ?, 1)
+    INS_CHAR_QUESTSTATUS_REWARDED,
+
+    /// DELETE FROM character_queststatus_rewarded WHERE guid = ? AND quest = ?
+    DEL_CHAR_QUESTSTATUS_REWARDED_BY_QUEST,
+
+    /// UPDATE character_queststatus_rewarded SET quest = ? WHERE quest = ? AND guid = ?
+    UPD_CHAR_QUESTSTATUS_REWARDED_FACTION_CHANGE,
+
+    /// UPDATE character_queststatus_rewarded SET active = 1 WHERE guid = ?
+    UPD_CHAR_QUESTSTATUS_REWARDED_ACTIVE,
+
+    /// UPDATE character_queststatus_rewarded SET active = 0 WHERE quest = ? AND guid = ?
+    UPD_CHAR_QUESTSTATUS_REWARDED_ACTIVE_BY_QUEST,
+
+    /// DELETE FROM character_queststatus_objectives_criteria WHERE questObjectiveId = ?
+    DEL_INVALID_QUEST_PROGRESS_CRITERIA,
+
+    /// DELETE FROM character_skills WHERE guid = ? AND skill = ?
+    DEL_CHAR_SKILL_BY_SKILL,
+
+    /// INSERT INTO character_skills (guid, skill, value, max, professionSlot) VALUES (?, ?, ?, ?, ?)
+    INS_CHAR_SKILLS,
+
+    /// UPDATE character_skills SET value = ?, max = ?, professionSlot = ? WHERE guid = ? AND skill = ?
+    UPD_CHAR_SKILLS,
+
+    /// INSERT INTO character_spell (guid, spell, active, disabled) VALUES (?, ?, ?, ?)
+    INS_CHAR_SPELL,
+
+    /// DELETE FROM character_spell_favorite WHERE guid = ? AND spell = ?
+    DEL_CHAR_SPELL_FAVORITE,
+
+    /// DELETE FROM character_spell_favorite WHERE guid = ?
+    DEL_CHAR_SPELL_FAVORITE_BY_CHAR,
+
+    /// INSERT INTO character_spell_favorite (guid, spell) VALUES (?, ?)
+    INS_CHAR_SPELL_FAVORITE,
+
+    /// DELETE FROM character_stats WHERE guid = ?
+    DEL_CHAR_STATS,
+
+    /// INSERT INTO character_stats full save row.
+    INS_CHAR_STATS,
+
+    /// DELETE FROM petition WHERE ownerguid = ?
+    DEL_PETITION_BY_OWNER,
+
+    /// DELETE FROM petition_sign WHERE ownerguid = ?
+    DEL_PETITION_SIGNATURE_BY_OWNER,
+
+    /// INSERT INTO character_glyphs (guid, talentGroup, glyphSlot, glyphId) VALUES(?, ?, ?, ?)
+    INS_CHAR_GLYPHS,
+
+    /// INSERT INTO character_talent (guid, talentId, talentRank, talentGroup) VALUES (?, ?, ?, ?)
+    INS_CHAR_TALENT,
+
+    /// UPDATE characters SET slot = ? WHERE guid = ? AND account = ?
+    UPD_CHAR_LIST_SLOT,
+
+    /// INSERT INTO character_fishingsteps (guid, fishingSteps) VALUES (?, ?)
+    INS_CHAR_FISHINGSTEPS,
+
+    /// DELETE FROM character_fishingsteps WHERE guid = ?
+    DEL_CHAR_FISHINGSTEPS,
+
+    /// SELECT traitConfigId, traitNodeId, traitNodeEntryId, `rank`, grantedRanks FROM character_trait_entry WHERE guid = ?
+    SEL_CHAR_TRAIT_ENTRIES,
+
+    /// INSERT INTO character_trait_entry (guid, traitConfigId, traitNodeId, traitNodeEntryId, `rank`, grantedRanks) VALUES (?, ?, ?, ?, ?, ?)
+    INS_CHAR_TRAIT_ENTRIES,
+
+    /// DELETE FROM character_trait_entry WHERE guid = ? AND traitConfigId = ?
+    DEL_CHAR_TRAIT_ENTRIES,
+
+    /// DELETE FROM character_trait_entry WHERE guid = ?
+    DEL_CHAR_TRAIT_ENTRIES_BY_CHAR,
+
+    /// SELECT traitConfigId, type, chrSpecializationId, combatConfigFlags, localIdentifier, skillLineId, traitSystemId, `name` FROM character_trait_config WHERE guid = ?
+    SEL_CHAR_TRAIT_CONFIGS,
+
+    /// INSERT INTO character_trait_config (guid, traitConfigId, type, chrSpecializationId, combatConfigFlags, localIdentifier, skillLineId, traitSystemId, `name`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INS_CHAR_TRAIT_CONFIGS,
+
+    /// DELETE FROM character_trait_config WHERE guid = ? AND traitConfigId = ?
+    DEL_CHAR_TRAIT_CONFIGS,
+
+    /// DELETE FROM character_trait_config WHERE guid = ?
+    DEL_CHAR_TRAIT_CONFIGS_BY_CHAR,
+
     /// UPDATE characters SET money = ? WHERE guid = ?
     UPD_CHAR_MONEY,
     /// UPDATE characters SET xp = ? WHERE guid = ?
@@ -2162,6 +2270,108 @@ impl StatementDef for CharStatements {
                 "DELETE FROM character_action WHERE guid = ? AND traitConfigId = ?"
             }
             Self::DEL_CHAR_INVENTORY_BY_ITEM => "DELETE FROM character_inventory WHERE item = ?",
+            Self::DEL_CHAR_INVENTORY_BY_BAG_SLOT => {
+                "DELETE FROM character_inventory WHERE bag = ? AND slot = ? AND guid = ?"
+            }
+            Self::UPD_MAIL => {
+                "UPDATE mail SET has_items = ?, expire_time = ?, deliver_time = ?, money = ?, cod = ?, checked = ? WHERE id = ?"
+            }
+            Self::REP_CHAR_QUESTSTATUS => {
+                "REPLACE INTO character_queststatus (guid, quest, status, explored, acceptTime, endTime) VALUES (?, ?, ?, ?, ?, ?)"
+            }
+            Self::DEL_CHAR_QUESTSTATUS_BY_QUEST => {
+                "DELETE FROM character_queststatus WHERE guid = ? AND quest = ?"
+            }
+            Self::INS_CHAR_QUESTSTATUS_OBJECTIVES_CRITERIA => {
+                "INSERT INTO character_queststatus_objectives_criteria (guid, questObjectiveId) VALUES (?, ?)"
+            }
+            Self::INS_CHAR_QUESTSTATUS_OBJECTIVES_CRITERIA_PROGRESS => {
+                "INSERT INTO character_queststatus_objectives_criteria_progress (guid, criteriaId, counter, date) VALUES (?, ?, ?, ?)"
+            }
+            Self::INS_CHAR_QUESTSTATUS_REWARDED => {
+                "INSERT IGNORE INTO character_queststatus_rewarded (guid, quest, active) VALUES (?, ?, 1)"
+            }
+            Self::DEL_CHAR_QUESTSTATUS_REWARDED_BY_QUEST => {
+                "DELETE FROM character_queststatus_rewarded WHERE guid = ? AND quest = ?"
+            }
+            Self::UPD_CHAR_QUESTSTATUS_REWARDED_FACTION_CHANGE => {
+                "UPDATE character_queststatus_rewarded SET quest = ? WHERE quest = ? AND guid = ?"
+            }
+            Self::UPD_CHAR_QUESTSTATUS_REWARDED_ACTIVE => {
+                "UPDATE character_queststatus_rewarded SET active = 1 WHERE guid = ?"
+            }
+            Self::UPD_CHAR_QUESTSTATUS_REWARDED_ACTIVE_BY_QUEST => {
+                "UPDATE character_queststatus_rewarded SET active = 0 WHERE quest = ? AND guid = ?"
+            }
+            Self::DEL_INVALID_QUEST_PROGRESS_CRITERIA => {
+                "DELETE FROM character_queststatus_objectives_criteria WHERE questObjectiveId = ?"
+            }
+            Self::DEL_CHAR_SKILL_BY_SKILL => {
+                "DELETE FROM character_skills WHERE guid = ? AND skill = ?"
+            }
+            Self::INS_CHAR_SKILLS => {
+                "INSERT INTO character_skills (guid, skill, value, max, professionSlot) VALUES (?, ?, ?, ?, ?)"
+            }
+            Self::UPD_CHAR_SKILLS => {
+                "UPDATE character_skills SET value = ?, max = ?, professionSlot = ? WHERE guid = ? AND skill = ?"
+            }
+            Self::INS_CHAR_SPELL => {
+                "INSERT INTO character_spell (guid, spell, active, disabled) VALUES (?, ?, ?, ?)"
+            }
+            Self::DEL_CHAR_SPELL_FAVORITE => {
+                "DELETE FROM character_spell_favorite WHERE guid = ? AND spell = ?"
+            }
+            Self::DEL_CHAR_SPELL_FAVORITE_BY_CHAR => {
+                "DELETE FROM character_spell_favorite WHERE guid = ?"
+            }
+            Self::INS_CHAR_SPELL_FAVORITE => {
+                "INSERT INTO character_spell_favorite (guid, spell) VALUES (?, ?)"
+            }
+            Self::DEL_CHAR_STATS => "DELETE FROM character_stats WHERE guid = ?",
+            Self::INS_CHAR_STATS => {
+                "INSERT INTO character_stats (guid, maxhealth, maxpower1, maxpower2, maxpower3, maxpower4, maxpower5, maxpower6, maxpower7, maxpower8, maxpower9, maxpower10, strength, agility, stamina, intellect, armor, resHoly, resFire, resNature, resFrost, resShadow, resArcane, blockPct, dodgePct, parryPct, critPct, rangedCritPct, spellCritPct, attackPower, rangedAttackPower, spellPower, resilience, mastery, versatility) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            }
+            Self::DEL_PETITION_BY_OWNER => "DELETE FROM petition WHERE ownerguid = ?",
+            Self::DEL_PETITION_SIGNATURE_BY_OWNER => {
+                "DELETE FROM petition_sign WHERE ownerguid = ?"
+            }
+            Self::INS_CHAR_GLYPHS => {
+                "INSERT INTO character_glyphs (guid, talentGroup, glyphSlot, glyphId) VALUES(?, ?, ?, ?)"
+            }
+            Self::INS_CHAR_TALENT => {
+                "INSERT INTO character_talent (guid, talentId, talentRank, talentGroup) VALUES (?, ?, ?, ?)"
+            }
+            Self::UPD_CHAR_LIST_SLOT => {
+                "UPDATE characters SET slot = ? WHERE guid = ? AND account = ?"
+            }
+            Self::INS_CHAR_FISHINGSTEPS => {
+                "INSERT INTO character_fishingsteps (guid, fishingSteps) VALUES (?, ?)"
+            }
+            Self::DEL_CHAR_FISHINGSTEPS => "DELETE FROM character_fishingsteps WHERE guid = ?",
+            Self::SEL_CHAR_TRAIT_ENTRIES => {
+                "SELECT traitConfigId, traitNodeId, traitNodeEntryId, `rank`, grantedRanks FROM character_trait_entry WHERE guid = ?"
+            }
+            Self::INS_CHAR_TRAIT_ENTRIES => {
+                "INSERT INTO character_trait_entry (guid, traitConfigId, traitNodeId, traitNodeEntryId, `rank`, grantedRanks) VALUES (?, ?, ?, ?, ?, ?)"
+            }
+            Self::DEL_CHAR_TRAIT_ENTRIES => {
+                "DELETE FROM character_trait_entry WHERE guid = ? AND traitConfigId = ?"
+            }
+            Self::DEL_CHAR_TRAIT_ENTRIES_BY_CHAR => {
+                "DELETE FROM character_trait_entry WHERE guid = ?"
+            }
+            Self::SEL_CHAR_TRAIT_CONFIGS => {
+                "SELECT traitConfigId, type, chrSpecializationId, combatConfigFlags, localIdentifier, skillLineId, traitSystemId, `name` FROM character_trait_config WHERE guid = ?"
+            }
+            Self::INS_CHAR_TRAIT_CONFIGS => {
+                "INSERT INTO character_trait_config (guid, traitConfigId, type, chrSpecializationId, combatConfigFlags, localIdentifier, skillLineId, traitSystemId, `name`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            }
+            Self::DEL_CHAR_TRAIT_CONFIGS => {
+                "DELETE FROM character_trait_config WHERE guid = ? AND traitConfigId = ?"
+            }
+            Self::DEL_CHAR_TRAIT_CONFIGS_BY_CHAR => {
+                "DELETE FROM character_trait_config WHERE guid = ?"
+            }
             Self::UPD_CHAR_XP => "UPDATE characters SET xp = ? WHERE guid = ?",
             Self::UPD_CHAR_LEVEL => "UPDATE characters SET level = ?, xp = ? WHERE guid = ?",
             Self::UPD_CHAR_MONEY => "UPDATE characters SET money = ? WHERE guid = ?",
@@ -3981,6 +4191,173 @@ mod tests {
                 .matches('?')
                 .count(),
             1
+        );
+    }
+
+    #[test]
+    fn character_quest_skill_spell_stats_trait_save_statements_match_cpp_sql_exactly() {
+        assert_eq!(
+            CharStatements::DEL_CHAR_INVENTORY_BY_BAG_SLOT.sql(),
+            "DELETE FROM character_inventory WHERE bag = ? AND slot = ? AND guid = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_MAIL.sql(),
+            "UPDATE mail SET has_items = ?, expire_time = ?, deliver_time = ?, money = ?, cod = ?, checked = ? WHERE id = ?"
+        );
+        assert_eq!(
+            CharStatements::REP_CHAR_QUESTSTATUS.sql(),
+            "REPLACE INTO character_queststatus (guid, quest, status, explored, acceptTime, endTime) VALUES (?, ?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_QUESTSTATUS_BY_QUEST.sql(),
+            "DELETE FROM character_queststatus WHERE guid = ? AND quest = ?"
+        );
+        assert_eq!(
+            CharStatements::REP_CHAR_QUEST_STATUS_OBJECTIVES.sql(),
+            "REPLACE INTO character_queststatus_objectives (guid, quest, objective, data) VALUES (?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_QUEST_STATUS_OBJECTIVES_BY_QUEST.sql(),
+            "DELETE FROM character_queststatus_objectives WHERE guid = ? AND quest = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_CHAR_QUESTSTATUS_OBJECTIVES_CRITERIA.sql(),
+            "INSERT INTO character_queststatus_objectives_criteria (guid, questObjectiveId) VALUES (?, ?)"
+        );
+        assert_eq!(
+            CharStatements::INS_CHAR_QUESTSTATUS_OBJECTIVES_CRITERIA_PROGRESS.sql(),
+            "INSERT INTO character_queststatus_objectives_criteria_progress (guid, criteriaId, counter, date) VALUES (?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::INS_CHAR_QUESTSTATUS_REWARDED.sql(),
+            "INSERT IGNORE INTO character_queststatus_rewarded (guid, quest, active) VALUES (?, ?, 1)"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_QUESTSTATUS_REWARDED_BY_QUEST.sql(),
+            "DELETE FROM character_queststatus_rewarded WHERE guid = ? AND quest = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_CHAR_QUESTSTATUS_REWARDED_FACTION_CHANGE.sql(),
+            "UPDATE character_queststatus_rewarded SET quest = ? WHERE quest = ? AND guid = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_CHAR_QUESTSTATUS_REWARDED_ACTIVE.sql(),
+            "UPDATE character_queststatus_rewarded SET active = 1 WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_CHAR_QUESTSTATUS_REWARDED_ACTIVE_BY_QUEST.sql(),
+            "UPDATE character_queststatus_rewarded SET active = 0 WHERE quest = ? AND guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_INVALID_QUEST_PROGRESS_CRITERIA.sql(),
+            "DELETE FROM character_queststatus_objectives_criteria WHERE questObjectiveId = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_SKILL_BY_SKILL.sql(),
+            "DELETE FROM character_skills WHERE guid = ? AND skill = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_CHAR_SKILLS.sql(),
+            "INSERT INTO character_skills (guid, skill, value, max, professionSlot) VALUES (?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::UPD_CHAR_SKILLS.sql(),
+            "UPDATE character_skills SET value = ?, max = ?, professionSlot = ? WHERE guid = ? AND skill = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_CHAR_SPELL.sql(),
+            "INSERT INTO character_spell (guid, spell, active, disabled) VALUES (?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_SPELL_FAVORITE.sql(),
+            "DELETE FROM character_spell_favorite WHERE guid = ? AND spell = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_SPELL_FAVORITE_BY_CHAR.sql(),
+            "DELETE FROM character_spell_favorite WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_CHAR_SPELL_FAVORITE.sql(),
+            "INSERT INTO character_spell_favorite (guid, spell) VALUES (?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_STATS.sql(),
+            "DELETE FROM character_stats WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_CHAR_STATS.sql(),
+            "INSERT INTO character_stats (guid, maxhealth, maxpower1, maxpower2, maxpower3, maxpower4, maxpower5, maxpower6, maxpower7, maxpower8, maxpower9, maxpower10, strength, agility, stamina, intellect, armor, resHoly, resFire, resNature, resFrost, resShadow, resArcane, blockPct, dodgePct, parryPct, critPct, rangedCritPct, spellCritPct, attackPower, rangedAttackPower, spellPower, resilience, mastery, versatility) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::INS_CHAR_STATS.sql().matches('?').count(),
+            35
+        );
+        assert_eq!(
+            CharStatements::DEL_PETITION_BY_OWNER.sql(),
+            "DELETE FROM petition WHERE ownerguid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_PETITION_SIGNATURE_BY_OWNER.sql(),
+            "DELETE FROM petition_sign WHERE ownerguid = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_CHAR_GLYPHS.sql(),
+            "INSERT INTO character_glyphs (guid, talentGroup, glyphSlot, glyphId) VALUES(?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::INS_CHAR_TALENT.sql(),
+            "INSERT INTO character_talent (guid, talentId, talentRank, talentGroup) VALUES (?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::UPD_CHAR_LIST_SLOT.sql(),
+            "UPDATE characters SET slot = ? WHERE guid = ? AND account = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_CHAR_FISHINGSTEPS.sql(),
+            "INSERT INTO character_fishingsteps (guid, fishingSteps) VALUES (?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_FISHINGSTEPS.sql(),
+            "DELETE FROM character_fishingsteps WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHAR_TRAIT_ENTRIES.sql(),
+            "SELECT traitConfigId, traitNodeId, traitNodeEntryId, `rank`, grantedRanks FROM character_trait_entry WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_CHAR_TRAIT_ENTRIES.sql(),
+            "INSERT INTO character_trait_entry (guid, traitConfigId, traitNodeId, traitNodeEntryId, `rank`, grantedRanks) VALUES (?, ?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_TRAIT_ENTRIES.sql(),
+            "DELETE FROM character_trait_entry WHERE guid = ? AND traitConfigId = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_TRAIT_ENTRIES_BY_CHAR.sql(),
+            "DELETE FROM character_trait_entry WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHAR_TRAIT_CONFIGS.sql(),
+            "SELECT traitConfigId, type, chrSpecializationId, combatConfigFlags, localIdentifier, skillLineId, traitSystemId, `name` FROM character_trait_config WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_CHAR_TRAIT_CONFIGS.sql(),
+            "INSERT INTO character_trait_config (guid, traitConfigId, type, chrSpecializationId, combatConfigFlags, localIdentifier, skillLineId, traitSystemId, `name`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::INS_CHAR_TRAIT_CONFIGS
+                .sql()
+                .matches('?')
+                .count(),
+            9
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_TRAIT_CONFIGS.sql(),
+            "DELETE FROM character_trait_config WHERE guid = ? AND traitConfigId = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_TRAIT_CONFIGS_BY_CHAR.sql(),
+            "DELETE FROM character_trait_config WHERE guid = ?"
         );
     }
 
