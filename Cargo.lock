@@ -3398,6 +3398,7 @@ dependencies = [
  "tokio",
  "tracing",
  "wow-ai",
+ "wow-anticheat",
  "wow-chat",
  "wow-constants",
  "wow-core",

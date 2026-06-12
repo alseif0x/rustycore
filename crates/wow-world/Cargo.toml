@@ -17,6 +17,7 @@ tracing = { workspace = true }
 wow-core = { workspace = true }
 wow-crypto = { workspace = true }
 wow-constants = { workspace = true }
+wow-anticheat = { workspace = true }
 wow-ecs = { workspace = true }
 wow-ai = { workspace = true }
 wow-chat = { workspace = true }

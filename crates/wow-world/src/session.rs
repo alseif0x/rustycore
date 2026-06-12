@@ -24364,137 +24364,30 @@ impl WorldSession {
         &self,
         movement_info: &mut wow_packet::packets::movement::MovementInfo,
     ) -> MovementFlag {
-        let mut removed = MovementFlag::empty();
-        let remove_flags = |movement_info: &mut wow_packet::packets::movement::MovementInfo,
-                            removed: &mut MovementFlag,
-                            flags: MovementFlag| {
-            movement_info.flags.remove(flags);
-            *removed |= flags;
-        };
+        let result = wow_anticheat::validate_movement_info(
+            movement_info,
+            &wow_anticheat::PlayerState {
+                mover_fixed_position_vehicle: self
+                    .represented_mover_fixed_position_vehicle_like_cpp,
+                has_hover_aura: self
+                    .has_represented_aura_effect_like_cpp(RepresentedAuraEffectLikeCpp::Hover),
+                has_water_walk_aura: self
+                    .has_represented_aura_effect_like_cpp(RepresentedAuraEffectLikeCpp::WaterWalk),
+                has_ghost_aura: self
+                    .has_represented_aura_effect_like_cpp(RepresentedAuraEffectLikeCpp::Ghost),
+                has_feather_fall_aura: self.has_represented_aura_effect_like_cpp(
+                    RepresentedAuraEffectLikeCpp::FeatherFall,
+                ),
+                has_fly_aura: self
+                    .has_represented_aura_effect_like_cpp(RepresentedAuraEffectLikeCpp::Fly),
+                has_mounted_flight_speed_aura: self.has_represented_aura_effect_like_cpp(
+                    RepresentedAuraEffectLikeCpp::MountedFlightSpeed,
+                ),
+                is_player_security: !self.player_game_master_like_cpp,
+            },
+        );
 
-        let root_allowed_by_fixed_vehicle_like_cpp =
-            self.represented_mover_fixed_position_vehicle_like_cpp;
-        if movement_info.flags.contains(MovementFlag::ROOT) {
-            if root_allowed_by_fixed_vehicle_like_cpp {
-                if movement_info.flags.intersects(MovementFlag::MASK_MOVING) {
-                    remove_flags(movement_info, &mut removed, MovementFlag::MASK_MOVING);
-                }
-            } else {
-                remove_flags(movement_info, &mut removed, MovementFlag::ROOT);
-            }
-        }
-
-        if movement_info.flags.contains(MovementFlag::HOVER)
-            && !self.has_represented_aura_effect_like_cpp(RepresentedAuraEffectLikeCpp::Hover)
-        {
-            remove_flags(movement_info, &mut removed, MovementFlag::HOVER);
-        }
-
-        if movement_info
-            .flags
-            .contains(MovementFlag::ASCENDING | MovementFlag::DESCENDING)
-        {
-            remove_flags(
-                movement_info,
-                &mut removed,
-                MovementFlag::ASCENDING | MovementFlag::DESCENDING,
-            );
-        }
-
-        if movement_info
-            .flags
-            .contains(MovementFlag::LEFT | MovementFlag::RIGHT)
-        {
-            remove_flags(
-                movement_info,
-                &mut removed,
-                MovementFlag::LEFT | MovementFlag::RIGHT,
-            );
-        }
-
-        if movement_info
-            .flags
-            .contains(MovementFlag::STRAFE_LEFT | MovementFlag::STRAFE_RIGHT)
-        {
-            remove_flags(
-                movement_info,
-                &mut removed,
-                MovementFlag::STRAFE_LEFT | MovementFlag::STRAFE_RIGHT,
-            );
-        }
-
-        if movement_info
-            .flags
-            .contains(MovementFlag::PITCH_UP | MovementFlag::PITCH_DOWN)
-        {
-            remove_flags(
-                movement_info,
-                &mut removed,
-                MovementFlag::PITCH_UP | MovementFlag::PITCH_DOWN,
-            );
-        }
-
-        if movement_info
-            .flags
-            .contains(MovementFlag::FORWARD | MovementFlag::BACKWARD)
-        {
-            remove_flags(
-                movement_info,
-                &mut removed,
-                MovementFlag::FORWARD | MovementFlag::BACKWARD,
-            );
-        }
-
-        if movement_info.flags.contains(MovementFlag::WATER_WALK)
-            && !self.has_represented_aura_effect_like_cpp(RepresentedAuraEffectLikeCpp::WaterWalk)
-            && !self.has_represented_aura_effect_like_cpp(RepresentedAuraEffectLikeCpp::Ghost)
-        {
-            remove_flags(movement_info, &mut removed, MovementFlag::WATER_WALK);
-        }
-
-        if movement_info.flags.contains(MovementFlag::FALLING_SLOW)
-            && !self.has_represented_aura_effect_like_cpp(RepresentedAuraEffectLikeCpp::FeatherFall)
-        {
-            remove_flags(movement_info, &mut removed, MovementFlag::FALLING_SLOW);
-        }
-
-        if movement_info
-            .flags
-            .intersects(MovementFlag::FLYING | MovementFlag::CAN_FLY)
-            && !self.player_game_master_like_cpp
-            && !self.has_represented_aura_effect_like_cpp(RepresentedAuraEffectLikeCpp::Fly)
-            && !self.has_represented_aura_effect_like_cpp(
-                RepresentedAuraEffectLikeCpp::MountedFlightSpeed,
-            )
-        {
-            remove_flags(
-                movement_info,
-                &mut removed,
-                MovementFlag::FLYING | MovementFlag::CAN_FLY,
-            );
-        }
-
-        if movement_info
-            .flags
-            .intersects(MovementFlag::DISABLE_GRAVITY | MovementFlag::CAN_FLY)
-            && movement_info.flags.contains(MovementFlag::FALLING)
-        {
-            remove_flags(movement_info, &mut removed, MovementFlag::FALLING);
-        }
-
-        let has_step_up_elevation_like_cpp =
-            movement_info.step_up_start_elevation.abs() > f32::EPSILON;
-        if movement_info.flags.contains(MovementFlag::SPLINE_ELEVATION)
-            && !has_step_up_elevation_like_cpp
-        {
-            remove_flags(movement_info, &mut removed, MovementFlag::SPLINE_ELEVATION);
-        }
-
-        if has_step_up_elevation_like_cpp {
-            movement_info.flags.insert(MovementFlag::SPLINE_ELEVATION);
-        }
-
-        removed
+        result.removed_flags
     }
 
     pub(crate) fn record_movement_ack_event_like_cpp(&mut self, event: MovementAckEventLikeCpp) {
