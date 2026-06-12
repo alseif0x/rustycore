@@ -10,6 +10,18 @@ use super::StatementDef;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(non_camel_case_types)]
 pub enum CharStatements {
+    /// DELETE FROM pool_quest_save WHERE pool_id = ?
+    DEL_POOL_QUEST_SAVE,
+
+    /// INSERT INTO pool_quest_save (pool_id, quest_id) VALUES (?, ?)
+    INS_POOL_QUEST_SAVE,
+
+    /// DELETE FROM guild_bank_item WHERE guildid = ? AND TabId = ? AND SlotId = ?
+    DEL_NONEXISTENT_GUILD_BANK_ITEM,
+
+    /// UPDATE character_banned SET active = 0 WHERE unbandate <= UNIX_TIMESTAMP() AND unbandate <> bandate
+    DEL_EXPIRED_BANS,
+
     /// SELECT c.guid, c.name, c.race, c.class, c.gender, c.level, c.zone, c.map,
     /// c.position_x, c.position_y, c.position_z, IFNULL(gm.guildid, 0), c.playerFlags,
     /// c.at_login, c.equipmentCache, c.lastLoginBuild
@@ -17,11 +29,47 @@ pub enum CharStatements {
     /// WHERE c.account = ? AND c.deleteInfos_Name IS NULL
     SEL_ENUM,
 
-    /// SELECT name FROM characters WHERE name = ?
+    /// SELECT 1 FROM characters WHERE name = ?
     SEL_CHECK_NAME,
 
-    /// SELECT COUNT(*) FROM characters WHERE account = ?
+    /// SELECT 1 FROM characters WHERE guid = ?
+    SEL_CHECK_GUID,
+
+    /// SELECT COUNT(guid) FROM characters WHERE account = ? AND deleteDate IS NULL
     SEL_SUM_CHARS,
+
+    /// SELECT level, race, class FROM characters WHERE account = ? LIMIT 0, ?
+    SEL_CHAR_CREATE_INFO,
+
+    /// INSERT INTO character_banned (guid, bandate, unbandate, bannedby, banreason, active) VALUES (?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()+?, ?, ?, 1)
+    INS_CHARACTER_BAN,
+
+    /// UPDATE character_banned SET active = 0 WHERE guid = ? AND active != 0
+    UPD_CHARACTER_BAN,
+
+    /// DELETE cb FROM character_banned cb INNER JOIN characters c ON c.guid = cb.guid WHERE c.account = ?
+    DEL_CHARACTER_BAN,
+
+    /// SELECT bandate, unbandate-bandate, active, unbandate, banreason, bannedby FROM character_banned WHERE guid = ? ORDER BY bandate ASC
+    SEL_BANINFO,
+
+    /// SELECT guid, name FROM characters WHERE name LIKE CONCAT('%%', ?, '%%')
+    SEL_GUID_BY_NAME_FILTER,
+
+    /// SELECT bandate, unbandate, bannedby, banreason FROM character_banned WHERE guid = ? ORDER BY unbandate
+    SEL_BANINFO_LIST,
+
+    /// SELECT characters.name FROM characters, character_banned WHERE character_banned.guid = ? AND character_banned.guid = characters.guid
+    SEL_BANNED_NAME,
+
+    /// SELECT COUNT(id) FROM mail WHERE receiver = ?
+    SEL_MAIL_LIST_COUNT,
+
+    /// SELECT mail list metadata for one receiver.
+    SEL_MAIL_LIST_INFO,
+
+    /// SELECT itemEntry,count FROM item_instance WHERE guid = ?
+    SEL_MAIL_LIST_ITEMS,
 
     /// INSERT INTO characters (guid, account, name, race, class, gender, level, money,
     /// zone, map, position_x, position_y, position_z, orientation,
@@ -335,6 +383,16 @@ impl CharStatements {
 impl StatementDef for CharStatements {
     fn sql(self) -> &'static str {
         match self {
+            Self::DEL_POOL_QUEST_SAVE => "DELETE FROM pool_quest_save WHERE pool_id = ?",
+            Self::INS_POOL_QUEST_SAVE => {
+                "INSERT INTO pool_quest_save (pool_id, quest_id) VALUES (?, ?)"
+            }
+            Self::DEL_NONEXISTENT_GUILD_BANK_ITEM => {
+                "DELETE FROM guild_bank_item WHERE guildid = ? AND TabId = ? AND SlotId = ?"
+            }
+            Self::DEL_EXPIRED_BANS => {
+                "UPDATE character_banned SET active = 0 WHERE unbandate <= UNIX_TIMESTAMP() AND unbandate <> bandate"
+            }
             Self::SEL_ENUM => {
                 "SELECT c.guid, c.name, c.race, c.class, c.gender, c.level, c.zone, c.map, \
                  c.position_x, c.position_y, c.position_z, IFNULL(gm.guildid, 0), c.playerFlags, \
@@ -343,8 +401,40 @@ impl StatementDef for CharStatements {
                  LEFT JOIN guild_member AS gm ON c.guid = gm.guid \
                  WHERE c.account = ? AND c.deleteInfos_Name IS NULL"
             }
-            Self::SEL_CHECK_NAME => "SELECT name FROM characters WHERE name = ?",
-            Self::SEL_SUM_CHARS => "SELECT COUNT(*) FROM characters WHERE account = ?",
+            Self::SEL_CHECK_NAME => "SELECT 1 FROM characters WHERE name = ?",
+            Self::SEL_CHECK_GUID => "SELECT 1 FROM characters WHERE guid = ?",
+            Self::SEL_SUM_CHARS => {
+                "SELECT COUNT(guid) FROM characters WHERE account = ? AND deleteDate IS NULL"
+            }
+            Self::SEL_CHAR_CREATE_INFO => {
+                "SELECT level, race, class FROM characters WHERE account = ? LIMIT 0, ?"
+            }
+            Self::INS_CHARACTER_BAN => {
+                "INSERT INTO character_banned (guid, bandate, unbandate, bannedby, banreason, active) VALUES (?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()+?, ?, ?, 1)"
+            }
+            Self::UPD_CHARACTER_BAN => {
+                "UPDATE character_banned SET active = 0 WHERE guid = ? AND active != 0"
+            }
+            Self::DEL_CHARACTER_BAN => {
+                "DELETE cb FROM character_banned cb INNER JOIN characters c ON c.guid = cb.guid WHERE c.account = ?"
+            }
+            Self::SEL_BANINFO => {
+                "SELECT bandate, unbandate-bandate, active, unbandate, banreason, bannedby FROM character_banned WHERE guid = ? ORDER BY bandate ASC"
+            }
+            Self::SEL_GUID_BY_NAME_FILTER => {
+                "SELECT guid, name FROM characters WHERE name LIKE CONCAT('%%', ?, '%%')"
+            }
+            Self::SEL_BANINFO_LIST => {
+                "SELECT bandate, unbandate, bannedby, banreason FROM character_banned WHERE guid = ? ORDER BY unbandate"
+            }
+            Self::SEL_BANNED_NAME => {
+                "SELECT characters.name FROM characters, character_banned WHERE character_banned.guid = ? AND character_banned.guid = characters.guid"
+            }
+            Self::SEL_MAIL_LIST_COUNT => "SELECT COUNT(id) FROM mail WHERE receiver = ? ",
+            Self::SEL_MAIL_LIST_INFO => {
+                "SELECT id, sender, (SELECT name FROM characters WHERE guid = sender) AS sendername, receiver, (SELECT name FROM characters WHERE guid = receiver) AS receivername, subject, deliver_time, expire_time, money, has_items FROM mail WHERE receiver = ? "
+            }
+            Self::SEL_MAIL_LIST_ITEMS => "SELECT itemEntry,count FROM item_instance WHERE guid = ?",
             Self::INS_CHARACTER => {
                 "INSERT INTO characters (guid, account, name, race, class, gender, level, money, \
                  zone, map, position_x, position_y, position_z, orientation, \
@@ -900,10 +990,110 @@ mod tests {
     }
 
     #[test]
+    fn character_startup_and_lookup_statements_match_cpp_exactly() {
+        assert_eq!(
+            CharStatements::DEL_POOL_QUEST_SAVE.sql(),
+            "DELETE FROM pool_quest_save WHERE pool_id = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_POOL_QUEST_SAVE.sql(),
+            "INSERT INTO pool_quest_save (pool_id, quest_id) VALUES (?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_NONEXISTENT_GUILD_BANK_ITEM.sql(),
+            "DELETE FROM guild_bank_item WHERE guildid = ? AND TabId = ? AND SlotId = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_EXPIRED_BANS.sql(),
+            "UPDATE character_banned SET active = 0 WHERE unbandate <= UNIX_TIMESTAMP() AND unbandate <> bandate"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHECK_NAME.sql(),
+            "SELECT 1 FROM characters WHERE name = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHECK_GUID.sql(),
+            "SELECT 1 FROM characters WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_SUM_CHARS.sql(),
+            "SELECT COUNT(guid) FROM characters WHERE account = ? AND deleteDate IS NULL"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHAR_CREATE_INFO.sql(),
+            "SELECT level, race, class FROM characters WHERE account = ? LIMIT 0, ?"
+        );
+    }
+
+    #[test]
+    fn character_ban_and_mail_list_statements_match_cpp_exactly() {
+        assert_eq!(
+            CharStatements::INS_CHARACTER_BAN.sql(),
+            "INSERT INTO character_banned (guid, bandate, unbandate, bannedby, banreason, active) VALUES (?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()+?, ?, ?, 1)"
+        );
+        assert_eq!(
+            CharStatements::UPD_CHARACTER_BAN.sql(),
+            "UPDATE character_banned SET active = 0 WHERE guid = ? AND active != 0"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHARACTER_BAN.sql(),
+            "DELETE cb FROM character_banned cb INNER JOIN characters c ON c.guid = cb.guid WHERE c.account = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_BANINFO.sql(),
+            "SELECT bandate, unbandate-bandate, active, unbandate, banreason, bannedby FROM character_banned WHERE guid = ? ORDER BY bandate ASC"
+        );
+        assert_eq!(
+            CharStatements::SEL_GUID_BY_NAME_FILTER.sql(),
+            "SELECT guid, name FROM characters WHERE name LIKE CONCAT('%%', ?, '%%')"
+        );
+        assert_eq!(
+            CharStatements::SEL_BANINFO_LIST.sql(),
+            "SELECT bandate, unbandate, bannedby, banreason FROM character_banned WHERE guid = ? ORDER BY unbandate"
+        );
+        assert_eq!(
+            CharStatements::SEL_BANNED_NAME.sql(),
+            "SELECT characters.name FROM characters, character_banned WHERE character_banned.guid = ? AND character_banned.guid = characters.guid"
+        );
+        assert_eq!(
+            CharStatements::SEL_MAIL_LIST_COUNT.sql(),
+            "SELECT COUNT(id) FROM mail WHERE receiver = ? "
+        );
+        assert_eq!(
+            CharStatements::SEL_MAIL_LIST_INFO.sql(),
+            "SELECT id, sender, (SELECT name FROM characters WHERE guid = sender) AS sendername, receiver, (SELECT name FROM characters WHERE guid = receiver) AS receivername, subject, deliver_time, expire_time, money, has_items FROM mail WHERE receiver = ? "
+        );
+        assert_eq!(
+            CharStatements::SEL_MAIL_LIST_ITEMS.sql(),
+            "SELECT itemEntry,count FROM item_instance WHERE guid = ?"
+        );
+    }
+
+    #[test]
     fn char_statements_have_sql() {
+        assert!(!CharStatements::DEL_POOL_QUEST_SAVE.sql().is_empty());
+        assert!(!CharStatements::INS_POOL_QUEST_SAVE.sql().is_empty());
+        assert!(
+            !CharStatements::DEL_NONEXISTENT_GUILD_BANK_ITEM
+                .sql()
+                .is_empty()
+        );
+        assert!(!CharStatements::DEL_EXPIRED_BANS.sql().is_empty());
         assert!(!CharStatements::SEL_ENUM.sql().is_empty());
         assert!(!CharStatements::SEL_CHECK_NAME.sql().is_empty());
+        assert!(!CharStatements::SEL_CHECK_GUID.sql().is_empty());
         assert!(!CharStatements::SEL_SUM_CHARS.sql().is_empty());
+        assert!(!CharStatements::SEL_CHAR_CREATE_INFO.sql().is_empty());
+        assert!(!CharStatements::INS_CHARACTER_BAN.sql().is_empty());
+        assert!(!CharStatements::UPD_CHARACTER_BAN.sql().is_empty());
+        assert!(!CharStatements::DEL_CHARACTER_BAN.sql().is_empty());
+        assert!(!CharStatements::SEL_BANINFO.sql().is_empty());
+        assert!(!CharStatements::SEL_GUID_BY_NAME_FILTER.sql().is_empty());
+        assert!(!CharStatements::SEL_BANINFO_LIST.sql().is_empty());
+        assert!(!CharStatements::SEL_BANNED_NAME.sql().is_empty());
+        assert!(!CharStatements::SEL_MAIL_LIST_COUNT.sql().is_empty());
+        assert!(!CharStatements::SEL_MAIL_LIST_INFO.sql().is_empty());
+        assert!(!CharStatements::SEL_MAIL_LIST_ITEMS.sql().is_empty());
         assert!(!CharStatements::INS_CHARACTER.sql().is_empty());
         assert!(!CharStatements::INS_CHAR_CUSTOMIZATION.sql().is_empty());
         assert!(!CharStatements::DEL_CHARACTER.sql().is_empty());
