@@ -480,7 +480,7 @@ impl StatementDef for WorldStatements {
             Self::SEL_CREATURE_NEAREST => {
                 "SELECT guid, id, position_x, position_y, position_z, map, (POW(position_x - ?, 2) + POW(position_y - ?, 2) + POW(position_z - ?, 2)) AS order_ FROM creature WHERE map = ? AND (POW(position_x - ?, 2) + POW(position_y - ?, 2) + POW(position_z - ?, 2)) <= ? ORDER BY order_"
             }
-            Self::SEL_GAMEOBJECT_TARGET => "", // No SQL registered in C# source
+            Self::SEL_GAMEOBJECT_TARGET => "", // C++ enum exists, but WorldDatabase.cpp does not prepare it.
             Self::INS_CREATURE => concat!(
                 "INSERT INTO creature (guid, id , map, spawnDifficulties, PhaseId, PhaseGroup, modelid, equipment_id, ",
                 "position_x, position_y, position_z, orientation, spawntimesecs, wander_distance, currentwaypoint, ",

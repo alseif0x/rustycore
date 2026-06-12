@@ -105,7 +105,6 @@ pub enum LoginStatements {
     SEL_BNET_ACCOUNT_EMAIL_BY_ID,
     SEL_BNET_ACCOUNT_ID_BY_EMAIL,
     UPD_BNET_LOGON,
-    SEL_BNET_ACCOUNT_SALT_BY_ID,
     SEL_BNET_CHECK_PASSWORD,
     SEL_BNET_CHECK_PASSWORD_BY_EMAIL,
     UPD_BNET_ACCOUNT_LOCK,
@@ -397,7 +396,6 @@ impl StatementDef for LoginStatements {
             Self::UPD_BNET_LOGON => {
                 "UPDATE battlenet_accounts SET srp_version = ?, salt = ?, verifier = ? WHERE id = ?"
             }
-            Self::SEL_BNET_ACCOUNT_SALT_BY_ID => "", // No SQL registered in C# source
             Self::SEL_BNET_CHECK_PASSWORD => {
                 "SELECT srp_version, COALESCE(salt, 0x0000000000000000000000000000000000000000000000000000000000000000), verifier FROM battlenet_accounts WHERE id = ?"
             }

@@ -170,9 +170,9 @@ This module **is** the SQL queries. The exhaustive list lives in `crates/wow-dat
 
 | DB | Statements wired in Rust | Statements in C# `LoginStatements` / `CharStatements` / etc. | Coverage |
 |---|---|---|---|
-| `auth` | 148 (`login.rs`, **1 empty stub**: `SEL_BNET_ACCOUNT_SALT_BY_ID`) | 148 (matches) | ✅ ~99% |
+| `auth` | 147 (`login.rs`, no Rust-only empty stubs) | 147 active prepared SQL statements + C++ enum-only sentinel names | ✅ ~99% |
 | `characters` | 28 (`character.rs`) | ~280 in TC C++ | ⚠️ ~10% (only login + character-list + minimal save) |
-| `world` | ~120 (`world.rs`, **1 empty stub**: `SEL_GAMEOBJECT_TARGET`) | ~200+ in TC C++ | ⚠️ ~60% |
+| `world` | ~120 (`world.rs`, `SEL_GAMEOBJECT_TARGET` intentionally mirrors a C++ enum value with no `PrepareStatement`) | ~200+ in TC C++ | ⚠️ ~60% |
 | `hotfixes` | 15 named live statements + generated helpers (`hotfix.rs`) | 325 base + 325 max-id + 95 locale generated families; 3 direct control queries | ⚠️ hybrid strategy |
 
 The 4 schemas are queried by Rust as follows (representative per DB):
@@ -259,7 +259,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 - [ ] **#DBS.6** Extend `CharStatements` to cover inventory save (`UPD_ITEM_INSTANCE`, `INS_CHARACTER_INVENTORY`, …), quest save (`INS_CHARACTER_QUESTSTATUS`, `INS_CHARACTER_QUESTSTATUS_OBJECTIVES`, …), social, mail, AH, guild bank — target ~120 of the ~280 C# statements. (XL — split per domain)
 - [ ] **#DBS.7** Document operator install runbook (`docs/operations/db-bootstrap.md`): create user, create 4 DBs, source the 4 base dumps, run TDB world content import, smoke-test connection from `world-server`. (M)
 - [ ] **#DBS.8** Add an integration test target: spin up MariaDB in CI, apply schemas, run pool-warmup + a SELECT on every wired statement to detect column drift before runtime. (H)
-- [ ] **#DBS.9** Replace `SEL_GAMEOBJECT_TARGET` / `SEL_BNET_ACCOUNT_SALT_BY_ID` empty-string stubs with real SQL or remove the variants entirely. (L)
+- [x] **#DBS.9** Resolve `SEL_GAMEOBJECT_TARGET` / `SEL_BNET_ACCOUNT_SALT_BY_ID` empty-string stubs: removed Rust-only `SEL_BNET_ACCOUNT_SALT_BY_ID`; kept `SEL_GAMEOBJECT_TARGET` as an explicit C++ enum-without-`PrepareStatement` mirror instead of inventing non-canonical SQL. (L)
 - [ ] **#DBS.10** Add a schema-version sentinel in code (`pub const REQUIRED_TDB_VERSION: &str = "TDB_full_world_3.4.3_…";`) compared against `world.version` table on boot. (L)
 
 ---

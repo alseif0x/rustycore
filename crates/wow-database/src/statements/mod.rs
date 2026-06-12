@@ -56,16 +56,6 @@ mod tests {
     }
 
     #[test]
-    fn login_unregistered_statement_is_empty() {
-        // SEL_BNET_ACCOUNT_SALT_BY_ID has no SQL in C# source
-        assert!(
-            LoginStatements::SEL_BNET_ACCOUNT_SALT_BY_ID
-                .sql()
-                .is_empty()
-        );
-    }
-
-    #[test]
     fn character_skill_statement_matches_cpp_shape() {
         let sql = CharStatements::SEL_CHARACTER_SKILLS.sql();
         assert!(sql.contains("skill, value, max, professionSlot"));
@@ -322,7 +312,8 @@ mod tests {
 
     #[test]
     fn world_unregistered_statement_is_empty() {
-        // SEL_GAMEOBJECT_TARGET has no SQL in C# source
+        // C++ declares WORLD_SEL_GAMEOBJECT_TARGET in the enum but never registers
+        // a PrepareStatement for it in WorldDatabase.cpp.
         assert!(WorldStatements::SEL_GAMEOBJECT_TARGET.sql().is_empty());
     }
 
