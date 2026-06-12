@@ -2803,6 +2803,8 @@ pub struct WorldSession {
     player_position: Option<wow_core::Position>,
     /// Last accepted player movement flags, mirroring C++ `Unit::m_movementInfo`.
     player_movement_flags_like_cpp: MovementFlag,
+    /// Represented `m_unitMovedByMe->GetVehicle()->GetVehicleInfo()->Flags & VEHICLE_FLAG_FIXED_POSITION`.
+    represented_mover_fixed_position_vehicle_like_cpp: bool,
     /// Last terrain liquid status, mirroring C++ `WorldObject::m_liquidStatus`.
     player_liquid_status_like_cpp: u32,
 
@@ -3912,6 +3914,7 @@ impl WorldSession {
             realm_send_tx: None,
             player_position: None,
             player_movement_flags_like_cpp: MovementFlag::NONE,
+            represented_mover_fixed_position_vehicle_like_cpp: false,
             player_liquid_status_like_cpp: 0,
             player_name: None,
             auto_reply_msg_like_cpp: String::new(),
@@ -18590,6 +18593,10 @@ impl WorldSession {
         self.player_movement_flags_like_cpp = flags;
     }
 
+    pub(crate) fn set_represented_mover_fixed_position_vehicle_like_cpp(&mut self, fixed: bool) {
+        self.represented_mover_fixed_position_vehicle_like_cpp = fixed;
+    }
+
     #[allow(dead_code)]
     pub(crate) fn set_player_liquid_status_like_cpp(&mut self, status: u32) {
         self.player_liquid_status_like_cpp = status;
@@ -24365,7 +24372,8 @@ impl WorldSession {
             *removed |= flags;
         };
 
-        let root_allowed_by_fixed_vehicle_like_cpp = false;
+        let root_allowed_by_fixed_vehicle_like_cpp =
+            self.represented_mover_fixed_position_vehicle_like_cpp;
         if movement_info.flags.contains(MovementFlag::ROOT) {
             if root_allowed_by_fixed_vehicle_like_cpp {
                 if movement_info.flags.intersects(MovementFlag::MASK_MOVING) {

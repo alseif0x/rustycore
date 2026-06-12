@@ -1214,6 +1214,29 @@ mod tests {
     }
 
     #[test]
+    fn validate_movement_info_keeps_root_for_fixed_position_vehicle_like_cpp() {
+        let mut session = make_session();
+        session.set_represented_mover_fixed_position_vehicle_like_cpp(true);
+
+        let mut rooted = MovementInfo {
+            flags: MovementFlag::ROOT,
+            ..MovementInfo::default()
+        };
+        let removed = session.sanitize_movement_info_flags_represented_like_cpp(&mut rooted);
+        assert!(removed.is_empty());
+        assert_eq!(rooted.flags, MovementFlag::ROOT);
+
+        let mut rooted_moving = MovementInfo {
+            flags: MovementFlag::ROOT | MovementFlag::FORWARD,
+            ..MovementInfo::default()
+        };
+        let removed = session.sanitize_movement_info_flags_represented_like_cpp(&mut rooted_moving);
+        assert!(removed.contains(MovementFlag::FORWARD));
+        assert!(!removed.contains(MovementFlag::ROOT));
+        assert_eq!(rooted_moving.flags, MovementFlag::ROOT);
+    }
+
+    #[test]
     fn validate_movement_info_keeps_represented_allowed_aura_flags() {
         let mut session = make_session();
         session
