@@ -141,7 +141,7 @@ Int	CONFIG_INTERVAL_CHANGEWEATHER	server/game/World/World.h:237	ChangeWeatherInt
 Int	CONFIG_INTERVAL_DISCONNECT_TOLERANCE	server/game/World/World.h:238	DisconnectToleranceInterval	Int	server/game/World/World.cpp:812	0		missing_in_rust	-
 Int	CONFIG_PORT_WORLD	server/game/World/World.h:239	WorldServerPort	Int	server/game/World/World.cpp:854	8085	get_value:crates/world-server/src/main.rs:458	rust_exact_key	-
 Int	CONFIG_PORT_INSTANCE	server/game/World/World.h:240	InstanceServerPort	Int	server/game/World/World.cpp:855	8086	get_value:crates/world-server/src/main.rs:459	rust_exact_key	-
-Int	CONFIG_SOCKET_TIMEOUTTIME	server/game/World/World.h:241	SocketTimeOutTime	Int	server/game/World/World.cpp:859	900000		missing_in_rust	-
+Int	CONFIG_SOCKET_TIMEOUTTIME	server/game/World/World.h:241	SocketTimeOutTime	Int	server/game/World/World.cpp:859	900000	crates/world-server/src/main.rs; crates/wow-network/src/accept.rs; crates/wow-world/src/session.rs	represented_rust	RustyCore reads CONFIG_SOCKET_TIMEOUTTIME after wow-config's C++-like /1000 conversion and uses it for non-active session timeout deadlines
 Int	CONFIG_SESSION_ADD_DELAY	server/game/World/World.h:242	SessionAddDelay	Int	server/game/World/World.cpp:862	10000		missing_in_rust	-
 Int	CONFIG_GAME_TYPE	server/game/World/World.h:243	GameType	Int	server/game/World/World.cpp:900	0		missing_in_rust	-
 Int	CONFIG_REALM_ZONE	server/game/World/World.h:244	RealmZone	Int	server/game/World/World.cpp:909	HARDCODED_DEVELOPMENT_REALM_CATEGORY_ID		missing_in_rust	-
@@ -334,7 +334,7 @@ Int	CONFIG_RESPAWN_RESTARTQUIETTIME	server/game/World/World.h:433	Respawn.Restar
 Int	CONFIG_RESPAWN_DYNAMICMINIMUM_CREATURE	server/game/World/World.h:434	Respawn.DynamicMinimumCreature	Int	server/game/World/World.cpp:1508	10		missing_in_rust	-
 Int	CONFIG_RESPAWN_DYNAMICMINIMUM_GAMEOBJECT	server/game/World/World.h:435	Respawn.DynamicMinimumGameObject	Int	server/game/World/World.cpp:1515	10		missing_in_rust	-
 Int	CONFIG_RESPAWN_GUIDWARNING_FREQUENCY	server/game/World/World.h:436	Respawn.WarningFrequency	Int	server/game/World/World.cpp:1518	1800		missing_in_rust	-
-Int	CONFIG_SOCKET_TIMEOUTTIME_ACTIVE	server/game/World/World.h:437	SocketTimeOutTimeActive	Int	server/game/World/World.cpp:860	60000		missing_in_rust	-
+Int	CONFIG_SOCKET_TIMEOUTTIME_ACTIVE	server/game/World/World.h:437	SocketTimeOutTimeActive	Int	server/game/World/World.cpp:860	60000	crates/world-server/src/main.rs; crates/wow-network/src/accept.rs; crates/wow-world/src/session.rs	represented_rust	RustyCore reads CONFIG_SOCKET_TIMEOUTTIME_ACTIVE after wow-config's C++-like /1000 conversion and uses it once the represented session is LoggedIn; CMSG_KEEP_ALIVE resets only active sessions
 Int	CONFIG_BLACKMARKET_MAXAUCTIONS	server/game/World/World.h:438	BlackMarket.MaxAuctions	Int	server/game/World/World.cpp:1689	12		missing_in_rust	-
 Int	CONFIG_BLACKMARKET_UPDATE_PERIOD	server/game/World/World.h:439	BlackMarket.UpdatePeriod	Int	server/game/World/World.cpp:1690	24		missing_in_rust	-
 Int	CONFIG_FACTION_BALANCE_LEVEL_CHECK_DIFF	server/game/World/World.h:440	Pvp.FactionBalance.LevelCheckDiff	Int	server/game/World/World.cpp:1717	0		missing_in_rust	-

@@ -123,7 +123,7 @@ use wow_network::{
     ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp,
     GameEventQuestCompleteClientOutcomeLikeCpp, GameEventQuestCompleteCommandLikeCpp,
     GroupRegistry, LootDropRatesLikeCpp, PendingInvites, PlayerBroadcastInfo, PlayerRegistry,
-    ReputationRatesLikeCpp, SessionCommand,
+    ReputationRatesLikeCpp, SessionCommand, SocketTimeoutsLikeCpp,
 };
 use wow_packet::packets::item::{
     InventoryChangeFailure, ItemEnchantTimeUpdate, ItemInstance, ItemMod, ItemModList,
@@ -2449,6 +2449,8 @@ pub struct WorldSession {
     // State
     state: SessionState,
     last_packet_time: Instant,
+    socket_timeouts_like_cpp: SocketTimeoutsLikeCpp,
+    socket_timeout_deadline_like_cpp: Instant,
 
     // Dispatch table (built once, shared ref)
     dispatch_table: HashMap<ClientOpcodes, &'static PacketHandlerEntry>,
@@ -3732,6 +3734,9 @@ impl WorldSession {
             session_command_rx,
             state: SessionState::Authed,
             last_packet_time: Instant::now(),
+            socket_timeouts_like_cpp: SocketTimeoutsLikeCpp::default(),
+            socket_timeout_deadline_like_cpp: Instant::now()
+                + Duration::from_secs(SocketTimeoutsLikeCpp::default().unauthenticated_secs),
             dispatch_table: build_dispatch_table(),
             char_db: None,
             login_db: None,
@@ -10674,6 +10679,11 @@ impl WorldSession {
         self.chat_flood_config_like_cpp = config;
     }
 
+    pub fn set_socket_timeouts_like_cpp(&mut self, timeouts: SocketTimeoutsLikeCpp) {
+        self.socket_timeouts_like_cpp = timeouts;
+        self.reset_timeout_time_like_cpp(false);
+    }
+
     pub fn set_mmap_runtime_config_like_cpp(&mut self, config: MMapRuntimeConfigLikeCpp) {
         self.mmap_runtime_config_like_cpp = config;
     }
@@ -10708,6 +10718,29 @@ impl WorldSession {
 
     pub(crate) fn chat_flood_config_like_cpp(&self) -> ChatFloodConfigLikeCpp {
         self.chat_flood_config_like_cpp
+    }
+
+    pub(crate) fn reset_timeout_time_like_cpp(&mut self, only_active: bool) {
+        let timeout_secs = if self.state == SessionState::LoggedIn {
+            Some(self.socket_timeouts_like_cpp.active_secs)
+        } else if !only_active {
+            Some(self.socket_timeouts_like_cpp.unauthenticated_secs)
+        } else {
+            None
+        };
+
+        if let Some(timeout_secs) = timeout_secs {
+            self.socket_timeout_deadline_like_cpp =
+                Instant::now() + Duration::from_secs(timeout_secs);
+        }
+    }
+
+    fn reset_timeout_time_for_packet_like_cpp(&mut self, opcode_raw: u16) {
+        self.reset_timeout_time_like_cpp(opcode_raw == ClientOpcodes::KeepAlive as u16);
+    }
+
+    pub(crate) fn is_connection_idle_like_cpp(&self) -> bool {
+        Instant::now() > self.socket_timeout_deadline_like_cpp
     }
 
     pub(crate) fn update_speak_time_like_cpp(&mut self, index: ChatFloodThrottleIndexLikeCpp) {
@@ -15484,17 +15517,19 @@ impl WorldSession {
             };
 
             self.last_packet_time = Instant::now();
+            self.reset_timeout_time_for_packet_like_cpp(pkt.opcode_raw());
             self.pending_packets.push(pkt);
             processed += 1;
         }
 
         // Also drain the realm socket channel (after ConnectTo, realm-type
         // packets like BattlenetRequest, Ping, etc. arrive here)
-        if let Some(ref realm_rx) = self.realm_packet_rx {
+        if let Some(realm_rx) = self.realm_packet_rx.clone() {
             while processed < MAX_PACKETS_PER_UPDATE {
                 match realm_rx.try_recv() {
                     Ok(pkt) => {
                         self.last_packet_time = Instant::now();
+                        self.reset_timeout_time_for_packet_like_cpp(pkt.opcode_raw());
                         self.pending_packets.push(pkt);
                         processed += 1;
                     }
@@ -15511,6 +15546,14 @@ impl WorldSession {
                     }
                 }
             }
+        }
+
+        if self.is_connection_idle_like_cpp() {
+            debug!(
+                "Session account {} timed out by SocketTimeOutTime-like deadline",
+                self.account_id
+            );
+            self.state = SessionState::Disconnecting;
         }
 
         // ── Creature / player combat ticks ─────────────────────────
@@ -55293,6 +55336,68 @@ mod tests {
         let processed = session.update(100);
         assert_eq!(processed, 5);
         assert_eq!(session.pending_packets.len(), 5);
+    }
+
+    #[test]
+    fn update_disconnects_when_socket_timeout_deadline_expired_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_socket_timeouts_like_cpp(SocketTimeoutsLikeCpp {
+            unauthenticated_secs: 60,
+            active_secs: 30,
+        });
+        session.socket_timeout_deadline_like_cpp = Instant::now() - Duration::from_secs(1);
+
+        assert_eq!(session.update(100), 0);
+        assert!(session.is_disconnecting());
+    }
+
+    #[test]
+    fn update_resets_socket_timeout_on_regular_packet_like_cpp() {
+        let (mut session, pkt_tx, _) = make_session();
+        session.set_socket_timeouts_like_cpp(SocketTimeoutsLikeCpp {
+            unauthenticated_secs: 60,
+            active_secs: 30,
+        });
+        session.socket_timeout_deadline_like_cpp = Instant::now() - Duration::from_secs(1);
+        pkt_tx
+            .send(WorldPacket::from_bytes(&[0x00, 0x00]))
+            .expect("packet queued");
+
+        assert_eq!(session.update(100), 1);
+        assert!(!session.is_disconnecting());
+    }
+
+    #[test]
+    fn keep_alive_only_resets_socket_timeout_for_logged_in_session_like_cpp() {
+        let keep_alive_opcode = (ClientOpcodes::KeepAlive as u16).to_le_bytes();
+
+        let (mut authed_session, authed_tx, _) = make_session();
+        authed_session.set_socket_timeouts_like_cpp(SocketTimeoutsLikeCpp {
+            unauthenticated_secs: 60,
+            active_secs: 30,
+        });
+        authed_session.socket_timeout_deadline_like_cpp = Instant::now() - Duration::from_secs(1);
+        authed_tx
+            .send(WorldPacket::from_bytes(&keep_alive_opcode))
+            .expect("keepalive queued");
+
+        assert_eq!(authed_session.update(100), 1);
+        assert!(authed_session.is_disconnecting());
+
+        let (mut logged_in_session, logged_in_tx, _) = make_session();
+        logged_in_session.set_state(SessionState::LoggedIn);
+        logged_in_session.set_socket_timeouts_like_cpp(SocketTimeoutsLikeCpp {
+            unauthenticated_secs: 60,
+            active_secs: 30,
+        });
+        logged_in_session.socket_timeout_deadline_like_cpp =
+            Instant::now() - Duration::from_secs(1);
+        logged_in_tx
+            .send(WorldPacket::from_bytes(&keep_alive_opcode))
+            .expect("keepalive queued");
+
+        assert_eq!(logged_in_session.update(100), 1);
+        assert!(!logged_in_session.is_disconnecting());
     }
 
     #[test]

@@ -121,6 +121,22 @@ impl Default for ChatFloodConfigLikeCpp {
     }
 }
 
+/// C++ `SocketTimeOutTime{,Active}` represented in seconds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SocketTimeoutsLikeCpp {
+    pub unauthenticated_secs: u64,
+    pub active_secs: u64,
+}
+
+impl Default for SocketTimeoutsLikeCpp {
+    fn default() -> Self {
+        Self {
+            unauthenticated_secs: 900,
+            active_secs: 60,
+        }
+    }
+}
+
 /// Resources needed for creating a WorldSession after authentication.
 ///
 /// Held by the accept loop and cloned for each connection.
@@ -248,6 +264,7 @@ pub struct SessionResources {
     pub chat_level_requirements: ChatLevelRequirementsLikeCpp,
     pub chat_flood_config: ChatFloodConfigLikeCpp,
     pub max_overspeed_pings: u32,
+    pub socket_timeouts: SocketTimeoutsLikeCpp,
     pub realm_id: u16,
     /// External (public) IP from `realmlist.address`.
     pub realm_external_address: [u8; 4],

@@ -40,7 +40,7 @@ use wow_network::{
     GameEventQuestCompleteResponseLikeCpp, GroupRegistry, LootDropRatesLikeCpp, PendingInvites,
     PlayerRegistry, ReadyCheckEventLikeCpp, ReputationRatesLikeCpp,
     ResetSeasonalQuestStatusCommand, SendVisibleObjectValuesUpdateCommand, SessionCommand,
-    SessionResources, tick_all_group_ready_checks_like_cpp,
+    SessionResources, SocketTimeoutsLikeCpp, tick_all_group_ready_checks_like_cpp,
 };
 use wow_packet::{
     ServerPacket,
@@ -2261,6 +2261,18 @@ async fn main() -> Result<()> {
             mute_time_secs: world_config_u32(&world_configs, "CONFIG_CHATFLOOD_MUTE_TIME", 10),
         },
         max_overspeed_pings: world_config_u32(&world_configs, "CONFIG_MAX_OVERSPEED_PINGS", 2),
+        socket_timeouts: SocketTimeoutsLikeCpp {
+            unauthenticated_secs: u64::from(world_config_u32(
+                &world_configs,
+                "CONFIG_SOCKET_TIMEOUTTIME",
+                900,
+            )),
+            active_secs: u64::from(world_config_u32(
+                &world_configs,
+                "CONFIG_SOCKET_TIMEOUTTIME_ACTIVE",
+                60,
+            )),
+        },
         realm_id,
         realm_external_address,
         realm_local_address,
@@ -7766,6 +7778,7 @@ async fn create_session(
     session.set_chat_strict_link_checking_kick_like_cpp(resources.chat_strict_link_checking_kick);
     session.set_chat_level_requirements_like_cpp(resources.chat_level_requirements);
     session.set_chat_flood_config_like_cpp(resources.chat_flood_config);
+    session.set_socket_timeouts_like_cpp(resources.socket_timeouts);
     session.set_mmap_runtime_config_like_cpp(mmap_runtime_config);
     if let Some(pathfinder) = mmap_pathfinder {
         session.set_mmap_pathfinder_like_cpp(pathfinder);
@@ -11648,6 +11661,37 @@ MaxRecruitAFriendBonusDistance = 45
         assert_eq!(
             world_config_u32(&configs, "CONFIG_MAX_OVERSPEED_PINGS", 2),
             7
+        );
+    }
+
+    #[test]
+    fn socket_timeouts_read_cpp_world_config_keys_as_seconds() {
+        let _guard = TEST_LOCK.lock().expect("test lock poisoned");
+        wow_config::load_config_from_str(
+            "SocketTimeOutTime = 120000\nSocketTimeOutTimeActive = 45000\n",
+        )
+        .expect("config should load");
+
+        let configs = wow_config::load_world_config_values();
+        let timeouts = wow_network::SocketTimeoutsLikeCpp {
+            unauthenticated_secs: u64::from(world_config_u32(
+                &configs,
+                "CONFIG_SOCKET_TIMEOUTTIME",
+                900,
+            )),
+            active_secs: u64::from(world_config_u32(
+                &configs,
+                "CONFIG_SOCKET_TIMEOUTTIME_ACTIVE",
+                60,
+            )),
+        };
+
+        assert_eq!(
+            timeouts,
+            wow_network::SocketTimeoutsLikeCpp {
+                unauthenticated_secs: 120,
+                active_secs: 45,
+            }
         );
     }
 
