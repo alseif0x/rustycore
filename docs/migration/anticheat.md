@@ -244,8 +244,8 @@ Anticheat is reactive — it does not originate opcodes, it inspects them. Touch
 - [x] Test: speed ack 8.0 vs server 7.0 with no transport → kick fires; ban table not touched (kick policy).
 - [x] Test: speed ack 6.0 vs server 7.0 → correction is recorded, no kick, and no packet is emitted because legacy `SetSpeedRate(GetSpeedRate())` returns early on unchanged rate.
 - [ ] Test: 200 `CMSG_PLAYER_LOGIN` packets in 1 second → DosProtection trips at packet #2, kick fires.
-- [ ] Test: NaN x in position → reject without panic, do not advance `player_position`.
-- [ ] Test: GUID mismatch → reject without state mutation.
+- [x] Test: NaN x in position → reject without panic, do not advance `player_position`, do not broadcast.
+- [x] Test: GUID mismatch → reject without state mutation, do not broadcast.
 - [x] Test: SPLINE_ELEVATION flag with elevation == 0 → flag stripped; non-zero elevation without flag → flag added.
 - [ ] Test: golden — feed a 60-second movement capture, assert exactly N flag-strip events occur (regression-fence the rule set).
 
@@ -254,6 +254,7 @@ Anticheat is reactive — it does not originate opcodes, it inspects them. Touch
 ## 11. Notes / gotchas
 
 - `ValidateMovementInfo` **mutates** the incoming `MovementInfo` and returns `void`. There is no "reject this packet" path — it always returns a sanitized version, and the player keeps moving with the cleaned-up flags. That choice is deliberate (latency tolerance — peers were getting kicked for legitimate desync). When porting, do **not** convert this to a fail-closed reject path.
+- `WorldSession::HandleMovementOpcode` calls `ValidateMovementInfo` before GUID/position rejection in C++ (`MovementHandler.cpp:328-337`); Rust's represented handler now preserves that order before rejecting mismatched GUIDs or invalid coordinates.
 - The fly check (rule 11) is bypassed for `SEC_PLAYER == false` accounts. RustyCore must consult `RBAC::GetSecurity()` analogue, not just an `is_gm` flag.
 - The speed-mismatch kick (rule in `HandleForceSpeedChangeAck`) trips even with **client-side latency spikes**. TC accepts that false-positive rate; our doc must not advertise it as a perfect detector.
 - `m_forced_speed_changes` exists specifically to absorb the mount/run double-ack quirk — without it, every mount toggle kicks the player. Port faithfully.
