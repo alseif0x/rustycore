@@ -1461,6 +1461,40 @@ mod tests {
                 "SqlFields::read_string must share the VARBINARY fallback"
             );
 
+            let (default_charset, default_collation): (String, String) = sqlx::query_as(
+                "SELECT DEFAULT_CHARACTER_SET_NAME, DEFAULT_COLLATION_NAME
+                 FROM information_schema.SCHEMATA
+                 WHERE SCHEMA_NAME = DATABASE()",
+            )
+            .fetch_one(&pool)
+            .await?;
+            assert_eq!(default_charset, "utf8mb4");
+            assert_eq!(default_collation, "utf8mb4_unicode_ci");
+
+            database_wrapper
+                .direct_execute(
+                    "CREATE TABLE `charset_marker` (
+                        `name` VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+                )
+                .await?;
+            database_wrapper
+                .direct_execute("INSERT INTO `charset_marker` (`name`) VALUES ('Жэнь界東京')")
+                .await?;
+            let charset_result = database_wrapper
+                .direct_query("SELECT `name` FROM `charset_marker`")
+                .await?;
+            assert_eq!(
+                charset_result.read_string(0),
+                "Жэнь界東京",
+                "utf8mb4 text must round-trip like the canonical C++ schema"
+            );
+            assert_eq!(
+                charset_result.fields().read::<String>(0),
+                "Жэнь界東京",
+                "typed VARCHAR reads must preserve non-ASCII player-name-class text"
+            );
+
             database_wrapper
                 .direct_execute(
                     "CREATE TABLE `realmlist` (

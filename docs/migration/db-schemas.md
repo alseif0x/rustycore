@@ -271,7 +271,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 - [ ] Test: same as above for `CharStatements` against `characters_database.sql`.
 - [ ] Test: same as above for `WorldStatements` against `world_database.sql`.
 - [ ] Test: `INS_ACCOUNT` placeholder count (7) matches column count (7) — already exists; mirror it for every INS/UPD with > 5 placeholders.
-- [ ] Test: charset round-trip — insert and retrieve a Cyrillic / CJK player name and verify byte-equality.
+- [x] Test: charset round-trip — insert and retrieve a Cyrillic / CJK player-name-class value and verify byte equality in the ignored live MariaDB harness (`utf8mb4_unicode_ci`).
 - [ ] Test: Updater applies a fixture delta SQL only once, records the sha1, and refuses to re-apply when the file is unchanged.
 - [ ] Test: Updater detects a mutated update file (different sha1) and surfaces a warning rather than silently re-running.
 - [ ] Test: `realmlist.gamebuild = 54261` after fresh install (current seed ships `54261`).
@@ -338,7 +338,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 
 1. **Clean-install DB coverage is not proven end-to-end.** RustyCore has populate/update startup support, but still needs a live MariaDB integration test with the canonical SQL files and world content import to prove a fresh machine boots without manual intervention.
 2. **TrinityCore Updater behavior is represented in Rust and exercised against a live DB fixture in CI.** Remaining risk is clean-install coverage using the real canonical base/content files, not the absence of an updater module or harness.
-3. **Charset assumption to verify:** the user-spec said "TC uses `utf8mb4_general_ci` or similar"; **the actual answer is `utf8mb4_unicode_ci`** (with `utf8mb4_bin` on player names). Add a live charset round-trip test before claiming full DB install parity.
+3. **Charset assumption verified:** the user-spec said "TC uses `utf8mb4_general_ci` or similar"; **the actual answer is `utf8mb4_unicode_ci`** (with `utf8mb4_bin` on player names). The live fixture harness now covers a utf8mb4 Cyrillic/CJK round-trip; full DB install parity still requires the real canonical base/content import.
 4. **Hotfixes is no longer a placeholder gap.** The 3 control-table SELECTs and cache loaders are present; per-DB2 mirror selects land per feature/store. This is still not "every generated C++ overlay is consumed", but it is an explicit strategy instead of a missing module.
 5. **Characters DB write-side callsites remain thinner than the statement registry.** The active WotLK prepared statement names are present, but many gameplay systems still need their runtime save/load paths wired and validated through feature-level tests.
 
