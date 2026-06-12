@@ -702,6 +702,36 @@ pub enum CharStatements {
     /// DELETE FROM guild_member_withdraw
     DEL_GUILD_MEMBER_WITHDRAW,
 
+    /// SELECT name, level, race, class, gender, zone, account FROM characters WHERE guid = ?
+    SEL_CHAR_DATA_FOR_GUILD,
+
+    /// DELETE FROM guild_achievement WHERE guildId = ? AND achievement = ?
+    DEL_GUILD_ACHIEVEMENT,
+
+    /// INSERT INTO guild_achievement.
+    INS_GUILD_ACHIEVEMENT,
+
+    /// DELETE FROM guild_achievement_progress WHERE guildId = ? AND criteria = ?
+    DEL_GUILD_ACHIEVEMENT_CRITERIA,
+
+    /// INSERT INTO guild_achievement_progress.
+    INS_GUILD_ACHIEVEMENT_CRITERIA,
+
+    /// DELETE non-static guild achievements by guild id.
+    DEL_ALL_GUILD_ACHIEVEMENTS,
+
+    /// DELETE FROM guild_achievement_progress WHERE guildId = ?
+    DEL_ALL_GUILD_ACHIEVEMENT_CRITERIA,
+
+    /// SELECT achievement, date, guids FROM guild_achievement WHERE guildId = ?
+    SEL_GUILD_ACHIEVEMENT,
+
+    /// SELECT criteria, counter, date, completedGuid FROM guild_achievement_progress WHERE guildId = ?
+    SEL_GUILD_ACHIEVEMENT_CRITERIA,
+
+    /// INSERT/UPDATE guild_newslog.
+    INS_GUILD_NEWS,
+
     /// SELECT bag_ci.slot, ci.slot, ii.itemEntry, ci.item, ii.count, ii.durability, ii.context,
     /// ii.flags, ii.playedTime, ir.paidMoney, ir.paidExtendedCost
     /// FROM character_inventory ci
@@ -1423,6 +1453,36 @@ impl StatementDef for CharStatements {
                 "INSERT INTO guild_member_withdraw (guid, money) VALUES (?, ?) ON DUPLICATE KEY UPDATE money = VALUES (money)"
             }
             Self::DEL_GUILD_MEMBER_WITHDRAW => "DELETE FROM guild_member_withdraw",
+            Self::SEL_CHAR_DATA_FOR_GUILD => {
+                "SELECT name, level, race, class, gender, zone, account FROM characters WHERE guid = ?"
+            }
+            Self::DEL_GUILD_ACHIEVEMENT => {
+                "DELETE FROM guild_achievement WHERE guildId = ? AND achievement = ?"
+            }
+            Self::INS_GUILD_ACHIEVEMENT => {
+                "INSERT INTO guild_achievement (guildId, achievement, date, guids) VALUES (?, ?, ?, ?)"
+            }
+            Self::DEL_GUILD_ACHIEVEMENT_CRITERIA => {
+                "DELETE FROM guild_achievement_progress WHERE guildId = ? AND criteria = ?"
+            }
+            Self::INS_GUILD_ACHIEVEMENT_CRITERIA => {
+                "INSERT INTO guild_achievement_progress (guildId, criteria, counter, date, completedGuid) VALUES (?, ?, ?, ?, ?)"
+            }
+            Self::DEL_ALL_GUILD_ACHIEVEMENTS => {
+                "DELETE FROM guild_achievement WHERE guildId = ? AND achievement NOT IN (5407,5408,5409,5410,5411,5985,6126,6628,6678,6679,6680,8257,8512,8513,9397,9399,10380)"
+            }
+            Self::DEL_ALL_GUILD_ACHIEVEMENT_CRITERIA => {
+                "DELETE FROM guild_achievement_progress WHERE guildId = ?"
+            }
+            Self::SEL_GUILD_ACHIEVEMENT => {
+                "SELECT achievement, date, guids FROM guild_achievement WHERE guildId = ?"
+            }
+            Self::SEL_GUILD_ACHIEVEMENT_CRITERIA => {
+                "SELECT criteria, counter, date, completedGuid FROM guild_achievement_progress WHERE guildId = ?"
+            }
+            Self::INS_GUILD_NEWS => {
+                "INSERT INTO guild_newslog (guildid, LogGuid, EventType, PlayerGuid, Flags, Value, Timestamp) VALUES (?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE LogGuid = VALUES (LogGuid), EventType = VALUES (EventType), PlayerGuid = VALUES (PlayerGuid), Flags = VALUES (Flags), Value = VALUES (Value), Timestamp = VALUES (Timestamp)"
+            }
             Self::SEL_CHAR_BAG_CONTENTS => {
                 "SELECT bag_ci.slot, ci.slot, ii.itemEntry, ci.item, ii.count, ii.durability, ii.context, \
                  ii.flags, ii.playedTime, ir.paidMoney, ir.paidExtendedCost \
@@ -2692,6 +2752,50 @@ mod tests {
         assert_eq!(
             CharStatements::DEL_GUILD_MEMBER_WITHDRAW.sql(),
             "DELETE FROM guild_member_withdraw"
+        );
+    }
+
+    #[test]
+    fn guild_achievement_and_news_statements_match_cpp_sql_exactly() {
+        assert_eq!(
+            CharStatements::SEL_CHAR_DATA_FOR_GUILD.sql(),
+            "SELECT name, level, race, class, gender, zone, account FROM characters WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_GUILD_ACHIEVEMENT.sql(),
+            "DELETE FROM guild_achievement WHERE guildId = ? AND achievement = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_GUILD_ACHIEVEMENT.sql(),
+            "INSERT INTO guild_achievement (guildId, achievement, date, guids) VALUES (?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_GUILD_ACHIEVEMENT_CRITERIA.sql(),
+            "DELETE FROM guild_achievement_progress WHERE guildId = ? AND criteria = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_GUILD_ACHIEVEMENT_CRITERIA.sql(),
+            "INSERT INTO guild_achievement_progress (guildId, criteria, counter, date, completedGuid) VALUES (?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::DEL_ALL_GUILD_ACHIEVEMENTS.sql(),
+            "DELETE FROM guild_achievement WHERE guildId = ? AND achievement NOT IN (5407,5408,5409,5410,5411,5985,6126,6628,6678,6679,6680,8257,8512,8513,9397,9399,10380)"
+        );
+        assert_eq!(
+            CharStatements::DEL_ALL_GUILD_ACHIEVEMENT_CRITERIA.sql(),
+            "DELETE FROM guild_achievement_progress WHERE guildId = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_GUILD_ACHIEVEMENT.sql(),
+            "SELECT achievement, date, guids FROM guild_achievement WHERE guildId = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_GUILD_ACHIEVEMENT_CRITERIA.sql(),
+            "SELECT criteria, counter, date, completedGuid FROM guild_achievement_progress WHERE guildId = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_GUILD_NEWS.sql(),
+            "INSERT INTO guild_newslog (guildid, LogGuid, EventType, PlayerGuid, Flags, Value, Timestamp) VALUES (?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE LogGuid = VALUES (LogGuid), EventType = VALUES (EventType), PlayerGuid = VALUES (PlayerGuid), Flags = VALUES (Flags), Value = VALUES (Value), Timestamp = VALUES (Timestamp)"
         );
     }
 
