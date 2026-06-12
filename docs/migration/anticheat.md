@@ -5,7 +5,7 @@
 > **Layer:** L8 (game-rule policy / enforcement)
 > **Status:** 🔧 partial — movement sanitizer core exists, handler/runtime integration still represented
 > **Audited vs C++:** ⚠️ partial (this document is the audit)
-> **Last updated:** 2026-05-01
+> **Last updated:** 2026-06-12
 
 > Scope note: **inline / heuristic** anticheat only. Warden (binary memory scanning, signed module checksums, MPQ verification) is a separate subsystem and lives in its own migration doc (`warden.md`, TBD). Everything below operates strictly on already-decoded server packets and server-side world state.
 
@@ -83,6 +83,11 @@ Paths relative to `/home/server/woltk-trinity-legacy/`.
 Rust mirrors the common C++ path where rule 1 removes `ROOT` first. In that path `ROOT | FORWARD`
 becomes `FORWARD`, not `ROOT`. Rule 2 only removes moving flags when `ROOT` survives rule 1, which
 requires a fixed-position vehicle context that remains pending with Vehicle runtime.
+
+**Trace nuance:** C++ only logs the raw `REMOVE_VIOLATING_FLAGS(check, mask)` expression under
+`TRINITY_DEBUG`; release builds silently mutate. Rust emits stable per-rule trace identifiers derived
+from the same ordered rule blocks so represented tests and runtime diagnostics can distinguish which
+block fired. Those identifiers are evidence labels, not byte-for-byte C++ log strings.
 
 ### 4.2 Speed-change kick path
 
@@ -221,7 +226,7 @@ Anticheat is reactive — it does not originate opcodes, it inspects them. Touch
 ## 9. Migration sub-tasks
 
 - [x] **#AC.1** Create `crates/wow-anticheat/` skeleton crate with `pub fn validate_movement_info(&mut MovementInfo, &PlayerState) -> ValidationResult`. The crate is workspace-owned, independent from `wow-world`, and has C++-ordered rule evidence for the portable `Player::ValidateMovementInfo` state. (M)
-- [ ] **#AC.2** Port all 14 `ValidateMovementInfo` rules with one unit test per rule. `wow-anticheat` now owns the portable rule order/API, and `wow-world` delegates its represented sanitizer to that crate while preserving fixed-position vehicle `ROOT` ordering, aura/security exceptions, returned removed flags, and broadcast integration. Remaining exactness is full Unit/Aura/Vehicle runtime context and rule-level trace mapping from `ValidationResult`. (H)
+- [ ] **#AC.2** Port all 14 `ValidateMovementInfo` rules with one unit test per rule. `wow-anticheat` now owns the portable rule order/API, and `wow-world` delegates its represented sanitizer to that crate while preserving fixed-position vehicle `ROOT` ordering, aura/security exceptions, returned removed flags, per-rule evidence identifiers, and broadcast integration. Remaining exactness is full Unit/Aura/Vehicle runtime context. (H)
 - [x] **#AC.3** Implement represented speed ACK tracker in `crates/wow-world/src/session.rs`: `forced_speed_changes_like_cpp: [u8; 9]`, represented movement speed rates per move-type, C++ `playerBaseMoveSpeed * rate` expected speed, mismatch threshold `0.01`, transport bypass and event audit. (M)
 - [x] **#AC.4** Wire `HandleForceSpeedChangeAck` / `HandleMoveSetModMovementForceMagnitudeAck`: Rust validates movement ACKs, decrements the C++ counters, skips pending forced changes, records correction when client speed is lower, kicks on client speed/magnitude above server truth, and mirrors the legacy correction path's no-packet behavior caused by `SetSpeedRate(GetSpeedRate())` returning early. Productive `Unit::SetSpeedRate` packet emission remains under Unit runtime, not this represented ACK slice. (M)
 - [x] **#AC.5a** Implement represented `DosProtection` in `WorldSession`: per-session opcode counters keyed by `ClientOpcodes`, evaluated before packets enter `pending_packets`; `Policy=0` logs/allows, `Policy=1` kicks, `Policy=2` kicks and stages a C++-style ban plan. (M)
@@ -249,6 +254,7 @@ Anticheat is reactive — it does not originate opcodes, it inspects them. Touch
 - [x] Test: `MOVEMENTFLAG_FLYING | MOVEMENTFLAG_CAN_FLY` is preserved for represented `SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED`.
 - [x] Test: standalone `wow-anticheat::validate_movement_info` preserves the C++ rule order and mutation-only behavior independently of `WorldSession`.
 - [x] Test: `WorldSession::sanitize_movement_info_flags_represented_like_cpp` delegates through `wow-anticheat` without changing the represented movement tests.
+- [x] Test: represented `WorldSession` sanitizer exposes `wow-anticheat` rule evidence for rule-level trace fanout.
 - [x] Test: speed ack 8.0 vs server 7.0 with no transport → kick fires; ban table not touched (kick policy).
 - [x] Test: speed ack 6.0 vs server 7.0 → correction is recorded, no kick, and no packet is emitted because legacy `SetSpeedRate(GetSpeedRate())` returns early on unchanged rate.
 - [x] Test: repeated `CMSG_PLAYER_LOGIN` packets in one second remain allowed because C++ puts it in the zero-limit group (`maxPacketCounterAllowed == 0`); do **not** add a kick expectation here.

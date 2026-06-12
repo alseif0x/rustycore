@@ -109,17 +109,24 @@ impl WorldSession {
 
         // C++ calls Player::ValidateMovementInfo before rejecting mismatched
         // GUIDs or invalid positions, then broadcasts only the sanitized state.
-        let removed_movement_flags =
-            self.sanitize_movement_info_flags_represented_like_cpp(&mut info.info);
-        if !removed_movement_flags.is_empty() {
-            self.trace_anticheat_violation_like_cpp(
-                "Player.ValidateMovementInfo.MovementFlags",
-                opcode,
-                "strip",
-            );
+        let movement_validation = self.sanitize_movement_info_represented_like_cpp(&mut info.info);
+        if !movement_validation.removed_flags.is_empty() {
+            for rule in movement_validation
+                .stripped_rules
+                .iter()
+                .copied()
+                .filter(|rule| rule.removes_flags_like_cpp())
+            {
+                self.trace_anticheat_violation_like_cpp(
+                    rule.trace_rule_name_like_cpp(),
+                    opcode,
+                    "strip",
+                );
+            }
             trace!(
                 account = self.account_id,
-                removed = ?removed_movement_flags,
+                removed = ?movement_validation.removed_flags,
+                rules = ?movement_validation.stripped_rules,
                 "MovementInfo flags sanitized before position update and broadcast"
             );
         }
@@ -1218,6 +1225,28 @@ mod tests {
             assert!(removed.contains(left | right), "{left:?} | {right:?}");
             assert!(info.flags.is_empty(), "{left:?} | {right:?}");
         }
+    }
+
+    #[test]
+    fn validate_movement_info_reports_rule_evidence_from_anticheat_core() {
+        let session = make_session();
+        let mut info = MovementInfo {
+            flags: MovementFlag::HOVER | MovementFlag::WATER_WALK,
+            ..MovementInfo::default()
+        };
+
+        let result = session.sanitize_movement_info_represented_like_cpp(&mut info);
+
+        assert_eq!(info.flags, MovementFlag::empty());
+        assert!(result.removed_flags.contains(MovementFlag::HOVER));
+        assert!(result.removed_flags.contains(MovementFlag::WATER_WALK));
+        assert_eq!(
+            result.stripped_rules,
+            vec![
+                wow_anticheat::MovementSanitizerRule::HoverWithoutAura,
+                wow_anticheat::MovementSanitizerRule::WaterWalkWithoutAuraOrGhost,
+            ]
+        );
     }
 
     #[test]

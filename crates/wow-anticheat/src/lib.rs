@@ -57,6 +57,43 @@ pub enum MovementSanitizerRule {
     SplineElevationAddedForNonZeroStep,
 }
 
+impl MovementSanitizerRule {
+    #[must_use]
+    pub fn trace_rule_name_like_cpp(self) -> &'static str {
+        match self {
+            Self::RootWithoutFixedVehicle => "Player.ValidateMovementInfo.RootWithoutFixedVehicle",
+            Self::RootWithMovingFlags => "Player.ValidateMovementInfo.RootWithMovingFlags",
+            Self::HoverWithoutAura => "Player.ValidateMovementInfo.HoverWithoutAura",
+            Self::AscendingAndDescending => "Player.ValidateMovementInfo.AscendingAndDescending",
+            Self::LeftAndRight => "Player.ValidateMovementInfo.LeftAndRight",
+            Self::StrafeLeftAndRight => "Player.ValidateMovementInfo.StrafeLeftAndRight",
+            Self::PitchUpAndDown => "Player.ValidateMovementInfo.PitchUpAndDown",
+            Self::ForwardAndBackward => "Player.ValidateMovementInfo.ForwardAndBackward",
+            Self::WaterWalkWithoutAuraOrGhost => {
+                "Player.ValidateMovementInfo.WaterWalkWithoutAuraOrGhost"
+            }
+            Self::FallingSlowWithoutAura => "Player.ValidateMovementInfo.FallingSlowWithoutAura",
+            Self::FlyWithoutAuraOrSecurity => {
+                "Player.ValidateMovementInfo.FlyWithoutAuraOrSecurity"
+            }
+            Self::FallingWithGravityDisabledOrCanFly => {
+                "Player.ValidateMovementInfo.FallingWithGravityDisabledOrCanFly"
+            }
+            Self::SplineElevationWithZeroStep => {
+                "Player.ValidateMovementInfo.SplineElevationWithZeroStep"
+            }
+            Self::SplineElevationAddedForNonZeroStep => {
+                "Player.ValidateMovementInfo.SplineElevationAddedForNonZeroStep"
+            }
+        }
+    }
+
+    #[must_use]
+    pub fn removes_flags_like_cpp(self) -> bool {
+        !matches!(self, Self::SplineElevationAddedForNonZeroStep)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidationResult {
     pub removed_flags: MovementFlag,

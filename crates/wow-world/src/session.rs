@@ -24364,7 +24364,15 @@ impl WorldSession {
         &self,
         movement_info: &mut wow_packet::packets::movement::MovementInfo,
     ) -> MovementFlag {
-        let result = wow_anticheat::validate_movement_info(
+        self.sanitize_movement_info_represented_like_cpp(movement_info)
+            .removed_flags
+    }
+
+    pub(crate) fn sanitize_movement_info_represented_like_cpp(
+        &self,
+        movement_info: &mut wow_packet::packets::movement::MovementInfo,
+    ) -> wow_anticheat::ValidationResult {
+        wow_anticheat::validate_movement_info(
             movement_info,
             &wow_anticheat::PlayerState {
                 mover_fixed_position_vehicle: self
@@ -24385,9 +24393,7 @@ impl WorldSession {
                 ),
                 is_player_security: !self.player_game_master_like_cpp,
             },
-        );
-
-        result.removed_flags
+        )
     }
 
     pub(crate) fn record_movement_ack_event_like_cpp(&mut self, event: MovementAckEventLikeCpp) {
