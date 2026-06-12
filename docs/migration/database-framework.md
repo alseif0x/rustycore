@@ -638,7 +638,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** <1h,
 - [x] **#DB.13** Implement TLS connection options: the parsed sixth `*DatabaseInfo` field (`;ssl`) is passed through to sqlx as `ssl-mode=REQUIRED`; absence or any other value keeps TC-equivalent `ssl-mode=DISABLED`. `DbUpdater` also passes TC's `--ssl` flag to the `mysql` CLI for base-file imports. (M)
 - [x] **#DB.14** Implement `EscapeString` for raw-SQL-fragment use cases: `escape_string_like_cpp` mirrors `mysql_real_escape_string` special-byte escaping (`NUL`, newline, carriage-return, backslash, quotes, Ctrl-Z) for UTF-8 strings, with a `Database` method for pool-style call sites. (L)
 - [x] **#DB.15** Add populate/update error context: Rust reports `Could not populate/update the <DB> database`, and CLI base-file failures include both the SQL file path and `mysql` stderr. `ApplyFile` now also uses TC's `BEGIN; SOURCE file; COMMIT;` wrapper. (L)
-- [ ] **#DB.16** Add integration test harness: spin up an embedded MariaDB (or Docker mariadb:10.6 in CI) and run `populate` + `update` against it; verify updates table population. (H)
+- [x] **#DB.16** Add integration test harness: spin up an embedded MariaDB (or Docker mariadb:10.6 in CI) and run `populate` + `update` against it; verify updates table population. (H)
   - [x] **#DB.16a** Add a gated live MariaDB harness (`updater::tests::live_mariadb_populate_and_update_records_updates_like_cpp`, ignored by default) that creates a disposable `rustycore_it_*` schema, applies a base SQL through the same `mysql -e "BEGIN; SOURCE ...; COMMIT;"` path used by TC/Rust `populate`, runs `update` twice, and verifies `base_marker`, ordered dependent updates, `populate` no-op on a non-empty DB, `updates` tracking rows without duplicate re-application, same-hash update rename without SQL re-apply, `SqlResult`/`SqlFields` `VARBINARY` string fallback against real `MySqlRow` data, and 100 concurrent `LOGIN_SEL_REALMLIST` prepared queries through `Database<LoginStatements>::open_with_pool_size(..., 1)`.
     Run manually with a MariaDB server and `mysql` CLI available:
     `RUSTYCORE_DB_IT_USER=trinity RUSTYCORE_DB_IT_PASS=trinity RUSTYCORE_DB_IT_HOST=127.0.0.1 RUSTYCORE_DB_IT_PORT=3306 cargo test -p wow-database live_mariadb_populate_and_update_records_updates_like_cpp -- --ignored --nocapture`.
@@ -893,12 +893,12 @@ However, **the worldserver audit (`worldserver.md` §13.4) noted there's no glob
 | `GetBinary` (bounded) | `read::<Vec<u8>>` | ✅ |
 | `GetBool` (returns `GetUInt8() == 1`) | `read::<bool>` (sqlx) | ✅ |
 | `IsNull` | `is_null(col)` | ✅ |
-| Per-column `_meta->Type` mismatch warning (debug) | ❌ — sqlx panics on decode failure | ⚠️ #DB.19 |
+| Per-column `_meta->Type` mismatch warning (debug) | `read_typed::<T>` / `try_read_typed::<T>` check `DatabaseFieldTypeLikeCpp` before decode | ✅ #DB.19 |
 | Pluggable `BaseDatabaseResultValueConverter` | ❌ — handler does conversion | ⚠️ N/A — no consumers in port yet |
 
 ### 13.8 Test coverage
 
-13 unit tests covering parameter binding behaviour and statement table presence. **Zero integration tests** exercising a live MariaDB. The CI pipeline does not start a DB; `cargo test --workspace` passes purely with unit tests. **Recommendation**: add #DB.16 to bring up `mariadb:10.6` in a sidecar and run `populate` + `update` + a transaction round-trip.
+`cargo test -p wow-database` covers the pure statement, updater, transaction, loader, query-holder and field-accessor behavior. Live MariaDB coverage is now present through `updater::tests::live_mariadb_populate_and_update_records_updates_like_cpp`, which remains `#[ignore]` for local unit runs and is executed by `.github/workflows/wow-database-live.yml` against `mariadb:10.6`. That harness covers `populate`, `update`, update tracking, idempotency, rename detection, `VARBINARY` string fallback, and a one-connection concurrent `LOGIN_SEL_REALMLIST` query path.
 
 ### 13.9 Cross-references
 
@@ -911,7 +911,7 @@ However, **the worldserver audit (`worldserver.md` §13.4) noted there's no glob
 
 ### 13.10 Verdict
 
-**⚠️ partial.** The framework is structurally correct and operates daily. Active-WotLK `CharacterDatabase` statement naming is closed; the remaining DB risk is integration/runtime behaviour, especially #DB.16 live MariaDB populate/update coverage and the known sync/async sub-pool divergence. The framework is suitable for the dev-server workload and small-to-medium private-server deployment. It may still behave differently from TC under multi-thousand-concurrent-login conditions because Rust merges TC's sync/async sub-pools into one `sqlx` pool.
+**⚠️ partial.** The framework is structurally correct and operates daily. Active-WotLK `CharacterDatabase` statement naming is closed, and #DB.16 now provides a live MariaDB CI harness for the updater path. The remaining DB risk is runtime behavior outside the harness, especially the known sync/async sub-pool divergence, clean-install validation against the full canonical SQL/base/content set, and per-feature DB2 overlay consumers. The framework is suitable for the dev-server workload and small-to-medium private-server deployment. It may still behave differently from TC under multi-thousand-concurrent-login conditions because Rust merges TC's sync/async sub-pools into one `sqlx` pool.
 
 ---
 

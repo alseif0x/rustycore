@@ -3,15 +3,15 @@
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/sql/`
 > **Rust target crate(s):** `crates/wow-database/` (pools + statement registry + updater helpers); world-server startup wires the current updater path.
 > **Layer:** L1 (infrastructure — datastores; sits below `datastores.md` which loads DB2/hotfix into typed stores)
-> **Status:** ⚠️ partial — DB pools, updater helpers, and 4 statement enums exist. Character statement coverage is still partial; hotfix statements use the formal hybrid strategy documented in `database-framework.md`.
-> **Audited vs C++:** ⚠️ partial — schemas counted and grouped vs `crates/wow-database/src/statements/*`; hotfix notes refreshed 2026-06-11.
-> **Last updated:** 2026-06-11
+> **Status:** ⚠️ partial — DB pools, updater helpers, 4 statement enums, active-WotLK character statement names, and a live MariaDB updater harness exist. Full canonical clean-install/content import and per-feature DB2 overlay consumption are still partial.
+> **Audited vs C++:** ⚠️ partial — schemas counted and grouped vs `crates/wow-database/src/statements/*`; hotfix notes refreshed 2026-06-12.
+> **Last updated:** 2026-06-12
 
 ---
 
 ## 1. Purpose
 
-TrinityCore (and its wotlk_classic fork at `woltk-trinity-legacy`) ships **four MariaDB/MySQL schemas** that together store every piece of mutable + content data the server uses: account credentials, banlists, realms (`auth`); player save-state (`characters`); GM-curated game content — spawns, loot tables, quests, scripts (`world`); and the server-authored DB2 hotfix overlay that overrides client static data at runtime (`hotfixes`). The Trinity binary contains an **Updater** subsystem that diffs `sql/updates/<db>/<branch>/` against an `updates` table and auto-applies pending deltas at startup. RustyCore inherits the schemas verbatim (binary-compatible client data + identical prepared-statement SQL) but has **no automated apply path**: schemas must currently be loaded manually via `mysql < auth_database.sql` etc. before either binary will boot past pool initialization.
+TrinityCore (and its wotlk_classic fork at `woltk-trinity-legacy`) ships **four MariaDB/MySQL schemas** that together store every piece of mutable + content data the server uses: account credentials, banlists, realms (`auth`); player save-state (`characters`); GM-curated game content — spawns, loot tables, quests, scripts (`world`); and the server-authored DB2 hotfix overlay that overrides client static data at runtime (`hotfixes`). The Trinity binary contains an **Updater** subsystem that diffs `sql/updates/<db>/<branch>/` against an `updates` table and auto-applies pending deltas at startup. RustyCore now has a `DbUpdater` counterpart and world-server startup wiring for missing-schema create/populate/update, plus a live MariaDB harness for the updater path. Full clean-install parity is still not proven because the canonical base/content files must be present and the large out-of-tree TDB content import is not exercised by CI.
 
 ---
 
@@ -141,7 +141,7 @@ The schemas have no methods, but the **Updater** is the canonical operational en
 | `MySQLConnectionInfo::Parse(str)` | Parses `127.0.0.1;3306;trinity;trinity;auth` 5-token connect string from `*.conf`. | DB pool init |
 | `Field::GetUInt64()` / `GetBinary()` etc. | Per-cell typed accessors used by every prepared-statement call site. | — |
 
-The Rust counterpart is `Database<S: StatementDef>` in `crates/wow-database/src/db.rs` (pool + prepared-statement registry). There is **no** `DBUpdater` analogue.
+The Rust counterparts are `Database<S: StatementDef>` in `crates/wow-database/src/database.rs` (pool + prepared-statement registry) and `DbUpdater` in `crates/wow-database/src/updater.rs` (populate/update orchestration).
 
 ---
 
@@ -211,10 +211,11 @@ Schemas don't carry opcodes directly, but two packet families are bound to the s
 **Files in `/home/server/rustycore`:**
 
 - `crates/wow-database/src/lib.rs` — pool wrapper (`Database<S>`) over `sqlx::MySql`; one type per DB via the `StatementDef` marker trait.
+- `crates/wow-database/src/updater.rs` — TC-style populate/update helper: `mysql` CLI for base imports, `updates_include` scanning, hash/state/rename handling, orphan cleanup, and live MariaDB harness coverage.
 - `crates/wow-database/src/statements/mod.rs` — `StatementDef` trait; exports the 4 statement enums.
-- `crates/wow-database/src/statements/login.rs` — 327 LOC, 148 variants — **complete vs C# `LoginStatements`**.
-- `crates/wow-database/src/statements/character.rs` — 284 LOC, ~28 variants — **partial**, character-creation/login path only; missing inventory save, quest save, mail, AH, guild bank, social, calendar, BG, achievements, instance binds, corpse, talents/glyphs save (~250 missing).
-- `crates/wow-database/src/statements/world.rs` — 371 LOC, ~120 variants — **partial**, focused on spawn/template loading + GM commands.
+- `crates/wow-database/src/statements/login.rs` — `LoginStatements` registry, complete for the active login/realm path.
+- `crates/wow-database/src/statements/character.rs` — active-WotLK `CharacterDatabase` names closed by exact C++ enum name; future-scope BlackMarket names intentionally excluded from active WotLK credit.
+- `crates/wow-database/src/statements/world.rs` — broader loader/runtime statement subset; not every world/content statement is proven through full clean-install CI.
 - `crates/wow-database/src/statements/hotfix.rs` — formal hybrid strategy: 3 control-table statements, selected typed DB2 overlay statements, and generated C++ hotfix SQL helpers.
 - `crates/wow-data/src/hotfix_cache.rs` — `HotfixBlobCache` plus `hotfix_data` / `hotfix_blob` / `hotfix_optional_data` DB loaders.
 - `crates/wow-database/src/world_ext/` — additional helpers for spawn loading (referenced in CLAUDE.md).
@@ -328,20 +329,20 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 - **Key-column types:** `account.salt` / `account.verifier` are `binary(32)` (SRP6, 256-bit). `account.session_key_auth` is `binary(40)` (SRP6 K, **not** SHA-1 password hash — clarified in §11). All GUID-bearing columns are `bigint unsigned`. Updater `hash` is `char(40)` for SHA-1 hex.
 - **Updater filename grammar:** Confirmed via `ls sql/updates/*/wotlk_classic/`. Format: `YYYY_MM_DD_NN_<db>[_<short>].sql` (e.g. `2024_08_17_00_auth.sql`, `2025_04_03_01_fix_trainer_npcflag_16276.sql`). Filename lex-sort = apply order.
 - **Foreign keys:** `auth` has 10 FK constraints (battlenet linkage, RBAC); `characters` / `world` / `hotfixes` have **zero** FKs. Migration order is therefore unconstrained at the DB level — the only ordering constraint is *within* `auth` (battlenet_accounts before account; rbac_permissions before rbac_account_permissions).
-- **Rust statement coverage:** auth is effectively complete for the login path; characters remains partial; world has a broader loader subset; hotfixes use the formal hybrid strategy (3 control tables + selected overlays + generated C++ SQL helpers). Remaining character persistence is still the largest DB statement gap.
-- **Schema-deploy gap reduced:** world-server now has populate/update orchestration, but the operator still needs the canonical SQL/base/content files available and a real MariaDB/MySQL environment. Full clean-install integration coverage is still pending.
-- **Updater:** `crates/wow-database/src/updater.rs` exists and covers the current scan/hash/apply/update-table path. Live DB integration tests are still pending.
+- **Rust statement coverage:** auth is effectively complete for the login path; active-WotLK character prepared-statement names are closed; world has a broader loader/runtime subset; hotfixes use the formal hybrid strategy (3 control tables + selected overlays + generated C++ SQL helpers). Remaining DB work is now more about callsite/runtime usage, full schema/content validation, and per-feature DB2 consumers than missing active character statement names.
+- **Schema-deploy gap reduced:** world-server now has populate/update orchestration, but the operator still needs the canonical SQL/base/content files available and a real MariaDB/MySQL environment. Full clean-install integration coverage with those canonical files is still pending.
+- **Updater:** `crates/wow-database/src/updater.rs` exists and covers the current scan/hash/apply/update-table path. `.github/workflows/wow-database-live.yml` runs the ignored live MariaDB harness against `mariadb:10.6` for the fixture updater path.
 - **`world_database.sql` is DDL-only.** The `dev/` location and the sibling `DO_NOT_IMPORT_THESE_FILES.txt` (3 lines, names the large content dumps) confirm the actual game content (creature/quest/loot rows, ~hundreds of MB) ships out-of-tree as TDB (`TDB_full_world_<version>.sql.7z`). RustyCore needs a separate import step for content even after schema deploy.
 
 **Critical points:**
 
 1. **Clean-install DB coverage is not proven end-to-end.** RustyCore has populate/update startup support, but still needs a live MariaDB integration test with the canonical SQL files and world content import to prove a fresh machine boots without manual intervention.
-2. **TrinityCore Updater behavior is represented in Rust, but not fully exercised against a live DB in CI.** Unit coverage exists for the scan/hash/apply decisions; the remaining risk is operational coverage, not a missing updater module.
+2. **TrinityCore Updater behavior is represented in Rust and exercised against a live DB fixture in CI.** Remaining risk is clean-install coverage using the real canonical base/content files, not the absence of an updater module or harness.
 3. **Charset assumption to verify:** the user-spec said "TC uses `utf8mb4_general_ci` or similar"; **the actual answer is `utf8mb4_unicode_ci`** (with `utf8mb4_bin` on player names). Add a live charset round-trip test before claiming full DB install parity.
 4. **Hotfixes is no longer a placeholder gap.** The 3 control-table SELECTs and cache loaders are present; per-DB2 mirror selects land per feature/store. This is still not "every generated C++ overlay is consumed", but it is an explicit strategy instead of a missing module.
-5. **Characters DB write-side is thinner than reads.** A character can log in, but ~90% of state mutations (inventory pickup, quest accept/complete, talent learn, gold spend, mail receive, AH bid, etc.) lack save statements — meaning a server restart loses recent player progress in many domains.
+5. **Characters DB write-side callsites remain thinner than the statement registry.** The active WotLK prepared statement names are present, but many gameplay systems still need their runtime save/load paths wired and validated through feature-level tests.
 
-**Status verdict:** ⚠️ partial. Pools, updater helpers, login/world startup DB paths, and hotfix control/cache paths are usable. The largest remaining DB work is character write-side persistence, live MariaDB integration coverage, and per-feature DB2 overlay consumers.
+**Status verdict:** ⚠️ partial. Pools, updater helpers, login/world startup DB paths, active-WotLK character statement names, hotfix control/cache paths, and a fixture live MariaDB updater harness are usable. The largest remaining DB work is full canonical clean-install/content validation, character write-side runtime callsites, and per-feature DB2 overlay consumers.
 
 ---
 
