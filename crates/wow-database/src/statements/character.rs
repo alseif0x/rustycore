@@ -22,12 +22,23 @@ pub enum CharStatements {
     /// UPDATE character_banned SET active = 0 WHERE unbandate <= UNIX_TIMESTAMP() AND unbandate <> bandate
     DEL_EXPIRED_BANS,
 
-    /// SELECT c.guid, c.name, c.race, c.class, c.gender, c.level, c.zone, c.map,
-    /// c.position_x, c.position_y, c.position_z, IFNULL(gm.guildid, 0), c.playerFlags,
-    /// c.at_login, c.equipmentCache, c.lastLoginBuild
-    /// FROM characters AS c LEFT JOIN guild_member AS gm ON c.guid = gm.guid
-    /// WHERE c.account = ? AND c.deleteInfos_Name IS NULL
+    /// C++ `CHAR_SEL_ENUM` character-list row query.
     SEL_ENUM,
+
+    /// C++ `CHAR_SEL_ENUM_DECLINED_NAME` character-list row query with genitive declined name.
+    SEL_ENUM_DECLINED_NAME,
+
+    /// C++ `CHAR_SEL_ENUM_CUSTOMIZATIONS` character-list customizations query.
+    SEL_ENUM_CUSTOMIZATIONS,
+
+    /// C++ `CHAR_SEL_UNDELETE_ENUM` deleted-character list row query.
+    SEL_UNDELETE_ENUM,
+
+    /// C++ `CHAR_SEL_UNDELETE_ENUM_DECLINED_NAME` deleted-character list row query with genitive declined name.
+    SEL_UNDELETE_ENUM_DECLINED_NAME,
+
+    /// C++ `CHAR_SEL_UNDELETE_ENUM_CUSTOMIZATIONS` deleted-character customizations query.
+    SEL_UNDELETE_ENUM_CUSTOMIZATIONS,
 
     /// SELECT 1 FROM characters WHERE name = ?
     SEL_CHECK_NAME,
@@ -70,6 +81,27 @@ pub enum CharStatements {
 
     /// SELECT itemEntry,count FROM item_instance WHERE guid = ?
     SEL_MAIL_LIST_ITEMS,
+
+    /// SELECT name, at_login FROM characters WHERE guid = ? AND NOT EXISTS (SELECT NULL FROM characters WHERE name = ?)
+    SEL_FREE_NAME,
+
+    /// SELECT zone FROM characters WHERE guid = ?
+    SEL_CHAR_ZONE,
+
+    /// SELECT map, position_x, position_y, position_z FROM characters WHERE guid = ?
+    SEL_CHAR_POSITION_XYZ,
+
+    /// SELECT position_x, position_y, position_z, orientation, map, taxi_path FROM characters WHERE guid = ?
+    SEL_CHAR_POSITION,
+
+    /// DELETE FROM character_battleground_random
+    DEL_BATTLEGROUND_RANDOM_ALL,
+
+    /// DELETE FROM character_battleground_random WHERE guid = ?
+    DEL_BATTLEGROUND_RANDOM,
+
+    /// INSERT INTO character_battleground_random (guid) VALUES (?)
+    INS_BATTLEGROUND_RANDOM,
 
     /// INSERT INTO characters (guid, account, name, race, class, gender, level, money,
     /// zone, map, position_x, position_y, position_z, orientation,
@@ -406,6 +438,55 @@ impl StatementDef for CharStatements {
                  LEFT JOIN character_banned AS cb ON c.guid = cb.guid AND cb.active = 1 \
                  WHERE c.account = ? AND c.deleteInfos_Name IS NULL"
             }
+            Self::SEL_ENUM_DECLINED_NAME => {
+                "SELECT c.guid, c.name, c.race, c.class, c.gender, c.level, c.zone, c.map, \
+                 c.position_x, c.position_y, c.position_z, gm.guildid, c.playerFlags, \
+                 c.at_login, cp.entry, cp.modelid, cp.level, c.equipmentCache, cb.guid, \
+                 c.slot, c.logout_time, c.activeTalentGroup, c.lastLoginBuild, \
+                 c.personalTabardEmblemStyle, c.personalTabardEmblemColor, \
+                 c.personalTabardBorderStyle, c.personalTabardBorderColor, \
+                 c.personalTabardBackgroundColor, cd.genitive \
+                 FROM characters AS c LEFT JOIN character_pet AS cp ON c.summonedPetNumber = cp.id \
+                 LEFT JOIN guild_member AS gm ON c.guid = gm.guid \
+                 LEFT JOIN character_banned AS cb ON c.guid = cb.guid AND cb.active = 1 \
+                 LEFT JOIN character_declinedname AS cd ON c.guid = cd.guid \
+                 WHERE c.account = ? AND c.deleteInfos_Name IS NULL"
+            }
+            Self::SEL_ENUM_CUSTOMIZATIONS => {
+                "SELECT cc.guid, cc.chrCustomizationOptionID, cc.chrCustomizationChoiceID FROM character_customizations cc \
+                 LEFT JOIN characters c ON cc.guid = c.guid WHERE c.account = ? AND c.deleteInfos_Name IS NULL ORDER BY cc.guid, cc.chrCustomizationOptionID"
+            }
+            Self::SEL_UNDELETE_ENUM => {
+                "SELECT c.guid, c.deleteInfos_Name, c.race, c.class, c.gender, c.level, c.zone, c.map, \
+                 c.position_x, c.position_y, c.position_z, gm.guildid, c.playerFlags, \
+                 c.at_login, cp.entry, cp.modelid, cp.level, c.equipmentCache, cb.guid, \
+                 c.slot, c.logout_time, c.activeTalentGroup, c.lastLoginBuild, \
+                 c.personalTabardEmblemStyle, c.personalTabardEmblemColor, \
+                 c.personalTabardBorderStyle, c.personalTabardBorderColor, \
+                 c.personalTabardBackgroundColor \
+                 FROM characters AS c LEFT JOIN character_pet AS cp ON c.summonedPetNumber = cp.id \
+                 LEFT JOIN guild_member AS gm ON c.guid = gm.guid \
+                 LEFT JOIN character_banned AS cb ON c.guid = cb.guid AND cb.active = 1 \
+                 WHERE c.deleteInfos_Account = ? AND c.deleteInfos_Name IS NOT NULL"
+            }
+            Self::SEL_UNDELETE_ENUM_DECLINED_NAME => {
+                "SELECT c.guid, c.deleteInfos_Name, c.race, c.class, c.gender, c.level, c.zone, c.map, \
+                 c.position_x, c.position_y, c.position_z, gm.guildid, c.playerFlags, \
+                 c.at_login, cp.entry, cp.modelid, cp.level, c.equipmentCache, cb.guid, \
+                 c.slot, c.logout_time, c.activeTalentGroup, c.lastLoginBuild, \
+                 c.personalTabardEmblemStyle, c.personalTabardEmblemColor, \
+                 c.personalTabardBorderStyle, c.personalTabardBorderColor, \
+                 c.personalTabardBackgroundColor, cd.genitive \
+                 FROM characters AS c LEFT JOIN character_pet AS cp ON c.summonedPetNumber = cp.id \
+                 LEFT JOIN guild_member AS gm ON c.guid = gm.guid \
+                 LEFT JOIN character_banned AS cb ON c.guid = cb.guid AND cb.active = 1 \
+                 LEFT JOIN character_declinedname AS cd ON c.guid = cd.guid \
+                 WHERE c.deleteInfos_Account = ? AND c.deleteInfos_Name IS NOT NULL"
+            }
+            Self::SEL_UNDELETE_ENUM_CUSTOMIZATIONS => {
+                "SELECT cc.guid, cc.chrCustomizationOptionID, cc.chrCustomizationChoiceID FROM character_customizations cc \
+                 LEFT JOIN characters c ON cc.guid = c.guid WHERE c.deleteInfos_Account = ? AND c.deleteInfos_Name IS NOT NULL ORDER BY cc.guid, cc.chrCustomizationOptionID"
+            }
             Self::SEL_CHECK_NAME => "SELECT 1 FROM characters WHERE name = ?",
             Self::SEL_CHECK_GUID => "SELECT 1 FROM characters WHERE guid = ?",
             Self::SEL_SUM_CHARS => {
@@ -440,6 +521,23 @@ impl StatementDef for CharStatements {
                 "SELECT id, sender, (SELECT name FROM characters WHERE guid = sender) AS sendername, receiver, (SELECT name FROM characters WHERE guid = receiver) AS receivername, subject, deliver_time, expire_time, money, has_items FROM mail WHERE receiver = ? "
             }
             Self::SEL_MAIL_LIST_ITEMS => "SELECT itemEntry,count FROM item_instance WHERE guid = ?",
+            Self::SEL_FREE_NAME => {
+                "SELECT name, at_login FROM characters WHERE guid = ? AND NOT EXISTS (SELECT NULL FROM characters WHERE name = ?)"
+            }
+            Self::SEL_CHAR_ZONE => "SELECT zone FROM characters WHERE guid = ?",
+            Self::SEL_CHAR_POSITION_XYZ => {
+                "SELECT map, position_x, position_y, position_z FROM characters WHERE guid = ?"
+            }
+            Self::SEL_CHAR_POSITION => {
+                "SELECT position_x, position_y, position_z, orientation, map, taxi_path FROM characters WHERE guid = ?"
+            }
+            Self::DEL_BATTLEGROUND_RANDOM_ALL => "DELETE FROM character_battleground_random",
+            Self::DEL_BATTLEGROUND_RANDOM => {
+                "DELETE FROM character_battleground_random WHERE guid = ?"
+            }
+            Self::INS_BATTLEGROUND_RANDOM => {
+                "INSERT INTO character_battleground_random (guid) VALUES (?)"
+            }
             Self::INS_CHARACTER => {
                 "INSERT INTO characters (guid, account, name, race, class, gender, level, money, \
                  zone, map, position_x, position_y, position_z, orientation, \
@@ -1084,6 +1182,62 @@ mod tests {
     }
 
     #[test]
+    fn character_enum_variants_match_cpp_exactly() {
+        assert_eq!(
+            CharStatements::SEL_ENUM_DECLINED_NAME.sql(),
+            "SELECT c.guid, c.name, c.race, c.class, c.gender, c.level, c.zone, c.map, c.position_x, c.position_y, c.position_z, gm.guildid, c.playerFlags, c.at_login, cp.entry, cp.modelid, cp.level, c.equipmentCache, cb.guid, c.slot, c.logout_time, c.activeTalentGroup, c.lastLoginBuild, c.personalTabardEmblemStyle, c.personalTabardEmblemColor, c.personalTabardBorderStyle, c.personalTabardBorderColor, c.personalTabardBackgroundColor, cd.genitive FROM characters AS c LEFT JOIN character_pet AS cp ON c.summonedPetNumber = cp.id LEFT JOIN guild_member AS gm ON c.guid = gm.guid LEFT JOIN character_banned AS cb ON c.guid = cb.guid AND cb.active = 1 LEFT JOIN character_declinedname AS cd ON c.guid = cd.guid WHERE c.account = ? AND c.deleteInfos_Name IS NULL"
+        );
+        assert_eq!(
+            CharStatements::SEL_ENUM_CUSTOMIZATIONS.sql(),
+            "SELECT cc.guid, cc.chrCustomizationOptionID, cc.chrCustomizationChoiceID FROM character_customizations cc LEFT JOIN characters c ON cc.guid = c.guid WHERE c.account = ? AND c.deleteInfos_Name IS NULL ORDER BY cc.guid, cc.chrCustomizationOptionID"
+        );
+        assert_eq!(
+            CharStatements::SEL_UNDELETE_ENUM.sql(),
+            "SELECT c.guid, c.deleteInfos_Name, c.race, c.class, c.gender, c.level, c.zone, c.map, c.position_x, c.position_y, c.position_z, gm.guildid, c.playerFlags, c.at_login, cp.entry, cp.modelid, cp.level, c.equipmentCache, cb.guid, c.slot, c.logout_time, c.activeTalentGroup, c.lastLoginBuild, c.personalTabardEmblemStyle, c.personalTabardEmblemColor, c.personalTabardBorderStyle, c.personalTabardBorderColor, c.personalTabardBackgroundColor FROM characters AS c LEFT JOIN character_pet AS cp ON c.summonedPetNumber = cp.id LEFT JOIN guild_member AS gm ON c.guid = gm.guid LEFT JOIN character_banned AS cb ON c.guid = cb.guid AND cb.active = 1 WHERE c.deleteInfos_Account = ? AND c.deleteInfos_Name IS NOT NULL"
+        );
+        assert_eq!(
+            CharStatements::SEL_UNDELETE_ENUM_DECLINED_NAME.sql(),
+            "SELECT c.guid, c.deleteInfos_Name, c.race, c.class, c.gender, c.level, c.zone, c.map, c.position_x, c.position_y, c.position_z, gm.guildid, c.playerFlags, c.at_login, cp.entry, cp.modelid, cp.level, c.equipmentCache, cb.guid, c.slot, c.logout_time, c.activeTalentGroup, c.lastLoginBuild, c.personalTabardEmblemStyle, c.personalTabardEmblemColor, c.personalTabardBorderStyle, c.personalTabardBorderColor, c.personalTabardBackgroundColor, cd.genitive FROM characters AS c LEFT JOIN character_pet AS cp ON c.summonedPetNumber = cp.id LEFT JOIN guild_member AS gm ON c.guid = gm.guid LEFT JOIN character_banned AS cb ON c.guid = cb.guid AND cb.active = 1 LEFT JOIN character_declinedname AS cd ON c.guid = cd.guid WHERE c.deleteInfos_Account = ? AND c.deleteInfos_Name IS NOT NULL"
+        );
+        assert_eq!(
+            CharStatements::SEL_UNDELETE_ENUM_CUSTOMIZATIONS.sql(),
+            "SELECT cc.guid, cc.chrCustomizationOptionID, cc.chrCustomizationChoiceID FROM character_customizations cc LEFT JOIN characters c ON cc.guid = c.guid WHERE c.deleteInfos_Account = ? AND c.deleteInfos_Name IS NOT NULL ORDER BY cc.guid, cc.chrCustomizationOptionID"
+        );
+    }
+
+    #[test]
+    fn character_position_and_random_bg_statements_match_cpp_exactly() {
+        assert_eq!(
+            CharStatements::SEL_FREE_NAME.sql(),
+            "SELECT name, at_login FROM characters WHERE guid = ? AND NOT EXISTS (SELECT NULL FROM characters WHERE name = ?)"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHAR_ZONE.sql(),
+            "SELECT zone FROM characters WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHAR_POSITION_XYZ.sql(),
+            "SELECT map, position_x, position_y, position_z FROM characters WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_CHAR_POSITION.sql(),
+            "SELECT position_x, position_y, position_z, orientation, map, taxi_path FROM characters WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_BATTLEGROUND_RANDOM_ALL.sql(),
+            "DELETE FROM character_battleground_random"
+        );
+        assert_eq!(
+            CharStatements::DEL_BATTLEGROUND_RANDOM.sql(),
+            "DELETE FROM character_battleground_random WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::INS_BATTLEGROUND_RANDOM.sql(),
+            "INSERT INTO character_battleground_random (guid) VALUES (?)"
+        );
+    }
+
+    #[test]
     fn char_statements_have_sql() {
         assert!(!CharStatements::DEL_POOL_QUEST_SAVE.sql().is_empty());
         assert!(!CharStatements::INS_POOL_QUEST_SAVE.sql().is_empty());
@@ -1094,6 +1248,19 @@ mod tests {
         );
         assert!(!CharStatements::DEL_EXPIRED_BANS.sql().is_empty());
         assert!(!CharStatements::SEL_ENUM.sql().is_empty());
+        assert!(!CharStatements::SEL_ENUM_DECLINED_NAME.sql().is_empty());
+        assert!(!CharStatements::SEL_ENUM_CUSTOMIZATIONS.sql().is_empty());
+        assert!(!CharStatements::SEL_UNDELETE_ENUM.sql().is_empty());
+        assert!(
+            !CharStatements::SEL_UNDELETE_ENUM_DECLINED_NAME
+                .sql()
+                .is_empty()
+        );
+        assert!(
+            !CharStatements::SEL_UNDELETE_ENUM_CUSTOMIZATIONS
+                .sql()
+                .is_empty()
+        );
         assert!(!CharStatements::SEL_CHECK_NAME.sql().is_empty());
         assert!(!CharStatements::SEL_CHECK_GUID.sql().is_empty());
         assert!(!CharStatements::SEL_SUM_CHARS.sql().is_empty());
@@ -1108,6 +1275,13 @@ mod tests {
         assert!(!CharStatements::SEL_MAIL_LIST_COUNT.sql().is_empty());
         assert!(!CharStatements::SEL_MAIL_LIST_INFO.sql().is_empty());
         assert!(!CharStatements::SEL_MAIL_LIST_ITEMS.sql().is_empty());
+        assert!(!CharStatements::SEL_FREE_NAME.sql().is_empty());
+        assert!(!CharStatements::SEL_CHAR_ZONE.sql().is_empty());
+        assert!(!CharStatements::SEL_CHAR_POSITION_XYZ.sql().is_empty());
+        assert!(!CharStatements::SEL_CHAR_POSITION.sql().is_empty());
+        assert!(!CharStatements::DEL_BATTLEGROUND_RANDOM_ALL.sql().is_empty());
+        assert!(!CharStatements::DEL_BATTLEGROUND_RANDOM.sql().is_empty());
+        assert!(!CharStatements::INS_BATTLEGROUND_RANDOM.sql().is_empty());
         assert!(!CharStatements::INS_CHARACTER.sql().is_empty());
         assert!(!CharStatements::INS_CHAR_CUSTOMIZATION.sql().is_empty());
         assert!(!CharStatements::DEL_CHARACTER.sql().is_empty());
