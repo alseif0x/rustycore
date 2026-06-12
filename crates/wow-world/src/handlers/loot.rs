@@ -2772,6 +2772,9 @@ impl WorldSession {
         let commands = self.drain_session_commands();
         for command in commands {
             match command {
+                SessionCommand::KickLikeCpp(command) => {
+                    self.kick(&command.reason);
+                }
                 SessionCommand::ApplyCreatureMeleeDamageLikeCpp(command) => {
                     self.handle_apply_creature_melee_damage_like_cpp_command_like_cpp(command);
                 }

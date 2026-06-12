@@ -19,6 +19,7 @@ use wow_packet::packets::party::{
 
 #[derive(Clone, Debug)]
 pub enum SessionCommand {
+    KickLikeCpp(KickLikeCppCommand),
     ApplyCreatureMeleeDamageLikeCpp(ApplyCreatureMeleeDamageLikeCppCommand),
     CreatureAttackStartLikeCpp(CreatureAttackStartLikeCppCommand),
     MasterLootGive(MasterLootGiveCommand),
@@ -50,6 +51,13 @@ pub enum SessionCommand {
     /// Mirrors C++ `WorldSession::IsAddonRegistered(prefix)` used by
     /// `Group::BroadcastAddonMessagePacket` and `Player::WhisperAddon`.
     SendAddonIfRegisteredLikeCpp(SendAddonIfRegisteredLikeCppCommand),
+}
+
+/// Cross-session kick command mirroring C++ callers such as `World::BanAccount`
+/// that locate another account session and call `WorldSession::KickPlayer`.
+#[derive(Clone, Debug)]
+pub struct KickLikeCppCommand {
+    pub reason: String,
 }
 
 /// Payload for a map-owned creature melee hit against one player session.

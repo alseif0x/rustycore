@@ -122,8 +122,8 @@ use wow_network::session_mgr::{InstanceLink, SessionManager};
 use wow_network::{
     ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp,
     GameEventQuestCompleteClientOutcomeLikeCpp, GameEventQuestCompleteCommandLikeCpp,
-    GroupRegistry, LootDropRatesLikeCpp, PacketSpoofConfigLikeCpp, PendingInvites,
-    PlayerBroadcastInfo, PlayerRegistry, ReputationRatesLikeCpp, SessionCommand,
+    GroupRegistry, KickLikeCppCommand, LootDropRatesLikeCpp, PacketSpoofConfigLikeCpp,
+    PendingInvites, PlayerBroadcastInfo, PlayerRegistry, ReputationRatesLikeCpp, SessionCommand,
     SocketTimeoutsLikeCpp,
 };
 use wow_packet::packets::item::{
@@ -11046,7 +11046,7 @@ impl WorldSession {
         let Some(plan) = self.pending_packet_spoof_ban_like_cpp.take() else {
             return;
         };
-        let Some(login_db) = self.login_db.as_ref() else {
+        let Some(login_db) = self.login_db.as_ref().map(Arc::clone) else {
             warn!(
                 account = self.account_id,
                 "AntiDOS: PacketSpoof ban requested but login DB is unavailable"
@@ -11054,6 +11054,10 @@ impl WorldSession {
             self.pending_packet_spoof_ban_like_cpp = Some(plan);
             return;
         };
+
+        let affected_account_ids = self
+            .packet_spoof_ban_affected_account_ids_like_cpp(&login_db, &plan)
+            .await;
 
         let result = match &plan.target {
             PacketSpoofPendingBanTargetLikeCpp::Account { account_id } => {
@@ -11089,7 +11093,80 @@ impl WorldSession {
                 "AntiDOS: failed to persist PacketSpoof ban"
             );
             self.pending_packet_spoof_ban_like_cpp = Some(plan);
+        } else {
+            self.kick_packet_spoof_affected_sessions_like_cpp(&affected_account_ids);
         }
+    }
+
+    async fn packet_spoof_ban_affected_account_ids_like_cpp(
+        &self,
+        login_db: &LoginDatabase,
+        plan: &PacketSpoofPendingBanLikeCpp,
+    ) -> Vec<u32> {
+        match &plan.target {
+            PacketSpoofPendingBanTargetLikeCpp::Account { account_id } => vec![*account_id],
+            PacketSpoofPendingBanTargetLikeCpp::Ip { address } => {
+                let mut stmt = login_db.prepare(LoginStatements::SEL_ACCOUNT_BY_IP);
+                stmt.set_string(0, address);
+                let mut result = match login_db.query(&stmt).await {
+                    Ok(result) => result,
+                    Err(error) => {
+                        warn!(
+                            account = self.account_id,
+                            error = %error,
+                            ip = address,
+                            "AntiDOS: failed to query accounts affected by PacketSpoof IP ban"
+                        );
+                        return Vec::new();
+                    }
+                };
+
+                if result.is_empty() {
+                    return Vec::new();
+                }
+
+                let mut account_ids = Vec::with_capacity(result.count());
+                loop {
+                    account_ids.push(result.read(0));
+                    if !result.next_row() {
+                        break;
+                    }
+                }
+                account_ids.sort_unstable();
+                account_ids.dedup();
+                account_ids
+            }
+        }
+    }
+
+    fn kick_packet_spoof_affected_sessions_like_cpp(&self, affected_account_ids: &[u32]) -> usize {
+        if affected_account_ids.is_empty() {
+            return 0;
+        }
+        let Some(registry) = self.player_registry() else {
+            return 0;
+        };
+
+        let mut sent = 0usize;
+        for entry in registry.iter() {
+            let info = entry.value();
+            if !affected_account_ids.contains(&info.account_id) {
+                continue;
+            }
+            let command = SessionCommand::KickLikeCpp(KickLikeCppCommand {
+                reason: "World::BanAccount Banning account".to_string(),
+            });
+            if let Err(error) = info.command_tx.try_send(command) {
+                warn!(
+                    account = info.account_id,
+                    error = %error,
+                    "AntiDOS: failed to queue PacketSpoof ban kick for affected session"
+                );
+                continue;
+            }
+            sent = sent.saturating_add(1);
+        }
+        sent
     }
 
     pub(crate) fn update_speak_time_like_cpp(&mut self, index: ChatFloodThrottleIndexLikeCpp) {
@@ -31308,7 +31385,7 @@ mod tests {
     use wow_network::{
         ApplyCreatureMeleeDamageLikeCppCommand, CreatureAttackStartLikeCppCommand,
         GameEventQuestCompleteClientOutcomeLikeCpp, GameEventQuestCompleteResponseLikeCpp,
-        GroupInfo, GroupRegistry, PendingInvites, PlayerBroadcastInfo,
+        GroupInfo, GroupRegistry, KickLikeCppCommand, PendingInvites, PlayerBroadcastInfo,
         RefreshVisibleWorldCreaturesLikeCppCommand, ResetSeasonalQuestStatusCommand,
         SendIfVisibleLikeCppCommand, SendVisibleObjectValuesUpdateCommand, SessionCommand,
     };
@@ -31407,7 +31484,7 @@ mod tests {
 
     #[tokio::test]
     async fn game_event_quest_complete_notify_reports_missing_sender_like_cpp() {
-        let (session, _, _) = make_session();
+        let (mut session, _, _) = make_session();
 
         let outcome = session.notify_game_event_quest_complete_like_cpp(42).await;
 
@@ -55853,6 +55930,70 @@ mod tests {
                 duration_secs: 7_200,
             })
         );
+    }
+
+    #[tokio::test]
+    async fn kick_like_cpp_session_command_disconnects_session() {
+        let (mut session, _, _) = make_session();
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::KickLikeCpp(KickLikeCppCommand {
+                reason: "World::BanAccount Banning account".to_string(),
+            }))
+            .expect("kick command queued");
+
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+
+        assert!(session.is_disconnecting());
+    }
+
+    #[test]
+    fn packet_spoof_ban_eviction_queues_kick_for_affected_accounts_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let registry = Arc::new(PlayerRegistry::default());
+        let (send_tx_a, _send_rx_a) = flume::bounded(1);
+        let (send_tx_b, _send_rx_b) = flume::bounded(1);
+        let (send_tx_c, _send_rx_c) = flume::bounded(1);
+        let (command_tx_a, command_rx_a) = flume::bounded(1);
+        let (command_tx_b, command_rx_b) = flume::bounded(1);
+        let (command_tx_c, command_rx_c) = flume::bounded(1);
+
+        let guid_a = ObjectGuid::create_player(1, 11);
+        let guid_b = ObjectGuid::create_player(1, 12);
+        let guid_c = ObjectGuid::create_player(1, 13);
+        let mut info_a = broadcast_info(guid_a, send_tx_a);
+        info_a.account_id = 7;
+        info_a.command_tx = command_tx_a;
+        let mut info_b = broadcast_info(guid_b, send_tx_b);
+        info_b.account_id = 9;
+        info_b.command_tx = command_tx_b;
+        let mut info_c = broadcast_info(guid_c, send_tx_c);
+        info_c.account_id = 7;
+        info_c.command_tx = command_tx_c;
+
+        registry.insert(guid_a, info_a);
+        registry.insert(guid_b, info_b);
+        registry.insert(guid_c, info_c);
+        session.set_player_registry(registry);
+
+        assert_eq!(
+            session.kick_packet_spoof_affected_sessions_like_cpp(&[7]),
+            2
+        );
+        assert!(matches!(
+            command_rx_a.try_recv(),
+            Ok(SessionCommand::KickLikeCpp(_))
+        ));
+        assert!(matches!(
+            command_rx_b.try_recv(),
+            Err(flume::TryRecvError::Empty)
+        ));
+        assert!(matches!(
+            command_rx_c.try_recv(),
+            Ok(SessionCommand::KickLikeCpp(_))
+        ));
     }
 
     #[test]

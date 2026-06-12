@@ -35,9 +35,9 @@ pub use group_registry::{
 pub use player_registry::{
     ApplyCreatureMeleeDamageLikeCppCommand, CreatureAttackStartLikeCppCommand,
     GameEventQuestCompleteClientOutcomeLikeCpp, GameEventQuestCompleteCommandLikeCpp,
-    GameEventQuestCompleteResponseLikeCpp, LootRollStoreWinnerCommand, LootRollVoteCommand,
-    MasterLootGiveCommand, MasterLootGiveResult, PlayerBroadcastInfo, PlayerRegistry,
-    RefreshVisibleWorldCreaturesLikeCppCommand, ResetSeasonalQuestStatusCommand,
+    GameEventQuestCompleteResponseLikeCpp, KickLikeCppCommand, LootRollStoreWinnerCommand,
+    LootRollVoteCommand, MasterLootGiveCommand, MasterLootGiveResult, PlayerBroadcastInfo,
+    PlayerRegistry, RefreshVisibleWorldCreaturesLikeCppCommand, ResetSeasonalQuestStatusCommand,
     SendAddonIfRegisteredLikeCppCommand, SendIfVisibleLikeCppCommand,
     SendVisibleObjectValuesUpdateCommand, SessionCommand,
 };
