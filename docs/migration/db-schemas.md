@@ -257,7 +257,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 - [x] **#DBS.4** Wire pool URLs to append `charset=utf8mb4&collation=utf8mb4_unicode_ci&timezone=%2B00%3A00` so non-ASCII player names round-trip. `sqlx-mysql` uses `timezone` / `time-zone`; `time_zone` would be ignored by its URL parser. (L)
 - [x] **#DBS.5** Formalize `HotfixStatements` strategy: 3 live control-table SELECTs, selected typed DB2 overlays, and generated base/max-id/locale helpers tested against C++ `HotfixDatabase.cpp`. Remaining overlay consumers stay in their typed DB2-store tasks. (L)
 - [ ] **#DBS.6** Extend `CharStatements` to cover inventory save (`UPD_ITEM_INSTANCE`, `INS_CHARACTER_INVENTORY`, …), quest save (`INS_CHARACTER_QUESTSTATUS`, `INS_CHARACTER_QUESTSTATUS_OBJECTIVES`, …), social, mail, AH, guild bank — target ~120 of the ~280 C# statements. (XL — split per domain)
-- [ ] **#DBS.7** Document operator install runbook (`docs/operations/db-bootstrap.md`): create user, create 4 DBs, source the 4 base dumps, run TDB world content import, smoke-test connection from `world-server`. (M)
+- [x] **#DBS.7** Document operator install runbook (`docs/operations/db-bootstrap.md`): create user, create 4 DBs, source the 4 base dumps, run TDB world content import, smoke-test connection from `world-server`. (M)
 - [ ] **#DBS.8** Add an integration test target: spin up MariaDB in CI, apply schemas, run pool-warmup + a SELECT on every wired statement to detect column drift before runtime. (H)
 - [x] **#DBS.9** Resolve `SEL_GAMEOBJECT_TARGET` / `SEL_BNET_ACCOUNT_SALT_BY_ID` empty-string stubs: removed Rust-only `SEL_BNET_ACCOUNT_SALT_BY_ID`; kept `SEL_GAMEOBJECT_TARGET` as an explicit C++ enum-without-`PrepareStatement` mirror instead of inventing non-canonical SQL. (L)
 - [x] **#DBS.10** Add a schema-version sentinel in code compared against `world.version` on boot. C++ reads `SELECT db_version, cache_id FROM version LIMIT 1`; the current canonical `wotlk_classic` update sets `db_version='TDB 343.24081'` and `cache_id=24081`, so RustyCore aborts startup on any other world content version. (L)
@@ -343,8 +343,8 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 5. **Characters DB write-side callsites remain thinner than the statement registry.** The active WotLK prepared statement names are present, but many gameplay systems still need their runtime save/load paths wired and validated through feature-level tests.
 6. **World content version is now fail-fast.** RustyCore mirrors C++ `World::LoadDBVersion` with `SELECT db_version, cache_id FROM version LIMIT 1` and refuses to boot unless the loaded content DB reports `TDB 343.24081` / `24081`. This catches wrong or missing TDB imports before gameplay loaders run.
 
-**Status verdict:** ⚠️ partial. Pools, updater helpers, login/world startup DB paths, the world DB version sentinel, active-WotLK character statement names, hotfix control/cache paths, and a fixture live MariaDB updater harness are usable. The largest remaining DB work is full canonical clean-install/content validation, character write-side runtime callsites, and per-feature DB2 overlay consumers.
+**Status verdict:** ⚠️ partial. Pools, updater helpers, login/world startup DB paths, the world DB version sentinel, operator bootstrap runbook, active-WotLK character statement names, hotfix control/cache paths, and a fixture live MariaDB updater harness are usable. The largest remaining DB work is full canonical clean-install/content validation, character write-side runtime callsites, and per-feature DB2 overlay consumers.
 
 ---
 
-*Doc version: 1.2 (2026-06-12). Updated after world DB version sentinel work; refresh when character statement coverage or live DB integration changes materially.*
+*Doc version: 1.3 (2026-06-12). Updated after DB bootstrap runbook work; refresh when character statement coverage or live DB integration changes materially.*
