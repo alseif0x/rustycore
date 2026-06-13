@@ -270,6 +270,67 @@ pub fn creature_ai_uses_base_move_in_line_of_sight_like_cpp(
     }
 }
 
+/// Already-resolved facts for C++ `Creature::GetAttackDistance(Unit const*)`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CreatureAttackDistanceInputLikeCpp {
+    pub aggro_rate: f32,
+    pub creature_combat_reach: f32,
+    pub expansion_max_level: u8,
+    pub max_player_level_config: u32,
+    pub player_level_for_target: u8,
+    pub creature_level_for_target: u8,
+    pub creature_detect_range_aura_mod: f32,
+    pub player_detected_range_aura_mod: f32,
+}
+
+impl Default for CreatureAttackDistanceInputLikeCpp {
+    fn default() -> Self {
+        Self {
+            aggro_rate: 1.0,
+            creature_combat_reach: 0.0,
+            expansion_max_level: 80,
+            max_player_level_config: 80,
+            player_level_for_target: 80,
+            creature_level_for_target: 80,
+            creature_detect_range_aura_mod: 0.0,
+            player_detected_range_aura_mod: 0.0,
+        }
+    }
+}
+
+pub fn creature_attack_distance_like_cpp(input: CreatureAttackDistanceInputLikeCpp) -> f32 {
+    let aggro_rate = input.aggro_rate;
+    if aggro_rate == 0.0 {
+        return 0.0;
+    }
+
+    let max_radius = 45.0 * aggro_rate;
+    let min_radius = 5.0 * aggro_rate;
+
+    let player_level = i32::from(input.player_level_for_target);
+    let creature_level = i32::from(input.creature_level_for_target);
+    let expansion_max_level = i32::from(input.expansion_max_level);
+    let base_aggro_distance = 20.0 - input.creature_combat_reach;
+    let mut aggro_radius = base_aggro_distance + (creature_level - player_level) as f32;
+
+    if u32::from(input.creature_level_for_target) + 5 <= input.max_player_level_config {
+        aggro_radius += input.creature_detect_range_aura_mod;
+        aggro_radius += input.player_detected_range_aura_mod;
+    }
+
+    if creature_level > expansion_max_level {
+        aggro_radius = base_aggro_distance + (expansion_max_level - player_level) as f32;
+    }
+
+    if aggro_radius > max_radius {
+        aggro_radius = max_radius;
+    } else if aggro_radius < min_radius {
+        aggro_radius = min_radius;
+    }
+
+    aggro_radius * aggro_rate
+}
+
 // ── UnitAI::SelectTarget ──────────────────────────────────────────
 
 /// C++ `SelectTargetMethod` from `CoreAI/UnitAICommon.h`.
@@ -1508,6 +1569,126 @@ mod tests {
                 target_within_turret_min_range: true,
             },
         ));
+    }
+
+    fn assert_close_like_cpp(actual: f32, expected: f32) {
+        assert!(
+            (actual - expected).abs() <= f32::EPSILON,
+            "expected {expected}, got {actual}"
+        );
+    }
+
+    #[test]
+    fn creature_attack_distance_zero_rate_returns_zero_like_cpp() {
+        assert_close_like_cpp(
+            creature_attack_distance_like_cpp(CreatureAttackDistanceInputLikeCpp {
+                aggro_rate: 0.0,
+                ..CreatureAttackDistanceInputLikeCpp::default()
+            }),
+            0.0,
+        );
+    }
+
+    #[test]
+    fn creature_attack_distance_equal_level_subtracts_combat_reach_like_cpp() {
+        assert_close_like_cpp(
+            creature_attack_distance_like_cpp(CreatureAttackDistanceInputLikeCpp {
+                creature_combat_reach: 1.5,
+                player_level_for_target: 60,
+                creature_level_for_target: 60,
+                ..CreatureAttackDistanceInputLikeCpp::default()
+            }),
+            18.5,
+        );
+    }
+
+    #[test]
+    fn creature_attack_distance_applies_level_difference_and_clamps_like_cpp() {
+        assert_close_like_cpp(
+            creature_attack_distance_like_cpp(CreatureAttackDistanceInputLikeCpp {
+                player_level_for_target: 20,
+                creature_level_for_target: 25,
+                ..CreatureAttackDistanceInputLikeCpp::default()
+            }),
+            25.0,
+        );
+        assert_close_like_cpp(
+            creature_attack_distance_like_cpp(CreatureAttackDistanceInputLikeCpp {
+                player_level_for_target: 80,
+                creature_level_for_target: 1,
+                ..CreatureAttackDistanceInputLikeCpp::default()
+            }),
+            5.0,
+        );
+        assert_close_like_cpp(
+            creature_attack_distance_like_cpp(CreatureAttackDistanceInputLikeCpp {
+                player_level_for_target: 1,
+                creature_level_for_target: 80,
+                ..CreatureAttackDistanceInputLikeCpp::default()
+            }),
+            45.0,
+        );
+    }
+
+    #[test]
+    fn creature_attack_distance_detect_range_auras_are_level_gated_like_cpp() {
+        assert_close_like_cpp(
+            creature_attack_distance_like_cpp(CreatureAttackDistanceInputLikeCpp {
+                player_level_for_target: 40,
+                creature_level_for_target: 40,
+                max_player_level_config: 80,
+                creature_detect_range_aura_mod: 3.0,
+                player_detected_range_aura_mod: 2.0,
+                ..CreatureAttackDistanceInputLikeCpp::default()
+            }),
+            25.0,
+        );
+        assert_close_like_cpp(
+            creature_attack_distance_like_cpp(CreatureAttackDistanceInputLikeCpp {
+                player_level_for_target: 80,
+                creature_level_for_target: 80,
+                max_player_level_config: 80,
+                creature_detect_range_aura_mod: 3.0,
+                player_detected_range_aura_mod: 2.0,
+                ..CreatureAttackDistanceInputLikeCpp::default()
+            }),
+            20.0,
+        );
+    }
+
+    #[test]
+    fn creature_attack_distance_caps_creatures_above_expansion_max_like_cpp() {
+        assert_close_like_cpp(
+            creature_attack_distance_like_cpp(CreatureAttackDistanceInputLikeCpp {
+                player_level_for_target: 70,
+                creature_level_for_target: 83,
+                expansion_max_level: 80,
+                ..CreatureAttackDistanceInputLikeCpp::default()
+            }),
+            30.0,
+        );
+    }
+
+    #[test]
+    fn creature_attack_distance_preserves_cpp_rate_order_like_cpp() {
+        assert_close_like_cpp(
+            creature_attack_distance_like_cpp(CreatureAttackDistanceInputLikeCpp {
+                aggro_rate: 2.0,
+                player_level_for_target: 80,
+                creature_level_for_target: 80,
+                ..CreatureAttackDistanceInputLikeCpp::default()
+            }),
+            40.0,
+        );
+        assert_close_like_cpp(
+            creature_attack_distance_like_cpp(CreatureAttackDistanceInputLikeCpp {
+                aggro_rate: 2.0,
+                player_level_for_target: 80,
+                creature_level_for_target: 1,
+                ..CreatureAttackDistanceInputLikeCpp::default()
+            }),
+            20.0,
+        );
     }
 
     #[test]

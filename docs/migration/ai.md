@@ -463,7 +463,8 @@ Numerados para referencia desde `MIGRATION_ROADMAP.md`. Complejidad: **L** <1h, 
 - [x] **#AI.40a** Implementar plan representado de `CreatureAI::DoZoneInCombat` contrastado contra `CreatureAI.cpp`: solo dungeon, no-op sin players, filtra `Player::IsAlive` + `CombatManager::CanBeginCombat`, y planifica `EngageWithTarget` para player, unidades controladas y vehículo base en orden. (M)
 - [ ] **#AI.40b** Wire runtime real de `CreatureAI::DoZoneInCombat`: resolver `Map::IsDungeon`/`HavePlayers`/`GetPlayers`, `CombatManager::CanBeginCombat`, aplicar `Creature::EngageWithTarget` real y preservar logging de error en mapas no dungeon. (H)
 - [ ] **#AI.41** Refactor random — usar `rand` crate proper (`StdRng` semilla por mapa, no time-based) (L)
-- [ ] **#AI.42** Implementar level-diff aggro radius modifier (mob_level vs player_level → ajusta aggro distance) (L)
+- [x] **#AI.42a** Implementar helper representado de `Creature::GetAttackDistance` contrastado contra `Creature.cpp`: `Rate.Creature.Aggro`, base `20 - CombatReach`, level-diff, auras detect/detected range con gate de nivel, cap por max level de expansión y clamps C++ min/max. (L)
+- [ ] **#AI.42b** Wire runtime real del aggro radius dinámico: sustituir el radio fijo legacy por `Creature::GetAttackDistance(target) + m_CombatDistance` usando level/aura/rate/config reales en el scan global y en `MoveInLineOfSight`. (M)
 - [ ] **#AI.43** Implementar `creature_template_addon.auras` aplicación al spawn (M)
 - [ ] **#AI.44** Implementar charm/possess flow + PossessedAI swap (H)
 - [ ] **#AI.45** Tests de regresión unit + smoke tests de SmartScript (M)
@@ -488,7 +489,8 @@ Numerados para referencia desde `MIGRATION_ROADMAP.md`. Complejidad: **L** <1h, 
 <!-- REFINE.024:END tests-required -->
 
 - [ ] Test: `CreatureAI::try_aggro` requiere hostility check (un mob friendly no entra combat con player)
-- [ ] Test: `CreatureAI::try_aggro` respeta level-diff modifier (mob 5 lvl > player aggrea desde 2× distance)
+- [x] Test: `Creature::GetAttackDistance` representado respeta level-diff, combat reach, clamps, rate, auras detect range y max level de expansión
+- [ ] Test: runtime global de aggro usa `Creature::GetAttackDistance(target) + m_CombatDistance` en vez de radio fijo
 - [ ] Test: `CreatureAI::take_damage` con dmg ≥ hp dispara `JustDied(killer)` exactamente 1 vez
 - [ ] Test: `EnterEvadeMode(EvadeReason::Boundary)` programa `MoveTargetedHome`, al llegar dispara `JustReachedHome`, restaura HP a max
 - [ ] Test: `EnterEvadeMode(EvadeReason::NoHostiles)` despawnea summons del boss
