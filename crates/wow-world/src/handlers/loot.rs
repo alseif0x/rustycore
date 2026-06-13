@@ -3823,7 +3823,7 @@ impl WorldSession {
     }
 
     fn represented_notify_loot_item_removed_like_cpp(
-        &self,
+        &mut self,
         owner_guid: ObjectGuid,
         loot_list_id: u8,
     ) {
@@ -3844,32 +3844,48 @@ impl WorldSession {
             loot_list_id,
         };
         let bytes = packet.to_bytes();
+        let players_looting = loot.players_looting.clone();
+        let allowed_looters = entry.allowed_looters.clone();
+        let current_player = self.player_guid();
+        let current_map = self.player_map_id_like_cpp();
+        let registry = self.player_registry().cloned();
+        let mut stale_looters = Vec::new();
 
-        for looter in &loot.players_looting {
-            if !entry.allowed_looters.contains(looter) {
+        for looter in &players_looting {
+            if !allowed_looters.contains(looter) {
                 continue;
             }
 
-            if Some(*looter) == self.player_guid() {
+            if Some(*looter) == current_player {
                 self.send_packet(&packet);
                 continue;
             }
 
-            let Some(registry) = self.player_registry() else {
+            let Some(registry) = registry.as_ref() else {
+                stale_looters.push(*looter);
                 continue;
             };
             let Some(player) = registry.get(looter) else {
+                stale_looters.push(*looter);
                 continue;
             };
-            if player.map_id != self.player_map_id_like_cpp() {
+            if player.map_id != current_map {
+                stale_looters.push(*looter);
                 continue;
             }
 
             let _ = player.send_tx.send(bytes.clone());
         }
+
+        if !stale_looters.is_empty()
+            && let Some(loot) = self.loot_table.get_mut(&owner_guid)
+        {
+            loot.players_looting
+                .retain(|looter| !stale_looters.contains(looter));
+        }
     }
 
-    fn represented_notify_money_removed_like_cpp(&self, owner_guid: ObjectGuid) {
+    fn represented_notify_money_removed_like_cpp(&mut self, owner_guid: ObjectGuid) {
         let Some(loot) = self.loot_table.get(&owner_guid) else {
             return;
         };
@@ -3878,24 +3894,39 @@ impl WorldSession {
             loot_obj: loot.loot_guid,
         };
         let bytes = packet.to_bytes();
+        let players_looting = loot.players_looting.clone();
+        let current_player = self.player_guid();
+        let current_map = self.player_map_id_like_cpp();
+        let registry = self.player_registry().cloned();
+        let mut stale_looters = Vec::new();
 
-        for looter in &loot.players_looting {
-            if Some(*looter) == self.player_guid() {
+        for looter in &players_looting {
+            if Some(*looter) == current_player {
                 self.send_packet(&packet);
                 continue;
             }
 
-            let Some(registry) = self.player_registry() else {
+            let Some(registry) = registry.as_ref() else {
+                stale_looters.push(*looter);
                 continue;
             };
             let Some(player) = registry.get(looter) else {
+                stale_looters.push(*looter);
                 continue;
             };
-            if player.map_id != self.player_map_id_like_cpp() {
+            if player.map_id != current_map {
+                stale_looters.push(*looter);
                 continue;
             }
 
             let _ = player.send_tx.send(bytes.clone());
+        }
+
+        if !stale_looters.is_empty()
+            && let Some(loot) = self.loot_table.get_mut(&owner_guid)
+        {
+            loot.players_looting
+                .retain(|looter| !stale_looters.contains(looter));
         }
     }
 
@@ -8303,6 +8334,7 @@ mod tests {
         let player_guid = ObjectGuid::create_player(1, 42);
         let open_guid = ObjectGuid::create_player(1, 77);
         let closed_guid = ObjectGuid::create_player(1, 88);
+        let stale_guid = ObjectGuid::create_player(1, 99);
         let owner_guid = test_creature_guid(19_095);
         let loot_object = represented_loot_object_guid_like_cpp(owner_guid);
         let (open_tx, open_rx) = flume::bounded::<Vec<u8>>(1);
@@ -8324,8 +8356,8 @@ mod tests {
                 loot_master: ObjectGuid::EMPTY,
                 round_robin_player: ObjectGuid::EMPTY,
                 player_ffa_items: Vec::new(),
-                players_looting: vec![player_guid, open_guid],
-                allowed_looters: vec![player_guid, open_guid, closed_guid],
+                players_looting: vec![player_guid, open_guid, stale_guid],
+                allowed_looters: vec![player_guid, open_guid, closed_guid, stale_guid],
                 items: vec![LootEntry {
                     loot_list_id: 0,
                     item_id: 25,
@@ -8334,7 +8366,7 @@ mod tests {
                     random_properties_seed: 0,
                     item_context: 0,
                     flags: LootEntryFlags::default(),
-                    allowed_looters: vec![player_guid, open_guid, closed_guid],
+                    allowed_looters: vec![player_guid, open_guid, closed_guid, stale_guid],
                     roll_winner: ObjectGuid::EMPTY,
                     ffa_looted_by: Vec::new(),
                     taken: false,
@@ -8362,6 +8394,64 @@ mod tests {
             wow_constants::ServerOpcodes::LootRemoved as u16
         );
         assert!(closed_rx.try_recv().is_err());
+        assert_eq!(
+            session.loot_table.get(&owner_guid).unwrap().players_looting,
+            vec![player_guid, open_guid]
+        );
+    }
+
+    #[test]
+    fn represented_money_removed_erases_missing_players_looting_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let open_guid = ObjectGuid::create_player(1, 77);
+        let stale_guid = ObjectGuid::create_player(1, 99);
+        let owner_guid = test_creature_guid(19_096);
+        let loot_object = represented_loot_object_guid_like_cpp(owner_guid);
+        let (open_tx, open_rx) = flume::bounded::<Vec<u8>>(1);
+        let player_registry = Arc::new(PlayerRegistry::default());
+        player_registry.insert(open_guid, broadcast_info(open_guid, open_tx));
+        session.set_player_registry(player_registry);
+        session.set_player_guid(Some(player_guid));
+        session.loot_table.insert(
+            owner_guid,
+            CreatureLoot {
+                loot_guid: loot_object,
+                coins: 7,
+                unlooted_count: 0,
+                loot_type: LOOT_TYPE_CORPSE_LIKE_CPP,
+                dungeon_encounter_id: 0,
+                loot_method: LOOT_METHOD_GROUP_LIKE_CPP,
+                loot_master: ObjectGuid::EMPTY,
+                round_robin_player: ObjectGuid::EMPTY,
+                player_ffa_items: Vec::new(),
+                players_looting: vec![player_guid, open_guid, stale_guid],
+                allowed_looters: vec![player_guid, open_guid, stale_guid],
+                items: Vec::new(),
+                looted_by_player: false,
+            },
+        );
+
+        session.represented_notify_money_removed_like_cpp(owner_guid);
+
+        let sent = send_rx.try_recv().unwrap();
+        let mut sent = WorldPacket::from_bytes(&sent);
+        assert_eq!(
+            sent.read_uint16().unwrap(),
+            wow_constants::ServerOpcodes::CoinRemoved as u16
+        );
+        assert_eq!(sent.read_packed_guid().unwrap(), loot_object);
+
+        let sent = open_rx.try_recv().unwrap();
+        let mut sent = WorldPacket::from_bytes(&sent);
+        assert_eq!(
+            sent.read_uint16().unwrap(),
+            wow_constants::ServerOpcodes::CoinRemoved as u16
+        );
+        assert_eq!(
+            session.loot_table.get(&owner_guid).unwrap().players_looting,
+            vec![player_guid, open_guid]
+        );
     }
 
     fn loot_release_packet(object: ObjectGuid) -> WorldPacket {
