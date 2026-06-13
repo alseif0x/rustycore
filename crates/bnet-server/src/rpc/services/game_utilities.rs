@@ -85,10 +85,10 @@ async fn get_realm_list_ticket<S: AsyncRead + AsyncWrite + Unpin>(
         .ok_or_else(|| RpcStatusError::new(status::ERROR_UTIL_SERVER_INVALID_IDENTITY_ARGS))?;
 
     let (is_permanently_banned, is_banned) = {
-        let account = session
-            .account_info
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("No account info"))?;
+        let account = account_info_or_status_like_cpp(
+            session.account_info.as_ref(),
+            status::ERROR_UTIL_SERVER_INVALID_IDENTITY_ARGS,
+        )?;
         let game_account = account
             .game_accounts
             .get(&game_account_id)
@@ -158,10 +158,10 @@ async fn get_last_char_played<S: AsyncRead + AsyncWrite + Unpin>(
     };
     let sub_region = command_attr.value.string_value.as_deref().unwrap_or("");
 
-    let account = session
-        .account_info
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("No account info"))?;
+    let account = account_info_or_status_like_cpp(
+        session.account_info.as_ref(),
+        status::ERROR_USER_SERVER_BAD_WOW_ACCOUNT,
+    )?;
     let game_account = selected_game_account_like_cpp(account, session.selected_game_account_id)?;
 
     let mut response_attrs = Vec::new();
@@ -200,10 +200,10 @@ async fn get_realm_list<S: AsyncRead + AsyncWrite + Unpin>(
         .and_then(|a| a.value.string_value.as_deref())
         .unwrap_or("");
 
-    let account = session
-        .account_info
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("No account info"))?;
+    let account = account_info_or_status_like_cpp(
+        session.account_info.as_ref(),
+        status::ERROR_USER_SERVER_BAD_WOW_ACCOUNT,
+    )?;
     let game_account = selected_game_account_like_cpp(account, session.selected_game_account_id)?;
 
     let realm_mgr = session.state().realm_mgr.read();
@@ -235,10 +235,10 @@ async fn join_realm<S: AsyncRead + AsyncWrite + Unpin>(
         bail!("Not authenticated");
     }
 
-    let account = session
-        .account_info
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("No account info"))?;
+    let account = account_info_or_status_like_cpp(
+        session.account_info.as_ref(),
+        status::ERROR_USER_SERVER_BAD_WOW_ACCOUNT,
+    )?;
     let game_account = selected_game_account_like_cpp(account, session.selected_game_account_id)?;
 
     // Extract realm address from attribute
@@ -444,6 +444,13 @@ fn selected_game_account_like_cpp(
         .ok_or_else(|| RpcStatusError::new(status::ERROR_USER_SERVER_BAD_WOW_ACCOUNT).into())
 }
 
+fn account_info_or_status_like_cpp(
+    account: Option<&AccountInfo>,
+    missing_status: u32,
+) -> Result<&AccountInfo> {
+    account.ok_or_else(|| RpcStatusError::new(missing_status).into())
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct JoinRealmLoginInfoUpdateLikeCpp {
     key_data: Vec<u8>,
@@ -531,9 +538,9 @@ fn make_int_attribute(name: &str, value: i64) -> Attribute {
 #[cfg(test)]
 mod tests {
     use super::{
-        JoinRealmLoginInfoUpdateLikeCpp, apply_join_realm_login_info_update_like_cpp,
-        bnet_session_key_data_like_cpp, join_realm_response_attributes_like_cpp,
-        last_char_played_response_attributes_like_cpp,
+        JoinRealmLoginInfoUpdateLikeCpp, account_info_or_status_like_cpp,
+        apply_join_realm_login_info_update_like_cpp, bnet_session_key_data_like_cpp,
+        join_realm_response_attributes_like_cpp, last_char_played_response_attributes_like_cpp,
         parse_realm_list_ticket_client_secret_like_cpp,
         parse_realm_list_ticket_game_account_id_like_cpp, selected_game_account_like_cpp,
         should_write_sub_regions_like_cpp,
@@ -644,6 +651,30 @@ mod tests {
         assert_eq!(selected.name, "2#42");
         assert!(selected_game_account_like_cpp(&account, Some(7)).is_err());
         assert!(selected_game_account_like_cpp(&account, None).is_err());
+    }
+
+    #[test]
+    fn missing_account_info_returns_caller_status_like_cpp() {
+        let err =
+            account_info_or_status_like_cpp(None, status::ERROR_UTIL_SERVER_INVALID_IDENTITY_ARGS)
+                .expect_err("missing account info must become the caller's BNet status");
+        let status_err = err
+            .downcast_ref::<RpcStatusError>()
+            .expect("expected RpcStatusError");
+        assert_eq!(
+            status_err.status(),
+            status::ERROR_UTIL_SERVER_INVALID_IDENTITY_ARGS
+        );
+
+        let err = account_info_or_status_like_cpp(None, status::ERROR_USER_SERVER_BAD_WOW_ACCOUNT)
+            .expect_err("missing game account context must become BAD_WOW_ACCOUNT");
+        let status_err = err
+            .downcast_ref::<RpcStatusError>()
+            .expect("expected RpcStatusError");
+        assert_eq!(
+            status_err.status(),
+            status::ERROR_USER_SERVER_BAD_WOW_ACCOUNT
+        );
     }
 
     #[test]

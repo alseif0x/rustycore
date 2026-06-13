@@ -3,7 +3,7 @@
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/server/shared/Realm/`
 > **Rust target crate(s):** `crates/bnet-server/` (`src/realm/mod.rs`)
 > **Layer:** L1
-> **Status:** ⚠️ partial (~82%) — 2026-06-13 slices fixed the BNet realm-address packing, strong `RealmHandle` contract, `HashMap<RealmHandleLikeCpp, Realm>` storage, typed `RealmFlagsLikeCpp`/`RealmTypeLikeCpp`, subregion filtering and `WriteSubRegions`, cfg timezone/category swap, type/security normalization, packed JoinRealm lookup plus realm-owned JoinRealm prep, selected game-account ownership, strict `ClientInfo.secret` byte validation, `LastCharPlayed` C++ attribute kinds, `GetAllValuesForAttribute` auth/prefix gating, hostname resolution/skip, normalized realm names, C++-shaped build_info hotfix/seed parsing, minor/major/bugfix build lookup and `JamJSONRealmEntry` for last-played character; remaining gaps include golden/e2e realm-list payloads and architectural unification with the world snapshot.
+> **Status:** ⚠️ partial (~82%) — 2026-06-13 slices fixed the BNet realm-address packing, strong `RealmHandle` contract, `HashMap<RealmHandleLikeCpp, Realm>` storage, typed `RealmFlagsLikeCpp`/`RealmTypeLikeCpp`, subregion filtering and `WriteSubRegions`, cfg timezone/category swap, type/security normalization, packed JoinRealm lookup plus realm-owned JoinRealm prep, selected game-account ownership, strict `ClientInfo.secret` byte validation, `LastCharPlayed` C++ attribute kinds, `GetAllValuesForAttribute` auth/prefix gating, C++ BNet account-context status errors, hostname resolution/skip, normalized realm names, C++-shaped build_info hotfix/seed parsing, minor/major/bugfix build lookup and `JamJSONRealmEntry` for last-played character; remaining gaps include golden/e2e realm-list payloads and architectural unification with the world snapshot.
 > **Audited vs C++:** ✅ audited 2026-06-13 against `Realm.h`, `Realm.cpp`, `RealmList.cpp` for the fixed BNet realm-list slice.
 > **Last updated:** 2026-06-13
 
@@ -162,6 +162,7 @@ Y para realm list updates:
 - `GetRealmListTicket` parsea `Param_ClientInfo.info.secret` como una lista estricta de 32 bytes, rechazando longitudes incorrectas y valores no-byte como C++ `RealmListTicketClientInformation.info().secret()`.
 - `LastCharPlayed` emite `Param_CharacterGUID` como blob de 8 bytes y `Param_LastPlayedTime` como `int_value`, igual que C++ `set_blob_value(&guid, sizeof guid)` / `set_int_value(int32(...))`.
 - `HandleGetAllValuesForAttribute` replica el gate C++: requiere sesión autenticada y solo escribe subregions cuando `attribute_key` empieza por `Command_RealmListRequest_v1`.
+- Las rutas RealmListTicket/RealmList/JoinRealm convierten la falta de contexto de cuenta en status BNet C++ específicos, no en error interno genérico.
 - Los errores del flujo RealmList/JoinRealm usan los códigos BNet C++ específicos (`INVALID_IDENTITY_ARGS`, `DENIED_REALM_LIST_TICKET`, `INVALID_JOIN_TICKET`, `UNKNOWN_REALM`, `NOT_PERMITTED_ON_REALM`, `BAD_WOW_ACCOUNT`) en vez de caer en `ERROR_DENIED`/`ERROR_INTERNAL`.
 - `authentication` guarda `char_counts` y `last_played_chars.realm_address` con packed `RealmHandle::GetAddress()`, como C++ `Battlenet::Session`.
 - `get_minor_major_bugfix_version_for_build_like_cpp` replica `RealmList::GetMinorMajorBugfixVersionForBuild` con semántica `lower_bound`.
@@ -181,6 +182,7 @@ Y para realm list updates:
 - ✅ fixed 2026-06-13: `GetRealmListTicket` convertía `ClientInfo.secret` con `as_i64() as u8`, truncando valores como `-1`/`256`; Rust ahora exige exactamente 32 enteros JSON en rango `0..=255`.
 - ✅ fixed 2026-06-13: `LastCharPlayed` enviaba `Param_CharacterGUID` y `Param_LastPlayedTime` como `uint_value`; C++ usa blob de 8 bytes para GUID e `int_value` para timestamp.
 - ✅ fixed 2026-06-13: `HandleGetAllValuesForAttribute` aceptaba claves que solo contenían `Command_RealmListRequest_v1` y no rechazaba explícitamente sesiones no autenticadas; C++ usa `find(...) == 0` y `ERROR_DENIED`.
+- ✅ fixed 2026-06-13: algunos paths Realm utilities devolvían error interno si faltaba `account_info`; ahora usan `INVALID_IDENTITY_ARGS` / `BAD_WOW_ACCOUNT` según el contrato C++ del caller.
 - Sin `shared_mutex`, Rust usa `parking_lot::RwLock` (vía `state.realm_mgr.write()`) → equivalente.
 
 **Tests existing:**
@@ -236,6 +238,7 @@ Y para realm list updates:
 - [x] **#REALM.4b.6** Validar `RealmListTicketClientInformation.info.secret` como 32 bytes exactos, sin truncar valores fuera de rango, antes de aceptar `GetRealmListTicket`. (L)
 - [x] **#REALM.4b.7** Alinear los atributos `LastCharPlayed` con C++: realm entry blob, character name string, character GUID blob, last played time int. (L)
 - [x] **#REALM.4b.8** Alinear `HandleGetAllValuesForAttribute`: `ERROR_DENIED` si no autenticado y match por prefijo para `Command_RealmListRequest_v1`. (L)
+- [x] **#REALM.4b.9** Convertir ausencia de contexto de cuenta en status BNet C++ por caller (`INVALID_IDENTITY_ARGS` / `BAD_WOW_ACCOUNT`) en vez de error interno. (L)
 - [ ] **#REALM.4b** Reubicar/encapsular el flow completo como ownership `RealmList::JoinRealm` C++-like y añadir golden/integration; DB execute y random server secret siguen en el handler, y los sub-pasos ya están aislados pero no movidos a un flow único. (M)
 - [x] **#REALM.5** Implementar `set_name` con `NormalizedName` (strip whitespace). (L)
 - [x] **#REALM.6** Implementar `get_minor_major_bugfix_version_for_build` con semántica `lower_bound`. (L)
@@ -333,6 +336,7 @@ Y para realm list updates:
 | `RealmListTicketClientInformation.info.secret()` | `parse_realm_list_ticket_client_secret_like_cpp` | Requires exactly 32 JSON byte values before updating `RpcSession.client_secret` |
 | `Battlenet::Session::GetLastCharPlayed` response attrs | `last_char_played_response_attributes_like_cpp` | Same order and Variant kinds; GUID is blob bytes, last-played time is int |
 | `Battlenet::Session::HandleGetAllValuesForAttribute` gate | `should_write_sub_regions_like_cpp` | Auth required; command key must start with `Command_RealmListRequest_v1` |
+| Account/game-account context status | `account_info_or_status_like_cpp` + `selected_game_account_like_cpp` | Missing context returns caller-specific BNet status instead of generic internal error |
 | `BattlenetRpcErrorCodes.h` Realm utility statuses | `wow_proto::status::*` constants consumed by `game_utilities` | Focused subset for RealmListTicket/JoinRealm |
 | `Trinity::Crypto::GetRandomBytes<32>` | `rand::thread_rng().fill` in `game_utilities::join_realm` | TODO #REALM.4b for full ownership/golden coverage |
 | `Trinity::Asio::Resolver::Resolve` | `resolve_realm_address_like_cpp` + `tokio::net::lookup_host` | Takes first IPv4; skips realm on external/local failure |
