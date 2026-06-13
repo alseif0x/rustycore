@@ -14,6 +14,7 @@ use std::future::Future;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::pin::Pin;
+use std::process::ExitCode;
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicBool, AtomicI32, AtomicU32, Ordering},
@@ -118,6 +119,11 @@ impl WorldRuntimeStateLikeCpp {
     fn world_loop_counter_like_cpp(&self) -> u32 {
         self.world_loop_counter.load(Ordering::Acquire)
     }
+}
+
+fn process_exit_code_like_cpp(exit_code: i32) -> ExitCode {
+    let exit_code = u8::try_from(exit_code).unwrap_or(1);
+    ExitCode::from(exit_code)
 }
 
 // ── Account lookup implementation ────────────────────────────────
@@ -245,7 +251,7 @@ impl AccountLookup for DbAccountLookup {
 // ── Main ─────────────────────────────────────────────────────────
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> Result<ExitCode> {
     // Initialize logging
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -257,11 +263,11 @@ async fn main() -> Result<()> {
     let cli = WorldServerCliLikeCpp::parse_from(std::env::args().skip(1));
     if cli.show_help {
         print!("{}", worldserver_cli_help_like_cpp());
-        return Ok(());
+        return Ok(ExitCode::SUCCESS);
     }
     if cli.show_version {
         println!("{}", worldserver_full_version_like_cpp());
-        return Ok(());
+        return Ok(ExitCode::SUCCESS);
     }
 
     let world_runtime_state = Arc::new(WorldRuntimeStateLikeCpp::new());
@@ -469,7 +475,7 @@ async fn main() -> Result<()> {
     verify_world_db_version_like_cpp(world_db.as_ref()).await?;
     if cli.update_databases_only {
         info!("Database updates completed; exiting before network startup");
-        return Ok(());
+        return Ok(ExitCode::SUCCESS);
     }
     set_realm_offline(&login_db, realm_id).await?;
 
@@ -2562,7 +2568,9 @@ async fn main() -> Result<()> {
         exit_code = world_runtime_state.get_exit_code_like_cpp(),
         "World server stopped."
     );
-    Ok(())
+    Ok(process_exit_code_like_cpp(
+        world_runtime_state.get_exit_code_like_cpp(),
+    ))
 }
 
 async fn set_realm_online(login_db: &LoginDatabase, realm_id: u16) -> Result<()> {
@@ -9143,9 +9151,10 @@ mod tests {
         legacy_creature_global_runtime_enabled_from_config_like_cpp, load_world_config_from,
         loot_drop_rates_like_cpp, materialize_game_event_quest_complete_db_bridge_like_cpp,
         materialize_game_event_world_event_state_db_bridge_like_cpp, mmap_runtime_config_like_cpp,
-        persisted_respawn_info_from_row_like_cpp, queue_respawn_db_delete_like_cpp,
-        queue_respawn_db_save_like_cpp, realm_id_like_cpp, repair_cost_rate_like_cpp,
-        reputation_rates_like_cpp, run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp,
+        persisted_respawn_info_from_row_like_cpp, process_exit_code_like_cpp,
+        queue_respawn_db_delete_like_cpp, queue_respawn_db_save_like_cpp, realm_id_like_cpp,
+        repair_cost_rate_like_cpp, reputation_rates_like_cpp,
+        run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp,
         run_legacy_creature_melee_tick_and_deliver_once_like_cpp,
         run_legacy_creature_movement_tick_and_deliver_once_like_cpp,
         run_legacy_creature_runtime_tick_and_deliver_once_like_cpp, set_realm_offline_sql_like_cpp,
@@ -11479,6 +11488,10 @@ mod tests {
         world.stop_now_like_cpp(1);
         assert!(world.is_stopped_like_cpp());
         assert_eq!(world.get_exit_code_like_cpp(), 1);
+        assert_eq!(
+            process_exit_code_like_cpp(2),
+            std::process::ExitCode::from(2)
+        );
     }
 
     #[test]
