@@ -1291,6 +1291,14 @@ pub(crate) struct RepresentedVehicleDismissMovementLikeCpp {
     pub time: u32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct RepresentedVehicleBaseMovementLikeCpp {
+    pub vehicle_guid: ObjectGuid,
+    pub sanitized_flags: MovementFlag,
+    pub position: Position,
+    pub time: u32,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum RepresentedSpellClickClickeeCasterOutcomeLikeCpp {
     Executed,
@@ -2976,6 +2984,8 @@ pub struct WorldSession {
     represented_vehicle_enter_requests_like_cpp: Vec<RepresentedVehicleEnterRequestLikeCpp>,
     /// Represented `m_movementInfo = MoveDismissVehicle.Status` before live `ExitVehicle`.
     represented_vehicle_dismiss_movements_like_cpp: Vec<RepresentedVehicleDismissMovementLikeCpp>,
+    /// Represented `vehicle_base->m_movementInfo = MoveChangeVehicleSeats.Status`.
+    represented_vehicle_base_movements_like_cpp: Vec<RepresentedVehicleBaseMovementLikeCpp>,
     /// Represented `Player::GetBattleground()->GetTypeID()` for C++ battleground object use.
     player_battleground_type_id_like_cpp: Option<u32>,
     /// Represented current pet GUID until player-owned pet runtime is canonical.
@@ -4035,6 +4045,7 @@ impl WorldSession {
             represented_vehicle_seat_spell_click_requests_like_cpp: Vec::new(),
             represented_vehicle_enter_requests_like_cpp: Vec::new(),
             represented_vehicle_dismiss_movements_like_cpp: Vec::new(),
+            represented_vehicle_base_movements_like_cpp: Vec::new(),
             player_battleground_type_id_like_cpp: None,
             represented_pet_guid_like_cpp: None,
             represented_pet_react_state_like_cpp:
@@ -20254,6 +20265,12 @@ impl WorldSession {
         &self.represented_vehicle_dismiss_movements_like_cpp
     }
 
+    pub(crate) fn represented_vehicle_base_movements_like_cpp(
+        &self,
+    ) -> &[RepresentedVehicleBaseMovementLikeCpp] {
+        &self.represented_vehicle_base_movements_like_cpp
+    }
+
     fn represented_vehicle_base_guid_for_switch_like_cpp(&self) -> Option<ObjectGuid> {
         if self.player_vehicle_seat_flags_like_cpp.is_none() {
             return None;
@@ -20314,7 +20331,7 @@ impl WorldSession {
 
     pub(crate) fn represented_move_change_vehicle_seats_like_cpp(
         &mut self,
-        status_guid: ObjectGuid,
+        status: &mut wow_packet::packets::movement::MovementInfo,
         dst_vehicle: ObjectGuid,
         dst_seat_index: u8,
     ) -> bool {
@@ -20322,6 +20339,15 @@ impl WorldSession {
         else {
             return false;
         };
+        if !self.represented_current_vehicle_seat_can_switch_from_like_cpp() {
+            return false;
+        }
+
+        self.sanitize_movement_info_represented_like_cpp(status);
+        if status.guid != vehicle_base_guid {
+            return false;
+        }
+
         let dst_seat_id = dst_seat_index as i8;
         let dst_vehicle_exists_with_empty_seat = !dst_vehicle.is_empty()
             && self.represented_vehicle_seat_spell_click_plan_available_like_cpp(
@@ -20330,14 +20356,24 @@ impl WorldSession {
             );
         let action = crate::handlers::vehicle::move_change_vehicle_seats_action_like_cpp(
             true,
-            self.represented_current_vehicle_seat_can_switch_from_like_cpp(),
+            true,
             vehicle_base_guid,
-            status_guid,
+            status.guid,
             dst_vehicle,
             dst_seat_index,
             dst_vehicle_exists_with_empty_seat,
         );
-        self.record_represented_vehicle_seat_action_like_cpp(action)
+
+        self.represented_vehicle_base_movements_like_cpp.push(
+            RepresentedVehicleBaseMovementLikeCpp {
+                vehicle_guid: vehicle_base_guid,
+                sanitized_flags: status.flags,
+                position: status.position,
+                time: status.time,
+            },
+        );
+        let _ = self.record_represented_vehicle_seat_action_like_cpp(action);
+        true
     }
 
     pub(crate) fn represented_request_vehicle_switch_seat_like_cpp(
@@ -48740,11 +48776,25 @@ mod tests {
             }]
         );
 
+        let mut mismatched_status = wow_packet::packets::movement::MovementInfo {
+            guid: test_creature_guid(61_002),
+            flags: MovementFlag::ROOT | MovementFlag::FORWARD,
+            time: 1_001,
+            position: Position::new(2.0, 3.0, 4.0, 0.5),
+            ..wow_packet::packets::movement::MovementInfo::default()
+        };
         assert!(!session.represented_move_change_vehicle_seats_like_cpp(
-            test_creature_guid(61_002),
+            &mut mismatched_status,
             ObjectGuid::EMPTY,
             0,
         ));
+        assert!(!mismatched_status.flags.contains(MovementFlag::ROOT));
+        assert!(
+            session
+                .represented_vehicle_base_movements_like_cpp()
+                .is_empty(),
+            "C++ validates status before the GUID mismatch return, but does not copy movement"
+        );
         assert_eq!(
             session
                 .represented_vehicle_seat_change_requests_like_cpp()
@@ -48753,11 +48803,28 @@ mod tests {
             "C++ returns when moveChangeVehicleSeats.Status.guid does not match vehicle_base"
         );
 
+        let move_position = Position::new(5.0, 6.0, 7.0, 1.25);
+        let mut status = wow_packet::packets::movement::MovementInfo {
+            guid: base,
+            flags: MovementFlag::ROOT | MovementFlag::FORWARD,
+            time: 2_002,
+            position: move_position,
+            ..wow_packet::packets::movement::MovementInfo::default()
+        };
         assert!(session.represented_move_change_vehicle_seats_like_cpp(
-            base,
+            &mut status,
             ObjectGuid::EMPTY,
             u8::MAX,
         ));
+        assert_eq!(
+            session.represented_vehicle_base_movements_like_cpp(),
+            &[RepresentedVehicleBaseMovementLikeCpp {
+                vehicle_guid: base,
+                sanitized_flags: MovementFlag::FORWARD,
+                position: move_position,
+                time: 2_002,
+            }]
+        );
         assert_eq!(
             session.represented_vehicle_seat_change_requests_like_cpp(),
             &[
@@ -48793,6 +48860,9 @@ mod tests {
                 wow_packet::packets::vehicle::MoveChangeVehicleSeats {
                     status: wow_packet::packets::movement::MovementInfo {
                         guid: base,
+                        flags: MovementFlag::FORWARD,
+                        time: 3_003,
+                        position: Position::new(8.0, 9.0, 10.0, 2.0),
                         ..wow_packet::packets::movement::MovementInfo::default()
                     },
                     dst_vehicle: ObjectGuid::EMPTY,
@@ -48801,6 +48871,15 @@ mod tests {
             )
             .await;
 
+        assert_eq!(
+            session.represented_vehicle_base_movements_like_cpp(),
+            &[RepresentedVehicleBaseMovementLikeCpp {
+                vehicle_guid: base,
+                sanitized_flags: MovementFlag::FORWARD,
+                position: Position::new(8.0, 9.0, 10.0, 2.0),
+                time: 3_003,
+            }]
+        );
         assert_eq!(
             session.represented_vehicle_seat_change_requests_like_cpp(),
             &[

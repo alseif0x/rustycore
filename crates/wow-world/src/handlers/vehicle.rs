@@ -199,9 +199,9 @@ impl WorldSession {
     }
 
     /// C++ `HandleMoveChangeVehicleSeats`.
-    pub async fn handle_move_change_vehicle_seats(&mut self, packet: MoveChangeVehicleSeats) {
+    pub async fn handle_move_change_vehicle_seats(&mut self, mut packet: MoveChangeVehicleSeats) {
         self.represented_move_change_vehicle_seats_like_cpp(
-            packet.status.guid,
+            &mut packet.status,
             packet.dst_vehicle,
             packet.dst_seat_index,
         );
