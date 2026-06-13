@@ -883,6 +883,15 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
+        opcode: ClientOpcodes::LogStreamingError,
+        status: SessionStatus::Authed,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_log_streaming_error",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
         opcode: ClientOpcodes::ReportKeybindingExecutionCounts,
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
@@ -2661,6 +2670,9 @@ impl crate::session::WorldSession {
     pub async fn handle_report_frozen_while_loading_map(&mut self, _pkt: wow_packet::WorldPacket) {
         // C++ registers CMSG_REPORT_FROZEN_WHILE_LOADING_MAP as
         // STATUS_UNHANDLED/Handle_NULL.
+    }
+    pub async fn handle_log_streaming_error(&mut self, _pkt: wow_packet::WorldPacket) {
+        // C++ registers CMSG_LOG_STREAMING_ERROR as STATUS_UNHANDLED/Handle_NULL.
     }
     pub async fn handle_report_keybinding_execution_counts(
         &mut self,
@@ -6189,6 +6201,17 @@ mod tests {
 
         session
             .handle_report_frozen_while_loading_map(WorldPacket::new_empty())
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn log_streaming_error_is_silent_like_cpp_handle_null() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_log_streaming_error(WorldPacket::new_empty())
             .await;
 
         assert!(send_rx.try_recv().is_err());

@@ -18205,6 +18205,9 @@ impl WorldSession {
             ClientOpcodes::LfgListGetStatus => {
                 self.handle_lfg_list_get_status(pkt).await;
             }
+            ClientOpcodes::LogStreamingError => {
+                self.handle_log_streaming_error(pkt).await;
+            }
             ClientOpcodes::GetAccountCharacterList => {
                 self.handle_get_account_character_list(pkt).await;
             }
@@ -67883,6 +67886,7 @@ mod tests {
             "CloseQuestChoice",
             "ConnectToFailed",
             "GetAccountCharacterList",
+            "LogStreamingError",
             "OverrideScreenFlash",
             "Ping",
             "QueryQuestItemUsability",
