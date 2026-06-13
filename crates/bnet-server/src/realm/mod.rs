@@ -166,10 +166,10 @@ pub struct RealmBuildInfo {
     pub major_version: u32,
     pub minor_version: u32,
     pub bugfix_version: u32,
-    pub hotfix_version: String,
+    pub hotfix_version: [u8; 4],
     pub build: u32,
-    pub win64_auth_seed: Option<Vec<u8>>,
-    pub mac64_auth_seed: Option<Vec<u8>>,
+    pub win64_auth_seed: [u8; 16],
+    pub mac64_auth_seed: [u8; 16],
 }
 
 /// Manages the list of available realms.
@@ -481,17 +481,17 @@ async fn load_build_info(state: &AppState) -> Result<()> {
             let bugfix: u32 = result.try_read::<i32>(2).unwrap_or(0) as u32;
             let hotfix: String = result.try_read::<String>(3).unwrap_or_default();
             let build: u32 = result.try_read::<i32>(4).unwrap_or(0) as u32;
-            let win_seed: Option<String> = result.try_read(5);
-            let mac_seed: Option<String> = result.try_read(6);
+            let win_seed: String = result.try_read::<String>(5).unwrap_or_default();
+            let mac_seed: String = result.try_read::<String>(6).unwrap_or_default();
 
             builds.push(RealmBuildInfo {
                 major_version: major,
                 minor_version: minor,
                 bugfix_version: bugfix,
-                hotfix_version: hotfix,
+                hotfix_version: parse_hotfix_version_like_cpp(&hotfix),
                 build,
-                win64_auth_seed: win_seed.and_then(|s| parse_hex_seed(&s)),
-                mac64_auth_seed: mac_seed.and_then(|s| parse_hex_seed(&s)),
+                win64_auth_seed: parse_auth_seed_like_cpp(&win_seed),
+                mac64_auth_seed: parse_auth_seed_like_cpp(&mac_seed),
             });
 
             if !result.next_row() {
@@ -641,15 +641,29 @@ pub(crate) fn realm_sub_region_address_like_cpp(region: u8, battlegroup: u8) -> 
     RealmHandleLikeCpp::new_like_cpp(region, battlegroup, 0).get_sub_region_address_like_cpp()
 }
 
-fn parse_hex_seed(hex: &str) -> Option<Vec<u8>> {
-    if hex.is_empty() || hex.len() % 2 != 0 {
-        return None;
+fn parse_hotfix_version_like_cpp(hotfix: &str) -> [u8; 4] {
+    let mut bytes = [0; 4];
+    let hotfix_bytes = hotfix.as_bytes();
+    if hotfix_bytes.len() < bytes.len() {
+        bytes[..hotfix_bytes.len()].copy_from_slice(hotfix_bytes);
     }
-    let mut bytes = Vec::with_capacity(hex.len() / 2);
-    for i in (0..hex.len()).step_by(2) {
-        bytes.push(u8::from_str_radix(&hex[i..i + 2], 16).ok()?);
+    bytes
+}
+
+fn parse_auth_seed_like_cpp(hex: &str) -> [u8; 16] {
+    let mut bytes = [0; 16];
+    if hex.len() != bytes.len() * 2 {
+        return bytes;
     }
-    Some(bytes)
+
+    for (idx, byte) in bytes.iter_mut().enumerate() {
+        let start = idx * 2;
+        let Some(parsed) = u8::from_str_radix(&hex[start..start + 2], 16).ok() else {
+            return [0; 16];
+        };
+        *byte = parsed;
+    }
+    bytes
 }
 
 fn zlib_compress(data: &[u8]) -> Vec<u8> {
@@ -753,6 +767,18 @@ mod tests {
             build: 51943,
             region,
             battlegroup,
+        }
+    }
+
+    fn test_build_info(build: u32, major: u32, minor: u32, bugfix: u32) -> RealmBuildInfo {
+        RealmBuildInfo {
+            major_version: major,
+            minor_version: minor,
+            bugfix_version: bugfix,
+            hotfix_version: [0; 4],
+            build,
+            win64_auth_seed: [0; 16],
+            mac64_auth_seed: [0; 16],
         }
     }
 
@@ -864,24 +890,8 @@ mod tests {
     fn minor_major_bugfix_version_uses_cpp_lower_bound_semantics() {
         let mut manager = RealmManager::new();
         manager.builds = vec![
-            RealmBuildInfo {
-                major_version: 3,
-                minor_version: 4,
-                bugfix_version: 2,
-                hotfix_version: String::new(),
-                build: 51800,
-                win64_auth_seed: None,
-                mac64_auth_seed: None,
-            },
-            RealmBuildInfo {
-                major_version: 3,
-                minor_version: 4,
-                bugfix_version: 3,
-                hotfix_version: String::new(),
-                build: 51943,
-                win64_auth_seed: None,
-                mac64_auth_seed: None,
-            },
+            test_build_info(51800, 3, 4, 2),
+            test_build_info(51943, 3, 4, 3),
         ];
 
         assert_eq!(
@@ -895,6 +905,23 @@ mod tests {
         assert_eq!(
             manager.get_minor_major_bugfix_version_for_build_like_cpp(99999),
             0
+        );
+    }
+
+    #[test]
+    fn build_info_hotfix_and_auth_seeds_match_cpp_load_rules() {
+        assert_eq!(parse_hotfix_version_like_cpp("ab"), [b'a', b'b', 0, 0]);
+        assert_eq!(parse_hotfix_version_like_cpp("abcd"), [0; 4]);
+        assert_eq!(parse_hotfix_version_like_cpp("abcde"), [0; 4]);
+
+        assert_eq!(
+            parse_auth_seed_like_cpp("000102030405060708090A0B0C0D0E0F"),
+            [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+        );
+        assert_eq!(parse_auth_seed_like_cpp("000102"), [0; 16]);
+        assert_eq!(
+            parse_auth_seed_like_cpp("000102030405060708090A0B0C0D0E0Z"),
+            [0; 16]
         );
     }
 
@@ -982,15 +1009,7 @@ mod tests {
             RealmHandleLikeCpp::new_like_cpp(7, 8, 10),
             test_realm(10, 7, 8, 4, 6),
         );
-        manager.builds.push(RealmBuildInfo {
-            major_version: 3,
-            minor_version: 4,
-            bugfix_version: 3,
-            hotfix_version: String::new(),
-            build: 51943,
-            win64_auth_seed: None,
-            mac64_auth_seed: None,
-        });
+        manager.builds.push(test_build_info(51943, 3, 4, 3));
 
         let mut counts = HashMap::new();
         counts.insert(realm_address_like_cpp(5, 6, 9), 2);
@@ -1066,15 +1085,7 @@ mod tests {
             RealmHandleLikeCpp::new_like_cpp(5, 6, 9),
             test_realm(9, 5, 6, 3, 1),
         );
-        manager.builds.push(RealmBuildInfo {
-            major_version: 3,
-            minor_version: 4,
-            bugfix_version: 3,
-            hotfix_version: String::new(),
-            build: 51943,
-            win64_auth_seed: None,
-            mac64_auth_seed: None,
-        });
+        manager.builds.push(test_build_info(51943, 3, 4, 3));
 
         let packed = realm_address_like_cpp(5, 6, 9);
         let entry = manager.get_realm_entry_json_like_cpp(packed, 51943);
