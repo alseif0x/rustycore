@@ -1,3 +1,13 @@
+- `#NEXT.R8.ENTITIES.835` - audit-fix/represented-complete for stale `CMSG_CANCEL_TEMP_ENCHANTMENT` inventory.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/ItemHandler.cpp:1100-1115`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/ItemPackets.cpp`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/ItemPackets.h`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:282`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:169`.
+
+  Rust anchors: `crates/wow-packet/src/packets/item.rs`; `crates/wow-world/src/handlers/character.rs`; `crates/wow-world/src/session.rs`.
+
+  Acceptance: inventories no longer claim `CMSG_CANCEL_TEMP_ENCHANTMENT` is missing. Rust already parses the C++ signed equipment slot, registers `LoggedIn`/`Inplace` dispatch, routes through `WorldSession`, rejects non-equipment slots, rejects missing inventory items, rejects missing temporary enchantments, applies the represented remove-enchantment plan, clears the `EnhancementTemporary` slot, and syncs the represented object-accessor player.
+
+  Boundary: audit-fix for stale opcode inventory only; represented-complete for bounded equipped temporary-enchantment cancellation. No live client/manual validation in this slice.
+
 - `#NEXT.R8.ENTITIES.834` - represented-complete for `CMSG_STAND_STATE_CHANGE`.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:406-420`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.cpp:328-334`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.h:434-443`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:944`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:644`.
