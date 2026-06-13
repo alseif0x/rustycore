@@ -54,7 +54,7 @@ use wow_network::player_registry::{
     SendIfVisibleLikeCppCommand, SendRepeatableTurnInRequestItemsLikeCppCommand,
     SetQuestSharingInfoAndSendDetailsCommand, SyncChestGameobjectStateAndRefreshLikeCppCommand,
     SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
-    SyncGooberGameobjectStateAndRefreshLikeCppCommand,
+    SyncGooberGameobjectStateAndRefreshLikeCppCommand, WorldSessionShutdownFlushResultLikeCpp,
 };
 use wow_network::{
     LootRollStoreWinnerCommand, LootRollVoteCommand, MasterLootGiveCommand, MasterLootGiveResult,
@@ -2774,6 +2774,14 @@ impl WorldSession {
             match command {
                 SessionCommand::KickLikeCpp(command) => {
                     self.kick(&command.reason);
+                }
+                SessionCommand::WorldSessionShutdownFlushLikeCpp(command) => {
+                    let _ = command
+                        .response_tx
+                        .try_send(WorldSessionShutdownFlushResultLikeCpp {
+                            diff_ms: command.diff_ms,
+                            disconnecting: self.is_disconnecting(),
+                        });
                 }
                 SessionCommand::ApplyCreatureMeleeDamageLikeCpp(command) => {
                     self.handle_apply_creature_melee_damage_like_cpp_command_like_cpp(command);

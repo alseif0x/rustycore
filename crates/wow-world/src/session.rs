@@ -31363,6 +31363,7 @@ mod tests {
         GroupInfo, GroupRegistry, KickLikeCppCommand, PendingInvites, PlayerBroadcastInfo,
         RefreshVisibleWorldCreaturesLikeCppCommand, ResetSeasonalQuestStatusCommand,
         SendIfVisibleLikeCppCommand, SendVisibleObjectValuesUpdateCommand, SessionCommand,
+        WorldSessionShutdownFlushLikeCppCommand,
     };
     use wow_packet::ServerPacket;
     use wow_packet::packets::loot::{
@@ -55921,6 +55922,36 @@ mod tests {
             .process_represented_session_commands_like_cpp()
             .await;
 
+        assert!(session.is_disconnecting());
+    }
+
+    #[tokio::test]
+    async fn shutdown_flush_command_observes_prior_kick_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let (response_tx, response_rx) = flume::bounded(1);
+        let command_tx = session.session_command_tx();
+
+        command_tx
+            .try_send(SessionCommand::KickLikeCpp(KickLikeCppCommand {
+                reason: "World::KickAll".to_string(),
+            }))
+            .expect("kick command queued");
+        command_tx
+            .try_send(SessionCommand::WorldSessionShutdownFlushLikeCpp(
+                WorldSessionShutdownFlushLikeCppCommand {
+                    diff_ms: 1,
+                    response_tx,
+                },
+            ))
+            .expect("flush command queued");
+
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+
+        let result = response_rx.try_recv().expect("flush ack returned");
+        assert_eq!(result.diff_ms, 1);
+        assert!(result.disconnecting);
         assert!(session.is_disconnecting());
     }
 

@@ -45,7 +45,9 @@ use wow_network::{
     GameEventQuestCompleteResponseLikeCpp, GroupRegistry, KickLikeCppCommand, LootDropRatesLikeCpp,
     PacketSpoofConfigLikeCpp, PendingInvites, PlayerRegistry, ReadyCheckEventLikeCpp,
     ReputationRatesLikeCpp, ResetSeasonalQuestStatusCommand, SendVisibleObjectValuesUpdateCommand,
-    SessionCommand, SessionResources, SocketTimeoutsLikeCpp, tick_all_group_ready_checks_like_cpp,
+    SessionCommand, SessionResources, SocketTimeoutsLikeCpp,
+    WorldSessionShutdownFlushLikeCppCommand, WorldSessionShutdownFlushResultLikeCpp,
+    tick_all_group_ready_checks_like_cpp,
 };
 use wow_packet::{
     ServerPacket,
@@ -84,6 +86,7 @@ type SharedWorldStateMgrLikeCpp = Arc<Mutex<spawn_store_loader::WorldStateMgrLik
 const SHUTDOWN_EXIT_CODE_LIKE_CPP: i32 = 0;
 const ERROR_EXIT_CODE_LIKE_CPP: i32 = 1;
 const RESTART_EXIT_CODE_LIKE_CPP: i32 = 2;
+const WORLD_SESSION_SHUTDOWN_FLUSH_TIMEOUT_LIKE_CPP: Duration = Duration::from_millis(500);
 
 #[derive(Debug)]
 struct WorldRuntimeStateLikeCpp {
@@ -2764,6 +2767,22 @@ async fn main() -> Result<ExitCode> {
         failed = kick_summary.send_failed,
         "Queued World::KickAll-style shutdown kicks"
     );
+    let flush_summary = update_sessions_shutdown_flush_once_like_cpp(
+        &active_session_registry,
+        1,
+        WORLD_SESSION_SHUTDOWN_FLUSH_TIMEOUT_LIKE_CPP,
+    )
+    .await;
+    info!(
+        sessions_seen = flush_summary.sessions_seen,
+        queued = flush_summary.queued,
+        failed = flush_summary.send_failed,
+        acked = flush_summary.acked,
+        ack_failed = flush_summary.ack_failed,
+        ack_timeout = flush_summary.ack_timeout,
+        disconnecting = flush_summary.disconnecting,
+        "Ran World::UpdateSessions(1)-style shutdown flush"
+    );
 
     game_event_quest_complete_handle.abort();
     if let Some(db_keepalive_handle) = db_keepalive_handle {
@@ -3021,6 +3040,25 @@ struct KickAllSessionsSummaryLikeCpp {
     pub send_failed: usize,
 }
 
+/// Summary returned by [`update_sessions_shutdown_flush_once_like_cpp`].
+#[derive(Debug, Default, PartialEq, Eq)]
+struct UpdateSessionsShutdownFlushSummaryLikeCpp {
+    /// Active session registry entries evaluated.
+    pub sessions_seen: usize,
+    /// Shutdown flush commands successfully enqueued.
+    pub queued: usize,
+    /// `try_send` calls that failed because the command channel was full/closed.
+    pub send_failed: usize,
+    /// Sessions that acknowledged the flush command before the timeout.
+    pub acked: usize,
+    /// Sessions whose response channel closed before an acknowledgement.
+    pub ack_failed: usize,
+    /// Sessions that accepted the command but did not respond in time.
+    pub ack_timeout: usize,
+    /// Acknowledged sessions already marked disconnecting after the flush.
+    pub disconnecting: usize,
+}
+
 /// Queue a C++ `World::KickAll`-style kick for every active Rust session.
 ///
 /// C++ anchor:
@@ -3053,6 +3091,84 @@ fn kick_all_sessions_like_cpp(
                     session_id,
                     error = %error,
                     "Failed to queue World::KickAll-style shutdown kick"
+                );
+            }
+        }
+    }
+
+    summary
+}
+
+/// Ask every active session task to observe earlier shutdown commands.
+///
+/// C++ anchor:
+/// `/home/server/woltk-trinity-legacy/src/server/game/World/World.cpp:3394`
+/// `World::UpdateSessions(diff)` owns the session map, ticks every session,
+/// and removes sessions whose `WorldSession::Update` returns false. Rust does
+/// not yet have that global owner. This function is an explicit bridge for the
+/// shutdown path: after `KickAll`, queue a flush marker behind the kick and wait
+/// for the task-owned session to acknowledge that it drained the command rail.
+/// It does not claim the final C++ erase/delete semantics.
+async fn update_sessions_shutdown_flush_once_like_cpp(
+    registry: &ActiveWorldSessionRegistryLikeCpp,
+    diff_ms: u32,
+    ack_timeout: Duration,
+) -> UpdateSessionsShutdownFlushSummaryLikeCpp {
+    let mut summary = UpdateSessionsShutdownFlushSummaryLikeCpp::default();
+    let mut pending_acks = Vec::new();
+
+    for (session_id, session) in registry.snapshot_like_cpp() {
+        summary.sessions_seen = summary.sessions_seen.saturating_add(1);
+        let (response_tx, response_rx) =
+            flume::bounded::<WorldSessionShutdownFlushResultLikeCpp>(1);
+        let command = SessionCommand::WorldSessionShutdownFlushLikeCpp(
+            WorldSessionShutdownFlushLikeCppCommand {
+                diff_ms,
+                response_tx,
+            },
+        );
+
+        match session.command_tx.try_send(command) {
+            Ok(()) => {
+                summary.queued = summary.queued.saturating_add(1);
+                pending_acks.push((session_id, session.account_id, response_rx));
+            }
+            Err(error) => {
+                summary.send_failed = summary.send_failed.saturating_add(1);
+                warn!(
+                    account = session.account_id,
+                    session_id,
+                    error = %error,
+                    "Failed to queue World::UpdateSessions(1)-style shutdown flush"
+                );
+            }
+        }
+    }
+
+    for (session_id, account_id, response_rx) in pending_acks {
+        match tokio::time::timeout(ack_timeout, response_rx.recv_async()).await {
+            Ok(Ok(result)) => {
+                summary.acked = summary.acked.saturating_add(1);
+                if result.disconnecting {
+                    summary.disconnecting = summary.disconnecting.saturating_add(1);
+                }
+            }
+            Ok(Err(error)) => {
+                summary.ack_failed = summary.ack_failed.saturating_add(1);
+                warn!(
+                    account = account_id,
+                    session_id,
+                    error = %error,
+                    "World::UpdateSessions(1)-style shutdown flush acknowledgement failed"
+                );
+            }
+            Err(_) => {
+                summary.ack_timeout = summary.ack_timeout.saturating_add(1);
+                warn!(
+                    account = account_id,
+                    session_id,
+                    timeout_ms = ack_timeout.as_millis(),
+                    "Timed out waiting for World::UpdateSessions(1)-style shutdown flush acknowledgement"
                 );
             }
         }
@@ -9390,7 +9506,10 @@ fn spawn_legacy_creature_runtime_update_loop_like_cpp(
 
 #[cfg(test)]
 mod tests {
-    use super::{ActiveWorldSessionRegistryLikeCpp, KickAllSessionsSummaryLikeCpp};
+    use super::{
+        ActiveWorldSessionRegistryLikeCpp, KickAllSessionsSummaryLikeCpp,
+        UpdateSessionsShutdownFlushSummaryLikeCpp,
+    };
     use super::{
         CanonicalGameEventSchedulerLikeCpp, CanonicalRespawnConditionSchedulerLikeCpp,
         ERROR_EXIT_CODE_LIKE_CPP, FreezeDetectorLikeCpp, FreezeDetectorPollOutcomeLikeCpp,
@@ -9446,7 +9565,8 @@ mod tests {
         run_legacy_creature_movement_tick_and_deliver_once_like_cpp,
         run_legacy_creature_runtime_tick_and_deliver_once_like_cpp, set_realm_offline_sql_like_cpp,
         set_realm_online_sql_like_cpp, spawn_legacy_creature_runtime_update_loop_like_cpp,
-        spawn_store_loader, updates_auto_setup_enabled_like_cpp, updates_database_mask_like_cpp,
+        spawn_store_loader, update_sessions_shutdown_flush_once_like_cpp,
+        updates_auto_setup_enabled_like_cpp, updates_database_mask_like_cpp,
         updates_enabled_for_database_like_cpp, world_config_bool, world_config_u8,
         world_config_u16, world_config_u32, world_db_core_version_update_sql_like_cpp,
         world_db_version_matches_required_like_cpp, world_db_version_mismatch_message_like_cpp,
@@ -9458,7 +9578,7 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
     use std::sync::{Arc, Mutex};
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use std::time::{Duration, SystemTime, UNIX_EPOCH};
     use wow_constants::{ConditionSourceType, ConditionType};
     use wow_core::{ObjectGuid, Position, guid::HighGuid};
     use wow_data::{Condition, ConditionEntriesByTypeStore};
@@ -9474,7 +9594,9 @@ mod tests {
         SpawnGroupTemplateData, SpawnObjectType, SpawnPosition, SpawnStore,
         spawn::SpawnGroupMemberRow,
     };
-    use wow_network::{PlayerBroadcastInfo, PlayerRegistry, SessionCommand};
+    use wow_network::{
+        PlayerBroadcastInfo, PlayerRegistry, SessionCommand, WorldSessionShutdownFlushResultLikeCpp,
+    };
     use wow_packet::{
         ServerPacket,
         packets::chat::{ChatMsg, ChatPkt},
@@ -9642,6 +9764,88 @@ mod tests {
         );
         assert_eq!(registry.len(), 0);
         assert!(registry.unregister(id).is_none());
+    }
+
+    #[tokio::test]
+    async fn shutdown_flush_queues_update_sessions_ack_command_like_cpp() {
+        let registry = ActiveWorldSessionRegistryLikeCpp::new();
+        let (command_tx, command_rx) = flume::bounded(1);
+
+        registry.register(50, command_tx);
+
+        let responder = tokio::spawn(async move {
+            let command = command_rx.recv_async().await.expect("flush command queued");
+            let SessionCommand::WorldSessionShutdownFlushLikeCpp(command) = command else {
+                panic!("expected shutdown flush command");
+            };
+            assert_eq!(command.diff_ms, 1);
+            command
+                .response_tx
+                .try_send(WorldSessionShutdownFlushResultLikeCpp {
+                    diff_ms: command.diff_ms,
+                    disconnecting: true,
+                })
+                .expect("ack accepted");
+        });
+
+        assert_eq!(
+            update_sessions_shutdown_flush_once_like_cpp(&registry, 1, Duration::from_secs(1))
+                .await,
+            UpdateSessionsShutdownFlushSummaryLikeCpp {
+                sessions_seen: 1,
+                queued: 1,
+                send_failed: 0,
+                acked: 1,
+                ack_failed: 0,
+                ack_timeout: 0,
+                disconnecting: 1,
+            }
+        );
+        responder.await.expect("responder joined");
+    }
+
+    #[tokio::test]
+    async fn shutdown_flush_counts_full_command_channel_without_blocking_like_cpp() {
+        let registry = ActiveWorldSessionRegistryLikeCpp::new();
+        let (command_tx, _command_rx) = flume::bounded(0);
+
+        registry.register(60, command_tx);
+
+        assert_eq!(
+            update_sessions_shutdown_flush_once_like_cpp(&registry, 1, Duration::from_millis(1))
+                .await,
+            UpdateSessionsShutdownFlushSummaryLikeCpp {
+                sessions_seen: 1,
+                queued: 0,
+                send_failed: 1,
+                acked: 0,
+                ack_failed: 0,
+                ack_timeout: 0,
+                disconnecting: 0,
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn shutdown_flush_counts_unacknowledged_session_timeout_like_cpp() {
+        let registry = ActiveWorldSessionRegistryLikeCpp::new();
+        let (command_tx, _command_rx) = flume::bounded(1);
+
+        registry.register(70, command_tx);
+
+        assert_eq!(
+            update_sessions_shutdown_flush_once_like_cpp(&registry, 1, Duration::from_millis(1))
+                .await,
+            UpdateSessionsShutdownFlushSummaryLikeCpp {
+                sessions_seen: 1,
+                queued: 1,
+                send_failed: 0,
+                acked: 0,
+                ack_failed: 0,
+                ack_timeout: 1,
+                disconnecting: 0,
+            }
+        );
     }
 
     fn assert_del_respawn_params_like_cpp(

@@ -20,6 +20,7 @@ use wow_packet::packets::party::{
 #[derive(Clone, Debug)]
 pub enum SessionCommand {
     KickLikeCpp(KickLikeCppCommand),
+    WorldSessionShutdownFlushLikeCpp(WorldSessionShutdownFlushLikeCppCommand),
     ApplyCreatureMeleeDamageLikeCpp(ApplyCreatureMeleeDamageLikeCppCommand),
     CreatureAttackStartLikeCpp(CreatureAttackStartLikeCppCommand),
     MasterLootGive(MasterLootGiveCommand),
@@ -58,6 +59,28 @@ pub enum SessionCommand {
 #[derive(Clone, Debug)]
 pub struct KickLikeCppCommand {
     pub reason: String,
+}
+
+/// Acknowledgement request used by Rust's shutdown bridge after queuing
+/// `World::KickAll`.
+///
+/// C++ `World::UpdateSessions(1)` owns and ticks every `WorldSession`
+/// synchronously after `KickAll`. Rust sessions are still task-owned, so the
+/// world server uses this command as a bounded flush point: when a session
+/// drains it, all earlier `SessionCommand`s in the same channel have been
+/// observed.
+#[derive(Clone, Debug)]
+pub struct WorldSessionShutdownFlushLikeCppCommand {
+    pub diff_ms: u32,
+    pub response_tx: flume::Sender<WorldSessionShutdownFlushResultLikeCpp>,
+}
+
+/// Result returned to the world server when a session observes a shutdown
+/// flush command.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WorldSessionShutdownFlushResultLikeCpp {
+    pub diff_ms: u32,
+    pub disconnecting: bool,
 }
 
 /// Payload for a map-owned creature melee hit against one player session.
