@@ -35,7 +35,7 @@ Layer: L0–L8 según `MIGRATION_ROADMAP.md` § 2.
 | L1 | shared/Networking | `src/server/shared/Networking/` | [shared-networking.md](shared-networking.md) | ⚠️ ~75% | ⚠️ |
 | L1 | shared/Packets | `src/server/shared/Packets/` | [shared-packets.md](shared-packets.md) | ⚠️ | ⚠️ |
 | L1 | Crypto (SRP6/AES-GCM/HMAC) | `src/server/shared/Cryptography/` + `src/common/Cryptography/` | [crypto.md](crypto.md) | ✅ ~95% | ⚠️ |
-| L1 | shared/Realm | `src/server/shared/Realm/` | [shared-realm.md](shared-realm.md) | ⚠️ (RealmHandle bug + cfg_id swap) | ⚠️ |
+| L1 | shared/Realm | `src/server/shared/Realm/` | [shared-realm.md](shared-realm.md) | ⚠️ (~70%; BNet RealmHandle/cfg swap fixed; strong RealmHandle/golden/e2e pending) | ⚠️ |
 | L1 | shared/Secrets | `src/server/shared/Secrets/` | [shared-secrets.md](shared-secrets.md) | ❌ (0%) | ⚠️ |
 | L1 | shared/DataStores | `src/server/shared/DataStores/` | [shared-datastores.md](shared-datastores.md) | ⚠️ ~1.5% | ⚠️ |
 | L1 | shared/Dynamic | `src/server/shared/Dynamic/` | [shared-dynamic.md](shared-dynamic.md) | n/a | ✅ |
@@ -171,8 +171,7 @@ Layer: L0–L8 según `MIGRATION_ROADMAP.md` § 2.
 | 🟠 P1 | phasing | Stub envía siempre `PhaseShiftFlags::Unphased=0x08` | Wire mismatch latente | `phasing.md` §13 |
 | 🟡 P2 | crypto | Ed25519 priv key hardcoded vs C++ que carga PEM por build_info | Login-blocker si pubkey mismatch | `crypto.md` §13 |
 | 🟡 P2 | crypto | `compute_x` uppercases internally; C++ `Utf8ToUpperOnlyLatin` en caller | Latin-1 supplement break | `crypto.md` §13 |
-| 🟡 P2 | shared-realm | `wow_realm_address = r.id` (raw); C++ packs `(Region<<24)\|(Site<<16)\|Realm` | Multi-region break | `shared-realm.md` §13 |
-| 🟡 P2 | shared-realm | `cfg_timezones_id`/`cfg_categories_id` invertidos vs C++ | Timezone/category mal asignados | `shared-realm.md` §13 |
+| 🟢 fixed | shared-realm | `wow_realm_address = r.id` (raw) vs C++ packed `(Region<<24)\|(Site<<16)\|Realm`, y `cfg_timezones_id`/`cfg_categories_id` invertidos | Corregido 2026-06-13 con tests de realm-list JSON, subregion, packed address y JoinRealm lookup | `shared-realm.md` §13 |
 | 🟡 P2 | bnetserver | `extract_auth_ticket` usa base64 verbatim (TC base64-decoda + truncate `:`) | Falla con tokens spec-compliant | `bnetserver.md` §13 |
 | 🟡 P2 | shared-packets | `read_float` acepta NaN/Inf (C++ throws) | Hostile client poison | `shared-packets.md` §13 |
 | 🟢 fixed | inventory | Item.db2 `inventory_type i8→u8` cast colisionaba con `INVENTORY_SLOT_BAG_0=255`; `INVTYPE_BAG=18` también iba a slot 3 | Cerrado en `#NEXT.R8.ENTITIES.046` | `inventory.md` §13 |

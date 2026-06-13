@@ -13,6 +13,17 @@ use std::sync::Arc;
 use crate::state::AppState;
 use wow_database::LoginStatements;
 
+const REALM_FLAG_VERSION_MISMATCH: u8 = 0x01;
+const REALM_FLAG_OFFLINE: u8 = 0x02;
+const REALM_TYPE_NORMAL: u8 = 0;
+const REALM_TYPE_PVP: u8 = 1;
+const MAX_CLIENT_REALM_TYPE: u8 = 14;
+const REALM_TYPE_FFA_PVP: u8 = 16;
+const SEC_ADMINISTRATOR: u8 = 3;
+const DEFAULT_VERSION_MAJOR: u32 = 6;
+const DEFAULT_VERSION_MINOR: u32 = 2;
+const DEFAULT_VERSION_REVISION: u32 = 4;
+
 /// A single realm entry from the `realmlist` table.
 #[derive(Debug, Clone)]
 pub struct Realm {
@@ -66,6 +77,16 @@ impl RealmManager {
         })
     }
 
+    /// Find a realm from Battlenet::RealmHandle::GetAddress() like C++ JoinRealm.
+    ///
+    /// TrinityCore constructs `RealmHandle(realmAddress)` and `RealmHandle`
+    /// equality/order only compares the `Realm` field, so the lookup resolves
+    /// the low 16-bit realmlist id rather than the whole packed address.
+    pub fn get_realm_by_realm_address_like_cpp(&self, realm_address: u32) -> Option<&Realm> {
+        self.realms
+            .get(&(realm_id_from_address_like_cpp(realm_address)))
+    }
+
     /// Get build info for a specific build number.
     pub fn get_build_info(&self, build: u32) -> Option<&RealmBuildInfo> {
         self.builds.iter().find(|b| b.build == build)
@@ -83,12 +104,10 @@ impl RealmManager {
         _sub_region: &str,
         char_counts: &HashMap<u32, u8>,
     ) -> (Vec<u8>, Vec<u8>) {
-        const REALM_FLAG_VERSION_MISMATCH: u8 = 0x01;
-        const REALM_FLAG_OFFLINE: u8 = 0x02;
-
         let updates: Vec<RealmListUpdate> = self
             .realms
             .values()
+            .filter(|r| realm_sub_region_address_like_cpp(r.region, r.battlegroup) == _sub_region)
             .map(|r| {
                 let build_info = self.get_build_info(r.build);
 
@@ -108,20 +127,26 @@ impl RealmManager {
 
                 RealmListUpdate {
                     update: RealmEntry {
-                        wow_realm_address: r.id as i32,
-                        cfg_timezones_id: i32::from(r.timezone),
+                        wow_realm_address: realm_address_like_cpp(r.region, r.battlegroup, r.id)
+                            as i32,
+                        cfg_timezones_id: 1,
                         population_state,
-                        cfg_categories_id: 1,
+                        cfg_categories_id: i32::from(r.timezone),
                         version: ClientVersion {
-                            version_major: build_info.map_or(0, |b| b.major_version as i32),
+                            version_major: build_info
+                                .map_or(DEFAULT_VERSION_MAJOR as i32, |b| b.major_version as i32),
                             version_build: r.build as i32,
-                            version_minor: build_info.map_or(0, |b| b.minor_version as i32),
-                            version_revision: build_info.map_or(0, |b| b.bugfix_version as i32),
+                            version_minor: build_info
+                                .map_or(DEFAULT_VERSION_MINOR as i32, |b| b.minor_version as i32),
+                            version_revision: build_info
+                                .map_or(DEFAULT_VERSION_REVISION as i32, |b| {
+                                    b.bugfix_version as i32
+                                }),
                         },
                         cfg_realms_id: r.id as i32,
                         flags: i32::from(flags),
                         name: r.name.clone(),
-                        cfg_configs_id: 1,
+                        cfg_configs_id: i32::from(realm_config_id_like_cpp(r.icon)),
                         cfg_languages_id: 1,
                     },
                     deleting: false,
@@ -297,16 +322,17 @@ async fn update_realms(state: &AppState) -> Result<()> {
             let address: String = result.read(2);
             let local_address: String = result.read(3);
             let port: u16 = result.try_read::<u16>(4).unwrap_or(8085);
-            let icon: u8 = result.try_read::<u8>(5).unwrap_or(0);
+            let icon: u8 = normalize_realm_type_like_cpp(result.try_read::<u8>(5).unwrap_or(0));
             let flag: u8 = result.try_read::<u8>(6).unwrap_or(0);
             let timezone: u8 = result.try_read::<u8>(7).unwrap_or(0);
-            let allowed_security_level: u8 = result.try_read::<u8>(8).unwrap_or(0);
+            let allowed_security_level: u8 =
+                result.try_read::<u8>(8).unwrap_or(0).min(SEC_ADMINISTRATOR);
             let population: f32 = result.try_read::<f32>(9).unwrap_or(0.0);
             let build: u32 = result.try_read::<u32>(10).unwrap_or(0);
             let region: u8 = result.try_read::<u8>(11).unwrap_or(0);
             let battlegroup: u8 = result.try_read::<u8>(12).unwrap_or(0);
 
-            let sub_region = format!("{region}-{battlegroup}-0");
+            let sub_region = realm_sub_region_address_like_cpp(region, battlegroup);
             if !sub_regions.contains(&sub_region) {
                 sub_regions.push(sub_region);
             }
@@ -342,6 +368,32 @@ async fn update_realms(state: &AppState) -> Result<()> {
     mgr.sub_regions = sub_regions;
     tracing::debug!("Updated {count} realms");
     Ok(())
+}
+
+fn normalize_realm_type_like_cpp(icon: u8) -> u8 {
+    if icon == REALM_TYPE_FFA_PVP {
+        return REALM_TYPE_PVP;
+    }
+    if icon >= MAX_CLIENT_REALM_TYPE {
+        return REALM_TYPE_NORMAL;
+    }
+    icon
+}
+
+fn realm_config_id_like_cpp(realm_type: u8) -> u8 {
+    normalize_realm_type_like_cpp(realm_type) + 1
+}
+
+pub(crate) fn realm_address_like_cpp(region: u8, battlegroup: u8, realm_id: u32) -> u32 {
+    (u32::from(region) << 24) | (u32::from(battlegroup) << 16) | (realm_id & 0xFFFF)
+}
+
+fn realm_id_from_address_like_cpp(realm_address: u32) -> u32 {
+    realm_address & 0xFFFF
+}
+
+pub(crate) fn realm_sub_region_address_like_cpp(region: u8, battlegroup: u8) -> String {
+    format!("{region}-{battlegroup}-0")
 }
 
 fn parse_hex_seed(hex: &str) -> Option<Vec<u8>> {
@@ -431,4 +483,127 @@ struct AddressFamily {
 struct IpAddress {
     ip: String,
     port: i32,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use flate2::read::ZlibDecoder;
+    use serde_json::Value;
+    use std::io::Read;
+
+    fn test_realm(id: u32, region: u8, battlegroup: u8, timezone: u8, icon: u8) -> Realm {
+        Realm {
+            id,
+            name: format!("Realm{id}"),
+            external_address: "203.0.113.10".to_string(),
+            local_address: "10.0.0.10".to_string(),
+            port: 8085,
+            icon,
+            flag: 0,
+            timezone,
+            allowed_security_level: 0,
+            population: 2.0,
+            build: 51943,
+            region,
+            battlegroup,
+        }
+    }
+
+    fn inflate_payload(payload: &[u8]) -> String {
+        let expected_len = u32::from_le_bytes(payload[0..4].try_into().unwrap()) as usize;
+        let mut decoder = ZlibDecoder::new(&payload[4..]);
+        let mut out = Vec::new();
+        decoder.read_to_end(&mut out).unwrap();
+        assert_eq!(out.len(), expected_len);
+        String::from_utf8(out).unwrap()
+    }
+
+    fn parse_enveloped_json<'a>(payload: &'a str, prefix: &str) -> Value {
+        let json = payload
+            .strip_prefix(prefix)
+            .expect("expected JSON envelope prefix")
+            .trim_end_matches('\0');
+        serde_json::from_str(json).unwrap()
+    }
+
+    #[test]
+    fn realm_handle_address_matches_cpp_packing_and_lookup() {
+        let realm_address = realm_address_like_cpp(5, 6, 9);
+        assert_eq!(realm_address, 0x0506_0009);
+        assert_eq!(realm_id_from_address_like_cpp(realm_address), 9);
+        assert_eq!(realm_sub_region_address_like_cpp(5, 6), "5-6-0");
+
+        let mut manager = RealmManager::new();
+        manager.realms.insert(9, test_realm(9, 5, 6, 1, 1));
+        assert_eq!(
+            manager
+                .get_realm_by_realm_address_like_cpp(realm_address)
+                .map(|realm| realm.id),
+            Some(9)
+        );
+    }
+
+    #[test]
+    fn realm_list_json_filters_subregion_and_uses_cpp_fields() {
+        let mut manager = RealmManager::new();
+        manager.realms.insert(9, test_realm(9, 5, 6, 3, 1));
+        manager.realms.insert(10, test_realm(10, 7, 8, 4, 6));
+        manager.builds.push(RealmBuildInfo {
+            major_version: 3,
+            minor_version: 4,
+            bugfix_version: 3,
+            hotfix_version: String::new(),
+            build: 51943,
+            win64_auth_seed: None,
+            mac64_auth_seed: None,
+        });
+
+        let mut counts = HashMap::new();
+        counts.insert(realm_address_like_cpp(5, 6, 9), 2);
+
+        let (realms, char_counts) = manager.get_realm_list_json(51943, "5-6-0", &counts);
+        let realms = inflate_payload(&realms);
+        let json = parse_enveloped_json(&realms, "JSONRealmListUpdates:");
+        let updates = json["updates"].as_array().unwrap();
+        assert_eq!(updates.len(), 1);
+
+        let update = &updates[0]["update"];
+        assert_eq!(update["wowRealmAddress"], 0x0506_0009);
+        assert_eq!(update["cfgTimezonesId"], 1);
+        assert_eq!(update["cfgCategoriesId"], 3);
+        assert_eq!(update["cfgConfigsId"], 2);
+        assert_eq!(update["cfgRealmsId"], 9);
+        assert_eq!(update["version"]["versionMajor"], 3);
+        assert_eq!(update["version"]["versionMinor"], 4);
+        assert_eq!(update["version"]["versionRevision"], 3);
+        assert_eq!(update["version"]["versionBuild"], 51943);
+
+        let char_counts = inflate_payload(&char_counts);
+        let json = parse_enveloped_json(&char_counts, "JSONRealmCharacterCountList:");
+        assert_eq!(json["counts"][0]["wowRealmAddress"], 0x0506_0009);
+        assert_eq!(json["counts"][0]["count"], 2);
+    }
+
+    #[test]
+    fn realm_list_json_uses_cpp_fallback_version_and_type_normalization() {
+        let mut manager = RealmManager::new();
+        manager
+            .realms
+            .insert(9, test_realm(9, 5, 6, 3, REALM_TYPE_FFA_PVP));
+
+        let (realms, _) = manager.get_realm_list_json(12340, "5-6-0", &HashMap::new());
+        let realms = inflate_payload(&realms);
+        let json = parse_enveloped_json(&realms, "JSONRealmListUpdates:");
+        let update = &json["updates"][0]["update"];
+
+        assert_eq!(update["flags"], REALM_FLAG_VERSION_MISMATCH);
+        assert_eq!(update["cfgConfigsId"], 2);
+        assert_eq!(update["version"]["versionMajor"], DEFAULT_VERSION_MAJOR);
+        assert_eq!(update["version"]["versionMinor"], DEFAULT_VERSION_MINOR);
+        assert_eq!(
+            update["version"]["versionRevision"],
+            DEFAULT_VERSION_REVISION
+        );
+    }
 }

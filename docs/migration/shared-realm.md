@@ -3,9 +3,9 @@
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/server/shared/Realm/`
 > **Rust target crate(s):** `crates/bnet-server/` (`src/realm/mod.rs`)
 > **Layer:** L1
-> **Status:** ⚠️ partial (~60%) — confirmed via audit 2026-05-01 (RealmHandle packing absent; cfg_timezones/categories swapped vs C++; JoinRealm exists at bnet RPC layer, not at the missing-RealmList layer)
-> **Audited vs C++:** ✅ audited 2026-05-01 — both flagged divergences confirmed; one was C++-side mis-cited (line 332 actually points to the correct C++ assignment, *not* the bug; the bug is purely in Rust)
-> **Last updated:** 2026-05-01
+> **Status:** ⚠️ partial (~70%) — 2026-06-13 slice fixed the BNet realm-address packing, subregion filtering, cfg timezone/category swap, type/security normalization and packed JoinRealm lookup; remaining gaps include normalized names, minor/major/bugfix lookup, hostname resolution, golden/e2e realm-list payloads and architectural unification with the world snapshot.
+> **Audited vs C++:** ✅ audited 2026-06-13 against `Realm.h`, `Realm.cpp`, `RealmList.cpp` for the fixed BNet realm-list slice.
+> **Last updated:** 2026-06-13
 
 ---
 
@@ -134,7 +134,7 @@ Y para realm list updates:
 <!-- REFINE.021:END rust-target-coverage -->
 
 **Files in `/home/server/rustycore`:**
-- `crates/bnet-server/src/realm/mod.rs` — 392 líneas — cubre ~60% del C++
+- `crates/bnet-server/src/realm/mod.rs` — cubre ~70% del C++ shared/Realm surface
 - `crates/wow-database/src/statements/login.rs` — declara `SEL_REALMLIST`, `SEL_REALMLIST_SECURITY_LEVEL`
 
 **What's implemented:**
@@ -148,27 +148,29 @@ Y para realm list updates:
 - Envelopes correctos: `JSONRealmListUpdates:` / `JSONRealmListServerIPAddresses:` / `JSONRealmCharacterCountList:`
 - Compresión zlib con prefijo `u32` little-endian de tamaño descomprimido
 - `find_realm_by_address`, `get_build_info`
+- Helpers C++-like para `RealmHandle::GetAddress()` (`region<<24 | site<<16 | realm`), `GetSubRegionAddress()` (`region-site-0`) y lookup de `JoinRealm` desde packed `realmAddress` usando el low 16-bit realm id como C++.
+- `get_realm_list_json` filtra por subregion como `RealmList::GetRealmList`, emite `wowRealmAddress` packed, `cfgTimezonesId=1`, `cfgCategoriesId=realm.Timezone`, `cfgConfigsId=Realm::GetConfigId()` y fallback de versión `6.2.4` cuando falta `build_info`.
+- `update_realms` normaliza `REALM_TYPE_FFA_PVP -> REALM_TYPE_PVP`, `icon >= MAX_CLIENT_REALM_TYPE -> NORMAL`, y clampa `allowedSecurityLevel` a `SEC_ADMINISTRATOR`.
+- `authentication` guarda `char_counts` y `last_played_chars.realm_address` con packed `RealmHandle::GetAddress()`, como C++ `Battlenet::Session`.
 
 **What's missing vs C++:**
-- **`RealmHandle` no existe** — Rust usa `u32` plano como key, sin descomponer en `(Region, Site, Realm)`. `wowRealmAddress` = `r.id` directo, no packed `(Region<<24)|(Site<<16)|Realm`. Esto compila pero no es format-equivalent al C++ si llegan clientes con region/site distintos.
-- **`JoinRealm` flow no existe** — falta la generación de `Param_RealmJoinTicket` / `Param_ServerAddresses` / `Param_JoinSecret` con persistencia DB de keyData. El RPC handler probablemente genera estos atributos en otro sitio (revisar `bnet-server/src/rpc/services/game_utilities.rs`).
-- **`WriteSubRegions`** equivalente — falta la integración con `GetAllValuesForAttributeResponse`.
-- **`RealmHandle::GetAddress()` / `GetAddressString()`** — sin equivalente.
+- **`RealmHandle` struct completa no existe** — Rust mantiene `HashMap<u32, Realm>` y helpers C++-like, no el tipo fuerte `(Region, Site, Realm)` ni ordering/equality explícitos del C++.
+- **`JoinRealm` flow existe fuera de `RealmManager`** — `bnet-server/src/rpc/services/game_utilities.rs` genera `Param_RealmJoinTicket`, `Param_ServerAddresses`, `Param_JoinSecret` y persiste keyData; falta concentrarlo arquitectónicamente como `RealmList::JoinRealm` si se quiere igualar ownership C++.
+- **`WriteSubRegions`** equivalente — existe un path en `GetAllValuesForAttribute`, pero todavía no está modelado como método de `RealmManager`/`RealmList`.
+- **`RealmHandle::GetAddressString()`** — solo existe helper de subregion; no hay struct con formatters completos.
 - **`SetName` + `NormalizedName`** — Rust no normaliza el nombre (sin remover whitespace).
 - **`GetMinorMajorBugfixVersionForBuild`** — sin equivalente; lo necesita warden o algún check de versión.
 - **`RealmFlags` / `RealmType` enums tipados** — Rust usa `u8` plano (constantes inline `REALM_FLAG_VERSION_MISMATCH = 0x01`).
-- **`AllowedSecurityLevel` clamp a `SEC_ADMINISTRATOR`** — falta en Rust.
-- **REALM_TYPE_FFA_PVP=16 → REALM_TYPE_PVP=1 normalization** — falta en Rust.
 - **Error path para `Resolver::Resolve` falla** — Rust no resuelve hostnames, asume IPs literales.
 
 **Suspicious / likely divergent (hipótesis pre-auditoría):**
-- `wow_realm_address: r.id as i32` perdía la información Region/Site/Realm packed que el cliente espera. **Verificar packets reales**.
-- `cfg_timezones_id: i32::from(r.timezone)` — C++ hardcodea `1` y mete timezone en `cfg_categories_id`; Rust tiene los dos campos cruzados. Posible bug.
-- `cfg_categories_id: 1` — C++ pone `realm.Timezone` aquí; Rust lo tiene al revés.
+- ✅ fixed 2026-06-13: `wow_realm_address: r.id as i32` perdía la información Region/Site/Realm packed que el cliente espera.
+- ✅ fixed 2026-06-13: `cfg_timezones_id` / `cfg_categories_id` estaban cruzados frente a C++.
+- ✅ fixed 2026-06-13: inbound `Param_RealmAddress` de `JoinRealm` buscaba el packed address completo como key, en vez de resolver el realm id como `RealmHandle(realmAddress)`.
 - Sin `shared_mutex`, Rust usa `parking_lot::RwLock` (vía `state.realm_mgr.write()`) → equivalente.
 
 **Tests existing:**
-- 0 tests en `bnet-server/src/realm/`.
+- `cargo test -p bnet-server realm` cubre packed address/subregion, filtro de `GetRealmList`, cfg fields, fallback de versión, type normalization y packed lookup.
 
 ---
 
@@ -207,16 +209,19 @@ Y para realm list updates:
 
 <!-- REFINE.022:END task-wbs -->
 
-- [ ] **#REALM.1** Implementar `RealmHandle { region, site, realm }` con `get_address() -> u32` y `get_address_string() -> String`. (L)
+- [x] **#REALM.1a** Implementar helpers `RealmHandle::GetAddress()` / `GetSubRegionAddress()` C++-like para BNet realm-list y JoinRealm. (L)
+- [ ] **#REALM.1b** Implementar `RealmHandle { region, site, realm }` completo con `get_address_string()` y semántica de equality/order explícita. (L)
 - [ ] **#REALM.2** Cambiar `RealmManager.realms` a `HashMap<RealmHandle, Realm>` y propagar a calls sites. (M)
-- [ ] **#REALM.3** Auditar `cfg_timezones_id` vs `cfg_categories_id` contra `RealmList.cpp:332`. (L)
-- [ ] **#REALM.4** Implementar `JoinRealm` flow completo: random ServerSecret + persistir `LOGIN_UPD_BNET_GAME_ACCOUNT_LOGIN_INFO` + atributos respuesta. (M)
+- [x] **#REALM.3** Auditar y corregir `cfg_timezones_id` vs `cfg_categories_id` contra `RealmList.cpp:270/:272/:330/:332`. (L)
+- [x] **#REALM.4a** Mantener `JoinRealm` flow existente: random ServerSecret + persistir `LOGIN_UPD_BNET_GAME_ACCOUNT_LOGIN_INFO` + atributos respuesta. (M)
+- [ ] **#REALM.4b** Reubicar/encapsular el flow como ownership `RealmList::JoinRealm` C++-like y añadir golden/integration. (M)
 - [ ] **#REALM.5** Implementar `set_name` con `NormalizedName` (strip whitespace). (L)
 - [ ] **#REALM.6** Implementar `get_minor_major_bugfix_version_for_build` con `binary_search`. (L)
-- [ ] **#REALM.7** Tipar `RealmFlags` como `bitflags!` y `RealmType` como enum, con clamp `>= MAX_CLIENT_REALM_TYPE → NORMAL` y FFA_PVP→PVP. (M)
+- [ ] **#REALM.7** Tipar `RealmFlags` como `bitflags!` y `RealmType` como enum. (M)
 - [ ] **#REALM.8** Resolver hostnames (no solo IPs) con `tokio::net::lookup_host` en `update_realms`. (M)
-- [ ] **#REALM.9** Clamp `allowed_security_level` a `SEC_ADMINISTRATOR`. (L)
-- [ ] **#REALM.10** Tests: parse build_info, packed address bit-layout, version_mismatch flag toggle. (M)
+- [x] **#REALM.9** Clamp `allowed_security_level` a `SEC_ADMINISTRATOR`. (L)
+- [x] **#REALM.10a** Tests: packed address bit-layout, subregion filter, cfg fields, version_mismatch/fallback. (M)
+- [ ] **#REALM.10b** Tests: parse build_info, `get_realm_entry_json`, JoinRealm DB side effect, golden payload. (M)
 
 ---
 
@@ -273,12 +278,12 @@ Y para realm list updates:
 
 <!-- REFINE.023:END known-divergences -->
 
-1. **Region/Site/Realm packing:** WoW client transmite `wowRealmAddress` como `u32` packed. RustyCore actualmente lo trata como ID lineal — funciona para single-region/single-battlegroup pero rompe en multi-region.
+1. **Region/Site/Realm packing:** WoW client transmite `wowRealmAddress` como `u32` packed. RustyCore corrigió el path BNet realm-list / char-counts / JoinRealm lookup el 2026-06-13; todavía falta reemplazar los helpers por un `RealmHandle` fuerte y golden/e2e.
 2. **Envelope strings con `\0` final:** El C++ usa `json.length() + 1` para incluir el null terminator en la longitud comprimida. Rust replica con `format!("...:{}\0", json)`.
 3. **`JamJSONRealmEntry` vs `JSONRealmListUpdates`:** dos serializaciones distintas para el mismo `RealmEntry` proto — el primero es single-shot (refresh de uno), el segundo plural updates.
-4. **`HARDCODED_DEVELOPMENT_REALM_CATEGORY_ID = 1`** — `cfgCategoriesId` siempre `1` en C++. Rust mete `r.timezone` ahí; verificar.
+4. **`HARDCODED_DEVELOPMENT_REALM_CATEGORY_ID = 1` naming trap:** in this C++ branch `cfgtimezonesid` is the constant `1` and `cfgcategoriesid` receives `realm.Timezone` in realm-list JSON. Rust matched this on 2026-06-13; keep the test because the naming is easy to invert again.
 5. **`build_info.HotfixVersion`** es `array<char,4>` no null-terminated — Rust lo guarda como `String` (puede tener bytes basura si el DB devuelve >4 chars).
-6. **`Realm.AllowedSecurityLevel`:** tipo `AccountTypes` (enum), C++ hace `min(value, SEC_ADMINISTRATOR)`. Rust no clamp.
+6. **`Realm.AllowedSecurityLevel`:** tipo `AccountTypes` (enum), C++ hace `min(value, SEC_ADMINISTRATOR)`. Rust clampa desde 2026-06-13, pero sigue usando `u8` en vez de enum tipado.
 
 ---
 
@@ -287,12 +292,12 @@ Y para realm list updates:
 | C++ | Rust | Notas |
 |---|---|---|
 | `class RealmList` (singleton) | `struct RealmManager` (en `AppState.realm_mgr: Arc<RwLock<RealmManager>>`) | Lifecycle vía `init_realm_manager` |
-| `Battlenet::RealmHandle` | (faltante) `struct RealmHandle { region, site, realm }` | TODO #REALM.1 |
+| `Battlenet::RealmHandle` | helpers C++-like for packed address/subregion; strong struct still missing | TODO #REALM.1b |
 | `struct Realm` | `struct Realm` | 1:1 fields |
 | `RealmFlags` enum | `const REALM_FLAG_*: u8 = ...` | Sustituir por `bitflags!` |
 | `RealmType` enum | (faltante) constantes | Sustituir por enum |
 | `RealmBuildInfo` | `struct RealmBuildInfo` | seeds como `Option<Vec<u8>>` |
-| `std::map<RealmHandle, Realm>` | `HashMap<u32, Realm>` | TODO migrar a `HashMap<RealmHandle, Realm>` |
+| `std::map<RealmHandle, Realm>` | `HashMap<u32, Realm>` + packed-address lookup helper | TODO migrar a `HashMap<RealmHandle, Realm>` |
 | `std::shared_mutex` | `parking_lot::RwLock` | Vía `AppState.realm_mgr` |
 | `DeadlineTimer + async_wait` | `tokio::time::interval` + `tokio::spawn` | En `init_realm_manager` |
 | `JSON::Serialize(proto)` | `serde_json::to_string(&struct)` | Pure serde, no protobuf |
@@ -312,14 +317,14 @@ Y para realm list updates:
 
 **Verdicts on flagged hypotheses:**
 
-1. **`RealmHandle` packing — CONFIRMED DIVERGENT.** `mod.rs:104` writes `wow_realm_address: r.id as i32` while C++ `RealmList.cpp:269` writes `realmEntry.set_wowrealmaddress(realm->Id.GetAddress())` where `RealmHandle::GetAddress()` (`Realm.h:56`) returns `(Region << 24) | (Site << 16) | uint16(Realm)`. The Rust code drops Region/Site entirely. Single-region servers (current case) coincidentally work because `region=0, site=0` makes `GetAddress() == realm_id`, but any multi-region deployment would emit the wrong wire address. The reverse parse on `mod.rs:131` (`wow_realm_address: realm_id as i32`) has the same bug.
-2. **`cfg_timezones_id` ↔ `cfg_categories_id` swap — CONFIRMED DIVERGENT.** C++ `RealmList.cpp:270` and `:330` set `cfgtimezonesid = 1` (constant); `:272` and `:332` set `cfgcategoriesid = realm.Timezone`. Rust `mod.rs:105-107` does the inverse: `cfg_timezones_id = r.timezone`, `cfg_categories_id = 1`. **Real bug** — visible client-side as wrong realm grouping/timezone in the server-list UI for any realm whose timezone field is non-1.
+1. **`RealmHandle` packing — FIXED for BNet realm-list 2026-06-13.** Rust now emits `wowRealmAddress = (Region << 24) | (Site << 16) | uint16(Realm)`, filters by `GetSubRegionAddress()`, stores packed character counts / last-played realm address, and resolves inbound `JoinRealm` packed addresses back to the low 16-bit realm id like `RealmHandle(realmAddress)`. Remaining work: strong `RealmHandle` type + golden/e2e.
+2. **`cfg_timezones_id` ↔ `cfg_categories_id` swap — FIXED 2026-06-13.** C++ `RealmList.cpp:270` and `:330` set `cfgtimezonesid = 1` (constant); `:272` and `:332` set `cfgcategoriesid = realm.Timezone`. Rust now mirrors this and has focused tests.
 
 **Other findings during the audit:**
 
 - **`JoinRealm` flow EXISTS** but in `crates/bnet-server/src/rpc/services/game_utilities.rs:233-303`, not under the realm module. Generates 32-byte server secret with `rand::thread_rng().fill`, persists `client_secret + server_secret` via `LoginStatements::UPD_BNET_GAME_ACCOUNT_LOGIN_INFO`, returns the three response blobs (`Param_RealmJoinTicket`, `Param_ServerAddresses`, `Param_JoinSecret`). The §8 claim "JoinRealm flow no existe" was **WRONG** — update §8 to reflect that the flow lives at the RPC-handler layer rather than as a `RealmList::JoinRealm` method. Sub-task #REALM.4 is therefore partially-done: the wire-level behavior works; what's missing is the C++-style architectural placement (RealmList owning the join logic) and the Resolver hostname resolution.
-- **`RealmHandle` decomposition** is also missing on the inbound path: `mod.rs:248-250` extracts `Param_RealmAddress` as a flat `uint_value` and looks up `realm_mgr.realms.get(&realm_address)`, never decomposing. C++ does `RealmList::JoinRealm(Battlenet::RealmHandle(realmAddress), ...)` which constructs the handle from the packed u32 (`Realm.h:46`). For single-region this is functionally identical; cross-check on next multi-region work.
+- **`RealmHandle` decomposition** on inbound `JoinRealm` was fixed 2026-06-13 via `get_realm_by_realm_address_like_cpp`.
 - **Hostname resolution still missing** as flagged.
 - **Timezone field type:** Rust reads `r.timezone: u8` (line 273); C++ uses `uint8` for the realmlist column too — equivalent.
 
-**Status verdict:** ⚠️ partial (no change). The two flagged bugs are real and should be fixed (#REALM.1 + #REALM.3 in §9). The §8 wording about JoinRealm needs softening — the flow exists, it's just architecturally elsewhere.
+**Status verdict:** ⚠️ partial. The two flagged wire bugs are fixed and tested, and the §8 wording about JoinRealm has been corrected: the flow exists at the RPC-handler layer, but architectural ownership and golden/e2e coverage remain open.

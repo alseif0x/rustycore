@@ -8,6 +8,7 @@ use wow_proto::bgs::protocol::authentication::v1::*;
 use wow_proto::bgs::protocol::challenge::v1::ChallengeExternalRequest;
 use wow_proto::{service_hash, status};
 
+use crate::realm::{realm_address_like_cpp, realm_sub_region_address_like_cpp};
 use crate::rpc::session::{RpcSession, RpcStatusError};
 use crate::state::{AccountInfo, GameAccountInfo, LastPlayedCharInfo};
 use std::collections::HashMap;
@@ -237,9 +238,12 @@ async fn verify_web_credentials_like_cpp<S: AsyncRead + AsyncWrite + Unpin>(
             let ga_id: u32 = cc_result.read(0);
             let count: u8 = cc_result.read(1);
             let realm_id: u32 = cc_result.read(2);
+            let region: u8 = cc_result.try_read::<u8>(3).unwrap_or(0);
+            let battlegroup: u8 = cc_result.try_read::<u8>(4).unwrap_or(0);
 
             if let Some(ga) = game_accounts.get_mut(&ga_id) {
-                ga.char_counts.insert(realm_id, count);
+                ga.char_counts
+                    .insert(realm_address_like_cpp(region, battlegroup, realm_id), count);
             }
 
             if !cc_result.next_row() {
@@ -267,13 +271,13 @@ async fn verify_web_credentials_like_cpp<S: AsyncRead + AsyncWrite + Unpin>(
             let char_guid: u64 = lp_result.try_read::<u64>(5).unwrap_or(0);
             let last_played: u64 = lp_result.try_read::<u64>(6).unwrap_or(0);
 
-            let sub_region = format!("{region}-{battlegroup}-0");
+            let sub_region = realm_sub_region_address_like_cpp(region, battlegroup);
 
             if let Some(ga) = game_accounts.get_mut(&ga_id) {
                 ga.last_played_chars.insert(
                     sub_region,
                     LastPlayedCharInfo {
-                        realm_address: realm_id,
+                        realm_address: realm_address_like_cpp(region, battlegroup, realm_id),
                         character_name: char_name,
                         character_guid: char_guid,
                         last_played_time: last_played,

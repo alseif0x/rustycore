@@ -287,8 +287,7 @@ async fn join_realm<S: AsyncRead + AsyncWrite + Unpin>(
     let (server_addresses, realm_name) = {
         let realm_mgr = session.state().realm_mgr.read();
         let realm = realm_mgr
-            .realms
-            .get(&realm_address)
+            .get_realm_by_realm_address_like_cpp(realm_address)
             .ok_or_else(|| anyhow::anyhow!("Realm not found"))?;
 
         // C# check: reject if offline or build mismatch
