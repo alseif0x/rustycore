@@ -3111,6 +3111,18 @@ fn world_config_bool(configs: &WorldConfigSet, enum_name: &str, default: bool) -
     configs.get_bool(enum_name).unwrap_or(default)
 }
 
+fn min_world_update_time_ms_like_cpp() -> u32 {
+    wow_config::get_value_default("MinWorldUpdateTime", 1_u32)
+}
+
+fn max_core_stuck_time_secs_like_cpp() -> u32 {
+    wow_config::get_value_default("MaxCoreStuckTime", 60_u32)
+}
+
+fn max_core_stuck_time_ms_like_cpp() -> u32 {
+    max_core_stuck_time_secs_like_cpp().wrapping_mul(1_000)
+}
+
 fn max_skill_value_like_cpp(configs: &WorldConfigSet) -> u32 {
     let max_player_level = u32::from(world_config_u8(configs, "CONFIG_MAX_PLAYER_LEVEL", 80));
     if max_player_level > 60 {
@@ -9239,7 +9251,9 @@ mod tests {
         legacy_creature_aggro_config_like_cpp,
         legacy_creature_global_runtime_enabled_from_config_like_cpp, load_world_config_from,
         loot_drop_rates_like_cpp, materialize_game_event_quest_complete_db_bridge_like_cpp,
-        materialize_game_event_world_event_state_db_bridge_like_cpp, mmap_runtime_config_like_cpp,
+        materialize_game_event_world_event_state_db_bridge_like_cpp,
+        max_core_stuck_time_ms_like_cpp, max_core_stuck_time_secs_like_cpp,
+        min_world_update_time_ms_like_cpp, mmap_runtime_config_like_cpp,
         persisted_respawn_info_from_row_like_cpp, process_exit_code_like_cpp,
         queue_respawn_db_delete_like_cpp, queue_respawn_db_save_like_cpp, realm_id_like_cpp,
         repair_cost_rate_like_cpp, reputation_rates_like_cpp,
@@ -11654,6 +11668,34 @@ mod tests {
                 diff_ms: 10,
                 next_real_prev_time_ms: 5
             }
+        );
+    }
+
+    #[test]
+    fn world_update_loop_direct_configs_match_cpp_defaults_and_keys() {
+        let _guard = TEST_LOCK.lock().expect("test lock poisoned");
+        let root = unique_temp_dir("world_update_loop_direct_configs");
+        let config = root.join("worldserver.conf");
+
+        fs::write(&config, "").expect("write empty config failed");
+        wow_config::load_config(config.to_str().expect("utf8 config path"))
+            .expect("load empty config failed");
+
+        assert_eq!(min_world_update_time_ms_like_cpp(), 1);
+        assert_eq!(max_core_stuck_time_secs_like_cpp(), 60);
+        assert_eq!(max_core_stuck_time_ms_like_cpp(), 60_000);
+
+        fs::write(&config, "MinWorldUpdateTime = 7\nMaxCoreStuckTime = 0\n")
+            .expect("write override config failed");
+        wow_config::load_config(config.to_str().expect("utf8 config path"))
+            .expect("load override config failed");
+
+        assert_eq!(min_world_update_time_ms_like_cpp(), 7);
+        assert_eq!(max_core_stuck_time_secs_like_cpp(), 0);
+        assert_eq!(
+            max_core_stuck_time_ms_like_cpp(),
+            0,
+            "C++ treats MaxCoreStuckTime=0 as disabled before constructing FreezeDetector"
         );
     }
 
