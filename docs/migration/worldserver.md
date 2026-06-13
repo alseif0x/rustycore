@@ -230,7 +230,7 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
 - **`FreezeDetector`** — there is no equivalent. If the runtime hangs, only an external supervisor (systemd `WatchdogSec=`) catches it.
 - **`MaxCoreStuckTime` config**: read but ignored.
 - **`MinWorldUpdateTime` config**: not represented as the top-level world-loop cadence. Session loops still use `Duration::from_millis(50)`, while canonical/legacy map runtime paths use `CONFIG_INTERVAL_MAPUPDATE`.
-- **`World::IsStopped()` / `World::StopNow(code)` / `World::GetExitCode()`**: there is no `World` singleton. Shutdown signal handling exits the top-level select and drops listeners. Exit code always 0.
+- **`World::IsStopped()` / `World::StopNow(code)` / `World::GetExitCode()`**: `WorldRuntimeStateLikeCpp` now owns the stop flag, exit code and loop counter; shutdown signals call `stop_now_like_cpp(SHUTDOWN_EXIT_CODE)`. Remaining gap: the Rust process still returns `Ok(())` instead of returning arbitrary `World::GetExitCode()` values, and the full top-level `WorldUpdateLoop` owner is still missing.
 - **DB keep-alive timer (`MaxPingTime`) present**: Rust spawns a Tokio keep-alive task that pings Character/Login/World every `MaxPingTime` minutes, matching TC's `World::Update` pool set. Hotfix is intentionally not pinged here because TC does not call `HotfixDatabase.KeepAlive()` in this path.
 - **`AppenderDB`** (logs into `logs.logs` table): not implemented; tracing only goes to stderr / journald.
 - **`Banner::Show`**: Rust now logs a pre-listener startup banner with full version, resolved config, additional config overlays, `TC_*` overrides and Rust dependency versions (`rustls`, `tokio-rustls`, `sqlx`).
@@ -328,7 +328,7 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
 
 <!-- REFINE.022:END task-wbs -->
 
-- [ ] **#WS.1** Implement `World` singleton (or equivalent state holder): `is_stopped() -> bool`, `stop_now(exit_code: i32)`, `get_exit_code() -> i32`, `m_world_loop_counter: AtomicU32`. (M)
+- [ ] **#WS.1** Implement `World` singleton (or equivalent state holder): `WorldRuntimeStateLikeCpp` now provides `is_stopped`, `stop_now(exit_code)`, `get_exit_code`, and `m_world_loop_counter` equivalents, and SIGINT/SIGTERM writes `StopNow(SHUTDOWN_EXIT_CODE)`. Remaining: return the stored exit code from the process and wire the counter into the final `WorldUpdateLoop`. (M)
 - [ ] **#WS.2** Implement full global `WorldUpdateLoop` / `World::Update` ownership. Current Rust status: canonical map update loop and gated legacy creature runtime bridge exist, but full session-manager update, all subsystem ordering, `MinWorldUpdateTime` cadence and `World::m_worldLoopCounter` parity remain open. (XL — coupled to migrating sessions off per-task ticks; see `docs/migration/adr-runtime-tick-ownership.md`)
 - [ ] **#WS.3** Implement `FreezeDetector`: `tokio::time::interval(1s)`; reads `m_world_loop_counter`; if unchanged for `MaxCoreStuckTime` ms, `tracing::error!` + `std::process::abort()`. (M)
 - [x] **#WS.4** Implement `ClearOnlineAccounts()` — called at boot and shutdown; mirrors TC's three queries: account online flags for this realm, character online flags, and battleground instance ids.
@@ -528,7 +528,7 @@ Otherwise the boot sequence is largely on-parity for what's implemented (4 DB po
 
 | TC step | Rust equivalent | Parity |
 |---|---|---|
-| `signals.async_wait(SignalHandler)` → `World::StopNow(SHUTDOWN_EXIT_CODE)` | `shutdown_signal()` handles Ctrl-C + Unix SIGTERM, then drops listener handles | ⚠️ no global stop flag, sessions don't see "stopping" state |
+| `signals.async_wait(SignalHandler)` → `World::StopNow(SHUTDOWN_EXIT_CODE)` | `shutdown_signal()` handles Ctrl-C + Unix SIGTERM and records `StopNow(SHUTDOWN_EXIT_CODE)` in `WorldRuntimeStateLikeCpp`, then runs the shared shutdown branch | ⚠️ sessions still don't see "stopping" state |
 | `sWorld->KickAll()` (save + send logout) | — | ❌ missing (#WS.15) |
 | `sWorld->UpdateSessions(1)` final flush | — | ❌ missing |
 | `sWorldSocketMgr.StopNetwork()` | listener task drop | ⚠️ implicit, no drain |
@@ -540,7 +540,7 @@ Otherwise the boot sequence is largely on-parity for what's implemented (4 DB po
 | `sScriptMgr->OnShutdown()` | — | ❌ missing (#WS.14) |
 | `UPDATE realmlist SET flag\|=OFFLINE` on exit | `set_realm_offline(&login_db, realm_id)` in the shared shutdown branch | ✅ |
 | `BattlegroundMgr::DeleteAllBattlegrounds → OutdoorPvPMgr::Die → MapMgr::UnloadAll → TerrainMgr::UnloadAll → InstanceLockMgr::Unload` | only partial `MapManager` exists; rest missing | ❌ missing |
-| `return World::GetExitCode()` | always `Ok(())` (exit code 0) | ⚠️ no error-path code |
+| `return World::GetExitCode()` | `WorldRuntimeStateLikeCpp` stores the exit code and logs it on shutdown | ⚠️ process still returns `Ok(())`; arbitrary restart/error exit codes are not returned yet |
 
 ### 13.4 Main loop architectural divergence — refreshed verdict
 
@@ -567,7 +567,7 @@ RustyCore still lacks the full equivalent, but not all of the original statement
 
 - Each `WorldSession` still runs in its own Tokio task with a 50 ms session-loop floor for packet/session work.
 - Canonical map state has its own update loop, and the legacy creature lifecycle/movement/aggro/melee bridge can run map-owned behind `RustyCore.LegacyCreatureGlobalRuntime`.
-- There is still no global `World::m_worldLoopCounter`, no freeze detector, no `World::IsStopped()`, no `World::StopNow(code)`, and no single `World::Update(diff)` owner for every subsystem.
+- There is now a `WorldRuntimeStateLikeCpp` with `World::m_worldLoopCounter`, `World::IsStopped()`, `World::StopNow(code)` and `World::GetExitCode()` equivalents. There is still no freeze detector, no process-level arbitrary exit-code return, and no single `World::Update(diff)` owner for every subsystem.
 
 **Concrete consequences**:
 

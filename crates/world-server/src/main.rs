@@ -14,7 +14,10 @@ use std::future::Future;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::pin::Pin;
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc, Mutex,
+    atomic::{AtomicBool, AtomicI32, AtomicU32, Ordering},
+};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result, bail};
@@ -76,6 +79,46 @@ const CREATURE_TYPE_FLAG_BOSS_MOB_LIKE_CPP: u32 = 0x0001_0000;
 type SharedCanonicalSpawnMetadataLikeCpp =
     Arc<Mutex<spawn_store_loader::CanonicalSpawnMetadataLikeCpp>>;
 type SharedWorldStateMgrLikeCpp = Arc<Mutex<spawn_store_loader::WorldStateMgrLikeCpp>>;
+
+const SHUTDOWN_EXIT_CODE_LIKE_CPP: i32 = 0;
+
+#[derive(Debug)]
+struct WorldRuntimeStateLikeCpp {
+    stop_event: AtomicBool,
+    exit_code: AtomicI32,
+    world_loop_counter: AtomicU32,
+}
+
+impl WorldRuntimeStateLikeCpp {
+    fn new() -> Self {
+        Self {
+            stop_event: AtomicBool::new(false),
+            exit_code: AtomicI32::new(SHUTDOWN_EXIT_CODE_LIKE_CPP),
+            world_loop_counter: AtomicU32::new(0),
+        }
+    }
+
+    fn is_stopped_like_cpp(&self) -> bool {
+        self.stop_event.load(Ordering::Acquire)
+    }
+
+    fn stop_now_like_cpp(&self, exit_code: i32) {
+        self.exit_code.store(exit_code, Ordering::Release);
+        self.stop_event.store(true, Ordering::Release);
+    }
+
+    fn get_exit_code_like_cpp(&self) -> i32 {
+        self.exit_code.load(Ordering::Acquire)
+    }
+
+    fn increment_world_loop_counter_like_cpp(&self) -> u32 {
+        self.world_loop_counter.fetch_add(1, Ordering::AcqRel) + 1
+    }
+
+    fn world_loop_counter_like_cpp(&self) -> u32 {
+        self.world_loop_counter.load(Ordering::Acquire)
+    }
+}
 
 // ── Account lookup implementation ────────────────────────────────
 
@@ -220,6 +263,8 @@ async fn main() -> Result<()> {
         println!("{}", worldserver_full_version_like_cpp());
         return Ok(());
     }
+
+    let world_runtime_state = Arc::new(WorldRuntimeStateLikeCpp::new());
 
     info!("RustyCore World Server starting...");
 
@@ -2470,6 +2515,7 @@ async fn main() -> Result<()> {
     // Wait for shutdown signal
     tokio::select! {
         _ = shutdown_signal() => {
+            world_runtime_state.stop_now_like_cpp(SHUTDOWN_EXIT_CODE_LIKE_CPP);
             info!("Shutdown signal received, stopping...");
         }
         result = realm_handle => {
@@ -2512,7 +2558,10 @@ async fn main() -> Result<()> {
         tracing::error!("Failed to mark realm {realm_id} offline: {e}");
     }
 
-    info!("World server stopped.");
+    info!(
+        exit_code = world_runtime_state.get_exit_code_like_cpp(),
+        "World server stopped."
+    );
     Ok(())
 }
 
@@ -9061,7 +9110,8 @@ mod tests {
         PersistedRespawnLoadReportLikeCpp, PersistedRespawnRowLikeCpp,
         PersistedRespawnTimesLikeCpp, REQUIRED_TDB_CACHE_ID_LIKE_CPP,
         REQUIRED_TDB_VERSION_LIKE_CPP, RespawnDbDeleteQueueOutcomeLikeCpp,
-        RespawnDbSaveQueueOutcomeLikeCpp, WorldDbVersionLikeCpp, WorldServerCliLikeCpp,
+        RespawnDbSaveQueueOutcomeLikeCpp, SHUTDOWN_EXIT_CODE_LIKE_CPP, WorldDbVersionLikeCpp,
+        WorldRuntimeStateLikeCpp, WorldServerCliLikeCpp,
         apply_canonical_spawn_group_condition_update_loaded_grid_records_like_cpp,
         build_loaded_grid_creature_respawn_record_like_cpp,
         build_loaded_grid_creature_spawn_group_spawn_record_like_cpp,
@@ -11412,6 +11462,23 @@ mod tests {
         assert!(sql.contains("core_revision = '"));
         assert!(sql.contains(worldserver_revision_like_cpp()));
         assert!(!sql.contains('\n'));
+    }
+
+    #[test]
+    fn world_runtime_state_stop_and_counter_match_cpp_contract() {
+        let world = WorldRuntimeStateLikeCpp::new();
+
+        assert!(!world.is_stopped_like_cpp());
+        assert_eq!(world.get_exit_code_like_cpp(), SHUTDOWN_EXIT_CODE_LIKE_CPP);
+        assert_eq!(world.world_loop_counter_like_cpp(), 0);
+
+        assert_eq!(world.increment_world_loop_counter_like_cpp(), 1);
+        assert_eq!(world.increment_world_loop_counter_like_cpp(), 2);
+        assert_eq!(world.world_loop_counter_like_cpp(), 2);
+
+        world.stop_now_like_cpp(1);
+        assert!(world.is_stopped_like_cpp());
+        assert_eq!(world.get_exit_code_like_cpp(), 1);
     }
 
     #[test]
