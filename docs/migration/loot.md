@@ -313,7 +313,7 @@ Out-of-tree touchpoints:
 - The old arbitrary coin formula (`level * 200 + seed`) is no longer used for represented creature money; remaining money divergence is canonical shared `Loot` ownership plus exact `lootMode`/side-effect wiring.
 - `corpse_despawn_at = now + 30s` is hardcoded; TC uses `RateCorpseDecayLooted` × `m_corpseDelay` (default 60s for normal mobs, longer for elites/bosses).
 - The `taken: bool` flag is server-only; TC uses `is_looted` + `is_blocked` (separating "taken" from "rolling on it"). When rolls land, `is_blocked` clears and `is_looted` is set on the winner side.
-- `LootItemData::ui_type` is hardcoded to 0 — should be `LootSlotType::ALLOW_LOOT` only when no roll active and player has permission.
+- Represented `LootItemData::ui_type` now consumes the shared C++ decision helper for hidden, FFA, quest, round-robin, master, group/NBG and personal-loot rows. Remaining gap is canonical shared `Loot::BuildLootResponse` ownership across live sessions.
 - Represented `LootResponse::loot_method` is now sourced from the represented loot view (#NEXT.R8.ENTITIES.239), and represented `LootResponse::acquire_reason` is now sourced from stored `loot_type` via the C++ `GetLootTypeForClient` mapping (#NEXT.R8.ENTITIES.298).
 - `LootResponse::threshold` remains the C++ packet default 2 (`LootPackets.h`); group threshold belongs to loot-item `is_underthreshold`/roll startup, not this response byte. Remaining gaps are canonical shared roll ownership and complete threshold use at every source.
 - `LootResponse` wire now supports C++ currency entries and count (#NEXT.R8.ENTITIES.236), but represented loot generation still does not populate currency rows.
@@ -455,7 +455,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md` §5. Complexity: **L** 
 - [ ] Test: master-loot give to player with full inventory returns `LOOT_ERROR_MASTER_INV_FULL`
 - [ ] Test: pickpocket on already-picked target returns `ALREADY_PICKPOCKETED`
 - [ ] Test: round-robin coin split — gold = 600c, 3 group members → each gets 200c
-- [ ] Test: FFA item visible only to its player; non-eligible players see slot absent
+- [x] Test: FFA item visible only to its player; non-eligible players see slot absent (`represented_ffa_loot_uses_player_ffa_items_like_cpp`)
 - [ ] Test: random suffix items get distinct `random_property_id` per drop
 - [ ] Test: `LootItemStorage` round-trip — open container, kill server, restart, container retains items
 - [ ] Test: condition gate — quest-condition row drops only when player has active quest
