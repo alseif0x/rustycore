@@ -1,3 +1,13 @@
+- `#NEXT.R8.ENTITIES.840` - audit-fix/represented-complete for stale `CMSG_SET_WATCHED_FACTION` inventory.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CharacterHandler.cpp:1485-1488`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:922`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:627`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:2782`.
+
+  Rust anchors: `crates/wow-packet/src/packets/reputation.rs`; `crates/wow-world/src/handlers/misc.rs`; `crates/wow-world/src/session.rs`; `crates/wow-world/src/entity_update_bridge.rs`.
+
+  Acceptance: inventories no longer claim `CMSG_SET_WATCHED_FACTION` is missing. C++ registers it as `STATUS_LOGGEDIN`/`PROCESS_THREADUNSAFE` and calls `Player::SetWatchedFactionIndex(packet.FactionIndex)`; Rust already parses the uint32 `FactionIndex`, registers `LoggedIn`/`ThreadUnsafe` dispatch, routes through `WorldSession`, records represented `watched_faction_index_like_cpp`, mirrors it into the canonical player snapshot, and bridges `ActivePlayerData::WatchedFactionIndex` update-field state as covered by earlier `#NEXT.R8.ENTITIES.680`/`#NEXT.R8.ENTITIES.686` work.
+
+  Boundary: audit-fix for stale opcode inventory; represented-complete for the bounded handler/update-field bridge only. Character DB `watchedFaction` load/save, full reputation persistence, install/restart, and live client/manual validation remain out of this slice.
+
 - `#NEXT.R8.ENTITIES.839` - audit-fix/represented-complete for stale `CMSG_TIME_SYNC_RESPONSE*` inventory.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MovementHandler.cpp:745-773`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:970-972`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:667-669`.
