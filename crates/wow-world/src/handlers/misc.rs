@@ -50,9 +50,10 @@ use wow_packet::packets::misc::{
     CalendarSendNumPending, CloseInteraction, CommerceTokenGetLog, CommerceTokenGetLogResponse,
     DfGetJoinStatus, DfGetSystemInfo, FarSight, GmTicketCaseStatus, GuildSetAchievementTracking,
     LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify, MountSetFavorite,
-    QueryBattlePetName, QueryBattlePetNameResponse, RatedPvpInfo, RequestBattlefieldStatus,
-    RequestCemeteryListResponse, SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags,
-    SetTaxiBenchmarkMode, TaxiNodeStatusPkt, ToyClearFanfare, UseToy, ViolenceLevel,
+    ObjectUpdateFailed, ObjectUpdateRescued, QueryBattlePetName, QueryBattlePetNameResponse,
+    RatedPvpInfo, RequestBattlefieldStatus, RequestCemeteryListResponse, SaveCufProfiles,
+    SetAdvancedCombatLogging, SetCurrencyFlags, SetTaxiBenchmarkMode, TaxiNodeStatusPkt,
+    ToyClearFanfare, UseToy, ViolenceLevel,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -691,6 +692,24 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_bug_report",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::ObjectUpdateFailed,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_object_update_failed",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::ObjectUpdateRescued,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_object_update_rescued",
     }
 }
 
@@ -2245,6 +2264,44 @@ impl crate::session::WorldSession {
             );
         }
     }
+
+    pub async fn handle_object_update_failed(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let packet = match ObjectUpdateFailed::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "ObjectUpdateFailed parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        if self.player_guid() == Some(packet.object_guid) {
+            self.set_player_logout_like_cpp(true);
+            return;
+        }
+
+        self.client_visible_guids_like_cpp
+            .remove(&packet.object_guid);
+    }
+
+    pub async fn handle_object_update_rescued(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let packet = match ObjectUpdateRescued::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "ObjectUpdateRescued parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        self.client_visible_guids_like_cpp
+            .insert(packet.object_guid);
+    }
+
     pub async fn handle_guild_bank_remaining_withdraw_money_query(
         &mut self,
         _pkt: wow_packet::WorldPacket,
@@ -3503,6 +3560,13 @@ mod tests {
         pkt.flush_bits();
         pkt.write_string(diag_info);
         pkt.write_string(text);
+        pkt.reset_read();
+        pkt
+    }
+
+    fn object_update_recovery_packet(guid: ObjectGuid) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_packed_guid(&guid);
         pkt.reset_read();
         pkt
     }
@@ -6049,6 +6113,70 @@ mod tests {
         assert_eq!(entry.status, SessionStatus::LoggedIn);
         assert_eq!(entry.processing, PacketProcessing::ThreadUnsafe);
         assert_eq!(entry.handler_name, "handle_bug_report");
+    }
+
+    #[tokio::test]
+    async fn object_update_failed_removes_seen_object_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let object_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 7, 9);
+        session.client_visible_guids_like_cpp.insert(object_guid);
+
+        session
+            .handle_object_update_failed(object_update_recovery_packet(object_guid))
+            .await;
+
+        assert!(!session.client_visible_guids_like_cpp.contains(&object_guid));
+        assert!(!session.player_logout_like_cpp());
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn object_update_failed_for_player_marks_logout_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 9001);
+        session.set_player_guid(Some(player_guid));
+        session.client_visible_guids_like_cpp.insert(player_guid);
+
+        session
+            .handle_object_update_failed(object_update_recovery_packet(player_guid))
+            .await;
+
+        assert!(session.player_logout_like_cpp());
+        assert!(session.client_visible_guids_like_cpp.contains(&player_guid));
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn object_update_rescued_reinserts_seen_object_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let object_guid = ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 8, 3);
+        assert!(!session.client_visible_guids_like_cpp.contains(&object_guid));
+
+        session
+            .handle_object_update_rescued(object_update_recovery_packet(object_guid))
+            .await;
+
+        assert!(session.client_visible_guids_like_cpp.contains(&object_guid));
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn object_update_recovery_handler_metadata_matches_cpp() {
+        let failed = inventory::iter::<PacketHandlerEntry>
+            .into_iter()
+            .find(|entry| entry.opcode == ClientOpcodes::ObjectUpdateFailed)
+            .expect("ObjectUpdateFailed handler entry");
+        assert_eq!(failed.status, SessionStatus::LoggedIn);
+        assert_eq!(failed.processing, PacketProcessing::Inplace);
+        assert_eq!(failed.handler_name, "handle_object_update_failed");
+
+        let rescued = inventory::iter::<PacketHandlerEntry>
+            .into_iter()
+            .find(|entry| entry.opcode == ClientOpcodes::ObjectUpdateRescued)
+            .expect("ObjectUpdateRescued handler entry");
+        assert_eq!(rescued.status, SessionStatus::LoggedIn);
+        assert_eq!(rescued.processing, PacketProcessing::Inplace);
+        assert_eq!(rescued.handler_name, "handle_object_update_rescued");
     }
 
     #[tokio::test]

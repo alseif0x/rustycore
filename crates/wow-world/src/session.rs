@@ -16153,6 +16153,10 @@ impl WorldSession {
         self.sync_current_player_session_visibility_detection_like_cpp();
     }
 
+    pub(crate) fn player_logout_like_cpp(&self) -> bool {
+        self.player_logout_like_cpp
+    }
+
     /// Set the ConnectTo key.
     pub fn set_connect_to_key(&mut self, key: Option<i64>) {
         self.connect_to_key = key;
@@ -18312,6 +18316,12 @@ impl WorldSession {
             }
             ClientOpcodes::BugReport => {
                 self.handle_bug_report(pkt).await;
+            }
+            ClientOpcodes::ObjectUpdateFailed => {
+                self.handle_object_update_failed(pkt).await;
+            }
+            ClientOpcodes::ObjectUpdateRescued => {
+                self.handle_object_update_rescued(pkt).await;
             }
             ClientOpcodes::GuildBankRemainingWithdrawMoneyQuery => {
                 self.handle_guild_bank_remaining_withdraw_money_query(pkt)
@@ -58081,6 +58091,8 @@ mod tests {
             ClientOpcodes::CompleteCinematic,
             ClientOpcodes::NextCinematicCamera,
             ClientOpcodes::OpeningCinematic,
+            ClientOpcodes::ObjectUpdateFailed,
+            ClientOpcodes::ObjectUpdateRescued,
             ClientOpcodes::BankerActivate,
             ClientOpcodes::BuyBankSlot,
             ClientOpcodes::OptOutOfLoot,

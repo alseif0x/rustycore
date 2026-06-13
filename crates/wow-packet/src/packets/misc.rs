@@ -60,6 +60,40 @@ impl ClientPacket for BugReport {
     }
 }
 
+// ── Object update recovery (CMSG 0x3183 / 0x3184) ───────────────────────────
+
+/// C++ `WorldPackets::Misc::ObjectUpdateFailed`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ObjectUpdateFailed {
+    pub object_guid: ObjectGuid,
+}
+
+impl ClientPacket for ObjectUpdateFailed {
+    const OPCODE: ClientOpcodes = ClientOpcodes::ObjectUpdateFailed;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            object_guid: pkt.read_packed_guid()?,
+        })
+    }
+}
+
+/// C++ `WorldPackets::Misc::ObjectUpdateRescued`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ObjectUpdateRescued {
+    pub object_guid: ObjectGuid,
+}
+
+impl ClientPacket for ObjectUpdateRescued {
+    const OPCODE: ClientOpcodes = ClientOpcodes::ObjectUpdateRescued;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            object_guid: pkt.read_packed_guid()?,
+        })
+    }
+}
+
 /// C++ `WorldPackets::Misc::SetTaxiBenchmarkMode`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SetTaxiBenchmarkMode {
@@ -6688,6 +6722,29 @@ mod tests {
         assert_eq!(report.diag_info, "diag");
         assert_eq!(report.text, "bug");
         assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn object_update_recovery_reads_guid_like_cpp() {
+        let guid = ObjectGuid::create_player(1, 42);
+        let mut failed = WorldPacket::new_empty();
+        failed.write_packed_guid(&guid);
+        failed.reset_read();
+        assert_eq!(
+            ObjectUpdateFailed::read(&mut failed).unwrap(),
+            ObjectUpdateFailed { object_guid: guid }
+        );
+
+        let rescued_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 7, 9);
+        let mut rescued = WorldPacket::new_empty();
+        rescued.write_packed_guid(&rescued_guid);
+        rescued.reset_read();
+        assert_eq!(
+            ObjectUpdateRescued::read(&mut rescued).unwrap(),
+            ObjectUpdateRescued {
+                object_guid: rescued_guid
+            }
+        );
     }
 }
 

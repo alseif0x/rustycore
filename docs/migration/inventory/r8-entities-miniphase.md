@@ -1,3 +1,13 @@
+- `#NEXT.R8.ENTITIES.833` - represented-complete for `CMSG_OBJECT_UPDATE_FAILED` and `CMSG_OBJECT_UPDATE_RESCUED`.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:1214-1236`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.h:627-644`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.cpp:499-508`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:702-703`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:441-442`.
+
+  Rust anchors: `crates/wow-packet/src/packets/misc.rs`; `crates/wow-world/src/handlers/misc.rs`; `crates/wow-world/src/session.rs`.
+
+  Acceptance: both object-update recovery packets parse the C++ `ObjectGUID` payload, register `LoggedIn`/`Inplace` dispatch, route through `WorldSession`, remove failed non-player GUIDs from represented `client_visible_guids_like_cpp`, mark represented player logout when the failed GUID is the current player, and reinsert rescued GUIDs into `client_visible_guids_like_cpp`.
+
+  Boundary: represented-complete for bounded client-visible GUID recovery semantics only; `LogoutPlayer(true)` is represented by `player_logout_like_cpp` and does not yet close the live socket/session, no full `ObjectAccessor`/`ObjectGuidSet` fanout audit, no install/restart, and no live client/manual validation.
+
 - `#NEXT.R8.ENTITIES.831` - represented-partial for `CMSG_BUG_REPORT`.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/TicketHandler.cpp:88-98`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TicketPackets.h:301-311`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TicketPackets.cpp:385-392`; `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/CharacterDatabase.cpp:447`; `/home/server/woltk-trinity-legacy/src/server/game/World/World.cpp:584-587`; `/home/server/woltk-trinity-legacy/src/server/worldserver/worldserver.conf.dist:2319-2343`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:251`.
@@ -17,16 +27,6 @@
   Acceptance: `CMSG_OPENING_CINEMATIC` now registers `LoggedIn`/`ThreadUnsafe` dispatch, routes through `WorldSession`, requires `player_xp_like_cpp() == 0`, chooses `ChrClassesStore::CinematicSequenceID` first and falls back to `ChrRacesStore::CinematicSequenceID` only when the class cinematic id is zero, sends `TriggerCinematic`, and marks represented `CinematicMgr` active only when `CinematicSequencesStore` contains the chosen id.
 
   Boundary: represented-complete for bounded opening-cinematic dispatch and represented `Player::SendCinematicStart` semantics only; no live character creation/login cinematic flag persistence, no full fly-by camera runtime, no install/restart, or live client/manual validation.
-
-- `#NEXT.R8.ENTITIES.831` - represented-partial for `CMSG_BUG_REPORT`.
-
-  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/TicketHandler.cpp:88-98`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TicketPackets.h:301-311`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TicketPackets.cpp:385-392`; `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/CharacterDatabase.cpp:447`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:251`.
-
-  Rust anchors: `crates/wow-packet/src/packets/misc.rs`; `crates/wow-world/src/handlers/misc.rs`; `crates/wow-world/src/session.rs`.
-
-  Acceptance: `CMSG_BUG_REPORT` parses the C++ bit/string layout (`Type` bit, 12-bit `DiagInfo` length, 10-bit `Text` length), registers `LoggedIn`/`ThreadUnsafe` dispatch, routes through `WorldSession`, preserves the C++ default `Support.BugsEnabled=false` no-op branch, and exposes exact `CHAR_INS_BUG_REPORT` binding with `Text` then `DiagInfo`.
-
-  Boundary: represented-partial only; no live `SupportMgr` singleton, no `Support.Enabled`/`Support.BugsEnabled` config wiring into `wow-world`, no enabled-branch DB integration test against a real character DB, no ticket/support manager runtime, no install/restart, or live client/manual validation.
 
 - `#NEXT.R8.ENTITIES.830` - represented-complete for `CMSG_NEXT_CINEMATIC_CAMERA`.
 
