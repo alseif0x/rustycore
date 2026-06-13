@@ -1,3 +1,13 @@
+- `#NEXT.R8.ENTITIES.844` - represented-partial for `Player::UpdatePvPFlag` timer consumption.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:943`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:20814-20828`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:22669-22679`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:442`.
+
+  Rust anchors: `crates/wow-world/src/session.rs`.
+
+  Acceptance: represented `Player::UpdatePvPFlag` now runs from logged-in `WorldSession::update`, like the C++ `Player::Update` call path. When the represented PvP timer is active, the player is PvP, not hostile, and at least 300 seconds elapsed, Rust clears `PLAYER_FLAGS_PVP_TIMER` and applies represented `UpdatePvP(false)` so the Unit PvP flag is removed. Tests cover the exactly-expired path, the before-300s no-op path, and the logged-in update hook.
+
+  Boundary: this advances the `#NEXT.R8.ENTITIES.842` PvP toggle gap but remains represented-partial. Full zone/area PvP state, complete WarMode lifecycle, controlled-unit PvP propagation, persistence, install/restart, and live client/manual validation remain open.
+
 - `#NEXT.R8.ENTITIES.843` - audit-fix/represented-complete for stale `CMSG_TOY_CLEAR_FANFARE` inventory.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/ToyHandler.cpp:99-102`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/ToyPackets.cpp:54-57`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/ToyPackets.h:59-66`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/CollectionMgr.cpp:157-164`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/CollectionMgr.h:60-67`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:976`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:673`.
@@ -14,9 +24,9 @@
 
   Rust anchors: `crates/wow-packet/src/packets/misc.rs`; `crates/wow-world/src/handlers/misc.rs`; `crates/wow-world/src/session.rs`.
 
-  Acceptance: Rust now parses the empty C++ `TogglePvP` packet, registers `LoggedIn`/`ThreadUnsafe`, dispatches through `WorldSession`, sets `PLAYER_FLAGS_IN_PVP`, clears `PLAYER_FLAGS_PVP_TIMER`, applies represented `UpdatePvP(true, true)` by setting Unit PvP and clearing represented `EndTimer`, removes `PLAYER_FLAGS_IN_PVP` and sets `PLAYER_FLAGS_PVP_TIMER` on toggle-off, starts represented `pvpInfo.EndTimer` only when the player is not hostile and is PvP, and preserves the C++ `IsWarModeLocalActive()` no-toggle-off branch through active-player local flags.
+  Acceptance: Rust now parses the empty C++ `TogglePvP` packet, registers `LoggedIn`/`ThreadUnsafe`, dispatches through `WorldSession`, sets `PLAYER_FLAGS_IN_PVP`, clears `PLAYER_FLAGS_PVP_TIMER`, applies represented `UpdatePvP(true, true)` by setting Unit PvP and clearing represented `EndTimer`, removes `PLAYER_FLAGS_IN_PVP` and sets `PLAYER_FLAGS_PVP_TIMER` on toggle-off, starts represented `pvpInfo.EndTimer` only when the player is not hostile and is PvP, preserves the C++ `IsWarModeLocalActive()` no-toggle-off branch through active-player local flags, and is advanced by `#NEXT.R8.ENTITIES.844` for 5-minute timer consumption.
 
-  Boundary: represented-partial only. Full zone/area PvP state, complete WarMode lifecycle, controlled-unit PvP propagation, `Player::UpdatePvPFlag` 5-minute timer update loop, persistence, install/restart, and live client/manual validation remain open.
+  Boundary: represented-partial only. Full zone/area PvP state, complete WarMode lifecycle, controlled-unit PvP propagation, persistence, install/restart, and live client/manual validation remain open.
 
 - `#NEXT.R8.ENTITIES.841` - audit-fix/represented-complete for stale `CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE` inventory.
 

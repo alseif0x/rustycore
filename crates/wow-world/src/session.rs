@@ -3052,7 +3052,7 @@ pub struct WorldSession {
     player_pvp_enabled_like_cpp: bool,
     /// Represented `PLAYER_FLAGS_IN_PVP` branch for friendly-area near teleport handling.
     player_in_pvp_flag_like_cpp: bool,
-    /// Represented `pvpInfo.EndTimer` until full `Player::UpdatePvPFlag` runs from player update.
+    /// Represented `pvpInfo.EndTimer` consumed by `Player::UpdatePvPFlag`.
     player_pvp_end_timer_like_cpp: Option<i64>,
     /// Current represented zone/area ids until Map/Terrain runtime can calculate them.
     player_zone_id_like_cpp: u32,
@@ -4740,6 +4740,34 @@ impl WorldSession {
                     .remove_pvp_flag_like_cpp(UnitPvpFlags::PVP);
             }
         });
+    }
+
+    pub(crate) fn update_pvp_flag_like_cpp(&mut self, curr_time: i64) {
+        let Some(guid) = self.player_guid() else {
+            return;
+        };
+
+        if !self.player_is_pvp_like_cpp(guid) {
+            return;
+        }
+
+        let Some(end_timer) = self.player_pvp_end_timer_like_cpp else {
+            return;
+        };
+
+        if curr_time < end_timer.saturating_add(300) || self.player_pvp_hostile_like_cpp {
+            return;
+        }
+
+        if end_timer <= curr_time {
+            self.player_pvp_end_timer_like_cpp = None;
+            let _ = self.mutate_canonical_player_by_guid_like_cpp(guid, |player| {
+                player.remove_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP);
+            });
+        }
+
+        self.update_player_pvp_like_cpp(false, false);
+        self.sync_player_registry_state_like_cpp();
     }
 
     pub(crate) fn apply_toggle_pvp_like_cpp(&mut self) {
@@ -16584,6 +16612,7 @@ impl WorldSession {
         // Player auto-attack remains session-owned here: C++ Player::Update
         // calls DoMeleeAttackIfReady before Map::Update runs ObjectUpdater.
         if self.state == SessionState::LoggedIn {
+            self.update_pvp_flag_like_cpp(wow_entities::game_time_secs_like_cpp());
             // Read the tick owner once; the lock is taken and released inside
             // runtime_tick_owner_like_cpp before any tick work begins.
             let owner = self.runtime_tick_owner_like_cpp();
@@ -66674,7 +66703,18 @@ mod tests {
 
     fn session_with_canonical_player_for_away_like_cpp()
     -> (WorldSession, SharedCanonicalMapManager, ObjectGuid) {
-        let (mut session, _, _) = make_session();
+        let (session, _, canonical, player_guid) =
+            session_with_canonical_player_for_away_like_cpp_with_packet_tx();
+        (session, canonical, player_guid)
+    }
+
+    fn session_with_canonical_player_for_away_like_cpp_with_packet_tx() -> (
+        WorldSession,
+        flume::Sender<WorldPacket>,
+        SharedCanonicalMapManager,
+        ObjectGuid,
+    ) {
+        let (mut session, pkt_tx, _) = make_session();
         let player_guid = ObjectGuid::create_player(1, 0xAFD0);
         session.ensure_login_player_controller_like_cpp(
             player_guid,
@@ -66689,7 +66729,7 @@ mod tests {
         let canonical = shared_canonical_map_manager();
         session.set_canonical_map_manager(Arc::clone(&canonical));
         insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
-        (session, canonical, player_guid)
+        (session, pkt_tx, canonical, player_guid)
     }
 
     #[test]
@@ -66776,6 +66816,94 @@ mod tests {
         assert!(!player.has_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP));
         assert!(player.unit().is_pvp_like_cpp());
         assert_eq!(session.player_pvp_end_timer_like_cpp, None);
+    }
+
+    #[test]
+    fn update_pvp_flag_expires_timer_after_five_minutes_like_cpp() {
+        let (mut session, canonical, guid) = session_with_canonical_player_for_away_like_cpp();
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.set_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP);
+                player.unit_mut().set_pvp_flag_like_cpp(UnitPvpFlags::PVP);
+            })
+            .unwrap();
+        session.player_pvp_enabled_like_cpp = true;
+        session.player_pvp_hostile_like_cpp = false;
+        session.player_pvp_end_timer_like_cpp = Some(1_000);
+
+        session.update_pvp_flag_like_cpp(1_300);
+
+        let manager = canonical.lock().unwrap();
+        let player = manager
+            .find_map(571, 0)
+            .unwrap()
+            .map()
+            .get_typed_player(guid)
+            .unwrap();
+        assert!(!player.has_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP));
+        assert!(!player.unit().is_pvp_like_cpp());
+        assert!(!session.player_pvp_enabled_like_cpp);
+        assert_eq!(session.player_pvp_end_timer_like_cpp, None);
+    }
+
+    #[test]
+    fn update_pvp_flag_keeps_timer_before_five_minutes_like_cpp() {
+        let (mut session, canonical, guid) = session_with_canonical_player_for_away_like_cpp();
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.set_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP);
+                player.unit_mut().set_pvp_flag_like_cpp(UnitPvpFlags::PVP);
+            })
+            .unwrap();
+        session.player_pvp_enabled_like_cpp = true;
+        session.player_pvp_hostile_like_cpp = false;
+        session.player_pvp_end_timer_like_cpp = Some(1_000);
+
+        session.update_pvp_flag_like_cpp(1_299);
+
+        let manager = canonical.lock().unwrap();
+        let player = manager
+            .find_map(571, 0)
+            .unwrap()
+            .map()
+            .get_typed_player(guid)
+            .unwrap();
+        assert!(player.has_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP));
+        assert!(player.unit().is_pvp_like_cpp());
+        assert!(session.player_pvp_enabled_like_cpp);
+        assert_eq!(session.player_pvp_end_timer_like_cpp, Some(1_000));
+    }
+
+    #[test]
+    fn logged_in_update_consumes_expired_pvp_timer_like_cpp() {
+        let (mut session, _pkt_tx, canonical, guid) =
+            session_with_canonical_player_for_away_like_cpp_with_packet_tx();
+        session.set_state(SessionState::LoggedIn);
+        session.socket_timeout_deadline_like_cpp = Instant::now() + Duration::from_secs(60);
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.set_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP);
+                player.unit_mut().set_pvp_flag_like_cpp(UnitPvpFlags::PVP);
+            })
+            .unwrap();
+        let now = wow_entities::game_time_secs_like_cpp();
+        session.player_pvp_enabled_like_cpp = true;
+        session.player_pvp_hostile_like_cpp = false;
+        session.player_pvp_end_timer_like_cpp = Some(now - 301);
+
+        assert_eq!(session.state(), SessionState::LoggedIn);
+        let _ = session.update(50);
+
+        assert_eq!(session.player_pvp_end_timer_like_cpp, None);
+        let manager = canonical.lock().unwrap();
+        let player = manager
+            .find_map(571, 0)
+            .unwrap()
+            .map()
+            .get_typed_player(guid)
+            .unwrap();
+        assert!(!player.has_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP));
+        assert!(!player.unit().is_pvp_like_cpp());
     }
 
     #[test]
