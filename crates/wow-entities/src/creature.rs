@@ -2540,6 +2540,14 @@ impl Creature {
         self.personal_loot.get(&guid)
     }
 
+    pub fn loot_for_player_like_cpp(&self, guid: ObjectGuid) -> Option<&CreatureOwnedLoot> {
+        if self.personal_loot.is_empty() {
+            return self.shared_loot.as_ref();
+        }
+
+        self.personal_loot.get(&guid)
+    }
+
     pub fn set_personal_loot_like_cpp(&mut self, guid: ObjectGuid, loot: CreatureOwnedLoot) {
         self.personal_loot.insert(guid, loot);
     }
@@ -5438,6 +5446,38 @@ mod tests {
 
         creature.set_personal_loot_like_cpp(unlooted_player, CreatureOwnedLoot::default());
         assert!(creature.is_fully_looted_like_cpp());
+    }
+
+    #[test]
+    fn creature_loot_for_player_matches_cpp_shared_vs_personal_precedence() {
+        let first = ObjectGuid::create_player(1, 7);
+        let second = ObjectGuid::create_player(1, 8);
+        let mut creature = Creature::new(false);
+
+        assert_eq!(creature.loot_for_player_like_cpp(first), None);
+
+        creature.set_shared_loot_like_cpp(CreatureOwnedLoot::new(5, 0));
+        assert_eq!(
+            creature.loot_for_player_like_cpp(first),
+            Some(&CreatureOwnedLoot::new(5, 0))
+        );
+        assert_eq!(
+            creature.loot_for_player_like_cpp(second),
+            Some(&CreatureOwnedLoot::new(5, 0))
+        );
+
+        creature.set_personal_loot_like_cpp(first, CreatureOwnedLoot::new(0, 1));
+        assert_eq!(
+            creature.loot_for_player_like_cpp(first),
+            Some(&CreatureOwnedLoot::new(0, 1))
+        );
+        assert_eq!(creature.loot_for_player_like_cpp(second), None);
+
+        creature.set_personal_loot_like_cpp(second, CreatureOwnedLoot::new(9, 0));
+        assert_eq!(
+            creature.loot_for_player_like_cpp(second),
+            Some(&CreatureOwnedLoot::new(9, 0))
+        );
     }
 
     #[test]

@@ -1536,6 +1536,14 @@ impl GameObject {
         self.personal_loot.get(&guid)
     }
 
+    pub fn loot_for_player_like_cpp(&self, guid: ObjectGuid) -> Option<&GameObjectOwnedLoot> {
+        if self.personal_loot.is_empty() {
+            return self.shared_loot.as_ref();
+        }
+
+        self.personal_loot.get(&guid)
+    }
+
     pub fn set_personal_loot_like_cpp(&mut self, guid: ObjectGuid, loot: GameObjectOwnedLoot) {
         self.personal_loot.insert(guid, loot);
     }
@@ -3494,6 +3502,38 @@ mod tests {
 
         go.set_personal_loot_like_cpp(unlooted_player, GameObjectOwnedLoot::default());
         assert!(go.is_fully_looted_like_cpp());
+    }
+
+    #[test]
+    fn gameobject_loot_for_player_matches_cpp_shared_vs_personal_precedence() {
+        let first = ObjectGuid::create_player(1, 7);
+        let second = ObjectGuid::create_player(1, 8);
+        let mut go = GameObject::new();
+
+        assert_eq!(go.loot_for_player_like_cpp(first), None);
+
+        go.set_shared_loot_like_cpp(GameObjectOwnedLoot::new(5, 0));
+        assert_eq!(
+            go.loot_for_player_like_cpp(first),
+            Some(&GameObjectOwnedLoot::new(5, 0))
+        );
+        assert_eq!(
+            go.loot_for_player_like_cpp(second),
+            Some(&GameObjectOwnedLoot::new(5, 0))
+        );
+
+        go.set_personal_loot_like_cpp(first, GameObjectOwnedLoot::new(0, 1));
+        assert_eq!(
+            go.loot_for_player_like_cpp(first),
+            Some(&GameObjectOwnedLoot::new(0, 1))
+        );
+        assert_eq!(go.loot_for_player_like_cpp(second), None);
+
+        go.set_personal_loot_like_cpp(second, GameObjectOwnedLoot::new(9, 0));
+        assert_eq!(
+            go.loot_for_player_like_cpp(second),
+            Some(&GameObjectOwnedLoot::new(9, 0))
+        );
     }
 
     #[test]
