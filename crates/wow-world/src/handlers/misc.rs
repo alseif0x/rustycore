@@ -334,6 +334,51 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
+        opcode: ClientOpcodes::ChangeBagSlotFlag,
+        status: SessionStatus::Authed,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_unhandled_client_null_like_cpp",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::CloseQuestChoice,
+        status: SessionStatus::Authed,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_unhandled_client_null_like_cpp",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::QueryQuestItemUsability,
+        status: SessionStatus::Authed,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_unhandled_client_null_like_cpp",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::SetPreferredCemetery,
+        status: SessionStatus::Authed,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_unhandled_client_null_like_cpp",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::UpdateClientSettings,
+        status: SessionStatus::Authed,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_unhandled_client_null_like_cpp",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
         opcode: ClientOpcodes::DiscardedTimeSyncAcks,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadSafe,
@@ -824,6 +869,15 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_report_enabled_addons",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::ReportFrozenWhileLoadingMap,
+        status: SessionStatus::Authed,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_report_frozen_while_loading_map",
     }
 }
 
@@ -1740,6 +1794,10 @@ impl crate::session::WorldSession {
         // C++ registers CMSG_SET_INSERT_ITEMS_LEFT_TO_RIGHT as STATUS_UNHANDLED/Handle_NULL.
     }
 
+    pub async fn handle_unhandled_client_null_like_cpp(&mut self, _pkt: wow_packet::WorldPacket) {
+        // C++ registers this bounded client packet family as STATUS_UNHANDLED/Handle_NULL.
+    }
+
     pub async fn handle_client_telemetry_null_like_cpp(&mut self, _pkt: wow_packet::WorldPacket) {
         // C++ registers this client telemetry/ack family to WorldSession::Handle_NULL.
     }
@@ -2598,6 +2656,10 @@ impl crate::session::WorldSession {
     }
     pub async fn handle_report_enabled_addons(&mut self, _pkt: wow_packet::WorldPacket) {
         // C++ registers CMSG_REPORT_ENABLED_ADDONS as
+        // STATUS_UNHANDLED/Handle_NULL.
+    }
+    pub async fn handle_report_frozen_while_loading_map(&mut self, _pkt: wow_packet::WorldPacket) {
+        // C++ registers CMSG_REPORT_FROZEN_WHILE_LOADING_MAP as
         // STATUS_UNHANDLED/Handle_NULL.
     }
     pub async fn handle_report_keybinding_execution_counts(
@@ -3564,6 +3626,19 @@ mod tests {
         for _ in 0..5 {
             session
                 .handle_client_telemetry_null_like_cpp(WorldPacket::new_empty())
+                .await;
+        }
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn unhandled_client_null_family_is_silent_like_cpp_handle_null() {
+        let (mut session, send_rx) = make_session();
+
+        for _ in 0..5 {
+            session
+                .handle_unhandled_client_null_like_cpp(WorldPacket::new_empty())
                 .await;
         }
 
@@ -6103,6 +6178,17 @@ mod tests {
 
         session
             .handle_report_enabled_addons(WorldPacket::new_empty())
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn report_frozen_while_loading_map_is_silent_like_cpp_handle_null() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_report_frozen_while_loading_map(WorldPacket::new_empty())
             .await;
 
         assert!(send_rx.try_recv().is_err());

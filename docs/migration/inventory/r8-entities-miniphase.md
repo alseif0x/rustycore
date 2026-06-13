@@ -1,3 +1,13 @@
+- `#NEXT.R8.ENTITIES.823` - represented-complete for bounded `STATUS_UNHANDLED` client `Handle_NULL` hooks.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:803-806`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:288,355,768,814,905,995`.
+
+  Rust anchors: `crates/wow-world/src/handlers/misc.rs`; `crates/wow-world/src/session.rs`.
+
+  Acceptance: `CMSG_CHANGE_BAG_SLOT_FLAG`, `CMSG_CLOSE_QUEST_CHOICE`, `CMSG_QUERY_QUEST_ITEM_USABILITY`, `CMSG_REPORT_FROZEN_WHILE_LOADING_MAP`, `CMSG_SET_PREFERRED_CEMETERY`, and `CMSG_UPDATE_CLIENT_SETTINGS` are registered with the existing bounded `Authed` null-hook pattern and the C++ processing modes, routed through `WorldSession`, and consumed silently without packets or represented state mutation.
+
+  Boundary: represented-complete only for these bounded `WorldPackets::Null` hooks; C++ `Handle_NULL` logs the unhandled opcode while Rust preserves the no-response/no-state behavior without a dedicated opcode log; no bag-slot flags, quest-choice close state, quest-item usability, frozen-load telemetry, preferred-cemetery, client-settings behavior, install/restart, or live client/manual validation.
+
 - `#NEXT.R8.ENTITIES.822` — represented-complete for bounded client telemetry/ack `Handle_NULL` hooks.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:803-806`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:431,441,555,817,956`.

@@ -18037,6 +18037,13 @@ impl WorldSession {
             ClientOpcodes::SetInsertItemsLeftToRight => {
                 self.handle_set_insert_items_left_to_right(pkt).await;
             }
+            ClientOpcodes::ChangeBagSlotFlag
+            | ClientOpcodes::CloseQuestChoice
+            | ClientOpcodes::QueryQuestItemUsability
+            | ClientOpcodes::SetPreferredCemetery
+            | ClientOpcodes::UpdateClientSettings => {
+                self.handle_unhandled_client_null_like_cpp(pkt).await;
+            }
             ClientOpcodes::DiscardedTimeSyncAcks
             | ClientOpcodes::EngineSurvey
             | ClientOpcodes::LatencyReport
@@ -18209,6 +18216,9 @@ impl WorldSession {
             }
             ClientOpcodes::ReportEnabledAddons => {
                 self.handle_report_enabled_addons(pkt).await;
+            }
+            ClientOpcodes::ReportFrozenWhileLoadingMap => {
+                self.handle_report_frozen_while_loading_map(pkt).await;
             }
             ClientOpcodes::ReportKeybindingExecutionCounts => {
                 self.handle_report_keybinding_execution_counts(pkt).await;
@@ -67868,15 +67878,23 @@ mod tests {
 
         let compatibility_exceptions = [
             "BattlePayGetPurchaseList",
+            "AddBattlenetFriend",
+            "ChangeBagSlotFlag",
+            "CloseQuestChoice",
             "ConnectToFailed",
             "GetAccountCharacterList",
             "OverrideScreenFlash",
             "Ping",
+            "QueryQuestItemUsability",
             "QueryCountdownTimer",
             "ReportClientVariables",
             "ReportEnabledAddons",
+            "ReportFrozenWhileLoadingMap",
             "ReportKeybindingExecutionCounts",
             "RequestConquestFormulaConstants",
+            "SetInsertItemsLeftToRight",
+            "SetPreferredCemetery",
+            "UpdateClientSettings",
             "UpdateVasPurchaseStates",
         ];
         let modern_client_non_wotlk_exceptions = [
