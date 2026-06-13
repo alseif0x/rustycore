@@ -1,3 +1,13 @@
+- `#NEXT.R8.ENTITIES.841` - audit-fix/represented-complete for stale `CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE` inventory.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MovementHandler.cpp:810-816`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:642`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:416`.
+
+  Rust anchors: `crates/wow-packet/src/packets/movement.rs`; `crates/wow-world/src/handlers/movement.rs`; `crates/wow-world/src/session.rs`.
+
+  Acceptance: inventories no longer claim `CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE` lacks `PROCESS_THREADSAFE` parity. C++ registers it as `STATUS_LOGGEDIN`/`PROCESS_THREADSAFE`, sets `PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME`, stores transport server time as `GameTime::GetGameTimeMS() - Ticks`, then calls `UpdateObjectVisibility(false)`; Rust already parses the uint32 `ticks` payload, registers `LoggedIn`/`ThreadSafe` dispatch, routes through `handle_move_init_active_mover_complete`, sets the represented local flag, stores represented active-player transport server time from `game_time_ms - ticks`, syncs represented visibility detection, queues a movement visibility refresh, and emits the represented active-player transport-server-time update.
+
+  Boundary: audit-fix for stale R3 opcode inventory; represented-complete for bounded transport-server-time/local-flag/visibility-refresh bookkeeping only. Full live `UpdateObjectVisibility(false)` fanout, install/restart, and live client/manual validation remain out of this slice.
+
 - `#NEXT.R8.ENTITIES.840` - audit-fix/represented-complete for stale `CMSG_SET_WATCHED_FACTION` inventory.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CharacterHandler.cpp:1485-1488`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:922`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:627`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:2782`.
