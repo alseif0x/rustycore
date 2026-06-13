@@ -7,6 +7,7 @@ use flate2::Compression;
 use flate2::write::ZlibEncoder;
 use serde::Serialize;
 use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 use std::io::Write;
 use std::sync::Arc;
 
@@ -70,6 +71,12 @@ impl PartialEq for RealmHandleLikeCpp {
 
 impl Eq for RealmHandleLikeCpp {}
 
+impl Hash for RealmHandleLikeCpp {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.realm.hash(state);
+    }
+}
+
 impl PartialOrd for RealmHandleLikeCpp {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
@@ -116,7 +123,7 @@ pub struct RealmBuildInfo {
 
 /// Manages the list of available realms.
 pub struct RealmManager {
-    pub realms: HashMap<u32, Realm>,
+    pub(crate) realms: HashMap<RealmHandleLikeCpp, Realm>,
     pub builds: Vec<RealmBuildInfo>,
     pub sub_regions: Vec<String>,
 }
@@ -144,7 +151,7 @@ impl RealmManager {
     /// the low 16-bit realmlist id rather than the whole packed address.
     pub fn get_realm_by_realm_address_like_cpp(&self, realm_address: u32) -> Option<&Realm> {
         self.realms
-            .get(&RealmHandleLikeCpp::from_address_like_cpp(realm_address).realm)
+            .get(&RealmHandleLikeCpp::from_address_like_cpp(realm_address))
     }
 
     #[allow(dead_code)]
@@ -469,8 +476,9 @@ async fn update_realms(state: &AppState) -> Result<()> {
                 sub_regions.push(sub_region);
             }
 
+            let handle = RealmHandleLikeCpp::new_like_cpp(region, battlegroup, id);
             realms.insert(
-                id,
+                handle,
                 Realm {
                     id,
                     name,
@@ -685,12 +693,43 @@ mod tests {
         assert!(handle < other_realm);
 
         let mut manager = RealmManager::new();
-        manager.realms.insert(9, test_realm(9, 5, 6, 1, 1));
+        manager.realms.insert(
+            RealmHandleLikeCpp::new_like_cpp(5, 6, 9),
+            test_realm(9, 5, 6, 1, 1),
+        );
         assert_eq!(
             manager
                 .get_realm_by_realm_address_like_cpp(realm_address)
                 .map(|realm| realm.id),
             Some(9)
+        );
+    }
+
+    #[test]
+    fn realm_manager_storage_key_matches_cpp_realm_only_ordering() {
+        let mut manager = RealmManager::new();
+        manager.realms.insert(
+            RealmHandleLikeCpp::new_like_cpp(5, 6, 9),
+            test_realm(9, 5, 6, 1, 1),
+        );
+        let mut replacement = test_realm(9, 1, 2, 3, 1);
+        replacement.name = "Replacement".to_string();
+        manager
+            .realms
+            .insert(RealmHandleLikeCpp::new_like_cpp(1, 2, 9), replacement);
+
+        assert_eq!(manager.realms.len(), 1);
+        assert_eq!(
+            manager
+                .get_realm_by_realm_address_like_cpp(realm_address_like_cpp(5, 6, 9))
+                .map(|realm| realm.name.as_str()),
+            Some("Replacement")
+        );
+        assert_eq!(
+            manager
+                .get_realm_by_realm_address_like_cpp(realm_address_like_cpp(1, 2, 9))
+                .map(|realm| realm.name.as_str()),
+            Some("Replacement")
         );
     }
 
@@ -705,7 +744,9 @@ mod tests {
         let mut realm = test_realm(9, 5, 6, 1, 1);
         realm.name = "Ice Crown".to_string();
         realm.normalized_name = normalized_realm_name_like_cpp(&realm.name);
-        manager.realms.insert(9, realm);
+        manager
+            .realms
+            .insert(RealmHandleLikeCpp::new_like_cpp(5, 6, 9), realm);
 
         assert_eq!(
             manager.get_realm_names_like_cpp(realm_address_like_cpp(5, 6, 9)),
@@ -758,8 +799,14 @@ mod tests {
     #[test]
     fn realm_list_json_filters_subregion_and_uses_cpp_fields() {
         let mut manager = RealmManager::new();
-        manager.realms.insert(9, test_realm(9, 5, 6, 3, 1));
-        manager.realms.insert(10, test_realm(10, 7, 8, 4, 6));
+        manager.realms.insert(
+            RealmHandleLikeCpp::new_like_cpp(5, 6, 9),
+            test_realm(9, 5, 6, 3, 1),
+        );
+        manager.realms.insert(
+            RealmHandleLikeCpp::new_like_cpp(7, 8, 10),
+            test_realm(10, 7, 8, 4, 6),
+        );
         manager.builds.push(RealmBuildInfo {
             major_version: 3,
             minor_version: 4,
@@ -799,9 +846,10 @@ mod tests {
     #[test]
     fn realm_list_json_uses_cpp_fallback_version_and_type_normalization() {
         let mut manager = RealmManager::new();
-        manager
-            .realms
-            .insert(9, test_realm(9, 5, 6, 3, REALM_TYPE_FFA_PVP));
+        manager.realms.insert(
+            RealmHandleLikeCpp::new_like_cpp(5, 6, 9),
+            test_realm(9, 5, 6, 3, REALM_TYPE_FFA_PVP),
+        );
 
         let (realms, _) = manager.get_realm_list_json(12340, "5-6-0", &HashMap::new());
         let realms = inflate_payload(&realms);
@@ -823,7 +871,9 @@ mod tests {
         let mut manager = RealmManager::new();
         let mut realm = test_realm(9, 5, 6, 3, 1);
         realm.flag = REALM_FLAG_OFFLINE;
-        manager.realms.insert(9, realm);
+        manager
+            .realms
+            .insert(RealmHandleLikeCpp::new_like_cpp(5, 6, 9), realm);
 
         let (realms, _) = manager.get_realm_list_json(51943, "5-6-0", &HashMap::new());
         let realms = inflate_payload(&realms);
@@ -837,7 +887,10 @@ mod tests {
     #[test]
     fn realm_entry_json_matches_cpp_envelope_and_empty_gates() {
         let mut manager = RealmManager::new();
-        manager.realms.insert(9, test_realm(9, 5, 6, 3, 1));
+        manager.realms.insert(
+            RealmHandleLikeCpp::new_like_cpp(5, 6, 9),
+            test_realm(9, 5, 6, 3, 1),
+        );
         manager.builds.push(RealmBuildInfo {
             major_version: 3,
             minor_version: 4,
@@ -864,7 +917,11 @@ mod tests {
                 .is_empty()
         );
 
-        manager.realms.get_mut(&9).unwrap().flag = REALM_FLAG_OFFLINE;
+        manager
+            .realms
+            .get_mut(&RealmHandleLikeCpp::new_like_cpp(5, 6, 9))
+            .unwrap()
+            .flag = REALM_FLAG_OFFLINE;
         assert!(
             manager
                 .get_realm_entry_json_like_cpp(packed, 51943)
