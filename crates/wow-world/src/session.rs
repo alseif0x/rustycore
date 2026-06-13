@@ -14,7 +14,7 @@ use std::sync::{
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use parking_lot::RwLock;
-use rand::seq::SliceRandom;
+use rand::{SeedableRng, rngs::StdRng, seq::SliceRandom};
 use tracing::{debug, info, trace, warn};
 
 use crate::entity_update_bridge::{
@@ -2485,6 +2485,10 @@ pub struct WorldSession {
     remote_address_like_cpp: Option<String>,
     pending_packet_spoof_ban_like_cpp: Option<PacketSpoofPendingBanLikeCpp>,
     legacy_creature_aggro_config_like_cpp: LegacyCreatureAggroConfigLikeCpp,
+    /// Session-owned RNG for represented gameplay choices that C++ resolves through
+    /// `urand`/`SelectRandomContainerElement` while the owning Player/Map runtime is
+    /// still being split out of `WorldSession`.
+    represented_runtime_rng_like_cpp: StdRng,
 
     // Dispatch table (built once, shared ref)
     dispatch_table: HashMap<ClientOpcodes, &'static PacketHandlerEntry>,
@@ -3783,6 +3787,7 @@ impl WorldSession {
             remote_address_like_cpp: None,
             pending_packet_spoof_ban_like_cpp: None,
             legacy_creature_aggro_config_like_cpp: LegacyCreatureAggroConfigLikeCpp::default(),
+            represented_runtime_rng_like_cpp: StdRng::from_entropy(),
             dispatch_table: build_dispatch_table(),
             char_db: None,
             login_db: None,
@@ -4144,6 +4149,11 @@ impl WorldSession {
             creature_query_cache: std::collections::HashSet::new(),
             instance_lock_mgr: None,
         }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn seed_represented_runtime_rng_like_cpp(&mut self, seed: u64) {
+        self.represented_runtime_rng_like_cpp = StdRng::seed_from_u64(seed);
     }
 
     /// Set the character database for this session.
@@ -19258,23 +19268,26 @@ impl WorldSession {
 
     #[allow(dead_code)]
     pub(crate) fn select_represented_mount_aura_display_like_cpp(
-        &self,
+        &mut self,
         spell_id: u32,
     ) -> Option<i32> {
         let candidates = self.represented_mount_aura_display_candidates_like_cpp(spell_id);
-        candidates.choose(&mut rand::thread_rng()).copied()
+        candidates
+            .choose(&mut self.represented_runtime_rng_like_cpp)
+            .copied()
     }
 
     #[allow(dead_code)]
     pub(crate) fn represented_mount_creature_template_fallback_like_cpp(
-        &self,
+        &mut self,
         creature_entry: u32,
     ) -> Option<(i32, u32)> {
         let template = self
             .creature_template_mount_store
             .as_ref()?
             .get(creature_entry)?;
-        let display_id = template.choose_display_id_like_cpp(&mut rand::thread_rng())?;
+        let display_id =
+            template.choose_display_id_like_cpp(&mut self.represented_runtime_rng_like_cpp)?;
         Some((i32::try_from(display_id).unwrap_or(0), template.vehicle_id))
     }
 
@@ -22734,9 +22747,11 @@ impl WorldSession {
                     target_count: source.caster_target_spell_targets,
                 },
             );
-            let mut rng = rand::thread_rng();
             for _ in 0..source.caster_target_spell_targets {
-                let Some(target_guid) = unique_users.choose(&mut rng).copied() else {
+                let Some(target_guid) = unique_users
+                    .choose(&mut self.represented_runtime_rng_like_cpp)
+                    .copied()
+                else {
                     continue;
                 };
                 if !self
@@ -68840,6 +68855,7 @@ mod tests {
     #[test]
     fn gameobject_use_ritual_casts_caster_target_spell_at_random_unique_users_like_cpp() {
         let (mut session, _pkt_tx, _send_rx) = make_session();
+        session.seed_represented_runtime_rng_like_cpp(0xA141);
         let player_guid = ObjectGuid::create_player(1, 99);
         let other_player_guid = ObjectGuid::create_player(1, 100);
         let gameobject_guid =
@@ -68917,7 +68933,22 @@ mod tests {
                 }
             })
             .collect();
+        let expected_targets: Vec<_> = {
+            let unique_users = vec![other_player_guid, player_guid];
+            let mut rng = StdRng::seed_from_u64(0xA141);
+            (0..4)
+                .map(|_| *unique_users.choose(&mut rng).expect("seeded target"))
+                .collect()
+        };
         assert_eq!(target_casts.len(), 4);
+        assert_eq!(
+            target_casts
+                .iter()
+                .map(|(_, _, target_guid, _, _)| *target_guid)
+                .collect::<Vec<_>>(),
+            expected_targets,
+            "represented ritual random target selection should be driven by the session-owned StdRng, not thread-local entropy"
+        );
         for (cast_gameobject_guid, caster_guid, target_guid, spell_id, triggered) in target_casts {
             assert_eq!(cast_gameobject_guid, gameobject_guid);
             assert_eq!(caster_guid, other_player_guid);
