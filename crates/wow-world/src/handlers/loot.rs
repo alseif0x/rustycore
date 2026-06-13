@@ -1498,6 +1498,7 @@ impl WorldSession {
                     );
                 }
             } else {
+                gameobject.clear_personal_loot_like_cpp();
                 gameobject.set_shared_loot_like_cpp(GameObjectOwnedLoot::new(
                     loot.coins,
                     u32::from(loot.unlooted_count),
@@ -1516,6 +1517,7 @@ impl WorldSession {
         let summary = CreatureOwnedLoot::new(loot.coins, u32::from(loot.unlooted_count));
         if self
             .mutate_world_creature(creature_guid, |world_creature| {
+                world_creature.creature.clear_personal_loot_like_cpp();
                 world_creature.creature.set_shared_loot_like_cpp(summary);
             })
             .is_some()
@@ -1524,6 +1526,7 @@ impl WorldSession {
         }
 
         self.mutate_canonical_creature_by_guid_like_cpp(creature_guid, |creature| {
+            creature.clear_personal_loot_like_cpp();
             creature.set_shared_loot_like_cpp(summary);
         })
         .map(|_| ())
@@ -14919,6 +14922,11 @@ mod tests {
         session.set_player_guid(Some(player_guid));
         session.set_active_loot_guid(loot_guid);
         register_test_creature_like_cpp(&mut session, test_creature(loot_guid, false));
+        let _ = session.mutate_world_creature(loot_guid, |world_creature| {
+            world_creature
+                .creature
+                .set_personal_loot_like_cpp(player_guid, CreatureOwnedLoot::new(0, 1));
+        });
         session.loot_table.insert(
             loot_guid,
             CreatureLoot {
@@ -15004,6 +15012,11 @@ mod tests {
         let canonical = canonical_creature_snapshot(&session, loot_guid).unwrap();
         assert_eq!(
             canonical.shared_loot_like_cpp(),
+            Some(&CreatureOwnedLoot::new(7, 0))
+        );
+        assert_eq!(canonical.personal_loot_count_like_cpp(), 0);
+        assert_eq!(
+            canonical.loot_for_player_like_cpp(other_guid),
             Some(&CreatureOwnedLoot::new(7, 0))
         );
         assert!(!canonical.is_fully_looted_like_cpp());
@@ -15309,8 +15322,9 @@ mod tests {
         let (mut session, send_rx) = make_session_with_send();
         let player_guid = ObjectGuid::create_player(1, 42);
         let loot_guid = test_gameobject_guid(19_132);
-        let game_object =
+        let mut game_object =
             make_canonical_gameobject_for_session(&session, loot_guid, GAMEOBJECT_TYPE_CHEST as u8);
+        game_object.set_personal_loot_like_cpp(player_guid, GameObjectOwnedLoot::new(0, 1));
         attach_canonical_gameobject(&mut session, game_object);
         session.set_player_guid(Some(player_guid));
         session.set_player_position_like_cpp(Position::ZERO);
@@ -15357,6 +15371,11 @@ mod tests {
         let canonical = canonical_gameobject_snapshot(&session, loot_guid).unwrap();
         assert_eq!(
             canonical.shared_loot_like_cpp(),
+            Some(&GameObjectOwnedLoot::new(0, 1))
+        );
+        assert_eq!(canonical.personal_loot_count_like_cpp(), 0);
+        assert_eq!(
+            canonical.loot_for_player_like_cpp(player_guid),
             Some(&GameObjectOwnedLoot::new(0, 1))
         );
         assert!(!canonical.is_fully_looted_like_cpp());

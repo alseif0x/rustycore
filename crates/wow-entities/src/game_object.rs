@@ -1548,6 +1548,10 @@ impl GameObject {
         self.personal_loot.insert(guid, loot);
     }
 
+    pub fn clear_personal_loot_like_cpp(&mut self) {
+        self.personal_loot.clear();
+    }
+
     pub fn personal_loot_count_like_cpp(&self) -> usize {
         self.personal_loot.len()
     }
@@ -3566,6 +3570,26 @@ mod tests {
         assert_eq!(go.unique_user_count_like_cpp(), 0);
         assert_eq!(go.use_times(), 0);
         assert!(go.is_fully_looted_like_cpp());
+    }
+
+    #[test]
+    fn gameobject_clear_personal_loot_preserves_shared_loot_like_cpp() {
+        let player = ObjectGuid::create_player(1, 10);
+        let mut go = GameObject::new();
+        go.set_shared_loot_like_cpp(GameObjectOwnedLoot::new(3, 0));
+        go.set_personal_loot_like_cpp(player, GameObjectOwnedLoot::new(0, 1));
+
+        go.clear_personal_loot_like_cpp();
+
+        assert_eq!(
+            go.shared_loot_like_cpp(),
+            Some(&GameObjectOwnedLoot::new(3, 0))
+        );
+        assert_eq!(go.personal_loot_count_like_cpp(), 0);
+        assert_eq!(
+            go.loot_for_player_like_cpp(player),
+            Some(&GameObjectOwnedLoot::new(3, 0))
+        );
     }
 
     #[test]

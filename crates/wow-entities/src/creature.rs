@@ -2552,6 +2552,10 @@ impl Creature {
         self.personal_loot.insert(guid, loot);
     }
 
+    pub fn clear_personal_loot_like_cpp(&mut self) {
+        self.personal_loot.clear();
+    }
+
     pub fn personal_loot_count_like_cpp(&self) -> usize {
         self.personal_loot.len()
     }
@@ -5492,6 +5496,26 @@ mod tests {
         assert_eq!(creature.shared_loot_like_cpp(), None);
         assert_eq!(creature.personal_loot_count_like_cpp(), 0);
         assert!(creature.is_fully_looted_like_cpp());
+    }
+
+    #[test]
+    fn creature_clear_personal_loot_preserves_shared_loot_like_cpp() {
+        let player = ObjectGuid::create_player(1, 10);
+        let mut creature = Creature::new(false);
+        creature.set_shared_loot_like_cpp(CreatureOwnedLoot::new(3, 0));
+        creature.set_personal_loot_like_cpp(player, CreatureOwnedLoot::new(0, 1));
+
+        creature.clear_personal_loot_like_cpp();
+
+        assert_eq!(
+            creature.shared_loot_like_cpp(),
+            Some(&CreatureOwnedLoot::new(3, 0))
+        );
+        assert_eq!(creature.personal_loot_count_like_cpp(), 0);
+        assert_eq!(
+            creature.loot_for_player_like_cpp(player),
+            Some(&CreatureOwnedLoot::new(3, 0))
+        );
     }
 
     #[test]
