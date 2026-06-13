@@ -1755,6 +1755,21 @@ impl Creature {
         player_pos: &Position,
         player_combat_reach: f32,
     ) -> bool {
+        self.try_ai_aggro_with_effective_range_like_cpp(
+            player_guid,
+            player_pos,
+            player_combat_reach,
+            self.ai_ownership.aggro_radius,
+        )
+    }
+
+    pub fn try_ai_aggro_with_effective_range_like_cpp(
+        &mut self,
+        player_guid: ObjectGuid,
+        player_pos: &Position,
+        player_combat_reach: f32,
+        effective_aggro_range: f32,
+    ) -> bool {
         if !self.ai_is_alive() || self.ai_ownership.state == CreatureAiState::InCombat {
             return false;
         }
@@ -1783,7 +1798,7 @@ impl Creature {
             return false;
         }
 
-        if self.ai_position().distance(player_pos) <= self.ai_ownership.aggro_radius {
+        if self.ai_position().distance(player_pos) <= effective_aggro_range.max(0.0) {
             self.enter_ai_combat(player_guid);
             true
         } else {

@@ -33,7 +33,8 @@ use crate::phasing::{
 use crate::reputation::{ReputationMgrLikeCpp, reputation_to_rank_like_cpp};
 use wow_ai::{
     CreatureAiCanAttackInputLikeCpp, CreatureAiKindLikeCpp, CreatureAiSelectionInputLikeCpp,
-    creature_ai_can_attack_like_cpp, creature_ai_uses_base_move_in_line_of_sight_like_cpp,
+    CreatureAttackDistanceInputLikeCpp, creature_ai_can_attack_like_cpp,
+    creature_ai_uses_base_move_in_line_of_sight_like_cpp, creature_attack_distance_like_cpp,
     select_creature_ai_like_cpp,
 };
 use wow_constants::creature::{CreatureFlagsExtra, CreatureType, CreatureTypeFlags};
@@ -1990,6 +1991,8 @@ const DEFAULT_VISIBILITY_BGARENAS_LIKE_CPP: f32 = 533.0;
 pub struct LegacyCreatureAggroConfigLikeCpp {
     pub no_gray_aggro_above: u32,
     pub no_gray_aggro_below: u32,
+    pub creature_aggro_rate: f32,
+    pub max_player_level_config: u32,
     pub faction_template_store: Option<Arc<FactionTemplateStore>>,
     pub faction_store: Option<Arc<FactionStore>>,
     pub map_store: Option<Arc<MapStore>>,
@@ -2006,6 +2009,8 @@ impl Default for LegacyCreatureAggroConfigLikeCpp {
         Self {
             no_gray_aggro_above: 0,
             no_gray_aggro_below: 0,
+            creature_aggro_rate: 1.0,
+            max_player_level_config: 80,
             faction_template_store: None,
             faction_store: None,
             map_store: None,
@@ -27444,11 +27449,27 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
                     outcome.gray_aggro_rejections += 1;
                     continue;
                 }
-                if creature.try_aggro_with_target_combat_reach_like_cpp(
-                    candidate.player_guid,
-                    &candidate.position,
-                    candidate.player_combat_reach,
-                ) {
+                let effective_aggro_range =
+                    creature_attack_distance_like_cpp(CreatureAttackDistanceInputLikeCpp {
+                        aggro_rate: config.creature_aggro_rate,
+                        creature_combat_reach: creature.creature.unit().world().combat_reach(),
+                        expansion_max_level: 80,
+                        max_player_level_config: config.max_player_level_config,
+                        player_level_for_target: candidate.player_level,
+                        creature_level_for_target: creature.level(),
+                        creature_detect_range_aura_mod: 0.0,
+                        player_detected_range_aura_mod: 0.0,
+                    }) + creature.creature.combat_distance();
+
+                if creature
+                    .creature
+                    .try_ai_aggro_with_effective_range_like_cpp(
+                        candidate.player_guid,
+                        &candidate.position,
+                        candidate.player_combat_reach,
+                        effective_aggro_range,
+                    )
+                {
                     outcome.aggro_starts += 1;
                     outcome.commands.push(
                         wow_network::player_registry::CreatureAttackStartLikeCppCommand {
@@ -28797,6 +28818,7 @@ impl WorldSession {
         let guids = self.world_creature_guids();
         let mut aggro_guid: Option<wow_core::ObjectGuid> = None;
         let player_combat_reach = self.canonical_player_combat_reach_snapshot_like_cpp();
+        let player_level = self.player_level_like_cpp();
 
         for guid in guids {
             let aggroed = self
@@ -28805,11 +28827,26 @@ impl WorldSession {
                     {
                         return false;
                     }
-                    creature.try_aggro_with_target_combat_reach_like_cpp(
-                        player_guid,
-                        &player_pos,
-                        player_combat_reach,
-                    )
+                    let effective_aggro_range =
+                        creature_attack_distance_like_cpp(CreatureAttackDistanceInputLikeCpp {
+                            aggro_rate: 1.0,
+                            creature_combat_reach: creature.creature.unit().world().combat_reach(),
+                            expansion_max_level: 80,
+                            max_player_level_config: 80,
+                            player_level_for_target: player_level,
+                            creature_level_for_target: creature.level(),
+                            creature_detect_range_aura_mod: 0.0,
+                            player_detected_range_aura_mod: 0.0,
+                        }) + creature.creature.combat_distance();
+
+                    creature
+                        .creature
+                        .try_ai_aggro_with_effective_range_like_cpp(
+                            player_guid,
+                            &player_pos,
+                            player_combat_reach,
+                            effective_aggro_range,
+                        )
                 })
                 .unwrap_or(false);
             if aggroed {
@@ -73285,6 +73322,15 @@ mod tests {
         )
     }
 
+    fn legacy_aggro_hostile_config_with_rate_like_cpp(
+        creature_aggro_rate: f32,
+    ) -> LegacyCreatureAggroConfigLikeCpp {
+        LegacyCreatureAggroConfigLikeCpp {
+            creature_aggro_rate,
+            ..legacy_aggro_hostile_config_like_cpp()
+        }
+    }
+
     #[test]
     fn legacy_creature_aggro_tick_once_is_noop_under_session_owner_like_cpp() {
         let manager = shared_map_manager();
@@ -73297,7 +73343,7 @@ mod tests {
         let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
             &manager,
             &candidates,
-            legacy_aggro_hostile_config_like_cpp(),
+            legacy_aggro_hostile_config_with_rate_like_cpp(3.0),
         );
 
         assert!(outcome.skipped_owner_not_global);
@@ -73345,7 +73391,7 @@ mod tests {
         let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
             &manager,
             &candidates,
-            legacy_aggro_hostile_config_like_cpp(),
+            legacy_aggro_hostile_config_with_rate_like_cpp(3.0),
         );
 
         assert!(!outcome.skipped_owner_not_global);
@@ -73403,7 +73449,7 @@ mod tests {
         let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
             &manager,
             &candidates,
-            legacy_aggro_hostile_config_like_cpp(),
+            legacy_aggro_hostile_config_with_rate_like_cpp(3.0),
         );
 
         assert!(!outcome.skipped_owner_not_global);
@@ -73451,7 +73497,82 @@ mod tests {
         let player = ObjectGuid::create_player(1, 91_022);
         let candidates = vec![legacy_aggro_candidate_like_cpp(
             player,
-            Position::new(10.5, 10.5, 30.0, 0.0),
+            Position::new(10.5, 10.5, 3.1, 0.0),
+        )];
+
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &candidates,
+            legacy_aggro_hostile_config_with_rate_like_cpp(3.0),
+        );
+
+        assert_eq!(outcome.aggro_starts, 1);
+        assert_eq!(outcome.commands.len(), 1);
+        assert_eq!(outcome.commands[0].attacker_guid, creature_guid);
+        assert_eq!(outcome.commands[0].victim_guid, player);
+    }
+
+    #[test]
+    fn legacy_creature_aggro_tick_once_uses_get_attack_distance_not_fixed_radius_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_128);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 80);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 500.0;
+                creature.creature.unit_mut().set_level(80);
+                creature.creature.unit_mut().set_combat_reach(0.0);
+                creature.creature.set_combat_distance_like_cpp(0.0);
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let player = ObjectGuid::create_player(1, 91_129);
+        let candidates = vec![legacy_aggro_candidate_like_cpp(
+            player,
+            Position::new(56.0, 10.0, 0.0, 0.0),
+        )];
+
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &candidates,
+            legacy_aggro_hostile_config_like_cpp(),
+        );
+
+        assert_eq!(outcome.home_range_rejections, 0);
+        assert_eq!(outcome.aggro_starts, 0);
+        assert!(outcome.commands.is_empty());
+    }
+
+    #[test]
+    fn legacy_creature_aggro_tick_once_adds_combat_distance_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_130);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 80);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 500.0;
+                creature.creature.unit_mut().set_level(80);
+                creature.creature.unit_mut().set_combat_reach(0.0);
+                creature.creature.set_combat_distance_like_cpp(2.0);
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let player = ObjectGuid::create_player(1, 91_131);
+        let candidates = vec![legacy_aggro_candidate_like_cpp(
+            player,
+            Position::new(31.5, 10.0, 0.0, 0.0),
         )];
 
         let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
@@ -73462,7 +73583,6 @@ mod tests {
 
         assert_eq!(outcome.aggro_starts, 1);
         assert_eq!(outcome.commands.len(), 1);
-        assert_eq!(outcome.commands[0].attacker_guid, creature_guid);
         assert_eq!(outcome.commands[0].victim_guid, player);
     }
 
@@ -73783,7 +73903,7 @@ mod tests {
             player,
             Position::new(130.0, 10.0, 0.0, 0.0),
         )];
-        let mut config = legacy_aggro_hostile_config_like_cpp();
+        let mut config = legacy_aggro_hostile_config_with_rate_like_cpp(6.0);
         config.map_store = Some(Arc::new(wow_data::MapStore::from_entries([
             wow_data::MapEntry {
                 id: 0,
@@ -73827,7 +73947,7 @@ mod tests {
             player,
             Position::new(240.0, 10.0, 0.0, 0.0),
         )];
-        let mut config = legacy_aggro_hostile_config_like_cpp();
+        let mut config = legacy_aggro_hostile_config_with_rate_like_cpp(8.0);
         config.map_store = Some(Arc::new(wow_data::MapStore::from_entries([
             wow_data::MapEntry {
                 id: 0,
@@ -73890,7 +74010,7 @@ mod tests {
             player,
             Position::new(240.0, 10.0, 0.0, 0.0),
         )];
-        let mut config = legacy_aggro_hostile_config_like_cpp();
+        let mut config = legacy_aggro_hostile_config_with_rate_like_cpp(8.0);
         config.map_store = Some(Arc::new(wow_data::MapStore::from_entries([
             wow_data::MapEntry {
                 id: 0,
@@ -73949,7 +74069,7 @@ mod tests {
         let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
             &manager,
             &candidates,
-            legacy_aggro_hostile_config_like_cpp(),
+            legacy_aggro_hostile_config_with_rate_like_cpp(9.0),
         );
 
         assert_eq!(outcome.owner_position_unrepresented, 0);
@@ -73998,7 +74118,7 @@ mod tests {
         let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
             &manager,
             &candidates,
-            legacy_aggro_hostile_config_like_cpp(),
+            legacy_aggro_hostile_config_with_rate_like_cpp(7.0),
         );
 
         assert_eq!(outcome.owner_position_unrepresented, 0);
@@ -74046,7 +74166,7 @@ mod tests {
         let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
             &manager,
             &candidates,
-            legacy_aggro_hostile_config_like_cpp(),
+            legacy_aggro_hostile_config_with_rate_like_cpp(6.0),
         );
 
         assert_eq!(outcome.home_range_rejections, 1);
@@ -74092,7 +74212,7 @@ mod tests {
         let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
             &manager,
             &candidates,
-            legacy_aggro_hostile_config_like_cpp(),
+            legacy_aggro_hostile_config_with_rate_like_cpp(6.0),
         );
 
         assert_eq!(outcome.owner_position_unrepresented, 1);
@@ -74158,7 +74278,7 @@ mod tests {
         let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
             &manager,
             &candidates,
-            legacy_aggro_hostile_config_like_cpp(),
+            legacy_aggro_hostile_config_with_rate_like_cpp(8.0),
         );
 
         assert_eq!(outcome.owner_position_unrepresented, 0);
@@ -74226,7 +74346,7 @@ mod tests {
         let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
             &manager,
             &candidates,
-            legacy_aggro_hostile_config_like_cpp(),
+            legacy_aggro_hostile_config_with_rate_like_cpp(8.0),
         );
 
         assert_eq!(outcome.owner_position_unrepresented, 0);
@@ -74264,7 +74384,7 @@ mod tests {
         let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
             &manager,
             &candidates,
-            legacy_aggro_hostile_config_like_cpp(),
+            legacy_aggro_hostile_config_with_rate_like_cpp(8.0),
         );
 
         assert_eq!(outcome.home_range_rejections, 0);
@@ -74304,7 +74424,7 @@ mod tests {
         let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
             &manager,
             &candidates,
-            legacy_aggro_hostile_config_like_cpp(),
+            legacy_aggro_hostile_config_with_rate_like_cpp(8.0),
         );
 
         assert_eq!(outcome.home_range_rejections, 1);
@@ -74350,7 +74470,7 @@ mod tests {
         let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
             &manager,
             &candidates,
-            legacy_aggro_hostile_config_like_cpp(),
+            legacy_aggro_hostile_config_with_rate_like_cpp(8.0),
         );
 
         assert_eq!(outcome.home_range_rejections, 0);
@@ -74403,7 +74523,7 @@ mod tests {
         let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
             &manager,
             &candidates,
-            legacy_aggro_hostile_config_like_cpp(),
+            legacy_aggro_hostile_config_with_rate_like_cpp(8.0),
         );
 
         assert_eq!(outcome.home_range_rejections, 1);
@@ -74448,21 +74568,14 @@ mod tests {
         let dynamic_player = ObjectGuid::create_player(1, 91_027);
         let template_player = ObjectGuid::create_player(1, 91_028);
         let candidates = vec![
-            legacy_aggro_candidate_like_cpp(
-                dynamic_player,
-                Position::new(10.5, 10.5, crate::map_manager::VISIBILITY_RADIUS + 1.0, 0.0),
-            ),
-            legacy_aggro_candidate_like_cpp(
-                template_player,
-                Position::new(10.5, 10.5, crate::map_manager::VISIBILITY_RADIUS + 1.0, 0.0),
-            ),
+            legacy_aggro_candidate_like_cpp(dynamic_player, Position::new(10.5, 10.5, 4.0, 0.0)),
+            legacy_aggro_candidate_like_cpp(template_player, Position::new(10.5, 10.5, 4.0, 0.0)),
         ];
 
-        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
-            &manager,
-            &candidates,
-            legacy_aggro_hostile_config_like_cpp(),
-        );
+        let mut config = legacy_aggro_hostile_config_with_rate_like_cpp(8.0);
+        config.visibility_distance_continents = 3.0;
+        let outcome =
+            run_legacy_creature_aggro_tick_once_with_config_like_cpp(&manager, &candidates, config);
 
         assert_eq!(outcome.home_range_rejections, 2);
         assert_eq!(outcome.aggro_starts, 1);

@@ -464,7 +464,8 @@ Numerados para referencia desde `MIGRATION_ROADMAP.md`. Complejidad: **L** <1h, 
 - [ ] **#AI.40b** Wire runtime real de `CreatureAI::DoZoneInCombat`: resolver `Map::IsDungeon`/`HavePlayers`/`GetPlayers`, `CombatManager::CanBeginCombat`, aplicar `Creature::EngageWithTarget` real y preservar logging de error en mapas no dungeon. (H)
 - [ ] **#AI.41** Refactor random — usar `rand` crate proper (`StdRng` semilla por mapa, no time-based) (L)
 - [x] **#AI.42a** Implementar helper representado de `Creature::GetAttackDistance` contrastado contra `Creature.cpp`: `Rate.Creature.Aggro`, base `20 - CombatReach`, level-diff, auras detect/detected range con gate de nivel, cap por max level de expansión y clamps C++ min/max. (L)
-- [ ] **#AI.42b** Wire runtime real del aggro radius dinámico: sustituir el radio fijo legacy por `Creature::GetAttackDistance(target) + m_CombatDistance` usando level/aura/rate/config reales en el scan global y en `MoveInLineOfSight`. (M)
+- [x] **#AI.42b** Wire runtime básico del aggro radius dinámico: sustituir el radio fijo legacy por `Creature::GetAttackDistance(target) + m_CombatDistance` en el scan global `run_legacy_creature_aggro_tick_once_like_cpp` y en el path legacy `check_creature_aggro`, preservando `aggro_radius <= 0` como desactivador. (M)
+- [ ] **#AI.42c** Completar fuentes reales de `GetAttackDistance`: leer `Rate.Creature.Aggro`, `CONFIG_MAX_PLAYER_LEVEL`, max level de expansión del template y aura modifiers `SPELL_AURA_MOD_DETECT_RANGE` / `SPELL_AURA_MOD_DETECTED_RANGE` desde runtime real en todos los callers. (M)
 - [ ] **#AI.43** Implementar `creature_template_addon.auras` aplicación al spawn (M)
 - [ ] **#AI.44** Implementar charm/possess flow + PossessedAI swap (H)
 - [ ] **#AI.45** Tests de regresión unit + smoke tests de SmartScript (M)
@@ -490,7 +491,8 @@ Numerados para referencia desde `MIGRATION_ROADMAP.md`. Complejidad: **L** <1h, 
 
 - [ ] Test: `CreatureAI::try_aggro` requiere hostility check (un mob friendly no entra combat con player)
 - [x] Test: `Creature::GetAttackDistance` representado respeta level-diff, combat reach, clamps, rate, auras detect range y max level de expansión
-- [ ] Test: runtime global de aggro usa `Creature::GetAttackDistance(target) + m_CombatDistance` en vez de radio fijo
+- [x] Test: runtime global de aggro usa `Creature::GetAttackDistance(target) + m_CombatDistance` en vez de radio fijo
+- [ ] Test: `GetAttackDistance` runtime consume rate/config/expansion/aura modifiers reales, no defaults representados
 - [ ] Test: `CreatureAI::take_damage` con dmg ≥ hp dispara `JustDied(killer)` exactamente 1 vez
 - [ ] Test: `EnterEvadeMode(EvadeReason::Boundary)` programa `MoveTargetedHome`, al llegar dispara `JustReachedHome`, restaura HP a max
 - [ ] Test: `EnterEvadeMode(EvadeReason::NoHostiles)` despawnea summons del boss
