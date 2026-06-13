@@ -1,3 +1,23 @@
+- `#NEXT.R8.ENTITIES.813` — represented-complete audit closure for bounded `CMSG_ACCEPT_SOCIAL_CONTRACT`.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:1375-1379` (`HandleAcceptSocialContract` only logs and leaves account-data persistence as a future hook); `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:142` (`STATUS_AUTHED`, `PROCESS_THREADUNSAFE`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/AccountPackets.h:47-54` (empty client packet shape).
+
+Implemented Rust seam: `AcceptSocialContract` already parses as an empty client packet, registers `Authed/ThreadUnsafe` in `handlers/social.rs`, dispatches through `WorldSession`, and now has a focused handler test proving the C++ no-response/no-mutation boundary. This slice also fixes stale `cpp-client-handlers` and R3 opcode inventory rows that incorrectly marked the handler as missing.
+
+Checks: `cargo fmt --all --check`; `cargo test -p wow-packet accept_social_contract --lib`; `cargo test -p wow-world accept_social_contract --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`; `git diff --check`.
+
+Boundaries: no account-data persistence, no live client/manual validation, and no broader social-contract/account notification flow. This is represented-complete for the bounded C++ handler behavior only.
+
+- `#NEXT.R8.ENTITIES.812` — represented-partial social-handler fidelity/inventory reconciliation for `CMSG_ADD_IGNORE` and `CMSG_SET_CONTACT_NOTES`.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SocialHandler.cpp:130-176` (`HandleAddIgnoreOpcode`, `HandleSetContactNotesOpcode`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/SocialPackets.cpp:124-135` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/SocialPackets.h:118-139` (packet read shape); `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:155-170` (`normalizePlayerName`); `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/SocialMgr.cpp:123-139` (`SetFriendNote` truncation).
+
+Implemented Rust seam: the existing `AddIgnore` and `SetContactNotes` parsers, inventory registrations, and session dispatch are now reflected in the opcode inventories instead of being left as false missing entries. `AddIgnore` and `AddFriend` now normalize target player names with the C++ shape before DB lookup (empty rejects; first character uppercase; remaining characters lowercase). `SetContactNotes` remains a DB-backed represented social-row update with 48-character truncation.
+
+Checks: `cargo fmt --all --check`; `cargo test -p wow-world normalize_player_name --lib`; `cargo test -p wow-packet add_ignore --lib`; `cargo test -p wow-packet set_contact_notes --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`; `git diff --check`.
+
+Boundaries: represented DB-backed character social rows only; no account-level ignore ownership, no full character-cache/RBAC async callback parity, no install/restart/manual-test-ready runtime. Current represented/closed inventory count: 776/797 = 97.37%.
+
 - `#NEXT.R8.ENTITIES.811` — represented-complete for bounded `CMSG_SET_CURRENCY_FLAGS` plus `SMSG_SETUP_CURRENCY` currency replay.
 
 C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:1157-1168` (`HandleSetCurrencyFlags` validates `CurrencyTypes`, calls `SetCurrencyFlags`, then `SendCurrencies`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.cpp:113-146,244-248` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.h:133-150,300-309` (packet read/write shape); `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:6843-6891` (`SendCurrencies` filtering, optionals, client flag mask); `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:1405-1417` (`SetCurrencyFlags` state transition); `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:6679-6692` (`CurrencyDbFlags::UnusedFlags`).

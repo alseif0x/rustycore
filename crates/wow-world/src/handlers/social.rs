@@ -27,6 +27,20 @@ const FRIEND_STATUS_ONLINE_LIKE_CPP: u8 = 0x01;
 const FRIEND_STATUS_AFK_LIKE_CPP: u8 = 0x02;
 const FRIEND_STATUS_DND_LIKE_CPP: u8 = 0x04;
 
+fn normalize_player_name_like_cpp(name: &str) -> Option<String> {
+    let mut lowered = String::new();
+    for ch in name.chars() {
+        lowered.extend(ch.to_lowercase());
+    }
+
+    let mut chars = lowered.chars();
+    let first = chars.next()?;
+    let mut normalized = String::new();
+    normalized.extend(first.to_uppercase());
+    normalized.extend(chars);
+    Some(normalized)
+}
+
 // ── inventory registrations ───────────────────────────────────────────────────
 
 inventory::submit! {
@@ -144,6 +158,9 @@ impl WorldSession {
                 warn!("AddFriend: failed to read name: {}", e);
                 return;
             }
+        };
+        let Some(name) = normalize_player_name_like_cpp(&name) else {
+            return;
         };
         let notes = match pkt.read_string(notes_len) {
             Ok(s) => s,
@@ -343,8 +360,12 @@ impl WorldSession {
             };
         }
 
+        let Some(name) = normalize_player_name_like_cpp(&ignore.name) else {
+            return;
+        };
+
         let row = sqlx::query("SELECT CAST(guid AS SIGNED) FROM characters WHERE name = ? LIMIT 1")
-            .bind(&ignore.name)
+            .bind(&name)
             .fetch_optional(char_db.pool())
             .await;
 
@@ -355,7 +376,7 @@ impl WorldSession {
                 return;
             }
             Err(e) => {
-                warn!("AddIgnore DB error looking up '{}': {}", ignore.name, e);
+                warn!("AddIgnore DB error looking up '{}': {}", name, e);
                 return;
             }
         };
@@ -417,10 +438,7 @@ impl WorldSession {
         }
 
         send_status!(FriendsResult::IgnoreAdded, ignore_guid);
-        info!(
-            "Player {:?} ignored {:?} ({})",
-            my_guid, ignore_guid, ignore.name
-        );
+        info!("Player {:?} ignored {:?} ({})", my_guid, ignore_guid, name);
     }
 
     /// CMSG_DEL_FRIEND (0x36d9)
@@ -705,5 +723,89 @@ impl WorldSession {
 
             self.send_packet_realm(&QueryPlayerNamesResponse { players });
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use num_traits::ToPrimitive;
+    use wow_constants::ServerOpcodes;
+
+    fn make_session() -> (WorldSession, flume::Receiver<Vec<u8>>) {
+        let (_pkt_tx, pkt_rx) = flume::bounded(8);
+        let (send_tx, send_rx) = flume::bounded(8);
+        (
+            WorldSession::new(
+                1,
+                "SocialTest".into(),
+                0,
+                2,
+                9,
+                54261,
+                vec![0; 40],
+                "enUS".into(),
+                pkt_rx,
+                send_tx,
+            ),
+            send_rx,
+        )
+    }
+
+    fn opcode(bytes: &[u8]) -> u16 {
+        u16::from_le_bytes([bytes[0], bytes[1]])
+    }
+
+    #[tokio::test]
+    async fn social_contract_request_sends_false_response_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        session.handle_social_contract_request().await;
+
+        let bytes = send_rx.try_recv().expect("social contract response");
+        assert_eq!(
+            opcode(&bytes),
+            ServerOpcodes::SocialContractRequestResponse
+                .to_u16()
+                .expect("opcode")
+        );
+        assert_eq!(bytes.last().copied(), Some(0));
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn accept_social_contract_is_no_response_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_accept_social_contract(AcceptSocialContract)
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn normalize_player_name_empty_rejects_like_cpp() {
+        assert_eq!(normalize_player_name_like_cpp(""), None);
+    }
+
+    #[test]
+    fn normalize_player_name_capitalizes_first_and_lowers_rest_like_cpp() {
+        assert_eq!(
+            normalize_player_name_like_cpp("tHrAlL").as_deref(),
+            Some("Thrall")
+        );
+        assert_eq!(
+            normalize_player_name_like_cpp("jaina").as_deref(),
+            Some("Jaina")
+        );
+    }
+
+    #[test]
+    fn normalize_player_name_handles_unicode_case_like_cpp_wide_string_path() {
+        assert_eq!(
+            normalize_player_name_like_cpp("éLUNE").as_deref(),
+            Some("Élune")
+        );
     }
 }
