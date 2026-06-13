@@ -1,3 +1,13 @@
+- `#NEXT.R8.ENTITIES.820` — represented-complete for bounded `CMSG_SET_INSERT_ITEMS_LEFT_TO_RIGHT` null/unhandled hook.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:803-806`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:898`.
+
+  Rust anchors: `crates/wow-world/src/handlers/misc.rs`; `crates/wow-world/src/session.rs`.
+
+  Acceptance: `ClientOpcodes::SetInsertItemsLeftToRight` is registered `Authed`/`Inplace`, dispatched through `WorldSession`, and consumed silently without packets or represented state mutation, matching the C++ `STATUS_UNHANDLED`/`Handle_NULL` path.
+
+  Boundary: represented-complete only for this bounded unhandled/null hook; no bag ordering behavior is implemented or claimed, and no live client/manual validation.
+
 - `#NEXT.R8.ENTITIES.819` — represented-complete for bounded `CMSG_ADD_BATTLENET_FRIEND` null/unhandled hook.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:803-806`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:150`.
