@@ -281,6 +281,15 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
+        opcode: ClientOpcodes::QueryPetName,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_query_pet_name",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
         opcode: ClientOpcodes::QueryPlayerNames,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
@@ -4764,6 +4773,49 @@ impl WorldSession {
             allow: !pages.is_empty(),
             pages,
         });
+    }
+
+    /// CMSG_QUERY_PET_NAME — resolve an in-world pet name.
+    ///
+    /// C++ `SendQueryPetNameResponse` uses `ObjectAccessor::GetCreatureOrPetOrVehicle`
+    /// and fills the response only when that lookup succeeds. This bounded path
+    /// represents the canonical normal-pet branch; creature/vehicle names and
+    /// declined-name runtime are left explicit until those object-accessor paths
+    /// are unified.
+    pub async fn handle_query_pet_name(&mut self, query: QueryPetName) {
+        let mut response = QueryPetNameResponse::not_allowed(query.unit_guid);
+
+        if let Some((name, timestamp)) =
+            self.represented_query_canonical_pet_name_like_cpp(query.unit_guid)
+        {
+            response.allow = true;
+            response.name = name;
+            response.timestamp = timestamp;
+        }
+
+        self.send_packet(&response);
+    }
+
+    pub(crate) fn represented_query_canonical_pet_name_like_cpp(
+        &self,
+        unit_guid: ObjectGuid,
+    ) -> Option<(String, u32)> {
+        let player_guid = self.player_guid()?;
+        let key = self.current_canonical_player_map_key_like_cpp()?;
+        let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
+        let manager = manager.lock().ok()?;
+        let managed = manager.find_map(key.map_id, key.instance_id)?;
+        let pet = managed.map().map_object_record(unit_guid)?.pet()?;
+        if pet.owner_guid() != player_guid {
+            return None;
+        }
+
+        let name = pet.creature().unit().world().name().to_string();
+        // C++ reads UnitData::PetNameTimestamp. The canonical entity model has
+        // not exposed normal-pet rename/load timestamps yet, so this bounded
+        // branch preserves the default timestamp until that runtime lands.
+        let timestamp = 0;
+        Some((name, timestamp))
     }
 
     /// Send nearby gameobjects to the client as UpdateObject packets.
@@ -10299,6 +10351,94 @@ mod tests {
         assert_eq!(&bytes[2..6], &123_u32.to_le_bytes());
         assert_eq!(bytes[6], 0x00);
         assert_eq!(bytes.len(), 7);
+    }
+
+    #[tokio::test]
+    async fn query_pet_name_missing_unit_sends_cpp_deny_shape() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        let guid = ObjectGuid::create_world_object(HighGuid::Pet, 0, 1, 571, 0, 11, 901);
+
+        session
+            .handle_query_pet_name(QueryPetName { unit_guid: guid })
+            .await;
+
+        let bytes = send_rx.try_recv().expect("query pet name response");
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            wow_constants::ServerOpcodes::QueryPetNameResponse as u16
+        );
+        assert_eq!(&bytes[2..18], &guid.to_raw_bytes());
+        assert_eq!(bytes[18], 0x00);
+        assert_eq!(bytes.len(), 19);
+    }
+
+    #[tokio::test]
+    async fn query_pet_name_uses_canonical_owned_pet_name_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        let player_guid = ObjectGuid::create_player(1, 904);
+        let pet_guid = ObjectGuid::create_world_object(HighGuid::Pet, 0, 1, 571, 0, 21, 904);
+        session.set_player_guid(Some(player_guid));
+
+        let mut player = wow_entities::Player::new(Some(1), false);
+        player
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .create(player_guid);
+        player.unit_mut().world_mut().set_map(571, 0).unwrap();
+        player
+            .unit_mut()
+            .world_mut()
+            .relocate(Position::new(10.0, 0.0, 0.0, 0.0));
+
+        let mut pet = wow_entities::Pet::new(player_guid, wow_entities::PetType::Hunter);
+        pet.creature_mut()
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .create(pet_guid);
+        pet.creature_mut()
+            .unit_mut()
+            .world_mut()
+            .set_map(571, 0)
+            .unwrap();
+        pet.creature_mut().unit_mut().world_mut().set_name("Misha");
+
+        let mut manager = wow_map::MapManager::default();
+        let map = manager.create_world_map(571, 0).map_mut();
+        map.insert_map_object_record(wow_entities::MapObjectRecord::new_player(player).unwrap())
+            .unwrap();
+        map.insert_map_object_record(wow_entities::MapObjectRecord::new_pet(pet).unwrap())
+            .unwrap();
+        attach_map_manager(&mut session, manager);
+
+        session
+            .handle_query_pet_name(QueryPetName {
+                unit_guid: pet_guid,
+            })
+            .await;
+
+        let bytes = send_rx.try_recv().expect("query pet name response");
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            wow_constants::ServerOpcodes::QueryPetNameResponse as u16
+        );
+        assert_eq!(&bytes[2..18], &pet_guid.to_raw_bytes());
+        assert_eq!(bytes[18] & 0x80, 0x80);
+        assert!(bytes.windows(5).any(|window| window == b"Misha"));
+        assert!(bytes.windows(4).any(|window| window == 0_u32.to_le_bytes()));
+    }
+
+    #[test]
+    fn query_pet_name_handler_registration_matches_cpp() {
+        let entry = inventory::iter::<PacketHandlerEntry>
+            .into_iter()
+            .find(|entry| entry.opcode == ClientOpcodes::QueryPetName)
+            .expect("QueryPetName handler registration");
+
+        assert_eq!(entry.status, SessionStatus::LoggedIn);
+        assert_eq!(entry.processing, PacketProcessing::Inplace);
+        assert_eq!(entry.handler_name, "handle_query_pet_name");
     }
 
     #[tokio::test]

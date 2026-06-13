@@ -22,6 +22,9 @@ const MAX_CREATURE_KILL_CREDIT: usize = 2;
 /// Trinity `Array<int32, 100>` cap for `CMSG_QUERY_QUEST_COMPLETION_NPCS`.
 pub const MAX_QUERY_QUEST_COMPLETION_NPCS: usize = 100;
 
+/// Trinity `MAX_DECLINED_NAME_CASES`.
+pub const MAX_DECLINED_NAME_CASES_LIKE_CPP: usize = 5;
+
 // ── CMSG_QUERY_CREATURE (0x3270) ─────────────────────────────────────
 
 /// Client request for creature template data.
@@ -428,6 +431,82 @@ impl ServerPacket for QueryPageTextResponse {
     }
 }
 
+// ── CMSG_QUERY_PET_NAME (0x3275) ────────────────────────────────────
+
+/// Client request for an in-world pet/creature name.
+pub struct QueryPetName {
+    pub unit_guid: ObjectGuid,
+}
+
+impl ClientPacket for QueryPetName {
+    const OPCODE: ClientOpcodes = ClientOpcodes::QueryPetName;
+
+    fn read(packet: &mut WorldPacket) -> Result<Self, PacketError> {
+        let guid_bytes = packet.read_bytes(16)?;
+        let mut raw = [0_u8; 16];
+        raw.copy_from_slice(&guid_bytes);
+        Ok(Self {
+            unit_guid: ObjectGuid::from_raw_bytes(&raw),
+        })
+    }
+}
+
+/// Declined pet names carried by `SMSG_QUERY_PET_NAME_RESPONSE`.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct PetDeclinedNamesLikeCpp {
+    pub names: [String; MAX_DECLINED_NAME_CASES_LIKE_CPP],
+}
+
+/// C++ `WorldPackets::Query::QueryPetNameResponse`.
+pub struct QueryPetNameResponse {
+    pub unit_guid: ObjectGuid,
+    pub allow: bool,
+    pub has_declined: bool,
+    pub declined_names: PetDeclinedNamesLikeCpp,
+    pub timestamp: u32,
+    pub name: String,
+}
+
+impl QueryPetNameResponse {
+    pub fn not_allowed(unit_guid: ObjectGuid) -> Self {
+        Self {
+            unit_guid,
+            allow: false,
+            has_declined: false,
+            declined_names: PetDeclinedNamesLikeCpp::default(),
+            timestamp: 0,
+            name: String::new(),
+        }
+    }
+}
+
+impl ServerPacket for QueryPetNameResponse {
+    const OPCODE: ServerOpcodes = ServerOpcodes::QueryPetNameResponse;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_bytes(&self.unit_guid.to_raw_bytes());
+        pkt.write_bit(self.allow);
+
+        if self.allow {
+            pkt.write_bits(self.name.len() as u32, 8);
+            pkt.write_bit(self.has_declined);
+
+            for declined_name in &self.declined_names.names {
+                pkt.write_bits(declined_name.len() as u32, 7);
+            }
+
+            for declined_name in &self.declined_names.names {
+                pkt.write_string(declined_name);
+            }
+
+            pkt.write_uint32(self.timestamp);
+            pkt.write_string(&self.name);
+        }
+
+        pkt.flush_bits();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -582,6 +661,68 @@ mod tests {
         assert_eq!(bytes[25], 0x30);
         assert_eq!(&bytes[26..29], b"abc");
         assert_eq!(bytes.len(), 29);
+    }
+
+    #[test]
+    fn query_pet_name_reads_cpp_unit_guid() {
+        let guid =
+            ObjectGuid::create_world_object(wow_core::guid::HighGuid::Pet, 0, 1, 571, 0, 7, 9);
+        let mut data = (ClientOpcodes::QueryPetName as u16).to_le_bytes().to_vec();
+        data.extend_from_slice(&guid.to_raw_bytes());
+        let mut pkt = WorldPacket::from_bytes(&data);
+        pkt.skip_opcode();
+
+        let query = QueryPetName::read(&mut pkt).unwrap();
+        assert_eq!(query.unit_guid, guid);
+    }
+
+    #[test]
+    fn query_pet_name_response_writes_cpp_allow_false_shape() {
+        let guid =
+            ObjectGuid::create_world_object(wow_core::guid::HighGuid::Pet, 0, 1, 571, 0, 7, 9);
+        let bytes = QueryPetNameResponse::not_allowed(guid).to_bytes();
+
+        assert_eq!(
+            bytes[0..2],
+            (ServerOpcodes::QueryPetNameResponse as u16).to_le_bytes()
+        );
+        assert_eq!(&bytes[2..18], &guid.to_raw_bytes());
+        assert_eq!(bytes[18], 0x00);
+        assert_eq!(bytes.len(), 19);
+    }
+
+    #[test]
+    fn query_pet_name_response_writes_name_timestamp_and_declined_like_cpp() {
+        let guid =
+            ObjectGuid::create_world_object(wow_core::guid::HighGuid::Pet, 0, 1, 571, 0, 7, 9);
+        let response = QueryPetNameResponse {
+            unit_guid: guid,
+            allow: true,
+            has_declined: true,
+            declined_names: PetDeclinedNamesLikeCpp {
+                names: [
+                    "Alpha".to_string(),
+                    "Beta".to_string(),
+                    "Gamma".to_string(),
+                    "Delta".to_string(),
+                    "Epsilon".to_string(),
+                ],
+            },
+            timestamp: 123_456,
+            name: "Misha".to_string(),
+        };
+
+        let bytes = response.to_bytes();
+        assert_eq!(
+            bytes[0..2],
+            (ServerOpcodes::QueryPetNameResponse as u16).to_le_bytes()
+        );
+        assert_eq!(&bytes[2..18], &guid.to_raw_bytes());
+        assert_eq!(bytes[18] & 0x80, 0x80);
+        assert!(bytes.windows(4).any(|w| w == 123_456_u32.to_le_bytes()));
+        assert!(bytes.windows(5).any(|w| w == b"Misha"));
+        assert!(bytes.windows(5).any(|w| w == b"Alpha"));
+        assert!(bytes.windows(7).any(|w| w == b"Epsilon"));
     }
 
     #[test]
