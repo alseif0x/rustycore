@@ -3146,6 +3146,7 @@ dependencies = [
  "libc",
  "num-derive",
  "num-traits",
+ "rand",
  "serde",
  "thiserror",
 ]

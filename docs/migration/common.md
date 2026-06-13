@@ -216,7 +216,7 @@ None. Common is pre-protocol — it ships no opcodes. The closest it gets is `Me
 | `Utilities/Util.cpp::Tokenize` | `str::split` + `collect::<Vec<_>>()` | ✅ idiomatic replacement |
 | `Utilities/Util.cpp::strToUpper/Lower` | `str::to_ascii_uppercase()` | ✅ for ASCII; ⚠️ for non-ASCII |
 | **`Utilities/Util.cpp::Utf8ToUpperOnlyLatin`** | `wow_core::utf8_to_upper_only_latin_like_cpp` used by Grunt SRP6 `compute_x` and `compute_client_evidence` | ✅ C++ Basic-Latin-only semantics; invalid UTF-8 cannot enter the Rust `&str` API |
-| `Utilities/Random.{h,cpp}` (`urand`, `frand`, etc.) | `rand::thread_rng()` callers throughout `wow-crypto`, `bnet-server` | ✅ replaced; **no central `urand` helper** — every site re-imports `rand::Rng` |
+| `Utilities/Random.{h,cpp}` (`urand`, `frand`, etc.) | `wow_core::random` helpers plus legacy direct `rand` callers | ⚠️ partial — central wrappers exist for C++ helper semantics; not every call site has been migrated yet |
 | `Utilities/SFMTRand` | `rand` crate's default PRNG (currently ChaCha12 in `thread_rng`) | ⚠️ — different algorithm; loot-tier reproducibility from a captured C++ seed will not match. Acceptable for non-determinism-sensitive paths. |
 | `Utilities/Hash.h::hash_combine` / `HashFnv1a` | none | ❌ missing — Rust hashing covered by `std::hash::Hasher`; FNV1a referenced nowhere in Rust code yet |
 | `Utilities/StringFormat.h` | `format!()` macro / `tracing` field formatting | ✅ replaced |
@@ -297,7 +297,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 - [ ] **#COMMON.10** `Metric` port: choose between (a) `metrics` + `metrics-exporter-prometheus` for pull-style or (b) `influxdb-rs` for push. (H)
 - [ ] **#COMMON.11** Port `TaskScheduler` (composable async scheduler) — needed before any C++ spell-script port can compile. (XL — split into Schedule/RepeatedSchedule/Async/Group).
 - [ ] **#COMMON.12** Port `EventMap` for legacy CreatureAI shim. (M)
-- [ ] **#COMMON.13** Centralised `wow-core::random` module wrapping `rand::thread_rng()` with `urand`/`irand`/`frand`/`rand_chance` mirror functions, so callers don't `use rand::Rng` ad-hoc. (L)
+- [x] **#COMMON.13** Centralised `wow-core::random` module wrapping `rand::thread_rng()` with `urand`/`irand`/`frand`/`rand_norm`/`rand_chance`/`roll_chance_*`/`urandweighted` mirror functions plus `*_with_rng_like_cpp` variants for deterministic tests. Existing call sites can migrate incrementally. (L)
 - [ ] **#COMMON.14** Document choice of PRNG (currently ChaCha12 via `thread_rng`); decide whether SFMT reproducibility matters — if yes, depend on `sfmt` crate. (L)
 - [ ] **#COMMON.15** Implement `wow-core::utf8::str_to_lower_only_latin` symmetric counterpart for `Utf8ToUpperOnlyLatin`. (L, do with #COMMON.1)
 - [ ] **#COMMON.16** Wire `Errors::Fatal` equivalent: a panic hook that logs `tracing::error!` + structured `file:line:fn` before unwinding, so prod logs include the assertion site. (L)
@@ -444,8 +444,8 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 | `wstrCaseAccentInsensitiveParse` (per-locale) | `Util.cpp:484-758` | NONE | ❌ | Used by chat search/filter for fr/de/es/it. Not yet a blocker — chat filtering is not yet implemented. |
 | `RemoveCRLF(s)` | `Util.cpp:839-847` | `s.trim_end_matches(['\r', '\n'])` | ✅ | — |
 | `StringEqualI(a,b)` | `Util.cpp:891-894` | `a.eq_ignore_ascii_case(b)` | ✅ | ASCII-only on both sides. |
-| `urand(a,b)` / `irand` / `frand` / `rand_norm` / `rand_chance` | `Random.cpp:30-90` | `rand::thread_rng().gen_range(...)` ad-hoc | ⚠️ | No central wrapper; PRNG algorithm differs (ChaCha12 vs SFMT). Sub-tasks #COMMON.13, #COMMON.14. |
-| `urandweighted` | `Random.cpp:80-95` | NONE — open-coded at every loot site | ⚠️ | Each loot generator reimplements weighted choice. Centralise into `wow-core::random::weighted_choice`. |
+| `urand(a,b)` / `irand` / `frand` / `rand_norm` / `rand_chance` | `Random.cpp:30-90` | `wow_core::random::*_like_cpp` | ✅ | Helper semantics centralized; PRNG algorithm still differs (ChaCha12/thread_rng vs SFMT). Sub-task #COMMON.14. |
+| `urandweighted` | `Random.cpp:80-95` | `wow_core::urandweighted_like_cpp` | ✅ | Uses `rand::distributions::WeightedIndex`, same weighted-index contract; PRNG algorithm differs. |
 | `RandomEngine::Instance()` | `Random.h:67-77` | `rand::thread_rng()` | ✅ | Thread-local. |
 | `SFMTRand` | `Utilities/SFMTRand.cpp` | NONE | ⚠️ | Different PRNG. |
 | `Hash::hash_combine` | `Utilities/Hash.h:28-31` | NONE | ⚠️ | Use derive `Hash` + `(A,B)` tuples. |
@@ -513,11 +513,11 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 3. **`#COMMON.9c` — IPLocation GM command wiring (MED).** Reuse `wow_core::IpLocationStore` from future AccountMgr/GM commands.
 4. **`#COMMON.5` + `#COMMON.6` — config reload + env-var override (MED).** Standard production deployments expect both.
 5. **`#COMMON.11` — `TaskScheduler` port (XL, but unblocks spell-script porting).**
-6. Remaining items are quality-of-life: centralise random helpers (#COMMON.13), add fuzzy-find (#COMMON.17), panic hook (#COMMON.16), `TimeTracker`/`PeriodicTimer`, full `Timezone` helper API.
+6. Remaining items are quality-of-life: migrate random call sites to the central helpers where useful, add fuzzy-find (#COMMON.17), panic hook (#COMMON.16), `TimeTracker`/`PeriodicTimer`, full `Timezone` helper API.
 
 ### 13.4 Justifying the status badge
 
-`⚠️ partial` is correct. The Asio↔Tokio replacement is genuinely complete and idiomatic; same for queues, mutexes, random, encoding, errors, `IntervalTimer`, packed-time calendar math, Grunt SRP6 Basic-Latin string normalisation, IPLocation store/lookup for BNet/world auth, and Unix IP network scanning. Where Rust simply uses the corresponding crate (`tokio`, `flume`, `parking_lot`, `dashmap`, `rand`, `hex`, `regex`, `bitflags`) the migration is real and ✅. The ⚠️ comes from three genuine gaps: (a) remaining `IPLocation` GM command wiring (forensics-affecting but blocked on AccountMgr/RBAC), (b) `Metric` (ops-affecting), (c) the logger framework gaps (file appender, DB appender). Plus the smaller deferred items (`TaskScheduler`, `EventMap`, `TimeTracker`/`PeriodicTimer`, full `Timezone` helper API).
+`⚠️ partial` is correct. The Asio↔Tokio replacement is genuinely complete and idiomatic; same for queues, mutexes, central random helper semantics, encoding, errors, `IntervalTimer`, packed-time calendar math, Grunt SRP6 Basic-Latin string normalisation, IPLocation store/lookup for BNet/world auth, and Unix IP network scanning. Where Rust simply uses the corresponding crate (`tokio`, `flume`, `parking_lot`, `dashmap`, `rand`, `hex`, `regex`, `bitflags`) the migration is real and ✅. The ⚠️ comes from three genuine gaps: (a) remaining `IPLocation` GM command wiring (forensics-affecting but blocked on AccountMgr/RBAC), (b) `Metric` (ops-affecting), (c) the logger framework gaps (file appender, DB appender). Plus the smaller deferred items (`TaskScheduler`, `EventMap`, `TimeTracker`/`PeriodicTimer`, full `Timezone` helper API).
 
 Recommendation: keep ⚠️ partial until either the production gaps (#COMMON.3/#COMMON.4 logging, #COMMON.9c IPLocation GM command wiring, #COMMON.10 metrics) are ported or explicitly carved out as `wow-ops` future work with owner/sign-off. Do not promote Common to ✅ solely because the SRP6 helper and common IPLocation auth paths are closed.
 
