@@ -881,7 +881,7 @@ impl WorldSession {
     }
 
     async fn generate_item_loot_template_entries_like_cpp(
-        &self,
+        &mut self,
         item_entry: u32,
     ) -> Vec<LootEntry> {
         let mut loot_items = Vec::new();
@@ -900,13 +900,13 @@ impl WorldSession {
             groups_enqueued: false,
         });
 
+        let mut rng = self.represented_runtime_subrng_like_cpp();
         let mut processed_frames = 0u32;
         while let Some(mut frame) = frames.pop() {
             if frame.group_id != 0 {
                 let addon_metadata = self
                     .load_item_template_addon_loot_metadata_for_rows_like_cpp(&frame.rows)
                     .await;
-                let mut rng = rand::thread_rng();
                 if let Some(row) = roll_group_loot_row_like_cpp(
                     &frame.rows,
                     frame.group_id,
@@ -932,11 +932,17 @@ impl WorldSession {
                         .copied()
                         .unwrap_or_default();
                     let flags = self.loot_entry_flags_for_row_like_cpp(&row, metadata);
-                    add_loot_template_row_item_like_cpp(&mut loot_items, &row, flags, |item_id| {
-                        self.item_storage_template(item_id)
-                            .map(|template| template.max_stack_size)
-                            .unwrap_or(1)
-                    });
+                    add_loot_template_row_item_like_cpp(
+                        &mut loot_items,
+                        &row,
+                        flags,
+                        |item_id| {
+                            self.item_storage_template(item_id)
+                                .map(|template| template.max_stack_size)
+                                .unwrap_or(1)
+                        },
+                        &mut rng,
+                    );
                 }
                 continue;
             }
@@ -996,7 +1002,7 @@ impl WorldSession {
                     && !roll_chance_with_rate_like_cpp(
                         row.chance,
                         self.loot_drop_rates_like_cpp().item_referenced,
-                        &mut rand::thread_rng(),
+                        &mut rng,
                     )
                 {
                     continue;
@@ -1058,17 +1064,23 @@ impl WorldSession {
                 && !roll_chance_with_rate_like_cpp(
                     row.chance,
                     self.item_drop_rate_like_cpp(row.item_id),
-                    &mut rand::thread_rng(),
+                    &mut rng,
                 )
             {
                 continue;
             }
             let flags = self.loot_entry_flags_for_row_like_cpp(&row, addon_metadata);
-            add_loot_template_row_item_like_cpp(&mut loot_items, &row, flags, |item_id| {
-                self.item_storage_template(item_id)
-                    .map(|template| template.max_stack_size)
-                    .unwrap_or(1)
-            });
+            add_loot_template_row_item_like_cpp(
+                &mut loot_items,
+                &row,
+                flags,
+                |item_id| {
+                    self.item_storage_template(item_id)
+                        .map(|template| template.max_stack_size)
+                        .unwrap_or(1)
+                },
+                &mut rng,
+            );
         }
 
         loot_items
@@ -2287,10 +2299,10 @@ fn add_loot_template_row_item_like_cpp<F>(
     row: &LootTemplateRow,
     flags: LootEntryFlags,
     max_stack_size: F,
+    rng: &mut impl Rng,
 ) where
     F: Fn(u32) -> u32,
 {
-    let mut rng = rand::thread_rng();
     let rolled_count = rng.gen_range(u32::from(row.min_count)..=u32::from(row.max_count));
     add_loot_item_stacks_like_cpp(
         loot_items,
@@ -2303,7 +2315,7 @@ fn add_loot_template_row_item_like_cpp<F>(
 
 #[cfg(test)]
 mod tests {
-    use rand::{SeedableRng, rngs::StdRng};
+    use rand::{Rng, SeedableRng, rngs::StdRng};
 
     use wow_constants::{BagFamilyMask, ItemContext, ItemFieldFlags, ItemFlags, ItemUpdateState};
     use wow_core::{ObjectGuid, guid::HighGuid};
@@ -2318,7 +2330,8 @@ mod tests {
 
     use super::{
         ITEM_FLAGS_CU_FOLLOW_LOOT_RULES_LIKE_CPP, ITEM_FLAGS_CU_IGNORE_QUEST_STATUS_LIKE_CPP,
-        ItemTemplateAddonLootMetadataLikeCpp, LootTemplateRow, add_loot_item_stacks_like_cpp,
+        ItemTemplateAddonLootMetadataLikeCpp, LOOT_MODE_DEFAULT_LIKE_CPP, LootTemplateRow,
+        add_loot_item_stacks_like_cpp, add_loot_template_row_item_like_cpp,
         apply_wrapped_gift_transform_like_cpp, item_loot_quest_status_allows_like_cpp,
         loot_entry_flags_for_row_metadata_like_cpp, loot_template_group_row_can_roll_like_cpp,
         loot_template_plain_row_can_roll_like_cpp, loot_template_reference_row_can_roll_like_cpp,
@@ -2896,6 +2909,36 @@ mod tests {
         add_loot_item_stacks_like_cpp(&mut capped, 25, 100, 1, Default::default());
         assert_eq!(capped.len(), 18);
         assert_eq!(capped[17].loot_list_id, 17);
+    }
+
+    #[test]
+    fn add_loot_template_row_item_uses_caller_rng_like_cpp_urand_count() {
+        let row = LootTemplateRow {
+            item_id: 25,
+            reference: 0,
+            chance: 100.0,
+            needs_quest: false,
+            loot_mode: LOOT_MODE_DEFAULT_LIKE_CPP,
+            group_id: 0,
+            min_count: 2,
+            max_count: 7,
+            conditions: Vec::new(),
+        };
+        let mut expected_rng = StdRng::seed_from_u64(0x5151);
+        let expected_count = expected_rng.gen_range(2..=7);
+
+        let mut rng = StdRng::seed_from_u64(0x5151);
+        let mut loot_items = Vec::new();
+        add_loot_template_row_item_like_cpp(
+            &mut loot_items,
+            &row,
+            Default::default(),
+            |_| 20,
+            &mut rng,
+        );
+
+        assert_eq!(loot_items.len(), 1);
+        assert_eq!(loot_items[0].quantity, expected_count);
     }
 
     #[test]

@@ -14,7 +14,7 @@ use std::sync::{
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use parking_lot::RwLock;
-use rand::{Rng, SeedableRng, rngs::StdRng, seq::SliceRandom};
+use rand::{Rng, RngCore, SeedableRng, rngs::StdRng, seq::SliceRandom};
 use tracing::{debug, info, trace, warn};
 
 use crate::entity_update_bridge::{
@@ -4161,6 +4161,10 @@ impl WorldSession {
             return min;
         }
         self.represented_runtime_rng_like_cpp.gen_range(min..=max)
+    }
+
+    pub(crate) fn represented_runtime_subrng_like_cpp(&mut self) -> StdRng {
+        StdRng::seed_from_u64(self.represented_runtime_rng_like_cpp.next_u64())
     }
 
     pub(crate) fn represented_money_loot_with_rate_like_cpp(
