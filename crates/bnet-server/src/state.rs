@@ -3,9 +3,9 @@
 use dashmap::DashMap;
 use parking_lot::RwLock;
 use std::collections::HashMap;
+use wow_core::IpLocationStore;
 use wow_database::{DatabaseError, LoginDatabase, LoginStatements};
 
-use crate::ip_location::IpLocationStore;
 use crate::realm::RealmManager;
 
 /// Shared application state accessible from all handlers.

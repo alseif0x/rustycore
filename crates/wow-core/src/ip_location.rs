@@ -57,6 +57,10 @@ impl IpLocationStore {
         self.records.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.records.is_empty()
+    }
+
     pub fn country_for_ip_like_cpp(&self, ip_address: &str) -> Option<&str> {
         let ip = match ip_address.parse::<IpAddr>().ok()? {
             IpAddr::V4(address) => u32::from(address),
@@ -66,7 +70,6 @@ impl IpLocationStore {
         self.country_for_ipv4_value_like_cpp(ip)
     }
 
-    #[cfg(test)]
     pub fn country_for_ipv4_like_cpp(&self, ip_address: std::net::Ipv4Addr) -> Option<&str> {
         self.country_for_ipv4_value_like_cpp(u32::from(ip_address))
     }

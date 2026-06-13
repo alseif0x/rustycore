@@ -516,7 +516,7 @@ HTTP routes (verb + path):
 | `MySQL::Library_Init()` | (none) | sqlx handles its own MariaDB client init. |
 | `OpenSSLCrypto::threadsSetup(...)` | (none) | Not needed with rustls. |
 | `Trinity::Banner::Show("bnetserver", ...)` | `log_startup_banner_like_cpp` logs package version/revision, config file, overlays, env overrides and Rust TLS/DB dependency versions | OpenSSL version is n/a under rustls. |
-| `sIPLocation->Load()` | `crates/bnet-server/src/ip_location.rs::IpLocationStore` | Implemented for BNet auth country-lock parity; canonical shared placement can be revisited if worldserver also needs it. |
+| `sIPLocation->Load()` | `wow_core::IpLocationStore` loaded from `bnet-server` config | Implemented for BNet auth country-lock parity; shared placement is now `wow-core`, ready for worldserver wiring. |
 | `sSecretMgr->Initialize(SECRET_OWNER_BNETSERVER)` | `secret_mgr::initialize_secret_mgr_like_cpp(&login_db, SecretOwner::BnetServer).await` | BNet-local module; can be extracted when worldserver wires its owner. |
 | `WinServiceInstall / Uninstall / Run` | (none) | Linux target. |
 | `CreatePIDFile(path)` | `std::fs::write(path, std::process::id().to_string())?` | Implemented in `create_pid_file_like_cpp`; called only when `PidFile` is non-empty. |

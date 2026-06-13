@@ -3,7 +3,6 @@
 //! Handles Battle.net account login via REST (HTTPS) and BNet RPC (TLS).
 //! This is a drop-in replacement for the C# BNetServer.
 
-mod ip_location;
 mod legacy_password;
 mod realm;
 mod rest;
@@ -20,8 +19,8 @@ use tokio_rustls::TlsAcceptor;
 use wow_config::{DatabaseInfo, LoadReport};
 use wow_database::{LoginDatabase, LoginStatements, build_connection_string_with_ssl_like_cpp};
 
-use crate::ip_location::IpLocationStore;
 use crate::state::AppState;
+use wow_core::IpLocationStore;
 
 const BNET_CONFIG_CANDIDATES: &[&str] = &[
     "bnetserver.conf",

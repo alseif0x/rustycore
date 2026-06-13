@@ -3,7 +3,7 @@
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/common/` (excluding `Collision/`, covered separately)
 > **Rust target crate(s):** `crates/wow-core/`, `crates/wow-config/`, `crates/wow-logging/`, `crates/wow-collections/`, scattered helpers in `wow-network/`, `wow-crypto/`, `wow-database/`
 > **Layer:** L0 (foundation)
-> **Status:** ⚠️ partial — most primitives present in idiomatic Rust form; several explicit C++ subsystems (Metric/InfluxDB, IPLocation, Errors-with-stack, full Logger framework, SmartEnum/EventMap/TaskScheduler) have no Rust equivalent
+> **Status:** ⚠️ partial — most primitives present in idiomatic Rust form; several explicit C++ subsystems (Metric/InfluxDB, Errors-with-stack, full Logger framework, SmartEnum/EventMap/TaskScheduler) have no Rust equivalent; IPLocation store exists but is not wired through every C++ caller yet
 > **Audited vs C++:** ⚠️ partial — SRP6 string normalisation now uses the C++ Basic-Latin-only helper; remaining gaps listed in §9/§13
 > **Last updated:** 2026-05-01
 
@@ -201,7 +201,7 @@ None. Common is pre-protocol — it ships no opcodes. The closest it gets is `Me
 | `Encoding/Base32` | none | ❌ missing — only used by `TOTP.cpp` (2FA), which is also missing |
 | `Encoding/Base64` | none in own crate; used via `base64` crate (cargo dep) only inside `bnet-server/rest` | ⚠️ — partial use of external `base64` crate; no centralised wrapper |
 | `Encoding/Hex` (in `Util.cpp`) | `hex` crate referenced from `wow-crypto/src/bnet_srp6.rs:258, 454`; `wow-database` for blob hex columns | ✅ replaced via `hex` crate |
-| `IPLocation/` | **none** | ❌ missing entirely — no GeoIP lookup, no `country_code` enrichment of session logs |
+| `IPLocation/` | `wow_core::IpLocationStore` plus BNet loader/use | ⚠️ partial — CSV parser and lookup are common; BNet country lock uses it; world auth / GM command callers still need wiring |
 | `Logging/` (Log, Logger, Appenders, LogMessage, LogOperation) | `crates/wow-logging/src/lib.rs` (464 lines) — re-export of `tracing` + `LogFilter` enum + macros | ⚠️ partial — `tracing` covers level filtering and structured fields, but **no per-filter file appenders, no rotating file appender, no DB-backed `AppenderDB` (so no `auth.logs` writes), no ANSI-colour console formatter beyond what `tracing-subscriber::fmt` provides** |
 | `Metric/` (InfluxDB) | **none** | ❌ missing entirely — no metrics push pipeline; instrumentation reduced to `tracing` events |
 | `Platform/ServiceWin32` | n/a — Linux-only deployment | ✅ obviated |
@@ -253,7 +253,7 @@ None. Common is pre-protocol — it ships no opcodes. The closest it gets is `Me
 - Hex encoding via `hex` crate.
 
 **What's missing vs C++:**
-- **`IPLocation`** — no GeoIP lookup; session logs cannot enrich with country code.
+- **`IPLocation` world wiring** — common store exists and BNet uses it, but world auth / GM commands are not wired to it yet.
 - **`Metric`** — no InfluxDB or any metrics push.
 - **`AppenderFile` / log rotation** — `tracing-subscriber` writes to stdout only; production needs at minimum rotating-file appender (`tracing-appender::rolling`).
 - **`AppenderDB`** — log records are not written to `auth.logs`; the C# legacy server did this for audit/GM-action retention. Direct compliance/audit gap.
@@ -291,7 +291,8 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 - [ ] **#COMMON.6** Implement env-var override (`OverrideWithEnvVariablesIfAny`) for `wow-config`. Map `World.Server.Port` → `WORLD_SERVER_PORT` per the C++ snake-case rule. (M)
 - [ ] **#COMMON.7** Replace `wow-core::time::GameTime::to_packed()`'s approximate date math with `chrono::DateTime` proper. (L)
 - [x] **#COMMON.8** Add `IntervalTimer` struct to `wow-core::time` (Update/Passed/Reset, mirrors C++ `IntervalTimer` for signed diffs, pass check, negative clamp, and modulo overshoot reset). (L)
-- [ ] **#COMMON.9** Decide on `IPLocation` port: vendor a CSV-loader behind a `wow-geoip` crate, or pull `maxminddb` GeoLite2 reader. (H)
+- [x] **#COMMON.9a** Port C++ `IPLocation` CSV range store and `GetLocationRecord` lookup into `wow-core` (`IpLocationStore`) and reuse it from BNet country-lock auth. (M)
+- [ ] **#COMMON.9b** Wire shared `IpLocationStore` into world auth / GM command callers that use `sIPLocation` in C++ (`WorldSocket::HandleAuthSession`, account lock country commands). (M)
 - [ ] **#COMMON.10** `Metric` port: choose between (a) `metrics` + `metrics-exporter-prometheus` for pull-style or (b) `influxdb-rs` for push. (H)
 - [ ] **#COMMON.11** Port `TaskScheduler` (composable async scheduler) — needed before any C++ spell-script port can compile. (XL — split into Schedule/RepeatedSchedule/Async/Group).
 - [ ] **#COMMON.12** Port `EventMap` for legacy CreatureAI shim. (M)
@@ -314,7 +315,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 - [ ] `wow-config` reload preserves `keepOnReload=true` keys.
 - [x] `IntervalTimer::Passed()` / `Reset()` correctness for C++ threshold and overshoot semantics.
 - [ ] `getMSTime()` Rust equivalent never wraps within a 49-day session window (`u32` ms ⇒ fine; but check the cast in `time.rs:18`).
-- [ ] `IPLocation::GetLocationRecord` for `192.168.0.1` returns `None`; for `8.8.8.8` returns `US`.
+- [x] `IPLocation::GetLocationRecord` half-open range lookup, quote stripping, lowercase country code, and non-IPv4 rejection are covered by `wow-core::ip_location` tests.
 - [ ] `Metric` smoke test: 1000 enqueues drain in <100ms without dropping.
 - [ ] Logger filter: `wow_world=debug` admits a `debug!` from `wow-world` but suppresses one from `wow-network`.
 - [ ] Time-packed roundtrip `GameTime::from_unix(1716422400).to_packed()` matches the C++ `secsToTimeBitFields` for the same epoch (proves date math fix).
@@ -352,7 +353,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 | `Log` (singleton) + `Logger` + `Appender*` | `tracing::subscriber` + `tracing-subscriber::fmt::Layer` | `init_logging("info")` in `wow-logging` |
 | `LogMessage` | `tracing::Event` | — |
 | `LogLevel::LOG_LEVEL_INFO` | `tracing::Level::INFO` | — |
-| `IpLocationStore` | NOT YET PORTED | sub-task #COMMON.9 |
+| `IpLocationStore` | `wow_core::IpLocationStore` | CSV parser and half-open `upper_bound` lookup done; not yet wired to every C++ caller |
 | `Metric` | NOT YET PORTED | sub-task #COMMON.10 |
 | `LockedQueue<T>` | `parking_lot::Mutex<VecDeque<T>>` | — |
 | `MPSCQueue<T, &T::Link>` | `flume::unbounded::<T>()` | Lock-free MPMC; intrusive variant unused in Rust |
@@ -418,8 +419,8 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 | `Encoding::Base32` | `Encoding/Base32.cpp` | NONE | ❌ | Only used by TOTP; deferred. |
 | `Encoding::Base64` | `Encoding/Base64.cpp` | `base64` cargo crate | ✅ | Used in `bnet-server/rest/`. |
 | `Encoding::Hex` (`Util.cpp::ByteArrayToHexStr`) | `Utilities/Util.cpp:849-869` | `hex` cargo crate | ✅ | `hex::encode` / `hex::decode`. |
-| `IpLocationStore::Load` (CSV parser) | `IPLocation/IPLocation.cpp:36-107` | NONE | ❌ | Sub-task #COMMON.9. Direct gap: `auth.account.last_country` cannot be populated. |
-| `IpLocationStore::GetLocationRecord(ip)` (binary search) | `IPLocation/IPLocation.cpp:109-125` | NONE | ❌ | Same. |
+| `IpLocationStore::Load` (CSV parser) | `IPLocation/IPLocation.cpp:36-107` | `wow_core::IpLocationStore::from_csv_like_cpp`; BNet loads `IPLocationFile` | ⚠️ | Common store and BNet path done; worldserver still needs shared state wiring. |
+| `IpLocationStore::GetLocationRecord(ip)` (binary search) | `IPLocation/IPLocation.cpp:109-125` | `wow_core::IpLocationStore::country_for_ip_like_cpp` | ✅ | Uses C++ half-open upper-bound semantics and rejects non-IPv4. |
 | `Log` singleton + `Logger` per-filter | `Logging/Log.h:51-100` | `tracing::subscriber::set_global_default(...)` | ✅ | Different abstraction (event/span vs filter/appender); functionally equivalent for stdout. |
 | `AppenderConsole` (ANSI colours) | `Logging/AppenderConsole.cpp:60-180` | `tracing-subscriber::fmt::Layer.with_ansi(true)` | ✅ | — |
 | `AppenderFile` (rotating, %s strftime substitution) | `Logging/AppenderFile.cpp:30-127` | NONE | ❌ | Sub-task #COMMON.3. Production logs to stdout only. |
@@ -471,10 +472,10 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
    - **Rust refs:** `wow_core::utf8_to_upper_only_latin_like_cpp`; `wow-crypto/src/srp6.rs` uses it for Grunt SRP6 `compute_x` and `compute_client_evidence`.
    - **Why this matters:** `str::to_uppercase()` would be wrong because it can expand or alter Unicode. `to_ascii_uppercase()` happened to match valid UTF-8 content, but a named helper prevents future drift and documents the C++ behaviour.
 
-2. **❌ `IPLocation` is missing entirely.**
-   - C++ wire path: `WorldSession::HandleAuthSession` at login calls `sIPLocation->GetLocationRecord(ip)` to populate `Account.last_country` and to check if the IP changed countries between sessions (anti-hijack heuristic).
-   - Rust currently has no equivalent. Account `last_country` is never set; country-change detection is silently disabled.
-   - Not a login-blocker but a security / forensics regression. Sub-task #COMMON.9.
+2. **⚠️ `IPLocation` common store exists, but world auth wiring is still incomplete.**
+   - **Done:** `wow_core::IpLocationStore` ports the C++ numeric IPv4 CSV parser and `upper_bound`-style lookup, and BNet auth uses it for `lock_country` parity.
+   - **Still open:** C++ `WorldSocket::HandleAuthSession` also calls `sIPLocation->GetLocationRecord(address)` before country-lock checks; Rust world auth does not yet share/load this store. GM account lock-country commands are also future AccountMgr/RBAC work.
+   - Not a login-blocker for current tested ASCII/local login, but still a security / forensics parity gap. Sub-task #COMMON.9b.
 
 3. **❌ `Metric` (InfluxDB push) is missing entirely.**
    - C++ pushes `players_online`, `tick_diff_ms`, `map_load_ms`, `db_query_ms` etc. to InfluxDB every N seconds.
@@ -509,7 +510,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 
 1. **`#COMMON.3` + `#COMMON.4` — file & DB appenders (HIGH for production, MED for dev).** Plug `tracing-appender::rolling::daily` for files; add a thin `tracing-subscriber` layer that writes WARN+ to `auth.logs` via `wow-database`.
 2. **`#COMMON.10` — Metric push (HIGH for production).** Either Prometheus pull (`metrics-exporter-prometheus`) or InfluxDB push. Decide before launch.
-3. **`#COMMON.9` — IPLocation port (MED).** Pull `maxminddb` GeoLite2 reader; far less work than re-vendoring the CSV format.
+3. **`#COMMON.9b` — IPLocation world wiring (MED).** Reuse `wow_core::IpLocationStore` from world auth and future AccountMgr/GM commands.
 4. **`#COMMON.7` — `GameTime::to_packed` real date math (MED).** Use `chrono::DateTime`. Off-by-one calendar bugs at year boundaries are user-visible.
 5. **`#COMMON.5` + `#COMMON.6` — config reload + env-var override (MED).** Standard production deployments expect both.
 6. **`#COMMON.11` — `TaskScheduler` port (XL, but unblocks spell-script porting).**
@@ -517,9 +518,9 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 
 ### 13.4 Justifying the status badge
 
-`⚠️ partial` is correct. The Asio↔Tokio replacement is genuinely complete and idiomatic; same for queues, mutexes, random, encoding, errors, `IntervalTimer`, Grunt SRP6 Basic-Latin string normalisation, and Unix IP network scanning. Where Rust simply uses the corresponding crate (`tokio`, `flume`, `parking_lot`, `dashmap`, `rand`, `hex`, `regex`, `bitflags`) the migration is real and ✅. The ⚠️ comes from three genuine gaps: (a) `IPLocation` (forensics-affecting), (b) `Metric` (ops-affecting), (c) the logger framework gaps (file appender, DB appender). Plus the smaller deferred items (`TaskScheduler`, `EventMap`, `TimeTracker`/`PeriodicTimer`, `Timezone`).
+`⚠️ partial` is correct. The Asio↔Tokio replacement is genuinely complete and idiomatic; same for queues, mutexes, random, encoding, errors, `IntervalTimer`, Grunt SRP6 Basic-Latin string normalisation, IPLocation store/lookup for BNet, and Unix IP network scanning. Where Rust simply uses the corresponding crate (`tokio`, `flume`, `parking_lot`, `dashmap`, `rand`, `hex`, `regex`, `bitflags`) the migration is real and ✅. The ⚠️ comes from three genuine gaps: (a) remaining `IPLocation` world/GM wiring (forensics-affecting), (b) `Metric` (ops-affecting), (c) the logger framework gaps (file appender, DB appender). Plus the smaller deferred items (`TaskScheduler`, `EventMap`, `TimeTracker`/`PeriodicTimer`, `Timezone`).
 
-Recommendation: keep ⚠️ partial until either the production gaps (#COMMON.3/#COMMON.4 logging, #COMMON.9 IPLocation, #COMMON.10 metrics) are ported or explicitly carved out as `wow-ops` future work with owner/sign-off. Do not promote Common to ✅ solely because the SRP6 helper is closed.
+Recommendation: keep ⚠️ partial until either the production gaps (#COMMON.3/#COMMON.4 logging, #COMMON.9b IPLocation world wiring, #COMMON.10 metrics) are ported or explicitly carved out as `wow-ops` future work with owner/sign-off. Do not promote Common to ✅ solely because the SRP6 helper and common IPLocation store are closed.
 
 ---
 
