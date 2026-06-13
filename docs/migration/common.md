@@ -197,7 +197,7 @@ None. Common is pre-protocol — it ships no opcodes. The closest it gets is `Me
 | `Containers/FlatSet.h` | none — code uses `std::collections::HashSet` and `BTreeSet` directly | ✅ obviated — sorted-vector set is a C++ space optimisation; in Rust `BTreeSet` covers the lookup case |
 | `Containers/Utilities/ArrayWrapper.h` | n/a | ✅ obviated — `[T; N]` and slices |
 | `Cryptography/` (constants, OpenSSLCrypto, Argon2) | partly in `crates/wow-crypto/` (see `crypto.md`); **Argon2 NOT implemented** | ⚠️ — see cross-reference below |
-| `Debugging/Errors.h` (`ASSERT`, `ABORT`, `Fatal`) | Rust's `assert!`, `debug_assert!`, `panic!`, `unreachable!` + `tracing::error!` | ✅ replaced idiomatically — no central `Trinity::Assert` helper, no `GetDebugInfo()` stack-dump capture (Rust's panic handler emits a backtrace via `RUST_BACKTRACE=1`); `Trinity::Fatal(file, line, fn, msg)` has no direct Rust equivalent |
+| `Debugging/Errors.h` (`ASSERT`, `ABORT`, `Fatal`) | Rust's `assert!`, `debug_assert!`, `panic!`, `unreachable!` + `wow_logging::install_panic_hook_like_cpp()` | ⚠️ partial — Rust panics now emit a structured `tracing::error!(fatal=true, file, line, column, panic_message)` before the default panic hook in `world-server`/`bnet-server`; no central `Trinity::Assert`, no `GetDebugInfo()` stack-dump capture, and no forced null-deref crash shim |
 | `Encoding/Base32` | none | ❌ missing — only used by `TOTP.cpp` (2FA), which is also missing |
 | `Encoding/Base64` | none in own crate; used via `base64` crate (cargo dep) only inside `bnet-server/rest` | ⚠️ — partial use of external `base64` crate; no centralised wrapper |
 | `Encoding/Hex` (in `Util.cpp`) | `hex` crate referenced from `wow-crypto/src/bnet_srp6.rs:258, 454`; `wow-database` for blob hex columns | ✅ replaced via `hex` crate |
@@ -300,7 +300,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 - [x] **#COMMON.13** Centralised `wow-core::random` module wrapping `rand::thread_rng()` with `urand`/`irand`/`frand`/`rand_norm`/`rand_chance`/`roll_chance_*`/`urandweighted` mirror functions plus `*_with_rng_like_cpp` variants for deterministic tests. Existing call sites can migrate incrementally. (L)
 - [ ] **#COMMON.14** Document choice of PRNG (currently ChaCha12 via `thread_rng`); decide whether SFMT reproducibility matters — if yes, depend on `sfmt` crate. (L)
 - [x] **#COMMON.15** Implement `wow-core::utf8_to_lower_only_latin_like_cpp`, the Basic-Latin-only symmetric counterpart to `Utf8ToUpperOnlyLatin`. C++ has broader `wcharToLower`; this Rust helper is intentionally narrower to prevent accidental Unicode lowercase expansion in future ports. (L)
-- [ ] **#COMMON.16** Wire `Errors::Fatal` equivalent: a panic hook that logs `tracing::error!` + structured `file:line:fn` before unwinding, so prod logs include the assertion site. (L)
+- [x] **#COMMON.16** Wire the useful logging side of `Errors::Fatal`: `wow_logging::install_panic_hook_like_cpp()` logs `fatal=true`, source location and panic message through `tracing::error!` before delegating to Rust's default panic hook. `world-server` and `bnet-server` install it after tracing setup. (L)
 - [ ] **#COMMON.17** `FuzzyFind`: integrate `strsim` crate for `.tele` GM-command name lookup. (L)
 - [x] **#COMMON.18a** Port the Unix IPv4/IPv6 subset of `Trinity::Net::ScanLocalNetworks` / `IsInLocalNetwork` plus `SelectAddressForClient` priority selection into `wow-core::net`; IPv4 bnet/world callers use scanned interface networks with a `/24` fallback if scanning returns none. (M)
 - [ ] **#COMMON.18b** Add Windows `GetAdaptersAddresses` parity for `ScanLocalNetworks` and wire IPv6 address selection through callers once realm/LoginREST address resolution stores IPv6 candidates. (M)
@@ -415,7 +415,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 | `OpenSSLCrypto::threadsSetup` (legacy <1.1) | `Cryptography/OpenSSLCrypto.cpp` | n/a | ✅ | Not needed: Rust crypto uses `sha2`, `aes-gcm`, `hmac`, `ed25519-dalek` — none require OpenSSL global init. |
 | `Argon2::Hash` | `Cryptography/Argon2.cpp` | NONE | ❌ | Cross-reference `crypto.md` §13. Acceptable gap (BNet v2 2FA only). |
 | `WPAssert(cond)` | `Debugging/Errors.h:56` | `assert!(cond)` | ✅ | Both abort+log on fail. Rust panic carries backtrace via `RUST_BACKTRACE=1`. |
-| `Trinity::Fatal(...)` (logs+breakpoint+exit) | `Debugging/Errors.cpp` | `panic!(...)` (no tracing pre-log) | ⚠️ | Rust panics bypass `tracing`, so prod log files won't contain the assertion message unless a panic hook re-emits it. Sub-task #COMMON.16. |
+| `Trinity::Fatal(...)` (logs+breakpoint+exit) | `Debugging/Errors.cpp` | `panic!(...)` + `wow_logging::install_panic_hook_like_cpp()` | ⚠️ | Rust panics now pre-log into `tracing` with `fatal=true` and source location before the standard panic output. Remaining divergence: no 10s sleep, no null-deref crash shim, no `GetDebugInfo()` stack dump. |
 | `GetDebugInfo()` (stack capture for ASSERT) | `Debugging/Errors.cpp:50-110` (libunwind) | NONE | ⚠️ | Rust panic backtrace covers this; less rich (no per-thread state dump) but adequate. |
 | `Encoding::Base32` | `Encoding/Base32.cpp` | NONE | ❌ | Only used by TOTP; deferred. |
 | `Encoding::Base64` | `Encoding/Base64.cpp` | `base64` cargo crate | ✅ | Used in `bnet-server/rest/`. |
@@ -491,8 +491,8 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 5. **⚠️ Full `Timezone` helper API remains partial.**
    - `wow-core::GameTime::to_packed()` now uses libc `localtime_r` and real calendar fields. Remaining work is the C++ `Timezone` offset/DST helper surface, not packed-time date math.
 
-6. **⚠️ `Trinity::Fatal` log-then-die is bypassed.**
-   - Rust panics bypass `tracing`. Production log files will NOT contain the assertion message; only stderr does. Recommend a `panic_hook` that emits `tracing::error!` first. Sub-task #COMMON.16.
+6. **⚠️ `Trinity::Fatal` is only partially mirrored.**
+   - Rust panics now pre-log through `tracing` via `wow_logging::install_panic_hook_like_cpp()` in both server binaries. Remaining divergence is intentional: Rust keeps its configured unwind/abort behavior instead of TrinityCore's sleep + forced crash path, and there is no `GetDebugInfo()` stack-dump equivalent beyond Rust backtraces.
 
 7. **⚠️ `wow-config` lowercases keys.**
    - Currently safe — no config file relies on case sensitivity — but future divergence risk if someone adds two keys differing only in case.

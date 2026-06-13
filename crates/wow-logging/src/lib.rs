@@ -174,8 +174,63 @@ pub fn init_logging(log_level: &str) -> Result<(), Box<dyn std::error::Error>> {
         .finish();
 
     tracing::subscriber::set_global_default(subscriber)?;
+    install_panic_hook_like_cpp();
 
     Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Fatal / panic bridge
+// ---------------------------------------------------------------------------
+
+static PANIC_HOOK_INSTALLED: std::sync::Once = std::sync::Once::new();
+
+/// Install a panic hook that mirrors the useful logging side of TrinityCore's
+/// `Trinity::Fatal`.
+///
+/// C++ `Fatal(file, line, function, ...)` prints a fatal message before forcing
+/// a crash. Rust panics already preserve the unwind/abort semantics configured
+/// for the binary; this hook keeps that behavior, but first emits a structured
+/// `tracing::error!` record so production subscribers see the panic in the same
+/// stream as other server logs.
+///
+/// The hook is process-global and idempotent.
+pub fn install_panic_hook_like_cpp() {
+    PANIC_HOOK_INSTALLED.call_once(|| {
+        let previous_hook = std::panic::take_hook();
+        std::panic::set_hook(Box::new(move |panic_info| {
+            let message = panic_payload_message_like_cpp(panic_info.payload());
+
+            if let Some(location) = panic_info.location() {
+                tracing::error!(
+                    fatal = true,
+                    file = location.file(),
+                    line = location.line(),
+                    column = location.column(),
+                    panic_message = %message,
+                    "Rust panic bridged as Trinity::Fatal-like log"
+                );
+            } else {
+                tracing::error!(
+                    fatal = true,
+                    panic_message = %message,
+                    "Rust panic bridged as Trinity::Fatal-like log"
+                );
+            }
+
+            previous_hook(panic_info);
+        }));
+    });
+}
+
+fn panic_payload_message_like_cpp(payload: &(dyn std::any::Any + Send)) -> String {
+    if let Some(message) = payload.downcast_ref::<&str>() {
+        (*message).to_owned()
+    } else if let Some(message) = payload.downcast_ref::<String>() {
+        message.clone()
+    } else {
+        "<non-string panic payload>".to_owned()
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -459,5 +514,30 @@ mod tests {
         log_vehicle!(debug, "vehicle entered");
         log_loot!(info, "loot rolled");
         log_movement!(trace, "position update");
+    }
+
+    #[test]
+    fn panic_payload_message_preserves_string_like_cpp_fatal_message() {
+        let static_message: &(dyn std::any::Any + Send) = &"fatal static message";
+        assert_eq!(
+            panic_payload_message_like_cpp(static_message),
+            "fatal static message"
+        );
+
+        let owned_message = String::from("fatal owned message");
+        let owned_message: &(dyn std::any::Any + Send) = &owned_message;
+        assert_eq!(
+            panic_payload_message_like_cpp(owned_message),
+            "fatal owned message"
+        );
+    }
+
+    #[test]
+    fn panic_payload_message_marks_non_string_payload() {
+        let payload: &(dyn std::any::Any + Send) = &42u32;
+        assert_eq!(
+            panic_payload_message_like_cpp(payload),
+            "<non-string panic payload>"
+        );
     }
 }

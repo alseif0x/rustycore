@@ -606,6 +606,7 @@ async fn main() -> Result<ExitCode> {
                 .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
         )
         .init();
+    wow_logging::install_panic_hook_like_cpp();
 
     let cli = WorldServerCliLikeCpp::parse_from(std::env::args().skip(1));
     if cli.show_help {

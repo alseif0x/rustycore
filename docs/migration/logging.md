@@ -170,7 +170,8 @@ None. Logging emits no client packets.
 - `LogFilter` enum mirrors TC `Logger.*` categories at a coarser grain: `Server, Network, Database, Player, Chat, Spells, Maps, Entities, AI, Scripts, Commands, Arena, Battleground, Lfg, Misc, Loading, Guild, Achievement, Condition, Vehicle, Loot, Movement` (`crates/wow-logging/src/lib.rs:46-91`).
 - One macro per filter (`log_server!`, `log_network!`, …, `log_movement!`), each delegating to `tracing::{trace,debug,info,warn,error}!` with a structured `log_filter = "..."` field (`lib.rs:194-394`).
 - `init_logging("info")` builds a `tracing_subscriber::fmt` subscriber with: ISO-8601 timestamps, level, target, ANSI colours, no thread IDs, no file/line. Honours `RUST_LOG` env first, then the passed string (`lib.rs:158-179`).
-- 23 unit tests (`lib.rs:400-464`): each `LogFilter` variant's `as_str()`, `Display`, and macro compile-check.
+- `install_panic_hook_like_cpp()` installs an idempotent panic hook that emits `tracing::error!(fatal=true, file, line, column, panic_message)` before delegating to Rust's default panic hook. `world-server` and `bnet-server` install it immediately after their subscriber setup.
+- 5 unit tests (`lib.rs`): `LogFilter::as_str()` covers every variant, plus `Display`, macro compile-check, and panic-payload message extraction.
 
 **What's missing vs C++:**
 
@@ -180,7 +181,7 @@ None. Logging emits no client packets.
 - **No realm-id binding.** TC's `setRealmId(realm)` injects realm into every DB row. Rust has no per-realm context.
 - **No async dispatch / no strand.** Calls block the calling task on TTY write. `tracing-appender::non_blocking` would give an async sink; not used.
 - **No `worldserver.conf` / `bnetserver.conf` integration.** The `wow-config` dep is declared in `Cargo.toml` but is not consumed in `lib.rs`. There's no way to specify "DB appender writes errors and above" per config; ops must use env vars.
-- **No `Fatal` level distinct from `Error`.** TC has 7 levels (Disabled..Fatal); `tracing` has 5 (`trace, debug, info, warn, error`). `Fatal` collapses into `error` and is lossy: a Rust subscriber cannot distinguish "Error" from "Fatal".
+- **No full `Fatal` level distinct from `Error`.** TC has 7 levels (Disabled..Fatal); `tracing` has 5 (`trace, debug, info, warn, error`). Rust panics now carry `fatal=true`, but ordinary fatal log macros and fatal-specific appender routing are still missing.
 - **No `OutCommand(account, fmt)` GM-command audit path.** TC has a separate command audit channel that goes to file + DB.
 - **No `OutCharDump(...)` character-dump sink.** Used by `.character dump` GM command.
 - **No subscriber teardown.** `init_logging` calls `set_global_default` which is one-shot per process; `Log::Close()` semantics (flush + drop appenders) have no equivalent.
@@ -232,7 +233,7 @@ Numbered for cross-reference. Complexity: **L** (<1h), **M** (1-4h), **H** (4-12
 - [ ] **#LOG.5** Wire `Log::SetRealmId` equivalent: store the realm ID in a global `parking_lot::RwLock<Option<u32>>` or as a `tracing::Span` extension; the DB layer reads it for the `realm` column. (M)
 - [ ] **#LOG.6** Read `Logger.*` and `Appender.*` keys from `WorldServer.conf` / `BNetServer.conf` via `wow-config` (already a dep). Translate to a programmatic `EnvFilter` directive at startup. Resolves the conf-integration gap. (H)
 - [ ] **#LOG.7** Decide on dotted-hierarchy support: either widen `LogFilter` to a `&'static str` newtype with conventional names like `"entities.player.skills"`, or document that the closed enum is intentional. If widened, update all 22 macros. (H — touches every call site that uses the macros.)
-- [ ] **#LOG.8** Map TC `Fatal` → Rust: emit `tracing::error!(fatal = true, ...)` from a new `log_*_fatal!` macro family. DB appender + file appender promote `fatal=true` records to a separate `*_fatal.log` file (matches TC's typical `Errors.log` config). (M)
+- [ ] **#LOG.8** Map TC `Fatal` → Rust: panic-hook path emits `tracing::error!(fatal = true, ...)` already; still add a `log_*_fatal!` macro family and make DB/file appenders promote `fatal=true` records to a separate `*_fatal.log` file (matches TC's typical `Errors.log` config). (M)
 - [ ] **#LOG.9** Add `OutCommand(account, fmt)` equivalent: a `log_command!(account, fmt, args)` macro that always emits at info, attaches `account` as a structured field, and is routed to a separate "GM" file appender by config. (M)
 - [ ] **#LOG.10** Add `OutCharDump(account, guid, name, body)` equivalent for `.character dump` output (separate file appender, no DB). (M)
 - [ ] **#LOG.11** Add `tracing::enabled!(target: "log_filter::network", Level::TRACE)` short-circuit guidance to `wow-logging`'s docs; per `migration-perf-strategy.md` §11 #5, structured-field formatting is non-zero cost in hot paths. (L)
@@ -365,7 +366,7 @@ Numbered for cross-reference. Complexity: **L** (<1h), **M** (1-4h), **H** (4-12
 | Subsystem coverage | TC has ~70 logger names in `worldserver.conf.dist` (commented examples) | Rust has 22 `LogFilter` variants | ⚠️ | Coverage gap: no `network.opcode`, no `entities.player.skills`, no `scripts.ai.escortai` distinction. Per-call structured fields could fill the gap without expanding the enum. |
 | TTY colour | ANSI per level (`AppenderConsole.cpp` 211-line palette) | `tracing_subscriber::fmt` `with_ansi(true)` | ✅ | Equivalent. Colour table differs slightly but equivalent semantically. |
 | File rotation triggers | Size-based (`_maxFileSize`), or daily via `%s` substitution | None today | ❌ | `tracing-appender::rolling::{daily,hourly,never}` covers the time-based case; no built-in size-based option (`#LOG.1` design choice). |
-| Tests | TC has minimal unit tests for logging | 23 unit tests in Rust (`as_str` round-trip + macro-compile only) | ⚠️ | None of the Rust tests verify behaviour (does a record actually appear at the configured target?). `#LOG.12`, `#LOG.13`, `#LOG.18`. |
+| Tests | TC has minimal unit tests for logging | 5 unit tests in Rust (`as_str` round-trip across variants + macro compile + panic-payload extraction only) | ⚠️ | None of the Rust tests verify behaviour (does a record actually appear at the configured target?). `#LOG.12`, `#LOG.13`, `#LOG.18`. |
 
 ### 13.2 Critical findings
 
@@ -374,8 +375,8 @@ Numbered for cross-reference. Complexity: **L** (<1h), **M** (1-4h), **H** (4-12
 3. **❌ No realm-id context.** Even after `#LOG.3`, the `realm` column has no value source. Multi-realm deployments (the typical TC topology) cannot disambiguate logs across realms. `#LOG.5`.
 4. **❌ No conf-driven setup.** Ops cannot tune log levels per subsystem via `WorldServer.conf` / `BNetServer.conf` `Logger.*` keys — they must use `RUST_LOG` env var. This breaks the operational contract that TC ops expect. `#LOG.6`.
 5. **⚠️ Closed `LogFilter` enum.** The 22-bucket flat enum cannot represent `network.opcode` vs `network.kick` vs `network.soap`. Either widen to dotted strings (`#LOG.7`, breaking) or attach a `subsystem` field to every macro call (additive, but every call site changes). Decide explicitly.
-6. **⚠️ Behavioural test coverage is zero.** All 23 tests verify that the macros compile and that `as_str()` returns the expected literal. None verifies that a `log_network!(info, "...")` call results in a `tracing::Event` with `log_filter = "network"` reaching a subscriber. Coupled with finding #1 + #2, an entire class of regressions (sink not wired, field dropped, level mismatch) would be invisible until production. `#LOG.12`–`#LOG.18`.
-7. **⚠️ `Fatal` is lossy.** TC distinguishes `Error` from `Fatal`; ops dashboards filter on `level >= Error` for "investigate" and `level == Fatal` for "page someone". The Rust server cannot produce `Fatal` today. `#LOG.8`.
+6. **⚠️ Behavioural test coverage is still shallow.** The tests verify enum strings, macro compilation and panic-payload extraction, but not that a `log_network!(info, "...")` call results in a `tracing::Event` with `log_filter = "network"` reaching a subscriber. Coupled with finding #1 + #2, an entire class of regressions (sink not wired, field dropped, level mismatch) would be invisible until production. `#LOG.12`–`#LOG.18`.
+7. **⚠️ `Fatal` is partially represented.** Panics now produce `error` events with `fatal=true`, but normal fatal log calls and sink-level separation are still missing. TC distinguishes `Error` from `Fatal`; ops dashboards filter on `level >= Error` for "investigate" and `level == Fatal` for "page someone". `#LOG.8`.
 8. **⚠️ DB appender recursion guard not yet specified.** Per `AppenderDB.cpp:31`, TC drops messages whose `type` contains `"sql"` to avoid infinite loops. The Rust design must include this from day one or risk a self-DoS the first time a DB error logs.
 
 ### 13.3 Recommended action — priority queue
