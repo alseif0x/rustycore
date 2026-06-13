@@ -105,44 +105,18 @@ async fn get_realm_list_ticket<S: AsyncRead + AsyncWrite + Unpin>(
         return Err(RpcStatusError::new(status::ERROR_GAME_ACCOUNT_SUSPENDED).into());
     }
 
-    // Extract Param_ClientInfo (prefixed JSON: "JSONRealmListTicketClientInformation:{...}\0")
-    let mut client_info_ok = false;
-    let client_info_attr = request
-        .attribute
-        .iter()
-        .find(|a| a.name == "Param_ClientInfo");
-    if let Some(attr) = client_info_attr {
-        if let Some(blob) = &attr.value.blob_value {
-            let text = String::from_utf8_lossy(blob);
-            // Strip the "JSONRealmListTicketClientInformation:" prefix and trailing null
-            let json_str = text.trim_end_matches('\0');
-            let json_str = json_str
-                .strip_prefix("JSONRealmListTicketClientInformation:")
-                .unwrap_or(json_str);
-            if let Ok(json) = serde_json::from_str::<serde_json::Value>(json_str) {
-                if let Some(secret) = json.get("info").and_then(|i| i.get("secret")) {
-                    if let Some(arr) = secret.as_array() {
-                        session.client_secret = arr
-                            .iter()
-                            .filter_map(|v| v.as_i64().map(|n| n as u8))
-                            .collect();
-                        client_info_ok = session.client_secret.len() == 32;
-                        tracing::info!(
-                            "Extracted client_secret: {} bytes",
-                            session.client_secret.len()
-                        );
-                    }
-                }
-            } else {
-                tracing::warn!("Param_ClientInfo: failed to parse JSON");
-            }
-        }
-    }
-    if !client_info_ok {
+    let Some(client_secret) = parse_realm_list_ticket_client_secret_like_cpp(&request.attribute)
+    else {
+        tracing::warn!("Param_ClientInfo: failed to parse valid 32-byte client secret");
         return Err(
             RpcStatusError::new(status::ERROR_WOW_SERVICES_DENIED_REALM_LIST_TICKET).into(),
         );
-    }
+    };
+    session.client_secret = client_secret;
+    tracing::info!(
+        "Extracted client_secret: {} bytes",
+        session.client_secret.len()
+    );
 
     // Update last login info: SET last_ip=?, locale=?, os=? WHERE id=?
     if let Some(account) = &session.account_info {
@@ -436,6 +410,29 @@ fn parse_realm_list_ticket_game_account_id_like_cpp(attrs: &[Attribute]) -> Opti
         .and_then(|value| u32::try_from(value).ok())
 }
 
+fn parse_realm_list_ticket_client_secret_like_cpp(attrs: &[Attribute]) -> Option<Vec<u8>> {
+    let attr = attrs.iter().find(|a| a.name == "Param_ClientInfo")?;
+    let blob = attr.value.blob_value.as_ref()?;
+    let text = String::from_utf8_lossy(blob);
+    let json_str = text.trim_end_matches('\0');
+    let json_str = json_str
+        .find(':')
+        .map(|pos| &json_str[pos + 1..])
+        .unwrap_or(json_str);
+    let json = serde_json::from_str::<serde_json::Value>(json_str).ok()?;
+    let values = json.get("info")?.get("secret")?.as_array()?;
+    if values.len() != 32 {
+        return None;
+    }
+
+    let mut secret = Vec::with_capacity(32);
+    for value in values {
+        let byte = value.as_u64().and_then(|value| u8::try_from(value).ok())?;
+        secret.push(byte);
+    }
+    Some(secret)
+}
+
 fn selected_game_account_like_cpp(
     account: &AccountInfo,
     selected_game_account_id: Option<u32>,
@@ -519,6 +516,7 @@ mod tests {
     use super::{
         JoinRealmLoginInfoUpdateLikeCpp, apply_join_realm_login_info_update_like_cpp,
         bnet_session_key_data_like_cpp, join_realm_response_attributes_like_cpp,
+        parse_realm_list_ticket_client_secret_like_cpp,
         parse_realm_list_ticket_game_account_id_like_cpp, selected_game_account_like_cpp,
     };
     use crate::state::{AccountInfo, GameAccountInfo};
@@ -562,6 +560,47 @@ mod tests {
             parse_realm_list_ticket_game_account_id_like_cpp(&attrs),
             Some(42)
         );
+    }
+
+    #[test]
+    fn realm_list_ticket_client_secret_accepts_exact_32_byte_array_like_cpp() {
+        let attrs = vec![client_info_attr(
+            "JSONRealmListTicketClientInformation:{\"info\":{\"secret\":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31]}}\0",
+        )];
+
+        assert_eq!(
+            parse_realm_list_ticket_client_secret_like_cpp(&attrs),
+            Some((0..32).collect())
+        );
+    }
+
+    #[test]
+    fn realm_list_ticket_client_secret_rejects_malformed_secret_like_cpp() {
+        let too_short = vec![client_info_attr(
+            "JSONRealmListTicketClientInformation:{\"info\":{\"secret\":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30]}}\0",
+        )];
+        let too_long = vec![client_info_attr(
+            "JSONRealmListTicketClientInformation:{\"info\":{\"secret\":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32]}}\0",
+        )];
+        let out_of_range = vec![client_info_attr(
+            "JSONRealmListTicketClientInformation:{\"info\":{\"secret\":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,256]}}\0",
+        )];
+        let negative = vec![client_info_attr(
+            "JSONRealmListTicketClientInformation:{\"info\":{\"secret\":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,-1]}}\0",
+        )];
+        let non_integer = vec![client_info_attr(
+            "JSONRealmListTicketClientInformation:{\"info\":{\"secret\":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,\"31\"]}}\0",
+        )];
+        let no_protocol_prefix = vec![client_info_attr(
+            "{\"info\":{\"secret\":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31]}}\0",
+        )];
+
+        assert!(parse_realm_list_ticket_client_secret_like_cpp(&too_short).is_none());
+        assert!(parse_realm_list_ticket_client_secret_like_cpp(&too_long).is_none());
+        assert!(parse_realm_list_ticket_client_secret_like_cpp(&out_of_range).is_none());
+        assert!(parse_realm_list_ticket_client_secret_like_cpp(&negative).is_none());
+        assert!(parse_realm_list_ticket_client_secret_like_cpp(&non_integer).is_none());
+        assert!(parse_realm_list_ticket_client_secret_like_cpp(&no_protocol_prefix).is_none());
     }
 
     #[test]
@@ -669,6 +708,16 @@ mod tests {
             security_level: 0,
             char_counts: HashMap::new(),
             last_played_chars: HashMap::new(),
+        }
+    }
+
+    fn client_info_attr(blob: &str) -> Attribute {
+        Attribute {
+            name: "Param_ClientInfo".to_string(),
+            value: Variant {
+                blob_value: Some(blob.as_bytes().to_vec()),
+                ..Default::default()
+            },
         }
     }
 }
