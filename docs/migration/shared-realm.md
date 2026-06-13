@@ -262,7 +262,7 @@ Y para realm list updates:
 
 | Scope | Decision | C++ retained | Evidence |
 |---|---|---|---|
-| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 4 files / 695 lines; refs: `/home/server/woltk-trinity-legacy/src/server/shared/Realm/RealmList.cpp`, `/home/server/woltk-trinity-legacy/src/server/shared/Realm/Realm.h`, `/home/server/woltk-trinity-legacy/src/server/shared/Realm/RealmList.h` | `crates/bnet-server/` (`src/realm/mod.rs`) \| ⚠️ partial (~60%) — confirmed via audit 2026-05-01 (RealmHandle packing absent; cfg_timezones/categories swapped vs C++; JoinRealm exists at bnet RPC layer, not at the missing-RealmList layer) |
+| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 4 files / 695 lines; refs: `/home/server/woltk-trinity-legacy/src/server/shared/Realm/RealmList.cpp`, `/home/server/woltk-trinity-legacy/src/server/shared/Realm/Realm.h`, `/home/server/woltk-trinity-legacy/src/server/shared/Realm/RealmList.h` | `crates/bnet-server/` (`src/realm/mod.rs`) \| ⚠️ partial (~70%) — BNet RealmHandle packing/cfg swap fixed; strong RealmHandle, golden/e2e, hostname resolution and ownership cleanup remain. |
 
 <!-- REFINE.025:END product-scope -->
 
@@ -302,7 +302,7 @@ Y para realm list updates:
 | `DeadlineTimer + async_wait` | `tokio::time::interval` + `tokio::spawn` | En `init_realm_manager` |
 | `JSON::Serialize(proto)` | `serde_json::to_string(&struct)` | Pure serde, no protobuf |
 | `compress()` (zlib) | `flate2::ZlibEncoder` | Mismo formato |
-| `Trinity::Crypto::GetRandomBytes<32>` | (faltante para JoinRealm) | TODO #REALM.4 |
+| `Trinity::Crypto::GetRandomBytes<32>` | `rand::thread_rng().fill` in `game_utilities::join_realm` | TODO #REALM.4b for ownership/golden coverage |
 | `Trinity::Net::SelectAddressForClient` | `select_realm_ip_str` | Más simple: solo IPv4 + /24 + loopback |
 
 ---
@@ -313,7 +313,7 @@ Y para realm list updates:
 
 ## 13. Audit (2026-05-01)
 
-**Method:** Read `crates/bnet-server/src/realm/mod.rs` (392 lines), cross-checked against C++ `shared/Realm/{Realm.h, Realm.cpp, RealmList.cpp}`. Verified the two specific divergences flagged in §8.
+**Method:** Read `crates/bnet-server/src/realm/mod.rs` and BNet RPC call sites, cross-checked against C++ `shared/Realm/{Realm.h, Realm.cpp, RealmList.cpp}`. Verified the two specific divergences flagged in §8 and the inbound `JoinRealm` packed-address path.
 
 **Verdicts on flagged hypotheses:**
 
