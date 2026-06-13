@@ -212,7 +212,7 @@ None. Common is pre-protocol — it ships no opcodes. The closest it gets is `Me
 | `Threading/ThreadPool` | `tokio::task::spawn` / `tokio::runtime::Runtime` | ✅ replaced |
 | `Threading/ProcessPriority` | none — defaults to OS scheduler | ❌ missing (low priority) |
 | `Time/Timer.h` (`getMSTime`, `IntervalTimer`, `TimeTracker`) | `crates/wow-core/src/time.rs` — `ServerTime` (Instant), `GameTime` (Unix), `Diff(u32)`, `IntervalTimer` | ⚠️ partial — covers `getMSTime`, `Diff`, and C++ `IntervalTimer`; `TimeTracker`/`PeriodicTimer` remain open |
-| `Time/Timezone` | none — Rust uses `std::time::SystemTime` (UTC) | ❌ missing — `GameTime::to_packed()` in `wow-core/src/time.rs:60-79` does an **approximate** date breakdown (`days/365.25` etc.) instead of a real `localtime_r`; documented as known issue in the comment |
+| `Time/Timezone` | partial — `GameTime::to_packed()` uses libc `localtime_r`; no standalone timezone helper layer | ⚠️ partial — packed WoW time now uses real calendar math like `WowTime::GetPackedTime`; full `Timezone.{h,cpp}` helpers/DST offset API remain open |
 | `Utilities/Util.cpp::Tokenize` | `str::split` + `collect::<Vec<_>>()` | ✅ idiomatic replacement |
 | `Utilities/Util.cpp::strToUpper/Lower` | `str::to_ascii_uppercase()` | ✅ for ASCII; ⚠️ for non-ASCII |
 | **`Utilities/Util.cpp::Utf8ToUpperOnlyLatin`** | `wow_core::utf8_to_upper_only_latin_like_cpp` used by Grunt SRP6 `compute_x` and `compute_client_evidence` | ✅ C++ Basic-Latin-only semantics; invalid UTF-8 cannot enter the Rust `&str` API |
@@ -257,7 +257,7 @@ None. Common is pre-protocol — it ships no opcodes. The closest it gets is `Me
 - **`Metric`** — no InfluxDB or any metrics push.
 - **`AppenderFile` / log rotation** — `tracing-subscriber` writes to stdout only; production needs at minimum rotating-file appender (`tracing-appender::rolling`).
 - **`AppenderDB`** — log records are not written to `auth.logs`; the C# legacy server did this for audit/GM-action retention. Direct compliance/audit gap.
-- **`Timezone`** — `GameTime::to_packed()` uses an approximate date calc; calendar/mail timestamps may drift by 1 day at year boundaries.
+- **`Timezone` helper layer** — `GameTime::to_packed()` now uses real calendar math, but the standalone C++ `Timezone.{h,cpp}` helper API is not fully ported.
 - **`ConfigMgr::OverrideWithEnvVariablesIfAny`** — production deployments commonly do `WORLD_SERVER_PORT=8085`-style overrides; not supported.
 - **`ConfigMgr::Reload`** — config is parsed once at startup; SIGHUP-style reload not wired.
 - **`TaskScheduler` + `EventProcessor`** — required when porting C++ creature/spell scripts that call `Schedule(2s, ...)`.
@@ -289,7 +289,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 - [ ] **#COMMON.4** Add `AppenderDB`-equivalent: a tracing layer that flushes WARN+ events into `auth.logs` via `wow-database`. (M)
 - [ ] **#COMMON.5** Implement `wow-config::reload()` with SIGHUP wire-up in both binaries. (M)
 - [ ] **#COMMON.6** Implement env-var override (`OverrideWithEnvVariablesIfAny`) for `wow-config`. Map `World.Server.Port` → `WORLD_SERVER_PORT` per the C++ snake-case rule. (M)
-- [ ] **#COMMON.7** Replace `wow-core::time::GameTime::to_packed()`'s approximate date math with `chrono::DateTime` proper. (L)
+- [x] **#COMMON.7** Replace `wow-core::time::GameTime::to_packed()`'s approximate date math with libc `localtime_r` fields, matching C++ `WowTime::GetPackedTime` field layout. Full `Timezone` helper API remains a separate future gap. (L)
 - [x] **#COMMON.8** Add `IntervalTimer` struct to `wow-core::time` (Update/Passed/Reset, mirrors C++ `IntervalTimer` for signed diffs, pass check, negative clamp, and modulo overshoot reset). (L)
 - [x] **#COMMON.9a** Port C++ `IPLocation` CSV range store and `GetLocationRecord` lookup into `wow-core` (`IpLocationStore`) and reuse it from BNet country-lock auth. (M)
 - [x] **#COMMON.9b** Wire shared `IpLocationStore` into world auth (`WorldSocket::HandleAuthSession`): worldserver loads `IPLocationFile`, passes the store to each `WorldSocket`, and rejects locked accounts on IP/country mismatch following C++ fail-open semantics for empty/missing country data. (M)
@@ -319,7 +319,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 - [x] `IPLocation::GetLocationRecord` half-open range lookup, quote stripping, lowercase country code, and non-IPv4 rejection are covered by `wow-core::ip_location` tests.
 - [ ] `Metric` smoke test: 1000 enqueues drain in <100ms without dropping.
 - [ ] Logger filter: `wow_world=debug` admits a `debug!` from `wow-world` but suppresses one from `wow-network`.
-- [ ] Time-packed roundtrip `GameTime::from_unix(1716422400).to_packed()` matches the C++ `secsToTimeBitFields` for the same epoch (proves date math fix).
+- [x] Time-packed field layout uses real calendar dates and matches C++ `WowTime::GetPackedTime` for representative UTC dates, including year-boundary coverage.
 
 ---
 
@@ -329,7 +329,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 2. **No Strand equivalent.** Boost.Asio's `strand` serialises completion handlers across threads. Tokio's analogue is `LocalSet` + `spawn_local`, but the Rust port does not currently need it: the world-server tick loop is already single-threaded per session via `flume` channels.
 3. **`tracing` log filter ≠ TrinityCore log filter.** TC's filter strings are subsystem names like `server.network`, `entities.player`. `tracing` uses module paths like `wow_world::handlers::character`. There is no automatic mapping; the `LogFilter` enum in `wow-logging::lib.rs` is a manual override that sets a structured field but does not affect filtering.
 4. **`ConfigMgr` lowercases keys.** A handler reading `"World.Realm.Id"` and `"world.realm.id"` will get the same value, unlike C++. Currently safe because no config file uses two such keys; document if you add `wow-config` features.
-5. **`GameTime::to_packed` uses a 365.25-day approximation.** This was flagged in the `time.rs` source comment. The bits encode (minute,hour,weekday,monthday,month,year) and the wire-protocol calendar packets depend on this matching client expectations. Likely off-by-one for dates near month/year boundaries. (Sub-task #COMMON.7.)
+5. **`Timezone` helper API is still partial.** `GameTime::to_packed` no longer uses the old 365.25-day approximation; it uses libc `localtime_r` and the C++ `WowTime::GetPackedTime` bit layout. The remaining gap is the broader `Timezone.{h,cpp}` offset/DST helper surface.
 6. **No `Trinity::Fatal` equivalent.** Rust panics already get a backtrace under `RUST_BACKTRACE=1`, but they don't go through `tracing` first, so production logs will not have the assertion message in the structured-log stream — only in stderr. Sub-task #COMMON.16.
 7. **`flume::bounded(256)` capacity** matches the C++ `ProducerConsumerQueue` default. Don't change without revisiting `wow-network::session_mgr`.
 8. **`MessageBuffer.h` was a hand-rolled vector with read/write cursors.** Rust uses `bytes::BytesMut` or `Vec<u8>` directly; check that `wow-packet` `WorldPacket::from_bytes` doesn't accidentally rebuild this primitive.
@@ -436,7 +436,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 | `SetProcessPriority` | `Threading/ProcessPriority.cpp:30-90` | NONE | ❌ | Low priority. |
 | `getMSTime()` | `Time/Timer.h:33-38` | `wow_core::time::ServerTime::elapsed_ms()` (`time.rs:17-19`) | ✅ | Both monotonic from app start. **Caveat**: Rust returns `u64`, C++ returns `uint32` — the `as u64` cast in `time.rs:18` is correct, but any port that reads a C++ `getMSTime()` value off the wire/disk and expects 32-bit wrapping behaviour will need `as u32`. |
 | `IntervalTimer::Update / Passed / Reset` | `Time/Timer.h:62-100` | `wow_core::IntervalTimer::{update,passed,reset}` | ✅ | Signed diff update, negative clamp, pass threshold, current/interval accessors and overshoot-preserving reset are covered by focused tests. |
-| `Timezone` (DST/offset) | `Time/Timezone.cpp:30-180` | NONE — `GameTime::to_packed` uses 365.25-day approx | ⚠️ | Calendar/mail timestamps can drift ±1 day at year boundary. Already documented in `time.rs:67`. Sub-task #COMMON.7. |
+| `Timezone` (DST/offset) | `Time/Timezone.cpp:30-180` | partial — `GameTime::to_packed` uses libc `localtime_r`; no public offset helper API | ⚠️ | Packed time no longer has 365.25-day drift; broader timezone helper API remains open. |
 | `Tokenize(str, sep, keepEmpty)` | `Util.cpp:56-72` | `str.split(sep).filter(...).collect()` | ✅ | Idiomatic. |
 | `strToUpper(s)` | `Util.cpp:481` (`std::transform` with `charToUpper`) | `s.to_ascii_uppercase()` | ✅ | ASCII-only. Identical for ASCII input. |
 | **`Utf8ToUpperOnlyLatin(string&)`** | **`Util.cpp:795-804`, `Util.h:124-130`, `Util.h:280-283`** | **`wow_core::utf8_to_upper_only_latin_like_cpp`; `wow-crypto/src/srp6.rs` uses it for `compute_x` and `compute_client_evidence`** | **✅** | **C++ contrast corrected stale docs: only ASCII Basic Latin is uppercased; non-ASCII Latin remains unchanged.** |
@@ -488,8 +488,8 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
    - No DB-backed audit log → GM-action retention requirement (TC writes high-severity events to `auth.logs`) is not met.
    - Sub-tasks #COMMON.3, #COMMON.4.
 
-5. **⚠️ `GameTime::to_packed()` uses 365.25-day approximation.**
-   - `wow-core/src/time.rs:60-79`. The TODO comment in the source itself acknowledges this. Calendar packets can be off-by-one near year/month boundaries. Sub-task #COMMON.7.
+5. **⚠️ Full `Timezone` helper API remains partial.**
+   - `wow-core::GameTime::to_packed()` now uses libc `localtime_r` and real calendar fields. Remaining work is the C++ `Timezone` offset/DST helper surface, not packed-time date math.
 
 6. **⚠️ `Trinity::Fatal` log-then-die is bypassed.**
    - Rust panics bypass `tracing`. Production log files will NOT contain the assertion message; only stderr does. Recommend a `panic_hook` that emits `tracing::error!` first. Sub-task #COMMON.16.
@@ -511,14 +511,13 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 1. **`#COMMON.3` + `#COMMON.4` — file & DB appenders (HIGH for production, MED for dev).** Plug `tracing-appender::rolling::daily` for files; add a thin `tracing-subscriber` layer that writes WARN+ to `auth.logs` via `wow-database`.
 2. **`#COMMON.10` — Metric push (HIGH for production).** Either Prometheus pull (`metrics-exporter-prometheus`) or InfluxDB push. Decide before launch.
 3. **`#COMMON.9c` — IPLocation GM command wiring (MED).** Reuse `wow_core::IpLocationStore` from future AccountMgr/GM commands.
-4. **`#COMMON.7` — `GameTime::to_packed` real date math (MED).** Use `chrono::DateTime`. Off-by-one calendar bugs at year boundaries are user-visible.
-5. **`#COMMON.5` + `#COMMON.6` — config reload + env-var override (MED).** Standard production deployments expect both.
-6. **`#COMMON.11` — `TaskScheduler` port (XL, but unblocks spell-script porting).**
-7. Remaining items are quality-of-life: centralise random helpers (#COMMON.13), add fuzzy-find (#COMMON.17), panic hook (#COMMON.16), `TimeTracker`/`PeriodicTimer`.
+4. **`#COMMON.5` + `#COMMON.6` — config reload + env-var override (MED).** Standard production deployments expect both.
+5. **`#COMMON.11` — `TaskScheduler` port (XL, but unblocks spell-script porting).**
+6. Remaining items are quality-of-life: centralise random helpers (#COMMON.13), add fuzzy-find (#COMMON.17), panic hook (#COMMON.16), `TimeTracker`/`PeriodicTimer`, full `Timezone` helper API.
 
 ### 13.4 Justifying the status badge
 
-`⚠️ partial` is correct. The Asio↔Tokio replacement is genuinely complete and idiomatic; same for queues, mutexes, random, encoding, errors, `IntervalTimer`, Grunt SRP6 Basic-Latin string normalisation, IPLocation store/lookup for BNet/world auth, and Unix IP network scanning. Where Rust simply uses the corresponding crate (`tokio`, `flume`, `parking_lot`, `dashmap`, `rand`, `hex`, `regex`, `bitflags`) the migration is real and ✅. The ⚠️ comes from three genuine gaps: (a) remaining `IPLocation` GM command wiring (forensics-affecting but blocked on AccountMgr/RBAC), (b) `Metric` (ops-affecting), (c) the logger framework gaps (file appender, DB appender). Plus the smaller deferred items (`TaskScheduler`, `EventMap`, `TimeTracker`/`PeriodicTimer`, `Timezone`).
+`⚠️ partial` is correct. The Asio↔Tokio replacement is genuinely complete and idiomatic; same for queues, mutexes, random, encoding, errors, `IntervalTimer`, packed-time calendar math, Grunt SRP6 Basic-Latin string normalisation, IPLocation store/lookup for BNet/world auth, and Unix IP network scanning. Where Rust simply uses the corresponding crate (`tokio`, `flume`, `parking_lot`, `dashmap`, `rand`, `hex`, `regex`, `bitflags`) the migration is real and ✅. The ⚠️ comes from three genuine gaps: (a) remaining `IPLocation` GM command wiring (forensics-affecting but blocked on AccountMgr/RBAC), (b) `Metric` (ops-affecting), (c) the logger framework gaps (file appender, DB appender). Plus the smaller deferred items (`TaskScheduler`, `EventMap`, `TimeTracker`/`PeriodicTimer`, full `Timezone` helper API).
 
 Recommendation: keep ⚠️ partial until either the production gaps (#COMMON.3/#COMMON.4 logging, #COMMON.9c IPLocation GM command wiring, #COMMON.10 metrics) are ported or explicitly carved out as `wow-ops` future work with owner/sign-off. Do not promote Common to ✅ solely because the SRP6 helper and common IPLocation auth paths are closed.
 
