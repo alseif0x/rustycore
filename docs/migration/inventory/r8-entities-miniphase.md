@@ -1,3 +1,13 @@
+- `#NEXT.R8.ENTITIES.839` - audit-fix/represented-complete for stale `CMSG_TIME_SYNC_RESPONSE*` inventory.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MovementHandler.cpp:745-773`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:970-972`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:667-669`.
+
+  Rust anchors: `crates/wow-packet/src/packets/misc.rs`; `crates/wow-world/src/handlers/character.rs`; `crates/wow-world/src/session.rs`.
+
+  Acceptance: inventories no longer claim `CMSG_TIME_SYNC_RESPONSE` lacks `PROCESS_THREADSAFE` parity or that `CMSG_TIME_SYNC_RESPONSE_DROPPED` / `CMSG_TIME_SYNC_RESPONSE_FAILED` are missing. C++ routes all three `STATUS_LOGGEDIN`/`PROCESS_THREADSAFE` opcodes to `HandleTimeSyncResponse`; Rust registers all three as `LoggedIn`/`ThreadSafe`, parses the shared `TimeSyncResponse` payload, dispatches all three through `handle_time_sync_response`, consumes pending sequence indexes, records the represented clock-delta sample, and recomputes the represented clock delta.
+
+  Boundary: audit-fix for stale R3 opcode inventory; represented-complete for bounded session time-sync bookkeeping only. No live latency/client timing validation, no install/restart, and no live client/manual validation were performed in this slice.
+
 - `#NEXT.R8.ENTITIES.838` - represented-complete for bounded `CMSG_GET_ACCOUNT_NOTIFICATIONS` `Handle_NULL` hook.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:803-806`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:479`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:307`.
