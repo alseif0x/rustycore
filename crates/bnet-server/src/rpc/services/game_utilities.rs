@@ -120,14 +120,17 @@ async fn get_realm_list_ticket<S: AsyncRead + AsyncWrite + Unpin>(
 
     // Update last login info: SET last_ip=?, locale=?, os=? WHERE id=?
     if let Some(account) = &session.account_info {
+        let last_login_update = BnetLastLoginInfoUpdateLikeCpp {
+            client_ip: session.addr().ip().to_string(),
+            locale: locale_string_to_id_like_cpp(&session.locale),
+            os: session.os.clone(),
+            account_id: account.id,
+        };
         let mut stmt = session
             .state()
             .login_db
             .prepare(LoginStatements::UPD_BNET_LAST_LOGIN_INFO);
-        stmt.set_string(0, &session.addr().ip().to_string());
-        stmt.set_string(1, &session.locale);
-        stmt.set_string(2, &session.os);
-        stmt.set_u32(3, account.id);
+        apply_bnet_last_login_info_update_like_cpp(&mut stmt, &last_login_update);
         let _ = session.state().login_db.execute(&stmt).await;
     }
 
@@ -297,11 +300,11 @@ async fn join_realm<S: AsyncRead + AsyncWrite + Unpin>(
         combined.len()
     );
 
-    // Store session key in DB as raw bytes (64-byte BLOB), matching C# SetBytes().
-    // C# params: [0]=keyData(bytes), [1]=last_ip, [2]=locale(u8), [3]=os, [4]=timezone_offset(i16), [5]=username
+    // Store session key in DB as raw bytes (64-byte BLOB), matching C++ setBinary().
+    // C++ params: [0]=keyData(bytes), [1]=last_ip, [2]=locale(u8), [3]=os, [4]=timezone_offset(i16), [5]=username
     let ga_username = game_account.name.clone();
 
-    let locale_id = locale_string_to_id(&session.locale);
+    let locale_id = locale_string_to_id_like_cpp(&session.locale);
     let login_info_update = JoinRealmLoginInfoUpdateLikeCpp {
         key_data: combined,
         client_ip: session.addr().ip().to_string(),
@@ -318,7 +321,7 @@ async fn join_realm<S: AsyncRead + AsyncWrite + Unpin>(
     apply_join_realm_login_info_update_like_cpp(&mut stmt, &login_info_update);
     let _ = session.state().login_db.execute(&stmt).await;
 
-    // Build response — ticket is game account name (e.g. "2#1"), sent as blob (matching C#)
+    // Build response — ticket is game account name (e.g. "2#1"), sent as blob (matching C++)
     let response = ClientResponse {
         attribute: join_realm_response_attributes_like_cpp(
             &ga_username,
@@ -364,9 +367,9 @@ fn should_write_sub_regions_like_cpp(authed: bool, attribute_key: &str) -> Resul
 
 // ── Locale conversion ─────────────────────────────────────────────────────
 
-/// Convert locale string (e.g. "esES") to C# Locale enum value.
-/// Matches C# `SharedConst.Locale` enum.
-fn locale_string_to_id(locale: &str) -> u8 {
+/// Convert locale string (e.g. "esES") to Trinity `LocaleConstant`.
+/// Matches C++ `GetLocaleByName`: unknown names return `TOTAL_LOCALES`.
+fn locale_string_to_id_like_cpp(locale: &str) -> u8 {
     match locale {
         "enUS" => 0,
         "koKR" => 1,
@@ -377,9 +380,10 @@ fn locale_string_to_id(locale: &str) -> u8 {
         "esES" => 6,
         "esMX" => 7,
         "ruRU" => 8,
+        "none" => 9,
         "ptBR" => 10,
         "itIT" => 11,
-        _ => 0, // default to enUS
+        _ => 12,
     }
 }
 
@@ -449,6 +453,24 @@ fn account_info_or_status_like_cpp(
     missing_status: u32,
 ) -> Result<&AccountInfo> {
     account.ok_or_else(|| RpcStatusError::new(missing_status).into())
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct BnetLastLoginInfoUpdateLikeCpp {
+    client_ip: String,
+    locale: u8,
+    os: String,
+    account_id: u32,
+}
+
+fn apply_bnet_last_login_info_update_like_cpp(
+    stmt: &mut PreparedStatement,
+    update: &BnetLastLoginInfoUpdateLikeCpp,
+) {
+    stmt.set_string(0, &update.client_ip);
+    stmt.set_u8(1, update.locale);
+    stmt.set_string(2, &update.os);
+    stmt.set_u32(3, update.account_id);
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -538,10 +560,11 @@ fn make_int_attribute(name: &str, value: i64) -> Attribute {
 #[cfg(test)]
 mod tests {
     use super::{
-        JoinRealmLoginInfoUpdateLikeCpp, account_info_or_status_like_cpp,
+        BnetLastLoginInfoUpdateLikeCpp, JoinRealmLoginInfoUpdateLikeCpp,
+        account_info_or_status_like_cpp, apply_bnet_last_login_info_update_like_cpp,
         apply_join_realm_login_info_update_like_cpp, bnet_session_key_data_like_cpp,
         join_realm_response_attributes_like_cpp, last_char_played_response_attributes_like_cpp,
-        parse_realm_list_ticket_client_secret_like_cpp,
+        locale_string_to_id_like_cpp, parse_realm_list_ticket_client_secret_like_cpp,
         parse_realm_list_ticket_game_account_id_like_cpp, selected_game_account_like_cpp,
         should_write_sub_regions_like_cpp,
     };
@@ -715,6 +738,54 @@ mod tests {
             .downcast_ref::<RpcStatusError>()
             .expect("expected RpcStatusError");
         assert_eq!(status.status(), status::ERROR_DENIED);
+    }
+
+    #[test]
+    fn locale_string_to_id_matches_cpp_get_locale_by_name() {
+        let locales = [
+            ("enUS", 0),
+            ("koKR", 1),
+            ("frFR", 2),
+            ("deDE", 3),
+            ("zhCN", 4),
+            ("zhTW", 5),
+            ("esES", 6),
+            ("esMX", 7),
+            ("ruRU", 8),
+            ("none", 9),
+            ("ptBR", 10),
+            ("itIT", 11),
+            ("bad", 12),
+        ];
+
+        for (locale, id) in locales {
+            assert_eq!(locale_string_to_id_like_cpp(locale), id, "{locale}");
+        }
+    }
+
+    #[test]
+    fn bnet_last_login_info_update_binds_locale_as_u8_like_cpp() {
+        let update = BnetLastLoginInfoUpdateLikeCpp {
+            client_ip: "203.0.113.44".to_string(),
+            locale: locale_string_to_id_like_cpp("esES"),
+            os: "Win".to_string(),
+            account_id: 77,
+        };
+
+        let mut stmt = PreparedStatement::with_capacity_like_cpp(
+            "UPDATE battlenet_accounts SET last_ip = ?, last_login = NOW(), locale = ?, failed_logins = 0, os = ? WHERE id = ?",
+            4,
+        );
+        apply_bnet_last_login_info_update_like_cpp(&mut stmt, &update);
+
+        assert_eq!(stmt.params().len(), 4);
+        assert_eq!(
+            stmt.params()[0],
+            SqlParam::String("203.0.113.44".to_string())
+        );
+        assert_eq!(stmt.params()[1], SqlParam::U8(6));
+        assert_eq!(stmt.params()[2], SqlParam::String("Win".to_string()));
+        assert_eq!(stmt.params()[3], SqlParam::U32(77));
     }
 
     #[test]
