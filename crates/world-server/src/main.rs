@@ -27,7 +27,7 @@ use tokio::task::AbortHandle;
 use tracing::{debug, info, warn};
 use wow_config::{DatabaseInfo, LoadReport, WorldConfigSet};
 use wow_core::{
-    Ipv4NetworkLikeCpp, ObjectGuid, ObjectGuidGenerator, guid::HighGuid,
+    IpLocationStore, Ipv4NetworkLikeCpp, ObjectGuid, ObjectGuidGenerator, guid::HighGuid,
     scan_local_ipv4_networks_like_cpp,
 };
 use wow_database::{
@@ -625,6 +625,7 @@ async fn main() -> Result<ExitCode> {
     log_startup_banner_like_cpp(&config_report);
     let world_configs = wow_config::load_world_config_values();
     create_pid_file_from_config_like_cpp()?;
+    let ip_location_store = Arc::new(load_ip_location_from_config_like_cpp());
     let updates_auto_setup = updates_auto_setup_enabled_like_cpp();
     let updates_database_mask = updates_database_mask_like_cpp();
     let login_updates_enabled =
@@ -2545,6 +2546,7 @@ async fn main() -> Result<ExitCode> {
         instance_lock_mgr: Some(Arc::clone(&instance_lock_mgr)),
         currency_types_store: Some(Arc::clone(&currency_types_store)),
         import_price_stores: Some(Arc::clone(&import_price_stores)),
+        ip_location_store: Some(Arc::clone(&ip_location_store)),
         item_class_store: Some(Arc::clone(&item_class_store)),
         item_currency_cost_store: Some(Arc::clone(&item_currency_cost_store)),
         item_extended_cost_store: Some(Arc::clone(&item_extended_cost_store)),
@@ -3117,6 +3119,33 @@ fn create_pid_file_like_cpp(path: impl AsRef<std::path::Path>) -> std::io::Resul
     let pid = std::process::id();
     std::fs::write(path, pid.to_string())?;
     Ok(pid)
+}
+
+fn load_ip_location_from_config_like_cpp() -> IpLocationStore {
+    info!("Loading IP Location Database...");
+    let database_file_path = wow_config::get_string_default("IPLocationFile", "");
+    if database_file_path.is_empty() {
+        return IpLocationStore::default();
+    }
+
+    if !PathBuf::from(&database_file_path).exists() {
+        tracing::error!("IPLocation: No ip database file exists ({database_file_path}).");
+        return IpLocationStore::default();
+    }
+
+    let contents = match std::fs::read_to_string(&database_file_path) {
+        Ok(contents) => contents,
+        Err(error) => {
+            tracing::error!(
+                "IPLocation: Ip database file ({database_file_path}) can not be opened: {error}"
+            );
+            return IpLocationStore::default();
+        }
+    };
+
+    let store = IpLocationStore::from_csv_like_cpp(&contents);
+    info!(">> Loaded {} ip location entries.", store.len());
+    store
 }
 
 async fn set_realm_offline(login_db: &LoginDatabase, realm_id: u16) -> Result<()> {

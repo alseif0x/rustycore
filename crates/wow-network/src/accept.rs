@@ -174,6 +174,7 @@ pub struct SessionResources {
     pub instance_lock_mgr: Option<Arc<std::sync::RwLock<wow_instances::InstanceLockMgr>>>,
     pub currency_types_store: Option<Arc<wow_data::CurrencyTypesStore>>,
     pub import_price_stores: Option<Arc<wow_data::ImportPriceStores>>,
+    pub ip_location_store: Option<Arc<wow_core::IpLocationStore>>,
     pub item_class_store: Option<Arc<wow_data::ItemClassStore>>,
     pub item_currency_cost_store: Option<Arc<wow_data::ItemCurrencyCostStore>>,
     pub item_extended_cost_store: Option<Arc<wow_data::ItemExtendedCostStore>>,
@@ -356,6 +357,7 @@ where
         tokio::spawn(async move {
             let mut socket = WorldSocket::new(stream, addr);
             socket.set_max_overspeed_pings_like_cpp(res.max_overspeed_pings);
+            socket.set_ip_location_store_like_cpp(res.ip_location_store.clone());
 
             // Phase 1: Handshake (connection strings + auth challenge)
             if let Err(e) = socket.start().await {

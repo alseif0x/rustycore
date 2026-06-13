@@ -20,6 +20,7 @@
 use std::future::Future;
 use std::net::SocketAddr;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use bytes::BytesMut;
@@ -31,6 +32,7 @@ use tokio::net::TcpStream;
 use tracing::{debug, info, trace, warn};
 
 use wow_constants::{ClientOpcodes, ServerOpcodes};
+use wow_core::IpLocationStore;
 use wow_crypto::{HmacSha256, SessionKeyGenerator256, WorldCrypt};
 use wow_packet::header::{HEADER_SIZE, PacketHeader, TAG_SIZE};
 use wow_packet::packets::auth::{AuthChallenge, AuthSession, EnterEncryptedMode, Ping, Pong};
@@ -173,6 +175,9 @@ pub struct WorldSocket {
     // Account info (populated after AuthSession)
     account_info: Option<AccountInfo>,
 
+    // C++ sIPLocation equivalent for world auth country-lock checks.
+    ip_location_store_like_cpp: Option<Arc<IpLocationStore>>,
+
     // Tracks the number of packet headers sent before encryption is enabled.
     // The WoW client increments its receive counter for every header it reads,
     // even for unencrypted packets. The SocketWriter must start its server
@@ -206,6 +211,7 @@ impl WorldSocket {
             send_rx: None,
             state: SocketState::Uninitialized,
             account_info: None,
+            ip_location_store_like_cpp: None,
             unencrypted_packets_sent: 0,
             unencrypted_packets_received: 0,
             max_overspeed_pings_like_cpp: DEFAULT_MAX_OVERSPEED_PINGS_LIKE_CPP,
@@ -216,6 +222,11 @@ impl WorldSocket {
     /// Configure `MaxOverspeedPings`, matching TC's validated 0-or-2..infinity range.
     pub fn set_max_overspeed_pings_like_cpp(&mut self, max_overspeed_pings: u32) {
         self.max_overspeed_pings_like_cpp = max_overspeed_pings;
+    }
+
+    /// Configure the shared C++ `sIPLocation` equivalent used by world auth.
+    pub fn set_ip_location_store_like_cpp(&mut self, store: Option<Arc<IpLocationStore>>) {
+        self.ip_location_store_like_cpp = store;
     }
 
     /// Set the session channel for forwarding packets to the WorldSession.
@@ -405,12 +416,54 @@ impl WorldSocket {
             key
         };
 
+        self.check_account_ip_country_lock_like_cpp(account)?;
+
         self.session_key = Some(session_key);
         self.encrypt_key = Some(encrypt_key);
         self.account_info = Some(account.clone());
         self.state = SocketState::AuthSessionReceived;
 
         info!("Account {} authenticated from {}", account.id, self.addr);
+        Ok(())
+    }
+
+    fn check_account_ip_country_lock_like_cpp(
+        &self,
+        account: &AccountInfo,
+    ) -> Result<(), WorldSocketError> {
+        let address = self.addr.ip().to_string();
+
+        if account_ip_lock_rejects_like_cpp(account.is_locked_to_ip, &account.last_ip, &address) {
+            debug!(
+                "WorldSocket::HandleAuthSession: Account IP differs. Original IP: {}, new IP: {}.",
+                account.last_ip, address
+            );
+            return Err(WorldSocketError::AuthFailed(
+                "risk account locked: ip mismatch".into(),
+            ));
+        }
+
+        if account.is_locked_to_ip {
+            return Ok(());
+        }
+
+        let Some(store) = &self.ip_location_store_like_cpp else {
+            return Ok(());
+        };
+        let Some(ip_country) = store.country_for_ip_like_cpp(&address) else {
+            return Ok(());
+        };
+
+        if account_country_lock_rejects_like_cpp(&account.lock_country, ip_country) {
+            debug!(
+                "WorldSocket::HandleAuthSession: Account country differs. Original country: {}, new country: {}.",
+                account.lock_country, ip_country
+            );
+            return Err(WorldSocketError::AuthFailed(
+                "risk account locked: country mismatch".into(),
+            ));
+        }
+
         Ok(())
     }
 
@@ -1076,6 +1129,21 @@ fn hex_to_bytes(hex: &str) -> Vec<u8> {
         .collect()
 }
 
+fn account_ip_lock_rejects_like_cpp(
+    is_locked_to_ip: bool,
+    last_ip: &str,
+    current_ip: &str,
+) -> bool {
+    is_locked_to_ip && last_ip != current_ip
+}
+
+fn account_country_lock_rejects_like_cpp(lock_country: &str, ip_country: &str) -> bool {
+    !lock_country.is_empty()
+        && lock_country != "00"
+        && !ip_country.is_empty()
+        && lock_country != ip_country
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1164,5 +1232,27 @@ mod tests {
         for offset in 0..10 {
             assert!(!tracker.record_ping(start + Duration::from_secs(offset), 0));
         }
+    }
+
+    #[test]
+    fn account_ip_lock_rejects_only_when_locked_ip_changes_like_cpp() {
+        assert!(!account_ip_lock_rejects_like_cpp(
+            false, "10.0.0.1", "10.0.0.2"
+        ));
+        assert!(!account_ip_lock_rejects_like_cpp(
+            true, "10.0.0.1", "10.0.0.1"
+        ));
+        assert!(account_ip_lock_rejects_like_cpp(
+            true, "10.0.0.1", "10.0.0.2"
+        ));
+    }
+
+    #[test]
+    fn account_country_lock_rejects_like_cpp_world_auth() {
+        assert!(!account_country_lock_rejects_like_cpp("", "es"));
+        assert!(!account_country_lock_rejects_like_cpp("00", "es"));
+        assert!(!account_country_lock_rejects_like_cpp("es", ""));
+        assert!(!account_country_lock_rejects_like_cpp("es", "es"));
+        assert!(account_country_lock_rejects_like_cpp("es", "fr"));
     }
 }
