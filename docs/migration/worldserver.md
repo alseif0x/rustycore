@@ -240,8 +240,8 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
 - **`ScanLocalNetworks`**: there is `get_address_for_client` which approximates TC's behaviour but only checks `/24` against `realm_local_address`, not the full set of host interfaces.
 - **`ClearOnlineAccounts` present** at boot and shutdown: Rust clears `account.online` for accounts with characters on this realm, clears `characters.online`, and resets `character_battleground_data.instanceId` like TC.
 - **`UPDATE realmlist SET flag = flag | OFFLINE`** at boot / `& ~OFFLINE` after listener-up / on shutdown: present; Rust marks the realm offline after DB cleanup, online after listeners/runtime tasks are up, and offline again during shutdown.
-- **`LoadRealmInfo`** equivalent: only loads gamebuild/seed/addresses; doesn't populate a global `realm` struct equivalent — addresses are passed via `SessionResources`.
-- **`sRealmList->Initialize(io, RealmsStateUpdateDelay)`** background refresh of cross-realm registry: partial — Rust now initializes a `realmlist` snapshot from `LOGIN_SEL_REALMLIST` and refreshes it on the configured interval; BNet JSON/JoinRealm consumers are still not wired to this snapshot.
+- **`LoadRealmInfo`** equivalent: partial — the active worldserver realm now comes from the initialized `RealmListSnapshotLikeCpp` like C++ `sRealmList->GetRealm(realm.Id)`; broader BNet realm-list JSON / JoinRealm consumers are still not wired to the snapshot.
+- **`sRealmList->Initialize(io, RealmsStateUpdateDelay)`** background refresh of cross-realm registry: partial — Rust now initializes a `realmlist` snapshot from `LOGIN_SEL_REALMLIST`, refreshes it on the configured interval, and uses it for the active worldserver realm; BNet JSON/JoinRealm consumers are still not wired to this snapshot.
 - **`sMetric->Initialize`** — no metrics subsystem.
 - **`sScriptMgr->OnStartup() / OnShutdown()`** hooks: partial — `world-server` now calls the minimal `wow_scripts::lifecycle` dispatch points in the C++ startup/shutdown order, but the concrete script loader/families are still missing.
 - **`Trinity::Asio::DeadlineTimer`-driven periodic tasks**: none of TC's housekeeping timers are present (DB ping, metric tick, script reload check).
@@ -341,7 +341,8 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
 - [ ] **#WS.10** Decide on SOAP: drop or implement. The XML/SOAP surface is rarely used today; recommend **drop** with config warning. (L if drop, XL if implement)
 - [ ] **#WS.11** Wire `wow_account::secrets::initialize(SecretOwner::WorldServer).await` (depends on `accounts.md` #ACC.6 / new SecretMgr port). (M)
 - [x] **#WS.12a** Wire `sRealmList`-equivalent background refresh (`RealmsStateUpdateDelay`): polls `realmlist` periodically and updates an in-memory snapshot with C++ realm-type/security normalization. (M)
-- [ ] **#WS.12b** Route BNet realm-list / JoinRealm style consumers through the refreshed snapshot instead of one-off address/build queries. (M)
+- [x] **#WS.12b** Route active worldserver `LoadRealmInfo` data (build/address/localAddress) through the refreshed RealmList snapshot instead of one-off `realmlist` queries. (M)
+- [ ] **#WS.12c** Route BNet realm-list / JoinRealm style consumers through the refreshed snapshot. (M)
 - [ ] **#WS.13** Implement `sMetric` equivalent: emit `online_players`, `db_queue_*` to an OpenTelemetry / Prometheus exporter. (M)
 - [x] **#WS.14a** Wire `sScriptMgr->OnStartup()` / `OnShutdown()` dispatch points through `wow_scripts::lifecycle` in the C++ worldserver order. (L)
 - [ ] **#WS.14b** Port the real `SetScriptLoader(AddScripts)` content registration and lifecycle script families. (XL)
@@ -512,8 +513,8 @@ Otherwise the boot sequence is largely on-parity for what's implemented (4 DB po
 | `--update-databases-only` early exit | exits after updater + `realm_id_like_cpp` + `clear_online_accounts_like_cpp` + `update_world_db_core_version_like_cpp` + `verify_world_db_version_like_cpp`, before listeners and before marking the realm offline | ✅ |
 | `Trinity::Net::ScanLocalNetworks()` | `get_address_for_client` /24 heuristic (line 757) | ⚠️ partial |
 | `UPDATE realmlist SET flag\|=OFFLINE` at boot | `set_realm_offline(&login_db, realm_id)` after DB cleanup | ✅ |
-| `sRealmList->Initialize(io, RealmsStateUpdateDelay)` background refresh | `RealmListSnapshotLikeCpp` + `spawn_realm_list_update_loop_like_cpp` | ⚠️ partial (#WS.12): refreshes DB snapshot; BNet consumers still not wired |
-| `LoadRealmInfo()` | `load_realm_auth_seed` + `load_realm_addresses` (lines 530, 728) | ⚠️ partial (no global `realm` struct) |
+| `sRealmList->Initialize(io, RealmsStateUpdateDelay)` background refresh | `RealmListSnapshotLikeCpp` + `spawn_realm_list_update_loop_like_cpp` | ⚠️ partial (#WS.12): refreshes DB snapshot and backs active `LoadRealmInfo`; BNet consumers still not wired |
+| `LoadRealmInfo()` | `load_realm_info_from_snapshot_like_cpp` from `RealmListSnapshotLikeCpp`; build seed still comes from `build_info` by build | ⚠️ partial (active worldserver realm wired; BNet consumers still pending) |
 | `sMetric->Initialize(realmName, io, lambda)` | — | ❌ missing (#WS.13) |
 | `sScriptMgr->SetScriptLoader(AddScripts)` | `wow-scripts` linked as the content-script crate | ⚠️ partial: lifecycle inventory hooks are callable, but the real AddScripts loader and script families are not ported |
 | `sSecretMgr->Initialize(SECRET_OWNER_WORLDSERVER)` | — | ❌ missing (#WS.11) |

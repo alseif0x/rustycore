@@ -135,7 +135,7 @@ impl WorldRuntimeStateLikeCpp {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy)]
 struct RealmHandleLikeCpp {
     region: u8,
     site: u8,
@@ -163,6 +163,26 @@ impl RealmHandleLikeCpp {
 
     fn sub_region_address_like_cpp(self) -> String {
         format!("{}-{}-0", self.region, self.site)
+    }
+}
+
+impl PartialEq for RealmHandleLikeCpp {
+    fn eq(&self, other: &Self) -> bool {
+        self.realm == other.realm
+    }
+}
+
+impl Eq for RealmHandleLikeCpp {}
+
+impl PartialOrd for RealmHandleLikeCpp {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for RealmHandleLikeCpp {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.realm.cmp(&other.realm)
     }
 }
 
@@ -221,6 +241,11 @@ impl RealmListSnapshotLikeCpp {
     #[cfg(test)]
     fn get_realm_like_cpp(&self, handle: RealmHandleLikeCpp) -> Option<&RealmListEntryLikeCpp> {
         self.realms.get(&handle)
+    }
+
+    fn get_realm_by_id_like_cpp(&self, realm_id: u32) -> Option<&RealmListEntryLikeCpp> {
+        self.realms
+            .get(&RealmHandleLikeCpp::new_like_cpp(0, 0, realm_id))
     }
 }
 
@@ -2025,13 +2050,13 @@ async fn main() -> Result<ExitCode> {
         "Loaded reputation_spillover_template like C++"
     );
 
-    // Load build-specific auth seed
-    let (realm_build, win64_auth_seed) = load_realm_auth_seed(&login_db, realm_id).await?;
+    let active_realm = load_realm_info_from_snapshot_like_cpp(&realm_list, realm_id)?;
+    let realm_build = active_realm.build;
+    let win64_auth_seed = load_realm_win64_auth_seed_like_cpp(&login_db, realm_build).await?;
     info!("Realm {realm_id} build {realm_build}, Win64AuthSeed loaded");
 
-    // Load realm addresses from realmlist table (for ConnectTo)
-    let (realm_external_address, realm_local_address) =
-        load_realm_addresses(&login_db, realm_id).await?;
+    let realm_external_address = parse_ipv4(&active_realm.address).unwrap_or([127, 0, 0, 1]);
+    let realm_local_address = parse_ipv4(&active_realm.local_address).unwrap_or([127, 0, 0, 1]);
     info!(
         "Realm addresses: external={}, local={}",
         format_ipv4(realm_external_address),
@@ -8330,25 +8355,22 @@ fn spawn_canonical_map_update_loop(
     })
 }
 
-/// Load the realm's gamebuild from `realmlist` and the corresponding
-/// Win64AuthSeed from `build_info`. Both are in the login database.
-async fn load_realm_auth_seed(login_db: &LoginDatabase, realm_id: u16) -> Result<(u32, [u8; 16])> {
-    // Query realmlist for the gamebuild
-    let result = login_db
-        .direct_query(&format!(
-            "SELECT gamebuild FROM realmlist WHERE id = {realm_id}"
-        ))
-        .await
-        .context("Failed to query realmlist")?;
+fn load_realm_info_from_snapshot_like_cpp(
+    realm_list: &SharedRealmListLikeCpp,
+    realm_id: u16,
+) -> Result<RealmListEntryLikeCpp> {
+    let realm_list = realm_list.lock().expect("realm list mutex poisoned");
+    realm_list
+        .get_realm_by_id_like_cpp(u32::from(realm_id))
+        .cloned()
+        .with_context(|| format!("Realm {realm_id} not found in initialized RealmList snapshot"))
+}
 
-    let build: u32 = if result.is_empty() {
-        tracing::warn!("Realm {realm_id} not found in realmlist, using default build");
-        51943
-    } else {
-        result.read(0)
-    };
-
-    // Query build_info for the Win64AuthSeed
+/// Load the build-specific Win64AuthSeed from `build_info`.
+async fn load_realm_win64_auth_seed_like_cpp(
+    login_db: &LoginDatabase,
+    build: u32,
+) -> Result<[u8; 16]> {
     let seed_result = login_db
         .direct_query(&format!(
             "SELECT win64AuthSeed FROM build_info WHERE build = {build}"
@@ -8376,7 +8398,7 @@ async fn load_realm_auth_seed(login_db: &LoginDatabase, realm_id: u16) -> Result
             .with_context(|| format!("Invalid hex in auth seed at position {i}"))?;
     }
 
-    Ok((build, seed))
+    Ok(seed)
 }
 
 /// Parse an IPv4 address string into 4 bytes.
@@ -8808,34 +8830,6 @@ async fn create_session(
         .cleanup_shared_runtime_state_on_disconnect_like_cpp()
         .await;
     active_session_registry.unregister(active_session_id);
-}
-
-/// Load realm external and local addresses from the `realmlist` table.
-///
-/// C# stores these as `address` (external/public) and `localAddress` (LAN).
-/// Returns `([external_ip], [local_ip])`.
-async fn load_realm_addresses(
-    login_db: &LoginDatabase,
-    realm_id: u16,
-) -> Result<([u8; 4], [u8; 4])> {
-    let result = login_db
-        .direct_query(&format!(
-            "SELECT address, localAddress FROM realmlist WHERE id = {realm_id}"
-        ))
-        .await
-        .context("Failed to query realmlist for addresses")?;
-
-    if result.is_empty() {
-        anyhow::bail!("Realm {realm_id} not found in realmlist table");
-    }
-
-    let external_str: String = result.read_string(0);
-    let local_str: String = result.read_string(1);
-
-    let external = parse_ipv4(&external_str).unwrap_or([127, 0, 0, 1]);
-    let local = parse_ipv4(&local_str).unwrap_or([127, 0, 0, 1]);
-
-    Ok((external, local))
 }
 
 /// Select the correct realm IP for a client, matching C#'s `GetAddressForClient`.
@@ -10095,6 +10089,20 @@ mod tests {
     }
 
     #[test]
+    fn realm_handle_ordering_matches_cpp_realm_id_only() {
+        let first = super::RealmHandleLikeCpp::new_like_cpp(1, 2, 7);
+        let same_realm_different_subregion = super::RealmHandleLikeCpp::new_like_cpp(9, 8, 7);
+        let second = super::RealmHandleLikeCpp::new_like_cpp(1, 2, 8);
+
+        assert_eq!(first, same_realm_different_subregion);
+        assert_eq!(
+            first.cmp(&same_realm_different_subregion),
+            std::cmp::Ordering::Equal
+        );
+        assert!(first < second);
+    }
+
+    #[test]
     fn realm_list_snapshot_replace_counts_added_updated_removed_like_cpp() {
         let mut current = super::RealmListSnapshotLikeCpp::default();
         let first = realm_list_entry_from_row_like_cpp(super::RealmListRawRowLikeCpp {
@@ -10161,6 +10169,34 @@ mod tests {
         );
         assert!(current.get_realm_like_cpp(first.id).is_none());
         assert!(current.get_realm_like_cpp(second.id).is_some());
+    }
+
+    #[test]
+    fn load_realm_info_reads_active_realm_from_snapshot_like_cpp() {
+        let mut snapshot = super::RealmListSnapshotLikeCpp::default();
+        let entry = realm_list_entry_from_row_like_cpp(super::RealmListRawRowLikeCpp {
+            realm_id: 9,
+            name: "Icecrown".to_string(),
+            address: "198.51.100.9".to_string(),
+            local_address: "10.0.0.9".to_string(),
+            port: 8085,
+            icon: 1,
+            flag: 0,
+            timezone: 1,
+            allowed_security_level: 0,
+            population: 0.2,
+            build: 51943,
+            region: 5,
+            battlegroup: 6,
+        });
+        snapshot.realms.insert(entry.id, entry.clone());
+        let snapshot = Arc::new(Mutex::new(snapshot));
+
+        assert_eq!(
+            super::load_realm_info_from_snapshot_like_cpp(&snapshot, 9).expect("realm found"),
+            entry
+        );
+        assert!(super::load_realm_info_from_snapshot_like_cpp(&snapshot, 10).is_err());
     }
 
     #[test]
