@@ -1,3 +1,23 @@
+- `#NEXT.R8.ENTITIES.828` - represented-complete for `CMSG_COMPLETE_CINEMATIC`.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:768-771`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:382`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:227`.
+
+  Rust anchors: `crates/wow-world/src/handlers/misc.rs`; `crates/wow-world/src/session.rs`.
+
+  Acceptance: `CMSG_COMPLETE_CINEMATIC` now registers `LoggedIn`/`ThreadUnsafe` dispatch, routes through `WorldSession`, returns early when no represented cinematic is active, clears the represented active cinematic when present, records the represented `CinematicMgr::EndCinematic` hook, and sends no response packet. Represented gameobject camera use marks the cinematic active when it sends `SMSG_TRIGGER_CINEMATIC`.
+
+  Boundary: represented-complete for represented cinematic state and end-hook audit only; no live `CinematicMgr` camera progression, sight-binding cleanup, `NextCinematicCamera`, install/restart, or live client/manual validation.
+
+- `#NEXT.R8.ENTITIES.828` - represented-complete for `CMSG_COMPLETE_CINEMATIC`.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:768-771`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/CinematicMgr.cpp:83-99`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:6178-6184`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:382`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:227`.
+
+  Rust anchors: `crates/wow-world/src/handlers/misc.rs`; `crates/wow-world/src/session.rs`.
+
+  Acceptance: `CMSG_COMPLETE_CINEMATIC` now registers `LoggedIn`/`ThreadUnsafe` dispatch, routes through `WorldSession`, clears represented active cinematic state when present, records the represented `CinematicMgr::EndCinematic` cleanup hook, and sends no response packet. Represented camera use now mirrors `Player::SendCinematicStart` by sending `TriggerCinematic` for nonzero camera ids while only marking a cinematic active when `CinematicSequencesStore` contains the id.
+
+  Boundary: represented-complete for represented `CinematicMgr` active/end state and DB2 existence gate only; no `NextCinematicCamera`, fly-by camera interpolation, visual waypoint `TempSummon`, `SetViewpoint`/`SetSeer` cleanup, `AddObjectToRemoveList`, install/restart, or live client/manual validation.
+
 - `#NEXT.R8.ENTITIES.827` - represented-complete for `CMSG_COMPLETE_MOVIE`.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:780-787`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:383`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:228`.

@@ -54,11 +54,11 @@ use wow_core::{ObjectGuid, ObjectGuidGenerator, Position, guid::HighGuid};
 use wow_data::{
     AreaTableStore, AreaTriggerStore, BattlePetBreedQualityStore, BattlePetBreedStateStore,
     BattlePetSpeciesStateStore, BattlePetSpeciesStore, BattlePetXpGameTableLikeCpp,
-    ChrSpecializationStore, ConditionEntriesByTypeStore, CreatureDisplayInfoStore,
-    CreatureModelDataStore, CreatureTemplateMountStoreLikeCpp, CurrencyTypesEntry,
-    CurrencyTypesStore, DISABLE_TYPE_MAP, DisableMgrLikeCpp, DisableWorldObjectRefLikeCpp,
-    DungeonEncounterStore, DurabilityCostsStore, DurabilityQualityStore,
-    FishingBaseSkillStoreLikeCpp, GameObjectDisplayInfoStore,
+    ChrSpecializationStore, CinematicSequencesStore, ConditionEntriesByTypeStore,
+    CreatureDisplayInfoStore, CreatureModelDataStore, CreatureTemplateMountStoreLikeCpp,
+    CurrencyTypesEntry, CurrencyTypesStore, DISABLE_TYPE_MAP, DisableMgrLikeCpp,
+    DisableWorldObjectRefLikeCpp, DungeonEncounterStore, DurabilityCostsStore,
+    DurabilityQualityStore, FishingBaseSkillStoreLikeCpp, GameObjectDisplayInfoStore,
     GameObjectTemplateLifecycleStoreLikeCpp, HeirloomEntry, HeirloomStore, HotfixBlobCache,
     ImportPriceStores, ItemAppearanceStore, ItemClassStore, ItemCurrencyCostStore,
     ItemDisenchantLootStore, ItemEffectStore, ItemExtendedCostStore,
@@ -3094,7 +3094,10 @@ pub struct WorldSession {
     spell_radius_store: Option<Arc<SpellRadiusStore>>,
     spell_range_store: Option<Arc<SpellRangeStore>>,
     spell_target_position_store: Option<Arc<SpellTargetPositionStoreLikeCpp>>,
+    cinematic_sequences_store: Option<Arc<CinematicSequencesStore>>,
     movie_store: Option<Arc<MovieStore>>,
+    represented_cinematic_like_cpp: Option<u32>,
+    represented_cinematic_end_events_like_cpp: Vec<u32>,
     represented_movie_like_cpp: Option<u32>,
     represented_movie_complete_events_like_cpp: Vec<u32>,
     gameobject_template_lifecycle_store: Option<Arc<GameObjectTemplateLifecycleStoreLikeCpp>>,
@@ -4120,7 +4123,10 @@ impl WorldSession {
             spell_radius_store: None,
             spell_range_store: None,
             spell_target_position_store: None,
+            cinematic_sequences_store: None,
             movie_store: None,
+            represented_cinematic_like_cpp: None,
+            represented_cinematic_end_events_like_cpp: Vec::new(),
             represented_movie_like_cpp: None,
             represented_movie_complete_events_like_cpp: Vec::new(),
             gameobject_template_lifecycle_store: None,
@@ -13671,11 +13677,40 @@ impl WorldSession {
         self.movie_store = Some(store);
     }
 
+    pub fn set_cinematic_sequences_store(&mut self, store: Arc<CinematicSequencesStore>) {
+        self.cinematic_sequences_store = Some(store);
+    }
+
+    pub(crate) fn complete_represented_cinematic_like_cpp(&mut self) {
+        if let Some(cinematic_id) = self.represented_cinematic_like_cpp.take() {
+            self.represented_cinematic_end_events_like_cpp
+                .push(cinematic_id);
+        }
+    }
+
     pub(crate) fn complete_represented_movie_like_cpp(&mut self) {
         if let Some(movie_id) = self.represented_movie_like_cpp.take() {
             self.represented_movie_complete_events_like_cpp
                 .push(movie_id);
         }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_cinematic_like_cpp(&self) -> Option<u32> {
+        self.represented_cinematic_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_represented_cinematic_like_cpp_for_test(
+        &mut self,
+        cinematic_id: Option<u32>,
+    ) {
+        self.represented_cinematic_like_cpp = cinematic_id;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_cinematic_end_events_like_cpp(&self) -> &[u32] {
+        &self.represented_cinematic_end_events_like_cpp
     }
 
     #[cfg(test)]
@@ -18226,6 +18261,9 @@ impl WorldSession {
             }
             ClientOpcodes::LogStreamingError => {
                 self.handle_log_streaming_error(pkt).await;
+            }
+            ClientOpcodes::CompleteCinematic => {
+                self.handle_complete_cinematic(pkt).await;
             }
             ClientOpcodes::CompleteMovie => {
                 self.handle_complete_movie(pkt).await;
@@ -24639,6 +24677,14 @@ impl WorldSession {
                 cinematic_id: source.cinematic_id,
                 conversation_guid: ObjectGuid::EMPTY,
             });
+            if self
+                .cinematic_sequences_store
+                .as_ref()
+                .and_then(|store| store.get(source.cinematic_id))
+                .is_some()
+            {
+                self.represented_cinematic_like_cpp = Some(source.cinematic_id);
+            }
             self.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::TriggerCinematic {
                     gameobject_guid,
@@ -73049,6 +73095,30 @@ mod tests {
                 },
             ]
         );
+        let mut expected = (ServerOpcodes::TriggerCinematic as u16)
+            .to_le_bytes()
+            .to_vec();
+        expected.extend_from_slice(&444_u32.to_le_bytes());
+        expected.extend_from_slice(&ObjectGuid::EMPTY.to_raw_bytes());
+        assert_eq!(send_rx.try_recv().unwrap(), expected);
+        assert_eq!(session.represented_cinematic_like_cpp(), None);
+
+        session.set_cinematic_sequences_store(Arc::new(
+            wow_data::CinematicSequencesStore::from_entries([wow_data::CinematicSequencesEntry {
+                id: 444,
+                sound_id: 0,
+                camera: [0; 8],
+            }]),
+        ));
+        assert!(session.use_represented_gameobject_camera_like_cpp(
+            gameobject_guid,
+            player_guid,
+            wow_entities::CameraUseSource {
+                cinematic_id: 444,
+                event_id: 0,
+            },
+        ));
+        assert_eq!(session.represented_cinematic_like_cpp(), Some(444));
         let mut expected = (ServerOpcodes::TriggerCinematic as u16)
             .to_le_bytes()
             .to_vec();
