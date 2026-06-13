@@ -170,7 +170,7 @@ Layer: L0–L8 según `MIGRATION_ROADMAP.md` § 2.
 | 🟠 P1 | reputation | Login envía 1000 pares (flags=0, standing=0) hardcoded | Rep pane all-neutral | `reputation.md` §13 |
 | 🟠 P1 | phasing | Stub envía siempre `PhaseShiftFlags::Unphased=0x08` | Wire mismatch latente | `phasing.md` §13 |
 | 🟡 P2 | crypto | Ed25519 priv key hardcoded vs C++ que carga PEM por build_info | Login-blocker si pubkey mismatch | `crypto.md` §13 |
-| 🟡 P2 | crypto | `compute_x` uppercases internally; C++ `Utf8ToUpperOnlyLatin` en caller | Latin-1 supplement break | `crypto.md` §13 |
+| 🟢 fixed | crypto/common | Grunt SRP6 string normalisation now uses `wow_core::utf8_to_upper_only_latin_like_cpp`; prior Latin-1-supplement finding corrected after C++ contrast | Cerrado 2026-06-13; C++ helper is Basic-Latin-only, not Latin-1 uppercase | `crypto.md` §13 / `common.md` §13 |
 | 🟢 fixed | shared-realm | `wow_realm_address = r.id` (raw) vs C++ packed `(Region<<24)\|(Site<<16)\|Realm`, y `cfg_timezones_id`/`cfg_categories_id` invertidos | Corregido 2026-06-13 con tests de realm-list JSON, subregion, packed address y JoinRealm lookup | `shared-realm.md` §13 |
 | 🟡 P2 | bnetserver | `extract_auth_ticket` usa base64 verbatim (TC base64-decoda + truncate `:`) | Falla con tokens spec-compliant | `bnetserver.md` §13 |
 | 🟡 P2 | shared-packets | `read_float` acepta NaN/Inf (C++ throws) | Hostile client poison | `shared-packets.md` §13 |

@@ -12,6 +12,7 @@ use num_integer::Integer;
 use num_traits::Zero;
 use rand::RngCore;
 use sha1::Sha1;
+use wow_core::utf8_to_upper_only_latin_like_cpp;
 
 // ---------------------------------------------------------------------------
 // Protocol constants
@@ -107,8 +108,8 @@ fn hex_decode(s: &str) -> Vec<u8> {
 pub fn compute_x(username: &str, password: &str, salt: &[u8]) -> BigUint {
     let identity = format!(
         "{}:{}",
-        username.to_ascii_uppercase(),
-        password.to_ascii_uppercase()
+        utf8_to_upper_only_latin_like_cpp(username),
+        utf8_to_upper_only_latin_like_cpp(password)
     );
     let identity_hash = sha1(identity.as_bytes());
 
@@ -263,7 +264,8 @@ pub fn compute_client_evidence(
         hn_xor_hg[i] = hn[i] ^ hg[i];
     }
 
-    let h_username = sha1(username.to_ascii_uppercase().as_bytes());
+    let normalized_username = utf8_to_upper_only_latin_like_cpp(username);
+    let h_username = sha1(normalized_username.as_bytes());
     let a_bytes = biguint_to_le_fixed(a, 32);
     let b_bytes = biguint_to_le_fixed(b, 32);
 
@@ -384,6 +386,17 @@ mod tests {
         let v1 = compute_verifier("TestUser", "TestPass", &salt);
         let v2 = compute_verifier("TESTUSER", "TESTPASS", &salt);
         assert_eq!(v1, v2);
+    }
+
+    #[test]
+    fn verifier_uses_cpp_basic_latin_only_normalization() {
+        let salt = [0xB1; 32];
+        let v1 = compute_verifier("straße", "päss", &salt);
+        let v2 = compute_verifier("STRAßE", "PäSS", &salt);
+        let unicode_expanded = compute_verifier("STRASSE", "PäSS", &salt);
+
+        assert_eq!(v1, v2);
+        assert_ne!(v1, unicode_expanded);
     }
 
     #[test]

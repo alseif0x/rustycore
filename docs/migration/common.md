@@ -4,7 +4,7 @@
 > **Rust target crate(s):** `crates/wow-core/`, `crates/wow-config/`, `crates/wow-logging/`, `crates/wow-collections/`, scattered helpers in `wow-network/`, `wow-crypto/`, `wow-database/`
 > **Layer:** L0 (foundation)
 > **Status:** ⚠️ partial — most primitives present in idiomatic Rust form; several explicit C++ subsystems (Metric/InfluxDB, IPLocation, Errors-with-stack, full Logger framework, SmartEnum/EventMap/TaskScheduler) have no Rust equivalent
-> **Audited vs C++:** ⚠️ partial — load-bearing bug confirmed (see §13)
+> **Audited vs C++:** ⚠️ partial — SRP6 string normalisation now uses the C++ Basic-Latin-only helper; remaining gaps listed in §9/§13
 > **Last updated:** 2026-05-01
 
 ---
@@ -145,7 +145,7 @@ All paths relative to `/home/server/woltk-trinity-legacy/`.
 | `urand(min, max)` / `irand(min, max)` / `frand(min, max)` | Inclusive random | `RandomEngine::Instance()` |
 | `rand_norm()` | `[0, 1)` random | `RandomEngine` |
 | `getMSTime()` | App-uptime ms | `steady_clock::now() - start` |
-| **`Utf8ToUpperOnlyLatin(string&)`** | **Uppercase Latin-1 supplement codepoints** (`0x00C0–0x00FF`) for SRP6 username canonicalisation; ASCII passes through | `Utf8toWStr` → `wcharToUpperOnlyLatin` |
+| **`Utf8ToUpperOnlyLatin(string&)`** | **Uppercase ASCII Basic Latin only** for SRP6/account canonicalisation; non-ASCII Latin letters stay unchanged because `wcharToUpperOnlyLatin` is gated by `isBasicLatinCharacter` | `Utf8toWStr` → `wcharToUpperOnlyLatin` |
 | `Trinity::Tokenize(str, sep, keepEmpty)` | Split on `char` | view-based |
 | `WPAssert(cond)` / `ASSERT_NOTNULL(p)` | Abort with file:line on failure | `Trinity::Assert` |
 | `Trinity::StringTo<T>(str)` | Typed parse → `Optional<T>` | `from_chars` / `strtoull` |
@@ -215,7 +215,7 @@ None. Common is pre-protocol — it ships no opcodes. The closest it gets is `Me
 | `Time/Timezone` | none — Rust uses `std::time::SystemTime` (UTC) | ❌ missing — `GameTime::to_packed()` in `wow-core/src/time.rs:60-79` does an **approximate** date breakdown (`days/365.25` etc.) instead of a real `localtime_r`; documented as known issue in the comment |
 | `Utilities/Util.cpp::Tokenize` | `str::split` + `collect::<Vec<_>>()` | ✅ idiomatic replacement |
 | `Utilities/Util.cpp::strToUpper/Lower` | `str::to_ascii_uppercase()` | ✅ for ASCII; ⚠️ for non-ASCII |
-| **`Utilities/Util.cpp::Utf8ToUpperOnlyLatin`** | **NONE** — `wow-crypto/src/srp6.rs:108` uses `to_ascii_uppercase()` instead | ❌ **load-bearing gap — see §13** |
+| **`Utilities/Util.cpp::Utf8ToUpperOnlyLatin`** | `wow_core::utf8_to_upper_only_latin_like_cpp` used by Grunt SRP6 `compute_x` and `compute_client_evidence` | ✅ C++ Basic-Latin-only semantics; invalid UTF-8 cannot enter the Rust `&str` API |
 | `Utilities/Random.{h,cpp}` (`urand`, `frand`, etc.) | `rand::thread_rng()` callers throughout `wow-crypto`, `bnet-server` | ✅ replaced; **no central `urand` helper** — every site re-imports `rand::Rng` |
 | `Utilities/SFMTRand` | `rand` crate's default PRNG (currently ChaCha12 in `thread_rng`) | ⚠️ — different algorithm; loot-tier reproducibility from a captured C++ seed will not match. Acceptable for non-determinism-sensitive paths. |
 | `Utilities/Hash.h::hash_combine` / `HashFnv1a` | none | ❌ missing — Rust hashing covered by `std::hash::Hasher`; FNV1a referenced nowhere in Rust code yet |
@@ -253,7 +253,6 @@ None. Common is pre-protocol — it ships no opcodes. The closest it gets is `Me
 - Hex encoding via `hex` crate.
 
 **What's missing vs C++:**
-- **`Utf8ToUpperOnlyLatin`** — see §13.2 finding #1.
 - **`IPLocation`** — no GeoIP lookup; session logs cannot enrich with country code.
 - **`Metric`** — no InfluxDB or any metrics push.
 - **`AppenderFile` / log rotation** — `tracing-subscriber` writes to stdout only; production needs at minimum rotating-file appender (`tracing-appender::rolling`).
@@ -284,8 +283,8 @@ None. Common is pre-protocol — it ships no opcodes. The closest it gets is `Me
 
 Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h), **M** (1-4h), **H** (4-12h), **XL** (>12h).
 
-- [ ] **#COMMON.1** Implement `utf8_to_upper_only_latin(s: &str) -> String` in `wow-core` (covers `0x00C0–0x00FF` LATIN CAPITAL LETTER A WITH GRAVE → LATIN SMALL LETTER Y WITH DIAERESIS, and the seven exception codepoints `0x00DF`/`0x00FF` etc.) and call it from `wow-crypto/src/srp6.rs:108` instead of `to_ascii_uppercase()`. (M)
-- [ ] **#COMMON.2** Vector test: `Utf8ToUpperOnlyLatin("café") == "CAFé"` [non-Latin-1 unchanged] vs `"caféÀ" → "CAFéÀ"` — bit-for-bit match against C++ output; capture from `bot debug` shell. (M)
+- [x] **#COMMON.1** Implement `utf8_to_upper_only_latin_like_cpp(s: &str) -> String` in `wow-core` and call it from Grunt SRP6 `compute_x` / `compute_client_evidence`. C++ contrast corrected the stale assumption: `Utf8ToUpperOnlyLatin` only uppercases ASCII Basic Latin because `wcharToUpperOnlyLatin` is gated by `isBasicLatinCharacter`. (M)
+- [x] **#COMMON.2** Vector tests: `Utf8ToUpperOnlyLatin("caféÀßÿ") == "CAFéÀßÿ"`, `Utf8ToUpperOnlyLatin("straße") == "STRAßE"`, and Greek text unchanged; these match C++ Basic-Latin-only output and avoid Rust Unicode case expansion. (M)
 - [ ] **#COMMON.3** Add `tracing-appender::rolling::daily()` file appender to `wow-logging::init_logging()` so production has rotating logs. (L)
 - [ ] **#COMMON.4** Add `AppenderDB`-equivalent: a tracing layer that flushes WARN+ events into `auth.logs` via `wow-database`. (M)
 - [ ] **#COMMON.5** Implement `wow-config::reload()` with SIGHUP wire-up in both binaries. (M)
@@ -308,9 +307,9 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 
 ## 10. Regression tests to write
 
-- [ ] `Utf8ToUpperOnlyLatin("àáâãäå") == "ÀÁÂÃÄÅ"` matches C++ output byte-for-byte.
-- [ ] `Utf8ToUpperOnlyLatin("ß")` does **not** become `"SS"` (TC differs from full Unicode case-fold here — `ß` stays `ß`).
-- [ ] `Utf8ToUpperOnlyLatin("CAFÉ123")` is idempotent.
+- [x] `Utf8ToUpperOnlyLatin("caféÀßÿ") == "CAFéÀßÿ"` matches C++ Basic-Latin-only output.
+- [x] `Utf8ToUpperOnlyLatin("ß")` does **not** become `"SS"` or `"ẞ"`; non-ASCII stays unchanged under this specific C++ helper.
+- [x] `Utf8ToUpperOnlyLatin("CAFÉ123")` is idempotent.
 - [ ] `wow-config` env-var override: `WORLD_SERVER_PORT=9999 ./world-server` overrides `WorldServerPort = 8085`.
 - [ ] `wow-config` reload preserves `keepOnReload=true` keys.
 - [x] `IntervalTimer::Passed()` / `Reset()` correctness for C++ threshold and overshoot semantics.
@@ -347,7 +346,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 | `Trinity::Asio::Strand` | `tokio::task::LocalSet` + `spawn_local` | Currently unused |
 | `tcp::resolver` | `tokio::net::lookup_host` | Async DNS |
 | `boost::asio::ip::address` | `std::net::IpAddr` | — |
-| `Trinity::Net::IsInLocalNetwork(addr)` | NOT YET PORTED | sub-task #COMMON.18 |
+| `Trinity::Net::IsInLocalNetwork(addr)` / `SelectAddressForClient` | `wow_core::net::{scan_local_ip_networks_like_cpp,select_ip_address_for_client_like_cpp}` | Unix IPv4/IPv6 done; Windows/caller IPv6 storage open under #COMMON.18b |
 | `ConfigMgr` (singleton) | `wow_config::load_config(path)` + `get_value::<T>(key)` | Lowercased keys |
 | `Trinity::Containers::FlatSet<K>` | `BTreeSet<K>` | Drop the C++-only space optimisation |
 | `Log` (singleton) + `Logger` + `Appender*` | `tracing::subscriber` + `tracing-subscriber::fmt::Layer` | `init_logging("info")` in `wow-logging` |
@@ -369,7 +368,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 | `RandomEngine::Instance()` | `rand::thread_rng()` | thread-local |
 | `Trinity::Tokenize(s, ',', false)` | `s.split(',').filter(\|x\| !x.is_empty()).collect()` | iterator-style |
 | `strToUpper(s)` | `s.to_ascii_uppercase()` | ASCII only |
-| `Utf8ToUpperOnlyLatin(s)` | **NOT YET PORTED** — see §13 | sub-task #COMMON.1 |
+| `Utf8ToUpperOnlyLatin(s)` | `wow_core::utf8_to_upper_only_latin_like_cpp` | C++ Basic-Latin-only semantics; used by Grunt SRP6 |
 | `WStrToUtf8(w, &out)` | `OsString` ↔ `String` round-trip | rarely needed (no UTF-16 wire data) |
 | `WPAssert(cond)` | `assert!(cond)` / `debug_assert!(cond)` | panic on fail |
 | `ABORT_MSG(fmt, ...)` | `panic!(fmt, ...)` | — |
@@ -438,7 +437,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 | `Timezone` (DST/offset) | `Time/Timezone.cpp:30-180` | NONE — `GameTime::to_packed` uses 365.25-day approx | ⚠️ | Calendar/mail timestamps can drift ±1 day at year boundary. Already documented in `time.rs:67`. Sub-task #COMMON.7. |
 | `Tokenize(str, sep, keepEmpty)` | `Util.cpp:56-72` | `str.split(sep).filter(...).collect()` | ✅ | Idiomatic. |
 | `strToUpper(s)` | `Util.cpp:481` (`std::transform` with `charToUpper`) | `s.to_ascii_uppercase()` | ✅ | ASCII-only. Identical for ASCII input. |
-| **`Utf8ToUpperOnlyLatin(string&)`** | **`Util.cpp:795-804`** | **NONE — `wow-crypto/src/srp6.rs:108` calls `to_ascii_uppercase()`** | **❌** | **See §13.2 finding #1.** |
+| **`Utf8ToUpperOnlyLatin(string&)`** | **`Util.cpp:795-804`, `Util.h:124-130`, `Util.h:280-283`** | **`wow_core::utf8_to_upper_only_latin_like_cpp`; `wow-crypto/src/srp6.rs` uses it for `compute_x` and `compute_client_evidence`** | **✅** | **C++ contrast corrected stale docs: only ASCII Basic Latin is uppercased; non-ASCII Latin remains unchanged.** |
 | `WStrToUtf8` / `Utf8toWStr` | `Util.cpp:401-477` (uses `utf8cpp`) | NONE — Rust `str` is UTF-8 natively | ✅ | Conceptually obviated by Rust's encoding model. |
 | `wstrCaseAccentInsensitiveParse` (per-locale) | `Util.cpp:484-758` | NONE | ❌ | Used by chat search/filter for fr/de/es/it. Not yet a blocker — chat filtering is not yet implemented. |
 | `RemoveCRLF(s)` | `Util.cpp:839-847` | `s.trim_end_matches(['\r', '\n'])` | ✅ | — |
@@ -462,17 +461,15 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 | `EndianConvert<T>(&x)` | `Utilities/ByteConverter.h:30-67` | `u32::to_le_bytes` etc. builtins | ✅ | — |
 | `Optional<T>` | `Utilities/Optional.h:24` | `Option<T>` | ✅ | builtin |
 | `EnumUtils::Iterate<E>()` | `Utilities/SmartEnum.h:60-100` | `strum::IntoEnumIterator` (external crate) | ⚠️ | Not currently a dep. |
-| Tests covering common-layer behaviour | None in C++ for `Util.cpp::Utf8ToUpperOnlyLatin`; SRP6 tests indirectly cover it | 19 in `wow-config`, 5 in `wow-core::time`; no Latin-1 case-fold test | ⚠️ | Critical gap given finding #1. |
+| Tests covering common-layer behaviour | None in C++ for `Util.cpp::Utf8ToUpperOnlyLatin`; SRP6 tests indirectly cover it | focused `wow-core::string` vectors plus SRP6 self-tests | ✅ for this helper | Tests assert Basic-Latin-only behaviour and no Unicode expansion. |
 
 ### 13.2 Critical findings
 
-1. **❌ `Utf8ToUpperOnlyLatin` is missing — Latin-1 SRP6 logins WILL fail.**
-   - **C++ ref:** `src/common/Utilities/Util.cpp:795-804` — converts UTF-8 → wstring → applies `wcharToUpperOnlyLatin` (which uppercases `0x00C0–0x00FF` Latin-1 supplement codepoints **plus** `0x00DF`-style exceptions) → re-encodes back to UTF-8.
-   - **Caller:** `src/server/game/Accounts/AccountMgr.cpp:55-57` (account creation), `181-182` (password change), `215-216` (login) — every SRP6 verifier-touching path.
-   - **Effect:** A C++-stored account with username `Café` has its verifier computed as `H(salt, H("CAFÉ", ":", H(pw)))` (Latin-1 É = 0xC9). When that user logs into Rust, `wow-crypto/src/srp6.rs:108` calls `username.to_ascii_uppercase()`, which leaves `é` as-is → `H(salt, H("CAFé", ":", H(pw)))`. Verifiers don't match. **Login fails with "incorrect password" even though the password is correct.**
-   - **Scope of impact:** Every account containing any character in `0x00C0..=0x00FF` (À, Á, Â, Ã, Ä, Å, Æ, Ç, È, É, Ê, Ë, Ì, Í, Î, Ï, Ð, Ñ, Ò, Ó, Ô, Õ, Ö, Ø, Ù, Ú, Û, Ü, Ý, Þ, ß, à–þ, ÿ). Common in fr/de/es/it/pt locale accounts.
-   - **Cross-reference:** `crypto.md` §13.2 finding #2 already flagged this from the SRP6 side. `accounts.md` is the other natural home.
-   - **Resolution:** sub-task #COMMON.1 — port `Utf8ToUpperOnlyLatin` into `wow-core` and replace the call in `wow-crypto/src/srp6.rs:108`. Test data: feed `"café"` → expect `"CAFé"` (note: lowercase `é` stays lowercase in the OnlyLatin variant **only when it is not in the LATIN-1 supplement uppercase table** — re-read the C++ to verify; `é` (0xE9) IS uppercased to `É` (0xC9) by `wcharToUpperOnlyLatin`).
+1. **✅ `Utf8ToUpperOnlyLatin` is now represented, and the previous Latin-1 finding was wrong.**
+   - **C++ refs:** `src/common/Utilities/Util.cpp:795-804`, `Util.h:124-130`, `Util.h:280-283`.
+   - **Correct semantics:** C++ converts UTF-8 to wide chars, then calls `wcharToUpperOnlyLatin`. Despite the name, that helper first checks `isBasicLatinCharacter`, which only returns true for `A-Z/a-z`. Therefore `caféÀßÿ` becomes `CAFéÀßÿ`, not `CAFÉÀẞŸ`.
+   - **Rust refs:** `wow_core::utf8_to_upper_only_latin_like_cpp`; `wow-crypto/src/srp6.rs` uses it for Grunt SRP6 `compute_x` and `compute_client_evidence`.
+   - **Why this matters:** `str::to_uppercase()` would be wrong because it can expand or alter Unicode. `to_ascii_uppercase()` happened to match valid UTF-8 content, but a named helper prevents future drift and documents the C++ behaviour.
 
 2. **❌ `IPLocation` is missing entirely.**
    - C++ wire path: `WorldSession::HandleAuthSession` at login calls `sIPLocation->GetLocationRecord(ip)` to populate `Account.last_country` and to check if the IP changed countries between sessions (anti-hijack heuristic).
@@ -510,21 +507,19 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 
 ### 13.3 Recommended action — priority queue
 
-1. **`#COMMON.1` — `Utf8ToUpperOnlyLatin` port (HIGH).** Login-blocker for any Latin-1 account. Port the wcharToUpperOnlyLatin table from `Util.cpp:412-460` (or wherever the table lives) into `wow-core::utf8::to_upper_only_latin` and call it from `wow-crypto/src/srp6.rs:108`. Add `#COMMON.2` vector test.
-2. **`#COMMON.3` + `#COMMON.4` — file & DB appenders (HIGH for production, MED for dev).** Plug `tracing-appender::rolling::daily` for files; add a thin `tracing-subscriber` layer that writes WARN+ to `auth.logs` via `wow-database`.
-3. **`#COMMON.10` — Metric push (HIGH for production).** Either Prometheus pull (`metrics-exporter-prometheus`) or InfluxDB push. Decide before launch.
-4. **`#COMMON.9` — IPLocation port (MED).** Pull `maxminddb` GeoLite2 reader; far less work than re-vendoring the CSV format.
-5. **`#COMMON.7` — `GameTime::to_packed` real date math (MED).** Use `chrono::DateTime`. Off-by-one calendar bugs at year boundaries are user-visible.
-6. **`#COMMON.5` + `#COMMON.6` — config reload + env-var override (MED).** Standard production deployments expect both.
-7. **`#COMMON.11` — `TaskScheduler` port (XL, but unblocks spell-script porting).**
-8. **`#COMMON.18` — `IsInLocalNetwork` helper (LOW unless LAN deployment).**
-9. Remaining items are quality-of-life: centralise random helpers (#COMMON.13), add fuzzy-find (#COMMON.17), panic hook (#COMMON.16), `TimeTracker`/`PeriodicTimer`.
+1. **`#COMMON.3` + `#COMMON.4` — file & DB appenders (HIGH for production, MED for dev).** Plug `tracing-appender::rolling::daily` for files; add a thin `tracing-subscriber` layer that writes WARN+ to `auth.logs` via `wow-database`.
+2. **`#COMMON.10` — Metric push (HIGH for production).** Either Prometheus pull (`metrics-exporter-prometheus`) or InfluxDB push. Decide before launch.
+3. **`#COMMON.9` — IPLocation port (MED).** Pull `maxminddb` GeoLite2 reader; far less work than re-vendoring the CSV format.
+4. **`#COMMON.7` — `GameTime::to_packed` real date math (MED).** Use `chrono::DateTime`. Off-by-one calendar bugs at year boundaries are user-visible.
+5. **`#COMMON.5` + `#COMMON.6` — config reload + env-var override (MED).** Standard production deployments expect both.
+6. **`#COMMON.11` — `TaskScheduler` port (XL, but unblocks spell-script porting).**
+7. Remaining items are quality-of-life: centralise random helpers (#COMMON.13), add fuzzy-find (#COMMON.17), panic hook (#COMMON.16), `TimeTracker`/`PeriodicTimer`.
 
 ### 13.4 Justifying the status badge
 
-`⚠️ partial` is correct. The Asio↔Tokio replacement is genuinely complete and idiomatic; same for queues, mutexes, random, encoding, errors, `IntervalTimer`, and Unix IP network scanning. Where Rust simply uses the corresponding crate (`tokio`, `flume`, `parking_lot`, `dashmap`, `rand`, `hex`, `regex`, `bitflags`) the migration is real and ✅. The ⚠️ comes from four genuine gaps: (a) `Utf8ToUpperOnlyLatin` (login-affecting), (b) `IPLocation` (forensics-affecting), (c) `Metric` (ops-affecting), (d) the logger framework gaps (file appender, DB appender). Plus the smaller deferred items (`TaskScheduler`, `EventMap`, `TimeTracker`/`PeriodicTimer`, `Timezone`).
+`⚠️ partial` is correct. The Asio↔Tokio replacement is genuinely complete and idiomatic; same for queues, mutexes, random, encoding, errors, `IntervalTimer`, Grunt SRP6 Basic-Latin string normalisation, and Unix IP network scanning. Where Rust simply uses the corresponding crate (`tokio`, `flume`, `parking_lot`, `dashmap`, `rand`, `hex`, `regex`, `bitflags`) the migration is real and ✅. The ⚠️ comes from three genuine gaps: (a) `IPLocation` (forensics-affecting), (b) `Metric` (ops-affecting), (c) the logger framework gaps (file appender, DB appender). Plus the smaller deferred items (`TaskScheduler`, `EventMap`, `TimeTracker`/`PeriodicTimer`, `Timezone`).
 
-Recommendation: keep ⚠️ partial until #COMMON.1 lands (single most-load-bearing item); then promote to ✅ done with the Metric/IPLocation gaps explicitly carved out as `wow-ops` future work.
+Recommendation: keep ⚠️ partial until either the production gaps (#COMMON.3/#COMMON.4 logging, #COMMON.9 IPLocation, #COMMON.10 metrics) are ported or explicitly carved out as `wow-ops` future work with owner/sign-off. Do not promote Common to ✅ solely because the SRP6 helper is closed.
 
 ---
 

@@ -27,6 +27,7 @@ rand = { workspace = true }
 digest = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
+wow-core = { workspace = true }
 
 [lints]
 workspace = true

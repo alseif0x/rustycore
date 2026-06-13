@@ -3,8 +3,8 @@
 > **C++ canonical path:** `src/server/game/Accounts/`
 > **Rust target crate(s):** `crates/wow-database/`, `crates/wow-network/`, `crates/bnet-server/`, `crates/wow-world/` (consumer)
 > **Layer:** L1 — Account management & authorization
-> **Status:** ❌ not started — confirmed via audit 2026-05-01 (only DB statement strings; no AccountMgr / RBACData logic; no `Utf8ToUpperOnlyLatin`; ~440 RBAC perms unrepresented)
-> **Audited vs C++:** ✅ audited 2026-05-01 — every flagged absence reconfirmed; `RBAC_PERM_*` enum is genuinely unrepresented; `Utf8ToUpperOnlyLatin` has zero callers
+> **Status:** ❌ not started — AccountMgr / RBACData logic and ~440 RBAC perms remain unrepresented; common SRP6 string normalisation helper now exists in `wow-core`
+> **Audited vs C++:** ⚠️ audit partially refreshed 2026-06-13 — `RBAC_PERM_*` enum remains genuinely unrepresented; prior `Utf8ToUpperOnlyLatin` absence is fixed for Grunt SRP6 but `wow-account`/AccountMgr callers still do not exist
 > **Last updated:** 2026-05-01
 
 ---
@@ -281,7 +281,8 @@ None directly. `AccountMgr` is invoked indirectly through:
 Numera los items para poder referenciarlos desde `MIGRATION_ROADMAP.md` sección 5.
 
 - [ ] **#ACC.1** Crear `crates/wow-account/` (nuevo crate, layer L1) con módulos `account_mgr`, `bnet_account_mgr`, `rbac`. (M)
-- [ ] **#ACC.2** Implementar `Utf8ToUpperOnlyLatin` byte-for-byte equivalente al de TC (sólo letras Latin1 a-z → A-Z, resto intocado). Tests con strings con cirílico, chino, acentos. (L)
+- [x] **#ACC.2a** Implementar helper común `Utf8ToUpperOnlyLatin` equivalente al TC para strings Rust válidos (`wow_core::utf8_to_upper_only_latin_like_cpp`; sólo ASCII Basic Latin `a-z` → `A-Z`, resto intocado). Tests con cirílico/griego y acentos. (L)
+- [ ] **#ACC.2b** Reutilizar el helper común desde el futuro `wow-account::AccountMgr` cuando existan `create_account`, `change_password`, `check_password`, etc. (M)
 - [ ] **#ACC.3** Definir `enum AccountOpResult` y constantes de longitud (`MAX_ACCOUNT_STR=16`, `MAX_PASS_STR=16`, `MAX_EMAIL_STR=64`, `MAX_BNET_EMAIL_STR=320`, `MAX_BNET_PASS_STR=128`). (L)
 - [ ] **#ACC.4** Implementar `AccountMgr::create_account / delete_account / change_username / change_password / change_email / change_reg_email` — incluida la transacción de borrado de personajes en `delete_account`. (H)
 - [ ] **#ACC.5** Implementar `AccountMgr::check_password(username|id, password)` reutilizando `wow_crypto::srp6::GruntSRP6` (verificar que existe; si no, añadirlo). (M)
@@ -318,7 +319,7 @@ Numera los items para poder referenciarlos desde `MIGRATION_ROADMAP.md` sección
 
 <!-- REFINE.024:END tests-required -->
 
-- [ ] Test: `Utf8ToUpperOnlyLatin("Élise — Привет — naïve")` produces the **exact** same byte sequence as TC's `Utf8ToUpperOnlyLatin` (snapshot from C++ run).
+- [x] Test: common helper preserves non-Basic-Latin glyphs exactly like TC's `Utf8ToUpperOnlyLatin`; see `wow-core::string` tests (`"caféÀßÿ" -> "CAFéÀßÿ"`, `"straße" -> "STRAßE"`, Greek unchanged).
 - [ ] Test: `create_account("Foo", "bar", "x@y")` — username/password/email get uppercased before INSERT; second call returns `AOR_NAME_ALREADY_EXIST`; resulting salt+verifier reproduce `GruntSRP6` registration data byte-for-byte.
 - [ ] Test: `change_password` regenerates the verifier such that `check_password(username, new_pass) == true` and `check_password(username, old_pass) == false`.
 - [ ] Test: `delete_account` is transactional — kills `account`, `account_access`, `realmcharacters`, `account_banned`, `account_muted`, plus `characters.tutorials / account_data / character_banned` for that account; an interruption in the middle does not leave orphans.
@@ -402,7 +403,7 @@ Numera los items para poder referenciarlos desde `MIGRATION_ROADMAP.md` sección
 
 1. **`AccountMgr` / `Battlenet::AccountMgr` — CONFIRMED ABSENT.** No `account_mgr` module, no `wow-account` crate, no `CreateAccount` / `DeleteAccount` / `ChangePassword` / `CheckPassword(by_name|by_id)` / `HasPermission` / `LoadRBAC` symbols anywhere in the workspace. The only matches are SQL-statement-string declarations in `wow-database/src/statements/login.rs` (`SEL_RBAC_ACCOUNT_PERMISSIONS`, `INS_RBAC_ACCOUNT_PERMISSION`, `DEL_RBAC_ACCOUNT_PERMISSION`) — declared, never called.
 2. **`RBAC_PERM_*` enum (~440 values) — CONFIRMED ABSENT.** No `rbac` module in `wow-constants`. No `RBACPermissions` enum, no `RBACData` struct, no `RBACPermission` catalogue, no `expand_permissions` / `calculate_new_permissions` logic. Every gameplay check that should call `HasPermission(RBAC_PERM_*)` either short-circuits to `true` or hard-codes a `gmlevel` numeric — needs an audit pass during #ACC.13.
-3. **`Utf8ToUpperOnlyLatin` — CONFIRMED ABSENT and load-bearing.** Zero hits for `utf8_to_upper_only_latin` / `Utf8ToUpperOnlyLatin` / `upper_only_latin` across `crates/`. **This is critical for SRP6 verifier compatibility:** TC's `MakeRegistrationData<GruntSRP6>(name, pass)` computes `H(salt | H(uppercased_name : uppercased_pass))` — any Rust-side normalization that uses `str::to_uppercase()` instead of TC's Latin-only upcase will produce a different verifier and silently lock out every account that was created on the C++ stack (and vice-versa). Recommend implementing #ACC.2 *before* #ACC.4-5, with a snapshot test against a known C++ output for at least one Cyrillic + one accented-Latin string.
+3. **`Utf8ToUpperOnlyLatin` — common helper fixed; AccountMgr caller still absent.** `wow_core::utf8_to_upper_only_latin_like_cpp` now mirrors TC's Basic-Latin-only helper and Grunt SRP6 uses it internally. This does **not** complete Accounts: there is still no `wow-account` crate, no `AccountMgr::CreateAccount`, no password/email/account mutation API, and no RBAC runtime. When #ACC.4-5 lands, those AccountMgr paths must reuse the common helper instead of `str::to_uppercase()`.
 
 **Other findings during the audit:**
 

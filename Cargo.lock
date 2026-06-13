@@ -3170,6 +3170,7 @@ dependencies = [
  "sha2",
  "thiserror",
  "tracing",
+ "wow-core",
 ]
 
 [[package]]
