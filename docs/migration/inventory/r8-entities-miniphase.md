@@ -1,3 +1,13 @@
+- `#NEXT.R8.ENTITIES.814` — represented-complete for bounded `CMSG_ACCOUNT_NOTIFICATION_ACKNOWLEDGED`.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/AccountPackets.cpp:20-23` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/AccountPackets.h:28-38` (`uint32 NotificationId` read shape); `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:1361-1366` (handler logs the id and only comments a future DB hook); `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:145` (`STATUS_AUTHED`, `PROCESS_THREADUNSAFE`).
+
+Implemented Rust seam: `AccountNotificationAcknowledged` parses the C++ `uint32 NotificationId`, registers `Authed/ThreadUnsafe` in `handlers/social.rs`, dispatches through `WorldSession`, and has focused packet/world tests proving the parser and no-response/no-mutation handler boundary.
+
+Checks: `cargo fmt --all --check`; `cargo test -p wow-packet account_notification_acknowledged --lib`; `cargo test -p wow-world account_notification_acknowledged --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`; `git diff --check`.
+
+Boundaries: no account notification persistence, no notification list runtime, and no live client/manual validation. This is represented-complete for the bounded C++ handler behavior only.
+
 - `#NEXT.R8.ENTITIES.813` — represented-complete audit closure for bounded `CMSG_ACCEPT_SOCIAL_CONTRACT`.
 
 C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:1375-1379` (`HandleAcceptSocialContract` only logs and leaves account-data persistence as a future hook); `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:142` (`STATUS_AUTHED`, `PROCESS_THREADUNSAFE`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/AccountPackets.h:47-54` (empty client packet shape).

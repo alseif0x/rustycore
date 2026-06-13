@@ -18250,6 +18250,12 @@ impl WorldSession {
                     Err(e) => warn!("Failed to read AcceptSocialContract: {e}"),
                 }
             }
+            ClientOpcodes::AccountNotificationAcknowledged => {
+                match wow_packet::packets::social::AccountNotificationAcknowledged::read(&mut pkt) {
+                    Ok(packet) => self.handle_account_notification_acknowledged(packet).await,
+                    Err(e) => warn!("Failed to read AccountNotificationAcknowledged: {e}"),
+                }
+            }
 
             // ── Group / Party opcodes ─────────────────────────────────────────
             ClientOpcodes::PartyInvite => {

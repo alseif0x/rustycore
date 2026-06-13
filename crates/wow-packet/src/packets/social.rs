@@ -112,6 +112,25 @@ impl ClientPacket for SetContactNotes {
     }
 }
 
+/// CMSG_ACCOUNT_NOTIFICATION_ACKNOWLEDGED.
+///
+/// C++ `WorldPackets::Account::AccountNotificationAcknowledged::Read`
+/// reads a single `uint32 NotificationId`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AccountNotificationAcknowledged {
+    pub notification_id: u32,
+}
+
+impl ClientPacket for AccountNotificationAcknowledged {
+    const OPCODE: ClientOpcodes = ClientOpcodes::AccountNotificationAcknowledged;
+
+    fn read(packet: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            notification_id: packet.read_uint32()?,
+        })
+    }
+}
+
 /// CMSG_SOCIAL_CONTRACT_REQUEST.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SocialContractRequest;
@@ -318,6 +337,16 @@ mod tests {
         let parsed = AcceptSocialContract::read(&mut packet).expect("accept social contract");
 
         assert_eq!(parsed, AcceptSocialContract);
+        assert!(packet.is_empty());
+    }
+
+    #[test]
+    fn account_notification_acknowledged_reads_uint32_like_cpp() {
+        let mut packet = WorldPacket::from_bytes(&0xAABBCCDD_u32.to_le_bytes());
+        let parsed = AccountNotificationAcknowledged::read(&mut packet)
+            .expect("account notification acknowledged");
+
+        assert_eq!(parsed.notification_id, 0xAABBCCDD);
         assert!(packet.is_empty());
     }
 }

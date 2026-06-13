@@ -16,8 +16,8 @@ use wow_packet::packets::query::{
     NameCacheLookupResult, PlayerGuidLookupData, QueryPlayerNamesResponse,
 };
 use wow_packet::packets::social::{
-    AcceptSocialContract, AddIgnore, ContactInfo, ContactListPkt, DelIgnore, FriendStatusPkt,
-    FriendsResult, SetContactNotes, SocialContractRequestResponse,
+    AcceptSocialContract, AccountNotificationAcknowledged, AddIgnore, ContactInfo, ContactListPkt,
+    DelIgnore, FriendStatusPkt, FriendsResult, SetContactNotes, SocialContractRequestResponse,
 };
 
 use crate::session::{WorldSession, player_team_for_race_cpp};
@@ -112,6 +112,15 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_accept_social_contract",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::AccountNotificationAcknowledged,
+        status: SessionStatus::Authed,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_account_notification_acknowledged",
     }
 }
 
@@ -610,6 +619,18 @@ impl WorldSession {
         // data layer. Matching current C++ behavior here means no response.
     }
 
+    /// Handle CMSG_ACCOUNT_NOTIFICATION_ACKNOWLEDGED.
+    ///
+    /// C++ ref: `WorldSession::HandleAccountNotificationAcknowledged` logs the
+    /// notification id and leaves DB read-state persistence as a future hook.
+    pub async fn handle_account_notification_acknowledged(
+        &mut self,
+        _packet: AccountNotificationAcknowledged,
+    ) {
+        // Matching current C++ behavior here means no response and no state
+        // mutation; account-notification persistence is not implemented there.
+    }
+
     /// CMSG_SEND_CONTACT_LIST (0x36d7)
     ///
     /// Parse: u32 flags (SocialFlag bitmask)
@@ -779,6 +800,19 @@ mod tests {
 
         session
             .handle_accept_social_contract(AcceptSocialContract)
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn account_notification_acknowledged_is_no_response_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_account_notification_acknowledged(AccountNotificationAcknowledged {
+                notification_id: 42,
+            })
             .await;
 
         assert!(send_rx.try_recv().is_err());
