@@ -1709,6 +1709,15 @@ impl WorldSession {
         };
         let entry = entry.clone();
 
+        let (roll_number, stored_roll_number) = match roll.roll_type {
+            ROLL_VOTE_PASS_LIKE_CPP => (-1, None),
+            ROLL_VOTE_NEED_LIKE_CPP => (0, Some(self.represented_urand_u32_like_cpp(1, 100) as u8)),
+            ROLL_VOTE_GREED_LIKE_CPP | ROLL_VOTE_DISENCHANT_LIKE_CPP => {
+                (-1, Some(self.represented_urand_u32_like_cpp(1, 100) as u8))
+            }
+            _ => return false,
+        };
+
         let Some(state) = self
             .represented_loot_rolls
             .get_mut(&(loot_guid, roll.loot_list_id))
@@ -1718,15 +1727,10 @@ impl WorldSession {
         let Some(voter) = state.voters.get_mut(&player_guid) else {
             return false;
         };
-
-        let roll_number = match roll.roll_type {
-            ROLL_VOTE_PASS_LIKE_CPP => -1,
-            ROLL_VOTE_NEED_LIKE_CPP => 0,
-            ROLL_VOTE_GREED_LIKE_CPP | ROLL_VOTE_DISENCHANT_LIKE_CPP => -1,
-            _ => return false,
-        };
         voter.vote = roll.roll_type;
-        voter.roll_number = represented_roll_number_like_cpp();
+        if let Some(stored_roll_number) = stored_roll_number {
+            voter.roll_number = stored_roll_number;
+        }
 
         let packet = LootRollBroadcast {
             loot_obj: loot_guid,
@@ -7253,10 +7257,6 @@ fn loot_roll_broadcast_item_like_cpp(entry: &LootEntry, ui_type: u8) -> LootItem
     }
 }
 
-fn represented_roll_number_like_cpp() -> u8 {
-    rand::thread_rng().gen_range(1..=100)
-}
-
 fn roll_chance_with_rate_like_cpp<R: Rng + ?Sized>(chance: f32, rate: f32, rng: &mut R) -> bool {
     if chance >= 100.0 {
         return true;
@@ -12123,6 +12123,15 @@ mod tests {
             .await;
         let _local_pass_roll = send_rx.try_recv().unwrap();
         let _remote_pass_roll = candidate_rx.try_recv().unwrap();
+        let pass_state = session
+            .represented_loot_rolls
+            .get(&(loot_object, 0))
+            .expect("roll state should stay open until every voter passes");
+        assert_eq!(
+            pass_state.voters.get(&player_guid).unwrap().roll_number,
+            0,
+            "C++ LootRoll::PlayerVote does not call urand for Pass"
+        );
 
         session.set_player_guid(Some(candidate_guid));
         session

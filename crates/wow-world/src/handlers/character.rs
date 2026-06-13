@@ -4296,7 +4296,7 @@ impl WorldSession {
                 );
                 if u32::from(go_type) == GAMEOBJECT_TYPE_FISHING_HOLE {
                     let max_opens = if data2 <= data3 {
-                        rand::thread_rng().gen_range(data2..=data3)
+                        self.represented_urand_u32_like_cpp(data2, data3)
                     } else {
                         data2
                     };
@@ -5005,7 +5005,7 @@ impl WorldSession {
             );
             if u32::from(go_type) == GAMEOBJECT_TYPE_FISHING_HOLE {
                 let max_opens = if data2 <= data3 {
-                    rand::thread_rng().gen_range(data2..=data3)
+                    self.represented_urand_u32_like_cpp(data2, data3)
                 } else {
                     data2
                 };

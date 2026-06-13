@@ -14,7 +14,7 @@ use std::sync::{
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use parking_lot::RwLock;
-use rand::{SeedableRng, rngs::StdRng, seq::SliceRandom};
+use rand::{Rng, SeedableRng, rngs::StdRng, seq::SliceRandom};
 use tracing::{debug, info, trace, warn};
 
 use crate::entity_update_bridge::{
@@ -4154,6 +4154,13 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn seed_represented_runtime_rng_like_cpp(&mut self, seed: u64) {
         self.represented_runtime_rng_like_cpp = StdRng::seed_from_u64(seed);
+    }
+
+    pub(crate) fn represented_urand_u32_like_cpp(&mut self, min: u32, max: u32) -> u32 {
+        if min >= max {
+            return min;
+        }
+        self.represented_runtime_rng_like_cpp.gen_range(min..=max)
     }
 
     /// Set the character database for this session.
