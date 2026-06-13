@@ -1,4 +1,7 @@
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    collections::HashMap,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use wow_constants::{
     CreatureFlagsExtra, CreatureFlightMovementType, CreatureGroundMovementType,
@@ -789,6 +792,33 @@ impl Default for CreatureRuntimeUpdateContext {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct CreatureOwnedLoot {
+    gold: u32,
+    unlooted_count: u32,
+}
+
+impl CreatureOwnedLoot {
+    pub const fn new(gold: u32, unlooted_count: u32) -> Self {
+        Self {
+            gold,
+            unlooted_count,
+        }
+    }
+
+    pub const fn gold(&self) -> u32 {
+        self.gold
+    }
+
+    pub const fn unlooted_count(&self) -> u32 {
+        self.unlooted_count
+    }
+
+    pub const fn is_looted_like_cpp(&self) -> bool {
+        self.gold == 0 && self.unlooted_count == 0
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Creature {
     unit: Unit,
@@ -845,6 +875,8 @@ pub struct Creature {
     attack_reputation_faction_id: Option<u32>,
     is_contested_guard_faction: bool,
     spell_focus: CreatureSpellFocusStateLikeCpp,
+    shared_loot: Option<CreatureOwnedLoot>,
+    personal_loot: HashMap<ObjectGuid, CreatureOwnedLoot>,
 }
 
 impl Creature {
@@ -909,6 +941,8 @@ impl Creature {
             attack_reputation_faction_id: None,
             is_contested_guard_faction: false,
             spell_focus: CreatureSpellFocusStateLikeCpp::default(),
+            shared_loot: None,
+            personal_loot: HashMap::new(),
         }
     }
 
@@ -2488,6 +2522,53 @@ impl Creature {
 
     pub fn has_loot_recipient(&self) -> bool {
         self.runtime_state.has_loot_recipient
+    }
+
+    pub const fn shared_loot_like_cpp(&self) -> Option<&CreatureOwnedLoot> {
+        self.shared_loot.as_ref()
+    }
+
+    pub fn set_shared_loot_like_cpp(&mut self, loot: CreatureOwnedLoot) {
+        self.shared_loot = Some(loot);
+    }
+
+    pub fn clear_shared_loot_like_cpp(&mut self) {
+        self.shared_loot = None;
+    }
+
+    pub fn personal_loot_like_cpp(&self, guid: ObjectGuid) -> Option<&CreatureOwnedLoot> {
+        self.personal_loot.get(&guid)
+    }
+
+    pub fn set_personal_loot_like_cpp(&mut self, guid: ObjectGuid, loot: CreatureOwnedLoot) {
+        self.personal_loot.insert(guid, loot);
+    }
+
+    pub fn personal_loot_count_like_cpp(&self) -> usize {
+        self.personal_loot.len()
+    }
+
+    pub fn clear_loot_like_cpp(&mut self) {
+        self.shared_loot = None;
+        self.personal_loot.clear();
+    }
+
+    pub fn is_fully_looted_like_cpp(&self) -> bool {
+        if self
+            .shared_loot
+            .as_ref()
+            .is_some_and(|loot| !loot.is_looted_like_cpp())
+        {
+            return false;
+        }
+
+        for loot in self.personal_loot.values() {
+            if !loot.is_looted_like_cpp() {
+                return false;
+            }
+        }
+
+        true
     }
 
     pub fn is_reputation_gain_disabled(&self) -> bool {
@@ -5320,6 +5401,57 @@ mod tests {
             }),
         );
         assert!(!rooted_plan.contains(CreatureRuntimeAction::MoveFall));
+    }
+
+    #[test]
+    fn creature_owned_loot_is_looted_matches_cpp_gold_and_unlooted_count() {
+        assert!(CreatureOwnedLoot::default().is_looted_like_cpp());
+        assert!(!CreatureOwnedLoot::new(1, 0).is_looted_like_cpp());
+        assert!(!CreatureOwnedLoot::new(0, 1).is_looted_like_cpp());
+        assert!(!CreatureOwnedLoot::new(1, 1).is_looted_like_cpp());
+    }
+
+    #[test]
+    fn creature_is_fully_looted_checks_shared_and_personal_loot_like_cpp() {
+        let looted_player = ObjectGuid::create_player(1, 7);
+        let unlooted_player = ObjectGuid::create_player(1, 8);
+        let mut creature = Creature::new(false);
+
+        assert!(creature.is_fully_looted_like_cpp());
+        assert_eq!(creature.shared_loot_like_cpp(), None);
+
+        creature.set_shared_loot_like_cpp(CreatureOwnedLoot::new(5, 0));
+        assert!(!creature.is_fully_looted_like_cpp());
+
+        creature.set_shared_loot_like_cpp(CreatureOwnedLoot::default());
+        assert!(creature.is_fully_looted_like_cpp());
+
+        creature.set_personal_loot_like_cpp(looted_player, CreatureOwnedLoot::default());
+        assert!(creature.is_fully_looted_like_cpp());
+        assert_eq!(
+            creature.personal_loot_like_cpp(looted_player),
+            Some(&CreatureOwnedLoot::default())
+        );
+
+        creature.set_personal_loot_like_cpp(unlooted_player, CreatureOwnedLoot::new(0, 1));
+        assert!(!creature.is_fully_looted_like_cpp());
+
+        creature.set_personal_loot_like_cpp(unlooted_player, CreatureOwnedLoot::default());
+        assert!(creature.is_fully_looted_like_cpp());
+    }
+
+    #[test]
+    fn creature_clear_loot_resets_shared_and_personal_loot_like_cpp() {
+        let player = ObjectGuid::create_player(1, 9);
+        let mut creature = Creature::new(false);
+        creature.set_shared_loot_like_cpp(CreatureOwnedLoot::new(1, 1));
+        creature.set_personal_loot_like_cpp(player, CreatureOwnedLoot::new(0, 1));
+
+        creature.clear_loot_like_cpp();
+
+        assert_eq!(creature.shared_loot_like_cpp(), None);
+        assert_eq!(creature.personal_loot_count_like_cpp(), 0);
+        assert!(creature.is_fully_looted_like_cpp());
     }
 
     #[test]
