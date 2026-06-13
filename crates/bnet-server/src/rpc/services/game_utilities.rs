@@ -383,14 +383,7 @@ async fn handle_get_all_values_for_attribute<S: AsyncRead + AsyncWrite + Unpin>(
 
     if key.contains("Command_RealmListRequest_v1") {
         let realm_mgr = session.state().realm_mgr.read();
-        let values: Vec<Variant> = realm_mgr
-            .sub_regions
-            .iter()
-            .map(|sr| Variant {
-                string_value: Some(sr.clone()),
-                ..Default::default()
-            })
-            .collect();
+        let values = realm_mgr.write_sub_regions_like_cpp();
 
         let response = GetAllValuesForAttributeResponse {
             attribute_value: values,

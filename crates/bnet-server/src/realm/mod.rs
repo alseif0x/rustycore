@@ -15,6 +15,7 @@ use std::sync::Arc;
 
 use crate::state::AppState;
 use wow_database::LoginStatements;
+use wow_proto::bgs::protocol::Variant;
 
 const SEC_ADMINISTRATOR: u8 = 3;
 const DEFAULT_VERSION_MAJOR: u32 = 6;
@@ -391,6 +392,17 @@ impl RealmManager {
             serde_json::to_string(&addresses).unwrap_or_default()
         );
         zlib_compress(json.as_bytes())
+    }
+
+    /// Write sub-region values like C++ RealmList::WriteSubRegions.
+    pub fn write_sub_regions_like_cpp(&self) -> Vec<Variant> {
+        self.sub_regions
+            .iter()
+            .map(|sub_region| Variant {
+                string_value: Some(sub_region.clone()),
+                ..Default::default()
+            })
+            .collect()
     }
 }
 
@@ -943,6 +955,20 @@ mod tests {
             )]),
             None
         );
+    }
+
+    #[test]
+    fn write_sub_regions_like_cpp_emits_string_values_in_order() {
+        let mut manager = RealmManager::new();
+        manager.sub_regions = vec!["5-6-0".to_string(), "7-8-0".to_string()];
+
+        let values = manager.write_sub_regions_like_cpp();
+
+        assert_eq!(values.len(), 2);
+        assert_eq!(values[0].string_value.as_deref(), Some("5-6-0"));
+        assert_eq!(values[1].string_value.as_deref(), Some("7-8-0"));
+        assert!(values[0].blob_value.is_none());
+        assert!(values[0].uint_value.is_none());
     }
 
     #[test]
