@@ -82,7 +82,7 @@ async fn get_realm_list_ticket<S: AsyncRead + AsyncWrite + Unpin>(
     }
 
     let game_account_id = parse_realm_list_ticket_game_account_id_like_cpp(&request.attribute)
-        .ok_or_else(|| RpcStatusError::new(status::ERROR_DENIED))?;
+        .ok_or_else(|| RpcStatusError::new(status::ERROR_UTIL_SERVER_INVALID_IDENTITY_ARGS))?;
 
     let (is_permanently_banned, is_banned) = {
         let account = session
@@ -92,7 +92,7 @@ async fn get_realm_list_ticket<S: AsyncRead + AsyncWrite + Unpin>(
         let game_account = account
             .game_accounts
             .get(&game_account_id)
-            .ok_or_else(|| RpcStatusError::new(status::ERROR_DENIED))?;
+            .ok_or_else(|| RpcStatusError::new(status::ERROR_UTIL_SERVER_INVALID_IDENTITY_ARGS))?;
         (game_account.is_permanently_banned, game_account.is_banned)
     };
 
@@ -139,7 +139,9 @@ async fn get_realm_list_ticket<S: AsyncRead + AsyncWrite + Unpin>(
         }
     }
     if !client_info_ok {
-        return Err(RpcStatusError::new(status::ERROR_DENIED).into());
+        return Err(
+            RpcStatusError::new(status::ERROR_WOW_SERVICES_DENIED_REALM_LIST_TICKET).into(),
+        );
     }
 
     // Update last login info: SET last_ip=?, locale=?, os=? WHERE id=?
@@ -279,7 +281,8 @@ async fn join_realm<S: AsyncRead + AsyncWrite + Unpin>(
         .iter()
         .find(|a| a.name == "Param_RealmAddress")
         .and_then(|a| a.value.uint_value)
-        .unwrap_or(0) as u32;
+        .ok_or_else(|| RpcStatusError::new(status::ERROR_WOW_SERVICES_INVALID_JOIN_TICKET))?
+        as u32;
 
     // Scope the realm_mgr guard — must drop before any .await
     let (server_addresses, realm_name) = {
@@ -288,10 +291,10 @@ async fn join_realm<S: AsyncRead + AsyncWrite + Unpin>(
             .prepare_join_realm_like_cpp(realm_address, session.build, Some(session.addr().ip()))
             .map_err(|error| match error {
                 crate::realm::JoinRealmPrepareErrorLikeCpp::UnknownRealm => {
-                    anyhow::anyhow!("Realm not found")
+                    RpcStatusError::new(status::ERROR_UTIL_SERVER_UNKNOWN_REALM)
                 }
                 crate::realm::JoinRealmPrepareErrorLikeCpp::UserServerNotPermittedOnRealm => {
-                    anyhow::anyhow!("Realm offline or version mismatch")
+                    RpcStatusError::new(status::ERROR_USER_SERVER_NOT_PERMITTED_ON_REALM)
                 }
             })?;
         (prepared.server_addresses, prepared.realm_name)
@@ -318,7 +321,9 @@ async fn join_realm<S: AsyncRead + AsyncWrite + Unpin>(
                 session.client_secret.len(),
                 server_secret.len()
             );
-            return Err(RpcStatusError::new(status::ERROR_DENIED).into());
+            return Err(
+                RpcStatusError::new(status::ERROR_WOW_SERVICES_DENIED_REALM_LIST_TICKET).into(),
+            );
         }
     };
     tracing::info!(
@@ -435,12 +440,12 @@ fn selected_game_account_like_cpp(
     account: &AccountInfo,
     selected_game_account_id: Option<u32>,
 ) -> Result<&GameAccountInfo> {
-    let selected_game_account_id =
-        selected_game_account_id.ok_or_else(|| anyhow::anyhow!("No selected game account"))?;
+    let selected_game_account_id = selected_game_account_id
+        .ok_or_else(|| RpcStatusError::new(status::ERROR_USER_SERVER_BAD_WOW_ACCOUNT))?;
     account
         .game_accounts
         .get(&selected_game_account_id)
-        .ok_or_else(|| anyhow::anyhow!("Selected game account not found"))
+        .ok_or_else(|| RpcStatusError::new(status::ERROR_USER_SERVER_BAD_WOW_ACCOUNT).into())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -520,6 +525,7 @@ mod tests {
     use std::collections::HashMap;
     use wow_database::{PreparedStatement, SqlParam};
     use wow_proto::bgs::protocol::{Attribute, Variant};
+    use wow_proto::status;
 
     #[test]
     fn bnet_session_key_data_is_raw_client_then_server_secret_like_cpp() {
@@ -579,6 +585,22 @@ mod tests {
         assert_eq!(selected.name, "2#42");
         assert!(selected_game_account_like_cpp(&account, Some(7)).is_err());
         assert!(selected_game_account_like_cpp(&account, None).is_err());
+    }
+
+    #[test]
+    fn realm_utility_status_constants_match_cpp() {
+        assert_eq!(status::ERROR_UTIL_SERVER_UNKNOWN_REALM, 0x8000_0069);
+        assert_eq!(status::ERROR_UTIL_SERVER_INVALID_IDENTITY_ARGS, 0x8000_006E);
+        assert_eq!(status::ERROR_USER_SERVER_BAD_WOW_ACCOUNT, 0x8000_00D3);
+        assert_eq!(
+            status::ERROR_USER_SERVER_NOT_PERMITTED_ON_REALM,
+            0x8000_00E1
+        );
+        assert_eq!(status::ERROR_WOW_SERVICES_INVALID_JOIN_TICKET, 0x8000_012E);
+        assert_eq!(
+            status::ERROR_WOW_SERVICES_DENIED_REALM_LIST_TICKET,
+            0x8000_0132
+        );
     }
 
     #[test]

@@ -159,6 +159,7 @@ Y para realm list updates:
 - `game_utilities::join_realm_response_attributes_like_cpp` emite los tres atributos C++ de JoinRealm en orden: `Param_RealmJoinTicket`, `Param_ServerAddresses`, `Param_JoinSecret`.
 - `JoinRealmLoginInfoUpdateLikeCpp` + `apply_join_realm_login_info_update_like_cpp` aíslan los seis binds de `LOGIN_UPD_BNET_GAME_ACCOUNT_LOGIN_INFO` en el mismo orden/tipo que C++: keyData, IP, locale, OS, timezone offset y accountName.
 - `GetRealmListTicket` conserva el game account seleccionado por `Param_Identity.gameAccountID` como C++ `_gameAccountInfo`; `LastCharPlayed`, `GetRealmList` y `JoinRealm` ya no agregan ni eligen cuentas arbitrarias del `HashMap`.
+- Los errores del flujo RealmList/JoinRealm usan los códigos BNet C++ específicos (`INVALID_IDENTITY_ARGS`, `DENIED_REALM_LIST_TICKET`, `INVALID_JOIN_TICKET`, `UNKNOWN_REALM`, `NOT_PERMITTED_ON_REALM`, `BAD_WOW_ACCOUNT`) en vez de caer en `ERROR_DENIED`/`ERROR_INTERNAL`.
 - `authentication` guarda `char_counts` y `last_played_chars.realm_address` con packed `RealmHandle::GetAddress()`, como C++ `Battlenet::Session`.
 - `get_minor_major_bugfix_version_for_build_like_cpp` replica `RealmList::GetMinorMajorBugfixVersionForBuild` con semántica `lower_bound`.
 - `get_realm_entry_json_like_cpp` genera `JamJSONRealmEntry` para `LastCharPlayed`, devuelve vacío si el realm está offline o el build no coincide, y ya no confunde ese payload con `JSONRealmListServerIPAddresses`.
@@ -173,6 +174,7 @@ Y para realm list updates:
 - ✅ fixed 2026-06-13: `cfg_timezones_id` / `cfg_categories_id` estaban cruzados frente a C++.
 - ✅ fixed 2026-06-13: inbound `Param_RealmAddress` de `JoinRealm` buscaba el packed address completo como key, en vez de resolver el realm id como `RealmHandle(realmAddress)`.
 - ✅ fixed 2026-06-13: `GetRealmList`, `LastCharPlayed` y `JoinRealm` usaban todas las game accounts o `HashMap::values().next()`; C++ usa la `_gameAccountInfo` seleccionada por `RealmListTicketIdentity.gameaccountid()`.
+- ✅ fixed 2026-06-13: algunos paths de RealmListTicket/JoinRealm devolvían `ERROR_DENIED` genérico o `ERROR_INTERNAL` por `anyhow`; Rust ahora expone y usa los status C++ específicos del flujo.
 - Sin `shared_mutex`, Rust usa `parking_lot::RwLock` (vía `state.realm_mgr.write()`) → equivalente.
 
 **Tests existing:**
@@ -224,6 +226,7 @@ Y para realm list updates:
 - [x] **#REALM.4b.2** Aislar y testear la emisión de atributos de respuesta `RealmList::JoinRealm` en el orden C++ (`RealmJoinTicket`, `ServerAddresses`, `JoinSecret`). (L)
 - [x] **#REALM.4b.3** Aislar y testear el plan de binds DB de `LOGIN_UPD_BNET_GAME_ACCOUNT_LOGIN_INFO` en el orden C++ (`setBinary`, `setString`, `setUInt8`, `setString`, `setInt16`, `setString`). (L)
 - [x] **#REALM.4b.4** Usar la game account seleccionada por `RealmListTicketIdentity.gameaccountid()` para `LastCharPlayed`, `GetRealmList` y `JoinRealm`, igual que C++ `_gameAccountInfo`. (M)
+- [x] **#REALM.4b.5** Añadir y usar status BNet C++ específicos para RealmList/JoinRealm en vez de `ERROR_DENIED`/`ERROR_INTERNAL` genéricos. (L)
 - [ ] **#REALM.4b** Reubicar/encapsular el flow completo como ownership `RealmList::JoinRealm` C++-like y añadir golden/integration; DB execute y random server secret siguen en el handler, y los sub-pasos ya están aislados pero no movidos a un flow único. (M)
 - [x] **#REALM.5** Implementar `set_name` con `NormalizedName` (strip whitespace). (L)
 - [x] **#REALM.6** Implementar `get_minor_major_bugfix_version_for_build` con semántica `lower_bound`. (L)
@@ -231,7 +234,7 @@ Y para realm list updates:
 - [x] **#REALM.8** Resolver hostnames (no solo IPs) con `tokio::net::lookup_host` en `update_realms`, tomando primera IPv4 y saltando el realm si external/local no resuelve como C++. (M)
 - [x] **#REALM.9** Clamp `allowed_security_level` a `SEC_ADMINISTRATOR`. (L)
 - [x] **#REALM.10a** Tests: packed address bit-layout, subregion filter, cfg fields, version_mismatch/fallback. (M)
-- [ ] **#REALM.10b** Tests: parse build_info, `get_realm_entry_json`, JoinRealm DB side effect, golden payload. Parcial: parseo C++ de `build_info` hotfix/seeds, `JamJSONRealmEntry`, empty gates, server-address selection, preparación realm-owned de JoinRealm, orden/bytes de atributos de respuesta, binds del statement DB y selección de game account cubiertos por unit tests; faltan JoinRealm DB side effect real y golden payload. (M)
+- [ ] **#REALM.10b** Tests: parse build_info, `get_realm_entry_json`, JoinRealm DB side effect, golden payload. Parcial: parseo C++ de `build_info` hotfix/seeds, `JamJSONRealmEntry`, empty gates, server-address selection, preparación realm-owned de JoinRealm, orden/bytes de atributos de respuesta, binds del statement DB, selección de game account y status codes específicos cubiertos por unit tests; faltan JoinRealm DB side effect real y golden payload. (M)
 - [x] **#REALM.11** Modelar `RealmList::WriteSubRegions` como método de `RealmManager` y delegar `GetAllValuesForAttribute` en él. (L)
 
 ---
@@ -318,6 +321,7 @@ Y para realm list updates:
 | `RealmList::JoinRealm` response attributes | `join_realm_response_attributes_like_cpp` | Same three blob attributes and order; DB update/random secret still in handler |
 | `LOGIN_UPD_BNET_GAME_ACCOUNT_LOGIN_INFO` binds | `JoinRealmLoginInfoUpdateLikeCpp` + `apply_join_realm_login_info_update_like_cpp` | Same six bind slots/types; real DB execute still in handler |
 | `Battlenet::Session::_gameAccountInfo` | `RpcSession::selected_game_account_id` + `selected_game_account_like_cpp` | Set from `Param_Identity.gameAccountID`; consumed by LastCharPlayed/GetRealmList/JoinRealm |
+| `BattlenetRpcErrorCodes.h` Realm utility statuses | `wow_proto::status::*` constants consumed by `game_utilities` | Focused subset for RealmListTicket/JoinRealm |
 | `Trinity::Crypto::GetRandomBytes<32>` | `rand::thread_rng().fill` in `game_utilities::join_realm` | TODO #REALM.4b for full ownership/golden coverage |
 | `Trinity::Asio::Resolver::Resolve` | `resolve_realm_address_like_cpp` + `tokio::net::lookup_host` | Takes first IPv4; skips realm on external/local failure |
 | `RealmList::WriteSubRegions` | `RealmManager::write_sub_regions_like_cpp` | Emits `Variant.string_value` values in stored order |
