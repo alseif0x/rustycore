@@ -119,6 +119,56 @@ pub fn urandweighted_with_rng_like_cpp<R: Rng + ?Sized>(chances: &[f64], rng: &m
     u32::try_from(dist.sample(rng)).expect("weighted index must fit in u32")
 }
 
+/// C++ `Trinity::Containers::RandomResize(container, requestedSize)` for `Vec`.
+///
+/// If the vector already has at most `requested_size` elements it is unchanged.
+/// Otherwise the kept elements are selected randomly while preserving their
+/// original relative order.
+pub fn random_resize_vec_like_cpp<T>(items: &mut Vec<T>, requested_size: usize) {
+    random_resize_vec_with_rng_like_cpp(items, requested_size, &mut rand::thread_rng());
+}
+
+pub fn random_resize_vec_with_rng_like_cpp<T, R: Rng + ?Sized>(
+    items: &mut Vec<T>,
+    requested_size: usize,
+    rng: &mut R,
+) {
+    if items.len() <= requested_size {
+        return;
+    }
+
+    assert!(
+        u32::try_from(items.len()).is_ok(),
+        "RandomResize uses uint32 element counters in C++"
+    );
+    assert!(
+        u32::try_from(requested_size).is_ok(),
+        "RandomResize requested size must fit uint32 like C++"
+    );
+
+    let mut keep_index = 0usize;
+    let mut elements_to_keep = requested_size as u32;
+    let mut elements_to_process = items.len() as u32;
+
+    for current_index in 0..items.len() {
+        if elements_to_process == 0 {
+            break;
+        }
+
+        if urand_with_rng_like_cpp(1, elements_to_process, rng) <= elements_to_keep {
+            if keep_index != current_index {
+                items.swap(keep_index, current_index);
+            }
+            keep_index += 1;
+            elements_to_keep -= 1;
+        }
+
+        elements_to_process -= 1;
+    }
+
+    items.truncate(keep_index);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -191,5 +241,47 @@ mod tests {
             let value = urandweighted_with_rng_like_cpp(&[0.0, 0.0, 0.0], &mut rng);
             assert!(value < 3);
         }
+    }
+
+    #[test]
+    fn random_resize_noops_when_container_is_already_small_like_cpp() {
+        let mut rng = StdRng::seed_from_u64(8);
+        let mut values = vec![1, 2, 3];
+
+        random_resize_vec_with_rng_like_cpp(&mut values, 3, &mut rng);
+        assert_eq!(values, vec![1, 2, 3]);
+
+        random_resize_vec_with_rng_like_cpp(&mut values, 4, &mut rng);
+        assert_eq!(values, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn random_resize_keeps_requested_count_and_relative_order_like_cpp() {
+        let mut rng = StdRng::seed_from_u64(9);
+        let original = vec![10, 20, 30, 40, 50, 60];
+        let mut values = original.clone();
+
+        random_resize_vec_with_rng_like_cpp(&mut values, 3, &mut rng);
+
+        assert_eq!(values.len(), 3);
+        let mut last_index = 0usize;
+        for value in values {
+            let index = original
+                .iter()
+                .position(|candidate| *candidate == value)
+                .expect("kept values must come from the original vector");
+            assert!(index >= last_index);
+            last_index = index;
+        }
+    }
+
+    #[test]
+    fn random_resize_can_drop_everything_like_cpp() {
+        let mut rng = StdRng::seed_from_u64(10);
+        let mut values = vec![1, 2, 3];
+
+        random_resize_vec_with_rng_like_cpp(&mut values, 0, &mut rng);
+
+        assert!(values.is_empty());
     }
 }

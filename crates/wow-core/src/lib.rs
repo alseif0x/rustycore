@@ -19,10 +19,11 @@ pub use position::Position;
 pub use random::{
     frand_like_cpp, frand_with_rng_like_cpp, irand_like_cpp, irand_with_rng_like_cpp,
     rand_chance_like_cpp, rand_chance_with_rng_like_cpp, rand_norm_like_cpp,
-    rand_norm_with_rng_like_cpp, rand32_like_cpp, roll_chance_f_like_cpp,
-    roll_chance_f_with_rng_like_cpp, roll_chance_i_like_cpp, roll_chance_i_with_rng_like_cpp,
-    urand_like_cpp, urand_with_rng_like_cpp, urandms_like_cpp, urandms_with_rng_like_cpp,
-    urandweighted_like_cpp, urandweighted_with_rng_like_cpp,
+    rand_norm_with_rng_like_cpp, rand32_like_cpp, random_resize_vec_like_cpp,
+    random_resize_vec_with_rng_like_cpp, roll_chance_f_like_cpp, roll_chance_f_with_rng_like_cpp,
+    roll_chance_i_like_cpp, roll_chance_i_with_rng_like_cpp, urand_like_cpp,
+    urand_with_rng_like_cpp, urandms_like_cpp, urandms_with_rng_like_cpp, urandweighted_like_cpp,
+    urandweighted_with_rng_like_cpp,
 };
 pub use string::{
     FuzzyFindMatch, fuzzy_find_in_like_cpp, fuzzy_find_in_with_bonus_like_cpp,

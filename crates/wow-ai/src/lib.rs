@@ -11,7 +11,7 @@
 use std::collections::VecDeque;
 use std::time::Instant;
 
-use wow_core::{ObjectGuid, Position};
+use wow_core::{ObjectGuid, Position, random_resize_vec_like_cpp};
 use wow_instances::BossAiRef;
 
 // ── CreatureAISelector ────────────────────────────────────────────
@@ -399,20 +399,40 @@ impl SummonListLikeCpp {
     pub fn do_action_like_cpp<F, P>(
         &self,
         action: i32,
+        predicate: P,
+        resolve: F,
+    ) -> Vec<SummonListActionLikeCpp>
+    where
+        F: FnMut(ObjectGuid) -> Option<SummonListCreatureViewLikeCpp>,
+        P: FnMut(ObjectGuid) -> bool,
+    {
+        self.do_action_with_max_like_cpp(action, predicate, 0, resolve)
+    }
+
+    pub fn do_action_with_max_like_cpp<F, P>(
+        &self,
+        action: i32,
         mut predicate: P,
+        max: u16,
         mut resolve: F,
     ) -> Vec<SummonListActionLikeCpp>
     where
         F: FnMut(ObjectGuid) -> Option<SummonListCreatureViewLikeCpp>,
         P: FnMut(ObjectGuid) -> bool,
     {
-        // This represents the uncapped C++ path (`max == 0`). The capped path
-        // calls `Trinity::Containers::RandomResize` and belongs with the random
-        // container helpers before runtime ScriptedAI wires `DoAction`.
-        self.storage
+        let mut summons = self
+            .storage
             .iter()
             .copied()
             .filter(|guid| predicate(*guid))
+            .collect::<Vec<_>>();
+
+        if max != 0 {
+            random_resize_vec_like_cpp(&mut summons, usize::from(max));
+        }
+
+        summons
+            .into_iter()
             .filter_map(|guid| {
                 resolve(guid)
                     .filter(|creature| creature.ai_enabled)
@@ -1254,6 +1274,43 @@ mod tests {
                 guid: selected_ai,
                 action: 42,
             }]
+        );
+    }
+
+    #[test]
+    fn summon_list_do_action_capped_uses_random_resize_before_ai_resolution_like_cpp() {
+        let mut summons = SummonListLikeCpp::new();
+        let selected_ai = guid(60);
+        let creatures = HashMap::from([(selected_ai, creature_view(selected_ai, 1, true))]);
+
+        for guid in [selected_ai, selected_ai, selected_ai] {
+            summons.summon_like_cpp(guid);
+        }
+
+        let actions = summons.do_action_with_max_like_cpp(
+            77,
+            |_| true,
+            2,
+            |guid| resolve_from(&creatures, guid),
+        );
+
+        assert_eq!(
+            actions,
+            vec![
+                SummonListActionLikeCpp {
+                    guid: selected_ai,
+                    action: 77,
+                },
+                SummonListActionLikeCpp {
+                    guid: selected_ai,
+                    action: 77,
+                },
+            ]
+        );
+        assert_eq!(
+            summons.iter_like_cpp().collect::<Vec<_>>(),
+            vec![selected_ai, selected_ai, selected_ai],
+            "C++ DoAction works on a copy and must not mutate the original SummonList"
         );
     }
 }

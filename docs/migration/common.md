@@ -236,7 +236,7 @@ None. Common is pre-protocol — it ships no opcodes. The closest it gets is `Me
 | `Utilities/Locales.{h,cpp}` | `wow-constants` crate has `LocaleConstant` enum | ✅ replaced |
 | `Utilities/Memory.h` | `Box<T>` / `Drop` trait | ✅ obviated |
 | `Utilities/Concepts.h` | trait bounds | ✅ obviated |
-| `Utilities/Containers.h` | iterator combinators | ✅ obviated |
+| `Utilities/Containers.h` | iterator/container helpers | ⚠️ partial — `RandomResize` ported; other helpers handled per call site |
 | `Utilities/Regex.h` | `regex` crate | ✅ replaced |
 | `Utilities/Duration.h` | `std::time::Duration` builtin | ✅ obviated |
 | `Utilities/StartProcess.{h,cpp}` | `std::process::Command` | ✅ replaced |
@@ -304,6 +304,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 - [x] **#COMMON.17** Port `FuzzyFindIn` semantics into `wow-core`: byte-wise ASCII `StringContainsStringI`, ranked matches by number of matching needles, and optional bonus. C++ does **not** use Levenshtein/`strsim`; old docs were corrected. (L)
 - [x] **#COMMON.18a** Port the Unix IPv4/IPv6 subset of `Trinity::Net::ScanLocalNetworks` / `IsInLocalNetwork` plus `SelectAddressForClient` priority selection into `wow-core::net`; IPv4 bnet/world callers use scanned interface networks with a `/24` fallback if scanning returns none. (M)
 - [ ] **#COMMON.18b** Add Windows `GetAdaptersAddresses` parity for `ScanLocalNetworks` and wire IPv6 address selection through callers once realm/LoginREST address resolution stores IPv6 candidates. (M)
+- [x] **#COMMON.19** Port `Trinity::Containers::RandomResize` selection semantics into `wow_core::random_resize_vec_like_cpp`: at-most resize, random stable selection preserving relative order, deterministic `*_with_rng_like_cpp` test hook. (L)
 
 ---
 
@@ -447,6 +448,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 | `urand(a,b)` / `irand` / `frand` / `rand_norm` / `rand_chance` | `Random.cpp:30-90` | `wow_core::random::*_like_cpp` | ✅ | Helper semantics centralized; PRNG algorithm still differs (ChaCha12/thread_rng vs SFMT). Sub-task #COMMON.14. |
 | `urandweighted` | `Random.cpp:80-95` | `wow_core::urandweighted_like_cpp` | ✅ | Uses `rand::distributions::WeightedIndex`, same weighted-index contract; PRNG algorithm differs. |
 | `RandomEngine::Instance()` | `Random.h:67-77` | `rand::thread_rng()` | ✅ | Thread-local. |
+| `Trinity::Containers::RandomResize` | `Utilities/Containers.h:67-88` | `wow_core::random_resize_vec_like_cpp` | ✅ | Preserves C++ stable random-selection contract for `Vec`; PRNG algorithm differs under #COMMON.14. |
 | `SFMTRand` | `Utilities/SFMTRand.cpp` | NONE | ⚠️ | Different PRNG. |
 | `Hash::hash_combine` | `Utilities/Hash.h:28-31` | NONE | ⚠️ | Use derive `Hash` + `(A,B)` tuples. |
 | `HashFnv1a(s)` | `Utilities/Hash.h:33-42` | NONE | ❌ | Not used in Rust yet. |
