@@ -18037,6 +18037,13 @@ impl WorldSession {
             ClientOpcodes::SetInsertItemsLeftToRight => {
                 self.handle_set_insert_items_left_to_right(pkt).await;
             }
+            ClientOpcodes::DiscardedTimeSyncAcks
+            | ClientOpcodes::EngineSurvey
+            | ClientOpcodes::LatencyReport
+            | ClientOpcodes::ReportServerLag
+            | ClientOpcodes::SuspendCommsAck => {
+                self.handle_client_telemetry_null_like_cpp(pkt).await;
+            }
             ClientOpcodes::LoadingScreenNotify => {
                 self.handle_loading_screen_notify(pkt).await;
             }

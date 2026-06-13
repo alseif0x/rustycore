@@ -334,6 +334,51 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
+        opcode: ClientOpcodes::DiscardedTimeSyncAcks,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadSafe,
+        handler_name: "handle_client_telemetry_null_like_cpp",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::EngineSurvey,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_client_telemetry_null_like_cpp",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::LatencyReport,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_client_telemetry_null_like_cpp",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::ReportServerLag,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_client_telemetry_null_like_cpp",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::SuspendCommsAck,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_client_telemetry_null_like_cpp",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
         opcode: ClientOpcodes::ViolenceLevel,
         status: SessionStatus::Authed,
         processing: PacketProcessing::Inplace,
@@ -1693,6 +1738,10 @@ impl crate::session::WorldSession {
 
     pub async fn handle_set_insert_items_left_to_right(&mut self, _pkt: wow_packet::WorldPacket) {
         // C++ registers CMSG_SET_INSERT_ITEMS_LEFT_TO_RIGHT as STATUS_UNHANDLED/Handle_NULL.
+    }
+
+    pub async fn handle_client_telemetry_null_like_cpp(&mut self, _pkt: wow_packet::WorldPacket) {
+        // C++ registers this client telemetry/ack family to WorldSession::Handle_NULL.
     }
 
     pub async fn handle_set_ammo(&mut self, _pkt: wow_packet::WorldPacket) {
@@ -3504,6 +3553,19 @@ mod tests {
         session
             .handle_set_insert_items_left_to_right(WorldPacket::new_empty())
             .await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn client_telemetry_null_family_is_silent_like_cpp_handle_null() {
+        let (mut session, send_rx) = make_session();
+
+        for _ in 0..5 {
+            session
+                .handle_client_telemetry_null_like_cpp(WorldPacket::new_empty())
+                .await;
+        }
 
         assert!(send_rx.try_recv().is_err());
     }

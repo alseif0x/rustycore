@@ -1,3 +1,13 @@
+- `#NEXT.R8.ENTITIES.822` — represented-complete for bounded client telemetry/ack `Handle_NULL` hooks.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:803-806`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:431,441,555,817,956`.
+
+  Rust anchors: `crates/wow-world/src/handlers/misc.rs`; `crates/wow-world/src/session.rs`.
+
+  Acceptance: `CMSG_DISCARDED_TIME_SYNC_ACKS`, `CMSG_ENGINE_SURVEY`, `CMSG_LATENCY_REPORT`, `CMSG_REPORT_SERVER_LAG`, and `CMSG_SUSPEND_COMMS_ACK` are registered with their C++ status/processing pairs, routed through `WorldSession`, and consumed silently without packets or represented state mutation.
+
+  Boundary: represented-complete only for these bounded `WorldPackets::Null` hooks; C++ `Handle_NULL` logs the unhandled opcode while Rust preserves the no-response/no-state behavior without a dedicated opcode log; no telemetry persistence, latency accounting, comms state, install/restart, or live client/manual validation.
+
 - `#NEXT.R8.ENTITIES.821` — represented-complete bridge closure for `PlayerData::PlayerTitle` update-field emission and `CMSG_SET_TITLE` canonical-player wiring.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Object/Updates/UpdateFields.h:400`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Object/Updates/UpdateFields.cpp:1802,1992,2112`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:2617`; `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:882-893`.
