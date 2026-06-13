@@ -5161,26 +5161,40 @@ impl WorldSession {
     }
 
     pub fn handle_query_realm_name(&mut self, query: QueryRealmName) {
-        let our_vra = self.virtual_realm_address();
-        let is_local = query.virtual_realm_address == our_vra;
-
-        // Query the realm name from the DB — for now hardcode from realmlist
-        // TODO: query login_db for realmlist.name by realm_id
-        let realm_name = "Trinity".to_string();
-
         debug!(
             "QueryRealmName: VRA=0x{:08X}, ours=0x{:08X}, local={}",
-            query.virtual_realm_address, our_vra, is_local
+            query.virtual_realm_address,
+            self.virtual_realm_address(),
+            query.virtual_realm_address == self.virtual_realm_address()
         );
 
-        let resp = RealmQueryResponse {
-            virtual_realm_address: query.virtual_realm_address,
-            lookup_state: 0, // Success
-            realm_name_actual: realm_name.clone(),
-            realm_name_normalized: realm_name,
-            is_local,
-        };
+        let resp = self.realm_query_response_like_cpp(query.virtual_realm_address);
         self.send_packet_realm(&resp);
+    }
+
+    pub(crate) fn realm_query_response_like_cpp(
+        &self,
+        virtual_realm_address: u32,
+    ) -> RealmQueryResponse {
+        if let Some((realm_name_actual, realm_name_normalized)) =
+            self.realm_names_for_address_like_cpp(virtual_realm_address)
+        {
+            RealmQueryResponse {
+                virtual_realm_address,
+                lookup_state: 0, // RESPONSE_SUCCESS
+                realm_name_actual: realm_name_actual.to_string(),
+                realm_name_normalized: realm_name_normalized.to_string(),
+                is_local: virtual_realm_address == self.virtual_realm_address(),
+            }
+        } else {
+            RealmQueryResponse {
+                virtual_realm_address,
+                lookup_state: 1, // RESPONSE_FAILURE
+                realm_name_actual: String::new(),
+                realm_name_normalized: String::new(),
+                is_local: false,
+            }
+        }
     }
 
     pub async fn handle_gossip_hello(&mut self, hello: Hello) {

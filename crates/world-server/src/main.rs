@@ -151,7 +151,6 @@ impl RealmHandleLikeCpp {
         }
     }
 
-    #[cfg(test)]
     fn address_like_cpp(self) -> u32 {
         (u32::from(self.region) << 24) | (u32::from(self.site) << 16) | (self.realm & 0xFFFF)
     }
@@ -191,6 +190,7 @@ struct RealmListEntryLikeCpp {
     id: RealmHandleLikeCpp,
     build: u32,
     name: String,
+    normalized_name: String,
     address: String,
     local_address: String,
     port: u16,
@@ -2051,6 +2051,7 @@ async fn main() -> Result<ExitCode> {
     );
 
     let active_realm = load_realm_info_from_snapshot_like_cpp(&realm_list, realm_id)?;
+    let realm_names = realm_name_records_from_snapshot_like_cpp(&realm_list);
     let realm_build = active_realm.build;
     let win64_auth_seed = load_realm_win64_auth_seed_like_cpp(&login_db, realm_build).await?;
     info!("Realm {realm_id} build {realm_build}, Win64AuthSeed loaded");
@@ -2714,6 +2715,7 @@ async fn main() -> Result<ExitCode> {
         realm_id,
         realm_region: active_realm.id.region,
         realm_battlegroup: active_realm.id.site,
+        realm_names,
         realm_external_address,
         realm_local_address,
     });
@@ -3247,12 +3249,20 @@ fn normalize_realm_security_level_like_cpp(level: u8) -> u8 {
     level.min(SEC_ADMINISTRATOR_LIKE_CPP)
 }
 
+fn normalized_realm_name_like_cpp(name: &str) -> String {
+    name.chars()
+        .filter(|ch| !ch.is_ascii_whitespace())
+        .collect()
+}
+
 fn realm_list_entry_from_row_like_cpp(row: RealmListRawRowLikeCpp) -> RealmListEntryLikeCpp {
     let id = RealmHandleLikeCpp::new_like_cpp(row.region, row.battlegroup, row.realm_id);
+    let normalized_name = normalized_realm_name_like_cpp(&row.name);
     RealmListEntryLikeCpp {
         id,
         build: row.build,
         name: row.name,
+        normalized_name,
         address: row.address,
         local_address: row.local_address,
         port: row.port,
@@ -8368,6 +8378,25 @@ fn load_realm_info_from_snapshot_like_cpp(
         .with_context(|| format!("Realm {realm_id} not found in initialized RealmList snapshot"))
 }
 
+fn realm_name_records_from_snapshot_like_cpp(
+    realm_list: &SharedRealmListLikeCpp,
+) -> Arc<Vec<(u32, String, String)>> {
+    let realm_list = realm_list.lock().expect("realm list mutex poisoned");
+    Arc::new(
+        realm_list
+            .realms
+            .values()
+            .map(|realm| {
+                (
+                    realm.id.address_like_cpp(),
+                    realm.name.clone(),
+                    realm.normalized_name.clone(),
+                )
+            })
+            .collect(),
+    )
+}
+
 /// Load the build-specific Win64AuthSeed from `build_info`.
 async fn load_realm_win64_auth_seed_like_cpp(
     login_db: &LoginDatabase,
@@ -8785,6 +8814,7 @@ async fn create_session(
         resources.realm_battlegroup,
         resources.realm_id,
     );
+    session.set_realm_names_like_cpp(resources.realm_names.iter().cloned());
     session.set_map_manager(shared_map);
     session.set_canonical_map_manager(canonical_map_manager);
 
@@ -9914,9 +9944,10 @@ mod tests {
         max_core_stuck_time_ms_like_cpp, max_core_stuck_time_secs_like_cpp,
         min_world_update_time_ms_like_cpp, mmap_runtime_config_like_cpp,
         normalize_realm_security_level_like_cpp, normalize_realm_type_like_cpp,
-        persisted_respawn_info_from_row_like_cpp, process_exit_code_like_cpp,
-        queue_respawn_db_delete_like_cpp, queue_respawn_db_save_like_cpp, realm_id_like_cpp,
-        realm_list_entry_from_row_like_cpp, repair_cost_rate_like_cpp, reputation_rates_like_cpp,
+        normalized_realm_name_like_cpp, persisted_respawn_info_from_row_like_cpp,
+        process_exit_code_like_cpp, queue_respawn_db_delete_like_cpp,
+        queue_respawn_db_save_like_cpp, realm_id_like_cpp, realm_list_entry_from_row_like_cpp,
+        repair_cost_rate_like_cpp, reputation_rates_like_cpp,
         run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp,
         run_legacy_creature_melee_tick_and_deliver_once_like_cpp,
         run_legacy_creature_movement_tick_and_deliver_once_like_cpp,
@@ -10070,6 +10101,10 @@ mod tests {
         assert_eq!(normalize_realm_type_like_cpp(6), 6);
         assert_eq!(normalize_realm_security_level_like_cpp(9), 3);
         assert_eq!(normalize_realm_security_level_like_cpp(2), 2);
+        assert_eq!(
+            normalized_realm_name_like_cpp("Ice Crown\t Citadel\n"),
+            "IceCrownCitadel"
+        );
 
         let entry = realm_list_entry_from_row_like_cpp(super::RealmListRawRowLikeCpp {
             realm_id: 7,
@@ -10090,6 +10125,7 @@ mod tests {
         assert_eq!(entry.id.address_like_cpp(), 0x0203_0007);
         assert_eq!(entry.id.address_string_like_cpp(), "2-3-7");
         assert_eq!(entry.id.sub_region_address_like_cpp(), "2-3-0");
+        assert_eq!(entry.normalized_name, "Northrend");
         assert_eq!(entry.icon, 1);
         assert_eq!(entry.allowed_security_level, 3);
     }
@@ -10207,6 +10243,10 @@ mod tests {
         assert_eq!(loaded.id.region, 5);
         assert_eq!(loaded.id.site, 6);
         assert_eq!(loaded.id.address_like_cpp(), 0x0506_0009);
+        assert_eq!(
+            super::realm_name_records_from_snapshot_like_cpp(&snapshot).as_ref(),
+            &vec![(0x0506_0009, "Icecrown".to_string(), "Icecrown".to_string())]
+        );
         assert!(super::load_realm_info_from_snapshot_like_cpp(&snapshot, 10).is_err());
     }
 

@@ -297,6 +297,8 @@ pub struct SessionResources {
     pub realm_region: u8,
     /// Battlegroup/site from `realmlist.Battlegroup`, used in C++ `RealmHandle::GetAddress()`.
     pub realm_battlegroup: u8,
+    /// `(RealmHandle::GetAddress(), Name, NormalizedName)` records from the current realm-list snapshot.
+    pub realm_names: Arc<Vec<(u32, String, String)>>,
     /// External (public) IP from `realmlist.address`.
     pub realm_external_address: [u8; 4],
     /// Local (LAN) IP from `realmlist.localAddress`.

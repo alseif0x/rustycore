@@ -2670,6 +2670,7 @@ pub struct WorldSession {
     realm_id: u16,
     realm_region: u8,
     realm_battlegroup: u8,
+    realm_names_like_cpp: BTreeMap<u32, (String, String)>,
 
     // GUID generator for new characters
     guid_generator: Option<Arc<ObjectGuidGenerator>>,
@@ -3862,6 +3863,10 @@ impl WorldSession {
             realm_id: 1,
             realm_region: 1,
             realm_battlegroup: 1,
+            realm_names_like_cpp: BTreeMap::from([(
+                0x0101_0001,
+                ("RustyCore".to_string(), "RustyCore".to_string()),
+            )]),
             guid_generator: None,
             legit_characters: Vec::new(),
             pending_packets: Vec::new(),
@@ -8188,6 +8193,16 @@ impl WorldSession {
         self.realm_id = realm_id;
     }
 
+    pub fn set_realm_names_like_cpp(
+        &mut self,
+        names: impl IntoIterator<Item = (u32, String, String)>,
+    ) {
+        self.realm_names_like_cpp = names
+            .into_iter()
+            .map(|(address, actual, normalized)| (address, (actual, normalized)))
+            .collect();
+    }
+
     /// Compute the Virtual Realm Address: `(Region << 24) | (Battlegroup << 16) | RealmId`.
     ///
     /// Region and Battlegroup come from the active `realmlist` row, matching C++
@@ -8196,6 +8211,15 @@ impl WorldSession {
         (u32::from(self.realm_region) << 24)
             | (u32::from(self.realm_battlegroup) << 16)
             | u32::from(self.realm_id)
+    }
+
+    pub(crate) fn realm_names_for_address_like_cpp(
+        &self,
+        realm_address: u32,
+    ) -> Option<(&str, &str)> {
+        self.realm_names_like_cpp
+            .get(&realm_address)
+            .map(|(actual, normalized)| (actual.as_str(), normalized.as_str()))
     }
 
     /// Set the GUID generator for new characters.
@@ -18402,6 +18426,9 @@ impl WorldSession {
         use wow_packet::packets::misc::*;
 
         let vra = self.virtual_realm_address();
+        let (realm_name_actual, realm_name_normalized) = self
+            .realm_names_for_address_like_cpp(vra)
+            .unwrap_or(("RustyCore", "RustyCore"));
 
         // 1. AuthResponse (OK) — tells the client authentication succeeded
         let auth_response = AuthResponse {
@@ -18412,8 +18439,8 @@ impl WorldSession {
                     realm_address: vra,
                     is_local: true,
                     is_internal_realm: false,
-                    realm_name_actual: String::from("RustyCore"),
-                    realm_name_normalized: String::from("rustycore"),
+                    realm_name_actual: realm_name_actual.to_string(),
+                    realm_name_normalized: realm_name_normalized.to_string(),
                 }],
                 time_rested: 0,
                 active_expansion_level: self.expansion,
@@ -65934,6 +65961,38 @@ mod tests {
 
         assert_eq!(session.realm_id(), 9);
         assert_eq!(session.virtual_realm_address(), 0x0506_0009);
+    }
+
+    #[test]
+    fn realm_query_response_uses_realm_list_names_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_realm_handle_like_cpp(5, 6, 9);
+        session.set_realm_names_like_cpp([
+            (0x0506_0009, "Ice Crown".to_string(), "IceCrown".to_string()),
+            (
+                0x0708_000A,
+                "Remote Realm".to_string(),
+                "RemoteRealm".to_string(),
+            ),
+        ]);
+
+        let local = session.realm_query_response_like_cpp(0x0506_0009);
+        assert_eq!(local.lookup_state, 0);
+        assert_eq!(local.realm_name_actual, "Ice Crown");
+        assert_eq!(local.realm_name_normalized, "IceCrown");
+        assert!(local.is_local);
+
+        let remote = session.realm_query_response_like_cpp(0x0708_000A);
+        assert_eq!(remote.lookup_state, 0);
+        assert_eq!(remote.realm_name_actual, "Remote Realm");
+        assert_eq!(remote.realm_name_normalized, "RemoteRealm");
+        assert!(!remote.is_local);
+
+        let missing = session.realm_query_response_like_cpp(0x0909_000B);
+        assert_eq!(missing.lookup_state, 1);
+        assert!(missing.realm_name_actual.is_empty());
+        assert!(missing.realm_name_normalized.is_empty());
+        assert!(!missing.is_local);
     }
 
     #[test]
