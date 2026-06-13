@@ -301,7 +301,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 - [ ] **#COMMON.15** Implement `wow-core::utf8::str_to_lower_only_latin` symmetric counterpart for `Utf8ToUpperOnlyLatin`. (L, do with #COMMON.1)
 - [ ] **#COMMON.16** Wire `Errors::Fatal` equivalent: a panic hook that logs `tracing::error!` + structured `file:line:fn` before unwinding, so prod logs include the assertion site. (L)
 - [ ] **#COMMON.17** `FuzzyFind`: integrate `strsim` crate for `.tele` GM-command name lookup. (L)
-- [ ] **#COMMON.18** Port `Trinity::Net::IsInLocalNetwork` (RFC1918 + interface enumeration) to a Rust helper in `wow-network` — currently no equivalent exists; relevant for `realm.LocalAddress` selection in `bnet-server`. (M)
+- [ ] **#COMMON.18** Port `Trinity::Net::ScanLocalNetworks` / `IsInLocalNetwork` interface enumeration. The pure IPv4 `SelectAddressForClient` priority helper now exists in `wow-core::net`, but bnet/world callers still feed it a `/24` approximation derived from `localAddress` instead of scanned OS interface networks. (M)
 
 ---
 
@@ -402,7 +402,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 | Asio runtime | `Asio/IoContext.h:30` `boost::asio::io_context` | `tokio::runtime::Runtime` | ✅ | Idiomatic replacement; Tokio's executor is feature-equivalent for the server's needs (TCP accept + timer + DNS). |
 | DeadlineTimer | `Asio/DeadlineTimer.h:24` | `tokio::time::interval` (`bnet-server/main.rs:228`, `bnet-server/realm/mod.rs:206`) | ✅ | One-shot deadline = `tokio::time::sleep(d).await`; recurring = `interval.tick().await`. |
 | Resolver | `Asio/Resolver.h:30` | `tokio::net::lookup_host` | ✅ | — |
-| `IsInLocalNetwork(addr)` (RFC1918 + iface enum) | `Asio/IpNetwork.cpp:120-220` | NONE | ❌ | Not ported. C++ uses this to pick `localAddress` vs `externalAddress` for `realmlist` responses based on client IP. Rust currently always sends `externalAddress`. Low priority unless serving on a LAN-facing IP. |
+| `IsInLocalNetwork(addr)` / `SelectAddressForClient` | `Asio/IpNetwork.cpp:32-134`, `ScanLocalNetworks` at `:149`/`:221` | `wow-core::net::{Ipv4NetworkLikeCpp, select_ipv4_address_for_client_like_cpp}` | ⚠️ | IPv4 address-priority semantics are shared and tested; OS interface scanning is not ported yet, so bnet/world callers still use a `/24` approximation from `localAddress`. |
 | `IpAddress::from_string` | `Asio/IpAddress.h:24` | `IpAddr::from_str` (std) | ✅ | — |
 | `ConfigMgr` INI parser | `Configuration/Config.cpp:39-60` (`bpt::ini_parser::read_ini`) | `wow-config/src/lib.rs:52-87` (hand-rolled key=value) | ⚠️ | C++ supports nested sections (`[Net] Port=8085`); Rust does not. Fine because `worldserver.conf` is flat key=value. |
 | Env-var override | `Configuration/Config.cpp` `OverrideWithEnvVariablesIfAny` | NONE | ❌ | Sub-task #COMMON.6. |
@@ -498,8 +498,8 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 7. **⚠️ `wow-config` lowercases keys.**
    - Currently safe — no config file relies on case sensitivity — but future divergence risk if someone adds two keys differing only in case.
 
-8. **⚠️ No `IsInLocalNetwork` helper.**
-   - `bnet-server` realmlist response always sends `externalAddress`. If the WoW client connects from a LAN IP that should resolve to `localAddress`, it sees the public address instead → can't connect. Symptomatic of LAN/devbox setups. Sub-task #COMMON.18.
+8. **⚠️ `ScanLocalNetworks` still not ported.**
+   - `bnet-server` and `world-server` now share a C++-like IPv4 `SelectAddressForClient` priority helper, but they still approximate local networks from `localAddress` as `/24`. LANs with a different interface prefix than `/24` can still select the wrong address. Sub-task #COMMON.18.
 
 9. **⚠️ `urandweighted` is open-coded at every loot site.**
    - Centralise into `wow-core::random::weighted_choice` to avoid drift. Sub-task related to #COMMON.13.

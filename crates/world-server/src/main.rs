@@ -26,7 +26,7 @@ use tokio::sync::Notify;
 use tokio::task::AbortHandle;
 use tracing::{debug, info, warn};
 use wow_config::{DatabaseInfo, LoadReport, WorldConfigSet};
-use wow_core::{ObjectGuid, ObjectGuidGenerator, guid::HighGuid};
+use wow_core::{Ipv4NetworkLikeCpp, ObjectGuid, ObjectGuidGenerator, guid::HighGuid};
 use wow_database::{
     CharStatements, CharacterDatabase, DATABASE_CHARACTER_LIKE_CPP, DATABASE_HOTFIX_LIKE_CPP,
     DATABASE_LOGIN_LIKE_CPP, DATABASE_MASK_ALL_LIKE_CPP, DATABASE_WORLD_LIKE_CPP, HotfixDatabase,
@@ -8819,8 +8819,9 @@ async fn create_session(
     session.set_canonical_map_manager(canonical_map_manager);
 
     // Select the correct realm IP for ConnectTo based on client address.
-    // C# logic: loopback → localAddress, otherwise → externalAddress.
-    // For LAN clients, use localAddress if they're in the same subnet.
+    // C++ delegates to Trinity::Net::SelectAddressForClient after scanning
+    // local interfaces. Rust keeps the existing /24 LAN approximation until
+    // ScanLocalNetworks is ported.
     let connect_ip = get_address_for_client(
         account.client_address,
         resources.realm_external_address,
@@ -8868,32 +8869,30 @@ async fn create_session(
     active_session_registry.unregister(active_session_id);
 }
 
-/// Select the correct realm IP for a client, matching C#'s `GetAddressForClient`.
+/// Select the correct realm IP for a client, matching C++ `Realm::GetAddressForClient`.
 ///
-/// - Loopback client (127.0.0.1) → local address
-/// - LAN client (same /24 subnet as local address) → local address
-/// - Everything else → external (public) address
+/// This uses the shared SelectAddressForClient-like priority rules. The local
+/// network source is still a temporary /24 derived from `local` until
+/// Trinity::Net::ScanLocalNetworks is ported.
 fn get_address_for_client(
     client_ip: Option<std::net::IpAddr>,
     external: [u8; 4],
     local: [u8; 4],
 ) -> [u8; 4] {
-    let client = match client_ip {
-        Some(std::net::IpAddr::V4(v4)) => v4.octets(),
-        _ => return external, // unknown or IPv6 → external
+    let external_v4 = std::net::Ipv4Addr::from(external);
+    let local_v4 = std::net::Ipv4Addr::from(local);
+    let client_v4 = match client_ip {
+        Some(std::net::IpAddr::V4(v4)) => Some(v4),
+        _ => None,
     };
-
-    // Loopback → local
-    if client[0] == 127 {
-        return local;
-    }
-
-    // Same /24 subnet as local address → local
-    if client[0] == local[0] && client[1] == local[1] && client[2] == local[2] {
-        return local;
-    }
-
-    external
+    let local_networks = [Ipv4NetworkLikeCpp::new(local_v4, 24)];
+    wow_core::realm_ipv4_address_for_client_like_cpp(
+        client_v4,
+        external_v4,
+        local_v4,
+        &local_networks,
+    )
+    .octets()
 }
 
 /// Format an IPv4 address for display.
@@ -9936,8 +9935,9 @@ mod tests {
         game_event_unspawn_for_event_like_cpp, game_event_unspawn_pools_for_event_like_cpp,
         game_event_unspawn_pools_like_cpp, game_event_update_npc_flags_like_cpp,
         game_event_update_npc_vendor_like_cpp, game_event_update_world_states_like_cpp,
-        half_max_core_stuck_time_like_cpp, install_canonical_spawn_group_initializer_like_cpp,
-        kick_all_sessions_like_cpp, legacy_creature_aggro_config_like_cpp,
+        get_address_for_client, half_max_core_stuck_time_like_cpp,
+        install_canonical_spawn_group_initializer_like_cpp, kick_all_sessions_like_cpp,
+        legacy_creature_aggro_config_like_cpp,
         legacy_creature_global_runtime_enabled_from_config_like_cpp, load_world_config_from,
         loot_drop_rates_like_cpp, materialize_game_event_quest_complete_db_bridge_like_cpp,
         materialize_game_event_world_event_state_db_bridge_like_cpp,
@@ -10128,6 +10128,34 @@ mod tests {
         assert_eq!(entry.normalized_name, "Northrend");
         assert_eq!(entry.icon, 1);
         assert_eq!(entry.allowed_security_level, 3);
+    }
+
+    #[test]
+    fn connect_to_address_uses_shared_select_address_priority_like_cpp() {
+        assert_eq!(
+            get_address_for_client(
+                Some("127.0.0.1".parse().unwrap()),
+                [198, 51, 100, 10],
+                [10, 0, 0, 10],
+            ),
+            [10, 0, 0, 10]
+        );
+        assert_eq!(
+            get_address_for_client(
+                Some("10.0.0.42".parse().unwrap()),
+                [198, 51, 100, 10],
+                [10, 0, 0, 10],
+            ),
+            [10, 0, 0, 10]
+        );
+        assert_eq!(
+            get_address_for_client(
+                Some("203.0.113.42".parse().unwrap()),
+                [198, 51, 100, 10],
+                [10, 0, 0, 10],
+            ),
+            [198, 51, 100, 10]
+        );
     }
 
     #[test]

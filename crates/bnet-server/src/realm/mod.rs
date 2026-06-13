@@ -378,10 +378,9 @@ impl RealmManager {
     }
 
     /// Generate compressed JSON for server IP addresses of a realm.
-    /// Selects local or external address based on the client's IP:
-    /// - loopback (127.x) → local address
-    /// - same /24 subnet as local address → local address
-    /// - otherwise → external address
+    /// Selects local or external address based on the client's IP using the
+    /// shared C++-like priority helper. Until ScanLocalNetworks is ported, the
+    /// local network input is approximated from localAddress as /24.
     pub fn get_realm_server_addresses_json_like_cpp(
         &self,
         realm: &Realm,
@@ -439,41 +438,36 @@ impl RealmManager {
 }
 
 /// Pick the right realm IP for a given client address.
-/// - loopback → local
-/// - same /24 subnet as local → local
-/// - otherwise → external
+///
+/// C++ delegates to Trinity::Net::SelectAddressForClient after
+/// Trinity::Net::ScanLocalNetworks. Rust does not yet scan interfaces at boot,
+/// so this preserves the previous /24 LAN approximation while using the same
+/// address-priority helper as the world server.
 fn select_realm_ip_str(client_ip: Option<std::net::IpAddr>, external: &str, local: &str) -> String {
-    let client = match client_ip {
-        Some(std::net::IpAddr::V4(v4)) => v4.octets(),
-        _ => return external.to_string(),
+    let Ok(external_v4) = external.parse::<std::net::Ipv4Addr>() else {
+        return external.to_string();
     };
+    let Ok(local_v4) = local.parse::<std::net::Ipv4Addr>() else {
+        return external.to_string();
+    };
+    let client_v4 = match client_ip {
+        Some(std::net::IpAddr::V4(v4)) => Some(v4),
+        _ => None,
+    };
+    let local_networks = [wow_core::Ipv4NetworkLikeCpp::new(local_v4, 24)];
+    let selected = wow_core::realm_ipv4_address_for_client_like_cpp(
+        client_v4,
+        external_v4,
+        local_v4,
+        &local_networks,
+    );
 
-    // loopback
-    if client[0] == 127 {
-        tracing::debug!("select_realm_ip: client is loopback → local ({})", local);
+    if selected == local_v4 {
+        tracing::debug!("select_realm_ip: client selected local ({})", local);
         return local.to_string();
     }
 
-    // same /24 as local address?
-    if let Ok(std::net::IpAddr::V4(local_v4)) = local.parse() {
-        let loc = local_v4.octets();
-        if client[0] == loc[0] && client[1] == loc[1] && client[2] == loc[2] {
-            tracing::debug!(
-                "select_realm_ip: client {}.{}.{}.{} on same /24 as local {} → local",
-                client[0],
-                client[1],
-                client[2],
-                client[3],
-                local
-            );
-            return local.to_string();
-        }
-    }
-
-    tracing::debug!(
-        "select_realm_ip: client is external → external ({})",
-        external
-    );
+    tracing::debug!("select_realm_ip: client selected external ({})", external);
     external.to_string()
 }
 

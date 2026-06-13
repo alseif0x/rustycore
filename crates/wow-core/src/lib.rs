@@ -1,7 +1,12 @@
 pub mod guid;
+pub mod net;
 pub mod position;
 pub mod time;
 
 pub use guid::{ObjectGuid, ObjectGuidGenerator};
+pub use net::{
+    Ipv4NetworkLikeCpp, realm_ipv4_address_for_client_like_cpp,
+    select_ipv4_address_for_client_like_cpp,
+};
 pub use position::Position;
 pub use time::{GameTime, ServerTime};

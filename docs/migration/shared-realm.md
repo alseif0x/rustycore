@@ -145,7 +145,7 @@ Y para realm list updates:
 - `init_realm_manager` con polling task Tokio
 - `load_build_info`, `update_realms` directo SQL
 - `get_realm_list_json` con flag `VERSION_MISMATCH` dinámico y `population_state` correcto
-- `get_realm_entry_json` con selector loopback / same-/24 / external (similar a `Trinity::Net::SelectAddressForClient`)
+- `get_realm_entry_json` usa el helper compartido `wow_core::select_ipv4_address_for_client_like_cpp`; todavía alimenta redes locales aproximadas `/24` hasta portar `ScanLocalNetworks`.
 - Envelopes correctos: `JSONRealmListUpdates:` / `JSONRealmListServerIPAddresses:` / `JSONRealmCharacterCountList:`
 - Compresión zlib con prefijo `u32` little-endian de tamaño descomprimido
 - `find_realm_by_address`, `get_build_info`
@@ -288,7 +288,7 @@ Y para realm list updates:
 - [x] `set_name("Foo Bar")` produce `normalized_name == "FooBar"`
 - [x] Realm con `build != client_build` → emite `flags |= VERSION_MISMATCH` en JSON
 - [x] Realm con `flags & OFFLINE` → `GetRealmEntryJSON` devuelve vacío y `GetRealmList` emite `population_state = 0`
-- [x] `select_realm_ip_str` para client 127.0.0.1 → local; para client en /24 distinto → external
+- [x] `select_realm_ip_str` para client 127.0.0.1 → local; para client LAN en la red aproximada `/24` → local; para client externo → external
 - [x] zlib output: 4-byte LE prefix == uncompressed length; flate2 inflates back to identical bytes
 - [ ] Concurrent: 1000 readers + 1 writer con `update_realms` no causa race / panic
 
@@ -357,7 +357,7 @@ Y para realm list updates:
 | `Trinity::Crypto::GetRandomBytes<32>` | `rand::thread_rng().fill` in `game_utilities::join_realm` | TODO #REALM.4b for full ownership/golden coverage |
 | `Trinity::Asio::Resolver::Resolve` | `resolve_realm_address_like_cpp` + `tokio::net::lookup_host` | Takes first IPv4; skips realm on external/local failure |
 | `RealmList::WriteSubRegions` | `RealmManager::write_sub_regions_like_cpp` | Emits `Variant.string_value` values in stored order |
-| `Trinity::Net::SelectAddressForClient` | `select_realm_ip_str` | Más simple: solo IPv4 + /24 + loopback |
+| `Trinity::Net::SelectAddressForClient` | `wow_core::select_ipv4_address_for_client_like_cpp` + callers `select_realm_ip_str` / `get_address_for_client` | IPv4 priority order ported and shared; remaining gap: Rust callers still approximate `ScanLocalNetworks()` with a `/24` derived from `localAddress` until real interface scanning is ported |
 
 ---
 
