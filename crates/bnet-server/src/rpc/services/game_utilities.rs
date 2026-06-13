@@ -355,11 +355,11 @@ async fn join_realm<S: AsyncRead + AsyncWrite + Unpin>(
 
     // Build response — ticket is game account name (e.g. "2#1"), sent as blob (matching C#)
     let response = ClientResponse {
-        attribute: vec![
-            make_blob_attribute("Param_RealmJoinTicket", ga_username.as_bytes()),
-            make_blob_attribute("Param_ServerAddresses", &server_addresses),
-            make_blob_attribute("Param_JoinSecret", &server_secret),
-        ],
+        attribute: join_realm_response_attributes_like_cpp(
+            &ga_username,
+            &server_addresses,
+            &server_secret,
+        ),
     };
 
     tracing::info!("Account {} joining realm {realm_name}", account.id);
@@ -422,6 +422,18 @@ fn bnet_session_key_data_like_cpp(client_secret: &[u8], server_secret: &[u8]) ->
     Some(key_data)
 }
 
+fn join_realm_response_attributes_like_cpp(
+    account_name: &str,
+    server_addresses: &[u8],
+    server_secret: &[u8],
+) -> Vec<Attribute> {
+    vec![
+        make_blob_attribute("Param_RealmJoinTicket", account_name.as_bytes()),
+        make_blob_attribute("Param_ServerAddresses", server_addresses),
+        make_blob_attribute("Param_JoinSecret", server_secret),
+    ]
+}
+
 // ── Attribute helpers ───────────────────────────────────────────────────────
 
 fn make_blob_attribute(name: &str, value: &[u8]) -> Attribute {
@@ -456,7 +468,7 @@ fn make_uint_attribute(name: &str, value: u64) -> Attribute {
 
 #[cfg(test)]
 mod tests {
-    use super::bnet_session_key_data_like_cpp;
+    use super::{bnet_session_key_data_like_cpp, join_realm_response_attributes_like_cpp};
 
     #[test]
     fn bnet_session_key_data_is_raw_client_then_server_secret_like_cpp() {
@@ -474,5 +486,31 @@ mod tests {
     fn bnet_session_key_data_rejects_non_32_byte_secrets_like_cpp_array_contract() {
         assert!(bnet_session_key_data_like_cpp(&[0; 31], &[1; 32]).is_none());
         assert!(bnet_session_key_data_like_cpp(&[0; 32], &[1; 31]).is_none());
+    }
+
+    #[test]
+    fn join_realm_response_attributes_match_cpp_order_and_blob_values() {
+        let server_addresses = vec![1, 2, 3, 4];
+        let server_secret: Vec<u8> = (32..64).collect();
+
+        let attrs =
+            join_realm_response_attributes_like_cpp("2#1", &server_addresses, &server_secret);
+
+        assert_eq!(attrs.len(), 3);
+        assert_eq!(attrs[0].name, "Param_RealmJoinTicket");
+        assert_eq!(
+            attrs[0].value.blob_value.as_deref(),
+            Some(b"2#1".as_slice())
+        );
+        assert_eq!(attrs[1].name, "Param_ServerAddresses");
+        assert_eq!(
+            attrs[1].value.blob_value.as_deref(),
+            Some(server_addresses.as_slice())
+        );
+        assert_eq!(attrs[2].name, "Param_JoinSecret");
+        assert_eq!(
+            attrs[2].value.blob_value.as_deref(),
+            Some(server_secret.as_slice())
+        );
     }
 }
