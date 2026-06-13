@@ -342,6 +342,7 @@ pub use vehicle::{
     VEHICLE_SEAT_FLAG_CAN_SWITCH, VehicleAccessoryStoreLikeCpp, VehicleEntry, VehicleSeatEntry,
     VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
     vehicle_seat_flags_can_enter_or_exit_like_cpp,
+    vehicle_seat_flags_can_switch_from_seat_like_cpp,
 };
 pub use world_id_store::WorldIdStore;
 pub use world_safe_locs::{

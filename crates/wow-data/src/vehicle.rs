@@ -71,7 +71,7 @@ impl VehicleSeatEntry {
     }
 
     pub fn can_switch_from_seat_like_cpp(&self) -> bool {
-        self.has_flag(VEHICLE_SEAT_FLAG_CAN_SWITCH)
+        vehicle_seat_flags_can_switch_from_seat_like_cpp(self.flags)
     }
 
     pub fn is_ejectable_like_cpp(&self) -> bool {
@@ -90,6 +90,7 @@ impl VehicleSeatEntry {
             can_enter_or_exit: self.can_enter_or_exit_like_cpp(),
             usable_by_override: self.usable_by_override_like_cpp(),
             can_control: self.has_flag(VEHICLE_SEAT_FLAG_CAN_CONTROL),
+            can_switch_from_seat: self.can_switch_from_seat_like_cpp(),
             ejectable: self.is_ejectable_like_cpp(),
             disables_gravity: self.has_flag(VEHICLE_SEAT_FLAG_DISABLE_GRAVITY),
             passenger_not_selectable: self.has_flag(VEHICLE_SEAT_FLAG_PASSENGER_NOT_SELECTABLE),
@@ -104,6 +105,10 @@ pub fn vehicle_seat_flags_can_enter_or_exit_like_cpp(flags: i32) -> bool {
             | VEHICLE_SEAT_FLAG_CAN_CONTROL
             | VEHICLE_SEAT_FLAG_SHOULD_USE_VEH_SEAT_EXIT_ANIM_ON_VOLUNTARY_EXIT)
         != 0
+}
+
+pub fn vehicle_seat_flags_can_switch_from_seat_like_cpp(flags: i32) -> bool {
+    flags & VEHICLE_SEAT_FLAG_CAN_SWITCH != 0
 }
 
 pub struct VehicleStore {
@@ -571,8 +576,19 @@ mod tests {
         };
 
         assert!(switchable.can_switch_from_seat_like_cpp());
+        assert!(
+            switchable
+                .to_vehicle_seat_info_like_cpp()
+                .can_switch_from_seat
+        );
+        assert!(vehicle_seat_flags_can_switch_from_seat_like_cpp(
+            VEHICLE_SEAT_FLAG_CAN_SWITCH
+        ));
         assert!(!switchable.is_ejectable_like_cpp());
         assert!(!ejectable.can_switch_from_seat_like_cpp());
+        assert!(!vehicle_seat_flags_can_switch_from_seat_like_cpp(
+            VEHICLE_SEAT_FLAG_CAN_ATTACK
+        ));
         assert!(ejectable.is_ejectable_like_cpp());
     }
 

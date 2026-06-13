@@ -20149,6 +20149,11 @@ impl WorldSession {
         true
     }
 
+    pub(crate) fn represented_current_vehicle_seat_can_switch_from_like_cpp(&self) -> bool {
+        self.player_vehicle_seat_flags_like_cpp
+            .is_some_and(wow_data::vehicle_seat_flags_can_switch_from_seat_like_cpp)
+    }
+
     pub(crate) fn represented_eject_passenger_like_cpp(
         &mut self,
         passenger_guid: ObjectGuid,
@@ -48361,6 +48366,23 @@ mod tests {
     }
 
     #[test]
+    fn represented_current_vehicle_seat_switch_gate_matches_cpp() {
+        let (mut session, _, _) = make_session();
+
+        assert!(!session.represented_current_vehicle_seat_can_switch_from_like_cpp());
+
+        session.player_vehicle_seat_flags_like_cpp = Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK);
+        assert!(
+            !session.represented_current_vehicle_seat_can_switch_from_like_cpp(),
+            "C++ VehicleSeatEntry::CanSwitchFromSeat only checks VEHICLE_SEAT_FLAG_CAN_SWITCH"
+        );
+
+        session.player_vehicle_seat_flags_like_cpp =
+            Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK | wow_data::VEHICLE_SEAT_FLAG_CAN_SWITCH);
+        assert!(session.represented_current_vehicle_seat_can_switch_from_like_cpp());
+    }
+
+    #[test]
     fn represented_request_vehicle_exit_rejects_non_exit_seat_like_cpp() {
         let (mut session, _, _) = make_session();
         let guid = ObjectGuid::create_player(1, 51);
@@ -48405,6 +48427,7 @@ mod tests {
                     can_enter_or_exit: true,
                     usable_by_override: false,
                     can_control: false,
+                    can_switch_from_seat: false,
                     ejectable,
                     disables_gravity: false,
                     passenger_not_selectable: false,
