@@ -17951,6 +17951,9 @@ impl WorldSession {
             ClientOpcodes::SetAdvancedCombatLogging => {
                 self.handle_set_advanced_combat_logging(pkt).await;
             }
+            ClientOpcodes::SetAmmo => {
+                self.handle_set_ammo(pkt).await;
+            }
             ClientOpcodes::SaveCufProfiles => {
                 self.handle_save_cuf_profiles(pkt).await;
             }
