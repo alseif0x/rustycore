@@ -1,3 +1,13 @@
+- `#NEXT.R8.ENTITIES.837` - audit-fix/represented-complete for stale `CMSG_REPORT_ENABLED_ADDONS` inventory.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:803-806`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:813`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:556`.
+
+  Rust anchors: `crates/wow-world/src/handlers/misc.rs`; `crates/wow-world/src/session.rs`.
+
+  Acceptance: inventories no longer claim `CMSG_REPORT_ENABLED_ADDONS` is missing. C++ registers it as `STATUS_UNHANDLED`/`PROCESS_THREADUNSAFE`/`Handle_NULL`; Rust already registers an `Authed`/`ThreadUnsafe` handler, dispatches through `WorldSession`, consumes the packet, sends no response, and mutates no represented state.
+
+  Boundary: audit-fix for stale `STATUS_UNHANDLED`/`Handle_NULL` opcode inventory only; represented-complete for bounded no-response/no-state behavior. Rust does not mirror C++'s unhandled-opcode log line, and no live client/manual validation was performed in this slice.
+
 - `#NEXT.R8.ENTITIES.836` - audit-fix/represented-complete for stale `CMSG_GET_ACCOUNT_CHARACTER_LIST` and `CMSG_REPORT_CLIENT_VARIABLES` inventory.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:803-806`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:478,812`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:306,555`.
