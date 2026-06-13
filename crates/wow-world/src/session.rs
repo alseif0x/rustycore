@@ -25037,6 +25037,13 @@ impl WorldSession {
         accepted
     }
 
+    pub(crate) fn apply_move_set_vehicle_rec_id_ack_like_cpp(
+        &mut self,
+        ack: &mut wow_packet::packets::movement::MovementAck,
+    ) {
+        self.sanitize_movement_info_represented_like_cpp(&mut ack.status);
+    }
+
     pub(crate) fn record_apply_movement_force_ack_like_cpp(
         &mut self,
         ack: &mut wow_packet::packets::movement::MovementAck,

@@ -355,7 +355,7 @@ impl WorldSession {
             vehicle_rec_id = pkt.vehicle_rec_id,
             "MoveSetVehicleRecIdAck"
         );
-        self.record_validated_movement_ack_like_cpp(opcode, &mut pkt.data, None);
+        self.apply_move_set_vehicle_rec_id_ack_like_cpp(&mut pkt.data);
     }
 
     /// Handle C++ `HandleForceSpeedChangeAck` and movement-force magnitude ACKs.
@@ -1520,6 +1520,58 @@ mod tests {
         ));
         assert!(ack.status.flags.is_empty());
         assert!(session.movement_ack_events_like_cpp()[0].accepted);
+    }
+
+    #[test]
+    fn move_set_vehicle_rec_ack_only_sanitizes_status_like_cpp() {
+        let mut session = make_session();
+        let mut ack = wow_packet::packets::movement::MovementAck {
+            status: MovementInfo {
+                guid: ObjectGuid::create_player(1, 77),
+                flags: MovementFlag::HOVER | MovementFlag::WATER_WALK,
+                position: wow_core::Position::new(f32::NAN, 20.0, 30.0, 1.5),
+                ..MovementInfo::default()
+            },
+            ack_index: 77,
+        };
+
+        session.apply_move_set_vehicle_rec_id_ack_like_cpp(&mut ack);
+
+        assert!(
+            ack.status.flags.is_empty(),
+            "C++ Player::ValidateMovementInfo strips invalid flags for this ACK"
+        );
+        assert!(
+            session.movement_ack_events_like_cpp().is_empty(),
+            "C++ HandleMoveSetVehicleRecAck does not run the generic movement ACK path"
+        );
+    }
+
+    #[tokio::test]
+    async fn handle_move_set_vehicle_rec_ack_does_not_record_generic_ack_like_cpp() {
+        let mut session = make_session();
+        let guid = ObjectGuid::create_player(1, 78);
+        session.set_player_guid(Some(guid));
+
+        session
+            .handle_move_set_vehicle_rec_id_ack(
+                ClientOpcodes::MoveSetVehicleRecIdAck,
+                wow_packet::packets::vehicle::MoveSetVehicleRecIdAck {
+                    data: wow_packet::packets::movement::MovementAck {
+                        status: MovementInfo {
+                            guid: ObjectGuid::create_player(1, 79),
+                            flags: MovementFlag::HOVER | MovementFlag::WATER_WALK,
+                            position: wow_core::Position::new(f32::NAN, 20.0, 30.0, 1.5),
+                            ..MovementInfo::default()
+                        },
+                        ack_index: 79,
+                    },
+                    vehicle_rec_id: 123,
+                },
+            )
+            .await;
+
+        assert!(session.movement_ack_events_like_cpp().is_empty());
     }
 
     fn broadcast_info(
