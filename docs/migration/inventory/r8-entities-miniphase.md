@@ -1,3 +1,13 @@
+- `#NEXT.R8.ENTITIES.821` — represented-complete bridge closure for `PlayerData::PlayerTitle` update-field emission and `CMSG_SET_TITLE` canonical-player wiring.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Object/Updates/UpdateFields.h:400`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Object/Updates/UpdateFields.cpp:1802,1992,2112`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:2617`; `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:882-893`.
+
+  Rust anchors: `crates/wow-entities/src/player.rs`; `crates/wow-entities/src/lib.rs`; `crates/wow-world/src/entity_update_bridge.rs`; `crates/wow-world/src/handlers/misc.rs`; `crates/wow-world/src/session.rs`.
+
+  Acceptance: Rust entities now model `PLAYER_DATA_PLAYER_TITLE_BIT = 21`, store `PlayerDataValues::player_title`, expose `Player::set_chosen_title_like_cpp`, bridge changed player-title values into `PlayerDataUpdate.player_title` with the player-data mask bit set, and `CMSG_SET_TITLE` syncs accepted title changes into the canonical current player and emits the represented `UpdateObject` delta when that player exists.
+
+  Boundary: represented-complete for the bounded title update-field bridge and handler-to-current-player wiring; no character DB known-title load/save, no CharTitles DB2 reward integration, no install/restart, and no live client/manual validation.
+
 - `#NEXT.R8.ENTITIES.820` — represented-complete for bounded `CMSG_SET_INSERT_ITEMS_LEFT_TO_RIGHT` null/unhandled hook.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:803-806`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:898`.
@@ -103,7 +113,7 @@ Boundaries: represented current-session currency storage only; no live client/ma
   Rust targets: `crates/wow-packet/src/packets/character.rs`, `crates/wow-world/src/handlers/misc.rs`, `crates/wow-world/src/session.rs`, `docs/migration/current-session-handoff.md`, `docs/migration/inventory/r8-entities-miniphase.md`, `docs/migration/inventory/r8-entities-miniphase.tsv`, `docs/migration/inventory/cpp-client-handlers.tsv`, `docs/migration/inventory/r3-opcodes-registry.tsv`, `docs/migration/inventory/r3-opcodes-registry.md`.
   Acceptance: packet reads `int32 TitleID`; handler registers LoggedIn/Inplace and dispatches; positive titles require represented `KnownTitles` membership before mutating; non-positive titles clear to `0`; unknown positive titles leave the chosen title unchanged.
   Checks: `cargo fmt --all --check`; `cargo test -p wow-packet set_title --lib`; `cargo test -p wow-world set_title --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`; `git diff --check`.
-  Remaining gaps: represented session state only; no character DB known-title load/save, no CharTitles DB2 reward integration, no live PlayerData::PlayerTitle update-field fanout.
+  Remaining gaps: represented title knowledge is still session-local; no character DB known-title load/save and no CharTitles DB2 reward integration.
 - `#NEXT.R8.ENTITIES.809` — represented-complete for bounded `CMSG_SHOWING_HELM` and `CMSG_SHOWING_CLOAK`.
   Source-of-truth: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:1396-1403`.
   Rust targets: `crates/wow-world/src/handlers/misc.rs`, `crates/wow-world/src/session.rs`, `docs/migration/current-session-handoff.md`, `docs/migration/inventory/r8-entities-miniphase.md`, `docs/migration/inventory/r8-entities-miniphase.tsv`, `docs/migration/inventory/cpp-client-handlers.tsv`, `docs/migration/inventory/r3-opcodes-registry.tsv`, `docs/migration/inventory/r3-opcodes-registry.md`.

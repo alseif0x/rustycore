@@ -1729,6 +1729,17 @@ impl crate::session::WorldSession {
         }
 
         self.represented_set_chosen_title_like_cpp(packet.title_id);
+        if let Some(update) = self.set_canonical_chosen_title_like_cpp(packet.title_id) {
+            if let Some(player_guid) = self.player_guid() {
+                if let Some(packet) = player_values_update_to_update_object(
+                    player_guid,
+                    self.player_map_id_like_cpp(),
+                    &update,
+                ) {
+                    self.send_packet(&packet);
+                }
+            }
+        }
     }
 
     pub async fn handle_save_cuf_profiles(&mut self, mut pkt: wow_packet::WorldPacket) {
@@ -3544,6 +3555,45 @@ mod tests {
 
         assert_eq!(session.represented_chosen_title_like_cpp(), 0);
         assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn set_title_updates_canonical_player_title_field_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager_for_misc_test();
+        let player_guid = ObjectGuid::create_player(1, 57);
+        let player_position = Position::new(10.0, 0.0, 0.0, 0.0);
+
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.represented_learn_title_like_cpp(42);
+        add_canonical_test_player_on_map_for_misc_test(
+            &canonical,
+            player_guid,
+            player_position,
+            571,
+            0,
+        );
+        session.mutate_canonical_player_like_cpp(|player| player.clear_data_changes());
+
+        let mut request = WorldPacket::new_empty();
+        request.write_int32(42);
+        request.reset_read();
+        session.handle_set_title(request).await;
+
+        assert_eq!(session.represented_chosen_title_like_cpp(), 42);
+        assert_eq!(
+            session
+                .mutate_canonical_player_like_cpp(|player| player.data().player_title)
+                .unwrap(),
+            42
+        );
+        let update_packet = send_rx.try_recv().expect("PlayerTitle values update");
+        assert_eq!(
+            u16::from_le_bytes([update_packet[0], update_packet[1]]),
+            ServerOpcodes::UpdateObject as u16
+        );
     }
 
     #[tokio::test]

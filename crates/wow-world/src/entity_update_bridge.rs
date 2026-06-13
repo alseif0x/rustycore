@@ -334,6 +334,7 @@ fn copy_player_data_update(
     packet_update.player_flags_ex = update.values.player_flags_ex;
     packet_update.num_bank_slots = update.values.num_bank_slots;
     packet_update.native_sex = update.values.native_sex;
+    packet_update.player_title = update.values.player_title;
     packet_update.current_spec_id = update.values.current_spec_id;
     packet_update.current_battle_pet_breed_quality = update.values.current_battle_pet_breed_quality;
     packet_update.honor_level = update.values.honor_level;
@@ -901,10 +902,11 @@ mod tests {
         CorpseType, DYNAMIC_OBJECT_DATA_PARENT_BIT, DYNAMIC_OBJECT_DATA_RADIUS_BIT, DynamicObject,
         GAME_OBJECT_DATA_CREATED_BY_BIT, GAME_OBJECT_DATA_DISPLAY_ID_BIT,
         GAME_OBJECT_DATA_PARENT_BIT, GameObject, ITEM_DATA_STACK_COUNT_BIT, Item,
-        PLAYER_DATA_FLAGS_BIT, PLAYER_DATA_HONOR_LEVEL_BIT, PLAYER_DATA_PARENT_BIT, Player,
-        SCENE_OBJECT_DATA_PARENT_BIT, SCENE_OBJECT_DATA_SCRIPT_PACKAGE_ID_BIT, SceneObject,
-        UNIT_DATA_HEALTH_BIT, UNIT_DATA_PARENT_BIT, UNIT_DATA_STAND_STATE_BIT,
-        UNIT_DATA_VIRTUAL_ITEMS_FIRST_BIT, UNIT_DATA_VIRTUAL_ITEMS_PARENT_BIT, VisibleItemValues,
+        PLAYER_DATA_FLAGS_BIT, PLAYER_DATA_HONOR_LEVEL_BIT, PLAYER_DATA_PARENT_BIT,
+        PLAYER_DATA_PLAYER_TITLE_BIT, Player, SCENE_OBJECT_DATA_PARENT_BIT,
+        SCENE_OBJECT_DATA_SCRIPT_PACKAGE_ID_BIT, SceneObject, UNIT_DATA_HEALTH_BIT,
+        UNIT_DATA_PARENT_BIT, UNIT_DATA_STAND_STATE_BIT, UNIT_DATA_VIRTUAL_ITEMS_FIRST_BIT,
+        UNIT_DATA_VIRTUAL_ITEMS_PARENT_BIT, VisibleItemValues,
     };
     use wow_packet::ServerPacket;
 
@@ -988,6 +990,28 @@ mod tests {
         ));
         assert_eq!(active.honor, 1_234);
         assert_eq!(active.honor_next_level, 8_800);
+    }
+
+    #[test]
+    fn bridges_player_title_update_from_entity_mask_like_cpp() {
+        let mut player = Player::new(Some(7), true);
+        player.clear_data_changes();
+
+        player.set_chosen_title_like_cpp(42);
+
+        let update = player.values_update(true);
+        let packet_update = player_values_update_to_packet(&update).unwrap();
+
+        assert!(mask_has(
+            &packet_update.player_data_mask,
+            PLAYER_DATA_PARENT_BIT
+        ));
+        assert!(mask_has(
+            &packet_update.player_data_mask,
+            PLAYER_DATA_PLAYER_TITLE_BIT
+        ));
+        assert_eq!(packet_update.player_title, 42);
+        assert!(packet_update.active_player_data.is_none());
     }
 
     #[test]

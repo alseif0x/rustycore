@@ -4544,6 +4544,16 @@ impl WorldSession {
         self.mutate_canonical_player_by_guid_like_cpp(guid, f)
     }
 
+    pub(crate) fn set_canonical_chosen_title_like_cpp(
+        &mut self,
+        title_id: i32,
+    ) -> Option<wow_entities::PlayerValuesUpdate> {
+        self.mutate_canonical_player_like_cpp(|player| {
+            player.set_chosen_title_like_cpp(title_id);
+            player.values_update(true)
+        })
+    }
+
     pub(crate) fn mutate_canonical_player_by_guid_like_cpp<R>(
         &mut self,
         guid: ObjectGuid,

@@ -667,6 +667,7 @@ pub const PLAYER_DATA_FLAGS_BIT: usize = 7;
 pub const PLAYER_DATA_FLAGS_EX_BIT: usize = 8;
 pub const PLAYER_DATA_NUM_BANK_SLOTS_BIT: usize = 12;
 pub const PLAYER_DATA_NATIVE_SEX_BIT: usize = 13;
+pub const PLAYER_DATA_PLAYER_TITLE_BIT: usize = 21;
 pub const PLAYER_DATA_CURRENT_SPEC_ID_BIT: usize = 24;
 pub const PLAYER_DATA_CURRENT_BATTLE_PET_BREED_QUALITY_BIT: usize = 26;
 pub const PLAYER_DATA_HONOR_LEVEL_BIT: usize = 27;
@@ -2718,6 +2719,7 @@ pub struct PlayerDataValues {
     pub player_flags_ex: u32,
     pub num_bank_slots: u8,
     pub native_sex: u8,
+    pub player_title: i32,
     pub current_spec_id: u32,
     pub current_battle_pet_breed_quality: u8,
     pub honor_level: i32,
@@ -2732,6 +2734,7 @@ impl Default for PlayerDataValues {
             player_flags_ex: 0,
             num_bank_slots: 0,
             native_sex: Gender::Male as u8,
+            player_title: 0,
             current_spec_id: 0,
             current_battle_pet_breed_quality: 0,
             honor_level: 0,
@@ -3322,6 +3325,12 @@ impl Player {
     pub fn set_honor_level_like_cpp(&mut self, level: i32) {
         self.set_player_i32(PLAYER_DATA_HONOR_LEVEL_BIT, level, |data| {
             &mut data.honor_level
+        });
+    }
+
+    pub fn set_chosen_title_like_cpp(&mut self, title_id: i32) {
+        self.set_player_i32(PLAYER_DATA_PLAYER_TITLE_BIT, title_id, |data| {
+            &mut data.player_title
         });
     }
 
