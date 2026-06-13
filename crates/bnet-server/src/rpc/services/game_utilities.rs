@@ -339,8 +339,7 @@ async fn handle_get_all_values_for_attribute<S: AsyncRead + AsyncWrite + Unpin>(
     let request = GetAllValuesForAttributeRequest::decode(payload)?;
 
     let key = request.attribute_key.as_deref().unwrap_or("");
-
-    if key.contains("Command_RealmListRequest_v1") {
+    if should_write_sub_regions_like_cpp(session.authed, key)? {
         let realm_mgr = session.state().realm_mgr.read();
         let values = realm_mgr.write_sub_regions_like_cpp();
 
@@ -353,6 +352,14 @@ async fn handle_get_all_values_for_attribute<S: AsyncRead + AsyncWrite + Unpin>(
             GetAllValuesForAttributeResponse::default().encode_to_vec(),
         ))
     }
+}
+
+fn should_write_sub_regions_like_cpp(authed: bool, attribute_key: &str) -> Result<bool> {
+    if !authed {
+        return Err(RpcStatusError::new(status::ERROR_DENIED).into());
+    }
+
+    Ok(attribute_key.starts_with("Command_RealmListRequest_v1"))
 }
 
 // ── Locale conversion ─────────────────────────────────────────────────────
@@ -529,7 +536,9 @@ mod tests {
         last_char_played_response_attributes_like_cpp,
         parse_realm_list_ticket_client_secret_like_cpp,
         parse_realm_list_ticket_game_account_id_like_cpp, selected_game_account_like_cpp,
+        should_write_sub_regions_like_cpp,
     };
+    use crate::rpc::session::RpcStatusError;
     use crate::state::{AccountInfo, GameAccountInfo, LastPlayedCharInfo};
     use std::collections::HashMap;
     use wow_database::{PreparedStatement, SqlParam};
@@ -639,6 +648,7 @@ mod tests {
 
     #[test]
     fn realm_utility_status_constants_match_cpp() {
+        assert_eq!(status::ERROR_DENIED, 3);
         assert_eq!(status::ERROR_UTIL_SERVER_UNKNOWN_REALM, 0x8000_0069);
         assert_eq!(status::ERROR_UTIL_SERVER_INVALID_IDENTITY_ARGS, 0x8000_006E);
         assert_eq!(
@@ -655,6 +665,25 @@ mod tests {
             status::ERROR_WOW_SERVICES_DENIED_REALM_LIST_TICKET,
             0x8000_0132
         );
+    }
+
+    #[test]
+    fn get_all_values_for_attribute_auth_and_prefix_match_cpp() {
+        assert!(should_write_sub_regions_like_cpp(true, "Command_RealmListRequest_v1").unwrap());
+        assert!(
+            should_write_sub_regions_like_cpp(true, "Command_RealmListRequest_v1_wotlk1").unwrap()
+        );
+        assert!(
+            !should_write_sub_regions_like_cpp(true, "Other_Command_RealmListRequest_v1").unwrap()
+        );
+        assert!(!should_write_sub_regions_like_cpp(true, "Command_Other_v1").unwrap());
+
+        let err = should_write_sub_regions_like_cpp(false, "Command_RealmListRequest_v1")
+            .expect_err("unauthenticated requests must be denied like C++");
+        let status = err
+            .downcast_ref::<RpcStatusError>()
+            .expect("expected RpcStatusError");
+        assert_eq!(status.status(), status::ERROR_DENIED);
     }
 
     #[test]
