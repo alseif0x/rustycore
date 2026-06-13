@@ -2719,6 +2719,11 @@ async fn main() -> Result<ExitCode> {
     );
 
     set_realm_online(&login_db, realm_id).await?;
+    let startup_script_summary = wow_scripts::lifecycle::on_startup().await;
+    info!(
+        callbacks = startup_script_summary.callbacks,
+        "Ran ScriptMgr::OnStartup-style lifecycle hooks"
+    );
 
     // Wait for shutdown signal
     tokio::select! {
@@ -2844,6 +2849,12 @@ async fn main() -> Result<ExitCode> {
     if let Err(e) = clear_online_accounts_like_cpp(&login_db, char_db.as_ref(), realm_id).await {
         tracing::error!("Failed to clear online account state for realm {realm_id}: {e}");
     }
+
+    let shutdown_script_summary = wow_scripts::lifecycle::on_shutdown().await;
+    info!(
+        callbacks = shutdown_script_summary.callbacks,
+        "Ran ScriptMgr::OnShutdown-style lifecycle hooks"
+    );
 
     if let Err(e) = set_realm_offline(&login_db, realm_id).await {
         tracing::error!("Failed to mark realm {realm_id} offline: {e}");

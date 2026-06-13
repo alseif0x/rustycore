@@ -31,3 +31,4 @@ wow-constants = { workspace = true }
 wow-crypto = { workspace = true }
 wow-entities = { workspace = true }
 wow-map = { workspace = true }
+wow-scripts = { workspace = true }

@@ -9,3 +9,6 @@ license.workspace = true
 wow-script = { workspace = true }
 wow-core = { workspace = true }
 wow-constants = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }

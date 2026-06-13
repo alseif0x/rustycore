@@ -243,7 +243,7 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
 - **`LoadRealmInfo`** equivalent: only loads gamebuild/seed/addresses; doesn't populate a global `realm` struct equivalent — addresses are passed via `SessionResources`.
 - **`sRealmList->Initialize(io, RealmsStateUpdateDelay)`** background refresh of cross-realm registry: missing. (Single-realm setups don't notice; multi-realm wouldn't work.)
 - **`sMetric->Initialize`** — no metrics subsystem.
-- **`sScriptMgr->OnStartup() / OnShutdown()`** hooks: missing (the wow-script dispatch infrastructure exists but startup hook isn't wired).
+- **`sScriptMgr->OnStartup() / OnShutdown()`** hooks: partial — `world-server` now calls the minimal `wow_scripts::lifecycle` dispatch points in the C++ startup/shutdown order, but the concrete script loader/families are still missing.
 - **`Trinity::Asio::DeadlineTimer`-driven periodic tasks**: none of TC's housekeeping timers are present (DB ping, metric tick, script reload check).
 - **CLI thread (`CliThread`)** reading from stdin and dispatching `.commands`: missing. There's no GM console.
 - **Remote Access (`Ra.Enable`, port 3443)**: missing.
@@ -342,7 +342,8 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
 - [ ] **#WS.11** Wire `wow_account::secrets::initialize(SecretOwner::WorldServer).await` (depends on `accounts.md` #ACC.6 / new SecretMgr port). (M)
 - [ ] **#WS.12** Wire `sRealmList`-equivalent background refresh (`RealmsStateUpdateDelay`): polls `realmlist` periodically, updates an in-memory `Arc<RwLock<Vec<RealmEntry>>>`. Needed once RustyCore supports more than one realm row. (M)
 - [ ] **#WS.13** Implement `sMetric` equivalent: emit `online_players`, `db_queue_*` to an OpenTelemetry / Prometheus exporter. (M)
-- [ ] **#WS.14** Implement `sScriptMgr->on_startup()` / `on_shutdown()` hooks. (L)
+- [x] **#WS.14a** Wire `sScriptMgr->OnStartup()` / `OnShutdown()` dispatch points through `wow_scripts::lifecycle` in the C++ worldserver order. (L)
+- [ ] **#WS.14b** Port the real `SetScriptLoader(AddScripts)` content registration and lifecycle script families. (XL)
 - [ ] **#WS.15** Implement clean shutdown: kick all sessions (send `SMSG_LOGOUT_RESPONSE` then drop), wait up to N seconds for character saves, close listeners, drop registries, close DBs, set realm OFFLINE. (H)
 - [x] **#WS.16** CLI args: `--config`, `--config-dir`, `--update-databases-only`, `--version`, `--help`; implemented without a new dependency, mirroring C++ `allow_unregistered()` behavior by ignoring unknown options. (L)
 - [x] **#WS.17** PID file (`PidFile` config): writes `std::process::id()` before DB/network startup and fails startup if the file cannot be created.
@@ -443,7 +444,7 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
 | `void TCSoapThread(host, port)` | (recommend dropping) | If kept: `axum` server with a SOAP-XML handler. |
 | `void CliThread()` | `tokio::task::spawn_blocking(stdin_reader)` + a `tokio::sync::mpsc` channel | Don't `.await` blocking stdin in async code. |
 | `sWorld->SetInitialWorldSettings()` | The accumulation of all `*Store::load(...)` calls + handler-table build | Lives in `world.md` — already partly done. |
-| `sScriptMgr->OnStartup() / OnShutdown()` | `wow_scripts::lifecycle::{on_startup, on_shutdown}().await` | Both currently no-ops. |
+| `sScriptMgr->OnStartup() / OnShutdown()` | `wow_scripts::lifecycle::{on_startup, on_shutdown}().await` | Hook dispatch points are wired through a minimal `wow-script` inventory registry; concrete content scripts and `SetScriptLoader(AddScripts)` parity are still pending. |
 | `sMetric->Initialize(realmName, io, lambda)` | `wow_metric::initialize(realm_name, ||{ emit_periodic() })` (TODO crate) | — |
 | `Trinity::Net::ScanLocalNetworks()` | `wow_network::scan_local_networks()` (TODO; only `/24` heuristic right now) | — |
 | `LoginDatabase.DirectPExecute("UPDATE realmlist ...", flag, realmId)` | `login_db.direct_execute(&format!("UPDATE realmlist SET ... WHERE id = {realm_id}"))?` | Already used in `load_realm_addresses`. |
@@ -513,7 +514,7 @@ Otherwise the boot sequence is largely on-parity for what's implemented (4 DB po
 | `sRealmList->Initialize(io, RealmsStateUpdateDelay)` background refresh | — | ❌ missing (#WS.12) |
 | `LoadRealmInfo()` | `load_realm_auth_seed` + `load_realm_addresses` (lines 530, 728) | ⚠️ partial (no global `realm` struct) |
 | `sMetric->Initialize(realmName, io, lambda)` | — | ❌ missing (#WS.13) |
-| `sScriptMgr->SetScriptLoader(AddScripts)` | — | ❌ missing (script registration is implicit but `OnStartup`/`OnShutdown` hooks aren't called) |
+| `sScriptMgr->SetScriptLoader(AddScripts)` | `wow-scripts` linked as the content-script crate | ⚠️ partial: lifecycle inventory hooks are callable, but the real AddScripts loader and script families are not ported |
 | `sSecretMgr->Initialize(SECRET_OWNER_WORLDSERVER)` | — | ❌ missing (#WS.11) |
 | `sWorld->SetInitialWorldSettings()` (the big one) | scattered: `ItemStore::load`, `PlayerStatsStore::load`, `ItemStatsStore::load`, `build_hotfix_blob_cache`, `SkillStore::load`, `SpellStore::load`, `load_area_triggers`, `quest::load_quests`, `QuestXpStore::load` (lines 302-388) | ⚠️ partial (covered by `world.md`) |
 | `if (Ra.Enable) StartRaSocketAcceptor(io)` | — | ❌ missing (#WS.9) |
@@ -521,7 +522,7 @@ Otherwise the boot sequence is largely on-parity for what's implemented (4 DB po
 | `sWorldSocketMgr.StartWorldNetwork(io, ip, worldPort, instancePort, networkThreads)` | `start_world_listener(realm_addr, ...)` + `start_instance_listener(instance_addr, ...)` (lines 473-505) | ✅ functional equivalence |
 | `UPDATE realmlist SET flag &= ~OFFLINE` after listener | `set_realm_online(&login_db, realm_id)` after listeners/runtime tasks are spawned | ✅ |
 | `if (MaxCoreStuckTime > 0) FreezeDetector::Start(...)` | direct `MaxCoreStuckTime` getter + `FreezeDetectorLikeCpp` poll contract exist, but no task is spawned | ⚠️ waiting for production `WorldUpdateLoop` counter |
-| `sScriptMgr->OnStartup()` | — | ❌ missing (#WS.14) |
+| `sScriptMgr->OnStartup()` | `wow_scripts::lifecycle::on_startup().await` after `set_realm_online` | ⚠️ partial (#WS.14): dispatch point exists; concrete scripts still missing |
 | `if (Console.Enable) std::thread(CliThread)` | — | ❌ missing (#WS.8) |
 | `WorldUpdateLoop()` (the meat) | partial: `world_update_loop_step_like_cpp` mirrors counter/sleep/update timing; runtime still uses per-session loop for packet/session work, canonical map loop and optional gated legacy creature runtime loop | ⚠️ partial; full top-level `World::Update` owner still missing |
 
@@ -538,7 +539,7 @@ Otherwise the boot sequence is largely on-parity for what's implemented (4 DB po
 | `ioContextStopHandle.reset()` | — | ✅ implicit (Tokio runtime drops) |
 | `threadPool.reset()` | — | ✅ implicit |
 | `sLog->SetSynchronous()` | — | ⚠️ tracing flush not explicit |
-| `sScriptMgr->OnShutdown()` | — | ❌ missing (#WS.14) |
+| `sScriptMgr->OnShutdown()` | `wow_scripts::lifecycle::on_shutdown().await` before `set_realm_offline` | ⚠️ partial (#WS.14): dispatch point exists; concrete scripts still missing |
 | `UPDATE realmlist SET flag\|=OFFLINE` on exit | `set_realm_offline(&login_db, realm_id)` in the shared shutdown branch | ✅ |
 | `BattlegroundMgr::DeleteAllBattlegrounds → OutdoorPvPMgr::Die → MapMgr::UnloadAll → TerrainMgr::UnloadAll → InstanceLockMgr::Unload` | only partial `MapManager` exists; rest missing | ❌ missing |
 | `return World::GetExitCode()` | `WorldRuntimeStateLikeCpp` stores the exit code and `main` returns it as `std::process::ExitCode`; critical task failure paths set `ERROR_EXIT_CODE` | ✅ shutdown/error paths return stored code |
