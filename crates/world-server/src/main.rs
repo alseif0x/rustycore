@@ -23,6 +23,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result, bail};
 use tokio::sync::Notify;
+use tokio::task::AbortHandle;
 use tracing::{debug, info, warn};
 use wow_config::{DatabaseInfo, LoadReport, WorldConfigSet};
 use wow_core::{ObjectGuid, ObjectGuidGenerator, guid::HighGuid};
@@ -2647,6 +2648,8 @@ async fn main() -> Result<ExitCode> {
                 .context("Instance listener error")
         }
     });
+    let realm_network_abort_handle = realm_handle.abort_handle();
+    let instance_network_abort_handle = instance_handle.abort_handle();
 
     let map_update_interval_ms = world_config_u32(&world_configs, "CONFIG_INTERVAL_MAPUPDATE", 10)
         .max(wow_map::MIN_MAP_UPDATE_DELAY_MS);
@@ -2823,6 +2826,14 @@ async fn main() -> Result<ExitCode> {
         drained = sessions_drained,
         remaining = active_session_registry.len_like_cpp(),
         "Waited for task-owned sessions to unregister after shutdown flush"
+    );
+    let network_stop_summary = stop_world_network_like_cpp([
+        ("realm", &realm_network_abort_handle),
+        ("instance", &instance_network_abort_handle),
+    ]);
+    info!(
+        listeners = network_stop_summary.listeners,
+        "Stopped world network listeners like C++ WorldSocketMgr::StopNetwork"
     );
 
     game_event_quest_complete_handle.abort();
@@ -3100,6 +3111,13 @@ struct UpdateSessionsShutdownFlushSummaryLikeCpp {
     pub disconnecting: usize,
 }
 
+/// Summary returned by [`stop_world_network_like_cpp`].
+#[derive(Debug, Default, PartialEq, Eq)]
+struct StopWorldNetworkSummaryLikeCpp {
+    /// Listener tasks explicitly stopped.
+    pub listeners: usize,
+}
+
 /// Queue a C++ `World::KickAll`-style kick for every active Rust session.
 ///
 /// C++ anchor:
@@ -3213,6 +3231,28 @@ async fn update_sessions_shutdown_flush_once_like_cpp(
                 );
             }
         }
+    }
+
+    summary
+}
+
+/// Stop the realm and instance TCP accept loops like C++ `WorldSocketMgr::StopNetwork`.
+///
+/// C++ anchor:
+/// `/home/server/woltk-trinity-legacy/src/server/worldserver/Main.cpp:393`
+/// calls `sWorldSocketMgr.StopNetwork()` after `KickAll` and
+/// `UpdateSessions(1)` but before `ClearOnlineAccounts()`. Rust listener loops
+/// are Tokio tasks around `TcpListener::accept`; aborting their handles closes
+/// the listeners and prevents new accepts during shutdown.
+fn stop_world_network_like_cpp<'a>(
+    listeners: impl IntoIterator<Item = (&'a str, &'a AbortHandle)>,
+) -> StopWorldNetworkSummaryLikeCpp {
+    let mut summary = StopWorldNetworkSummaryLikeCpp::default();
+
+    for (name, handle) in listeners {
+        handle.abort();
+        summary.listeners = summary.listeners.saturating_add(1);
+        debug!(listener = name, "Stopped world network listener");
     }
 
     summary
@@ -9549,7 +9589,7 @@ fn spawn_legacy_creature_runtime_update_loop_like_cpp(
 mod tests {
     use super::{
         ActiveWorldSessionRegistryLikeCpp, KickAllSessionsSummaryLikeCpp,
-        UpdateSessionsShutdownFlushSummaryLikeCpp,
+        StopWorldNetworkSummaryLikeCpp, UpdateSessionsShutdownFlushSummaryLikeCpp,
     };
     use super::{
         CanonicalGameEventSchedulerLikeCpp, CanonicalRespawnConditionSchedulerLikeCpp,
@@ -9606,13 +9646,14 @@ mod tests {
         run_legacy_creature_movement_tick_and_deliver_once_like_cpp,
         run_legacy_creature_runtime_tick_and_deliver_once_like_cpp, set_realm_offline_sql_like_cpp,
         set_realm_online_sql_like_cpp, spawn_legacy_creature_runtime_update_loop_like_cpp,
-        spawn_store_loader, update_sessions_shutdown_flush_once_like_cpp,
-        updates_auto_setup_enabled_like_cpp, updates_database_mask_like_cpp,
-        updates_enabled_for_database_like_cpp, world_config_bool, world_config_u8,
-        world_config_u16, world_config_u32, world_db_core_version_update_sql_like_cpp,
-        world_db_version_matches_required_like_cpp, world_db_version_mismatch_message_like_cpp,
-        world_update_loop_step_like_cpp, worldserver_cli_help_like_cpp,
-        worldserver_full_version_like_cpp, worldserver_revision_like_cpp,
+        spawn_store_loader, stop_world_network_like_cpp,
+        update_sessions_shutdown_flush_once_like_cpp, updates_auto_setup_enabled_like_cpp,
+        updates_database_mask_like_cpp, updates_enabled_for_database_like_cpp, world_config_bool,
+        world_config_u8, world_config_u16, world_config_u32,
+        world_db_core_version_update_sql_like_cpp, world_db_version_matches_required_like_cpp,
+        world_db_version_mismatch_message_like_cpp, world_update_loop_step_like_cpp,
+        worldserver_cli_help_like_cpp, worldserver_full_version_like_cpp,
+        worldserver_revision_like_cpp,
     };
     use std::collections::{BTreeMap, HashSet};
     use std::env;
@@ -9932,6 +9973,36 @@ mod tests {
                 ack_timeout: 1,
                 disconnecting: 0,
             }
+        );
+    }
+
+    #[tokio::test]
+    async fn stop_world_network_aborts_realm_and_instance_listeners_like_cpp() {
+        let realm_task = tokio::spawn(async {
+            std::future::pending::<()>().await;
+        });
+        let instance_task = tokio::spawn(async {
+            std::future::pending::<()>().await;
+        });
+        let realm_abort = realm_task.abort_handle();
+        let instance_abort = instance_task.abort_handle();
+
+        assert_eq!(
+            stop_world_network_like_cpp([("realm", &realm_abort), ("instance", &instance_abort)]),
+            StopWorldNetworkSummaryLikeCpp { listeners: 2 }
+        );
+
+        assert!(
+            realm_task
+                .await
+                .expect_err("realm listener aborted")
+                .is_cancelled()
+        );
+        assert!(
+            instance_task
+                .await
+                .expect_err("instance listener aborted")
+                .is_cancelled()
         );
     }
 
