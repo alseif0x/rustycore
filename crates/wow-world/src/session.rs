@@ -17954,6 +17954,12 @@ impl WorldSession {
             ClientOpcodes::SetAmmo => {
                 self.handle_set_ammo(pkt).await;
             }
+            ClientOpcodes::ShowingHelm => {
+                self.handle_showing_helm(pkt).await;
+            }
+            ClientOpcodes::ShowingCloak => {
+                self.handle_showing_cloak(pkt).await;
+            }
             ClientOpcodes::SaveCufProfiles => {
                 self.handle_save_cuf_profiles(pkt).await;
             }

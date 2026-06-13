@@ -1,3 +1,9 @@
+- `#NEXT.R8.ENTITIES.809` — represented-complete for bounded `CMSG_SHOWING_HELM` and `CMSG_SHOWING_CLOAK`.
+  Source-of-truth: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:1396-1403`.
+  Rust targets: `crates/wow-world/src/handlers/misc.rs`, `crates/wow-world/src/session.rs`, `docs/migration/current-session-handoff.md`, `docs/migration/inventory/r8-entities-miniphase.md`, `docs/migration/inventory/r8-entities-miniphase.tsv`, `docs/migration/inventory/cpp-client-handlers.tsv`, `docs/migration/inventory/r3-opcodes-registry.tsv`, `docs/migration/inventory/r3-opcodes-registry.md`.
+  Acceptance: both handlers register LoggedIn/ThreadUnsafe and dispatch; Rust consumes each packet without mutation and without packet output, matching the C++ debug-only `WorldPackets::Null` behavior.
+  Checks: `cargo fmt --all --check`; `cargo test -p wow-world showing_helm_and_cloak --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`; `git diff --check`.
+  Remaining gaps: none for these bounded debug-only handlers; no helm/cloak visual state is invented because the C++ handlers have none.
 - `#NEXT.R8.ENTITIES.808` — represented-complete for bounded `CMSG_SET_AMMO`.
   Source-of-truth: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:1406-1409`.
   Rust targets: `crates/wow-world/src/handlers/misc.rs`, `crates/wow-world/src/session.rs`, `docs/migration/current-session-handoff.md`, `docs/migration/inventory/r8-entities-miniphase.md`, `docs/migration/inventory/r8-entities-miniphase.tsv`, `docs/migration/inventory/cpp-client-handlers.tsv`, `docs/migration/inventory/r3-opcodes-registry.tsv`, `docs/migration/inventory/r3-opcodes-registry.md`.

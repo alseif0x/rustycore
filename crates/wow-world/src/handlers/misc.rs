@@ -387,6 +387,24 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
+        opcode: ClientOpcodes::ShowingHelm,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_showing_helm",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::ShowingCloak,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_showing_cloak",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
         opcode: ClientOpcodes::SaveCufProfiles,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
@@ -1585,6 +1603,14 @@ impl crate::session::WorldSession {
 
     pub async fn handle_set_ammo(&mut self, _pkt: wow_packet::WorldPacket) {
         // C++ `HandleSetAmmoOpcode(WorldPackets::Null&)` only logs the request.
+    }
+
+    pub async fn handle_showing_helm(&mut self, _pkt: wow_packet::WorldPacket) {
+        // C++ `HandleShowingHelmOpcode(WorldPackets::Null&)` only logs the request.
+    }
+
+    pub async fn handle_showing_cloak(&mut self, _pkt: wow_packet::WorldPacket) {
+        // C++ `HandleShowingCloakOpcode(WorldPackets::Null&)` only logs the request.
     }
 
     pub async fn handle_save_cuf_profiles(&mut self, mut pkt: wow_packet::WorldPacket) {
@@ -3194,6 +3220,16 @@ mod tests {
         let (mut session, send_rx) = make_session();
 
         session.handle_set_ammo(WorldPacket::new_empty()).await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn showing_helm_and_cloak_are_silent_like_cpp_debug_only_handlers() {
+        let (mut session, send_rx) = make_session();
+
+        session.handle_showing_helm(WorldPacket::new_empty()).await;
+        session.handle_showing_cloak(WorldPacket::new_empty()).await;
 
         assert!(send_rx.try_recv().is_err());
     }
