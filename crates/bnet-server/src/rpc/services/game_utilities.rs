@@ -3,7 +3,7 @@
 use anyhow::{Result, bail};
 use prost::Message;
 use std::collections::HashMap;
-use wow_database::LoginStatements;
+use wow_database::{LoginStatements, PreparedStatement};
 use wow_proto::bgs::protocol::game_utilities::v1::*;
 use wow_proto::bgs::protocol::{Attribute, Variant};
 use wow_proto::status;
@@ -340,17 +340,20 @@ async fn join_realm<S: AsyncRead + AsyncWrite + Unpin>(
         .unwrap_or_default();
 
     let locale_id = locale_string_to_id(&session.locale);
+    let login_info_update = JoinRealmLoginInfoUpdateLikeCpp {
+        key_data: combined,
+        client_ip: session.addr().ip().to_string(),
+        locale: locale_id,
+        os: session.os.clone(),
+        timezone_offset: session.timezone_offset as i16,
+        account_name: ga_username.clone(),
+    };
 
     let mut stmt = session
         .state()
         .login_db
         .prepare(LoginStatements::UPD_BNET_GAME_ACCOUNT_LOGIN_INFO);
-    stmt.set_bytes(0, combined);
-    stmt.set_string(1, &session.addr().ip().to_string());
-    stmt.set_u8(2, locale_id);
-    stmt.set_string(3, &session.os);
-    stmt.set_i16(4, session.timezone_offset as i16);
-    stmt.set_string(5, &ga_username);
+    apply_join_realm_login_info_update_like_cpp(&mut stmt, &login_info_update);
     let _ = session.state().login_db.execute(&stmt).await;
 
     // Build response — ticket is game account name (e.g. "2#1"), sent as blob (matching C#)
@@ -422,6 +425,28 @@ fn bnet_session_key_data_like_cpp(client_secret: &[u8], server_secret: &[u8]) ->
     Some(key_data)
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct JoinRealmLoginInfoUpdateLikeCpp {
+    key_data: Vec<u8>,
+    client_ip: String,
+    locale: u8,
+    os: String,
+    timezone_offset: i16,
+    account_name: String,
+}
+
+fn apply_join_realm_login_info_update_like_cpp(
+    stmt: &mut PreparedStatement,
+    update: &JoinRealmLoginInfoUpdateLikeCpp,
+) {
+    stmt.set_bytes(0, update.key_data.clone());
+    stmt.set_string(1, &update.client_ip);
+    stmt.set_u8(2, update.locale);
+    stmt.set_string(3, &update.os);
+    stmt.set_i16(4, update.timezone_offset);
+    stmt.set_string(5, &update.account_name);
+}
+
 fn join_realm_response_attributes_like_cpp(
     account_name: &str,
     server_addresses: &[u8],
@@ -468,7 +493,11 @@ fn make_uint_attribute(name: &str, value: u64) -> Attribute {
 
 #[cfg(test)]
 mod tests {
-    use super::{bnet_session_key_data_like_cpp, join_realm_response_attributes_like_cpp};
+    use super::{
+        JoinRealmLoginInfoUpdateLikeCpp, apply_join_realm_login_info_update_like_cpp,
+        bnet_session_key_data_like_cpp, join_realm_response_attributes_like_cpp,
+    };
+    use wow_database::{PreparedStatement, SqlParam};
 
     #[test]
     fn bnet_session_key_data_is_raw_client_then_server_secret_like_cpp() {
@@ -486,6 +515,35 @@ mod tests {
     fn bnet_session_key_data_rejects_non_32_byte_secrets_like_cpp_array_contract() {
         assert!(bnet_session_key_data_like_cpp(&[0; 31], &[1; 32]).is_none());
         assert!(bnet_session_key_data_like_cpp(&[0; 32], &[1; 31]).is_none());
+    }
+
+    #[test]
+    fn join_realm_login_info_update_binds_cpp_statement_params_in_order() {
+        let update = JoinRealmLoginInfoUpdateLikeCpp {
+            key_data: (0..64).collect(),
+            client_ip: "203.0.113.44".to_string(),
+            locale: 6,
+            os: "Win".to_string(),
+            timezone_offset: -60,
+            account_name: "2#1".to_string(),
+        };
+
+        let mut stmt = PreparedStatement::with_capacity_like_cpp(
+            "UPDATE account SET session_key_bnet = ?, last_ip = ?, locale = ?, os = ?, timezone_offset = ? WHERE username = ?",
+            6,
+        );
+        apply_join_realm_login_info_update_like_cpp(&mut stmt, &update);
+
+        assert_eq!(stmt.params().len(), 6);
+        assert_eq!(stmt.params()[0], SqlParam::Bytes((0..64).collect()));
+        assert_eq!(
+            stmt.params()[1],
+            SqlParam::String("203.0.113.44".to_string())
+        );
+        assert_eq!(stmt.params()[2], SqlParam::U8(6));
+        assert_eq!(stmt.params()[3], SqlParam::String("Win".to_string()));
+        assert_eq!(stmt.params()[4], SqlParam::I16(-60));
+        assert_eq!(stmt.params()[5], SqlParam::String("2#1".to_string()));
     }
 
     #[test]

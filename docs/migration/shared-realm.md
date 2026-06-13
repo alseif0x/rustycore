@@ -157,13 +157,14 @@ Y para realm list updates:
 - `RealmManager::write_sub_regions_like_cpp` emite `Variant.string_value` por cada sub-region, igual que C++ `RealmList::WriteSubRegions`.
 - `RealmManager::prepare_join_realm_like_cpp` posee la parte realm-owned de `RealmList::JoinRealm`: lookup por packed address, rechazo offline/build mismatch y payload comprimido `JSONRealmListServerIPAddresses`.
 - `game_utilities::join_realm_response_attributes_like_cpp` emite los tres atributos C++ de JoinRealm en orden: `Param_RealmJoinTicket`, `Param_ServerAddresses`, `Param_JoinSecret`.
+- `JoinRealmLoginInfoUpdateLikeCpp` + `apply_join_realm_login_info_update_like_cpp` aíslan los seis binds de `LOGIN_UPD_BNET_GAME_ACCOUNT_LOGIN_INFO` en el mismo orden/tipo que C++: keyData, IP, locale, OS, timezone offset y accountName.
 - `authentication` guarda `char_counts` y `last_played_chars.realm_address` con packed `RealmHandle::GetAddress()`, como C++ `Battlenet::Session`.
 - `get_minor_major_bugfix_version_for_build_like_cpp` replica `RealmList::GetMinorMajorBugfixVersionForBuild` con semántica `lower_bound`.
 - `get_realm_entry_json_like_cpp` genera `JamJSONRealmEntry` para `LastCharPlayed`, devuelve vacío si el realm está offline o el build no coincide, y ya no confunde ese payload con `JSONRealmListServerIPAddresses`.
 - `RealmManager.realms` usa `RealmHandleLikeCpp` como clave, con `Hash`/`Eq` por `realm` solamente para reflejar el contrato C++ de `Battlenet::RealmHandle`.
 
 **What's missing vs C++:**
-- **`JoinRealm` effectful flow existe fuera de `RealmManager`** — la parte realm-owned ya vive en `RealmManager::prepare_join_realm_like_cpp` y los atributos de respuesta están aislados/testeados, pero `bnet-server/src/rpc/services/game_utilities.rs` todavía genera el random server secret y persiste keyData; falta concentrar o cubrir esos efectos como `RealmList::JoinRealm` si se quiere igualar ownership C++ completo.
+- **`JoinRealm` effectful flow existe fuera de `RealmManager`** — la parte realm-owned ya vive en `RealmManager::prepare_join_realm_like_cpp`, los atributos de respuesta están aislados/testeados y el plan de binds DB está cubierto por unit test, pero `bnet-server/src/rpc/services/game_utilities.rs` todavía genera el random server secret y ejecuta el statement; falta concentrar o cubrir esos efectos como `RealmList::JoinRealm` si se quiere igualar ownership C++ completo.
 - **Error path para `Resolver::Resolve`** — cerrado para realm load: Rust ahora resuelve y salta realms inválidos; falta e2e con DB real para cubrir el path visible.
 
 **Suspicious / likely divergent (hipótesis pre-auditoría):**
@@ -219,14 +220,15 @@ Y para realm list updates:
 - [x] **#REALM.4a** Mantener `JoinRealm` flow existente: random ServerSecret + persistir `LOGIN_UPD_BNET_GAME_ACCOUNT_LOGIN_INFO` + atributos respuesta. (M)
 - [x] **#REALM.4b.1** Reubicar la preparación realm-owned de `RealmList::JoinRealm` en `RealmManager`: lookup packed, offline/build gates y server-address payload comprimido. (L)
 - [x] **#REALM.4b.2** Aislar y testear la emisión de atributos de respuesta `RealmList::JoinRealm` en el orden C++ (`RealmJoinTicket`, `ServerAddresses`, `JoinSecret`). (L)
-- [ ] **#REALM.4b** Reubicar/encapsular el flow completo como ownership `RealmList::JoinRealm` C++-like y añadir golden/integration; DB update y random server secret siguen en el handler, y los response attributes ya están aislados pero no movidos a un flow único. (M)
+- [x] **#REALM.4b.3** Aislar y testear el plan de binds DB de `LOGIN_UPD_BNET_GAME_ACCOUNT_LOGIN_INFO` en el orden C++ (`setBinary`, `setString`, `setUInt8`, `setString`, `setInt16`, `setString`). (L)
+- [ ] **#REALM.4b** Reubicar/encapsular el flow completo como ownership `RealmList::JoinRealm` C++-like y añadir golden/integration; DB execute y random server secret siguen en el handler, y los sub-pasos ya están aislados pero no movidos a un flow único. (M)
 - [x] **#REALM.5** Implementar `set_name` con `NormalizedName` (strip whitespace). (L)
 - [x] **#REALM.6** Implementar `get_minor_major_bugfix_version_for_build` con semántica `lower_bound`. (L)
 - [x] **#REALM.7** Tipar `RealmFlags` como `bitflags!` y `RealmType` como wrapper C++-like. Nota: C++ declara `RealmType` como enum, pero `Realm::Type` es `uint8` y `GetConfigId` indexa valores `< MAX_CLIENT_REALM_TYPE`; Rust usa newtype para no rechazar valores válidos no nombrados. (M)
 - [x] **#REALM.8** Resolver hostnames (no solo IPs) con `tokio::net::lookup_host` en `update_realms`, tomando primera IPv4 y saltando el realm si external/local no resuelve como C++. (M)
 - [x] **#REALM.9** Clamp `allowed_security_level` a `SEC_ADMINISTRATOR`. (L)
 - [x] **#REALM.10a** Tests: packed address bit-layout, subregion filter, cfg fields, version_mismatch/fallback. (M)
-- [ ] **#REALM.10b** Tests: parse build_info, `get_realm_entry_json`, JoinRealm DB side effect, golden payload. Parcial: parseo C++ de `build_info` hotfix/seeds, `JamJSONRealmEntry`, empty gates, server-address selection, preparación realm-owned de JoinRealm y orden/bytes de atributos de respuesta cubiertos por unit tests; faltan JoinRealm DB side effect y golden payload. (M)
+- [ ] **#REALM.10b** Tests: parse build_info, `get_realm_entry_json`, JoinRealm DB side effect, golden payload. Parcial: parseo C++ de `build_info` hotfix/seeds, `JamJSONRealmEntry`, empty gates, server-address selection, preparación realm-owned de JoinRealm, orden/bytes de atributos de respuesta y binds del statement DB cubiertos por unit tests; faltan JoinRealm DB side effect real y golden payload. (M)
 - [x] **#REALM.11** Modelar `RealmList::WriteSubRegions` como método de `RealmManager` y delegar `GetAllValuesForAttribute` en él. (L)
 
 ---
@@ -311,6 +313,7 @@ Y para realm list updates:
 | `compress()` (zlib) | `flate2::ZlibEncoder` | Mismo formato |
 | `RealmList::JoinRealm` realm lookup/gates/server-address payload | `RealmManager::prepare_join_realm_like_cpp` | DB update and random secret still in handler |
 | `RealmList::JoinRealm` response attributes | `join_realm_response_attributes_like_cpp` | Same three blob attributes and order; DB update/random secret still in handler |
+| `LOGIN_UPD_BNET_GAME_ACCOUNT_LOGIN_INFO` binds | `JoinRealmLoginInfoUpdateLikeCpp` + `apply_join_realm_login_info_update_like_cpp` | Same six bind slots/types; real DB execute still in handler |
 | `Trinity::Crypto::GetRandomBytes<32>` | `rand::thread_rng().fill` in `game_utilities::join_realm` | TODO #REALM.4b for full ownership/golden coverage |
 | `Trinity::Asio::Resolver::Resolve` | `resolve_realm_address_like_cpp` + `tokio::net::lookup_host` | Takes first IPv4; skips realm on external/local failure |
 | `RealmList::WriteSubRegions` | `RealmManager::write_sub_regions_like_cpp` | Emits `Variant.string_value` values in stored order |
