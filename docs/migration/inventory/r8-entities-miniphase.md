@@ -1,3 +1,13 @@
+- `#NEXT.R8.ENTITIES.845` - audit-fix/represented-complete for stale `CMSG_COLLECTION_ITEM_SET_FAVORITE` inventory.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CollectionsHandler.cpp:22-41`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/CollectionPackets.cpp:20-25`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/CollectionPackets.h:27-39`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/CollectionMgr.cpp:830-856`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TransmogrificationPackets.cpp:40-55`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TransmogrificationPackets.h:54-66`.
+
+  Rust anchors: `crates/wow-packet/src/packets/collection.rs`; `crates/wow-world/src/handlers/misc.rs`; `crates/wow-world/src/session.rs`.
+
+  Acceptance: inventories no longer claim `CMSG_COLLECTION_ITEM_SET_FAVORITE` is missing. Rust already parses the C++ `Type`, `ID` and `IsFavorite` order, registers `LoggedIn`/`ThreadUnsafe`, routes `TOYBOX` to represented `ToySetFavorite`, routes permanent `APPEARANCE` ids to represented `SetAppearanceIsFavorite` with C++ `New`/`Removed`/`Unchanged` transitions and `AccountTransmogUpdate` favorite deltas, ignores temporary/unknown appearances and unsupported collection types, and has represented load/save plans for account item appearances/favorites.
+
+  Boundary: audit-fix only; represented-complete for the bounded collection favorite handler and represented account item-appearance/favorite state model. No install/restart or live client/manual validation in this slice.
+
 - `#NEXT.R8.ENTITIES.844` - represented-partial for `Player::UpdatePvPFlag` timer consumption.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:943`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:20814-20828`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:22669-22679`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:442`.
