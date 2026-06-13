@@ -892,6 +892,15 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
+        opcode: ClientOpcodes::CompleteMovie,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_complete_movie",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
         opcode: ClientOpcodes::LogoutInstant,
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
@@ -2727,6 +2736,12 @@ impl crate::session::WorldSession {
     }
     pub async fn handle_log_streaming_error(&mut self, _pkt: wow_packet::WorldPacket) {
         // C++ registers CMSG_LOG_STREAMING_ERROR as STATUS_UNHANDLED/Handle_NULL.
+    }
+    pub async fn handle_complete_movie(&mut self, _pkt: wow_packet::WorldPacket) {
+        // C++ Player::GetMovie() == 0 returns early; otherwise SetMovie(0)
+        // and ScriptMgr::OnMovieComplete(player, movie). Rust records the
+        // script hook until the live ScriptMgr runtime is ported.
+        self.complete_represented_movie_like_cpp();
     }
     pub async fn handle_logout_instant(&mut self, _pkt: wow_packet::WorldPacket) {
         // C++ registers CMSG_LOGOUT_INSTANT as STATUS_UNHANDLED/Handle_NULL.
@@ -6286,6 +6301,31 @@ mod tests {
             .handle_log_streaming_error(WorldPacket::new_empty())
             .await;
 
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn complete_movie_clears_active_movie_and_records_script_hook_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_complete_movie(WorldPacket::new_empty())
+            .await;
+        assert_eq!(session.represented_movie_like_cpp(), None);
+        assert!(
+            session
+                .represented_movie_complete_events_like_cpp()
+                .is_empty()
+        );
+        assert!(send_rx.try_recv().is_err());
+
+        session.set_represented_movie_like_cpp_for_test(Some(177));
+        session
+            .handle_complete_movie(WorldPacket::new_empty())
+            .await;
+
+        assert_eq!(session.represented_movie_like_cpp(), None);
+        assert_eq!(session.represented_movie_complete_events_like_cpp(), &[177]);
         assert!(send_rx.try_recv().is_err());
     }
 

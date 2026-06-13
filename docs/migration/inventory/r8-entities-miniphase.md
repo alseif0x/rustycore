@@ -1,3 +1,13 @@
+- `#NEXT.R8.ENTITIES.827` - represented-complete for `CMSG_COMPLETE_MOVIE`.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:780-787`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:383`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:228`.
+
+  Rust anchors: `crates/wow-world/src/handlers/misc.rs`; `crates/wow-world/src/session.rs`.
+
+  Acceptance: `CMSG_COMPLETE_MOVIE` now registers `LoggedIn`/`ThreadUnsafe` dispatch, routes through `WorldSession`, returns early when no represented movie is active, clears the represented active movie when present, records the represented `ScriptMgr::OnMovieComplete(player, movie)` hook, and sends no response packet.
+
+  Boundary: represented-complete for the represented player movie state and hook audit only; no live `ScriptMgr` execution, DB-backed player movie persistence, install/restart, or live client/manual validation.
+
 - `#NEXT.R8.ENTITIES.826` - represented-complete for bounded miscellaneous `STATUS_UNHANDLED` `Handle_NULL` hooks.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:803-806`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:582,933,969,994,999,1003`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:357,635,666,686,690,692`.

@@ -3096,6 +3096,7 @@ pub struct WorldSession {
     spell_target_position_store: Option<Arc<SpellTargetPositionStoreLikeCpp>>,
     movie_store: Option<Arc<MovieStore>>,
     represented_movie_like_cpp: Option<u32>,
+    represented_movie_complete_events_like_cpp: Vec<u32>,
     gameobject_template_lifecycle_store: Option<Arc<GameObjectTemplateLifecycleStoreLikeCpp>>,
     /// Currently active spell cast (if any). Set when a cast starts, cleared when it completes.
     pub(crate) active_spell_cast: Option<SpellCastState>,
@@ -4121,6 +4122,7 @@ impl WorldSession {
             spell_target_position_store: None,
             movie_store: None,
             represented_movie_like_cpp: None,
+            represented_movie_complete_events_like_cpp: Vec::new(),
             gameobject_template_lifecycle_store: None,
             quest_store: None,
             quest_pool_store: None,
@@ -13669,9 +13671,26 @@ impl WorldSession {
         self.movie_store = Some(store);
     }
 
+    pub(crate) fn complete_represented_movie_like_cpp(&mut self) {
+        if let Some(movie_id) = self.represented_movie_like_cpp.take() {
+            self.represented_movie_complete_events_like_cpp
+                .push(movie_id);
+        }
+    }
+
     #[cfg(test)]
     pub(crate) fn represented_movie_like_cpp(&self) -> Option<u32> {
         self.represented_movie_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_represented_movie_like_cpp_for_test(&mut self, movie_id: Option<u32>) {
+        self.represented_movie_like_cpp = movie_id;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_movie_complete_events_like_cpp(&self) -> &[u32] {
+        &self.represented_movie_complete_events_like_cpp
     }
 
     pub(crate) fn spell_range_store(&self) -> Option<&Arc<SpellRangeStore>> {
@@ -18207,6 +18226,9 @@ impl WorldSession {
             }
             ClientOpcodes::LogStreamingError => {
                 self.handle_log_streaming_error(pkt).await;
+            }
+            ClientOpcodes::CompleteMovie => {
+                self.handle_complete_movie(pkt).await;
             }
             ClientOpcodes::LogoutInstant => {
                 self.handle_logout_instant(pkt).await;
