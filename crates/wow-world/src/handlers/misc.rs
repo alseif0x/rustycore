@@ -888,6 +888,15 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
+        opcode: ClientOpcodes::GetAccountNotifications,
+        status: SessionStatus::Authed,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_get_account_notifications",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
         opcode: ClientOpcodes::CancelTrade,
         status: SessionStatus::LoggedInOrRecentlyLogout,
         processing: PacketProcessing::ThreadUnsafe,
@@ -2870,6 +2879,10 @@ impl crate::session::WorldSession {
     }
     pub async fn handle_get_account_character_list(&mut self, _pkt: wow_packet::WorldPacket) {
         // C++ registers CMSG_GET_ACCOUNT_CHARACTER_LIST as
+        // STATUS_UNHANDLED/Handle_NULL.
+    }
+    pub async fn handle_get_account_notifications(&mut self, _pkt: wow_packet::WorldPacket) {
+        // C++ registers CMSG_GET_ACCOUNT_NOTIFICATIONS as
         // STATUS_UNHANDLED/Handle_NULL.
     }
     pub async fn handle_cancel_trade(&mut self, _pkt: wow_packet::WorldPacket) {
@@ -6595,6 +6608,17 @@ mod tests {
 
         session
             .handle_get_account_character_list(WorldPacket::new_empty())
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn get_account_notifications_is_silent_like_cpp_handle_null() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_get_account_notifications(WorldPacket::new_empty())
             .await;
 
         assert!(send_rx.try_recv().is_err());

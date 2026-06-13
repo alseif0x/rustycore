@@ -18411,6 +18411,9 @@ impl WorldSession {
             ClientOpcodes::GetAccountCharacterList => {
                 self.handle_get_account_character_list(pkt).await;
             }
+            ClientOpcodes::GetAccountNotifications => {
+                self.handle_get_account_notifications(pkt).await;
+            }
             ClientOpcodes::CancelTrade => {
                 self.handle_cancel_trade(pkt).await;
             }
@@ -68090,6 +68093,7 @@ mod tests {
             "CloseQuestChoice",
             "ConnectToFailed",
             "GetAccountCharacterList",
+            "GetAccountNotifications",
             "LogStreamingError",
             "LogoutInstant",
             "OverrideScreenFlash",

@@ -1,3 +1,13 @@
+- `#NEXT.R8.ENTITIES.838` - represented-complete for bounded `CMSG_GET_ACCOUNT_NOTIFICATIONS` `Handle_NULL` hook.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:803-806`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:479`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:307`.
+
+  Rust anchors: `crates/wow-world/src/handlers/misc.rs`; `crates/wow-world/src/session.rs`.
+
+  Acceptance: `CMSG_GET_ACCOUNT_NOTIFICATIONS` now registers `Authed`/`ThreadUnsafe` dispatch, routes through `WorldSession`, consumes the C++ `WorldPackets::Null`/`Handle_NULL` request, sends no response, and mutates no represented state.
+
+  Boundary: represented-complete for bounded no-response/no-state behavior only. Rust does not mirror C++'s unhandled-opcode log line, and no live client/manual validation was performed in this slice.
+
 - `#NEXT.R8.ENTITIES.837` - audit-fix/represented-complete for stale `CMSG_REPORT_ENABLED_ADDONS` inventory.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:803-806`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:813`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:556`.
