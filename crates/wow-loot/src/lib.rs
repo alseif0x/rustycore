@@ -1034,7 +1034,7 @@ impl LootStore {
         FTemplate: FnMut(u32) -> Option<LootItemTemplateMetadata>,
         FRate: FnMut(LootStoreItem) -> f32,
         FAllowed: FnMut(LootStoreItem) -> bool,
-        FRandom: FnMut(u32) -> LootItemRandomProperties,
+        FRandom: FnMut(u32, &mut R) -> LootItemRandomProperties,
     {
         self.fill_loot_with_context_like_cpp(
             loot_id,
@@ -1066,7 +1066,7 @@ impl LootStore {
         FTemplate: FnMut(u32) -> Option<LootItemTemplateMetadata>,
         FRate: FnMut(LootStoreItem) -> f32,
         FAllowed: FnMut(LootStoreItemContext) -> bool,
-        FRandom: FnMut(u32) -> LootItemRandomProperties,
+        FRandom: FnMut(u32, &mut R) -> LootItemRandomProperties,
     {
         let Some(template) = self.get_loot_for(loot_id) else {
             return Err(LootFillError::MissingLootTemplate { loot_id });
@@ -1108,7 +1108,7 @@ impl LootStore {
         FTemplate: FnMut(u32) -> Option<LootItemTemplateMetadata>,
         FRate: FnMut(LootStoreItem) -> f32,
         FAllowed: FnMut(LootStoreItemContext, ObjectGuid) -> bool,
-        FRandom: FnMut(u32) -> LootItemRandomProperties,
+        FRandom: FnMut(u32, &mut R) -> LootItemRandomProperties,
     {
         let Some(template) = self.get_loot_for(loot_id) else {
             return Err(LootFillError::MissingLootTemplate { loot_id });
@@ -1397,7 +1397,7 @@ impl LootTemplate {
         FTemplate: FnMut(u32) -> Option<LootItemTemplateMetadata>,
         FRate: FnMut(LootStoreItem) -> f32,
         FAllowed: FnMut(LootStoreItemContext) -> bool,
-        FRandom: FnMut(u32) -> LootItemRandomProperties,
+        FRandom: FnMut(u32, &mut R) -> LootItemRandomProperties,
     {
         if generated.len() >= MAX_NR_LOOT_ITEMS_LIKE_CPP {
             return;
@@ -1521,7 +1521,7 @@ impl LootTemplate {
         FTemplate: FnMut(u32) -> Option<LootItemTemplateMetadata>,
         FRate: FnMut(LootStoreItem) -> f32,
         FAllowed: FnMut(LootStoreItemContext, ObjectGuid) -> bool,
-        FRandom: FnMut(u32) -> LootItemRandomProperties,
+        FRandom: FnMut(u32, &mut R) -> LootItemRandomProperties,
     {
         for item in &self.entries {
             if generated.len() >= MAX_NR_LOOT_ITEMS_LIKE_CPP {
@@ -1680,7 +1680,7 @@ impl LootTemplate {
         FTemplate: FnMut(u32) -> Option<LootItemTemplateMetadata>,
         FRate: FnMut(LootStoreItem) -> f32,
         FAllowed: FnMut(LootStoreItemContext, ObjectGuid) -> bool,
-        FRandom: FnMut(u32) -> LootItemRandomProperties,
+        FRandom: FnMut(u32, &mut R) -> LootItemRandomProperties,
     {
         let mut generated_for_looter = Vec::new();
         self.process_like_cpp(
@@ -1962,7 +1962,7 @@ impl LootGroup {
         R: Rng + ?Sized,
         FTemplate: FnMut(u32) -> Option<LootItemTemplateMetadata>,
         FAllowed: FnMut(LootStoreItemContext) -> bool,
-        FRandom: FnMut(u32) -> LootItemRandomProperties,
+        FRandom: FnMut(u32, &mut R) -> LootItemRandomProperties,
     {
         if let Some(item) =
             self.roll_with_context_like_cpp(loot_mode, rng, item_allowed, store_kind, entry)
@@ -2015,7 +2015,7 @@ impl LootGroup {
     ) where
         R: Rng + ?Sized,
         FTemplate: FnMut(u32) -> Option<LootItemTemplateMetadata>,
-        FRandom: FnMut(u32) -> LootItemRandomProperties,
+        FRandom: FnMut(u32, &mut R) -> LootItemRandomProperties,
     {
         if let Some(item) =
             self.roll_with_context_like_cpp(loot_mode, rng, |_| true, LootStoreKind::Creature, 0)
@@ -2043,7 +2043,7 @@ fn add_generated_loot_item_like_cpp<R, FTemplate, FRandom>(
 ) where
     R: Rng + ?Sized,
     FTemplate: FnMut(u32) -> Option<LootItemTemplateMetadata>,
-    FRandom: FnMut(u32) -> LootItemRandomProperties,
+    FRandom: FnMut(u32, &mut R) -> LootItemRandomProperties,
 {
     let Some(metadata) = item_template(item.item_id) else {
         return;
@@ -2062,7 +2062,7 @@ fn add_generated_loot_item_like_cpp<R, FTemplate, FRandom>(
         }
 
         let stack_count = count.min(max_stack);
-        let random_properties = random_properties(item.item_id);
+        let random_properties = random_properties(item.item_id, rng);
         generated.push(GeneratedLootItem {
             item_id: item.item_id,
             count: stack_count,
@@ -2093,7 +2093,7 @@ fn add_generated_personal_loot_item_like_cpp<R, FTemplate, FRandom>(
 ) where
     R: Rng + ?Sized,
     FTemplate: FnMut(u32) -> Option<LootItemTemplateMetadata>,
-    FRandom: FnMut(u32) -> LootItemRandomProperties,
+    FRandom: FnMut(u32, &mut R) -> LootItemRandomProperties,
 {
     let Some(metadata) = item_template(item.item_id) else {
         return;
@@ -2112,7 +2112,7 @@ fn add_generated_personal_loot_item_like_cpp<R, FTemplate, FRandom>(
         }
 
         let stack_count = count.min(max_stack);
-        let random_properties = random_properties(item.item_id);
+        let random_properties = random_properties(item.item_id, rng);
         generated.push(GeneratedPersonalLootItem {
             looter,
             item: GeneratedLootItem {
@@ -2188,8 +2188,8 @@ mod tests {
         loot_conditions_allow_player_with_references_like_cpp_representable,
         loot_item_ui_type_for_player_like_cpp,
     };
-    use rand::SeedableRng;
     use rand::rngs::StdRng;
+    use rand::{Rng, SeedableRng};
     use std::collections::HashMap;
     use wow_core::ObjectGuid;
 
@@ -2271,7 +2271,7 @@ mod tests {
         }
     }
 
-    fn random_properties(item_id: u32) -> LootItemRandomProperties {
+    fn random_properties<R: Rng + ?Sized>(item_id: u32, _rng: &mut R) -> LootItemRandomProperties {
         LootItemRandomProperties {
             id: item_id as i32 + 1000,
             seed: item_id as i32 + 2000,
@@ -3276,7 +3276,7 @@ mod tests {
                 },
                 |_| 1.0,
                 |_| true,
-                |_| LootItemRandomProperties {
+                |_, _| LootItemRandomProperties {
                     id: 4242,
                     seed: 2424,
                 },
@@ -3301,6 +3301,47 @@ mod tests {
                 is_counted: false,
             }]
         );
+    }
+
+    #[test]
+    fn fill_loot_random_properties_callback_uses_fill_rng_like_cpp() {
+        let mut store = LootStore::for_kind_like_cpp(LootStoreKind::Item);
+        store
+            .load_rows_like_cpp(
+                [LootTemplateRow {
+                    entry: 601,
+                    item: item(25, 0, 100.0, 0),
+                }],
+                |item_id| item_id == 25,
+            )
+            .unwrap();
+
+        let mut stores = LootStores::new();
+        stores.insert(LootStoreKind::Item, store);
+
+        let mut expected_rng = StdRng::seed_from_u64(14);
+        let _: u32 = expected_rng.gen_range(1..=1);
+        let expected_id = expected_rng.gen_range(1..=10_000);
+
+        let mut rng = StdRng::seed_from_u64(14);
+        let generated = stores[&LootStoreKind::Item]
+            .fill_loot_like_cpp(
+                601,
+                LootStoreKind::Item,
+                &stores,
+                LootFillOptions::default(),
+                &mut rng,
+                |_| Some(item_metadata(20)),
+                |_| 1.0,
+                |_| true,
+                |_, rng| LootItemRandomProperties {
+                    id: rng.gen_range(1..=10_000),
+                    seed: 0,
+                },
+            )
+            .unwrap();
+
+        assert_eq!(generated[0].random_properties_id, expected_id);
     }
 
     #[test]

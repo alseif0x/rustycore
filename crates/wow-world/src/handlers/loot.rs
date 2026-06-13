@@ -4354,7 +4354,7 @@ impl WorldSession {
     }
 
     async fn generate_represented_gameobject_loot_items_like_cpp(
-        &self,
+        &mut self,
         loot_id: u32,
     ) -> Option<Vec<LootEntry>> {
         self.generate_represented_gameobject_loot_items_for_store_like_cpp(
@@ -4366,7 +4366,7 @@ impl WorldSession {
     }
 
     async fn generate_represented_gameobject_loot_items_for_store_like_cpp(
-        &self,
+        &mut self,
         loot_id: u32,
         store_kind: LootStoreKind,
         loot_mode: u16,
@@ -4375,6 +4375,7 @@ impl WorldSession {
             return Some(Vec::new());
         }
 
+        let mut rng = self.represented_runtime_subrng_like_cpp();
         let stores = self.loot_stores()?;
         let store = stores.get(&store_kind)?;
         let rates = self.loot_drop_rates_like_cpp();
@@ -4391,7 +4392,6 @@ impl WorldSession {
             )
             .await;
         let generated = {
-            let mut rng = rand::thread_rng();
             match store.fill_loot_with_context_like_cpp(
                 loot_id,
                 store_kind,
@@ -4420,9 +4420,9 @@ impl WorldSession {
                         &addon_metadata,
                     )
                 },
-                |item_id| {
+                |item_id, rng| {
                     let random_properties =
-                        self.generate_loot_store_random_properties_like_cpp(item_id);
+                        self.generate_loot_store_random_properties_with_rng_like_cpp(item_id, rng);
                     LootItemRandomProperties {
                         id: random_properties.id,
                         seed: random_properties.seed,
@@ -4449,7 +4449,7 @@ impl WorldSession {
     }
 
     async fn generate_represented_fishing_loot_items_like_cpp(
-        &self,
+        &mut self,
         area_id: u32,
         loot_mode: u16,
     ) -> Option<Vec<LootEntry>> {
@@ -4484,7 +4484,7 @@ impl WorldSession {
     }
 
     async fn generate_represented_gameobject_personal_loot_items_like_cpp(
-        &self,
+        &mut self,
         loot_id: u32,
         tappers: &[ObjectGuid],
     ) -> Option<Vec<LootEntry>> {
@@ -4492,6 +4492,7 @@ impl WorldSession {
             return Some(Vec::new());
         }
 
+        let mut rng = self.represented_runtime_subrng_like_cpp();
         let stores = self.loot_stores()?;
         let store = stores.get(&LootStoreKind::Gameobject)?;
         let rates = self.loot_drop_rates_like_cpp();
@@ -4509,7 +4510,6 @@ impl WorldSession {
             )
             .await;
         let generated = {
-            let mut rng = rand::thread_rng();
             store
                 .fill_personal_loot_with_context_like_cpp(
                     loot_id,
@@ -4542,9 +4542,9 @@ impl WorldSession {
                             &addon_metadata,
                         )
                     },
-                    |item_id| {
-                        let random_properties =
-                            self.generate_loot_store_random_properties_like_cpp(item_id);
+                    |item_id, rng| {
+                        let random_properties = self
+                            .generate_loot_store_random_properties_with_rng_like_cpp(item_id, rng);
                         LootItemRandomProperties {
                             id: random_properties.id,
                             seed: random_properties.seed,
@@ -4706,13 +4706,14 @@ impl WorldSession {
     }
 
     async fn generate_represented_creature_loot_items_like_cpp(
-        &self,
+        &mut self,
         loot_id: u32,
     ) -> Option<Vec<LootEntry>> {
         if loot_id == 0 {
             return Some(Vec::new());
         }
 
+        let mut rng = self.represented_runtime_subrng_like_cpp();
         let stores = self.loot_stores()?;
         let store = stores.get(&LootStoreKind::Creature)?;
         let rates = self.loot_drop_rates_like_cpp();
@@ -4730,7 +4731,6 @@ impl WorldSession {
             )
             .await;
         let generated = {
-            let mut rng = rand::thread_rng();
             store
                 .fill_loot_with_context_like_cpp(
                     loot_id,
@@ -4761,9 +4761,9 @@ impl WorldSession {
                             &addon_metadata,
                         )
                     },
-                    |item_id| {
-                        let random_properties =
-                            self.generate_loot_store_random_properties_like_cpp(item_id);
+                    |item_id, rng| {
+                        let random_properties = self
+                            .generate_loot_store_random_properties_with_rng_like_cpp(item_id, rng);
                         LootItemRandomProperties {
                             id: random_properties.id,
                             seed: random_properties.seed,
@@ -6181,7 +6181,10 @@ impl WorldSession {
             return false;
         }
 
-        let store_random_properties = self.generate_loot_store_random_properties_like_cpp(item_id);
+        let store_random_properties = {
+            let mut rng = self.represented_runtime_subrng_like_cpp();
+            self.generate_loot_store_random_properties_with_rng_like_cpp(item_id, &mut rng)
+        };
 
         if store_dest.iter().any(|dest| {
             let bag = (dest.pos >> 8) as u8;
@@ -7455,14 +7458,6 @@ fn loot_store_data_can_stack_with_item(
 }
 
 impl WorldSession {
-    fn generate_loot_store_random_properties_like_cpp(
-        &self,
-        item_id: u32,
-    ) -> LootStoreRandomProperties {
-        let mut rng = rand::thread_rng();
-        self.generate_loot_store_random_properties_with_rng_like_cpp(item_id, &mut rng)
-    }
-
     fn generate_loot_store_random_properties_with_rng_like_cpp<R: Rng + ?Sized>(
         &self,
         item_id: u32,
