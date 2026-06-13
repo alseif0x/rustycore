@@ -6201,6 +6201,7 @@ impl WorldSession {
         // Start corpse despawn timer if fully looted.
         let marked = self
             .mutate_world_creature(owner_guid, |creature| {
+                creature.remove_lootable_dynamic_flag_like_cpp();
                 if !creature.is_alive() && creature.corpse_despawn_at().is_none() {
                     let is_fully_skinned = represented_loot_type == LOOT_TYPE_SKINNING_LIKE_CPP;
                     let corpse_decay_secs = looted_corpse_decay_secs_like_cpp(
@@ -15388,6 +15389,58 @@ mod tests {
         assert!(
             (55..=60).contains(&remaining.as_secs()),
             "C++ uses corpse_delay * Rate.Corpse.Decay.Looted; got {remaining:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn creature_owned_loot_release_fully_consumed_removes_lootable_dynflag_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let loot_guid = test_creature_guid(19_116);
+        let creature = make_canonical_creature_for_session(&session, loot_guid);
+        attach_canonical_creature(&mut session, creature);
+        session.set_player_guid(Some(player_guid));
+        session.set_active_loot_guid(loot_guid);
+        register_test_creature_like_cpp(&mut session, test_creature(loot_guid, false));
+        let _ = session.mutate_world_creature(loot_guid, |creature| {
+            creature.apply_corpse_loot_flags_after_death_state_like_cpp(true, false);
+        });
+        assert!(
+            session
+                .mutate_world_creature(loot_guid, |creature| creature
+                    .has_lootable_dynamic_flag_like_cpp())
+                .unwrap()
+        );
+        session.loot_table.insert(
+            loot_guid,
+            CreatureLoot {
+                loot_guid,
+                coins: 0,
+                unlooted_count: 0,
+                loot_type: LOOT_TYPE_CORPSE_LIKE_CPP,
+                dungeon_encounter_id: 0,
+                loot_method: 0,
+                loot_master: ObjectGuid::EMPTY,
+                round_robin_player: ObjectGuid::EMPTY,
+                player_ffa_items: Vec::new(),
+                players_looting: vec![player_guid],
+                allowed_looters: Vec::new(),
+                items: Vec::new(),
+                looted_by_player: false,
+            },
+        );
+
+        session
+            .handle_loot_release(loot_release_packet(loot_guid))
+            .await;
+
+        assert!(send_rx.try_recv().is_ok());
+        assert!(
+            !session
+                .mutate_world_creature(loot_guid, |creature| creature
+                    .has_lootable_dynamic_flag_like_cpp())
+                .unwrap(),
+            "C++ LootHandler::DoLootRelease removes UNIT_DYNFLAG_LOOTABLE when the creature is fully looted"
         );
     }
 

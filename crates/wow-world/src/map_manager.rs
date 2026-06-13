@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 use rand::{Rng, SeedableRng, rngs::StdRng};
 use tracing::{debug, info, warn};
 use wow_constants::movement::MovementFlag;
-use wow_constants::{UnitMoveType, UnitStandStateType, UnitState, WeaponAttackType};
+use wow_constants::{UnitDynFlags, UnitMoveType, UnitStandStateType, UnitState, WeaponAttackType};
 use wow_core::{ObjectGuid, Position};
 use wow_entities::{
     Creature, CreatureAiState, DistractMovementAction, EVENT_CHARGE_PREPATH, GenericMovementInform,
@@ -1031,6 +1031,22 @@ impl WorldCreature {
     ) {
         self.creature
             .apply_corpse_loot_flags_after_death_state_like_cpp(lootable, can_skin);
+    }
+
+    pub fn remove_lootable_dynamic_flag_like_cpp(&mut self) {
+        self.creature
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .remove_dynamic_flag(UnitDynFlags::Lootable as u32);
+    }
+
+    pub fn has_lootable_dynamic_flag_like_cpp(&self) -> bool {
+        self.creature
+            .unit()
+            .world()
+            .object()
+            .has_dynamic_flag(UnitDynFlags::Lootable as u32)
     }
 
     pub fn die(&mut self) {

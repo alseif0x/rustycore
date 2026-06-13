@@ -446,7 +446,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md` §5. Complexity: **L** 
 - [ ] Test: `MAX_NR_LOOT_ITEMS = 18` cap enforced — 19th potential drop ignored
 - [ ] Test: `Loot::generate_money_loot` produces value in `[min, max]` × `Rate.Drop.Money`
 - [ ] Test: looting an item triggers `Player::store_loot_item` and inventory count increments by `LootItem.count`
-- [ ] Test: `CMSG_LOOT_RELEASE` after every item taken sets corpse decay and removes lootable flag
+- [x] Test: `CMSG_LOOT_RELEASE` after every item taken sets corpse decay and removes lootable flag (`creature_owned_loot_release_fully_consumed_uses_canonical_is_fully_looted_like_cpp`, `creature_owned_loot_release_fully_consumed_removes_lootable_dynflag_like_cpp`)
 - [ ] Test: group loot with `GROUP_LOOT` method + uncommon threshold → uncommon item enters roll, common item is free pickup
 - [ ] Test: `LootRoll` with all 5 members PASSing emits `SMSG_LOOT_ALL_PASSED` and item becomes free
 - [ ] Test: `LootRoll` after 60s timeout treats unvoted as PASS; winner determined from voted set
