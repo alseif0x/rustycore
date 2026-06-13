@@ -161,6 +161,7 @@ const PLAYER_FLAGS_AFK_LIKE_CPP: u32 = 0x0000_0002;
 const PLAYER_FLAGS_DND_LIKE_CPP: u32 = 0x0000_0004;
 const PLAYER_FLAGS_GHOST_LIKE_CPP: u32 = 0x0000_0010;
 const PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP: u32 = 0x0000_0100;
+const PLAYER_FLAGS_TAXI_BENCHMARK_LIKE_CPP: u32 = 0x0002_0000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum PlayerAwayModeLikeCpp {
@@ -17941,6 +17942,9 @@ impl WorldSession {
             ClientOpcodes::SetActionButton => {
                 self.handle_set_action_button(pkt).await;
             }
+            ClientOpcodes::SetTaxiBenchmarkMode => {
+                self.handle_set_taxi_benchmark_mode(pkt).await;
+            }
             ClientOpcodes::SaveCufProfiles => {
                 self.handle_save_cuf_profiles(pkt).await;
             }
@@ -24905,6 +24909,40 @@ impl WorldSession {
         self.represented_action_buttons_like_cpp
             .get(index as usize)
             .copied()
+    }
+
+    pub(crate) fn represented_set_taxi_benchmark_mode_like_cpp(&mut self, enable: bool) -> bool {
+        let Some(guid) = self.player_guid() else {
+            return false;
+        };
+
+        let changed = self
+            .mutate_canonical_player_like_cpp(|player| {
+                if enable {
+                    player.set_player_flag(PLAYER_FLAGS_TAXI_BENCHMARK_LIKE_CPP);
+                } else {
+                    player.remove_player_flag(PLAYER_FLAGS_TAXI_BENCHMARK_LIKE_CPP);
+                }
+            })
+            .is_some();
+
+        if changed {
+            self.sync_player_registry_state_like_cpp();
+        }
+
+        self.canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_TAXI_BENCHMARK_LIKE_CPP)
+            .unwrap_or(false)
+            == enable
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_taxi_benchmark_mode_like_cpp(&self) -> bool {
+        let Some(guid) = self.player_guid() else {
+            return false;
+        };
+
+        self.canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_TAXI_BENCHMARK_LIKE_CPP)
+            .unwrap_or(false)
     }
 
     pub(crate) fn represented_save_cuf_profiles_like_cpp(

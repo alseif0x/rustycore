@@ -48,8 +48,8 @@ use wow_packet::packets::misc::{
     DfGetSystemInfo, FarSight, GmTicketCaseStatus, GuildSetAchievementTracking, LfgListBlacklist,
     LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify, MountSetFavorite, QueryBattlePetName,
     QueryBattlePetNameResponse, RatedPvpInfo, RequestBattlefieldStatus,
-    RequestCemeteryListResponse, SaveCufProfiles, TaxiNodeStatusPkt, ToyClearFanfare, UseToy,
-    ViolenceLevel,
+    RequestCemeteryListResponse, SaveCufProfiles, SetTaxiBenchmarkMode, TaxiNodeStatusPkt,
+    ToyClearFanfare, UseToy, ViolenceLevel,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -355,6 +355,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_action_button",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::SetTaxiBenchmarkMode,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_set_taxi_benchmark_mode",
     }
 }
 
@@ -1524,6 +1533,21 @@ impl crate::session::WorldSession {
         };
 
         self.represented_set_action_button_like_cpp(packet.index, packet.action);
+    }
+
+    pub async fn handle_set_taxi_benchmark_mode(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let packet = match SetTaxiBenchmarkMode::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "SetTaxiBenchmarkMode parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        self.represented_set_taxi_benchmark_mode_like_cpp(packet.enable);
     }
 
     pub async fn handle_save_cuf_profiles(&mut self, mut pkt: wow_packet::WorldPacket) {
@@ -3053,6 +3077,48 @@ mod tests {
             .await;
 
         assert_eq!(session.represented_action_button_like_cpp(0), Some(0));
+    }
+
+    #[tokio::test]
+    async fn set_taxi_benchmark_mode_sets_and_clears_player_flag_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        let canonical = shared_canonical_map_manager_for_misc_test();
+        let player_guid = ObjectGuid::create_player(1, 9010);
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_player_position_like_cpp(Position::new(1.0, 2.0, 3.0, 0.0));
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_test_player_on_map_for_misc_test(
+            &canonical,
+            player_guid,
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            0,
+        );
+
+        let mut enable = WorldPacket::new_empty();
+        enable.write_bit(true);
+        enable.flush_bits();
+        enable.reset_read();
+        session.handle_set_taxi_benchmark_mode(enable).await;
+        assert!(session.represented_taxi_benchmark_mode_like_cpp());
+
+        let mut disable = WorldPacket::new_empty();
+        disable.write_bit(false);
+        disable.flush_bits();
+        disable.reset_read();
+        session.handle_set_taxi_benchmark_mode(disable).await;
+        assert!(!session.represented_taxi_benchmark_mode_like_cpp());
+    }
+
+    #[tokio::test]
+    async fn set_taxi_benchmark_mode_short_packet_does_not_change_flag_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        session
+            .handle_set_taxi_benchmark_mode(WorldPacket::from_bytes(&[]))
+            .await;
+
+        assert!(!session.represented_taxi_benchmark_mode_like_cpp());
     }
 
     #[tokio::test]

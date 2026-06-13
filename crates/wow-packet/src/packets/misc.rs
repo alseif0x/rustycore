@@ -33,6 +33,22 @@ impl ClientPacket for FarSight {
     }
 }
 
+/// C++ `WorldPackets::Misc::SetTaxiBenchmarkMode`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SetTaxiBenchmarkMode {
+    pub enable: bool,
+}
+
+impl ClientPacket for SetTaxiBenchmarkMode {
+    const OPCODE: ClientOpcodes = ClientOpcodes::SetTaxiBenchmarkMode;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            enable: pkt.read_bit()?,
+        })
+    }
+}
+
 /// C++ `WorldPackets::Character::LoadingScreenNotify`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LoadingScreenNotify {
@@ -1218,9 +1234,9 @@ pub const MAX_ACTION_BUTTONS: usize = 180;
 /// Action bar buttons. 180 slots (MaxActionButtons).
 ///
 /// Each slot is a packed i64:
-/// - Bits [0:22] = action ID (spell ID, item ID, macro ID)
-/// - Bits [23:30] = ActionButtonType (0=Spell, 1=Macro, 2=Item, etc.)
-/// - Bits [31:63] = unused (0)
+/// - Bits [0:23] = action ID (spell ID, item ID, macro ID)
+/// - Bits [24:31] = ActionButtonType (0=Spell, 0x80=Item, etc.)
+/// - Bits [32:63] = unused (0)
 ///
 /// Reason: 0=Initialization, 1=AfterSpecSwap, 2=SpecSwap
 pub struct UpdateActionButtons {
@@ -4207,6 +4223,19 @@ mod tests {
         let parsed = LoadingScreenNotify::read(&mut pkt).unwrap();
         assert_eq!(parsed.map_id, 571);
         assert!(parsed.showing);
+    }
+
+    #[test]
+    fn set_taxi_benchmark_mode_reads_cpp_enable_bit() {
+        for enable in [false, true] {
+            let mut pkt = WorldPacket::new_empty();
+            pkt.write_bit(enable);
+            pkt.flush_bits();
+            pkt.reset_read();
+
+            let parsed = SetTaxiBenchmarkMode::read(&mut pkt).unwrap();
+            assert_eq!(parsed.enable, enable);
+        }
     }
 
     #[test]
