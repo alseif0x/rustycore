@@ -30,8 +30,8 @@ use wow_core::{ObjectGuid, ObjectGuidGenerator, guid::HighGuid};
 use wow_database::{
     CharStatements, CharacterDatabase, DATABASE_CHARACTER_LIKE_CPP, DATABASE_HOTFIX_LIKE_CPP,
     DATABASE_LOGIN_LIKE_CPP, DATABASE_MASK_ALL_LIKE_CPP, DATABASE_WORLD_LIKE_CPP, HotfixDatabase,
-    LoginDatabase, LoginStatements, PreparedStatement, SqlTransaction, StatementDef, WorldDatabase,
-    WorldStatements, escape_string_like_cpp, warn_about_sync_queries_scope_like_cpp,
+    LoginDatabase, LoginStatements, PreparedStatement, SqlResult, SqlTransaction, StatementDef,
+    WorldDatabase, WorldStatements, escape_string_like_cpp, warn_about_sync_queries_scope_like_cpp,
 };
 use wow_instances::{InstanceLockMgr, MapDb2Entries, MapDifficultyResetInterval};
 use wow_loot::{
@@ -84,12 +84,18 @@ const CREATURE_TYPE_FLAG_BOSS_MOB_LIKE_CPP: u32 = 0x0001_0000;
 type SharedCanonicalSpawnMetadataLikeCpp =
     Arc<Mutex<spawn_store_loader::CanonicalSpawnMetadataLikeCpp>>;
 type SharedWorldStateMgrLikeCpp = Arc<Mutex<spawn_store_loader::WorldStateMgrLikeCpp>>;
+type SharedRealmListLikeCpp = Arc<Mutex<RealmListSnapshotLikeCpp>>;
 
 const SHUTDOWN_EXIT_CODE_LIKE_CPP: i32 = 0;
 const ERROR_EXIT_CODE_LIKE_CPP: i32 = 1;
 const RESTART_EXIT_CODE_LIKE_CPP: i32 = 2;
 const WORLD_SESSION_SHUTDOWN_FLUSH_TIMEOUT_LIKE_CPP: Duration = Duration::from_millis(500);
 const WORLD_SESSION_SHUTDOWN_DRAIN_TIMEOUT_LIKE_CPP: Duration = Duration::from_millis(500);
+const REALM_TYPE_NORMAL_LIKE_CPP: u8 = 0;
+const REALM_TYPE_PVP_LIKE_CPP: u8 = 1;
+const MAX_CLIENT_REALM_TYPE_LIKE_CPP: u8 = 14;
+const REALM_TYPE_FFA_PVP_LIKE_CPP: u8 = 16;
+const SEC_ADMINISTRATOR_LIKE_CPP: u8 = 3;
 
 #[derive(Debug)]
 struct WorldRuntimeStateLikeCpp {
@@ -127,6 +133,121 @@ impl WorldRuntimeStateLikeCpp {
     fn world_loop_counter_like_cpp(&self) -> u32 {
         self.world_loop_counter.load(Ordering::Acquire)
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct RealmHandleLikeCpp {
+    region: u8,
+    site: u8,
+    realm: u32,
+}
+
+impl RealmHandleLikeCpp {
+    fn new_like_cpp(region: u8, site: u8, realm: u32) -> Self {
+        Self {
+            region,
+            site,
+            realm,
+        }
+    }
+
+    #[cfg(test)]
+    fn address_like_cpp(self) -> u32 {
+        (u32::from(self.region) << 24) | (u32::from(self.site) << 16) | (self.realm & 0xFFFF)
+    }
+
+    #[cfg(test)]
+    fn address_string_like_cpp(self) -> String {
+        format!("{}-{}-{}", self.region, self.site, self.realm)
+    }
+
+    fn sub_region_address_like_cpp(self) -> String {
+        format!("{}-{}-0", self.region, self.site)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct RealmListEntryLikeCpp {
+    id: RealmHandleLikeCpp,
+    build: u32,
+    name: String,
+    address: String,
+    local_address: String,
+    port: u16,
+    icon: u8,
+    flag: u8,
+    timezone: u8,
+    allowed_security_level: u8,
+    population: f32,
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+struct RealmListSnapshotLikeCpp {
+    realms: BTreeMap<RealmHandleLikeCpp, RealmListEntryLikeCpp>,
+    sub_regions: BTreeSet<String>,
+}
+
+impl RealmListSnapshotLikeCpp {
+    fn replace_like_cpp(&mut self, next: Self) -> RealmListRefreshSummaryLikeCpp {
+        let added = next
+            .realms
+            .keys()
+            .filter(|handle| !self.realms.contains_key(handle))
+            .count();
+        let updated = next
+            .realms
+            .keys()
+            .filter(|handle| self.realms.contains_key(handle))
+            .count();
+        let removed = self
+            .realms
+            .keys()
+            .filter(|handle| !next.realms.contains_key(handle))
+            .count();
+        let realms = next.realms.len();
+        let sub_regions = next.sub_regions.len();
+
+        *self = next;
+
+        RealmListRefreshSummaryLikeCpp {
+            realms,
+            sub_regions,
+            added,
+            updated,
+            removed,
+        }
+    }
+
+    #[cfg(test)]
+    fn get_realm_like_cpp(&self, handle: RealmHandleLikeCpp) -> Option<&RealmListEntryLikeCpp> {
+        self.realms.get(&handle)
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct RealmListRefreshSummaryLikeCpp {
+    realms: usize,
+    sub_regions: usize,
+    added: usize,
+    updated: usize,
+    removed: usize,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct RealmListRawRowLikeCpp {
+    realm_id: u32,
+    name: String,
+    address: String,
+    local_address: String,
+    port: u16,
+    icon: u8,
+    flag: u8,
+    timezone: u8,
+    allowed_security_level: u8,
+    population: f32,
+    build: u32,
+    region: u8,
+    battlegroup: u8,
 }
 
 fn process_exit_code_like_cpp(exit_code: i32) -> ExitCode {
@@ -676,6 +797,23 @@ async fn main() -> Result<ExitCode> {
         return Ok(ExitCode::SUCCESS);
     }
     set_realm_offline(&login_db, realm_id).await?;
+    let realm_list = Arc::new(Mutex::new(RealmListSnapshotLikeCpp::default()));
+    let realm_list_summary = update_realm_list_once_like_cpp(&login_db, &realm_list)
+        .await
+        .context("Failed to initialize RealmList from realmlist")?;
+    info!(
+        realms = realm_list_summary.realms,
+        sub_regions = realm_list_summary.sub_regions,
+        added = realm_list_summary.added,
+        updated = realm_list_summary.updated,
+        removed = realm_list_summary.removed,
+        "Initialized RealmList from realmlist like C++"
+    );
+    let realm_list_update_handle = spawn_realm_list_update_loop_like_cpp(
+        LoginDatabase::from_pool(login_db.pool().clone()),
+        Arc::clone(&realm_list),
+        realms_state_update_delay_secs_like_cpp(),
+    );
 
     // Initialize GUID generator from MAX(guid) in characters table
     let max_guid = {
@@ -2845,6 +2983,9 @@ async fn main() -> Result<ExitCode> {
     if let Some(db_keepalive_handle) = db_keepalive_handle {
         db_keepalive_handle.abort();
     }
+    if let Some(realm_list_update_handle) = realm_list_update_handle {
+        realm_list_update_handle.abort();
+    }
 
     if let Err(e) = clear_online_accounts_like_cpp(&login_db, char_db.as_ref(), realm_id).await {
         tracing::error!("Failed to clear online account state for realm {realm_id}: {e}");
@@ -3057,6 +3198,129 @@ fn db_keepalive_sql_like_cpp() -> &'static str {
 
 fn db_keepalive_database_names_like_cpp() -> [&'static str; 3] {
     ["Character", "Login", "World"]
+}
+
+fn realms_state_update_delay_secs_like_cpp() -> u32 {
+    wow_config::get_value_default("RealmsStateUpdateDelay", 10i32).max(0) as u32
+}
+
+fn normalize_realm_type_like_cpp(icon: u8) -> u8 {
+    if icon == REALM_TYPE_FFA_PVP_LIKE_CPP {
+        return REALM_TYPE_PVP_LIKE_CPP;
+    }
+
+    if icon >= MAX_CLIENT_REALM_TYPE_LIKE_CPP {
+        return REALM_TYPE_NORMAL_LIKE_CPP;
+    }
+
+    icon
+}
+
+fn normalize_realm_security_level_like_cpp(level: u8) -> u8 {
+    level.min(SEC_ADMINISTRATOR_LIKE_CPP)
+}
+
+fn realm_list_entry_from_row_like_cpp(row: RealmListRawRowLikeCpp) -> RealmListEntryLikeCpp {
+    let id = RealmHandleLikeCpp::new_like_cpp(row.region, row.battlegroup, row.realm_id);
+    RealmListEntryLikeCpp {
+        id,
+        build: row.build,
+        name: row.name,
+        address: row.address,
+        local_address: row.local_address,
+        port: row.port,
+        icon: normalize_realm_type_like_cpp(row.icon),
+        flag: row.flag,
+        timezone: row.timezone,
+        allowed_security_level: normalize_realm_security_level_like_cpp(row.allowed_security_level),
+        population: row.population,
+    }
+}
+
+fn realm_list_snapshot_from_result_like_cpp(result: &mut SqlResult) -> RealmListSnapshotLikeCpp {
+    let mut snapshot = RealmListSnapshotLikeCpp::default();
+    if result.is_empty() {
+        return snapshot;
+    }
+
+    loop {
+        let Some(fields) = result.fetch_like_cpp() else {
+            break;
+        };
+        let entry = realm_list_entry_from_row_like_cpp(RealmListRawRowLikeCpp {
+            realm_id: fields.try_read(0).unwrap_or(0),
+            name: fields.read_string(1),
+            address: fields.read_string(2),
+            local_address: fields.read_string(3),
+            port: fields.try_read(4).unwrap_or(0),
+            icon: fields.try_read(5).unwrap_or(REALM_TYPE_NORMAL_LIKE_CPP),
+            flag: fields.try_read(6).unwrap_or(0),
+            timezone: fields.try_read(7).unwrap_or(0),
+            allowed_security_level: fields.try_read(8).unwrap_or(SEC_ADMINISTRATOR_LIKE_CPP),
+            population: fields.try_read(9).unwrap_or(0.0),
+            build: fields.try_read(10).unwrap_or(0),
+            region: fields.try_read(11).unwrap_or(0),
+            battlegroup: fields.try_read(12).unwrap_or(0),
+        });
+
+        snapshot
+            .sub_regions
+            .insert(entry.id.sub_region_address_like_cpp());
+        snapshot.realms.insert(entry.id, entry);
+
+        if !result.next_row() {
+            break;
+        }
+    }
+
+    snapshot
+}
+
+async fn update_realm_list_once_like_cpp(
+    login_db: &LoginDatabase,
+    realm_list: &SharedRealmListLikeCpp,
+) -> Result<RealmListRefreshSummaryLikeCpp> {
+    let stmt = login_db.prepare(LoginStatements::SEL_REALMLIST);
+    let mut result = login_db
+        .query(&stmt)
+        .await
+        .context("Failed to query C++ LOGIN_SEL_REALMLIST")?;
+    let next_snapshot = realm_list_snapshot_from_result_like_cpp(&mut result);
+    let mut realm_list = realm_list.lock().expect("realm list mutex poisoned");
+    Ok(realm_list.replace_like_cpp(next_snapshot))
+}
+
+fn spawn_realm_list_update_loop_like_cpp(
+    login_db: LoginDatabase,
+    realm_list: SharedRealmListLikeCpp,
+    update_interval_secs: u32,
+) -> Option<tokio::task::JoinHandle<()>> {
+    if update_interval_secs == 0 {
+        warn!("RealmsStateUpdateDelay is 0; RealmList background refresh disabled");
+        return None;
+    }
+
+    Some(tokio::spawn(async move {
+        let interval = Duration::from_secs(u64::from(update_interval_secs));
+        loop {
+            tokio::time::sleep(interval).await;
+            match update_realm_list_once_like_cpp(&login_db, &realm_list).await {
+                Ok(summary) => {
+                    debug!(
+                        realms = summary.realms,
+                        sub_regions = summary.sub_regions,
+                        added = summary.added,
+                        updated = summary.updated,
+                        removed = summary.removed,
+                        "Updated RealmList from realmlist like C++"
+                    );
+                }
+                Err(error) => {
+                    warn!("RealmList background refresh failed: {error:#}");
+                }
+            }
+        }
+    }))
 }
 
 fn spawn_db_keepalive_loop_like_cpp(
@@ -9649,9 +9913,10 @@ mod tests {
         materialize_game_event_world_event_state_db_bridge_like_cpp,
         max_core_stuck_time_ms_like_cpp, max_core_stuck_time_secs_like_cpp,
         min_world_update_time_ms_like_cpp, mmap_runtime_config_like_cpp,
+        normalize_realm_security_level_like_cpp, normalize_realm_type_like_cpp,
         persisted_respawn_info_from_row_like_cpp, process_exit_code_like_cpp,
         queue_respawn_db_delete_like_cpp, queue_respawn_db_save_like_cpp, realm_id_like_cpp,
-        repair_cost_rate_like_cpp, reputation_rates_like_cpp,
+        realm_list_entry_from_row_like_cpp, repair_cost_rate_like_cpp, reputation_rates_like_cpp,
         run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp,
         run_legacy_creature_melee_tick_and_deliver_once_like_cpp,
         run_legacy_creature_movement_tick_and_deliver_once_like_cpp,
@@ -9796,6 +10061,106 @@ mod tests {
         insert_player_broadcast_fixture_with_in_world_like_cpp(
             registry, counter, send_tx, command_tx, true,
         );
+    }
+
+    #[test]
+    fn realm_list_entry_normalizes_realm_type_and_security_like_cpp() {
+        assert_eq!(normalize_realm_type_like_cpp(16), 1);
+        assert_eq!(normalize_realm_type_like_cpp(14), 0);
+        assert_eq!(normalize_realm_type_like_cpp(6), 6);
+        assert_eq!(normalize_realm_security_level_like_cpp(9), 3);
+        assert_eq!(normalize_realm_security_level_like_cpp(2), 2);
+
+        let entry = realm_list_entry_from_row_like_cpp(super::RealmListRawRowLikeCpp {
+            realm_id: 7,
+            name: "Northrend".to_string(),
+            address: "203.0.113.10".to_string(),
+            local_address: "10.0.0.10".to_string(),
+            port: 8085,
+            icon: 16,
+            flag: 2,
+            timezone: 1,
+            allowed_security_level: 9,
+            population: 0.75,
+            build: 51943,
+            region: 2,
+            battlegroup: 3,
+        });
+
+        assert_eq!(entry.id.address_like_cpp(), 0x0203_0007);
+        assert_eq!(entry.id.address_string_like_cpp(), "2-3-7");
+        assert_eq!(entry.id.sub_region_address_like_cpp(), "2-3-0");
+        assert_eq!(entry.icon, 1);
+        assert_eq!(entry.allowed_security_level, 3);
+    }
+
+    #[test]
+    fn realm_list_snapshot_replace_counts_added_updated_removed_like_cpp() {
+        let mut current = super::RealmListSnapshotLikeCpp::default();
+        let first = realm_list_entry_from_row_like_cpp(super::RealmListRawRowLikeCpp {
+            realm_id: 1,
+            name: "A".to_string(),
+            address: "127.0.0.1".to_string(),
+            local_address: "127.0.0.1".to_string(),
+            port: 8085,
+            icon: 1,
+            flag: 0,
+            timezone: 1,
+            allowed_security_level: 0,
+            population: 0.5,
+            build: 51943,
+            region: 1,
+            battlegroup: 1,
+        });
+        let second = realm_list_entry_from_row_like_cpp(super::RealmListRawRowLikeCpp {
+            realm_id: 2,
+            name: "B".to_string(),
+            address: "127.0.0.2".to_string(),
+            local_address: "127.0.0.2".to_string(),
+            port: 8086,
+            icon: 1,
+            flag: 0,
+            timezone: 1,
+            allowed_security_level: 0,
+            population: 0.5,
+            build: 51943,
+            region: 1,
+            battlegroup: 2,
+        });
+
+        let mut next = super::RealmListSnapshotLikeCpp::default();
+        next.sub_regions
+            .insert(first.id.sub_region_address_like_cpp());
+        next.realms.insert(first.id, first.clone());
+        assert_eq!(
+            current.replace_like_cpp(next),
+            super::RealmListRefreshSummaryLikeCpp {
+                realms: 1,
+                sub_regions: 1,
+                added: 1,
+                updated: 0,
+                removed: 0,
+            }
+        );
+        assert!(current.get_realm_like_cpp(first.id).is_some());
+
+        let mut replacement = super::RealmListSnapshotLikeCpp::default();
+        replacement
+            .sub_regions
+            .insert(second.id.sub_region_address_like_cpp());
+        replacement.realms.insert(second.id, second.clone());
+        assert_eq!(
+            current.replace_like_cpp(replacement),
+            super::RealmListRefreshSummaryLikeCpp {
+                realms: 1,
+                sub_regions: 1,
+                added: 1,
+                updated: 0,
+                removed: 1,
+            }
+        );
+        assert!(current.get_realm_like_cpp(first.id).is_none());
+        assert!(current.get_realm_like_cpp(second.id).is_some());
     }
 
     #[test]
