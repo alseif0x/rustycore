@@ -3,9 +3,9 @@
 > **C++ canonical path:** `src/server/worldserver/`
 > **Rust target crate(s):** `crates/world-server/`
 > **Layer:** binary (executable entry point)
-> **Status:** ⚠️ partial (boot, DB init, listener spawn, session-per-connection work; freeze detector + RA + SOAP + CLI thread + `World::Update` tick loop are all missing)
-> **Audited vs C++:** ⚠️ audited 2026-05-01 — **breaking divergence**: no global tick (see §13)
-> **Last updated:** 2026-05-01
+> **Status:** ⚠️ partial (boot, DB init, listener spawn, session-per-connection work; canonical map tick + gated legacy creature runtime bridge exist; freeze detector + RA + SOAP + CLI thread + full `World::Update` ownership are still missing)
+> **Audited vs C++:** ⚠️ refreshed 2026-06-12 — global map/runtime work has advanced since the 2026-05-01 audit; full C++ `WorldUpdateLoop` parity is still open.
+> **Last updated:** 2026-06-12
 
 ---
 
@@ -198,7 +198,7 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
 <!-- REFINE.021:END rust-target-coverage -->
 
 **Files in `/home/server/rustycore`:**
-- `crates/world-server/src/main.rs` — 818 lines — entry point, async runtime, account-lookup struct, listener spawn, session create
+- `crates/world-server/src/main.rs` — active entry point, async runtime, account lookup, listener spawn, session create, canonical map update loop and gated legacy creature runtime bridge.
 
 **What's implemented:**
 - Tokio async runtime (`#[tokio::main]`), `tracing` subscriber.
@@ -212,18 +212,24 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
 - `wow_handler::build_dispatch_table()` constructs the per-opcode handler registry (same role as TC's `OpcodeTable::Initialize()`).
 - `DbAccountLookup` impl of `wow_network::world_socket::AccountLookup` — resolves `(realm_id, ticket)` → `AccountInfo` (account_id, session_key_bnet, expansion, security, ban flags, locale, OS, …).
 - Two listeners spawned: `start_world_listener(realm_addr, ...)` and `start_instance_listener(instance_addr, ...)` — see `wow-network` for the accept-loop implementation.
-- Per-accepted-connection `create_session(...)` builds a `WorldSession`, wires all the resource Arcs into it, calls `send_session_init_packets` and runs a 50 ms tick loop:
+- Per-accepted-connection `create_session(...)` builds a `WorldSession`, wires all the resource Arcs into it, calls `send_session_init_packets` and runs a 50 ms session loop:
   - `session.update(50)` — process inbound queued packets
   - `session.process_pending().await` — async DB callbacks
   - `if disconnecting break` else `tokio::time::sleep(50ms)`
+- Canonical map update loop is spawned from `spawn_canonical_map_update_loop(...)` using `CONFIG_INTERVAL_MAPUPDATE` clamped to `wow_map::MIN_MAP_UPDATE_DELAY_MS`.
+- Experimental legacy creature runtime bridge exists behind `RustyCore.LegacyCreatureGlobalRuntime`:
+  - startup flips the shared legacy `wow_world::map_manager::MapManager` tick owner to `RuntimeTickOwner::GlobalLegacy`;
+  - `spawn_legacy_creature_runtime_update_loop_like_cpp(...)` ticks lifecycle, movement, aggro and melee through `run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(...)`;
+  - the bridge runs with `tokio::task::spawn_blocking` because the legacy map uses `std::sync::RwLock` and mmap/pathfinding is synchronous;
+  - packet fanout is delivered outside map locks through the `PlayerRegistry` / `SessionCommand` rails.
 - Shutdown via `tokio::select! { shutdown_signal() => ..., listener_join => ... }`, where `shutdown_signal()` handles Ctrl-C and Unix SIGTERM.
 - `get_address_for_client` — replicates TC's `Trinity::Net::SelectAddressForClient`-style "loopback or same /24 → local, else external".
 
 **What's missing vs C++:**
-- **`World::Update(diff)` global tick loop.** TC's `WorldUpdateLoop` is a single thread that drives **all** gameplay state for the whole server. RustyCore's design is per-session: each session runs its own 50 ms tick. There is **no global `WorldSessionMgr::Update`, no `MapManager::Update`, no global creature ticks aggregated across sessions, no `World::m_worldLoopCounter`**. This is the most fundamental architectural divergence between the two stacks. The `_attic/` README documents the partial migration toward `MapManager`-shared state; the global-tick driver is still future work.
+- **Full `World::Update(diff)` global ownership.** TC's `WorldUpdateLoop` is a single thread that increments `World::m_worldLoopCounter`, sleeps according to `MinWorldUpdateTime`, then calls `sWorld->Update(diff)`. C++ `World::Update` drives session updates, map updates, battlegrounds, outdoor PvP, scripts, weather and housekeeping from one owner. RustyCore now has a canonical map update loop and a gated legacy creature runtime bridge, but it does **not** yet have a full `World` singleton / `WorldSessionMgr::Update` / all-subsystem `World::Update` owner equivalent.
 - **`FreezeDetector`** — there is no equivalent. If the runtime hangs, only an external supervisor (systemd `WatchdogSec=`) catches it.
 - **`MaxCoreStuckTime` config**: read but ignored.
-- **`MinWorldUpdateTime` config**: ignored. The Rust tick is hardcoded `Duration::from_millis(50)`.
+- **`MinWorldUpdateTime` config**: not represented as the top-level world-loop cadence. Session loops still use `Duration::from_millis(50)`, while canonical/legacy map runtime paths use `CONFIG_INTERVAL_MAPUPDATE`.
 - **`World::IsStopped()` / `World::StopNow(code)` / `World::GetExitCode()`**: there is no `World` singleton. Shutdown signal handling exits the top-level select and drops listeners. Exit code always 0.
 - **DB keep-alive timer (`MaxPingTime`) present**: Rust spawns a Tokio keep-alive task that pings Character/Login/World every `MaxPingTime` minutes, matching TC's `World::Update` pool set. Hotfix is intentionally not pinged here because TC does not call `HotfixDatabase.KeepAlive()` in this path.
 - **`AppenderDB`** (logs into `logs.logs` table): not implemented; tracing only goes to stderr / journald.
@@ -252,9 +258,9 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
 - **`AbortHandler` on `SIGABRT`**: missing.
 
 **Suspicious / likely divergent (hipótesis pre-auditoría):**
-- The 50 ms-per-session sleep is **independent across sessions** — there's no global "we ticked everyone simultaneously". If a 25-player raid all has slightly different tick offsets, AoE/aura ticks visible to different clients will land on different real-time millisecond boundaries. Likely visible in PvP combat timing.
-- Without `MapManager` running its own tick (creature AI / spawn respawn / movement interpolation between sessions), creatures only "update" when *some* session looks at them. Idle creatures freeze.
-- `tokio::time::sleep(Duration::from_millis(50))` is the *floor*, not the period. If `session.update(50)` blocks for >50 ms, the next tick is delayed. TC's `MinWorldUpdateTime` enforces a *floor* explicitly; we get the same effective behaviour, but TC also logs a warning if `sleepTime >= MaxCoreStuckTime / 2`.
+- The 50 ms session sleep is still **independent across sessions** for session-owned work. Runtime slices have moved creature lifecycle/movement/aggro/melee toward a map-owned bridge, but the whole server is not yet under one `World::Update` owner.
+- With `RustyCore.LegacyCreatureGlobalRuntime=0` (default), legacy creature behavior still follows the conservative session-owned path. With it enabled, the bridge runs globally, but it remains experimental and needs live client/server validation before being called manual-test-ready.
+- `tokio::time::sleep(Duration::from_millis(50))` is the *floor* for session loops, not the top-level C++ world-loop period. TC's `MinWorldUpdateTime` floor and freeze warning semantics remain open.
 - Without `sRealmList`, the BNet realm-list response is built from a stale snapshot loaded once at boot; adding a realm row to MySQL won't be picked up.
 - Database connection pool sizing: TC opens async/sync connection sets per database via `<DB>Database.WorkerThreads` and `<DB>Database.SynchThreads`. Rust `world-server` opens one `sqlx::Pool<MySql>` per logical DB sized to that configured sum, so sub-pool separation still differs but the connection budget is no longer hardcoded.
 
@@ -323,7 +329,7 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
 <!-- REFINE.022:END task-wbs -->
 
 - [ ] **#WS.1** Implement `World` singleton (or equivalent state holder): `is_stopped() -> bool`, `stop_now(exit_code: i32)`, `get_exit_code() -> i32`, `m_world_loop_counter: AtomicU32`. (M)
-- [ ] **#WS.2** Implement a global `WorldUpdateLoop` task that ticks `MapManager` + (eventually) every `WorldSession` from one place, at a `MinWorldUpdateTime` cadence. Increment the loop counter each iteration. (XL — coupled to migrating sessions off per-task ticks; cf. `_attic/` notes)
+- [ ] **#WS.2** Implement full global `WorldUpdateLoop` / `World::Update` ownership. Current Rust status: canonical map update loop and gated legacy creature runtime bridge exist, but full session-manager update, all subsystem ordering, `MinWorldUpdateTime` cadence and `World::m_worldLoopCounter` parity remain open. (XL — coupled to migrating sessions off per-task ticks; see `docs/migration/adr-runtime-tick-ownership.md`)
 - [ ] **#WS.3** Implement `FreezeDetector`: `tokio::time::interval(1s)`; reads `m_world_loop_counter`; if unchanged for `MaxCoreStuckTime` ms, `tracing::error!` + `std::process::abort()`. (M)
 - [x] **#WS.4** Implement `ClearOnlineAccounts()` — called at boot and shutdown; mirrors TC's three queries: account online flags for this realm, character online flags, and battleground instance ids.
 - [x] **#WS.5** Implement realmlist OFFLINE flag toggle at boot + listener-ready + shutdown: mirrors TC's `flag | OFFLINE` at boot/shutdown and `flag & ~OFFLINE, population = 0` once connectable.
@@ -387,7 +393,7 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
 
 | Scope | Decision | C++ retained | Evidence |
 |---|---|---|---|
-| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 8 files / 1434 lines; refs: `/home/server/woltk-trinity-legacy/src/server/worldserver/Main.cpp`, `/home/server/woltk-trinity-legacy/src/server/worldserver/RemoteAccess/RASession.cpp`, `/home/server/woltk-trinity-legacy/src/server/worldserver/CommandLine/CliRunnable.cpp` | `crates/world-server/` \| ⚠️ partial (boot, DB init, listener spawn, session-per-connection work; freeze detector + RA + SOAP + CLI thread + `World::Update` tick loop are all missing) |
+| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 8 files / 1434 lines; refs: `/home/server/woltk-trinity-legacy/src/server/worldserver/Main.cpp`, `/home/server/woltk-trinity-legacy/src/server/worldserver/RemoteAccess/RASession.cpp`, `/home/server/woltk-trinity-legacy/src/server/worldserver/CommandLine/CliRunnable.cpp` | `crates/world-server/` \| ⚠️ partial (boot, DB init, listener spawn, session-per-connection work, canonical map tick and gated legacy creature runtime bridge exist; freeze detector + RA + SOAP + CLI thread + full `World::Update` owner remain open) |
 
 <!-- REFINE.025:END product-scope -->
 
@@ -456,15 +462,28 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
 
 ## 13. Audit (2026-05-01)
 
+> **2026-06-12 refresh:** this audit is historical. It correctly identified the original
+> session-owned runtime divergence, but later runtime slices added a canonical map
+> update loop and a gated legacy creature runtime bridge. Keep this section as the
+> C++ contrast, but use the refreshed verdict below and `docs/migration/adr-runtime-tick-ownership.md`
+> for current runtime ownership state.
+
 **Audited:**
 - C++: `/home/server/woltk-trinity-legacy/src/server/worldserver/Main.cpp` (742 lines), `World.cpp::Update`, `World.cpp::UpdateSessions`.
-- Rust: `/home/server/rustycore/crates/world-server/src/main.rs` (818 lines), `crates/wow-world/src/session.rs::WorldSession::update` (line 1063), `crates/wow-world/src/map_manager.rs` (no `update` / `tick` method exists), `crates/wow-database/src/database.rs::Database::open` (line 36), `crates/wow-database/src/updater.rs`.
+- Rust, original audit: `/home/server/rustycore/crates/world-server/src/main.rs`, `crates/wow-world/src/session.rs::WorldSession::update`, `crates/wow-world/src/map_manager.rs`, `crates/wow-database/src/database.rs::Database::open`, `crates/wow-database/src/updater.rs`.
+- Rust, 2026-06-12 refresh: `crates/world-server/src/main.rs::spawn_canonical_map_update_loop`, `spawn_legacy_creature_runtime_update_loop_like_cpp`, `run_legacy_creature_runtime_tick_and_deliver_once_like_cpp`, and `docs/migration/adr-runtime-tick-ownership.md`.
 
 ### 13.1 Audit summary
 
-The doc body's pre-audit hypothesis was correct on the most important point: **there is no `World::Update(diff)` global tick driver in RustyCore.** Each `WorldSession` is owned by its own per-connection Tokio task, runs `session.update(50)` followed by `tokio::time::sleep(50ms)`, and that is the only thing driving creature AI, combat, and aura ticks (`session.rs:1109-1124` calls `tick_creatures_sync`, `tick_combat_sync`, `tick_auras` modulo `creature_tick`). `MapManager` exists as shared state (`SharedMapManager = Arc<RwLock<MapManager>>`) but has **no `update()` / `tick()` method at all** — it is a passive container of grids and creatures, never updated from a single source. The `m_worldLoopCounter` analogue does not exist. Sessions independently tick "their" creatures, which means an idle creature on a map with no nearby session simply does not tick.
+The 2026-05-01 pre-audit hypothesis was correct for the code at that time: creature runtime ownership was effectively session-owned and there was no map-owned creature driver. That is no longer the current state. RustyCore now has:
 
-Otherwise the boot sequence is largely on-parity for what's implemented (4 DB pools, DB updater, DB2/DBC store loads, dispatch table, listeners on 8085 + 8086, ConnectTo flow, `get_address_for_client` heuristic). The big gaps are in lifecycle/operational infrastructure: no freeze detector, no realmlist OFFLINE flag toggle, no CLI/RA/SOAP, no graceful shutdown drain (sessions are dropped abruptly when listeners close), no `--config` / `--update-databases-only` CLI args.
+- a canonical `wow_map` update loop spawned from `world-server` at the configured map update interval;
+- a gated legacy creature runtime bridge (`RustyCore.LegacyCreatureGlobalRuntime`) that can flip the shared legacy map owner to `RuntimeTickOwner::GlobalLegacy`;
+- single-shot bridge bodies for legacy creature lifecycle, movement, aggro and melee, with packet fanout delivered outside map locks.
+
+The remaining architectural gap is narrower but still fundamental: RustyCore still does **not** have a full C++ `WorldUpdateLoop`/`World::Update(diff)` equivalent that owns session updates, all map updates, battleground/outdoor PvP/script/weather housekeeping, `World::m_worldLoopCounter`, `World::StopNow`, and `World::GetExitCode` from one top-level owner.
+
+Otherwise the boot sequence is largely on-parity for what's implemented (4 DB pools, DB updater, DB2/DBC store loads, dispatch table, listeners on 8085 + 8086, ConnectTo flow, `get_address_for_client` heuristic). The big gaps are in lifecycle/operational infrastructure: no freeze detector, no CLI/RA/SOAP, no graceful shutdown drain (sessions are dropped abruptly when listeners close), no `--config` / `--update-databases-only` CLI args, and no full C++ world-loop stop/exit-code owner.
 
 ### 13.2 Startup parity
 
@@ -502,7 +521,7 @@ Otherwise the boot sequence is largely on-parity for what's implemented (4 DB po
 | `if (MaxCoreStuckTime > 0) FreezeDetector::Start(...)` | — | ❌ missing (#WS.3) |
 | `sScriptMgr->OnStartup()` | — | ❌ missing (#WS.14) |
 | `if (Console.Enable) std::thread(CliThread)` | — | ❌ missing (#WS.8) |
-| `WorldUpdateLoop()` (the meat) | per-session `loop { session.update(50); session.process_pending().await; sleep(50ms); }` | ❌ **breaking divergence** |
+| `WorldUpdateLoop()` (the meat) | partial: per-session loop for packet/session work; canonical map loop; optional gated legacy creature runtime loop | ⚠️ partial; full top-level `World::Update` owner still missing |
 
 ### 13.3 Shutdown parity
 
@@ -522,9 +541,9 @@ Otherwise the boot sequence is largely on-parity for what's implemented (4 DB po
 | `BattlegroundMgr::DeleteAllBattlegrounds → OutdoorPvPMgr::Die → MapMgr::UnloadAll → TerrainMgr::UnloadAll → InstanceLockMgr::Unload` | only partial `MapManager` exists; rest missing | ❌ missing |
 | `return World::GetExitCode()` | always `Ok(())` (exit code 0) | ⚠️ no error-path code |
 
-### 13.4 Main loop architectural divergence — verdict
+### 13.4 Main loop architectural divergence — refreshed verdict
 
-**Verdict: BREAKING DIVERGENCE.**
+**Verdict: PARTIALLY MITIGATED, STILL OPEN.**
 
 TC's `WorldUpdateLoop()` is the single source of game time:
 
@@ -543,21 +562,20 @@ while (!World::IsStopped()) {
 - `sWorld->Update(diff)` calls `UpdateSessions(diff)` (line 2704 of `World.cpp`) which iterates **all** `m_sessions` once per tick, **then** calls `sMapMgr->Update(diff)` (line 2748) which ticks every loaded grid, every creature AI, every spawn-respawn timer, every BG timer, every transport.
 - `m_worldLoopCounter` is incremented from this thread and read by the freeze detector — if the thread hangs, the watchdog crashes the process so a supervisor can restart.
 
-RustyCore has **no equivalent**:
+RustyCore still lacks the full equivalent, but not all of the original statement remains true:
 
-- Each `WorldSession` runs in its own Tokio task with a `tokio::time::sleep(Duration::from_millis(50))` floor (`world-server/src/main.rs:705-721`).
-- Creature AI / combat / auras are ticked from inside `WorldSession::update` (`session.rs:1109-1124`) — i.e. each session ticks **its own copy** of creatures (`self.creatures: HashMap<ObjectGuid, CreatureAI>`), not the shared `MapManager`.
-- `MapManager` (`crates/wow-world/src/map_manager.rs`) has no `update()`, `tick()`, or any periodic method. It is a passive container.
-- There is no global counter, no freeze detector, no `World::IsStopped()`, no shared time base.
+- Each `WorldSession` still runs in its own Tokio task with a 50 ms session-loop floor for packet/session work.
+- Canonical map state has its own update loop, and the legacy creature lifecycle/movement/aggro/melee bridge can run map-owned behind `RustyCore.LegacyCreatureGlobalRuntime`.
+- There is still no global `World::m_worldLoopCounter`, no freeze detector, no `World::IsStopped()`, no `World::StopNow(code)`, and no single `World::Update(diff)` owner for every subsystem.
 
 **Concrete consequences**:
 
-1. With 0 connected sessions, no creature in the world ever updates (idle creatures freeze, BG timers don't run, respawn timers don't fire).
-2. With N connected sessions, each creature is ticked from N different real-time ms boundaries depending on each session's tick offset. AoE / aura ticks visible to different clients land at different real-time boundaries — visible in PvP and group play.
-3. The `MapManager` migration documented in `_attic/README.md` and `CLAUDE.md` ("two places: legacy per-session HashMap vs shared MapManager") is **a prerequisite** to fixing this, not just a refactor — the global tick driver can't usefully exist until creature state lives in `MapManager` only.
-4. There is no `MinWorldUpdateTime` enforcement — the per-session `sleep(50ms)` is hardcoded. No `MaxCoreStuckTime` warning when a tick takes too long.
+1. With `RustyCore.LegacyCreatureGlobalRuntime=0` (default), production still follows the conservative session-owned creature path for legacy behavior; the global bridge must be manually enabled and validated before being called production-ready.
+2. With the flag enabled, lifecycle/movement/aggro/melee have a map-owned bridge, but full `World::Update` ordering still does not cover every C++ subsystem.
+3. Session-owned work still has independent 50 ms loops, so any gameplay timer not yet moved under a map/world owner can still diverge from C++ global tick ordering.
+4. There is no top-level `MinWorldUpdateTime` / `MaxCoreStuckTime` / `World::m_worldLoopCounter` parity.
 
-This is the most fundamental architectural difference between the two stacks and must be the root of the §9 sub-task tree.
+This remains one of the most important architectural differences between the two stacks, but the next work is no longer "create any global creature tick"; it is completing and validating the world-owned runtime path, then moving the remaining session-owned gameplay timers under that owner.
 
 ### 13.5 Connection-pool sizing
 
@@ -638,16 +656,14 @@ WorldSession owning task (per session, in world-server::create_session):
     → tokio::time::sleep(50ms)
 ```
 
-Each session's task is independent; there is no global ordering. Handlers that mutate **shared** state (e.g. `MapManager` via `Arc<RwLock<...>>`, `PlayerRegistry`, `GroupRegistry`) must take locks. The `tick_creatures_sync` etc. inside `session.update` mutate **per-session** `self.creatures` (legacy field), which is the migration-in-progress called out in `CLAUDE.md`.
-
-This is acceptable divergence **for packet dispatch** (Tokio gives us the per-session serialization for free), but **breaks for shared world state** — which is the §13.4 verdict.
+Each session's task is independent for packet/session work; handlers that mutate **shared** state (e.g. `MapManager` via `Arc<RwLock<...>>`, `PlayerRegistry`, `GroupRegistry`) must take locks. The old `WorldSession::creatures` field no longer exists. The current split is a shared legacy `wow_world::MapManager`, a canonical `wow_map::MapManager`, and the gated legacy creature runtime bridge described in `docs/migration/adr-runtime-tick-ownership.md`. Per-session packet dispatch remains acceptable; gameplay state ownership is still being moved toward the world/map runtime owner.
 
 ### 13.11 Missing infrastructure (consolidated)
 
 | Item | Severity | Sub-task |
 |---|---|---|
 | Global `World` singleton + `is_stopped()` / `stop_now(exit)` flag | High | #WS.1 |
-| Global `WorldUpdateLoop` driving `MapManager::update(diff)` + session ticks | **Critical** | #WS.2 |
+| Full global `WorldUpdateLoop` / `World::Update` owner for session manager, map manager, BG/OutdoorPvP/scripts/weather/housekeeping | **Critical** | #WS.2 |
 | `FreezeDetector` (process abort on tick stall) | High | #WS.3 |
 | `ClearOnlineAccounts` at boot + shutdown | Medium | ✅ #WS.4 |
 | Realmlist OFFLINE flag toggle (boot / listener-up / shutdown) | Medium | ✅ #WS.5 |
@@ -665,21 +681,21 @@ This is acceptable divergence **for packet dispatch** (Tokio gives us the per-se
 | PID file (`PidFile` config) | Low | ✅ #WS.17 |
 | SIGTERM handler | High | ✅ #WS.18 |
 | Pre-listener startup banner (build hash, DB versions) | Low | #WS.19 |
-| Replace per-session sleep with broadcast tick from global loop | Medium | #WS.20 |
+| Replace remaining gameplay-bearing per-session sleeps with world/map-owned tick paths | Medium | #WS.20 |
 | Connection-pool sizing config | Low | ✅ #WS.21 |
 
 ### 13.12 Recommended sub-task ordering / additions
 
 The §9 list is largely correct; recommended **reorder by priority** (no renumbering — sub-task IDs are referenced elsewhere):
 
-1. **#WS.1, #WS.2, #WS.20** (the global tick + driver) — **prerequisite for everything else**, depends on completing the `_attic/`-flagged `MapManager` migration off `WorldSession.creatures`.
+1. **#WS.1, #WS.2, #WS.20** (the full world owner + remaining gameplay tick migration) — still high priority, but the creature runtime bridge has already started this path; see `docs/migration/adr-runtime-tick-ownership.md`.
 2. **#WS.15** (graceful shutdown) — depends on #WS.1.
 3. **#WS.3** (freeze detector) — depends on #WS.2 (needs the loop counter).
 4. Everything else as time allows.
 
 **Add new sub-tasks not currently in §9:**
 
-- [ ] **#WS.22** Migrate `tick_creatures_sync`, `tick_combat_sync`, `tick_auras` out of `WorldSession::update` into a `MapManager::update(diff)` method called from #WS.2's global loop. Coupled to the `_attic/` MapManager migration documented in `CLAUDE.md`. (XL)
+- [ ] **#WS.22** Finish moving gameplay-bearing ticks out of `WorldSession::update`: creature lifecycle/movement/aggro/melee have a gated map-owned bridge, but player combat, auras, spell ticks, session timers and remaining runtime side effects still need world/map ownership and C++ ordering. (XL)
 - [ ] **#WS.23** Move `time_sync_timer_ms` and `logout_time` ticks (currently in `session.rs:1130-1144`) to the global tick after #WS.2 lands; per-session sleep should only drive packet drain, not gameplay timers. (M)
 - [ ] **#WS.24** Add `sd_notify(WATCHDOG=1)` from the freeze detector when running under systemd, so the supervisor can do its own watchdog independent of `MaxCoreStuckTime`. (S)
 - [x] **#WS.25** Wire `LoginDatabase.WarnAboutSyncQueries(true)` equivalent: `wow_database::warn_about_sync_queries_scope_like_cpp` marks the current world-server tick paths with a Tokio task-local flag, and DB calls emit `sql.performances` warnings while that flag is active. Wired around the per-session tick and canonical event DB writes. (M)

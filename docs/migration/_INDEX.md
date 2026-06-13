@@ -133,7 +133,7 @@ Layer: L0–L8 según `MIGRATION_ROADMAP.md` § 2.
 | Module | C++ path | Doc | Status | Audit |
 |---|---|---|---|---|
 | bnetserver | `src/server/bnetserver/` | [bnetserver.md](bnetserver.md) | ⚠️ (base64 ticket bug) | ⚠️ |
-| worldserver | `src/server/worldserver/` | [worldserver.md](worldserver.md) | 🔧 (no global tick — BREAKING) | ⚠️ |
+| worldserver | `src/server/worldserver/` | [worldserver.md](worldserver.md) | 🔧 (canonical map tick + gated legacy creature runtime bridge; full `World::Update` owner still open) | ⚠️ |
 
 ---
 
