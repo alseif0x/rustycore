@@ -16,7 +16,7 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use tracing::{debug, info, warn};
 use wow_config::{DatabaseInfo, LoadReport, WorldConfigSet};
 use wow_core::{ObjectGuid, ObjectGuidGenerator, guid::HighGuid};
@@ -408,7 +408,7 @@ async fn main() -> Result<()> {
     verify_world_db_version_like_cpp(world_db.as_ref()).await?;
 
     let hotfix_db = Arc::new(hotfix_db);
-    let realm_id: u16 = wow_config::get_value("RealmID").unwrap_or(1);
+    let realm_id = realm_id_like_cpp()?;
     clear_online_accounts_like_cpp(&login_db, &char_db, realm_id).await?;
     set_realm_offline(&login_db, realm_id).await?;
 
@@ -2793,6 +2793,16 @@ fn database_thread_count_like_cpp(key: &str, default: u32) -> u32 {
 
 fn legacy_creature_global_runtime_enabled_from_config_like_cpp() -> bool {
     wow_config::get_value_default::<u8>(RUSTYCORE_LEGACY_CREATURE_GLOBAL_RUNTIME_CONFIG, 0) != 0
+}
+
+fn realm_id_like_cpp() -> Result<u16> {
+    let Some(realm_id) = wow_config::get_value::<u16>("RealmID") else {
+        bail!("Realm ID not defined in configuration file");
+    };
+    if realm_id == 0 {
+        bail!("Realm ID not defined in configuration file");
+    }
+    Ok(realm_id)
 }
 
 fn world_config_u16(configs: &WorldConfigSet, enum_name: &str, default: u16) -> u16 {
@@ -8951,8 +8961,8 @@ mod tests {
         loot_drop_rates_like_cpp, materialize_game_event_quest_complete_db_bridge_like_cpp,
         materialize_game_event_world_event_state_db_bridge_like_cpp, mmap_runtime_config_like_cpp,
         persisted_respawn_info_from_row_like_cpp, queue_respawn_db_delete_like_cpp,
-        queue_respawn_db_save_like_cpp, repair_cost_rate_like_cpp, reputation_rates_like_cpp,
-        run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp,
+        queue_respawn_db_save_like_cpp, realm_id_like_cpp, repair_cost_rate_like_cpp,
+        reputation_rates_like_cpp, run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp,
         run_legacy_creature_melee_tick_and_deliver_once_like_cpp,
         run_legacy_creature_movement_tick_and_deliver_once_like_cpp,
         run_legacy_creature_runtime_tick_and_deliver_once_like_cpp, set_realm_offline_sql_like_cpp,
@@ -11234,6 +11244,28 @@ Expansion = 9
             4465
         );
         assert_eq!(world_config_u8(&configs, "CONFIG_EXPANSION", 2), 9);
+    }
+
+    #[test]
+    fn realm_id_config_is_required_and_non_zero_like_cpp() {
+        let _guard = TEST_LOCK.lock().expect("test lock poisoned");
+        wow_config::load_config_from_str("").expect("config should load");
+        let missing = realm_id_like_cpp().expect_err("missing RealmID must fail");
+        assert!(
+            missing
+                .to_string()
+                .contains("Realm ID not defined in configuration file")
+        );
+
+        wow_config::load_config_from_str("RealmID = 0\n").expect("config should load");
+        let zero = realm_id_like_cpp().expect_err("RealmID 0 must fail");
+        assert!(
+            zero.to_string()
+                .contains("Realm ID not defined in configuration file")
+        );
+
+        wow_config::load_config_from_str("RealmID = 3\n").expect("config should load");
+        assert_eq!(realm_id_like_cpp().expect("valid RealmID"), 3);
     }
 
     #[test]

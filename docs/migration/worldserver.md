@@ -504,7 +504,7 @@ Otherwise the boot sequence is largely on-parity for what's implemented (4 DB po
 | `SetProcessPriority(...)` | — | ❌ out of scope |
 | `StartDB()` opens 4 pools (Login/Character/World/Hotfix) | `LoginDatabase::open` + `CharacterDatabase::open` + `WorldDatabase::open` + `HotfixDatabase::open` (lines 177-228) | ✅ four pools present |
 | `DatabaseLoader::Load()` runs `DBUpdater` per pool | `DbUpdater::new(...).populate(...).await` + `update(...).await` for auth/characters; `update` only for world/hotfix (lines 232-272) | ✅ implemented |
-| `realm.Id.Realm` from config; bail if 0 | `RealmID` config (line 390); defaults to 1, no validation | ⚠️ no zero-check |
+| `realm.Id.Realm` from config; bail if 0 | `realm_id_like_cpp()` requires `RealmID` and rejects 0 before DB cleanup | ✅ |
 | `--update-databases-only` early exit | — | ❌ missing (#WS.16) |
 | `Trinity::Net::ScanLocalNetworks()` | `get_address_for_client` /24 heuristic (line 757) | ⚠️ partial |
 | `UPDATE realmlist SET flag\|=OFFLINE` at boot | `set_realm_offline(&login_db, realm_id)` after DB cleanup | ✅ |
