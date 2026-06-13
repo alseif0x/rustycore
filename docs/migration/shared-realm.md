@@ -3,7 +3,7 @@
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/server/shared/Realm/`
 > **Rust target crate(s):** `crates/bnet-server/` (`src/realm/mod.rs`)
 > **Layer:** L1
-> **Status:** ⚠️ partial (~82%) — 2026-06-13 slices fixed the BNet realm-address packing, strong `RealmHandle` contract, `HashMap<RealmHandleLikeCpp, Realm>` storage, typed `RealmFlagsLikeCpp`/`RealmTypeLikeCpp`, subregion filtering and `WriteSubRegions`, cfg timezone/category swap, type/security normalization, packed JoinRealm lookup plus realm-owned JoinRealm prep, selected game-account ownership, strict `ClientInfo.secret` byte validation, `LastCharPlayed` C++ attribute kinds, `GetAllValuesForAttribute` auth/prefix gating, C++ BNet account-context status errors, BNet last-login locale DB bind as `uint8 GetLocaleByName`, hostname resolution/skip, normalized realm names, C++-shaped build_info hotfix/seed parsing, minor/major/bugfix build lookup and `JamJSONRealmEntry` for last-played character; remaining gaps include golden/e2e realm-list payloads and architectural unification with the world snapshot.
+> **Status:** ⚠️ partial (~82%) — 2026-06-13 slices fixed the BNet realm-address packing, strong `RealmHandle` contract, `HashMap<RealmHandleLikeCpp, Realm>` storage, typed `RealmFlagsLikeCpp`/`RealmTypeLikeCpp`, subregion filtering and `WriteSubRegions`, cfg timezone/category swap, type/security normalization, packed JoinRealm lookup plus realm-owned JoinRealm prep, selected game-account ownership, strict `ClientInfo.secret` byte validation, `LastCharPlayed` C++ attribute kinds, `GetAllValuesForAttribute` auth/prefix gating, C++ BNet account-context status errors, BNet last-login locale DB bind as `uint8 GetLocaleByName`, `ProcessClientRequest` dispatch status codes, hostname resolution/skip, normalized realm names, C++-shaped build_info hotfix/seed parsing, minor/major/bugfix build lookup and `JamJSONRealmEntry` for last-played character; remaining gaps include golden/e2e realm-list payloads and architectural unification with the world snapshot.
 > **Audited vs C++:** ✅ audited 2026-06-13 against `Realm.h`, `Realm.cpp`, `RealmList.cpp` for the fixed BNet realm-list slice.
 > **Last updated:** 2026-06-13
 
@@ -162,6 +162,7 @@ Y para realm list updates:
 - `GetRealmListTicket` parsea `Param_ClientInfo.info.secret` como una lista estricta de 32 bytes, rechazando longitudes incorrectas y valores no-byte como C++ `RealmListTicketClientInformation.info().secret()`.
 - `LastCharPlayed` emite `Param_CharacterGUID` como blob de 8 bytes y `Param_LastPlayedTime` como `int_value`, igual que C++ `set_blob_value(&guid, sizeof guid)` / `set_int_value(int32(...))`.
 - `HandleGetAllValuesForAttribute` replica el gate C++: requiere sesión autenticada y solo escribe subregions cuando `attribute_key` empieza por `Command_RealmListRequest_v1`.
+- `HandleProcessClientRequest` replica los errores C++ de dispatch: `ERROR_DENIED` si no autenticado, `ERROR_RPC_MALFORMED_REQUEST` si no hay comando y `ERROR_RPC_NOT_IMPLEMENTED` si el comando no existe.
 - Las rutas RealmListTicket/RealmList/JoinRealm convierten la falta de contexto de cuenta en status BNet C++ específicos, no en error interno genérico.
 - `GetRealmListTicket` persiste `UPD_BNET_LAST_LOGIN_INFO.locale` como `uint8 GetLocaleByName(_locale)` (`LocaleConstant`) igual que C++; `GetLocaleByName` devuelve `TOTAL_LOCALES` para nombres desconocidos.
 - Los errores del flujo RealmList/JoinRealm usan los códigos BNet C++ específicos (`INVALID_IDENTITY_ARGS`, `DENIED_REALM_LIST_TICKET`, `INVALID_JOIN_TICKET`, `UNKNOWN_REALM`, `NOT_PERMITTED_ON_REALM`, `BAD_WOW_ACCOUNT`) en vez de caer en `ERROR_DENIED`/`ERROR_INTERNAL`.
@@ -185,6 +186,7 @@ Y para realm list updates:
 - ✅ fixed 2026-06-13: `HandleGetAllValuesForAttribute` aceptaba claves que solo contenían `Command_RealmListRequest_v1` y no rechazaba explícitamente sesiones no autenticadas; C++ usa `find(...) == 0` y `ERROR_DENIED`.
 - ✅ fixed 2026-06-13: algunos paths Realm utilities devolvían error interno si faltaba `account_info`; ahora usan `INVALID_IDENTITY_ARGS` / `BAD_WOW_ACCOUNT` según el contrato C++ del caller.
 - ✅ fixed 2026-06-13: `UPD_BNET_LAST_LOGIN_INFO.locale` se bindeaba como string (`"esES"`); C++ usa `setUInt8(GetLocaleByName(_locale))`, ahora Rust bindea `SqlParam::U8`.
+- ✅ fixed 2026-06-13: `ProcessClientRequest` sin comando o con comando desconocido caía en error genérico; C++ devuelve `ERROR_RPC_MALFORMED_REQUEST` / `ERROR_RPC_NOT_IMPLEMENTED`.
 - Sin `shared_mutex`, Rust usa `parking_lot::RwLock` (vía `state.realm_mgr.write()`) → equivalente.
 
 **Tests existing:**
@@ -242,6 +244,7 @@ Y para realm list updates:
 - [x] **#REALM.4b.8** Alinear `HandleGetAllValuesForAttribute`: `ERROR_DENIED` si no autenticado y match por prefijo para `Command_RealmListRequest_v1`. (L)
 - [x] **#REALM.4b.9** Convertir ausencia de contexto de cuenta en status BNet C++ por caller (`INVALID_IDENTITY_ARGS` / `BAD_WOW_ACCOUNT`) en vez de error interno. (L)
 - [x] **#REALM.4b.10** Persistir `UPD_BNET_LAST_LOGIN_INFO.locale` como `uint8 GetLocaleByName(_locale)` y testear el bind C++ (`last_ip`, `locale`, `os`, `account id`). (L)
+- [x] **#REALM.4b.11** Alinear el dispatch de `HandleProcessClientRequest`: denied común, malformed sin comando y not-implemented para comando desconocido. (L)
 - [ ] **#REALM.4b** Reubicar/encapsular el flow completo como ownership `RealmList::JoinRealm` C++-like y añadir golden/integration; DB execute y random server secret siguen en el handler, y los sub-pasos ya están aislados pero no movidos a un flow único. (M)
 - [x] **#REALM.5** Implementar `set_name` con `NormalizedName` (strip whitespace). (L)
 - [x] **#REALM.6** Implementar `get_minor_major_bugfix_version_for_build` con semántica `lower_bound`. (L)

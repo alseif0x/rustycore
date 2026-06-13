@@ -57,18 +57,33 @@ async fn handle_process_client_request<S: AsyncRead + AsyncWrite + Unpin>(
 
     tracing::debug!("GameUtilities command: {command:?}");
 
+    let command = process_client_request_command_like_cpp(session.authed, command)?;
     match command {
-        Some("Command_RealmListTicketRequest_v1") => get_realm_list_ticket(session, &request).await,
-        Some("Command_LastCharPlayedRequest_v1") => get_last_char_played(session, &request).await,
-        Some("Command_RealmListRequest_v1") => get_realm_list(session, &request).await,
-        Some("Command_RealmJoinRequest_v1") => join_realm(session, &request).await,
-        _ => {
-            tracing::warn!(
-                "Unknown GameUtilities command: {command:?} (raw={:?})",
-                command_attr.map(|a| a.name.as_str())
-            );
-            bail!("Unknown command")
-        }
+        "Command_RealmListTicketRequest_v1" => get_realm_list_ticket(session, &request).await,
+        "Command_LastCharPlayedRequest_v1" => get_last_char_played(session, &request).await,
+        "Command_RealmListRequest_v1" => get_realm_list(session, &request).await,
+        "Command_RealmJoinRequest_v1" => join_realm(session, &request).await,
+        _ => unreachable!("validated GameUtilities command"),
+    }
+}
+
+fn process_client_request_command_like_cpp<'a>(
+    authed: bool,
+    command: Option<&'a str>,
+) -> Result<&'a str> {
+    if !authed {
+        return Err(RpcStatusError::new(status::ERROR_DENIED).into());
+    }
+
+    let command =
+        command.ok_or_else(|| RpcStatusError::new(status::ERROR_RPC_MALFORMED_REQUEST))?;
+
+    match command {
+        "Command_RealmListTicketRequest_v1"
+        | "Command_LastCharPlayedRequest_v1"
+        | "Command_RealmListRequest_v1"
+        | "Command_RealmJoinRequest_v1" => Ok(command),
+        _ => Err(RpcStatusError::new(status::ERROR_RPC_NOT_IMPLEMENTED).into()),
     }
 }
 
@@ -565,8 +580,8 @@ mod tests {
         apply_join_realm_login_info_update_like_cpp, bnet_session_key_data_like_cpp,
         join_realm_response_attributes_like_cpp, last_char_played_response_attributes_like_cpp,
         locale_string_to_id_like_cpp, parse_realm_list_ticket_client_secret_like_cpp,
-        parse_realm_list_ticket_game_account_id_like_cpp, selected_game_account_like_cpp,
-        should_write_sub_regions_like_cpp,
+        parse_realm_list_ticket_game_account_id_like_cpp, process_client_request_command_like_cpp,
+        remove_suffix, selected_game_account_like_cpp, should_write_sub_regions_like_cpp,
     };
     use crate::rpc::session::RpcStatusError;
     use crate::state::{AccountInfo, GameAccountInfo, LastPlayedCharInfo};
@@ -703,6 +718,8 @@ mod tests {
     #[test]
     fn realm_utility_status_constants_match_cpp() {
         assert_eq!(status::ERROR_DENIED, 3);
+        assert_eq!(status::ERROR_RPC_MALFORMED_REQUEST, 0x0000_0BC5);
+        assert_eq!(status::ERROR_RPC_NOT_IMPLEMENTED, 0x0000_0BC7);
         assert_eq!(status::ERROR_UTIL_SERVER_UNKNOWN_REALM, 0x8000_0069);
         assert_eq!(status::ERROR_UTIL_SERVER_INVALID_IDENTITY_ARGS, 0x8000_006E);
         assert_eq!(
@@ -738,6 +755,37 @@ mod tests {
             .downcast_ref::<RpcStatusError>()
             .expect("expected RpcStatusError");
         assert_eq!(status.status(), status::ERROR_DENIED);
+    }
+
+    #[test]
+    fn process_client_request_dispatch_statuses_match_cpp() {
+        let err =
+            process_client_request_command_like_cpp(false, Some("Command_RealmListRequest_v1"))
+                .expect_err("unauthenticated ProcessClientRequest must be denied before dispatch");
+        assert_eq!(
+            err.downcast_ref::<RpcStatusError>().unwrap().status(),
+            status::ERROR_DENIED
+        );
+
+        let err = process_client_request_command_like_cpp(true, None)
+            .expect_err("missing command must be malformed like C++");
+        assert_eq!(
+            err.downcast_ref::<RpcStatusError>().unwrap().status(),
+            status::ERROR_RPC_MALFORMED_REQUEST
+        );
+
+        let err = process_client_request_command_like_cpp(true, Some("Command_Unknown_v1"))
+            .expect_err("unknown command must be not implemented like C++");
+        assert_eq!(
+            err.downcast_ref::<RpcStatusError>().unwrap().status(),
+            status::ERROR_RPC_NOT_IMPLEMENTED
+        );
+
+        let suffixed = remove_suffix("Command_RealmListRequest_v1_wotlk1");
+        assert_eq!(
+            process_client_request_command_like_cpp(true, Some(suffixed)).unwrap(),
+            "Command_RealmListRequest_v1"
+        );
     }
 
     #[test]

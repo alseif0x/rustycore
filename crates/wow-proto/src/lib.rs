@@ -96,6 +96,8 @@ pub mod status {
     pub const ERROR_INTERNAL: u32 = 1;
     pub const ERROR_TIMED_OUT: u32 = 2;
     pub const ERROR_DENIED: u32 = 3;
+    pub const ERROR_RPC_MALFORMED_REQUEST: u32 = 0x0000_0BC5;
+    pub const ERROR_RPC_NOT_IMPLEMENTED: u32 = 0x0000_0BC7;
     pub const ERROR_BAD_PROGRAM: u32 = 0x4D;
     pub const ERROR_BAD_LOCALE: u32 = 0x4E;
     pub const ERROR_BAD_PLATFORM: u32 = 0x4F;
