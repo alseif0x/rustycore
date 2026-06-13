@@ -1239,6 +1239,10 @@ pub(crate) struct RepresentedSpellClickCastLikeCpp {
     pub target: RepresentedSpellClickUnitRefLikeCpp,
     pub original_caster: RepresentedSpellClickUnitRefLikeCpp,
     pub cast_flags: u8,
+    pub vehicle_seat_id: Option<i8>,
+    pub vehicle_control_effect_index: Option<u32>,
+    pub vehicle_spellmod_basepoint_value: Option<i32>,
+    pub vehicle_aura_fallback_basepoint_value: Option<i32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -6608,6 +6612,14 @@ impl WorldSession {
         &self,
         creature_guid: ObjectGuid,
     ) -> RepresentedSpellClickPlanLikeCpp {
+        self.represented_handle_spell_click_plan_with_seat_like_cpp(creature_guid, None)
+    }
+
+    pub(crate) fn represented_handle_spell_click_plan_with_seat_like_cpp(
+        &self,
+        creature_guid: ObjectGuid,
+        seat_id: Option<i8>,
+    ) -> RepresentedSpellClickPlanLikeCpp {
         let mut plan = RepresentedSpellClickPlanLikeCpp::default();
 
         let Some(spell_click_store) = self.npc_spell_click_store.as_ref() else {
@@ -6748,6 +6760,32 @@ impl WorldSession {
                 continue;
             }
 
+            let vehicle_seat_data = if let Some(seat_id) = seat_id {
+                let Ok(spell_id) = i32::try_from(click_info.spell_id) else {
+                    plan.exact_context_unrepresented = true;
+                    continue;
+                };
+                let Some(spell_info) = self.spell_store().and_then(|store| store.get(spell_id))
+                else {
+                    plan.exact_context_unrepresented = true;
+                    continue;
+                };
+                let Some(control_effect) = spell_info.effects().iter().find(|effect| {
+                    effect.effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA
+                        && effect.effect_aura
+                            == wow_data::spell::aura_types::SPELL_AURA_CONTROL_VEHICLE
+                }) else {
+                    continue;
+                };
+                Some((
+                    control_effect.effect_index,
+                    i32::from(seat_id) + 1,
+                    i32::from(seat_id),
+                ))
+            } else {
+                None
+            };
+
             plan.casts.push(RepresentedSpellClickCastLikeCpp {
                 spell_id: click_info.spell_id,
                 caster: if (click_info.cast_flags & NPC_CLICK_CAST_CASTER_CLICKER_LIKE_CPP) != 0 {
@@ -6769,6 +6807,13 @@ impl WorldSession {
                     RepresentedSpellClickUnitRefLikeCpp::Clicker
                 },
                 cast_flags: click_info.cast_flags,
+                vehicle_seat_id: seat_id,
+                vehicle_control_effect_index: vehicle_seat_data
+                    .map(|(effect_index, _, _)| effect_index),
+                vehicle_spellmod_basepoint_value: vehicle_seat_data
+                    .map(|(_, spellmod_value, _)| spellmod_value),
+                vehicle_aura_fallback_basepoint_value: vehicle_seat_data
+                    .map(|(_, _, fallback_value)| fallback_value),
             });
         }
 
@@ -6800,6 +6845,10 @@ impl WorldSession {
         };
 
         for cast in &plan.casts {
+            if cast.vehicle_seat_id.is_some() {
+                outcome.skipped_unrepresented_caster += 1;
+                continue;
+            }
             if cast.caster == RepresentedSpellClickUnitRefLikeCpp::Clickee {
                 match self
                     .execute_represented_spell_click_clickee_caster_like_cpp(
@@ -44570,6 +44619,168 @@ mod tests {
             RepresentedSpellClickUnitRefLikeCpp::Owner
         );
         assert!(plan.ai_on_spell_click_unrepresented);
+    }
+
+    #[test]
+    fn represented_handle_spellclick_with_vehicle_seat_records_cpp_spellmod_values() {
+        let (mut session, _pkt_tx, _send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let vehicle_guid = test_creature_guid(229);
+        let spell_id = 910_i32;
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "Tester".to_string(),
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_condition_store(Arc::new(ConditionEntriesByTypeStore::default()));
+        session.set_npc_spell_click_store(Arc::new(NpcSpellClickStoreLikeCpp::from_rows_like_cpp(
+            [wow_data::NpcSpellClickRowLikeCpp {
+                npc_entry: 806,
+                spell_id: u32::try_from(spell_id).unwrap(),
+                cast_flags: NPC_CLICK_CAST_CASTER_CLICKER_LIKE_CPP,
+                user_type: wow_data::SPELL_CLICK_USER_ANY_LIKE_CPP,
+            }],
+            |entry| entry == 806,
+            |spell| spell == u32::try_from(spell_id).unwrap(),
+        )));
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_CONTROL_VEHICLE),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![
+                    wow_data::SpellEffectInfo {
+                        effect_index: 0,
+                        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE,
+                        effect_aura: 0,
+                        effect_base_points: 1,
+                        ..Default::default()
+                    },
+                    wow_data::SpellEffectInfo {
+                        effect_index: 1,
+                        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                        effect_aura: wow_data::spell::aura_types::SPELL_AURA_CONTROL_VEHICLE,
+                        effect_base_points: 0,
+                        ..Default::default()
+                    },
+                ],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+        add_canonical_test_creature(
+            &canonical,
+            vehicle_guid,
+            806,
+            Position::new(12.0, 0.0, 0.0, 0.0),
+            UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP as u32,
+        );
+
+        let plan =
+            session.represented_handle_spell_click_plan_with_seat_like_cpp(vehicle_guid, Some(3));
+
+        assert_eq!(plan.casts.len(), 1);
+        assert_eq!(plan.casts[0].spell_id, u32::try_from(spell_id).unwrap());
+        assert_eq!(plan.casts[0].vehicle_seat_id, Some(3));
+        assert_eq!(plan.casts[0].vehicle_control_effect_index, Some(1));
+        assert_eq!(
+            plan.casts[0].vehicle_spellmod_basepoint_value,
+            Some(4),
+            "C++ CastSpell branch sets SPELLVALUE_BASE_POINT0 + effectIndex to seatId + 1"
+        );
+        assert_eq!(
+            plan.casts[0].vehicle_aura_fallback_basepoint_value,
+            Some(3),
+            "C++ Aura::TryRefreshStackOrCreate fallback writes raw seatId into basepoints"
+        );
+    }
+
+    #[test]
+    fn represented_handle_spellclick_with_vehicle_seat_skips_non_vehicle_aura_like_cpp() {
+        let (mut session, _pkt_tx, _send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let vehicle_guid = test_creature_guid(230);
+        let spell_id = 911_i32;
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "Tester".to_string(),
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_condition_store(Arc::new(ConditionEntriesByTypeStore::default()));
+        session.set_npc_spell_click_store(Arc::new(NpcSpellClickStoreLikeCpp::from_rows_like_cpp(
+            [wow_data::NpcSpellClickRowLikeCpp {
+                npc_entry: 807,
+                spell_id: u32::try_from(spell_id).unwrap(),
+                cast_flags: NPC_CLICK_CAST_CASTER_CLICKER_LIKE_CPP,
+                user_type: wow_data::SPELL_CLICK_USER_ANY_LIKE_CPP,
+            }],
+            |entry| entry == 807,
+            |spell| spell == u32::try_from(spell_id).unwrap(),
+        )));
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE,
+                effect_base_points: 7,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE,
+                    effect_aura: 0,
+                    effect_base_points: 7,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+        add_canonical_test_creature(
+            &canonical,
+            vehicle_guid,
+            807,
+            Position::new(12.0, 0.0, 0.0, 0.0),
+            UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP as u32,
+        );
+
+        let plan =
+            session.represented_handle_spell_click_plan_with_seat_like_cpp(vehicle_guid, Some(2));
+
+        assert!(plan.casts.is_empty());
+        assert!(
+            plan.ai_on_spell_click_unrepresented,
+            "C++ still calls CreatureAI::OnSpellClick(clicker, false) after an invalid vehicle-enter aura row is skipped"
+        );
     }
 
     #[test]
