@@ -124,6 +124,64 @@ impl Diff {
     }
 }
 
+/// C++ `IntervalTimer` port from `src/common/Time/Timer.h`.
+///
+/// It accumulates signed millisecond diffs, reports passed once
+/// `current >= interval`, and `reset` preserves overshoot with modulo.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IntervalTimer {
+    interval: i64,
+    current: i64,
+}
+
+impl IntervalTimer {
+    pub const fn new() -> Self {
+        Self {
+            interval: 0,
+            current: 0,
+        }
+    }
+
+    pub fn update(&mut self, diff: i64) {
+        self.current = self.current.saturating_add(diff);
+        if self.current < 0 {
+            self.current = 0;
+        }
+    }
+
+    pub const fn passed(&self) -> bool {
+        self.current >= self.interval
+    }
+
+    pub fn reset(&mut self) {
+        if self.interval > 0 && self.current >= self.interval {
+            self.current %= self.interval;
+        }
+    }
+
+    pub const fn set_current(&mut self, current: i64) {
+        self.current = current;
+    }
+
+    pub const fn set_interval(&mut self, interval: i64) {
+        self.interval = interval;
+    }
+
+    pub const fn interval(&self) -> i64 {
+        self.interval
+    }
+
+    pub const fn current(&self) -> i64 {
+        self.current
+    }
+}
+
+impl Default for IntervalTimer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -162,5 +220,51 @@ mod tests {
         let d = Diff::from_ms(100);
         assert_eq!(d.as_ms(), 100);
         assert!((d.as_secs_f32() - 0.1).abs() < 0.001);
+    }
+
+    #[test]
+    fn interval_timer_defaults_match_cpp() {
+        let timer = IntervalTimer::new();
+        assert_eq!(timer.interval(), 0);
+        assert_eq!(timer.current(), 0);
+        assert!(timer.passed());
+    }
+
+    #[test]
+    fn interval_timer_update_clamps_negative_current_like_cpp() {
+        let mut timer = IntervalTimer::new();
+        timer.set_current(5);
+        timer.update(-20);
+        assert_eq!(timer.current(), 0);
+    }
+
+    #[test]
+    fn interval_timer_passed_uses_current_greater_or_equal_interval_like_cpp() {
+        let mut timer = IntervalTimer::new();
+        timer.set_interval(100);
+        timer.update(99);
+        assert!(!timer.passed());
+        timer.update(1);
+        assert!(timer.passed());
+    }
+
+    #[test]
+    fn interval_timer_reset_preserves_overshoot_like_cpp() {
+        let mut timer = IntervalTimer::new();
+        timer.set_interval(100);
+        timer.update(250);
+        assert!(timer.passed());
+        timer.reset();
+        assert_eq!(timer.current(), 50);
+        assert!(!timer.passed());
+    }
+
+    #[test]
+    fn interval_timer_reset_before_passed_keeps_current_like_cpp() {
+        let mut timer = IntervalTimer::new();
+        timer.set_interval(100);
+        timer.update(40);
+        timer.reset();
+        assert_eq!(timer.current(), 40);
     }
 }

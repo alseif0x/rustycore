@@ -211,7 +211,7 @@ None. Common is pre-protocol — it ships no opcodes. The closest it gets is `Me
 | `Threading/ProducerConsumerQueue` | `flume::bounded(N)` | ✅ replaced |
 | `Threading/ThreadPool` | `tokio::task::spawn` / `tokio::runtime::Runtime` | ✅ replaced |
 | `Threading/ProcessPriority` | none — defaults to OS scheduler | ❌ missing (low priority) |
-| `Time/Timer.h` (`getMSTime`, `IntervalTimer`, `TimeTracker`) | `crates/wow-core/src/time.rs` — `ServerTime` (Instant), `GameTime` (Unix), `Diff(u32)` | ⚠️ partial — covers `getMSTime` and `Diff`, but **no `IntervalTimer`** struct; callers reimplement countdown locally |
+| `Time/Timer.h` (`getMSTime`, `IntervalTimer`, `TimeTracker`) | `crates/wow-core/src/time.rs` — `ServerTime` (Instant), `GameTime` (Unix), `Diff(u32)`, `IntervalTimer` | ⚠️ partial — covers `getMSTime`, `Diff`, and C++ `IntervalTimer`; `TimeTracker`/`PeriodicTimer` remain open |
 | `Time/Timezone` | none — Rust uses `std::time::SystemTime` (UTC) | ❌ missing — `GameTime::to_packed()` in `wow-core/src/time.rs:60-79` does an **approximate** date breakdown (`days/365.25` etc.) instead of a real `localtime_r`; documented as known issue in the comment |
 | `Utilities/Util.cpp::Tokenize` | `str::split` + `collect::<Vec<_>>()` | ✅ idiomatic replacement |
 | `Utilities/Util.cpp::strToUpper/Lower` | `str::to_ascii_uppercase()` | ✅ for ASCII; ⚠️ for non-ASCII |
@@ -291,7 +291,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 - [ ] **#COMMON.5** Implement `wow-config::reload()` with SIGHUP wire-up in both binaries. (M)
 - [ ] **#COMMON.6** Implement env-var override (`OverrideWithEnvVariablesIfAny`) for `wow-config`. Map `World.Server.Port` → `WORLD_SERVER_PORT` per the C++ snake-case rule. (M)
 - [ ] **#COMMON.7** Replace `wow-core::time::GameTime::to_packed()`'s approximate date math with `chrono::DateTime` proper. (L)
-- [ ] **#COMMON.8** Add `IntervalTimer` struct to `wow-core::time` (Update/Passed/Reset, mirrors C++ `IntervalTimer` exactly). (L)
+- [x] **#COMMON.8** Add `IntervalTimer` struct to `wow-core::time` (Update/Passed/Reset, mirrors C++ `IntervalTimer` for signed diffs, pass check, negative clamp, and modulo overshoot reset). (L)
 - [ ] **#COMMON.9** Decide on `IPLocation` port: vendor a CSV-loader behind a `wow-geoip` crate, or pull `maxminddb` GeoLite2 reader. (H)
 - [ ] **#COMMON.10** `Metric` port: choose between (a) `metrics` + `metrics-exporter-prometheus` for pull-style or (b) `influxdb-rs` for push. (H)
 - [ ] **#COMMON.11** Port `TaskScheduler` (composable async scheduler) — needed before any C++ spell-script port can compile. (XL — split into Schedule/RepeatedSchedule/Async/Group).
@@ -313,7 +313,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 - [ ] `Utf8ToUpperOnlyLatin("CAFÉ123")` is idempotent.
 - [ ] `wow-config` env-var override: `WORLD_SERVER_PORT=9999 ./world-server` overrides `WorldServerPort = 8085`.
 - [ ] `wow-config` reload preserves `keepOnReload=true` keys.
-- [ ] `IntervalTimer::Passed()` correctness across overflow.
+- [x] `IntervalTimer::Passed()` / `Reset()` correctness for C++ threshold and overshoot semantics.
 - [ ] `getMSTime()` Rust equivalent never wraps within a 49-day session window (`u32` ms ⇒ fine; but check the cast in `time.rs:18`).
 - [ ] `IPLocation::GetLocationRecord` for `192.168.0.1` returns `None`; for `8.8.8.8` returns `US`.
 - [ ] `Metric` smoke test: 1000 enqueues drain in <100ms without dropping.
@@ -361,7 +361,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 | `ThreadPool` | `tokio::runtime::Runtime` workers | Implicit |
 | `SetProcessPriority(MEDIUM_PRIORITY_CLASS)` | NOT YET PORTED | nice-level shim missing |
 | `getMSTime()` | `wow_core::time::ServerTime::elapsed_ms()` | `Instant::now() - start` |
-| `IntervalTimer` | NOT YET PORTED | sub-task #COMMON.8 |
+| `IntervalTimer` | `wow_core::IntervalTimer` | sub-task #COMMON.8 |
 | `TimeTracker` | NOT YET PORTED | — |
 | `Trinity::TimeBreakdown(t)` | `chrono::DateTime::from_timestamp(t, 0)` | external crate |
 | `urand(min, max)` | `rand::thread_rng().gen_range(min..=max)` | inclusive range |
@@ -434,7 +434,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 | `ThreadPool::Run(N)` | `Threading/ThreadPool.h:30-48` | `tokio::runtime::Builder::new_multi_thread().worker_threads(N)` | ✅ | — |
 | `SetProcessPriority` | `Threading/ProcessPriority.cpp:30-90` | NONE | ❌ | Low priority. |
 | `getMSTime()` | `Time/Timer.h:33-38` | `wow_core::time::ServerTime::elapsed_ms()` (`time.rs:17-19`) | ✅ | Both monotonic from app start. **Caveat**: Rust returns `u64`, C++ returns `uint32` — the `as u64` cast in `time.rs:18` is correct, but any port that reads a C++ `getMSTime()` value off the wire/disk and expects 32-bit wrapping behaviour will need `as u32`. |
-| `IntervalTimer::Update / Passed / Reset` | `Time/Timer.h:62-100` | NONE | ❌ | Sub-task #COMMON.8. |
+| `IntervalTimer::Update / Passed / Reset` | `Time/Timer.h:62-100` | `wow_core::IntervalTimer::{update,passed,reset}` | ✅ | Signed diff update, negative clamp, pass threshold, current/interval accessors and overshoot-preserving reset are covered by focused tests. |
 | `Timezone` (DST/offset) | `Time/Timezone.cpp:30-180` | NONE — `GameTime::to_packed` uses 365.25-day approx | ⚠️ | Calendar/mail timestamps can drift ±1 day at year boundary. Already documented in `time.rs:67`. Sub-task #COMMON.7. |
 | `Tokenize(str, sep, keepEmpty)` | `Util.cpp:56-72` | `str.split(sep).filter(...).collect()` | ✅ | Idiomatic. |
 | `strToUpper(s)` | `Util.cpp:481` (`std::transform` with `charToUpper`) | `s.to_ascii_uppercase()` | ✅ | ASCII-only. Identical for ASCII input. |
@@ -518,11 +518,11 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 6. **`#COMMON.5` + `#COMMON.6` — config reload + env-var override (MED).** Standard production deployments expect both.
 7. **`#COMMON.11` — `TaskScheduler` port (XL, but unblocks spell-script porting).**
 8. **`#COMMON.18` — `IsInLocalNetwork` helper (LOW unless LAN deployment).**
-9. Remaining items are quality-of-life: centralise random helpers (#COMMON.13), add fuzzy-find (#COMMON.17), panic hook (#COMMON.16), `IntervalTimer` (#COMMON.8).
+9. Remaining items are quality-of-life: centralise random helpers (#COMMON.13), add fuzzy-find (#COMMON.17), panic hook (#COMMON.16), `TimeTracker`/`PeriodicTimer`.
 
 ### 13.4 Justifying the status badge
 
-`⚠️ partial` is correct. The Asio↔Tokio replacement is genuinely complete and idiomatic; same for queues, mutexes, time, random, encoding, errors. Where Rust simply uses the corresponding crate (`tokio`, `flume`, `parking_lot`, `dashmap`, `rand`, `hex`, `regex`, `bitflags`) the migration is real and ✅. The ⚠️ comes from four genuine gaps: (a) `Utf8ToUpperOnlyLatin` (login-affecting), (b) `IPLocation` (forensics-affecting), (c) `Metric` (ops-affecting), (d) the logger framework gaps (file appender, DB appender). Plus the smaller deferred items (`TaskScheduler`, `EventMap`, `IntervalTimer`, `Timezone`).
+`⚠️ partial` is correct. The Asio↔Tokio replacement is genuinely complete and idiomatic; same for queues, mutexes, random, encoding, errors, `IntervalTimer`, and Unix IP network scanning. Where Rust simply uses the corresponding crate (`tokio`, `flume`, `parking_lot`, `dashmap`, `rand`, `hex`, `regex`, `bitflags`) the migration is real and ✅. The ⚠️ comes from four genuine gaps: (a) `Utf8ToUpperOnlyLatin` (login-affecting), (b) `IPLocation` (forensics-affecting), (c) `Metric` (ops-affecting), (d) the logger framework gaps (file appender, DB appender). Plus the smaller deferred items (`TaskScheduler`, `EventMap`, `TimeTracker`/`PeriodicTimer`, `Timezone`).
 
 Recommendation: keep ⚠️ partial until #COMMON.1 lands (single most-load-bearing item); then promote to ✅ done with the Metric/IPLocation gaps explicitly carved out as `wow-ops` future work.
 

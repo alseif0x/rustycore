@@ -10,4 +10,4 @@ pub use net::{
     select_ip_address_for_client_like_cpp, select_ipv4_address_for_client_like_cpp,
 };
 pub use position::Position;
-pub use time::{GameTime, ServerTime};
+pub use time::{GameTime, IntervalTimer, ServerTime};
