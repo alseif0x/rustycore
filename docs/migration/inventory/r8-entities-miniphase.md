@@ -1,3 +1,23 @@
+- `#NEXT.R8.ENTITIES.819` — represented-complete for bounded `CMSG_ADD_BATTLENET_FRIEND` null/unhandled hook.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:803-806`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:150`.
+
+  Rust anchors: `crates/wow-world/src/handlers/misc.rs`; `crates/wow-world/src/session.rs`.
+
+  Acceptance: `ClientOpcodes::AddBattlenetFriend` is registered `Authed`/`ThreadUnsafe`, dispatched through `WorldSession`, and consumed silently without packets or represented state mutation, matching the C++ `STATUS_UNHANDLED`/`Handle_NULL` path.
+
+  Boundary: represented-complete only for this bounded unhandled/null hook; no Battle.net friend/social feature is implemented or claimed, and no live client/manual validation.
+
+- `#NEXT.R8.ENTITIES.818` — audit-fix for represented faction war/inactive handlers.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CharacterHandler.cpp:1444-1492`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:895-897`.
+
+  Rust anchors: `crates/wow-packet/src/packets/reputation.rs`; `crates/wow-world/src/handlers/misc.rs`; `crates/wow-world/src/session.rs`.
+
+  Acceptance: stale opcode inventories no longer claim missing dispatch for `CMSG_SET_FACTION_AT_WAR`, `CMSG_SET_FACTION_NOT_AT_WAR`, or `CMSG_SET_FACTION_INACTIVE`. Rust already parses the C++ packet shapes, registers `LoggedIn`/`ThreadUnsafe`, dispatches through `WorldSession`, and mutates represented `ReputationMgrLikeCpp` state without direct packet output.
+
+  Boundary: represented current-session reputation state only; full faction persistence/fanout remains under broader reputation runtime work.
+
 - `#NEXT.R8.ENTITIES.817` — represented-complete for bounded `CMSG_SET_GAME_EVENT_DEBUG_VIEW_STATE`.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:1437-1440`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:897`.

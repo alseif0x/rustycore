@@ -316,6 +316,15 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
+        opcode: ClientOpcodes::AddBattlenetFriend,
+        status: SessionStatus::Authed,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_add_battlenet_friend",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
         opcode: ClientOpcodes::ViolenceLevel,
         status: SessionStatus::Authed,
         processing: PacketProcessing::Inplace,
@@ -1667,6 +1676,10 @@ impl crate::session::WorldSession {
             addon_count = packet.addons.len(),
             "HandleAddonList consumed addon list like C++"
         );
+    }
+
+    pub async fn handle_add_battlenet_friend(&mut self, _pkt: wow_packet::WorldPacket) {
+        // C++ registers CMSG_ADD_BATTLENET_FRIEND as STATUS_UNHANDLED/Handle_NULL.
     }
 
     pub async fn handle_set_ammo(&mut self, _pkt: wow_packet::WorldPacket) {
@@ -3445,6 +3458,17 @@ mod tests {
         pkt.reset_read();
 
         session.handle_addon_list(pkt).await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn add_battlenet_friend_is_silent_like_cpp_handle_null() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_add_battlenet_friend(WorldPacket::new_empty())
+            .await;
 
         assert!(send_rx.try_recv().is_err());
     }
