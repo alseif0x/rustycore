@@ -8,16 +8,6 @@
 
   Boundary: represented-complete only for this bounded null/debug hook; no live client/manual validation.
 
-- `#NEXT.R8.ENTITIES.817` — represented-complete for bounded `CMSG_SET_GAME_EVENT_DEBUG_VIEW_STATE`.
-
-C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:1437-1440` (`WorldPackets::Null` handler only logs the toggle) and `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:897` (`STATUS_LOGGEDIN`, `PROCESS_THREADUNSAFE`).
-
-Implemented Rust seam: `handlers/misc.rs` registers `ClientOpcodes::SetGameEventDebugViewState` as LoggedIn/ThreadUnsafe, `session.rs` dispatches it, and the handler consumes the packet without response or represented state mutation. Focused handler test proves the silent debug-only boundary.
-
-Checks: `cargo fmt --all --check`; `cargo test -p wow-world set_game_event_debug_view_state --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`; `git diff --check`.
-
-Boundaries: represented-complete for this bounded debug-only handler; no game-event debug UI/runtime state is invented and no live client/manual validation is claimed.
-
 - `#NEXT.R8.ENTITIES.816` — audit-fix/represented-partial for `CMSG_ADD_TOY` inventory drift.
 
 C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/ToyPackets.cpp:20-23` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/ToyPackets.h:28-35` (single `ObjectGuid Guid` read shape); `/home/server/woltk-trinity-legacy/src/server/game/Handlers/ToyHandler.cpp:28-52` (empty guid return, `GetItemByGuid`, item-not-found equip error, `sDB2Manager.IsToyItem`, `Player::CanUseItem`, `CollectionMgr::AddToy`, and `DestroyItem` only when newly inserted); `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:153` (`STATUS_LOGGEDIN`, `PROCESS_THREADUNSAFE`).
