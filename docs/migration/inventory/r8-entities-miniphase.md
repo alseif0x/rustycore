@@ -1,3 +1,13 @@
+- `#NEXT.R8.ENTITIES.843` - audit-fix/represented-complete for stale `CMSG_TOY_CLEAR_FANFARE` inventory.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/ToyHandler.cpp:99-102`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/ToyPackets.cpp:54-57`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/ToyPackets.h:59-66`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/CollectionMgr.cpp:157-164`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/CollectionMgr.h:60-67`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:976`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:673`.
+
+  Rust anchors: `crates/wow-packet/src/packets/misc.rs`; `crates/wow-world/src/handlers/misc.rs`; `crates/wow-world/src/session.rs`.
+
+  Acceptance: inventories no longer claim `CMSG_TOY_CLEAR_FANFARE` is missing. Rust already parses the C++ uint32 `ItemID` payload, registers `LoggedIn`/`Inplace`, dispatches through `WorldSession`, clears only the represented `ToyFlags::HasFanfare` bit for known account toys, silently ignores unknown toys, and sends no packet, matching `CollectionMgr::ToyClearFanfare`.
+
+  Boundary: audit-fix only; represented-complete for bounded in-memory `CollectionMgr::ToyClearFanfare` mutation. No new `CMSG_USE_TOY` spell path, no toy criteria integration, no install/restart, and no live client/manual validation in this slice.
+
 - `#NEXT.R8.ENTITIES.842` - represented-partial for `CMSG_TOGGLE_PVP`.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:319-335`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:22622-22679`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:20814-20828`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:433-442`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:473-485`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:974`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:671`.
