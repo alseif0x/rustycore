@@ -113,6 +113,24 @@ impl ClientPacket for CancelMountAura {
     }
 }
 
+/// C++ `WorldPackets::Spells::SetActionButton`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SetActionButton {
+    pub action: u32,
+    pub index: u8,
+}
+
+impl ClientPacket for SetActionButton {
+    const OPCODE: ClientOpcodes = ClientOpcodes::SetActionButton;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            action: pkt.read_uint32()?,
+            index: pkt.read_uint8()?,
+        })
+    }
+}
+
 /// C++ `WorldPackets::Spells::CancelQueuedSpell`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CancelQueuedSpell;
@@ -860,6 +878,19 @@ mod tests {
             CancelQueuedSpell::read(&mut WorldPacket::new_empty()).unwrap(),
             CancelQueuedSpell
         );
+    }
+
+    #[test]
+    fn set_action_button_reads_cpp_action_then_index() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(12_345 | (0x80 << 24));
+        pkt.write_uint8(7);
+        pkt.reset_read();
+
+        let parsed = SetActionButton::read(&mut pkt).unwrap();
+        assert_eq!(parsed.action, 12_345 | (0x80 << 24));
+        assert_eq!(parsed.index, 7);
+        assert!(pkt.is_empty());
     }
 
     #[test]

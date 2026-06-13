@@ -55,7 +55,9 @@ use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
     SetWatchedFaction,
 };
-use wow_packet::packets::spell::{CastFailed, SpellCastVisual, SpellPreparePkt, SpellStartPkt};
+use wow_packet::packets::spell::{
+    CastFailed, SetActionButton, SpellCastVisual, SpellPreparePkt, SpellStartPkt,
+};
 
 use crate::entity_update_bridge::player_values_update_to_update_object;
 use crate::handlers::loot::represented_gameobject_interaction_distance_like_cpp;
@@ -344,6 +346,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_action_bar_toggles",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::SetActionButton,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_set_action_button",
     }
 }
 
@@ -1499,6 +1510,22 @@ impl crate::session::WorldSession {
 
         self.represented_set_action_bar_toggles_like_cpp(mask);
     }
+
+    pub async fn handle_set_action_button(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let packet = match SetActionButton::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "SetActionButton parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        self.represented_set_action_button_like_cpp(packet.index, packet.action);
+    }
+
     pub async fn handle_save_cuf_profiles(&mut self, mut pkt: wow_packet::WorldPacket) {
         let packet = match SaveCufProfiles::read(&mut pkt) {
             Ok(packet) => packet,
@@ -2977,6 +3004,55 @@ mod tests {
 
         assert_eq!(session.active_player_multi_action_bars_like_cpp(), 0);
         assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn set_action_button_adds_packed_action_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(12_345 | (0x80 << 24));
+        pkt.write_uint8(7);
+        pkt.reset_read();
+
+        session.handle_set_action_button(pkt).await;
+
+        assert_eq!(
+            session.represented_action_button_like_cpp(7),
+            Some(12_345 | (0x80 << 24))
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn set_action_button_zero_removes_action_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        let mut add = WorldPacket::new_empty();
+        add.write_uint32(1_337 | (0x40 << 24));
+        add.write_uint8(9);
+        add.reset_read();
+        session.handle_set_action_button(add).await;
+        assert_eq!(
+            session.represented_action_button_like_cpp(9),
+            Some(1_337 | (0x40 << 24))
+        );
+
+        let mut remove = WorldPacket::new_empty();
+        remove.write_uint32(0);
+        remove.write_uint8(9);
+        remove.reset_read();
+        session.handle_set_action_button(remove).await;
+
+        assert_eq!(session.represented_action_button_like_cpp(9), Some(0));
+    }
+
+    #[tokio::test]
+    async fn set_action_button_short_packet_does_not_mutate_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        session
+            .handle_set_action_button(WorldPacket::from_bytes(&[0x01, 0x02]))
+            .await;
+
+        assert_eq!(session.represented_action_button_like_cpp(0), Some(0));
     }
 
     #[tokio::test]

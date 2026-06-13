@@ -581,6 +581,19 @@ fn rounded_median_u32(sorted_values: &[u32]) -> u32 {
 fn set_active_player_update_bit_like_cpp(mask: &mut [u32; 48], bit: usize) {
     mask[bit / 32] |= 1 << (bit % 32);
 }
+
+fn action_button_action_like_cpp(packed: u32) -> u32 {
+    packed & 0x00FF_FFFF
+}
+
+fn action_button_type_like_cpp(packed: u32) -> u8 {
+    ((packed & 0xFF00_0000) >> 24) as u8
+}
+
+fn make_action_button_like_cpp(action: u32, action_type: u8) -> u32 {
+    action_button_action_like_cpp(action) | ((action_type as u32) << 24)
+}
+
 use wow_packet::{ClientPacket, WorldPacket};
 
 /// Maximum number of packets processed per `update()` call.
@@ -2942,6 +2955,8 @@ pub struct WorldSession {
     active_player_transport_server_time_like_cpp: i32,
     /// Represented `ActivePlayerData::MultiActionBars`.
     active_player_multi_action_bars_like_cpp: u8,
+    /// C++ `Player::m_actionButtons` represented as packed action-button data.
+    represented_action_buttons_like_cpp: [u32; wow_packet::packets::misc::MAX_ACTION_BUTTONS],
     /// C++ `Player::GetUnitBeingMoved()` represented GUID.
     player_moved_unit_guid_like_cpp: ObjectGuid,
     /// Count of visibility refreshes requested by movement initialization.
@@ -4025,6 +4040,7 @@ impl WorldSession {
             active_player_local_flags_like_cpp: 0,
             active_player_transport_server_time_like_cpp: 0,
             active_player_multi_action_bars_like_cpp: 0,
+            represented_action_buttons_like_cpp: [0; wow_packet::packets::misc::MAX_ACTION_BUTTONS],
             player_moved_unit_guid_like_cpp: ObjectGuid::EMPTY,
             movement_visibility_refresh_requests_like_cpp: 0,
             movement_ack_events_like_cpp: Vec::new(),
@@ -17922,6 +17938,9 @@ impl WorldSession {
             ClientOpcodes::SetActionBarToggles => {
                 self.handle_set_action_bar_toggles(pkt).await;
             }
+            ClientOpcodes::SetActionButton => {
+                self.handle_set_action_button(pkt).await;
+            }
             ClientOpcodes::SaveCufProfiles => {
                 self.handle_save_cuf_profiles(pkt).await;
             }
@@ -24851,6 +24870,41 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn active_player_multi_action_bars_like_cpp(&self) -> u8 {
         self.active_player_multi_action_bars_like_cpp
+    }
+
+    pub(crate) fn represented_set_action_button_like_cpp(
+        &mut self,
+        index: u8,
+        packed_action: u32,
+    ) -> bool {
+        let button = index as usize;
+        if button >= self.represented_action_buttons_like_cpp.len() {
+            return false;
+        }
+
+        if packed_action == 0 {
+            self.represented_action_buttons_like_cpp[button] = 0;
+            return true;
+        }
+
+        let action = action_button_action_like_cpp(packed_action);
+        let action_type = action_button_type_like_cpp(packed_action);
+
+        // C++ delegates deeper validation to `Player::AddActionButton`
+        // (SpellMgr/ObjectMgr/Mount/BattlePet stores). Those runtime stores are
+        // not unified here yet, so this represented path preserves the exact
+        // packed action/type split and slot bounds while leaving store-backed
+        // validation explicit.
+        self.represented_action_buttons_like_cpp[button] =
+            make_action_button_like_cpp(action, action_type);
+        true
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_action_button_like_cpp(&self, index: u8) -> Option<u32> {
+        self.represented_action_buttons_like_cpp
+            .get(index as usize)
+            .copied()
     }
 
     pub(crate) fn represented_save_cuf_profiles_like_cpp(

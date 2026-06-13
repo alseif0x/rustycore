@@ -1237,11 +1237,11 @@ impl UpdateActionButtons {
         }
     }
 
-    /// Pack an action + type into the button format.
+    /// Pack an action + type into the player action-button format.
     ///
-    /// C# packing: `action | (type << 23)` in lower 32 bits of i64.
+    /// C++ `MAKE_ACTION_BUTTON`: `action | (type << 24)`.
     pub fn pack_button(action: i32, button_type: u8) -> i64 {
-        let packed = (action & 0x007F_FFFF) | ((button_type as i32) << 23);
+        let packed = (action & 0x00FF_FFFF) | ((button_type as i32) << 24);
         packed as u32 as i64
     }
 }
@@ -4767,8 +4767,8 @@ mod tests {
 
         // Item action as type 2
         let packed = UpdateActionButtons::pack_button(12345, 2);
-        // 12345 | (2 << 23) = 12345 | 16777216 = 16789561
-        assert_eq!(packed, 12345 | (2i64 << 23));
+        // C++ player action buttons use `action | (type << 24)`.
+        assert_eq!(packed, 12345 | (2i64 << 24));
     }
 
     #[test]
