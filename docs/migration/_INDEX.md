@@ -35,7 +35,7 @@ Layer: L0–L8 según `MIGRATION_ROADMAP.md` § 2.
 | L1 | shared/Networking | `src/server/shared/Networking/` | [shared-networking.md](shared-networking.md) | ⚠️ ~75% | ⚠️ |
 | L1 | shared/Packets | `src/server/shared/Packets/` | [shared-packets.md](shared-packets.md) | ⚠️ | ⚠️ |
 | L1 | Crypto (SRP6/AES-GCM/HMAC) | `src/server/shared/Cryptography/` + `src/common/Cryptography/` | [crypto.md](crypto.md) | ✅ ~95% | ⚠️ |
-| L1 | shared/Realm | `src/server/shared/Realm/` | [shared-realm.md](shared-realm.md) | ⚠️ (~79%; BNet RealmHandle packing/storage/cfg swap, typed flags/types, hostname resolution, subregion writer, normalized names, build-info parsing, build-version lookup, `JamJSONRealmEntry` and strong RealmHandle fixed; golden/e2e pending) | ⚠️ |
+| L1 | shared/Realm | `src/server/shared/Realm/` | [shared-realm.md](shared-realm.md) | ⚠️ (~80%; BNet RealmHandle packing/storage/cfg swap, typed flags/types, hostname resolution, subregion writer, JoinRealm prep, normalized names, build-info parsing, build-version lookup, `JamJSONRealmEntry` and strong RealmHandle fixed; golden/e2e pending) | ⚠️ |
 | L1 | shared/Secrets | `src/server/shared/Secrets/` | [shared-secrets.md](shared-secrets.md) | ❌ (0%) | ⚠️ |
 | L1 | shared/DataStores | `src/server/shared/DataStores/` | [shared-datastores.md](shared-datastores.md) | ⚠️ ~1.5% | ⚠️ |
 | L1 | shared/Dynamic | `src/server/shared/Dynamic/` | [shared-dynamic.md](shared-dynamic.md) | n/a | ✅ |

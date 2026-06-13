@@ -288,23 +288,17 @@ async fn join_realm<S: AsyncRead + AsyncWrite + Unpin>(
     // Scope the realm_mgr guard — must drop before any .await
     let (server_addresses, realm_name) = {
         let realm_mgr = session.state().realm_mgr.read();
-        let realm = realm_mgr
-            .get_realm_by_realm_address_like_cpp(realm_address)
-            .ok_or_else(|| anyhow::anyhow!("Realm not found"))?;
-
-        // C++ RealmList::JoinRealm rejects offline realms and build mismatches.
-        if realm
-            .flag
-            .contains(crate::realm::RealmFlagsLikeCpp::OFFLINE)
-            || realm.build != session.build
-        {
-            bail!("Realm offline or version mismatch");
-        }
-
-        (
-            realm_mgr.get_realm_server_addresses_json_like_cpp(realm, Some(session.addr().ip())),
-            realm.name.clone(),
-        )
+        let prepared = realm_mgr
+            .prepare_join_realm_like_cpp(realm_address, session.build, Some(session.addr().ip()))
+            .map_err(|error| match error {
+                crate::realm::JoinRealmPrepareErrorLikeCpp::UnknownRealm => {
+                    anyhow::anyhow!("Realm not found")
+                }
+                crate::realm::JoinRealmPrepareErrorLikeCpp::UserServerNotPermittedOnRealm => {
+                    anyhow::anyhow!("Realm offline or version mismatch")
+                }
+            })?;
+        (prepared.server_addresses, prepared.realm_name)
     };
 
     // Generate 32-byte server secret

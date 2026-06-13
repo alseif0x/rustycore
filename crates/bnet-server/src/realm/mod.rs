@@ -172,6 +172,17 @@ pub struct RealmBuildInfo {
     pub mac64_auth_seed: [u8; 16],
 }
 
+pub struct JoinRealmPreparedLikeCpp {
+    pub server_addresses: Vec<u8>,
+    pub realm_name: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JoinRealmPrepareErrorLikeCpp {
+    UnknownRealm,
+    UserServerNotPermittedOnRealm,
+}
+
 /// Manages the list of available realms.
 pub struct RealmManager {
     pub(crate) realms: HashMap<RealmHandleLikeCpp, Realm>,
@@ -392,6 +403,27 @@ impl RealmManager {
             serde_json::to_string(&addresses).unwrap_or_default()
         );
         zlib_compress(json.as_bytes())
+    }
+
+    /// Prepare the realm-owned part of C++ RealmList::JoinRealm.
+    pub fn prepare_join_realm_like_cpp(
+        &self,
+        realm_address: u32,
+        build: u32,
+        client_ip: Option<std::net::IpAddr>,
+    ) -> Result<JoinRealmPreparedLikeCpp, JoinRealmPrepareErrorLikeCpp> {
+        let realm = self
+            .get_realm_by_realm_address_like_cpp(realm_address)
+            .ok_or(JoinRealmPrepareErrorLikeCpp::UnknownRealm)?;
+
+        if realm.flag.contains(RealmFlagsLikeCpp::OFFLINE) || realm.build != build {
+            return Err(JoinRealmPrepareErrorLikeCpp::UserServerNotPermittedOnRealm);
+        }
+
+        Ok(JoinRealmPreparedLikeCpp {
+            server_addresses: self.get_realm_server_addresses_json_like_cpp(realm, client_ip),
+            realm_name: realm.name.clone(),
+        })
     }
 
     /// Write sub-region values like C++ RealmList::WriteSubRegions.
@@ -1152,5 +1184,63 @@ mod tests {
         assert_eq!(json["families"][0]["family"], 1);
         assert_eq!(json["families"][0]["addresses"][0]["ip"], "10.0.0.10");
         assert_eq!(json["families"][0]["addresses"][0]["port"], 8085);
+    }
+
+    #[test]
+    fn prepare_join_realm_like_cpp_rejects_unknown_offline_and_build_mismatch() {
+        let mut manager = RealmManager::new();
+        let packed = realm_address_like_cpp(5, 6, 9);
+
+        assert!(matches!(
+            manager.prepare_join_realm_like_cpp(packed, 51943, None),
+            Err(JoinRealmPrepareErrorLikeCpp::UnknownRealm)
+        ));
+
+        manager.realms.insert(
+            RealmHandleLikeCpp::new_like_cpp(5, 6, 9),
+            test_realm(9, 5, 6, 3, 1),
+        );
+
+        assert!(matches!(
+            manager.prepare_join_realm_like_cpp(packed, 12340, None),
+            Err(JoinRealmPrepareErrorLikeCpp::UserServerNotPermittedOnRealm)
+        ));
+
+        manager
+            .realms
+            .get_mut(&RealmHandleLikeCpp::new_like_cpp(5, 6, 9))
+            .unwrap()
+            .flag = RealmFlagsLikeCpp::OFFLINE;
+
+        assert!(matches!(
+            manager.prepare_join_realm_like_cpp(packed, 51943, None),
+            Err(JoinRealmPrepareErrorLikeCpp::UserServerNotPermittedOnRealm)
+        ));
+    }
+
+    #[test]
+    fn prepare_join_realm_like_cpp_returns_server_addresses_and_name() {
+        let mut manager = RealmManager::new();
+        let packed = realm_address_like_cpp(5, 6, 9);
+        let mut realm = test_realm(9, 5, 6, 3, 1);
+        realm.name = "Ice Crown".to_string();
+        realm.external_address = "203.0.113.10".to_string();
+        realm.local_address = "10.0.0.10".to_string();
+        realm.port = 8086;
+        manager
+            .realms
+            .insert(RealmHandleLikeCpp::new_like_cpp(5, 6, 9), realm);
+
+        let prepared = manager
+            .prepare_join_realm_like_cpp(packed, 51943, Some("198.51.100.1".parse().unwrap()))
+            .unwrap();
+
+        assert_eq!(prepared.realm_name, "Ice Crown");
+
+        let addresses = inflate_payload(&prepared.server_addresses);
+        let json = parse_enveloped_json(&addresses, "JSONRealmListServerIPAddresses:");
+        assert_eq!(json["families"][0]["family"], 1);
+        assert_eq!(json["families"][0]["addresses"][0]["ip"], "203.0.113.10");
+        assert_eq!(json["families"][0]["addresses"][0]["port"], 8086);
     }
 }
