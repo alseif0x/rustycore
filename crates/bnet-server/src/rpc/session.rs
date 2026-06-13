@@ -55,6 +55,8 @@ pub struct RpcSession<S> {
     pub authed: bool,
     /// Account info (populated after VerifyWebCredentials).
     pub account_info: Option<AccountInfo>,
+    /// Game account selected by RealmListTicketIdentity, matching TC _gameAccountInfo.
+    pub selected_game_account_id: Option<u32>,
     /// Client locale.
     pub locale: String,
     /// Client OS/platform.
@@ -82,6 +84,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> RpcSession<S> {
             state,
             authed: false,
             account_info: None,
+            selected_game_account_id: None,
             locale: String::new(),
             os: String::new(),
             build: 0,

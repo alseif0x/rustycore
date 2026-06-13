@@ -2,13 +2,13 @@
 
 use anyhow::{Result, bail};
 use prost::Message;
-use std::collections::HashMap;
 use wow_database::{LoginStatements, PreparedStatement};
 use wow_proto::bgs::protocol::game_utilities::v1::*;
 use wow_proto::bgs::protocol::{Attribute, Variant};
 use wow_proto::status;
 
 use crate::rpc::session::{RpcSession, RpcStatusError};
+use crate::state::{AccountInfo, GameAccountInfo};
 use tokio::io::{AsyncRead, AsyncWrite};
 
 pub async fn handle<S: AsyncRead + AsyncWrite + Unpin>(
@@ -81,30 +81,32 @@ async fn get_realm_list_ticket<S: AsyncRead + AsyncWrite + Unpin>(
         bail!("Not authenticated");
     }
 
-    // Extract Param_Identity (prefixed JSON: "JSONRealmListTicketIdentity:{...}\0")
-    let identity_attr = request
-        .attribute
-        .iter()
-        .find(|a| a.name == "Param_Identity");
-    if let Some(attr) = identity_attr {
-        if let Some(blob) = &attr.value.blob_value {
-            let text = String::from_utf8_lossy(blob);
-            let json_str = text.trim_end_matches('\0');
-            // Strip any "JSON*:" prefix
-            let json_str = json_str
-                .find(':')
-                .map(|pos| &json_str[pos + 1..])
-                .unwrap_or(json_str);
-            if let Ok(json) = serde_json::from_str::<serde_json::Value>(json_str) {
-                let _game_account_id = json
-                    .get("gameAccountID")
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(0);
-            }
-        }
+    let game_account_id = parse_realm_list_ticket_game_account_id_like_cpp(&request.attribute)
+        .ok_or_else(|| RpcStatusError::new(status::ERROR_DENIED))?;
+
+    let (is_permanently_banned, is_banned) = {
+        let account = session
+            .account_info
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("No account info"))?;
+        let game_account = account
+            .game_accounts
+            .get(&game_account_id)
+            .ok_or_else(|| RpcStatusError::new(status::ERROR_DENIED))?;
+        (game_account.is_permanently_banned, game_account.is_banned)
+    };
+
+    session.selected_game_account_id = Some(game_account_id);
+
+    if is_permanently_banned {
+        return Err(RpcStatusError::new(status::ERROR_GAME_ACCOUNT_BANNED).into());
+    }
+    if is_banned {
+        return Err(RpcStatusError::new(status::ERROR_GAME_ACCOUNT_SUSPENDED).into());
     }
 
     // Extract Param_ClientInfo (prefixed JSON: "JSONRealmListTicketClientInformation:{...}\0")
+    let mut client_info_ok = false;
     let client_info_attr = request
         .attribute
         .iter()
@@ -124,6 +126,7 @@ async fn get_realm_list_ticket<S: AsyncRead + AsyncWrite + Unpin>(
                             .iter()
                             .filter_map(|v| v.as_i64().map(|n| n as u8))
                             .collect();
+                        client_info_ok = session.client_secret.len() == 32;
                         tracing::info!(
                             "Extracted client_secret: {} bytes",
                             session.client_secret.len()
@@ -134,6 +137,9 @@ async fn get_realm_list_ticket<S: AsyncRead + AsyncWrite + Unpin>(
                 tracing::warn!("Param_ClientInfo: failed to parse JSON");
             }
         }
+    }
+    if !client_info_ok {
+        return Err(RpcStatusError::new(status::ERROR_DENIED).into());
     }
 
     // Update last login info: SET last_ip=?, locale=?, os=? WHERE id=?
@@ -178,35 +184,31 @@ async fn get_last_char_played<S: AsyncRead + AsyncWrite + Unpin>(
         .account_info
         .as_ref()
         .ok_or_else(|| anyhow::anyhow!("No account info"))?;
+    let game_account = selected_game_account_like_cpp(account, session.selected_game_account_id)?;
 
     let mut response_attrs = Vec::new();
 
-    // Find last played character for this sub-region across game accounts
-    for ga in account.game_accounts.values() {
-        if let Some(lpc) = ga.last_played_chars.get(sub_region) {
-            // Get realm entry JSON
-            let realm_mgr = session.state().realm_mgr.read();
-            let realm_json =
-                realm_mgr.get_realm_entry_json_like_cpp(lpc.realm_address, session.build);
-            if realm_json.is_empty() {
-                bail!("Failed to serialize last-played realm entry");
-            }
-            response_attrs.push(make_blob_attribute("Param_RealmEntry", &realm_json));
-
-            response_attrs.push(make_string_attribute(
-                "Param_CharacterName",
-                &lpc.character_name,
-            ));
-            response_attrs.push(make_uint_attribute(
-                "Param_CharacterGUID",
-                lpc.character_guid,
-            ));
-            response_attrs.push(make_uint_attribute(
-                "Param_LastPlayedTime",
-                lpc.last_played_time,
-            ));
-            break;
+    if let Some(lpc) = game_account.last_played_chars.get(sub_region) {
+        // Get realm entry JSON
+        let realm_mgr = session.state().realm_mgr.read();
+        let realm_json = realm_mgr.get_realm_entry_json_like_cpp(lpc.realm_address, session.build);
+        if realm_json.is_empty() {
+            bail!("Failed to serialize last-played realm entry");
         }
+        response_attrs.push(make_blob_attribute("Param_RealmEntry", &realm_json));
+
+        response_attrs.push(make_string_attribute(
+            "Param_CharacterName",
+            &lpc.character_name,
+        ));
+        response_attrs.push(make_uint_attribute(
+            "Param_CharacterGUID",
+            lpc.character_guid,
+        ));
+        response_attrs.push(make_uint_attribute(
+            "Param_LastPlayedTime",
+            lpc.last_played_time,
+        ));
     }
 
     Ok(Some(
@@ -234,14 +236,7 @@ async fn get_realm_list<S: AsyncRead + AsyncWrite + Unpin>(
         .account_info
         .as_ref()
         .ok_or_else(|| anyhow::anyhow!("No account info"))?;
-
-    // Aggregate character counts across game accounts
-    let mut char_counts: HashMap<u32, u8> = HashMap::new();
-    for ga in account.game_accounts.values() {
-        for (&realm_id, &count) in &ga.char_counts {
-            *char_counts.entry(realm_id).or_default() += count;
-        }
-    }
+    let game_account = selected_game_account_like_cpp(account, session.selected_game_account_id)?;
 
     let realm_mgr = session.state().realm_mgr.read();
     let realm_builds: Vec<(u32, u32)> =
@@ -251,7 +246,7 @@ async fn get_realm_list<S: AsyncRead + AsyncWrite + Unpin>(
         session.build
     );
     let (realm_data, count_data) =
-        realm_mgr.get_realm_list_json(session.build, sub_region, &char_counts);
+        realm_mgr.get_realm_list_json(session.build, sub_region, &game_account.char_counts);
 
     let response = ClientResponse {
         attribute: vec![
@@ -276,6 +271,7 @@ async fn join_realm<S: AsyncRead + AsyncWrite + Unpin>(
         .account_info
         .as_ref()
         .ok_or_else(|| anyhow::anyhow!("No account info"))?;
+    let game_account = selected_game_account_like_cpp(account, session.selected_game_account_id)?;
 
     // Extract realm address from attribute
     let realm_address = request
@@ -332,12 +328,7 @@ async fn join_realm<S: AsyncRead + AsyncWrite + Unpin>(
 
     // Store session key in DB as raw bytes (64-byte BLOB), matching C# SetBytes().
     // C# params: [0]=keyData(bytes), [1]=last_ip, [2]=locale(u8), [3]=os, [4]=timezone_offset(i16), [5]=username
-    let ga_username = account
-        .game_accounts
-        .values()
-        .next()
-        .map(|ga| ga.name.clone())
-        .unwrap_or_default();
+    let ga_username = game_account.name.clone();
 
     let locale_id = locale_string_to_id(&session.locale);
     let login_info_update = JoinRealmLoginInfoUpdateLikeCpp {
@@ -425,6 +416,33 @@ fn bnet_session_key_data_like_cpp(client_secret: &[u8], server_secret: &[u8]) ->
     Some(key_data)
 }
 
+fn parse_realm_list_ticket_game_account_id_like_cpp(attrs: &[Attribute]) -> Option<u32> {
+    let attr = attrs.iter().find(|a| a.name == "Param_Identity")?;
+    let blob = attr.value.blob_value.as_ref()?;
+    let text = String::from_utf8_lossy(blob);
+    let json_str = text.trim_end_matches('\0');
+    let json_str = json_str
+        .find(':')
+        .map(|pos| &json_str[pos + 1..])
+        .unwrap_or(json_str);
+    let json = serde_json::from_str::<serde_json::Value>(json_str).ok()?;
+    json.get("gameAccountID")
+        .and_then(|value| value.as_u64())
+        .and_then(|value| u32::try_from(value).ok())
+}
+
+fn selected_game_account_like_cpp(
+    account: &AccountInfo,
+    selected_game_account_id: Option<u32>,
+) -> Result<&GameAccountInfo> {
+    let selected_game_account_id =
+        selected_game_account_id.ok_or_else(|| anyhow::anyhow!("No selected game account"))?;
+    account
+        .game_accounts
+        .get(&selected_game_account_id)
+        .ok_or_else(|| anyhow::anyhow!("Selected game account not found"))
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct JoinRealmLoginInfoUpdateLikeCpp {
     key_data: Vec<u8>,
@@ -496,8 +514,12 @@ mod tests {
     use super::{
         JoinRealmLoginInfoUpdateLikeCpp, apply_join_realm_login_info_update_like_cpp,
         bnet_session_key_data_like_cpp, join_realm_response_attributes_like_cpp,
+        parse_realm_list_ticket_game_account_id_like_cpp, selected_game_account_like_cpp,
     };
+    use crate::state::{AccountInfo, GameAccountInfo};
+    use std::collections::HashMap;
     use wow_database::{PreparedStatement, SqlParam};
+    use wow_proto::bgs::protocol::{Attribute, Variant};
 
     #[test]
     fn bnet_session_key_data_is_raw_client_then_server_secret_like_cpp() {
@@ -515,6 +537,48 @@ mod tests {
     fn bnet_session_key_data_rejects_non_32_byte_secrets_like_cpp_array_contract() {
         assert!(bnet_session_key_data_like_cpp(&[0; 31], &[1; 32]).is_none());
         assert!(bnet_session_key_data_like_cpp(&[0; 32], &[1; 31]).is_none());
+    }
+
+    #[test]
+    fn realm_list_ticket_identity_selects_requested_game_account_like_cpp() {
+        let attrs = vec![Attribute {
+            name: "Param_Identity".to_string(),
+            value: Variant {
+                blob_value: Some(
+                    b"JSONRealmListTicketIdentity:{\"gameAccountID\":42,\"gameAccountRegion\":1}\0"
+                        .to_vec(),
+                ),
+                ..Default::default()
+            },
+        }];
+
+        assert_eq!(
+            parse_realm_list_ticket_game_account_id_like_cpp(&attrs),
+            Some(42)
+        );
+    }
+
+    #[test]
+    fn selected_game_account_like_cpp_uses_identity_selection_not_hashmap_order() {
+        let mut game_accounts = HashMap::new();
+        game_accounts.insert(1, test_game_account(1, "2#1"));
+        game_accounts.insert(42, test_game_account(42, "2#42"));
+        let account = AccountInfo {
+            id: 2,
+            login: "user@example.test".to_string(),
+            is_locked_to_ip: false,
+            lock_country: String::new(),
+            last_ip: String::new(),
+            failed_logins: 0,
+            is_banned: false,
+            is_permanently_banned: false,
+            game_accounts,
+        };
+
+        let selected = selected_game_account_like_cpp(&account, Some(42)).unwrap();
+        assert_eq!(selected.name, "2#42");
+        assert!(selected_game_account_like_cpp(&account, Some(7)).is_err());
+        assert!(selected_game_account_like_cpp(&account, None).is_err());
     }
 
     #[test]
@@ -570,5 +634,19 @@ mod tests {
             attrs[2].value.blob_value.as_deref(),
             Some(server_secret.as_slice())
         );
+    }
+
+    fn test_game_account(id: u32, name: &str) -> GameAccountInfo {
+        GameAccountInfo {
+            id,
+            name: name.to_string(),
+            display_name: name.to_string(),
+            unban_date: 0,
+            is_permanently_banned: false,
+            is_banned: false,
+            security_level: 0,
+            char_counts: HashMap::new(),
+            last_played_chars: HashMap::new(),
+        }
     }
 }

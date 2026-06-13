@@ -3,7 +3,7 @@
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/server/shared/Realm/`
 > **Rust target crate(s):** `crates/bnet-server/` (`src/realm/mod.rs`)
 > **Layer:** L1
-> **Status:** ⚠️ partial (~80%) — 2026-06-13 slices fixed the BNet realm-address packing, strong `RealmHandle` contract, `HashMap<RealmHandleLikeCpp, Realm>` storage, typed `RealmFlagsLikeCpp`/`RealmTypeLikeCpp`, subregion filtering and `WriteSubRegions`, cfg timezone/category swap, type/security normalization, packed JoinRealm lookup plus realm-owned JoinRealm prep, hostname resolution/skip, normalized realm names, C++-shaped build_info hotfix/seed parsing, minor/major/bugfix build lookup and `JamJSONRealmEntry` for last-played character; remaining gaps include golden/e2e realm-list payloads and architectural unification with the world snapshot.
+> **Status:** ⚠️ partial (~81%) — 2026-06-13 slices fixed the BNet realm-address packing, strong `RealmHandle` contract, `HashMap<RealmHandleLikeCpp, Realm>` storage, typed `RealmFlagsLikeCpp`/`RealmTypeLikeCpp`, subregion filtering and `WriteSubRegions`, cfg timezone/category swap, type/security normalization, packed JoinRealm lookup plus realm-owned JoinRealm prep, selected game-account ownership, hostname resolution/skip, normalized realm names, C++-shaped build_info hotfix/seed parsing, minor/major/bugfix build lookup and `JamJSONRealmEntry` for last-played character; remaining gaps include golden/e2e realm-list payloads and architectural unification with the world snapshot.
 > **Audited vs C++:** ✅ audited 2026-06-13 against `Realm.h`, `Realm.cpp`, `RealmList.cpp` for the fixed BNet realm-list slice.
 > **Last updated:** 2026-06-13
 
@@ -134,7 +134,7 @@ Y para realm list updates:
 <!-- REFINE.021:END rust-target-coverage -->
 
 **Files in `/home/server/rustycore`:**
-- `crates/bnet-server/src/realm/mod.rs` — cubre ~80% del C++ shared/Realm surface
+- `crates/bnet-server/src/realm/mod.rs` — cubre ~81% del C++ shared/Realm surface
 - `crates/wow-database/src/statements/login.rs` — declara `SEL_REALMLIST`, `SEL_REALMLIST_SECURITY_LEVEL`
 
 **What's implemented:**
@@ -158,6 +158,7 @@ Y para realm list updates:
 - `RealmManager::prepare_join_realm_like_cpp` posee la parte realm-owned de `RealmList::JoinRealm`: lookup por packed address, rechazo offline/build mismatch y payload comprimido `JSONRealmListServerIPAddresses`.
 - `game_utilities::join_realm_response_attributes_like_cpp` emite los tres atributos C++ de JoinRealm en orden: `Param_RealmJoinTicket`, `Param_ServerAddresses`, `Param_JoinSecret`.
 - `JoinRealmLoginInfoUpdateLikeCpp` + `apply_join_realm_login_info_update_like_cpp` aíslan los seis binds de `LOGIN_UPD_BNET_GAME_ACCOUNT_LOGIN_INFO` en el mismo orden/tipo que C++: keyData, IP, locale, OS, timezone offset y accountName.
+- `GetRealmListTicket` conserva el game account seleccionado por `Param_Identity.gameAccountID` como C++ `_gameAccountInfo`; `LastCharPlayed`, `GetRealmList` y `JoinRealm` ya no agregan ni eligen cuentas arbitrarias del `HashMap`.
 - `authentication` guarda `char_counts` y `last_played_chars.realm_address` con packed `RealmHandle::GetAddress()`, como C++ `Battlenet::Session`.
 - `get_minor_major_bugfix_version_for_build_like_cpp` replica `RealmList::GetMinorMajorBugfixVersionForBuild` con semántica `lower_bound`.
 - `get_realm_entry_json_like_cpp` genera `JamJSONRealmEntry` para `LastCharPlayed`, devuelve vacío si el realm está offline o el build no coincide, y ya no confunde ese payload con `JSONRealmListServerIPAddresses`.
@@ -171,6 +172,7 @@ Y para realm list updates:
 - ✅ fixed 2026-06-13: `wow_realm_address: r.id as i32` perdía la información Region/Site/Realm packed que el cliente espera.
 - ✅ fixed 2026-06-13: `cfg_timezones_id` / `cfg_categories_id` estaban cruzados frente a C++.
 - ✅ fixed 2026-06-13: inbound `Param_RealmAddress` de `JoinRealm` buscaba el packed address completo como key, en vez de resolver el realm id como `RealmHandle(realmAddress)`.
+- ✅ fixed 2026-06-13: `GetRealmList`, `LastCharPlayed` y `JoinRealm` usaban todas las game accounts o `HashMap::values().next()`; C++ usa la `_gameAccountInfo` seleccionada por `RealmListTicketIdentity.gameaccountid()`.
 - Sin `shared_mutex`, Rust usa `parking_lot::RwLock` (vía `state.realm_mgr.write()`) → equivalente.
 
 **Tests existing:**
@@ -221,6 +223,7 @@ Y para realm list updates:
 - [x] **#REALM.4b.1** Reubicar la preparación realm-owned de `RealmList::JoinRealm` en `RealmManager`: lookup packed, offline/build gates y server-address payload comprimido. (L)
 - [x] **#REALM.4b.2** Aislar y testear la emisión de atributos de respuesta `RealmList::JoinRealm` en el orden C++ (`RealmJoinTicket`, `ServerAddresses`, `JoinSecret`). (L)
 - [x] **#REALM.4b.3** Aislar y testear el plan de binds DB de `LOGIN_UPD_BNET_GAME_ACCOUNT_LOGIN_INFO` en el orden C++ (`setBinary`, `setString`, `setUInt8`, `setString`, `setInt16`, `setString`). (L)
+- [x] **#REALM.4b.4** Usar la game account seleccionada por `RealmListTicketIdentity.gameaccountid()` para `LastCharPlayed`, `GetRealmList` y `JoinRealm`, igual que C++ `_gameAccountInfo`. (M)
 - [ ] **#REALM.4b** Reubicar/encapsular el flow completo como ownership `RealmList::JoinRealm` C++-like y añadir golden/integration; DB execute y random server secret siguen en el handler, y los sub-pasos ya están aislados pero no movidos a un flow único. (M)
 - [x] **#REALM.5** Implementar `set_name` con `NormalizedName` (strip whitespace). (L)
 - [x] **#REALM.6** Implementar `get_minor_major_bugfix_version_for_build` con semántica `lower_bound`. (L)
@@ -228,7 +231,7 @@ Y para realm list updates:
 - [x] **#REALM.8** Resolver hostnames (no solo IPs) con `tokio::net::lookup_host` en `update_realms`, tomando primera IPv4 y saltando el realm si external/local no resuelve como C++. (M)
 - [x] **#REALM.9** Clamp `allowed_security_level` a `SEC_ADMINISTRATOR`. (L)
 - [x] **#REALM.10a** Tests: packed address bit-layout, subregion filter, cfg fields, version_mismatch/fallback. (M)
-- [ ] **#REALM.10b** Tests: parse build_info, `get_realm_entry_json`, JoinRealm DB side effect, golden payload. Parcial: parseo C++ de `build_info` hotfix/seeds, `JamJSONRealmEntry`, empty gates, server-address selection, preparación realm-owned de JoinRealm, orden/bytes de atributos de respuesta y binds del statement DB cubiertos por unit tests; faltan JoinRealm DB side effect real y golden payload. (M)
+- [ ] **#REALM.10b** Tests: parse build_info, `get_realm_entry_json`, JoinRealm DB side effect, golden payload. Parcial: parseo C++ de `build_info` hotfix/seeds, `JamJSONRealmEntry`, empty gates, server-address selection, preparación realm-owned de JoinRealm, orden/bytes de atributos de respuesta, binds del statement DB y selección de game account cubiertos por unit tests; faltan JoinRealm DB side effect real y golden payload. (M)
 - [x] **#REALM.11** Modelar `RealmList::WriteSubRegions` como método de `RealmManager` y delegar `GetAllValuesForAttribute` en él. (L)
 
 ---
@@ -314,6 +317,7 @@ Y para realm list updates:
 | `RealmList::JoinRealm` realm lookup/gates/server-address payload | `RealmManager::prepare_join_realm_like_cpp` | DB update and random secret still in handler |
 | `RealmList::JoinRealm` response attributes | `join_realm_response_attributes_like_cpp` | Same three blob attributes and order; DB update/random secret still in handler |
 | `LOGIN_UPD_BNET_GAME_ACCOUNT_LOGIN_INFO` binds | `JoinRealmLoginInfoUpdateLikeCpp` + `apply_join_realm_login_info_update_like_cpp` | Same six bind slots/types; real DB execute still in handler |
+| `Battlenet::Session::_gameAccountInfo` | `RpcSession::selected_game_account_id` + `selected_game_account_like_cpp` | Set from `Param_Identity.gameAccountID`; consumed by LastCharPlayed/GetRealmList/JoinRealm |
 | `Trinity::Crypto::GetRandomBytes<32>` | `rand::thread_rng().fill` in `game_utilities::join_realm` | TODO #REALM.4b for full ownership/golden coverage |
 | `Trinity::Asio::Resolver::Resolve` | `resolve_realm_address_like_cpp` + `tokio::net::lookup_host` | Takes first IPv4; skips realm on external/local failure |
 | `RealmList::WriteSubRegions` | `RealmManager::write_sub_regions_like_cpp` | Emits `Variant.string_value` values in stored order |
