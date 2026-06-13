@@ -75,7 +75,7 @@ All paths relative to `/home/server/woltk-trinity-legacy/`.
 | `src/common/Utilities/IteratorPair.h` | 69 | `boost::iterator_range`-style adapter |
 | `src/common/Utilities/Tuples.h` | 65 | `std::apply` helpers |
 | `src/common/Utilities/FlagsArray.h` | 146 | Fixed-size bit array |
-| `src/common/Utilities/FuzzyFind.h` | 57 | Levenshtein-based string similarity |
+| `src/common/Utilities/FuzzyFind.h` | 57 | substring-count based ranked lookup (`StringContainsStringI` per needle + optional bonus) |
 | `src/common/Utilities/AsyncCallbackProcessor.h` | 62 | Promise-future drainer |
 | `src/common/Utilities/Locales.{h,cpp}` | 31+51 | `LocaleConstant` enum + `LocaleNames[]` |
 | `src/common/Utilities/Memory.h` | 49 | `std::default_delete` helpers |
@@ -231,7 +231,7 @@ None. Common is pre-protocol — it ships no opcodes. The closest it gets is `Me
 | `Utilities/IteratorPair.h` | iterator combinators (`Iterator` trait) | ✅ obviated |
 | `Utilities/Tuples.h` | tuple destructuring builtin | ✅ obviated |
 | `Utilities/FlagsArray.h` | none | ⚠️ — only used by `Map.cpp` GameObject phase masks; not yet a blocker |
-| `Utilities/FuzzyFind.h` | none | ❌ missing — used by GM commands `.tele <name>` etc. |
+| `Utilities/FuzzyFind.h` | `wow_core::{string_contains_string_i_like_cpp, fuzzy_find_in_like_cpp}` | ✅ common helper ported — used by future GM commands `.tele <name>` etc.; command dispatcher/handlers remain open |
 | `Utilities/AsyncCallbackProcessor.h` | `tokio::task::JoinHandle` | ✅ obviated |
 | `Utilities/Locales.{h,cpp}` | `wow-constants` crate has `LocaleConstant` enum | ✅ replaced |
 | `Utilities/Memory.h` | `Box<T>` / `Drop` trait | ✅ obviated |
@@ -261,7 +261,7 @@ None. Common is pre-protocol — it ships no opcodes. The closest it gets is `Me
 - **`ConfigMgr::OverrideWithEnvVariablesIfAny`** — production deployments commonly do `WORLD_SERVER_PORT=8085`-style overrides; not supported.
 - **`ConfigMgr::Reload`** — config is parsed once at startup; SIGHUP-style reload not wired.
 - **`TaskScheduler` + `EventProcessor`** — required when porting C++ creature/spell scripts that call `Schedule(2s, ...)`.
-- **`FuzzyFind`** — GM commands `.tele <approx-name>` will not Levenshtein-match.
+- **GM command consumers of `FuzzyFind`** — common ranked lookup is ported, but `.tele <name>` cannot use it until the command dispatcher and `cs_tele` are ported.
 - **`Hash::hash_combine` / `HashFnv1a`** — used by C++ `MapManager` to compose `(map, instance)` keys; Rust uses `(u32,u32)` tuples directly — not strictly missing, just different idiom.
 - **`Argon2`** — covered in `crypto.md`; deferred (BNet v2 2FA only).
 - **`SFMTRand` reproducibility** — Rust uses a different PRNG algorithm.
@@ -301,7 +301,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 - [ ] **#COMMON.14** Document choice of PRNG (currently ChaCha12 via `thread_rng`); decide whether SFMT reproducibility matters — if yes, depend on `sfmt` crate. (L)
 - [x] **#COMMON.15** Implement `wow-core::utf8_to_lower_only_latin_like_cpp`, the Basic-Latin-only symmetric counterpart to `Utf8ToUpperOnlyLatin`. C++ has broader `wcharToLower`; this Rust helper is intentionally narrower to prevent accidental Unicode lowercase expansion in future ports. (L)
 - [x] **#COMMON.16** Wire the useful logging side of `Errors::Fatal`: `wow_logging::install_panic_hook_like_cpp()` logs `fatal=true`, source location and panic message through `tracing::error!` before delegating to Rust's default panic hook. `world-server` and `bnet-server` install it after tracing setup. (L)
-- [ ] **#COMMON.17** `FuzzyFind`: integrate `strsim` crate for `.tele` GM-command name lookup. (L)
+- [x] **#COMMON.17** Port `FuzzyFindIn` semantics into `wow-core`: byte-wise ASCII `StringContainsStringI`, ranked matches by number of matching needles, and optional bonus. C++ does **not** use Levenshtein/`strsim`; old docs were corrected. (L)
 - [x] **#COMMON.18a** Port the Unix IPv4/IPv6 subset of `Trinity::Net::ScanLocalNetworks` / `IsInLocalNetwork` plus `SelectAddressForClient` priority selection into `wow-core::net`; IPv4 bnet/world callers use scanned interface networks with a `/24` fallback if scanning returns none. (M)
 - [ ] **#COMMON.18b** Add Windows `GetAdaptersAddresses` parity for `ScanLocalNetworks` and wire IPv6 address selection through callers once realm/LoginREST address resolution stores IPv6 candidates. (M)
 
@@ -458,7 +458,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 | `EventProcessor::AddEvent` | `Utilities/EventProcessor.cpp:30-133` | NONE | ❌ | — |
 | `TaskScheduler::Schedule(2s, fn)` | `Utilities/TaskScheduler.cpp:30-240` | NONE | ❌ | Sub-task #COMMON.11; **affects spell-script port**. |
 | `MessageBuffer` (read/write cursor) | `Utilities/MessageBuffer.h:30-139` | `Vec<u8>` + manual offset, or `bytes::BytesMut` | ✅ | Inline in `wow-packet`. |
-| `FuzzyFind::Match(str, pattern)` | `Utilities/FuzzyFind.h:30-57` | NONE | ❌ | Sub-task #COMMON.17. |
+| `FuzzyFindIn(container, needles, contains, bonus)` | `Utilities/FuzzyFind.h:30-57`, `Util.cpp:896-900` | `wow_core::fuzzy_find_in_like_cpp` / `fuzzy_find_in_with_bonus_like_cpp` | ✅ | Ported as substring-count ranking, not Levenshtein. Command consumers still pending under `commands.md`. |
 | `Locales::LocaleNames[]` | `Utilities/Locales.cpp:30-50` | `wow-constants::Locale` enum | ✅ | — |
 | `EndianConvert<T>(&x)` | `Utilities/ByteConverter.h:30-67` | `u32::to_le_bytes` etc. builtins | ✅ | — |
 | `Optional<T>` | `Utilities/Optional.h:24` | `Option<T>` | ✅ | builtin |
@@ -513,7 +513,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 3. **`#COMMON.9c` — IPLocation GM command wiring (MED).** Reuse `wow_core::IpLocationStore` from future AccountMgr/GM commands.
 4. **`#COMMON.5` + `#COMMON.6` — config reload + env-var override (MED).** Standard production deployments expect both.
 5. **`#COMMON.11` — `TaskScheduler` port (XL, but unblocks spell-script porting).**
-6. Remaining items are quality-of-life: migrate random call sites to the central helpers where useful, add fuzzy-find (#COMMON.17), panic hook (#COMMON.16), `TimeTracker`/`PeriodicTimer`, full `Timezone` helper API.
+6. Remaining items are quality-of-life: migrate random call sites to the central helpers where useful, `TimeTracker`/`PeriodicTimer`, full `Timezone` helper API.
 
 ### 13.4 Justifying the status badge
 
