@@ -2484,6 +2484,7 @@ pub struct WorldSession {
     packet_throttling_like_cpp: HashMap<u16, PacketCounterLikeCpp>,
     remote_address_like_cpp: Option<String>,
     pending_packet_spoof_ban_like_cpp: Option<PacketSpoofPendingBanLikeCpp>,
+    legacy_creature_aggro_config_like_cpp: LegacyCreatureAggroConfigLikeCpp,
 
     // Dispatch table (built once, shared ref)
     dispatch_table: HashMap<ClientOpcodes, &'static PacketHandlerEntry>,
@@ -3781,6 +3782,7 @@ impl WorldSession {
             packet_throttling_like_cpp: HashMap::new(),
             remote_address_like_cpp: None,
             pending_packet_spoof_ban_like_cpp: None,
+            legacy_creature_aggro_config_like_cpp: LegacyCreatureAggroConfigLikeCpp::default(),
             dispatch_table: build_dispatch_table(),
             char_db: None,
             login_db: None,
@@ -10765,6 +10767,13 @@ impl WorldSession {
 
     pub fn set_packet_spoof_config_like_cpp(&mut self, config: PacketSpoofConfigLikeCpp) {
         self.packet_spoof_config_like_cpp = config;
+    }
+
+    pub fn set_legacy_creature_aggro_config_like_cpp(
+        &mut self,
+        config: LegacyCreatureAggroConfigLikeCpp,
+    ) {
+        self.legacy_creature_aggro_config_like_cpp = config;
     }
 
     pub fn set_remote_address_like_cpp(&mut self, address: Option<String>) {
@@ -28879,6 +28888,7 @@ impl WorldSession {
         let player_detected_range_aura_mod = self.total_represented_aura_modifier_like_cpp(
             RepresentedAuraEffectLikeCpp::ModDetectedRange,
         ) as f32;
+        let aggro_config = self.legacy_creature_aggro_config_like_cpp.clone();
 
         for guid in guids {
             let aggroed = self
@@ -28889,10 +28899,12 @@ impl WorldSession {
                     }
                     let effective_aggro_range =
                         creature_attack_distance_like_cpp(CreatureAttackDistanceInputLikeCpp {
-                            aggro_rate: 1.0,
+                            aggro_rate: aggro_config.creature_aggro_rate,
                             creature_combat_reach: creature.creature.unit().world().combat_reach(),
-                            expansion_max_level: 80,
-                            max_player_level_config: 80,
+                            expansion_max_level: max_level_for_expansion_like_cpp(
+                                creature.creature.lifecycle_metadata().required_expansion,
+                            ),
+                            max_player_level_config: aggro_config.max_player_level_config,
                             player_level_for_target: player_level,
                             creature_level_for_target: creature.level(),
                             creature_detect_range_aura_mod: creature
@@ -73791,6 +73803,72 @@ mod tests {
         assert!(session.in_combat);
         assert_eq!(session.combat_target, Some(creature_guid));
         assert!(drain_server_opcodes(&send_rx).contains(&ServerOpcodes::AttackStart));
+    }
+
+    #[tokio::test]
+    async fn check_creature_aggro_uses_configured_aggro_rate_like_cpp() {
+        let manager = shared_map_manager();
+        let (mut session, _, send_rx) = make_session();
+        let player = ObjectGuid::create_player(1, 91_138);
+        let creature_guid = test_creature_guid(91_139);
+        session.set_player_guid(Some(player));
+        session.set_player_level_like_cpp(80);
+        session.set_player_position_like_cpp(Position::new(10.5, 10.0, 0.0, 0.0));
+        session.set_legacy_creature_aggro_config_like_cpp(LegacyCreatureAggroConfigLikeCpp {
+            creature_aggro_rate: 0.0,
+            max_player_level_config: 80,
+            ..Default::default()
+        });
+        register_test_creature(&mut session, manager, creature_guid, 80);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 500.0;
+                creature.creature.unit_mut().set_level(80);
+                creature.creature.unit_mut().set_combat_reach(0.0);
+                creature.creature.set_combat_distance_like_cpp(0.0);
+            })
+            .unwrap();
+
+        session.check_creature_aggro().await;
+
+        assert!(!session.in_combat);
+        assert_ne!(session.combat_target, Some(creature_guid));
+        assert!(!drain_server_opcodes(&send_rx).contains(&ServerOpcodes::AttackStart));
+    }
+
+    #[tokio::test]
+    async fn check_creature_aggro_uses_template_required_expansion_cap_like_cpp() {
+        let manager = shared_map_manager();
+        let (mut session, _, send_rx) = make_session();
+        let player = ObjectGuid::create_player(1, 91_140);
+        let creature_guid = test_creature_guid(91_141);
+        session.set_player_guid(Some(player));
+        session.set_player_level_like_cpp(80);
+        session.set_player_position_like_cpp(Position::new(27.0, 10.0, 0.0, 0.0));
+        session.set_legacy_creature_aggro_config_like_cpp(LegacyCreatureAggroConfigLikeCpp {
+            creature_aggro_rate: 1.0,
+            max_player_level_config: 80,
+            ..Default::default()
+        });
+        register_test_creature(&mut session, manager, creature_guid, 80);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 500.0;
+                creature.creature.unit_mut().set_level(80);
+                creature.creature.unit_mut().set_combat_reach(0.0);
+                creature.creature.set_combat_distance_like_cpp(0.0);
+                creature.creature.set_required_expansion_runtime_like_cpp(1);
+            })
+            .unwrap();
+
+        session.check_creature_aggro().await;
+
+        assert!(
+            !session.in_combat,
+            "C++ Creature::GetAttackDistance caps level 80 RequiredExpansion=1 creatures to expansion max level 70"
+        );
+        assert_ne!(session.combat_target, Some(creature_guid));
+        assert!(!drain_server_opcodes(&send_rx).contains(&ServerOpcodes::AttackStart));
     }
 
     #[test]

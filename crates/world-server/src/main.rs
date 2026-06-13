@@ -2763,6 +2763,13 @@ async fn main() -> Result<ExitCode> {
     info!("Starting realm listener on {realm_addr}");
     info!("Starting instance listener on {instance_addr}");
 
+    let mut legacy_creature_aggro_config = legacy_creature_aggro_config_like_cpp(&world_configs);
+    legacy_creature_aggro_config.faction_template_store = Some(Arc::clone(&faction_template_store));
+    legacy_creature_aggro_config.faction_store = Some(Arc::clone(&progression_faction_store));
+    legacy_creature_aggro_config.map_store = Some(Arc::clone(&map_store));
+    legacy_creature_aggro_config.spell_misc_store = Some(Arc::clone(&spell_misc_store));
+    legacy_creature_aggro_config.spell_range_store = Some(Arc::clone(&spell_range_store));
+
     // Spawn realm listener (existing world listener)
     let realm_handle = tokio::spawn({
         let lookup = Arc::clone(&account_lookup);
@@ -2776,6 +2783,7 @@ async fn main() -> Result<ExitCode> {
         let port = instance_port;
         let mmap_config = mmap_runtime_config.clone();
         let mmap_pathfinder = mmap_pathfinder.clone();
+        let session_aggro_config = legacy_creature_aggro_config.clone();
         async move {
             wow_network::start_world_listener(
                 realm_addr,
@@ -2789,6 +2797,7 @@ async fn main() -> Result<ExitCode> {
                     let accessor = Arc::clone(&accessor);
                     let active_sessions = Arc::clone(&active_sessions);
                     let mmap_pathfinder = mmap_pathfinder.clone();
+                    let session_aggro_config = session_aggro_config.clone();
                     create_session(
                         account,
                         pkt_rx,
@@ -2804,6 +2813,7 @@ async fn main() -> Result<ExitCode> {
                         mmap_config.clone(),
                         mmap_pathfinder,
                         active_sessions,
+                        session_aggro_config,
                     )
                 },
             )
@@ -2862,19 +2872,13 @@ async fn main() -> Result<ExitCode> {
         Arc::clone(&battlemaster_list_typed_store),
         Arc::clone(&world_state_mgr),
     );
-    let mut legacy_creature_aggro_config = legacy_creature_aggro_config_like_cpp(&world_configs);
-    legacy_creature_aggro_config.faction_template_store = Some(Arc::clone(&faction_template_store));
-    legacy_creature_aggro_config.faction_store = Some(Arc::clone(&progression_faction_store));
-    legacy_creature_aggro_config.map_store = Some(Arc::clone(&map_store));
-    legacy_creature_aggro_config.spell_misc_store = Some(Arc::clone(&spell_misc_store));
-    legacy_creature_aggro_config.spell_range_store = Some(Arc::clone(&spell_range_store));
     let legacy_creature_runtime_handle = spawn_legacy_creature_runtime_update_loop_like_cpp(
         legacy_creature_global_runtime_enabled,
         Arc::clone(&shared_map),
         Arc::clone(&canonical_map_manager),
         mmap_runtime_config.clone(),
         mmap_pathfinder.clone(),
-        legacy_creature_aggro_config,
+        legacy_creature_aggro_config.clone(),
         map_update_interval_ms,
         Arc::clone(&player_registry),
     );
@@ -8490,6 +8494,7 @@ async fn create_session(
     mmap_runtime_config: MMapRuntimeConfigLikeCpp,
     mmap_pathfinder: Option<Arc<WorldMMapPathfinderWorkerLikeCpp>>,
     active_session_registry: Arc<ActiveWorldSessionRegistryLikeCpp>,
+    legacy_creature_aggro_config: wow_world::session::LegacyCreatureAggroConfigLikeCpp,
 ) {
     info!(
         "Creating session for account {} (bnet_id={})",
@@ -8828,6 +8833,7 @@ async fn create_session(
     session.set_chat_flood_config_like_cpp(resources.chat_flood_config);
     session.set_socket_timeouts_like_cpp(resources.socket_timeouts);
     session.set_packet_spoof_config_like_cpp(resources.packet_spoof_config);
+    session.set_legacy_creature_aggro_config_like_cpp(legacy_creature_aggro_config);
     session.set_mmap_runtime_config_like_cpp(mmap_runtime_config);
     if let Some(pathfinder) = mmap_pathfinder {
         session.set_mmap_pathfinder_like_cpp(pathfinder);
