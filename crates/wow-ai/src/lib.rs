@@ -270,6 +270,188 @@ pub fn creature_ai_uses_base_move_in_line_of_sight_like_cpp(
     }
 }
 
+// ── UnitAI::SelectTarget ──────────────────────────────────────────
+
+/// C++ `SelectTargetMethod` from `CoreAI/UnitAICommon.h`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SelectTargetMethodLikeCpp {
+    Random,
+    MaxThreat,
+    MinThreat,
+    MaxDistance,
+    MinDistance,
+}
+
+/// Already-resolved target facts consumed by represented `UnitAI::SelectTarget`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct UnitAiTargetCandidateLikeCpp {
+    pub guid: ObjectGuid,
+    pub is_offline: bool,
+    pub is_current_victim: bool,
+    pub is_last_victim: bool,
+    pub threat_order: u32,
+    pub distance_to_me: f32,
+    pub is_player: bool,
+    pub has_aura: bool,
+}
+
+/// C++ `DefaultTargetSelector` arguments.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct DefaultTargetSelectorLikeCpp {
+    pub dist: f32,
+    pub player_only: bool,
+    pub with_tank: bool,
+    pub aura: i32,
+}
+
+impl Default for DefaultTargetSelectorLikeCpp {
+    fn default() -> Self {
+        Self {
+            dist: 0.0,
+            player_only: false,
+            with_tank: true,
+            aura: 0,
+        }
+    }
+}
+
+pub fn default_target_selector_accepts_like_cpp(
+    target: &UnitAiTargetCandidateLikeCpp,
+    selector: DefaultTargetSelectorLikeCpp,
+) -> bool {
+    if !selector.with_tank && target.is_last_victim {
+        return false;
+    }
+
+    if selector.player_only && !target.is_player {
+        return false;
+    }
+
+    if selector.dist > 0.0 && target.distance_to_me > selector.dist {
+        return false;
+    }
+
+    if selector.dist < 0.0 && target.distance_to_me <= -selector.dist {
+        return false;
+    }
+
+    if selector.aura > 0 && !target.has_aura {
+        return false;
+    }
+
+    if selector.aura < 0 && target.has_aura {
+        return false;
+    }
+
+    true
+}
+
+pub fn select_target_list_like_cpp(
+    candidates: &[UnitAiTargetCandidateLikeCpp],
+    num: usize,
+    method: SelectTargetMethodLikeCpp,
+    offset: usize,
+    selector: DefaultTargetSelectorLikeCpp,
+) -> Vec<ObjectGuid> {
+    if candidates.len() <= offset {
+        return Vec::new();
+    }
+
+    let mut target_list = prepare_target_list_selection_like_cpp(candidates, method, offset);
+    target_list.retain(|target| default_target_selector_accepts_like_cpp(target, selector));
+    finalize_target_list_selection_like_cpp(&mut target_list, num, method);
+    target_list.into_iter().map(|target| target.guid).collect()
+}
+
+pub fn select_target_like_cpp(
+    candidates: &[UnitAiTargetCandidateLikeCpp],
+    method: SelectTargetMethodLikeCpp,
+    offset: usize,
+    selector: DefaultTargetSelectorLikeCpp,
+) -> Option<ObjectGuid> {
+    let num = if method == SelectTargetMethodLikeCpp::Random {
+        1
+    } else {
+        usize::MAX
+    };
+    select_target_list_like_cpp(candidates, num, method, offset, selector)
+        .into_iter()
+        .next()
+}
+
+fn prepare_target_list_selection_like_cpp(
+    candidates: &[UnitAiTargetCandidateLikeCpp],
+    method: SelectTargetMethodLikeCpp,
+    offset: usize,
+) -> Vec<UnitAiTargetCandidateLikeCpp> {
+    let mut target_list = if matches!(
+        method,
+        SelectTargetMethodLikeCpp::MaxDistance | SelectTargetMethodLikeCpp::MinDistance
+    ) {
+        candidates
+            .iter()
+            .copied()
+            .filter(|target| !target.is_offline)
+            .collect::<Vec<_>>()
+    } else {
+        let mut list = Vec::new();
+        if let Some(current) = candidates
+            .iter()
+            .copied()
+            .find(|target| target.is_current_victim)
+        {
+            list.push(current);
+        }
+
+        let mut sorted_threat = candidates
+            .iter()
+            .copied()
+            .filter(|target| !target.is_offline && !target.is_current_victim)
+            .collect::<Vec<_>>();
+        sorted_threat.sort_by_key(|target| target.threat_order);
+        list.extend(sorted_threat);
+        list
+    };
+
+    if target_list.len() <= offset {
+        return Vec::new();
+    }
+
+    match method {
+        SelectTargetMethodLikeCpp::MaxDistance => target_list.sort_by(|left, right| {
+            right
+                .distance_to_me
+                .total_cmp(&left.distance_to_me)
+                .then_with(|| left.threat_order.cmp(&right.threat_order))
+        }),
+        SelectTargetMethodLikeCpp::MinDistance => target_list.sort_by(|left, right| {
+            left.distance_to_me
+                .total_cmp(&right.distance_to_me)
+                .then_with(|| left.threat_order.cmp(&right.threat_order))
+        }),
+        SelectTargetMethodLikeCpp::MinThreat => target_list.reverse(),
+        SelectTargetMethodLikeCpp::Random | SelectTargetMethodLikeCpp::MaxThreat => {}
+    }
+
+    target_list.into_iter().skip(offset).collect()
+}
+
+fn finalize_target_list_selection_like_cpp(
+    target_list: &mut Vec<UnitAiTargetCandidateLikeCpp>,
+    num: usize,
+    method: SelectTargetMethodLikeCpp,
+) {
+    if target_list.len() <= num {
+        return;
+    }
+
+    if method == SelectTargetMethodLikeCpp::Random {
+        random_resize_vec_like_cpp(target_list, num);
+    } else {
+        target_list.truncate(num);
+    }
+}
+
 // ── CreatureAI::EnterEvadeMode ────────────────────────────────────
 
 /// C++ `EvadeReason` from `CoreAI/UnitAICommon.h`.
@@ -1519,6 +1701,184 @@ mod tests {
         ] {
             assert!(creature_trigger_alert_plan_like_cpp(input).is_none());
         }
+    }
+
+    fn target_candidate(
+        low: i64,
+        threat_order: u32,
+        distance_to_me: f32,
+    ) -> UnitAiTargetCandidateLikeCpp {
+        UnitAiTargetCandidateLikeCpp {
+            guid: guid(low),
+            is_offline: false,
+            is_current_victim: false,
+            is_last_victim: false,
+            threat_order,
+            distance_to_me,
+            is_player: true,
+            has_aura: false,
+        }
+    }
+
+    #[test]
+    fn select_target_list_uses_current_victim_then_sorted_threat_like_cpp() {
+        let mut low_threat = target_candidate(70, 2, 20.0);
+        let mut current = target_candidate(71, 1, 30.0);
+        current.is_current_victim = true;
+        let high_threat = target_candidate(72, 0, 10.0);
+
+        let selected = select_target_list_like_cpp(
+            &[low_threat, current, high_threat],
+            usize::MAX,
+            SelectTargetMethodLikeCpp::MaxThreat,
+            0,
+            DefaultTargetSelectorLikeCpp::default(),
+        );
+
+        assert_eq!(
+            selected,
+            vec![current.guid, high_threat.guid, low_threat.guid]
+        );
+
+        low_threat.is_offline = true;
+        let selected = select_target_list_like_cpp(
+            &[low_threat, current, high_threat],
+            usize::MAX,
+            SelectTargetMethodLikeCpp::MaxThreat,
+            0,
+            DefaultTargetSelectorLikeCpp::default(),
+        );
+
+        assert_eq!(
+            selected,
+            vec![current.guid, high_threat.guid],
+            "C++ skips offline sorted threat refs but keeps current victim if present"
+        );
+    }
+
+    #[test]
+    fn select_target_list_min_threat_reverses_prepared_max_threat_order_like_cpp() {
+        let mut current = target_candidate(80, 0, 10.0);
+        current.is_current_victim = true;
+        let middle = target_candidate(81, 1, 10.0);
+        let low = target_candidate(82, 2, 10.0);
+
+        let selected = select_target_list_like_cpp(
+            &[current, middle, low],
+            2,
+            SelectTargetMethodLikeCpp::MinThreat,
+            0,
+            DefaultTargetSelectorLikeCpp::default(),
+        );
+
+        assert_eq!(selected, vec![low.guid, middle.guid]);
+    }
+
+    #[test]
+    fn select_target_list_distance_methods_sort_unsorted_live_threat_like_cpp() {
+        let near = target_candidate(90, 2, 5.0);
+        let far = target_candidate(91, 1, 30.0);
+        let mid = target_candidate(92, 0, 15.0);
+
+        assert_eq!(
+            select_target_list_like_cpp(
+                &[near, far, mid],
+                usize::MAX,
+                SelectTargetMethodLikeCpp::MaxDistance,
+                0,
+                DefaultTargetSelectorLikeCpp::default(),
+            ),
+            vec![far.guid, mid.guid, near.guid]
+        );
+        assert_eq!(
+            select_target_list_like_cpp(
+                &[near, far, mid],
+                usize::MAX,
+                SelectTargetMethodLikeCpp::MinDistance,
+                1,
+                DefaultTargetSelectorLikeCpp::default(),
+            ),
+            vec![mid.guid, far.guid],
+            "C++ applies offset after distance sorting"
+        );
+    }
+
+    #[test]
+    fn select_target_list_applies_offset_before_default_selector_like_cpp() {
+        let skipped = target_candidate(100, 0, 5.0);
+        let kept = target_candidate(101, 1, 5.0);
+
+        let selected = select_target_list_like_cpp(
+            &[skipped, kept],
+            usize::MAX,
+            SelectTargetMethodLikeCpp::MaxThreat,
+            1,
+            DefaultTargetSelectorLikeCpp {
+                dist: 10.0,
+                player_only: true,
+                with_tank: true,
+                aura: 0,
+            },
+        );
+
+        assert_eq!(selected, vec![kept.guid]);
+    }
+
+    #[test]
+    fn default_target_selector_matches_cpp_filters() {
+        let mut target = target_candidate(110, 0, 12.0);
+        assert!(!default_target_selector_accepts_like_cpp(
+            &target,
+            DefaultTargetSelectorLikeCpp {
+                dist: 10.0,
+                ..DefaultTargetSelectorLikeCpp::default()
+            }
+        ));
+        assert!(!default_target_selector_accepts_like_cpp(
+            &target,
+            DefaultTargetSelectorLikeCpp {
+                dist: -20.0,
+                ..DefaultTargetSelectorLikeCpp::default()
+            }
+        ));
+
+        target.is_player = false;
+        assert!(!default_target_selector_accepts_like_cpp(
+            &target,
+            DefaultTargetSelectorLikeCpp {
+                player_only: true,
+                ..DefaultTargetSelectorLikeCpp::default()
+            }
+        ));
+
+        target.is_player = true;
+        target.is_last_victim = true;
+        assert!(!default_target_selector_accepts_like_cpp(
+            &target,
+            DefaultTargetSelectorLikeCpp {
+                with_tank: false,
+                ..DefaultTargetSelectorLikeCpp::default()
+            }
+        ));
+
+        target.is_last_victim = false;
+        target.has_aura = false;
+        assert!(!default_target_selector_accepts_like_cpp(
+            &target,
+            DefaultTargetSelectorLikeCpp {
+                aura: 123,
+                ..DefaultTargetSelectorLikeCpp::default()
+            }
+        ));
+
+        target.has_aura = true;
+        assert!(!default_target_selector_accepts_like_cpp(
+            &target,
+            DefaultTargetSelectorLikeCpp {
+                aura: -123,
+                ..DefaultTargetSelectorLikeCpp::default()
+            }
+        ));
     }
 
     fn creature_with_boss_id(boss_id: Option<u32>) -> CreatureAI {

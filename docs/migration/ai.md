@@ -310,7 +310,7 @@ Resumen: AI consume hooks del engine, no ve sockets directamente. Los efectos (m
 16. **NO factory + selector:** sin `CreatureAISelector::selectAI` que decide qué AI instanciar al spawn
 17. **NO registry de AI names:** no se puede mappear `creature_template.AIName='SmartAI'` → instanciar SmartAI
 18. **NO ScriptName binding:** boss scripts en `wow-scripts` no se enganchan
-19. **NO target selection:** sin SelectTarget(method, dist, predicates) que itera threat list
+19. **NO target selection runtime:** existe selección representada `SelectTargetMethodLikeCpp`/`DefaultTargetSelectorLikeCpp`, pero falta conectarla al `ThreatManager` real y a `UnitAI` polimórfico
 20. **NO DoZoneInCombat runtime:** `SummonListLikeCpp` puede planificar summons existentes/AI-enabled, pero falta el pull masivo real de raid/threat en el runtime
 21. **NO call for help / call assistance:** sin guard chain, sin pack pulls
 22. **NO summons cascade runtime:** `SummonListLikeCpp::despawn_all_like_cpp` existe como plan representado; al morir un boss todavía falta wiring real `JustDied -> DespawnAll -> DespawnOrUnsummon`
@@ -453,7 +453,8 @@ Numerados para referencia desde `MIGRATION_ROADMAP.md`. Complejidad: **L** <1h, 
 - [ ] **#AI.33** Implementar registry `inventory::submit!` para AI factories: `CreatureAIFactory` con name → fn(creature) -> Box<dyn CreatureAI> (M)
 - [ ] **#AI.34** Implementar `ScriptName` binding: registrar boss scripts en `crates/wow-scripts/` con `register_creature_ai!("boss_balnazzar", BalnazzarAI)` (M)
 - [ ] **#AI.35** Implementar `ThreatManager` proper en `crates/wow-combat/`: `Vec<ThreatRef> { unit_guid, threat_value }` ordenado, `add_threat`, `remove_threat`, `get_top_threat`, `get_threat_list` (H — pertenece a Combat pero AI lo necesita)
-- [ ] **#AI.36** Implementar `UnitAI::select_target(method, dist, player_only, with_tank, aura)` con `SelectTargetMethod::{ Random, MaxThreat, MinThreat, MaxDistance, MinDistance }` (M)
+- [x] **#AI.36a** Implementar base representada de `UnitAI::SelectTargetList` contrastada contra `CoreAI/UnitAI.{h,cpp}` y `UnitAICommon.{h,cpp}`: `SelectTargetMethod::{Random,MaxThreat,MinThreat,MaxDistance,MinDistance}`, orden current-victim/sorted-threat, orden distancia, offset, `DefaultTargetSelector` (`dist`, `playerOnly`, `withTank`, `aura`) y resize final. (M)
+- [ ] **#AI.36b** Wire runtime real de `UnitAI::SelectTarget`/`SelectTargetList`: leer `ThreatManager`, resolver current/last victim, `IsWithinCombatRange`, `HasAura`, player type y selección random real desde el runtime polimórfico. (H)
 - [ ] **#AI.37** Implementar hooks completos: `JustEnteredCombat`, `JustEngagedWith`, `KilledUnit`, `SpellHit`, `SpellHitTarget`, `JustSummoned`, `IsSummonedBy`, `MovementInform`, `JustReachedHome`, `OnHealthDepleted`, `ReceiveEmote`, `OnGameEvent`, `JustDied`, `Reset` — wire desde Creature/Spell/Combat/Movement módulos (H)
 - [x] **#AI.38a** Implementar plan representado de `CreatureAI::EnterEvadeMode` contrastado contra `CreatureAI.cpp`: early-return si ya evade, rama muerto sólo `EngagementOver`, limpieza de auras/combat/tap/damage/cooldowns/target, movimiento follow-owner vs targeted-home y `Reset` como plan de side effects. (M)
 - [ ] **#AI.38b** Wire runtime real de `EnterEvadeMode`: aplicar auras/threat/spell-history/tap, `MotionMaster::MoveTargetedHome`/`MoveFollow`, `UNIT_STATE_EVADE`, callback `JustReachedHome`, HP/auras/summons completos y leash/boundary checks. (H)
