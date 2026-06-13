@@ -9500,24 +9500,31 @@ fn collect_legacy_creature_aggro_candidates_with_canonical_like_cpp(
 fn legacy_creature_aggro_config_like_cpp(
     configs: &WorldConfigSet,
 ) -> wow_world::session::LegacyCreatureAggroConfigLikeCpp {
+    let creature_aggro_rate = world_config_f32(configs, "RATE_CREATURE_AGGRO", 1.0);
     wow_world::session::LegacyCreatureAggroConfigLikeCpp {
         no_gray_aggro_above: world_config_u32(configs, "CONFIG_NO_GRAY_AGGRO_ABOVE", 0),
         no_gray_aggro_below: world_config_u32(configs, "CONFIG_NO_GRAY_AGGRO_BELOW", 0),
+        creature_aggro_rate,
+        max_player_level_config: world_config_u32(configs, "CONFIG_MAX_PLAYER_LEVEL", 80),
         visibility_distance_continents: legacy_visibility_distance_like_cpp(
             "Visibility.Distance.Continents",
             wow_entities::DEFAULT_VISIBILITY_DISTANCE,
+            creature_aggro_rate,
         ),
         visibility_distance_instances: legacy_visibility_distance_like_cpp(
             "Visibility.Distance.Instances",
             wow_entities::DEFAULT_VISIBILITY_INSTANCE,
+            creature_aggro_rate,
         ),
         visibility_distance_battlegrounds: legacy_visibility_distance_like_cpp(
             "Visibility.Distance.BG",
             533.0,
+            creature_aggro_rate,
         ),
         visibility_distance_arenas: legacy_visibility_distance_like_cpp(
             "Visibility.Distance.Arenas",
             533.0,
+            creature_aggro_rate,
         ),
         faction_template_store: None,
         faction_store: None,
@@ -9527,9 +9534,9 @@ fn legacy_creature_aggro_config_like_cpp(
     }
 }
 
-fn legacy_visibility_distance_like_cpp(key: &str, default: f32) -> f32 {
+fn legacy_visibility_distance_like_cpp(key: &str, default: f32, creature_aggro_rate: f32) -> f32 {
     let configured = wow_config::get_value_default::<f32>(key, default);
-    let min = 45.0 * wow_config::get_value_default::<f32>("Rate.Creature.Aggro", 1.0);
+    let min = 45.0 * creature_aggro_rate;
     if configured < min {
         min
     } else if configured > wow_entities::MAX_VISIBILITY_DISTANCE {
@@ -13167,7 +13174,7 @@ WorldDatabase.SynchThreads = 33
 
         wow_config::load_config_from_str(
             r#"
-MaxPlayerLevel = 80
+MaxPlayerLevel = 70
 NoGrayAggro.Above = 80
 NoGrayAggro.Below = 90
 Rate.Creature.Aggro = 2
@@ -13181,9 +13188,12 @@ Visibility.Distance.Arenas = 150
         let configs = wow_config::load_world_config_values();
         let config = legacy_creature_aggro_config_like_cpp(&configs);
 
-        assert_eq!(config.no_gray_aggro_above, 80);
-        // C++ clamps Below down to Above when Above > 0 && Above < Below.
-        assert_eq!(config.no_gray_aggro_below, 80);
+        // C++ first clamps NoGrayAggro values to MaxPlayerLevel, then clamps
+        // Below down to Above when Above > 0 && Above < Below.
+        assert_eq!(config.no_gray_aggro_above, 70);
+        assert_eq!(config.no_gray_aggro_below, 70);
+        assert_eq!(config.creature_aggro_rate, 2.0);
+        assert_eq!(config.max_player_level_config, 70);
         assert_eq!(config.visibility_distance_continents, 90.0);
         assert_eq!(
             config.visibility_distance_instances,
