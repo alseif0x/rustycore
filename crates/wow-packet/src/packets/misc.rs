@@ -65,6 +65,24 @@ impl ClientPacket for SetAdvancedCombatLogging {
     }
 }
 
+/// C++ `WorldPackets::Misc::SetCurrencyFlags`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SetCurrencyFlags {
+    pub currency_id: u32,
+    pub flags: u8,
+}
+
+impl ClientPacket for SetCurrencyFlags {
+    const OPCODE: ClientOpcodes = ClientOpcodes::SetCurrencyFlags;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            currency_id: pkt.read_uint32()?,
+            flags: pkt.read_uint8()?,
+        })
+    }
+}
+
 /// C++ `WorldPackets::Character::LoadingScreenNotify`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LoadingScreenNotify {
@@ -871,14 +889,33 @@ impl ServerPacket for LoginSetTimeSpeed {
 
 // ── SetupCurrency (SMSG 0x2573) ─────────────────────────────────────
 
-/// Currency setup (empty for minimal login).
+/// One C++ `WorldPackets::Misc::SetupCurrency::Record`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SetupCurrencyRecord {
+    pub type_id: i32,
+    pub quantity: i32,
+    pub weekly_quantity: Option<u32>,
+    pub max_weekly_quantity: Option<u32>,
+    pub tracked_quantity: Option<u32>,
+    pub max_quantity: Option<i32>,
+    pub total_earned: Option<i32>,
+    pub next_recharge_time: Option<u64>,
+    pub recharge_cycle_start_time: Option<u64>,
+    pub flags: u8,
+}
+
+/// C++ `WorldPackets::Misc::SetupCurrency`.
 pub struct SetupCurrency {
-    pub count: i32,
+    pub data: Vec<SetupCurrencyRecord>,
 }
 
 impl SetupCurrency {
     pub fn empty() -> Self {
-        Self { count: 0 }
+        Self { data: Vec::new() }
+    }
+
+    pub fn from_records(data: Vec<SetupCurrencyRecord>) -> Self {
+        Self { data }
     }
 }
 
@@ -886,7 +923,44 @@ impl ServerPacket for SetupCurrency {
     const OPCODE: ServerOpcodes = ServerOpcodes::SetupCurrency;
 
     fn write(&self, pkt: &mut WorldPacket) {
-        pkt.write_int32(self.count);
+        pkt.write_uint32(self.data.len() as u32);
+
+        for record in &self.data {
+            pkt.write_int32(record.type_id);
+            pkt.write_int32(record.quantity);
+
+            pkt.write_bit(record.weekly_quantity.is_some());
+            pkt.write_bit(record.max_weekly_quantity.is_some());
+            pkt.write_bit(record.tracked_quantity.is_some());
+            pkt.write_bit(record.max_quantity.is_some());
+            pkt.write_bit(record.total_earned.is_some());
+            pkt.write_bit(record.next_recharge_time.is_some());
+            pkt.write_bit(record.recharge_cycle_start_time.is_some());
+            pkt.write_bits(u32::from(record.flags), 5);
+            pkt.flush_bits();
+
+            if let Some(value) = record.weekly_quantity {
+                pkt.write_uint32(value);
+            }
+            if let Some(value) = record.max_weekly_quantity {
+                pkt.write_uint32(value);
+            }
+            if let Some(value) = record.tracked_quantity {
+                pkt.write_uint32(value);
+            }
+            if let Some(value) = record.max_quantity {
+                pkt.write_int32(value);
+            }
+            if let Some(value) = record.total_earned {
+                pkt.write_int32(value);
+            }
+            if let Some(value) = record.next_recharge_time {
+                pkt.write_uint64(value);
+            }
+            if let Some(value) = record.recharge_cycle_start_time {
+                pkt.write_uint64(value);
+            }
+        }
     }
 }
 
@@ -4268,6 +4342,18 @@ mod tests {
     }
 
     #[test]
+    fn set_currency_flags_reads_cpp_uint32_then_uint8() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(395);
+        pkt.write_uint8(0x1f);
+        pkt.reset_read();
+
+        let parsed = SetCurrencyFlags::read(&mut pkt).unwrap();
+        assert_eq!(parsed.currency_id, 395);
+        assert_eq!(parsed.flags, 0x1f);
+    }
+
+    #[test]
     fn violence_level_reads_cpp_uint8() {
         let mut pkt = WorldPacket::new_empty();
         pkt.write_uint8(2);
@@ -4705,6 +4791,41 @@ mod tests {
         let bytes = pkt.to_bytes();
         // opcode(2) + i32(4) = 6
         assert_eq!(bytes.len(), 6);
+    }
+
+    #[test]
+    fn setup_currency_record_matches_cpp_bit_and_field_order() {
+        let pkt = SetupCurrency::from_records(vec![SetupCurrencyRecord {
+            type_id: 395,
+            quantity: 123,
+            weekly_quantity: Some(20),
+            max_weekly_quantity: Some(50),
+            tracked_quantity: Some(7),
+            max_quantity: Some(200),
+            total_earned: Some(300),
+            next_recharge_time: None,
+            recharge_cycle_start_time: None,
+            flags: 0x0c,
+        }]);
+        let bytes = pkt.to_bytes();
+        let mut body = WorldPacket::from_bytes(&bytes);
+        assert_eq!(body.read_uint16().unwrap(), 0x2573);
+        assert_eq!(body.read_uint32().unwrap(), 1);
+        assert_eq!(body.read_int32().unwrap(), 395);
+        assert_eq!(body.read_int32().unwrap(), 123);
+        assert!(body.read_bit().unwrap());
+        assert!(body.read_bit().unwrap());
+        assert!(body.read_bit().unwrap());
+        assert!(body.read_bit().unwrap());
+        assert!(body.read_bit().unwrap());
+        assert!(!body.read_bit().unwrap());
+        assert!(!body.read_bit().unwrap());
+        assert_eq!(body.read_bits(5).unwrap(), 0x0c);
+        assert_eq!(body.read_uint32().unwrap(), 20);
+        assert_eq!(body.read_uint32().unwrap(), 50);
+        assert_eq!(body.read_uint32().unwrap(), 7);
+        assert_eq!(body.read_int32().unwrap(), 200);
+        assert_eq!(body.read_int32().unwrap(), 300);
     }
 
     #[test]

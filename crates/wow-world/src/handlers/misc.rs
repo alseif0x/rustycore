@@ -23,6 +23,7 @@ use wow_entities::{
 };
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
 use wow_packet::ClientPacket;
+use wow_packet::packets::character::SetTitle;
 use wow_packet::packets::chat::{
     ChannelCommand, ChannelNotify, ChannelPassword, ChannelPlayerCommand, JoinChannel,
     LeaveChannel, MAX_CHANNEL_NAME_STR_LIKE_CPP, MAX_CHANNEL_PASS_STR_LIKE_CPP,
@@ -48,8 +49,8 @@ use wow_packet::packets::misc::{
     DfGetSystemInfo, FarSight, GmTicketCaseStatus, GuildSetAchievementTracking, LfgListBlacklist,
     LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify, MountSetFavorite, QueryBattlePetName,
     QueryBattlePetNameResponse, RatedPvpInfo, RequestBattlefieldStatus,
-    RequestCemeteryListResponse, SaveCufProfiles, SetAdvancedCombatLogging, SetTaxiBenchmarkMode,
-    TaxiNodeStatusPkt, ToyClearFanfare, UseToy, ViolenceLevel,
+    RequestCemeteryListResponse, SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags,
+    SetTaxiBenchmarkMode, TaxiNodeStatusPkt, ToyClearFanfare, UseToy, ViolenceLevel,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -378,6 +379,15 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
+        opcode: ClientOpcodes::SetCurrencyFlags,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_set_currency_flags",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
         opcode: ClientOpcodes::SetAmmo,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
@@ -400,6 +410,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_showing_cloak",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::SetTitle,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_set_title",
     }
 }
 
@@ -1601,6 +1620,21 @@ impl crate::session::WorldSession {
         self.represented_set_advanced_combat_logging_like_cpp(packet.enable);
     }
 
+    pub async fn handle_set_currency_flags(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let packet = match SetCurrencyFlags::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "SetCurrencyFlags parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        self.represented_set_currency_flags_like_cpp(packet.currency_id, packet.flags);
+    }
+
     pub async fn handle_set_ammo(&mut self, _pkt: wow_packet::WorldPacket) {
         // C++ `HandleSetAmmoOpcode(WorldPackets::Null&)` only logs the request.
     }
@@ -1611,6 +1645,26 @@ impl crate::session::WorldSession {
 
     pub async fn handle_showing_cloak(&mut self, _pkt: wow_packet::WorldPacket) {
         // C++ `HandleShowingCloakOpcode(WorldPackets::Null&)` only logs the request.
+    }
+
+    pub async fn handle_set_title(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let mut packet = match SetTitle::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(account = self.account_id, "SetTitle parse failed: {error}");
+                return;
+            }
+        };
+
+        if packet.title_id > 0 {
+            if !self.represented_has_title_like_cpp(packet.title_id as u32) {
+                return;
+            }
+        } else {
+            packet.title_id = 0;
+        }
+
+        self.represented_set_chosen_title_like_cpp(packet.title_id);
     }
 
     pub async fn handle_save_cuf_profiles(&mut self, mut pkt: wow_packet::WorldPacket) {
@@ -3002,7 +3056,7 @@ impl crate::session::WorldSession {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashSet;
+    use std::collections::{HashMap, HashSet};
     use std::sync::{Arc, Mutex};
     use wow_constants::{ClientOpcodes, ServerOpcodes};
     use wow_core::{ObjectGuid, Position, guid::HighGuid};
@@ -3015,6 +3069,23 @@ mod tests {
     use wow_packet::ServerPacket;
     use wow_packet::WorldPacket;
     use wow_packet::packets::misc::empty_battle_pet_guid_like_cpp;
+
+    fn currency_entry(id: u32) -> wow_data::CurrencyTypesEntry {
+        wow_data::CurrencyTypesEntry {
+            id,
+            category_id: 0,
+            inventory_icon_file_id: 0,
+            spell_weight: 0,
+            spell_category: 0,
+            max_qty: 0,
+            max_earnable_per_week: 0,
+            quality: 0,
+            faction_id: 0,
+            award_condition_id: 0,
+            flags: wow_constants::CurrencyTypesFlags::empty(),
+            flags_b: wow_constants::CurrencyTypesFlagsB::empty(),
+        }
+    }
 
     #[test]
     fn item_purchase_contents_skip_season_earned_currency_like_cpp() {
@@ -3216,6 +3287,96 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn set_currency_flags_updates_existing_currency_and_sends_setup_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        session.set_currency_types_store(Arc::new(wow_data::CurrencyTypesStore::from_entries([
+            wow_data::CurrencyTypesEntry {
+                max_qty: 200,
+                max_earnable_per_week: 50,
+                flags: wow_constants::CurrencyTypesFlags::TRACK_QUANTITY,
+                flags_b: wow_constants::CurrencyTypesFlagsB::USE_TOTAL_EARNED_FOR_EARNED,
+                ..currency_entry(395)
+            },
+        ])));
+        session.set_player_currencies_like_cpp(HashMap::from([(
+            395,
+            crate::session::PlayerCurrency {
+                state: crate::session::PlayerCurrencyState::Unchanged,
+                quantity: 123,
+                weekly_quantity: 20,
+                tracked_quantity: 7,
+                increased_cap_quantity: 0,
+                earned_quantity: 300,
+                flags: 0,
+            },
+        )]));
+
+        let mut request = WorldPacket::new_empty();
+        request.write_uint32(395);
+        request.write_uint8(0x1f);
+        request.reset_read();
+        session.handle_set_currency_flags(request).await;
+
+        let currency = session.player_currencies_like_cpp().get(&395).unwrap();
+        assert_eq!(currency.flags, 0x1f);
+        assert_eq!(currency.state, crate::session::PlayerCurrencyState::Changed);
+
+        let sent = send_rx.try_recv().expect("SMSG_SETUP_CURRENCY");
+        let mut setup = WorldPacket::from_bytes(&sent);
+        assert_eq!(setup.server_opcode(), Some(ServerOpcodes::SetupCurrency));
+        setup.skip_opcode();
+        assert_eq!(setup.read_uint32().unwrap(), 1);
+        assert_eq!(setup.read_int32().unwrap(), 395);
+        assert_eq!(setup.read_int32().unwrap(), 123);
+        assert!(setup.read_bit().unwrap());
+        assert!(setup.read_bit().unwrap());
+        assert!(setup.read_bit().unwrap());
+        assert!(setup.read_bit().unwrap());
+        assert!(setup.read_bit().unwrap());
+        assert!(!setup.read_bit().unwrap());
+        assert!(!setup.read_bit().unwrap());
+        assert_eq!(setup.read_bits(5).unwrap(), 0x0c);
+        assert_eq!(setup.read_uint32().unwrap(), 20);
+        assert_eq!(setup.read_uint32().unwrap(), 50);
+        assert_eq!(setup.read_uint32().unwrap(), 7);
+        assert_eq!(setup.read_int32().unwrap(), 200);
+        assert_eq!(setup.read_int32().unwrap(), 300);
+    }
+
+    #[tokio::test]
+    async fn set_currency_flags_missing_player_currency_still_replays_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        session.set_currency_types_store(Arc::new(wow_data::CurrencyTypesStore::from_entries([
+            currency_entry(395),
+        ])));
+
+        let mut request = WorldPacket::new_empty();
+        request.write_uint32(395);
+        request.write_uint8(0x1f);
+        request.reset_read();
+        session.handle_set_currency_flags(request).await;
+
+        assert!(session.player_currencies_like_cpp().get(&395).is_none());
+        let sent = send_rx.try_recv().expect("C++ still calls SendCurrencies");
+        assert_eq!(
+            WorldPacket::from_bytes(&sent).server_opcode(),
+            Some(ServerOpcodes::SetupCurrency)
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn set_currency_flags_short_packet_does_not_send_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_set_currency_flags(WorldPacket::from_bytes(&[0x01, 0x00]))
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
     async fn set_ammo_is_silent_like_cpp_debug_only_handler() {
         let (mut session, send_rx) = make_session();
 
@@ -3231,6 +3392,45 @@ mod tests {
         session.handle_showing_helm(WorldPacket::new_empty()).await;
         session.handle_showing_cloak(WorldPacket::new_empty()).await;
 
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn set_title_requires_known_positive_title_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        session.represented_learn_title_like_cpp(42);
+
+        let mut known = WorldPacket::new_empty();
+        known.write_int32(42);
+        known.reset_read();
+        session.handle_set_title(known).await;
+        assert_eq!(session.represented_chosen_title_like_cpp(), 42);
+
+        let mut unknown = WorldPacket::new_empty();
+        unknown.write_int32(77);
+        unknown.reset_read();
+        session.handle_set_title(unknown).await;
+        assert_eq!(
+            session.represented_chosen_title_like_cpp(),
+            42,
+            "C++ returns before SetChosenTitle when HasTitle fails"
+        );
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn set_title_non_positive_clears_to_zero_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        session.represented_learn_title_like_cpp(42);
+        session.represented_set_chosen_title_like_cpp(42);
+
+        let mut clear = WorldPacket::new_empty();
+        clear.write_int32(-1);
+        clear.reset_read();
+        session.handle_set_title(clear).await;
+
+        assert_eq!(session.represented_chosen_title_like_cpp(), 0);
         assert!(send_rx.try_recv().is_err());
     }
 

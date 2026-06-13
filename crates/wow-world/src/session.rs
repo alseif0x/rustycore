@@ -134,7 +134,7 @@ use wow_packet::packets::item::{
 };
 use wow_packet::packets::misc::{
     AccountHeirloom, AccountHeirloomUpdate, AccountMount, AccountMountUpdate, AccountToy,
-    AccountToyUpdate, BuyFailed, SellResponse,
+    AccountToyUpdate, BuyFailed, SellResponse, SetupCurrency, SetupCurrencyRecord,
 };
 use wow_packet::packets::quest::{
     QuestGiverOfferReward, QuestGiverQuestDetails, QuestGiverQuestList, QuestGiverRequestItems,
@@ -162,6 +162,7 @@ const PLAYER_FLAGS_DND_LIKE_CPP: u32 = 0x0000_0004;
 const PLAYER_FLAGS_GHOST_LIKE_CPP: u32 = 0x0000_0010;
 const PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP: u32 = 0x0000_0100;
 const PLAYER_FLAGS_TAXI_BENCHMARK_LIKE_CPP: u32 = 0x0002_0000;
+const CURRENCY_DB_UNUSED_FLAGS_LIKE_CPP: u8 = 0x13;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum PlayerAwayModeLikeCpp {
@@ -3188,6 +3189,10 @@ pub struct WorldSession {
         Vec<RepresentedQuestRewardSpellCastLikeCpp>,
     /// Session-local evidence for represented quest reward `SetTitle` calls.
     pub(crate) represented_quest_reward_titles_like_cpp: Vec<RepresentedQuestRewardTitleLikeCpp>,
+    /// C++ `ActivePlayerData::KnownTitles` represented as title bit indexes.
+    represented_known_titles_like_cpp: HashSet<u32>,
+    /// C++ `PlayerData::PlayerTitle` represented chosen title id.
+    represented_chosen_title_like_cpp: i32,
     /// Session-local evidence for represented quest reward talent point grants.
     pub(crate) represented_quest_reward_talent_points_like_cpp:
         Vec<RepresentedQuestRewardTalentPointsLikeCpp>,
@@ -4159,6 +4164,8 @@ impl WorldSession {
             represented_quest_reward_skill_updates_like_cpp: Vec::new(),
             represented_quest_reward_spell_casts_like_cpp: Vec::new(),
             represented_quest_reward_titles_like_cpp: Vec::new(),
+            represented_known_titles_like_cpp: HashSet::new(),
+            represented_chosen_title_like_cpp: 0,
             represented_quest_reward_talent_points_like_cpp: Vec::new(),
             represented_quest_reward_mails_like_cpp: Vec::new(),
             represented_quest_reward_reputations_like_cpp: Vec::new(),
@@ -8822,6 +8829,93 @@ impl WorldSession {
     /// C++ `Player::HasCurrency`.
     pub(crate) fn has_currency(&self, currency_id: u32, amount: u32) -> bool {
         self.player_currency_quantity(currency_id) >= amount
+    }
+
+    /// C++ `Player::SendCurrencies`.
+    pub(crate) fn setup_currencies_packet_like_cpp(&self) -> SetupCurrency {
+        let Some(store) = self.currency_types_store.as_ref() else {
+            return SetupCurrency::empty();
+        };
+
+        let player_team = player_team_for_race_cpp(self.player_race_like_cpp());
+        let mut records = Vec::with_capacity(self.player_currencies_like_cpp().len());
+        for (&currency_id, currency) in self.player_currencies_like_cpp() {
+            let Some(entry) = store.get(currency_id).copied() else {
+                continue;
+            };
+
+            if (entry.is_alliance() && player_team != Team::Alliance)
+                || (entry.is_horde() && player_team != Team::Horde)
+            {
+                continue;
+            }
+
+            if entry.award_condition_id != 0 {
+                if let Some(condition) = self
+                    .player_condition_store
+                    .as_ref()
+                    .and_then(|store| store.get(entry.award_condition_id as u32))
+                {
+                    let context = self.represented_player_condition_context_like_cpp();
+                    if !is_player_meeting_condition_like_cpp(condition, &context.as_context(self)) {
+                        continue;
+                    }
+                }
+            }
+
+            let scaler = entry.scaler().max(1) as u32;
+            let max_quantity = currency_max_quantity_cpp(&entry, currency);
+            records.push(SetupCurrencyRecord {
+                type_id: entry.id as i32,
+                quantity: currency.quantity as i32,
+                weekly_quantity: ((currency.weekly_quantity / scaler) > 0)
+                    .then_some(currency.weekly_quantity),
+                max_weekly_quantity: entry
+                    .has_max_earnable_per_week()
+                    .then_some(entry.max_earnable_per_week),
+                tracked_quantity: entry
+                    .is_tracking_quantity()
+                    .then_some(currency.tracked_quantity),
+                max_quantity: (max_quantity != 0).then_some(max_quantity as i32),
+                total_earned: entry
+                    .has_total_earned()
+                    .then_some(currency.earned_quantity as i32),
+                next_recharge_time: None,
+                recharge_cycle_start_time: None,
+                flags: currency.flags & !CURRENCY_DB_UNUSED_FLAGS_LIKE_CPP,
+            });
+        }
+
+        SetupCurrency::from_records(records)
+    }
+
+    /// C++ `Player::SetCurrencyFlags` + `Player::SendCurrencies`.
+    pub(crate) fn represented_set_currency_flags_like_cpp(
+        &mut self,
+        currency_id: u32,
+        flags: u8,
+    ) -> bool {
+        let Some(store) = self.currency_types_store.as_ref() else {
+            return false;
+        };
+        if !store.has_record(currency_id) {
+            return false;
+        }
+
+        let mut currencies = self.player_currencies_like_cpp().clone();
+        if let Some(currency) = currencies.get_mut(&currency_id) {
+            if currency.flags != flags {
+                currency.flags = flags;
+                if currency.state != PlayerCurrencyState::New {
+                    currency.state = PlayerCurrencyState::Changed;
+                }
+            }
+            self.set_player_currencies_like_cpp(currencies);
+        }
+
+        let packet = self.setup_currencies_packet_like_cpp();
+        self.send_packet(&packet);
+        true
     }
 
     /// C++ `Player::AddCurrency(..., CurrencyGainSource::Vendor)` without aura gain bonuses.
@@ -17951,6 +18045,9 @@ impl WorldSession {
             ClientOpcodes::SetAdvancedCombatLogging => {
                 self.handle_set_advanced_combat_logging(pkt).await;
             }
+            ClientOpcodes::SetCurrencyFlags => {
+                self.handle_set_currency_flags(pkt).await;
+            }
             ClientOpcodes::SetAmmo => {
                 self.handle_set_ammo(pkt).await;
             }
@@ -17959,6 +18056,9 @@ impl WorldSession {
             }
             ClientOpcodes::ShowingCloak => {
                 self.handle_showing_cloak(pkt).await;
+            }
+            ClientOpcodes::SetTitle => {
+                self.handle_set_title(pkt).await;
             }
             ClientOpcodes::SaveCufProfiles => {
                 self.handle_save_cuf_profiles(pkt).await;
@@ -25977,6 +26077,22 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedQuestRewardTitleLikeCpp] {
         &self.represented_quest_reward_titles_like_cpp
+    }
+
+    pub(crate) fn represented_learn_title_like_cpp(&mut self, title_id: u32) {
+        self.represented_known_titles_like_cpp.insert(title_id);
+    }
+
+    pub(crate) fn represented_has_title_like_cpp(&self, title_id: u32) -> bool {
+        self.represented_known_titles_like_cpp.contains(&title_id)
+    }
+
+    pub(crate) fn represented_set_chosen_title_like_cpp(&mut self, title_id: i32) {
+        self.represented_chosen_title_like_cpp = title_id;
+    }
+
+    pub(crate) fn represented_chosen_title_like_cpp(&self) -> i32 {
+        self.represented_chosen_title_like_cpp
     }
 
     pub(crate) fn represented_quest_reward_talent_points_like_cpp(
@@ -57206,6 +57322,36 @@ mod tests {
         assert_eq!(session.player_currency_quantity(395), 42);
         assert!(session.has_currency(395, 42));
         assert!(!session.has_currency(395, 43));
+    }
+
+    #[test]
+    fn set_currency_flags_preserves_new_state_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_currency_types_store(Arc::new(wow_data::CurrencyTypesStore::from_entries([
+            currency_entry(395),
+        ])));
+        session.player_currencies.insert(
+            395,
+            PlayerCurrency {
+                state: PlayerCurrencyState::New,
+                quantity: 1,
+                weekly_quantity: 0,
+                tracked_quantity: 0,
+                increased_cap_quantity: 0,
+                earned_quantity: 0,
+                flags: 0,
+            },
+        );
+
+        assert!(session.represented_set_currency_flags_like_cpp(395, 0x04));
+
+        let currency = session.player_currencies.get(&395).unwrap();
+        assert_eq!(currency.flags, 0x04);
+        assert_eq!(currency.state, PlayerCurrencyState::New);
+        assert_eq!(
+            wow_packet::WorldPacket::from_bytes(&send_rx.try_recv().unwrap()).server_opcode(),
+            Some(ServerOpcodes::SetupCurrency)
+        );
     }
 
     fn currency_entry(id: u32) -> wow_data::CurrencyTypesEntry {

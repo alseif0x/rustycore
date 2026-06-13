@@ -10,6 +10,22 @@ use wow_core::{ObjectGuid, Position};
 
 use crate::{ClientPacket, PacketError, ServerPacket, WorldPacket};
 
+/// C++ `WorldPackets::Character::SetTitle`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SetTitle {
+    pub title_id: i32,
+}
+
+impl ClientPacket for SetTitle {
+    const OPCODE: ClientOpcodes = ClientOpcodes::SetTitle;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            title_id: pkt.read_int32()?,
+        })
+    }
+}
+
 // ── Visual item info (shared) ───────────────────────────────────────
 
 /// Equipment visual info for a single slot in the character list.
@@ -424,6 +440,18 @@ pub mod response_codes {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn set_title_reads_cpp_int32_title_id() {
+        for title_id in [-1, 0, 42] {
+            let mut pkt = WorldPacket::new_empty();
+            pkt.write_int32(title_id);
+            pkt.reset_read();
+
+            assert_eq!(SetTitle::read(&mut pkt).unwrap().title_id, title_id);
+        }
+    }
+
     #[test]
     fn enum_characters_result_empty_list() {
         let pkt_data = EnumCharactersResult {
