@@ -162,7 +162,10 @@ const PLAYER_FLAGS_AFK_LIKE_CPP: u32 = 0x0000_0002;
 const PLAYER_FLAGS_DND_LIKE_CPP: u32 = 0x0000_0004;
 const PLAYER_FLAGS_GHOST_LIKE_CPP: u32 = 0x0000_0010;
 const PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP: u32 = 0x0000_0100;
+const PLAYER_FLAGS_IN_PVP_LIKE_CPP: u32 = 0x0000_0200;
 const PLAYER_FLAGS_TAXI_BENCHMARK_LIKE_CPP: u32 = 0x0002_0000;
+const PLAYER_FLAGS_PVP_TIMER_LIKE_CPP: u32 = 0x0004_0000;
+const PLAYER_LOCAL_FLAG_WAR_MODE_LIKE_CPP: u32 = 0x0000_0800;
 const CURRENCY_DB_UNUSED_FLAGS_LIKE_CPP: u8 = 0x13;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -3049,6 +3052,8 @@ pub struct WorldSession {
     player_pvp_enabled_like_cpp: bool,
     /// Represented `PLAYER_FLAGS_IN_PVP` branch for friendly-area near teleport handling.
     player_in_pvp_flag_like_cpp: bool,
+    /// Represented `pvpInfo.EndTimer` until full `Player::UpdatePvPFlag` runs from player update.
+    player_pvp_end_timer_like_cpp: Option<i64>,
     /// Current represented zone/area ids until Map/Terrain runtime can calculate them.
     player_zone_id_like_cpp: u32,
     player_area_id_like_cpp: u32,
@@ -4106,6 +4111,7 @@ impl WorldSession {
             player_pvp_hostile_like_cpp: false,
             player_pvp_enabled_like_cpp: false,
             player_in_pvp_flag_like_cpp: false,
+            player_pvp_end_timer_like_cpp: None,
             player_zone_id_like_cpp: 0,
             player_area_id_like_cpp: 0,
             move_spline_done_taxi_events_like_cpp: Vec::new(),
@@ -4696,6 +4702,74 @@ impl WorldSession {
             }
         });
         result
+    }
+
+    fn player_is_pvp_like_cpp(&self, guid: ObjectGuid) -> bool {
+        self.canonical_player_pvp_flags_like_cpp(guid)
+            .map(|flags| flags.contains(UnitPvpFlags::PVP))
+            .unwrap_or(self.player_pvp_enabled_like_cpp)
+    }
+
+    fn player_has_in_pvp_flag_like_cpp(&self, guid: ObjectGuid) -> bool {
+        self.canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_IN_PVP_LIKE_CPP)
+            .unwrap_or(self.player_in_pvp_flag_like_cpp)
+    }
+
+    fn player_war_mode_local_active_like_cpp(&self) -> bool {
+        (self.active_player_local_flags_like_cpp & PLAYER_LOCAL_FLAG_WAR_MODE_LIKE_CPP) != 0
+    }
+
+    fn update_player_pvp_like_cpp(&mut self, state: bool, override_state: bool) {
+        if !state || override_state {
+            self.player_pvp_end_timer_like_cpp = None;
+            self.player_pvp_enabled_like_cpp = state;
+        } else {
+            self.player_pvp_end_timer_like_cpp = Some(wow_entities::game_time_secs_like_cpp());
+            self.player_pvp_enabled_like_cpp = state;
+        }
+
+        let Some(guid) = self.player_guid() else {
+            return;
+        };
+        let _ = self.mutate_canonical_player_by_guid_like_cpp(guid, |player| {
+            if state {
+                player.unit_mut().set_pvp_flag_like_cpp(UnitPvpFlags::PVP);
+            } else {
+                player
+                    .unit_mut()
+                    .remove_pvp_flag_like_cpp(UnitPvpFlags::PVP);
+            }
+        });
+    }
+
+    pub(crate) fn apply_toggle_pvp_like_cpp(&mut self) {
+        let Some(guid) = self.player_guid() else {
+            return;
+        };
+
+        if !self.player_has_in_pvp_flag_like_cpp(guid) {
+            let _ = self.mutate_canonical_player_by_guid_like_cpp(guid, |player| {
+                player.set_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP);
+                player.remove_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP);
+            });
+            self.player_in_pvp_flag_like_cpp = true;
+
+            if !self.player_is_pvp_like_cpp(guid) || self.player_pvp_end_timer_like_cpp.is_some() {
+                self.update_player_pvp_like_cpp(true, true);
+            }
+        } else if !self.player_war_mode_local_active_like_cpp() {
+            let _ = self.mutate_canonical_player_by_guid_like_cpp(guid, |player| {
+                player.remove_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP);
+                player.set_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP);
+            });
+            self.player_in_pvp_flag_like_cpp = false;
+
+            if !self.player_pvp_hostile_like_cpp && self.player_is_pvp_like_cpp(guid) {
+                self.player_pvp_end_timer_like_cpp = Some(wow_entities::game_time_secs_like_cpp());
+            }
+        }
+
+        self.sync_player_registry_state_like_cpp();
     }
 
     fn canonical_player_duel_in_progress_like_cpp(
@@ -18301,6 +18375,9 @@ impl WorldSession {
             }
             ClientOpcodes::RequestPvpRewards => {
                 self.handle_request_pvp_rewards(pkt).await;
+            }
+            ClientOpcodes::TogglePvp => {
+                self.handle_toggle_pvp(pkt).await;
             }
             ClientOpcodes::DfGetSystemInfo => {
                 self.handle_df_get_system_info(pkt).await;
@@ -66613,6 +66690,92 @@ mod tests {
         session.set_canonical_map_manager(Arc::clone(&canonical));
         insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
         (session, canonical, player_guid)
+    }
+
+    #[test]
+    fn toggle_pvp_sets_in_pvp_flag_and_enables_pvp_like_cpp() {
+        let (mut session, canonical, guid) = session_with_canonical_player_for_away_like_cpp();
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.set_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP);
+            })
+            .unwrap();
+        session.player_pvp_enabled_like_cpp = false;
+        session.player_pvp_end_timer_like_cpp = Some(123);
+
+        session.apply_toggle_pvp_like_cpp();
+
+        let manager = canonical.lock().unwrap();
+        let player = manager
+            .find_map(571, 0)
+            .unwrap()
+            .map()
+            .get_typed_player(guid)
+            .unwrap();
+        assert!(player.has_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP));
+        assert!(!player.has_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP));
+        assert!(player.unit().is_pvp_like_cpp());
+        assert!(session.player_in_pvp_flag_like_cpp);
+        assert!(session.player_pvp_enabled_like_cpp);
+        assert_eq!(session.player_pvp_end_timer_like_cpp, None);
+    }
+
+    #[test]
+    fn toggle_pvp_removes_in_pvp_and_starts_timer_when_not_hostile_like_cpp() {
+        let (mut session, canonical, guid) = session_with_canonical_player_for_away_like_cpp();
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.set_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP);
+                player.unit_mut().set_pvp_flag_like_cpp(UnitPvpFlags::PVP);
+            })
+            .unwrap();
+        session.player_in_pvp_flag_like_cpp = true;
+        session.player_pvp_enabled_like_cpp = true;
+        session.player_pvp_hostile_like_cpp = false;
+
+        session.apply_toggle_pvp_like_cpp();
+
+        let manager = canonical.lock().unwrap();
+        let player = manager
+            .find_map(571, 0)
+            .unwrap()
+            .map()
+            .get_typed_player(guid)
+            .unwrap();
+        assert!(!player.has_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP));
+        assert!(player.has_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP));
+        assert!(player.unit().is_pvp_like_cpp());
+        assert!(!session.player_in_pvp_flag_like_cpp);
+        assert_eq!(session.player_pvp_enabled_like_cpp, true);
+        assert!(session.player_pvp_end_timer_like_cpp.is_some());
+    }
+
+    #[test]
+    fn toggle_pvp_does_not_toggle_off_with_war_mode_local_active_like_cpp() {
+        let (mut session, canonical, guid) = session_with_canonical_player_for_away_like_cpp();
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.set_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP);
+                player.unit_mut().set_pvp_flag_like_cpp(UnitPvpFlags::PVP);
+            })
+            .unwrap();
+        session.player_in_pvp_flag_like_cpp = true;
+        session.player_pvp_enabled_like_cpp = true;
+        session.active_player_local_flags_like_cpp = PLAYER_LOCAL_FLAG_WAR_MODE_LIKE_CPP;
+
+        session.apply_toggle_pvp_like_cpp();
+
+        let manager = canonical.lock().unwrap();
+        let player = manager
+            .find_map(571, 0)
+            .unwrap()
+            .map()
+            .get_typed_player(guid)
+            .unwrap();
+        assert!(player.has_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP));
+        assert!(!player.has_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP));
+        assert!(player.unit().is_pvp_like_cpp());
+        assert_eq!(session.player_pvp_end_timer_like_cpp, None);
     }
 
     #[test]

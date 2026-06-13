@@ -55,7 +55,7 @@ use wow_packet::packets::misc::{
     ObjectUpdateFailed, ObjectUpdateRescued, QueryBattlePetName, QueryBattlePetNameResponse,
     RatedPvpInfo, RequestBattlefieldStatus, RequestCemeteryListResponse, SaveCufProfiles,
     SetAdvancedCombatLogging, SetCurrencyFlags, SetTaxiBenchmarkMode, StandStateChange,
-    TaxiNodeStatusPkt, ToyClearFanfare, UseToy, ViolenceLevel,
+    TaxiNodeStatusPkt, TogglePvp, ToyClearFanfare, UseToy, ViolenceLevel,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -658,6 +658,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_request_pvp_rewards",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::TogglePvp,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_toggle_pvp",
     }
 }
 
@@ -2234,6 +2243,14 @@ impl crate::session::WorldSession {
         // C++ dispatches to Player::SendPvpRewards(), but that method's
         // SMSG_REQUEST_PVP_REWARDS_RESPONSE send is commented out in the
         // canonical source, so the observable behavior is silence.
+    }
+    pub async fn handle_toggle_pvp(&mut self, mut pkt: wow_packet::WorldPacket) {
+        if let Err(error) = TogglePvp::read(&mut pkt) {
+            warn!(account = self.account_id, "TogglePvP parse failed: {error}");
+            return;
+        }
+
+        self.apply_toggle_pvp_like_cpp();
     }
     pub async fn handle_df_get_system_info(&mut self, mut pkt: wow_packet::WorldPacket) {
         let request = match DfGetSystemInfo::read(&mut pkt) {

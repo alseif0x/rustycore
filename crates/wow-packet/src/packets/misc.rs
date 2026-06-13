@@ -4076,6 +4076,18 @@ impl ClientPacket for DfGetJoinStatus {
     }
 }
 
+/// C++ `WorldPackets::Misc::TogglePvP`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct TogglePvp;
+
+impl ClientPacket for TogglePvp {
+    const OPCODE: ClientOpcodes = ClientOpcodes::TogglePvp;
+
+    fn read(_pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self)
+    }
+}
+
 /// C++ `WorldPackets::LFG::LFGBlackList`.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct LfgBlackList {
@@ -4628,6 +4640,13 @@ mod tests {
     fn df_get_join_status_reads_empty_cpp_packet() {
         let mut pkt = WorldPacket::new_empty();
         DfGetJoinStatus::read(&mut pkt).unwrap();
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn toggle_pvp_reads_empty_cpp_packet() {
+        let mut pkt = WorldPacket::new_empty();
+        TogglePvp::read(&mut pkt).unwrap();
         assert_eq!(pkt.remaining(), 0);
     }
 

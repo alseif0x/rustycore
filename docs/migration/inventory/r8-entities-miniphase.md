@@ -1,3 +1,13 @@
+- `#NEXT.R8.ENTITIES.842` - represented-partial for `CMSG_TOGGLE_PVP`.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:319-335`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:22622-22679`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:20814-20828`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:433-442`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:473-485`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:974`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:671`.
+
+  Rust anchors: `crates/wow-packet/src/packets/misc.rs`; `crates/wow-world/src/handlers/misc.rs`; `crates/wow-world/src/session.rs`.
+
+  Acceptance: Rust now parses the empty C++ `TogglePvP` packet, registers `LoggedIn`/`ThreadUnsafe`, dispatches through `WorldSession`, sets `PLAYER_FLAGS_IN_PVP`, clears `PLAYER_FLAGS_PVP_TIMER`, applies represented `UpdatePvP(true, true)` by setting Unit PvP and clearing represented `EndTimer`, removes `PLAYER_FLAGS_IN_PVP` and sets `PLAYER_FLAGS_PVP_TIMER` on toggle-off, starts represented `pvpInfo.EndTimer` only when the player is not hostile and is PvP, and preserves the C++ `IsWarModeLocalActive()` no-toggle-off branch through active-player local flags.
+
+  Boundary: represented-partial only. Full zone/area PvP state, complete WarMode lifecycle, controlled-unit PvP propagation, `Player::UpdatePvPFlag` 5-minute timer update loop, persistence, install/restart, and live client/manual validation remain open.
+
 - `#NEXT.R8.ENTITIES.841` - audit-fix/represented-complete for stale `CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE` inventory.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MovementHandler.cpp:810-816`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:642`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:416`.
