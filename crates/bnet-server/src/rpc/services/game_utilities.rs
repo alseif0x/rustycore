@@ -35,9 +35,33 @@ fn remove_suffix(s: &str) -> &str {
     }
 }
 
-/// Find an attribute whose name starts with `prefix` (after suffix removal).
-fn find_attr<'a>(attrs: &'a [Attribute], prefix: &str) -> Option<&'a Attribute> {
-    attrs.iter().find(|a| a.name.starts_with(prefix))
+/// Find the effective command attribute like C++ `HandleProcessClientRequest`.
+///
+/// C++ walks attributes in order and assigns `command = &attr` for every
+/// `Command_*`, so the last command attribute wins.
+fn find_command_attr_like_cpp(attrs: &[Attribute]) -> Option<&Attribute> {
+    attrs
+        .iter()
+        .rev()
+        .find(|attr| attr.name.starts_with("Command_"))
+}
+
+/// Find a command parameter after C++ suffix normalization.
+///
+/// C++ stores command params under `removeSuffix(attr.name())` in an
+/// unordered_map; duplicate keys overwrite previous values, so the last
+/// matching attribute wins.
+fn find_command_param_like_cpp<'a>(attrs: &'a [Attribute], key: &str) -> Option<&'a Attribute> {
+    attrs
+        .iter()
+        .rev()
+        .find(|attr| attr.name.starts_with("Command_") && remove_suffix(&attr.name) == key)
+}
+
+/// Find a non-command parameter like C++ params map insertion.
+/// Duplicate non-command attributes overwrite previous values.
+fn find_param_like_cpp<'a>(attrs: &'a [Attribute], key: &str) -> Option<&'a Attribute> {
+    attrs.iter().rev().find(|attr| attr.name == key)
 }
 
 /// Method 1: ProcessClientRequest — dispatches based on Command_* attribute.
@@ -48,10 +72,7 @@ async fn handle_process_client_request<S: AsyncRead + AsyncWrite + Unpin>(
     let request = ClientRequest::decode(payload)?;
 
     // Find the command attribute and normalize its name (strip client-specific suffix like _wotlk1).
-    let command_attr = request
-        .attribute
-        .iter()
-        .find(|a| a.name.starts_with("Command_"));
+    let command_attr = find_command_attr_like_cpp(&request.attribute);
 
     let command = command_attr.map(|a| remove_suffix(&a.name));
 
@@ -170,7 +191,8 @@ async fn get_last_char_played<S: AsyncRead + AsyncWrite + Unpin>(
     }
 
     // The sub-region value is stored on the command attribute itself.
-    let Some(command_attr) = find_attr(&request.attribute, "Command_LastCharPlayedRequest_v1")
+    let Some(command_attr) =
+        find_command_param_like_cpp(&request.attribute, "Command_LastCharPlayedRequest_v1")
     else {
         return Err(RpcStatusError::new(status::ERROR_UTIL_SERVER_UNKNOWN_REALM).into());
     };
@@ -214,7 +236,7 @@ async fn get_realm_list<S: AsyncRead + AsyncWrite + Unpin>(
         bail!("Not authenticated");
     }
 
-    let sub_region = find_attr(&request.attribute, "Command_RealmListRequest_v1")
+    let sub_region = find_command_param_like_cpp(&request.attribute, "Command_RealmListRequest_v1")
         .and_then(|a| a.value.string_value.as_deref())
         .unwrap_or("");
 
@@ -263,6 +285,7 @@ async fn join_realm<S: AsyncRead + AsyncWrite + Unpin>(
     let realm_address = request
         .attribute
         .iter()
+        .rev()
         .find(|a| a.name == "Param_RealmAddress")
         .and_then(|a| a.value.uint_value)
         .ok_or_else(|| RpcStatusError::new(status::ERROR_WOW_SERVICES_INVALID_JOIN_TICKET))?
@@ -414,7 +437,7 @@ fn bnet_session_key_data_like_cpp(client_secret: &[u8], server_secret: &[u8]) ->
 }
 
 fn parse_realm_list_ticket_game_account_id_like_cpp(attrs: &[Attribute]) -> Option<u32> {
-    let attr = attrs.iter().find(|a| a.name == "Param_Identity")?;
+    let attr = find_param_like_cpp(attrs, "Param_Identity")?;
     let blob = attr.value.blob_value.as_ref()?;
     let text = String::from_utf8_lossy(blob);
     let json_str = text.trim_end_matches('\0');
@@ -429,7 +452,7 @@ fn parse_realm_list_ticket_game_account_id_like_cpp(attrs: &[Attribute]) -> Opti
 }
 
 fn parse_realm_list_ticket_client_secret_like_cpp(attrs: &[Attribute]) -> Option<Vec<u8>> {
-    let attr = attrs.iter().find(|a| a.name == "Param_ClientInfo")?;
+    let attr = find_param_like_cpp(attrs, "Param_ClientInfo")?;
     let blob = attr.value.blob_value.as_ref()?;
     let text = String::from_utf8_lossy(blob);
     let json_str = text.trim_end_matches('\0');
@@ -578,6 +601,7 @@ mod tests {
         BnetLastLoginInfoUpdateLikeCpp, JoinRealmLoginInfoUpdateLikeCpp,
         account_info_or_status_like_cpp, apply_bnet_last_login_info_update_like_cpp,
         apply_join_realm_login_info_update_like_cpp, bnet_session_key_data_like_cpp,
+        find_command_attr_like_cpp, find_command_param_like_cpp, find_param_like_cpp,
         join_realm_response_attributes_like_cpp, last_char_played_response_attributes_like_cpp,
         locale_string_to_id_like_cpp, parse_realm_list_ticket_client_secret_like_cpp,
         parse_realm_list_ticket_game_account_id_like_cpp, process_client_request_command_like_cpp,
@@ -785,6 +809,73 @@ mod tests {
         assert_eq!(
             process_client_request_command_like_cpp(true, Some(suffixed)).unwrap(),
             "Command_RealmListRequest_v1"
+        );
+    }
+
+    #[test]
+    fn process_client_request_attribute_selection_matches_cpp_last_wins() {
+        let attrs = vec![
+            Attribute {
+                name: "Command_RealmListRequest_v1_wotlk1".to_string(),
+                value: Variant {
+                    string_value: Some("first".to_string()),
+                    ..Default::default()
+                },
+            },
+            Attribute {
+                name: "Param_RealmAddress".to_string(),
+                value: Variant {
+                    uint_value: Some(1),
+                    ..Default::default()
+                },
+            },
+            Attribute {
+                name: "Command_RealmJoinRequest_v1_wotlk1".to_string(),
+                value: Variant {
+                    string_value: Some("second".to_string()),
+                    ..Default::default()
+                },
+            },
+            Attribute {
+                name: "Command_RealmListRequest_v1_other".to_string(),
+                value: Variant {
+                    string_value: Some("last-list".to_string()),
+                    ..Default::default()
+                },
+            },
+            Attribute {
+                name: "Param_RealmAddress".to_string(),
+                value: Variant {
+                    uint_value: Some(2),
+                    ..Default::default()
+                },
+            },
+        ];
+
+        let command = find_command_attr_like_cpp(&attrs).expect("expected command attr");
+        assert_eq!(command.name, "Command_RealmListRequest_v1_other");
+
+        let realm_list =
+            find_command_param_like_cpp(&attrs, "Command_RealmListRequest_v1").unwrap();
+        assert_eq!(realm_list.value.string_value.as_deref(), Some("last-list"));
+
+        let realm_address = find_param_like_cpp(&attrs, "Param_RealmAddress").unwrap();
+        assert_eq!(realm_address.value.uint_value, Some(2));
+    }
+
+    #[test]
+    fn command_param_matching_uses_cpp_remove_suffix_not_prefix_contains() {
+        let attrs = vec![Attribute {
+            name: "Command_RealmListRequest_v1_extra_suffix".to_string(),
+            value: Variant {
+                string_value: Some("wrong".to_string()),
+                ..Default::default()
+            },
+        }];
+
+        assert!(
+            find_command_param_like_cpp(&attrs, "Command_RealmListRequest_v1").is_none(),
+            "C++ removeSuffix strips only the final suffix, so this key becomes Command_RealmListRequest_v1_extra"
         );
     }
 
