@@ -26440,6 +26440,38 @@ impl WorldSession {
         self.represented_known_titles_like_cpp.insert(title_id);
     }
 
+    /// C++ `Player::LoadFromDB` parses `knownTitles` as 32-bit words and
+    /// validates `chosenTitle` against `Player::HasTitle` before setting it.
+    pub(crate) fn load_represented_character_titles_like_cpp(
+        &mut self,
+        known_titles: &str,
+        chosen_title: u32,
+    ) {
+        self.represented_known_titles_like_cpp.clear();
+
+        for (word_index, token) in known_titles.split_whitespace().enumerate() {
+            let word = token.parse::<u64>().unwrap_or(0) & u64::from(u32::MAX);
+            for bit_index in 0..32_u32 {
+                if (word & (1_u64 << bit_index)) != 0 {
+                    self.represented_known_titles_like_cpp
+                        .insert((word_index as u32) * 32 + bit_index);
+                }
+            }
+        }
+
+        let chosen_title =
+            if chosen_title != 0 && !self.represented_has_title_like_cpp(chosen_title) {
+                0
+            } else {
+                chosen_title
+            };
+        let chosen_title = i32::try_from(chosen_title).unwrap_or(0);
+        self.represented_set_chosen_title_like_cpp(chosen_title);
+        self.mutate_canonical_player_like_cpp(|player| {
+            player.set_chosen_title_like_cpp(chosen_title)
+        });
+    }
+
     pub(crate) fn represented_has_title_like_cpp(&self, title_id: u32) -> bool {
         self.represented_known_titles_like_cpp.contains(&title_id)
     }
@@ -63458,6 +63490,61 @@ mod tests {
         }
 
         assert!(session.player_is_possessing_like_cpp());
+    }
+
+    #[test]
+    fn load_character_titles_parses_known_title_words_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.represented_learn_title_like_cpp(999);
+        session.represented_set_chosen_title_like_cpp(999);
+
+        session.load_represented_character_titles_like_cpp("1 2 invalid 8", 33);
+
+        assert!(session.represented_has_title_like_cpp(0));
+        assert!(session.represented_has_title_like_cpp(33));
+        assert!(session.represented_has_title_like_cpp(99));
+        assert!(!session.represented_has_title_like_cpp(65));
+        assert!(!session.represented_has_title_like_cpp(999));
+        assert_eq!(session.represented_chosen_title_like_cpp(), 33);
+    }
+
+    #[test]
+    fn load_character_titles_clears_unknown_chosen_title_like_cpp() {
+        let (mut session, _, _) = make_session();
+
+        session.load_represented_character_titles_like_cpp("1 0", 33);
+
+        assert!(session.represented_has_title_like_cpp(0));
+        assert!(!session.represented_has_title_like_cpp(33));
+        assert_eq!(session.represented_chosen_title_like_cpp(), 0);
+    }
+
+    #[test]
+    fn load_character_titles_sets_canonical_player_title_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 31_100);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        add_canonical_test_player_on_map(
+            &canonical,
+            player_guid,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            571,
+            0,
+        );
+
+        session.load_represented_character_titles_like_cpp("4", 2);
+
+        assert_eq!(session.represented_chosen_title_like_cpp(), 2);
+        assert_eq!(
+            session
+                .mutate_canonical_player_like_cpp(|player| player.data().player_title)
+                .unwrap(),
+            2
+        );
     }
 
     #[test]

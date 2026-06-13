@@ -246,7 +246,7 @@
 
   Acceptance: Rust entities now model `PLAYER_DATA_PLAYER_TITLE_BIT = 21`, store `PlayerDataValues::player_title`, expose `Player::set_chosen_title_like_cpp`, bridge changed player-title values into `PlayerDataUpdate.player_title` with the player-data mask bit set, and `CMSG_SET_TITLE` syncs accepted title changes into the canonical current player and emits the represented `UpdateObject` delta when that player exists.
 
-  Boundary: represented-complete for the bounded title update-field bridge and handler-to-current-player wiring; no character DB known-title load/save, no CharTitles DB2 reward integration, no install/restart, and no live client/manual validation.
+  Boundary: represented-complete for the bounded title update-field bridge and handler-to-current-player wiring; character DB known-title/chosen-title load compatibility is covered by `#NEXT.R8.ENTITIES.846`; no full `CharTitles.db2` reward integration, full character save transaction validation, install/restart, or live client/manual validation.
 
 - `#NEXT.R8.ENTITIES.820` — represented-complete for bounded `CMSG_SET_INSERT_ITEMS_LEFT_TO_RIGHT` null/unhandled hook.
 
@@ -353,7 +353,7 @@ Boundaries: represented current-session currency storage only; no live client/ma
   Rust targets: `crates/wow-packet/src/packets/character.rs`, `crates/wow-world/src/handlers/misc.rs`, `crates/wow-world/src/session.rs`, `docs/migration/current-session-handoff.md`, `docs/migration/inventory/r8-entities-miniphase.md`, `docs/migration/inventory/r8-entities-miniphase.tsv`, `docs/migration/inventory/cpp-client-handlers.tsv`, `docs/migration/inventory/r3-opcodes-registry.tsv`, `docs/migration/inventory/r3-opcodes-registry.md`.
   Acceptance: packet reads `int32 TitleID`; handler registers LoggedIn/Inplace and dispatches; positive titles require represented `KnownTitles` membership before mutating; non-positive titles clear to `0`; unknown positive titles leave the chosen title unchanged.
   Checks: `cargo fmt --all --check`; `cargo test -p wow-packet set_title --lib`; `cargo test -p wow-world set_title --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`; `git diff --check`.
-  Remaining gaps: represented title knowledge is still session-local; no character DB known-title load/save and no CharTitles DB2 reward integration.
+  Remaining gaps: full `CharTitles.db2` reward integration, full character save transaction validation, install/restart, and live client/manual validation; character DB known-title/chosen-title load compatibility is covered by `#NEXT.R8.ENTITIES.846`.
 - `#NEXT.R8.ENTITIES.809` — represented-complete for bounded `CMSG_SHOWING_HELM` and `CMSG_SHOWING_CLOAK`.
   Source-of-truth: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:1396-1403`.
   Rust targets: `crates/wow-world/src/handlers/misc.rs`, `crates/wow-world/src/session.rs`, `docs/migration/current-session-handoff.md`, `docs/migration/inventory/r8-entities-miniphase.md`, `docs/migration/inventory/r8-entities-miniphase.tsv`, `docs/migration/inventory/cpp-client-handlers.tsv`, `docs/migration/inventory/r3-opcodes-registry.tsv`, `docs/migration/inventory/r3-opcodes-registry.md`.

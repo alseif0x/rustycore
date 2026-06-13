@@ -2665,6 +2665,10 @@ impl WorldSession {
         ) {
             let _ = self.ensure_canonical_world_map_for_current_player_like_cpp();
         }
+        self.load_represented_character_titles_like_cpp(
+            &result.try_read::<String>(65).unwrap_or_default(),
+            result.try_read::<u32>(48).unwrap_or(0),
+        );
 
         self.load_account_toys_like_cpp().await;
         self.load_account_heirlooms_like_cpp().await;
