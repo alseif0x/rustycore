@@ -82,6 +82,8 @@ type SharedCanonicalSpawnMetadataLikeCpp =
 type SharedWorldStateMgrLikeCpp = Arc<Mutex<spawn_store_loader::WorldStateMgrLikeCpp>>;
 
 const SHUTDOWN_EXIT_CODE_LIKE_CPP: i32 = 0;
+const ERROR_EXIT_CODE_LIKE_CPP: i32 = 1;
+const RESTART_EXIT_CODE_LIKE_CPP: i32 = 2;
 
 #[derive(Debug)]
 struct WorldRuntimeStateLikeCpp {
@@ -2491,7 +2493,7 @@ async fn main() -> Result<ExitCode> {
         let mmap_config = mmap_runtime_config.clone();
         let mmap_pathfinder = mmap_pathfinder.clone();
         async move {
-            if let Err(e) = wow_network::start_world_listener(
+            wow_network::start_world_listener(
                 realm_addr,
                 lookup,
                 resources,
@@ -2520,9 +2522,7 @@ async fn main() -> Result<ExitCode> {
                 },
             )
             .await
-            {
-                tracing::error!("Realm listener error: {e}");
-            }
+            .context("Realm listener error")
         }
     });
 
@@ -2530,9 +2530,9 @@ async fn main() -> Result<ExitCode> {
     let instance_handle = tokio::spawn({
         let mgr = Arc::clone(&session_mgr);
         async move {
-            if let Err(e) = wow_network::start_instance_listener(instance_addr, mgr).await {
-                tracing::error!("Instance listener error: {e}");
-            }
+            wow_network::start_instance_listener(instance_addr, mgr)
+                .await
+                .context("Instance listener error")
         }
     });
 
@@ -2612,28 +2612,71 @@ async fn main() -> Result<ExitCode> {
             info!("Shutdown signal received, stopping...");
         }
         result = realm_handle => {
-            if let Err(e) = result {
-                tracing::error!("Realm listener task failed: {e}");
+            match result {
+                Ok(Ok(())) => {
+                    world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
+                    tracing::error!("Realm listener stopped unexpectedly");
+                }
+                Ok(Err(e)) => {
+                    world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
+                    tracing::error!("{e:#}");
+                }
+                Err(e) => {
+                    world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
+                    tracing::error!("Realm listener task failed: {e}");
+                }
             }
         }
         result = instance_handle => {
-            if let Err(e) = result {
-                tracing::error!("Instance listener task failed: {e}");
+            match result {
+                Ok(Ok(())) => {
+                    world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
+                    tracing::error!("Instance listener stopped unexpectedly");
+                }
+                Ok(Err(e)) => {
+                    world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
+                    tracing::error!("{e:#}");
+                }
+                Err(e) => {
+                    world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
+                    tracing::error!("Instance listener task failed: {e}");
+                }
             }
         }
         result = map_update_handle => {
-            if let Err(e) = result {
-                tracing::error!("Map update task failed: {e}");
+            match result {
+                Ok(()) => {
+                    world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
+                    tracing::error!("Map update task stopped unexpectedly");
+                }
+                Err(e) => {
+                    world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
+                    tracing::error!("Map update task failed: {e}");
+                }
             }
         }
         result = legacy_creature_runtime_handle => {
-            if let Err(e) = result {
-                tracing::error!("Legacy creature runtime task failed: {e}");
+            match result {
+                Ok(()) => {
+                    world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
+                    tracing::error!("Legacy creature runtime task stopped unexpectedly");
+                }
+                Err(e) => {
+                    world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
+                    tracing::error!("Legacy creature runtime task failed: {e}");
+                }
             }
         }
         result = ready_check_tick_handle => {
-            if let Err(e) = result {
-                tracing::error!("Ready-check tick task failed: {e}");
+            match result {
+                Ok(()) => {
+                    world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
+                    tracing::error!("Ready-check tick task stopped unexpectedly");
+                }
+                Err(e) => {
+                    world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
+                    tracing::error!("Ready-check tick task failed: {e}");
+                }
             }
         }
     }
@@ -9210,16 +9253,17 @@ fn spawn_legacy_creature_runtime_update_loop_like_cpp(
 mod tests {
     use super::{
         CanonicalGameEventSchedulerLikeCpp, CanonicalRespawnConditionSchedulerLikeCpp,
-        FreezeDetectorLikeCpp, FreezeDetectorPollOutcomeLikeCpp, GameEventLiveUpdateActionLikeCpp,
-        GameEventLiveUpdateSideEffectSummaryLikeCpp,
+        ERROR_EXIT_CODE_LIKE_CPP, FreezeDetectorLikeCpp, FreezeDetectorPollOutcomeLikeCpp,
+        GameEventLiveUpdateActionLikeCpp, GameEventLiveUpdateSideEffectSummaryLikeCpp,
         GameEventQuestCompleteConditionSaveDbStatementKindLikeCpp,
         GameEventWorldEventStateDbOperationKindLikeCpp, GameEventWorldEventStateDbOperationLikeCpp,
         GameEventWorldEventStateDbStatementKindLikeCpp, LoadedGridCreatureRespawnCachesLikeCpp,
         PersistedRespawnLoadReportLikeCpp, PersistedRespawnRowLikeCpp,
         PersistedRespawnTimesLikeCpp, REQUIRED_TDB_CACHE_ID_LIKE_CPP,
-        REQUIRED_TDB_VERSION_LIKE_CPP, RespawnDbDeleteQueueOutcomeLikeCpp,
-        RespawnDbSaveQueueOutcomeLikeCpp, SHUTDOWN_EXIT_CODE_LIKE_CPP, WorldDbVersionLikeCpp,
-        WorldRuntimeStateLikeCpp, WorldServerCliLikeCpp, WorldUpdateLoopStepOutcomeLikeCpp,
+        REQUIRED_TDB_VERSION_LIKE_CPP, RESTART_EXIT_CODE_LIKE_CPP,
+        RespawnDbDeleteQueueOutcomeLikeCpp, RespawnDbSaveQueueOutcomeLikeCpp,
+        SHUTDOWN_EXIT_CODE_LIKE_CPP, WorldDbVersionLikeCpp, WorldRuntimeStateLikeCpp,
+        WorldServerCliLikeCpp, WorldUpdateLoopStepOutcomeLikeCpp,
         apply_canonical_spawn_group_condition_update_loaded_grid_records_like_cpp,
         build_loaded_grid_creature_respawn_record_like_cpp,
         build_loaded_grid_creature_spawn_group_spawn_record_like_cpp,
@@ -11595,6 +11639,8 @@ mod tests {
             process_exit_code_like_cpp(2),
             std::process::ExitCode::from(2)
         );
+        assert_eq!(ERROR_EXIT_CODE_LIKE_CPP, 1);
+        assert_eq!(RESTART_EXIT_CODE_LIKE_CPP, 2);
     }
 
     #[test]
