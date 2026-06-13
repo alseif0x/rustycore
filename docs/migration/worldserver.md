@@ -5,7 +5,7 @@
 > **Layer:** binary (executable entry point)
 > **Status:** ⚠️ partial (boot, DB init, listener spawn, session-per-connection work; canonical map tick + gated legacy creature runtime bridge exist; freeze detector + RA + SOAP + CLI thread + full `World::Update` ownership are still missing)
 > **Audited vs C++:** ⚠️ refreshed 2026-06-12 — global map/runtime work has advanced since the 2026-05-01 audit; full C++ `WorldUpdateLoop` parity is still open.
-> **Last updated:** 2026-06-12
+> **Last updated:** 2026-06-13
 
 ---
 
@@ -252,7 +252,7 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
 - **`SetProcessPriority` / processor affinity**: out of scope.
 - **`ThreadPool` config**: ignored — Tokio handles threading.
 - **CLI args (`--config`, `--config-dir`, `--update-databases-only`, `--version`, `--help`)**: `world-server` now parses the C++ surface, exits early for help/version, loads an exact `--config` file plus `--config-dir` overlays, and exits after DB update + `ClearOnlineAccounts()` for `--update-databases-only`. Remaining gaps: no Win32 `--service`, no full C++ banner text, and broader world-loop ownership remains tracked in #WS.1/#WS.2.
-- **`KickAll` + `UpdateSessions(1)` flush at shutdown**: missing — sessions are dropped abruptly.
+- **`KickAll` + `UpdateSessions(1)` flush at shutdown**: partial — shutdown now enqueues `KickLikeCpp("World::KickAll")` to active `PlayerRegistry` sessions before DB/offline cleanup, using non-blocking `try_send`. The final C++ `UpdateSessions(1)` flush/removal pass is still missing until the global session-update owner exists.
 - **`WorldPackets::Auth::ConnectTo::ShutdownEncryption / EnterEncryptedMode::ShutdownEncryption`** — these tear down the static keys. RustyCore probably has them per-session, so the global tear-down may be a no-op.
 - **`sBattlegroundMgr->DeleteAllBattlegrounds()`, `sOutdoorPvPMgr->Die()`, `sMapMgr->UnloadAll()`, `sTerrainMgr.UnloadAll()`, `sInstanceLockMgr.Unload()` in shutdown order**: only a partial `MapManager` exists; rest is missing.
 - **`AbortHandler` on `SIGABRT`**: missing.
@@ -529,7 +529,7 @@ Otherwise the boot sequence is largely on-parity for what's implemented (4 DB po
 | TC step | Rust equivalent | Parity |
 |---|---|---|
 | `signals.async_wait(SignalHandler)` → `World::StopNow(SHUTDOWN_EXIT_CODE)` | `shutdown_signal()` handles Ctrl-C + Unix SIGTERM and records `StopNow(SHUTDOWN_EXIT_CODE)` in `WorldRuntimeStateLikeCpp`, then runs the shared shutdown branch | ⚠️ sessions still don't see "stopping" state |
-| `sWorld->KickAll()` (save + send logout) | — | ❌ missing (#WS.15) |
+| `sWorld->KickAll()` (save + send logout) | `kick_all_sessions_like_cpp` enqueues `SessionCommand::KickLikeCpp("World::KickAll")` for active `PlayerRegistry` sessions during shutdown | ⚠️ partial (#WS.15: no queued-login list; final flush below still missing) |
 | `sWorld->UpdateSessions(1)` final flush | — | ❌ missing |
 | `sWorldSocketMgr.StopNetwork()` | listener task drop | ⚠️ implicit, no drain |
 | `ClearOnlineAccounts()` | `clear_online_accounts_like_cpp` at boot + shutdown | ✅ |

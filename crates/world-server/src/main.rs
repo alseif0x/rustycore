@@ -42,7 +42,7 @@ use wow_network::session_mgr::SessionManager;
 use wow_network::world_socket::{AccountInfo, AccountLookup};
 use wow_network::{
     ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, GameEventQuestCompleteCommandLikeCpp,
-    GameEventQuestCompleteResponseLikeCpp, GroupRegistry, LootDropRatesLikeCpp,
+    GameEventQuestCompleteResponseLikeCpp, GroupRegistry, KickLikeCppCommand, LootDropRatesLikeCpp,
     PacketSpoofConfigLikeCpp, PendingInvites, PlayerRegistry, ReadyCheckEventLikeCpp,
     ReputationRatesLikeCpp, ResetSeasonalQuestStatusCommand, SendVisibleObjectValuesUpdateCommand,
     SessionCommand, SessionResources, SocketTimeoutsLikeCpp, tick_all_group_ready_checks_like_cpp,
@@ -2681,6 +2681,14 @@ async fn main() -> Result<ExitCode> {
         }
     }
 
+    let kick_summary = kick_all_sessions_like_cpp(&player_registry);
+    info!(
+        sessions_seen = kick_summary.sessions_seen,
+        queued = kick_summary.queued,
+        failed = kick_summary.send_failed,
+        "Queued World::KickAll-style shutdown kicks"
+    );
+
     game_event_quest_complete_handle.abort();
     if let Some(db_keepalive_handle) = db_keepalive_handle {
         db_keepalive_handle.abort();
@@ -2924,6 +2932,55 @@ async fn keepalive_mysql_database_like_cpp<S: StatementDef>(
     if let Err(error) = db.keep_alive_like_cpp().await {
         warn!("MySQL keep-alive failed for {name} database: {error}");
     }
+}
+
+/// Summary returned by [`kick_all_sessions_like_cpp`].
+#[derive(Debug, Default, PartialEq, Eq)]
+struct KickAllSessionsSummaryLikeCpp {
+    /// Active player-session registry entries evaluated.
+    pub sessions_seen: usize,
+    /// `KickLikeCpp` commands successfully enqueued.
+    pub queued: usize,
+    /// `try_send` calls that failed because the channel was full or closed.
+    pub send_failed: usize,
+}
+
+/// Queue a C++ `World::KickAll`-style kick for every active Rust session.
+///
+/// C++ anchor:
+/// `/home/server/woltk-trinity-legacy/src/server/game/World/World.cpp:3075`
+/// clears the queued-login list and calls `WorldSession::KickPlayer("World::KickAll")`
+/// for every session in `m_sessions`. Rust does not yet have the full
+/// `WorldSessionMgr::Update` owner or login queue, so this function covers the
+/// active `PlayerRegistry` entries only; the required final `UpdateSessions(1)`
+/// shutdown flush remains tracked separately in `docs/migration/worldserver.md`.
+fn kick_all_sessions_like_cpp(registry: &PlayerRegistry) -> KickAllSessionsSummaryLikeCpp {
+    let mut summary = KickAllSessionsSummaryLikeCpp::default();
+
+    for entry in registry.iter() {
+        summary.sessions_seen = summary.sessions_seen.saturating_add(1);
+        let info = entry.value();
+        let command = SessionCommand::KickLikeCpp(KickLikeCppCommand {
+            reason: "World::KickAll".to_string(),
+        });
+
+        match info.command_tx.try_send(command) {
+            Ok(()) => {
+                summary.queued = summary.queued.saturating_add(1);
+            }
+            Err(error) => {
+                summary.send_failed = summary.send_failed.saturating_add(1);
+                warn!(
+                    account = info.account_id,
+                    player = %entry.key(),
+                    error = %error,
+                    "Failed to queue World::KickAll-style shutdown kick"
+                );
+            }
+        }
+    }
+
+    summary
 }
 
 #[cfg(unix)]
@@ -9251,6 +9308,7 @@ fn spawn_legacy_creature_runtime_update_loop_like_cpp(
 
 #[cfg(test)]
 mod tests {
+    use super::KickAllSessionsSummaryLikeCpp;
     use super::{
         CanonicalGameEventSchedulerLikeCpp, CanonicalRespawnConditionSchedulerLikeCpp,
         ERROR_EXIT_CODE_LIKE_CPP, FreezeDetectorLikeCpp, FreezeDetectorPollOutcomeLikeCpp,
@@ -9292,7 +9350,7 @@ mod tests {
         game_event_unspawn_pools_like_cpp, game_event_update_npc_flags_like_cpp,
         game_event_update_npc_vendor_like_cpp, game_event_update_world_states_like_cpp,
         half_max_core_stuck_time_like_cpp, install_canonical_spawn_group_initializer_like_cpp,
-        legacy_creature_aggro_config_like_cpp,
+        kick_all_sessions_like_cpp, legacy_creature_aggro_config_like_cpp,
         legacy_creature_global_runtime_enabled_from_config_like_cpp, load_world_config_from,
         loot_drop_rates_like_cpp, materialize_game_event_quest_complete_db_bridge_like_cpp,
         materialize_game_event_world_event_state_db_bridge_like_cpp,
@@ -9440,6 +9498,53 @@ mod tests {
     ) {
         insert_player_broadcast_fixture_with_in_world_like_cpp(
             registry, counter, send_tx, command_tx, true,
+        );
+    }
+
+    #[test]
+    fn kick_all_sessions_queues_world_kick_for_every_registered_session_like_cpp() {
+        let registry = PlayerRegistry::default();
+        let (send_tx_a, _send_rx_a) = flume::bounded(1);
+        let (send_tx_b, _send_rx_b) = flume::bounded(1);
+        let (command_tx_a, command_rx_a) = flume::bounded(1);
+        let (command_tx_b, command_rx_b) = flume::bounded(1);
+
+        insert_player_broadcast_fixture_like_cpp(&registry, 9001, send_tx_a, command_tx_a);
+        insert_player_broadcast_fixture_like_cpp(&registry, 9002, send_tx_b, command_tx_b);
+
+        assert_eq!(
+            kick_all_sessions_like_cpp(&registry),
+            KickAllSessionsSummaryLikeCpp {
+                sessions_seen: 2,
+                queued: 2,
+                send_failed: 0,
+            }
+        );
+
+        for rx in [command_rx_a, command_rx_b] {
+            let command = rx.try_recv().expect("kick command queued");
+            let SessionCommand::KickLikeCpp(command) = command else {
+                panic!("expected KickLikeCpp command");
+            };
+            assert_eq!(command.reason, "World::KickAll");
+        }
+    }
+
+    #[test]
+    fn kick_all_sessions_counts_full_command_channel_without_blocking_like_cpp() {
+        let registry = PlayerRegistry::default();
+        let (send_tx, _send_rx) = flume::bounded(1);
+        let (command_tx, _command_rx) = flume::bounded(0);
+
+        insert_player_broadcast_fixture_like_cpp(&registry, 9003, send_tx, command_tx);
+
+        assert_eq!(
+            kick_all_sessions_like_cpp(&registry),
+            KickAllSessionsSummaryLikeCpp {
+                sessions_seen: 1,
+                queued: 0,
+                send_failed: 1,
+            }
         );
     }
 
