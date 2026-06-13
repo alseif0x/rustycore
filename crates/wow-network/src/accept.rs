@@ -36,6 +36,7 @@ pub struct LootDropRatesLikeCpp {
     pub item_referenced: f32,
     pub item_referenced_amount: f32,
     pub money: f32,
+    pub corpse_decay_looted: f32,
 }
 
 impl Default for LootDropRatesLikeCpp {
@@ -51,6 +52,7 @@ impl Default for LootDropRatesLikeCpp {
             item_referenced: 1.0,
             item_referenced_amount: 1.0,
             money: 1.0,
+            corpse_decay_looted: 0.5,
         }
     }
 }

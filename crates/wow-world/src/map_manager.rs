@@ -970,6 +970,14 @@ impl WorldCreature {
             .map(|ms| self.clock_started_at + Duration::from_millis(ms))
     }
 
+    pub fn corpse_delay_secs_like_cpp(&self) -> u32 {
+        self.creature.corpse_delay()
+    }
+
+    pub fn ignore_corpse_decay_ratio_like_cpp(&self) -> bool {
+        self.creature.ignore_corpse_decay_ratio()
+    }
+
     pub fn set_corpse_despawn_at(&mut self, when: Option<Instant>) {
         let now_ms = self.now_ms();
         let at_ms = when.map(|instant| {

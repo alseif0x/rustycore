@@ -6195,17 +6195,21 @@ impl WorldSession {
             return true;
         }
 
+        let corpse_decay_looted_rate = self.loot_drop_rates_like_cpp().corpse_decay_looted;
+
         // Start corpse despawn timer if fully looted.
-        // C# uses `RateCorpseDecayLooted` config × `m_corpseDelay` (default 60s).
-        // We use a simple 30s fixed decay.
         let marked = self
             .mutate_world_creature(owner_guid, |creature| {
                 if !creature.is_alive() && creature.corpse_despawn_at().is_none() {
-                    const CORPSE_DECAY_SECS: u64 = 30;
+                    let corpse_decay_secs = looted_corpse_decay_secs_like_cpp(
+                        creature.corpse_delay_secs_like_cpp(),
+                        creature.ignore_corpse_decay_ratio_like_cpp(),
+                        corpse_decay_looted_rate,
+                    );
                     creature.set_corpse_despawn_at(Some(
-                        Instant::now() + Duration::from_secs(CORPSE_DECAY_SECS),
+                        Instant::now() + Duration::from_secs(u64::from(corpse_decay_secs)),
                     ));
-                    Some((creature.entry(), CORPSE_DECAY_SECS))
+                    Some((creature.entry(), corpse_decay_secs))
                 } else {
                     None
                 }
@@ -7242,6 +7246,19 @@ fn represented_loot_response_items_like_cpp(
         .collect()
 }
 
+fn looted_corpse_decay_secs_like_cpp(
+    corpse_delay_secs: u32,
+    ignore_decay_ratio: bool,
+    corpse_decay_looted_rate: f32,
+) -> u32 {
+    let rate = if ignore_decay_ratio {
+        1.0
+    } else {
+        corpse_decay_looted_rate.max(0.0)
+    };
+    ((corpse_delay_secs as f32) * rate) as u32
+}
+
 fn loot_can_be_opened_by_player_like_cpp(loot: &CreatureLoot, player_guid: ObjectGuid) -> bool {
     if loot_is_looted_like_cpp(loot) {
         return false;
@@ -7729,7 +7746,8 @@ mod tests {
         assign_represented_personal_loot_items_like_cpp,
         generated_creature_loot_item_to_entry_like_cpp, loot_is_looted_like_cpp, loot_item_context,
         loot_store_data_can_stack_with_item, loot_type_for_client_like_cpp,
-        mark_loot_allowed_for_player_like_cpp, mark_loot_item_looted_for_player_like_cpp,
+        looted_corpse_decay_secs_like_cpp, mark_loot_allowed_for_player_like_cpp,
+        mark_loot_item_looted_for_player_like_cpp,
         represented_gameobject_display_box_contains_like_cpp,
         represented_gameobject_interaction_distance_like_cpp,
         represented_loot_object_guid_like_cpp, represented_loot_response_items_like_cpp,
@@ -15308,7 +15326,20 @@ mod tests {
         attach_canonical_creature(&mut session, creature);
         session.set_player_guid(Some(player_guid));
         session.set_active_loot_guid(loot_guid);
+        session.set_loot_drop_rates_like_cpp(LootDropRatesLikeCpp {
+            corpse_decay_looted: 0.5,
+            ..LootDropRatesLikeCpp::default()
+        });
         register_test_creature_like_cpp(&mut session, test_creature(loot_guid, false));
+        let _ = session.mutate_world_creature(loot_guid, |creature| {
+            creature.creature.set_corpse_delay(120, false);
+        });
+        assert_eq!(
+            session
+                .mutate_world_creature(loot_guid, |creature| creature.corpse_delay_secs_like_cpp())
+                .unwrap(),
+            120
+        );
         session.loot_table.insert(
             loot_guid,
             CreatureLoot {
@@ -15341,12 +15372,22 @@ mod tests {
             Some(&CreatureOwnedLoot::default())
         );
         assert!(canonical.is_fully_looted_like_cpp());
+        let corpse_despawn_at = session
+            .mutate_world_creature(loot_guid, |creature| creature.corpse_despawn_at())
+            .unwrap()
+            .expect("fully looted corpse should start decay timer");
+        let remaining = corpse_despawn_at.saturating_duration_since(Instant::now());
         assert!(
-            session
-                .mutate_world_creature(loot_guid, |creature| creature.corpse_despawn_at())
-                .unwrap()
-                .is_some()
+            (55..=60).contains(&remaining.as_secs()),
+            "C++ uses corpse_delay * Rate.Corpse.Decay.Looted; got {remaining:?}"
         );
+    }
+
+    #[test]
+    fn looted_corpse_decay_uses_cpp_rate_and_ignore_flag() {
+        assert_eq!(looted_corpse_decay_secs_like_cpp(120, false, 0.5), 60);
+        assert_eq!(looted_corpse_decay_secs_like_cpp(120, true, 0.5), 120);
+        assert_eq!(looted_corpse_decay_secs_like_cpp(120, false, -1.0), 0);
     }
 
     #[tokio::test]

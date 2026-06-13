@@ -3906,6 +3906,7 @@ fn loot_drop_rates_like_cpp(configs: &WorldConfigSet) -> LootDropRatesLikeCpp {
         item_referenced: world_config_f32(configs, "RATE_DROP_ITEM_REFERENCED", 1.0),
         item_referenced_amount: world_config_f32(configs, "RATE_DROP_ITEM_REFERENCED_AMOUNT", 1.0),
         money: world_config_f32(configs, "RATE_DROP_MONEY", 1.0),
+        corpse_decay_looted: world_config_f32(configs, "RATE_CORPSE_DECAY_LOOTED", 0.5),
     }
 }
 
@@ -13224,6 +13225,7 @@ Rate.Drop.Item.Rare = 3
 Rate.Drop.Item.Referenced = 4
 Rate.Drop.Item.ReferencedAmount = 2
 Rate.Drop.Money = 6
+Rate.Corpse.Decay.Looted = 0.25
 "#,
         )
         .expect("config should load");
@@ -13236,6 +13238,7 @@ Rate.Drop.Money = 6
         assert_eq!(rates.item_referenced, 4.0);
         assert_eq!(rates.item_referenced_amount, 2.0);
         assert_eq!(rates.money, 6.0);
+        assert_eq!(rates.corpse_decay_looted, 0.25);
     }
 
     #[test]
