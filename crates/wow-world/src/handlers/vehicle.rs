@@ -199,15 +199,17 @@ impl WorldSession {
     }
 
     /// C++ `HandleMoveChangeVehicleSeats`.
-    pub async fn handle_move_change_vehicle_seats(&mut self, _packet: MoveChangeVehicleSeats) {
-        // C++ returns before movement validation when GetVehicleBase() is null.
-        // Full seat switching needs represented vehicle-base movement ownership.
+    pub async fn handle_move_change_vehicle_seats(&mut self, packet: MoveChangeVehicleSeats) {
+        self.represented_move_change_vehicle_seats_like_cpp(
+            packet.status.guid,
+            packet.dst_vehicle,
+            packet.dst_seat_index,
+        );
     }
 
     /// C++ `HandleRequestVehicleSwitchSeat`.
-    pub async fn handle_request_vehicle_switch_seat(&mut self, _packet: RequestVehicleSwitchSeat) {
-        // C++ returns before ChangeSeat/HandleSpellClick when GetVehicleBase()
-        // is null. Cross-vehicle spell-click routing is not represented here.
+    pub async fn handle_request_vehicle_switch_seat(&mut self, packet: RequestVehicleSwitchSeat) {
+        self.represented_request_vehicle_switch_seat_like_cpp(packet.vehicle, packet.seat_index);
     }
 
     /// C++ `HandleRideVehicleInteract`.

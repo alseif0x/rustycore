@@ -1271,6 +1271,14 @@ pub(crate) struct RepresentedVehicleSeatChangeRequestLikeCpp {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedVehicleSeatSpellClickRequestLikeCpp {
+    pub vehicle_guid: ObjectGuid,
+    pub seat_id: i8,
+    pub planned_casts: usize,
+    pub exact_context_unrepresented: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum RepresentedSpellClickClickeeCasterOutcomeLikeCpp {
     Executed,
     UnsupportedCaster,
@@ -2948,6 +2956,9 @@ pub struct WorldSession {
     /// Represented `Player::ChangeSeat(seatId, next)` requests until live vehicle ownership exists.
     represented_vehicle_seat_change_requests_like_cpp:
         Vec<RepresentedVehicleSeatChangeRequestLikeCpp>,
+    /// Represented cross-vehicle `HandleSpellClick(player, seatId)` requests from vehicle switching.
+    represented_vehicle_seat_spell_click_requests_like_cpp:
+        Vec<RepresentedVehicleSeatSpellClickRequestLikeCpp>,
     /// Represented `Player::GetBattleground()->GetTypeID()` for C++ battleground object use.
     player_battleground_type_id_like_cpp: Option<u32>,
     /// Represented current pet GUID until player-owned pet runtime is canonical.
@@ -4004,6 +4015,7 @@ impl WorldSession {
             player_vehicle_seat_flags_like_cpp: None,
             player_vehicle_seat_id_like_cpp: None,
             represented_vehicle_seat_change_requests_like_cpp: Vec::new(),
+            represented_vehicle_seat_spell_click_requests_like_cpp: Vec::new(),
             player_battleground_type_id_like_cpp: None,
             represented_pet_guid_like_cpp: None,
             represented_pet_react_state_like_cpp:
@@ -20186,6 +20198,124 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedVehicleSeatChangeRequestLikeCpp] {
         &self.represented_vehicle_seat_change_requests_like_cpp
+    }
+
+    pub(crate) fn represented_vehicle_seat_spell_click_requests_like_cpp(
+        &self,
+    ) -> &[RepresentedVehicleSeatSpellClickRequestLikeCpp] {
+        &self.represented_vehicle_seat_spell_click_requests_like_cpp
+    }
+
+    fn represented_vehicle_base_guid_for_switch_like_cpp(&self) -> Option<ObjectGuid> {
+        if self.player_vehicle_seat_flags_like_cpp.is_none() {
+            return None;
+        }
+        (!self.player_moved_unit_guid_like_cpp.is_empty())
+            .then_some(self.player_moved_unit_guid_like_cpp)
+    }
+
+    fn represented_vehicle_seat_spell_click_plan_available_like_cpp(
+        &self,
+        vehicle_guid: ObjectGuid,
+        seat_id: i8,
+    ) -> bool {
+        !self
+            .represented_handle_spell_click_plan_with_seat_like_cpp(vehicle_guid, Some(seat_id))
+            .casts
+            .is_empty()
+    }
+
+    fn record_represented_vehicle_seat_action_like_cpp(
+        &mut self,
+        action: crate::handlers::vehicle::VehicleHandlerAction,
+    ) -> bool {
+        match action {
+            crate::handlers::vehicle::VehicleHandlerAction::ChangeSeat { seat_id, next } => {
+                self.represented_vehicle_seat_change_requests_like_cpp
+                    .push(RepresentedVehicleSeatChangeRequestLikeCpp { seat_id, next });
+                true
+            }
+            crate::handlers::vehicle::VehicleHandlerAction::ValidateMovementAndChangeSeat {
+                next,
+            } => {
+                self.represented_vehicle_seat_change_requests_like_cpp
+                    .push(RepresentedVehicleSeatChangeRequestLikeCpp { seat_id: -1, next });
+                true
+            }
+            crate::handlers::vehicle::VehicleHandlerAction::HandleSpellClick {
+                vehicle,
+                seat_id,
+            } => {
+                let plan = self
+                    .represented_handle_spell_click_plan_with_seat_like_cpp(vehicle, Some(seat_id));
+                if plan.casts.is_empty() {
+                    return false;
+                }
+                self.represented_vehicle_seat_spell_click_requests_like_cpp
+                    .push(RepresentedVehicleSeatSpellClickRequestLikeCpp {
+                        vehicle_guid: vehicle,
+                        seat_id,
+                        planned_casts: plan.casts.len(),
+                        exact_context_unrepresented: plan.exact_context_unrepresented,
+                    });
+                true
+            }
+            _ => false,
+        }
+    }
+
+    pub(crate) fn represented_move_change_vehicle_seats_like_cpp(
+        &mut self,
+        status_guid: ObjectGuid,
+        dst_vehicle: ObjectGuid,
+        dst_seat_index: u8,
+    ) -> bool {
+        let Some(vehicle_base_guid) = self.represented_vehicle_base_guid_for_switch_like_cpp()
+        else {
+            return false;
+        };
+        let dst_seat_id = dst_seat_index as i8;
+        let dst_vehicle_exists_with_empty_seat = !dst_vehicle.is_empty()
+            && self.represented_vehicle_seat_spell_click_plan_available_like_cpp(
+                dst_vehicle,
+                dst_seat_id,
+            );
+        let action = crate::handlers::vehicle::move_change_vehicle_seats_action_like_cpp(
+            true,
+            self.represented_current_vehicle_seat_can_switch_from_like_cpp(),
+            vehicle_base_guid,
+            status_guid,
+            dst_vehicle,
+            dst_seat_index,
+            dst_vehicle_exists_with_empty_seat,
+        );
+        self.record_represented_vehicle_seat_action_like_cpp(action)
+    }
+
+    pub(crate) fn represented_request_vehicle_switch_seat_like_cpp(
+        &mut self,
+        requested_vehicle: ObjectGuid,
+        seat_index: u8,
+    ) -> bool {
+        let Some(vehicle_base_guid) = self.represented_vehicle_base_guid_for_switch_like_cpp()
+        else {
+            return false;
+        };
+        let seat_id = seat_index as i8;
+        let requested_vehicle_exists_with_empty_seat = vehicle_base_guid != requested_vehicle
+            && self.represented_vehicle_seat_spell_click_plan_available_like_cpp(
+                requested_vehicle,
+                seat_id,
+            );
+        let action = crate::handlers::vehicle::request_vehicle_switch_seat_action_like_cpp(
+            true,
+            self.represented_current_vehicle_seat_can_switch_from_like_cpp(),
+            vehicle_base_guid,
+            requested_vehicle,
+            seat_index,
+            requested_vehicle_exists_with_empty_seat,
+        );
+        self.record_represented_vehicle_seat_action_like_cpp(action)
     }
 
     pub(crate) fn represented_eject_passenger_like_cpp(
@@ -48478,6 +48608,181 @@ mod tests {
                 },
             ],
             "C++ prev/next handlers call Player::ChangeSeat(-1, false/true) after CanSwitchFromSeat"
+        );
+    }
+
+    #[test]
+    fn represented_vehicle_switch_same_vehicle_records_cpp_change_seat_plan() {
+        let (mut session, _, _) = make_session();
+        let base = test_creature_guid(61_001);
+
+        session.player_vehicle_seat_flags_like_cpp = Some(wow_data::VEHICLE_SEAT_FLAG_CAN_SWITCH);
+        session.set_player_moved_unit_guid_like_cpp(base);
+
+        assert!(session.represented_request_vehicle_switch_seat_like_cpp(base, 4));
+        assert_eq!(
+            session.represented_vehicle_seat_change_requests_like_cpp(),
+            &[RepresentedVehicleSeatChangeRequestLikeCpp {
+                seat_id: 4,
+                next: true,
+            }]
+        );
+
+        assert!(!session.represented_move_change_vehicle_seats_like_cpp(
+            test_creature_guid(61_002),
+            ObjectGuid::EMPTY,
+            0,
+        ));
+        assert_eq!(
+            session
+                .represented_vehicle_seat_change_requests_like_cpp()
+                .len(),
+            1,
+            "C++ returns when moveChangeVehicleSeats.Status.guid does not match vehicle_base"
+        );
+
+        assert!(session.represented_move_change_vehicle_seats_like_cpp(
+            base,
+            ObjectGuid::EMPTY,
+            u8::MAX,
+        ));
+        assert_eq!(
+            session.represented_vehicle_seat_change_requests_like_cpp(),
+            &[
+                RepresentedVehicleSeatChangeRequestLikeCpp {
+                    seat_id: 4,
+                    next: true,
+                },
+                RepresentedVehicleSeatChangeRequestLikeCpp {
+                    seat_id: -1,
+                    next: false,
+                },
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn vehicle_switch_handlers_record_same_vehicle_change_seat_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let base = test_creature_guid(61_101);
+        session.player_vehicle_seat_flags_like_cpp = Some(wow_data::VEHICLE_SEAT_FLAG_CAN_SWITCH);
+        session.set_player_moved_unit_guid_like_cpp(base);
+
+        session
+            .handle_request_vehicle_switch_seat(
+                wow_packet::packets::vehicle::RequestVehicleSwitchSeat {
+                    vehicle: base,
+                    seat_index: 2,
+                },
+            )
+            .await;
+        session
+            .handle_move_change_vehicle_seats(
+                wow_packet::packets::vehicle::MoveChangeVehicleSeats {
+                    status: wow_packet::packets::movement::MovementInfo {
+                        guid: base,
+                        ..wow_packet::packets::movement::MovementInfo::default()
+                    },
+                    dst_vehicle: ObjectGuid::EMPTY,
+                    dst_seat_index: 1,
+                },
+            )
+            .await;
+
+        assert_eq!(
+            session.represented_vehicle_seat_change_requests_like_cpp(),
+            &[
+                RepresentedVehicleSeatChangeRequestLikeCpp {
+                    seat_id: 2,
+                    next: true,
+                },
+                RepresentedVehicleSeatChangeRequestLikeCpp {
+                    seat_id: -1,
+                    next: true,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn represented_vehicle_switch_cross_vehicle_records_spellclick_plan_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 61_201);
+        let base = test_creature_guid(61_202);
+        let other_vehicle = test_creature_guid(61_203);
+        let spell_id = 911_i32;
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "VehicleSwitchSpellClickTester".to_string(),
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.player_vehicle_seat_flags_like_cpp = Some(wow_data::VEHICLE_SEAT_FLAG_CAN_SWITCH);
+        session.set_player_moved_unit_guid_like_cpp(base);
+        session.set_condition_store(Arc::new(ConditionEntriesByTypeStore::default()));
+        session.set_npc_spell_click_store(Arc::new(NpcSpellClickStoreLikeCpp::from_rows_like_cpp(
+            [wow_data::NpcSpellClickRowLikeCpp {
+                npc_entry: 807,
+                spell_id: u32::try_from(spell_id).unwrap(),
+                cast_flags: NPC_CLICK_CAST_CASTER_CLICKER_LIKE_CPP,
+                user_type: wow_data::SPELL_CLICK_USER_ANY_LIKE_CPP,
+            }],
+            |entry| entry == 807,
+            |spell| spell == u32::try_from(spell_id).unwrap(),
+        )));
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_CONTROL_VEHICLE),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_CONTROL_VEHICLE,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+        add_canonical_test_creature(
+            &canonical,
+            other_vehicle,
+            807,
+            Position::new(12.0, 0.0, 0.0, 0.0),
+            UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP as u32,
+        );
+
+        assert!(session.represented_request_vehicle_switch_seat_like_cpp(other_vehicle, 3));
+        assert_eq!(
+            session.represented_vehicle_seat_spell_click_requests_like_cpp(),
+            &[RepresentedVehicleSeatSpellClickRequestLikeCpp {
+                vehicle_guid: other_vehicle,
+                seat_id: 3,
+                planned_casts: 1,
+                exact_context_unrepresented: false,
+            }],
+            "C++ cross-vehicle switch delegates to vehUnit->HandleSpellClick(player, seat)"
+        );
+        assert!(
+            session
+                .represented_vehicle_seat_change_requests_like_cpp()
+                .is_empty()
         );
     }
 
