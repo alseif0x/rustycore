@@ -696,6 +696,62 @@ pub fn creature_trigger_alert_plan_like_cpp(
     })
 }
 
+// ── CreatureAI::DoZoneInCombat ────────────────────────────────────
+
+/// Already-resolved player facts used by C++ `CreatureAI::DoZoneInCombat`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CreatureZoneInCombatPlayerLikeCpp {
+    pub player_guid: ObjectGuid,
+    pub is_alive: bool,
+    pub can_begin_combat: bool,
+    pub controlled_unit_guids: Vec<ObjectGuid>,
+    pub vehicle_base_guid: Option<ObjectGuid>,
+}
+
+/// Already-resolved map/player facts needed by `CreatureAI::DoZoneInCombat`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CreatureZoneInCombatInputLikeCpp {
+    pub creature_guid: ObjectGuid,
+    pub map_is_dungeon: bool,
+    pub players: Vec<CreatureZoneInCombatPlayerLikeCpp>,
+}
+
+/// Pure side-effect plan for C++ `CreatureAI::DoZoneInCombat`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CreatureZoneInCombatPlanLikeCpp {
+    pub log_non_dungeon_error: bool,
+    pub engage_targets: Vec<ObjectGuid>,
+}
+
+pub fn creature_do_zone_in_combat_plan_like_cpp(
+    input: CreatureZoneInCombatInputLikeCpp,
+) -> CreatureZoneInCombatPlanLikeCpp {
+    if !input.map_is_dungeon {
+        return CreatureZoneInCombatPlanLikeCpp {
+            log_non_dungeon_error: true,
+            engage_targets: Vec::new(),
+        };
+    }
+
+    let mut engage_targets = Vec::new();
+    for player in input.players {
+        if !player.is_alive || !player.can_begin_combat {
+            continue;
+        }
+
+        engage_targets.push(player.player_guid);
+        engage_targets.extend(player.controlled_unit_guids);
+        if let Some(vehicle_base_guid) = player.vehicle_base_guid {
+            engage_targets.push(vehicle_base_guid);
+        }
+    }
+
+    CreatureZoneInCombatPlanLikeCpp {
+        log_non_dungeon_error: false,
+        engage_targets,
+    }
+}
+
 // ── ScriptedAI::SummonList ────────────────────────────────────────
 
 /// Already-resolved creature facts needed by represented `SummonList` helpers.
@@ -1701,6 +1757,77 @@ mod tests {
         ] {
             assert!(creature_trigger_alert_plan_like_cpp(input).is_none());
         }
+    }
+
+    fn zone_player(
+        low: i64,
+        controlled_unit_lows: &[i64],
+        vehicle_base_low: Option<i64>,
+    ) -> CreatureZoneInCombatPlayerLikeCpp {
+        CreatureZoneInCombatPlayerLikeCpp {
+            player_guid: guid(low),
+            is_alive: true,
+            can_begin_combat: true,
+            controlled_unit_guids: controlled_unit_lows.iter().copied().map(guid).collect(),
+            vehicle_base_guid: vehicle_base_low.map(guid),
+        }
+    }
+
+    #[test]
+    fn do_zone_in_combat_logs_and_returns_on_non_dungeon_like_cpp() {
+        let plan = creature_do_zone_in_combat_plan_like_cpp(CreatureZoneInCombatInputLikeCpp {
+            creature_guid: guid(1),
+            map_is_dungeon: false,
+            players: vec![zone_player(10, &[11], Some(12))],
+        });
+
+        assert!(plan.log_non_dungeon_error);
+        assert!(plan.engage_targets.is_empty());
+    }
+
+    #[test]
+    fn do_zone_in_combat_dungeon_without_players_is_noop_like_cpp() {
+        let plan = creature_do_zone_in_combat_plan_like_cpp(CreatureZoneInCombatInputLikeCpp {
+            creature_guid: guid(1),
+            map_is_dungeon: true,
+            players: Vec::new(),
+        });
+
+        assert!(!plan.log_non_dungeon_error);
+        assert!(plan.engage_targets.is_empty());
+    }
+
+    #[test]
+    fn do_zone_in_combat_skips_dead_or_combat_blocked_players_like_cpp() {
+        let mut dead = zone_player(10, &[11], Some(12));
+        dead.is_alive = false;
+        let mut blocked = zone_player(20, &[21], Some(22));
+        blocked.can_begin_combat = false;
+
+        let plan = creature_do_zone_in_combat_plan_like_cpp(CreatureZoneInCombatInputLikeCpp {
+            creature_guid: guid(1),
+            map_is_dungeon: true,
+            players: vec![dead, blocked, zone_player(30, &[], None)],
+        });
+
+        assert_eq!(plan.engage_targets, vec![guid(30)]);
+    }
+
+    #[test]
+    fn do_zone_in_combat_engages_player_controlled_units_and_vehicle_in_order_like_cpp() {
+        let plan = creature_do_zone_in_combat_plan_like_cpp(CreatureZoneInCombatInputLikeCpp {
+            creature_guid: guid(1),
+            map_is_dungeon: true,
+            players: vec![
+                zone_player(10, &[11, 12], Some(13)),
+                zone_player(20, &[21], None),
+            ],
+        });
+
+        assert_eq!(
+            plan.engage_targets,
+            vec![guid(10), guid(11), guid(12), guid(13), guid(20), guid(21)]
+        );
     }
 
     fn target_candidate(

@@ -149,7 +149,7 @@ Todas las rutas relativas a `/home/server/woltk-trinity-legacy/`.
 | `CreatureAI::SummonedCreatureDies(Creature*, Unit*)` | Hook cuando summon muere | (override) |
 | `CreatureAI::JustReachedHome()` | Hook al volver al spawn post-evade | (override) |
 | `CreatureAI::ReceiveEmote(Player*, uint32 emoteId)` | Player hizo /wave a la creature | (override) |
-| `CreatureAI::DoZoneInCombat(Creature* source = me, float range = 0.0f)` | Pone en combate a TODO el zone (raid wipe trigger) | iterate creatures in radius, AddThreat |
+| `CreatureAI::DoZoneInCombat(Creature* creature)` | En instancia, mete en combate a players vivos del mapa, pets controladas y vehículo base | `Map::IsDungeon`, `Map::GetPlayers`, `CombatManager::CanBeginCombat`, `Creature::EngageWithTarget` |
 | `CreatureAI::MovementInform(uint32 type, uint32 id)` | Hook cuando termina un movimiento (wp, point, charge) | (override) |
 | `PetAI::UpdateAI(diff)` | Pet tick: handle command (stay/follow/attack), spell rotation | `MotionMaster::MoveFollow`, `DoSpellAttackIfReady` |
 | `TotemAI::UpdateAI(diff)` | Totem cast cd | `DoSpellAttackIfReady` |
@@ -311,7 +311,7 @@ Resumen: AI consume hooks del engine, no ve sockets directamente. Los efectos (m
 17. **NO registry de AI names:** no se puede mappear `creature_template.AIName='SmartAI'` → instanciar SmartAI
 18. **NO ScriptName binding:** boss scripts en `wow-scripts` no se enganchan
 19. **NO target selection runtime:** existe selección representada `SelectTargetMethodLikeCpp`/`DefaultTargetSelectorLikeCpp`, pero falta conectarla al `ThreatManager` real y a `UnitAI` polimórfico
-20. **NO DoZoneInCombat runtime:** `SummonListLikeCpp` puede planificar summons existentes/AI-enabled, pero falta el pull masivo real de raid/threat en el runtime
+20. **NO DoZoneInCombat runtime:** existe plan representado de `CreatureAI::DoZoneInCombat`, pero falta cablearlo al mapa real, `CombatManager::CanBeginCombat` y `Creature::EngageWithTarget`
 21. **NO call for help / call assistance:** sin guard chain, sin pack pulls
 22. **NO summons cascade runtime:** `SummonListLikeCpp::despawn_all_like_cpp` existe como plan representado; al morir un boss todavía falta wiring real `JustDied -> DespawnAll -> DespawnOrUnsummon`
 23. **NO SmartScriptMgr loader:** sin parse de `smart_scripts` SQL
@@ -460,7 +460,8 @@ Numerados para referencia desde `MIGRATION_ROADMAP.md`. Complejidad: **L** <1h, 
 - [ ] **#AI.38b** Wire runtime real de `EnterEvadeMode`: aplicar auras/threat/spell-history/tap, `MotionMaster::MoveTargetedHome`/`MoveFollow`, `UNIT_STATE_EVADE`, callback `JustReachedHome`, HP/auras/summons completos y leash/boundary checks. (H)
 - [x] **#AI.39a** Implementar plan representado de `CreatureAI::TriggerAlert` contrastado contra `CreatureAI.cpp`: target player existente, criatura unit/no engaged/no confused-stunned-fleeing-distracted, no civil/passive, hostile y target acceptable; side effects `AI_REACTION_ALERT` + `MoveDistract(5000ms, angle)`. (L)
 - [ ] **#AI.39b** Wire runtime real de `TriggerAlert`: llamada desde notifiers/visibility, `SendAIReaction(AI_REACTION_ALERT)`, `MotionMaster::MoveDistract`, orientation real y orden frente a `MoveInLineOfSight`/aggro. (M)
-- [ ] **#AI.40** Implementar `DoZoneInCombat(source, range)` — pone en combate todos los hostiles en rango (M)
+- [x] **#AI.40a** Implementar plan representado de `CreatureAI::DoZoneInCombat` contrastado contra `CreatureAI.cpp`: solo dungeon, no-op sin players, filtra `Player::IsAlive` + `CombatManager::CanBeginCombat`, y planifica `EngageWithTarget` para player, unidades controladas y vehículo base en orden. (M)
+- [ ] **#AI.40b** Wire runtime real de `CreatureAI::DoZoneInCombat`: resolver `Map::IsDungeon`/`HavePlayers`/`GetPlayers`, `CombatManager::CanBeginCombat`, aplicar `Creature::EngageWithTarget` real y preservar logging de error en mapas no dungeon. (H)
 - [ ] **#AI.41** Refactor random — usar `rand` crate proper (`StdRng` semilla por mapa, no time-based) (L)
 - [ ] **#AI.42** Implementar level-diff aggro radius modifier (mob_level vs player_level → ajusta aggro distance) (L)
 - [ ] **#AI.43** Implementar `creature_template_addon.auras` aplicación al spawn (M)
@@ -492,7 +493,7 @@ Numerados para referencia desde `MIGRATION_ROADMAP.md`. Complejidad: **L** <1h, 
 - [ ] Test: `EnterEvadeMode(EvadeReason::Boundary)` programa `MoveTargetedHome`, al llegar dispara `JustReachedHome`, restaura HP a max
 - [ ] Test: `EnterEvadeMode(EvadeReason::NoHostiles)` despawnea summons del boss
 - [ ] Test: `MoveInLineOfSight` con player en aggro radius dispara `TriggerAlert` antes de `JustEngagedWith` (delay ~5s)
-- [ ] Test: `DoZoneInCombat(source, 100yd)` añade threat a todos los hostiles en 100yd
+- [ ] Test: `CreatureAI::DoZoneInCombat` en dungeon engancha players vivos, pets controladas y vehículo base; fuera de dungeon solo loguea error
 - [ ] Test: `ThreatManager.get_top_threat()` retorna el unit con threat más alta tras varios `add_threat`
 - [x] Test: `EventMap.schedule_event(1, 5000ms)` → `update(5000)` → `execute_event()` retorna el evento.
 - [x] Test: `EventMap.set_phase(2)` filtra eventos con phase_mask sin bit 2.
