@@ -199,12 +199,51 @@ impl RealmManager {
         (compressed_realms, compressed_counts)
     }
 
+    /// Generate `JamJSONRealmEntry` like C++ RealmList::GetRealmEntryJSON.
+    pub fn get_realm_entry_json_like_cpp(&self, realm_address: u32, build: u32) -> Vec<u8> {
+        let Some(realm) = self.get_realm_by_realm_address_like_cpp(realm_address) else {
+            return Vec::new();
+        };
+
+        if (realm.flag & REALM_FLAG_OFFLINE) != 0 || realm.build != build {
+            return Vec::new();
+        }
+
+        let build_info = self.get_build_info(realm.build);
+        let realm_entry = RealmEntry {
+            wow_realm_address: realm_address_like_cpp(realm.region, realm.battlegroup, realm.id)
+                as i32,
+            cfg_timezones_id: 1,
+            population_state: (realm.population as i32).max(1),
+            cfg_categories_id: i32::from(realm.timezone),
+            version: ClientVersion {
+                version_major: build_info
+                    .map_or(DEFAULT_VERSION_MAJOR as i32, |b| b.major_version as i32),
+                version_build: realm.build as i32,
+                version_minor: build_info
+                    .map_or(DEFAULT_VERSION_MINOR as i32, |b| b.minor_version as i32),
+                version_revision: build_info
+                    .map_or(DEFAULT_VERSION_REVISION as i32, |b| b.bugfix_version as i32),
+            },
+            cfg_realms_id: realm.id as i32,
+            flags: i32::from(realm.flag),
+            name: realm.name.clone(),
+            cfg_configs_id: i32::from(realm_config_id_like_cpp(realm.icon)),
+            cfg_languages_id: 1,
+        };
+        let json = format!(
+            "JamJSONRealmEntry:{}\0",
+            serde_json::to_string(&realm_entry).unwrap_or_default()
+        );
+        zlib_compress(json.as_bytes())
+    }
+
     /// Generate compressed JSON for server IP addresses of a realm.
     /// Selects local or external address based on the client's IP:
     /// - loopback (127.x) → local address
     /// - same /24 subnet as local address → local address
     /// - otherwise → external address
-    pub fn get_realm_entry_json(
+    pub fn get_realm_server_addresses_json_like_cpp(
         &self,
         realm: &Realm,
         client_ip: Option<std::net::IpAddr>,
@@ -696,5 +735,98 @@ mod tests {
             update["version"]["versionRevision"],
             DEFAULT_VERSION_REVISION
         );
+    }
+
+    #[test]
+    fn realm_list_json_offline_realm_has_zero_population_like_cpp() {
+        let mut manager = RealmManager::new();
+        let mut realm = test_realm(9, 5, 6, 3, 1);
+        realm.flag = REALM_FLAG_OFFLINE;
+        manager.realms.insert(9, realm);
+
+        let (realms, _) = manager.get_realm_list_json(51943, "5-6-0", &HashMap::new());
+        let realms = inflate_payload(&realms);
+        let json = parse_enveloped_json(&realms, "JSONRealmListUpdates:");
+        let update = &json["updates"][0]["update"];
+
+        assert_eq!(update["populationState"], 0);
+        assert_eq!(update["flags"], REALM_FLAG_OFFLINE);
+    }
+
+    #[test]
+    fn realm_entry_json_matches_cpp_envelope_and_empty_gates() {
+        let mut manager = RealmManager::new();
+        manager.realms.insert(9, test_realm(9, 5, 6, 3, 1));
+        manager.builds.push(RealmBuildInfo {
+            major_version: 3,
+            minor_version: 4,
+            bugfix_version: 3,
+            hotfix_version: String::new(),
+            build: 51943,
+            win64_auth_seed: None,
+            mac64_auth_seed: None,
+        });
+
+        let packed = realm_address_like_cpp(5, 6, 9);
+        let entry = manager.get_realm_entry_json_like_cpp(packed, 51943);
+        let entry = inflate_payload(&entry);
+        let json = parse_enveloped_json(&entry, "JamJSONRealmEntry:");
+        assert_eq!(json["wowRealmAddress"], 0x0506_0009);
+        assert_eq!(json["cfgTimezonesId"], 1);
+        assert_eq!(json["cfgCategoriesId"], 3);
+        assert_eq!(json["populationState"], 2);
+        assert_eq!(json["version"]["versionBuild"], 51943);
+
+        assert!(
+            manager
+                .get_realm_entry_json_like_cpp(packed, 12340)
+                .is_empty()
+        );
+
+        manager.realms.get_mut(&9).unwrap().flag = REALM_FLAG_OFFLINE;
+        assert!(
+            manager
+                .get_realm_entry_json_like_cpp(packed, 51943)
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn server_addresses_json_selects_local_or_external_like_cpp() {
+        let manager = RealmManager::new();
+        let realm = test_realm(9, 5, 6, 3, 1);
+
+        assert_eq!(
+            select_realm_ip_str(
+                Some(std::net::IpAddr::V4("127.0.0.1".parse().unwrap())),
+                &realm.external_address,
+                &realm.local_address,
+            ),
+            realm.local_address
+        );
+        assert_eq!(
+            select_realm_ip_str(
+                Some(std::net::IpAddr::V4("10.0.0.42".parse().unwrap())),
+                &realm.external_address,
+                &realm.local_address,
+            ),
+            realm.local_address
+        );
+        assert_eq!(
+            select_realm_ip_str(
+                Some(std::net::IpAddr::V4("198.51.100.42".parse().unwrap())),
+                &realm.external_address,
+                &realm.local_address,
+            ),
+            realm.external_address
+        );
+
+        let addresses = manager
+            .get_realm_server_addresses_json_like_cpp(&realm, Some("127.0.0.1".parse().unwrap()));
+        let addresses = inflate_payload(&addresses);
+        let json = parse_enveloped_json(&addresses, "JSONRealmListServerIPAddresses:");
+        assert_eq!(json["families"][0]["family"], 1);
+        assert_eq!(json["families"][0]["addresses"][0]["ip"], "10.0.0.10");
+        assert_eq!(json["families"][0]["addresses"][0]["port"], 8085);
     }
 }

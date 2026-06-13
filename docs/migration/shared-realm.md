@@ -3,7 +3,7 @@
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/server/shared/Realm/`
 > **Rust target crate(s):** `crates/bnet-server/` (`src/realm/mod.rs`)
 > **Layer:** L1
-> **Status:** ⚠️ partial (~72%) — 2026-06-13 slices fixed the BNet realm-address packing, subregion filtering, cfg timezone/category swap, type/security normalization, packed JoinRealm lookup, normalized realm names and minor/major/bugfix build lookup; remaining gaps include strong `RealmHandle`, hostname resolution, golden/e2e realm-list payloads and architectural unification with the world snapshot.
+> **Status:** ⚠️ partial (~73%) — 2026-06-13 slices fixed the BNet realm-address packing, subregion filtering, cfg timezone/category swap, type/security normalization, packed JoinRealm lookup, normalized realm names, minor/major/bugfix build lookup and `JamJSONRealmEntry` for last-played character; remaining gaps include strong `RealmHandle`, hostname resolution, golden/e2e realm-list payloads and architectural unification with the world snapshot.
 > **Audited vs C++:** ✅ audited 2026-06-13 against `Realm.h`, `Realm.cpp`, `RealmList.cpp` for the fixed BNet realm-list slice.
 > **Last updated:** 2026-06-13
 
@@ -134,7 +134,7 @@ Y para realm list updates:
 <!-- REFINE.021:END rust-target-coverage -->
 
 **Files in `/home/server/rustycore`:**
-- `crates/bnet-server/src/realm/mod.rs` — cubre ~72% del C++ shared/Realm surface
+- `crates/bnet-server/src/realm/mod.rs` — cubre ~73% del C++ shared/Realm surface
 - `crates/wow-database/src/statements/login.rs` — declara `SEL_REALMLIST`, `SEL_REALMLIST_SECURITY_LEVEL`
 
 **What's implemented:**
@@ -154,6 +154,7 @@ Y para realm list updates:
 - `update_realms` normaliza `REALM_TYPE_FFA_PVP -> REALM_TYPE_PVP`, `icon >= MAX_CLIENT_REALM_TYPE -> NORMAL`, y clampa `allowedSecurityLevel` a `SEC_ADMINISTRATOR`.
 - `authentication` guarda `char_counts` y `last_played_chars.realm_address` con packed `RealmHandle::GetAddress()`, como C++ `Battlenet::Session`.
 - `get_minor_major_bugfix_version_for_build_like_cpp` replica `RealmList::GetMinorMajorBugfixVersionForBuild` con semántica `lower_bound`.
+- `get_realm_entry_json_like_cpp` genera `JamJSONRealmEntry` para `LastCharPlayed`, devuelve vacío si el realm está offline o el build no coincide, y ya no confunde ese payload con `JSONRealmListServerIPAddresses`.
 
 **What's missing vs C++:**
 - **`RealmHandle` struct completa no existe** — Rust mantiene `HashMap<u32, Realm>` y helpers C++-like, no el tipo fuerte `(Region, Site, Realm)` ni ordering/equality explícitos del C++.
@@ -221,7 +222,7 @@ Y para realm list updates:
 - [ ] **#REALM.8** Resolver hostnames (no solo IPs) con `tokio::net::lookup_host` en `update_realms`. (M)
 - [x] **#REALM.9** Clamp `allowed_security_level` a `SEC_ADMINISTRATOR`. (L)
 - [x] **#REALM.10a** Tests: packed address bit-layout, subregion filter, cfg fields, version_mismatch/fallback. (M)
-- [ ] **#REALM.10b** Tests: parse build_info, `get_realm_entry_json`, JoinRealm DB side effect, golden payload. (M)
+- [ ] **#REALM.10b** Tests: parse build_info, `get_realm_entry_json`, JoinRealm DB side effect, golden payload. Parcial: `JamJSONRealmEntry`, empty gates y server-address selection cubiertos por unit tests. (M)
 
 ---
 
@@ -245,8 +246,8 @@ Y para realm list updates:
 - [x] `RealmHandle::get_address()` empaqueta `(region<<24)|(site<<16)|realm` exact-match
 - [x] `set_name("Foo Bar")` produce `normalized_name == "FooBar"`
 - [x] Realm con `build != client_build` → emite `flags |= VERSION_MISMATCH` en JSON
-- [ ] Realm con `flags & OFFLINE` → emite `population_state = 0`
-- [ ] `select_realm_ip_str` para client 127.0.0.1 → local; para client en /24 distinto → external
+- [x] Realm con `flags & OFFLINE` → `GetRealmEntryJSON` devuelve vacío y `GetRealmList` emite `population_state = 0`
+- [x] `select_realm_ip_str` para client 127.0.0.1 → local; para client en /24 distinto → external
 - [ ] zlib output: 4-byte LE prefix == uncompressed length; flate2 inflates back to identical bytes
 - [ ] Concurrent: 1000 readers + 1 writer con `update_realms` no causa race / panic
 
@@ -262,7 +263,7 @@ Y para realm list updates:
 
 | Scope | Decision | C++ retained | Evidence |
 |---|---|---|---|
-| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 4 files / 695 lines; refs: `/home/server/woltk-trinity-legacy/src/server/shared/Realm/RealmList.cpp`, `/home/server/woltk-trinity-legacy/src/server/shared/Realm/Realm.h`, `/home/server/woltk-trinity-legacy/src/server/shared/Realm/RealmList.h` | `crates/bnet-server/` (`src/realm/mod.rs`) \| ⚠️ partial (~72%) — BNet RealmHandle packing/cfg swap, normalized names and build-version lookup fixed; strong RealmHandle, golden/e2e, hostname resolution and ownership cleanup remain. |
+| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 4 files / 695 lines; refs: `/home/server/woltk-trinity-legacy/src/server/shared/Realm/RealmList.cpp`, `/home/server/woltk-trinity-legacy/src/server/shared/Realm/Realm.h`, `/home/server/woltk-trinity-legacy/src/server/shared/Realm/RealmList.h` | `crates/bnet-server/` (`src/realm/mod.rs`) \| ⚠️ partial (~73%) — BNet RealmHandle packing/cfg swap, normalized names, build-version lookup and `JamJSONRealmEntry` fixed; strong RealmHandle, golden/e2e, hostname resolution and ownership cleanup remain. |
 
 <!-- REFINE.025:END product-scope -->
 

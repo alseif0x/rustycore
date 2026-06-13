@@ -186,10 +186,12 @@ async fn get_last_char_played<S: AsyncRead + AsyncWrite + Unpin>(
         if let Some(lpc) = ga.last_played_chars.get(sub_region) {
             // Get realm entry JSON
             let realm_mgr = session.state().realm_mgr.read();
-            if let Some(realm) = realm_mgr.realms.get(&lpc.realm_address) {
-                let realm_json = realm_mgr.get_realm_entry_json(realm, Some(session.addr().ip()));
-                response_attrs.push(make_blob_attribute("Param_RealmEntry", &realm_json));
+            let realm_json =
+                realm_mgr.get_realm_entry_json_like_cpp(lpc.realm_address, session.build);
+            if realm_json.is_empty() {
+                bail!("Failed to serialize last-played realm entry");
             }
+            response_attrs.push(make_blob_attribute("Param_RealmEntry", &realm_json));
 
             response_attrs.push(make_string_attribute(
                 "Param_CharacterName",
@@ -296,7 +298,7 @@ async fn join_realm<S: AsyncRead + AsyncWrite + Unpin>(
         }
 
         (
-            realm_mgr.get_realm_entry_json(realm, Some(session.addr().ip())),
+            realm_mgr.get_realm_server_addresses_json_like_cpp(realm, Some(session.addr().ip())),
             realm.name.clone(),
         )
     };
