@@ -1070,6 +1070,22 @@ mod tests {
     }
 
     #[test]
+    fn realm_list_json_empty_payload_matches_cpp_envelopes() {
+        let manager = RealmManager::new();
+
+        let (realms, char_counts) = manager.get_realm_list_json(51943, "5-6-0", &HashMap::new());
+
+        assert_eq!(
+            inflate_payload(&realms),
+            "JSONRealmListUpdates:{\"updates\":[]}\0"
+        );
+        assert_eq!(
+            inflate_payload(&char_counts),
+            "JSONRealmCharacterCountList:{\"counts\":[]}\0"
+        );
+    }
+
+    #[test]
     fn realm_list_json_uses_cpp_fallback_version_and_type_normalization() {
         let mut manager = RealmManager::new();
         manager.realms.insert(
@@ -1184,6 +1200,20 @@ mod tests {
         assert_eq!(json["families"][0]["family"], 1);
         assert_eq!(json["families"][0]["addresses"][0]["ip"], "10.0.0.10");
         assert_eq!(json["families"][0]["addresses"][0]["port"], 8085);
+    }
+
+    #[test]
+    fn server_addresses_json_content_matches_cpp_envelope() {
+        let manager = RealmManager::new();
+        let realm = test_realm(9, 5, 6, 3, 1);
+
+        let addresses = manager
+            .get_realm_server_addresses_json_like_cpp(&realm, Some("127.0.0.1".parse().unwrap()));
+
+        assert_eq!(
+            inflate_payload(&addresses),
+            "JSONRealmListServerIPAddresses:{\"families\":[{\"family\":1,\"addresses\":[{\"ip\":\"10.0.0.10\",\"port\":8085}]}]}\0"
+        );
     }
 
     #[test]
