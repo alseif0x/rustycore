@@ -301,8 +301,8 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 - [ ] **#COMMON.15** Implement `wow-core::utf8::str_to_lower_only_latin` symmetric counterpart for `Utf8ToUpperOnlyLatin`. (L, do with #COMMON.1)
 - [ ] **#COMMON.16** Wire `Errors::Fatal` equivalent: a panic hook that logs `tracing::error!` + structured `file:line:fn` before unwinding, so prod logs include the assertion site. (L)
 - [ ] **#COMMON.17** `FuzzyFind`: integrate `strsim` crate for `.tele` GM-command name lookup. (L)
-- [x] **#COMMON.18a** Port the Unix IPv4 subset of `Trinity::Net::ScanLocalNetworks` / `IsInLocalNetwork` plus `SelectAddressForClient` priority selection into `wow-core::net`; bnet/world callers use scanned interface networks with a `/24` fallback if scanning returns none. (M)
-- [ ] **#COMMON.18b** Add IPv6 and Windows `GetAdaptersAddresses` parity for `ScanLocalNetworks`. (M)
+- [x] **#COMMON.18a** Port the Unix IPv4/IPv6 subset of `Trinity::Net::ScanLocalNetworks` / `IsInLocalNetwork` plus `SelectAddressForClient` priority selection into `wow-core::net`; IPv4 bnet/world callers use scanned interface networks with a `/24` fallback if scanning returns none. (M)
+- [ ] **#COMMON.18b** Add Windows `GetAdaptersAddresses` parity for `ScanLocalNetworks` and wire IPv6 address selection through callers once realm/LoginREST address resolution stores IPv6 candidates. (M)
 
 ---
 
@@ -403,7 +403,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 | Asio runtime | `Asio/IoContext.h:30` `boost::asio::io_context` | `tokio::runtime::Runtime` | ✅ | Idiomatic replacement; Tokio's executor is feature-equivalent for the server's needs (TCP accept + timer + DNS). |
 | DeadlineTimer | `Asio/DeadlineTimer.h:24` | `tokio::time::interval` (`bnet-server/main.rs:228`, `bnet-server/realm/mod.rs:206`) | ✅ | One-shot deadline = `tokio::time::sleep(d).await`; recurring = `interval.tick().await`. |
 | Resolver | `Asio/Resolver.h:30` | `tokio::net::lookup_host` | ✅ | — |
-| `IsInLocalNetwork(addr)` / `SelectAddressForClient` | `Asio/IpNetwork.cpp:32-134`, Unix `ScanLocalNetworks` at `:221-268` | `wow-core::net::{scan_local_ipv4_networks_like_cpp, Ipv4NetworkLikeCpp, select_ipv4_address_for_client_like_cpp}` | ⚠️ | Unix IPv4 scan and address-priority semantics are shared and tested; IPv6 and Windows `GetAdaptersAddresses` path remain open. |
+| `IsInLocalNetwork(addr)` / `SelectAddressForClient` | `Asio/IpNetwork.cpp:32-134`, Unix `ScanLocalNetworks` at `:221-268` | `wow-core::net::{scan_local_ip_networks_like_cpp, IpNetworkLikeCpp, select_ip_address_for_client_like_cpp}` | ⚠️ | Unix IPv4/IPv6 scan and address-priority semantics are shared and tested; Windows `GetAdaptersAddresses` and caller-level IPv6 address storage remain open. |
 | `IpAddress::from_string` | `Asio/IpAddress.h:24` | `IpAddr::from_str` (std) | ✅ | — |
 | `ConfigMgr` INI parser | `Configuration/Config.cpp:39-60` (`bpt::ini_parser::read_ini`) | `wow-config/src/lib.rs:52-87` (hand-rolled key=value) | ⚠️ | C++ supports nested sections (`[Net] Port=8085`); Rust does not. Fine because `worldserver.conf` is flat key=value. |
 | Env-var override | `Configuration/Config.cpp` `OverrideWithEnvVariablesIfAny` | NONE | ❌ | Sub-task #COMMON.6. |
@@ -500,7 +500,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
    - Currently safe — no config file relies on case sensitivity — but future divergence risk if someone adds two keys differing only in case.
 
 8. **⚠️ `ScanLocalNetworks` partial.**
-   - `bnet-server` and `world-server` now share a C++-like IPv4 `SelectAddressForClient` helper and Unix IPv4 interface scanning. IPv6 and Windows parity remain open; if scanning returns no usable networks, Rust falls back to the old `/24` approximation. Sub-task #COMMON.18b.
+   - `bnet-server` and `world-server` now share C++-like address selection plus Unix IPv4/IPv6 interface scanning. The active BNet/world callers still operate on IPv4 realm addresses, Windows parity remains open, and if IPv4 scanning returns no usable networks Rust falls back to the old `/24` approximation. Sub-task #COMMON.18b.
 
 9. **⚠️ `urandweighted` is open-coded at every loot site.**
    - Centralise into `wow-core::random::weighted_choice` to avoid drift. Sub-task related to #COMMON.13.

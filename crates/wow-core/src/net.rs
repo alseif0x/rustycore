@@ -1,4 +1,44 @@
-use std::net::Ipv4Addr;
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IpNetworkLikeCpp {
+    address: IpAddr,
+    prefix: u8,
+}
+
+impl IpNetworkLikeCpp {
+    pub fn new(address: IpAddr, prefix: u8) -> Self {
+        let max_prefix = match address {
+            IpAddr::V4(_) => 32,
+            IpAddr::V6(_) => 128,
+        };
+        Self {
+            address,
+            prefix: prefix.min(max_prefix),
+        }
+    }
+
+    pub fn contains_like_cpp(&self, client_address: IpAddr) -> bool {
+        match (self.address, client_address) {
+            (IpAddr::V4(network), IpAddr::V4(client)) => {
+                Ipv4NetworkLikeCpp::new(network, self.prefix).contains_like_cpp(client)
+            }
+            (IpAddr::V6(network), IpAddr::V6(client)) => {
+                if client == network {
+                    return true;
+                }
+                let prefix = u32::from(self.prefix);
+                let mask = if prefix == 0 {
+                    0
+                } else {
+                    u128::MAX << (128 - prefix)
+                };
+                (u128::from(network) & mask) == (u128::from(client) & mask)
+            }
+            _ => false,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Ipv4NetworkLikeCpp {
@@ -37,7 +77,21 @@ fn is_in_local_network_like_cpp(address: Ipv4Addr, local_networks: &[Ipv4Network
         .any(|network| network.contains_like_cpp(address))
 }
 
+fn is_ip_in_local_network_like_cpp(address: IpAddr, local_networks: &[IpNetworkLikeCpp]) -> bool {
+    local_networks
+        .iter()
+        .any(|network| network.contains_like_cpp(address))
+}
+
 fn ipv4_prefix_from_netmask_like_cpp(netmask: Ipv4Addr) -> u8 {
+    netmask
+        .octets()
+        .iter()
+        .map(|octet| octet.leading_ones() as u8)
+        .sum()
+}
+
+fn ipv6_prefix_from_netmask_like_cpp(netmask: Ipv6Addr) -> u8 {
     netmask
         .octets()
         .iter()
@@ -65,7 +119,37 @@ fn sockaddr_ipv4_like_cpp(sockaddr: *const libc::sockaddr) -> Option<Ipv4Addr> {
 
 #[cfg(unix)]
 #[allow(unsafe_code)]
+fn sockaddr_ipv6_like_cpp(sockaddr: *const libc::sockaddr) -> Option<Ipv6Addr> {
+    if sockaddr.is_null() {
+        return None;
+    }
+
+    // SAFETY: caller passes a non-null sockaddr pointer from getifaddrs. The
+    // family check ensures the layout is sockaddr_in6 before the cast.
+    unsafe {
+        if (*sockaddr).sa_family as libc::c_int != libc::AF_INET6 {
+            return None;
+        }
+        let ipv6 = &*(sockaddr as *const libc::sockaddr_in6);
+        Some(Ipv6Addr::from(ipv6.sin6_addr.s6_addr))
+    }
+}
+
+#[cfg(unix)]
+#[allow(unsafe_code)]
 pub fn scan_local_ipv4_networks_like_cpp() -> Vec<Ipv4NetworkLikeCpp> {
+    scan_local_ip_networks_like_cpp()
+        .into_iter()
+        .filter_map(|network| match network.address {
+            IpAddr::V4(address) => Some(Ipv4NetworkLikeCpp::new(address, network.prefix)),
+            IpAddr::V6(_) => None,
+        })
+        .collect()
+}
+
+#[cfg(unix)]
+#[allow(unsafe_code)]
+pub fn scan_local_ip_networks_like_cpp() -> Vec<IpNetworkLikeCpp> {
     let mut networks = Vec::new();
     let mut addresses: *mut libc::ifaddrs = std::ptr::null_mut();
 
@@ -89,7 +173,15 @@ pub fn scan_local_ipv4_networks_like_cpp() -> Vec<Ipv4NetworkLikeCpp> {
                 let prefix = sockaddr_ipv4_like_cpp(ifaddr.ifa_netmask)
                     .map(ipv4_prefix_from_netmask_like_cpp)
                     .unwrap_or(32);
-                networks.push(Ipv4NetworkLikeCpp::new(address, prefix));
+                networks.push(IpNetworkLikeCpp::new(IpAddr::V4(address), prefix));
+            }
+        }
+        if let Some(address) = sockaddr_ipv6_like_cpp(ifaddr.ifa_addr) {
+            if !(address.is_unspecified() || address.is_loopback() || address.is_multicast()) {
+                let prefix = sockaddr_ipv6_like_cpp(ifaddr.ifa_netmask)
+                    .map(ipv6_prefix_from_netmask_like_cpp)
+                    .unwrap_or(128);
+                networks.push(IpNetworkLikeCpp::new(IpAddr::V6(address), prefix));
             }
         }
 
@@ -105,6 +197,11 @@ pub fn scan_local_ipv4_networks_like_cpp() -> Vec<Ipv4NetworkLikeCpp> {
 
 #[cfg(not(unix))]
 pub fn scan_local_ipv4_networks_like_cpp() -> Vec<Ipv4NetworkLikeCpp> {
+    Vec::new()
+}
+
+#[cfg(not(unix))]
+pub fn scan_local_ip_networks_like_cpp() -> Vec<IpNetworkLikeCpp> {
     Vec::new()
 }
 
@@ -146,6 +243,84 @@ pub fn select_ipv4_address_for_client_like_cpp(
     }
 
     external_index
+}
+
+pub fn select_ip_address_for_client_like_cpp(
+    client_address: IpAddr,
+    addresses: &[IpAddr],
+    local_networks: &[IpNetworkLikeCpp],
+) -> Option<usize> {
+    let mut local_ipv6_index = None;
+    let mut external_ipv6_index = None;
+    let mut loopback_ipv6_index = None;
+    let mut local_ipv4_index = None;
+    let mut external_ipv4_index = None;
+    let mut loopback_ipv4_index = None;
+
+    for (index, address) in addresses.iter().copied().enumerate() {
+        if address.is_loopback() {
+            match address {
+                IpAddr::V6(_) => {
+                    loopback_ipv6_index.get_or_insert(index);
+                }
+                IpAddr::V4(_) => {
+                    loopback_ipv4_index.get_or_insert(index);
+                }
+            }
+        } else if is_ip_in_local_network_like_cpp(address, local_networks) {
+            match address {
+                IpAddr::V6(_) => {
+                    local_ipv6_index.get_or_insert(index);
+                }
+                IpAddr::V4(_) => {
+                    local_ipv4_index.get_or_insert(index);
+                }
+            }
+        } else {
+            match address {
+                IpAddr::V6(_) => {
+                    external_ipv6_index.get_or_insert(index);
+                }
+                IpAddr::V4(_) => {
+                    external_ipv4_index.get_or_insert(index);
+                }
+            }
+        }
+    }
+
+    if is_ip_in_local_network_like_cpp(client_address, local_networks)
+        || client_address.is_loopback()
+    {
+        if matches!(client_address, IpAddr::V6(_)) {
+            if let Some(index) = local_ipv6_index {
+                return Some(index);
+            }
+        }
+
+        if let Some(index) = local_ipv4_index {
+            return Some(index);
+        }
+    }
+
+    if client_address.is_loopback() {
+        if matches!(client_address, IpAddr::V6(_)) {
+            if let Some(index) = loopback_ipv6_index {
+                return Some(index);
+            }
+        }
+
+        if let Some(index) = loopback_ipv4_index {
+            return Some(index);
+        }
+    }
+
+    if matches!(client_address, IpAddr::V6(_)) {
+        if let Some(index) = external_ipv6_index {
+            return Some(index);
+        }
+    }
+
+    external_ipv4_index
 }
 
 pub fn realm_ipv4_address_for_client_like_cpp(
@@ -239,6 +414,87 @@ mod tests {
         assert_eq!(
             ipv4_prefix_from_netmask_like_cpp(Ipv4Addr::new(255, 255, 255, 255)),
             32
+        );
+    }
+
+    #[test]
+    fn select_ip_prefers_local_ipv6_for_local_ipv6_client_like_cpp() {
+        let addresses = [
+            IpAddr::V4(Ipv4Addr::new(198, 51, 100, 10)),
+            IpAddr::V4(Ipv4Addr::new(10, 0, 0, 10)),
+            IpAddr::V6("2001:db8::10".parse().unwrap()),
+            IpAddr::V6("fd00::10".parse().unwrap()),
+        ];
+        let local_networks = [
+            IpNetworkLikeCpp::new(IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1)), 24),
+            IpNetworkLikeCpp::new("fd00::1".parse().unwrap(), 64),
+        ];
+
+        assert_eq!(
+            select_ip_address_for_client_like_cpp(
+                "fd00::42".parse().unwrap(),
+                &addresses,
+                &local_networks
+            ),
+            Some(3)
+        );
+    }
+
+    #[test]
+    fn select_ip_falls_back_to_local_ipv4_for_local_ipv6_client_like_cpp() {
+        let addresses = [
+            IpAddr::V4(Ipv4Addr::new(198, 51, 100, 10)),
+            IpAddr::V4(Ipv4Addr::new(10, 0, 0, 10)),
+            IpAddr::V6("2001:db8::10".parse().unwrap()),
+        ];
+        let local_networks = [
+            IpNetworkLikeCpp::new(IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1)), 24),
+            IpNetworkLikeCpp::new("fd00::1".parse().unwrap(), 64),
+        ];
+
+        assert_eq!(
+            select_ip_address_for_client_like_cpp(
+                "fd00::42".parse().unwrap(),
+                &addresses,
+                &local_networks
+            ),
+            Some(1)
+        );
+    }
+
+    #[test]
+    fn select_ip_prefers_loopback_ipv6_for_loopback_ipv6_client_like_cpp() {
+        let addresses = [
+            IpAddr::V4(Ipv4Addr::new(198, 51, 100, 10)),
+            IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
+            IpAddr::V6(Ipv6Addr::LOCALHOST),
+        ];
+
+        assert_eq!(
+            select_ip_address_for_client_like_cpp(IpAddr::V6(Ipv6Addr::LOCALHOST), &addresses, &[]),
+            Some(2)
+        );
+    }
+
+    #[test]
+    fn select_ip_prefers_external_ipv6_for_external_ipv6_client_like_cpp() {
+        let addresses = [
+            IpAddr::V4(Ipv4Addr::new(198, 51, 100, 10)),
+            IpAddr::V4(Ipv4Addr::new(10, 0, 0, 10)),
+            IpAddr::V6("2001:db8::10".parse().unwrap()),
+        ];
+        let local_networks = [IpNetworkLikeCpp::new(
+            IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1)),
+            24,
+        )];
+
+        assert_eq!(
+            select_ip_address_for_client_like_cpp(
+                "2001:db8:ffff::42".parse().unwrap(),
+                &addresses,
+                &local_networks
+            ),
+            Some(2)
         );
     }
 }

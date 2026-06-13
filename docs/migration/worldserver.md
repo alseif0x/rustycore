@@ -237,7 +237,7 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
 - **`OpenSSLCrypto` setup / `BigNumber::SetRand(...)` warmup**: irrelevant (rustls / `getrandom`).
 - **`CreatePIDFile` present**: Rust reads `PidFile`, writes the current process id before DB/network startup, and aborts startup on write failure like TC.
 - **`SecretMgr::Initialize(SECRET_OWNER_WORLDSERVER)`**: missing.
-- **`ScanLocalNetworks`**: Unix IPv4 host-interface scanning is now shared through `wow-core`; IPv6 and Windows parity remain open.
+- **`ScanLocalNetworks`**: Unix IPv4/IPv6 host-interface scanning is now shared through `wow-core`; Windows parity and caller-level IPv6 realm address storage remain open.
 - **`ClearOnlineAccounts` present** at boot and shutdown: Rust clears `account.online` for accounts with characters on this realm, clears `characters.online`, and resets `character_battleground_data.instanceId` like TC.
 - **`UPDATE realmlist SET flag = flag | OFFLINE`** at boot / `& ~OFFLINE` after listener-up / on shutdown: present; Rust marks the realm offline after DB cleanup, online after listeners/runtime tasks are up, and offline again during shutdown.
 - **`LoadRealmInfo`** equivalent: partial — the active worldserver realm now comes from the initialized `RealmListSnapshotLikeCpp` like C++ `sRealmList->GetRealm(realm.Id)`; broader BNet realm-list JSON / JoinRealm consumers are still not wired to the snapshot.
@@ -448,7 +448,7 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
 | `sWorld->SetInitialWorldSettings()` | The accumulation of all `*Store::load(...)` calls + handler-table build | Lives in `world.md` — already partly done. |
 | `sScriptMgr->OnStartup() / OnShutdown()` | `wow_scripts::lifecycle::{on_startup, on_shutdown}().await` | Hook dispatch points are wired through a minimal `wow-script` inventory registry; concrete content scripts and `SetScriptLoader(AddScripts)` parity are still pending. |
 | `sMetric->Initialize(realmName, io, lambda)` | `wow_metric::initialize(realm_name, ||{ emit_periodic() })` (TODO crate) | — |
-| `Trinity::Net::ScanLocalNetworks()` | `wow_core::scan_local_ipv4_networks_like_cpp` + `select_ipv4_address_for_client_like_cpp` for Unix IPv4; IPv6/Windows TODO | — |
+| `Trinity::Net::ScanLocalNetworks()` | `wow_core::scan_local_ip_networks_like_cpp` + `select_ip_address_for_client_like_cpp` for Unix IPv4/IPv6; Windows TODO | — |
 | `LoginDatabase.DirectPExecute("UPDATE realmlist ...", flag, realmId)` | `login_db.direct_execute(&format!("UPDATE realmlist SET ... WHERE id = {realm_id}"))?` | Already used in `load_realm_addresses`. |
 | `MySQL::Library_Init() / End()` | (none) | sqlx handles libmysqlclient internally; nothing to call. |
 | `BigNumber seed; seed.SetRand(16*8)` | (none) | rustls / `getrandom` seed automatically. |
@@ -511,7 +511,7 @@ Otherwise the boot sequence is largely on-parity for what's implemented (4 DB po
 | `realm.Id.Realm` from config; bail if 0 | `realm_id_like_cpp()` requires `RealmID` and rejects 0 before DB cleanup | ✅ |
 | `UPDATE version SET core_version/core_revision`; `sWorld->LoadDBVersion()`; `Using World DB` | `update_world_db_core_version_like_cpp` writes full version/hash; `verify_world_db_version_like_cpp` loads and logs `Using World DB` | ✅ |
 | `--update-databases-only` early exit | exits after updater + `realm_id_like_cpp` + `clear_online_accounts_like_cpp` + `update_world_db_core_version_like_cpp` + `verify_world_db_version_like_cpp`, before listeners and before marking the realm offline | ✅ |
-| `Trinity::Net::ScanLocalNetworks()` | `get_address_for_client` + shared Unix IPv4 scan/selection helper; IPv6/Windows TODO | ⚠️ partial |
+| `Trinity::Net::ScanLocalNetworks()` | `get_address_for_client` + shared Unix IP scan/selection helper; caller still uses IPv4 realm addresses and Windows TODO | ⚠️ partial |
 | `UPDATE realmlist SET flag\|=OFFLINE` at boot | `set_realm_offline(&login_db, realm_id)` after DB cleanup | ✅ |
 | `sRealmList->Initialize(io, RealmsStateUpdateDelay)` background refresh | `RealmListSnapshotLikeCpp` + `spawn_realm_list_update_loop_like_cpp` | ⚠️ partial (#WS.12): refreshes DB snapshot and backs active `LoadRealmInfo`; BNet consumers still not wired |
 | `LoadRealmInfo()` | `load_realm_info_from_snapshot_like_cpp` from `RealmListSnapshotLikeCpp`; build seed still comes from `build_info` by build | ⚠️ partial (active worldserver realm wired; BNet consumers still pending) |
