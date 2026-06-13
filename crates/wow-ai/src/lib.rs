@@ -11,6 +11,7 @@
 use std::collections::VecDeque;
 use std::time::Instant;
 
+use rand::{Rng, SeedableRng, rngs::StdRng};
 use wow_core::{ObjectGuid, Position, random_resize_vec_like_cpp};
 use wow_instances::BossAiRef;
 
@@ -1044,8 +1045,10 @@ pub struct CreatureAI {
     pub state: CreatureState,
     /// Time until next random movement attempt.
     pub wander_timer: Instant,
-    /// Wander delay before moving again (random 5–15s).
+    /// Wander delay before moving again (`urand(4, 10)` seconds in C++ random movement).
     pub wander_delay_ms: u64,
+    /// Owned runtime RNG for C++ `urand`/`frand`-style gameplay rolls.
+    runtime_rng_like_cpp: StdRng,
 
     /// Current HP.
     pub hp: u32,
@@ -1146,6 +1149,7 @@ impl CreatureAI {
             state: CreatureState::Idle,
             wander_timer: now,
             wander_delay_ms: 8_000,
+            runtime_rng_like_cpp: StdRng::from_entropy(),
             hp,
             max_hp: hp,
             level,
@@ -1313,14 +1317,12 @@ impl CreatureAI {
     }
 
     /// Roll a random damage value in [min_dmg, max_dmg].
-    pub fn roll_damage(&self) -> u32 {
+    pub fn roll_damage(&mut self) -> u32 {
         if self.min_dmg >= self.max_dmg {
             return self.min_dmg;
         }
-        let range = self.max_dmg - self.min_dmg;
-        // Simple LCG-style pseudo-random based on timer
-        let seed = self.last_swing.elapsed().subsec_nanos();
-        self.min_dmg + (seed % (range + 1))
+        self.runtime_rng_like_cpp
+            .gen_range(self.min_dmg..=self.max_dmg)
     }
 
     /// Check if creature should check wander movement.
@@ -1333,10 +1335,12 @@ impl CreatureAI {
 
     /// Pick a random wander destination near home.
     pub fn pick_wander_destination(&mut self) -> Position {
-        // Simple pseudo-random using elapsed time as seed
-        let seed = self.wander_timer.elapsed().subsec_nanos() as f32;
-        let angle = (seed * 0.001) % (2.0 * std::f32::consts::PI);
-        let dist = (seed * 0.0001) % self.wander_radius + 1.0;
+        let angle = self
+            .runtime_rng_like_cpp
+            .gen_range(0.0..(2.0 * std::f32::consts::PI));
+        let dist = self
+            .runtime_rng_like_cpp
+            .gen_range(0.0..=self.wander_radius.max(0.0));
         let x = self.home_pos.x + angle.cos() * dist;
         let y = self.home_pos.y + angle.sin() * dist;
         let o = angle + std::f32::consts::PI; // face movement direction
@@ -1346,9 +1350,12 @@ impl CreatureAI {
     /// Reset the wander timer with a random delay.
     pub fn reset_wander_timer(&mut self) {
         self.wander_timer = Instant::now();
-        // Random delay 5–15 seconds
-        let seed = self.wander_timer.elapsed().subsec_nanos() as u64;
-        self.wander_delay_ms = 5_000 + (seed % 10_000);
+        self.wander_delay_ms = self.runtime_rng_like_cpp.gen_range(4_000..=10_000);
+    }
+
+    #[cfg(test)]
+    pub fn seed_runtime_rng_like_cpp(&mut self, seed: u64) {
+        self.runtime_rng_like_cpp = StdRng::seed_from_u64(seed);
     }
 }
 
@@ -1377,6 +1384,80 @@ mod tests {
 
     fn selector_input() -> CreatureAiSelectionInputLikeCpp {
         CreatureAiSelectionInputLikeCpp::default()
+    }
+
+    #[test]
+    fn creature_ai_runtime_rng_replaces_timer_seeded_damage_like_cpp() {
+        let mut creature = CreatureAI::new(
+            ObjectGuid::EMPTY,
+            1,
+            Position::ZERO,
+            100,
+            1,
+            3,
+            7,
+            0.0,
+            1,
+            35,
+            0,
+            0,
+            0,
+            0,
+            0,
+            None,
+            0,
+        );
+        creature.seed_runtime_rng_like_cpp(0xA141_BEEF);
+
+        let rolls: Vec<u32> = (0..16).map(|_| creature.roll_damage()).collect();
+
+        assert!(rolls.iter().all(|roll| (3..=7).contains(roll)));
+        assert!(
+            rolls.iter().any(|roll| *roll != rolls[0]),
+            "damage rolls should come from owned RNG, not a constant timer seed: {rolls:?}"
+        );
+    }
+
+    #[test]
+    fn creature_ai_wander_rng_matches_cpp_random_movement_bounds() {
+        let mut creature = CreatureAI::new(
+            ObjectGuid::EMPTY,
+            1,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            100,
+            1,
+            3,
+            7,
+            0.0,
+            1,
+            35,
+            0,
+            0,
+            0,
+            0,
+            0,
+            None,
+            0,
+        );
+        creature.wander_radius = 12.0;
+        creature.seed_runtime_rng_like_cpp(0x5757);
+
+        for _ in 0..24 {
+            let dst = creature.pick_wander_destination();
+            let dist = creature.home_pos.distance(&dst);
+            assert!(
+                dist <= creature.wander_radius + f32::EPSILON,
+                "wander destination {dst:?} was {dist} yd from home"
+            );
+        }
+
+        for _ in 0..24 {
+            creature.reset_wander_timer();
+            assert!(
+                (4_000..=10_000).contains(&creature.wander_delay_ms),
+                "C++ RandomMovementGenerator pauses with urand(4, 10) seconds"
+            );
+        }
     }
 
     #[test]

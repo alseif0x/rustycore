@@ -3080,6 +3080,7 @@ dependencies = [
 name = "wow-ai"
 version = "0.1.0"
 dependencies = [
+ "rand",
  "wow-constants",
  "wow-core",
  "wow-ecs",

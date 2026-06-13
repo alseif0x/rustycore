@@ -6,6 +6,7 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
+rand = { workspace = true }
 wow-core = { workspace = true }
 wow-constants = { workspace = true }
 wow-ecs = { workspace = true }

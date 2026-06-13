@@ -6,6 +6,7 @@ use std::sync::{Arc, RwLock, mpsc};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use rand::{Rng, SeedableRng, rngs::StdRng};
 use tracing::{debug, info, warn};
 use wow_constants::movement::MovementFlag;
 use wow_constants::{UnitMoveType, UnitStandStateType, UnitState, WeaponAttackType};
@@ -663,6 +664,7 @@ pub struct WorldCreature {
     active_move_spline: Option<MoveSpline>,
     active_waypoint_generator: Option<WaypointMovementGenerator>,
     active_waypoint_random_at_path_end: Option<WaypointRandomAtPathEnd>,
+    runtime_rng_like_cpp: StdRng,
     clock_started_at: Instant,
 }
 
@@ -766,6 +768,7 @@ impl WorldCreature {
             active_move_spline: None,
             active_waypoint_generator: None,
             active_waypoint_random_at_path_end: None,
+            runtime_rng_like_cpp: StdRng::from_entropy(),
             clock_started_at: Instant::now(),
         }
     }
@@ -1773,15 +1776,13 @@ impl WorldCreature {
         ai.swing_timer_ms = 100;
     }
 
-    pub fn roll_damage(&self) -> u32 {
+    pub fn roll_damage(&mut self) -> u32 {
         let min_dmg = self.min_dmg();
         let max_dmg = self.max_dmg();
         if min_dmg >= max_dmg {
             return min_dmg;
         }
-        let range = max_dmg - min_dmg;
-        let seed = (self.now_ms() as u32).wrapping_add(self.spline_id());
-        min_dmg + (seed % (range + 1))
+        self.runtime_rng_like_cpp.gen_range(min_dmg..=max_dmg)
     }
 
     pub fn should_wander(&self) -> bool {
@@ -1795,10 +1796,11 @@ impl WorldCreature {
     }
 
     pub fn pick_wander_destination(&mut self) -> Position {
-        let seed = self.now_ms() as f32;
-        let angle = (seed * 0.001) % (2.0 * std::f32::consts::PI);
-        let radius = self.creature.ai_ownership().wander_radius.max(1.0);
-        let dist = (seed * 0.0001) % radius + 1.0;
+        let angle = self
+            .runtime_rng_like_cpp
+            .gen_range(0.0..(2.0 * std::f32::consts::PI));
+        let radius = self.creature.ai_ownership().wander_radius.max(0.0);
+        let dist = self.runtime_rng_like_cpp.gen_range(0.0..=radius);
         let home = self.home_position();
         let x = home.x + angle.cos() * dist;
         let y = home.y + angle.sin() * dist;
@@ -1810,10 +1812,11 @@ impl WorldCreature {
         &mut self,
         wander_distance: f32,
     ) -> Position {
-        let seed = self.now_ms() as f32;
-        let angle = (seed * 0.001) % (2.0 * std::f32::consts::PI);
-        let radius = wander_distance.max(1.0);
-        let dist = ((seed * 0.0001) % radius).max(radius.min(1.0));
+        let angle = self
+            .runtime_rng_like_cpp
+            .gen_range(0.0..(2.0 * std::f32::consts::PI));
+        let radius = wander_distance.max(0.0);
+        let dist = self.runtime_rng_like_cpp.gen_range(0.0..=radius);
         let reference = self.position();
         let x = reference.x + angle.cos() * dist;
         let y = reference.y + angle.sin() * dist;
@@ -1823,9 +1826,15 @@ impl WorldCreature {
 
     pub fn reset_wander_timer(&mut self) {
         let now_ms = self.now_ms();
+        let wander_delay_ms = self.runtime_rng_like_cpp.gen_range(4_000..=10_000);
         let ai = self.creature.ai_ownership_mut();
         ai.move_start_ms = now_ms;
-        ai.wander_delay_ms = 5_000 + (now_ms % 10_000);
+        ai.wander_delay_ms = wander_delay_ms;
+    }
+
+    #[cfg(test)]
+    pub fn seed_runtime_rng_like_cpp(&mut self, seed: u64) {
+        self.runtime_rng_like_cpp = StdRng::seed_from_u64(seed);
     }
 }
 
@@ -3074,6 +3083,46 @@ mod tests {
             0,
             0,
         )
+    }
+
+    #[test]
+    fn world_creature_runtime_rng_replaces_timer_seeded_damage_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 70001);
+        let mut creature = test_creature(guid);
+        creature.seed_runtime_rng_like_cpp(0xA141_BEEF);
+
+        let rolls: Vec<u32> = (0..16).map(|_| creature.roll_damage()).collect();
+
+        assert!(rolls.iter().all(|roll| (5..=10).contains(roll)));
+        assert!(
+            rolls.iter().any(|roll| *roll != rolls[0]),
+            "damage rolls should come from owned RNG, not now_ms/spline_id: {rolls:?}"
+        );
+    }
+
+    #[test]
+    fn world_creature_wander_rng_matches_cpp_random_movement_bounds() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 70002);
+        let mut creature = test_creature(guid);
+        creature.creature.ai_ownership_mut().wander_radius = 12.0;
+        creature.seed_runtime_rng_like_cpp(0x5757);
+
+        for _ in 0..24 {
+            let dst = creature.pick_wander_destination();
+            let dist = creature.home_position().distance(&dst);
+            assert!(
+                dist <= creature.creature.ai_ownership().wander_radius + f32::EPSILON,
+                "wander destination {dst:?} was {dist} yd from home"
+            );
+        }
+
+        for _ in 0..24 {
+            creature.reset_wander_timer();
+            assert!(
+                (4_000..=10_000).contains(&creature.creature.ai_ownership().wander_delay_ms),
+                "C++ RandomMovementGenerator pauses with urand(4, 10) seconds"
+            );
+        }
     }
 
     fn tilelist_like_cpp(grid_indices: impl IntoIterator<Item = usize>) -> Vec<u8> {
