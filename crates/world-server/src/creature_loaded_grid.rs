@@ -1640,7 +1640,7 @@ mod tests {
             movement_anim_kit_id: 22,
             melee_anim_kit_id: 33,
             visibility_distance_type: wow_entities::VisibilityDistanceTypeLikeCpp::Large,
-            auras: Vec::new(),
+            auras: vec![70_043, 70_044],
         });
         let resolver = CreatureLoadedGridLifecycleResolverLikeCpp::new(
             [template],
@@ -1667,7 +1667,7 @@ mod tests {
                 movement_anim_kit_id: 22,
                 melee_anim_kit_id: 33,
                 visibility_distance_type: wow_entities::VisibilityDistanceTypeLikeCpp::Large,
-                auras: Vec::new(),
+                auras: vec![70_043, 70_044],
             }),
             "C++ Creature::LoadFromDB/Create carries the addon selected by Creature::GetCreatureAddon"
         );
@@ -1690,6 +1690,37 @@ mod tests {
             wow_constants::UnitPvpFlags::PVP | wow_constants::UnitPvpFlags::FFA_PVP
         );
         assert_eq!(resolved.creature.unit().emote_state_like_cpp(), 77);
+        assert!(
+            resolved
+                .creature
+                .unit()
+                .subsystems()
+                .auras
+                .has_aura_spell_like_cpp(70_043),
+            "C++ Creature::LoadCreaturesAddon casts each selected addon aura when the loaded-grid spawn creates the creature"
+        );
+        assert!(
+            resolved
+                .creature
+                .unit()
+                .subsystems()
+                .auras
+                .has_aura_spell_like_cpp(70_044),
+            "C++ Creature::LoadCreaturesAddon applies all permanent addon auras selected by Creature::GetCreatureAddon"
+        );
+        let map_record_creature = resolved
+            .map_object_record
+            .as_ref()
+            .and_then(MapObjectRecord::creature)
+            .expect("loaded-grid AddToMap record should carry the same created creature");
+        assert!(
+            map_record_creature
+                .unit()
+                .subsystems()
+                .auras
+                .has_aura_spell_like_cpp(70_043),
+            "C++ Map::AddToMap stores the already-created creature after LoadCreaturesAddon has applied addon auras"
+        );
     }
 
     #[test]
