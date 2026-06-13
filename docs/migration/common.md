@@ -3,7 +3,7 @@
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/common/` (excluding `Collision/`, covered separately)
 > **Rust target crate(s):** `crates/wow-core/`, `crates/wow-config/`, `crates/wow-logging/`, `crates/wow-collections/`, scattered helpers in `wow-network/`, `wow-crypto/`, `wow-database/`
 > **Layer:** L0 (foundation)
-> **Status:** ⚠️ partial — most primitives present in idiomatic Rust form; several explicit C++ subsystems (Metric/InfluxDB, Errors-with-stack, full Logger framework, SmartEnum/EventMap/TaskScheduler) have no Rust equivalent; IPLocation store exists but is not wired through every C++ caller yet
+> **Status:** ⚠️ partial — most primitives present in idiomatic Rust form; several explicit C++ subsystems (Metric/InfluxDB, Errors-with-stack, full Logger framework, SmartEnum/TaskScheduler) have no Rust equivalent; EventMap base exists but is not wired into ScriptedAI; IPLocation store exists but is not wired through every C++ caller yet
 > **Audited vs C++:** ⚠️ partial — SRP6 string normalisation now uses the C++ Basic-Latin-only helper; remaining gaps listed in §9/§13
 > **Last updated:** 2026-05-01
 
@@ -223,7 +223,7 @@ None. Common is pre-protocol — it ships no opcodes. The closest it gets is `Me
 | `Utilities/StringConvert.h::StringTo<T>` | `str::parse::<T>()` returning `Result<T, _>` | ✅ replaced |
 | `Utilities/EnumFlag.h::DEFINE_ENUM_FLAG` | `bitflags!` crate macro | ✅ replaced |
 | `Utilities/SmartEnum.h` | none (no reflection); enums are pattern-matched | ⚠️ — Rust uses derive macros and pattern matching; no name↔value reflection helper |
-| `Utilities/EventMap.{h,cpp}` | none (no port) — creature AI is ECS-driven via `wow-ai` | ⚠️ — feature parity missing for legacy CreatureAI scripts; not yet needed |
+| `Utilities/EventMap.{h,cpp}` | `wow_core::EventMap` | ✅ base helper ported — schedule/update/execute, phase/group bits, repeat, delay, cancel and series semantics; not yet wired into ScriptedAI/BossAI |
 | `Utilities/EventProcessor.{h,cpp}` | none | ❌ missing |
 | `Utilities/TaskScheduler.{h,cpp}` | none | ❌ missing — used heavily by C++ spell scripts; affects script porting (`wow-script`) |
 | `Utilities/MessageBuffer.h` | `Vec<u8>` + `bytes::BytesMut` ad-hoc | ✅ obviated |
@@ -296,7 +296,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 - [ ] **#COMMON.9c** Wire shared `IpLocationStore` into future AccountMgr/RBAC GM command callers that use `sIPLocation` in C++ account lock-country commands. (M)
 - [ ] **#COMMON.10** `Metric` port: choose between (a) `metrics` + `metrics-exporter-prometheus` for pull-style or (b) `influxdb-rs` for push. (H)
 - [ ] **#COMMON.11** Port `TaskScheduler` (composable async scheduler) — needed before any C++ spell-script port can compile. (XL — split into Schedule/RepeatedSchedule/Async/Group).
-- [ ] **#COMMON.12** Port `EventMap` for legacy CreatureAI shim. (M)
+- [x] **#COMMON.12** Port `EventMap` for legacy CreatureAI shim into `wow_core::EventMap`: C++ event-data packing (`0xPPGGEEEE`), update/execute ready gate, phase discard, group delay/cancel, repeat and event series are covered by unit tests. Wiring into ScriptedAI/BossAI remains under AI. (M)
 - [x] **#COMMON.13** Centralised `wow-core::random` module wrapping `rand::thread_rng()` with `urand`/`irand`/`frand`/`rand_norm`/`rand_chance`/`roll_chance_*`/`urandweighted` mirror functions plus `*_with_rng_like_cpp` variants for deterministic tests. Existing call sites can migrate incrementally. (L)
 - [ ] **#COMMON.14** Document choice of PRNG (currently ChaCha12 via `thread_rng`); decide whether SFMT reproducibility matters — if yes, depend on `sfmt` crate. (L)
 - [x] **#COMMON.15** Implement `wow-core::utf8_to_lower_only_latin_like_cpp`, the Basic-Latin-only symmetric counterpart to `Utf8ToUpperOnlyLatin`. C++ has broader `wcharToLower`; this Rust helper is intentionally narrower to prevent accidental Unicode lowercase expansion in future ports. (L)
@@ -381,7 +381,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 | `Trinity::StringTo<u32>(s)` | `s.parse::<u32>().ok()` | — |
 | `DEFINE_ENUM_FLAG(Foo)` | `bitflags! { struct Foo: u32 { ... } }` | external crate |
 | `EnumUtils::ToString(Foo::A)` | `format!("{:?}", Foo::A)` for Debug; for prod use a manual `as_str()` | no derive in stdlib |
-| `EventMap::ScheduleEvent(id, ms)` | NOT YET PORTED | sub-task #COMMON.12 |
+| `EventMap::ScheduleEvent(id, ms)` | `wow_core::EventMap::schedule_event_like_cpp` | sub-task #COMMON.12 |
 | `TaskScheduler::Schedule(2s, [](){...})` | NOT YET PORTED | sub-task #COMMON.11 |
 | `MessageBuffer` | `bytes::BytesMut` / `Vec<u8>` + manual cursor | inline in `wow-packet` |
 | `Trinity::hash_combine(seed, x)` | derive `Hash` or compose with `(K1,K2)` tuple | unused so far |
@@ -454,7 +454,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 | `StringTo<T>(s)` | `Utilities/StringConvert.h:60-200` | `str::parse::<T>()` | ✅ | — |
 | `DEFINE_ENUM_FLAG(E)` | `Utilities/EnumFlag.h:26` | `bitflags!` macro | ✅ | — |
 | `SmartEnum::ToString(E::A)` (reflection) | `Utilities/SmartEnum.h:30-129` | NONE | ⚠️ | Use `Debug` derive or hand-rolled `as_str()`; no auto-generated table. |
-| `EventMap::ScheduleEvent(id, ms)` | `Utilities/EventMap.cpp:30-219` | NONE | ❌ | Sub-task #COMMON.12. |
+| `EventMap::ScheduleEvent(id, ms)` | `Utilities/EventMap.cpp:30-219` | `wow_core::EventMap` | ✅ | Base helper ported; AI integration remains open. |
 | `EventProcessor::AddEvent` | `Utilities/EventProcessor.cpp:30-133` | NONE | ❌ | — |
 | `TaskScheduler::Schedule(2s, fn)` | `Utilities/TaskScheduler.cpp:30-240` | NONE | ❌ | Sub-task #COMMON.11; **affects spell-script port**. |
 | `MessageBuffer` (read/write cursor) | `Utilities/MessageBuffer.h:30-139` | `Vec<u8>` + manual offset, or `bytes::BytesMut` | ✅ | Inline in `wow-packet`. |
@@ -517,7 +517,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 
 ### 13.4 Justifying the status badge
 
-`⚠️ partial` is correct. The Asio↔Tokio replacement is genuinely complete and idiomatic; same for queues, mutexes, central random helper semantics, encoding, errors, `IntervalTimer`, packed-time calendar math, Grunt SRP6 Basic-Latin string normalisation, IPLocation store/lookup for BNet/world auth, and Unix IP network scanning. Where Rust simply uses the corresponding crate (`tokio`, `flume`, `parking_lot`, `dashmap`, `rand`, `hex`, `regex`, `bitflags`) the migration is real and ✅. The ⚠️ comes from three genuine gaps: (a) remaining `IPLocation` GM command wiring (forensics-affecting but blocked on AccountMgr/RBAC), (b) `Metric` (ops-affecting), (c) the logger framework gaps (file appender, DB appender). Plus the smaller deferred items (`TaskScheduler`, `EventMap`, `TimeTracker`/`PeriodicTimer`, full `Timezone` helper API).
+`⚠️ partial` is correct. The Asio↔Tokio replacement is genuinely complete and idiomatic; same for queues, mutexes, central random helper semantics, encoding, errors, `IntervalTimer`, `EventMap` base semantics, packed-time calendar math, Grunt SRP6 Basic-Latin string normalisation, IPLocation store/lookup for BNet/world auth, and Unix IP network scanning. Where Rust simply uses the corresponding crate (`tokio`, `flume`, `parking_lot`, `dashmap`, `rand`, `hex`, `regex`, `bitflags`) the migration is real and ✅. The ⚠️ comes from three genuine gaps: (a) remaining `IPLocation` GM command wiring (forensics-affecting but blocked on AccountMgr/RBAC), (b) `Metric` (ops-affecting), (c) the logger framework gaps (file appender, DB appender). Plus the smaller deferred items (`TaskScheduler`, `TimeTracker`/`PeriodicTimer`, full `Timezone` helper API) and the fact that EventMap still needs AI wiring.
 
 Recommendation: keep ⚠️ partial until either the production gaps (#COMMON.3/#COMMON.4 logging, #COMMON.9c IPLocation GM command wiring, #COMMON.10 metrics) are ported or explicitly carved out as `wow-ops` future work with owner/sign-off. Do not promote Common to ✅ solely because the SRP6 helper and common IPLocation auth paths are closed.
 

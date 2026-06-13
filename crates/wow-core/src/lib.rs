@@ -1,3 +1,4 @@
+pub mod event_map;
 pub mod guid;
 pub mod ip_location;
 pub mod net;
@@ -6,6 +7,7 @@ pub mod random;
 pub mod string;
 pub mod time;
 
+pub use event_map::EventMap;
 pub use guid::{ObjectGuid, ObjectGuidGenerator};
 pub use ip_location::{IpLocationRecord, IpLocationStore};
 pub use net::{

@@ -422,7 +422,8 @@ Numerados para referencia desde `MIGRATION_ROADMAP.md`. Complejidad: **L** <1h, 
 - [ ] **#AI.4** Implementar `struct NullCreatureAI` impl `CreatureAI` con todos los métodos no-op (L)
 - [ ] **#AI.5** Implementar `struct PassiveAI`, `struct CritterAI`, `struct TriggerAI`, `struct PossessedAI` (M — son mostly stubs)
 - [ ] **#AI.6** Implementar `struct CombatAI` que lee spell list de `creature_template_addon` y rota castings simples — depende de `EventMap` (H)
-- [ ] **#AI.7** Implementar `struct EventMap` (helper schedule events): `_events: BTreeMap<u32 deadline_ms, EventEntry>`, `schedule_event(id, time_ms, group=0, phase=0)`, `execute_event() -> Option<u32>`, `update(diff_ms)`, `set_phase(u8)`, `reset_events()` (H)
+- [x] **#AI.7a** Implementar base común `wow_core::EventMap` contrastada contra `Utilities/EventMap.{h,cpp}`: schedule/update/execute, phase/group bits, repeat, delay, cancel y series. (M)
+- [ ] **#AI.7b** Integrar `wow_core::EventMap` en `ScriptedAI`/`CombatAI` runtime real (`events.Update(diff)`, `ExecuteEvent`, casts/side effects). (H)
 - [ ] **#AI.8** Implementar `struct SummonList` con `Vec<ObjectGuid>`, `summon`, `despawn_all`, `despawn_entry`, `is_any_alive` (M)
 - [ ] **#AI.9** Implementar `struct PetAI` impl CreatureAI: estados `Stay/Follow/Attack/Passive/Aggressive/Defensive`, command dispatch, owner aggro inheritance, spell rotation pet bar (XL)
 - [ ] **#AI.10** Implementar `struct TotemAI` impl CreatureAI: lifespan, cd-based cast (M)
@@ -489,8 +490,8 @@ Numerados para referencia desde `MIGRATION_ROADMAP.md`. Complejidad: **L** <1h, 
 - [ ] Test: `MoveInLineOfSight` con player en aggro radius dispara `TriggerAlert` antes de `JustEngagedWith` (delay ~5s)
 - [ ] Test: `DoZoneInCombat(source, 100yd)` añade threat a todos los hostiles en 100yd
 - [ ] Test: `ThreatManager.get_top_threat()` retorna el unit con threat más alta tras varios `add_threat`
-- [ ] Test: `EventMap.schedule_event(1, 5000ms)` → `update(5000)` → `execute_event()` retorna `Some(1)`
-- [ ] Test: `EventMap.set_phase(2)` filtra eventos con phase_mask sin bit 2
+- [x] Test: `EventMap.schedule_event(1, 5000ms)` → `update(5000)` → `execute_event()` retorna el evento.
+- [x] Test: `EventMap.set_phase(2)` filtra eventos con phase_mask sin bit 2.
 - [ ] Test: `SummonList.despawn_all()` despawn todos los GUIDs registrados
 - [ ] Test: `SmartScriptMgr.load_smart_ai_from_db(SmartScriptType::Creature)` parsea N filas válidas, descarta filas con event_type fuera de rango
 - [ ] Test: `SmartScript.process_event(SMART_EVENT_AGGRO)` dispara matching action en `JustEnteredCombat`
