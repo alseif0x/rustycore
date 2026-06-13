@@ -1,3 +1,13 @@
+- `#NEXT.R8.ENTITIES.836` - audit-fix/represented-complete for stale `CMSG_GET_ACCOUNT_CHARACTER_LIST` and `CMSG_REPORT_CLIENT_VARIABLES` inventory.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:803-806`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:478,812`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:306,555`.
+
+  Rust anchors: `crates/wow-world/src/handlers/misc.rs`; `crates/wow-world/src/session.rs`.
+
+  Acceptance: inventories no longer claim missing or wrong dispatch for these two `Handle_NULL` opcodes. C++ registers both as `STATUS_UNHANDLED`/`PROCESS_THREADUNSAFE`/`Handle_NULL`; Rust already registers `Authed`/`ThreadUnsafe` handlers, dispatches through `WorldSession`, consumes the packet, sends no response, and mutates no represented state.
+
+  Boundary: audit-fix for stale `STATUS_UNHANDLED`/`Handle_NULL` opcode inventory only; represented-complete for bounded no-response/no-state behavior. Rust does not mirror C++'s unhandled-opcode log line, and no live client/manual validation was performed in this slice.
+
 - `#NEXT.R8.ENTITIES.835` - audit-fix/represented-complete for stale `CMSG_CANCEL_TEMP_ENCHANTMENT` inventory.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/ItemHandler.cpp:1100-1115`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/ItemPackets.cpp`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/ItemPackets.h`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:282`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:169`.
