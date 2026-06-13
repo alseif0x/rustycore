@@ -29,6 +29,8 @@ const DEFAULT_VERSION_REVISION: u32 = 4;
 pub struct Realm {
     pub id: u32,
     pub name: String,
+    #[allow(dead_code)]
+    pub normalized_name: String,
     pub external_address: String,
     pub local_address: String,
     pub port: u16,
@@ -87,9 +89,28 @@ impl RealmManager {
             .get(&(realm_id_from_address_like_cpp(realm_address)))
     }
 
+    #[allow(dead_code)]
+    pub fn get_realm_names_like_cpp(&self, realm_address: u32) -> Option<(String, String)> {
+        self.get_realm_by_realm_address_like_cpp(realm_address)
+            .map(|realm| (realm.name.clone(), realm.normalized_name.clone()))
+    }
+
     /// Get build info for a specific build number.
     pub fn get_build_info(&self, build: u32) -> Option<&RealmBuildInfo> {
         self.builds.iter().find(|b| b.build == build)
+    }
+
+    #[allow(dead_code)]
+    pub fn get_minor_major_bugfix_version_for_build_like_cpp(&self, build: u32) -> u32 {
+        self.builds
+            .iter()
+            .find(|build_info| build_info.build >= build)
+            .map(|build_info| {
+                build_info.major_version * 10_000
+                    + build_info.minor_version * 100
+                    + build_info.bugfix_version
+            })
+            .unwrap_or(0)
     }
 
     /// Generate compressed JSON realm list for a specific build and sub-region.
@@ -319,6 +340,7 @@ async fn update_realms(state: &AppState) -> Result<()> {
             // sqlx requires exact type matching: unsigned → u32/u16/u8.
             let id: u32 = result.try_read::<u32>(0).unwrap_or(0);
             let name: String = result.read(1);
+            let normalized_name = normalized_realm_name_like_cpp(&name);
             let address: String = result.read(2);
             let local_address: String = result.read(3);
             let port: u16 = result.try_read::<u16>(4).unwrap_or(8085);
@@ -342,6 +364,7 @@ async fn update_realms(state: &AppState) -> Result<()> {
                 Realm {
                     id,
                     name,
+                    normalized_name,
                     external_address: address,
                     local_address,
                     port,
@@ -378,6 +401,12 @@ fn normalize_realm_type_like_cpp(icon: u8) -> u8 {
         return REALM_TYPE_NORMAL;
     }
     icon
+}
+
+fn normalized_realm_name_like_cpp(name: &str) -> String {
+    name.chars()
+        .filter(|ch| !ch.is_ascii_whitespace())
+        .collect()
 }
 
 fn realm_config_id_like_cpp(realm_type: u8) -> u8 {
@@ -496,6 +525,7 @@ mod tests {
         Realm {
             id,
             name: format!("Realm{id}"),
+            normalized_name: format!("Realm{id}"),
             external_address: "203.0.113.10".to_string(),
             local_address: "10.0.0.10".to_string(),
             port: 8085,
@@ -541,6 +571,67 @@ mod tests {
                 .get_realm_by_realm_address_like_cpp(realm_address)
                 .map(|realm| realm.id),
             Some(9)
+        );
+    }
+
+    #[test]
+    fn realm_names_strip_ascii_whitespace_like_cpp() {
+        assert_eq!(
+            normalized_realm_name_like_cpp("Ice Crown\t Citadel\n"),
+            "IceCrownCitadel"
+        );
+
+        let mut manager = RealmManager::new();
+        let mut realm = test_realm(9, 5, 6, 1, 1);
+        realm.name = "Ice Crown".to_string();
+        realm.normalized_name = normalized_realm_name_like_cpp(&realm.name);
+        manager.realms.insert(9, realm);
+
+        assert_eq!(
+            manager.get_realm_names_like_cpp(realm_address_like_cpp(5, 6, 9)),
+            Some(("Ice Crown".to_string(), "IceCrown".to_string()))
+        );
+        assert_eq!(
+            manager.get_realm_names_like_cpp(realm_address_like_cpp(5, 6, 10)),
+            None
+        );
+    }
+
+    #[test]
+    fn minor_major_bugfix_version_uses_cpp_lower_bound_semantics() {
+        let mut manager = RealmManager::new();
+        manager.builds = vec![
+            RealmBuildInfo {
+                major_version: 3,
+                minor_version: 4,
+                bugfix_version: 2,
+                hotfix_version: String::new(),
+                build: 51800,
+                win64_auth_seed: None,
+                mac64_auth_seed: None,
+            },
+            RealmBuildInfo {
+                major_version: 3,
+                minor_version: 4,
+                bugfix_version: 3,
+                hotfix_version: String::new(),
+                build: 51943,
+                win64_auth_seed: None,
+                mac64_auth_seed: None,
+            },
+        ];
+
+        assert_eq!(
+            manager.get_minor_major_bugfix_version_for_build_like_cpp(51800),
+            30_402
+        );
+        assert_eq!(
+            manager.get_minor_major_bugfix_version_for_build_like_cpp(51801),
+            30_403
+        );
+        assert_eq!(
+            manager.get_minor_major_bugfix_version_for_build_like_cpp(99999),
+            0
         );
     }
 
