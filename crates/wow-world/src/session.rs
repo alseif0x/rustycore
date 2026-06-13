@@ -18054,6 +18054,9 @@ impl WorldSession {
             ClientOpcodes::SetAmmo => {
                 self.handle_set_ammo(pkt).await;
             }
+            ClientOpcodes::SetGameEventDebugViewState => {
+                self.handle_set_game_event_debug_view_state(pkt).await;
+            }
             ClientOpcodes::ShowingHelm => {
                 self.handle_showing_helm(pkt).await;
             }

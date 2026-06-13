@@ -406,6 +406,15 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
+        opcode: ClientOpcodes::SetGameEventDebugViewState,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_set_game_event_debug_view_state",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
         opcode: ClientOpcodes::ShowingHelm,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
@@ -1662,6 +1671,10 @@ impl crate::session::WorldSession {
 
     pub async fn handle_set_ammo(&mut self, _pkt: wow_packet::WorldPacket) {
         // C++ `HandleSetAmmoOpcode(WorldPackets::Null&)` only logs the request.
+    }
+
+    pub async fn handle_set_game_event_debug_view_state(&mut self, _pkt: wow_packet::WorldPacket) {
+        // C++ `HandleSetGameEventDebugViewState(WorldPackets::Null&)` only logs the request.
     }
 
     pub async fn handle_showing_helm(&mut self, _pkt: wow_packet::WorldPacket) {
@@ -3406,6 +3419,17 @@ mod tests {
         let (mut session, send_rx) = make_session();
 
         session.handle_set_ammo(WorldPacket::new_empty()).await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn set_game_event_debug_view_state_is_silent_like_cpp_debug_only_handler() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_set_game_event_debug_view_state(WorldPacket::new_empty())
+            .await;
 
         assert!(send_rx.try_recv().is_err());
     }
