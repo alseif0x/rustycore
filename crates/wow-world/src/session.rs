@@ -2958,6 +2958,8 @@ pub struct WorldSession {
     active_player_multi_action_bars_like_cpp: u8,
     /// C++ `Player::m_actionButtons` represented as packed action-button data.
     represented_action_buttons_like_cpp: [u32; wow_packet::packets::misc::MAX_ACTION_BUTTONS],
+    /// C++ `Player::_advancedCombatLoggingEnabled`; consumed when combat-log fanout selects full/basic payloads.
+    advanced_combat_logging_enabled_like_cpp: bool,
     /// C++ `Player::GetUnitBeingMoved()` represented GUID.
     player_moved_unit_guid_like_cpp: ObjectGuid,
     /// Count of visibility refreshes requested by movement initialization.
@@ -4042,6 +4044,7 @@ impl WorldSession {
             active_player_transport_server_time_like_cpp: 0,
             active_player_multi_action_bars_like_cpp: 0,
             represented_action_buttons_like_cpp: [0; wow_packet::packets::misc::MAX_ACTION_BUTTONS],
+            advanced_combat_logging_enabled_like_cpp: false,
             player_moved_unit_guid_like_cpp: ObjectGuid::EMPTY,
             movement_visibility_refresh_requests_like_cpp: 0,
             movement_ack_events_like_cpp: Vec::new(),
@@ -17945,6 +17948,9 @@ impl WorldSession {
             ClientOpcodes::SetTaxiBenchmarkMode => {
                 self.handle_set_taxi_benchmark_mode(pkt).await;
             }
+            ClientOpcodes::SetAdvancedCombatLogging => {
+                self.handle_set_advanced_combat_logging(pkt).await;
+            }
             ClientOpcodes::SaveCufProfiles => {
                 self.handle_save_cuf_profiles(pkt).await;
             }
@@ -24943,6 +24949,14 @@ impl WorldSession {
 
         self.canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_TAXI_BENCHMARK_LIKE_CPP)
             .unwrap_or(false)
+    }
+
+    pub(crate) fn represented_set_advanced_combat_logging_like_cpp(&mut self, enable: bool) {
+        self.advanced_combat_logging_enabled_like_cpp = enable;
+    }
+
+    pub(crate) fn represented_advanced_combat_logging_enabled_like_cpp(&self) -> bool {
+        self.advanced_combat_logging_enabled_like_cpp
     }
 
     pub(crate) fn represented_save_cuf_profiles_like_cpp(

@@ -48,8 +48,8 @@ use wow_packet::packets::misc::{
     DfGetSystemInfo, FarSight, GmTicketCaseStatus, GuildSetAchievementTracking, LfgListBlacklist,
     LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify, MountSetFavorite, QueryBattlePetName,
     QueryBattlePetNameResponse, RatedPvpInfo, RequestBattlefieldStatus,
-    RequestCemeteryListResponse, SaveCufProfiles, SetTaxiBenchmarkMode, TaxiNodeStatusPkt,
-    ToyClearFanfare, UseToy, ViolenceLevel,
+    RequestCemeteryListResponse, SaveCufProfiles, SetAdvancedCombatLogging, SetTaxiBenchmarkMode,
+    TaxiNodeStatusPkt, ToyClearFanfare, UseToy, ViolenceLevel,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -364,6 +364,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_set_taxi_benchmark_mode",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::SetAdvancedCombatLogging,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_set_advanced_combat_logging",
     }
 }
 
@@ -1548,6 +1557,21 @@ impl crate::session::WorldSession {
         };
 
         self.represented_set_taxi_benchmark_mode_like_cpp(packet.enable);
+    }
+
+    pub async fn handle_set_advanced_combat_logging(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let packet = match SetAdvancedCombatLogging::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "SetAdvancedCombatLogging parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        self.represented_set_advanced_combat_logging_like_cpp(packet.enable);
     }
 
     pub async fn handle_save_cuf_profiles(&mut self, mut pkt: wow_packet::WorldPacket) {
@@ -3119,6 +3143,37 @@ mod tests {
             .await;
 
         assert!(!session.represented_taxi_benchmark_mode_like_cpp());
+    }
+
+    #[tokio::test]
+    async fn set_advanced_combat_logging_sets_and_clears_player_state_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+
+        let mut enable = WorldPacket::new_empty();
+        enable.write_bit(true);
+        enable.flush_bits();
+        enable.reset_read();
+        session.handle_set_advanced_combat_logging(enable).await;
+        assert!(session.represented_advanced_combat_logging_enabled_like_cpp());
+
+        let mut disable = WorldPacket::new_empty();
+        disable.write_bit(false);
+        disable.flush_bits();
+        disable.reset_read();
+        session.handle_set_advanced_combat_logging(disable).await;
+        assert!(!session.represented_advanced_combat_logging_enabled_like_cpp());
+    }
+
+    #[tokio::test]
+    async fn set_advanced_combat_logging_short_packet_does_not_change_state_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        session.represented_set_advanced_combat_logging_like_cpp(true);
+
+        session
+            .handle_set_advanced_combat_logging(WorldPacket::from_bytes(&[]))
+            .await;
+
+        assert!(session.represented_advanced_combat_logging_enabled_like_cpp());
     }
 
     #[tokio::test]

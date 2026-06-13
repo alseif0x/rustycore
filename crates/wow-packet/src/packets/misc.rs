@@ -49,6 +49,22 @@ impl ClientPacket for SetTaxiBenchmarkMode {
     }
 }
 
+/// C++ `WorldPackets::ClientConfig::SetAdvancedCombatLogging`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SetAdvancedCombatLogging {
+    pub enable: bool,
+}
+
+impl ClientPacket for SetAdvancedCombatLogging {
+    const OPCODE: ClientOpcodes = ClientOpcodes::SetAdvancedCombatLogging;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            enable: pkt.read_bit()?,
+        })
+    }
+}
+
 /// C++ `WorldPackets::Character::LoadingScreenNotify`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LoadingScreenNotify {
@@ -4234,6 +4250,19 @@ mod tests {
             pkt.reset_read();
 
             let parsed = SetTaxiBenchmarkMode::read(&mut pkt).unwrap();
+            assert_eq!(parsed.enable, enable);
+        }
+    }
+
+    #[test]
+    fn set_advanced_combat_logging_reads_cpp_enable_bit() {
+        for enable in [false, true] {
+            let mut pkt = WorldPacket::new_empty();
+            pkt.write_bit(enable);
+            pkt.flush_bits();
+            pkt.reset_read();
+
+            let parsed = SetAdvancedCombatLogging::read(&mut pkt).unwrap();
             assert_eq!(parsed.enable, enable);
         }
     }
