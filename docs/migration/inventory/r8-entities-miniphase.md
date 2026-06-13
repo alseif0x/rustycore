@@ -8,16 +8,6 @@
 
   Boundary: represented-complete only for this bounded `WorldPackets::Null` family; C++ `Handle_NULL` logs the unhandled opcode while Rust preserves the no-response/no-state behavior without a dedicated opcode log; no instant-logout service, spawn tracking, time adjustment, area-trigger visual, spell visual, follow telemetry, install/restart, or live client/manual validation.
 
-- `#NEXT.R8.ENTITIES.824` - represented-complete for bounded `CMSG_LOG_STREAMING_ERROR` `Handle_NULL` hook.
-
-  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:803-806`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:585`.
-
-  Rust anchors: `crates/wow-world/src/handlers/misc.rs`; `crates/wow-world/src/session.rs`.
-
-  Acceptance: `CMSG_LOG_STREAMING_ERROR` is registered as bounded null-hook dispatch, routed through `WorldSession`, and consumed silently without packets or represented state mutation.
-
-  Boundary: represented-complete only for this bounded `WorldPackets::Null` hook; C++ `Handle_NULL` logs the unhandled opcode while Rust preserves the no-response/no-state behavior without a dedicated opcode log; no streaming telemetry persistence, map/content recovery behavior, install/restart, or live client/manual validation.
-
 - `#NEXT.R8.ENTITIES.825` - represented-partial audit reconciliation for WotLK spell-cancel handlers.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SpellHandler.cpp:272-409`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:273,274,277,280,281,737,975`.
@@ -27,6 +17,16 @@
   Acceptance: `CMSG_CANCEL_AURA`, `CMSG_CANCEL_AUTO_REPEAT_SPELL`, `CMSG_CANCEL_GROWTH_AURA`, `CMSG_CANCEL_MOUNT_AURA`, `CMSG_CANCEL_QUEUED_SPELL`, `CMSG_PET_CANCEL_AURA`, and `CMSG_TOTEM_DESTROYED` are no longer listed as missing Rust dispatch. Rust already parses them, registers `LoggedIn`/`Inplace`, dispatches through `WorldSession`, and has focused tests covering parser/silent represented behavior where the backing runtime is absent.
 
   Boundary: represented-partial only; full owned-aura cancellation, current auto-repeat slot interruption, `SPELL_AURA_MOD_SCALE` / `SPELL_AURA_MOUNTED` removal, `_pendingSpellCastRequest`, guardian/charmed pet aura cancellation, summon-slot totem destruction, install/restart, and live client/manual validation remain open.
+
+- `#NEXT.R8.ENTITIES.824` - represented-complete for bounded `CMSG_LOG_STREAMING_ERROR` `Handle_NULL` hook.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:803-806`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:585`.
+
+  Rust anchors: `crates/wow-world/src/handlers/misc.rs`; `crates/wow-world/src/session.rs`.
+
+  Acceptance: `CMSG_LOG_STREAMING_ERROR` is registered as bounded null-hook dispatch, routed through `WorldSession`, and consumed silently without packets or represented state mutation.
+
+  Boundary: represented-complete only for this bounded `WorldPackets::Null` hook; C++ `Handle_NULL` logs the unhandled opcode while Rust preserves the no-response/no-state behavior without a dedicated opcode log; no streaming telemetry persistence, map/content recovery behavior, install/restart, or live client/manual validation.
 
 - `#NEXT.R8.ENTITIES.823` - represented-complete for bounded `STATUS_UNHANDLED` client `Handle_NULL` hooks.
 
