@@ -9304,6 +9304,51 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn loot_response_threshold_keeps_packet_default_like_cpp() {
+        let mut session = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let creature_guid = test_creature_guid(19_118);
+        session.set_player_guid(Some(player_guid));
+        register_test_creature_like_cpp(&mut session, test_creature(creature_guid, false));
+
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(player_guid);
+        group.loot_method = LOOT_METHOD_GROUP_LIKE_CPP;
+        group.loot_threshold = 4;
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+        session.group_guid = Some(group_guid);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+
+        session.loot_table.insert(
+            creature_guid,
+            CreatureLoot {
+                loot_guid: represented_loot_object_guid_like_cpp(creature_guid),
+                coins: 1,
+                unlooted_count: 0,
+                loot_type: LOOT_TYPE_CORPSE_LIKE_CPP,
+                dungeon_encounter_id: 0,
+                loot_method: LOOT_METHOD_GROUP_LIKE_CPP,
+                loot_master: ObjectGuid::EMPTY,
+                round_robin_player: player_guid,
+                player_ffa_items: Vec::new(),
+                players_looting: Vec::new(),
+                allowed_looters: vec![player_guid],
+                items: Vec::new(),
+                looted_by_player: false,
+            },
+        );
+
+        let response = session
+            .represented_loot_response_for_owner_like_cpp(creature_guid, player_guid, false)
+            .await
+            .unwrap();
+
+        assert_eq!(response.loot_method, LOOT_METHOD_GROUP_LIKE_CPP);
+        assert_eq!(response.threshold, 2);
+    }
+
+    #[tokio::test]
     async fn represented_creature_loot_generation_carries_cpp_dungeon_encounter_id() {
         let mut session = make_session();
 
