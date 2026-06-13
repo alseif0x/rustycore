@@ -215,7 +215,7 @@ None. Common is pre-protocol — it ships no opcodes. The closest it gets is `Me
 | `Time/Timezone` | partial — `GameTime::to_packed()` uses libc `localtime_r`; no standalone timezone helper layer | ⚠️ partial — packed WoW time now uses real calendar math like `WowTime::GetPackedTime`; full `Timezone.{h,cpp}` helpers/DST offset API remain open |
 | `Utilities/Util.cpp::Tokenize` | `str::split` + `collect::<Vec<_>>()` | ✅ idiomatic replacement |
 | `Utilities/Util.cpp::strToUpper/Lower` | `str::to_ascii_uppercase()` | ✅ for ASCII; ⚠️ for non-ASCII |
-| **`Utilities/Util.cpp::Utf8ToUpperOnlyLatin`** | `wow_core::utf8_to_upper_only_latin_like_cpp` used by Grunt SRP6 `compute_x` and `compute_client_evidence` | ✅ C++ Basic-Latin-only semantics; invalid UTF-8 cannot enter the Rust `&str` API |
+| **`Utilities/Util.cpp::Utf8ToUpperOnlyLatin`** | `wow_core::{utf8_to_upper_only_latin_like_cpp, utf8_to_lower_only_latin_like_cpp}` | ✅ C++ Basic-Latin-only upper semantics; Rust also exposes the deliberate symmetric lower helper for future ports; invalid UTF-8 cannot enter the Rust `&str` API |
 | `Utilities/Random.{h,cpp}` (`urand`, `frand`, etc.) | `wow_core::random` helpers plus legacy direct `rand` callers | ⚠️ partial — central wrappers exist for C++ helper semantics; not every call site has been migrated yet |
 | `Utilities/SFMTRand` | `rand` crate's default PRNG (currently ChaCha12 in `thread_rng`) | ⚠️ — different algorithm; loot-tier reproducibility from a captured C++ seed will not match. Acceptable for non-determinism-sensitive paths. |
 | `Utilities/Hash.h::hash_combine` / `HashFnv1a` | none | ❌ missing — Rust hashing covered by `std::hash::Hasher`; FNV1a referenced nowhere in Rust code yet |
@@ -299,7 +299,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 - [ ] **#COMMON.12** Port `EventMap` for legacy CreatureAI shim. (M)
 - [x] **#COMMON.13** Centralised `wow-core::random` module wrapping `rand::thread_rng()` with `urand`/`irand`/`frand`/`rand_norm`/`rand_chance`/`roll_chance_*`/`urandweighted` mirror functions plus `*_with_rng_like_cpp` variants for deterministic tests. Existing call sites can migrate incrementally. (L)
 - [ ] **#COMMON.14** Document choice of PRNG (currently ChaCha12 via `thread_rng`); decide whether SFMT reproducibility matters — if yes, depend on `sfmt` crate. (L)
-- [ ] **#COMMON.15** Implement `wow-core::utf8::str_to_lower_only_latin` symmetric counterpart for `Utf8ToUpperOnlyLatin`. (L, do with #COMMON.1)
+- [x] **#COMMON.15** Implement `wow-core::utf8_to_lower_only_latin_like_cpp`, the Basic-Latin-only symmetric counterpart to `Utf8ToUpperOnlyLatin`. C++ has broader `wcharToLower`; this Rust helper is intentionally narrower to prevent accidental Unicode lowercase expansion in future ports. (L)
 - [ ] **#COMMON.16** Wire `Errors::Fatal` equivalent: a panic hook that logs `tracing::error!` + structured `file:line:fn` before unwinding, so prod logs include the assertion site. (L)
 - [ ] **#COMMON.17** `FuzzyFind`: integrate `strsim` crate for `.tele` GM-command name lookup. (L)
 - [x] **#COMMON.18a** Port the Unix IPv4/IPv6 subset of `Trinity::Net::ScanLocalNetworks` / `IsInLocalNetwork` plus `SelectAddressForClient` priority selection into `wow-core::net`; IPv4 bnet/world callers use scanned interface networks with a `/24` fallback if scanning returns none. (M)
@@ -439,7 +439,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 | `Timezone` (DST/offset) | `Time/Timezone.cpp:30-180` | partial — `GameTime::to_packed` uses libc `localtime_r`; no public offset helper API | ⚠️ | Packed time no longer has 365.25-day drift; broader timezone helper API remains open. |
 | `Tokenize(str, sep, keepEmpty)` | `Util.cpp:56-72` | `str.split(sep).filter(...).collect()` | ✅ | Idiomatic. |
 | `strToUpper(s)` | `Util.cpp:481` (`std::transform` with `charToUpper`) | `s.to_ascii_uppercase()` | ✅ | ASCII-only. Identical for ASCII input. |
-| **`Utf8ToUpperOnlyLatin(string&)`** | **`Util.cpp:795-804`, `Util.h:124-130`, `Util.h:280-283`** | **`wow_core::utf8_to_upper_only_latin_like_cpp`; `wow-crypto/src/srp6.rs` uses it for `compute_x` and `compute_client_evidence`** | **✅** | **C++ contrast corrected stale docs: only ASCII Basic Latin is uppercased; non-ASCII Latin remains unchanged.** |
+| **`Utf8ToUpperOnlyLatin(string&)` / Basic-Latin lower helper** | **`Util.cpp:795-804`, `Util.h:124-130`, `Util.h:280-285`** | **`wow_core::utf8_to_upper_only_latin_like_cpp`; `wow_core::utf8_to_lower_only_latin_like_cpp`; `wow-crypto/src/srp6.rs` uses upper for `compute_x` and `compute_client_evidence`** | **✅** | **C++ contrast corrected stale docs: only ASCII Basic Latin is uppercased by `Utf8ToUpperOnlyLatin`; Rust lower helper is a deliberate symmetric boundary, not C++ `wcharToLower`'s broader Latin-1 behavior.** |
 | `WStrToUtf8` / `Utf8toWStr` | `Util.cpp:401-477` (uses `utf8cpp`) | NONE — Rust `str` is UTF-8 natively | ✅ | Conceptually obviated by Rust's encoding model. |
 | `wstrCaseAccentInsensitiveParse` (per-locale) | `Util.cpp:484-758` | NONE | ❌ | Used by chat search/filter for fr/de/es/it. Not yet a blocker — chat filtering is not yet implemented. |
 | `RemoveCRLF(s)` | `Util.cpp:839-847` | `s.trim_end_matches(['\r', '\n'])` | ✅ | — |

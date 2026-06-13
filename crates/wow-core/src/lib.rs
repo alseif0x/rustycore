@@ -22,5 +22,5 @@ pub use random::{
     urand_like_cpp, urand_with_rng_like_cpp, urandms_like_cpp, urandms_with_rng_like_cpp,
     urandweighted_like_cpp, urandweighted_with_rng_like_cpp,
 };
-pub use string::utf8_to_upper_only_latin_like_cpp;
+pub use string::{utf8_to_lower_only_latin_like_cpp, utf8_to_upper_only_latin_like_cpp};
 pub use time::{GameTime, IntervalTimer, ServerTime};
