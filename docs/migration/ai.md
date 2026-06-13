@@ -276,7 +276,7 @@ Resumen: AI consume hooks del engine, no ve sockets directamente. Los efectos (m
 <!-- REFINE.021:END rust-target-coverage -->
 
 **Files in `/home/server/rustycore`:**
-- `crates/wow-ai/src/lib.rs` — ~346 líneas — **un único struct `CreatureAI`** plain (no polimórfico, no trait), con states `Idle/WalkingRandom/WalkingWaypoint/InCombat/Dead/Returning`
+- `crates/wow-ai/src/lib.rs` — ~1259 líneas — **un único struct `CreatureAI`** plain (no polimórfico, no trait), con states `Idle/WalkingRandom/WalkingWaypoint/InCombat/Dead/Returning`, selector representado, `SummonListLikeCpp` y tests unitarios
 - `crates/wow-script/src/lib.rs` — **0 líneas (vacío)** — crate placeholder
 - `crates/wow-scripts/src/lib.rs` — **0 líneas (vacío)** — crate placeholder
 - `crates/wow-world/src/session.rs` — contiene legacy `WorldCreature` (ahora siendo refactorizado en MapManager work) que duplica funciones de CreatureAI
@@ -294,7 +294,7 @@ Resumen: AI consume hooks del engine, no ve sockets directamente. Los efectos (m
 **What's missing vs C++:**
 1. **NO trait/polimorfismo:** todo es un único struct concreto. C++ tiene jerarquía 8+ AI types — necesita `trait CreatureAI` con métodos virtuales
 2. **NO SmartAI:** la pieza más grande (95% del game content) — sin parser, sin runtime, sin loader de `smart_scripts`
-3. **NO ScriptedAI:** sin `EventMap`, sin `SummonList`, sin helpers `DoCastVictim`/`DoMeleeAttackIfReady`
+3. **NO ScriptedAI runtime:** existe base común `EventMap` y `SummonListLikeCpp`, pero aún no están integrados en `ScriptedAI`/`BossAI` runtime real ni existen helpers `DoCastVictim`/`DoMeleeAttackIfReady`
 4. **NO PetAI:** pets tendrán que ser comportamiento custom; sin command dispatch (stay/follow/attack/passive/aggressive/defensive), sin pet bar spell rotation
 5. **NO CombatAI:** sin lectura de spell list de `creature_template_addon`, sin spell rotation simple
 6. **NO TotemAI:** sin lifespan, sin cast cd
@@ -311,9 +311,9 @@ Resumen: AI consume hooks del engine, no ve sockets directamente. Los efectos (m
 17. **NO registry de AI names:** no se puede mappear `creature_template.AIName='SmartAI'` → instanciar SmartAI
 18. **NO ScriptName binding:** boss scripts en `wow-scripts` no se enganchan
 19. **NO target selection:** sin SelectTarget(method, dist, predicates) que itera threat list
-20. **NO DoZoneInCombat:** sin pull masivo de raid
+20. **NO DoZoneInCombat runtime:** `SummonListLikeCpp` puede planificar summons existentes/AI-enabled, pero falta el pull masivo real de raid/threat en el runtime
 21. **NO call for help / call assistance:** sin guard chain, sin pack pulls
-22. **NO summons cascade:** al morir un boss, summons quedan vivos; falta `SummonList::DespawnAll`
+22. **NO summons cascade runtime:** `SummonListLikeCpp::despawn_all_like_cpp` existe como plan representado; al morir un boss todavía falta wiring real `JustDied -> DespawnAll -> DespawnOrUnsummon`
 23. **NO SmartScriptMgr loader:** sin parse de `smart_scripts` SQL
 24. **NO creature_text loader:** sin tabla de talks
 25. **NO waypoint loader:** sin paths para escort/patrol
@@ -424,7 +424,8 @@ Numerados para referencia desde `MIGRATION_ROADMAP.md`. Complejidad: **L** <1h, 
 - [ ] **#AI.6** Implementar `struct CombatAI` que lee spell list de `creature_template_addon` y rota castings simples — depende de `EventMap` (H)
 - [x] **#AI.7a** Implementar base común `wow_core::EventMap` contrastada contra `Utilities/EventMap.{h,cpp}`: schedule/update/execute, phase/group bits, repeat, delay, cancel y series. (M)
 - [ ] **#AI.7b** Integrar `wow_core::EventMap` en `ScriptedAI`/`CombatAI` runtime real (`events.Update(diff)`, `ExecuteEvent`, casts/side effects). (H)
-- [ ] **#AI.8** Implementar `struct SummonList` con `Vec<ObjectGuid>`, `summon`, `despawn_all`, `despawn_entry`, `is_any_alive` (M)
+- [x] **#AI.8a** Implementar base representada `SummonListLikeCpp` contrastada contra `ScriptedAI/ScriptedCreature.{h,cpp}`: almacenamiento GUID list-like con orden/duplicados, `Summon`, `Despawn`, `DespawnAll`, `DespawnEntry`, `RemoveNotExisting`, `HasEntry`, `DoZoneInCombat` y `DoAction` uncapped como planes de side effect resueltos por vista externa tipo `ObjectAccessor`. (M)
+- [ ] **#AI.8b** Integrar `SummonListLikeCpp` en `ScriptedAI`/`BossAI` runtime real: `JustSummoned`, `SummonedCreatureDespawn`, `JustDied -> DespawnAll`, aplicación real de `DespawnOrUnsummon`, `AI()->DoZoneInCombat`, `AI()->DoAction` y variante capped con `RandomResize`. (H)
 - [ ] **#AI.9** Implementar `struct PetAI` impl CreatureAI: estados `Stay/Follow/Attack/Passive/Aggressive/Defensive`, command dispatch, owner aggro inheritance, spell rotation pet bar (XL)
 - [ ] **#AI.10** Implementar `struct TotemAI` impl CreatureAI: lifespan, cd-based cast (M)
 - [ ] **#AI.11** Implementar `struct GuardAI` impl CreatureAI (extends CombatAI): asistencia entre guards en mismo zone (M)
@@ -492,7 +493,7 @@ Numerados para referencia desde `MIGRATION_ROADMAP.md`. Complejidad: **L** <1h, 
 - [ ] Test: `ThreatManager.get_top_threat()` retorna el unit con threat más alta tras varios `add_threat`
 - [x] Test: `EventMap.schedule_event(1, 5000ms)` → `update(5000)` → `execute_event()` retorna el evento.
 - [x] Test: `EventMap.set_phase(2)` filtra eventos con phase_mask sin bit 2.
-- [ ] Test: `SummonList.despawn_all()` despawn todos los GUIDs registrados
+- [x] Test: `SummonList.despawn_all()` drena FIFO, ignora GUIDs inexistentes y devuelve el plan de despawn para los summons existentes.
 - [ ] Test: `SmartScriptMgr.load_smart_ai_from_db(SmartScriptType::Creature)` parsea N filas válidas, descarta filas con event_type fuera de rango
 - [ ] Test: `SmartScript.process_event(SMART_EVENT_AGGRO)` dispara matching action en `JustEnteredCombat`
 - [ ] Test: `SmartScript.process_event(SMART_EVENT_HEALTH_PCT, 30, 50)` dispara cuando hp% entra a [30,50]
@@ -579,7 +580,7 @@ Numerados para referencia desde `MIGRATION_ROADMAP.md`. Complejidad: **L** <1h, 
 | `class ScriptedAI : CreatureAI` (helpers) | `struct ScriptedAIBase { events: EventMap, summons: SummonList }` + helper trait `ScriptedAIExt` | Composition; bosses concretos contienen ScriptedAIBase |
 | `class BossAI : ScriptedAI` | `struct BossAI { base: ScriptedAIBase, instance: Option<Arc<InstanceScript>> }` | — |
 | `EventMap` | `struct EventMap { events: BTreeMap<u32 deadline, EventEntry>, phase: u8 }` | BTreeMap for ordered by deadline |
-| `SummonList` | `struct SummonList(Vec<ObjectGuid>)` | Plain Vec |
+| `SummonList` | `struct SummonListLikeCpp { storage: VecDeque<ObjectGuid> }` | List-like storage; pure plans until ScriptedAI/ObjectAccessor runtime wiring |
 | `class SmartScript` | `struct SmartScript { events: Vec<SmartScriptHolder>, current_phase: u8, current_event_phase_mask: u32 }` | — |
 | `class SmartScriptMgr` (singleton) | `static SMART_SCRIPT_MGR: OnceLock<SmartScriptMgr>` | Carga inicial sync |
 | `enum SMART_EVENT_*` (~80) | `enum SmartEvent { UpdateIc, UpdateOoc, HealthPct{ min, max, cd_min, cd_max }, ... }` | Enum con datos asociados — más type-safe que C++ uint params |
@@ -604,11 +605,11 @@ Numerados para referencia desde `MIGRATION_ROADMAP.md`. Complejidad: **L** <1h, 
 
 **Scope.** Cross-checked C++ canonical sources at `/home/server/woltk-trinity-legacy/src/server/game/AI/` (`CreatureAI.{h,cpp}`, `CoreAI/UnitAI.{h,cpp}`, `CoreAI/CombatAI.{h,cpp}`, `CoreAI/PetAI.{h,cpp}`, `CoreAI/TotemAI.{h,cpp}`, `CoreAI/PassiveAI.{h,cpp}`, `CoreAI/GuardAI.{h,cpp}`, `CoreAI/ReactorAI.{h,cpp}`, `CoreAI/ScheduledChangeAI.{h,cpp}`, `ScriptedAI/ScriptedCreature.{h,cpp}`, `ScriptedAI/ScriptedEscortAI.{h,cpp}`, `ScriptedAI/ScriptedFollowerAI.{h,cpp}`, `SmartScripts/SmartAI.{h,cpp}` ~1.6k lines, `SmartScripts/SmartScript.{h,cpp}` ~4.4k, `SmartScripts/SmartScriptMgr.{h,cpp}` ~4.3k, `CreatureAISelector.{h,cpp}`) against the Rust workspace at `/home/server/rustycore/crates/`.
 
-**Empty-crate finding — partial.** `crates/wow-script/src/lib.rs` and `crates/wow-scripts/src/lib.rs` measure **0 lines each** (verified via `wc -l`). The crates are workspace members but ship no code. `crates/wow-ai/src/lib.rs` is **not** empty: 346 lines containing a single concrete `struct CreatureAI` (no trait) plus a `CreatureState` enum with `Idle / WalkingRandom / WalkingWaypoint / InCombat / Dead / Returning`. There is no `trait CreatureAI`, no `trait UnitAI`, no `Box<dyn ...>` handle, no `CreatureAISelector`, no `inventory::submit!` factory registry. The 16k+ lines of C++ AI/ subtree map to one concrete struct with one update method.
+**Empty-crate finding — partial.** `crates/wow-script/src/lib.rs` and `crates/wow-scripts/src/lib.rs` measure **0 lines each** (verified via `wc -l`). The crates are workspace members but ship no code. `crates/wow-ai/src/lib.rs` is **not** empty: ~1259 lines containing a single concrete `struct CreatureAI` (no trait), `CreatureState`, selector helpers, BossAI view and represented `SummonListLikeCpp` foundations. There is no `trait CreatureAI`, no `trait UnitAI`, no `Box<dyn ...>` handle, no `CreatureAISelector` runtime, no `inventory::submit!` factory registry. The 16k+ lines of C++ AI/ subtree still lack the runtime polymorphic AI stack.
 
 **SmartAI presence.** **None.** No `SmartAI`, no `SmartScript`, no `SmartScriptMgr`, no `SmartScriptHolder`, no `SmartTarget`, no `enum SmartEvent`, no `enum SmartAction`, no `process_event`, no `process_action`. The only trace of SmartScripts in the entire repo is a single SQL prepared-statement constant `SEL_SMART_SCRIPTS` in `crates/wow-database/src/statements/world.rs:15` (`SELECT ... FROM smart_scripts ORDER BY entryorguid, source_type, id, link`) that is **never executed by any consumer** — there is no loader code, no parser, no in-memory cache, no `mEventMap: HashMap<i64, Vec<SmartScriptHolder>>`. Since SmartAI is the data-driven engine that runs ~95% of the game's mob and boss content (~50k rows in the `smart_scripts` table — every boss's talk lines, phase transitions, ability rotations, summons, waypoint paths), the absence means **no creature in the game currently has any scripted behavior beyond random wandering and a flat-damage auto-attack**.
 
-**AI subclass coverage.** C++ ships at minimum the following concrete subclasses, all of which are **missing in Rust**: `NullCreatureAI`, `PassiveAI`, `PossessedAI`, `CritterAI`, `TriggerAI`, `CombatAI`, `AggressorAI`, `PetAI`, `TotemAI`, `GuardAI`, `ReactorAI`, `ScheduledChangeAI`, `ScriptedAI`, `BossAI`, `WorldBossAI`, `EscortAI`, `FollowerAI`, `SmartAI`. Rust has **one** struct masquerading as all of them. There is no `EventMap` (so no `ScheduleEvent`/`ExecuteEvent`/`SetPhase` for boss timer rotations), no `SummonList` (so summons cannot be tracked or cleaned up on `JustDied`), no `creature_text` loader (so no localized boss talk lines), no `waypoint_data`/`waypoint_path` loader (so no patrol/escort routes).
+**AI subclass coverage.** C++ ships at minimum the following concrete subclasses, all of which are **missing in Rust**: `NullCreatureAI`, `PassiveAI`, `PossessedAI`, `CritterAI`, `TriggerAI`, `CombatAI`, `AggressorAI`, `PetAI`, `TotemAI`, `GuardAI`, `ReactorAI`, `ScheduledChangeAI`, `ScriptedAI`, `BossAI`, `WorldBossAI`, `EscortAI`, `FollowerAI`, `SmartAI`. Rust has **one** struct masquerading as all of them. `EventMap` and `SummonListLikeCpp` now exist as represented foundations, but neither is wired into a real `ScriptedAI`/`BossAI` runtime; there is no `creature_text` loader (so no localized boss talk lines), no `waypoint_data`/`waypoint_path` loader (so no patrol/escort routes).
 
 **Hooks coverage.** C++ defines a wide hook surface — `Reset`, `JustEnteredCombat`, `JustEngagedWith`, `JustDied`, `KilledUnit`, `MoveInLineOfSight`, `TriggerAlert`, `EnterEvadeMode(EvadeReason)`, `SpellHit`, `SpellHitTarget`, `JustSummoned`, `IsSummonedBy`, `SummonedCreatureDies`, `JustReachedHome`, `ReceiveEmote`, `MovementInform`, `OnHealthDepleted`, `OnGameEvent`, `DoZoneInCombat`. **Rust dispatches none of these** — the existing struct only has `try_aggro`, `enter_combat`, `reset_combat`, `take_damage`, `die`, `respawn`, `should_wander` (each called inline from creature ticks). Because there is no hook surface, even when the missing engines (Combat/Spells/Movement) are filled in there is no place for them to call into the AI to inform it of `JustEnteredCombat` / `SpellHit` / `MovementInform` events.
 

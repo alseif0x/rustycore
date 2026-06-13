@@ -8,6 +8,7 @@
 //! Implements idle wandering, random movement, aggro detection, and
 //! basic melee combat for server-controlled creatures.
 
+use std::collections::VecDeque;
 use std::time::Instant;
 
 use wow_core::{ObjectGuid, Position};
@@ -266,6 +267,158 @@ pub fn creature_ai_uses_base_move_in_line_of_sight_like_cpp(
         | CreatureAiKindLikeCpp::CombatAI
         | CreatureAiKindLikeCpp::TurretAI
         | CreatureAiKindLikeCpp::SmartAI => true,
+    }
+}
+
+// ── ScriptedAI::SummonList ────────────────────────────────────────
+
+/// Already-resolved creature facts needed by represented `SummonList` helpers.
+///
+/// C++ `SummonList` stores only GUIDs and asks `ObjectAccessor::GetCreature`
+/// at the point where a side effect is needed. Rust callers provide that
+/// resolved view so this crate can preserve list semantics without pretending
+/// to own world creatures.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SummonListCreatureViewLikeCpp {
+    pub guid: ObjectGuid,
+    pub entry: u32,
+    pub ai_enabled: bool,
+}
+
+/// Side effect requested by `SummonList::DoActionImpl`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SummonListActionLikeCpp {
+    pub guid: ObjectGuid,
+    pub action: i32,
+}
+
+/// C++ `SummonList` storage and pure planning helpers.
+///
+/// `GuidList` is list-like: order is preserved, duplicate GUIDs are allowed,
+/// and `Despawn(Creature const*)` removes every matching GUID.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SummonListLikeCpp {
+    storage: VecDeque<ObjectGuid>,
+}
+
+impl SummonListLikeCpp {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn empty_like_cpp(&self) -> bool {
+        self.storage.is_empty()
+    }
+
+    pub fn size_like_cpp(&self) -> usize {
+        self.storage.len()
+    }
+
+    pub fn clear_like_cpp(&mut self) {
+        self.storage.clear();
+    }
+
+    pub fn iter_like_cpp(&self) -> impl Iterator<Item = ObjectGuid> + '_ {
+        self.storage.iter().copied()
+    }
+
+    pub fn summon_like_cpp(&mut self, summon_guid: ObjectGuid) {
+        self.storage.push_back(summon_guid);
+    }
+
+    pub fn despawn_like_cpp(&mut self, summon_guid: ObjectGuid) {
+        self.storage.retain(|guid| *guid != summon_guid);
+    }
+
+    pub fn despawn_all_like_cpp<F>(&mut self, mut resolve: F) -> Vec<ObjectGuid>
+    where
+        F: FnMut(ObjectGuid) -> Option<SummonListCreatureViewLikeCpp>,
+    {
+        let mut despawn_plan = Vec::new();
+
+        while let Some(guid) = self.storage.pop_front() {
+            if resolve(guid).is_some() {
+                despawn_plan.push(guid);
+            }
+        }
+
+        despawn_plan
+    }
+
+    pub fn despawn_entry_like_cpp<F>(&mut self, entry: u32, mut resolve: F) -> Vec<ObjectGuid>
+    where
+        F: FnMut(ObjectGuid) -> Option<SummonListCreatureViewLikeCpp>,
+    {
+        let mut despawn_plan = Vec::new();
+        let mut kept = VecDeque::with_capacity(self.storage.len());
+
+        while let Some(guid) = self.storage.pop_front() {
+            match resolve(guid) {
+                None => {}
+                Some(creature) if creature.entry == entry => despawn_plan.push(guid),
+                Some(_) => kept.push_back(guid),
+            }
+        }
+
+        self.storage = kept;
+        despawn_plan
+    }
+
+    pub fn remove_not_existing_like_cpp<F>(&mut self, mut resolve: F)
+    where
+        F: FnMut(ObjectGuid) -> Option<SummonListCreatureViewLikeCpp>,
+    {
+        self.storage.retain(|guid| resolve(*guid).is_some());
+    }
+
+    pub fn has_entry_like_cpp<F>(&self, entry: u32, mut resolve: F) -> bool
+    where
+        F: FnMut(ObjectGuid) -> Option<SummonListCreatureViewLikeCpp>,
+    {
+        self.storage
+            .iter()
+            .copied()
+            .any(|guid| resolve(guid).is_some_and(|creature| creature.entry == entry))
+    }
+
+    pub fn do_zone_in_combat_like_cpp<F>(&self, entry: u32, mut resolve: F) -> Vec<ObjectGuid>
+    where
+        F: FnMut(ObjectGuid) -> Option<SummonListCreatureViewLikeCpp>,
+    {
+        self.storage
+            .iter()
+            .copied()
+            .filter(|guid| {
+                resolve(*guid).is_some_and(|creature| {
+                    creature.ai_enabled && (entry == 0 || creature.entry == entry)
+                })
+            })
+            .collect()
+    }
+
+    pub fn do_action_like_cpp<F, P>(
+        &self,
+        action: i32,
+        mut predicate: P,
+        mut resolve: F,
+    ) -> Vec<SummonListActionLikeCpp>
+    where
+        F: FnMut(ObjectGuid) -> Option<SummonListCreatureViewLikeCpp>,
+        P: FnMut(ObjectGuid) -> bool,
+    {
+        // This represents the uncapped C++ path (`max == 0`). The capped path
+        // calls `Trinity::Containers::RandomResize` and belongs with the random
+        // container helpers before runtime ScriptedAI wires `DoAction`.
+        self.storage
+            .iter()
+            .copied()
+            .filter(|guid| predicate(*guid))
+            .filter_map(|guid| {
+                resolve(guid)
+                    .filter(|creature| creature.ai_enabled)
+                    .map(|_| SummonListActionLikeCpp { guid, action })
+            })
+            .collect()
     }
 }
 
@@ -644,6 +797,7 @@ fn position_dist(a: &Position, b: &Position) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
     use wow_instances::BossAiLikeCpp;
 
     fn selector_input() -> CreatureAiSelectionInputLikeCpp {
@@ -927,5 +1081,179 @@ mod tests {
         let creature = creature_with_boss_id(Some(7));
 
         assert_eq!(creature.boss_ai_like_cpp().unwrap().boss_id(), 7);
+    }
+
+    fn guid(low: i64) -> ObjectGuid {
+        ObjectGuid::new(0, low)
+    }
+
+    fn creature_view(
+        guid: ObjectGuid,
+        entry: u32,
+        ai_enabled: bool,
+    ) -> SummonListCreatureViewLikeCpp {
+        SummonListCreatureViewLikeCpp {
+            guid,
+            entry,
+            ai_enabled,
+        }
+    }
+
+    fn resolve_from(
+        creatures: &HashMap<ObjectGuid, SummonListCreatureViewLikeCpp>,
+        guid: ObjectGuid,
+    ) -> Option<SummonListCreatureViewLikeCpp> {
+        creatures.get(&guid).copied()
+    }
+
+    #[test]
+    fn summon_list_preserves_order_and_removes_all_matching_guids_like_cpp() {
+        let mut summons = SummonListLikeCpp::new();
+        let a = guid(1);
+        let b = guid(2);
+
+        summons.summon_like_cpp(a);
+        summons.summon_like_cpp(b);
+        summons.summon_like_cpp(a);
+
+        assert_eq!(summons.iter_like_cpp().collect::<Vec<_>>(), vec![a, b, a]);
+        assert_eq!(summons.size_like_cpp(), 3);
+
+        summons.despawn_like_cpp(a);
+
+        assert_eq!(summons.iter_like_cpp().collect::<Vec<_>>(), vec![b]);
+    }
+
+    #[test]
+    fn summon_list_despawn_all_drains_fifo_and_ignores_missing_like_cpp() {
+        let mut summons = SummonListLikeCpp::new();
+        let a = guid(10);
+        let missing = guid(11);
+        let b = guid(12);
+        let creatures = HashMap::from([
+            (a, creature_view(a, 100, true)),
+            (b, creature_view(b, 200, true)),
+        ]);
+
+        summons.summon_like_cpp(a);
+        summons.summon_like_cpp(missing);
+        summons.summon_like_cpp(b);
+
+        let plan = summons.despawn_all_like_cpp(|guid| resolve_from(&creatures, guid));
+
+        assert_eq!(plan, vec![a, b]);
+        assert!(summons.empty_like_cpp());
+    }
+
+    #[test]
+    fn summon_list_despawn_entry_erases_missing_and_matching_entry_like_cpp() {
+        let mut summons = SummonListLikeCpp::new();
+        let first_match = guid(20);
+        let kept = guid(21);
+        let missing = guid(22);
+        let second_match = guid(23);
+        let creatures = HashMap::from([
+            (first_match, creature_view(first_match, 777, true)),
+            (kept, creature_view(kept, 888, true)),
+            (second_match, creature_view(second_match, 777, true)),
+        ]);
+
+        for guid in [first_match, kept, missing, second_match] {
+            summons.summon_like_cpp(guid);
+        }
+
+        let plan = summons.despawn_entry_like_cpp(777, |guid| resolve_from(&creatures, guid));
+
+        assert_eq!(plan, vec![first_match, second_match]);
+        assert_eq!(summons.iter_like_cpp().collect::<Vec<_>>(), vec![kept]);
+    }
+
+    #[test]
+    fn summon_list_remove_not_existing_and_has_entry_use_object_accessor_view_like_cpp() {
+        let mut summons = SummonListLikeCpp::new();
+        let missing = guid(30);
+        let wrong_entry = guid(31);
+        let wanted = guid(32);
+        let creatures = HashMap::from([
+            (wrong_entry, creature_view(wrong_entry, 1, true)),
+            (wanted, creature_view(wanted, 2, true)),
+        ]);
+
+        for guid in [missing, wrong_entry, wanted] {
+            summons.summon_like_cpp(guid);
+        }
+
+        assert!(summons.has_entry_like_cpp(2, |guid| resolve_from(&creatures, guid)));
+        assert!(!summons.has_entry_like_cpp(3, |guid| resolve_from(&creatures, guid)));
+
+        summons.remove_not_existing_like_cpp(|guid| resolve_from(&creatures, guid));
+
+        assert_eq!(
+            summons.iter_like_cpp().collect::<Vec<_>>(),
+            vec![wrong_entry, wanted]
+        );
+    }
+
+    #[test]
+    fn summon_list_do_zone_in_combat_filters_ai_and_optional_entry_like_cpp() {
+        let mut summons = SummonListLikeCpp::new();
+        let ai_match = guid(40);
+        let no_ai = guid(41);
+        let ai_other_entry = guid(42);
+        let missing = guid(43);
+        let creatures = HashMap::from([
+            (ai_match, creature_view(ai_match, 9, true)),
+            (no_ai, creature_view(no_ai, 9, false)),
+            (ai_other_entry, creature_view(ai_other_entry, 10, true)),
+        ]);
+
+        for guid in [ai_match, no_ai, ai_other_entry, missing] {
+            summons.summon_like_cpp(guid);
+        }
+
+        assert_eq!(
+            summons.do_zone_in_combat_like_cpp(9, |guid| resolve_from(&creatures, guid)),
+            vec![ai_match]
+        );
+        assert_eq!(
+            summons.do_zone_in_combat_like_cpp(0, |guid| resolve_from(&creatures, guid)),
+            vec![ai_match, ai_other_entry]
+        );
+        assert_eq!(
+            summons.iter_like_cpp().collect::<Vec<_>>(),
+            vec![ai_match, no_ai, ai_other_entry, missing],
+            "C++ DoZoneInCombat does not prune missing GUIDs"
+        );
+    }
+
+    #[test]
+    fn summon_list_do_action_uncapped_copies_then_resolves_ai_like_cpp() {
+        let mut summons = SummonListLikeCpp::new();
+        let selected_ai = guid(50);
+        let selected_no_ai = guid(51);
+        let not_selected = guid(52);
+        let creatures = HashMap::from([
+            (selected_ai, creature_view(selected_ai, 1, true)),
+            (selected_no_ai, creature_view(selected_no_ai, 1, false)),
+            (not_selected, creature_view(not_selected, 2, true)),
+        ]);
+
+        for guid in [selected_ai, selected_no_ai, not_selected] {
+            summons.summon_like_cpp(guid);
+        }
+
+        let actions = summons.do_action_like_cpp(
+            42,
+            |guid| guid != not_selected,
+            |guid| resolve_from(&creatures, guid),
+        );
+
+        assert_eq!(
+            actions,
+            vec![SummonListActionLikeCpp {
+                guid: selected_ai,
+                action: 42,
+            }]
+        );
     }
 }
