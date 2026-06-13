@@ -6108,6 +6108,7 @@ impl WorldSession {
             return false;
         };
         let represented_fully_looted = loot_is_looted_like_cpp(loot);
+        let represented_loot_type = loot.loot_type;
         let fully_looted = if owner_guid.is_game_object() {
             self.canonical_gameobject_fully_looted_after_represented_sync_like_cpp(
                 owner_guid,
@@ -6201,14 +6202,16 @@ impl WorldSession {
         let marked = self
             .mutate_world_creature(owner_guid, |creature| {
                 if !creature.is_alive() && creature.corpse_despawn_at().is_none() {
+                    let is_fully_skinned = represented_loot_type == LOOT_TYPE_SKINNING_LIKE_CPP;
                     let corpse_decay_secs = looted_corpse_decay_secs_like_cpp(
+                        is_fully_skinned,
                         creature.corpse_delay_secs_like_cpp(),
                         creature.ignore_corpse_decay_ratio_like_cpp(),
                         corpse_decay_looted_rate,
                     );
-                    creature.set_corpse_despawn_at(Some(
-                        Instant::now() + Duration::from_secs(u64::from(corpse_decay_secs)),
-                    ));
+                    let corpse_despawn_at =
+                        Instant::now() + Duration::from_secs(u64::from(corpse_decay_secs));
+                    creature.set_corpse_despawn_at(Some(corpse_despawn_at));
                     Some((creature.entry(), corpse_decay_secs))
                 } else {
                     None
@@ -7247,10 +7250,15 @@ fn represented_loot_response_items_like_cpp(
 }
 
 fn looted_corpse_decay_secs_like_cpp(
+    is_fully_skinned: bool,
     corpse_delay_secs: u32,
     ignore_decay_ratio: bool,
     corpse_decay_looted_rate: f32,
 ) -> u32 {
+    if is_fully_skinned {
+        return 0;
+    }
+
     let rate = if ignore_decay_ratio {
         1.0
     } else {
@@ -15385,9 +15393,72 @@ mod tests {
 
     #[test]
     fn looted_corpse_decay_uses_cpp_rate_and_ignore_flag() {
-        assert_eq!(looted_corpse_decay_secs_like_cpp(120, false, 0.5), 60);
-        assert_eq!(looted_corpse_decay_secs_like_cpp(120, true, 0.5), 120);
-        assert_eq!(looted_corpse_decay_secs_like_cpp(120, false, -1.0), 0);
+        assert_eq!(
+            looted_corpse_decay_secs_like_cpp(false, 120, false, 0.5),
+            60
+        );
+        assert_eq!(
+            looted_corpse_decay_secs_like_cpp(false, 120, true, 0.5),
+            120
+        );
+        assert_eq!(
+            looted_corpse_decay_secs_like_cpp(false, 120, false, -1.0),
+            0
+        );
+        assert_eq!(looted_corpse_decay_secs_like_cpp(true, 120, false, 0.5), 0);
+    }
+
+    #[tokio::test]
+    async fn creature_skinning_loot_release_despawns_corpse_immediately_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let loot_guid = test_creature_guid(19_115);
+        let creature = make_canonical_creature_for_session(&session, loot_guid);
+        attach_canonical_creature(&mut session, creature);
+        session.set_player_guid(Some(player_guid));
+        session.set_active_loot_guid(loot_guid);
+        session.set_loot_drop_rates_like_cpp(LootDropRatesLikeCpp {
+            corpse_decay_looted: 0.5,
+            ..LootDropRatesLikeCpp::default()
+        });
+        register_test_creature_like_cpp(&mut session, test_creature(loot_guid, false));
+        let _ = session.mutate_world_creature(loot_guid, |creature| {
+            creature.creature.set_corpse_delay(120, false);
+        });
+        session.loot_table.insert(
+            loot_guid,
+            CreatureLoot {
+                loot_guid,
+                coins: 0,
+                unlooted_count: 0,
+                loot_type: LOOT_TYPE_SKINNING_LIKE_CPP,
+                dungeon_encounter_id: 0,
+                loot_method: 0,
+                loot_master: ObjectGuid::EMPTY,
+                round_robin_player: ObjectGuid::EMPTY,
+                player_ffa_items: Vec::new(),
+                players_looting: vec![player_guid],
+                allowed_looters: Vec::new(),
+                items: Vec::new(),
+                looted_by_player: false,
+            },
+        );
+
+        session
+            .handle_loot_release(loot_release_packet(loot_guid))
+            .await;
+
+        assert!(send_rx.try_recv().is_ok());
+        let corpse_despawn_at = session
+            .mutate_world_creature(loot_guid, |creature| creature.corpse_despawn_at())
+            .unwrap()
+            .expect("skinned corpse should start decay timer");
+        let remaining = corpse_despawn_at.saturating_duration_since(Instant::now());
+        assert_eq!(
+            remaining.as_secs(),
+            0,
+            "C++ sets m_corpseRemoveTime = now for fully looted LOOT_SKINNING; got {remaining:?}"
+        );
     }
 
     #[tokio::test]
