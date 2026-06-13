@@ -10,7 +10,9 @@
 use tracing::{debug, info, warn};
 use wow_constants::{ClientOpcodes, InventoryResult, ItemExtendedCostFlags, SpellCastResult};
 use wow_core::GameTime;
-use wow_database::{SqlTransaction, WorldStatements};
+use wow_database::{
+    CharStatements, PreparedStatement, SqlTransaction, StatementDef, WorldStatements,
+};
 use wow_entities::{
     GAMEOBJECT_TYPE_BARBER_CHAIR, GAMEOBJECT_TYPE_BUTTON, GAMEOBJECT_TYPE_CAMERA,
     GAMEOBJECT_TYPE_CAPTURE_POINT, GAMEOBJECT_TYPE_CHAIR, GAMEOBJECT_TYPE_DOOR,
@@ -44,7 +46,7 @@ use wow_packet::packets::loot::{LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHI
 use wow_packet::packets::misc::{
     AddToy, AddonList, ArenaTeamRoster, BattlePetClearFanfare, BattlePetDeletePet,
     BattlePetModifyName, BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags,
-    BattlePetSummon, BattlePetUpdateNotify, CageBattlePet, CalendarSendCalendar,
+    BattlePetSummon, BattlePetUpdateNotify, BugReport, CageBattlePet, CalendarSendCalendar,
     CalendarSendNumPending, CloseInteraction, CommerceTokenGetLog, CommerceTokenGetLogResponse,
     DfGetJoinStatus, DfGetSystemInfo, FarSight, GmTicketCaseStatus, GuildSetAchievementTracking,
     LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify, MountSetFavorite,
@@ -685,6 +687,15 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
+        opcode: ClientOpcodes::BugReport,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_bug_report",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
         opcode: ClientOpcodes::GuildBankRemainingWithdrawMoneyQuery,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
@@ -1105,6 +1116,15 @@ pub(crate) fn item_purchase_contents_from_extended_cost(
     }
 
     contents
+}
+
+pub fn bug_report_insert_statement_like_cpp(report: &BugReport) -> PreparedStatement {
+    let mut stmt = PreparedStatement::new(CharStatements::INS_BUG_REPORT.sql());
+    // C++ parses `Type` but binds Text and DiagInfo to the `(type, content)`
+    // SQL columns in that order.
+    stmt.set_string(0, report.text.clone());
+    stmt.set_string(1, report.diag_info.clone());
+    stmt
 }
 
 impl crate::session::WorldSession {
@@ -2199,6 +2219,31 @@ impl crate::session::WorldSession {
         // C++ `HandleGMTicketGetCaseStatusOpcode` is still a TODO and sends a
         // default `GMTicketCaseStatus`, i.e. an empty case list.
         self.send_packet(&GmTicketCaseStatus::empty());
+    }
+    pub async fn handle_bug_report(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let report = match BugReport::read(&mut pkt) {
+            Ok(report) => report,
+            Err(error) => {
+                warn!(account = self.account_id, "BugReport parse failed: {error}");
+                return;
+            }
+        };
+
+        if !self.represented_support_bugs_enabled_like_cpp() {
+            return;
+        }
+
+        let Some(char_db) = self.char_db().map(std::sync::Arc::clone) else {
+            return;
+        };
+        let stmt = bug_report_insert_statement_like_cpp(&report);
+        if let Err(error) = char_db.execute(&stmt).await {
+            warn!(
+                account = self.account_id,
+                error = ?error,
+                "failed to persist represented CMSG_BUG_REPORT"
+            );
+        }
     }
     pub async fn handle_guild_bank_remaining_withdraw_money_query(
         &mut self,
@@ -3382,6 +3427,7 @@ mod tests {
         ItemRecord, ItemSearchNameEntry, ItemSearchNameStore, ItemSparseTemplateEntry,
         ItemStatsStore, ItemStore, MapDifficultyEntry, MapDifficultyStore, MapEntry, MapStore,
     };
+    use wow_database::SqlParam;
     use wow_packet::ServerPacket;
     use wow_packet::WorldPacket;
     use wow_packet::packets::misc::empty_battle_pet_guid_like_cpp;
@@ -3447,6 +3493,18 @@ mod tests {
             ),
             send_rx,
         )
+    }
+
+    fn bug_report_packet(report_type: bool, diag_info: &str, text: &str) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(report_type);
+        pkt.write_bits(diag_info.len() as u32, 12);
+        pkt.write_bits(text.len() as u32, 10);
+        pkt.flush_bits();
+        pkt.write_string(diag_info);
+        pkt.write_string(text);
+        pkt.reset_read();
+        pkt
     }
 
     #[tokio::test]
@@ -5949,6 +6007,48 @@ mod tests {
 
         let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
         assert_eq!(pkt.read_uint32().unwrap(), 0);
+    }
+
+    #[tokio::test]
+    async fn bug_report_is_silent_when_bug_support_disabled_like_cpp_default() {
+        let (mut session, send_rx) = make_session();
+        session
+            .handle_bug_report(bug_report_packet(true, "diag", "bug"))
+            .await;
+
+        assert!(!session.represented_support_bugs_enabled_like_cpp());
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn bug_report_statement_binds_text_then_diag_info_like_cpp() {
+        let report = BugReport {
+            report_type: 1,
+            text: "client bug".to_string(),
+            diag_info: "diag blob".to_string(),
+        };
+
+        let stmt = bug_report_insert_statement_like_cpp(&report);
+        assert_eq!(stmt.sql(), CharStatements::INS_BUG_REPORT.sql());
+        assert_eq!(
+            stmt.params(),
+            &[
+                SqlParam::String("client bug".to_string()),
+                SqlParam::String("diag blob".to_string())
+            ]
+        );
+    }
+
+    #[test]
+    fn bug_report_handler_metadata_matches_cpp() {
+        let entry = inventory::iter::<PacketHandlerEntry>
+            .into_iter()
+            .find(|entry| entry.opcode == ClientOpcodes::BugReport)
+            .expect("BugReport handler entry");
+
+        assert_eq!(entry.status, SessionStatus::LoggedIn);
+        assert_eq!(entry.processing, PacketProcessing::ThreadUnsafe);
+        assert_eq!(entry.handler_name, "handle_bug_report");
     }
 
     #[tokio::test]

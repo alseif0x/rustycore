@@ -33,6 +33,33 @@ impl ClientPacket for FarSight {
     }
 }
 
+// ── BugReport (CMSG 0x3687) ───────────────────────────────────────
+
+/// C++ `WorldPackets::Ticket::BugReport`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BugReport {
+    pub report_type: u32,
+    pub text: String,
+    pub diag_info: String,
+}
+
+impl ClientPacket for BugReport {
+    const OPCODE: ClientOpcodes = ClientOpcodes::BugReport;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let report_type = u32::from(pkt.read_bit()?);
+        let diag_len = pkt.read_bits(12)? as usize;
+        let text_len = pkt.read_bits(10)? as usize;
+        let diag_info = pkt.read_string(diag_len)?;
+        let text = pkt.read_string(text_len)?;
+        Ok(Self {
+            report_type,
+            text,
+            diag_info,
+        })
+    }
+}
+
 /// C++ `WorldPackets::Misc::SetTaxiBenchmarkMode`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SetTaxiBenchmarkMode {
@@ -6643,6 +6670,24 @@ mod tests {
             let far_sight = FarSight::read(&mut pkt).unwrap();
             assert_eq!(far_sight.enable, enable);
         }
+    }
+
+    #[test]
+    fn bug_report_reads_type_diag_and_text_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(true);
+        pkt.write_bits(4, 12);
+        pkt.write_bits(3, 10);
+        pkt.flush_bits();
+        pkt.write_string("diag");
+        pkt.write_string("bug");
+        pkt.reset_read();
+
+        let report = BugReport::read(&mut pkt).unwrap();
+        assert_eq!(report.report_type, 1);
+        assert_eq!(report.diag_info, "diag");
+        assert_eq!(report.text, "bug");
+        assert_eq!(pkt.remaining(), 0);
     }
 }
 

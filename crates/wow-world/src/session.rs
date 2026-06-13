@@ -51,6 +51,7 @@ use wow_constants::{
     ItemSubClassArmor, ItemSubClassWeapon, SellResult, SpellCastResult, TypeId, UnitState,
 };
 use wow_core::{ObjectGuid, ObjectGuidGenerator, Position, guid::HighGuid};
+use wow_data::character_progression::{ChrClassesStore, ChrRacesStore};
 use wow_data::{
     AreaTableStore, AreaTriggerStore, BattlePetBreedQualityStore, BattlePetBreedStateStore,
     BattlePetSpeciesStateStore, BattlePetSpeciesStore, BattlePetXpGameTableLikeCpp,
@@ -3094,6 +3095,8 @@ pub struct WorldSession {
     spell_radius_store: Option<Arc<SpellRadiusStore>>,
     spell_range_store: Option<Arc<SpellRangeStore>>,
     spell_target_position_store: Option<Arc<SpellTargetPositionStoreLikeCpp>>,
+    chr_classes_store: Option<Arc<ChrClassesStore>>,
+    chr_races_store: Option<Arc<ChrRacesStore>>,
     cinematic_sequences_store: Option<Arc<CinematicSequencesStore>>,
     movie_store: Option<Arc<MovieStore>>,
     represented_cinematic_like_cpp: Option<u32>,
@@ -3103,6 +3106,7 @@ pub struct WorldSession {
     represented_cinematic_end_events_like_cpp: Vec<u32>,
     represented_movie_like_cpp: Option<u32>,
     represented_movie_complete_events_like_cpp: Vec<u32>,
+    represented_support_bugs_enabled_like_cpp: bool,
     gameobject_template_lifecycle_store: Option<Arc<GameObjectTemplateLifecycleStoreLikeCpp>>,
     /// Currently active spell cast (if any). Set when a cast starts, cleared when it completes.
     pub(crate) active_spell_cast: Option<SpellCastState>,
@@ -4126,6 +4130,8 @@ impl WorldSession {
             spell_radius_store: None,
             spell_range_store: None,
             spell_target_position_store: None,
+            chr_classes_store: None,
+            chr_races_store: None,
             cinematic_sequences_store: None,
             movie_store: None,
             represented_cinematic_like_cpp: None,
@@ -4135,6 +4141,7 @@ impl WorldSession {
             represented_cinematic_end_events_like_cpp: Vec::new(),
             represented_movie_like_cpp: None,
             represented_movie_complete_events_like_cpp: Vec::new(),
+            represented_support_bugs_enabled_like_cpp: false,
             gameobject_template_lifecycle_store: None,
             quest_store: None,
             quest_pool_store: None,
@@ -11154,6 +11161,7 @@ impl WorldSession {
             | ClientOpcodes::QuestGiverRequestReward
             | ClientOpcodes::CompleteCinematic
             | ClientOpcodes::NextCinematicCamera
+            | ClientOpcodes::OpeningCinematic
             | ClientOpcodes::BankerActivate
             | ClientOpcodes::BuyBankSlot
             | ClientOpcodes::OptOutOfLoot
@@ -13684,8 +13692,52 @@ impl WorldSession {
         self.movie_store = Some(store);
     }
 
+    pub fn set_chr_classes_store(&mut self, store: Arc<ChrClassesStore>) {
+        self.chr_classes_store = Some(store);
+    }
+
+    pub fn set_chr_races_store(&mut self, store: Arc<ChrRacesStore>) {
+        self.chr_races_store = Some(store);
+    }
+
     pub fn set_cinematic_sequences_store(&mut self, store: Arc<CinematicSequencesStore>) {
         self.cinematic_sequences_store = Some(store);
+    }
+
+    pub(crate) fn send_represented_cinematic_start_like_cpp(&mut self, cinematic_id: u32) {
+        self.send_packet(&wow_packet::packets::misc::TriggerCinematic {
+            cinematic_id,
+            conversation_guid: ObjectGuid::EMPTY,
+        });
+        if let Some(sequence) = self
+            .cinematic_sequences_store
+            .as_ref()
+            .and_then(|store| store.get(cinematic_id))
+        {
+            self.represented_cinematic_like_cpp = Some(cinematic_id);
+            self.represented_cinematic_camera_ids_like_cpp = Some(sequence.camera);
+            self.represented_cinematic_camera_index_like_cpp = -1;
+        }
+    }
+
+    pub(crate) fn opening_cinematic_like_cpp(&mut self) -> Option<u32> {
+        if self.player_xp_like_cpp() != 0 {
+            return None;
+        }
+
+        let class_store = self.chr_classes_store.as_ref()?;
+        let class_entry = class_store.get(u32::from(self.player_class_like_cpp()))?;
+        let cinematic_id = if class_entry.cinematic_sequence_id != 0 {
+            u32::from(class_entry.cinematic_sequence_id)
+        } else {
+            let race_store = self.chr_races_store.as_ref()?;
+            race_store
+                .get(u32::from(self.player_race_like_cpp()))
+                .map(|race_entry| race_entry.cinematic_sequence_id as u32)?
+        };
+
+        self.send_represented_cinematic_start_like_cpp(cinematic_id);
+        Some(cinematic_id)
     }
 
     pub(crate) fn complete_represented_cinematic_like_cpp(&mut self) {
@@ -13773,6 +13825,10 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn represented_movie_complete_events_like_cpp(&self) -> &[u32] {
         &self.represented_movie_complete_events_like_cpp
+    }
+
+    pub(crate) fn represented_support_bugs_enabled_like_cpp(&self) -> bool {
+        self.represented_support_bugs_enabled_like_cpp
     }
 
     pub(crate) fn spell_range_store(&self) -> Option<&Arc<SpellRangeStore>> {
@@ -18254,6 +18310,9 @@ impl WorldSession {
             ClientOpcodes::GmTicketGetCaseStatus => {
                 self.handle_gm_ticket_get_case_status(pkt).await;
             }
+            ClientOpcodes::BugReport => {
+                self.handle_bug_report(pkt).await;
+            }
             ClientOpcodes::GuildBankRemainingWithdrawMoneyQuery => {
                 self.handle_guild_bank_remaining_withdraw_money_query(pkt)
                     .await;
@@ -18314,6 +18373,9 @@ impl WorldSession {
             }
             ClientOpcodes::NextCinematicCamera => {
                 self.handle_next_cinematic_camera(pkt).await;
+            }
+            ClientOpcodes::OpeningCinematic => {
+                self.handle_opening_cinematic(pkt).await;
             }
             ClientOpcodes::CompleteMovie => {
                 self.handle_complete_movie(pkt).await;
@@ -24723,19 +24785,7 @@ impl WorldSession {
         source: wow_entities::CameraUseSource,
     ) -> bool {
         if source.cinematic_id != 0 {
-            self.send_packet(&wow_packet::packets::misc::TriggerCinematic {
-                cinematic_id: source.cinematic_id,
-                conversation_guid: ObjectGuid::EMPTY,
-            });
-            if let Some(sequence) = self
-                .cinematic_sequences_store
-                .as_ref()
-                .and_then(|store| store.get(source.cinematic_id))
-            {
-                self.represented_cinematic_like_cpp = Some(source.cinematic_id);
-                self.represented_cinematic_camera_ids_like_cpp = Some(sequence.camera);
-                self.represented_cinematic_camera_index_like_cpp = -1;
-            }
+            self.send_represented_cinematic_start_like_cpp(source.cinematic_id);
             self.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::TriggerCinematic {
                     gameobject_guid,
@@ -58030,6 +58080,7 @@ mod tests {
             ClientOpcodes::QuestGiverRequestReward,
             ClientOpcodes::CompleteCinematic,
             ClientOpcodes::NextCinematicCamera,
+            ClientOpcodes::OpeningCinematic,
             ClientOpcodes::BankerActivate,
             ClientOpcodes::BuyBankSlot,
             ClientOpcodes::OptOutOfLoot,
