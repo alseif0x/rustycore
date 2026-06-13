@@ -22,6 +22,7 @@ use std::sync::{
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result, bail};
+use tokio::sync::Notify;
 use tracing::{debug, info, warn};
 use wow_config::{DatabaseInfo, LoadReport, WorldConfigSet};
 use wow_core::{ObjectGuid, ObjectGuidGenerator, guid::HighGuid};
@@ -87,6 +88,7 @@ const SHUTDOWN_EXIT_CODE_LIKE_CPP: i32 = 0;
 const ERROR_EXIT_CODE_LIKE_CPP: i32 = 1;
 const RESTART_EXIT_CODE_LIKE_CPP: i32 = 2;
 const WORLD_SESSION_SHUTDOWN_FLUSH_TIMEOUT_LIKE_CPP: Duration = Duration::from_millis(500);
+const WORLD_SESSION_SHUTDOWN_DRAIN_TIMEOUT_LIKE_CPP: Duration = Duration::from_millis(500);
 
 #[derive(Debug)]
 struct WorldRuntimeStateLikeCpp {
@@ -149,6 +151,7 @@ struct ActiveWorldSessionLikeCpp {
 struct ActiveWorldSessionRegistryLikeCpp {
     next_id: AtomicU64,
     sessions: Mutex<BTreeMap<u64, ActiveWorldSessionLikeCpp>>,
+    session_removed: Notify,
 }
 
 impl ActiveWorldSessionRegistryLikeCpp {
@@ -180,7 +183,12 @@ impl ActiveWorldSessionRegistryLikeCpp {
             .sessions
             .lock()
             .expect("active world session registry lock poisoned");
-        sessions.remove(&id)
+        let removed = sessions.remove(&id);
+        drop(sessions);
+        if removed.is_some() {
+            self.session_removed.notify_waiters();
+        }
+        removed
     }
 
     fn snapshot_like_cpp(&self) -> Vec<(u64, ActiveWorldSessionLikeCpp)> {
@@ -194,12 +202,37 @@ impl ActiveWorldSessionRegistryLikeCpp {
             .collect()
     }
 
-    #[cfg(test)]
-    fn len(&self) -> usize {
+    fn len_like_cpp(&self) -> usize {
         self.sessions
             .lock()
             .expect("active world session registry lock poisoned")
             .len()
+    }
+
+    fn is_empty_like_cpp(&self) -> bool {
+        self.len_like_cpp() == 0
+    }
+
+    async fn wait_until_empty_like_cpp(&self, wait_timeout: Duration) -> bool {
+        if self.is_empty_like_cpp() {
+            return true;
+        }
+
+        tokio::time::timeout(wait_timeout, async {
+            loop {
+                self.session_removed.notified().await;
+                if self.is_empty_like_cpp() {
+                    break;
+                }
+            }
+        })
+        .await
+        .is_ok()
+    }
+
+    #[cfg(test)]
+    fn len(&self) -> usize {
+        self.len_like_cpp()
     }
 }
 
@@ -2782,6 +2815,14 @@ async fn main() -> Result<ExitCode> {
         ack_timeout = flush_summary.ack_timeout,
         disconnecting = flush_summary.disconnecting,
         "Ran World::UpdateSessions(1)-style shutdown flush"
+    );
+    let sessions_drained = active_session_registry
+        .wait_until_empty_like_cpp(WORLD_SESSION_SHUTDOWN_DRAIN_TIMEOUT_LIKE_CPP)
+        .await;
+    info!(
+        drained = sessions_drained,
+        remaining = active_session_registry.len_like_cpp(),
+        "Waited for task-owned sessions to unregister after shutdown flush"
     );
 
     game_event_quest_complete_handle.abort();
@@ -9764,6 +9805,52 @@ mod tests {
         );
         assert_eq!(registry.len(), 0);
         assert!(registry.unregister(id).is_none());
+    }
+
+    #[tokio::test]
+    async fn active_world_session_registry_wait_empty_returns_immediately_like_cpp() {
+        let registry = ActiveWorldSessionRegistryLikeCpp::new();
+
+        assert!(
+            registry
+                .wait_until_empty_like_cpp(Duration::from_millis(1))
+                .await
+        );
+    }
+
+    #[tokio::test]
+    async fn active_world_session_registry_wait_empty_observes_unregister_like_cpp() {
+        let registry = Arc::new(ActiveWorldSessionRegistryLikeCpp::new());
+        let (command_tx, _command_rx) = flume::bounded(1);
+        let id = registry.register(41, command_tx);
+        let unregister_registry = Arc::clone(&registry);
+
+        let unregister_task = tokio::spawn(async move {
+            unregister_registry.unregister(id);
+        });
+
+        assert!(
+            registry
+                .wait_until_empty_like_cpp(Duration::from_secs(1))
+                .await
+        );
+        unregister_task.await.expect("unregister task joined");
+        assert_eq!(registry.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn active_world_session_registry_wait_empty_times_out_like_cpp() {
+        let registry = ActiveWorldSessionRegistryLikeCpp::new();
+        let (command_tx, _command_rx) = flume::bounded(1);
+
+        registry.register(42, command_tx);
+
+        assert!(
+            !registry
+                .wait_until_empty_like_cpp(Duration::from_millis(1))
+                .await
+        );
+        assert_eq!(registry.len(), 1);
     }
 
     #[tokio::test]
