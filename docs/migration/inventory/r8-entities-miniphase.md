@@ -1,3 +1,13 @@
+- `#NEXT.R8.ENTITIES.815` — represented-complete for bounded `CMSG_ADDON_LIST`.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.cpp:822-830` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.h:1041-1047` (`uint32 count`, 10-bit name length, bit flush, name string); `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:1382-1386` (handler logs addon count and only comments a future anti-cheat hook); `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:148` (`STATUS_AUTHED`, `PROCESS_INPLACE`).
+
+Implemented Rust seam: `AddonList` parses the C++ count/bit-length/name-list shape, registers `Authed/Inplace` in `handlers/misc.rs`, dispatches through `WorldSession`, and has focused packet/world tests proving the parser and no-response/no-mutation handler boundary.
+
+Checks: `cargo fmt --all --check`; `cargo test -p wow-packet addon_list --lib`; `cargo test -p wow-world addon_list --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`; `git diff --check`.
+
+Boundaries: no addon anti-cheat processing, no addon-list persistence/runtime, and no live client/manual validation. This is represented-complete for the bounded C++ handler behavior only.
+
 - `#NEXT.R8.ENTITIES.814` — represented-complete for bounded `CMSG_ACCOUNT_NOTIFICATION_ACKNOWLEDGED`.
 
 C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/AccountPackets.cpp:20-23` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/AccountPackets.h:28-38` (`uint32 NotificationId` read shape); `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:1361-1366` (handler logs the id and only comments a future DB hook); `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:145` (`STATUS_AUTHED`, `PROCESS_THREADUNSAFE`).

@@ -42,13 +42,13 @@ use wow_packet::packets::item::{
 };
 use wow_packet::packets::loot::{LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHING_LIKE_CPP};
 use wow_packet::packets::misc::{
-    AddToy, ArenaTeamRoster, BattlePetClearFanfare, BattlePetDeletePet, BattlePetModifyName,
-    BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags, BattlePetSummon,
-    BattlePetUpdateNotify, CageBattlePet, CalendarSendCalendar, CalendarSendNumPending,
-    CloseInteraction, CommerceTokenGetLog, CommerceTokenGetLogResponse, DfGetJoinStatus,
-    DfGetSystemInfo, FarSight, GmTicketCaseStatus, GuildSetAchievementTracking, LfgListBlacklist,
-    LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify, MountSetFavorite, QueryBattlePetName,
-    QueryBattlePetNameResponse, RatedPvpInfo, RequestBattlefieldStatus,
+    AddToy, AddonList, ArenaTeamRoster, BattlePetClearFanfare, BattlePetDeletePet,
+    BattlePetModifyName, BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags,
+    BattlePetSummon, BattlePetUpdateNotify, CageBattlePet, CalendarSendCalendar,
+    CalendarSendNumPending, CloseInteraction, CommerceTokenGetLog, CommerceTokenGetLogResponse,
+    DfGetJoinStatus, DfGetSystemInfo, FarSight, GmTicketCaseStatus, GuildSetAchievementTracking,
+    LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify, MountSetFavorite,
+    QueryBattlePetName, QueryBattlePetNameResponse, RatedPvpInfo, RequestBattlefieldStatus,
     RequestCemeteryListResponse, SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags,
     SetTaxiBenchmarkMode, TaxiNodeStatusPkt, ToyClearFanfare, UseToy, ViolenceLevel,
 };
@@ -302,6 +302,15 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_loading_screen_notify",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::AddonList,
+        status: SessionStatus::Authed,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_addon_list",
     }
 }
 
@@ -1633,6 +1642,22 @@ impl crate::session::WorldSession {
         };
 
         self.represented_set_currency_flags_like_cpp(packet.currency_id, packet.flags);
+    }
+
+    pub async fn handle_addon_list(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let packet = match AddonList::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(account = self.account_id, "AddonList parse failed: {error}");
+                return;
+            }
+        };
+
+        debug!(
+            account = self.account_id,
+            addon_count = packet.addons.len(),
+            "HandleAddonList consumed addon list like C++"
+        );
     }
 
     pub async fn handle_set_ammo(&mut self, _pkt: wow_packet::WorldPacket) {
@@ -3381,6 +3406,21 @@ mod tests {
         let (mut session, send_rx) = make_session();
 
         session.handle_set_ammo(WorldPacket::new_empty()).await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn addon_list_is_silent_like_cpp_log_only_handler() {
+        let (mut session, send_rx) = make_session();
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(1);
+        pkt.write_bits(5, 10);
+        pkt.flush_bits();
+        pkt.write_string("Atlas");
+        pkt.reset_read();
+
+        session.handle_addon_list(pkt).await;
 
         assert!(send_rx.try_recv().is_err());
     }

@@ -18018,6 +18018,9 @@ impl WorldSession {
             }
 
             // ── Silent-ignore stubs (login-time client packets, no response) ──
+            ClientOpcodes::AddonList => {
+                self.handle_addon_list(pkt).await;
+            }
             ClientOpcodes::LoadingScreenNotify => {
                 self.handle_loading_screen_notify(pkt).await;
             }

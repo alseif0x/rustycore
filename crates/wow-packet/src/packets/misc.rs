@@ -83,6 +83,33 @@ impl ClientPacket for SetCurrencyFlags {
     }
 }
 
+/// C++ `WorldPackets::Misc::AddonList`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AddonList {
+    pub addons: Vec<String>,
+}
+
+impl ClientPacket for AddonList {
+    const OPCODE: ClientOpcodes = ClientOpcodes::AddonList;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let count = pkt.read_uint32()?;
+        let mut addons = Vec::new();
+
+        for _ in 0..count {
+            if pkt.remaining() == 0 {
+                break;
+            }
+
+            let name_len = pkt.read_bits(10)? as usize;
+            pkt.flush_bits();
+            addons.push(pkt.read_string(name_len)?);
+        }
+
+        Ok(Self { addons })
+    }
+}
+
 /// C++ `WorldPackets::Character::LoadingScreenNotify`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LoadingScreenNotify {
@@ -4351,6 +4378,22 @@ mod tests {
         let parsed = SetCurrencyFlags::read(&mut pkt).unwrap();
         assert_eq!(parsed.currency_id, 395);
         assert_eq!(parsed.flags, 0x1f);
+    }
+
+    #[test]
+    fn addon_list_reads_cpp_count_bits_flush_and_names() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(3);
+        pkt.write_bits(5, 10);
+        pkt.flush_bits();
+        pkt.write_string("Atlas");
+        pkt.write_bits(7, 10);
+        pkt.flush_bits();
+        pkt.write_string("Questie");
+        pkt.reset_read();
+
+        let parsed = AddonList::read(&mut pkt).unwrap();
+        assert_eq!(parsed.addons, vec!["Atlas", "Questie"]);
     }
 
     #[test]
