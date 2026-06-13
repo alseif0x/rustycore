@@ -12543,6 +12543,22 @@ where
         record.player_mut()
     }
 
+    pub fn get_typed_corpse(&self, guid: ObjectGuid) -> Option<&Corpse> {
+        let record = self.map_object_record(guid)?;
+        if record.kind() != AccessorObjectKind::Corpse {
+            return None;
+        }
+        record.corpse()
+    }
+
+    pub fn get_typed_corpse_mut(&mut self, guid: ObjectGuid) -> Option<&mut Corpse> {
+        let record = self.map_objects.get_mut(&guid)?;
+        if record.kind() != AccessorObjectKind::Corpse {
+            return None;
+        }
+        record.corpse_mut()
+    }
+
     pub fn get_typed_dynamic_object(&self, guid: ObjectGuid) -> Option<&DynamicObject> {
         let record = self.map_object_record(guid)?;
         if record.kind() != AccessorObjectKind::DynamicObject {

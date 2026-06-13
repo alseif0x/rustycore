@@ -25,7 +25,7 @@ use wow_core::{ObjectGuid, guid::HighGuid};
 use wow_data::{ItemRandomEnchantmentTemplateEntry, ItemRandomPropertyTemplateEntry};
 use wow_database::{CharStatements, SqlTransaction, WorldStatements};
 use wow_entities::{
-    AccessorObjectKind, CreatureOwnedLoot, GAMEOBJECT_TYPE_AREADAMAGE,
+    AccessorObjectKind, CORPSE_DYNFLAG_LOOTABLE, CreatureOwnedLoot, GAMEOBJECT_TYPE_AREADAMAGE,
     GAMEOBJECT_TYPE_BARBER_CHAIR, GAMEOBJECT_TYPE_BINDER, GAMEOBJECT_TYPE_CAMERA,
     GAMEOBJECT_TYPE_CHAIR, GAMEOBJECT_TYPE_CHEST, GAMEOBJECT_TYPE_DESTRUCTIBLE_BUILDING,
     GAMEOBJECT_TYPE_DOOR, GAMEOBJECT_TYPE_DUNGEON_DIFFICULTY, GAMEOBJECT_TYPE_FISHING_HOLE,
@@ -5620,6 +5620,34 @@ impl WorldSession {
         (!owner_guid.is_empty()).then_some(owner_guid)
     }
 
+    fn remove_canonical_corpse_lootable_dynamic_flag_like_cpp(
+        &mut self,
+        corpse_guid: ObjectGuid,
+    ) -> bool {
+        let map_id = u32::from(self.player_map_id_like_cpp());
+        let Some(manager) = self.canonical_map_manager.as_ref().cloned() else {
+            return false;
+        };
+        let Ok(mut manager) = manager.lock() else {
+            return false;
+        };
+        let mut instance_id = None;
+        manager.do_for_all_maps_with_map_id(map_id, |managed| {
+            if instance_id.is_none() && managed.map().get_typed_corpse(corpse_guid).is_some() {
+                instance_id = Some(managed.instance_id());
+            }
+        });
+        let Some(map) = manager.find_map_mut(map_id, instance_id.unwrap_or(0)) else {
+            return false;
+        };
+        let Some(corpse) = map.map_mut().get_typed_corpse_mut(corpse_guid) else {
+            return false;
+        };
+
+        corpse.remove_corpse_dynamic_flag(CORPSE_DYNFLAG_LOOTABLE);
+        true
+    }
+
     fn represented_creature_loot_state_like_cpp(
         &mut self,
         guid: ObjectGuid,
@@ -6193,6 +6221,11 @@ impl WorldSession {
 
         if owner_guid.is_item() && fully_looted {
             self.destroy_fully_looted_direct_item(owner_guid).await;
+            return true;
+        }
+
+        if owner_guid.is_corpse() {
+            self.remove_canonical_corpse_lootable_dynamic_flag_like_cpp(owner_guid);
             return true;
         }
 
@@ -7792,11 +7825,12 @@ mod tests {
     };
     use wow_database::{CharStatements, StatementDef};
     use wow_entities::{
-        AccessorObjectKind, Creature, CreatureOwnedLoot, GAMEOBJECT_TYPE_CHEST,
-        GAMEOBJECT_TYPE_FISHING_HOLE, GAMEOBJECT_TYPE_FISHING_NODE, GAMEOBJECT_TYPE_GATHERING_NODE,
-        GAMEOBJECT_TYPE_GOOBER, GO_DYNFLAG_LO_NO_INTERACT, GameObject, GameObjectLootSource,
-        GameObjectOwnedLoot, GatheringNodeUseSource, GoState, Item, ItemCreateInfo, LootState,
-        MAX_ITEM_SPELLS, WorldObject,
+        AccessorObjectKind, CORPSE_DYNFLAG_LOOTABLE, Corpse, CorpseType, Creature,
+        CreatureOwnedLoot, GAMEOBJECT_TYPE_CHEST, GAMEOBJECT_TYPE_FISHING_HOLE,
+        GAMEOBJECT_TYPE_FISHING_NODE, GAMEOBJECT_TYPE_GATHERING_NODE, GAMEOBJECT_TYPE_GOOBER,
+        GO_DYNFLAG_LO_NO_INTERACT, GameObject, GameObjectLootSource, GameObjectOwnedLoot,
+        GatheringNodeUseSource, GoState, Item, ItemCreateInfo, LootState, MAX_ITEM_SPELLS,
+        WorldObject,
     };
     use wow_loot::{
         GeneratedLootItem, LOOT_SLOT_TYPE_OWNER_LIKE_CPP, LootConditionRowLikeCpp, LootStore,
@@ -7920,6 +7954,44 @@ mod tests {
                 .unwrap();
         }
         session.set_canonical_map_manager(manager);
+    }
+
+    fn attach_canonical_corpse(session: &mut WorldSession, corpse: Corpse) {
+        let map_id = corpse.world().map_id();
+        let instance_id = corpse.world().instance_id();
+        let manager = Arc::new(Mutex::new(wow_map::MapManager::default()));
+        {
+            let mut manager = manager.lock().unwrap();
+            manager
+                .create_world_map(map_id, instance_id)
+                .map_mut()
+                .insert_map_object_record(
+                    wow_entities::MapObjectRecord::new_corpse(corpse).unwrap(),
+                )
+                .unwrap();
+        }
+        session.set_canonical_map_manager(manager);
+    }
+
+    fn make_canonical_corpse_for_session(session: &WorldSession, guid: ObjectGuid) -> Corpse {
+        let mut corpse = Corpse::new_at(CorpseType::ResurrectablePvp, 1_000);
+        corpse.world_mut().object_mut().create(guid);
+        corpse
+            .world_mut()
+            .set_map(u32::from(session.player_map_id_like_cpp()), 0)
+            .unwrap();
+        corpse.world_mut().relocate(Position::ZERO);
+        corpse.world_mut().object_mut().add_to_world();
+        corpse.set_corpse_dynamic_flag(CORPSE_DYNFLAG_LOOTABLE);
+        corpse.clear_corpse_data_changes();
+        corpse
+    }
+
+    fn canonical_corpse_snapshot(session: &WorldSession, guid: ObjectGuid) -> Option<Corpse> {
+        let manager = session.canonical_map_manager.as_ref()?;
+        let manager = manager.lock().ok()?;
+        let map = manager.find_map(u32::from(session.player_map_id_like_cpp()), 0)?;
+        map.map().get_typed_corpse(guid).cloned()
     }
 
     fn make_canonical_creature_for_session(session: &WorldSession, guid: ObjectGuid) -> Creature {
@@ -8628,6 +8700,10 @@ mod tests {
 
     fn test_creature_guid(counter: i64) -> ObjectGuid {
         ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, counter)
+    }
+
+    fn test_corpse_guid(counter: i64) -> ObjectGuid {
+        ObjectGuid::create_world_object(HighGuid::Corpse, 0, 1, 0, 0, 1, counter)
     }
 
     fn broadcast_info(guid: ObjectGuid, send_tx: flume::Sender<Vec<u8>>) -> PlayerBroadcastInfo {
@@ -15511,6 +15587,60 @@ mod tests {
             remaining.as_secs(),
             0,
             "C++ sets m_corpseRemoveTime = now for fully looted LOOT_SKINNING; got {remaining:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn player_corpse_loot_release_removes_corpse_lootable_dynflag_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let corpse_guid = test_corpse_guid(19_117);
+        let corpse = make_canonical_corpse_for_session(&session, corpse_guid);
+        attach_canonical_corpse(&mut session, corpse);
+        session.set_player_guid(Some(player_guid));
+        session.set_active_loot_guid(corpse_guid);
+        session.loot_table.insert(
+            corpse_guid,
+            CreatureLoot {
+                loot_guid: corpse_guid,
+                coins: 0,
+                unlooted_count: 0,
+                loot_type: LOOT_TYPE_INSIGNIA_LIKE_CPP,
+                dungeon_encounter_id: 0,
+                loot_method: 0,
+                loot_master: ObjectGuid::EMPTY,
+                round_robin_player: ObjectGuid::EMPTY,
+                player_ffa_items: Vec::new(),
+                players_looting: vec![player_guid],
+                allowed_looters: Vec::new(),
+                items: Vec::new(),
+                looted_by_player: false,
+            },
+        );
+        assert_eq!(
+            canonical_corpse_snapshot(&session, corpse_guid)
+                .unwrap()
+                .data()
+                .dynamic_flags
+                & CORPSE_DYNFLAG_LOOTABLE,
+            CORPSE_DYNFLAG_LOOTABLE
+        );
+
+        session
+            .handle_loot_release(loot_release_packet(corpse_guid))
+            .await;
+
+        assert!(send_rx.try_recv().is_ok());
+        let corpse = canonical_corpse_snapshot(&session, corpse_guid).unwrap();
+        assert_eq!(
+            corpse.data().dynamic_flags & CORPSE_DYNFLAG_LOOTABLE,
+            0,
+            "C++ DoLootRelease removes CORPSE_DYNFLAG_LOOTABLE from fully looted player corpses"
+        );
+        assert!(
+            corpse
+                .corpse_data_changes_mask()
+                .is_set(wow_entities::CORPSE_DATA_DYNAMIC_FLAGS_BIT)
         );
     }
 
