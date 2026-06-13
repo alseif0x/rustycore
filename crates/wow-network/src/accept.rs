@@ -293,6 +293,10 @@ pub struct SessionResources {
     pub socket_timeouts: SocketTimeoutsLikeCpp,
     pub packet_spoof_config: PacketSpoofConfigLikeCpp,
     pub realm_id: u16,
+    /// Region from `realmlist.Region`, used in C++ `RealmHandle::GetAddress()`.
+    pub realm_region: u8,
+    /// Battlegroup/site from `realmlist.Battlegroup`, used in C++ `RealmHandle::GetAddress()`.
+    pub realm_battlegroup: u8,
     /// External (public) IP from `realmlist.address`.
     pub realm_external_address: [u8; 4],
     /// Local (LAN) IP from `realmlist.localAddress`.

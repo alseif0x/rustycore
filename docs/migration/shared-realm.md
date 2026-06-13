@@ -3,7 +3,7 @@
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/server/shared/Realm/`
 > **Rust target crate(s):** `crates/bnet-server/` (`src/realm/mod.rs`)
 > **Layer:** L1
-> **Status:** ⚠️ partial (~82%) — 2026-06-13 slices fixed the BNet realm-address packing, strong `RealmHandle` contract, `HashMap<RealmHandleLikeCpp, Realm>` storage, typed `RealmFlagsLikeCpp`/`RealmTypeLikeCpp`, subregion filtering and `WriteSubRegions`, cfg timezone/category swap, type/security normalization, packed JoinRealm lookup plus realm-owned JoinRealm prep, selected game-account ownership, strict `ClientInfo.secret` byte validation, `LastCharPlayed` C++ attribute kinds, `GetAllValuesForAttribute` auth/prefix gating, C++ BNet account-context status errors, BNet last-login locale DB bind as `uint8 GetLocaleByName`, `ProcessClientRequest` dispatch status codes and attribute selection semantics, deterministic decompressed JSON envelope coverage, hostname resolution/skip, normalized realm names, C++-shaped build_info hotfix/seed parsing, minor/major/bugfix build lookup and `JamJSONRealmEntry` for last-played character; remaining gaps include DB-real/e2e realm-list payloads and architectural unification with the world snapshot.
+> **Status:** ⚠️ partial (~83%) — 2026-06-13 slices fixed the BNet realm-address packing, strong `RealmHandle` contract, `HashMap<RealmHandleLikeCpp, Realm>` storage, typed `RealmFlagsLikeCpp`/`RealmTypeLikeCpp`, subregion filtering and `WriteSubRegions`, cfg timezone/category swap, type/security normalization, packed JoinRealm lookup plus realm-owned JoinRealm prep, selected game-account ownership, strict `ClientInfo.secret` byte validation, `LastCharPlayed` C++ attribute kinds, `GetAllValuesForAttribute` auth/prefix gating, C++ BNet account-context status errors, BNet last-login locale DB bind as `uint8 GetLocaleByName`, `ProcessClientRequest` dispatch status codes and attribute selection semantics, deterministic decompressed JSON envelope coverage, hostname resolution/skip, normalized realm names, C++-shaped build_info hotfix/seed parsing, minor/major/bugfix build lookup, `JamJSONRealmEntry` for last-played character, and world-session `VirtualRealmAddress` now sourced from the active `realmlist.Region/Battlegroup` row instead of hardcoded 1/1; remaining gaps include DB-real/e2e realm-list payloads and deeper architectural unification with the world snapshot.
 > **Audited vs C++:** ✅ audited 2026-06-13 against `Realm.h`, `Realm.cpp`, `RealmList.cpp` for the fixed BNet realm-list slice.
 > **Last updated:** 2026-06-13
 
@@ -172,6 +172,7 @@ Y para realm list updates:
 - `get_realm_entry_json_like_cpp` genera `JamJSONRealmEntry` para `LastCharPlayed`, devuelve vacío si el realm está offline o el build no coincide, y ya no confunde ese payload con `JSONRealmListServerIPAddresses`.
 - `RealmManager.realms` usa `RealmHandleLikeCpp` como clave, con `Hash`/`Eq` por `realm` solamente para reflejar el contrato C++ de `Battlenet::RealmHandle`.
 - Los payloads deterministas de realm-list vacío, character-count vacío y server-addresses tienen tests de contenido exacto tras inflate (`JSONRealmListUpdates:`, `JSONRealmCharacterCountList:`, `JSONRealmListServerIPAddresses:`). Nota: no se fija el stream zlib byte-for-byte porque C++ y Rust pueden usar backends de compresión distintos; el contrato wire validado es prefijo LE + contenido inflado exacto.
+- `world-server` carga el realm activo desde el snapshot `realmlist`, transporta `Region/Battlegroup` a `WorldSession`, y `AuthResponse`/`AvailableHotfixes` usan `VirtualRealmAddress = (Region << 24) | (Battlegroup << 16) | RealmId` como C++ `RealmHandle::GetAddress()` en vez de asumir subregion `1-1`.
 
 **What's missing vs C++:**
 - **`JoinRealm` effectful flow existe fuera de `RealmManager`** — la parte realm-owned ya vive en `RealmManager::prepare_join_realm_like_cpp`, los atributos de respuesta están aislados/testeados, el payload server-addresses tiene golden de contenido descomprimido y el plan de binds DB está cubierto por unit test, pero `bnet-server/src/rpc/services/game_utilities.rs` todavía genera el random server secret y ejecuta el statement; falta concentrar o cubrir esos efectos como `RealmList::JoinRealm` si se quiere igualar ownership C++ completo.
@@ -190,6 +191,7 @@ Y para realm list updates:
 - ✅ fixed 2026-06-13: `UPD_BNET_LAST_LOGIN_INFO.locale` se bindeaba como string (`"esES"`); C++ usa `setUInt8(GetLocaleByName(_locale))`, ahora Rust bindea `SqlParam::U8`.
 - ✅ fixed 2026-06-13: `ProcessClientRequest` sin comando o con comando desconocido caía en error genérico; C++ devuelve `ERROR_RPC_MALFORMED_REQUEST` / `ERROR_RPC_NOT_IMPLEMENTED`.
 - ✅ fixed 2026-06-13: `ProcessClientRequest` usaba el primer `Command_*`/primer param y matching por prefijo; C++ usa el último `Command_*`, `removeSuffix` exacto y overwrite de duplicados.
+- ✅ fixed 2026-06-13: `WorldSession::virtual_realm_address()` hardcodeaba `Region=1, Battlegroup=1`; ahora se alimenta desde el `realmlist` activo cargado por `world-server`, igual que C++ usa `realm.Id.Region/Site/Realm`.
 - Sin `shared_mutex`, Rust usa `parking_lot::RwLock` (vía `state.realm_mgr.write()`) → equivalente.
 
 **Tests existing:**
@@ -258,6 +260,7 @@ Y para realm list updates:
 - [x] **#REALM.10a** Tests: packed address bit-layout, subregion filter, cfg fields, version_mismatch/fallback. (M)
 - [ ] **#REALM.10b** Tests: parse build_info, `get_realm_entry_json`, JoinRealm DB side effect, golden payload. Parcial: parseo C++ de `build_info` hotfix/seeds, `JamJSONRealmEntry`, empty gates, server-address selection, preparación realm-owned de JoinRealm, orden/bytes de atributos de respuesta, binds del statement DB, selección de game account, status codes específicos y payloads deterministas inflados cubiertos por unit tests; faltan JoinRealm DB side effect real y e2e con DB/cliente. (M)
 - [x] **#REALM.11** Modelar `RealmList::WriteSubRegions` como método de `RealmManager` y delegar `GetAllValuesForAttribute` en él. (L)
+- [x] **#REALM.12** Propagar `realmlist.Region/Battlegroup` desde el snapshot activo de `world-server` hasta `WorldSession::virtual_realm_address`, cerrando el hardcode `1/1` en `AuthResponse`/`AvailableHotfixes`. (L)
 
 ---
 

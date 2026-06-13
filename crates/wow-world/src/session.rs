@@ -2668,6 +2668,8 @@ pub struct WorldSession {
 
     // Realm ID for GUID creation
     realm_id: u16,
+    realm_region: u8,
+    realm_battlegroup: u8,
 
     // GUID generator for new characters
     guid_generator: Option<Arc<ObjectGuidGenerator>>,
@@ -3858,6 +3860,8 @@ impl WorldSession {
             player_skill_values_like_cpp: HashMap::new(),
             represented_gray_level_script_overrides_like_cpp: HashMap::new(),
             realm_id: 1,
+            realm_region: 1,
+            realm_battlegroup: 1,
             guid_generator: None,
             legit_characters: Vec::new(),
             pending_packets: Vec::new(),
@@ -8178,15 +8182,20 @@ impl WorldSession {
         self.realm_id = realm_id;
     }
 
+    pub fn set_realm_handle_like_cpp(&mut self, region: u8, battlegroup: u8, realm_id: u16) {
+        self.realm_region = region;
+        self.realm_battlegroup = battlegroup;
+        self.realm_id = realm_id;
+    }
+
     /// Compute the Virtual Realm Address: `(Region << 24) | (Battlegroup << 16) | RealmId`.
     ///
-    /// Region and Battlegroup come from the `realmlist` table in the auth database.
-    /// For a typical single-realm setup: Region=1, Battlegroup=1.
+    /// Region and Battlegroup come from the active `realmlist` row, matching C++
+    /// `Battlenet::RealmHandle{ realm.Id.Region, realm.Id.Site, realm.Id.Realm }.GetAddress()`.
     pub(crate) fn virtual_realm_address(&self) -> u32 {
-        // TODO: read Region/Battlegroup from realmlist table instead of hardcoding
-        let region: u32 = 1;
-        let battlegroup: u32 = 1;
-        (region << 24) | (battlegroup << 16) | u32::from(self.realm_id)
+        (u32::from(self.realm_region) << 24)
+            | (u32::from(self.realm_battlegroup) << 16)
+            | u32::from(self.realm_id)
     }
 
     /// Set the GUID generator for new characters.
@@ -65910,9 +65919,21 @@ mod tests {
 
         assert!(session.char_db().is_none());
         assert_eq!(session.realm_id(), 1);
+        assert_eq!(session.virtual_realm_address(), 0x0101_0001);
 
         session.set_realm_id(5);
         assert_eq!(session.realm_id(), 5);
+        assert_eq!(session.virtual_realm_address(), 0x0101_0005);
+    }
+
+    #[test]
+    fn virtual_realm_address_uses_realmlist_region_and_battlegroup_like_cpp() {
+        let (mut session, _, _) = make_session();
+
+        session.set_realm_handle_like_cpp(5, 6, 9);
+
+        assert_eq!(session.realm_id(), 9);
+        assert_eq!(session.virtual_realm_address(), 0x0506_0009);
     }
 
     #[test]

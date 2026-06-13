@@ -2712,6 +2712,8 @@ async fn main() -> Result<ExitCode> {
             ),
         },
         realm_id,
+        realm_region: active_realm.id.region,
+        realm_battlegroup: active_realm.id.site,
         realm_external_address,
         realm_local_address,
     });
@@ -8778,7 +8780,11 @@ async fn create_session(
     if let (Some(greg), Some(pinv)) = (&resources.group_registry, &resources.pending_invites) {
         session.set_group_registry(Arc::clone(greg), Arc::clone(pinv));
     }
-    session.set_realm_id(resources.realm_id);
+    session.set_realm_handle_like_cpp(
+        resources.realm_region,
+        resources.realm_battlegroup,
+        resources.realm_id,
+    );
     session.set_map_manager(shared_map);
     session.set_canonical_map_manager(canonical_map_manager);
 
@@ -10196,6 +10202,11 @@ mod tests {
             super::load_realm_info_from_snapshot_like_cpp(&snapshot, 9).expect("realm found"),
             entry
         );
+        let loaded =
+            super::load_realm_info_from_snapshot_like_cpp(&snapshot, 9).expect("realm found");
+        assert_eq!(loaded.id.region, 5);
+        assert_eq!(loaded.id.site, 6);
+        assert_eq!(loaded.id.address_like_cpp(), 0x0506_0009);
         assert!(super::load_realm_info_from_snapshot_like_cpp(&snapshot, 10).is_err());
     }
 
