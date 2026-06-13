@@ -12,6 +12,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::future::Future;
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -210,9 +211,19 @@ async fn main() -> Result<()> {
         )
         .init();
 
+    let cli = WorldServerCliLikeCpp::parse_from(std::env::args().skip(1));
+    if cli.show_help {
+        print!("{}", worldserver_cli_help_like_cpp());
+        return Ok(());
+    }
+    if cli.show_version {
+        println!("{}", worldserver_full_version_like_cpp());
+        return Ok(());
+    }
+
     info!("RustyCore World Server starting...");
 
-    load_world_config()?;
+    load_world_config(&cli)?;
     let world_configs = wow_config::load_world_config_values();
     create_pid_file_from_config_like_cpp()?;
     let updates_auto_setup = updates_auto_setup_enabled_like_cpp();
@@ -410,6 +421,10 @@ async fn main() -> Result<()> {
     let hotfix_db = Arc::new(hotfix_db);
     let realm_id = realm_id_like_cpp()?;
     clear_online_accounts_like_cpp(&login_db, &char_db, realm_id).await?;
+    if cli.update_databases_only {
+        info!("Database updates completed; exiting before network startup");
+        return Ok(());
+    }
     set_realm_offline(&login_db, realm_id).await?;
 
     // Initialize GUID generator from MAX(guid) in characters table
@@ -2726,8 +2741,83 @@ async fn shutdown_signal() {
     let _ = tokio::signal::ctrl_c().await;
 }
 
-fn load_world_config() -> Result<LoadReport> {
-    load_world_config_from(WORLD_CONFIG_CANDIDATES, WORLD_CONFIG_DIR)
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct WorldServerCliLikeCpp {
+    config_file: Option<PathBuf>,
+    config_dir: PathBuf,
+    update_databases_only: bool,
+    show_version: bool,
+    show_help: bool,
+}
+
+impl WorldServerCliLikeCpp {
+    fn parse_from(args: impl IntoIterator<Item = String>) -> Self {
+        let mut cli = Self::default();
+        let mut args = args.into_iter();
+
+        while let Some(arg) = args.next() {
+            match arg.as_str() {
+                "--help" | "-h" => cli.show_help = true,
+                "--version" | "-v" => cli.show_version = true,
+                "--update-databases-only" | "-u" => cli.update_databases_only = true,
+                "--config" | "-c" => {
+                    if let Some(value) = args.next() {
+                        cli.config_file = Some(PathBuf::from(value));
+                    }
+                }
+                "--config-dir" | "-cd" => {
+                    if let Some(value) = args.next() {
+                        cli.config_dir = PathBuf::from(value);
+                    }
+                }
+                _ => {
+                    if let Some(value) = arg.strip_prefix("--config=") {
+                        cli.config_file = Some(PathBuf::from(value));
+                    } else if let Some(value) = arg.strip_prefix("--config-dir=") {
+                        cli.config_dir = PathBuf::from(value);
+                    }
+                }
+            }
+        }
+
+        cli
+    }
+}
+
+impl Default for WorldServerCliLikeCpp {
+    fn default() -> Self {
+        Self {
+            config_file: None,
+            config_dir: PathBuf::from(WORLD_CONFIG_DIR),
+            update_databases_only: false,
+            show_version: false,
+            show_help: false,
+        }
+    }
+}
+
+fn worldserver_cli_help_like_cpp() -> &'static str {
+    "Allowed options:\n  -h [ --help ]                  print usage message\n  -v [ --version ]               print version build info\n  -c [ --config ] <arg>          use <arg> as configuration file\n  -cd [ --config-dir ] <arg>     use <arg> as directory with additional config files\n  -u [ --update-databases-only ] updates databases only\n"
+}
+
+fn worldserver_full_version_like_cpp() -> String {
+    let revision = option_env!("GIT_HASH")
+        .or(option_env!("VERGEN_GIT_SHA"))
+        .unwrap_or("unknown");
+    format!(
+        "RustyCore World Server {} (rev {revision})",
+        env!("CARGO_PKG_VERSION")
+    )
+}
+
+fn load_world_config(cli: &WorldServerCliLikeCpp) -> Result<LoadReport> {
+    let config_dir = cli.config_dir.to_string_lossy();
+    if let Some(config_file) = &cli.config_file {
+        let config_file = config_file.to_string_lossy();
+        return load_world_config_from(&[config_file.as_ref()], config_dir.as_ref());
+    }
+
+    load_world_config_from(WORLD_CONFIG_CANDIDATES, config_dir.as_ref())
 }
 
 fn load_world_config_from(config_candidates: &[&str], config_dir: &str) -> Result<LoadReport> {
@@ -8928,7 +9018,7 @@ mod tests {
         PersistedRespawnLoadReportLikeCpp, PersistedRespawnRowLikeCpp,
         PersistedRespawnTimesLikeCpp, REQUIRED_TDB_CACHE_ID_LIKE_CPP,
         REQUIRED_TDB_VERSION_LIKE_CPP, RespawnDbDeleteQueueOutcomeLikeCpp,
-        RespawnDbSaveQueueOutcomeLikeCpp, WorldDbVersionLikeCpp,
+        RespawnDbSaveQueueOutcomeLikeCpp, WorldDbVersionLikeCpp, WorldServerCliLikeCpp,
         apply_canonical_spawn_group_condition_update_loaded_grid_records_like_cpp,
         build_loaded_grid_creature_respawn_record_like_cpp,
         build_loaded_grid_creature_spawn_group_spawn_record_like_cpp,
@@ -8970,7 +9060,8 @@ mod tests {
         spawn_store_loader, updates_auto_setup_enabled_like_cpp, updates_database_mask_like_cpp,
         updates_enabled_for_database_like_cpp, world_config_bool, world_config_u8,
         world_config_u16, world_config_u32, world_db_version_matches_required_like_cpp,
-        world_db_version_mismatch_message_like_cpp,
+        world_db_version_mismatch_message_like_cpp, worldserver_cli_help_like_cpp,
+        worldserver_full_version_like_cpp,
     };
     use std::collections::{BTreeMap, HashSet};
     use std::env;
@@ -11201,6 +11292,73 @@ mod tests {
     }
 
     #[test]
+    fn worldserver_cli_defaults_match_cpp_startup_options() {
+        let cli = WorldServerCliLikeCpp::parse_from(Vec::<String>::new());
+
+        assert_eq!(cli.config_file, None);
+        assert_eq!(cli.config_dir, PathBuf::from("worldserver.conf.d"));
+        assert!(!cli.update_databases_only);
+        assert!(!cli.show_help);
+        assert!(!cli.show_version);
+    }
+
+    #[test]
+    fn worldserver_cli_parses_short_and_long_options_like_cpp() {
+        let cli = WorldServerCliLikeCpp::parse_from(
+            [
+                "--unknown",
+                "--config",
+                "/tmp/world.conf",
+                "-cd",
+                "/tmp/world.conf.d",
+                "-u",
+            ]
+            .into_iter()
+            .map(str::to_string),
+        );
+
+        assert_eq!(cli.config_file, Some(PathBuf::from("/tmp/world.conf")));
+        assert_eq!(cli.config_dir, PathBuf::from("/tmp/world.conf.d"));
+        assert!(cli.update_databases_only);
+
+        let cli = WorldServerCliLikeCpp::parse_from(
+            [
+                "--config=/etc/rustycore/worldserver.conf",
+                "--config-dir=/etc/rustycore/worldserver.conf.d",
+                "--help",
+                "--version",
+            ]
+            .into_iter()
+            .map(str::to_string),
+        );
+
+        assert_eq!(
+            cli.config_file,
+            Some(PathBuf::from("/etc/rustycore/worldserver.conf"))
+        );
+        assert_eq!(
+            cli.config_dir,
+            PathBuf::from("/etc/rustycore/worldserver.conf.d")
+        );
+        assert!(cli.show_help);
+        assert!(cli.show_version);
+    }
+
+    #[test]
+    fn worldserver_cli_help_and_version_match_cpp_surface() {
+        let help = worldserver_cli_help_like_cpp();
+        assert!(help.contains("--config"));
+        assert!(help.contains("--config-dir"));
+        assert!(help.contains("--update-databases-only"));
+        assert!(help.contains("--version"));
+        assert!(help.contains("--help"));
+
+        let version = worldserver_full_version_like_cpp();
+        assert!(version.contains("RustyCore World Server"));
+        assert!(version.contains(env!("CARGO_PKG_VERSION")));
+    }
+
+    #[test]
     fn world_config_resolution_prefers_lowercase_cpp_name() {
         let _guard = TEST_LOCK.lock().expect("test lock poisoned");
         let root = unique_temp_dir("world_config_resolution");
@@ -11221,6 +11379,39 @@ mod tests {
 
         assert_eq!(report.candidate_index, 0);
         assert_eq!(wow_config::get_value::<u16>("WorldServerPort"), Some(8085));
+
+        fs::remove_dir_all(root).expect("cleanup failed");
+    }
+
+    #[test]
+    fn world_config_cli_config_uses_exact_file_like_cpp() {
+        let _guard = TEST_LOCK.lock().expect("test lock poisoned");
+        let root = unique_temp_dir("world_config_cli_exact");
+        let default_file = root.join("worldserver.conf");
+        let override_file = root.join("custom-world.conf");
+        let config_dir = root.join("custom-world.conf.d");
+
+        fs::create_dir_all(&config_dir).expect("config dir failed");
+        fs::write(&default_file, "WorldServerPort = 8085\n").expect("write default failed");
+        fs::write(&override_file, "WorldServerPort = 9100\n").expect("write override failed");
+        fs::write(
+            config_dir.join("overlay.conf"),
+            "InstanceServerPort = 9101\n",
+        )
+        .expect("write overlay failed");
+
+        let override_path = override_file.to_string_lossy().into_owned();
+        let config_dir_path = config_dir.to_string_lossy().into_owned();
+        let report = load_world_config_from(&[override_path.as_str()], &config_dir_path)
+            .expect("config should load");
+
+        assert_eq!(report.initial_file, override_path);
+        assert_eq!(report.candidate_index, 0);
+        assert_eq!(wow_config::get_value::<u16>("WorldServerPort"), Some(9100));
+        assert_eq!(
+            wow_config::get_value::<u16>("InstanceServerPort"),
+            Some(9101)
+        );
 
         fs::remove_dir_all(root).expect("cleanup failed");
     }

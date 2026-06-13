@@ -251,7 +251,7 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
 - **Win32 service mode**: out of scope.
 - **`SetProcessPriority` / processor affinity**: out of scope.
 - **`ThreadPool` config**: ignored — Tokio handles threading.
-- **CLI args (`--config`, `--update-databases-only`, `--version`, `--help`)**: not parsed.
+- **CLI args (`--config`, `--config-dir`, `--update-databases-only`, `--version`, `--help`)**: `world-server` now parses the C++ surface, exits early for help/version, loads an exact `--config` file plus `--config-dir` overlays, and exits after DB update + `ClearOnlineAccounts()` for `--update-databases-only`. Remaining gaps: no Win32 `--service`, no full C++ banner text, and broader world-loop ownership remains tracked in #WS.1/#WS.2.
 - **`KickAll` + `UpdateSessions(1)` flush at shutdown**: missing — sessions are dropped abruptly.
 - **`WorldPackets::Auth::ConnectTo::ShutdownEncryption / EnterEncryptedMode::ShutdownEncryption`** — these tear down the static keys. RustyCore probably has them per-session, so the global tear-down may be a no-op.
 - **`sBattlegroundMgr->DeleteAllBattlegrounds()`, `sOutdoorPvPMgr->Die()`, `sMapMgr->UnloadAll()`, `sTerrainMgr.UnloadAll()`, `sInstanceLockMgr.Unload()` in shutdown order**: only a partial `MapManager` exists; rest is missing.
@@ -343,7 +343,7 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
 - [ ] **#WS.13** Implement `sMetric` equivalent: emit `online_players`, `db_queue_*` to an OpenTelemetry / Prometheus exporter. (M)
 - [ ] **#WS.14** Implement `sScriptMgr->on_startup()` / `on_shutdown()` hooks. (L)
 - [ ] **#WS.15** Implement clean shutdown: kick all sessions (send `SMSG_LOGOUT_RESPONSE` then drop), wait up to N seconds for character saves, close listeners, drop registries, close DBs, set realm OFFLINE. (H)
-- [ ] **#WS.16** CLI args via `clap`: `--config`, `--config-dir`, `--update-databases-only`, `--version`, `--help`. (L)
+- [x] **#WS.16** CLI args: `--config`, `--config-dir`, `--update-databases-only`, `--version`, `--help`; implemented without a new dependency, mirroring C++ `allow_unregistered()` behavior by ignoring unknown options. (L)
 - [x] **#WS.17** PID file (`PidFile` config): writes `std::process::id()` before DB/network startup and fails startup if the file cannot be created.
 - [x] **#WS.18** `SIGTERM` handler in addition to `ctrl_c`: Unix `SIGTERM` and Ctrl-C both drive the same shutdown branch.
 - [ ] **#WS.19** Pre-listener startup banner with build hash, sqlx version, rustls version, DB versions (one log line per connected DB). (L)
@@ -491,9 +491,9 @@ Otherwise the boot sequence is largely on-parity for what's implemented (4 DB po
 |---|---|---|
 | `signal(SIGABRT, AbortHandler)` | — | ❌ missing |
 | `Trinity::Locale::Init()` | — | ❌ irrelevant (Rust uses UTF-8 by default) |
-| Parse `--config`, `--update-databases-only`, `--version` | — | ❌ missing (#WS.16) |
+| Parse `--config`, `--config-dir`, `--update-databases-only`, `--version`, `--help` | `WorldServerCliLikeCpp` parses the same non-Win32 surface; help/version exit before config load | ✅ |
 | Win32 service / `timeBeginPeriod(1ms)` | — | n/a (Linux only) |
-| `sConfigMgr->LoadInitial(...) + LoadAdditionalDir + OverrideEnv` | `wow_config::load_config("WorldServer.conf")` w/ `.dist` fallback | ⚠️ no `conf.d/` dir, no env override |
+| `sConfigMgr->LoadInitial(...) + LoadAdditionalDir + OverrideEnv` | `load_world_config` uses default fallback candidates, exact `--config` override, `--config-dir` `.conf` overlays, and `TC_*` env overrides through `wow_config::load_config_with_fallbacks` | ✅ |
 | `boost::asio::io_context` shared | implicit Tokio runtime | ✅ acceptable divergence |
 | `sLog->RegisterAppender<AppenderDB>(); Initialize(asyncIo)` | `tracing_subscriber::fmt().with_env_filter(...)` | ⚠️ no DB sink (#WS.7) |
 | `Trinity::Banner::Show(...)` | one `info!("RustyCore World Server starting...")` | ⚠️ #WS.19 |
@@ -505,7 +505,7 @@ Otherwise the boot sequence is largely on-parity for what's implemented (4 DB po
 | `StartDB()` opens 4 pools (Login/Character/World/Hotfix) | `LoginDatabase::open` + `CharacterDatabase::open` + `WorldDatabase::open` + `HotfixDatabase::open` (lines 177-228) | ✅ four pools present |
 | `DatabaseLoader::Load()` runs `DBUpdater` per pool | `DbUpdater::new(...).populate(...).await` + `update(...).await` for auth/characters; `update` only for world/hotfix (lines 232-272) | ✅ implemented |
 | `realm.Id.Realm` from config; bail if 0 | `realm_id_like_cpp()` requires `RealmID` and rejects 0 before DB cleanup | ✅ |
-| `--update-databases-only` early exit | — | ❌ missing (#WS.16) |
+| `--update-databases-only` early exit | exits after updater + `verify_world_db_version_like_cpp` + `realm_id_like_cpp` + `clear_online_accounts_like_cpp`, before listeners and before marking the realm offline | ✅ |
 | `Trinity::Net::ScanLocalNetworks()` | `get_address_for_client` /24 heuristic (line 757) | ⚠️ partial |
 | `UPDATE realmlist SET flag\|=OFFLINE` at boot | `set_realm_offline(&login_db, realm_id)` after DB cleanup | ✅ |
 | `sRealmList->Initialize(io, RealmsStateUpdateDelay)` background refresh | — | ❌ missing (#WS.12) |
