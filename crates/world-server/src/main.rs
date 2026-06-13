@@ -126,6 +126,51 @@ fn process_exit_code_like_cpp(exit_code: i32) -> ExitCode {
     ExitCode::from(exit_code)
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FreezeDetectorPollOutcomeLikeCpp {
+    Advanced,
+    StillAlive,
+    Abort { stuck_ms: u32 },
+}
+
+#[derive(Debug)]
+struct FreezeDetectorLikeCpp {
+    world_loop_counter: u32,
+    last_change_ms_time: u32,
+    max_core_stuck_time_in_ms: u32,
+}
+
+impl FreezeDetectorLikeCpp {
+    fn new(max_core_stuck_time_in_ms: u32, start_ms_time: u32) -> Self {
+        Self {
+            world_loop_counter: 0,
+            last_change_ms_time: start_ms_time,
+            max_core_stuck_time_in_ms,
+        }
+    }
+
+    fn poll_once_like_cpp(
+        &mut self,
+        current_ms_time: u32,
+        world_loop_counter: u32,
+    ) -> FreezeDetectorPollOutcomeLikeCpp {
+        if self.world_loop_counter != world_loop_counter {
+            self.last_change_ms_time = current_ms_time;
+            self.world_loop_counter = world_loop_counter;
+            return FreezeDetectorPollOutcomeLikeCpp::Advanced;
+        }
+
+        let ms_time_diff = current_ms_time.wrapping_sub(self.last_change_ms_time);
+        if ms_time_diff > self.max_core_stuck_time_in_ms {
+            FreezeDetectorPollOutcomeLikeCpp::Abort {
+                stuck_ms: ms_time_diff,
+            }
+        } else {
+            FreezeDetectorPollOutcomeLikeCpp::StillAlive
+        }
+    }
+}
+
 // ── Account lookup implementation ────────────────────────────────
 
 /// Looks up account information from the login database using the realm join ticket.
@@ -9111,7 +9156,8 @@ fn spawn_legacy_creature_runtime_update_loop_like_cpp(
 mod tests {
     use super::{
         CanonicalGameEventSchedulerLikeCpp, CanonicalRespawnConditionSchedulerLikeCpp,
-        GameEventLiveUpdateActionLikeCpp, GameEventLiveUpdateSideEffectSummaryLikeCpp,
+        FreezeDetectorLikeCpp, FreezeDetectorPollOutcomeLikeCpp, GameEventLiveUpdateActionLikeCpp,
+        GameEventLiveUpdateSideEffectSummaryLikeCpp,
         GameEventQuestCompleteConditionSaveDbStatementKindLikeCpp,
         GameEventWorldEventStateDbOperationKindLikeCpp, GameEventWorldEventStateDbOperationLikeCpp,
         GameEventWorldEventStateDbStatementKindLikeCpp, LoadedGridCreatureRespawnCachesLikeCpp,
@@ -11491,6 +11537,28 @@ mod tests {
         assert_eq!(
             process_exit_code_like_cpp(2),
             std::process::ExitCode::from(2)
+        );
+    }
+
+    #[test]
+    fn freeze_detector_poll_matches_cpp_counter_contract() {
+        let mut detector = FreezeDetectorLikeCpp::new(60_000, 1_000);
+
+        assert_eq!(
+            detector.poll_once_like_cpp(2_000, 1),
+            FreezeDetectorPollOutcomeLikeCpp::Advanced
+        );
+        assert_eq!(
+            detector.poll_once_like_cpp(61_000, 1),
+            FreezeDetectorPollOutcomeLikeCpp::StillAlive
+        );
+        assert_eq!(
+            detector.poll_once_like_cpp(62_001, 1),
+            FreezeDetectorPollOutcomeLikeCpp::Abort { stuck_ms: 60_001 }
+        );
+        assert_eq!(
+            detector.poll_once_like_cpp(63_000, 2),
+            FreezeDetectorPollOutcomeLikeCpp::Advanced
         );
     }
 

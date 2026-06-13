@@ -227,8 +227,8 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
 
 **What's missing vs C++:**
 - **Full `World::Update(diff)` global ownership.** TC's `WorldUpdateLoop` is a single thread that increments `World::m_worldLoopCounter`, sleeps according to `MinWorldUpdateTime`, then calls `sWorld->Update(diff)`. C++ `World::Update` drives session updates, map updates, battlegrounds, outdoor PvP, scripts, weather and housekeeping from one owner. RustyCore now has a canonical map update loop and a gated legacy creature runtime bridge, but it does **not** yet have a full `World` singleton / `WorldSessionMgr::Update` / all-subsystem `World::Update` owner equivalent.
-- **`FreezeDetector`** — there is no equivalent. If the runtime hangs, only an external supervisor (systemd `WatchdogSec=`) catches it.
-- **`MaxCoreStuckTime` config**: read but ignored.
+- **`FreezeDetector`** — `FreezeDetectorLikeCpp` now represents the C++ counter/timeout decision (`World::m_worldLoopCounter` changed => refresh; unchanged for `MaxCoreStuckTime` => abort outcome). It is not spawned in production yet because the full `WorldUpdateLoop` does not drive the counter.
+- **`MaxCoreStuckTime` config**: still not wired to a live anti-freeze task.
 - **`MinWorldUpdateTime` config**: not represented as the top-level world-loop cadence. Session loops still use `Duration::from_millis(50)`, while canonical/legacy map runtime paths use `CONFIG_INTERVAL_MAPUPDATE`.
 - **`World::IsStopped()` / `World::StopNow(code)` / `World::GetExitCode()`**: `WorldRuntimeStateLikeCpp` now owns the stop flag, exit code and loop counter; shutdown signals call `stop_now_like_cpp(SHUTDOWN_EXIT_CODE)`, and `main` returns the stored process exit code. Remaining gap: the full top-level `WorldUpdateLoop` owner is still missing, so the counter is not yet driven by the production loop.
 - **DB keep-alive timer (`MaxPingTime`) present**: Rust spawns a Tokio keep-alive task that pings Character/Login/World every `MaxPingTime` minutes, matching TC's `World::Update` pool set. Hotfix is intentionally not pinged here because TC does not call `HotfixDatabase.KeepAlive()` in this path.
@@ -330,7 +330,7 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
 
 - [ ] **#WS.1** Implement `World` singleton (or equivalent state holder): `WorldRuntimeStateLikeCpp` now provides `is_stopped`, `stop_now(exit_code)`, `get_exit_code`, and `m_world_loop_counter` equivalents; SIGINT/SIGTERM writes `StopNow(SHUTDOWN_EXIT_CODE)`; and `main` returns the stored exit code. Remaining: wire the counter into the final `WorldUpdateLoop`. (M)
 - [ ] **#WS.2** Implement full global `WorldUpdateLoop` / `World::Update` ownership. Current Rust status: canonical map update loop and gated legacy creature runtime bridge exist, but full session-manager update, all subsystem ordering, `MinWorldUpdateTime` cadence and `World::m_worldLoopCounter` parity remain open. (XL — coupled to migrating sessions off per-task ticks; see `docs/migration/adr-runtime-tick-ownership.md`)
-- [ ] **#WS.3** Implement `FreezeDetector`: `tokio::time::interval(1s)`; reads `m_world_loop_counter`; if unchanged for `MaxCoreStuckTime` ms, `tracing::error!` + `std::process::abort()`. (M)
+- [ ] **#WS.3** Implement `FreezeDetector`: `FreezeDetectorLikeCpp` now has the C++ counter/timeout poll contract under test. Remaining: start a Tokio task after the production `WorldUpdateLoop` drives `m_world_loop_counter`; first callback after 5s, then 1s interval; on abort outcome log and call `std::process::abort()`. (M)
 - [x] **#WS.4** Implement `ClearOnlineAccounts()` — called at boot and shutdown; mirrors TC's three queries: account online flags for this realm, character online flags, and battleground instance ids.
 - [x] **#WS.5** Implement realmlist OFFLINE flag toggle at boot + listener-ready + shutdown: mirrors TC's `flag | OFFLINE` at boot/shutdown and `flag & ~OFFLINE, population = 0` once connectable.
 - [x] **#WS.6** DB keep-alive: every `MaxPingTime` minutes, `SELECT 1` against Character/Login/World pools, matching TC's `World::Update` keep-alive set.
@@ -519,7 +519,7 @@ Otherwise the boot sequence is largely on-parity for what's implemented (4 DB po
 | `if (SOAP.Enabled) std::thread(TCSoapThread, ...)` | — | ❌ recommend drop (#WS.10) |
 | `sWorldSocketMgr.StartWorldNetwork(io, ip, worldPort, instancePort, networkThreads)` | `start_world_listener(realm_addr, ...)` + `start_instance_listener(instance_addr, ...)` (lines 473-505) | ✅ functional equivalence |
 | `UPDATE realmlist SET flag &= ~OFFLINE` after listener | `set_realm_online(&login_db, realm_id)` after listeners/runtime tasks are spawned | ✅ |
-| `if (MaxCoreStuckTime > 0) FreezeDetector::Start(...)` | — | ❌ missing (#WS.3) |
+| `if (MaxCoreStuckTime > 0) FreezeDetector::Start(...)` | `FreezeDetectorLikeCpp` poll contract exists but is not spawned | ⚠️ waiting for production `WorldUpdateLoop` counter |
 | `sScriptMgr->OnStartup()` | — | ❌ missing (#WS.14) |
 | `if (Console.Enable) std::thread(CliThread)` | — | ❌ missing (#WS.8) |
 | `WorldUpdateLoop()` (the meat) | partial: per-session loop for packet/session work; canonical map loop; optional gated legacy creature runtime loop | ⚠️ partial; full top-level `World::Update` owner still missing |
@@ -567,7 +567,7 @@ RustyCore still lacks the full equivalent, but not all of the original statement
 
 - Each `WorldSession` still runs in its own Tokio task with a 50 ms session-loop floor for packet/session work.
 - Canonical map state has its own update loop, and the legacy creature lifecycle/movement/aggro/melee bridge can run map-owned behind `RustyCore.LegacyCreatureGlobalRuntime`.
-- There is now a `WorldRuntimeStateLikeCpp` with `World::m_worldLoopCounter`, `World::IsStopped()`, `World::StopNow(code)` and `World::GetExitCode()` equivalents, and `main` returns the stored exit code. There is still no freeze detector and no single `World::Update(diff)` owner for every subsystem.
+- There is now a `WorldRuntimeStateLikeCpp` with `World::m_worldLoopCounter`, `World::IsStopped()`, `World::StopNow(code)` and `World::GetExitCode()` equivalents, and `main` returns the stored exit code. `FreezeDetectorLikeCpp` has the C++ poll/abort decision under test, but it is not spawned until the production world loop drives the counter. There is still no single `World::Update(diff)` owner for every subsystem.
 
 **Concrete consequences**:
 
@@ -607,7 +607,7 @@ Gaps:
 
 ### 13.8 Freeze detector
 
-**Missing entirely.** No equivalent of `FreezeDetector` class, no `m_worldLoopCounter`, no `ABORT_MSG`. If the runtime hangs (DB query stuck, scheduler livelock, deadlock), only an external systemd `WatchdogSec=` would catch it — and no `sd_notify(WATCHDOG=1)` is being emitted, so it wouldn't either.
+**Partially represented.** `FreezeDetectorLikeCpp` implements the same counter-stall decision as C++ `FreezeDetector::Handler`, and `WorldRuntimeStateLikeCpp` owns the counter. The production anti-freeze task is still not started because the Rust server does not yet have the final `WorldUpdateLoop` that increments the counter. If the runtime hangs today (DB query stuck, scheduler livelock, deadlock), only an external supervisor would catch it, and no `sd_notify(WATCHDOG=1)` is being emitted.
 
 This must be implemented as `tokio::time::interval(1s)` reading an `AtomicU32` global tick counter, and calling `std::process::abort()` (not `exit(1)`) so the supervisor gets a coredump. (#WS.3)
 
