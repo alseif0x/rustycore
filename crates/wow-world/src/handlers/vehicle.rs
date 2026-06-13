@@ -190,16 +190,12 @@ impl WorldSession {
 
     /// C++ `HandleRequestVehiclePrevSeat`.
     pub async fn handle_request_vehicle_prev_seat(&mut self, _packet: RequestVehiclePrevSeat) {
-        // C++ returns before ChangeSeat when GetVehicleBase() is null. Rust does
-        // not yet expose represented passenger vehicle base/seat state for this
-        // handler, so preserve the no-vehicle branch.
+        self.represented_request_adjacent_vehicle_seat_like_cpp(false);
     }
 
     /// C++ `HandleRequestVehicleNextSeat`.
     pub async fn handle_request_vehicle_next_seat(&mut self, _packet: RequestVehicleNextSeat) {
-        // C++ returns before ChangeSeat when GetVehicleBase() is null. Rust does
-        // not yet expose represented passenger vehicle base/seat state for this
-        // handler, so preserve the no-vehicle branch.
+        self.represented_request_adjacent_vehicle_seat_like_cpp(true);
     }
 
     /// C++ `HandleMoveChangeVehicleSeats`.

@@ -1265,6 +1265,12 @@ pub(crate) struct RepresentedSpellClickExecutionOutcomeLikeCpp {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedVehicleSeatChangeRequestLikeCpp {
+    pub seat_id: i8,
+    pub next: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum RepresentedSpellClickClickeeCasterOutcomeLikeCpp {
     Executed,
     UnsupportedCaster,
@@ -2939,6 +2945,9 @@ pub struct WorldSession {
     player_vehicle_seat_flags_like_cpp: Option<i32>,
     /// Represented current `VehicleSeatEntry::ID` for C++ party-member stats.
     player_vehicle_seat_id_like_cpp: Option<u32>,
+    /// Represented `Player::ChangeSeat(seatId, next)` requests until live vehicle ownership exists.
+    represented_vehicle_seat_change_requests_like_cpp:
+        Vec<RepresentedVehicleSeatChangeRequestLikeCpp>,
     /// Represented `Player::GetBattleground()->GetTypeID()` for C++ battleground object use.
     player_battleground_type_id_like_cpp: Option<u32>,
     /// Represented current pet GUID until player-owned pet runtime is canonical.
@@ -3994,6 +4003,7 @@ impl WorldSession {
             player_mount_vehicle_usable_seat_count_like_cpp: 0,
             player_vehicle_seat_flags_like_cpp: None,
             player_vehicle_seat_id_like_cpp: None,
+            represented_vehicle_seat_change_requests_like_cpp: Vec::new(),
             player_battleground_type_id_like_cpp: None,
             represented_pet_guid_like_cpp: None,
             represented_pet_react_state_like_cpp:
@@ -20152,6 +20162,30 @@ impl WorldSession {
     pub(crate) fn represented_current_vehicle_seat_can_switch_from_like_cpp(&self) -> bool {
         self.player_vehicle_seat_flags_like_cpp
             .is_some_and(wow_data::vehicle_seat_flags_can_switch_from_seat_like_cpp)
+    }
+
+    pub(crate) fn represented_request_adjacent_vehicle_seat_like_cpp(
+        &mut self,
+        next: bool,
+    ) -> bool {
+        match crate::handlers::vehicle::request_adjacent_vehicle_seat_action_like_cpp(
+            self.player_vehicle_seat_flags_like_cpp.is_some(),
+            self.represented_current_vehicle_seat_can_switch_from_like_cpp(),
+            next,
+        ) {
+            crate::handlers::vehicle::VehicleHandlerAction::ChangeSeat { seat_id, next } => {
+                self.represented_vehicle_seat_change_requests_like_cpp
+                    .push(RepresentedVehicleSeatChangeRequestLikeCpp { seat_id, next });
+                true
+            }
+            _ => false,
+        }
+    }
+
+    pub(crate) fn represented_vehicle_seat_change_requests_like_cpp(
+        &self,
+    ) -> &[RepresentedVehicleSeatChangeRequestLikeCpp] {
+        &self.represented_vehicle_seat_change_requests_like_cpp
     }
 
     pub(crate) fn represented_eject_passenger_like_cpp(
@@ -48380,6 +48414,71 @@ mod tests {
         session.player_vehicle_seat_flags_like_cpp =
             Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK | wow_data::VEHICLE_SEAT_FLAG_CAN_SWITCH);
         assert!(session.represented_current_vehicle_seat_can_switch_from_like_cpp());
+    }
+
+    #[test]
+    fn represented_adjacent_vehicle_seat_request_records_cpp_change_seat_plan() {
+        let (mut session, _, _) = make_session();
+
+        assert!(!session.represented_request_adjacent_vehicle_seat_like_cpp(false));
+        assert!(
+            session
+                .represented_vehicle_seat_change_requests_like_cpp()
+                .is_empty()
+        );
+
+        session.player_vehicle_seat_flags_like_cpp = Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK);
+        assert!(!session.represented_request_adjacent_vehicle_seat_like_cpp(true));
+        assert!(
+            session
+                .represented_vehicle_seat_change_requests_like_cpp()
+                .is_empty()
+        );
+
+        session.player_vehicle_seat_flags_like_cpp = Some(wow_data::VEHICLE_SEAT_FLAG_CAN_SWITCH);
+        assert!(session.represented_request_adjacent_vehicle_seat_like_cpp(false));
+        assert!(session.represented_request_adjacent_vehicle_seat_like_cpp(true));
+        assert_eq!(
+            session.represented_vehicle_seat_change_requests_like_cpp(),
+            &[
+                RepresentedVehicleSeatChangeRequestLikeCpp {
+                    seat_id: -1,
+                    next: false,
+                },
+                RepresentedVehicleSeatChangeRequestLikeCpp {
+                    seat_id: -1,
+                    next: true,
+                },
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn request_vehicle_prev_next_handlers_record_represented_change_seat_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.player_vehicle_seat_flags_like_cpp = Some(wow_data::VEHICLE_SEAT_FLAG_CAN_SWITCH);
+
+        session
+            .handle_request_vehicle_prev_seat(wow_packet::packets::vehicle::RequestVehiclePrevSeat)
+            .await;
+        session
+            .handle_request_vehicle_next_seat(wow_packet::packets::vehicle::RequestVehicleNextSeat)
+            .await;
+
+        assert_eq!(
+            session.represented_vehicle_seat_change_requests_like_cpp(),
+            &[
+                RepresentedVehicleSeatChangeRequestLikeCpp {
+                    seat_id: -1,
+                    next: false,
+                },
+                RepresentedVehicleSeatChangeRequestLikeCpp {
+                    seat_id: -1,
+                    next: true,
+                },
+            ],
+            "C++ prev/next handlers call Player::ChangeSeat(-1, false/true) after CanSwitchFromSeat"
+        );
     }
 
     #[test]
