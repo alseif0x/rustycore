@@ -1283,6 +1283,14 @@ pub(crate) struct RepresentedVehicleEnterRequestLikeCpp {
     pub vehicle_guid: ObjectGuid,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct RepresentedVehicleDismissMovementLikeCpp {
+    pub vehicle_guid: ObjectGuid,
+    pub sanitized_flags: MovementFlag,
+    pub position: Position,
+    pub time: u32,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum RepresentedSpellClickClickeeCasterOutcomeLikeCpp {
     Executed,
@@ -2966,6 +2974,8 @@ pub struct WorldSession {
         Vec<RepresentedVehicleSeatSpellClickRequestLikeCpp>,
     /// Represented `Player::EnterVehicle(targetPlayer)` requests from `CMSG_RIDE_VEHICLE_INTERACT`.
     represented_vehicle_enter_requests_like_cpp: Vec<RepresentedVehicleEnterRequestLikeCpp>,
+    /// Represented `m_movementInfo = MoveDismissVehicle.Status` before live `ExitVehicle`.
+    represented_vehicle_dismiss_movements_like_cpp: Vec<RepresentedVehicleDismissMovementLikeCpp>,
     /// Represented `Player::GetBattleground()->GetTypeID()` for C++ battleground object use.
     player_battleground_type_id_like_cpp: Option<u32>,
     /// Represented current pet GUID until player-owned pet runtime is canonical.
@@ -4024,6 +4034,7 @@ impl WorldSession {
             represented_vehicle_seat_change_requests_like_cpp: Vec::new(),
             represented_vehicle_seat_spell_click_requests_like_cpp: Vec::new(),
             represented_vehicle_enter_requests_like_cpp: Vec::new(),
+            represented_vehicle_dismiss_movements_like_cpp: Vec::new(),
             player_battleground_type_id_like_cpp: None,
             represented_pet_guid_like_cpp: None,
             represented_pet_react_state_like_cpp:
@@ -4735,13 +4746,28 @@ impl WorldSession {
         result.unwrap_or(ObjectGuid::EMPTY)
     }
 
-    pub(crate) fn represented_move_dismiss_vehicle_like_cpp(&mut self) -> bool {
-        if self.represented_player_charmed_guid_like_cpp().is_empty() {
+    pub(crate) fn represented_move_dismiss_vehicle_like_cpp(
+        &mut self,
+        status: &mut wow_packet::packets::movement::MovementInfo,
+    ) -> bool {
+        let vehicle_guid = self.represented_player_charmed_guid_like_cpp();
+        if vehicle_guid.is_empty() {
             return false;
         }
-        if self.player_vehicle_seat_flags_like_cpp.is_none() {
-            return false;
-        }
+
+        self.sanitize_movement_info_represented_like_cpp(status);
+        self.set_player_movement_time_like_cpp(status.time);
+        self.set_player_movement_flags_like_cpp(status.flags);
+        self.set_player_position_like_cpp(status.position);
+        self.update_registry_position();
+        self.represented_vehicle_dismiss_movements_like_cpp.push(
+            RepresentedVehicleDismissMovementLikeCpp {
+                vehicle_guid,
+                sanitized_flags: status.flags,
+                position: status.position,
+                time: status.time,
+            },
+        );
 
         self.player_vehicle_seat_flags_like_cpp = None;
         self.player_vehicle_seat_id_like_cpp = None;
@@ -20220,6 +20246,12 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedVehicleEnterRequestLikeCpp] {
         &self.represented_vehicle_enter_requests_like_cpp
+    }
+
+    pub(crate) fn represented_vehicle_dismiss_movements_like_cpp(
+        &self,
+    ) -> &[RepresentedVehicleDismissMovementLikeCpp] {
+        &self.represented_vehicle_dismiss_movements_like_cpp
     }
 
     fn represented_vehicle_base_guid_for_switch_like_cpp(&self) -> Option<ObjectGuid> {
@@ -49175,13 +49207,156 @@ mod tests {
         }
         session.register_in_player_registry();
 
-        assert!(session.represented_move_dismiss_vehicle_like_cpp());
+        let dismiss_position = Position::new(4.0, 5.0, 6.0, 1.0);
+        let mut status = wow_packet::packets::movement::MovementInfo {
+            guid,
+            flags: MovementFlag::ROOT | MovementFlag::FORWARD,
+            time: 12_345,
+            position: dismiss_position,
+            ..wow_packet::packets::movement::MovementInfo::default()
+        };
+
+        assert!(session.represented_move_dismiss_vehicle_like_cpp(&mut status));
 
         assert!(session.player_vehicle_seat_flags_like_cpp.is_none());
         assert!(session.player_vehicle_seat_id_like_cpp.is_none());
+        assert_eq!(session.player_movement_time_like_cpp(), 12_345);
+        assert_eq!(session.player_position_like_cpp(), Some(dismiss_position));
+        assert!(
+            !session
+                .player_movement_flags_like_cpp
+                .contains(MovementFlag::ROOT)
+        );
+        assert!(
+            session
+                .player_movement_flags_like_cpp
+                .contains(MovementFlag::FORWARD),
+            "C++ ValidateMovementInfo removes ROOT first, so FORWARD remains"
+        );
+        assert_eq!(
+            session.represented_vehicle_dismiss_movements_like_cpp(),
+            &[RepresentedVehicleDismissMovementLikeCpp {
+                vehicle_guid,
+                sanitized_flags: MovementFlag::FORWARD,
+                position: dismiss_position,
+                time: 12_345,
+            }]
+        );
         let info = registry.get(&guid).expect("registered player");
         assert!(!info.in_vehicle);
         assert_eq!(info.party_member_vehicle_seat, 0);
+    }
+
+    #[test]
+    fn represented_move_dismiss_vehicle_uses_charm_not_seat_gate_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let guid = ObjectGuid::create_player(1, 55);
+        let vehicle_guid = test_creature_guid(55_001);
+        let canonical = shared_canonical_map_manager();
+        let position = Position::new(1.0, 2.0, 3.0, 0.0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_player_guid(Some(guid));
+        session.set_player_map_position_like_cpp(571, position);
+        session.player_name = Some("MoveDismissVehicleCharmOnlyTester".to_string());
+        add_canonical_test_player_on_map(&canonical, guid, position, 571, 0);
+        {
+            let mut guard = canonical.lock().unwrap();
+            guard
+                .find_map_mut(571, 0)
+                .unwrap()
+                .map_mut()
+                .get_typed_player_mut(guid)
+                .unwrap()
+                .unit_mut()
+                .subsystems_mut()
+                .control
+                .set_charmed(vehicle_guid);
+        }
+
+        let dismiss_position = Position::new(7.0, 8.0, 9.0, 1.5);
+        let mut status = wow_packet::packets::movement::MovementInfo {
+            guid,
+            flags: MovementFlag::FORWARD,
+            time: 7_777,
+            position: dismiss_position,
+            ..wow_packet::packets::movement::MovementInfo::default()
+        };
+
+        assert!(session.represented_move_dismiss_vehicle_like_cpp(&mut status));
+        assert_eq!(session.player_movement_time_like_cpp(), 7_777);
+        assert_eq!(session.player_position_like_cpp(), Some(dismiss_position));
+        assert_eq!(
+            session.player_movement_flags_like_cpp,
+            MovementFlag::FORWARD
+        );
+        assert_eq!(
+            session.represented_vehicle_dismiss_movements_like_cpp(),
+            &[RepresentedVehicleDismissMovementLikeCpp {
+                vehicle_guid,
+                sanitized_flags: MovementFlag::FORWARD,
+                position: dismiss_position,
+                time: 7_777,
+            }]
+        );
+    }
+
+    #[tokio::test]
+    async fn move_dismiss_vehicle_handler_copies_status_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let guid = ObjectGuid::create_player(1, 56);
+        let vehicle_guid = test_creature_guid(56_001);
+        let canonical = shared_canonical_map_manager();
+        let position = Position::new(1.0, 2.0, 3.0, 0.0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_player_guid(Some(guid));
+        session.set_player_map_position_like_cpp(571, position);
+        session.player_name = Some("MoveDismissVehicleHandlerTester".to_string());
+        session.player_vehicle_seat_flags_like_cpp = Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK);
+        session.player_vehicle_seat_id_like_cpp = Some(1006);
+        add_canonical_test_player_on_map(&canonical, guid, position, 571, 0);
+        {
+            let mut guard = canonical.lock().unwrap();
+            guard
+                .find_map_mut(571, 0)
+                .unwrap()
+                .map_mut()
+                .get_typed_player_mut(guid)
+                .unwrap()
+                .unit_mut()
+                .subsystems_mut()
+                .control
+                .set_charmed(vehicle_guid);
+        }
+
+        let dismiss_position = Position::new(11.0, 12.0, 13.0, 2.0);
+        session
+            .handle_move_dismiss_vehicle(wow_packet::packets::vehicle::MoveDismissVehicle {
+                status: wow_packet::packets::movement::MovementInfo {
+                    guid,
+                    flags: MovementFlag::FORWARD,
+                    time: 45_678,
+                    position: dismiss_position,
+                    ..wow_packet::packets::movement::MovementInfo::default()
+                },
+            })
+            .await;
+
+        assert!(session.player_vehicle_seat_flags_like_cpp.is_none());
+        assert_eq!(session.player_movement_time_like_cpp(), 45_678);
+        assert_eq!(session.player_position_like_cpp(), Some(dismiss_position));
+        assert_eq!(
+            session.player_movement_flags_like_cpp,
+            MovementFlag::FORWARD
+        );
+        assert_eq!(
+            session.represented_vehicle_dismiss_movements_like_cpp(),
+            &[RepresentedVehicleDismissMovementLikeCpp {
+                vehicle_guid,
+                sanitized_flags: MovementFlag::FORWARD,
+                position: dismiss_position,
+                time: 45_678,
+            }]
+        );
     }
 
     #[test]
@@ -49201,13 +49376,28 @@ mod tests {
         add_canonical_test_player_on_map(&canonical, guid, position, 571, 0);
         session.register_in_player_registry();
 
-        assert!(!session.represented_move_dismiss_vehicle_like_cpp());
+        let mut status = wow_packet::packets::movement::MovementInfo {
+            guid,
+            flags: MovementFlag::FORWARD,
+            time: 9_999,
+            position: Position::new(4.0, 5.0, 6.0, 1.0),
+            ..wow_packet::packets::movement::MovementInfo::default()
+        };
+
+        assert!(!session.represented_move_dismiss_vehicle_like_cpp(&mut status));
 
         assert_eq!(
             session.player_vehicle_seat_flags_like_cpp,
             Some(wow_data::VEHICLE_SEAT_FLAG_CAN_CONTROL)
         );
         assert_eq!(session.player_vehicle_seat_id_like_cpp, Some(1005));
+        assert_eq!(session.player_movement_time_like_cpp(), 0);
+        assert_eq!(session.player_position_like_cpp(), Some(position));
+        assert!(
+            session
+                .represented_vehicle_dismiss_movements_like_cpp()
+                .is_empty()
+        );
         let info = registry.get(&guid).expect("registered player");
         assert!(info.in_vehicle);
         assert_eq!(info.party_member_vehicle_seat, 1005);

@@ -182,10 +182,10 @@ impl WorldSession {
     /// C++ `HandleMoveDismissVehicle`.
     ///
     /// Full `Player::ExitVehicle` requires live charm/passenger ownership. Until that runtime
-    /// exists, this handler intentionally mirrors the C++ early-return shape by doing nothing
-    /// when the session has no represented passenger vehicle.
-    pub async fn handle_move_dismiss_vehicle(&mut self, _packet: MoveDismissVehicle) {
-        self.represented_move_dismiss_vehicle_like_cpp();
+    /// exists, this handler mirrors the C++ early-return shape through represented charm state,
+    /// then copies the validated movement status before represented exit cleanup.
+    pub async fn handle_move_dismiss_vehicle(&mut self, mut packet: MoveDismissVehicle) {
+        self.represented_move_dismiss_vehicle_like_cpp(&mut packet.status);
     }
 
     /// C++ `HandleRequestVehiclePrevSeat`.
