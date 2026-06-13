@@ -17,7 +17,7 @@ use std::pin::Pin;
 use std::process::ExitCode;
 use std::sync::{
     Arc, Mutex,
-    atomic::{AtomicBool, AtomicI32, AtomicU32, Ordering},
+    atomic::{AtomicBool, AtomicI32, AtomicU32, AtomicU64, Ordering},
 };
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -126,6 +126,78 @@ impl WorldRuntimeStateLikeCpp {
 fn process_exit_code_like_cpp(exit_code: i32) -> ExitCode {
     let exit_code = u8::try_from(exit_code).unwrap_or(1);
     ExitCode::from(exit_code)
+}
+
+#[derive(Clone, Debug)]
+struct ActiveWorldSessionLikeCpp {
+    account_id: u32,
+    command_tx: flume::Sender<SessionCommand>,
+}
+
+/// Minimal Rust equivalent of C++ `World::m_sessions`.
+///
+/// C++ `World::KickAll` / `World::UpdateSessions` operate on all active
+/// `WorldSession` objects, including authenticated sessions still on the
+/// character screen. `PlayerRegistry` is not enough because it only contains
+/// sessions with a logged-in player. This registry intentionally stores only
+/// the command rail needed by world-owned operations; the session task remains
+/// the sole owner of `WorldSession` mutation.
+#[derive(Debug, Default)]
+struct ActiveWorldSessionRegistryLikeCpp {
+    next_id: AtomicU64,
+    sessions: Mutex<BTreeMap<u64, ActiveWorldSessionLikeCpp>>,
+}
+
+impl ActiveWorldSessionRegistryLikeCpp {
+    fn new() -> Self {
+        Self::default()
+    }
+
+    fn register(&self, account_id: u32, command_tx: flume::Sender<SessionCommand>) -> u64 {
+        let id = self
+            .next_id
+            .fetch_add(1, Ordering::Relaxed)
+            .saturating_add(1);
+        let mut sessions = self
+            .sessions
+            .lock()
+            .expect("active world session registry lock poisoned");
+        sessions.insert(
+            id,
+            ActiveWorldSessionLikeCpp {
+                account_id,
+                command_tx,
+            },
+        );
+        id
+    }
+
+    fn unregister(&self, id: u64) -> Option<ActiveWorldSessionLikeCpp> {
+        let mut sessions = self
+            .sessions
+            .lock()
+            .expect("active world session registry lock poisoned");
+        sessions.remove(&id)
+    }
+
+    fn snapshot_like_cpp(&self) -> Vec<(u64, ActiveWorldSessionLikeCpp)> {
+        let sessions = self
+            .sessions
+            .lock()
+            .expect("active world session registry lock poisoned");
+        sessions
+            .iter()
+            .map(|(id, session)| (*id, session.clone()))
+            .collect()
+    }
+
+    #[cfg(test)]
+    fn len(&self) -> usize {
+        self.sessions
+            .lock()
+            .expect("active world session registry lock poisoned")
+            .len()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1807,6 +1879,7 @@ async fn main() -> Result<ExitCode> {
 
     // Shared player registry for broadcast (chat, emotes, movement)
     let player_registry = Arc::new(PlayerRegistry::new());
+    let active_session_registry = Arc::new(ActiveWorldSessionRegistryLikeCpp::new());
     let object_accessor = wow_world::new_shared_object_accessor();
 
     let mut condition_load_report =
@@ -2489,6 +2562,7 @@ async fn main() -> Result<ExitCode> {
         let canonical_map = Arc::clone(&canonical_map_manager);
         let spawn_metadata = Arc::clone(&canonical_spawn_metadata);
         let accessor = Arc::clone(&object_accessor);
+        let active_sessions = Arc::clone(&active_session_registry);
         let port = instance_port;
         let mmap_config = mmap_runtime_config.clone();
         let mmap_pathfinder = mmap_pathfinder.clone();
@@ -2503,6 +2577,7 @@ async fn main() -> Result<ExitCode> {
                     let canonical_map = Arc::clone(&canonical_map);
                     let spawn_metadata = Arc::clone(&spawn_metadata);
                     let accessor = Arc::clone(&accessor);
+                    let active_sessions = Arc::clone(&active_sessions);
                     let mmap_pathfinder = mmap_pathfinder.clone();
                     create_session(
                         account,
@@ -2518,6 +2593,7 @@ async fn main() -> Result<ExitCode> {
                         max_expansion,
                         mmap_config.clone(),
                         mmap_pathfinder,
+                        active_sessions,
                     )
                 },
             )
@@ -2681,7 +2757,7 @@ async fn main() -> Result<ExitCode> {
         }
     }
 
-    let kick_summary = kick_all_sessions_like_cpp(&player_registry);
+    let kick_summary = kick_all_sessions_like_cpp(&active_session_registry);
     info!(
         sessions_seen = kick_summary.sessions_seen,
         queued = kick_summary.queued,
@@ -2952,27 +3028,29 @@ struct KickAllSessionsSummaryLikeCpp {
 /// clears the queued-login list and calls `WorldSession::KickPlayer("World::KickAll")`
 /// for every session in `m_sessions`. Rust does not yet have the full
 /// `WorldSessionMgr::Update` owner or login queue, so this function covers the
-/// active `PlayerRegistry` entries only; the required final `UpdateSessions(1)`
-/// shutdown flush remains tracked separately in `docs/migration/worldserver.md`.
-fn kick_all_sessions_like_cpp(registry: &PlayerRegistry) -> KickAllSessionsSummaryLikeCpp {
+/// authenticated active-session registry; the required final
+/// `UpdateSessions(1)` shutdown flush remains tracked separately in
+/// `docs/migration/worldserver.md`.
+fn kick_all_sessions_like_cpp(
+    registry: &ActiveWorldSessionRegistryLikeCpp,
+) -> KickAllSessionsSummaryLikeCpp {
     let mut summary = KickAllSessionsSummaryLikeCpp::default();
 
-    for entry in registry.iter() {
+    for (session_id, session) in registry.snapshot_like_cpp() {
         summary.sessions_seen = summary.sessions_seen.saturating_add(1);
-        let info = entry.value();
         let command = SessionCommand::KickLikeCpp(KickLikeCppCommand {
             reason: "World::KickAll".to_string(),
         });
 
-        match info.command_tx.try_send(command) {
+        match session.command_tx.try_send(command) {
             Ok(()) => {
                 summary.queued = summary.queued.saturating_add(1);
             }
             Err(error) => {
                 summary.send_failed = summary.send_failed.saturating_add(1);
                 warn!(
-                    account = info.account_id,
-                    player = %entry.key(),
+                    account = session.account_id,
+                    session_id,
                     error = %error,
                     "Failed to queue World::KickAll-style shutdown kick"
                 );
@@ -7853,6 +7931,7 @@ async fn create_session(
     max_expansion: u8,
     mmap_runtime_config: MMapRuntimeConfigLikeCpp,
     mmap_pathfinder: Option<Arc<WorldMMapPathfinderWorkerLikeCpp>>,
+    active_session_registry: Arc<ActiveWorldSessionRegistryLikeCpp>,
 ) {
     info!(
         "Creating session for account {} (bnet_id={})",
@@ -7884,6 +7963,8 @@ async fn create_session(
         pkt_rx,
         send_tx,
     );
+    let active_session_id =
+        active_session_registry.register(account.id, session.session_command_tx());
 
     // Configure session with resources
     if let Some(ref db) = resources.char_db {
@@ -8254,6 +8335,7 @@ async fn create_session(
     session
         .cleanup_shared_runtime_state_on_disconnect_like_cpp()
         .await;
+    active_session_registry.unregister(active_session_id);
 }
 
 /// Load realm external and local addresses from the `realmlist` table.
@@ -9308,7 +9390,7 @@ fn spawn_legacy_creature_runtime_update_loop_like_cpp(
 
 #[cfg(test)]
 mod tests {
-    use super::KickAllSessionsSummaryLikeCpp;
+    use super::{ActiveWorldSessionRegistryLikeCpp, KickAllSessionsSummaryLikeCpp};
     use super::{
         CanonicalGameEventSchedulerLikeCpp, CanonicalRespawnConditionSchedulerLikeCpp,
         ERROR_EXIT_CODE_LIKE_CPP, FreezeDetectorLikeCpp, FreezeDetectorPollOutcomeLikeCpp,
@@ -9503,14 +9585,14 @@ mod tests {
 
     #[test]
     fn kick_all_sessions_queues_world_kick_for_every_registered_session_like_cpp() {
-        let registry = PlayerRegistry::default();
-        let (send_tx_a, _send_rx_a) = flume::bounded(1);
-        let (send_tx_b, _send_rx_b) = flume::bounded(1);
+        let registry = ActiveWorldSessionRegistryLikeCpp::new();
         let (command_tx_a, command_rx_a) = flume::bounded(1);
         let (command_tx_b, command_rx_b) = flume::bounded(1);
 
-        insert_player_broadcast_fixture_like_cpp(&registry, 9001, send_tx_a, command_tx_a);
-        insert_player_broadcast_fixture_like_cpp(&registry, 9002, send_tx_b, command_tx_b);
+        let first_id = registry.register(10, command_tx_a);
+        let second_id = registry.register(20, command_tx_b);
+        assert_ne!(first_id, second_id);
+        assert_eq!(registry.len(), 2);
 
         assert_eq!(
             kick_all_sessions_like_cpp(&registry),
@@ -9532,11 +9614,10 @@ mod tests {
 
     #[test]
     fn kick_all_sessions_counts_full_command_channel_without_blocking_like_cpp() {
-        let registry = PlayerRegistry::default();
-        let (send_tx, _send_rx) = flume::bounded(1);
+        let registry = ActiveWorldSessionRegistryLikeCpp::new();
         let (command_tx, _command_rx) = flume::bounded(0);
 
-        insert_player_broadcast_fixture_like_cpp(&registry, 9003, send_tx, command_tx);
+        registry.register(30, command_tx);
 
         assert_eq!(
             kick_all_sessions_like_cpp(&registry),
@@ -9546,6 +9627,21 @@ mod tests {
                 send_failed: 1,
             }
         );
+    }
+
+    #[test]
+    fn active_world_session_registry_unregisters_finished_sessions_like_cpp() {
+        let registry = ActiveWorldSessionRegistryLikeCpp::new();
+        let (command_tx, _command_rx) = flume::bounded(1);
+        let id = registry.register(40, command_tx);
+
+        assert_eq!(registry.len(), 1);
+        assert_eq!(
+            registry.unregister(id).map(|session| session.account_id),
+            Some(40)
+        );
+        assert_eq!(registry.len(), 0);
+        assert!(registry.unregister(id).is_none());
     }
 
     fn assert_del_respawn_params_like_cpp(

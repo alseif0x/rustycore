@@ -15690,8 +15690,14 @@ impl WorldSession {
         &self.send_tx
     }
 
-    #[cfg(test)]
-    pub(crate) fn session_command_tx(&self) -> flume::Sender<SessionCommand> {
+    /// Clone the C++-style cross-session command channel for this active
+    /// session.
+    ///
+    /// Worldserver-level registries use this as the Rust equivalent of holding
+    /// a `WorldSession*` in `World::m_sessions` for commands such as
+    /// `World::KickAll`; session state is still mutated only by the session
+    /// task when it drains the channel.
+    pub fn session_command_tx(&self) -> flume::Sender<SessionCommand> {
         self.session_command_tx.clone()
     }
 
