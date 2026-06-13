@@ -26,7 +26,10 @@ use tokio::sync::Notify;
 use tokio::task::AbortHandle;
 use tracing::{debug, info, warn};
 use wow_config::{DatabaseInfo, LoadReport, WorldConfigSet};
-use wow_core::{Ipv4NetworkLikeCpp, ObjectGuid, ObjectGuidGenerator, guid::HighGuid};
+use wow_core::{
+    Ipv4NetworkLikeCpp, ObjectGuid, ObjectGuidGenerator, guid::HighGuid,
+    scan_local_ipv4_networks_like_cpp,
+};
 use wow_database::{
     CharStatements, CharacterDatabase, DATABASE_CHARACTER_LIKE_CPP, DATABASE_HOTFIX_LIKE_CPP,
     DATABASE_LOGIN_LIKE_CPP, DATABASE_MASK_ALL_LIKE_CPP, DATABASE_WORLD_LIKE_CPP, HotfixDatabase,
@@ -8820,8 +8823,8 @@ async fn create_session(
 
     // Select the correct realm IP for ConnectTo based on client address.
     // C++ delegates to Trinity::Net::SelectAddressForClient after scanning
-    // local interfaces. Rust keeps the existing /24 LAN approximation until
-    // ScanLocalNetworks is ported.
+    // local interfaces. Rust scans IPv4 interfaces on demand and falls back to
+    // the old /24 approximation only if no usable local network is found.
     let connect_ip = get_address_for_client(
         account.client_address,
         resources.realm_external_address,
@@ -8872,12 +8875,22 @@ async fn create_session(
 /// Select the correct realm IP for a client, matching C++ `Realm::GetAddressForClient`.
 ///
 /// This uses the shared SelectAddressForClient-like priority rules. The local
-/// network source is still a temporary /24 derived from `local` until
-/// Trinity::Net::ScanLocalNetworks is ported.
+/// network source is scanned from host interfaces, with a /24 fallback when no
+/// usable IPv4 interface is reported.
 fn get_address_for_client(
     client_ip: Option<std::net::IpAddr>,
     external: [u8; 4],
     local: [u8; 4],
+) -> [u8; 4] {
+    let scanned_networks = scan_local_ipv4_networks_like_cpp();
+    get_address_for_client_with_local_networks(client_ip, external, local, &scanned_networks)
+}
+
+fn get_address_for_client_with_local_networks(
+    client_ip: Option<std::net::IpAddr>,
+    external: [u8; 4],
+    local: [u8; 4],
+    scanned_networks: &[Ipv4NetworkLikeCpp],
 ) -> [u8; 4] {
     let external_v4 = std::net::Ipv4Addr::from(external);
     let local_v4 = std::net::Ipv4Addr::from(local);
@@ -8885,12 +8898,17 @@ fn get_address_for_client(
         Some(std::net::IpAddr::V4(v4)) => Some(v4),
         _ => None,
     };
-    let local_networks = [Ipv4NetworkLikeCpp::new(local_v4, 24)];
+    let fallback_networks = [Ipv4NetworkLikeCpp::new(local_v4, 24)];
+    let local_networks = if scanned_networks.is_empty() {
+        fallback_networks.as_slice()
+    } else {
+        scanned_networks
+    };
     wow_core::realm_ipv4_address_for_client_like_cpp(
         client_v4,
         external_v4,
         local_v4,
-        &local_networks,
+        local_networks,
     )
     .octets()
 }
@@ -9935,7 +9953,7 @@ mod tests {
         game_event_unspawn_for_event_like_cpp, game_event_unspawn_pools_for_event_like_cpp,
         game_event_unspawn_pools_like_cpp, game_event_update_npc_flags_like_cpp,
         game_event_update_npc_vendor_like_cpp, game_event_update_world_states_like_cpp,
-        get_address_for_client, half_max_core_stuck_time_like_cpp,
+        get_address_for_client_with_local_networks, half_max_core_stuck_time_like_cpp,
         install_canonical_spawn_group_initializer_like_cpp, kick_all_sessions_like_cpp,
         legacy_creature_aggro_config_like_cpp,
         legacy_creature_global_runtime_enabled_from_config_like_cpp, load_world_config_from,
@@ -10133,26 +10151,29 @@ mod tests {
     #[test]
     fn connect_to_address_uses_shared_select_address_priority_like_cpp() {
         assert_eq!(
-            get_address_for_client(
+            get_address_for_client_with_local_networks(
                 Some("127.0.0.1".parse().unwrap()),
                 [198, 51, 100, 10],
                 [10, 0, 0, 10],
+                &[],
             ),
             [10, 0, 0, 10]
         );
         assert_eq!(
-            get_address_for_client(
+            get_address_for_client_with_local_networks(
                 Some("10.0.0.42".parse().unwrap()),
                 [198, 51, 100, 10],
                 [10, 0, 0, 10],
+                &[],
             ),
             [10, 0, 0, 10]
         );
         assert_eq!(
-            get_address_for_client(
+            get_address_for_client_with_local_networks(
                 Some("203.0.113.42".parse().unwrap()),
                 [198, 51, 100, 10],
                 [10, 0, 0, 10],
+                &[],
             ),
             [198, 51, 100, 10]
         );

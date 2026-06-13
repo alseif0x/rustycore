@@ -223,7 +223,7 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
   - the bridge runs with `tokio::task::spawn_blocking` because the legacy map uses `std::sync::RwLock` and mmap/pathfinding is synchronous;
   - packet fanout is delivered outside map locks through the `PlayerRegistry` / `SessionCommand` rails.
 - Shutdown via `tokio::select! { shutdown_signal() => ..., listener_join => ... }`, where `shutdown_signal()` handles Ctrl-C and Unix SIGTERM.
-- `get_address_for_client` — uses the shared `wow_core::select_ipv4_address_for_client_like_cpp` priority helper; still feeds it a `/24` approximation until `ScanLocalNetworks` is ported.
+- `get_address_for_client` — uses the shared `wow_core::select_ipv4_address_for_client_like_cpp` priority helper and Unix IPv4 `scan_local_ipv4_networks_like_cpp`; falls back to `/24` only if no usable scanned network exists.
 
 **What's missing vs C++:**
 - **Full `World::Update(diff)` global ownership.** TC's `WorldUpdateLoop` is a single thread that increments `World::m_worldLoopCounter`, sleeps according to `MinWorldUpdateTime`, then calls `sWorld->Update(diff)`. Rust now has the C++ timing/counter step represented by `world_update_loop_step_like_cpp`, but C++ `World::Update` still drives session updates, map updates, battlegrounds, outdoor PvP, scripts, weather and housekeeping from one owner. RustyCore has a canonical map update loop and a gated legacy creature runtime bridge, but it does **not** yet have a full `WorldSessionMgr::Update` / all-subsystem `World::Update` owner equivalent.
@@ -237,7 +237,7 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
 - **`OpenSSLCrypto` setup / `BigNumber::SetRand(...)` warmup**: irrelevant (rustls / `getrandom`).
 - **`CreatePIDFile` present**: Rust reads `PidFile`, writes the current process id before DB/network startup, and aborts startup on write failure like TC.
 - **`SecretMgr::Initialize(SECRET_OWNER_WORLDSERVER)`**: missing.
-- **`ScanLocalNetworks`**: there is `get_address_for_client` which approximates TC's behaviour but only checks `/24` against `realm_local_address`, not the full set of host interfaces.
+- **`ScanLocalNetworks`**: Unix IPv4 host-interface scanning is now shared through `wow-core`; IPv6 and Windows parity remain open.
 - **`ClearOnlineAccounts` present** at boot and shutdown: Rust clears `account.online` for accounts with characters on this realm, clears `characters.online`, and resets `character_battleground_data.instanceId` like TC.
 - **`UPDATE realmlist SET flag = flag | OFFLINE`** at boot / `& ~OFFLINE` after listener-up / on shutdown: present; Rust marks the realm offline after DB cleanup, online after listeners/runtime tasks are up, and offline again during shutdown.
 - **`LoadRealmInfo`** equivalent: partial — the active worldserver realm now comes from the initialized `RealmListSnapshotLikeCpp` like C++ `sRealmList->GetRealm(realm.Id)`; broader BNet realm-list JSON / JoinRealm consumers are still not wired to the snapshot.
@@ -448,7 +448,7 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
 | `sWorld->SetInitialWorldSettings()` | The accumulation of all `*Store::load(...)` calls + handler-table build | Lives in `world.md` — already partly done. |
 | `sScriptMgr->OnStartup() / OnShutdown()` | `wow_scripts::lifecycle::{on_startup, on_shutdown}().await` | Hook dispatch points are wired through a minimal `wow-script` inventory registry; concrete content scripts and `SetScriptLoader(AddScripts)` parity are still pending. |
 | `sMetric->Initialize(realmName, io, lambda)` | `wow_metric::initialize(realm_name, ||{ emit_periodic() })` (TODO crate) | — |
-| `Trinity::Net::ScanLocalNetworks()` | `wow_core::select_ipv4_address_for_client_like_cpp` plus TODO interface scan; only `/24` heuristic input right now | — |
+| `Trinity::Net::ScanLocalNetworks()` | `wow_core::scan_local_ipv4_networks_like_cpp` + `select_ipv4_address_for_client_like_cpp` for Unix IPv4; IPv6/Windows TODO | — |
 | `LoginDatabase.DirectPExecute("UPDATE realmlist ...", flag, realmId)` | `login_db.direct_execute(&format!("UPDATE realmlist SET ... WHERE id = {realm_id}"))?` | Already used in `load_realm_addresses`. |
 | `MySQL::Library_Init() / End()` | (none) | sqlx handles libmysqlclient internally; nothing to call. |
 | `BigNumber seed; seed.SetRand(16*8)` | (none) | rustls / `getrandom` seed automatically. |
@@ -487,7 +487,7 @@ The 2026-05-01 pre-audit hypothesis was correct for the code at that time: creat
 
 The remaining architectural gap is narrower but still fundamental: RustyCore still does **not** have a full C++ `WorldUpdateLoop`/`World::Update(diff)` equivalent that owns session updates, all map updates, battleground/outdoor PvP/script/weather housekeeping, `World::m_worldLoopCounter`, `World::StopNow`, and `World::GetExitCode` from one top-level owner.
 
-Otherwise the boot sequence is largely on-parity for what's implemented (4 DB pools, DB updater, CLI config/update-only exits, startup banner/version record, DB2/DBC store loads, dispatch table, listeners on 8085 + 8086, ConnectTo flow, `get_address_for_client` heuristic). The big gaps are in lifecycle/operational infrastructure: no freeze detector, no RA/SOAP, no graceful shutdown drain (sessions are dropped abruptly when listeners close), and no full C++ world-loop stop/exit-code owner.
+Otherwise the boot sequence is largely on-parity for what's implemented (4 DB pools, DB updater, CLI config/update-only exits, startup banner/version record, DB2/DBC store loads, dispatch table, listeners on 8085 + 8086, ConnectTo flow, Unix IPv4 `get_address_for_client` selection). The big gaps are in lifecycle/operational infrastructure: no freeze detector, no RA/SOAP, no graceful shutdown drain (sessions are dropped abruptly when listeners close), and no full C++ world-loop stop/exit-code owner.
 
 ### 13.2 Startup parity
 
@@ -511,7 +511,7 @@ Otherwise the boot sequence is largely on-parity for what's implemented (4 DB po
 | `realm.Id.Realm` from config; bail if 0 | `realm_id_like_cpp()` requires `RealmID` and rejects 0 before DB cleanup | ✅ |
 | `UPDATE version SET core_version/core_revision`; `sWorld->LoadDBVersion()`; `Using World DB` | `update_world_db_core_version_like_cpp` writes full version/hash; `verify_world_db_version_like_cpp` loads and logs `Using World DB` | ✅ |
 | `--update-databases-only` early exit | exits after updater + `realm_id_like_cpp` + `clear_online_accounts_like_cpp` + `update_world_db_core_version_like_cpp` + `verify_world_db_version_like_cpp`, before listeners and before marking the realm offline | ✅ |
-| `Trinity::Net::ScanLocalNetworks()` | `get_address_for_client` + shared IPv4 selection helper; `/24` heuristic input | ⚠️ partial |
+| `Trinity::Net::ScanLocalNetworks()` | `get_address_for_client` + shared Unix IPv4 scan/selection helper; IPv6/Windows TODO | ⚠️ partial |
 | `UPDATE realmlist SET flag\|=OFFLINE` at boot | `set_realm_offline(&login_db, realm_id)` after DB cleanup | ✅ |
 | `sRealmList->Initialize(io, RealmsStateUpdateDelay)` background refresh | `RealmListSnapshotLikeCpp` + `spawn_realm_list_update_loop_like_cpp` | ⚠️ partial (#WS.12): refreshes DB snapshot and backs active `LoadRealmInfo`; BNet consumers still not wired |
 | `LoadRealmInfo()` | `load_realm_info_from_snapshot_like_cpp` from `RealmListSnapshotLikeCpp`; build seed still comes from `build_info` by build | ⚠️ partial (active worldserver realm wired; BNet consumers still pending) |

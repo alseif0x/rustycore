@@ -37,6 +37,77 @@ fn is_in_local_network_like_cpp(address: Ipv4Addr, local_networks: &[Ipv4Network
         .any(|network| network.contains_like_cpp(address))
 }
 
+fn ipv4_prefix_from_netmask_like_cpp(netmask: Ipv4Addr) -> u8 {
+    netmask
+        .octets()
+        .iter()
+        .map(|octet| octet.leading_ones() as u8)
+        .sum()
+}
+
+#[cfg(unix)]
+#[allow(unsafe_code)]
+fn sockaddr_ipv4_like_cpp(sockaddr: *const libc::sockaddr) -> Option<Ipv4Addr> {
+    if sockaddr.is_null() {
+        return None;
+    }
+
+    // SAFETY: caller passes a non-null sockaddr pointer from getifaddrs. The
+    // family check ensures the layout is sockaddr_in before the cast.
+    unsafe {
+        if (*sockaddr).sa_family as libc::c_int != libc::AF_INET {
+            return None;
+        }
+        let ipv4 = &*(sockaddr as *const libc::sockaddr_in);
+        Some(Ipv4Addr::from(ipv4.sin_addr.s_addr.to_ne_bytes()))
+    }
+}
+
+#[cfg(unix)]
+#[allow(unsafe_code)]
+pub fn scan_local_ipv4_networks_like_cpp() -> Vec<Ipv4NetworkLikeCpp> {
+    let mut networks = Vec::new();
+    let mut addresses: *mut libc::ifaddrs = std::ptr::null_mut();
+
+    // SAFETY: getifaddrs initializes a linked list owned by libc on success;
+    // every successful call is paired with freeifaddrs before returning.
+    let result = unsafe { libc::getifaddrs(&mut addresses) };
+    if result == -1 {
+        return networks;
+    }
+
+    let mut current = addresses;
+    while !current.is_null() {
+        // SAFETY: current traverses the getifaddrs-owned linked list until null.
+        let ifaddr = unsafe { &*current };
+        if let Some(address) = sockaddr_ipv4_like_cpp(ifaddr.ifa_addr) {
+            if !(address.is_unspecified()
+                || address.is_loopback()
+                || address.is_multicast()
+                || address == Ipv4Addr::BROADCAST)
+            {
+                let prefix = sockaddr_ipv4_like_cpp(ifaddr.ifa_netmask)
+                    .map(ipv4_prefix_from_netmask_like_cpp)
+                    .unwrap_or(32);
+                networks.push(Ipv4NetworkLikeCpp::new(address, prefix));
+            }
+        }
+
+        current = ifaddr.ifa_next;
+    }
+
+    // SAFETY: addresses was returned by a successful getifaddrs call above.
+    unsafe {
+        libc::freeifaddrs(addresses);
+    }
+    networks
+}
+
+#[cfg(not(unix))]
+pub fn scan_local_ipv4_networks_like_cpp() -> Vec<Ipv4NetworkLikeCpp> {
+    Vec::new()
+}
+
 /// IPv4 subset of Trinity::Net::SelectAddressForClient.
 ///
 /// C++ classifies configured addresses as loopback, local-interface, or
@@ -152,6 +223,22 @@ mod tests {
                 &[],
             ),
             local
+        );
+    }
+
+    #[test]
+    fn ipv4_prefix_from_netmask_counts_leading_one_bits_like_cpp() {
+        assert_eq!(
+            ipv4_prefix_from_netmask_like_cpp(Ipv4Addr::new(255, 255, 0, 0)),
+            16
+        );
+        assert_eq!(
+            ipv4_prefix_from_netmask_like_cpp(Ipv4Addr::new(255, 255, 254, 0)),
+            23
+        );
+        assert_eq!(
+            ipv4_prefix_from_netmask_like_cpp(Ipv4Addr::new(255, 255, 255, 255)),
+            32
         );
     }
 }

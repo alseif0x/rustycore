@@ -3143,6 +3143,7 @@ name = "wow-core"
 version = "0.1.0"
 dependencies = [
  "bitflags",
+ "libc",
  "num-derive",
  "num-traits",
  "serde",

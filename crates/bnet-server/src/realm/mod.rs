@@ -379,8 +379,7 @@ impl RealmManager {
 
     /// Generate compressed JSON for server IP addresses of a realm.
     /// Selects local or external address based on the client's IP using the
-    /// shared C++-like priority helper. Until ScanLocalNetworks is ported, the
-    /// local network input is approximated from localAddress as /24.
+    /// shared C++-like priority helper and scanned local IPv4 interfaces.
     pub fn get_realm_server_addresses_json_like_cpp(
         &self,
         realm: &Realm,
@@ -440,10 +439,20 @@ impl RealmManager {
 /// Pick the right realm IP for a given client address.
 ///
 /// C++ delegates to Trinity::Net::SelectAddressForClient after
-/// Trinity::Net::ScanLocalNetworks. Rust does not yet scan interfaces at boot,
-/// so this preserves the previous /24 LAN approximation while using the same
-/// address-priority helper as the world server.
+/// Trinity::Net::ScanLocalNetworks. Rust scans on demand and falls back to the
+/// previous /24 LAN approximation only if interface scanning returns no usable
+/// IPv4 networks.
 fn select_realm_ip_str(client_ip: Option<std::net::IpAddr>, external: &str, local: &str) -> String {
+    let scanned_networks = wow_core::scan_local_ipv4_networks_like_cpp();
+    select_realm_ip_str_with_local_networks(client_ip, external, local, &scanned_networks)
+}
+
+fn select_realm_ip_str_with_local_networks(
+    client_ip: Option<std::net::IpAddr>,
+    external: &str,
+    local: &str,
+    scanned_networks: &[wow_core::Ipv4NetworkLikeCpp],
+) -> String {
     let Ok(external_v4) = external.parse::<std::net::Ipv4Addr>() else {
         return external.to_string();
     };
@@ -454,12 +463,17 @@ fn select_realm_ip_str(client_ip: Option<std::net::IpAddr>, external: &str, loca
         Some(std::net::IpAddr::V4(v4)) => Some(v4),
         _ => None,
     };
-    let local_networks = [wow_core::Ipv4NetworkLikeCpp::new(local_v4, 24)];
+    let fallback_networks = [wow_core::Ipv4NetworkLikeCpp::new(local_v4, 24)];
+    let local_networks = if scanned_networks.is_empty() {
+        fallback_networks.as_slice()
+    } else {
+        scanned_networks
+    };
     let selected = wow_core::realm_ipv4_address_for_client_like_cpp(
         client_v4,
         external_v4,
         local_v4,
-        &local_networks,
+        local_networks,
     );
 
     if selected == local_v4 {
@@ -1171,18 +1185,29 @@ mod tests {
             realm.local_address
         );
         assert_eq!(
-            select_realm_ip_str(
-                Some(std::net::IpAddr::V4("10.0.0.42".parse().unwrap())),
+            select_realm_ip_str_with_local_networks(
+                Some(std::net::IpAddr::V4("127.0.0.1".parse().unwrap())),
                 &realm.external_address,
                 &realm.local_address,
+                &[],
             ),
             realm.local_address
         );
         assert_eq!(
-            select_realm_ip_str(
+            select_realm_ip_str_with_local_networks(
+                Some(std::net::IpAddr::V4("10.0.0.42".parse().unwrap())),
+                &realm.external_address,
+                &realm.local_address,
+                &[],
+            ),
+            realm.local_address
+        );
+        assert_eq!(
+            select_realm_ip_str_with_local_networks(
                 Some(std::net::IpAddr::V4("198.51.100.42".parse().unwrap())),
                 &realm.external_address,
                 &realm.local_address,
+                &[],
             ),
             realm.external_address
         );

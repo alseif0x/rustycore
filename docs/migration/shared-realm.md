@@ -145,7 +145,7 @@ Y para realm list updates:
 - `init_realm_manager` con polling task Tokio
 - `load_build_info`, `update_realms` directo SQL
 - `get_realm_list_json` con flag `VERSION_MISMATCH` dinámico y `population_state` correcto
-- `get_realm_entry_json` usa el helper compartido `wow_core::select_ipv4_address_for_client_like_cpp`; todavía alimenta redes locales aproximadas `/24` hasta portar `ScanLocalNetworks`.
+- `get_realm_entry_json` usa el helper compartido `wow_core::select_ipv4_address_for_client_like_cpp` y `scan_local_ipv4_networks_like_cpp` para la ruta Unix IPv4; IPv6/Windows siguen pendientes.
 - Envelopes correctos: `JSONRealmListUpdates:` / `JSONRealmListServerIPAddresses:` / `JSONRealmCharacterCountList:`
 - Compresión zlib con prefijo `u32` little-endian de tamaño descomprimido
 - `find_realm_by_address`, `get_build_info`
@@ -357,7 +357,7 @@ Y para realm list updates:
 | `Trinity::Crypto::GetRandomBytes<32>` | `rand::thread_rng().fill` in `game_utilities::join_realm` | TODO #REALM.4b for full ownership/golden coverage |
 | `Trinity::Asio::Resolver::Resolve` | `resolve_realm_address_like_cpp` + `tokio::net::lookup_host` | Takes first IPv4; skips realm on external/local failure |
 | `RealmList::WriteSubRegions` | `RealmManager::write_sub_regions_like_cpp` | Emits `Variant.string_value` values in stored order |
-| `Trinity::Net::SelectAddressForClient` | `wow_core::select_ipv4_address_for_client_like_cpp` + callers `select_realm_ip_str` / `get_address_for_client` | IPv4 priority order ported and shared; remaining gap: Rust callers still approximate `ScanLocalNetworks()` with a `/24` derived from `localAddress` until real interface scanning is ported |
+| `Trinity::Net::SelectAddressForClient` | `wow_core::select_ipv4_address_for_client_like_cpp` + `scan_local_ipv4_networks_like_cpp` + callers `select_realm_ip_str` / `get_address_for_client` | Unix IPv4 priority order and interface scan ported; IPv6/Windows parity pending |
 
 ---
 
