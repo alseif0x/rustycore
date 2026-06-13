@@ -2507,7 +2507,7 @@ impl WorldSession {
     }
 
     async fn generate_represented_disenchant_loot_template_entries_like_cpp(
-        &self,
+        &mut self,
         disenchant_id: u32,
         winner_guid: ObjectGuid,
     ) -> Vec<LootEntry> {
@@ -2521,12 +2521,12 @@ impl WorldSession {
             0,
         )];
 
+        let mut rng = self.represented_runtime_subrng_like_cpp();
         let mut processed_frames = 0u32;
         while let Some(mut frame) = frames.pop() {
             if frame.requested_group_id > 0 {
                 let group_index = usize::from(frame.requested_group_id - 1);
                 if let Some(group) = frame.template.groups().get(group_index) {
-                    let mut rng = rand::thread_rng();
                     if let Some(row) =
                         group.roll_like_cpp(LOOT_MODE_DEFAULT_LIKE_CPP, &mut rng, |item| {
                             self.item_storage_template(item.item_id).is_some()
@@ -2561,7 +2561,6 @@ impl WorldSession {
                 frame.group_index += 1;
                 frames.push(frame.clone());
 
-                let mut rng = rand::thread_rng();
                 if let Some(row) = frame.template.groups()[group_index].roll_like_cpp(
                     LOOT_MODE_DEFAULT_LIKE_CPP,
                     &mut rng,
@@ -2597,7 +2596,7 @@ impl WorldSession {
                     && !roll_chance_with_rate_like_cpp(
                         row.chance,
                         self.loot_drop_rates_like_cpp().item_referenced,
-                        &mut rand::thread_rng(),
+                        &mut rng,
                     )
                 {
                     continue;
@@ -2641,13 +2640,12 @@ impl WorldSession {
                 && !roll_chance_with_rate_like_cpp(
                     row.chance,
                     self.item_drop_rate_like_cpp(row.item_id),
-                    &mut rand::thread_rng(),
+                    &mut rng,
                 )
             {
                 continue;
             }
 
-            let mut rng = rand::thread_rng();
             let count = rng.gen_range(u32::from(row.min_count)..=u32::from(row.max_count));
             add_loot_item_stacks_like_cpp(
                 &mut loot_items,
@@ -7643,7 +7641,7 @@ mod tests {
         RepresentedGameObjectSpellCaster, RepresentedGameObjectUseEffect,
         RepresentedLootRollCriteriaEvent, SessionState,
     };
-    use rand::{SeedableRng, rngs::StdRng};
+    use rand::{Rng, SeedableRng, rngs::StdRng};
     use std::time::{Duration, Instant};
     use std::{
         collections::{HashMap, HashSet},
@@ -11511,6 +11509,38 @@ mod tests {
         assert_eq!(frame.template.groups()[1].equal_chanced().len(), 1);
         assert_eq!(frame.template.entries()[1].reference, 700);
         assert_eq!(frame.template.entries()[1].group_id, 2);
+    }
+
+    #[test]
+    fn represented_disenchant_group_roll_uses_caller_rng_like_cpp_count() {
+        let rows = vec![LootStoreItem {
+            item_id: 10940,
+            reference: 0,
+            chance: 100.0,
+            needs_quest: false,
+            loot_mode: super::LOOT_MODE_DEFAULT_LIKE_CPP,
+            group_id: 1,
+            min_count: 2,
+            max_count: 7,
+        }];
+        let frame = super::disenchant_loot_template_frame_like_cpp(rows, 1);
+        let group = &frame.template.groups()[0];
+
+        let mut expected_rng = StdRng::seed_from_u64(0xD15E);
+        let _expected_group =
+            group.roll_like_cpp(super::LOOT_MODE_DEFAULT_LIKE_CPP, &mut expected_rng, |_| {
+                true
+            });
+        let expected_count = expected_rng.gen_range(2..=7);
+
+        let mut rng = StdRng::seed_from_u64(0xD15E);
+        let row = group
+            .roll_like_cpp(super::LOOT_MODE_DEFAULT_LIKE_CPP, &mut rng, |_| true)
+            .expect("group should roll the guaranteed disenchant row");
+        let count = rng.gen_range(u32::from(row.min_count)..=u32::from(row.max_count));
+
+        assert_eq!(row.item_id, 10940);
+        assert_eq!(count, expected_count);
     }
 
     #[tokio::test]
