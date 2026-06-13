@@ -10,6 +10,7 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::io::Write;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 
 use crate::state::AppState;
@@ -508,6 +509,22 @@ async fn update_realms(state: &AppState) -> Result<()> {
             let normalized_name = normalized_realm_name_like_cpp(&name);
             let address: String = result.read(2);
             let local_address: String = result.read(3);
+            let Some(external_address) =
+                resolve_realm_address_like_cpp("address", &address, &name, id).await?
+            else {
+                if !result.next_row() {
+                    break;
+                }
+                continue;
+            };
+            let Some(local_address) =
+                resolve_realm_address_like_cpp("localAddress", &local_address, &name, id).await?
+            else {
+                if !result.next_row() {
+                    break;
+                }
+                continue;
+            };
             let port: u16 = result.try_read::<u16>(4).unwrap_or(8085);
             let icon = RealmTypeLikeCpp::from_db_like_cpp(result.try_read::<u8>(5).unwrap_or(0));
             let flag = RealmFlagsLikeCpp::from_bits_retain(result.try_read::<u8>(6).unwrap_or(0));
@@ -532,7 +549,7 @@ async fn update_realms(state: &AppState) -> Result<()> {
                     id,
                     name,
                     normalized_name,
-                    external_address: address,
+                    external_address,
                     local_address,
                     port,
                     icon,
@@ -558,6 +575,44 @@ async fn update_realms(state: &AppState) -> Result<()> {
     mgr.sub_regions = sub_regions;
     tracing::debug!("Updated {count} realms");
     Ok(())
+}
+
+async fn resolve_realm_address_like_cpp(
+    field_name: &str,
+    hostname: &str,
+    realm_name: &str,
+    realm_id: u32,
+) -> Result<Option<String>> {
+    let endpoints = match tokio::net::lookup_host((hostname, 0)).await {
+        Ok(endpoints) => endpoints,
+        Err(error) => {
+            tracing::error!(
+                %error,
+                "Could not resolve {field_name} {hostname} for realm \"{realm_name}\" id {realm_id}"
+            );
+            return Ok(None);
+        }
+    };
+
+    let Some(address) = first_ipv4_address_like_cpp(endpoints) else {
+        tracing::error!(
+            "Could not resolve {field_name} {hostname} for realm \"{realm_name}\" id {realm_id} to an IPv4 address"
+        );
+        return Ok(None);
+    };
+
+    Ok(Some(address.to_string()))
+}
+
+fn first_ipv4_address_like_cpp(
+    endpoints: impl IntoIterator<Item = SocketAddr>,
+) -> Option<Ipv4Addr> {
+    endpoints
+        .into_iter()
+        .find_map(|endpoint| match endpoint.ip() {
+            IpAddr::V4(address) => Some(address),
+            IpAddr::V6(_) => None,
+        })
 }
 
 fn normalized_realm_name_like_cpp(name: &str) -> String {
@@ -866,6 +921,27 @@ mod tests {
         assert_eq!(
             RealmTypeLikeCpp::from_db_like_cpp(13).get_config_id_like_cpp(),
             14
+        );
+    }
+
+    #[test]
+    fn realm_address_resolution_selects_first_ipv4_like_cpp() {
+        let endpoints = [
+            SocketAddr::new(IpAddr::V6("2001:db8::1".parse().unwrap()), 8085),
+            SocketAddr::new(IpAddr::V4("203.0.113.10".parse().unwrap()), 8085),
+            SocketAddr::new(IpAddr::V4("203.0.113.11".parse().unwrap()), 8085),
+        ];
+
+        assert_eq!(
+            first_ipv4_address_like_cpp(endpoints),
+            Some("203.0.113.10".parse().unwrap())
+        );
+        assert_eq!(
+            first_ipv4_address_like_cpp([SocketAddr::new(
+                IpAddr::V6("2001:db8::1".parse().unwrap()),
+                8085
+            )]),
+            None
         );
     }
 

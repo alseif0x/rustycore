@@ -3,7 +3,7 @@
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/server/shared/Realm/`
 > **Rust target crate(s):** `crates/bnet-server/` (`src/realm/mod.rs`)
 > **Layer:** L1
-> **Status:** ⚠️ partial (~76%) — 2026-06-13 slices fixed the BNet realm-address packing, strong `RealmHandle` contract, `HashMap<RealmHandleLikeCpp, Realm>` storage, typed `RealmFlagsLikeCpp`/`RealmTypeLikeCpp`, subregion filtering, cfg timezone/category swap, type/security normalization, packed JoinRealm lookup, normalized realm names, minor/major/bugfix build lookup and `JamJSONRealmEntry` for last-played character; remaining gaps include hostname resolution, golden/e2e realm-list payloads and architectural unification with the world snapshot.
+> **Status:** ⚠️ partial (~77%) — 2026-06-13 slices fixed the BNet realm-address packing, strong `RealmHandle` contract, `HashMap<RealmHandleLikeCpp, Realm>` storage, typed `RealmFlagsLikeCpp`/`RealmTypeLikeCpp`, subregion filtering, cfg timezone/category swap, type/security normalization, packed JoinRealm lookup, hostname resolution/skip, normalized realm names, minor/major/bugfix build lookup and `JamJSONRealmEntry` for last-played character; remaining gaps include golden/e2e realm-list payloads and architectural unification with the world snapshot.
 > **Audited vs C++:** ✅ audited 2026-06-13 against `Realm.h`, `Realm.cpp`, `RealmList.cpp` for the fixed BNet realm-list slice.
 > **Last updated:** 2026-06-13
 
@@ -134,7 +134,7 @@ Y para realm list updates:
 <!-- REFINE.021:END rust-target-coverage -->
 
 **Files in `/home/server/rustycore`:**
-- `crates/bnet-server/src/realm/mod.rs` — cubre ~76% del C++ shared/Realm surface
+- `crates/bnet-server/src/realm/mod.rs` — cubre ~77% del C++ shared/Realm surface
 - `crates/wow-database/src/statements/login.rs` — declara `SEL_REALMLIST`, `SEL_REALMLIST_SECURITY_LEVEL`
 
 **What's implemented:**
@@ -153,6 +153,7 @@ Y para realm list updates:
 - `get_realm_list_json` filtra por subregion como `RealmList::GetRealmList`, emite `wowRealmAddress` packed, `cfgTimezonesId=1`, `cfgCategoriesId=realm.Timezone`, `cfgConfigsId=Realm::GetConfigId()` y fallback de versión `6.2.4` cuando falta `build_info`.
 - `update_realms` normaliza `REALM_TYPE_FFA_PVP -> REALM_TYPE_PVP`, `icon >= MAX_CLIENT_REALM_TYPE -> NORMAL`, y clampa `allowedSecurityLevel` a `SEC_ADMINISTRATOR`.
 - `RealmFlagsLikeCpp` cubre todos los bits C++ de `RealmFlags`; `RealmTypeLikeCpp` es newtype tipado para preservar también valores válidos no nombrados `< MAX_CLIENT_REALM_TYPE`.
+- `update_realms` resuelve `address` y `localAddress` con `tokio::net::lookup_host`, toma la primera IPv4 y salta el realm con error si alguna dirección no resuelve, igual que C++ `Resolver::Resolve`.
 - `authentication` guarda `char_counts` y `last_played_chars.realm_address` con packed `RealmHandle::GetAddress()`, como C++ `Battlenet::Session`.
 - `get_minor_major_bugfix_version_for_build_like_cpp` replica `RealmList::GetMinorMajorBugfixVersionForBuild` con semántica `lower_bound`.
 - `get_realm_entry_json_like_cpp` genera `JamJSONRealmEntry` para `LastCharPlayed`, devuelve vacío si el realm está offline o el build no coincide, y ya no confunde ese payload con `JSONRealmListServerIPAddresses`.
@@ -161,7 +162,7 @@ Y para realm list updates:
 **What's missing vs C++:**
 - **`JoinRealm` flow existe fuera de `RealmManager`** — `bnet-server/src/rpc/services/game_utilities.rs` genera `Param_RealmJoinTicket`, `Param_ServerAddresses`, `Param_JoinSecret` y persiste keyData; falta concentrarlo arquitectónicamente como `RealmList::JoinRealm` si se quiere igualar ownership C++.
 - **`WriteSubRegions`** equivalente — existe un path en `GetAllValuesForAttribute`, pero todavía no está modelado como método de `RealmManager`/`RealmList`.
-- **Error path para `Resolver::Resolve` falla** — Rust no resuelve hostnames, asume IPs literales.
+- **Error path para `Resolver::Resolve`** — cerrado para realm load: Rust ahora resuelve y salta realms inválidos; falta e2e con DB real para cubrir el path visible.
 
 **Suspicious / likely divergent (hipótesis pre-auditoría):**
 - ✅ fixed 2026-06-13: `wow_realm_address: r.id as i32` perdía la información Region/Site/Realm packed que el cliente espera.
@@ -218,7 +219,7 @@ Y para realm list updates:
 - [x] **#REALM.5** Implementar `set_name` con `NormalizedName` (strip whitespace). (L)
 - [x] **#REALM.6** Implementar `get_minor_major_bugfix_version_for_build` con semántica `lower_bound`. (L)
 - [x] **#REALM.7** Tipar `RealmFlags` como `bitflags!` y `RealmType` como wrapper C++-like. Nota: C++ declara `RealmType` como enum, pero `Realm::Type` es `uint8` y `GetConfigId` indexa valores `< MAX_CLIENT_REALM_TYPE`; Rust usa newtype para no rechazar valores válidos no nombrados. (M)
-- [ ] **#REALM.8** Resolver hostnames (no solo IPs) con `tokio::net::lookup_host` en `update_realms`. (M)
+- [x] **#REALM.8** Resolver hostnames (no solo IPs) con `tokio::net::lookup_host` en `update_realms`, tomando primera IPv4 y saltando el realm si external/local no resuelve como C++. (M)
 - [x] **#REALM.9** Clamp `allowed_security_level` a `SEC_ADMINISTRATOR`. (L)
 - [x] **#REALM.10a** Tests: packed address bit-layout, subregion filter, cfg fields, version_mismatch/fallback. (M)
 - [ ] **#REALM.10b** Tests: parse build_info, `get_realm_entry_json`, JoinRealm DB side effect, golden payload. Parcial: `JamJSONRealmEntry`, empty gates y server-address selection cubiertos por unit tests. (M)
@@ -247,7 +248,7 @@ Y para realm list updates:
 - [x] Realm con `build != client_build` → emite `flags |= VERSION_MISMATCH` en JSON
 - [x] Realm con `flags & OFFLINE` → `GetRealmEntryJSON` devuelve vacío y `GetRealmList` emite `population_state = 0`
 - [x] `select_realm_ip_str` para client 127.0.0.1 → local; para client en /24 distinto → external
-- [ ] zlib output: 4-byte LE prefix == uncompressed length; flate2 inflates back to identical bytes
+- [x] zlib output: 4-byte LE prefix == uncompressed length; flate2 inflates back to identical bytes
 - [ ] Concurrent: 1000 readers + 1 writer con `update_realms` no causa race / panic
 
 ---
@@ -262,7 +263,7 @@ Y para realm list updates:
 
 | Scope | Decision | C++ retained | Evidence |
 |---|---|---|---|
-| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 4 files / 695 lines; refs: `/home/server/woltk-trinity-legacy/src/server/shared/Realm/RealmList.cpp`, `/home/server/woltk-trinity-legacy/src/server/shared/Realm/Realm.h`, `/home/server/woltk-trinity-legacy/src/server/shared/Realm/RealmList.h` | `crates/bnet-server/` (`src/realm/mod.rs`) \| ⚠️ partial (~76%) — BNet RealmHandle packing/storage/cfg swap, typed flags/types, normalized names, build-version lookup and `JamJSONRealmEntry` fixed; golden/e2e, hostname resolution and ownership cleanup remain. |
+| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 4 files / 695 lines; refs: `/home/server/woltk-trinity-legacy/src/server/shared/Realm/RealmList.cpp`, `/home/server/woltk-trinity-legacy/src/server/shared/Realm/Realm.h`, `/home/server/woltk-trinity-legacy/src/server/shared/Realm/RealmList.h` | `crates/bnet-server/` (`src/realm/mod.rs`) \| ⚠️ partial (~77%) — BNet RealmHandle packing/storage/cfg swap, typed flags/types, hostname resolution, normalized names, build-version lookup and `JamJSONRealmEntry` fixed; golden/e2e and ownership cleanup remain. |
 
 <!-- REFINE.025:END product-scope -->
 
@@ -304,6 +305,7 @@ Y para realm list updates:
 | `JSON::Serialize(proto)` | `serde_json::to_string(&struct)` | Pure serde, no protobuf |
 | `compress()` (zlib) | `flate2::ZlibEncoder` | Mismo formato |
 | `Trinity::Crypto::GetRandomBytes<32>` | `rand::thread_rng().fill` in `game_utilities::join_realm` | TODO #REALM.4b for ownership/golden coverage |
+| `Trinity::Asio::Resolver::Resolve` | `resolve_realm_address_like_cpp` + `tokio::net::lookup_host` | Takes first IPv4; skips realm on external/local failure |
 | `Trinity::Net::SelectAddressForClient` | `select_realm_ip_str` | Más simple: solo IPv4 + /24 + loopback |
 
 ---
@@ -325,7 +327,7 @@ Y para realm list updates:
 
 - **`JoinRealm` flow EXISTS** but in `crates/bnet-server/src/rpc/services/game_utilities.rs:233-303`, not under the realm module. Generates 32-byte server secret with `rand::thread_rng().fill`, persists `client_secret + server_secret` via `LoginStatements::UPD_BNET_GAME_ACCOUNT_LOGIN_INFO`, returns the three response blobs (`Param_RealmJoinTicket`, `Param_ServerAddresses`, `Param_JoinSecret`). The §8 claim "JoinRealm flow no existe" was **WRONG** — update §8 to reflect that the flow lives at the RPC-handler layer rather than as a `RealmList::JoinRealm` method. Sub-task #REALM.4 is therefore partially-done: the wire-level behavior works; what's missing is the C++-style architectural placement (RealmList owning the join logic) and the Resolver hostname resolution.
 - **`RealmHandle` decomposition** on inbound `JoinRealm` was fixed 2026-06-13 via `get_realm_by_realm_address_like_cpp`.
-- **Hostname resolution still missing** as flagged.
+- **Hostname resolution — FIXED for realm load 2026-06-13.** Rust now resolves external/local addresses and skips the row on failed resolution, matching the C++ `continue` behavior after `Resolver::Resolve` failure.
 - **Timezone field type:** Rust reads `r.timezone: u8` (line 273); C++ uses `uint8` for the realmlist column too — equivalent.
 
 **Status verdict:** ⚠️ partial. The two flagged wire bugs are fixed and tested, and the §8 wording about JoinRealm has been corrected: the flow exists at the RPC-handler layer, but architectural ownership and golden/e2e coverage remain open.
