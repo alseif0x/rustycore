@@ -213,10 +213,8 @@ impl WorldSession {
     }
 
     /// C++ `HandleRideVehicleInteract`.
-    pub async fn handle_ride_vehicle_interact(&mut self, _packet: RideVehicleInteract) {
-        // C++ only enters when ObjectAccessor finds a player target with a
-        // vehicle kit, raid membership, distance, and non-arena map checks.
-        // Rust has no represented target-player vehicle lookup in this handler.
+    pub async fn handle_ride_vehicle_interact(&mut self, packet: RideVehicleInteract) {
+        self.represented_ride_vehicle_interact_like_cpp(packet.vehicle);
     }
 
     /// C++ `HandleEjectPassenger`.

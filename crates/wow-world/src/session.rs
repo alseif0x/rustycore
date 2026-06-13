@@ -1279,6 +1279,11 @@ pub(crate) struct RepresentedVehicleSeatSpellClickRequestLikeCpp {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedVehicleEnterRequestLikeCpp {
+    pub vehicle_guid: ObjectGuid,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum RepresentedSpellClickClickeeCasterOutcomeLikeCpp {
     Executed,
     UnsupportedCaster,
@@ -2959,6 +2964,8 @@ pub struct WorldSession {
     /// Represented cross-vehicle `HandleSpellClick(player, seatId)` requests from vehicle switching.
     represented_vehicle_seat_spell_click_requests_like_cpp:
         Vec<RepresentedVehicleSeatSpellClickRequestLikeCpp>,
+    /// Represented `Player::EnterVehicle(targetPlayer)` requests from `CMSG_RIDE_VEHICLE_INTERACT`.
+    represented_vehicle_enter_requests_like_cpp: Vec<RepresentedVehicleEnterRequestLikeCpp>,
     /// Represented `Player::GetBattleground()->GetTypeID()` for C++ battleground object use.
     player_battleground_type_id_like_cpp: Option<u32>,
     /// Represented current pet GUID until player-owned pet runtime is canonical.
@@ -4016,6 +4023,7 @@ impl WorldSession {
             player_vehicle_seat_id_like_cpp: None,
             represented_vehicle_seat_change_requests_like_cpp: Vec::new(),
             represented_vehicle_seat_spell_click_requests_like_cpp: Vec::new(),
+            represented_vehicle_enter_requests_like_cpp: Vec::new(),
             player_battleground_type_id_like_cpp: None,
             represented_pet_guid_like_cpp: None,
             represented_pet_react_state_like_cpp:
@@ -15456,6 +15464,7 @@ impl WorldSession {
                 is_dnd,
                 auto_reply_msg_like_cpp: self.auto_reply_msg_like_cpp.clone(),
                 in_vehicle: self.player_vehicle_seat_flags_like_cpp.is_some(),
+                has_vehicle_kit_like_cpp: self.player_mount_vehicle_kit_like_cpp.is_some(),
                 party_member_vehicle_seat: self
                     .player_vehicle_seat_id_like_cpp
                     .and_then(|seat_id| i32::try_from(seat_id).ok())
@@ -15571,6 +15580,7 @@ impl WorldSession {
             }
             info.auto_reply_msg_like_cpp = self.auto_reply_msg_like_cpp.clone();
             info.in_vehicle = self.player_vehicle_seat_flags_like_cpp.is_some();
+            info.has_vehicle_kit_like_cpp = self.player_mount_vehicle_kit_like_cpp.is_some();
             info.party_member_vehicle_seat = self
                 .player_vehicle_seat_id_like_cpp
                 .and_then(|seat_id| i32::try_from(seat_id).ok())
@@ -20206,6 +20216,12 @@ impl WorldSession {
         &self.represented_vehicle_seat_spell_click_requests_like_cpp
     }
 
+    pub(crate) fn represented_vehicle_enter_requests_like_cpp(
+        &self,
+    ) -> &[RepresentedVehicleEnterRequestLikeCpp] {
+        &self.represented_vehicle_enter_requests_like_cpp
+    }
+
     fn represented_vehicle_base_guid_for_switch_like_cpp(&self) -> Option<ObjectGuid> {
         if self.player_vehicle_seat_flags_like_cpp.is_none() {
             return None;
@@ -20316,6 +20332,69 @@ impl WorldSession {
             requested_vehicle_exists_with_empty_seat,
         );
         self.record_represented_vehicle_seat_action_like_cpp(action)
+    }
+
+    pub(crate) fn represented_ride_vehicle_interact_like_cpp(
+        &mut self,
+        vehicle_guid: ObjectGuid,
+    ) -> bool {
+        const INTERACTION_DISTANCE_LIKE_CPP: f32 = 5.0;
+
+        let Some(player_guid) = self.player_guid() else {
+            return false;
+        };
+        let Some(player_position) = self.player_position_like_cpp() else {
+            return false;
+        };
+        let Some(registry) = self.player_registry() else {
+            return false;
+        };
+        let Some(target) = registry.get(&vehicle_guid) else {
+            return false;
+        };
+
+        let target_is_player_with_vehicle_kit =
+            vehicle_guid.is_player() && target.has_vehicle_kit_like_cpp;
+        let target_is_raid_member =
+            self.represented_player_is_same_raid_with_like_cpp(player_guid, vehicle_guid);
+        let current_map_id = self.player_map_id_like_cpp();
+        let current_instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        let target_is_within_interaction_distance = target.map_id == current_map_id
+            && target.instance_id == current_instance_id
+            && target
+                .position
+                .is_within_dist(&player_position, INTERACTION_DISTANCE_LIKE_CPP);
+        let current_map_entry = self
+            .map_store()
+            .and_then(|store| store.get(u32::from(current_map_id)));
+        let map_exists = current_map_entry.is_some();
+        let map_is_battle_arena =
+            current_map_entry.is_some_and(|entry| entry.instance_type == wow_data::map::MAP_ARENA);
+
+        let action = crate::handlers::vehicle::ride_vehicle_interact_action_like_cpp(
+            vehicle_guid,
+            target_is_player_with_vehicle_kit,
+            target_is_raid_member,
+            target_is_within_interaction_distance,
+            map_exists,
+            map_is_battle_arena,
+        );
+        drop(target);
+
+        match action {
+            crate::handlers::vehicle::VehicleHandlerAction::EnterVehicle { vehicle } => {
+                self.represented_vehicle_enter_requests_like_cpp.push(
+                    RepresentedVehicleEnterRequestLikeCpp {
+                        vehicle_guid: vehicle,
+                    },
+                );
+                true
+            }
+            _ => false,
+        }
     }
 
     pub(crate) fn represented_eject_passenger_like_cpp(
@@ -48124,6 +48203,7 @@ mod tests {
             is_dnd: false,
             auto_reply_msg_like_cpp: String::new(),
             in_vehicle: false,
+            has_vehicle_kit_like_cpp: false,
             party_member_vehicle_seat: 0,
             zone_id: 0,
             spec_id: 0,
@@ -48701,6 +48781,158 @@ mod tests {
                     next: true,
                 },
             ]
+        );
+    }
+
+    fn represented_vehicle_interact_map_store_like_cpp(instance_type: i8) -> Arc<MapStore> {
+        Arc::new(MapStore::from_entries([wow_data::MapEntry {
+            id: 571,
+            instance_type,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: 0,
+        }]))
+    }
+
+    fn insert_represented_vehicle_target_like_cpp(
+        registry: &PlayerRegistry,
+        target_guid: ObjectGuid,
+        position: Position,
+        has_vehicle_kit_like_cpp: bool,
+    ) {
+        let (send_tx, _send_rx) = flume::bounded(4);
+        let mut info = broadcast_info(target_guid, send_tx);
+        info.map_id = 571;
+        info.instance_id = 0;
+        info.position = position;
+        info.has_vehicle_kit_like_cpp = has_vehicle_kit_like_cpp;
+        registry.insert(target_guid, info);
+    }
+
+    fn represented_vehicle_interact_session_like_cpp(
+        target_guid: ObjectGuid,
+        target_has_vehicle_kit: bool,
+        target_position: Position,
+        group_target: bool,
+        map_instance_type: i8,
+    ) -> WorldSession {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 62_001);
+        let registry = Arc::new(PlayerRegistry::default());
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(player_guid);
+        if group_target {
+            group.add_member(target_guid);
+        }
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_name_like_cpp("RideVehicleInteractTester".to_string());
+        session.set_player_map_position_like_cpp(571, Position::new(0.0, 0.0, 0.0, 0.0));
+        session.set_player_registry(Arc::clone(&registry));
+        session.group_guid = Some(group_guid);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+        session.set_map_store(represented_vehicle_interact_map_store_like_cpp(
+            map_instance_type,
+        ));
+        insert_represented_vehicle_target_like_cpp(
+            &registry,
+            target_guid,
+            target_position,
+            target_has_vehicle_kit,
+        );
+
+        session
+    }
+
+    #[test]
+    fn player_registry_publishes_player_vehicle_kit_snapshot_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let guid = ObjectGuid::create_player(1, 62_050);
+        let registry = Arc::new(PlayerRegistry::default());
+        session.set_player_guid(Some(guid));
+        session.set_loaded_player_name_like_cpp("VehicleKitPublisher".to_string());
+        session.set_player_map_position_like_cpp(571, Position::ZERO);
+        session.set_player_registry(Arc::clone(&registry));
+
+        session.register_in_player_registry();
+        assert!(!registry.get(&guid).unwrap().has_vehicle_kit_like_cpp);
+
+        session.player_mount_vehicle_kit_like_cpp = Some(
+            represented_vehicle_kit_with_passenger_like_cpp(guid, test_creature_guid(62_051), true),
+        );
+        session.sync_player_registry_state_like_cpp();
+        assert!(
+            registry.get(&guid).unwrap().has_vehicle_kit_like_cpp,
+            "C++ RideVehicleInteract gates on target Player::GetVehicleKit(), not Player::GetVehicle() passenger state"
+        );
+    }
+
+    #[test]
+    fn represented_ride_vehicle_interact_requires_cpp_gates() {
+        let target = ObjectGuid::create_player(1, 62_101);
+
+        let mut no_vehicle_kit = represented_vehicle_interact_session_like_cpp(
+            target,
+            false,
+            Position::new(2.0, 0.0, 0.0, 0.0),
+            true,
+            wow_data::map::MAP_COMMON,
+        );
+        assert!(!no_vehicle_kit.represented_ride_vehicle_interact_like_cpp(target));
+
+        let mut not_raid_member = represented_vehicle_interact_session_like_cpp(
+            target,
+            true,
+            Position::new(2.0, 0.0, 0.0, 0.0),
+            false,
+            wow_data::map::MAP_COMMON,
+        );
+        assert!(!not_raid_member.represented_ride_vehicle_interact_like_cpp(target));
+
+        let mut too_far = represented_vehicle_interact_session_like_cpp(
+            target,
+            true,
+            Position::new(6.0, 0.0, 0.0, 0.0),
+            true,
+            wow_data::map::MAP_COMMON,
+        );
+        assert!(!too_far.represented_ride_vehicle_interact_like_cpp(target));
+
+        let mut arena = represented_vehicle_interact_session_like_cpp(
+            target,
+            true,
+            Position::new(2.0, 0.0, 0.0, 0.0),
+            true,
+            wow_data::map::MAP_ARENA,
+        );
+        assert!(!arena.represented_ride_vehicle_interact_like_cpp(target));
+    }
+
+    #[tokio::test]
+    async fn ride_vehicle_interact_handler_records_enter_vehicle_plan_like_cpp() {
+        let target = ObjectGuid::create_player(1, 62_201);
+        let mut session = represented_vehicle_interact_session_like_cpp(
+            target,
+            true,
+            Position::new(2.0, 0.0, 0.0, 0.0),
+            true,
+            wow_data::map::MAP_COMMON,
+        );
+
+        session
+            .handle_ride_vehicle_interact(wow_packet::packets::vehicle::RideVehicleInteract {
+                vehicle: target,
+            })
+            .await;
+
+        assert_eq!(
+            session.represented_vehicle_enter_requests_like_cpp(),
+            &[RepresentedVehicleEnterRequestLikeCpp {
+                vehicle_guid: target
+            }],
+            "C++ HandleRideVehicleInteract calls _player->EnterVehicle(target player) after VehicleKit, raid, distance and non-arena gates"
         );
     }
 
