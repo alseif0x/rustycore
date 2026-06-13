@@ -225,6 +225,7 @@ pub struct CreatureTemplateLifecycleRecord {
     pub name: String,
     pub ai_name: String,
     pub script_name: String,
+    pub required_expansion: u8,
     pub unit_class: u8,
     pub faction: u32,
     pub npc_flags: u64,
@@ -417,6 +418,7 @@ pub struct CreatureLifecycleMetadata {
     pub difficulty_id: u8,
     pub ai_name: String,
     pub script_name: String,
+    pub required_expansion: u8,
     pub unit_class: u8,
     pub classification: u32,
     pub damage_school: u8,
@@ -470,6 +472,7 @@ impl Default for CreatureLifecycleMetadata {
             difficulty_id: 0,
             ai_name: String::new(),
             script_name: String::new(),
+            required_expansion: 0,
             unit_class: 0,
             classification: 0,
             damage_school: wow_constants::spell::SpellSchools::Normal as u8,
@@ -1054,6 +1057,7 @@ impl Creature {
             difficulty_id: template.difficulty_id,
             ai_name: template.ai_name.clone(),
             script_name: template.script_name.clone(),
+            required_expansion: template.required_expansion,
             unit_class: template.unit_class,
             classification: template.classification,
             damage_school: template.damage_school,
@@ -1167,6 +1171,10 @@ impl Creature {
 
     pub const fn lifecycle_metadata(&self) -> &CreatureLifecycleMetadata {
         &self.lifecycle_metadata
+    }
+
+    pub fn set_required_expansion_runtime_like_cpp(&mut self, required_expansion: u8) {
+        self.lifecycle_metadata.required_expansion = required_expansion;
     }
 
     pub fn is_world_boss_like_cpp(&self) -> bool {
@@ -4009,6 +4017,7 @@ mod tests {
             name: "lifecycle wolf".to_string(),
             ai_name: "SmartAI".to_string(),
             script_name: "npc_lifecycle_wolf".to_string(),
+            required_expansion: 2,
             unit_class: 1,
             faction: 14,
             npc_flags: 0x1_0000_0040,
@@ -4224,6 +4233,7 @@ mod tests {
             creature.lifecycle_metadata().script_name,
             "npc_lifecycle_wolf"
         );
+        assert_eq!(creature.lifecycle_metadata().required_expansion, 2);
         assert_eq!(creature.lifecycle_metadata().classification, 3);
         assert_eq!(
             creature.lifecycle_metadata().damage_school,

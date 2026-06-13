@@ -51,6 +51,7 @@ pub struct ResolvedCreatureTemplateLikeCpp {
     pub name: String,
     pub ai_name: String,
     pub script_name: String,
+    pub required_expansion: u8,
     pub unit_class: u8,
     pub faction: u32,
     pub npc_flags: u64,
@@ -370,6 +371,7 @@ pub fn build_loaded_grid_creature_inputs_from_db_like_cpp(
         name: template.name.clone(),
         ai_name: template.ai_name.clone(),
         script_name: template.script_name.clone(),
+        required_expansion: template.required_expansion,
         unit_class: template.unit_class,
         faction: template.faction,
         npc_flags,
@@ -519,6 +521,7 @@ fn template_lifecycle_record(
         name: template.name.clone(),
         ai_name: template.ai_name.clone(),
         script_name: template.script_name.clone(),
+        required_expansion: template.required_expansion,
         unit_class: template.unit_class,
         faction: template.faction,
         npc_flags: template.npc_flags,
@@ -598,6 +601,7 @@ mod tests {
             name: "Loaded Grid Test Creature".to_string(),
             ai_name: "SmartAI".to_string(),
             script_name: "npc_loaded_grid_test".to_string(),
+            required_expansion: 2,
             unit_class: 1,
             faction: 35,
             npc_flags: 0x1_0000_0040,
@@ -677,7 +681,7 @@ mod tests {
             wander_distance: 12.5,
             respawn_delay: 300,
             respawn_time: 123_456,
-            movement_type: MovementGeneratorType::Idle,
+            movement_type: MovementGeneratorType::Waypoint,
             string_id: Some("loaded_grid_string".to_string()),
             is_active: false,
             inactive_by_spawn_group: true,
@@ -758,6 +762,7 @@ mod tests {
                 name: "DB Creature".to_string(),
                 ai_name: "AggressorAI".to_string(),
                 script_name: "npc_db_creature".to_string(),
+                required_expansion: 2,
                 faction: 35,
                 npc_flags: 0x1_0000_0040,
                 speed_walk: 1.0,
@@ -1500,6 +1505,7 @@ mod tests {
         assert_eq!(record.create.template.original_entry, entry - 1);
         assert_eq!(record.create.template.ai_name, "SmartAI");
         assert_eq!(record.create.template.script_name, "npc_loaded_grid_test");
+        assert_eq!(record.create.template.required_expansion, 2);
         assert_eq!(record.create.template.npc_flags, 0x1_0000_0040);
         assert_eq!(
             record.create.template.damage_school,
@@ -1549,6 +1555,7 @@ mod tests {
 
         assert_eq!(metadata.ai_name, "SmartAI");
         assert_eq!(metadata.script_name, "npc_loaded_grid_test");
+        assert_eq!(metadata.required_expansion, 2);
         assert_eq!(metadata.spawn_id, 55);
         assert_eq!(metadata.spawn_map_id, 571);
         assert_eq!(metadata.spawn_instance_id, 9);

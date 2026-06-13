@@ -466,7 +466,8 @@ Numerados para referencia desde `MIGRATION_ROADMAP.md`. Complejidad: **L** <1h, 
 - [x] **#AI.42a** Implementar helper representado de `Creature::GetAttackDistance` contrastado contra `Creature.cpp`: `Rate.Creature.Aggro`, base `20 - CombatReach`, level-diff, auras detect/detected range con gate de nivel, cap por max level de expansión y clamps C++ min/max. (L)
 - [x] **#AI.42b** Wire runtime básico del aggro radius dinámico: sustituir el radio fijo legacy por `Creature::GetAttackDistance(target) + m_CombatDistance` en el scan global `run_legacy_creature_aggro_tick_once_like_cpp` y en el path legacy `check_creature_aggro`, preservando `aggro_radius <= 0` como desactivador. (M)
 - [x] **#AI.42c1** Wire runtime global de `GetAttackDistance` a configs reales contrastadas: `RATE_CREATURE_AGGRO` desde `Rate.Creature.Aggro` (`World.cpp:685`, `World.h:514`) y `CONFIG_MAX_PLAYER_LEVEL`, incluyendo el mínimo de visibilidad `45 * Rate.Creature.Aggro` usado por C++ `World::LoadConfigSettings`. (S)
-- [ ] **#AI.42c2** Completar fuentes runtime restantes de `GetAttackDistance`: max level de expansión por `CreatureTemplate::RequiredExpansion` y aura modifiers `SPELL_AURA_MOD_DETECT_RANGE` / `SPELL_AURA_MOD_DETECTED_RANGE` en todos los callers, incluido el path legacy per-session. (M)
+- [x] **#AI.42c2a** Wire runtime global de `GetAttackDistance` al max level de expansión por `CreatureTemplate::RequiredExpansion`: `creature_template.RequiredExpansion` se carga/normaliza como C++ (`ObjectMgr.cpp`, `MAX_EXPANSIONS`), se propaga a lifecycle metadata, y el scan global usa `GetMaxLevelForExpansion` (`SharedDefines.h`) antes de `Creature::GetAttackDistance`. (S)
+- [ ] **#AI.42c2b** Completar fuentes runtime restantes de `GetAttackDistance`: aura modifiers `SPELL_AURA_MOD_DETECT_RANGE` / `SPELL_AURA_MOD_DETECTED_RANGE` y el path legacy per-session `check_creature_aggro`, que aún no tiene el contexto completo de template/config/aura. (M)
 - [ ] **#AI.43** Implementar `creature_template_addon.auras` aplicación al spawn (M)
 - [ ] **#AI.44** Implementar charm/possess flow + PossessedAI swap (H)
 - [ ] **#AI.45** Tests de regresión unit + smoke tests de SmartScript (M)
@@ -494,7 +495,8 @@ Numerados para referencia desde `MIGRATION_ROADMAP.md`. Complejidad: **L** <1h, 
 - [x] Test: `Creature::GetAttackDistance` representado respeta level-diff, combat reach, clamps, rate, auras detect range y max level de expansión
 - [x] Test: runtime global de aggro usa `Creature::GetAttackDistance(target) + m_CombatDistance` en vez de radio fijo
 - [x] Test: runtime global de `GetAttackDistance` consume `Rate.Creature.Aggro` y `CONFIG_MAX_PLAYER_LEVEL` desde `WorldConfigSet`
-- [ ] Test: runtime `GetAttackDistance` consume `RequiredExpansion` y aura modifiers reales, no defaults representados
+- [x] Test: runtime global de `GetAttackDistance` consume `CreatureTemplate::RequiredExpansion` real desde lifecycle metadata
+- [ ] Test: runtime `GetAttackDistance` consume aura modifiers reales y cubre el path legacy per-session, no defaults representados
 - [ ] Test: `CreatureAI::take_damage` con dmg ≥ hp dispara `JustDied(killer)` exactamente 1 vez
 - [ ] Test: `EnterEvadeMode(EvadeReason::Boundary)` programa `MoveTargetedHome`, al llegar dispara `JustReachedHome`, restaura HP a max
 - [ ] Test: `EnterEvadeMode(EvadeReason::NoHostiles)` despawnea summons del boss

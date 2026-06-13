@@ -331,6 +331,18 @@ pub fn creature_attack_distance_like_cpp(input: CreatureAttackDistanceInputLikeC
     aggro_radius * aggro_rate
 }
 
+/// C++ `GetMaxLevelForExpansion` from `SharedDefines.h`.
+pub const CURRENT_EXPANSION_LIKE_CPP: u8 = 2;
+
+pub const fn max_level_for_expansion_like_cpp(expansion: u8) -> u8 {
+    match expansion {
+        0 => 60,
+        1 => 70,
+        2..=9 => 80,
+        _ => 0,
+    }
+}
+
 // ── UnitAI::SelectTarget ──────────────────────────────────────────
 
 /// C++ `SelectTargetMethod` from `CoreAI/UnitAICommon.h`.
@@ -1689,6 +1701,16 @@ mod tests {
             }),
             20.0,
         );
+    }
+
+    #[test]
+    fn max_level_for_expansion_matches_cpp_shared_defines_like_cpp() {
+        assert_eq!(max_level_for_expansion_like_cpp(0), 60);
+        assert_eq!(max_level_for_expansion_like_cpp(1), 70);
+        assert_eq!(max_level_for_expansion_like_cpp(2), 80);
+        assert_eq!(max_level_for_expansion_like_cpp(3), 80);
+        assert_eq!(max_level_for_expansion_like_cpp(9), 80);
+        assert_eq!(max_level_for_expansion_like_cpp(10), 0);
     }
 
     #[test]

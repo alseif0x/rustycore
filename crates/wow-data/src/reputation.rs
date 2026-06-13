@@ -786,6 +786,7 @@ mod tests {
                 name: format!("Creature {entry}"),
                 ai_name: String::new(),
                 script_name: String::new(),
+                required_expansion: 0,
                 faction: 35,
                 npc_flags: 0,
                 speed_walk: 1.0,
