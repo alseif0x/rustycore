@@ -1034,11 +1034,9 @@ impl WorldCreature {
     }
 
     pub fn remove_lootable_dynamic_flag_like_cpp(&mut self) {
-        self.creature
-            .unit_mut()
-            .world_mut()
-            .object_mut()
-            .remove_dynamic_flag(UnitDynFlags::Lootable as u32);
+        let object = self.creature.unit_mut().world_mut().object_mut();
+        object.remove_dynamic_flag(UnitDynFlags::Lootable as u32);
+        object.force_dynamic_flags_update_like_cpp();
     }
 
     pub fn has_lootable_dynamic_flag_like_cpp(&self) -> bool {

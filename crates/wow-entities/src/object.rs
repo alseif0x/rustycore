@@ -302,6 +302,12 @@ impl EntityObject {
         }
     }
 
+    pub fn force_dynamic_flags_update_like_cpp(&mut self) {
+        self.changed_fields
+            .insert(ObjectChangedFields::DYNAMIC_FLAGS);
+        self.add_to_object_update_if_needed();
+    }
+
     pub fn replace_all_dynamic_flags_suppressed(&mut self, flags: u32) {
         self.dynamic_flags = flags;
     }
@@ -468,6 +474,29 @@ mod tests {
 
         object.replace_all_dynamic_flags(0x80);
         assert_eq!(object.dynamic_flags(), 0x80);
+    }
+
+    #[test]
+    fn force_dynamic_flags_update_marks_field_without_value_change_like_cpp() {
+        let mut object = EntityObject::default();
+        object.add_to_world();
+        assert!(object.changed_fields().is_empty());
+        assert!(!object.is_object_updated());
+
+        object.force_dynamic_flags_update_like_cpp();
+
+        assert_eq!(object.dynamic_flags(), 0);
+        assert!(
+            object
+                .changed_fields()
+                .contains(ObjectChangedFields::DYNAMIC_FLAGS)
+        );
+        assert!(object.is_object_updated());
+        assert!(
+            object
+                .object_data_changes_mask()
+                .is_set(OBJECT_DATA_DYNAMIC_FLAGS_BIT)
+        );
     }
 
     #[test]
