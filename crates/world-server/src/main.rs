@@ -171,6 +171,48 @@ impl FreezeDetectorLikeCpp {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WorldUpdateLoopStepOutcomeLikeCpp {
+    Sleep {
+        sleep_ms: u32,
+        log_waiting_like_cpp: bool,
+    },
+    Update {
+        diff_ms: u32,
+        next_real_prev_time_ms: u32,
+    },
+}
+
+fn half_max_core_stuck_time_like_cpp(max_core_stuck_time_ms: u32) -> u32 {
+    let half = max_core_stuck_time_ms / 2;
+    if half == 0 { u32::MAX } else { half }
+}
+
+fn world_update_loop_step_like_cpp(
+    world: &WorldRuntimeStateLikeCpp,
+    real_prev_time_ms: u32,
+    real_curr_time_ms: u32,
+    min_update_diff_ms: u32,
+    max_core_stuck_time_ms: u32,
+) -> WorldUpdateLoopStepOutcomeLikeCpp {
+    world.increment_world_loop_counter_like_cpp();
+
+    let diff_ms = real_curr_time_ms.wrapping_sub(real_prev_time_ms);
+    if diff_ms < min_update_diff_ms {
+        let sleep_ms = min_update_diff_ms - diff_ms;
+        return WorldUpdateLoopStepOutcomeLikeCpp::Sleep {
+            sleep_ms,
+            log_waiting_like_cpp: sleep_ms
+                >= half_max_core_stuck_time_like_cpp(max_core_stuck_time_ms),
+        };
+    }
+
+    WorldUpdateLoopStepOutcomeLikeCpp::Update {
+        diff_ms,
+        next_real_prev_time_ms: real_curr_time_ms,
+    }
+}
+
 // ── Account lookup implementation ────────────────────────────────
 
 /// Looks up account information from the login database using the realm join ticket.
@@ -9165,7 +9207,7 @@ mod tests {
         PersistedRespawnTimesLikeCpp, REQUIRED_TDB_CACHE_ID_LIKE_CPP,
         REQUIRED_TDB_VERSION_LIKE_CPP, RespawnDbDeleteQueueOutcomeLikeCpp,
         RespawnDbSaveQueueOutcomeLikeCpp, SHUTDOWN_EXIT_CODE_LIKE_CPP, WorldDbVersionLikeCpp,
-        WorldRuntimeStateLikeCpp, WorldServerCliLikeCpp,
+        WorldRuntimeStateLikeCpp, WorldServerCliLikeCpp, WorldUpdateLoopStepOutcomeLikeCpp,
         apply_canonical_spawn_group_condition_update_loaded_grid_records_like_cpp,
         build_loaded_grid_creature_respawn_record_like_cpp,
         build_loaded_grid_creature_spawn_group_spawn_record_like_cpp,
@@ -9193,7 +9235,8 @@ mod tests {
         game_event_unspawn_for_event_like_cpp, game_event_unspawn_pools_for_event_like_cpp,
         game_event_unspawn_pools_like_cpp, game_event_update_npc_flags_like_cpp,
         game_event_update_npc_vendor_like_cpp, game_event_update_world_states_like_cpp,
-        install_canonical_spawn_group_initializer_like_cpp, legacy_creature_aggro_config_like_cpp,
+        half_max_core_stuck_time_like_cpp, install_canonical_spawn_group_initializer_like_cpp,
+        legacy_creature_aggro_config_like_cpp,
         legacy_creature_global_runtime_enabled_from_config_like_cpp, load_world_config_from,
         loot_drop_rates_like_cpp, materialize_game_event_quest_complete_db_bridge_like_cpp,
         materialize_game_event_world_event_state_db_bridge_like_cpp, mmap_runtime_config_like_cpp,
@@ -9209,8 +9252,8 @@ mod tests {
         updates_enabled_for_database_like_cpp, world_config_bool, world_config_u8,
         world_config_u16, world_config_u32, world_db_core_version_update_sql_like_cpp,
         world_db_version_matches_required_like_cpp, world_db_version_mismatch_message_like_cpp,
-        worldserver_cli_help_like_cpp, worldserver_full_version_like_cpp,
-        worldserver_revision_like_cpp,
+        world_update_loop_step_like_cpp, worldserver_cli_help_like_cpp,
+        worldserver_full_version_like_cpp, worldserver_revision_like_cpp,
     };
     use std::collections::{BTreeMap, HashSet};
     use std::env;
@@ -11559,6 +11602,58 @@ mod tests {
         assert_eq!(
             detector.poll_once_like_cpp(63_000, 2),
             FreezeDetectorPollOutcomeLikeCpp::Advanced
+        );
+    }
+
+    #[test]
+    fn world_update_loop_step_matches_cpp_timing_contract() {
+        let world = WorldRuntimeStateLikeCpp::new();
+
+        assert_eq!(
+            half_max_core_stuck_time_like_cpp(0),
+            u32::MAX,
+            "C++ uses numeric_limits<uint32>::max() when halfMaxCoreStuckTime is zero"
+        );
+
+        let sleep = world_update_loop_step_like_cpp(&world, 1_000, 1_003, 10, 60_000);
+        assert_eq!(
+            sleep,
+            WorldUpdateLoopStepOutcomeLikeCpp::Sleep {
+                sleep_ms: 7,
+                log_waiting_like_cpp: false
+            }
+        );
+        assert_eq!(
+            world.world_loop_counter_like_cpp(),
+            1,
+            "C++ increments m_worldLoopCounter before the sleep branch"
+        );
+
+        let long_sleep = world_update_loop_step_like_cpp(&world, 2_000, 2_000, 30_000, 60_000);
+        assert_eq!(
+            long_sleep,
+            WorldUpdateLoopStepOutcomeLikeCpp::Sleep {
+                sleep_ms: 30_000,
+                log_waiting_like_cpp: true
+            }
+        );
+
+        let update = world_update_loop_step_like_cpp(&world, 3_000, 3_025, 10, 60_000);
+        assert_eq!(
+            update,
+            WorldUpdateLoopStepOutcomeLikeCpp::Update {
+                diff_ms: 25,
+                next_real_prev_time_ms: 3_025
+            }
+        );
+
+        let wrap_update = world_update_loop_step_like_cpp(&world, u32::MAX - 4, 5, 1, 60_000);
+        assert_eq!(
+            wrap_update,
+            WorldUpdateLoopStepOutcomeLikeCpp::Update {
+                diff_ms: 10,
+                next_real_prev_time_ms: 5
+            }
         );
     }
 
