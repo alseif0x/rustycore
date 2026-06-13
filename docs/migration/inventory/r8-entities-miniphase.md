@@ -1,3 +1,13 @@
+- `#NEXT.R8.ENTITIES.834` - represented-complete for `CMSG_STAND_STATE_CHANGE`.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:406-420`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.cpp:328-334`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.h:434-443`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:944`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:644`.
+
+  Rust anchors: `crates/wow-packet/src/packets/misc.rs`; `crates/wow-world/src/handlers/misc.rs`; `crates/wow-world/src/session.rs`.
+
+  Acceptance: `CMSG_STAND_STATE_CHANGE` parses the C++ `uint32 StandState` payload, registers `LoggedIn`/`ThreadUnsafe` dispatch, routes through `WorldSession`, accepts exactly `Stand`, `Sit`, `Sleep`, and `Kneel`, ignores all other client-supplied states, and mutates represented `player_stand_state_like_cpp`.
+
+  Boundary: represented-complete for bounded client stand-state handler semantics only; no live update-field fanout beyond the existing represented player state bridge, no `SMSG_STAND_STATE_UPDATE` emission is added because the C++ client handler does not send one directly, no install/restart, and no live client/manual validation.
+
 - `#NEXT.R8.ENTITIES.833` - represented-complete for `CMSG_OBJECT_UPDATE_FAILED` and `CMSG_OBJECT_UPDATE_RESCUED`.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:1214-1236`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.h:627-644`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.cpp:499-508`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:702-703`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:441-442`.

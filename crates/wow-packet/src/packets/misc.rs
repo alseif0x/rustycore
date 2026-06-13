@@ -94,6 +94,24 @@ impl ClientPacket for ObjectUpdateRescued {
     }
 }
 
+// ── StandStateChange (CMSG 0x318c) ──────────────────────────────────────────
+
+/// C++ `WorldPackets::Misc::StandStateChange`: raw uint32, validated by handler.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StandStateChange {
+    pub stand_state: u32,
+}
+
+impl ClientPacket for StandStateChange {
+    const OPCODE: ClientOpcodes = ClientOpcodes::StandStateChange;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            stand_state: pkt.read_uint32()?,
+        })
+    }
+}
+
 /// C++ `WorldPackets::Misc::SetTaxiBenchmarkMode`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SetTaxiBenchmarkMode {
@@ -6745,6 +6763,19 @@ mod tests {
                 object_guid: rescued_guid
             }
         );
+    }
+
+    #[test]
+    fn stand_state_change_reads_raw_uint32_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(8);
+        pkt.reset_read();
+
+        assert_eq!(
+            StandStateChange::read(&mut pkt).unwrap(),
+            StandStateChange { stand_state: 8 }
+        );
+        assert_eq!(pkt.remaining(), 0);
     }
 }
 

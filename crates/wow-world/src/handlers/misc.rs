@@ -8,7 +8,9 @@
 //! TaxiNodeStatusQuery, ChatJoinChannel.
 
 use tracing::{debug, info, warn};
-use wow_constants::{ClientOpcodes, InventoryResult, ItemExtendedCostFlags, SpellCastResult};
+use wow_constants::{
+    ClientOpcodes, InventoryResult, ItemExtendedCostFlags, SpellCastResult, UnitStandStateType,
+};
 use wow_core::GameTime;
 use wow_database::{
     CharStatements, PreparedStatement, SqlTransaction, StatementDef, WorldStatements,
@@ -52,8 +54,8 @@ use wow_packet::packets::misc::{
     LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify, MountSetFavorite,
     ObjectUpdateFailed, ObjectUpdateRescued, QueryBattlePetName, QueryBattlePetNameResponse,
     RatedPvpInfo, RequestBattlefieldStatus, RequestCemeteryListResponse, SaveCufProfiles,
-    SetAdvancedCombatLogging, SetCurrencyFlags, SetTaxiBenchmarkMode, TaxiNodeStatusPkt,
-    ToyClearFanfare, UseToy, ViolenceLevel,
+    SetAdvancedCombatLogging, SetCurrencyFlags, SetTaxiBenchmarkMode, StandStateChange,
+    TaxiNodeStatusPkt, ToyClearFanfare, UseToy, ViolenceLevel,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -87,6 +89,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_selection",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::StandStateChange,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_stand_state_change",
     }
 }
 
@@ -1173,6 +1184,29 @@ impl crate::session::WorldSession {
             "SetSelection: account {} → {:?}",
             self.account_id, target_guid
         );
+    }
+
+    pub async fn handle_stand_state_change(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let packet = match StandStateChange::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "StandStateChange parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        let stand_state = match packet.stand_state {
+            state if state == UnitStandStateType::Stand as u32 => UnitStandStateType::Stand,
+            state if state == UnitStandStateType::Sit as u32 => UnitStandStateType::Sit,
+            state if state == UnitStandStateType::Sleep as u32 => UnitStandStateType::Sleep,
+            state if state == UnitStandStateType::Kneel as u32 => UnitStandStateType::Kneel,
+            _ => return,
+        };
+
+        self.set_player_stand_state_like_cpp(stand_state);
     }
 
     /// CMSG_WORLD_PORT_RESPONSE — client confirms it has loaded the new map.
@@ -3567,6 +3601,13 @@ mod tests {
     fn object_update_recovery_packet(guid: ObjectGuid) -> WorldPacket {
         let mut pkt = WorldPacket::new_empty();
         pkt.write_packed_guid(&guid);
+        pkt.reset_read();
+        pkt
+    }
+
+    fn stand_state_change_packet(state: u32) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(state);
         pkt.reset_read();
         pkt
     }
@@ -6177,6 +6218,46 @@ mod tests {
         assert_eq!(rescued.status, SessionStatus::LoggedIn);
         assert_eq!(rescued.processing, PacketProcessing::Inplace);
         assert_eq!(rescued.handler_name, "handle_object_update_rescued");
+    }
+
+    #[tokio::test]
+    async fn stand_state_change_accepts_only_cpp_states_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        for state in [
+            UnitStandStateType::Stand,
+            UnitStandStateType::Sit,
+            UnitStandStateType::Sleep,
+            UnitStandStateType::Kneel,
+        ] {
+            session
+                .handle_stand_state_change(stand_state_change_packet(state as u32))
+                .await;
+            assert_eq!(session.player_stand_state_like_cpp(), state);
+        }
+
+        session
+            .handle_stand_state_change(stand_state_change_packet(
+                UnitStandStateType::SitChair as u32,
+            ))
+            .await;
+        assert_eq!(
+            session.player_stand_state_like_cpp(),
+            UnitStandStateType::Kneel
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn stand_state_change_handler_metadata_matches_cpp() {
+        let entry = inventory::iter::<PacketHandlerEntry>
+            .into_iter()
+            .find(|entry| entry.opcode == ClientOpcodes::StandStateChange)
+            .expect("StandStateChange handler entry");
+
+        assert_eq!(entry.status, SessionStatus::LoggedIn);
+        assert_eq!(entry.processing, PacketProcessing::ThreadUnsafe);
+        assert_eq!(entry.handler_name, "handle_stand_state_change");
     }
 
     #[tokio::test]

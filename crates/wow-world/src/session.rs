@@ -18567,6 +18567,9 @@ impl WorldSession {
             ClientOpcodes::Inspect => {
                 self.handle_inspect(pkt).await;
             }
+            ClientOpcodes::StandStateChange => {
+                self.handle_stand_state_change(pkt).await;
+            }
             ClientOpcodes::RequestHonorStats => {
                 self.handle_request_honor_stats(pkt).await;
             }
