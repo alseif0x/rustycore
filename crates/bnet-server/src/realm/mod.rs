@@ -3,6 +3,7 @@
 //! Periodically polls the `realmlist` table and provides realm data to clients.
 
 use anyhow::Result;
+use bitflags::bitflags;
 use flate2::Compression;
 use flate2::write::ZlibEncoder;
 use serde::Serialize;
@@ -14,16 +15,64 @@ use std::sync::Arc;
 use crate::state::AppState;
 use wow_database::LoginStatements;
 
-const REALM_FLAG_VERSION_MISMATCH: u8 = 0x01;
-const REALM_FLAG_OFFLINE: u8 = 0x02;
-const REALM_TYPE_NORMAL: u8 = 0;
-const REALM_TYPE_PVP: u8 = 1;
-const MAX_CLIENT_REALM_TYPE: u8 = 14;
-const REALM_TYPE_FFA_PVP: u8 = 16;
 const SEC_ADMINISTRATOR: u8 = 3;
 const DEFAULT_VERSION_MAJOR: u32 = 6;
 const DEFAULT_VERSION_MINOR: u32 = 2;
 const DEFAULT_VERSION_REVISION: u32 = 4;
+
+bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct RealmFlagsLikeCpp: u8 {
+        const NONE = 0x00;
+        const VERSION_MISMATCH = 0x01;
+        const OFFLINE = 0x02;
+        const SPECIFYBUILD = 0x04;
+        const UNK1 = 0x08;
+        const UNK2 = 0x10;
+        const RECOMMENDED = 0x20;
+        const NEW = 0x40;
+        const FULL = 0x80;
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RealmTypeLikeCpp(u8);
+
+impl RealmTypeLikeCpp {
+    #[allow(dead_code)]
+    pub const NORMAL: Self = Self(0);
+    #[allow(dead_code)]
+    pub const PVP: Self = Self(1);
+    #[allow(dead_code)]
+    pub const NORMAL2: Self = Self(4);
+    #[allow(dead_code)]
+    pub const RP: Self = Self(6);
+    #[allow(dead_code)]
+    pub const RPPVP: Self = Self(8);
+    #[allow(dead_code)]
+    pub const MAX_CLIENT_REALM_TYPE: u8 = 14;
+    #[allow(dead_code)]
+    pub const FFA_PVP: Self = Self(16);
+
+    pub fn from_db_like_cpp(icon: u8) -> Self {
+        if icon == Self::FFA_PVP.0 {
+            return Self::PVP;
+        }
+        if icon >= Self::MAX_CLIENT_REALM_TYPE {
+            return Self::NORMAL;
+        }
+        Self(icon)
+    }
+
+    #[allow(dead_code)]
+    pub fn as_u8(self) -> u8 {
+        self.0
+    }
+
+    pub fn get_config_id_like_cpp(self) -> u8 {
+        self.0 + 1
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct RealmHandleLikeCpp {
@@ -99,8 +148,8 @@ pub struct Realm {
     pub external_address: String,
     pub local_address: String,
     pub port: u16,
-    pub icon: u8,
-    pub flag: u8,
+    pub icon: RealmTypeLikeCpp,
+    pub flag: RealmFlagsLikeCpp,
     pub timezone: u8,
     pub allowed_security_level: u8,
     pub population: f32,
@@ -204,11 +253,11 @@ impl RealmManager {
                 // Dynamically add VersionMismatch if client build != realm build
                 let mut flags = r.flag;
                 if r.build != build {
-                    flags |= REALM_FLAG_VERSION_MISMATCH;
+                    flags.insert(RealmFlagsLikeCpp::VERSION_MISMATCH);
                 }
 
                 // Population: 0 if offline, else max(population_level, 1)
-                let is_offline = (flags & REALM_FLAG_OFFLINE) != 0;
+                let is_offline = flags.contains(RealmFlagsLikeCpp::OFFLINE);
                 let population_state = if is_offline {
                     0
                 } else {
@@ -238,9 +287,9 @@ impl RealmManager {
                                 }),
                         },
                         cfg_realms_id: r.id as i32,
-                        flags: i32::from(flags),
+                        flags: i32::from(flags.bits()),
                         name: r.name.clone(),
-                        cfg_configs_id: i32::from(realm_config_id_like_cpp(r.icon)),
+                        cfg_configs_id: i32::from(r.icon.get_config_id_like_cpp()),
                         cfg_languages_id: 1,
                     },
                     deleting: false,
@@ -278,7 +327,7 @@ impl RealmManager {
             return Vec::new();
         };
 
-        if (realm.flag & REALM_FLAG_OFFLINE) != 0 || realm.build != build {
+        if realm.flag.contains(RealmFlagsLikeCpp::OFFLINE) || realm.build != build {
             return Vec::new();
         }
 
@@ -303,9 +352,9 @@ impl RealmManager {
                     .map_or(DEFAULT_VERSION_REVISION as i32, |b| b.bugfix_version as i32),
             },
             cfg_realms_id: realm.id as i32,
-            flags: i32::from(realm.flag),
+            flags: i32::from(realm.flag.bits()),
             name: realm.name.clone(),
-            cfg_configs_id: i32::from(realm_config_id_like_cpp(realm.icon)),
+            cfg_configs_id: i32::from(realm.icon.get_config_id_like_cpp()),
             cfg_languages_id: 1,
         };
         let json = format!(
@@ -460,8 +509,8 @@ async fn update_realms(state: &AppState) -> Result<()> {
             let address: String = result.read(2);
             let local_address: String = result.read(3);
             let port: u16 = result.try_read::<u16>(4).unwrap_or(8085);
-            let icon: u8 = normalize_realm_type_like_cpp(result.try_read::<u8>(5).unwrap_or(0));
-            let flag: u8 = result.try_read::<u8>(6).unwrap_or(0);
+            let icon = RealmTypeLikeCpp::from_db_like_cpp(result.try_read::<u8>(5).unwrap_or(0));
+            let flag = RealmFlagsLikeCpp::from_bits_retain(result.try_read::<u8>(6).unwrap_or(0));
             let timezone: u8 = result.try_read::<u8>(7).unwrap_or(0);
             let allowed_security_level: u8 =
                 result.try_read::<u8>(8).unwrap_or(0).min(SEC_ADMINISTRATOR);
@@ -511,24 +560,10 @@ async fn update_realms(state: &AppState) -> Result<()> {
     Ok(())
 }
 
-fn normalize_realm_type_like_cpp(icon: u8) -> u8 {
-    if icon == REALM_TYPE_FFA_PVP {
-        return REALM_TYPE_PVP;
-    }
-    if icon >= MAX_CLIENT_REALM_TYPE {
-        return REALM_TYPE_NORMAL;
-    }
-    icon
-}
-
 fn normalized_realm_name_like_cpp(name: &str) -> String {
     name.chars()
         .filter(|ch| !ch.is_ascii_whitespace())
         .collect()
-}
-
-fn realm_config_id_like_cpp(realm_type: u8) -> u8 {
-    normalize_realm_type_like_cpp(realm_type) + 1
 }
 
 pub(crate) fn realm_address_like_cpp(region: u8, battlegroup: u8, realm_id: u32) -> u32 {
@@ -643,8 +678,8 @@ mod tests {
             external_address: "203.0.113.10".to_string(),
             local_address: "10.0.0.10".to_string(),
             port: 8085,
-            icon,
-            flag: 0,
+            icon: RealmTypeLikeCpp::from_db_like_cpp(icon),
+            flag: RealmFlagsLikeCpp::NONE,
             timezone,
             allowed_security_level: 0,
             population: 2.0,
@@ -797,6 +832,44 @@ mod tests {
     }
 
     #[test]
+    fn realm_flags_match_cpp_bits() {
+        assert_eq!(RealmFlagsLikeCpp::NONE.bits(), 0x00);
+        assert_eq!(RealmFlagsLikeCpp::VERSION_MISMATCH.bits(), 0x01);
+        assert_eq!(RealmFlagsLikeCpp::OFFLINE.bits(), 0x02);
+        assert_eq!(RealmFlagsLikeCpp::SPECIFYBUILD.bits(), 0x04);
+        assert_eq!(RealmFlagsLikeCpp::UNK1.bits(), 0x08);
+        assert_eq!(RealmFlagsLikeCpp::UNK2.bits(), 0x10);
+        assert_eq!(RealmFlagsLikeCpp::RECOMMENDED.bits(), 0x20);
+        assert_eq!(RealmFlagsLikeCpp::NEW.bits(), 0x40);
+        assert_eq!(RealmFlagsLikeCpp::FULL.bits(), 0x80);
+    }
+
+    #[test]
+    fn realm_type_normalization_matches_cpp() {
+        assert_eq!(RealmTypeLikeCpp::NORMAL.as_u8(), 0);
+        assert_eq!(RealmTypeLikeCpp::PVP.as_u8(), 1);
+        assert_eq!(RealmTypeLikeCpp::NORMAL2.as_u8(), 4);
+        assert_eq!(RealmTypeLikeCpp::RP.as_u8(), 6);
+        assert_eq!(RealmTypeLikeCpp::RPPVP.as_u8(), 8);
+        assert_eq!(RealmTypeLikeCpp::MAX_CLIENT_REALM_TYPE, 14);
+        assert_eq!(RealmTypeLikeCpp::FFA_PVP.as_u8(), 16);
+
+        assert_eq!(
+            RealmTypeLikeCpp::from_db_like_cpp(RealmTypeLikeCpp::FFA_PVP.as_u8()).as_u8(),
+            RealmTypeLikeCpp::PVP.as_u8()
+        );
+        assert_eq!(
+            RealmTypeLikeCpp::from_db_like_cpp(RealmTypeLikeCpp::MAX_CLIENT_REALM_TYPE).as_u8(),
+            RealmTypeLikeCpp::NORMAL.as_u8()
+        );
+        assert_eq!(RealmTypeLikeCpp::from_db_like_cpp(13).as_u8(), 13);
+        assert_eq!(
+            RealmTypeLikeCpp::from_db_like_cpp(13).get_config_id_like_cpp(),
+            14
+        );
+    }
+
+    #[test]
     fn realm_list_json_filters_subregion_and_uses_cpp_fields() {
         let mut manager = RealmManager::new();
         manager.realms.insert(
@@ -848,7 +921,7 @@ mod tests {
         let mut manager = RealmManager::new();
         manager.realms.insert(
             RealmHandleLikeCpp::new_like_cpp(5, 6, 9),
-            test_realm(9, 5, 6, 3, REALM_TYPE_FFA_PVP),
+            test_realm(9, 5, 6, 3, RealmTypeLikeCpp::FFA_PVP.as_u8()),
         );
 
         let (realms, _) = manager.get_realm_list_json(12340, "5-6-0", &HashMap::new());
@@ -856,7 +929,7 @@ mod tests {
         let json = parse_enveloped_json(&realms, "JSONRealmListUpdates:");
         let update = &json["updates"][0]["update"];
 
-        assert_eq!(update["flags"], REALM_FLAG_VERSION_MISMATCH);
+        assert_eq!(update["flags"], RealmFlagsLikeCpp::VERSION_MISMATCH.bits());
         assert_eq!(update["cfgConfigsId"], 2);
         assert_eq!(update["version"]["versionMajor"], DEFAULT_VERSION_MAJOR);
         assert_eq!(update["version"]["versionMinor"], DEFAULT_VERSION_MINOR);
@@ -870,7 +943,7 @@ mod tests {
     fn realm_list_json_offline_realm_has_zero_population_like_cpp() {
         let mut manager = RealmManager::new();
         let mut realm = test_realm(9, 5, 6, 3, 1);
-        realm.flag = REALM_FLAG_OFFLINE;
+        realm.flag = RealmFlagsLikeCpp::OFFLINE;
         manager
             .realms
             .insert(RealmHandleLikeCpp::new_like_cpp(5, 6, 9), realm);
@@ -881,7 +954,7 @@ mod tests {
         let update = &json["updates"][0]["update"];
 
         assert_eq!(update["populationState"], 0);
-        assert_eq!(update["flags"], REALM_FLAG_OFFLINE);
+        assert_eq!(update["flags"], RealmFlagsLikeCpp::OFFLINE.bits());
     }
 
     #[test]
@@ -921,7 +994,7 @@ mod tests {
             .realms
             .get_mut(&RealmHandleLikeCpp::new_like_cpp(5, 6, 9))
             .unwrap()
-            .flag = REALM_FLAG_OFFLINE;
+            .flag = RealmFlagsLikeCpp::OFFLINE;
         assert!(
             manager
                 .get_realm_entry_json_like_cpp(packed, 51943)

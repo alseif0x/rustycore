@@ -292,8 +292,12 @@ async fn join_realm<S: AsyncRead + AsyncWrite + Unpin>(
             .get_realm_by_realm_address_like_cpp(realm_address)
             .ok_or_else(|| anyhow::anyhow!("Realm not found"))?;
 
-        // C# check: reject if offline or build mismatch
-        if (realm.flag & 0x02) != 0 || realm.build != session.build {
+        // C++ RealmList::JoinRealm rejects offline realms and build mismatches.
+        if realm
+            .flag
+            .contains(crate::realm::RealmFlagsLikeCpp::OFFLINE)
+            || realm.build != session.build
+        {
             bail!("Realm offline or version mismatch");
         }
 
