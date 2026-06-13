@@ -8,7 +8,7 @@ use wow_proto::bgs::protocol::{Attribute, Variant};
 use wow_proto::status;
 
 use crate::rpc::session::{RpcSession, RpcStatusError};
-use crate::state::{AccountInfo, GameAccountInfo};
+use crate::state::{AccountInfo, GameAccountInfo, LastPlayedCharInfo};
 use tokio::io::{AsyncRead, AsyncWrite};
 
 pub async fn handle<S: AsyncRead + AsyncWrite + Unpin>(
@@ -151,10 +151,12 @@ async fn get_last_char_played<S: AsyncRead + AsyncWrite + Unpin>(
         bail!("Not authenticated");
     }
 
-    // The sub-region value is stored on the command attribute itself
-    let sub_region = find_attr(&request.attribute, "Command_LastCharPlayedRequest_v1")
-        .and_then(|a| a.value.string_value.as_deref())
-        .unwrap_or("");
+    // The sub-region value is stored on the command attribute itself.
+    let Some(command_attr) = find_attr(&request.attribute, "Command_LastCharPlayedRequest_v1")
+    else {
+        return Err(RpcStatusError::new(status::ERROR_UTIL_SERVER_UNKNOWN_REALM).into());
+    };
+    let sub_region = command_attr.value.string_value.as_deref().unwrap_or("");
 
     let account = session
         .account_info
@@ -169,22 +171,12 @@ async fn get_last_char_played<S: AsyncRead + AsyncWrite + Unpin>(
         let realm_mgr = session.state().realm_mgr.read();
         let realm_json = realm_mgr.get_realm_entry_json_like_cpp(lpc.realm_address, session.build);
         if realm_json.is_empty() {
-            bail!("Failed to serialize last-played realm entry");
+            return Err(RpcStatusError::new(
+                status::ERROR_UTIL_SERVER_FAILED_TO_SERIALIZE_RESPONSE,
+            )
+            .into());
         }
-        response_attrs.push(make_blob_attribute("Param_RealmEntry", &realm_json));
-
-        response_attrs.push(make_string_attribute(
-            "Param_CharacterName",
-            &lpc.character_name,
-        ));
-        response_attrs.push(make_uint_attribute(
-            "Param_CharacterGUID",
-            lpc.character_guid,
-        ));
-        response_attrs.push(make_uint_attribute(
-            "Param_LastPlayedTime",
-            lpc.last_played_time,
-        ));
+        response_attrs = last_char_played_response_attributes_like_cpp(&realm_json, lpc);
     }
 
     Ok(Some(
@@ -479,6 +471,24 @@ fn join_realm_response_attributes_like_cpp(
     ]
 }
 
+fn last_char_played_response_attributes_like_cpp(
+    realm_entry: &[u8],
+    last_played: &LastPlayedCharInfo,
+) -> Vec<Attribute> {
+    vec![
+        make_blob_attribute("Param_RealmEntry", realm_entry),
+        make_string_attribute("Param_CharacterName", &last_played.character_name),
+        make_blob_attribute(
+            "Param_CharacterGUID",
+            &last_played.character_guid.to_le_bytes(),
+        ),
+        make_int_attribute(
+            "Param_LastPlayedTime",
+            i64::from(last_played.last_played_time as i32),
+        ),
+    ]
+}
+
 // ── Attribute helpers ───────────────────────────────────────────────────────
 
 fn make_blob_attribute(name: &str, value: &[u8]) -> Attribute {
@@ -501,11 +511,11 @@ fn make_string_attribute(name: &str, value: &str) -> Attribute {
     }
 }
 
-fn make_uint_attribute(name: &str, value: u64) -> Attribute {
+fn make_int_attribute(name: &str, value: i64) -> Attribute {
     Attribute {
         name: name.to_string(),
         value: Variant {
-            uint_value: Some(value),
+            int_value: Some(value),
             ..Default::default()
         },
     }
@@ -516,10 +526,11 @@ mod tests {
     use super::{
         JoinRealmLoginInfoUpdateLikeCpp, apply_join_realm_login_info_update_like_cpp,
         bnet_session_key_data_like_cpp, join_realm_response_attributes_like_cpp,
+        last_char_played_response_attributes_like_cpp,
         parse_realm_list_ticket_client_secret_like_cpp,
         parse_realm_list_ticket_game_account_id_like_cpp, selected_game_account_like_cpp,
     };
-    use crate::state::{AccountInfo, GameAccountInfo};
+    use crate::state::{AccountInfo, GameAccountInfo, LastPlayedCharInfo};
     use std::collections::HashMap;
     use wow_database::{PreparedStatement, SqlParam};
     use wow_proto::bgs::protocol::{Attribute, Variant};
@@ -630,6 +641,10 @@ mod tests {
     fn realm_utility_status_constants_match_cpp() {
         assert_eq!(status::ERROR_UTIL_SERVER_UNKNOWN_REALM, 0x8000_0069);
         assert_eq!(status::ERROR_UTIL_SERVER_INVALID_IDENTITY_ARGS, 0x8000_006E);
+        assert_eq!(
+            status::ERROR_UTIL_SERVER_FAILED_TO_SERIALIZE_RESPONSE,
+            0x8000_0073
+        );
         assert_eq!(status::ERROR_USER_SERVER_BAD_WOW_ACCOUNT, 0x8000_00D3);
         assert_eq!(
             status::ERROR_USER_SERVER_NOT_PERMITTED_ON_REALM,
@@ -695,6 +710,37 @@ mod tests {
             attrs[2].value.blob_value.as_deref(),
             Some(server_secret.as_slice())
         );
+    }
+
+    #[test]
+    fn last_char_played_response_attributes_match_cpp_order_and_value_kinds() {
+        let realm_entry = vec![1, 2, 3, 4];
+        let last_played = LastPlayedCharInfo {
+            realm_address: 0x0102_0003,
+            character_name: "Tester".to_string(),
+            character_guid: 0x0102_0304_0506_0708,
+            last_played_time: 0xFFFF_FFFE,
+        };
+
+        let attrs = last_char_played_response_attributes_like_cpp(&realm_entry, &last_played);
+
+        assert_eq!(attrs.len(), 4);
+        assert_eq!(attrs[0].name, "Param_RealmEntry");
+        assert_eq!(
+            attrs[0].value.blob_value.as_deref(),
+            Some(&[1, 2, 3, 4][..])
+        );
+        assert_eq!(attrs[1].name, "Param_CharacterName");
+        assert_eq!(attrs[1].value.string_value.as_deref(), Some("Tester"));
+        assert_eq!(attrs[2].name, "Param_CharacterGUID");
+        assert_eq!(
+            attrs[2].value.blob_value.as_deref(),
+            Some(&0x0102_0304_0506_0708u64.to_le_bytes()[..])
+        );
+        assert!(attrs[2].value.uint_value.is_none());
+        assert_eq!(attrs[3].name, "Param_LastPlayedTime");
+        assert_eq!(attrs[3].value.int_value, Some(-2));
+        assert!(attrs[3].value.uint_value.is_none());
     }
 
     fn test_game_account(id: u32, name: &str) -> GameAccountInfo {
