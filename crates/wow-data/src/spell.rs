@@ -360,6 +360,8 @@ pub mod aura_types {
     pub const SPELL_AURA_MODIFY_DAMAGE_PERCENT_TAKEN: i32 = 31;
     pub const SPELL_AURA_HASTE_SPELLS: i32 = 73;
     pub const SPELL_AURA_MOUNTED: i32 = 78;
+    pub const SPELL_AURA_MOD_DETECT_RANGE: i32 = 91;
+    pub const SPELL_AURA_MOD_DETECTED_RANGE: i32 = 152;
     pub const SPELL_AURA_PROVIDE_SPELL_FOCUS: i32 = 281;
     pub const SPELL_AURA_MOD_BATTLE_PET_XP_PCT: i32 = 420;
 }
@@ -1323,6 +1325,8 @@ mod tests {
         );
 
         // C++ `SpellAuraDefines.h`: selected `AuraType` enum anchors.
+        assert_eq!(aura_types::SPELL_AURA_MOD_DETECT_RANGE, 91);
+        assert_eq!(aura_types::SPELL_AURA_MOD_DETECTED_RANGE, 152);
         assert_eq!(aura_types::SPELL_AURA_MOD_BATTLE_PET_XP_PCT, 420);
     }
 

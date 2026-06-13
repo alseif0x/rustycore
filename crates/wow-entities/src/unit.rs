@@ -22,6 +22,8 @@ pub const AUTO_SHOT_SPELL_ID: u32 = 75;
 pub const SPELL_AURA_MOD_UNATTACKABLE_LIKE_CPP: i32 = 93;
 pub const SPELL_AURA_DISABLE_ATTACKING_EXCEPT_ABILITIES_LIKE_CPP: i32 = 264;
 pub const SPELL_AURA_MOD_STALKED_LIKE_CPP: i32 = 68;
+pub const SPELL_AURA_MOD_DETECT_RANGE_LIKE_CPP: i32 = 91;
+pub const SPELL_AURA_MOD_DETECTED_RANGE_LIKE_CPP: i32 = 152;
 pub const SPELL_AURA_INTERRUPT_FLAG_ATTACKING_LIKE_CPP: u32 = 0x0000_1000;
 pub const SPELL_AURA_INTERRUPT_FLAG_ENTER_WORLD_LIKE_CPP: u32 = 0x0040_0000;
 pub const MAX_VISIBILITY_AURA_TYPES_LIKE_CPP: usize = 38;
@@ -1259,6 +1261,12 @@ impl Unit {
 
     pub fn subsystems_mut(&mut self) -> &mut UnitSubsystems {
         &mut self.subsystems
+    }
+
+    pub fn total_aura_modifier_like_cpp(&self, aura_type: i32) -> i32 {
+        self.subsystems
+            .auras
+            .total_aura_modifier_like_cpp(aura_type)
     }
 
     pub const fn base_attack_speed(&self) -> [u32; MAX_ATTACK] {

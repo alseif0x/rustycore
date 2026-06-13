@@ -17,6 +17,7 @@ pub struct AuraSubsystem {
     pub owned_auras: Vec<OwnedAuraRef>,
     pub applied_auras: Vec<AppliedAuraRef>,
     pub applied_aura_types: HashMap<i32, Vec<AppliedAuraRef>>,
+    pub applied_aura_amounts: HashMap<AppliedAuraRef, i32>,
     pub visible_auras: HashMap<u8, AuraRef>,
     pub visible_aura_applications_like_cpp: HashMap<u8, VisibleAuraApplicationLikeCpp>,
     pub visible_auras_to_update: HashSet<u8>,
@@ -215,6 +216,16 @@ impl AuraSubsystem {
         }
     }
 
+    pub fn register_applied_aura_modifier_like_cpp(
+        &mut self,
+        aura: AppliedAuraRef,
+        aura_type: i32,
+        amount: i32,
+    ) {
+        self.register_applied_aura_type_like_cpp(aura, aura_type);
+        self.applied_aura_amounts.insert(aura, amount);
+    }
+
     pub fn remove_applied(&mut self, aura: AppliedAuraRef) -> bool {
         let before = self.applied_auras.len();
         self.applied_auras.retain(|known| *known != aura);
@@ -229,6 +240,7 @@ impl AuraSubsystem {
             auras.retain(|known| *known != aura);
         }
         self.aura_state_auras.retain(|_, auras| !auras.is_empty());
+        self.applied_aura_amounts.remove(&aura);
         self.update_interrupt_masks();
         before != self.applied_auras.len()
     }
@@ -281,6 +293,15 @@ impl AuraSubsystem {
         self.applied_aura_types
             .get(&aura_type)
             .is_some_and(|auras| auras.iter().any(|aura| aura.caster_guid == caster_guid))
+    }
+
+    pub fn total_aura_modifier_like_cpp(&self, aura_type: i32) -> i32 {
+        self.applied_aura_types
+            .get(&aura_type)
+            .into_iter()
+            .flatten()
+            .map(|aura| self.applied_aura_amounts.get(aura).copied().unwrap_or(0))
+            .sum()
     }
 
     pub fn remove_auras_by_type_like_cpp(&mut self, aura_type: i32) -> Vec<AppliedAuraRef> {
@@ -4442,6 +4463,27 @@ mod unit_subsystems_tests {
         assert!(!auras.has_aura_type_like_cpp(93));
         assert!(auras.has_aura_type_like_cpp(8));
         assert_eq!(auras.removed_count(), 2);
+    }
+
+    #[test]
+    fn total_aura_modifier_sums_and_removes_amounts_like_cpp() {
+        let mut auras = AuraSubsystem::default();
+        let caster = guid(1);
+        let first = AppliedAuraRef::new(400, caster, 0, 0x1);
+        let second = AppliedAuraRef::new(401, caster, 1, 0x2);
+        let other = AppliedAuraRef::new(402, caster, 2, 0x4);
+
+        auras.register_applied_aura_modifier_like_cpp(first, 91, 4);
+        auras.register_applied_aura_modifier_like_cpp(second, 91, -2);
+        auras.register_applied_aura_modifier_like_cpp(other, 152, 7);
+
+        assert_eq!(auras.total_aura_modifier_like_cpp(91), 2);
+        assert_eq!(auras.total_aura_modifier_like_cpp(152), 7);
+
+        assert!(auras.remove_applied(first));
+
+        assert_eq!(auras.total_aura_modifier_like_cpp(91), -2);
+        assert_eq!(auras.total_aura_modifier_like_cpp(152), 7);
     }
 
     #[test]

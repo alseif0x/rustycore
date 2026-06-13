@@ -9455,6 +9455,7 @@ fn collect_legacy_creature_aggro_candidates_with_canonical_like_cpp(
                     player_visibility_detection:
                         wow_entities::UnitVisibilityDetectionStateLikeCpp::default(),
                     player_combat_reach: info.combat_reach,
+                    player_detected_range_aura_mod: 0.0,
                     player_liquid_status_like_cpp: info.liquid_status,
                     player_level: info.level,
                     player_gray_level: info.gray_level,
@@ -9491,6 +9492,9 @@ fn collect_legacy_creature_aggro_candidates_with_canonical_like_cpp(
             candidate.player_phase_shift = player.unit().world().phase_shift().clone();
             candidate.player_visibility_detection =
                 player.unit().visibility_detection_like_cpp().clone();
+            candidate.player_detected_range_aura_mod = player.unit().total_aura_modifier_like_cpp(
+                wow_data::spell::aura_types::SPELL_AURA_MOD_DETECTED_RANGE,
+            ) as f32;
         }
     }
 
@@ -18292,25 +18296,34 @@ mmap.enablePathFinding = 0
     #[test]
     fn collect_legacy_creature_aggro_candidates_hydrates_canonical_visibility_like_cpp() {
         let registry = PlayerRegistry::default();
-        let player = ObjectGuid::create_player(1, 68);
+        let player_guid = ObjectGuid::create_player(1, 68);
         let position = Position::new(1.0, 2.0, 3.0, 0.0);
         let (info, _) = make_registry_player_like_cpp(571, 2, position, true);
-        registry.insert(player, info);
+        registry.insert(player_guid, info);
 
         let canonical: wow_world::SharedCanonicalMapManager =
             Arc::new(Mutex::new(wow_map::MapManager::default()));
-        add_canonical_test_player_on_map_like_cpp(&canonical, player, position, 571, 2, 100);
+        add_canonical_test_player_on_map_like_cpp(&canonical, player_guid, position, 571, 2, 100);
         {
             let mut guard = canonical.lock().unwrap();
             let player = guard
                 .find_map_mut(571, 2)
                 .unwrap()
                 .map_mut()
-                .get_typed_player_mut(player)
+                .get_typed_player_mut(player_guid)
                 .unwrap();
             *player.unit_mut().world_mut().phase_shift_mut() =
                 wow_entities::PhaseShift::from_phases([77]);
             player.unit_mut().set_invisibility_like_cpp(0, 100);
+            player
+                .unit_mut()
+                .subsystems_mut()
+                .auras
+                .register_applied_aura_modifier_like_cpp(
+                    wow_entities::AppliedAuraRef::new(91_136, player_guid, 0, 0x1),
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_DETECTED_RANGE,
+                    6,
+                );
         }
 
         let candidates = collect_legacy_creature_aggro_candidates_with_canonical_like_cpp(
@@ -18325,6 +18338,7 @@ mmap.enablePathFinding = 0
             candidates[0].player_visibility_detection,
             wow_entities::UnitVisibilityDetectionStateLikeCpp::default()
         );
+        assert_eq!(candidates[0].player_detected_range_aura_mod, 6.0);
     }
 
     #[test]

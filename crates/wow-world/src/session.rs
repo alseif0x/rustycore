@@ -1958,6 +1958,7 @@ pub struct LegacyCreatureAggroCandidateLikeCpp {
     pub player_phase_shift: PhaseShift,
     pub player_visibility_detection: UnitVisibilityDetectionStateLikeCpp,
     pub player_combat_reach: f32,
+    pub player_detected_range_aura_mod: f32,
     pub player_liquid_status_like_cpp: u32,
     pub player_level: u8,
     pub player_gray_level: u8,
@@ -3591,6 +3592,8 @@ pub enum RepresentedAuraEffectLikeCpp {
     Mounted,
     MountedFlightSpeed,
     ModifyFallDamagePct,
+    ModDetectRange,
+    ModDetectedRange,
     ModFactionReputationGain,
     ModBattlePetXpPct,
     ModReputationGain,
@@ -16330,6 +16333,48 @@ impl WorldSession {
         Ok(())
     }
 
+    fn apply_represented_aura_modifier_like_cpp(
+        &mut self,
+        spell_id: i32,
+        caster_guid: ObjectGuid,
+        effect: &wow_data::SpellEffectInfo,
+        represented_effect: RepresentedAuraEffectLikeCpp,
+        duration_ms: u32,
+    ) -> Result<(), &'static str> {
+        let mut slot = 0u8;
+        while self.visible_auras.contains_key(&slot) && slot < 255 {
+            slot += 1;
+        }
+
+        if slot >= 255 {
+            return Err("No free aura slots");
+        }
+
+        let aura = AuraApplication {
+            spell_id,
+            caster_guid,
+            slot,
+            duration_total: duration_ms,
+            duration_remaining: duration_ms,
+            stack_count: 1,
+            aura_flags: 0x0000_0001,
+            effect_mask: 1u32 << effect.effect_index,
+            aura_interrupt_flags: 0,
+            aura_interrupt_flags2: 0,
+            represented_effect: Some(represented_effect),
+            represented_amount: effect.effect_base_points,
+            represented_effect_amounts: represented_aura_effect_amounts_like_cpp(effect),
+            represented_misc_value: None,
+            represented_multiplier: 1.0,
+            applied_at: Instant::now(),
+        };
+
+        self.visible_auras.insert(slot, aura);
+        self.send_aura_update_applied(spell_id, slot, caster_guid, duration_ms, 0x0000_0001);
+
+        Ok(())
+    }
+
     fn create_player_mount_vehicle_kit_like_cpp(
         &mut self,
         vehicle_id: u32,
@@ -27464,8 +27509,13 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
                         max_player_level_config: config.max_player_level_config,
                         player_level_for_target: candidate.player_level,
                         creature_level_for_target: creature.level(),
-                        creature_detect_range_aura_mod: 0.0,
-                        player_detected_range_aura_mod: 0.0,
+                        creature_detect_range_aura_mod: creature
+                            .creature
+                            .unit()
+                            .total_aura_modifier_like_cpp(
+                                wow_data::spell::aura_types::SPELL_AURA_MOD_DETECT_RANGE,
+                            ) as f32,
+                        player_detected_range_aura_mod: candidate.player_detected_range_aura_mod,
                     }) + creature.creature.combat_distance();
 
                 if creature
@@ -28826,6 +28876,9 @@ impl WorldSession {
         let mut aggro_guid: Option<wow_core::ObjectGuid> = None;
         let player_combat_reach = self.canonical_player_combat_reach_snapshot_like_cpp();
         let player_level = self.player_level_like_cpp();
+        let player_detected_range_aura_mod = self.total_represented_aura_modifier_like_cpp(
+            RepresentedAuraEffectLikeCpp::ModDetectedRange,
+        ) as f32;
 
         for guid in guids {
             let aggroed = self
@@ -28842,8 +28895,14 @@ impl WorldSession {
                             max_player_level_config: 80,
                             player_level_for_target: player_level,
                             creature_level_for_target: creature.level(),
-                            creature_detect_range_aura_mod: 0.0,
-                            player_detected_range_aura_mod: 0.0,
+                            creature_detect_range_aura_mod: creature
+                                .creature
+                                .unit()
+                                .total_aura_modifier_like_cpp(
+                                    wow_data::spell::aura_types::SPELL_AURA_MOD_DETECT_RANGE,
+                                )
+                                as f32,
+                            player_detected_range_aura_mod,
                         }) + creature.creature.combat_distance();
 
                     creature
@@ -29388,6 +29447,10 @@ impl WorldSession {
                         && !effect.is_mounted_aura_like_cpp()
                         && !effect.is_provide_spell_focus_aura_like_cpp()
                         && !effect.is_battle_pet_xp_pct_aura_like_cpp()
+                        && effect.effect_aura
+                            != wow_data::spell::aura_types::SPELL_AURA_MOD_DETECT_RANGE
+                        && effect.effect_aura
+                            != wow_data::spell::aura_types::SPELL_AURA_MOD_DETECTED_RANGE
                 })
                 .count();
             for effect in spell_info.effects().iter().filter(|effect| {
@@ -29406,6 +29469,26 @@ impl WorldSession {
                         spell_id,
                         player_guid,
                         effect,
+                    )?;
+                } else if effect.effect_aura
+                    == wow_data::spell::aura_types::SPELL_AURA_MOD_DETECT_RANGE
+                {
+                    self.apply_represented_aura_modifier_like_cpp(
+                        spell_id,
+                        player_guid,
+                        effect,
+                        RepresentedAuraEffectLikeCpp::ModDetectRange,
+                        30_000,
+                    )?;
+                } else if effect.effect_aura
+                    == wow_data::spell::aura_types::SPELL_AURA_MOD_DETECTED_RANGE
+                {
+                    self.apply_represented_aura_modifier_like_cpp(
+                        spell_id,
+                        player_guid,
+                        effect,
+                        RepresentedAuraEffectLikeCpp::ModDetectedRange,
+                        30_000,
                     )?;
                 } else if generic_apply_aura_rows_like_cpp == 1 && apply_aura_rows_like_cpp == 1 {
                     self.apply_aura_with_effect_mask_like_cpp(
@@ -38008,6 +38091,67 @@ mod tests {
                 RepresentedAuraEffectLikeCpp::ModBattlePetXpPct
             ),
             1.5
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![
+                ServerOpcodes::SpellGo,
+                ServerOpcodes::AuraUpdate,
+                ServerOpcodes::CooldownEvent
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn detected_range_aura_registers_cpp_modifier_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 729_i32;
+        let player_guid = ObjectGuid::create_player(1, 7034);
+        session.set_player_guid(Some(player_guid));
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_DETECTED_RANGE,
+                    effect_base_points: 4,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell_with_visual_and_target_data(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual {
+                    spell_visual_id: 729,
+                    script_visual_id: 0,
+                },
+                SpellTargetData::default(),
+            )
+            .await
+            .expect("represented detected-range aura should execute");
+
+        assert_eq!(
+            session.total_represented_aura_modifier_like_cpp(
+                RepresentedAuraEffectLikeCpp::ModDetectedRange
+            ),
+            4
         );
         assert_eq!(
             drain_server_opcodes(&send_rx),
@@ -73289,6 +73433,7 @@ mod tests {
             player_phase_shift: PhaseShift::default(),
             player_visibility_detection: UnitVisibilityDetectionStateLikeCpp::default(),
             player_combat_reach: 0.0,
+            player_detected_range_aura_mod: 0.0,
             player_liquid_status_like_cpp: 0,
             player_level: 80,
             player_gray_level: 70,
@@ -73555,6 +73700,97 @@ mod tests {
         assert_eq!(outcome.home_range_rejections, 0);
         assert_eq!(outcome.aggro_starts, 0);
         assert!(outcome.commands.is_empty());
+    }
+
+    #[test]
+    fn legacy_creature_aggro_tick_once_uses_detect_range_aura_modifiers_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_134);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 75);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 500.0;
+                creature.creature.unit_mut().set_level(75);
+                creature.creature.unit_mut().set_combat_reach(0.0);
+                creature.creature.set_combat_distance_like_cpp(0.0);
+                creature
+                    .creature
+                    .unit_mut()
+                    .subsystems_mut()
+                    .auras
+                    .register_applied_aura_modifier_like_cpp(
+                        wow_entities::AppliedAuraRef::new(91_134, creature_guid, 0, 0x1),
+                        wow_data::spell::aura_types::SPELL_AURA_MOD_DETECT_RANGE,
+                        3,
+                    );
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let player = ObjectGuid::create_player(1, 91_135);
+        let mut candidate =
+            legacy_aggro_candidate_like_cpp(player, Position::new(29.0, 10.0, 0.0, 0.0));
+        candidate.player_detected_range_aura_mod = 2.0;
+        let candidates = vec![candidate];
+
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &candidates,
+            legacy_aggro_hostile_config_like_cpp(),
+        );
+
+        assert_eq!(
+            outcome.aggro_starts, 1,
+            "C++ Creature::GetAttackDistance adds creature detect range and player detected range auras before clamping"
+        );
+        assert_eq!(outcome.commands.len(), 1);
+        assert_eq!(outcome.commands[0].victim_guid, player);
+    }
+
+    #[tokio::test]
+    async fn check_creature_aggro_uses_detected_range_aura_modifier_like_cpp() {
+        let manager = shared_map_manager();
+        let (mut session, _, send_rx) = make_session();
+        let player = ObjectGuid::create_player(1, 91_136);
+        let creature_guid = test_creature_guid(91_137);
+        session.set_player_guid(Some(player));
+        session.set_player_level_like_cpp(80);
+        session.set_player_position_like_cpp(Position::new(29.0, 10.0, 0.0, 0.0));
+        register_test_creature(&mut session, manager, creature_guid, 75);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 500.0;
+                creature.creature.unit_mut().set_level(75);
+                creature.creature.unit_mut().set_combat_reach(0.0);
+                creature.creature.set_combat_distance_like_cpp(0.0);
+            })
+            .unwrap();
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                91_136,
+                player,
+                &wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_DETECTED_RANGE,
+                    effect_base_points: 4,
+                    ..Default::default()
+                },
+                RepresentedAuraEffectLikeCpp::ModDetectedRange,
+                30_000,
+            )
+            .unwrap();
+
+        session.check_creature_aggro().await;
+
+        assert!(session.in_combat);
+        assert_eq!(session.combat_target, Some(creature_guid));
+        assert!(drain_server_opcodes(&send_rx).contains(&ServerOpcodes::AttackStart));
     }
 
     #[test]
