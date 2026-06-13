@@ -25,7 +25,7 @@ use wow_database::{
     CharStatements, CharacterDatabase, DATABASE_CHARACTER_LIKE_CPP, DATABASE_HOTFIX_LIKE_CPP,
     DATABASE_LOGIN_LIKE_CPP, DATABASE_MASK_ALL_LIKE_CPP, DATABASE_WORLD_LIKE_CPP, HotfixDatabase,
     LoginDatabase, LoginStatements, PreparedStatement, SqlTransaction, StatementDef, WorldDatabase,
-    WorldStatements, warn_about_sync_queries_scope_like_cpp,
+    WorldStatements, escape_string_like_cpp, warn_about_sync_queries_scope_like_cpp,
 };
 use wow_instances::{InstanceLockMgr, MapDb2Entries, MapDifficultyResetInterval};
 use wow_loot::{
@@ -223,7 +223,8 @@ async fn main() -> Result<()> {
 
     info!("RustyCore World Server starting...");
 
-    load_world_config(&cli)?;
+    let config_report = load_world_config(&cli)?;
+    log_startup_banner_like_cpp(&config_report);
     let world_configs = wow_config::load_world_config_values();
     create_pid_file_from_config_like_cpp()?;
     let updates_auto_setup = updates_auto_setup_enabled_like_cpp();
@@ -416,11 +417,11 @@ async fn main() -> Result<()> {
     }
     // ─────────────────────────────────────────────────────────────────────
 
-    verify_world_db_version_like_cpp(world_db.as_ref()).await?;
-
     let hotfix_db = Arc::new(hotfix_db);
     let realm_id = realm_id_like_cpp()?;
     clear_online_accounts_like_cpp(&login_db, &char_db, realm_id).await?;
+    update_world_db_core_version_like_cpp(world_db.as_ref()).await?;
+    verify_world_db_version_like_cpp(world_db.as_ref()).await?;
     if cli.update_databases_only {
         info!("Database updates completed; exiting before network startup");
         return Ok(());
@@ -2560,6 +2561,20 @@ fn clear_online_accounts_sql_like_cpp(realm_id: u16) -> [String; 3] {
     ]
 }
 
+async fn update_world_db_core_version_like_cpp(world_db: &WorldDatabase) -> Result<()> {
+    world_db
+        .direct_execute(&world_db_core_version_update_sql_like_cpp())
+        .await
+        .context("Failed to update world database core version")?;
+    Ok(())
+}
+
+fn world_db_core_version_update_sql_like_cpp() -> String {
+    let core_version = escape_string_like_cpp(&worldserver_full_version_like_cpp());
+    let core_revision = escape_string_like_cpp(worldserver_revision_like_cpp());
+    format!("UPDATE version SET core_version = '{core_version}', core_revision = '{core_revision}'")
+}
+
 fn create_pid_file_from_config_like_cpp() -> Result<Option<u32>> {
     let pid_file = wow_config::get_string_default("PidFile", "");
     if pid_file.is_empty() {
@@ -2801,13 +2816,17 @@ fn worldserver_cli_help_like_cpp() -> &'static str {
 }
 
 fn worldserver_full_version_like_cpp() -> String {
-    let revision = option_env!("GIT_HASH")
-        .or(option_env!("VERGEN_GIT_SHA"))
-        .unwrap_or("unknown");
+    let revision = worldserver_revision_like_cpp();
     format!(
         "RustyCore World Server {} (rev {revision})",
         env!("CARGO_PKG_VERSION")
     )
+}
+
+fn worldserver_revision_like_cpp() -> &'static str {
+    option_env!("GIT_HASH")
+        .or(option_env!("VERGEN_GIT_SHA"))
+        .unwrap_or("unknown")
 }
 
 fn load_world_config(cli: &WorldServerCliLikeCpp) -> Result<LoadReport> {
@@ -2841,6 +2860,30 @@ fn log_database_target_like_cpp(kind: &str, info: &DatabaseInfo) {
         port_or_socket = %info.port_or_socket,
         database = %info.database,
         "Connecting to database"
+    );
+}
+
+fn log_startup_banner_like_cpp(config_report: &LoadReport) {
+    info!("{}", worldserver_full_version_like_cpp());
+    info!(
+        config = %config_report.initial_file,
+        "Using configuration file"
+    );
+    for loaded_file in &config_report.loaded_files {
+        info!(config = %loaded_file, "Using additional configuration file");
+    }
+    for overridden_key in &config_report.overridden_keys {
+        info!(
+            key = %overridden_key,
+            "Configuration field was overridden with environment variable"
+        );
+    }
+    info!(
+        tls_backend = "rustls",
+        rustls = "0.23",
+        tokio_rustls = "0.26",
+        sqlx = "0.8",
+        "Using Rust dependency versions"
     );
 }
 
@@ -9059,9 +9102,10 @@ mod tests {
         set_realm_online_sql_like_cpp, spawn_legacy_creature_runtime_update_loop_like_cpp,
         spawn_store_loader, updates_auto_setup_enabled_like_cpp, updates_database_mask_like_cpp,
         updates_enabled_for_database_like_cpp, world_config_bool, world_config_u8,
-        world_config_u16, world_config_u32, world_db_version_matches_required_like_cpp,
-        world_db_version_mismatch_message_like_cpp, worldserver_cli_help_like_cpp,
-        worldserver_full_version_like_cpp,
+        world_config_u16, world_config_u32, world_db_core_version_update_sql_like_cpp,
+        world_db_version_matches_required_like_cpp, world_db_version_mismatch_message_like_cpp,
+        worldserver_cli_help_like_cpp, worldserver_full_version_like_cpp,
+        worldserver_revision_like_cpp,
     };
     use std::collections::{BTreeMap, HashSet};
     use std::env;
@@ -11356,6 +11400,18 @@ mod tests {
         let version = worldserver_full_version_like_cpp();
         assert!(version.contains("RustyCore World Server"));
         assert!(version.contains(env!("CARGO_PKG_VERSION")));
+    }
+
+    #[test]
+    fn world_db_core_version_update_sql_matches_cpp_shape() {
+        let sql = world_db_core_version_update_sql_like_cpp();
+
+        assert!(sql.starts_with("UPDATE version SET core_version = '"));
+        assert!(sql.contains("RustyCore World Server"));
+        assert!(sql.contains(env!("CARGO_PKG_VERSION")));
+        assert!(sql.contains("core_revision = '"));
+        assert!(sql.contains(worldserver_revision_like_cpp()));
+        assert!(!sql.contains('\n'));
     }
 
     #[test]

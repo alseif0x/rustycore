@@ -233,7 +233,7 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
 - **`World::IsStopped()` / `World::StopNow(code)` / `World::GetExitCode()`**: there is no `World` singleton. Shutdown signal handling exits the top-level select and drops listeners. Exit code always 0.
 - **DB keep-alive timer (`MaxPingTime`) present**: Rust spawns a Tokio keep-alive task that pings Character/Login/World every `MaxPingTime` minutes, matching TC's `World::Update` pool set. Hotfix is intentionally not pinged here because TC does not call `HotfixDatabase.KeepAlive()` in this path.
 - **`AppenderDB`** (logs into `logs.logs` table): not implemented; tracing only goes to stderr / journald.
-- **`Banner::Show`**: only a single `info!("RustyCore World Server starting...")`.
+- **`Banner::Show`**: Rust now logs a pre-listener startup banner with full version, resolved config, additional config overlays, `TC_*` overrides and Rust dependency versions (`rustls`, `tokio-rustls`, `sqlx`).
 - **`OpenSSLCrypto` setup / `BigNumber::SetRand(...)` warmup**: irrelevant (rustls / `getrandom`).
 - **`CreatePIDFile` present**: Rust reads `PidFile`, writes the current process id before DB/network startup, and aborts startup on write failure like TC.
 - **`SecretMgr::Initialize(SECRET_OWNER_WORLDSERVER)`**: missing.
@@ -346,7 +346,7 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
 - [x] **#WS.16** CLI args: `--config`, `--config-dir`, `--update-databases-only`, `--version`, `--help`; implemented without a new dependency, mirroring C++ `allow_unregistered()` behavior by ignoring unknown options. (L)
 - [x] **#WS.17** PID file (`PidFile` config): writes `std::process::id()` before DB/network startup and fails startup if the file cannot be created.
 - [x] **#WS.18** `SIGTERM` handler in addition to `ctrl_c`: Unix `SIGTERM` and Ctrl-C both drive the same shutdown branch.
-- [ ] **#WS.19** Pre-listener startup banner with build hash, sqlx version, rustls version, DB versions (one log line per connected DB). (L)
+- [x] **#WS.19** Pre-listener startup banner with build hash, resolved config, additional config files, env overrides and Rust dependency versions; `StartDB()` also updates `version.core_version/core_revision` and logs `Using World DB` after verification. (L)
 - [ ] **#WS.20** Replace per-session `tokio::time::sleep(50ms)` with a `tokio::sync::broadcast` "tick" signal driven by the global `WorldUpdateLoop`. (M, depends on #WS.2)
 - [x] **#WS.21** Connection-pool sizing: Rust reads TC's `<DB>Database.WorkerThreads` and `<DB>Database.SynchThreads`, then opens its single `sqlx` pool with their sum.
 
@@ -452,7 +452,7 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
 | `ABORT_MSG("World Thread hangs ...")` | `tracing::error!(...); std::process::abort();` | `abort()` not `exit(1)` — for coredump. |
 | `sLog->Initialize(asyncIo)` + `AppenderDB` | `tracing_subscriber::fmt().init()` (currently no DB sink) | TODO #WS.7. |
 | `CreatePIDFile(path)` | `std::fs::write(path, std::process::id().to_string())?` | Implemented in `create_pid_file_like_cpp`; called only when `PidFile` is non-empty. |
-| `boost::program_options::variables_map` | `clap::Parser` | TODO #WS.16. |
+| `boost::program_options::variables_map` | `WorldServerCliLikeCpp` | Implemented for non-Win32 options in #WS.16 without a new parser dependency. |
 
 ---
 
@@ -483,7 +483,7 @@ The 2026-05-01 pre-audit hypothesis was correct for the code at that time: creat
 
 The remaining architectural gap is narrower but still fundamental: RustyCore still does **not** have a full C++ `WorldUpdateLoop`/`World::Update(diff)` equivalent that owns session updates, all map updates, battleground/outdoor PvP/script/weather housekeeping, `World::m_worldLoopCounter`, `World::StopNow`, and `World::GetExitCode` from one top-level owner.
 
-Otherwise the boot sequence is largely on-parity for what's implemented (4 DB pools, DB updater, DB2/DBC store loads, dispatch table, listeners on 8085 + 8086, ConnectTo flow, `get_address_for_client` heuristic). The big gaps are in lifecycle/operational infrastructure: no freeze detector, no CLI/RA/SOAP, no graceful shutdown drain (sessions are dropped abruptly when listeners close), no `--config` / `--update-databases-only` CLI args, and no full C++ world-loop stop/exit-code owner.
+Otherwise the boot sequence is largely on-parity for what's implemented (4 DB pools, DB updater, CLI config/update-only exits, startup banner/version record, DB2/DBC store loads, dispatch table, listeners on 8085 + 8086, ConnectTo flow, `get_address_for_client` heuristic). The big gaps are in lifecycle/operational infrastructure: no freeze detector, no RA/SOAP, no graceful shutdown drain (sessions are dropped abruptly when listeners close), and no full C++ world-loop stop/exit-code owner.
 
 ### 13.2 Startup parity
 
@@ -496,7 +496,7 @@ Otherwise the boot sequence is largely on-parity for what's implemented (4 DB po
 | `sConfigMgr->LoadInitial(...) + LoadAdditionalDir + OverrideEnv` | `load_world_config` uses default fallback candidates, exact `--config` override, `--config-dir` `.conf` overlays, and `TC_*` env overrides through `wow_config::load_config_with_fallbacks` | ✅ |
 | `boost::asio::io_context` shared | implicit Tokio runtime | ✅ acceptable divergence |
 | `sLog->RegisterAppender<AppenderDB>(); Initialize(asyncIo)` | `tracing_subscriber::fmt().with_env_filter(...)` | ⚠️ no DB sink (#WS.7) |
-| `Trinity::Banner::Show(...)` | one `info!("RustyCore World Server starting...")` | ⚠️ #WS.19 |
+| `Trinity::Banner::Show(...)` | `log_startup_banner_like_cpp` logs full version, resolved config, overlays, env overrides and Rust dependency versions before DB/network startup | ✅ |
 | `OpenSSLCrypto::threadsSetup` + `BigNumber::SetRand` warmup | — | ✅ irrelevant (rustls + getrandom) |
 | `CreatePIDFile(PidFile)` | `create_pid_file_from_config_like_cpp` before DB/network startup | ✅ |
 | `signal_set(SIGINT, SIGTERM)` | `shutdown_signal()` waits for Ctrl-C or Unix `SIGTERM` | ✅ |
@@ -505,7 +505,8 @@ Otherwise the boot sequence is largely on-parity for what's implemented (4 DB po
 | `StartDB()` opens 4 pools (Login/Character/World/Hotfix) | `LoginDatabase::open` + `CharacterDatabase::open` + `WorldDatabase::open` + `HotfixDatabase::open` (lines 177-228) | ✅ four pools present |
 | `DatabaseLoader::Load()` runs `DBUpdater` per pool | `DbUpdater::new(...).populate(...).await` + `update(...).await` for auth/characters; `update` only for world/hotfix (lines 232-272) | ✅ implemented |
 | `realm.Id.Realm` from config; bail if 0 | `realm_id_like_cpp()` requires `RealmID` and rejects 0 before DB cleanup | ✅ |
-| `--update-databases-only` early exit | exits after updater + `verify_world_db_version_like_cpp` + `realm_id_like_cpp` + `clear_online_accounts_like_cpp`, before listeners and before marking the realm offline | ✅ |
+| `UPDATE version SET core_version/core_revision`; `sWorld->LoadDBVersion()`; `Using World DB` | `update_world_db_core_version_like_cpp` writes full version/hash; `verify_world_db_version_like_cpp` loads and logs `Using World DB` | ✅ |
+| `--update-databases-only` early exit | exits after updater + `realm_id_like_cpp` + `clear_online_accounts_like_cpp` + `update_world_db_core_version_like_cpp` + `verify_world_db_version_like_cpp`, before listeners and before marking the realm offline | ✅ |
 | `Trinity::Net::ScanLocalNetworks()` | `get_address_for_client` /24 heuristic (line 757) | ⚠️ partial |
 | `UPDATE realmlist SET flag\|=OFFLINE` at boot | `set_realm_offline(&login_db, realm_id)` after DB cleanup | ✅ |
 | `sRealmList->Initialize(io, RealmsStateUpdateDelay)` background refresh | — | ❌ missing (#WS.12) |
@@ -677,10 +678,10 @@ Each session's task is independent for packet/session work; handlers that mutate
 | Metrics subsystem (`online_players`, `db_queue_*`) | Low | #WS.13 |
 | `ScriptMgr::on_startup` / `on_shutdown` hooks | Low | #WS.14 |
 | Graceful shutdown (kick + save + drain + close + DB cleanup) | High | #WS.15 |
-| CLI args (`--config`, `--update-databases-only`, `--version`) | Low | #WS.16 |
+| CLI args (`--config`, `--config-dir`, `--update-databases-only`, `--version`, `--help`) | Closed | ✅ #WS.16 |
 | PID file (`PidFile` config) | Low | ✅ #WS.17 |
 | SIGTERM handler | High | ✅ #WS.18 |
-| Pre-listener startup banner (build hash, DB versions) | Low | #WS.19 |
+| Pre-listener startup banner / core version DB record | Closed | ✅ #WS.19 |
 | Replace remaining gameplay-bearing per-session sleeps with world/map-owned tick paths | Medium | #WS.20 |
 | Connection-pool sizing config | Low | ✅ #WS.21 |
 
