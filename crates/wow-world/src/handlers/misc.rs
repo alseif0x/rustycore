@@ -901,6 +901,15 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
+        opcode: ClientOpcodes::NextCinematicCamera,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_next_cinematic_camera",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
         opcode: ClientOpcodes::CompleteMovie,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
@@ -2751,6 +2760,13 @@ impl crate::session::WorldSession {
         // player is bound to a visual waypoint NPC. Rust records the represented
         // end event until the live CinematicMgr/vision runtime is ported.
         self.complete_represented_cinematic_like_cpp();
+    }
+    pub async fn handle_next_cinematic_camera(&mut self, _pkt: wow_packet::WorldPacket) {
+        // C++ CinematicMgr::NextCinematicCamera advances the active camera
+        // index and may spawn a visual waypoint for remote sight. Rust records
+        // the represented camera advance until fly-by camera/TempSummon/viewpoint
+        // runtime is ported.
+        self.next_represented_cinematic_camera_like_cpp();
     }
     pub async fn handle_complete_movie(&mut self, _pkt: wow_packet::WorldPacket) {
         // C++ Player::GetMovie() == 0 returns early; otherwise SetMovie(0)
@@ -6367,6 +6383,69 @@ mod tests {
         assert_eq!(session.represented_cinematic_like_cpp(), None);
         assert_eq!(session.represented_cinematic_end_events_like_cpp(), &[444]);
         assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn next_cinematic_camera_advances_active_camera_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_next_cinematic_camera(WorldPacket::new_empty())
+            .await;
+        assert!(
+            session
+                .represented_cinematic_next_camera_events_like_cpp()
+                .is_empty()
+        );
+        assert!(send_rx.try_recv().is_err());
+
+        session.set_cinematic_sequences_store(Arc::new(
+            wow_data::CinematicSequencesStore::from_entries([wow_data::CinematicSequencesEntry {
+                id: 444,
+                sound_id: 0,
+                camera: [11, 22, 0, 33, 0, 0, 0, 0],
+            }]),
+        ));
+        assert!(session.use_represented_gameobject_camera_like_cpp(
+            ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 8),
+            ObjectGuid::create_player(1, 99),
+            wow_entities::CameraUseSource {
+                cinematic_id: 444,
+                event_id: 0,
+            },
+        ));
+        let _ = send_rx.try_recv().expect("TriggerCinematic sent");
+        assert_eq!(session.represented_cinematic_like_cpp(), Some(444));
+        assert_eq!(session.represented_cinematic_camera_index_like_cpp(), -1);
+
+        session
+            .handle_next_cinematic_camera(WorldPacket::new_empty())
+            .await;
+        session
+            .handle_next_cinematic_camera(WorldPacket::new_empty())
+            .await;
+        session
+            .handle_next_cinematic_camera(WorldPacket::new_empty())
+            .await;
+        session
+            .handle_next_cinematic_camera(WorldPacket::new_empty())
+            .await;
+        assert_eq!(
+            session.represented_cinematic_next_camera_events_like_cpp(),
+            &[11, 22, 33]
+        );
+        assert_eq!(session.represented_cinematic_camera_index_like_cpp(), 3);
+        assert!(send_rx.try_recv().is_err());
+
+        for _ in 0..8 {
+            session
+                .handle_next_cinematic_camera(WorldPacket::new_empty())
+                .await;
+        }
+        assert_eq!(
+            session.represented_cinematic_next_camera_events_like_cpp(),
+            &[11, 22, 33]
+        );
     }
 
     #[tokio::test]

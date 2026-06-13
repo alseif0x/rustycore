@@ -3097,6 +3097,9 @@ pub struct WorldSession {
     cinematic_sequences_store: Option<Arc<CinematicSequencesStore>>,
     movie_store: Option<Arc<MovieStore>>,
     represented_cinematic_like_cpp: Option<u32>,
+    represented_cinematic_camera_ids_like_cpp: Option<[u16; 8]>,
+    represented_cinematic_camera_index_like_cpp: i32,
+    represented_cinematic_next_camera_events_like_cpp: Vec<u16>,
     represented_cinematic_end_events_like_cpp: Vec<u32>,
     represented_movie_like_cpp: Option<u32>,
     represented_movie_complete_events_like_cpp: Vec<u32>,
@@ -4126,6 +4129,9 @@ impl WorldSession {
             cinematic_sequences_store: None,
             movie_store: None,
             represented_cinematic_like_cpp: None,
+            represented_cinematic_camera_ids_like_cpp: None,
+            represented_cinematic_camera_index_like_cpp: -1,
+            represented_cinematic_next_camera_events_like_cpp: Vec::new(),
             represented_cinematic_end_events_like_cpp: Vec::new(),
             represented_movie_like_cpp: None,
             represented_movie_complete_events_like_cpp: Vec::new(),
@@ -11147,6 +11153,7 @@ impl WorldSession {
             | ClientOpcodes::PetRename
             | ClientOpcodes::QuestGiverRequestReward
             | ClientOpcodes::CompleteCinematic
+            | ClientOpcodes::NextCinematicCamera
             | ClientOpcodes::BankerActivate
             | ClientOpcodes::BuyBankSlot
             | ClientOpcodes::OptOutOfLoot
@@ -13686,6 +13693,36 @@ impl WorldSession {
             self.represented_cinematic_end_events_like_cpp
                 .push(cinematic_id);
         }
+        self.represented_cinematic_camera_ids_like_cpp = None;
+        self.represented_cinematic_camera_index_like_cpp = -1;
+    }
+
+    pub(crate) fn next_represented_cinematic_camera_like_cpp(&mut self) {
+        if self.represented_cinematic_like_cpp.is_none() {
+            return;
+        }
+        let Some(camera_ids) = self.represented_cinematic_camera_ids_like_cpp else {
+            return;
+        };
+        if self.represented_cinematic_camera_index_like_cpp >= camera_ids.len() as i32 {
+            return;
+        }
+
+        self.represented_cinematic_camera_index_like_cpp += 1;
+        let Some(camera_id) = camera_ids
+            .get(self.represented_cinematic_camera_index_like_cpp as usize)
+            .copied()
+        else {
+            // C++ checks the previous index before pre-incrementing. Rust keeps
+            // the normal flow but refuses the out-of-bounds edge instead of
+            // reproducing undefined behavior.
+            return;
+        };
+        if camera_id == 0 {
+            return;
+        }
+        self.represented_cinematic_next_camera_events_like_cpp
+            .push(camera_id);
     }
 
     pub(crate) fn complete_represented_movie_like_cpp(&mut self) {
@@ -13706,6 +13743,16 @@ impl WorldSession {
         cinematic_id: Option<u32>,
     ) {
         self.represented_cinematic_like_cpp = cinematic_id;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_cinematic_camera_index_like_cpp(&self) -> i32 {
+        self.represented_cinematic_camera_index_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_cinematic_next_camera_events_like_cpp(&self) -> &[u16] {
+        &self.represented_cinematic_next_camera_events_like_cpp
     }
 
     #[cfg(test)]
@@ -18264,6 +18311,9 @@ impl WorldSession {
             }
             ClientOpcodes::CompleteCinematic => {
                 self.handle_complete_cinematic(pkt).await;
+            }
+            ClientOpcodes::NextCinematicCamera => {
+                self.handle_next_cinematic_camera(pkt).await;
             }
             ClientOpcodes::CompleteMovie => {
                 self.handle_complete_movie(pkt).await;
@@ -24677,13 +24727,14 @@ impl WorldSession {
                 cinematic_id: source.cinematic_id,
                 conversation_guid: ObjectGuid::EMPTY,
             });
-            if self
+            if let Some(sequence) = self
                 .cinematic_sequences_store
                 .as_ref()
                 .and_then(|store| store.get(source.cinematic_id))
-                .is_some()
             {
                 self.represented_cinematic_like_cpp = Some(source.cinematic_id);
+                self.represented_cinematic_camera_ids_like_cpp = Some(sequence.camera);
+                self.represented_cinematic_camera_index_like_cpp = -1;
             }
             self.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::TriggerCinematic {
@@ -57978,6 +58029,7 @@ mod tests {
             ClientOpcodes::PetRename,
             ClientOpcodes::QuestGiverRequestReward,
             ClientOpcodes::CompleteCinematic,
+            ClientOpcodes::NextCinematicCamera,
             ClientOpcodes::BankerActivate,
             ClientOpcodes::BuyBankSlot,
             ClientOpcodes::OptOutOfLoot,

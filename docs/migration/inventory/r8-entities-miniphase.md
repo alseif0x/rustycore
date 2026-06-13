@@ -1,12 +1,22 @@
-- `#NEXT.R8.ENTITIES.828` - represented-complete for `CMSG_COMPLETE_CINEMATIC`.
+- `#NEXT.R8.ENTITIES.830` - represented-complete for `CMSG_NEXT_CINEMATIC_CAMERA`.
 
-  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:768-771`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:382`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:227`.
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:774-777`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/CinematicMgr.cpp:46-80`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/CinematicMgr.h:39-56`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.h:696-703`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:701`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:472`.
 
   Rust anchors: `crates/wow-world/src/handlers/misc.rs`; `crates/wow-world/src/session.rs`.
 
-  Acceptance: `CMSG_COMPLETE_CINEMATIC` now registers `LoggedIn`/`ThreadUnsafe` dispatch, routes through `WorldSession`, returns early when no represented cinematic is active, clears the represented active cinematic when present, records the represented `CinematicMgr::EndCinematic` hook, and sends no response packet. Represented gameobject camera use marks the cinematic active when it sends `SMSG_TRIGGER_CINEMATIC`.
+  Acceptance: `CMSG_NEXT_CINEMATIC_CAMERA` now registers `LoggedIn`/`ThreadUnsafe` dispatch, routes through `WorldSession`, advances represented active cinematic camera state from `CinematicSequencesStore::Camera`, records nonzero represented camera ids, and sends no response packet.
 
-  Boundary: represented-complete for represented cinematic state and end-hook audit only; no live `CinematicMgr` camera progression, sight-binding cleanup, `NextCinematicCamera`, install/restart, or live client/manual validation.
+  Boundary: represented-complete for represented camera-index progression only; no live fly-by camera interpolation, visual waypoint `TempSummon`, map grid loading, `SetViewpoint`/`SetSeer` sight binding, cinematic length/diff update loop, install/restart, or live client/manual validation.
+
+- `#NEXT.R8.ENTITIES.829` - audit-fix/represented-complete for stale `CMSG_FAR_SIGHT` inventory.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:863-880`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.h:712-720`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.cpp:537-540`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:445`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:262`.
+
+  Rust anchors: `crates/wow-packet/src/packets/misc.rs`; `crates/wow-world/src/handlers/misc.rs`; `crates/wow-world/src/session.rs`.
+
+  Acceptance: inventories no longer claim `CMSG_FAR_SIGHT` is missing. Rust already parses the C++ one-bit `FarSight` packet, registers `LoggedIn`/`ThreadUnsafe` dispatch, routes through `WorldSession`, applies represented `SetSeer(target/self)` behavior, and forces visibility update.
+
+  Boundary: audit-fix for stale opcode inventory only; implementation was already represented-complete under `#NEXT.R8.ENTITIES.425`. No full `SetSeer`/grid notifier/ObjectAccessor visibility fanout, aura/cinematic/dynamic-object `SetViewpoint` callsite completion, install/restart, or live client/manual validation.
 
 - `#NEXT.R8.ENTITIES.828` - represented-complete for `CMSG_COMPLETE_CINEMATIC`.
 
@@ -16,7 +26,7 @@
 
   Acceptance: `CMSG_COMPLETE_CINEMATIC` now registers `LoggedIn`/`ThreadUnsafe` dispatch, routes through `WorldSession`, clears represented active cinematic state when present, records the represented `CinematicMgr::EndCinematic` cleanup hook, and sends no response packet. Represented camera use now mirrors `Player::SendCinematicStart` by sending `TriggerCinematic` for nonzero camera ids while only marking a cinematic active when `CinematicSequencesStore` contains the id.
 
-  Boundary: represented-complete for represented `CinematicMgr` active/end state and DB2 existence gate only; no `NextCinematicCamera`, fly-by camera interpolation, visual waypoint `TempSummon`, `SetViewpoint`/`SetSeer` cleanup, `AddObjectToRemoveList`, install/restart, or live client/manual validation.
+  Boundary: represented-complete for represented `CinematicMgr` active/end state and DB2 existence gate only; no fly-by camera interpolation, visual waypoint `TempSummon`, `SetViewpoint`/`SetSeer` cleanup, `AddObjectToRemoveList`, install/restart, or live client/manual validation.
 
 - `#NEXT.R8.ENTITIES.827` - represented-complete for `CMSG_COMPLETE_MOVIE`.
 
