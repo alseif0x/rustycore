@@ -1083,6 +1083,7 @@ impl WorldSession {
 
         let mut taken_items: Vec<(ObjectGuid, ObjectGuid, u8, u32, u32, bool)> = Vec::new();
         let mut item_release: Vec<ObjectGuid> = Vec::new();
+        let mut canonical_loot_sync: Vec<ObjectGuid> = Vec::new();
 
         for loot_req in &req.requests {
             let Some(owner_guid) = self.active_loot_owner_for_loot_object_like_cpp(loot_req.object)
@@ -1206,12 +1207,19 @@ impl WorldSession {
                         entry.quantity,
                         entry.flags.freeforall,
                     ));
+                    canonical_loot_sync.push(owner_guid);
                 }
 
                 if owner_guid.is_item() && loot_is_looted_like_cpp(loot) {
                     item_release.push(owner_guid);
                 }
             }
+        }
+
+        canonical_loot_sync.sort_by_key(|guid| (guid.high_value(), guid.low_value()));
+        canonical_loot_sync.dedup();
+        for owner_guid in canonical_loot_sync {
+            self.refresh_represented_loot_owner_canonical_summary_like_cpp(owner_guid, player_guid);
         }
 
         for (owner_guid, loot_obj, list_id, item_id, quantity, freeforall) in taken_items {
@@ -1530,6 +1538,20 @@ impl WorldSession {
             creature.set_shared_loot_like_cpp(summary);
         })
         .map(|_| ())
+    }
+
+    fn refresh_represented_loot_owner_canonical_summary_like_cpp(
+        &mut self,
+        owner_guid: ObjectGuid,
+        player_guid: ObjectGuid,
+    ) {
+        if owner_guid.is_game_object() {
+            let _ = self
+                .sync_represented_gameobject_loot_to_canonical_like_cpp(owner_guid, player_guid);
+        } else if owner_guid.is_creature_or_vehicle() {
+            let _ =
+                self.sync_represented_creature_loot_to_canonical_like_cpp(owner_guid, player_guid);
+        }
     }
 
     fn canonical_creature_fully_looted_after_represented_sync_like_cpp(
@@ -3441,22 +3463,26 @@ impl WorldSession {
         loot_list_id: u8,
         target: ObjectGuid,
     ) {
-        let Some(loot) = self.loot_table.get_mut(&owner_guid) else {
-            return;
-        };
+        {
+            let Some(loot) = self.loot_table.get_mut(&owner_guid) else {
+                return;
+            };
 
-        let Some(entry) = loot.items.get_mut(loot_list_id as usize) else {
-            return;
-        };
+            let Some(entry) = loot.items.get_mut(loot_list_id as usize) else {
+                return;
+            };
 
-        let was_unlooted = !entry.is_looted_for_player_like_cpp(target);
-        if !was_unlooted {
-            return;
+            let was_unlooted = !entry.is_looted_for_player_like_cpp(target);
+            if !was_unlooted {
+                return;
+            }
+
+            entry.quantity = 0;
+            entry.mark_looted_for_player_like_cpp(target);
+            loot.unlooted_count = loot.unlooted_count.saturating_sub(1);
         }
 
-        entry.quantity = 0;
-        entry.mark_looted_for_player_like_cpp(target);
-        loot.unlooted_count = loot.unlooted_count.saturating_sub(1);
+        self.refresh_represented_loot_owner_canonical_summary_like_cpp(owner_guid, target);
         self.send_packet(&LootRemoved {
             owner: owner_guid,
             loot_obj,
@@ -14322,6 +14348,52 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn loot_item_creature_pickup_refreshes_canonical_owned_loot_like_cpp() {
+        let mut session = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let loot_guid = test_creature_guid(19_115);
+        let mut creature = make_canonical_creature_for_session(&session, loot_guid);
+        creature.set_shared_loot_like_cpp(CreatureOwnedLoot::new(0, 1));
+        attach_canonical_creature(&mut session, creature);
+        session.set_player_guid(Some(player_guid));
+        session.loot_table.insert(
+            loot_guid,
+            CreatureLoot {
+                loot_guid,
+                coins: 0,
+                unlooted_count: 1,
+                loot_type: LOOT_TYPE_CORPSE_LIKE_CPP,
+                dungeon_encounter_id: 0,
+                loot_method: 0,
+                loot_master: ObjectGuid::EMPTY,
+                round_robin_player: ObjectGuid::EMPTY,
+                player_ffa_items: Vec::new(),
+                players_looting: vec![player_guid],
+                allowed_looters: vec![player_guid],
+                items: vec![represented_loot_entry(0, 25, player_guid)],
+                looted_by_player: false,
+            },
+        );
+
+        mark_loot_item_looted_for_player_like_cpp(
+            session.loot_table.get_mut(&loot_guid).unwrap(),
+            0,
+            player_guid,
+        );
+        session.refresh_represented_loot_owner_canonical_summary_like_cpp(loot_guid, player_guid);
+
+        let loot = session.loot_table.get(&loot_guid).unwrap();
+        assert!(loot.items[0].is_looted_for_player_like_cpp(player_guid));
+        assert_eq!(loot.unlooted_count, 0);
+        let canonical = canonical_creature_snapshot(&session, loot_guid).unwrap();
+        assert_eq!(
+            canonical.shared_loot_like_cpp(),
+            Some(&CreatureOwnedLoot::default())
+        );
+        assert!(canonical.is_fully_looted_like_cpp());
+    }
+
+    #[tokio::test]
     async fn loot_item_missing_creature_uses_cpp_no_loot_error() {
         let (mut session, send_rx) = make_session_with_send();
         let player_guid = ObjectGuid::create_player(1, 42);
@@ -14607,6 +14679,59 @@ mod tests {
         assert_eq!(sent.read_packed_guid().unwrap(), player_guid);
         assert!(!session.loot_table.get(&loot_guid).unwrap().items[0].taken);
         assert!(session.is_active_loot_guid(loot_guid));
+    }
+
+    #[tokio::test]
+    async fn loot_item_gameobject_pickup_refreshes_canonical_owned_loot_like_cpp() {
+        let mut session = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let loot_guid = test_gameobject_guid(19_139);
+        let mut game_object =
+            make_canonical_gameobject_for_session(&session, loot_guid, GAMEOBJECT_TYPE_CHEST as u8);
+        game_object.set_shared_loot_like_cpp(GameObjectOwnedLoot::new(0, 1));
+        game_object.set_personal_loot_like_cpp(player_guid, GameObjectOwnedLoot::new(0, 1));
+        attach_canonical_gameobject(&mut session, game_object);
+        session.set_player_guid(Some(player_guid));
+        session.loot_table.insert(
+            loot_guid,
+            CreatureLoot {
+                loot_guid: represented_loot_object_guid_like_cpp(loot_guid),
+                coins: 0,
+                unlooted_count: 1,
+                loot_type: LOOT_TYPE_CHEST_LIKE_CPP,
+                dungeon_encounter_id: 0,
+                loot_method: 0,
+                loot_master: ObjectGuid::EMPTY,
+                round_robin_player: ObjectGuid::EMPTY,
+                player_ffa_items: Vec::new(),
+                players_looting: vec![player_guid],
+                allowed_looters: vec![player_guid],
+                items: vec![represented_loot_entry(0, 25, player_guid)],
+                looted_by_player: false,
+            },
+        );
+
+        mark_loot_item_looted_for_player_like_cpp(
+            session.loot_table.get_mut(&loot_guid).unwrap(),
+            0,
+            player_guid,
+        );
+        session.refresh_represented_loot_owner_canonical_summary_like_cpp(loot_guid, player_guid);
+
+        let loot = session.loot_table.get(&loot_guid).unwrap();
+        assert!(loot.items[0].is_looted_for_player_like_cpp(player_guid));
+        assert_eq!(loot.unlooted_count, 0);
+        let canonical = canonical_gameobject_snapshot(&session, loot_guid).unwrap();
+        assert_eq!(
+            canonical.shared_loot_like_cpp(),
+            Some(&GameObjectOwnedLoot::default())
+        );
+        assert_eq!(canonical.personal_loot_count_like_cpp(), 0);
+        assert_eq!(
+            canonical.loot_for_player_like_cpp(player_guid),
+            Some(&GameObjectOwnedLoot::default())
+        );
+        assert!(canonical.is_fully_looted_like_cpp());
     }
 
     #[tokio::test]
