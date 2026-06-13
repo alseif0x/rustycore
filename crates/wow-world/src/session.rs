@@ -18208,6 +18208,24 @@ impl WorldSession {
             ClientOpcodes::LogStreamingError => {
                 self.handle_log_streaming_error(pkt).await;
             }
+            ClientOpcodes::LogoutInstant => {
+                self.handle_logout_instant(pkt).await;
+            }
+            ClientOpcodes::SpawnTrackingUpdate => {
+                self.handle_spawn_tracking_update(pkt).await;
+            }
+            ClientOpcodes::TimeAdjustmentResponse => {
+                self.handle_time_adjustment_response(pkt).await;
+            }
+            ClientOpcodes::UpdateAreaTriggerVisual => {
+                self.handle_update_area_trigger_visual(pkt).await;
+            }
+            ClientOpcodes::UpdateSpellVisual => {
+                self.handle_update_spell_visual(pkt).await;
+            }
+            ClientOpcodes::UsedFollow => {
+                self.handle_used_follow(pkt).await;
+            }
             ClientOpcodes::GetAccountCharacterList => {
                 self.handle_get_account_character_list(pkt).await;
             }
@@ -67887,6 +67905,7 @@ mod tests {
             "ConnectToFailed",
             "GetAccountCharacterList",
             "LogStreamingError",
+            "LogoutInstant",
             "OverrideScreenFlash",
             "Ping",
             "QueryQuestItemUsability",
@@ -67898,8 +67917,13 @@ mod tests {
             "RequestConquestFormulaConstants",
             "SetInsertItemsLeftToRight",
             "SetPreferredCemetery",
+            "SpawnTrackingUpdate",
+            "TimeAdjustmentResponse",
+            "UpdateAreaTriggerVisual",
             "UpdateClientSettings",
+            "UpdateSpellVisual",
             "UpdateVasPurchaseStates",
+            "UsedFollow",
         ];
         let modern_client_non_wotlk_exceptions = [
             "BattlePetClearFanfare",

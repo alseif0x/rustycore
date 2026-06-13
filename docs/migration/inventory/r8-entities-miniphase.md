@@ -1,3 +1,13 @@
+- `#NEXT.R8.ENTITIES.826` - represented-complete for bounded miscellaneous `STATUS_UNHANDLED` `Handle_NULL` hooks.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:803-806`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:582,933,969,994,999,1003`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:357,635,666,686,690,692`.
+
+  Rust anchors: `crates/wow-world/src/handlers/misc.rs`; `crates/wow-world/src/session.rs`.
+
+  Acceptance: `CMSG_LOGOUT_INSTANT`, `CMSG_SPAWN_TRACKING_UPDATE`, `CMSG_TIME_ADJUSTMENT_RESPONSE`, `CMSG_UPDATE_AREA_TRIGGER_VISUAL`, `CMSG_UPDATE_SPELL_VISUAL`, and `CMSG_USED_FOLLOW` are registered as bounded null-hook dispatch, routed through `WorldSession`, and consumed silently without packets or represented state mutation.
+
+  Boundary: represented-complete only for this bounded `WorldPackets::Null` family; C++ `Handle_NULL` logs the unhandled opcode while Rust preserves the no-response/no-state behavior without a dedicated opcode log; no instant-logout service, spawn tracking, time adjustment, area-trigger visual, spell visual, follow telemetry, install/restart, or live client/manual validation.
+
 - `#NEXT.R8.ENTITIES.824` - represented-complete for bounded `CMSG_LOG_STREAMING_ERROR` `Handle_NULL` hook.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:803-806`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:585`.

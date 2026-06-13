@@ -892,6 +892,60 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
+        opcode: ClientOpcodes::LogoutInstant,
+        status: SessionStatus::Authed,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_logout_instant",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::SpawnTrackingUpdate,
+        status: SessionStatus::Authed,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_spawn_tracking_update",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::TimeAdjustmentResponse,
+        status: SessionStatus::Authed,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_time_adjustment_response",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::UpdateAreaTriggerVisual,
+        status: SessionStatus::Authed,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_update_area_trigger_visual",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::UpdateSpellVisual,
+        status: SessionStatus::Authed,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_update_spell_visual",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::UsedFollow,
+        status: SessionStatus::Authed,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_used_follow",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
         opcode: ClientOpcodes::ReportKeybindingExecutionCounts,
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
@@ -2673,6 +2727,24 @@ impl crate::session::WorldSession {
     }
     pub async fn handle_log_streaming_error(&mut self, _pkt: wow_packet::WorldPacket) {
         // C++ registers CMSG_LOG_STREAMING_ERROR as STATUS_UNHANDLED/Handle_NULL.
+    }
+    pub async fn handle_logout_instant(&mut self, _pkt: wow_packet::WorldPacket) {
+        // C++ registers CMSG_LOGOUT_INSTANT as STATUS_UNHANDLED/Handle_NULL.
+    }
+    pub async fn handle_spawn_tracking_update(&mut self, _pkt: wow_packet::WorldPacket) {
+        // C++ registers CMSG_SPAWN_TRACKING_UPDATE as STATUS_UNHANDLED/Handle_NULL.
+    }
+    pub async fn handle_time_adjustment_response(&mut self, _pkt: wow_packet::WorldPacket) {
+        // C++ registers CMSG_TIME_ADJUSTMENT_RESPONSE as STATUS_UNHANDLED/Handle_NULL.
+    }
+    pub async fn handle_update_area_trigger_visual(&mut self, _pkt: wow_packet::WorldPacket) {
+        // C++ registers CMSG_UPDATE_AREA_TRIGGER_VISUAL as STATUS_UNHANDLED/Handle_NULL.
+    }
+    pub async fn handle_update_spell_visual(&mut self, _pkt: wow_packet::WorldPacket) {
+        // C++ registers CMSG_UPDATE_SPELL_VISUAL as STATUS_UNHANDLED/Handle_NULL.
+    }
+    pub async fn handle_used_follow(&mut self, _pkt: wow_packet::WorldPacket) {
+        // C++ registers CMSG_USED_FOLLOW as STATUS_UNHANDLED/Handle_NULL.
     }
     pub async fn handle_report_keybinding_execution_counts(
         &mut self,
@@ -6213,6 +6285,30 @@ mod tests {
         session
             .handle_log_streaming_error(WorldPacket::new_empty())
             .await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn additional_status_unhandled_null_family_is_silent_like_cpp_handle_null() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_logout_instant(WorldPacket::new_empty())
+            .await;
+        session
+            .handle_spawn_tracking_update(WorldPacket::new_empty())
+            .await;
+        session
+            .handle_time_adjustment_response(WorldPacket::new_empty())
+            .await;
+        session
+            .handle_update_area_trigger_visual(WorldPacket::new_empty())
+            .await;
+        session
+            .handle_update_spell_visual(WorldPacket::new_empty())
+            .await;
+        session.handle_used_follow(WorldPacket::new_empty()).await;
 
         assert!(send_rx.try_recv().is_err());
     }
