@@ -434,6 +434,86 @@ pub fn creature_enter_evade_mode_plan_like_cpp(
     })
 }
 
+// ── CreatureAI::TriggerAlert ──────────────────────────────────────
+
+/// Already-resolved C++ facts needed by `CreatureAI::TriggerAlert(Unit const*)`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CreatureTriggerAlertInputLikeCpp {
+    pub target_exists: bool,
+    pub target_is_player: bool,
+    pub creature_is_unit: bool,
+    pub creature_is_engaged: bool,
+    pub creature_is_confused: bool,
+    pub creature_is_stunned: bool,
+    pub creature_is_fleeing: bool,
+    pub creature_is_distracted: bool,
+    pub creature_is_civilian: bool,
+    pub creature_has_react_passive: bool,
+    pub creature_is_hostile_to_target: bool,
+    pub target_acceptable: bool,
+    pub absolute_angle_to_target: f32,
+}
+
+impl Default for CreatureTriggerAlertInputLikeCpp {
+    fn default() -> Self {
+        Self {
+            target_exists: true,
+            target_is_player: true,
+            creature_is_unit: true,
+            creature_is_engaged: false,
+            creature_is_confused: false,
+            creature_is_stunned: false,
+            creature_is_fleeing: false,
+            creature_is_distracted: false,
+            creature_is_civilian: false,
+            creature_has_react_passive: false,
+            creature_is_hostile_to_target: true,
+            target_acceptable: true,
+            absolute_angle_to_target: 0.0,
+        }
+    }
+}
+
+/// Pure side-effect plan for C++ `CreatureAI::TriggerAlert`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CreatureTriggerAlertPlanLikeCpp {
+    pub send_ai_reaction_alert: bool,
+    pub move_distract_ms: u32,
+    pub orientation: f32,
+}
+
+pub fn creature_trigger_alert_plan_like_cpp(
+    input: CreatureTriggerAlertInputLikeCpp,
+) -> Option<CreatureTriggerAlertPlanLikeCpp> {
+    if !input.target_exists || !input.target_is_player {
+        return None;
+    }
+
+    if !input.creature_is_unit
+        || input.creature_is_engaged
+        || input.creature_is_confused
+        || input.creature_is_stunned
+        || input.creature_is_fleeing
+        || input.creature_is_distracted
+    {
+        return None;
+    }
+
+    if input.creature_is_civilian
+        || input.creature_has_react_passive
+        || !input.creature_is_hostile_to_target
+        || !input.target_acceptable
+    {
+        return None;
+    }
+
+    Some(CreatureTriggerAlertPlanLikeCpp {
+        send_ai_reaction_alert: true,
+        move_distract_ms: 5_000,
+        orientation: input.absolute_angle_to_target,
+    })
+}
+
 // ── ScriptedAI::SummonList ────────────────────────────────────────
 
 /// Already-resolved creature facts needed by represented `SummonList` helpers.
@@ -1354,6 +1434,91 @@ mod tests {
             vehicle_plan.movement,
             CreatureEvadeMovementLikeCpp::NoneVehicle
         );
+    }
+
+    #[test]
+    fn trigger_alert_plans_ai_reaction_and_distract_like_cpp() {
+        let plan = creature_trigger_alert_plan_like_cpp(CreatureTriggerAlertInputLikeCpp {
+            absolute_angle_to_target: 1.25,
+            ..CreatureTriggerAlertInputLikeCpp::default()
+        })
+        .unwrap();
+
+        assert!(plan.send_ai_reaction_alert);
+        assert_eq!(plan.move_distract_ms, 5_000);
+        assert_eq!(plan.orientation, 1.25);
+    }
+
+    #[test]
+    fn trigger_alert_requires_existing_player_target_like_cpp() {
+        for input in [
+            CreatureTriggerAlertInputLikeCpp {
+                target_exists: false,
+                ..CreatureTriggerAlertInputLikeCpp::default()
+            },
+            CreatureTriggerAlertInputLikeCpp {
+                target_is_player: false,
+                ..CreatureTriggerAlertInputLikeCpp::default()
+            },
+        ] {
+            assert!(creature_trigger_alert_plan_like_cpp(input).is_none());
+        }
+    }
+
+    #[test]
+    fn trigger_alert_skips_invalid_creature_states_like_cpp() {
+        for input in [
+            CreatureTriggerAlertInputLikeCpp {
+                creature_is_unit: false,
+                ..CreatureTriggerAlertInputLikeCpp::default()
+            },
+            CreatureTriggerAlertInputLikeCpp {
+                creature_is_engaged: true,
+                ..CreatureTriggerAlertInputLikeCpp::default()
+            },
+            CreatureTriggerAlertInputLikeCpp {
+                creature_is_confused: true,
+                ..CreatureTriggerAlertInputLikeCpp::default()
+            },
+            CreatureTriggerAlertInputLikeCpp {
+                creature_is_stunned: true,
+                ..CreatureTriggerAlertInputLikeCpp::default()
+            },
+            CreatureTriggerAlertInputLikeCpp {
+                creature_is_fleeing: true,
+                ..CreatureTriggerAlertInputLikeCpp::default()
+            },
+            CreatureTriggerAlertInputLikeCpp {
+                creature_is_distracted: true,
+                ..CreatureTriggerAlertInputLikeCpp::default()
+            },
+        ] {
+            assert!(creature_trigger_alert_plan_like_cpp(input).is_none());
+        }
+    }
+
+    #[test]
+    fn trigger_alert_requires_hostile_acceptable_non_passive_non_civilian_like_cpp() {
+        for input in [
+            CreatureTriggerAlertInputLikeCpp {
+                creature_is_civilian: true,
+                ..CreatureTriggerAlertInputLikeCpp::default()
+            },
+            CreatureTriggerAlertInputLikeCpp {
+                creature_has_react_passive: true,
+                ..CreatureTriggerAlertInputLikeCpp::default()
+            },
+            CreatureTriggerAlertInputLikeCpp {
+                creature_is_hostile_to_target: false,
+                ..CreatureTriggerAlertInputLikeCpp::default()
+            },
+            CreatureTriggerAlertInputLikeCpp {
+                target_acceptable: false,
+                ..CreatureTriggerAlertInputLikeCpp::default()
+            },
+        ] {
+            assert!(creature_trigger_alert_plan_like_cpp(input).is_none());
+        }
     }
 
     fn creature_with_boss_id(boss_id: Option<u32>) -> CreatureAI {

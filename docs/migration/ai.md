@@ -141,7 +141,7 @@ Todas las rutas relativas a `/home/server/woltk-trinity-legacy/`.
 | `CreatureAI::JustDied(Unit* killer)` | Hook al morir; drop loot, achievement, despawn summons | (override) |
 | `CreatureAI::KilledUnit(Unit* victim)` | Hook al matar a algo (jugador, otra creature) | (override) |
 | `CreatureAI::MoveInLineOfSight(Unit* who)` | Player/Unit entró en visibility range; check aggro | `IsHostileTo`, `Attack`, ai_factory aggro radius |
-| `CreatureAI::TriggerAlert(Unit const* who)` | Visual "?" y emote on potential aggro | `SetReactState`, `SendPlaySpellVisualKit` |
+| `CreatureAI::TriggerAlert(Unit const* who)` | Pre-aggro alert for stealthed/prowling player | `SendAIReaction(AI_REACTION_ALERT)` + `MotionMaster::MoveDistract(5000ms, angle)` |
 | `CreatureAI::EnterEvadeMode(EvadeReason)` | Salir de combat (out of bounds, no hostiles, leashing) | `Reset`, `Creature::SetWalk`, `MotionMaster::MoveTargetedHome`, `SetHealth(maxHealth)` |
 | `CreatureAI::SpellHit(WorldObject* caster, SpellInfo const*)` | Hook al ser blanco de spell | (override) |
 | `CreatureAI::SpellHitTarget(WorldObject* target, SpellInfo const*)` | Hook al castear y impactar | (override) |
@@ -305,7 +305,7 @@ Resumen: AI consume hooks del engine, no ve sockets directamente. Los efectos (m
 11. **NO EscortAI / FollowerAI:** sin quest companions
 12. **NO ThreatManager integration:** combat target es simple Option<ObjectGuid>; sin threat list multi-target
 13. **NO EnterEvadeMode runtime:** existe `EvadeReasonLikeCpp` y plan representado de side effects; `reset_combat` sigue siendo trivial (full HP, return home), sin aplicar MotionMaster/auras/threat/leashing por boundary en runtime
-14. **NO MoveInLineOfSight con TriggerAlert:** sin fase intermedia de "ojo curioso ?" antes de aggro
+14. **NO MoveInLineOfSight con TriggerAlert runtime:** existe plan representado de `TriggerAlert`, pero falta cablearlo desde notifiers/visibility y aplicar `SendAIReaction` + `MoveDistract` reales antes del aggro
 15. **NO hooks events:** `JustEnteredCombat`, `KilledUnit`, `SpellHit`, `SpellHitTarget`, `JustDied`, `JustSummoned`, `IsSummonedBy`, `MovementInform`, `JustReachedHome`, `OnHealthDepleted`, `ReceiveEmote`, `OnGameEvent` — todos ausentes
 16. **NO factory + selector:** sin `CreatureAISelector::selectAI` que decide qué AI instanciar al spawn
 17. **NO registry de AI names:** no se puede mappear `creature_template.AIName='SmartAI'` → instanciar SmartAI
@@ -457,7 +457,8 @@ Numerados para referencia desde `MIGRATION_ROADMAP.md`. Complejidad: **L** <1h, 
 - [ ] **#AI.37** Implementar hooks completos: `JustEnteredCombat`, `JustEngagedWith`, `KilledUnit`, `SpellHit`, `SpellHitTarget`, `JustSummoned`, `IsSummonedBy`, `MovementInform`, `JustReachedHome`, `OnHealthDepleted`, `ReceiveEmote`, `OnGameEvent`, `JustDied`, `Reset` — wire desde Creature/Spell/Combat/Movement módulos (H)
 - [x] **#AI.38a** Implementar plan representado de `CreatureAI::EnterEvadeMode` contrastado contra `CreatureAI.cpp`: early-return si ya evade, rama muerto sólo `EngagementOver`, limpieza de auras/combat/tap/damage/cooldowns/target, movimiento follow-owner vs targeted-home y `Reset` como plan de side effects. (M)
 - [ ] **#AI.38b** Wire runtime real de `EnterEvadeMode`: aplicar auras/threat/spell-history/tap, `MotionMaster::MoveTargetedHome`/`MoveFollow`, `UNIT_STATE_EVADE`, callback `JustReachedHome`, HP/auras/summons completos y leash/boundary checks. (H)
-- [ ] **#AI.39** Implementar `TriggerAlert` (visual "?" + emote) en `MoveInLineOfSight` antes del aggro real (L)
+- [x] **#AI.39a** Implementar plan representado de `CreatureAI::TriggerAlert` contrastado contra `CreatureAI.cpp`: target player existente, criatura unit/no engaged/no confused-stunned-fleeing-distracted, no civil/passive, hostile y target acceptable; side effects `AI_REACTION_ALERT` + `MoveDistract(5000ms, angle)`. (L)
+- [ ] **#AI.39b** Wire runtime real de `TriggerAlert`: llamada desde notifiers/visibility, `SendAIReaction(AI_REACTION_ALERT)`, `MotionMaster::MoveDistract`, orientation real y orden frente a `MoveInLineOfSight`/aggro. (M)
 - [ ] **#AI.40** Implementar `DoZoneInCombat(source, range)` — pone en combate todos los hostiles en rango (M)
 - [ ] **#AI.41** Refactor random — usar `rand` crate proper (`StdRng` semilla por mapa, no time-based) (L)
 - [ ] **#AI.42** Implementar level-diff aggro radius modifier (mob_level vs player_level → ajusta aggro distance) (L)
