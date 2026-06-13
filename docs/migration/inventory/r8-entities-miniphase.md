@@ -1,3 +1,13 @@
+- `#NEXT.R8.ENTITIES.816` — audit-fix/represented-partial for `CMSG_ADD_TOY` inventory drift.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/ToyPackets.cpp:20-23` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/ToyPackets.h:28-35` (single `ObjectGuid Guid` read shape); `/home/server/woltk-trinity-legacy/src/server/game/Handlers/ToyHandler.cpp:28-52` (empty guid return, `GetItemByGuid`, item-not-found equip error, `sDB2Manager.IsToyItem`, `Player::CanUseItem`, `CollectionMgr::AddToy`, and `DestroyItem` only when newly inserted); `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:153` (`STATUS_LOGGEDIN`, `PROCESS_THREADUNSAFE`).
+
+Implemented Rust seam already present: `AddToy` parses the toy item GUID, `handlers/misc.rs` registers `LoggedIn/ThreadUnsafe`, `session.rs` dispatches `ClientOpcodes::AddToy`, and the handler follows the represented C++ gate order through item lookup, toy DB2 validation, represented `CanUseItem`, represented account-toy insertion, represented full-stack destruction, rollback on failed destruction, and represented `Player::AddToy` dynamic-field update after successful destruction.
+
+Checks: `cargo fmt --all --check`; `cargo test -p wow-packet add_toy --lib`; `cargo test -p wow-world add_toy --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`; `git diff --check`.
+
+Boundaries: represented-partial only; no full account collection DB transaction parity, no complete `Player::CanUseItem` edge coverage, no full `ItemSearchLocation::Everywhere` bank/buyback/mail parity, and no live client/manual validation. This slice corrects stale inventories that still claimed missing Rust dispatch.
+
 - `#NEXT.R8.ENTITIES.815` — represented-complete for bounded `CMSG_ADDON_LIST`.
 
 C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.cpp:822-830` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.h:1041-1047` (`uint32 count`, 10-bit name length, bit flush, name string); `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:1382-1386` (handler logs addon count and only comments a future anti-cheat hook); `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:148` (`STATUS_AUTHED`, `PROCESS_INPLACE`).
