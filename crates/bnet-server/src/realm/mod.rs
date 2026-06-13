@@ -24,6 +24,64 @@ const DEFAULT_VERSION_MAJOR: u32 = 6;
 const DEFAULT_VERSION_MINOR: u32 = 2;
 const DEFAULT_VERSION_REVISION: u32 = 4;
 
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct RealmHandleLikeCpp {
+    pub region: u8,
+    pub site: u8,
+    pub realm: u32,
+}
+
+impl RealmHandleLikeCpp {
+    pub fn new_like_cpp(region: u8, battlegroup: u8, realm: u32) -> Self {
+        Self {
+            region,
+            site: battlegroup,
+            realm,
+        }
+    }
+
+    pub fn from_address_like_cpp(realm_address: u32) -> Self {
+        Self {
+            region: ((realm_address >> 24) & 0xFF) as u8,
+            site: ((realm_address >> 16) & 0xFF) as u8,
+            realm: realm_address & 0xFFFF,
+        }
+    }
+
+    pub fn get_address_like_cpp(self) -> u32 {
+        (u32::from(self.region) << 24) | (u32::from(self.site) << 16) | (self.realm & 0xFFFF)
+    }
+
+    #[allow(dead_code)]
+    pub fn get_address_string_like_cpp(self) -> String {
+        format!("{}-{}-{}", self.region, self.site, self.realm)
+    }
+
+    pub fn get_sub_region_address_like_cpp(self) -> String {
+        format!("{}-{}-0", self.region, self.site)
+    }
+}
+
+impl PartialEq for RealmHandleLikeCpp {
+    fn eq(&self, other: &Self) -> bool {
+        self.realm == other.realm
+    }
+}
+
+impl Eq for RealmHandleLikeCpp {}
+
+impl PartialOrd for RealmHandleLikeCpp {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for RealmHandleLikeCpp {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.realm.cmp(&other.realm)
+    }
+}
+
 /// A single realm entry from the `realmlist` table.
 #[derive(Debug, Clone)]
 pub struct Realm {
@@ -86,7 +144,7 @@ impl RealmManager {
     /// the low 16-bit realmlist id rather than the whole packed address.
     pub fn get_realm_by_realm_address_like_cpp(&self, realm_address: u32) -> Option<&Realm> {
         self.realms
-            .get(&(realm_id_from_address_like_cpp(realm_address)))
+            .get(&RealmHandleLikeCpp::from_address_like_cpp(realm_address).realm)
     }
 
     #[allow(dead_code)]
@@ -128,7 +186,11 @@ impl RealmManager {
         let updates: Vec<RealmListUpdate> = self
             .realms
             .values()
-            .filter(|r| realm_sub_region_address_like_cpp(r.region, r.battlegroup) == _sub_region)
+            .filter(|r| {
+                RealmHandleLikeCpp::new_like_cpp(r.region, r.battlegroup, r.id)
+                    .get_sub_region_address_like_cpp()
+                    == _sub_region
+            })
             .map(|r| {
                 let build_info = self.get_build_info(r.build);
 
@@ -148,8 +210,12 @@ impl RealmManager {
 
                 RealmListUpdate {
                     update: RealmEntry {
-                        wow_realm_address: realm_address_like_cpp(r.region, r.battlegroup, r.id)
-                            as i32,
+                        wow_realm_address: RealmHandleLikeCpp::new_like_cpp(
+                            r.region,
+                            r.battlegroup,
+                            r.id,
+                        )
+                        .get_address_like_cpp() as i32,
                         cfg_timezones_id: 1,
                         population_state,
                         cfg_categories_id: i32::from(r.timezone),
@@ -211,8 +277,12 @@ impl RealmManager {
 
         let build_info = self.get_build_info(realm.build);
         let realm_entry = RealmEntry {
-            wow_realm_address: realm_address_like_cpp(realm.region, realm.battlegroup, realm.id)
-                as i32,
+            wow_realm_address: RealmHandleLikeCpp::new_like_cpp(
+                realm.region,
+                realm.battlegroup,
+                realm.id,
+            )
+            .get_address_like_cpp() as i32,
             cfg_timezones_id: 1,
             population_state: (realm.population as i32).max(1),
             cfg_categories_id: i32::from(realm.timezone),
@@ -393,7 +463,8 @@ async fn update_realms(state: &AppState) -> Result<()> {
             let region: u8 = result.try_read::<u8>(11).unwrap_or(0);
             let battlegroup: u8 = result.try_read::<u8>(12).unwrap_or(0);
 
-            let sub_region = realm_sub_region_address_like_cpp(region, battlegroup);
+            let sub_region = RealmHandleLikeCpp::new_like_cpp(region, battlegroup, 0)
+                .get_sub_region_address_like_cpp();
             if !sub_regions.contains(&sub_region) {
                 sub_regions.push(sub_region);
             }
@@ -453,15 +524,11 @@ fn realm_config_id_like_cpp(realm_type: u8) -> u8 {
 }
 
 pub(crate) fn realm_address_like_cpp(region: u8, battlegroup: u8, realm_id: u32) -> u32 {
-    (u32::from(region) << 24) | (u32::from(battlegroup) << 16) | (realm_id & 0xFFFF)
-}
-
-fn realm_id_from_address_like_cpp(realm_address: u32) -> u32 {
-    realm_address & 0xFFFF
+    RealmHandleLikeCpp::new_like_cpp(region, battlegroup, realm_id).get_address_like_cpp()
 }
 
 pub(crate) fn realm_sub_region_address_like_cpp(region: u8, battlegroup: u8) -> String {
-    format!("{region}-{battlegroup}-0")
+    RealmHandleLikeCpp::new_like_cpp(region, battlegroup, 0).get_sub_region_address_like_cpp()
 }
 
 fn parse_hex_seed(hex: &str) -> Option<Vec<u8>> {
@@ -598,10 +665,24 @@ mod tests {
 
     #[test]
     fn realm_handle_address_matches_cpp_packing_and_lookup() {
-        let realm_address = realm_address_like_cpp(5, 6, 9);
+        let handle = RealmHandleLikeCpp::new_like_cpp(5, 6, 9);
+        let realm_address = handle.get_address_like_cpp();
         assert_eq!(realm_address, 0x0506_0009);
-        assert_eq!(realm_id_from_address_like_cpp(realm_address), 9);
-        assert_eq!(realm_sub_region_address_like_cpp(5, 6), "5-6-0");
+        assert_eq!(
+            RealmHandleLikeCpp::from_address_like_cpp(realm_address),
+            handle
+        );
+        assert_eq!(handle.get_address_string_like_cpp(), "5-6-9");
+        assert_eq!(handle.get_sub_region_address_like_cpp(), "5-6-0");
+
+        let same_realm_different_region = RealmHandleLikeCpp::new_like_cpp(1, 2, 9);
+        let other_realm = RealmHandleLikeCpp::new_like_cpp(5, 6, 10);
+        assert_eq!(handle, same_realm_different_region);
+        assert_eq!(
+            handle.cmp(&same_realm_different_region),
+            std::cmp::Ordering::Equal
+        );
+        assert!(handle < other_realm);
 
         let mut manager = RealmManager::new();
         manager.realms.insert(9, test_realm(9, 5, 6, 1, 1));
