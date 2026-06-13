@@ -4163,6 +4163,20 @@ impl WorldSession {
         self.represented_runtime_rng_like_cpp.gen_range(min..=max)
     }
 
+    pub(crate) fn represented_money_loot_with_rate_like_cpp(
+        &mut self,
+        min_amount: u32,
+        max_amount: u32,
+        rate: f32,
+    ) -> u32 {
+        wow_loot::generate_money_loot_with_rate_like_cpp(
+            min_amount,
+            max_amount,
+            rate,
+            &mut self.represented_runtime_rng_like_cpp,
+        )
+    }
+
     /// Set the character database for this session.
     pub fn set_char_db(&mut self, db: Arc<CharacterDatabase>) {
         self.char_db = Some(db);

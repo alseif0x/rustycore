@@ -35,8 +35,7 @@ use wow_entities::INVENTORY_SLOT_BAG_0;
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
 use wow_loot::{
     LootConditionRowLikeCpp, condition_compare_values_like_cpp,
-    generate_money_loot_with_rate_like_cpp, loot_condition_reference_ids_like_cpp,
-    loot_condition_reference_self_references_like_cpp,
+    loot_condition_reference_ids_like_cpp, loot_condition_reference_self_references_like_cpp,
     loot_condition_row_normalize_without_external_stores_like_cpp,
     loot_conditions_allow_player_with_references_like_cpp_representable,
 };
@@ -517,11 +516,10 @@ impl WorldSession {
                     let (min_money, max_money) = self
                         .load_item_template_addon_money_loot_like_cpp(item.entry_id)
                         .await;
-                    generate_money_loot_with_rate_like_cpp(
+                    self.represented_money_loot_with_rate_like_cpp(
                         min_money,
                         max_money,
                         self.loot_drop_rates_like_cpp().money,
-                        &mut rand::thread_rng(),
                     )
                 };
                 let items = self

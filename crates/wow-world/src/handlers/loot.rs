@@ -42,8 +42,7 @@ use wow_loot::{
     GeneratedLootItem, LootConditionId, LootConditionRowLikeCpp, LootFillError, LootFillOptions,
     LootItemRandomProperties, LootItemTemplateMetadata, LootStoreItem, LootStoreItemContext,
     LootStoreKind, LootTemplate, condition_compare_values_like_cpp,
-    generate_money_loot_with_rate_like_cpp, loot_condition_reference_ids_like_cpp,
-    loot_condition_reference_self_references_like_cpp,
+    loot_condition_reference_ids_like_cpp, loot_condition_reference_self_references_like_cpp,
     loot_condition_row_normalize_without_external_stores_like_cpp,
     loot_conditions_allow_player_with_references_like_cpp_representable,
     loot_item_ui_type_for_player_like_cpp,
@@ -4207,11 +4206,10 @@ impl WorldSession {
         let (min_money, max_money) = self
             .load_gameobject_template_addon_money_loot_like_cpp(gameobject_guid.entry())
             .await;
-        let coins = generate_money_loot_with_rate_like_cpp(
+        let coins = self.represented_money_loot_with_rate_like_cpp(
             min_money,
             max_money,
             self.loot_drop_rates_like_cpp().money,
-            &mut rand::thread_rng(),
         );
 
         let mut loot = CreatureLoot {
@@ -4246,11 +4244,10 @@ impl WorldSession {
                 if !loot.allowed_looters.contains(tapper) {
                     loot.allowed_looters.push(*tapper);
                 }
-                let tapper_money = generate_money_loot_with_rate_like_cpp(
+                let tapper_money = self.represented_money_loot_with_rate_like_cpp(
                     min_money,
                     max_money,
                     self.loot_drop_rates_like_cpp().money,
-                    &mut rand::thread_rng(),
                 );
                 self.represented_personal_loot_money
                     .insert((gameobject_guid, *tapper), tapper_money);
@@ -4641,7 +4638,7 @@ impl WorldSession {
     }
 
     async fn generate_represented_creature_loot_like_cpp(
-        &self,
+        &mut self,
         creature_guid: ObjectGuid,
         loot_owner_guid: ObjectGuid,
         level: u8,
@@ -4654,11 +4651,10 @@ impl WorldSession {
         let (loot_method, loot_master, round_robin_player) =
             self.represented_creature_loot_group_state_like_cpp(loot_owner_guid);
         let coins = if gold_max > 0 {
-            generate_money_loot_with_rate_like_cpp(
+            self.represented_money_loot_with_rate_like_cpp(
                 gold_min,
                 gold_max,
                 self.loot_drop_rates_like_cpp().money,
-                &mut rand::thread_rng(),
             )
         } else {
             generate_legacy_creature_coin_fallback_like_cpp(creature_guid, level)
@@ -9096,7 +9092,7 @@ mod tests {
 
     #[tokio::test]
     async fn represented_creature_loot_generation_carries_cpp_dungeon_encounter_id() {
-        let session = make_session();
+        let mut session = make_session();
 
         let loot = session
             .generate_represented_creature_loot_like_cpp(
