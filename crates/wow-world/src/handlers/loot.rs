@@ -4746,7 +4746,7 @@ impl WorldSession {
         &mut self,
         creature_guid: ObjectGuid,
         loot_owner_guid: ObjectGuid,
-        level: u8,
+        _level: u8,
         entry: u32,
         loot_id: u32,
         gold_min: u32,
@@ -4755,15 +4755,11 @@ impl WorldSession {
     ) -> CreatureLoot {
         let (loot_method, loot_master, round_robin_player) =
             self.represented_creature_loot_group_state_like_cpp(loot_owner_guid);
-        let coins = if gold_max > 0 {
-            self.represented_money_loot_with_rate_like_cpp(
-                gold_min,
-                gold_max,
-                self.loot_drop_rates_like_cpp().money,
-            )
-        } else {
-            generate_legacy_creature_coin_fallback_like_cpp(creature_guid, level)
-        };
+        let coins = self.represented_money_loot_with_rate_like_cpp(
+            gold_min,
+            gold_max,
+            self.loot_drop_rates_like_cpp().money,
+        );
 
         let items = self
             .generate_represented_creature_loot_items_like_cpp(loot_id)
@@ -6778,12 +6774,6 @@ fn master_loot_error_for_inventory_result_like_cpp(result: InventoryResult) -> O
 }
 
 // ── Loot generation ───────────────────────────────────────────────
-
-fn generate_legacy_creature_coin_fallback_like_cpp(creature_guid: ObjectGuid, level: u8) -> u32 {
-    let base = level as u32;
-    let seed = creature_guid.counter() as u32;
-    base * 200 + (seed % (base * 300 + 1))
-}
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 struct ItemTemplateAddonLootMetadataLikeCpp {
@@ -9289,6 +9279,27 @@ mod tests {
             .await;
 
         assert_eq!(loot.coins, 250);
+        assert!(loot.items.is_empty());
+    }
+
+    #[tokio::test]
+    async fn represented_creature_money_zero_gold_max_stays_zero_like_cpp() {
+        let mut session = make_session();
+
+        let loot = session
+            .generate_represented_creature_loot_like_cpp(
+                test_creature_guid(1),
+                ObjectGuid::create_player(1, 42),
+                10,
+                25,
+                0,
+                0,
+                0,
+                0,
+            )
+            .await;
+
+        assert_eq!(loot.coins, 0);
         assert!(loot.items.is_empty());
     }
 
