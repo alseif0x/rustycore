@@ -222,9 +222,8 @@ impl WorldSession {
     }
 
     /// C++ `HandleEjectPassenger`.
-    pub async fn handle_eject_passenger(&mut self, _packet: EjectPassenger) {
-        // C++ rejects before passenger lookup when the player has no VehicleKit.
-        // Rust has no represented player vehicle kit/passenger seat map here.
+    pub async fn handle_eject_passenger(&mut self, packet: EjectPassenger) {
+        self.represented_eject_passenger_like_cpp(packet.passenger);
     }
 
     /// C++ `HandleRequestVehicleExit`.

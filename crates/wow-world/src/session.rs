@@ -20100,6 +20100,41 @@ impl WorldSession {
         true
     }
 
+    pub(crate) fn represented_eject_passenger_like_cpp(
+        &mut self,
+        passenger_guid: ObjectGuid,
+    ) -> bool {
+        if !passenger_guid.is_unit() {
+            return false;
+        }
+
+        let Some(vehicle_kit) = self.player_mount_vehicle_kit_like_cpp.as_mut() else {
+            return false;
+        };
+        let Some(seat_info) = vehicle_kit.seat_info_for_passenger_like_cpp(passenger_guid) else {
+            return false;
+        };
+        if !seat_info.ejectable {
+            return false;
+        }
+
+        let passenger_type_id = if passenger_guid.is_player() {
+            TypeId::Player
+        } else {
+            TypeId::Unit
+        };
+        vehicle_kit
+            .remove_passenger_plan_like_cpp(
+                passenger_guid,
+                passenger_type_id,
+                false,
+                false,
+                false,
+                false,
+            )
+            .is_some()
+    }
+
     fn has_recently_dropped_flag_debuff_like_cpp(&self) -> bool {
         const SPELL_RECENTLY_DROPPED_ALLIANCE_FLAG: i32 = 42_792;
         const SPELL_RECENTLY_DROPPED_HORDE_FLAG: i32 = 50_326;
@@ -48138,6 +48173,105 @@ mod tests {
         let info = registry.get(&guid).expect("registered player");
         assert!(info.in_vehicle);
         assert_eq!(info.party_member_vehicle_seat, 1002);
+    }
+
+    fn represented_vehicle_kit_with_passenger_like_cpp(
+        base_guid: ObjectGuid,
+        passenger_guid: ObjectGuid,
+        ejectable: bool,
+    ) -> wow_entities::Vehicle {
+        let mut vehicle = wow_entities::Vehicle::new(
+            base_guid,
+            TypeId::Player,
+            Position::ZERO,
+            77,
+            0,
+            [(
+                0,
+                wow_entities::VehicleSeatInfo {
+                    id: 1007,
+                    attachment_offset: Position::ZERO,
+                    can_enter_or_exit: true,
+                    usable_by_override: false,
+                    can_control: false,
+                    ejectable,
+                    disables_gravity: false,
+                    passenger_not_selectable: false,
+                    keep_pet: false,
+                },
+                wow_entities::VehicleSeatAddon::default(),
+            )],
+        );
+        vehicle.install();
+        assert!(vehicle.add_vehicle_passenger(passenger_guid, 0));
+        vehicle
+    }
+
+    #[test]
+    fn represented_eject_passenger_removes_ejectable_passenger_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 55);
+        let passenger_guid = ObjectGuid::create_player(1, 56);
+        session.set_player_guid(Some(player_guid));
+        session.player_mount_vehicle_kit_like_cpp = Some(
+            represented_vehicle_kit_with_passenger_like_cpp(player_guid, passenger_guid, true),
+        );
+
+        assert!(session.represented_eject_passenger_like_cpp(passenger_guid));
+
+        assert!(
+            session
+                .player_mount_vehicle_kit_like_cpp
+                .as_ref()
+                .unwrap()
+                .passenger(0)
+                .is_none(),
+            "C++ Unit::ExitVehicle removes the passenger from the vehicle seat"
+        );
+    }
+
+    #[test]
+    fn represented_eject_passenger_rejects_non_ejectable_seat_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 57);
+        let passenger_guid = ObjectGuid::create_player(1, 58);
+        session.set_player_guid(Some(player_guid));
+        session.player_mount_vehicle_kit_like_cpp = Some(
+            represented_vehicle_kit_with_passenger_like_cpp(player_guid, passenger_guid, false),
+        );
+
+        assert!(!session.represented_eject_passenger_like_cpp(passenger_guid));
+        assert_eq!(
+            session
+                .player_mount_vehicle_kit_like_cpp
+                .as_ref()
+                .unwrap()
+                .passenger(0),
+            Some(passenger_guid)
+        );
+    }
+
+    #[test]
+    fn represented_eject_passenger_rejects_without_vehicle_kit_or_unit_like_cpp() {
+        let (mut session, _, _) = make_session();
+        assert!(!session.represented_eject_passenger_like_cpp(ObjectGuid::EMPTY));
+
+        let player_guid = ObjectGuid::create_player(1, 59);
+        let passenger_guid = ObjectGuid::create_player(1, 60);
+        session.set_player_guid(Some(player_guid));
+        session.player_mount_vehicle_kit_like_cpp = Some(
+            represented_vehicle_kit_with_passenger_like_cpp(player_guid, passenger_guid, true),
+        );
+
+        assert!(!session.represented_eject_passenger_like_cpp(ObjectGuid::EMPTY));
+        assert_eq!(
+            session
+                .player_mount_vehicle_kit_like_cpp
+                .as_ref()
+                .unwrap()
+                .passenger(0),
+            Some(passenger_guid)
+        );
     }
 
     #[test]

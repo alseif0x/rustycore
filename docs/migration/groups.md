@@ -398,6 +398,13 @@ DBC/DB2 stores read:
 
 <!-- REFINE.022:END task-wbs -->
 
+> **Drift note (2026-06-13):** this task list predates the recent R8 group/party slices.
+> `CMSG_REQUEST_PARTY_MEMBER_STATS` and the old hard-coded HP/power placeholders are now
+> represented-partial under `#NEXT.R8.ENTITIES.794` in
+> `docs/migration/inventory/r8-entities-miniphase.{md,tsv}`. Keep the remaining open
+> parts there as the source of truth: full vehicle/passenger runtime, full aura runtime,
+> original-group/category ownership, DB/install/manual-test-ready.
+
 - [ ] **#GROUPS.1** Replace `GroupInfo.group_guid: u64` with proper `ObjectGuid` (HighGuid::Party); fix all wire serialisations. Complejidad: **M**
 - [ ] **#GROUPS.2** Implement `CMSG_PARTY_UNINVITE` — kick by guid, leader/assistant only, with `RemoveMethod::KICK`. Complejidad: **M**
 - [ ] **#GROUPS.3** Implement `CMSG_SET_PARTY_LEADER` — explicit leader transfer; emit `SMSG_GROUP_NEW_LEADER`. Complejidad: **L**

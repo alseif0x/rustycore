@@ -90,6 +90,7 @@ impl VehicleSeatEntry {
             can_enter_or_exit: self.can_enter_or_exit_like_cpp(),
             usable_by_override: self.usable_by_override_like_cpp(),
             can_control: self.has_flag(VEHICLE_SEAT_FLAG_CAN_CONTROL),
+            ejectable: self.is_ejectable_like_cpp(),
             disables_gravity: self.has_flag(VEHICLE_SEAT_FLAG_DISABLE_GRAVITY),
             passenger_not_selectable: self.has_flag(VEHICLE_SEAT_FLAG_PASSENGER_NOT_SELECTABLE),
             keep_pet: self.has_flag_b(VEHICLE_SEAT_FLAG_B_KEEP_PET),
