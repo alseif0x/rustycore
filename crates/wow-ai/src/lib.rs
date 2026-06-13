@@ -270,6 +270,170 @@ pub fn creature_ai_uses_base_move_in_line_of_sight_like_cpp(
     }
 }
 
+// ── CreatureAI::EnterEvadeMode ────────────────────────────────────
+
+/// C++ `EvadeReason` from `CoreAI/UnitAICommon.h`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum EvadeReasonLikeCpp {
+    NoHostiles,
+    Boundary,
+    NoPath,
+    SequenceBreak,
+    Other,
+}
+
+impl EvadeReasonLikeCpp {
+    pub const COUNT_LIKE_CPP: usize = 5;
+
+    pub fn to_index_like_cpp(self) -> usize {
+        match self {
+            Self::NoHostiles => 0,
+            Self::Boundary => 1,
+            Self::NoPath => 2,
+            Self::SequenceBreak => 3,
+            Self::Other => 4,
+        }
+    }
+
+    pub fn from_index_like_cpp(index: usize) -> Option<Self> {
+        match index {
+            0 => Some(Self::NoHostiles),
+            1 => Some(Self::Boundary),
+            2 => Some(Self::NoPath),
+            3 => Some(Self::SequenceBreak),
+            4 => Some(Self::Other),
+            _ => None,
+        }
+    }
+
+    pub fn constant_like_cpp(self) -> &'static str {
+        match self {
+            Self::NoHostiles => "NoHostiles",
+            Self::Boundary => "Boundary",
+            Self::NoPath => "NoPath",
+            Self::SequenceBreak => "SequenceBreak",
+            Self::Other => "Other",
+        }
+    }
+
+    pub fn description_like_cpp(self) -> &'static str {
+        match self {
+            Self::NoHostiles => "the creature's threat list is empty",
+            Self::Boundary => "the creature has moved outside its evade boundary",
+            Self::NoPath => "the creature was unable to reach its target for over 5 seconds",
+            Self::SequenceBreak => {
+                "this is a boss and the pre-requisite encounters for engaging it are not defeated yet"
+            }
+            Self::Other => "anything else",
+        }
+    }
+}
+
+/// Already-resolved C++ creature facts needed by represented `EnterEvadeMode`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CreatureEnterEvadeInputLikeCpp {
+    pub reason: EvadeReasonLikeCpp,
+    pub is_in_evade_mode: bool,
+    pub is_alive: bool,
+    pub has_vehicle: bool,
+    pub owner_guid: Option<ObjectGuid>,
+    pub tap_list_not_cleared_on_evade: bool,
+}
+
+impl Default for CreatureEnterEvadeInputLikeCpp {
+    fn default() -> Self {
+        Self {
+            reason: EvadeReasonLikeCpp::Other,
+            is_in_evade_mode: false,
+            is_alive: true,
+            has_vehicle: false,
+            owner_guid: None,
+            tap_list_not_cleared_on_evade: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum CreatureEvadeMovementLikeCpp {
+    NoneVehicle,
+    FollowOwner {
+        owner_guid: ObjectGuid,
+        pet_follow_distance: f32,
+    },
+    TargetedHomeAddEvadeState,
+}
+
+/// Pure side-effect plan for C++ `CreatureAI::EnterEvadeMode`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CreatureEnterEvadePlanLikeCpp {
+    pub reason: EvadeReasonLikeCpp,
+    pub remove_auras_on_evade: bool,
+    pub combat_stop_with_pets: bool,
+    pub clear_tap: bool,
+    pub reset_player_damage_req: bool,
+    pub clear_last_damaged_time: bool,
+    pub clear_cannot_reach_target: bool,
+    pub clear_spell_focus_target: bool,
+    pub clear_target: bool,
+    pub reset_spell_cooldowns: bool,
+    pub engagement_over: bool,
+    pub movement: CreatureEvadeMovementLikeCpp,
+    pub reset_ai: bool,
+}
+
+pub fn creature_enter_evade_mode_plan_like_cpp(
+    input: CreatureEnterEvadeInputLikeCpp,
+) -> Option<CreatureEnterEvadePlanLikeCpp> {
+    if input.is_in_evade_mode {
+        return None;
+    }
+
+    if !input.is_alive {
+        return Some(CreatureEnterEvadePlanLikeCpp {
+            reason: input.reason,
+            remove_auras_on_evade: false,
+            combat_stop_with_pets: false,
+            clear_tap: false,
+            reset_player_damage_req: false,
+            clear_last_damaged_time: false,
+            clear_cannot_reach_target: false,
+            clear_spell_focus_target: false,
+            clear_target: false,
+            reset_spell_cooldowns: false,
+            engagement_over: true,
+            movement: CreatureEvadeMovementLikeCpp::NoneVehicle,
+            reset_ai: false,
+        });
+    }
+
+    let movement = if input.has_vehicle {
+        CreatureEvadeMovementLikeCpp::NoneVehicle
+    } else if let Some(owner_guid) = input.owner_guid {
+        CreatureEvadeMovementLikeCpp::FollowOwner {
+            owner_guid,
+            pet_follow_distance: 1.0,
+        }
+    } else {
+        CreatureEvadeMovementLikeCpp::TargetedHomeAddEvadeState
+    };
+
+    Some(CreatureEnterEvadePlanLikeCpp {
+        reason: input.reason,
+        remove_auras_on_evade: true,
+        combat_stop_with_pets: true,
+        clear_tap: !input.tap_list_not_cleared_on_evade,
+        reset_player_damage_req: true,
+        clear_last_damaged_time: true,
+        clear_cannot_reach_target: true,
+        clear_spell_focus_target: true,
+        clear_target: true,
+        reset_spell_cooldowns: true,
+        engagement_over: true,
+        movement,
+        reset_ai: true,
+    })
+}
+
 // ── ScriptedAI::SummonList ────────────────────────────────────────
 
 /// Already-resolved creature facts needed by represented `SummonList` helpers.
@@ -1065,6 +1229,131 @@ mod tests {
                 "{ai_kind:?} should reach the base MoveInLineOfSight aggro path"
             );
         }
+    }
+
+    #[test]
+    fn evade_reason_indices_and_text_match_cpp_enumutils() {
+        let expected = [
+            (
+                EvadeReasonLikeCpp::NoHostiles,
+                "NoHostiles",
+                "the creature's threat list is empty",
+            ),
+            (
+                EvadeReasonLikeCpp::Boundary,
+                "Boundary",
+                "the creature has moved outside its evade boundary",
+            ),
+            (
+                EvadeReasonLikeCpp::NoPath,
+                "NoPath",
+                "the creature was unable to reach its target for over 5 seconds",
+            ),
+            (
+                EvadeReasonLikeCpp::SequenceBreak,
+                "SequenceBreak",
+                "this is a boss and the pre-requisite encounters for engaging it are not defeated yet",
+            ),
+            (EvadeReasonLikeCpp::Other, "Other", "anything else"),
+        ];
+
+        assert_eq!(EvadeReasonLikeCpp::COUNT_LIKE_CPP, expected.len());
+        for (index, (reason, constant, description)) in expected.into_iter().enumerate() {
+            assert_eq!(reason.to_index_like_cpp(), index);
+            assert_eq!(EvadeReasonLikeCpp::from_index_like_cpp(index), Some(reason));
+            assert_eq!(reason.constant_like_cpp(), constant);
+            assert_eq!(reason.description_like_cpp(), description);
+        }
+        assert_eq!(
+            EvadeReasonLikeCpp::from_index_like_cpp(expected.len()),
+            None
+        );
+    }
+
+    #[test]
+    fn enter_evade_plan_returns_none_if_already_evading_like_cpp() {
+        let plan = creature_enter_evade_mode_plan_like_cpp(CreatureEnterEvadeInputLikeCpp {
+            is_in_evade_mode: true,
+            ..CreatureEnterEvadeInputLikeCpp::default()
+        });
+
+        assert!(plan.is_none());
+    }
+
+    #[test]
+    fn enter_evade_plan_dead_creature_only_ends_engagement_like_cpp() {
+        let plan = creature_enter_evade_mode_plan_like_cpp(CreatureEnterEvadeInputLikeCpp {
+            reason: EvadeReasonLikeCpp::NoPath,
+            is_alive: false,
+            ..CreatureEnterEvadeInputLikeCpp::default()
+        })
+        .unwrap();
+
+        assert_eq!(plan.reason, EvadeReasonLikeCpp::NoPath);
+        assert!(plan.engagement_over);
+        assert!(!plan.remove_auras_on_evade);
+        assert!(!plan.combat_stop_with_pets);
+        assert!(!plan.reset_ai);
+        assert_eq!(plan.movement, CreatureEvadeMovementLikeCpp::NoneVehicle);
+    }
+
+    #[test]
+    fn enter_evade_plan_targets_home_and_resets_alive_ownerless_creature_like_cpp() {
+        let plan = creature_enter_evade_mode_plan_like_cpp(CreatureEnterEvadeInputLikeCpp {
+            reason: EvadeReasonLikeCpp::Boundary,
+            ..CreatureEnterEvadeInputLikeCpp::default()
+        })
+        .unwrap();
+
+        assert_eq!(plan.reason, EvadeReasonLikeCpp::Boundary);
+        assert!(plan.remove_auras_on_evade);
+        assert!(plan.combat_stop_with_pets);
+        assert!(plan.clear_tap);
+        assert!(plan.reset_player_damage_req);
+        assert!(plan.clear_last_damaged_time);
+        assert!(plan.clear_cannot_reach_target);
+        assert!(plan.clear_spell_focus_target);
+        assert!(plan.clear_target);
+        assert!(plan.reset_spell_cooldowns);
+        assert!(plan.engagement_over);
+        assert!(plan.reset_ai);
+        assert_eq!(
+            plan.movement,
+            CreatureEvadeMovementLikeCpp::TargetedHomeAddEvadeState
+        );
+    }
+
+    #[test]
+    fn enter_evade_plan_follows_owner_unless_vehicle_like_cpp() {
+        let owner = guid(900);
+        let owner_plan = creature_enter_evade_mode_plan_like_cpp(CreatureEnterEvadeInputLikeCpp {
+            owner_guid: Some(owner),
+            tap_list_not_cleared_on_evade: true,
+            ..CreatureEnterEvadeInputLikeCpp::default()
+        })
+        .unwrap();
+
+        assert_eq!(
+            owner_plan.movement,
+            CreatureEvadeMovementLikeCpp::FollowOwner {
+                owner_guid: owner,
+                pet_follow_distance: 1.0,
+            }
+        );
+        assert!(!owner_plan.clear_tap);
+
+        let vehicle_plan =
+            creature_enter_evade_mode_plan_like_cpp(CreatureEnterEvadeInputLikeCpp {
+                has_vehicle: true,
+                owner_guid: Some(owner),
+                ..CreatureEnterEvadeInputLikeCpp::default()
+            })
+            .unwrap();
+
+        assert_eq!(
+            vehicle_plan.movement,
+            CreatureEvadeMovementLikeCpp::NoneVehicle
+        );
     }
 
     fn creature_with_boss_id(boss_id: Option<u32>) -> CreatureAI {
