@@ -1483,6 +1483,16 @@ mod tests {
         wow_packet::WorldPacket::from_bytes(writer.data())
     }
 
+    fn chat_register_addon_prefixes_packet(prefixes: &[&str]) -> wow_packet::WorldPacket {
+        let mut writer = wow_packet::WorldPacket::new_empty();
+        writer.write_uint32(prefixes.len() as u32);
+        for prefix in prefixes {
+            writer.write_bits(prefix.len() as u32, 5);
+            writer.write_string(prefix);
+        }
+        wow_packet::WorldPacket::from_bytes(writer.data())
+    }
+
     fn chat_slash_cmd(bytes: &[u8]) -> u8 {
         let mut packet = wow_packet::WorldPacket::from_bytes(bytes);
         packet.skip_opcode();
@@ -1718,6 +1728,31 @@ mod tests {
             ChatMsg::Ignored as u8
         );
         assert!(reporter_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn chat_register_addon_prefixes_accumulates_and_updates_filter_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 103);
+        let (mut session, _registry, send_rx) = session_for_chat_routing_like_cpp(sender);
+
+        session
+            .handle_chat_register_addon_prefixes(chat_register_addon_prefixes_packet(&[
+                "ABC", "DEF",
+            ]))
+            .await;
+        assert_eq!(session.registered_addon_prefixes, vec!["ABC", "DEF"]);
+        assert!(session.filter_addon_messages);
+
+        let too_many = vec!["X"; ChatRegisterAddonPrefixes::MAX_PREFIXES - 1];
+        session
+            .handle_chat_register_addon_prefixes(chat_register_addon_prefixes_packet(&too_many))
+            .await;
+        assert_eq!(
+            session.registered_addon_prefixes.len(),
+            ChatRegisterAddonPrefixes::MAX_PREFIXES + 1
+        );
+        assert!(!session.filter_addon_messages);
+        assert!(send_rx.try_recv().is_err());
     }
 
     #[tokio::test]
