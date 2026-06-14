@@ -1,4 +1,13 @@
 - `#NEXT.R8.ENTITIES.868` - represented-complete implementation for bounded movement `Handle_NULL` ACK family.
+### #NEXT.R8.ENTITIES.869 — CMSG_AREA_SPIRIT_HEALER_QUERY / QUEUE
+
+Status: represented-partial for the bounded area spirit healer query/queue handlers.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/BattleGroundHandler.cpp:659-701`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/BattlegroundPackets.cpp:34-48`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/BattlegroundPackets.h:49-75`, `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:29007-29037`, and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:1054`.
+
+Implemented Rust seam: `AreaSpiritHealerQuery` and `AreaSpiritHealerQueue` parse the packed healer GUID, `AreaSpiritHealerTime` serializes the C++ healer GUID plus `int32 TimeLeft`, both CMSGs register as `LoggedIn`/`PROCESS_THREADUNSAFE`, and `WorldSession` validates represented area spirit healer flag plus exact 20.0f 3D range before sending the time packet or recording the selected healer GUID.
+
+Remaining gaps: shared/individual healer spell channel timer, `SPELL_SPIRIT_HEAL_PLAYER_AURA`, `SPELL_SPIRIT_HEAL_CHANNEL_SELF`, `SPELL_WAITING_FOR_RESURRECT`, full battleground resurrection runtime, install/restart, and live-client manual validation remain open.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:803-806`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:610-611,645-662`.
 

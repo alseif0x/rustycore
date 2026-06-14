@@ -4288,6 +4288,56 @@ impl ClientPacket for SpiritHealerActivate {
     }
 }
 
+/// C++ `WorldPackets::Battleground::AreaSpiritHealerQuery`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AreaSpiritHealerQuery {
+    pub healer_guid: ObjectGuid,
+}
+
+impl ClientPacket for AreaSpiritHealerQuery {
+    const OPCODE: wow_constants::ClientOpcodes =
+        wow_constants::ClientOpcodes::AreaSpiritHealerQuery;
+
+    fn read(pkt: &mut crate::WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            healer_guid: pkt.read_packed_guid()?,
+        })
+    }
+}
+
+/// C++ `WorldPackets::Battleground::AreaSpiritHealerQueue`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AreaSpiritHealerQueue {
+    pub healer_guid: ObjectGuid,
+}
+
+impl ClientPacket for AreaSpiritHealerQueue {
+    const OPCODE: wow_constants::ClientOpcodes =
+        wow_constants::ClientOpcodes::AreaSpiritHealerQueue;
+
+    fn read(pkt: &mut crate::WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            healer_guid: pkt.read_packed_guid()?,
+        })
+    }
+}
+
+/// C++ `WorldPackets::Battleground::AreaSpiritHealerTime`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AreaSpiritHealerTime {
+    pub healer_guid: ObjectGuid,
+    pub time_left_ms: i32,
+}
+
+impl ServerPacket for AreaSpiritHealerTime {
+    const OPCODE: ServerOpcodes = ServerOpcodes::AreaSpiritHealerTime;
+
+    fn write(&self, pkt: &mut crate::WorldPacket) {
+        pkt.write_packed_guid(&self.healer_guid);
+        pkt.write_int32(self.time_left_ms);
+    }
+}
+
 /// C++ `WorldPackets::NPC::RequestStabledPets`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RequestStabledPets {
@@ -7347,6 +7397,54 @@ mod tests {
         let pkt = SpiritHealerActivate::read(&mut reader).unwrap();
 
         assert_eq!(pkt.healer, healer);
+    }
+
+    #[test]
+    fn area_spirit_healer_query_reads_cpp_healer_guid() {
+        let healer =
+            ObjectGuid::create_world_object(wow_core::guid::HighGuid::Creature, 0, 1, 571, 0, 9, 2);
+        let mut writer = WorldPacket::new_server(ServerOpcodes::DbReply);
+        writer.write_packed_guid(&healer);
+
+        let mut reader = WorldPacket::from_bytes(writer.data());
+        reader.skip_opcode();
+        let pkt = AreaSpiritHealerQuery::read(&mut reader).unwrap();
+
+        assert_eq!(pkt.healer_guid, healer);
+    }
+
+    #[test]
+    fn area_spirit_healer_queue_reads_cpp_healer_guid() {
+        let healer =
+            ObjectGuid::create_world_object(wow_core::guid::HighGuid::Creature, 0, 1, 571, 0, 9, 3);
+        let mut writer = WorldPacket::new_server(ServerOpcodes::DbReply);
+        writer.write_packed_guid(&healer);
+
+        let mut reader = WorldPacket::from_bytes(writer.data());
+        reader.skip_opcode();
+        let pkt = AreaSpiritHealerQueue::read(&mut reader).unwrap();
+
+        assert_eq!(pkt.healer_guid, healer);
+    }
+
+    #[test]
+    fn area_spirit_healer_time_writes_cpp_guid_and_time_left() {
+        let healer =
+            ObjectGuid::create_world_object(wow_core::guid::HighGuid::Creature, 0, 1, 571, 0, 9, 4);
+        let packet = AreaSpiritHealerTime {
+            healer_guid: healer,
+            time_left_ms: 12_345,
+        };
+
+        let mut bytes = (ServerOpcodes::AreaSpiritHealerTime as u16)
+            .to_le_bytes()
+            .to_vec();
+        let mut payload = WorldPacket::new_empty();
+        payload.write_packed_guid(&healer);
+        payload.write_int32(12_345);
+        bytes.extend_from_slice(payload.data());
+
+        assert_eq!(packet.to_bytes(), bytes);
     }
 
     #[test]

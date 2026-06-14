@@ -3015,6 +3015,8 @@ pub struct WorldSession {
     represented_vehicle_base_movements_like_cpp: Vec<RepresentedVehicleBaseMovementLikeCpp>,
     /// Represented `Player::GetBattleground()->GetTypeID()` for C++ battleground object use.
     player_battleground_type_id_like_cpp: Option<u32>,
+    /// C++ `Player::_areaSpiritHealerGUID`, represented until battleground/player resurrection owns it.
+    area_spirit_healer_guid_like_cpp: ObjectGuid,
     /// Represented current pet GUID until player-owned pet runtime is canonical.
     represented_pet_guid_like_cpp: Option<ObjectGuid>,
     /// Represented current pet react state for C++ mount/dismount PetMode side effects.
@@ -4098,6 +4100,7 @@ impl WorldSession {
             represented_vehicle_dismiss_movements_like_cpp: Vec::new(),
             represented_vehicle_base_movements_like_cpp: Vec::new(),
             player_battleground_type_id_like_cpp: None,
+            area_spirit_healer_guid_like_cpp: ObjectGuid::EMPTY,
             represented_pet_guid_like_cpp: None,
             represented_pet_react_state_like_cpp:
                 wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP,
@@ -17908,6 +17911,12 @@ impl WorldSession {
             ClientOpcodes::SpiritHealerActivate => {
                 self.handle_spirit_healer_activate(pkt).await;
             }
+            ClientOpcodes::AreaSpiritHealerQuery => {
+                self.handle_area_spirit_healer_query(pkt).await;
+            }
+            ClientOpcodes::AreaSpiritHealerQueue => {
+                self.handle_area_spirit_healer_queue(pkt).await;
+            }
             ClientOpcodes::RepairItem => {
                 match wow_packet::packets::misc::RepairItem::read(&mut pkt) {
                     Ok(repair) => self.handle_repair_item(repair).await,
@@ -20241,6 +20250,14 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn set_player_battleground_type_id_like_cpp(&mut self, bg_type_id: u32) {
         self.player_battleground_type_id_like_cpp = (bg_type_id != 0).then_some(bg_type_id);
+    }
+
+    pub(crate) fn set_area_spirit_healer_guid_like_cpp(&mut self, healer_guid: ObjectGuid) {
+        self.area_spirit_healer_guid_like_cpp = healer_guid;
+    }
+
+    pub(crate) fn area_spirit_healer_guid_like_cpp(&self) -> ObjectGuid {
+        self.area_spirit_healer_guid_like_cpp
     }
 
     #[cfg(test)]

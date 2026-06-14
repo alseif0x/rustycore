@@ -67,6 +67,7 @@ const CREATURE_SPAWN_WAYPOINT_PATH_ID_COLUMN: usize = 36;
 const WAYPOINT_MOTION_TYPE_LIKE_CPP: u8 = 2;
 const TACT_KEY_TABLE_HASH_LIKE_CPP: u32 = 0xD3F6_1A9E;
 const QUEST_GIVER_STATUS_TRACKED_QUERY_MAX_GUIDS_LIKE_CPP: u32 = 1000;
+const MAX_AREA_SPIRIT_HEALER_RANGE_LIKE_CPP: f32 = 20.0;
 
 fn creature_movement_generator_type_from_db_like_cpp(
     db_movement_type: u8,
@@ -429,6 +430,24 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_tabard_vendor_activate",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::AreaSpiritHealerQuery,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_area_spirit_healer_query",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::AreaSpiritHealerQueue,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_area_spirit_healer_queue",
     }
 }
 
@@ -5909,6 +5928,100 @@ impl WorldSession {
         self.send_packet(&NpcInteractionOpenResult::new(guid, 14)); // GuildTabardVendor
     }
 
+    /// Shared C++ area-spirit-healer checks: creature exists, has the area
+    /// spirit-healer flag, and is within MAX_AREA_SPIRIT_HEALER_RANGE.
+    fn represented_area_spirit_healer_access_like_cpp(
+        &self,
+        healer_guid: ObjectGuid,
+    ) -> Option<crate::session::RepresentedCreatureAccessLikeCpp> {
+        let access = self.canonical_creature_access_like_cpp(healer_guid)?;
+        if (access.npc_flags & NPCFlags1::AREA_SPIRIT_HEALER.bits()) == 0 {
+            return None;
+        }
+
+        let player_position = self.player_position_like_cpp()?;
+        access
+            .position
+            .is_within_dist(&player_position, MAX_AREA_SPIRIT_HEALER_RANGE_LIKE_CPP)
+            .then_some(access)
+    }
+
+    /// CMSG_AREA_SPIRIT_HEALER_QUERY — ask an area spirit healer for resurrection timer.
+    /// C++ ref: `WorldSession::HandleAreaSpiritHealerQueryOpcode`.
+    pub async fn handle_area_spirit_healer_query(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let query = match AreaSpiritHealerQuery::read(&mut pkt) {
+            Ok(query) => query,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "AreaSpiritHealerQuery parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        let Some(access) = self.represented_area_spirit_healer_access_like_cpp(query.healer_guid)
+        else {
+            debug!(
+                account = self.account_id,
+                healer = ?query.healer_guid,
+                "AreaSpiritHealerQuery ignored without represented area spirit healer"
+            );
+            return;
+        };
+
+        // C++ sends the current shared channel timer or the individual aura
+        // duration after casting SPELL_SPIRIT_HEAL_PLAYER_AURA. Spell/aura/channel
+        // runtime is still outside this represented handler, so the packet shape
+        // and validation are ported and the timer remains zero for now.
+        if (access.npc_flags2
+            & wow_constants::unit::NPCFlags2::AREA_SPIRIT_HEALER_INDIVIDUAL.bits())
+            != 0
+        {
+            debug!(
+                account = self.account_id,
+                healer = ?query.healer_guid,
+                "AreaSpiritHealerQuery individual aura/channel timer is not represented yet"
+            );
+        }
+
+        self.send_packet(&AreaSpiritHealerTime {
+            healer_guid: query.healer_guid,
+            time_left_ms: 0,
+        });
+    }
+
+    /// CMSG_AREA_SPIRIT_HEALER_QUEUE — select an area spirit healer for resurrection.
+    /// C++ ref: `WorldSession::HandleAreaSpiritHealerQueueOpcode`.
+    pub async fn handle_area_spirit_healer_queue(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let queue = match AreaSpiritHealerQueue::read(&mut pkt) {
+            Ok(queue) => queue,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "AreaSpiritHealerQueue parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        if self
+            .represented_area_spirit_healer_access_like_cpp(queue.healer_guid)
+            .is_none()
+        {
+            debug!(
+                account = self.account_id,
+                healer = ?queue.healer_guid,
+                "AreaSpiritHealerQueue ignored without represented area spirit healer"
+            );
+            return;
+        }
+
+        // C++ also casts SPELL_WAITING_FOR_RESURRECT; deferred until the
+        // player spell/aura runtime owns battleground spirit resurrection.
+        self.set_area_spirit_healer_guid_like_cpp(queue.healer_guid);
+    }
+
     /// CMSG_SPIRIT_HEALER_ACTIVATE — ghost uses spirit healer.
     /// C++ ref: `WorldSession::HandleSpiritHealerActivate`.
     pub async fn handle_spirit_healer_activate(&mut self, mut pkt: wow_packet::WorldPacket) {
@@ -10005,6 +10118,31 @@ mod tests {
         (session, send_rx)
     }
 
+    fn make_area_spirit_healer_session(
+        capacity: usize,
+    ) -> (
+        WorldSession,
+        flume::Receiver<Vec<u8>>,
+        Arc<std::sync::Mutex<wow_map::MapManager>>,
+    ) {
+        let (mut session, send_rx) = make_session_with_send_capacity(capacity);
+        let canonical = Arc::new(std::sync::Mutex::new(wow_map::MapManager::new(60_000, 10)));
+        let player_guid = ObjectGuid::create_player(1, 42);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(crate::session::SessionPlayerController::new(
+            player_guid,
+            "Tester".to_string(),
+            Position::new(0.0, 0.0, 0.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_player_alive_like_cpp(false);
+        (session, send_rx, canonical)
+    }
+
     fn chr_class_entry(id: u32, cinematic_sequence_id: u16) -> ChrClassesEntry {
         ChrClassesEntry {
             id,
@@ -10104,6 +10242,71 @@ mod tests {
 
         session.handle_spirit_healer_activate(request).await;
 
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn area_spirit_healer_query_sends_time_for_valid_healer_like_cpp() {
+        let (mut session, send_rx, canonical) = make_area_spirit_healer_session(4);
+        let healer = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 91, 1);
+        insert_area_spirit_healer_creature(
+            &canonical,
+            healer,
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            NPCFlags1::AREA_SPIRIT_HEALER.bits(),
+            0,
+        );
+        let mut request = WorldPacket::new_empty();
+        request.write_packed_guid(&healer);
+
+        session.handle_area_spirit_healer_query(request).await;
+
+        let bytes = send_rx.try_recv().expect("area spirit healer time");
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            wow_constants::ServerOpcodes::AreaSpiritHealerTime as u16
+        );
+        let mut body = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(body.read_packed_guid().unwrap(), healer);
+        assert_eq!(body.read_int32().unwrap(), 0);
+    }
+
+    #[tokio::test]
+    async fn area_spirit_healer_query_rejects_out_of_range_healer_like_cpp() {
+        let (mut session, send_rx, canonical) = make_area_spirit_healer_session(1);
+        let healer = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 91, 2);
+        insert_area_spirit_healer_creature(
+            &canonical,
+            healer,
+            Position::new(20.1, 0.0, 0.0, 0.0),
+            NPCFlags1::AREA_SPIRIT_HEALER.bits(),
+            0,
+        );
+        let mut request = WorldPacket::new_empty();
+        request.write_packed_guid(&healer);
+
+        session.handle_area_spirit_healer_query(request).await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn area_spirit_healer_queue_records_valid_healer_like_cpp() {
+        let (mut session, send_rx, canonical) = make_area_spirit_healer_session(1);
+        let healer = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 91, 3);
+        insert_area_spirit_healer_creature(
+            &canonical,
+            healer,
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            NPCFlags1::AREA_SPIRIT_HEALER.bits(),
+            0,
+        );
+        let mut request = WorldPacket::new_empty();
+        request.write_packed_guid(&healer);
+
+        session.handle_area_spirit_healer_queue(request).await;
+
+        assert_eq!(session.area_spirit_healer_guid_like_cpp(), healer);
         assert!(send_rx.try_recv().is_err());
     }
 
@@ -10272,6 +10475,37 @@ mod tests {
             .map_mut()
             .insert_map_object_record(
                 wow_entities::MapObjectRecord::new_game_object(gameobject).unwrap(),
+            )
+            .unwrap();
+    }
+
+    fn insert_area_spirit_healer_creature(
+        manager: &Arc<std::sync::Mutex<wow_map::MapManager>>,
+        guid: ObjectGuid,
+        position: Position,
+        npc_flags: u32,
+        npc_flags2: u32,
+    ) {
+        let mut creature = wow_entities::Creature::new(false);
+        creature.unit_mut().world_mut().object_mut().create(guid);
+        creature.unit_mut().world_mut().object_mut().set_entry(91);
+        creature.unit_mut().world_mut().set_map(571, 0).unwrap();
+        creature.unit_mut().world_mut().relocate(position);
+        creature.unit_mut().world_mut().set_combat_reach(1.0);
+        creature.unit_mut().set_level(80);
+        creature.unit_mut().set_max_health(100);
+        creature.unit_mut().set_health(100);
+        creature.set_ai_identity_runtime(1, 35, npc_flags, 0);
+        creature.set_npc_flags2_runtime_like_cpp(npc_flags2);
+        creature.unit_mut().world_mut().object_mut().add_to_world();
+
+        manager
+            .lock()
+            .unwrap()
+            .create_world_map(571, 0)
+            .map_mut()
+            .insert_map_object_record(
+                wow_entities::MapObjectRecord::new_creature(creature).unwrap(),
             )
             .unwrap();
     }
