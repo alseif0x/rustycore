@@ -33,9 +33,14 @@ pub struct FishingBaseSkillStoreLikeCpp {
     levels_by_area: HashMap<u32, i32>,
 }
 
+pub const AREA_FLAG_ALLOW_HEARTH_AND_RESURRECT_FROM_AREA_LIKE_CPP: u32 = 0x0800_0000;
 pub const AREA_FLAG_IS_SUBZONE_LIKE_CPP: u32 = 0x4000_0000;
 
 impl AreaTableEntry {
+    pub fn allow_hearth_and_resurrect_from_area_like_cpp(&self) -> bool {
+        self.flags & AREA_FLAG_ALLOW_HEARTH_AND_RESURRECT_FROM_AREA_LIKE_CPP != 0
+    }
+
     pub fn is_subzone_like_cpp(&self) -> bool {
         self.flags & AREA_FLAG_IS_SUBZONE_LIKE_CPP != 0
     }

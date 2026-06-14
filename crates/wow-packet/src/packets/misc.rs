@@ -4338,6 +4338,18 @@ impl ServerPacket for AreaSpiritHealerTime {
     }
 }
 
+/// C++ `WorldPackets::Battleground::HearthAndResurrect`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct HearthAndResurrect;
+
+impl ClientPacket for HearthAndResurrect {
+    const OPCODE: ClientOpcodes = ClientOpcodes::HearthAndResurrect;
+
+    fn read(_pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self)
+    }
+}
+
 /// C++ `WorldPackets::NPC::RequestStabledPets`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RequestStabledPets {
@@ -7445,6 +7457,13 @@ mod tests {
         bytes.extend_from_slice(payload.data());
 
         assert_eq!(packet.to_bytes(), bytes);
+    }
+
+    #[test]
+    fn hearth_and_resurrect_reads_empty_cpp_packet() {
+        let mut pkt = WorldPacket::new_empty();
+
+        HearthAndResurrect::read(&mut pkt).unwrap();
     }
 
     #[test]

@@ -1,4 +1,14 @@
 - `#NEXT.R8.ENTITIES.868` - represented-complete implementation for bounded movement `Handle_NULL` ACK family.
+### #NEXT.R8.ENTITIES.870 — CMSG_HEARTH_AND_RESURRECT
+
+Status: represented-partial for the bounded hearth-and-resurrect handler.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/BattleGroundHandler.cpp:704-720`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/BattlegroundPackets.h:80-86`, `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DBCEnums.h:109-139`, and `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Structure.h:123-152`.
+
+Implemented Rust seam: `HearthAndResurrect` parses the C++ empty packet, registers as `LoggedIn`/`PROCESS_THREADUNSAFE`, rejects represented taxi flight, checks `AreaTable` `Flags[0]` for `AllowHearthAndRessurectFromArea`, resurrects represented player state, and uses the existing `teleport_to` path for represented homebind when present.
+
+Remaining gaps: `Battlefield::PlayerAskToLeave`, `BuildPlayerRepop` corpse/bones side effects, full `character_homebind` DB load/save, exact resurrection health/aura nuance, install/restart, and live-client manual validation remain open.
+
 ### #NEXT.R8.ENTITIES.869 — CMSG_AREA_SPIRIT_HEALER_QUERY / QUEUE
 
 Status: represented-partial for the bounded area spirit healer query/queue handlers.

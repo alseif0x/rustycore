@@ -75,7 +75,10 @@ pub mod world_safe_locs;
 pub mod world_spawn_id_store;
 pub mod world_state_expression;
 
-pub use area::{AreaTableEntry, AreaTableStore, FishingBaseSkillStoreLikeCpp};
+pub use area::{
+    AREA_FLAG_ALLOW_HEARTH_AND_RESURRECT_FROM_AREA_LIKE_CPP, AreaTableEntry, AreaTableStore,
+    FishingBaseSkillStoreLikeCpp,
+};
 pub use area_trigger::{
     AreaTriggerData, AreaTriggerStore, AreaTriggerTeleport, TriggerShape, load_area_triggers,
 };

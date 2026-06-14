@@ -453,6 +453,15 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
+        opcode: ClientOpcodes::HearthAndResurrect,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_hearth_and_resurrect",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
         opcode: ClientOpcodes::SpiritHealerActivate,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
@@ -6022,6 +6031,45 @@ impl WorldSession {
         self.set_area_spirit_healer_guid_like_cpp(queue.healer_guid);
     }
 
+    /// CMSG_HEARTH_AND_RESURRECT — battlefield hearth/resurrection escape.
+    /// C++ ref: `WorldSession::HandleHearthAndResurrect`.
+    pub async fn handle_hearth_and_resurrect(&mut self, mut pkt: wow_packet::WorldPacket) {
+        if let Err(error) = HearthAndResurrect::read(&mut pkt) {
+            warn!(
+                account = self.account_id,
+                "HearthAndResurrect parse failed: {error}"
+            );
+            return;
+        }
+
+        if self.is_in_taxi_flight_like_cpp() {
+            return;
+        }
+
+        let (_, area_id) = self.player_zone_area_like_cpp();
+        let Some(area_table_store) = self.area_table_store() else {
+            debug!(
+                account = self.account_id,
+                area_id, "HearthAndResurrect ignored without represented AreaTableStore"
+            );
+            return;
+        };
+        let Some(area_entry) = area_table_store.get(area_id) else {
+            return;
+        };
+        if !area_entry.allow_hearth_and_resurrect_from_area_like_cpp() {
+            return;
+        }
+
+        // C++ first lets Battlefield own the leave flow when one exists. Rust
+        // has no battlefield manager attached to WorldSession yet, so this
+        // represented branch covers the AreaTable/homebind path only.
+        self.set_player_alive_like_cpp(true);
+        if let Some(homebind) = self.represented_homebind_like_cpp() {
+            self.teleport_to(homebind.map_id, homebind.position).await;
+        }
+    }
+
     /// CMSG_SPIRIT_HEALER_ACTIVATE — ghost uses spirit healer.
     /// C++ ref: `WorldSession::HandleSpiritHealerActivate`.
     pub async fn handle_spirit_healer_activate(&mut self, mut pkt: wow_packet::WorldPacket) {
@@ -10075,6 +10123,7 @@ impl WorldSession {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::session::{RepresentedHomebindLikeCpp, RepresentedTaxiFlightNodeLikeCpp};
     use wow_data::character_progression::{
         ChrClassesEntry, ChrClassesStore, ChrRacesEntry, ChrRacesStore,
     };
@@ -10141,6 +10190,32 @@ mod tests {
         ));
         session.set_player_alive_like_cpp(false);
         (session, send_rx, canonical)
+    }
+
+    fn make_hearth_and_resurrect_session(
+        area_flags: u32,
+    ) -> (WorldSession, flume::Receiver<Vec<u8>>) {
+        let (mut session, send_rx) = make_session_with_send_capacity(4);
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_player_position_like_cpp(Position::new(1.0, 2.0, 3.0, 0.5));
+        session.set_player_zone_area_like_cpp(10, 77);
+        session.set_player_alive_like_cpp(false);
+        session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([
+            wow_data::AreaTableEntry {
+                id: 77,
+                continent_id: 571,
+                parent_area_id: 0,
+                mount_flags: 0,
+                flags: area_flags,
+            },
+        ])));
+        session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
+            map_id: 571,
+            area_id: 77,
+            position: Position::new(10.0, 20.0, 30.0, 1.5),
+        });
+        (session, send_rx)
     }
 
     fn chr_class_entry(id: u32, cinematic_sequence_id: u16) -> ChrClassesEntry {
@@ -10307,6 +10382,63 @@ mod tests {
         session.handle_area_spirit_healer_queue(request).await;
 
         assert_eq!(session.area_spirit_healer_guid_like_cpp(), healer);
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn hearth_and_resurrect_allowed_area_resurrects_and_teleports_home_like_cpp() {
+        let (mut session, send_rx) = make_hearth_and_resurrect_session(
+            wow_data::AREA_FLAG_ALLOW_HEARTH_AND_RESURRECT_FROM_AREA_LIKE_CPP,
+        );
+
+        session
+            .handle_hearth_and_resurrect(WorldPacket::new_empty())
+            .await;
+
+        assert!(session.player_is_alive_like_cpp());
+        let first = send_rx.try_recv().expect("transfer pending packet");
+        assert_eq!(
+            u16::from_le_bytes([first[0], first[1]]),
+            wow_constants::ServerOpcodes::TransferPending as u16
+        );
+        let second = send_rx.try_recv().expect("suspend token packet");
+        assert_eq!(
+            u16::from_le_bytes([second[0], second[1]]),
+            wow_constants::ServerOpcodes::SuspendToken as u16
+        );
+    }
+
+    #[tokio::test]
+    async fn hearth_and_resurrect_rejects_area_without_cpp_flag() {
+        let (mut session, send_rx) = make_hearth_and_resurrect_session(0);
+
+        session
+            .handle_hearth_and_resurrect(WorldPacket::new_empty())
+            .await;
+
+        assert!(!session.player_is_alive_like_cpp());
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn hearth_and_resurrect_rejects_player_in_flight_like_cpp() {
+        let (mut session, send_rx) = make_hearth_and_resurrect_session(
+            wow_data::AREA_FLAG_ALLOW_HEARTH_AND_RESURRECT_FROM_AREA_LIKE_CPP,
+        );
+        session.set_taxi_flight_state_like_cpp(
+            RepresentedTaxiFlightNodeLikeCpp {
+                map_id: 571,
+                position: Position::new(1.0, 2.0, 3.0, 0.0),
+                teleport_flag: false,
+            },
+            None,
+        );
+
+        session
+            .handle_hearth_and_resurrect(WorldPacket::new_empty())
+            .await;
+
+        assert!(!session.player_is_alive_like_cpp());
         assert!(send_rx.try_recv().is_err());
     }
 

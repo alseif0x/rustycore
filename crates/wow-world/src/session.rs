@@ -17917,6 +17917,9 @@ impl WorldSession {
             ClientOpcodes::AreaSpiritHealerQueue => {
                 self.handle_area_spirit_healer_queue(pkt).await;
             }
+            ClientOpcodes::HearthAndResurrect => {
+                self.handle_hearth_and_resurrect(pkt).await;
+            }
             ClientOpcodes::RepairItem => {
                 match wow_packet::packets::misc::RepairItem::read(&mut pkt) {
                     Ok(repair) => self.handle_repair_item(repair).await,
@@ -26232,6 +26235,10 @@ impl WorldSession {
         &self.taxi_destinations_like_cpp
     }
 
+    pub(crate) fn is_in_taxi_flight_like_cpp(&self) -> bool {
+        self.taxi_flight_state_like_cpp.is_some()
+    }
+
     #[cfg(test)]
     pub(crate) fn set_taxi_node_map_id_like_cpp(&mut self, node_id: u32, map_id: u16) {
         self.taxi_node_map_ids_like_cpp.insert(node_id, map_id);
@@ -31216,9 +31223,16 @@ impl WorldSession {
         });
     }
 
-    #[cfg(test)]
     pub(crate) fn represented_homebind_like_cpp(&self) -> Option<RepresentedHomebindLikeCpp> {
         self.represented_homebind_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_represented_homebind_like_cpp(
+        &mut self,
+        homebind: RepresentedHomebindLikeCpp,
+    ) {
+        self.represented_homebind_like_cpp = Some(homebind);
     }
 
     fn apply_effect_environmental_damage_like_cpp(
