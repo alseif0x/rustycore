@@ -4502,6 +4502,22 @@ impl ClientPacket for BattlefieldLeave {
     }
 }
 
+/// C++ `WorldPackets::Battleground::AcceptWargameInvite`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AcceptWargameInvite {
+    pub inviter_name: String,
+}
+
+impl ClientPacket for AcceptWargameInvite {
+    const OPCODE: ClientOpcodes = ClientOpcodes::AcceptWargameInvite;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            inviter_name: pkt.read_cstring()?,
+        })
+    }
+}
+
 /// C++ `WorldPackets::Misc::ResurrectResponse`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ResurrectResponse {
@@ -7917,6 +7933,18 @@ mod tests {
         let mut pkt = WorldPacket::new_empty();
 
         BattlefieldLeave::read(&mut pkt).unwrap();
+    }
+
+    #[test]
+    fn accept_wargame_invite_reads_cstring_inviter_name_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_string("Inviter");
+        pkt.write_uint8(0);
+        pkt.reset_read();
+
+        let parsed = AcceptWargameInvite::read(&mut pkt).unwrap();
+
+        assert_eq!(parsed.inviter_name, "Inviter");
     }
 
     #[test]

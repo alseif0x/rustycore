@@ -390,6 +390,15 @@ pub(crate) struct RepresentedPushQuestToPartyOutcomeLikeCpp {
     pub receiver_fanout_unrepresented: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RepresentedWargameInviteAcceptanceLikeCpp {
+    pub inviter_name: String,
+    pub inviter_guid: ObjectGuid,
+    pub player_group_guid: u64,
+    pub inviter_group_guid: u64,
+    pub group_size: usize,
+}
+
 /// Represented outcome for the bounded post-template `HandleQuestConfirmAccept` gates.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp {
@@ -2863,6 +2872,7 @@ pub struct WorldSession {
     represented_guild_id_invited_like_cpp: u64,
     represented_guild_accept_invites_like_cpp: Vec<u64>,
     represented_arena_team_id_invited_like_cpp: u32,
+    represented_wargame_invite_acceptances_like_cpp: Vec<RepresentedWargameInviteAcceptanceLikeCpp>,
     represented_active_trade_partner_like_cpp: Option<ObjectGuid>,
     represented_trade_cancel_statuses_like_cpp: Vec<u8>,
     represented_guild_repair_bank_state_like_cpp: Option<RepresentedGuildRepairBankStateLikeCpp>,
@@ -4069,6 +4079,7 @@ impl WorldSession {
             represented_guild_id_invited_like_cpp: 0,
             represented_guild_accept_invites_like_cpp: Vec::new(),
             represented_arena_team_id_invited_like_cpp: 0,
+            represented_wargame_invite_acceptances_like_cpp: Vec::new(),
             represented_active_trade_partner_like_cpp: None,
             represented_trade_cancel_statuses_like_cpp: Vec::new(),
             represented_guild_repair_bank_state_like_cpp: None,
@@ -11379,6 +11390,7 @@ impl WorldSession {
             | ClientOpcodes::PartyInviteResponse
             | ClientOpcodes::PartyUninvite
             | ClientOpcodes::LeaveGroup
+            | ClientOpcodes::AcceptWargameInvite
             | ClientOpcodes::BattlemasterJoinArena
             | ClientOpcodes::BattlefieldLeave
             | ClientOpcodes::GuildBankLogQuery
@@ -18601,6 +18613,9 @@ impl WorldSession {
             ClientOpcodes::BattlefieldLeave => {
                 self.handle_battlefield_leave(pkt).await;
             }
+            ClientOpcodes::AcceptWargameInvite => {
+                self.handle_accept_wargame_invite(pkt).await;
+            }
             ClientOpcodes::RequestRatedPvpInfo => {
                 self.handle_request_rated_pvp_info(pkt).await;
             }
@@ -20544,6 +20559,70 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn represented_battleground_leave_requests_like_cpp(&self) -> u32 {
         self.represented_battleground_leave_requests_like_cpp
+    }
+
+    pub(crate) fn accept_represented_wargame_invite_like_cpp(&mut self, inviter_name: &str) {
+        let (
+            Some(player_guid),
+            Some(player_group_guid),
+            Some(player_registry),
+            Some(group_registry),
+        ) = (
+            self.player_guid(),
+            self.group_guid,
+            self.player_registry.as_ref(),
+            self.group_registry.as_ref(),
+        )
+        else {
+            return;
+        };
+
+        let Some(inviter_entry) = player_registry
+            .iter()
+            .find(|entry| entry.value().player_name.eq_ignore_ascii_case(inviter_name))
+        else {
+            return;
+        };
+        let inviter_guid = *inviter_entry.key();
+
+        let Some(player_group) = group_registry.get(&player_group_guid) else {
+            return;
+        };
+        if !player_group.members.contains(&player_guid) {
+            return;
+        }
+        let player_group_size = player_group.members.len();
+        drop(player_group);
+
+        let Some(inviter_group_entry) = group_registry
+            .iter()
+            .find(|entry| entry.value().members.contains(&inviter_guid))
+        else {
+            return;
+        };
+        let inviter_group_guid = *inviter_group_entry.key();
+        let inviter_group_size = inviter_group_entry.value().members.len();
+
+        if player_group_size != inviter_group_size {
+            return;
+        }
+
+        self.represented_wargame_invite_acceptances_like_cpp.push(
+            RepresentedWargameInviteAcceptanceLikeCpp {
+                inviter_name: inviter_name.to_string(),
+                inviter_guid,
+                player_group_guid,
+                inviter_group_guid,
+                group_size: player_group_size,
+            },
+        );
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_wargame_invite_acceptances_like_cpp(
+        &self,
+    ) -> &[RepresentedWargameInviteAcceptanceLikeCpp] {
+        &self.represented_wargame_invite_acceptances_like_cpp
     }
 
     pub(crate) fn set_area_spirit_healer_guid_like_cpp(&mut self, healer_guid: ObjectGuid) {
@@ -59035,6 +59114,7 @@ mod tests {
             ClientOpcodes::PartyInviteResponse,
             ClientOpcodes::PartyUninvite,
             ClientOpcodes::LeaveGroup,
+            ClientOpcodes::AcceptWargameInvite,
             ClientOpcodes::BattlemasterJoinArena,
             ClientOpcodes::BattlefieldLeave,
             ClientOpcodes::GuildBankLogQuery,

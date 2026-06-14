@@ -45,19 +45,19 @@ use wow_packet::packets::item::{
 };
 use wow_packet::packets::loot::{LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHING_LIKE_CPP};
 use wow_packet::packets::misc::{
-    AcceptGuildInvite, AddToy, AddonList, ArenaTeamDecline, ArenaTeamRoster, BattlePetClearFanfare,
-    BattlePetDeletePet, BattlePetModifyName, BattlePetRequestJournal, BattlePetSetBattleSlot,
-    BattlePetSetFlags, BattlePetSummon, BattlePetUpdateNotify, BattlefieldLeave, BeginTrade,
-    BugReport, BusyTrade, CageBattlePet, CalendarSendCalendar, CalendarSendNumPending,
-    CloseInteraction, CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint, ComplaintResult,
-    DeclineGuildInvites, DfGetJoinStatus, DfGetSystemInfo, FarSight, GmTicketAcknowledgeSurvey,
-    GmTicketCaseStatus, GmTicketSystemStatus, GuildSetAchievementTracking, IgnoreTrade,
-    LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify,
-    MAX_ACCOUNT_DATA_SIZE_LIKE_CPP, MountSetFavorite, MountSpecial, NUM_ACCOUNT_DATA_TYPES,
-    ObjectUpdateFailed, ObjectUpdateRescued, QueryBattlePetName, QueryBattlePetNameResponse,
-    RatedPvpInfo, RequestAccountData, RequestBattlefieldStatus, RequestCemeteryListResponse,
-    ResurrectResponse, SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags,
-    SetTaxiBenchmarkMode, SpecialMountAnim, StandStateChange, SubmitUserFeedback,
+    AcceptGuildInvite, AcceptWargameInvite, AddToy, AddonList, ArenaTeamDecline, ArenaTeamRoster,
+    BattlePetClearFanfare, BattlePetDeletePet, BattlePetModifyName, BattlePetRequestJournal,
+    BattlePetSetBattleSlot, BattlePetSetFlags, BattlePetSummon, BattlePetUpdateNotify,
+    BattlefieldLeave, BeginTrade, BugReport, BusyTrade, CageBattlePet, CalendarSendCalendar,
+    CalendarSendNumPending, CloseInteraction, CommerceTokenGetLog, CommerceTokenGetLogResponse,
+    Complaint, ComplaintResult, DeclineGuildInvites, DfGetJoinStatus, DfGetSystemInfo, FarSight,
+    GmTicketAcknowledgeSurvey, GmTicketCaseStatus, GmTicketSystemStatus,
+    GuildSetAchievementTracking, IgnoreTrade, LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus,
+    LoadingScreenNotify, MAX_ACCOUNT_DATA_SIZE_LIKE_CPP, MountSetFavorite, MountSpecial,
+    NUM_ACCOUNT_DATA_TYPES, ObjectUpdateFailed, ObjectUpdateRescued, QueryBattlePetName,
+    QueryBattlePetNameResponse, RatedPvpInfo, RequestAccountData, RequestBattlefieldStatus,
+    RequestCemeteryListResponse, ResurrectResponse, SaveCufProfiles, SetAdvancedCombatLogging,
+    SetCurrencyFlags, SetTaxiBenchmarkMode, SpecialMountAnim, StandStateChange, SubmitUserFeedback,
     SupportTicketSubmitBug, SupportTicketSubmitComplaint, SupportTicketSubmitSuggestion,
     TRADE_STATUS_CANCELLED_LIKE_CPP, TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP, TaxiNodeStatusPkt,
     TogglePvp, ToyClearFanfare, UpdateAccountData, UseToy, UserClientUpdateAccountData,
@@ -779,6 +779,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_battlefield_leave",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::AcceptWargameInvite,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_accept_wargame_invite",
     }
 }
 
@@ -2723,6 +2732,21 @@ impl crate::session::WorldSession {
         self.request_represented_battleground_leave_like_cpp();
     }
 
+    pub async fn handle_accept_wargame_invite(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let packet = match AcceptWargameInvite::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "AcceptWargameInvite parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        self.accept_represented_wargame_invite_like_cpp(&packet.inviter_name);
+    }
+
     pub async fn handle_request_rated_pvp_info(&mut self, _pkt: wow_packet::WorldPacket) {
         self.send_packet(&RatedPvpInfo::default());
     }
@@ -4212,7 +4236,10 @@ mod tests {
         ItemStatsStore, ItemStore, MapDifficultyEntry, MapDifficultyStore, MapEntry, MapStore,
     };
     use wow_database::SqlParam;
-    use wow_network::{PlayerBroadcastInfo, PlayerRegistry, SessionCommand};
+    use wow_network::{
+        GroupInfo, GroupRegistry, PendingInvites, PlayerBroadcastInfo, PlayerRegistry,
+        SessionCommand,
+    };
     use wow_packet::ServerPacket;
     use wow_packet::WorldPacket;
     use wow_packet::packets::misc::TRADE_STATUS_INITIATED_LIKE_CPP;
@@ -8653,6 +8680,88 @@ mod tests {
         assert_eq!(
             session.represented_battleground_leave_requests_like_cpp(),
             1
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    fn accept_wargame_invite_packet(inviter_name: &str) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_string(inviter_name);
+        pkt.write_uint8(0);
+        pkt.reset_read();
+        pkt
+    }
+
+    #[tokio::test]
+    async fn accept_wargame_invite_missing_inviter_is_silent_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 100);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let group = GroupInfo::new(player_guid);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+        session.set_player_guid(Some(player_guid));
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(player_registry);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+
+        session
+            .handle_accept_wargame_invite(accept_wargame_invite_packet("Missing"))
+            .await;
+
+        assert!(
+            session
+                .represented_wargame_invite_acceptances_like_cpp()
+                .is_empty()
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn accept_wargame_invite_records_ready_to_queue_when_groups_match_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 100);
+        let player_ally_guid = ObjectGuid::create_player(1, 101);
+        let inviter_guid = ObjectGuid::create_player(1, 200);
+        let inviter_ally_guid = ObjectGuid::create_player(1, 201);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let player_registry = Arc::new(PlayerRegistry::default());
+
+        let mut player_group = GroupInfo::new(player_guid);
+        player_group.members.push(player_ally_guid);
+        let player_group_guid = player_group.group_guid;
+        group_registry.insert(player_group_guid, player_group);
+
+        let mut inviter_group = GroupInfo::new(inviter_guid);
+        inviter_group.members.push(inviter_ally_guid);
+        let inviter_group_guid = inviter_group.group_guid;
+        group_registry.insert(inviter_group_guid, inviter_group);
+
+        let (command_tx, _command_rx) = flume::bounded::<SessionCommand>(4);
+        let mut inviter_info = broadcast_info_with_command_tx(command_tx);
+        inviter_info.player_name = "Inviter".to_string();
+        player_registry.insert(inviter_guid, inviter_info);
+
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_name_like_cpp("Player".to_string());
+        session.group_guid = Some(player_group_guid);
+        session.set_player_registry(player_registry);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+
+        session
+            .handle_accept_wargame_invite(accept_wargame_invite_packet("inviter"))
+            .await;
+
+        assert_eq!(
+            session.represented_wargame_invite_acceptances_like_cpp(),
+            &[crate::session::RepresentedWargameInviteAcceptanceLikeCpp {
+                inviter_name: "inviter".to_string(),
+                inviter_guid,
+                player_group_guid,
+                inviter_group_guid,
+                group_size: 2,
+            }]
         );
         assert!(send_rx.try_recv().is_err());
     }

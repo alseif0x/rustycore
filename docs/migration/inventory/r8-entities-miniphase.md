@@ -1,4 +1,14 @@
 - `#NEXT.R8.ENTITIES.868` - represented-complete implementation for bounded movement `Handle_NULL` ACK family.
+### #NEXT.R8.ENTITIES.890 — CMSG_ACCEPT_WARGAME_INVITE
+
+Status: represented-complete for the bounded accept-wargame validation/TODO-success hook.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/BattleGroundHandler.cpp:852-897`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/BattlegroundPackets.h:601-607`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/BattlegroundPackets.cpp:450-453`, and `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:144`.
+
+Implemented Rust seam: `AcceptWargameInvite` parses the C++ cstring `InviterName`, registers as `LoggedIn`/`PROCESS_THREADUNSAFE`, dispatches through `WorldSession`, preserves the C++ silent no-op returns for missing represented player/session state, missing inviter, missing player group, missing inviter group, and mismatched group sizes, and records a represented ready-to-queue acceptance only when both represented groups exist and have equal member counts.
+
+Remaining gaps: real wargame queue/instance creation, battleground matchmaking, invite lifetime, cross-realm lookup, install/restart, bot, and live-client manual validation remain separate work. The C++ legacy handler itself ends at a TODO log and does not enqueue the wargame.
+
 ### #NEXT.R8.ENTITIES.889 — CMSG_BEGIN_TRADE
 
 Status: represented-complete for the bounded begin-trade initiated-status handshake.
