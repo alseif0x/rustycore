@@ -1,3 +1,13 @@
+- `#NEXT.R8.ENTITIES.859` - represented-complete for bounded `CMSG_BATTLENET_CHALLENGE_RESPONSE`.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:803-806`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:221`.
+
+  Rust anchors: `crates/wow-world/src/handlers/misc.rs`; `crates/wow-world/src/session.rs`; `docs/migration/inventory/cpp-client-handlers.tsv`; `docs/migration/inventory/r3-opcodes-registry.tsv`; `docs/migration/inventory/r3-opcodes-registry.md`.
+
+  Acceptance: `CMSG_BATTLENET_CHALLENGE_RESPONSE` now registers with the existing bounded `Authed`/`ThreadUnsafe` null-hook pattern, routes through `WorldSession`, and consumes the C++ `WorldPackets::Null`/`Handle_NULL` request without response or represented state mutation.
+
+  Boundary: represented-complete for this bounded unhandled/null hook only. C++ logs `Handle_NULL` while Rust preserves no-response/no-state behavior without a dedicated opcode log; no Battle.net challenge behavior, install/restart, or live client/manual validation.
+
 - `#NEXT.R8.ENTITIES.858` - represented-complete for bounded `CMSG_CHANGE_REALM_TICKET` / `SMSG_CHANGE_REALM_TICKET_RESPONSE`.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/BattlenetHandler.cpp:23-31`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/BattlenetPackets.h:74-106`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/BattlenetPackets.cpp:64-90`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:291,1227`.

@@ -342,6 +342,15 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
+        opcode: ClientOpcodes::BattlenetChallengeResponse,
+        status: SessionStatus::Authed,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_unhandled_client_null_like_cpp",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
         opcode: ClientOpcodes::SetInsertItemsLeftToRight,
         status: SessionStatus::Authed,
         processing: PacketProcessing::Inplace,

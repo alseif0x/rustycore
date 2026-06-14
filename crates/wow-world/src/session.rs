@@ -18364,6 +18364,9 @@ impl WorldSession {
             ClientOpcodes::AddBattlenetFriend => {
                 self.handle_add_battlenet_friend(pkt).await;
             }
+            ClientOpcodes::BattlenetChallengeResponse => {
+                self.handle_unhandled_client_null_like_cpp(pkt).await;
+            }
             ClientOpcodes::SetInsertItemsLeftToRight => {
                 self.handle_set_insert_items_left_to_right(pkt).await;
             }
@@ -68590,6 +68593,7 @@ mod tests {
         let compatibility_exceptions = [
             "BattlePayGetPurchaseList",
             "AddBattlenetFriend",
+            "BattlenetChallengeResponse",
             "ChangeBagSlotFlag",
             "CloseQuestChoice",
             "ConnectToFailed",
