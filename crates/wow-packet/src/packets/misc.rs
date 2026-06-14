@@ -5253,6 +5253,18 @@ impl ClientPacket for BusyTrade {
     }
 }
 
+/// C++ `WorldPackets::Trade::BeginTrade`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct BeginTrade;
+
+impl ClientPacket for BeginTrade {
+    const OPCODE: ClientOpcodes = ClientOpcodes::BeginTrade;
+
+    fn read(_pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self)
+    }
+}
+
 /// C++ `WorldPackets::Trade::IgnoreTrade`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct IgnoreTrade;
@@ -5268,22 +5280,25 @@ impl ClientPacket for IgnoreTrade {
 /// C++ `TRADE_STATUS_PLAYER_BUSY`.
 pub const TRADE_STATUS_PLAYER_BUSY_LIKE_CPP: u8 = 0;
 
+/// C++ `TRADE_STATUS_INITIATED`.
+pub const TRADE_STATUS_INITIATED_LIKE_CPP: u8 = 2;
+
 /// C++ `TRADE_STATUS_CANCELLED`.
 pub const TRADE_STATUS_CANCELLED_LIKE_CPP: u8 = 3;
 
 /// C++ `TRADE_STATUS_PLAYER_IGNORED`.
 pub const TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP: u8 = 14;
 
-/// Bounded C++ `WorldPackets::Trade::TradeStatus` writer for trade-cancel statuses.
+/// Bounded C++ `WorldPackets::Trade::TradeStatus` writer.
 ///
-/// C++ writes `PartnerIsSameBnetAccount`, then five status bits. For cancel-like
-/// statuses such as `TRADE_STATUS_PLAYER_BUSY`, `TRADE_STATUS_CANCELLED`, or
-/// `TRADE_STATUS_PLAYER_IGNORED`, the default branch only flushes bits and writes
-/// no extra payload fields.
+/// C++ writes `PartnerIsSameBnetAccount`, then five status bits. The bounded
+/// Rust writer currently represents the `TRADE_STATUS_INITIATED` payload and
+/// cancel-like statuses that only flush bits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TradeStatus {
     pub status: u8,
     pub partner_is_same_bnet_account: bool,
+    pub id: u32,
 }
 
 impl TradeStatus {
@@ -5291,6 +5306,15 @@ impl TradeStatus {
         Self {
             status,
             partner_is_same_bnet_account: false,
+            id: 0,
+        }
+    }
+
+    pub fn initiated_like_cpp(id: u32) -> Self {
+        Self {
+            status: TRADE_STATUS_INITIATED_LIKE_CPP,
+            partner_is_same_bnet_account: false,
+            id,
         }
     }
 }
@@ -5301,7 +5325,11 @@ impl ServerPacket for TradeStatus {
     fn write(&self, pkt: &mut WorldPacket) {
         pkt.write_bit(self.partner_is_same_bnet_account);
         pkt.write_bits(u32::from(self.status), 5);
-        pkt.flush_bits();
+        if self.status == TRADE_STATUS_INITIATED_LIKE_CPP {
+            pkt.write_uint32(self.id);
+        } else {
+            pkt.flush_bits();
+        }
     }
 }
 
@@ -6106,6 +6134,13 @@ mod tests {
     }
 
     #[test]
+    fn begin_trade_reads_empty_cpp_packet() {
+        let mut pkt = WorldPacket::new_empty();
+
+        BeginTrade::read(&mut pkt).unwrap();
+    }
+
+    #[test]
     fn ignore_trade_reads_empty_cpp_packet() {
         let mut pkt = WorldPacket::new_empty();
 
@@ -6122,6 +6157,22 @@ mod tests {
         );
         assert_eq!(bytes.len(), 3);
         assert_eq!(bytes[2], TRADE_STATUS_PLAYER_BUSY_LIKE_CPP << 1);
+    }
+
+    #[test]
+    fn trade_status_initiated_writes_id_payload_like_cpp() {
+        let bytes = TradeStatus::initiated_like_cpp(0x1122_3344).to_bytes();
+
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::TradeStatus as u16
+        );
+        assert_eq!(bytes.len(), 7);
+        assert_eq!(bytes[2], TRADE_STATUS_INITIATED_LIKE_CPP << 2);
+        assert_eq!(
+            u32::from_le_bytes([bytes[3], bytes[4], bytes[5], bytes[6]]),
+            0x1122_3344
+        );
     }
 
     #[test]

@@ -55,6 +55,9 @@ pub enum SessionCommand {
     /// Deliver a represented trade-cancel status to the partner session and
     /// clear its represented `m_trade` equivalent.
     CancelRepresentedTradeLikeCpp(CancelRepresentedTradeLikeCppCommand),
+    /// Deliver a represented trade status to the partner session without
+    /// changing the bounded active-trade ownership.
+    SendRepresentedTradeStatusLikeCpp(SendRepresentedTradeStatusLikeCppCommand),
 }
 
 /// Cross-session kick command mirroring C++ callers such as `World::BanAccount`
@@ -153,6 +156,15 @@ pub struct SendAddonIfRegisteredLikeCppCommand {
 #[derive(Clone, Debug)]
 pub struct CancelRepresentedTradeLikeCppCommand {
     pub status: u8,
+    pub packet_bytes: Vec<u8>,
+}
+
+/// Payload for [`SessionCommand::SendRepresentedTradeStatusLikeCpp`].
+///
+/// Used by bounded trade handshakes such as `CMSG_BEGIN_TRADE` where C++ sends
+/// `SMSG_TRADE_STATUS` to both sessions but keeps both `m_trade` objects alive.
+#[derive(Clone, Debug)]
+pub struct SendRepresentedTradeStatusLikeCppCommand {
     pub packet_bytes: Vec<u8>,
 }
 

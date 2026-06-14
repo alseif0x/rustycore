@@ -1,4 +1,14 @@
 - `#NEXT.R8.ENTITIES.868` - represented-complete implementation for bounded movement `Handle_NULL` ACK family.
+### #NEXT.R8.ENTITIES.889 — CMSG_BEGIN_TRADE
+
+Status: represented-complete for the bounded begin-trade initiated-status handshake.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/TradeHandler.cpp:553-565`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TradePackets.h:39-45,145-164`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TradePackets.cpp:55-72`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:245`, and `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:6465-6474`.
+
+Implemented Rust seam: `BeginTrade` parses the C++ empty packet, registers as `LoggedIn`/`PROCESS_THREADUNSAFE`, dispatches through `WorldSession`, preserves the C++ no-op when no active represented trade exists, writes bounded `SMSG_TRADE_STATUS` for `TRADE_STATUS_INITIATED` with `ID=0`, sends the status to the requester, queues the same represented trade status to the active-trade partner, and preserves represented active-trade state on both sessions.
+
+Remaining gaps: full `TradeData`, proposal/initiate ownership, accept/set item/gold/enchant, trade UI/object ownership, inventory/DB effects, install/restart, bot, and live-client manual validation remain separate work.
+
 ### #NEXT.R8.ENTITIES.888 — CMSG_IGNORE_TRADE
 
 Status: represented-complete for the bounded ignore-trade active-cancel handler.

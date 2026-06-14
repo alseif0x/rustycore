@@ -51,8 +51,8 @@ use wow_network::player_registry::{
     ApplyCreatureMeleeDamageLikeCppCommand, CancelRepresentedTradeLikeCppCommand,
     CreatureAttackStartLikeCppCommand, RefreshVisibleWorldCreaturesLikeCppCommand,
     SendAddonIfRegisteredLikeCppCommand, SendIfVisibleLikeCppCommand,
-    SendRepeatableTurnInRequestItemsLikeCppCommand, SetQuestSharingInfoAndSendDetailsCommand,
-    SyncChestGameobjectStateAndRefreshLikeCppCommand,
+    SendRepeatableTurnInRequestItemsLikeCppCommand, SendRepresentedTradeStatusLikeCppCommand,
+    SetQuestSharingInfoAndSendDetailsCommand, SyncChestGameobjectStateAndRefreshLikeCppCommand,
     SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
     SyncGooberGameobjectStateAndRefreshLikeCppCommand, WorldSessionShutdownFlushResultLikeCpp,
 };
@@ -2910,6 +2910,9 @@ impl WorldSession {
                 SessionCommand::CancelRepresentedTradeLikeCpp(command) => {
                     self.handle_cancel_represented_trade_command_like_cpp(command);
                 }
+                SessionCommand::SendRepresentedTradeStatusLikeCpp(command) => {
+                    self.handle_send_represented_trade_status_command_like_cpp(command);
+                }
             }
         }
     }
@@ -3303,6 +3306,17 @@ impl WorldSession {
 
         self.record_represented_trade_cancel_like_cpp(command.status);
         self.clear_represented_active_trade_partner_like_cpp();
+        self.send_raw_packet(&command.packet_bytes);
+    }
+
+    fn handle_send_represented_trade_status_command_like_cpp(
+        &mut self,
+        command: SendRepresentedTradeStatusLikeCppCommand,
+    ) {
+        if self.represented_active_trade_partner_like_cpp().is_none() {
+            return;
+        }
+
         self.send_raw_packet(&command.packet_bytes);
     }
 

@@ -11387,7 +11387,6 @@ impl WorldSession {
             | ClientOpcodes::QuestConfirmAccept
             | ClientOpcodes::GuildEventLogQuery
             | ClientOpcodes::QuestGiverStatusMultipleQuery
-            | ClientOpcodes::BeginTrade
             | ClientOpcodes::InitiateTrade
             | ClientOpcodes::ChatAddonMessage
             | ClientOpcodes::ChatAddonMessageWhisper
@@ -18753,6 +18752,9 @@ impl WorldSession {
             ClientOpcodes::BusyTrade => {
                 self.handle_busy_trade(pkt).await;
             }
+            ClientOpcodes::BeginTrade => {
+                self.handle_begin_trade(pkt).await;
+            }
             ClientOpcodes::IgnoreTrade => {
                 self.handle_ignore_trade(pkt).await;
             }
@@ -21145,6 +21147,29 @@ impl WorldSession {
                 .try_send(SessionCommand::CancelRepresentedTradeLikeCpp(
                     wow_network::player_registry::CancelRepresentedTradeLikeCppCommand {
                         status,
+                        packet_bytes,
+                    },
+                ));
+        }
+    }
+
+    pub(crate) fn begin_represented_trade_like_cpp(&mut self) {
+        use wow_packet::ServerPacket;
+
+        let Some(partner_guid) = self.represented_active_trade_partner_like_cpp else {
+            return;
+        };
+
+        let packet_bytes = TradeStatus::initiated_like_cpp(0).to_bytes();
+        self.send_raw_packet(&packet_bytes);
+
+        if let Some(registry) = self.player_registry()
+            && let Some(partner) = registry.get(&partner_guid)
+        {
+            let _ = partner
+                .command_tx
+                .try_send(SessionCommand::SendRepresentedTradeStatusLikeCpp(
+                    wow_network::player_registry::SendRepresentedTradeStatusLikeCppCommand {
                         packet_bytes,
                     },
                 ));
@@ -59018,7 +59043,6 @@ mod tests {
             ClientOpcodes::QuestConfirmAccept,
             ClientOpcodes::GuildEventLogQuery,
             ClientOpcodes::QuestGiverStatusMultipleQuery,
-            ClientOpcodes::BeginTrade,
             ClientOpcodes::InitiateTrade,
             ClientOpcodes::ChatAddonMessage,
             ClientOpcodes::ChatAddonMessageWhisper,

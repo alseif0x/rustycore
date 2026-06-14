@@ -47,9 +47,9 @@ use wow_packet::packets::loot::{LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHI
 use wow_packet::packets::misc::{
     AcceptGuildInvite, AddToy, AddonList, ArenaTeamDecline, ArenaTeamRoster, BattlePetClearFanfare,
     BattlePetDeletePet, BattlePetModifyName, BattlePetRequestJournal, BattlePetSetBattleSlot,
-    BattlePetSetFlags, BattlePetSummon, BattlePetUpdateNotify, BattlefieldLeave, BugReport,
-    BusyTrade, CageBattlePet, CalendarSendCalendar, CalendarSendNumPending, CloseInteraction,
-    CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint, ComplaintResult,
+    BattlePetSetFlags, BattlePetSummon, BattlePetUpdateNotify, BattlefieldLeave, BeginTrade,
+    BugReport, BusyTrade, CageBattlePet, CalendarSendCalendar, CalendarSendNumPending,
+    CloseInteraction, CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint, ComplaintResult,
     DeclineGuildInvites, DfGetJoinStatus, DfGetSystemInfo, FarSight, GmTicketAcknowledgeSurvey,
     GmTicketCaseStatus, GmTicketSystemStatus, GuildSetAchievementTracking, IgnoreTrade,
     LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify,
@@ -1121,6 +1121,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_busy_trade",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::BeginTrade,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_begin_trade",
     }
 }
 
@@ -3536,6 +3545,18 @@ impl crate::session::WorldSession {
         self.cancel_represented_trade_like_cpp(TRADE_STATUS_PLAYER_BUSY_LIKE_CPP, true);
     }
 
+    pub async fn handle_begin_trade(&mut self, mut pkt: wow_packet::WorldPacket) {
+        if let Err(error) = BeginTrade::read(&mut pkt) {
+            warn!(
+                account = self.account_id,
+                "BeginTrade parse failed: {error}"
+            );
+            return;
+        }
+
+        self.begin_represented_trade_like_cpp();
+    }
+
     pub async fn handle_ignore_trade(&mut self, mut pkt: wow_packet::WorldPacket) {
         if let Err(error) = IgnoreTrade::read(&mut pkt) {
             warn!(
@@ -4194,6 +4215,7 @@ mod tests {
     use wow_network::{PlayerBroadcastInfo, PlayerRegistry, SessionCommand};
     use wow_packet::ServerPacket;
     use wow_packet::WorldPacket;
+    use wow_packet::packets::misc::TRADE_STATUS_INITIATED_LIKE_CPP;
     use wow_packet::packets::misc::{
         SUPPORT_SPAM_TYPE_CHAT_LIKE_CPP, empty_battle_pet_guid_like_cpp,
     };
@@ -5176,6 +5198,99 @@ mod tests {
             ServerOpcodes::TradeStatus as u16
         );
         assert_eq!(source_bytes[2], TRADE_STATUS_PLAYER_BUSY_LIKE_CPP << 1);
+    }
+
+    #[tokio::test]
+    async fn begin_trade_without_active_trade_is_noop_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        session.handle_begin_trade(WorldPacket::new_empty()).await;
+
+        assert!(
+            session
+                .represented_active_trade_partner_like_cpp()
+                .is_none()
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn begin_trade_sends_initiated_status_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let partner_guid = ObjectGuid::create_player(1, 88);
+        session.set_represented_active_trade_partner_like_cpp(Some(partner_guid));
+
+        session.handle_begin_trade(WorldPacket::new_empty()).await;
+
+        assert_eq!(
+            session.represented_active_trade_partner_like_cpp(),
+            Some(partner_guid)
+        );
+        let bytes = send_rx.try_recv().expect("trade status");
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::TradeStatus as u16
+        );
+        assert_eq!(bytes[2], TRADE_STATUS_INITIATED_LIKE_CPP << 2);
+        assert_eq!(
+            u32::from_le_bytes([bytes[3], bytes[4], bytes[5], bytes[6]]),
+            0
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn begin_trade_sends_initiated_status_to_partner_like_cpp() {
+        let (mut source_session, source_send_rx) = make_session();
+        let (mut partner_session, partner_send_rx) = make_session();
+        let source_guid = ObjectGuid::create_player(1, 77);
+        let partner_guid = ObjectGuid::create_player(1, 88);
+        source_session.set_player_guid(Some(source_guid));
+        partner_session.set_player_guid(Some(partner_guid));
+        source_session.set_represented_active_trade_partner_like_cpp(Some(partner_guid));
+        partner_session.set_represented_active_trade_partner_like_cpp(Some(source_guid));
+
+        let registry = Arc::new(PlayerRegistry::default());
+        let partner_command_tx = partner_session.session_command_tx();
+        registry.insert(
+            partner_guid,
+            broadcast_info_with_command_tx(partner_command_tx),
+        );
+        source_session.set_player_registry(registry);
+
+        source_session
+            .handle_begin_trade(WorldPacket::new_empty())
+            .await;
+        partner_session
+            .process_represented_session_commands_like_cpp()
+            .await;
+
+        assert_eq!(
+            source_session.represented_active_trade_partner_like_cpp(),
+            Some(partner_guid)
+        );
+        assert_eq!(
+            partner_session.represented_active_trade_partner_like_cpp(),
+            Some(source_guid)
+        );
+
+        let source_bytes = source_send_rx.try_recv().expect("source trade status");
+        let partner_bytes = partner_send_rx.try_recv().expect("partner trade status");
+        assert_eq!(source_bytes, partner_bytes);
+        assert_eq!(
+            u16::from_le_bytes([source_bytes[0], source_bytes[1]]),
+            ServerOpcodes::TradeStatus as u16
+        );
+        assert_eq!(source_bytes[2], TRADE_STATUS_INITIATED_LIKE_CPP << 2);
+        assert_eq!(
+            u32::from_le_bytes([
+                source_bytes[3],
+                source_bytes[4],
+                source_bytes[5],
+                source_bytes[6]
+            ]),
+            0
+        );
     }
 
     #[tokio::test]
