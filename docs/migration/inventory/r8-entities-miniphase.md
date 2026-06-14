@@ -1,4 +1,14 @@
 - `#NEXT.R8.ENTITIES.868` - represented-complete implementation for bounded movement `Handle_NULL` ACK family.
+### #NEXT.R8.ENTITIES.878 — CMSG_CHAT_MESSAGE_CHANNEL
+
+Status: represented-partial for the bounded channel-chat seam.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/ChatHandler.cpp:136-139`, `/home/server/woltk-trinity-legacy/src/server/game/Handlers/ChatHandler.cpp:418-433`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/ChatPackets.cpp:53-64`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/ChatPackets.h:68-81`, and `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:322`.
+
+Implemented Rust seam: `CMSG_CHAT_MESSAGE_CHANNEL` now parses the C++ `Language`, `ChannelGUID`, target/text lengths, optional `IsSecure` bit, target, and text layout; registers `LoggedIn`/`ThreadUnsafe`; dispatches through `WorldSession`; and applies represented generic chat validation before parking at the missing `ChannelMgr` boundary.
+
+Remaining gaps: live `ChannelMgr::GetChannelForPlayerByGuid` / `GetChannelForPlayerByNamePart`, channel membership, channel-level requirement/config/RBAC parity, read-only channel validation, `Channel::Say`, script hook parity, fanout, install/restart, and live-client manual validation remain open. Until channel runtime exists, channel chat is intentionally contained and does not leak to nearby players.
+
 ### #NEXT.R8.ENTITIES.877 — Chat AFK/DND inventory and officer dispatch
 
 Status: represented-partial for the bounded chat-message seam.

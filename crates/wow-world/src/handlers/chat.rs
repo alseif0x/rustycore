@@ -27,9 +27,9 @@ use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
 use wow_network::{GroupInfo, SendAddonIfRegisteredLikeCppCommand, SessionCommand};
 use wow_packet::packets::chat::{
     CTextEmote, ChatAddonMessage, ChatAddonMessageTargeted, ChatAddonMessageWhisper, ChatMessage,
-    ChatMessageAfk, ChatMessageDnd, ChatMessageEmote, ChatMessageWhisper, ChatMsg, ChatPkt,
-    ChatPlayerNotfound, ChatRegisterAddonPrefixes, ChatReportFiltered, ChatReportIgnored,
-    EmoteClient, EmoteMessage, PrintNotification, STextEmote,
+    ChatMessageAfk, ChatMessageChannel, ChatMessageDnd, ChatMessageEmote, ChatMessageWhisper,
+    ChatMsg, ChatPkt, ChatPlayerNotfound, ChatRegisterAddonPrefixes, ChatReportFiltered,
+    ChatReportIgnored, EmoteClient, EmoteMessage, PrintNotification, STextEmote,
 };
 use wow_packet::{ClientPacket, ServerPacket};
 
@@ -132,6 +132,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_whisper",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::ChatMessageChannel,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_chat_channel_message",
     }
 }
 
@@ -506,6 +515,76 @@ impl WorldSession {
         } else {
             self.send_packet(&ChatPlayerNotfound { name: target_name });
         }
+    }
+
+    /// Handle CMSG_CHAT_MESSAGE_CHANNEL.
+    ///
+    /// C++ routes this through `HandleChatMessage(CHAT_MSG_CHANNEL, ...)`.
+    /// The Rust parser and validation are represented, but the final
+    /// ChannelMgr lookup/fanout is intentionally parked until live channels
+    /// exist.
+    pub async fn handle_chat_channel_message(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let mut msg = match ChatMessageChannel::read(&mut pkt) {
+            Ok(m) => m,
+            Err(e) => {
+                tracing::warn!(account = self.account_id, "Bad channel chat packet: {e}");
+                return;
+            }
+        };
+
+        if msg.language == LANG_UNIVERSAL_LIKE_CPP {
+            tracing::warn!(
+                account = self.account_id,
+                "Channel chat rejected: client attempted LANG_UNIVERSAL"
+            );
+            return;
+        }
+        if !is_known_language_like_cpp(msg.language) {
+            tracing::warn!(
+                account = self.account_id,
+                language = msg.language,
+                "Channel chat rejected: unknown language"
+            );
+            return;
+        }
+        if self.send_wait_before_speaking_notification_if_muted_like_cpp() {
+            return;
+        }
+        self.update_speak_time_like_cpp(ChatFloodThrottleIndexLikeCpp::Regular);
+        if msg.text.len() > 511 || msg.text.is_empty() {
+            return;
+        }
+        if !validate_message_like_cpp(&mut msg.text, self.chat_fake_message_preventing_like_cpp()) {
+            tracing::warn!(
+                account = self.account_id,
+                "Channel chat rejected: invalid character/control sequence"
+            );
+            return;
+        }
+        if msg.text.is_empty() {
+            return;
+        }
+        if !self.validate_hyperlinks_and_maybe_kick_like_cpp(&msg.text, "channel_chat") {
+            return;
+        }
+        if self.has_gm_silence_aura_like_cpp() {
+            self.send_gm_silence_notification_like_cpp();
+            return;
+        }
+        if !self.meets_chat_level_req_like_cpp(ChatMsg::Channel) {
+            if let Some(required_level) = self.required_chat_level_like_cpp(ChatMsg::Channel) {
+                self.send_chat_say_level_notification_like_cpp(required_level);
+            }
+            return;
+        }
+
+        debug!(
+            account = self.account_id,
+            target = %msg.target,
+            channel_guid = ?msg.channel_guid,
+            secure = ?msg.is_secure,
+            "Channel chat ignored until ChannelMgr::Say is ported"
+        );
     }
 
     /// Handle CMSG_CHAT_MESSAGE_AFK.
@@ -1414,6 +1493,18 @@ mod tests {
         reader
     }
 
+    fn chat_channel_message_packet(target: &str, text: &str) -> wow_packet::WorldPacket {
+        let mut writer = wow_packet::WorldPacket::new_empty();
+        writer.write_int32(LANG_COMMON_LIKE_CPP);
+        writer.write_packed_guid(&ObjectGuid::EMPTY);
+        writer.write_bits(target.len() as u32, 9);
+        writer.write_bits(text.len() as u32, 11);
+        writer.write_bit(false);
+        writer.write_string(target);
+        writer.write_string(text);
+        wow_packet::WorldPacket::from_bytes(writer.data())
+    }
+
     fn chat_addon_packet(msg_type: ChatMsg, prefix: &str, text: &str) -> wow_packet::WorldPacket {
         let mut writer = wow_packet::WorldPacket::new_empty();
         writer.write_bits(prefix.len() as u32, 5);
@@ -1913,6 +2004,23 @@ mod tests {
                 chat_message_packet(ClientOpcodes::ChatMessageGuild, "guild"),
                 ChatMsg::Guild,
             )
+            .await;
+
+        assert!(sender_rx.try_recv().is_err());
+        assert!(nearby_rx.try_recv().is_err());
+        assert!(!session.is_disconnecting());
+    }
+
+    #[tokio::test]
+    async fn channel_chat_does_not_leak_without_channel_mgr_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 321);
+        let nearby = ObjectGuid::create_player(1, 322);
+        let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
+        let (nearby_tx, nearby_rx) = flume::bounded(8);
+        player_registry.insert(nearby, broadcast_info(nearby, nearby_tx));
+
+        session
+            .handle_chat_channel_message(chat_channel_message_packet("General", "channel"))
             .await;
 
         assert!(sender_rx.try_recv().is_err());

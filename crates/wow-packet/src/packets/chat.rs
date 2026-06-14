@@ -332,6 +332,43 @@ impl ClientPacket for ChatMessageWhisper {
     }
 }
 
+// ── CMSG_CHAT_MESSAGE_CHANNEL ─────────────────────────────────────
+
+/// C++ `WorldPackets::Chat::ChatMessageChannel::Read`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChatMessageChannel {
+    pub language: i32,
+    pub channel_guid: ObjectGuid,
+    pub target: String,
+    pub text: String,
+    pub is_secure: Option<bool>,
+}
+
+impl ClientPacket for ChatMessageChannel {
+    const OPCODE: ClientOpcodes = ClientOpcodes::ChatMessageChannel;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let language = pkt.read_int32()?;
+        let channel_guid = pkt.read_packed_guid()?;
+        let target_len = pkt.read_bits(9)? as usize;
+        let text_len = pkt.read_bits(11)? as usize;
+        let is_secure = if pkt.read_bit()? {
+            Some(pkt.read_bit()?)
+        } else {
+            None
+        };
+        let target = pkt.read_string(target_len)?;
+        let text = pkt.read_string(text_len)?;
+        Ok(Self {
+            language,
+            channel_guid,
+            target,
+            text,
+            is_secure,
+        })
+    }
+}
+
 // ── CMSG_CHAT_MESSAGE_AFK / DND ──────────────────────────────────
 
 /// C++ `WorldPackets::Chat::ChatMessageAFK::Read`.
@@ -1180,6 +1217,29 @@ mod tests {
         let packet = ChatMessageDnd::read(&mut reader).unwrap();
 
         assert_eq!(packet.text, "busy");
+        assert!(reader.is_empty());
+    }
+
+    #[test]
+    fn chat_message_channel_reads_cpp_layout_without_secure_bit() {
+        let channel_guid = ObjectGuid::create_player(1, 0x1122);
+        let mut writer = WorldPacket::new_empty();
+        writer.write_int32(7);
+        writer.write_packed_guid(&channel_guid);
+        writer.write_bits(7, 9);
+        writer.write_bits(5, 11);
+        writer.write_bit(false);
+        writer.write_string("General");
+        writer.write_string("hello");
+
+        let mut reader = WorldPacket::from_bytes(writer.data());
+        let packet = ChatMessageChannel::read(&mut reader).unwrap();
+
+        assert_eq!(packet.language, 7);
+        assert_eq!(packet.channel_guid, channel_guid);
+        assert_eq!(packet.target, "General");
+        assert_eq!(packet.text, "hello");
+        assert_eq!(packet.is_secure, None);
         assert!(reader.is_empty());
     }
 

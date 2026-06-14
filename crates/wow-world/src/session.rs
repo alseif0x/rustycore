@@ -18361,6 +18361,9 @@ impl WorldSession {
             ClientOpcodes::ChatMessageWhisper => {
                 self.handle_chat_whisper(pkt).await;
             }
+            ClientOpcodes::ChatMessageChannel => {
+                self.handle_chat_channel_message(pkt).await;
+            }
             ClientOpcodes::ChatMessageAfk => {
                 self.handle_chat_afk(pkt).await;
             }
