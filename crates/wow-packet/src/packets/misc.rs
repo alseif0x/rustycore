@@ -5253,17 +5253,33 @@ impl ClientPacket for BusyTrade {
     }
 }
 
+/// C++ `WorldPackets::Trade::IgnoreTrade`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct IgnoreTrade;
+
+impl ClientPacket for IgnoreTrade {
+    const OPCODE: ClientOpcodes = ClientOpcodes::IgnoreTrade;
+
+    fn read(_pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self)
+    }
+}
+
 /// C++ `TRADE_STATUS_PLAYER_BUSY`.
 pub const TRADE_STATUS_PLAYER_BUSY_LIKE_CPP: u8 = 0;
 
 /// C++ `TRADE_STATUS_CANCELLED`.
 pub const TRADE_STATUS_CANCELLED_LIKE_CPP: u8 = 3;
 
+/// C++ `TRADE_STATUS_PLAYER_IGNORED`.
+pub const TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP: u8 = 14;
+
 /// Bounded C++ `WorldPackets::Trade::TradeStatus` writer for trade-cancel statuses.
 ///
 /// C++ writes `PartnerIsSameBnetAccount`, then five status bits. For cancel-like
-/// statuses such as `TRADE_STATUS_PLAYER_BUSY` or `TRADE_STATUS_CANCELLED`, the
-/// default branch only flushes bits and writes no extra payload fields.
+/// statuses such as `TRADE_STATUS_PLAYER_BUSY`, `TRADE_STATUS_CANCELLED`, or
+/// `TRADE_STATUS_PLAYER_IGNORED`, the default branch only flushes bits and writes
+/// no extra payload fields.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TradeStatus {
     pub status: u8,
@@ -6090,6 +6106,13 @@ mod tests {
     }
 
     #[test]
+    fn ignore_trade_reads_empty_cpp_packet() {
+        let mut pkt = WorldPacket::new_empty();
+
+        IgnoreTrade::read(&mut pkt).unwrap();
+    }
+
+    #[test]
     fn trade_status_player_busy_writes_cancel_status_bits_like_cpp() {
         let bytes = TradeStatus::cancel_like_cpp(TRADE_STATUS_PLAYER_BUSY_LIKE_CPP).to_bytes();
 
@@ -6111,6 +6134,18 @@ mod tests {
         );
         assert_eq!(bytes.len(), 3);
         assert_eq!(bytes[2], TRADE_STATUS_CANCELLED_LIKE_CPP << 2);
+    }
+
+    #[test]
+    fn trade_status_player_ignored_writes_cancel_status_bits_like_cpp() {
+        let bytes = TradeStatus::cancel_like_cpp(TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP).to_bytes();
+
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::TradeStatus as u16
+        );
+        assert_eq!(bytes.len(), 3);
+        assert_eq!(bytes[2], TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP << 2);
     }
 
     #[test]

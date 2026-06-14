@@ -1,4 +1,14 @@
 - `#NEXT.R8.ENTITIES.868` - represented-complete implementation for bounded movement `Handle_NULL` ACK family.
+### #NEXT.R8.ENTITIES.888 — CMSG_IGNORE_TRADE
+
+Status: represented-complete for the bounded ignore-trade active-cancel handler.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/TradeHandler.cpp:44-47`, `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:12870-12884`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TradePackets.cpp:55-86`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TradePackets.h:75-82,145-164`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:542`, and `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:6465-6492`.
+
+Implemented Rust seam: `IgnoreTrade` parses the C++ empty packet, registers as `LoggedIn`/`PROCESS_THREADUNSAFE`, dispatches through `WorldSession`, preserves the C++ no-op when no active trade exists, writes bounded `SMSG_TRADE_STATUS` cancel-status bits for `TRADE_STATUS_PLAYER_IGNORED`, sends the status to the requester when `sendback=true`, queues a cross-session represented cancel command to the active-trade partner, and clears represented active-trade state on both sessions.
+
+Remaining gaps: full `TradeData` item/gold/enchant exchange ownership, initiate/accept/set-item trade opcodes, DB/item side effects, install/restart, bot, and live-client manual validation remain separate work.
+
 ### #NEXT.R8.ENTITIES.887 — CMSG_CANCEL_TRADE
 
 Status: represented-complete for the bounded cancel-trade active-cancel handler.

@@ -18753,6 +18753,9 @@ impl WorldSession {
             ClientOpcodes::BusyTrade => {
                 self.handle_busy_trade(pkt).await;
             }
+            ClientOpcodes::IgnoreTrade => {
+                self.handle_ignore_trade(pkt).await;
+            }
             ClientOpcodes::ReportClientVariables => {
                 self.handle_report_client_variables(pkt).await;
             }
