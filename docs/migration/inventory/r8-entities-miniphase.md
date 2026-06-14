@@ -1,4 +1,14 @@
 - `#NEXT.R8.ENTITIES.868` - represented-complete implementation for bounded movement `Handle_NULL` ACK family.
+### #NEXT.R8.ENTITIES.876 — Channel command inventory drift
+
+Status: represented-partial audit fix for existing channel-command wiring.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/ChannelHandler.cpp:96-213`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/ChannelPackets.h:153-199`, and `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:304-320`.
+
+Implemented Rust seam: stale inventories now recognize the existing represented channel-command wiring for `CMSG_CHAT_LEAVE_CHANNEL` plus `CMSG_CHAT_CHANNEL_ANNOUNCEMENTS`, `BAN`, `DECLINE_INVITE`, `DISPLAY_LIST`, `INVITE`, `KICK`, `LIST`, `MODERATOR`, `OWNER`, `PASSWORD`, `SET_OWNER`, `SILENCE_ALL`, `UNBAN`, `UNMODERATOR`, and `UNSILENCE_ALL`. The Rust parsers, handler registrations, dispatch arms, and silent missing-`ChannelMgr` boundaries were already present in code.
+
+Remaining gaps: live `ChannelMgr`, constant-zone channel validation, channel membership/permissions, invite/ban/kick/moderator/owner/password side effects, notifications/fanout, install/restart, and live-client manual validation remain open.
+
 ### #NEXT.R8.ENTITIES.875 — CMSG_BUSY_TRADE
 
 Status: represented-partial for the bounded busy-trade handler.
