@@ -1,3 +1,13 @@
+- `#NEXT.R8.ENTITIES.855` - represented-partial for bounded `CMSG_SUPPORT_TICKET_SUBMIT_SUGGESTION`.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/TicketHandler.cpp:136-156`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TicketPackets.h:107-114`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TicketPackets.cpp:75-79`; `/home/server/woltk-trinity-legacy/src/server/game/Support/SupportMgr.h:246-249`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:954`.
+
+  Rust anchors: `crates/wow-packet/src/packets/misc.rs`; `crates/wow-world/src/handlers/misc.rs`; `crates/wow-world/src/session.rs`; `docs/migration/inventory/cpp-client-handlers.tsv`; `docs/migration/inventory/r3-opcodes-registry.tsv`; `docs/migration/inventory/r3-opcodes-registry.md`.
+
+  Acceptance: `CMSG_SUPPORT_TICKET_SUBMIT_SUGGESTION` now parses the C++ 10-bit message payload, registers `LoggedIn`/`ThreadUnsafe` dispatch, routes through `WorldSession`, and applies the represented C++ `SupportMgr` suggestion-system gate before the currently silent enabled branch.
+
+  Boundary: represented-partial only. Live `SuggestionTicket` creation, `SupportMgr::AddTicket` runtime, ticket persistence, install/restart, and live client/manual validation remain open.
+
 - `#NEXT.R8.ENTITIES.854` - represented-partial for bounded `CMSG_SUBMIT_USER_FEEDBACK`.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/TicketHandler.cpp:42-67`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TicketPackets.h:30-36`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TicketPackets.h:117-128`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TicketPackets.cpp:22-29`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TicketPackets.cpp:81-91`; `/home/server/woltk-trinity-legacy/src/server/game/Support/SupportMgr.h:246-249`; `/home/server/woltk-trinity-legacy/src/server/game/World/World.cpp:584-595`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:949`.

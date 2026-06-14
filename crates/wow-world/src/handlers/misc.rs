@@ -56,8 +56,8 @@ use wow_packet::packets::misc::{
     LoadingScreenNotify, MountSetFavorite, ObjectUpdateFailed, ObjectUpdateRescued,
     QueryBattlePetName, QueryBattlePetNameResponse, RatedPvpInfo, RequestBattlefieldStatus,
     RequestCemeteryListResponse, SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags,
-    SetTaxiBenchmarkMode, StandStateChange, SubmitUserFeedback, TaxiNodeStatusPkt, TogglePvp,
-    ToyClearFanfare, UseToy, ViolenceLevel,
+    SetTaxiBenchmarkMode, StandStateChange, SubmitUserFeedback, SupportTicketSubmitSuggestion,
+    TaxiNodeStatusPkt, TogglePvp, ToyClearFanfare, UseToy, ViolenceLevel,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -741,6 +741,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_submit_user_feedback",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::SupportTicketSubmitSuggestion,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_support_ticket_submit_suggestion",
     }
 }
 
@@ -2391,6 +2400,32 @@ impl crate::session::WorldSession {
         // Rust has no live SupportMgr ticket runtime yet; the packet has no
         // direct response, so the represented enabled branch remains silent.
     }
+
+    pub async fn handle_support_ticket_submit_suggestion(
+        &mut self,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
+        let suggestion = match SupportTicketSubmitSuggestion::read(&mut pkt) {
+            Ok(suggestion) => suggestion,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "SupportTicketSubmitSuggestion parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        if !self.represented_suggestion_system_status_like_cpp() {
+            return;
+        }
+
+        let _message = suggestion.message;
+        // C++ creates a SuggestionTicket with the player's current map and
+        // position, then adds it to SupportMgr. Rust has no live SupportMgr
+        // ticket runtime yet; the packet has no direct response.
+    }
+
     pub async fn handle_bug_report(&mut self, mut pkt: wow_packet::WorldPacket) {
         let report = match BugReport::read(&mut pkt) {
             Ok(report) => report,
@@ -3735,6 +3770,13 @@ mod tests {
         pkt.write_string(note);
         pkt.write_uint8(0);
         pkt.reset_read();
+        pkt
+    }
+
+    fn support_ticket_submit_suggestion_packet(message: &str) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bits(message.len() as u32, 10);
+        pkt.write_string(message);
         pkt
     }
 
@@ -6352,6 +6394,27 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn support_ticket_submit_suggestion_obeys_support_system_gate_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_support_ticket_submit_suggestion(support_ticket_submit_suggestion_packet(
+                "suggest me",
+            ))
+            .await;
+        assert!(send_rx.try_recv().is_err());
+
+        session.set_represented_support_enabled_like_cpp(true);
+        session.set_represented_support_suggestions_enabled_like_cpp(true);
+        session
+            .handle_support_ticket_submit_suggestion(support_ticket_submit_suggestion_packet(
+                "suggest me too",
+            ))
+            .await;
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
     async fn bug_report_is_silent_when_bug_support_disabled_like_cpp_default() {
         let (mut session, send_rx) = make_session();
         session
@@ -6468,6 +6531,21 @@ mod tests {
         assert_eq!(entry.status, SessionStatus::LoggedIn);
         assert_eq!(entry.processing, PacketProcessing::ThreadUnsafe);
         assert_eq!(entry.handler_name, "handle_submit_user_feedback");
+    }
+
+    #[test]
+    fn support_ticket_submit_suggestion_handler_metadata_matches_cpp() {
+        let entry = inventory::iter::<PacketHandlerEntry>
+            .into_iter()
+            .find(|entry| entry.opcode == ClientOpcodes::SupportTicketSubmitSuggestion)
+            .expect("SupportTicketSubmitSuggestion handler entry");
+
+        assert_eq!(entry.status, SessionStatus::LoggedIn);
+        assert_eq!(entry.processing, PacketProcessing::ThreadUnsafe);
+        assert_eq!(
+            entry.handler_name,
+            "handle_support_ticket_submit_suggestion"
+        );
     }
 
     #[tokio::test]

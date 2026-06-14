@@ -134,6 +134,22 @@ impl ClientPacket for SubmitUserFeedback {
     }
 }
 
+/// C++ `WorldPackets::Ticket::SupportTicketSubmitSuggestion`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SupportTicketSubmitSuggestion {
+    pub message: String,
+}
+
+impl ClientPacket for SupportTicketSubmitSuggestion {
+    const OPCODE: ClientOpcodes = ClientOpcodes::SupportTicketSubmitSuggestion;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let message_len = pkt.read_bits(10)? as usize;
+        let message = pkt.read_string(message_len)?;
+        Ok(Self { message })
+    }
+}
+
 /// C++ `WorldPackets::Ticket::Complaint::ComplaintOffender`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ComplaintOffender {
@@ -4929,6 +4945,19 @@ mod tests {
         assert_eq!(feedback.header.program, 9);
         assert!(feedback.is_suggestion);
         assert_eq!(feedback.note, "hello");
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn support_ticket_submit_suggestion_reads_10_bit_message_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+        let message = "future idea text";
+        pkt.write_bits(message.len() as u32, 10);
+        pkt.write_string(message);
+
+        let suggestion = SupportTicketSubmitSuggestion::read(&mut pkt).unwrap();
+
+        assert_eq!(suggestion.message, message);
         assert_eq!(pkt.remaining(), 0);
     }
 
