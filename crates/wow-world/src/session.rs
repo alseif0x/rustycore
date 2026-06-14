@@ -18063,6 +18063,28 @@ impl WorldSession {
                 self.handle_movement(pkt).await;
             }
 
+            ClientOpcodes::MoveAddImpulseAck
+            | ClientOpcodes::MoveApplyInertiaAck
+            | ClientOpcodes::MoveRemoveInertiaAck
+            | ClientOpcodes::MoveRemoveMovementForces
+            | ClientOpcodes::MoveSeamlessTransferComplete
+            | ClientOpcodes::MoveSetAdvFly
+            | ClientOpcodes::MoveSetAdvFlyingAddImpulseMaxSpeedAck
+            | ClientOpcodes::MoveSetAdvFlyingAirFrictionAck
+            | ClientOpcodes::MoveSetAdvFlyingBankingRateAck
+            | ClientOpcodes::MoveSetAdvFlyingDoubleJumpVelModAck
+            | ClientOpcodes::MoveSetAdvFlyingGlideStartMinHeightAck
+            | ClientOpcodes::MoveSetAdvFlyingLaunchSpeedCoefficientAck
+            | ClientOpcodes::MoveSetAdvFlyingLiftCoefficientAck
+            | ClientOpcodes::MoveSetAdvFlyingMaxVelAck
+            | ClientOpcodes::MoveSetAdvFlyingOverMaxDecelerationAck
+            | ClientOpcodes::MoveSetAdvFlyingPitchingRateDownAck
+            | ClientOpcodes::MoveSetAdvFlyingPitchingRateUpAck
+            | ClientOpcodes::MoveSetAdvFlyingSurfaceFrictionAck
+            | ClientOpcodes::MoveSetAdvFlyingTurnVelocityThresholdAck => {
+                self.handle_unhandled_client_null_like_cpp(pkt).await;
+            }
+
             // ── Movement control opcodes ────────────────────────────
             ClientOpcodes::SetActiveMover => {
                 match wow_packet::packets::movement::SetActiveMover::read(&mut pkt) {
@@ -68687,6 +68709,25 @@ mod tests {
             "GetAccountNotifications",
             "LogStreamingError",
             "LogoutInstant",
+            "MoveAddImpulseAck",
+            "MoveApplyInertiaAck",
+            "MoveRemoveInertiaAck",
+            "MoveRemoveMovementForces",
+            "MoveSeamlessTransferComplete",
+            "MoveSetAdvFly",
+            "MoveSetAdvFlyingAddImpulseMaxSpeedAck",
+            "MoveSetAdvFlyingAirFrictionAck",
+            "MoveSetAdvFlyingBankingRateAck",
+            "MoveSetAdvFlyingDoubleJumpVelModAck",
+            "MoveSetAdvFlyingGlideStartMinHeightAck",
+            "MoveSetAdvFlyingLaunchSpeedCoefficientAck",
+            "MoveSetAdvFlyingLiftCoefficientAck",
+            "MoveSetAdvFlyingMaxVelAck",
+            "MoveSetAdvFlyingOverMaxDecelerationAck",
+            "MoveSetAdvFlyingPitchingRateDownAck",
+            "MoveSetAdvFlyingPitchingRateUpAck",
+            "MoveSetAdvFlyingSurfaceFrictionAck",
+            "MoveSetAdvFlyingTurnVelocityThresholdAck",
             "OverrideScreenFlash",
             "Ping",
             "QueryQuestItemUsability",

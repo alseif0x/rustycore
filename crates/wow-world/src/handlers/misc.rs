@@ -457,6 +457,39 @@ inventory::submit! {
     }
 }
 
+macro_rules! register_unhandled_threadsafe_null_handler {
+    ($opcode:ident) => {
+        inventory::submit! {
+            PacketHandlerEntry {
+                opcode: ClientOpcodes::$opcode,
+                status: SessionStatus::Authed,
+                processing: PacketProcessing::ThreadSafe,
+                handler_name: "handle_unhandled_client_null_like_cpp",
+            }
+        }
+    };
+}
+
+register_unhandled_threadsafe_null_handler!(MoveAddImpulseAck);
+register_unhandled_threadsafe_null_handler!(MoveApplyInertiaAck);
+register_unhandled_threadsafe_null_handler!(MoveRemoveInertiaAck);
+register_unhandled_threadsafe_null_handler!(MoveRemoveMovementForces);
+register_unhandled_threadsafe_null_handler!(MoveSeamlessTransferComplete);
+register_unhandled_threadsafe_null_handler!(MoveSetAdvFly);
+register_unhandled_threadsafe_null_handler!(MoveSetAdvFlyingAddImpulseMaxSpeedAck);
+register_unhandled_threadsafe_null_handler!(MoveSetAdvFlyingAirFrictionAck);
+register_unhandled_threadsafe_null_handler!(MoveSetAdvFlyingBankingRateAck);
+register_unhandled_threadsafe_null_handler!(MoveSetAdvFlyingDoubleJumpVelModAck);
+register_unhandled_threadsafe_null_handler!(MoveSetAdvFlyingGlideStartMinHeightAck);
+register_unhandled_threadsafe_null_handler!(MoveSetAdvFlyingLaunchSpeedCoefficientAck);
+register_unhandled_threadsafe_null_handler!(MoveSetAdvFlyingLiftCoefficientAck);
+register_unhandled_threadsafe_null_handler!(MoveSetAdvFlyingMaxVelAck);
+register_unhandled_threadsafe_null_handler!(MoveSetAdvFlyingOverMaxDecelerationAck);
+register_unhandled_threadsafe_null_handler!(MoveSetAdvFlyingPitchingRateDownAck);
+register_unhandled_threadsafe_null_handler!(MoveSetAdvFlyingPitchingRateUpAck);
+register_unhandled_threadsafe_null_handler!(MoveSetAdvFlyingSurfaceFrictionAck);
+register_unhandled_threadsafe_null_handler!(MoveSetAdvFlyingTurnVelocityThresholdAck);
+
 inventory::submit! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ViolenceLevel,
@@ -7566,6 +7599,19 @@ mod tests {
             .handle_update_spell_visual(WorldPacket::new_empty())
             .await;
         session.handle_used_follow(WorldPacket::new_empty()).await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn unhandled_movement_null_family_is_silent_like_cpp_handle_null() {
+        let (mut session, send_rx) = make_session();
+
+        for _ in 0..19 {
+            session
+                .handle_unhandled_client_null_like_cpp(WorldPacket::new_empty())
+                .await;
+        }
 
         assert!(send_rx.try_recv().is_err());
     }

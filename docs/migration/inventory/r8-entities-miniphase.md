@@ -1,3 +1,11 @@
+- `#NEXT.R8.ENTITIES.868` - represented-complete implementation for bounded movement `Handle_NULL` ACK family.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:803-806`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:610-611,645-662`.
+
+  Acceptance: `CMSG_MOVE_ADD_IMPULSE_ACK`, `CMSG_MOVE_APPLY_INERTIA_ACK`, `CMSG_MOVE_REMOVE_INERTIA_ACK`, `CMSG_MOVE_REMOVE_MOVEMENT_FORCES`, `CMSG_MOVE_SEAMLESS_TRANSFER_COMPLETE`, `CMSG_MOVE_SET_ADV_FLY`, and the thirteen `CMSG_MOVE_SET_ADV_FLYING_*` ACK opcodes now register bounded `STATUS_UNHANDLED`/`PROCESS_THREADSAFE`/`Handle_NULL` parity, route through `WorldSession`, consume the packets without response, and mutate no represented state like C++ `Handle_NULL`. Checks: `cargo fmt --all --check`; `cargo test -p wow-world unhandled_movement_null_family --lib`; `cargo test -p wow-world dispatch_metadata_matches_cpp_for_registered_active_opcodes --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`; `git diff --check`.
+
+  Boundary: represented-complete for this bounded no-op hook family only. No movement-force, inertia, seamless-transfer, or advanced-flying behavior is implemented or claimed, and no install/restart/live client validation was performed.
+
 - `#NEXT.R8.ENTITIES.867` - represented-partial implementation for bounded `CMSG_MOUNT_SPECIAL_ANIM`.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:1270-1277`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.cpp:678-693`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.h:845-866`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:609`; `/home/server/woltk-trinity-legacy/src/server/shared/Packets/ByteBuffer.h:563-565`.
