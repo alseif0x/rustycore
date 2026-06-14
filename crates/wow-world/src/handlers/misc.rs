@@ -50,12 +50,13 @@ use wow_packet::packets::misc::{
     BattlePetModifyName, BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags,
     BattlePetSummon, BattlePetUpdateNotify, BugReport, CageBattlePet, CalendarSendCalendar,
     CalendarSendNumPending, CloseInteraction, CommerceTokenGetLog, CommerceTokenGetLogResponse,
-    DfGetJoinStatus, DfGetSystemInfo, FarSight, GmTicketCaseStatus, GuildSetAchievementTracking,
-    LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify, MountSetFavorite,
-    ObjectUpdateFailed, ObjectUpdateRescued, QueryBattlePetName, QueryBattlePetNameResponse,
-    RatedPvpInfo, RequestBattlefieldStatus, RequestCemeteryListResponse, SaveCufProfiles,
-    SetAdvancedCombatLogging, SetCurrencyFlags, SetTaxiBenchmarkMode, StandStateChange,
-    TaxiNodeStatusPkt, TogglePvp, ToyClearFanfare, UseToy, ViolenceLevel,
+    DfGetJoinStatus, DfGetSystemInfo, FarSight, GmTicketCaseStatus, GmTicketSystemStatus,
+    GuildSetAchievementTracking, LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus,
+    LoadingScreenNotify, MountSetFavorite, ObjectUpdateFailed, ObjectUpdateRescued,
+    QueryBattlePetName, QueryBattlePetNameResponse, RatedPvpInfo, RequestBattlefieldStatus,
+    RequestCemeteryListResponse, SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags,
+    SetTaxiBenchmarkMode, StandStateChange, TaxiNodeStatusPkt, TogglePvp, ToyClearFanfare, UseToy,
+    ViolenceLevel,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -703,6 +704,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_gm_ticket_get_case_status",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::GmTicketGetSystemStatus,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_gm_ticket_get_system_status",
     }
 }
 
@@ -2298,6 +2308,13 @@ impl crate::session::WorldSession {
         // C++ `HandleGMTicketGetCaseStatusOpcode` is still a TODO and sends a
         // default `GMTicketCaseStatus`, i.e. an empty case list.
         self.send_packet(&GmTicketCaseStatus::empty());
+    }
+    pub async fn handle_gm_ticket_get_system_status(&mut self, _pkt: wow_packet::WorldPacket) {
+        // C++ uses `sSupportMgr->GetSupportSystemStatus()` here, not
+        // `GetTicketSystemStatus()`: this disables the whole customer-support UI.
+        self.send_packet(&GmTicketSystemStatus::from_support_enabled_like_cpp(
+            self.represented_support_enabled_like_cpp(),
+        ));
     }
     pub async fn handle_bug_report(&mut self, mut pkt: wow_packet::WorldPacket) {
         let report = match BugReport::read(&mut pkt) {
@@ -6145,6 +6162,35 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn gm_ticket_get_system_status_uses_support_enabled_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_gm_ticket_get_system_status(WorldPacket::new_empty())
+            .await;
+
+        let bytes = send_rx.try_recv().expect("GM ticket system status packet");
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::GmTicketSystemStatus as u16
+        );
+
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_int32().unwrap(), GmTicketSystemStatus::ENABLED);
+
+        session.set_represented_support_enabled_like_cpp(false);
+        session
+            .handle_gm_ticket_get_system_status(WorldPacket::new_empty())
+            .await;
+
+        let bytes = send_rx
+            .try_recv()
+            .expect("disabled GM ticket system status packet");
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_int32().unwrap(), GmTicketSystemStatus::DISABLED);
+    }
+
+    #[tokio::test]
     async fn bug_report_is_silent_when_bug_support_disabled_like_cpp_default() {
         let (mut session, send_rx) = make_session();
         session
@@ -6205,6 +6251,18 @@ mod tests {
         assert_eq!(entry.status, SessionStatus::LoggedIn);
         assert_eq!(entry.processing, PacketProcessing::ThreadUnsafe);
         assert_eq!(entry.handler_name, "handle_bug_report");
+    }
+
+    #[test]
+    fn gm_ticket_get_system_status_handler_metadata_matches_cpp() {
+        let entry = inventory::iter::<PacketHandlerEntry>
+            .into_iter()
+            .find(|entry| entry.opcode == ClientOpcodes::GmTicketGetSystemStatus)
+            .expect("GmTicketGetSystemStatus handler entry");
+
+        assert_eq!(entry.status, SessionStatus::LoggedIn);
+        assert_eq!(entry.processing, PacketProcessing::Inplace);
+        assert_eq!(entry.handler_name, "handle_gm_ticket_get_system_status");
     }
 
     #[tokio::test]

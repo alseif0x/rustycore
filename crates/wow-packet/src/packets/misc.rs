@@ -4181,6 +4181,36 @@ impl ServerPacket for GmTicketCaseStatus {
     }
 }
 
+/// C++ `WorldPackets::Ticket::GMTicketSystemStatus`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GmTicketSystemStatus {
+    /// C++ `GMTicketSystemStatus` enum: `0` disabled, `1` enabled.
+    pub status: i32,
+}
+
+impl GmTicketSystemStatus {
+    pub const DISABLED: i32 = 0;
+    pub const ENABLED: i32 = 1;
+
+    pub fn from_support_enabled_like_cpp(enabled: bool) -> Self {
+        Self {
+            status: if enabled {
+                Self::ENABLED
+            } else {
+                Self::DISABLED
+            },
+        }
+    }
+}
+
+impl ServerPacket for GmTicketSystemStatus {
+    const OPCODE: ServerOpcodes = ServerOpcodes::GmTicketSystemStatus;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_int32(self.status);
+    }
+}
+
 /// C++ `WorldPackets::Calendar::CalendarSendNumPending`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct CalendarSendNumPending {
@@ -4647,6 +4677,24 @@ mod tests {
     fn toggle_pvp_reads_empty_cpp_packet() {
         let mut pkt = WorldPacket::new_empty();
         TogglePvp::read(&mut pkt).unwrap();
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn gm_ticket_system_status_matches_cpp_int32_shape() {
+        let bytes = GmTicketSystemStatus::from_support_enabled_like_cpp(true).to_bytes();
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::GmTicketSystemStatus as u16
+        );
+
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_int32().unwrap(), GmTicketSystemStatus::ENABLED);
+        assert_eq!(pkt.remaining(), 0);
+
+        let bytes = GmTicketSystemStatus::from_support_enabled_like_cpp(false).to_bytes();
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_int32().unwrap(), GmTicketSystemStatus::DISABLED);
         assert_eq!(pkt.remaining(), 0);
     }
 

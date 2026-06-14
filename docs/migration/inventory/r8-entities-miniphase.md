@@ -1,3 +1,13 @@
+- `#NEXT.R8.ENTITIES.851` - represented-complete for bounded `CMSG_GM_TICKET_GET_SYSTEM_STATUS`.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/TicketHandler.cpp:33-39`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TicketPackets.h:46-51`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TicketPackets.cpp:32-36`; `/home/server/woltk-trinity-legacy/src/server/game/Support/SupportMgr.h:74-79`.
+
+  Rust anchors: `crates/wow-packet/src/packets/misc.rs`; `crates/wow-world/src/handlers/misc.rs`; `crates/wow-world/src/session.rs`; `docs/migration/inventory/cpp-client-handlers.tsv`; `docs/migration/inventory/r3-opcodes-registry.tsv`; `docs/migration/inventory/r3-opcodes-registry.md`.
+
+  Acceptance: `CMSG_GM_TICKET_GET_SYSTEM_STATUS` now registers `LoggedIn`/`Inplace` dispatch, routes through `WorldSession`, and sends `SMSG_GM_TICKET_SYSTEM_STATUS` with C++ `GMTicketSystemStatus` int32 shape: `1` when represented `Support.Enabled` is true and `0` when false. This deliberately mirrors C++ `HandleGMTicketSystemStatusOpcode`, which checks `GetSupportSystemStatus()` rather than `GetTicketSystemStatus()`.
+
+  Boundary: represented-complete for the bounded UI status query only. Full `SupportMgr` runtime singleton, `Support.TicketsEnabled` new-ticket gating, complaint/suggestion systems, ticket persistence/runtime, install/restart, and live client/manual validation remain open.
+
 - `#NEXT.R8.ENTITIES.850` - represented-complete for bounded `CMSG_BUG_REPORT` bug-system status gating.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Support/SupportMgr.h:246-247`; `/home/server/woltk-trinity-legacy/src/server/game/Support/SupportMgr.cpp:463-465`; `/home/server/woltk-trinity-legacy/src/server/game/World/World.cpp:584-593`; `/home/server/woltk-trinity-legacy/src/server/game/Handlers/TicketHandler.cpp:88-98`.
