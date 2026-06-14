@@ -26,7 +26,6 @@ use wow_entities::{
     GAMEOBJECT_TYPE_UI_LINK, GameObjectTemplateData, MAX_GAMEOBJECT_DATA,
 };
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
-use wow_packet::ClientPacket;
 use wow_packet::packets::character::SetTitle;
 use wow_packet::packets::chat::{
     ChannelCommand, ChannelNotify, ChannelPassword, ChannelPlayerCommand, JoinChannel,
@@ -70,6 +69,7 @@ use wow_packet::packets::reputation::{
 use wow_packet::packets::spell::{
     CastFailed, SetActionButton, SpellCastVisual, SpellPreparePkt, SpellStartPkt,
 };
+use wow_packet::{ClientPacket, ServerPacket};
 
 use crate::entity_update_bridge::player_values_update_to_update_object;
 use crate::handlers::loot::represented_gameobject_interaction_distance_like_cpp;
@@ -1751,9 +1751,10 @@ impl crate::session::WorldSession {
     /// C++ ref: `WorldSession::HandleMountSpecialAnimOpcode` copies the
     /// client-provided visual kit ids and sequence variation into
     /// `SMSG_SPECIAL_MOUNT_ANIM`, sets `UnitGUID` to the player, and calls
-    /// `SendMessageToSet(..., false)`. This represented slice sends the same
-    /// packet to the owning session; true nearby-session fanout remains a
-    /// runtime-visibility task.
+    /// `SendMessageToSet(..., false)`. C++ `MessageDistDeliverer` still skips
+    /// the source player (`player == i_source`) and then applies `HaveAtClient`
+    /// for nearby receivers, so Rust queues the packet to other sessions via
+    /// the existing `SendIfVisibleLikeCpp` per-session gate.
     pub async fn handle_mount_special_anim(&mut self, mut pkt: wow_packet::WorldPacket) {
         let request = match MountSpecial::read(&mut pkt) {
             Ok(request) => request,
@@ -1769,11 +1770,54 @@ impl crate::session::WorldSession {
             return;
         };
 
-        self.send_packet(&SpecialMountAnim {
+        let packet_bytes = SpecialMountAnim {
             unit_guid,
             spell_visual_kit_ids: request.spell_visual_kit_ids,
             sequence_variation: request.sequence_variation,
-        });
+        }
+        .to_bytes();
+
+        self.send_mount_special_anim_to_visible_set_like_cpp(unit_guid, packet_bytes);
+    }
+
+    fn send_mount_special_anim_to_visible_set_like_cpp(
+        &self,
+        source_guid: ObjectGuid,
+        packet_bytes: Vec<u8>,
+    ) {
+        let Some(registry) = self.player_registry() else {
+            return;
+        };
+        let map_id = self.player_map_id_like_cpp();
+        let instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+
+        let candidates: Vec<_> = registry
+            .iter()
+            .filter_map(|entry| {
+                let (target_guid, info) = entry.pair();
+                if *target_guid == source_guid {
+                    return None;
+                }
+                if !info.is_in_world || info.map_id != map_id || info.instance_id != instance_id {
+                    return None;
+                }
+                Some(info.command_tx.clone())
+            })
+            .collect();
+
+        for command_tx in candidates {
+            let _ = command_tx.try_send(wow_network::SessionCommand::SendIfVisibleLikeCpp(
+                wow_network::player_registry::SendIfVisibleLikeCppCommand {
+                    source_guid,
+                    map_id,
+                    instance_id,
+                    packet_bytes: packet_bytes.clone(),
+                },
+            ));
+        }
     }
 
     /// CMSG_COLLECTION_ITEM_SET_FAVORITE — toggle favorite state for supported collections.
@@ -4124,6 +4168,7 @@ mod tests {
         ItemStatsStore, ItemStore, MapDifficultyEntry, MapDifficultyStore, MapEntry, MapStore,
     };
     use wow_database::SqlParam;
+    use wow_network::{PlayerBroadcastInfo, PlayerRegistry, SessionCommand};
     use wow_packet::ServerPacket;
     use wow_packet::WorldPacket;
     use wow_packet::packets::misc::{
@@ -4191,6 +4236,82 @@ mod tests {
             ),
             send_rx,
         )
+    }
+
+    fn broadcast_info_with_command_tx(
+        command_tx: flume::Sender<SessionCommand>,
+    ) -> PlayerBroadcastInfo {
+        let (send_tx, _send_rx) = flume::bounded::<Vec<u8>>(4);
+        PlayerBroadcastInfo {
+            map_id: 571,
+            instance_id: 0,
+            position: Position::ZERO,
+            combat_reach: 0.0,
+            liquid_status: 0,
+            is_in_world: true,
+            send_tx,
+            command_tx,
+            active_loot_rolls: Vec::new(),
+            pass_on_group_loot: false,
+            enchanting_skill: 0,
+            is_alive: true,
+            current_health: 100,
+            max_health: 100,
+            power_type: 0,
+            current_power: 0,
+            max_power: 0,
+            is_pvp: false,
+            is_ffa_pvp: false,
+            is_ghost: false,
+            is_afk: false,
+            is_dnd: false,
+            auto_reply_msg_like_cpp: String::new(),
+            in_vehicle: false,
+            has_vehicle_kit_like_cpp: false,
+            party_member_vehicle_seat: 0,
+            zone_id: 0,
+            spec_id: 0,
+            unit_flags: 0,
+            unit_flags2: 0,
+            unit_state: 0,
+            is_game_master: false,
+            is_contested_pvp: false,
+            active_expansion: 2,
+            pending_quest_sharing: None,
+            known_spells: Vec::new(),
+            active_quest_statuses: Default::default(),
+            active_quest_objective_counts: Default::default(),
+            rewarded_quests: Default::default(),
+            daily_quests_completed: Default::default(),
+            df_quests: Default::default(),
+            faction_template_id: 0,
+            reputation_standings: Vec::new(),
+            reputation_state_flags: Vec::new(),
+            forced_reputation_ranks: Vec::new(),
+            forced_reputation_faction_ids: Vec::new(),
+            inventory_item_counts: Default::default(),
+            party_member_party_type: [0; 2],
+            party_member_phase_states: Default::default(),
+            party_member_auras: Vec::new(),
+            party_member_pet_stats: None,
+            player_name: "TestPlayer".to_string(),
+            account_id: 1,
+            recruiter_id: 0,
+            race: 1,
+            class: 1,
+            sex: 0,
+            level: 1,
+            gray_level: 0,
+            display_id: 49,
+            visible_items: [(0, 0, 0); 19],
+            lifetime_honorable_kills: 0,
+            this_week_contribution: 0,
+            yesterday_contribution: 0,
+            today_honorable_kills: 0,
+            yesterday_honorable_kills: 0,
+            lifetime_max_rank: 0,
+            honor_level: 0,
+        }
     }
 
     fn resurrect_response_packet(resurrecter: ObjectGuid, response: u32) -> WorldPacket {
@@ -5643,10 +5764,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn mount_special_anim_sends_player_guid_sequence_and_visual_kits_like_cpp() {
+    async fn mount_special_anim_does_not_send_to_source_player_like_cpp() {
         let (mut session, send_rx) = make_session();
         let player_guid = ObjectGuid::create_player(1, 77);
         session.set_player_guid(Some(player_guid));
+        session.set_player_map_position_like_cpp(571, Position::ZERO);
 
         let mut pkt = WorldPacket::new_empty();
         pkt.write_uint16(ClientOpcodes::MountSpecialAnim as u16);
@@ -5657,12 +5779,67 @@ mod tests {
 
         session.handle_mount_special_anim(pkt).await;
 
-        let bytes = send_rx.try_recv().expect("special mount anim");
+        assert!(
+            send_rx.try_recv().is_err(),
+            "C++ MessageDistDeliverer never sends SendMessageToSet packets to i_source"
+        );
+    }
+
+    #[tokio::test]
+    async fn mount_special_anim_fanouts_to_visible_sessions_like_cpp() {
+        let (mut source_session, source_send_rx) = make_session();
+        let (mut visible_session, visible_send_rx) = make_session();
+        let source_guid = ObjectGuid::create_player(1, 77);
+        let visible_guid = ObjectGuid::create_player(1, 88);
+        source_session.set_player_guid(Some(source_guid));
+        source_session.set_player_map_position_like_cpp(571, Position::ZERO);
+        visible_session.set_player_guid(Some(visible_guid));
+        visible_session.set_player_map_position_like_cpp(571, Position::ZERO);
+        visible_session.set_state(crate::session::SessionState::LoggedIn);
+        visible_session
+            .client_visible_guids_like_cpp
+            .insert(source_guid);
+
+        let registry = Arc::new(PlayerRegistry::default());
+        let (source_command_tx, source_command_rx) = flume::bounded::<SessionCommand>(2);
+        let source_info = broadcast_info_with_command_tx(source_command_tx);
+        registry.insert(source_guid, source_info);
+        let visible_command_tx = visible_session.session_command_tx();
+        let visible_info = broadcast_info_with_command_tx(visible_command_tx);
+        registry.insert(visible_guid, visible_info);
+        source_session.set_player_registry(Arc::clone(&registry));
+        visible_session.set_player_registry(registry);
+
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(ClientOpcodes::MountSpecialAnim as u16);
+        pkt.write_uint32(2);
+        pkt.write_int32(-3);
+        pkt.write_int32(111);
+        pkt.write_int32(222);
+
+        source_session.handle_mount_special_anim(pkt).await;
+
+        assert!(
+            source_send_rx.try_recv().is_err(),
+            "source session must not receive the packet directly"
+        );
+        assert!(
+            source_command_rx.try_recv().is_err(),
+            "source registry entry must be skipped like C++ player == i_source"
+        );
+
+        visible_session
+            .process_represented_session_commands_like_cpp()
+            .await;
+
+        let bytes = visible_send_rx
+            .try_recv()
+            .expect("visible special mount anim");
         assert_eq!(
             u16::from_le_bytes([bytes[0], bytes[1]]),
             ServerOpcodes::SpecialMountAnim as u16
         );
-        assert_eq!(&bytes[2..18], &player_guid.to_raw_bytes());
+        assert_eq!(&bytes[2..18], &source_guid.to_raw_bytes());
         assert_eq!(
             u32::from_le_bytes([bytes[18], bytes[19], bytes[20], bytes[21]]),
             2

@@ -165,13 +165,13 @@ Remaining gaps: shared/individual healer spell channel timer, `SPELL_SPIRIT_HEAL
 
   Boundary: represented-complete for this bounded no-op hook family only. No movement-force, inertia, seamless-transfer, or advanced-flying behavior is implemented or claimed, and no install/restart/live client validation was performed.
 
-- `#NEXT.R8.ENTITIES.867` - represented-partial implementation for bounded `CMSG_MOUNT_SPECIAL_ANIM`.
+- `#NEXT.R8.ENTITIES.867` - represented-complete implementation for bounded `CMSG_MOUNT_SPECIAL_ANIM`.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:1270-1277`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.cpp:678-693`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.h:845-866`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:609`; `/home/server/woltk-trinity-legacy/src/server/shared/Packets/ByteBuffer.h:563-565`.
 
-  Acceptance: Rust now parses the C++ count, `SequenceVariation`, and int32 `SpellVisualKitIDs`, registers `LoggedIn`/`ThreadUnsafe` dispatch, routes through `WorldSession`, emits `SMSG_SPECIAL_MOUNT_ANIM` with the current player `UnitGUID` and copied visual kit ids like C++ `HandleMountSpecialAnimOpcode`, and fixes real dispatcher routing for the adjacent mount favorite/fanfare handlers. Checks: `cargo fmt --all --check`; `cargo test -p wow-packet mount_special --lib`; `cargo test -p wow-packet special_mount --lib`; `cargo test -p wow-world mount_special --lib`; `cargo test -p wow-world dispatch_metadata_matches_cpp_for_registered_active_opcodes --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`; `git diff --check`.
+  Acceptance: Rust now parses the C++ count, `SequenceVariation`, and int32 `SpellVisualKitIDs`, registers `LoggedIn`/`ThreadUnsafe` dispatch, routes through `WorldSession`, serializes `SMSG_SPECIAL_MOUNT_ANIM` with the current player `UnitGUID` and copied visual kit ids like C++ `HandleMountSpecialAnimOpcode`, skips the source player like C++ `MessageDistDeliverer`, and fans out through `SendIfVisibleLikeCpp` so receiving sessions apply their `client_visible_guids_like_cpp`/`HaveAtClient` gate before sending. Checks: `cargo fmt --all --check`; `cargo test -p wow-packet mount_special --lib`; `cargo test -p wow-packet special_mount --lib`; `cargo test -p wow-world mount_special --lib`; `cargo test -p wow-world dispatch_metadata_matches_cpp_for_registered_active_opcodes --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`; `git diff --check`.
 
-  Boundary: represented-partial only. C++ calls `SendMessageToSet(..., false)`; Rust currently emits the packet to the owning session only. Nearby-session fanout remains pending under runtime visibility/fanout work, with no install/restart/live client validation.
+  Boundary: represented-complete for this bounded packet/fanout seam only. Exact C++ cell visitor, shared-vision/farsight nuances, install/restart, bot, and live-client manual validation remain separate work.
 
 - `#NEXT.R8.ENTITIES.866` - represented-complete audit fix for bounded `CMSG_MOUNT_SET_FAVORITE`.
 
