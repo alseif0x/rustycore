@@ -55,8 +55,8 @@ use wow_packet::packets::misc::{
     GuildSetAchievementTracking, LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus,
     LoadingScreenNotify, MountSetFavorite, MountSpecial, ObjectUpdateFailed, ObjectUpdateRescued,
     QueryBattlePetName, QueryBattlePetNameResponse, RatedPvpInfo, RequestBattlefieldStatus,
-    RequestCemeteryListResponse, SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags,
-    SetTaxiBenchmarkMode, SpecialMountAnim, StandStateChange, SubmitUserFeedback,
+    RequestCemeteryListResponse, ResurrectResponse, SaveCufProfiles, SetAdvancedCombatLogging,
+    SetCurrencyFlags, SetTaxiBenchmarkMode, SpecialMountAnim, StandStateChange, SubmitUserFeedback,
     SupportTicketSubmitBug, SupportTicketSubmitComplaint, SupportTicketSubmitSuggestion,
     TaxiNodeStatusPkt, TogglePvp, ToyClearFanfare, UseToy, ViolenceLevel,
 };
@@ -83,6 +83,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_far_sight",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::ResurrectResponse,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_resurrect_response",
     }
 }
 
@@ -1390,6 +1399,7 @@ impl crate::session::WorldSession {
         // Update internal state
         self.set_player_map_position_like_cpp(new_map as u16, new_pos);
         self.update_registry_position();
+        self.process_represented_delayed_resurrection_after_teleport_like_cpp();
 
         // SMSG_NEW_WORLD — place player in new world
         self.send_packet(&NewWorld {
@@ -1455,6 +1465,46 @@ impl crate::session::WorldSession {
     pub async fn handle_request_cemetery_list(&mut self, mut pkt: wow_packet::WorldPacket) {
         let is_gossip: bool = pkt.read_uint8().unwrap_or(0) != 0;
         self.send_packet(&RequestCemeteryListResponse::empty(is_gossip));
+    }
+
+    /// CMSG_RESURRECT_RESPONSE — answer to a pending resurrection request.
+    /// C++ ref: `WorldSession::HandleResurrectResponse`.
+    pub async fn handle_resurrect_response(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let response = match ResurrectResponse::read(&mut pkt) {
+            Ok(response) => response,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "ResurrectResponse parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        if self.player_is_alive_like_cpp() {
+            return;
+        }
+
+        if response.response != 0 {
+            self.clear_represented_resurrection_request_like_cpp();
+            return;
+        }
+
+        let Some(request) = self
+            .take_represented_resurrection_request_if_requested_by_like_cpp(response.resurrecter)
+        else {
+            return;
+        };
+
+        // C++ teleports to resurrection request location before applying the
+        // resurrected state. InstanceScript combat-res charges, aura original
+        // caster, and SpawnCorpseBones remain represented gaps.
+        self.teleport_to(request.map_id, request.position).await;
+        if self.pending_teleport.is_some() {
+            self.schedule_represented_resurrection_after_teleport_like_cpp(request);
+        } else {
+            self.apply_represented_resurrection_health_like_cpp(request.health);
+        }
     }
 
     /// CMSG_TAXI_NODE_STATUS_QUERY — client asks status of a taxi NPC.
@@ -3929,6 +3979,159 @@ mod tests {
             ),
             send_rx,
         )
+    }
+
+    fn resurrect_response_packet(resurrecter: ObjectGuid, response: u32) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_packed_guid(&resurrecter);
+        pkt.write_uint32(response);
+        pkt
+    }
+
+    #[tokio::test]
+    async fn resurrect_response_accepts_matching_request_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let resurrecter = ObjectGuid::create_player(1, 77);
+        let target_position = Position::new(11.0, 22.0, 33.0, 1.5);
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_player_position_like_cpp(Position::new(1.0, 2.0, 3.0, 0.0));
+        session.set_player_health_like_cpp(0, 1_000);
+        session.set_represented_resurrection_request_like_cpp(
+            crate::session::RepresentedResurrectionRequestLikeCpp {
+                resurrecter,
+                map_id: 571,
+                position: target_position,
+                health: 450,
+                mana: 120,
+                aura: 0,
+            },
+        );
+
+        session
+            .handle_resurrect_response(resurrect_response_packet(resurrecter, 0))
+            .await;
+
+        assert!(!session.player_is_alive_like_cpp());
+        assert!(
+            session
+                .represented_resurrection_request_like_cpp()
+                .is_none()
+        );
+        assert!(
+            session
+                .represented_delayed_resurrection_after_teleport_like_cpp()
+                .is_some()
+        );
+        let first = send_rx.try_recv().expect("transfer pending packet");
+        assert_eq!(
+            u16::from_le_bytes([first[0], first[1]]),
+            ServerOpcodes::TransferPending as u16
+        );
+
+        session
+            .handle_world_port_response(WorldPacket::new_empty())
+            .await;
+
+        assert!(session.player_is_alive_like_cpp());
+        assert_eq!(session.player_health_like_cpp(), 450);
+        assert_eq!(session.player_position_like_cpp(), Some(target_position));
+        assert!(
+            session
+                .represented_delayed_resurrection_after_teleport_like_cpp()
+                .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn resurrect_response_decline_clears_request_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let resurrecter = ObjectGuid::create_player(1, 78);
+        session.set_player_health_like_cpp(0, 1_000);
+        session.set_represented_resurrection_request_like_cpp(
+            crate::session::RepresentedResurrectionRequestLikeCpp {
+                resurrecter,
+                map_id: 571,
+                position: Position::new(11.0, 22.0, 33.0, 1.5),
+                health: 450,
+                mana: 120,
+                aura: 0,
+            },
+        );
+
+        session
+            .handle_resurrect_response(resurrect_response_packet(resurrecter, 1))
+            .await;
+
+        assert!(!session.player_is_alive_like_cpp());
+        assert!(
+            session
+                .represented_resurrection_request_like_cpp()
+                .is_none()
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn resurrect_response_ignores_mismatched_resurrecter_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let resurrecter = ObjectGuid::create_player(1, 79);
+        session.set_player_health_like_cpp(0, 1_000);
+        session.set_represented_resurrection_request_like_cpp(
+            crate::session::RepresentedResurrectionRequestLikeCpp {
+                resurrecter,
+                map_id: 571,
+                position: Position::new(11.0, 22.0, 33.0, 1.5),
+                health: 450,
+                mana: 120,
+                aura: 0,
+            },
+        );
+
+        session
+            .handle_resurrect_response(resurrect_response_packet(
+                ObjectGuid::create_player(1, 80),
+                0,
+            ))
+            .await;
+
+        assert!(!session.player_is_alive_like_cpp());
+        assert!(
+            session
+                .represented_resurrection_request_like_cpp()
+                .is_some()
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn resurrect_response_ignores_alive_player_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let resurrecter = ObjectGuid::create_player(1, 81);
+        session.set_player_health_like_cpp(777, 1_000);
+        session.set_represented_resurrection_request_like_cpp(
+            crate::session::RepresentedResurrectionRequestLikeCpp {
+                resurrecter,
+                map_id: 571,
+                position: Position::new(11.0, 22.0, 33.0, 1.5),
+                health: 450,
+                mana: 120,
+                aura: 0,
+            },
+        );
+
+        session
+            .handle_resurrect_response(resurrect_response_packet(resurrecter, 0))
+            .await;
+
+        assert!(session.player_is_alive_like_cpp());
+        assert_eq!(session.player_health_like_cpp(), 777);
+        assert!(
+            session
+                .represented_resurrection_request_like_cpp()
+                .is_some()
+        );
+        assert!(send_rx.try_recv().is_err());
     }
 
     fn bug_report_packet(report_type: bool, diag_info: &str, text: &str) -> WorldPacket {

@@ -1,4 +1,14 @@
 - `#NEXT.R8.ENTITIES.868` - represented-complete implementation for bounded movement `Handle_NULL` ACK family.
+### #NEXT.R8.ENTITIES.871 — CMSG_RESURRECT_RESPONSE
+
+Status: represented-partial for the bounded resurrection-response handler.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:453-479`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.cpp:307-311`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.h:410-420`, `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:1884-1900`, `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:22711-22720`, and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:24903-24937`.
+
+Implemented Rust seam: `ResurrectResponse` parses the packed resurrecter GUID plus `uint32 Response`, registers as `LoggedIn`/`PROCESS_THREADUNSAFE`, ignores alive players, clears represented resurrection data on decline/timeout, rejects mismatched resurrecters, starts the existing `teleport_to` flow on accept, and applies represented resurrection health after `WorldPortResponse` like C++ `DELAYED_RESURRECT_PLAYER`.
+
+Remaining gaps: full Spell/Player `SetResurrectRequestData` ownership, `ObjectAccessor::GetPlayer` resurrecter lookup, `InstanceScript` combat-resurrection charge accounting, `ResurrectPlayer` side effects, mana/power restoration, resurrection aura cast with original caster, `SpawnCorpseBones`, install/restart, and live-client manual validation remain open.
+
 ### #NEXT.R8.ENTITIES.870 — CMSG_HEARTH_AND_RESURRECT
 
 Status: represented-partial for the bounded hearth-and-resurrect handler.

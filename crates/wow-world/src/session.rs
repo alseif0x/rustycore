@@ -1142,6 +1142,16 @@ pub(crate) struct RepresentedHomebindLikeCpp {
     pub position: wow_core::Position,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct RepresentedResurrectionRequestLikeCpp {
+    pub resurrecter: wow_core::ObjectGuid,
+    pub map_id: u32,
+    pub position: wow_core::Position,
+    pub health: u32,
+    pub mana: u32,
+    pub aura: u32,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct RepresentedGameObjectUseState {
     pub loot_state: Option<wow_entities::LootState>,
@@ -3074,6 +3084,13 @@ pub struct WorldSession {
     /// C++ `Player::m_homebind` / `m_homebindAreaId` represented until
     /// `character_homebind` loading/saving is wired into the player runtime.
     represented_homebind_like_cpp: Option<RepresentedHomebindLikeCpp>,
+    /// C++ `Player::_resurrectionData`, represented until real Player/Spell
+    /// resurrection request ownership exists.
+    represented_resurrection_request_like_cpp: Option<RepresentedResurrectionRequestLikeCpp>,
+    /// C++ `DELAYED_RESURRECT_PLAYER`, represented for resurrection requests
+    /// that initiate teleport and must apply after WorldPortResponse.
+    represented_delayed_resurrection_after_teleport_like_cpp:
+        Option<RepresentedResurrectionRequestLikeCpp>,
     /// Near teleport ACK side-effect audit events.
     move_teleport_ack_events_like_cpp: Vec<MoveTeleportAckEventLikeCpp>,
     /// Count of C++ `ResummonPetTemporaryUnSummonedIfAny` calls after near teleport ACK.
@@ -4132,6 +4149,8 @@ impl WorldSession {
             near_teleport_destination_like_cpp: None,
             near_teleport_destination_zone_area_like_cpp: None,
             represented_homebind_like_cpp: None,
+            represented_resurrection_request_like_cpp: None,
+            represented_delayed_resurrection_after_teleport_like_cpp: None,
             move_teleport_ack_events_like_cpp: Vec::new(),
             temporary_pet_resummon_requests_like_cpp: 0,
             delayed_operations_processed_like_cpp: 0,
@@ -17778,6 +17797,9 @@ impl WorldSession {
             ClientOpcodes::RequestCemeteryList => {
                 self.handle_request_cemetery_list(pkt).await;
             }
+            ClientOpcodes::ResurrectResponse => {
+                self.handle_resurrect_response(pkt).await;
+            }
             ClientOpcodes::TaxiNodeStatusQuery => {
                 self.handle_taxi_node_status_query(pkt).await;
             }
@@ -20306,6 +20328,76 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn player_health_like_cpp(&self) -> u32 {
         self.player_health_like_cpp
+    }
+
+    pub(crate) fn set_represented_resurrection_request_like_cpp(
+        &mut self,
+        request: RepresentedResurrectionRequestLikeCpp,
+    ) {
+        self.represented_resurrection_request_like_cpp = Some(request);
+    }
+
+    pub(crate) fn clear_represented_resurrection_request_like_cpp(&mut self) {
+        self.represented_resurrection_request_like_cpp = None;
+    }
+
+    pub(crate) fn represented_resurrection_requested_by_like_cpp(
+        &self,
+        resurrecter: ObjectGuid,
+    ) -> bool {
+        self.represented_resurrection_request_like_cpp
+            .is_some_and(|request| {
+                request.resurrecter != ObjectGuid::EMPTY && request.resurrecter == resurrecter
+            })
+    }
+
+    pub(crate) fn take_represented_resurrection_request_if_requested_by_like_cpp(
+        &mut self,
+        resurrecter: ObjectGuid,
+    ) -> Option<RepresentedResurrectionRequestLikeCpp> {
+        if !self.represented_resurrection_requested_by_like_cpp(resurrecter) {
+            return None;
+        }
+
+        self.represented_resurrection_request_like_cpp.take()
+    }
+
+    pub(crate) fn apply_represented_resurrection_health_like_cpp(&mut self, health: u32) {
+        self.set_player_health_like_cpp(health, self.player_max_health_like_cpp);
+        self.player_alive_like_cpp = true;
+        self.sync_player_registry_state_like_cpp();
+    }
+
+    pub(crate) fn schedule_represented_resurrection_after_teleport_like_cpp(
+        &mut self,
+        request: RepresentedResurrectionRequestLikeCpp,
+    ) {
+        self.represented_delayed_resurrection_after_teleport_like_cpp = Some(request);
+    }
+
+    pub(crate) fn process_represented_delayed_resurrection_after_teleport_like_cpp(&mut self) {
+        let Some(request) = self
+            .represented_delayed_resurrection_after_teleport_like_cpp
+            .take()
+        else {
+            return;
+        };
+
+        self.apply_represented_resurrection_health_like_cpp(request.health);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_resurrection_request_like_cpp(
+        &self,
+    ) -> Option<RepresentedResurrectionRequestLikeCpp> {
+        self.represented_resurrection_request_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_delayed_resurrection_after_teleport_like_cpp(
+        &self,
+    ) -> Option<RepresentedResurrectionRequestLikeCpp> {
+        self.represented_delayed_resurrection_after_teleport_like_cpp
     }
 
     pub(crate) fn set_fall_information_like_cpp(&mut self, time: u32, z: f32) {

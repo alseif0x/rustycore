@@ -4350,6 +4350,25 @@ impl ClientPacket for HearthAndResurrect {
     }
 }
 
+/// C++ `WorldPackets::Misc::ResurrectResponse`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ResurrectResponse {
+    pub resurrecter: ObjectGuid,
+    /// C++: Accept = 0, Decline = 1, Timeout = 2.
+    pub response: u32,
+}
+
+impl ClientPacket for ResurrectResponse {
+    const OPCODE: ClientOpcodes = ClientOpcodes::ResurrectResponse;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            resurrecter: pkt.read_packed_guid()?,
+            response: pkt.read_uint32()?,
+        })
+    }
+}
+
 /// C++ `WorldPackets::NPC::RequestStabledPets`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RequestStabledPets {
@@ -7464,6 +7483,19 @@ mod tests {
         let mut pkt = WorldPacket::new_empty();
 
         HearthAndResurrect::read(&mut pkt).unwrap();
+    }
+
+    #[test]
+    fn resurrect_response_reads_guid_and_response_like_cpp() {
+        let resurrecter = ObjectGuid::create_player(1, 77);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_packed_guid(&resurrecter);
+        pkt.write_uint32(1);
+
+        let parsed = ResurrectResponse::read(&mut pkt).unwrap();
+
+        assert_eq!(parsed.resurrecter, resurrecter);
+        assert_eq!(parsed.response, 1);
     }
 
     #[test]
