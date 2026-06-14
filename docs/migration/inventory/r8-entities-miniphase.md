@@ -1,4 +1,14 @@
 - `#NEXT.R8.ENTITIES.868` - represented-complete implementation for bounded movement `Handle_NULL` ACK family.
+### #NEXT.R8.ENTITIES.879 — Addon chat inventory drift
+
+Status: represented-partial audit fix for existing addon-chat wiring.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/ChatHandler.cpp:465-525`, `/home/server/woltk-trinity-legacy/src/server/game/Handlers/ChatHandler.cpp:795-805`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/ChatPackets.cpp:93-100`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/ChatPackets.h:91-130`, and `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:300-303`.
+
+Implemented Rust seam: stale inventories now recognize the existing `CMSG_CHAT_ADDON_MESSAGE` and `CMSG_CHAT_ADDON_MESSAGE_WHISPER` parsers, handler registrations, dispatch arms, and represented addon-message handling.
+
+Remaining gaps: live guild/channel addon routing, addon command handler parity, cross-realm whispers, target/channel addon routing for the unresolved `CMSG_CHAT_ADDON_MESSAGE_TARGETED` opcode, install/restart, and live-client manual validation remain open.
+
 ### #NEXT.R8.ENTITIES.878 — CMSG_CHAT_MESSAGE_CHANNEL
 
 Status: represented-partial for the bounded channel-chat seam.
