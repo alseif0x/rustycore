@@ -50,13 +50,14 @@ use wow_packet::packets::misc::{
     BattlePetModifyName, BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags,
     BattlePetSummon, BattlePetUpdateNotify, BugReport, CageBattlePet, CalendarSendCalendar,
     CalendarSendNumPending, CloseInteraction, CommerceTokenGetLog, CommerceTokenGetLogResponse,
-    DfGetJoinStatus, DfGetSystemInfo, FarSight, GmTicketAcknowledgeSurvey, GmTicketCaseStatus,
-    GmTicketSystemStatus, GuildSetAchievementTracking, LfgListBlacklist, LfgPlayerInfo,
-    LfgUpdateStatus, LoadingScreenNotify, MountSetFavorite, ObjectUpdateFailed,
-    ObjectUpdateRescued, QueryBattlePetName, QueryBattlePetNameResponse, RatedPvpInfo,
-    RequestBattlefieldStatus, RequestCemeteryListResponse, SaveCufProfiles,
-    SetAdvancedCombatLogging, SetCurrencyFlags, SetTaxiBenchmarkMode, StandStateChange,
-    TaxiNodeStatusPkt, TogglePvp, ToyClearFanfare, UseToy, ViolenceLevel,
+    Complaint, ComplaintResult, DfGetJoinStatus, DfGetSystemInfo, FarSight,
+    GmTicketAcknowledgeSurvey, GmTicketCaseStatus, GmTicketSystemStatus,
+    GuildSetAchievementTracking, LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus,
+    LoadingScreenNotify, MountSetFavorite, ObjectUpdateFailed, ObjectUpdateRescued,
+    QueryBattlePetName, QueryBattlePetNameResponse, RatedPvpInfo, RequestBattlefieldStatus,
+    RequestCemeteryListResponse, SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags,
+    SetTaxiBenchmarkMode, StandStateChange, TaxiNodeStatusPkt, TogglePvp, ToyClearFanfare, UseToy,
+    ViolenceLevel,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -722,6 +723,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_gm_ticket_acknowledge_survey",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::Complaint,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_complaint",
     }
 }
 
@@ -2334,6 +2344,20 @@ impl crate::session::WorldSession {
             );
         }
     }
+    pub async fn handle_complaint(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let complaint = match Complaint::read(&mut pkt) {
+            Ok(complaint) => complaint,
+            Err(error) => {
+                warn!(account = self.account_id, "Complaint parse failed: {error}");
+                return;
+            }
+        };
+
+        self.send_packet(&ComplaintResult {
+            complaint_type: u32::from(complaint.complaint_type),
+            result: ComplaintResult::OK_LIKE_CPP,
+        });
+    }
     pub async fn handle_bug_report(&mut self, mut pkt: wow_packet::WorldPacket) {
         let report = match BugReport::read(&mut pkt) {
             Ok(report) => report,
@@ -3586,7 +3610,9 @@ mod tests {
     use wow_database::SqlParam;
     use wow_packet::ServerPacket;
     use wow_packet::WorldPacket;
-    use wow_packet::packets::misc::empty_battle_pet_guid_like_cpp;
+    use wow_packet::packets::misc::{
+        SUPPORT_SPAM_TYPE_CHAT_LIKE_CPP, empty_battle_pet_guid_like_cpp,
+    };
 
     fn currency_entry(id: u32) -> wow_data::CurrencyTypesEntry {
         wow_data::CurrencyTypesEntry {
@@ -6220,6 +6246,36 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn complaint_sends_result_zero_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let offender_guid = ObjectGuid::create_player(1, 42);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint8(SUPPORT_SPAM_TYPE_CHAT_LIKE_CPP);
+        pkt.write_packed_guid(&offender_guid);
+        pkt.write_uint32(0x0102_0304);
+        pkt.write_uint32(55);
+        pkt.write_uint32(7);
+        pkt.write_uint32(9);
+        pkt.write_bits(11, 12);
+        pkt.write_string("hello world");
+
+        session.handle_complaint(pkt).await;
+
+        let bytes = send_rx.try_recv().expect("complaint result packet");
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::ComplaintResult as u16
+        );
+
+        let mut response = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(
+            response.read_uint32().unwrap(),
+            SUPPORT_SPAM_TYPE_CHAT_LIKE_CPP as u32
+        );
+        assert_eq!(response.read_uint8().unwrap(), ComplaintResult::OK_LIKE_CPP);
+    }
+
+    #[tokio::test]
     async fn bug_report_is_silent_when_bug_support_disabled_like_cpp_default() {
         let (mut session, send_rx) = make_session();
         session
@@ -6304,6 +6360,18 @@ mod tests {
         assert_eq!(entry.status, SessionStatus::LoggedIn);
         assert_eq!(entry.processing, PacketProcessing::Inplace);
         assert_eq!(entry.handler_name, "handle_gm_ticket_acknowledge_survey");
+    }
+
+    #[test]
+    fn complaint_handler_metadata_matches_cpp() {
+        let entry = inventory::iter::<PacketHandlerEntry>
+            .into_iter()
+            .find(|entry| entry.opcode == ClientOpcodes::Complaint)
+            .expect("Complaint handler entry");
+
+        assert_eq!(entry.status, SessionStatus::LoggedIn);
+        assert_eq!(entry.processing, PacketProcessing::ThreadUnsafe);
+        assert_eq!(entry.handler_name, "handle_complaint");
     }
 
     #[tokio::test]

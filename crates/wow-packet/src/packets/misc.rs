@@ -76,6 +76,86 @@ impl ClientPacket for GmTicketAcknowledgeSurvey {
     }
 }
 
+pub const SUPPORT_SPAM_TYPE_MAIL_LIKE_CPP: u8 = 0;
+pub const SUPPORT_SPAM_TYPE_CHAT_LIKE_CPP: u8 = 1;
+pub const SUPPORT_SPAM_TYPE_CALENDAR_LIKE_CPP: u8 = 2;
+
+/// C++ `WorldPackets::Ticket::Complaint::ComplaintOffender`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ComplaintOffender {
+    pub player_guid: ObjectGuid,
+    pub realm_address: u32,
+    pub time_since_offence: u32,
+}
+
+/// C++ `WorldPackets::Ticket::Complaint::ComplaintChat`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ComplaintChat {
+    pub command: u32,
+    pub channel_id: u32,
+    pub message_log: String,
+}
+
+/// C++ `WorldPackets::Ticket::Complaint`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Complaint {
+    pub complaint_type: u8,
+    pub offender: ComplaintOffender,
+    pub mail_id: Option<u64>,
+    pub chat: Option<ComplaintChat>,
+    pub calendar_event_guid: Option<u64>,
+    pub calendar_invite_guid: Option<u64>,
+}
+
+impl ClientPacket for Complaint {
+    const OPCODE: ClientOpcodes = ClientOpcodes::Complaint;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let complaint_type = pkt.read_uint8()?;
+        let offender = ComplaintOffender {
+            player_guid: pkt.read_packed_guid()?,
+            realm_address: pkt.read_uint32()?,
+            time_since_offence: pkt.read_uint32()?,
+        };
+
+        let mut mail_id = None;
+        let mut chat = None;
+        let mut calendar_event_guid = None;
+        let mut calendar_invite_guid = None;
+
+        match complaint_type {
+            SUPPORT_SPAM_TYPE_MAIL_LIKE_CPP => {
+                mail_id = Some(pkt.read_uint64()?);
+            }
+            SUPPORT_SPAM_TYPE_CHAT_LIKE_CPP => {
+                let command = pkt.read_uint32()?;
+                let channel_id = pkt.read_uint32()?;
+                let message_len = pkt.read_bits(12)? as usize;
+                let message_log = pkt.read_string(message_len)?;
+                chat = Some(ComplaintChat {
+                    command,
+                    channel_id,
+                    message_log,
+                });
+            }
+            SUPPORT_SPAM_TYPE_CALENDAR_LIKE_CPP => {
+                calendar_event_guid = Some(pkt.read_uint64()?);
+                calendar_invite_guid = Some(pkt.read_uint64()?);
+            }
+            _ => {}
+        }
+
+        Ok(Self {
+            complaint_type,
+            offender,
+            mail_id,
+            chat,
+            calendar_event_guid,
+            calendar_invite_guid,
+        })
+    }
+}
+
 // ── Object update recovery (CMSG 0x3183 / 0x3184) ───────────────────────────
 
 /// C++ `WorldPackets::Misc::ObjectUpdateFailed`.
@@ -4197,6 +4277,26 @@ impl ServerPacket for GmTicketCaseStatus {
     }
 }
 
+/// C++ `WorldPackets::Ticket::ComplaintResult`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ComplaintResult {
+    pub complaint_type: u32,
+    pub result: u8,
+}
+
+impl ComplaintResult {
+    pub const OK_LIKE_CPP: u8 = 0;
+}
+
+impl ServerPacket for ComplaintResult {
+    const OPCODE: ServerOpcodes = ServerOpcodes::ComplaintResult;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_uint32(self.complaint_type);
+        pkt.write_uint8(self.result);
+    }
+}
+
 /// C++ `WorldPackets::Ticket::GMTicketSystemStatus`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GmTicketSystemStatus {
@@ -4725,6 +4825,35 @@ mod tests {
     }
 
     #[test]
+    fn complaint_reads_chat_variant_like_cpp() {
+        let offender_guid = ObjectGuid::create_player(1, 42);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint8(SUPPORT_SPAM_TYPE_CHAT_LIKE_CPP);
+        pkt.write_packed_guid(&offender_guid);
+        pkt.write_uint32(0x0102_0304);
+        pkt.write_uint32(55);
+        pkt.write_uint32(7);
+        pkt.write_uint32(9);
+        pkt.write_bits(11, 12);
+        pkt.write_string("hello world");
+
+        let complaint = Complaint::read(&mut pkt).unwrap();
+
+        assert_eq!(complaint.complaint_type, SUPPORT_SPAM_TYPE_CHAT_LIKE_CPP);
+        assert_eq!(complaint.offender.player_guid, offender_guid);
+        assert_eq!(complaint.offender.realm_address, 0x0102_0304);
+        assert_eq!(complaint.offender.time_since_offence, 55);
+        assert!(complaint.mail_id.is_none());
+        let chat = complaint.chat.expect("chat complaint payload");
+        assert_eq!(chat.command, 7);
+        assert_eq!(chat.channel_id, 9);
+        assert_eq!(chat.message_log, "hello world");
+        assert!(complaint.calendar_event_guid.is_none());
+        assert!(complaint.calendar_invite_guid.is_none());
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
     fn lfg_player_info_empty_matches_cpp_shape() {
         let bytes = LfgPlayerInfo::empty().to_bytes();
         assert_eq!(
@@ -4761,6 +4890,27 @@ mod tests {
 
         let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
         assert_eq!(pkt.read_uint32().unwrap(), 0);
+    }
+
+    #[test]
+    fn complaint_result_matches_cpp_shape() {
+        let bytes = ComplaintResult {
+            complaint_type: SUPPORT_SPAM_TYPE_CHAT_LIKE_CPP as u32,
+            result: ComplaintResult::OK_LIKE_CPP,
+        }
+        .to_bytes();
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::ComplaintResult as u16
+        );
+        assert_eq!(bytes.len(), 2 + 5);
+
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(
+            pkt.read_uint32().unwrap(),
+            SUPPORT_SPAM_TYPE_CHAT_LIKE_CPP as u32
+        );
+        assert_eq!(pkt.read_uint8().unwrap(), ComplaintResult::OK_LIKE_CPP);
     }
 
     #[test]

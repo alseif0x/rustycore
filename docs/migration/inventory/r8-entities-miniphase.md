@@ -1,3 +1,13 @@
+- `#NEXT.R8.ENTITIES.853` - represented-complete for bounded `CMSG_COMPLAINT`.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/TicketHandler.cpp:100-107`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TicketPackets.h:261-299`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TicketPackets.cpp:337-381`; `/home/server/woltk-trinity-legacy/src/server/game/Support/SupportMgr.h:80-84`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:381`.
+
+  Rust anchors: `crates/wow-packet/src/packets/misc.rs`; `crates/wow-world/src/handlers/misc.rs`; `crates/wow-world/src/session.rs`; `docs/migration/inventory/cpp-client-handlers.tsv`; `docs/migration/inventory/r3-opcodes-registry.tsv`; `docs/migration/inventory/r3-opcodes-registry.md`.
+
+  Acceptance: `CMSG_COMPLAINT` now parses the C++ complaint payload variants (mail/chat/calendar), registers `LoggedIn`/`ThreadUnsafe` dispatch, routes through `WorldSession`, and sends `SMSG_COMPLAINT_RESULT` with `ComplaintType` and `Result=0` like C++ `HandleComplaint`.
+
+  Boundary: represented-complete for the bounded legacy spam complaint acknowledgement only. `SupportTicketSubmitComplaint` ticket creation/persistence, `SupportMgr` complaint runtime, install/restart, and live client/manual validation remain open.
+
 - `#NEXT.R8.ENTITIES.852` - represented-complete for bounded `CMSG_GM_TICKET_ACKNOWLEDGE_SURVEY`.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/TicketHandler.cpp:110-116`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TicketPackets.h:86-92`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TicketPackets.cpp:63-66`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:491`.
