@@ -104,6 +104,24 @@ impl SupportTicketHeader {
     }
 }
 
+/// C++ `WorldPackets::Ticket::SupportTicketSubmitBug`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SupportTicketSubmitBug {
+    pub header: SupportTicketHeader,
+    pub message: String,
+}
+
+impl ClientPacket for SupportTicketSubmitBug {
+    const OPCODE: ClientOpcodes = ClientOpcodes::SupportTicketSubmitBug;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let header = SupportTicketHeader::read(pkt)?;
+        let message_len = pkt.read_bits(10)? as usize;
+        let message = pkt.read_string(message_len)?;
+        Ok(Self { header, message })
+    }
+}
+
 /// C++ `WorldPackets::Ticket::SubmitUserFeedback`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SubmitUserFeedback {
@@ -4958,6 +4976,29 @@ mod tests {
         let suggestion = SupportTicketSubmitSuggestion::read(&mut pkt).unwrap();
 
         assert_eq!(suggestion.message, message);
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn support_ticket_submit_bug_reads_header_and_10_bit_message_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+        let message = "broken thing";
+        pkt.write_int32(571);
+        pkt.write_float(1.25);
+        pkt.write_float(2.5);
+        pkt.write_float(3.75);
+        pkt.write_float(4.0);
+        pkt.write_int32(9);
+        pkt.write_bits(message.len() as u32, 10);
+        pkt.write_string(message);
+
+        let bug = SupportTicketSubmitBug::read(&mut pkt).unwrap();
+
+        assert_eq!(bug.header.map_id, 571);
+        assert_eq!(bug.header.position, Position::xyz(1.25, 2.5, 3.75));
+        assert_eq!(bug.header.facing, 4.0);
+        assert_eq!(bug.header.program, 9);
+        assert_eq!(bug.message, message);
         assert_eq!(pkt.remaining(), 0);
     }
 

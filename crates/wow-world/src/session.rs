@@ -11402,6 +11402,7 @@ impl WorldSession {
             | ClientOpcodes::EnumCharacters
             | ClientOpcodes::EnumCharactersDeletedByClient
             | ClientOpcodes::SubmitUserFeedback
+            | ClientOpcodes::SupportTicketSubmitBug
             | ClientOpcodes::SupportTicketSubmitComplaint
             | ClientOpcodes::SupportTicketSubmitSuggestion
             | ClientOpcodes::CalendarAddEvent
@@ -18465,6 +18466,9 @@ impl WorldSession {
             }
             ClientOpcodes::SubmitUserFeedback => {
                 self.handle_submit_user_feedback(pkt).await;
+            }
+            ClientOpcodes::SupportTicketSubmitBug => {
+                self.handle_support_ticket_submit_bug(pkt).await;
             }
             ClientOpcodes::SupportTicketSubmitSuggestion => {
                 self.handle_support_ticket_submit_suggestion(pkt).await;
@@ -58495,6 +58499,7 @@ mod tests {
             ClientOpcodes::EnumCharacters,
             ClientOpcodes::EnumCharactersDeletedByClient,
             ClientOpcodes::SubmitUserFeedback,
+            ClientOpcodes::SupportTicketSubmitBug,
             ClientOpcodes::SupportTicketSubmitComplaint,
             ClientOpcodes::SupportTicketSubmitSuggestion,
             ClientOpcodes::CalendarAddEvent,
