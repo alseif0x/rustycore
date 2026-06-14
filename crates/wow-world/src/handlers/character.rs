@@ -50,7 +50,7 @@ use wow_packet::{ClientPacket, WorldPacket};
 
 use crate::handlers::quest::RepresentedQuestGiverStatusSourceLikeCpp;
 use crate::reputation::mgr::CharacterReputationRowLikeCpp;
-use crate::session::RepresentedGameObjectUseState;
+use crate::session::{PER_CHARACTER_CACHE_MASK_LIKE_CPP, RepresentedGameObjectUseState};
 
 // ── Handler registration ────────────────────────────────────────────
 
@@ -3305,6 +3305,7 @@ impl WorldSession {
 
         // Load active quests from characters DB
         self.load_player_quests().await;
+        self.load_player_account_data_like_cpp(guid).await;
 
         self.send_login_sequence(
             guid,
@@ -9819,7 +9820,9 @@ impl WorldSession {
         });
 
         // 3. AccountDataTimes (per-character)
-        self.send_packet(&AccountDataTimes::for_player(guid));
+        self.send_packet(
+            &self.account_data_times_like_cpp(guid, PER_CHARACTER_CACHE_MASK_LIKE_CPP),
+        );
 
         // 4. FeatureSystemStatus (in-game version, different from glue screen)
         self.send_packet(&FeatureSystemStatus::default_wotlk());

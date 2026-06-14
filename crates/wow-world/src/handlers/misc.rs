@@ -2290,7 +2290,8 @@ impl crate::session::WorldSession {
         }
 
         if packet.size == 0 {
-            self.set_account_data_like_cpp(packet.data_type, 0, String::new());
+            self.set_account_data_persisted_like_cpp(packet.data_type, 0, String::new())
+                .await;
             return;
         }
 
@@ -2316,7 +2317,8 @@ impl crate::session::WorldSession {
             }
         };
 
-        self.set_account_data_like_cpp(packet.data_type, packet.time, data);
+        self.set_account_data_persisted_like_cpp(packet.data_type, packet.time, data)
+            .await;
     }
 
     pub async fn handle_addon_list(&mut self, mut pkt: wow_packet::WorldPacket) {
@@ -4258,6 +4260,25 @@ mod tests {
         session.handle_update_account_data(pkt).await;
 
         let account_data = session.account_data_like_cpp(4).unwrap();
+        assert_eq!(account_data.time, 0);
+        assert!(account_data.data.is_empty());
+    }
+
+    #[tokio::test]
+    async fn update_account_data_ignores_per_character_data_without_player_guid_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+
+        session
+            .handle_update_account_data(update_account_data_packet(
+                player_guid,
+                1,
+                1234,
+                "layout-cache",
+            ))
+            .await;
+
+        let account_data = session.account_data_like_cpp(1).unwrap();
         assert_eq!(account_data.time, 0);
         assert!(account_data.data.is_empty());
     }

@@ -1052,22 +1052,25 @@ pub struct AccountDataTimes {
 }
 
 impl AccountDataTimes {
+    pub fn for_times(
+        player_guid: ObjectGuid,
+        account_times: [i64; NUM_ACCOUNT_DATA_TYPES],
+    ) -> Self {
+        Self {
+            player_guid,
+            server_time: unix_timestamp(),
+            account_times,
+        }
+    }
+
     /// Global account data (no player).
     pub fn global() -> Self {
-        Self {
-            player_guid: ObjectGuid::EMPTY,
-            server_time: unix_timestamp(),
-            account_times: [0i64; NUM_ACCOUNT_DATA_TYPES],
-        }
+        Self::for_times(ObjectGuid::EMPTY, [0i64; NUM_ACCOUNT_DATA_TYPES])
     }
 
     /// Per-character account data.
     pub fn for_player(guid: ObjectGuid) -> Self {
-        Self {
-            player_guid: guid,
-            server_time: unix_timestamp(),
-            account_times: [0i64; NUM_ACCOUNT_DATA_TYPES],
-        }
+        Self::for_times(guid, [0i64; NUM_ACCOUNT_DATA_TYPES])
     }
 }
 

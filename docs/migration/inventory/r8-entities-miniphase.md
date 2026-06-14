@@ -1,4 +1,14 @@
 - `#NEXT.R8.ENTITIES.868` - represented-complete implementation for bounded movement `Handle_NULL` ACK family.
+### #NEXT.R8.ENTITIES.883 — account-data DB persistence and AccountDataTimes
+
+Status: represented-complete for the bounded account-data load/save/timestamp seam.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:842-915`, `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:1193-1213`, `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.h:915-945`, and `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:690-748`.
+
+Implemented Rust seam: `LoadAccountData`, `SetAccountData`, and `SendAccountDataTimes` parity now backs the existing account-data request/update handlers with characters DB persistence. Global data loads from `account_data` before glue-screen `SMSG_ACCOUNT_DATA_TIMES`, per-character data loads from `character_account_data` before player-login `SMSG_ACCOUNT_DATA_TIMES`, `CMSG_UPDATE_ACCOUNT_DATA` uses `REPLACE` statements split by `GLOBAL_CACHE_MASK` / `PER_CHARACTER_CACHE_MASK`, and per-character updates without a player GUID are ignored like C++.
+
+Boundary: represented-complete for this account-data DB/cache seam only. No install/restart, bot, or live-client manual validation was performed.
+
 ### #NEXT.R8.ENTITIES.882 — CMSG_REQUEST_ACCOUNT_DATA / CMSG_UPDATE_ACCOUNT_DATA
 
 Status: represented-partial for the account-data request/update seam.

@@ -2525,6 +2525,10 @@ pub(crate) struct AccountDataLikeCpp {
     pub data: String,
 }
 
+pub(crate) const ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP: u32 = 0x7FFF;
+pub(crate) const GLOBAL_CACHE_MASK_LIKE_CPP: u32 = 0x2515;
+pub(crate) const PER_CHARACTER_CACHE_MASK_LIKE_CPP: u32 = 0x5AEA;
+
 fn default_account_data_like_cpp() -> [AccountDataLikeCpp; NUM_ACCOUNT_DATA_TYPES] {
     std::array::from_fn(|_| AccountDataLikeCpp::default())
 }
@@ -19444,7 +19448,9 @@ impl WorldSession {
         });
 
         // 6. AccountDataTimes (global)
-        self.send_packet(&AccountDataTimes::global());
+        self.send_packet(
+            &self.account_data_times_like_cpp(ObjectGuid::EMPTY, GLOBAL_CACHE_MASK_LIKE_CPP),
+        );
 
         // 7. TutorialFlags
         self.send_packet(&TutorialFlags::all_shown());
@@ -19480,6 +19486,21 @@ impl WorldSession {
         self.account_data_like_cpp.get(usize::from(data_type))
     }
 
+    pub(crate) fn account_data_times_like_cpp(
+        &self,
+        player_guid: ObjectGuid,
+        mask: u32,
+    ) -> wow_packet::packets::misc::AccountDataTimes {
+        let mut times = [0i64; NUM_ACCOUNT_DATA_TYPES];
+        for (index, account_data) in self.account_data_like_cpp.iter().enumerate() {
+            if mask & (1u32 << index) != 0 {
+                times[index] = account_data.time;
+            }
+        }
+
+        wow_packet::packets::misc::AccountDataTimes::for_times(player_guid, times)
+    }
+
     pub(crate) fn set_account_data_like_cpp(
         &mut self,
         data_type: u8,
@@ -19493,6 +19514,147 @@ impl WorldSession {
         account_data.time = time;
         account_data.data = data;
         true
+    }
+
+    pub async fn load_global_account_data_like_cpp(&mut self) {
+        self.load_account_data_like_cpp(ObjectGuid::EMPTY, GLOBAL_CACHE_MASK_LIKE_CPP)
+            .await;
+    }
+
+    pub async fn load_player_account_data_like_cpp(&mut self, guid: ObjectGuid) {
+        self.load_account_data_like_cpp(guid, PER_CHARACTER_CACHE_MASK_LIKE_CPP)
+            .await;
+    }
+
+    async fn load_account_data_like_cpp(&mut self, guid: ObjectGuid, mask: u32) {
+        debug_assert_eq!(
+            GLOBAL_CACHE_MASK_LIKE_CPP | PER_CHARACTER_CACHE_MASK_LIKE_CPP,
+            ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP
+        );
+
+        for index in 0..NUM_ACCOUNT_DATA_TYPES {
+            if mask & (1u32 << index) != 0 {
+                self.account_data_like_cpp[index] = AccountDataLikeCpp::default();
+            }
+        }
+
+        let Some(char_db) = self.char_db().map(Arc::clone) else {
+            warn!(
+                account = self.account_id,
+                mask, "LoadAccountData skipped: character database unavailable"
+            );
+            return;
+        };
+
+        let stmt = if mask == GLOBAL_CACHE_MASK_LIKE_CPP {
+            let mut stmt = char_db.prepare(CharStatements::SEL_ACCOUNT_DATA);
+            stmt.set_u32(0, self.account_id);
+            stmt
+        } else {
+            let mut stmt = char_db.prepare(CharStatements::SEL_PLAYER_ACCOUNT_DATA);
+            stmt.set_u64(0, guid.counter() as u64);
+            stmt
+        };
+
+        let result = match char_db.query(&stmt).await {
+            Ok(result) => result,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    mask, "LoadAccountData query failed: {error}"
+                );
+                return;
+            }
+        };
+
+        if result.is_empty() {
+            return;
+        }
+
+        let table_name = if mask == GLOBAL_CACHE_MASK_LIKE_CPP {
+            "account_data"
+        } else {
+            "character_account_data"
+        };
+        let mut result = result;
+        loop {
+            let data_type = result
+                .try_read::<u8>(0)
+                .unwrap_or(NUM_ACCOUNT_DATA_TYPES as u8);
+            if usize::from(data_type) >= NUM_ACCOUNT_DATA_TYPES {
+                warn!(
+                    table = table_name,
+                    data_type, "LoadAccountData ignored invalid account data type like C++"
+                );
+            } else if mask & (1u32 << data_type) == 0 {
+                warn!(
+                    table = table_name,
+                    data_type,
+                    "LoadAccountData ignored account data type inappropriate for table like C++"
+                );
+            } else {
+                self.account_data_like_cpp[usize::from(data_type)].time =
+                    result.try_read::<i64>(1).unwrap_or(0);
+                self.account_data_like_cpp[usize::from(data_type)].data = result.read_string(2);
+            }
+
+            if !result.next_row() {
+                break;
+            }
+        }
+    }
+
+    pub async fn set_account_data_persisted_like_cpp(
+        &mut self,
+        data_type: u8,
+        time: i64,
+        data: String,
+    ) -> bool {
+        if usize::from(data_type) >= NUM_ACCOUNT_DATA_TYPES {
+            return false;
+        }
+
+        let is_global = (1u32 << data_type) & GLOBAL_CACHE_MASK_LIKE_CPP != 0;
+        let player_guid = self.player_guid();
+
+        if !is_global && player_guid.is_none() {
+            return false;
+        }
+
+        let Some(char_db) = self.char_db().map(Arc::clone) else {
+            warn!(
+                account = self.account_id,
+                data_type, "SetAccountData persisted fallback: character database unavailable"
+            );
+            return self.set_account_data_like_cpp(data_type, time, data);
+        };
+
+        let stmt = if is_global {
+            let mut stmt = char_db.prepare(CharStatements::REP_ACCOUNT_DATA);
+            stmt.set_u32(0, self.account_id);
+            stmt.set_u8(1, data_type);
+            stmt.set_i64(2, time);
+            stmt.set_string(3, data.clone());
+            stmt
+        } else {
+            let guid = player_guid.expect("checked above");
+            let mut stmt = char_db.prepare(CharStatements::REP_PLAYER_ACCOUNT_DATA);
+            stmt.set_u64(0, guid.counter() as u64);
+            stmt.set_u8(1, data_type);
+            stmt.set_i64(2, time);
+            stmt.set_string(3, data.clone());
+            stmt
+        };
+
+        if let Err(error) = char_db.execute(&stmt).await {
+            warn!(
+                account = self.account_id,
+                data_type, "SetAccountData persistence failed: {error}"
+            );
+            return false;
+        }
+
+        self.set_account_data_like_cpp(data_type, time, data)
     }
 
     pub(crate) fn set_loaded_player_name_like_cpp(&mut self, name: String) {
@@ -33122,6 +33284,37 @@ mod tests {
             packets.push(bytes);
         }
         packets
+    }
+
+    #[test]
+    fn account_data_times_respect_global_and_character_masks_like_cpp() {
+        let (mut session, _pkt_tx, _send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        assert_eq!(
+            GLOBAL_CACHE_MASK_LIKE_CPP | PER_CHARACTER_CACHE_MASK_LIKE_CPP,
+            ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP
+        );
+
+        assert!(session.set_account_data_like_cpp(0, 10, "global-0".to_string()));
+        assert!(session.set_account_data_like_cpp(1, 20, "character-1".to_string()));
+        assert!(session.set_account_data_like_cpp(4, 40, "global-4".to_string()));
+        assert!(session.set_account_data_like_cpp(14, 140, "character-14".to_string()));
+
+        let global_times =
+            session.account_data_times_like_cpp(ObjectGuid::EMPTY, GLOBAL_CACHE_MASK_LIKE_CPP);
+        assert_eq!(global_times.player_guid, ObjectGuid::EMPTY);
+        assert_eq!(global_times.account_times[0], 10);
+        assert_eq!(global_times.account_times[1], 0);
+        assert_eq!(global_times.account_times[4], 40);
+        assert_eq!(global_times.account_times[14], 0);
+
+        let player_times =
+            session.account_data_times_like_cpp(player_guid, PER_CHARACTER_CACHE_MASK_LIKE_CPP);
+        assert_eq!(player_times.player_guid, player_guid);
+        assert_eq!(player_times.account_times[0], 0);
+        assert_eq!(player_times.account_times[1], 20);
+        assert_eq!(player_times.account_times[4], 0);
+        assert_eq!(player_times.account_times[14], 140);
     }
 
     fn packet_contains_quest_ids_in_order(bytes: &[u8], quest_ids: &[u32]) -> bool {

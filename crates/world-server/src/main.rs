@@ -8899,6 +8899,7 @@ async fn create_session(
 
     // Send session init packets (AuthResponse + glue screen data).
     // These are the first encrypted packets the client receives.
+    session.load_global_account_data_like_cpp().await;
     session.send_session_init_packets();
 
     info!("Session ready for account {}", account.id);
