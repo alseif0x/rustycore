@@ -1,3 +1,13 @@
+- `#NEXT.R8.ENTITIES.850` - represented-complete for bounded `CMSG_BUG_REPORT` bug-system status gating.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Support/SupportMgr.h:246-247`; `/home/server/woltk-trinity-legacy/src/server/game/Support/SupportMgr.cpp:463-465`; `/home/server/woltk-trinity-legacy/src/server/game/World/World.cpp:584-593`; `/home/server/woltk-trinity-legacy/src/server/game/Handlers/TicketHandler.cpp:88-98`.
+
+  Rust anchors: `crates/wow-config/src/lib.rs`; `crates/wow-network/src/accept.rs`; `crates/world-server/src/main.rs`; `crates/wow-world/src/session.rs`; `crates/wow-world/src/handlers/misc.rs`; `docs/migration/inventory/cpp-world-config-registry.tsv`; `docs/migration/inventory/cpp-config-keys.tsv`.
+
+  Acceptance: `CMSG_BUG_REPORT` now gates the enabled branch with represented C++ `SupportMgr::GetBugSystemStatus` semantics. `Support.Enabled` defaults true, `Support.BugsEnabled` defaults false, `world-server` wires both values into `WorldSession`, and Rust only considers bug reports enabled when `Support.Enabled && Support.BugsEnabled`.
+
+  Boundary: represented-complete for the bounded bug-system status gate used by `CMSG_BUG_REPORT`; `#NEXT.R8.ENTITIES.831` remains represented-partial for `SupportMgr` runtime singleton, ticket/support manager runtime, `Support.TicketsEnabled`/UI feature status, real enabled-branch DB integration against a running character DB, install/restart, and live client/manual validation.
+
 - `#NEXT.R8.ENTITIES.849` - audit-fix/represented-complete for stale `CHAR_INS_BUG_REPORT` DB inventory.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/CharacterDatabase.h:335`; `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/CharacterDatabase.cpp:447`; `/home/server/woltk-trinity-legacy/src/server/game/Handlers/TicketHandler.cpp:88-98`.
@@ -6,7 +16,7 @@
 
   Acceptance: stale DB inventory is reconciled. Rust already exposes `CharStatements::INS_BUG_REPORT` with the exact C++ `INSERT INTO bugreport (type, content) VALUES(?, ?)` SQL, `CMSG_BUG_REPORT` builds that prepared statement in the enabled branch, and the bind order remains `Text` then `DiagInfo` like C++.
 
-  Boundary: audit-fix only; advances `#NEXT.R8.ENTITIES.831` by removing a false missing-DB-statement gap. `CMSG_BUG_REPORT` remains represented-partial for `SupportMgr` runtime singleton, `Support.Enabled` whole-system UI status, real enabled-branch DB integration against a running character DB, install/restart, and live client/manual validation.
+  Boundary: audit-fix only; advances `#NEXT.R8.ENTITIES.831` by removing a false missing-DB-statement gap. `CMSG_BUG_REPORT` remains represented-partial for `SupportMgr` runtime singleton, real enabled-branch DB integration against a running character DB, ticket/support manager runtime, install/restart, and live client/manual validation.
 
 - `#NEXT.R8.ENTITIES.848` - audit-fix/represented-complete for stale `CMSG_SET_TITLE` inventory.
 
@@ -26,7 +36,7 @@
 
   Acceptance: Rust now carries C++ `CONFIG_SUPPORT_BUGS_ENABLED` / `Support.BugsEnabled` through world config resolution into `world-server` `SessionResources`, applies it to `WorldSession`, keeps the C++ default disabled no-op behavior, and exposes a session-level setter/test for the enabled flag.
 
-  Boundary: this advances `#NEXT.R8.ENTITIES.831` but remains represented-partial. `SupportMgr` as a runtime singleton, `Support.Enabled` whole-system UI status, enabled-branch DB integration against a real character DB, ticket/support manager runtime, install/restart, and live client/manual validation remain open.
+  Boundary: this advances `#NEXT.R8.ENTITIES.831` but remains represented-partial. `#NEXT.R8.ENTITIES.850` later wires the full represented bug-system gate (`Support.Enabled && Support.BugsEnabled`); `SupportMgr` as a runtime singleton, enabled-branch DB integration against a real character DB, ticket/support manager runtime, install/restart, and live client/manual validation remain open.
 
 - `#NEXT.R8.ENTITIES.845` - audit-fix/represented-complete for stale `CMSG_COLLECTION_ITEM_SET_FAVORITE` inventory.
 
@@ -164,9 +174,9 @@
 
   Rust anchors: `crates/wow-packet/src/packets/misc.rs`; `crates/wow-world/src/handlers/misc.rs`; `crates/wow-world/src/session.rs`; `crates/wow-network/src/accept.rs`; `crates/world-server/src/main.rs`; `crates/wow-config/src/lib.rs`.
 
-  Acceptance: `CMSG_BUG_REPORT` now parses the C++ bit/string layout (`Type` bit, 12-bit `DiagInfo` length, 10-bit `Text` length), registers `LoggedIn`/`ThreadUnsafe` dispatch, routes through `WorldSession`, wires C++ `Support.BugsEnabled` / `CONFIG_SUPPORT_BUGS_ENABLED` from world config into `WorldSession`, preserves the C++ default disabled no-op branch, and exposes exact `CHAR_INS_BUG_REPORT` binding with `Text` then `DiagInfo`.
+  Acceptance: `CMSG_BUG_REPORT` now parses the C++ bit/string layout (`Type` bit, 12-bit `DiagInfo` length, 10-bit `Text` length), registers `LoggedIn`/`ThreadUnsafe` dispatch, routes through `WorldSession`, wires represented C++ `SupportMgr::GetBugSystemStatus` semantics (`Support.Enabled && Support.BugsEnabled`) from world config into `WorldSession`, preserves the C++ default disabled no-op branch, and exposes exact `CHAR_INS_BUG_REPORT` binding with `Text` then `DiagInfo`.
 
-  Boundary: represented-partial only; no live `SupportMgr` singleton, no `Support.Enabled` whole-system UI status, no enabled-branch DB integration test against a real character DB, no ticket/support manager runtime, no install/restart, and no live client/manual validation.
+  Boundary: represented-partial only; no live `SupportMgr` singleton, no enabled-branch DB integration test against a real character DB, no ticket/support manager runtime, no install/restart, and no live client/manual validation.
 
 - `#NEXT.R8.ENTITIES.832` - represented-complete for `CMSG_OPENING_CINEMATIC`.
 

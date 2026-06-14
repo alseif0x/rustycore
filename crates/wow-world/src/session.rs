@@ -3111,6 +3111,7 @@ pub struct WorldSession {
     represented_cinematic_end_events_like_cpp: Vec<u32>,
     represented_movie_like_cpp: Option<u32>,
     represented_movie_complete_events_like_cpp: Vec<u32>,
+    represented_support_enabled_like_cpp: bool,
     represented_support_bugs_enabled_like_cpp: bool,
     gameobject_template_lifecycle_store: Option<Arc<GameObjectTemplateLifecycleStoreLikeCpp>>,
     /// Currently active spell cast (if any). Set when a cast starts, cleared when it completes.
@@ -4147,6 +4148,7 @@ impl WorldSession {
             represented_cinematic_end_events_like_cpp: Vec::new(),
             represented_movie_like_cpp: None,
             represented_movie_complete_events_like_cpp: Vec::new(),
+            represented_support_enabled_like_cpp: true,
             represented_support_bugs_enabled_like_cpp: false,
             gameobject_template_lifecycle_store: None,
             quest_store: None,
@@ -13929,12 +13931,24 @@ impl WorldSession {
         &self.represented_movie_complete_events_like_cpp
     }
 
+    pub(crate) fn represented_support_enabled_like_cpp(&self) -> bool {
+        self.represented_support_enabled_like_cpp
+    }
+
+    pub fn set_represented_support_enabled_like_cpp(&mut self, enabled: bool) {
+        self.represented_support_enabled_like_cpp = enabled;
+    }
+
     pub(crate) fn represented_support_bugs_enabled_like_cpp(&self) -> bool {
         self.represented_support_bugs_enabled_like_cpp
     }
 
     pub fn set_represented_support_bugs_enabled_like_cpp(&mut self, enabled: bool) {
         self.represented_support_bugs_enabled_like_cpp = enabled;
+    }
+
+    pub(crate) fn represented_bug_system_status_like_cpp(&self) -> bool {
+        self.represented_support_enabled_like_cpp && self.represented_support_bugs_enabled_like_cpp
     }
 
     pub(crate) fn spell_range_store(&self) -> Option<&Arc<SpellRangeStore>> {

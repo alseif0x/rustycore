@@ -2308,7 +2308,7 @@ impl crate::session::WorldSession {
             }
         };
 
-        if !self.represented_support_bugs_enabled_like_cpp() {
+        if !self.represented_bug_system_status_like_cpp() {
             return;
         }
 
@@ -6158,13 +6158,22 @@ mod tests {
     #[test]
     fn bug_report_support_config_flag_is_session_wired_like_cpp() {
         let (mut session, _send_rx) = make_session();
+        assert!(session.represented_support_enabled_like_cpp());
         assert!(!session.represented_support_bugs_enabled_like_cpp());
+        assert!(!session.represented_bug_system_status_like_cpp());
 
+        session.set_represented_support_enabled_like_cpp(false);
+        session.set_represented_support_bugs_enabled_like_cpp(true);
+        assert!(!session.represented_bug_system_status_like_cpp());
+
+        session.set_represented_support_enabled_like_cpp(true);
         session.set_represented_support_bugs_enabled_like_cpp(true);
         assert!(session.represented_support_bugs_enabled_like_cpp());
+        assert!(session.represented_bug_system_status_like_cpp());
 
         session.set_represented_support_bugs_enabled_like_cpp(false);
         assert!(!session.represented_support_bugs_enabled_like_cpp());
+        assert!(!session.represented_bug_system_status_like_cpp());
     }
 
     #[test]
