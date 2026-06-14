@@ -11382,6 +11382,7 @@ impl WorldSession {
             | ClientOpcodes::ChatMessageSay
             | ClientOpcodes::ChatMessageWhisper
             | ClientOpcodes::ChatMessageYell
+            | ClientOpcodes::UpdateAadcStatus
             | ClientOpcodes::Inspect
             | ClientOpcodes::AreaSpiritHealerQuery
             | ClientOpcodes::StandStateChange
@@ -18375,6 +18376,9 @@ impl WorldSession {
             }
             ClientOpcodes::ChatReportFiltered => {
                 self.handle_chat_report_filtered(pkt).await;
+            }
+            ClientOpcodes::UpdateAadcStatus => {
+                self.handle_update_aadc_status(pkt).await;
             }
             ClientOpcodes::ChatMessageEmote => {
                 self.handle_chat_emote(pkt).await;
@@ -58747,6 +58751,7 @@ mod tests {
             ClientOpcodes::ChatMessageSay,
             ClientOpcodes::ChatMessageWhisper,
             ClientOpcodes::ChatMessageYell,
+            ClientOpcodes::UpdateAadcStatus,
             ClientOpcodes::Inspect,
             ClientOpcodes::AreaSpiritHealerQuery,
             ClientOpcodes::StandStateChange,

@@ -1,4 +1,14 @@
 - `#NEXT.R8.ENTITIES.868` - represented-complete implementation for bounded movement `Handle_NULL` ACK family.
+### #NEXT.R8.ENTITIES.880 — CMSG_UPDATE_AADC_STATUS
+
+Status: represented-complete for the bounded AADC status request/response.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/ChatHandler.cpp:784-794`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/ChatPackets.cpp:346-357`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/ChatPackets.h:373-390`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:992`, and `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:2184`.
+
+Implemented Rust seam: `CMSG_UPDATE_AADC_STATUS` now parses the C++ one-bit `ChatDisabled` request, registers `LoggedIn`/`PROCESS_INPLACE`, dispatches through `WorldSession`, ignores the requested disabled state like C++ because disabling chat is unsupported, and sends `SMSG_UPDATE_AADC_STATUS_RESPONSE` with `Success=true` and `ChatDisabled=false`.
+
+Boundary: represented-complete for this bounded AADC status request/response only. No install/restart or live-client manual validation was performed.
+
 ### #NEXT.R8.ENTITIES.879 — Addon chat inventory drift
 
 Status: represented-partial audit fix for existing addon-chat wiring.

@@ -29,7 +29,8 @@ use wow_packet::packets::chat::{
     CTextEmote, ChatAddonMessage, ChatAddonMessageTargeted, ChatAddonMessageWhisper, ChatMessage,
     ChatMessageAfk, ChatMessageChannel, ChatMessageDnd, ChatMessageEmote, ChatMessageWhisper,
     ChatMsg, ChatPkt, ChatPlayerNotfound, ChatRegisterAddonPrefixes, ChatReportFiltered,
-    ChatReportIgnored, EmoteClient, EmoteMessage, PrintNotification, STextEmote,
+    ChatReportIgnored, EmoteClient, EmoteMessage, PrintNotification, STextEmote, UpdateAadcStatus,
+    UpdateAadcStatusResponse,
 };
 use wow_packet::{ClientPacket, ServerPacket};
 
@@ -159,6 +160,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_dnd",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::UpdateAadcStatus,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_update_aadc_status",
     }
 }
 
@@ -585,6 +595,25 @@ impl WorldSession {
             secure = ?msg.is_secure,
             "Channel chat ignored until ChannelMgr::Say is ported"
         );
+    }
+
+    /// Handle CMSG_UPDATE_AADC_STATUS.
+    ///
+    /// C++ ignores the requested state because disabling chat is unsupported,
+    /// then sends success with ChatDisabled=false so the client restores its cvar.
+    pub async fn handle_update_aadc_status(&mut self, mut pkt: wow_packet::WorldPacket) {
+        if let Err(e) = UpdateAadcStatus::read(&mut pkt) {
+            tracing::warn!(
+                account = self.account_id,
+                "Bad update AADC status packet: {e}"
+            );
+            return;
+        }
+
+        self.send_packet(&UpdateAadcStatusResponse {
+            success: true,
+            chat_disabled: false,
+        });
     }
 
     /// Handle CMSG_CHAT_MESSAGE_AFK.
@@ -2026,6 +2055,29 @@ mod tests {
         assert!(sender_rx.try_recv().is_err());
         assert!(nearby_rx.try_recv().is_err());
         assert!(!session.is_disconnecting());
+    }
+
+    #[tokio::test]
+    async fn update_aadc_status_forces_chat_enabled_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 331);
+        let (mut session, _player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
+        let mut writer = wow_packet::WorldPacket::new_empty();
+        writer.write_bit(true);
+        writer.flush_bits();
+
+        session
+            .handle_update_aadc_status(wow_packet::WorldPacket::from_bytes(writer.data()))
+            .await;
+
+        let bytes = sender_rx.try_recv().expect("AADC status response");
+        let mut response = wow_packet::WorldPacket::from_bytes(&bytes);
+        assert_eq!(
+            response.read_uint16().expect("opcode"),
+            wow_constants::ServerOpcodes::UpdateAadcStatusResponse as u16
+        );
+        assert!(response.read_bit().expect("success"));
+        assert!(!response.read_bit().expect("chat disabled"));
+        assert!(response.is_empty());
     }
 
     #[tokio::test]

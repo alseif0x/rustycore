@@ -369,6 +369,41 @@ impl ClientPacket for ChatMessageChannel {
     }
 }
 
+// ── CMSG_UPDATE_AADC_STATUS / SMSG_UPDATE_AADC_STATUS_RESPONSE ───
+
+/// C++ `WorldPackets::Chat::UpdateAADCStatus::Read`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UpdateAadcStatus {
+    pub chat_disabled: bool,
+}
+
+impl ClientPacket for UpdateAadcStatus {
+    const OPCODE: ClientOpcodes = ClientOpcodes::UpdateAadcStatus;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            chat_disabled: pkt.read_bit()?,
+        })
+    }
+}
+
+/// C++ `WorldPackets::Chat::UpdateAADCStatusResponse::Write`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UpdateAadcStatusResponse {
+    pub success: bool,
+    pub chat_disabled: bool,
+}
+
+impl ServerPacket for UpdateAadcStatusResponse {
+    const OPCODE: ServerOpcodes = ServerOpcodes::UpdateAadcStatusResponse;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_bit(self.success);
+        pkt.write_bit(self.chat_disabled);
+        pkt.flush_bits();
+    }
+}
+
 // ── CMSG_CHAT_MESSAGE_AFK / DND ──────────────────────────────────
 
 /// C++ `WorldPackets::Chat::ChatMessageAFK::Read`.
@@ -1240,6 +1275,37 @@ mod tests {
         assert_eq!(packet.target, "General");
         assert_eq!(packet.text, "hello");
         assert_eq!(packet.is_secure, None);
+        assert!(reader.is_empty());
+    }
+
+    #[test]
+    fn update_aadc_status_reads_cpp_layout() {
+        let mut writer = WorldPacket::new_empty();
+        writer.write_bit(true);
+        writer.flush_bits();
+
+        let mut reader = WorldPacket::from_bytes(writer.data());
+        let packet = UpdateAadcStatus::read(&mut reader).unwrap();
+
+        assert!(packet.chat_disabled);
+        assert!(reader.is_empty());
+    }
+
+    #[test]
+    fn update_aadc_status_response_writes_cpp_layout() {
+        let bytes = UpdateAadcStatusResponse {
+            success: true,
+            chat_disabled: false,
+        }
+        .to_bytes();
+        let mut reader = WorldPacket::from_bytes(&bytes);
+
+        assert_eq!(
+            reader.read_uint16().unwrap(),
+            ServerOpcodes::UpdateAadcStatusResponse as u16
+        );
+        assert!(reader.read_bit().unwrap());
+        assert!(!reader.read_bit().unwrap());
         assert!(reader.is_empty());
     }
 
