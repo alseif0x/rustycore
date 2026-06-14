@@ -135,7 +135,8 @@ use wow_packet::packets::item::{
 };
 use wow_packet::packets::misc::{
     AccountHeirloom, AccountHeirloomUpdate, AccountMount, AccountMountUpdate, AccountToy,
-    AccountToyUpdate, BuyFailed, SellResponse, SetupCurrency, SetupCurrencyRecord,
+    AccountToyUpdate, BuyFailed, NUM_ACCOUNT_DATA_TYPES, SellResponse, SetupCurrency,
+    SetupCurrencyRecord,
 };
 use wow_packet::packets::quest::{
     QuestGiverOfferReward, QuestGiverQuestDetails, QuestGiverQuestList, QuestGiverRequestItems,
@@ -2517,6 +2518,17 @@ pub struct SpellCastState {
     pub metadata: SpellCastMetadata,
 }
 
+/// C++ `WorldSession::_accountData[NUM_ACCOUNT_DATA_TYPES]` entry.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct AccountDataLikeCpp {
+    pub time: i64,
+    pub data: String,
+}
+
+fn default_account_data_like_cpp() -> [AccountDataLikeCpp; NUM_ACCOUNT_DATA_TYPES] {
+    std::array::from_fn(|_| AccountDataLikeCpp::default())
+}
+
 /// Per-player session on the world server.
 ///
 /// Receives deserialized packets from the socket layer via a channel,
@@ -2824,6 +2836,8 @@ pub struct WorldSession {
     player_guid: Option<ObjectGuid>,
     /// Attached player controller, mirroring C++ `WorldSession::_player` ownership.
     player_controller: Option<SessionPlayerController>,
+    /// C++ `WorldSession::_accountData`, represented in-memory until DB load/save is wired.
+    account_data_like_cpp: [AccountDataLikeCpp; NUM_ACCOUNT_DATA_TYPES],
 
     /// Pending creature spawn request (set during login, processed async).
     pub(crate) pending_creature_spawn: Option<PendingCreatureSpawn>,
@@ -4035,6 +4049,7 @@ impl WorldSession {
             selection_guid: None,
             player_guid: None,
             player_controller: None,
+            account_data_like_cpp: default_account_data_like_cpp(),
             pending_creature_spawn: None,
             pending_creature_kill_loot_like_cpp: Vec::new(),
             pending_creature_kill_rewards_like_cpp: Vec::new(),
@@ -18455,6 +18470,12 @@ impl WorldSession {
             ClientOpcodes::SetInsertItemsLeftToRight => {
                 self.handle_set_insert_items_left_to_right(pkt).await;
             }
+            ClientOpcodes::RequestAccountData => {
+                self.handle_request_account_data(pkt).await;
+            }
+            ClientOpcodes::UpdateAccountData => {
+                self.handle_update_account_data(pkt).await;
+            }
             ClientOpcodes::ChangeBagSlotFlag
             | ClientOpcodes::CloseQuestChoice
             | ClientOpcodes::QueryQuestItemUsability
@@ -19453,6 +19474,25 @@ impl WorldSession {
             self.player_controller = None;
             self.represented_seer_guid_like_cpp = None;
         }
+    }
+
+    pub(crate) fn account_data_like_cpp(&self, data_type: u8) -> Option<&AccountDataLikeCpp> {
+        self.account_data_like_cpp.get(usize::from(data_type))
+    }
+
+    pub(crate) fn set_account_data_like_cpp(
+        &mut self,
+        data_type: u8,
+        time: i64,
+        data: String,
+    ) -> bool {
+        let Some(account_data) = self.account_data_like_cpp.get_mut(usize::from(data_type)) else {
+            return false;
+        };
+
+        account_data.time = time;
+        account_data.data = data;
+        true
     }
 
     pub(crate) fn set_loaded_player_name_like_cpp(&mut self, name: String) {

@@ -11,7 +11,7 @@ use tracing::{debug, info, warn};
 use wow_constants::{
     ClientOpcodes, InventoryResult, ItemExtendedCostFlags, SpellCastResult, UnitStandStateType,
 };
-use wow_core::GameTime;
+use wow_core::{GameTime, ObjectGuid};
 use wow_database::{
     CharStatements, PreparedStatement, SqlTransaction, StatementDef, WorldStatements,
 };
@@ -53,13 +53,15 @@ use wow_packet::packets::misc::{
     CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint, ComplaintResult,
     DeclineGuildInvites, DfGetJoinStatus, DfGetSystemInfo, FarSight, GmTicketAcknowledgeSurvey,
     GmTicketCaseStatus, GmTicketSystemStatus, GuildSetAchievementTracking, LfgListBlacklist,
-    LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify, MountSetFavorite, MountSpecial,
-    ObjectUpdateFailed, ObjectUpdateRescued, QueryBattlePetName, QueryBattlePetNameResponse,
-    RatedPvpInfo, RequestBattlefieldStatus, RequestCemeteryListResponse, ResurrectResponse,
+    LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify, MAX_ACCOUNT_DATA_SIZE_LIKE_CPP,
+    MountSetFavorite, MountSpecial, NUM_ACCOUNT_DATA_TYPES, ObjectUpdateFailed,
+    ObjectUpdateRescued, QueryBattlePetName, QueryBattlePetNameResponse, RatedPvpInfo,
+    RequestAccountData, RequestBattlefieldStatus, RequestCemeteryListResponse, ResurrectResponse,
     SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags, SetTaxiBenchmarkMode,
     SpecialMountAnim, StandStateChange, SubmitUserFeedback, SupportTicketSubmitBug,
     SupportTicketSubmitComplaint, SupportTicketSubmitSuggestion, TaxiNodeStatusPkt, TogglePvp,
-    ToyClearFanfare, UseToy, ViolenceLevel,
+    ToyClearFanfare, UpdateAccountData, UseToy, UserClientUpdateAccountData, ViolenceLevel,
+    compress_account_data_like_cpp, decompress_account_data_like_cpp,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -383,6 +385,24 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_unhandled_client_null_like_cpp",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::RequestAccountData,
+        status: SessionStatus::Authed,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_request_account_data",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::UpdateAccountData,
+        status: SessionStatus::Authed,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_update_account_data",
     }
 }
 
@@ -2210,6 +2230,93 @@ impl crate::session::WorldSession {
         };
 
         self.represented_set_currency_flags_like_cpp(packet.currency_id, packet.flags);
+    }
+
+    pub async fn handle_request_account_data(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let packet = match RequestAccountData::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "RequestAccountData parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        if usize::from(packet.data_type) >= NUM_ACCOUNT_DATA_TYPES {
+            return;
+        }
+
+        let Some(account_data) = self.account_data_like_cpp(packet.data_type) else {
+            return;
+        };
+        let data = account_data.data.clone();
+        let time = account_data.time;
+        let compressed_data = match compress_account_data_like_cpp(&data) {
+            Ok(compressed_data) => compressed_data,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "RequestAccountData compression failed: {error}"
+                );
+                return;
+            }
+        };
+
+        self.send_packet(&UpdateAccountData {
+            player_guid: self.player_guid().unwrap_or(ObjectGuid::EMPTY),
+            time,
+            size: data.len() as u32,
+            data_type: packet.data_type,
+            compressed_data,
+        });
+    }
+
+    pub async fn handle_update_account_data(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let packet = match UserClientUpdateAccountData::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "UpdateAccountData parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        if usize::from(packet.data_type) >= NUM_ACCOUNT_DATA_TYPES {
+            return;
+        }
+
+        if packet.size == 0 {
+            self.set_account_data_like_cpp(packet.data_type, 0, String::new());
+            return;
+        }
+
+        if packet.size > MAX_ACCOUNT_DATA_SIZE_LIKE_CPP {
+            warn!(
+                account = self.account_id,
+                data_type = packet.data_type,
+                size = packet.size,
+                "UpdateAccountData rejected oversized payload like C++"
+            );
+            return;
+        }
+
+        let data = match decompress_account_data_like_cpp(&packet.compressed_data, packet.size) {
+            Ok(data) => data,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    data_type = packet.data_type,
+                    "UpdateAccountData decompression failed: {error}"
+                );
+                return;
+            }
+        };
+
+        self.set_account_data_like_cpp(packet.data_type, packet.time, data);
     }
 
     pub async fn handle_addon_list(&mut self, mut pkt: wow_packet::WorldPacket) {
@@ -4089,6 +4196,130 @@ mod tests {
         pkt.write_packed_guid(&resurrecter);
         pkt.write_uint32(response);
         pkt
+    }
+
+    fn update_account_data_packet(
+        player_guid: ObjectGuid,
+        data_type: u8,
+        time: i64,
+        data: &str,
+    ) -> WorldPacket {
+        let compressed_data = compress_account_data_like_cpp(data).unwrap();
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_packed_guid(&player_guid);
+        pkt.write_int64(time);
+        pkt.write_uint32(data.len() as u32);
+        pkt.write_bits(u32::from(data_type), 4);
+        pkt.write_uint32(compressed_data.len() as u32);
+        pkt.write_bytes(&compressed_data);
+        pkt
+    }
+
+    fn request_account_data_packet(player_guid: ObjectGuid, data_type: u8) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_packed_guid(&player_guid);
+        pkt.write_bits(u32::from(data_type), 4);
+        pkt.flush_bits();
+        pkt
+    }
+
+    #[tokio::test]
+    async fn update_account_data_stores_decompressed_cstring_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        session.set_player_guid(Some(player_guid));
+
+        session
+            .handle_update_account_data(update_account_data_packet(
+                player_guid,
+                4,
+                1234,
+                "macros-cache",
+            ))
+            .await;
+
+        let account_data = session.account_data_like_cpp(4).unwrap();
+        assert_eq!(account_data.time, 1234);
+        assert_eq!(account_data.data, "macros-cache");
+    }
+
+    #[tokio::test]
+    async fn update_account_data_size_zero_erases_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        assert!(session.set_account_data_like_cpp(4, 999, "old-cache".to_string()));
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_packed_guid(&player_guid);
+        pkt.write_int64(1234);
+        pkt.write_uint32(0);
+        pkt.write_bits(4, 4);
+        pkt.write_uint32(0);
+
+        session.handle_update_account_data(pkt).await;
+
+        let account_data = session.account_data_like_cpp(4).unwrap();
+        assert_eq!(account_data.time, 0);
+        assert!(account_data.data.is_empty());
+    }
+
+    #[tokio::test]
+    async fn update_account_data_rejects_invalid_type_and_oversize_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+
+        session
+            .handle_update_account_data(update_account_data_packet(
+                player_guid,
+                NUM_ACCOUNT_DATA_TYPES as u8,
+                1234,
+                "ignored",
+            ))
+            .await;
+        assert!(session.account_data_like_cpp(0).unwrap().data.is_empty());
+
+        let compressed_data = compress_account_data_like_cpp("ignored").unwrap();
+        let mut oversized = WorldPacket::new_empty();
+        oversized.write_packed_guid(&player_guid);
+        oversized.write_int64(1234);
+        oversized.write_uint32(MAX_ACCOUNT_DATA_SIZE_LIKE_CPP + 1);
+        oversized.write_bits(4, 4);
+        oversized.write_uint32(compressed_data.len() as u32);
+        oversized.write_bytes(&compressed_data);
+
+        session.handle_update_account_data(oversized).await;
+        assert!(session.account_data_like_cpp(4).unwrap().data.is_empty());
+    }
+
+    #[tokio::test]
+    async fn request_account_data_sends_update_account_data_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        session.set_player_guid(Some(player_guid));
+        assert!(session.set_account_data_like_cpp(4, 5678, "macro-cache".to_string()));
+
+        session
+            .handle_request_account_data(request_account_data_packet(player_guid, 4))
+            .await;
+
+        let encoded = send_rx.try_recv().unwrap();
+        let mut packet = WorldPacket::new_client(encoded.as_slice().into());
+        assert_eq!(
+            packet.server_opcode(),
+            Some(wow_constants::ServerOpcodes::UpdateAccountData)
+        );
+        packet.skip_opcode();
+        assert_eq!(packet.read_packed_guid().unwrap(), player_guid);
+        assert_eq!(packet.read_int64().unwrap(), 5678);
+        let decompressed_size = packet.read_uint32().unwrap();
+        assert_eq!(decompressed_size, "macro-cache".len() as u32);
+        assert_eq!(packet.read_bits(4).unwrap(), 4);
+        let compressed_size = packet.read_uint32().unwrap() as usize;
+        let compressed_data = packet.read_bytes(compressed_size).unwrap();
+        assert_eq!(
+            decompress_account_data_like_cpp(&compressed_data, decompressed_size).unwrap(),
+            "macro-cache"
+        );
+        assert_eq!(packet.remaining(), 0);
     }
 
     #[tokio::test]

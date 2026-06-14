@@ -1,4 +1,14 @@
 - `#NEXT.R8.ENTITIES.868` - represented-complete implementation for bounded movement `Handle_NULL` ACK family.
+### #NEXT.R8.ENTITIES.882 — CMSG_REQUEST_ACCOUNT_DATA / CMSG_UPDATE_ACCOUNT_DATA
+
+Status: represented-partial for the account-data request/update seam.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:690-748`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/ClientConfigPackets.cpp:37-62`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/ClientConfigPackets.h:29-92`, `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:842-915`, `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.h:915-945`, and `/home/server/woltk-trinity-legacy/src/server/shared/Packets/ByteBuffer.h:379-382`.
+
+Implemented Rust seam: `CMSG_REQUEST_ACCOUNT_DATA` and `CMSG_UPDATE_ACCOUNT_DATA` now parse the C++ `ClientConfig` packet shapes, use zlib-wrapped account-data compression/decompression with C++ `CString` fallback semantics, register `Authed`/`ThreadUnsafe` dispatch, maintain represented `WorldSession::_accountData[15]` in memory, enforce `NUM_ACCOUNT_DATA_TYPES` and `0xFFFF` size guards, erase on `Size==0`, and send `SMSG_UPDATE_ACCOUNT_DATA` responses for represented requests.
+
+Remaining gaps: `CharacterDatabase` `LoadAccountData`, `account_data` / `character_account_data` `REPLACE` persistence, real `AccountDataTimes` timestamps from DB, cache-mask split via `GLOBAL_CACHE_MASK` / `PER_CHARACTER_CACHE_MASK`, install/restart, bot, and live-client manual validation remain open. C++ sends `compressBound(0)` bytes for empty request responses; Rust intentionally mirrors that legacy quirk.
+
 ### #NEXT.R8.ENTITIES.881 — CMSG_SAVE_ACCOUNT_DATA_EXPORT
 
 Status: represented-complete for the bounded account-data-export `Handle_NULL` hook.

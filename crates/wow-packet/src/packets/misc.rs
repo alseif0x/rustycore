@@ -5,6 +5,9 @@
 
 //! Miscellaneous login-sequence packets sent to the client during character login.
 
+use std::io::{Read, Write};
+
+use flate2::{Compression, read::ZlibDecoder, write::ZlibEncoder};
 use wow_constants::{ClientOpcodes, ServerOpcodes};
 use wow_core::guid::HighGuid;
 use wow_core::{ObjectGuid, Position};
@@ -917,6 +920,128 @@ impl ClientPacket for CloseInteraction {
 
 /// Number of AccountDataTypes (from C# AccountDataTypes.Max = 15).
 pub const NUM_ACCOUNT_DATA_TYPES: usize = 15;
+pub const MAX_ACCOUNT_DATA_SIZE_LIKE_CPP: u32 = 0xFFFF;
+pub const EMPTY_ACCOUNT_DATA_COMPRESS_BOUND_LIKE_CPP: usize = 13;
+
+/// C++ `WorldPackets::ClientConfig::RequestAccountData`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RequestAccountData {
+    pub player_guid: ObjectGuid,
+    pub data_type: u8,
+}
+
+impl ClientPacket for RequestAccountData {
+    const OPCODE: ClientOpcodes = ClientOpcodes::RequestAccountData;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            player_guid: pkt.read_packed_guid()?,
+            data_type: pkt.read_bits(4)? as u8,
+        })
+    }
+}
+
+/// C++ `WorldPackets::ClientConfig::UserClientUpdateAccountData`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UserClientUpdateAccountData {
+    pub player_guid: ObjectGuid,
+    pub time: i64,
+    pub size: u32,
+    pub data_type: u8,
+    pub compressed_data: Vec<u8>,
+}
+
+impl ClientPacket for UserClientUpdateAccountData {
+    const OPCODE: ClientOpcodes = ClientOpcodes::UpdateAccountData;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let player_guid = pkt.read_packed_guid()?;
+        let time = pkt.read_int64()?;
+        let size = pkt.read_uint32()?;
+        let data_type = pkt.read_bits(4)? as u8;
+        let compressed_size = pkt.read_uint32()? as usize;
+        let compressed_data = pkt.read_bytes(compressed_size)?;
+
+        Ok(Self {
+            player_guid,
+            time,
+            size,
+            data_type,
+            compressed_data,
+        })
+    }
+}
+
+/// C++ `WorldPackets::ClientConfig::UpdateAccountData`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UpdateAccountData {
+    pub player_guid: ObjectGuid,
+    pub time: i64,
+    pub size: u32,
+    pub data_type: u8,
+    pub compressed_data: Vec<u8>,
+}
+
+impl ServerPacket for UpdateAccountData {
+    const OPCODE: ServerOpcodes = ServerOpcodes::UpdateAccountData;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_packed_guid(&self.player_guid);
+        pkt.write_int64(self.time);
+        pkt.write_uint32(self.size);
+        pkt.write_bits(u32::from(self.data_type & 0x0F), 4);
+        pkt.write_uint32(self.compressed_data.len() as u32);
+        pkt.write_bytes(&self.compressed_data);
+    }
+}
+
+pub fn compress_account_data_like_cpp(data: &str) -> Result<Vec<u8>, PacketError> {
+    if data.is_empty() {
+        return Ok(vec![0; EMPTY_ACCOUNT_DATA_COMPRESS_BOUND_LIKE_CPP]);
+    }
+
+    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+    encoder
+        .write_all(data.as_bytes())
+        .map_err(|e| PacketError::StringError(e.to_string()))?;
+    encoder
+        .finish()
+        .map_err(|e| PacketError::StringError(e.to_string()))
+}
+
+pub fn decompress_account_data_like_cpp(
+    compressed_data: &[u8],
+    decompressed_size: u32,
+) -> Result<String, PacketError> {
+    if decompressed_size == 0 {
+        return Ok(String::new());
+    }
+    if decompressed_size > MAX_ACCOUNT_DATA_SIZE_LIKE_CPP {
+        return Err(PacketError::StringError(format!(
+            "account data size {decompressed_size} exceeds C++ 0xFFFF limit"
+        )));
+    }
+
+    let mut decoder = ZlibDecoder::new(compressed_data);
+    let mut decompressed = Vec::new();
+    decoder
+        .read_to_end(&mut decompressed)
+        .map_err(|e| PacketError::StringError(e.to_string()))?;
+
+    let expected = decompressed_size as usize;
+    if decompressed.len() > expected {
+        return Err(PacketError::StringError(format!(
+            "account data inflated to {} bytes, exceeds declared size {expected}",
+            decompressed.len()
+        )));
+    }
+    decompressed.resize(expected, 0);
+
+    let mut pkt = WorldPacket::new_empty();
+    pkt.write_bytes(&decompressed);
+    pkt.reset_read();
+    pkt.read_cstring()
+}
 
 /// Account data cache timestamps. Sent twice during login:
 /// once with a global (empty) guid and once with the player's guid.
@@ -5295,6 +5420,77 @@ mod tests {
         let pkt = AccountDataTimes::for_player(guid);
         let bytes = pkt.to_bytes();
         assert!(bytes.len() > 76); // Bigger than empty GUID version
+    }
+
+    #[test]
+    fn request_account_data_reads_cpp_shape() {
+        let guid = ObjectGuid::create_player(1, 42);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_packed_guid(&guid);
+        pkt.write_bits(7, 4);
+        pkt.flush_bits();
+        pkt.reset_read();
+
+        let parsed = RequestAccountData::read(&mut pkt).unwrap();
+
+        assert_eq!(parsed.player_guid, guid);
+        assert_eq!(parsed.data_type, 7);
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn user_client_update_account_data_reads_cpp_shape() {
+        let guid = ObjectGuid::create_player(1, 42);
+        let compressed_data = compress_account_data_like_cpp("layout-cache").unwrap();
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_packed_guid(&guid);
+        pkt.write_int64(1234);
+        pkt.write_uint32("layout-cache".len() as u32);
+        pkt.write_bits(6, 4);
+        pkt.write_uint32(compressed_data.len() as u32);
+        pkt.write_bytes(&compressed_data);
+        pkt.reset_read();
+
+        let parsed = UserClientUpdateAccountData::read(&mut pkt).unwrap();
+
+        assert_eq!(parsed.player_guid, guid);
+        assert_eq!(parsed.time, 1234);
+        assert_eq!(parsed.size, "layout-cache".len() as u32);
+        assert_eq!(parsed.data_type, 6);
+        assert_eq!(parsed.compressed_data, compressed_data);
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn update_account_data_writes_cpp_shape_and_roundtrips_zlib_cstring() {
+        let guid = ObjectGuid::create_player(1, 42);
+        let payload = "cache body without nul";
+        let compressed_data = compress_account_data_like_cpp(payload).unwrap();
+        let pkt = UpdateAccountData {
+            player_guid: guid,
+            time: 5678,
+            size: payload.len() as u32,
+            data_type: 4,
+            compressed_data: compressed_data.clone(),
+        };
+        let encoded = pkt.to_bytes();
+        let mut bytes = WorldPacket::new_client(encoded.as_slice().into());
+        bytes.skip_opcode();
+
+        assert_eq!(bytes.read_packed_guid().unwrap(), guid);
+        assert_eq!(bytes.read_int64().unwrap(), 5678);
+        assert_eq!(bytes.read_uint32().unwrap(), payload.len() as u32);
+        assert_eq!(bytes.read_bits(4).unwrap(), 4);
+        assert_eq!(bytes.read_uint32().unwrap(), compressed_data.len() as u32);
+        assert_eq!(
+            bytes.read_bytes(compressed_data.len()).unwrap(),
+            compressed_data
+        );
+        assert_eq!(
+            decompress_account_data_like_cpp(&pkt.compressed_data, pkt.size).unwrap(),
+            payload
+        );
+        assert_eq!(bytes.remaining(), 0);
     }
 
     #[test]
