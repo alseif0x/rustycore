@@ -36,6 +36,15 @@ RustyCore currently targets:
 
 Important note: modern systems that are not part of the WotLK target, such as Battle Pets or Black Market features, may exist in notes or partial code, but they are not the current migration priority.
 
+## Tech Stack
+
+- **Rust 1.85+** — edition 2024
+- **Tokio** — async runtime and networking foundation
+- **Axum** — Battle.net REST API
+- **SQLx + MariaDB** — auth, characters, world and hotfixes databases
+- **hecs** — ECS experiments and entity storage work
+- **prost** — protobuf support for the Battle.net protocol
+
 ## What Is Inside
 
 ```text
