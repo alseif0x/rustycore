@@ -1,3 +1,13 @@
+- `#NEXT.R8.ENTITIES.861` - represented-complete for bounded `CMSG_GUILD_DECLINE_INVITATION`.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/GuildHandler.cpp:74-80`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/GuildPackets.h:179-186`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:1957-1961`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:512`.
+
+  Rust anchors: `crates/wow-world/src/handlers/character.rs`; `crates/wow-world/src/handlers/misc.rs`; `crates/wow-world/src/session.rs`; `docs/migration/inventory/cpp-client-handlers.tsv`; `docs/migration/inventory/r3-opcodes-registry.tsv`; `docs/migration/inventory/r3-opcodes-registry.md`.
+
+  Acceptance: `CMSG_GUILD_DECLINE_INVITATION` now registers `LoggedIn`/`ThreadUnsafe` dispatch, routes through `WorldSession`, preserves represented `GuildIdInvited` when represented current `GuildId` is nonzero, and clears represented `GuildIdInvited` to 0 when unguilded like C++ `HandleGuildDeclineInvitation`. `handle_continue_player_login` now loads represented current `GuildId` from `CHAR_SEL_CHARACTER` column 11 for the C++ `GetGuildId` guard.
+
+  Boundary: represented-complete for bounded decline-invitation session state only. Live `GuildMgr` invite creation/acceptance, guild membership persistence/runtime, install/restart, and live client/manual validation remain separate work.
+
 - `#NEXT.R8.ENTITIES.860` - represented-complete for bounded `CMSG_DECLINE_GUILD_INVITES`.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/GuildHandler.cpp:541-546`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/GuildPackets.h:187-194`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/GuildPackets.cpp:112-115`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:451,2686-2688`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:414`.

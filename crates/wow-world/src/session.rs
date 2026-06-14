@@ -2830,6 +2830,8 @@ pub struct WorldSession {
     buyback_timestamp: [i64; BUYBACK_SLOT_COUNT],
     current_buyback_slot: u8,
     represented_item_mod_reapply_events_like_cpp: Vec<RepresentedItemModsReapplyEventLikeCpp>,
+    represented_guild_id_like_cpp: u64,
+    represented_guild_id_invited_like_cpp: u64,
     represented_guild_repair_bank_state_like_cpp: Option<RepresentedGuildRepairBankStateLikeCpp>,
     represented_guild_repair_bank_withdraws_like_cpp:
         Vec<RepresentedGuildRepairBankWithdrawLikeCpp>,
@@ -4016,6 +4018,8 @@ impl WorldSession {
             buyback_timestamp: [0; BUYBACK_SLOT_COUNT],
             current_buyback_slot: BUYBACK_SLOT_START,
             represented_item_mod_reapply_events_like_cpp: Vec::new(),
+            represented_guild_id_like_cpp: 0,
+            represented_guild_id_invited_like_cpp: 0,
             represented_guild_repair_bank_state_like_cpp: None,
             represented_guild_repair_bank_withdraws_like_cpp: Vec::new(),
             player_currencies: HashMap::new(),
@@ -18439,6 +18443,9 @@ impl WorldSession {
             ClientOpcodes::DeclineGuildInvites => {
                 self.handle_decline_guild_invites(pkt).await;
             }
+            ClientOpcodes::GuildDeclineInvitation => {
+                self.handle_guild_decline_invitation(pkt).await;
+            }
             ClientOpcodes::GetItemPurchaseData => {
                 self.handle_get_item_purchase_data(pkt).await;
             }
@@ -20661,6 +20668,29 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedItemModsReapplyEventLikeCpp] {
         &self.represented_item_mod_reapply_events_like_cpp
+    }
+
+    pub(crate) fn set_represented_guild_id_like_cpp(&mut self, guild_id: u64) {
+        self.represented_guild_id_like_cpp = guild_id;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_represented_guild_id_invited_like_cpp(&mut self, guild_id: u64) {
+        self.represented_guild_id_invited_like_cpp = guild_id;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_guild_id_invited_like_cpp(&self) -> u64 {
+        self.represented_guild_id_invited_like_cpp
+    }
+
+    pub(crate) fn decline_guild_invitation_like_cpp(&mut self) -> bool {
+        if self.represented_guild_id_like_cpp != 0 {
+            return false;
+        }
+
+        self.represented_guild_id_invited_like_cpp = 0;
+        true
     }
 
     #[cfg(test)]

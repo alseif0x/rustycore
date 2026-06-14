@@ -2652,6 +2652,7 @@ impl WorldSession {
         self.set_player_xp_like_cpp(result.try_read::<u32>(7).unwrap_or(0));
         self.set_player_guid(Some(guid));
         self.set_loaded_player_identity_like_cpp(map_id as u16, race, class, level, gender);
+        self.set_represented_guild_id_like_cpp(result.try_read::<u64>(11).unwrap_or(0));
         self.refresh_next_level_xp();
         if self.ensure_login_player_controller_like_cpp(
             guid,

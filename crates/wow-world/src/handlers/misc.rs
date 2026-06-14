@@ -603,6 +603,15 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
+        opcode: ClientOpcodes::GuildDeclineInvitation,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_guild_decline_invitation",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
         opcode: ClientOpcodes::GetItemPurchaseData,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
@@ -2164,6 +2173,10 @@ impl crate::session::WorldSession {
         };
 
         self.represented_set_auto_decline_guild_invites_like_cpp(request.allow);
+    }
+
+    pub async fn handle_guild_decline_invitation(&mut self, _pkt: wow_packet::WorldPacket) {
+        self.decline_guild_invitation_like_cpp();
     }
 
     pub async fn handle_get_item_purchase_data(&mut self, mut pkt: wow_packet::WorldPacket) {
@@ -4103,6 +4116,34 @@ mod tests {
             .await;
 
         assert!(!session.represented_auto_decline_guild_invites_like_cpp());
+    }
+
+    #[tokio::test]
+    async fn guild_decline_invitation_clears_pending_invite_when_unguilded_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        session.set_represented_guild_id_like_cpp(0);
+        session.set_represented_guild_id_invited_like_cpp(7_001);
+
+        session
+            .handle_guild_decline_invitation(WorldPacket::new_empty())
+            .await;
+
+        assert_eq!(session.represented_guild_id_invited_like_cpp(), 0);
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn guild_decline_invitation_preserves_pending_invite_when_already_guilded_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        session.set_represented_guild_id_like_cpp(42);
+        session.set_represented_guild_id_invited_like_cpp(7_001);
+
+        session
+            .handle_guild_decline_invitation(WorldPacket::new_empty())
+            .await;
+
+        assert_eq!(session.represented_guild_id_invited_like_cpp(), 7_001);
+        assert!(send_rx.try_recv().is_err());
     }
 
     #[tokio::test]
