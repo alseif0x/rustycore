@@ -1,4 +1,16 @@
 - `#NEXT.R8.ENTITIES.868` - represented-complete implementation for bounded movement `Handle_NULL` ACK family.
+### #NEXT.R8.ENTITIES.891 — CMSG_CAN_DUEL
+
+Status: represented-partial for the bounded `WorldSession::HandleCanDuel` request/response seam.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/DuelHandler.cpp:29-45`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/DuelPackets.cpp:20-31`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/DuelPackets.h:28-45`, and `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:284,1216`.
+
+Implemented Rust seam: `CanDuel` now parses the C++ raw `ObjectGuid` plus `ToTheDeath` bit, `CanDuelResult` serializes raw `ObjectGuid` plus `Result` bit, and `CMSG_CAN_DUEL` is registered as `LoggedIn`/`PROCESS_THREADUNSAFE` and dispatched through `WorldSession`. The represented handler scans the canonical player map state like a bounded `ObjectAccessor::FindPlayer`, returns silently when the target is missing, sends `SMSG_CAN_DUEL_RESULT` with `Result = target.duel_info_like_cpp().is_none()`, and records a represented `SPELL_DUEL`/`SPELL_MOUNTED_DUEL` cast request when allowed.
+
+Focused tests/checks: `cargo test -p wow-packet can_duel --lib`; `cargo test -p wow-world can_duel --lib`.
+
+Remaining gaps: real `Player::CastSpell`, duel arbiter/gameobject creation, full `DuelResponse` accept/cancel flow, duel state lifecycle, install/restart, bot, and live-client manual validation remain open.
+
 ### #NEXT.R8.ENTITIES.890 — CMSG_ACCEPT_WARGAME_INVITE
 
 Status: represented-complete for the bounded accept-wargame validation/TODO-success hook.

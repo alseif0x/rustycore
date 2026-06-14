@@ -1388,6 +1388,13 @@ pub(crate) struct RepresentedGuildRepairBankWithdrawLikeCpp {
     pub success: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedCanDuelSpellCastLikeCpp {
+    pub target_guid: ObjectGuid,
+    pub spell_id: u32,
+    pub to_the_death: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct MovementAckEventLikeCpp {
     pub opcode: ClientOpcodes,
@@ -1921,6 +1928,8 @@ const TOY_FLAG_HAS_FANFARE_LIKE_CPP: u32 = 0x02;
 const DAMAGE_FALL_LIKE_CPP: u8 = 2;
 const DAMAGE_FIRE_LIKE_CPP: u8 = 5;
 const DAMAGE_FALL_TO_VOID_LIKE_CPP: u8 = 6;
+pub(crate) const SPELL_DUEL_LIKE_CPP: u32 = 7266;
+pub(crate) const SPELL_MOUNTED_DUEL_LIKE_CPP: u32 = 62875;
 pub type SharedCanonicalMapManager = Arc<Mutex<wow_map::MapManager>>;
 
 pub(crate) fn relocate_canonical_creature_map_object_on_map_like_cpp(
@@ -2875,6 +2884,7 @@ pub struct WorldSession {
     represented_wargame_invite_acceptances_like_cpp: Vec<RepresentedWargameInviteAcceptanceLikeCpp>,
     represented_active_trade_partner_like_cpp: Option<ObjectGuid>,
     represented_trade_cancel_statuses_like_cpp: Vec<u8>,
+    represented_can_duel_spell_casts_like_cpp: Vec<RepresentedCanDuelSpellCastLikeCpp>,
     represented_guild_repair_bank_state_like_cpp: Option<RepresentedGuildRepairBankStateLikeCpp>,
     represented_guild_repair_bank_withdraws_like_cpp:
         Vec<RepresentedGuildRepairBankWithdrawLikeCpp>,
@@ -4082,6 +4092,7 @@ impl WorldSession {
             represented_wargame_invite_acceptances_like_cpp: Vec::new(),
             represented_active_trade_partner_like_cpp: None,
             represented_trade_cancel_statuses_like_cpp: Vec::new(),
+            represented_can_duel_spell_casts_like_cpp: Vec::new(),
             represented_guild_repair_bank_state_like_cpp: None,
             represented_guild_repair_bank_withdraws_like_cpp: Vec::new(),
             player_currencies: HashMap::new(),
@@ -18770,6 +18781,9 @@ impl WorldSession {
             ClientOpcodes::BeginTrade => {
                 self.handle_begin_trade(pkt).await;
             }
+            ClientOpcodes::CanDuel => {
+                self.handle_can_duel(pkt).await;
+            }
             ClientOpcodes::IgnoreTrade => {
                 self.handle_ignore_trade(pkt).await;
             }
@@ -21258,6 +21272,55 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn represented_trade_cancel_statuses_like_cpp(&self) -> &[u8] {
         &self.represented_trade_cancel_statuses_like_cpp
+    }
+
+    fn represented_target_can_duel_like_cpp(&self, target_guid: ObjectGuid) -> Option<bool> {
+        let manager = self.canonical_map_manager.as_ref()?;
+        let Ok(manager) = manager.lock() else {
+            return None;
+        };
+        let mut result = None;
+        manager.do_for_all_maps(|managed| {
+            if result.is_none()
+                && let Some(player) = managed.map().get_typed_player(target_guid)
+            {
+                result = Some(player.duel_info_like_cpp().is_none());
+            }
+        });
+        result
+    }
+
+    pub(crate) fn handle_can_duel_like_cpp(&mut self, target_guid: ObjectGuid, to_the_death: bool) {
+        let Some(result) = self.represented_target_can_duel_like_cpp(target_guid) else {
+            return;
+        };
+
+        self.send_packet(&wow_packet::packets::misc::CanDuelResult {
+            target_guid,
+            result,
+        });
+
+        if result {
+            let spell_id = if self.player_mounted_like_cpp {
+                SPELL_MOUNTED_DUEL_LIKE_CPP
+            } else {
+                SPELL_DUEL_LIKE_CPP
+            };
+            self.represented_can_duel_spell_casts_like_cpp.push(
+                RepresentedCanDuelSpellCastLikeCpp {
+                    target_guid,
+                    spell_id,
+                    to_the_death,
+                },
+            );
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_can_duel_spell_casts_like_cpp(
+        &self,
+    ) -> &[RepresentedCanDuelSpellCastLikeCpp] {
+        &self.represented_can_duel_spell_casts_like_cpp
     }
 
     pub(crate) fn accept_guild_invitation_like_cpp(&mut self) -> bool {

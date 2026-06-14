@@ -18,6 +18,46 @@ use crate::{ClientPacket, ServerPacket, WorldPacket};
 
 pub use wow_constants::{BuyResult, SellResult};
 
+// ── CanDuel (CMSG 0x3664 / SMSG 0x2947) ───────────────────────────
+
+/// C++ `WorldPackets::Duel::CanDuel`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CanDuel {
+    pub target_guid: ObjectGuid,
+    pub to_the_death: bool,
+}
+
+impl ClientPacket for CanDuel {
+    const OPCODE: ClientOpcodes = ClientOpcodes::CanDuel;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let guid_bytes = pkt.read_bytes(16)?;
+        let mut raw = [0u8; 16];
+        raw.copy_from_slice(&guid_bytes);
+        Ok(Self {
+            target_guid: ObjectGuid::from_raw_bytes(&raw),
+            to_the_death: pkt.read_bit()?,
+        })
+    }
+}
+
+/// C++ `WorldPackets::Duel::CanDuelResult`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CanDuelResult {
+    pub target_guid: ObjectGuid,
+    pub result: bool,
+}
+
+impl ServerPacket for CanDuelResult {
+    const OPCODE: ServerOpcodes = ServerOpcodes::CanDuelResult;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_bytes(&self.target_guid.to_raw_bytes());
+        pkt.write_bit(self.result);
+        pkt.flush_bits();
+    }
+}
+
 // ── FarSight (CMSG 0x34e8) ──────────────────────────────────────────
 
 /// C++ `WorldPackets::Misc::FarSight`: one bit toggling seer to current viewpoint/self.
@@ -5504,6 +5544,45 @@ impl ServerPacket for RatedPvpInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn can_duel_reads_raw_guid_then_bit_like_cpp() {
+        let guid = ObjectGuid::create_player(1, 42);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bytes(&guid.to_raw_bytes());
+        pkt.write_bit(true);
+        pkt.flush_bits();
+        pkt.reset_read();
+
+        let parsed = CanDuel::read(&mut pkt).unwrap();
+
+        assert_eq!(parsed.target_guid, guid);
+        assert!(parsed.to_the_death);
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn can_duel_result_writes_raw_guid_then_bit_like_cpp() {
+        let guid = ObjectGuid::create_player(1, 42);
+        let packet = CanDuelResult {
+            target_guid: guid,
+            result: true,
+        };
+        let bytes = packet.to_bytes();
+        let mut body = WorldPacket::from_bytes(&bytes);
+
+        assert_eq!(body.server_opcode(), Some(ServerOpcodes::CanDuelResult));
+        assert_eq!(
+            body.read_uint16().unwrap(),
+            ServerOpcodes::CanDuelResult as u16
+        );
+        let guid_bytes = body.read_bytes(16).unwrap();
+        let mut raw = [0u8; 16];
+        raw.copy_from_slice(&guid_bytes);
+        assert_eq!(ObjectGuid::from_raw_bytes(&raw), guid);
+        assert!(body.read_bit().unwrap());
+        assert_eq!(body.remaining(), 0);
+    }
 
     #[test]
     fn account_data_times_global() {

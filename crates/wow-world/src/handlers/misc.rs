@@ -49,9 +49,9 @@ use wow_packet::packets::misc::{
     BattlePetClearFanfare, BattlePetDeletePet, BattlePetModifyName, BattlePetRequestJournal,
     BattlePetSetBattleSlot, BattlePetSetFlags, BattlePetSummon, BattlePetUpdateNotify,
     BattlefieldLeave, BeginTrade, BugReport, BusyTrade, CageBattlePet, CalendarSendCalendar,
-    CalendarSendNumPending, CloseInteraction, CommerceTokenGetLog, CommerceTokenGetLogResponse,
-    Complaint, ComplaintResult, DeclineGuildInvites, DfGetJoinStatus, DfGetSystemInfo, FarSight,
-    GmTicketAcknowledgeSurvey, GmTicketCaseStatus, GmTicketSystemStatus,
+    CalendarSendNumPending, CanDuel, CloseInteraction, CommerceTokenGetLog,
+    CommerceTokenGetLogResponse, Complaint, ComplaintResult, DeclineGuildInvites, DfGetJoinStatus,
+    DfGetSystemInfo, FarSight, GmTicketAcknowledgeSurvey, GmTicketCaseStatus, GmTicketSystemStatus,
     GuildSetAchievementTracking, IgnoreTrade, LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus,
     LoadingScreenNotify, MAX_ACCOUNT_DATA_SIZE_LIKE_CPP, MountSetFavorite, MountSpecial,
     NUM_ACCOUNT_DATA_TYPES, ObjectUpdateFailed, ObjectUpdateRescued, QueryBattlePetName,
@@ -1139,6 +1139,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_begin_trade",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::CanDuel,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_can_duel",
     }
 }
 
@@ -3581,6 +3590,18 @@ impl crate::session::WorldSession {
         self.begin_represented_trade_like_cpp();
     }
 
+    pub async fn handle_can_duel(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let packet = match CanDuel::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(account = self.account_id, "CanDuel parse failed: {error}");
+                return;
+            }
+        };
+
+        self.handle_can_duel_like_cpp(packet.target_guid, packet.to_the_death);
+    }
+
     pub async fn handle_ignore_trade(&mut self, mut pkt: wow_packet::WorldPacket) {
         if let Err(error) = IgnoreTrade::read(&mut pkt) {
             warn!(
@@ -5049,6 +5070,152 @@ mod tests {
                 .is_empty()
         );
         assert!(send_rx.try_recv().is_err());
+    }
+
+    fn can_duel_packet(target_guid: ObjectGuid, to_the_death: bool) -> WorldPacket {
+        let mut packet = WorldPacket::new_empty();
+        packet.write_bytes(&target_guid.to_raw_bytes());
+        packet.write_bit(to_the_death);
+        packet.flush_bits();
+        packet.reset_read();
+        packet
+    }
+
+    #[tokio::test]
+    async fn can_duel_missing_target_is_noop_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager_for_misc_test();
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        let target_guid = ObjectGuid::create_player(1, 88);
+
+        session
+            .handle_can_duel(can_duel_packet(target_guid, false))
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+        assert!(
+            session
+                .represented_can_duel_spell_casts_like_cpp()
+                .is_empty()
+        );
+    }
+
+    #[tokio::test]
+    async fn can_duel_allows_target_without_duel_and_records_spell_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager_for_misc_test();
+        let target_guid = ObjectGuid::create_player(1, 88);
+        add_canonical_test_player_on_map_for_misc_test(
+            &canonical,
+            target_guid,
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            0,
+        );
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+
+        session
+            .handle_can_duel(can_duel_packet(target_guid, true))
+            .await;
+
+        let bytes = send_rx.try_recv().expect("can duel result");
+        let mut packet = WorldPacket::from_bytes(&bytes);
+        assert_eq!(packet.server_opcode(), Some(ServerOpcodes::CanDuelResult));
+        assert_eq!(
+            packet.read_uint16().unwrap(),
+            ServerOpcodes::CanDuelResult as u16
+        );
+        let guid_bytes = packet.read_bytes(16).unwrap();
+        let mut raw = [0u8; 16];
+        raw.copy_from_slice(&guid_bytes);
+        assert_eq!(ObjectGuid::from_raw_bytes(&raw), target_guid);
+        assert!(packet.read_bit().unwrap());
+        assert_eq!(
+            session.represented_can_duel_spell_casts_like_cpp(),
+            &[crate::session::RepresentedCanDuelSpellCastLikeCpp {
+                target_guid,
+                spell_id: crate::session::SPELL_DUEL_LIKE_CPP,
+                to_the_death: true,
+            }]
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn can_duel_rejects_target_with_any_duel_info_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager_for_misc_test();
+        let target_guid = ObjectGuid::create_player(1, 88);
+        let opponent_guid = ObjectGuid::create_player(1, 89);
+        add_canonical_test_player_on_map_for_misc_test(
+            &canonical,
+            target_guid,
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            0,
+        );
+        {
+            let mut manager = canonical.lock().unwrap();
+            let player = manager
+                .find_map_mut(571, 0)
+                .unwrap()
+                .map_mut()
+                .get_typed_player_mut(target_guid)
+                .unwrap();
+            player.set_duel_info_like_cpp(Some(wow_entities::PlayerDuelInfoLikeCpp {
+                opponent: opponent_guid,
+                state: wow_entities::PlayerDuelStateLikeCpp::Challenged,
+            }));
+        }
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+
+        session
+            .handle_can_duel(can_duel_packet(target_guid, false))
+            .await;
+
+        let bytes = send_rx.try_recv().expect("can duel result");
+        let mut packet = WorldPacket::from_bytes(&bytes);
+        assert_eq!(
+            packet.read_uint16().unwrap(),
+            ServerOpcodes::CanDuelResult as u16
+        );
+        let _ = packet.read_bytes(16).unwrap();
+        assert!(!packet.read_bit().unwrap());
+        assert!(
+            session
+                .represented_can_duel_spell_casts_like_cpp()
+                .is_empty()
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn can_duel_uses_mounted_spell_when_source_is_mounted_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        let canonical = shared_canonical_map_manager_for_misc_test();
+        let target_guid = ObjectGuid::create_player(1, 88);
+        add_canonical_test_player_on_map_for_misc_test(
+            &canonical,
+            target_guid,
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            0,
+        );
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_player_mounted_like_cpp(true);
+
+        session
+            .handle_can_duel(can_duel_packet(target_guid, false))
+            .await;
+
+        assert_eq!(
+            session.represented_can_duel_spell_casts_like_cpp(),
+            &[crate::session::RepresentedCanDuelSpellCastLikeCpp {
+                target_guid,
+                spell_id: crate::session::SPELL_MOUNTED_DUEL_LIKE_CPP,
+                to_the_death: false,
+            }]
+        );
     }
 
     #[tokio::test]
