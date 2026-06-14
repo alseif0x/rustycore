@@ -3522,7 +3522,7 @@ impl crate::session::WorldSession {
             return;
         }
 
-        self.record_represented_trade_cancel_like_cpp(TRADE_STATUS_PLAYER_BUSY_LIKE_CPP);
+        self.cancel_represented_trade_like_cpp(TRADE_STATUS_PLAYER_BUSY_LIKE_CPP, true);
     }
 
     pub async fn handle_report_client_variables(&mut self, _pkt: wow_packet::WorldPacket) {
@@ -4966,8 +4966,24 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn busy_trade_records_player_busy_trade_cancel_like_cpp() {
+    async fn busy_trade_without_active_trade_is_noop_like_cpp() {
         let (mut session, send_rx) = make_session();
+
+        session.handle_busy_trade(WorldPacket::new_empty()).await;
+
+        assert!(
+            session
+                .represented_trade_cancel_statuses_like_cpp()
+                .is_empty()
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn busy_trade_cancels_represented_trade_and_sends_status_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let partner_guid = ObjectGuid::create_player(1, 88);
+        session.set_represented_active_trade_partner_like_cpp(Some(partner_guid));
 
         session.handle_busy_trade(WorldPacket::new_empty()).await;
 
@@ -4975,7 +4991,73 @@ mod tests {
             session.represented_trade_cancel_statuses_like_cpp(),
             &[TRADE_STATUS_PLAYER_BUSY_LIKE_CPP]
         );
+        assert!(
+            session
+                .represented_active_trade_partner_like_cpp()
+                .is_none()
+        );
+        let bytes = send_rx.try_recv().expect("trade status");
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::TradeStatus as u16
+        );
+        assert_eq!(bytes[2], TRADE_STATUS_PLAYER_BUSY_LIKE_CPP << 1);
         assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn busy_trade_cancels_partner_represented_trade_like_cpp() {
+        let (mut source_session, source_send_rx) = make_session();
+        let (mut partner_session, partner_send_rx) = make_session();
+        let source_guid = ObjectGuid::create_player(1, 77);
+        let partner_guid = ObjectGuid::create_player(1, 88);
+        source_session.set_player_guid(Some(source_guid));
+        partner_session.set_player_guid(Some(partner_guid));
+        source_session.set_represented_active_trade_partner_like_cpp(Some(partner_guid));
+        partner_session.set_represented_active_trade_partner_like_cpp(Some(source_guid));
+
+        let registry = Arc::new(PlayerRegistry::default());
+        let partner_command_tx = partner_session.session_command_tx();
+        registry.insert(
+            partner_guid,
+            broadcast_info_with_command_tx(partner_command_tx),
+        );
+        source_session.set_player_registry(registry);
+
+        source_session
+            .handle_busy_trade(WorldPacket::new_empty())
+            .await;
+        partner_session
+            .process_represented_session_commands_like_cpp()
+            .await;
+
+        assert!(
+            source_session
+                .represented_active_trade_partner_like_cpp()
+                .is_none()
+        );
+        assert!(
+            partner_session
+                .represented_active_trade_partner_like_cpp()
+                .is_none()
+        );
+        assert_eq!(
+            source_session.represented_trade_cancel_statuses_like_cpp(),
+            &[TRADE_STATUS_PLAYER_BUSY_LIKE_CPP]
+        );
+        assert_eq!(
+            partner_session.represented_trade_cancel_statuses_like_cpp(),
+            &[TRADE_STATUS_PLAYER_BUSY_LIKE_CPP]
+        );
+
+        let source_bytes = source_send_rx.try_recv().expect("source trade status");
+        let partner_bytes = partner_send_rx.try_recv().expect("partner trade status");
+        assert_eq!(source_bytes, partner_bytes);
+        assert_eq!(
+            u16::from_le_bytes([source_bytes[0], source_bytes[1]]),
+            ServerOpcodes::TradeStatus as u16
+        );
+        assert_eq!(source_bytes[2], TRADE_STATUS_PLAYER_BUSY_LIKE_CPP << 1);
     }
 
     #[tokio::test]

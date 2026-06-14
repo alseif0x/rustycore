@@ -5253,6 +5253,39 @@ impl ClientPacket for BusyTrade {
     }
 }
 
+/// C++ `TRADE_STATUS_PLAYER_BUSY`.
+pub const TRADE_STATUS_PLAYER_BUSY_LIKE_CPP: u8 = 0;
+
+/// Bounded C++ `WorldPackets::Trade::TradeStatus` writer for trade-cancel statuses.
+///
+/// C++ writes `PartnerIsSameBnetAccount`, then five status bits. For cancel-like
+/// statuses such as `TRADE_STATUS_PLAYER_BUSY`, the default branch only flushes
+/// bits and writes no extra payload fields.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TradeStatus {
+    pub status: u8,
+    pub partner_is_same_bnet_account: bool,
+}
+
+impl TradeStatus {
+    pub fn cancel_like_cpp(status: u8) -> Self {
+        Self {
+            status,
+            partner_is_same_bnet_account: false,
+        }
+    }
+}
+
+impl ServerPacket for TradeStatus {
+    const OPCODE: ServerOpcodes = ServerOpcodes::TradeStatus;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_bit(self.partner_is_same_bnet_account);
+        pkt.write_bits(u32::from(self.status), 5);
+        pkt.flush_bits();
+    }
+}
+
 /// C++ `WorldPackets::Guild::GuildBankRemainingWithdrawMoney`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct GuildBankRemainingWithdrawMoney {
@@ -6051,6 +6084,18 @@ mod tests {
         let mut pkt = WorldPacket::new_empty();
 
         BusyTrade::read(&mut pkt).unwrap();
+    }
+
+    #[test]
+    fn trade_status_player_busy_writes_cancel_status_bits_like_cpp() {
+        let bytes = TradeStatus::cancel_like_cpp(TRADE_STATUS_PLAYER_BUSY_LIKE_CPP).to_bytes();
+
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::TradeStatus as u16
+        );
+        assert_eq!(bytes.len(), 3);
+        assert_eq!(bytes[2], TRADE_STATUS_PLAYER_BUSY_LIKE_CPP << 1);
     }
 
     #[test]

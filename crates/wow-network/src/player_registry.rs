@@ -52,6 +52,9 @@ pub enum SessionCommand {
     /// Mirrors C++ `WorldSession::IsAddonRegistered(prefix)` used by
     /// `Group::BroadcastAddonMessagePacket` and `Player::WhisperAddon`.
     SendAddonIfRegisteredLikeCpp(SendAddonIfRegisteredLikeCppCommand),
+    /// Deliver a represented trade-cancel status to the partner session and
+    /// clear its represented `m_trade` equivalent.
+    CancelRepresentedTradeLikeCpp(CancelRepresentedTradeLikeCppCommand),
 }
 
 /// Cross-session kick command mirroring C++ callers such as `World::BanAccount`
@@ -138,6 +141,18 @@ pub struct SendAddonIfRegisteredLikeCppCommand {
     /// Addon prefix checked by the receiver's session-local registration list.
     pub prefix: String,
     /// Already-serialised `SMSG_CHAT` addon payload.
+    pub packet_bytes: Vec<u8>,
+}
+
+/// Payload for [`SessionCommand::CancelRepresentedTradeLikeCpp`].
+///
+/// C++ `Player::TradeCancel` sends `SMSG_TRADE_STATUS` to both participants
+/// and deletes both `m_trade` objects. Rust does not have full `TradeData` yet,
+/// so this command carries the already-serialized status packet and asks the
+/// partner session to clear its bounded represented active-trade state.
+#[derive(Clone, Debug)]
+pub struct CancelRepresentedTradeLikeCppCommand {
+    pub status: u8,
     pub packet_bytes: Vec<u8>,
 }
 

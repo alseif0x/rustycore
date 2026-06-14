@@ -136,7 +136,7 @@ use wow_packet::packets::item::{
 use wow_packet::packets::misc::{
     AccountHeirloom, AccountHeirloomUpdate, AccountMount, AccountMountUpdate, AccountToy,
     AccountToyUpdate, BuyFailed, NUM_ACCOUNT_DATA_TYPES, SellResponse, SetupCurrency,
-    SetupCurrencyRecord,
+    SetupCurrencyRecord, TradeStatus,
 };
 use wow_packet::packets::quest::{
     QuestGiverOfferReward, QuestGiverQuestDetails, QuestGiverQuestList, QuestGiverRequestItems,
@@ -2863,6 +2863,7 @@ pub struct WorldSession {
     represented_guild_id_invited_like_cpp: u64,
     represented_guild_accept_invites_like_cpp: Vec<u64>,
     represented_arena_team_id_invited_like_cpp: u32,
+    represented_active_trade_partner_like_cpp: Option<ObjectGuid>,
     represented_trade_cancel_statuses_like_cpp: Vec<u8>,
     represented_guild_repair_bank_state_like_cpp: Option<RepresentedGuildRepairBankStateLikeCpp>,
     represented_guild_repair_bank_withdraws_like_cpp:
@@ -4068,6 +4069,7 @@ impl WorldSession {
             represented_guild_id_invited_like_cpp: 0,
             represented_guild_accept_invites_like_cpp: Vec::new(),
             represented_arena_team_id_invited_like_cpp: 0,
+            represented_active_trade_partner_like_cpp: None,
             represented_trade_cancel_statuses_like_cpp: Vec::new(),
             represented_guild_repair_bank_state_like_cpp: None,
             represented_guild_repair_bank_withdraws_like_cpp: Vec::new(),
@@ -21100,6 +21102,50 @@ impl WorldSession {
 
     pub(crate) fn record_represented_trade_cancel_like_cpp(&mut self, status: u8) {
         self.represented_trade_cancel_statuses_like_cpp.push(status);
+    }
+
+    pub(crate) fn set_represented_active_trade_partner_like_cpp(
+        &mut self,
+        partner_guid: Option<ObjectGuid>,
+    ) {
+        self.represented_active_trade_partner_like_cpp = partner_guid;
+    }
+
+    pub(crate) fn clear_represented_active_trade_partner_like_cpp(&mut self) {
+        self.represented_active_trade_partner_like_cpp = None;
+    }
+
+    pub(crate) fn represented_active_trade_partner_like_cpp(&self) -> Option<ObjectGuid> {
+        self.represented_active_trade_partner_like_cpp
+    }
+
+    pub(crate) fn cancel_represented_trade_like_cpp(&mut self, status: u8, sendback: bool) {
+        use wow_packet::ServerPacket;
+
+        let Some(partner_guid) = self.represented_active_trade_partner_like_cpp else {
+            return;
+        };
+
+        let packet_bytes = TradeStatus::cancel_like_cpp(status).to_bytes();
+        self.record_represented_trade_cancel_like_cpp(status);
+        self.clear_represented_active_trade_partner_like_cpp();
+
+        if sendback {
+            self.send_raw_packet(&packet_bytes);
+        }
+
+        if let Some(registry) = self.player_registry()
+            && let Some(partner) = registry.get(&partner_guid)
+        {
+            let _ = partner
+                .command_tx
+                .try_send(SessionCommand::CancelRepresentedTradeLikeCpp(
+                    wow_network::player_registry::CancelRepresentedTradeLikeCppCommand {
+                        status,
+                        packet_bytes,
+                    },
+                ));
+        }
     }
 
     #[cfg(test)]
