@@ -165,6 +165,7 @@ const PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP: u32 = 0x0000_0100;
 const PLAYER_FLAGS_IN_PVP_LIKE_CPP: u32 = 0x0000_0200;
 const PLAYER_FLAGS_TAXI_BENCHMARK_LIKE_CPP: u32 = 0x0002_0000;
 const PLAYER_FLAGS_PVP_TIMER_LIKE_CPP: u32 = 0x0004_0000;
+const PLAYER_FLAGS_AUTO_DECLINE_GUILD_LIKE_CPP: u32 = 0x0800_0000;
 const PLAYER_LOCAL_FLAG_WAR_MODE_LIKE_CPP: u32 = 0x0000_0800;
 const CURRENCY_DB_UNUSED_FLAGS_LIKE_CPP: u8 = 0x13;
 
@@ -18435,6 +18436,9 @@ impl WorldSession {
             ClientOpcodes::GuildSetAchievementTracking => {
                 self.handle_guild_set_achievement_tracking(pkt).await;
             }
+            ClientOpcodes::DeclineGuildInvites => {
+                self.handle_decline_guild_invites(pkt).await;
+            }
             ClientOpcodes::GetItemPurchaseData => {
                 self.handle_get_item_purchase_data(pkt).await;
             }
@@ -25505,6 +25509,49 @@ impl WorldSession {
 
         self.canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_TAXI_BENCHMARK_LIKE_CPP)
             .unwrap_or(false)
+    }
+
+    pub(crate) fn represented_set_auto_decline_guild_invites_like_cpp(
+        &mut self,
+        allow: bool,
+    ) -> bool {
+        let Some(guid) = self.player_guid() else {
+            return false;
+        };
+
+        let changed = self
+            .mutate_canonical_player_like_cpp(|player| {
+                if allow {
+                    player.set_player_flag(PLAYER_FLAGS_AUTO_DECLINE_GUILD_LIKE_CPP);
+                } else {
+                    player.remove_player_flag(PLAYER_FLAGS_AUTO_DECLINE_GUILD_LIKE_CPP);
+                }
+            })
+            .is_some();
+
+        if changed {
+            self.sync_player_registry_state_like_cpp();
+        }
+
+        self.canonical_player_has_player_flag_like_cpp(
+            guid,
+            PLAYER_FLAGS_AUTO_DECLINE_GUILD_LIKE_CPP,
+        )
+        .unwrap_or(false)
+            == allow
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_auto_decline_guild_invites_like_cpp(&self) -> bool {
+        let Some(guid) = self.player_guid() else {
+            return false;
+        };
+
+        self.canonical_player_has_player_flag_like_cpp(
+            guid,
+            PLAYER_FLAGS_AUTO_DECLINE_GUILD_LIKE_CPP,
+        )
+        .unwrap_or(false)
     }
 
     pub(crate) fn represented_set_advanced_combat_logging_like_cpp(&mut self, enable: bool) {

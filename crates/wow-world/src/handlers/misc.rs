@@ -50,7 +50,7 @@ use wow_packet::packets::misc::{
     BattlePetModifyName, BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags,
     BattlePetSummon, BattlePetUpdateNotify, BugReport, CageBattlePet, CalendarSendCalendar,
     CalendarSendNumPending, CloseInteraction, CommerceTokenGetLog, CommerceTokenGetLogResponse,
-    Complaint, ComplaintResult, DfGetJoinStatus, DfGetSystemInfo, FarSight,
+    Complaint, ComplaintResult, DeclineGuildInvites, DfGetJoinStatus, DfGetSystemInfo, FarSight,
     GmTicketAcknowledgeSurvey, GmTicketCaseStatus, GmTicketSystemStatus,
     GuildSetAchievementTracking, LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus,
     LoadingScreenNotify, MountSetFavorite, ObjectUpdateFailed, ObjectUpdateRescued,
@@ -589,6 +589,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_guild_set_achievement_tracking",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::DeclineGuildInvites,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_decline_guild_invites",
     }
 }
 
@@ -2141,6 +2150,22 @@ impl crate::session::WorldSession {
         // Rust has no represented guild-achievement manager here yet, so the
         // no-guild branch remains silent.
     }
+
+    pub async fn handle_decline_guild_invites(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let request = match DeclineGuildInvites::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "DeclineGuildInvites parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        self.represented_set_auto_decline_guild_invites_like_cpp(request.allow);
+    }
+
     pub async fn handle_get_item_purchase_data(&mut self, mut pkt: wow_packet::WorldPacket) {
         let request = match GetItemPurchaseData::read(&mut pkt) {
             Ok(request) => request,
@@ -4035,6 +4060,49 @@ mod tests {
             .await;
 
         assert!(!session.represented_taxi_benchmark_mode_like_cpp());
+    }
+
+    #[tokio::test]
+    async fn decline_guild_invites_sets_and_clears_auto_decline_flag_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager_for_misc_test();
+        let player_guid = ObjectGuid::create_player(1, 9011);
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_player_position_like_cpp(Position::new(1.0, 2.0, 3.0, 0.0));
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_test_player_on_map_for_misc_test(
+            &canonical,
+            player_guid,
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            0,
+        );
+
+        let mut enable = WorldPacket::new_empty();
+        enable.write_bit(true);
+        enable.flush_bits();
+        enable.reset_read();
+        session.handle_decline_guild_invites(enable).await;
+        assert!(session.represented_auto_decline_guild_invites_like_cpp());
+
+        let mut disable = WorldPacket::new_empty();
+        disable.write_bit(false);
+        disable.flush_bits();
+        disable.reset_read();
+        session.handle_decline_guild_invites(disable).await;
+        assert!(!session.represented_auto_decline_guild_invites_like_cpp());
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn decline_guild_invites_short_packet_does_not_change_flag_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        session
+            .handle_decline_guild_invites(WorldPacket::from_bytes(&[]))
+            .await;
+
+        assert!(!session.represented_auto_decline_guild_invites_like_cpp());
     }
 
     #[tokio::test]

@@ -1,3 +1,13 @@
+- `#NEXT.R8.ENTITIES.860` - represented-complete for bounded `CMSG_DECLINE_GUILD_INVITES`.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/GuildHandler.cpp:541-546`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/GuildPackets.h:187-194`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/GuildPackets.cpp:112-115`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:451,2686-2688`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:414`.
+
+  Rust anchors: `crates/wow-packet/src/packets/misc.rs`; `crates/wow-world/src/handlers/misc.rs`; `crates/wow-world/src/session.rs`; `docs/migration/inventory/cpp-client-handlers.tsv`; `docs/migration/inventory/r3-opcodes-registry.tsv`; `docs/migration/inventory/r3-opcodes-registry.md`.
+
+  Acceptance: `CMSG_DECLINE_GUILD_INVITES` now parses the C++ `Allow` bit, registers `LoggedIn`/`ThreadUnsafe` dispatch, routes through `WorldSession`, and applies/removes `PLAYER_FLAGS_AUTO_DECLINE_GUILD` on the canonical represented player like C++ `HandleDeclineGuildInvites`.
+
+  Boundary: represented-complete for the bounded auto-decline-guild-invites flag toggle only. Guild invite acceptance/decline invitation state, `GuildMgr` runtime, guild membership persistence, install/restart, and live client/manual validation remain separate work.
+
 - `#NEXT.R8.ENTITIES.859` - represented-complete for bounded `CMSG_BATTLENET_CHALLENGE_RESPONSE`.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:803-806`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:221`.

@@ -843,6 +843,22 @@ impl ClientPacket for ViolenceLevel {
 
 pub const MAX_GUILD_ACHIEVEMENT_TRACKING_IDS_LIKE_CPP: usize = 10;
 
+/// C++ `WorldPackets::Guild::DeclineGuildInvites`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DeclineGuildInvites {
+    pub allow: bool,
+}
+
+impl ClientPacket for DeclineGuildInvites {
+    const OPCODE: ClientOpcodes = ClientOpcodes::DeclineGuildInvites;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            allow: pkt.read_bit()?,
+        })
+    }
+}
+
 /// C++ `WorldPackets::Guild::GuildSetAchievementTracking`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GuildSetAchievementTracking {
@@ -5179,6 +5195,24 @@ mod tests {
 
         let parsed = ViolenceLevel::read(&mut pkt).unwrap();
         assert_eq!(parsed.violence_level, 2);
+    }
+
+    #[test]
+    fn decline_guild_invites_reads_cpp_allow_bit() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(true);
+        pkt.flush_bits();
+        pkt.reset_read();
+
+        let parsed = DeclineGuildInvites::read(&mut pkt).unwrap();
+        assert!(parsed.allow);
+    }
+
+    #[test]
+    fn decline_guild_invites_rejects_missing_allow_bit() {
+        let mut pkt = WorldPacket::new_empty();
+
+        assert!(DeclineGuildInvites::read(&mut pkt).is_err());
     }
 
     #[test]
