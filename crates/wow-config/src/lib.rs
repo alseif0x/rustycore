@@ -1595,6 +1595,7 @@ LoginDatabaseInfo = "127.0.0.1;3306;trinity;trinity;auth"
         load_config_from_str(
             r#"
 AddonChannel = 0
+Support.BugsEnabled = 1
 MaxGroupXPDistance = 120.5
 WorldServerPort = 8088
 CharacterCreating.Disabled.RaceMask = 12
@@ -1604,6 +1605,7 @@ CharacterCreating.Disabled.RaceMask = 12
 
         let values = load_world_config_values();
         assert_eq!(values.get_bool("CONFIG_ADDON_CHANNEL"), Some(false));
+        assert_eq!(values.get_bool("CONFIG_SUPPORT_BUGS_ENABLED"), Some(true));
         assert_eq!(values.get_float("CONFIG_GROUP_XP_DISTANCE"), Some(120.5));
         assert_eq!(values.get_int("CONFIG_PORT_WORLD"), Some(8088));
         assert_eq!(
@@ -1611,6 +1613,10 @@ CharacterCreating.Disabled.RaceMask = 12
             Some(12)
         );
         assert_eq!(values.get_bool("CONFIG_ENABLE_MMAPS"), Some(true));
+        assert_eq!(
+            values.get_bool("CONFIG_SUPPORT_TICKETS_ENABLED"),
+            Some(false)
+        );
         assert_eq!(values.get_int("CONFIG_INTERVAL_SAVE"), Some(900_000));
     }
 

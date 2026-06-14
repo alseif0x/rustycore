@@ -283,6 +283,8 @@ pub struct SessionResources {
     pub loot_drop_rates: LootDropRatesLikeCpp,
     pub reputation_rates: ReputationRatesLikeCpp,
     pub repair_cost_rate: f32,
+    /// C++ `CONFIG_SUPPORT_BUGS_ENABLED` / `Support.BugsEnabled`.
+    pub support_bugs_enabled: bool,
     pub quest_low_level_hide_diff: u32,
     pub quest_high_level_hide_diff: u32,
     pub enable_ae_loot: bool,

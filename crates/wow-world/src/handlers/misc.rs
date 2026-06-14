@@ -6156,6 +6156,18 @@ mod tests {
     }
 
     #[test]
+    fn bug_report_support_config_flag_is_session_wired_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        assert!(!session.represented_support_bugs_enabled_like_cpp());
+
+        session.set_represented_support_bugs_enabled_like_cpp(true);
+        assert!(session.represented_support_bugs_enabled_like_cpp());
+
+        session.set_represented_support_bugs_enabled_like_cpp(false);
+        assert!(!session.represented_support_bugs_enabled_like_cpp());
+    }
+
+    #[test]
     fn bug_report_statement_binds_text_then_diag_info_like_cpp() {
         let report = BugReport {
             report_type: 1,

@@ -1,3 +1,13 @@
+- `#NEXT.R8.ENTITIES.847` - represented-partial for `CMSG_BUG_REPORT` support config wiring.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/World/World.cpp:584-587`; `/home/server/woltk-trinity-legacy/src/server/worldserver/worldserver.conf.dist:2319-2343`; `/home/server/woltk-trinity-legacy/src/server/game/Handlers/TicketHandler.cpp:88-98`.
+
+  Rust anchors: `crates/wow-config/src/lib.rs`; `crates/wow-network/src/accept.rs`; `crates/world-server/src/main.rs`; `crates/wow-world/src/session.rs`; `crates/wow-world/src/handlers/misc.rs`; `docs/migration/inventory/cpp-world-config-registry.tsv`; `docs/migration/inventory/cpp-config-keys.tsv`.
+
+  Acceptance: Rust now carries C++ `CONFIG_SUPPORT_BUGS_ENABLED` / `Support.BugsEnabled` through world config resolution into `world-server` `SessionResources`, applies it to `WorldSession`, keeps the C++ default disabled no-op behavior, and exposes a session-level setter/test for the enabled flag.
+
+  Boundary: this advances `#NEXT.R8.ENTITIES.831` but remains represented-partial. `SupportMgr` as a runtime singleton, `Support.Enabled` whole-system UI status, enabled-branch DB integration against a real character DB, ticket/support manager runtime, install/restart, and live client/manual validation remain open.
+
 - `#NEXT.R8.ENTITIES.845` - audit-fix/represented-complete for stale `CMSG_COLLECTION_ITEM_SET_FAVORITE` inventory.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CollectionsHandler.cpp:22-41`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/CollectionPackets.cpp:20-25`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/CollectionPackets.h:27-39`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/CollectionMgr.cpp:830-856`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TransmogrificationPackets.cpp:40-55`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TransmogrificationPackets.h:54-66`.
@@ -132,11 +142,11 @@
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/TicketHandler.cpp:88-98`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TicketPackets.h:301-311`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TicketPackets.cpp:385-392`; `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/CharacterDatabase.cpp:447`; `/home/server/woltk-trinity-legacy/src/server/game/World/World.cpp:584-587`; `/home/server/woltk-trinity-legacy/src/server/worldserver/worldserver.conf.dist:2319-2343`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:251`.
 
-  Rust anchors: `crates/wow-packet/src/packets/misc.rs`; `crates/wow-world/src/handlers/misc.rs`; `crates/wow-world/src/session.rs`.
+  Rust anchors: `crates/wow-packet/src/packets/misc.rs`; `crates/wow-world/src/handlers/misc.rs`; `crates/wow-world/src/session.rs`; `crates/wow-network/src/accept.rs`; `crates/world-server/src/main.rs`; `crates/wow-config/src/lib.rs`.
 
-  Acceptance: `CMSG_BUG_REPORT` now parses the C++ bit/string layout (`Type` bit, 12-bit `DiagInfo` length, 10-bit `Text` length), registers `LoggedIn`/`ThreadUnsafe` dispatch, routes through `WorldSession`, preserves the C++ default `Support.BugsEnabled=false` no-op branch, and exposes exact `CHAR_INS_BUG_REPORT` binding with `Text` then `DiagInfo`.
+  Acceptance: `CMSG_BUG_REPORT` now parses the C++ bit/string layout (`Type` bit, 12-bit `DiagInfo` length, 10-bit `Text` length), registers `LoggedIn`/`ThreadUnsafe` dispatch, routes through `WorldSession`, wires C++ `Support.BugsEnabled` / `CONFIG_SUPPORT_BUGS_ENABLED` from world config into `WorldSession`, preserves the C++ default disabled no-op branch, and exposes exact `CHAR_INS_BUG_REPORT` binding with `Text` then `DiagInfo`.
 
-  Boundary: represented-partial only; no live `SupportMgr` singleton, no `Support.Enabled` / `Support.BugsEnabled` config wiring into `wow-world`, no enabled-branch DB integration test against a real character DB, no ticket/support manager runtime, no install/restart, and no live client/manual validation.
+  Boundary: represented-partial only; no live `SupportMgr` singleton, no `Support.Enabled` whole-system UI status, no enabled-branch DB integration test against a real character DB, no ticket/support manager runtime, no install/restart, and no live client/manual validation.
 
 - `#NEXT.R8.ENTITIES.832` - represented-complete for `CMSG_OPENING_CINEMATIC`.
 

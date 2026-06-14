@@ -52,7 +52,7 @@ Bool	CONFIG_SHOW_BAN_IN_WORLD	server/game/World/World.h:153	ShowBanInWorld	Bool	
 Bool	CONFIG_AUTOBROADCAST	server/game/World/World.h:154	AutoBroadcast.On	Bool	server/game/World/World.cpp:1625	false		missing_in_rust	-
 Bool	CONFIG_SUPPORT_ENABLED	server/game/World/World.h:155	Support.Enabled	Bool	server/game/World/World.cpp:584	true		missing_in_rust	-
 Bool	CONFIG_SUPPORT_TICKETS_ENABLED	server/game/World/World.h:156	Support.TicketsEnabled	Bool	server/game/World/World.cpp:585	false		missing_in_rust	-
-Bool	CONFIG_SUPPORT_BUGS_ENABLED	server/game/World/World.h:157	Support.BugsEnabled	Bool	server/game/World/World.cpp:586	false		missing_in_rust	-
+Bool	CONFIG_SUPPORT_BUGS_ENABLED	server/game/World/World.h:157	Support.BugsEnabled	Bool	server/game/World/World.cpp:586	false	crates/world-server/src/main.rs; crates/wow-network/src/accept.rs; crates/wow-world/src/session.rs; crates/wow-world/src/handlers/misc.rs	represented_rust	#NEXT.R8.ENTITIES.847 wires Support.BugsEnabled into WorldSession bug-report handling; full SupportMgr runtime remains pending
 Bool	CONFIG_SUPPORT_COMPLAINTS_ENABLED	server/game/World/World.h:158	Support.ComplaintsEnabled	Bool	server/game/World/World.cpp:587	false		missing_in_rust	-
 Bool	CONFIG_SUPPORT_SUGGESTIONS_ENABLED	server/game/World/World.h:159	Support.SuggestionsEnabled	Bool	server/game/World/World.cpp:588	false		missing_in_rust	-
 Bool	CONFIG_DBC_ENFORCE_ITEM_ATTRIBUTES	server/game/World/World.h:160	DBC.EnforceItemAttributes	Bool	server/game/World/World.cpp:1605	true		missing_in_rust	-

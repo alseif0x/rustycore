@@ -13933,6 +13933,10 @@ impl WorldSession {
         self.represented_support_bugs_enabled_like_cpp
     }
 
+    pub fn set_represented_support_bugs_enabled_like_cpp(&mut self, enabled: bool) {
+        self.represented_support_bugs_enabled_like_cpp = enabled;
+    }
+
     pub(crate) fn spell_range_store(&self) -> Option<&Arc<SpellRangeStore>> {
         self.spell_range_store.as_ref()
     }
