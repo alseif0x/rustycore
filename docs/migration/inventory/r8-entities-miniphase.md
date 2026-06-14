@@ -1,4 +1,14 @@
 - `#NEXT.R8.ENTITIES.868` - represented-complete implementation for bounded movement `Handle_NULL` ACK family.
+### #NEXT.R8.ENTITIES.884 — CMSG_REPORT_KEYBINDING_EXECUTION_COUNTS inventory drift
+
+Status: represented-complete audit fix for the bounded `Handle_NULL` hook.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:803`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:608`, and `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:554`.
+
+Implemented Rust seam: stale R3 inventories now recognize the existing Rust `CMSG_REPORT_KEYBINDING_EXECUTION_COUNTS` constant, `Authed`/`ThreadUnsafe` handler registration, dispatch arm, silent handler, and focused no-response test. This matches the bounded C++ `STATUS_UNHANDLED` / `PROCESS_THREADUNSAFE` / `Handle_NULL` behavior at the represented no-response/no-state layer.
+
+Boundary: represented-complete for this bounded unhandled opcode hook only. C++ logs `Handle_NULL`; Rust preserves no-response/no-state behavior without a dedicated opcode log. No install/restart or live-client manual validation was performed.
+
 ### #NEXT.R8.ENTITIES.883 — account-data DB persistence and AccountDataTimes
 
 Status: represented-complete for the bounded account-data load/save/timestamp seam.
