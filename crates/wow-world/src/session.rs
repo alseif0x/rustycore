@@ -2513,6 +2513,7 @@ pub struct WorldSession {
     // Account info
     pub account_id: u32,
     battlenet_account_id: u32,
+    realm_list_secret_like_cpp: [u8; 32],
     recruiter_id_like_cpp: u32,
     pub account_name: String,
     pub security: u8,
@@ -3857,6 +3858,7 @@ impl WorldSession {
         Self {
             account_id,
             battlenet_account_id: account_id,
+            realm_list_secret_like_cpp: [0; 32],
             recruiter_id_like_cpp: 0,
             account_name,
             security,
@@ -8570,6 +8572,14 @@ impl WorldSession {
 
     pub fn battlenet_account_id(&self) -> u32 {
         self.battlenet_account_id
+    }
+
+    pub(crate) fn set_realm_list_secret_like_cpp(&mut self, secret: [u8; 32]) {
+        self.realm_list_secret_like_cpp = secret;
+    }
+
+    pub(crate) fn realm_list_secret_like_cpp(&self) -> &[u8; 32] {
+        &self.realm_list_secret_like_cpp
     }
 
     pub fn set_mute_time_like_cpp(&mut self, mute_time: i64) {
@@ -17732,6 +17742,12 @@ impl WorldSession {
                 match wow_packet::packets::battlenet::BattlenetRequest::read(&mut pkt) {
                     Ok(req) => self.handle_battlenet_request(req).await,
                     Err(e) => warn!("Failed to read BattlenetRequest: {e}"),
+                }
+            }
+            ClientOpcodes::ChangeRealmTicket => {
+                match wow_packet::packets::battlenet::ChangeRealmTicket::read(&mut pkt) {
+                    Ok(ticket) => self.handle_change_realm_ticket(ticket).await,
+                    Err(e) => warn!("Failed to read ChangeRealmTicket: {e}"),
                 }
             }
             ClientOpcodes::ServerTimeOffsetRequest => {

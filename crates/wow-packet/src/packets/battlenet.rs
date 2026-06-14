@@ -9,9 +9,9 @@
 //! GameUtilitiesService RPCs. The server must always respond with a
 //! BattlenetResponse — either with a result or an error code.
 
-use wow_constants::ServerOpcodes;
+use wow_constants::{ClientOpcodes, ServerOpcodes};
 
-use crate::{PacketError, ServerPacket, WorldPacket};
+use crate::{ClientPacket, PacketError, ServerPacket, WorldPacket};
 
 // ── MethodCall ──────────────────────────────────────────────────────
 
@@ -128,6 +128,56 @@ impl ServerPacket for BattlenetResponse {
     }
 }
 
+// ── ChangeRealmTicket (CMSG 0x3701 / SMSG 0x280A) ─────────────────
+
+/// C++ `WorldPackets::Battlenet::ChangeRealmTicket`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChangeRealmTicket {
+    pub token: u32,
+    pub secret: [u8; 32],
+}
+
+impl ClientPacket for ChangeRealmTicket {
+    const OPCODE: ClientOpcodes = ClientOpcodes::ChangeRealmTicket;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let token = pkt.read_uint32()?;
+        let secret_bytes = pkt.read_bytes(32)?;
+        let mut secret = [0u8; 32];
+        secret.copy_from_slice(&secret_bytes);
+        Ok(Self { token, secret })
+    }
+}
+
+/// C++ `WorldPackets::Battlenet::ChangeRealmTicketResponse`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChangeRealmTicketResponse {
+    pub token: u32,
+    pub allow: bool,
+    pub ticket: Vec<u8>,
+}
+
+impl ChangeRealmTicketResponse {
+    pub fn allow_worldserver_realm_list_ticket_like_cpp(token: u32) -> Self {
+        Self {
+            token,
+            allow: true,
+            ticket: b"WorldserverRealmListTicket".to_vec(),
+        }
+    }
+}
+
+impl ServerPacket for ChangeRealmTicketResponse {
+    const OPCODE: ServerOpcodes = ServerOpcodes::ChangeRealmTicketResponse;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_uint32(self.token);
+        pkt.write_bit(self.allow);
+        pkt.write_uint32(self.ticket.len() as u32);
+        pkt.write_bytes(&self.ticket);
+    }
+}
+
 // ── Tests ───────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -215,5 +265,42 @@ mod tests {
         let _ = pkt.read_uint16(); // skip opcode
         let req = BattlenetRequest::read(&mut pkt).unwrap();
         assert!(req.data.is_empty());
+    }
+
+    #[test]
+    fn change_realm_ticket_reads_token_and_32_byte_secret_like_cpp() {
+        let mut pkt = WorldPacket::new_server(ServerOpcodes::BattlenetResponse);
+        pkt.write_uint32(0x1122_3344);
+        pkt.write_bytes(&[0xAB; 32]);
+
+        pkt.reset_read();
+        let _ = pkt.read_uint16();
+        let ticket = ChangeRealmTicket::read(&mut pkt).unwrap();
+
+        assert_eq!(ticket.token, 0x1122_3344);
+        assert_eq!(ticket.secret, [0xAB; 32]);
+    }
+
+    #[test]
+    fn change_realm_ticket_response_writes_cpp_shape() {
+        let bytes =
+            ChangeRealmTicketResponse::allow_worldserver_realm_list_ticket_like_cpp(0x0102_0304)
+                .to_bytes();
+
+        let mut pkt = WorldPacket::from_bytes(&bytes);
+        assert_eq!(
+            pkt.read_uint16().unwrap(),
+            ServerOpcodes::ChangeRealmTicketResponse as u16
+        );
+        assert_eq!(pkt.read_uint32().unwrap(), 0x0102_0304);
+        assert!(pkt.read_bit().unwrap());
+        assert_eq!(
+            pkt.read_uint32().unwrap(),
+            "WorldserverRealmListTicket".len() as u32
+        );
+        assert_eq!(
+            pkt.read_string("WorldserverRealmListTicket".len()).unwrap(),
+            "WorldserverRealmListTicket"
+        );
     }
 }

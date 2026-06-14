@@ -1,3 +1,13 @@
+- `#NEXT.R8.ENTITIES.858` - represented-complete for bounded `CMSG_CHANGE_REALM_TICKET` / `SMSG_CHANGE_REALM_TICKET_RESPONSE`.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/BattlenetHandler.cpp:23-31`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/BattlenetPackets.h:74-106`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/BattlenetPackets.cpp:64-90`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:291,1227`.
+
+  Rust anchors: `crates/wow-packet/src/packets/battlenet.rs`; `crates/wow-world/src/handlers/battlenet.rs`; `crates/wow-world/src/session.rs`; `docs/migration/inventory/cpp-client-handlers.tsv`; `docs/migration/inventory/cpp-server-opcodes.tsv`; `docs/migration/inventory/r3-opcodes-registry.tsv`; `docs/migration/inventory/r3-opcodes-registry.md`.
+
+  Acceptance: `CMSG_CHANGE_REALM_TICKET` now parses the C++ `uint32 Token` plus 32-byte `Secret`, stores the represented realm-list secret on `WorldSession` like `SetRealmListSecret`, registers `Authed`/`ThreadUnsafe` dispatch, and sends `SMSG_CHANGE_REALM_TICKET_RESPONSE` with the same token, `Allow=true`, and fixed `WorldserverRealmListTicket` payload like C++.
+
+  Boundary: represented-complete for the bounded change-realm-ticket exchange. Broader Battle.net service dispatcher implementation remains separate work.
+
 - `#NEXT.R8.ENTITIES.857` - represented-partial for bounded `CMSG_SUPPORT_TICKET_SUBMIT_COMPLAINT`.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/TicketHandler.cpp:70-86`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TicketPackets.h:130-260`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TicketPackets.cpp:110-329`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/LFGPacketsCommon.cpp:20-29`; `/home/server/woltk-trinity-legacy/src/server/game/Support/SupportMgr.h:46-84,164-183,246-249`; `/home/server/woltk-trinity-legacy/src/server/game/World/World.cpp:587-594`; `/home/server/woltk-trinity-legacy/src/server/worldserver/worldserver.conf.dist:2346-2351`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:953`.
