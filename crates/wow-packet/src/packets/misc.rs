@@ -4350,6 +4350,18 @@ impl ClientPacket for HearthAndResurrect {
     }
 }
 
+/// C++ `WorldPackets::Battleground::BattlefieldLeave`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct BattlefieldLeave;
+
+impl ClientPacket for BattlefieldLeave {
+    const OPCODE: ClientOpcodes = ClientOpcodes::BattlefieldLeave;
+
+    fn read(_pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self)
+    }
+}
+
 /// C++ `WorldPackets::Misc::ResurrectResponse`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ResurrectResponse {
@@ -7496,6 +7508,13 @@ mod tests {
 
         assert_eq!(parsed.resurrecter, resurrecter);
         assert_eq!(parsed.response, 1);
+    }
+
+    #[test]
+    fn battlefield_leave_reads_empty_cpp_packet() {
+        let mut pkt = WorldPacket::new_empty();
+
+        BattlefieldLeave::read(&mut pkt).unwrap();
     }
 
     #[test]

@@ -3025,6 +3025,10 @@ pub struct WorldSession {
     represented_vehicle_base_movements_like_cpp: Vec<RepresentedVehicleBaseMovementLikeCpp>,
     /// Represented `Player::GetBattleground()->GetTypeID()` for C++ battleground object use.
     player_battleground_type_id_like_cpp: Option<u32>,
+    /// Represented `Battleground::GetStatus()` until live Battleground ownership exists.
+    represented_battleground_status_like_cpp: Option<u8>,
+    /// Count of represented `Player::LeaveBattleground()` requests.
+    represented_battleground_leave_requests_like_cpp: u32,
     /// C++ `Player::_areaSpiritHealerGUID`, represented until battleground/player resurrection owns it.
     area_spirit_healer_guid_like_cpp: ObjectGuid,
     /// Represented current pet GUID until player-owned pet runtime is canonical.
@@ -4117,6 +4121,8 @@ impl WorldSession {
             represented_vehicle_dismiss_movements_like_cpp: Vec::new(),
             represented_vehicle_base_movements_like_cpp: Vec::new(),
             player_battleground_type_id_like_cpp: None,
+            represented_battleground_status_like_cpp: None,
+            represented_battleground_leave_requests_like_cpp: 0,
             area_spirit_healer_guid_like_cpp: ObjectGuid::EMPTY,
             represented_pet_guid_like_cpp: None,
             represented_pet_react_state_like_cpp:
@@ -18544,6 +18550,9 @@ impl WorldSession {
             ClientOpcodes::RequestBattlefieldStatus => {
                 self.handle_request_battlefield_status(pkt).await;
             }
+            ClientOpcodes::BattlefieldLeave => {
+                self.handle_battlefield_leave(pkt).await;
+            }
             ClientOpcodes::RequestRatedPvpInfo => {
                 self.handle_request_rated_pvp_info(pkt).await;
             }
@@ -20275,6 +20284,29 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn set_player_battleground_type_id_like_cpp(&mut self, bg_type_id: u32) {
         self.player_battleground_type_id_like_cpp = (bg_type_id != 0).then_some(bg_type_id);
+    }
+
+    pub(crate) fn set_represented_battleground_status_like_cpp(&mut self, status: Option<u8>) {
+        self.represented_battleground_status_like_cpp = status;
+    }
+
+    pub(crate) fn player_in_represented_battleground_like_cpp(&self) -> bool {
+        self.player_battleground_type_id_like_cpp.is_some()
+    }
+
+    pub(crate) fn represented_battleground_status_is_wait_leave_like_cpp(&self) -> bool {
+        self.represented_battleground_status_like_cpp == Some(4)
+    }
+
+    pub(crate) fn request_represented_battleground_leave_like_cpp(&mut self) {
+        self.represented_battleground_leave_requests_like_cpp = self
+            .represented_battleground_leave_requests_like_cpp
+            .saturating_add(1);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_battleground_leave_requests_like_cpp(&self) -> u32 {
+        self.represented_battleground_leave_requests_like_cpp
     }
 
     pub(crate) fn set_area_spirit_healer_guid_like_cpp(&mut self, healer_guid: ObjectGuid) {

@@ -48,10 +48,10 @@ use wow_packet::packets::loot::{LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHI
 use wow_packet::packets::misc::{
     AddToy, AddonList, ArenaTeamRoster, BattlePetClearFanfare, BattlePetDeletePet,
     BattlePetModifyName, BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags,
-    BattlePetSummon, BattlePetUpdateNotify, BugReport, CageBattlePet, CalendarSendCalendar,
-    CalendarSendNumPending, CloseInteraction, CommerceTokenGetLog, CommerceTokenGetLogResponse,
-    Complaint, ComplaintResult, DeclineGuildInvites, DfGetJoinStatus, DfGetSystemInfo, FarSight,
-    GmTicketAcknowledgeSurvey, GmTicketCaseStatus, GmTicketSystemStatus,
+    BattlePetSummon, BattlePetUpdateNotify, BattlefieldLeave, BugReport, CageBattlePet,
+    CalendarSendCalendar, CalendarSendNumPending, CloseInteraction, CommerceTokenGetLog,
+    CommerceTokenGetLogResponse, Complaint, ComplaintResult, DeclineGuildInvites, DfGetJoinStatus,
+    DfGetSystemInfo, FarSight, GmTicketAcknowledgeSurvey, GmTicketCaseStatus, GmTicketSystemStatus,
     GuildSetAchievementTracking, LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus,
     LoadingScreenNotify, MountSetFavorite, MountSpecial, ObjectUpdateFailed, ObjectUpdateRescued,
     QueryBattlePetName, QueryBattlePetNameResponse, RatedPvpInfo, RequestBattlefieldStatus,
@@ -730,6 +730,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_request_rated_pvp_info",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::BattlefieldLeave,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_battlefield_leave",
     }
 }
 
@@ -2471,6 +2480,28 @@ impl crate::session::WorldSession {
         // Rust has no represented battleground queue state in this handler yet,
         // so the no-queue branch is silent.
     }
+
+    /// CMSG_BATTLEFIELD_LEAVE — player asks to leave the current battleground.
+    /// C++ ref: `WorldSession::HandleBattlefieldLeaveOpcode`.
+    pub async fn handle_battlefield_leave(&mut self, mut pkt: wow_packet::WorldPacket) {
+        if let Err(error) = BattlefieldLeave::read(&mut pkt) {
+            warn!(
+                account = self.account_id,
+                "BattlefieldLeave parse failed: {error}"
+            );
+            return;
+        }
+
+        if self.in_combat
+            && self.player_in_represented_battleground_like_cpp()
+            && !self.represented_battleground_status_is_wait_leave_like_cpp()
+        {
+            return;
+        }
+
+        self.request_represented_battleground_leave_like_cpp();
+    }
+
     pub async fn handle_request_rated_pvp_info(&mut self, _pkt: wow_packet::WorldPacket) {
         self.send_packet(&RatedPvpInfo::default());
     }
@@ -7578,6 +7609,59 @@ mod tests {
             .handle_request_battlefield_status(WorldPacket::new_empty())
             .await;
 
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn battlefield_leave_records_request_when_not_in_combat_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        session.set_player_battleground_type_id_like_cpp(3);
+        session.set_represented_battleground_status_like_cpp(Some(2));
+
+        session
+            .handle_battlefield_leave(WorldPacket::new_empty())
+            .await;
+
+        assert_eq!(
+            session.represented_battleground_leave_requests_like_cpp(),
+            1
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn battlefield_leave_rejects_in_combat_active_battleground_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        session.set_player_battleground_type_id_like_cpp(3);
+        session.set_represented_battleground_status_like_cpp(Some(2));
+        session.in_combat = true;
+
+        session
+            .handle_battlefield_leave(WorldPacket::new_empty())
+            .await;
+
+        assert_eq!(
+            session.represented_battleground_leave_requests_like_cpp(),
+            0
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn battlefield_leave_allows_wait_leave_even_in_combat_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        session.set_player_battleground_type_id_like_cpp(3);
+        session.set_represented_battleground_status_like_cpp(Some(4));
+        session.in_combat = true;
+
+        session
+            .handle_battlefield_leave(WorldPacket::new_empty())
+            .await;
+
+        assert_eq!(
+            session.represented_battleground_leave_requests_like_cpp(),
+            1
+        );
         assert!(send_rx.try_recv().is_err());
     }
 

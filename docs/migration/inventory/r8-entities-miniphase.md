@@ -1,4 +1,14 @@
 - `#NEXT.R8.ENTITIES.868` - represented-complete implementation for bounded movement `Handle_NULL` ACK family.
+### #NEXT.R8.ENTITIES.872 — CMSG_BATTLEFIELD_LEAVE
+
+Status: represented-partial for the bounded battleground-leave handler.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/BattleGroundHandler.cpp:446-456`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/BattlegroundPackets.h:279-286`, and `/home/server/woltk-trinity-legacy/src/server/game/Battlegrounds/Battleground.h:160-166`.
+
+Implemented Rust seam: `BattlefieldLeave` parses the C++ empty packet, registers as `LoggedIn`/`PROCESS_THREADUNSAFE`, rejects represented in-combat battleground leave while represented status is not `STATUS_WAIT_LEAVE`, allows `STATUS_WAIT_LEAVE` even in combat, and records a represented `LeaveBattleground` request when accepted.
+
+Remaining gaps: full Battleground object/player ownership, `Player::GetBattleground` lookup, live `Battleground::GetStatus`, `Player::LeaveBattleground` side effects/teleport/deserter/queue updates, install/restart, and live-client manual validation remain open.
+
 ### #NEXT.R8.ENTITIES.871 — CMSG_RESURRECT_RESPONSE
 
 Status: represented-partial for the bounded resurrection-response handler.
