@@ -1,3 +1,13 @@
+- `#NEXT.R8.ENTITIES.863` - represented-complete audit fix for bounded `CMSG_CHAT_REPORT_IGNORED`.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/ChatHandler.cpp:734-741`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/ChatPackets.cpp:88-92`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:336`.
+
+  Rust anchors: `crates/wow-packet/src/packets/chat.rs`; `crates/wow-world/src/handlers/chat.rs`; `crates/wow-world/src/session.rs`; `docs/migration/inventory/cpp-client-handlers.tsv`; `docs/migration/inventory/r3-opcodes-registry.tsv`; `docs/migration/inventory/r3-opcodes-registry.md`.
+
+  Acceptance: `CMSG_CHAT_REPORT_IGNORED` was already represented in Rust but stale inventories still marked it missing; this row closes the drift with C++ `ChatReportIgnored` parser, `LoggedIn`/`ThreadUnsafe` registration, dispatch through `WorldSession`, and direct `CHAT_MSG_IGNORED` notification to the ignored player like C++ `HandleChatIgnoredOpcode`.
+
+  Boundary: represented-complete for the bounded ignored-chat notification only. Broader social/ignore-list persistence, install/restart, and live client/manual validation remain separate work.
+
 - `#NEXT.R8.ENTITIES.862` - represented-complete audit fix for bounded `CMSG_CHAT_REPORT_FILTERED`.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/ChatHandler.cpp:826-830`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/ChatPackets.cpp:103-106`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/ChatPackets.h:131-140`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:335`.

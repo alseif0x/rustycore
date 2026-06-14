@@ -1699,6 +1699,28 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn chat_report_ignored_notifies_ignored_player_like_cpp() {
+        let reporter = ObjectGuid::create_player(1, 101);
+        let ignored = ObjectGuid::create_player(1, 102);
+        let (mut session, registry, reporter_rx) = session_for_chat_routing_like_cpp(reporter);
+        let (ignored_tx, ignored_rx) = flume::bounded(8);
+        registry.insert(ignored, broadcast_info(ignored, ignored_tx));
+
+        let mut writer = wow_packet::WorldPacket::new_empty();
+        writer.write_packed_guid(&ignored);
+        writer.write_uint8(0);
+        session
+            .handle_chat_report_ignored(wow_packet::WorldPacket::from_bytes(writer.data()))
+            .await;
+
+        assert_eq!(
+            chat_slash_cmd(&ignored_rx.try_recv().expect("ignored notification")),
+            ChatMsg::Ignored as u8
+        );
+        assert!(reporter_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
     async fn party_chat_routes_only_to_sender_subgroup_like_cpp() {
         let leader = ObjectGuid::create_player(1, 101);
         let same_subgroup = ObjectGuid::create_player(1, 102);
