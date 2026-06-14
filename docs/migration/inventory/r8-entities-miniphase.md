@@ -1,4 +1,14 @@
 - `#NEXT.R8.ENTITIES.868` - represented-complete implementation for bounded movement `Handle_NULL` ACK family.
+### #NEXT.R8.ENTITIES.873 — CMSG_ACCEPT_GUILD_INVITE
+
+Status: represented-partial for the bounded guild-invite accept handler.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/GuildHandler.cpp:67-72`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/GuildPackets.h:171-177`, and `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:140`.
+
+Implemented Rust seam: `AcceptGuildInvite` parses the C++ empty packet, registers as `LoggedIn`/`PROCESS_THREADUNSAFE`, ignores represented players that already have a guild, ignores missing invited guild ids, and records a represented `Guild::HandleAcceptMember` request for the invited guild when the player is unguilded.
+
+Remaining gaps: live `GuildMgr::GetGuildById`, `Guild::HandleAcceptMember` runtime, membership persistence, roster/event packets, invite expiry/validation, real guild state mutation, install/restart, and live-client manual validation remain open.
+
 ### #NEXT.R8.ENTITIES.872 — CMSG_BATTLEFIELD_LEAVE
 
 Status: represented-partial for the bounded battleground-leave handler.

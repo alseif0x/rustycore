@@ -2842,6 +2842,7 @@ pub struct WorldSession {
     represented_item_mod_reapply_events_like_cpp: Vec<RepresentedItemModsReapplyEventLikeCpp>,
     represented_guild_id_like_cpp: u64,
     represented_guild_id_invited_like_cpp: u64,
+    represented_guild_accept_invites_like_cpp: Vec<u64>,
     represented_guild_repair_bank_state_like_cpp: Option<RepresentedGuildRepairBankStateLikeCpp>,
     represented_guild_repair_bank_withdraws_like_cpp:
         Vec<RepresentedGuildRepairBankWithdrawLikeCpp>,
@@ -4043,6 +4044,7 @@ impl WorldSession {
             represented_item_mod_reapply_events_like_cpp: Vec::new(),
             represented_guild_id_like_cpp: 0,
             represented_guild_id_invited_like_cpp: 0,
+            represented_guild_accept_invites_like_cpp: Vec::new(),
             represented_guild_repair_bank_state_like_cpp: None,
             represented_guild_repair_bank_withdraws_like_cpp: Vec::new(),
             player_currencies: HashMap::new(),
@@ -18508,6 +18510,9 @@ impl WorldSession {
             ClientOpcodes::GuildDeclineInvitation => {
                 self.handle_guild_decline_invitation(pkt).await;
             }
+            ClientOpcodes::AcceptGuildInvite => {
+                self.handle_accept_guild_invite(pkt).await;
+            }
             ClientOpcodes::GetItemPurchaseData => {
                 self.handle_get_item_purchase_data(pkt).await;
             }
@@ -20857,6 +20862,26 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn represented_guild_id_invited_like_cpp(&self) -> u64 {
         self.represented_guild_id_invited_like_cpp
+    }
+
+    pub(crate) fn accept_guild_invitation_like_cpp(&mut self) -> bool {
+        if self.represented_guild_id_like_cpp != 0 {
+            return false;
+        }
+
+        let guild_id = self.represented_guild_id_invited_like_cpp;
+        if guild_id == 0 {
+            return false;
+        }
+
+        self.represented_guild_accept_invites_like_cpp
+            .push(guild_id);
+        true
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_guild_accept_invites_like_cpp(&self) -> &[u64] {
+        &self.represented_guild_accept_invites_like_cpp
     }
 
     pub(crate) fn decline_guild_invitation_like_cpp(&mut self) -> bool {

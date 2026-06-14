@@ -46,19 +46,20 @@ use wow_packet::packets::item::{
 };
 use wow_packet::packets::loot::{LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHING_LIKE_CPP};
 use wow_packet::packets::misc::{
-    AddToy, AddonList, ArenaTeamRoster, BattlePetClearFanfare, BattlePetDeletePet,
-    BattlePetModifyName, BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags,
-    BattlePetSummon, BattlePetUpdateNotify, BattlefieldLeave, BugReport, CageBattlePet,
-    CalendarSendCalendar, CalendarSendNumPending, CloseInteraction, CommerceTokenGetLog,
-    CommerceTokenGetLogResponse, Complaint, ComplaintResult, DeclineGuildInvites, DfGetJoinStatus,
-    DfGetSystemInfo, FarSight, GmTicketAcknowledgeSurvey, GmTicketCaseStatus, GmTicketSystemStatus,
-    GuildSetAchievementTracking, LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus,
-    LoadingScreenNotify, MountSetFavorite, MountSpecial, ObjectUpdateFailed, ObjectUpdateRescued,
-    QueryBattlePetName, QueryBattlePetNameResponse, RatedPvpInfo, RequestBattlefieldStatus,
-    RequestCemeteryListResponse, ResurrectResponse, SaveCufProfiles, SetAdvancedCombatLogging,
-    SetCurrencyFlags, SetTaxiBenchmarkMode, SpecialMountAnim, StandStateChange, SubmitUserFeedback,
-    SupportTicketSubmitBug, SupportTicketSubmitComplaint, SupportTicketSubmitSuggestion,
-    TaxiNodeStatusPkt, TogglePvp, ToyClearFanfare, UseToy, ViolenceLevel,
+    AcceptGuildInvite, AddToy, AddonList, ArenaTeamRoster, BattlePetClearFanfare,
+    BattlePetDeletePet, BattlePetModifyName, BattlePetRequestJournal, BattlePetSetBattleSlot,
+    BattlePetSetFlags, BattlePetSummon, BattlePetUpdateNotify, BattlefieldLeave, BugReport,
+    CageBattlePet, CalendarSendCalendar, CalendarSendNumPending, CloseInteraction,
+    CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint, ComplaintResult,
+    DeclineGuildInvites, DfGetJoinStatus, DfGetSystemInfo, FarSight, GmTicketAcknowledgeSurvey,
+    GmTicketCaseStatus, GmTicketSystemStatus, GuildSetAchievementTracking, LfgListBlacklist,
+    LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify, MountSetFavorite, MountSpecial,
+    ObjectUpdateFailed, ObjectUpdateRescued, QueryBattlePetName, QueryBattlePetNameResponse,
+    RatedPvpInfo, RequestBattlefieldStatus, RequestCemeteryListResponse, ResurrectResponse,
+    SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags, SetTaxiBenchmarkMode,
+    SpecialMountAnim, StandStateChange, SubmitUserFeedback, SupportTicketSubmitBug,
+    SupportTicketSubmitComplaint, SupportTicketSubmitSuggestion, TaxiNodeStatusPkt, TogglePvp,
+    ToyClearFanfare, UseToy, ViolenceLevel,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -658,6 +659,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_guild_decline_invitation",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::AcceptGuildInvite,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_accept_guild_invite",
     }
 }
 
@@ -2308,6 +2318,18 @@ impl crate::session::WorldSession {
 
     pub async fn handle_guild_decline_invitation(&mut self, _pkt: wow_packet::WorldPacket) {
         self.decline_guild_invitation_like_cpp();
+    }
+
+    pub async fn handle_accept_guild_invite(&mut self, mut pkt: wow_packet::WorldPacket) {
+        if let Err(error) = AcceptGuildInvite::read(&mut pkt) {
+            warn!(
+                account = self.account_id,
+                "AcceptGuildInvite parse failed: {error}"
+            );
+            return;
+        }
+
+        self.accept_guild_invitation_like_cpp();
     }
 
     pub async fn handle_get_item_purchase_data(&mut self, mut pkt: wow_packet::WorldPacket) {
@@ -4449,6 +4471,61 @@ mod tests {
             .await;
 
         assert_eq!(session.represented_guild_id_invited_like_cpp(), 7_001);
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn accept_guild_invite_records_invited_guild_when_unguilded_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        session.set_represented_guild_id_like_cpp(0);
+        session.set_represented_guild_id_invited_like_cpp(7_001);
+
+        session
+            .handle_accept_guild_invite(WorldPacket::new_empty())
+            .await;
+
+        assert_eq!(
+            session.represented_guild_accept_invites_like_cpp(),
+            &[7_001]
+        );
+        assert_eq!(session.represented_guild_id_invited_like_cpp(), 7_001);
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn accept_guild_invite_ignores_guilded_player_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        session.set_represented_guild_id_like_cpp(42);
+        session.set_represented_guild_id_invited_like_cpp(7_001);
+
+        session
+            .handle_accept_guild_invite(WorldPacket::new_empty())
+            .await;
+
+        assert!(
+            session
+                .represented_guild_accept_invites_like_cpp()
+                .is_empty()
+        );
+        assert_eq!(session.represented_guild_id_invited_like_cpp(), 7_001);
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn accept_guild_invite_ignores_missing_invited_guild_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        session.set_represented_guild_id_like_cpp(0);
+        session.set_represented_guild_id_invited_like_cpp(0);
+
+        session
+            .handle_accept_guild_invite(WorldPacket::new_empty())
+            .await;
+
+        assert!(
+            session
+                .represented_guild_accept_invites_like_cpp()
+                .is_empty()
+        );
         assert!(send_rx.try_recv().is_err());
     }
 

@@ -859,6 +859,18 @@ impl ClientPacket for DeclineGuildInvites {
     }
 }
 
+/// C++ `WorldPackets::Guild::AcceptGuildInvite`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct AcceptGuildInvite;
+
+impl ClientPacket for AcceptGuildInvite {
+    const OPCODE: ClientOpcodes = ClientOpcodes::AcceptGuildInvite;
+
+    fn read(_pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self)
+    }
+}
+
 /// C++ `WorldPackets::Guild::GuildSetAchievementTracking`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GuildSetAchievementTracking {
@@ -5354,6 +5366,13 @@ mod tests {
         let mut pkt = WorldPacket::new_empty();
 
         assert!(DeclineGuildInvites::read(&mut pkt).is_err());
+    }
+
+    #[test]
+    fn accept_guild_invite_reads_empty_cpp_packet() {
+        let mut pkt = WorldPacket::new_empty();
+
+        AcceptGuildInvite::read(&mut pkt).unwrap();
     }
 
     #[test]
