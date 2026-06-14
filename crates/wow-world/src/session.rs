@@ -18441,6 +18441,9 @@ impl WorldSession {
             ClientOpcodes::GmTicketGetSystemStatus => {
                 self.handle_gm_ticket_get_system_status(pkt).await;
             }
+            ClientOpcodes::GmTicketAcknowledgeSurvey => {
+                self.handle_gm_ticket_acknowledge_survey(pkt).await;
+            }
             ClientOpcodes::BugReport => {
                 self.handle_bug_report(pkt).await;
             }

@@ -50,13 +50,13 @@ use wow_packet::packets::misc::{
     BattlePetModifyName, BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags,
     BattlePetSummon, BattlePetUpdateNotify, BugReport, CageBattlePet, CalendarSendCalendar,
     CalendarSendNumPending, CloseInteraction, CommerceTokenGetLog, CommerceTokenGetLogResponse,
-    DfGetJoinStatus, DfGetSystemInfo, FarSight, GmTicketCaseStatus, GmTicketSystemStatus,
-    GuildSetAchievementTracking, LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus,
-    LoadingScreenNotify, MountSetFavorite, ObjectUpdateFailed, ObjectUpdateRescued,
-    QueryBattlePetName, QueryBattlePetNameResponse, RatedPvpInfo, RequestBattlefieldStatus,
-    RequestCemeteryListResponse, SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags,
-    SetTaxiBenchmarkMode, StandStateChange, TaxiNodeStatusPkt, TogglePvp, ToyClearFanfare, UseToy,
-    ViolenceLevel,
+    DfGetJoinStatus, DfGetSystemInfo, FarSight, GmTicketAcknowledgeSurvey, GmTicketCaseStatus,
+    GmTicketSystemStatus, GuildSetAchievementTracking, LfgListBlacklist, LfgPlayerInfo,
+    LfgUpdateStatus, LoadingScreenNotify, MountSetFavorite, ObjectUpdateFailed,
+    ObjectUpdateRescued, QueryBattlePetName, QueryBattlePetNameResponse, RatedPvpInfo,
+    RequestBattlefieldStatus, RequestCemeteryListResponse, SaveCufProfiles,
+    SetAdvancedCombatLogging, SetCurrencyFlags, SetTaxiBenchmarkMode, StandStateChange,
+    TaxiNodeStatusPkt, TogglePvp, ToyClearFanfare, UseToy, ViolenceLevel,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -713,6 +713,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_gm_ticket_get_system_status",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::GmTicketAcknowledgeSurvey,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_gm_ticket_acknowledge_survey",
     }
 }
 
@@ -2315,6 +2324,15 @@ impl crate::session::WorldSession {
         self.send_packet(&GmTicketSystemStatus::from_support_enabled_like_cpp(
             self.represented_support_enabled_like_cpp(),
         ));
+    }
+    pub async fn handle_gm_ticket_acknowledge_survey(&mut self, mut pkt: wow_packet::WorldPacket) {
+        // C++ logs the CaseID and otherwise has only a TODO for future survey persistence.
+        if let Err(error) = GmTicketAcknowledgeSurvey::read(&mut pkt) {
+            warn!(
+                account = self.account_id,
+                "GmTicketAcknowledgeSurvey parse failed: {error}"
+            );
+        }
     }
     pub async fn handle_bug_report(&mut self, mut pkt: wow_packet::WorldPacket) {
         let report = match BugReport::read(&mut pkt) {
@@ -6191,6 +6209,17 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn gm_ticket_acknowledge_survey_consumes_case_id_and_is_silent_like_cpp_todo_handler() {
+        let (mut session, send_rx) = make_session();
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_int32(123);
+
+        session.handle_gm_ticket_acknowledge_survey(pkt).await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
     async fn bug_report_is_silent_when_bug_support_disabled_like_cpp_default() {
         let (mut session, send_rx) = make_session();
         session
@@ -6263,6 +6292,18 @@ mod tests {
         assert_eq!(entry.status, SessionStatus::LoggedIn);
         assert_eq!(entry.processing, PacketProcessing::Inplace);
         assert_eq!(entry.handler_name, "handle_gm_ticket_get_system_status");
+    }
+
+    #[test]
+    fn gm_ticket_acknowledge_survey_handler_metadata_matches_cpp() {
+        let entry = inventory::iter::<PacketHandlerEntry>
+            .into_iter()
+            .find(|entry| entry.opcode == ClientOpcodes::GmTicketAcknowledgeSurvey)
+            .expect("GmTicketAcknowledgeSurvey handler entry");
+
+        assert_eq!(entry.status, SessionStatus::LoggedIn);
+        assert_eq!(entry.processing, PacketProcessing::Inplace);
+        assert_eq!(entry.handler_name, "handle_gm_ticket_acknowledge_survey");
     }
 
     #[tokio::test]

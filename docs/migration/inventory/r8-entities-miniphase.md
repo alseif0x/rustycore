@@ -1,3 +1,13 @@
+- `#NEXT.R8.ENTITIES.852` - represented-complete for bounded `CMSG_GM_TICKET_ACKNOWLEDGE_SURVEY`.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/TicketHandler.cpp:110-116`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TicketPackets.h:86-92`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TicketPackets.cpp:63-66`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:491`.
+
+  Rust anchors: `crates/wow-packet/src/packets/misc.rs`; `crates/wow-world/src/handlers/misc.rs`; `crates/wow-world/src/session.rs`; `docs/migration/inventory/cpp-client-handlers.tsv`; `docs/migration/inventory/r3-opcodes-registry.tsv`; `docs/migration/inventory/r3-opcodes-registry.md`.
+
+  Acceptance: `CMSG_GM_TICKET_ACKNOWLEDGE_SURVEY` now parses the C++ `int32 CaseID` payload, registers `LoggedIn`/`Inplace` dispatch, routes through `WorldSession`, consumes the packet, sends no response, and mutates no represented state, matching the current C++ TODO handler.
+
+  Boundary: represented-complete for the bounded TODO/log-only handler behavior. Full GM survey persistence, `SupportMgr` ticket runtime, install/restart, and live client/manual validation remain open.
+
 - `#NEXT.R8.ENTITIES.851` - represented-complete for bounded `CMSG_GM_TICKET_GET_SYSTEM_STATUS`.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/TicketHandler.cpp:33-39`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TicketPackets.h:46-51`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TicketPackets.cpp:32-36`; `/home/server/woltk-trinity-legacy/src/server/game/Support/SupportMgr.h:74-79`.

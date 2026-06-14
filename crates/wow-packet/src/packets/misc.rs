@@ -60,6 +60,22 @@ impl ClientPacket for BugReport {
     }
 }
 
+/// C++ `WorldPackets::Ticket::GMTicketAcknowledgeSurvey`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GmTicketAcknowledgeSurvey {
+    pub case_id: i32,
+}
+
+impl ClientPacket for GmTicketAcknowledgeSurvey {
+    const OPCODE: ClientOpcodes = ClientOpcodes::GmTicketAcknowledgeSurvey;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            case_id: pkt.read_int32()?,
+        })
+    }
+}
+
 // ── Object update recovery (CMSG 0x3183 / 0x3184) ───────────────────────────
 
 /// C++ `WorldPackets::Misc::ObjectUpdateFailed`.
@@ -4695,6 +4711,16 @@ mod tests {
         let bytes = GmTicketSystemStatus::from_support_enabled_like_cpp(false).to_bytes();
         let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
         assert_eq!(pkt.read_int32().unwrap(), GmTicketSystemStatus::DISABLED);
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn gm_ticket_acknowledge_survey_reads_case_id_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_int32(42);
+
+        let survey = GmTicketAcknowledgeSurvey::read(&mut pkt).unwrap();
+        assert_eq!(survey.case_id, 42);
         assert_eq!(pkt.remaining(), 0);
     }
 
