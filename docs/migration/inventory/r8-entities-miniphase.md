@@ -1,4 +1,14 @@
 - `#NEXT.R8.ENTITIES.868` - represented-complete implementation for bounded movement `Handle_NULL` ACK family.
+### #NEXT.R8.ENTITIES.881 — CMSG_SAVE_ACCOUNT_DATA_EXPORT
+
+Status: represented-complete for the bounded account-data-export `Handle_NULL` hook.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:803-806`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:860`, and `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:583`.
+
+Implemented Rust seam: `CMSG_SAVE_ACCOUNT_DATA_EXPORT` now registers bounded `STATUS_UNHANDLED`/`PROCESS_INPLACE`/`Handle_NULL` parity, routes through `WorldSession` via the existing null-hook handler, consumes the packet without response, and mutates no represented state like C++ `Handle_NULL`.
+
+Boundary: represented-complete for this bounded account-data-export no-op hook only. C++ logs `Handle_NULL` while Rust preserves no-response/no-state behavior without a dedicated opcode log; no account data export behavior, install/restart, or live-client manual validation is claimed.
+
 ### #NEXT.R8.ENTITIES.880 — CMSG_UPDATE_AADC_STATUS
 
 Status: represented-complete for the bounded AADC status request/response.

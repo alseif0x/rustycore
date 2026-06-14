@@ -379,6 +379,15 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
+        opcode: ClientOpcodes::SaveAccountDataExport,
+        status: SessionStatus::Authed,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_unhandled_client_null_like_cpp",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
         opcode: ClientOpcodes::ChangeBagSlotFlag,
         status: SessionStatus::Authed,
         processing: PacketProcessing::Inplace,

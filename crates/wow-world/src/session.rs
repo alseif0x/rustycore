@@ -18458,6 +18458,7 @@ impl WorldSession {
             ClientOpcodes::ChangeBagSlotFlag
             | ClientOpcodes::CloseQuestChoice
             | ClientOpcodes::QueryQuestItemUsability
+            | ClientOpcodes::SaveAccountDataExport
             | ClientOpcodes::SetPreferredCemetery
             | ClientOpcodes::UpdateClientSettings => {
                 self.handle_unhandled_client_null_like_cpp(pkt).await;
@@ -68958,6 +68959,7 @@ mod tests {
             "ReportFrozenWhileLoadingMap",
             "ReportKeybindingExecutionCounts",
             "RequestConquestFormulaConstants",
+            "SaveAccountDataExport",
             "SetInsertItemsLeftToRight",
             "SetPreferredCemetery",
             "SpawnTrackingUpdate",
