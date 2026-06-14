@@ -1,3 +1,13 @@
+- `#NEXT.R8.ENTITIES.849` - audit-fix/represented-complete for stale `CHAR_INS_BUG_REPORT` DB inventory.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/CharacterDatabase.h:335`; `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/CharacterDatabase.cpp:447`; `/home/server/woltk-trinity-legacy/src/server/game/Handlers/TicketHandler.cpp:88-98`.
+
+  Rust anchors: `crates/wow-database/src/statements/character.rs`; `crates/wow-world/src/handlers/misc.rs`; `docs/migration/inventory/r3-database-registry.tsv`; `docs/migration/inventory/r3-database-registry.md`.
+
+  Acceptance: stale DB inventory is reconciled. Rust already exposes `CharStatements::INS_BUG_REPORT` with the exact C++ `INSERT INTO bugreport (type, content) VALUES(?, ?)` SQL, `CMSG_BUG_REPORT` builds that prepared statement in the enabled branch, and the bind order remains `Text` then `DiagInfo` like C++.
+
+  Boundary: audit-fix only; advances `#NEXT.R8.ENTITIES.831` by removing a false missing-DB-statement gap. `CMSG_BUG_REPORT` remains represented-partial for `SupportMgr` runtime singleton, `Support.Enabled` whole-system UI status, real enabled-branch DB integration against a running character DB, install/restart, and live client/manual validation.
+
 - `#NEXT.R8.ENTITIES.848` - audit-fix/represented-complete for stale `CMSG_SET_TITLE` inventory.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:882-893`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:17292-17300`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:17769-17775`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:25503-25518`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:2617`.
