@@ -2372,6 +2372,54 @@ impl ServerPacket for AccountMountUpdate {
     }
 }
 
+// ── MountSpecial (CMSG 0x3280) / SpecialMountAnim (SMSG 0x269f) ─────
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MountSpecial {
+    pub spell_visual_kit_ids: Vec<i32>,
+    pub sequence_variation: i32,
+}
+
+impl ClientPacket for MountSpecial {
+    const OPCODE: ClientOpcodes = ClientOpcodes::MountSpecialAnim;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        pkt.skip_opcode();
+        let count = pkt.read_uint32()? as usize;
+        let sequence_variation = pkt.read_int32()?;
+        let mut spell_visual_kit_ids = Vec::with_capacity(count);
+        for _ in 0..count {
+            spell_visual_kit_ids.push(pkt.read_int32()?);
+        }
+        Ok(Self {
+            spell_visual_kit_ids,
+            sequence_variation,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpecialMountAnim {
+    pub unit_guid: ObjectGuid,
+    pub spell_visual_kit_ids: Vec<i32>,
+    pub sequence_variation: i32,
+}
+
+impl ServerPacket for SpecialMountAnim {
+    const OPCODE: ServerOpcodes = ServerOpcodes::SpecialMountAnim;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        for byte in self.unit_guid.to_raw_bytes() {
+            pkt.write_uint8(byte);
+        }
+        pkt.write_uint32(self.spell_visual_kit_ids.len() as u32);
+        pkt.write_int32(self.sequence_variation);
+        for spell_visual_kit_id in &self.spell_visual_kit_ids {
+            pkt.write_int32(*spell_visual_kit_id);
+        }
+    }
+}
+
 // ── AccountHeirloomUpdate (SMSG 0xBADD placeholder) ─────────────────
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -6272,6 +6320,48 @@ mod tests {
                 is_favorite: true,
             }
         );
+    }
+
+    #[test]
+    fn mount_special_reads_count_sequence_and_visual_kits_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(ClientOpcodes::MountSpecialAnim as u16);
+        pkt.write_uint32(2);
+        pkt.write_int32(-7);
+        pkt.write_int32(111);
+        pkt.write_int32(222);
+
+        let decoded = MountSpecial::read(&mut pkt).unwrap();
+        assert_eq!(
+            decoded,
+            MountSpecial {
+                spell_visual_kit_ids: vec![111, 222],
+                sequence_variation: -7,
+            }
+        );
+    }
+
+    #[test]
+    fn special_mount_anim_writes_guid_count_sequence_and_visual_kits_like_cpp() {
+        let guid =
+            ObjectGuid::create_world_object(wow_core::guid::HighGuid::Player, 0, 1, 571, 0, 0, 42);
+        let bytes = SpecialMountAnim {
+            unit_guid: guid,
+            spell_visual_kit_ids: vec![111, -222],
+            sequence_variation: 3,
+        }
+        .to_bytes();
+
+        assert_eq!(
+            bytes[0..2],
+            (ServerOpcodes::SpecialMountAnim as u16).to_le_bytes()
+        );
+        assert_eq!(&bytes[2..18], &guid.to_raw_bytes());
+        assert_eq!(&bytes[18..22], &2_u32.to_le_bytes());
+        assert_eq!(&bytes[22..26], &3_i32.to_le_bytes());
+        assert_eq!(&bytes[26..30], &111_i32.to_le_bytes());
+        assert_eq!(&bytes[30..34], &(-222_i32).to_le_bytes());
+        assert_eq!(bytes.len(), 34);
     }
 
     #[test]

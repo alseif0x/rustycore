@@ -1,3 +1,11 @@
+- `#NEXT.R8.ENTITIES.867` - represented-partial implementation for bounded `CMSG_MOUNT_SPECIAL_ANIM`.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:1270-1277`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.cpp:678-693`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.h:845-866`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:609`; `/home/server/woltk-trinity-legacy/src/server/shared/Packets/ByteBuffer.h:563-565`.
+
+  Acceptance: Rust now parses the C++ count, `SequenceVariation`, and int32 `SpellVisualKitIDs`, registers `LoggedIn`/`ThreadUnsafe` dispatch, routes through `WorldSession`, emits `SMSG_SPECIAL_MOUNT_ANIM` with the current player `UnitGUID` and copied visual kit ids like C++ `HandleMountSpecialAnimOpcode`, and fixes real dispatcher routing for the adjacent mount favorite/fanfare handlers. Checks: `cargo fmt --all --check`; `cargo test -p wow-packet mount_special --lib`; `cargo test -p wow-packet special_mount --lib`; `cargo test -p wow-world mount_special --lib`; `cargo test -p wow-world dispatch_metadata_matches_cpp_for_registered_active_opcodes --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`; `git diff --check`.
+
+  Boundary: represented-partial only. C++ calls `SendMessageToSet(..., false)`; Rust currently emits the packet to the owning session only. Nearby-session fanout remains pending under runtime visibility/fanout work, with no install/restart/live client validation.
+
 - `#NEXT.R8.ENTITIES.866` - represented-complete audit fix for bounded `CMSG_MOUNT_SET_FAVORITE`.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:1285-1288`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.cpp:752-756`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.h:927-935`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:608`.

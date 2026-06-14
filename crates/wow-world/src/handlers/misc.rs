@@ -53,12 +53,12 @@ use wow_packet::packets::misc::{
     Complaint, ComplaintResult, DeclineGuildInvites, DfGetJoinStatus, DfGetSystemInfo, FarSight,
     GmTicketAcknowledgeSurvey, GmTicketCaseStatus, GmTicketSystemStatus,
     GuildSetAchievementTracking, LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus,
-    LoadingScreenNotify, MountSetFavorite, ObjectUpdateFailed, ObjectUpdateRescued,
+    LoadingScreenNotify, MountSetFavorite, MountSpecial, ObjectUpdateFailed, ObjectUpdateRescued,
     QueryBattlePetName, QueryBattlePetNameResponse, RatedPvpInfo, RequestBattlefieldStatus,
     RequestCemeteryListResponse, SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags,
-    SetTaxiBenchmarkMode, StandStateChange, SubmitUserFeedback, SupportTicketSubmitBug,
-    SupportTicketSubmitComplaint, SupportTicketSubmitSuggestion, TaxiNodeStatusPkt, TogglePvp,
-    ToyClearFanfare, UseToy, ViolenceLevel,
+    SetTaxiBenchmarkMode, SpecialMountAnim, StandStateChange, SubmitUserFeedback,
+    SupportTicketSubmitBug, SupportTicketSubmitComplaint, SupportTicketSubmitSuggestion,
+    TaxiNodeStatusPkt, TogglePvp, ToyClearFanfare, UseToy, ViolenceLevel,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -215,6 +215,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_mount_set_favorite",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::MountSpecialAnim,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_mount_special_anim",
     }
 }
 
@@ -1586,6 +1595,36 @@ impl crate::session::WorldSession {
         };
 
         self.mount_set_favorite_like_cpp(request.mount_spell_id, request.is_favorite);
+    }
+
+    /// CMSG_MOUNT_SPECIAL_ANIM — forward the requested mount animation packet.
+    ///
+    /// C++ ref: `WorldSession::HandleMountSpecialAnimOpcode` copies the
+    /// client-provided visual kit ids and sequence variation into
+    /// `SMSG_SPECIAL_MOUNT_ANIM`, sets `UnitGUID` to the player, and calls
+    /// `SendMessageToSet(..., false)`. This represented slice sends the same
+    /// packet to the owning session; true nearby-session fanout remains a
+    /// runtime-visibility task.
+    pub async fn handle_mount_special_anim(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let request = match MountSpecial::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "MountSpecial parse failed: {error}"
+                );
+                return;
+            }
+        };
+        let Some(unit_guid) = self.player_guid() else {
+            return;
+        };
+
+        self.send_packet(&SpecialMountAnim {
+            unit_guid,
+            spell_visual_kit_ids: request.spell_visual_kit_ids,
+            sequence_variation: request.sequence_variation,
+        });
     }
 
     /// CMSG_COLLECTION_ITEM_SET_FAVORITE — toggle favorite state for supported collections.
@@ -4929,6 +4968,46 @@ mod tests {
 
         assert!(session.account_mounts_like_cpp().is_empty());
         assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn mount_special_anim_sends_player_guid_sequence_and_visual_kits_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 77);
+        session.set_player_guid(Some(player_guid));
+
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(ClientOpcodes::MountSpecialAnim as u16);
+        pkt.write_uint32(2);
+        pkt.write_int32(-3);
+        pkt.write_int32(111);
+        pkt.write_int32(222);
+
+        session.handle_mount_special_anim(pkt).await;
+
+        let bytes = send_rx.try_recv().expect("special mount anim");
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::SpecialMountAnim as u16
+        );
+        assert_eq!(&bytes[2..18], &player_guid.to_raw_bytes());
+        assert_eq!(
+            u32::from_le_bytes([bytes[18], bytes[19], bytes[20], bytes[21]]),
+            2
+        );
+        assert_eq!(
+            i32::from_le_bytes([bytes[22], bytes[23], bytes[24], bytes[25]]),
+            -3
+        );
+        assert_eq!(
+            i32::from_le_bytes([bytes[26], bytes[27], bytes[28], bytes[29]]),
+            111
+        );
+        assert_eq!(
+            i32::from_le_bytes([bytes[30], bytes[31], bytes[32], bytes[33]]),
+            222
+        );
+        assert_eq!(bytes.len(), 34);
     }
 
     #[tokio::test]

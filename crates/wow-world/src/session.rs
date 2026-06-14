@@ -18467,6 +18467,15 @@ impl WorldSession {
             ClientOpcodes::CollectionItemSetFavorite => {
                 self.handle_collection_item_set_favorite(pkt).await;
             }
+            ClientOpcodes::MountSetFavorite => {
+                self.handle_mount_set_favorite(pkt).await;
+            }
+            ClientOpcodes::MountSpecialAnim => {
+                self.handle_mount_special_anim(pkt).await;
+            }
+            ClientOpcodes::MountClearFanfare => {
+                self.handle_mount_clear_fanfare(pkt).await;
+            }
             ClientOpcodes::AddToy => {
                 self.handle_add_toy(pkt).await;
             }
