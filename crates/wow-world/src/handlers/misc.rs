@@ -4932,6 +4932,17 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn mount_clear_fanfare_stub_sends_no_response_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_mount_clear_fanfare(WorldPacket::new_empty())
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
     async fn toy_clear_fanfare_clears_known_toy_without_packet_like_cpp() {
         let (mut session, send_rx) = make_session();
         session.load_represented_account_toys_like_cpp([(30_000, true, true)]);

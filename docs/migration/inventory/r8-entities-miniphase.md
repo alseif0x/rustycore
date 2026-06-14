@@ -1,3 +1,23 @@
+- `#NEXT.R8.ENTITIES.866` - represented-complete audit fix for bounded `CMSG_MOUNT_SET_FAVORITE`.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:1285-1288`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.cpp:752-756`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.h:927-935`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:608`.
+
+  Rust anchors: `crates/wow-packet/src/packets/misc.rs`; `crates/wow-world/src/handlers/misc.rs`; `crates/wow-world/src/session.rs`; `docs/migration/inventory/r3-opcodes-registry.tsv`; `docs/migration/inventory/r3-opcodes-registry.md`.
+
+  Acceptance: `CMSG_MOUNT_SET_FAVORITE` was already represented in Rust but stale R3 inventories still marked it missing; this row closes the drift with C++ `MountSetFavorite` parser, `LoggedIn`/`ThreadUnsafe` registration, dispatch through `WorldSession`, known-mount favorite flag update, unknown-mount silent ignore, and partial `SMSG_ACCOUNT_MOUNT_UPDATE` emission like `CollectionMgr::MountSetFavorite`.
+
+  Boundary: represented-complete for bounded account-mount favorite state/update only. Broader `CollectionMgr` persistence, install/restart, and live client/manual validation remain separate work.
+
+- `#NEXT.R8.ENTITIES.865` - represented-complete audit fix for bounded `CMSG_MOUNT_CLEAR_FANFARE`.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:1279-1283`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.h:1016-1022`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:607`.
+
+  Rust anchors: `crates/wow-world/src/handlers/misc.rs`; `crates/wow-world/src/session.rs`; `docs/migration/inventory/r3-opcodes-registry.tsv`; `docs/migration/inventory/r3-opcodes-registry.md`.
+
+  Acceptance: `CMSG_MOUNT_CLEAR_FANFARE` was already represented in Rust but stale R3 inventories still marked it missing; this row closes the drift with `LoggedIn`/`ThreadUnsafe` registration, dispatch through `WorldSession`, empty payload handling, and no response/state mutation like C++ `HandleMountClearFanfare` stub.
+
+  Boundary: represented-complete for the bounded C++ mount-fanfare clear stub only. No client visual-state persistence, install/restart, or live client/manual validation.
+
 - `#NEXT.R8.ENTITIES.864` - represented-complete audit fix for bounded `CMSG_CHAT_REGISTER_ADDON_PREFIXES`.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:973-984`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/ChatPackets.cpp:295-300`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/ChatPackets.h:287-299`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:334`.
