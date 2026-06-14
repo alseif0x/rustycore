@@ -5256,11 +5256,14 @@ impl ClientPacket for BusyTrade {
 /// C++ `TRADE_STATUS_PLAYER_BUSY`.
 pub const TRADE_STATUS_PLAYER_BUSY_LIKE_CPP: u8 = 0;
 
+/// C++ `TRADE_STATUS_CANCELLED`.
+pub const TRADE_STATUS_CANCELLED_LIKE_CPP: u8 = 3;
+
 /// Bounded C++ `WorldPackets::Trade::TradeStatus` writer for trade-cancel statuses.
 ///
 /// C++ writes `PartnerIsSameBnetAccount`, then five status bits. For cancel-like
-/// statuses such as `TRADE_STATUS_PLAYER_BUSY`, the default branch only flushes
-/// bits and writes no extra payload fields.
+/// statuses such as `TRADE_STATUS_PLAYER_BUSY` or `TRADE_STATUS_CANCELLED`, the
+/// default branch only flushes bits and writes no extra payload fields.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TradeStatus {
     pub status: u8,
@@ -6096,6 +6099,18 @@ mod tests {
         );
         assert_eq!(bytes.len(), 3);
         assert_eq!(bytes[2], TRADE_STATUS_PLAYER_BUSY_LIKE_CPP << 1);
+    }
+
+    #[test]
+    fn trade_status_cancelled_writes_cancel_status_bits_like_cpp() {
+        let bytes = TradeStatus::cancel_like_cpp(TRADE_STATUS_CANCELLED_LIKE_CPP).to_bytes();
+
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::TradeStatus as u16
+        );
+        assert_eq!(bytes.len(), 3);
+        assert_eq!(bytes[2], TRADE_STATUS_CANCELLED_LIKE_CPP << 2);
     }
 
     #[test]

@@ -1,4 +1,14 @@
 - `#NEXT.R8.ENTITIES.868` - represented-complete implementation for bounded movement `Handle_NULL` ACK family.
+### #NEXT.R8.ENTITIES.887 — CMSG_CANCEL_TRADE
+
+Status: represented-complete for the bounded cancel-trade active-cancel handler.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/TradeHandler.cpp:575-580`, `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:12870-12884`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TradePackets.cpp:55-86`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TradePackets.h:56-64,145-164`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:251`, and `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:6465-6492`.
+
+Implemented Rust seam: `CMSG_CANCEL_TRADE` remains registered as `LoggedInOrRecentlyLogout`/`PROCESS_THREADUNSAFE`, dispatches through `WorldSession`, preserves the C++ no-op when no active trade exists, writes bounded `SMSG_TRADE_STATUS` cancel-status bits for `TRADE_STATUS_CANCELLED`, sends the status to the requester when `sendback=true`, queues a cross-session represented cancel command to the active-trade partner, and clears represented active-trade state on both sessions.
+
+Remaining gaps: full `TradeData` item/gold/enchant exchange ownership, initiate/accept/set-item trade opcodes, DB/item side effects, install/restart, bot, and live-client manual validation remain separate work.
+
 ### #NEXT.R8.ENTITIES.884 — CMSG_REPORT_KEYBINDING_EXECUTION_COUNTS inventory drift
 
 Status: represented-complete audit fix for the bounded `Handle_NULL` hook.
