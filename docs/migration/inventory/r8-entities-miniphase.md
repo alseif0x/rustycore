@@ -1,3 +1,13 @@
+- `#NEXT.R8.ENTITIES.862` - represented-complete audit fix for bounded `CMSG_CHAT_REPORT_FILTERED`.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/ChatHandler.cpp:826-830`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/ChatPackets.cpp:103-106`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/ChatPackets.h:131-140`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:335`.
+
+  Rust anchors: `crates/wow-packet/src/packets/chat.rs`; `crates/wow-world/src/handlers/chat.rs`; `crates/wow-world/src/session.rs`; `docs/migration/inventory/cpp-client-handlers.tsv`; `docs/migration/inventory/r3-opcodes-registry.tsv`; `docs/migration/inventory/r3-opcodes-registry.md`.
+
+  Acceptance: `CMSG_CHAT_REPORT_FILTERED` was already represented in Rust but stale inventories still marked it missing; this row closes the drift with C++-empty `ChatReportFiltered` parser, `LoggedIn`/`ThreadUnsafe` registration, dispatch through `WorldSession`, and no response/state mutation like C++ `HandleChatReportFiltered` stub.
+
+  Boundary: represented-complete for the bounded C++ spam-report stub only. No live spam reporting system, install/restart, or live client/manual validation.
+
 - `#NEXT.R8.ENTITIES.861` - represented-complete for bounded `CMSG_GUILD_DECLINE_INVITATION`.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/GuildHandler.cpp:74-80`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/GuildPackets.h:179-186`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:1957-1961`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:512`.

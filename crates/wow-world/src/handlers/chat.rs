@@ -1687,6 +1687,18 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn chat_report_filtered_empty_stub_sends_no_response_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 100);
+        let (mut session, _registry, send_rx) = session_for_chat_routing_like_cpp(sender);
+
+        session
+            .handle_chat_report_filtered(wow_packet::WorldPacket::new_empty())
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
     async fn party_chat_routes_only_to_sender_subgroup_like_cpp() {
         let leader = ObjectGuid::create_player(1, 101);
         let same_subgroup = ObjectGuid::create_player(1, 102);
