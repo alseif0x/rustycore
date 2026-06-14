@@ -1,3 +1,13 @@
+- `#NEXT.R8.ENTITIES.854` - represented-partial for bounded `CMSG_SUBMIT_USER_FEEDBACK`.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/TicketHandler.cpp:42-67`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TicketPackets.h:30-36`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TicketPackets.h:117-128`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TicketPackets.cpp:22-29`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TicketPackets.cpp:81-91`; `/home/server/woltk-trinity-legacy/src/server/game/Support/SupportMgr.h:246-249`; `/home/server/woltk-trinity-legacy/src/server/game/World/World.cpp:584-595`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:949`.
+
+  Rust anchors: `crates/wow-packet/src/packets/misc.rs`; `crates/wow-config/src/lib.rs`; `crates/wow-network/src/accept.rs`; `crates/world-server/src/main.rs`; `crates/wow-world/src/session.rs`; `crates/wow-world/src/handlers/misc.rs`; `docs/migration/inventory/cpp-client-handlers.tsv`; `docs/migration/inventory/r3-opcodes-registry.tsv`; `docs/migration/inventory/r3-opcodes-registry.md`; `docs/migration/inventory/cpp-world-config-registry.tsv`; `docs/migration/inventory/cpp-config-keys.tsv`.
+
+  Acceptance: `CMSG_SUBMIT_USER_FEEDBACK` now parses `SupportTicketHeader`, null-terminated note and `IsSuggestion` like C++, wires `Support.SuggestionsEnabled` through config/resources/session, registers `LoggedIn`/`ThreadUnsafe` dispatch, and applies the represented C++ `SupportMgr` gates for bug vs suggestion feedback.
+
+  Boundary: represented-partial only. Live `SuggestionTicket`/`BugTicket` creation, `SupportMgr::AddTicket` runtime, ticket persistence, install/restart, and live client/manual validation remain open.
+
 - `#NEXT.R8.ENTITIES.853` - represented-complete for bounded `CMSG_COMPLAINT`.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/TicketHandler.cpp:100-107`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TicketPackets.h:261-299`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TicketPackets.cpp:337-381`; `/home/server/woltk-trinity-legacy/src/server/game/Support/SupportMgr.h:80-84`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:381`.

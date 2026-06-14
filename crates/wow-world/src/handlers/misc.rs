@@ -56,8 +56,8 @@ use wow_packet::packets::misc::{
     LoadingScreenNotify, MountSetFavorite, ObjectUpdateFailed, ObjectUpdateRescued,
     QueryBattlePetName, QueryBattlePetNameResponse, RatedPvpInfo, RequestBattlefieldStatus,
     RequestCemeteryListResponse, SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags,
-    SetTaxiBenchmarkMode, StandStateChange, TaxiNodeStatusPkt, TogglePvp, ToyClearFanfare, UseToy,
-    ViolenceLevel,
+    SetTaxiBenchmarkMode, StandStateChange, SubmitUserFeedback, TaxiNodeStatusPkt, TogglePvp,
+    ToyClearFanfare, UseToy, ViolenceLevel,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -732,6 +732,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_complaint",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::SubmitUserFeedback,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_submit_user_feedback",
     }
 }
 
@@ -2358,6 +2367,30 @@ impl crate::session::WorldSession {
             result: ComplaintResult::OK_LIKE_CPP,
         });
     }
+    pub async fn handle_submit_user_feedback(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let feedback = match SubmitUserFeedback::read(&mut pkt) {
+            Ok(feedback) => feedback,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "SubmitUserFeedback parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        if feedback.is_suggestion {
+            if !self.represented_suggestion_system_status_like_cpp() {
+                return;
+            }
+        } else if !self.represented_bug_system_status_like_cpp() {
+            return;
+        }
+
+        // C++ creates a SuggestionTicket/BugTicket and adds it to SupportMgr.
+        // Rust has no live SupportMgr ticket runtime yet; the packet has no
+        // direct response, so the represented enabled branch remains silent.
+    }
     pub async fn handle_bug_report(&mut self, mut pkt: wow_packet::WorldPacket) {
         let report = match BugReport::read(&mut pkt) {
             Ok(report) => report,
@@ -3685,6 +3718,22 @@ mod tests {
         pkt.flush_bits();
         pkt.write_string(diag_info);
         pkt.write_string(text);
+        pkt.reset_read();
+        pkt
+    }
+
+    fn submit_user_feedback_packet(is_suggestion: bool, note: &str) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_int32(571);
+        pkt.write_float(1.25);
+        pkt.write_float(2.5);
+        pkt.write_float(3.75);
+        pkt.write_float(4.0);
+        pkt.write_int32(9);
+        pkt.write_bits((note.len() + 1) as u32, 24);
+        pkt.write_bit(is_suggestion);
+        pkt.write_string(note);
+        pkt.write_uint8(0);
         pkt.reset_read();
         pkt
     }
@@ -6276,6 +6325,33 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn submit_user_feedback_obeys_support_system_gates_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_submit_user_feedback(submit_user_feedback_packet(true, "suggestion"))
+            .await;
+        session
+            .handle_submit_user_feedback(submit_user_feedback_packet(false, "bug"))
+            .await;
+        assert!(send_rx.try_recv().is_err());
+
+        session.set_represented_support_enabled_like_cpp(true);
+        session.set_represented_support_suggestions_enabled_like_cpp(true);
+        session
+            .handle_submit_user_feedback(submit_user_feedback_packet(true, "suggestion"))
+            .await;
+        assert!(send_rx.try_recv().is_err());
+
+        session.set_represented_support_suggestions_enabled_like_cpp(false);
+        session.set_represented_support_bugs_enabled_like_cpp(true);
+        session
+            .handle_submit_user_feedback(submit_user_feedback_packet(false, "bug"))
+            .await;
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
     async fn bug_report_is_silent_when_bug_support_disabled_like_cpp_default() {
         let (mut session, send_rx) = make_session();
         session
@@ -6302,6 +6378,14 @@ mod tests {
         assert!(session.represented_support_bugs_enabled_like_cpp());
         assert!(session.represented_bug_system_status_like_cpp());
 
+        session.set_represented_support_suggestions_enabled_like_cpp(true);
+        assert!(session.represented_support_suggestions_enabled_like_cpp());
+        assert!(session.represented_suggestion_system_status_like_cpp());
+
+        session.set_represented_support_enabled_like_cpp(false);
+        assert!(!session.represented_suggestion_system_status_like_cpp());
+
+        session.set_represented_support_enabled_like_cpp(true);
         session.set_represented_support_bugs_enabled_like_cpp(false);
         assert!(!session.represented_support_bugs_enabled_like_cpp());
         assert!(!session.represented_bug_system_status_like_cpp());
@@ -6372,6 +6456,18 @@ mod tests {
         assert_eq!(entry.status, SessionStatus::LoggedIn);
         assert_eq!(entry.processing, PacketProcessing::ThreadUnsafe);
         assert_eq!(entry.handler_name, "handle_complaint");
+    }
+
+    #[test]
+    fn submit_user_feedback_handler_metadata_matches_cpp() {
+        let entry = inventory::iter::<PacketHandlerEntry>
+            .into_iter()
+            .find(|entry| entry.opcode == ClientOpcodes::SubmitUserFeedback)
+            .expect("SubmitUserFeedback handler entry");
+
+        assert_eq!(entry.status, SessionStatus::LoggedIn);
+        assert_eq!(entry.processing, PacketProcessing::ThreadUnsafe);
+        assert_eq!(entry.handler_name, "handle_submit_user_feedback");
     }
 
     #[tokio::test]

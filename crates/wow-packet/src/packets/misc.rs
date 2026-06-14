@@ -80,6 +80,60 @@ pub const SUPPORT_SPAM_TYPE_MAIL_LIKE_CPP: u8 = 0;
 pub const SUPPORT_SPAM_TYPE_CHAT_LIKE_CPP: u8 = 1;
 pub const SUPPORT_SPAM_TYPE_CALENDAR_LIKE_CPP: u8 = 2;
 
+/// C++ `WorldPackets::Ticket::SupportTicketHeader`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SupportTicketHeader {
+    pub map_id: i32,
+    pub position: Position,
+    pub facing: f32,
+    pub program: i32,
+}
+
+impl SupportTicketHeader {
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let map_id = pkt.read_int32()?;
+        let position = Position::xyz(pkt.read_float()?, pkt.read_float()?, pkt.read_float()?);
+        let facing = pkt.read_float()?;
+        let program = pkt.read_int32()?;
+        Ok(Self {
+            map_id,
+            position,
+            facing,
+            program,
+        })
+    }
+}
+
+/// C++ `WorldPackets::Ticket::SubmitUserFeedback`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SubmitUserFeedback {
+    pub header: SupportTicketHeader,
+    pub note: String,
+    pub is_suggestion: bool,
+}
+
+impl ClientPacket for SubmitUserFeedback {
+    const OPCODE: ClientOpcodes = ClientOpcodes::SubmitUserFeedback;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let header = SupportTicketHeader::read(pkt)?;
+        let note_len_with_null = pkt.read_bits(24)? as usize;
+        let is_suggestion = pkt.read_bit()?;
+        let note = if note_len_with_null > 0 {
+            let note = pkt.read_string(note_len_with_null - 1)?;
+            pkt.read_uint8()?;
+            note
+        } else {
+            String::new()
+        };
+        Ok(Self {
+            header,
+            note,
+            is_suggestion,
+        })
+    }
+}
+
 /// C++ `WorldPackets::Ticket::Complaint::ComplaintOffender`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ComplaintOffender {
@@ -4850,6 +4904,31 @@ mod tests {
         assert_eq!(chat.message_log, "hello world");
         assert!(complaint.calendar_event_guid.is_none());
         assert!(complaint.calendar_invite_guid.is_none());
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn submit_user_feedback_reads_header_note_and_suggestion_bit_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_int32(571);
+        pkt.write_float(1.25);
+        pkt.write_float(2.5);
+        pkt.write_float(3.75);
+        pkt.write_float(4.0);
+        pkt.write_int32(9);
+        pkt.write_bits(6, 24); // "hello" plus null terminator
+        pkt.write_bit(true);
+        pkt.write_string("hello");
+        pkt.write_uint8(0);
+
+        let feedback = SubmitUserFeedback::read(&mut pkt).unwrap();
+
+        assert_eq!(feedback.header.map_id, 571);
+        assert_eq!(feedback.header.position, Position::xyz(1.25, 2.5, 3.75));
+        assert_eq!(feedback.header.facing, 4.0);
+        assert_eq!(feedback.header.program, 9);
+        assert!(feedback.is_suggestion);
+        assert_eq!(feedback.note, "hello");
         assert_eq!(pkt.remaining(), 0);
     }
 

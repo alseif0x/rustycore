@@ -287,6 +287,8 @@ pub struct SessionResources {
     pub support_enabled: bool,
     /// C++ `CONFIG_SUPPORT_BUGS_ENABLED` / `Support.BugsEnabled`.
     pub support_bugs_enabled: bool,
+    /// C++ `CONFIG_SUPPORT_SUGGESTIONS_ENABLED` / `Support.SuggestionsEnabled`.
+    pub support_suggestions_enabled: bool,
     pub quest_low_level_hide_diff: u32,
     pub quest_high_level_hide_diff: u32,
     pub enable_ae_loot: bool,

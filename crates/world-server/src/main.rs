@@ -2649,6 +2649,11 @@ async fn main() -> Result<ExitCode> {
             "CONFIG_SUPPORT_BUGS_ENABLED",
             false,
         ),
+        support_suggestions_enabled: world_config_bool(
+            &world_configs,
+            "CONFIG_SUPPORT_SUGGESTIONS_ENABLED",
+            false,
+        ),
         quest_low_level_hide_diff: world_config_u32(
             &world_configs,
             "CONFIG_QUEST_LOW_LEVEL_HIDE_DIFF",
@@ -8833,6 +8838,9 @@ async fn create_session(
     session.set_repair_cost_rate_like_cpp(resources.repair_cost_rate);
     session.set_represented_support_enabled_like_cpp(resources.support_enabled);
     session.set_represented_support_bugs_enabled_like_cpp(resources.support_bugs_enabled);
+    session.set_represented_support_suggestions_enabled_like_cpp(
+        resources.support_suggestions_enabled,
+    );
     session.set_enable_ae_loot_like_cpp(resources.enable_ae_loot);
     session.set_addon_channel_like_cpp(resources.addon_channel);
     session.set_chat_fake_message_preventing_like_cpp(resources.chat_fake_message_preventing);
