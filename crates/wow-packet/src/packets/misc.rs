@@ -5101,6 +5101,18 @@ impl ClientPacket for ArenaTeamRoster {
     }
 }
 
+/// C++ `WorldPackets::ArenaTeam::ArenaTeamDecline`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ArenaTeamDecline;
+
+impl ClientPacket for ArenaTeamDecline {
+    const OPCODE: ClientOpcodes = ClientOpcodes::ArenaTeamDecline;
+
+    fn read(_pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self)
+    }
+}
+
 /// C++ `WorldPackets::Guild::GuildBankRemainingWithdrawMoney`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct GuildBankRemainingWithdrawMoney {
@@ -5814,6 +5826,13 @@ mod tests {
 
         let request = ArenaTeamRoster::read(&mut pkt).unwrap();
         assert_eq!(request.team_id, 0x0102_0304);
+    }
+
+    #[test]
+    fn arena_team_decline_reads_empty_cpp_packet() {
+        let mut pkt = WorldPacket::new_empty();
+
+        ArenaTeamDecline::read(&mut pkt).unwrap();
     }
 
     #[test]

@@ -2843,6 +2843,7 @@ pub struct WorldSession {
     represented_guild_id_like_cpp: u64,
     represented_guild_id_invited_like_cpp: u64,
     represented_guild_accept_invites_like_cpp: Vec<u64>,
+    represented_arena_team_id_invited_like_cpp: u32,
     represented_guild_repair_bank_state_like_cpp: Option<RepresentedGuildRepairBankStateLikeCpp>,
     represented_guild_repair_bank_withdraws_like_cpp:
         Vec<RepresentedGuildRepairBankWithdrawLikeCpp>,
@@ -4045,6 +4046,7 @@ impl WorldSession {
             represented_guild_id_like_cpp: 0,
             represented_guild_id_invited_like_cpp: 0,
             represented_guild_accept_invites_like_cpp: Vec::new(),
+            represented_arena_team_id_invited_like_cpp: 0,
             represented_guild_repair_bank_state_like_cpp: None,
             represented_guild_repair_bank_withdraws_like_cpp: Vec::new(),
             player_currencies: HashMap::new(),
@@ -18643,6 +18645,9 @@ impl WorldSession {
             ClientOpcodes::ArenaTeamRoster => {
                 self.handle_arena_team_roster(pkt).await;
             }
+            ClientOpcodes::ArenaTeamDecline => {
+                self.handle_arena_team_decline(pkt).await;
+            }
             ClientOpcodes::RequestRaidInfo => {
                 self.handle_request_raid_info(pkt).await;
             }
@@ -20862,6 +20867,15 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn represented_guild_id_invited_like_cpp(&self) -> u64 {
         self.represented_guild_id_invited_like_cpp
+    }
+
+    pub(crate) fn set_represented_arena_team_id_invited_like_cpp(&mut self, arena_team_id: u32) {
+        self.represented_arena_team_id_invited_like_cpp = arena_team_id;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_arena_team_id_invited_like_cpp(&self) -> u32 {
+        self.represented_arena_team_id_invited_like_cpp
     }
 
     pub(crate) fn accept_guild_invitation_like_cpp(&mut self) -> bool {

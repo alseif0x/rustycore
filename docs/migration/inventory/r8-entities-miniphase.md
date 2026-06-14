@@ -1,4 +1,14 @@
 - `#NEXT.R8.ENTITIES.868` - represented-complete implementation for bounded movement `Handle_NULL` ACK family.
+### #NEXT.R8.ENTITIES.874 — CMSG_ARENA_TEAM_DECLINE
+
+Status: represented-complete for the bounded arena-team invite decline handler.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/BattleGroundHandler.cpp:776-779`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/ArenaTeamPackets.h:30-33`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:164`, and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:1970-1971`.
+
+Implemented Rust seam: `ArenaTeamDecline` parses the C++ empty packet, registers as `LoggedIn`/`PROCESS_THREADUNSAFE`, dispatches through `WorldSession`, and clears represented `Player::m_ArenaTeamIdInvited` to `0` like C++ `WorldSession::HandleArenaTeamDecline`.
+
+Boundary: represented-complete for bounded arena-team decline invite-state clearing only. No `ArenaTeamMgr` acceptance/leave/disband runtime, roster/event packets, install/restart, or live-client manual validation is claimed.
+
 ### #NEXT.R8.ENTITIES.873 — CMSG_ACCEPT_GUILD_INVITE
 
 Status: represented-partial for the bounded guild-invite accept handler.

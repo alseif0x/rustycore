@@ -46,7 +46,7 @@ use wow_packet::packets::item::{
 };
 use wow_packet::packets::loot::{LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHING_LIKE_CPP};
 use wow_packet::packets::misc::{
-    AcceptGuildInvite, AddToy, AddonList, ArenaTeamRoster, BattlePetClearFanfare,
+    AcceptGuildInvite, AddToy, AddonList, ArenaTeamDecline, ArenaTeamRoster, BattlePetClearFanfare,
     BattlePetDeletePet, BattlePetModifyName, BattlePetRequestJournal, BattlePetSetBattleSlot,
     BattlePetSetFlags, BattlePetSummon, BattlePetUpdateNotify, BattlefieldLeave, BugReport,
     CageBattlePet, CalendarSendCalendar, CalendarSendNumPending, CloseInteraction,
@@ -992,6 +992,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_arena_team_roster",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::ArenaTeamDecline,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_arena_team_decline",
     }
 }
 
@@ -3083,6 +3092,19 @@ impl crate::session::WorldSession {
             "ArenaTeamRoster ignored without represented arena-team manager"
         );
     }
+
+    pub async fn handle_arena_team_decline(&mut self, mut pkt: wow_packet::WorldPacket) {
+        if let Err(error) = ArenaTeamDecline::read(&mut pkt) {
+            warn!(
+                account = self.account_id,
+                "ArenaTeamDecline parse failed: {error}"
+            );
+            return;
+        }
+
+        self.set_represented_arena_team_id_invited_like_cpp(0);
+    }
+
     pub async fn handle_request_raid_info(&mut self, _pkt: wow_packet::WorldPacket) {
         let locks = match (self.player_guid(), self.instance_lock_mgr.as_ref()) {
             (Some(player_guid), Some(instance_lock_mgr)) => {
@@ -4526,6 +4548,19 @@ mod tests {
                 .represented_guild_accept_invites_like_cpp()
                 .is_empty()
         );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn arena_team_decline_clears_invited_arena_team_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        session.set_represented_arena_team_id_invited_like_cpp(12_345);
+
+        session
+            .handle_arena_team_decline(WorldPacket::new_empty())
+            .await;
+
+        assert_eq!(session.represented_arena_team_id_invited_like_cpp(), 0);
         assert!(send_rx.try_recv().is_err());
     }
 
