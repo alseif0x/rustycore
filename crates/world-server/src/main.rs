@@ -2649,6 +2649,11 @@ async fn main() -> Result<ExitCode> {
             "CONFIG_SUPPORT_BUGS_ENABLED",
             false,
         ),
+        support_complaints_enabled: world_config_bool(
+            &world_configs,
+            "CONFIG_SUPPORT_COMPLAINTS_ENABLED",
+            false,
+        ),
         support_suggestions_enabled: world_config_bool(
             &world_configs,
             "CONFIG_SUPPORT_SUGGESTIONS_ENABLED",
@@ -8838,6 +8843,8 @@ async fn create_session(
     session.set_repair_cost_rate_like_cpp(resources.repair_cost_rate);
     session.set_represented_support_enabled_like_cpp(resources.support_enabled);
     session.set_represented_support_bugs_enabled_like_cpp(resources.support_bugs_enabled);
+    session
+        .set_represented_support_complaints_enabled_like_cpp(resources.support_complaints_enabled);
     session.set_represented_support_suggestions_enabled_like_cpp(
         resources.support_suggestions_enabled,
     );

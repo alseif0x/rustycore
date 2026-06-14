@@ -1,3 +1,13 @@
+- `#NEXT.R8.ENTITIES.857` - represented-partial for bounded `CMSG_SUPPORT_TICKET_SUBMIT_COMPLAINT`.
+
+  C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/TicketHandler.cpp:70-86`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TicketPackets.h:130-260`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TicketPackets.cpp:110-329`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/LFGPacketsCommon.cpp:20-29`; `/home/server/woltk-trinity-legacy/src/server/game/Support/SupportMgr.h:46-84,164-183,246-249`; `/home/server/woltk-trinity-legacy/src/server/game/World/World.cpp:587-594`; `/home/server/woltk-trinity-legacy/src/server/worldserver/worldserver.conf.dist:2346-2351`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:953`.
+
+  Rust anchors: `crates/wow-packet/src/packets/misc.rs`; `crates/wow-config/src/lib.rs`; `crates/wow-network/src/accept.rs`; `crates/world-server/src/main.rs`; `crates/wow-world/src/session.rs`; `crates/wow-world/src/handlers/misc.rs`; `docs/migration/inventory/cpp-client-handlers.tsv`; `docs/migration/inventory/r3-opcodes-registry.tsv`; `docs/migration/inventory/r3-opcodes-registry.md`; `docs/migration/inventory/cpp-world-config-registry.tsv`; `docs/migration/inventory/cpp-config-keys.tsv`.
+
+  Acceptance: `CMSG_SUPPORT_TICKET_SUBMIT_COMPLAINT` now parses `SupportTicketHeader`, target/report/category fields, C++ chat and horus chat logs, note text, and optional complaint payload sections; wires `Support.ComplaintsEnabled` through config/resources/session; registers `LoggedIn`/`ThreadUnsafe` dispatch; and applies the represented C++ `SupportMgr` complaint-system gate before the currently silent enabled branch.
+
+  Boundary: represented-partial only. Live `ComplaintTicket` creation, `SupportMgr::AddTicket` runtime, ticket persistence, install/restart, and live client/manual validation remain open.
+
 - `#NEXT.R8.ENTITIES.856` - represented-partial for bounded `CMSG_SUPPORT_TICKET_SUBMIT_BUG`.
 
   C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/TicketHandler.cpp:119-135`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TicketPackets.h:96-105`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TicketPackets.cpp:68-73`; `/home/server/woltk-trinity-legacy/src/server/game/Support/SupportMgr.h:246-249`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:952`.

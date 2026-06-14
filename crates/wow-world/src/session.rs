@@ -3113,6 +3113,7 @@ pub struct WorldSession {
     represented_movie_complete_events_like_cpp: Vec<u32>,
     represented_support_enabled_like_cpp: bool,
     represented_support_bugs_enabled_like_cpp: bool,
+    represented_support_complaints_enabled_like_cpp: bool,
     represented_support_suggestions_enabled_like_cpp: bool,
     gameobject_template_lifecycle_store: Option<Arc<GameObjectTemplateLifecycleStoreLikeCpp>>,
     /// Currently active spell cast (if any). Set when a cast starts, cleared when it completes.
@@ -4151,6 +4152,7 @@ impl WorldSession {
             represented_movie_complete_events_like_cpp: Vec::new(),
             represented_support_enabled_like_cpp: true,
             represented_support_bugs_enabled_like_cpp: false,
+            represented_support_complaints_enabled_like_cpp: false,
             represented_support_suggestions_enabled_like_cpp: false,
             gameobject_template_lifecycle_store: None,
             quest_store: None,
@@ -13955,6 +13957,19 @@ impl WorldSession {
         self.represented_support_enabled_like_cpp && self.represented_support_bugs_enabled_like_cpp
     }
 
+    pub(crate) fn represented_support_complaints_enabled_like_cpp(&self) -> bool {
+        self.represented_support_complaints_enabled_like_cpp
+    }
+
+    pub fn set_represented_support_complaints_enabled_like_cpp(&mut self, enabled: bool) {
+        self.represented_support_complaints_enabled_like_cpp = enabled;
+    }
+
+    pub(crate) fn represented_complaint_system_status_like_cpp(&self) -> bool {
+        self.represented_support_enabled_like_cpp
+            && self.represented_support_complaints_enabled_like_cpp
+    }
+
     pub(crate) fn represented_support_suggestions_enabled_like_cpp(&self) -> bool {
         self.represented_support_suggestions_enabled_like_cpp
     }
@@ -18469,6 +18484,9 @@ impl WorldSession {
             }
             ClientOpcodes::SupportTicketSubmitBug => {
                 self.handle_support_ticket_submit_bug(pkt).await;
+            }
+            ClientOpcodes::SupportTicketSubmitComplaint => {
+                self.handle_support_ticket_submit_complaint(pkt).await;
             }
             ClientOpcodes::SupportTicketSubmitSuggestion => {
                 self.handle_support_ticket_submit_suggestion(pkt).await;

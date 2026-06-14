@@ -168,6 +168,440 @@ impl ClientPacket for SupportTicketSubmitSuggestion {
     }
 }
 
+/// C++ `WorldPackets::Ticket::SupportTicketChatLine`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SupportTicketChatLine {
+    pub timestamp: i64,
+    pub text: String,
+}
+
+impl SupportTicketChatLine {
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let timestamp = pkt.read_int64()?;
+        let text_len = pkt.read_bits(12)? as usize;
+        let text = pkt.read_string(text_len)?;
+        Ok(Self { timestamp, text })
+    }
+}
+
+/// C++ `WorldPackets::Ticket::SupportTicketChatLog`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SupportTicketChatLog {
+    pub lines: Vec<SupportTicketChatLine>,
+    pub report_line_index: Option<u32>,
+}
+
+impl SupportTicketChatLog {
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let lines_count = pkt.read_uint32()? as usize;
+        let has_report_line_index = pkt.read_bit()?;
+        pkt.reset_bits();
+        let mut lines = Vec::with_capacity(lines_count);
+        for _ in 0..lines_count {
+            lines.push(SupportTicketChatLine::read(pkt)?);
+        }
+        let report_line_index = if has_report_line_index {
+            Some(pkt.read_uint32()?)
+        } else {
+            None
+        };
+        Ok(Self {
+            lines,
+            report_line_index,
+        })
+    }
+}
+
+/// C++ `WorldPackets::Ticket::SupportTicketHorusChatLine::SenderRealm`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SupportTicketHorusSenderRealm {
+    pub virtual_realm_address: u32,
+    pub field_4: u16,
+    pub field_6: u8,
+}
+
+/// C++ `WorldPackets::Ticket::SupportTicketHorusChatLine`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SupportTicketHorusChatLine {
+    pub timestamp: i64,
+    pub author_guid: ObjectGuid,
+    pub club_id: Option<u64>,
+    pub channel_guid: Option<ObjectGuid>,
+    pub realm_address: Option<SupportTicketHorusSenderRealm>,
+    pub slash_cmd: Option<i32>,
+    pub text: String,
+}
+
+impl SupportTicketHorusChatLine {
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let timestamp = pkt.read_int64()?;
+        let author_guid = pkt.read_packed_guid()?;
+        let has_club_id = pkt.read_bit()?;
+        let has_channel_guid = pkt.read_bit()?;
+        let has_realm_address = pkt.read_bit()?;
+        let has_slash_cmd = pkt.read_bit()?;
+        let text_len = pkt.read_bits(12)? as usize;
+
+        let club_id = if has_club_id {
+            Some(pkt.read_uint64()?)
+        } else {
+            None
+        };
+        let channel_guid = if has_channel_guid {
+            Some(pkt.read_packed_guid()?)
+        } else {
+            None
+        };
+        let realm_address = if has_realm_address {
+            Some(SupportTicketHorusSenderRealm {
+                virtual_realm_address: pkt.read_uint32()?,
+                field_4: pkt.read_uint16()?,
+                field_6: pkt.read_uint8()?,
+            })
+        } else {
+            None
+        };
+        let slash_cmd = if has_slash_cmd {
+            Some(pkt.read_int32()?)
+        } else {
+            None
+        };
+        let text = pkt.read_string(text_len)?;
+
+        Ok(Self {
+            timestamp,
+            author_guid,
+            club_id,
+            channel_guid,
+            realm_address,
+            slash_cmd,
+            text,
+        })
+    }
+}
+
+/// C++ `WorldPackets::Ticket::SupportTicketHorusChatLog`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SupportTicketHorusChatLog {
+    pub lines: Vec<SupportTicketHorusChatLine>,
+}
+
+impl SupportTicketHorusChatLog {
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let lines_count = pkt.read_uint32()? as usize;
+        let mut lines = Vec::with_capacity(lines_count);
+        for _ in 0..lines_count {
+            lines.push(SupportTicketHorusChatLine::read(pkt)?);
+        }
+        Ok(Self { lines })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SupportTicketMailInfo {
+    pub mail_id: i64,
+    pub mail_subject: String,
+    pub mail_body: String,
+}
+
+impl SupportTicketMailInfo {
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let mail_id = pkt.read_int64()?;
+        let body_len = pkt.read_bits(13)? as usize;
+        let subject_len = pkt.read_bits(9)? as usize;
+        let mail_body = pkt.read_string(body_len)?;
+        let mail_subject = pkt.read_string(subject_len)?;
+        Ok(Self {
+            mail_id,
+            mail_subject,
+            mail_body,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SupportTicketCalendarEventInfo {
+    pub event_id: u64,
+    pub invite_id: u64,
+    pub event_title: String,
+}
+
+impl SupportTicketCalendarEventInfo {
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let event_id = pkt.read_uint64()?;
+        let invite_id = pkt.read_uint64()?;
+        let title_len = pkt.read_bits(8)? as usize;
+        let event_title = pkt.read_string(title_len)?;
+        Ok(Self {
+            event_id,
+            invite_id,
+            event_title,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SupportTicketPetInfo {
+    pub pet_id: ObjectGuid,
+    pub pet_name: String,
+}
+
+impl SupportTicketPetInfo {
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let pet_id = pkt.read_packed_guid()?;
+        let name_len = pkt.read_bits(8)? as usize;
+        let pet_name = pkt.read_string(name_len)?;
+        Ok(Self { pet_id, pet_name })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SupportTicketGuildInfo {
+    pub guild_id: ObjectGuid,
+    pub guild_name: String,
+}
+
+impl SupportTicketGuildInfo {
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let name_len = pkt.read_bits(7)? as usize;
+        let guild_id = pkt.read_packed_guid()?;
+        let guild_name = pkt.read_string(name_len)?;
+        Ok(Self {
+            guild_id,
+            guild_name,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SupportTicketLfgListSearchResult {
+    pub ride_ticket: LfgRideTicket,
+    pub group_finder_activity_id: u32,
+    pub unknown1007: u8,
+    pub last_title_author_guid: ObjectGuid,
+    pub last_description_author_guid: ObjectGuid,
+    pub last_voice_chat_author_guid: ObjectGuid,
+    pub listing_creator_guid: ObjectGuid,
+    pub unknown735: ObjectGuid,
+    pub title: String,
+    pub description: String,
+    pub voice_chat: String,
+}
+
+impl SupportTicketLfgListSearchResult {
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let ride_ticket = LfgRideTicket::read_like_cpp(pkt)?;
+        let group_finder_activity_id = pkt.read_uint32()?;
+        let unknown1007 = pkt.read_uint8()?;
+        let last_title_author_guid = pkt.read_packed_guid()?;
+        let last_description_author_guid = pkt.read_packed_guid()?;
+        let last_voice_chat_author_guid = pkt.read_packed_guid()?;
+        let listing_creator_guid = pkt.read_packed_guid()?;
+        let unknown735 = pkt.read_packed_guid()?;
+        let title_len = pkt.read_bits(10)? as usize;
+        let description_len = pkt.read_bits(11)? as usize;
+        let voice_chat_len = pkt.read_bits(8)? as usize;
+        let title = pkt.read_string(title_len)?;
+        let description = pkt.read_string(description_len)?;
+        let voice_chat = pkt.read_string(voice_chat_len)?;
+        Ok(Self {
+            ride_ticket,
+            group_finder_activity_id,
+            unknown1007,
+            last_title_author_guid,
+            last_description_author_guid,
+            last_voice_chat_author_guid,
+            listing_creator_guid,
+            unknown735,
+            title,
+            description,
+            voice_chat,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SupportTicketLfgListApplicant {
+    pub ride_ticket: LfgRideTicket,
+    pub comment: String,
+}
+
+impl SupportTicketLfgListApplicant {
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let ride_ticket = LfgRideTicket::read_like_cpp(pkt)?;
+        let comment_len = pkt.read_bits(9)? as usize;
+        let comment = pkt.read_string(comment_len)?;
+        Ok(Self {
+            ride_ticket,
+            comment,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SupportTicketCommunityMessage {
+    pub is_player_using_voice: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SupportTicketClubFinderResult {
+    pub club_finder_posting_id: u64,
+    pub club_id: u64,
+    pub club_finder_guid: ObjectGuid,
+    pub club_name: String,
+}
+
+impl SupportTicketClubFinderResult {
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let club_finder_posting_id = pkt.read_uint64()?;
+        let club_id = pkt.read_uint64()?;
+        let club_finder_guid = pkt.read_packed_guid()?;
+        let name_len = pkt.read_bits(12)? as usize;
+        let club_name = pkt.read_string(name_len)?;
+        Ok(Self {
+            club_finder_posting_id,
+            club_id,
+            club_finder_guid,
+            club_name,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SupportTicketUnused910 {
+    pub field_0: String,
+    pub field_104: ObjectGuid,
+}
+
+impl SupportTicketUnused910 {
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let field_0_len = pkt.read_bits(7)? as usize;
+        let field_104 = pkt.read_packed_guid()?;
+        let field_0 = pkt.read_string(field_0_len)?;
+        Ok(Self { field_0, field_104 })
+    }
+}
+
+/// C++ `WorldPackets::Ticket::SupportTicketSubmitComplaint`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SupportTicketSubmitComplaint {
+    pub header: SupportTicketHeader,
+    pub chat_log: SupportTicketChatLog,
+    pub target_character_guid: ObjectGuid,
+    pub report_type: i32,
+    pub major_category: i32,
+    pub minor_category_flags: i32,
+    pub horus_chat_log: SupportTicketHorusChatLog,
+    pub note: String,
+    pub mail_info: Option<SupportTicketMailInfo>,
+    pub calendar_info: Option<SupportTicketCalendarEventInfo>,
+    pub pet_info: Option<SupportTicketPetInfo>,
+    pub guild_info: Option<SupportTicketGuildInfo>,
+    pub lfg_list_search_result: Option<SupportTicketLfgListSearchResult>,
+    pub lfg_list_applicant: Option<SupportTicketLfgListApplicant>,
+    pub community_message: Option<SupportTicketCommunityMessage>,
+    pub club_finder_result: Option<SupportTicketClubFinderResult>,
+    pub unused910: Option<SupportTicketUnused910>,
+}
+
+impl ClientPacket for SupportTicketSubmitComplaint {
+    const OPCODE: ClientOpcodes = ClientOpcodes::SupportTicketSubmitComplaint;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let header = SupportTicketHeader::read(pkt)?;
+        let target_character_guid = pkt.read_packed_guid()?;
+        let report_type = pkt.read_int32()?;
+        let major_category = pkt.read_int32()?;
+        let minor_category_flags = pkt.read_int32()?;
+        let chat_log = SupportTicketChatLog::read(pkt)?;
+
+        let note_len = pkt.read_bits(10)? as usize;
+        let has_mail_info = pkt.read_bit()?;
+        let has_calendar_info = pkt.read_bit()?;
+        let has_pet_info = pkt.read_bit()?;
+        let has_guild_info = pkt.read_bit()?;
+        let has_lfg_list_search_result = pkt.read_bit()?;
+        let has_lfg_list_applicant = pkt.read_bit()?;
+        let has_club_message = pkt.read_bit()?;
+        let has_club_finder_result = pkt.read_bit()?;
+        let has_unused910 = pkt.read_bit()?;
+
+        pkt.reset_bits();
+        let community_message = if has_club_message {
+            let message = SupportTicketCommunityMessage {
+                is_player_using_voice: pkt.read_bit()?,
+            };
+            pkt.reset_bits();
+            Some(message)
+        } else {
+            None
+        };
+
+        let horus_chat_log = SupportTicketHorusChatLog::read(pkt)?;
+        let note = pkt.read_string(note_len)?;
+        let mail_info = if has_mail_info {
+            Some(SupportTicketMailInfo::read(pkt)?)
+        } else {
+            None
+        };
+        let calendar_info = if has_calendar_info {
+            Some(SupportTicketCalendarEventInfo::read(pkt)?)
+        } else {
+            None
+        };
+        let pet_info = if has_pet_info {
+            Some(SupportTicketPetInfo::read(pkt)?)
+        } else {
+            None
+        };
+        let guild_info = if has_guild_info {
+            Some(SupportTicketGuildInfo::read(pkt)?)
+        } else {
+            None
+        };
+        let lfg_list_search_result = if has_lfg_list_search_result {
+            Some(SupportTicketLfgListSearchResult::read(pkt)?)
+        } else {
+            None
+        };
+        let lfg_list_applicant = if has_lfg_list_applicant {
+            Some(SupportTicketLfgListApplicant::read(pkt)?)
+        } else {
+            None
+        };
+        let club_finder_result = if has_club_finder_result {
+            Some(SupportTicketClubFinderResult::read(pkt)?)
+        } else {
+            None
+        };
+        let unused910 = if has_unused910 {
+            Some(SupportTicketUnused910::read(pkt)?)
+        } else {
+            None
+        };
+
+        Ok(Self {
+            header,
+            chat_log,
+            target_character_guid,
+            report_type,
+            major_category,
+            minor_category_flags,
+            horus_chat_log,
+            note,
+            mail_info,
+            calendar_info,
+            pet_info,
+            guild_info,
+            lfg_list_search_result,
+            lfg_list_applicant,
+            community_message,
+            club_finder_result,
+            unused910,
+        })
+    }
+}
+
 /// C++ `WorldPackets::Ticket::Complaint::ComplaintOffender`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ComplaintOffender {
@@ -4107,6 +4541,22 @@ impl Default for LfgRideTicket {
 }
 
 impl LfgRideTicket {
+    fn read_like_cpp(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let requester_guid = pkt.read_packed_guid()?;
+        let id = pkt.read_uint32()?;
+        let ride_type = pkt.read_uint32()?;
+        let time = pkt.read_int64()?;
+        let unknown925 = pkt.read_bit()?;
+        pkt.reset_bits();
+        Ok(Self {
+            requester_guid,
+            id,
+            ride_type,
+            time,
+            unknown925,
+        })
+    }
+
     fn write_like_cpp(&self, pkt: &mut WorldPacket) {
         pkt.write_packed_guid(&self.requester_guid);
         pkt.write_uint32(self.id);
@@ -4999,6 +5449,78 @@ mod tests {
         assert_eq!(bug.header.facing, 4.0);
         assert_eq!(bug.header.program, 9);
         assert_eq!(bug.message, message);
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn support_ticket_submit_complaint_reads_chatlog_note_and_mail_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+        let target = ObjectGuid::create_player(1, 42);
+        let note = "report note";
+        let chat_text = "bad text";
+        let mail_body = "mail body";
+        let mail_subject = "subject";
+
+        pkt.write_int32(571);
+        pkt.write_float(1.25);
+        pkt.write_float(2.5);
+        pkt.write_float(3.75);
+        pkt.write_float(4.0);
+        pkt.write_int32(9);
+        pkt.write_packed_guid(&target);
+        pkt.write_int32(1);
+        pkt.write_int32(2);
+        pkt.write_int32(4);
+        pkt.write_uint32(1); // ChatLog.Lines.Count
+        pkt.write_bit(true); // ReportLineIndex.HasValue
+        pkt.write_int64(12345);
+        pkt.write_bits(chat_text.len() as u32, 12);
+        pkt.write_string(chat_text);
+        pkt.write_uint32(0);
+        pkt.write_bits(note.len() as u32, 10);
+        pkt.write_bit(true); // MailInfo
+        pkt.write_bit(false); // CalendarInfo
+        pkt.write_bit(false); // PetInfo
+        pkt.write_bit(false); // GuildInfo
+        pkt.write_bit(false); // LFGListSearchResult
+        pkt.write_bit(false); // LFGListApplicant
+        pkt.write_bit(false); // ClubMessage
+        pkt.write_bit(false); // ClubFinderResult
+        pkt.write_bit(false); // Unused910
+        pkt.flush_bits();
+        pkt.write_uint32(0); // HorusChatLog.Lines.Count
+        pkt.write_string(note);
+        pkt.write_int64(77);
+        pkt.write_bits(mail_body.len() as u32, 13);
+        pkt.write_bits(mail_subject.len() as u32, 9);
+        pkt.write_string(mail_body);
+        pkt.write_string(mail_subject);
+
+        let complaint = SupportTicketSubmitComplaint::read(&mut pkt).unwrap();
+
+        assert_eq!(complaint.header.map_id, 571);
+        assert_eq!(complaint.target_character_guid, target);
+        assert_eq!(complaint.report_type, 1);
+        assert_eq!(complaint.major_category, 2);
+        assert_eq!(complaint.minor_category_flags, 4);
+        assert_eq!(complaint.chat_log.lines.len(), 1);
+        assert_eq!(complaint.chat_log.lines[0].timestamp, 12345);
+        assert_eq!(complaint.chat_log.lines[0].text, chat_text);
+        assert_eq!(complaint.chat_log.report_line_index, Some(0));
+        assert!(complaint.horus_chat_log.lines.is_empty());
+        assert_eq!(complaint.note, note);
+        let mail = complaint.mail_info.expect("mail info");
+        assert_eq!(mail.mail_id, 77);
+        assert_eq!(mail.mail_body, mail_body);
+        assert_eq!(mail.mail_subject, mail_subject);
+        assert!(complaint.calendar_info.is_none());
+        assert!(complaint.pet_info.is_none());
+        assert!(complaint.guild_info.is_none());
+        assert!(complaint.lfg_list_search_result.is_none());
+        assert!(complaint.lfg_list_applicant.is_none());
+        assert!(complaint.community_message.is_none());
+        assert!(complaint.club_finder_result.is_none());
+        assert!(complaint.unused910.is_none());
         assert_eq!(pkt.remaining(), 0);
     }
 

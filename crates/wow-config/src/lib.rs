@@ -1597,6 +1597,7 @@ LoginDatabaseInfo = "127.0.0.1;3306;trinity;trinity;auth"
 AddonChannel = 0
 Support.Enabled = 0
 Support.BugsEnabled = 1
+Support.ComplaintsEnabled = 1
 Support.SuggestionsEnabled = 1
 MaxGroupXPDistance = 120.5
 WorldServerPort = 8088
@@ -1609,6 +1610,10 @@ CharacterCreating.Disabled.RaceMask = 12
         assert_eq!(values.get_bool("CONFIG_ADDON_CHANNEL"), Some(false));
         assert_eq!(values.get_bool("CONFIG_SUPPORT_ENABLED"), Some(false));
         assert_eq!(values.get_bool("CONFIG_SUPPORT_BUGS_ENABLED"), Some(true));
+        assert_eq!(
+            values.get_bool("CONFIG_SUPPORT_COMPLAINTS_ENABLED"),
+            Some(true)
+        );
         assert_eq!(
             values.get_bool("CONFIG_SUPPORT_SUGGESTIONS_ENABLED"),
             Some(true)

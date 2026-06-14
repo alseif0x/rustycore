@@ -57,8 +57,8 @@ use wow_packet::packets::misc::{
     QueryBattlePetName, QueryBattlePetNameResponse, RatedPvpInfo, RequestBattlefieldStatus,
     RequestCemeteryListResponse, SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags,
     SetTaxiBenchmarkMode, StandStateChange, SubmitUserFeedback, SupportTicketSubmitBug,
-    SupportTicketSubmitSuggestion, TaxiNodeStatusPkt, TogglePvp, ToyClearFanfare, UseToy,
-    ViolenceLevel,
+    SupportTicketSubmitComplaint, SupportTicketSubmitSuggestion, TaxiNodeStatusPkt, TogglePvp,
+    ToyClearFanfare, UseToy, ViolenceLevel,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -751,6 +751,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_support_ticket_submit_bug",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::SupportTicketSubmitComplaint,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_support_ticket_submit_complaint",
     }
 }
 
@@ -2434,6 +2443,31 @@ impl crate::session::WorldSession {
         // packet has no direct response.
     }
 
+    pub async fn handle_support_ticket_submit_complaint(
+        &mut self,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
+        let complaint = match SupportTicketSubmitComplaint::read(&mut pkt) {
+            Ok(complaint) => complaint,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "SupportTicketSubmitComplaint parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        if !self.represented_complaint_system_status_like_cpp() {
+            return;
+        }
+
+        let _complaint = complaint;
+        // C++ creates a ComplaintTicket, copies header/chat/category/note
+        // fields, then adds it to SupportMgr. Rust has no live SupportMgr
+        // ticket runtime yet; the packet has no direct response.
+    }
+
     pub async fn handle_support_ticket_submit_suggestion(
         &mut self,
         mut pkt: wow_packet::WorldPacket,
@@ -3816,6 +3850,38 @@ mod tests {
         pkt.write_int32(9);
         pkt.write_bits(message.len() as u32, 10);
         pkt.write_string(message);
+        pkt
+    }
+
+    fn support_ticket_submit_complaint_packet(note: &str) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        let target = ObjectGuid::create_player(1, 42);
+        pkt.write_int32(571);
+        pkt.write_float(1.25);
+        pkt.write_float(2.5);
+        pkt.write_float(3.75);
+        pkt.write_float(4.0);
+        pkt.write_int32(9);
+        pkt.write_packed_guid(&target);
+        pkt.write_int32(1);
+        pkt.write_int32(2);
+        pkt.write_int32(4);
+        pkt.write_uint32(0); // ChatLog.Lines.Count
+        pkt.write_bit(false); // ReportLineIndex.HasValue
+        pkt.flush_bits();
+        pkt.write_bits(note.len() as u32, 10);
+        pkt.write_bit(false); // MailInfo
+        pkt.write_bit(false); // CalendarInfo
+        pkt.write_bit(false); // PetInfo
+        pkt.write_bit(false); // GuildInfo
+        pkt.write_bit(false); // LFGListSearchResult
+        pkt.write_bit(false); // LFGListApplicant
+        pkt.write_bit(false); // ClubMessage
+        pkt.write_bit(false); // ClubFinderResult
+        pkt.write_bit(false); // Unused910
+        pkt.flush_bits();
+        pkt.write_uint32(0); // HorusChatLog.Lines.Count
+        pkt.write_string(note);
         pkt
     }
 
@@ -6478,6 +6544,27 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn support_ticket_submit_complaint_obeys_support_system_gate_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_support_ticket_submit_complaint(support_ticket_submit_complaint_packet(
+                "report",
+            ))
+            .await;
+        assert!(send_rx.try_recv().is_err());
+
+        session.set_represented_support_enabled_like_cpp(true);
+        session.set_represented_support_complaints_enabled_like_cpp(true);
+        session
+            .handle_support_ticket_submit_complaint(support_ticket_submit_complaint_packet(
+                "report enabled",
+            ))
+            .await;
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
     async fn bug_report_is_silent_when_bug_support_disabled_like_cpp_default() {
         let (mut session, send_rx) = make_session();
         session
@@ -6503,6 +6590,10 @@ mod tests {
         session.set_represented_support_bugs_enabled_like_cpp(true);
         assert!(session.represented_support_bugs_enabled_like_cpp());
         assert!(session.represented_bug_system_status_like_cpp());
+
+        session.set_represented_support_complaints_enabled_like_cpp(true);
+        assert!(session.represented_support_complaints_enabled_like_cpp());
+        assert!(session.represented_complaint_system_status_like_cpp());
 
         session.set_represented_support_suggestions_enabled_like_cpp(true);
         assert!(session.represented_support_suggestions_enabled_like_cpp());
@@ -6621,6 +6712,18 @@ mod tests {
         assert_eq!(entry.status, SessionStatus::LoggedIn);
         assert_eq!(entry.processing, PacketProcessing::ThreadUnsafe);
         assert_eq!(entry.handler_name, "handle_support_ticket_submit_bug");
+    }
+
+    #[test]
+    fn support_ticket_submit_complaint_handler_metadata_matches_cpp() {
+        let entry = inventory::iter::<PacketHandlerEntry>
+            .into_iter()
+            .find(|entry| entry.opcode == ClientOpcodes::SupportTicketSubmitComplaint)
+            .expect("SupportTicketSubmitComplaint handler entry");
+
+        assert_eq!(entry.status, SessionStatus::LoggedIn);
+        assert_eq!(entry.processing, PacketProcessing::ThreadUnsafe);
+        assert_eq!(entry.handler_name, "handle_support_ticket_submit_complaint");
     }
 
     #[tokio::test]
