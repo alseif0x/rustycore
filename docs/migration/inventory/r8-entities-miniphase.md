@@ -1,4 +1,14 @@
 - `#NEXT.R8.ENTITIES.868` - represented-complete implementation for bounded movement `Handle_NULL` ACK family.
+### #NEXT.R8.ENTITIES.877 — Chat AFK/DND inventory and officer dispatch
+
+Status: represented-partial for the bounded chat-message seam.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/ChatHandler.cpp:93-145`, `/home/server/woltk-trinity-legacy/src/server/game/Handlers/ChatHandler.cpp:572-653`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:321-327`, and `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:5885`.
+
+Implemented Rust seam: stale inventories now recognize the existing `CMSG_CHAT_MESSAGE_AFK` and `CMSG_CHAT_MESSAGE_DND` parsers/dispatch/handlers. `CMSG_CHAT_MESSAGE_OFFICER` is now registered and dispatched through the same generic `ChatMessage` parser/handler path as C++ `HandleChatMessageOpcode`, mapped to `ChatMsg::Officer`.
+
+Remaining gaps: live `GuildRegistry`/`Guild::BroadcastToGuild`, officer permission checks, guild/officer fanout, guild event side effects, script hook parity, install/restart, and live-client manual validation remain open. Until guild runtime exists, officer chat is intentionally contained like guild chat and does not leak to nearby players.
+
 ### #NEXT.R8.ENTITIES.876 — Channel command inventory drift
 
 Status: represented-partial audit fix for existing channel-command wiring.

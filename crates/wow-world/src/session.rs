@@ -18342,6 +18342,10 @@ impl WorldSession {
                 self.handle_chat_message(pkt, wow_packet::packets::chat::ChatMsg::Guild)
                     .await;
             }
+            ClientOpcodes::ChatMessageOfficer => {
+                self.handle_chat_message(pkt, wow_packet::packets::chat::ChatMsg::Officer)
+                    .await;
+            }
             ClientOpcodes::ChatMessageRaid => {
                 self.handle_chat_message(pkt, wow_packet::packets::chat::ChatMsg::Raid)
                     .await;

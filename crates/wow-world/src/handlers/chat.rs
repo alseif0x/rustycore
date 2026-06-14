@@ -92,6 +92,15 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
+        opcode: ClientOpcodes::ChatMessageOfficer,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_chat_officer",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
         opcode: ClientOpcodes::ChatMessageRaid,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
@@ -335,9 +344,10 @@ impl WorldSession {
             return;
         }
 
-        if msg_type == ChatMsg::Guild {
+        if matches!(msg_type, ChatMsg::Guild | ChatMsg::Officer) {
             debug!(
                 account = self.account_id,
+                ty = ?msg_type,
                 "Guild chat ignored until GuildRegistry/BroadcastToGuild is ported"
             );
             return;
@@ -1902,6 +1912,26 @@ mod tests {
             .handle_chat_message(
                 chat_message_packet(ClientOpcodes::ChatMessageGuild, "guild"),
                 ChatMsg::Guild,
+            )
+            .await;
+
+        assert!(sender_rx.try_recv().is_err());
+        assert!(nearby_rx.try_recv().is_err());
+        assert!(!session.is_disconnecting());
+    }
+
+    #[tokio::test]
+    async fn officer_chat_does_not_leak_to_nearby_players_without_guild_registry_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 311);
+        let nearby = ObjectGuid::create_player(1, 312);
+        let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
+        let (nearby_tx, nearby_rx) = flume::bounded(8);
+        player_registry.insert(nearby, broadcast_info(nearby, nearby_tx));
+
+        session
+            .handle_chat_message(
+                chat_message_packet(ClientOpcodes::ChatMessageOfficer, "officer"),
+                ChatMsg::Officer,
             )
             .await;
 
