@@ -166,6 +166,7 @@ const PLAYER_FLAGS_IN_PVP_LIKE_CPP: u32 = 0x0000_0200;
 const PLAYER_FLAGS_TAXI_BENCHMARK_LIKE_CPP: u32 = 0x0002_0000;
 const PLAYER_FLAGS_PVP_TIMER_LIKE_CPP: u32 = 0x0004_0000;
 const PLAYER_FLAGS_AUTO_DECLINE_GUILD_LIKE_CPP: u32 = 0x0800_0000;
+pub(crate) const TRADE_STATUS_PLAYER_BUSY_LIKE_CPP: u8 = 0;
 const PLAYER_LOCAL_FLAG_WAR_MODE_LIKE_CPP: u32 = 0x0000_0800;
 const CURRENCY_DB_UNUSED_FLAGS_LIKE_CPP: u8 = 0x13;
 
@@ -2844,6 +2845,7 @@ pub struct WorldSession {
     represented_guild_id_invited_like_cpp: u64,
     represented_guild_accept_invites_like_cpp: Vec<u64>,
     represented_arena_team_id_invited_like_cpp: u32,
+    represented_trade_cancel_statuses_like_cpp: Vec<u8>,
     represented_guild_repair_bank_state_like_cpp: Option<RepresentedGuildRepairBankStateLikeCpp>,
     represented_guild_repair_bank_withdraws_like_cpp:
         Vec<RepresentedGuildRepairBankWithdrawLikeCpp>,
@@ -4047,6 +4049,7 @@ impl WorldSession {
             represented_guild_id_invited_like_cpp: 0,
             represented_guild_accept_invites_like_cpp: Vec::new(),
             represented_arena_team_id_invited_like_cpp: 0,
+            represented_trade_cancel_statuses_like_cpp: Vec::new(),
             represented_guild_repair_bank_state_like_cpp: None,
             represented_guild_repair_bank_withdraws_like_cpp: Vec::new(),
             player_currencies: HashMap::new(),
@@ -18708,6 +18711,9 @@ impl WorldSession {
             ClientOpcodes::CancelTrade => {
                 self.handle_cancel_trade(pkt).await;
             }
+            ClientOpcodes::BusyTrade => {
+                self.handle_busy_trade(pkt).await;
+            }
             ClientOpcodes::ReportClientVariables => {
                 self.handle_report_client_variables(pkt).await;
             }
@@ -20876,6 +20882,15 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn represented_arena_team_id_invited_like_cpp(&self) -> u32 {
         self.represented_arena_team_id_invited_like_cpp
+    }
+
+    pub(crate) fn record_represented_trade_cancel_like_cpp(&mut self, status: u8) {
+        self.represented_trade_cancel_statuses_like_cpp.push(status);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_trade_cancel_statuses_like_cpp(&self) -> &[u8] {
+        &self.represented_trade_cancel_statuses_like_cpp
     }
 
     pub(crate) fn accept_guild_invitation_like_cpp(&mut self) -> bool {

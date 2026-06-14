@@ -49,7 +49,7 @@ use wow_packet::packets::misc::{
     AcceptGuildInvite, AddToy, AddonList, ArenaTeamDecline, ArenaTeamRoster, BattlePetClearFanfare,
     BattlePetDeletePet, BattlePetModifyName, BattlePetRequestJournal, BattlePetSetBattleSlot,
     BattlePetSetFlags, BattlePetSummon, BattlePetUpdateNotify, BattlefieldLeave, BugReport,
-    CageBattlePet, CalendarSendCalendar, CalendarSendNumPending, CloseInteraction,
+    BusyTrade, CageBattlePet, CalendarSendCalendar, CalendarSendNumPending, CloseInteraction,
     CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint, ComplaintResult,
     DeclineGuildInvites, DfGetJoinStatus, DfGetSystemInfo, FarSight, GmTicketAcknowledgeSurvey,
     GmTicketCaseStatus, GmTicketSystemStatus, GuildSetAchievementTracking, LfgListBlacklist,
@@ -73,7 +73,7 @@ use crate::entity_update_bridge::player_values_update_to_update_object;
 use crate::handlers::loot::represented_gameobject_interaction_distance_like_cpp;
 use crate::session::{
     CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP, RepresentedGameObjectAccessLikeCpp,
-    RepresentedGameObjectUseEffect, SpellCastMetadata,
+    RepresentedGameObjectUseEffect, SpellCastMetadata, TRADE_STATUS_PLAYER_BUSY_LIKE_CPP,
 };
 
 // ── inventory registrations ───────────────────────────────────────────────────
@@ -1082,6 +1082,15 @@ inventory::submit! {
         status: SessionStatus::LoggedInOrRecentlyLogout,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_cancel_trade",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::BusyTrade,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_busy_trade",
     }
 }
 
@@ -3344,6 +3353,16 @@ impl crate::session::WorldSession {
         // C++ calls Player::TradeCancel(true) only when a player is present.
         // Full trade state is not ported yet; no active trade means no response.
     }
+
+    pub async fn handle_busy_trade(&mut self, mut pkt: wow_packet::WorldPacket) {
+        if let Err(error) = BusyTrade::read(&mut pkt) {
+            warn!(account = self.account_id, "BusyTrade parse failed: {error}");
+            return;
+        }
+
+        self.record_represented_trade_cancel_like_cpp(TRADE_STATUS_PLAYER_BUSY_LIKE_CPP);
+    }
+
     pub async fn handle_report_client_variables(&mut self, _pkt: wow_packet::WorldPacket) {
         // C++ registers CMSG_REPORT_CLIENT_VARIABLES as
         // STATUS_UNHANDLED/Handle_NULL.
@@ -4561,6 +4580,19 @@ mod tests {
             .await;
 
         assert_eq!(session.represented_arena_team_id_invited_like_cpp(), 0);
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn busy_trade_records_player_busy_trade_cancel_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        session.handle_busy_trade(WorldPacket::new_empty()).await;
+
+        assert_eq!(
+            session.represented_trade_cancel_statuses_like_cpp(),
+            &[TRADE_STATUS_PLAYER_BUSY_LIKE_CPP]
+        );
         assert!(send_rx.try_recv().is_err());
     }
 

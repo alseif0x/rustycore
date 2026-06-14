@@ -5113,6 +5113,18 @@ impl ClientPacket for ArenaTeamDecline {
     }
 }
 
+/// C++ `WorldPackets::Trade::BusyTrade`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct BusyTrade;
+
+impl ClientPacket for BusyTrade {
+    const OPCODE: ClientOpcodes = ClientOpcodes::BusyTrade;
+
+    fn read(_pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self)
+    }
+}
+
 /// C++ `WorldPackets::Guild::GuildBankRemainingWithdrawMoney`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct GuildBankRemainingWithdrawMoney {
@@ -5833,6 +5845,13 @@ mod tests {
         let mut pkt = WorldPacket::new_empty();
 
         ArenaTeamDecline::read(&mut pkt).unwrap();
+    }
+
+    #[test]
+    fn busy_trade_reads_empty_cpp_packet() {
+        let mut pkt = WorldPacket::new_empty();
+
+        BusyTrade::read(&mut pkt).unwrap();
     }
 
     #[test]

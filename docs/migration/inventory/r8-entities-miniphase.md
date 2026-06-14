@@ -1,4 +1,14 @@
 - `#NEXT.R8.ENTITIES.868` - represented-complete implementation for bounded movement `Handle_NULL` ACK family.
+### #NEXT.R8.ENTITIES.875 — CMSG_BUSY_TRADE
+
+Status: represented-partial for the bounded busy-trade handler.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/TradeHandler.cpp:49-52`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TradePackets.h:48-53`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:252`, `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:6465-6468`, and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:12870`.
+
+Implemented Rust seam: `BusyTrade` parses the C++ empty packet, registers as `LoggedIn`/`PROCESS_THREADUNSAFE`, dispatches through `WorldSession`, and records a represented `TradeCancel(true, TRADE_STATUS_PLAYER_BUSY)` request using the exact C++ status value `0`.
+
+Remaining gaps: live `Player::TradeCancel`, `TradeData` ownership, partner-session `SMSG_TRADE_STATUS` delivery, item/gold/enchant trade-state reset, install/restart, and live-client manual validation remain open.
+
 ### #NEXT.R8.ENTITIES.874 — CMSG_ARENA_TEAM_DECLINE
 
 Status: represented-complete for the bounded arena-team invite decline handler.
