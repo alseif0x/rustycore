@@ -5309,6 +5309,22 @@ impl ClientPacket for BusyTrade {
     }
 }
 
+/// C++ `WorldPackets::Trade::AcceptTrade`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct AcceptTrade {
+    pub state_index: u32,
+}
+
+impl ClientPacket for AcceptTrade {
+    const OPCODE: ClientOpcodes = ClientOpcodes::AcceptTrade;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            state_index: pkt.read_uint32()?,
+        })
+    }
+}
+
 /// C++ `WorldPackets::Trade::BeginTrade`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct BeginTrade;
@@ -5342,6 +5358,12 @@ pub const TRADE_STATUS_INITIATED_LIKE_CPP: u8 = 2;
 /// C++ `TRADE_STATUS_CANCELLED`.
 pub const TRADE_STATUS_CANCELLED_LIKE_CPP: u8 = 3;
 
+/// C++ `TRADE_STATUS_ACCEPTED`.
+pub const TRADE_STATUS_ACCEPTED_LIKE_CPP: u8 = 4;
+
+/// C++ `TRADE_STATUS_STATE_CHANGED`.
+pub const TRADE_STATUS_STATE_CHANGED_LIKE_CPP: u8 = 9;
+
 /// C++ `TRADE_STATUS_PLAYER_IGNORED`.
 pub const TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP: u8 = 14;
 
@@ -5371,6 +5393,14 @@ impl TradeStatus {
             status: TRADE_STATUS_INITIATED_LIKE_CPP,
             partner_is_same_bnet_account: false,
             id,
+        }
+    }
+
+    pub fn status_only_like_cpp(status: u8) -> Self {
+        Self {
+            status,
+            partner_is_same_bnet_account: false,
+            id: 0,
         }
     }
 }
@@ -6233,6 +6263,17 @@ mod tests {
         let mut pkt = WorldPacket::new_empty();
 
         BeginTrade::read(&mut pkt).unwrap();
+    }
+
+    #[test]
+    fn accept_trade_reads_state_index_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(0x1122_3344);
+        pkt.reset_read();
+
+        let packet = AcceptTrade::read(&mut pkt).unwrap();
+
+        assert_eq!(packet.state_index, 0x1122_3344);
     }
 
     #[test]

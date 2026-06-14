@@ -136,7 +136,8 @@ use wow_packet::packets::item::{
 use wow_packet::packets::misc::{
     AccountHeirloom, AccountHeirloomUpdate, AccountMount, AccountMountUpdate, AccountToy,
     AccountToyUpdate, BuyFailed, NUM_ACCOUNT_DATA_TYPES, SellResponse, SetupCurrency,
-    SetupCurrencyRecord, TradeStatus,
+    SetupCurrencyRecord, TRADE_STATUS_ACCEPTED_LIKE_CPP, TRADE_STATUS_STATE_CHANGED_LIKE_CPP,
+    TradeStatus,
 };
 use wow_packet::packets::quest::{
     QuestGiverOfferReward, QuestGiverQuestDetails, QuestGiverQuestList, QuestGiverRequestItems,
@@ -2883,6 +2884,8 @@ pub struct WorldSession {
     represented_arena_team_id_invited_like_cpp: u32,
     represented_wargame_invite_acceptances_like_cpp: Vec<RepresentedWargameInviteAcceptanceLikeCpp>,
     represented_active_trade_partner_like_cpp: Option<ObjectGuid>,
+    represented_trade_accepted_like_cpp: bool,
+    represented_partner_trade_server_state_index_like_cpp: u32,
     represented_trade_cancel_statuses_like_cpp: Vec<u8>,
     represented_can_duel_spell_casts_like_cpp: Vec<RepresentedCanDuelSpellCastLikeCpp>,
     represented_guild_repair_bank_state_like_cpp: Option<RepresentedGuildRepairBankStateLikeCpp>,
@@ -4091,6 +4094,8 @@ impl WorldSession {
             represented_arena_team_id_invited_like_cpp: 0,
             represented_wargame_invite_acceptances_like_cpp: Vec::new(),
             represented_active_trade_partner_like_cpp: None,
+            represented_trade_accepted_like_cpp: false,
+            represented_partner_trade_server_state_index_like_cpp: 0,
             represented_trade_cancel_statuses_like_cpp: Vec::new(),
             represented_can_duel_spell_casts_like_cpp: Vec::new(),
             represented_guild_repair_bank_state_like_cpp: None,
@@ -18775,6 +18780,9 @@ impl WorldSession {
             ClientOpcodes::CancelTrade => {
                 self.handle_cancel_trade(pkt).await;
             }
+            ClientOpcodes::AcceptTrade => {
+                self.handle_accept_trade(pkt).await;
+            }
             ClientOpcodes::BusyTrade => {
                 self.handle_busy_trade(pkt).await;
             }
@@ -21217,6 +21225,19 @@ impl WorldSession {
         self.represented_active_trade_partner_like_cpp
     }
 
+    #[cfg(test)]
+    pub(crate) fn set_represented_partner_trade_server_state_index_like_cpp(
+        &mut self,
+        state_index: u32,
+    ) {
+        self.represented_partner_trade_server_state_index_like_cpp = state_index;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_trade_accepted_like_cpp(&self) -> bool {
+        self.represented_trade_accepted_like_cpp
+    }
+
     pub(crate) fn cancel_represented_trade_like_cpp(&mut self, status: u8, sendback: bool) {
         use wow_packet::ServerPacket;
 
@@ -21227,6 +21248,7 @@ impl WorldSession {
         let packet_bytes = TradeStatus::cancel_like_cpp(status).to_bytes();
         self.record_represented_trade_cancel_like_cpp(status);
         self.clear_represented_active_trade_partner_like_cpp();
+        self.represented_trade_accepted_like_cpp = false;
 
         if sendback {
             self.send_raw_packet(&packet_bytes);
@@ -21240,6 +21262,38 @@ impl WorldSession {
                 .try_send(SessionCommand::CancelRepresentedTradeLikeCpp(
                     wow_network::player_registry::CancelRepresentedTradeLikeCppCommand {
                         status,
+                        packet_bytes,
+                    },
+                ));
+        }
+    }
+
+    pub(crate) fn accept_represented_trade_like_cpp(&mut self, state_index: u32) {
+        use wow_packet::ServerPacket;
+
+        let Some(partner_guid) = self.represented_active_trade_partner_like_cpp else {
+            return;
+        };
+
+        self.represented_trade_accepted_like_cpp = true;
+
+        if self.represented_partner_trade_server_state_index_like_cpp != state_index {
+            self.represented_trade_accepted_like_cpp = false;
+            let packet_bytes =
+                TradeStatus::status_only_like_cpp(TRADE_STATUS_STATE_CHANGED_LIKE_CPP).to_bytes();
+            self.send_raw_packet(&packet_bytes);
+            return;
+        }
+
+        let packet_bytes =
+            TradeStatus::status_only_like_cpp(TRADE_STATUS_ACCEPTED_LIKE_CPP).to_bytes();
+        if let Some(registry) = self.player_registry()
+            && let Some(partner) = registry.get(&partner_guid)
+        {
+            let _ = partner
+                .command_tx
+                .try_send(SessionCommand::SendRepresentedTradeStatusLikeCpp(
+                    wow_network::player_registry::SendRepresentedTradeStatusLikeCppCommand {
                         packet_bytes,
                     },
                 ));

@@ -1,4 +1,16 @@
 - `#NEXT.R8.ENTITIES.868` - represented-complete implementation for bounded movement `Handle_NULL` ACK family.
+### #NEXT.R8.ENTITIES.892 — CMSG_ACCEPT_TRADE
+
+Status: represented-partial for the bounded `WorldSession::HandleAcceptTradeOpcode` state-index/status handshake.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/TradeHandler.cpp:193-543`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TradePackets.cpp:20-23`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TradePackets.h:30-38`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:143`, and `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:6465-6481`.
+
+Implemented Rust seam: `AcceptTrade` now parses the C++ `uint32 StateIndex`, registers as `LoggedIn`/`PROCESS_THREADUNSAFE`, dispatches through `WorldSession`, preserves the no-op when no represented active trade exists, marks the requester accepted before validation like C++, sends bounded `SMSG_TRADE_STATUS` with `TRADE_STATUS_STATE_CHANGED` and resets local acceptance when the represented partner server-state index differs, and queues bounded `TRADE_STATUS_ACCEPTED` to the partner session when the represented index matches.
+
+Focused tests/checks: `cargo test -p wow-packet accept_trade --lib`; `cargo test -p wow-world accept_trade --lib`.
+
+Remaining gaps: full `TradeData`, traded item slots, money validation, distance checks, spell trade, inventory fit checks, moving items/gold, DB save transaction, final `TRADE_STATUS_COMPLETE`, install/restart, bot, and live-client manual validation remain open.
+
 ### #NEXT.R8.ENTITIES.891 — CMSG_CAN_DUEL
 
 Status: represented-partial for the bounded `WorldSession::HandleCanDuel` request/response seam.
