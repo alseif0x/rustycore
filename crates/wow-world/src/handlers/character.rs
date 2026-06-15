@@ -52,7 +52,7 @@ use crate::handlers::quest::RepresentedQuestGiverStatusSourceLikeCpp;
 use crate::reputation::mgr::CharacterReputationRowLikeCpp;
 use crate::session::{
     PER_CHARACTER_CACHE_MASK_LIKE_CPP, RepresentedAlterAppearanceLikeCpp,
-    RepresentedGameObjectUseState,
+    RepresentedBankItemMoveLikeCpp, RepresentedGameObjectUseState,
 };
 
 // ── Handler registration ────────────────────────────────────────────
@@ -496,6 +496,24 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_banker_activate",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::AutobankItem,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_autobank_item",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::AutostoreBankItem,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_autostore_bank_item",
     }
 }
 
@@ -6228,6 +6246,50 @@ impl WorldSession {
         self.send_packet(&NpcInteractionOpenResult::new(hello.unit, 8)); // Banker
     }
 
+    /// CMSG_AUTOBANK_ITEM — player moves an inventory item into bank storage.
+    ///
+    /// C++ ref: `WorldSession::HandleAutoBankItemOpcode`.
+    pub async fn handle_autobank_item(&mut self, packet: AutoBankItem) {
+        if !self.represented_can_use_current_bank_like_cpp() {
+            debug!(
+                bag = packet.bag,
+                slot = packet.slot,
+                account = self.account_id,
+                "AutoBankItem rejected: player cannot use current bank"
+            );
+            return;
+        }
+
+        self.record_represented_bank_item_move_like_cpp(RepresentedBankItemMoveLikeCpp {
+            to_bank: true,
+            inv_update_items: packet.inv_update.items,
+            bag: packet.bag,
+            slot: packet.slot,
+        });
+    }
+
+    /// CMSG_AUTOSTORE_BANK_ITEM — player moves a bank item back to inventory, or inventory to bank.
+    ///
+    /// C++ ref: `WorldSession::HandleAutoStoreBankItemOpcode`.
+    pub async fn handle_autostore_bank_item(&mut self, packet: AutoStoreBankItem) {
+        if !self.represented_can_use_current_bank_like_cpp() {
+            debug!(
+                bag = packet.bag,
+                slot = packet.slot,
+                account = self.account_id,
+                "AutoStoreBankItem rejected: player cannot use current bank"
+            );
+            return;
+        }
+
+        self.record_represented_bank_item_move_like_cpp(RepresentedBankItemMoveLikeCpp {
+            to_bank: false,
+            inv_update_items: packet.inv_update.items,
+            bag: packet.bag,
+            slot: packet.slot,
+        });
+    }
+
     /// CMSG_BUY_BANK_SLOT — player buys the next personal bank bag slot.
     ///
     /// C++ ref: `WorldSession::HandleBuyBankSlotOpcode`.
@@ -11911,6 +11973,97 @@ mod tests {
 
         assert_eq!(session.player_bank_bag_slot_count_like_cpp(), 2);
         assert_eq!(session.player_gold_like_cpp(), 150);
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn autobank_item_records_move_after_banker_activation_like_cpp() {
+        let (mut session, send_rx, canonical) = make_bank_slot_session(4);
+        let banker = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 40);
+        insert_banker_creature(&canonical, banker, NPCFlags1::BANKER.bits());
+
+        session.handle_banker_activate(Hello { unit: banker }).await;
+        assert!(send_rx.try_recv().is_ok(), "bank open should be sent");
+
+        session
+            .handle_autobank_item(AutoBankItem {
+                inv_update: InvUpdate {
+                    items: vec![(255, 19)],
+                },
+                bag: 255,
+                slot: 19,
+            })
+            .await;
+
+        assert_eq!(session.represented_bank_item_moves_like_cpp().len(), 1);
+        assert_eq!(
+            session.represented_bank_item_moves_like_cpp()[0],
+            RepresentedBankItemMoveLikeCpp {
+                to_bank: true,
+                inv_update_items: vec![(255, 19)],
+                bag: 255,
+                slot: 19,
+            }
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn autostore_bank_item_records_move_after_banker_activation_like_cpp() {
+        let (mut session, send_rx, canonical) = make_bank_slot_session(4);
+        let banker = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 41);
+        insert_banker_creature(&canonical, banker, NPCFlags1::BANKER.bits());
+
+        session.handle_banker_activate(Hello { unit: banker }).await;
+        assert!(send_rx.try_recv().is_ok(), "bank open should be sent");
+
+        session
+            .handle_autostore_bank_item(AutoStoreBankItem {
+                inv_update: InvUpdate {
+                    items: vec![(255, 39)],
+                },
+                bag: 255,
+                slot: 39,
+            })
+            .await;
+
+        assert_eq!(session.represented_bank_item_moves_like_cpp().len(), 1);
+        assert_eq!(
+            session.represented_bank_item_moves_like_cpp()[0],
+            RepresentedBankItemMoveLikeCpp {
+                to_bank: false,
+                inv_update_items: vec![(255, 39)],
+                bag: 255,
+                slot: 39,
+            }
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn auto_bank_item_rejects_without_current_bank_like_cpp() {
+        let (mut session, send_rx, _canonical) = make_bank_slot_session(1);
+
+        session
+            .handle_autobank_item(AutoBankItem {
+                inv_update: InvUpdate {
+                    items: vec![(255, 19)],
+                },
+                bag: 255,
+                slot: 19,
+            })
+            .await;
+        session
+            .handle_autostore_bank_item(AutoStoreBankItem {
+                inv_update: InvUpdate {
+                    items: vec![(255, 39)],
+                },
+                bag: 255,
+                slot: 39,
+            })
+            .await;
+
+        assert!(session.represented_bank_item_moves_like_cpp().is_empty());
         assert!(send_rx.try_recv().is_err());
     }
 

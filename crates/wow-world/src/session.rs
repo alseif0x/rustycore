@@ -1447,6 +1447,14 @@ pub(crate) struct RepresentedGuildRepairBankWithdrawLikeCpp {
     pub success: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RepresentedBankItemMoveLikeCpp {
+    pub to_bank: bool,
+    pub inv_update_items: Vec<(u8, u8)>,
+    pub bag: u8,
+    pub slot: u8,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedCanDuelSpellCastLikeCpp {
     pub target_guid: ObjectGuid,
@@ -2949,6 +2957,7 @@ pub struct WorldSession {
     player_bank_bag_slot_count_like_cpp: u8,
     represented_bank_bag_slot_flags_like_cpp: [u32; 7],
     represented_current_banker_guid_like_cpp: Option<ObjectGuid>,
+    represented_bank_item_moves_like_cpp: Vec<RepresentedBankItemMoveLikeCpp>,
     player_xp: u32,
     /// XP required to reach next level, cached from player_xp_for_level.
     player_next_level_xp: u32,
@@ -4352,6 +4361,7 @@ impl WorldSession {
             player_bank_bag_slot_count_like_cpp: 0,
             represented_bank_bag_slot_flags_like_cpp: [0; 7],
             represented_current_banker_guid_like_cpp: None,
+            represented_bank_item_moves_like_cpp: Vec::new(),
             player_xp: 0,
             player_next_level_xp: 400,
             player_xp_table: None,
@@ -19255,6 +19265,18 @@ impl WorldSession {
                     Err(e) => warn!("Failed to read BankerActivate: {e}"),
                 }
             }
+            ClientOpcodes::AutobankItem => {
+                match wow_packet::packets::misc::AutoBankItem::read(&mut pkt) {
+                    Ok(packet) => self.handle_autobank_item(packet).await,
+                    Err(e) => warn!("Failed to read AutobankItem: {e}"),
+                }
+            }
+            ClientOpcodes::AutostoreBankItem => {
+                match wow_packet::packets::misc::AutoStoreBankItem::read(&mut pkt) {
+                    Ok(packet) => self.handle_autostore_bank_item(packet).await,
+                    Err(e) => warn!("Failed to read AutostoreBankItem: {e}"),
+                }
+            }
             ClientOpcodes::BuyBankSlot => {
                 match wow_packet::packets::misc::BuyBankSlot::read(&mut pkt) {
                     Ok(buy) => self.handle_buy_bank_slot(buy).await,
@@ -21225,6 +21247,18 @@ impl WorldSession {
 
         self.represented_npc_can_interact_with_like_cpp(banker_guid, NPCFlags1::BANKER.bits(), 0)
             .is_some()
+    }
+
+    pub(crate) fn record_represented_bank_item_move_like_cpp(
+        &mut self,
+        move_like_cpp: RepresentedBankItemMoveLikeCpp,
+    ) {
+        self.represented_bank_item_moves_like_cpp
+            .push(move_like_cpp);
+    }
+
+    pub(crate) fn represented_bank_item_moves_like_cpp(&self) -> &[RepresentedBankItemMoveLikeCpp] {
+        &self.represented_bank_item_moves_like_cpp
     }
 
     pub(crate) fn represented_bank_bag_slot_flag_like_cpp(&self, slot: usize) -> Option<u32> {

@@ -77,7 +77,47 @@ impl ClientPacket for FarSight {
     }
 }
 
-// ── Bank (CMSG 0x34B4) ─────────────────────────────────────────────
+// ── Bank (CMSG 0x3997 / 0x3996 / 0x34B4) ──────────────────────────
+
+/// C++ `WorldPackets::Bank::AutoBankItem`: `InvUpdate`, source bag and slot.
+#[derive(Debug, Clone)]
+pub struct AutoBankItem {
+    pub inv_update: InvUpdate,
+    pub bag: u8,
+    pub slot: u8,
+}
+
+impl ClientPacket for AutoBankItem {
+    const OPCODE: ClientOpcodes = ClientOpcodes::AutobankItem;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            inv_update: InvUpdate::read(pkt)?,
+            bag: pkt.read_uint8()?,
+            slot: pkt.read_uint8()?,
+        })
+    }
+}
+
+/// C++ `WorldPackets::Bank::AutoStoreBankItem`: `InvUpdate`, source bag and slot.
+#[derive(Debug, Clone)]
+pub struct AutoStoreBankItem {
+    pub inv_update: InvUpdate,
+    pub bag: u8,
+    pub slot: u8,
+}
+
+impl ClientPacket for AutoStoreBankItem {
+    const OPCODE: ClientOpcodes = ClientOpcodes::AutostoreBankItem;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            inv_update: InvUpdate::read(pkt)?,
+            bag: pkt.read_uint8()?,
+            slot: pkt.read_uint8()?,
+        })
+    }
+}
 
 /// C++ `WorldPackets::Bank::BuyBankSlot`: a single banker `ObjectGuid`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -9821,6 +9861,42 @@ mod tests {
         assert_eq!(change.slot, 3);
         assert_eq!(change.flag, 5);
         assert!(change.enabled);
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn auto_bank_item_reads_inv_bag_slot_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bits(1, 2);
+        pkt.flush_bits();
+        pkt.write_uint8(255);
+        pkt.write_uint8(19);
+        pkt.write_uint8(255);
+        pkt.write_uint8(19);
+        pkt.reset_read();
+
+        let packet = AutoBankItem::read(&mut pkt).unwrap();
+        assert_eq!(packet.inv_update.items, vec![(255, 19)]);
+        assert_eq!(packet.bag, 255);
+        assert_eq!(packet.slot, 19);
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn auto_store_bank_item_reads_inv_bag_slot_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bits(1, 2);
+        pkt.flush_bits();
+        pkt.write_uint8(255);
+        pkt.write_uint8(39);
+        pkt.write_uint8(255);
+        pkt.write_uint8(39);
+        pkt.reset_read();
+
+        let packet = AutoStoreBankItem::read(&mut pkt).unwrap();
+        assert_eq!(packet.inv_update.items, vec![(255, 39)]);
+        assert_eq!(packet.bag, 255);
+        assert_eq!(packet.slot, 39);
         assert_eq!(pkt.remaining(), 0);
     }
 
