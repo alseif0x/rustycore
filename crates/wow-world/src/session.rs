@@ -14102,6 +14102,26 @@ impl WorldSession {
         self.represented_legacy_raid_difficulty_id_like_cpp = legacy_raid_difficulty_id;
     }
 
+    /// C++ `Player::_LoadGroup` overwrites the loaded player difficulties with
+    /// the current group values because the leader may change them while the
+    /// member is offline.
+    pub(crate) fn load_represented_group_difficulties_like_cpp(&mut self) -> bool {
+        let (Some(group_guid), Some(group_registry)) =
+            (self.group_guid, self.group_registry.as_ref())
+        else {
+            return false;
+        };
+
+        let Some(group) = group_registry.get(&group_guid) else {
+            return false;
+        };
+
+        self.represented_dungeon_difficulty_id_like_cpp = group.dungeon_difficulty_id;
+        self.represented_raid_difficulty_id_like_cpp = group.raid_difficulty_id;
+        self.represented_legacy_raid_difficulty_id_like_cpp = group.legacy_raid_difficulty_id;
+        true
+    }
+
     pub(crate) fn represented_dungeon_difficulty_packet_like_cpp(&self) -> DungeonDifficultySet {
         DungeonDifficultySet {
             difficulty_id: i32::try_from(self.represented_dungeon_difficulty_id_like_cpp)
@@ -35065,6 +35085,85 @@ mod tests {
             session.represented_legacy_raid_difficulty_id_like_cpp(),
             DIFFICULTY_10_N_LIKE_CPP
         );
+    }
+
+    #[test]
+    fn load_represented_group_difficulties_overrides_player_values_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let leader = ObjectGuid::create_player(1, 42);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.dungeon_difficulty_id = 2;
+        group.raid_difficulty_id = 15;
+        group.legacy_raid_difficulty_id = 4;
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([
+            difficulty_entry(2, MAP_INSTANCE_LIKE_CPP, DifficultyFlags::CAN_SELECT),
+            difficulty_entry(15, MAP_RAID_LIKE_CPP, DifficultyFlags::CAN_SELECT),
+            difficulty_entry(
+                4,
+                MAP_RAID_LIKE_CPP,
+                DifficultyFlags::CAN_SELECT | DifficultyFlags::LEGACY,
+            ),
+        ])));
+        session.load_represented_player_difficulties_like_cpp(1, 14, 3);
+        session.group_guid = Some(group_guid);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+
+        assert!(session.load_represented_group_difficulties_like_cpp());
+
+        assert_eq!(session.represented_dungeon_difficulty_id_like_cpp(), 2);
+        assert_eq!(session.represented_raid_difficulty_id_like_cpp(), 15);
+        assert_eq!(session.represented_legacy_raid_difficulty_id_like_cpp(), 4);
+    }
+
+    #[test]
+    fn load_represented_group_difficulties_without_group_preserves_player_values_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([
+            difficulty_entry(2, MAP_INSTANCE_LIKE_CPP, DifficultyFlags::CAN_SELECT),
+            difficulty_entry(15, MAP_RAID_LIKE_CPP, DifficultyFlags::CAN_SELECT),
+            difficulty_entry(
+                4,
+                MAP_RAID_LIKE_CPP,
+                DifficultyFlags::CAN_SELECT | DifficultyFlags::LEGACY,
+            ),
+        ])));
+        session.load_represented_player_difficulties_like_cpp(2, 15, 4);
+
+        assert!(!session.load_represented_group_difficulties_like_cpp());
+
+        assert_eq!(session.represented_dungeon_difficulty_id_like_cpp(), 2);
+        assert_eq!(session.represented_raid_difficulty_id_like_cpp(), 15);
+        assert_eq!(session.represented_legacy_raid_difficulty_id_like_cpp(), 4);
+    }
+
+    #[test]
+    fn load_represented_group_difficulties_missing_registry_entry_preserves_values_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([
+            difficulty_entry(2, MAP_INSTANCE_LIKE_CPP, DifficultyFlags::CAN_SELECT),
+            difficulty_entry(15, MAP_RAID_LIKE_CPP, DifficultyFlags::CAN_SELECT),
+            difficulty_entry(
+                4,
+                MAP_RAID_LIKE_CPP,
+                DifficultyFlags::CAN_SELECT | DifficultyFlags::LEGACY,
+            ),
+        ])));
+        session.load_represented_player_difficulties_like_cpp(2, 15, 4);
+        session.group_guid = Some(77);
+        session.set_group_registry(
+            Arc::new(GroupRegistry::default()),
+            Arc::new(PendingInvites::default()),
+        );
+
+        assert!(!session.load_represented_group_difficulties_like_cpp());
+
+        assert_eq!(session.represented_dungeon_difficulty_id_like_cpp(), 2);
+        assert_eq!(session.represented_raid_difficulty_id_like_cpp(), 15);
+        assert_eq!(session.represented_legacy_raid_difficulty_id_like_cpp(), 4);
     }
 
     fn drain_server_opcodes(send_rx: &flume::Receiver<Vec<u8>>) -> Vec<ServerOpcodes> {
