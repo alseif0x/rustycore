@@ -35393,7 +35393,7 @@ impl WorldSession {
             return None;
         }
 
-        if self.effect_has_implicit_target_conditions_like_cpp(spell_id, effect.effect_index) {
+        if self.has_implicit_target_conditions_like_cpp(spell_id, effect.effect_index) {
             return None;
         }
 
@@ -35539,15 +35539,19 @@ impl WorldSession {
             return None;
         }
 
-        if self.effect_has_implicit_target_conditions_like_cpp(spell_id, effect.effect_index) {
-            return None;
-        }
-
         let spell_id_u32 = u32::try_from(spell_id).ok()?;
-        let target_position = self
-            .spell_target_position_store
-            .as_deref()?
-            .get(spell_id_u32, effect.effect_index);
+        let implicit_conditions =
+            self.implicit_target_conditions_like_cpp(spell_id, effect.effect_index);
+        let has_implicit_conditions = implicit_conditions
+            .as_ref()
+            .is_some_and(|conditions| !conditions.is_empty());
+        let target_position = if has_implicit_conditions {
+            None
+        } else {
+            self.spell_target_position_store
+                .as_deref()?
+                .get(spell_id_u32, effect.effect_index)
+        };
         let caster_position = self.player_position_like_cpp()?;
         let range = self
             .spell_misc_store
@@ -35573,9 +35577,12 @@ impl WorldSession {
             } else {
                 self.randomized_or_db_caster_fallback_destination_like_cpp(caster_position, radius)
             }
-        } else if let Some(position) =
-            self.represented_nearby_entry_destination_like_cpp(effect, &caster_position, range)
-        {
+        } else if let Some(position) = self.represented_nearby_entry_destination_like_cpp(
+            effect,
+            &caster_position,
+            range,
+            implicit_conditions.as_deref().map(Vec::as_slice),
+        ) {
             self.apply_spell_destination_facing_override_like_cpp(spell_id, effect, position)
         } else if radius == 0.0 {
             self.apply_spell_destination_facing_override_like_cpp(spell_id, effect, caster_position)
@@ -35623,6 +35630,7 @@ impl WorldSession {
         effect: &wow_data::SpellEffectInfo,
         caster_position: &Position,
         range: f32,
+        implicit_conditions: Option<&[wow_data::Condition]>,
     ) -> Option<Position> {
         let Ok(entry) = u32::try_from(effect.effect_misc_value_1) else {
             return None;
@@ -35647,6 +35655,14 @@ impl WorldSession {
             map.map()
                 .nearby_cell_guids_like_cpp(caster_position.x, caster_position.y, range);
         let mut best: Option<(f32, Position)> = None;
+        let caster_object = if implicit_conditions.is_some_and(|conditions| !conditions.is_empty())
+        {
+            self.build_condition_player_object_like_cpp()
+        } else {
+            None
+        };
+        let player_unit_snapshot = self.condition_player_unit_snapshot_like_cpp();
+        let player_snapshot = self.condition_player_snapshot_like_cpp();
 
         for guid in nearby
             .world
@@ -35662,7 +35678,29 @@ impl WorldSession {
             }
             let position = creature.unit().world().position();
             let distance = position.distance(caster_position);
-            if distance < range && best.is_none_or(|(best_distance, _)| distance < best_distance) {
+            if distance < range
+                && best.is_none_or(|(best_distance, _)| distance < best_distance)
+                && self.represented_nearby_candidate_meets_implicit_conditions_like_cpp(
+                    creature.unit().world(),
+                    Some(crate::conditions::ConditionUnitSnapshot {
+                        level: u32::from(creature.level()),
+                        health: creature.current_health(),
+                        max_health: creature.max_health(),
+                        class_mask: 0,
+                        race: 0,
+                        creature_type: None,
+                        is_alive: creature.is_alive(),
+                        is_charmed: false,
+                        in_water: false,
+                        unit_state: 0,
+                        stand_state: UnitStandStateType::Stand as u32,
+                    }),
+                    implicit_conditions,
+                    caster_object.as_ref(),
+                    player_unit_snapshot,
+                    player_snapshot,
+                )
+            {
                 best = Some((distance, position));
             }
         }
@@ -35676,7 +35714,17 @@ impl WorldSession {
             }
             let position = gameobject.world().position();
             let distance = position.distance(caster_position);
-            if distance < range && best.is_none_or(|(best_distance, _)| distance < best_distance) {
+            if distance < range
+                && best.is_none_or(|(best_distance, _)| distance < best_distance)
+                && self.represented_nearby_candidate_meets_implicit_conditions_like_cpp(
+                    gameobject.world(),
+                    None,
+                    implicit_conditions,
+                    caster_object.as_ref(),
+                    player_unit_snapshot,
+                    player_snapshot,
+                )
+            {
                 best = Some((distance, position));
             }
         }
@@ -35684,15 +35732,75 @@ impl WorldSession {
         best.map(|(_, position)| position)
     }
 
-    fn effect_has_implicit_target_conditions_like_cpp(
+    fn represented_nearby_candidate_meets_implicit_conditions_like_cpp(
+        &self,
+        candidate: &WorldObject,
+        candidate_unit_snapshot: Option<crate::conditions::ConditionUnitSnapshot>,
+        implicit_conditions: Option<&[wow_data::Condition]>,
+        caster_object: Option<&WorldObject>,
+        player_unit_snapshot: crate::conditions::ConditionUnitSnapshot,
+        player_snapshot: crate::conditions::ConditionPlayerSnapshot,
+    ) -> bool {
+        let Some(conditions) = implicit_conditions.filter(|conditions| !conditions.is_empty())
+        else {
+            return true;
+        };
+        let Some(condition_store) = self.condition_store.as_ref() else {
+            return false;
+        };
+
+        // C++ `WorldObjectSpellTargetCheck` builds `ConditionSourceInfo(nullptr, caster)`
+        // and then assigns the tested target to condition slot 0.
+        let player_condition_context = self.represented_player_condition_context_like_cpp();
+        let mut source_info = crate::conditions::ConditionSourceInfo::from_targets(
+            Some(candidate),
+            caster_object,
+            None,
+        );
+        if let Some(snapshot) = candidate_unit_snapshot {
+            source_info.set_unit_target_snapshot(0, snapshot);
+        }
+        source_info.set_unit_target_snapshot(1, player_unit_snapshot);
+        source_info.set_player_target_snapshot(1, player_snapshot);
+        if let Some(store) = self.player_condition_store.as_ref() {
+            source_info.set_player_condition_store(store.as_ref());
+            source_info.set_player_condition_context(1, player_condition_context.as_context(self));
+        }
+        let area_table_store = self.area_table_store.as_ref().cloned();
+
+        crate::conditions::is_object_meet_to_conditions_like_cpp(
+            &mut source_info,
+            conditions,
+            condition_store.as_ref(),
+            |condition, source_info| {
+                crate::conditions::condition_meets_basic_like_cpp(
+                    condition,
+                    source_info,
+                    |area_id, required_area_id| {
+                        area_table_store.as_ref().is_some_and(|store| {
+                            store.is_in_area_like_cpp(area_id, required_area_id)
+                        })
+                    },
+                )
+                .value()
+                .unwrap_or(false)
+            },
+        )
+    }
+
+    fn implicit_target_conditions_like_cpp(
         &self,
         spell_id: i32,
         effect_index: u32,
-    ) -> bool {
+    ) -> Option<Arc<wow_data::ConditionContainer>> {
         self.spell_store
             .as_deref()
             .and_then(|store| store.implicit_target_conditions_like_cpp(spell_id, effect_index))
             .and_then(|conditions| conditions.upgrade())
+    }
+
+    fn has_implicit_target_conditions_like_cpp(&self, spell_id: i32, effect_index: u32) -> bool {
+        self.implicit_target_conditions_like_cpp(spell_id, effect_index)
             .is_some_and(|conditions| !conditions.is_empty())
     }
 
@@ -43278,6 +43386,166 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn or_db_missing_row_filters_represented_nearby_entry_conditions_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 720_i32;
+        let template_entry = 9026_u32;
+        let player_guid = ObjectGuid::create_player(1, 7030);
+        let player_position = Position::new(300.0, 400.0, 60.0, 0.0);
+        let rejected_guid = test_creature_guid(7031);
+        let accepted_guid = test_creature_guid(7032);
+        let rejected_position = Position::new(302.0, 400.0, 60.0, 0.5);
+        let accepted_position = Position::new(310.0, 400.0, 60.0, 1.5);
+        let canonical = shared_canonical_map_manager();
+        let mut summon_effect =
+            summon_object_wild_effect_like_cpp(i32::try_from(template_entry).unwrap());
+        summon_effect.implicit_target_1 =
+            wow_data::spell::implicit_targets::TARGET_DEST_NEARBY_ENTRY_OR_DB;
+        let spell_info =
+            gameobject_summon_spell_info_like_cpp(spell_id, 0, vec![summon_effect.clone()]);
+
+        configure_gameobject_summon_live_session_like_cpp(
+            &mut session,
+            &canonical,
+            player_guid,
+            player_position,
+            summon_go_template_store_like_cpp(template_entry),
+            spell_info.clone(),
+        );
+        let mut misc = summon_go_spell_misc_entry_like_cpp(spell_id as u32, 0);
+        misc.range_index = 88;
+        session.set_spell_misc_store(Arc::new(wow_data::SpellMiscStore::from_entries([misc])));
+        session.set_spell_range_store(Arc::new(wow_data::SpellRangeStore::from_entries([
+            wow_data::SpellRangeEntry {
+                id: 88,
+                display_name: String::new(),
+                display_name_short: String::new(),
+                flags: 0,
+                range_min: [0.0, 0.0],
+                range_max: [50.0, 50.0],
+            },
+        ])));
+        session.set_spell_target_position_store(Arc::new(
+            wow_data::SpellTargetPositionStoreLikeCpp::from_rows_like_cpp(
+                Vec::<wow_data::SpellTargetPositionRowLikeCpp>::new(),
+                &{
+                    let mut store = wow_data::SpellStore::new();
+                    store.insert(spell_id, spell_info.clone());
+                    store
+                },
+                |map_id| map_id == 571,
+            ),
+        ));
+        let condition_store = Arc::new(ConditionEntriesByTypeStore::from_conditions_like_cpp([
+            Condition {
+                source_type: ConditionSourceType::SpellImplicitTarget,
+                source_group: 1 << summon_effect.effect_index,
+                source_entry: spell_id,
+                condition_type: ConditionType::ObjectEntryGuid,
+                condition_value1: TypeId::Unit as u32,
+                condition_value2: template_entry,
+                ..Condition::default()
+            },
+            Condition {
+                source_type: ConditionSourceType::SpellImplicitTarget,
+                source_group: 1 << summon_effect.effect_index,
+                source_entry: spell_id,
+                condition_type: ConditionType::Level,
+                condition_value1: 80,
+                condition_value2: wow_constants::ComparisonType::Eq as u32,
+                ..Condition::default()
+            },
+        ]));
+        let mut conditioned_spell_store = wow_data::SpellStore::new();
+        conditioned_spell_store.insert(spell_id, spell_info);
+        conditioned_spell_store.attach_spell_implicit_target_conditions_like_cpp(&condition_store);
+        session.set_condition_store(Arc::clone(&condition_store));
+        session.set_spell_store(Arc::new(conditioned_spell_store));
+        add_canonical_test_creature_indexed_on_map_with_level(
+            &canonical,
+            rejected_guid,
+            template_entry,
+            rejected_position,
+            571,
+            0,
+            70,
+        );
+        add_canonical_test_creature_indexed_on_map_with_level(
+            &canonical,
+            accepted_guid,
+            template_entry,
+            accepted_position,
+            571,
+            0,
+            80,
+        );
+
+        let implicit_conditions = session
+            .implicit_target_conditions_like_cpp(spell_id, summon_effect.effect_index)
+            .expect("implicit target conditions should be attached");
+        assert_eq!(implicit_conditions.len(), 2);
+        assert_eq!(
+            session.represented_nearby_entry_destination_like_cpp(
+                &summon_effect,
+                &player_position,
+                50.0,
+                Some(implicit_conditions.as_slice()),
+            ),
+            Some(accepted_position),
+            "represented SearchNearbyTarget seam should apply the implicit target conditions"
+        );
+
+        session
+            .execute_spell_with_visual_and_target_data(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual {
+                    spell_visual_id: 720,
+                    script_visual_id: 0,
+                },
+                SpellTargetData::default(),
+            )
+            .await
+            .expect(
+                "OR_DB missing DB row with represented conditioned nearby entry should execute",
+            );
+
+        let manager = canonical.lock().unwrap();
+        let managed = manager.find_map(571, 0).expect("canonical map");
+        let summoned_guid = session
+            .client_visible_guids_like_cpp
+            .iter()
+            .copied()
+            .filter(ObjectGuid::is_game_object)
+            .find(|guid| {
+                managed
+                    .map()
+                    .get_typed_game_object(*guid)
+                    .is_some_and(|go| go.world().object().entry() == template_entry)
+            })
+            .expect("OR_DB conditioned nearby-entry destination summon should be visible");
+        let summoned = managed
+            .map()
+            .get_typed_game_object(summoned_guid)
+            .expect("summoned GO should be map-owned");
+        assert_eq!(
+            summoned.world().position(),
+            accepted_position,
+            "C++ SearchNearbyTarget applies ImplicitTargetConditions before keeping the nearest candidate"
+        );
+        assert_ne!(summoned.world().position(), rejected_position);
+        assert_ne!(summoned.world().position(), player_position);
+        drop(manager);
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert!(
+            update_object_packet_count_like_cpp(&packets) >= 1,
+            "OR_DB conditioned nearby-entry destination summon should trigger represented visibility create/update delivery"
+        );
+    }
+
+    #[tokio::test]
     async fn db_implicit_caster_destination_uses_spell_target_position_same_map_like_cpp() {
         let (mut session, _, send_rx) = make_session();
         let spell_id = 712_i32;
@@ -45413,6 +45681,45 @@ mod tests {
             instance_id,
             true,
         );
+    }
+
+    fn add_canonical_test_creature_indexed_on_map_with_level(
+        canonical: &SharedCanonicalMapManager,
+        guid: ObjectGuid,
+        entry: u32,
+        position: Position,
+        map_id: u32,
+        instance_id: u32,
+        level: u8,
+    ) {
+        let mut creature = wow_entities::Creature::new(false);
+        creature.unit_mut().world_mut().object_mut().create(guid);
+        creature
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .set_entry(entry);
+        creature
+            .unit_mut()
+            .world_mut()
+            .set_map(map_id, instance_id)
+            .unwrap();
+        creature.unit_mut().world_mut().relocate(position);
+        creature.unit_mut().world_mut().set_combat_reach(1.0);
+        creature.unit_mut().set_level(level);
+        creature.unit_mut().set_max_health(100);
+        creature.unit_mut().set_health(100);
+        creature.set_ai_identity_runtime(1, 35, 0, 0);
+
+        canonical
+            .lock()
+            .unwrap()
+            .create_world_map(map_id, instance_id)
+            .map_mut()
+            .add_map_object_record_to_map_like_cpp(
+                wow_entities::MapObjectRecord::new_creature(creature).unwrap(),
+            )
+            .unwrap();
     }
 
     fn add_canonical_test_creature_on_map_with_world_state(

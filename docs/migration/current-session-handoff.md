@@ -1,3 +1,20 @@
+- `#NEXT.RUNTIME.L3.031j33` — WotLK represented `_OR_DB` nearby-entry implicit-condition filtering
+  for summon GameObject spells (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/Spell.cpp:1132-1208`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/Spell.cpp:2108-2185`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/Spell.cpp:8956-8988`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/Spell.cpp:9070-9079`, and
+  `/home/server/woltk-trinity-legacy/src/server/game/Conditions/ConditionMgr.cpp:1499-1594`.
+  Acceptance: Rust no longer drops `TARGET_DEST_NEARBY_ENTRY_OR_DB` represented destination
+  selection just because `SpellEffectInfo::ImplicitTargetConditions` exists. Matching C++, the
+  DB-target emergency branch is used only when no implicit conditions are attached; otherwise the
+  represented nearby search tests candidates with target slot 0 and caster slot 1, rejects
+  condition failures, and keeps the nearest represented creature/GameObject that passes. Coverage
+  proves a nearer same-entry creature failing a Level condition is skipped while a farther passing
+  creature becomes the destination. Boundary remains partial: no full `SpellInfo::CheckTarget`,
+  no LOS/phase/full grid visitor parity, no player/corpse/dynamic-object searches, no script target
+  hooks, no condition types requiring unrepresented runtime state, and no install/restart, bot, or
+  live-client/manual validation.
 - `#NEXT.RUNTIME.L3.031j32` — WotLK represented `_OR_DB` positive-radius caster fallback for
   summon GameObject spells (not manual-test-ready). Source-of-truth:
   `/home/server/woltk-trinity-legacy/src/server/game/Spells/Spell.cpp:1134-1208`,

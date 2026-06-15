@@ -1857,6 +1857,17 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   branch and the no-DB common branch. Remaining boundary is narrower: terrain raycast/static LOS
   first-collision correction, condition lists/script hooks, non-creature/gameobject searches, full
   phase/grid visitor parity, and live client/bot validation are still open.
+- 2026-06-15 — WotLK represented `_OR_DB` nearby-entry implicit-condition filtering
+  `#NEXT.RUNTIME.L3.031j33`: contrasted `Spell::SelectImplicitAreaTargets`,
+  `Spell::GetSearcherTypeMask`, `Spell::SearchNearbyTarget`,
+  `WorldObjectSpellTargetCheck`, `WorldObjectSpellNearbyTargetCheck`, and
+  `ConditionMgr::addToSpellImplicitTargetConditions` against C++. Rust no longer treats attached
+  `ImplicitTargetConditions` as a reason to skip represented destination selection. It now mirrors
+  the C++ split where the DB-target emergency branch is disabled when conditions exist, then runs
+  the represented nearby creature/GameObject search with candidate slot 0 and caster slot 1
+  condition evaluation before accepting the nearest passing target. Remaining boundary: no full
+  `SpellInfo::CheckTarget`, LOS/phase/full grid visitor parity, non-creature/gameobject searches,
+  script target hooks, unsupported condition runtime state, or live client/bot validation.
 
 ## References
 
