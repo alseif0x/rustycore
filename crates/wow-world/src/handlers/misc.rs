@@ -1536,6 +1536,15 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
+        opcode: ClientOpcodes::AuctionListItems,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_auction_list_items",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
         opcode: ClientOpcodes::AuctionListOwnerItems,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
@@ -4408,6 +4417,16 @@ impl crate::session::WorldSession {
     pub async fn handle_auction_list_bidder_items(&mut self, _pkt: wow_packet::WorldPacket) {
         use wow_packet::packets::misc::AuctionListBidderItemsResult;
         self.send_packet(&AuctionListBidderItemsResult);
+    }
+
+    /// CMSG_AUCTION_LIST_ITEMS — legacy list opcode.
+    ///
+    /// The current C++ legacy branch reads no fields and only logs that this
+    /// opcode is superseded by CMSG_AUCTION_BROWSE_QUERY.
+    pub async fn handle_auction_list_items(
+        &mut self,
+        _packet: wow_packet::packets::misc::AuctionListItems,
+    ) {
     }
 
     /// CMSG_AUCTION_LIST_OWNER_ITEMS — list items the player put up for auction.
@@ -11728,6 +11747,17 @@ mod tests {
 
         session
             .handle_auctionable_token_sell(WorldPacket::new_empty())
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn auction_list_items_is_silent_legacy_stub_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_auction_list_items(wow_packet::packets::misc::AuctionListItems)
             .await;
 
         assert!(send_rx.try_recv().is_err());

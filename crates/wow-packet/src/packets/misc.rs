@@ -5259,6 +5259,21 @@ impl ServerPacket for NpcInteractionOpenResult {
 
 // ── Auction empty results ─────────────────────────────────────────────────────
 
+/// C++ `WorldPackets::AuctionHouse::AuctionListItems`.
+///
+/// This legacy opcode's `Read()` intentionally consumes no fields in the
+/// current C++ source; the handler is also a legacy no-op.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AuctionListItems;
+
+impl ClientPacket for AuctionListItems {
+    const OPCODE: ClientOpcodes = ClientOpcodes::AuctionListItems;
+
+    fn read(_pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self)
+    }
+}
+
 /// SMSG_AUCTION_LIST_BIDDER_ITEMS_RESULT — empty bidder list.
 pub struct AuctionListBidderItemsResult;
 impl ServerPacket for AuctionListBidderItemsResult {
@@ -7690,6 +7705,15 @@ mod tests {
 
         let request = AuctionableTokenSell::read(&mut pkt).unwrap();
         assert_eq!(request, AuctionableTokenSell);
+    }
+
+    #[test]
+    fn auction_list_items_reads_empty_legacy_packet_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+
+        let request = AuctionListItems::read(&mut pkt).unwrap();
+        assert_eq!(request, AuctionListItems);
+        assert_eq!(pkt.remaining(), 0);
     }
 
     #[test]

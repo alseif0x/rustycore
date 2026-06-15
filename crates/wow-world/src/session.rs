@@ -20185,6 +20185,12 @@ impl WorldSession {
             ClientOpcodes::AuctionListBidderItems => {
                 self.handle_auction_list_bidder_items(pkt).await;
             }
+            ClientOpcodes::AuctionListItems => {
+                match wow_packet::packets::misc::AuctionListItems::read(&mut pkt) {
+                    Ok(packet) => self.handle_auction_list_items(packet).await,
+                    Err(e) => warn!("Failed to read AuctionListItems: {e}"),
+                }
+            }
             ClientOpcodes::AuctionListOwnerItems => {
                 self.handle_auction_list_owner_items(pkt).await;
             }

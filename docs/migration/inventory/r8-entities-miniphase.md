@@ -1,3 +1,13 @@
+# `#NEXT.R8.ENTITIES.948` — represented-complete `CMSG_AUCTION_LIST_ITEMS` legacy no-op.
+
+Source-of-truth C++ was re-checked before code changes: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/AuctionHouseHandler.cpp:1080-1084` (`HandleAuctionListItems`), `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/AuctionHousePackets.cpp:539-542` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/AuctionHousePackets.h:283-289` (empty legacy packet shape), plus `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp` for `LoggedIn`/`ThreadUnsafe` metadata.
+
+Rust now parses `CMSG_AUCTION_LIST_ITEMS` as the C++ empty legacy packet, registers it as `LoggedIn`/`ThreadUnsafe`, dispatches it through `WorldSession`, and handles it as a silent no-op like the current C++ legacy branch, which only logs that `CMSG_AUCTION_BROWSE_QUERY` supersedes it.
+
+Checks: `cargo fmt --all --check`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-packet auction_list_items --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world auction_list_items --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world dispatch_metadata_matches_cpp_for_registered_active_opcodes -- --nocapture`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p wow-packet -p wow-world`; `git diff --check`.
+
+Boundaries: represented-complete for this opcode only. This does not implement the auction-house runtime, browse query, bid/sell/cancel flows, DB persistence, install/restart, bot, or live-client/manual validation for the broader auction system.
+
 # `#NEXT.R8.ENTITIES.947` — represented `CMSG_AUTOBANK_ITEM` / `CMSG_AUTOSTORE_BANK_ITEM` dispatch.
 
 Source-of-truth C++ was re-checked before code changes: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/BankHandler.cpp:27-57` (`HandleAutoBankItemOpcode`), `/home/server/woltk-trinity-legacy/src/server/game/Handlers/BankHandler.cpp:78-119` (`HandleAutoStoreBankItemOpcode`), `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/BankPackets.cpp:20-32` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/BankPackets.h:29-50` (packet shapes), plus `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:198,200` (LoggedIn/Inplace metadata).
