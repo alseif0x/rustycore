@@ -35522,7 +35522,7 @@ impl WorldSession {
     }
 
     fn represented_db_nearby_destination_target_data_like_cpp(
-        &self,
+        &mut self,
         spell_id: i32,
         effect: &wow_data::SpellEffectInfo,
         target_data: &SpellTargetData,
@@ -35571,7 +35571,7 @@ impl WorldSession {
             } else if radius == 0.0 {
                 caster_position
             } else {
-                return None;
+                self.randomized_or_db_caster_fallback_destination_like_cpp(caster_position, radius)
             }
         } else if let Some(position) =
             self.represented_nearby_entry_destination_like_cpp(effect, &caster_position, range)
@@ -35580,7 +35580,9 @@ impl WorldSession {
         } else if radius == 0.0 {
             self.apply_spell_destination_facing_override_like_cpp(spell_id, effect, caster_position)
         } else {
-            return None;
+            let randomized =
+                self.randomized_or_db_caster_fallback_destination_like_cpp(caster_position, radius);
+            self.apply_spell_destination_facing_override_like_cpp(spell_id, effect, randomized)
         };
         let mut target_data = target_data.clone();
         target_data.dst_location = Some(wow_packet::packets::spell::TargetLocation {
@@ -35588,6 +35590,32 @@ impl WorldSession {
             position,
         });
         Some(target_data)
+    }
+
+    fn randomized_or_db_caster_fallback_destination_like_cpp(
+        &mut self,
+        caster_position: Position,
+        radius: f32,
+    ) -> Position {
+        if !radius.is_finite() || radius <= 0.0 {
+            return caster_position;
+        }
+
+        // C++ target 142 is TARGET_DIR_FRONT_RIGHT
+        // (`SpellInfo.cpp:385`), so `MovePositionToFirstCollision` uses
+        // caster orientation plus -PI/4. The represented seam keeps the
+        // radius/direction behavior; terrain raycast/first-collision remains
+        // part of the full map/path runtime work.
+        let distance = self
+            .represented_runtime_rng_like_cpp
+            .gen_range(0.0..=radius);
+        let angle = caster_position.orientation - std::f32::consts::FRAC_PI_4;
+        Position::new(
+            caster_position.x + distance * angle.cos(),
+            caster_position.y + distance * angle.sin(),
+            caster_position.z,
+            caster_position.orientation,
+        )
     }
 
     fn represented_nearby_entry_destination_like_cpp(
@@ -42774,6 +42802,138 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn or_db_invalid_row_positive_radius_offsets_from_caster_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 718_i32;
+        let template_entry = 9024_u32;
+        let player_guid = ObjectGuid::create_player(1, 7027);
+        let player_position = Position::new(270.0, 370.0, 54.0, 0.75);
+        let other_map_destination = Position::new(276.0, 374.0, 55.0, 2.875);
+        let radius = 12.0_f32;
+        let canonical = shared_canonical_map_manager();
+        let mut summon_effect =
+            summon_object_wild_effect_like_cpp(i32::try_from(template_entry).unwrap());
+        summon_effect.implicit_target_1 =
+            wow_data::spell::implicit_targets::TARGET_DEST_NEARBY_ENTRY_OR_DB;
+        summon_effect.effect_radius_index_1 = 31;
+        let spell_info =
+            gameobject_summon_spell_info_like_cpp(spell_id, 0, vec![summon_effect.clone()]);
+
+        configure_gameobject_summon_live_session_like_cpp(
+            &mut session,
+            &canonical,
+            player_guid,
+            player_position,
+            summon_go_template_store_like_cpp(template_entry),
+            spell_info.clone(),
+        );
+        session.seed_represented_runtime_rng_like_cpp(0xD157);
+        let mut misc = summon_go_spell_misc_entry_like_cpp(spell_id as u32, 0);
+        misc.range_index = 88;
+        session.set_spell_misc_store(Arc::new(wow_data::SpellMiscStore::from_entries([misc])));
+        session.set_spell_range_store(Arc::new(wow_data::SpellRangeStore::from_entries([
+            wow_data::SpellRangeEntry {
+                id: 88,
+                display_name: String::new(),
+                display_name_short: String::new(),
+                flags: 0,
+                range_min: [0.0, 0.0],
+                range_max: [50.0, 50.0],
+            },
+        ])));
+        session.set_spell_radius_store(Arc::new(wow_data::SpellRadiusStore::from_entries([
+            wow_data::SpellRadiusEntry {
+                id: 31,
+                radius: 0.0,
+                radius_per_level: 0.0,
+                radius_min: 0.0,
+                radius_max: radius,
+            },
+        ])));
+        let mut target_spell_store = wow_data::SpellStore::new();
+        target_spell_store.insert(spell_id, spell_info);
+        session.set_spell_target_position_store(Arc::new(
+            wow_data::SpellTargetPositionStoreLikeCpp::from_rows_like_cpp(
+                [wow_data::SpellTargetPositionRowLikeCpp {
+                    spell_id: spell_id as u32,
+                    effect_index: summon_effect.effect_index,
+                    target_map_id: 1,
+                    x: other_map_destination.x,
+                    y: other_map_destination.y,
+                    z: other_map_destination.z,
+                    orientation: Some(other_map_destination.orientation),
+                }],
+                &target_spell_store,
+                |map_id| matches!(map_id, 1 | 571),
+            ),
+        ));
+
+        session
+            .execute_spell_with_visual_and_target_data(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual {
+                    spell_visual_id: 718,
+                    script_visual_id: 0,
+                },
+                SpellTargetData::default(),
+            )
+            .await
+            .expect("OR_DB invalid DB row with positive radius should execute");
+
+        let manager = canonical.lock().unwrap();
+        let managed = manager.find_map(571, 0).expect("canonical map");
+        let summoned_guid = session
+            .client_visible_guids_like_cpp
+            .iter()
+            .copied()
+            .filter(ObjectGuid::is_game_object)
+            .find(|guid| {
+                managed
+                    .map()
+                    .get_typed_game_object(*guid)
+                    .is_some_and(|go| go.world().object().entry() == template_entry)
+            })
+            .expect("OR_DB invalid-row positive-radius fallback summon should be visible");
+        let summoned = managed
+            .map()
+            .get_typed_game_object(summoned_guid)
+            .expect("summoned GO should be map-owned");
+        let summoned_position = summoned.world().position();
+        let distance_2d = summoned_position.distance_2d(&player_position);
+        assert!(
+            distance_2d <= radius + 0.001,
+            "C++ MovePositionToFirstCollision keeps the caster fallback destination within CalcRadius"
+        );
+        assert!(
+            distance_2d > 0.001,
+            "seeded represented frand should move the positive-radius fallback away from the caster"
+        );
+        let expected_angle = player_position.orientation - std::f32::consts::FRAC_PI_4;
+        assert!(
+            ((summoned_position.x - player_position.x) - distance_2d * expected_angle.cos()).abs()
+                < 0.001
+        );
+        assert!(
+            ((summoned_position.y - player_position.y) - distance_2d * expected_angle.sin()).abs()
+                < 0.001
+        );
+        assert_eq!(
+            summoned_position.orientation, player_position.orientation,
+            "C++ DB-row emergency branch preserves SpellDestination(*caster) orientation"
+        );
+        assert_ne!(summoned_position, other_map_destination);
+        drop(manager);
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert!(
+            update_object_packet_count_like_cpp(&packets) >= 1,
+            "OR_DB invalid-row positive-radius fallback summon should trigger represented visibility create/update delivery"
+        );
+    }
+
+    #[tokio::test]
     async fn db_implicit_destination_or_db_missing_row_zero_radius_keeps_caster_like_cpp() {
         let (mut session, _, send_rx) = make_session();
         let spell_id = 716_i32;
@@ -42870,6 +43030,122 @@ mod tests {
         assert!(
             update_object_packet_count_like_cpp(&packets) >= 1,
             "OR_DB missing-row fallback summon should trigger represented visibility create/update delivery"
+        );
+    }
+
+    #[tokio::test]
+    async fn or_db_missing_row_positive_radius_offsets_and_applies_facing_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 719_i32;
+        let template_entry = 9025_u32;
+        let player_guid = ObjectGuid::create_player(1, 7028);
+        let player_position = Position::new(280.0, 380.0, 56.0, 1.125);
+        let effect_position_facing = 2.5;
+        let radius = 9.0_f32;
+        let canonical = shared_canonical_map_manager();
+        let mut summon_effect =
+            summon_object_wild_effect_like_cpp(i32::try_from(template_entry).unwrap());
+        summon_effect.implicit_target_1 =
+            wow_data::spell::implicit_targets::TARGET_DEST_NEARBY_ENTRY_OR_DB;
+        summon_effect.effect_radius_index_1 = 32;
+        summon_effect.position_facing = effect_position_facing;
+        let spell_info =
+            gameobject_summon_spell_info_like_cpp(spell_id, 0, vec![summon_effect.clone()]);
+
+        configure_gameobject_summon_live_session_like_cpp(
+            &mut session,
+            &canonical,
+            player_guid,
+            player_position,
+            summon_go_template_store_like_cpp(template_entry),
+            spell_info.clone(),
+        );
+        session.seed_represented_runtime_rng_like_cpp(0xD159);
+        let mut misc = summon_go_spell_misc_entry_like_cpp(spell_id as u32, 0);
+        misc.range_index = 88;
+        misc.attributes[4] = wow_data::spell::attributes::SPELL_ATTR4_USE_FACING_FROM_SPELL as i32;
+        session.set_spell_misc_store(Arc::new(wow_data::SpellMiscStore::from_entries([misc])));
+        session.set_spell_range_store(Arc::new(wow_data::SpellRangeStore::from_entries([
+            wow_data::SpellRangeEntry {
+                id: 88,
+                display_name: String::new(),
+                display_name_short: String::new(),
+                flags: 0,
+                range_min: [0.0, 0.0],
+                range_max: [50.0, 50.0],
+            },
+        ])));
+        session.set_spell_radius_store(Arc::new(wow_data::SpellRadiusStore::from_entries([
+            wow_data::SpellRadiusEntry {
+                id: 32,
+                radius: 0.0,
+                radius_per_level: 0.0,
+                radius_min: 0.0,
+                radius_max: radius,
+            },
+        ])));
+        let mut target_spell_store = wow_data::SpellStore::new();
+        target_spell_store.insert(spell_id, spell_info);
+        session.set_spell_target_position_store(Arc::new(
+            wow_data::SpellTargetPositionStoreLikeCpp::from_rows_like_cpp(
+                Vec::<wow_data::SpellTargetPositionRowLikeCpp>::new(),
+                &target_spell_store,
+                |map_id| map_id == 571,
+            ),
+        ));
+
+        session
+            .execute_spell_with_visual_and_target_data(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual {
+                    spell_visual_id: 719,
+                    script_visual_id: 0,
+                },
+                SpellTargetData::default(),
+            )
+            .await
+            .expect("OR_DB missing DB row with positive radius should execute");
+
+        let manager = canonical.lock().unwrap();
+        let managed = manager.find_map(571, 0).expect("canonical map");
+        let summoned_guid = session
+            .client_visible_guids_like_cpp
+            .iter()
+            .copied()
+            .filter(ObjectGuid::is_game_object)
+            .find(|guid| {
+                managed
+                    .map()
+                    .get_typed_game_object(*guid)
+                    .is_some_and(|go| go.world().object().entry() == template_entry)
+            })
+            .expect("OR_DB missing-row positive-radius fallback summon should be visible");
+        let summoned = managed
+            .map()
+            .get_typed_game_object(summoned_guid)
+            .expect("summoned GO should be map-owned");
+        let summoned_position = summoned.world().position();
+        let distance_2d = summoned_position.distance_2d(&player_position);
+        assert!(
+            distance_2d <= radius + 0.001,
+            "C++ caster fallback randomization stays within CalcRadius"
+        );
+        assert!(
+            distance_2d > 0.001,
+            "seeded represented frand should move the positive-radius missing-row fallback away from the caster"
+        );
+        assert_eq!(
+            summoned_position.orientation, effect_position_facing,
+            "C++ common destination branch applies SPELL_ATTR4_USE_FACING_FROM_SPELL after random-radius fallback"
+        );
+        drop(manager);
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert!(
+            update_object_packet_count_like_cpp(&packets) >= 1,
+            "OR_DB missing-row positive-radius fallback summon should trigger represented visibility create/update delivery"
         );
     }
 

@@ -1844,8 +1844,19 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   creatures/gameobjects for the nearest matching `EffectMiscValue1` entry within strict range before
   using the caster fallback. DB-row behavior and the existing facing override remain unchanged.
   This is still bounded represented spell-target work: condition lists, script target hooks,
-  player/corpse/dynamic-object searches, exact grid visitor semantics, random-radius collision
-  fallback, and live client/bot validation remain open.
+  player/corpse/dynamic-object searches, exact grid visitor semantics, exact terrain raycast/static
+  LOS collision correction for radius placement, and live client/bot validation remain open.
+- 2026-06-15 — WotLK represented `_OR_DB` positive-radius caster fallback
+  `#NEXT.RUNTIME.L3.031j32`: contrasted `Spell::SelectImplicitAreaTargets`,
+  `SpellImplicitTargetInfo::CalcDirectionAngle`, target 142 metadata, and
+  `WorldObject::MovePositionToFirstCollision` against C++. Rust now keeps the caster destination
+  instead of returning no represented destination when `TARGET_DEST_NEARBY_ENTRY_OR_DB` has an
+  unusable DB row or has no DB row/no represented nearby entry and `CalcRadius` is positive. The
+  represented fallback draws `frand(0, radius)`, uses target 142's `TARGET_DIR_FRONT_RIGHT`
+  (`orientation - PI/4`), and preserves C++'s orientation split between the invalid-DB emergency
+  branch and the no-DB common branch. Remaining boundary is narrower: terrain raycast/static LOS
+  first-collision correction, condition lists/script hooks, non-creature/gameobject searches, full
+  phase/grid visitor parity, and live client/bot validation are still open.
 
 ## References
 

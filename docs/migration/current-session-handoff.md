@@ -1,3 +1,19 @@
+- `#NEXT.RUNTIME.L3.031j32` — WotLK represented `_OR_DB` positive-radius caster fallback for
+  summon GameObject spells (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/Spell.cpp:1134-1208`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/Spell.cpp:1225-1295`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellInfo.cpp:105-129`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellInfo.cpp:385`, and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Object/Object.cpp:3484-3535`.
+  Acceptance: when `TARGET_DEST_NEARBY_ENTRY_OR_DB` has an unusable `spell_target_position` row
+  or has no row and no represented nearby entry, Rust no longer drops the represented destination
+  when `CalcRadius` is positive. It now keeps the C++ caster fallback, draws represented
+  `frand(0, radius)`, applies target 142's `TARGET_DIR_FRONT_RIGHT` direction relative to caster
+  orientation, and preserves the C++ distinction where the invalid-DB-row emergency branch keeps
+  caster orientation while the no-DB common branch still applies `SPELL_ATTR4_USE_FACING_FROM_SPELL`.
+  Boundary remains partial: no terrain raycast/static-LOS first-collision correction, no condition
+  lists/script target hooks, no player/corpse/dynamic-object searches, no full phase/grid visitor
+  parity, no install/restart, bot, or live-client/manual validation.
 - `#NEXT.RUNTIME.L3.031j31` — C++-verified `wow-world --lib` suite repair after broad validation.
   Source-of-truth: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:10664-10682`
   and `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:1313-1550`.
@@ -20,8 +36,8 @@
   within the strict C++ range edge before falling back to the caster destination. The existing DB
   row behavior remains unchanged, and `SPELL_ATTR4_USE_FACING_FROM_SPELL` still flows through the
   existing facing-override helper. Boundary remains partial: no condition-list/script target hooks,
-  no player/corpse/dynamic-object target search, no random-radius collision placement for the
-  radius>0 missing-target branch, no full `GetSearcherTypeMask`/phase/grid visitor parity, no
+  no player/corpse/dynamic-object target search, no exact terrain raycast/static-LOS collision
+  correction for radius placement, no full `GetSearcherTypeMask`/phase/grid visitor parity, no
   install/restart, bot, or live-client/manual validation.
 - `#NEXT.R8.ENTITIES.986` — represented-partial for C++ `CMSG_GUILD_BANK_BUY_TAB`, `CMSG_GUILD_BANK_UPDATE_TAB`, `CMSG_GUILD_BANK_LOG_QUERY`, `CMSG_GUILD_BANK_TEXT_QUERY`, and `CMSG_GUILD_BANK_SET_TAB_TEXT`: implemented after contrasting the five `WorldSession` handlers, their `GuildPackets` `Read` methods, `Guild` tab/log/text methods, and opcode metadata. Rust now parses all five packet shapes, registers them as `LoggedIn`/`ThreadUnsafe`, dispatches through `WorldSession`, preserves C++ gates (BuyTab allows empty banker or interactable banker plus represented guild; UpdateTab requires non-empty name/icon plus interactable banker and represented guild; log/text/set-text require represented guild only), and records represented guild-bank tab/log/text intents. Boundary remains partial: no live `GuildMgr`/`Guild`, real tab purchase/update/log/text behavior, tab price/money mutation, rights/rank checks, tab text/log packets, broadcast events, DB persistence, install/restart, bot, or live-client/manual validation.
 - `#NEXT.R8.ENTITIES.985` — represented-partial for C++ `CMSG_GUILD_BANK_DEPOSIT_MONEY` and `CMSG_GUILD_BANK_WITHDRAW_MONEY`: implemented after contrasting `WorldSession::HandleGuildBankDepositMoney`, `WorldSession::HandleGuildBankWithdrawMoney`, both `GuildPackets` `Read` methods, and opcode metadata. Rust now parses `Banker`/`Money`, registers both opcodes as `LoggedIn`/`ThreadUnsafe`, dispatches through `WorldSession`, preserves the represented guild-bank GameObject interaction gate and represented guild gate, preserves deposit's `HasEnoughMoney` check, intentionally preserves withdraw's lack of player-money check, and records represented `Guild::HandleMemberDepositMoney` / `Guild::HandleMemberWithdrawMoney` intents without mutating player gold in the handler. Boundary remains partial: no live `GuildMgr`/`Guild`, real guild-bank money mutation, rank/right/withdraw limits, logs/events/fanout, DB persistence, install/restart, bot, or live-client/manual validation.
