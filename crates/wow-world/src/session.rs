@@ -24751,10 +24751,7 @@ impl WorldSession {
         attacker_guid: ObjectGuid,
         creature_guid: ObjectGuid,
     ) -> Option<wow_entities::UnitValuesUpdate> {
-        let lootable = self
-            .loot_table
-            .get(&creature_guid)
-            .is_some_and(|loot| loot.coins > 0 || loot.unlooted_count > 0);
+        let lootable = self.loot_table.contains_key(&creature_guid);
         let can_skin = self.represented_creature_can_skin_after_death_state_like_cpp(creature_guid);
         let values_update = self.mutate_world_creature(creature_guid, |creature| {
             creature.complete_death_state_after_kill_hooks_like_cpp();
@@ -35576,13 +35573,11 @@ impl WorldSession {
             } else {
                 return None;
             }
-        } else if radius == 0.0
-            && !self.represented_nearby_entry_candidate_exists_like_cpp(
-                effect,
-                &caster_position,
-                range,
-            )
+        } else if let Some(position) =
+            self.represented_nearby_entry_destination_like_cpp(effect, &caster_position, range)
         {
+            self.apply_spell_destination_facing_override_like_cpp(spell_id, effect, position)
+        } else if radius == 0.0 {
             self.apply_spell_destination_facing_override_like_cpp(spell_id, effect, caster_position)
         } else {
             return None;
@@ -35595,60 +35590,70 @@ impl WorldSession {
         Some(target_data)
     }
 
-    fn represented_nearby_entry_candidate_exists_like_cpp(
+    fn represented_nearby_entry_destination_like_cpp(
         &self,
         effect: &wow_data::SpellEffectInfo,
         caster_position: &Position,
         range: f32,
-    ) -> bool {
+    ) -> Option<Position> {
         let Ok(entry) = u32::try_from(effect.effect_misc_value_1) else {
-            return false;
+            return None;
         };
         if entry == 0 || !range.is_finite() || range <= 0.0 {
-            return false;
+            return None;
         }
 
         let Some(player_map_key) = self.current_canonical_player_map_key_like_cpp() else {
-            return false;
+            return None;
         };
         let Some(manager) = &self.canonical_map_manager else {
-            return false;
+            return None;
         };
         let Ok(manager) = manager.lock() else {
-            return false;
+            return None;
         };
         let Some(map) = manager.find_map(player_map_key.map_id, player_map_key.instance_id) else {
-            return false;
+            return None;
         };
         let nearby =
             map.map()
                 .nearby_cell_guids_like_cpp(caster_position.x, caster_position.y, range);
-        nearby
+        let mut best: Option<(f32, Position)> = None;
+
+        for guid in nearby
             .world
             .creatures
             .iter()
             .chain(nearby.grid.creatures.iter())
-            .any(|guid| {
-                map.map().get_typed_creature(*guid).is_some_and(|creature| {
-                    creature.unit().world().object().entry() == entry
-                        && creature
-                            .unit()
-                            .world()
-                            .position()
-                            .is_within_dist(caster_position, range)
-                })
-            })
-            || nearby.grid.gameobjects.iter().any(|guid| {
-                map.map()
-                    .get_typed_game_object(*guid)
-                    .is_some_and(|gameobject| {
-                        gameobject.world().object().entry() == entry
-                            && gameobject
-                                .world()
-                                .position()
-                                .is_within_dist(caster_position, range)
-                    })
-            })
+        {
+            let Some(creature) = map.map().get_typed_creature(*guid) else {
+                continue;
+            };
+            if creature.unit().world().object().entry() != entry {
+                continue;
+            }
+            let position = creature.unit().world().position();
+            let distance = position.distance(caster_position);
+            if distance < range && best.is_none_or(|(best_distance, _)| distance < best_distance) {
+                best = Some((distance, position));
+            }
+        }
+
+        for guid in nearby.grid.gameobjects.iter() {
+            let Some(gameobject) = map.map().get_typed_game_object(*guid) else {
+                continue;
+            };
+            if gameobject.world().object().entry() != entry {
+                continue;
+            }
+            let position = gameobject.world().position();
+            let distance = position.distance(caster_position);
+            if distance < range && best.is_none_or(|(best_distance, _)| distance < best_distance) {
+                best = Some((distance, position));
+            }
+        }
+
+        best.map(|(_, position)| position)
     }
 
     fn effect_has_implicit_target_conditions_like_cpp(
@@ -42865,6 +42870,134 @@ mod tests {
         assert!(
             update_object_packet_count_like_cpp(&packets) >= 1,
             "OR_DB missing-row fallback summon should trigger represented visibility create/update delivery"
+        );
+    }
+
+    #[tokio::test]
+    async fn db_implicit_destination_or_db_missing_row_uses_nearest_represented_entry_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 717_i32;
+        let template_entry = 9023_u32;
+        let player_guid = ObjectGuid::create_player(1, 7023);
+        let player_position = Position::new(260.0, 360.0, 52.0, 0.0);
+        let near_target_guid = test_gameobject_guid(template_entry, 7024);
+        let far_target_guid = test_gameobject_guid(template_entry, 7025);
+        let wrong_entry_guid = test_gameobject_guid(template_entry + 1, 7026);
+        let near_target_position = Position::new(264.0, 360.0, 52.0, 1.125);
+        let far_target_position = Position::new(278.0, 360.0, 52.0, 2.25);
+        let wrong_entry_position = Position::new(262.0, 360.0, 52.0, 3.0);
+        let canonical = shared_canonical_map_manager();
+        let mut summon_effect =
+            summon_object_wild_effect_like_cpp(i32::try_from(template_entry).unwrap());
+        summon_effect.implicit_target_1 =
+            wow_data::spell::implicit_targets::TARGET_DEST_NEARBY_ENTRY_OR_DB;
+        let spell_info =
+            gameobject_summon_spell_info_like_cpp(spell_id, 0, vec![summon_effect.clone()]);
+
+        configure_gameobject_summon_live_session_like_cpp(
+            &mut session,
+            &canonical,
+            player_guid,
+            player_position,
+            summon_go_template_store_like_cpp(template_entry),
+            spell_info.clone(),
+        );
+        let mut misc = summon_go_spell_misc_entry_like_cpp(spell_id as u32, 0);
+        misc.range_index = 88;
+        session.set_spell_misc_store(Arc::new(wow_data::SpellMiscStore::from_entries([misc])));
+        session.set_spell_range_store(Arc::new(wow_data::SpellRangeStore::from_entries([
+            wow_data::SpellRangeEntry {
+                id: 88,
+                display_name: String::new(),
+                display_name_short: String::new(),
+                flags: 0,
+                range_min: [0.0, 0.0],
+                range_max: [50.0, 50.0],
+            },
+        ])));
+        let mut target_spell_store = wow_data::SpellStore::new();
+        target_spell_store.insert(spell_id, spell_info);
+        session.set_spell_target_position_store(Arc::new(
+            wow_data::SpellTargetPositionStoreLikeCpp::from_rows_like_cpp(
+                Vec::<wow_data::SpellTargetPositionRowLikeCpp>::new(),
+                &target_spell_store,
+                |map_id| map_id == 571,
+            ),
+        ));
+        add_canonical_test_gameobject_on_map(
+            &canonical,
+            far_target_guid,
+            template_entry,
+            far_target_position,
+            571,
+            0,
+        );
+        add_canonical_test_gameobject_on_map(
+            &canonical,
+            wrong_entry_guid,
+            template_entry + 1,
+            wrong_entry_position,
+            571,
+            0,
+        );
+        add_canonical_test_gameobject_on_map(
+            &canonical,
+            near_target_guid,
+            template_entry,
+            near_target_position,
+            571,
+            0,
+        );
+
+        session
+            .execute_spell_with_visual_and_target_data(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual {
+                    spell_visual_id: 717,
+                    script_visual_id: 0,
+                },
+                SpellTargetData::default(),
+            )
+            .await
+            .expect("OR_DB missing DB row with represented nearby entry should execute");
+
+        let manager = canonical.lock().unwrap();
+        let managed = manager.find_map(571, 0).expect("canonical map");
+        let summoned_guid = session
+            .client_visible_guids_like_cpp
+            .iter()
+            .copied()
+            .filter(ObjectGuid::is_game_object)
+            .filter(|guid| {
+                *guid != near_target_guid && *guid != far_target_guid && *guid != wrong_entry_guid
+            })
+            .find(|guid| {
+                managed
+                    .map()
+                    .get_typed_game_object(*guid)
+                    .is_some_and(|go| go.world().object().entry() == template_entry)
+            })
+            .expect("OR_DB nearby-entry destination summon should be visible");
+        let summoned = managed
+            .map()
+            .get_typed_game_object(summoned_guid)
+            .expect("summoned GO should be map-owned");
+        assert_eq!(
+            summoned.world().position(),
+            near_target_position,
+            "C++ SearchNearbyTarget keeps the nearest matching entry as the destination before the caster fallback"
+        );
+        assert_ne!(summoned.world().position(), player_position);
+        assert_ne!(summoned.world().position(), far_target_position);
+        assert_ne!(summoned.world().position(), wrong_entry_position);
+        drop(manager);
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert!(
+            update_object_packet_count_like_cpp(&packets) >= 1,
+            "OR_DB nearby-entry destination summon should trigger represented visibility create/update delivery"
         );
     }
 
@@ -63293,8 +63426,6 @@ mod tests {
             ClientOpcodes::CompleteCinematic,
             ClientOpcodes::NextCinematicCamera,
             ClientOpcodes::OpeningCinematic,
-            ClientOpcodes::ObjectUpdateFailed,
-            ClientOpcodes::ObjectUpdateRescued,
             ClientOpcodes::BankerActivate,
             ClientOpcodes::BuyBankSlot,
             ClientOpcodes::OptOutOfLoot,

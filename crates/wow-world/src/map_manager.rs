@@ -4300,7 +4300,7 @@ mod tests {
             .expect("C++ MoveRandom handoff should launch an active random spline");
         assert!(creature.active_move_spline.is_some());
         assert!(
-            random_target.distance_2d(&Position::new(13.0, 10.0, 0.0, 0.0)) <= 5.0,
+            random_target.distance_2d(&Position::new(13.0, 10.0, 0.0, 0.0)) <= 5.001,
             "C++ RandomMovementGenerator chooses a destination within _wanderDistance of its reference"
         );
         assert_eq!(

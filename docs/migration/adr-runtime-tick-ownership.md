@@ -1836,6 +1836,16 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   claim the full player damage model: spell hit/miss/resist/absorb, proc hooks, combat logs,
   threat/combat entry side effects, non-current-player fanout, vehicle seat paths, and live
   client/bot validation remain open.
+- 2026-06-15 — WotLK represented `_OR_DB` nearby-entry destination fallback
+  `#NEXT.RUNTIME.L3.031j30`: contrasted `Spell::SelectImplicitAreaTargets`,
+  `Spell::SearchNearbyTarget`, `WorldObjectSpellNearbyTargetCheck`, and
+  `SpellDestination(*target)` against C++. Rust now resolves a missing-DB-row
+  `TARGET_DEST_NEARBY_ENTRY_OR_DB` destination by searching represented canonical
+  creatures/gameobjects for the nearest matching `EffectMiscValue1` entry within strict range before
+  using the caster fallback. DB-row behavior and the existing facing override remain unchanged.
+  This is still bounded represented spell-target work: condition lists, script target hooks,
+  player/corpse/dynamic-object searches, exact grid visitor semantics, random-radius collision
+  fallback, and live client/bot validation remain open.
 
 ## References
 

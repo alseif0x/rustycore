@@ -1,3 +1,28 @@
+- `#NEXT.RUNTIME.L3.031j31` — C++-verified `wow-world --lib` suite repair after broad validation.
+  Source-of-truth: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:10664-10682`
+  and `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:1313-1550`.
+  Acceptance: represented creature deaths now mark the corpse lootable whenever represented corpse
+  loot exists before applying the skinning flags, matching the C++ death hook phase instead of
+  depending only on `coins/unlooted_count`; the packet-spoof limit test now treats
+  `CMSG_OBJECT_UPDATE_FAILED` and `CMSG_OBJECT_UPDATE_RESCUED` as default-limited opcodes because
+  they are not in C++'s zero-limit AntiDOS switch. The waypoint random test now allows a tiny
+  floating-point tolerance around the C++ `frand(0, _wanderDistance)` boundary. Validation:
+  `cargo test -p wow-world --lib` is green at 1977/0.
+- `#NEXT.RUNTIME.L3.031j30` — WotLK represented `_OR_DB` nearby-entry destination fallback for
+  summon GameObject spells (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/Spell.cpp:1134-1208`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/Spell.cpp:1225-1295`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/Spell.cpp:2160-2195`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/Spell.cpp:9070-9083`, and
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellInfo.cpp:385`. Acceptance:
+  when `TARGET_DEST_NEARBY_ENTRY_OR_DB` has no valid `spell_target_position` row, Rust now searches
+  represented canonical creatures/gameobjects for the nearest matching `EffectMiscValue1` entry
+  within the strict C++ range edge before falling back to the caster destination. The existing DB
+  row behavior remains unchanged, and `SPELL_ATTR4_USE_FACING_FROM_SPELL` still flows through the
+  existing facing-override helper. Boundary remains partial: no condition-list/script target hooks,
+  no player/corpse/dynamic-object target search, no random-radius collision placement for the
+  radius>0 missing-target branch, no full `GetSearcherTypeMask`/phase/grid visitor parity, no
+  install/restart, bot, or live-client/manual validation.
 - `#NEXT.R8.ENTITIES.986` — represented-partial for C++ `CMSG_GUILD_BANK_BUY_TAB`, `CMSG_GUILD_BANK_UPDATE_TAB`, `CMSG_GUILD_BANK_LOG_QUERY`, `CMSG_GUILD_BANK_TEXT_QUERY`, and `CMSG_GUILD_BANK_SET_TAB_TEXT`: implemented after contrasting the five `WorldSession` handlers, their `GuildPackets` `Read` methods, `Guild` tab/log/text methods, and opcode metadata. Rust now parses all five packet shapes, registers them as `LoggedIn`/`ThreadUnsafe`, dispatches through `WorldSession`, preserves C++ gates (BuyTab allows empty banker or interactable banker plus represented guild; UpdateTab requires non-empty name/icon plus interactable banker and represented guild; log/text/set-text require represented guild only), and records represented guild-bank tab/log/text intents. Boundary remains partial: no live `GuildMgr`/`Guild`, real tab purchase/update/log/text behavior, tab price/money mutation, rights/rank checks, tab text/log packets, broadcast events, DB persistence, install/restart, bot, or live-client/manual validation.
 - `#NEXT.R8.ENTITIES.985` — represented-partial for C++ `CMSG_GUILD_BANK_DEPOSIT_MONEY` and `CMSG_GUILD_BANK_WITHDRAW_MONEY`: implemented after contrasting `WorldSession::HandleGuildBankDepositMoney`, `WorldSession::HandleGuildBankWithdrawMoney`, both `GuildPackets` `Read` methods, and opcode metadata. Rust now parses `Banker`/`Money`, registers both opcodes as `LoggedIn`/`ThreadUnsafe`, dispatches through `WorldSession`, preserves the represented guild-bank GameObject interaction gate and represented guild gate, preserves deposit's `HasEnoughMoney` check, intentionally preserves withdraw's lack of player-money check, and records represented `Guild::HandleMemberDepositMoney` / `Guild::HandleMemberWithdrawMoney` intents without mutating player gold in the handler. Boundary remains partial: no live `GuildMgr`/`Guild`, real guild-bank money mutation, rank/right/withdraw limits, logs/events/fanout, DB persistence, install/restart, bot, or live-client/manual validation.
 - `#NEXT.R8.ENTITIES.984` — represented-partial for C++ `CMSG_GUILD_BANK_QUERY_TAB`: implemented after contrasting `WorldSession::HandleGuildBankQueryTab`, `GuildBankQueryTab::Read`, and opcode metadata. Rust now parses `Banker`/`Tab`/`FullUpdate`, registers `LoggedIn`/`ThreadUnsafe`, dispatches through `WorldSession`, preserves the represented guild-bank GameObject interaction gate, silently returns without represented guild membership, and records represented `Guild::SendBankList(tab=packet.Tab, full_update=true)` intent while preserving C++'s forced `true` behavior instead of trusting `packet.FullUpdate`. Boundary remains partial: no live `GuildMgr`/`Guild` lookup, real `Guild::SendBankList`, `SMSG_GUILD_BANK_QUERY_RESULTS` content, tab rights/items/logs, bank update broadcast correction, DB persistence, install/restart, bot, or live-client/manual validation.
