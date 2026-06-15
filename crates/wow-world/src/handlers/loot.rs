@@ -51,8 +51,9 @@ use wow_network::player_registry::{
     ApplyCreatureMeleeDamageLikeCppCommand, CancelRepresentedTradeLikeCppCommand,
     CreatureAttackStartLikeCppCommand, RefreshVisibleWorldCreaturesLikeCppCommand,
     SendAddonIfRegisteredLikeCppCommand, SendIfVisibleLikeCppCommand,
-    SendRepeatableTurnInRequestItemsLikeCppCommand, SendRepresentedTradeStatusLikeCppCommand,
-    SetQuestSharingInfoAndSendDetailsCommand, SyncChestGameobjectStateAndRefreshLikeCppCommand,
+    SendPartyUpdateLikeCppCommand, SendRepeatableTurnInRequestItemsLikeCppCommand,
+    SendRepresentedTradeStatusLikeCppCommand, SetQuestSharingInfoAndSendDetailsCommand,
+    SyncChestGameobjectStateAndRefreshLikeCppCommand,
     SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
     SyncGooberGameobjectStateAndRefreshLikeCppCommand, UnacceptRepresentedTradeLikeCppCommand,
     WorldSessionShutdownFlushResultLikeCpp,
@@ -2902,6 +2903,9 @@ impl WorldSession {
                 SessionCommand::SendRepeatableTurnInRequestItemsLikeCpp(command) => {
                     self.handle_send_repeatable_turn_in_request_items_command_like_cpp(command);
                 }
+                SessionCommand::SendPartyUpdateLikeCpp(command) => {
+                    self.handle_send_party_update_command_like_cpp(command);
+                }
                 SessionCommand::SendIfVisibleLikeCpp(command) => {
                     self.handle_send_if_visible_like_cpp_command_like_cpp(command);
                 }
@@ -2918,6 +2922,22 @@ impl WorldSession {
                     self.handle_unaccept_represented_trade_command_like_cpp(command);
                 }
             }
+        }
+    }
+
+    fn handle_send_party_update_command_like_cpp(
+        &mut self,
+        mut command: SendPartyUpdateLikeCppCommand,
+    ) {
+        if self.state() != SessionState::LoggedIn {
+            return;
+        }
+
+        command.party_update.sequence_num =
+            self.next_group_update_sequence_number_like_cpp(command.party_update.party_index);
+        self.send_packet(&command.party_update);
+        for packet in command.member_full_state_packets {
+            let _ = self.send_tx().send(packet);
         }
     }
 

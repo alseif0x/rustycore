@@ -39,8 +39,8 @@ pub use player_registry::{
     LootRollVoteCommand, MasterLootGiveCommand, MasterLootGiveResult, PlayerBroadcastInfo,
     PlayerRegistry, RefreshVisibleWorldCreaturesLikeCppCommand, ResetSeasonalQuestStatusCommand,
     SendAddonIfRegisteredLikeCppCommand, SendIfVisibleLikeCppCommand,
-    SendVisibleObjectValuesUpdateCommand, SessionCommand, WorldSessionShutdownFlushLikeCppCommand,
-    WorldSessionShutdownFlushResultLikeCpp,
+    SendPartyUpdateLikeCppCommand, SendVisibleObjectValuesUpdateCommand, SessionCommand,
+    WorldSessionShutdownFlushLikeCppCommand, WorldSessionShutdownFlushResultLikeCpp,
 };
 pub use session_mgr::{InstanceLink, SessionManager};
 pub use world_socket::{AccountInfo, SocketReader, SocketWriter, WorldSocket, WorldSocketError};

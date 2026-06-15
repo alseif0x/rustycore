@@ -655,7 +655,7 @@ impl ServerPacket for GroupDestroyed {
 
 // ── PartyPlayerInfo — member entry in PartyUpdate ────────────────────────────
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct PartyPlayerInfo {
     pub guid: ObjectGuid,
     pub name: String,
@@ -688,6 +688,7 @@ impl PartyPlayerInfo {
 
 // ── PartyUpdate (SMSG_PARTY_UPDATE 0x25f4) ───────────────────────────────────
 
+#[derive(Debug, Clone)]
 pub struct PartyLootSettings {
     pub method: u8,
     pub loot_master: ObjectGuid,
@@ -848,6 +849,7 @@ impl ServerPacket for RaidMarkersChanged {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct PartyDifficultySettings {
     pub dungeon_difficulty_id: u32,
     pub raid_difficulty_id: u32,
@@ -877,6 +879,7 @@ impl ServerPacket for GroupNewLeader {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct PartyUpdate {
     pub party_flags: u16, // 0 = normal
     pub party_index: u8,  // 0

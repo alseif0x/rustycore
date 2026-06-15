@@ -35081,7 +35081,8 @@ mod tests {
         GameEventQuestCompleteClientOutcomeLikeCpp, GameEventQuestCompleteResponseLikeCpp,
         GroupInfo, GroupRegistry, KickLikeCppCommand, PendingInvites, PlayerBroadcastInfo,
         RefreshVisibleWorldCreaturesLikeCppCommand, ResetSeasonalQuestStatusCommand,
-        SendIfVisibleLikeCppCommand, SendVisibleObjectValuesUpdateCommand, SessionCommand,
+        SendIfVisibleLikeCppCommand, SendPartyUpdateLikeCppCommand,
+        SendVisibleObjectValuesUpdateCommand, SessionCommand,
         WorldSessionShutdownFlushLikeCppCommand, register_group_db_store_id_like_cpp,
     };
     use wow_packet::ServerPacket;
@@ -35440,6 +35441,55 @@ mod tests {
         assert_eq!(session.next_group_update_sequence_number_like_cpp(99), 0);
     }
 
+    #[tokio::test]
+    async fn party_update_command_consumes_receiver_sequence_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let group = GroupInfo::new(player_guid);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+        session.group_guid = Some(group_guid);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+        session.state = SessionState::LoggedIn;
+
+        assert!(session.reset_group_update_sequence_if_needed_like_cpp());
+
+        for _ in 0..2 {
+            session
+                .session_command_tx()
+                .try_send(SessionCommand::SendPartyUpdateLikeCpp(
+                    SendPartyUpdateLikeCppCommand {
+                        party_update: wow_packet::packets::party::PartyUpdate {
+                            party_flags: 0,
+                            party_index: wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP,
+                            party_type: wow_network::group_registry::GROUP_TYPE_NORMAL_LIKE_CPP,
+                            my_index: 0,
+                            party_guid: group_guid,
+                            // C++ ignores any caller/global sequence and asks
+                            // the receiver Player for the next number.
+                            sequence_num: 999,
+                            leader_guid: player_guid,
+                            leader_faction_group: 0,
+                            player_list: Vec::new(),
+                            loot_settings: None,
+                            difficulty_settings: None,
+                        },
+                        member_full_state_packets: Vec::new(),
+                    },
+                ))
+                .unwrap();
+            session
+                .process_represented_session_commands_like_cpp()
+                .await;
+        }
+
+        let first = send_rx.try_recv().unwrap();
+        let second = send_rx.try_recv().unwrap();
+        assert_eq!(party_update_sequence_num_like_cpp(&first), 1);
+        assert_eq!(party_update_sequence_num_like_cpp(&second), 2);
+    }
+
     #[test]
     fn represented_group_leader_flag_is_set_for_loaded_leader_like_cpp() {
         let (mut session, _, player_guid) = session_with_canonical_player_for_away_like_cpp();
@@ -35505,6 +35555,20 @@ mod tests {
             packets.push(bytes);
         }
         packets
+    }
+
+    fn party_update_sequence_num_like_cpp(bytes: &[u8]) -> i32 {
+        let mut pkt = WorldPacket::from_bytes(bytes);
+        assert_eq!(
+            pkt.read_uint16().unwrap(),
+            ServerOpcodes::PartyUpdate as u16
+        );
+        let _party_flags = pkt.read_uint16().unwrap();
+        let _party_index = pkt.read_uint8().unwrap();
+        let _party_type = pkt.read_uint8().unwrap();
+        let _my_index = pkt.read_int32().unwrap();
+        let _party_guid = pkt.read_packed_guid().unwrap();
+        pkt.read_int32().unwrap()
     }
 
     #[test]

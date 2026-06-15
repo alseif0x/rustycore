@@ -14,8 +14,8 @@ use wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP;
 use wow_network::{
     GROUP_ASSIGN_MAINASSIST_LIKE_CPP, GROUP_ASSIGN_MAINTANK_LIKE_CPP, GroupInfo, GroupRegistry,
     MEMBER_FLAG_ASSISTANT_LIKE_CPP, MEMBER_FLAG_MAINASSIST_LIKE_CPP, MEMBER_FLAG_MAINTANK_LIKE_CPP,
-    PlayerRegistry, ReadyCheckEventLikeCpp, free_group_db_store_id_like_cpp,
-    register_group_db_store_id_like_cpp,
+    PlayerRegistry, ReadyCheckEventLikeCpp, SendPartyUpdateLikeCppCommand, SessionCommand,
+    free_group_db_store_id_like_cpp, register_group_db_store_id_like_cpp,
 };
 use wow_packet::packets::party::{
     DoReadyCheck, GroupDecline, GroupDestroyed, GroupNewLeader, GroupUninvite, InitiateRolePoll,
@@ -426,7 +426,9 @@ fn send_party_update(group: &GroupInfo, registry: &PlayerRegistry, _vra: u32) {
             party_type: 1,
             my_index: my_idx as i32,
             party_guid: group.group_guid,
-            sequence_num: group.sequence_num as i32,
+            // Filled by the receiver's WorldSession from its per-player
+            // `NextGroupUpdateSequenceNumber` state.
+            sequence_num: 0,
             leader_guid: group.leader_guid,
             leader_faction_group: 0,
             player_list: all_players.clone(), // ALL members, receiver included
@@ -446,16 +448,34 @@ fn send_party_update(group: &GroupInfo, registry: &PlayerRegistry, _vra: u32) {
             }),
         };
 
-        let _ = member_entry.send_tx.send(update.to_bytes());
-
-        // PartyMemberFullState for every OTHER member (still excludes self)
+        let mut member_full_state_packets = Vec::new();
         for &other_guid in &group.members {
             if other_guid == member_guid {
                 continue;
             }
             if registry.contains_key(&other_guid) {
                 let full_state = party_member_full_state_like_cpp(other_guid, Some(registry));
-                let _ = member_entry.send_tx.send(full_state.to_bytes());
+                member_full_state_packets.push(full_state.to_bytes());
+            }
+        }
+
+        let command = SendPartyUpdateLikeCppCommand {
+            party_update: update,
+            member_full_state_packets,
+        };
+        if member_entry
+            .command_tx
+            .try_send(SessionCommand::SendPartyUpdateLikeCpp(command.clone()))
+            .is_err()
+        {
+            #[cfg(test)]
+            {
+                let mut update = command.party_update;
+                update.sequence_num = group.sequence_num as i32;
+                let _ = member_entry.send_tx.send(update.to_bytes());
+                for packet in command.member_full_state_packets {
+                    let _ = member_entry.send_tx.send(packet);
+                }
             }
         }
     }
@@ -2356,7 +2376,7 @@ mod tests {
     use crate::session::WorldSession;
 
     fn broadcast_info(guid: ObjectGuid, send_tx: flume::Sender<Vec<u8>>) -> PlayerBroadcastInfo {
-        let (command_tx, _command_rx) = flume::bounded(1);
+        let (command_tx, _command_rx) = flume::bounded(0);
         PlayerBroadcastInfo {
             map_id: 0,
             instance_id: 0,

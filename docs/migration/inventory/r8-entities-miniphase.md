@@ -1,3 +1,13 @@
+# `#NEXT.R8.ENTITIES.932` — represented-partial for C++ per-recipient `PartyUpdate.SequenceNum`.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp:838-911` (`Group::SendUpdateToPlayer`); `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:25241-25244` (`Player::NextGroupUpdateSequenceNumber`).
+
+Implemented Rust seam: `send_party_update` now builds the per-recipient `PartyUpdate` and associated `PartyMemberFullState` payloads, then enqueues `SessionCommand::SendPartyUpdateLikeCpp` to the receiver. The receiving `WorldSession` fills `SequenceNum` from `next_group_update_sequence_number_like_cpp` immediately before sending `SMSG_PARTY_UPDATE`, so the sequence is owned by the destination session like C++. `PartyMemberFullState` packets remain ordered after `PartyUpdate` inside the same command processing.
+
+Focused tests: legacy group tests still verify PartyUpdate wire fields through a test-only no-session fallback; a session-level test sends two commands with a bogus `SequenceNum=999` and verifies the emitted packets carry sequence `1` then `2` from the receiver session state.
+
+Boundaries: represented-partial only. Exact `SetGroup` subgroup tracking, exact `SetPartyType` update-field mutation, group-owned `CMSG_SET_DIFFICULTY_ID`, `ResetInstances`, BG/BF/original-group routing, install/restart, bot, and live-client/manual validation remain open.
+
 # `#NEXT.R8.ENTITIES.931` — represented-partial for C++ group update sequence reset during `_LoadGroup`.
 
 C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:18987-19008` (`Player::_LoadGroup`); `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:25230-25244` (`ResetGroupUpdateSequenceIfNeeded`, `NextGroupUpdateSequenceNumber`).
@@ -6,7 +16,7 @@ Implemented Rust seam: `WorldSession` now owns represented group update sequence
 
 Focused tests: first loaded group returns sequence `1` then `2`; reloading the same group does not reset and returns `3`; changing group resets to `1`; no group/no registry is a no-op and invalid categories return `0`.
 
-Boundaries: represented-partial only. Existing `PartyUpdate` delivery still uses `GroupInfo.sequence_num` globally instead of consuming the session-owned sequence per recipient. Exact `SetGroup` subgroup tracking, exact `SetPartyType` update-field mutation, group-owned `CMSG_SET_DIFFICULTY_ID`, `ResetInstances`, fanout, install/restart, bot, and live-client/manual validation remain open.
+Boundaries: represented-partial only. `PartyUpdate` recipient sequence consumption is tracked by `#NEXT.R8.ENTITIES.932`. Exact `SetGroup` subgroup tracking, exact `SetPartyType` update-field mutation, group-owned `CMSG_SET_DIFFICULTY_ID`, `ResetInstances`, fanout, install/restart, bot, and live-client/manual validation remain open.
 
 # `#NEXT.R8.ENTITIES.924` — represented-partial implementation for `CMSG_SET_DIFFICULTY_ID`.
 

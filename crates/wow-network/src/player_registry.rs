@@ -14,7 +14,7 @@ use std::collections::{HashMap, HashSet};
 use wow_core::{ObjectGuid, Position};
 use wow_packet::packets::loot::LootEntry;
 use wow_packet::packets::party::{
-    PartyMemberAuraState, PartyMemberPetStats, PartyMemberPhaseStates,
+    PartyMemberAuraState, PartyMemberPetStats, PartyMemberPhaseStates, PartyUpdate,
 };
 
 #[derive(Clone, Debug)]
@@ -37,6 +37,9 @@ pub enum SessionCommand {
     SyncGooberGameobjectStateAndRefreshLikeCpp(SyncGooberGameobjectStateAndRefreshLikeCppCommand),
     SetQuestSharingInfoAndSendDetails(SetQuestSharingInfoAndSendDetailsCommand),
     SendRepeatableTurnInRequestItemsLikeCpp(SendRepeatableTurnInRequestItemsLikeCppCommand),
+    /// Deliver `PartyUpdate` from the receiver's own session so C++
+    /// `Player::NextGroupUpdateSequenceNumber` is consumed per player.
+    SendPartyUpdateLikeCpp(SendPartyUpdateLikeCppCommand),
     /// Deliver `packet_bytes` to this session if the source GUID is currently in
     /// `client_visible_guids_like_cpp` (HaveAtClient gate).
     ///
@@ -90,6 +93,13 @@ pub struct WorldSessionShutdownFlushLikeCppCommand {
 pub struct WorldSessionShutdownFlushResultLikeCpp {
     pub diff_ms: u32,
     pub disconnecting: bool,
+}
+
+/// Payload for C++ `Group::SendUpdateToPlayer`.
+#[derive(Clone, Debug)]
+pub struct SendPartyUpdateLikeCppCommand {
+    pub party_update: PartyUpdate,
+    pub member_full_state_packets: Vec<Vec<u8>>,
 }
 
 /// Payload for a map-owned creature melee hit against one player session.
