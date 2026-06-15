@@ -34624,7 +34624,7 @@ impl WorldSession {
                     &target_data,
                 )
                 .or_else(|| {
-                    self.represented_db_nearby_destination_target_data_like_cpp(
+                    self.represented_nearby_entry_destination_target_data_like_cpp(
                         spell_id,
                         effect,
                         &target_data,
@@ -35521,23 +35521,24 @@ impl WorldSession {
         Some(target_data)
     }
 
-    fn represented_db_nearby_destination_target_data_like_cpp(
+    fn represented_nearby_entry_destination_target_data_like_cpp(
         &mut self,
         spell_id: i32,
         effect: &wow_data::SpellEffectInfo,
         target_data: &SpellTargetData,
     ) -> Option<SpellTargetData> {
         if target_data.dst_location.is_some()
-            || !matches!(
-                effect.implicit_target_1,
-                wow_data::spell::implicit_targets::TARGET_DEST_NEARBY_ENTRY_OR_DB
-            ) && !matches!(
-                effect.implicit_target_2,
-                wow_data::spell::implicit_targets::TARGET_DEST_NEARBY_ENTRY_OR_DB
-            )
+            || !effect.has_focus_destination_implicit_target_like_cpp()
         {
             return None;
         }
+        let is_or_db = matches!(
+            effect.implicit_target_1,
+            wow_data::spell::implicit_targets::TARGET_DEST_NEARBY_ENTRY_OR_DB
+        ) || matches!(
+            effect.implicit_target_2,
+            wow_data::spell::implicit_targets::TARGET_DEST_NEARBY_ENTRY_OR_DB
+        );
 
         let spell_id_u32 = u32::try_from(spell_id).ok()?;
         let implicit_conditions =
@@ -35545,12 +35546,12 @@ impl WorldSession {
         let has_implicit_conditions = implicit_conditions
             .as_ref()
             .is_some_and(|conditions| !conditions.is_empty());
-        let target_position = if has_implicit_conditions {
-            None
-        } else {
+        let target_position = if is_or_db && !has_implicit_conditions {
             self.spell_target_position_store
-                .as_deref()?
-                .get(spell_id_u32, effect.effect_index)
+                .as_deref()
+                .and_then(|store| store.get(spell_id_u32, effect.effect_index))
+        } else {
+            None
         };
         let caster_position = self.player_position_like_cpp()?;
         let range = self
@@ -35584,6 +35585,8 @@ impl WorldSession {
             implicit_conditions.as_deref().map(Vec::as_slice),
         ) {
             self.apply_spell_destination_facing_override_like_cpp(spell_id, effect, position)
+        } else if !is_or_db {
+            return None;
         } else if radius == 0.0 {
             self.apply_spell_destination_facing_override_like_cpp(spell_id, effect, caster_position)
         } else {
@@ -43542,6 +43545,125 @@ mod tests {
         assert!(
             update_object_packet_count_like_cpp(&packets) >= 1,
             "OR_DB conditioned nearby-entry destination summon should trigger represented visibility create/update delivery"
+        );
+    }
+
+    #[tokio::test]
+    async fn nearby_entry_destination_uses_represented_nearby_entry_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 721_i32;
+        let template_entry = 9027_u32;
+        let player_guid = ObjectGuid::create_player(1, 7033);
+        let player_position = Position::new(320.0, 420.0, 62.0, 0.0);
+        let near_target_guid = test_creature_guid(7034);
+        let far_target_guid = test_creature_guid(7035);
+        let wrong_entry_guid = test_creature_guid(7036);
+        let near_target_position = Position::new(324.0, 420.0, 62.0, 0.75);
+        let far_target_position = Position::new(336.0, 420.0, 62.0, 1.5);
+        let wrong_entry_position = Position::new(322.0, 420.0, 62.0, 2.25);
+        let canonical = shared_canonical_map_manager();
+        let mut summon_effect =
+            summon_object_wild_effect_like_cpp(i32::try_from(template_entry).unwrap());
+        summon_effect.implicit_target_1 =
+            wow_data::spell::implicit_targets::TARGET_DEST_NEARBY_ENTRY;
+        let spell_info =
+            gameobject_summon_spell_info_like_cpp(spell_id, 0, vec![summon_effect.clone()]);
+
+        configure_gameobject_summon_live_session_like_cpp(
+            &mut session,
+            &canonical,
+            player_guid,
+            player_position,
+            summon_go_template_store_like_cpp(template_entry),
+            spell_info,
+        );
+        let mut misc = summon_go_spell_misc_entry_like_cpp(spell_id as u32, 0);
+        misc.range_index = 88;
+        session.set_spell_misc_store(Arc::new(wow_data::SpellMiscStore::from_entries([misc])));
+        session.set_spell_range_store(Arc::new(wow_data::SpellRangeStore::from_entries([
+            wow_data::SpellRangeEntry {
+                id: 88,
+                display_name: String::new(),
+                display_name_short: String::new(),
+                flags: 0,
+                range_min: [0.0, 0.0],
+                range_max: [50.0, 50.0],
+            },
+        ])));
+        add_canonical_test_creature_indexed_on_map_with_level(
+            &canonical,
+            far_target_guid,
+            template_entry,
+            far_target_position,
+            571,
+            0,
+            80,
+        );
+        add_canonical_test_creature_indexed_on_map_with_level(
+            &canonical,
+            wrong_entry_guid,
+            template_entry + 1,
+            wrong_entry_position,
+            571,
+            0,
+            80,
+        );
+        add_canonical_test_creature_indexed_on_map_with_level(
+            &canonical,
+            near_target_guid,
+            template_entry,
+            near_target_position,
+            571,
+            0,
+            80,
+        );
+
+        session
+            .execute_spell_with_visual_and_target_data(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual {
+                    spell_visual_id: 721,
+                    script_visual_id: 0,
+                },
+                SpellTargetData::default(),
+            )
+            .await
+            .expect("nearby-entry implicit destination should execute");
+
+        let manager = canonical.lock().unwrap();
+        let managed = manager.find_map(571, 0).expect("canonical map");
+        let summoned_guid = session
+            .client_visible_guids_like_cpp
+            .iter()
+            .copied()
+            .filter(ObjectGuid::is_game_object)
+            .find(|guid| {
+                managed
+                    .map()
+                    .get_typed_game_object(*guid)
+                    .is_some_and(|go| go.world().object().entry() == template_entry)
+            })
+            .expect("nearby-entry destination summon should be visible");
+        let summoned = managed
+            .map()
+            .get_typed_game_object(summoned_guid)
+            .expect("summoned GO should be map-owned");
+        assert_eq!(
+            summoned.world().position(),
+            near_target_position,
+            "C++ TARGET_DEST_NEARBY_ENTRY uses SearchNearbyTarget and SpellDestination(*target)"
+        );
+        assert_ne!(summoned.world().position(), player_position);
+        assert_ne!(summoned.world().position(), far_target_position);
+        assert_ne!(summoned.world().position(), wrong_entry_position);
+        drop(manager);
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert!(
+            update_object_packet_count_like_cpp(&packets) >= 1,
+            "nearby-entry destination summon should trigger represented visibility create/update delivery"
         );
     }
 
@@ -54498,6 +54620,7 @@ mod tests {
                 ai.wander_delay_ms = 0;
                 ai.move_start_ms = 0;
                 ai.wander_radius = 3.0;
+                creature.seed_runtime_rng_like_cpp(0x5757);
             })
             .unwrap();
 
@@ -81486,6 +81609,7 @@ mod tests {
                 ai.wander_delay_ms = 0;
                 ai.move_start_ms = 0;
                 ai.wander_radius = 3.0;
+                creature.seed_runtime_rng_like_cpp(0x5757);
                 creature
                     .creature
                     .unit_mut()

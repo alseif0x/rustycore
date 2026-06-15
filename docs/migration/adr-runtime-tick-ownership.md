@@ -1868,6 +1868,23 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   condition evaluation before accepting the nearest passing target. Remaining boundary: no full
   `SpellInfo::CheckTarget`, LOS/phase/full grid visitor parity, non-creature/gameobject searches,
   script target hooks, unsupported condition runtime state, or live client/bot validation.
+- 2026-06-15 — WotLK represented `TARGET_DEST_NEARBY_ENTRY` destination search
+  `#NEXT.RUNTIME.L3.031j34`: contrasted the focus-destination target family, `SpellDestination`
+  construction, nearby-entry target selection, and target ids 46/107/142 against C++. Rust now
+  applies the represented nearby-entry destination search to targets 46/107 as well as `_OR_DB`,
+  keeps DB `spell_target_position` lookup restricted to `_OR_DB` with no implicit conditions, and
+  preserves the C++ behavior where non-OR_DB nearby-entry targets do not fall back to the caster
+  when no represented nearby target is found. Remaining boundary: no full bad-target cast-failure
+  packet, full `SpellInfo::CheckTarget`, LOS/phase/grid visitor parity, non-creature/gameobject
+  searches, script target hooks, or live client/bot validation.
+- 2026-06-15 — C++-verified creature movement suite repair `#NEXT.RUNTIME.L3.031j35`: contrasted
+  waypoint path-end `MoveRandom` handoff and random movement reference-position use against C++.
+  Rust now materializes the final represented move-spline AI position even when the spline is
+  already finalized before cleanup, so the subsequent random movement handoff uses the reached
+  owner position instead of stale state. The affected represented wander tests now seed runtime RNG
+  explicitly. Validation: focused movement tests and `wow-world --lib --test-threads=1` are green
+  at 1981/0. Remaining boundary: no full movement/pathing/MMAP parity audit or live client/bot
+  validation.
 
 ## References
 

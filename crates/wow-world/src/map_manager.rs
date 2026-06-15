@@ -1684,15 +1684,16 @@ impl WorldCreature {
             if diff_ms > 0 {
                 spline.update_state(diff_ms);
             }
-            if let Some(pos) = spline.compute_position() {
-                self.creature.set_ai_position(pos);
-            }
             let progress_ms = spline.time_passed_ms().max(0) as u32;
             self.creature
                 .unit_mut()
                 .subsystems_mut()
                 .motion
                 .set_spline_progress(progress_ms);
+        }
+
+        if let Some(pos) = spline.compute_position() {
+            self.creature.set_ai_position(pos);
         }
 
         let finalized = spline.finalized();

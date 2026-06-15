@@ -1,3 +1,37 @@
+- `#NEXT.RUNTIME.L3.031j35` — C++-verified creature movement suite repair after broad validation.
+  Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Movement/MovementGenerators/WaypointMovementGenerator.cpp:288-304`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Movement/MotionMaster.cpp:599-604`, and
+  `/home/server/woltk-trinity-legacy/src/server/game/Movement/MovementGenerators/RandomMovementGenerator.cpp:113-145`.
+  Acceptance: a finalized represented move spline now still materializes its final AI position
+  before cleanup, so waypoint-end `MoveRandom` handoff starts from the owner's reached endpoint
+  rather than a stale pre-final position. The two represented wander tests that assert a movement
+  packet now seed the creature runtime RNG explicitly, matching the existing deterministic movement
+  coverage style instead of depending on entropy. Validation: focused movement tests passed and
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world --lib -- --test-threads=1`
+  is green at 1981/0. Boundary remains partial: no full movement rewrite, no terrain/pathing/MMAP
+  parity audit, no install/restart, bot, or live-client/manual validation.
+- `#NEXT.RUNTIME.L3.031j34` — WotLK represented `TARGET_DEST_NEARBY_ENTRY` destination search for
+  summon GameObject spells (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/Spell.cpp:1132-1208`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/Spell.cpp:1215-1285`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/Spell.cpp:2108-2190`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/Spell.cpp:9070-9085`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellInfo.cpp` target metadata for
+  `TARGET_DEST_NEARBY_ENTRY`, `TARGET_DEST_NEARBY_ENTRY_2`, and
+  `TARGET_DEST_NEARBY_ENTRY_OR_DB`, and
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h`.
+  Acceptance: Rust now routes the represented nearby-entry destination helper through the whole
+  focus-destination family instead of only `_OR_DB`, while preserving the C++ split where the DB
+  `spell_target_position` branch belongs only to `_OR_DB` with no implicit conditions. For targets
+  46/107, Rust searches represented canonical creatures/gameobjects for the nearest matching
+  `EffectMiscValue1` entry and returns no represented destination when no target is found instead of
+  falling back to the caster. Coverage proves a `TARGET_DEST_NEARBY_ENTRY` summon GameObject spell
+  uses the nearest same-entry represented creature rather than the caster, a farther same-entry
+  creature, or a nearer wrong-entry creature. Boundary remains partial: no full bad-implicit-target
+  cast-failure/error packet, no full `SpellInfo::CheckTarget`, no LOS/phase/full grid visitor
+  parity, no player/corpse/dynamic-object search, no script target hooks, and no install/restart,
+  bot, or live-client/manual validation.
 - `#NEXT.RUNTIME.L3.031j33` — WotLK represented `_OR_DB` nearby-entry implicit-condition filtering
   for summon GameObject spells (not manual-test-ready). Source-of-truth:
   `/home/server/woltk-trinity-legacy/src/server/game/Spells/Spell.cpp:1132-1208`,
