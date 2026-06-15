@@ -6075,6 +6075,52 @@ impl ClientPacket for CalendarInvite {
     }
 }
 
+/// C++ `WorldPackets::Calendar::CalendarUpdateEvent`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CalendarUpdateEvent {
+    pub club_id: u64,
+    pub event_id: u64,
+    pub moderator_id: u64,
+    pub event_type: u8,
+    pub texture_id: u32,
+    pub time_packed: u32,
+    pub flags: u32,
+    pub title: String,
+    pub description: String,
+    pub max_size: u32,
+}
+
+impl ClientPacket for CalendarUpdateEvent {
+    const OPCODE: ClientOpcodes = ClientOpcodes::CalendarUpdateEvent;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let club_id = pkt.read_uint64()?;
+        let event_id = pkt.read_uint64()?;
+        let moderator_id = pkt.read_uint64()?;
+        let event_type = pkt.read_uint8()?;
+        let texture_id = pkt.read_uint32()?;
+        let time_packed = pkt.read_uint32()?;
+        let flags = pkt.read_uint32()?;
+        let title_len = pkt.read_bits(8)? as usize;
+        let description_len = pkt.read_bits(11)? as usize;
+        let title = pkt.read_string(title_len)?;
+        let description = pkt.read_string(description_len)?;
+        let max_size = pkt.read_uint32()?;
+        Ok(Self {
+            club_id,
+            event_id,
+            moderator_id,
+            event_type,
+            texture_id,
+            time_packed,
+            flags,
+            title,
+            description,
+            max_size,
+        })
+    }
+}
+
 /// C++ `WorldPackets::Calendar::CalendarGetEvent`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CalendarGetEvent {
@@ -8056,6 +8102,36 @@ mod tests {
         assert!(!query.creating);
         assert!(query.is_sign_up);
         assert_eq!(query.name, "Test");
+    }
+
+    #[test]
+    fn calendar_update_event_reads_cpp_field_order() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint64(0x1111_2222_3333_4444);
+        pkt.write_uint64(0x5555_6666_7777_8888);
+        pkt.write_uint64(0x9999_AAAA_BBBB_CCCC);
+        pkt.write_uint8(7);
+        pkt.write_uint32(0x0102_0304);
+        pkt.write_uint32(0x0506_0708);
+        pkt.write_uint32(0x090A_0B0C);
+        pkt.write_bits(5, 8);
+        pkt.write_bits(4, 11);
+        pkt.flush_bits();
+        pkt.write_string("Title");
+        pkt.write_string("Desc");
+        pkt.write_uint32(99);
+
+        let query = CalendarUpdateEvent::read(&mut pkt).unwrap();
+        assert_eq!(query.club_id, 0x1111_2222_3333_4444);
+        assert_eq!(query.event_id, 0x5555_6666_7777_8888);
+        assert_eq!(query.moderator_id, 0x9999_AAAA_BBBB_CCCC);
+        assert_eq!(query.event_type, 7);
+        assert_eq!(query.texture_id, 0x0102_0304);
+        assert_eq!(query.time_packed, 0x0506_0708);
+        assert_eq!(query.flags, 0x090A_0B0C);
+        assert_eq!(query.title, "Title");
+        assert_eq!(query.description, "Desc");
+        assert_eq!(query.max_size, 99);
     }
 
     #[test]

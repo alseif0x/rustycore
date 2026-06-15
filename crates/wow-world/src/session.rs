@@ -20394,6 +20394,12 @@ impl WorldSession {
                     Err(e) => warn!("Failed to read CalendarInvite: {e}"),
                 }
             }
+            ClientOpcodes::CalendarUpdateEvent => {
+                match wow_packet::packets::misc::CalendarUpdateEvent::read(&mut pkt) {
+                    Ok(query) => self.handle_calendar_update_event(query).await,
+                    Err(e) => warn!("Failed to read CalendarUpdateEvent: {e}"),
+                }
+            }
             ClientOpcodes::CalendarRsvp => {
                 match wow_packet::packets::misc::CalendarRsvp::read(&mut pkt) {
                     Ok(query) => self.handle_calendar_rsvp(query).await,
