@@ -20334,6 +20334,12 @@ impl WorldSession {
             ClientOpcodes::CalendarGet => {
                 self.handle_calendar_get(pkt).await;
             }
+            ClientOpcodes::CalendarGetEvent => {
+                match wow_packet::packets::misc::CalendarGetEvent::read(&mut pkt) {
+                    Ok(query) => self.handle_calendar_get_event(query).await,
+                    Err(e) => warn!("Failed to read CalendarGetEvent: {e}"),
+                }
+            }
             ClientOpcodes::CloseInteraction => {
                 self.handle_close_interaction(pkt).await;
             }

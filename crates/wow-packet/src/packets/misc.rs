@@ -6020,6 +6020,55 @@ impl ServerPacket for CalendarSendCalendar {
     }
 }
 
+/// C++ `WorldPackets::Calendar::CalendarGetEvent`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CalendarGetEvent {
+    pub event_id: u64,
+}
+
+impl ClientPacket for CalendarGetEvent {
+    const OPCODE: ClientOpcodes = ClientOpcodes::CalendarGetEvent;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            event_id: pkt.read_uint64()?,
+        })
+    }
+}
+
+/// C++ `WorldPackets::Calendar::CalendarCommandResult`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CalendarCommandResult {
+    pub command: u8,
+    pub result: u8,
+    pub name: String,
+}
+
+impl CalendarCommandResult {
+    pub const COMMAND_LIKE_CPP: u8 = 1;
+    pub const ERROR_EVENT_INVALID_LIKE_CPP: u8 = 6;
+
+    pub fn event_invalid_like_cpp() -> Self {
+        Self {
+            command: Self::COMMAND_LIKE_CPP,
+            result: Self::ERROR_EVENT_INVALID_LIKE_CPP,
+            name: String::new(),
+        }
+    }
+}
+
+impl ServerPacket for CalendarCommandResult {
+    const OPCODE: ServerOpcodes = ServerOpcodes::CalendarCommandResult;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_uint8(self.command);
+        pkt.write_uint8(self.result);
+        pkt.write_bits(self.name.len() as u32, 9);
+        pkt.flush_bits();
+        pkt.write_string(&self.name);
+    }
+}
+
 /// C++ `WorldPackets::Calendar::CalendarComplain`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CalendarComplain {
@@ -7681,6 +7730,30 @@ mod tests {
         assert_eq!(pkt.read_uint32().unwrap(), 0); // Invites.Count
         assert_eq!(pkt.read_uint32().unwrap(), 0); // Events.Count
         assert_eq!(pkt.read_uint32().unwrap(), 0); // RaidLockouts.Count
+    }
+
+    #[test]
+    fn calendar_get_event_reads_cpp_event_id() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint64(0x0102_0304_0506_0708);
+
+        let query = CalendarGetEvent::read(&mut pkt).unwrap();
+        assert_eq!(query.event_id, 0x0102_0304_0506_0708);
+    }
+
+    #[test]
+    fn calendar_command_result_event_invalid_matches_cpp_shape() {
+        let bytes = CalendarCommandResult::event_invalid_like_cpp().to_bytes();
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::CalendarCommandResult as u16
+        );
+        assert_eq!(bytes.len(), 2 + 4);
+
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_uint8().unwrap(), 1);
+        assert_eq!(pkt.read_uint8().unwrap(), 6);
+        assert_eq!(pkt.read_bits(9).unwrap(), 0);
     }
 
     #[test]
