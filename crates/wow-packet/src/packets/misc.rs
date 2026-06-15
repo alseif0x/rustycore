@@ -2550,6 +2550,24 @@ impl ClientPacket for AssignEquipmentSetSpec {
     }
 }
 
+// ── DeleteEquipmentSet (CMSG 0x350a) ─────────────────────────────────
+
+/// C++ `WorldPackets::EquipmentSet::DeleteEquipmentSet`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DeleteEquipmentSet {
+    pub id: u64,
+}
+
+impl ClientPacket for DeleteEquipmentSet {
+    const OPCODE: ClientOpcodes = ClientOpcodes::DeleteEquipmentSet;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            id: pkt.read_uint64()?,
+        })
+    }
+}
+
 // ── AllAccountCriteria (SMSG 0x2571) ─────────────────────────────────
 
 /// Account-wide achievement criteria. Empty for fresh accounts.
@@ -6433,6 +6451,18 @@ mod tests {
 
         assert_eq!(parsed.set_id, 7);
         assert_eq!(parsed.spec_index, 2);
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn delete_equipment_set_reads_cpp_uint64_id() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint64(0x0102_0304_0506_0708);
+        pkt.reset_read();
+
+        let parsed = DeleteEquipmentSet::read(&mut pkt).unwrap();
+
+        assert_eq!(parsed.id, 0x0102_0304_0506_0708);
         assert_eq!(pkt.remaining(), 0);
     }
 

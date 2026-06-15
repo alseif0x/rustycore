@@ -1,3 +1,11 @@
+- `#NEXT.R8.ENTITIES.917` — represented-partial implementation for `CMSG_DELETE_EQUIPMENT_SET`.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CharacterHandler.cpp:1962-1965` (`WorldSession::HandleDeleteEquipmentSet`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/EquipmentSetPackets.h:71-78` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/EquipmentSetPackets.cpp:107-110` (`DeleteEquipmentSet::Read`); `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:26547-26560` (`Player::DeleteEquipmentSet`); `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:26432-26523` (`Player::_SaveEquipmentSets`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:416`.
+
+Implemented Rust seam: `DeleteEquipmentSet` parses the C++ `uint64 ID`, registers `LoggedIn`/`ThreadUnsafe` dispatch, routes through `WorldSession`, and mutates represented `_equipmentSets`: missing IDs return silently, `NEW` sets are removed immediately, and existing sets are marked `DELETED` for later save/delete processing. Like C++, Rust sends no immediate response.
+
+Boundaries: represented-partial only. Rust does not yet implement full equipment-set save/load persistence, `CHAR_DEL_EQUIP_SET` / `CHAR_DEL_TRANSMOG_OUTFIT` transaction execution during player save, `CMSG_SAVE_EQUIPMENT_SET`, `CMSG_USE_EQUIPMENT_SET`, install/restart, bot, or live-client/manual validation.
+
 - `#NEXT.R8.ENTITIES.916` — represented-partial implementation for `CMSG_ASSIGN_EQUIPMENT_SET_SPEC`.
 
 C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CharacterHandler.cpp:2024-2027` (`WorldSession::HandleAssignEquipmentSetSpec`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/EquipmentSetPackets.h:60-68` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/EquipmentSetPackets.cpp:101-105` (`AssignEquipmentSetSpec::Read`); `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/EquipmentSet.h:26-69`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:26415-26431` (`Player::AssignEquipmentSetToSpec`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:70` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:170`.

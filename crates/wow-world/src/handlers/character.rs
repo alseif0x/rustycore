@@ -182,6 +182,15 @@ inventory::submit! {
     }
 }
 
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::DeleteEquipmentSet,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_delete_equipment_set",
+    }
+}
+
 // ── Stub registrations for character-select opcodes ──────────────────
 
 inventory::submit! {
@@ -2248,6 +2257,23 @@ impl WorldSession {
 
         let _assigned = self
             .assign_represented_equipment_set_to_spec_like_cpp(request.set_id, request.spec_index);
+    }
+
+    /// Handle CMSG_DELETE_EQUIPMENT_SET.
+    ///
+    /// C++ marks existing equipment/transmog sets as deleted unless the set was
+    /// still new in memory, in which case it removes it immediately. The DB
+    /// delete happens later in `_SaveEquipmentSets`.
+    pub async fn handle_delete_equipment_set(&mut self, mut pkt: WorldPacket) {
+        let request = match DeleteEquipmentSet::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!("Bad DeleteEquipmentSet: {error}");
+                return;
+            }
+        };
+
+        let _deleted = self.delete_represented_equipment_set_like_cpp(request.id);
     }
 
     /// Handle CMSG_DB_QUERY_BULK — client requests DB2 records.
@@ -10376,6 +10402,12 @@ mod tests {
         pkt
     }
 
+    fn delete_equipment_set_packet(id: u64) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint64(id);
+        pkt
+    }
+
     #[tokio::test]
     async fn alter_appearance_without_barber_chair_sends_not_on_chair_like_cpp() {
         let (mut session, send_rx) = make_session_with_send_capacity(4);
@@ -10522,6 +10554,61 @@ mod tests {
                 .assigned_spec_index,
             -1
         );
+    }
+
+    #[tokio::test]
+    async fn delete_equipment_set_marks_existing_set_deleted_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        session.insert_represented_equipment_set_like_cpp(
+            100,
+            crate::session::RepresentedEquipmentSetLikeCpp::equipment(
+                7,
+                -1,
+                crate::session::RepresentedEquipmentSetUpdateStateLikeCpp::Unchanged,
+            ),
+        );
+
+        session
+            .handle_delete_equipment_set(delete_equipment_set_packet(100))
+            .await;
+
+        let equipment_set = session.represented_equipment_set_like_cpp(100).unwrap();
+        assert_eq!(
+            equipment_set.state,
+            crate::session::RepresentedEquipmentSetUpdateStateLikeCpp::Deleted
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn delete_equipment_set_removes_new_set_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        session.insert_represented_equipment_set_like_cpp(
+            100,
+            crate::session::RepresentedEquipmentSetLikeCpp::equipment(
+                7,
+                -1,
+                crate::session::RepresentedEquipmentSetUpdateStateLikeCpp::New,
+            ),
+        );
+
+        session
+            .handle_delete_equipment_set(delete_equipment_set_packet(100))
+            .await;
+
+        assert!(session.represented_equipment_set_like_cpp(100).is_none());
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn delete_equipment_set_missing_id_is_silent_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+
+        session
+            .handle_delete_equipment_set(delete_equipment_set_packet(404))
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
     }
 
     #[tokio::test]

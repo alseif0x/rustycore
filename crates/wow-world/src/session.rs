@@ -4561,6 +4561,19 @@ impl WorldSession {
         true
     }
 
+    pub(crate) fn delete_represented_equipment_set_like_cpp(&mut self, id: u64) -> bool {
+        let Some(equipment_set) = self.represented_equipment_sets_like_cpp.get_mut(&id) else {
+            return false;
+        };
+
+        if equipment_set.state == RepresentedEquipmentSetUpdateStateLikeCpp::New {
+            self.represented_equipment_sets_like_cpp.remove(&id);
+        } else {
+            equipment_set.state = RepresentedEquipmentSetUpdateStateLikeCpp::Deleted;
+        }
+        true
+    }
+
     pub(crate) fn represented_money_loot_with_rate_like_cpp(
         &mut self,
         min_amount: u32,
@@ -18050,6 +18063,9 @@ impl WorldSession {
             }
             ClientOpcodes::AssignEquipmentSetSpec => {
                 self.handle_assign_equipment_set_spec(pkt).await;
+            }
+            ClientOpcodes::DeleteEquipmentSet => {
+                self.handle_delete_equipment_set(pkt).await;
             }
             ClientOpcodes::AdventureMapStartQuest => {
                 self.handle_adventure_map_start_quest(pkt).await;
