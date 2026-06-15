@@ -5128,6 +5128,24 @@ impl ClientPacket for BattlemasterJoin {
     }
 }
 
+/// C++ `WorldPackets::Battleground::BattlemasterJoinArena`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct BattlemasterJoinArena {
+    pub team_size_index: u8,
+    pub roles: u8,
+}
+
+impl ClientPacket for BattlemasterJoinArena {
+    const OPCODE: ClientOpcodes = ClientOpcodes::BattlemasterJoinArena;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            team_size_index: pkt.read_uint8()?,
+            roles: pkt.read_uint8()?,
+        })
+    }
+}
+
 /// C++ `WorldPackets::Battleground::AcceptWargameInvite`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AcceptWargameInvite {
@@ -10811,6 +10829,20 @@ mod tests {
         );
         assert_eq!(parsed.roles, 0x07);
         assert_eq!(parsed.blacklist_map, [10, -1]);
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn battlemaster_join_arena_reads_team_size_index_and_roles_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint8(1);
+        pkt.write_uint8(0x07);
+        pkt.reset_read();
+
+        let parsed = BattlemasterJoinArena::read(&mut pkt).unwrap();
+
+        assert_eq!(parsed.team_size_index, 1);
+        assert_eq!(parsed.roles, 0x07);
         assert_eq!(pkt.remaining(), 0);
     }
 

@@ -54,9 +54,9 @@ use wow_packet::packets::misc::{
     AuctionableTokenSellAtMarketPrice, BattlePetClearFanfare, BattlePetDeletePet,
     BattlePetModifyName, BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags,
     BattlePetSummon, BattlePetUpdateNotify, BattlefieldLeave, BattlefieldListRequest,
-    BattlefieldPort, BattlemasterJoin, BeginTrade, BugReport, BusyTrade, CageBattlePet,
-    CalendarAddEvent, CalendarCommandResult, CalendarCommunityInvite, CalendarComplain,
-    CalendarCopyEvent, CalendarEventSignUp, CalendarGetEvent, CalendarInvite,
+    BattlefieldPort, BattlemasterJoin, BattlemasterJoinArena, BeginTrade, BugReport, BusyTrade,
+    CageBattlePet, CalendarAddEvent, CalendarCommandResult, CalendarCommunityInvite,
+    CalendarComplain, CalendarCopyEvent, CalendarEventSignUp, CalendarGetEvent, CalendarInvite,
     CalendarModeratorStatusQuery, CalendarRemoveEvent, CalendarRemoveInvite, CalendarRsvp,
     CalendarSendCalendar, CalendarSendNumPending, CalendarStatus, CalendarUpdateEvent, CanDuel,
     ClearTradeItem, CloseInteraction, CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint,
@@ -875,6 +875,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_battlemaster_join",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::BattlemasterJoinArena,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_battlemaster_join_arena",
     }
 }
 
@@ -3468,6 +3477,27 @@ impl crate::session::WorldSession {
             self.battlemaster_join_like_cpp(&join.queue_ids, join.roles, join.blacklist_map);
     }
 
+    /// CMSG_BATTLEMASTER_JOIN_ARENA — player asks to join a rated arena queue.
+    /// C++ ref: `WorldSession::HandleBattlemasterJoinArena`.
+    pub async fn handle_battlemaster_join_arena(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let join = match BattlemasterJoinArena::read(&mut pkt) {
+            Ok(join) => join,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "BattlemasterJoinArena parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        // C++ gates on already-in-BG, the all-arenas template, disabled arena,
+        // group and leader before entering ArenaTeamMgr/queue code. Rust records
+        // the bounded queue intent after those representable gates until the
+        // live rated-arena manager is ported.
+        let _accepted = self.battlemaster_join_arena_like_cpp(join.team_size_index, join.roles);
+    }
+
     /// CMSG_BATTLEFIELD_PORT — player accepts an invite or leaves a BG queue slot.
     /// C++ ref: `WorldSession::HandleBattleFieldPortOpcode`.
     pub async fn handle_battlefield_port(&mut self, mut pkt: wow_packet::WorldPacket) {
@@ -5877,6 +5907,14 @@ mod tests {
         for queue_id in queue_ids {
             pkt.write_uint64(*queue_id);
         }
+        pkt.reset_read();
+        pkt
+    }
+
+    fn battlemaster_join_arena_packet(team_size_index: u8, roles: u8) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint8(team_size_index);
+        pkt.write_uint8(roles);
         pkt.reset_read();
         pkt
     }
@@ -13323,6 +13361,163 @@ mod tests {
                 },
                 roles: 0x07,
                 blacklist_map: [10, -1],
+            }]
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn battlemaster_join_arena_missing_disabled_or_invalid_gates_are_silent_like_cpp() {
+        let (mut missing_template_session, missing_rx) = make_session();
+        missing_template_session
+            .handle_battlemaster_join_arena(battlemaster_join_arena_packet(1, 0x07))
+            .await;
+        assert!(
+            missing_template_session
+                .represented_battlemaster_join_arenas_like_cpp()
+                .is_empty()
+        );
+        assert!(missing_rx.try_recv().is_err());
+
+        let (mut invalid_slot_session, invalid_slot_rx) = make_session();
+        invalid_slot_session.set_battlemaster_list_store(Arc::new(
+            wow_data::BattlemasterListStore::from_entries([battlemaster_entry_like_cpp(
+                wow_data::BATTLEGROUND_AA_LIKE_CPP,
+                wow_data::MAP_ARENA_LIKE_CPP,
+                0,
+            )]),
+        ));
+        invalid_slot_session
+            .handle_battlemaster_join_arena(battlemaster_join_arena_packet(3, 0x07))
+            .await;
+        assert!(
+            invalid_slot_session
+                .represented_battlemaster_join_arenas_like_cpp()
+                .is_empty()
+        );
+        assert!(invalid_slot_rx.try_recv().is_err());
+
+        let (disable_mgr, report) = wow_data::DisableMgrLikeCpp::from_rows_like_cpp(
+            [wow_data::DisableDbRowLikeCpp {
+                source_type: wow_data::DISABLE_TYPE_BATTLEGROUND,
+                entry: wow_data::BATTLEGROUND_AA_LIKE_CPP,
+                flags: 0,
+                params_0: String::new(),
+                params_1: String::new(),
+            }],
+            wow_data::DisableMgrRefsLikeCpp::default(),
+        );
+        assert_eq!(report.loaded_count, 1);
+        let (mut disabled_session, disabled_rx) = make_session();
+        disabled_session.set_battlemaster_list_store(Arc::new(
+            wow_data::BattlemasterListStore::from_entries([battlemaster_entry_like_cpp(
+                wow_data::BATTLEGROUND_AA_LIKE_CPP,
+                wow_data::MAP_ARENA_LIKE_CPP,
+                0,
+            )]),
+        ));
+        disabled_session.set_disable_mgr(Arc::new(disable_mgr));
+        disabled_session
+            .handle_battlemaster_join_arena(battlemaster_join_arena_packet(1, 0x07))
+            .await;
+        assert!(
+            disabled_session
+                .represented_battlemaster_join_arenas_like_cpp()
+                .is_empty()
+        );
+        assert!(disabled_rx.try_recv().is_err());
+
+        let (mut in_bg_session, in_bg_rx) = make_session();
+        in_bg_session.set_battlemaster_list_store(Arc::new(
+            wow_data::BattlemasterListStore::from_entries([battlemaster_entry_like_cpp(
+                wow_data::BATTLEGROUND_AA_LIKE_CPP,
+                wow_data::MAP_ARENA_LIKE_CPP,
+                0,
+            )]),
+        ));
+        in_bg_session.set_player_battleground_type_id_like_cpp(wow_data::BATTLEGROUND_AA_LIKE_CPP);
+        in_bg_session
+            .handle_battlemaster_join_arena(battlemaster_join_arena_packet(1, 0x07))
+            .await;
+        assert!(
+            in_bg_session
+                .represented_battlemaster_join_arenas_like_cpp()
+                .is_empty()
+        );
+        assert!(in_bg_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn battlemaster_join_arena_requires_group_leader_like_cpp() {
+        let player = ObjectGuid::create_player(1, 42);
+        let leader = ObjectGuid::create_player(1, 99);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        let group_guid = group.group_guid;
+        group.members.push(player);
+        group_registry.insert(group_guid, group);
+
+        let (mut session, send_rx) = make_session();
+        session.set_player_guid(Some(player));
+        session.group_guid = Some(group_guid);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+        session.set_battlemaster_list_store(Arc::new(
+            wow_data::BattlemasterListStore::from_entries([battlemaster_entry_like_cpp(
+                wow_data::BATTLEGROUND_AA_LIKE_CPP,
+                wow_data::MAP_ARENA_LIKE_CPP,
+                0,
+            )]),
+        ));
+
+        session
+            .handle_battlemaster_join_arena(battlemaster_join_arena_packet(1, 0x07))
+            .await;
+
+        assert!(
+            session
+                .represented_battlemaster_join_arenas_like_cpp()
+                .is_empty()
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn battlemaster_join_arena_records_represented_rated_queue_intent_like_cpp() {
+        let player = ObjectGuid::create_player(1, 42);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let group = GroupInfo::new(player);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        let (mut session, send_rx) = make_session();
+        session.set_player_guid(Some(player));
+        session.group_guid = Some(group_guid);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+        session.set_battlemaster_list_store(Arc::new(
+            wow_data::BattlemasterListStore::from_entries([battlemaster_entry_like_cpp(
+                wow_data::BATTLEGROUND_AA_LIKE_CPP,
+                wow_data::MAP_ARENA_LIKE_CPP,
+                0,
+            )]),
+        ));
+
+        session
+            .handle_battlemaster_join_arena(battlemaster_join_arena_packet(1, 0x07))
+            .await;
+
+        assert_eq!(
+            session.represented_battlemaster_join_arenas_like_cpp(),
+            &[crate::session::RepresentedBattlemasterJoinArenaLikeCpp {
+                team_size_index: 1,
+                roles: 0x07,
+                arena_type: 3,
+                group_guid,
+                queue_type_id: crate::session::RepresentedBattlegroundQueueTypeIdLikeCpp {
+                    battlemaster_list_id: wow_data::BATTLEGROUND_AA_LIKE_CPP as u16,
+                    queue_type: 1,
+                    rated: true,
+                    team_size: 3,
+                },
             }]
         );
         assert!(send_rx.try_recv().is_err());
