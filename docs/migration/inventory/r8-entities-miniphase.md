@@ -1,3 +1,13 @@
+# `#NEXT.R8.ENTITIES.939` — represented-partial `ResetInstances(OnChangeDifficulty)` for difficulty changes.
+
+Source-of-truth C++: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:896-913` (`WorldSession::HandleResetInstancesOpcode`), `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:1046-1125` (`WorldSession::HandleSetDifficultyId`), `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:20673-20705` (`Player::ResetInstances`), and `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp:1354-1378` (`Group::ResetInstances`).
+
+Implemented Rust seam: `CMSG_SET_DIFFICULTY_ID` now computes the represented reset owner before mutating difficulty and runs the shared represented instance-lock reset path with method `OnChangeDifficulty`. Reset success packets are sent before the solo/group difficulty packet, while `InstanceResetFailed` is suppressed for the difficulty-change branch like C++ `NotEmpty` handling. The manual `CMSG_RESET_INSTANCES` path now also rejects represented LFG groups like C++ `group->isLFGGroup()`.
+
+Tests/checks: `cargo fmt --all --check`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world set_difficulty_id_ --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world reset_instances_ --lib`.
+
+Boundaries: represented-partial only. This reuses Rust's existing `InstanceLockMgr` lock reset abstraction; it still does not model live `InstanceMap::Reset`, full `m_recentInstances` erase semantics, group `m_ownedInstancesMgr`, `CannotReset` retry details, exact DB rollback/transaction coupling between reset and difficulty persistence, install/restart, bot, or live-client/manual validation.
+
 # `#NEXT.R8.ENTITIES.938` — represented-partial implementation for group-owned `CMSG_SET_DIFFICULTY_ID`.
 
 Source-of-truth C++: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:1046-1125`, `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp:1266-1338`, `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp:1594-1597`, and `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/CharacterDatabase.cpp:460-462`.

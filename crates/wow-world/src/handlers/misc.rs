@@ -86,6 +86,12 @@ use crate::session::{
     TRADE_STATUS_PLAYER_BUSY_LIKE_CPP,
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RepresentedInstanceResetMethodLikeCpp {
+    Manual,
+    OnChangeDifficulty,
+}
+
 // ── inventory registrations ───────────────────────────────────────────────────
 
 inventory::submit! {
@@ -2564,6 +2570,16 @@ impl crate::session::WorldSession {
             }
         };
 
+        let reset_owner =
+            self.represented_set_difficulty_reset_owner_like_cpp(packet.difficulty_id);
+        if let Some(reset_owner) = reset_owner {
+            self.reset_represented_instances_like_cpp(
+                reset_owner,
+                RepresentedInstanceResetMethodLikeCpp::OnChangeDifficulty,
+            )
+            .await;
+        }
+
         let statements = self.represented_set_difficulty_id_like_cpp(packet.difficulty_id);
         if statements.is_empty() {
             return;
@@ -3813,20 +3829,36 @@ impl crate::session::WorldSession {
             if group.leader_guid != player_guid {
                 return;
             }
+            if group.is_lfg_group_like_cpp() {
+                return;
+            }
             group.leader_guid
         } else {
             player_guid
         };
 
+        let _ = self
+            .reset_represented_instances_like_cpp(
+                reset_owner_guid,
+                RepresentedInstanceResetMethodLikeCpp::Manual,
+            )
+            .await;
+    }
+
+    async fn reset_represented_instances_like_cpp(
+        &mut self,
+        reset_owner_guid: ObjectGuid,
+        method: RepresentedInstanceResetMethodLikeCpp,
+    ) -> bool {
         let Some(instance_lock_mgr) = self.instance_lock_mgr.as_ref().cloned() else {
-            return;
+            return false;
         };
 
         let mut tx = SqlTransaction::new();
         let reset_result = {
             let mut mgr = match instance_lock_mgr.write() {
                 Ok(mgr) => mgr,
-                Err(_) => return,
+                Err(_) => return false,
             };
             let entries_by_key = mgr
                 .player_lock_map_difficulties(reset_owner_guid)
@@ -3872,9 +3904,9 @@ impl crate::session::WorldSession {
                     account = self.account_id,
                     player_guid = ?reset_owner_guid,
                     error = ?err,
-                    "failed to commit CMSG_RESET_INSTANCES lock reset transaction"
+                    "failed to commit represented instance lock reset transaction"
                 );
-                return;
+                return false;
             }
         }
 
@@ -3884,12 +3916,16 @@ impl crate::session::WorldSession {
             });
         }
 
-        for lock in reset_result.failed_to_reset {
-            self.send_packet(&InstanceResetFailed {
-                map_id: lock.map_id,
-                reset_failed_reason: 0,
-            });
+        if method == RepresentedInstanceResetMethodLikeCpp::Manual {
+            for lock in reset_result.failed_to_reset {
+                self.send_packet(&InstanceResetFailed {
+                    map_id: lock.map_id,
+                    reset_failed_reason: 0,
+                });
+            }
         }
+
+        true
     }
 
     /// C++ `WorldSession::HandleInstanceLockResponse`.
@@ -7407,6 +7443,97 @@ mod tests {
             Some(ServerOpcodes::SetDungeonDifficulty)
         );
         assert_eq!(i32::from_le_bytes([sent[2], sent[3], sent[4], sent[5]]), 2);
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn set_difficulty_id_resets_instances_before_solo_dungeon_packet_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let entries = wow_instances::MapDb2Entries {
+            map_id: 631,
+            difficulty_id: 4,
+            lock_id: 10,
+            reset_interval: wow_instances::MapDifficultyResetInterval::Weekly,
+            is_flex_locking: true,
+            is_using_encounter_locks: false,
+        };
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let mut mgr = wow_instances::InstanceLockMgr::default();
+        mgr.update_instance_lock_for_player_at(
+            player_guid,
+            &entries,
+            wow_instances::InstanceLockUpdateEvent {
+                instance_id: 100,
+                new_data: String::new(),
+                instance_completed_encounters_mask: 0,
+                completed_encounter_bit: None,
+                entrance_world_safe_loc_id: None,
+            },
+            wow_instances::ResetSchedule::default(),
+            now,
+        );
+
+        session.set_player_guid(Some(player_guid));
+        session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([difficulty_entry(
+            2,
+            1,
+            DifficultyFlags::CAN_SELECT,
+        )])));
+        session.set_player_map_position_like_cpp(0, Position::ZERO);
+        session.set_map_store(Arc::new(MapStore::from_entries([
+            MapEntry {
+                id: 0,
+                instance_type: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+            },
+            MapEntry {
+                id: 631,
+                instance_type: 2,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: wow_data::map::MAP_FLAG_FLEXIBLE_RAID_LOCKING,
+            },
+        ])));
+        session.set_map_difficulty_store(Arc::new(MapDifficultyStore::from_entries([
+            MapDifficultyEntry {
+                id: 1,
+                map_id: 631,
+                difficulty_id: 4,
+                lock_id: 10,
+                reset_interval: 2,
+                flags: 0,
+            },
+        ])));
+        let mgr = Arc::new(std::sync::RwLock::new(mgr));
+        session.set_instance_lock_mgr(Arc::clone(&mgr));
+
+        session
+            .handle_set_difficulty_id(set_difficulty_request(2))
+            .await;
+
+        let reset = send_rx.try_recv().expect("instance reset packet");
+        assert_eq!(
+            WorldPacket::from_bytes(&reset).server_opcode(),
+            Some(ServerOpcodes::InstanceReset)
+        );
+        assert_eq!(&reset[2..], &[0x77, 0x02, 0x00, 0x00]);
+        let difficulty = send_rx.try_recv().expect("dungeon difficulty packet");
+        assert_eq!(
+            WorldPacket::from_bytes(&difficulty).server_opcode(),
+            Some(ServerOpcodes::SetDungeonDifficulty)
+        );
+        assert!(
+            mgr.read()
+                .unwrap()
+                .find_active_instance_lock_at(player_guid, &entries, now)
+                .is_none()
+        );
         assert!(send_rx.try_recv().is_err());
     }
 
@@ -11318,6 +11445,88 @@ mod tests {
                 .unwrap()
                 .find_active_instance_lock_at(player_guid, &entries, now)
                 .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn reset_instances_lfg_group_is_silent_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let leader = ObjectGuid::create_player(1, 42);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.group_flags |= GROUP_FLAG_LFG_LIKE_CPP;
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+        let entries = wow_instances::MapDb2Entries {
+            map_id: 631,
+            difficulty_id: 4,
+            lock_id: 10,
+            reset_interval: wow_instances::MapDifficultyResetInterval::Weekly,
+            is_flex_locking: true,
+            is_using_encounter_locks: false,
+        };
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let mut mgr = wow_instances::InstanceLockMgr::default();
+        mgr.update_instance_lock_for_player_at(
+            leader,
+            &entries,
+            wow_instances::InstanceLockUpdateEvent {
+                instance_id: 100,
+                new_data: String::new(),
+                instance_completed_encounters_mask: 0,
+                completed_encounter_bit: None,
+                entrance_world_safe_loc_id: None,
+            },
+            wow_instances::ResetSchedule::default(),
+            now,
+        );
+
+        session.set_player_guid(Some(leader));
+        session.group_guid = Some(group_guid);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+        session.set_player_map_position_like_cpp(0, Position::ZERO);
+        session.set_map_store(Arc::new(MapStore::from_entries([
+            MapEntry {
+                id: 0,
+                instance_type: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+            },
+            MapEntry {
+                id: 631,
+                instance_type: 2,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: wow_data::map::MAP_FLAG_FLEXIBLE_RAID_LOCKING,
+            },
+        ])));
+        session.set_map_difficulty_store(Arc::new(MapDifficultyStore::from_entries([
+            MapDifficultyEntry {
+                id: 1,
+                map_id: 631,
+                difficulty_id: 4,
+                lock_id: 10,
+                reset_interval: 2,
+                flags: 0,
+            },
+        ])));
+        let mgr = Arc::new(std::sync::RwLock::new(mgr));
+        session.set_instance_lock_mgr(Arc::clone(&mgr));
+
+        session
+            .handle_reset_instances(WorldPacket::from_bytes(&[]))
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+        assert!(
+            mgr.read()
+                .unwrap()
+                .find_active_instance_lock_at(leader, &entries, now)
+                .is_some()
         );
     }
 

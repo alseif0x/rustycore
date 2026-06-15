@@ -14474,6 +14474,58 @@ impl WorldSession {
         Some(stmt)
     }
 
+    pub(crate) fn represented_set_difficulty_reset_owner_like_cpp(
+        &self,
+        difficulty_id: u32,
+    ) -> Option<ObjectGuid> {
+        let entry = self
+            .difficulty_store()
+            .and_then(|store| store.get(difficulty_id))
+            .copied()?;
+
+        let flags = DifficultyFlags::from_bits_truncate(entry.flags);
+        if !flags.contains(DifficultyFlags::CAN_SELECT) || self.current_map_instanceable_like_cpp()
+        {
+            return None;
+        }
+
+        let player_guid = self.player_guid()?;
+        if let Some(group_guid) = self.group_guid {
+            let group = self.group_registry.as_ref()?.get(&group_guid)?;
+            if !group.is_leader_like_cpp(player_guid) || group.is_lfg_group_like_cpp() {
+                return None;
+            }
+
+            let current = if entry.instance_type == MAP_INSTANCE_LIKE_CPP {
+                group.dungeon_difficulty_id
+            } else if entry.instance_type == MAP_RAID_LIKE_CPP {
+                if flags.contains(DifficultyFlags::LEGACY) {
+                    group.legacy_raid_difficulty_id
+                } else {
+                    group.raid_difficulty_id
+                }
+            } else {
+                return None;
+            };
+
+            return (current != difficulty_id).then_some(group.leader_guid);
+        }
+
+        let current = if entry.instance_type == MAP_INSTANCE_LIKE_CPP {
+            self.represented_dungeon_difficulty_id_like_cpp
+        } else if entry.instance_type == MAP_RAID_LIKE_CPP {
+            if flags.contains(DifficultyFlags::LEGACY) {
+                self.represented_legacy_raid_difficulty_id_like_cpp
+            } else {
+                self.represented_raid_difficulty_id_like_cpp
+            }
+        } else {
+            return None;
+        };
+
+        (current != difficulty_id).then_some(player_guid)
+    }
+
     /// Set the lock store for this session.
     pub fn set_lock_store(&mut self, store: Arc<LockStore>) {
         self.lock_store = Some(store);
