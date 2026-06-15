@@ -19,6 +19,25 @@ const QUEST_REWARD_REPUTATIONS_COUNT: usize = 5;
 const QUEST_REWARD_CURRENCY_COUNT: usize = 4;
 const QUEST_REWARD_DISPLAY_SPELL_COUNT: usize = 3;
 
+/// Client request to start an Adventure Map quest.
+///
+/// C++ anchor: `WorldPackets::AdventureMap::AdventureMapStartQuest::Read`,
+/// `AdventureMapPackets.cpp:24-27`: exactly one signed `int32 QuestID`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AdventureMapStartQuest {
+    pub quest_id: i32,
+}
+
+impl ClientPacket for AdventureMapStartQuest {
+    const OPCODE: ClientOpcodes = ClientOpcodes::AdventureMapStartQuest;
+
+    fn read(packet: &mut WorldPacket) -> Result<Self, PacketError> {
+        let quest_id = packet.read_int32()?;
+
+        Ok(Self { quest_id })
+    }
+}
+
 /// Client confirmation that accepts a shared quest prompt.
 ///
 /// C++ anchor: `WorldPackets::Quest::QuestConfirmAccept::Read`,
@@ -1044,6 +1063,34 @@ mod tests {
         assert_eq!(&bytes[2..6], &12_345_i32.to_le_bytes());
         assert_eq!(&bytes[6..10], &(-7_i32).to_le_bytes());
         assert_eq!(bytes[10], 14);
+    }
+}
+
+#[cfg(test)]
+mod adventure_map_start_quest_tests {
+    use super::*;
+
+    #[test]
+    fn adventure_map_start_quest_reads_signed_quest_id_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_int32(-123);
+        pkt.reset_read();
+
+        let parsed =
+            AdventureMapStartQuest::read(&mut pkt).expect("valid AdventureMapStartQuest packet");
+
+        assert_eq!(parsed.quest_id, -123);
+        assert_eq!(
+            AdventureMapStartQuest::OPCODE,
+            ClientOpcodes::AdventureMapStartQuest
+        );
+    }
+
+    #[test]
+    fn adventure_map_start_quest_short_packet_fails_closed() {
+        let mut pkt = WorldPacket::from_bytes(&[0x01, 0x02, 0x03]);
+
+        assert!(AdventureMapStartQuest::read(&mut pkt).is_err());
     }
 }
 

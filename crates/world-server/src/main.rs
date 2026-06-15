@@ -1579,6 +1579,14 @@ async fn main() -> Result<ExitCode> {
         wow_data::PlayerConditionStore::load(&data_dir, &locale)
             .context("Failed to load PlayerCondition.db2 — check DataDir and DBC.Locale config")?,
     );
+    let adventure_map_poi_store = Arc::new(
+        wow_data::AdventureMapPoiStore::load(&data_dir, &locale)
+            .context("Failed to load AdventureMapPOI.db2 — check DataDir and DBC.Locale config")?,
+    );
+    info!(
+        "Loaded {} adventure map POIs from AdventureMapPOI.db2",
+        adventure_map_poi_store.len()
+    );
     let content_tuning_store = Arc::new(
         wow_data::progression_rewards::ContentTuningStore::load(&data_dir, &locale)
             .context("Failed to load ContentTuning.db2 — check DataDir and DBC.Locale config")?,
@@ -2582,6 +2590,7 @@ async fn main() -> Result<ExitCode> {
         loot_stores: Some(Arc::clone(&loot_stores)),
         condition_store: Some(Arc::clone(&condition_store)),
         player_condition_store: Some(Arc::clone(&player_condition_store)),
+        adventure_map_poi_store: Some(Arc::clone(&adventure_map_poi_store)),
         content_tuning_store: Some(Arc::clone(&content_tuning_store)),
         disable_mgr: Some(Arc::clone(&disable_mgr)),
         lock_store: Some(Arc::clone(&lock_store)),
@@ -8667,6 +8676,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.player_condition_store {
         session.set_player_condition_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.adventure_map_poi_store {
+        session.set_adventure_map_poi_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.content_tuning_store {
         session.set_content_tuning_store(Arc::clone(store));

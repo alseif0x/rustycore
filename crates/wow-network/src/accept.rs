@@ -210,6 +210,7 @@ pub struct SessionResources {
     pub loot_stores: Option<Arc<wow_loot::LootStores>>,
     pub condition_store: Option<Arc<wow_data::ConditionEntriesByTypeStore>>,
     pub player_condition_store: Option<Arc<wow_data::PlayerConditionStore>>,
+    pub adventure_map_poi_store: Option<Arc<wow_data::AdventureMapPoiStore>>,
     pub content_tuning_store: Option<Arc<wow_data::progression_rewards::ContentTuningStore>>,
     pub progression_faction_store: Option<Arc<wow_data::progression_rewards::FactionStore>>,
     pub faction_template_store: Option<Arc<wow_data::progression_rewards::FactionTemplateStore>>,

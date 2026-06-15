@@ -811,6 +811,19 @@ impl AdventureMapPoiStore {
             }
         })
     }
+
+    /// C++ `sAdventureMapPOIStore` scan used by `HandleAdventureMapStartQuest`.
+    pub fn find_start_quest_poi_like_cpp(
+        &self,
+        quest_id: u32,
+        mut meets_player_condition: impl FnMut(u32) -> bool,
+    ) -> Option<&AdventureMapPoiEntry> {
+        let mut entries: Vec<_> = self.entries.values().collect();
+        entries.sort_by_key(|entry| entry.id);
+        entries.into_iter().find(|entry| {
+            entry.quest_id == quest_id && meets_player_condition(entry.player_condition_id)
+        })
+    }
 }
 
 impl BannedAddonsStore {
@@ -1837,6 +1850,44 @@ impl_from_entries!(TotemCategoryStore, TotemCategoryEntry);
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn adventure_map_poi(id: u32, quest_id: u32, player_condition_id: u32) -> AdventureMapPoiEntry {
+        AdventureMapPoiEntry {
+            id,
+            title: String::new(),
+            description: String::new(),
+            world_position: [0.0, 0.0],
+            poi_type: 0,
+            player_condition_id,
+            quest_id,
+            lfg_dungeon_id: 0,
+            reward_item_id: 0,
+            ui_texture_atlas_member_id: 0,
+            ui_texture_kit_id: 0,
+            map_id: 0,
+            area_table_id: 0,
+        }
+    }
+
+    #[test]
+    fn adventure_map_poi_find_start_quest_matches_quest_and_condition_like_cpp() {
+        let store = AdventureMapPoiStore::from_entries([
+            adventure_map_poi(20, 900, 44),
+            adventure_map_poi(10, 900, 43),
+            adventure_map_poi(30, 901, 43),
+        ]);
+
+        let selected = store
+            .find_start_quest_poi_like_cpp(900, |condition_id| condition_id == 44)
+            .expect("matching adventure map poi");
+
+        assert_eq!(selected.id, 20);
+        assert!(
+            store
+                .find_start_quest_poi_like_cpp(900, |condition_id| condition_id == 99)
+                .is_none()
+        );
+    }
 
     #[test]
     fn load_misc_generated_db2_subbatch_when_fixtures_exist() {

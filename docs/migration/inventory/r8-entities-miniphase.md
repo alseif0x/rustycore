@@ -1,3 +1,11 @@
+- `#NEXT.R8.ENTITIES.908` — represented-partial implementation for `CMSG_ADVENTURE_MAP_START_QUEST`.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/AdventureMapHandler.cpp:24-38` (`WorldSession::HandleAdventureMapStartQuest`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/AdventureMapPackets.h:27-37` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/AdventureMapPackets.cpp:24-27` (`AdventureMapStartQuest::Read`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:58` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:156`.
+
+Implemented Rust seam: `AdventureMapStartQuest` parses the C++ signed `int32 QuestID`; `CMSG_ADVENTURE_MAP_START_QUEST` registers `LoggedIn`/`ThreadUnsafe` dispatch and routes through `WorldSession`; `AdventureMapPOI.db2` is loaded and injected into sessions; the handler applies the C++ silent-return gates for quest-template lookup, `sAdventureMapPOIStore` `QuestID` match plus represented `PlayerCondition`, and represented `CanTakeQuest`, then records the accepted Adventure Map quest-start request.
+
+Boundaries: represented-partial only. Rust does not yet call live `AddQuestAndCheckCompletion`, mutate quest log state, run objective/reward/autocomplete side effects, persist quest state, emit follow-up reward/objective packets, install/restart, bot, or live-client/manual validation.
+
 - `#NEXT.R8.ENTITIES.907` — represented-partial implementation for `CMSG_ALTER_APPEARANCE`.
 
 C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CharacterHandler.cpp:1685-1767` (`WorldSession::HandleAlterAppearance`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/CharacterPackets.h:647-684` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/CharacterPackets.cpp:28-55,584-617` (`AlterApperance::Read`, customization sorting, `BarberShopResult::Write`); `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:25434-25462` (`Player::GetBarberShopCost`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:59,1004` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:157,1120`.

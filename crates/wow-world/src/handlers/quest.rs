@@ -47,10 +47,11 @@ use wow_packet::packets::query::{
     QueryQuestCompletionNpcs, QuestCompletionNpc, QuestCompletionNpcResponse,
 };
 use wow_packet::packets::quest::{
-    PushQuestToParty, QueryQuestInfoResponse, QuestConfirmAccept, QuestGiverOfferReward,
-    QuestGiverQuestComplete, QuestGiverQuestFailed, QuestGiverRequestItems, QuestGiverStatus,
-    QuestObjectiveInfo, QuestPushResult, QuestPushResultResponse, QuestRewardsBlock,
-    QuestUpdateComplete, WorldQuestUpdateResponse, quest_giver_status, quest_push_reason,
+    AdventureMapStartQuest, PushQuestToParty, QueryQuestInfoResponse, QuestConfirmAccept,
+    QuestGiverOfferReward, QuestGiverQuestComplete, QuestGiverQuestFailed, QuestGiverRequestItems,
+    QuestGiverStatus, QuestObjectiveInfo, QuestPushResult, QuestPushResultResponse,
+    QuestRewardsBlock, QuestUpdateComplete, WorldQuestUpdateResponse, quest_giver_status,
+    quest_push_reason,
 };
 use wow_packet::packets::update::{ItemCreateData, UpdateObject};
 use wow_packet::{ClientPacket, ServerPacket};
@@ -61,9 +62,10 @@ use crate::conditions::{
 };
 use crate::handlers::character::ExtendedCostItemTurninChange;
 use crate::session::{
-    CurrencyGainSourceLikeCpp, InventoryItem, RepresentedPushQuestToPartyOutcomeLikeCpp,
-    RepresentedPushQuestToPartyOutcomeReasonLikeCpp, RepresentedQuestCompleteStatusUpdateLikeCpp,
-    RepresentedQuestConfirmAcceptLikeCpp, RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp,
+    CurrencyGainSourceLikeCpp, InventoryItem, RepresentedAdventureMapStartQuestLikeCpp,
+    RepresentedPushQuestToPartyOutcomeLikeCpp, RepresentedPushQuestToPartyOutcomeReasonLikeCpp,
+    RepresentedQuestCompleteStatusUpdateLikeCpp, RepresentedQuestConfirmAcceptLikeCpp,
+    RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp,
     RepresentedQuestObjectiveProgressEventLikeCpp, RepresentedQuestPushResultResponseLikeCpp,
     RepresentedQuestRewardMailLikeCpp, RepresentedQuestRewardReputationLikeCpp,
     RepresentedQuestRewardReputationSourceLikeCpp, RepresentedQuestRewardSpellCastLikeCpp,
@@ -335,6 +337,15 @@ fn represented_quest_completion_npc_response_like_cpp(
 }
 
 // ── Handler registrations ────────────────────────────────────────────────────
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::AdventureMapStartQuest,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_adventure_map_start_quest",
+    }
+}
 
 inventory::submit! {
     PacketHandlerEntry {
@@ -1092,6 +1103,54 @@ impl WorldSession {
             no_grant: true,
             changed_quest_ids,
         })
+    }
+
+    /// CMSG_ADVENTURE_MAP_START_QUEST.
+    ///
+    /// C++ `HandleAdventureMapStartQuest`:
+    /// `QuestTemplate` lookup -> `sAdventureMapPOIStore` QuestID + PlayerCondition gate ->
+    /// `Player::CanTakeQuest(quest, true)` -> `AddQuestAndCheckCompletion(quest, player)`.
+    ///
+    /// Rust keeps the same silent-return gates and records the accepted request until
+    /// Adventure Map quest starts can call the same live AddQuestAndCheckCompletion path.
+    pub async fn handle_adventure_map_start_quest(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let request = match AdventureMapStartQuest::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!("AdventureMapStartQuest: bad packet: {error}");
+                return;
+            }
+        };
+        let Ok(quest_id) = u32::try_from(request.quest_id) else {
+            return;
+        };
+
+        let Some(quest_store) = self.quest_store.clone() else {
+            return;
+        };
+        let Some(quest) = quest_store.get(quest_id) else {
+            return;
+        };
+        let Some(adventure_map_poi_store) = self.adventure_map_poi_store().cloned() else {
+            return;
+        };
+        let Some(poi) = adventure_map_poi_store.find_start_quest_poi_like_cpp(quest_id, |id| {
+            self.represented_meets_player_condition_id_like_cpp(id)
+        }) else {
+            return;
+        };
+
+        if !self.can_take_quest(quest) {
+            return;
+        }
+
+        self.record_represented_adventure_map_start_quest_like_cpp(
+            RepresentedAdventureMapStartQuestLikeCpp {
+                quest_id,
+                adventure_map_poi_id: poi.id,
+                player_condition_id: poi.player_condition_id,
+            },
+        );
     }
 
     /// CMSG_QUEST_GIVER_STATUS_QUERY — returns the quest status icon for an NPC.
@@ -6632,9 +6691,9 @@ mod tests {
         QuestStore, QuestTemplate,
     };
     use wow_data::{
-        Condition, ConditionEntriesByTypeStore, CurrencyTypesEntry, CurrencyTypesStore,
-        ItemLimitCategoryEntry, ItemLimitCategoryStore, ItemRecord, ItemSparseTemplateEntry,
-        ItemStatsStore, ItemStore,
+        AdventureMapPoiEntry, AdventureMapPoiStore, Condition, ConditionEntriesByTypeStore,
+        CurrencyTypesEntry, CurrencyTypesStore, ItemLimitCategoryEntry, ItemLimitCategoryStore,
+        ItemRecord, ItemSparseTemplateEntry, ItemStatsStore, ItemStore,
         progression_rewards::{
             FactionEntry, FactionStore, QUEST_PACKAGE_FILTER_UNMATCHED_LIKE_CPP,
             QuestFactionRewardEntry, QuestFactionRewardStore, QuestInfoEntry, QuestInfoStore,
@@ -6774,6 +6833,91 @@ mod tests {
 
     fn store_with_quests(ids: &[u32]) -> QuestStore {
         QuestStore::from_quests_like_cpp(ids.iter().copied().map(quest_template))
+    }
+
+    fn adventure_map_poi(id: u32, quest_id: u32, player_condition_id: u32) -> AdventureMapPoiEntry {
+        AdventureMapPoiEntry {
+            id,
+            title: String::new(),
+            description: String::new(),
+            world_position: [0.0, 0.0],
+            poi_type: 0,
+            player_condition_id,
+            quest_id,
+            lfg_dungeon_id: 0,
+            reward_item_id: 0,
+            ui_texture_atlas_member_id: 0,
+            ui_texture_kit_id: 0,
+            map_id: 0,
+            area_table_id: 0,
+        }
+    }
+
+    fn adventure_map_start_quest_packet(quest_id: i32) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_int32(quest_id);
+        pkt
+    }
+
+    #[tokio::test]
+    async fn adventure_map_start_quest_records_request_after_cpp_gates() {
+        let (mut session, _send_rx) = make_session();
+        session.set_quest_store(Arc::new(store_with_quests(&[7001])));
+        session.set_adventure_map_poi_store(Arc::new(AdventureMapPoiStore::from_entries([
+            adventure_map_poi(10, 7002, 0),
+            adventure_map_poi(20, 7001, 0),
+        ])));
+
+        session
+            .handle_adventure_map_start_quest(adventure_map_start_quest_packet(7001))
+            .await;
+
+        assert_eq!(
+            session.represented_adventure_map_start_quest_requests_like_cpp(),
+            &[RepresentedAdventureMapStartQuestLikeCpp {
+                quest_id: 7001,
+                adventure_map_poi_id: 20,
+                player_condition_id: 0,
+            }]
+        );
+    }
+
+    #[tokio::test]
+    async fn adventure_map_start_quest_unknown_quest_returns_silently_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        session.set_quest_store(Arc::new(store_with_quests(&[7001])));
+        session.set_adventure_map_poi_store(Arc::new(AdventureMapPoiStore::from_entries([
+            adventure_map_poi(20, 7002, 0),
+        ])));
+
+        session
+            .handle_adventure_map_start_quest(adventure_map_start_quest_packet(7002))
+            .await;
+
+        assert!(
+            session
+                .represented_adventure_map_start_quest_requests_like_cpp()
+                .is_empty()
+        );
+    }
+
+    #[tokio::test]
+    async fn adventure_map_start_quest_missing_player_condition_store_returns_silently_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        session.set_quest_store(Arc::new(store_with_quests(&[7001])));
+        session.set_adventure_map_poi_store(Arc::new(AdventureMapPoiStore::from_entries([
+            adventure_map_poi(20, 7001, 42),
+        ])));
+
+        session
+            .handle_adventure_map_start_quest(adventure_map_start_quest_packet(7001))
+            .await;
+
+        assert!(
+            session
+                .represented_adventure_map_start_quest_requests_like_cpp()
+                .is_empty()
+        );
     }
 
     fn quest_template_with_objective_count(id: u32, objective_count: usize) -> QuestTemplate {

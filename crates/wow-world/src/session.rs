@@ -53,12 +53,12 @@ use wow_constants::{
 use wow_core::{ObjectGuid, ObjectGuidGenerator, Position, guid::HighGuid};
 use wow_data::character_progression::{ChrClassesStore, ChrRacesStore};
 use wow_data::{
-    AreaTableStore, AreaTriggerStore, BattlePetBreedQualityStore, BattlePetBreedStateStore,
-    BattlePetSpeciesStateStore, BattlePetSpeciesStore, BattlePetXpGameTableLikeCpp,
-    ChrSpecializationStore, CinematicSequencesStore, ConditionEntriesByTypeStore,
-    CreatureDisplayInfoStore, CreatureModelDataStore, CreatureTemplateMountStoreLikeCpp,
-    CurrencyTypesEntry, CurrencyTypesStore, DISABLE_TYPE_MAP, DisableMgrLikeCpp,
-    DisableWorldObjectRefLikeCpp, DungeonEncounterStore, DurabilityCostsStore,
+    AdventureMapPoiStore, AreaTableStore, AreaTriggerStore, BattlePetBreedQualityStore,
+    BattlePetBreedStateStore, BattlePetSpeciesStateStore, BattlePetSpeciesStore,
+    BattlePetXpGameTableLikeCpp, ChrSpecializationStore, CinematicSequencesStore,
+    ConditionEntriesByTypeStore, CreatureDisplayInfoStore, CreatureModelDataStore,
+    CreatureTemplateMountStoreLikeCpp, CurrencyTypesEntry, CurrencyTypesStore, DISABLE_TYPE_MAP,
+    DisableMgrLikeCpp, DisableWorldObjectRefLikeCpp, DungeonEncounterStore, DurabilityCostsStore,
     DurabilityQualityStore, FishingBaseSkillStoreLikeCpp, GameObjectDisplayInfoStore,
     GameObjectTemplateLifecycleStoreLikeCpp, HeirloomEntry, HeirloomStore, HotfixBlobCache,
     ImportPriceStores, ItemAppearanceStore, ItemClassStore, ItemCurrencyCostStore,
@@ -434,6 +434,13 @@ pub(crate) struct RepresentedAlterAppearanceLikeCpp {
     pub customized_race: i32,
     pub customized_chr_model_id: i32,
     pub cost: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedAdventureMapStartQuestLikeCpp {
+    pub quest_id: u32,
+    pub adventure_map_poi_id: u32,
+    pub player_condition_id: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2739,6 +2746,9 @@ pub struct WorldSession {
     // C++ PlayerCondition.db2 store used by ConditionMgr player-condition checks.
     player_condition_store: Option<Arc<PlayerConditionStore>>,
 
+    // C++ AdventureMapPOI.db2 store used by Adventure Map quest starts.
+    adventure_map_poi_store: Option<Arc<AdventureMapPoiStore>>,
+
     // C++ ContentTuning.db2 store used by level gates such as Meeting Stone.
     content_tuning_store: Option<Arc<ContentTuningStore>>,
 
@@ -3089,6 +3099,9 @@ pub struct WorldSession {
     represented_activate_taxi_requests_like_cpp: Vec<RepresentedActivateTaxiLikeCpp>,
     /// Represented accepted barber-shop requests until ChrCustomization DB2/cost/update runtime is canonical.
     represented_alter_appearance_requests_like_cpp: Vec<RepresentedAlterAppearanceLikeCpp>,
+    /// Represented accepted Adventure Map quest starts until AddQuestAndCheckCompletion is canonical.
+    represented_adventure_map_start_quest_requests_like_cpp:
+        Vec<RepresentedAdventureMapStartQuestLikeCpp>,
     /// Minimal TaxiNodes.db2 map lookup used by represented `MoveSplineDone` taxi transitions.
     taxi_node_map_ids_like_cpp: HashMap<u32, u16>,
     /// Represented active `FlightPathMovementGenerator`, if any.
@@ -4050,6 +4063,7 @@ impl WorldSession {
             loot_stores: None,
             condition_store: None,
             player_condition_store: None,
+            adventure_map_poi_store: None,
             content_tuning_store: None,
             disable_mgr: None,
             lock_store: None,
@@ -4226,6 +4240,7 @@ impl WorldSession {
             taxi_destinations_like_cpp: Vec::new(),
             represented_activate_taxi_requests_like_cpp: Vec::new(),
             represented_alter_appearance_requests_like_cpp: Vec::new(),
+            represented_adventure_map_start_quest_requests_like_cpp: Vec::new(),
             taxi_node_map_ids_like_cpp: HashMap::new(),
             taxi_flight_state_like_cpp: None,
             taxi_unit_flags_like_cpp: UnitFlags::empty(),
@@ -11480,6 +11495,7 @@ impl WorldSession {
             | ClientOpcodes::GuildBankLogQuery
             | ClientOpcodes::LogoutCancel
             | ClientOpcodes::AlterAppearance
+            | ClientOpcodes::AdventureMapStartQuest
             | ClientOpcodes::QuestConfirmAccept
             | ClientOpcodes::GuildEventLogQuery
             | ClientOpcodes::QuestGiverStatusMultipleQuery
@@ -13432,6 +13448,15 @@ impl WorldSession {
     /// Set the C++ PlayerCondition.db2 store for this session.
     pub fn set_player_condition_store(&mut self, store: Arc<PlayerConditionStore>) {
         self.player_condition_store = Some(store);
+    }
+
+    /// Set the C++ AdventureMapPOI.db2 store for this session.
+    pub fn set_adventure_map_poi_store(&mut self, store: Arc<AdventureMapPoiStore>) {
+        self.adventure_map_poi_store = Some(store);
+    }
+
+    pub fn adventure_map_poi_store(&self) -> Option<&Arc<AdventureMapPoiStore>> {
+        self.adventure_map_poi_store.as_ref()
     }
 
     pub fn set_content_tuning_store(&mut self, store: Arc<ContentTuningStore>) {
@@ -17897,6 +17922,9 @@ impl WorldSession {
             }
             ClientOpcodes::AlterAppearance => {
                 self.handle_alter_appearance(pkt).await;
+            }
+            ClientOpcodes::AdventureMapStartQuest => {
+                self.handle_adventure_map_start_quest(pkt).await;
             }
             ClientOpcodes::BattlenetRequest => {
                 match wow_packet::packets::battlenet::BattlenetRequest::read(&mut pkt) {
@@ -27443,6 +27471,21 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedAlterAppearanceLikeCpp] {
         &self.represented_alter_appearance_requests_like_cpp
+    }
+
+    pub(crate) fn record_represented_adventure_map_start_quest_like_cpp(
+        &mut self,
+        request: RepresentedAdventureMapStartQuestLikeCpp,
+    ) {
+        self.represented_adventure_map_start_quest_requests_like_cpp
+            .push(request);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_adventure_map_start_quest_requests_like_cpp(
+        &self,
+    ) -> &[RepresentedAdventureMapStartQuestLikeCpp] {
+        &self.represented_adventure_map_start_quest_requests_like_cpp
     }
 
     pub(crate) fn is_in_taxi_flight_like_cpp(&self) -> bool {
