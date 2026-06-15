@@ -1210,11 +1210,13 @@ mod tests {
                 id: 2,
                 instance_type: 1,
                 flags: wow_constants::shared::DifficultyFlags::CAN_SELECT.bits(),
+                toggle_difficulty_id: 0,
             },
             wow_data::DifficultyEntry {
                 id: 15,
                 instance_type: 2,
                 flags: wow_constants::shared::DifficultyFlags::CAN_SELECT.bits(),
+                toggle_difficulty_id: 0,
             },
             wow_data::DifficultyEntry {
                 id: 3,
@@ -1222,6 +1224,7 @@ mod tests {
                 flags: (wow_constants::shared::DifficultyFlags::CAN_SELECT
                     | wow_constants::shared::DifficultyFlags::LEGACY)
                     .bits(),
+                toggle_difficulty_id: 0,
             },
         ]);
 
@@ -1907,11 +1910,13 @@ mod tests {
                 id: 2,
                 instance_type: 1,
                 flags: wow_constants::shared::DifficultyFlags::CAN_SELECT.bits(),
+                toggle_difficulty_id: 0,
             },
             wow_data::DifficultyEntry {
                 id: 15,
                 instance_type: 2,
                 flags: wow_constants::shared::DifficultyFlags::CAN_SELECT.bits(),
+                toggle_difficulty_id: 0,
             },
             wow_data::DifficultyEntry {
                 id: 3,
@@ -1919,6 +1924,7 @@ mod tests {
                 flags: (wow_constants::shared::DifficultyFlags::CAN_SELECT
                     | wow_constants::shared::DifficultyFlags::LEGACY)
                     .bits(),
+                toggle_difficulty_id: 0,
             },
         ]);
         let mut target_icons = [EMPTY_TARGET_ICON_RAW_LIKE_CPP; TARGET_ICONS_COUNT_LIKE_CPP];

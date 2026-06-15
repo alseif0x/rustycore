@@ -990,6 +990,18 @@ impl ClientPacket for SetDifficultyId {
     }
 }
 
+/// C++ `WorldPackets::Null` for `CMSG_TOGGLE_DIFFICULTY`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ToggleDifficulty;
+
+impl ClientPacket for ToggleDifficulty {
+    const OPCODE: ClientOpcodes = ClientOpcodes::ToggleDifficulty;
+
+    fn read(_pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self)
+    }
+}
+
 /// C++ `WorldPackets::Misc::AddonList`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AddonList {
@@ -6933,6 +6945,16 @@ mod tests {
         let parsed = SetDifficultyId::read(&mut pkt).unwrap();
 
         assert_eq!(parsed.difficulty_id, 23);
+    }
+
+    #[test]
+    fn toggle_difficulty_reads_cpp_null_packet() {
+        let mut pkt = WorldPacket::new_empty();
+
+        let parsed = ToggleDifficulty::read(&mut pkt).unwrap();
+
+        assert_eq!(parsed, ToggleDifficulty);
+        assert_eq!(pkt.remaining(), 0);
     }
 
     #[test]

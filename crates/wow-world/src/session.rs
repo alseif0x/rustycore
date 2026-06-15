@@ -14190,6 +14190,17 @@ impl WorldSession {
         self.represented_legacy_raid_difficulty_id_like_cpp
     }
 
+    pub(crate) fn represented_toggle_difficulty_target_like_cpp(&self) -> Option<u32> {
+        let store = self.difficulty_store()?;
+        let raid_entry = store.get(self.represented_raid_difficulty_id_like_cpp);
+        let entry = match raid_entry {
+            Some(entry) if entry.toggle_difficulty_id != 0 => entry,
+            _ => store.get(self.represented_dungeon_difficulty_id_like_cpp)?,
+        };
+
+        (entry.toggle_difficulty_id != 0).then_some(u32::from(entry.toggle_difficulty_id))
+    }
+
     /// C++ `Player::LoadFromDB` applies `CheckLoaded*DifficultyID` to the raw
     /// `characters` columns before any login packets are sent.
     pub(crate) fn load_represented_player_difficulties_like_cpp(
@@ -19921,6 +19932,9 @@ impl WorldSession {
             }
             ClientOpcodes::SetDifficultyId => {
                 self.handle_set_difficulty_id(pkt).await;
+            }
+            ClientOpcodes::ToggleDifficulty => {
+                self.handle_toggle_difficulty(pkt).await;
             }
             ClientOpcodes::SetDungeonDifficulty => {
                 self.handle_set_dungeon_difficulty(pkt).await;
@@ -35617,6 +35631,7 @@ mod tests {
             id,
             instance_type,
             flags: flags.bits(),
+            toggle_difficulty_id: 0,
         }
     }
 

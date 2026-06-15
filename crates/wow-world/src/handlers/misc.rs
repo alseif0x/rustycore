@@ -68,9 +68,9 @@ use wow_packet::packets::misc::{
     SetTradeItem, SetTradeSpell, SignPetition, SpecialMountAnim, StandStateChange,
     SubmitUserFeedback, SupportTicketSubmitBug, SupportTicketSubmitComplaint,
     SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
-    TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP, TaxiNodeStatusPkt, TogglePvp, ToyClearFanfare,
-    UnacceptTrade, UpdateAccountData, UseToy, UserClientUpdateAccountData, ViolenceLevel,
-    compress_account_data_like_cpp, decompress_account_data_like_cpp,
+    TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP, TaxiNodeStatusPkt, ToggleDifficulty, TogglePvp,
+    ToyClearFanfare, UnacceptTrade, UpdateAccountData, UseToy, UserClientUpdateAccountData,
+    ViolenceLevel, compress_account_data_like_cpp, decompress_account_data_like_cpp,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -662,6 +662,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_difficulty_id",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::ToggleDifficulty,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_toggle_difficulty",
     }
 }
 
@@ -2721,6 +2730,27 @@ impl crate::session::WorldSession {
         };
 
         self.apply_represented_difficulty_change_like_cpp(packet.difficulty_id)
+            .await;
+    }
+
+    pub async fn handle_toggle_difficulty(&mut self, mut pkt: wow_packet::WorldPacket) {
+        if let Err(error) = ToggleDifficulty::read(&mut pkt) {
+            warn!(
+                account = self.account_id,
+                "ToggleDifficulty parse failed: {error}"
+            );
+            return;
+        }
+
+        let Some(difficulty_id) = self.represented_toggle_difficulty_target_like_cpp() else {
+            debug!(
+                account = self.account_id,
+                "ToggleDifficulty has no represented toggle difficulty available"
+            );
+            return;
+        };
+
+        self.apply_represented_difficulty_change_like_cpp(difficulty_id)
             .await;
     }
 
@@ -5288,10 +5318,20 @@ mod tests {
     }
 
     fn difficulty_entry(id: u32, instance_type: u8, flags: DifficultyFlags) -> DifficultyEntry {
+        difficulty_entry_with_toggle(id, instance_type, flags, 0)
+    }
+
+    fn difficulty_entry_with_toggle(
+        id: u32,
+        instance_type: u8,
+        flags: DifficultyFlags,
+        toggle_difficulty_id: u8,
+    ) -> DifficultyEntry {
         DifficultyEntry {
             id,
             instance_type,
             flags: flags.bits(),
+            toggle_difficulty_id,
         }
     }
 
@@ -8012,6 +8052,81 @@ mod tests {
             Some(ServerOpcodes::SetDungeonDifficulty)
         );
         assert_eq!(i32::from_le_bytes([sent[2], sent[3], sent[4], sent[5]]), 2);
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn toggle_difficulty_uses_raid_toggle_before_dungeon_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([
+            difficulty_entry_with_toggle(14, 2, DifficultyFlags::CAN_SELECT, 15),
+            difficulty_entry(15, 2, DifficultyFlags::CAN_SELECT),
+            difficulty_entry_with_toggle(1, 1, DifficultyFlags::CAN_SELECT, 2),
+            difficulty_entry(2, 1, DifficultyFlags::CAN_SELECT),
+        ])));
+        session.set_map_store(Arc::new(MapStore::from_entries([map_entry(
+            0,
+            wow_data::map::MAP_COMMON,
+        )])));
+
+        session
+            .handle_toggle_difficulty(WorldPacket::new_empty())
+            .await;
+
+        assert_eq!(session.represented_raid_difficulty_id_like_cpp(), 15);
+        assert_eq!(session.represented_dungeon_difficulty_id_like_cpp(), 1);
+        let sent = send_rx.try_recv().expect("raid difficulty packet");
+        assert_eq!(
+            WorldPacket::from_bytes(&sent).server_opcode(),
+            Some(ServerOpcodes::RaidDifficultySet)
+        );
+        assert_eq!(i32::from_le_bytes([sent[2], sent[3], sent[4], sent[5]]), 15);
+        assert_eq!(sent[6], 0);
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn toggle_difficulty_falls_back_to_dungeon_when_raid_has_no_toggle_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([
+            difficulty_entry(14, 2, DifficultyFlags::CAN_SELECT),
+            difficulty_entry_with_toggle(1, 1, DifficultyFlags::CAN_SELECT, 2),
+            difficulty_entry(2, 1, DifficultyFlags::CAN_SELECT),
+        ])));
+        session.set_map_store(Arc::new(MapStore::from_entries([map_entry(
+            0,
+            wow_data::map::MAP_COMMON,
+        )])));
+
+        session
+            .handle_toggle_difficulty(WorldPacket::new_empty())
+            .await;
+
+        assert_eq!(session.represented_dungeon_difficulty_id_like_cpp(), 2);
+        assert_eq!(session.represented_raid_difficulty_id_like_cpp(), 14);
+        let sent = send_rx.try_recv().expect("dungeon difficulty packet");
+        assert_eq!(
+            WorldPacket::from_bytes(&sent).server_opcode(),
+            Some(ServerOpcodes::SetDungeonDifficulty)
+        );
+        assert_eq!(i32::from_le_bytes([sent[2], sent[3], sent[4], sent[5]]), 2);
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn toggle_difficulty_without_available_toggle_is_silent_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([
+            difficulty_entry(14, 2, DifficultyFlags::CAN_SELECT),
+            difficulty_entry(1, 1, DifficultyFlags::CAN_SELECT),
+        ])));
+
+        session
+            .handle_toggle_difficulty(WorldPacket::new_empty())
+            .await;
+
+        assert_eq!(session.represented_dungeon_difficulty_id_like_cpp(), 1);
+        assert_eq!(session.represented_raid_difficulty_id_like_cpp(), 14);
         assert!(send_rx.try_recv().is_err());
     }
 
