@@ -18,6 +18,22 @@ pub const COMMAND_STAY_LIKE_CPP: u8 = 0;
 pub const COMMAND_FOLLOW_LIKE_CPP: u8 = 1;
 pub const COMMAND_ATTACK_LIKE_CPP: u8 = 2;
 
+/// C++ `WorldPackets::Pet::DismissCritter`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DismissCritter {
+    pub critter_guid: ObjectGuid,
+}
+
+impl ClientPacket for DismissCritter {
+    const OPCODE: ClientOpcodes = ClientOpcodes::DismissCritter;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            critter_guid: pkt.read_guid()?,
+        })
+    }
+}
+
 /// C++ `WorldPackets::Pet::PetCancelAura`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PetCancelAura {
@@ -81,6 +97,19 @@ impl ServerPacket for PetStableResult {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wow_core::guid::HighGuid;
+
+    #[test]
+    fn dismiss_critter_reads_cpp_full_guid() {
+        let critter_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 88, 1);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_guid(&critter_guid);
+        pkt.reset_read();
+
+        let parsed = DismissCritter::read(&mut pkt).unwrap();
+        assert_eq!(parsed.critter_guid, critter_guid);
+        assert!(pkt.is_empty());
+    }
 
     #[test]
     fn pet_cancel_aura_reads_cpp_pet_guid_then_spell_id() {

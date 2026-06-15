@@ -1938,6 +1938,7 @@ pub(crate) struct RepresentedBattlePetQueryCompanionLikeCpp {
     pub(crate) name_timestamp: i64,
     pub(crate) is_summon: bool,
     pub(crate) owner_is_player: bool,
+    pub(crate) battle_pet_companion_guid: Option<ObjectGuid>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -3449,6 +3450,10 @@ pub struct WorldSession {
         [RepresentedBattlePetSlotLikeCpp; BATTLE_PET_SLOT_COUNT_LIKE_CPP],
     /// C++ `ActivePlayerData::SummonedBattlePetGUID`, represented until battle-pet summon runtime is live.
     pub(crate) represented_summoned_battle_pet_guid_like_cpp: Option<ObjectGuid>,
+    /// C++ `Player::GetCritterGUID`, represented until companion summon runtime is live.
+    pub(crate) represented_critter_guid_like_cpp: Option<ObjectGuid>,
+    /// Evidence for represented `TempSummon::UnSummon` from `CMSG_DISMISS_CRITTER`.
+    pub(crate) represented_dismissed_critter_guids_like_cpp: Vec<ObjectGuid>,
     /// C++ ObjectAccessor/TempSummon query state for `CMSG_QUERY_BATTLE_PET_NAME`.
     pub(crate) represented_battle_pet_query_companions_like_cpp:
         HashMap<ObjectGuid, RepresentedBattlePetQueryCompanionLikeCpp>,
@@ -4653,6 +4658,8 @@ impl WorldSession {
                 RepresentedBattlePetSlotLikeCpp::locked_empty(index as u8)
             }),
             represented_summoned_battle_pet_guid_like_cpp: None,
+            represented_critter_guid_like_cpp: None,
+            represented_dismissed_critter_guids_like_cpp: Vec::new(),
             represented_battle_pet_query_companions_like_cpp: HashMap::new(),
             represented_battle_pet_cage_items_like_cpp: Vec::new(),
             represented_battle_pet_xp_per_level_like_cpp: BTreeMap::new(),
@@ -12112,7 +12119,6 @@ impl WorldSession {
             | ClientOpcodes::AssignEquipmentSetSpec
             | ClientOpcodes::DeleteEquipmentSet
             | ClientOpcodes::UseEquipmentSet
-            | ClientOpcodes::DismissCritter
             | ClientOpcodes::RepopRequest
             | ClientOpcodes::PartyInvite
             | ClientOpcodes::PartyInviteResponse
@@ -20139,6 +20145,9 @@ impl WorldSession {
             ClientOpcodes::BattlePetUpdateDisplayNotify => {
                 self.handle_battle_pet_update_display_notify(pkt).await;
             }
+            ClientOpcodes::DismissCritter => {
+                self.handle_dismiss_critter(pkt).await;
+            }
             ClientOpcodes::QueryBattlePetName => {
                 self.handle_query_battle_pet_name(pkt).await;
             }
@@ -24790,6 +24799,46 @@ impl WorldSession {
         self.represented_battle_pet_query_companions_like_cpp
             .get(&unit_guid)
             .copied()
+    }
+
+    pub(crate) fn set_represented_critter_guid_like_cpp(&mut self, guid: Option<ObjectGuid>) {
+        self.represented_critter_guid_like_cpp = guid;
+    }
+
+    pub(crate) fn represented_critter_guid_like_cpp(&self) -> Option<ObjectGuid> {
+        self.represented_critter_guid_like_cpp
+    }
+
+    /// C++ `WorldSession::HandleDismissCritter`, represented at the ownership gate.
+    ///
+    /// Full `ObjectAccessor::GetCreatureOrPetOrVehicle`, `Unit::IsSummon` and
+    /// `TempSummon::UnSummon` remain part of the live companion runtime. This
+    /// represented path preserves the C++ no-response semantics and only acts
+    /// when the requested GUID is the player's active critter.
+    pub(crate) fn represented_dismiss_critter_like_cpp(
+        &mut self,
+        critter_guid: ObjectGuid,
+    ) -> bool {
+        if self.represented_critter_guid_like_cpp != Some(critter_guid) {
+            return false;
+        }
+
+        if let Some(companion) = self.represented_battle_pet_query_companion_like_cpp(critter_guid)
+            && let Some(battle_pet_guid) = companion.battle_pet_companion_guid
+            && self.represented_summoned_battle_pet_guid_like_cpp == Some(battle_pet_guid)
+        {
+            self.represented_summoned_battle_pet_guid_like_cpp = None;
+        }
+
+        self.represented_critter_guid_like_cpp = None;
+        self.represented_dismissed_critter_guids_like_cpp
+            .push(critter_guid);
+        true
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_dismissed_critter_guids_like_cpp(&self) -> &[ObjectGuid] {
+        &self.represented_dismissed_critter_guids_like_cpp
     }
 
     /// C++ `BattlePetMgr::UpdateBattlePetData`, represented at the gate level.
@@ -62036,7 +62085,6 @@ mod tests {
             ClientOpcodes::SaveEquipmentSet,
             ClientOpcodes::AssignEquipmentSetSpec,
             ClientOpcodes::DeleteEquipmentSet,
-            ClientOpcodes::DismissCritter,
             ClientOpcodes::RepopRequest,
             ClientOpcodes::PartyInvite,
             ClientOpcodes::PartyInviteResponse,

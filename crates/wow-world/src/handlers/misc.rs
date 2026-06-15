@@ -72,6 +72,7 @@ use wow_packet::packets::misc::{
     ToyClearFanfare, UnacceptTrade, UpdateAccountData, UseToy, UserClientUpdateAccountData,
     ViolenceLevel, compress_account_data_like_cpp, decompress_account_data_like_cpp,
 };
+use wow_packet::packets::pet::DismissCritter;
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
     SetWatchedFaction,
@@ -1103,6 +1104,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_battle_pet_update_display_notify",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::DismissCritter,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_dismiss_critter",
     }
 }
 
@@ -3762,6 +3772,26 @@ impl crate::session::WorldSession {
     /// C++ registers this opcode as `STATUS_UNHANDLED` and dispatches it to
     /// `Handle_NULL`, so Rust intentionally performs no read or mutation.
     pub async fn handle_battle_pet_update_display_notify(&mut self, _pkt: wow_packet::WorldPacket) {
+    }
+
+    /// CMSG_DISMISS_CRITTER — represented companion dismissal.
+    ///
+    /// C++ reads a full `CritterGUID`, silently ignores missing/non-active
+    /// critters, and sends no direct response. Real `TempSummon::UnSummon` and
+    /// object update/despawn fanout remain part of the live companion runtime.
+    pub async fn handle_dismiss_critter(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let request = match DismissCritter::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "DismissCritter parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        self.represented_dismiss_critter_like_cpp(request.critter_guid);
     }
 
     /// CMSG_QUERY_BATTLE_PET_NAME — represented summoned-companion name lookup.
@@ -9845,6 +9875,12 @@ mod tests {
         pkt
     }
 
+    fn dismiss_critter_packet(critter_guid: ObjectGuid) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_guid(&critter_guid);
+        pkt
+    }
+
     fn query_battle_pet_name_packet(
         battle_pet_id: ObjectGuid,
         unit_guid: ObjectGuid,
@@ -10509,6 +10545,130 @@ mod tests {
         assert!(send_rx.try_recv().is_err());
     }
 
+    #[tokio::test]
+    async fn dismiss_critter_clears_active_critter_silently_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let critter_guid = ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::Creature,
+            0,
+            1,
+            571,
+            0,
+            777,
+            42,
+        );
+        session.set_represented_critter_guid_like_cpp(Some(critter_guid));
+
+        session
+            .handle_dismiss_critter(dismiss_critter_packet(critter_guid))
+            .await;
+
+        assert_eq!(session.represented_critter_guid_like_cpp(), None);
+        assert_eq!(
+            session.represented_dismissed_critter_guids_like_cpp(),
+            &[critter_guid]
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn dismiss_critter_ignores_non_active_critter_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let active_guid = ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::Creature,
+            0,
+            1,
+            571,
+            0,
+            777,
+            43,
+        );
+        let requested_guid = ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::Creature,
+            0,
+            1,
+            571,
+            0,
+            777,
+            44,
+        );
+        session.set_represented_critter_guid_like_cpp(Some(active_guid));
+
+        session
+            .handle_dismiss_critter(dismiss_critter_packet(requested_guid))
+            .await;
+
+        assert_eq!(
+            session.represented_critter_guid_like_cpp(),
+            Some(active_guid)
+        );
+        assert!(
+            session
+                .represented_dismissed_critter_guids_like_cpp()
+                .is_empty()
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn dismiss_critter_clears_matching_battle_pet_data_compat_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let critter_guid = ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::Creature,
+            0,
+            1,
+            571,
+            0,
+            777,
+            45,
+        );
+        let battle_pet_guid = ObjectGuid::new(0, 0x235);
+        session.add_represented_battle_pet_like_cpp(
+            battle_pet_guid,
+            0,
+            crate::session::RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
+        );
+        assert!(session.battle_pet_summon_toggle_like_cpp(battle_pet_guid));
+        session.set_represented_critter_guid_like_cpp(Some(critter_guid));
+        session.set_represented_battle_pet_query_companion_like_cpp(
+            critter_guid,
+            crate::session::RepresentedBattlePetQueryCompanionLikeCpp {
+                creature_id: 777,
+                name_timestamp: 0,
+                is_summon: true,
+                owner_is_player: true,
+                battle_pet_companion_guid: Some(battle_pet_guid),
+            },
+        );
+
+        session
+            .handle_dismiss_critter(dismiss_critter_packet(critter_guid))
+            .await;
+
+        assert_eq!(session.represented_critter_guid_like_cpp(), None);
+        assert_eq!(
+            session.represented_summoned_battle_pet_guid_like_cpp(),
+            None
+        );
+        assert_eq!(
+            session.represented_dismissed_critter_guids_like_cpp(),
+            &[critter_guid]
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn dismiss_critter_handler_metadata_like_cpp() {
+        let entry = inventory::iter::<PacketHandlerEntry>
+            .into_iter()
+            .find(|entry| entry.opcode == ClientOpcodes::DismissCritter)
+            .expect("DismissCritter handler entry");
+
+        assert_eq!(entry.status, SessionStatus::LoggedIn);
+        assert_eq!(entry.processing, PacketProcessing::ThreadUnsafe);
+        assert_eq!(entry.handler_name, "handle_dismiss_critter");
+    }
+
     #[test]
     fn battle_pet_update_display_notify_handler_metadata_like_cpp() {
         let entry = inventory::iter::<PacketHandlerEntry>
@@ -10559,6 +10719,7 @@ mod tests {
                 name_timestamp: 1234,
                 is_summon: false,
                 owner_is_player: true,
+                battle_pet_companion_guid: None,
             },
         );
 
@@ -10587,6 +10748,7 @@ mod tests {
                 name_timestamp: 1234,
                 is_summon: true,
                 owner_is_player: false,
+                battle_pet_companion_guid: None,
             },
         );
 
@@ -10618,6 +10780,7 @@ mod tests {
                 name_timestamp: 1234,
                 is_summon: true,
                 owner_is_player: true,
+                battle_pet_companion_guid: None,
             },
         );
         session.add_represented_battle_pet_packet_info_like_cpp(
