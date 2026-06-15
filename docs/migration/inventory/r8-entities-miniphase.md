@@ -1,3 +1,13 @@
+# `#NEXT.R8.ENTITIES.937` — represented-partial for C++ pending-invite `Player::UninviteFromGroup`.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/GroupHandler.cpp:267-290` (`WorldSession::HandlePartyUninviteOpcode`); `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:2145-2162` (`Player::UninviteFromGroup`); `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp:367-390` (`Group::RemoveInvite`, `RemoveAllInvites`, `GetInvited`); `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:25122-25170` (`Player::CanUninviteFromGroup`).
+
+Implemented Rust seam: `CMSG_PARTY_UNINVITE` now covers the bounded pending-invite branch after the C++ member-kick gates pass. When the target is not a represented group member but has `PendingInvites[target]` from a GUID that belongs to the same represented group, Rust removes that pending invite and returns without sending `ERR_TARGET_NOT_IN_GROUP_S`, matching the C++ `grp->GetInvited(target) -> player->UninviteFromGroup() -> return` shape in the current represented invite model.
+
+Focused test: `party_uninvite_removes_pending_group_invite_like_cpp` verifies that a group leader can clear a pending invite owned by another group member without mutating the group membership or sending the target-not-in-group result.
+
+Boundaries: represented-partial only. Rust still has no represented temporary uncreated `Group` invite object, no exact `Group::RemoveAllInvites` / delete of uncreated groups, no LFG/BG/BF/original-group invite routing, no `ScriptMgr::OnGroupInviteMember` lifecycle, no install/restart, bot, or live-client/manual validation.
+
 # `#NEXT.R8.ENTITIES.936` — represented-partial for C++ `CMSG_PARTY_UNINVITE` / member kick cleanup.
 
 C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/GroupHandler.cpp:257-290` (`WorldSession::HandlePartyUninviteOpcode`); `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:25122-25170` (`Player::CanUninviteFromGroup`); `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp:550-670` (`Group::RemoveMember`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/PartyPackets.cpp:201-209` (`PartyUninvite::Read`).

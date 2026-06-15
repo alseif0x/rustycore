@@ -1137,6 +1137,7 @@ impl WorldSession {
             Some(registry) => std::sync::Arc::clone(registry),
             None => return,
         };
+        let pending_invites = self.pending_invites().map(std::sync::Arc::clone);
         let Some(group_guid) = current_group_guid_like_cpp(
             &group_reg,
             self.group_guid,
@@ -1179,6 +1180,15 @@ impl WorldSession {
                 return;
             }
             if !group.members.contains(&uninvite.target_guid) {
+                if let Some(pending_invites) = pending_invites.as_ref() {
+                    let invite_belongs_to_group = pending_invites
+                        .get(&uninvite.target_guid)
+                        .is_some_and(|inviter| group.members.contains(inviter.value()));
+                    if invite_belongs_to_group {
+                        pending_invites.remove(&uninvite.target_guid);
+                        return;
+                    }
+                }
                 send_party_uninvite_result_like_cpp(
                     self,
                     party_result::TARGET_NOT_IN_GROUP,
@@ -3272,6 +3282,45 @@ mod tests {
         assert_eq!(command, 1); // C++ PARTY_OP_UNINVITE
         assert_eq!(result_code as u8, party_result::NOT_LEADER_LIKE_CPP);
         assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn party_uninvite_removes_pending_group_invite_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send();
+        let leader = ObjectGuid::create_player(1, 42);
+        let inviter = ObjectGuid::create_player(1, 77);
+        let target = ObjectGuid::create_player(1, 88);
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let group_registry = Arc::new(GroupRegistry::default());
+        let pending_invites = Arc::new(PendingInvites::default());
+        let mut group = GroupInfo::new(leader);
+        group.add_member(inviter);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+        pending_invites.insert(target, inviter);
+
+        session.set_player_guid(Some(leader));
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(player_registry);
+        session.set_group_registry(Arc::clone(&group_registry), Arc::clone(&pending_invites));
+
+        session
+            .handle_party_uninvite(party_uninvite_packet(target, None, "revoked"))
+            .await;
+
+        assert!(
+            pending_invites.get(&target).is_none(),
+            "C++ Player::UninviteFromGroup clears the pending group invite"
+        );
+        let group = group_registry.get(&group_guid).unwrap();
+        assert!(group.members.contains(&leader));
+        assert!(group.members.contains(&inviter));
+        assert!(!group.members.contains(&target));
+        drop(group);
+        assert!(
+            send_rx.try_recv().is_err(),
+            "pending invite removal returns without ERR_TARGET_NOT_IN_GROUP_S"
+        );
     }
 
     #[test]
