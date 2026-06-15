@@ -303,6 +303,15 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
+        opcode: ClientOpcodes::QueryCorpseTransport,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_query_corpse_transport",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
         opcode: ClientOpcodes::QueryPageText,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
@@ -4817,6 +4826,12 @@ impl WorldSession {
         // has no corpse, or is not in the querying player's raid. Rust does not
         // yet have the live corpse/raid lookup needed for the valid branch.
         self.send_packet(&CorpseLocation::not_found_like_cpp(query.player));
+    }
+
+    pub async fn handle_query_corpse_transport(&mut self, query: QueryCorpseTransport) {
+        // C++ always sends CorpseTransportQuery. Position/facing remain default
+        // unless the queried player is in raid and has a corpse on this transport.
+        self.send_packet(&CorpseTransportQuery::not_found_like_cpp(query.player));
     }
 
     pub async fn handle_query_page_text(&mut self, query: QueryPageText) {
@@ -11049,6 +11064,29 @@ mod tests {
         assert_eq!(bytes[2], 0x00);
         assert_eq!(&bytes[3..19], &player.to_raw_bytes());
         assert_eq!(bytes.len(), 55);
+    }
+
+    #[tokio::test]
+    async fn query_corpse_transport_without_runtime_corpse_sends_cpp_default_shape() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        let player = ObjectGuid::create_player(1, 0xAABB_CCDD);
+        let transport = ObjectGuid::create_world_object(HighGuid::Transport, 0, 1, 571, 0, 77, 42);
+
+        session
+            .handle_query_corpse_transport(QueryCorpseTransport { player, transport })
+            .await;
+
+        let bytes = send_rx.try_recv().expect("corpse transport response");
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            wow_constants::ServerOpcodes::CorpseTransportQuery as u16
+        );
+        assert_eq!(&bytes[2..18], &player.to_raw_bytes());
+        assert_eq!(&bytes[18..22], &0.0_f32.to_le_bytes());
+        assert_eq!(&bytes[22..26], &0.0_f32.to_le_bytes());
+        assert_eq!(&bytes[26..30], &0.0_f32.to_le_bytes());
+        assert_eq!(&bytes[30..34], &0.0_f32.to_le_bytes());
+        assert_eq!(bytes.len(), 34);
     }
 
     #[tokio::test]

@@ -1,3 +1,11 @@
+- `#NEXT.R8.ENTITIES.912` — represented-partial implementation for `CMSG_QUERY_CORPSE_TRANSPORT` and bounded `SMSG_CORPSE_TRANSPORT_QUERY` default response.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/QueryHandler.cpp:235-248` (`WorldSession::HandleQueryCorpseTransport`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/QueryPackets.h:282-303` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/QueryPackets.cpp:396-410` (`QueryCorpseTransport::Read`, `CorpseTransportQuery::Write`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:503,1163` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:751,1308`.
+
+Implemented Rust seam: `QueryCorpseTransport` parses the C++ full `Player` and `Transport` GUIDs; `CorpseTransportQuery` writes the C++ `Player`, XYZ position, and `Facing` shape; `CMSG_QUERY_CORPSE_TRANSPORT` registers `LoggedIn`/`ThreadUnsafe` dispatch and routes through `WorldSession`. With no live corpse/raid/transport runtime, Rust sends `SMSG_CORPSE_TRANSPORT_QUERY` with the queried player GUID and default zero position/facing, matching the C++ branch where the queried player, corpse, raid relation, or matching corpse transport is unavailable.
+
+Boundaries: represented-partial only. Rust does not yet implement live `ObjectAccessor::FindConnectedPlayer`, `IsInSameRaidWith`, `Player::GetCorpse`, corpse transport GUID/offset/facing lookup, the valid transported-corpse branch, install/restart, bot, or live-client/manual validation.
+
 - `#NEXT.R8.ENTITIES.911` — represented-partial implementation for `CMSG_QUERY_CORPSE_LOCATION_FROM_CLIENT` and bounded `SMSG_CORPSE_LOCATION` invalid response.
 
 C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/QueryHandler.cpp:126-176` (`WorldSession::HandleQueryCorpseLocation`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/QueryPackets.h:257-280` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/QueryPackets.cpp:377-392` (`QueryCorpseLocationFromClient::Read`, `CorpseLocation::Write`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:502,1161` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:750,1306`.

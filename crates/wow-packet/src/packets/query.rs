@@ -86,6 +86,58 @@ impl ServerPacket for CorpseLocation {
     }
 }
 
+// ── CMSG_QUERY_CORPSE_TRANSPORT (0x3663) ────────────────────────────
+
+/// C++ `WorldPackets::Query::QueryCorpseTransport`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct QueryCorpseTransport {
+    pub player: ObjectGuid,
+    pub transport: ObjectGuid,
+}
+
+impl ClientPacket for QueryCorpseTransport {
+    const OPCODE: ClientOpcodes = ClientOpcodes::QueryCorpseTransport;
+
+    fn read(packet: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            player: packet.read_guid()?,
+            transport: packet.read_guid()?,
+        })
+    }
+}
+
+// ── SMSG_CORPSE_TRANSPORT_QUERY (0x2712) ────────────────────────────
+
+/// C++ `WorldPackets::Query::CorpseTransportQuery`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CorpseTransportQuery {
+    pub player: ObjectGuid,
+    pub position: Position,
+    pub facing: f32,
+}
+
+impl CorpseTransportQuery {
+    pub fn not_found_like_cpp(player: ObjectGuid) -> Self {
+        Self {
+            player,
+            position: Position::ZERO,
+            facing: 0.0,
+        }
+    }
+}
+
+impl ServerPacket for CorpseTransportQuery {
+    const OPCODE: ServerOpcodes = ServerOpcodes::CorpseTransportQuery;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_guid(&self.player);
+        pkt.write_float(self.position.x);
+        pkt.write_float(self.position.y);
+        pkt.write_float(self.position.z);
+        pkt.write_float(self.facing);
+    }
+}
+
 // ── CMSG_QUERY_CREATURE (0x3270) ─────────────────────────────────────
 
 /// Client request for creature template data.
@@ -571,6 +623,7 @@ impl ServerPacket for QueryPetNameResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wow_core::guid::HighGuid;
 
     #[test]
     fn query_creature_response_not_found() {
@@ -617,6 +670,41 @@ mod tests {
         assert_eq!(&bytes[35..39], &0_i32.to_le_bytes());
         assert_eq!(&bytes[39..55], &ObjectGuid::EMPTY.to_raw_bytes());
         assert_eq!(bytes.len(), 55);
+    }
+
+    #[test]
+    fn query_corpse_transport_reads_full_guids_like_cpp() {
+        let player = ObjectGuid::create_player(1, 0xAABB_CCDD);
+        let transport = ObjectGuid::create_world_object(HighGuid::Transport, 0, 1, 571, 0, 77, 42);
+        let mut data = (ClientOpcodes::QueryCorpseTransport as u16)
+            .to_le_bytes()
+            .to_vec();
+        data.extend_from_slice(&player.to_raw_bytes());
+        data.extend_from_slice(&transport.to_raw_bytes());
+        let mut pkt = WorldPacket::from_bytes(&data);
+        pkt.skip_opcode();
+
+        let query = QueryCorpseTransport::read(&mut pkt).unwrap();
+
+        assert_eq!(query.player, player);
+        assert_eq!(query.transport, transport);
+    }
+
+    #[test]
+    fn corpse_transport_query_not_found_writes_cpp_shape() {
+        let player = ObjectGuid::create_player(1, 0xAABB_CCDD);
+        let bytes = CorpseTransportQuery::not_found_like_cpp(player).to_bytes();
+
+        assert_eq!(
+            bytes[0..2],
+            (ServerOpcodes::CorpseTransportQuery as u16).to_le_bytes()
+        );
+        assert_eq!(&bytes[2..18], &player.to_raw_bytes());
+        assert_eq!(&bytes[18..22], &0.0_f32.to_le_bytes());
+        assert_eq!(&bytes[22..26], &0.0_f32.to_le_bytes());
+        assert_eq!(&bytes[26..30], &0.0_f32.to_le_bytes());
+        assert_eq!(&bytes[30..34], &0.0_f32.to_le_bytes());
+        assert_eq!(bytes.len(), 34);
     }
 
     #[test]
