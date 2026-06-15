@@ -34807,6 +34807,9 @@ impl WorldSession {
                         target_guid,
                     )?;
                 }
+                x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_ATTACK_ME => {
+                    self.apply_taunt_effect_like_cpp(spell_id, target_guid)?;
+                }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_SANCTUARY => {
                     self.apply_sanctuary_effect_like_cpp(target_guid)?;
                 }
@@ -35009,6 +35012,7 @@ impl WorldSession {
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_GIVE_HONOR
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_THREAT
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_MODIFY_THREAT_PERCENT
+                || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_ATTACK_ME
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_SANCTUARY
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_SELF_RESURRECT
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_STUCK
@@ -36952,6 +36956,50 @@ impl WorldSession {
                 .combat
                 .put_threatened_by_me_ref(owner_guid, threat_ref);
         }
+    }
+
+    /// C++ `Spell::EffectTaunt` / `SPELL_EFFECT_ATTACK_ME`.
+    fn apply_taunt_effect_like_cpp(
+        &mut self,
+        spell_id: i32,
+        target_guid: ObjectGuid,
+    ) -> Result<(), &'static str> {
+        let player_guid = self.player_guid().ok_or("No player GUID")?;
+        let Some(threat_value) = self
+            .mutate_world_creature(target_guid, |creature| {
+                let combat = &mut creature.creature.unit_mut().subsystems_mut().combat;
+                if !combat.owner_can_have_threat_list
+                    || combat.current_victim_guid == Some(player_guid)
+                    || combat.is_threat_list_empty(false)
+                {
+                    return None;
+                }
+                combat.match_unit_threat_to_highest_threat_like_cpp(player_guid)
+            })
+            .flatten()
+        else {
+            return Ok(());
+        };
+
+        self.sync_represented_creature_threat_to_canonical_like_cpp(
+            target_guid,
+            player_guid,
+            threat_value,
+        );
+
+        // C++ special-cases Hand of Reckoning (62124) by casting 67485 on
+        // non-player targets outside the threat-list path. That triggered spell
+        // requires broader spell/aura runtime and is intentionally outside this
+        // represented threat-list slice.
+        if spell_id == 62124 {
+            debug!(
+                account = self.account_id,
+                target = ?target_guid,
+                "represented EffectTaunt does not yet cast Hand of Reckoning damage spell 67485"
+            );
+        }
+
+        Ok(())
     }
 
     fn stop_represented_player_pve_combat_like_cpp(&mut self, target_guid: ObjectGuid) {
@@ -58066,6 +58114,166 @@ mod tests {
         assert_eq!(
             session.canonical_creature_threat_value_like_cpp(creature_guid, player_guid),
             Some(60.0)
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_taunt_effect_matches_caster_threat_to_highest_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 793_i32;
+        let player_guid = ObjectGuid::create_player(1, 793);
+        let other_player_guid = ObjectGuid::create_player(1, 1793);
+        let creature_guid = test_creature_guid(18_793);
+        let position = Position::new(10.0, 10.0, 0.0, 0.0);
+        let manager = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TauntCaster".to_string(),
+            position,
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_player_health_like_cpp(100, 100);
+        add_canonical_test_player_on_map(&canonical, player_guid, position, 0, 0);
+        add_canonical_test_creature_indexed_on_map_with_level(
+            &canonical,
+            creature_guid,
+            9001,
+            position,
+            0,
+            0,
+            80,
+        );
+        register_test_creature(&mut session, manager.clone(), creature_guid, 100);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                let combat = &mut creature.creature.unit_mut().subsystems_mut().combat;
+                combat.add_threat(other_player_guid, 120.0);
+                combat.add_threat(player_guid, 5.0);
+            })
+            .unwrap();
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            threat_spell_info_like_cpp(
+                spell_id,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_ATTACK_ME,
+                0,
+            ),
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, creature_guid)
+            .await
+            .expect("represented EffectTaunt should execute");
+
+        let legacy_threat = manager
+            .read()
+            .unwrap()
+            .find_creature(0, 0, creature_guid)
+            .unwrap()
+            .creature
+            .unit()
+            .subsystems()
+            .combat
+            .threat_value(player_guid);
+        assert_eq!(legacy_threat, Some(120.0));
+        assert_eq!(
+            session.canonical_creature_threat_value_like_cpp(creature_guid, player_guid),
+            Some(120.0)
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_taunt_effect_current_victim_is_noop_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 794_i32;
+        let player_guid = ObjectGuid::create_player(1, 794);
+        let other_player_guid = ObjectGuid::create_player(1, 1794);
+        let creature_guid = test_creature_guid(18_794);
+        let position = Position::new(10.0, 10.0, 0.0, 0.0);
+        let manager = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TauntAlreadyVictim".to_string(),
+            position,
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_player_health_like_cpp(100, 100);
+        add_canonical_test_player_on_map(&canonical, player_guid, position, 0, 0);
+        add_canonical_test_creature_indexed_on_map_with_level(
+            &canonical,
+            creature_guid,
+            9001,
+            position,
+            0,
+            0,
+            80,
+        );
+        register_test_creature(&mut session, manager.clone(), creature_guid, 100);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                let combat = &mut creature.creature.unit_mut().subsystems_mut().combat;
+                combat.add_threat(player_guid, 5.0);
+                combat.add_threat(other_player_guid, 120.0);
+                combat.current_victim_guid = Some(player_guid);
+            })
+            .unwrap();
+        session.sync_represented_creature_threat_to_canonical_like_cpp(
+            creature_guid,
+            player_guid,
+            5.0,
+        );
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            threat_spell_info_like_cpp(
+                spell_id,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_ATTACK_ME,
+                0,
+            ),
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, creature_guid)
+            .await
+            .expect("represented EffectTaunt current-victim gate should execute as no-op");
+
+        let legacy_threat = manager
+            .read()
+            .unwrap()
+            .find_creature(0, 0, creature_guid)
+            .unwrap()
+            .creature
+            .unit()
+            .subsystems()
+            .combat
+            .threat_value(player_guid);
+        assert_eq!(legacy_threat, Some(5.0));
+        assert_eq!(
+            session.canonical_creature_threat_value_like_cpp(creature_guid, player_guid),
+            Some(5.0)
         );
         assert_eq!(
             drain_server_opcodes(&send_rx),

@@ -13,8 +13,9 @@ use wow_core::{ObjectGuid, Position};
 
 use crate::{
     BASE_MAXDAMAGE, BASE_MINDAMAGE, MoveFallPlan, MovementGeneratorKind,
-    UNIT_MASK_CONTROLABLE_GUARDIAN, UNIT_MASK_GUARDIAN, UNIT_MASK_TOTEM, UNIT_MASK_VEHICLE, Unit,
-    VehicleAccessory, VehicleSeatAddon, VehicleSeatInfo, VisibilityDistanceTypeLikeCpp,
+    UNIT_MASK_CONTROLABLE_GUARDIAN, UNIT_MASK_GUARDIAN, UNIT_MASK_MINION, UNIT_MASK_PET,
+    UNIT_MASK_TOTEM, UNIT_MASK_VEHICLE, Unit, VehicleAccessory, VehicleSeatAddon, VehicleSeatInfo,
+    VisibilityDistanceTypeLikeCpp,
 };
 
 pub const CREATURE_REGEN_INTERVAL_MS: u32 = 2_000;
@@ -885,6 +886,9 @@ impl Creature {
         unit.set_type(TypeId::Unit, TypeMask::OBJECT | TypeMask::UNIT);
         unit.set_power_index(PowerType::Mana, Some(0));
         unit.set_power_index(PowerType::ComboPoints, Some(2));
+        unit.subsystems_mut()
+            .combat
+            .initialize_threat_list_capability(true);
 
         Self {
             unit,
@@ -1147,6 +1151,7 @@ impl Creature {
             addon: record.addon,
         };
 
+        self.refresh_threat_list_capability_like_cpp();
         self.clear_data_changes();
     }
 
@@ -1335,10 +1340,35 @@ impl Creature {
 
     pub fn add_unit_type_mask_like_cpp(&mut self, mask: u32) {
         self.unit_type_mask |= mask;
+        self.refresh_threat_list_capability_like_cpp();
     }
 
     pub fn remove_unit_type_mask_like_cpp(&mut self, mask: u32) {
         self.unit_type_mask &= !mask;
+        self.refresh_threat_list_capability_like_cpp();
+    }
+
+    pub fn can_have_threat_list_like_cpp(&self) -> bool {
+        if CreatureFlagsExtra::from_bits_truncate(self.lifecycle_metadata.flags_extra)
+            .contains(CreatureFlagsExtra::TRIGGER)
+        {
+            return false;
+        }
+        if self.has_unit_type_mask_like_cpp(UNIT_MASK_PET | UNIT_MASK_TOTEM) {
+            return false;
+        }
+        if self.has_unit_type_mask_like_cpp(UNIT_MASK_MINION | UNIT_MASK_GUARDIAN) {
+            return false;
+        }
+        true
+    }
+
+    fn refresh_threat_list_capability_like_cpp(&mut self) {
+        let can_have_threat_list = self.can_have_threat_list_like_cpp();
+        self.unit
+            .subsystems_mut()
+            .combat
+            .initialize_threat_list_capability(can_have_threat_list);
     }
 
     pub const fn is_totem_unit_type_like_cpp(&self) -> bool {
@@ -4579,6 +4609,14 @@ mod tests {
         assert!(!creature.is_guardian_unit_type_like_cpp());
         assert!(!creature.is_controlable_guardian_unit_type_like_cpp());
         assert!(!creature.is_vehicle_unit_type_like_cpp());
+        assert!(creature.can_have_threat_list_like_cpp());
+        assert!(
+            creature
+                .unit()
+                .subsystems()
+                .combat
+                .owner_can_have_threat_list
+        );
 
         creature.add_unit_type_mask_like_cpp(
             UNIT_MASK_TOTEM | UNIT_MASK_GUARDIAN | UNIT_MASK_CONTROLABLE_GUARDIAN,
@@ -4588,11 +4626,20 @@ mod tests {
         assert!(creature.is_guardian_unit_type_like_cpp());
         assert!(creature.is_controlable_guardian_unit_type_like_cpp());
         assert!(!creature.is_vehicle_unit_type_like_cpp());
+        assert!(!creature.can_have_threat_list_like_cpp());
+        assert!(
+            !creature
+                .unit()
+                .subsystems()
+                .combat
+                .owner_can_have_threat_list
+        );
 
         creature.remove_unit_type_mask_like_cpp(UNIT_MASK_GUARDIAN);
         assert!(creature.is_totem_unit_type_like_cpp());
         assert!(!creature.is_guardian_unit_type_like_cpp());
         assert!(creature.is_controlable_guardian_unit_type_like_cpp());
+        assert!(!creature.can_have_threat_list_like_cpp());
     }
 
     #[test]

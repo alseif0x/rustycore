@@ -82,6 +82,7 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_SURVEY: u32 = 105;
     pub const SPELL_EFFECT_SHOW_CORPSE_LOOT: u32 = 107;
     pub const SPELL_EFFECT_112: u32 = 112;
+    pub const SPELL_EFFECT_ATTACK_ME: u32 = 114;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_PET: u32 = 119;
     pub const SPELL_EFFECT_122: u32 = 122;
     pub const SPELL_EFFECT_MODIFY_THREAT_PERCENT: u32 = 125;
@@ -1126,6 +1127,7 @@ mod tests {
         assert_eq!(spell_effect_types::SPELL_EFFECT_SURVEY, 105);
         assert_eq!(spell_effect_types::SPELL_EFFECT_SHOW_CORPSE_LOOT, 107);
         assert_eq!(spell_effect_types::SPELL_EFFECT_112, 112);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_ATTACK_ME, 114);
         assert_eq!(spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_PET, 119);
         assert_eq!(spell_effect_types::SPELL_EFFECT_122, 122);
         assert_eq!(spell_effect_types::SPELL_EFFECT_MODIFY_THREAT_PERCENT, 125);

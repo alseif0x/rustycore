@@ -468,8 +468,22 @@ Numerados como `#SPELLS-EFFECTS.N` para referencia desde `MIGRATION_ROADMAP.md`.
   scale-to-zero de threat en dungeon/otros targets con espejo legacy/canónico. Sigue
   `represented-partial`: no modela `m_lastSanctuaryTime`/fizzle de spells, combat refs de todos los
   tipos de Unit, ni runtime live/fanout completo.
-- [ ] **#SPELLS-EFFECTS.40** Implementar `EffectDualWield` (passive proficiency grant) (L)
-- [ ] **#SPELLS-EFFECTS.41** Implementar `EffectTaunt` con `ThreatManager::TauntApply` (L)
+- [x] **#SPELLS-EFFECTS.40** Representar `EffectDualWield` para el target jugador actual. C++
+  `SpellEffects.cpp:2176-2183` valida `HIT_TARGET` y ejecuta `unitTarget->SetCanDualWield(true)`.
+  Rust ya expone `SPELL_EFFECT_DUAL_WIELD = 40`, despacha el efecto directo y marca el flag
+  `can_dual_wield` en el jugador canónico actual, que ya consume el path representado de offhand.
+  Sigue `represented-partial`: no cubre creature/non-current-player target routing, DB/proficiency
+  side effects ni validación live cliente/servidor.
+- [x] **#SPELLS-EFFECTS.41** Representar `EffectTaunt` / `SPELL_EFFECT_ATTACK_ME` para caster
+  jugador actual contra criatura representada con threat list. C++ `SpellEffects.cpp:2698-2736`
+  valida `HIT_TARGET`, caster unit, target no totem, `CanHaveThreatList`, current victim distinto y
+  lista no vacía; luego llama `ThreatManager::MatchUnitThreatToHighestThreat`. Rust añade
+  `SPELL_EFFECT_ATTACK_ME = 114`, inicializa `CanHaveThreatList` para criaturas normales como
+  `ThreatManager::Initialize`, y alinea la amenaza del caster con la amenaza disponible más alta,
+  preservando la peculiaridad C++ de saltar un top taunting si el siguiente disponible tiene más
+  threat. Sigue `represented-partial`: no envía `SPELL_FAILED_DONT_REPORT`, no modela el triggered
+  Hand of Reckoning 62124->67485, ni aura `SPELL_AURA_MOD_TAUNT`/diminishing/fanout/threat packets
+  completos.
 - [x] **#SPELLS-EFFECTS.42** Representar `EffectThreat` y `EffectModifyThreatPercent` para caster
   jugador y target criatura (`SPELL_EFFECT_THREAT = 63`,
   `SPELL_EFFECT_MODIFY_THREAT_PERCENT = 125`). C++:
@@ -671,7 +685,7 @@ Numerados como `#SPELLS-EFFECTS.N` para referencia desde `MIGRATION_ROADMAP.md`.
 - Summon: `EffectSummonType` (the XL ~218-line discriminator), `EffectSummonPet`, `EffectSummonObject`, `EffectSummonObjectWild`, `EffectSummonChangeItem`, `EffectSummonPlayer` — none.
 - Resurrect: `EffectResurrect`, `EffectResurrectNew`, `EffectSelfResurrect`, `EffectResurrectPet` — none.
 - Dispel/Interrupt: `EffectDispel`, `EffectStealBeneficialBuff`, `EffectInterruptCast`, `EffectDispelMechanic` — none.
-- Status: `EffectStuck`, `EffectThreat`, `EffectModifyThreatPercent`, `EffectSanctuary` — represented-partial; `EffectAddComboPoints` — represented real-handler no-op; `EffectDualWield`, `EffectTaunt`, `EffectScriptEffect`, `EffectDummy`, `EffectDistract`, `EffectModifyAuraStacks`, `EffectModifyCooldown`/`Cooldowns`/`CooldownsByCategory`, `EffectModifySpellCharges` — none.
+- Status: `EffectStuck`, `EffectDualWield`, `EffectThreat`, `EffectModifyThreatPercent`, `EffectSanctuary`, `EffectTaunt` — represented-partial; `EffectAddComboPoints` — represented real-handler no-op; `EffectScriptEffect`, `EffectDummy`, `EffectDistract`, `EffectModifyAuraStacks`, `EffectModifyCooldown`/`Cooldowns`/`CooldownsByCategory`, `EffectModifySpellCharges` — none.
 - Item: `EffectCreateItem`, `EffectCreateItem2`, `EffectCreateRandomItem`, `EffectFeedPet`, `EffectEnchantItemPerm`, `EffectEnchantItemTmp`, `EffectEnchantItemPrismatic`, `EffectEnchantHeldItem`, `EffectDisEnchant`, `EffectMillItem`, `EffectProspecting` — none.
 - Quest/Profession: `EffectQuestComplete`, `EffectQuestStart`, `EffectQuestRedirect`, `EffectLearnSpell`, `EffectUnlearnSpecialization`, `EffectLearnPetSpell`, `EffectLearnSkill`, `EffectTradeSkill`, `EffectProficiency`, `EffectUntrainTalents` — none.
 - OpenLock/GO: `EffectOpenLock`, `EffectActivateObject`, `EffectSendEvent`, `EffectGameobjectDamage`, `EffectGameObjectRepair`, `EffectGameobjectSetDestructionState` — none.

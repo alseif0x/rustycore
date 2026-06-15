@@ -1482,6 +1482,36 @@ impl CombatSubsystem {
         Some(value)
     }
 
+    pub fn match_unit_threat_to_highest_threat_like_cpp(
+        &mut self,
+        target: ObjectGuid,
+    ) -> Option<f32> {
+        let sorted = self.sorted_threat_guids();
+        let highest_guid = *sorted
+            .iter()
+            .find(|guid| self.threat_refs[*guid].is_available())?;
+        let mut highest_ref = self.threat_refs[&highest_guid];
+
+        if highest_ref.is_taunting()
+            && let Some(next_guid) = sorted
+                .into_iter()
+                .skip_while(|guid| *guid != highest_guid)
+                .nth(1)
+        {
+            let next_ref = self.threat_refs[&next_guid];
+            if next_ref.is_available() && next_ref.threat() > highest_ref.threat() {
+                highest_ref = next_ref;
+            }
+        }
+
+        let current_threat = self
+            .threat_refs
+            .get(&target)
+            .filter(|threat_ref| threat_ref.is_available())
+            .map_or(0.0, ThreatReferenceState::threat);
+        Some(self.add_threat(target, highest_ref.threat() - current_threat))
+    }
+
     pub fn reset_all_threat(&mut self) {
         for (guid, threat_ref) in &mut self.threat_refs {
             threat_ref.scale_threat(0.0);
@@ -4700,6 +4730,42 @@ mod unit_subsystems_tests {
         combat.reset_all_threat();
         assert_eq!(combat.threat_value(low), Some(0.0));
         assert!(combat.need_client_update);
+    }
+
+    #[test]
+    fn match_unit_threat_to_highest_threat_matches_cpp_taunt_skip_shape() {
+        let mut combat = CombatSubsystem::default();
+        let caster = guid(24);
+        let taunter = guid(25);
+        let high = guid(26);
+
+        combat.add_threat(taunter, 100.0);
+        assert!(combat.set_threat_taunt_state(taunter, ThreatTauntState::Taunt));
+        combat.add_threat(high, 150.0);
+
+        assert_eq!(
+            combat.match_unit_threat_to_highest_threat_like_cpp(caster),
+            Some(150.0)
+        );
+        assert_eq!(combat.threat_value(caster), Some(150.0));
+    }
+
+    #[test]
+    fn match_unit_threat_to_highest_threat_uses_available_highest_like_cpp() {
+        let mut combat = CombatSubsystem::default();
+        let caster = guid(27);
+        let offline = guid(28);
+        let high = guid(29);
+
+        combat.add_threat(offline, 999.0);
+        assert!(combat.set_threat_online_state(offline, ThreatOnlineState::Offline));
+        combat.add_threat(high, 80.0);
+
+        assert_eq!(
+            combat.match_unit_threat_to_highest_threat_like_cpp(caster),
+            Some(80.0)
+        );
+        assert_eq!(combat.threat_value(caster), Some(80.0));
     }
 
     #[test]

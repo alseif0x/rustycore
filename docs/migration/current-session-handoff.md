@@ -1,3 +1,22 @@
+- `#NEXT.RUNTIME.L3.031j40` — WotLK represented `Spell::EffectTaunt` / `SPELL_EFFECT_ATTACK_ME`
+  and creature threat-list capability initialization fix (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:1260`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellEffects.cpp:2698-2736`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Combat/ThreatManager.cpp:172-218,474-493`.
+  Rust now names `SPELL_EFFECT_ATTACK_ME = 114`, dispatches the direct represented effect for the
+  current player caster against represented creature targets, and mirrors
+  `ThreatManager::MatchUnitThreatToHighestThreat` by raising the caster's threat to the highest
+  available threat while preserving the C++ taunting-top skip rule. The slice also fixes represented
+  creature initialization so normal creatures start with `owner_can_have_threat_list = true`, while
+  pet/totem/minion/guardian/trigger-like represented cases disable the threat list capability. Docs
+  were reconciled for the pre-existing represented `EffectDualWield` implementation so
+  `spells-effects.md` no longer marks it as missing. Coverage: targeted entity tests cover
+  threat-list capability and `MatchUnitThreatToHighestThreat`; targeted spell tests cover taunt
+  match-to-highest and current-victim no-op; constant coverage asserts effect id 114. Boundary
+  remains partial: no `SPELL_FAILED_DONT_REPORT` packet branch, no Hand of Reckoning 62124 triggered
+  damage spell 67485, no aura `SPELL_AURA_MOD_TAUNT`/diminishing-return update, no full
+  `CanHaveThreatList` temp-summon owner routing, no threat packet fanout, no install/restart, bot,
+  or live-client/manual validation.
 - `#NEXT.RUNTIME.L3.031j39` — WotLK represented `Spell::EffectSanctuary` plus
   `EffectAddComboPoints` documentation correction (not manual-test-ready). Source-of-truth:
   `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:1225-1226`,
