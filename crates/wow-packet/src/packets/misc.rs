@@ -789,6 +789,44 @@ impl ClientPacket for SetTaxiBenchmarkMode {
     }
 }
 
+/// C++ `WorldPackets::Taxi::ActivateTaxi`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ActivateTaxi {
+    pub vendor: ObjectGuid,
+    pub node: u32,
+    pub ground_mount_id: u32,
+    pub flying_mount_id: u32,
+}
+
+impl ClientPacket for ActivateTaxi {
+    const OPCODE: ClientOpcodes = ClientOpcodes::ActivateTaxi;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            vendor: pkt.read_packed_guid()?,
+            node: pkt.read_uint32()?,
+            ground_mount_id: pkt.read_uint32()?,
+            flying_mount_id: pkt.read_uint32()?,
+        })
+    }
+}
+
+pub const ERR_TAXIOK_LIKE_CPP: u8 = 0;
+pub const ERR_TAXITOOFARAWAY_LIKE_CPP: u8 = 4;
+
+pub struct ActivateTaxiReply {
+    pub reply: u8,
+}
+
+impl ServerPacket for ActivateTaxiReply {
+    const OPCODE: ServerOpcodes = ServerOpcodes::ActivateTaxiReply;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_bits(u32::from(self.reply), 4);
+        pkt.flush_bits();
+    }
+}
+
 /// C++ `WorldPackets::ClientConfig::SetAdvancedCombatLogging`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SetAdvancedCombatLogging {
@@ -5940,6 +5978,44 @@ mod tests {
             let parsed = SetTaxiBenchmarkMode::read(&mut pkt).unwrap();
             assert_eq!(parsed.enable, enable);
         }
+    }
+
+    #[test]
+    fn activate_taxi_reads_cpp_vendor_node_ground_and_flying_mount_order() {
+        let vendor = ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::Creature,
+            0,
+            1,
+            571,
+            0,
+            9,
+            12_345,
+        );
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_packed_guid(&vendor);
+        pkt.write_uint32(7);
+        pkt.write_uint32(111);
+        pkt.write_uint32(222);
+        pkt.reset_read();
+
+        let parsed = ActivateTaxi::read(&mut pkt).unwrap();
+
+        assert_eq!(parsed.vendor, vendor);
+        assert_eq!(parsed.node, 7);
+        assert_eq!(parsed.ground_mount_id, 111);
+        assert_eq!(parsed.flying_mount_id, 222);
+    }
+
+    #[test]
+    fn activate_taxi_reply_writes_cpp_four_bit_reply() {
+        let bytes = ActivateTaxiReply { reply: 4 }.to_bytes();
+
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::ActivateTaxiReply as u16
+        );
+        let mut payload = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(payload.read_bits(4).unwrap(), 4);
     }
 
     #[test]

@@ -45,23 +45,23 @@ use wow_packet::packets::item::{
 };
 use wow_packet::packets::loot::{LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHING_LIKE_CPP};
 use wow_packet::packets::misc::{
-    AcceptGuildInvite, AcceptTrade, AcceptWargameInvite, AddToy, AddonList, ArenaTeamDecline,
-    ArenaTeamRoster, BattlePetClearFanfare, BattlePetDeletePet, BattlePetModifyName,
-    BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags, BattlePetSummon,
-    BattlePetUpdateNotify, BattlefieldLeave, BeginTrade, BugReport, BusyTrade, CageBattlePet,
-    CalendarSendCalendar, CalendarSendNumPending, CanDuel, ClearTradeItem, CloseInteraction,
-    CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint, ComplaintResult,
-    DeclineGuildInvites, DeclinePetition, DfGetJoinStatus, DfGetSystemInfo, FarSight,
-    GmTicketAcknowledgeSurvey, GmTicketCaseStatus, GmTicketSystemStatus,
-    GuildSetAchievementTracking, IgnoreTrade, LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus,
-    LoadingScreenNotify, MAX_ACCOUNT_DATA_SIZE_LIKE_CPP, MountSetFavorite, MountSpecial,
-    NUM_ACCOUNT_DATA_TYPES, ObjectUpdateFailed, ObjectUpdateRescued, QueryBattlePetName,
-    QueryBattlePetNameResponse, QueryPetition, QueryPetitionResponse, RatedPvpInfo,
-    RequestAccountData, RequestBattlefieldStatus, RequestCemeteryListResponse, ResurrectResponse,
-    SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags, SetTaxiBenchmarkMode,
-    SetTradeGold, SetTradeItem, SetTradeSpell, SignPetition, SpecialMountAnim, StandStateChange,
-    SubmitUserFeedback, SupportTicketSubmitBug, SupportTicketSubmitComplaint,
-    SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
+    AcceptGuildInvite, AcceptTrade, AcceptWargameInvite, ActivateTaxi, ActivateTaxiReply, AddToy,
+    AddonList, ArenaTeamDecline, ArenaTeamRoster, BattlePetClearFanfare, BattlePetDeletePet,
+    BattlePetModifyName, BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags,
+    BattlePetSummon, BattlePetUpdateNotify, BattlefieldLeave, BeginTrade, BugReport, BusyTrade,
+    CageBattlePet, CalendarSendCalendar, CalendarSendNumPending, CanDuel, ClearTradeItem,
+    CloseInteraction, CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint, ComplaintResult,
+    DeclineGuildInvites, DeclinePetition, DfGetJoinStatus, DfGetSystemInfo,
+    ERR_TAXITOOFARAWAY_LIKE_CPP, FarSight, GmTicketAcknowledgeSurvey, GmTicketCaseStatus,
+    GmTicketSystemStatus, GuildSetAchievementTracking, IgnoreTrade, LfgListBlacklist,
+    LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify, MAX_ACCOUNT_DATA_SIZE_LIKE_CPP,
+    MountSetFavorite, MountSpecial, NUM_ACCOUNT_DATA_TYPES, ObjectUpdateFailed,
+    ObjectUpdateRescued, QueryBattlePetName, QueryBattlePetNameResponse, QueryPetition,
+    QueryPetitionResponse, RatedPvpInfo, RequestAccountData, RequestBattlefieldStatus,
+    RequestCemeteryListResponse, ResurrectResponse, SaveCufProfiles, SetAdvancedCombatLogging,
+    SetCurrencyFlags, SetTaxiBenchmarkMode, SetTradeGold, SetTradeItem, SetTradeSpell,
+    SignPetition, SpecialMountAnim, StandStateChange, SubmitUserFeedback, SupportTicketSubmitBug,
+    SupportTicketSubmitComplaint, SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
     TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP, TaxiNodeStatusPkt, TogglePvp, ToyClearFanfare,
     UnacceptTrade, UpdateAccountData, UseToy, UserClientUpdateAccountData, ViolenceLevel,
     compress_account_data_like_cpp, decompress_account_data_like_cpp,
@@ -78,11 +78,21 @@ use wow_packet::{ClientPacket, ServerPacket};
 use crate::entity_update_bridge::player_values_update_to_update_object;
 use crate::handlers::loot::represented_gameobject_interaction_distance_like_cpp;
 use crate::session::{
-    CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP, RepresentedGameObjectAccessLikeCpp,
-    RepresentedGameObjectUseEffect, SpellCastMetadata, TRADE_STATUS_PLAYER_BUSY_LIKE_CPP,
+    CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP, RepresentedActivateTaxiLikeCpp,
+    RepresentedGameObjectAccessLikeCpp, RepresentedGameObjectUseEffect, SpellCastMetadata,
+    TRADE_STATUS_PLAYER_BUSY_LIKE_CPP,
 };
 
 // ── inventory registrations ───────────────────────────────────────────────────
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::ActivateTaxi,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadSafe,
+        handler_name: "handle_activate_taxi",
+    }
+}
 
 inventory::submit! {
     PacketHandlerEntry {
@@ -1692,6 +1702,58 @@ impl crate::session::WorldSession {
         } else {
             self.apply_represented_resurrection_health_like_cpp(request.health);
         }
+    }
+
+    /// CMSG_ACTIVATE_TAXI.
+    ///
+    /// C++ resolves `GetNPCIfCanInteractWith(Vendor, UNIT_NPC_FLAG_FLIGHTMASTER)`,
+    /// sends `ERR_TAXITOOFARAWAY` when that fails, then checks nearest taxi
+    /// node, known taximask nodes, preferred mount display, `TaxiPathGraph`,
+    /// and `Player::ActivateTaxiPathTo`.
+    ///
+    /// Rust currently has represented NPC interaction and mount display filters,
+    /// but not `TaxiNodes.db2`, `TaxiPathGraph`, or live MotionMaster taxi
+    /// flight. This handler preserves packet/dispatch and the first C++ failure
+    /// reply, then records the accepted request for the future taxi runtime.
+    pub async fn handle_activate_taxi(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let activate = match ActivateTaxi::read(&mut pkt) {
+            Ok(activate) => activate,
+            Err(error) => {
+                warn!("Bad ActivateTaxi: {error}");
+                return;
+            }
+        };
+
+        const NPC_FLAG_FLIGHT_MASTER: u32 = 0x2000;
+        let can_interact = self
+            .represented_npc_can_interact_with_like_cpp(activate.vendor, NPC_FLAG_FLIGHT_MASTER, 0)
+            .is_some()
+            || self
+                .mutate_world_creature(activate.vendor, |creature| {
+                    creature.npc_flags() & NPC_FLAG_FLIGHT_MASTER != 0
+                })
+                .unwrap_or(false);
+
+        if !can_interact {
+            self.send_packet(&ActivateTaxiReply {
+                reply: ERR_TAXITOOFARAWAY_LIKE_CPP,
+            });
+            return;
+        }
+
+        let preferred_mount_display = self
+            .represented_taxi_usable_mount_displays_like_cpp(activate.flying_mount_id)
+            .into_iter()
+            .find_map(|display| u32::try_from(display).ok())
+            .unwrap_or_default();
+
+        self.record_represented_activate_taxi_like_cpp(RepresentedActivateTaxiLikeCpp {
+            vendor: activate.vendor,
+            node: activate.node,
+            ground_mount_id: activate.ground_mount_id,
+            flying_mount_id: activate.flying_mount_id,
+            preferred_mount_display,
+        });
     }
 
     /// CMSG_TAXI_NODE_STATUS_QUERY — client asks status of a taxi NPC.
@@ -4672,6 +4734,52 @@ mod tests {
         pkt
     }
 
+    fn activate_taxi_packet(
+        vendor: ObjectGuid,
+        node: u32,
+        ground_mount_id: u32,
+        flying_mount_id: u32,
+    ) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_packed_guid(&vendor);
+        pkt.write_uint32(node);
+        pkt.write_uint32(ground_mount_id);
+        pkt.write_uint32(flying_mount_id);
+        pkt
+    }
+
+    fn add_canonical_flight_master_for_misc_test(
+        canonical: &crate::session::SharedCanonicalMapManager,
+        guid: ObjectGuid,
+        position: Position,
+    ) {
+        let mut creature = wow_entities::Creature::new(false);
+        creature.unit_mut().world_mut().object_mut().create(guid);
+        creature
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .set_entry(90_001);
+        creature.unit_mut().world_mut().set_map(571, 0).unwrap();
+        creature.unit_mut().world_mut().relocate(position);
+        creature.unit_mut().world_mut().set_combat_reach(1.0);
+        creature.unit_mut().set_level(80);
+        creature.unit_mut().set_max_health(100);
+        creature.unit_mut().set_health(100);
+        creature.unit_mut().world_mut().object_mut().add_to_world();
+        creature.set_ai_identity_runtime(1, 35, 0x2000, 0);
+
+        canonical
+            .lock()
+            .unwrap()
+            .create_world_map(571, 0)
+            .map_mut()
+            .insert_map_object_record(
+                wow_entities::MapObjectRecord::new_creature(creature).unwrap(),
+            )
+            .unwrap();
+    }
+
     #[tokio::test]
     async fn update_account_data_stores_decompressed_cstring_like_cpp() {
         let (mut session, _send_rx) = make_session();
@@ -4788,6 +4896,77 @@ mod tests {
             "macro-cache"
         );
         assert_eq!(packet.remaining(), 0);
+    }
+
+    #[tokio::test]
+    async fn activate_taxi_without_interactable_flight_master_replies_too_far_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let vendor = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9, 77);
+
+        session
+            .handle_activate_taxi(activate_taxi_packet(vendor, 12, 101, 202))
+            .await;
+
+        let encoded = send_rx.try_recv().unwrap();
+        let mut packet = WorldPacket::new_client(encoded.as_slice().into());
+        assert_eq!(
+            packet.server_opcode(),
+            Some(ServerOpcodes::ActivateTaxiReply)
+        );
+        packet.skip_opcode();
+        assert_eq!(
+            packet.read_bits(4).unwrap(),
+            u32::from(ERR_TAXITOOFARAWAY_LIKE_CPP)
+        );
+        assert_eq!(packet.remaining(), 0);
+        assert!(
+            session
+                .represented_activate_taxi_requests_like_cpp()
+                .is_empty()
+        );
+    }
+
+    #[tokio::test]
+    async fn activate_taxi_records_represented_request_for_flight_master_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager_for_misc_test();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let vendor = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9, 77);
+        let position = Position::new(10.0, 0.0, 0.0, 0.0);
+
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_player_alive_like_cpp(true);
+        session.set_player_faction_template_like_cpp(35);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(crate::session::SessionPlayerController::new(
+            player_guid,
+            "TaxiTester".to_string(),
+            position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map_for_misc_test(&canonical, player_guid, position, 571, 0);
+        add_canonical_flight_master_for_misc_test(&canonical, vendor, position);
+
+        session
+            .handle_activate_taxi(activate_taxi_packet(vendor, 12, 101, 202))
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+        assert_eq!(
+            session.represented_activate_taxi_requests_like_cpp(),
+            &[RepresentedActivateTaxiLikeCpp {
+                vendor,
+                node: 12,
+                ground_mount_id: 101,
+                flying_mount_id: 202,
+                preferred_mount_display: 0,
+            }]
+        );
     }
 
     #[tokio::test]

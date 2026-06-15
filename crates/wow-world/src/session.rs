@@ -419,6 +419,15 @@ pub(crate) struct RepresentedQueryPetitionLikeCpp {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedActivateTaxiLikeCpp {
+    pub vendor: ObjectGuid,
+    pub node: u32,
+    pub ground_mount_id: u32,
+    pub flying_mount_id: u32,
+    pub preferred_mount_display: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedSilencePartyTalkerLikeCpp {
     pub target: ObjectGuid,
     pub silent: bool,
@@ -3067,6 +3076,8 @@ pub struct WorldSession {
     movement_ack_events_like_cpp: Vec<MovementAckEventLikeCpp>,
     /// Represented `PlayerTaxi::m_TaxiDestinations` until PlayerTaxi/MotionMaster runtime is canonical.
     taxi_destinations_like_cpp: Vec<u32>,
+    /// Represented accepted `CMSG_ACTIVATE_TAXI` requests until TaxiPathGraph/MotionMaster are canonical.
+    represented_activate_taxi_requests_like_cpp: Vec<RepresentedActivateTaxiLikeCpp>,
     /// Minimal TaxiNodes.db2 map lookup used by represented `MoveSplineDone` taxi transitions.
     taxi_node_map_ids_like_cpp: HashMap<u32, u16>,
     /// Represented active `FlightPathMovementGenerator`, if any.
@@ -4202,6 +4213,7 @@ impl WorldSession {
             movement_visibility_refresh_requests_like_cpp: 0,
             movement_ack_events_like_cpp: Vec::new(),
             taxi_destinations_like_cpp: Vec::new(),
+            represented_activate_taxi_requests_like_cpp: Vec::new(),
             taxi_node_map_ids_like_cpp: HashMap::new(),
             taxi_flight_state_like_cpp: None,
             taxi_unit_flags_like_cpp: UnitFlags::empty(),
@@ -17909,6 +17921,9 @@ impl WorldSession {
             ClientOpcodes::TaxiNodeStatusQuery => {
                 self.handle_taxi_node_status_query(pkt).await;
             }
+            ClientOpcodes::ActivateTaxi => {
+                self.handle_activate_taxi(pkt).await;
+            }
             ClientOpcodes::ChatJoinChannel => {
                 self.handle_chat_join_channel(pkt).await;
             }
@@ -27358,6 +27373,21 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn taxi_destinations_like_cpp(&self) -> &[u32] {
         &self.taxi_destinations_like_cpp
+    }
+
+    pub(crate) fn record_represented_activate_taxi_like_cpp(
+        &mut self,
+        request: RepresentedActivateTaxiLikeCpp,
+    ) {
+        self.represented_activate_taxi_requests_like_cpp
+            .push(request);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_activate_taxi_requests_like_cpp(
+        &self,
+    ) -> &[RepresentedActivateTaxiLikeCpp] {
+        &self.represented_activate_taxi_requests_like_cpp
     }
 
     pub(crate) fn is_in_taxi_flight_like_cpp(&self) -> bool {
