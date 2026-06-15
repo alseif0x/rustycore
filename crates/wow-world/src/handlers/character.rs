@@ -25,8 +25,8 @@ use wow_data::{
     is_player_meeting_condition_like_cpp,
 };
 use wow_database::{
-    CharStatements, CharacterDatabase, LoginStatements, SqlTransaction, WorldDatabase,
-    WorldStatements,
+    CharStatements, CharacterDatabase, LoginStatements, PreparedStatement, SqlTransaction,
+    WorldDatabase, WorldStatements,
 };
 use wow_entities::{
     BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_START, GAMEOBJECT_TYPE_FISHING_HOLE,
@@ -71,6 +71,15 @@ const WAYPOINT_MOTION_TYPE_LIKE_CPP: u8 = 2;
 const TACT_KEY_TABLE_HASH_LIKE_CPP: u32 = 0xD3F6_1A9E;
 const QUEST_GIVER_STATUS_TRACKED_QUERY_MAX_GUIDS_LIKE_CPP: u32 = 1000;
 const MAX_AREA_SPIRIT_HEALER_RANGE_LIKE_CPP: f32 = 20.0;
+const DIFFICULTY_NORMAL_LIKE_CPP: u8 = 1;
+const DIFFICULTY_NORMAL_RAID_LIKE_CPP: u8 = 14;
+const DIFFICULTY_10_N_LIKE_CPP: u8 = 3;
+
+fn bind_create_character_difficulties_like_cpp(stmt: &mut PreparedStatement) {
+    stmt.set_u8(16, DIFFICULTY_NORMAL_LIKE_CPP);
+    stmt.set_u8(17, DIFFICULTY_NORMAL_RAID_LIKE_CPP);
+    stmt.set_u8(18, DIFFICULTY_10_N_LIKE_CPP);
+}
 
 fn creature_movement_generator_type_from_db_like_cpp(
     db_movement_type: u8,
@@ -1897,9 +1906,7 @@ impl WorldSession {
         ins_stmt.set_u32(13, 0); // playerFlagsEx
         ins_stmt.set_i32(14, map_id); // map
         ins_stmt.set_u32(15, 0); // instance_id
-        ins_stmt.set_u8(16, 0); // dungeonDifficulty
-        ins_stmt.set_u8(17, 0); // raidDifficulty
-        ins_stmt.set_u8(18, 0); // legacyRaidDifficulty
+        bind_create_character_difficulties_like_cpp(&mut ins_stmt);
         ins_stmt.set_f32(19, x); // position_x
         ins_stmt.set_f32(20, y); // position_y
         ins_stmt.set_f32(21, z); // position_z
@@ -10578,6 +10585,7 @@ mod tests {
         QUEST_ITEM_DROP_COUNT, QUEST_REWARD_CHOICES_COUNT, QUEST_REWARD_DISPLAY_SPELL_COUNT,
         QUEST_REWARD_ITEM_COUNT, QUEST_REWARD_REPUTATIONS_COUNT, QuestStore, QuestTemplate,
     };
+    use wow_database::StatementDef;
     use wow_entities::EQUIPMENT_SLOT_MAINHAND;
     use wow_packet::WorldPacket;
     use wow_packet::packets::loot::{
@@ -10613,6 +10621,26 @@ mod tests {
         session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
         session.set_player_position_like_cpp(Position::new(10.0, 0.0, 0.0, 0.0));
         (session, send_rx)
+    }
+
+    #[test]
+    fn create_character_binds_cpp_default_difficulties() {
+        let mut stmt = PreparedStatement::new(CharStatements::INS_CHARACTER.sql());
+
+        bind_create_character_difficulties_like_cpp(&mut stmt);
+
+        assert_eq!(
+            stmt.params()[16],
+            wow_database::SqlParam::U8(DIFFICULTY_NORMAL_LIKE_CPP)
+        );
+        assert_eq!(
+            stmt.params()[17],
+            wow_database::SqlParam::U8(DIFFICULTY_NORMAL_RAID_LIKE_CPP)
+        );
+        assert_eq!(
+            stmt.params()[18],
+            wow_database::SqlParam::U8(DIFFICULTY_10_N_LIKE_CPP)
+        );
     }
 
     fn alter_appearance_packet(
