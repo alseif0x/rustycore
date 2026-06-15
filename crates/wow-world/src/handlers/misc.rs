@@ -8,6 +8,7 @@
 //! TaxiNodeStatusQuery, ChatJoinChannel.
 
 use tracing::{debug, info, warn};
+use wow_constants::unit::NPCFlags1;
 use wow_constants::{
     ClientOpcodes, InventoryResult, ItemExtendedCostFlags, SpellCastResult, UnitStandStateType,
 };
@@ -47,7 +48,7 @@ use wow_packet::packets::loot::{LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHI
 use wow_packet::packets::misc::{
     AcceptGuildInvite, AcceptTrade, AcceptWargameInvite, ActivateTaxi, ActivateTaxiReply, AddToy,
     AddonList, ArenaTeamAccept, ArenaTeamDecline, ArenaTeamDisband, ArenaTeamLeader,
-    ArenaTeamLeave, ArenaTeamRemove, ArenaTeamRoster, AuctionableTokenSell,
+    ArenaTeamLeave, ArenaTeamRemove, ArenaTeamRoster, AuctionReplicateItems, AuctionableTokenSell,
     AuctionableTokenSellAtMarketPrice, BattlePetClearFanfare, BattlePetDeletePet,
     BattlePetModifyName, BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags,
     BattlePetSummon, BattlePetUpdateNotify, BattlefieldLeave, BeginTrade, BugReport, BusyTrade,
@@ -83,8 +84,8 @@ use crate::entity_update_bridge::player_values_update_to_update_object;
 use crate::handlers::loot::represented_gameobject_interaction_distance_like_cpp;
 use crate::session::{
     CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP, RepresentedActivateTaxiLikeCpp,
-    RepresentedGameObjectAccessLikeCpp, RepresentedGameObjectUseEffect, SpellCastMetadata,
-    TRADE_STATUS_PLAYER_BUSY_LIKE_CPP,
+    RepresentedAuctionReplicateRequestLikeCpp, RepresentedGameObjectAccessLikeCpp,
+    RepresentedGameObjectUseEffect, SpellCastMetadata, TRADE_STATUS_PLAYER_BUSY_LIKE_CPP,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1540,6 +1541,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_auction_list_items",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::AuctionReplicateItems,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_auction_replicate_items",
     }
 }
 
@@ -4429,6 +4439,37 @@ impl crate::session::WorldSession {
     ) {
     }
 
+    /// CMSG_AUCTION_REPLICATE_ITEMS — replicate auction-house changes.
+    ///
+    /// C++ gates on an alive, usable auctioneer before building the replicate
+    /// response from AuctionMgr. The live AH object map/response builder are
+    /// not ported yet, so this slice records the accepted represented request.
+    pub async fn handle_auction_replicate_items(&mut self, packet: AuctionReplicateItems) {
+        let Some(_auctioneer) = self.represented_npc_can_interact_with_like_cpp(
+            packet.auctioneer,
+            NPCFlags1::AUCTIONEER.bits(),
+            0,
+        ) else {
+            debug!(
+                account = self.account_id,
+                auctioneer = ?packet.auctioneer,
+                "AuctionReplicateItems rejected: auctioneer missing, invalid, hostile/dead, out of range, or lacks AUCTIONEER flag"
+            );
+            return;
+        };
+
+        self.record_represented_auction_replicate_request_like_cpp(
+            RepresentedAuctionReplicateRequestLikeCpp {
+                auctioneer: packet.auctioneer,
+                change_number_global: packet.change_number_global,
+                change_number_cursor: packet.change_number_cursor,
+                change_number_tombstone: packet.change_number_tombstone,
+                count: packet.count,
+                tainted_by_present: packet.tainted_by.is_some(),
+            },
+        );
+    }
+
     /// CMSG_AUCTION_LIST_OWNER_ITEMS — list items the player put up for auction.
     /// Returns empty list until AH system is implemented.
     pub async fn handle_auction_list_owner_items(&mut self, _pkt: wow_packet::WorldPacket) {
@@ -5300,6 +5341,39 @@ mod tests {
         creature.unit_mut().set_health(100);
         creature.unit_mut().world_mut().object_mut().add_to_world();
         creature.set_ai_identity_runtime(1, 35, 0x2000, 0);
+
+        canonical
+            .lock()
+            .unwrap()
+            .create_world_map(571, 0)
+            .map_mut()
+            .insert_map_object_record(
+                wow_entities::MapObjectRecord::new_creature(creature).unwrap(),
+            )
+            .unwrap();
+    }
+
+    fn add_canonical_auctioneer_for_misc_test(
+        canonical: &crate::session::SharedCanonicalMapManager,
+        guid: ObjectGuid,
+        position: Position,
+        npc_flags: u32,
+    ) {
+        let mut creature = wow_entities::Creature::new(false);
+        creature.unit_mut().world_mut().object_mut().create(guid);
+        creature
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .set_entry(90_002);
+        creature.unit_mut().world_mut().set_map(571, 0).unwrap();
+        creature.unit_mut().world_mut().relocate(position);
+        creature.unit_mut().world_mut().set_combat_reach(1.0);
+        creature.unit_mut().set_level(80);
+        creature.unit_mut().set_max_health(100);
+        creature.unit_mut().set_health(100);
+        creature.unit_mut().world_mut().object_mut().add_to_world();
+        creature.set_ai_identity_runtime(1, 35, npc_flags, 0);
 
         canonical
             .lock()
@@ -11761,6 +11835,115 @@ mod tests {
             .await;
 
         assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn auction_replicate_items_records_request_after_auctioneer_gate_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager_for_misc_test();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let auctioneer =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 90_002, 77);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(crate::session::SessionPlayerController::new(
+            player_guid,
+            "Tester".to_string(),
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map_for_misc_test(
+            &canonical,
+            player_guid,
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            571,
+            0,
+        );
+        add_canonical_auctioneer_for_misc_test(
+            &canonical,
+            auctioneer,
+            Position::new(12.0, 0.0, 0.0, 0.0),
+            NPCFlags1::AUCTIONEER.bits(),
+        );
+
+        session
+            .handle_auction_replicate_items(AuctionReplicateItems {
+                auctioneer,
+                change_number_global: 11,
+                change_number_cursor: 22,
+                change_number_tombstone: 33,
+                count: 44,
+                tainted_by: Some(wow_packet::packets::misc::AuctionAddonInfo {
+                    name: "Trade".to_string(),
+                    version: "1.0".to_string(),
+                    loaded: true,
+                    disabled: false,
+                }),
+            })
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+        assert_eq!(
+            session.represented_auction_replicate_requests_like_cpp(),
+            &[RepresentedAuctionReplicateRequestLikeCpp {
+                auctioneer,
+                change_number_global: 11,
+                change_number_cursor: 22,
+                change_number_tombstone: 33,
+                count: 44,
+                tainted_by_present: true,
+            }]
+        );
+    }
+
+    #[tokio::test]
+    async fn auction_replicate_items_rejects_missing_auctioneer_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager_for_misc_test();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let missing_auctioneer =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 90_002, 78);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(crate::session::SessionPlayerController::new(
+            player_guid,
+            "Tester".to_string(),
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map_for_misc_test(
+            &canonical,
+            player_guid,
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            571,
+            0,
+        );
+
+        session
+            .handle_auction_replicate_items(AuctionReplicateItems {
+                auctioneer: missing_auctioneer,
+                change_number_global: 11,
+                change_number_cursor: 22,
+                change_number_tombstone: 33,
+                count: 44,
+                tainted_by: None,
+            })
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+        assert!(
+            session
+                .represented_auction_replicate_requests_like_cpp()
+                .is_empty()
+        );
     }
 
     #[tokio::test]

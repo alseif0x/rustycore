@@ -1,3 +1,13 @@
+# `#NEXT.R8.ENTITIES.949` — represented `CMSG_AUCTION_REPLICATE_ITEMS` dispatch.
+
+Source-of-truth C++ was re-checked before code changes: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/AuctionHouseHandler.cpp:552-574` (`HandleAuctionReplicateItems`), `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/AuctionHousePackets.cpp:465-475` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/AuctionHousePackets.h:360-372` (packet shape), `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/AddonPackets.cpp:21-42` (`AddOnInfo` taint metadata), plus `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp` for `LoggedIn`/`ThreadUnsafe` metadata.
+
+Rust now parses `AuctionReplicateItems` as C++ `Auctioneer`, global/cursor/tombstone change numbers, `Count`, and optional `TaintedBy` addon info with the nested `ResetBitPos` / 10-bit string lengths / loaded-disabled bits / null-terminated strings. The opcode is registered as `LoggedIn`/`ThreadUnsafe`, dispatches through `WorldSession`, applies the represented auctioneer `GetNPCIfCanInteractWith(..., UNIT_NPC_FLAG_AUCTIONEER)` gate, and records accepted represented replicate requests for the future AH runtime.
+
+Checks: `cargo fmt --all --check`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-packet auction_replicate_items --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world auction_replicate_items --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world dispatch_metadata_matches_cpp_for_registered_active_opcodes -- --nocapture`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p wow-packet -p wow-world`; `git diff --check`.
+
+Boundaries: represented-partial only. This does not remove fake death aura, does not call `sAuctionMgr`, does not select `GetAuctionsMap(creature->GetFaction())`, does not build/send `AuctionReplicateResponse`, does not apply `CONFIG_AUCTION_SEARCH_DELAY * 5`, and does not implement auction DB/runtime, install/restart, bot, or live-client/manual validation.
+
 # `#NEXT.R8.ENTITIES.948` — represented-complete `CMSG_AUCTION_LIST_ITEMS` legacy no-op.
 
 Source-of-truth C++ was re-checked before code changes: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/AuctionHouseHandler.cpp:1080-1084` (`HandleAuctionListItems`), `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/AuctionHousePackets.cpp:539-542` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/AuctionHousePackets.h:283-289` (empty legacy packet shape), plus `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp` for `LoggedIn`/`ThreadUnsafe` metadata.

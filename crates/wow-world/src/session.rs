@@ -1456,6 +1456,16 @@ pub(crate) struct RepresentedBankItemMoveLikeCpp {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedAuctionReplicateRequestLikeCpp {
+    pub auctioneer: ObjectGuid,
+    pub change_number_global: u32,
+    pub change_number_cursor: u32,
+    pub change_number_tombstone: u32,
+    pub count: u32,
+    pub tainted_by_present: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedCanDuelSpellCastLikeCpp {
     pub target_guid: ObjectGuid,
     pub spell_id: u32,
@@ -2958,6 +2968,7 @@ pub struct WorldSession {
     represented_bank_bag_slot_flags_like_cpp: [u32; 7],
     represented_current_banker_guid_like_cpp: Option<ObjectGuid>,
     represented_bank_item_moves_like_cpp: Vec<RepresentedBankItemMoveLikeCpp>,
+    represented_auction_replicate_requests_like_cpp: Vec<RepresentedAuctionReplicateRequestLikeCpp>,
     player_xp: u32,
     /// XP required to reach next level, cached from player_xp_for_level.
     player_next_level_xp: u32,
@@ -4362,6 +4373,7 @@ impl WorldSession {
             represented_bank_bag_slot_flags_like_cpp: [0; 7],
             represented_current_banker_guid_like_cpp: None,
             represented_bank_item_moves_like_cpp: Vec::new(),
+            represented_auction_replicate_requests_like_cpp: Vec::new(),
             player_xp: 0,
             player_next_level_xp: 400,
             player_xp_table: None,
@@ -20191,6 +20203,12 @@ impl WorldSession {
                     Err(e) => warn!("Failed to read AuctionListItems: {e}"),
                 }
             }
+            ClientOpcodes::AuctionReplicateItems => {
+                match wow_packet::packets::misc::AuctionReplicateItems::read(&mut pkt) {
+                    Ok(packet) => self.handle_auction_replicate_items(packet).await,
+                    Err(e) => warn!("Failed to read AuctionReplicateItems: {e}"),
+                }
+            }
             ClientOpcodes::AuctionListOwnerItems => {
                 self.handle_auction_list_owner_items(pkt).await;
             }
@@ -21265,6 +21283,20 @@ impl WorldSession {
 
     pub(crate) fn represented_bank_item_moves_like_cpp(&self) -> &[RepresentedBankItemMoveLikeCpp] {
         &self.represented_bank_item_moves_like_cpp
+    }
+
+    pub(crate) fn record_represented_auction_replicate_request_like_cpp(
+        &mut self,
+        request: RepresentedAuctionReplicateRequestLikeCpp,
+    ) {
+        self.represented_auction_replicate_requests_like_cpp
+            .push(request);
+    }
+
+    pub(crate) fn represented_auction_replicate_requests_like_cpp(
+        &self,
+    ) -> &[RepresentedAuctionReplicateRequestLikeCpp] {
+        &self.represented_auction_replicate_requests_like_cpp
     }
 
     pub(crate) fn represented_bank_bag_slot_flag_like_cpp(&self, slot: usize) -> Option<u32> {

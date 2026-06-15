@@ -5274,6 +5274,85 @@ impl ClientPacket for AuctionListItems {
     }
 }
 
+/// C++ `WorldPackets::Addon::AddOnInfo`, used by auction-house taint metadata.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuctionAddonInfo {
+    pub name: String,
+    pub version: String,
+    pub loaded: bool,
+    pub disabled: bool,
+}
+
+impl AuctionAddonInfo {
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        // C++ `operator>>(AddOnInfo&)` starts with ResetBitPos().
+        pkt.reset_bits();
+
+        let name_len = pkt.read_bits(10)? as usize;
+        let version_len = pkt.read_bits(10)? as usize;
+        let loaded = pkt.read_bit()?;
+        let disabled = pkt.read_bit()?;
+        let name = if name_len > 1 {
+            let value = pkt.read_string(name_len - 1)?;
+            pkt.skip(1)?;
+            value
+        } else {
+            String::new()
+        };
+        let version = if version_len > 1 {
+            let value = pkt.read_string(version_len - 1)?;
+            pkt.skip(1)?;
+            value
+        } else {
+            String::new()
+        };
+
+        Ok(Self {
+            name,
+            version,
+            loaded,
+            disabled,
+        })
+    }
+}
+
+/// C++ `WorldPackets::AuctionHouse::AuctionReplicateItems`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuctionReplicateItems {
+    pub auctioneer: ObjectGuid,
+    pub change_number_global: u32,
+    pub change_number_cursor: u32,
+    pub change_number_tombstone: u32,
+    pub count: u32,
+    pub tainted_by: Option<AuctionAddonInfo>,
+}
+
+impl ClientPacket for AuctionReplicateItems {
+    const OPCODE: ClientOpcodes = ClientOpcodes::AuctionReplicateItems;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let auctioneer = pkt.read_guid()?;
+        let change_number_global = pkt.read_uint32()?;
+        let change_number_cursor = pkt.read_uint32()?;
+        let change_number_tombstone = pkt.read_uint32()?;
+        let count = pkt.read_uint32()?;
+        let tainted_by = if pkt.read_bit()? {
+            Some(AuctionAddonInfo::read(pkt)?)
+        } else {
+            None
+        };
+
+        Ok(Self {
+            auctioneer,
+            change_number_global,
+            change_number_cursor,
+            change_number_tombstone,
+            count,
+            tainted_by,
+        })
+    }
+}
+
 /// SMSG_AUCTION_LIST_BIDDER_ITEMS_RESULT — empty bidder list.
 pub struct AuctionListBidderItemsResult;
 impl ServerPacket for AuctionListBidderItemsResult {
@@ -7713,6 +7792,71 @@ mod tests {
 
         let request = AuctionListItems::read(&mut pkt).unwrap();
         assert_eq!(request, AuctionListItems);
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn auction_replicate_items_reads_no_tainted_by_like_cpp() {
+        let auctioneer =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9_001, 7);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_guid(&auctioneer);
+        pkt.write_uint32(11);
+        pkt.write_uint32(22);
+        pkt.write_uint32(33);
+        pkt.write_uint32(44);
+        pkt.write_bit(false);
+        pkt.flush_bits();
+        pkt.reset_read();
+
+        let request = AuctionReplicateItems::read(&mut pkt).unwrap();
+        assert_eq!(request.auctioneer, auctioneer);
+        assert_eq!(request.change_number_global, 11);
+        assert_eq!(request.change_number_cursor, 22);
+        assert_eq!(request.change_number_tombstone, 33);
+        assert_eq!(request.count, 44);
+        assert!(request.tainted_by.is_none());
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn auction_replicate_items_reads_tainted_by_like_cpp() {
+        let auctioneer =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9_002, 8);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_guid(&auctioneer);
+        pkt.write_uint32(1);
+        pkt.write_uint32(2);
+        pkt.write_uint32(3);
+        pkt.write_uint32(4);
+        pkt.write_bit(true);
+        pkt.flush_bits();
+        pkt.write_bits(6, 10); // "Trade" + '\0'
+        pkt.write_bits(4, 10); // "1.0" + '\0'
+        pkt.write_bit(true);
+        pkt.write_bit(false);
+        pkt.flush_bits();
+        pkt.write_string("Trade");
+        pkt.write_uint8(0);
+        pkt.write_string("1.0");
+        pkt.write_uint8(0);
+        pkt.reset_read();
+
+        let request = AuctionReplicateItems::read(&mut pkt).unwrap();
+        assert_eq!(request.auctioneer, auctioneer);
+        assert_eq!(request.change_number_global, 1);
+        assert_eq!(request.change_number_cursor, 2);
+        assert_eq!(request.change_number_tombstone, 3);
+        assert_eq!(request.count, 4);
+        assert_eq!(
+            request.tainted_by,
+            Some(AuctionAddonInfo {
+                name: "Trade".to_string(),
+                version: "1.0".to_string(),
+                loaded: true,
+                disabled: false,
+            })
+        );
         assert_eq!(pkt.remaining(), 0);
     }
 
