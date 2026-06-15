@@ -428,6 +428,30 @@ impl ClientPacket for AutoEquipItem {
     }
 }
 
+/// CMSG_AUTO_EQUIP_ITEM_SLOT: drag an item by GUID into an explicit equipment slot.
+///
+/// Wire format: InvUpdate + Item(ObjectGuid) + ItemDstSlot(u8).
+pub struct AutoEquipItemSlot {
+    pub inv_update: InvUpdate,
+    pub item: ObjectGuid,
+    pub item_dst_slot: u8,
+}
+
+impl ClientPacket for AutoEquipItemSlot {
+    const OPCODE: ClientOpcodes = ClientOpcodes::AutoEquipItemSlot;
+
+    fn read(packet: &mut WorldPacket) -> Result<Self, PacketError> {
+        let inv_update = InvUpdate::read(packet)?;
+        let item = packet.read_guid()?;
+        let item_dst_slot = packet.read_uint8()?;
+        Ok(Self {
+            inv_update,
+            item,
+            item_dst_slot,
+        })
+    }
+}
+
 /// CMSG_SWAP_ITEM: Drag item between two container slots (container-aware).
 ///
 /// Wire format: InvUpdate + ContainerSlotB(u8) + ContainerSlotA(u8) + SlotB(u8) + SlotA(u8).
@@ -760,6 +784,25 @@ mod tests {
         assert_eq!(eq.inv_update.items.len(), 0);
         assert_eq!(eq.pack_slot, 255);
         assert_eq!(eq.slot, 35);
+    }
+
+    #[test]
+    fn auto_equip_item_slot_parses_cpp_shape() {
+        let item = ObjectGuid::create_item(1, 55);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bits(1, 2);
+        pkt.write_uint8(255);
+        pkt.write_uint8(35);
+        pkt.write_guid(&item);
+        pkt.write_uint8(15);
+        pkt.reset_read();
+
+        let eq = AutoEquipItemSlot::read(&mut pkt).unwrap();
+
+        assert_eq!(eq.inv_update.items, vec![(255, 35)]);
+        assert_eq!(eq.item, item);
+        assert_eq!(eq.item_dst_slot, 15);
+        assert_eq!(pkt.remaining(), 0);
     }
 
     #[test]

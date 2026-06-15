@@ -4830,7 +4830,11 @@ impl WorldSession {
         (bag == INVENTORY_SLOT_BAG_0).then_some((slot, item))
     }
 
-    fn move_represented_direct_inventory_item_like_cpp(&mut self, src: u8, dst: u8) -> bool {
+    pub(crate) fn move_represented_direct_inventory_item_like_cpp(
+        &mut self,
+        src: u8,
+        dst: u8,
+    ) -> bool {
         if src == dst {
             return true;
         }
@@ -18690,6 +18694,12 @@ impl WorldSession {
                 match wow_packet::packets::item::AutoEquipItem::read(&mut pkt) {
                     Ok(equip) => self.handle_auto_equip_item(equip).await,
                     Err(e) => warn!("Failed to read AutoEquipItem: {e}"),
+                }
+            }
+            ClientOpcodes::AutoEquipItemSlot => {
+                match wow_packet::packets::item::AutoEquipItemSlot::read(&mut pkt) {
+                    Ok(equip) => self.handle_auto_equip_item_slot(equip).await,
+                    Err(e) => warn!("Failed to read AutoEquipItemSlot: {e}"),
                 }
             }
             ClientOpcodes::SwapItem => match wow_packet::packets::item::SwapItem::read(&mut pkt) {

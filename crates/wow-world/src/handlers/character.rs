@@ -600,6 +600,15 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
+        opcode: ClientOpcodes::AutoEquipItemSlot,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_auto_equip_item_slot",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
         opcode: ClientOpcodes::SwapItem,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
@@ -9050,6 +9059,57 @@ impl WorldSession {
         self.handle_swap_inv_item(swap).await;
     }
 
+    /// Handle CMSG_AUTO_EQUIP_ITEM_SLOT.
+    ///
+    /// C++ treats this as an explicit GUID + destination equipment-slot swap:
+    /// it requires exactly one `InvUpdate` source position, verifies that the
+    /// GUID still lives at that source position, rejects src==dst, then calls
+    /// `Player::SwapItem`. Rust mirrors the direct-inventory represented branch;
+    /// nested bag/container swap parity remains part of the broader inventory
+    /// runtime gap.
+    pub async fn handle_auto_equip_item_slot(&mut self, equip: AutoEquipItemSlot) {
+        let Some(player_guid) = self.player_guid() else {
+            return;
+        };
+
+        if equip.inv_update.items.len() != 1
+            || !is_equipment_pos(INVENTORY_SLOT_BAG_0, equip.item_dst_slot)
+        {
+            return;
+        }
+
+        let (container_slot, src_slot) = equip.inv_update.items[0];
+        let Some((actual_bag, actual_slot, _item)) =
+            self.get_inventory_item_by_guid_like_cpp(equip.item)
+        else {
+            return;
+        };
+
+        if actual_bag != container_slot || actual_slot != src_slot {
+            return;
+        }
+
+        if container_slot != INVENTORY_SLOT_BAG_0 {
+            return;
+        }
+
+        if src_slot == equip.item_dst_slot {
+            return;
+        }
+
+        if self.move_represented_direct_inventory_item_like_cpp(src_slot, equip.item_dst_slot) {
+            self.sync_object_accessor_player();
+            self.sync_player_registry_state_like_cpp();
+            if src_slot < 19 || equip.item_dst_slot < 19 {
+                self.send_stat_update();
+            }
+            debug!(
+                "AutoEquipItemSlot: swapped item {:?} from slot {} to {} for {:?}",
+                equip.item, src_slot, equip.item_dst_slot, player_guid
+            );
+        }
+    }
+
     /// Handle CMSG_SWAP_ITEM: container-aware swap between two positions.
     ///
     /// C# reads: ContainerSlotB, ContainerSlotA, SlotB, SlotA.
@@ -11095,6 +11155,160 @@ mod tests {
                 .unwrap()
                 .guid,
             mainhand_guid
+        );
+    }
+
+    #[tokio::test]
+    async fn auto_equip_item_slot_swaps_direct_inventory_item_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send_capacity(4);
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let item_guid = ObjectGuid::create_item(1, 60);
+        session.insert_inventory_item_like_cpp(
+            INVENTORY_SLOT_ITEM_START,
+            InventoryItem {
+                guid: item_guid,
+                entry_id: 105,
+                db_guid: 60,
+                inventory_type: Some(InventoryType::Weapon as u8),
+            },
+        );
+
+        session
+            .handle_auto_equip_item_slot(AutoEquipItemSlot {
+                inv_update: InvUpdate {
+                    items: vec![(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)],
+                },
+                item: item_guid,
+                item_dst_slot: EQUIPMENT_SLOT_MAINHAND,
+            })
+            .await;
+
+        assert_eq!(
+            session
+                .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_MAINHAND)
+                .unwrap()
+                .guid,
+            item_guid
+        );
+        assert!(
+            session
+                .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)
+                .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn auto_equip_item_slot_rejects_bad_inv_count_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send_capacity(1);
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let item_guid = ObjectGuid::create_item(1, 61);
+        session.insert_inventory_item_like_cpp(
+            INVENTORY_SLOT_ITEM_START,
+            InventoryItem {
+                guid: item_guid,
+                entry_id: 106,
+                db_guid: 61,
+                inventory_type: Some(InventoryType::Weapon as u8),
+            },
+        );
+
+        session
+            .handle_auto_equip_item_slot(AutoEquipItemSlot {
+                inv_update: InvUpdate { items: Vec::new() },
+                item: item_guid,
+                item_dst_slot: EQUIPMENT_SLOT_MAINHAND,
+            })
+            .await;
+
+        assert!(
+            session
+                .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_MAINHAND)
+                .is_none()
+        );
+        assert_eq!(
+            session
+                .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)
+                .unwrap()
+                .guid,
+            item_guid
+        );
+    }
+
+    #[tokio::test]
+    async fn auto_equip_item_slot_rejects_source_position_mismatch_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send_capacity(1);
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let item_guid = ObjectGuid::create_item(1, 62);
+        session.insert_inventory_item_like_cpp(
+            INVENTORY_SLOT_ITEM_START,
+            InventoryItem {
+                guid: item_guid,
+                entry_id: 107,
+                db_guid: 62,
+                inventory_type: Some(InventoryType::Weapon as u8),
+            },
+        );
+
+        session
+            .handle_auto_equip_item_slot(AutoEquipItemSlot {
+                inv_update: InvUpdate {
+                    items: vec![(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START + 1)],
+                },
+                item: item_guid,
+                item_dst_slot: EQUIPMENT_SLOT_MAINHAND,
+            })
+            .await;
+
+        assert!(
+            session
+                .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_MAINHAND)
+                .is_none()
+        );
+        assert_eq!(
+            session
+                .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)
+                .unwrap()
+                .guid,
+            item_guid
+        );
+    }
+
+    #[tokio::test]
+    async fn auto_equip_item_slot_rejects_non_equipment_destination_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send_capacity(1);
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let item_guid = ObjectGuid::create_item(1, 63);
+        session.insert_inventory_item_like_cpp(
+            INVENTORY_SLOT_ITEM_START,
+            InventoryItem {
+                guid: item_guid,
+                entry_id: 108,
+                db_guid: 63,
+                inventory_type: Some(InventoryType::Weapon as u8),
+            },
+        );
+
+        session
+            .handle_auto_equip_item_slot(AutoEquipItemSlot {
+                inv_update: InvUpdate {
+                    items: vec![(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)],
+                },
+                item: item_guid,
+                item_dst_slot: INVENTORY_SLOT_ITEM_START + 1,
+            })
+            .await;
+
+        assert_eq!(
+            session
+                .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)
+                .unwrap()
+                .guid,
+            item_guid
+        );
+        assert!(
+            session
+                .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START + 1)
+                .is_none()
         );
     }
 
