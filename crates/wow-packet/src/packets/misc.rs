@@ -176,6 +176,26 @@ impl ClientPacket for GuildBankActivate {
     }
 }
 
+/// C++ `WorldPackets::Guild::GuildBankQueryTab`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GuildBankQueryTab {
+    pub banker: ObjectGuid,
+    pub tab: u8,
+    pub full_update: bool,
+}
+
+impl ClientPacket for GuildBankQueryTab {
+    const OPCODE: ClientOpcodes = ClientOpcodes::GuildBankQueryTab;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            banker: pkt.read_guid()?,
+            tab: pkt.read_uint8()?,
+            full_update: pkt.read_bit()?,
+        })
+    }
+}
+
 /// C++ `WorldPackets::Guild::GuildCommandResult`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GuildCommandResult {
@@ -11496,6 +11516,24 @@ mod tests {
 
         assert_eq!(parsed.banker, banker);
         assert!(parsed.full_update);
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn guild_bank_query_tab_reads_guid_tab_then_full_update_bit_like_cpp() {
+        let banker = ObjectGuid::new(0x2122_2324_2526_2728_i64, 0x3132_3334_3536_3738_i64);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_guid(&banker);
+        pkt.write_uint8(4);
+        pkt.write_bit(false);
+        pkt.flush_bits();
+        pkt.reset_read();
+
+        let parsed = GuildBankQueryTab::read(&mut pkt).unwrap();
+
+        assert_eq!(parsed.banker, banker);
+        assert_eq!(parsed.tab, 4);
+        assert!(!parsed.full_update);
         assert_eq!(pkt.remaining(), 0);
     }
 

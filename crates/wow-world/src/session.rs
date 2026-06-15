@@ -20364,6 +20364,9 @@ impl WorldSession {
             ClientOpcodes::GuildBankActivate => {
                 self.handle_guild_bank_activate(pkt).await;
             }
+            ClientOpcodes::GuildBankQueryTab => {
+                self.handle_guild_bank_query_tab(pkt).await;
+            }
             ClientOpcodes::AutoGuildBankItem => {
                 self.handle_auto_guild_bank_item(pkt).await;
             }
@@ -21753,6 +21756,7 @@ impl WorldSession {
     pub(crate) fn record_guild_bank_list_request_like_cpp(
         &mut self,
         banker: ObjectGuid,
+        tab: u8,
         full_update: bool,
     ) -> bool {
         let Some(guild_id) = self.represented_guild_bank_can_interact_like_cpp(banker) else {
@@ -21762,7 +21766,7 @@ impl WorldSession {
             RepresentedGuildBankListRequestLikeCpp {
                 banker,
                 guild_id,
-                tab: 0,
+                tab,
                 full_update,
             },
         );
