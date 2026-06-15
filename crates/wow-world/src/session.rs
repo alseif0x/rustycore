@@ -4954,7 +4954,15 @@ impl WorldSession {
             return;
         };
 
-        if !self.player_has_in_pvp_flag_like_cpp(guid) {
+        self.apply_set_pvp_like_cpp(!self.player_has_in_pvp_flag_like_cpp(guid));
+    }
+
+    pub(crate) fn apply_set_pvp_like_cpp(&mut self, enable_pvp: bool) {
+        let Some(guid) = self.player_guid() else {
+            return;
+        };
+
+        if enable_pvp {
             let _ = self.mutate_canonical_player_by_guid_like_cpp(guid, |player| {
                 player.set_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP);
                 player.remove_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP);
@@ -11477,6 +11485,7 @@ impl WorldSession {
             | ClientOpcodes::ResetInstances
             | ClientOpcodes::HearthAndResurrect
             | ClientOpcodes::TogglePvp
+            | ClientOpcodes::SetPvp
             | ClientOpcodes::PetAbandon
             | ClientOpcodes::ActivateTaxi
             | ClientOpcodes::SelfRes
@@ -18763,6 +18772,9 @@ impl WorldSession {
             }
             ClientOpcodes::TogglePvp => {
                 self.handle_toggle_pvp(pkt).await;
+            }
+            ClientOpcodes::SetPvp => {
+                self.handle_set_pvp(pkt).await;
             }
             ClientOpcodes::DfGetSystemInfo => {
                 self.handle_df_get_system_info(pkt).await;
@@ -59849,6 +59861,7 @@ mod tests {
             ClientOpcodes::ResetInstances,
             ClientOpcodes::HearthAndResurrect,
             ClientOpcodes::TogglePvp,
+            ClientOpcodes::SetPvp,
             ClientOpcodes::PetAbandon,
             ClientOpcodes::ActivateTaxi,
             ClientOpcodes::SelfRes,
@@ -68458,6 +68471,64 @@ mod tests {
         assert!(!player.has_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP));
         assert!(player.unit().is_pvp_like_cpp());
         assert_eq!(session.player_pvp_end_timer_like_cpp, None);
+    }
+
+    #[test]
+    fn set_pvp_enable_sets_in_pvp_flag_like_cpp() {
+        let (mut session, canonical, guid) = session_with_canonical_player_for_away_like_cpp();
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.set_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP);
+            })
+            .unwrap();
+        session.player_pvp_enabled_like_cpp = false;
+        session.player_pvp_end_timer_like_cpp = Some(123);
+
+        session.apply_set_pvp_like_cpp(true);
+
+        let manager = canonical.lock().unwrap();
+        let player = manager
+            .find_map(571, 0)
+            .unwrap()
+            .map()
+            .get_typed_player(guid)
+            .unwrap();
+        assert!(player.has_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP));
+        assert!(!player.has_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP));
+        assert!(player.unit().is_pvp_like_cpp());
+        assert!(session.player_in_pvp_flag_like_cpp);
+        assert!(session.player_pvp_enabled_like_cpp);
+        assert_eq!(session.player_pvp_end_timer_like_cpp, None);
+    }
+
+    #[test]
+    fn set_pvp_disable_starts_timer_without_toggling_back_on_like_cpp() {
+        let (mut session, canonical, guid) = session_with_canonical_player_for_away_like_cpp();
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.set_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP);
+                player.unit_mut().set_pvp_flag_like_cpp(UnitPvpFlags::PVP);
+            })
+            .unwrap();
+        session.player_in_pvp_flag_like_cpp = true;
+        session.player_pvp_enabled_like_cpp = true;
+        session.player_pvp_hostile_like_cpp = false;
+
+        session.apply_set_pvp_like_cpp(false);
+
+        let manager = canonical.lock().unwrap();
+        let player = manager
+            .find_map(571, 0)
+            .unwrap()
+            .map()
+            .get_typed_player(guid)
+            .unwrap();
+        assert!(!player.has_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP));
+        assert!(player.has_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP));
+        assert!(player.unit().is_pvp_like_cpp());
+        assert!(!session.player_in_pvp_flag_like_cpp);
+        assert_eq!(session.player_pvp_enabled_like_cpp, true);
+        assert!(session.player_pvp_end_timer_like_cpp.is_some());
     }
 
     #[test]

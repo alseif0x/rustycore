@@ -1,3 +1,11 @@
+- `#NEXT.R8.ENTITIES.914` — represented-partial implementation for `CMSG_SET_PVP`.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:337-351` (`WorldSession::HandleSetPvP`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.h:813-821` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.cpp:648-651` (`SetPvP::Read`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:617` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:906`.
+
+Implemented Rust seam: `SetPvp` parses the C++ `EnablePVP` bit; `CMSG_SET_PVP` registers `LoggedIn`/`ThreadUnsafe` dispatch and routes through `WorldSession`. Rust now separates explicit set semantics from `TogglePvP`: enable sets `PLAYER_FLAGS_IN_PVP`, clears `PLAYER_FLAGS_PVP_TIMER`, and applies represented `UpdatePvP(true, true)` when needed; disable clears `PLAYER_FLAGS_IN_PVP`, sets `PLAYER_FLAGS_PVP_TIMER`, respects represented local War Mode, and starts the represented PvP end timer when C++ would.
+
+Boundaries: represented-partial only. Rust does not yet prove full live PvP runtime parity across contested/sanctuary zones, hostile state transitions, full `Player::UpdatePvP` side effects, persistence, install/restart, bot, or live-client/manual validation.
+
 - `#NEXT.R8.ENTITIES.913` — represented-partial implementation for `CMSG_SET_DIFFICULTY_ID`.
 
 C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:1046-1118` (`WorldSession::HandleSetDifficultyId`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.h:289-298` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.cpp:239-242` (`SetDifficultyId::Read`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:604` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:889`.

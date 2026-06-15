@@ -60,7 +60,7 @@ use wow_packet::packets::misc::{
     ObjectUpdateRescued, QueryArenaTeam, QueryBattlePetName, QueryBattlePetNameResponse,
     QueryPetition, QueryPetitionResponse, RatedPvpInfo, RequestAccountData,
     RequestBattlefieldStatus, RequestCemeteryListResponse, ResurrectResponse, SaveCufProfiles,
-    SetAdvancedCombatLogging, SetCurrencyFlags, SetDifficultyId, SetTaxiBenchmarkMode,
+    SetAdvancedCombatLogging, SetCurrencyFlags, SetDifficultyId, SetPvp, SetTaxiBenchmarkMode,
     SetTradeGold, SetTradeItem, SetTradeSpell, SignPetition, SpecialMountAnim, StandStateChange,
     SubmitUserFeedback, SupportTicketSubmitBug, SupportTicketSubmitComplaint,
     SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
@@ -830,6 +830,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_toggle_pvp",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::SetPvp,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_set_pvp",
     }
 }
 
@@ -3005,6 +3014,19 @@ impl crate::session::WorldSession {
 
         self.apply_toggle_pvp_like_cpp();
     }
+
+    pub async fn handle_set_pvp(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let packet = match SetPvp::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(account = self.account_id, "SetPvP parse failed: {error}");
+                return;
+            }
+        };
+
+        self.apply_set_pvp_like_cpp(packet.enable_pvp);
+    }
+
     pub async fn handle_df_get_system_info(&mut self, mut pkt: wow_packet::WorldPacket) {
         let request = match DfGetSystemInfo::read(&mut pkt) {
             Ok(request) => request,

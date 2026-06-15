@@ -5129,6 +5129,22 @@ impl ClientPacket for TogglePvp {
     }
 }
 
+/// C++ `WorldPackets::Misc::SetPvP`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SetPvp {
+    pub enable_pvp: bool,
+}
+
+impl ClientPacket for SetPvp {
+    const OPCODE: ClientOpcodes = ClientOpcodes::SetPvp;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            enable_pvp: pkt.read_bit()?,
+        })
+    }
+}
+
 /// C++ `WorldPackets::LFG::LFGBlackList`.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct LfgBlackList {
@@ -6372,6 +6388,18 @@ mod tests {
         let mut pkt = WorldPacket::new_empty();
         TogglePvp::read(&mut pkt).unwrap();
         assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn set_pvp_reads_cpp_enable_bit() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(true);
+        pkt.flush_bits();
+        pkt.reset_read();
+
+        let parsed = SetPvp::read(&mut pkt).unwrap();
+
+        assert!(parsed.enable_pvp);
     }
 
     #[test]
