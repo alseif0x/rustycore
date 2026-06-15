@@ -303,8 +303,8 @@ DBC/DB2 stores read:
 - **Difficulty switching represented-partial** — `CMSG_SET_DIFFICULTY_ID`, `CMSG_SET_DUNGEON_DIFFICULTY`, and `CMSG_SET_RAID_DIFFICULTY` now route through represented solo/group difficulty state and reset hooks. Remaining gaps: full live `InstanceMap::Reset`, recent/owned instance parity, BG/BF/original-group exclusions, install/restart, and live client/bot validation.
 - **No instance binding** — `m_recentInstances` map absent. Group cannot save/restore raid lockouts.
 - **Minimap ping / random roll represented** — `CMSG_MINIMAP_PING` and `CMSG_RANDOM_ROLL` are wired through represented HOME-group state. Remaining gaps: BG/BF/original-group routing, full live `Group::BroadcastPacket` semantics, and live client/bot validation.
-- **No member stats refresh** — `CMSG_REQUEST_PARTY_MEMBER_STATS`, `UpdatePlayerOutOfRange` unhandled. Out-of-range members appear stuck.
-- **No raid info on join** — `CMSG_REQUEST_RAID_INFO` unhandled.
+- **Member stats refresh represented-partial** — `CMSG_REQUEST_PARTY_MEMBER_STATS` and represented `PartyMemberFullState` snapshots are covered by `#NEXT.R8.ENTITIES.794`; full `Group::UpdatePlayerOutOfRange`, live aura/pet/vehicle runtime, original-group ownership, and manual validation remain open.
+- **Raid info represented-partial** — `CMSG_REQUEST_RAID_INFO` is wired through represented instance-lock data, but full `InstanceSaveMgr::SendRaidInfo` parity depends on live instance-save/runtime validation.
 - **No group flags** — `GROUP_FLAG_RAID/LFG/CROSS_FACTION/EVERYONE_ASSISTANT/RESTRICT_PINGS` not stored.
 - **No BG/BF group support** — `m_bgGroup`, `m_bfGroup` absent.
 - **No leader-offline timer** — when a leader DCs, leadership is not auto-transferred after a grace period.
@@ -398,11 +398,11 @@ DBC/DB2 stores read:
 
 <!-- REFINE.022:END task-wbs -->
 
-> **Drift note (2026-06-13):** this task list predates the recent R8 group/party slices.
-> `CMSG_REQUEST_PARTY_MEMBER_STATS` and the old hard-coded HP/power placeholders are now
-> represented-partial under `#NEXT.R8.ENTITIES.794` in
-> `docs/migration/inventory/r8-entities-miniphase.{md,tsv}`. Keep the remaining open
-> parts there as the source of truth: full vehicle/passenger runtime, full aura runtime,
+> **Drift note (2026-06-15):** this task list predates the recent R8 group/party slices.
+> `CMSG_REQUEST_PARTY_JOIN_UPDATES` is represented-partial under `#NEXT.R8.ENTITIES.793`,
+> and `CMSG_REQUEST_PARTY_MEMBER_STATS` / the old hard-coded HP/power placeholders are
+> represented-partial under `#NEXT.R8.ENTITIES.794`. Keep the remaining open parts there
+> as the source of truth: full vehicle/passenger runtime, full aura runtime,
 > original-group/category ownership, DB/install/manual-test-ready.
 
 - [ ] **#GROUPS.1** Replace `GroupInfo.group_guid: u64` with proper `ObjectGuid` (HighGuid::Party); fix all wire serialisations. Complejidad: **M**
@@ -421,9 +421,9 @@ DBC/DB2 stores read:
 - [ ] **#GROUPS.14** Implement DB persistence — schema for `groups`, `group_member`; load on startup via `GroupMgr::load_groups`; persist on Create/AddMember/Disband. Complejidad: **H**
 - [x] **#GROUPS.15** Implement represented `CMSG_MINIMAP_PING` — broadcast `(senderGuid, x, y)` to other represented HOME-group members. Remaining runtime/BG/original-group gaps tracked in R8.
 - [x] **#GROUPS.16** Implement represented `CMSG_RANDOM_ROLL` — `/roll min max`, broadcast `SMSG_RANDOM_ROLL` to represented HOME-group members including roller. Remaining runtime/BG/original-group gaps tracked in `#NEXT.R8.ENTITIES.941`.
-- [ ] **#GROUPS.17** Implement `CMSG_REQUEST_PARTY_MEMBER_STATS` — refresh out-of-range member's `PartyMemberFullState` from real Player state. Complejidad: **M**
+- [x] **#GROUPS.17** Represent `CMSG_REQUEST_PARTY_MEMBER_STATS` — represented `PartyMemberFullState` snapshots are covered by `#NEXT.R8.ENTITIES.794`; full `UpdatePlayerOutOfRange` live runtime remains open. Complejidad: **M**
 - [ ] **#GROUPS.18** Wire `Group::update(diff)` into world-tick loop — process ready-check timer, leader-offline timer, looter advancement. Complejidad: **M**
-- [ ] **#GROUPS.19** Replace hard-coded HP/power 1000/500 in `PartyMemberFullState` with real `Player` snapshot; add `UpdatePlayerOutOfRange`. Complejidad: **M**
+- [x] **#GROUPS.19** Replace represented hard-coded HP/power placeholders in `PartyMemberFullState` with registry/canonical snapshots under `#NEXT.R8.ENTITIES.794`; full live `UpdatePlayerOutOfRange` remains open. Complejidad: **M**
 - [ ] **#GROUPS.20** Add invite-expiry timer (60s in C++) — on expiry, drop pending invite + notify inviter. Complejidad: **M**
 
 ---
