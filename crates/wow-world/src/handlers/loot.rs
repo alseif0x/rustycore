@@ -54,7 +54,8 @@ use wow_network::player_registry::{
     SendRepeatableTurnInRequestItemsLikeCppCommand, SendRepresentedTradeStatusLikeCppCommand,
     SetQuestSharingInfoAndSendDetailsCommand, SyncChestGameobjectStateAndRefreshLikeCppCommand,
     SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
-    SyncGooberGameobjectStateAndRefreshLikeCppCommand, WorldSessionShutdownFlushResultLikeCpp,
+    SyncGooberGameobjectStateAndRefreshLikeCppCommand, UnacceptRepresentedTradeLikeCppCommand,
+    WorldSessionShutdownFlushResultLikeCpp,
 };
 use wow_network::{
     LootRollStoreWinnerCommand, LootRollVoteCommand, MasterLootGiveCommand, MasterLootGiveResult,
@@ -2913,6 +2914,9 @@ impl WorldSession {
                 SessionCommand::SendRepresentedTradeStatusLikeCpp(command) => {
                     self.handle_send_represented_trade_status_command_like_cpp(command);
                 }
+                SessionCommand::UnacceptRepresentedTradeLikeCpp(command) => {
+                    self.handle_unaccept_represented_trade_command_like_cpp(command);
+                }
             }
         }
     }
@@ -3317,6 +3321,18 @@ impl WorldSession {
             return;
         }
 
+        self.send_raw_packet(&command.packet_bytes);
+    }
+
+    fn handle_unaccept_represented_trade_command_like_cpp(
+        &mut self,
+        command: UnacceptRepresentedTradeLikeCppCommand,
+    ) {
+        if self.represented_active_trade_partner_like_cpp().is_none() {
+            return;
+        }
+
+        self.set_represented_trade_accepted_like_cpp_for_command(false);
         self.send_raw_packet(&command.packet_bytes);
     }
 

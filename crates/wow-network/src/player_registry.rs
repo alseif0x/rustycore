@@ -58,6 +58,9 @@ pub enum SessionCommand {
     /// Deliver a represented trade status to the partner session without
     /// changing the bounded active-trade ownership.
     SendRepresentedTradeStatusLikeCpp(SendRepresentedTradeStatusLikeCppCommand),
+    /// Clear the receiver's represented trade acceptance and send the already
+    /// serialized `TRADE_STATUS_UNACCEPTED` packet without cancelling trade.
+    UnacceptRepresentedTradeLikeCpp(UnacceptRepresentedTradeLikeCppCommand),
 }
 
 /// Cross-session kick command mirroring C++ callers such as `World::BanAccount`
@@ -165,6 +168,16 @@ pub struct CancelRepresentedTradeLikeCppCommand {
 /// `SMSG_TRADE_STATUS` to both sessions but keeps both `m_trade` objects alive.
 #[derive(Clone, Debug)]
 pub struct SendRepresentedTradeStatusLikeCppCommand {
+    pub packet_bytes: Vec<u8>,
+}
+
+/// Payload for [`SessionCommand::UnacceptRepresentedTradeLikeCpp`].
+///
+/// C++ `TradeData::SetItem` calls `GetTraderData()->SetAccepted(false)` after
+/// a local trade item change. Full `TradeData` is not wired yet, so this
+/// bounded command mirrors the acceptance/status side effect on the partner.
+#[derive(Clone, Debug)]
+pub struct UnacceptRepresentedTradeLikeCppCommand {
     pub packet_bytes: Vec<u8>,
 }
 

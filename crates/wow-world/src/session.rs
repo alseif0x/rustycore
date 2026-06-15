@@ -136,8 +136,8 @@ use wow_packet::packets::item::{
 use wow_packet::packets::misc::{
     AccountHeirloom, AccountHeirloomUpdate, AccountMount, AccountMountUpdate, AccountToy,
     AccountToyUpdate, BuyFailed, NUM_ACCOUNT_DATA_TYPES, SellResponse, SetupCurrency,
-    SetupCurrencyRecord, TRADE_STATUS_ACCEPTED_LIKE_CPP, TRADE_STATUS_STATE_CHANGED_LIKE_CPP,
-    TRADE_STATUS_UNACCEPTED_LIKE_CPP, TradeStatus,
+    SetupCurrencyRecord, TRADE_SLOT_COUNT_LIKE_CPP, TRADE_STATUS_ACCEPTED_LIKE_CPP,
+    TRADE_STATUS_STATE_CHANGED_LIKE_CPP, TRADE_STATUS_UNACCEPTED_LIKE_CPP, TradeStatus,
 };
 use wow_packet::packets::quest::{
     QuestGiverOfferReward, QuestGiverQuestDetails, QuestGiverQuestList, QuestGiverRequestItems,
@@ -2886,6 +2886,9 @@ pub struct WorldSession {
     represented_active_trade_partner_like_cpp: Option<ObjectGuid>,
     represented_trade_accepted_like_cpp: bool,
     represented_partner_trade_server_state_index_like_cpp: u32,
+    represented_trade_client_state_index_like_cpp: u32,
+    represented_trade_server_state_index_like_cpp: u32,
+    represented_trade_items_like_cpp: [Option<ObjectGuid>; TRADE_SLOT_COUNT_LIKE_CPP as usize],
     represented_trade_cancel_statuses_like_cpp: Vec<u8>,
     represented_can_duel_spell_casts_like_cpp: Vec<RepresentedCanDuelSpellCastLikeCpp>,
     represented_guild_repair_bank_state_like_cpp: Option<RepresentedGuildRepairBankStateLikeCpp>,
@@ -4096,6 +4099,9 @@ impl WorldSession {
             represented_active_trade_partner_like_cpp: None,
             represented_trade_accepted_like_cpp: false,
             represented_partner_trade_server_state_index_like_cpp: 0,
+            represented_trade_client_state_index_like_cpp: 1,
+            represented_trade_server_state_index_like_cpp: 1,
+            represented_trade_items_like_cpp: [None; TRADE_SLOT_COUNT_LIKE_CPP as usize],
             represented_trade_cancel_statuses_like_cpp: Vec::new(),
             represented_can_duel_spell_casts_like_cpp: Vec::new(),
             represented_guild_repair_bank_state_like_cpp: None,
@@ -18783,6 +18789,9 @@ impl WorldSession {
             ClientOpcodes::AcceptTrade => {
                 self.handle_accept_trade(pkt).await;
             }
+            ClientOpcodes::ClearTradeItem => {
+                self.handle_clear_trade_item(pkt).await;
+            }
             ClientOpcodes::UnacceptTrade => {
                 self.handle_unaccept_trade(pkt).await;
             }
@@ -21241,6 +21250,45 @@ impl WorldSession {
         self.represented_trade_accepted_like_cpp
     }
 
+    #[cfg(test)]
+    pub(crate) fn set_represented_trade_accepted_like_cpp_for_test(&mut self, accepted: bool) {
+        self.represented_trade_accepted_like_cpp = accepted;
+    }
+
+    pub(crate) fn set_represented_trade_accepted_like_cpp_for_command(&mut self, accepted: bool) {
+        self.represented_trade_accepted_like_cpp = accepted;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_trade_client_state_index_like_cpp(&self) -> u32 {
+        self.represented_trade_client_state_index_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_trade_server_state_index_like_cpp(&self) -> u32 {
+        self.represented_trade_server_state_index_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_represented_trade_item_like_cpp_for_test(
+        &mut self,
+        slot: u8,
+        item_guid: ObjectGuid,
+    ) {
+        if slot < TRADE_SLOT_COUNT_LIKE_CPP {
+            self.represented_trade_items_like_cpp[slot as usize] = Some(item_guid);
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_trade_item_like_cpp(&self, slot: u8) -> Option<ObjectGuid> {
+        if slot < TRADE_SLOT_COUNT_LIKE_CPP {
+            self.represented_trade_items_like_cpp[slot as usize]
+        } else {
+            None
+        }
+    }
+
     pub(crate) fn cancel_represented_trade_like_cpp(&mut self, status: u8, sendback: bool) {
         use wow_packet::ServerPacket;
 
@@ -21265,6 +21313,49 @@ impl WorldSession {
                 .try_send(SessionCommand::CancelRepresentedTradeLikeCpp(
                     wow_network::player_registry::CancelRepresentedTradeLikeCppCommand {
                         status,
+                        packet_bytes,
+                    },
+                ));
+        }
+    }
+
+    pub(crate) fn clear_represented_trade_item_like_cpp(&mut self, trade_slot: u8) {
+        use wow_packet::ServerPacket;
+
+        let Some(partner_guid) = self.represented_active_trade_partner_like_cpp else {
+            return;
+        };
+
+        self.represented_trade_client_state_index_like_cpp = self
+            .represented_trade_client_state_index_like_cpp
+            .wrapping_add(1);
+
+        if trade_slot >= TRADE_SLOT_COUNT_LIKE_CPP {
+            return;
+        }
+
+        let slot = trade_slot as usize;
+        if self.represented_trade_items_like_cpp[slot].is_none() {
+            return;
+        }
+
+        self.represented_trade_items_like_cpp[slot] = None;
+        self.represented_trade_accepted_like_cpp = false;
+        self.represented_trade_server_state_index_like_cpp = self
+            .represented_trade_server_state_index_like_cpp
+            .wrapping_add(1);
+
+        let packet_bytes =
+            TradeStatus::status_only_like_cpp(TRADE_STATUS_UNACCEPTED_LIKE_CPP).to_bytes();
+        self.send_raw_packet(&packet_bytes);
+
+        if let Some(registry) = self.player_registry()
+            && let Some(partner) = registry.get(&partner_guid)
+        {
+            let _ = partner
+                .command_tx
+                .try_send(SessionCommand::UnacceptRepresentedTradeLikeCpp(
+                    wow_network::player_registry::UnacceptRepresentedTradeLikeCppCommand {
                         packet_bytes,
                     },
                 ));

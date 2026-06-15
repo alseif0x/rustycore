@@ -1,4 +1,14 @@
 - `#NEXT.R8.ENTITIES.868` - represented-complete implementation for bounded movement `Handle_NULL` ACK family.
+### #NEXT.R8.ENTITIES.894 — CMSG_CLEAR_TRADE_ITEM
+
+Status: represented-partial for the bounded `WorldSession::HandleClearTradeItemOpcode` slot-clear/client-state/accepted-status seam.
+
+C++ source-of-truth: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/TradeHandler.cpp:760-773`, `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/TradeData.h:23-31,52-54`, `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/TradeData.cpp:50-72,135-146,148-151`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TradePackets.h:56-64`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TradePackets.cpp:25-28`, and `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:352`.
+
+Implemented Rust seam: `ClearTradeItem` parses the C++ `uint8 TradeSlot`, registers as `LoggedIn`/`PROCESS_THREADUNSAFE`, dispatches through `WorldSession`, preserves the no-op when no represented active trade exists, increments represented client-state before slot validation, treats invalid slots as no-response after that increment, clears a represented item slot, advances represented server-state deterministically, clears local/partner accepted flags, and sends bounded `SMSG_TRADE_STATUS` with `TRADE_STATUS_UNACCEPTED` to both represented sessions.
+
+Boundary: represented-partial only; full `TradeData`, C++ `rand32()` server-state parity, `SMSG_TRADE_UPDATED` payloads, spell reset side effects, real item ownership, install/restart, bot, and live-client/manual validation remain separate work.
+
 ### #NEXT.R8.ENTITIES.893 — CMSG_UNACCEPT_TRADE
 
 Status: represented-complete for the bounded `WorldSession::HandleUnacceptTradeOpcode` accepted-flag/status seam.

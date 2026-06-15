@@ -49,15 +49,16 @@ use wow_packet::packets::misc::{
     ArenaTeamRoster, BattlePetClearFanfare, BattlePetDeletePet, BattlePetModifyName,
     BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags, BattlePetSummon,
     BattlePetUpdateNotify, BattlefieldLeave, BeginTrade, BugReport, BusyTrade, CageBattlePet,
-    CalendarSendCalendar, CalendarSendNumPending, CanDuel, CloseInteraction, CommerceTokenGetLog,
-    CommerceTokenGetLogResponse, Complaint, ComplaintResult, DeclineGuildInvites, DfGetJoinStatus,
-    DfGetSystemInfo, FarSight, GmTicketAcknowledgeSurvey, GmTicketCaseStatus, GmTicketSystemStatus,
-    GuildSetAchievementTracking, IgnoreTrade, LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus,
-    LoadingScreenNotify, MAX_ACCOUNT_DATA_SIZE_LIKE_CPP, MountSetFavorite, MountSpecial,
-    NUM_ACCOUNT_DATA_TYPES, ObjectUpdateFailed, ObjectUpdateRescued, QueryBattlePetName,
-    QueryBattlePetNameResponse, RatedPvpInfo, RequestAccountData, RequestBattlefieldStatus,
-    RequestCemeteryListResponse, ResurrectResponse, SaveCufProfiles, SetAdvancedCombatLogging,
-    SetCurrencyFlags, SetTaxiBenchmarkMode, SpecialMountAnim, StandStateChange, SubmitUserFeedback,
+    CalendarSendCalendar, CalendarSendNumPending, CanDuel, ClearTradeItem, CloseInteraction,
+    CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint, ComplaintResult,
+    DeclineGuildInvites, DfGetJoinStatus, DfGetSystemInfo, FarSight, GmTicketAcknowledgeSurvey,
+    GmTicketCaseStatus, GmTicketSystemStatus, GuildSetAchievementTracking, IgnoreTrade,
+    LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify,
+    MAX_ACCOUNT_DATA_SIZE_LIKE_CPP, MountSetFavorite, MountSpecial, NUM_ACCOUNT_DATA_TYPES,
+    ObjectUpdateFailed, ObjectUpdateRescued, QueryBattlePetName, QueryBattlePetNameResponse,
+    RatedPvpInfo, RequestAccountData, RequestBattlefieldStatus, RequestCemeteryListResponse,
+    ResurrectResponse, SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags,
+    SetTaxiBenchmarkMode, SpecialMountAnim, StandStateChange, SubmitUserFeedback,
     SupportTicketSubmitBug, SupportTicketSubmitComplaint, SupportTicketSubmitSuggestion,
     TRADE_STATUS_CANCELLED_LIKE_CPP, TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP, TaxiNodeStatusPkt,
     TogglePvp, ToyClearFanfare, UnacceptTrade, UpdateAccountData, UseToy,
@@ -1131,6 +1132,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_accept_trade",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::ClearTradeItem,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_clear_trade_item",
     }
 }
 
@@ -3603,6 +3613,21 @@ impl crate::session::WorldSession {
         self.accept_represented_trade_like_cpp(packet.state_index);
     }
 
+    pub async fn handle_clear_trade_item(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let packet = match ClearTradeItem::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "ClearTradeItem parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        self.clear_represented_trade_item_like_cpp(packet.trade_slot);
+    }
+
     pub async fn handle_unaccept_trade(&mut self, mut pkt: wow_packet::WorldPacket) {
         if let Err(error) = UnacceptTrade::read(&mut pkt) {
             warn!(
@@ -5356,6 +5381,13 @@ mod tests {
         pkt
     }
 
+    fn clear_trade_item_packet(trade_slot: u8) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint8(trade_slot);
+        pkt.reset_read();
+        pkt
+    }
+
     #[tokio::test]
     async fn accept_trade_without_active_trade_is_noop_like_cpp() {
         let (mut session, send_rx) = make_session();
@@ -5424,6 +5456,107 @@ mod tests {
             ServerOpcodes::TradeStatus as u16
         );
         assert_eq!(partner_bytes[2], TRADE_STATUS_ACCEPTED_LIKE_CPP << 2);
+    }
+
+    #[tokio::test]
+    async fn clear_trade_item_without_active_trade_is_noop_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_clear_trade_item(clear_trade_item_packet(2))
+            .await;
+
+        assert_eq!(session.represented_trade_client_state_index_like_cpp(), 1);
+        assert!(session.represented_trade_item_like_cpp(2).is_none());
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn clear_trade_item_invalid_slot_updates_client_state_only_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let partner_guid = ObjectGuid::create_player(1, 88);
+        session.set_represented_active_trade_partner_like_cpp(Some(partner_guid));
+        session.set_represented_trade_accepted_like_cpp_for_test(true);
+
+        session
+            .handle_clear_trade_item(clear_trade_item_packet(7))
+            .await;
+
+        assert_eq!(session.represented_trade_client_state_index_like_cpp(), 2);
+        assert_eq!(session.represented_trade_server_state_index_like_cpp(), 1);
+        assert!(session.represented_trade_accepted_like_cpp());
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn clear_trade_item_empty_slot_only_updates_client_state_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let partner_guid = ObjectGuid::create_player(1, 88);
+        session.set_represented_active_trade_partner_like_cpp(Some(partner_guid));
+        session.set_represented_trade_accepted_like_cpp_for_test(true);
+
+        session
+            .handle_clear_trade_item(clear_trade_item_packet(2))
+            .await;
+
+        assert_eq!(session.represented_trade_client_state_index_like_cpp(), 2);
+        assert_eq!(session.represented_trade_server_state_index_like_cpp(), 1);
+        assert!(session.represented_trade_accepted_like_cpp());
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn clear_trade_item_clears_slot_and_unaccepts_both_sides_like_cpp() {
+        let (mut source_session, source_send_rx) = make_session();
+        let (mut partner_session, partner_send_rx) = make_session();
+        let source_guid = ObjectGuid::create_player(1, 77);
+        let partner_guid = ObjectGuid::create_player(1, 88);
+        let item_guid = ObjectGuid::create_item(1, 1234);
+        source_session.set_player_guid(Some(source_guid));
+        partner_session.set_player_guid(Some(partner_guid));
+        source_session.set_represented_active_trade_partner_like_cpp(Some(partner_guid));
+        partner_session.set_represented_active_trade_partner_like_cpp(Some(source_guid));
+        source_session.set_represented_trade_item_like_cpp_for_test(2, item_guid);
+        source_session.set_represented_trade_accepted_like_cpp_for_test(true);
+        partner_session.set_represented_trade_accepted_like_cpp_for_test(true);
+
+        let registry = Arc::new(PlayerRegistry::default());
+        let partner_command_tx = partner_session.session_command_tx();
+        registry.insert(
+            partner_guid,
+            broadcast_info_with_command_tx(partner_command_tx),
+        );
+        source_session.set_player_registry(registry);
+
+        source_session
+            .handle_clear_trade_item(clear_trade_item_packet(2))
+            .await;
+        partner_session
+            .process_represented_session_commands_like_cpp()
+            .await;
+
+        assert_eq!(
+            source_session.represented_trade_client_state_index_like_cpp(),
+            2
+        );
+        assert_eq!(
+            source_session.represented_trade_server_state_index_like_cpp(),
+            2
+        );
+        assert!(source_session.represented_trade_item_like_cpp(2).is_none());
+        assert!(!source_session.represented_trade_accepted_like_cpp());
+        assert!(!partner_session.represented_trade_accepted_like_cpp());
+
+        let source_bytes = source_send_rx.try_recv().expect("source unaccepted status");
+        let partner_bytes = partner_send_rx
+            .try_recv()
+            .expect("partner unaccepted status");
+        assert_eq!(source_bytes, partner_bytes);
+        assert_eq!(
+            u16::from_le_bytes([source_bytes[0], source_bytes[1]]),
+            ServerOpcodes::TradeStatus as u16
+        );
+        assert_eq!(source_bytes[2], TRADE_STATUS_UNACCEPTED_LIKE_CPP << 2);
     }
 
     #[tokio::test]

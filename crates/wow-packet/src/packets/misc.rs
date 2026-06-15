@@ -5325,6 +5325,22 @@ impl ClientPacket for AcceptTrade {
     }
 }
 
+/// C++ `WorldPackets::Trade::ClearTradeItem`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ClearTradeItem {
+    pub trade_slot: u8,
+}
+
+impl ClientPacket for ClearTradeItem {
+    const OPCODE: ClientOpcodes = ClientOpcodes::ClearTradeItem;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            trade_slot: pkt.read_uint8()?,
+        })
+    }
+}
+
 /// C++ `WorldPackets::Trade::UnacceptTrade`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct UnacceptTrade;
@@ -5381,6 +5397,9 @@ pub const TRADE_STATUS_STATE_CHANGED_LIKE_CPP: u8 = 9;
 
 /// C++ `TRADE_STATUS_PLAYER_IGNORED`.
 pub const TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP: u8 = 14;
+
+/// C++ `TRADE_SLOT_COUNT`.
+pub const TRADE_SLOT_COUNT_LIKE_CPP: u8 = 7;
 
 /// Bounded C++ `WorldPackets::Trade::TradeStatus` writer.
 ///
@@ -6289,6 +6308,17 @@ mod tests {
         let packet = AcceptTrade::read(&mut pkt).unwrap();
 
         assert_eq!(packet.state_index, 0x1122_3344);
+    }
+
+    #[test]
+    fn clear_trade_item_reads_trade_slot_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint8(5);
+        pkt.reset_read();
+
+        let packet = ClearTradeItem::read(&mut pkt).unwrap();
+
+        assert_eq!(packet.trade_slot, 5);
     }
 
     #[test]
