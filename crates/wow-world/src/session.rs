@@ -34790,6 +34790,12 @@ impl WorldSession {
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_GIVE_HONOR => {
                     self.apply_give_honor_effect_like_cpp(direct_effect_base_points, target_guid)?;
                 }
+                x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_SELF_RESURRECT => {
+                    self.apply_self_resurrect_effect_like_cpp(
+                        direct_effect_base_points,
+                        direct_effect_misc_value_1,
+                    );
+                }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_PLAY_MOVIE => {
                     self.apply_play_movie_effect_like_cpp(target_guid, direct_effect_misc_value_1);
                 }
@@ -34978,6 +34984,7 @@ impl WorldSession {
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_PARRY
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_BLOCK
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_GIVE_HONOR
+                || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_SELF_RESURRECT
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_PLAY_MOVIE
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_TRANSMOG_SET
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_UPGRADE_HEIRLOOM
@@ -36693,6 +36700,55 @@ impl WorldSession {
                 .then(|| player.values_update(true))
         })
         .flatten()
+    }
+
+    fn apply_self_resurrect_effect_like_cpp(&mut self, damage: i32, misc_value: i32) {
+        let Some(player_guid) = self.player_guid() else {
+            return;
+        };
+        if self.player_alive_like_cpp || !self.player_is_in_world_for_registry_like_cpp() {
+            return;
+        }
+
+        let max_health = self.player_max_health_like_cpp.max(1);
+        let (health, mana) = if damage < 0 {
+            (damage.saturating_abs() as u32, misc_value.max(0))
+        } else {
+            let pct = damage.max(0);
+            (
+                max_health
+                    .saturating_mul(u32::try_from(pct).unwrap_or(u32::MAX))
+                    .saturating_div(100),
+                self.mutate_canonical_player_like_cpp(|player| {
+                    player
+                        .get_max_power(PowerType::Mana)
+                        .max(0)
+                        .saturating_mul(pct)
+                        / 100
+                })
+                .unwrap_or(0),
+            )
+        };
+        let health = health.min(max_health);
+
+        self.player_health_like_cpp = health;
+        self.player_alive_like_cpp = true;
+        let values_update = self.mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_max_health(u64::from(max_health));
+            player.unit_mut().set_health(u64::from(health));
+            player.unit_mut().set_power(PowerType::Mana, mana);
+            player.unit_mut().set_power(PowerType::Rage, 0);
+            let max_energy = player.get_max_power(PowerType::Energy);
+            player.unit_mut().set_power(PowerType::Energy, max_energy);
+            player.unit_mut().set_power(PowerType::Focus, 0);
+            player.values_update(true)
+        });
+        self.sync_player_registry_state_like_cpp();
+        if let Some(values_update) = values_update {
+            self.send_player_values_update_like_cpp(&values_update);
+        } else {
+            self.send_player_health_values_update_like_cpp(player_guid, u64::from(health));
+        }
     }
 
     async fn apply_quest_complete_effect_like_cpp(
@@ -56930,6 +56986,233 @@ mod tests {
         assert_eq!(session.player_health_like_cpp(), 0);
         assert!(!session.player_is_alive_like_cpp());
         assert!(send_rx.try_recv().is_err());
+    }
+
+    fn configure_self_resurrect_canonical_player_like_cpp(
+        session: &mut WorldSession,
+        guid: ObjectGuid,
+        health: u32,
+        max_health: u32,
+    ) {
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_COMMON,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+            },
+        ])));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            guid,
+            "SelfRez".to_string(),
+            Position::new(10.0, 20.0, 30.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_player_health_like_cpp(health, max_health);
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.unit_mut().set_power_index(PowerType::Mana, Some(0));
+                player.unit_mut().set_power_index(PowerType::Rage, Some(1));
+                player
+                    .unit_mut()
+                    .set_power_index(PowerType::Energy, Some(3));
+                player.unit_mut().set_power_index(PowerType::Focus, Some(4));
+                player.unit_mut().set_max_power(PowerType::Mana, 200);
+                player.unit_mut().set_power(PowerType::Mana, 25);
+                player.unit_mut().set_max_power(PowerType::Rage, 100);
+                player.unit_mut().set_power(PowerType::Rage, 50);
+                player.unit_mut().set_max_power(PowerType::Energy, 100);
+                player.unit_mut().set_power(PowerType::Energy, 30);
+                player.unit_mut().set_max_power(PowerType::Focus, 100);
+                player.unit_mut().set_power(PowerType::Focus, 40);
+                player.clear_data_changes();
+            })
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn spell_self_resurrect_flat_case_sets_health_and_powers_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 780_i32;
+        let player_guid = ObjectGuid::create_player(1, 780);
+        configure_self_resurrect_canonical_player_like_cpp(&mut session, player_guid, 0, 100);
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_SELF_RESURRECT,
+                    effect_base_points: -35,
+                    effect_misc_value_1: 77,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("represented self-resurrect flat effect should execute");
+
+        assert!(session.player_is_alive_like_cpp());
+        assert_eq!(session.player_health_like_cpp(), 35);
+        let powers = session
+            .mutate_canonical_player_like_cpp(|player| {
+                (
+                    player.unit().data().health,
+                    player.get_power(PowerType::Mana),
+                    player.get_power(PowerType::Rage),
+                    player.get_power(PowerType::Energy),
+                    player.get_power(PowerType::Focus),
+                )
+            })
+            .unwrap();
+        assert_eq!(powers, (35, 77, 0, 100, 0));
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![
+                ServerOpcodes::SpellGo,
+                ServerOpcodes::UpdateObject,
+                ServerOpcodes::CooldownEvent,
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_self_resurrect_percent_case_uses_max_health_and_mana_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 781_i32;
+        let player_guid = ObjectGuid::create_player(1, 781);
+        configure_self_resurrect_canonical_player_like_cpp(&mut session, player_guid, 0, 400);
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_SELF_RESURRECT,
+                    effect_base_points: 25,
+                    effect_misc_value_1: 999,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("represented self-resurrect percent effect should execute");
+
+        assert!(session.player_is_alive_like_cpp());
+        assert_eq!(session.player_health_like_cpp(), 100);
+        let powers = session
+            .mutate_canonical_player_like_cpp(|player| {
+                (
+                    player.unit().data().health,
+                    player.get_power(PowerType::Mana),
+                    player.get_power(PowerType::Rage),
+                    player.get_power(PowerType::Energy),
+                    player.get_power(PowerType::Focus),
+                )
+            })
+            .unwrap();
+        assert_eq!(powers, (100, 50, 0, 100, 0));
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![
+                ServerOpcodes::SpellGo,
+                ServerOpcodes::UpdateObject,
+                ServerOpcodes::CooldownEvent,
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_self_resurrect_skips_alive_player_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 782_i32;
+        let player_guid = ObjectGuid::create_player(1, 782);
+        configure_self_resurrect_canonical_player_like_cpp(&mut session, player_guid, 40, 100);
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_SELF_RESURRECT,
+                    effect_base_points: -35,
+                    effect_misc_value_1: 77,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("alive player self-resurrect should be a C++ no-op");
+
+        assert!(session.player_is_alive_like_cpp());
+        assert_eq!(session.player_health_like_cpp(), 40);
+        let powers = session
+            .mutate_canonical_player_like_cpp(|player| {
+                (
+                    player.unit().data().health,
+                    player.get_power(PowerType::Mana),
+                    player.get_power(PowerType::Rage),
+                    player.get_power(PowerType::Energy),
+                    player.get_power(PowerType::Focus),
+                )
+            })
+            .unwrap();
+        assert_eq!(powers, (40, 25, 50, 30, 40));
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
     }
 
     #[tokio::test]

@@ -72,6 +72,7 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_BIND_SIGHT: u32 = 82;
     pub const SPELL_EFFECT_KILL_CREDIT: u32 = 90;
     pub const SPELL_EFFECT_THREAT_ALL: u32 = 91;
+    pub const SPELL_EFFECT_SELF_RESURRECT: u32 = 94;
     /// First C++ `SPELL_EFFECT_SUMMON_OBJECT_SLOT*` value; see
     /// `Spell::EffectSummonObject` (`SpellEffects.cpp:3541-3597`).
     pub const SPELL_EFFECT_SUMMON_OBJECT_SLOT1: u32 = 104;
