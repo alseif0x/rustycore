@@ -1,3 +1,13 @@
+# `#NEXT.R8.ENTITIES.966` — represented `CMSG_CALENDAR_REMOVE_EVENT` request capture.
+
+Source-of-truth C++ was checked before code changes: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CalendarHandler.cpp:222-226` (`WorldSession::HandleCalendarRemoveEvent`), `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/CalendarPackets.cpp:159-165` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/CalendarPackets.h:118-130` (`CalendarRemoveEvent` packet shape), plus `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:268` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:145` for `LoggedIn`/`ThreadUnsafe` opcode metadata and id `0x3679`.
+
+Rust now parses `CMSG_CALENDAR_REMOVE_EVENT` as the C++ `EventID`, `ModeratorID`, `ClubID`, `Flags` order, registers `LoggedIn`/`ThreadUnsafe` dispatch, routes through `WorldSession`, and captures a represented `CalendarMgr::RemoveEvent(EventID, playerGuid)` request using the event id that C++ delegates. The extra request fields are parsed for wire fidelity but not consumed by this C++ handler.
+
+Checks: `cargo fmt --all --check`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-packet calendar_remove --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world calendar_remove --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world dispatch_metadata_matches_cpp_for_registered_active_opcodes -- --nocapture`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p wow-packet -p wow-world`; `git diff --check`; TSV 9/16/11-column checks.
+
+Boundaries: represented-partial only. This does not implement live `CalendarMgr::RemoveEvent`, ownership/permission checks, actual invite/event deletion, DB persistence, alert/fanout packets, install/restart, bot, or live-client/manual validation.
+
 # `#NEXT.R8.ENTITIES.965` — represented `CMSG_CALENDAR_COMMUNITY_INVITE` guild mass-invite intent.
 
 Source-of-truth C++ was checked before code changes: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CalendarHandler.cpp:108-112` (`WorldSession::HandleCalendarCommunityInvite`), `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/CalendarPackets.cpp:84-90` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/CalendarPackets.h:50-61` (`CalendarCommunityInviteRequest` packet shape), plus `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:259` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:136` for `LoggedIn`/`ThreadUnsafe` opcode metadata and id `0x3673`.

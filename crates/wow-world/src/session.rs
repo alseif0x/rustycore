@@ -1521,6 +1521,11 @@ pub(crate) struct RepresentedCalendarCommunityInviteLikeCpp {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedCalendarRemoveEventLikeCpp {
+    pub event_id: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedCanDuelSpellCastLikeCpp {
     pub target_guid: ObjectGuid,
     pub spell_id: u32,
@@ -3083,6 +3088,7 @@ pub struct WorldSession {
     represented_guild_id_invited_like_cpp: u64,
     represented_guild_accept_invites_like_cpp: Vec<u64>,
     represented_calendar_community_invites_like_cpp: Vec<RepresentedCalendarCommunityInviteLikeCpp>,
+    represented_calendar_remove_events_like_cpp: Vec<RepresentedCalendarRemoveEventLikeCpp>,
     represented_arena_team_id_invited_like_cpp: u32,
     represented_wargame_invite_acceptances_like_cpp: Vec<RepresentedWargameInviteAcceptanceLikeCpp>,
     represented_active_trade_partner_like_cpp: Option<ObjectGuid>,
@@ -4492,6 +4498,7 @@ impl WorldSession {
             represented_guild_id_invited_like_cpp: 0,
             represented_guild_accept_invites_like_cpp: Vec::new(),
             represented_calendar_community_invites_like_cpp: Vec::new(),
+            represented_calendar_remove_events_like_cpp: Vec::new(),
             represented_arena_team_id_invited_like_cpp: 0,
             represented_wargame_invite_acceptances_like_cpp: Vec::new(),
             represented_active_trade_partner_like_cpp: None,
@@ -20356,6 +20363,12 @@ impl WorldSession {
                     Err(e) => warn!("Failed to read CalendarGetEvent: {e}"),
                 }
             }
+            ClientOpcodes::CalendarRemoveEvent => {
+                match wow_packet::packets::misc::CalendarRemoveEvent::read(&mut pkt) {
+                    Ok(query) => self.handle_calendar_remove_event(query).await,
+                    Err(e) => warn!("Failed to read CalendarRemoveEvent: {e}"),
+                }
+            }
             ClientOpcodes::CloseInteraction => {
                 self.handle_close_interaction(pkt).await;
             }
@@ -22970,6 +22983,18 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedCalendarCommunityInviteLikeCpp] {
         &self.represented_calendar_community_invites_like_cpp
+    }
+
+    pub(crate) fn calendar_remove_event_like_cpp(&mut self, event_id: u64) {
+        self.represented_calendar_remove_events_like_cpp
+            .push(RepresentedCalendarRemoveEventLikeCpp { event_id });
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_calendar_remove_events_like_cpp(
+        &self,
+    ) -> &[RepresentedCalendarRemoveEventLikeCpp] {
+        &self.represented_calendar_remove_events_like_cpp
     }
 
     #[cfg(test)]

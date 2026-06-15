@@ -54,19 +54,19 @@ use wow_packet::packets::misc::{
     BattlePetModifyName, BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags,
     BattlePetSummon, BattlePetUpdateNotify, BattlefieldLeave, BeginTrade, BugReport, BusyTrade,
     CageBattlePet, CalendarCommandResult, CalendarCommunityInvite, CalendarComplain,
-    CalendarGetEvent, CalendarSendCalendar, CalendarSendNumPending, CanDuel, ClearTradeItem,
-    CloseInteraction, CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint, ComplaintResult,
-    DeclineGuildInvites, DeclinePetition, DfGetJoinStatus, DfGetSystemInfo, DuelResponse,
-    ERR_TAXITOOFARAWAY_LIKE_CPP, FarSight, GmTicketAcknowledgeSurvey, GmTicketCaseStatus,
-    GmTicketSystemStatus, GuildSetAchievementTracking, IgnoreTrade, LfgListBlacklist,
-    LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify, MAX_ACCOUNT_DATA_SIZE_LIKE_CPP,
-    MountSetFavorite, MountSpecial, NUM_ACCOUNT_DATA_TYPES, ObjectUpdateFailed,
-    ObjectUpdateRescued, QueryArenaTeam, QueryBattlePetName, QueryBattlePetNameResponse,
-    QueryPetition, QueryPetitionResponse, RatedPvpInfo, ReclaimCorpse, RepopRequest,
-    RequestAccountData, RequestBattlefieldStatus, RequestCemeteryListResponse, ResurrectResponse,
-    SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags, SetDifficultyId,
-    SetDungeonDifficulty, SetPvp, SetRaidDifficulty, SetTaxiBenchmarkMode, SetTradeGold,
-    SetTradeItem, SetTradeSpell, SignPetition, SpecialMountAnim, StandStateChange,
+    CalendarGetEvent, CalendarRemoveEvent, CalendarSendCalendar, CalendarSendNumPending, CanDuel,
+    ClearTradeItem, CloseInteraction, CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint,
+    ComplaintResult, DeclineGuildInvites, DeclinePetition, DfGetJoinStatus, DfGetSystemInfo,
+    DuelResponse, ERR_TAXITOOFARAWAY_LIKE_CPP, FarSight, GmTicketAcknowledgeSurvey,
+    GmTicketCaseStatus, GmTicketSystemStatus, GuildSetAchievementTracking, IgnoreTrade,
+    LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify,
+    MAX_ACCOUNT_DATA_SIZE_LIKE_CPP, MountSetFavorite, MountSpecial, NUM_ACCOUNT_DATA_TYPES,
+    ObjectUpdateFailed, ObjectUpdateRescued, QueryArenaTeam, QueryBattlePetName,
+    QueryBattlePetNameResponse, QueryPetition, QueryPetitionResponse, RatedPvpInfo, ReclaimCorpse,
+    RepopRequest, RequestAccountData, RequestBattlefieldStatus, RequestCemeteryListResponse,
+    ResurrectResponse, SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags,
+    SetDifficultyId, SetDungeonDifficulty, SetPvp, SetRaidDifficulty, SetTaxiBenchmarkMode,
+    SetTradeGold, SetTradeItem, SetTradeSpell, SignPetition, SpecialMountAnim, StandStateChange,
     SubmitUserFeedback, SupportTicketSubmitBug, SupportTicketSubmitComplaint,
     SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
     TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP, TaxiNodeStatusPkt, ToggleDifficulty, TogglePvp,
@@ -1573,6 +1573,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_calendar_get_event",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::CalendarRemoveEvent,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_calendar_remove_event",
     }
 }
 
@@ -4586,6 +4595,12 @@ impl crate::session::WorldSession {
         // no event for the requested id. Rust does not have CalendarMgr wired
         // yet, so this represents the observable miss branch.
         self.send_packet(&CalendarCommandResult::event_invalid_like_cpp());
+    }
+
+    pub async fn handle_calendar_remove_event(&mut self, query: CalendarRemoveEvent) {
+        // C++ delegates only EventID and the player GUID to CalendarMgr.
+        // CalendarMgr is not live here yet, so capture the represented request.
+        self.calendar_remove_event_like_cpp(query.event_id);
     }
 
     // ── Auction house list stubs ──────────────────────────────────────────────
@@ -12069,6 +12084,28 @@ mod tests {
                 min_level: 10,
                 max_level: 70,
                 max_rank_order: 3,
+            }]
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn calendar_remove_event_records_represented_remove_request_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_calendar_remove_event(CalendarRemoveEvent {
+                event_id: 0x1111_2222_3333_4444,
+                moderator_id: 0x5555_6666_7777_8888,
+                club_id: 0x9999_AAAA_BBBB_CCCC,
+                flags: 0xDEAD_BEEF,
+            })
+            .await;
+
+        assert_eq!(
+            session.represented_calendar_remove_events_like_cpp(),
+            &[crate::session::RepresentedCalendarRemoveEventLikeCpp {
+                event_id: 0x1111_2222_3333_4444,
             }]
         );
         assert!(send_rx.try_recv().is_err());
