@@ -173,6 +173,15 @@ inventory::submit! {
     }
 }
 
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::AssignEquipmentSetSpec,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_assign_equipment_set_spec",
+    }
+}
+
 // ── Stub registrations for character-select opcodes ──────────────────
 
 inventory::submit! {
@@ -2220,6 +2229,25 @@ impl WorldSession {
             player: request.player,
             result_code: DECLINED_NAMES_RESULT_ERROR_LIKE_CPP,
         });
+    }
+
+    /// Handle CMSG_ASSIGN_EQUIPMENT_SET_SPEC.
+    ///
+    /// C++ `Player::AssignEquipmentSetToSpec` only mutates the first equipment
+    /// set whose client SetID matches and does not send an immediate response.
+    /// The represented container keeps the same in-memory assignment/state
+    /// semantics until full equipment-set save/load persistence is wired.
+    pub async fn handle_assign_equipment_set_spec(&mut self, mut pkt: WorldPacket) {
+        let request = match AssignEquipmentSetSpec::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!("Bad AssignEquipmentSetSpec: {error}");
+                return;
+            }
+        };
+
+        let _assigned = self
+            .assign_represented_equipment_set_to_spec_like_cpp(request.set_id, request.spec_index);
     }
 
     /// Handle CMSG_DB_QUERY_BULK — client requests DB2 records.
@@ -10341,6 +10369,13 @@ mod tests {
         (result, player)
     }
 
+    fn assign_equipment_set_spec_packet(set_id: u32, spec_index: u32) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(set_id);
+        pkt.write_uint32(spec_index);
+        pkt
+    }
+
     #[tokio::test]
     async fn alter_appearance_without_barber_chair_sends_not_on_chair_like_cpp() {
         let (mut session, send_rx) = make_session_with_send_capacity(4);
@@ -10389,6 +10424,104 @@ mod tests {
             .await;
 
         assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn assign_equipment_set_spec_updates_matching_equipment_set_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        session.insert_represented_equipment_set_like_cpp(
+            100,
+            crate::session::RepresentedEquipmentSetLikeCpp::equipment(
+                7,
+                -1,
+                crate::session::RepresentedEquipmentSetUpdateStateLikeCpp::Unchanged,
+            ),
+        );
+
+        session
+            .handle_assign_equipment_set_spec(assign_equipment_set_spec_packet(7, 2))
+            .await;
+
+        let equipment_set = session.represented_equipment_set_like_cpp(100).unwrap();
+        assert_eq!(equipment_set.assigned_spec_index, 2);
+        assert_eq!(
+            equipment_set.state,
+            crate::session::RepresentedEquipmentSetUpdateStateLikeCpp::Changed
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn assign_equipment_set_spec_preserves_new_state_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send_capacity(1);
+        session.insert_represented_equipment_set_like_cpp(
+            100,
+            crate::session::RepresentedEquipmentSetLikeCpp::equipment(
+                7,
+                -1,
+                crate::session::RepresentedEquipmentSetUpdateStateLikeCpp::New,
+            ),
+        );
+
+        session
+            .handle_assign_equipment_set_spec(assign_equipment_set_spec_packet(7, 3))
+            .await;
+
+        let equipment_set = session.represented_equipment_set_like_cpp(100).unwrap();
+        assert_eq!(equipment_set.assigned_spec_index, 3);
+        assert_eq!(
+            equipment_set.state,
+            crate::session::RepresentedEquipmentSetUpdateStateLikeCpp::New
+        );
+    }
+
+    #[tokio::test]
+    async fn assign_equipment_set_spec_ignores_transmog_missing_and_out_of_range_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send_capacity(1);
+        session.insert_represented_equipment_set_like_cpp(
+            100,
+            crate::session::RepresentedEquipmentSetLikeCpp::transmog(
+                7,
+                -1,
+                crate::session::RepresentedEquipmentSetUpdateStateLikeCpp::Unchanged,
+            ),
+        );
+        session.insert_represented_equipment_set_like_cpp(
+            200,
+            crate::session::RepresentedEquipmentSetLikeCpp::equipment(
+                8,
+                -1,
+                crate::session::RepresentedEquipmentSetUpdateStateLikeCpp::Unchanged,
+            ),
+        );
+
+        session
+            .handle_assign_equipment_set_spec(assign_equipment_set_spec_packet(7, 4))
+            .await;
+        session
+            .handle_assign_equipment_set_spec(assign_equipment_set_spec_packet(99, 4))
+            .await;
+        session
+            .handle_assign_equipment_set_spec(assign_equipment_set_spec_packet(
+                crate::session::MAX_EQUIPMENT_SET_INDEX_LIKE_CPP,
+                4,
+            ))
+            .await;
+
+        assert_eq!(
+            session
+                .represented_equipment_set_like_cpp(100)
+                .unwrap()
+                .assigned_spec_index,
+            -1
+        );
+        assert_eq!(
+            session
+                .represented_equipment_set_like_cpp(200)
+                .unwrap()
+                .assigned_spec_index,
+            -1
+        );
     }
 
     #[tokio::test]

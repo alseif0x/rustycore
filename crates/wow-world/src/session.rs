@@ -3099,6 +3099,9 @@ pub struct WorldSession {
     represented_activate_taxi_requests_like_cpp: Vec<RepresentedActivateTaxiLikeCpp>,
     /// Represented accepted barber-shop requests until ChrCustomization DB2/cost/update runtime is canonical.
     represented_alter_appearance_requests_like_cpp: Vec<RepresentedAlterAppearanceLikeCpp>,
+    /// C++ `Player::_equipmentSets`, represented with the fields currently
+    /// needed by `AssignEquipmentSetToSpec`.
+    represented_equipment_sets_like_cpp: BTreeMap<u64, RepresentedEquipmentSetLikeCpp>,
     /// Represented accepted Adventure Map quest starts until AddQuestAndCheckCompletion is canonical.
     represented_adventure_map_start_quest_requests_like_cpp:
         Vec<RepresentedAdventureMapStartQuestLikeCpp>,
@@ -3526,6 +3529,62 @@ pub struct InventoryItem {
     /// InventoryType from Item.db2 (e.g. 1=Head, 5=Chest, 13=Weapon).
     /// Loaded from the item store at login, with slot-based fallback.
     pub inventory_type: Option<u8>,
+}
+
+pub(crate) const MAX_EQUIPMENT_SET_INDEX_LIKE_CPP: u32 = 20;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
+pub(crate) enum RepresentedEquipmentSetTypeLikeCpp {
+    Equipment = 0,
+    Transmog = 1,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
+pub(crate) enum RepresentedEquipmentSetUpdateStateLikeCpp {
+    Unchanged = 0,
+    Changed = 1,
+    New = 2,
+    Deleted = 3,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedEquipmentSetLikeCpp {
+    pub(crate) set_type: RepresentedEquipmentSetTypeLikeCpp,
+    pub(crate) set_id: u32,
+    pub(crate) assigned_spec_index: i32,
+    pub(crate) state: RepresentedEquipmentSetUpdateStateLikeCpp,
+}
+
+impl RepresentedEquipmentSetLikeCpp {
+    #[cfg(test)]
+    pub(crate) fn equipment(
+        set_id: u32,
+        assigned_spec_index: i32,
+        state: RepresentedEquipmentSetUpdateStateLikeCpp,
+    ) -> Self {
+        Self {
+            set_type: RepresentedEquipmentSetTypeLikeCpp::Equipment,
+            set_id,
+            assigned_spec_index,
+            state,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn transmog(
+        set_id: u32,
+        assigned_spec_index: i32,
+        state: RepresentedEquipmentSetUpdateStateLikeCpp,
+    ) -> Self {
+        Self {
+            set_type: RepresentedEquipmentSetTypeLikeCpp::Transmog,
+            set_id,
+            assigned_spec_index,
+            state,
+        }
+    }
 }
 
 /// Current finite stock for a vendor item.
@@ -4240,6 +4299,7 @@ impl WorldSession {
             taxi_destinations_like_cpp: Vec::new(),
             represented_activate_taxi_requests_like_cpp: Vec::new(),
             represented_alter_appearance_requests_like_cpp: Vec::new(),
+            represented_equipment_sets_like_cpp: BTreeMap::new(),
             represented_adventure_map_start_quest_requests_like_cpp: Vec::new(),
             taxi_node_map_ids_like_cpp: HashMap::new(),
             taxi_flight_state_like_cpp: None,
@@ -4454,6 +4514,51 @@ impl WorldSession {
 
     pub(crate) fn represented_runtime_subrng_like_cpp(&mut self) -> StdRng {
         StdRng::seed_from_u64(self.represented_runtime_rng_like_cpp.next_u64())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn insert_represented_equipment_set_like_cpp(
+        &mut self,
+        guid: u64,
+        equipment_set: RepresentedEquipmentSetLikeCpp,
+    ) {
+        self.represented_equipment_sets_like_cpp
+            .insert(guid, equipment_set);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_equipment_set_like_cpp(
+        &self,
+        guid: u64,
+    ) -> Option<RepresentedEquipmentSetLikeCpp> {
+        self.represented_equipment_sets_like_cpp.get(&guid).copied()
+    }
+
+    pub(crate) fn assign_represented_equipment_set_to_spec_like_cpp(
+        &mut self,
+        set_id: u32,
+        spec_index: u32,
+    ) -> bool {
+        if set_id >= MAX_EQUIPMENT_SET_INDEX_LIKE_CPP {
+            return false;
+        }
+
+        let Some((_, equipment_set)) =
+            self.represented_equipment_sets_like_cpp
+                .iter_mut()
+                .find(|(_, equipment_set)| {
+                    equipment_set.set_id == set_id
+                        && equipment_set.set_type == RepresentedEquipmentSetTypeLikeCpp::Equipment
+                })
+        else {
+            return false;
+        };
+
+        equipment_set.assigned_spec_index = spec_index as i32;
+        if equipment_set.state != RepresentedEquipmentSetUpdateStateLikeCpp::New {
+            equipment_set.state = RepresentedEquipmentSetUpdateStateLikeCpp::Changed;
+        }
+        true
     }
 
     pub(crate) fn represented_money_loot_with_rate_like_cpp(
@@ -11491,6 +11596,7 @@ impl WorldSession {
             | ClientOpcodes::SelfRes
             | ClientOpcodes::UnlearnSkill
             | ClientOpcodes::SaveEquipmentSet
+            | ClientOpcodes::AssignEquipmentSetSpec
             | ClientOpcodes::DeleteEquipmentSet
             | ClientOpcodes::DismissCritter
             | ClientOpcodes::RepopRequest
@@ -17941,6 +18047,9 @@ impl WorldSession {
             }
             ClientOpcodes::SetPlayerDeclinedNames => {
                 self.handle_set_player_declined_names(pkt).await;
+            }
+            ClientOpcodes::AssignEquipmentSetSpec => {
+                self.handle_assign_equipment_set_spec(pkt).await;
             }
             ClientOpcodes::AdventureMapStartQuest => {
                 self.handle_adventure_map_start_quest(pkt).await;
@@ -59871,6 +59980,7 @@ mod tests {
             ClientOpcodes::SelfRes,
             ClientOpcodes::UnlearnSkill,
             ClientOpcodes::SaveEquipmentSet,
+            ClientOpcodes::AssignEquipmentSetSpec,
             ClientOpcodes::DeleteEquipmentSet,
             ClientOpcodes::DismissCritter,
             ClientOpcodes::RepopRequest,

@@ -2530,6 +2530,26 @@ impl ServerPacket for LoadEquipmentSet {
     }
 }
 
+// ── AssignEquipmentSetSpec (CMSG 0x3207) ─────────────────────────────
+
+/// C++ `WorldPackets::EquipmentSet::AssignEquipmentSetSpec`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AssignEquipmentSetSpec {
+    pub set_id: u32,
+    pub spec_index: u32,
+}
+
+impl ClientPacket for AssignEquipmentSetSpec {
+    const OPCODE: ClientOpcodes = ClientOpcodes::AssignEquipmentSetSpec;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            set_id: pkt.read_uint32()?,
+            spec_index: pkt.read_uint32()?,
+        })
+    }
+}
+
 // ── AllAccountCriteria (SMSG 0x2571) ─────────────────────────────────
 
 /// Account-wide achievement criteria. Empty for fresh accounts.
@@ -6400,6 +6420,20 @@ mod tests {
         let parsed = SetPvp::read(&mut pkt).unwrap();
 
         assert!(parsed.enable_pvp);
+    }
+
+    #[test]
+    fn assign_equipment_set_spec_reads_cpp_uint32_pair() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(7);
+        pkt.write_uint32(2);
+        pkt.reset_read();
+
+        let parsed = AssignEquipmentSetSpec::read(&mut pkt).unwrap();
+
+        assert_eq!(parsed.set_id, 7);
+        assert_eq!(parsed.spec_index, 2);
+        assert_eq!(pkt.remaining(), 0);
     }
 
     #[test]
