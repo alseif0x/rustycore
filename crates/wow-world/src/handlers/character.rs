@@ -2936,6 +2936,11 @@ impl WorldSession {
         self.set_player_guid(Some(guid));
         self.set_loaded_player_identity_like_cpp(map_id as u16, race, class, level, gender);
         self.set_represented_guild_id_like_cpp(result.try_read::<u64>(11).unwrap_or(0));
+        self.load_represented_player_difficulties_like_cpp(
+            result.try_read::<u32>(44).unwrap_or(0),
+            result.try_read::<u32>(67).unwrap_or(0),
+            result.try_read::<u32>(68).unwrap_or(0),
+        );
         self.refresh_next_level_xp();
         if self.ensure_login_player_controller_like_cpp(
             guid,
@@ -10245,8 +10250,9 @@ impl WorldSession {
     ) {
         // ── Phase 1: HandlePlayerLogin packets ──
 
-        // 1. DungeonDifficultySet — C# sends this BEFORE LoginVerifyWorld
-        self.send_packet(&DungeonDifficultySet::normal());
+        // 1. DungeonDifficultySet — C++ `Player::SendDungeonDifficulty()`
+        // sends the loaded `GetDungeonDifficultyID()` before LoginVerifyWorld.
+        self.send_packet(&self.represented_dungeon_difficulty_packet_like_cpp());
 
         // 2. LoginVerifyWorld — confirms map + position
         self.send_packet(&LoginVerifyWorld {

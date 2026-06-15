@@ -14076,6 +14076,39 @@ impl WorldSession {
         self.represented_legacy_raid_difficulty_id_like_cpp
     }
 
+    /// C++ `Player::LoadFromDB` applies `CheckLoaded*DifficultyID` to the raw
+    /// `characters` columns before any login packets are sent.
+    pub(crate) fn load_represented_player_difficulties_like_cpp(
+        &mut self,
+        dungeon_difficulty_id: u32,
+        raid_difficulty_id: u32,
+        legacy_raid_difficulty_id: u32,
+    ) {
+        let Some(store) = self.difficulty_store() else {
+            self.represented_dungeon_difficulty_id_like_cpp = DIFFICULTY_NORMAL_LIKE_CPP;
+            self.represented_raid_difficulty_id_like_cpp = DIFFICULTY_NORMAL_RAID_LIKE_CPP;
+            self.represented_legacy_raid_difficulty_id_like_cpp = DIFFICULTY_10_N_LIKE_CPP;
+            return;
+        };
+
+        let dungeon_difficulty_id =
+            store.check_loaded_dungeon_difficulty_id_like_cpp(dungeon_difficulty_id);
+        let raid_difficulty_id = store.check_loaded_raid_difficulty_id_like_cpp(raid_difficulty_id);
+        let legacy_raid_difficulty_id =
+            store.check_loaded_legacy_raid_difficulty_id_like_cpp(legacy_raid_difficulty_id);
+
+        self.represented_dungeon_difficulty_id_like_cpp = dungeon_difficulty_id;
+        self.represented_raid_difficulty_id_like_cpp = raid_difficulty_id;
+        self.represented_legacy_raid_difficulty_id_like_cpp = legacy_raid_difficulty_id;
+    }
+
+    pub(crate) fn represented_dungeon_difficulty_packet_like_cpp(&self) -> DungeonDifficultySet {
+        DungeonDifficultySet {
+            difficulty_id: i32::try_from(self.represented_dungeon_difficulty_id_like_cpp)
+                .unwrap_or(i32::MAX),
+        }
+    }
+
     fn current_map_instanceable_like_cpp(&self) -> bool {
         let map_id = u32::from(self.player_map_id_like_cpp());
         self.map_store()
@@ -34859,21 +34892,22 @@ mod tests {
     };
     use wow_core::{Position, guid::HighGuid};
     use wow_data::{
-        ChrSpecializationEntry, ChrSpecializationStore, Condition, DurabilityCostsEntry,
-        DurabilityCostsStore, DurabilityQualityEntry, DurabilityQualityStore, HeirloomEntry,
-        HeirloomStore, ImportPriceArmorEntry, ImportPriceArmorStore, ImportPriceQualityEntry,
-        ImportPriceQualityStore, ImportPriceShieldEntry, ImportPriceShieldStore, ImportPriceStores,
-        ImportPriceWeaponEntry, ImportPriceWeaponStore, ItemAppearanceEntry, ItemAppearanceStore,
-        ItemClassEntry, ItemClassStore, ItemCurrencyCostEntry, ItemCurrencyCostStore,
-        ItemDisenchantLootEntry, ItemDisenchantLootStore, ItemEffectEntry, ItemEffectStore,
-        ItemLimitCategoryConditionEntry, ItemLimitCategoryConditionStore, ItemLimitCategoryEntry,
-        ItemLimitCategoryStore, ItemModifiedAppearanceEntry, ItemModifiedAppearanceStore,
-        ItemPriceBaseEntry, ItemPriceBaseStore, ItemRandomPropertyTemplateEntry,
-        ItemRandomSuffixEntry, ItemRandomSuffixStore, ItemRecord, ItemSearchNameEntry,
-        ItemSearchNameStore, ItemSparseTemplateEntry, ItemSpecOverrideEntry, ItemSpecOverrideStore,
-        ItemStatsStore, ItemStore, LockEntry, LockStore, PlayerConditionEntry,
-        PlayerConditionStore, SpellItemEnchantmentEntry, SpellItemEnchantmentStore, ToyEntry,
-        ToyStore, TransmogSetEntry, TransmogSetItemEntry, TransmogSetItemStore,
+        ChrSpecializationEntry, ChrSpecializationStore, Condition, DifficultyEntry,
+        DifficultyStore, DurabilityCostsEntry, DurabilityCostsStore, DurabilityQualityEntry,
+        DurabilityQualityStore, HeirloomEntry, HeirloomStore, ImportPriceArmorEntry,
+        ImportPriceArmorStore, ImportPriceQualityEntry, ImportPriceQualityStore,
+        ImportPriceShieldEntry, ImportPriceShieldStore, ImportPriceStores, ImportPriceWeaponEntry,
+        ImportPriceWeaponStore, ItemAppearanceEntry, ItemAppearanceStore, ItemClassEntry,
+        ItemClassStore, ItemCurrencyCostEntry, ItemCurrencyCostStore, ItemDisenchantLootEntry,
+        ItemDisenchantLootStore, ItemEffectEntry, ItemEffectStore, ItemLimitCategoryConditionEntry,
+        ItemLimitCategoryConditionStore, ItemLimitCategoryEntry, ItemLimitCategoryStore,
+        ItemModifiedAppearanceEntry, ItemModifiedAppearanceStore, ItemPriceBaseEntry,
+        ItemPriceBaseStore, ItemRandomPropertyTemplateEntry, ItemRandomSuffixEntry,
+        ItemRandomSuffixStore, ItemRecord, ItemSearchNameEntry, ItemSearchNameStore,
+        ItemSparseTemplateEntry, ItemSpecOverrideEntry, ItemSpecOverrideStore, ItemStatsStore,
+        ItemStore, LockEntry, LockStore, PlayerConditionEntry, PlayerConditionStore,
+        SpellItemEnchantmentEntry, SpellItemEnchantmentStore, ToyEntry, ToyStore, TransmogSetEntry,
+        TransmogSetItemEntry, TransmogSetItemStore,
         progression_rewards::{
             FactionEntry, FactionStore, QUEST_PACKAGE_FILTER_CLASS_LIKE_CPP,
             QUEST_PACKAGE_FILTER_UNMATCHED_LIKE_CPP, QuestPackageItemEntry, QuestPackageItemStore,
@@ -34928,6 +34962,89 @@ mod tests {
         );
 
         (session, pkt_tx, send_rx)
+    }
+
+    fn difficulty_entry(id: u32, instance_type: u8, flags: DifficultyFlags) -> DifficultyEntry {
+        DifficultyEntry {
+            id,
+            instance_type,
+            flags: flags.bits(),
+        }
+    }
+
+    #[test]
+    fn load_represented_player_difficulties_accepts_selectable_cpp_types() {
+        let (mut session, _, _) = make_session();
+        session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([
+            difficulty_entry(2, MAP_INSTANCE_LIKE_CPP, DifficultyFlags::CAN_SELECT),
+            difficulty_entry(15, MAP_RAID_LIKE_CPP, DifficultyFlags::CAN_SELECT),
+            difficulty_entry(
+                4,
+                MAP_RAID_LIKE_CPP,
+                DifficultyFlags::CAN_SELECT | DifficultyFlags::LEGACY,
+            ),
+        ])));
+
+        session.load_represented_player_difficulties_like_cpp(2, 15, 4);
+
+        assert_eq!(session.represented_dungeon_difficulty_id_like_cpp(), 2);
+        assert_eq!(session.represented_raid_difficulty_id_like_cpp(), 15);
+        assert_eq!(session.represented_legacy_raid_difficulty_id_like_cpp(), 4);
+        assert_eq!(
+            session
+                .represented_dungeon_difficulty_packet_like_cpp()
+                .difficulty_id,
+            2
+        );
+    }
+
+    #[test]
+    fn load_represented_player_difficulties_normalizes_invalid_values_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([
+            difficulty_entry(2, MAP_RAID_LIKE_CPP, DifficultyFlags::CAN_SELECT),
+            difficulty_entry(
+                15,
+                MAP_RAID_LIKE_CPP,
+                DifficultyFlags::CAN_SELECT | DifficultyFlags::LEGACY,
+            ),
+            difficulty_entry(4, MAP_RAID_LIKE_CPP, DifficultyFlags::CAN_SELECT),
+        ])));
+
+        session.load_represented_player_difficulties_like_cpp(2, 15, 4);
+
+        assert_eq!(
+            session.represented_dungeon_difficulty_id_like_cpp(),
+            DIFFICULTY_NORMAL_LIKE_CPP
+        );
+        assert_eq!(
+            session.represented_raid_difficulty_id_like_cpp(),
+            DIFFICULTY_NORMAL_RAID_LIKE_CPP
+        );
+        assert_eq!(
+            session.represented_legacy_raid_difficulty_id_like_cpp(),
+            DIFFICULTY_10_N_LIKE_CPP
+        );
+    }
+
+    #[test]
+    fn load_represented_player_difficulties_without_store_uses_cpp_defaults() {
+        let (mut session, _, _) = make_session();
+
+        session.load_represented_player_difficulties_like_cpp(2, 15, 4);
+
+        assert_eq!(
+            session.represented_dungeon_difficulty_id_like_cpp(),
+            DIFFICULTY_NORMAL_LIKE_CPP
+        );
+        assert_eq!(
+            session.represented_raid_difficulty_id_like_cpp(),
+            DIFFICULTY_NORMAL_RAID_LIKE_CPP
+        );
+        assert_eq!(
+            session.represented_legacy_raid_difficulty_id_like_cpp(),
+            DIFFICULTY_10_N_LIKE_CPP
+        );
     }
 
     fn drain_server_opcodes(send_rx: &flume::Receiver<Vec<u8>>) -> Vec<ServerOpcodes> {
