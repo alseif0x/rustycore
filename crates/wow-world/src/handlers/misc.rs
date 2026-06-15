@@ -59,12 +59,13 @@ use wow_packet::packets::misc::{
     LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify, MAX_ACCOUNT_DATA_SIZE_LIKE_CPP,
     MountSetFavorite, MountSpecial, NUM_ACCOUNT_DATA_TYPES, ObjectUpdateFailed,
     ObjectUpdateRescued, QueryArenaTeam, QueryBattlePetName, QueryBattlePetNameResponse,
-    QueryPetition, QueryPetitionResponse, RatedPvpInfo, RequestAccountData,
-    RequestBattlefieldStatus, RequestCemeteryListResponse, ResurrectResponse, SaveCufProfiles,
-    SetAdvancedCombatLogging, SetCurrencyFlags, SetDifficultyId, SetDungeonDifficulty, SetPvp,
-    SetRaidDifficulty, SetTaxiBenchmarkMode, SetTradeGold, SetTradeItem, SetTradeSpell,
-    SignPetition, SpecialMountAnim, StandStateChange, SubmitUserFeedback, SupportTicketSubmitBug,
-    SupportTicketSubmitComplaint, SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
+    QueryPetition, QueryPetitionResponse, RatedPvpInfo, ReclaimCorpse, RepopRequest,
+    RequestAccountData, RequestBattlefieldStatus, RequestCemeteryListResponse, ResurrectResponse,
+    SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags, SetDifficultyId,
+    SetDungeonDifficulty, SetPvp, SetRaidDifficulty, SetTaxiBenchmarkMode, SetTradeGold,
+    SetTradeItem, SetTradeSpell, SignPetition, SpecialMountAnim, StandStateChange,
+    SubmitUserFeedback, SupportTicketSubmitBug, SupportTicketSubmitComplaint,
+    SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
     TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP, TaxiNodeStatusPkt, TogglePvp, ToyClearFanfare,
     UnacceptTrade, UpdateAccountData, UseToy, UserClientUpdateAccountData, ViolenceLevel,
     compress_account_data_like_cpp, decompress_account_data_like_cpp,
@@ -118,6 +119,24 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_resurrect_response",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::RepopRequest,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_repop_request",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::ReclaimCorpse,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_reclaim_corpse",
     }
 }
 
@@ -1819,6 +1838,64 @@ impl crate::session::WorldSession {
         } else {
             self.apply_represented_resurrection_health_like_cpp(request.health);
         }
+    }
+
+    /// CMSG_REPOP_REQUEST — release spirit.
+    /// C++ ref: `WorldSession::HandleRepopRequest`.
+    pub async fn handle_repop_request(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let _request = match RepopRequest::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "RepopRequest parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        if self.player_is_alive_like_cpp() || self.player_has_ghost_flag_like_cpp() {
+            return;
+        }
+
+        // C++ also blocks `SPELL_AURA_PREVENT_RESURRECTION`, handles JUST_DIED
+        // promotion through KillPlayer, removes the pet, builds the corpse, and
+        // teleports to the graveyard. Rust has only the represented death/ghost
+        // seam here; full corpse/graveyard runtime remains open.
+        self.set_player_alive_like_cpp(false);
+        self.set_player_ghost_flag_like_cpp(true);
+        self.represented_repop_at_graveyard_count =
+            self.represented_repop_at_graveyard_count.saturating_add(1);
+    }
+
+    /// CMSG_RECLAIM_CORPSE — resurrect at corpse.
+    /// C++ ref: `WorldSession::HandleReclaimCorpse`.
+    pub async fn handle_reclaim_corpse(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let _request = match ReclaimCorpse::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "ReclaimCorpse parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        if self.player_is_alive_like_cpp() {
+            return;
+        }
+
+        if !self.player_has_ghost_flag_like_cpp() {
+            return;
+        }
+
+        // C++ checks arena, live corpse existence, reclaim delay, and distance
+        // before `ResurrectPlayer(0.5f)` + `SpawnCorpseBones`. Those require the
+        // full player-corpse runtime; this represented slice only clears the
+        // ghost/dead state when the already-known C++ gates pass.
+        self.set_player_ghost_flag_like_cpp(false);
+        self.set_player_alive_like_cpp(true);
     }
 
     /// CMSG_ACTIVATE_TAXI.
@@ -5132,6 +5209,19 @@ mod tests {
         pkt
     }
 
+    fn repop_request_packet(check_instance: bool) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(check_instance);
+        pkt.flush_bits();
+        pkt
+    }
+
+    fn reclaim_corpse_packet(corpse_guid: ObjectGuid) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bytes(&corpse_guid.to_raw_bytes());
+        pkt
+    }
+
     fn update_account_data_packet(
         player_guid: ObjectGuid,
         data_type: u8,
@@ -5536,6 +5626,125 @@ mod tests {
                 .is_some()
         );
         assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn repop_request_dead_non_ghost_sets_ghost_and_repop_count_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager_for_misc_test();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_test_player_on_map_for_misc_test(
+            &canonical,
+            player_guid,
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            0,
+        );
+        session.set_player_alive_like_cpp(false);
+
+        session
+            .handle_repop_request(repop_request_packet(true))
+            .await;
+
+        assert!(!session.player_is_alive_like_cpp());
+        assert!(session.player_has_ghost_flag_like_cpp());
+        assert_eq!(session.represented_repop_at_graveyard_count, 1);
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn repop_request_alive_or_already_ghost_returns_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        let canonical = shared_canonical_map_manager_for_misc_test();
+        let player_guid = ObjectGuid::create_player(1, 43);
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_test_player_on_map_for_misc_test(
+            &canonical,
+            player_guid,
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            0,
+        );
+
+        session.set_player_alive_like_cpp(true);
+        session
+            .handle_repop_request(repop_request_packet(false))
+            .await;
+        assert_eq!(session.represented_repop_at_graveyard_count, 0);
+        assert!(!session.player_has_ghost_flag_like_cpp());
+
+        session.set_player_alive_like_cpp(false);
+        session.set_player_ghost_flag_like_cpp(true);
+        session
+            .handle_repop_request(repop_request_packet(false))
+            .await;
+        assert_eq!(session.represented_repop_at_graveyard_count, 0);
+        assert!(session.player_has_ghost_flag_like_cpp());
+    }
+
+    #[tokio::test]
+    async fn reclaim_corpse_dead_ghost_resurrects_and_clears_ghost_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager_for_misc_test();
+        let player_guid = ObjectGuid::create_player(1, 44);
+        let corpse_guid = ObjectGuid::create_world_object(HighGuid::Corpse, 0, 1, 571, 0, 0, 99);
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_test_player_on_map_for_misc_test(
+            &canonical,
+            player_guid,
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            0,
+        );
+        session.set_player_alive_like_cpp(false);
+        session.set_player_ghost_flag_like_cpp(true);
+
+        session
+            .handle_reclaim_corpse(reclaim_corpse_packet(corpse_guid))
+            .await;
+
+        assert!(session.player_is_alive_like_cpp());
+        assert!(!session.player_has_ghost_flag_like_cpp());
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn reclaim_corpse_alive_or_not_ghost_returns_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        let canonical = shared_canonical_map_manager_for_misc_test();
+        let player_guid = ObjectGuid::create_player(1, 45);
+        let corpse_guid = ObjectGuid::create_world_object(HighGuid::Corpse, 0, 1, 571, 0, 0, 100);
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_test_player_on_map_for_misc_test(
+            &canonical,
+            player_guid,
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            0,
+        );
+
+        session.set_player_alive_like_cpp(true);
+        session
+            .handle_reclaim_corpse(reclaim_corpse_packet(corpse_guid))
+            .await;
+        assert!(session.player_is_alive_like_cpp());
+        assert!(!session.player_has_ghost_flag_like_cpp());
+
+        session.set_player_alive_like_cpp(false);
+        session
+            .handle_reclaim_corpse(reclaim_corpse_packet(corpse_guid))
+            .await;
+        assert!(!session.player_is_alive_like_cpp());
+        assert!(!session.player_has_ghost_flag_like_cpp());
     }
 
     fn bug_report_packet(report_type: bool, diag_info: &str, text: &str) -> WorldPacket {

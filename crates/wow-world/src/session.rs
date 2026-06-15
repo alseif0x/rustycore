@@ -19175,6 +19175,12 @@ impl WorldSession {
             ClientOpcodes::LogoutCancel => {
                 self.handle_logout_cancel().await;
             }
+            ClientOpcodes::RepopRequest => {
+                self.handle_repop_request(pkt).await;
+            }
+            ClientOpcodes::ReclaimCorpse => {
+                self.handle_reclaim_corpse(pkt).await;
+            }
             ClientOpcodes::QueryCreature => {
                 match wow_packet::packets::query::QueryCreature::read(&mut pkt) {
                     Ok(query) => self.handle_query_creature(query).await,
@@ -21958,6 +21964,27 @@ impl WorldSession {
 
     pub(crate) fn player_is_alive_like_cpp(&self) -> bool {
         self.player_alive_like_cpp
+    }
+
+    pub(crate) fn player_has_ghost_flag_like_cpp(&self) -> bool {
+        self.player_guid()
+            .and_then(|guid| {
+                self.canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_GHOST_LIKE_CPP)
+            })
+            .unwrap_or(false)
+    }
+
+    pub(crate) fn set_player_ghost_flag_like_cpp(&mut self, ghost: bool) {
+        if self.player_guid().is_some() {
+            let _ = self.mutate_canonical_player_like_cpp(|player| {
+                if ghost {
+                    player.set_player_flag(PLAYER_FLAGS_GHOST_LIKE_CPP);
+                } else {
+                    player.remove_player_flag(PLAYER_FLAGS_GHOST_LIKE_CPP);
+                }
+            });
+        }
+        self.sync_player_registry_state_like_cpp();
     }
 
     #[cfg(test)]

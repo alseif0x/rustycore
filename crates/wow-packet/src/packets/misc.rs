@@ -4306,6 +4306,41 @@ impl ClientPacket for LogoutRequest {
     }
 }
 
+/// C++ `WorldPackets::Misc::RepopRequest`: one `CheckInstance` bit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RepopRequest {
+    pub check_instance: bool,
+}
+
+impl ClientPacket for RepopRequest {
+    const OPCODE: ClientOpcodes = ClientOpcodes::RepopRequest;
+
+    fn read(packet: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            check_instance: packet.read_bit()?,
+        })
+    }
+}
+
+/// C++ `WorldPackets::Misc::ReclaimCorpse`: full raw corpse GUID.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ReclaimCorpse {
+    pub corpse_guid: ObjectGuid,
+}
+
+impl ClientPacket for ReclaimCorpse {
+    const OPCODE: ClientOpcodes = ClientOpcodes::ReclaimCorpse;
+
+    fn read(packet: &mut WorldPacket) -> Result<Self, PacketError> {
+        let raw = packet.read_bytes(16)?;
+        let mut guid = [0u8; 16];
+        guid.copy_from_slice(&raw);
+        Ok(Self {
+            corpse_guid: ObjectGuid::from_raw_bytes(&guid),
+        })
+    }
+}
+
 // ── LogoutCancel (CMSG 0x34d8) ──────────────────────────────────────
 
 /// Client cancels a pending logout.
@@ -6380,6 +6415,32 @@ mod tests {
         let pkt = AccountDataTimes::for_player(guid);
         let bytes = pkt.to_bytes();
         assert!(bytes.len() > 76); // Bigger than empty GUID version
+    }
+
+    #[test]
+    fn repop_request_reads_check_instance_bit_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(true);
+        pkt.flush_bits();
+        pkt.reset_read();
+
+        let parsed = RepopRequest::read(&mut pkt).unwrap();
+
+        assert!(parsed.check_instance);
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn reclaim_corpse_reads_raw_corpse_guid_like_cpp() {
+        let corpse_guid = ObjectGuid::create_world_object(HighGuid::Corpse, 0, 1, 571, 0, 0, 42);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bytes(&corpse_guid.to_raw_bytes());
+        pkt.reset_read();
+
+        let parsed = ReclaimCorpse::read(&mut pkt).unwrap();
+
+        assert_eq!(parsed.corpse_guid, corpse_guid);
+        assert_eq!(pkt.remaining(), 0);
     }
 
     #[test]
