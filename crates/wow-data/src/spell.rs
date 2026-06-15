@@ -55,6 +55,7 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_DETECT: u32 = 49;
     pub const SPELL_EFFECT_FORCE_CRITICAL_HIT: u32 = 51;
     pub const SPELL_EFFECT_GUARANTEE_HIT: u32 = 52;
+    pub const SPELL_EFFECT_THREAT: u32 = 63;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_RAID: u32 = 65;
     pub const SPELL_EFFECT_HEAL_MAX_HEALTH: u32 = 67;
     pub const SPELL_EFFECT_PULL: u32 = 70;
@@ -82,6 +83,7 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_112: u32 = 112;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_PET: u32 = 119;
     pub const SPELL_EFFECT_122: u32 = 122;
+    pub const SPELL_EFFECT_MODIFY_THREAT_PERCENT: u32 = 125;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_FRIEND: u32 = 128;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_ENEMY: u32 = 129;
     pub const SPELL_EFFECT_KILL_CREDIT2: u32 = 134;
@@ -1109,6 +1111,7 @@ mod tests {
         assert_eq!(spell_effect_types::SPELL_EFFECT_DETECT, 49);
         assert_eq!(spell_effect_types::SPELL_EFFECT_FORCE_CRITICAL_HIT, 51);
         assert_eq!(spell_effect_types::SPELL_EFFECT_GUARANTEE_HIT, 52);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_THREAT, 63);
         assert_eq!(spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_RAID, 65);
         assert_eq!(spell_effect_types::SPELL_EFFECT_HEAL_MAX_HEALTH, 67);
         assert_eq!(spell_effect_types::SPELL_EFFECT_PULL, 70);
@@ -1123,6 +1126,7 @@ mod tests {
         assert_eq!(spell_effect_types::SPELL_EFFECT_112, 112);
         assert_eq!(spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_PET, 119);
         assert_eq!(spell_effect_types::SPELL_EFFECT_122, 122);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_MODIFY_THREAT_PERCENT, 125);
         assert_eq!(spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_FRIEND, 128);
         assert_eq!(spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_ENEMY, 129);
         assert_eq!(spell_effect_types::SPELL_EFFECT_KILL_CREDIT2, 134);

@@ -1,3 +1,22 @@
+- `#NEXT.RUNTIME.L3.031j38` — WotLK represented `Spell::EffectThreat` and
+  `Spell::EffectModifyThreatPercent` for player-caster to represented creature target (not
+  manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellEffects.cpp:151`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellEffects.cpp:213`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellEffects.cpp:2864-2880`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellEffects.cpp:4372-4382`, and
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:1209,1271`.
+  Rust now names `SPELL_EFFECT_THREAT = 63` and
+  `SPELL_EFFECT_MODIFY_THREAT_PERCENT = 125`, dispatches both direct represented spell effects, and
+  mirrors the resulting creature threat into the canonical creature/player combat refs. `EffectThreat`
+  preserves the C++ alive-caster no-op gate; `EffectModifyThreatPercent` preserves the caster+target
+  gate without adding an alive-caster check. Coverage: targeted `spell_threat_*` and
+  `spell_modify_threat_*` tests cover additive threat, percent scaling, dead-caster no-op, legacy
+  threat state, canonical mirror state, and `SpellGo`/`CooldownEvent` packet surface. Boundary remains
+  partial: represented creature targets only, no complete `Unit::CanHaveThreatList` taxonomy, no full
+  `ThreatManager` runtime/fanout/client threat-list update, no spell threat school/modifier pipeline
+  beyond represented effect base points, no non-player caster spell path, no install/restart, bot, or
+  live-client/manual validation.
 - `#NEXT.RUNTIME.L3.031j37` — WotLK represented `Spell::EffectStuck` / auto-unstuck spell effect
   (not manual-test-ready). Source-of-truth:
   `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellEffects.cpp:3265-3303`,

@@ -34796,6 +34796,17 @@ impl WorldSession {
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_GIVE_HONOR => {
                     self.apply_give_honor_effect_like_cpp(direct_effect_base_points, target_guid)?;
                 }
+                x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_THREAT => {
+                    self.apply_threat_effect_like_cpp(direct_effect_base_points, target_guid)?;
+                }
+                x if x
+                    == wow_data::spell::spell_effect_types::SPELL_EFFECT_MODIFY_THREAT_PERCENT =>
+                {
+                    self.apply_modify_threat_percent_effect_like_cpp(
+                        direct_effect_base_points,
+                        target_guid,
+                    )?;
+                }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_SELF_RESURRECT => {
                     self.apply_self_resurrect_effect_like_cpp(
                         direct_effect_base_points,
@@ -34993,6 +35004,8 @@ impl WorldSession {
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_PARRY
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_BLOCK
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_GIVE_HONOR
+                || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_THREAT
+                || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_MODIFY_THREAT_PERCENT
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_SELF_RESURRECT
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_STUCK
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_PLAY_MOVIE
@@ -36710,6 +36723,130 @@ impl WorldSession {
                 .then(|| player.values_update(true))
         })
         .flatten()
+    }
+
+    fn sync_represented_creature_threat_to_canonical_like_cpp(
+        &mut self,
+        creature_guid: ObjectGuid,
+        attacker_guid: ObjectGuid,
+        threat_value: f32,
+    ) {
+        if threat_value > 0.0 {
+            let _ = self.begin_canonical_player_combat_ref_like_cpp(
+                attacker_guid,
+                creature_guid,
+                false,
+                false,
+                false,
+            );
+        }
+
+        let Some(manager) = self.canonical_map_manager.as_ref().cloned() else {
+            return;
+        };
+        let Ok(mut manager) = manager.lock() else {
+            return;
+        };
+        let Some(managed) = manager.find_map_mut(u32::from(self.player_map_id_like_cpp()), 0)
+        else {
+            return;
+        };
+        let map = managed.map_mut();
+
+        let threat_ref = {
+            let Some(creature) = map.get_typed_creature_mut(creature_guid) else {
+                return;
+            };
+            creature
+                .unit_mut()
+                .subsystems_mut()
+                .combat
+                .set_threat(attacker_guid, threat_value);
+            creature
+                .unit()
+                .subsystems()
+                .combat
+                .threat_ref(attacker_guid)
+                .copied()
+        };
+
+        if let Some(threat_ref) = threat_ref
+            && let Some(attacker) = map.get_typed_player_mut(attacker_guid)
+        {
+            attacker
+                .unit_mut()
+                .subsystems_mut()
+                .combat
+                .put_threatened_by_me_ref(creature_guid, threat_ref);
+        }
+    }
+
+    /// C++ `Spell::EffectThreat`.
+    fn apply_threat_effect_like_cpp(
+        &mut self,
+        damage: i32,
+        target_guid: ObjectGuid,
+    ) -> Result<(), &'static str> {
+        let player_guid = self.player_guid().ok_or("No player GUID")?;
+        if !self.player_alive_like_cpp {
+            return Ok(());
+        }
+
+        let Some(threat_value) = self
+            .mutate_world_creature(target_guid, |creature| {
+                creature
+                    .creature
+                    .unit_mut()
+                    .subsystems_mut()
+                    .combat
+                    .add_threat(player_guid, damage as f32);
+                creature
+                    .creature
+                    .unit()
+                    .subsystems()
+                    .combat
+                    .threat_value(player_guid)
+            })
+            .flatten()
+        else {
+            return Ok(());
+        };
+
+        self.sync_represented_creature_threat_to_canonical_like_cpp(
+            target_guid,
+            player_guid,
+            threat_value,
+        );
+        Ok(())
+    }
+
+    /// C++ `Spell::EffectModifyThreatPercent`.
+    fn apply_modify_threat_percent_effect_like_cpp(
+        &mut self,
+        damage: i32,
+        target_guid: ObjectGuid,
+    ) -> Result<(), &'static str> {
+        let player_guid = self.player_guid().ok_or("No player GUID")?;
+        let Some(threat_value) = self
+            .mutate_world_creature(target_guid, |creature| {
+                creature
+                    .creature
+                    .unit_mut()
+                    .subsystems_mut()
+                    .combat
+                    .modify_threat_by_percent(player_guid, damage)
+            })
+            .flatten()
+        else {
+            return Ok(());
+        };
+
+        self.sync_represented_creature_threat_to_canonical_like_cpp(
+            target_guid,
+            player_guid,
+            threat_value,
+        );
+        Ok(())
     }
 
     fn apply_self_resurrect_effect_like_cpp(&mut self, damage: i32, misc_value: i32) {
@@ -57150,6 +57287,27 @@ mod tests {
         session.set_spell_store(Arc::new(spell_store));
     }
 
+    fn threat_spell_info_like_cpp(spell_id: i32, effect: u32, damage: i32) -> wow_data::SpellInfo {
+        wow_data::SpellInfo {
+            spell_id,
+            cast_time_ms: 0,
+            cooldown_ms: 0,
+            recovery_time_ms: 0,
+            effect_type: 0,
+            effect_base_points: 0,
+            effect_bonus_coefficient: 0.0,
+            aura_type: None,
+            display_flags: 0,
+            requires_spell_focus: 0,
+            effects: vec![wow_data::SpellEffectInfo {
+                effect_index: 0,
+                effect,
+                effect_base_points: damage,
+                ..Default::default()
+            }],
+        }
+    }
+
     #[tokio::test]
     async fn spell_self_resurrect_flat_case_sets_health_and_powers_like_cpp() {
         let (mut session, _, send_rx) = make_session();
@@ -57533,6 +57691,202 @@ mod tests {
         );
         assert_eq!(
             drain_server_opcodes(&disabled_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_threat_effect_adds_creature_threat_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 787_i32;
+        let player_guid = ObjectGuid::create_player(1, 787);
+        let creature_guid = test_creature_guid(18_787);
+        let position = Position::new(10.0, 10.0, 0.0, 0.0);
+        let manager = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "ThreatCaster".to_string(),
+            position,
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_player_health_like_cpp(100, 100);
+        add_canonical_test_player_on_map(&canonical, player_guid, position, 0, 0);
+        add_canonical_test_creature_indexed_on_map_with_level(
+            &canonical,
+            creature_guid,
+            9001,
+            position,
+            0,
+            0,
+            80,
+        );
+        register_test_creature(&mut session, manager.clone(), creature_guid, 100);
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            threat_spell_info_like_cpp(
+                spell_id,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_THREAT,
+                35,
+            ),
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, creature_guid)
+            .await
+            .expect("represented EffectThreat should execute");
+
+        let legacy_threat = manager
+            .read()
+            .unwrap()
+            .find_creature(0, 0, creature_guid)
+            .unwrap()
+            .creature
+            .unit()
+            .subsystems()
+            .combat
+            .threat_value(player_guid);
+        assert_eq!(legacy_threat, Some(35.0));
+        assert_eq!(
+            session.canonical_creature_threat_value_like_cpp(creature_guid, player_guid),
+            Some(35.0)
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_modify_threat_percent_scales_existing_creature_threat_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 788_i32;
+        let player_guid = ObjectGuid::create_player(1, 788);
+        let creature_guid = test_creature_guid(18_788);
+        let position = Position::new(10.0, 10.0, 0.0, 0.0);
+        let manager = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "ThreatScaler".to_string(),
+            position,
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_player_health_like_cpp(100, 100);
+        add_canonical_test_player_on_map(&canonical, player_guid, position, 0, 0);
+        add_canonical_test_creature_indexed_on_map_with_level(
+            &canonical,
+            creature_guid,
+            9001,
+            position,
+            0,
+            0,
+            80,
+        );
+        register_test_creature(&mut session, manager.clone(), creature_guid, 100);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature
+                    .creature
+                    .unit_mut()
+                    .subsystems_mut()
+                    .combat
+                    .add_threat(player_guid, 120.0);
+            })
+            .unwrap();
+        session.sync_represented_creature_threat_to_canonical_like_cpp(
+            creature_guid,
+            player_guid,
+            120.0,
+        );
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            threat_spell_info_like_cpp(
+                spell_id,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_MODIFY_THREAT_PERCENT,
+                -50,
+            ),
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, creature_guid)
+            .await
+            .expect("represented EffectModifyThreatPercent should execute");
+
+        let legacy_threat = manager
+            .read()
+            .unwrap()
+            .find_creature(0, 0, creature_guid)
+            .unwrap()
+            .creature
+            .unit()
+            .subsystems()
+            .combat
+            .threat_value(player_guid);
+        assert_eq!(legacy_threat, Some(60.0));
+        assert_eq!(
+            session.canonical_creature_threat_value_like_cpp(creature_guid, player_guid),
+            Some(60.0)
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_threat_effect_skips_dead_caster_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 789_i32;
+        let player_guid = ObjectGuid::create_player(1, 789);
+        let creature_guid = test_creature_guid(18_789);
+        let manager = shared_map_manager();
+        session.set_player_guid(Some(player_guid));
+        session.set_player_health_like_cpp(0, 100);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 100);
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            threat_spell_info_like_cpp(
+                spell_id,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_THREAT,
+                35,
+            ),
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, creature_guid)
+            .await
+            .expect("dead caster EffectThreat should execute as C++ no-op");
+
+        let legacy_threat = manager
+            .read()
+            .unwrap()
+            .find_creature(0, 0, creature_guid)
+            .unwrap()
+            .creature
+            .unit()
+            .subsystems()
+            .combat
+            .threat_value(player_guid);
+        assert_eq!(legacy_threat, None);
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
             vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
         );
     }
@@ -82073,6 +82427,7 @@ mod tests {
                 ai.wander_delay_ms = 0;
                 ai.move_start_ms = 0;
                 ai.wander_radius = 3.0;
+                creature.seed_runtime_rng_like_cpp(0x9001);
             })
             .unwrap();
 

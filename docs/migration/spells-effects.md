@@ -3,9 +3,13 @@
 > **C++ canonical path:** `src/server/game/Spells/SpellEffects.cpp`
 > **Rust target crate(s):** `crates/wow-spell/` (módulo `effects`), `crates/wow-spell/src/effects/dispatch.rs`
 > **Layer:** L5 sub-module of `spells.md`
-> **Status:** ❌ not started — `wow-spell` está en 0 líneas; sin dispatch table, sin handlers
+> **Status:** ⚠️ represented-partial — `wow-spell` sigue sin motor propio, pero hay efectos representados en `wow-world::WorldSession`
 > **Audited vs C++:** ✅ audited 2026-05-01 (engine missing — see §13)
-> **Last updated:** 2026-05-01
+> **Last updated:** 2026-06-15
+
+> **DRIFT NOTE (2026-06-15):** la auditoría histórica de §13 describe el estado inicial del módulo
+> antes de los efectos representados en `wow-world`. No debe leerse como inventario actual. Para
+> estado vivo, usar esta checklist y `docs/migration/current-session-handoff.md`.
 
 > **Parent doc:** [`spells.md`](./spells.md) — overview del motor entero (Spell + SpellInfo + SpellMgr + SpellHistory + Auras combinados, ~44k líneas C++).
 > **Related sub-docs:** [`spells-aura.md`](./spells-aura.md), [`spells-cast.md`](./spells-cast.md).
@@ -459,7 +463,16 @@ Numerados como `#SPELLS-EFFECTS.N` para referencia desde `MIGRATION_ROADMAP.md`.
 - [ ] **#SPELLS-EFFECTS.39** Implementar `EffectSanctuary` (drop combat + remove threat) (L)
 - [ ] **#SPELLS-EFFECTS.40** Implementar `EffectDualWield` (passive proficiency grant) (L)
 - [ ] **#SPELLS-EFFECTS.41** Implementar `EffectTaunt` con `ThreatManager::TauntApply` (L)
-- [ ] **#SPELLS-EFFECTS.42** Implementar `EffectThreat` y `EffectModifyThreatPercent` (L)
+- [x] **#SPELLS-EFFECTS.42** Representar `EffectThreat` y `EffectModifyThreatPercent` para caster
+  jugador y target criatura (`SPELL_EFFECT_THREAT = 63`,
+  `SPELL_EFFECT_MODIFY_THREAT_PERCENT = 125`). C++:
+  `SpellEffects.cpp:2864-2880` (`EffectThreat`, `SPELL_EFFECT_HANDLE_HIT_TARGET`, caster unit alive,
+  target con threat list, `AddThreat(unitCaster, float(damage), m_spellInfo, true)`) y
+  `SpellEffects.cpp:4372-4382` (`EffectModifyThreatPercent`, caster+target, `ModifyThreatByPercent`).
+  Rust actualiza threat legacy y espejo canónico de la criatura, con tests de suma, porcentaje y
+  caster muerto. Sigue `represented-partial`: no hay `CanHaveThreatList` completo para todos los
+  tipos de Unit, ni `ThreatManager` vivo/fanout/lista de amenaza completa, ni validación manual
+  servidor/cliente.
 - [ ] **#SPELLS-EFFECTS.43** Implementar `EffectAddComboPoints` (L)
 - [ ] **#SPELLS-EFFECTS.44** Implementar `EffectModifyAuraStacks`, `EffectModifyCooldown`, `EffectModifyCooldowns`, `EffectModifyCooldownsByCategory`, `EffectModifySpellCharges` (M)
 - [ ] **#SPELLS-EFFECTS.45** Implementar `EffectScriptEffect` con switch sobre spellId + ScriptMgr::OnEffectScript fallback (XL — el handler en sí es 150 lines, plus ~50 special cases por boss)
@@ -648,7 +661,7 @@ Numerados como `#SPELLS-EFFECTS.N` para referencia desde `MIGRATION_ROADMAP.md`.
 - Summon: `EffectSummonType` (the XL ~218-line discriminator), `EffectSummonPet`, `EffectSummonObject`, `EffectSummonObjectWild`, `EffectSummonChangeItem`, `EffectSummonPlayer` — none.
 - Resurrect: `EffectResurrect`, `EffectResurrectNew`, `EffectSelfResurrect`, `EffectResurrectPet` — none.
 - Dispel/Interrupt: `EffectDispel`, `EffectStealBeneficialBuff`, `EffectInterruptCast`, `EffectDispelMechanic` — none.
-- Status: `EffectStuck` — represented-partial; `EffectSanctuary`, `EffectDualWield`, `EffectTaunt`, `EffectThreat`, `EffectModifyThreatPercent`, `EffectAddComboPoints`, `EffectScriptEffect`, `EffectDummy`, `EffectDistract`, `EffectModifyAuraStacks`, `EffectModifyCooldown`/`Cooldowns`/`CooldownsByCategory`, `EffectModifySpellCharges` — none.
+- Status: `EffectStuck`, `EffectThreat`, `EffectModifyThreatPercent` — represented-partial; `EffectSanctuary`, `EffectDualWield`, `EffectTaunt`, `EffectAddComboPoints`, `EffectScriptEffect`, `EffectDummy`, `EffectDistract`, `EffectModifyAuraStacks`, `EffectModifyCooldown`/`Cooldowns`/`CooldownsByCategory`, `EffectModifySpellCharges` — none.
 - Item: `EffectCreateItem`, `EffectCreateItem2`, `EffectCreateRandomItem`, `EffectFeedPet`, `EffectEnchantItemPerm`, `EffectEnchantItemTmp`, `EffectEnchantItemPrismatic`, `EffectEnchantHeldItem`, `EffectDisEnchant`, `EffectMillItem`, `EffectProspecting` — none.
 - Quest/Profession: `EffectQuestComplete`, `EffectQuestStart`, `EffectQuestRedirect`, `EffectLearnSpell`, `EffectUnlearnSpecialization`, `EffectLearnPetSpell`, `EffectLearnSkill`, `EffectTradeSkill`, `EffectProficiency`, `EffectUntrainTalents` — none.
 - OpenLock/GO: `EffectOpenLock`, `EffectActivateObject`, `EffectSendEvent`, `EffectGameobjectDamage`, `EffectGameObjectRepair`, `EffectGameobjectSetDestructionState` — none.
