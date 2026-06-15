@@ -47,7 +47,8 @@ use wow_packet::packets::loot::{LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHI
 use wow_packet::packets::misc::{
     AcceptGuildInvite, AcceptTrade, AcceptWargameInvite, ActivateTaxi, ActivateTaxiReply, AddToy,
     AddonList, ArenaTeamAccept, ArenaTeamDecline, ArenaTeamDisband, ArenaTeamLeader,
-    ArenaTeamLeave, ArenaTeamRemove, ArenaTeamRoster, BattlePetClearFanfare, BattlePetDeletePet,
+    ArenaTeamLeave, ArenaTeamRemove, ArenaTeamRoster, AuctionableTokenSell,
+    AuctionableTokenSellAtMarketPrice, BattlePetClearFanfare, BattlePetDeletePet,
     BattlePetModifyName, BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags,
     BattlePetSummon, BattlePetUpdateNotify, BattlefieldLeave, BeginTrade, BugReport, BusyTrade,
     CageBattlePet, CalendarSendCalendar, CalendarSendNumPending, CanDuel, ClearTradeItem,
@@ -1505,6 +1506,24 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_auction_list_pending_sales",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::AuctionableTokenSell,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_auctionable_token_sell",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::AuctionableTokenSellAtMarketPrice,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_auctionable_token_sell_at_market_price",
     }
 }
 
@@ -4219,6 +4238,35 @@ impl crate::session::WorldSession {
     pub async fn handle_auction_list_pending_sales(&mut self, _pkt: wow_packet::WorldPacket) {
         use wow_packet::packets::misc::AuctionListPendingSalesResult;
         self.send_packet(&AuctionListPendingSalesResult);
+    }
+
+    /// CMSG_AUCTIONABLE_TOKEN_SELL — WoW Token sell request.
+    ///
+    /// The legacy C++ WotLK branch keeps this as an explicit empty stub because
+    /// WoW Token is not available in WotLK.
+    pub async fn handle_auctionable_token_sell(&mut self, mut pkt: wow_packet::WorldPacket) {
+        if let Err(error) = AuctionableTokenSell::read(&mut pkt) {
+            warn!(
+                account = self.account_id,
+                "AuctionableTokenSell parse failed: {error}"
+            );
+        }
+    }
+
+    /// CMSG_AUCTIONABLE_TOKEN_SELL_AT_MARKET_PRICE — WoW Token sell confirmation.
+    ///
+    /// The legacy C++ WotLK branch keeps this as an explicit empty stub because
+    /// WoW Token is not available in WotLK.
+    pub async fn handle_auctionable_token_sell_at_market_price(
+        &mut self,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
+        if let Err(error) = AuctionableTokenSellAtMarketPrice::read(&mut pkt) {
+            warn!(
+                account = self.account_id,
+                "AuctionableTokenSellAtMarketPrice parse failed: {error}"
+            );
+        }
     }
 
     /// CMSG_COMMERCE_TOKEN_GET_LOG — WoW Token transaction log.
@@ -10821,6 +10869,28 @@ mod tests {
             wow_packet::packets::misc::TOKEN_RESULT_SUCCESS_LIKE_CPP
         );
         assert_eq!(pkt.read_uint32().unwrap(), 0);
+    }
+
+    #[tokio::test]
+    async fn auctionable_token_sell_is_silent_wotlk_stub_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_auctionable_token_sell(WorldPacket::new_empty())
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn auctionable_token_sell_at_market_price_is_silent_wotlk_stub_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_auctionable_token_sell_at_market_price(WorldPacket::new_empty())
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
     }
 
     #[tokio::test]

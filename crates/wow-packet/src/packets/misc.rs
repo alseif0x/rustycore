@@ -6073,6 +6073,30 @@ impl ClientPacket for CommerceTokenGetLog {
     }
 }
 
+/// C++ `WorldPackets::AuctionHouse::AuctionableTokenSell`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct AuctionableTokenSell;
+
+impl ClientPacket for AuctionableTokenSell {
+    const OPCODE: ClientOpcodes = ClientOpcodes::AuctionableTokenSell;
+
+    fn read(_pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self)
+    }
+}
+
+/// C++ `WorldPackets::AuctionHouse::AuctionableTokenSellAtMarketPrice`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct AuctionableTokenSellAtMarketPrice;
+
+impl ClientPacket for AuctionableTokenSellAtMarketPrice {
+    const OPCODE: ClientOpcodes = ClientOpcodes::AuctionableTokenSellAtMarketPrice;
+
+    fn read(_pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self)
+    }
+}
+
 /// C++ `TOKEN_RESULT_SUCCESS`.
 pub const TOKEN_RESULT_SUCCESS_LIKE_CPP: u32 = 0;
 
@@ -7360,6 +7384,22 @@ mod tests {
 
         let request = CommerceTokenGetLog::read(&mut pkt).unwrap();
         assert_eq!(request.unk_int, 0x1122_3344);
+    }
+
+    #[test]
+    fn auctionable_token_sell_reads_empty_stub_like_cpp_wotlk() {
+        let mut pkt = WorldPacket::new_empty();
+
+        let request = AuctionableTokenSell::read(&mut pkt).unwrap();
+        assert_eq!(request, AuctionableTokenSell);
+    }
+
+    #[test]
+    fn auctionable_token_sell_at_market_price_reads_empty_stub_like_cpp_wotlk() {
+        let mut pkt = WorldPacket::new_empty();
+
+        let request = AuctionableTokenSellAtMarketPrice::read(&mut pkt).unwrap();
+        assert_eq!(request, AuctionableTokenSellAtMarketPrice);
     }
 
     #[test]

@@ -1,3 +1,11 @@
+# `#NEXT.R8.ENTITIES.923` — represented-complete WotLK stubs for `CMSG_AUCTIONABLE_TOKEN_SELL` and `CMSG_AUCTIONABLE_TOKEN_SELL_AT_MARKET_PRICE`.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/AuctionHouseHandler.cpp:1043-1052`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/AuctionHousePackets.h:313-327`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/AuctionHousePackets.cpp:556-564`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:173-174`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:73-74`.
+
+Implemented Rust seam: `AuctionableTokenSell` and `AuctionableTokenSellAtMarketPrice` parse the C++ empty-read packet stubs; both opcodes register `LoggedIn`/`ThreadUnsafe`, dispatch through `WorldSession`, and intentionally send no response or state mutation because the legacy C++ WotLK branch explicitly logs these handlers as WoW Token unavailable stubs.
+
+Boundaries: represented-complete for the bounded WotLK token-unavailable no-op hooks only. Rust does not implement AuctionHouse token economy, `SMSG_AUCTIONABLE_TOKEN_*` responses, install/restart, bot, or live-client/manual validation in this slice.
+
 # `#NEXT.R8.ENTITIES.922` — represented-partial implementation for `CMSG_CHANGE_BANK_BAG_SLOT_FLAG`.
 
 C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/BankHandler.cpp:60-75` (`HandleBankerActivateOpcode` / `SendShowBank` source-guid setup); `/home/server/woltk-trinity-legacy/src/server/game/Handlers/BankHandler.cpp:295-321` (`WorldSession::HandleChangeBankBagSlotFlag`); `/home/server/woltk-trinity-legacy/src/server/game/Handlers/ItemHandler.cpp:1148-1165` (`WorldSession::CanUseBank`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/BankPackets.h:92-104` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/BankPackets.cpp:63-69` (`ChangeBankBagSlotFlag::Read`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:289`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:180`.

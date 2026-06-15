@@ -19578,6 +19578,13 @@ impl WorldSession {
             ClientOpcodes::AuctionListPendingSales => {
                 self.handle_auction_list_pending_sales(pkt).await;
             }
+            ClientOpcodes::AuctionableTokenSell => {
+                self.handle_auctionable_token_sell(pkt).await;
+            }
+            ClientOpcodes::AuctionableTokenSellAtMarketPrice => {
+                self.handle_auctionable_token_sell_at_market_price(pkt)
+                    .await;
+            }
             ClientOpcodes::CommerceTokenGetLog => {
                 self.handle_commerce_token_get_log(pkt).await;
             }
