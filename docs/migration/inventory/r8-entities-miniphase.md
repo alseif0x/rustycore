@@ -1,3 +1,13 @@
+# `#NEXT.R8.ENTITIES.934` — represented-partial for C++ `Player::SetPartyType` create/broadcast visibility.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:18987-19008` (`Player::_LoadGroup`); `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:25224-25228` (`Player::SetPartyType`).
+
+Implemented Rust seam: `UpdateObject::create_player_with_party_type` now carries `PlayerData::PartyType[2]` into the player CREATE block instead of hardcoding `[0,0]`. The self-view login CREATE path passes `WorldSession::party_member_party_type_like_cpp`, and the player visibility broadcast/receive paths pass `PlayerBroadcastInfo.party_member_party_type`, which is already synchronized from the represented session group state.
+
+Focused tests: `wow-packet` verifies `PlayerCreateData::write_player_data` serializes `PartyType[2]` before `NumBankSlots/NativeSex`; existing session registry tests verify grouped sessions publish home-category party type for visibility consumers.
+
+Boundaries: represented-partial only. This closes the create/broadcast serialization seam for represented party type, but not exact remote member/dissolve `SetPartyType` command delivery, exact `Player::SetGroup` subgroup/original/BG/BF routing, install/restart, bot, or live-client/manual validation.
+
 # `#NEXT.R8.ENTITIES.933` — represented-partial for C++ `Player::SetPartyType(GroupCategory,uint8)`.
 
 C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp:448-451` (`Group::AddMember`); `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp:593-599,734-737` (leave/remove `SetPartyType(..., GROUP_TYPE_NONE)` paths); `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:25224-25228` (`Player::SetPartyType`).
@@ -6,7 +16,7 @@ Implemented Rust seam: `wow-entities::PlayerDataValues` now carries `party_type[
 
 Focused tests: bridge-level `bridges_player_party_type_update_like_cpp`; invite acceptance now asserts the `SMSG_UPDATE_OBJECT` party-type update plus the existing gameobject visibility refresh; `group` handler tests cover the command queues after the new update ordering.
 
-Boundaries: represented-partial only. This closes the local represented update-field mutation for current-session home-group join/leave, but not every remote member/dissolve notification through session commands, exact `Player::SetGroup` subgroup/original/BG/BF routing, proof that login create blocks carry PartyType on grouped characters, install/restart, bot, or live-client/manual validation.
+Boundaries: represented-partial only. This closes the local represented update-field mutation for current-session home-group join/leave, but not every remote member/dissolve notification through session commands, exact `Player::SetGroup` subgroup/original/BG/BF routing, install/restart, bot, or live-client/manual validation.
 
 # `#NEXT.R8.ENTITIES.932` — represented-partial for C++ per-recipient `PartyUpdate.SequenceNum`.
 

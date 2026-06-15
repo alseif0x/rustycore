@@ -16875,7 +16875,7 @@ impl WorldSession {
             .collect()
     }
 
-    fn party_member_party_type_like_cpp(&self) -> [u8; 2] {
+    pub(crate) fn party_member_party_type_like_cpp(&self) -> [u8; 2] {
         let mut party_type = [wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP; 2];
         let (Some(group_registry), Some(player_guid)) = (&self.group_registry, self.player_guid())
         else {
@@ -32272,7 +32272,8 @@ impl WorldSession {
 
         // Create the UpdateObject for this player (with is_self=false for other players)
         use crate::handlers::character::default_display_id;
-        let update = UpdateObject::create_player(
+        let party_type = self.party_member_party_type_like_cpp();
+        let update = UpdateObject::create_player_with_party_type(
             guid,
             race,
             class,
@@ -32289,6 +32290,7 @@ impl WorldSession {
             empty_skills,
             self.player_gold_like_cpp(),
             vec![], // quest_log — not sent to other players
+            party_type,
         );
 
         // Serialize once, reuse for all broadcasts
@@ -32396,7 +32398,7 @@ impl WorldSession {
             player_count += 1;
 
             // Create UpdateObject for this other player using cached data from broadcast_info
-            let update = UpdateObject::create_player(
+            let update = UpdateObject::create_player_with_party_type(
                 *other_guid,
                 broadcast_info.race,
                 broadcast_info.class,
@@ -32413,6 +32415,7 @@ impl WorldSession {
                 empty_skills.clone(),
                 0,      // coinage (don't send other players' gold)
                 vec![], // quest_log — not sent to other players
+                broadcast_info.party_member_party_type,
             );
 
             self.send_packet(&update);

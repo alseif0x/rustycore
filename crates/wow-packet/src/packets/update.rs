@@ -1437,6 +1437,8 @@ pub struct PlayerCreateData {
     /// (quest_id, state_flags, end_time, objective_progress[24])
     /// C# ref: QuestLog.WriteCreate — only sent with PartyMember flag (= self-view)
     pub quest_log: Vec<(u32, u32, i64, [u16; 24])>,
+    /// PlayerData::PartyType[2], indexed by C++ GroupCategory.
+    pub party_type: [u8; 2],
     /// Current money in copper (Coinage field in ActivePlayerData).
     pub coinage: u64,
     /// ActivePlayerData::WatchedFactionIndex.
@@ -1800,8 +1802,8 @@ impl PlayerCreateData {
         buf.write_int32(0);
 
         // PartyType[2]
-        buf.write_uint8(0);
-        buf.write_uint8(0);
+        buf.write_uint8(self.party_type[0]);
+        buf.write_uint8(self.party_type[1]);
 
         // NumBankSlots, NativeSex, Inebriation, PvpTitle, ArenaFaction, PvpRank
         buf.write_uint8(0);
@@ -2909,6 +2911,46 @@ impl UpdateObject {
         coinage: u64,
         quest_log: Vec<(u32, u32, i64, [u16; 24])>,
     ) -> Self {
+        Self::create_player_with_party_type(
+            guid,
+            race,
+            class,
+            sex,
+            level,
+            display_id,
+            position,
+            map_id,
+            zone_id,
+            is_self,
+            visible_items,
+            inv_slots,
+            combat,
+            skill_info,
+            coinage,
+            quest_log,
+            [0; 2],
+        )
+    }
+
+    pub fn create_player_with_party_type(
+        guid: ObjectGuid,
+        race: u8,
+        class: u8,
+        sex: u8,
+        level: u8,
+        display_id: u32,
+        position: &Position,
+        map_id: u16,
+        zone_id: u32,
+        is_self: bool,
+        visible_items: [(i32, u16, u16); 19],
+        inv_slots: [ObjectGuid; 141],
+        combat: PlayerCombatStats,
+        skill_info: Vec<(u16, u16, u16, u16, u16, i16, u16)>,
+        coinage: u64,
+        quest_log: Vec<(u32, u32, i64, [u16; 24])>,
+        party_type: [u8; 2],
+    ) -> Self {
         let faction = PlayerCreateData::faction_for_race(race);
 
         let create_data = PlayerCreateData {
@@ -2943,6 +2985,7 @@ impl UpdateObject {
             skill_info,
             coinage,
             watched_faction_index: -1,
+            party_type,
             heirlooms: Vec::new(),
             heirloom_flags: Vec::new(),
             toys: Vec::new(),
@@ -9050,12 +9093,30 @@ mod tests {
             farsight_object,
             skill_info: Vec::new(),
             quest_log: Vec::new(),
+            party_type: [0; 2],
             coinage: 0,
             watched_faction_index: -1,
             heirlooms: Vec::new(),
             heirloom_flags: Vec::new(),
             toys: Vec::new(),
         }
+    }
+
+    #[test]
+    fn player_create_writes_party_type_like_cpp() {
+        let mut create = test_player_create_data_with_farsight(ObjectGuid::EMPTY);
+        create.party_type = [17, 23];
+
+        let mut packet = WorldPacket::new_empty();
+        create.write_player_data(&mut packet, 0x03);
+
+        assert!(
+            packet
+                .data()
+                .windows(4)
+                .any(|window| window == [17, 23, 0, create.sex]),
+            "PlayerData::PartyType[2] must be serialized before NumBankSlots/NativeSex"
+        );
     }
 
     #[test]

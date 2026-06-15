@@ -10424,7 +10424,7 @@ impl WorldSession {
             let account_toys = self.account_toy_active_player_rows_like_cpp();
             let account_heirlooms = self.account_heirloom_active_player_rows_like_cpp();
 
-            let mut player_pkt = UpdateObject::create_player(
+            let mut player_pkt = UpdateObject::create_player_with_party_type(
                 guid,
                 race,
                 class,
@@ -10441,6 +10441,7 @@ impl WorldSession {
                 skill_info,
                 self.player_gold_like_cpp(),
                 quest_log,
+                self.party_member_party_type_like_cpp(),
             );
             player_pkt
                 .set_player_collection_dynamic_fields_like_cpp(account_toys, account_heirlooms);
