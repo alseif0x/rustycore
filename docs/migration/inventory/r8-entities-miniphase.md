@@ -1,11 +1,23 @@
 - `#NEXT.R8.ENTITIES.868` - represented-complete implementation for bounded movement `Handle_NULL` ACK family.
+### #NEXT.R8.ENTITIES.900 — CMSG_SILENCE_PARTY_TALKER
+
+Status: represented-partial for the bounded `WorldSession::HandleSilencePartyTalker` parser/dispatch/permission-gate seam.
+
+C++ source-of-truth: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/GroupHandler.cpp:753-768`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/PartyPackets.h:761-770`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/PartyPackets.cpp:786-790`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:632`, and `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:927`.
+
+Implemented Rust seam: `SilencePartyTalker` parses the C++ full `ObjectGuid Target` plus one `Silent` bit, registers as `LoggedIn`/`PROCESS_THREADUNSAFE`, dispatches through `WorldSession`, preserves the missing-group no-op, enforces the C++ leader-or-assistant gate, and records a represented silence-party-talker request only at the same point where the C++ handler reaches its live-silence TODO.
+
+Additional audit correction: while checking the `ObjectGuid` wire shape for this slice, `#NEXT.R8.ENTITIES.899` `SignPetition` was found to be stale: C++ reads a full `PetitionGUID` via `operator>>`, not a packed GUID. Rust now parses the full ObjectGuid shape and its tests/docs were corrected.
+
+Boundary: represented-partial only; the C++ legacy handler itself has TODO silence logic after the permission gate. Rust does not invent live voice/chat mute state, group broadcast, persistence, UI packet, install/restart, bot, or live-client/manual validation.
+
 ### #NEXT.R8.ENTITIES.899 — CMSG_SIGN_PETITION
 
 Status: represented-partial for the bounded `WorldSession::HandleSignPetition` parser/dispatch/request-capture seam.
 
 C++ source-of-truth: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/PetitionsHandler.cpp:224-304`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/PetitionPackets.h:136-158`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/PetitionPackets.cpp:117-131`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:599`, and `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:926`.
 
-Implemented Rust seam: `SignPetition` parses the C++ packed `PetitionGUID` plus `uint8 Choice`, registers as `LoggedIn`/`PROCESS_THREADUNSAFE`, dispatches through `WorldSession`, and records a represented sign-petition request. Rust deliberately sends no fabricated response until the real `PetitionMgr`/guild/character-cache runtime is ported.
+Implemented Rust seam: `SignPetition` parses the C++ full `PetitionGUID` plus `uint8 Choice`, registers as `LoggedIn`/`PROCESS_THREADUNSAFE`, dispatches through `WorldSession`, and records a represented sign-petition request. Rust deliberately sends no fabricated response until the real `PetitionMgr`/guild/character-cache runtime is ported. Audit correction in #NEXT.R8.ENTITIES.900 fixed the original parser from packed GUID to full ObjectGuid after re-checking `PetitionPackets.cpp`.
 
 Boundary: represented-partial only; no `sPetitionMgr` storage, no `Petition::IsPetitionSignedByAccount`, no owner/faction/guild/invited/sign-count gates, no `AddSignature` persistence, no charter item signature count mutation, no `SMSG_PETITION_SIGN_RESULTS`, no owner-online fanout, install/restart, bot, or live-client/manual validation.
 

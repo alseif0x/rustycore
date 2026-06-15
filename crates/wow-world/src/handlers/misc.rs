@@ -5523,7 +5523,7 @@ mod tests {
 
     fn sign_petition_packet(petition_guid: ObjectGuid, choice: u8) -> WorldPacket {
         let mut pkt = WorldPacket::new_empty();
-        pkt.write_packed_guid(&petition_guid);
+        pkt.write_bytes(&petition_guid.to_raw_bytes());
         pkt.write_uint8(choice);
         pkt.reset_read();
         pkt

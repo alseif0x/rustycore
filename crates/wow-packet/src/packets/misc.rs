@@ -5392,8 +5392,11 @@ impl ClientPacket for SignPetition {
     const OPCODE: ClientOpcodes = ClientOpcodes::SignPetition;
 
     fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let guid_bytes = pkt.read_bytes(16)?;
+        let mut raw = [0u8; 16];
+        raw.copy_from_slice(&guid_bytes);
         Ok(Self {
-            petition_guid: pkt.read_packed_guid()?,
+            petition_guid: ObjectGuid::from_raw_bytes(&raw),
             choice: pkt.read_uint8()?,
         })
     }
@@ -6466,7 +6469,7 @@ mod tests {
     fn sign_petition_reads_guid_and_choice_like_cpp() {
         let petition_guid = ObjectGuid::create_item(1, 0x0102_0304_0506_0708);
         let mut pkt = WorldPacket::new_empty();
-        pkt.write_packed_guid(&petition_guid);
+        pkt.write_bytes(&petition_guid.to_raw_bytes());
         pkt.write_uint8(1);
         pkt.reset_read();
 

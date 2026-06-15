@@ -407,6 +407,12 @@ pub(crate) struct RepresentedSignPetitionLikeCpp {
     pub choice: u8,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedSilencePartyTalkerLikeCpp {
+    pub target: ObjectGuid,
+    pub silent: bool,
+}
+
 /// Represented outcome for the bounded post-template `HandleQuestConfirmAccept` gates.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp {
@@ -2901,6 +2907,7 @@ pub struct WorldSession {
     represented_trade_spell_cast_item_like_cpp: Option<ObjectGuid>,
     represented_trade_cancel_statuses_like_cpp: Vec<u8>,
     represented_sign_petitions_like_cpp: Vec<RepresentedSignPetitionLikeCpp>,
+    represented_silence_party_talker_like_cpp: Vec<RepresentedSilencePartyTalkerLikeCpp>,
     represented_can_duel_spell_casts_like_cpp: Vec<RepresentedCanDuelSpellCastLikeCpp>,
     represented_guild_repair_bank_state_like_cpp: Option<RepresentedGuildRepairBankStateLikeCpp>,
     represented_guild_repair_bank_withdraws_like_cpp:
@@ -4118,6 +4125,7 @@ impl WorldSession {
             represented_trade_spell_cast_item_like_cpp: None,
             represented_trade_cancel_statuses_like_cpp: Vec::new(),
             represented_sign_petitions_like_cpp: Vec::new(),
+            represented_silence_party_talker_like_cpp: Vec::new(),
             represented_can_duel_spell_casts_like_cpp: Vec::new(),
             represented_guild_repair_bank_state_like_cpp: None,
             represented_guild_repair_bank_withdraws_like_cpp: Vec::new(),
@@ -18947,6 +18955,9 @@ impl WorldSession {
             ClientOpcodes::SetEveryoneIsAssistant => {
                 self.handle_set_everyone_is_assistant(pkt).await;
             }
+            ClientOpcodes::SilencePartyTalker => {
+                self.handle_silence_party_talker(pkt).await;
+            }
             ClientOpcodes::SetPartyAssignment => {
                 self.handle_set_party_assignment(pkt).await;
             }
@@ -21356,6 +21367,22 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn represented_sign_petitions_like_cpp(&self) -> &[RepresentedSignPetitionLikeCpp] {
         &self.represented_sign_petitions_like_cpp
+    }
+
+    pub(crate) fn record_represented_silence_party_talker_like_cpp(
+        &mut self,
+        target: ObjectGuid,
+        silent: bool,
+    ) {
+        self.represented_silence_party_talker_like_cpp
+            .push(RepresentedSilencePartyTalkerLikeCpp { target, silent });
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_silence_party_talker_like_cpp(
+        &self,
+    ) -> &[RepresentedSilencePartyTalkerLikeCpp] {
+        &self.represented_silence_party_talker_like_cpp
     }
 
     pub(crate) fn cancel_represented_trade_like_cpp(&mut self, status: u8, sendback: bool) {

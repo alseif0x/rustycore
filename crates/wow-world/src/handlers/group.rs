@@ -25,7 +25,7 @@ use wow_packet::packets::party::{
     ReadyCheckResponseClient, ReadyCheckStarted, RequestPartyJoinUpdates, RequestPartyMemberStats,
     RoleChangedInform, RolePollInform, SendRaidTargetUpdateAll, SendRaidTargetUpdateSingle,
     SetAssistantLeader, SetEveryoneIsAssistant, SetLootMethod, SetPartyAssignment, SetRole,
-    UpdateRaidTarget, party_result,
+    SilencePartyTalker, UpdateRaidTarget, party_result,
 };
 use wow_packet::{ClientPacket, ServerPacket};
 
@@ -156,6 +156,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_everyone_is_assistant",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::SilencePartyTalker,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_silence_party_talker",
     }
 }
 
@@ -1529,6 +1538,44 @@ impl WorldSession {
         }
     }
 
+    /// CMSG_SILENCE_PARTY_TALKER.
+    ///
+    /// C++ parses a full `ObjectGuid Target` followed by one `Silent` bit, then
+    /// returns unless the sender is in a group and is the group leader or an
+    /// assistant. The live silence mutation is still a TODO in the C++ legacy
+    /// source, so Rust records only the represented request at the same boundary.
+    pub async fn handle_silence_party_talker(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let silence = match SilencePartyTalker::read(&mut pkt) {
+            Ok(silence) => silence,
+            Err(e) => {
+                warn!("Bad SilencePartyTalker: {e}");
+                return;
+            }
+        };
+        let sender_guid = match self.player_guid() {
+            Some(guid) => guid,
+            None => return,
+        };
+        let group_reg = match self.group_registry() {
+            Some(registry) => std::sync::Arc::clone(registry),
+            None => return,
+        };
+
+        let Some(group_guid) =
+            current_group_guid_like_cpp(&group_reg, self.group_guid, sender_guid, None)
+        else {
+            return;
+        };
+        let Some(group) = group_reg.get(&group_guid) else {
+            return;
+        };
+        if !group.is_leader_like_cpp(sender_guid) && !group.is_assistant_like_cpp(sender_guid) {
+            return;
+        }
+
+        self.record_represented_silence_party_talker_like_cpp(silence.target, silence.silent);
+    }
+
     /// CMSG_DO_READY_CHECK.
     ///
     /// C++ resolves `GetPlayer()->GetGroup(packet.PartyIndex)`, returns when no
@@ -2362,6 +2409,15 @@ mod tests {
         } else {
             pkt.flush_bits();
         }
+        pkt.reset_read();
+        pkt
+    }
+
+    fn silence_party_talker_packet(target: ObjectGuid, silent: bool) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bytes(&target.to_raw_bytes());
+        pkt.write_bit(silent);
+        pkt.flush_bits();
         pkt.reset_read();
         pkt
     }
@@ -4192,6 +4248,106 @@ mod tests {
         );
         assert!(leader_rx.try_recv().is_err());
         assert!(member_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn silence_party_talker_leader_records_request_before_cpp_todo_boundary() {
+        let (mut session, send_rx) = make_session_with_send();
+        let leader = ObjectGuid::create_player(1, 42);
+        let target = ObjectGuid::create_player(1, 43);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.add_member(target);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        session.set_player_guid(Some(leader));
+        session.group_guid = Some(group_guid);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+
+        session
+            .handle_silence_party_talker(silence_party_talker_packet(target, true))
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+        assert_eq!(session.represented_silence_party_talker_like_cpp().len(), 1);
+        assert_eq!(
+            session.represented_silence_party_talker_like_cpp()[0].target,
+            target
+        );
+        assert!(session.represented_silence_party_talker_like_cpp()[0].silent);
+    }
+
+    #[tokio::test]
+    async fn silence_party_talker_assistant_allowed_but_regular_member_rejected_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let assistant = ObjectGuid::create_player(1, 43);
+        let regular = ObjectGuid::create_player(1, 44);
+        let target = ObjectGuid::create_player(1, 45);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.add_member(assistant);
+        group.add_member(regular);
+        group.convert_to_raid_like_cpp();
+        group
+            .set_assistant_leader_flag_like_cpp(assistant, true)
+            .unwrap();
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        let (mut assistant_session, _assistant_send_rx) = make_session_with_send();
+        assistant_session.set_player_guid(Some(assistant));
+        assistant_session.group_guid = Some(group_guid);
+        assistant_session
+            .set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
+
+        assistant_session
+            .handle_silence_party_talker(silence_party_talker_packet(target, false))
+            .await;
+        assert_eq!(
+            assistant_session
+                .represented_silence_party_talker_like_cpp()
+                .len(),
+            1
+        );
+        assert!(!assistant_session.represented_silence_party_talker_like_cpp()[0].silent);
+
+        let (mut regular_session, _regular_send_rx) = make_session_with_send();
+        regular_session.set_player_guid(Some(regular));
+        regular_session.group_guid = Some(group_guid);
+        regular_session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+
+        regular_session
+            .handle_silence_party_talker(silence_party_talker_packet(target, true))
+            .await;
+        assert!(
+            regular_session
+                .represented_silence_party_talker_like_cpp()
+                .is_empty()
+        );
+    }
+
+    #[tokio::test]
+    async fn silence_party_talker_without_group_is_noop_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send();
+        let player = ObjectGuid::create_player(1, 42);
+        let target = ObjectGuid::create_player(1, 43);
+        session.set_player_guid(Some(player));
+        session.set_group_registry(
+            Arc::new(GroupRegistry::default()),
+            Arc::new(PendingInvites::default()),
+        );
+
+        session
+            .handle_silence_party_talker(silence_party_talker_packet(target, true))
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+        assert!(
+            session
+                .represented_silence_party_talker_like_cpp()
+                .is_empty()
+        );
     }
 
     #[tokio::test]
