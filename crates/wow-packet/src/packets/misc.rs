@@ -977,6 +977,56 @@ impl ClientPacket for ViolenceLevel {
     }
 }
 
+/// C++ `WorldPackets::Misc::RandomRollClient`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RandomRollClient {
+    pub min: i32,
+    pub max: i32,
+    pub party_index: Option<u8>,
+}
+
+impl ClientPacket for RandomRollClient {
+    const OPCODE: ClientOpcodes = ClientOpcodes::RandomRoll;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let has_party_index = pkt.read_bit()?;
+        let min = pkt.read_int32()?;
+        let max = pkt.read_int32()?;
+        let party_index = if has_party_index {
+            Some(pkt.read_uint8()?)
+        } else {
+            None
+        };
+        Ok(Self {
+            min,
+            max,
+            party_index,
+        })
+    }
+}
+
+/// C++ `WorldPackets::Misc::RandomRoll`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RandomRoll {
+    pub roller: ObjectGuid,
+    pub roller_wow_account: ObjectGuid,
+    pub min: i32,
+    pub max: i32,
+    pub result: i32,
+}
+
+impl ServerPacket for RandomRoll {
+    const OPCODE: ServerOpcodes = ServerOpcodes::RandomRoll;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_guid(&self.roller);
+        pkt.write_guid(&self.roller_wow_account);
+        pkt.write_int32(self.min);
+        pkt.write_int32(self.max);
+        pkt.write_int32(self.result);
+    }
+}
+
 pub const MAX_GUILD_ACHIEVEMENT_TRACKING_IDS_LIKE_CPP: usize = 10;
 
 /// C++ `WorldPackets::Guild::DeclineGuildInvites`.
@@ -6456,6 +6506,73 @@ mod tests {
         let parsed = SetCurrencyFlags::read(&mut pkt).unwrap();
         assert_eq!(parsed.currency_id, 395);
         assert_eq!(parsed.flags, 0x1f);
+    }
+
+    #[test]
+    fn random_roll_client_reads_optional_party_index_then_signed_bounds_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(true);
+        pkt.write_int32(1);
+        pkt.write_int32(100);
+        pkt.write_uint8(0);
+        pkt.reset_read();
+
+        let parsed = RandomRollClient::read(&mut pkt).unwrap();
+
+        assert_eq!(
+            parsed,
+            RandomRollClient {
+                min: 1,
+                max: 100,
+                party_index: Some(0),
+            }
+        );
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn random_roll_client_reads_absent_party_index_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(false);
+        pkt.write_int32(-5);
+        pkt.write_int32(5);
+        pkt.reset_read();
+
+        let parsed = RandomRollClient::read(&mut pkt).unwrap();
+
+        assert_eq!(
+            parsed,
+            RandomRollClient {
+                min: -5,
+                max: 5,
+                party_index: None,
+            }
+        );
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn random_roll_writes_full_guids_then_signed_values_like_cpp() {
+        let roller = ObjectGuid::create_player(1, 42);
+        let account = ObjectGuid::new((HighGuid::WowAccount as i64) << 58, 7);
+        let bytes = RandomRoll {
+            roller,
+            roller_wow_account: account,
+            min: 1,
+            max: 100,
+            result: 77,
+        }
+        .to_bytes();
+        let mut pkt = WorldPacket::from_bytes(&bytes);
+
+        assert_eq!(pkt.server_opcode(), Some(ServerOpcodes::RandomRoll));
+        assert_eq!(pkt.read_uint16().unwrap(), ServerOpcodes::RandomRoll as u16);
+        assert_eq!(pkt.read_guid().unwrap(), roller);
+        assert_eq!(pkt.read_guid().unwrap(), account);
+        assert_eq!(pkt.read_int32().unwrap(), 1);
+        assert_eq!(pkt.read_int32().unwrap(), 100);
+        assert_eq!(pkt.read_int32().unwrap(), 77);
+        assert_eq!(pkt.remaining(), 0);
     }
 
     #[test]

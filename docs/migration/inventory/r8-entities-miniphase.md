@@ -1,3 +1,13 @@
+# `#NEXT.R8.ENTITIES.941` — represented-partial for C++ `/roll` random roll.
+
+Source-of-truth C++: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/GroupHandler.cpp:414-421` (`WorldSession::HandleRandomRollOpcode`), `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28718-28734` (`Player::DoRandomRoll`), and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.cpp:421-438` / `.h:544-565` (`WorldPackets::Misc::{RandomRollClient,RandomRoll}`).
+
+Implemented Rust seam: `CMSG_RANDOM_ROLL` now parses the C++ optional `PartyIndex` bit plus signed `Min`/`Max`, registers `LoggedIn`/`ThreadUnsafe` dispatch, applies the exact handler gates `Min > Max` and `Max > 1000000`, builds `SMSG_RANDOM_ROLL` with full roller GUID, represented WoW-account GUID, `Min`, `Max`, and result, sends directly to the roller when solo, and broadcasts to connected represented HOME-group members including the roller when grouped. Like C++, the parsed `PartyIndex` is ignored by the random-roll group lookup because `HandleRandomRollOpcode` calls `GetPlayer()->DoRandomRoll(...)`, and `DoRandomRoll` uses `GetGroup()` without a party index.
+
+Tests/checks: `cargo fmt --all --check`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-packet random_roll -- --nocapture`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world random_roll -- --nocapture`.
+
+Boundaries: represented-partial only. This covers represented HOME-group/self delivery, not C++ BG/BF/original-group ownership, disconnected/offline member semantics, full live `Group::BroadcastPacket` runtime, install/restart, bot, or live-client/manual validation. C++ reads `int32` bounds but calls a `uint32` `DoRandomRoll`; Rust preserves the explicit handler gates and normal signed client range behavior but does not silently wrap negative ranges through unsigned arithmetic.
+
 # `#NEXT.R8.ENTITIES.940` — represented-partial for C++ `Player::SetGroup(group, subgroup)`.
 
 Source-of-truth C++: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:18987-19010` (`Player::_LoadGroup`); `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:23446-23461` (`Player::SetGroup`); `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:25191-25206` (`SetOriginalGroup` / `SetBattlegroundOrBattlefieldRaid` subgroup transfer); `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp:438-456` (`Group::AddMember` calling `SetGroup(this, subGroup)`).

@@ -20270,6 +20270,9 @@ impl WorldSession {
             ClientOpcodes::MinimapPing => {
                 self.handle_minimap_ping(pkt).await;
             }
+            ClientOpcodes::RandomRoll => {
+                self.handle_random_roll(pkt).await;
+            }
 
             ClientOpcodes::Inspect => {
                 self.handle_inspect(pkt).await;

@@ -302,7 +302,7 @@ DBC/DB2 stores read:
 - **No target icons** — `m_targetIcons[8]` storage absent. `CMSG_UPDATE_RAID_TARGET`, `SMSG_RAID_TARGET_UPDATE_SINGLE/_ALL` unhandled. Cannot mark mobs.
 - **No difficulty switching** — hard-coded `1/14/3`. `CMSG_SET_DUNGEON_DIFFICULTY` / `CMSG_SET_RAID_DIFFICULTY` unhandled.
 - **No instance binding** — `m_recentInstances` map absent. Group cannot save/restore raid lockouts.
-- **No minimap ping / random roll** — `CMSG_MINIMAP_PING`, `CMSG_RANDOM_ROLL` unhandled.
+- **Minimap ping / random roll represented** — `CMSG_MINIMAP_PING` and `CMSG_RANDOM_ROLL` are wired through represented HOME-group state. Remaining gaps: BG/BF/original-group routing, full live `Group::BroadcastPacket` semantics, and live client/bot validation.
 - **No member stats refresh** — `CMSG_REQUEST_PARTY_MEMBER_STATS`, `UpdatePlayerOutOfRange` unhandled. Out-of-range members appear stuck.
 - **No raid info on join** — `CMSG_REQUEST_RAID_INFO` unhandled.
 - **No group flags** — `GROUP_FLAG_RAID/LFG/CROSS_FACTION/EVERYONE_ASSISTANT/RESTRICT_PINGS` not stored.
@@ -419,8 +419,8 @@ DBC/DB2 stores read:
 - [ ] **#GROUPS.12** Implement raid sub-groups — `subgroup: u8` per member (0..7), `CMSG_CHANGE_SUB_GROUP`, `CMSG_SWAP_SUB_GROUPS`. Complejidad: **H**
 - [ ] **#GROUPS.13** Implement `CMSG_SET_DUNGEON_DIFFICULTY` / `CMSG_SET_RAID_DIFFICULTY` / `CMSG_SET_LEGACY_RAID_DIFFICULTY` — per-group difficulty + reset bound instances. Complejidad: **M**
 - [ ] **#GROUPS.14** Implement DB persistence — schema for `groups`, `group_member`; load on startup via `GroupMgr::load_groups`; persist on Create/AddMember/Disband. Complejidad: **H**
-- [ ] **#GROUPS.15** Implement `CMSG_MINIMAP_PING` — broadcast `(senderGuid, x, y)` to other members. Complejidad: **L**
-- [ ] **#GROUPS.16** Implement `CMSG_RANDOM_ROLL` — `/roll min max`, broadcast `SMSG_RANDOM_ROLL`. Complejidad: **L**
+- [x] **#GROUPS.15** Implement represented `CMSG_MINIMAP_PING` — broadcast `(senderGuid, x, y)` to other represented HOME-group members. Remaining runtime/BG/original-group gaps tracked in R8.
+- [x] **#GROUPS.16** Implement represented `CMSG_RANDOM_ROLL` — `/roll min max`, broadcast `SMSG_RANDOM_ROLL` to represented HOME-group members including roller. Remaining runtime/BG/original-group gaps tracked in `#NEXT.R8.ENTITIES.941`.
 - [ ] **#GROUPS.17** Implement `CMSG_REQUEST_PARTY_MEMBER_STATS` — refresh out-of-range member's `PartyMemberFullState` from real Player state. Complejidad: **M**
 - [ ] **#GROUPS.18** Wire `Group::update(diff)` into world-tick loop — process ready-check timer, leader-offline timer, looter advancement. Complejidad: **M**
 - [ ] **#GROUPS.19** Replace hard-coded HP/power 1000/500 in `PartyMemberFullState` with real `Player` snapshot; add `UpdatePlayerOutOfRange`. Complejidad: **M**
@@ -459,7 +459,7 @@ DBC/DB2 stores read:
 - [ ] Test: Group with 2 members survives a disconnect of leader (paused, not destroyed) and re-elects on `LeaderOfflineTimer` expiry.
 - [ ] Test: Sub-group swap of 2 members in a 10-player raid preserves total count.
 - [ ] Test: Loot threshold below `ITEM_QUALITY_UNCOMMON` (2) auto-loots; above broadcasts roll.
-- [ ] Test: `CMSG_RANDOM_ROLL { min: 1, max: 100 }` broadcasts `SMSG_RANDOM_ROLL` with result in `[1, 100]` to all members.
+- [x] Test: `CMSG_RANDOM_ROLL { min: 1, max: 100 }` broadcasts `SMSG_RANDOM_ROLL` with result in `[1, 100]` to represented connected group members.
 
 ---
 
@@ -552,7 +552,7 @@ DBC/DB2 stores read:
 7. **No `Group::Update(diff)` per-tick**: confirmed — there is no tick handler at all. Ready-check timer and leader-offline timer cannot exist without it.
 
 **Largest missing surfaces (confirmed):**
-- All 25+ remaining CMSG opcodes (uninvite, set leader, set role, loot method, ready check, raid markers, target icons, convert raid, sub-groups, difficulty, minimap ping, random roll, opt-out-of-loot, role poll, restrict pings, low-level raid, raid info request, member stats request).
+- Remaining group CMSG surfaces still include set leader, set role, raid markers, target icons, convert raid, full raid/original-group routing, opt-out-of-loot, role poll, restrict pings, low-level raid, raid info request, member stats request, and runtime `Group::Update(diff)`. Some formerly listed surfaces now have represented coverage (uninvite, loot method, ready check, sub-groups, difficulty, minimap ping, random roll) but still carry represented/runtime boundaries in R8.
 - DB persistence: zero `groups` / `group_member` / `group_instance` reads or writes. `wow-database/src/statements/character.rs` has no group statements.
 - `MemberSlot` struct: per-member `subgroup`, `flags` (Assistant/MainTank/MainAssist), `roles`, `readyChecked` all absent.
 - Raid (40-cap, 8 sub-groups) entirely absent — cap hard-coded to 5 at `group.rs:249`.

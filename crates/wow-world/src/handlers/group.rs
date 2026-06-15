@@ -5,9 +5,10 @@
 
 //! Handlers for Group/Party opcodes: PartyInvite, PartyInviteResponse, LeaveGroup.
 
+use rand::Rng;
 use tracing::{info, warn};
 use wow_constants::ClientOpcodes;
-use wow_core::ObjectGuid;
+use wow_core::{ObjectGuid, guid::HighGuid};
 use wow_database::{CharStatements, PreparedStatement, StatementDef};
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
 use wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP;
@@ -18,6 +19,7 @@ use wow_network::{
     PlayerRegistry, ReadyCheckEventLikeCpp, SendPartyUpdateLikeCppCommand, SessionCommand,
     free_group_db_store_id_like_cpp, register_group_db_store_id_like_cpp,
 };
+use wow_packet::packets::misc::{RandomRoll, RandomRollClient};
 use wow_packet::packets::party::{
     DoReadyCheck, GroupDecline, GroupNewLeader, GroupUninvite, InitiateRolePoll, LowLevelRaid1,
     LowLevelRaid2, MinimapPing, MinimapPingClient, OptOutOfLoot, PartyCommandResult,
@@ -283,6 +285,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_minimap_ping",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::RandomRoll,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_random_roll",
     }
 }
 
@@ -2585,6 +2596,90 @@ impl WorldSession {
             }
         }
     }
+
+    /// CMSG_RANDOM_ROLL — validates roll bounds and broadcasts the result.
+    ///
+    /// C++ anchors:
+    /// - `WorldSession::HandleRandomRollOpcode` (`GroupHandler.cpp:414-421`)
+    /// - `Player::DoRandomRoll` (`Player.cpp:28718-28734`)
+    ///
+    /// The client packet contains an optional `PartyIndex`, but C++ ignores it
+    /// here: the handler only validates `Min`/`Max` and calls
+    /// `GetPlayer()->DoRandomRoll(packet.Min, packet.Max)`, whose group lookup
+    /// is `GetGroup()` without a party index. Rust preserves that HOME-group
+    /// represented behavior by resolving with `party_index=None`.
+    ///
+    /// Boundary: C++ reads `int32` but passes the values to a `uint32`
+    /// `DoRandomRoll`. Negative ranges therefore hit a signed/unsigned edge in
+    /// legacy. Rust keeps the explicit C++ gates and produces a signed result
+    /// for the received signed range instead of silently wrapping negatives.
+    pub async fn handle_random_roll(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let roll = match RandomRollClient::read(&mut pkt) {
+            Ok(roll) => roll,
+            Err(e) => {
+                warn!("Bad RandomRoll: {e}");
+                return;
+            }
+        };
+
+        if roll.min > roll.max || roll.max > 1_000_000 {
+            return;
+        }
+
+        let Some(sender_guid) = self.player_guid() else {
+            return;
+        };
+
+        let result = rand::thread_rng().gen_range(roll.min..=roll.max);
+        let response = RandomRoll {
+            roller: sender_guid,
+            roller_wow_account: ObjectGuid::new(
+                (HighGuid::WowAccount as i64) << 58,
+                i64::from(self.account_id),
+            ),
+            min: roll.min,
+            max: roll.max,
+            result,
+        };
+        let bytes = response.to_bytes();
+
+        let Some(group_reg) = self.group_registry().map(std::sync::Arc::clone) else {
+            self.send_packet(&response);
+            return;
+        };
+
+        let Some(group_guid) =
+            current_group_guid_like_cpp(&group_reg, self.group_guid, sender_guid, None)
+        else {
+            self.send_packet(&response);
+            return;
+        };
+
+        let Some(group) = group_reg.get(&group_guid) else {
+            self.send_packet(&response);
+            return;
+        };
+
+        let Some(registry) = self.player_registry().map(std::sync::Arc::clone) else {
+            self.send_packet(&response);
+            return;
+        };
+
+        let mut sent_to_sender = false;
+        // C++ `group->BroadcastPacket(randomRoll.Write(), false)` includes the roller.
+        for member_guid in &group.members {
+            if let Some(entry) = registry.get(member_guid) {
+                let _ = entry.send_tx.send(bytes.clone());
+                if *member_guid == sender_guid {
+                    sent_to_sender = true;
+                }
+            }
+        }
+
+        if !sent_to_sender {
+            self.send_packet(&response);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -2602,7 +2697,7 @@ mod tests {
     use flume::bounded;
     use std::sync::Arc;
     use wow_constants::{ClientOpcodes, ServerOpcodes};
-    use wow_core::{ObjectGuid, Position};
+    use wow_core::{ObjectGuid, Position, guid::HighGuid};
     use wow_database::{CharStatements, SqlParam, StatementDef};
     use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
     use wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP;
@@ -5560,6 +5655,147 @@ mod tests {
         pkt.flush_bits();
         pkt.reset_read();
         pkt
+    }
+
+    fn random_roll_packet(min: i32, max: i32, party_index: Option<u8>) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(party_index.is_some());
+        pkt.write_int32(min);
+        pkt.write_int32(max);
+        if let Some(idx) = party_index {
+            pkt.write_uint8(idx);
+        }
+        pkt.reset_read();
+        pkt
+    }
+
+    fn assert_random_roll_packet(
+        bytes: &[u8],
+        roller: ObjectGuid,
+        account_id: u32,
+        min: i32,
+        max: i32,
+    ) -> i32 {
+        let mut pkt = WorldPacket::from_bytes(bytes);
+        assert_eq!(pkt.read_uint16().unwrap(), ServerOpcodes::RandomRoll as u16);
+        assert_eq!(pkt.read_guid().unwrap(), roller);
+        assert_eq!(
+            pkt.read_guid().unwrap(),
+            ObjectGuid::new((HighGuid::WowAccount as i64) << 58, i64::from(account_id))
+        );
+        assert_eq!(pkt.read_int32().unwrap(), min);
+        assert_eq!(pkt.read_int32().unwrap(), max);
+        let result = pkt.read_int32().unwrap();
+        assert!((min..=max).contains(&result));
+        assert_eq!(pkt.remaining(), 0);
+        result
+    }
+
+    #[tokio::test]
+    async fn random_roll_without_group_sends_to_self_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send();
+        let sender = ObjectGuid::create_player(1, 42);
+        session.set_player_guid(Some(sender));
+
+        session
+            .handle_random_roll(random_roll_packet(1, 100, None))
+            .await;
+
+        let sent = send_rx
+            .try_recv()
+            .expect("solo random roll should be sent to self");
+        assert_random_roll_packet(&sent, sender, 1, 1, 100);
+    }
+
+    #[tokio::test]
+    async fn random_roll_with_group_broadcasts_to_all_members_including_sender_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send();
+        let sender = ObjectGuid::create_player(1, 42);
+        let other = ObjectGuid::create_player(1, 43);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(sender);
+        group.add_member(other);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (sender_tx, sender_rx) = bounded(8);
+        let (other_tx, other_rx) = bounded(8);
+        player_registry.insert(sender, broadcast_info(sender, sender_tx));
+        player_registry.insert(other, broadcast_info(other, other_tx));
+
+        session.set_player_guid(Some(sender));
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(player_registry);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+
+        session
+            .handle_random_roll(random_roll_packet(1, 100, Some(0)))
+            .await;
+
+        assert!(
+            send_rx.try_recv().is_err(),
+            "group random roll should use group fanout, not direct self channel"
+        );
+        let sender_sent = sender_rx
+            .try_recv()
+            .expect("sender should receive group random roll");
+        let other_sent = other_rx
+            .try_recv()
+            .expect("other member should receive group random roll");
+        assert_random_roll_packet(&sender_sent, sender, 1, 1, 100);
+        assert_random_roll_packet(&other_sent, sender, 1, 1, 100);
+    }
+
+    #[tokio::test]
+    async fn random_roll_ignores_party_index_for_home_group_lookup_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send();
+        let sender = ObjectGuid::create_player(1, 42);
+        let other = ObjectGuid::create_player(1, 43);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(sender);
+        group.add_member(other);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (sender_tx, sender_rx) = bounded(8);
+        let (other_tx, other_rx) = bounded(8);
+        player_registry.insert(sender, broadcast_info(sender, sender_tx));
+        player_registry.insert(other, broadcast_info(other, other_tx));
+
+        session.set_player_guid(Some(sender));
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(player_registry);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+
+        session
+            .handle_random_roll(random_roll_packet(1, 2, Some(1)))
+            .await;
+
+        assert!(
+            sender_rx.try_recv().is_ok(),
+            "RandomRoll parses but ignores PartyIndex like C++ DoRandomRoll/GetGroup"
+        );
+        assert!(
+            other_rx.try_recv().is_ok(),
+            "RandomRoll must still broadcast to represented HOME group"
+        );
+    }
+
+    #[tokio::test]
+    async fn random_roll_rejects_invalid_bounds_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+
+        session
+            .handle_random_roll(random_roll_packet(100, 1, None))
+            .await;
+        session
+            .handle_random_roll(random_roll_packet(1, 1_000_001, None))
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
     }
 
     #[tokio::test]
