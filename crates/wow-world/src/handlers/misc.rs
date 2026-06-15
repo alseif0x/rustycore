@@ -53,21 +53,22 @@ use wow_packet::packets::misc::{
     AuctionableTokenSellAtMarketPrice, BattlePetClearFanfare, BattlePetDeletePet,
     BattlePetModifyName, BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags,
     BattlePetSummon, BattlePetUpdateNotify, BattlefieldLeave, BeginTrade, BugReport, BusyTrade,
-    CageBattlePet, CalendarCommandResult, CalendarComplain, CalendarGetEvent, CalendarSendCalendar,
-    CalendarSendNumPending, CanDuel, ClearTradeItem, CloseInteraction, CommerceTokenGetLog,
-    CommerceTokenGetLogResponse, Complaint, ComplaintResult, DeclineGuildInvites, DeclinePetition,
-    DfGetJoinStatus, DfGetSystemInfo, DuelResponse, ERR_TAXITOOFARAWAY_LIKE_CPP, FarSight,
-    GmTicketAcknowledgeSurvey, GmTicketCaseStatus, GmTicketSystemStatus,
-    GuildSetAchievementTracking, IgnoreTrade, LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus,
-    LoadingScreenNotify, MAX_ACCOUNT_DATA_SIZE_LIKE_CPP, MountSetFavorite, MountSpecial,
-    NUM_ACCOUNT_DATA_TYPES, ObjectUpdateFailed, ObjectUpdateRescued, QueryArenaTeam,
-    QueryBattlePetName, QueryBattlePetNameResponse, QueryPetition, QueryPetitionResponse,
-    RatedPvpInfo, ReclaimCorpse, RepopRequest, RequestAccountData, RequestBattlefieldStatus,
-    RequestCemeteryListResponse, ResurrectResponse, SaveCufProfiles, SetAdvancedCombatLogging,
-    SetCurrencyFlags, SetDifficultyId, SetDungeonDifficulty, SetPvp, SetRaidDifficulty,
-    SetTaxiBenchmarkMode, SetTradeGold, SetTradeItem, SetTradeSpell, SignPetition,
-    SpecialMountAnim, StandStateChange, SubmitUserFeedback, SupportTicketSubmitBug,
-    SupportTicketSubmitComplaint, SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
+    CageBattlePet, CalendarCommandResult, CalendarCommunityInvite, CalendarComplain,
+    CalendarGetEvent, CalendarSendCalendar, CalendarSendNumPending, CanDuel, ClearTradeItem,
+    CloseInteraction, CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint, ComplaintResult,
+    DeclineGuildInvites, DeclinePetition, DfGetJoinStatus, DfGetSystemInfo, DuelResponse,
+    ERR_TAXITOOFARAWAY_LIKE_CPP, FarSight, GmTicketAcknowledgeSurvey, GmTicketCaseStatus,
+    GmTicketSystemStatus, GuildSetAchievementTracking, IgnoreTrade, LfgListBlacklist,
+    LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify, MAX_ACCOUNT_DATA_SIZE_LIKE_CPP,
+    MountSetFavorite, MountSpecial, NUM_ACCOUNT_DATA_TYPES, ObjectUpdateFailed,
+    ObjectUpdateRescued, QueryArenaTeam, QueryBattlePetName, QueryBattlePetNameResponse,
+    QueryPetition, QueryPetitionResponse, RatedPvpInfo, ReclaimCorpse, RepopRequest,
+    RequestAccountData, RequestBattlefieldStatus, RequestCemeteryListResponse, ResurrectResponse,
+    SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags, SetDifficultyId,
+    SetDungeonDifficulty, SetPvp, SetRaidDifficulty, SetTaxiBenchmarkMode, SetTradeGold,
+    SetTradeItem, SetTradeSpell, SignPetition, SpecialMountAnim, StandStateChange,
+    SubmitUserFeedback, SupportTicketSubmitBug, SupportTicketSubmitComplaint,
+    SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
     TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP, TaxiNodeStatusPkt, ToggleDifficulty, TogglePvp,
     ToyClearFanfare, UnacceptTrade, UpdateAccountData, UseToy, UserClientUpdateAccountData,
     ViolenceLevel, compress_account_data_like_cpp, decompress_account_data_like_cpp,
@@ -1545,6 +1546,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_request_countdown_timer",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::CalendarCommunityInvite,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_calendar_community_invite",
     }
 }
 
@@ -4560,6 +4570,17 @@ impl crate::session::WorldSession {
         // well-defined empty calendar/lockout lists with current server time.
         self.send_packet(&CalendarSendCalendar::empty_now());
     }
+
+    pub async fn handle_calendar_community_invite(&mut self, query: CalendarCommunityInvite) {
+        // C++ reads ClubID but does not use it in this handler. It only calls
+        // Guild::MassInviteToEvent if the player's guild resolves.
+        self.calendar_community_invite_like_cpp(
+            query.min_level,
+            query.max_level,
+            query.max_rank_order,
+        );
+    }
+
     pub async fn handle_calendar_get_event(&mut self, _query: CalendarGetEvent) {
         // C++ sends CalendarCommandResult(EVENT_INVALID) when sCalendarMgr has
         // no event for the requested id. Rust does not have CalendarMgr wired
@@ -12003,6 +12024,54 @@ mod tests {
         assert_eq!(pkt.read_uint8().unwrap(), 1);
         assert_eq!(pkt.read_uint8().unwrap(), 6);
         assert_eq!(pkt.read_bits(9).unwrap(), 0);
+    }
+
+    #[tokio::test]
+    async fn calendar_community_invite_without_guild_is_silent_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        session.set_represented_guild_id_like_cpp(0);
+
+        session
+            .handle_calendar_community_invite(CalendarCommunityInvite {
+                club_id: 0x0102_0304_0506_0708,
+                min_level: 10,
+                max_level: 70,
+                max_rank_order: 3,
+            })
+            .await;
+
+        assert!(
+            session
+                .represented_calendar_community_invites_like_cpp()
+                .is_empty()
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn calendar_community_invite_records_represented_guild_mass_invite_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        session.set_represented_guild_id_like_cpp(42);
+
+        session
+            .handle_calendar_community_invite(CalendarCommunityInvite {
+                club_id: 0x0102_0304_0506_0708,
+                min_level: 10,
+                max_level: 70,
+                max_rank_order: 3,
+            })
+            .await;
+
+        assert_eq!(
+            session.represented_calendar_community_invites_like_cpp(),
+            &[crate::session::RepresentedCalendarCommunityInviteLikeCpp {
+                guild_id: 42,
+                min_level: 10,
+                max_level: 70,
+                max_rank_order: 3,
+            }]
+        );
+        assert!(send_rx.try_recv().is_err());
     }
 
     #[tokio::test]

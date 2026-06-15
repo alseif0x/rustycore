@@ -1512,6 +1512,14 @@ pub(crate) struct RepresentedAuctionSellItemLikeCpp {
     pub runtime_rejected: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RepresentedCalendarCommunityInviteLikeCpp {
+    pub guild_id: u64,
+    pub min_level: u8,
+    pub max_level: u8,
+    pub max_rank_order: u8,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedCanDuelSpellCastLikeCpp {
     pub target_guid: ObjectGuid,
@@ -3074,6 +3082,7 @@ pub struct WorldSession {
     represented_guild_id_like_cpp: u64,
     represented_guild_id_invited_like_cpp: u64,
     represented_guild_accept_invites_like_cpp: Vec<u64>,
+    represented_calendar_community_invites_like_cpp: Vec<RepresentedCalendarCommunityInviteLikeCpp>,
     represented_arena_team_id_invited_like_cpp: u32,
     represented_wargame_invite_acceptances_like_cpp: Vec<RepresentedWargameInviteAcceptanceLikeCpp>,
     represented_active_trade_partner_like_cpp: Option<ObjectGuid>,
@@ -4482,6 +4491,7 @@ impl WorldSession {
             represented_guild_id_like_cpp: 0,
             represented_guild_id_invited_like_cpp: 0,
             represented_guild_accept_invites_like_cpp: Vec::new(),
+            represented_calendar_community_invites_like_cpp: Vec::new(),
             represented_arena_team_id_invited_like_cpp: 0,
             represented_wargame_invite_acceptances_like_cpp: Vec::new(),
             represented_active_trade_partner_like_cpp: None,
@@ -20334,6 +20344,12 @@ impl WorldSession {
             ClientOpcodes::CalendarGet => {
                 self.handle_calendar_get(pkt).await;
             }
+            ClientOpcodes::CalendarCommunityInvite => {
+                match wow_packet::packets::misc::CalendarCommunityInvite::read(&mut pkt) {
+                    Ok(query) => self.handle_calendar_community_invite(query).await,
+                    Err(e) => warn!("Failed to read CalendarCommunityInvite: {e}"),
+                }
+            }
             ClientOpcodes::CalendarGetEvent => {
                 match wow_packet::packets::misc::CalendarGetEvent::read(&mut pkt) {
                     Ok(query) => self.handle_calendar_get_event(query).await,
@@ -22925,6 +22941,35 @@ impl WorldSession {
 
     pub(crate) fn set_represented_guild_id_like_cpp(&mut self, guild_id: u64) {
         self.represented_guild_id_like_cpp = guild_id;
+    }
+
+    pub(crate) fn calendar_community_invite_like_cpp(
+        &mut self,
+        min_level: u8,
+        max_level: u8,
+        max_rank_order: u8,
+    ) -> bool {
+        let guild_id = self.represented_guild_id_like_cpp;
+        if guild_id == 0 {
+            return false;
+        }
+
+        self.represented_calendar_community_invites_like_cpp.push(
+            RepresentedCalendarCommunityInviteLikeCpp {
+                guild_id,
+                min_level,
+                max_level,
+                max_rank_order,
+            },
+        );
+        true
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_calendar_community_invites_like_cpp(
+        &self,
+    ) -> &[RepresentedCalendarCommunityInviteLikeCpp] {
+        &self.represented_calendar_community_invites_like_cpp
     }
 
     #[cfg(test)]

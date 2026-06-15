@@ -6020,6 +6020,28 @@ impl ServerPacket for CalendarSendCalendar {
     }
 }
 
+/// C++ `WorldPackets::Calendar::CalendarCommunityInviteRequest`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CalendarCommunityInvite {
+    pub club_id: u64,
+    pub min_level: u8,
+    pub max_level: u8,
+    pub max_rank_order: u8,
+}
+
+impl ClientPacket for CalendarCommunityInvite {
+    const OPCODE: ClientOpcodes = ClientOpcodes::CalendarCommunityInvite;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            club_id: pkt.read_uint64()?,
+            min_level: pkt.read_uint8()?,
+            max_level: pkt.read_uint8()?,
+            max_rank_order: pkt.read_uint8()?,
+        })
+    }
+}
+
 /// C++ `WorldPackets::Calendar::CalendarGetEvent`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CalendarGetEvent {
@@ -7730,6 +7752,21 @@ mod tests {
         assert_eq!(pkt.read_uint32().unwrap(), 0); // Invites.Count
         assert_eq!(pkt.read_uint32().unwrap(), 0); // Events.Count
         assert_eq!(pkt.read_uint32().unwrap(), 0); // RaidLockouts.Count
+    }
+
+    #[test]
+    fn calendar_community_invite_reads_cpp_field_order() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint64(0x0102_0304_0506_0708);
+        pkt.write_uint8(10);
+        pkt.write_uint8(70);
+        pkt.write_uint8(3);
+
+        let query = CalendarCommunityInvite::read(&mut pkt).unwrap();
+        assert_eq!(query.club_id, 0x0102_0304_0506_0708);
+        assert_eq!(query.min_level, 10);
+        assert_eq!(query.max_level, 70);
+        assert_eq!(query.max_rank_order, 3);
     }
 
     #[test]
