@@ -290,16 +290,16 @@ DBC/DB2 stores read:
 
 **What's missing vs C++:**
 - **No DB persistence** — groups are 100% in-memory. Server restart = all groups dissolved. `groups`/`group_member`/`group_instance` tables not read or written.
-- **No raid support** — `MAX_GROUP_SIZE=5` is enforced (`g.members.len() >= 5`); cannot convert to raid (no `CMSG_CONVERT_RAID`), no sub-groups, no 8×5 raid layout.
+- **Raid represented-partial** — `CMSG_CONVERT_RAID` is parsed/handled through represented HOME-group state (`#NEXT.R8.ENTITIES.745/#746`), but full raid runtime remains incomplete: BG/BF/original-group category parity, full 8×5 layout/cap semantics, DB persistence, and live-client validation remain open.
 - **Roles represented-partial** — `CMSG_SET_ROLE` / `SMSG_ROLE_CHANGED_INFORM` are parsed, dispatched, and fan out through the represented current HOME-group model. Remaining gaps: DB persistence, BG/BF/original-group `PartyIndex` parity, and full live ObjectAccessor/sWorld runtime.
-- **No assistant / main-tank / main-assist** — `flags` field hard-coded to 0. `CMSG_SET_ASSISTANT_LEADER`, `CMSG_SET_PARTY_ASSIGNMENT` unhandled. Cannot promote anyone to assistant.
-- **No leader change** — `CMSG_SET_PARTY_LEADER` unhandled. If leader leaves, the next member is silently elevated, but explicit promotion is impossible.
-- **No kick** — `CMSG_PARTY_UNINVITE` unhandled. Bad players cannot be removed.
-- **No loot method change** — `CMSG_SET_LOOT_METHOD` unhandled. `loot_method` permanently stuck at 0 (FFA). Master-loot, group-loot, NBG, threshold all fixed.
+- **Assistant / main-tank / main-assist represented-partial** — `CMSG_SET_ASSISTANT_LEADER` / `CMSG_SET_PARTY_ASSIGNMENT` have represented HOME-group wiring, but full category parity, persistence, and live runtime side effects remain open.
+- **Leader change represented-partial** — `CMSG_SET_PARTY_LEADER` is parsed/handled (`#NEXT.R8.ENTITIES.905`), but live Player flags/name/faction, script callbacks, full PartyIndex parity, and exact DB transaction semantics remain open.
+- **Kick/uninvite represented-partial** — `CMSG_PARTY_UNINVITE` covers bounded member-kick and pending-invite branches (`#NEXT.R8.ENTITIES.936/#937`), but LFG vote-kick, BG/BF/original-group routing, exact destroy/update side effects, scripts, and rollback parity remain open.
+- **Loot method follows this C++ branch** — `CMSG_SET_LOOT_METHOD` is parsed/registered/dispatches (`#NEXT.R8.ENTITIES.231`), but runtime mutation is intentionally a represented no-op because this legacy C++ branch comments out the mutation block.
 - **No master looter / round-robin advance** — `UpdateLooterGuid` not implemented, so `looter_guid` is always EMPTY and group looting cannot work.
 - **Ready check represented-partial** — `CMSG_DO_READY_CHECK` and `CMSG_READY_CHECK_RESPONSE` parse/dispatch through represented current-group state; `SMSG_READY_CHECK_STARTED/RESPONSE/COMPLETED` writers and connected-member fanout exist, including offline/no-session false response approximation and 35s timer state. Missing: full BG/BF/original-group `PartyIndex` category resolution and real `Group::UpdateReadyCheck` timeout tick loop.
 - **No raid markers** — `m_markers[8]` storage absent. `CMSG_CLEAR_RAID_MARKER`, `SMSG_RAID_MARKERS_CHANGED` unhandled.
-- **No target icons** — `m_targetIcons[8]` storage absent. `CMSG_UPDATE_RAID_TARGET`, `SMSG_RAID_TARGET_UPDATE_SINGLE/_ALL` unhandled. Cannot mark mobs.
+- **Target icons represented-partial** — `CMSG_UPDATE_RAID_TARGET` and target-icon packets are represented (`#NEXT.R8.ENTITIES.793`), but full live raid target storage/category/runtime validation and complete fanout remain open.
 - **Difficulty switching represented-partial** — `CMSG_SET_DIFFICULTY_ID`, `CMSG_SET_DUNGEON_DIFFICULTY`, and `CMSG_SET_RAID_DIFFICULTY` now route through represented solo/group difficulty state and reset hooks. Remaining gaps: full live `InstanceMap::Reset`, recent/owned instance parity, BG/BF/original-group exclusions, install/restart, and live client/bot validation.
 - **No instance binding** — `m_recentInstances` map absent. Group cannot save/restore raid lockouts.
 - **Minimap ping / random roll represented** — `CMSG_MINIMAP_PING` and `CMSG_RANDOM_ROLL` are wired through represented HOME-group state. Remaining gaps: BG/BF/original-group routing, full live `Group::BroadcastPacket` semantics, and live client/bot validation.
@@ -406,16 +406,16 @@ DBC/DB2 stores read:
 > original-group/category ownership, DB/install/manual-test-ready.
 
 - [ ] **#GROUPS.1** Replace `GroupInfo.group_guid: u64` with proper `ObjectGuid` (HighGuid::Party); fix all wire serialisations. Complejidad: **M**
-- [ ] **#GROUPS.2** Implement `CMSG_PARTY_UNINVITE` — kick by guid, leader/assistant only, with `RemoveMethod::KICK`. Complejidad: **M**
-- [ ] **#GROUPS.3** Implement `CMSG_SET_PARTY_LEADER` — explicit leader transfer; emit `SMSG_GROUP_NEW_LEADER`. Complejidad: **L**
+- [x] **#GROUPS.2** Represent `CMSG_PARTY_UNINVITE` — bounded member kick and pending-invite removal are covered by `#NEXT.R8.ENTITIES.936/#937`; full LFG/BG/BF/original-group and live side effects remain open. Complejidad: **M**
+- [x] **#GROUPS.3** Represent `CMSG_SET_PARTY_LEADER` — explicit represented leader transfer and `SMSG_GROUP_NEW_LEADER` are covered by `#NEXT.R8.ENTITIES.905`; full live side effects remain open. Complejidad: **L**
 - [x] **#GROUPS.4** Represent `CMSG_SET_ROLE` — per-member role bitmask (Tank/Healer/DPS) and `SMSG_ROLE_CHANGED_INFORM` fanout are covered in `#NEXT.R8.ENTITIES.789`; persistence/full category parity remain open. Complejidad: **M**
-- [ ] **#GROUPS.5** Implement `CMSG_SET_ASSISTANT_LEADER` + `CMSG_SET_PARTY_ASSIGNMENT` — toggle `MEMBER_FLAG_ASSISTANT/MAINTANK/MAINASSIST`. Complejidad: **M**
-- [ ] **#GROUPS.6** Implement `CMSG_SET_LOOT_METHOD` — set method, master-looter guid, threshold; emit `PartyUpdate` to all; persist. Complejidad: **M**
+- [x] **#GROUPS.5** Represent `CMSG_SET_ASSISTANT_LEADER` + `CMSG_SET_PARTY_ASSIGNMENT` — represented assistant/main-tank/main-assist flags are covered by `#NEXT.R8.ENTITIES.785/#787`; persistence/category/runtime gaps remain open. Complejidad: **M**
+- [x] **#GROUPS.6** Represent `CMSG_SET_LOOT_METHOD` as the legacy C++ branch requires — parser/dispatch plus represented no-op are covered by `#NEXT.R8.ENTITIES.231`; mutable loot settings require a different C++ branch or intentional behavior change. Complejidad: **M**
 - [ ] **#GROUPS.7** Implement looter rotation (`UpdateLooterGuid`) — round-robin advance on each loot drop. Complejidad: **M**
 - [ ] **#GROUPS.8** Implement `CMSG_DO_READY_CHECK` + `CMSG_READY_CHECK_RESPONSE` + 35s timer in a per-tick `Group::update(diff)`; emit `SMSG_READY_CHECK_STARTED/RESPONSE/COMPLETED`. Complejidad: **H**
 - [ ] **#GROUPS.9** Implement raid markers — 8-slot array of `(map, x, y, z, transport)`; `CMSG_CLEAR_RAID_MARKER`, `SMSG_RAID_MARKERS_CHANGED`. Complejidad: **M**
-- [ ] **#GROUPS.10** Implement target icons — 8-slot `[ObjectGuid; 8]`; `CMSG_UPDATE_RAID_TARGET`, `SMSG_RAID_TARGET_UPDATE_SINGLE/_ALL`. Complejidad: **M**
-- [ ] **#GROUPS.11** Implement `CMSG_CONVERT_RAID` — set `GROUP_FLAG_RAID`, raise cap to 40, allocate sub-groups. Complejidad: **H**
+- [x] **#GROUPS.10** Represent target icons — represented `CMSG_UPDATE_RAID_TARGET` / target-icon packets are covered by `#NEXT.R8.ENTITIES.793`; full live raid target storage/category/fanout remains open. Complejidad: **M**
+- [x] **#GROUPS.11** Represent `CMSG_CONVERT_RAID` — represented conversion is covered by `#NEXT.R8.ENTITIES.745/#746`; full raid cap/layout/category/runtime parity remains open. Complejidad: **H**
 - [ ] **#GROUPS.12** Implement raid sub-groups — `subgroup: u8` per member (0..7), `CMSG_CHANGE_SUB_GROUP`, `CMSG_SWAP_SUB_GROUPS`. Complejidad: **H**
 - [x] **#GROUPS.13** Represent `CMSG_SET_DUNGEON_DIFFICULTY` / `CMSG_SET_RAID_DIFFICULTY` legacy opcodes — per-group/solo difficulty and represented reset hooks are covered by `#NEXT.R8.ENTITIES.938`, `#NEXT.R8.ENTITIES.939`, and `#NEXT.R8.ENTITIES.943`; full live instance/runtime parity remains open. Complejidad: **M**
 - [ ] **#GROUPS.14** Implement DB persistence — schema for `groups`, `group_member`; load on startup via `GroupMgr::load_groups`; persist on Create/AddMember/Disband. Complejidad: **H**
