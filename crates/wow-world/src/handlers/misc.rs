@@ -48,13 +48,13 @@ use wow_packet::packets::loot::{LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHI
 use wow_packet::packets::misc::{
     AcceptGuildInvite, AcceptTrade, AcceptWargameInvite, ActivateTaxi, ActivateTaxiReply, AddToy,
     AddonList, ArenaTeamAccept, ArenaTeamDecline, ArenaTeamDisband, ArenaTeamLeader,
-    ArenaTeamLeave, ArenaTeamRemove, ArenaTeamRoster, AuctionReplicateItems, AuctionableTokenSell,
-    AuctionableTokenSellAtMarketPrice, BattlePetClearFanfare, BattlePetDeletePet,
-    BattlePetModifyName, BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags,
-    BattlePetSummon, BattlePetUpdateNotify, BattlefieldLeave, BeginTrade, BugReport, BusyTrade,
-    CageBattlePet, CalendarSendCalendar, CalendarSendNumPending, CanDuel, ClearTradeItem,
-    CloseInteraction, CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint, ComplaintResult,
-    DeclineGuildInvites, DeclinePetition, DfGetJoinStatus, DfGetSystemInfo,
+    ArenaTeamLeave, ArenaTeamRemove, ArenaTeamRoster, AuctionPlaceBid, AuctionReplicateItems,
+    AuctionableTokenSell, AuctionableTokenSellAtMarketPrice, BattlePetClearFanfare,
+    BattlePetDeletePet, BattlePetModifyName, BattlePetRequestJournal, BattlePetSetBattleSlot,
+    BattlePetSetFlags, BattlePetSummon, BattlePetUpdateNotify, BattlefieldLeave, BeginTrade,
+    BugReport, BusyTrade, CageBattlePet, CalendarSendCalendar, CalendarSendNumPending, CanDuel,
+    ClearTradeItem, CloseInteraction, CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint,
+    ComplaintResult, DeclineGuildInvites, DeclinePetition, DfGetJoinStatus, DfGetSystemInfo,
     ERR_TAXITOOFARAWAY_LIKE_CPP, FarSight, GmTicketAcknowledgeSurvey, GmTicketCaseStatus,
     GmTicketSystemStatus, GuildSetAchievementTracking, IgnoreTrade, LfgListBlacklist,
     LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify, MAX_ACCOUNT_DATA_SIZE_LIKE_CPP,
@@ -84,8 +84,9 @@ use crate::entity_update_bridge::player_values_update_to_update_object;
 use crate::handlers::loot::represented_gameobject_interaction_distance_like_cpp;
 use crate::session::{
     CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP, RepresentedActivateTaxiLikeCpp,
-    RepresentedAuctionReplicateRequestLikeCpp, RepresentedGameObjectAccessLikeCpp,
-    RepresentedGameObjectUseEffect, SpellCastMetadata, TRADE_STATUS_PLAYER_BUSY_LIKE_CPP,
+    RepresentedAuctionPlaceBidLikeCpp, RepresentedAuctionReplicateRequestLikeCpp,
+    RepresentedGameObjectAccessLikeCpp, RepresentedGameObjectUseEffect, SpellCastMetadata,
+    TRADE_STATUS_PLAYER_BUSY_LIKE_CPP,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1546,6 +1547,15 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
+        opcode: ClientOpcodes::AuctionPlaceBid,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_auction_place_bid",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
         opcode: ClientOpcodes::AuctionReplicateItems,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
@@ -1670,6 +1680,8 @@ pub fn bug_report_insert_statement_like_cpp(report: &BugReport) -> PreparedState
     stmt.set_string(1, report.diag_info.clone());
     stmt
 }
+
+const SILVER_LIKE_CPP: u64 = 100;
 
 impl crate::session::WorldSession {
     /// C++ `WorldSession::HandleFarSightOpcode`: does not create/remove the
@@ -4437,6 +4449,35 @@ impl crate::session::WorldSession {
         &mut self,
         _packet: wow_packet::packets::misc::AuctionListItems,
     ) {
+    }
+
+    /// CMSG_AUCTION_PLACE_BID — bid or buyout an auction.
+    ///
+    /// C++ gates on throttle, auctioneer interaction, and silver granularity
+    /// before reaching AuctionMgr state. Rust has no live AH state yet, so this
+    /// records the represented request after the interaction gate.
+    pub async fn handle_auction_place_bid(&mut self, packet: AuctionPlaceBid) {
+        let Some(_auctioneer) = self.represented_npc_can_interact_with_like_cpp(
+            packet.auctioneer,
+            NPCFlags1::AUCTIONEER.bits(),
+            0,
+        ) else {
+            debug!(
+                account = self.account_id,
+                auctioneer = ?packet.auctioneer,
+                auction_id = packet.auction_id,
+                "AuctionPlaceBid rejected: auctioneer missing, invalid, hostile/dead, out of range, or lacks AUCTIONEER flag"
+            );
+            return;
+        };
+
+        self.record_represented_auction_place_bid_like_cpp(RepresentedAuctionPlaceBidLikeCpp {
+            auctioneer: packet.auctioneer,
+            auction_id: packet.auction_id,
+            bid_amount: packet.bid_amount,
+            tainted_by_present: packet.tainted_by.is_some(),
+            copper_rejected: packet.bid_amount % SILVER_LIKE_CPP != 0,
+        });
     }
 
     /// CMSG_AUCTION_REPLICATE_ITEMS — replicate auction-house changes.
@@ -11835,6 +11876,161 @@ mod tests {
             .await;
 
         assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn auction_place_bid_records_request_after_auctioneer_gate_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager_for_misc_test();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let auctioneer =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 90_002, 79);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(crate::session::SessionPlayerController::new(
+            player_guid,
+            "Tester".to_string(),
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map_for_misc_test(
+            &canonical,
+            player_guid,
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            571,
+            0,
+        );
+        add_canonical_auctioneer_for_misc_test(
+            &canonical,
+            auctioneer,
+            Position::new(12.0, 0.0, 0.0, 0.0),
+            NPCFlags1::AUCTIONEER.bits(),
+        );
+
+        session
+            .handle_auction_place_bid(AuctionPlaceBid {
+                auctioneer,
+                auction_id: 1234,
+                bid_amount: 12_300,
+                tainted_by: Some(wow_packet::packets::misc::AuctionAddonInfo {
+                    name: "Trade".to_string(),
+                    version: "1.0".to_string(),
+                    loaded: true,
+                    disabled: false,
+                }),
+            })
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+        assert_eq!(
+            session.represented_auction_place_bids_like_cpp(),
+            &[RepresentedAuctionPlaceBidLikeCpp {
+                auctioneer,
+                auction_id: 1234,
+                bid_amount: 12_300,
+                tainted_by_present: true,
+                copper_rejected: false,
+            }]
+        );
+    }
+
+    #[tokio::test]
+    async fn auction_place_bid_rejects_missing_auctioneer_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager_for_misc_test();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let missing_auctioneer =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 90_002, 80);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(crate::session::SessionPlayerController::new(
+            player_guid,
+            "Tester".to_string(),
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map_for_misc_test(
+            &canonical,
+            player_guid,
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            571,
+            0,
+        );
+
+        session
+            .handle_auction_place_bid(AuctionPlaceBid {
+                auctioneer: missing_auctioneer,
+                auction_id: 1234,
+                bid_amount: 12_300,
+                tainted_by: None,
+            })
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+        assert!(session.represented_auction_place_bids_like_cpp().is_empty());
+    }
+
+    #[tokio::test]
+    async fn auction_place_bid_marks_copper_amount_rejected_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager_for_misc_test();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let auctioneer =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 90_002, 81);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(crate::session::SessionPlayerController::new(
+            player_guid,
+            "Tester".to_string(),
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map_for_misc_test(
+            &canonical,
+            player_guid,
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            571,
+            0,
+        );
+        add_canonical_auctioneer_for_misc_test(
+            &canonical,
+            auctioneer,
+            Position::new(12.0, 0.0, 0.0, 0.0),
+            NPCFlags1::AUCTIONEER.bits(),
+        );
+
+        session
+            .handle_auction_place_bid(AuctionPlaceBid {
+                auctioneer,
+                auction_id: 1234,
+                bid_amount: 12_301,
+                tainted_by: None,
+            })
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+        assert_eq!(
+            session.represented_auction_place_bids_like_cpp(),
+            &[RepresentedAuctionPlaceBidLikeCpp {
+                auctioneer,
+                auction_id: 1234,
+                bid_amount: 12_301,
+                tainted_by_present: false,
+                copper_rejected: true,
+            }]
+        );
     }
 
     #[tokio::test]

@@ -5353,6 +5353,37 @@ impl ClientPacket for AuctionReplicateItems {
     }
 }
 
+/// C++ `WorldPackets::AuctionHouse::AuctionPlaceBid`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuctionPlaceBid {
+    pub auctioneer: ObjectGuid,
+    pub auction_id: i32,
+    pub bid_amount: u64,
+    pub tainted_by: Option<AuctionAddonInfo>,
+}
+
+impl ClientPacket for AuctionPlaceBid {
+    const OPCODE: ClientOpcodes = ClientOpcodes::AuctionPlaceBid;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let auctioneer = pkt.read_guid()?;
+        let auction_id = pkt.read_int32()?;
+        let bid_amount = pkt.read_uint64()?;
+        let tainted_by = if pkt.read_bit()? {
+            Some(AuctionAddonInfo::read(pkt)?)
+        } else {
+            None
+        };
+
+        Ok(Self {
+            auctioneer,
+            auction_id,
+            bid_amount,
+            tainted_by,
+        })
+    }
+}
+
 /// SMSG_AUCTION_LIST_BIDDER_ITEMS_RESULT — empty bidder list.
 pub struct AuctionListBidderItemsResult;
 impl ServerPacket for AuctionListBidderItemsResult {
@@ -7848,6 +7879,63 @@ mod tests {
         assert_eq!(request.change_number_cursor, 2);
         assert_eq!(request.change_number_tombstone, 3);
         assert_eq!(request.count, 4);
+        assert_eq!(
+            request.tainted_by,
+            Some(AuctionAddonInfo {
+                name: "Trade".to_string(),
+                version: "1.0".to_string(),
+                loaded: true,
+                disabled: false,
+            })
+        );
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn auction_place_bid_reads_no_tainted_by_like_cpp() {
+        let auctioneer =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9_003, 9);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_guid(&auctioneer);
+        pkt.write_int32(1234);
+        pkt.write_uint64(12_300);
+        pkt.write_bit(false);
+        pkt.flush_bits();
+        pkt.reset_read();
+
+        let request = AuctionPlaceBid::read(&mut pkt).unwrap();
+        assert_eq!(request.auctioneer, auctioneer);
+        assert_eq!(request.auction_id, 1234);
+        assert_eq!(request.bid_amount, 12_300);
+        assert!(request.tainted_by.is_none());
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn auction_place_bid_reads_tainted_by_like_cpp() {
+        let auctioneer =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9_004, 10);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_guid(&auctioneer);
+        pkt.write_int32(5678);
+        pkt.write_uint64(45_600);
+        pkt.write_bit(true);
+        pkt.flush_bits();
+        pkt.write_bits(6, 10); // "Trade" + '\0'
+        pkt.write_bits(4, 10); // "1.0" + '\0'
+        pkt.write_bit(true);
+        pkt.write_bit(false);
+        pkt.flush_bits();
+        pkt.write_string("Trade");
+        pkt.write_uint8(0);
+        pkt.write_string("1.0");
+        pkt.write_uint8(0);
+        pkt.reset_read();
+
+        let request = AuctionPlaceBid::read(&mut pkt).unwrap();
+        assert_eq!(request.auctioneer, auctioneer);
+        assert_eq!(request.auction_id, 5678);
+        assert_eq!(request.bid_amount, 45_600);
         assert_eq!(
             request.tainted_by,
             Some(AuctionAddonInfo {

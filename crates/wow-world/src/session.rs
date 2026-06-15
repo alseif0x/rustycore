@@ -1466,6 +1466,15 @@ pub(crate) struct RepresentedAuctionReplicateRequestLikeCpp {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedAuctionPlaceBidLikeCpp {
+    pub auctioneer: ObjectGuid,
+    pub auction_id: i32,
+    pub bid_amount: u64,
+    pub tainted_by_present: bool,
+    pub copper_rejected: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedCanDuelSpellCastLikeCpp {
     pub target_guid: ObjectGuid,
     pub spell_id: u32,
@@ -2969,6 +2978,7 @@ pub struct WorldSession {
     represented_current_banker_guid_like_cpp: Option<ObjectGuid>,
     represented_bank_item_moves_like_cpp: Vec<RepresentedBankItemMoveLikeCpp>,
     represented_auction_replicate_requests_like_cpp: Vec<RepresentedAuctionReplicateRequestLikeCpp>,
+    represented_auction_place_bids_like_cpp: Vec<RepresentedAuctionPlaceBidLikeCpp>,
     player_xp: u32,
     /// XP required to reach next level, cached from player_xp_for_level.
     player_next_level_xp: u32,
@@ -4374,6 +4384,7 @@ impl WorldSession {
             represented_current_banker_guid_like_cpp: None,
             represented_bank_item_moves_like_cpp: Vec::new(),
             represented_auction_replicate_requests_like_cpp: Vec::new(),
+            represented_auction_place_bids_like_cpp: Vec::new(),
             player_xp: 0,
             player_next_level_xp: 400,
             player_xp_table: None,
@@ -20203,6 +20214,12 @@ impl WorldSession {
                     Err(e) => warn!("Failed to read AuctionListItems: {e}"),
                 }
             }
+            ClientOpcodes::AuctionPlaceBid => {
+                match wow_packet::packets::misc::AuctionPlaceBid::read(&mut pkt) {
+                    Ok(packet) => self.handle_auction_place_bid(packet).await,
+                    Err(e) => warn!("Failed to read AuctionPlaceBid: {e}"),
+                }
+            }
             ClientOpcodes::AuctionReplicateItems => {
                 match wow_packet::packets::misc::AuctionReplicateItems::read(&mut pkt) {
                     Ok(packet) => self.handle_auction_replicate_items(packet).await,
@@ -21297,6 +21314,19 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedAuctionReplicateRequestLikeCpp] {
         &self.represented_auction_replicate_requests_like_cpp
+    }
+
+    pub(crate) fn record_represented_auction_place_bid_like_cpp(
+        &mut self,
+        bid: RepresentedAuctionPlaceBidLikeCpp,
+    ) {
+        self.represented_auction_place_bids_like_cpp.push(bid);
+    }
+
+    pub(crate) fn represented_auction_place_bids_like_cpp(
+        &self,
+    ) -> &[RepresentedAuctionPlaceBidLikeCpp] {
+        &self.represented_auction_place_bids_like_cpp
     }
 
     pub(crate) fn represented_bank_bag_slot_flag_like_cpp(&self, slot: usize) -> Option<u32> {
