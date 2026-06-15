@@ -19356,6 +19356,12 @@ impl WorldSession {
                     Err(e) => warn!("Failed to read QueryPageText: {e}"),
                 }
             }
+            ClientOpcodes::ItemTextQuery => {
+                match wow_packet::packets::query::ItemTextQuery::read(&mut pkt) {
+                    Ok(query) => self.handle_item_text_query(query).await,
+                    Err(e) => warn!("Failed to read ItemTextQuery: {e}"),
+                }
+            }
             ClientOpcodes::QueryPetName => {
                 match wow_packet::packets::query::QueryPetName::read(&mut pkt) {
                     Ok(query) => self.handle_query_pet_name(query).await,

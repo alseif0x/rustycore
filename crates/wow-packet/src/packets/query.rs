@@ -544,6 +544,65 @@ impl ServerPacket for QueryPageTextResponse {
     }
 }
 
+// ── CMSG_ITEM_TEXT_QUERY (0x32C5) ───────────────────────────────────
+
+/// C++ `WorldPackets::Query::ItemTextQuery`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ItemTextQuery {
+    pub id: ObjectGuid,
+}
+
+impl ClientPacket for ItemTextQuery {
+    const OPCODE: ClientOpcodes = ClientOpcodes::ItemTextQuery;
+
+    fn read(packet: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            id: packet.read_guid()?,
+        })
+    }
+}
+
+/// C++ `WorldPackets::Query::QueryItemTextResponse`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QueryItemTextResponse {
+    pub id: ObjectGuid,
+    pub valid: bool,
+    pub text: String,
+}
+
+impl QueryItemTextResponse {
+    pub fn invalid_like_cpp(id: ObjectGuid) -> Self {
+        Self {
+            id,
+            valid: false,
+            text: String::new(),
+        }
+    }
+
+    pub fn valid_like_cpp(id: ObjectGuid, text: impl Into<String>) -> Self {
+        Self {
+            id,
+            valid: true,
+            text: text.into(),
+        }
+    }
+}
+
+impl ServerPacket for QueryItemTextResponse {
+    const OPCODE: ServerOpcodes = ServerOpcodes::QueryItemTextResponse;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_bit(self.valid);
+        pkt.flush_bits();
+
+        pkt.write_bits(self.text.len() as u32, 13);
+        pkt.flush_bits();
+        pkt.write_string(&self.text);
+
+        pkt.write_guid(&self.id);
+    }
+}
+
 // ── CMSG_QUERY_PET_NAME (0x3275) ────────────────────────────────────
 
 /// Client request for an in-world pet/creature name.
@@ -845,6 +904,54 @@ mod tests {
         assert_eq!(bytes[25], 0x30);
         assert_eq!(&bytes[26..29], b"abc");
         assert_eq!(bytes.len(), 29);
+    }
+
+    #[test]
+    fn item_text_query_reads_cpp_raw_item_guid() {
+        let guid =
+            ObjectGuid::create_world_object(wow_core::guid::HighGuid::Item, 0, 1, 0, 0, 7, 9);
+        let mut data = (ClientOpcodes::ItemTextQuery as u16).to_le_bytes().to_vec();
+        data.extend_from_slice(&guid.to_raw_bytes());
+        let mut pkt = WorldPacket::from_bytes(&data);
+        pkt.skip_opcode();
+
+        let query = ItemTextQuery::read(&mut pkt).unwrap();
+        assert_eq!(query.id, guid);
+    }
+
+    #[test]
+    fn query_item_text_response_writes_cpp_invalid_shape() {
+        let guid =
+            ObjectGuid::create_world_object(wow_core::guid::HighGuid::Item, 0, 1, 0, 0, 7, 9);
+        let bytes = QueryItemTextResponse::invalid_like_cpp(guid).to_bytes();
+
+        assert_eq!(
+            bytes[0..2],
+            (ServerOpcodes::QueryItemTextResponse as u16).to_le_bytes()
+        );
+        assert_eq!(bytes[2], 0x00);
+        assert_eq!(bytes[3], 0x00);
+        assert_eq!(bytes[4], 0x00);
+        assert_eq!(&bytes[5..21], &guid.to_raw_bytes());
+        assert_eq!(bytes.len(), 21);
+    }
+
+    #[test]
+    fn query_item_text_response_writes_cpp_valid_text_then_id() {
+        let guid =
+            ObjectGuid::create_world_object(wow_core::guid::HighGuid::Item, 0, 1, 0, 0, 7, 9);
+        let bytes = QueryItemTextResponse::valid_like_cpp(guid, "abc").to_bytes();
+
+        assert_eq!(
+            bytes[0..2],
+            (ServerOpcodes::QueryItemTextResponse as u16).to_le_bytes()
+        );
+        assert_eq!(bytes[2], 0x80);
+        assert_eq!(bytes[3], 0x00);
+        assert_eq!(bytes[4], 0x18);
+        assert_eq!(&bytes[5..8], b"abc");
+        assert_eq!(&bytes[8..24], &guid.to_raw_bytes());
+        assert_eq!(bytes.len(), 24);
     }
 
     #[test]

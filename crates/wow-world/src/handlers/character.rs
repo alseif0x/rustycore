@@ -412,6 +412,15 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
+        opcode: ClientOpcodes::ItemTextQuery,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_item_text_query",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
         opcode: ClientOpcodes::QueryPetName,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
@@ -5445,6 +5454,16 @@ impl WorldSession {
             allow: !pages.is_empty(),
             pages,
         });
+    }
+
+    pub async fn handle_item_text_query(&mut self, query: ItemTextQuery) {
+        let response = self
+            .inventory_item_objects_like_cpp()
+            .get(&query.id)
+            .map(|item| QueryItemTextResponse::valid_like_cpp(query.id, item.text().to_string()))
+            .unwrap_or_else(|| QueryItemTextResponse::invalid_like_cpp(query.id));
+
+        self.send_packet(&response);
     }
 
     /// CMSG_QUERY_PET_NAME — resolve an in-world pet name.
@@ -13037,6 +13056,61 @@ mod tests {
         assert_eq!(&bytes[2..6], &123_u32.to_le_bytes());
         assert_eq!(bytes[6], 0x00);
         assert_eq!(bytes.len(), 7);
+    }
+
+    #[tokio::test]
+    async fn item_text_query_missing_item_sends_cpp_invalid_shape() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        let item_guid = ObjectGuid::create_world_object(HighGuid::Item, 0, 1, 0, 0, 700, 1);
+
+        session
+            .handle_item_text_query(ItemTextQuery { id: item_guid })
+            .await;
+
+        let bytes = send_rx.try_recv().expect("item text response");
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            wow_constants::ServerOpcodes::QueryItemTextResponse as u16
+        );
+        assert_eq!(bytes[2], 0x00);
+        assert_eq!(bytes[3], 0x00);
+        assert_eq!(bytes[4], 0x00);
+        assert_eq!(&bytes[5..21], &item_guid.to_raw_bytes());
+        assert_eq!(bytes.len(), 21);
+    }
+
+    #[tokio::test]
+    async fn item_text_query_inventory_item_sends_text_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        let owner_guid = ObjectGuid::create_player(1, 700);
+        let item_guid = ObjectGuid::create_world_object(HighGuid::Item, 0, 1, 0, 0, 700, 2);
+        let mut item = session.make_inventory_item_object(
+            item_guid,
+            8000,
+            owner_guid,
+            1,
+            0,
+            ItemContext::None,
+            0,
+        );
+        item.set_text("abc");
+        session.insert_inventory_item_object(item);
+
+        session
+            .handle_item_text_query(ItemTextQuery { id: item_guid })
+            .await;
+
+        let bytes = send_rx.try_recv().expect("item text response");
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            wow_constants::ServerOpcodes::QueryItemTextResponse as u16
+        );
+        assert_eq!(bytes[2], 0x80);
+        assert_eq!(bytes[3], 0x00);
+        assert_eq!(bytes[4], 0x18);
+        assert_eq!(&bytes[5..8], b"abc");
+        assert_eq!(&bytes[8..24], &item_guid.to_raw_bytes());
+        assert_eq!(bytes.len(), 24);
     }
 
     #[tokio::test]
