@@ -11501,6 +11501,7 @@ impl WorldSession {
             | ClientOpcodes::ArenaTeamRemove
             | ClientOpcodes::ArenaTeamDisband
             | ClientOpcodes::ArenaTeamLeader
+            | ClientOpcodes::QueryArenaTeam
             | ClientOpcodes::QuestConfirmAccept
             | ClientOpcodes::GuildEventLogQuery
             | ClientOpcodes::QuestGiverStatusMultipleQuery
@@ -18841,6 +18842,9 @@ impl WorldSession {
             }
             ClientOpcodes::ArenaTeamLeader => {
                 self.handle_arena_team_leader(pkt).await;
+            }
+            ClientOpcodes::QueryArenaTeam => {
+                self.handle_query_arena_team(pkt).await;
             }
             ClientOpcodes::RequestRaidInfo => {
                 self.handle_request_raid_info(pkt).await;

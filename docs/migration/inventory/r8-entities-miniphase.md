@@ -1,3 +1,11 @@
+- `#NEXT.R8.ENTITIES.910` — represented-partial implementation for `CMSG_QUERY_ARENA_TEAM`.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/BattleGroundHandler.cpp:1338-1345` (`WorldSession::HandleQueryArenaTeam`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/ArenaTeamPackets.h:67-73` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/ArenaTeamPackets.cpp:27-30` (`QueryArenaTeam::Read`, `uint32 TeamId`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:500` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:748` (`STATUS_LOGGEDIN`, `PROCESS_THREADUNSAFE`, `HandleQueryArenaTeam`).
+
+Implemented Rust seam: `QueryArenaTeam` parses the C++ `uint32 TeamId`; `CMSG_QUERY_ARENA_TEAM` registers `LoggedIn`/`ThreadUnsafe` dispatch and routes through `WorldSession`; with no live represented `ArenaTeamMgr`, Rust preserves the C++ no-team branch by returning silently instead of fabricating arena-team stats.
+
+Boundaries: represented-partial only. Rust does not yet implement live `ArenaTeamMgr` lookup, `team->SendStats`, `SMSG_QUERY_ARENA_TEAM_RESPONSE` serializer/body, arena-team stats/members, DB persistence, install/restart, bot, or live-client/manual validation.
+
 - `#NEXT.R8.ENTITIES.909` — represented-partial implementation for `CMSG_ARENA_TEAM_ACCEPT`, `CMSG_ARENA_TEAM_LEAVE`, `CMSG_ARENA_TEAM_REMOVE`, `CMSG_ARENA_TEAM_DISBAND`, and `CMSG_ARENA_TEAM_LEADER`.
 
 C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/BattleGroundHandler.cpp:757-848` (`HandleArenaTeamAccept`, `HandleArenaTeamLeave`, `HandleArenaTeamRemove`, `HandleArenaTeamDisband`, `HandleArenaTeamLeader`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/ArenaTeamPackets.h:23-68` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/ArenaTeamPackets.cpp:12-30` (empty accept/leave packets, `TeamId`, and 9-bit `TargetName` packet shapes); `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:63-68` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:163-168`.

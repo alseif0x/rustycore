@@ -57,15 +57,16 @@ use wow_packet::packets::misc::{
     GmTicketSystemStatus, GuildSetAchievementTracking, IgnoreTrade, LfgListBlacklist,
     LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify, MAX_ACCOUNT_DATA_SIZE_LIKE_CPP,
     MountSetFavorite, MountSpecial, NUM_ACCOUNT_DATA_TYPES, ObjectUpdateFailed,
-    ObjectUpdateRescued, QueryBattlePetName, QueryBattlePetNameResponse, QueryPetition,
-    QueryPetitionResponse, RatedPvpInfo, RequestAccountData, RequestBattlefieldStatus,
-    RequestCemeteryListResponse, ResurrectResponse, SaveCufProfiles, SetAdvancedCombatLogging,
-    SetCurrencyFlags, SetTaxiBenchmarkMode, SetTradeGold, SetTradeItem, SetTradeSpell,
-    SignPetition, SpecialMountAnim, StandStateChange, SubmitUserFeedback, SupportTicketSubmitBug,
-    SupportTicketSubmitComplaint, SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
-    TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP, TaxiNodeStatusPkt, TogglePvp, ToyClearFanfare,
-    UnacceptTrade, UpdateAccountData, UseToy, UserClientUpdateAccountData, ViolenceLevel,
-    compress_account_data_like_cpp, decompress_account_data_like_cpp,
+    ObjectUpdateRescued, QueryArenaTeam, QueryBattlePetName, QueryBattlePetNameResponse,
+    QueryPetition, QueryPetitionResponse, RatedPvpInfo, RequestAccountData,
+    RequestBattlefieldStatus, RequestCemeteryListResponse, ResurrectResponse, SaveCufProfiles,
+    SetAdvancedCombatLogging, SetCurrencyFlags, SetTaxiBenchmarkMode, SetTradeGold, SetTradeItem,
+    SetTradeSpell, SignPetition, SpecialMountAnim, StandStateChange, SubmitUserFeedback,
+    SupportTicketSubmitBug, SupportTicketSubmitComplaint, SupportTicketSubmitSuggestion,
+    TRADE_STATUS_CANCELLED_LIKE_CPP, TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP, TaxiNodeStatusPkt,
+    TogglePvp, ToyClearFanfare, UnacceptTrade, UpdateAccountData, UseToy,
+    UserClientUpdateAccountData, ViolenceLevel, compress_account_data_like_cpp,
+    decompress_account_data_like_cpp,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -1099,6 +1100,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_arena_team_leader",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::QueryArenaTeam,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_query_arena_team",
     }
 }
 
@@ -3618,6 +3628,26 @@ impl crate::session::WorldSession {
         );
     }
 
+    pub async fn handle_query_arena_team(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let request = match QueryArenaTeam::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "QueryArenaTeam parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        // C++ returns silently when sArenaTeamMgr has no arena team for TeamId.
+        debug!(
+            account = self.account_id,
+            team_id = request.team_id,
+            "QueryArenaTeam ignored without represented arena-team manager"
+        );
+    }
+
     pub async fn handle_request_raid_info(&mut self, _pkt: wow_packet::WorldPacket) {
         let locks = match (self.player_guid(), self.instance_lock_mgr.as_ref()) {
             (Some(player_guid), Some(instance_lock_mgr)) => {
@@ -5671,6 +5701,17 @@ mod tests {
         pkt.write_string("Leader");
 
         session.handle_arena_team_leader(pkt).await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn query_arena_team_without_manager_is_silent_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(77);
+
+        session.handle_query_arena_team(pkt).await;
 
         assert!(send_rx.try_recv().is_err());
     }

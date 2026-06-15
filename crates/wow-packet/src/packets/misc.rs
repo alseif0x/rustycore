@@ -5419,6 +5419,22 @@ impl ClientPacket for ArenaTeamLeader {
     }
 }
 
+/// C++ `WorldPackets::ArenaTeam::QueryArenaTeam`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct QueryArenaTeam {
+    pub team_id: u32,
+}
+
+impl ClientPacket for QueryArenaTeam {
+    const OPCODE: ClientOpcodes = ClientOpcodes::QueryArenaTeam;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            team_id: pkt.read_uint32()?,
+        })
+    }
+}
+
 /// C++ `WorldPackets::Trade::BusyTrade`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct BusyTrade;
@@ -6677,6 +6693,17 @@ mod tests {
 
         assert_eq!(request.team_id, 0x5566_7788);
         assert_eq!(request.target_name, "Leader");
+    }
+
+    #[test]
+    fn query_arena_team_reads_team_id_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(0xAABB_CCDD);
+        pkt.reset_read();
+
+        let request = QueryArenaTeam::read(&mut pkt).unwrap();
+
+        assert_eq!(request.team_id, 0xAABB_CCDD);
     }
 
     #[test]
