@@ -1,3 +1,19 @@
+- `#NEXT.RUNTIME.L3.031j36` — WotLK represented non-OR_DB nearby-entry destination failure for
+  summon GameObject spells (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/Spell.cpp:1132-1208`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/Spell.cpp:1215-1285`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/Spell.cpp:2108-2190`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/Spell.cpp:9070-9085`, and
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:1480`.
+  Acceptance: Rust now preserves the C++ distinction between target 46/107 and `_OR_DB`: if a
+  represented GameObject summon uses `TARGET_DEST_NEARBY_ENTRY` or `TARGET_DEST_NEARBY_ENTRY_2`,
+  has no explicit/focus destination, and represented `SearchNearbyTarget` finds no matching object,
+  the cast sends `SMSG_CAST_FAILED` with `SPELL_FAILED_BAD_IMPLICIT_TARGETS` before `SMSG_SPELL_GO`
+  and does not fabricate a caster-based summon. `_OR_DB` keeps its DB/caster fallback behavior.
+  Coverage proves the no-target target-46 case emits exactly the CastFailed packet and creates no
+  GameObject. Boundary remains partial: no full bad-target target-selection engine, no script hooks,
+  no full LOS/phase/grid visitor parity, no player/corpse/dynamic-object search, and no
+  install/restart, bot, or live-client/manual validation.
 - `#NEXT.RUNTIME.L3.031j35` — C++-verified creature movement suite repair after broad validation.
   Source-of-truth:
   `/home/server/woltk-trinity-legacy/src/server/game/Movement/MovementGenerators/WaypointMovementGenerator.cpp:288-304`,

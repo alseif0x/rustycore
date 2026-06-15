@@ -1885,6 +1885,14 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   explicitly. Validation: focused movement tests and `wow-world --lib --test-threads=1` are green
   at 1981/0. Remaining boundary: no full movement/pathing/MMAP parity audit or live client/bot
   validation.
+- 2026-06-15 — WotLK represented non-OR_DB nearby-entry destination failure
+  `#NEXT.RUNTIME.L3.031j36`: contrasted `Spell::SelectImplicitNearbyTargets` failure flow for
+  targets 46/107 against C++. Rust now stops represented GameObject summons before `SMSG_SPELL_GO`
+  when `TARGET_DEST_NEARBY_ENTRY` / `_2` cannot resolve a nearby represented object, sends
+  `SPELL_FAILED_BAD_IMPLICIT_TARGETS`, and avoids the previous false caster fallback. `_OR_DB`
+  remains the only nearby-entry destination target in this family with DB/caster fallback behavior.
+  Remaining boundary: no full target-selection engine, script hooks, exact grid/phase/LOS parity,
+  or live client/bot validation.
 
 ## References
 

@@ -238,6 +238,20 @@ fn spell_effect_is_represented_summon_object_slot_like_cpp(effect: u32) -> bool 
     (slot_base..slot_end).contains(&effect)
 }
 
+fn spell_effect_has_non_or_db_nearby_entry_destination_like_cpp(
+    effect: &wow_data::SpellEffectInfo,
+) -> bool {
+    matches!(
+        effect.implicit_target_1,
+        wow_data::spell::implicit_targets::TARGET_DEST_NEARBY_ENTRY
+            | wow_data::spell::implicit_targets::TARGET_DEST_NEARBY_ENTRY_2
+    ) || matches!(
+        effect.implicit_target_2,
+        wow_data::spell::implicit_targets::TARGET_DEST_NEARBY_ENTRY
+            | wow_data::spell::implicit_targets::TARGET_DEST_NEARBY_ENTRY_2
+    )
+}
+
 fn quest_has_represented_item_objective_like_cpp(quest: &wow_data::quest::QuestTemplate) -> bool {
     quest
         .objectives
@@ -34539,6 +34553,31 @@ impl WorldSession {
             return Ok(());
         }
 
+        if self.represented_gameobject_summon_missing_nearby_entry_destination_like_cpp(
+            spell_id,
+            &spell_info,
+            &target_data,
+            represented_focus_object,
+        ) {
+            // C++ `Spell::SelectImplicitNearbyTargets` sends
+            // `SPELL_FAILED_BAD_IMPLICIT_TARGETS` and finishes before
+            // `SMSG_SPELL_GO` when non-OR_DB nearby-entry destination targets
+            // cannot resolve a nearby object.
+            self.send_packet(&wow_packet::packets::spell::CastFailed {
+                cast_id,
+                spell_id,
+                reason: SpellCastResult::BadImplicitTargets as i32,
+                fail_arg1: 0,
+                fail_arg2: 0,
+            });
+            debug!(
+                account = self.account_id,
+                spell_id = spell_id,
+                "Failing represented GameObject summon because C++ nearby-entry destination search found no target"
+            );
+            return Ok(());
+        }
+
         // Send SMSG_SPELL_GO
         use wow_packet::packets::spell::SpellGoPkt;
 
@@ -35600,6 +35639,47 @@ impl WorldSession {
             position,
         });
         Some(target_data)
+    }
+
+    fn represented_gameobject_summon_missing_nearby_entry_destination_like_cpp(
+        &mut self,
+        spell_id: i32,
+        spell_info: &wow_data::SpellInfo,
+        target_data: &SpellTargetData,
+        focus_object: Option<RepresentedSpellFocusObjectLikeCpp>,
+    ) -> bool {
+        if target_data.dst_location.is_some() {
+            return false;
+        }
+
+        spell_info.effects().iter().any(|effect| {
+            if effect.effect != wow_data::spell::spell_effect_types::SPELL_EFFECT_SUMMON_OBJECT_WILD
+                && !spell_effect_is_represented_summon_object_slot_like_cpp(effect.effect)
+            {
+                return false;
+            }
+            if !spell_effect_has_non_or_db_nearby_entry_destination_like_cpp(effect) {
+                return false;
+            }
+            if self
+                .represented_focus_destination_target_data_like_cpp(
+                    spell_id,
+                    effect,
+                    target_data,
+                    focus_object,
+                )
+                .is_some()
+            {
+                return false;
+            }
+
+            self.represented_nearby_entry_destination_target_data_like_cpp(
+                spell_id,
+                effect,
+                target_data,
+            )
+            .is_none()
+        })
     }
 
     fn randomized_or_db_caster_fallback_destination_like_cpp(
@@ -43665,6 +43745,89 @@ mod tests {
             update_object_packet_count_like_cpp(&packets) >= 1,
             "nearby-entry destination summon should trigger represented visibility create/update delivery"
         );
+    }
+
+    #[tokio::test]
+    async fn nearby_entry_destination_without_target_fails_bad_implicit_targets_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 722_i32;
+        let template_entry = 9028_u32;
+        let player_guid = ObjectGuid::create_player(1, 7037);
+        let player_position = Position::new(340.0, 440.0, 63.0, 0.0);
+        let canonical = shared_canonical_map_manager();
+        let mut summon_effect =
+            summon_object_wild_effect_like_cpp(i32::try_from(template_entry).unwrap());
+        summon_effect.implicit_target_1 =
+            wow_data::spell::implicit_targets::TARGET_DEST_NEARBY_ENTRY;
+
+        configure_gameobject_summon_live_session_like_cpp(
+            &mut session,
+            &canonical,
+            player_guid,
+            player_position,
+            summon_go_template_store_like_cpp(template_entry),
+            gameobject_summon_spell_info_like_cpp(spell_id, 0, vec![summon_effect]),
+        );
+        let mut misc = summon_go_spell_misc_entry_like_cpp(spell_id as u32, 0);
+        misc.range_index = 89;
+        session.set_spell_misc_store(Arc::new(wow_data::SpellMiscStore::from_entries([misc])));
+        session.set_spell_range_store(Arc::new(wow_data::SpellRangeStore::from_entries([
+            wow_data::SpellRangeEntry {
+                id: 89,
+                display_name: String::new(),
+                display_name_short: String::new(),
+                flags: 0,
+                range_min: [0.0, 0.0],
+                range_max: [30.0, 30.0],
+            },
+        ])));
+
+        session
+            .execute_spell_with_visual_and_target_data(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual {
+                    spell_visual_id: 722,
+                    script_visual_id: 0,
+                },
+                SpellTargetData::default(),
+            )
+            .await
+            .expect("missing nearby-entry target should be reported as a represented cast failure");
+
+        assert!(
+            session
+                .client_visible_guids_like_cpp
+                .iter()
+                .copied()
+                .all(|guid| !guid.is_game_object()),
+            "C++ TARGET_DEST_NEARBY_ENTRY must not fall back to a caster-based GameObject when no nearby target exists"
+        );
+        let manager = canonical.lock().unwrap();
+        let managed = manager.find_map(571, 0).expect("canonical map");
+        assert_eq!(
+            managed.map().map_object_count(),
+            1,
+            "missing non-OR_DB nearby-entry destination must fail before fabricating a summoned GameObject"
+        );
+        drop(manager);
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        let expected_cast_failed = wow_packet::packets::spell::CastFailed {
+            cast_id: ObjectGuid::EMPTY,
+            spell_id,
+            reason: SpellCastResult::BadImplicitTargets as i32,
+            fail_arg1: 0,
+            fail_arg2: 0,
+        }
+        .to_bytes();
+        assert_eq!(
+            packets,
+            vec![expected_cast_failed],
+            "C++ Spell::SelectImplicitNearbyTargets sends SPELL_FAILED_BAD_IMPLICIT_TARGETS before SpellGo when target 46 finds no nearby object"
+        );
+        assert_eq!(update_object_packet_count_like_cpp(&packets), 0);
     }
 
     #[tokio::test]
