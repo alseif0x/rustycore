@@ -60,8 +60,9 @@ use wow_packet::packets::misc::{
     SetCurrencyFlags, SetTaxiBenchmarkMode, SpecialMountAnim, StandStateChange, SubmitUserFeedback,
     SupportTicketSubmitBug, SupportTicketSubmitComplaint, SupportTicketSubmitSuggestion,
     TRADE_STATUS_CANCELLED_LIKE_CPP, TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP, TaxiNodeStatusPkt,
-    TogglePvp, ToyClearFanfare, UpdateAccountData, UseToy, UserClientUpdateAccountData,
-    ViolenceLevel, compress_account_data_like_cpp, decompress_account_data_like_cpp,
+    TogglePvp, ToyClearFanfare, UnacceptTrade, UpdateAccountData, UseToy,
+    UserClientUpdateAccountData, ViolenceLevel, compress_account_data_like_cpp,
+    decompress_account_data_like_cpp,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -1130,6 +1131,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_accept_trade",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::UnacceptTrade,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_unaccept_trade",
     }
 }
 
@@ -3593,6 +3603,18 @@ impl crate::session::WorldSession {
         self.accept_represented_trade_like_cpp(packet.state_index);
     }
 
+    pub async fn handle_unaccept_trade(&mut self, mut pkt: wow_packet::WorldPacket) {
+        if let Err(error) = UnacceptTrade::read(&mut pkt) {
+            warn!(
+                account = self.account_id,
+                "UnacceptTrade parse failed: {error}"
+            );
+            return;
+        }
+
+        self.unaccept_represented_trade_like_cpp();
+    }
+
     pub async fn handle_busy_trade(&mut self, mut pkt: wow_packet::WorldPacket) {
         if let Err(error) = BusyTrade::read(&mut pkt) {
             warn!(account = self.account_id, "BusyTrade parse failed: {error}");
@@ -4293,6 +4315,7 @@ mod tests {
     };
     use wow_packet::packets::misc::{
         TRADE_STATUS_ACCEPTED_LIKE_CPP, TRADE_STATUS_STATE_CHANGED_LIKE_CPP,
+        TRADE_STATUS_UNACCEPTED_LIKE_CPP,
     };
 
     fn currency_entry(id: u32) -> wow_data::CurrencyTypesEntry {
@@ -5401,6 +5424,57 @@ mod tests {
             ServerOpcodes::TradeStatus as u16
         );
         assert_eq!(partner_bytes[2], TRADE_STATUS_ACCEPTED_LIKE_CPP << 2);
+    }
+
+    #[tokio::test]
+    async fn unaccept_trade_without_active_trade_is_noop_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_unaccept_trade(WorldPacket::new_empty())
+            .await;
+
+        assert!(!session.represented_trade_accepted_like_cpp());
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn unaccept_trade_clears_acceptance_and_notifies_partner_like_cpp() {
+        let (mut source_session, source_send_rx) = make_session();
+        let (mut partner_session, partner_send_rx) = make_session();
+        let source_guid = ObjectGuid::create_player(1, 77);
+        let partner_guid = ObjectGuid::create_player(1, 88);
+        source_session.set_player_guid(Some(source_guid));
+        partner_session.set_player_guid(Some(partner_guid));
+        source_session.set_represented_active_trade_partner_like_cpp(Some(partner_guid));
+        partner_session.set_represented_active_trade_partner_like_cpp(Some(source_guid));
+        source_session.set_represented_partner_trade_server_state_index_like_cpp(1);
+        source_session.accept_represented_trade_like_cpp(1);
+        assert!(source_session.represented_trade_accepted_like_cpp());
+
+        let registry = Arc::new(PlayerRegistry::default());
+        let partner_command_tx = partner_session.session_command_tx();
+        registry.insert(
+            partner_guid,
+            broadcast_info_with_command_tx(partner_command_tx),
+        );
+        source_session.set_player_registry(registry);
+
+        source_session
+            .handle_unaccept_trade(WorldPacket::new_empty())
+            .await;
+        partner_session
+            .process_represented_session_commands_like_cpp()
+            .await;
+
+        assert!(!source_session.represented_trade_accepted_like_cpp());
+        assert!(source_send_rx.try_recv().is_err());
+        let partner_bytes = partner_send_rx.try_recv().expect("partner trade status");
+        assert_eq!(
+            u16::from_le_bytes([partner_bytes[0], partner_bytes[1]]),
+            ServerOpcodes::TradeStatus as u16
+        );
+        assert_eq!(partner_bytes[2], TRADE_STATUS_UNACCEPTED_LIKE_CPP << 2);
     }
 
     #[tokio::test]

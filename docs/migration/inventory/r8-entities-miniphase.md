@@ -1,4 +1,16 @@
 - `#NEXT.R8.ENTITIES.868` - represented-complete implementation for bounded movement `Handle_NULL` ACK family.
+### #NEXT.R8.ENTITIES.893 — CMSG_UNACCEPT_TRADE
+
+Status: represented-complete for the bounded `WorldSession::HandleUnacceptTradeOpcode` accepted-flag/status seam.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/TradeHandler.cpp:544-550`, `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/TradeData.cpp:135-146`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TradePackets.h:137-143`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:986`, and `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:6465-6481`.
+
+Implemented Rust seam: `UnacceptTrade` parses the C++ empty packet, registers as `LoggedIn`/`PROCESS_THREADUNSAFE`, dispatches through `WorldSession`, preserves the no-op when no represented active trade exists, clears the requester's represented accepted flag like `TradeData::SetAccepted(false, true)`, and queues bounded `SMSG_TRADE_STATUS` with `TRADE_STATUS_UNACCEPTED` to the partner session.
+
+Focused tests/checks: `cargo test -p wow-packet unaccept_trade --lib`; `cargo test -p wow-world unaccept_trade --lib`; `cargo test -p wow-world accept_trade --lib`.
+
+Remaining gaps: full `TradeData`, complete `SMSG_TRADE_UPDATED` payloads, item/money/spell trade execution, DB save transaction, install/restart, bot, and live-client manual validation remain separate work.
+
 ### #NEXT.R8.ENTITIES.892 — CMSG_ACCEPT_TRADE
 
 Status: represented-partial for the bounded `WorldSession::HandleAcceptTradeOpcode` state-index/status handshake.

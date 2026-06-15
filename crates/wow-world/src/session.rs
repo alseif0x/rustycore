@@ -137,7 +137,7 @@ use wow_packet::packets::misc::{
     AccountHeirloom, AccountHeirloomUpdate, AccountMount, AccountMountUpdate, AccountToy,
     AccountToyUpdate, BuyFailed, NUM_ACCOUNT_DATA_TYPES, SellResponse, SetupCurrency,
     SetupCurrencyRecord, TRADE_STATUS_ACCEPTED_LIKE_CPP, TRADE_STATUS_STATE_CHANGED_LIKE_CPP,
-    TradeStatus,
+    TRADE_STATUS_UNACCEPTED_LIKE_CPP, TradeStatus,
 };
 use wow_packet::packets::quest::{
     QuestGiverOfferReward, QuestGiverQuestDetails, QuestGiverQuestList, QuestGiverRequestItems,
@@ -18783,6 +18783,9 @@ impl WorldSession {
             ClientOpcodes::AcceptTrade => {
                 self.handle_accept_trade(pkt).await;
             }
+            ClientOpcodes::UnacceptTrade => {
+                self.handle_unaccept_trade(pkt).await;
+            }
             ClientOpcodes::BusyTrade => {
                 self.handle_busy_trade(pkt).await;
             }
@@ -21287,6 +21290,30 @@ impl WorldSession {
 
         let packet_bytes =
             TradeStatus::status_only_like_cpp(TRADE_STATUS_ACCEPTED_LIKE_CPP).to_bytes();
+        if let Some(registry) = self.player_registry()
+            && let Some(partner) = registry.get(&partner_guid)
+        {
+            let _ = partner
+                .command_tx
+                .try_send(SessionCommand::SendRepresentedTradeStatusLikeCpp(
+                    wow_network::player_registry::SendRepresentedTradeStatusLikeCppCommand {
+                        packet_bytes,
+                    },
+                ));
+        }
+    }
+
+    pub(crate) fn unaccept_represented_trade_like_cpp(&mut self) {
+        use wow_packet::ServerPacket;
+
+        let Some(partner_guid) = self.represented_active_trade_partner_like_cpp else {
+            return;
+        };
+
+        self.represented_trade_accepted_like_cpp = false;
+
+        let packet_bytes =
+            TradeStatus::status_only_like_cpp(TRADE_STATUS_UNACCEPTED_LIKE_CPP).to_bytes();
         if let Some(registry) = self.player_registry()
             && let Some(partner) = registry.get(&partner_guid)
         {

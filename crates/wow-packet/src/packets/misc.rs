@@ -5325,6 +5325,18 @@ impl ClientPacket for AcceptTrade {
     }
 }
 
+/// C++ `WorldPackets::Trade::UnacceptTrade`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct UnacceptTrade;
+
+impl ClientPacket for UnacceptTrade {
+    const OPCODE: ClientOpcodes = ClientOpcodes::UnacceptTrade;
+
+    fn read(_pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self)
+    }
+}
+
 /// C++ `WorldPackets::Trade::BeginTrade`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct BeginTrade;
@@ -5360,6 +5372,9 @@ pub const TRADE_STATUS_CANCELLED_LIKE_CPP: u8 = 3;
 
 /// C++ `TRADE_STATUS_ACCEPTED`.
 pub const TRADE_STATUS_ACCEPTED_LIKE_CPP: u8 = 4;
+
+/// C++ `TRADE_STATUS_UNACCEPTED`.
+pub const TRADE_STATUS_UNACCEPTED_LIKE_CPP: u8 = 7;
 
 /// C++ `TRADE_STATUS_STATE_CHANGED`.
 pub const TRADE_STATUS_STATE_CHANGED_LIKE_CPP: u8 = 9;
@@ -6274,6 +6289,13 @@ mod tests {
         let packet = AcceptTrade::read(&mut pkt).unwrap();
 
         assert_eq!(packet.state_index, 0x1122_3344);
+    }
+
+    #[test]
+    fn unaccept_trade_reads_empty_cpp_packet() {
+        let mut pkt = WorldPacket::new_empty();
+
+        UnacceptTrade::read(&mut pkt).unwrap();
     }
 
     #[test]
