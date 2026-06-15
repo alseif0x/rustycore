@@ -1,3 +1,13 @@
+# `#NEXT.R8.ENTITIES.931` — represented-partial for C++ group update sequence reset during `_LoadGroup`.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:18987-19008` (`Player::_LoadGroup`); `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:25230-25244` (`ResetGroupUpdateSequenceIfNeeded`, `NextGroupUpdateSequenceNumber`).
+
+Implemented Rust seam: `WorldSession` now owns represented group update sequence state per C++ group category. Loading a different group resets that category sequence to `1`; reloading the same group preserves the current sequence; `next_group_update_sequence_number_like_cpp` returns the current value before incrementing. `handle_continue_player_login` calls the reset after resolving `SEL_GROUP_MEMBER` through the shared `GroupRegistry`.
+
+Focused tests: first loaded group returns sequence `1` then `2`; reloading the same group does not reset and returns `3`; changing group resets to `1`; no group/no registry is a no-op and invalid categories return `0`.
+
+Boundaries: represented-partial only. Existing `PartyUpdate` delivery still uses `GroupInfo.sequence_num` globally instead of consuming the session-owned sequence per recipient. Exact `SetGroup` subgroup tracking, exact `SetPartyType` update-field mutation, group-owned `CMSG_SET_DIFFICULTY_ID`, `ResetInstances`, fanout, install/restart, bot, and live-client/manual validation remain open.
+
 # `#NEXT.R8.ENTITIES.924` — represented-partial implementation for `CMSG_SET_DIFFICULTY_ID`.
 
 C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:1038-1125`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.h:289-297,321-330`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.cpp:239-242,250-263`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:20651-20666,28550-28590`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:1975-1984,2101-2102`; `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Structure.h:2613`.

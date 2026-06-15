@@ -2620,6 +2620,19 @@ fn default_account_data_like_cpp() -> [AccountDataLikeCpp; NUM_ACCOUNT_DATA_TYPE
     std::array::from_fn(|_| AccountDataLikeCpp::default())
 }
 
+/// C++ `Player::GroupUpdateSequence` entry used by
+/// `ResetGroupUpdateSequenceIfNeeded` and `NextGroupUpdateSequenceNumber`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) struct RepresentedGroupUpdateSequenceLikeCpp {
+    pub group_guid: Option<u64>,
+    pub update_sequence_number: i32,
+}
+
+fn default_group_update_sequences_like_cpp() -> [RepresentedGroupUpdateSequenceLikeCpp;
+    wow_network::group_registry::MAX_GROUP_CATEGORY_LIKE_CPP as usize] {
+    std::array::from_fn(|_| RepresentedGroupUpdateSequenceLikeCpp::default())
+}
+
 /// Per-player session on the world server.
 ///
 /// Receives deserialized packets from the socket layer via a channel,
@@ -2859,6 +2872,8 @@ pub struct WorldSession {
 
     // Group state for this session
     pub(crate) group_guid: Option<u64>,
+    represented_group_update_sequences_like_cpp: [RepresentedGroupUpdateSequenceLikeCpp;
+        wow_network::group_registry::MAX_GROUP_CATEGORY_LIKE_CPP as usize],
     pub(crate) pass_on_group_loot: bool,
     pub(crate) represented_enchanting_skill: u16,
     player_skill_values_like_cpp: HashMap<u16, u16>,
@@ -4299,6 +4314,7 @@ impl WorldSession {
             group_registry: None,
             pending_invites: None,
             group_guid: None,
+            represented_group_update_sequences_like_cpp: default_group_update_sequences_like_cpp(),
             pass_on_group_loot: false,
             represented_enchanting_skill: 0,
             player_skill_values_like_cpp: HashMap::new(),
@@ -14145,6 +14161,46 @@ impl WorldSession {
 
         self.group_guid = Some(group_guid);
         self.load_represented_group_difficulties_like_cpp()
+    }
+
+    /// C++ `Player::ResetGroupUpdateSequenceIfNeeded` resets the per-player
+    /// sequence for a group category only when the loaded group guid changed.
+    pub(crate) fn reset_group_update_sequence_if_needed_like_cpp(&mut self) -> bool {
+        let (Some(group_guid), Some(group_registry)) =
+            (self.group_guid, self.group_registry.as_ref())
+        else {
+            return false;
+        };
+
+        let Some(group) = group_registry.get(&group_guid) else {
+            return false;
+        };
+        let category = group.group_category_like_cpp();
+        if category >= wow_network::group_registry::MAX_GROUP_CATEGORY_LIKE_CPP {
+            return false;
+        }
+
+        let sequence = &mut self.represented_group_update_sequences_like_cpp[usize::from(category)];
+        if sequence.group_guid == Some(group_guid) {
+            return false;
+        }
+
+        sequence.group_guid = Some(group_guid);
+        sequence.update_sequence_number = 1;
+        true
+    }
+
+    /// C++ `Player::NextGroupUpdateSequenceNumber` returns the current
+    /// per-player category sequence and then increments it.
+    pub(crate) fn next_group_update_sequence_number_like_cpp(&mut self, category: u8) -> i32 {
+        if category >= wow_network::group_registry::MAX_GROUP_CATEGORY_LIKE_CPP {
+            return 0;
+        }
+
+        let sequence = &mut self.represented_group_update_sequences_like_cpp[usize::from(category)];
+        let current = sequence.update_sequence_number;
+        sequence.update_sequence_number = sequence.update_sequence_number.saturating_add(1);
+        current
     }
 
     /// C++ `Player::_LoadGroup` sets `PLAYER_FLAGS_GROUP_LEADER` when the
@@ -35269,6 +35325,119 @@ mod tests {
 
         assert!(!session.load_represented_group_by_db_store_id_like_cpp(80_929));
         assert_eq!(session.group_guid, None);
+    }
+
+    #[test]
+    fn reset_group_update_sequence_starts_loaded_group_at_one_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let leader = ObjectGuid::create_player(1, 42);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let group = GroupInfo::new(leader);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+        session.group_guid = Some(group_guid);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+
+        assert!(session.reset_group_update_sequence_if_needed_like_cpp());
+        assert_eq!(
+            session.next_group_update_sequence_number_like_cpp(
+                wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP
+            ),
+            1
+        );
+        assert_eq!(
+            session.next_group_update_sequence_number_like_cpp(
+                wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP
+            ),
+            2
+        );
+    }
+
+    #[test]
+    fn reset_group_update_sequence_does_not_reset_same_group_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let leader = ObjectGuid::create_player(1, 42);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let group = GroupInfo::new(leader);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+        session.group_guid = Some(group_guid);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+
+        assert!(session.reset_group_update_sequence_if_needed_like_cpp());
+        assert_eq!(
+            session.next_group_update_sequence_number_like_cpp(
+                wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP
+            ),
+            1
+        );
+        assert_eq!(
+            session.next_group_update_sequence_number_like_cpp(
+                wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP
+            ),
+            2
+        );
+
+        assert!(!session.reset_group_update_sequence_if_needed_like_cpp());
+        assert_eq!(
+            session.next_group_update_sequence_number_like_cpp(
+                wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP
+            ),
+            3
+        );
+    }
+
+    #[test]
+    fn reset_group_update_sequence_resets_when_group_changes_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let first_leader = ObjectGuid::create_player(1, 42);
+        let second_leader = ObjectGuid::create_player(1, 43);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let first_group = GroupInfo::new(first_leader);
+        let first_group_guid = first_group.group_guid;
+        let second_group = GroupInfo::new(second_leader);
+        let second_group_guid = second_group.group_guid;
+        group_registry.insert(first_group_guid, first_group);
+        group_registry.insert(second_group_guid, second_group);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+
+        session.group_guid = Some(first_group_guid);
+        assert!(session.reset_group_update_sequence_if_needed_like_cpp());
+        assert_eq!(
+            session.next_group_update_sequence_number_like_cpp(
+                wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP
+            ),
+            1
+        );
+        assert_eq!(
+            session.next_group_update_sequence_number_like_cpp(
+                wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP
+            ),
+            2
+        );
+
+        session.group_guid = Some(second_group_guid);
+        assert!(session.reset_group_update_sequence_if_needed_like_cpp());
+        assert_eq!(
+            session.next_group_update_sequence_number_like_cpp(
+                wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP
+            ),
+            1
+        );
+    }
+
+    #[test]
+    fn reset_group_update_sequence_without_group_is_noop_like_cpp() {
+        let (mut session, _, _) = make_session();
+
+        assert!(!session.reset_group_update_sequence_if_needed_like_cpp());
+        assert_eq!(
+            session.next_group_update_sequence_number_like_cpp(
+                wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP
+            ),
+            0
+        );
+        assert_eq!(session.next_group_update_sequence_number_like_cpp(99), 0);
     }
 
     #[test]

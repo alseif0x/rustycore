@@ -2957,6 +2957,7 @@ impl WorldSession {
                     if !group_result.is_empty() {
                         let db_store_id: u32 = group_result.read(0);
                         let _ = self.load_represented_group_by_db_store_id_like_cpp(db_store_id);
+                        let _ = self.reset_group_update_sequence_if_needed_like_cpp();
                     }
                 }
                 Err(error) => {
