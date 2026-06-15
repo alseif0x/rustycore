@@ -156,6 +156,63 @@ impl ClientPacket for AutoStoreBankItem {
     }
 }
 
+// ── Guild Bank ─────────────────────────────────────────────────────
+
+/// C++ `WorldPackets::Guild::AutoGuildBankItem`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AutoGuildBankItem {
+    pub banker: ObjectGuid,
+    pub bank_tab: u8,
+    pub bank_slot: u8,
+    pub container_item_slot: u8,
+    pub container_slot: Option<u8>,
+}
+
+impl ClientPacket for AutoGuildBankItem {
+    const OPCODE: ClientOpcodes = ClientOpcodes::AutoGuildBankItem;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let banker = pkt.read_guid()?;
+        let bank_tab = pkt.read_uint8()?;
+        let bank_slot = pkt.read_uint8()?;
+        let container_item_slot = pkt.read_uint8()?;
+        let has_container_slot = pkt.read_bit()?;
+        let container_slot = if has_container_slot {
+            Some(pkt.read_uint8()?)
+        } else {
+            None
+        };
+
+        Ok(Self {
+            banker,
+            bank_tab,
+            bank_slot,
+            container_item_slot,
+            container_slot,
+        })
+    }
+}
+
+/// C++ `WorldPackets::Guild::AutoStoreGuildBankItem`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AutoStoreGuildBankItem {
+    pub banker: ObjectGuid,
+    pub bank_tab: u8,
+    pub bank_slot: u8,
+}
+
+impl ClientPacket for AutoStoreGuildBankItem {
+    const OPCODE: ClientOpcodes = ClientOpcodes::AutoStoreGuildBankItem;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            banker: pkt.read_guid()?,
+            bank_tab: pkt.read_uint8()?,
+            bank_slot: pkt.read_uint8()?,
+        })
+    }
+}
+
 /// C++ `WorldPackets::Bank::BuyBankSlot`: a single banker `ObjectGuid`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BuyBankSlot {
@@ -11372,6 +11429,46 @@ mod tests {
         assert_eq!(packet.inv_update.items, vec![(255, 39)]);
         assert_eq!(packet.bag, 255);
         assert_eq!(packet.slot, 39);
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn auto_guild_bank_item_reads_cpp_field_order_with_optional_container_slot() {
+        let banker = ObjectGuid::new(0x0102_0304_0506_0708_i64, 0x1112_1314_1516_1718_i64);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_guid(&banker);
+        pkt.write_uint8(2);
+        pkt.write_uint8(14);
+        pkt.write_uint8(22);
+        pkt.write_bit(true);
+        pkt.flush_bits();
+        pkt.write_uint8(5);
+        pkt.reset_read();
+
+        let parsed = AutoGuildBankItem::read(&mut pkt).unwrap();
+
+        assert_eq!(parsed.banker, banker);
+        assert_eq!(parsed.bank_tab, 2);
+        assert_eq!(parsed.bank_slot, 14);
+        assert_eq!(parsed.container_item_slot, 22);
+        assert_eq!(parsed.container_slot, Some(5));
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn auto_store_guild_bank_item_reads_cpp_field_order() {
+        let banker = ObjectGuid::new(0x2122_2324_2526_2728_i64, 0x3132_3334_3536_3738_i64);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_guid(&banker);
+        pkt.write_uint8(3);
+        pkt.write_uint8(19);
+        pkt.reset_read();
+
+        let parsed = AutoStoreGuildBankItem::read(&mut pkt).unwrap();
+
+        assert_eq!(parsed.banker, banker);
+        assert_eq!(parsed.bank_tab, 3);
+        assert_eq!(parsed.bank_slot, 19);
         assert_eq!(pkt.remaining(), 0);
     }
 

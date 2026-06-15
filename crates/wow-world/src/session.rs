@@ -108,18 +108,18 @@ use wow_entities::{
     EQUIPMENT_SLOT_BACK, EQUIPMENT_SLOT_BODY, EQUIPMENT_SLOT_CHEST, EQUIPMENT_SLOT_END,
     EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_HANDS, EQUIPMENT_SLOT_HEAD, EQUIPMENT_SLOT_LEGS,
     EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND, EQUIPMENT_SLOT_SHOULDERS,
-    EQUIPMENT_SLOT_TABARD, EQUIPMENT_SLOT_WAIST, EQUIPMENT_SLOT_WRISTS, GameObject,
-    INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START,
-    INVENTORY_SLOT_ITEM_START, ITEM_DATA_BITS, ITEM_DATA_DURABILITY_BIT, Item, ItemCreateInfo,
-    ItemDataUpdate, ItemLimitCategoryTemplate, ItemPosCount, ItemSlotRef, ItemStorageRef,
-    ItemStorageTemplate, ItemValuesUpdate, MAX_BAG_SIZE, MAX_ITEM_SPELLS, MAX_MONEY_AMOUNT,
-    NULL_BAG, NULL_SLOT, ObjectAccessor, PLAYER_SLOT_END, PhaseShift, Player,
+    EQUIPMENT_SLOT_TABARD, EQUIPMENT_SLOT_WAIST, EQUIPMENT_SLOT_WRISTS, GAMEOBJECT_TYPE_GUILD_BANK,
+    GameObject, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END,
+    INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, ITEM_DATA_BITS, ITEM_DATA_DURABILITY_BIT,
+    Item, ItemCreateInfo, ItemDataUpdate, ItemLimitCategoryTemplate, ItemPosCount, ItemSlotRef,
+    ItemStorageRef, ItemStorageTemplate, ItemValuesUpdate, MAX_BAG_SIZE, MAX_ITEM_SPELLS,
+    MAX_MONEY_AMOUNT, NULL_BAG, NULL_SLOT, ObjectAccessor, PLAYER_SLOT_END, PhaseShift, Player,
     PlayerEnchantTimeUpdate, PlayerInventoryStorage, PlayerItemTimeUpdate,
     QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE, REAGENT_BAG_SLOT_END,
     REAGENT_BAG_SLOT_START, SendNewItemDelivery, SendNewItemDisplayText, SendNewItemPlan,
     TYPEID_ITEM, UNIT_DATA_HEALTH_BIT, Unit, UnitDataUpdate, UnitDataValues,
     UnitVisibilityDetectionStateLikeCpp, UpdateMask, Vehicle, VehicleAccessory, VisibleItemValues,
-    WorldObject, is_bag_pos, is_equipment_packed_pos, make_item_pos,
+    WorldObject, is_bag_pos, is_equipment_packed_pos, is_inventory_pos, make_item_pos,
 };
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus, build_dispatch_table};
 use wow_loot::{LootStoreKind, LootStores};
@@ -1465,6 +1465,18 @@ pub(crate) struct RepresentedBankItemMoveLikeCpp {
     pub inv_update_items: Vec<(u8, u8)>,
     pub bag: u8,
     pub slot: u8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedGuildBankInventoryMoveLikeCpp {
+    pub banker: ObjectGuid,
+    pub guild_id: u64,
+    pub to_char: bool,
+    pub bank_tab: u8,
+    pub bank_slot: u8,
+    pub player_bag: u8,
+    pub player_slot: u8,
+    pub stack_count: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -3158,6 +3170,7 @@ pub struct WorldSession {
     represented_bank_bag_slot_flags_like_cpp: [u32; 7],
     represented_current_banker_guid_like_cpp: Option<ObjectGuid>,
     represented_bank_item_moves_like_cpp: Vec<RepresentedBankItemMoveLikeCpp>,
+    represented_guild_bank_inventory_moves_like_cpp: Vec<RepresentedGuildBankInventoryMoveLikeCpp>,
     represented_auction_replicate_requests_like_cpp: Vec<RepresentedAuctionReplicateRequestLikeCpp>,
     represented_auction_place_bids_like_cpp: Vec<RepresentedAuctionPlaceBidLikeCpp>,
     represented_auction_remove_items_like_cpp: Vec<RepresentedAuctionRemoveItemLikeCpp>,
@@ -4597,6 +4610,7 @@ impl WorldSession {
             represented_bank_bag_slot_flags_like_cpp: [0; 7],
             represented_current_banker_guid_like_cpp: None,
             represented_bank_item_moves_like_cpp: Vec::new(),
+            represented_guild_bank_inventory_moves_like_cpp: Vec::new(),
             represented_auction_replicate_requests_like_cpp: Vec::new(),
             represented_auction_place_bids_like_cpp: Vec::new(),
             represented_auction_remove_items_like_cpp: Vec::new(),
@@ -20337,6 +20351,12 @@ impl WorldSession {
                 self.handle_guild_bank_remaining_withdraw_money_query(pkt)
                     .await;
             }
+            ClientOpcodes::AutoGuildBankItem => {
+                self.handle_auto_guild_bank_item(pkt).await;
+            }
+            ClientOpcodes::AutoStoreGuildBankItem => {
+                self.handle_auto_store_guild_bank_item(pkt).await;
+            }
             ClientOpcodes::BattlePetRequestJournal => {
                 self.handle_battle_pet_request_journal(pkt).await;
             }
@@ -21693,6 +21713,67 @@ impl WorldSession {
 
     pub(crate) fn represented_bank_item_moves_like_cpp(&self) -> &[RepresentedBankItemMoveLikeCpp] {
         &self.represented_bank_item_moves_like_cpp
+    }
+
+    pub(crate) fn represented_guild_bank_can_interact_like_cpp(
+        &self,
+        banker: ObjectGuid,
+    ) -> Option<u64> {
+        let guild_id = self.represented_guild_id_like_cpp;
+        if guild_id == 0 {
+            return None;
+        }
+
+        let state = self.represented_gameobject_use_states.get(&banker)?;
+        if state.go_type.map(u32::from) != Some(GAMEOBJECT_TYPE_GUILD_BANK) {
+            return None;
+        }
+
+        self.represented_gameobject_can_interact_with_like_cpp(banker, 10.0)
+            .map(|_| guild_id)
+    }
+
+    pub(crate) fn guild_bank_inventory_move_like_cpp(
+        &mut self,
+        banker: ObjectGuid,
+        to_char: bool,
+        bank_tab: u8,
+        bank_slot: u8,
+        player_bag: u8,
+        player_slot: u8,
+        stack_count: u32,
+    ) -> bool {
+        let Some(guild_id) = self.represented_guild_bank_can_interact_like_cpp(banker) else {
+            return false;
+        };
+
+        let auto_store_to_char_slot =
+            player_bag == INVENTORY_SLOT_BAG_0 && player_slot == NULL_SLOT;
+        if !auto_store_to_char_slot && !is_inventory_pos(player_bag, player_slot) {
+            self.send_equip_error(InventoryResult::InternalBagError, None, None, 0, 0);
+            return false;
+        }
+
+        self.represented_guild_bank_inventory_moves_like_cpp.push(
+            RepresentedGuildBankInventoryMoveLikeCpp {
+                banker,
+                guild_id,
+                to_char,
+                bank_tab,
+                bank_slot,
+                player_bag,
+                player_slot,
+                stack_count,
+            },
+        );
+        true
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_guild_bank_inventory_moves_like_cpp(
+        &self,
+    ) -> &[RepresentedGuildBankInventoryMoveLikeCpp] {
+        &self.represented_guild_bank_inventory_moves_like_cpp
     }
 
     pub(crate) fn record_represented_auction_replicate_request_like_cpp(

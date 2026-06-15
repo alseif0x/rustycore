@@ -51,27 +51,27 @@ use wow_packet::packets::misc::{
     AddonList, ArenaTeamAccept, ArenaTeamDecline, ArenaTeamDisband, ArenaTeamLeader,
     ArenaTeamLeave, ArenaTeamRemove, ArenaTeamRoster, AuctionPlaceBid, AuctionRemoveItem,
     AuctionReplicateItems, AuctionSellItem, AuctionableTokenSell,
-    AuctionableTokenSellAtMarketPrice, BattlePetClearFanfare, BattlePetDeletePet,
-    BattlePetModifyName, BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags,
-    BattlePetSummon, BattlePetUpdateNotify, BattlefieldLeave, BattlefieldListRequest,
-    BattlefieldPort, BattlemasterJoin, BattlemasterJoinArena, BattlemasterJoinSkirmish, BeginTrade,
-    BugReport, BusyTrade, CageBattlePet, CalendarAddEvent, CalendarCommandResult,
-    CalendarCommunityInvite, CalendarComplain, CalendarCopyEvent, CalendarEventSignUp,
-    CalendarGetEvent, CalendarInvite, CalendarModeratorStatusQuery, CalendarRemoveEvent,
-    CalendarRemoveInvite, CalendarRsvp, CalendarSendCalendar, CalendarSendNumPending,
-    CalendarStatus, CalendarUpdateEvent, CanDuel, ClearTradeItem, CloseInteraction,
-    CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint, ComplaintResult,
-    DeclineGuildInvites, DeclinePetition, DfGetJoinStatus, DfGetSystemInfo, DuelResponse,
-    ERR_TAXITOOFARAWAY_LIKE_CPP, FarSight, GmTicketAcknowledgeSurvey, GmTicketCaseStatus,
-    GmTicketSystemStatus, GuildSetAchievementTracking, IgnoreTrade, LfgListBlacklist,
-    LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify, MAX_ACCOUNT_DATA_SIZE_LIKE_CPP,
-    MountSetFavorite, MountSpecial, NUM_ACCOUNT_DATA_TYPES, ObjectUpdateFailed,
-    ObjectUpdateRescued, QueryArenaTeam, QueryBattlePetName, QueryBattlePetNameResponse,
-    QueryPetition, QueryPetitionResponse, RatedPvpInfo, ReclaimCorpse, RepopRequest,
-    RequestAccountData, RequestBattlefieldStatus, RequestCemeteryListResponse, ResurrectResponse,
-    SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags, SetDifficultyId,
-    SetDungeonDifficulty, SetPvp, SetRaidDifficulty, SetTaxiBenchmarkMode, SetTradeGold,
-    SetTradeItem, SetTradeSpell, SignPetition, SpecialMountAnim, StandStateChange,
+    AuctionableTokenSellAtMarketPrice, AutoGuildBankItem, AutoStoreGuildBankItem,
+    BattlePetClearFanfare, BattlePetDeletePet, BattlePetModifyName, BattlePetRequestJournal,
+    BattlePetSetBattleSlot, BattlePetSetFlags, BattlePetSummon, BattlePetUpdateNotify,
+    BattlefieldLeave, BattlefieldListRequest, BattlefieldPort, BattlemasterJoin,
+    BattlemasterJoinArena, BattlemasterJoinSkirmish, BeginTrade, BugReport, BusyTrade,
+    CageBattlePet, CalendarAddEvent, CalendarCommandResult, CalendarCommunityInvite,
+    CalendarComplain, CalendarCopyEvent, CalendarEventSignUp, CalendarGetEvent, CalendarInvite,
+    CalendarModeratorStatusQuery, CalendarRemoveEvent, CalendarRemoveInvite, CalendarRsvp,
+    CalendarSendCalendar, CalendarSendNumPending, CalendarStatus, CalendarUpdateEvent, CanDuel,
+    ClearTradeItem, CloseInteraction, CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint,
+    ComplaintResult, DeclineGuildInvites, DeclinePetition, DfGetJoinStatus, DfGetSystemInfo,
+    DuelResponse, ERR_TAXITOOFARAWAY_LIKE_CPP, FarSight, GmTicketAcknowledgeSurvey,
+    GmTicketCaseStatus, GmTicketSystemStatus, GuildSetAchievementTracking, IgnoreTrade,
+    LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify,
+    MAX_ACCOUNT_DATA_SIZE_LIKE_CPP, MountSetFavorite, MountSpecial, NUM_ACCOUNT_DATA_TYPES,
+    ObjectUpdateFailed, ObjectUpdateRescued, QueryArenaTeam, QueryBattlePetName,
+    QueryBattlePetNameResponse, QueryPetition, QueryPetitionResponse, RatedPvpInfo, ReclaimCorpse,
+    RepopRequest, RequestAccountData, RequestBattlefieldStatus, RequestCemeteryListResponse,
+    ResurrectResponse, SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags,
+    SetDifficultyId, SetDungeonDifficulty, SetPvp, SetRaidDifficulty, SetTaxiBenchmarkMode,
+    SetTradeGold, SetTradeItem, SetTradeSpell, SignPetition, SpecialMountAnim, StandStateChange,
     SubmitUserFeedback, SupportTicketSubmitBug, SupportTicketSubmitComplaint,
     SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
     TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP, TaxiNodeStatusPkt, ToggleDifficulty, TogglePvp,
@@ -1101,6 +1101,24 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_guild_bank_remaining_withdraw_money_query",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::AutoGuildBankItem,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_auto_guild_bank_item",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::AutoStoreGuildBankItem,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_auto_store_guild_bank_item",
     }
 }
 
@@ -3867,6 +3885,62 @@ impl crate::session::WorldSession {
         // resolves a live guild. Rust has no represented guild-bank manager here
         // yet, so the no-guild branch is correctly silent.
     }
+
+    /// CMSG_AUTO_GUILD_BANK_ITEM — move from player inventory into a guild-bank slot.
+    ///
+    /// C++ ref: `WorldSession::HandleAutoGuildBankItem`.
+    pub async fn handle_auto_guild_bank_item(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let packet = match AutoGuildBankItem::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "AutoGuildBankItem parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        let player_bag = packet
+            .container_slot
+            .unwrap_or(wow_entities::INVENTORY_SLOT_BAG_0);
+        let _accepted = self.guild_bank_inventory_move_like_cpp(
+            packet.banker,
+            false,
+            packet.bank_tab,
+            packet.bank_slot,
+            player_bag,
+            packet.container_item_slot,
+            0,
+        );
+    }
+
+    /// CMSG_AUTO_STORE_GUILD_BANK_ITEM — auto-store from a guild-bank slot into inventory.
+    ///
+    /// C++ ref: `WorldSession::HandleAutoStoreGuildBankItem`.
+    pub async fn handle_auto_store_guild_bank_item(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let packet = match AutoStoreGuildBankItem::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "AutoStoreGuildBankItem parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        let _accepted = self.guild_bank_inventory_move_like_cpp(
+            packet.banker,
+            true,
+            packet.bank_tab,
+            packet.bank_slot,
+            wow_entities::INVENTORY_SLOT_BAG_0,
+            wow_entities::NULL_SLOT,
+            0,
+        );
+    }
+
     /// CMSG_BATTLE_PET_REQUEST_JOURNAL — send represented journal.
     ///
     /// C++ `BattlePetMgr::SendJournal` first acquires/sends journal-lock status
@@ -5853,6 +5927,77 @@ mod tests {
             ),
             send_rx,
         )
+    }
+
+    fn install_represented_guild_bank_like_cpp(
+        session: &mut crate::session::WorldSession,
+        banker: ObjectGuid,
+        guild_id: u64,
+    ) {
+        let canonical = Arc::new(Mutex::new(wow_map::MapManager::default()));
+        let position = Position::new(14.0, 0.0, 0.0, 0.0);
+
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 10, 0);
+        session.set_player_position_like_cpp(Position::new(10.0, 0.0, 0.0, 0.0));
+        session.set_represented_guild_id_like_cpp(guild_id);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.record_represented_gameobject_runtime_state_like_cpp(
+            571,
+            banker,
+            777,
+            position,
+            wow_entities::GAMEOBJECT_TYPE_GUILD_BANK as u8,
+        );
+
+        let mut gameobject = wow_entities::GameObject::new();
+        gameobject.world_mut().object_mut().create(banker);
+        gameobject.world_mut().object_mut().set_entry(777);
+        gameobject.world_mut().set_map(571, 0).unwrap();
+        gameobject.world_mut().relocate(position);
+        gameobject.world_mut().object_mut().add_to_world();
+        canonical
+            .lock()
+            .unwrap()
+            .create_world_map(571, 0)
+            .map_mut()
+            .insert_map_object_record(
+                wow_entities::MapObjectRecord::new_game_object(gameobject).unwrap(),
+            )
+            .unwrap();
+    }
+
+    fn auto_guild_bank_item_packet(
+        banker: ObjectGuid,
+        bank_tab: u8,
+        bank_slot: u8,
+        container_item_slot: u8,
+        container_slot: Option<u8>,
+    ) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_guid(&banker);
+        pkt.write_uint8(bank_tab);
+        pkt.write_uint8(bank_slot);
+        pkt.write_uint8(container_item_slot);
+        pkt.write_bit(container_slot.is_some());
+        pkt.flush_bits();
+        if let Some(container_slot) = container_slot {
+            pkt.write_uint8(container_slot);
+        }
+        pkt.reset_read();
+        pkt
+    }
+
+    fn auto_store_guild_bank_item_packet(
+        banker: ObjectGuid,
+        bank_tab: u8,
+        bank_slot: u8,
+    ) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_guid(&banker);
+        pkt.write_uint8(bank_tab);
+        pkt.write_uint8(bank_slot);
+        pkt.reset_read();
+        pkt
     }
 
     fn misc_test_creature_create_data(
@@ -12506,6 +12651,103 @@ mod tests {
             .await;
 
         assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn auto_guild_bank_item_without_guild_or_banker_is_silent_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let banker = ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 11);
+
+        session
+            .handle_auto_guild_bank_item(auto_guild_bank_item_packet(banker, 1, 2, 20, Some(255)))
+            .await;
+        session
+            .handle_auto_store_guild_bank_item(auto_store_guild_bank_item_packet(banker, 1, 2))
+            .await;
+
+        assert!(
+            session
+                .represented_guild_bank_inventory_moves_like_cpp()
+                .is_empty()
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn auto_guild_bank_item_records_represented_swap_with_inventory_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let banker = ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 12);
+        install_represented_guild_bank_like_cpp(&mut session, banker, 42);
+
+        session
+            .handle_auto_guild_bank_item(auto_guild_bank_item_packet(
+                banker,
+                2,
+                14,
+                wow_entities::INVENTORY_SLOT_ITEM_START,
+                None,
+            ))
+            .await;
+
+        assert_eq!(
+            session.represented_guild_bank_inventory_moves_like_cpp(),
+            &[crate::session::RepresentedGuildBankInventoryMoveLikeCpp {
+                banker,
+                guild_id: 42,
+                to_char: false,
+                bank_tab: 2,
+                bank_slot: 14,
+                player_bag: wow_entities::INVENTORY_SLOT_BAG_0,
+                player_slot: wow_entities::INVENTORY_SLOT_ITEM_START,
+                stack_count: 0,
+            }]
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn auto_store_guild_bank_item_records_null_slot_to_char_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let banker = ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 13);
+        install_represented_guild_bank_like_cpp(&mut session, banker, 42);
+
+        session
+            .handle_auto_store_guild_bank_item(auto_store_guild_bank_item_packet(banker, 3, 19))
+            .await;
+
+        assert_eq!(
+            session.represented_guild_bank_inventory_moves_like_cpp(),
+            &[crate::session::RepresentedGuildBankInventoryMoveLikeCpp {
+                banker,
+                guild_id: 42,
+                to_char: true,
+                bank_tab: 3,
+                bank_slot: 19,
+                player_bag: wow_entities::INVENTORY_SLOT_BAG_0,
+                player_slot: wow_entities::NULL_SLOT,
+                stack_count: 0,
+            }]
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn guild_bank_inventory_move_handler_metadata_matches_cpp() {
+        let auto_guild = inventory::iter::<PacketHandlerEntry>
+            .into_iter()
+            .find(|entry| entry.opcode == ClientOpcodes::AutoGuildBankItem)
+            .expect("AutoGuildBankItem handler entry");
+        assert_eq!(auto_guild.status, SessionStatus::LoggedIn);
+        assert_eq!(auto_guild.processing, PacketProcessing::ThreadUnsafe);
+        assert_eq!(auto_guild.handler_name, "handle_auto_guild_bank_item");
+
+        let auto_store = inventory::iter::<PacketHandlerEntry>
+            .into_iter()
+            .find(|entry| entry.opcode == ClientOpcodes::AutoStoreGuildBankItem)
+            .expect("AutoStoreGuildBankItem handler entry");
+        assert_eq!(auto_store.status, SessionStatus::LoggedIn);
+        assert_eq!(auto_store.processing, PacketProcessing::ThreadUnsafe);
+        assert_eq!(auto_store.handler_name, "handle_auto_store_guild_bank_item");
     }
 
     #[tokio::test]
