@@ -665,6 +665,8 @@ pub const PLAYER_DATA_PARENT_BIT: usize = 0;
 pub const PLAYER_DATA_LOOT_TARGET_GUID_BIT: usize = 6;
 pub const PLAYER_DATA_FLAGS_BIT: usize = 7;
 pub const PLAYER_DATA_FLAGS_EX_BIT: usize = 8;
+pub const PLAYER_DATA_PARTY_TYPE_PARENT_BIT: usize = 32;
+pub const PLAYER_DATA_PARTY_TYPE_FIRST_BIT: usize = 33;
 pub const PLAYER_DATA_NUM_BANK_SLOTS_BIT: usize = 12;
 pub const PLAYER_DATA_NATIVE_SEX_BIT: usize = 13;
 pub const PLAYER_DATA_PLAYER_TITLE_BIT: usize = 21;
@@ -2719,6 +2721,7 @@ pub struct PlayerDataValues {
     pub loot_target_guid: ObjectGuid,
     pub player_flags: u32,
     pub player_flags_ex: u32,
+    pub party_type: [u8; 2],
     pub num_bank_slots: u8,
     pub native_sex: u8,
     pub player_title: i32,
@@ -2734,6 +2737,7 @@ impl Default for PlayerDataValues {
             loot_target_guid: ObjectGuid::EMPTY,
             player_flags: 0,
             player_flags_ex: 0,
+            party_type: [0; 2],
             num_bank_slots: 0,
             native_sex: Gender::Male as u8,
             player_title: 0,
@@ -3310,6 +3314,23 @@ impl Player {
         self.set_player_u8(PLAYER_DATA_NUM_BANK_SLOTS_BIT, count, |data| {
             &mut data.num_bank_slots
         });
+    }
+
+    pub fn set_party_type_like_cpp(&mut self, category: u8, party_type: u8) -> bool {
+        let index = usize::from(category);
+        if index >= self.data.party_type.len() {
+            return false;
+        }
+
+        if self.data.party_type[index] != party_type {
+            self.data.party_type[index] = party_type;
+            self.mark_player_data_array(
+                PLAYER_DATA_PARTY_TYPE_PARENT_BIT,
+                PLAYER_DATA_PARTY_TYPE_FIRST_BIT,
+                index,
+            );
+        }
+        true
     }
 
     pub fn set_bank_bag_slot_flag_value_like_cpp(&mut self, index: usize, value: u32) -> bool {

@@ -5058,6 +5058,13 @@ impl WorldSession {
         player.set_next_level_xp(self.player_next_level_xp_like_cpp() as i32);
         player.set_money(self.player_gold_like_cpp());
         player.set_bank_bag_slot_count(self.player_bank_bag_slot_count_like_cpp());
+        for (category, party_type) in self
+            .party_member_party_type_like_cpp()
+            .into_iter()
+            .enumerate()
+        {
+            let _ = player.set_party_type_like_cpp(category as u8, party_type);
+        }
         for (index, value) in self
             .represented_bank_bag_slot_flags_like_cpp
             .iter()
@@ -13631,6 +13638,31 @@ impl WorldSession {
         {
             self.send_packet(&packet);
         }
+    }
+
+    pub(crate) fn send_player_party_type_update_like_cpp(&self, category: u8, party_type: u8) {
+        let Some(guid) = self.player_guid() else {
+            return;
+        };
+        if category >= wow_network::group_registry::MAX_GROUP_CATEGORY_LIKE_CPP {
+            return;
+        }
+
+        let mut data = wow_packet::packets::update::PlayerDataValuesDeltaUpdate::default();
+        let category_index = usize::from(category);
+        data.player_data_mask[wow_entities::PLAYER_DATA_PARTY_TYPE_PARENT_BIT / 32] |=
+            1 << (wow_entities::PLAYER_DATA_PARTY_TYPE_PARENT_BIT % 32);
+        data.player_data_mask
+            [(wow_entities::PLAYER_DATA_PARTY_TYPE_FIRST_BIT + category_index) / 32] |=
+            1 << ((wow_entities::PLAYER_DATA_PARTY_TYPE_FIRST_BIT + category_index) % 32);
+        data.party_type[category_index] = party_type;
+        self.send_packet(
+            &wow_packet::packets::update::UpdateObject::full_player_values_update(
+                guid,
+                self.player_map_id_like_cpp(),
+                data,
+            ),
+        );
     }
 
     pub(crate) fn send_player_values_update_from_entity_bridge(
@@ -37491,17 +37523,27 @@ mod tests {
                 .get(&group_guid)
                 .is_some_and(|group| group.is_raid_group() && group.members.contains(&player_guid))
         );
-        assert_eq!(
-            send_rx.try_recv().expect("raid AddMember GO refresh"),
-            expected_gameobject_dynamic_flags_update_like_cpp(
-                gameobject_guid,
-                571,
-                wow_entities::GO_DYNFLAG_LO_ACTIVATE
-                    | wow_entities::GO_DYNFLAG_LO_SPARKLE
-                    | wow_entities::GO_DYNFLAG_LO_HIGHLIGHT
-            )
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert!(
+            packets.iter().any(|bytes| {
+                wow_packet::WorldPacket::from_bytes(bytes).server_opcode()
+                    == Some(ServerOpcodes::UpdateObject)
+            }),
+            "raid AddMember must send PlayerData::PartyType update"
         );
-        assert!(send_rx.try_recv().is_err());
+        assert!(
+            packets.iter().any(|bytes| {
+                bytes
+                    == &expected_gameobject_dynamic_flags_update_like_cpp(
+                        gameobject_guid,
+                        571,
+                        wow_entities::GO_DYNFLAG_LO_ACTIVATE
+                            | wow_entities::GO_DYNFLAG_LO_SPARKLE
+                            | wow_entities::GO_DYNFLAG_LO_HIGHLIGHT,
+                    )
+            }),
+            "raid AddMember GO refresh"
+        );
     }
 
     #[tokio::test]

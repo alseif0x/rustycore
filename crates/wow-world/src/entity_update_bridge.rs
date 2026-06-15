@@ -332,6 +332,7 @@ fn copy_player_data_update(
     packet_update.loot_target_guid = update.values.loot_target_guid;
     packet_update.player_flags = update.values.player_flags;
     packet_update.player_flags_ex = update.values.player_flags_ex;
+    packet_update.party_type = update.values.party_type;
     packet_update.num_bank_slots = update.values.num_bank_slots;
     packet_update.native_sex = update.values.native_sex;
     packet_update.player_title = update.values.player_title;
@@ -904,6 +905,7 @@ mod tests {
         GAME_OBJECT_DATA_CREATED_BY_BIT, GAME_OBJECT_DATA_DISPLAY_ID_BIT,
         GAME_OBJECT_DATA_PARENT_BIT, GameObject, ITEM_DATA_STACK_COUNT_BIT, Item,
         PLAYER_DATA_FLAGS_BIT, PLAYER_DATA_HONOR_LEVEL_BIT, PLAYER_DATA_PARENT_BIT,
+        PLAYER_DATA_PARTY_TYPE_FIRST_BIT, PLAYER_DATA_PARTY_TYPE_PARENT_BIT,
         PLAYER_DATA_PLAYER_TITLE_BIT, Player, SCENE_OBJECT_DATA_PARENT_BIT,
         SCENE_OBJECT_DATA_SCRIPT_PACKAGE_ID_BIT, SceneObject, UNIT_DATA_HEALTH_BIT,
         UNIT_DATA_PARENT_BIT, UNIT_DATA_STAND_STATE_BIT, UNIT_DATA_VIRTUAL_ITEMS_FIRST_BIT,
@@ -1164,6 +1166,39 @@ mod tests {
         assert_eq!(
             packet_update.active_player_data.as_ref().unwrap().coinage,
             42
+        );
+    }
+
+    #[test]
+    fn bridges_player_party_type_update_like_cpp() {
+        let mut player = Player::new(Some(7), false);
+        player.clear_data_changes();
+
+        assert!(
+            player.set_party_type_like_cpp(
+                0,
+                wow_network::group_registry::GROUP_TYPE_NORMAL_LIKE_CPP
+            )
+        );
+
+        let update = player.values_update(true);
+        let packet_update = player_values_update_to_packet(&update).unwrap();
+
+        assert!(mask_has(
+            &packet_update.player_data_mask,
+            PLAYER_DATA_PARTY_TYPE_PARENT_BIT
+        ));
+        assert!(mask_has(
+            &packet_update.player_data_mask,
+            PLAYER_DATA_PARTY_TYPE_FIRST_BIT
+        ));
+        assert_eq!(
+            packet_update.party_type[0],
+            wow_network::group_registry::GROUP_TYPE_NORMAL_LIKE_CPP
+        );
+        assert_eq!(
+            packet_update.party_type[1],
+            wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP
         );
     }
 

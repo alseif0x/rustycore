@@ -1033,6 +1033,13 @@ impl WorldSession {
 
         // Update self's group_guid in session — all Arc borrows are gone now.
         self.group_guid = Some(group_guid);
+        if let Some(group) = group_reg.get(&group_guid) {
+            self.send_player_party_type_update_like_cpp(
+                group.group_category_like_cpp(),
+                wow_network::group_registry::GROUP_TYPE_NORMAL_LIKE_CPP,
+            );
+        }
+        self.sync_player_registry_state_like_cpp();
         if refresh_visible_gameobjects_or_spellclicks {
             let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
         }
@@ -1181,6 +1188,11 @@ impl WorldSession {
             }
             // Tell self to leave.
             self.group_guid = None;
+            self.send_player_party_type_update_like_cpp(
+                wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP,
+                wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP,
+            );
+            self.sync_player_registry_state_like_cpp();
             let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
             self.send_packet(&GroupUninvite);
             return;
@@ -1193,6 +1205,11 @@ impl WorldSession {
 
         // 4. Uninvite self.
         self.group_guid = None;
+        self.send_player_party_type_update_like_cpp(
+            wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP,
+            wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP,
+        );
+        self.sync_player_registry_state_like_cpp();
         let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
         self.send_packet(&GroupUninvite);
     }
@@ -3867,11 +3884,17 @@ mod tests {
                 .get(&group_guid)
                 .is_some_and(|group| group.is_raid_group())
         );
+        let mut remote_refresh_queued = false;
+        while let Ok(command) = member_command_rx.try_recv() {
+            if matches!(
+                command,
+                SessionCommand::RefreshVisibleGameobjectsOrSpellClicksLikeCpp
+            ) {
+                remote_refresh_queued = true;
+            }
+        }
         assert!(
-            matches!(
-                member_command_rx.try_recv(),
-                Ok(SessionCommand::RefreshVisibleGameobjectsOrSpellClicksLikeCpp)
-            ),
+            remote_refresh_queued,
             "remote member visible refresh command queued"
         );
         let command_result = send_rx.try_recv().expect("party command result");

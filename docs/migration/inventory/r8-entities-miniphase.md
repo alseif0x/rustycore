@@ -1,3 +1,13 @@
+# `#NEXT.R8.ENTITIES.933` — represented-partial for C++ `Player::SetPartyType(GroupCategory,uint8)`.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp:448-451` (`Group::AddMember`); `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp:593-599,734-737` (leave/remove `SetPartyType(..., GROUP_TYPE_NONE)` paths); `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:25224-25228` (`Player::SetPartyType`).
+
+Implemented Rust seam: `wow-entities::PlayerDataValues` now carries `party_type[2]` and marks the same parent/array update bits through `set_party_type_like_cpp`; the entity update bridge copies the value into `PlayerDataValuesDeltaUpdate`; represented player snapshots seed the current session party type from `party_member_party_type_like_cpp`; and group join/leave sends a local `SMSG_UPDATE_OBJECT` player-values delta for `PlayerData::PartyType` before the existing visibility refresh/uninvite flow.
+
+Focused tests: bridge-level `bridges_player_party_type_update_like_cpp`; invite acceptance now asserts the `SMSG_UPDATE_OBJECT` party-type update plus the existing gameobject visibility refresh; `group` handler tests cover the command queues after the new update ordering.
+
+Boundaries: represented-partial only. This closes the local represented update-field mutation for current-session home-group join/leave, but not every remote member/dissolve notification through session commands, exact `Player::SetGroup` subgroup/original/BG/BF routing, proof that login create blocks carry PartyType on grouped characters, install/restart, bot, or live-client/manual validation.
+
 # `#NEXT.R8.ENTITIES.932` — represented-partial for C++ per-recipient `PartyUpdate.SequenceNum`.
 
 C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp:838-911` (`Group::SendUpdateToPlayer`); `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:25241-25244` (`Player::NextGroupUpdateSequenceNumber`).
@@ -6,7 +16,7 @@ Implemented Rust seam: `send_party_update` now builds the per-recipient `PartyUp
 
 Focused tests: legacy group tests still verify PartyUpdate wire fields through a test-only no-session fallback; a session-level test sends two commands with a bogus `SequenceNum=999` and verifies the emitted packets carry sequence `1` then `2` from the receiver session state.
 
-Boundaries: represented-partial only. Exact `SetGroup` subgroup tracking, exact `SetPartyType` update-field mutation, group-owned `CMSG_SET_DIFFICULTY_ID`, `ResetInstances`, BG/BF/original-group routing, install/restart, bot, and live-client/manual validation remain open.
+Boundaries: represented-partial only. Exact `SetGroup` subgroup tracking, remaining remote/BG/BF/original-group party-type routes, group-owned `CMSG_SET_DIFFICULTY_ID`, `ResetInstances`, BG/BF/original-group routing, install/restart, bot, and live-client/manual validation remain open.
 
 # `#NEXT.R8.ENTITIES.931` — represented-partial for C++ group update sequence reset during `_LoadGroup`.
 
