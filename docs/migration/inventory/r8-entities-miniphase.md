@@ -1,4 +1,14 @@
 - `#NEXT.R8.ENTITIES.868` - represented-complete implementation for bounded movement `Handle_NULL` ACK family.
+### #NEXT.R8.ENTITIES.902 — CMSG_QUERY_PETITION
+
+Status: represented-partial for the bounded `WorldSession::HandleQueryPetition` parser/dispatch/not-found response seam.
+
+C++ source-of-truth: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/PetitionsHandler.cpp:153-178`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/PetitionPackets.h:28-72`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/PetitionPackets.cpp:20-70`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:480`, and `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:761,1941`.
+
+Implemented Rust seam: `QueryPetition` parses the C++ `uint32 PetitionID` followed by full `ObjectGuid ItemGUID`, registers as `LoggedIn`/`PROCESS_THREADUNSAFE`, dispatches through `WorldSession`, records the represented query request, and sends `SMSG_QUERY_PETITION_RESPONSE` with `PetitionID = ItemGUID.GetCounter()` and `Allow=false`, matching the C++ `sPetitionMgr->GetPetition` miss branch.
+
+Boundary: represented-partial only; full `PetitionMgr` storage, `CONFIG_MIN_PETITION_SIGNS`, `PetitionInfo` `Allow=true` serialization, petitioner lookup/title/body/choice text fields, install/restart, bot, and live-client/manual validation remain open.
+
 ### #NEXT.R8.ENTITIES.901 — CMSG_DECLINE_PETITION
 
 Status: represented-complete for the bounded `WorldSession::HandleDeclinePetition` parser/dispatch/no-response seam.

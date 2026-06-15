@@ -5421,6 +5421,54 @@ impl ClientPacket for DeclinePetition {
     }
 }
 
+/// C++ `WorldPackets::Petition::QueryPetition`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct QueryPetition {
+    pub petition_id: u32,
+    pub item_guid: ObjectGuid,
+}
+
+impl ClientPacket for QueryPetition {
+    const OPCODE: ClientOpcodes = ClientOpcodes::QueryPetition;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let petition_id = pkt.read_uint32()?;
+        let guid_bytes = pkt.read_bytes(16)?;
+        let mut raw = [0u8; 16];
+        raw.copy_from_slice(&guid_bytes);
+        Ok(Self {
+            petition_id,
+            item_guid: ObjectGuid::from_raw_bytes(&raw),
+        })
+    }
+}
+
+/// C++ `WorldPackets::Petition::QueryPetitionResponse` without `PetitionInfo`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct QueryPetitionResponse {
+    pub petition_id: u32,
+    pub allow: bool,
+}
+
+impl QueryPetitionResponse {
+    pub fn not_found_like_cpp(item_guid: ObjectGuid) -> Self {
+        Self {
+            petition_id: item_guid.counter() as u32,
+            allow: false,
+        }
+    }
+}
+
+impl ServerPacket for QueryPetitionResponse {
+    const OPCODE: ServerOpcodes = ServerOpcodes::QueryPetitionResponse;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_uint32(self.petition_id);
+        pkt.write_bit(self.allow);
+        pkt.flush_bits();
+    }
+}
+
 /// C++ `WorldPackets::Trade::SetTradeGold`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct SetTradeGold {
@@ -6508,6 +6556,39 @@ mod tests {
         let packet = DeclinePetition::read(&mut pkt).unwrap();
 
         assert_eq!(packet.petition_guid, petition_guid);
+    }
+
+    #[test]
+    fn query_petition_reads_id_then_guid_like_cpp() {
+        let item_guid = ObjectGuid::create_item(1, 0x2122_2324_2526_2728);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(0x1122_3344);
+        pkt.write_bytes(&item_guid.to_raw_bytes());
+        pkt.reset_read();
+
+        let packet = QueryPetition::read(&mut pkt).unwrap();
+
+        assert_eq!(packet.petition_id, 0x1122_3344);
+        assert_eq!(packet.item_guid, item_guid);
+    }
+
+    #[test]
+    fn query_petition_not_found_response_writes_id_and_allow_false_like_cpp() {
+        let item_guid = ObjectGuid::create_item(1, 0x3132_3334_3536_3738);
+        let bytes = QueryPetitionResponse::not_found_like_cpp(item_guid).to_bytes();
+        let mut body = WorldPacket::from_bytes(&bytes);
+
+        assert_eq!(
+            body.server_opcode(),
+            Some(ServerOpcodes::QueryPetitionResponse)
+        );
+        assert_eq!(
+            body.read_uint16().unwrap(),
+            ServerOpcodes::QueryPetitionResponse as u16
+        );
+        assert_eq!(body.read_uint32().unwrap(), item_guid.counter() as u32);
+        assert!(!body.read_bit().unwrap());
+        assert_eq!(body.remaining(), 0);
     }
 
     #[test]

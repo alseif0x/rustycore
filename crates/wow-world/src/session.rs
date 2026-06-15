@@ -413,6 +413,12 @@ pub(crate) struct RepresentedDeclinePetitionLikeCpp {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedQueryPetitionLikeCpp {
+    pub petition_id: u32,
+    pub item_guid: ObjectGuid,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedSilencePartyTalkerLikeCpp {
     pub target: ObjectGuid,
     pub silent: bool,
@@ -2913,6 +2919,7 @@ pub struct WorldSession {
     represented_trade_cancel_statuses_like_cpp: Vec<u8>,
     represented_sign_petitions_like_cpp: Vec<RepresentedSignPetitionLikeCpp>,
     represented_decline_petitions_like_cpp: Vec<RepresentedDeclinePetitionLikeCpp>,
+    represented_query_petitions_like_cpp: Vec<RepresentedQueryPetitionLikeCpp>,
     represented_silence_party_talker_like_cpp: Vec<RepresentedSilencePartyTalkerLikeCpp>,
     represented_can_duel_spell_casts_like_cpp: Vec<RepresentedCanDuelSpellCastLikeCpp>,
     represented_guild_repair_bank_state_like_cpp: Option<RepresentedGuildRepairBankStateLikeCpp>,
@@ -4132,6 +4139,7 @@ impl WorldSession {
             represented_trade_cancel_statuses_like_cpp: Vec::new(),
             represented_sign_petitions_like_cpp: Vec::new(),
             represented_decline_petitions_like_cpp: Vec::new(),
+            represented_query_petitions_like_cpp: Vec::new(),
             represented_silence_party_talker_like_cpp: Vec::new(),
             represented_can_duel_spell_casts_like_cpp: Vec::new(),
             represented_guild_repair_bank_state_like_cpp: None,
@@ -18837,6 +18845,9 @@ impl WorldSession {
             ClientOpcodes::DeclinePetition => {
                 self.handle_decline_petition(pkt).await;
             }
+            ClientOpcodes::QueryPetition => {
+                self.handle_query_petition(pkt).await;
+            }
             ClientOpcodes::UnacceptTrade => {
                 self.handle_unaccept_trade(pkt).await;
             }
@@ -21392,6 +21403,25 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedDeclinePetitionLikeCpp] {
         &self.represented_decline_petitions_like_cpp
+    }
+
+    pub(crate) fn record_represented_query_petition_like_cpp(
+        &mut self,
+        petition_id: u32,
+        item_guid: ObjectGuid,
+    ) {
+        self.represented_query_petitions_like_cpp
+            .push(RepresentedQueryPetitionLikeCpp {
+                petition_id,
+                item_guid,
+            });
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_query_petitions_like_cpp(
+        &self,
+    ) -> &[RepresentedQueryPetitionLikeCpp] {
+        &self.represented_query_petitions_like_cpp
     }
 
     pub(crate) fn record_represented_silence_party_talker_like_cpp(

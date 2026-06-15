@@ -56,11 +56,12 @@ use wow_packet::packets::misc::{
     GuildSetAchievementTracking, IgnoreTrade, LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus,
     LoadingScreenNotify, MAX_ACCOUNT_DATA_SIZE_LIKE_CPP, MountSetFavorite, MountSpecial,
     NUM_ACCOUNT_DATA_TYPES, ObjectUpdateFailed, ObjectUpdateRescued, QueryBattlePetName,
-    QueryBattlePetNameResponse, RatedPvpInfo, RequestAccountData, RequestBattlefieldStatus,
-    RequestCemeteryListResponse, ResurrectResponse, SaveCufProfiles, SetAdvancedCombatLogging,
-    SetCurrencyFlags, SetTaxiBenchmarkMode, SetTradeGold, SetTradeItem, SetTradeSpell,
-    SignPetition, SpecialMountAnim, StandStateChange, SubmitUserFeedback, SupportTicketSubmitBug,
-    SupportTicketSubmitComplaint, SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
+    QueryBattlePetNameResponse, QueryPetition, QueryPetitionResponse, RatedPvpInfo,
+    RequestAccountData, RequestBattlefieldStatus, RequestCemeteryListResponse, ResurrectResponse,
+    SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags, SetTaxiBenchmarkMode,
+    SetTradeGold, SetTradeItem, SetTradeSpell, SignPetition, SpecialMountAnim, StandStateChange,
+    SubmitUserFeedback, SupportTicketSubmitBug, SupportTicketSubmitComplaint,
+    SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
     TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP, TaxiNodeStatusPkt, TogglePvp, ToyClearFanfare,
     UnacceptTrade, UpdateAccountData, UseToy, UserClientUpdateAccountData, ViolenceLevel,
     compress_account_data_like_cpp, decompress_account_data_like_cpp,
@@ -1186,6 +1187,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_decline_petition",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::QueryPetition,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_query_petition",
     }
 }
 
@@ -3756,6 +3766,22 @@ impl crate::session::WorldSession {
         self.record_represented_decline_petition_like_cpp(packet.petition_guid);
     }
 
+    pub async fn handle_query_petition(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let packet = match QueryPetition::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "QueryPetition parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        self.record_represented_query_petition_like_cpp(packet.petition_id, packet.item_guid);
+        self.send_packet(&QueryPetitionResponse::not_found_like_cpp(packet.item_guid));
+    }
+
     pub async fn handle_unaccept_trade(&mut self, mut pkt: wow_packet::WorldPacket) {
         if let Err(error) = UnacceptTrade::read(&mut pkt) {
             warn!(
@@ -5560,6 +5586,14 @@ mod tests {
         pkt
     }
 
+    fn query_petition_packet(petition_id: u32, item_guid: ObjectGuid) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(petition_id);
+        pkt.write_bytes(&item_guid.to_raw_bytes());
+        pkt.reset_read();
+        pkt
+    }
+
     fn trade_test_spell_info(spell_id: i32) -> SpellInfo {
         SpellInfo {
             spell_id,
@@ -6286,6 +6320,38 @@ mod tests {
             &[crate::session::RepresentedDeclinePetitionLikeCpp { petition_guid }]
         );
         assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn query_petition_without_runtime_mgr_sends_not_found_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let item_guid = ObjectGuid::create_item(1, 91_779);
+
+        session
+            .handle_query_petition(query_petition_packet(123, item_guid))
+            .await;
+
+        assert_eq!(
+            session.represented_query_petitions_like_cpp(),
+            &[crate::session::RepresentedQueryPetitionLikeCpp {
+                petition_id: 123,
+                item_guid,
+            }]
+        );
+
+        let bytes = send_rx.try_recv().expect("query petition response");
+        let mut body = WorldPacket::from_bytes(&bytes);
+        assert_eq!(
+            body.server_opcode(),
+            Some(ServerOpcodes::QueryPetitionResponse)
+        );
+        assert_eq!(
+            body.read_uint16().unwrap(),
+            ServerOpcodes::QueryPetitionResponse as u16
+        );
+        assert_eq!(body.read_uint32().unwrap(), item_guid.counter() as u32);
+        assert!(!body.read_bit().unwrap());
+        assert_eq!(body.remaining(), 0);
     }
 
     #[tokio::test]
