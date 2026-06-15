@@ -1575,6 +1575,17 @@ pub(crate) struct RepresentedBattlemasterJoinArenaLikeCpp {
     pub queue_type_id: RepresentedBattlegroundQueueTypeIdLikeCpp,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RepresentedBattlemasterJoinSkirmishLikeCpp {
+    pub bg_type_id: u32,
+    pub bracket_id: u32,
+    pub as_group: bool,
+    pub is_rated_packet_value: u8,
+    pub arena_type: u8,
+    pub group_guid: Option<u64>,
+    pub queue_type_id: RepresentedBattlegroundQueueTypeIdLikeCpp,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedBattlegroundQueueSlotLikeCpp {
     pub slot: u32,
@@ -1607,6 +1618,16 @@ fn arena_team_type_by_slot_like_cpp(slot: u8) -> Option<u8> {
         1 => Some(3),
         2 => Some(5),
         _ => None,
+    }
+}
+
+fn arena_skirmish_type_like_cpp(bg_type_id: u32, bracket_id: u32) -> u8 {
+    if bg_type_id == 3 || bg_type_id == 5 {
+        bg_type_id as u8
+    } else if bracket_id == 3 || bracket_id == 5 {
+        bracket_id as u8
+    } else {
+        2
     }
 }
 
@@ -3407,6 +3428,9 @@ pub struct WorldSession {
     represented_battlemaster_joins_like_cpp: Vec<RepresentedBattlemasterJoinLikeCpp>,
     /// Represented rated arena queue intents from CMSG_BATTLEMASTER_JOIN_ARENA.
     represented_battlemaster_join_arenas_like_cpp: Vec<RepresentedBattlemasterJoinArenaLikeCpp>,
+    /// Represented arena skirmish queue intents from CMSG_BATTLEMASTER_JOIN_SKIRMISH.
+    represented_battlemaster_join_skirmishes_like_cpp:
+        Vec<RepresentedBattlemasterJoinSkirmishLikeCpp>,
     /// Represented `Player::m_bgBattlegroundQueueID[PLAYER_MAX_BATTLEGROUND_QUEUES]`.
     represented_battleground_queue_slots_like_cpp: Vec<RepresentedBattlegroundQueueSlotLikeCpp>,
     /// Represented accepted/leave requests from CMSG_BATTLEFIELD_PORT before live BattlegroundMgr.
@@ -4711,6 +4735,7 @@ impl WorldSession {
             represented_battlefield_lists_like_cpp: Vec::new(),
             represented_battlemaster_joins_like_cpp: Vec::new(),
             represented_battlemaster_join_arenas_like_cpp: Vec::new(),
+            represented_battlemaster_join_skirmishes_like_cpp: Vec::new(),
             represented_battleground_queue_slots_like_cpp: Vec::new(),
             represented_battlefield_ports_like_cpp: Vec::new(),
             area_spirit_healer_guid_like_cpp: ObjectGuid::EMPTY,
@@ -12277,6 +12302,7 @@ impl WorldSession {
             | ClientOpcodes::LeaveGroup
             | ClientOpcodes::AcceptWargameInvite
             | ClientOpcodes::BattlemasterJoinArena
+            | ClientOpcodes::BattlemasterJoinSkirmish
             | ClientOpcodes::BattlemasterHello
             | ClientOpcodes::BattlefieldList
             | ClientOpcodes::BattlefieldPort
@@ -20241,6 +20267,9 @@ impl WorldSession {
             ClientOpcodes::BattlemasterJoinArena => {
                 self.handle_battlemaster_join_arena(pkt).await;
             }
+            ClientOpcodes::BattlemasterJoinSkirmish => {
+                self.handle_battlemaster_join_skirmish(pkt).await;
+            }
             ClientOpcodes::AcceptWargameInvite => {
                 self.handle_accept_wargame_invite(pkt).await;
             }
@@ -22669,6 +22698,93 @@ impl WorldSession {
         true
     }
 
+    pub(crate) fn battlemaster_join_skirmish_like_cpp(
+        &mut self,
+        bg_type_id: u32,
+        bracket_id: u32,
+        as_group: u8,
+        is_rated: u8,
+    ) -> bool {
+        if self.player_in_represented_battleground_like_cpp() {
+            return false;
+        }
+
+        let arena_type = arena_skirmish_type_like_cpp(bg_type_id, bracket_id);
+        let Some(entry) = self
+            .battlemaster_list_store
+            .as_ref()
+            .and_then(|store| store.get(wow_data::BATTLEGROUND_AA_LIKE_CPP))
+        else {
+            return false;
+        };
+        if entry.instance_type != wow_data::MAP_ARENA_LIKE_CPP {
+            return false;
+        }
+        if self
+            .disable_mgr
+            .as_ref()
+            .map(|disable_mgr| {
+                disable_mgr.is_disabled_for_like_cpp(
+                    DISABLE_TYPE_BATTLEGROUND,
+                    wow_data::BATTLEGROUND_AA_LIKE_CPP,
+                    None,
+                    0,
+                    None,
+                )
+            })
+            .unwrap_or(false)
+        {
+            return false;
+        }
+
+        let join_as_group = as_group != 0;
+        let group_guid = if join_as_group {
+            let (Some(player_guid), Some(group_guid), Some(group_registry)) = (
+                self.player_guid(),
+                self.group_guid,
+                self.group_registry.as_ref(),
+            ) else {
+                return false;
+            };
+            let is_group_leader = group_registry
+                .get(&group_guid)
+                .map(|group| {
+                    group.members.contains(&player_guid) && group.is_leader_like_cpp(player_guid)
+                })
+                .unwrap_or(false);
+            if !is_group_leader {
+                return false;
+            }
+            Some(group_guid)
+        } else {
+            None
+        };
+
+        let queue_type_id = RepresentedBattlegroundQueueTypeIdLikeCpp {
+            battlemaster_list_id: wow_data::BATTLEGROUND_AA_LIKE_CPP as u16,
+            queue_type: 4,
+            rated: false,
+            team_size: arena_type,
+        };
+
+        // C++ continues with PVPDifficulty lookup, BattlegroundQueue::AddGroup,
+        // solo queue-slot checks, Group::CanJoinBattlegroundQueue, status packet
+        // fanout and ScheduleQueueUpdate. Rust records the bounded intent after
+        // the currently represented gates without pretending that live queueing exists.
+        self.represented_battlemaster_join_skirmishes_like_cpp.push(
+            RepresentedBattlemasterJoinSkirmishLikeCpp {
+                bg_type_id,
+                bracket_id,
+                as_group: join_as_group,
+                is_rated_packet_value: is_rated,
+                arena_type,
+                group_guid,
+                queue_type_id,
+            },
+        );
+        true
+    }
+
     #[cfg(test)]
     pub(crate) fn add_represented_battleground_queue_slot_like_cpp(
         &mut self,
@@ -22788,6 +22904,13 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedBattlemasterJoinArenaLikeCpp] {
         &self.represented_battlemaster_join_arenas_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_battlemaster_join_skirmishes_like_cpp(
+        &self,
+    ) -> &[RepresentedBattlemasterJoinSkirmishLikeCpp] {
+        &self.represented_battlemaster_join_skirmishes_like_cpp
     }
 
     #[cfg(test)]

@@ -5146,6 +5146,28 @@ impl ClientPacket for BattlemasterJoinArena {
     }
 }
 
+/// C++ `WorldPackets::Battleground::BattlemasterJoinSkirmish`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct BattlemasterJoinSkirmish {
+    pub bg_type_id: u32,
+    pub bracket_id: u32,
+    pub as_group: u8,
+    pub is_rated: u8,
+}
+
+impl ClientPacket for BattlemasterJoinSkirmish {
+    const OPCODE: ClientOpcodes = ClientOpcodes::BattlemasterJoinSkirmish;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            bg_type_id: pkt.read_uint32()?,
+            bracket_id: pkt.read_uint32()?,
+            as_group: pkt.read_uint8()?,
+            is_rated: pkt.read_uint8()?,
+        })
+    }
+}
+
 /// C++ `WorldPackets::Battleground::AcceptWargameInvite`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AcceptWargameInvite {
@@ -10843,6 +10865,24 @@ mod tests {
 
         assert_eq!(parsed.team_size_index, 1);
         assert_eq!(parsed.roles, 0x07);
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn battlemaster_join_skirmish_reads_ids_group_and_rated_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(5);
+        pkt.write_uint32(3);
+        pkt.write_uint8(1);
+        pkt.write_uint8(0);
+        pkt.reset_read();
+
+        let parsed = BattlemasterJoinSkirmish::read(&mut pkt).unwrap();
+
+        assert_eq!(parsed.bg_type_id, 5);
+        assert_eq!(parsed.bracket_id, 3);
+        assert_eq!(parsed.as_group, 1);
+        assert_eq!(parsed.is_rated, 0);
         assert_eq!(pkt.remaining(), 0);
     }
 
