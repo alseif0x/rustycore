@@ -1540,6 +1540,12 @@ pub(crate) struct RepresentedCalendarRemoveEventLikeCpp {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedBattlemasterHelloLikeCpp {
+    pub unit: ObjectGuid,
+    pub entry: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedCanDuelSpellCastLikeCpp {
     pub target_guid: ObjectGuid,
     pub spell_id: u32,
@@ -3327,6 +3333,8 @@ pub struct WorldSession {
     represented_battleground_status_like_cpp: Option<u8>,
     /// Count of represented `Player::LeaveBattleground()` requests.
     represented_battleground_leave_requests_like_cpp: u32,
+    /// Represented `BattlegroundMgr::SendBattlegroundList` intents from battlemaster hello.
+    represented_battlemaster_hellos_like_cpp: Vec<RepresentedBattlemasterHelloLikeCpp>,
     /// C++ `Player::_areaSpiritHealerGUID`, represented until battleground/player resurrection owns it.
     area_spirit_healer_guid_like_cpp: ObjectGuid,
     /// Represented current pet GUID until player-owned pet runtime is canonical.
@@ -4622,6 +4630,7 @@ impl WorldSession {
             player_battleground_type_id_like_cpp: None,
             represented_battleground_status_like_cpp: None,
             represented_battleground_leave_requests_like_cpp: 0,
+            represented_battlemaster_hellos_like_cpp: Vec::new(),
             area_spirit_healer_guid_like_cpp: ObjectGuid::EMPTY,
             represented_pet_guid_like_cpp: None,
             represented_pet_react_state_like_cpp:
@@ -12186,6 +12195,7 @@ impl WorldSession {
             | ClientOpcodes::LeaveGroup
             | ClientOpcodes::AcceptWargameInvite
             | ClientOpcodes::BattlemasterJoinArena
+            | ClientOpcodes::BattlemasterHello
             | ClientOpcodes::BattlefieldLeave
             | ClientOpcodes::GuildBankLogQuery
             | ClientOpcodes::LogoutCancel
@@ -20124,6 +20134,9 @@ impl WorldSession {
             ClientOpcodes::RequestBattlefieldStatus => {
                 self.handle_request_battlefield_status(pkt).await;
             }
+            ClientOpcodes::BattlemasterHello => {
+                self.handle_battlemaster_hello(pkt).await;
+            }
             ClientOpcodes::BattlefieldLeave => {
                 self.handle_battlefield_leave(pkt).await;
             }
@@ -22396,6 +22409,29 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn represented_battleground_leave_requests_like_cpp(&self) -> u32 {
         self.represented_battleground_leave_requests_like_cpp
+    }
+
+    pub(crate) fn battlemaster_hello_like_cpp(&mut self, unit: ObjectGuid) -> bool {
+        let Some((npc_flags, entry)) =
+            self.mutate_world_creature(unit, |creature| (creature.npc_flags(), creature.entry()))
+        else {
+            return false;
+        };
+
+        if (npc_flags & wow_constants::unit::NPCFlags1::BATTLE_MASTER.bits()) == 0 {
+            return false;
+        }
+
+        self.represented_battlemaster_hellos_like_cpp
+            .push(RepresentedBattlemasterHelloLikeCpp { unit, entry });
+        true
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_battlemaster_hellos_like_cpp(
+        &self,
+    ) -> &[RepresentedBattlemasterHelloLikeCpp] {
+        &self.represented_battlemaster_hellos_like_cpp
     }
 
     pub(crate) fn accept_represented_wargame_invite_like_cpp(&mut self, inviter_name: &str) {
@@ -62495,6 +62531,7 @@ mod tests {
             ClientOpcodes::LeaveGroup,
             ClientOpcodes::AcceptWargameInvite,
             ClientOpcodes::BattlemasterJoinArena,
+            ClientOpcodes::BattlemasterHello,
             ClientOpcodes::BattlefieldLeave,
             ClientOpcodes::GuildBankLogQuery,
             ClientOpcodes::LogoutCancel,

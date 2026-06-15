@@ -36,6 +36,7 @@ use wow_packet::packets::collection::{
     COLLECTION_TYPE_APPEARANCE_LIKE_CPP, COLLECTION_TYPE_TOYBOX_LIKE_CPP,
     CollectionItemSetFavorite, TransmogrifyItems,
 };
+use wow_packet::packets::gossip::Hello;
 use wow_packet::packets::instance::{
     InstanceInfo, InstanceLockInfo, InstanceLockResponse, InstanceReset, InstanceResetFailed,
     PendingRaidLock,
@@ -846,6 +847,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_request_battlefield_status",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::BattlemasterHello,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_battlemaster_hello",
     }
 }
 
@@ -3369,6 +3379,26 @@ impl crate::session::WorldSession {
         // so the no-queue branch is silent.
     }
 
+    /// CMSG_BATTLEMASTER_HELLO — player asks a battlemaster NPC for its queue list.
+    /// C++ ref: `WorldSession::HandleBattlemasterHelloOpcode`.
+    pub async fn handle_battlemaster_hello(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let hello = match Hello::read(&mut pkt) {
+            Ok(hello) => hello,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "BattlemasterHello parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        // C++ returns silently when the target cannot be interacted with as a
+        // battlemaster. The accepted branch records the list intent until
+        // BattlegroundMgr::SendBattlegroundList is live in Rust.
+        let _accepted = self.battlemaster_hello_like_cpp(hello.unit);
+    }
+
     /// CMSG_BATTLEFIELD_LEAVE — player asks to leave the current battleground.
     /// C++ ref: `WorldSession::HandleBattlefieldLeaveOpcode`.
     pub async fn handle_battlefield_leave(&mut self, mut pkt: wow_packet::WorldPacket) {
@@ -5528,7 +5558,7 @@ impl crate::session::WorldSession {
 mod tests {
     use super::*;
     use std::collections::{HashMap, HashSet};
-    use std::sync::{Arc, Mutex};
+    use std::sync::{Arc, Mutex, RwLock};
     use wow_constants::{ClientOpcodes, ItemContext, ServerOpcodes, shared::DifficultyFlags};
     use wow_core::{ObjectGuid, Position, guid::HighGuid};
     use wow_data::progression_rewards::{FactionEntry, FactionStore};
@@ -5669,6 +5699,73 @@ mod tests {
             ),
             send_rx,
         )
+    }
+
+    fn misc_test_creature_create_data(
+        guid: ObjectGuid,
+        entry: u32,
+        npc_flags: u64,
+    ) -> wow_packet::packets::update::CreatureCreateData {
+        wow_packet::packets::update::CreatureCreateData {
+            guid,
+            entry,
+            display_id: 100,
+            native_display_id: 100,
+            health: 100,
+            max_health: 100,
+            level: 80,
+            faction_template: 35,
+            npc_flags,
+            unit_flags: 0,
+            unit_flags2: 0,
+            unit_flags3: 0,
+            damage_school: wow_constants::spell::SpellSchools::Normal as u8,
+            scale: 1.0,
+            unit_class: 1,
+            base_attack_time: 2000,
+            ranged_attack_time: 0,
+            zone_id: 0,
+            speed_walk_rate: 1.0,
+            speed_run_rate: 1.14286,
+            ai_anim_kit_id: 0,
+            movement_anim_kit_id: 0,
+            melee_anim_kit_id: 0,
+        }
+    }
+
+    fn register_misc_test_creature(
+        session: &mut crate::session::WorldSession,
+        guid: ObjectGuid,
+        entry: u32,
+        npc_flags: u64,
+    ) {
+        session.set_map_manager(Arc::new(RwLock::new(crate::map_manager::MapManager::new())));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.register_world_creature(
+            571,
+            Position::new(12.0, 0.0, 0.0, 0.0),
+            misc_test_creature_create_data(guid, entry, npc_flags),
+            1,
+            2,
+            5.0,
+            0,
+            0,
+            0,
+            0,
+            None,
+            0,
+            0,
+            0,
+            0,
+            -1,
+        );
+    }
+
+    fn battlemaster_hello_packet(unit: ObjectGuid) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_packed_guid(&unit);
+        pkt.reset_read();
+        pkt
     }
 
     fn broadcast_info_with_command_tx(
@@ -12812,6 +12909,65 @@ mod tests {
             .handle_request_battlefield_status(WorldPacket::new_empty())
             .await;
 
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn battlemaster_hello_missing_or_non_battlemaster_is_silent_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let missing = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 90_001, 1);
+
+        session
+            .handle_battlemaster_hello(battlemaster_hello_packet(missing))
+            .await;
+
+        assert!(
+            session
+                .represented_battlemaster_hellos_like_cpp()
+                .is_empty()
+        );
+        assert!(send_rx.try_recv().is_err());
+
+        let non_battlemaster =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 90_002, 2);
+        register_misc_test_creature(&mut session, non_battlemaster, 90_002, 0);
+
+        session
+            .handle_battlemaster_hello(battlemaster_hello_packet(non_battlemaster))
+            .await;
+
+        assert!(
+            session
+                .represented_battlemaster_hellos_like_cpp()
+                .is_empty()
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn battlemaster_hello_records_represented_list_intent_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let battlemaster =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 90_003, 3);
+
+        register_misc_test_creature(
+            &mut session,
+            battlemaster,
+            90_003,
+            NPCFlags1::BATTLE_MASTER.bits() as u64,
+        );
+
+        session
+            .handle_battlemaster_hello(battlemaster_hello_packet(battlemaster))
+            .await;
+
+        assert_eq!(
+            session.represented_battlemaster_hellos_like_cpp(),
+            &[crate::session::RepresentedBattlemasterHelloLikeCpp {
+                unit: battlemaster,
+                entry: 90_003,
+            }]
+        );
         assert!(send_rx.try_recv().is_err());
     }
 
