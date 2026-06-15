@@ -1520,6 +1520,20 @@ pub(crate) struct RepresentedCalendarCommunityInviteLikeCpp {
     pub max_rank_order: u8,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RepresentedCalendarAddEventLikeCpp {
+    pub guild_id: Option<u64>,
+    pub club_id: u64,
+    pub event_type: u8,
+    pub texture_id: i32,
+    pub time_packed: u32,
+    pub flags: u32,
+    pub invite_count: usize,
+    pub title: String,
+    pub description: String,
+    pub max_size: u32,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedCalendarRemoveEventLikeCpp {
     pub event_id: u64,
@@ -3088,6 +3102,7 @@ pub struct WorldSession {
     represented_guild_id_invited_like_cpp: u64,
     represented_guild_accept_invites_like_cpp: Vec<u64>,
     represented_calendar_community_invites_like_cpp: Vec<RepresentedCalendarCommunityInviteLikeCpp>,
+    represented_calendar_add_events_like_cpp: Vec<RepresentedCalendarAddEventLikeCpp>,
     represented_calendar_remove_events_like_cpp: Vec<RepresentedCalendarRemoveEventLikeCpp>,
     represented_arena_team_id_invited_like_cpp: u32,
     represented_wargame_invite_acceptances_like_cpp: Vec<RepresentedWargameInviteAcceptanceLikeCpp>,
@@ -4498,6 +4513,7 @@ impl WorldSession {
             represented_guild_id_invited_like_cpp: 0,
             represented_guild_accept_invites_like_cpp: Vec::new(),
             represented_calendar_community_invites_like_cpp: Vec::new(),
+            represented_calendar_add_events_like_cpp: Vec::new(),
             represented_calendar_remove_events_like_cpp: Vec::new(),
             represented_arena_team_id_invited_like_cpp: 0,
             represented_wargame_invite_acceptances_like_cpp: Vec::new(),
@@ -20358,6 +20374,12 @@ impl WorldSession {
                     Err(e) => warn!("Failed to read CalendarCommunityInvite: {e}"),
                 }
             }
+            ClientOpcodes::CalendarAddEvent => {
+                match wow_packet::packets::misc::CalendarAddEvent::read(&mut pkt) {
+                    Ok(query) => self.handle_calendar_add_event(query).await,
+                    Err(e) => warn!("Failed to read CalendarAddEvent: {e}"),
+                }
+            }
             ClientOpcodes::CalendarGetEvent => {
                 match wow_packet::packets::misc::CalendarGetEvent::read(&mut pkt) {
                     Ok(query) => self.handle_calendar_get_event(query).await,
@@ -23032,6 +23054,56 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedCalendarCommunityInviteLikeCpp] {
         &self.represented_calendar_community_invites_like_cpp
+    }
+
+    pub(crate) fn calendar_add_event_like_cpp(
+        &mut self,
+        club_id: u64,
+        event_type: u8,
+        texture_id: i32,
+        time_packed: u32,
+        flags: u32,
+        invite_count: usize,
+        title: String,
+        description: String,
+        max_size: u32,
+    ) -> bool {
+        const CALENDAR_FLAG_WITHOUT_INVITES_LIKE_CPP: u32 = 0x040;
+        const CALENDAR_FLAG_GUILD_EVENT_LIKE_CPP: u32 = 0x400;
+
+        let guild_scoped = (flags
+            & (CALENDAR_FLAG_GUILD_EVENT_LIKE_CPP | CALENDAR_FLAG_WITHOUT_INVITES_LIKE_CPP))
+            != 0;
+        let guild_id = if guild_scoped {
+            if self.represented_guild_id_like_cpp == 0 {
+                return false;
+            }
+            Some(self.represented_guild_id_like_cpp)
+        } else {
+            None
+        };
+
+        self.represented_calendar_add_events_like_cpp
+            .push(RepresentedCalendarAddEventLikeCpp {
+                guild_id,
+                club_id,
+                event_type,
+                texture_id,
+                time_packed,
+                flags,
+                invite_count,
+                title,
+                description,
+                max_size,
+            });
+        true
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_calendar_add_events_like_cpp(
+        &self,
+    ) -> &[RepresentedCalendarAddEventLikeCpp] {
+        &self.represented_calendar_add_events_like_cpp
     }
 
     pub(crate) fn calendar_remove_event_like_cpp(&mut self, event_id: u64) {

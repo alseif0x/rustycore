@@ -53,8 +53,8 @@ use wow_packet::packets::misc::{
     AuctionableTokenSellAtMarketPrice, BattlePetClearFanfare, BattlePetDeletePet,
     BattlePetModifyName, BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags,
     BattlePetSummon, BattlePetUpdateNotify, BattlefieldLeave, BeginTrade, BugReport, BusyTrade,
-    CageBattlePet, CalendarCommandResult, CalendarCommunityInvite, CalendarComplain,
-    CalendarCopyEvent, CalendarEventSignUp, CalendarGetEvent, CalendarInvite,
+    CageBattlePet, CalendarAddEvent, CalendarCommandResult, CalendarCommunityInvite,
+    CalendarComplain, CalendarCopyEvent, CalendarEventSignUp, CalendarGetEvent, CalendarInvite,
     CalendarModeratorStatusQuery, CalendarRemoveEvent, CalendarRemoveInvite, CalendarRsvp,
     CalendarSendCalendar, CalendarSendNumPending, CalendarStatus, CalendarUpdateEvent, CanDuel,
     ClearTradeItem, CloseInteraction, CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint,
@@ -1557,6 +1557,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_calendar_community_invite",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::CalendarAddEvent,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_calendar_add_event",
     }
 }
 
@@ -4662,6 +4671,28 @@ impl crate::session::WorldSession {
             query.max_level,
             query.max_rank_order,
         );
+    }
+
+    pub async fn handle_calendar_add_event(&mut self, query: CalendarAddEvent) {
+        // C++ rejects guild-scoped events before allocating CalendarMgr state.
+        // Rust only has represented guild membership here, so this captures that
+        // observable branch and records otherwise-accepted creation intent.
+        let accepted = self.calendar_add_event_like_cpp(
+            query.club_id,
+            query.event_type,
+            query.texture_id,
+            query.time_packed,
+            query.flags,
+            query.invites.len(),
+            query.title,
+            query.description,
+            query.max_size,
+        );
+        if !accepted {
+            self.send_packet(&CalendarCommandResult::with_result_like_cpp(
+                CalendarCommandResult::ERROR_GUILD_PLAYER_NOT_IN_GUILD_LIKE_CPP,
+            ));
+        }
     }
 
     pub async fn handle_calendar_get_event(&mut self, _query: CalendarGetEvent) {
@@ -12426,6 +12457,78 @@ mod tests {
                 min_level: 10,
                 max_level: 70,
                 max_rank_order: 3,
+            }]
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn calendar_add_event_guild_scoped_without_guild_sends_not_in_guild_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        session.set_represented_guild_id_like_cpp(0);
+
+        session
+            .handle_calendar_add_event(CalendarAddEvent {
+                club_id: 0x1111_2222_3333_4444,
+                event_type: 7,
+                texture_id: -1234,
+                time_packed: 0x0102_0304,
+                flags: 0x0000_0400,
+                invites: Vec::new(),
+                title: "Title".to_string(),
+                description: "Desc".to_string(),
+                max_size: 99,
+            })
+            .await;
+
+        assert!(
+            session
+                .represented_calendar_add_events_like_cpp()
+                .is_empty()
+        );
+        let bytes = send_rx.try_recv().expect("calendar command result");
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::CalendarCommandResult as u16
+        );
+
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_uint8().unwrap(), 1);
+        assert_eq!(pkt.read_uint8().unwrap(), 9);
+        assert_eq!(pkt.read_bits(9).unwrap(), 0);
+    }
+
+    #[tokio::test]
+    async fn calendar_add_event_records_represented_creation_intent_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_calendar_add_event(CalendarAddEvent {
+                club_id: 0x1111_2222_3333_4444,
+                event_type: 7,
+                texture_id: -1234,
+                time_packed: 0x0102_0304,
+                flags: 0,
+                invites: Vec::new(),
+                title: "Title".to_string(),
+                description: "Desc".to_string(),
+                max_size: 99,
+            })
+            .await;
+
+        assert_eq!(
+            session.represented_calendar_add_events_like_cpp(),
+            &[crate::session::RepresentedCalendarAddEventLikeCpp {
+                guild_id: None,
+                club_id: 0x1111_2222_3333_4444,
+                event_type: 7,
+                texture_id: -1234,
+                time_packed: 0x0102_0304,
+                flags: 0,
+                invite_count: 0,
+                title: "Title".to_string(),
+                description: "Desc".to_string(),
+                max_size: 99,
             }]
         );
         assert!(send_rx.try_recv().is_err());

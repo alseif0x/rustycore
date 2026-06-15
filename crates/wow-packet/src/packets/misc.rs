@@ -6075,6 +6075,98 @@ impl ClientPacket for CalendarInvite {
     }
 }
 
+/// C++ `WorldPackets::Calendar::CalendarAddEventInviteInfo`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CalendarAddEventInviteInfo {
+    pub guid: ObjectGuid,
+    pub status: u8,
+    pub moderator: u8,
+    pub unused_801_1: Option<ObjectGuid>,
+    pub unused_801_2: Option<u64>,
+    pub unused_801_3: Option<u64>,
+}
+
+impl CalendarAddEventInviteInfo {
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let guid = pkt.read_guid()?;
+        let status = pkt.read_uint8()?;
+        let moderator = pkt.read_uint8()?;
+        let has_unused_801_1 = pkt.read_bit()?;
+        let has_unused_801_2 = pkt.read_bit()?;
+        let has_unused_801_3 = pkt.read_bit()?;
+        let unused_801_1 = if has_unused_801_1 {
+            Some(pkt.read_guid()?)
+        } else {
+            None
+        };
+        let unused_801_2 = if has_unused_801_2 {
+            Some(pkt.read_uint64()?)
+        } else {
+            None
+        };
+        let unused_801_3 = if has_unused_801_3 {
+            Some(pkt.read_uint64()?)
+        } else {
+            None
+        };
+        Ok(Self {
+            guid,
+            status,
+            moderator,
+            unused_801_1,
+            unused_801_2,
+            unused_801_3,
+        })
+    }
+}
+
+/// C++ `WorldPackets::Calendar::CalendarAddEvent`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CalendarAddEvent {
+    pub club_id: u64,
+    pub event_type: u8,
+    pub texture_id: i32,
+    pub time_packed: u32,
+    pub flags: u32,
+    pub invites: Vec<CalendarAddEventInviteInfo>,
+    pub title: String,
+    pub description: String,
+    pub max_size: u32,
+}
+
+impl ClientPacket for CalendarAddEvent {
+    const OPCODE: ClientOpcodes = ClientOpcodes::CalendarAddEvent;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let club_id = pkt.read_uint64()?;
+        let event_type = pkt.read_uint8()?;
+        let texture_id = pkt.read_int32()?;
+        let time_packed = pkt.read_uint32()?;
+        let flags = pkt.read_uint32()?;
+        let invite_count = pkt.read_uint32()? as usize;
+        let title_len = pkt.read_bits(8)? as usize;
+        let description_len = pkt.read_bits(11)? as usize;
+        let mut invites = Vec::with_capacity(invite_count);
+        for _ in 0..invite_count {
+            invites.push(CalendarAddEventInviteInfo::read(pkt)?);
+        }
+        let title = pkt.read_string(title_len)?;
+        let description = pkt.read_string(description_len)?;
+        let max_size = pkt.read_uint32()?;
+        Ok(Self {
+            club_id,
+            event_type,
+            texture_id,
+            time_packed,
+            flags,
+            invites,
+            title,
+            description,
+            max_size,
+        })
+    }
+}
+
 /// C++ `WorldPackets::Calendar::CalendarUpdateEvent`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CalendarUpdateEvent {
@@ -6305,22 +6397,23 @@ pub struct CalendarCommandResult {
 impl CalendarCommandResult {
     pub const COMMAND_LIKE_CPP: u8 = 1;
     pub const ERROR_EVENT_INVALID_LIKE_CPP: u8 = 6;
+    pub const ERROR_GUILD_PLAYER_NOT_IN_GUILD_LIKE_CPP: u8 = 9;
     pub const ERROR_NO_INVITE_LIKE_CPP: u8 = 29;
 
-    pub fn event_invalid_like_cpp() -> Self {
+    pub fn with_result_like_cpp(result: u8) -> Self {
         Self {
             command: Self::COMMAND_LIKE_CPP,
-            result: Self::ERROR_EVENT_INVALID_LIKE_CPP,
+            result,
             name: String::new(),
         }
     }
 
+    pub fn event_invalid_like_cpp() -> Self {
+        Self::with_result_like_cpp(Self::ERROR_EVENT_INVALID_LIKE_CPP)
+    }
+
     pub fn no_invite_like_cpp() -> Self {
-        Self {
-            command: Self::COMMAND_LIKE_CPP,
-            result: Self::ERROR_NO_INVITE_LIKE_CPP,
-            name: String::new(),
-        }
+        Self::with_result_like_cpp(Self::ERROR_NO_INVITE_LIKE_CPP)
     }
 }
 
@@ -8102,6 +8195,51 @@ mod tests {
         assert!(!query.creating);
         assert!(query.is_sign_up);
         assert_eq!(query.name, "Test");
+    }
+
+    #[test]
+    fn calendar_add_event_reads_cpp_field_order_with_invite_optionals() {
+        let mut pkt = WorldPacket::new_empty();
+        let invite_guid = ObjectGuid::new(0x0102_0304_0506_0708_i64, 0x1112_1314_1516_1718_i64);
+        let optional_guid = ObjectGuid::new(0x2122_2324_2526_2728_i64, 0x3132_3334_3536_3738_i64);
+
+        pkt.write_uint64(0x1111_2222_3333_4444);
+        pkt.write_uint8(7);
+        pkt.write_int32(-1234);
+        pkt.write_uint32(0x0102_0304);
+        pkt.write_uint32(0x0000_0440);
+        pkt.write_uint32(1);
+        pkt.write_bits(5, 8);
+        pkt.write_bits(4, 11);
+        pkt.write_guid(&invite_guid);
+        pkt.write_uint8(3);
+        pkt.write_uint8(2);
+        pkt.write_bit(true);
+        pkt.write_bit(true);
+        pkt.write_bit(true);
+        pkt.write_guid(&optional_guid);
+        pkt.write_uint64(0x4142_4344_4546_4748);
+        pkt.write_uint64(0x5152_5354_5556_5758);
+        pkt.write_string("Title");
+        pkt.write_string("Desc");
+        pkt.write_uint32(99);
+
+        let query = CalendarAddEvent::read(&mut pkt).unwrap();
+        assert_eq!(query.club_id, 0x1111_2222_3333_4444);
+        assert_eq!(query.event_type, 7);
+        assert_eq!(query.texture_id, -1234);
+        assert_eq!(query.time_packed, 0x0102_0304);
+        assert_eq!(query.flags, 0x0000_0440);
+        assert_eq!(query.title, "Title");
+        assert_eq!(query.description, "Desc");
+        assert_eq!(query.max_size, 99);
+        assert_eq!(query.invites.len(), 1);
+        assert_eq!(query.invites[0].guid, invite_guid);
+        assert_eq!(query.invites[0].status, 3);
+        assert_eq!(query.invites[0].moderator, 2);
+        assert_eq!(query.invites[0].unused_801_1, Some(optional_guid));
+        assert_eq!(query.invites[0].unused_801_2, Some(0x4142_4344_4546_4748));
+        assert_eq!(query.invites[0].unused_801_3, Some(0x5152_5354_5556_5758));
     }
 
     #[test]
