@@ -24,7 +24,7 @@ use wow_entities::{
     GAMEOBJECT_TYPE_ITEM_FORGE, GAMEOBJECT_TYPE_MEETINGSTONE, GAMEOBJECT_TYPE_NEW_FLAG,
     GAMEOBJECT_TYPE_NEW_FLAG_DROP, GAMEOBJECT_TYPE_QUESTGIVER, GAMEOBJECT_TYPE_RITUAL,
     GAMEOBJECT_TYPE_SPELL_FOCUS, GAMEOBJECT_TYPE_SPELLCASTER, GAMEOBJECT_TYPE_TRAP,
-    GAMEOBJECT_TYPE_UI_LINK, GameObjectTemplateData, MAX_GAMEOBJECT_DATA,
+    GAMEOBJECT_TYPE_UI_LINK, GameObjectTemplateData, MAX_GAMEOBJECT_DATA, MAX_MONEY_AMOUNT,
 };
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
 use wow_packet::packets::character::SetTitle;
@@ -49,24 +49,25 @@ use wow_packet::packets::misc::{
     AcceptGuildInvite, AcceptTrade, AcceptWargameInvite, ActivateTaxi, ActivateTaxiReply, AddToy,
     AddonList, ArenaTeamAccept, ArenaTeamDecline, ArenaTeamDisband, ArenaTeamLeader,
     ArenaTeamLeave, ArenaTeamRemove, ArenaTeamRoster, AuctionPlaceBid, AuctionRemoveItem,
-    AuctionReplicateItems, AuctionableTokenSell, AuctionableTokenSellAtMarketPrice,
-    BattlePetClearFanfare, BattlePetDeletePet, BattlePetModifyName, BattlePetRequestJournal,
-    BattlePetSetBattleSlot, BattlePetSetFlags, BattlePetSummon, BattlePetUpdateNotify,
-    BattlefieldLeave, BeginTrade, BugReport, BusyTrade, CageBattlePet, CalendarSendCalendar,
-    CalendarSendNumPending, CanDuel, ClearTradeItem, CloseInteraction, CommerceTokenGetLog,
-    CommerceTokenGetLogResponse, Complaint, ComplaintResult, DeclineGuildInvites, DeclinePetition,
-    DfGetJoinStatus, DfGetSystemInfo, ERR_TAXITOOFARAWAY_LIKE_CPP, FarSight,
-    GmTicketAcknowledgeSurvey, GmTicketCaseStatus, GmTicketSystemStatus,
-    GuildSetAchievementTracking, IgnoreTrade, LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus,
-    LoadingScreenNotify, MAX_ACCOUNT_DATA_SIZE_LIKE_CPP, MountSetFavorite, MountSpecial,
-    NUM_ACCOUNT_DATA_TYPES, ObjectUpdateFailed, ObjectUpdateRescued, QueryArenaTeam,
-    QueryBattlePetName, QueryBattlePetNameResponse, QueryPetition, QueryPetitionResponse,
-    RatedPvpInfo, ReclaimCorpse, RepopRequest, RequestAccountData, RequestBattlefieldStatus,
-    RequestCemeteryListResponse, ResurrectResponse, SaveCufProfiles, SetAdvancedCombatLogging,
-    SetCurrencyFlags, SetDifficultyId, SetDungeonDifficulty, SetPvp, SetRaidDifficulty,
-    SetTaxiBenchmarkMode, SetTradeGold, SetTradeItem, SetTradeSpell, SignPetition,
-    SpecialMountAnim, StandStateChange, SubmitUserFeedback, SupportTicketSubmitBug,
-    SupportTicketSubmitComplaint, SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
+    AuctionReplicateItems, AuctionSellItem, AuctionableTokenSell,
+    AuctionableTokenSellAtMarketPrice, BattlePetClearFanfare, BattlePetDeletePet,
+    BattlePetModifyName, BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags,
+    BattlePetSummon, BattlePetUpdateNotify, BattlefieldLeave, BeginTrade, BugReport, BusyTrade,
+    CageBattlePet, CalendarSendCalendar, CalendarSendNumPending, CanDuel, ClearTradeItem,
+    CloseInteraction, CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint, ComplaintResult,
+    DeclineGuildInvites, DeclinePetition, DfGetJoinStatus, DfGetSystemInfo,
+    ERR_TAXITOOFARAWAY_LIKE_CPP, FarSight, GmTicketAcknowledgeSurvey, GmTicketCaseStatus,
+    GmTicketSystemStatus, GuildSetAchievementTracking, IgnoreTrade, LfgListBlacklist,
+    LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify, MAX_ACCOUNT_DATA_SIZE_LIKE_CPP,
+    MountSetFavorite, MountSpecial, NUM_ACCOUNT_DATA_TYPES, ObjectUpdateFailed,
+    ObjectUpdateRescued, QueryArenaTeam, QueryBattlePetName, QueryBattlePetNameResponse,
+    QueryPetition, QueryPetitionResponse, RatedPvpInfo, ReclaimCorpse, RepopRequest,
+    RequestAccountData, RequestBattlefieldStatus, RequestCemeteryListResponse, ResurrectResponse,
+    SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags, SetDifficultyId,
+    SetDungeonDifficulty, SetPvp, SetRaidDifficulty, SetTaxiBenchmarkMode, SetTradeGold,
+    SetTradeItem, SetTradeSpell, SignPetition, SpecialMountAnim, StandStateChange,
+    SubmitUserFeedback, SupportTicketSubmitBug, SupportTicketSubmitComplaint,
+    SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
     TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP, TaxiNodeStatusPkt, TogglePvp, ToyClearFanfare,
     UnacceptTrade, UpdateAccountData, UseToy, UserClientUpdateAccountData, ViolenceLevel,
     compress_account_data_like_cpp, decompress_account_data_like_cpp,
@@ -85,8 +86,9 @@ use crate::handlers::loot::represented_gameobject_interaction_distance_like_cpp;
 use crate::session::{
     CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP, RepresentedActivateTaxiLikeCpp,
     RepresentedAuctionPlaceBidLikeCpp, RepresentedAuctionRemoveItemLikeCpp,
-    RepresentedAuctionReplicateRequestLikeCpp, RepresentedGameObjectAccessLikeCpp,
-    RepresentedGameObjectUseEffect, SpellCastMetadata, TRADE_STATUS_PLAYER_BUSY_LIKE_CPP,
+    RepresentedAuctionReplicateRequestLikeCpp, RepresentedAuctionSellItemLikeCpp,
+    RepresentedGameObjectAccessLikeCpp, RepresentedGameObjectUseEffect, SpellCastMetadata,
+    TRADE_STATUS_PLAYER_BUSY_LIKE_CPP,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1565,6 +1567,15 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
+        opcode: ClientOpcodes::AuctionSellItem,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_auction_sell_item",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
         opcode: ClientOpcodes::AuctionReplicateItems,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
@@ -1691,6 +1702,10 @@ pub fn bug_report_insert_statement_like_cpp(report: &BugReport) -> PreparedState
 }
 
 const SILVER_LIKE_CPP: u64 = 100;
+const MIN_AUCTION_TIME_MINUTES_LIKE_CPP: u32 = 12 * 60;
+const SHORT_AUCTION_TIME_MINUTES_LIKE_CPP: u32 = MIN_AUCTION_TIME_MINUTES_LIKE_CPP;
+const MEDIUM_AUCTION_TIME_MINUTES_LIKE_CPP: u32 = 2 * MIN_AUCTION_TIME_MINUTES_LIKE_CPP;
+const LONG_AUCTION_TIME_MINUTES_LIKE_CPP: u32 = 4 * MIN_AUCTION_TIME_MINUTES_LIKE_CPP;
 
 impl crate::session::WorldSession {
     /// C++ `WorldSession::HandleFarSightOpcode`: does not create/remove the
@@ -4517,6 +4532,76 @@ impl crate::session::WorldSession {
             item_id: packet.item_id,
             tainted_by_present: packet.tainted_by.is_some(),
         });
+    }
+
+    /// CMSG_AUCTION_SELL_ITEM — post a single non-commodity item for auction.
+    ///
+    /// C++ validates packet-level sell-item constraints before auctioneer
+    /// lookup, then validates auctioneer, runtime, live item state, deposit,
+    /// and DB. Rust captures the packet/auctioneer/runtime gates currently
+    /// representable and leaves live AuctionMgr/item mutation open.
+    pub async fn handle_auction_sell_item(&mut self, packet: AuctionSellItem) {
+        let first_item = packet.items.first().copied();
+        let item_list_rejected = packet.items.len() != 1;
+        let use_count_rejected = packet.items.len() == 1
+            && first_item
+                .map(|item| item.use_count != 1)
+                .unwrap_or_default();
+        let no_price_rejected = packet.min_bid == 0 && packet.buyout_price == 0;
+        let max_money_rejected =
+            packet.min_bid > MAX_MONEY_AMOUNT || packet.buyout_price > MAX_MONEY_AMOUNT;
+        let copper_rejected =
+            packet.min_bid % SILVER_LIKE_CPP != 0 || packet.buyout_price % SILVER_LIKE_CPP != 0;
+
+        let mut represented = RepresentedAuctionSellItemLikeCpp {
+            auctioneer: packet.auctioneer,
+            item_guid: first_item.map(|item| item.guid),
+            item_use_count: first_item.map(|item| item.use_count),
+            min_bid: packet.min_bid,
+            buyout_price: packet.buyout_price,
+            runtime_minutes: packet.runtime,
+            tainted_by_present: packet.tainted_by.is_some(),
+            item_list_rejected,
+            use_count_rejected,
+            no_price_rejected,
+            max_money_rejected,
+            copper_rejected,
+            auctioneer_accepted: false,
+            runtime_rejected: false,
+        };
+
+        if item_list_rejected
+            || use_count_rejected
+            || no_price_rejected
+            || max_money_rejected
+            || copper_rejected
+        {
+            self.record_represented_auction_sell_item_like_cpp(represented);
+            return;
+        }
+
+        let Some(_auctioneer) = self.represented_npc_can_interact_with_like_cpp(
+            packet.auctioneer,
+            NPCFlags1::AUCTIONEER.bits(),
+            0,
+        ) else {
+            debug!(
+                account = self.account_id,
+                auctioneer = ?packet.auctioneer,
+                runtime = packet.runtime,
+                "AuctionSellItem rejected: auctioneer missing, invalid, hostile/dead, out of range, or lacks AUCTIONEER flag"
+            );
+            return;
+        };
+        represented.auctioneer_accepted = true;
+
+        represented.runtime_rejected = !matches!(
+            packet.runtime,
+            SHORT_AUCTION_TIME_MINUTES_LIKE_CPP
+                | MEDIUM_AUCTION_TIME_MINUTES_LIKE_CPP
+                | LONG_AUCTION_TIME_MINUTES_LIKE_CPP
+        );
+        self.record_represented_auction_sell_item_like_cpp(represented);
     }
 
     /// CMSG_AUCTION_REPLICATE_ITEMS — replicate auction-house changes.
@@ -12172,6 +12257,190 @@ mod tests {
             session
                 .represented_auction_remove_items_like_cpp()
                 .is_empty()
+        );
+    }
+
+    #[tokio::test]
+    async fn auction_sell_item_records_request_after_available_gates_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager_for_misc_test();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let auctioneer =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 90_002, 84);
+        let item_guid = ObjectGuid::create_item(1, 19_019);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(crate::session::SessionPlayerController::new(
+            player_guid,
+            "Tester".to_string(),
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map_for_misc_test(
+            &canonical,
+            player_guid,
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            571,
+            0,
+        );
+        add_canonical_auctioneer_for_misc_test(
+            &canonical,
+            auctioneer,
+            Position::new(12.0, 0.0, 0.0, 0.0),
+            NPCFlags1::AUCTIONEER.bits(),
+        );
+
+        session
+            .handle_auction_sell_item(AuctionSellItem {
+                auctioneer,
+                min_bid: 10_000,
+                buyout_price: 25_000,
+                runtime: 720,
+                tainted_by: Some(wow_packet::packets::misc::AuctionAddonInfo {
+                    name: "Trade".to_string(),
+                    version: "1.0".to_string(),
+                    loaded: true,
+                    disabled: false,
+                }),
+                items: vec![wow_packet::packets::misc::AuctionItemForSale {
+                    guid: item_guid,
+                    use_count: 1,
+                }],
+            })
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+        assert_eq!(
+            session.represented_auction_sell_items_like_cpp(),
+            &[RepresentedAuctionSellItemLikeCpp {
+                auctioneer,
+                item_guid: Some(item_guid),
+                item_use_count: Some(1),
+                min_bid: 10_000,
+                buyout_price: 25_000,
+                runtime_minutes: 720,
+                tainted_by_present: true,
+                item_list_rejected: false,
+                use_count_rejected: false,
+                no_price_rejected: false,
+                max_money_rejected: false,
+                copper_rejected: false,
+                auctioneer_accepted: true,
+                runtime_rejected: false,
+            }]
+        );
+    }
+
+    #[tokio::test]
+    async fn auction_sell_item_records_pre_auctioneer_packet_rejections_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let missing_auctioneer =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 90_002, 85);
+
+        session
+            .handle_auction_sell_item(AuctionSellItem {
+                auctioneer: missing_auctioneer,
+                min_bid: 10_001,
+                buyout_price: 0,
+                runtime: 720,
+                tainted_by: None,
+                items: vec![],
+            })
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+        assert_eq!(
+            session.represented_auction_sell_items_like_cpp(),
+            &[RepresentedAuctionSellItemLikeCpp {
+                auctioneer: missing_auctioneer,
+                item_guid: None,
+                item_use_count: None,
+                min_bid: 10_001,
+                buyout_price: 0,
+                runtime_minutes: 720,
+                tainted_by_present: false,
+                item_list_rejected: true,
+                use_count_rejected: false,
+                no_price_rejected: false,
+                max_money_rejected: false,
+                copper_rejected: true,
+                auctioneer_accepted: false,
+                runtime_rejected: false,
+            }]
+        );
+    }
+
+    #[tokio::test]
+    async fn auction_sell_item_marks_invalid_runtime_after_auctioneer_gate_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager_for_misc_test();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let auctioneer =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 90_002, 86);
+        let item_guid = ObjectGuid::create_item(1, 19_020);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(crate::session::SessionPlayerController::new(
+            player_guid,
+            "Tester".to_string(),
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map_for_misc_test(
+            &canonical,
+            player_guid,
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            571,
+            0,
+        );
+        add_canonical_auctioneer_for_misc_test(
+            &canonical,
+            auctioneer,
+            Position::new(12.0, 0.0, 0.0, 0.0),
+            NPCFlags1::AUCTIONEER.bits(),
+        );
+
+        session
+            .handle_auction_sell_item(AuctionSellItem {
+                auctioneer,
+                min_bid: 10_000,
+                buyout_price: 0,
+                runtime: 1,
+                tainted_by: None,
+                items: vec![wow_packet::packets::misc::AuctionItemForSale {
+                    guid: item_guid,
+                    use_count: 1,
+                }],
+            })
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+        assert_eq!(
+            session.represented_auction_sell_items_like_cpp(),
+            &[RepresentedAuctionSellItemLikeCpp {
+                auctioneer,
+                item_guid: Some(item_guid),
+                item_use_count: Some(1),
+                min_bid: 10_000,
+                buyout_price: 0,
+                runtime_minutes: 1,
+                tainted_by_present: false,
+                item_list_rejected: false,
+                use_count_rejected: false,
+                no_price_rejected: false,
+                max_money_rejected: false,
+                copper_rejected: false,
+                auctioneer_accepted: true,
+                runtime_rejected: true,
+            }]
         );
     }
 

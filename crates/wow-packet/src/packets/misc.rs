@@ -5415,6 +5415,64 @@ impl ClientPacket for AuctionRemoveItem {
     }
 }
 
+/// C++ `WorldPackets::AuctionHouse::AuctionItemForSale`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AuctionItemForSale {
+    pub guid: ObjectGuid,
+    pub use_count: u32,
+}
+
+impl AuctionItemForSale {
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            guid: pkt.read_guid()?,
+            use_count: pkt.read_uint32()?,
+        })
+    }
+}
+
+/// C++ `WorldPackets::AuctionHouse::AuctionSellItem`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuctionSellItem {
+    pub auctioneer: ObjectGuid,
+    pub min_bid: u64,
+    pub buyout_price: u64,
+    pub runtime: u32,
+    pub tainted_by: Option<AuctionAddonInfo>,
+    pub items: Vec<AuctionItemForSale>,
+}
+
+impl ClientPacket for AuctionSellItem {
+    const OPCODE: ClientOpcodes = ClientOpcodes::AuctionSellItem;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let auctioneer = pkt.read_guid()?;
+        let min_bid = pkt.read_uint64()?;
+        let buyout_price = pkt.read_uint64()?;
+        let runtime = pkt.read_uint32()?;
+        let tainted_by_present = pkt.read_bit()?;
+        let item_count = pkt.read_bits(6)? as usize;
+        let tainted_by = if tainted_by_present {
+            Some(AuctionAddonInfo::read(pkt)?)
+        } else {
+            None
+        };
+        let mut items = Vec::with_capacity(item_count);
+        for _ in 0..item_count {
+            items.push(AuctionItemForSale::read(pkt)?);
+        }
+
+        Ok(Self {
+            auctioneer,
+            min_bid,
+            buyout_price,
+            runtime,
+            tainted_by,
+            items,
+        })
+    }
+}
+
 /// SMSG_AUCTION_LIST_BIDDER_ITEMS_RESULT — empty bidder list.
 pub struct AuctionListBidderItemsResult;
 impl ServerPacket for AuctionListBidderItemsResult {
@@ -8032,6 +8090,89 @@ mod tests {
                 loaded: true,
                 disabled: false,
             })
+        );
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn auction_sell_item_reads_single_item_no_tainted_by_like_cpp() {
+        let auctioneer =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9_007, 13);
+        let item_guid = ObjectGuid::create_item(1, 19_019);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_guid(&auctioneer);
+        pkt.write_uint64(10_000);
+        pkt.write_uint64(25_000);
+        pkt.write_uint32(720);
+        pkt.write_bit(false);
+        pkt.write_bits(1, 6);
+        pkt.flush_bits();
+        pkt.write_guid(&item_guid);
+        pkt.write_uint32(1);
+        pkt.reset_read();
+
+        let request = AuctionSellItem::read(&mut pkt).unwrap();
+        assert_eq!(request.auctioneer, auctioneer);
+        assert_eq!(request.min_bid, 10_000);
+        assert_eq!(request.buyout_price, 25_000);
+        assert_eq!(request.runtime, 720);
+        assert!(request.tainted_by.is_none());
+        assert_eq!(
+            request.items,
+            vec![AuctionItemForSale {
+                guid: item_guid,
+                use_count: 1,
+            }]
+        );
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn auction_sell_item_reads_tainted_by_like_cpp() {
+        let auctioneer =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9_008, 14);
+        let item_guid = ObjectGuid::create_item(1, 43_006);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_guid(&auctioneer);
+        pkt.write_uint64(20_000);
+        pkt.write_uint64(50_000);
+        pkt.write_uint32(1440);
+        pkt.write_bit(true);
+        pkt.write_bits(1, 6);
+        pkt.flush_bits();
+        pkt.write_bits(6, 10); // "Trade" + '\0'
+        pkt.write_bits(4, 10); // "1.0" + '\0'
+        pkt.write_bit(true);
+        pkt.write_bit(false);
+        pkt.flush_bits();
+        pkt.write_string("Trade");
+        pkt.write_uint8(0);
+        pkt.write_string("1.0");
+        pkt.write_uint8(0);
+        pkt.write_guid(&item_guid);
+        pkt.write_uint32(1);
+        pkt.reset_read();
+
+        let request = AuctionSellItem::read(&mut pkt).unwrap();
+        assert_eq!(request.auctioneer, auctioneer);
+        assert_eq!(request.min_bid, 20_000);
+        assert_eq!(request.buyout_price, 50_000);
+        assert_eq!(request.runtime, 1440);
+        assert_eq!(
+            request.tainted_by,
+            Some(AuctionAddonInfo {
+                name: "Trade".to_string(),
+                version: "1.0".to_string(),
+                loaded: true,
+                disabled: false,
+            })
+        );
+        assert_eq!(
+            request.items,
+            vec![AuctionItemForSale {
+                guid: item_guid,
+                use_count: 1,
+            }]
         );
         assert_eq!(pkt.remaining(), 0);
     }

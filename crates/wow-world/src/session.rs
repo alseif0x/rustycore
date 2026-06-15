@@ -1483,6 +1483,24 @@ pub(crate) struct RepresentedAuctionRemoveItemLikeCpp {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedAuctionSellItemLikeCpp {
+    pub auctioneer: ObjectGuid,
+    pub item_guid: Option<ObjectGuid>,
+    pub item_use_count: Option<u32>,
+    pub min_bid: u64,
+    pub buyout_price: u64,
+    pub runtime_minutes: u32,
+    pub tainted_by_present: bool,
+    pub item_list_rejected: bool,
+    pub use_count_rejected: bool,
+    pub no_price_rejected: bool,
+    pub max_money_rejected: bool,
+    pub copper_rejected: bool,
+    pub auctioneer_accepted: bool,
+    pub runtime_rejected: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedCanDuelSpellCastLikeCpp {
     pub target_guid: ObjectGuid,
     pub spell_id: u32,
@@ -2988,6 +3006,7 @@ pub struct WorldSession {
     represented_auction_replicate_requests_like_cpp: Vec<RepresentedAuctionReplicateRequestLikeCpp>,
     represented_auction_place_bids_like_cpp: Vec<RepresentedAuctionPlaceBidLikeCpp>,
     represented_auction_remove_items_like_cpp: Vec<RepresentedAuctionRemoveItemLikeCpp>,
+    represented_auction_sell_items_like_cpp: Vec<RepresentedAuctionSellItemLikeCpp>,
     player_xp: u32,
     /// XP required to reach next level, cached from player_xp_for_level.
     player_next_level_xp: u32,
@@ -4395,6 +4414,7 @@ impl WorldSession {
             represented_auction_replicate_requests_like_cpp: Vec::new(),
             represented_auction_place_bids_like_cpp: Vec::new(),
             represented_auction_remove_items_like_cpp: Vec::new(),
+            represented_auction_sell_items_like_cpp: Vec::new(),
             player_xp: 0,
             player_next_level_xp: 400,
             player_xp_table: None,
@@ -20236,6 +20256,12 @@ impl WorldSession {
                     Err(e) => warn!("Failed to read AuctionRemoveItem: {e}"),
                 }
             }
+            ClientOpcodes::AuctionSellItem => {
+                match wow_packet::packets::misc::AuctionSellItem::read(&mut pkt) {
+                    Ok(packet) => self.handle_auction_sell_item(packet).await,
+                    Err(e) => warn!("Failed to read AuctionSellItem: {e}"),
+                }
+            }
             ClientOpcodes::AuctionReplicateItems => {
                 match wow_packet::packets::misc::AuctionReplicateItems::read(&mut pkt) {
                     Ok(packet) => self.handle_auction_replicate_items(packet).await,
@@ -21356,6 +21382,19 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedAuctionRemoveItemLikeCpp] {
         &self.represented_auction_remove_items_like_cpp
+    }
+
+    pub(crate) fn record_represented_auction_sell_item_like_cpp(
+        &mut self,
+        sell: RepresentedAuctionSellItemLikeCpp,
+    ) {
+        self.represented_auction_sell_items_like_cpp.push(sell);
+    }
+
+    pub(crate) fn represented_auction_sell_items_like_cpp(
+        &self,
+    ) -> &[RepresentedAuctionSellItemLikeCpp] {
+        &self.represented_auction_sell_items_like_cpp
     }
 
     pub(crate) fn represented_bank_bag_slot_flag_like_cpp(&self, slot: usize) -> Option<u32> {
