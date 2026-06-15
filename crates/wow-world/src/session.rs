@@ -34716,9 +34716,9 @@ impl WorldSession {
             self.force_update_visibility_like_cpp().await;
         }
 
-        let direct_spell_effects_like_cpp: Vec<(u32, i32, u32, i32)> =
+        let direct_spell_effects_like_cpp: Vec<(u32, i32, u32, i32, i32)> =
             if spell_info.effects().is_empty() {
-                vec![(effect_type, effect_base_points, 0, 0)]
+                vec![(effect_type, effect_base_points, 0, 0, 0)]
             } else {
                 spell_info
                     .effects()
@@ -34730,6 +34730,7 @@ impl WorldSession {
                             effect.effect_base_points,
                             effect.effect_index,
                             effect.effect_misc_value_1,
+                            effect.effect_trigger_spell,
                         )
                     })
                     .collect()
@@ -34739,6 +34740,7 @@ impl WorldSession {
             direct_effect_base_points,
             direct_effect_index,
             direct_effect_misc_value_1,
+            direct_effect_trigger_spell,
         ) in direct_spell_effects_like_cpp
         {
             match direct_effect_type {
@@ -34816,6 +34818,20 @@ impl WorldSession {
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_ATTACK_ME => {
                     self.apply_taunt_effect_like_cpp(spell_id, target_guid)?;
+                }
+                x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_MODIFY_COOLDOWN => {
+                    self.apply_modify_cooldown_effect_like_cpp(
+                        direct_effect_base_points,
+                        direct_effect_trigger_spell,
+                        target_guid,
+                    );
+                }
+                x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_MODIFY_CHARGES => {
+                    self.apply_modify_spell_charges_effect_like_cpp(
+                        direct_effect_base_points,
+                        direct_effect_misc_value_1,
+                        target_guid,
+                    );
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_SANCTUARY => {
                     self.apply_sanctuary_effect_like_cpp(target_guid)?;
@@ -35021,6 +35037,8 @@ impl WorldSession {
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_DISTRACT
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_MODIFY_THREAT_PERCENT
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_ATTACK_ME
+                || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_MODIFY_COOLDOWN
+                || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_MODIFY_CHARGES
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_SANCTUARY
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_SELF_RESURRECT
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_STUCK
@@ -36863,6 +36881,79 @@ impl WorldSession {
             threat_value,
         );
         Ok(())
+    }
+
+    /// C++ `Spell::EffectModifyCooldown`.
+    ///
+    /// Represented boundary: the current Rust runtime exposes `SpellHistory`
+    /// through the canonical player seam only. Other unit targets remain a
+    /// no-op until generic unit spell histories are live.
+    fn apply_modify_cooldown_effect_like_cpp(
+        &mut self,
+        damage: i32,
+        effect_trigger_spell: i32,
+        target_guid: ObjectGuid,
+    ) -> bool {
+        let Some(player_guid) = self.player_guid() else {
+            return false;
+        };
+        if target_guid != player_guid {
+            return false;
+        }
+        let Ok(trigger_spell_id) = u32::try_from(effect_trigger_spell) else {
+            return false;
+        };
+        if trigger_spell_id == 0 {
+            return false;
+        }
+
+        let now_ms = u64::from(Self::game_time_ms_like_cpp());
+        self.mutate_canonical_player_like_cpp(|player| {
+            player
+                .unit_mut()
+                .subsystems_mut()
+                .spells
+                .history
+                .modify_cooldown(trigger_spell_id, i64::from(damage), false, now_ms)
+        })
+        .unwrap_or(false)
+    }
+
+    /// C++ `Spell::EffectModifySpellCharges`.
+    ///
+    /// C++ restores one consumed charge per positive `damage` step on
+    /// `effectInfo->MiscValue`. Packet fanout for `SendSetSpellCharges` is
+    /// still outside this represented seam.
+    fn apply_modify_spell_charges_effect_like_cpp(
+        &mut self,
+        damage: i32,
+        charge_category_id: i32,
+        target_guid: ObjectGuid,
+    ) -> u32 {
+        let Some(player_guid) = self.player_guid() else {
+            return 0;
+        };
+        if target_guid != player_guid || damage <= 0 {
+            return 0;
+        }
+        let Ok(charge_category_id) = u32::try_from(charge_category_id) else {
+            return 0;
+        };
+        if charge_category_id == 0 {
+            return 0;
+        }
+
+        self.mutate_canonical_player_like_cpp(|player| {
+            let history = &mut player.unit_mut().subsystems_mut().spells.history;
+            let mut restored = 0;
+            for _ in 0..damage {
+                if history.restore_charge(charge_category_id) {
+                    restored += 1;
+                }
+            }
+            restored
+        })
+        .unwrap_or(0)
     }
 
     fn current_map_is_dungeon_like_cpp(&self) -> bool {
@@ -57636,6 +57727,141 @@ mod tests {
                 ..Default::default()
             }],
         }
+    }
+
+    fn cooldown_or_charges_spell_info_like_cpp(
+        spell_id: i32,
+        effect: u32,
+        damage: i32,
+        misc_value: i32,
+        trigger_spell: i32,
+    ) -> wow_data::SpellInfo {
+        wow_data::SpellInfo {
+            spell_id,
+            cast_time_ms: 0,
+            cooldown_ms: 0,
+            recovery_time_ms: 0,
+            effect_type: 0,
+            effect_base_points: 0,
+            effect_bonus_coefficient: 0.0,
+            aura_type: None,
+            display_flags: 0,
+            requires_spell_focus: 0,
+            effects: vec![wow_data::SpellEffectInfo {
+                effect_index: 0,
+                effect,
+                effect_base_points: damage,
+                effect_misc_value_1: misc_value,
+                effect_trigger_spell: trigger_spell,
+                ..Default::default()
+            }],
+        }
+    }
+
+    #[tokio::test]
+    async fn spell_modify_cooldown_effect_adjusts_trigger_spell_history_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 790_i32;
+        let trigger_spell = 791_u32;
+        let player_guid = ObjectGuid::create_player(1, 790);
+        configure_self_resurrect_canonical_player_like_cpp(&mut session, player_guid, 100, 100);
+        let now_ms = u64::from(WorldSession::game_time_ms_like_cpp());
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player
+                    .unit_mut()
+                    .subsystems_mut()
+                    .spells
+                    .history
+                    .start_cooldown(now_ms, trigger_spell, 0, 30_000, 0, 0, false);
+            })
+            .unwrap();
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            cooldown_or_charges_spell_info_like_cpp(
+                spell_id,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_MODIFY_COOLDOWN,
+                -2_000,
+                0,
+                i32::try_from(trigger_spell).unwrap(),
+            ),
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("represented EffectModifyCooldown should execute");
+
+        let cooldown = session
+            .mutate_canonical_player_like_cpp(|player| {
+                player
+                    .unit()
+                    .subsystems()
+                    .spells
+                    .history
+                    .cooldown(trigger_spell)
+            })
+            .flatten()
+            .expect("trigger spell cooldown should remain after a -2s delta");
+        assert_eq!(cooldown.cooldown_end_ms, now_ms + 28_000);
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_modify_charges_effect_restores_consumed_charges_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 792_i32;
+        let charge_category = 44_u32;
+        let player_guid = ObjectGuid::create_player(1, 792);
+        configure_self_resurrect_canonical_player_like_cpp(&mut session, player_guid, 100, 100);
+        let now_ms = u64::from(WorldSession::game_time_ms_like_cpp());
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                let history = &mut player.unit_mut().subsystems_mut().spells.history;
+                assert!(history.consume_charge(charge_category, now_ms, 10_000, 2));
+                assert!(history.consume_charge(charge_category, now_ms + 1, 10_000, 2));
+            })
+            .unwrap();
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            cooldown_or_charges_spell_info_like_cpp(
+                spell_id,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_MODIFY_CHARGES,
+                1,
+                i32::try_from(charge_category).unwrap(),
+                0,
+            ),
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("represented EffectModifySpellCharges should execute");
+
+        let consumed = session
+            .mutate_canonical_player_like_cpp(|player| {
+                player
+                    .unit()
+                    .subsystems()
+                    .spells
+                    .history
+                    .consumed_charges(charge_category)
+            })
+            .unwrap();
+        assert_eq!(consumed, 1);
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
     }
 
     #[tokio::test]

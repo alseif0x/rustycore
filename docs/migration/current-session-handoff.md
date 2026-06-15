@@ -1,3 +1,22 @@
+- `#NEXT.RUNTIME.L3.031j42` — WotLK represented `Spell::EffectModifyCooldown` and
+  `Spell::EffectModifySpellCharges` for current canonical player targets (not manual-test-ready).
+  Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:1395-1399`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellEffects.cpp:5834-5903`, and
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellHistory.cpp:611-626,852-860`.
+  Rust now names the C++ ids `SPELL_EFFECT_MODIFY_AURA_STACKS = 289`,
+  `SPELL_EFFECT_MODIFY_COOLDOWN = 290`, `SPELL_EFFECT_MODIFY_COOLDOWNS = 291`,
+  `SPELL_EFFECT_MODIFY_COOLDOWNS_BY_CATEGORY = 292`, and `SPELL_EFFECT_MODIFY_CHARGES = 293`.
+  `SpellEffectInfo` now carries hotfix `EffectTriggerSpell`, direct spell dispatch feeds it to
+  represented effects, `EffectModifyCooldown` adjusts the current player's canonical
+  `SpellHistory` for the concrete trigger spell by `damage` milliseconds, and
+  `EffectModifySpellCharges` restores one consumed charge per positive `damage` step for
+  `EffectMiscValue1`. Coverage: targeted spell tests cover cooldown delta and charge restoration;
+  `wow-data` constant coverage asserts the 289-293 ids. Boundary remains partial: current
+  canonical player target only, no generic `unitTarget` `SpellHistory`, no target `SpellInfo`
+  charge-category fallback, no `EffectModifyAuraStacks`, no family/category-wide cooldown effects
+  291/292, no cooldown/charge client packet parity beyond existing cast `CooldownEvent`, no
+  install/restart, bot, or live-client/manual validation.
 - `#NEXT.RUNTIME.L3.031j41` — WotLK represented `Spell::EffectDistract` /
   `SPELL_EFFECT_DISTRACT` (not manual-test-ready). Source-of-truth:
   `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:1215` and

@@ -190,6 +190,11 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_GRANT_BATTLEPET_EXPERIENCE: u32 = 286;
     pub const SPELL_EFFECT_SET_GARRISON_FOLLOWER_LEVEL: u32 = 287;
     pub const SPELL_EFFECT_CRAFT_ITEM: u32 = 288;
+    pub const SPELL_EFFECT_MODIFY_AURA_STACKS: u32 = 289;
+    pub const SPELL_EFFECT_MODIFY_COOLDOWN: u32 = 290;
+    pub const SPELL_EFFECT_MODIFY_COOLDOWNS: u32 = 291;
+    pub const SPELL_EFFECT_MODIFY_COOLDOWNS_BY_CATEGORY: u32 = 292;
+    pub const SPELL_EFFECT_MODIFY_CHARGES: u32 = 293;
     pub const SPELL_EFFECT_CRAFT_LOOT: u32 = 294;
     pub const SPELL_EFFECT_SALVAGE_ITEM: u32 = 295;
     pub const SPELL_EFFECT_CRAFT_SALVAGE_ITEM: u32 = 296;
@@ -428,6 +433,7 @@ pub struct SpellEffectInfo {
     pub effect_base_points: i32,
     pub effect_misc_value_1: i32,
     pub effect_misc_value_2: i32,
+    pub effect_trigger_spell: i32,
     /// C++ `SpellEffectEntry::EffectRadiusIndex[0]` / TargetA radius index.
     pub effect_radius_index_1: u32,
     pub position_facing: f32,
@@ -784,6 +790,7 @@ SELECT
     CAST(COALESCE(se.EffectAura, 0) AS SIGNED) as effect_aura,
     CAST(COALESCE(se.EffectMiscValue1, 0) AS SIGNED) as effect_misc_value_1,
     CAST(COALESCE(se.EffectMiscValue2, 0) AS SIGNED) as effect_misc_value_2,
+    CAST(COALESCE(se.EffectTriggerSpell, 0) AS SIGNED) as effect_trigger_spell,
     CAST(COALESCE(se.EffectRadiusIndex1, 0) AS UNSIGNED) as effect_radius_index_1,
     CAST(COALESCE(se.EffectPosFacing, 0.0) AS DECIMAL(10,4)) as position_facing,
     CAST(COALESCE(se.EffectIndex, 0) AS UNSIGNED) as effect_index,
@@ -813,13 +820,14 @@ ORDER BY sm.ID, se.EffectIndex
                 let aura_type: Option<i32> = result.try_read(7);
                 let effect_misc_value_1: i32 = result.try_read(8).unwrap_or(0);
                 let effect_misc_value_2: i32 = result.try_read(9).unwrap_or(0);
-                let effect_radius_index_1: u32 = result.try_read(10).unwrap_or(0);
-                let position_facing: f32 = result.try_read(11).unwrap_or(0.0);
-                let effect_index: u32 = result.try_read(12).unwrap_or(0);
-                let effect_chain_targets: i32 = result.try_read(13).unwrap_or(0);
-                let implicit_target_1: u32 = result.try_read(14).unwrap_or(0);
-                let implicit_target_2: u32 = result.try_read(15).unwrap_or(0);
-                let requires_spell_focus: u32 = result.try_read(16).unwrap_or(0);
+                let effect_trigger_spell: i32 = result.try_read(10).unwrap_or(0);
+                let effect_radius_index_1: u32 = result.try_read(11).unwrap_or(0);
+                let position_facing: f32 = result.try_read(12).unwrap_or(0.0);
+                let effect_index: u32 = result.try_read(13).unwrap_or(0);
+                let effect_chain_targets: i32 = result.try_read(14).unwrap_or(0);
+                let implicit_target_1: u32 = result.try_read(15).unwrap_or(0);
+                let implicit_target_2: u32 = result.try_read(16).unwrap_or(0);
+                let requires_spell_focus: u32 = result.try_read(17).unwrap_or(0);
 
                 let spell_info = store.spells.entry(spell_id).or_insert_with(|| SpellInfo {
                     spell_id,
@@ -843,6 +851,7 @@ ORDER BY sm.ID, se.EffectIndex
                         effect_base_points,
                         effect_misc_value_1,
                         effect_misc_value_2,
+                        effect_trigger_spell,
                         effect_radius_index_1,
                         position_facing,
                         chain_targets: effect_chain_targets,
@@ -1315,6 +1324,14 @@ mod tests {
             287
         );
         assert_eq!(spell_effect_types::SPELL_EFFECT_CRAFT_ITEM, 288);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_MODIFY_AURA_STACKS, 289);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_MODIFY_COOLDOWN, 290);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_MODIFY_COOLDOWNS, 291);
+        assert_eq!(
+            spell_effect_types::SPELL_EFFECT_MODIFY_COOLDOWNS_BY_CATEGORY,
+            292
+        );
+        assert_eq!(spell_effect_types::SPELL_EFFECT_MODIFY_CHARGES, 293);
         assert_eq!(spell_effect_types::SPELL_EFFECT_CRAFT_LOOT, 294);
         assert_eq!(spell_effect_types::SPELL_EFFECT_SALVAGE_ITEM, 295);
         assert_eq!(spell_effect_types::SPELL_EFFECT_CRAFT_SALVAGE_ITEM, 296);

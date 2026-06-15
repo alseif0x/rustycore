@@ -141,9 +141,9 @@ Todas las rutas relativas a `/home/server/woltk-trinity-legacy/`.
 - `EffectDummy` (3) — handler-less effect, all logic in scripts
 - `EffectDistract` (175) — turn target's facing
 - `EffectAddComboPoints` (60) — add combo points (rogue/druid)
-- `EffectModifyAuraStacks` (313) — adjust stack count
+- `EffectModifyAuraStacks` (289) — adjust stack count
 - `EffectModifyCooldown` / `EffectModifyCooldowns` / `EffectModifyCooldownsByCategory` — adjust spell cooldowns
-- `EffectModifySpellCharges` (354) — adjust charges
+- `EffectModifySpellCharges` (293) — adjust charges
 
 **Item / Inventory:**
 - `EffectCreateItem` (24) — create item in bag
@@ -498,7 +498,10 @@ Numerados como `#SPELLS-EFFECTS.N` para referencia desde `MIGRATION_ROADMAP.md`.
   C++ actual. C++ `SpellEffects.cpp:3164-3181` valida modo HIT y `unitTarget`, pero la mutación
   `AddComboPoints(damage, this)` está comentada; Rust lo consume como no-op representado y no inventa
   combo points.
-- [ ] **#SPELLS-EFFECTS.44** Implementar `EffectModifyAuraStacks`, `EffectModifyCooldown`, `EffectModifyCooldowns`, `EffectModifyCooldownsByCategory`, `EffectModifySpellCharges` (M)
+- [~] **#SPELLS-EFFECTS.44** Implementar `EffectModifyAuraStacks`, `EffectModifyCooldown`, `EffectModifyCooldowns`, `EffectModifyCooldownsByCategory`, `EffectModifySpellCharges` (M)
+  - `EffectModifyCooldown` (`SPELL_EFFECT_MODIFY_COOLDOWN = 290`) is represented-partial for the current canonical player target: it uses `EffectTriggerSpell` and `damage` as milliseconds to call the represented `SpellHistory::ModifyCooldown` seam, matching the direct C++ branch for a concrete spell cooldown. Remaining: generic `unitTarget` spell histories, charge-category fallback from target `SpellInfo::ChargeCategoryId`, and client `SMSG_MODIFY_COOLDOWN`/clear-cooldown packet parity.
+  - `EffectModifySpellCharges` (`SPELL_EFFECT_MODIFY_CHARGES = 293`) is represented-partial for the current canonical player target: it restores one consumed charge per positive `damage` step using `EffectMiscValue1` as the charge category, matching C++ `RestoreCharge(effectInfo->MiscValue)`. Remaining: generic `unitTarget` spell histories and `SendSetSpellCharges` packet parity.
+  - `EffectModifyAuraStacks`, `EffectModifyCooldowns`, and `EffectModifyCooldownsByCategory` remain open; the latter two need target-spell family/category metadata instead of broad fake matching.
 - [ ] **#SPELLS-EFFECTS.45** Implementar `EffectScriptEffect` con switch sobre spellId + ScriptMgr::OnEffectScript fallback (XL — el handler en sí es 150 lines, plus ~50 special cases por boss)
 - [ ] **#SPELLS-EFFECTS.46** Implementar `EffectDummy` con ScriptMgr::OnEffectDummy dispatch (M)
 - [ ] **#SPELLS-EFFECTS.47** Implementar `EffectTriggerSpell` (force `caster.cast_spell(trigger_id, target, TRIGGERED_FULL_MASK)`) (M)
@@ -693,7 +696,7 @@ Numerados como `#SPELLS-EFFECTS.N` para referencia desde `MIGRATION_ROADMAP.md`.
 - Summon: `EffectSummonType` (the XL ~218-line discriminator), `EffectSummonPet`, `EffectSummonObject`, `EffectSummonObjectWild`, `EffectSummonChangeItem`, `EffectSummonPlayer` — none.
 - Resurrect: `EffectResurrect`, `EffectResurrectNew`, `EffectSelfResurrect`, `EffectResurrectPet` — none.
 - Dispel/Interrupt: `EffectDispel`, `EffectStealBeneficialBuff`, `EffectInterruptCast`, `EffectDispelMechanic` — none.
-- Status: `EffectStuck`, `EffectDualWield`, `EffectThreat`, `EffectModifyThreatPercent`, `EffectSanctuary`, `EffectTaunt`, `EffectDistract` — represented-partial; `EffectAddComboPoints` — represented real-handler no-op; `EffectScriptEffect`, `EffectDummy`, `EffectModifyAuraStacks`, `EffectModifyCooldown`/`Cooldowns`/`CooldownsByCategory`, `EffectModifySpellCharges` — none.
+- Status: `EffectStuck`, `EffectDualWield`, `EffectThreat`, `EffectModifyThreatPercent`, `EffectSanctuary`, `EffectTaunt`, `EffectDistract`, `EffectModifyCooldown`, `EffectModifySpellCharges` — represented-partial; `EffectAddComboPoints` — represented real-handler no-op; `EffectScriptEffect`, `EffectDummy`, `EffectModifyAuraStacks`, `EffectModifyCooldowns`/`CooldownsByCategory` — none.
 - Item: `EffectCreateItem`, `EffectCreateItem2`, `EffectCreateRandomItem`, `EffectFeedPet`, `EffectEnchantItemPerm`, `EffectEnchantItemTmp`, `EffectEnchantItemPrismatic`, `EffectEnchantHeldItem`, `EffectDisEnchant`, `EffectMillItem`, `EffectProspecting` — none.
 - Quest/Profession: `EffectQuestComplete`, `EffectQuestStart`, `EffectQuestRedirect`, `EffectLearnSpell`, `EffectUnlearnSpecialization`, `EffectLearnPetSpell`, `EffectLearnSkill`, `EffectTradeSkill`, `EffectProficiency`, `EffectUntrainTalents` — none.
 - OpenLock/GO: `EffectOpenLock`, `EffectActivateObject`, `EffectSendEvent`, `EffectGameobjectDamage`, `EffectGameObjectRepair`, `EffectGameobjectSetDestructionState` — none.
