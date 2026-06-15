@@ -5063,6 +5063,27 @@ impl ClientPacket for BattlefieldLeave {
     }
 }
 
+/// C++ `WorldPackets::Battleground::BattlefieldPort`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct BattlefieldPort {
+    pub ticket: LfgRideTicket,
+    pub accepted_invite: bool,
+}
+
+impl ClientPacket for BattlefieldPort {
+    const OPCODE: ClientOpcodes = ClientOpcodes::BattlefieldPort;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let ticket = LfgRideTicket::read_like_cpp(pkt)?;
+        let accepted_invite = pkt.read_bit()?;
+        pkt.reset_bits();
+        Ok(Self {
+            ticket,
+            accepted_invite,
+        })
+    }
+}
+
 /// C++ `WorldPackets::Battleground::BattlefieldListRequest`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct BattlefieldListRequest {
@@ -10732,6 +10753,31 @@ mod tests {
         let mut pkt = WorldPacket::new_empty();
 
         BattlefieldLeave::read(&mut pkt).unwrap();
+    }
+
+    #[test]
+    fn battlefield_port_reads_ticket_and_accepted_bit_like_cpp() {
+        let requester = ObjectGuid::create_player(1, 42);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_packed_guid(&requester);
+        pkt.write_uint32(1);
+        pkt.write_uint32(2);
+        pkt.write_int64(1_234_567);
+        pkt.write_bit(true);
+        pkt.flush_bits();
+        pkt.write_bit(true);
+        pkt.flush_bits();
+        pkt.reset_read();
+
+        let parsed = BattlefieldPort::read(&mut pkt).unwrap();
+
+        assert_eq!(parsed.ticket.requester_guid, requester);
+        assert_eq!(parsed.ticket.id, 1);
+        assert_eq!(parsed.ticket.ride_type, 2);
+        assert_eq!(parsed.ticket.time, 1_234_567);
+        assert!(parsed.ticket.unknown925);
+        assert!(parsed.accepted_invite);
+        assert_eq!(pkt.remaining(), 0);
     }
 
     #[test]

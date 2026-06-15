@@ -54,23 +54,23 @@ use wow_packet::packets::misc::{
     AuctionableTokenSellAtMarketPrice, BattlePetClearFanfare, BattlePetDeletePet,
     BattlePetModifyName, BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags,
     BattlePetSummon, BattlePetUpdateNotify, BattlefieldLeave, BattlefieldListRequest,
-    BattlemasterJoin, BeginTrade, BugReport, BusyTrade, CageBattlePet, CalendarAddEvent,
-    CalendarCommandResult, CalendarCommunityInvite, CalendarComplain, CalendarCopyEvent,
-    CalendarEventSignUp, CalendarGetEvent, CalendarInvite, CalendarModeratorStatusQuery,
-    CalendarRemoveEvent, CalendarRemoveInvite, CalendarRsvp, CalendarSendCalendar,
-    CalendarSendNumPending, CalendarStatus, CalendarUpdateEvent, CanDuel, ClearTradeItem,
-    CloseInteraction, CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint, ComplaintResult,
-    DeclineGuildInvites, DeclinePetition, DfGetJoinStatus, DfGetSystemInfo, DuelResponse,
-    ERR_TAXITOOFARAWAY_LIKE_CPP, FarSight, GmTicketAcknowledgeSurvey, GmTicketCaseStatus,
-    GmTicketSystemStatus, GuildSetAchievementTracking, IgnoreTrade, LfgListBlacklist,
-    LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify, MAX_ACCOUNT_DATA_SIZE_LIKE_CPP,
-    MountSetFavorite, MountSpecial, NUM_ACCOUNT_DATA_TYPES, ObjectUpdateFailed,
-    ObjectUpdateRescued, QueryArenaTeam, QueryBattlePetName, QueryBattlePetNameResponse,
-    QueryPetition, QueryPetitionResponse, RatedPvpInfo, ReclaimCorpse, RepopRequest,
-    RequestAccountData, RequestBattlefieldStatus, RequestCemeteryListResponse, ResurrectResponse,
-    SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags, SetDifficultyId,
-    SetDungeonDifficulty, SetPvp, SetRaidDifficulty, SetTaxiBenchmarkMode, SetTradeGold,
-    SetTradeItem, SetTradeSpell, SignPetition, SpecialMountAnim, StandStateChange,
+    BattlefieldPort, BattlemasterJoin, BeginTrade, BugReport, BusyTrade, CageBattlePet,
+    CalendarAddEvent, CalendarCommandResult, CalendarCommunityInvite, CalendarComplain,
+    CalendarCopyEvent, CalendarEventSignUp, CalendarGetEvent, CalendarInvite,
+    CalendarModeratorStatusQuery, CalendarRemoveEvent, CalendarRemoveInvite, CalendarRsvp,
+    CalendarSendCalendar, CalendarSendNumPending, CalendarStatus, CalendarUpdateEvent, CanDuel,
+    ClearTradeItem, CloseInteraction, CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint,
+    ComplaintResult, DeclineGuildInvites, DeclinePetition, DfGetJoinStatus, DfGetSystemInfo,
+    DuelResponse, ERR_TAXITOOFARAWAY_LIKE_CPP, FarSight, GmTicketAcknowledgeSurvey,
+    GmTicketCaseStatus, GmTicketSystemStatus, GuildSetAchievementTracking, IgnoreTrade,
+    LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify,
+    MAX_ACCOUNT_DATA_SIZE_LIKE_CPP, MountSetFavorite, MountSpecial, NUM_ACCOUNT_DATA_TYPES,
+    ObjectUpdateFailed, ObjectUpdateRescued, QueryArenaTeam, QueryBattlePetName,
+    QueryBattlePetNameResponse, QueryPetition, QueryPetitionResponse, RatedPvpInfo, ReclaimCorpse,
+    RepopRequest, RequestAccountData, RequestBattlefieldStatus, RequestCemeteryListResponse,
+    ResurrectResponse, SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags,
+    SetDifficultyId, SetDungeonDifficulty, SetPvp, SetRaidDifficulty, SetTaxiBenchmarkMode,
+    SetTradeGold, SetTradeItem, SetTradeSpell, SignPetition, SpecialMountAnim, StandStateChange,
     SubmitUserFeedback, SupportTicketSubmitBug, SupportTicketSubmitComplaint,
     SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
     TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP, TaxiNodeStatusPkt, ToggleDifficulty, TogglePvp,
@@ -875,6 +875,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_battlemaster_join",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::BattlefieldPort,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_battlefield_port",
     }
 }
 
@@ -3459,6 +3468,26 @@ impl crate::session::WorldSession {
             self.battlemaster_join_like_cpp(&join.queue_ids, join.roles, join.blacklist_map);
     }
 
+    /// CMSG_BATTLEFIELD_PORT — player accepts an invite or leaves a BG queue slot.
+    /// C++ ref: `WorldSession::HandleBattleFieldPortOpcode`.
+    pub async fn handle_battlefield_port(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let port = match BattlefieldPort::read(&mut pkt) {
+            Ok(port) => port,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "BattlefieldPort parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        // C++ returns silently for not-in-queue, invalid queue slot, and
+        // AcceptedInvite without an invitation. The accepted/leave branch is
+        // represented only until live BattlegroundQueue/BattlegroundMgr exists.
+        let _accepted = self.battlefield_port_like_cpp(port.ticket, port.accepted_invite);
+    }
+
     /// CMSG_BATTLEFIELD_LEAVE — player asks to leave the current battleground.
     /// C++ ref: `WorldSession::HandleBattlefieldLeaveOpcode`.
     pub async fn handle_battlefield_leave(&mut self, mut pkt: wow_packet::WorldPacket) {
@@ -5848,6 +5877,27 @@ mod tests {
         for queue_id in queue_ids {
             pkt.write_uint64(*queue_id);
         }
+        pkt.reset_read();
+        pkt
+    }
+
+    fn battlefield_port_packet(
+        requester_guid: ObjectGuid,
+        slot: u32,
+        ride_type: u32,
+        time: i64,
+        unknown925: bool,
+        accepted_invite: bool,
+    ) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_packed_guid(&requester_guid);
+        pkt.write_uint32(slot);
+        pkt.write_uint32(ride_type);
+        pkt.write_int64(time);
+        pkt.write_bit(unknown925);
+        pkt.flush_bits();
+        pkt.write_bit(accepted_invite);
+        pkt.flush_bits();
         pkt.reset_read();
         pkt
     }
@@ -13275,6 +13325,75 @@ mod tests {
                 blacklist_map: [10, -1],
             }]
         );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn battlefield_port_not_queued_invalid_slot_or_missing_invite_is_silent_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let requester = ObjectGuid::create_player(1, 42);
+        let queue_type_id = crate::session::RepresentedBattlegroundQueueTypeIdLikeCpp {
+            battlemaster_list_id: 3,
+            queue_type: 0,
+            rated: false,
+            team_size: 0,
+        };
+
+        session
+            .handle_battlefield_port(battlefield_port_packet(requester, 1, 2, 1_234, false, true))
+            .await;
+        assert!(session.represented_battlefield_ports_like_cpp().is_empty());
+        assert!(send_rx.try_recv().is_err());
+
+        session.add_represented_battleground_queue_slot_like_cpp(1, queue_type_id, 0);
+        session
+            .handle_battlefield_port(battlefield_port_packet(requester, 2, 2, 1_234, false, true))
+            .await;
+        assert!(session.represented_battlefield_ports_like_cpp().is_empty());
+        assert!(send_rx.try_recv().is_err());
+
+        session
+            .handle_battlefield_port(battlefield_port_packet(requester, 1, 2, 1_234, false, true))
+            .await;
+        assert!(session.represented_battlefield_ports_like_cpp().is_empty());
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn battlefield_port_records_accept_and_leave_intents_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let requester = ObjectGuid::create_player(1, 42);
+        let queue_type_id = crate::session::RepresentedBattlegroundQueueTypeIdLikeCpp {
+            battlemaster_list_id: 3,
+            queue_type: 0,
+            rated: false,
+            team_size: 0,
+        };
+        session.add_represented_battleground_queue_slot_like_cpp(1, queue_type_id, 77);
+
+        session
+            .handle_battlefield_port(battlefield_port_packet(requester, 1, 2, 1_234, true, true))
+            .await;
+        session
+            .handle_battlefield_port(battlefield_port_packet(
+                requester, 1, 2, 1_235, false, false,
+            ))
+            .await;
+
+        let ports = session.represented_battlefield_ports_like_cpp();
+        assert_eq!(ports.len(), 2);
+        assert_eq!(ports[0].ticket.requester_guid, requester);
+        assert_eq!(ports[0].ticket.id, 1);
+        assert_eq!(ports[0].ticket.ride_type, 2);
+        assert_eq!(ports[0].ticket.time, 1_234);
+        assert!(ports[0].ticket.unknown925);
+        assert!(ports[0].accepted_invite);
+        assert_eq!(ports[0].queue_type_id, queue_type_id);
+        assert_eq!(ports[0].invited_instance_guid, 77);
+        assert!(!ports[1].accepted_invite);
+        assert_eq!(ports[1].ticket.time, 1_235);
+        assert_eq!(ports[1].queue_type_id, queue_type_id);
+        assert_eq!(ports[1].invited_instance_guid, 77);
         assert!(send_rx.try_recv().is_err());
     }
 

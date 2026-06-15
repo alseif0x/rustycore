@@ -1566,6 +1566,21 @@ pub(crate) struct RepresentedBattlemasterJoinLikeCpp {
     pub blacklist_map: [i32; 2],
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedBattlegroundQueueSlotLikeCpp {
+    pub slot: u32,
+    pub queue_type_id: RepresentedBattlegroundQueueTypeIdLikeCpp,
+    pub invited_instance_guid: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RepresentedBattlefieldPortLikeCpp {
+    pub ticket: wow_packet::packets::misc::LfgRideTicket,
+    pub accepted_invite: bool,
+    pub queue_type_id: RepresentedBattlegroundQueueTypeIdLikeCpp,
+    pub invited_instance_guid: u32,
+}
+
 pub(crate) fn battleground_queue_type_id_from_packed_like_cpp(
     packed_queue_id: u64,
 ) -> RepresentedBattlegroundQueueTypeIdLikeCpp {
@@ -3372,6 +3387,10 @@ pub struct WorldSession {
     represented_battlefield_lists_like_cpp: Vec<RepresentedBattlefieldListLikeCpp>,
     /// Represented `BattlegroundQueue::AddGroup` intents from CMSG_BATTLEMASTER_JOIN.
     represented_battlemaster_joins_like_cpp: Vec<RepresentedBattlemasterJoinLikeCpp>,
+    /// Represented `Player::m_bgBattlegroundQueueID[PLAYER_MAX_BATTLEGROUND_QUEUES]`.
+    represented_battleground_queue_slots_like_cpp: Vec<RepresentedBattlegroundQueueSlotLikeCpp>,
+    /// Represented accepted/leave requests from CMSG_BATTLEFIELD_PORT before live BattlegroundMgr.
+    represented_battlefield_ports_like_cpp: Vec<RepresentedBattlefieldPortLikeCpp>,
     /// C++ `Player::_areaSpiritHealerGUID`, represented until battleground/player resurrection owns it.
     area_spirit_healer_guid_like_cpp: ObjectGuid,
     /// Represented current pet GUID until player-owned pet runtime is canonical.
@@ -4671,6 +4690,8 @@ impl WorldSession {
             represented_battlemaster_hellos_like_cpp: Vec::new(),
             represented_battlefield_lists_like_cpp: Vec::new(),
             represented_battlemaster_joins_like_cpp: Vec::new(),
+            represented_battleground_queue_slots_like_cpp: Vec::new(),
+            represented_battlefield_ports_like_cpp: Vec::new(),
             area_spirit_healer_guid_like_cpp: ObjectGuid::EMPTY,
             represented_pet_guid_like_cpp: None,
             represented_pet_react_state_like_cpp:
@@ -12237,6 +12258,7 @@ impl WorldSession {
             | ClientOpcodes::BattlemasterJoinArena
             | ClientOpcodes::BattlemasterHello
             | ClientOpcodes::BattlefieldList
+            | ClientOpcodes::BattlefieldPort
             | ClientOpcodes::BattlefieldLeave
             | ClientOpcodes::BattlemasterJoin
             | ClientOpcodes::GuildBankLogQuery
@@ -20186,6 +20208,9 @@ impl WorldSession {
             ClientOpcodes::BattlefieldList => {
                 self.handle_battlefield_list(pkt).await;
             }
+            ClientOpcodes::BattlefieldPort => {
+                self.handle_battlefield_port(pkt).await;
+            }
             ClientOpcodes::BattlefieldLeave => {
                 self.handle_battlefield_leave(pkt).await;
             }
@@ -22548,6 +22573,67 @@ impl WorldSession {
         true
     }
 
+    #[cfg(test)]
+    pub(crate) fn add_represented_battleground_queue_slot_like_cpp(
+        &mut self,
+        slot: u32,
+        queue_type_id: RepresentedBattlegroundQueueTypeIdLikeCpp,
+        invited_instance_guid: u32,
+    ) {
+        if let Some(existing) = self
+            .represented_battleground_queue_slots_like_cpp
+            .iter_mut()
+            .find(|queued| queued.slot == slot)
+        {
+            *existing = RepresentedBattlegroundQueueSlotLikeCpp {
+                slot,
+                queue_type_id,
+                invited_instance_guid,
+            };
+            return;
+        }
+        self.represented_battleground_queue_slots_like_cpp.push(
+            RepresentedBattlegroundQueueSlotLikeCpp {
+                slot,
+                queue_type_id,
+                invited_instance_guid,
+            },
+        );
+    }
+
+    pub(crate) fn battlefield_port_like_cpp(
+        &mut self,
+        ticket: wow_packet::packets::misc::LfgRideTicket,
+        accepted_invite: bool,
+    ) -> bool {
+        if self
+            .represented_battleground_queue_slots_like_cpp
+            .is_empty()
+        {
+            return false;
+        }
+        let Some(queued) = self
+            .represented_battleground_queue_slots_like_cpp
+            .iter()
+            .copied()
+            .find(|queued| queued.slot == ticket.id)
+        else {
+            return false;
+        };
+        if accepted_invite && queued.invited_instance_guid == 0 {
+            return false;
+        }
+
+        self.represented_battlefield_ports_like_cpp
+            .push(RepresentedBattlefieldPortLikeCpp {
+                ticket,
+                accepted_invite,
+                queue_type_id: queued.queue_type_id,
+                invited_instance_guid: queued.invited_instance_guid,
+            });
+        true
+    }
+
     fn is_valid_battleground_queue_type_id_like_cpp(
         &self,
         queue_type_id: RepresentedBattlegroundQueueTypeIdLikeCpp,
@@ -22599,6 +22685,13 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedBattlemasterJoinLikeCpp] {
         &self.represented_battlemaster_joins_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_battlefield_ports_like_cpp(
+        &self,
+    ) -> &[RepresentedBattlefieldPortLikeCpp] {
+        &self.represented_battlefield_ports_like_cpp
     }
 
     pub(crate) fn accept_represented_wargame_invite_like_cpp(&mut self, inviter_name: &str) {
@@ -62700,6 +62793,7 @@ mod tests {
             ClientOpcodes::BattlemasterJoinArena,
             ClientOpcodes::BattlemasterHello,
             ClientOpcodes::BattlefieldList,
+            ClientOpcodes::BattlefieldPort,
             ClientOpcodes::BattlefieldLeave,
             ClientOpcodes::BattlemasterJoin,
             ClientOpcodes::GuildBankLogQuery,
