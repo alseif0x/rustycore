@@ -54,21 +54,22 @@ use wow_packet::packets::misc::{
     BattlePetModifyName, BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags,
     BattlePetSummon, BattlePetUpdateNotify, BattlefieldLeave, BeginTrade, BugReport, BusyTrade,
     CageBattlePet, CalendarCommandResult, CalendarCommunityInvite, CalendarComplain,
-    CalendarEventSignUp, CalendarGetEvent, CalendarRemoveEvent, CalendarSendCalendar,
-    CalendarSendNumPending, CanDuel, ClearTradeItem, CloseInteraction, CommerceTokenGetLog,
-    CommerceTokenGetLogResponse, Complaint, ComplaintResult, DeclineGuildInvites, DeclinePetition,
-    DfGetJoinStatus, DfGetSystemInfo, DuelResponse, ERR_TAXITOOFARAWAY_LIKE_CPP, FarSight,
-    GmTicketAcknowledgeSurvey, GmTicketCaseStatus, GmTicketSystemStatus,
-    GuildSetAchievementTracking, IgnoreTrade, LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus,
-    LoadingScreenNotify, MAX_ACCOUNT_DATA_SIZE_LIKE_CPP, MountSetFavorite, MountSpecial,
-    NUM_ACCOUNT_DATA_TYPES, ObjectUpdateFailed, ObjectUpdateRescued, QueryArenaTeam,
-    QueryBattlePetName, QueryBattlePetNameResponse, QueryPetition, QueryPetitionResponse,
-    RatedPvpInfo, ReclaimCorpse, RepopRequest, RequestAccountData, RequestBattlefieldStatus,
-    RequestCemeteryListResponse, ResurrectResponse, SaveCufProfiles, SetAdvancedCombatLogging,
-    SetCurrencyFlags, SetDifficultyId, SetDungeonDifficulty, SetPvp, SetRaidDifficulty,
-    SetTaxiBenchmarkMode, SetTradeGold, SetTradeItem, SetTradeSpell, SignPetition,
-    SpecialMountAnim, StandStateChange, SubmitUserFeedback, SupportTicketSubmitBug,
-    SupportTicketSubmitComplaint, SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
+    CalendarCopyEvent, CalendarEventSignUp, CalendarGetEvent, CalendarRemoveEvent,
+    CalendarSendCalendar, CalendarSendNumPending, CanDuel, ClearTradeItem, CloseInteraction,
+    CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint, ComplaintResult,
+    DeclineGuildInvites, DeclinePetition, DfGetJoinStatus, DfGetSystemInfo, DuelResponse,
+    ERR_TAXITOOFARAWAY_LIKE_CPP, FarSight, GmTicketAcknowledgeSurvey, GmTicketCaseStatus,
+    GmTicketSystemStatus, GuildSetAchievementTracking, IgnoreTrade, LfgListBlacklist,
+    LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify, MAX_ACCOUNT_DATA_SIZE_LIKE_CPP,
+    MountSetFavorite, MountSpecial, NUM_ACCOUNT_DATA_TYPES, ObjectUpdateFailed,
+    ObjectUpdateRescued, QueryArenaTeam, QueryBattlePetName, QueryBattlePetNameResponse,
+    QueryPetition, QueryPetitionResponse, RatedPvpInfo, ReclaimCorpse, RepopRequest,
+    RequestAccountData, RequestBattlefieldStatus, RequestCemeteryListResponse, ResurrectResponse,
+    SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags, SetDifficultyId,
+    SetDungeonDifficulty, SetPvp, SetRaidDifficulty, SetTaxiBenchmarkMode, SetTradeGold,
+    SetTradeItem, SetTradeSpell, SignPetition, SpecialMountAnim, StandStateChange,
+    SubmitUserFeedback, SupportTicketSubmitBug, SupportTicketSubmitComplaint,
+    SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
     TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP, TaxiNodeStatusPkt, ToggleDifficulty, TogglePvp,
     ToyClearFanfare, UnacceptTrade, UpdateAccountData, UseToy, UserClientUpdateAccountData,
     ViolenceLevel, compress_account_data_like_cpp, decompress_account_data_like_cpp,
@@ -1573,6 +1574,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_calendar_get_event",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::CalendarCopyEvent,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_calendar_copy_event",
     }
 }
 
@@ -4603,6 +4613,13 @@ impl crate::session::WorldSession {
         // C++ sends CalendarCommandResult(EVENT_INVALID) when sCalendarMgr has
         // no event for the requested id. Rust does not have CalendarMgr wired
         // yet, so this represents the observable miss branch.
+        self.send_packet(&CalendarCommandResult::event_invalid_like_cpp());
+    }
+
+    pub async fn handle_calendar_copy_event(&mut self, _query: CalendarCopyEvent) {
+        // C++ sends CalendarCommandResult(EVENT_INVALID) when sCalendarMgr has
+        // no source event for the requested id. Rust does not have CalendarMgr
+        // wired yet, so this represents the observable miss branch.
         self.send_packet(&CalendarCommandResult::event_invalid_like_cpp());
     }
 
@@ -12042,6 +12059,31 @@ mod tests {
         session
             .handle_calendar_get_event(CalendarGetEvent {
                 event_id: 0x0102_0304_0506_0708,
+            })
+            .await;
+
+        let bytes = send_rx.try_recv().expect("calendar command result");
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::CalendarCommandResult as u16
+        );
+
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_uint8().unwrap(), 1);
+        assert_eq!(pkt.read_uint8().unwrap(), 6);
+        assert_eq!(pkt.read_bits(9).unwrap(), 0);
+    }
+
+    #[tokio::test]
+    async fn calendar_copy_event_without_calendar_mgr_sends_event_invalid_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_calendar_copy_event(CalendarCopyEvent {
+                event_id: 0x1111_2222_3333_4444,
+                moderator_id: 0x5555_6666_7777_8888,
+                event_club_id: 0x9999_AAAA_BBBB_CCCC,
+                date: 0xDEAD_BEEF,
             })
             .await;
 

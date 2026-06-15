@@ -6080,6 +6080,28 @@ impl ClientPacket for CalendarRemoveEvent {
     }
 }
 
+/// C++ `WorldPackets::Calendar::CalendarCopyEvent`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CalendarCopyEvent {
+    pub event_id: u64,
+    pub moderator_id: u64,
+    pub event_club_id: u64,
+    pub date: u32,
+}
+
+impl ClientPacket for CalendarCopyEvent {
+    const OPCODE: ClientOpcodes = ClientOpcodes::CalendarCopyEvent;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            event_id: pkt.read_uint64()?,
+            moderator_id: pkt.read_uint64()?,
+            event_club_id: pkt.read_uint64()?,
+            date: pkt.read_uint32()?,
+        })
+    }
+}
+
 /// C++ `WorldPackets::Calendar::CalendarEventSignUp`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CalendarEventSignUp {
@@ -7836,6 +7858,21 @@ mod tests {
         assert_eq!(query.moderator_id, 0x5555_6666_7777_8888);
         assert_eq!(query.club_id, 0x9999_AAAA_BBBB_CCCC);
         assert_eq!(query.flags, 0xDEAD_BEEF);
+    }
+
+    #[test]
+    fn calendar_copy_event_reads_cpp_field_order() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint64(0x1111_2222_3333_4444);
+        pkt.write_uint64(0x5555_6666_7777_8888);
+        pkt.write_uint64(0x9999_AAAA_BBBB_CCCC);
+        pkt.write_uint32(0xDEAD_BEEF);
+
+        let query = CalendarCopyEvent::read(&mut pkt).unwrap();
+        assert_eq!(query.event_id, 0x1111_2222_3333_4444);
+        assert_eq!(query.moderator_id, 0x5555_6666_7777_8888);
+        assert_eq!(query.event_club_id, 0x9999_AAAA_BBBB_CCCC);
+        assert_eq!(query.date, 0xDEAD_BEEF);
     }
 
     #[test]

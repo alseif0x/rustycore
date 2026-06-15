@@ -20363,6 +20363,12 @@ impl WorldSession {
                     Err(e) => warn!("Failed to read CalendarGetEvent: {e}"),
                 }
             }
+            ClientOpcodes::CalendarCopyEvent => {
+                match wow_packet::packets::misc::CalendarCopyEvent::read(&mut pkt) {
+                    Ok(query) => self.handle_calendar_copy_event(query).await,
+                    Err(e) => warn!("Failed to read CalendarCopyEvent: {e}"),
+                }
+            }
             ClientOpcodes::CalendarEventSignUp => {
                 match wow_packet::packets::misc::CalendarEventSignUp::read(&mut pkt) {
                     Ok(query) => self.handle_calendar_event_sign_up(query).await,
