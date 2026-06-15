@@ -1,3 +1,19 @@
+- `#NEXT.RUNTIME.L3.031j37` — WotLK represented `Spell::EffectStuck` / auto-unstuck spell effect
+  (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellEffects.cpp:3265-3303`,
+  `/home/server/woltk-trinity-legacy/src/server/worldserver/worldserver.conf.dist:1012-1018`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/World/World.cpp:1116`. Rust now names
+  `SPELL_EFFECT_STUCK = 84`, dispatches the direct effect, represents `CONFIG_CAST_UNSTUCK`
+  default-enabled behavior, returns while in taxi flight, repops a dead player without represented
+  death timer by setting ghost evidence plus the existing graveyard counter, kills the player when
+  represented Hearthstone spell 8690 has cooldown evidence, otherwise teleports to represented
+  homebind and sends Hearthstone cooldown only when spell 8690 exists in the spell store like C++.
+  Coverage: `spell_stuck_*` tests cover home teleport + cooldown, hearthstone-cooldown kill, dead
+  repop, flight no-op, and disabled config no-op; full `wow-world --lib` is green at 1989/0.
+  Boundary remains partial: no full `World` config injection into spells, no real `SpellHistory`
+  cooldown expiry/duration model, no exact `Player::KillSelf` death pipeline, no cemetery
+  selection/teleport for `RepopAtGraveyard`, no install/restart, bot, or live-client/manual
+  validation.
 - `#NEXT.RUNTIME.L3.031j36` — WotLK represented non-OR_DB nearby-entry destination failure for
   summon GameObject spells (not manual-test-ready). Source-of-truth:
   `/home/server/woltk-trinity-legacy/src/server/game/Spells/Spell.cpp:1132-1208`,

@@ -3564,6 +3564,10 @@ pub struct WorldSession {
     /// that initiate teleport and must apply after WorldPortResponse.
     represented_delayed_resurrection_after_teleport_like_cpp:
         Option<RepresentedResurrectionRequestLikeCpp>,
+    /// C++ `CONFIG_CAST_UNSTUCK` represented until World config is injected into spell effects.
+    represented_cast_unstuck_enabled_like_cpp: bool,
+    /// C++ `Player::GetDeathTimer()` represented for `Spell::EffectStuck`.
+    represented_death_timer_active_like_cpp: bool,
     /// Near teleport ACK side-effect audit events.
     move_teleport_ack_events_like_cpp: Vec<MoveTeleportAckEventLikeCpp>,
     /// Count of C++ `ResummonPetTemporaryUnSummonedIfAny` calls after near teleport ACK.
@@ -4839,6 +4843,8 @@ impl WorldSession {
             represented_homebind_like_cpp: None,
             represented_resurrection_request_like_cpp: None,
             represented_delayed_resurrection_after_teleport_like_cpp: None,
+            represented_cast_unstuck_enabled_like_cpp: true,
+            represented_death_timer_active_like_cpp: false,
             move_teleport_ack_events_like_cpp: Vec::new(),
             temporary_pet_resummon_requests_like_cpp: 0,
             delayed_operations_processed_like_cpp: 0,
@@ -34796,6 +34802,9 @@ impl WorldSession {
                         direct_effect_misc_value_1,
                     );
                 }
+                x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_STUCK => {
+                    self.apply_stuck_effect_like_cpp().await;
+                }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_PLAY_MOVIE => {
                     self.apply_play_movie_effect_like_cpp(target_guid, direct_effect_misc_value_1);
                 }
@@ -34985,6 +34994,7 @@ impl WorldSession {
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_BLOCK
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_GIVE_HONOR
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_SELF_RESURRECT
+                || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_STUCK
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_PLAY_MOVIE
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_TRANSMOG_SET
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_UPGRADE_HEIRLOOM
@@ -36749,6 +36759,64 @@ impl WorldSession {
         } else {
             self.send_player_health_values_update_like_cpp(player_guid, u64::from(health));
         }
+    }
+
+    /// C++ `Spell::EffectStuck` (`SpellEffects.cpp:3265-3303`).
+    async fn apply_stuck_effect_like_cpp(&mut self) {
+        const HEARTHSTONE_SPELL_ID_LIKE_CPP: i32 = 8690;
+
+        let Some(player_guid) = self.player_guid() else {
+            return;
+        };
+        if !self.represented_cast_unstuck_enabled_like_cpp {
+            return;
+        }
+        if self.is_in_taxi_flight_like_cpp() {
+            return;
+        }
+
+        if !self.player_alive_like_cpp {
+            if !self.represented_death_timer_active_like_cpp {
+                self.set_player_ghost_flag_like_cpp(true);
+                self.represented_repop_at_graveyard_count =
+                    self.represented_repop_at_graveyard_count.saturating_add(1);
+            }
+            return;
+        }
+
+        if self
+            .last_spell_cast_time_per_spell
+            .contains_key(&HEARTHSTONE_SPELL_ID_LIKE_CPP)
+        {
+            self.set_player_alive_like_cpp(false);
+            let values_update = self.mutate_canonical_player_like_cpp(|player| {
+                player.unit_mut().set_health(0);
+                player.values_update(true)
+            });
+            if let Some(values_update) = values_update {
+                self.send_player_values_update_like_cpp(&values_update);
+            } else {
+                self.send_player_health_values_update_like_cpp(player_guid, 0);
+            }
+            return;
+        }
+
+        if let Some(homebind) = self.represented_homebind_like_cpp() {
+            self.teleport_to(homebind.map_id, homebind.position).await;
+        }
+
+        let Some(spell_store) = self.spell_store.as_deref() else {
+            return;
+        };
+        if spell_store.get(HEARTHSTONE_SPELL_ID_LIKE_CPP).is_none() {
+            return;
+        }
+        self.last_spell_cast_time_per_spell
+            .insert(HEARTHSTONE_SPELL_ID_LIKE_CPP, Instant::now());
+        self.send_packet(&wow_packet::packets::spell::CooldownEvent {
+            spell_id: HEARTHSTONE_SPELL_ID_LIKE_CPP,
+            is_pet: false,
+        });
     }
 
     async fn apply_quest_complete_effect_like_cpp(
@@ -57039,6 +57107,49 @@ mod tests {
             .unwrap();
     }
 
+    fn stuck_spell_info_like_cpp(spell_id: i32) -> wow_data::SpellInfo {
+        wow_data::SpellInfo {
+            spell_id,
+            cast_time_ms: 0,
+            cooldown_ms: 0,
+            recovery_time_ms: 0,
+            effect_type: 0,
+            effect_base_points: 0,
+            effect_bonus_coefficient: 0.0,
+            aura_type: None,
+            display_flags: 0,
+            requires_spell_focus: 0,
+            effects: vec![wow_data::SpellEffectInfo {
+                effect_index: 0,
+                effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_STUCK,
+                ..Default::default()
+            }],
+        }
+    }
+
+    fn hearthstone_spell_info_like_cpp() -> wow_data::SpellInfo {
+        wow_data::SpellInfo {
+            spell_id: 8690,
+            cast_time_ms: 0,
+            cooldown_ms: 0,
+            recovery_time_ms: 0,
+            effect_type: 0,
+            effect_base_points: 0,
+            effect_bonus_coefficient: 0.0,
+            aura_type: None,
+            display_flags: 0,
+            requires_spell_focus: 0,
+            effects: Vec::new(),
+        }
+    }
+
+    fn set_stuck_spell_store_like_cpp(session: &mut WorldSession, spell_id: i32) {
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(spell_id, stuck_spell_info_like_cpp(spell_id));
+        spell_store.insert(8690, hearthstone_spell_info_like_cpp());
+        session.set_spell_store(Arc::new(spell_store));
+    }
+
     #[tokio::test]
     async fn spell_self_resurrect_flat_case_sets_health_and_powers_like_cpp() {
         let (mut session, _, send_rx) = make_session();
@@ -57211,6 +57322,217 @@ mod tests {
         assert_eq!(powers, (40, 25, 50, 30, 40));
         assert_eq!(
             drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_stuck_teleports_home_and_sends_hearthstone_cooldown_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 783_i32;
+        let player_guid = ObjectGuid::create_player(1, 783);
+        let start = Position::new(10.0, 20.0, 30.0, 1.0);
+        let home = Position::new(100.0, 200.0, 40.0, 2.0);
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "StuckHome".to_string(),
+            start,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_player_health_like_cpp(100, 100);
+        session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
+            map_id: 0,
+            area_id: 12,
+            position: home,
+        });
+        set_stuck_spell_store_like_cpp(&mut session, spell_id);
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("represented stuck spell should execute");
+
+        assert_eq!(session.pending_teleport, Some((0, home)));
+        assert!(
+            session.last_spell_cast_time_per_spell.contains_key(&8690),
+            "C++ EffectStuck starts Hearthstone cooldown after successful home teleport"
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![
+                ServerOpcodes::SpellGo,
+                ServerOpcodes::TransferPending,
+                ServerOpcodes::SuspendToken,
+                ServerOpcodes::CooldownEvent,
+                ServerOpcodes::CooldownEvent,
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_stuck_kills_player_when_hearthstone_has_cooldown_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 784_i32;
+        let player_guid = ObjectGuid::create_player(1, 784);
+        let position = Position::new(11.0, 21.0, 31.0, 1.0);
+        let canonical = shared_canonical_map_manager();
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "StuckCooldown".to_string(),
+            position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_player_health_like_cpp(100, 100);
+        add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
+        session
+            .last_spell_cast_time_per_spell
+            .insert(8690, Instant::now());
+        set_stuck_spell_store_like_cpp(&mut session, spell_id);
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("represented stuck spell cooldown branch should execute");
+
+        assert!(!session.player_is_alive_like_cpp());
+        assert_eq!(session.player_health_like_cpp(), 0);
+        assert_eq!(
+            session
+                .mutate_canonical_player_like_cpp(|player| player.unit().data().health)
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_stuck_dead_player_without_death_timer_repops_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 785_i32;
+        let player_guid = ObjectGuid::create_player(1, 785);
+        let position = Position::new(12.0, 22.0, 32.0, 1.0);
+        let canonical = shared_canonical_map_manager();
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "StuckDead".to_string(),
+            position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_player_health_like_cpp(0, 100);
+        add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
+        set_stuck_spell_store_like_cpp(&mut session, spell_id);
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("represented stuck spell dead branch should execute");
+
+        assert_eq!(session.represented_repop_at_graveyard_count, 1);
+        assert!(session.player_has_ghost_flag_like_cpp());
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_stuck_skips_flight_and_disabled_config_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 786_i32;
+        let player_guid = ObjectGuid::create_player(1, 786);
+        let position = Position::new(13.0, 23.0, 33.0, 1.0);
+        let home = Position::new(101.0, 201.0, 41.0, 2.0);
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "StuckFlight".to_string(),
+            position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_player_health_like_cpp(100, 100);
+        session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
+            map_id: 0,
+            area_id: 12,
+            position: home,
+        });
+        session.set_taxi_flight_state_like_cpp(
+            RepresentedTaxiFlightNodeLikeCpp {
+                map_id: 571,
+                position,
+                teleport_flag: false,
+            },
+            None,
+        );
+        set_stuck_spell_store_like_cpp(&mut session, spell_id);
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("represented stuck spell in-flight branch should execute as no-op");
+
+        assert_eq!(session.pending_teleport, None);
+        assert!(
+            !session.last_spell_cast_time_per_spell.contains_key(&8690),
+            "C++ EffectStuck returns before Hearthstone cooldown while player is in flight"
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
+
+        let (mut disabled_session, _, disabled_rx) = make_session();
+        disabled_session.represented_cast_unstuck_enabled_like_cpp = false;
+        disabled_session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "StuckDisabled".to_string(),
+            position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        disabled_session.set_player_health_like_cpp(100, 100);
+        disabled_session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
+            map_id: 0,
+            area_id: 12,
+            position: home,
+        });
+        set_stuck_spell_store_like_cpp(&mut disabled_session, spell_id);
+
+        disabled_session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("disabled CastUnstuck should execute as C++ no-op");
+
+        assert_eq!(disabled_session.pending_teleport, None);
+        assert!(
+            !disabled_session
+                .last_spell_cast_time_per_spell
+                .contains_key(&8690)
+        );
+        assert_eq!(
+            drain_server_opcodes(&disabled_rx),
             vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
         );
     }

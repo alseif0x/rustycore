@@ -70,6 +70,7 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_ADD_COMBO_POINTS: u32 = 80;
     pub const SPELL_EFFECT_CREATE_HOUSE: u32 = 81;
     pub const SPELL_EFFECT_BIND_SIGHT: u32 = 82;
+    pub const SPELL_EFFECT_STUCK: u32 = 84;
     pub const SPELL_EFFECT_KILL_CREDIT: u32 = 90;
     pub const SPELL_EFFECT_THREAT_ALL: u32 = 91;
     pub const SPELL_EFFECT_SELF_RESURRECT: u32 = 94;

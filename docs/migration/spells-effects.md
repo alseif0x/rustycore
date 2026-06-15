@@ -485,7 +485,10 @@ Numerados como `#SPELLS-EFFECTS.N` para referencia desde `MIGRATION_ROADMAP.md`.
 - [ ] **#SPELLS-EFFECTS.65** Implementar `EffectParry`, `EffectBlock` (passive grant) (L)
 - [ ] **#SPELLS-EFFECTS.66** Implementar `EffectReputation` (faction modify) (L)
 - [ ] **#SPELLS-EFFECTS.67** Implementar `EffectDuel` (L)
-- [ ] **#SPELLS-EFFECTS.68** Implementar `EffectStuck` (homebind teleport) (L)
+- [x] **#SPELLS-EFFECTS.68** Implementar `EffectStuck` (homebind teleport) (L) — represented-partial:
+  `CONFIG_CAST_UNSTUCK`, flight/dead/cooldown gates, homebind teleport, and Hearthstone cooldown
+  are covered; full `SpellHistory` duration expiry, exact `KillSelf` death pipeline, and live
+  client/manual validation remain open.
 - [ ] **#SPELLS-EFFECTS.69** Implementar `EffectApplyGlyph` con GlyphProperties.db2 (M)
 - [ ] **#SPELLS-EFFECTS.70** Implementar `EffectPlayMovie`, `EffectPlayScene`, `EffectPlaySceneScriptPackage`, `EffectCreateSceneObject`, `EffectCreatePrivateSceneObject` (M)
 - [ ] **#SPELLS-EFFECTS.71** Implementar `EffectGiveHonor`, `EffectGrantBattlePetExperience`, `EffectChangeRaidMarker` (L)
@@ -645,7 +648,7 @@ Numerados como `#SPELLS-EFFECTS.N` para referencia desde `MIGRATION_ROADMAP.md`.
 - Summon: `EffectSummonType` (the XL ~218-line discriminator), `EffectSummonPet`, `EffectSummonObject`, `EffectSummonObjectWild`, `EffectSummonChangeItem`, `EffectSummonPlayer` — none.
 - Resurrect: `EffectResurrect`, `EffectResurrectNew`, `EffectSelfResurrect`, `EffectResurrectPet` — none.
 - Dispel/Interrupt: `EffectDispel`, `EffectStealBeneficialBuff`, `EffectInterruptCast`, `EffectDispelMechanic` — none.
-- Status: `EffectStuck`, `EffectSanctuary`, `EffectDualWield`, `EffectTaunt`, `EffectThreat`, `EffectModifyThreatPercent`, `EffectAddComboPoints`, `EffectScriptEffect`, `EffectDummy`, `EffectDistract`, `EffectModifyAuraStacks`, `EffectModifyCooldown`/`Cooldowns`/`CooldownsByCategory`, `EffectModifySpellCharges` — none.
+- Status: `EffectStuck` — represented-partial; `EffectSanctuary`, `EffectDualWield`, `EffectTaunt`, `EffectThreat`, `EffectModifyThreatPercent`, `EffectAddComboPoints`, `EffectScriptEffect`, `EffectDummy`, `EffectDistract`, `EffectModifyAuraStacks`, `EffectModifyCooldown`/`Cooldowns`/`CooldownsByCategory`, `EffectModifySpellCharges` — none.
 - Item: `EffectCreateItem`, `EffectCreateItem2`, `EffectCreateRandomItem`, `EffectFeedPet`, `EffectEnchantItemPerm`, `EffectEnchantItemTmp`, `EffectEnchantItemPrismatic`, `EffectEnchantHeldItem`, `EffectDisEnchant`, `EffectMillItem`, `EffectProspecting` — none.
 - Quest/Profession: `EffectQuestComplete`, `EffectQuestStart`, `EffectQuestRedirect`, `EffectLearnSpell`, `EffectUnlearnSpecialization`, `EffectLearnPetSpell`, `EffectLearnSkill`, `EffectTradeSkill`, `EffectProficiency`, `EffectUntrainTalents` — none.
 - OpenLock/GO: `EffectOpenLock`, `EffectActivateObject`, `EffectSendEvent`, `EffectGameobjectDamage`, `EffectGameObjectRepair`, `EffectGameobjectSetDestructionState` — none.
