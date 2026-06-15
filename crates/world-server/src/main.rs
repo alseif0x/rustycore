@@ -2604,6 +2604,7 @@ async fn main() -> Result<ExitCode> {
         adventure_map_poi_store: Some(Arc::clone(&adventure_map_poi_store)),
         content_tuning_store: Some(Arc::clone(&content_tuning_store)),
         disable_mgr: Some(Arc::clone(&disable_mgr)),
+        difficulty_store: Some(Arc::clone(&difficulty_store)),
         lock_store: Some(Arc::clone(&lock_store)),
         spell_item_enchantment_store: Some(Arc::clone(&spell_item_enchantment_store)),
         hotfix_blob_cache: Some(Arc::clone(&hotfix_blob_cache)),
@@ -8699,6 +8700,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.disable_mgr {
         session.set_disable_mgr(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.difficulty_store {
+        session.set_difficulty_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.lock_store {
         session.set_lock_store(Arc::clone(store));

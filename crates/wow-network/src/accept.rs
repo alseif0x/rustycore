@@ -220,6 +220,7 @@ pub struct SessionResources {
     pub paragon_reputation_store:
         Option<Arc<wow_data::progression_rewards::ParagonReputationStore>>,
     pub disable_mgr: Option<Arc<wow_data::DisableMgrLikeCpp>>,
+    pub difficulty_store: Option<Arc<wow_data::DifficultyStore>>,
     pub lock_store: Option<Arc<wow_data::LockStore>>,
     pub spell_item_enchantment_store: Option<Arc<wow_data::SpellItemEnchantmentStore>>,
     pub hotfix_blob_cache: Option<Arc<wow_data::HotfixBlobCache>>,

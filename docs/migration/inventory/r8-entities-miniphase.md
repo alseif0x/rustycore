@@ -1,3 +1,13 @@
+# `#NEXT.R8.ENTITIES.924` — represented-partial implementation for `CMSG_SET_DIFFICULTY_ID`.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:1038-1125`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.h:289-297,321-330`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.cpp:239-242,250-263`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:20651-20666,28550-28590`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:1975-1984,2101-2102`; `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Structure.h:2613`.
+
+Implemented Rust seam: `world-server` already loads `Difficulty.db2`; `SessionResources` now carries that store into `WorldSession`. `CMSG_SET_DIFFICULTY_ID` now validates missing and unselectable `DifficultyEntry` rows like `sDifficultyStore`, blocks changes while the represented current map is `Instanceable()`, and implements the solo-player branches for dungeon, raid, and legacy-raid difficulty changes. The handler updates represented player difficulty state and sends `SMSG_SET_DUNGEON_DIFFICULTY` or `SMSG_RAID_DIFFICULTY_SET`; `RaidDifficultySet` now writes the exact C++ `int32 DifficultyID` + `uint8 Legacy` shape.
+
+Focused tests: missing store remains silent; short packet remains silent; unselectable difficulty remains silent; instanceable map blocks changes; solo dungeon difficulty updates and sends `SMSG_SET_DUNGEON_DIFFICULTY`; repeated same dungeon difficulty is silent; solo raid and legacy-raid difficulty update and send `SMSG_RAID_DIFFICULTY_SET` with the correct legacy byte. `wow-packet` covers both difficulty-set server packet wire shapes.
+
+Boundaries: represented-partial only. Rust does not yet implement the group leader/LFG branches, `Group::ResetInstances`, `Player::ResetInstances` and recent instance-lock mutation, persistence/loading of player difficulty values from `characters`, group difficulty fanout, install/restart, bot, or live-client/manual validation.
+
 # `#NEXT.R8.ENTITIES.923` — represented-complete WotLK stubs for `CMSG_AUCTIONABLE_TOKEN_SELL` and `CMSG_AUCTIONABLE_TOKEN_SELL_AT_MARKET_PRICE`.
 
 C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/AuctionHouseHandler.cpp:1043-1052`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/AuctionHousePackets.h:313-327`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/AuctionHousePackets.cpp:556-564`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:173-174`; `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:73-74`.

@@ -3779,6 +3779,26 @@ impl ServerPacket for DungeonDifficultySet {
     }
 }
 
+// ── RaidDifficultySet (SMSG 0x27ad) ──────────────────────────────────
+
+/// Sets the current raid difficulty.
+///
+/// C++ `WorldPackets::Misc::RaidDifficultySet::Write`:
+/// `int32 DifficultyID` followed by `uint8 Legacy`.
+pub struct RaidDifficultySet {
+    pub difficulty_id: i32,
+    pub legacy: bool,
+}
+
+impl ServerPacket for RaidDifficultySet {
+    const OPCODE: ServerOpcodes = ServerOpcodes::RaidDifficultySet;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_int32(self.difficulty_id);
+        pkt.write_uint8(u8::from(self.legacy));
+    }
+}
+
 // ── DbQueryBulk (CMSG 0x35e5) ─────────────────────────────────────
 
 /// Client request for DB2 records. The server must respond with one
@@ -8828,6 +8848,22 @@ mod tests {
         assert_eq!(opcode, 0x26a4);
         let difficulty = i32::from_le_bytes([bytes[2], bytes[3], bytes[4], bytes[5]]);
         assert_eq!(difficulty, 0);
+    }
+
+    #[test]
+    fn raid_difficulty_set_writes_legacy_flag_like_cpp() {
+        let pkt = RaidDifficultySet {
+            difficulty_id: 4,
+            legacy: true,
+        };
+        let bytes = pkt.to_bytes();
+        // opcode(2) + i32(4) + uint8(1) = 7
+        assert_eq!(bytes.len(), 7);
+        let opcode = u16::from_le_bytes([bytes[0], bytes[1]]);
+        assert_eq!(opcode, 0x27ad);
+        let difficulty = i32::from_le_bytes([bytes[2], bytes[3], bytes[4], bytes[5]]);
+        assert_eq!(difficulty, 4);
+        assert_eq!(bytes[6], 1);
     }
 
     #[test]

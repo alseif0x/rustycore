@@ -41,6 +41,7 @@ use wow_ai::{
 use wow_constants::creature::{CreatureFlagsExtra, CreatureType, CreatureTypeFlags};
 use wow_constants::item::{CurrencyTypes, CurrencyTypesFlags, EnchantmentSlot};
 use wow_constants::movement::MovementFlag;
+use wow_constants::shared::DifficultyFlags;
 use wow_constants::unit::{
     Gender, NPCFlags1, PowerType, Team, UnitFlags, UnitFlags2, UnitPvpFlags, UnitStandStateType,
     WeaponAttackType,
@@ -59,9 +60,9 @@ use wow_data::{
     BattlePetSpeciesStore, BattlePetXpGameTableLikeCpp, ChrSpecializationStore,
     CinematicSequencesStore, ConditionEntriesByTypeStore, CreatureDisplayInfoStore,
     CreatureModelDataStore, CreatureTemplateMountStoreLikeCpp, CurrencyTypesEntry,
-    CurrencyTypesStore, DISABLE_TYPE_MAP, DisableMgrLikeCpp, DisableWorldObjectRefLikeCpp,
-    DungeonEncounterStore, DurabilityCostsStore, DurabilityQualityStore,
-    FishingBaseSkillStoreLikeCpp, GameObjectDisplayInfoStore,
+    CurrencyTypesStore, DISABLE_TYPE_MAP, DifficultyStore, DisableMgrLikeCpp,
+    DisableWorldObjectRefLikeCpp, DungeonEncounterStore, DurabilityCostsStore,
+    DurabilityQualityStore, FishingBaseSkillStoreLikeCpp, GameObjectDisplayInfoStore,
     GameObjectTemplateLifecycleStoreLikeCpp, HeirloomEntry, HeirloomStore, HotfixBlobCache,
     ImportPriceStores, ItemAppearanceStore, ItemClassStore, ItemCurrencyCostStore,
     ItemDisenchantLootStore, ItemEffectStore, ItemExtendedCostStore,
@@ -137,9 +138,9 @@ use wow_packet::packets::item::{
 };
 use wow_packet::packets::misc::{
     AccountHeirloom, AccountHeirloomUpdate, AccountMount, AccountMountUpdate, AccountToy,
-    AccountToyUpdate, BuyFailed, EQUIP_ERR_NOT_ENOUGH_MONEY_LIKE_CPP, NUM_ACCOUNT_DATA_TYPES,
-    SellResponse, SetupCurrency, SetupCurrencyRecord, TRADE_SLOT_COUNT_LIKE_CPP,
-    TRADE_STATUS_ACCEPTED_LIKE_CPP, TRADE_STATUS_CANCELLED_LIKE_CPP,
+    AccountToyUpdate, BuyFailed, DungeonDifficultySet, EQUIP_ERR_NOT_ENOUGH_MONEY_LIKE_CPP,
+    NUM_ACCOUNT_DATA_TYPES, RaidDifficultySet, SellResponse, SetupCurrency, SetupCurrencyRecord,
+    TRADE_SLOT_COUNT_LIKE_CPP, TRADE_STATUS_ACCEPTED_LIKE_CPP, TRADE_STATUS_CANCELLED_LIKE_CPP,
     TRADE_STATUS_STATE_CHANGED_LIKE_CPP, TRADE_STATUS_UNACCEPTED_LIKE_CPP, TradeStatus,
 };
 use wow_packet::packets::quest::{
@@ -166,6 +167,11 @@ const PLAYER_FLAGS_UBER_LIKE_CPP: u32 = 0x0008_0000;
 const PLAYER_FLAGS_AFK_LIKE_CPP: u32 = 0x0000_0002;
 const PLAYER_FLAGS_DND_LIKE_CPP: u32 = 0x0000_0004;
 const PLAYER_FLAGS_GHOST_LIKE_CPP: u32 = 0x0000_0010;
+const DIFFICULTY_NORMAL_LIKE_CPP: u32 = 1;
+const DIFFICULTY_NORMAL_RAID_LIKE_CPP: u32 = 14;
+const DIFFICULTY_10_N_LIKE_CPP: u32 = 3;
+const MAP_INSTANCE_LIKE_CPP: u8 = 1;
+const MAP_RAID_LIKE_CPP: u8 = 2;
 const PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP: u32 = 0x0000_0100;
 const PLAYER_FLAGS_IN_PVP_LIKE_CPP: u32 = 0x0000_0200;
 const PLAYER_FLAGS_TAXI_BENCHMARK_LIKE_CPP: u32 = 0x0002_0000;
@@ -2770,6 +2776,9 @@ pub struct WorldSession {
     // C++ DisableMgr store loaded from world.disables.
     disable_mgr: Option<Arc<DisableMgrLikeCpp>>,
 
+    // C++ Difficulty.db2 store used by sDifficultyStore difficulty changes.
+    difficulty_store: Option<Arc<DifficultyStore>>,
+
     // Lock store (Lock.db2 data)
     lock_store: Option<Arc<LockStore>>,
 
@@ -2805,6 +2814,9 @@ pub struct WorldSession {
     map_difficulty_store: Option<Arc<MapDifficultyStore>>,
     map_difficulty_x_condition_store: Option<Arc<MapDifficultyXConditionStore>>,
     lfg_dungeons_store: Option<Arc<LfgDungeonsStore>>,
+    represented_dungeon_difficulty_id_like_cpp: u32,
+    represented_raid_difficulty_id_like_cpp: u32,
+    represented_legacy_raid_difficulty_id_like_cpp: u32,
     faction_store: Option<Arc<FactionStore>>,
     friendship_rep_reaction_store: Option<Arc<FriendshipRepReactionStore>>,
     paragon_reputation_store: Option<Arc<ParagonReputationStore>>,
@@ -4239,6 +4251,7 @@ impl WorldSession {
             adventure_map_poi_store: None,
             content_tuning_store: None,
             disable_mgr: None,
+            difficulty_store: None,
             lock_store: None,
             spell_item_enchantment_store: None,
             hotfix_blob_cache: None,
@@ -4253,6 +4266,9 @@ impl WorldSession {
             map_difficulty_store: None,
             map_difficulty_x_condition_store: None,
             lfg_dungeons_store: None,
+            represented_dungeon_difficulty_id_like_cpp: DIFFICULTY_NORMAL_LIKE_CPP,
+            represented_raid_difficulty_id_like_cpp: DIFFICULTY_NORMAL_RAID_LIKE_CPP,
+            represented_legacy_raid_difficulty_id_like_cpp: DIFFICULTY_10_N_LIKE_CPP,
             faction_store: None,
             friendship_rep_reaction_store: None,
             paragon_reputation_store: None,
@@ -14034,6 +14050,104 @@ impl WorldSession {
     /// Get the loaded DisableMgr store reference.
     pub fn disable_mgr(&self) -> Option<&Arc<DisableMgrLikeCpp>> {
         self.disable_mgr.as_ref()
+    }
+
+    /// Set the C++ Difficulty.db2 store used by `sDifficultyStore`.
+    pub fn set_difficulty_store(&mut self, store: Arc<DifficultyStore>) {
+        self.difficulty_store = Some(store);
+    }
+
+    pub(crate) fn difficulty_store(&self) -> Option<&Arc<DifficultyStore>> {
+        self.difficulty_store.as_ref()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_dungeon_difficulty_id_like_cpp(&self) -> u32 {
+        self.represented_dungeon_difficulty_id_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_raid_difficulty_id_like_cpp(&self) -> u32 {
+        self.represented_raid_difficulty_id_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_legacy_raid_difficulty_id_like_cpp(&self) -> u32 {
+        self.represented_legacy_raid_difficulty_id_like_cpp
+    }
+
+    fn current_map_instanceable_like_cpp(&self) -> bool {
+        let map_id = u32::from(self.player_map_id_like_cpp());
+        self.map_store()
+            .and_then(|store| store.get(map_id))
+            .is_some_and(|entry| {
+                matches!(
+                    entry.instance_type,
+                    wow_data::map::MAP_INSTANCE
+                        | wow_data::map::MAP_RAID
+                        | wow_data::map::MAP_BATTLEGROUND
+                        | wow_data::map::MAP_ARENA
+                        | wow_data::map::MAP_SCENARIO
+                )
+            })
+    }
+
+    pub(crate) fn represented_set_difficulty_id_like_cpp(&mut self, difficulty_id: u32) {
+        let Some(entry) = self
+            .difficulty_store()
+            .and_then(|store| store.get(difficulty_id))
+            .copied()
+        else {
+            return;
+        };
+
+        let flags = DifficultyFlags::from_bits_truncate(entry.flags);
+        if !flags.contains(DifficultyFlags::CAN_SELECT) {
+            return;
+        }
+
+        if self.current_map_instanceable_like_cpp() {
+            return;
+        }
+
+        if self.group_guid.is_some() {
+            // C++ mutates group difficulty here only for the leader and only
+            // outside LFG groups. Rust does not yet carry represented group
+            // instance reset ownership through WorldSession.
+            return;
+        }
+
+        if entry.instance_type == MAP_INSTANCE_LIKE_CPP {
+            if difficulty_id == self.represented_dungeon_difficulty_id_like_cpp {
+                return;
+            }
+
+            self.represented_dungeon_difficulty_id_like_cpp = difficulty_id;
+            self.send_packet(&DungeonDifficultySet {
+                difficulty_id: i32::try_from(difficulty_id).unwrap_or(i32::MAX),
+            });
+        } else if entry.instance_type == MAP_RAID_LIKE_CPP {
+            let legacy = flags.contains(DifficultyFlags::LEGACY);
+            let current = if legacy {
+                self.represented_legacy_raid_difficulty_id_like_cpp
+            } else {
+                self.represented_raid_difficulty_id_like_cpp
+            };
+            if difficulty_id == current {
+                return;
+            }
+
+            if legacy {
+                self.represented_legacy_raid_difficulty_id_like_cpp = difficulty_id;
+            } else {
+                self.represented_raid_difficulty_id_like_cpp = difficulty_id;
+            }
+
+            self.send_packet(&RaidDifficultySet {
+                difficulty_id: i32::try_from(difficulty_id).unwrap_or(i32::MAX),
+                legacy,
+            });
+        }
     }
 
     /// Set the lock store for this session.
