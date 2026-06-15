@@ -53,19 +53,19 @@ use wow_packet::packets::misc::{
     AuctionableTokenSellAtMarketPrice, BattlePetClearFanfare, BattlePetDeletePet,
     BattlePetModifyName, BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags,
     BattlePetSummon, BattlePetUpdateNotify, BattlefieldLeave, BeginTrade, BugReport, BusyTrade,
-    CageBattlePet, CalendarSendCalendar, CalendarSendNumPending, CanDuel, ClearTradeItem,
-    CloseInteraction, CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint, ComplaintResult,
-    DeclineGuildInvites, DeclinePetition, DfGetJoinStatus, DfGetSystemInfo, DuelResponse,
-    ERR_TAXITOOFARAWAY_LIKE_CPP, FarSight, GmTicketAcknowledgeSurvey, GmTicketCaseStatus,
-    GmTicketSystemStatus, GuildSetAchievementTracking, IgnoreTrade, LfgListBlacklist,
-    LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify, MAX_ACCOUNT_DATA_SIZE_LIKE_CPP,
-    MountSetFavorite, MountSpecial, NUM_ACCOUNT_DATA_TYPES, ObjectUpdateFailed,
-    ObjectUpdateRescued, QueryArenaTeam, QueryBattlePetName, QueryBattlePetNameResponse,
-    QueryPetition, QueryPetitionResponse, RatedPvpInfo, ReclaimCorpse, RepopRequest,
-    RequestAccountData, RequestBattlefieldStatus, RequestCemeteryListResponse, ResurrectResponse,
-    SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags, SetDifficultyId,
-    SetDungeonDifficulty, SetPvp, SetRaidDifficulty, SetTaxiBenchmarkMode, SetTradeGold,
-    SetTradeItem, SetTradeSpell, SignPetition, SpecialMountAnim, StandStateChange,
+    CageBattlePet, CalendarComplain, CalendarSendCalendar, CalendarSendNumPending, CanDuel,
+    ClearTradeItem, CloseInteraction, CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint,
+    ComplaintResult, DeclineGuildInvites, DeclinePetition, DfGetJoinStatus, DfGetSystemInfo,
+    DuelResponse, ERR_TAXITOOFARAWAY_LIKE_CPP, FarSight, GmTicketAcknowledgeSurvey,
+    GmTicketCaseStatus, GmTicketSystemStatus, GuildSetAchievementTracking, IgnoreTrade,
+    LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify,
+    MAX_ACCOUNT_DATA_SIZE_LIKE_CPP, MountSetFavorite, MountSpecial, NUM_ACCOUNT_DATA_TYPES,
+    ObjectUpdateFailed, ObjectUpdateRescued, QueryArenaTeam, QueryBattlePetName,
+    QueryBattlePetNameResponse, QueryPetition, QueryPetitionResponse, RatedPvpInfo, ReclaimCorpse,
+    RepopRequest, RequestAccountData, RequestBattlefieldStatus, RequestCemeteryListResponse,
+    ResurrectResponse, SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags,
+    SetDifficultyId, SetDungeonDifficulty, SetPvp, SetRaidDifficulty, SetTaxiBenchmarkMode,
+    SetTradeGold, SetTradeItem, SetTradeSpell, SignPetition, SpecialMountAnim, StandStateChange,
     SubmitUserFeedback, SupportTicketSubmitBug, SupportTicketSubmitComplaint,
     SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
     TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP, TaxiNodeStatusPkt, ToggleDifficulty, TogglePvp,
@@ -924,6 +924,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_calendar_get_num_pending",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::CalendarComplain,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_calendar_complain",
     }
 }
 
@@ -3355,6 +3364,9 @@ impl crate::session::WorldSession {
         // CalendarSendNumPending. Calendar manager state is not ported yet, so
         // represent the empty pending-invite count.
         self.send_packet(&CalendarSendNumPending { num_pending: 0 });
+    }
+    pub async fn handle_calendar_complain(&mut self, _complain: CalendarComplain) {
+        // C++ only parses/logs this packet and has no gameplay side effect.
     }
     pub async fn handle_gm_ticket_get_case_status(&mut self, _pkt: wow_packet::WorldPacket) {
         // C++ `HandleGMTicketGetCaseStatusOpcode` is still a TODO and sends a
@@ -11908,6 +11920,22 @@ mod tests {
 
         let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
         assert_eq!(pkt.read_uint32().unwrap(), 0);
+    }
+
+    #[tokio::test]
+    async fn calendar_complain_is_silent_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let invited_by_guid = ObjectGuid::create_player(1, 0xAABB_CCDD);
+
+        session
+            .handle_calendar_complain(CalendarComplain {
+                invited_by_guid,
+                event_id: 0x0102_0304_0506_0708,
+                invite_id: 0x1112_1314_1516_1718,
+            })
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
     }
 
     #[tokio::test]

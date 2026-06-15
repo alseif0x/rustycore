@@ -6020,6 +6020,26 @@ impl ServerPacket for CalendarSendCalendar {
     }
 }
 
+/// C++ `WorldPackets::Calendar::CalendarComplain`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CalendarComplain {
+    pub invited_by_guid: ObjectGuid,
+    pub event_id: u64,
+    pub invite_id: u64,
+}
+
+impl ClientPacket for CalendarComplain {
+    const OPCODE: ClientOpcodes = ClientOpcodes::CalendarComplain;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            invited_by_guid: pkt.read_guid()?,
+            event_id: pkt.read_uint64()?,
+            invite_id: pkt.read_uint64()?,
+        })
+    }
+}
+
 /// C++ `WorldPackets::ArenaTeam::ArenaTeamRoster`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ArenaTeamRoster {
@@ -7661,6 +7681,20 @@ mod tests {
         assert_eq!(pkt.read_uint32().unwrap(), 0); // Invites.Count
         assert_eq!(pkt.read_uint32().unwrap(), 0); // Events.Count
         assert_eq!(pkt.read_uint32().unwrap(), 0); // RaidLockouts.Count
+    }
+
+    #[test]
+    fn calendar_complain_reads_cpp_guid_event_invite_order() {
+        let invited_by_guid = ObjectGuid::create_player(1, 0xAABB_CCDD);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_guid(&invited_by_guid);
+        pkt.write_uint64(0x0102_0304_0506_0708);
+        pkt.write_uint64(0x1112_1314_1516_1718);
+
+        let complain = CalendarComplain::read(&mut pkt).unwrap();
+        assert_eq!(complain.invited_by_guid, invited_by_guid);
+        assert_eq!(complain.event_id, 0x0102_0304_0506_0708);
+        assert_eq!(complain.invite_id, 0x1112_1314_1516_1718);
     }
 
     #[test]

@@ -20117,6 +20117,12 @@ impl WorldSession {
             ClientOpcodes::CalendarGetNumPending => {
                 self.handle_calendar_get_num_pending(pkt).await;
             }
+            ClientOpcodes::CalendarComplain => {
+                match wow_packet::packets::misc::CalendarComplain::read(&mut pkt) {
+                    Ok(complain) => self.handle_calendar_complain(complain).await,
+                    Err(e) => warn!("Failed to read CalendarComplain: {e}"),
+                }
+            }
             ClientOpcodes::GmTicketGetCaseStatus => {
                 self.handle_gm_ticket_get_case_status(pkt).await;
             }

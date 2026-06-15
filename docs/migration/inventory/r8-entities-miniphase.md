@@ -1,3 +1,13 @@
+# `#NEXT.R8.ENTITIES.963` — represented `CMSG_CALENDAR_COMPLAIN` no-op hook.
+
+Source-of-truth C++ was checked before code changes: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CalendarHandler.cpp:513-521` (`WorldSession::HandleCalendarComplain`), `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/CalendarPackets.cpp:507-512` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/CalendarPackets.h:576-585` (`CalendarComplain` packet shape), `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:260` for `LoggedIn`/`ThreadUnsafe`, and `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:137` for opcode `0x367B`.
+
+Rust now parses `CMSG_CALENDAR_COMPLAIN` as the C++ `InvitedByGUID`, `EventID`, `InviteID` order, registers `LoggedIn`/`ThreadUnsafe` dispatch, routes through `WorldSession`, and intentionally sends no response and mutates no represented state. This matches the active legacy C++ handler, which only logs the fields and leaves the complaint workflow as `what to do with complains?`.
+
+Checks: `cargo fmt --all --check`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-packet calendar_complain --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world calendar_complain --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world dispatch_metadata_matches_cpp_for_registered_active_opcodes -- --nocapture`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p wow-packet -p wow-world`; `git diff --check`; TSV 9/16/11-column checks.
+
+Boundaries: represented-complete for the bounded active C++ no-op/log hook only. Rust does not invent CalendarMgr complaint persistence or a moderation workflow because the legacy C++ handler does not implement one; install/restart, bot, and live-client/manual validation remain outside this bounded closure.
+
 # `#NEXT.R8.ENTITIES.962` — represented `CMSG_ITEM_TEXT_QUERY` dispatch.
 
 Source-of-truth C++ was checked before code changes: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/QueryHandler.cpp:305-316` (`WorldSession::HandleItemTextQuery`), `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/QueryPackets.cpp:495-516` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/QueryPackets.h:396-420` (`ItemTextQuery`, `ItemTextCache`, and `QueryItemTextResponse` packet shapes), `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:550,1938` for client/server opcode metadata, and `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:332,1624` for `CMSG_ITEM_TEXT_QUERY = 0x32C5` and `SMSG_QUERY_ITEM_TEXT_RESPONSE = 0x291E`.
