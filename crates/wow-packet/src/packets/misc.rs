@@ -861,6 +861,22 @@ impl ClientPacket for SetCurrencyFlags {
     }
 }
 
+/// C++ `WorldPackets::Misc::SetDifficultyId`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SetDifficultyId {
+    pub difficulty_id: u32,
+}
+
+impl ClientPacket for SetDifficultyId {
+    const OPCODE: ClientOpcodes = ClientOpcodes::SetDifficultyId;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            difficulty_id: pkt.read_uint32()?,
+        })
+    }
+}
+
 /// C++ `WorldPackets::Misc::AddonList`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AddonList {
@@ -6141,6 +6157,17 @@ mod tests {
         let parsed = SetCurrencyFlags::read(&mut pkt).unwrap();
         assert_eq!(parsed.currency_id, 395);
         assert_eq!(parsed.flags, 0x1f);
+    }
+
+    #[test]
+    fn set_difficulty_id_reads_cpp_uint32() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(23);
+        pkt.reset_read();
+
+        let parsed = SetDifficultyId::read(&mut pkt).unwrap();
+
+        assert_eq!(parsed.difficulty_id, 23);
     }
 
     #[test]

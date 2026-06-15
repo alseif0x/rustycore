@@ -1,3 +1,11 @@
+- `#NEXT.R8.ENTITIES.913` — represented-partial implementation for `CMSG_SET_DIFFICULTY_ID`.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:1046-1118` (`WorldSession::HandleSetDifficultyId`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.h:289-298` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.cpp:239-242` (`SetDifficultyId::Read`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:604` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:889`.
+
+Implemented Rust seam: `SetDifficultyId` parses the C++ `uint32 DifficultyID`; `CMSG_SET_DIFFICULTY_ID` registers `LoggedIn`/`ThreadUnsafe` dispatch and routes through `WorldSession`. Until `DifficultyStore` plus live Player/Group/Map difficulty ownership is represented on `WorldSession`, Rust preserves a bounded silent branch instead of fabricating difficulty state.
+
+Boundaries: represented-partial only. Rust does not yet implement live `sDifficultyStore.LookupEntry`, `DIFFICULTY_FLAG_CAN_SELECT`, instanceable-map blocking, group leader/LFG gates, `ResetInstances`, dungeon/raid/legacy difficulty mutation, `SendDungeonDifficulty`/`SendRaidDifficulty`, persistence, install/restart, bot, or live-client/manual validation.
+
 - `#NEXT.R8.ENTITIES.912` — represented-partial implementation for `CMSG_QUERY_CORPSE_TRANSPORT` and bounded `SMSG_CORPSE_TRANSPORT_QUERY` default response.
 
 C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/QueryHandler.cpp:235-248` (`WorldSession::HandleQueryCorpseTransport`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/QueryPackets.h:282-303` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/QueryPackets.cpp:396-410` (`QueryCorpseTransport::Read`, `CorpseTransportQuery::Write`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:503,1163` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:751,1308`.

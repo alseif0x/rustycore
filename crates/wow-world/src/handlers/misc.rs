@@ -60,13 +60,13 @@ use wow_packet::packets::misc::{
     ObjectUpdateRescued, QueryArenaTeam, QueryBattlePetName, QueryBattlePetNameResponse,
     QueryPetition, QueryPetitionResponse, RatedPvpInfo, RequestAccountData,
     RequestBattlefieldStatus, RequestCemeteryListResponse, ResurrectResponse, SaveCufProfiles,
-    SetAdvancedCombatLogging, SetCurrencyFlags, SetTaxiBenchmarkMode, SetTradeGold, SetTradeItem,
-    SetTradeSpell, SignPetition, SpecialMountAnim, StandStateChange, SubmitUserFeedback,
-    SupportTicketSubmitBug, SupportTicketSubmitComplaint, SupportTicketSubmitSuggestion,
-    TRADE_STATUS_CANCELLED_LIKE_CPP, TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP, TaxiNodeStatusPkt,
-    TogglePvp, ToyClearFanfare, UnacceptTrade, UpdateAccountData, UseToy,
-    UserClientUpdateAccountData, ViolenceLevel, compress_account_data_like_cpp,
-    decompress_account_data_like_cpp,
+    SetAdvancedCombatLogging, SetCurrencyFlags, SetDifficultyId, SetTaxiBenchmarkMode,
+    SetTradeGold, SetTradeItem, SetTradeSpell, SignPetition, SpecialMountAnim, StandStateChange,
+    SubmitUserFeedback, SupportTicketSubmitBug, SupportTicketSubmitComplaint,
+    SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
+    TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP, TaxiNodeStatusPkt, TogglePvp, ToyClearFanfare,
+    UnacceptTrade, UpdateAccountData, UseToy, UserClientUpdateAccountData, ViolenceLevel,
+    compress_account_data_like_cpp, decompress_account_data_like_cpp,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -623,6 +623,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_set_currency_flags",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::SetDifficultyId,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_set_difficulty_id",
     }
 }
 
@@ -2513,6 +2522,28 @@ impl crate::session::WorldSession {
         };
 
         self.represented_set_currency_flags_like_cpp(packet.currency_id, packet.flags);
+    }
+
+    pub async fn handle_set_difficulty_id(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let packet = match SetDifficultyId::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "SetDifficultyId parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        // C++ returns silently when sDifficultyStore has no entry for the
+        // requested DifficultyID. Rust does not yet carry DifficultyStore plus
+        // live Player/Group/Map difficulty ownership through WorldSession.
+        debug!(
+            account = self.account_id,
+            difficulty_id = packet.difficulty_id,
+            "SetDifficultyId ignored without represented difficulty runtime"
+        );
     }
 
     pub async fn handle_request_account_data(&mut self, mut pkt: wow_packet::WorldPacket) {
@@ -7229,6 +7260,29 @@ mod tests {
 
         session
             .handle_set_currency_flags(WorldPacket::from_bytes(&[0x01, 0x00]))
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn set_difficulty_id_without_runtime_store_is_silent_like_cpp_missing_entry_branch() {
+        let (mut session, send_rx) = make_session();
+        let mut request = WorldPacket::new_empty();
+        request.write_uint32(23);
+        request.reset_read();
+
+        session.handle_set_difficulty_id(request).await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn set_difficulty_id_short_packet_does_not_send_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_set_difficulty_id(WorldPacket::from_bytes(&[0x17, 0x00]))
             .await;
 
         assert!(send_rx.try_recv().is_err());

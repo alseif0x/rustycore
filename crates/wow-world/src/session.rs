@@ -18674,6 +18674,9 @@ impl WorldSession {
             ClientOpcodes::SetCurrencyFlags => {
                 self.handle_set_currency_flags(pkt).await;
             }
+            ClientOpcodes::SetDifficultyId => {
+                self.handle_set_difficulty_id(pkt).await;
+            }
             ClientOpcodes::SetAmmo => {
                 self.handle_set_ammo(pkt).await;
             }
