@@ -6042,6 +6042,39 @@ impl ClientPacket for CalendarCommunityInvite {
     }
 }
 
+/// C++ `WorldPackets::Calendar::CalendarInvite`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CalendarInvite {
+    pub event_id: u64,
+    pub moderator_id: u64,
+    pub club_id: u64,
+    pub creating: bool,
+    pub is_sign_up: bool,
+    pub name: String,
+}
+
+impl ClientPacket for CalendarInvite {
+    const OPCODE: ClientOpcodes = ClientOpcodes::CalendarInvite;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let event_id = pkt.read_uint64()?;
+        let moderator_id = pkt.read_uint64()?;
+        let club_id = pkt.read_uint64()?;
+        let name_len = pkt.read_bits(9)? as usize;
+        let creating = pkt.read_bit()?;
+        let is_sign_up = pkt.read_bit()?;
+        let name = pkt.read_string(name_len)?;
+        Ok(Self {
+            event_id,
+            moderator_id,
+            club_id,
+            creating,
+            is_sign_up,
+            name,
+        })
+    }
+}
+
 /// C++ `WorldPackets::Calendar::CalendarGetEvent`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CalendarGetEvent {
@@ -8002,6 +8035,27 @@ mod tests {
         assert_eq!(query.event_id, 0x1111_2222_3333_4444);
         assert_eq!(query.club_id, 0x5555_6666_7777_8888);
         assert!(query.tentative);
+    }
+
+    #[test]
+    fn calendar_invite_reads_cpp_field_order() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint64(0x1111_2222_3333_4444);
+        pkt.write_uint64(0x5555_6666_7777_8888);
+        pkt.write_uint64(0x9999_AAAA_BBBB_CCCC);
+        pkt.write_bits(4, 9);
+        pkt.write_bit(false);
+        pkt.write_bit(true);
+        pkt.flush_bits();
+        pkt.write_string("Test");
+
+        let query = CalendarInvite::read(&mut pkt).unwrap();
+        assert_eq!(query.event_id, 0x1111_2222_3333_4444);
+        assert_eq!(query.moderator_id, 0x5555_6666_7777_8888);
+        assert_eq!(query.club_id, 0x9999_AAAA_BBBB_CCCC);
+        assert!(!query.creating);
+        assert!(query.is_sign_up);
+        assert_eq!(query.name, "Test");
     }
 
     #[test]

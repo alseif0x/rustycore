@@ -54,10 +54,10 @@ use wow_packet::packets::misc::{
     BattlePetModifyName, BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags,
     BattlePetSummon, BattlePetUpdateNotify, BattlefieldLeave, BeginTrade, BugReport, BusyTrade,
     CageBattlePet, CalendarCommandResult, CalendarCommunityInvite, CalendarComplain,
-    CalendarCopyEvent, CalendarEventSignUp, CalendarGetEvent, CalendarModeratorStatusQuery,
-    CalendarRemoveEvent, CalendarRemoveInvite, CalendarRsvp, CalendarSendCalendar,
-    CalendarSendNumPending, CalendarStatus, CanDuel, ClearTradeItem, CloseInteraction,
-    CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint, ComplaintResult,
+    CalendarCopyEvent, CalendarEventSignUp, CalendarGetEvent, CalendarInvite,
+    CalendarModeratorStatusQuery, CalendarRemoveEvent, CalendarRemoveInvite, CalendarRsvp,
+    CalendarSendCalendar, CalendarSendNumPending, CalendarStatus, CanDuel, ClearTradeItem,
+    CloseInteraction, CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint, ComplaintResult,
     DeclineGuildInvites, DeclinePetition, DfGetJoinStatus, DfGetSystemInfo, DuelResponse,
     ERR_TAXITOOFARAWAY_LIKE_CPP, FarSight, GmTicketAcknowledgeSurvey, GmTicketCaseStatus,
     GmTicketSystemStatus, GuildSetAchievementTracking, IgnoreTrade, LfgListBlacklist,
@@ -1593,6 +1593,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_calendar_event_sign_up",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::CalendarInvite,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_calendar_invite",
     }
 }
 
@@ -4665,6 +4674,15 @@ impl crate::session::WorldSession {
         // no event for the requested id. Rust does not have CalendarMgr wired
         // yet, so this represents the observable miss branch.
         self.send_packet(&CalendarCommandResult::event_invalid_like_cpp());
+    }
+
+    pub async fn handle_calendar_invite(&mut self, query: CalendarInvite) {
+        // C++ only consults CalendarMgr for an existing event when Creating is
+        // false. Rust does not have CalendarMgr wired yet, so this captures the
+        // observable no-event branch without inventing name/cache/guild logic.
+        if !query.creating {
+            self.send_packet(&CalendarCommandResult::event_invalid_like_cpp());
+        }
     }
 
     pub async fn handle_calendar_remove_event(&mut self, query: CalendarRemoveEvent) {
@@ -12173,6 +12191,33 @@ mod tests {
                 event_id: 0x1111_2222_3333_4444,
                 club_id: 0x5555_6666_7777_8888,
                 tentative: true,
+            })
+            .await;
+
+        let bytes = send_rx.try_recv().expect("calendar command result");
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::CalendarCommandResult as u16
+        );
+
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_uint8().unwrap(), 1);
+        assert_eq!(pkt.read_uint8().unwrap(), 6);
+        assert_eq!(pkt.read_bits(9).unwrap(), 0);
+    }
+
+    #[tokio::test]
+    async fn calendar_invite_existing_event_without_calendar_mgr_sends_event_invalid_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_calendar_invite(CalendarInvite {
+                event_id: 0x1111_2222_3333_4444,
+                moderator_id: 0x5555_6666_7777_8888,
+                club_id: 0x9999_AAAA_BBBB_CCCC,
+                creating: false,
+                is_sign_up: true,
+                name: "Invitee".to_string(),
             })
             .await;
 
