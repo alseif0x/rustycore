@@ -1172,6 +1172,9 @@ pub enum CharStatements {
     UPD_CHAR_XP,
     /// UPDATE characters SET level = ?, xp = ? WHERE guid = ?
     UPD_CHAR_LEVEL,
+    /// C++ `CHAR_UPD_CHARACTER` persists these fields in the full save.
+    /// UPDATE characters SET dungeonDifficulty = ?, raidDifficulty = ?, legacyRaidDifficulty = ? WHERE guid = ?
+    UPD_CHAR_DIFFICULTIES,
 
     /// SELECT MAX(guid) FROM item_instance
     SEL_MAX_ITEM_GUID,
@@ -2722,6 +2725,9 @@ impl StatementDef for CharStatements {
             Self::UPD_CHAR_XP => "UPDATE characters SET xp = ? WHERE guid = ?",
             Self::UPD_CHAR_LEVEL => "UPDATE characters SET level = ?, xp = ? WHERE guid = ?",
             Self::UPD_CHAR_MONEY => "UPDATE characters SET money = ? WHERE guid = ?",
+            Self::UPD_CHAR_DIFFICULTIES => {
+                "UPDATE characters SET dungeonDifficulty = ?, raidDifficulty = ?, legacyRaidDifficulty = ? WHERE guid = ?"
+            }
             Self::SEL_MAX_ITEM_GUID => "SELECT MAX(guid) FROM item_instance",
             Self::INS_ITEM_INSTANCE => {
                 "INSERT INTO item_instance \
@@ -3457,6 +3463,14 @@ mod tests {
         assert_eq!(
             CharStatements::DEL_CHARACTER_CUSTOMIZATIONS.sql(),
             "DELETE FROM character_customizations WHERE guid = ?"
+        );
+    }
+
+    #[test]
+    fn upd_char_difficulties_matches_cpp_saveback_columns() {
+        assert_eq!(
+            CharStatements::UPD_CHAR_DIFFICULTIES.sql(),
+            "UPDATE characters SET dungeonDifficulty = ?, raidDifficulty = ?, legacyRaidDifficulty = ? WHERE guid = ?"
         );
     }
 
@@ -4516,6 +4530,10 @@ mod tests {
         assert_eq!(
             CharStatements::UPD_CHAR_MONEY.sql(),
             "UPDATE characters SET money = ? WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_CHAR_DIFFICULTIES.sql(),
+            "UPDATE characters SET dungeonDifficulty = ?, raidDifficulty = ?, legacyRaidDifficulty = ? WHERE guid = ?"
         );
         assert_eq!(
             CharStatements::INS_CHAR_ACTION.sql(),

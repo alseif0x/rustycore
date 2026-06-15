@@ -14997,8 +14997,28 @@ impl WorldSession {
         }
         self.save_player_level_xp_like_cpp().await;
         self.save_player_gold().await;
+        self.save_player_difficulties_like_cpp().await;
         self.save_played_time().await;
         self.save_reputation_to_db_like_cpp().await;
+    }
+
+    async fn save_player_difficulties_like_cpp(&self) {
+        let (Some(guid), Some(char_db)) = (self.player_guid(), self.char_db().map(Arc::clone))
+        else {
+            return;
+        };
+
+        let mut stmt = char_db.prepare(CharStatements::UPD_CHAR_DIFFICULTIES);
+        stmt.set_u32(0, self.represented_dungeon_difficulty_id_like_cpp);
+        stmt.set_u32(1, self.represented_raid_difficulty_id_like_cpp);
+        stmt.set_u32(2, self.represented_legacy_raid_difficulty_id_like_cpp);
+        stmt.set_u32(3, guid.counter() as u32);
+        if let Err(err) = char_db.execute(&stmt).await {
+            warn!(
+                "Failed to save player difficulties for guid {}: {err}",
+                guid.counter()
+            );
+        }
     }
 
     async fn save_reputation_to_db_like_cpp(&mut self) {
