@@ -1,4 +1,14 @@
 - `#NEXT.R8.ENTITIES.868` - represented-complete implementation for bounded movement `Handle_NULL` ACK family.
+### #NEXT.R8.ENTITIES.899 — CMSG_SIGN_PETITION
+
+Status: represented-partial for the bounded `WorldSession::HandleSignPetition` parser/dispatch/request-capture seam.
+
+C++ source-of-truth: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/PetitionsHandler.cpp:224-304`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/PetitionPackets.h:136-158`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/PetitionPackets.cpp:117-131`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:599`, and `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:926`.
+
+Implemented Rust seam: `SignPetition` parses the C++ packed `PetitionGUID` plus `uint8 Choice`, registers as `LoggedIn`/`PROCESS_THREADUNSAFE`, dispatches through `WorldSession`, and records a represented sign-petition request. Rust deliberately sends no fabricated response until the real `PetitionMgr`/guild/character-cache runtime is ported.
+
+Boundary: represented-partial only; no `sPetitionMgr` storage, no `Petition::IsPetitionSignedByAccount`, no owner/faction/guild/invited/sign-count gates, no `AddSignature` persistence, no charter item signature count mutation, no `SMSG_PETITION_SIGN_RESULTS`, no owner-online fanout, install/restart, bot, or live-client/manual validation.
+
 ### #NEXT.R8.ENTITIES.898 — CMSG_SPELL_CLICK Audit Fix
 
 Status: represented-partial audit fix for the existing `WorldSession::HandleSpellClick` parser/dispatch/represented execution seam.

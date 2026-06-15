@@ -401,6 +401,12 @@ pub(crate) struct RepresentedWargameInviteAcceptanceLikeCpp {
     pub group_size: usize,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedSignPetitionLikeCpp {
+    pub petition_guid: ObjectGuid,
+    pub choice: u8,
+}
+
 /// Represented outcome for the bounded post-template `HandleQuestConfirmAccept` gates.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp {
@@ -2894,6 +2900,7 @@ pub struct WorldSession {
     represented_trade_spell_like_cpp: u32,
     represented_trade_spell_cast_item_like_cpp: Option<ObjectGuid>,
     represented_trade_cancel_statuses_like_cpp: Vec<u8>,
+    represented_sign_petitions_like_cpp: Vec<RepresentedSignPetitionLikeCpp>,
     represented_can_duel_spell_casts_like_cpp: Vec<RepresentedCanDuelSpellCastLikeCpp>,
     represented_guild_repair_bank_state_like_cpp: Option<RepresentedGuildRepairBankStateLikeCpp>,
     represented_guild_repair_bank_withdraws_like_cpp:
@@ -4110,6 +4117,7 @@ impl WorldSession {
             represented_trade_spell_like_cpp: 0,
             represented_trade_spell_cast_item_like_cpp: None,
             represented_trade_cancel_statuses_like_cpp: Vec::new(),
+            represented_sign_petitions_like_cpp: Vec::new(),
             represented_can_duel_spell_casts_like_cpp: Vec::new(),
             represented_guild_repair_bank_state_like_cpp: None,
             represented_guild_repair_bank_withdraws_like_cpp: Vec::new(),
@@ -18808,6 +18816,9 @@ impl WorldSession {
             ClientOpcodes::SetTradeSpell => {
                 self.handle_set_trade_spell(pkt).await;
             }
+            ClientOpcodes::SignPetition => {
+                self.handle_sign_petition(pkt).await;
+            }
             ClientOpcodes::UnacceptTrade => {
                 self.handle_unaccept_trade(pkt).await;
             }
@@ -21328,6 +21339,23 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn represented_trade_spell_cast_item_like_cpp(&self) -> Option<ObjectGuid> {
         self.represented_trade_spell_cast_item_like_cpp
+    }
+
+    pub(crate) fn record_represented_sign_petition_like_cpp(
+        &mut self,
+        petition_guid: ObjectGuid,
+        choice: u8,
+    ) {
+        self.represented_sign_petitions_like_cpp
+            .push(RepresentedSignPetitionLikeCpp {
+                petition_guid,
+                choice,
+            });
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_sign_petitions_like_cpp(&self) -> &[RepresentedSignPetitionLikeCpp] {
+        &self.represented_sign_petitions_like_cpp
     }
 
     pub(crate) fn cancel_represented_trade_like_cpp(&mut self, status: u8, sendback: bool) {

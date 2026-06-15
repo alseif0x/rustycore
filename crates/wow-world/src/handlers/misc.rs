@@ -58,9 +58,9 @@ use wow_packet::packets::misc::{
     ObjectUpdateFailed, ObjectUpdateRescued, QueryBattlePetName, QueryBattlePetNameResponse,
     RatedPvpInfo, RequestAccountData, RequestBattlefieldStatus, RequestCemeteryListResponse,
     ResurrectResponse, SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags,
-    SetTaxiBenchmarkMode, SetTradeGold, SetTradeItem, SetTradeSpell, SpecialMountAnim,
-    StandStateChange, SubmitUserFeedback, SupportTicketSubmitBug, SupportTicketSubmitComplaint,
-    SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
+    SetTaxiBenchmarkMode, SetTradeGold, SetTradeItem, SetTradeSpell, SignPetition,
+    SpecialMountAnim, StandStateChange, SubmitUserFeedback, SupportTicketSubmitBug,
+    SupportTicketSubmitComplaint, SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
     TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP, TaxiNodeStatusPkt, TogglePvp, ToyClearFanfare,
     UnacceptTrade, UpdateAccountData, UseToy, UserClientUpdateAccountData, ViolenceLevel,
     compress_account_data_like_cpp, decompress_account_data_like_cpp,
@@ -1168,6 +1168,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_trade_spell",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::SignPetition,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_sign_petition",
     }
 }
 
@@ -3708,6 +3717,21 @@ impl crate::session::WorldSession {
         );
     }
 
+    pub async fn handle_sign_petition(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let packet = match SignPetition::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "SignPetition parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        self.record_represented_sign_petition_like_cpp(packet.petition_guid, packet.choice);
+    }
+
     pub async fn handle_unaccept_trade(&mut self, mut pkt: wow_packet::WorldPacket) {
         if let Err(error) = UnacceptTrade::read(&mut pkt) {
             warn!(
@@ -5497,6 +5521,14 @@ mod tests {
         pkt
     }
 
+    fn sign_petition_packet(petition_guid: ObjectGuid, choice: u8) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_packed_guid(&petition_guid);
+        pkt.write_uint8(choice);
+        pkt.reset_read();
+        pkt
+    }
+
     fn trade_test_spell_info(spell_id: i32) -> SpellInfo {
         SpellInfo {
             spell_id,
@@ -6187,6 +6219,25 @@ mod tests {
             Some(cast_item_guid)
         );
         assert!(session.represented_trade_accepted_like_cpp());
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn sign_petition_records_guid_and_choice_like_cpp_without_runtime_mgr() {
+        let (mut session, send_rx) = make_session();
+        let petition_guid = ObjectGuid::create_item(1, 91_777);
+
+        session
+            .handle_sign_petition(sign_petition_packet(petition_guid, 1))
+            .await;
+
+        assert_eq!(
+            session.represented_sign_petitions_like_cpp(),
+            &[crate::session::RepresentedSignPetitionLikeCpp {
+                petition_guid,
+                choice: 1,
+            }]
+        );
         assert!(send_rx.try_recv().is_err());
     }
 

@@ -5381,6 +5381,24 @@ impl ClientPacket for SetTradeSpell {
     }
 }
 
+/// C++ `WorldPackets::Petition::SignPetition`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct SignPetition {
+    pub petition_guid: ObjectGuid,
+    pub choice: u8,
+}
+
+impl ClientPacket for SignPetition {
+    const OPCODE: ClientOpcodes = ClientOpcodes::SignPetition;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            petition_guid: pkt.read_packed_guid()?,
+            choice: pkt.read_uint8()?,
+        })
+    }
+}
+
 /// C++ `WorldPackets::Trade::SetTradeGold`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct SetTradeGold {
@@ -6442,6 +6460,20 @@ mod tests {
         assert_eq!(packet.spell_id, 7418);
         assert_eq!(packet.pack_slot, 255);
         assert_eq!(packet.item_slot_in_pack, 23);
+    }
+
+    #[test]
+    fn sign_petition_reads_guid_and_choice_like_cpp() {
+        let petition_guid = ObjectGuid::create_item(1, 0x0102_0304_0506_0708);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_packed_guid(&petition_guid);
+        pkt.write_uint8(1);
+        pkt.reset_read();
+
+        let packet = SignPetition::read(&mut pkt).unwrap();
+
+        assert_eq!(packet.petition_guid, petition_guid);
+        assert_eq!(packet.choice, 1);
     }
 
     #[test]
