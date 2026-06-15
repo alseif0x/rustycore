@@ -2519,6 +2519,9 @@ impl ServerPacket for ActiveGlyphs {
 
 // ── LoadEquipmentSet (SMSG 0x270e) ───────────────────────────────────
 
+/// C++ `EQUIPMENT_SET_SLOTS` / `EQUIPMENT_SLOT_END`.
+pub const EQUIPMENT_SET_SLOTS_LIKE_CPP: usize = 19;
+
 /// Equipment set list. Empty for fresh characters.
 pub struct LoadEquipmentSet;
 
@@ -2527,6 +2530,106 @@ impl ServerPacket for LoadEquipmentSet {
 
     fn write(&self, pkt: &mut WorldPacket) {
         pkt.write_int32(0); // SetData.Count
+    }
+}
+
+/// C++ `WorldPackets::EquipmentSet::EquipmentSetID`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EquipmentSetId {
+    pub guid: u64,
+    pub set_type: i32,
+    pub set_id: u32,
+}
+
+impl ServerPacket for EquipmentSetId {
+    const OPCODE: ServerOpcodes = ServerOpcodes::EquipmentSetId;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_uint64(self.guid);
+        pkt.write_int32(self.set_type);
+        pkt.write_uint32(self.set_id);
+    }
+}
+
+// ── SaveEquipmentSet (CMSG 0x3509) ───────────────────────────────────
+
+/// C++ `EquipmentSetInfo::EquipmentSetData`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EquipmentSetDataLikeCpp {
+    pub set_type: i32,
+    pub guid: u64,
+    pub set_id: u32,
+    pub ignore_mask: u32,
+    pub pieces: [ObjectGuid; EQUIPMENT_SET_SLOTS_LIKE_CPP],
+    pub appearances: [i32; EQUIPMENT_SET_SLOTS_LIKE_CPP],
+    pub enchants: [i32; 2],
+    pub secondary_shoulder_appearance_id: i32,
+    pub secondary_shoulder_slot: i32,
+    pub secondary_weapon_appearance_id: i32,
+    pub secondary_weapon_slot: i32,
+    pub assigned_spec_index: i32,
+    pub set_name: String,
+    pub set_icon: String,
+}
+
+/// C++ `WorldPackets::EquipmentSet::SaveEquipmentSet`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SaveEquipmentSet {
+    pub set: EquipmentSetDataLikeCpp,
+}
+
+impl ClientPacket for SaveEquipmentSet {
+    const OPCODE: ClientOpcodes = ClientOpcodes::SaveEquipmentSet;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let set_type = pkt.read_int32()?;
+        let guid = pkt.read_uint64()?;
+        let set_id = pkt.read_uint32()?;
+        let ignore_mask = pkt.read_uint32()?;
+
+        let mut pieces = [ObjectGuid::EMPTY; EQUIPMENT_SET_SLOTS_LIKE_CPP];
+        let mut appearances = [0_i32; EQUIPMENT_SET_SLOTS_LIKE_CPP];
+        for i in 0..EQUIPMENT_SET_SLOTS_LIKE_CPP {
+            pieces[i] = pkt.read_guid()?;
+            appearances[i] = pkt.read_int32()?;
+        }
+
+        let enchants = [pkt.read_int32()?, pkt.read_int32()?];
+        let secondary_shoulder_appearance_id = pkt.read_int32()?;
+        let secondary_shoulder_slot = pkt.read_int32()?;
+        let secondary_weapon_appearance_id = pkt.read_int32()?;
+        let secondary_weapon_slot = pkt.read_int32()?;
+
+        let has_spec_index = pkt.read_bit()?;
+        let set_name_len = pkt.read_bits(8)? as usize;
+        let set_icon_len = pkt.read_bits(9)? as usize;
+        let assigned_spec_index = if has_spec_index {
+            pkt.read_int32()?
+        } else {
+            -1
+        };
+
+        let set_name = pkt.read_string(set_name_len)?;
+        let set_icon = pkt.read_string(set_icon_len)?;
+
+        Ok(Self {
+            set: EquipmentSetDataLikeCpp {
+                set_type,
+                guid,
+                set_id,
+                ignore_mask,
+                pieces,
+                appearances,
+                enchants,
+                secondary_shoulder_appearance_id,
+                secondary_shoulder_slot,
+                secondary_weapon_appearance_id,
+                secondary_weapon_slot,
+                assigned_spec_index,
+                set_name,
+                set_icon,
+            },
+        })
     }
 }
 
@@ -6451,6 +6554,51 @@ mod tests {
 
         assert_eq!(parsed.set_id, 7);
         assert_eq!(parsed.spec_index, 2);
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn save_equipment_set_reads_cpp_equipment_set_data_shape() {
+        let item_guid = ObjectGuid::create_item(1, 55);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_int32(0);
+        pkt.write_uint64(0x0102_0304_0506_0708);
+        pkt.write_uint32(7);
+        pkt.write_uint32(0);
+        for i in 0..EQUIPMENT_SET_SLOTS_LIKE_CPP {
+            let guid = if i == 0 { item_guid } else { ObjectGuid::EMPTY };
+            pkt.write_guid(&guid);
+            pkt.write_int32(i as i32 + 10);
+        }
+        pkt.write_int32(123);
+        pkt.write_int32(456);
+        pkt.write_int32(11);
+        pkt.write_int32(2);
+        pkt.write_int32(22);
+        pkt.write_int32(16);
+        pkt.write_bit(true);
+        pkt.write_bits(4, 8);
+        pkt.write_bits(6, 9);
+        pkt.write_int32(3);
+        pkt.write_string("Tank");
+        pkt.write_string("INV_01");
+        pkt.reset_read();
+
+        let parsed = SaveEquipmentSet::read(&mut pkt).unwrap();
+
+        assert_eq!(parsed.set.set_type, 0);
+        assert_eq!(parsed.set.guid, 0x0102_0304_0506_0708);
+        assert_eq!(parsed.set.set_id, 7);
+        assert_eq!(parsed.set.pieces[0], item_guid);
+        assert_eq!(parsed.set.appearances[2], 12);
+        assert_eq!(parsed.set.enchants, [123, 456]);
+        assert_eq!(parsed.set.secondary_shoulder_appearance_id, 11);
+        assert_eq!(parsed.set.secondary_shoulder_slot, 2);
+        assert_eq!(parsed.set.secondary_weapon_appearance_id, 22);
+        assert_eq!(parsed.set.secondary_weapon_slot, 16);
+        assert_eq!(parsed.set.assigned_spec_index, 3);
+        assert_eq!(parsed.set.set_name, "Tank");
+        assert_eq!(parsed.set.set_icon, "INV_01");
         assert_eq!(pkt.remaining(), 0);
     }
 

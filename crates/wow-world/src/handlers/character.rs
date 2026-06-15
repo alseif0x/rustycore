@@ -175,6 +175,15 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
+        opcode: ClientOpcodes::SaveEquipmentSet,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_save_equipment_set",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
         opcode: ClientOpcodes::AssignEquipmentSetSpec,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
@@ -2238,6 +2247,34 @@ impl WorldSession {
             player: request.player,
             result_code: DECLINED_NAMES_RESULT_ERROR_LIKE_CPP,
         });
+    }
+
+    /// Handle CMSG_SAVE_EQUIPMENT_SET.
+    ///
+    /// C++ validates the equipment/transmog payload, normalizes ignored slots,
+    /// then calls `Player::SetEquipmentSet`. Rust mirrors the represented
+    /// in-memory state and the new-set `SMSG_EQUIPMENT_SET_ID` response, while
+    /// DB persistence remains a later equipment-set save/load slice.
+    pub async fn handle_save_equipment_set(&mut self, mut pkt: WorldPacket) {
+        let request = match SaveEquipmentSet::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!("Bad SaveEquipmentSet: {error}");
+                return;
+            }
+        };
+
+        let Some(saved) = self.save_represented_equipment_set_like_cpp(request.set) else {
+            return;
+        };
+
+        if saved.generated_new_guid {
+            self.send_packet(&EquipmentSetId {
+                guid: saved.guid,
+                set_type: saved.raw_set_type,
+                set_id: saved.set_id,
+            });
+        }
     }
 
     /// Handle CMSG_ASSIGN_EQUIPMENT_SET_SPEC.
@@ -10296,7 +10333,9 @@ impl WorldSession {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::session::{RepresentedHomebindLikeCpp, RepresentedTaxiFlightNodeLikeCpp};
+    use crate::session::{
+        InventoryItem, RepresentedHomebindLikeCpp, RepresentedTaxiFlightNodeLikeCpp,
+    };
     use wow_data::character_progression::{
         ChrClassesEntry, ChrClassesStore, ChrRacesEntry, ChrRacesStore,
     };
@@ -10408,6 +10447,58 @@ mod tests {
         pkt
     }
 
+    fn save_equipment_set_packet(
+        set_type: i32,
+        guid: u64,
+        set_id: u32,
+        ignore_mask: u32,
+        pieces: [ObjectGuid; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
+        appearances: [i32; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
+        enchants: [i32; 2],
+        assigned_spec_index: Option<i32>,
+        name: &str,
+        icon: &str,
+    ) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_int32(set_type);
+        pkt.write_uint64(guid);
+        pkt.write_uint32(set_id);
+        pkt.write_uint32(ignore_mask);
+        for i in 0..wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP {
+            pkt.write_guid(&pieces[i]);
+            pkt.write_int32(appearances[i]);
+        }
+        pkt.write_int32(enchants[0]);
+        pkt.write_int32(enchants[1]);
+        pkt.write_int32(0);
+        pkt.write_int32(0);
+        pkt.write_int32(0);
+        pkt.write_int32(0);
+        pkt.write_bit(assigned_spec_index.is_some());
+        pkt.write_bits(name.len() as u32, 8);
+        pkt.write_bits(icon.len() as u32, 9);
+        if let Some(spec_index) = assigned_spec_index {
+            pkt.write_int32(spec_index);
+        }
+        pkt.write_string(name);
+        pkt.write_string(icon);
+        pkt
+    }
+
+    fn read_equipment_set_id(encoded: Vec<u8>) -> (u64, i32, u32) {
+        let mut packet = WorldPacket::new_client(encoded.as_slice().into());
+        assert_eq!(
+            packet.server_opcode(),
+            Some(wow_constants::ServerOpcodes::EquipmentSetId)
+        );
+        packet.skip_opcode();
+        let guid = packet.read_uint64().unwrap();
+        let set_type = packet.read_int32().unwrap();
+        let set_id = packet.read_uint32().unwrap();
+        assert_eq!(packet.remaining(), 0);
+        (guid, set_type, set_id)
+    }
+
     #[tokio::test]
     async fn alter_appearance_without_barber_chair_sends_not_on_chair_like_cpp() {
         let (mut session, send_rx) = make_session_with_send_capacity(4);
@@ -10456,6 +10547,165 @@ mod tests {
             .await;
 
         assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn save_equipment_set_new_equipment_normalizes_and_sends_id_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        let item_guid = ObjectGuid::create_item(1, 55);
+        session.insert_inventory_item_like_cpp(
+            0,
+            InventoryItem {
+                guid: item_guid,
+                entry_id: 100,
+                db_guid: 55,
+                inventory_type: Some(InventoryType::Head as u8),
+            },
+        );
+        let mut pieces =
+            [ObjectGuid::EMPTY; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP];
+        pieces[0] = item_guid;
+        let appearances = [77; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP];
+
+        session
+            .handle_save_equipment_set(save_equipment_set_packet(
+                0,
+                0,
+                7,
+                0,
+                pieces,
+                appearances,
+                [12, 34],
+                Some(2),
+                "Tank",
+                "INV_Helmet_01",
+            ))
+            .await;
+
+        let (generated_guid, set_type, set_id) = read_equipment_set_id(send_rx.try_recv().unwrap());
+        assert_eq!((generated_guid, set_type, set_id), (1, 0, 7));
+        let saved = session
+            .represented_equipment_set_like_cpp(generated_guid)
+            .unwrap();
+        assert_eq!(saved.guid, generated_guid);
+        assert_eq!(saved.set_id, 7);
+        assert_eq!(saved.set_name, "Tank");
+        assert_eq!(saved.set_icon, "INV_Helmet_01");
+        assert_eq!(saved.pieces[0], item_guid);
+        assert_eq!(saved.appearances[0], 0);
+        assert_eq!(saved.appearances[1], 0);
+        assert_eq!(saved.enchants, [0, 0]);
+        assert_eq!(saved.assigned_spec_index, 2);
+        assert_eq!(
+            saved.state,
+            crate::session::RepresentedEquipmentSetUpdateStateLikeCpp::New
+        );
+        assert_ne!(saved.ignore_mask & (1 << 1), 0);
+    }
+
+    #[tokio::test]
+    async fn save_equipment_set_existing_marks_changed_without_id_packet_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        session.insert_represented_equipment_set_like_cpp(
+            100,
+            crate::session::RepresentedEquipmentSetLikeCpp::equipment(
+                7,
+                -1,
+                crate::session::RepresentedEquipmentSetUpdateStateLikeCpp::Unchanged,
+            ),
+        );
+        let ignore_mask = (1_u32 << wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP) - 1;
+
+        session
+            .handle_save_equipment_set(save_equipment_set_packet(
+                0,
+                100,
+                7,
+                ignore_mask,
+                [ObjectGuid::EMPTY; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
+                [0; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
+                [0, 0],
+                None,
+                "Dps",
+                "INV_Sword_01",
+            ))
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+        let saved = session.represented_equipment_set_like_cpp(100).unwrap();
+        assert_eq!(saved.set_name, "Dps");
+        assert_eq!(saved.assigned_spec_index, -1);
+        assert_eq!(
+            saved.state,
+            crate::session::RepresentedEquipmentSetUpdateStateLikeCpp::Changed
+        );
+    }
+
+    #[tokio::test]
+    async fn save_equipment_set_negative_type_follows_cpp_non_equipment_branch() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        let ignore_mask = (1_u32 << wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP) - 1;
+
+        session
+            .handle_save_equipment_set(save_equipment_set_packet(
+                -1,
+                0,
+                7,
+                ignore_mask,
+                [ObjectGuid::EMPTY; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
+                [0; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
+                [0, 0],
+                None,
+                "Odd",
+                "INV_Odd",
+            ))
+            .await;
+
+        let (generated_guid, set_type, set_id) = read_equipment_set_id(send_rx.try_recv().unwrap());
+        assert_eq!((generated_guid, set_type, set_id), (1, -1, 7));
+        let saved = session
+            .represented_equipment_set_like_cpp(generated_guid)
+            .unwrap();
+        assert_eq!(saved.raw_set_type, -1);
+        assert_eq!(
+            saved.set_type,
+            crate::session::RepresentedEquipmentSetTypeLikeCpp::Transmog
+        );
+    }
+
+    #[tokio::test]
+    async fn save_equipment_set_rejects_equipment_guid_mismatch_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        session.insert_inventory_item_like_cpp(
+            0,
+            InventoryItem {
+                guid: ObjectGuid::create_item(1, 55),
+                entry_id: 100,
+                db_guid: 55,
+                inventory_type: Some(InventoryType::Head as u8),
+            },
+        );
+        let mut pieces =
+            [ObjectGuid::EMPTY; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP];
+        pieces[0] = ObjectGuid::create_item(1, 99);
+
+        session
+            .handle_save_equipment_set(save_equipment_set_packet(
+                0,
+                0,
+                7,
+                0,
+                pieces,
+                [0; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
+                [0, 0],
+                None,
+                "Bad",
+                "INV_Bad",
+            ))
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+        assert!(session.represented_equipment_set_like_cpp(1).is_none());
     }
 
     #[tokio::test]
