@@ -58,8 +58,8 @@ use wow_packet::packets::misc::{
     ObjectUpdateFailed, ObjectUpdateRescued, QueryBattlePetName, QueryBattlePetNameResponse,
     RatedPvpInfo, RequestAccountData, RequestBattlefieldStatus, RequestCemeteryListResponse,
     ResurrectResponse, SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags,
-    SetTaxiBenchmarkMode, SetTradeGold, SetTradeItem, SpecialMountAnim, StandStateChange,
-    SubmitUserFeedback, SupportTicketSubmitBug, SupportTicketSubmitComplaint,
+    SetTaxiBenchmarkMode, SetTradeGold, SetTradeItem, SetTradeSpell, SpecialMountAnim,
+    StandStateChange, SubmitUserFeedback, SupportTicketSubmitBug, SupportTicketSubmitComplaint,
     SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
     TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP, TaxiNodeStatusPkt, TogglePvp, ToyClearFanfare,
     UnacceptTrade, UpdateAccountData, UseToy, UserClientUpdateAccountData, ViolenceLevel,
@@ -1159,6 +1159,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_trade_gold",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::SetTradeSpell,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_set_trade_spell",
     }
 }
 
@@ -3680,6 +3689,25 @@ impl crate::session::WorldSession {
         self.set_represented_trade_gold_like_cpp(packet.coinage);
     }
 
+    pub async fn handle_set_trade_spell(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let packet = match SetTradeSpell::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "SetTradeSpell parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        self.set_represented_trade_spell_like_cpp(
+            packet.spell_id,
+            packet.pack_slot,
+            packet.item_slot_in_pack,
+        );
+    }
+
     pub async fn handle_unaccept_trade(&mut self, mut pkt: wow_packet::WorldPacket) {
         if let Err(error) = UnacceptTrade::read(&mut pkt) {
             warn!(
@@ -4378,6 +4406,7 @@ mod tests {
     use wow_data::{
         ItemRecord, ItemSearchNameEntry, ItemSearchNameStore, ItemSparseTemplateEntry,
         ItemStatsStore, ItemStore, MapDifficultyEntry, MapDifficultyStore, MapEntry, MapStore,
+        SpellInfo, SpellStore,
     };
     use wow_database::SqlParam;
     use wow_network::{
@@ -5459,6 +5488,38 @@ mod tests {
         pkt
     }
 
+    fn set_trade_spell_packet(spell_id: u32, pack_slot: u8, item_slot_in_pack: u8) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(spell_id);
+        pkt.write_uint8(pack_slot);
+        pkt.write_uint8(item_slot_in_pack);
+        pkt.reset_read();
+        pkt
+    }
+
+    fn trade_test_spell_info(spell_id: i32) -> SpellInfo {
+        SpellInfo {
+            spell_id,
+            cast_time_ms: 0,
+            cooldown_ms: 0,
+            recovery_time_ms: 0,
+            effect_type: 0,
+            effect_base_points: 0,
+            effect_bonus_coefficient: 0.0,
+            aura_type: None,
+            display_flags: 0,
+            requires_spell_focus: 0,
+            effects: Vec::new(),
+        }
+    }
+
+    fn install_trade_test_spell(session: &mut crate::session::WorldSession, spell_id: i32) {
+        let mut spell_store = SpellStore::new();
+        spell_store.insert(spell_id, trade_test_spell_info(spell_id));
+        session.set_spell_store(Arc::new(spell_store));
+        session.set_known_spells_like_cpp(vec![spell_id]);
+    }
+
     fn insert_trade_test_item(
         session: &mut crate::session::WorldSession,
         owner_guid: ObjectGuid,
@@ -5906,6 +5967,227 @@ mod tests {
             ServerOpcodes::TradeStatus as u16
         );
         assert_eq!(source_bytes[2], TRADE_STATUS_UNACCEPTED_LIKE_CPP << 2);
+    }
+
+    #[tokio::test]
+    async fn set_trade_spell_without_active_trade_is_noop_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        install_trade_test_spell(&mut session, 7418);
+
+        session
+            .handle_set_trade_spell(set_trade_spell_packet(7418, 255, 23))
+            .await;
+
+        assert_eq!(session.represented_trade_client_state_index_like_cpp(), 1);
+        assert_eq!(session.represented_trade_server_state_index_like_cpp(), 1);
+        assert_eq!(session.represented_trade_spell_like_cpp(), 0);
+        assert!(
+            session
+                .represented_trade_spell_cast_item_like_cpp()
+                .is_none()
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn set_trade_spell_zero_clears_spell_and_unaccepts_both_sides_like_cpp() {
+        let (mut source_session, source_send_rx) = make_session();
+        let (mut partner_session, partner_send_rx) = make_session();
+        let source_guid = ObjectGuid::create_player(1, 77);
+        let partner_guid = ObjectGuid::create_player(1, 88);
+        let cast_item_guid = ObjectGuid::create_item(1, 1234);
+        source_session.set_player_guid(Some(source_guid));
+        partner_session.set_player_guid(Some(partner_guid));
+        source_session.set_represented_active_trade_partner_like_cpp(Some(partner_guid));
+        partner_session.set_represented_active_trade_partner_like_cpp(Some(source_guid));
+        source_session.set_represented_trade_spell_like_cpp_for_test(7418, Some(cast_item_guid));
+        source_session.set_represented_trade_accepted_like_cpp_for_test(true);
+        partner_session.set_represented_trade_accepted_like_cpp_for_test(true);
+
+        let registry = Arc::new(PlayerRegistry::default());
+        let partner_command_tx = partner_session.session_command_tx();
+        registry.insert(
+            partner_guid,
+            broadcast_info_with_command_tx(partner_command_tx),
+        );
+        source_session.set_player_registry(registry);
+
+        source_session
+            .handle_set_trade_spell(set_trade_spell_packet(0, 0, 255))
+            .await;
+        partner_session
+            .process_represented_session_commands_like_cpp()
+            .await;
+
+        assert_eq!(
+            source_session.represented_trade_client_state_index_like_cpp(),
+            1
+        );
+        assert_eq!(
+            source_session.represented_trade_server_state_index_like_cpp(),
+            2
+        );
+        assert_eq!(source_session.represented_trade_spell_like_cpp(), 0);
+        assert!(
+            source_session
+                .represented_trade_spell_cast_item_like_cpp()
+                .is_none()
+        );
+        assert!(!source_session.represented_trade_accepted_like_cpp());
+        assert!(!partner_session.represented_trade_accepted_like_cpp());
+
+        let source_bytes = source_send_rx.try_recv().expect("source unaccepted status");
+        let partner_bytes = partner_send_rx
+            .try_recv()
+            .expect("partner unaccepted status");
+        assert_eq!(source_bytes, partner_bytes);
+        assert_eq!(
+            u16::from_le_bytes([source_bytes[0], source_bytes[1]]),
+            ServerOpcodes::TradeStatus as u16
+        );
+        assert_eq!(source_bytes[2], TRADE_STATUS_UNACCEPTED_LIKE_CPP << 2);
+    }
+
+    #[tokio::test]
+    async fn set_trade_spell_missing_spell_info_clears_existing_spell_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let partner_guid = ObjectGuid::create_player(1, 88);
+        let cast_item_guid = ObjectGuid::create_item(1, 1234);
+        session.set_represented_active_trade_partner_like_cpp(Some(partner_guid));
+        session.set_represented_trade_spell_like_cpp_for_test(7418, Some(cast_item_guid));
+        session.set_represented_trade_accepted_like_cpp_for_test(true);
+
+        session
+            .handle_set_trade_spell(set_trade_spell_packet(9999, 0, 255))
+            .await;
+
+        assert_eq!(session.represented_trade_client_state_index_like_cpp(), 1);
+        assert_eq!(session.represented_trade_server_state_index_like_cpp(), 2);
+        assert_eq!(session.represented_trade_spell_like_cpp(), 0);
+        assert!(
+            session
+                .represented_trade_spell_cast_item_like_cpp()
+                .is_none()
+        );
+        assert!(!session.represented_trade_accepted_like_cpp());
+        let bytes = send_rx.try_recv().expect("unaccepted status");
+        assert_eq!(bytes[2], TRADE_STATUS_UNACCEPTED_LIKE_CPP << 2);
+    }
+
+    #[tokio::test]
+    async fn set_trade_spell_unknown_spell_clears_existing_spell_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let partner_guid = ObjectGuid::create_player(1, 88);
+        let cast_item_guid = ObjectGuid::create_item(1, 1234);
+        let mut spell_store = SpellStore::new();
+        spell_store.insert(7418, trade_test_spell_info(7418));
+        session.set_spell_store(Arc::new(spell_store));
+        session.set_represented_active_trade_partner_like_cpp(Some(partner_guid));
+        session.set_represented_trade_spell_like_cpp_for_test(7418, Some(cast_item_guid));
+        session.set_represented_trade_accepted_like_cpp_for_test(true);
+
+        session
+            .handle_set_trade_spell(set_trade_spell_packet(7418, 0, 255))
+            .await;
+
+        assert_eq!(session.represented_trade_client_state_index_like_cpp(), 1);
+        assert_eq!(session.represented_trade_server_state_index_like_cpp(), 2);
+        assert_eq!(session.represented_trade_spell_like_cpp(), 0);
+        assert!(
+            session
+                .represented_trade_spell_cast_item_like_cpp()
+                .is_none()
+        );
+        assert!(!session.represented_trade_accepted_like_cpp());
+        let bytes = send_rx.try_recv().expect("unaccepted status");
+        assert_eq!(bytes[2], TRADE_STATUS_UNACCEPTED_LIKE_CPP << 2);
+    }
+
+    #[tokio::test]
+    async fn set_trade_spell_valid_records_spell_and_cast_item_like_cpp() {
+        let (mut source_session, source_send_rx) = make_session();
+        let (mut partner_session, partner_send_rx) = make_session();
+        let source_guid = ObjectGuid::create_player(1, 77);
+        let partner_guid = ObjectGuid::create_player(1, 88);
+        let cast_item_guid = ObjectGuid::create_item(1, 1234);
+        source_session.set_player_guid(Some(source_guid));
+        partner_session.set_player_guid(Some(partner_guid));
+        source_session.set_represented_active_trade_partner_like_cpp(Some(partner_guid));
+        partner_session.set_represented_active_trade_partner_like_cpp(Some(source_guid));
+        source_session.set_represented_trade_accepted_like_cpp_for_test(true);
+        partner_session.set_represented_trade_accepted_like_cpp_for_test(true);
+        install_trade_test_spell(&mut source_session, 7418);
+        insert_trade_test_item(&mut source_session, source_guid, 23, cast_item_guid, 700);
+
+        let registry = Arc::new(PlayerRegistry::default());
+        let partner_command_tx = partner_session.session_command_tx();
+        registry.insert(
+            partner_guid,
+            broadcast_info_with_command_tx(partner_command_tx),
+        );
+        source_session.set_player_registry(registry);
+
+        source_session
+            .handle_set_trade_spell(set_trade_spell_packet(7418, 255, 23))
+            .await;
+        partner_session
+            .process_represented_session_commands_like_cpp()
+            .await;
+
+        assert_eq!(
+            source_session.represented_trade_client_state_index_like_cpp(),
+            1
+        );
+        assert_eq!(
+            source_session.represented_trade_server_state_index_like_cpp(),
+            2
+        );
+        assert_eq!(source_session.represented_trade_spell_like_cpp(), 7418);
+        assert_eq!(
+            source_session.represented_trade_spell_cast_item_like_cpp(),
+            Some(cast_item_guid)
+        );
+        assert!(!source_session.represented_trade_accepted_like_cpp());
+        assert!(!partner_session.represented_trade_accepted_like_cpp());
+
+        let source_bytes = source_send_rx.try_recv().expect("source unaccepted status");
+        let partner_bytes = partner_send_rx
+            .try_recv()
+            .expect("partner unaccepted status");
+        assert_eq!(source_bytes, partner_bytes);
+        assert_eq!(
+            u16::from_le_bytes([source_bytes[0], source_bytes[1]]),
+            ServerOpcodes::TradeStatus as u16
+        );
+        assert_eq!(source_bytes[2], TRADE_STATUS_UNACCEPTED_LIKE_CPP << 2);
+    }
+
+    #[tokio::test]
+    async fn set_trade_spell_same_spell_and_cast_item_is_noop_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 77);
+        let partner_guid = ObjectGuid::create_player(1, 88);
+        let cast_item_guid = ObjectGuid::create_item(1, 1234);
+        session.set_player_guid(Some(player_guid));
+        session.set_represented_active_trade_partner_like_cpp(Some(partner_guid));
+        session.set_represented_trade_spell_like_cpp_for_test(7418, Some(cast_item_guid));
+        session.set_represented_trade_accepted_like_cpp_for_test(true);
+        install_trade_test_spell(&mut session, 7418);
+        insert_trade_test_item(&mut session, player_guid, 23, cast_item_guid, 700);
+
+        session
+            .handle_set_trade_spell(set_trade_spell_packet(7418, 255, 23))
+            .await;
+
+        assert_eq!(session.represented_trade_client_state_index_like_cpp(), 1);
+        assert_eq!(session.represented_trade_server_state_index_like_cpp(), 1);
+        assert_eq!(session.represented_trade_spell_like_cpp(), 7418);
+        assert_eq!(
+            session.represented_trade_spell_cast_item_like_cpp(),
+            Some(cast_item_guid)
+        );
+        assert!(session.represented_trade_accepted_like_cpp());
+        assert!(send_rx.try_recv().is_err());
     }
 
     #[tokio::test]

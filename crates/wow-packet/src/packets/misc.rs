@@ -5361,6 +5361,26 @@ impl ClientPacket for SetTradeItem {
     }
 }
 
+/// C++ `WorldPackets::Trade::SetTradeSpell`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct SetTradeSpell {
+    pub spell_id: u32,
+    pub pack_slot: u8,
+    pub item_slot_in_pack: u8,
+}
+
+impl ClientPacket for SetTradeSpell {
+    const OPCODE: ClientOpcodes = ClientOpcodes::SetTradeSpell;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            spell_id: pkt.read_uint32()?,
+            pack_slot: pkt.read_uint8()?,
+            item_slot_in_pack: pkt.read_uint8()?,
+        })
+    }
+}
+
 /// C++ `WorldPackets::Trade::SetTradeGold`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct SetTradeGold {
@@ -6407,6 +6427,21 @@ mod tests {
         assert_eq!(packet.trade_slot, 2);
         assert_eq!(packet.pack_slot, 255);
         assert_eq!(packet.item_slot_in_pack, 18);
+    }
+
+    #[test]
+    fn set_trade_spell_reads_spell_and_slots_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(7418);
+        pkt.write_uint8(255);
+        pkt.write_uint8(23);
+        pkt.reset_read();
+
+        let packet = SetTradeSpell::read(&mut pkt).unwrap();
+
+        assert_eq!(packet.spell_id, 7418);
+        assert_eq!(packet.pack_slot, 255);
+        assert_eq!(packet.item_slot_in_pack, 23);
     }
 
     #[test]

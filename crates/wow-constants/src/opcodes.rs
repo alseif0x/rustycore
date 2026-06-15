@@ -591,6 +591,7 @@ pub enum ClientOpcodes {
     SetTitle = 0x327e,
     SetTradeGold = 0x315f,
     SetTradeItem = 0x315d,
+    SetTradeSpell = 0x3160,
     SetWatchedFaction = 0x34e1,
     ShowingCloak = 0x3569,
     ShowingHelm = 0x3568,

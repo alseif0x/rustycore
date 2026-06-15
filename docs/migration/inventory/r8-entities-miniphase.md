@@ -1,4 +1,14 @@
 - `#NEXT.R8.ENTITIES.868` - represented-complete implementation for bounded movement `Handle_NULL` ACK family.
+### #NEXT.R8.ENTITIES.897 — CMSG_SET_TRADE_SPELL
+
+Status: represented-partial for the bounded `WorldSession::HandleSetTradeSpellOpcode` spell/cast-item/accepted-status seam.
+
+C++ source-of-truth: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/TradeHandler.cpp:779-813`, `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/TradeData.h:50-54`, `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/TradeData.cpp:84-98,135-151`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TradePackets.h:125-134`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TradePackets.cpp:50-53`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:626`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:919`, and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.h:61-62`.
+
+Implemented Rust seam: `SetTradeSpell` parses the C++ `uint32 SpellID`, `uint8 PackSlot`, `uint8 ItemSlotInPack` order, registers as `LoggedIn`/`PROCESS_THREADUNSAFE`, dispatches through `WorldSession`, preserves the no-op when no represented active trade exists, clears represented trade spell state when `SpellID == 0`, spell info is missing, or the represented player does not know the spell, optionally resolves the cast item through represented `Player::GetItemByPos` when a non-null bag/slot is supplied, records represented spell/cast-item state for valid known spells, advances represented server-state only, clears local/partner accepted flags, and sends bounded `SMSG_TRADE_STATUS` with `TRADE_STATUS_UNACCEPTED` to both represented sessions.
+
+Boundary: represented-partial only; full `TradeData`, `SMSG_TRADE_UPDATED` spell payloads, real enchant/trade execution, profession/spell validation beyond `SpellStore` + known-spells, cast-item compatibility/reagent semantics, C++ `rand32()` server-state parity, DB/item/spell transaction, install/restart, bot, and live-client/manual validation remain separate work.
+
 ### #NEXT.R8.ENTITIES.896 — CMSG_SET_TRADE_ITEM
 
 Status: represented-partial for the bounded `WorldSession::HandleSetTradeItemOpcode` slot/inventory/duplicate/accepted-status seam.

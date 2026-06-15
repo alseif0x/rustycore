@@ -2891,6 +2891,8 @@ pub struct WorldSession {
     represented_trade_server_state_index_like_cpp: u32,
     represented_trade_items_like_cpp: [Option<ObjectGuid>; TRADE_SLOT_COUNT_LIKE_CPP as usize],
     represented_trade_money_like_cpp: u64,
+    represented_trade_spell_like_cpp: u32,
+    represented_trade_spell_cast_item_like_cpp: Option<ObjectGuid>,
     represented_trade_cancel_statuses_like_cpp: Vec<u8>,
     represented_can_duel_spell_casts_like_cpp: Vec<RepresentedCanDuelSpellCastLikeCpp>,
     represented_guild_repair_bank_state_like_cpp: Option<RepresentedGuildRepairBankStateLikeCpp>,
@@ -4105,6 +4107,8 @@ impl WorldSession {
             represented_trade_server_state_index_like_cpp: 1,
             represented_trade_items_like_cpp: [None; TRADE_SLOT_COUNT_LIKE_CPP as usize],
             represented_trade_money_like_cpp: 0,
+            represented_trade_spell_like_cpp: 0,
+            represented_trade_spell_cast_item_like_cpp: None,
             represented_trade_cancel_statuses_like_cpp: Vec::new(),
             represented_can_duel_spell_casts_like_cpp: Vec::new(),
             represented_guild_repair_bank_state_like_cpp: None,
@@ -18801,6 +18805,9 @@ impl WorldSession {
             ClientOpcodes::SetTradeGold => {
                 self.handle_set_trade_gold(pkt).await;
             }
+            ClientOpcodes::SetTradeSpell => {
+                self.handle_set_trade_spell(pkt).await;
+            }
             ClientOpcodes::UnacceptTrade => {
                 self.handle_unaccept_trade(pkt).await;
             }
@@ -21303,6 +21310,26 @@ impl WorldSession {
         self.represented_trade_money_like_cpp
     }
 
+    #[cfg(test)]
+    pub(crate) fn set_represented_trade_spell_like_cpp_for_test(
+        &mut self,
+        spell_id: u32,
+        cast_item_guid: Option<ObjectGuid>,
+    ) {
+        self.represented_trade_spell_like_cpp = spell_id;
+        self.represented_trade_spell_cast_item_like_cpp = cast_item_guid;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_trade_spell_like_cpp(&self) -> u32 {
+        self.represented_trade_spell_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_trade_spell_cast_item_like_cpp(&self) -> Option<ObjectGuid> {
+        self.represented_trade_spell_cast_item_like_cpp
+    }
+
     pub(crate) fn cancel_represented_trade_like_cpp(&mut self, status: u8, sendback: bool) {
         use wow_packet::ServerPacket;
 
@@ -21462,6 +21489,89 @@ impl WorldSession {
         }
 
         self.represented_trade_money_like_cpp = coinage;
+        self.represented_trade_accepted_like_cpp = false;
+        self.represented_trade_server_state_index_like_cpp = self
+            .represented_trade_server_state_index_like_cpp
+            .wrapping_add(1);
+
+        let packet_bytes =
+            TradeStatus::status_only_like_cpp(TRADE_STATUS_UNACCEPTED_LIKE_CPP).to_bytes();
+        self.send_raw_packet(&packet_bytes);
+
+        if let Some(registry) = self.player_registry()
+            && let Some(partner) = registry.get(&partner_guid)
+        {
+            let _ = partner
+                .command_tx
+                .try_send(SessionCommand::UnacceptRepresentedTradeLikeCpp(
+                    wow_network::player_registry::UnacceptRepresentedTradeLikeCppCommand {
+                        packet_bytes,
+                    },
+                ));
+        }
+    }
+
+    pub(crate) fn set_represented_trade_spell_like_cpp(
+        &mut self,
+        spell_id: u32,
+        pack_slot: u8,
+        item_slot_in_pack: u8,
+    ) {
+        let Some(partner_guid) = self.represented_active_trade_partner_like_cpp else {
+            return;
+        };
+
+        if spell_id == 0 {
+            self.set_represented_trade_spell_state_like_cpp(partner_guid, 0, None);
+            return;
+        }
+
+        let cast_item_guid = if pack_slot != NULL_BAG || item_slot_in_pack != NULL_SLOT {
+            self.get_inventory_item_by_pos(pack_slot, item_slot_in_pack)
+                .map(|item| item.guid)
+        } else {
+            None
+        };
+
+        let Ok(spell_id_i32) = i32::try_from(spell_id) else {
+            self.set_represented_trade_spell_state_like_cpp(partner_guid, 0, None);
+            return;
+        };
+
+        let Some(spell_store) = self.spell_store() else {
+            self.set_represented_trade_spell_state_like_cpp(partner_guid, 0, None);
+            return;
+        };
+
+        if spell_store.get(spell_id_i32).is_none() {
+            self.set_represented_trade_spell_state_like_cpp(partner_guid, 0, None);
+            return;
+        }
+
+        if !self.known_spells_like_cpp().contains(&spell_id_i32) {
+            self.set_represented_trade_spell_state_like_cpp(partner_guid, 0, None);
+            return;
+        }
+
+        self.set_represented_trade_spell_state_like_cpp(partner_guid, spell_id, cast_item_guid);
+    }
+
+    fn set_represented_trade_spell_state_like_cpp(
+        &mut self,
+        partner_guid: ObjectGuid,
+        spell_id: u32,
+        cast_item_guid: Option<ObjectGuid>,
+    ) {
+        use wow_packet::ServerPacket;
+
+        if self.represented_trade_spell_like_cpp == spell_id
+            && self.represented_trade_spell_cast_item_like_cpp == cast_item_guid
+        {
+            return;
+        }
+
+        self.represented_trade_spell_like_cpp = spell_id;
+        self.represented_trade_spell_cast_item_like_cpp = cast_item_guid;
         self.represented_trade_accepted_like_cpp = false;
         self.represented_trade_server_state_index_like_cpp = self
             .represented_trade_server_state_index_like_cpp
