@@ -245,6 +245,7 @@ pub struct SessionResources {
     pub map_difficulty_store: Option<Arc<wow_data::MapDifficultyStore>>,
     pub map_difficulty_x_condition_store: Option<Arc<wow_data::MapDifficultyXConditionStore>>,
     pub lfg_dungeons_store: Option<Arc<wow_data::LfgDungeonsStore>>,
+    pub battlemaster_list_store: Option<Arc<wow_data::BattlemasterListStore>>,
     pub creature_template_mount_store: Option<Arc<wow_data::CreatureTemplateMountStoreLikeCpp>>,
     pub creature_display_info_store: Option<Arc<wow_data::CreatureDisplayInfoStore>>,
     pub gameobject_display_info_store: Option<Arc<wow_data::GameObjectDisplayInfoStore>>,

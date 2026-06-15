@@ -2628,6 +2628,7 @@ async fn main() -> Result<ExitCode> {
         map_difficulty_store: Some(Arc::clone(&map_difficulty_store)),
         map_difficulty_x_condition_store: Some(Arc::clone(&map_difficulty_x_condition_store)),
         lfg_dungeons_store: Some(Arc::clone(&lfg_dungeons_store)),
+        battlemaster_list_store: Some(Arc::clone(&battlemaster_list_typed_store)),
         creature_template_mount_store: Some(Arc::clone(&creature_template_mount_store)),
         creature_display_info_store: Some(Arc::clone(&creature_display_info_store)),
         gameobject_display_info_store: Some(Arc::clone(&gameobject_display_info_store)),
@@ -8772,6 +8773,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.lfg_dungeons_store {
         session.set_lfg_dungeons_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.battlemaster_list_store {
+        session.set_battlemaster_list_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.creature_template_mount_store {
         session.set_creature_template_mount_store(Arc::clone(store));

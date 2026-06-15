@@ -57,10 +57,10 @@ use wow_data::character_progression::{ChrClassesStore, ChrRacesStore};
 use wow_data::{
     AdventureMapPoiStore, AreaTableStore, AreaTriggerStore, BankBagSlotPricesStore,
     BattlePetBreedQualityStore, BattlePetBreedStateStore, BattlePetSpeciesStateStore,
-    BattlePetSpeciesStore, BattlePetXpGameTableLikeCpp, ChrSpecializationStore,
-    CinematicSequencesStore, ConditionEntriesByTypeStore, CreatureDisplayInfoStore,
-    CreatureModelDataStore, CreatureTemplateMountStoreLikeCpp, CurrencyTypesEntry,
-    CurrencyTypesStore, DISABLE_TYPE_MAP, DifficultyStore, DisableMgrLikeCpp,
+    BattlePetSpeciesStore, BattlePetXpGameTableLikeCpp, BattlemasterListStore,
+    ChrSpecializationStore, CinematicSequencesStore, ConditionEntriesByTypeStore,
+    CreatureDisplayInfoStore, CreatureModelDataStore, CreatureTemplateMountStoreLikeCpp,
+    CurrencyTypesEntry, CurrencyTypesStore, DISABLE_TYPE_MAP, DifficultyStore, DisableMgrLikeCpp,
     DisableWorldObjectRefLikeCpp, DungeonEncounterStore, DurabilityCostsStore,
     DurabilityQualityStore, FishingBaseSkillStoreLikeCpp, GameObjectDisplayInfoStore,
     GameObjectTemplateLifecycleStoreLikeCpp, HeirloomEntry, HeirloomStore, HotfixBlobCache,
@@ -1546,6 +1546,11 @@ pub(crate) struct RepresentedBattlemasterHelloLikeCpp {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedBattlefieldListLikeCpp {
+    pub list_id: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedCanDuelSpellCastLikeCpp {
     pub target_guid: ObjectGuid,
     pub spell_id: u32,
@@ -2949,6 +2954,7 @@ pub struct WorldSession {
     map_difficulty_store: Option<Arc<MapDifficultyStore>>,
     map_difficulty_x_condition_store: Option<Arc<MapDifficultyXConditionStore>>,
     lfg_dungeons_store: Option<Arc<LfgDungeonsStore>>,
+    battlemaster_list_store: Option<Arc<BattlemasterListStore>>,
     represented_dungeon_difficulty_id_like_cpp: u32,
     represented_raid_difficulty_id_like_cpp: u32,
     represented_legacy_raid_difficulty_id_like_cpp: u32,
@@ -3335,6 +3341,8 @@ pub struct WorldSession {
     represented_battleground_leave_requests_like_cpp: u32,
     /// Represented `BattlegroundMgr::SendBattlegroundList` intents from battlemaster hello.
     represented_battlemaster_hellos_like_cpp: Vec<RepresentedBattlemasterHelloLikeCpp>,
+    /// Represented `BattlegroundMgr::SendBattlegroundList` intents from CMSG_BATTLEFIELD_LIST.
+    represented_battlefield_lists_like_cpp: Vec<RepresentedBattlefieldListLikeCpp>,
     /// C++ `Player::_areaSpiritHealerGUID`, represented until battleground/player resurrection owns it.
     area_spirit_healer_guid_like_cpp: ObjectGuid,
     /// Represented current pet GUID until player-owned pet runtime is canonical.
@@ -4426,6 +4434,7 @@ impl WorldSession {
             map_difficulty_store: None,
             map_difficulty_x_condition_store: None,
             lfg_dungeons_store: None,
+            battlemaster_list_store: None,
             represented_dungeon_difficulty_id_like_cpp: DIFFICULTY_NORMAL_LIKE_CPP,
             represented_raid_difficulty_id_like_cpp: DIFFICULTY_NORMAL_RAID_LIKE_CPP,
             represented_legacy_raid_difficulty_id_like_cpp: DIFFICULTY_10_N_LIKE_CPP,
@@ -4631,6 +4640,7 @@ impl WorldSession {
             represented_battleground_status_like_cpp: None,
             represented_battleground_leave_requests_like_cpp: 0,
             represented_battlemaster_hellos_like_cpp: Vec::new(),
+            represented_battlefield_lists_like_cpp: Vec::new(),
             area_spirit_healer_guid_like_cpp: ObjectGuid::EMPTY,
             represented_pet_guid_like_cpp: None,
             represented_pet_react_state_like_cpp:
@@ -12196,6 +12206,7 @@ impl WorldSession {
             | ClientOpcodes::AcceptWargameInvite
             | ClientOpcodes::BattlemasterJoinArena
             | ClientOpcodes::BattlemasterHello
+            | ClientOpcodes::BattlefieldList
             | ClientOpcodes::BattlefieldLeave
             | ClientOpcodes::GuildBankLogQuery
             | ClientOpcodes::LogoutCancel
@@ -14961,6 +14972,10 @@ impl WorldSession {
 
     pub fn set_lfg_dungeons_store(&mut self, store: Arc<LfgDungeonsStore>) {
         self.lfg_dungeons_store = Some(store);
+    }
+
+    pub fn set_battlemaster_list_store(&mut self, store: Arc<BattlemasterListStore>) {
+        self.battlemaster_list_store = Some(store);
     }
 
     pub fn set_faction_store(&mut self, store: Arc<FactionStore>) {
@@ -20137,6 +20152,9 @@ impl WorldSession {
             ClientOpcodes::BattlemasterHello => {
                 self.handle_battlemaster_hello(pkt).await;
             }
+            ClientOpcodes::BattlefieldList => {
+                self.handle_battlefield_list(pkt).await;
+            }
             ClientOpcodes::BattlefieldLeave => {
                 self.handle_battlefield_leave(pkt).await;
             }
@@ -22427,11 +22445,34 @@ impl WorldSession {
         true
     }
 
+    pub(crate) fn battlefield_list_like_cpp(&mut self, list_id: i32) -> bool {
+        let Ok(list_id) = u32::try_from(list_id) else {
+            return false;
+        };
+        let Some(store) = self.battlemaster_list_store.as_ref() else {
+            return false;
+        };
+        if store.get(list_id).is_none() {
+            return false;
+        }
+
+        self.represented_battlefield_lists_like_cpp
+            .push(RepresentedBattlefieldListLikeCpp { list_id });
+        true
+    }
+
     #[cfg(test)]
     pub(crate) fn represented_battlemaster_hellos_like_cpp(
         &self,
     ) -> &[RepresentedBattlemasterHelloLikeCpp] {
         &self.represented_battlemaster_hellos_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_battlefield_lists_like_cpp(
+        &self,
+    ) -> &[RepresentedBattlefieldListLikeCpp] {
+        &self.represented_battlefield_lists_like_cpp
     }
 
     pub(crate) fn accept_represented_wargame_invite_like_cpp(&mut self, inviter_name: &str) {
@@ -62532,6 +62573,7 @@ mod tests {
             ClientOpcodes::AcceptWargameInvite,
             ClientOpcodes::BattlemasterJoinArena,
             ClientOpcodes::BattlemasterHello,
+            ClientOpcodes::BattlefieldList,
             ClientOpcodes::BattlefieldLeave,
             ClientOpcodes::GuildBankLogQuery,
             ClientOpcodes::LogoutCancel,

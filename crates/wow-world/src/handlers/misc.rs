@@ -53,23 +53,24 @@ use wow_packet::packets::misc::{
     AuctionReplicateItems, AuctionSellItem, AuctionableTokenSell,
     AuctionableTokenSellAtMarketPrice, BattlePetClearFanfare, BattlePetDeletePet,
     BattlePetModifyName, BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags,
-    BattlePetSummon, BattlePetUpdateNotify, BattlefieldLeave, BeginTrade, BugReport, BusyTrade,
-    CageBattlePet, CalendarAddEvent, CalendarCommandResult, CalendarCommunityInvite,
-    CalendarComplain, CalendarCopyEvent, CalendarEventSignUp, CalendarGetEvent, CalendarInvite,
-    CalendarModeratorStatusQuery, CalendarRemoveEvent, CalendarRemoveInvite, CalendarRsvp,
-    CalendarSendCalendar, CalendarSendNumPending, CalendarStatus, CalendarUpdateEvent, CanDuel,
-    ClearTradeItem, CloseInteraction, CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint,
-    ComplaintResult, DeclineGuildInvites, DeclinePetition, DfGetJoinStatus, DfGetSystemInfo,
-    DuelResponse, ERR_TAXITOOFARAWAY_LIKE_CPP, FarSight, GmTicketAcknowledgeSurvey,
-    GmTicketCaseStatus, GmTicketSystemStatus, GuildSetAchievementTracking, IgnoreTrade,
-    LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify,
-    MAX_ACCOUNT_DATA_SIZE_LIKE_CPP, MountSetFavorite, MountSpecial, NUM_ACCOUNT_DATA_TYPES,
-    ObjectUpdateFailed, ObjectUpdateRescued, QueryArenaTeam, QueryBattlePetName,
-    QueryBattlePetNameResponse, QueryPetition, QueryPetitionResponse, RatedPvpInfo, ReclaimCorpse,
-    RepopRequest, RequestAccountData, RequestBattlefieldStatus, RequestCemeteryListResponse,
-    ResurrectResponse, SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags,
-    SetDifficultyId, SetDungeonDifficulty, SetPvp, SetRaidDifficulty, SetTaxiBenchmarkMode,
-    SetTradeGold, SetTradeItem, SetTradeSpell, SignPetition, SpecialMountAnim, StandStateChange,
+    BattlePetSummon, BattlePetUpdateNotify, BattlefieldLeave, BattlefieldListRequest, BeginTrade,
+    BugReport, BusyTrade, CageBattlePet, CalendarAddEvent, CalendarCommandResult,
+    CalendarCommunityInvite, CalendarComplain, CalendarCopyEvent, CalendarEventSignUp,
+    CalendarGetEvent, CalendarInvite, CalendarModeratorStatusQuery, CalendarRemoveEvent,
+    CalendarRemoveInvite, CalendarRsvp, CalendarSendCalendar, CalendarSendNumPending,
+    CalendarStatus, CalendarUpdateEvent, CanDuel, ClearTradeItem, CloseInteraction,
+    CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint, ComplaintResult,
+    DeclineGuildInvites, DeclinePetition, DfGetJoinStatus, DfGetSystemInfo, DuelResponse,
+    ERR_TAXITOOFARAWAY_LIKE_CPP, FarSight, GmTicketAcknowledgeSurvey, GmTicketCaseStatus,
+    GmTicketSystemStatus, GuildSetAchievementTracking, IgnoreTrade, LfgListBlacklist,
+    LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify, MAX_ACCOUNT_DATA_SIZE_LIKE_CPP,
+    MountSetFavorite, MountSpecial, NUM_ACCOUNT_DATA_TYPES, ObjectUpdateFailed,
+    ObjectUpdateRescued, QueryArenaTeam, QueryBattlePetName, QueryBattlePetNameResponse,
+    QueryPetition, QueryPetitionResponse, RatedPvpInfo, ReclaimCorpse, RepopRequest,
+    RequestAccountData, RequestBattlefieldStatus, RequestCemeteryListResponse, ResurrectResponse,
+    SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags, SetDifficultyId,
+    SetDungeonDifficulty, SetPvp, SetRaidDifficulty, SetTaxiBenchmarkMode, SetTradeGold,
+    SetTradeItem, SetTradeSpell, SignPetition, SpecialMountAnim, StandStateChange,
     SubmitUserFeedback, SupportTicketSubmitBug, SupportTicketSubmitComplaint,
     SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
     TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP, TaxiNodeStatusPkt, ToggleDifficulty, TogglePvp,
@@ -856,6 +857,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_battlemaster_hello",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::BattlefieldList,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_battlefield_list",
     }
 }
 
@@ -3399,6 +3409,26 @@ impl crate::session::WorldSession {
         let _accepted = self.battlemaster_hello_like_cpp(hello.unit);
     }
 
+    /// CMSG_BATTLEFIELD_LIST — player asks for the queue list of a battleground type.
+    /// C++ ref: `WorldSession::HandleBattlefieldListOpcode`.
+    pub async fn handle_battlefield_list(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let request = match BattlefieldListRequest::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "BattlefieldList parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        // C++ returns silently when sBattlemasterListStore has no ListID row.
+        // The accepted branch records the SendBattlegroundList intent until
+        // BattlegroundMgr owns live queue/list packets in Rust.
+        let _accepted = self.battlefield_list_like_cpp(request.list_id);
+    }
+
     /// CMSG_BATTLEFIELD_LEAVE — player asks to leave the current battleground.
     /// C++ ref: `WorldSession::HandleBattlefieldLeaveOpcode`.
     pub async fn handle_battlefield_leave(&mut self, mut pkt: wow_packet::WorldPacket) {
@@ -5764,6 +5794,13 @@ mod tests {
     fn battlemaster_hello_packet(unit: ObjectGuid) -> WorldPacket {
         let mut pkt = WorldPacket::new_empty();
         pkt.write_packed_guid(&unit);
+        pkt.reset_read();
+        pkt
+    }
+
+    fn battlefield_list_packet(list_id: i32) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_int32(list_id);
         pkt.reset_read();
         pkt
     }
@@ -12967,6 +13004,60 @@ mod tests {
                 unit: battlemaster,
                 entry: 90_003,
             }]
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn battlefield_list_invalid_or_missing_store_is_silent_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_battlefield_list(battlefield_list_packet(3))
+            .await;
+
+        assert!(session.represented_battlefield_lists_like_cpp().is_empty());
+        assert!(send_rx.try_recv().is_err());
+
+        session.set_battlemaster_list_store(Arc::new(wow_data::BattlemasterListStore::default()));
+        session
+            .handle_battlefield_list(battlefield_list_packet(3))
+            .await;
+
+        assert!(session.represented_battlefield_lists_like_cpp().is_empty());
+        assert!(send_rx.try_recv().is_err());
+
+        session.set_battlemaster_list_store(Arc::new(
+            wow_data::BattlemasterListStore::from_entries([wow_data::BattlemasterListEntry {
+                id: 3,
+                holiday_world_state: 0,
+            }]),
+        ));
+        session
+            .handle_battlefield_list(battlefield_list_packet(-1))
+            .await;
+
+        assert!(session.represented_battlefield_lists_like_cpp().is_empty());
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn battlefield_list_records_represented_list_intent_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        session.set_battlemaster_list_store(Arc::new(
+            wow_data::BattlemasterListStore::from_entries([wow_data::BattlemasterListEntry {
+                id: 3,
+                holiday_world_state: 0,
+            }]),
+        ));
+
+        session
+            .handle_battlefield_list(battlefield_list_packet(3))
+            .await;
+
+        assert_eq!(
+            session.represented_battlefield_lists_like_cpp(),
+            &[crate::session::RepresentedBattlefieldListLikeCpp { list_id: 3 }]
         );
         assert!(send_rx.try_recv().is_err());
     }

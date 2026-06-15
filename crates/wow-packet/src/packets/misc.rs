@@ -5063,6 +5063,22 @@ impl ClientPacket for BattlefieldLeave {
     }
 }
 
+/// C++ `WorldPackets::Battleground::BattlefieldListRequest`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct BattlefieldListRequest {
+    pub list_id: i32,
+}
+
+impl ClientPacket for BattlefieldListRequest {
+    const OPCODE: ClientOpcodes = ClientOpcodes::BattlefieldList;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            list_id: pkt.read_int32()?,
+        })
+    }
+}
+
 /// C++ `WorldPackets::Battleground::AcceptWargameInvite`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AcceptWargameInvite {
@@ -10688,6 +10704,18 @@ mod tests {
         let mut pkt = WorldPacket::new_empty();
 
         BattlefieldLeave::read(&mut pkt).unwrap();
+    }
+
+    #[test]
+    fn battlefield_list_request_reads_list_id_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_int32(3);
+        pkt.reset_read();
+
+        let parsed = BattlefieldListRequest::read(&mut pkt).unwrap();
+
+        assert_eq!(parsed.list_id, 3);
+        assert_eq!(pkt.remaining(), 0);
     }
 
     #[test]
