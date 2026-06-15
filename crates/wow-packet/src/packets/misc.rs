@@ -196,6 +196,53 @@ impl ClientPacket for GuildBankQueryTab {
     }
 }
 
+/// C++ `WorldPackets::Guild::GuildBankBuyTab`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GuildBankBuyTab {
+    pub banker: ObjectGuid,
+    pub bank_tab: u8,
+}
+
+impl ClientPacket for GuildBankBuyTab {
+    const OPCODE: ClientOpcodes = ClientOpcodes::GuildBankBuyTab;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            banker: pkt.read_guid()?,
+            bank_tab: pkt.read_uint8()?,
+        })
+    }
+}
+
+/// C++ `WorldPackets::Guild::GuildBankUpdateTab`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GuildBankUpdateTab {
+    pub banker: ObjectGuid,
+    pub bank_tab: u8,
+    pub name: String,
+    pub icon: String,
+}
+
+impl ClientPacket for GuildBankUpdateTab {
+    const OPCODE: ClientOpcodes = ClientOpcodes::GuildBankUpdateTab;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let banker = pkt.read_guid()?;
+        let bank_tab = pkt.read_uint8()?;
+        let name_len = pkt.read_bits(7)? as usize;
+        let icon_len = pkt.read_bits(9)? as usize;
+        let name = pkt.read_string(name_len)?;
+        let icon = pkt.read_string(icon_len)?;
+
+        Ok(Self {
+            banker,
+            bank_tab,
+            name,
+            icon,
+        })
+    }
+}
+
 /// C++ `WorldPackets::Guild::GuildBankDepositMoney`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GuildBankDepositMoney {
@@ -229,6 +276,57 @@ impl ClientPacket for GuildBankWithdrawMoney {
             banker: pkt.read_guid()?,
             money: pkt.read_uint64()?,
         })
+    }
+}
+
+/// C++ `WorldPackets::Guild::GuildBankLogQuery`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GuildBankLogQuery {
+    pub tab: i32,
+}
+
+impl ClientPacket for GuildBankLogQuery {
+    const OPCODE: ClientOpcodes = ClientOpcodes::GuildBankLogQuery;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            tab: pkt.read_int32()?,
+        })
+    }
+}
+
+/// C++ `WorldPackets::Guild::GuildBankTextQuery`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GuildBankTextQuery {
+    pub tab: i32,
+}
+
+impl ClientPacket for GuildBankTextQuery {
+    const OPCODE: ClientOpcodes = ClientOpcodes::GuildBankTextQuery;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            tab: pkt.read_int32()?,
+        })
+    }
+}
+
+/// C++ `WorldPackets::Guild::GuildBankSetTabText`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GuildBankSetTabText {
+    pub tab: i32,
+    pub tab_text: String,
+}
+
+impl ClientPacket for GuildBankSetTabText {
+    const OPCODE: ClientOpcodes = ClientOpcodes::GuildBankSetTabText;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let tab = pkt.read_int32()?;
+        let tab_text_len = pkt.read_bits(14)? as usize;
+        let tab_text = pkt.read_string(tab_text_len)?;
+
+        Ok(Self { tab, tab_text })
     }
 }
 
@@ -11574,6 +11672,43 @@ mod tests {
     }
 
     #[test]
+    fn guild_bank_buy_tab_reads_guid_then_tab_like_cpp() {
+        let banker = ObjectGuid::new(0x8182_8384_8586_8788_u64 as i64, 0x1112_1314_1516_1718_i64);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_guid(&banker);
+        pkt.write_uint8(5);
+        pkt.reset_read();
+
+        let parsed = GuildBankBuyTab::read(&mut pkt).unwrap();
+
+        assert_eq!(parsed.banker, banker);
+        assert_eq!(parsed.bank_tab, 5);
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn guild_bank_update_tab_reads_guid_tab_name_icon_like_cpp() {
+        let banker = ObjectGuid::new(0x9192_9394_9596_9798_u64 as i64, 0x2122_2324_2526_2728_i64);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_guid(&banker);
+        pkt.write_uint8(2);
+        pkt.write_bits(4, 7);
+        pkt.write_bits(7, 9);
+        pkt.flush_bits();
+        pkt.write_string("Main");
+        pkt.write_string("inv_tab");
+        pkt.reset_read();
+
+        let parsed = GuildBankUpdateTab::read(&mut pkt).unwrap();
+
+        assert_eq!(parsed.banker, banker);
+        assert_eq!(parsed.bank_tab, 2);
+        assert_eq!(parsed.name, "Main");
+        assert_eq!(parsed.icon, "inv_tab");
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
     fn guild_bank_deposit_money_reads_guid_then_money_like_cpp() {
         let banker = ObjectGuid::new(0x4142_4344_4546_4748_i64, 0x5152_5354_5556_5758_i64);
         let mut pkt = WorldPacket::new_empty();
@@ -11600,6 +11735,39 @@ mod tests {
 
         assert_eq!(parsed.banker, banker);
         assert_eq!(parsed.money, 654_321);
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn guild_bank_log_and_text_queries_read_tab_like_cpp() {
+        let mut log = WorldPacket::new_empty();
+        log.write_int32(7);
+        log.reset_read();
+        let parsed_log = GuildBankLogQuery::read(&mut log).unwrap();
+        assert_eq!(parsed_log.tab, 7);
+        assert_eq!(log.remaining(), 0);
+
+        let mut text = WorldPacket::new_empty();
+        text.write_int32(3);
+        text.reset_read();
+        let parsed_text = GuildBankTextQuery::read(&mut text).unwrap();
+        assert_eq!(parsed_text.tab, 3);
+        assert_eq!(text.remaining(), 0);
+    }
+
+    #[test]
+    fn guild_bank_set_tab_text_reads_tab_length_and_text_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_int32(4);
+        pkt.write_bits(11, 14);
+        pkt.flush_bits();
+        pkt.write_string("raid mats 1");
+        pkt.reset_read();
+
+        let parsed = GuildBankSetTabText::read(&mut pkt).unwrap();
+
+        assert_eq!(parsed.tab, 4);
+        assert_eq!(parsed.tab_text, "raid mats 1");
         assert_eq!(pkt.remaining(), 0);
     }
 

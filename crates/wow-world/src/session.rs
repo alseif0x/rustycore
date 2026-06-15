@@ -1495,6 +1495,23 @@ pub(crate) struct RepresentedGuildBankMoneyMoveLikeCpp {
     pub money: u64,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RepresentedGuildBankTabActionLikeCpp {
+    pub banker: Option<ObjectGuid>,
+    pub guild_id: u64,
+    pub tab: i32,
+    pub action: RepresentedGuildBankTabActionKindLikeCpp,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum RepresentedGuildBankTabActionKindLikeCpp {
+    Buy,
+    Update { name: String, icon: String },
+    LogQuery,
+    TextQuery,
+    SetText { text: String },
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedAuctionReplicateRequestLikeCpp {
     pub auctioneer: ObjectGuid,
@@ -3189,6 +3206,7 @@ pub struct WorldSession {
     represented_guild_bank_inventory_moves_like_cpp: Vec<RepresentedGuildBankInventoryMoveLikeCpp>,
     represented_guild_bank_list_requests_like_cpp: Vec<RepresentedGuildBankListRequestLikeCpp>,
     represented_guild_bank_money_moves_like_cpp: Vec<RepresentedGuildBankMoneyMoveLikeCpp>,
+    represented_guild_bank_tab_actions_like_cpp: Vec<RepresentedGuildBankTabActionLikeCpp>,
     represented_auction_replicate_requests_like_cpp: Vec<RepresentedAuctionReplicateRequestLikeCpp>,
     represented_auction_place_bids_like_cpp: Vec<RepresentedAuctionPlaceBidLikeCpp>,
     represented_auction_remove_items_like_cpp: Vec<RepresentedAuctionRemoveItemLikeCpp>,
@@ -4631,6 +4649,7 @@ impl WorldSession {
             represented_guild_bank_inventory_moves_like_cpp: Vec::new(),
             represented_guild_bank_list_requests_like_cpp: Vec::new(),
             represented_guild_bank_money_moves_like_cpp: Vec::new(),
+            represented_guild_bank_tab_actions_like_cpp: Vec::new(),
             represented_auction_replicate_requests_like_cpp: Vec::new(),
             represented_auction_place_bids_like_cpp: Vec::new(),
             represented_auction_remove_items_like_cpp: Vec::new(),
@@ -20377,11 +20396,26 @@ impl WorldSession {
             ClientOpcodes::GuildBankQueryTab => {
                 self.handle_guild_bank_query_tab(pkt).await;
             }
+            ClientOpcodes::GuildBankBuyTab => {
+                self.handle_guild_bank_buy_tab(pkt).await;
+            }
+            ClientOpcodes::GuildBankUpdateTab => {
+                self.handle_guild_bank_update_tab(pkt).await;
+            }
             ClientOpcodes::GuildBankDepositMoney => {
                 self.handle_guild_bank_deposit_money(pkt).await;
             }
             ClientOpcodes::GuildBankWithdrawMoney => {
                 self.handle_guild_bank_withdraw_money(pkt).await;
+            }
+            ClientOpcodes::GuildBankLogQuery => {
+                self.handle_guild_bank_log_query(pkt).await;
+            }
+            ClientOpcodes::GuildBankTextQuery => {
+                self.handle_guild_bank_text_query(pkt).await;
+            }
+            ClientOpcodes::GuildBankSetTabText => {
+                self.handle_guild_bank_set_tab_text(pkt).await;
             }
             ClientOpcodes::AutoGuildBankItem => {
                 self.handle_auto_guild_bank_item(pkt).await;
@@ -21854,6 +21888,99 @@ impl WorldSession {
         true
     }
 
+    pub(crate) fn guild_bank_buy_tab_like_cpp(&mut self, banker: ObjectGuid, tab: u8) -> bool {
+        if !banker.is_empty()
+            && self
+                .represented_guild_bank_gameobject_can_interact_like_cpp(banker)
+                .is_none()
+        {
+            return false;
+        }
+
+        let guild_id = self.represented_guild_id_like_cpp;
+        if guild_id == 0 {
+            return false;
+        }
+
+        self.represented_guild_bank_tab_actions_like_cpp.push(
+            RepresentedGuildBankTabActionLikeCpp {
+                banker: (!banker.is_empty()).then_some(banker),
+                guild_id,
+                tab: i32::from(tab),
+                action: RepresentedGuildBankTabActionKindLikeCpp::Buy,
+            },
+        );
+        true
+    }
+
+    pub(crate) fn guild_bank_update_tab_like_cpp(
+        &mut self,
+        banker: ObjectGuid,
+        tab: u8,
+        name: String,
+        icon: String,
+    ) -> bool {
+        if name.is_empty() || icon.is_empty() {
+            return false;
+        }
+
+        let Some(guild_id) = self.represented_guild_bank_can_interact_like_cpp(banker) else {
+            return false;
+        };
+
+        self.represented_guild_bank_tab_actions_like_cpp.push(
+            RepresentedGuildBankTabActionLikeCpp {
+                banker: Some(banker),
+                guild_id,
+                tab: i32::from(tab),
+                action: RepresentedGuildBankTabActionKindLikeCpp::Update { name, icon },
+            },
+        );
+        true
+    }
+
+    pub(crate) fn guild_bank_log_query_like_cpp(&mut self, tab: i32) -> bool {
+        self.guild_bank_tab_action_without_banker_like_cpp(
+            tab,
+            RepresentedGuildBankTabActionKindLikeCpp::LogQuery,
+        )
+    }
+
+    pub(crate) fn guild_bank_text_query_like_cpp(&mut self, tab: i32) -> bool {
+        self.guild_bank_tab_action_without_banker_like_cpp(
+            tab,
+            RepresentedGuildBankTabActionKindLikeCpp::TextQuery,
+        )
+    }
+
+    pub(crate) fn guild_bank_set_tab_text_like_cpp(&mut self, tab: i32, text: String) -> bool {
+        self.guild_bank_tab_action_without_banker_like_cpp(
+            tab,
+            RepresentedGuildBankTabActionKindLikeCpp::SetText { text },
+        )
+    }
+
+    fn guild_bank_tab_action_without_banker_like_cpp(
+        &mut self,
+        tab: i32,
+        action: RepresentedGuildBankTabActionKindLikeCpp,
+    ) -> bool {
+        let guild_id = self.represented_guild_id_like_cpp;
+        if guild_id == 0 {
+            return false;
+        }
+
+        self.represented_guild_bank_tab_actions_like_cpp.push(
+            RepresentedGuildBankTabActionLikeCpp {
+                banker: None,
+                guild_id,
+                tab,
+                action,
+            },
+        );
+        true
+    }
+
     #[cfg(test)]
     pub(crate) fn represented_guild_bank_inventory_moves_like_cpp(
         &self,
@@ -21873,6 +22000,13 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedGuildBankMoneyMoveLikeCpp] {
         &self.represented_guild_bank_money_moves_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_guild_bank_tab_actions_like_cpp(
+        &self,
+    ) -> &[RepresentedGuildBankTabActionLikeCpp] {
+        &self.represented_guild_bank_tab_actions_like_cpp
     }
 
     pub(crate) fn record_represented_auction_replicate_request_like_cpp(

@@ -63,18 +63,19 @@ use wow_packet::packets::misc::{
     ClearTradeItem, CloseInteraction, CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint,
     ComplaintResult, DeclineGuildInvites, DeclinePetition, DfGetJoinStatus, DfGetSystemInfo,
     DuelResponse, ERR_TAXITOOFARAWAY_LIKE_CPP, FarSight, GmTicketAcknowledgeSurvey,
-    GmTicketCaseStatus, GmTicketSystemStatus, GuildBankActivate, GuildBankDepositMoney,
-    GuildBankQueryTab, GuildBankWithdrawMoney, GuildCommandResult, GuildSetAchievementTracking,
-    IgnoreTrade, LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify,
-    MAX_ACCOUNT_DATA_SIZE_LIKE_CPP, MountSetFavorite, MountSpecial, NUM_ACCOUNT_DATA_TYPES,
-    ObjectUpdateFailed, ObjectUpdateRescued, QueryArenaTeam, QueryBattlePetName,
-    QueryBattlePetNameResponse, QueryPetition, QueryPetitionResponse, RatedPvpInfo, ReclaimCorpse,
-    RepopRequest, RequestAccountData, RequestBattlefieldStatus, RequestCemeteryListResponse,
-    ResurrectResponse, SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags,
-    SetDifficultyId, SetDungeonDifficulty, SetPvp, SetRaidDifficulty, SetTaxiBenchmarkMode,
-    SetTradeGold, SetTradeItem, SetTradeSpell, SignPetition, SpecialMountAnim, StandStateChange,
-    SubmitUserFeedback, SupportTicketSubmitBug, SupportTicketSubmitComplaint,
-    SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
+    GmTicketCaseStatus, GmTicketSystemStatus, GuildBankActivate, GuildBankBuyTab,
+    GuildBankDepositMoney, GuildBankLogQuery, GuildBankQueryTab, GuildBankSetTabText,
+    GuildBankTextQuery, GuildBankUpdateTab, GuildBankWithdrawMoney, GuildCommandResult,
+    GuildSetAchievementTracking, IgnoreTrade, LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus,
+    LoadingScreenNotify, MAX_ACCOUNT_DATA_SIZE_LIKE_CPP, MountSetFavorite, MountSpecial,
+    NUM_ACCOUNT_DATA_TYPES, ObjectUpdateFailed, ObjectUpdateRescued, QueryArenaTeam,
+    QueryBattlePetName, QueryBattlePetNameResponse, QueryPetition, QueryPetitionResponse,
+    RatedPvpInfo, ReclaimCorpse, RepopRequest, RequestAccountData, RequestBattlefieldStatus,
+    RequestCemeteryListResponse, ResurrectResponse, SaveCufProfiles, SetAdvancedCombatLogging,
+    SetCurrencyFlags, SetDifficultyId, SetDungeonDifficulty, SetPvp, SetRaidDifficulty,
+    SetTaxiBenchmarkMode, SetTradeGold, SetTradeItem, SetTradeSpell, SignPetition,
+    SpecialMountAnim, StandStateChange, SubmitUserFeedback, SupportTicketSubmitBug,
+    SupportTicketSubmitComplaint, SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
     TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP, TaxiNodeStatusPkt, ToggleDifficulty, TogglePvp,
     ToyClearFanfare, UnacceptTrade, UpdateAccountData, UseToy, UserClientUpdateAccountData,
     ViolenceLevel, compress_account_data_like_cpp, decompress_account_data_like_cpp,
@@ -1125,6 +1126,24 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
+        opcode: ClientOpcodes::GuildBankBuyTab,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_guild_bank_buy_tab",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::GuildBankUpdateTab,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_guild_bank_update_tab",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
         opcode: ClientOpcodes::GuildBankDepositMoney,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
@@ -1138,6 +1157,33 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_guild_bank_withdraw_money",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::GuildBankLogQuery,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_guild_bank_log_query",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::GuildBankTextQuery,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_guild_bank_text_query",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::GuildBankSetTabText,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_guild_bank_set_tab_text",
     }
 }
 
@@ -3984,6 +4030,47 @@ impl crate::session::WorldSession {
             self.record_guild_bank_list_request_like_cpp(packet.banker, packet.tab, true);
     }
 
+    /// CMSG_GUILD_BANK_BUY_TAB — buy a guild-bank tab.
+    ///
+    /// C++ ref: `WorldSession::HandleGuildBankBuyTab`.
+    pub async fn handle_guild_bank_buy_tab(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let packet = match GuildBankBuyTab::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "GuildBankBuyTab parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        let _accepted = self.guild_bank_buy_tab_like_cpp(packet.banker, packet.bank_tab);
+    }
+
+    /// CMSG_GUILD_BANK_UPDATE_TAB — rename/update a guild-bank tab.
+    ///
+    /// C++ ref: `WorldSession::HandleGuildBankUpdateTab`.
+    pub async fn handle_guild_bank_update_tab(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let packet = match GuildBankUpdateTab::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "GuildBankUpdateTab parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        let _accepted = self.guild_bank_update_tab_like_cpp(
+            packet.banker,
+            packet.bank_tab,
+            packet.name,
+            packet.icon,
+        );
+    }
+
     /// CMSG_GUILD_BANK_DEPOSIT_MONEY — deposit player money into the guild bank.
     ///
     /// C++ ref: `WorldSession::HandleGuildBankDepositMoney`.
@@ -4018,6 +4105,60 @@ impl crate::session::WorldSession {
         };
 
         let _accepted = self.guild_bank_money_move_like_cpp(packet.banker, false, packet.money);
+    }
+
+    /// CMSG_GUILD_BANK_LOG_QUERY — request a guild-bank tab log.
+    ///
+    /// C++ ref: `WorldSession::HandleGuildBankLogQuery`.
+    pub async fn handle_guild_bank_log_query(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let packet = match GuildBankLogQuery::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "GuildBankLogQuery parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        let _accepted = self.guild_bank_log_query_like_cpp(packet.tab);
+    }
+
+    /// CMSG_GUILD_BANK_TEXT_QUERY — request a guild-bank tab text.
+    ///
+    /// C++ ref: `WorldSession::HandleGuildBankTextQuery`.
+    pub async fn handle_guild_bank_text_query(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let packet = match GuildBankTextQuery::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "GuildBankTextQuery parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        let _accepted = self.guild_bank_text_query_like_cpp(packet.tab);
+    }
+
+    /// CMSG_GUILD_BANK_SET_TAB_TEXT — update a guild-bank tab text.
+    ///
+    /// C++ ref: `WorldSession::HandleGuildBankSetTabText`.
+    pub async fn handle_guild_bank_set_tab_text(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let packet = match GuildBankSetTabText::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "GuildBankSetTabText parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        let _accepted = self.guild_bank_set_tab_text_like_cpp(packet.tab, packet.tab_text);
     }
 
     /// CMSG_AUTO_GUILD_BANK_ITEM — move from player inventory into a guild-bank slot.
@@ -6144,6 +6285,49 @@ mod tests {
         let mut pkt = WorldPacket::new_empty();
         pkt.write_guid(&banker);
         pkt.write_uint64(money);
+        pkt.reset_read();
+        pkt
+    }
+
+    fn guild_bank_buy_tab_packet(banker: ObjectGuid, tab: u8) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_guid(&banker);
+        pkt.write_uint8(tab);
+        pkt.reset_read();
+        pkt
+    }
+
+    fn guild_bank_update_tab_packet(
+        banker: ObjectGuid,
+        tab: u8,
+        name: &str,
+        icon: &str,
+    ) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_guid(&banker);
+        pkt.write_uint8(tab);
+        pkt.write_bits(name.len() as u32, 7);
+        pkt.write_bits(icon.len() as u32, 9);
+        pkt.flush_bits();
+        pkt.write_string(name);
+        pkt.write_string(icon);
+        pkt.reset_read();
+        pkt
+    }
+
+    fn guild_bank_tab_query_packet(tab: i32) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_int32(tab);
+        pkt.reset_read();
+        pkt
+    }
+
+    fn guild_bank_set_tab_text_packet(tab: i32, text: &str) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_int32(tab);
+        pkt.write_bits(text.len() as u32, 14);
+        pkt.flush_bits();
+        pkt.write_string(text);
         pkt.reset_read();
         pkt
     }
@@ -13055,6 +13239,182 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn guild_bank_buy_tab_accepts_empty_banker_but_requires_guild_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_guild_bank_buy_tab(guild_bank_buy_tab_packet(ObjectGuid::EMPTY, 1))
+            .await;
+        assert!(
+            session
+                .represented_guild_bank_tab_actions_like_cpp()
+                .is_empty()
+        );
+
+        session.set_represented_guild_id_like_cpp(42);
+        session
+            .handle_guild_bank_buy_tab(guild_bank_buy_tab_packet(ObjectGuid::EMPTY, 1))
+            .await;
+
+        assert_eq!(
+            session.represented_guild_bank_tab_actions_like_cpp(),
+            &[crate::session::RepresentedGuildBankTabActionLikeCpp {
+                banker: None,
+                guild_id: 42,
+                tab: 1,
+                action: crate::session::RepresentedGuildBankTabActionKindLikeCpp::Buy,
+            }]
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn guild_bank_buy_tab_requires_interactable_nonempty_banker_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let banker = ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 22);
+        session.set_represented_guild_id_like_cpp(42);
+
+        session
+            .handle_guild_bank_buy_tab(guild_bank_buy_tab_packet(banker, 2))
+            .await;
+        assert!(
+            session
+                .represented_guild_bank_tab_actions_like_cpp()
+                .is_empty()
+        );
+
+        install_represented_guild_bank_like_cpp(&mut session, banker, 42);
+        session
+            .handle_guild_bank_buy_tab(guild_bank_buy_tab_packet(banker, 2))
+            .await;
+
+        assert_eq!(
+            session.represented_guild_bank_tab_actions_like_cpp(),
+            &[crate::session::RepresentedGuildBankTabActionLikeCpp {
+                banker: Some(banker),
+                guild_id: 42,
+                tab: 2,
+                action: crate::session::RepresentedGuildBankTabActionKindLikeCpp::Buy,
+            }]
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn guild_bank_update_tab_requires_name_icon_banker_and_guild_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let banker = ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 23);
+
+        session
+            .handle_guild_bank_update_tab(guild_bank_update_tab_packet(
+                banker,
+                3,
+                "Raid",
+                "inv_misc_bag",
+            ))
+            .await;
+        assert!(
+            session
+                .represented_guild_bank_tab_actions_like_cpp()
+                .is_empty()
+        );
+
+        install_represented_guild_bank_like_cpp(&mut session, banker, 42);
+        session
+            .handle_guild_bank_update_tab(guild_bank_update_tab_packet(banker, 3, "", "icon"))
+            .await;
+        session
+            .handle_guild_bank_update_tab(guild_bank_update_tab_packet(banker, 3, "Raid", ""))
+            .await;
+        assert!(
+            session
+                .represented_guild_bank_tab_actions_like_cpp()
+                .is_empty()
+        );
+
+        session
+            .handle_guild_bank_update_tab(guild_bank_update_tab_packet(
+                banker,
+                3,
+                "Raid",
+                "inv_misc_bag",
+            ))
+            .await;
+
+        assert_eq!(
+            session.represented_guild_bank_tab_actions_like_cpp(),
+            &[crate::session::RepresentedGuildBankTabActionLikeCpp {
+                banker: Some(banker),
+                guild_id: 42,
+                tab: 3,
+                action: crate::session::RepresentedGuildBankTabActionKindLikeCpp::Update {
+                    name: "Raid".to_string(),
+                    icon: "inv_misc_bag".to_string(),
+                },
+            }]
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn guild_bank_log_text_and_set_text_require_guild_only_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_guild_bank_log_query(guild_bank_tab_query_packet(7))
+            .await;
+        session
+            .handle_guild_bank_text_query(guild_bank_tab_query_packet(2))
+            .await;
+        session
+            .handle_guild_bank_set_tab_text(guild_bank_set_tab_text_packet(2, "hello"))
+            .await;
+        assert!(
+            session
+                .represented_guild_bank_tab_actions_like_cpp()
+                .is_empty()
+        );
+
+        session.set_represented_guild_id_like_cpp(42);
+        session
+            .handle_guild_bank_log_query(guild_bank_tab_query_packet(7))
+            .await;
+        session
+            .handle_guild_bank_text_query(guild_bank_tab_query_packet(2))
+            .await;
+        session
+            .handle_guild_bank_set_tab_text(guild_bank_set_tab_text_packet(2, "hello"))
+            .await;
+
+        assert_eq!(
+            session.represented_guild_bank_tab_actions_like_cpp(),
+            &[
+                crate::session::RepresentedGuildBankTabActionLikeCpp {
+                    banker: None,
+                    guild_id: 42,
+                    tab: 7,
+                    action: crate::session::RepresentedGuildBankTabActionKindLikeCpp::LogQuery,
+                },
+                crate::session::RepresentedGuildBankTabActionLikeCpp {
+                    banker: None,
+                    guild_id: 42,
+                    tab: 2,
+                    action: crate::session::RepresentedGuildBankTabActionKindLikeCpp::TextQuery,
+                },
+                crate::session::RepresentedGuildBankTabActionLikeCpp {
+                    banker: None,
+                    guild_id: 42,
+                    tab: 2,
+                    action: crate::session::RepresentedGuildBankTabActionKindLikeCpp::SetText {
+                        text: "hello".to_string(),
+                    },
+                },
+            ]
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
     async fn auto_guild_bank_item_records_represented_swap_with_inventory_like_cpp() {
         let (mut session, send_rx) = make_session();
         let banker = ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 12);
@@ -13130,6 +13490,22 @@ mod tests {
         assert_eq!(query_tab.processing, PacketProcessing::ThreadUnsafe);
         assert_eq!(query_tab.handler_name, "handle_guild_bank_query_tab");
 
+        let buy_tab = inventory::iter::<PacketHandlerEntry>
+            .into_iter()
+            .find(|entry| entry.opcode == ClientOpcodes::GuildBankBuyTab)
+            .expect("GuildBankBuyTab handler entry");
+        assert_eq!(buy_tab.status, SessionStatus::LoggedIn);
+        assert_eq!(buy_tab.processing, PacketProcessing::ThreadUnsafe);
+        assert_eq!(buy_tab.handler_name, "handle_guild_bank_buy_tab");
+
+        let update_tab = inventory::iter::<PacketHandlerEntry>
+            .into_iter()
+            .find(|entry| entry.opcode == ClientOpcodes::GuildBankUpdateTab)
+            .expect("GuildBankUpdateTab handler entry");
+        assert_eq!(update_tab.status, SessionStatus::LoggedIn);
+        assert_eq!(update_tab.processing, PacketProcessing::ThreadUnsafe);
+        assert_eq!(update_tab.handler_name, "handle_guild_bank_update_tab");
+
         let deposit_money = inventory::iter::<PacketHandlerEntry>
             .into_iter()
             .find(|entry| entry.opcode == ClientOpcodes::GuildBankDepositMoney)
@@ -13151,6 +13527,30 @@ mod tests {
             withdraw_money.handler_name,
             "handle_guild_bank_withdraw_money"
         );
+
+        let log_query = inventory::iter::<PacketHandlerEntry>
+            .into_iter()
+            .find(|entry| entry.opcode == ClientOpcodes::GuildBankLogQuery)
+            .expect("GuildBankLogQuery handler entry");
+        assert_eq!(log_query.status, SessionStatus::LoggedIn);
+        assert_eq!(log_query.processing, PacketProcessing::ThreadUnsafe);
+        assert_eq!(log_query.handler_name, "handle_guild_bank_log_query");
+
+        let text_query = inventory::iter::<PacketHandlerEntry>
+            .into_iter()
+            .find(|entry| entry.opcode == ClientOpcodes::GuildBankTextQuery)
+            .expect("GuildBankTextQuery handler entry");
+        assert_eq!(text_query.status, SessionStatus::LoggedIn);
+        assert_eq!(text_query.processing, PacketProcessing::ThreadUnsafe);
+        assert_eq!(text_query.handler_name, "handle_guild_bank_text_query");
+
+        let set_tab_text = inventory::iter::<PacketHandlerEntry>
+            .into_iter()
+            .find(|entry| entry.opcode == ClientOpcodes::GuildBankSetTabText)
+            .expect("GuildBankSetTabText handler entry");
+        assert_eq!(set_tab_text.status, SessionStatus::LoggedIn);
+        assert_eq!(set_tab_text.processing, PacketProcessing::ThreadUnsafe);
+        assert_eq!(set_tab_text.handler_name, "handle_guild_bank_set_tab_text");
 
         let auto_guild = inventory::iter::<PacketHandlerEntry>
             .into_iter()
