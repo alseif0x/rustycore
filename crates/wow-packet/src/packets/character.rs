@@ -511,6 +511,49 @@ impl ClientPacket for PlayerLogin {
     }
 }
 
+/// C++ `WorldPackets::Character::CharacterRenameRequest`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CharacterRenameRequest {
+    pub guid: ObjectGuid,
+    pub new_name: String,
+}
+
+impl ClientPacket for CharacterRenameRequest {
+    const OPCODE: ClientOpcodes = ClientOpcodes::CharacterRenameRequest;
+
+    fn read(packet: &mut WorldPacket) -> Result<Self, PacketError> {
+        let guid = packet.read_guid()?;
+        let new_name_len = packet.read_bits(6)? as usize;
+        let new_name = packet.read_string(new_name_len)?;
+        Ok(Self { guid, new_name })
+    }
+}
+
+/// C++ `WorldPackets::Character::CharacterRenameResult`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CharacterRenameResult {
+    pub result: u8,
+    pub name: String,
+    pub guid: Option<ObjectGuid>,
+}
+
+impl ServerPacket for CharacterRenameResult {
+    const OPCODE: ServerOpcodes = ServerOpcodes::CharacterRenameResult;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_uint8(self.result);
+        pkt.write_bit(self.guid.is_some());
+        pkt.write_bits(self.name.len() as u32, 6);
+        pkt.flush_bits();
+
+        if let Some(guid) = self.guid {
+            pkt.write_guid(&guid);
+        }
+
+        pkt.write_string(&self.name);
+    }
+}
+
 // ── Response codes ──────────────────────────────────────────────────
 
 /// Result codes for character operations (values from ResponseCodes enum in C#).
@@ -635,6 +678,46 @@ mod tests {
         let result = PlayerLogin::read(&mut pkt).unwrap();
         assert_eq!(result.guid, guid);
         assert!((result.far_clip - 1000.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn character_rename_request_reads_cpp_full_guid_then_name_bits() {
+        let guid = ObjectGuid::create_player(1, 42);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_guid(&guid);
+        pkt.write_bits(7, 6);
+        pkt.write_string("Newname");
+        pkt.reset_read();
+
+        let result = CharacterRenameRequest::read(&mut pkt).unwrap();
+
+        assert_eq!(result.guid, guid);
+        assert_eq!(result.new_name, "Newname");
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn character_rename_result_writes_cpp_result_guid_bit_name_len_and_payload() {
+        let guid = ObjectGuid::create_player(1, 42);
+        let bytes = CharacterRenameResult {
+            result: 0,
+            name: "Newname".to_string(),
+            guid: Some(guid),
+        }
+        .to_bytes();
+        let mut pkt = WorldPacket::from_bytes(&bytes);
+
+        assert_eq!(
+            pkt.server_opcode(),
+            Some(ServerOpcodes::CharacterRenameResult)
+        );
+        pkt.skip_opcode();
+        assert_eq!(pkt.read_uint8().unwrap(), 0);
+        assert!(pkt.read_bit().unwrap());
+        assert_eq!(pkt.read_bits(6).unwrap(), 7);
+        assert_eq!(pkt.read_guid().unwrap(), guid);
+        assert_eq!(pkt.read_string(7).unwrap(), "Newname");
+        assert_eq!(pkt.remaining(), 0);
     }
 
     #[test]

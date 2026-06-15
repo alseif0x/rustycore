@@ -73,6 +73,13 @@ const QUEST_GIVER_STATUS_TRACKED_QUERY_MAX_GUIDS_LIKE_CPP: u32 = 1000;
 const MAX_AREA_SPIRIT_HEALER_RANGE_LIKE_CPP: f32 = 20.0;
 const DIFFICULTY_NORMAL_LIKE_CPP: u8 = 1;
 const DIFFICULTY_NORMAL_RAID_LIKE_CPP: u8 = 14;
+const RESPONSE_SUCCESS_LIKE_CPP: u8 = 0;
+const CHAR_CREATE_ERROR_LIKE_CPP: u8 = 25;
+const CHAR_NAME_NO_NAME_LIKE_CPP: u8 = 92;
+const CHAR_NAME_TOO_SHORT_LIKE_CPP: u8 = 93;
+const CHAR_NAME_TOO_LONG_LIKE_CPP: u8 = 94;
+const CHAR_NAME_INVALID_CHARACTER_LIKE_CPP: u8 = 95;
+const AT_LOGIN_RENAME_LIKE_CPP: u16 = 0x001;
 const DIFFICULTY_10_N_LIKE_CPP: u8 = 3;
 
 fn bind_create_character_difficulties_like_cpp(stmt: &mut PreparedStatement) {
@@ -125,6 +132,15 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_char_delete",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::CharacterRenameRequest,
+        status: SessionStatus::Authed,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_character_rename_request",
     }
 }
 
@@ -2121,6 +2137,123 @@ impl WorldSession {
                 });
             }
         }
+    }
+
+    fn represented_character_rename_name_result_like_cpp(name: &str) -> u8 {
+        if name.is_empty() {
+            return CHAR_NAME_NO_NAME_LIKE_CPP;
+        }
+        if name.len() < 2 {
+            return CHAR_NAME_TOO_SHORT_LIKE_CPP;
+        }
+        if name.len() > 12 {
+            return CHAR_NAME_TOO_LONG_LIKE_CPP;
+        }
+        if !name.chars().all(|c| c.is_ascii_alphabetic()) {
+            return CHAR_NAME_INVALID_CHARACTER_LIKE_CPP;
+        }
+
+        RESPONSE_SUCCESS_LIKE_CPP
+    }
+
+    fn send_character_rename_like_cpp(
+        &self,
+        result: u8,
+        guid: ObjectGuid,
+        new_name: impl Into<String>,
+    ) {
+        let name = new_name.into();
+        self.send_packet(&CharacterRenameResult {
+            result,
+            name,
+            guid: (result == RESPONSE_SUCCESS_LIKE_CPP).then_some(guid),
+        });
+    }
+
+    /// Handle CMSG_CHARACTER_RENAME_REQUEST.
+    pub async fn handle_character_rename_request(&mut self, pkt: CharacterRenameRequest) {
+        if !self.is_legit_character(&pkt.guid) {
+            warn!(
+                "Account {} tried to rename non-owned character {:?}",
+                self.account_id, pkt.guid
+            );
+            self.kick(
+                "WorldSession::HandleCharRenameOpcode rename character from a different account",
+            );
+            return;
+        }
+
+        let name_result = Self::represented_character_rename_name_result_like_cpp(&pkt.new_name);
+        if name_result != RESPONSE_SUCCESS_LIKE_CPP {
+            self.send_character_rename_like_cpp(name_result, pkt.guid, pkt.new_name);
+            return;
+        }
+
+        let char_db = match self.char_db() {
+            Some(db) => Arc::clone(db),
+            None => {
+                self.send_character_rename_like_cpp(
+                    CHAR_CREATE_ERROR_LIKE_CPP,
+                    pkt.guid,
+                    pkt.new_name,
+                );
+                return;
+            }
+        };
+
+        let mut free_name_stmt = char_db.prepare(CharStatements::SEL_FREE_NAME);
+        free_name_stmt.set_u64(0, pkt.guid.counter() as u64);
+        free_name_stmt.set_string(1, &pkt.new_name);
+
+        let result = match char_db.query(&free_name_stmt).await {
+            Ok(result) => result,
+            Err(error) => {
+                warn!("Character rename free-name query failed: {error}");
+                self.send_character_rename_like_cpp(
+                    CHAR_CREATE_ERROR_LIKE_CPP,
+                    pkt.guid,
+                    pkt.new_name,
+                );
+                return;
+            }
+        };
+
+        if result.is_empty() {
+            self.send_character_rename_like_cpp(CHAR_CREATE_ERROR_LIKE_CPP, pkt.guid, pkt.new_name);
+            return;
+        }
+
+        let old_name: String = result.read_string(0);
+        let mut at_login_flags: u16 = result.try_read(1).unwrap_or(0);
+        if (at_login_flags & AT_LOGIN_RENAME_LIKE_CPP) == 0 {
+            self.send_character_rename_like_cpp(CHAR_CREATE_ERROR_LIKE_CPP, pkt.guid, pkt.new_name);
+            return;
+        }
+
+        at_login_flags &= !AT_LOGIN_RENAME_LIKE_CPP;
+
+        let mut tx = SqlTransaction::new();
+        let mut update_name = char_db.prepare(CharStatements::UPD_CHAR_NAME_AT_LOGIN);
+        update_name.set_string(0, &pkt.new_name);
+        update_name.set_u16(1, at_login_flags);
+        update_name.set_u64(2, pkt.guid.counter() as u64);
+        tx.append(update_name);
+
+        let mut delete_declined = char_db.prepare(CharStatements::DEL_CHAR_DECLINED_NAME);
+        delete_declined.set_u64(0, pkt.guid.counter() as u64);
+        tx.append(delete_declined);
+
+        if let Err(error) = char_db.commit_transaction(tx).await {
+            warn!("Character rename transaction failed: {error}");
+            self.send_character_rename_like_cpp(CHAR_CREATE_ERROR_LIKE_CPP, pkt.guid, pkt.new_name);
+            return;
+        }
+
+        info!(
+            "Account {} renamed character {:?} from {} to {}",
+            self.account_id, pkt.guid, old_name, pkt.new_name
+        );
+        self.send_character_rename_like_cpp(RESPONSE_SUCCESS_LIKE_CPP, pkt.guid, pkt.new_name);
     }
 
     /// Handle CMSG_PLAYER_LOGIN — initiate ConnectTo flow.
@@ -10663,6 +10796,7 @@ mod tests {
     use crate::session::{
         InventoryItem, RepresentedHomebindLikeCpp, RepresentedTaxiFlightNodeLikeCpp,
     };
+    use wow_constants::ServerOpcodes;
     use wow_data::character_progression::{
         ChrClassesEntry, ChrClassesStore, ChrRacesEntry, ChrRacesStore,
     };
@@ -10726,6 +10860,71 @@ mod tests {
             stmt.params()[18],
             wow_database::SqlParam::U8(DIFFICULTY_10_N_LIKE_CPP)
         );
+    }
+
+    #[test]
+    fn character_rename_name_validation_matches_represented_cpp_gates() {
+        assert_eq!(
+            WorldSession::represented_character_rename_name_result_like_cpp(""),
+            CHAR_NAME_NO_NAME_LIKE_CPP
+        );
+        assert_eq!(
+            WorldSession::represented_character_rename_name_result_like_cpp("A"),
+            CHAR_NAME_TOO_SHORT_LIKE_CPP
+        );
+        assert_eq!(
+            WorldSession::represented_character_rename_name_result_like_cpp("VeryLongNameX"),
+            CHAR_NAME_TOO_LONG_LIKE_CPP
+        );
+        assert_eq!(
+            WorldSession::represented_character_rename_name_result_like_cpp("Bad1"),
+            CHAR_NAME_INVALID_CHARACTER_LIKE_CPP
+        );
+        assert_eq!(
+            WorldSession::represented_character_rename_name_result_like_cpp("Newname"),
+            RESPONSE_SUCCESS_LIKE_CPP
+        );
+    }
+
+    #[tokio::test]
+    async fn character_rename_invalid_name_sends_cpp_result_without_guid() {
+        let (mut session, send_rx) = make_session_with_send_capacity(2);
+        let guid = ObjectGuid::create_player(1, 42);
+        session.set_legit_characters(vec![guid]);
+
+        session
+            .handle_character_rename_request(CharacterRenameRequest {
+                guid,
+                new_name: String::new(),
+            })
+            .await;
+
+        let sent = send_rx.try_recv().expect("rename result");
+        let mut pkt = WorldPacket::from_bytes(&sent);
+        assert_eq!(
+            pkt.server_opcode(),
+            Some(ServerOpcodes::CharacterRenameResult)
+        );
+        pkt.skip_opcode();
+        assert_eq!(pkt.read_uint8().unwrap(), CHAR_NAME_NO_NAME_LIKE_CPP);
+        assert!(!pkt.read_bit().unwrap());
+        assert_eq!(pkt.read_bits(6).unwrap(), 0);
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[tokio::test]
+    async fn character_rename_non_owned_guid_kicks_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+
+        session
+            .handle_character_rename_request(CharacterRenameRequest {
+                guid: ObjectGuid::create_player(1, 42),
+                new_name: "Newname".to_string(),
+            })
+            .await;
+
+        assert_eq!(session.state(), crate::session::SessionState::Disconnecting);
+        assert!(send_rx.try_recv().is_err());
     }
 
     fn alter_appearance_packet(

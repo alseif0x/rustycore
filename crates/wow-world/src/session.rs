@@ -19116,6 +19116,12 @@ impl WorldSession {
                     Err(e) => warn!("Failed to read CharDelete: {e}"),
                 }
             }
+            ClientOpcodes::CharacterRenameRequest => {
+                match wow_packet::packets::character::CharacterRenameRequest::read(&mut pkt) {
+                    Ok(rename) => self.handle_character_rename_request(rename).await,
+                    Err(e) => warn!("Failed to read CharacterRenameRequest: {e}"),
+                }
+            }
             ClientOpcodes::PlayerLogin => {
                 match wow_packet::packets::character::PlayerLogin::read(&mut pkt) {
                     Ok(login) => self.handle_player_login(login).await,
