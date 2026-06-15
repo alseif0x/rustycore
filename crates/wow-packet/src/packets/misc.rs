@@ -6102,6 +6102,28 @@ impl ClientPacket for CalendarCopyEvent {
     }
 }
 
+/// C++ `WorldPackets::Calendar::CalendarRemoveInvite`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CalendarRemoveInvite {
+    pub guid: ObjectGuid,
+    pub invite_id: u64,
+    pub moderator_id: u64,
+    pub event_id: u64,
+}
+
+impl ClientPacket for CalendarRemoveInvite {
+    const OPCODE: ClientOpcodes = ClientOpcodes::CalendarRemoveInvite;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            guid: pkt.read_guid()?,
+            invite_id: pkt.read_uint64()?,
+            moderator_id: pkt.read_uint64()?,
+            event_id: pkt.read_uint64()?,
+        })
+    }
+}
+
 /// C++ `WorldPackets::Calendar::CalendarEventSignUp`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CalendarEventSignUp {
@@ -6136,11 +6158,20 @@ pub struct CalendarCommandResult {
 impl CalendarCommandResult {
     pub const COMMAND_LIKE_CPP: u8 = 1;
     pub const ERROR_EVENT_INVALID_LIKE_CPP: u8 = 6;
+    pub const ERROR_NO_INVITE_LIKE_CPP: u8 = 29;
 
     pub fn event_invalid_like_cpp() -> Self {
         Self {
             command: Self::COMMAND_LIKE_CPP,
             result: Self::ERROR_EVENT_INVALID_LIKE_CPP,
+            name: String::new(),
+        }
+    }
+
+    pub fn no_invite_like_cpp() -> Self {
+        Self {
+            command: Self::COMMAND_LIKE_CPP,
+            result: Self::ERROR_NO_INVITE_LIKE_CPP,
             name: String::new(),
         }
     }
@@ -7876,6 +7907,22 @@ mod tests {
     }
 
     #[test]
+    fn calendar_remove_invite_reads_cpp_field_order() {
+        let guid = ObjectGuid::new(0x0102_0304_0506_0708, 0x1111_2222_3333_4444);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_guid(&guid);
+        pkt.write_uint64(0x5555_6666_7777_8888);
+        pkt.write_uint64(0x9999_AAAA_BBBB_CCCC);
+        pkt.write_uint64(0xDEAD_BEEF_CAFE_BABE);
+
+        let query = CalendarRemoveInvite::read(&mut pkt).unwrap();
+        assert_eq!(query.guid, guid);
+        assert_eq!(query.invite_id, 0x5555_6666_7777_8888);
+        assert_eq!(query.moderator_id, 0x9999_AAAA_BBBB_CCCC);
+        assert_eq!(query.event_id, 0xDEAD_BEEF_CAFE_BABE);
+    }
+
+    #[test]
     fn calendar_event_sign_up_reads_cpp_field_order_and_tentative_bit() {
         let mut pkt = WorldPacket::new_empty();
         pkt.write_uint64(0x1111_2222_3333_4444);
@@ -7901,6 +7948,21 @@ mod tests {
         let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
         assert_eq!(pkt.read_uint8().unwrap(), 1);
         assert_eq!(pkt.read_uint8().unwrap(), 6);
+        assert_eq!(pkt.read_bits(9).unwrap(), 0);
+    }
+
+    #[test]
+    fn calendar_command_result_no_invite_matches_cpp_shape() {
+        let bytes = CalendarCommandResult::no_invite_like_cpp().to_bytes();
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::CalendarCommandResult as u16
+        );
+        assert_eq!(bytes.len(), 2 + 4);
+
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_uint8().unwrap(), 1);
+        assert_eq!(pkt.read_uint8().unwrap(), 29);
         assert_eq!(pkt.read_bits(9).unwrap(), 0);
     }
 

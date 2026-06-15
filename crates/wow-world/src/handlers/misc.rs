@@ -55,8 +55,8 @@ use wow_packet::packets::misc::{
     BattlePetSummon, BattlePetUpdateNotify, BattlefieldLeave, BeginTrade, BugReport, BusyTrade,
     CageBattlePet, CalendarCommandResult, CalendarCommunityInvite, CalendarComplain,
     CalendarCopyEvent, CalendarEventSignUp, CalendarGetEvent, CalendarRemoveEvent,
-    CalendarSendCalendar, CalendarSendNumPending, CanDuel, ClearTradeItem, CloseInteraction,
-    CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint, ComplaintResult,
+    CalendarRemoveInvite, CalendarSendCalendar, CalendarSendNumPending, CanDuel, ClearTradeItem,
+    CloseInteraction, CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint, ComplaintResult,
     DeclineGuildInvites, DeclinePetition, DfGetJoinStatus, DfGetSystemInfo, DuelResponse,
     ERR_TAXITOOFARAWAY_LIKE_CPP, FarSight, GmTicketAcknowledgeSurvey, GmTicketCaseStatus,
     GmTicketSystemStatus, GuildSetAchievementTracking, IgnoreTrade, LfgListBlacklist,
@@ -1601,6 +1601,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_calendar_remove_event",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::CalendarRemoveInvite,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_calendar_remove_invite",
     }
 }
 
@@ -4634,6 +4643,13 @@ impl crate::session::WorldSession {
         // C++ delegates only EventID and the player GUID to CalendarMgr.
         // CalendarMgr is not live here yet, so capture the represented request.
         self.calendar_remove_event_like_cpp(query.event_id);
+    }
+
+    pub async fn handle_calendar_remove_invite(&mut self, _query: CalendarRemoveInvite) {
+        // C++ sends CalendarCommandResult(NO_INVITE) when sCalendarMgr has no
+        // event for the requested id. Rust does not have CalendarMgr wired yet,
+        // so this represents the observable miss branch.
+        self.send_packet(&CalendarCommandResult::no_invite_like_cpp());
     }
 
     // ── Auction house list stubs ──────────────────────────────────────────────
@@ -12120,6 +12136,31 @@ mod tests {
         let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
         assert_eq!(pkt.read_uint8().unwrap(), 1);
         assert_eq!(pkt.read_uint8().unwrap(), 6);
+        assert_eq!(pkt.read_bits(9).unwrap(), 0);
+    }
+
+    #[tokio::test]
+    async fn calendar_remove_invite_without_calendar_mgr_sends_no_invite_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_calendar_remove_invite(CalendarRemoveInvite {
+                guid: ObjectGuid::create_player(1, 0x1111_2222),
+                invite_id: 0x3333_4444_5555_6666,
+                moderator_id: 0x7777_8888_9999_AAAA,
+                event_id: 0xBBBB_CCCC_DDDD_EEEE,
+            })
+            .await;
+
+        let bytes = send_rx.try_recv().expect("calendar command result");
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::CalendarCommandResult as u16
+        );
+
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_uint8().unwrap(), 1);
+        assert_eq!(pkt.read_uint8().unwrap(), 29);
         assert_eq!(pkt.read_bits(9).unwrap(), 0);
     }
 

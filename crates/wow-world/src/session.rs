@@ -20381,6 +20381,12 @@ impl WorldSession {
                     Err(e) => warn!("Failed to read CalendarRemoveEvent: {e}"),
                 }
             }
+            ClientOpcodes::CalendarRemoveInvite => {
+                match wow_packet::packets::misc::CalendarRemoveInvite::read(&mut pkt) {
+                    Ok(query) => self.handle_calendar_remove_invite(query).await,
+                    Err(e) => warn!("Failed to read CalendarRemoveInvite: {e}"),
+                }
+            }
             ClientOpcodes::CloseInteraction => {
                 self.handle_close_interaction(pkt).await;
             }
