@@ -187,6 +187,7 @@ pub use item_collections::{
     TransmogSetItemEntry, TransmogSetItemStore, TransmogSetStore,
     calculate_battle_pet_stats_like_cpp,
 };
+pub use item_collections::{BankBagSlotPricesEntry, BankBagSlotPricesStore};
 pub use item_currency_cost::{ItemCurrencyCostEntry, ItemCurrencyCostStore};
 pub use item_disenchant_loot::{ItemDisenchantLootEntry, ItemDisenchantLootStore};
 pub use item_equipment::{

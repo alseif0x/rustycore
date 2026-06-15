@@ -54,13 +54,14 @@ use wow_constants::{
 use wow_core::{ObjectGuid, ObjectGuidGenerator, Position, guid::HighGuid};
 use wow_data::character_progression::{ChrClassesStore, ChrRacesStore};
 use wow_data::{
-    AdventureMapPoiStore, AreaTableStore, AreaTriggerStore, BattlePetBreedQualityStore,
-    BattlePetBreedStateStore, BattlePetSpeciesStateStore, BattlePetSpeciesStore,
-    BattlePetXpGameTableLikeCpp, ChrSpecializationStore, CinematicSequencesStore,
-    ConditionEntriesByTypeStore, CreatureDisplayInfoStore, CreatureModelDataStore,
-    CreatureTemplateMountStoreLikeCpp, CurrencyTypesEntry, CurrencyTypesStore, DISABLE_TYPE_MAP,
-    DisableMgrLikeCpp, DisableWorldObjectRefLikeCpp, DungeonEncounterStore, DurabilityCostsStore,
-    DurabilityQualityStore, FishingBaseSkillStoreLikeCpp, GameObjectDisplayInfoStore,
+    AdventureMapPoiStore, AreaTableStore, AreaTriggerStore, BankBagSlotPricesStore,
+    BattlePetBreedQualityStore, BattlePetBreedStateStore, BattlePetSpeciesStateStore,
+    BattlePetSpeciesStore, BattlePetXpGameTableLikeCpp, ChrSpecializationStore,
+    CinematicSequencesStore, ConditionEntriesByTypeStore, CreatureDisplayInfoStore,
+    CreatureModelDataStore, CreatureTemplateMountStoreLikeCpp, CurrencyTypesEntry,
+    CurrencyTypesStore, DISABLE_TYPE_MAP, DisableMgrLikeCpp, DisableWorldObjectRefLikeCpp,
+    DungeonEncounterStore, DurabilityCostsStore, DurabilityQualityStore,
+    FishingBaseSkillStoreLikeCpp, GameObjectDisplayInfoStore,
     GameObjectTemplateLifecycleStoreLikeCpp, HeirloomEntry, HeirloomStore, HotfixBlobCache,
     ImportPriceStores, ItemAppearanceStore, ItemClassStore, ItemCurrencyCostStore,
     ItemDisenchantLootStore, ItemEffectStore, ItemExtendedCostStore,
@@ -2291,6 +2292,7 @@ pub(crate) struct SessionPlayerController {
     level: u8,
     gender: u8,
     gold: u64,
+    bank_bag_slot_count: u8,
     xp: u32,
     next_level_xp: u32,
     selection_guid: Option<ObjectGuid>,
@@ -2344,6 +2346,7 @@ impl SessionPlayerController {
             level,
             gender,
             gold: 0,
+            bank_bag_slot_count: 0,
             xp: 0,
             next_level_xp: 400,
             selection_guid: None,
@@ -2394,6 +2397,10 @@ impl SessionPlayerController {
         self.gold
     }
 
+    pub(crate) fn bank_bag_slot_count(&self) -> u8 {
+        self.bank_bag_slot_count
+    }
+
     pub(crate) fn xp(&self) -> u32 {
         self.xp
     }
@@ -2438,6 +2445,10 @@ impl SessionPlayerController {
 
     fn set_gold(&mut self, gold: u64) {
         self.gold = gold;
+    }
+
+    fn set_bank_bag_slot_count(&mut self, count: u8) {
+        self.bank_bag_slot_count = count;
     }
 
     fn set_xp(&mut self, xp: u32) {
@@ -2657,6 +2668,9 @@ pub struct WorldSession {
 
     // World database (for creature templates, spawns, etc.)
     world_db: Option<Arc<WorldDatabase>>,
+
+    // BankBagSlotPrices.db2 store used by C++ HandleBuyBankSlotOpcode.
+    bank_bag_slot_prices_store: Option<Arc<BankBagSlotPricesStore>>,
 
     // Currency types store (CurrencyTypes.db2 data)
     currency_types_store: Option<Arc<CurrencyTypesStore>>,
@@ -2902,6 +2916,8 @@ pub struct WorldSession {
     /// Player's current money in copper (1 gold = 10,000 copper).
     /// Loaded from `characters.money` on login; saved on logout + buy/sell.
     player_gold: u64,
+    /// C++ `Player::GetBankBagSlotCount`, loaded from `characters.bankSlots`.
+    player_bank_bag_slot_count_like_cpp: u8,
     player_xp: u32,
     /// XP required to reach next level, cached from player_xp_for_level.
     player_next_level_xp: u32,
@@ -4182,6 +4198,7 @@ impl WorldSession {
             char_db: None,
             login_db: None,
             world_db: None,
+            bank_bag_slot_prices_store: None,
             currency_types_store: None,
             import_price_stores: None,
             item_class_store: None,
@@ -4295,6 +4312,7 @@ impl WorldSession {
             total_played_time: 0,
             level_played_time: 0,
             player_gold: 0,
+            player_bank_bag_slot_count_like_cpp: 0,
             player_xp: 0,
             player_next_level_xp: 400,
             player_xp_table: None,
@@ -5002,6 +5020,7 @@ impl WorldSession {
         player.set_xp(self.player_xp_like_cpp() as i32);
         player.set_next_level_xp(self.player_next_level_xp_like_cpp() as i32);
         player.set_money(self.player_gold_like_cpp());
+        player.set_bank_bag_slot_count(self.player_bank_bag_slot_count_like_cpp());
         player.set_watched_faction_index_like_cpp(self.watched_faction_index_like_cpp);
         for quest_bit in &self.represented_quest_completed_bits_like_cpp {
             player.set_quest_completed_bit_like_cpp(*quest_bit, true);
@@ -9252,6 +9271,19 @@ impl WorldSession {
         self.world_db.as_ref()
     }
 
+    /// Set the C++ BankBagSlotPrices.db2 store for this session.
+    pub fn set_bank_bag_slot_prices_store(&mut self, store: Arc<BankBagSlotPricesStore>) {
+        self.bank_bag_slot_prices_store = Some(store);
+    }
+
+    /// C++ `sBankBagSlotPricesStore.LookupEntry(slot)`.
+    pub(crate) fn bank_bag_slot_price_like_cpp(&self, slot: u32) -> Option<u32> {
+        self.bank_bag_slot_prices_store
+            .as_ref()
+            .and_then(|store| store.get(slot))
+            .map(|entry| entry.cost)
+    }
+
     /// Set the currency types store for this session.
     pub fn set_currency_types_store(&mut self, store: Arc<CurrencyTypesStore>) {
         self.currency_types_store = Some(store);
@@ -13471,6 +13503,7 @@ impl WorldSession {
     fn player_values_update_snapshot(&self) -> Option<Player> {
         let mut player = self.direct_inventory_player_snapshot()?;
         player.set_money(self.player_gold_like_cpp());
+        player.set_bank_bag_slot_count(self.player_bank_bag_slot_count_like_cpp());
         let inventory_items = self.inventory_items_like_cpp();
         let buyback_items = self.buyback_items_like_cpp();
         let buyback_price = self.buyback_price_like_cpp();
@@ -13508,6 +13541,23 @@ impl WorldSession {
 
         player.clear_data_changes();
         Some(player)
+    }
+
+    pub(crate) fn send_player_bank_bag_slots_update_like_cpp(&self, count: u8) {
+        let Some(guid) = self.player_guid() else {
+            return;
+        };
+        let Some(mut player) = self.player_values_update_snapshot() else {
+            return;
+        };
+
+        player.set_bank_bag_slot_count(count);
+        let update = player.values_update(true);
+        if let Some(packet) =
+            player_values_update_to_update_object(guid, self.player_map_id_like_cpp(), &update)
+        {
+            self.send_packet(&packet);
+        }
     }
 
     pub(crate) fn send_player_values_update_from_entity_bridge(
@@ -18580,6 +18630,12 @@ impl WorldSession {
                     Err(e) => warn!("Failed to read BankerActivate: {e}"),
                 }
             }
+            ClientOpcodes::BuyBankSlot => {
+                match wow_packet::packets::misc::BuyBankSlot::read(&mut pkt) {
+                    Ok(buy) => self.handle_buy_bank_slot(buy).await,
+                    Err(e) => warn!("Failed to read BuyBankSlot: {e}"),
+                }
+            }
             ClientOpcodes::BinderActivate => {
                 match wow_packet::packets::gossip::Hello::read(&mut pkt) {
                     Ok(hello) => self.handle_binder_activate(hello).await,
@@ -20493,6 +20549,13 @@ impl WorldSession {
         }
     }
 
+    pub(crate) fn set_player_bank_bag_slot_count_like_cpp(&mut self, count: u8) {
+        self.player_bank_bag_slot_count_like_cpp = count;
+        if let Some(controller) = &mut self.player_controller {
+            controller.set_bank_bag_slot_count(count);
+        }
+    }
+
     pub(crate) fn set_player_xp_like_cpp(&mut self, xp: u32) {
         self.player_xp = xp;
         if let Some(controller) = &mut self.player_controller {
@@ -20741,6 +20804,13 @@ impl WorldSession {
             .as_ref()
             .map(SessionPlayerController::gold)
             .unwrap_or(self.player_gold)
+    }
+
+    pub(crate) fn player_bank_bag_slot_count_like_cpp(&self) -> u8 {
+        self.player_controller
+            .as_ref()
+            .map(SessionPlayerController::bank_bag_slot_count)
+            .unwrap_or(self.player_bank_bag_slot_count_like_cpp)
     }
 
     pub(crate) fn player_xp_like_cpp(&self) -> u32 {

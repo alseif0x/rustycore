@@ -885,6 +885,16 @@ async fn main() -> Result<ExitCode> {
     );
     info!("Loaded ImportPrice*.db2 stores");
 
+    let bank_bag_slot_prices_store = Arc::new(
+        wow_data::BankBagSlotPricesStore::load(&data_dir, &locale).context(
+            "Failed to load BankBagSlotPrices.db2 — check DataDir and DBC.Locale config",
+        )?,
+    );
+    info!(
+        "Loaded {} bank bag slot price rows from BankBagSlotPrices.db2",
+        bank_bag_slot_prices_store.len()
+    );
+
     let item_class_store = Arc::new(
         wow_data::ItemClassStore::load(&data_dir, &locale)
             .context("Failed to load ItemClass.db2 — check DataDir and DBC.Locale config")?,
@@ -2553,6 +2563,7 @@ async fn main() -> Result<ExitCode> {
         world_db: Some(Arc::clone(&world_db)),
         guid_generator: Some(Arc::clone(&guid_generator)),
         instance_lock_mgr: Some(Arc::clone(&instance_lock_mgr)),
+        bank_bag_slot_prices_store: Some(Arc::clone(&bank_bag_slot_prices_store)),
         currency_types_store: Some(Arc::clone(&currency_types_store)),
         import_price_stores: Some(Arc::clone(&import_price_stores)),
         ip_location_store: Some(Arc::clone(&ip_location_store)),
@@ -8574,6 +8585,9 @@ async fn create_session(
     }
     if let Some(ref db) = resources.world_db {
         session.set_world_db(Arc::clone(db));
+    }
+    if let Some(ref store) = resources.bank_bag_slot_prices_store {
+        session.set_bank_bag_slot_prices_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.currency_types_store {
         session.set_currency_types_store(Arc::clone(store));

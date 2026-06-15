@@ -77,6 +77,24 @@ impl ClientPacket for FarSight {
     }
 }
 
+// ── Bank (CMSG 0x34B4) ─────────────────────────────────────────────
+
+/// C++ `WorldPackets::Bank::BuyBankSlot`: a single banker `ObjectGuid`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BuyBankSlot {
+    pub guid: ObjectGuid,
+}
+
+impl ClientPacket for BuyBankSlot {
+    const OPCODE: ClientOpcodes = ClientOpcodes::BuyBankSlot;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            guid: pkt.read_guid()?,
+        })
+    }
+}
+
 // ── BugReport (CMSG 0x3687) ───────────────────────────────────────
 
 /// C++ `WorldPackets::Ticket::BugReport`.
@@ -9442,6 +9460,18 @@ mod tests {
             let far_sight = FarSight::read(&mut pkt).unwrap();
             assert_eq!(far_sight.enable, enable);
         }
+    }
+
+    #[test]
+    fn buy_bank_slot_reads_full_guid_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 12, 34);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_guid(&guid);
+        pkt.reset_read();
+
+        let buy = BuyBankSlot::read(&mut pkt).unwrap();
+        assert_eq!(buy.guid, guid);
+        assert_eq!(pkt.remaining(), 0);
     }
 
     #[test]

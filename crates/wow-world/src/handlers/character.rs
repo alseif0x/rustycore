@@ -492,6 +492,15 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
+        opcode: ClientOpcodes::BuyBankSlot,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_buy_bank_slot",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
         opcode: ClientOpcodes::BinderActivate,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
@@ -2913,6 +2922,7 @@ impl WorldSession {
         self.total_played_time = result.try_read::<u32>(23).unwrap_or(0);
         self.level_played_time = result.try_read::<u32>(24).unwrap_or(0);
         self.set_player_gold_like_cpp(result.try_read::<u64>(8).unwrap_or(0));
+        self.set_player_bank_bag_slot_count_like_cpp(result.try_read::<u8>(10).unwrap_or(0));
         self.set_player_xp_like_cpp(result.try_read::<u32>(7).unwrap_or(0));
         self.set_player_guid(Some(guid));
         self.set_loaded_player_identity_like_cpp(map_id as u16, race, class, level, gender);
@@ -6159,6 +6169,64 @@ impl WorldSession {
             hello.unit, self.account_id
         );
         self.send_packet(&NpcInteractionOpenResult::new(hello.unit, 8)); // Banker
+    }
+
+    /// CMSG_BUY_BANK_SLOT — player buys the next personal bank bag slot.
+    ///
+    /// C++ ref: `WorldSession::HandleBuyBankSlotOpcode`.
+    pub async fn handle_buy_bank_slot(&mut self, buy: BuyBankSlot) {
+        let Some(_player_guid) = self.player_guid() else {
+            return;
+        };
+        let Some(_banker) =
+            self.represented_npc_can_interact_with_like_cpp(buy.guid, NPCFlags1::BANKER.bits(), 0)
+        else {
+            debug!(
+                banker_guid = ?buy.guid,
+                account = self.account_id,
+                "BuyBankSlot rejected: NPC missing, out of range, dead, or lacks BANKER flag"
+            );
+            return;
+        };
+
+        let next_slot = u32::from(self.player_bank_bag_slot_count_like_cpp()) + 1;
+        let Some(price) = self.bank_bag_slot_price_like_cpp(next_slot) else {
+            debug!(
+                next_slot,
+                account = self.account_id,
+                "BuyBankSlot rejected: missing BankBagSlotPrices.db2 row"
+            );
+            return;
+        };
+
+        let old_money = self.player_gold_like_cpp();
+        if old_money < u64::from(price) {
+            debug!(
+                next_slot,
+                price,
+                old_money,
+                account = self.account_id,
+                "BuyBankSlot rejected: not enough money"
+            );
+            return;
+        }
+
+        let new_count = u8::try_from(next_slot).unwrap_or(u8::MAX);
+        let new_money = old_money - u64::from(price);
+        self.send_player_bank_bag_slots_update_like_cpp(new_count);
+        if let Some(player_guid) = self.player_guid() {
+            self.send_packet(&UpdateObject::player_money_update(
+                player_guid,
+                self.player_map_id_like_cpp(),
+                new_money,
+                None,
+            ));
+        }
+        self.set_player_bank_bag_slot_count_like_cpp(new_count);
+        self.apply_player_money_change_like_cpp(old_money, new_money)
+            .await;
+        self.sync_object_accessor_player();
+        self.sync_player_registry_state_like_cpp();
     }
 
     /// CMSG_BINDER_ACTIVATE — player sets hearthstone at innkeeper.
@@ -11388,6 +11456,38 @@ mod tests {
         (session, send_rx, canonical)
     }
 
+    fn make_bank_slot_session(
+        capacity: usize,
+    ) -> (
+        WorldSession,
+        flume::Receiver<Vec<u8>>,
+        Arc<std::sync::Mutex<wow_map::MapManager>>,
+    ) {
+        let (mut session, send_rx) = make_session_with_send_capacity(capacity);
+        let canonical = Arc::new(std::sync::Mutex::new(wow_map::MapManager::new(60_000, 10)));
+        let player_guid = ObjectGuid::create_player(1, 42);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(crate::session::SessionPlayerController::new(
+            player_guid,
+            "Tester".to_string(),
+            Position::new(0.0, 0.0, 0.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_bank_bag_slot_prices_store(Arc::new(
+            wow_data::BankBagSlotPricesStore::from_entries([
+                wow_data::BankBagSlotPricesEntry { id: 1, cost: 100 },
+                wow_data::BankBagSlotPricesEntry { id: 2, cost: 200 },
+            ]),
+        ));
+        session.set_player_gold_like_cpp(150);
+        session.set_player_bank_bag_slot_count_like_cpp(0);
+        (session, send_rx, canonical)
+    }
+
     fn make_hearth_and_resurrect_session(
         area_flags: u32,
     ) -> (WorldSession, flume::Receiver<Vec<u8>>) {
@@ -11639,6 +11739,57 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn buy_bank_slot_buys_next_slot_and_spends_money_like_cpp() {
+        let (mut session, send_rx, canonical) = make_bank_slot_session(4);
+        let banker = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 1);
+        insert_banker_creature(&canonical, banker, NPCFlags1::BANKER.bits());
+
+        session
+            .handle_buy_bank_slot(BuyBankSlot { guid: banker })
+            .await;
+
+        assert_eq!(session.player_bank_bag_slot_count_like_cpp(), 1);
+        assert_eq!(session.player_gold_like_cpp(), 50);
+        assert!(
+            send_rx.try_recv().is_ok(),
+            "bank slot update should be sent"
+        );
+        assert!(send_rx.try_recv().is_ok(), "money update should be sent");
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn buy_bank_slot_rejects_non_banker_like_cpp() {
+        let (mut session, send_rx, canonical) = make_bank_slot_session(1);
+        let creature = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 2);
+        insert_banker_creature(&canonical, creature, NPCFlags1::QUEST_GIVER.bits());
+
+        session
+            .handle_buy_bank_slot(BuyBankSlot { guid: creature })
+            .await;
+
+        assert_eq!(session.player_bank_bag_slot_count_like_cpp(), 0);
+        assert_eq!(session.player_gold_like_cpp(), 150);
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn buy_bank_slot_rejects_missing_price_like_cpp() {
+        let (mut session, send_rx, canonical) = make_bank_slot_session(1);
+        let banker = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 3);
+        insert_banker_creature(&canonical, banker, NPCFlags1::BANKER.bits());
+        session.set_player_bank_bag_slot_count_like_cpp(2);
+
+        session
+            .handle_buy_bank_slot(BuyBankSlot { guid: banker })
+            .await;
+
+        assert_eq!(session.player_bank_bag_slot_count_like_cpp(), 2);
+        assert_eq!(session.player_gold_like_cpp(), 150);
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
     async fn opening_cinematic_requires_zero_xp_and_prefers_class_like_cpp() {
         let (mut session, send_rx) = make_session_with_send_capacity(4);
         session.set_loaded_player_identity_like_cpp(571, 1, 8, 1, 0);
@@ -11825,6 +11976,37 @@ mod tests {
         creature.unit_mut().set_health(100);
         creature.set_ai_identity_runtime(1, 35, npc_flags, 0);
         creature.set_npc_flags2_runtime_like_cpp(npc_flags2);
+        creature.unit_mut().world_mut().object_mut().add_to_world();
+
+        manager
+            .lock()
+            .unwrap()
+            .create_world_map(571, 0)
+            .map_mut()
+            .insert_map_object_record(
+                wow_entities::MapObjectRecord::new_creature(creature).unwrap(),
+            )
+            .unwrap();
+    }
+
+    fn insert_banker_creature(
+        manager: &Arc<std::sync::Mutex<wow_map::MapManager>>,
+        guid: ObjectGuid,
+        npc_flags: u32,
+    ) {
+        let mut creature = wow_entities::Creature::new(false);
+        creature.unit_mut().world_mut().object_mut().create(guid);
+        creature.unit_mut().world_mut().object_mut().set_entry(2456);
+        creature.unit_mut().world_mut().set_map(571, 0).unwrap();
+        creature
+            .unit_mut()
+            .world_mut()
+            .relocate(Position::new(5.0, 0.0, 0.0, 0.0));
+        creature.unit_mut().world_mut().set_combat_reach(1.0);
+        creature.unit_mut().set_level(80);
+        creature.unit_mut().set_max_health(100);
+        creature.unit_mut().set_health(100);
+        creature.set_ai_identity_runtime(1, 35, npc_flags, 0);
         creature.unit_mut().world_mut().object_mut().add_to_world();
 
         manager
