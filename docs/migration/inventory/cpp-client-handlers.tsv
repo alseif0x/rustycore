@@ -662,7 +662,7 @@ cpp_line	cpp_opcode	cpp_value	cpp_status	cpp_processing	cpp_handler	cpp_handler_
 799	CMSG_RAF_GENERATE_RECRUITMENT_LINK	0xBADD	STATUS_UNHANDLED	PROCESS_THREADUNSAFE	Handle_NULL	game/Server/WorldSession.cpp	803	server.md	-	no	-	-	-	-	missing_rust_opcode_constant,cpp_unhandled_null
 800	CMSG_RAF_UPDATE_RECRUITMENT_INFO	0xBADD	STATUS_UNHANDLED	PROCESS_THREADUNSAFE	Handle_NULL	game/Server/WorldSession.cpp	803	server.md	-	no	-	-	-	-	missing_rust_opcode_constant,cpp_unhandled_null
 801	CMSG_RANDOM_ROLL	0x3657	STATUS_LOGGEDIN	PROCESS_THREADUNSAFE	HandleRandomRollOpcode	game/Handlers/GroupHandler.cpp	414	handlers.md	RandomRoll	no	-	-	-	-	missing_rust_dispatch
-802	CMSG_READY_CHECK_RESPONSE	0x3636	STATUS_LOGGEDIN	PROCESS_INPLACE	HandleReadyCheckResponseOpcode	game/Handlers/GroupHandler.cpp	568	handlers.md	ReadyCheckResponse	no	-	-	-	-	missing_rust_dispatch
+802	CMSG_READY_CHECK_RESPONSE	0x3636	STATUS_LOGGEDIN	PROCESS_INPLACE	HandleReadyCheckResponseOpcode	game/Handlers/GroupHandler.cpp	568	handlers.md	ReadyCheckResponse	yes	crates/wow-packet/src/packets/party.rs	crates/wow-world/src/handlers/group.rs	crates/wow-world/src/session.rs	#NEXT.R8.ENTITIES.904	represented_partial
 803	CMSG_READ_ITEM	0x32C7	STATUS_LOGGEDIN	PROCESS_INPLACE	HandleReadItem	game/Handlers/ItemHandler.cpp	334	handlers.md	ReadItem	no	-	-	-	-	missing_rust_dispatch
 804	CMSG_RECLAIM_CORPSE	0x34DB	STATUS_LOGGEDIN	PROCESS_THREADUNSAFE	HandleReclaimCorpse	game/Handlers/MiscHandler.cpp	422	handlers.md	ReclaimCorpse	no	-	-	-	-	missing_rust_dispatch
 805	CMSG_REMOVE_GLYPH	0x3300	STATUS_LOGGEDIN	PROCESS_THREADUNSAFE	HandleRemoveGlyphOpcode	game/Handlers/SkillHandler.cpp	100	handlers.md	RemoveGlyph	no	-	-	-	-	missing_rust_dispatch

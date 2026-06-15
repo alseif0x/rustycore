@@ -2218,9 +2218,10 @@ mod tests {
     };
     use flume::bounded;
     use std::sync::Arc;
-    use wow_constants::ServerOpcodes;
+    use wow_constants::{ClientOpcodes, ServerOpcodes};
     use wow_core::{ObjectGuid, Position};
     use wow_database::{CharStatements, SqlParam, StatementDef};
+    use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
     use wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP;
     use wow_network::{
         GroupInfo, GroupMemberCharacterLikeCpp, GroupRegistry, PendingInvites, PlayerBroadcastInfo,
@@ -2803,6 +2804,18 @@ mod tests {
         assert!(sender_can_start_ready_check_like_cpp(&group, leader));
         assert!(sender_can_start_ready_check_like_cpp(&group, assistant));
         assert!(!sender_can_start_ready_check_like_cpp(&group, member));
+    }
+
+    #[test]
+    fn ready_check_response_dispatch_metadata_matches_cpp() {
+        let entry = inventory::iter::<PacketHandlerEntry>
+            .into_iter()
+            .find(|entry| entry.opcode == ClientOpcodes::ReadyCheckResponse)
+            .expect("ReadyCheckResponse handler entry");
+
+        assert_eq!(entry.status, SessionStatus::LoggedIn);
+        assert_eq!(entry.processing, PacketProcessing::Inplace);
+        assert_eq!(entry.handler_name, "handle_ready_check_response");
     }
 
     #[test]
