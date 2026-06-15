@@ -63,17 +63,17 @@ use wow_packet::packets::misc::{
     ClearTradeItem, CloseInteraction, CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint,
     ComplaintResult, DeclineGuildInvites, DeclinePetition, DfGetJoinStatus, DfGetSystemInfo,
     DuelResponse, ERR_TAXITOOFARAWAY_LIKE_CPP, FarSight, GmTicketAcknowledgeSurvey,
-    GmTicketCaseStatus, GmTicketSystemStatus, GuildSetAchievementTracking, IgnoreTrade,
-    LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify,
-    MAX_ACCOUNT_DATA_SIZE_LIKE_CPP, MountSetFavorite, MountSpecial, NUM_ACCOUNT_DATA_TYPES,
-    ObjectUpdateFailed, ObjectUpdateRescued, QueryArenaTeam, QueryBattlePetName,
-    QueryBattlePetNameResponse, QueryPetition, QueryPetitionResponse, RatedPvpInfo, ReclaimCorpse,
-    RepopRequest, RequestAccountData, RequestBattlefieldStatus, RequestCemeteryListResponse,
-    ResurrectResponse, SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags,
-    SetDifficultyId, SetDungeonDifficulty, SetPvp, SetRaidDifficulty, SetTaxiBenchmarkMode,
-    SetTradeGold, SetTradeItem, SetTradeSpell, SignPetition, SpecialMountAnim, StandStateChange,
-    SubmitUserFeedback, SupportTicketSubmitBug, SupportTicketSubmitComplaint,
-    SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
+    GmTicketCaseStatus, GmTicketSystemStatus, GuildBankActivate, GuildCommandResult,
+    GuildSetAchievementTracking, IgnoreTrade, LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus,
+    LoadingScreenNotify, MAX_ACCOUNT_DATA_SIZE_LIKE_CPP, MountSetFavorite, MountSpecial,
+    NUM_ACCOUNT_DATA_TYPES, ObjectUpdateFailed, ObjectUpdateRescued, QueryArenaTeam,
+    QueryBattlePetName, QueryBattlePetNameResponse, QueryPetition, QueryPetitionResponse,
+    RatedPvpInfo, ReclaimCorpse, RepopRequest, RequestAccountData, RequestBattlefieldStatus,
+    RequestCemeteryListResponse, ResurrectResponse, SaveCufProfiles, SetAdvancedCombatLogging,
+    SetCurrencyFlags, SetDifficultyId, SetDungeonDifficulty, SetPvp, SetRaidDifficulty,
+    SetTaxiBenchmarkMode, SetTradeGold, SetTradeItem, SetTradeSpell, SignPetition,
+    SpecialMountAnim, StandStateChange, SubmitUserFeedback, SupportTicketSubmitBug,
+    SupportTicketSubmitComplaint, SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
     TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP, TaxiNodeStatusPkt, ToggleDifficulty, TogglePvp,
     ToyClearFanfare, UnacceptTrade, UpdateAccountData, UseToy, UserClientUpdateAccountData,
     ViolenceLevel, compress_account_data_like_cpp, decompress_account_data_like_cpp,
@@ -1101,6 +1101,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_guild_bank_remaining_withdraw_money_query",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::GuildBankActivate,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_guild_bank_activate",
     }
 }
 
@@ -3886,6 +3895,37 @@ impl crate::session::WorldSession {
         // yet, so the no-guild branch is correctly silent.
     }
 
+    /// CMSG_GUILD_BANK_ACTIVATE — click a guild-bank GameObject.
+    ///
+    /// C++ ref: `WorldSession::HandleGuildBankActivate`.
+    pub async fn handle_guild_bank_activate(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let packet = match GuildBankActivate::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "GuildBankActivate parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        if self
+            .represented_guild_bank_gameobject_can_interact_like_cpp(packet.banker)
+            .is_none()
+        {
+            return;
+        }
+
+        if self.represented_guild_id_like_cpp() == 0 {
+            self.send_packet(&GuildCommandResult::player_not_in_guild_view_tab_like_cpp());
+            return;
+        }
+
+        let _accepted =
+            self.record_guild_bank_list_request_like_cpp(packet.banker, packet.full_update);
+    }
+
     /// CMSG_AUTO_GUILD_BANK_ITEM — move from player inventory into a guild-bank slot.
     ///
     /// C++ ref: `WorldSession::HandleAutoGuildBankItem`.
@@ -5983,6 +6023,15 @@ mod tests {
         if let Some(container_slot) = container_slot {
             pkt.write_uint8(container_slot);
         }
+        pkt.reset_read();
+        pkt
+    }
+
+    fn guild_bank_activate_packet(banker: ObjectGuid, full_update: bool) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_guid(&banker);
+        pkt.write_bit(full_update);
+        pkt.flush_bits();
         pkt.reset_read();
         pkt
     }
@@ -12674,6 +12723,78 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn guild_bank_activate_without_banker_is_silent_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let banker = ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 14);
+
+        session
+            .handle_guild_bank_activate(guild_bank_activate_packet(banker, true))
+            .await;
+
+        assert!(
+            session
+                .represented_guild_bank_list_requests_like_cpp()
+                .is_empty()
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn guild_bank_activate_without_guild_sends_view_tab_error_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let banker = ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 15);
+        install_represented_guild_bank_like_cpp(&mut session, banker, 0);
+
+        session
+            .handle_guild_bank_activate(guild_bank_activate_packet(banker, true))
+            .await;
+
+        assert!(
+            session
+                .represented_guild_bank_list_requests_like_cpp()
+                .is_empty()
+        );
+        let bytes = send_rx.try_recv().unwrap();
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            wow_constants::ServerOpcodes::GuildCommandResult as u16
+        );
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(
+            pkt.read_int32().unwrap(),
+            GuildCommandResult::ERR_PLAYER_NOT_IN_GUILD_LIKE_CPP
+        );
+        assert_eq!(
+            pkt.read_int32().unwrap(),
+            GuildCommandResult::COMMAND_VIEW_TAB_LIKE_CPP
+        );
+        assert_eq!(pkt.read_bits(8).unwrap(), 0);
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[tokio::test]
+    async fn guild_bank_activate_records_represented_bank_list_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let banker = ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 16);
+        install_represented_guild_bank_like_cpp(&mut session, banker, 42);
+
+        session
+            .handle_guild_bank_activate(guild_bank_activate_packet(banker, true))
+            .await;
+
+        assert_eq!(
+            session.represented_guild_bank_list_requests_like_cpp(),
+            &[crate::session::RepresentedGuildBankListRequestLikeCpp {
+                banker,
+                guild_id: 42,
+                tab: 0,
+                full_update: true,
+            }]
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
     async fn auto_guild_bank_item_records_represented_swap_with_inventory_like_cpp() {
         let (mut session, send_rx) = make_session();
         let banker = ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 12);
@@ -12733,6 +12854,14 @@ mod tests {
 
     #[test]
     fn guild_bank_inventory_move_handler_metadata_matches_cpp() {
+        let activate = inventory::iter::<PacketHandlerEntry>
+            .into_iter()
+            .find(|entry| entry.opcode == ClientOpcodes::GuildBankActivate)
+            .expect("GuildBankActivate handler entry");
+        assert_eq!(activate.status, SessionStatus::LoggedIn);
+        assert_eq!(activate.processing, PacketProcessing::ThreadUnsafe);
+        assert_eq!(activate.handler_name, "handle_guild_bank_activate");
+
         let auto_guild = inventory::iter::<PacketHandlerEntry>
             .into_iter()
             .find(|entry| entry.opcode == ClientOpcodes::AutoGuildBankItem)

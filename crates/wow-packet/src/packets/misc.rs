@@ -158,6 +158,57 @@ impl ClientPacket for AutoStoreBankItem {
 
 // ── Guild Bank ─────────────────────────────────────────────────────
 
+/// C++ `WorldPackets::Guild::GuildBankActivate`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GuildBankActivate {
+    pub banker: ObjectGuid,
+    pub full_update: bool,
+}
+
+impl ClientPacket for GuildBankActivate {
+    const OPCODE: ClientOpcodes = ClientOpcodes::GuildBankActivate;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            banker: pkt.read_guid()?,
+            full_update: pkt.read_bit()?,
+        })
+    }
+}
+
+/// C++ `WorldPackets::Guild::GuildCommandResult`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GuildCommandResult {
+    pub name: String,
+    pub result: i32,
+    pub command: i32,
+}
+
+impl GuildCommandResult {
+    pub const COMMAND_VIEW_TAB_LIKE_CPP: i32 = 21;
+    pub const ERR_PLAYER_NOT_IN_GUILD_LIKE_CPP: i32 = 9;
+
+    pub fn player_not_in_guild_view_tab_like_cpp() -> Self {
+        Self {
+            name: String::new(),
+            result: Self::ERR_PLAYER_NOT_IN_GUILD_LIKE_CPP,
+            command: Self::COMMAND_VIEW_TAB_LIKE_CPP,
+        }
+    }
+}
+
+impl ServerPacket for GuildCommandResult {
+    const OPCODE: ServerOpcodes = ServerOpcodes::GuildCommandResult;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_int32(self.result);
+        pkt.write_int32(self.command);
+        pkt.write_bits(self.name.len() as u32, 8);
+        pkt.flush_bits();
+        pkt.write_string(&self.name);
+    }
+}
+
 /// C++ `WorldPackets::Guild::AutoGuildBankItem`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AutoGuildBankItem {
@@ -11429,6 +11480,43 @@ mod tests {
         assert_eq!(packet.inv_update.items, vec![(255, 39)]);
         assert_eq!(packet.bag, 255);
         assert_eq!(packet.slot, 39);
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn guild_bank_activate_reads_guid_then_full_update_bit_like_cpp() {
+        let banker = ObjectGuid::new(0x0102_0304_0506_0708_i64, 0x1112_1314_1516_1718_i64);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_guid(&banker);
+        pkt.write_bit(true);
+        pkt.flush_bits();
+        pkt.reset_read();
+
+        let parsed = GuildBankActivate::read(&mut pkt).unwrap();
+
+        assert_eq!(parsed.banker, banker);
+        assert!(parsed.full_update);
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn guild_command_result_player_not_in_guild_view_tab_matches_cpp_shape() {
+        let bytes = GuildCommandResult::player_not_in_guild_view_tab_like_cpp().to_bytes();
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::GuildCommandResult as u16
+        );
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+
+        assert_eq!(
+            pkt.read_int32().unwrap(),
+            GuildCommandResult::ERR_PLAYER_NOT_IN_GUILD_LIKE_CPP
+        );
+        assert_eq!(
+            pkt.read_int32().unwrap(),
+            GuildCommandResult::COMMAND_VIEW_TAB_LIKE_CPP
+        );
+        assert_eq!(pkt.read_bits(8).unwrap(), 0);
         assert_eq!(pkt.remaining(), 0);
     }
 

@@ -1480,6 +1480,14 @@ pub(crate) struct RepresentedGuildBankInventoryMoveLikeCpp {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedGuildBankListRequestLikeCpp {
+    pub banker: ObjectGuid,
+    pub guild_id: u64,
+    pub tab: u8,
+    pub full_update: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedAuctionReplicateRequestLikeCpp {
     pub auctioneer: ObjectGuid,
     pub change_number_global: u32,
@@ -3171,6 +3179,7 @@ pub struct WorldSession {
     represented_current_banker_guid_like_cpp: Option<ObjectGuid>,
     represented_bank_item_moves_like_cpp: Vec<RepresentedBankItemMoveLikeCpp>,
     represented_guild_bank_inventory_moves_like_cpp: Vec<RepresentedGuildBankInventoryMoveLikeCpp>,
+    represented_guild_bank_list_requests_like_cpp: Vec<RepresentedGuildBankListRequestLikeCpp>,
     represented_auction_replicate_requests_like_cpp: Vec<RepresentedAuctionReplicateRequestLikeCpp>,
     represented_auction_place_bids_like_cpp: Vec<RepresentedAuctionPlaceBidLikeCpp>,
     represented_auction_remove_items_like_cpp: Vec<RepresentedAuctionRemoveItemLikeCpp>,
@@ -4611,6 +4620,7 @@ impl WorldSession {
             represented_current_banker_guid_like_cpp: None,
             represented_bank_item_moves_like_cpp: Vec::new(),
             represented_guild_bank_inventory_moves_like_cpp: Vec::new(),
+            represented_guild_bank_list_requests_like_cpp: Vec::new(),
             represented_auction_replicate_requests_like_cpp: Vec::new(),
             represented_auction_place_bids_like_cpp: Vec::new(),
             represented_auction_remove_items_like_cpp: Vec::new(),
@@ -20351,6 +20361,9 @@ impl WorldSession {
                 self.handle_guild_bank_remaining_withdraw_money_query(pkt)
                     .await;
             }
+            ClientOpcodes::GuildBankActivate => {
+                self.handle_guild_bank_activate(pkt).await;
+            }
             ClientOpcodes::AutoGuildBankItem => {
                 self.handle_auto_guild_bank_item(pkt).await;
             }
@@ -21719,18 +21732,41 @@ impl WorldSession {
         &self,
         banker: ObjectGuid,
     ) -> Option<u64> {
+        self.represented_guild_bank_gameobject_can_interact_like_cpp(banker)?;
         let guild_id = self.represented_guild_id_like_cpp;
-        if guild_id == 0 {
-            return None;
-        }
+        (guild_id != 0).then_some(guild_id)
+    }
 
+    pub(crate) fn represented_guild_bank_gameobject_can_interact_like_cpp(
+        &self,
+        banker: ObjectGuid,
+    ) -> Option<()> {
         let state = self.represented_gameobject_use_states.get(&banker)?;
         if state.go_type.map(u32::from) != Some(GAMEOBJECT_TYPE_GUILD_BANK) {
             return None;
         }
 
         self.represented_gameobject_can_interact_with_like_cpp(banker, 10.0)
-            .map(|_| guild_id)
+            .map(|_| ())
+    }
+
+    pub(crate) fn record_guild_bank_list_request_like_cpp(
+        &mut self,
+        banker: ObjectGuid,
+        full_update: bool,
+    ) -> bool {
+        let Some(guild_id) = self.represented_guild_bank_can_interact_like_cpp(banker) else {
+            return false;
+        };
+        self.represented_guild_bank_list_requests_like_cpp.push(
+            RepresentedGuildBankListRequestLikeCpp {
+                banker,
+                guild_id,
+                tab: 0,
+                full_update,
+            },
+        );
+        true
     }
 
     pub(crate) fn guild_bank_inventory_move_like_cpp(
@@ -21774,6 +21810,13 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedGuildBankInventoryMoveLikeCpp] {
         &self.represented_guild_bank_inventory_moves_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_guild_bank_list_requests_like_cpp(
+        &self,
+    ) -> &[RepresentedGuildBankListRequestLikeCpp] {
+        &self.represented_guild_bank_list_requests_like_cpp
     }
 
     pub(crate) fn record_represented_auction_replicate_request_like_cpp(
@@ -23628,6 +23671,10 @@ impl WorldSession {
 
     pub(crate) fn set_represented_guild_id_like_cpp(&mut self, guild_id: u64) {
         self.represented_guild_id_like_cpp = guild_id;
+    }
+
+    pub(crate) fn represented_guild_id_like_cpp(&self) -> u64 {
+        self.represented_guild_id_like_cpp
     }
 
     pub(crate) fn calendar_community_invite_like_cpp(
