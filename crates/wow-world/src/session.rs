@@ -452,6 +452,12 @@ pub(crate) struct RepresentedConfirmBarbersChoiceLikeCpp {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedConfirmRespecWipeLikeCpp {
+    pub respec_master: ObjectGuid,
+    pub respec_type: u8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedAdventureMapStartQuestLikeCpp {
     pub quest_id: u32,
     pub adventure_map_poi_id: u32,
@@ -3214,6 +3220,8 @@ pub struct WorldSession {
     /// Represented accepted barber confirmation requests until Player::SetCustomizations is canonical.
     represented_confirm_barbers_choice_requests_like_cpp:
         Vec<RepresentedConfirmBarbersChoiceLikeCpp>,
+    /// Represented accepted talent-respec wipe requests until Player::ResetTalents is canonical.
+    represented_confirm_respec_wipe_requests_like_cpp: Vec<RepresentedConfirmRespecWipeLikeCpp>,
     /// C++ `Player::_equipmentSets`, represented until DB-backed save/load is canonical.
     represented_equipment_sets_like_cpp: BTreeMap<u64, RepresentedEquipmentSetLikeCpp>,
     /// Represented stand-in for `ObjectMgr::GenerateEquipmentSetGuid`.
@@ -4524,6 +4532,7 @@ impl WorldSession {
             represented_activate_taxi_requests_like_cpp: Vec::new(),
             represented_alter_appearance_requests_like_cpp: Vec::new(),
             represented_confirm_barbers_choice_requests_like_cpp: Vec::new(),
+            represented_confirm_respec_wipe_requests_like_cpp: Vec::new(),
             represented_equipment_sets_like_cpp: BTreeMap::new(),
             represented_next_equipment_set_guid_like_cpp: 1,
             represented_adventure_map_start_quest_requests_like_cpp: Vec::new(),
@@ -19159,6 +19168,9 @@ impl WorldSession {
             ClientOpcodes::ConfirmBarbersChoice => {
                 self.handle_confirm_barbers_choice(pkt).await;
             }
+            ClientOpcodes::ConfirmRespecWipe => {
+                self.handle_confirm_respec_wipe(pkt).await;
+            }
             ClientOpcodes::SetPlayerDeclinedNames => {
                 self.handle_set_player_declined_names(pkt).await;
             }
@@ -29000,6 +29012,21 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedConfirmBarbersChoiceLikeCpp] {
         &self.represented_confirm_barbers_choice_requests_like_cpp
+    }
+
+    pub(crate) fn record_represented_confirm_respec_wipe_like_cpp(
+        &mut self,
+        request: RepresentedConfirmRespecWipeLikeCpp,
+    ) {
+        self.represented_confirm_respec_wipe_requests_like_cpp
+            .push(request);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_confirm_respec_wipe_requests_like_cpp(
+        &self,
+    ) -> &[RepresentedConfirmRespecWipeLikeCpp] {
+        &self.represented_confirm_respec_wipe_requests_like_cpp
     }
 
     pub(crate) fn record_represented_adventure_map_start_quest_like_cpp(

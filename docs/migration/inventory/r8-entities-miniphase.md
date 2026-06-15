@@ -1,3 +1,13 @@
+# `#NEXT.R8.ENTITIES.957` — represented `CMSG_CONFIRM_RESPEC_WIPE` dispatch.
+
+Source-of-truth C++ was re-checked before code changes: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SkillHandler.cpp:54-82` (`WorldSession::HandleConfirmRespecWipeOpcode`), `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TalentPackets.cpp:114-127` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TalentPackets.h:71-92` (confirm/request packet shapes), `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:386` for `LoggedIn`/`ThreadUnsafe` metadata, `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:206-213` for `SpecResetType`, and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Creature/Creature.cpp:1311-1315` for `Creature::CanResetTalents`.
+
+Rust now parses `CMSG_CONFIRM_RESPEC_WIPE` as the C++ full `RespecMaster` GUID plus `uint8 RespecType`, registers `LoggedIn`/`ThreadUnsafe` dispatch, rejects non-`SPEC_RESET_TALENTS` like C++, requires an interactable represented trainer NPC, applies the represented level `>= 15` part of `CanResetTalents`, records accepted talent-reset wipe requests, and sends no direct response packet.
+
+Checks: `cargo fmt --all --check`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-packet confirm_respec --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world confirm_respec --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world dispatch_metadata_matches_cpp_for_registered_active_opcodes -- --nocapture`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p wow-packet -p wow-world`; `git diff --check`; TSV 9/16/11-column checks.
+
+Boundaries: represented-partial only. Trainer class matching against `CreatureTemplate::trainer_class` is not represented, and this does not implement real `Player::ResetTalents`, money/cost mutation, fake-death aura removal, `SendTalentsInfoData`, visual spell `14867`, persistence, install/restart, bot, or live-client/manual validation.
+
 # `#NEXT.R8.ENTITIES.956` — represented `CMSG_CONFIRM_BARBERS_CHOICE` dispatch.
 
 Source-of-truth C++ was re-checked before code changes: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CharacterHandler.cpp:2865-2895` (`WorldSession::HandleConfirmBarbersChoice`), `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/CharacterPackets.cpp:599-610` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/CharacterPackets.h:657-670` (request packet shape), plus `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:385` for `LoggedIn`/`ThreadUnsafe` metadata.
