@@ -12283,6 +12283,7 @@ impl WorldSession {
             | ClientOpcodes::CalendarInvite
             | ClientOpcodes::CalendarEventSignUp
             | ClientOpcodes::CalendarRsvp
+            | ClientOpcodes::CalendarStatus
             | ClientOpcodes::CalendarModeratorStatus
             | ClientOpcodes::CalendarRemoveInvite
             | ClientOpcodes::SetLootMethod
@@ -20391,6 +20392,12 @@ impl WorldSession {
                 match wow_packet::packets::misc::CalendarRsvp::read(&mut pkt) {
                     Ok(query) => self.handle_calendar_rsvp(query).await,
                     Err(e) => warn!("Failed to read CalendarRsvp: {e}"),
+                }
+            }
+            ClientOpcodes::CalendarStatus => {
+                match wow_packet::packets::misc::CalendarStatus::read(&mut pkt) {
+                    Ok(query) => self.handle_calendar_status(query).await,
+                    Err(e) => warn!("Failed to read CalendarStatus: {e}"),
                 }
             }
             ClientOpcodes::CloseInteraction => {
@@ -62545,6 +62552,7 @@ mod tests {
             ClientOpcodes::CalendarInvite,
             ClientOpcodes::CalendarEventSignUp,
             ClientOpcodes::CalendarRsvp,
+            ClientOpcodes::CalendarStatus,
             ClientOpcodes::CalendarModeratorStatus,
             ClientOpcodes::CalendarRemoveInvite,
             ClientOpcodes::SetLootMethod,
