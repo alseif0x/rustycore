@@ -2948,6 +2948,26 @@ impl WorldSession {
             result.try_read::<u32>(67).unwrap_or(0),
             result.try_read::<u32>(68).unwrap_or(0),
         );
+        self.group_guid = None;
+        {
+            let mut group_stmt = char_db.prepare(CharStatements::SEL_GROUP_MEMBER);
+            group_stmt.set_u32(0, guid.counter() as u32);
+            match char_db.query(&group_stmt).await {
+                Ok(group_result) => {
+                    if !group_result.is_empty() {
+                        let db_store_id: u32 = group_result.read(0);
+                        let _ = self.load_represented_group_by_db_store_id_like_cpp(db_store_id);
+                    }
+                }
+                Err(error) => {
+                    warn!(
+                        player_guid = guid.counter(),
+                        %error,
+                        "failed to load represented group membership"
+                    );
+                }
+            }
+        }
         self.refresh_next_level_xp();
         if self.ensure_login_player_controller_like_cpp(
             guid,

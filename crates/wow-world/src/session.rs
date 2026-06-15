@@ -130,7 +130,7 @@ use wow_network::{
     GameEventQuestCompleteClientOutcomeLikeCpp, GameEventQuestCompleteCommandLikeCpp,
     GroupRegistry, KickLikeCppCommand, LootDropRatesLikeCpp, PacketSpoofConfigLikeCpp,
     PendingInvites, PlayerBroadcastInfo, PlayerRegistry, ReputationRatesLikeCpp, SessionCommand,
-    SocketTimeoutsLikeCpp,
+    SocketTimeoutsLikeCpp, group_guid_by_db_store_id_like_cpp,
 };
 use wow_packet::packets::item::{
     InventoryChangeFailure, ItemEnchantTimeUpdate, ItemInstance, ItemMod, ItemModList,
@@ -14120,6 +14120,30 @@ impl WorldSession {
         self.represented_raid_difficulty_id_like_cpp = group.raid_difficulty_id;
         self.represented_legacy_raid_difficulty_id_like_cpp = group.legacy_raid_difficulty_id;
         true
+    }
+
+    /// C++ `Player::_LoadGroup` resolves `CHAR_SEL_GROUP_MEMBER.guid` through
+    /// `sGroupMgr->GetGroupByDbStoreId` before attaching the player to the
+    /// already-loaded group.
+    pub(crate) fn load_represented_group_by_db_store_id_like_cpp(
+        &mut self,
+        db_store_id: u32,
+    ) -> bool {
+        let Some(group_registry) = self.group_registry.as_ref() else {
+            self.group_guid = None;
+            return false;
+        };
+        let Some(group_guid) = group_guid_by_db_store_id_like_cpp(db_store_id) else {
+            self.group_guid = None;
+            return false;
+        };
+        if !group_registry.contains_key(&group_guid) {
+            self.group_guid = None;
+            return false;
+        }
+
+        self.group_guid = Some(group_guid);
+        self.load_represented_group_difficulties_like_cpp()
     }
 
     pub(crate) fn represented_dungeon_difficulty_packet_like_cpp(&self) -> DungeonDifficultySet {
@@ -34968,7 +34992,7 @@ mod tests {
         GroupInfo, GroupRegistry, KickLikeCppCommand, PendingInvites, PlayerBroadcastInfo,
         RefreshVisibleWorldCreaturesLikeCppCommand, ResetSeasonalQuestStatusCommand,
         SendIfVisibleLikeCppCommand, SendVisibleObjectValuesUpdateCommand, SessionCommand,
-        WorldSessionShutdownFlushLikeCppCommand,
+        WorldSessionShutdownFlushLikeCppCommand, register_group_db_store_id_like_cpp,
     };
     use wow_packet::ServerPacket;
     use wow_packet::packets::loot::{
@@ -35164,6 +35188,53 @@ mod tests {
         assert_eq!(session.represented_dungeon_difficulty_id_like_cpp(), 2);
         assert_eq!(session.represented_raid_difficulty_id_like_cpp(), 15);
         assert_eq!(session.represented_legacy_raid_difficulty_id_like_cpp(), 4);
+    }
+
+    #[test]
+    fn load_represented_group_by_db_store_id_sets_group_and_difficulties_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let leader = ObjectGuid::create_player(1, 42);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.db_store_id = 80_928;
+        group.dungeon_difficulty_id = 2;
+        group.raid_difficulty_id = 15;
+        group.legacy_raid_difficulty_id = 4;
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+        register_group_db_store_id_like_cpp(80_928, group_guid);
+
+        session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([
+            difficulty_entry(2, MAP_INSTANCE_LIKE_CPP, DifficultyFlags::CAN_SELECT),
+            difficulty_entry(15, MAP_RAID_LIKE_CPP, DifficultyFlags::CAN_SELECT),
+            difficulty_entry(
+                4,
+                MAP_RAID_LIKE_CPP,
+                DifficultyFlags::CAN_SELECT | DifficultyFlags::LEGACY,
+            ),
+        ])));
+        session.load_represented_player_difficulties_like_cpp(1, 14, 3);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+
+        assert!(session.load_represented_group_by_db_store_id_like_cpp(80_928));
+
+        assert_eq!(session.group_guid, Some(group_guid));
+        assert_eq!(session.represented_dungeon_difficulty_id_like_cpp(), 2);
+        assert_eq!(session.represented_raid_difficulty_id_like_cpp(), 15);
+        assert_eq!(session.represented_legacy_raid_difficulty_id_like_cpp(), 4);
+    }
+
+    #[test]
+    fn load_represented_group_by_db_store_id_clears_missing_group_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.group_guid = Some(123);
+        session.set_group_registry(
+            Arc::new(GroupRegistry::default()),
+            Arc::new(PendingInvites::default()),
+        );
+
+        assert!(!session.load_represented_group_by_db_store_id_like_cpp(80_929));
+        assert_eq!(session.group_guid, None);
     }
 
     fn drain_server_opcodes(send_rx: &flume::Receiver<Vec<u8>>) -> Vec<ServerOpcodes> {
