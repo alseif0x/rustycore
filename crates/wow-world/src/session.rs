@@ -34807,6 +34807,9 @@ impl WorldSession {
                         target_guid,
                     )?;
                 }
+                x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_SANCTUARY => {
+                    self.apply_sanctuary_effect_like_cpp(target_guid)?;
+                }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_SELF_RESURRECT => {
                     self.apply_self_resurrect_effect_like_cpp(
                         direct_effect_base_points,
@@ -35006,6 +35009,7 @@ impl WorldSession {
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_GIVE_HONOR
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_THREAT
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_MODIFY_THREAT_PERCENT
+                || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_SANCTUARY
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_SELF_RESURRECT
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_STUCK
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_PLAY_MOVIE
@@ -36846,6 +36850,227 @@ impl WorldSession {
             player_guid,
             threat_value,
         );
+        Ok(())
+    }
+
+    fn current_map_is_dungeon_like_cpp(&self) -> bool {
+        self.map_store
+            .as_ref()
+            .and_then(|store| store.get(u32::from(self.player_map_id_like_cpp())))
+            .is_some_and(|entry| entry.is_dungeon())
+    }
+
+    fn canonical_threatened_by_me_owner_guids_like_cpp(
+        &self,
+        target_guid: ObjectGuid,
+    ) -> Vec<ObjectGuid> {
+        let Some(manager) = self.canonical_map_manager.as_ref().cloned() else {
+            return Vec::new();
+        };
+        let Ok(manager) = manager.lock() else {
+            return Vec::new();
+        };
+        let Some(managed) = manager.find_map(u32::from(self.player_map_id_like_cpp()), 0) else {
+            return Vec::new();
+        };
+        let map = managed.map();
+        if let Some(player) = map.get_typed_player(target_guid) {
+            return player
+                .unit()
+                .subsystems()
+                .combat
+                .threatened_by_me_owner_guids();
+        }
+        if let Some(creature) = map.get_typed_creature(target_guid) {
+            return creature
+                .unit()
+                .subsystems()
+                .combat
+                .threatened_by_me_owner_guids();
+        }
+        Vec::new()
+    }
+
+    fn scale_canonical_owner_threat_to_target_zero_like_cpp(
+        &mut self,
+        owner_guid: ObjectGuid,
+        target_guid: ObjectGuid,
+    ) {
+        let Some(manager) = self.canonical_map_manager.as_ref().cloned() else {
+            return;
+        };
+        let Ok(mut manager) = manager.lock() else {
+            return;
+        };
+        let Some(managed) = manager.find_map_mut(u32::from(self.player_map_id_like_cpp()), 0)
+        else {
+            return;
+        };
+        let map = managed.map_mut();
+
+        let threat_ref = if let Some(owner) = map.get_typed_creature_mut(owner_guid) {
+            owner
+                .unit_mut()
+                .subsystems_mut()
+                .combat
+                .scale_threat(target_guid, 0.0);
+            owner
+                .unit()
+                .subsystems()
+                .combat
+                .threat_ref(target_guid)
+                .copied()
+        } else if let Some(owner) = map.get_typed_player_mut(owner_guid) {
+            owner
+                .unit_mut()
+                .subsystems_mut()
+                .combat
+                .scale_threat(target_guid, 0.0);
+            owner
+                .unit()
+                .subsystems()
+                .combat
+                .threat_ref(target_guid)
+                .copied()
+        } else {
+            None
+        };
+
+        let Some(threat_ref) = threat_ref else {
+            return;
+        };
+        if let Some(target) = map.get_typed_player_mut(target_guid) {
+            target
+                .unit_mut()
+                .subsystems_mut()
+                .combat
+                .put_threatened_by_me_ref(owner_guid, threat_ref);
+        } else if let Some(target) = map.get_typed_creature_mut(target_guid) {
+            target
+                .unit_mut()
+                .subsystems_mut()
+                .combat
+                .put_threatened_by_me_ref(owner_guid, threat_ref);
+        }
+    }
+
+    fn stop_represented_player_pve_combat_like_cpp(&mut self, target_guid: ObjectGuid) {
+        if self.player_guid() == Some(target_guid) {
+            if self.combat_target.is_some() {
+                let _ = self.stop_player_attack_like_cpp();
+            }
+            self.combat_target = None;
+            self.in_combat = false;
+        }
+
+        let pve_refs = {
+            let Some(manager) = self.canonical_map_manager.as_ref().cloned() else {
+                return;
+            };
+            let Ok(mut manager) = manager.lock() else {
+                return;
+            };
+            let Some(managed) = manager.find_map_mut(u32::from(self.player_map_id_like_cpp()), 0)
+            else {
+                return;
+            };
+            let map = managed.map_mut();
+            let Some(player) = map.get_typed_player_mut(target_guid) else {
+                return;
+            };
+            let pve_refs: Vec<ObjectGuid> = player
+                .unit()
+                .subsystems()
+                .combat
+                .pve_refs
+                .keys()
+                .copied()
+                .collect();
+            player
+                .unit_mut()
+                .subsystems_mut()
+                .combat
+                .end_all_pve_combat();
+
+            for owner_guid in &pve_refs {
+                if let Some(owner) = map.get_typed_creature_mut(*owner_guid) {
+                    owner
+                        .unit_mut()
+                        .subsystems_mut()
+                        .combat
+                        .purge_combat_ref_like_cpp(target_guid);
+                    owner
+                        .unit_mut()
+                        .subsystems_mut()
+                        .combat
+                        .scale_threat(target_guid, 0.0);
+                    owner.unit_mut().remove_attacker_like_cpp(target_guid);
+                } else if let Some(owner) = map.get_typed_player_mut(*owner_guid) {
+                    owner
+                        .unit_mut()
+                        .subsystems_mut()
+                        .combat
+                        .purge_combat_ref_like_cpp(target_guid);
+                    owner
+                        .unit_mut()
+                        .subsystems_mut()
+                        .combat
+                        .scale_threat(target_guid, 0.0);
+                    owner.unit_mut().remove_attacker_like_cpp(target_guid);
+                }
+            }
+            pve_refs
+        };
+
+        for owner_guid in pve_refs {
+            let _ = self.mutate_world_creature(owner_guid, |owner| {
+                owner
+                    .creature
+                    .unit_mut()
+                    .subsystems_mut()
+                    .combat
+                    .purge_combat_ref_like_cpp(target_guid);
+                owner
+                    .creature
+                    .unit_mut()
+                    .subsystems_mut()
+                    .combat
+                    .scale_threat(target_guid, 0.0);
+                owner
+                    .creature
+                    .unit_mut()
+                    .remove_attacker_like_cpp(target_guid);
+                owner.creature.ai_ownership_mut().combat_target = None;
+            });
+        }
+    }
+
+    /// C++ `Spell::EffectSanctuary`.
+    fn apply_sanctuary_effect_like_cpp(
+        &mut self,
+        target_guid: ObjectGuid,
+    ) -> Result<(), &'static str> {
+        if target_guid.is_empty() {
+            return Ok(());
+        }
+
+        if target_guid.is_player() && !self.current_map_is_dungeon_like_cpp() {
+            self.stop_represented_player_pve_combat_like_cpp(target_guid);
+            return Ok(());
+        }
+
+        let owner_guids = self.canonical_threatened_by_me_owner_guids_like_cpp(target_guid);
+        for owner_guid in owner_guids {
+            self.scale_canonical_owner_threat_to_target_zero_like_cpp(owner_guid, target_guid);
+            let _ = self.mutate_world_creature(owner_guid, |owner| {
+                owner
+                    .creature
+                    .unit_mut()
+                    .subsystems_mut()
+                    .combat
+                    .scale_threat(target_guid, 0.0);
+            });
+        }
         Ok(())
     }
 
@@ -57888,6 +58113,214 @@ mod tests {
         assert_eq!(
             drain_server_opcodes(&send_rx),
             vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_sanctuary_outside_dungeon_stops_player_pve_combat_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 790_i32;
+        let player_guid = ObjectGuid::create_player(1, 790);
+        let creature_guid = test_creature_guid(18_790);
+        let position = Position::new(10.0, 10.0, 0.0, 0.0);
+        let manager = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_COMMON,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+            },
+        ])));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "SanctuaryTarget".to_string(),
+            position,
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_player_health_like_cpp(100, 100);
+        add_canonical_test_player_on_map(&canonical, player_guid, position, 0, 0);
+        add_canonical_test_creature_indexed_on_map_with_level(
+            &canonical,
+            creature_guid,
+            9001,
+            position,
+            0,
+            0,
+            80,
+        );
+        register_test_creature(&mut session, manager.clone(), creature_guid, 100);
+        session.combat_target = Some(creature_guid);
+        session.in_combat = true;
+        assert!(session.begin_canonical_player_combat_ref_like_cpp(
+            player_guid,
+            creature_guid,
+            false,
+            false,
+            false,
+        ));
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.enter_combat(player_guid);
+                creature
+                    .creature
+                    .unit_mut()
+                    .subsystems_mut()
+                    .combat
+                    .add_threat(player_guid, 40.0);
+            })
+            .unwrap();
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            threat_spell_info_like_cpp(
+                spell_id,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_SANCTUARY,
+                0,
+            ),
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("represented EffectSanctuary should execute");
+
+        assert_eq!(session.combat_target, None);
+        assert!(!session.in_combat);
+        {
+            let canonical_guard = canonical.lock().unwrap();
+            let map = canonical_guard.find_map(0, 0).unwrap().map();
+            let player = map.get_typed_player(player_guid).unwrap();
+            let creature = map.get_typed_creature(creature_guid).unwrap();
+            assert!(!player.unit().subsystems().combat.has_pve_combat());
+            assert!(
+                !creature
+                    .unit()
+                    .subsystems()
+                    .combat
+                    .is_in_combat_with(player_guid)
+            );
+        }
+        let world_combat_target = manager
+            .read()
+            .unwrap()
+            .find_creature(0, 0, creature_guid)
+            .unwrap()
+            .creature
+            .ai_ownership()
+            .combat_target;
+        assert_eq!(world_combat_target, None);
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_sanctuary_in_dungeon_scales_player_threat_to_zero_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let threat_spell_id = 791_i32;
+        let sanctuary_spell_id = 792_i32;
+        let player_guid = ObjectGuid::create_player(1, 792);
+        let creature_guid = test_creature_guid(18_792);
+        let position = Position::new(10.0, 10.0, 0.0, 0.0);
+        let manager = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_INSTANCE,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+            },
+        ])));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "SanctuaryDungeonTarget".to_string(),
+            position,
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_player_health_like_cpp(100, 100);
+        add_canonical_test_player_on_map(&canonical, player_guid, position, 0, 0);
+        add_canonical_test_creature_indexed_on_map_with_level(
+            &canonical,
+            creature_guid,
+            9001,
+            position,
+            0,
+            0,
+            80,
+        );
+        register_test_creature(&mut session, manager.clone(), creature_guid, 100);
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            threat_spell_id,
+            threat_spell_info_like_cpp(
+                threat_spell_id,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_THREAT,
+                35,
+            ),
+        );
+        spell_store.insert(
+            sanctuary_spell_id,
+            threat_spell_info_like_cpp(
+                sanctuary_spell_id,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_SANCTUARY,
+                0,
+            ),
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(threat_spell_id, creature_guid)
+            .await
+            .expect("represented EffectThreat should execute");
+        assert_eq!(
+            session.canonical_creature_threat_value_like_cpp(creature_guid, player_guid),
+            Some(35.0)
+        );
+        session
+            .execute_spell(sanctuary_spell_id, player_guid)
+            .await
+            .expect("represented EffectSanctuary should execute");
+
+        assert_eq!(
+            session.canonical_creature_threat_value_like_cpp(creature_guid, player_guid),
+            Some(0.0)
+        );
+        let legacy_threat = manager
+            .read()
+            .unwrap()
+            .find_creature(0, 0, creature_guid)
+            .unwrap()
+            .creature
+            .unit()
+            .subsystems()
+            .combat
+            .threat_value(player_guid);
+        assert_eq!(legacy_threat, Some(0.0));
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![
+                ServerOpcodes::SpellGo,
+                ServerOpcodes::CooldownEvent,
+                ServerOpcodes::SpellGo,
+                ServerOpcodes::CooldownEvent
+            ]
         );
     }
 

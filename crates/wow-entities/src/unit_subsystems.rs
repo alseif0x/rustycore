@@ -1631,6 +1631,10 @@ impl CombatSubsystem {
             .is_some_and(|threat_ref| include_offline || threat_ref.is_available())
     }
 
+    pub fn threatened_by_me_owner_guids(&self) -> Vec<ObjectGuid> {
+        self.threatened_by_me.keys().copied().collect()
+    }
+
     pub fn set_in_combat_with(
         &mut self,
         target: ObjectGuid,

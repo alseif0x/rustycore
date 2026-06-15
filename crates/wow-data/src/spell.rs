@@ -65,6 +65,7 @@ pub mod spell_effect_types {
     /// `Spell::EffectSummonObjectWild` (`SpellEffects.cpp:2937-2986`).
     pub const SPELL_EFFECT_SUMMON_OBJECT_WILD: u32 = 76;
     pub const SPELL_EFFECT_ATTACK: u32 = 78;
+    pub const SPELL_EFFECT_SANCTUARY: u32 = 79;
     /// C++ `SPELL_EFFECT_ADD_COMBO_POINTS`; in the current legacy source
     /// `Spell::EffectAddComboPoints` validates the hit/unit target and then
     /// has its combo-point mutation commented out (`SpellEffects.cpp:3164`).
@@ -1117,6 +1118,7 @@ mod tests {
         assert_eq!(spell_effect_types::SPELL_EFFECT_PULL, 70);
         assert_eq!(spell_effect_types::SPELL_EFFECT_HEAL_MECHANICAL, 75);
         assert_eq!(spell_effect_types::SPELL_EFFECT_ATTACK, 78);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_SANCTUARY, 79);
         assert_eq!(spell_effect_types::SPELL_EFFECT_CREATE_HOUSE, 81);
         assert_eq!(spell_effect_types::SPELL_EFFECT_BIND_SIGHT, 82);
         assert_eq!(spell_effect_types::SPELL_EFFECT_KILL_CREDIT, 90);

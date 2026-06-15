@@ -1,3 +1,19 @@
+- `#NEXT.RUNTIME.L3.031j39` — WotLK represented `Spell::EffectSanctuary` plus
+  `EffectAddComboPoints` documentation correction (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:1225-1226`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellEffects.cpp:3136-3162`, and
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellEffects.cpp:3164-3181`.
+  Rust now names `SPELL_EFFECT_SANCTUARY = 79`, dispatches the direct represented effect, stops
+  represented player PVE combat outside dungeon maps, and scales existing threat to zero for dungeon
+  or non-player targets while keeping the legacy world-creature threat state mirrored with the
+  canonical combat refs. `EffectAddComboPoints` remains a represented real-handler no-op because the
+  current legacy C++ handler validates `HIT_TARGET`/`unitTarget` and has the combo-point mutation
+  commented out. Coverage: targeted `spell_sanctuary_*` tests cover outside-dungeon player combat
+  stop, dungeon threat scale-to-zero, legacy/canonical mirror state, and `SpellGo`/`CooldownEvent`
+  packet surface; `wow-data` constant coverage asserts the C++ effect id. Boundary remains partial:
+  no `m_lastSanctuaryTime`, no spell fizzle/cancel pipeline, no complete all-`Unit` `CombatStop` /
+  `ThreatManager` runtime, no live threat-list fanout/client update, no install/restart, bot, or
+  live-client/manual validation.
 - `#NEXT.RUNTIME.L3.031j38` — WotLK represented `Spell::EffectThreat` and
   `Spell::EffectModifyThreatPercent` for player-caster to represented creature target (not
   manual-test-ready). Source-of-truth:
