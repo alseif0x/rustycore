@@ -1,4 +1,14 @@
 - `#NEXT.R8.ENTITIES.868` - represented-complete implementation for bounded movement `Handle_NULL` ACK family.
+### #NEXT.R8.ENTITIES.898 — CMSG_SPELL_CLICK Audit Fix
+
+Status: represented-partial audit fix for the existing `WorldSession::HandleSpellClick` parser/dispatch/represented execution seam.
+
+C++ source-of-truth: `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:636`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:934`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/SpellPackets.h:903-910`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/SpellPackets.cpp:920-924`, `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SpellHandler.cpp:432-444`, and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:11892-11980`.
+
+Implemented Rust seam already present and audited: `SpellClick` parses the C++ packed `SpellClickUnitGuid` plus `TryAutoDismount` bit, registers as `LoggedIn`/`PROCESS_INPLACE`, dispatches through `WorldSession`, resolves represented creature/pet/vehicle snapshots with an in-world gate, builds a represented `Unit::HandleSpellClick` plan from `npc_spellclick_spells` rows plus `SpellClickEvent` conditions, executes bounded represented clicker/clickee direct spell branches, and records/marks AI, vehicle-seat, exact relation, aura fallback, and live-object gaps explicitly.
+
+Boundary: represented-partial audit fix only; full live `ObjectAccessor::GetCreatureOrPetOrVehicle`, exact runtime `IsInWorld` ownership, complete `Unit::CastSpell` / `Spell::prepare`, vehicle seat aura/basepoint path, `Aura::TryRefreshStackOrCreate` fallback, complete friend/party/raid/summon relation context, creature AI `OnSpellClick` fanout, install/restart, bot, and live-client/manual validation remain separate work.
+
 ### #NEXT.R8.ENTITIES.897 — CMSG_SET_TRADE_SPELL
 
 Status: represented-partial for the bounded `WorldSession::HandleSetTradeSpellOpcode` spell/cast-item/accepted-status seam.
