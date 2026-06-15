@@ -6,7 +6,7 @@
 //! Query packets: QueryCreature, QueryGameObject and their responses.
 
 use wow_constants::{ClientOpcodes, ServerOpcodes};
-use wow_core::ObjectGuid;
+use wow_core::{ObjectGuid, Position};
 
 use crate::world_packet::PacketError;
 use crate::{ClientPacket, ServerPacket, WorldPacket};
@@ -24,6 +24,67 @@ pub const MAX_QUERY_QUEST_COMPLETION_NPCS: usize = 100;
 
 /// Trinity `MAX_DECLINED_NAME_CASES`.
 pub const MAX_DECLINED_NAME_CASES_LIKE_CPP: usize = 5;
+
+// ── CMSG_QUERY_CORPSE_LOCATION_FROM_CLIENT (0x3662) ─────────────────
+
+/// C++ `WorldPackets::Query::QueryCorpseLocationFromClient`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct QueryCorpseLocationFromClient {
+    pub player: ObjectGuid,
+}
+
+impl ClientPacket for QueryCorpseLocationFromClient {
+    const OPCODE: ClientOpcodes = ClientOpcodes::QueryCorpseLocationFromClient;
+
+    fn read(packet: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            player: packet.read_guid()?,
+        })
+    }
+}
+
+// ── SMSG_CORPSE_LOCATION (0x264F) ───────────────────────────────────
+
+/// C++ `WorldPackets::Query::CorpseLocation`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CorpseLocation {
+    pub player: ObjectGuid,
+    pub transport: ObjectGuid,
+    pub position: Position,
+    pub actual_map_id: i32,
+    pub map_id: i32,
+    pub valid: bool,
+}
+
+impl CorpseLocation {
+    pub fn not_found_like_cpp(player: ObjectGuid) -> Self {
+        Self {
+            player,
+            transport: ObjectGuid::EMPTY,
+            position: Position::ZERO,
+            actual_map_id: 0,
+            map_id: 0,
+            valid: false,
+        }
+    }
+}
+
+impl ServerPacket for CorpseLocation {
+    const OPCODE: ServerOpcodes = ServerOpcodes::CorpseLocation;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_bit(self.valid);
+        pkt.flush_bits();
+
+        pkt.write_guid(&self.player);
+        pkt.write_int32(self.actual_map_id);
+        pkt.write_float(self.position.x);
+        pkt.write_float(self.position.y);
+        pkt.write_float(self.position.z);
+        pkt.write_int32(self.map_id);
+        pkt.write_guid(&self.transport);
+    }
+}
 
 // ── CMSG_QUERY_CREATURE (0x3270) ─────────────────────────────────────
 
@@ -521,6 +582,41 @@ mod tests {
         let bytes = resp.to_bytes();
         // opcode(2) + creature_id(4) + bit(allow=false, flushed to 1 byte) = 7
         assert_eq!(bytes.len(), 7);
+    }
+
+    #[test]
+    fn query_corpse_location_reads_full_player_guid_like_cpp() {
+        let player = ObjectGuid::create_player(1, 0xAABB_CCDD);
+        let mut data = (ClientOpcodes::QueryCorpseLocationFromClient as u16)
+            .to_le_bytes()
+            .to_vec();
+        data.extend_from_slice(&player.to_raw_bytes());
+        let mut pkt = WorldPacket::from_bytes(&data);
+        pkt.skip_opcode();
+
+        let query = QueryCorpseLocationFromClient::read(&mut pkt).unwrap();
+
+        assert_eq!(query.player, player);
+    }
+
+    #[test]
+    fn corpse_location_not_found_writes_cpp_shape() {
+        let player = ObjectGuid::create_player(1, 0xAABB_CCDD);
+        let bytes = CorpseLocation::not_found_like_cpp(player).to_bytes();
+
+        assert_eq!(
+            bytes[0..2],
+            (ServerOpcodes::CorpseLocation as u16).to_le_bytes()
+        );
+        assert_eq!(bytes[2], 0x00);
+        assert_eq!(&bytes[3..19], &player.to_raw_bytes());
+        assert_eq!(&bytes[19..23], &0_i32.to_le_bytes());
+        assert_eq!(&bytes[23..27], &0.0_f32.to_le_bytes());
+        assert_eq!(&bytes[27..31], &0.0_f32.to_le_bytes());
+        assert_eq!(&bytes[31..35], &0.0_f32.to_le_bytes());
+        assert_eq!(&bytes[35..39], &0_i32.to_le_bytes());
+        assert_eq!(&bytes[39..55], &ObjectGuid::EMPTY.to_raw_bytes());
+        assert_eq!(bytes.len(), 55);
     }
 
     #[test]

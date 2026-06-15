@@ -18042,6 +18042,12 @@ impl WorldSession {
                     Err(e) => warn!("Failed to read QueryGameObject: {e}"),
                 }
             }
+            ClientOpcodes::QueryCorpseLocationFromClient => {
+                match wow_packet::packets::query::QueryCorpseLocationFromClient::read(&mut pkt) {
+                    Ok(query) => self.handle_query_corpse_location(query).await,
+                    Err(e) => warn!("Failed to read QueryCorpseLocationFromClient: {e}"),
+                }
+            }
             ClientOpcodes::QueryPageText => {
                 match wow_packet::packets::query::QueryPageText::read(&mut pkt) {
                     Ok(query) => self.handle_query_page_text(query).await,

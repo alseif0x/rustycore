@@ -232,6 +232,13 @@ impl WorldPacket {
         Ok(self.read_uint64()? as i64)
     }
 
+    /// Read TrinityCore's full 128-bit ObjectGuid (`operator>> ObjectGuid`).
+    pub fn read_guid(&mut self) -> Result<ObjectGuid, PacketError> {
+        let low = self.read_int64()?;
+        let high = self.read_int64()?;
+        Ok(ObjectGuid::new(high, low))
+    }
+
     pub fn read_float(&mut self) -> Result<f32, PacketError> {
         let bits = self.read_uint32()?;
         Ok(f32::from_bits(bits))
@@ -313,6 +320,12 @@ impl WorldPacket {
 
     pub fn write_int64(&mut self, v: i64) {
         self.write_uint64(v as u64);
+    }
+
+    /// Write TrinityCore's full 128-bit ObjectGuid (`operator<< ObjectGuid`).
+    pub fn write_guid(&mut self, guid: &ObjectGuid) {
+        self.write_int64(guid.low_value());
+        self.write_int64(guid.high_value());
     }
 
     pub fn write_float(&mut self, v: f32) {
@@ -521,6 +534,18 @@ mod tests {
         assert_eq!(pkt.read_int32().unwrap(), -100_000);
         let f = pkt.read_float().unwrap();
         assert!((f - 3.14).abs() < 0.001);
+    }
+
+    #[test]
+    fn full_guid_roundtrip_matches_raw_bytes() {
+        let guid = ObjectGuid::new(0x0102_0304_0506_0708_i64, 0x1112_1314_1516_1718_i64);
+        let mut pkt = WorldPacket::new_empty();
+
+        pkt.write_guid(&guid);
+
+        assert_eq!(pkt.data(), guid.to_raw_bytes());
+        pkt.reset_read();
+        assert_eq!(pkt.read_guid().unwrap(), guid);
     }
 
     #[test]

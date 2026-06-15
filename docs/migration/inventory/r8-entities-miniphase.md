@@ -1,3 +1,11 @@
+- `#NEXT.R8.ENTITIES.911` — represented-partial implementation for `CMSG_QUERY_CORPSE_LOCATION_FROM_CLIENT` and bounded `SMSG_CORPSE_LOCATION` invalid response.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/QueryHandler.cpp:126-176` (`WorldSession::HandleQueryCorpseLocation`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/QueryPackets.h:257-280` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/QueryPackets.cpp:377-392` (`QueryCorpseLocationFromClient::Read`, `CorpseLocation::Write`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:502,1161` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:750,1306`.
+
+Implemented Rust seam: `WorldPacket` now has full `ObjectGuid` read/write helpers matching Trinity's low-qword then high-qword raw order; `QueryCorpseLocationFromClient` parses the C++ full `Player` GUID; `CorpseLocation` writes the C++ bit/flush, `Player`, `ActualMapID`, XYZ position, `MapID`, and `Transport` shape; `CMSG_QUERY_CORPSE_LOCATION_FROM_CLIENT` registers `LoggedIn`/`ThreadUnsafe` dispatch and routes through `WorldSession`. With no live corpse/raid runtime, Rust sends `SMSG_CORPSE_LOCATION` with `Valid=false` and the queried player GUID, matching the C++ `!player || !HasCorpse || !IsInSameRaidWith` branch.
+
+Boundaries: represented-partial only. Rust does not yet implement live `ObjectAccessor::FindConnectedPlayer`, `Player::HasCorpse`, `IsInSameRaidWith`, corpse map/entrance terrain adjustment, the valid `CorpseLocation` branch, install/restart, bot, or live-client/manual validation.
+
 - `#NEXT.R8.ENTITIES.910` — represented-partial implementation for `CMSG_QUERY_ARENA_TEAM`.
 
 C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/BattleGroundHandler.cpp:1338-1345` (`WorldSession::HandleQueryArenaTeam`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/ArenaTeamPackets.h:67-73` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/ArenaTeamPackets.cpp:27-30` (`QueryArenaTeam::Read`, `uint32 TeamId`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:500` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:748` (`STATUS_LOGGEDIN`, `PROCESS_THREADUNSAFE`, `HandleQueryArenaTeam`).
