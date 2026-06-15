@@ -427,6 +427,15 @@ pub(crate) struct RepresentedActivateTaxiLikeCpp {
     pub preferred_mount_display: u32,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RepresentedAlterAppearanceLikeCpp {
+    pub new_sex: u8,
+    pub customizations: Vec<wow_packet::packets::character::ChrCustomizationChoice>,
+    pub customized_race: i32,
+    pub customized_chr_model_id: i32,
+    pub cost: u64,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedSilencePartyTalkerLikeCpp {
     pub target: ObjectGuid,
@@ -3078,6 +3087,8 @@ pub struct WorldSession {
     taxi_destinations_like_cpp: Vec<u32>,
     /// Represented accepted `CMSG_ACTIVATE_TAXI` requests until TaxiPathGraph/MotionMaster are canonical.
     represented_activate_taxi_requests_like_cpp: Vec<RepresentedActivateTaxiLikeCpp>,
+    /// Represented accepted barber-shop requests until ChrCustomization DB2/cost/update runtime is canonical.
+    represented_alter_appearance_requests_like_cpp: Vec<RepresentedAlterAppearanceLikeCpp>,
     /// Minimal TaxiNodes.db2 map lookup used by represented `MoveSplineDone` taxi transitions.
     taxi_node_map_ids_like_cpp: HashMap<u32, u16>,
     /// Represented active `FlightPathMovementGenerator`, if any.
@@ -4214,6 +4225,7 @@ impl WorldSession {
             movement_ack_events_like_cpp: Vec::new(),
             taxi_destinations_like_cpp: Vec::new(),
             represented_activate_taxi_requests_like_cpp: Vec::new(),
+            represented_alter_appearance_requests_like_cpp: Vec::new(),
             taxi_node_map_ids_like_cpp: HashMap::new(),
             taxi_flight_state_like_cpp: None,
             taxi_unit_flags_like_cpp: UnitFlags::empty(),
@@ -17883,6 +17895,9 @@ impl WorldSession {
             ClientOpcodes::GetUndeleteCharacterCooldownStatus => {
                 self.handle_get_undelete_cooldown_status().await;
             }
+            ClientOpcodes::AlterAppearance => {
+                self.handle_alter_appearance(pkt).await;
+            }
             ClientOpcodes::BattlenetRequest => {
                 match wow_packet::packets::battlenet::BattlenetRequest::read(&mut pkt) {
                     Ok(req) => self.handle_battlenet_request(req).await,
@@ -21117,6 +21132,31 @@ impl WorldSession {
                 | UnitStandStateType::SitMediumChair
                 | UnitStandStateType::SitHighChair
         )
+    }
+
+    pub(crate) fn represented_is_on_barber_chair_like_cpp(&self) -> bool {
+        let Some(player_guid) = self.player_guid() else {
+            return false;
+        };
+        let Some(current_stand_state) =
+            num_traits::ToPrimitive::to_u32(&self.player_stand_state_like_cpp)
+        else {
+            return false;
+        };
+
+        self.represented_gameobject_use_effects
+            .iter()
+            .rev()
+            .any(|effect| {
+                matches!(
+                    effect,
+                    RepresentedGameObjectUseEffect::BarberChairUsed {
+                        player_guid: effect_player_guid,
+                        stand_state,
+                        ..
+                    } if *effect_player_guid == player_guid && *stand_state == current_stand_state
+                )
+            })
     }
 
     pub(crate) fn request_temporary_pet_unsummon_like_cpp(&mut self) {
@@ -27388,6 +27428,21 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedActivateTaxiLikeCpp] {
         &self.represented_activate_taxi_requests_like_cpp
+    }
+
+    pub(crate) fn record_represented_alter_appearance_like_cpp(
+        &mut self,
+        request: RepresentedAlterAppearanceLikeCpp,
+    ) {
+        self.represented_alter_appearance_requests_like_cpp
+            .push(request);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_alter_appearance_requests_like_cpp(
+        &self,
+    ) -> &[RepresentedAlterAppearanceLikeCpp] {
+        &self.represented_alter_appearance_requests_like_cpp
     }
 
     pub(crate) fn is_in_taxi_flight_like_cpp(&self) -> bool {

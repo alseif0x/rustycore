@@ -304,10 +304,62 @@ impl ClientPacket for EnumCharacters {
 // ── Client: CreateCharacter (CMSG 0x3645) ───────────────────────────
 
 /// Customization choice for character creation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChrCustomizationChoice {
     pub option_id: i32,
     pub choice_id: i32,
+}
+
+/// C++ `WorldPackets::Character::AlterApperance`.
+#[derive(Debug, Clone)]
+pub struct AlterAppearance {
+    pub new_sex: u8,
+    pub customizations: Vec<ChrCustomizationChoice>,
+    pub customized_race: i32,
+    pub customized_chr_model_id: i32,
+}
+
+impl ClientPacket for AlterAppearance {
+    const OPCODE: ClientOpcodes = ClientOpcodes::AlterAppearance;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let customization_count = pkt.read_uint32()? as usize;
+        let new_sex = pkt.read_uint8()?;
+        let customized_race = pkt.read_int32()?;
+        let customized_chr_model_id = pkt.read_int32()?;
+        let mut customizations = Vec::with_capacity(customization_count);
+        for _ in 0..customization_count {
+            customizations.push(ChrCustomizationChoice {
+                option_id: pkt.read_int32()?,
+                choice_id: pkt.read_int32()?,
+            });
+        }
+        customizations.sort_by_key(|choice| choice.option_id);
+
+        Ok(Self {
+            new_sex,
+            customizations,
+            customized_race,
+            customized_chr_model_id,
+        })
+    }
+}
+
+pub const BARBER_SHOP_RESULT_SUCCESS_LIKE_CPP: i32 = 0;
+pub const BARBER_SHOP_RESULT_NO_MONEY_LIKE_CPP: i32 = 1;
+pub const BARBER_SHOP_RESULT_NOT_ON_CHAIR_LIKE_CPP: i32 = 2;
+
+/// C++ `WorldPackets::Character::BarberShopResult`.
+pub struct BarberShopResult {
+    pub result: i32,
+}
+
+impl ServerPacket for BarberShopResult {
+    const OPCODE: ServerOpcodes = ServerOpcodes::BarberShopResult;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_int32(self.result);
+    }
 }
 
 /// Client request to create a character.
@@ -580,6 +632,53 @@ mod tests {
             .map(|choice| (choice.option_id, choice.choice_id))
             .collect();
         assert_eq!(choices, vec![(10, 100), (20, 200), (20, 201)]);
+    }
+
+    #[test]
+    fn alter_appearance_reads_cpp_count_sex_race_model_and_sorted_customizations() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(3);
+        pkt.write_uint8(1);
+        pkt.write_int32(7);
+        pkt.write_int32(11);
+        pkt.write_int32(20);
+        pkt.write_int32(200);
+        pkt.write_int32(10);
+        pkt.write_int32(100);
+        pkt.write_int32(20);
+        pkt.write_int32(201);
+        pkt.reset_read();
+
+        let parsed = AlterAppearance::read(&mut pkt).unwrap();
+
+        assert_eq!(parsed.new_sex, 1);
+        assert_eq!(parsed.customized_race, 7);
+        assert_eq!(parsed.customized_chr_model_id, 11);
+        let choices: Vec<(i32, i32)> = parsed
+            .customizations
+            .iter()
+            .map(|choice| (choice.option_id, choice.choice_id))
+            .collect();
+        assert_eq!(choices, vec![(10, 100), (20, 200), (20, 201)]);
+    }
+
+    #[test]
+    fn barber_shop_result_writes_cpp_int32_result() {
+        let bytes = BarberShopResult {
+            result: BARBER_SHOP_RESULT_NOT_ON_CHAIR_LIKE_CPP,
+        }
+        .to_bytes();
+
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::BarberShopResult as u16
+        );
+        let mut payload = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(
+            payload.read_int32().unwrap(),
+            BARBER_SHOP_RESULT_NOT_ON_CHAIR_LIKE_CPP
+        );
+        assert_eq!(payload.remaining(), 0);
     }
 
     #[test]

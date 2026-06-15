@@ -50,7 +50,10 @@ use wow_packet::{ClientPacket, WorldPacket};
 
 use crate::handlers::quest::RepresentedQuestGiverStatusSourceLikeCpp;
 use crate::reputation::mgr::CharacterReputationRowLikeCpp;
-use crate::session::{PER_CHARACTER_CACHE_MASK_LIKE_CPP, RepresentedGameObjectUseState};
+use crate::session::{
+    PER_CHARACTER_CACHE_MASK_LIKE_CPP, RepresentedAlterAppearanceLikeCpp,
+    RepresentedGameObjectUseState,
+};
 
 // ── Handler registration ────────────────────────────────────────────
 
@@ -149,6 +152,15 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_get_undelete_cooldown_status",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::AlterAppearance,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_alter_appearance",
     }
 }
 
@@ -2117,6 +2129,46 @@ impl WorldSession {
     /// available. We always respond with "no cooldown" (undelete available).
     pub async fn handle_get_undelete_cooldown_status(&mut self) {
         self.send_packet(&wow_packet::packets::misc::UndeleteCooldownStatusResponse::no_cooldown());
+    }
+
+    /// Handle CMSG_ALTER_APPEARANCE.
+    ///
+    /// C++ `HandleAlterAppearance` validates customization DB2 requirements,
+    /// requires the player to be sitting on a nearby barber chair, checks
+    /// `GetBarberShopCost`, sends `SMSG_BARBER_SHOP_RESULT`, then mutates
+    /// player gender/customizations and criteria.
+    ///
+    /// Rust currently represents barber-chair use and stand-state, but does
+    /// not yet own the full ChrCustomization/BarberShop cost/runtime mutation.
+    /// This seam preserves packet/dispatch, the C++ not-on-chair result, and
+    /// records accepted requests without fabricating the full appearance change.
+    pub async fn handle_alter_appearance(&mut self, mut pkt: WorldPacket) {
+        let request = match AlterAppearance::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!("Bad AlterAppearance: {error}");
+                return;
+            }
+        };
+
+        if !self.represented_is_on_barber_chair_like_cpp() {
+            self.send_packet(&BarberShopResult {
+                result: BARBER_SHOP_RESULT_NOT_ON_CHAIR_LIKE_CPP,
+            });
+            return;
+        }
+
+        let cost = 0;
+        self.send_packet(&BarberShopResult {
+            result: BARBER_SHOP_RESULT_SUCCESS_LIKE_CPP,
+        });
+        self.record_represented_alter_appearance_like_cpp(RepresentedAlterAppearanceLikeCpp {
+            new_sex: request.new_sex,
+            customizations: request.customizations,
+            customized_race: request.customized_race,
+            customized_chr_model_id: request.customized_chr_model_id,
+            cost,
+        });
     }
 
     /// Handle CMSG_DB_QUERY_BULK — client requests DB2 records.
@@ -10168,6 +10220,108 @@ mod tests {
         session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
         session.set_player_position_like_cpp(Position::new(10.0, 0.0, 0.0, 0.0));
         (session, send_rx)
+    }
+
+    fn alter_appearance_packet(
+        new_sex: u8,
+        customized_race: i32,
+        customized_chr_model_id: i32,
+        customizations: &[(i32, i32)],
+    ) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(customizations.len() as u32);
+        pkt.write_uint8(new_sex);
+        pkt.write_int32(customized_race);
+        pkt.write_int32(customized_chr_model_id);
+        for (option_id, choice_id) in customizations {
+            pkt.write_int32(*option_id);
+            pkt.write_int32(*choice_id);
+        }
+        pkt
+    }
+
+    fn read_barber_shop_result(encoded: Vec<u8>) -> i32 {
+        let mut packet = WorldPacket::new_client(encoded.as_slice().into());
+        assert_eq!(
+            packet.server_opcode(),
+            Some(wow_constants::ServerOpcodes::BarberShopResult)
+        );
+        packet.skip_opcode();
+        let result = packet.read_int32().unwrap();
+        assert_eq!(packet.remaining(), 0);
+        result
+    }
+
+    #[tokio::test]
+    async fn alter_appearance_without_barber_chair_sends_not_on_chair_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(4);
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+
+        session
+            .handle_alter_appearance(alter_appearance_packet(1, 1, 0, &[(20, 200)]))
+            .await;
+
+        assert_eq!(
+            read_barber_shop_result(send_rx.try_recv().unwrap()),
+            BARBER_SHOP_RESULT_NOT_ON_CHAIR_LIKE_CPP
+        );
+        assert!(
+            session
+                .represented_alter_appearance_requests_like_cpp()
+                .is_empty()
+        );
+    }
+
+    #[tokio::test]
+    async fn alter_appearance_on_represented_barber_chair_records_request_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(4);
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let gameobject_guid =
+            ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 22);
+        let chair_position = Position::new(1.0, 2.0, 3.0, 0.0);
+
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        assert!(session.use_represented_gameobject_barber_chair_like_cpp(
+            gameobject_guid,
+            player_guid,
+            chair_position,
+            wow_entities::BarberChairUseSource {
+                chair_height: 2,
+                sit_anim_kit: 0,
+                customization_scope: 7,
+            },
+        ));
+        let _enable_barber_shop = send_rx.try_recv().unwrap();
+
+        session
+            .handle_alter_appearance(alter_appearance_packet(1, 7, 11, &[(20, 200), (10, 100)]))
+            .await;
+
+        assert_eq!(
+            read_barber_shop_result(send_rx.try_recv().unwrap()),
+            BARBER_SHOP_RESULT_SUCCESS_LIKE_CPP
+        );
+        assert_eq!(
+            session.represented_alter_appearance_requests_like_cpp(),
+            &[RepresentedAlterAppearanceLikeCpp {
+                new_sex: 1,
+                customizations: vec![
+                    ChrCustomizationChoice {
+                        option_id: 10,
+                        choice_id: 100,
+                    },
+                    ChrCustomizationChoice {
+                        option_id: 20,
+                        choice_id: 200,
+                    },
+                ],
+                customized_race: 7,
+                customized_chr_model_id: 11,
+                cost: 0,
+            }]
+        );
     }
 
     fn make_area_spirit_healer_session(
