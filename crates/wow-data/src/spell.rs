@@ -64,6 +64,10 @@ pub mod spell_effect_types {
     /// `Spell::EffectSummonObjectWild` (`SpellEffects.cpp:2937-2986`).
     pub const SPELL_EFFECT_SUMMON_OBJECT_WILD: u32 = 76;
     pub const SPELL_EFFECT_ATTACK: u32 = 78;
+    /// C++ `SPELL_EFFECT_ADD_COMBO_POINTS`; in the current legacy source
+    /// `Spell::EffectAddComboPoints` validates the hit/unit target and then
+    /// has its combo-point mutation commented out (`SpellEffects.cpp:3164`).
+    pub const SPELL_EFFECT_ADD_COMBO_POINTS: u32 = 80;
     pub const SPELL_EFFECT_CREATE_HOUSE: u32 = 81;
     pub const SPELL_EFFECT_BIND_SIGHT: u32 = 82;
     pub const SPELL_EFFECT_KILL_CREDIT: u32 = 90;
@@ -200,10 +204,11 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_ADD_SOCKET_BONUS: u32 = 314;
     pub const SPELL_EFFECT_LEARN_TRANSMOG_APPEARANCE_FROM_ITEM_MOD_APPEARANCE_GROUP: u32 = 315;
 
-    /// C++ dispatch entries that intentionally run `EffectNULL` or
-    /// `EffectUnused` in `SpellEffects.cpp` for the represented early effect
-    /// range. This deliberately excludes `SPELL_EFFECT_DUMMY`, whose behavior
-    /// is script-driven through `ScriptMgr::OnSpellEffectDummy`.
+    /// C++ dispatch entries that intentionally run as represented no-ops in
+    /// `SpellEffects.cpp` for the covered effect range: `EffectNULL`,
+    /// `EffectUnused`, or a concrete handler whose mutation is disabled in
+    /// this legacy source. This deliberately excludes `SPELL_EFFECT_DUMMY`,
+    /// whose behavior is script-driven through `ScriptMgr::OnSpellEffectDummy`.
     pub fn is_cpp_null_or_unused_noop(effect: u32) -> bool {
         matches!(
             effect,
@@ -227,6 +232,7 @@ pub mod spell_effect_types {
                 | SPELL_EFFECT_GUARANTEE_HIT
                 | SPELL_EFFECT_APPLY_AREA_AURA_RAID
                 | SPELL_EFFECT_ATTACK
+                | SPELL_EFFECT_ADD_COMBO_POINTS
                 | SPELL_EFFECT_CREATE_HOUSE
                 | SPELL_EFFECT_BIND_SIGHT
                 | SPELL_EFFECT_THREAT_ALL

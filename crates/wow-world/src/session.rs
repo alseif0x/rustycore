@@ -58210,6 +58210,7 @@ mod tests {
                 requires_spell_focus: 0,
                 effects: [
                     wow_data::spell::spell_effect_types::SPELL_EFFECT_ATTACK,
+                    wow_data::spell::spell_effect_types::SPELL_EFFECT_ADD_COMBO_POINTS,
                     wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_PET,
                     wow_data::spell::spell_effect_types::SPELL_EFFECT_122,
                     wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_FRIEND,
