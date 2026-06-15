@@ -1,3 +1,13 @@
+# `#NEXT.R8.ENTITIES.938` — represented-partial implementation for group-owned `CMSG_SET_DIFFICULTY_ID`.
+
+Source-of-truth C++: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:1046-1125`, `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp:1266-1338`, `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp:1594-1597`, and `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/CharacterDatabase.cpp:460-462`.
+
+Implemented Rust seam: represented grouped `CMSG_SET_DIFFICULTY_ID` now follows the C++ leader/LFG gates instead of silently returning. `GroupInfo` exposes C++-named difficulty setters and `is_lfg_group_like_cpp`; `WorldSession::represented_set_difficulty_id_like_cpp` mutates the shared group difficulty for HOME groups when the sender is leader and the group is not LFG, applies/sends the current member's dungeon or raid difficulty packet, queues `ApplyGroupDifficultyLikeCpp` for connected remote members so they update/send from their own session, and returns the matching `CHAR_UPD_GROUP_DIFFICULTY` / `CHAR_UPD_GROUP_RAID_DIFFICULTY` / `CHAR_UPD_GROUP_LEGACY_RAID_DIFFICULTY` statement for async persistence by the handler when `char_db` exists. This intentionally does not emit `PartyUpdate`: C++ `Group::Set*DifficultyID` sends difficulty packets directly to connected members instead.
+
+Tests/checks: `cargo fmt --all --check`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world set_difficulty_id_ --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world group_difficulty_command_updates_remote_member_like_cpp --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p wow-network -p wow-world`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`.
+
+Boundaries: represented-partial only. Exact `Group::ResetInstances(InstanceResetMethod::OnChangeDifficulty, notifyPlayer)`, full `Player::ResetInstances` / recent-instance / owned-instance map semantics, BG/BF/original-group exclusions beyond the represented HOME/LFG flags, transactional rollback parity, install/restart, bot, and live-client/manual validation remain open.
+
 # `#NEXT.R8.ENTITIES.937` — represented-partial for C++ pending-invite `Player::UninviteFromGroup`.
 
 C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/GroupHandler.cpp:267-290` (`WorldSession::HandlePartyUninviteOpcode`); `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:2145-2162` (`Player::UninviteFromGroup`); `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp:367-390` (`Group::RemoveInvite`, `RemoveAllInvites`, `GetInvited`); `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:25122-25170` (`Player::CanUninviteFromGroup`).
@@ -76,7 +86,7 @@ Implemented Rust seam: `world-server` already loads `Difficulty.db2`; `SessionRe
 
 Focused tests: missing store remains silent; short packet remains silent; unselectable difficulty remains silent; instanceable map blocks changes; solo dungeon difficulty updates and sends `SMSG_SET_DUNGEON_DIFFICULTY`; repeated same dungeon difficulty is silent; solo raid and legacy-raid difficulty update and send `SMSG_RAID_DIFFICULTY_SET` with the correct legacy byte. `wow-packet` covers both difficulty-set server packet wire shapes.
 
-Boundaries: represented-partial only. Rust does not yet implement the group leader/LFG branches, `Group::ResetInstances`, `Player::ResetInstances` and recent instance-lock mutation, persistence/loading of player difficulty values from `characters`, group difficulty fanout, install/restart, bot, or live-client/manual validation.
+Boundaries: represented-partial only. Grouped difficulty mutation/fanout is extended by `#NEXT.R8.ENTITIES.938`. Exact `Group::ResetInstances`, `Player::ResetInstances` and recent instance-lock mutation, full player/group persistence/load parity, install/restart, bot, or live-client/manual validation remain open.
 
 # `#NEXT.R8.ENTITIES.923` — represented-complete WotLK stubs for `CMSG_AUCTIONABLE_TOKEN_SELL` and `CMSG_AUCTIONABLE_TOKEN_SELL_AT_MARKET_PRICE`.
 

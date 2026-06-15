@@ -2909,6 +2909,9 @@ impl WorldSession {
                 SessionCommand::ApplyGroupRemovalLikeCpp(command) => {
                     self.handle_apply_group_removal_command_like_cpp(command);
                 }
+                SessionCommand::ApplyGroupDifficultyLikeCpp(command) => {
+                    self.handle_apply_group_difficulty_command_like_cpp(command);
+                }
                 SessionCommand::SendIfVisibleLikeCpp(command) => {
                     self.handle_send_if_visible_like_cpp_command_like_cpp(command);
                 }
@@ -2968,6 +2971,20 @@ impl WorldSession {
         for packet in command.member_full_state_packets {
             let _ = self.send_tx().send(packet);
         }
+    }
+
+    fn handle_apply_group_difficulty_command_like_cpp(
+        &mut self,
+        command: wow_network::player_registry::ApplyGroupDifficultyLikeCppCommand,
+    ) {
+        if self.state() != SessionState::LoggedIn {
+            return;
+        }
+        self.apply_group_difficulty_like_cpp(
+            command.group_guid,
+            command.difficulty_id,
+            command.kind,
+        );
     }
 
     /// Mirrors the small gathering-node state subset that C++ keeps on the

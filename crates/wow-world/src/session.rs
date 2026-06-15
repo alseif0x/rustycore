@@ -14275,6 +14275,40 @@ impl WorldSession {
         }
     }
 
+    pub(crate) fn apply_group_difficulty_like_cpp(
+        &mut self,
+        group_guid: u64,
+        difficulty_id: u32,
+        kind: wow_network::player_registry::GroupDifficultyKindLikeCpp,
+    ) {
+        if self.group_guid != Some(group_guid) {
+            return;
+        }
+
+        match kind {
+            wow_network::player_registry::GroupDifficultyKindLikeCpp::Dungeon => {
+                self.represented_dungeon_difficulty_id_like_cpp = difficulty_id;
+                self.send_packet(&DungeonDifficultySet {
+                    difficulty_id: i32::try_from(difficulty_id).unwrap_or(i32::MAX),
+                });
+            }
+            wow_network::player_registry::GroupDifficultyKindLikeCpp::Raid => {
+                self.represented_raid_difficulty_id_like_cpp = difficulty_id;
+                self.send_packet(&RaidDifficultySet {
+                    difficulty_id: i32::try_from(difficulty_id).unwrap_or(i32::MAX),
+                    legacy: false,
+                });
+            }
+            wow_network::player_registry::GroupDifficultyKindLikeCpp::LegacyRaid => {
+                self.represented_legacy_raid_difficulty_id_like_cpp = difficulty_id;
+                self.send_packet(&RaidDifficultySet {
+                    difficulty_id: i32::try_from(difficulty_id).unwrap_or(i32::MAX),
+                    legacy: true,
+                });
+            }
+        }
+    }
+
     fn current_map_instanceable_like_cpp(&self) -> bool {
         let map_id = u32::from(self.player_map_id_like_cpp());
         self.map_store()
@@ -14291,49 +14325,67 @@ impl WorldSession {
             })
     }
 
-    pub(crate) fn represented_set_difficulty_id_like_cpp(&mut self, difficulty_id: u32) {
+    pub(crate) fn represented_set_difficulty_id_like_cpp(
+        &mut self,
+        difficulty_id: u32,
+    ) -> Vec<PreparedStatement> {
         let Some(entry) = self
             .difficulty_store()
             .and_then(|store| store.get(difficulty_id))
             .copied()
         else {
-            return;
+            return Vec::new();
         };
 
         let flags = DifficultyFlags::from_bits_truncate(entry.flags);
         if !flags.contains(DifficultyFlags::CAN_SELECT) {
-            return;
+            return Vec::new();
         }
 
         if self.current_map_instanceable_like_cpp() {
-            return;
-        }
-
-        if self.group_guid.is_some() {
-            // C++ mutates group difficulty here only for the leader and only
-            // outside LFG groups. Rust does not yet carry represented group
-            // instance reset ownership through WorldSession.
-            return;
+            return Vec::new();
         }
 
         if entry.instance_type == MAP_INSTANCE_LIKE_CPP {
-            if difficulty_id == self.represented_dungeon_difficulty_id_like_cpp {
-                return;
+            if let Some(statement) = self.set_represented_group_difficulty_like_cpp(
+                difficulty_id,
+                wow_network::player_registry::GroupDifficultyKindLikeCpp::Dungeon,
+            ) {
+                return vec![statement];
+            }
+            if self.group_guid.is_some()
+                || difficulty_id == self.represented_dungeon_difficulty_id_like_cpp
+            {
+                return Vec::new();
             }
 
             self.represented_dungeon_difficulty_id_like_cpp = difficulty_id;
             self.send_packet(&DungeonDifficultySet {
                 difficulty_id: i32::try_from(difficulty_id).unwrap_or(i32::MAX),
             });
+            Vec::new()
         } else if entry.instance_type == MAP_RAID_LIKE_CPP {
             let legacy = flags.contains(DifficultyFlags::LEGACY);
+            let kind = if legacy {
+                wow_network::player_registry::GroupDifficultyKindLikeCpp::LegacyRaid
+            } else {
+                wow_network::player_registry::GroupDifficultyKindLikeCpp::Raid
+            };
+            if let Some(statement) =
+                self.set_represented_group_difficulty_like_cpp(difficulty_id, kind)
+            {
+                return vec![statement];
+            }
+            if self.group_guid.is_some() {
+                return Vec::new();
+            }
             let current = if legacy {
                 self.represented_legacy_raid_difficulty_id_like_cpp
             } else {
                 self.represented_raid_difficulty_id_like_cpp
             };
             if difficulty_id == current {
-                return;
+                return Vec::new();
             }
 
             if legacy {
@@ -14346,7 +14398,80 @@ impl WorldSession {
                 difficulty_id: i32::try_from(difficulty_id).unwrap_or(i32::MAX),
                 legacy,
             });
+            Vec::new()
+        } else {
+            Vec::new()
         }
+    }
+
+    fn set_represented_group_difficulty_like_cpp(
+        &mut self,
+        difficulty_id: u32,
+        kind: wow_network::player_registry::GroupDifficultyKindLikeCpp,
+    ) -> Option<PreparedStatement> {
+        let group_guid = self.group_guid?;
+        let player_guid = self.player_guid()?;
+        let registry = self.group_registry.as_ref()?;
+        let mut group = registry.get_mut(&group_guid)?;
+        if !group.is_leader_like_cpp(player_guid) || group.is_lfg_group_like_cpp() {
+            return None;
+        }
+
+        let changed = match kind {
+            wow_network::player_registry::GroupDifficultyKindLikeCpp::Dungeon => {
+                group.set_dungeon_difficulty_id_like_cpp(difficulty_id)
+            }
+            wow_network::player_registry::GroupDifficultyKindLikeCpp::Raid => {
+                group.set_raid_difficulty_id_like_cpp(difficulty_id)
+            }
+            wow_network::player_registry::GroupDifficultyKindLikeCpp::LegacyRaid => {
+                group.set_legacy_raid_difficulty_id_like_cpp(difficulty_id)
+            }
+        };
+        if !changed {
+            return None;
+        }
+
+        let db_store_id = group.db_store_id;
+        let members = group.members.clone();
+        drop(group);
+
+        for member_guid in members {
+            if member_guid == player_guid {
+                self.apply_group_difficulty_like_cpp(group_guid, difficulty_id, kind);
+                continue;
+            }
+            let Some(player_registry) = self.player_registry.as_ref() else {
+                continue;
+            };
+            if let Some(member) = player_registry.get(&member_guid) {
+                let _ = member
+                    .command_tx
+                    .try_send(SessionCommand::ApplyGroupDifficultyLikeCpp(
+                        wow_network::player_registry::ApplyGroupDifficultyLikeCppCommand {
+                            group_guid,
+                            difficulty_id,
+                            kind,
+                        },
+                    ));
+            }
+        }
+
+        let statement = match kind {
+            wow_network::player_registry::GroupDifficultyKindLikeCpp::Dungeon => {
+                CharStatements::UPD_GROUP_DIFFICULTY
+            }
+            wow_network::player_registry::GroupDifficultyKindLikeCpp::Raid => {
+                CharStatements::UPD_GROUP_RAID_DIFFICULTY
+            }
+            wow_network::player_registry::GroupDifficultyKindLikeCpp::LegacyRaid => {
+                CharStatements::UPD_GROUP_LEGACY_RAID_DIFFICULTY
+            }
+        };
+        let mut stmt = PreparedStatement::new(statement.sql());
+        stmt.set_u32(0, difficulty_id);
+        stmt.set_u32(1, db_store_id);
+        Some(stmt)
     }
 
     /// Set the lock store for this session.

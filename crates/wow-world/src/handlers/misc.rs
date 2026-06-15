@@ -2564,7 +2564,25 @@ impl crate::session::WorldSession {
             }
         };
 
-        self.represented_set_difficulty_id_like_cpp(packet.difficulty_id);
+        let statements = self.represented_set_difficulty_id_like_cpp(packet.difficulty_id);
+        if statements.is_empty() {
+            return;
+        }
+
+        if let Some(char_db) = self.char_db() {
+            let mut tx = SqlTransaction::new();
+            for statement in statements {
+                tx.append(statement);
+            }
+            if let Err(error) = char_db.commit_transaction(tx).await {
+                warn!(
+                    account = self.account_id,
+                    player_guid = ?self.player_guid(),
+                    %error,
+                    "failed to persist represented group difficulty change"
+                );
+            }
+        }
     }
 
     pub async fn handle_request_account_data(&mut self, mut pkt: wow_packet::WorldPacket) {
@@ -4816,6 +4834,7 @@ mod tests {
     use wow_network::{
         GroupInfo, GroupRegistry, PendingInvites, PlayerBroadcastInfo, PlayerRegistry,
         SessionCommand,
+        group_registry::{DIFFICULTY_NORMAL_LIKE_CPP, GROUP_FLAG_LFG_LIKE_CPP},
     };
     use wow_packet::ServerPacket;
     use wow_packet::WorldPacket;
@@ -7469,6 +7488,173 @@ mod tests {
         assert_eq!(i32::from_le_bytes([sent[2], sent[3], sent[4], sent[5]]), 4);
         assert_eq!(sent[6], 1);
         assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn set_difficulty_id_group_leader_updates_group_dungeon_difficulty_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let leader = ObjectGuid::create_player(1, 100);
+        let member = ObjectGuid::create_player(1, 101);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (member_command_tx, member_command_rx) = flume::bounded::<SessionCommand>(4);
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+        group.db_store_id = 44;
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+        player_registry.insert(member, broadcast_info_with_command_tx(member_command_tx));
+
+        session.set_player_guid(Some(leader));
+        session.group_guid = Some(group_guid);
+        session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
+        session.set_player_registry(player_registry);
+        session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([difficulty_entry(
+            2,
+            1,
+            DifficultyFlags::CAN_SELECT,
+        )])));
+        session.set_map_store(Arc::new(MapStore::from_entries([map_entry(
+            0,
+            wow_data::map::MAP_COMMON,
+        )])));
+
+        session
+            .handle_set_difficulty_id(set_difficulty_request(2))
+            .await;
+
+        let group = group_registry.get(&group_guid).expect("group");
+        assert_eq!(group.dungeon_difficulty_id, 2);
+        assert_eq!(session.represented_dungeon_difficulty_id_like_cpp(), 2);
+        let sent = send_rx
+            .try_recv()
+            .expect("leader dungeon difficulty packet");
+        assert_eq!(
+            WorldPacket::from_bytes(&sent).server_opcode(),
+            Some(ServerOpcodes::SetDungeonDifficulty)
+        );
+        let command = member_command_rx
+            .try_recv()
+            .expect("member difficulty command");
+        let SessionCommand::ApplyGroupDifficultyLikeCpp(command) = command else {
+            panic!("expected ApplyGroupDifficultyLikeCpp");
+        };
+        assert_eq!(command.group_guid, group_guid);
+        assert_eq!(command.difficulty_id, 2);
+        assert_eq!(
+            command.kind,
+            wow_network::player_registry::GroupDifficultyKindLikeCpp::Dungeon
+        );
+    }
+
+    #[tokio::test]
+    async fn set_difficulty_id_group_non_leader_is_silent_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let leader = ObjectGuid::create_player(1, 100);
+        let member = ObjectGuid::create_player(1, 101);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        session.set_player_guid(Some(member));
+        session.group_guid = Some(group_guid);
+        session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
+        session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([difficulty_entry(
+            2,
+            1,
+            DifficultyFlags::CAN_SELECT,
+        )])));
+        session.set_map_store(Arc::new(MapStore::from_entries([map_entry(
+            0,
+            wow_data::map::MAP_COMMON,
+        )])));
+
+        session
+            .handle_set_difficulty_id(set_difficulty_request(2))
+            .await;
+
+        assert_eq!(
+            group_registry
+                .get(&group_guid)
+                .expect("group")
+                .dungeon_difficulty_id,
+            DIFFICULTY_NORMAL_LIKE_CPP
+        );
+        assert_eq!(
+            session.represented_dungeon_difficulty_id_like_cpp(),
+            DIFFICULTY_NORMAL_LIKE_CPP
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn set_difficulty_id_group_lfg_is_silent_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let leader = ObjectGuid::create_player(1, 100);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.group_flags |= GROUP_FLAG_LFG_LIKE_CPP;
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        session.set_player_guid(Some(leader));
+        session.group_guid = Some(group_guid);
+        session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
+        session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([difficulty_entry(
+            2,
+            1,
+            DifficultyFlags::CAN_SELECT,
+        )])));
+        session.set_map_store(Arc::new(MapStore::from_entries([map_entry(
+            0,
+            wow_data::map::MAP_COMMON,
+        )])));
+
+        session
+            .handle_set_difficulty_id(set_difficulty_request(2))
+            .await;
+
+        assert_eq!(
+            group_registry
+                .get(&group_guid)
+                .expect("group")
+                .dungeon_difficulty_id,
+            DIFFICULTY_NORMAL_LIKE_CPP
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn group_difficulty_command_updates_remote_member_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let group_guid = 7001;
+        session.group_guid = Some(group_guid);
+        session.set_state(crate::session::SessionState::LoggedIn);
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::ApplyGroupDifficultyLikeCpp(
+                wow_network::player_registry::ApplyGroupDifficultyLikeCppCommand {
+                    group_guid,
+                    difficulty_id: 15,
+                    kind: wow_network::player_registry::GroupDifficultyKindLikeCpp::Raid,
+                },
+            ))
+            .unwrap();
+
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+
+        assert_eq!(session.represented_raid_difficulty_id_like_cpp(), 15);
+        let sent = send_rx.try_recv().expect("remote raid difficulty packet");
+        assert_eq!(
+            WorldPacket::from_bytes(&sent).server_opcode(),
+            Some(ServerOpcodes::RaidDifficultySet)
+        );
+        assert_eq!(i32::from_le_bytes([sent[2], sent[3], sent[4], sent[5]]), 15);
+        assert_eq!(sent[6], 0);
     }
 
     #[tokio::test]

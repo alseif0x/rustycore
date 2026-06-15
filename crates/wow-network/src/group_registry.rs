@@ -923,6 +923,34 @@ impl GroupInfo {
         (self.group_flags & GROUP_FLAG_RAID_LIKE_CPP) != 0
     }
 
+    pub fn is_lfg_group_like_cpp(&self) -> bool {
+        (self.group_flags & GROUP_FLAG_LFG_LIKE_CPP) != 0
+    }
+
+    pub fn set_dungeon_difficulty_id_like_cpp(&mut self, difficulty_id: u32) -> bool {
+        if self.dungeon_difficulty_id == difficulty_id {
+            return false;
+        }
+        self.dungeon_difficulty_id = difficulty_id;
+        true
+    }
+
+    pub fn set_raid_difficulty_id_like_cpp(&mut self, difficulty_id: u32) -> bool {
+        if self.raid_difficulty_id == difficulty_id {
+            return false;
+        }
+        self.raid_difficulty_id = difficulty_id;
+        true
+    }
+
+    pub fn set_legacy_raid_difficulty_id_like_cpp(&mut self, difficulty_id: u32) -> bool {
+        if self.legacy_raid_difficulty_id == difficulty_id {
+            return false;
+        }
+        self.legacy_raid_difficulty_id = difficulty_id;
+        true
+    }
+
     pub fn convert_to_raid_like_cpp(&mut self) {
         if !self.is_raid_group() {
             self.group_flags |= GROUP_FLAG_RAID_LIKE_CPP;

@@ -43,6 +43,9 @@ pub enum SessionCommand {
     /// Apply C++ `Group::Disband`/`Group::RemoveMember` session-local cleanup
     /// for a connected remote member.
     ApplyGroupRemovalLikeCpp(ApplyGroupRemovalLikeCppCommand),
+    /// Apply C++ `Group::Set*DifficultyID` session-local effects for a
+    /// connected group member.
+    ApplyGroupDifficultyLikeCpp(ApplyGroupDifficultyLikeCppCommand),
     /// Deliver `packet_bytes` to this session if the source GUID is currently in
     /// `client_visible_guids_like_cpp` (HaveAtClient gate).
     ///
@@ -120,6 +123,21 @@ pub struct ApplyGroupRemovalLikeCppCommand {
     pub send_group_destroyed: bool,
     pub send_group_uninvite: bool,
     pub refresh_visible_gameobjects_or_spellclicks: bool,
+}
+
+/// Payload for [`SessionCommand::ApplyGroupDifficultyLikeCpp`].
+#[derive(Clone, Debug)]
+pub struct ApplyGroupDifficultyLikeCppCommand {
+    pub group_guid: u64,
+    pub difficulty_id: u32,
+    pub kind: GroupDifficultyKindLikeCpp,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GroupDifficultyKindLikeCpp {
+    Dungeon,
+    Raid,
+    LegacyRaid,
 }
 
 /// Payload for a map-owned creature melee hit against one player session.
