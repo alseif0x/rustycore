@@ -46,6 +46,9 @@ pub enum SessionCommand {
     /// Apply C++ `Group::Set*DifficultyID` session-local effects for a
     /// connected group member.
     ApplyGroupDifficultyLikeCpp(ApplyGroupDifficultyLikeCppCommand),
+    /// Apply C++ `Player::SetGroup(group, subgroup)` session-local subgroup
+    /// reference update for a connected group member.
+    ApplyGroupSubgroupLikeCpp(ApplyGroupSubgroupLikeCppCommand),
     /// Deliver `packet_bytes` to this session if the source GUID is currently in
     /// `client_visible_guids_like_cpp` (HaveAtClient gate).
     ///
@@ -77,6 +80,12 @@ pub enum SessionCommand {
 #[derive(Clone, Debug)]
 pub struct KickLikeCppCommand {
     pub reason: String,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ApplyGroupSubgroupLikeCppCommand {
+    pub group_guid: u64,
+    pub subgroup: u8,
 }
 
 /// Acknowledgement request used by Rust's shutdown bridge after queuing

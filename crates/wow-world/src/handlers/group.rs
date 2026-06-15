@@ -1048,6 +1048,7 @@ impl WorldSession {
 
         // Update self's group_guid in session — all Arc borrows are gone now.
         self.group_guid = Some(group_guid);
+        let _ = self.load_represented_group_subgroup_like_cpp();
         if let Some(group) = group_reg.get(&group_guid) {
             self.send_player_party_type_update_like_cpp(
                 group.group_category_like_cpp(),
@@ -1247,6 +1248,7 @@ impl WorldSession {
                 free_group_db_store_id_like_cpp(db_store_id);
             }
             self.group_guid = None;
+            self.clear_represented_group_subgroup_like_cpp();
             self.send_player_party_type_update_like_cpp(
                 wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP,
                 wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP,
@@ -1378,6 +1380,7 @@ impl WorldSession {
             }
             // Tell self to leave.
             self.group_guid = None;
+            self.clear_represented_group_subgroup_like_cpp();
             self.send_player_party_type_update_like_cpp(
                 wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP,
                 wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP,
@@ -1395,6 +1398,7 @@ impl WorldSession {
 
         // 4. Uninvite self.
         self.group_guid = None;
+        self.clear_represented_group_subgroup_like_cpp();
         self.send_player_party_type_update_like_cpp(
             wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP,
             wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP,
@@ -1569,6 +1573,19 @@ impl WorldSession {
             }
         }
 
+        if target_guid == sender_guid {
+            self.apply_group_subgroup_like_cpp(group_guid, new_subgroup);
+        } else if let Some(target) = registry.get(&target_guid) {
+            let _ = target
+                .command_tx
+                .try_send(SessionCommand::ApplyGroupSubgroupLikeCpp(
+                    wow_network::player_registry::ApplyGroupSubgroupLikeCppCommand {
+                        group_guid,
+                        subgroup: new_subgroup,
+                    },
+                ));
+        }
+
         if let Some(group) = group_reg.get(&group_guid) {
             send_party_update(&group, &registry, vra);
         }
@@ -1633,7 +1650,7 @@ impl WorldSession {
         };
 
         if let Some(char_db) = self.char_db().map(std::sync::Arc::clone) {
-            for (member_guid, subgroup) in subgroup_updates {
+            for &(member_guid, subgroup) in &subgroup_updates {
                 let stmt = group_member_subgroup_update_statement_like_cpp(member_guid, subgroup);
                 if let Err(error) = char_db.execute(&stmt).await {
                     warn!(
@@ -1643,6 +1660,21 @@ impl WorldSession {
                         "failed to persist represented group subgroup swap"
                     );
                 }
+            }
+        }
+
+        for (member_guid, subgroup) in subgroup_updates {
+            if member_guid == sender_guid {
+                self.apply_group_subgroup_like_cpp(group_guid, subgroup);
+            } else if let Some(member) = registry.get(&member_guid) {
+                let _ = member
+                    .command_tx
+                    .try_send(SessionCommand::ApplyGroupSubgroupLikeCpp(
+                        wow_network::player_registry::ApplyGroupSubgroupLikeCppCommand {
+                            group_guid,
+                            subgroup,
+                        },
+                    ));
             }
         }
 

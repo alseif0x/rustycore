@@ -2912,6 +2912,9 @@ impl WorldSession {
                 SessionCommand::ApplyGroupDifficultyLikeCpp(command) => {
                     self.handle_apply_group_difficulty_command_like_cpp(command);
                 }
+                SessionCommand::ApplyGroupSubgroupLikeCpp(command) => {
+                    self.handle_apply_group_subgroup_command_like_cpp(command);
+                }
                 SessionCommand::SendIfVisibleLikeCpp(command) => {
                     self.handle_send_if_visible_like_cpp_command_like_cpp(command);
                 }
@@ -2943,6 +2946,7 @@ impl WorldSession {
         }
 
         self.group_guid = None;
+        self.clear_represented_group_subgroup_like_cpp();
         self.send_player_party_type_update_like_cpp(command.category, command.party_type);
         self.sync_player_registry_state_like_cpp();
 
@@ -2985,6 +2989,16 @@ impl WorldSession {
             command.difficulty_id,
             command.kind,
         );
+    }
+
+    fn handle_apply_group_subgroup_command_like_cpp(
+        &mut self,
+        command: wow_network::player_registry::ApplyGroupSubgroupLikeCppCommand,
+    ) {
+        if self.state() != SessionState::LoggedIn {
+            return;
+        }
+        self.apply_group_subgroup_like_cpp(command.group_guid, command.subgroup);
     }
 
     /// Mirrors the small gathering-node state subset that C++ keeps on the

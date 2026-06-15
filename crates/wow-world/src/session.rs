@@ -2872,6 +2872,7 @@ pub struct WorldSession {
 
     // Group state for this session
     pub(crate) group_guid: Option<u64>,
+    represented_subgroup_like_cpp: Option<u8>,
     represented_group_update_sequences_like_cpp: [RepresentedGroupUpdateSequenceLikeCpp;
         wow_network::group_registry::MAX_GROUP_CATEGORY_LIKE_CPP as usize],
     pub(crate) pass_on_group_loot: bool,
@@ -4314,6 +4315,7 @@ impl WorldSession {
             group_registry: None,
             pending_invites: None,
             group_guid: None,
+            represented_subgroup_like_cpp: None,
             represented_group_update_sequences_like_cpp: default_group_update_sequences_like_cpp(),
             pass_on_group_loot: false,
             represented_enchanting_skill: 0,
@@ -14171,6 +14173,47 @@ impl WorldSession {
         true
     }
 
+    /// C++ `Player::SetGroup(group, subgroup)` stores the subgroup on the
+    /// player's `GroupReference`; `Player::GetSubGroup()` reads it from there.
+    pub(crate) fn load_represented_group_subgroup_like_cpp(&mut self) -> bool {
+        let (Some(group_guid), Some(player_guid), Some(group_registry)) = (
+            self.group_guid,
+            self.player_guid(),
+            self.group_registry.as_ref(),
+        ) else {
+            self.represented_subgroup_like_cpp = None;
+            return false;
+        };
+
+        let Some(group) = group_registry.get(&group_guid) else {
+            self.represented_subgroup_like_cpp = None;
+            return false;
+        };
+        let Some(slot) = group.member_slot_like_cpp(player_guid) else {
+            self.represented_subgroup_like_cpp = None;
+            return false;
+        };
+
+        self.represented_subgroup_like_cpp = Some(slot.subgroup);
+        true
+    }
+
+    pub(crate) fn apply_group_subgroup_like_cpp(&mut self, group_guid: u64, subgroup: u8) {
+        if self.group_guid == Some(group_guid) {
+            self.represented_subgroup_like_cpp = Some(subgroup);
+            self.sync_player_registry_state_like_cpp();
+        }
+    }
+
+    pub(crate) fn clear_represented_group_subgroup_like_cpp(&mut self) {
+        self.represented_subgroup_like_cpp = None;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_subgroup_like_cpp(&self) -> Option<u8> {
+        self.represented_subgroup_like_cpp
+    }
+
     /// C++ `Player::_LoadGroup` resolves `CHAR_SEL_GROUP_MEMBER.guid` through
     /// `sGroupMgr->GetGroupByDbStoreId` before attaching the player to the
     /// already-loaded group.
@@ -14180,18 +14223,22 @@ impl WorldSession {
     ) -> bool {
         let Some(group_registry) = self.group_registry.as_ref() else {
             self.group_guid = None;
+            self.represented_subgroup_like_cpp = None;
             return false;
         };
         let Some(group_guid) = group_guid_by_db_store_id_like_cpp(db_store_id) else {
             self.group_guid = None;
+            self.represented_subgroup_like_cpp = None;
             return false;
         };
         if !group_registry.contains_key(&group_guid) {
             self.group_guid = None;
+            self.represented_subgroup_like_cpp = None;
             return false;
         }
 
         self.group_guid = Some(group_guid);
+        let _ = self.load_represented_group_subgroup_like_cpp();
         self.load_represented_group_difficulties_like_cpp()
     }
 
@@ -35291,7 +35338,9 @@ mod tests {
         UnitValuesUpdate, UpdateMask,
     };
     use wow_movement::MoveSplineFlag;
-    use wow_network::player_registry::ApplyGroupRemovalLikeCppCommand;
+    use wow_network::player_registry::{
+        ApplyGroupRemovalLikeCppCommand, ApplyGroupSubgroupLikeCppCommand,
+    };
     use wow_network::{
         ApplyCreatureMeleeDamageLikeCppCommand, CreatureAttackStartLikeCppCommand,
         GameEventQuestCompleteClientOutcomeLikeCpp, GameEventQuestCompleteResponseLikeCpp,
@@ -35503,6 +35552,8 @@ mod tests {
         let leader = ObjectGuid::create_player(1, 42);
         let group_registry = Arc::new(GroupRegistry::default());
         let mut group = GroupInfo::new(leader);
+        group.convert_to_raid_like_cpp();
+        assert!(group.change_member_group_like_cpp(leader, 3));
         group.db_store_id = 80_928;
         group.dungeon_difficulty_id = 2;
         group.raid_difficulty_id = 15;
@@ -35521,11 +35572,13 @@ mod tests {
             ),
         ])));
         session.load_represented_player_difficulties_like_cpp(1, 14, 3);
+        session.set_player_guid(Some(leader));
         session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
         assert!(session.load_represented_group_by_db_store_id_like_cpp(80_928));
 
         assert_eq!(session.group_guid, Some(group_guid));
+        assert_eq!(session.represented_subgroup_like_cpp(), Some(3));
         assert_eq!(session.represented_dungeon_difficulty_id_like_cpp(), 2);
         assert_eq!(session.represented_raid_difficulty_id_like_cpp(), 15);
         assert_eq!(session.represented_legacy_raid_difficulty_id_like_cpp(), 4);
@@ -35542,6 +35595,67 @@ mod tests {
 
         assert!(!session.load_represented_group_by_db_store_id_like_cpp(80_929));
         assert_eq!(session.group_guid, None);
+        assert_eq!(session.represented_subgroup_like_cpp(), None);
+    }
+
+    #[tokio::test]
+    async fn apply_group_subgroup_command_updates_current_group_reference_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let group_guid = 0xABCDEF;
+        session.group_guid = Some(group_guid);
+        session.state = SessionState::LoggedIn;
+
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::ApplyGroupSubgroupLikeCpp(
+                ApplyGroupSubgroupLikeCppCommand {
+                    group_guid,
+                    subgroup: 4,
+                },
+            ))
+            .unwrap();
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+
+        assert_eq!(session.represented_subgroup_like_cpp(), Some(4));
+
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::ApplyGroupSubgroupLikeCpp(
+                ApplyGroupSubgroupLikeCppCommand {
+                    group_guid: group_guid + 1,
+                    subgroup: 2,
+                },
+            ))
+            .unwrap();
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+
+        assert_eq!(session.represented_subgroup_like_cpp(), Some(4));
+    }
+
+    #[tokio::test]
+    async fn apply_group_subgroup_command_ignores_non_logged_in_session_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let group_guid = 0xABCDEF;
+        session.group_guid = Some(group_guid);
+
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::ApplyGroupSubgroupLikeCpp(
+                ApplyGroupSubgroupLikeCppCommand {
+                    group_guid,
+                    subgroup: 4,
+                },
+            ))
+            .unwrap();
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+
+        assert_eq!(session.represented_subgroup_like_cpp(), None);
     }
 
     #[test]

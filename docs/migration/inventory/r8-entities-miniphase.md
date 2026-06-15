@@ -1,3 +1,13 @@
+# `#NEXT.R8.ENTITIES.940` — represented-partial for C++ `Player::SetGroup(group, subgroup)`.
+
+Source-of-truth C++: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:18987-19010` (`Player::_LoadGroup`); `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:23446-23461` (`Player::SetGroup`); `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:25191-25206` (`SetOriginalGroup` / `SetBattlegroundOrBattlefieldRaid` subgroup transfer); `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp:438-456` (`Group::AddMember` calling `SetGroup(this, subGroup)`).
+
+Implemented Rust seam: `WorldSession` now carries a represented HOME-group subgroup equivalent to C++ `Player::m_group`'s `GroupReference::getSubGroup()`. Represented `_LoadGroup` and invite accept load the subgroup from the shared `GroupInfo` member slot; represented group removal clears it; `CMSG_CHANGE_SUB_GROUP` and `CMSG_SWAP_SUB_GROUPS` update the sender immediately when affected and queue `SessionCommand::ApplyGroupSubgroupLikeCpp` to connected affected members so each receiver session applies the subgroup to its own represented group reference.
+
+Focused tests: `load_represented_group_by_db_store_id_sets_group_and_difficulties_like_cpp` now verifies represented group load also imports subgroup; `apply_group_subgroup_command_updates_current_group_reference_like_cpp` verifies connected-member subgroup propagation and stale-group discard; `apply_group_subgroup_command_ignores_non_logged_in_session_like_cpp` verifies the command is ignored before login. Existing subgroup handler tests cover `CHANGE_SUB_GROUP` / `SWAP_SUB_GROUPS` group mutation and party-update fanout.
+
+Boundaries: represented-partial only. This covers the current represented HOME group reference, not C++ original-group / battleground / battlefield raid group references, not `Player::SetOriginalGroup` / `SetBattlegroundOrBattlefieldRaid`, not the full `UpdateObjectVisibility(false)` side effect from `SetGroup`, not live server/bot/client validation, and not install/restart validation.
+
 # `#NEXT.R8.ENTITIES.939` — represented-partial `ResetInstances(OnChangeDifficulty)` for difficulty changes.
 
 Source-of-truth C++: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:896-913` (`WorldSession::HandleResetInstancesOpcode`), `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:1046-1125` (`WorldSession::HandleSetDifficultyId`), `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:20673-20705` (`Player::ResetInstances`), and `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp:1354-1378` (`Group::ResetInstances`).
