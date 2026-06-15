@@ -6191,6 +6191,30 @@ impl ClientPacket for CalendarStatus {
     }
 }
 
+/// C++ `WorldPackets::Calendar::CalendarModeratorStatusQuery`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CalendarModeratorStatusQuery {
+    pub guid: ObjectGuid,
+    pub event_id: u64,
+    pub invite_id: u64,
+    pub moderator_id: u64,
+    pub status: u8,
+}
+
+impl ClientPacket for CalendarModeratorStatusQuery {
+    const OPCODE: ClientOpcodes = ClientOpcodes::CalendarModeratorStatus;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            guid: pkt.read_guid()?,
+            event_id: pkt.read_uint64()?,
+            invite_id: pkt.read_uint64()?,
+            moderator_id: pkt.read_uint64()?,
+            status: pkt.read_uint8()?,
+        })
+    }
+}
+
 /// C++ `WorldPackets::Calendar::CalendarCommandResult`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CalendarCommandResult {
@@ -8004,6 +8028,24 @@ mod tests {
         pkt.write_uint8(9);
 
         let query = CalendarStatus::read(&mut pkt).unwrap();
+        assert_eq!(query.guid, guid);
+        assert_eq!(query.event_id, 0x5555_6666_7777_8888);
+        assert_eq!(query.invite_id, 0x9999_AAAA_BBBB_CCCC);
+        assert_eq!(query.moderator_id, 0xDEAD_BEEF_CAFE_BABE);
+        assert_eq!(query.status, 9);
+    }
+
+    #[test]
+    fn calendar_moderator_status_query_reads_cpp_field_order() {
+        let guid = ObjectGuid::new(0x0102_0304_0506_0708, 0x1111_2222_3333_4444);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_guid(&guid);
+        pkt.write_uint64(0x5555_6666_7777_8888);
+        pkt.write_uint64(0x9999_AAAA_BBBB_CCCC);
+        pkt.write_uint64(0xDEAD_BEEF_CAFE_BABE);
+        pkt.write_uint8(9);
+
+        let query = CalendarModeratorStatusQuery::read(&mut pkt).unwrap();
         assert_eq!(query.guid, guid);
         assert_eq!(query.event_id, 0x5555_6666_7777_8888);
         assert_eq!(query.invite_id, 0x9999_AAAA_BBBB_CCCC);

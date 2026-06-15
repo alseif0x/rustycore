@@ -20394,6 +20394,12 @@ impl WorldSession {
                     Err(e) => warn!("Failed to read CalendarRsvp: {e}"),
                 }
             }
+            ClientOpcodes::CalendarModeratorStatus => {
+                match wow_packet::packets::misc::CalendarModeratorStatusQuery::read(&mut pkt) {
+                    Ok(query) => self.handle_calendar_moderator_status(query).await,
+                    Err(e) => warn!("Failed to read CalendarModeratorStatusQuery: {e}"),
+                }
+            }
             ClientOpcodes::CalendarStatus => {
                 match wow_packet::packets::misc::CalendarStatus::read(&mut pkt) {
                     Ok(query) => self.handle_calendar_status(query).await,
