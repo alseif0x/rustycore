@@ -362,6 +362,64 @@ impl ServerPacket for BarberShopResult {
     }
 }
 
+pub const MAX_DECLINED_NAME_CASES_LIKE_CPP: usize = 5;
+pub const DECLINED_NAMES_RESULT_SUCCESS_LIKE_CPP: i32 = 0;
+pub const DECLINED_NAMES_RESULT_ERROR_LIKE_CPP: i32 = 1;
+
+/// C++ `DeclinedName` payload: genitive, dative, accusative,
+/// instrumental, and prepositional cases.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeclinedNameCasesLikeCpp {
+    pub names: [String; MAX_DECLINED_NAME_CASES_LIKE_CPP],
+}
+
+/// C++ `WorldPackets::Character::SetPlayerDeclinedNames`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SetPlayerDeclinedNames {
+    pub player: ObjectGuid,
+    pub declined_names: DeclinedNameCasesLikeCpp,
+}
+
+impl ClientPacket for SetPlayerDeclinedNames {
+    const OPCODE: ClientOpcodes = ClientOpcodes::SetPlayerDeclinedNames;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let player = pkt.read_guid()?;
+        let mut lengths = [0usize; MAX_DECLINED_NAME_CASES_LIKE_CPP];
+        for length in &mut lengths {
+            *length = pkt.read_bits(7)? as usize;
+        }
+
+        let names = [
+            pkt.read_string(lengths[0])?,
+            pkt.read_string(lengths[1])?,
+            pkt.read_string(lengths[2])?,
+            pkt.read_string(lengths[3])?,
+            pkt.read_string(lengths[4])?,
+        ];
+
+        Ok(Self {
+            player,
+            declined_names: DeclinedNameCasesLikeCpp { names },
+        })
+    }
+}
+
+/// C++ `WorldPackets::Character::SetPlayerDeclinedNamesResult`.
+pub struct SetPlayerDeclinedNamesResult {
+    pub player: ObjectGuid,
+    pub result_code: i32,
+}
+
+impl ServerPacket for SetPlayerDeclinedNamesResult {
+    const OPCODE: ServerOpcodes = ServerOpcodes::SetPlayerDeclinedNamesResult;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_int32(self.result_code);
+        pkt.write_guid(&self.player);
+    }
+}
+
 /// Client request to create a character.
 #[derive(Debug, Clone)]
 pub struct CreateCharacter {
@@ -678,6 +736,49 @@ mod tests {
             payload.read_int32().unwrap(),
             BARBER_SHOP_RESULT_NOT_ON_CHAIR_LIKE_CPP
         );
+        assert_eq!(payload.remaining(), 0);
+    }
+
+    #[test]
+    fn set_player_declined_names_reads_cpp_guid_lengths_then_strings() {
+        let guid = ObjectGuid::create_player(1, 42);
+        let names = ["Gen", "Dat", "Acc", "Inst", "Prep"];
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_guid(&guid);
+        for name in names {
+            pkt.write_bits(name.len() as u32, 7);
+        }
+        for name in names {
+            pkt.write_string(name);
+        }
+        pkt.reset_read();
+
+        let parsed = SetPlayerDeclinedNames::read(&mut pkt).unwrap();
+
+        assert_eq!(parsed.player, guid);
+        assert_eq!(parsed.declined_names.names, names.map(str::to_string));
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn set_player_declined_names_result_writes_cpp_result_then_guid() {
+        let guid = ObjectGuid::create_player(1, 42);
+        let bytes = SetPlayerDeclinedNamesResult {
+            player: guid,
+            result_code: DECLINED_NAMES_RESULT_ERROR_LIKE_CPP,
+        }
+        .to_bytes();
+
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::SetPlayerDeclinedNamesResult as u16
+        );
+        let mut payload = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(
+            payload.read_int32().unwrap(),
+            DECLINED_NAMES_RESULT_ERROR_LIKE_CPP
+        );
+        assert_eq!(payload.read_guid().unwrap(), guid);
         assert_eq!(payload.remaining(), 0);
     }
 

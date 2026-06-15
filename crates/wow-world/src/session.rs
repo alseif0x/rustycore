@@ -11504,6 +11504,7 @@ impl WorldSession {
             | ClientOpcodes::GuildBankLogQuery
             | ClientOpcodes::LogoutCancel
             | ClientOpcodes::AlterAppearance
+            | ClientOpcodes::SetPlayerDeclinedNames
             | ClientOpcodes::AdventureMapStartQuest
             | ClientOpcodes::ArenaTeamAccept
             | ClientOpcodes::ArenaTeamLeave
@@ -17937,6 +17938,9 @@ impl WorldSession {
             }
             ClientOpcodes::AlterAppearance => {
                 self.handle_alter_appearance(pkt).await;
+            }
+            ClientOpcodes::SetPlayerDeclinedNames => {
+                self.handle_set_player_declined_names(pkt).await;
             }
             ClientOpcodes::AdventureMapStartQuest => {
                 self.handle_adventure_map_start_quest(pkt).await;
@@ -59880,6 +59884,7 @@ mod tests {
             ClientOpcodes::GuildBankLogQuery,
             ClientOpcodes::LogoutCancel,
             ClientOpcodes::AlterAppearance,
+            ClientOpcodes::SetPlayerDeclinedNames,
             ClientOpcodes::QuestConfirmAccept,
             ClientOpcodes::GuildEventLogQuery,
             ClientOpcodes::QuestGiverStatusMultipleQuery,

@@ -164,6 +164,15 @@ inventory::submit! {
     }
 }
 
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::SetPlayerDeclinedNames,
+        status: SessionStatus::Authed,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_set_player_declined_names",
+    }
+}
+
 // ── Stub registrations for character-select opcodes ──────────────────
 
 inventory::submit! {
@@ -2186,6 +2195,30 @@ impl WorldSession {
             customized_race: request.customized_race,
             customized_chr_model_id: request.customized_chr_model_id,
             cost,
+        });
+    }
+
+    /// Handle CMSG_SET_PLAYER_DECLINED_NAMES.
+    ///
+    /// C++ resolves the target character through `sCharacterCache`, requires a
+    /// Cyrillic base name, normalizes all five declined forms, validates them
+    /// with `ObjectMgr::CheckDeclinedNames`, then replaces the
+    /// `character_declinedname` row and returns success. Rust does not yet
+    /// carry that character-cache / locale-validation runtime through this
+    /// session path, so this bounded seam preserves the parse/dispatch and the
+    /// C++ error-result branch instead of fabricating persisted declined names.
+    pub async fn handle_set_player_declined_names(&mut self, mut pkt: WorldPacket) {
+        let request = match SetPlayerDeclinedNames::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!("Bad SetPlayerDeclinedNames: {error}");
+                return;
+            }
+        };
+
+        self.send_packet(&SetPlayerDeclinedNamesResult {
+            player: request.player,
+            result_code: DECLINED_NAMES_RESULT_ERROR_LIKE_CPP,
         });
     }
 
@@ -10283,6 +10316,31 @@ mod tests {
         result
     }
 
+    fn declined_names_packet(player: ObjectGuid, names: [&str; 5]) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_guid(&player);
+        for name in names {
+            pkt.write_bits(name.len() as u32, 7);
+        }
+        for name in names {
+            pkt.write_string(name);
+        }
+        pkt
+    }
+
+    fn read_declined_names_result(encoded: Vec<u8>) -> (i32, ObjectGuid) {
+        let mut packet = WorldPacket::new_client(encoded.as_slice().into());
+        assert_eq!(
+            packet.server_opcode(),
+            Some(wow_constants::ServerOpcodes::SetPlayerDeclinedNamesResult)
+        );
+        packet.skip_opcode();
+        let result = packet.read_int32().unwrap();
+        let player = packet.read_guid().unwrap();
+        assert_eq!(packet.remaining(), 0);
+        (result, player)
+    }
+
     #[tokio::test]
     async fn alter_appearance_without_barber_chair_sends_not_on_chair_like_cpp() {
         let (mut session, send_rx) = make_session_with_send_capacity(4);
@@ -10302,6 +10360,35 @@ mod tests {
                 .represented_alter_appearance_requests_like_cpp()
                 .is_empty()
         );
+    }
+
+    #[tokio::test]
+    async fn set_player_declined_names_without_runtime_sends_error_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        let player = ObjectGuid::create_player(1, 42);
+
+        session
+            .handle_set_player_declined_names(declined_names_packet(
+                player,
+                ["Gen", "Dat", "Acc", "Inst", "Prep"],
+            ))
+            .await;
+
+        assert_eq!(
+            read_declined_names_result(send_rx.try_recv().unwrap()),
+            (DECLINED_NAMES_RESULT_ERROR_LIKE_CPP, player)
+        );
+    }
+
+    #[tokio::test]
+    async fn set_player_declined_names_short_packet_does_not_send_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+
+        session
+            .handle_set_player_declined_names(WorldPacket::from_bytes(&[0x2a, 0x00]))
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
     }
 
     #[tokio::test]
