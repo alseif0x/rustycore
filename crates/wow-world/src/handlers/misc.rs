@@ -55,19 +55,19 @@ use wow_packet::packets::misc::{
     BattlePetSummon, BattlePetUpdateNotify, BattlefieldLeave, BeginTrade, BugReport, BusyTrade,
     CageBattlePet, CalendarCommandResult, CalendarCommunityInvite, CalendarComplain,
     CalendarCopyEvent, CalendarEventSignUp, CalendarGetEvent, CalendarRemoveEvent,
-    CalendarRemoveInvite, CalendarSendCalendar, CalendarSendNumPending, CanDuel, ClearTradeItem,
-    CloseInteraction, CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint, ComplaintResult,
-    DeclineGuildInvites, DeclinePetition, DfGetJoinStatus, DfGetSystemInfo, DuelResponse,
-    ERR_TAXITOOFARAWAY_LIKE_CPP, FarSight, GmTicketAcknowledgeSurvey, GmTicketCaseStatus,
-    GmTicketSystemStatus, GuildSetAchievementTracking, IgnoreTrade, LfgListBlacklist,
-    LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify, MAX_ACCOUNT_DATA_SIZE_LIKE_CPP,
-    MountSetFavorite, MountSpecial, NUM_ACCOUNT_DATA_TYPES, ObjectUpdateFailed,
-    ObjectUpdateRescued, QueryArenaTeam, QueryBattlePetName, QueryBattlePetNameResponse,
-    QueryPetition, QueryPetitionResponse, RatedPvpInfo, ReclaimCorpse, RepopRequest,
-    RequestAccountData, RequestBattlefieldStatus, RequestCemeteryListResponse, ResurrectResponse,
-    SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags, SetDifficultyId,
-    SetDungeonDifficulty, SetPvp, SetRaidDifficulty, SetTaxiBenchmarkMode, SetTradeGold,
-    SetTradeItem, SetTradeSpell, SignPetition, SpecialMountAnim, StandStateChange,
+    CalendarRemoveInvite, CalendarRsvp, CalendarSendCalendar, CalendarSendNumPending, CanDuel,
+    ClearTradeItem, CloseInteraction, CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint,
+    ComplaintResult, DeclineGuildInvites, DeclinePetition, DfGetJoinStatus, DfGetSystemInfo,
+    DuelResponse, ERR_TAXITOOFARAWAY_LIKE_CPP, FarSight, GmTicketAcknowledgeSurvey,
+    GmTicketCaseStatus, GmTicketSystemStatus, GuildSetAchievementTracking, IgnoreTrade,
+    LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify,
+    MAX_ACCOUNT_DATA_SIZE_LIKE_CPP, MountSetFavorite, MountSpecial, NUM_ACCOUNT_DATA_TYPES,
+    ObjectUpdateFailed, ObjectUpdateRescued, QueryArenaTeam, QueryBattlePetName,
+    QueryBattlePetNameResponse, QueryPetition, QueryPetitionResponse, RatedPvpInfo, ReclaimCorpse,
+    RepopRequest, RequestAccountData, RequestBattlefieldStatus, RequestCemeteryListResponse,
+    ResurrectResponse, SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags,
+    SetDifficultyId, SetDungeonDifficulty, SetPvp, SetRaidDifficulty, SetTaxiBenchmarkMode,
+    SetTradeGold, SetTradeItem, SetTradeSpell, SignPetition, SpecialMountAnim, StandStateChange,
     SubmitUserFeedback, SupportTicketSubmitBug, SupportTicketSubmitComplaint,
     SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
     TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP, TaxiNodeStatusPkt, ToggleDifficulty, TogglePvp,
@@ -1610,6 +1610,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_calendar_remove_invite",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::CalendarRsvp,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_calendar_rsvp",
     }
 }
 
@@ -4650,6 +4659,13 @@ impl crate::session::WorldSession {
         // event for the requested id. Rust does not have CalendarMgr wired yet,
         // so this represents the observable miss branch.
         self.send_packet(&CalendarCommandResult::no_invite_like_cpp());
+    }
+
+    pub async fn handle_calendar_rsvp(&mut self, _query: CalendarRsvp) {
+        // C++ sends CalendarCommandResult(EVENT_INVALID) when sCalendarMgr has
+        // no event for the requested id. Rust does not have CalendarMgr wired
+        // yet, so this represents the observable miss branch.
+        self.send_packet(&CalendarCommandResult::event_invalid_like_cpp());
     }
 
     // ── Auction house list stubs ──────────────────────────────────────────────
@@ -12161,6 +12177,30 @@ mod tests {
         let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
         assert_eq!(pkt.read_uint8().unwrap(), 1);
         assert_eq!(pkt.read_uint8().unwrap(), 29);
+        assert_eq!(pkt.read_bits(9).unwrap(), 0);
+    }
+
+    #[tokio::test]
+    async fn calendar_rsvp_without_calendar_mgr_sends_event_invalid_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_calendar_rsvp(CalendarRsvp {
+                event_id: 0x1111_2222_3333_4444,
+                invite_id: 0x5555_6666_7777_8888,
+                status: 9,
+            })
+            .await;
+
+        let bytes = send_rx.try_recv().expect("calendar command result");
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::CalendarCommandResult as u16
+        );
+
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_uint8().unwrap(), 1);
+        assert_eq!(pkt.read_uint8().unwrap(), 6);
         assert_eq!(pkt.read_bits(9).unwrap(), 0);
     }
 

@@ -6147,6 +6147,26 @@ impl ClientPacket for CalendarEventSignUp {
     }
 }
 
+/// C++ `WorldPackets::Calendar::CalendarRSVP`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CalendarRsvp {
+    pub event_id: u64,
+    pub invite_id: u64,
+    pub status: u8,
+}
+
+impl ClientPacket for CalendarRsvp {
+    const OPCODE: ClientOpcodes = ClientOpcodes::CalendarRsvp;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            event_id: pkt.read_uint64()?,
+            invite_id: pkt.read_uint64()?,
+            status: pkt.read_uint8()?,
+        })
+    }
+}
+
 /// C++ `WorldPackets::Calendar::CalendarCommandResult`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CalendarCommandResult {
@@ -7934,6 +7954,19 @@ mod tests {
         assert_eq!(query.event_id, 0x1111_2222_3333_4444);
         assert_eq!(query.club_id, 0x5555_6666_7777_8888);
         assert!(query.tentative);
+    }
+
+    #[test]
+    fn calendar_rsvp_reads_cpp_field_order() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint64(0x1111_2222_3333_4444);
+        pkt.write_uint64(0x5555_6666_7777_8888);
+        pkt.write_uint8(9);
+
+        let query = CalendarRsvp::read(&mut pkt).unwrap();
+        assert_eq!(query.event_id, 0x1111_2222_3333_4444);
+        assert_eq!(query.invite_id, 0x5555_6666_7777_8888);
+        assert_eq!(query.status, 9);
     }
 
     #[test]
