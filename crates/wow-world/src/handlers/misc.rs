@@ -61,10 +61,10 @@ use wow_packet::packets::misc::{
     ObjectUpdateRescued, QueryArenaTeam, QueryBattlePetName, QueryBattlePetNameResponse,
     QueryPetition, QueryPetitionResponse, RatedPvpInfo, RequestAccountData,
     RequestBattlefieldStatus, RequestCemeteryListResponse, ResurrectResponse, SaveCufProfiles,
-    SetAdvancedCombatLogging, SetCurrencyFlags, SetDifficultyId, SetPvp, SetTaxiBenchmarkMode,
-    SetTradeGold, SetTradeItem, SetTradeSpell, SignPetition, SpecialMountAnim, StandStateChange,
-    SubmitUserFeedback, SupportTicketSubmitBug, SupportTicketSubmitComplaint,
-    SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
+    SetAdvancedCombatLogging, SetCurrencyFlags, SetDifficultyId, SetDungeonDifficulty, SetPvp,
+    SetRaidDifficulty, SetTaxiBenchmarkMode, SetTradeGold, SetTradeItem, SetTradeSpell,
+    SignPetition, SpecialMountAnim, StandStateChange, SubmitUserFeedback, SupportTicketSubmitBug,
+    SupportTicketSubmitComplaint, SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
     TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP, TaxiNodeStatusPkt, TogglePvp, ToyClearFanfare,
     UnacceptTrade, UpdateAccountData, UseToy, UserClientUpdateAccountData, ViolenceLevel,
     compress_account_data_like_cpp, decompress_account_data_like_cpp,
@@ -639,6 +639,24 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_difficulty_id",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::SetDungeonDifficulty,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_set_dungeon_difficulty",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::SetRaidDifficulty,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_set_raid_difficulty",
     }
 }
 
@@ -2570,8 +2588,50 @@ impl crate::session::WorldSession {
             }
         };
 
-        let reset_owner =
-            self.represented_set_difficulty_reset_owner_like_cpp(packet.difficulty_id);
+        self.apply_represented_difficulty_change_like_cpp(packet.difficulty_id)
+            .await;
+    }
+
+    pub async fn handle_set_dungeon_difficulty(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let packet = match SetDungeonDifficulty::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "SetDungeonDifficulty parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        self.apply_represented_difficulty_change_like_cpp(packet.difficulty_id)
+            .await;
+    }
+
+    pub async fn handle_set_raid_difficulty(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let packet = match SetRaidDifficulty::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "SetRaidDifficulty parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        let Some(difficulty_id) = self
+            .represented_raid_difficulty_request_like_cpp(packet.difficulty_id, packet.legacy != 0)
+        else {
+            return;
+        };
+
+        self.apply_represented_difficulty_change_like_cpp(difficulty_id)
+            .await;
+    }
+
+    async fn apply_represented_difficulty_change_like_cpp(&mut self, difficulty_id: u32) {
+        let reset_owner = self.represented_set_difficulty_reset_owner_like_cpp(difficulty_id);
         if let Some(reset_owner) = reset_owner {
             self.reset_represented_instances_like_cpp(
                 reset_owner,
@@ -2580,7 +2640,7 @@ impl crate::session::WorldSession {
             .await;
         }
 
-        let statements = self.represented_set_difficulty_id_like_cpp(packet.difficulty_id);
+        let statements = self.represented_set_difficulty_id_like_cpp(difficulty_id);
         if statements.is_empty() {
             return;
         }
@@ -4906,6 +4966,21 @@ mod tests {
     fn set_difficulty_request(difficulty_id: u32) -> WorldPacket {
         let mut request = WorldPacket::new_empty();
         request.write_uint32(difficulty_id);
+        request.reset_read();
+        request
+    }
+
+    fn set_dungeon_difficulty_request(difficulty_id: u32) -> WorldPacket {
+        let mut request = WorldPacket::new_empty();
+        request.write_uint32(difficulty_id);
+        request.reset_read();
+        request
+    }
+
+    fn set_raid_difficulty_request(difficulty_id: i32, legacy: u8) -> WorldPacket {
+        let mut request = WorldPacket::new_empty();
+        request.write_int32(difficulty_id);
+        request.write_uint8(legacy);
         request.reset_read();
         request
     }
@@ -7447,6 +7522,33 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn set_dungeon_difficulty_updates_solo_dungeon_difficulty_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([difficulty_entry(
+            2,
+            1,
+            DifficultyFlags::CAN_SELECT,
+        )])));
+        session.set_map_store(Arc::new(MapStore::from_entries([map_entry(
+            0,
+            wow_data::map::MAP_COMMON,
+        )])));
+
+        session
+            .handle_set_dungeon_difficulty(set_dungeon_difficulty_request(2))
+            .await;
+
+        assert_eq!(session.represented_dungeon_difficulty_id_like_cpp(), 2);
+        let sent = send_rx.try_recv().expect("dungeon difficulty packet");
+        assert_eq!(
+            WorldPacket::from_bytes(&sent).server_opcode(),
+            Some(ServerOpcodes::SetDungeonDifficulty)
+        );
+        assert_eq!(i32::from_le_bytes([sent[2], sent[3], sent[4], sent[5]]), 2);
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
     async fn set_difficulty_id_resets_instances_before_solo_dungeon_packet_like_cpp() {
         let (mut session, send_rx) = make_session();
         let player_guid = ObjectGuid::create_player(1, 42);
@@ -7590,6 +7692,34 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn set_raid_difficulty_updates_solo_raid_difficulty_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([difficulty_entry(
+            15,
+            2,
+            DifficultyFlags::CAN_SELECT,
+        )])));
+        session.set_map_store(Arc::new(MapStore::from_entries([map_entry(
+            0,
+            wow_data::map::MAP_COMMON,
+        )])));
+
+        session
+            .handle_set_raid_difficulty(set_raid_difficulty_request(15, 0))
+            .await;
+
+        assert_eq!(session.represented_raid_difficulty_id_like_cpp(), 15);
+        let sent = send_rx.try_recv().expect("raid difficulty packet");
+        assert_eq!(
+            WorldPacket::from_bytes(&sent).server_opcode(),
+            Some(ServerOpcodes::RaidDifficultySet)
+        );
+        assert_eq!(i32::from_le_bytes([sent[2], sent[3], sent[4], sent[5]]), 15);
+        assert_eq!(sent[6], 0);
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
     async fn set_difficulty_id_updates_solo_legacy_raid_difficulty_like_cpp() {
         let (mut session, send_rx) = make_session();
         session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([difficulty_entry(
@@ -7614,6 +7744,43 @@ mod tests {
         );
         assert_eq!(i32::from_le_bytes([sent[2], sent[3], sent[4], sent[5]]), 4);
         assert_eq!(sent[6], 1);
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn set_raid_difficulty_legacy_flag_mismatch_is_silent_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([difficulty_entry(
+            4,
+            2,
+            DifficultyFlags::CAN_SELECT | DifficultyFlags::LEGACY,
+        )])));
+        session.set_map_store(Arc::new(MapStore::from_entries([map_entry(
+            0,
+            wow_data::map::MAP_COMMON,
+        )])));
+
+        session
+            .handle_set_raid_difficulty(set_raid_difficulty_request(4, 0))
+            .await;
+
+        assert_eq!(session.represented_legacy_raid_difficulty_id_like_cpp(), 3);
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn set_raid_difficulty_negative_id_is_silent_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([difficulty_entry(
+            4,
+            2,
+            DifficultyFlags::CAN_SELECT | DifficultyFlags::LEGACY,
+        )])));
+
+        session
+            .handle_set_raid_difficulty(set_raid_difficulty_request(-1, 1))
+            .await;
+
         assert!(send_rx.try_recv().is_err());
     }
 

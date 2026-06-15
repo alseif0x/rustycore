@@ -300,7 +300,7 @@ DBC/DB2 stores read:
 - **Ready check represented-partial** — `CMSG_DO_READY_CHECK` and `CMSG_READY_CHECK_RESPONSE` parse/dispatch through represented current-group state; `SMSG_READY_CHECK_STARTED/RESPONSE/COMPLETED` writers and connected-member fanout exist, including offline/no-session false response approximation and 35s timer state. Missing: full BG/BF/original-group `PartyIndex` category resolution and real `Group::UpdateReadyCheck` timeout tick loop.
 - **No raid markers** — `m_markers[8]` storage absent. `CMSG_CLEAR_RAID_MARKER`, `SMSG_RAID_MARKERS_CHANGED` unhandled.
 - **No target icons** — `m_targetIcons[8]` storage absent. `CMSG_UPDATE_RAID_TARGET`, `SMSG_RAID_TARGET_UPDATE_SINGLE/_ALL` unhandled. Cannot mark mobs.
-- **No difficulty switching** — hard-coded `1/14/3`. `CMSG_SET_DUNGEON_DIFFICULTY` / `CMSG_SET_RAID_DIFFICULTY` unhandled.
+- **Difficulty switching represented-partial** — `CMSG_SET_DIFFICULTY_ID`, `CMSG_SET_DUNGEON_DIFFICULTY`, and `CMSG_SET_RAID_DIFFICULTY` now route through represented solo/group difficulty state and reset hooks. Remaining gaps: full live `InstanceMap::Reset`, recent/owned instance parity, BG/BF/original-group exclusions, install/restart, and live client/bot validation.
 - **No instance binding** — `m_recentInstances` map absent. Group cannot save/restore raid lockouts.
 - **Minimap ping / random roll represented** — `CMSG_MINIMAP_PING` and `CMSG_RANDOM_ROLL` are wired through represented HOME-group state. Remaining gaps: BG/BF/original-group routing, full live `Group::BroadcastPacket` semantics, and live client/bot validation.
 - **No member stats refresh** — `CMSG_REQUEST_PARTY_MEMBER_STATS`, `UpdatePlayerOutOfRange` unhandled. Out-of-range members appear stuck.
@@ -417,7 +417,7 @@ DBC/DB2 stores read:
 - [ ] **#GROUPS.10** Implement target icons — 8-slot `[ObjectGuid; 8]`; `CMSG_UPDATE_RAID_TARGET`, `SMSG_RAID_TARGET_UPDATE_SINGLE/_ALL`. Complejidad: **M**
 - [ ] **#GROUPS.11** Implement `CMSG_CONVERT_RAID` — set `GROUP_FLAG_RAID`, raise cap to 40, allocate sub-groups. Complejidad: **H**
 - [ ] **#GROUPS.12** Implement raid sub-groups — `subgroup: u8` per member (0..7), `CMSG_CHANGE_SUB_GROUP`, `CMSG_SWAP_SUB_GROUPS`. Complejidad: **H**
-- [ ] **#GROUPS.13** Implement `CMSG_SET_DUNGEON_DIFFICULTY` / `CMSG_SET_RAID_DIFFICULTY` / `CMSG_SET_LEGACY_RAID_DIFFICULTY` — per-group difficulty + reset bound instances. Complejidad: **M**
+- [x] **#GROUPS.13** Represent `CMSG_SET_DUNGEON_DIFFICULTY` / `CMSG_SET_RAID_DIFFICULTY` legacy opcodes — per-group/solo difficulty and represented reset hooks are covered by `#NEXT.R8.ENTITIES.938`, `#NEXT.R8.ENTITIES.939`, and `#NEXT.R8.ENTITIES.943`; full live instance/runtime parity remains open. Complejidad: **M**
 - [ ] **#GROUPS.14** Implement DB persistence — schema for `groups`, `group_member`; load on startup via `GroupMgr::load_groups`; persist on Create/AddMember/Disband. Complejidad: **H**
 - [x] **#GROUPS.15** Implement represented `CMSG_MINIMAP_PING` — broadcast `(senderGuid, x, y)` to other represented HOME-group members. Remaining runtime/BG/original-group gaps tracked in R8.
 - [x] **#GROUPS.16** Implement represented `CMSG_RANDOM_ROLL` — `/roll min max`, broadcast `SMSG_RANDOM_ROLL` to represented HOME-group members including roller. Remaining runtime/BG/original-group gaps tracked in `#NEXT.R8.ENTITIES.941`.

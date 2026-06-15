@@ -14451,6 +14451,28 @@ impl WorldSession {
         }
     }
 
+    pub(crate) fn represented_raid_difficulty_request_like_cpp(
+        &self,
+        difficulty_id: i32,
+        legacy: bool,
+    ) -> Option<u32> {
+        let difficulty_id = u32::try_from(difficulty_id).ok()?;
+        let entry = self
+            .difficulty_store()
+            .and_then(|store| store.get(difficulty_id))
+            .copied()?;
+        if entry.instance_type != MAP_RAID_LIKE_CPP {
+            return None;
+        }
+
+        let flags = DifficultyFlags::from_bits_truncate(entry.flags);
+        if !flags.contains(DifficultyFlags::CAN_SELECT) {
+            return None;
+        }
+
+        (flags.contains(DifficultyFlags::LEGACY) == legacy).then_some(difficulty_id)
+    }
+
     fn set_represented_group_difficulty_like_cpp(
         &mut self,
         difficulty_id: u32,
@@ -19818,6 +19840,12 @@ impl WorldSession {
             }
             ClientOpcodes::SetDifficultyId => {
                 self.handle_set_difficulty_id(pkt).await;
+            }
+            ClientOpcodes::SetDungeonDifficulty => {
+                self.handle_set_dungeon_difficulty(pkt).await;
+            }
+            ClientOpcodes::SetRaidDifficulty => {
+                self.handle_set_raid_difficulty(pkt).await;
             }
             ClientOpcodes::SetAmmo => {
                 self.handle_set_ammo(pkt).await;

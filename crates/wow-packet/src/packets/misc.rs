@@ -900,6 +900,40 @@ impl ClientPacket for SetCurrencyFlags {
     }
 }
 
+/// C++ `WorldPackets::Misc::SetDungeonDifficulty`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SetDungeonDifficulty {
+    pub difficulty_id: u32,
+}
+
+impl ClientPacket for SetDungeonDifficulty {
+    const OPCODE: ClientOpcodes = ClientOpcodes::SetDungeonDifficulty;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            difficulty_id: pkt.read_uint32()?,
+        })
+    }
+}
+
+/// C++ `WorldPackets::Misc::SetRaidDifficulty`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SetRaidDifficulty {
+    pub difficulty_id: i32,
+    pub legacy: u8,
+}
+
+impl ClientPacket for SetRaidDifficulty {
+    const OPCODE: ClientOpcodes = ClientOpcodes::SetRaidDifficulty;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            difficulty_id: pkt.read_int32()?,
+            legacy: pkt.read_uint8()?,
+        })
+    }
+}
+
 /// C++ `WorldPackets::Misc::SetDifficultyId`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SetDifficultyId {
@@ -6584,6 +6618,32 @@ mod tests {
         let parsed = SetDifficultyId::read(&mut pkt).unwrap();
 
         assert_eq!(parsed.difficulty_id, 23);
+    }
+
+    #[test]
+    fn set_dungeon_difficulty_reads_cpp_uint32() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(2);
+        pkt.reset_read();
+
+        let parsed = SetDungeonDifficulty::read(&mut pkt).unwrap();
+
+        assert_eq!(parsed.difficulty_id, 2);
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn set_raid_difficulty_reads_cpp_int32_then_legacy_u8() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_int32(4);
+        pkt.write_uint8(1);
+        pkt.reset_read();
+
+        let parsed = SetRaidDifficulty::read(&mut pkt).unwrap();
+
+        assert_eq!(parsed.difficulty_id, 4);
+        assert_eq!(parsed.legacy, 1);
+        assert_eq!(pkt.remaining(), 0);
     }
 
     #[test]
