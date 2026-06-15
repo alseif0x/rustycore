@@ -60,12 +60,12 @@ use wow_data::{
     BattlePetSpeciesStore, BattlePetXpGameTableLikeCpp, BattlemasterListStore,
     ChrSpecializationStore, CinematicSequencesStore, ConditionEntriesByTypeStore,
     CreatureDisplayInfoStore, CreatureModelDataStore, CreatureTemplateMountStoreLikeCpp,
-    CurrencyTypesEntry, CurrencyTypesStore, DISABLE_TYPE_MAP, DifficultyStore, DisableMgrLikeCpp,
-    DisableWorldObjectRefLikeCpp, DungeonEncounterStore, DurabilityCostsStore,
-    DurabilityQualityStore, FishingBaseSkillStoreLikeCpp, GameObjectDisplayInfoStore,
-    GameObjectTemplateLifecycleStoreLikeCpp, HeirloomEntry, HeirloomStore, HotfixBlobCache,
-    ImportPriceStores, ItemAppearanceStore, ItemClassStore, ItemCurrencyCostStore,
-    ItemDisenchantLootStore, ItemEffectStore, ItemExtendedCostStore,
+    CurrencyTypesEntry, CurrencyTypesStore, DISABLE_TYPE_BATTLEGROUND, DISABLE_TYPE_MAP,
+    DifficultyStore, DisableMgrLikeCpp, DisableWorldObjectRefLikeCpp, DungeonEncounterStore,
+    DurabilityCostsStore, DurabilityQualityStore, FishingBaseSkillStoreLikeCpp,
+    GameObjectDisplayInfoStore, GameObjectTemplateLifecycleStoreLikeCpp, HeirloomEntry,
+    HeirloomStore, HotfixBlobCache, ImportPriceStores, ItemAppearanceStore, ItemClassStore,
+    ItemCurrencyCostStore, ItemDisenchantLootStore, ItemEffectStore, ItemExtendedCostStore,
     ItemLimitCategoryConditionStore, ItemLimitCategoryStore, ItemModifiedAppearanceStore,
     ItemPriceBaseStore, ItemRandomEnchantmentTemplateStore, ItemRandomPropertiesStore,
     ItemRandomPropertyTemplateEntry, ItemRandomSuffixStore, ItemSearchNameStore,
@@ -1548,6 +1548,33 @@ pub(crate) struct RepresentedBattlemasterHelloLikeCpp {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedBattlefieldListLikeCpp {
     pub list_id: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedBattlegroundQueueTypeIdLikeCpp {
+    pub battlemaster_list_id: u16,
+    pub queue_type: u8,
+    pub rated: bool,
+    pub team_size: u8,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RepresentedBattlemasterJoinLikeCpp {
+    pub packed_queue_id: u64,
+    pub queue_type_id: RepresentedBattlegroundQueueTypeIdLikeCpp,
+    pub roles: u8,
+    pub blacklist_map: [i32; 2],
+}
+
+pub(crate) fn battleground_queue_type_id_from_packed_like_cpp(
+    packed_queue_id: u64,
+) -> RepresentedBattlegroundQueueTypeIdLikeCpp {
+    RepresentedBattlegroundQueueTypeIdLikeCpp {
+        battlemaster_list_id: (packed_queue_id & 0xFFFF) as u16,
+        queue_type: ((packed_queue_id >> 16) & 0xF) as u8,
+        rated: ((packed_queue_id >> 20) & 1) != 0,
+        team_size: ((packed_queue_id >> 24) & 0x3F) as u8,
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -3343,6 +3370,8 @@ pub struct WorldSession {
     represented_battlemaster_hellos_like_cpp: Vec<RepresentedBattlemasterHelloLikeCpp>,
     /// Represented `BattlegroundMgr::SendBattlegroundList` intents from CMSG_BATTLEFIELD_LIST.
     represented_battlefield_lists_like_cpp: Vec<RepresentedBattlefieldListLikeCpp>,
+    /// Represented `BattlegroundQueue::AddGroup` intents from CMSG_BATTLEMASTER_JOIN.
+    represented_battlemaster_joins_like_cpp: Vec<RepresentedBattlemasterJoinLikeCpp>,
     /// C++ `Player::_areaSpiritHealerGUID`, represented until battleground/player resurrection owns it.
     area_spirit_healer_guid_like_cpp: ObjectGuid,
     /// Represented current pet GUID until player-owned pet runtime is canonical.
@@ -4641,6 +4670,7 @@ impl WorldSession {
             represented_battleground_leave_requests_like_cpp: 0,
             represented_battlemaster_hellos_like_cpp: Vec::new(),
             represented_battlefield_lists_like_cpp: Vec::new(),
+            represented_battlemaster_joins_like_cpp: Vec::new(),
             area_spirit_healer_guid_like_cpp: ObjectGuid::EMPTY,
             represented_pet_guid_like_cpp: None,
             represented_pet_react_state_like_cpp:
@@ -12208,6 +12238,7 @@ impl WorldSession {
             | ClientOpcodes::BattlemasterHello
             | ClientOpcodes::BattlefieldList
             | ClientOpcodes::BattlefieldLeave
+            | ClientOpcodes::BattlemasterJoin
             | ClientOpcodes::GuildBankLogQuery
             | ClientOpcodes::LogoutCancel
             | ClientOpcodes::AlterAppearance
@@ -20158,6 +20189,9 @@ impl WorldSession {
             ClientOpcodes::BattlefieldLeave => {
                 self.handle_battlefield_leave(pkt).await;
             }
+            ClientOpcodes::BattlemasterJoin => {
+                self.handle_battlemaster_join(pkt).await;
+            }
             ClientOpcodes::AcceptWargameInvite => {
                 self.handle_accept_wargame_invite(pkt).await;
             }
@@ -22461,6 +22495,91 @@ impl WorldSession {
         true
     }
 
+    pub(crate) fn battlemaster_join_like_cpp(
+        &mut self,
+        queue_ids: &[u64],
+        roles: u8,
+        blacklist_map: [i32; 2],
+    ) -> bool {
+        let Some(&packed_queue_id) = queue_ids.first() else {
+            return false;
+        };
+        let queue_type_id = battleground_queue_type_id_from_packed_like_cpp(packed_queue_id);
+        if !self.is_valid_battleground_queue_type_id_like_cpp(queue_type_id) {
+            return false;
+        }
+        if self
+            .battlemaster_list_store
+            .as_ref()
+            .map(|store| {
+                store.is_internal_only_like_cpp(u32::from(queue_type_id.battlemaster_list_id))
+            })
+            .unwrap_or(false)
+        {
+            return false;
+        }
+        if self
+            .disable_mgr
+            .as_ref()
+            .map(|disable_mgr| {
+                disable_mgr.is_disabled_for_like_cpp(
+                    DISABLE_TYPE_BATTLEGROUND,
+                    u32::from(queue_type_id.battlemaster_list_id),
+                    None,
+                    0,
+                    None,
+                )
+            })
+            .unwrap_or(false)
+        {
+            return false;
+        }
+        if self.player_in_represented_battleground_like_cpp() {
+            return false;
+        }
+
+        self.represented_battlemaster_joins_like_cpp
+            .push(RepresentedBattlemasterJoinLikeCpp {
+                packed_queue_id,
+                queue_type_id,
+                roles,
+                blacklist_map,
+            });
+        true
+    }
+
+    fn is_valid_battleground_queue_type_id_like_cpp(
+        &self,
+        queue_type_id: RepresentedBattlegroundQueueTypeIdLikeCpp,
+    ) -> bool {
+        let Some(entry) = self
+            .battlemaster_list_store
+            .as_ref()
+            .and_then(|store| store.get(u32::from(queue_type_id.battlemaster_list_id)))
+        else {
+            return false;
+        };
+
+        match queue_type_id.queue_type {
+            0 => {
+                entry.instance_type == wow_data::MAP_BATTLEGROUND_LIKE_CPP
+                    && queue_type_id.team_size == 0
+            }
+            1 => {
+                entry.instance_type == wow_data::MAP_ARENA_LIKE_CPP
+                    && queue_type_id.rated
+                    && queue_type_id.team_size != 0
+            }
+            2 => !queue_type_id.rated,
+            4 => {
+                entry.instance_type == wow_data::MAP_ARENA_LIKE_CPP
+                    && queue_type_id.rated
+                    && queue_type_id.team_size == 3
+            }
+            _ => false,
+        }
+    }
+
     #[cfg(test)]
     pub(crate) fn represented_battlemaster_hellos_like_cpp(
         &self,
@@ -22473,6 +22592,13 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedBattlefieldListLikeCpp] {
         &self.represented_battlefield_lists_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_battlemaster_joins_like_cpp(
+        &self,
+    ) -> &[RepresentedBattlemasterJoinLikeCpp] {
+        &self.represented_battlemaster_joins_like_cpp
     }
 
     pub(crate) fn accept_represented_wargame_invite_like_cpp(&mut self, inviter_name: &str) {
@@ -62575,6 +62701,7 @@ mod tests {
             ClientOpcodes::BattlemasterHello,
             ClientOpcodes::BattlefieldList,
             ClientOpcodes::BattlefieldLeave,
+            ClientOpcodes::BattlemasterJoin,
             ClientOpcodes::GuildBankLogQuery,
             ClientOpcodes::LogoutCancel,
             ClientOpcodes::AlterAppearance,

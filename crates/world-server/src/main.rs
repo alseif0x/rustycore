@@ -14802,7 +14802,9 @@ mmap.enablePathFinding = 0
         let store =
             wow_data::BattlemasterListStore::from_entries([wow_data::BattlemasterListEntry {
                 id: wow_data::BATTLEGROUND_AV_LIKE_CPP,
+                instance_type: wow_data::MAP_BATTLEGROUND_LIKE_CPP,
                 holiday_world_state: 777,
+                flags: 0,
             }]);
 
         let summary =
@@ -14828,7 +14830,9 @@ mmap.enablePathFinding = 0
         let store =
             wow_data::BattlemasterListStore::from_entries([wow_data::BattlemasterListEntry {
                 id: wow_data::BATTLEGROUND_AB_LIKE_CPP,
+                instance_type: wow_data::MAP_BATTLEGROUND_LIKE_CPP,
                 holiday_world_state: 888,
+                flags: 0,
             }]);
 
         let summary =
@@ -14922,7 +14926,9 @@ mmap.enablePathFinding = 0
         let zero_store =
             wow_data::BattlemasterListStore::from_entries([wow_data::BattlemasterListEntry {
                 id: wow_data::BATTLEGROUND_AV_LIKE_CPP,
+                instance_type: wow_data::MAP_BATTLEGROUND_LIKE_CPP,
                 holiday_world_state: 0,
+                flags: 0,
             }]);
         let mut zero_metadata = game_event_world_state_metadata_like_cpp(
             1,
@@ -15000,7 +15006,9 @@ mmap.enablePathFinding = 0
         let zero_store =
             wow_data::BattlemasterListStore::from_entries([wow_data::BattlemasterListEntry {
                 id: wow_data::BATTLEGROUND_AV_LIKE_CPP,
+                instance_type: wow_data::MAP_BATTLEGROUND_LIKE_CPP,
                 holiday_world_state: 0,
+                flags: 0,
             }]);
         let zero_summary = game_event_update_world_states_like_cpp(
             &metadata,
@@ -15032,7 +15040,9 @@ mmap.enablePathFinding = 0
         let store =
             wow_data::BattlemasterListStore::from_entries([wow_data::BattlemasterListEntry {
                 id: wow_data::BATTLEGROUND_AV_LIKE_CPP,
+                instance_type: wow_data::MAP_BATTLEGROUND_LIKE_CPP,
                 holiday_world_state: 777,
+                flags: 0,
             }]);
         let mut world_state_mgr =
             spawn_store_loader::WorldStateMgrLikeCpp::from_templates_and_saved_values(
@@ -15074,7 +15084,9 @@ mmap.enablePathFinding = 0
         let store =
             wow_data::BattlemasterListStore::from_entries([wow_data::BattlemasterListEntry {
                 id: wow_data::BATTLEGROUND_AV_LIKE_CPP,
+                instance_type: wow_data::MAP_BATTLEGROUND_LIKE_CPP,
                 holiday_world_state: 778,
+                flags: 0,
             }]);
         let mut world_state_mgr =
             spawn_store_loader::WorldStateMgrLikeCpp::from_templates_and_saved_values(
@@ -15113,7 +15125,9 @@ mmap.enablePathFinding = 0
         let store =
             wow_data::BattlemasterListStore::from_entries([wow_data::BattlemasterListEntry {
                 id: wow_data::BATTLEGROUND_AV_LIKE_CPP,
+                instance_type: wow_data::MAP_BATTLEGROUND_LIKE_CPP,
                 holiday_world_state: 779,
+                flags: 0,
             }]);
         let mut world_state_mgr = spawn_store_loader::WorldStateMgrLikeCpp::default();
 
@@ -15146,7 +15160,9 @@ mmap.enablePathFinding = 0
         let store =
             wow_data::BattlemasterListStore::from_entries([wow_data::BattlemasterListEntry {
                 id: wow_data::BATTLEGROUND_AV_LIKE_CPP,
+                instance_type: wow_data::MAP_BATTLEGROUND_LIKE_CPP,
                 holiday_world_state: 780,
+                flags: 0,
             }]);
         let mut world_state_mgr =
             spawn_store_loader::WorldStateMgrLikeCpp::from_templates_and_saved_values(
@@ -15190,7 +15206,9 @@ mmap.enablePathFinding = 0
         let store =
             wow_data::BattlemasterListStore::from_entries([wow_data::BattlemasterListEntry {
                 id: wow_data::BATTLEGROUND_AV_LIKE_CPP,
+                instance_type: wow_data::MAP_BATTLEGROUND_LIKE_CPP,
                 holiday_world_state: 777,
+                flags: 0,
             }]);
         let mut world_state_mgr =
             spawn_store_loader::WorldStateMgrLikeCpp::from_templates_and_saved_values(
@@ -15328,7 +15346,9 @@ mmap.enablePathFinding = 0
         let store =
             wow_data::BattlemasterListStore::from_entries([wow_data::BattlemasterListEntry {
                 id: wow_data::BATTLEGROUND_AV_LIKE_CPP,
+                instance_type: wow_data::MAP_BATTLEGROUND_LIKE_CPP,
                 holiday_world_state: 778,
+                flags: 0,
             }]);
         let mut world_state_mgr =
             spawn_store_loader::WorldStateMgrLikeCpp::from_templates_and_saved_values(
@@ -15370,7 +15390,9 @@ mmap.enablePathFinding = 0
         let store =
             wow_data::BattlemasterListStore::from_entries([wow_data::BattlemasterListEntry {
                 id: wow_data::BATTLEGROUND_AV_LIKE_CPP,
+                instance_type: wow_data::MAP_BATTLEGROUND_LIKE_CPP,
                 holiday_world_state: 779,
+                flags: 0,
             }]);
         let mut world_state_mgr = spawn_store_loader::WorldStateMgrLikeCpp::default();
 
@@ -15406,7 +15428,9 @@ mmap.enablePathFinding = 0
         let store =
             wow_data::BattlemasterListStore::from_entries([wow_data::BattlemasterListEntry {
                 id: wow_data::BATTLEGROUND_AV_LIKE_CPP,
+                instance_type: wow_data::MAP_BATTLEGROUND_LIKE_CPP,
                 holiday_world_state: 780,
+                flags: 0,
             }]);
         let mut world_state_mgr =
             spawn_store_loader::WorldStateMgrLikeCpp::from_templates_and_saved_values(
@@ -15453,7 +15477,9 @@ mmap.enablePathFinding = 0
         let store =
             wow_data::BattlemasterListStore::from_entries([wow_data::BattlemasterListEntry {
                 id: wow_data::BATTLEGROUND_AV_LIKE_CPP,
+                instance_type: wow_data::MAP_BATTLEGROUND_LIKE_CPP,
                 holiday_world_state: 781,
+                flags: 0,
             }]);
         let mut world_state_mgr = spawn_store_loader::WorldStateMgrLikeCpp::default();
         let registry = PlayerRegistry::default();

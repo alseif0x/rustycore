@@ -7,9 +7,11 @@
 //!
 //! C++ anchors:
 //! - `GameEventMgr.cpp:1501-1507` uses `BattlemasterListEntry::HolidayWorldState`.
+//! - `BattlegroundMgr.cpp:529-566` validates battleground queues from
+//!   `BattlemasterListEntry::InstanceType` and queue metadata.
 //! - `BattlegroundMgr.cpp:677-690` maps weekend holidays to `BattlegroundTypeId`.
 //! - `DB2Structure.h:484-503` and `DB2LoadInfo.h:705-714` place
-//!   `HolidayWorldState` after `MaxGroupSize` in `BattlemasterListEntry`.
+//!   `InstanceType`, `HolidayWorldState`, and `Flags` in `BattlemasterListEntry`.
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -39,12 +41,20 @@ pub const BATTLEGROUND_IC_LIKE_CPP: u32 = 30;
 pub const BATTLEGROUND_TP_LIKE_CPP: u32 = 108;
 pub const BATTLEGROUND_BFG_LIKE_CPP: u32 = 120;
 
+pub const MAP_BATTLEGROUND_LIKE_CPP: i8 = 3;
+pub const MAP_ARENA_LIKE_CPP: i8 = 4;
+pub const BATTLEMASTER_LIST_FLAG_INTERNAL_ONLY_LIKE_CPP: i8 = 0x01;
+
+const BATTLEMASTER_LIST_INSTANCE_TYPE_FIELD_LIKE_CPP: usize = 0;
 const BATTLEMASTER_LIST_HOLIDAY_WORLD_STATE_FIELD_LIKE_CPP: usize = 8;
+const BATTLEMASTER_LIST_FLAGS_FIELD_LIKE_CPP: usize = 9;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BattlemasterListEntry {
     pub id: u32,
+    pub instance_type: i8,
     pub holiday_world_state: i16,
+    pub flags: i8,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -85,10 +95,13 @@ impl BattlemasterListStore {
                 id,
                 BattlemasterListEntry {
                     id,
+                    instance_type: reader
+                        .get_field_i8(record_idx, BATTLEMASTER_LIST_INSTANCE_TYPE_FIELD_LIKE_CPP),
                     holiday_world_state: reader.get_field_i16(
                         record_idx,
                         BATTLEMASTER_LIST_HOLIDAY_WORLD_STATE_FIELD_LIKE_CPP,
                     ),
+                    flags: reader.get_field_i8(record_idx, BATTLEMASTER_LIST_FLAGS_FIELD_LIKE_CPP),
                 },
             );
         }
@@ -105,6 +118,12 @@ impl BattlemasterListStore {
 
     pub fn get(&self, id: u32) -> Option<&BattlemasterListEntry> {
         self.entries.get(&id)
+    }
+
+    pub fn is_internal_only_like_cpp(&self, id: u32) -> bool {
+        self.get(id)
+            .map(|entry| (entry.flags & BATTLEMASTER_LIST_FLAG_INTERNAL_ONLY_LIKE_CPP) != 0)
+            .unwrap_or(false)
     }
 
     pub fn len(&self) -> usize {
@@ -212,7 +231,9 @@ mod tests {
     fn nonzero_holiday_world_state_returns_represented_set_value() {
         let store = BattlemasterListStore::from_entries([BattlemasterListEntry {
             id: BATTLEGROUND_AV_LIKE_CPP,
+            instance_type: MAP_BATTLEGROUND_LIKE_CPP,
             holiday_world_state: 1234,
+            flags: 0,
         }]);
 
         assert_eq!(
@@ -244,7 +265,9 @@ mod tests {
     fn zero_holiday_world_state_returns_no_set_value_skip() {
         let store = BattlemasterListStore::from_entries([BattlemasterListEntry {
             id: BATTLEGROUND_AB_LIKE_CPP,
+            instance_type: MAP_BATTLEGROUND_LIKE_CPP,
             holiday_world_state: 0,
+            flags: 0,
         }]);
 
         assert_eq!(
@@ -261,7 +284,9 @@ mod tests {
     fn non_weekend_holiday_returns_explicit_skip() {
         let store = BattlemasterListStore::from_entries([BattlemasterListEntry {
             id: BATTLEGROUND_AV_LIKE_CPP,
+            instance_type: MAP_BATTLEGROUND_LIKE_CPP,
             holiday_world_state: 1234,
+            flags: 0,
         }]);
 
         assert_eq!(

@@ -53,13 +53,13 @@ use wow_packet::packets::misc::{
     AuctionReplicateItems, AuctionSellItem, AuctionableTokenSell,
     AuctionableTokenSellAtMarketPrice, BattlePetClearFanfare, BattlePetDeletePet,
     BattlePetModifyName, BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags,
-    BattlePetSummon, BattlePetUpdateNotify, BattlefieldLeave, BattlefieldListRequest, BeginTrade,
-    BugReport, BusyTrade, CageBattlePet, CalendarAddEvent, CalendarCommandResult,
-    CalendarCommunityInvite, CalendarComplain, CalendarCopyEvent, CalendarEventSignUp,
-    CalendarGetEvent, CalendarInvite, CalendarModeratorStatusQuery, CalendarRemoveEvent,
-    CalendarRemoveInvite, CalendarRsvp, CalendarSendCalendar, CalendarSendNumPending,
-    CalendarStatus, CalendarUpdateEvent, CanDuel, ClearTradeItem, CloseInteraction,
-    CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint, ComplaintResult,
+    BattlePetSummon, BattlePetUpdateNotify, BattlefieldLeave, BattlefieldListRequest,
+    BattlemasterJoin, BeginTrade, BugReport, BusyTrade, CageBattlePet, CalendarAddEvent,
+    CalendarCommandResult, CalendarCommunityInvite, CalendarComplain, CalendarCopyEvent,
+    CalendarEventSignUp, CalendarGetEvent, CalendarInvite, CalendarModeratorStatusQuery,
+    CalendarRemoveEvent, CalendarRemoveInvite, CalendarRsvp, CalendarSendCalendar,
+    CalendarSendNumPending, CalendarStatus, CalendarUpdateEvent, CanDuel, ClearTradeItem,
+    CloseInteraction, CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint, ComplaintResult,
     DeclineGuildInvites, DeclinePetition, DfGetJoinStatus, DfGetSystemInfo, DuelResponse,
     ERR_TAXITOOFARAWAY_LIKE_CPP, FarSight, GmTicketAcknowledgeSurvey, GmTicketCaseStatus,
     GmTicketSystemStatus, GuildSetAchievementTracking, IgnoreTrade, LfgListBlacklist,
@@ -866,6 +866,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_battlefield_list",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::BattlemasterJoin,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_battlemaster_join",
     }
 }
 
@@ -3429,6 +3438,27 @@ impl crate::session::WorldSession {
         let _accepted = self.battlefield_list_like_cpp(request.list_id);
     }
 
+    /// CMSG_BATTLEMASTER_JOIN — player asks to join a battleground queue.
+    /// C++ ref: `WorldSession::HandleBattlemasterJoinOpcode`.
+    pub async fn handle_battlemaster_join(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let join = match BattlemasterJoin::read(&mut pkt) {
+            Ok(join) => join,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "BattlemasterJoin parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        // C++ returns silently for missing/invalid queues and early queue gates.
+        // The accepted branch records the queue intent until BattlegroundQueue
+        // and BattlegroundMgr queue-status packets are live in Rust.
+        let _accepted =
+            self.battlemaster_join_like_cpp(&join.queue_ids, join.roles, join.blacklist_map);
+    }
+
     /// CMSG_BATTLEFIELD_LEAVE — player asks to leave the current battleground.
     /// C++ ref: `WorldSession::HandleBattlefieldLeaveOpcode`.
     pub async fn handle_battlefield_leave(&mut self, mut pkt: wow_packet::WorldPacket) {
@@ -5803,6 +5833,49 @@ mod tests {
         pkt.write_int32(list_id);
         pkt.reset_read();
         pkt
+    }
+
+    fn battlemaster_join_packet(
+        queue_ids: &[u64],
+        roles: u8,
+        blacklist_map: [i32; 2],
+    ) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(queue_ids.len() as u32);
+        pkt.write_uint8(roles);
+        pkt.write_int32(blacklist_map[0]);
+        pkt.write_int32(blacklist_map[1]);
+        for queue_id in queue_ids {
+            pkt.write_uint64(*queue_id);
+        }
+        pkt.reset_read();
+        pkt
+    }
+
+    fn battleground_queue_id_like_cpp(
+        battlemaster_list_id: u16,
+        queue_type: u8,
+        rated: bool,
+        team_size: u8,
+    ) -> u64 {
+        u64::from(battlemaster_list_id)
+            | (u64::from(queue_type & 0x0F) << 16)
+            | (u64::from(u8::from(rated)) << 20)
+            | (u64::from(team_size & 0x3F) << 24)
+            | 0x1F10_0000_0000_0000
+    }
+
+    fn battlemaster_entry_like_cpp(
+        id: u32,
+        instance_type: i8,
+        flags: i8,
+    ) -> wow_data::BattlemasterListEntry {
+        wow_data::BattlemasterListEntry {
+            id,
+            instance_type,
+            holiday_world_state: 0,
+            flags,
+        }
     }
 
     fn broadcast_info_with_command_tx(
@@ -13028,10 +13101,11 @@ mod tests {
         assert!(send_rx.try_recv().is_err());
 
         session.set_battlemaster_list_store(Arc::new(
-            wow_data::BattlemasterListStore::from_entries([wow_data::BattlemasterListEntry {
-                id: 3,
-                holiday_world_state: 0,
-            }]),
+            wow_data::BattlemasterListStore::from_entries([battlemaster_entry_like_cpp(
+                3,
+                wow_data::MAP_BATTLEGROUND_LIKE_CPP,
+                0,
+            )]),
         ));
         session
             .handle_battlefield_list(battlefield_list_packet(-1))
@@ -13045,10 +13119,11 @@ mod tests {
     async fn battlefield_list_records_represented_list_intent_like_cpp() {
         let (mut session, send_rx) = make_session();
         session.set_battlemaster_list_store(Arc::new(
-            wow_data::BattlemasterListStore::from_entries([wow_data::BattlemasterListEntry {
-                id: 3,
-                holiday_world_state: 0,
-            }]),
+            wow_data::BattlemasterListStore::from_entries([battlemaster_entry_like_cpp(
+                3,
+                wow_data::MAP_BATTLEGROUND_LIKE_CPP,
+                0,
+            )]),
         ));
 
         session
@@ -13058,6 +13133,147 @@ mod tests {
         assert_eq!(
             session.represented_battlefield_lists_like_cpp(),
             &[crate::session::RepresentedBattlefieldListLikeCpp { list_id: 3 }]
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn battlemaster_join_empty_missing_or_invalid_queue_is_silent_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let valid_queue_id = battleground_queue_id_like_cpp(3, 0, false, 0);
+
+        session
+            .handle_battlemaster_join(battlemaster_join_packet(&[], 0x07, [10, -1]))
+            .await;
+        assert!(session.represented_battlemaster_joins_like_cpp().is_empty());
+        assert!(send_rx.try_recv().is_err());
+
+        session
+            .handle_battlemaster_join(battlemaster_join_packet(&[valid_queue_id], 0x07, [10, -1]))
+            .await;
+        assert!(session.represented_battlemaster_joins_like_cpp().is_empty());
+        assert!(send_rx.try_recv().is_err());
+
+        session.set_battlemaster_list_store(Arc::new(
+            wow_data::BattlemasterListStore::from_entries([battlemaster_entry_like_cpp(
+                3,
+                wow_data::MAP_BATTLEGROUND_LIKE_CPP,
+                0,
+            )]),
+        ));
+        let invalid_battleground_team_size = battleground_queue_id_like_cpp(3, 0, false, 2);
+        session
+            .handle_battlemaster_join(battlemaster_join_packet(
+                &[invalid_battleground_team_size],
+                0x07,
+                [10, -1],
+            ))
+            .await;
+
+        assert!(session.represented_battlemaster_joins_like_cpp().is_empty());
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn battlemaster_join_internal_disabled_or_already_in_bg_is_silent_like_cpp() {
+        let (mut internal_session, internal_rx) = make_session();
+        let valid_queue_id = battleground_queue_id_like_cpp(3, 0, false, 0);
+        internal_session.set_battlemaster_list_store(Arc::new(
+            wow_data::BattlemasterListStore::from_entries([battlemaster_entry_like_cpp(
+                3,
+                wow_data::MAP_BATTLEGROUND_LIKE_CPP,
+                wow_data::BATTLEMASTER_LIST_FLAG_INTERNAL_ONLY_LIKE_CPP,
+            )]),
+        ));
+        internal_session
+            .handle_battlemaster_join(battlemaster_join_packet(&[valid_queue_id], 0x07, [10, -1]))
+            .await;
+        assert!(
+            internal_session
+                .represented_battlemaster_joins_like_cpp()
+                .is_empty()
+        );
+        assert!(internal_rx.try_recv().is_err());
+
+        let (disable_mgr, report) = wow_data::DisableMgrLikeCpp::from_rows_like_cpp(
+            [wow_data::DisableDbRowLikeCpp {
+                source_type: wow_data::DISABLE_TYPE_BATTLEGROUND,
+                entry: 3,
+                flags: 0,
+                params_0: String::new(),
+                params_1: String::new(),
+            }],
+            wow_data::DisableMgrRefsLikeCpp::default(),
+        );
+        assert_eq!(report.loaded_count, 1);
+        let (mut disabled_session, disabled_rx) = make_session();
+        disabled_session.set_battlemaster_list_store(Arc::new(
+            wow_data::BattlemasterListStore::from_entries([battlemaster_entry_like_cpp(
+                3,
+                wow_data::MAP_BATTLEGROUND_LIKE_CPP,
+                0,
+            )]),
+        ));
+        disabled_session.set_disable_mgr(Arc::new(disable_mgr));
+        disabled_session
+            .handle_battlemaster_join(battlemaster_join_packet(&[valid_queue_id], 0x07, [10, -1]))
+            .await;
+        assert!(
+            disabled_session
+                .represented_battlemaster_joins_like_cpp()
+                .is_empty()
+        );
+        assert!(disabled_rx.try_recv().is_err());
+
+        let (mut in_bg_session, in_bg_rx) = make_session();
+        in_bg_session.set_battlemaster_list_store(Arc::new(
+            wow_data::BattlemasterListStore::from_entries([battlemaster_entry_like_cpp(
+                3,
+                wow_data::MAP_BATTLEGROUND_LIKE_CPP,
+                0,
+            )]),
+        ));
+        in_bg_session.set_player_battleground_type_id_like_cpp(3);
+        in_bg_session
+            .handle_battlemaster_join(battlemaster_join_packet(&[valid_queue_id], 0x07, [10, -1]))
+            .await;
+        assert!(
+            in_bg_session
+                .represented_battlemaster_joins_like_cpp()
+                .is_empty()
+        );
+        assert!(in_bg_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn battlemaster_join_records_represented_queue_intent_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let packed_queue_id = battleground_queue_id_like_cpp(3, 0, false, 0);
+        session.set_battlemaster_list_store(Arc::new(
+            wow_data::BattlemasterListStore::from_entries([battlemaster_entry_like_cpp(
+                3,
+                wow_data::MAP_BATTLEGROUND_LIKE_CPP,
+                0,
+            )]),
+        ));
+
+        session
+            .handle_battlemaster_join(battlemaster_join_packet(&[packed_queue_id], 0x07, [10, -1]))
+            .await;
+
+        assert_eq!(
+            session.represented_battlemaster_joins_like_cpp(),
+            &[crate::session::RepresentedBattlemasterJoinLikeCpp {
+                packed_queue_id,
+                queue_type_id: crate::session::RepresentedBattlegroundQueueTypeIdLikeCpp {
+                    battlemaster_list_id: 3,
+                    queue_type: 0,
+                    rated: false,
+                    team_size: 0,
+                },
+                roles: 0x07,
+                blacklist_map: [10, -1],
+            }]
         );
         assert!(send_rx.try_recv().is_err());
     }

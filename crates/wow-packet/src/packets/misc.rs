@@ -5079,6 +5079,34 @@ impl ClientPacket for BattlefieldListRequest {
     }
 }
 
+/// C++ `WorldPackets::Battleground::BattlemasterJoin`.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct BattlemasterJoin {
+    pub queue_ids: Vec<u64>,
+    pub roles: u8,
+    pub blacklist_map: [i32; 2],
+}
+
+impl ClientPacket for BattlemasterJoin {
+    const OPCODE: ClientOpcodes = ClientOpcodes::BattlemasterJoin;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let queue_count = pkt.read_uint32()? as usize;
+        let roles = pkt.read_uint8()?;
+        let blacklist_map = [pkt.read_int32()?, pkt.read_int32()?];
+        let mut queue_ids = Vec::with_capacity(queue_count);
+        for _ in 0..queue_count {
+            queue_ids.push(pkt.read_uint64()?);
+        }
+
+        Ok(Self {
+            queue_ids,
+            roles,
+            blacklist_map,
+        })
+    }
+}
+
 /// C++ `WorldPackets::Battleground::AcceptWargameInvite`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AcceptWargameInvite {
@@ -10715,6 +10743,28 @@ mod tests {
         let parsed = BattlefieldListRequest::read(&mut pkt).unwrap();
 
         assert_eq!(parsed.list_id, 3);
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn battlemaster_join_reads_queue_roles_blacklist_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(2);
+        pkt.write_uint8(0x07);
+        pkt.write_int32(10);
+        pkt.write_int32(-1);
+        pkt.write_uint64(0x1F10_0000_0000_0003);
+        pkt.write_uint64(0x1F10_0000_0001_0003);
+        pkt.reset_read();
+
+        let parsed = BattlemasterJoin::read(&mut pkt).unwrap();
+
+        assert_eq!(
+            parsed.queue_ids,
+            [0x1F10_0000_0000_0003, 0x1F10_0000_0001_0003]
+        );
+        assert_eq!(parsed.roles, 0x07);
+        assert_eq!(parsed.blacklist_map, [10, -1]);
         assert_eq!(pkt.remaining(), 0);
     }
 
