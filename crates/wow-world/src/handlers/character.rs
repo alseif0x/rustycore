@@ -75,11 +75,13 @@ const DIFFICULTY_NORMAL_LIKE_CPP: u8 = 1;
 const DIFFICULTY_NORMAL_RAID_LIKE_CPP: u8 = 14;
 const RESPONSE_SUCCESS_LIKE_CPP: u8 = 0;
 const CHAR_CREATE_ERROR_LIKE_CPP: u8 = 25;
+const CHAR_CREATE_NAME_IN_USE_LIKE_CPP: u8 = 27;
 const CHAR_NAME_NO_NAME_LIKE_CPP: u8 = 92;
 const CHAR_NAME_TOO_SHORT_LIKE_CPP: u8 = 93;
 const CHAR_NAME_TOO_LONG_LIKE_CPP: u8 = 94;
 const CHAR_NAME_INVALID_CHARACTER_LIKE_CPP: u8 = 95;
 const AT_LOGIN_RENAME_LIKE_CPP: u16 = 0x001;
+const AT_LOGIN_CUSTOMIZE_LIKE_CPP: u16 = 0x008;
 const DIFFICULTY_10_N_LIKE_CPP: u8 = 3;
 
 fn bind_create_character_difficulties_like_cpp(stmt: &mut PreparedStatement) {
@@ -141,6 +143,15 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_character_rename_request",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::CharCustomize,
+        status: SessionStatus::Authed,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_char_customize",
     }
 }
 
@@ -2254,6 +2265,132 @@ impl WorldSession {
             self.account_id, pkt.guid, old_name, pkt.new_name
         );
         self.send_character_rename_like_cpp(RESPONSE_SUCCESS_LIKE_CPP, pkt.guid, pkt.new_name);
+    }
+
+    fn send_char_customize_failure_like_cpp(&self, result: u8, guid: ObjectGuid) {
+        self.send_packet(&CharCustomizeFailure { result, guid });
+    }
+
+    fn send_char_customize_success_like_cpp(&self, request: &CharCustomize) {
+        self.send_packet(&CharCustomizeSuccess {
+            guid: request.guid,
+            sex_id: request.sex_id,
+            customizations: request.customizations.clone(),
+            name: request.name.clone(),
+        });
+    }
+
+    /// Handle CMSG_CHAR_CUSTOMIZE.
+    pub async fn handle_char_customize(&mut self, request: CharCustomize) {
+        if !self.is_legit_character(&request.guid) {
+            warn!(
+                "Account {} tried to customize non-owned character {:?}",
+                self.account_id, request.guid
+            );
+            self.kick("WorldSession::HandleCharCustomize Trying to customise character of another account");
+            return;
+        }
+
+        let char_db = match self.char_db() {
+            Some(db) => Arc::clone(db),
+            None => {
+                self.send_char_customize_failure_like_cpp(CHAR_CREATE_ERROR_LIKE_CPP, request.guid);
+                return;
+            }
+        };
+
+        let mut info_stmt = char_db.prepare(CharStatements::SEL_CHAR_CUSTOMIZE_INFO);
+        info_stmt.set_u64(0, request.guid.counter() as u64);
+        let result = match char_db.query(&info_stmt).await {
+            Ok(result) => result,
+            Err(error) => {
+                warn!("Character customize info query failed: {error}");
+                self.send_char_customize_failure_like_cpp(CHAR_CREATE_ERROR_LIKE_CPP, request.guid);
+                return;
+            }
+        };
+
+        if result.is_empty() {
+            self.send_char_customize_failure_like_cpp(CHAR_CREATE_ERROR_LIKE_CPP, request.guid);
+            return;
+        }
+
+        let old_name: String = result.read_string(0);
+        let _race: u8 = result.try_read(1).unwrap_or(0);
+        let _class: u8 = result.try_read(2).unwrap_or(0);
+        let _gender: u8 = result.try_read(3).unwrap_or(0);
+        let mut at_login_flags: u16 = result.try_read(4).unwrap_or(0);
+        if (at_login_flags & AT_LOGIN_CUSTOMIZE_LIKE_CPP) == 0 {
+            self.send_char_customize_failure_like_cpp(CHAR_CREATE_ERROR_LIKE_CPP, request.guid);
+            return;
+        }
+
+        let name_result = Self::represented_character_rename_name_result_like_cpp(&request.name);
+        if name_result != RESPONSE_SUCCESS_LIKE_CPP {
+            self.send_char_customize_failure_like_cpp(name_result, request.guid);
+            return;
+        }
+
+        if request.name != old_name {
+            let mut name_stmt = char_db.prepare(CharStatements::SEL_CHECK_NAME);
+            name_stmt.set_string(0, &request.name);
+            match char_db.query(&name_stmt).await {
+                Ok(existing) if !existing.is_empty() => {
+                    self.send_char_customize_failure_like_cpp(
+                        CHAR_CREATE_NAME_IN_USE_LIKE_CPP,
+                        request.guid,
+                    );
+                    return;
+                }
+                Err(error) => {
+                    warn!("Character customize name query failed: {error}");
+                    self.send_char_customize_failure_like_cpp(
+                        CHAR_CREATE_ERROR_LIKE_CPP,
+                        request.guid,
+                    );
+                    return;
+                }
+                _ => {}
+            }
+        }
+
+        at_login_flags &= !AT_LOGIN_CUSTOMIZE_LIKE_CPP;
+
+        let mut tx = SqlTransaction::new();
+        let mut delete_customizations =
+            char_db.prepare(CharStatements::DEL_CHARACTER_CUSTOMIZATIONS);
+        delete_customizations.set_u64(0, request.guid.counter() as u64);
+        tx.append(delete_customizations);
+
+        for customization in &request.customizations {
+            let mut insert_customization = char_db.prepare(CharStatements::INS_CHAR_CUSTOMIZATION);
+            insert_customization.set_u64(0, request.guid.counter() as u64);
+            insert_customization.set_i32(1, customization.option_id);
+            insert_customization.set_i32(2, customization.choice_id);
+            tx.append(insert_customization);
+        }
+
+        let mut update_name = char_db.prepare(CharStatements::UPD_CHAR_NAME_AT_LOGIN);
+        update_name.set_string(0, &request.name);
+        update_name.set_u16(1, at_login_flags);
+        update_name.set_u64(2, request.guid.counter() as u64);
+        tx.append(update_name);
+
+        let mut delete_declined = char_db.prepare(CharStatements::DEL_CHAR_DECLINED_NAME);
+        delete_declined.set_u64(0, request.guid.counter() as u64);
+        tx.append(delete_declined);
+
+        if let Err(error) = char_db.commit_transaction(tx).await {
+            warn!("Character customize transaction failed: {error}");
+            self.send_char_customize_failure_like_cpp(CHAR_CREATE_ERROR_LIKE_CPP, request.guid);
+            return;
+        }
+
+        info!(
+            "Account {} customized character {:?} from {} to {}",
+            self.account_id, request.guid, old_name, request.name
+        );
+        self.send_char_customize_success_like_cpp(&request);
     }
 
     /// Handle CMSG_PLAYER_LOGIN — initiate ConnectTo flow.
@@ -10920,6 +11057,50 @@ mod tests {
             .handle_character_rename_request(CharacterRenameRequest {
                 guid: ObjectGuid::create_player(1, 42),
                 new_name: "Newname".to_string(),
+            })
+            .await;
+
+        assert_eq!(session.state(), crate::session::SessionState::Disconnecting);
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn char_customize_without_character_db_sends_cpp_failure() {
+        let (mut session, send_rx) = make_session_with_send_capacity(2);
+        let guid = ObjectGuid::create_player(1, 42);
+        session.set_legit_characters(vec![guid]);
+
+        session
+            .handle_char_customize(CharCustomize {
+                guid,
+                sex_id: 1,
+                customizations: vec![],
+                name: "Newname".to_string(),
+            })
+            .await;
+
+        let sent = send_rx.try_recv().expect("customize failure");
+        let mut pkt = WorldPacket::from_bytes(&sent);
+        assert_eq!(
+            pkt.server_opcode(),
+            Some(ServerOpcodes::CharCustomizeFailure)
+        );
+        pkt.skip_opcode();
+        assert_eq!(pkt.read_uint8().unwrap(), CHAR_CREATE_ERROR_LIKE_CPP);
+        assert_eq!(pkt.read_guid().unwrap(), guid);
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[tokio::test]
+    async fn char_customize_non_owned_guid_kicks_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+
+        session
+            .handle_char_customize(CharCustomize {
+                guid: ObjectGuid::create_player(1, 42),
+                sex_id: 1,
+                customizations: vec![],
+                name: "Newname".to_string(),
             })
             .await;
 

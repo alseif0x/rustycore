@@ -554,6 +554,84 @@ impl ServerPacket for CharacterRenameResult {
     }
 }
 
+/// C++ `WorldPackets::Character::CharCustomize`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CharCustomize {
+    pub guid: ObjectGuid,
+    pub sex_id: u8,
+    pub customizations: Vec<ChrCustomizationChoice>,
+    pub name: String,
+}
+
+impl ClientPacket for CharCustomize {
+    const OPCODE: ClientOpcodes = ClientOpcodes::CharCustomize;
+
+    fn read(packet: &mut WorldPacket) -> Result<Self, PacketError> {
+        let guid = packet.read_guid()?;
+        let sex_id = packet.read_uint8()?;
+        let customization_count = packet.read_uint32()? as usize;
+        let mut customizations = Vec::with_capacity(customization_count);
+        for _ in 0..customization_count {
+            customizations.push(ChrCustomizationChoice {
+                option_id: packet.read_int32()?,
+                choice_id: packet.read_int32()?,
+            });
+        }
+        customizations.sort_by_key(|choice| choice.option_id);
+        let name_len = packet.read_bits(6)? as usize;
+        let name = packet.read_string(name_len)?;
+
+        Ok(Self {
+            guid,
+            sex_id,
+            customizations,
+            name,
+        })
+    }
+}
+
+/// C++ `WorldPackets::Character::CharCustomizeSuccess`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CharCustomizeSuccess {
+    pub guid: ObjectGuid,
+    pub sex_id: u8,
+    pub customizations: Vec<ChrCustomizationChoice>,
+    pub name: String,
+}
+
+impl ServerPacket for CharCustomizeSuccess {
+    const OPCODE: ServerOpcodes = ServerOpcodes::CharCustomizeSuccess;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_guid(&self.guid);
+        pkt.write_uint8(self.sex_id);
+        pkt.write_uint32(self.customizations.len() as u32);
+        for customization in &self.customizations {
+            pkt.write_int32(customization.option_id);
+            pkt.write_int32(customization.choice_id);
+        }
+        pkt.write_bits(self.name.len() as u32, 6);
+        pkt.flush_bits();
+        pkt.write_string(&self.name);
+    }
+}
+
+/// C++ `WorldPackets::Character::CharCustomizeFailure`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CharCustomizeFailure {
+    pub result: u8,
+    pub guid: ObjectGuid,
+}
+
+impl ServerPacket for CharCustomizeFailure {
+    const OPCODE: ServerOpcodes = ServerOpcodes::CharCustomizeFailure;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_uint8(self.result);
+        pkt.write_guid(&self.guid);
+    }
+}
+
 // ── Response codes ──────────────────────────────────────────────────
 
 /// Result codes for character operations (values from ResponseCodes enum in C#).
@@ -717,6 +795,88 @@ mod tests {
         assert_eq!(pkt.read_bits(6).unwrap(), 7);
         assert_eq!(pkt.read_guid().unwrap(), guid);
         assert_eq!(pkt.read_string(7).unwrap(), "Newname");
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn char_customize_reads_cpp_guid_sex_customizations_then_name_bits() {
+        let guid = ObjectGuid::create_player(1, 42);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_guid(&guid);
+        pkt.write_uint8(1);
+        pkt.write_uint32(2);
+        pkt.write_int32(20);
+        pkt.write_int32(200);
+        pkt.write_int32(10);
+        pkt.write_int32(100);
+        pkt.write_bits(7, 6);
+        pkt.write_string("Newname");
+        pkt.reset_read();
+
+        let result = CharCustomize::read(&mut pkt).unwrap();
+
+        assert_eq!(result.guid, guid);
+        assert_eq!(result.sex_id, 1);
+        assert_eq!(result.name, "Newname");
+        assert_eq!(
+            result.customizations,
+            vec![
+                ChrCustomizationChoice {
+                    option_id: 10,
+                    choice_id: 100,
+                },
+                ChrCustomizationChoice {
+                    option_id: 20,
+                    choice_id: 200,
+                },
+            ]
+        );
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn char_customize_success_writes_cpp_guid_sex_customizations_name() {
+        let guid = ObjectGuid::create_player(1, 42);
+        let bytes = CharCustomizeSuccess {
+            guid,
+            sex_id: 1,
+            customizations: vec![ChrCustomizationChoice {
+                option_id: 10,
+                choice_id: 100,
+            }],
+            name: "Newname".to_string(),
+        }
+        .to_bytes();
+        let mut pkt = WorldPacket::from_bytes(&bytes);
+
+        assert_eq!(
+            pkt.server_opcode(),
+            Some(ServerOpcodes::CharCustomizeSuccess)
+        );
+        pkt.skip_opcode();
+        assert_eq!(pkt.read_guid().unwrap(), guid);
+        assert_eq!(pkt.read_uint8().unwrap(), 1);
+        assert_eq!(pkt.read_uint32().unwrap(), 1);
+        assert_eq!(pkt.read_int32().unwrap(), 10);
+        assert_eq!(pkt.read_int32().unwrap(), 100);
+        assert_eq!(pkt.read_bits(6).unwrap(), 7);
+        assert_eq!(pkt.read_string(7).unwrap(), "Newname");
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn char_customize_failure_writes_cpp_result_then_guid() {
+        let guid = ObjectGuid::create_player(1, 42);
+        let bytes = CharCustomizeFailure { result: 25, guid }.to_bytes();
+        let mut pkt = WorldPacket::from_bytes(&bytes);
+
+        assert_eq!(
+            pkt.server_opcode(),
+            Some(ServerOpcodes::CharCustomizeFailure)
+        );
+        pkt.skip_opcode();
+        assert_eq!(pkt.read_uint8().unwrap(), 25);
+        assert_eq!(pkt.read_guid().unwrap(), guid);
         assert_eq!(pkt.remaining(), 0);
     }
 

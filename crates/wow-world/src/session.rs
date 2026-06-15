@@ -19122,6 +19122,12 @@ impl WorldSession {
                     Err(e) => warn!("Failed to read CharacterRenameRequest: {e}"),
                 }
             }
+            ClientOpcodes::CharCustomize => {
+                match wow_packet::packets::character::CharCustomize::read(&mut pkt) {
+                    Ok(customize) => self.handle_char_customize(customize).await,
+                    Err(e) => warn!("Failed to read CharCustomize: {e}"),
+                }
+            }
             ClientOpcodes::PlayerLogin => {
                 match wow_packet::packets::character::PlayerLogin::read(&mut pkt) {
                     Ok(login) => self.handle_player_login(login).await,
