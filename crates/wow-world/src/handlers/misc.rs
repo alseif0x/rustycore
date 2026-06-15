@@ -58,12 +58,12 @@ use wow_packet::packets::misc::{
     ObjectUpdateFailed, ObjectUpdateRescued, QueryBattlePetName, QueryBattlePetNameResponse,
     RatedPvpInfo, RequestAccountData, RequestBattlefieldStatus, RequestCemeteryListResponse,
     ResurrectResponse, SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags,
-    SetTaxiBenchmarkMode, SetTradeGold, SpecialMountAnim, StandStateChange, SubmitUserFeedback,
-    SupportTicketSubmitBug, SupportTicketSubmitComplaint, SupportTicketSubmitSuggestion,
-    TRADE_STATUS_CANCELLED_LIKE_CPP, TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP, TaxiNodeStatusPkt,
-    TogglePvp, ToyClearFanfare, UnacceptTrade, UpdateAccountData, UseToy,
-    UserClientUpdateAccountData, ViolenceLevel, compress_account_data_like_cpp,
-    decompress_account_data_like_cpp,
+    SetTaxiBenchmarkMode, SetTradeGold, SetTradeItem, SpecialMountAnim, StandStateChange,
+    SubmitUserFeedback, SupportTicketSubmitBug, SupportTicketSubmitComplaint,
+    SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
+    TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP, TaxiNodeStatusPkt, TogglePvp, ToyClearFanfare,
+    UnacceptTrade, UpdateAccountData, UseToy, UserClientUpdateAccountData, ViolenceLevel,
+    compress_account_data_like_cpp, decompress_account_data_like_cpp,
 };
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -1141,6 +1141,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_clear_trade_item",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::SetTradeItem,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_set_trade_item",
     }
 }
 
@@ -3637,6 +3646,25 @@ impl crate::session::WorldSession {
         self.clear_represented_trade_item_like_cpp(packet.trade_slot);
     }
 
+    pub async fn handle_set_trade_item(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let packet = match SetTradeItem::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "SetTradeItem parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        self.set_represented_trade_item_like_cpp(
+            packet.trade_slot,
+            packet.pack_slot,
+            packet.item_slot_in_pack,
+        );
+    }
+
     pub async fn handle_set_trade_gold(&mut self, mut pkt: wow_packet::WorldPacket) {
         let packet = match SetTradeGold::read(&mut pkt) {
             Ok(packet) => packet,
@@ -4343,7 +4371,7 @@ mod tests {
     use super::*;
     use std::collections::{HashMap, HashSet};
     use std::sync::{Arc, Mutex};
-    use wow_constants::{ClientOpcodes, ServerOpcodes};
+    use wow_constants::{ClientOpcodes, ItemContext, ServerOpcodes};
     use wow_core::{ObjectGuid, Position, guid::HighGuid};
     use wow_data::progression_rewards::{FactionEntry, FactionStore};
     use wow_data::reputation::{ReputationFlagsLikeCpp, ReputationRankLikeCpp};
@@ -5415,11 +5443,48 @@ mod tests {
         pkt
     }
 
+    fn set_trade_item_packet(trade_slot: u8, pack_slot: u8, item_slot_in_pack: u8) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint8(trade_slot);
+        pkt.write_uint8(pack_slot);
+        pkt.write_uint8(item_slot_in_pack);
+        pkt.reset_read();
+        pkt
+    }
+
     fn set_trade_gold_packet(coinage: u64) -> WorldPacket {
         let mut pkt = WorldPacket::new_empty();
         pkt.write_uint64(coinage);
         pkt.reset_read();
         pkt
+    }
+
+    fn insert_trade_test_item(
+        session: &mut crate::session::WorldSession,
+        owner_guid: ObjectGuid,
+        slot: u8,
+        item_guid: ObjectGuid,
+        entry_id: u32,
+    ) {
+        session.insert_inventory_item_like_cpp(
+            slot,
+            crate::session::InventoryItem {
+                guid: item_guid,
+                entry_id,
+                db_guid: item_guid.counter() as u64,
+                inventory_type: None,
+            },
+        );
+        let item = session.make_inventory_item_object(
+            item_guid,
+            entry_id,
+            owner_guid,
+            1,
+            0,
+            ItemContext::None,
+            slot,
+        );
+        session.insert_inventory_item_object(item);
     }
 
     #[tokio::test]
@@ -5578,6 +5643,142 @@ mod tests {
             2
         );
         assert!(source_session.represented_trade_item_like_cpp(2).is_none());
+        assert!(!source_session.represented_trade_accepted_like_cpp());
+        assert!(!partner_session.represented_trade_accepted_like_cpp());
+
+        let source_bytes = source_send_rx.try_recv().expect("source unaccepted status");
+        let partner_bytes = partner_send_rx
+            .try_recv()
+            .expect("partner unaccepted status");
+        assert_eq!(source_bytes, partner_bytes);
+        assert_eq!(
+            u16::from_le_bytes([source_bytes[0], source_bytes[1]]),
+            ServerOpcodes::TradeStatus as u16
+        );
+        assert_eq!(source_bytes[2], TRADE_STATUS_UNACCEPTED_LIKE_CPP << 2);
+    }
+
+    #[tokio::test]
+    async fn set_trade_item_without_active_trade_is_noop_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 77);
+        let item_guid = ObjectGuid::create_item(1, 1234);
+        session.set_player_guid(Some(player_guid));
+        insert_trade_test_item(&mut session, player_guid, 23, item_guid, 700);
+
+        session
+            .handle_set_trade_item(set_trade_item_packet(2, 255, 23))
+            .await;
+
+        assert_eq!(session.represented_trade_client_state_index_like_cpp(), 1);
+        assert!(session.represented_trade_item_like_cpp(2).is_none());
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn set_trade_item_invalid_slot_cancels_without_client_state_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 77);
+        let partner_guid = ObjectGuid::create_player(1, 88);
+        let item_guid = ObjectGuid::create_item(1, 1234);
+        session.set_player_guid(Some(player_guid));
+        session.set_represented_active_trade_partner_like_cpp(Some(partner_guid));
+        insert_trade_test_item(&mut session, player_guid, 23, item_guid, 700);
+
+        session
+            .handle_set_trade_item(set_trade_item_packet(7, 255, 23))
+            .await;
+
+        assert_eq!(session.represented_trade_client_state_index_like_cpp(), 1);
+        assert!(session.represented_trade_item_like_cpp(2).is_none());
+        let bytes = send_rx.try_recv().expect("cancelled trade status");
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::TradeStatus as u16
+        );
+        assert_eq!(bytes[2], TRADE_STATUS_CANCELLED_LIKE_CPP << 2);
+    }
+
+    #[tokio::test]
+    async fn set_trade_item_missing_inventory_cancels_without_client_state_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let partner_guid = ObjectGuid::create_player(1, 88);
+        session.set_represented_active_trade_partner_like_cpp(Some(partner_guid));
+
+        session
+            .handle_set_trade_item(set_trade_item_packet(2, 255, 23))
+            .await;
+
+        assert_eq!(session.represented_trade_client_state_index_like_cpp(), 1);
+        assert!(session.represented_trade_item_like_cpp(2).is_none());
+        let bytes = send_rx.try_recv().expect("cancelled trade status");
+        assert_eq!(bytes[2], TRADE_STATUS_CANCELLED_LIKE_CPP << 2);
+    }
+
+    #[tokio::test]
+    async fn set_trade_item_duplicate_item_cancels_without_client_state_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 77);
+        let partner_guid = ObjectGuid::create_player(1, 88);
+        let item_guid = ObjectGuid::create_item(1, 1234);
+        session.set_player_guid(Some(player_guid));
+        session.set_represented_active_trade_partner_like_cpp(Some(partner_guid));
+        session.set_represented_trade_item_like_cpp_for_test(1, item_guid);
+        insert_trade_test_item(&mut session, player_guid, 23, item_guid, 700);
+
+        session
+            .handle_set_trade_item(set_trade_item_packet(2, 255, 23))
+            .await;
+
+        assert_eq!(session.represented_trade_client_state_index_like_cpp(), 1);
+        assert_eq!(session.represented_trade_item_like_cpp(1), Some(item_guid));
+        assert!(session.represented_trade_item_like_cpp(2).is_none());
+        let bytes = send_rx.try_recv().expect("cancelled trade status");
+        assert_eq!(bytes[2], TRADE_STATUS_CANCELLED_LIKE_CPP << 2);
+    }
+
+    #[tokio::test]
+    async fn set_trade_item_records_slot_and_unaccepts_both_sides_like_cpp() {
+        let (mut source_session, source_send_rx) = make_session();
+        let (mut partner_session, partner_send_rx) = make_session();
+        let source_guid = ObjectGuid::create_player(1, 77);
+        let partner_guid = ObjectGuid::create_player(1, 88);
+        let item_guid = ObjectGuid::create_item(1, 1234);
+        source_session.set_player_guid(Some(source_guid));
+        partner_session.set_player_guid(Some(partner_guid));
+        source_session.set_represented_active_trade_partner_like_cpp(Some(partner_guid));
+        partner_session.set_represented_active_trade_partner_like_cpp(Some(source_guid));
+        source_session.set_represented_trade_accepted_like_cpp_for_test(true);
+        partner_session.set_represented_trade_accepted_like_cpp_for_test(true);
+        insert_trade_test_item(&mut source_session, source_guid, 23, item_guid, 700);
+
+        let registry = Arc::new(PlayerRegistry::default());
+        let partner_command_tx = partner_session.session_command_tx();
+        registry.insert(
+            partner_guid,
+            broadcast_info_with_command_tx(partner_command_tx),
+        );
+        source_session.set_player_registry(registry);
+
+        source_session
+            .handle_set_trade_item(set_trade_item_packet(2, 255, 23))
+            .await;
+        partner_session
+            .process_represented_session_commands_like_cpp()
+            .await;
+
+        assert_eq!(
+            source_session.represented_trade_client_state_index_like_cpp(),
+            2
+        );
+        assert_eq!(
+            source_session.represented_trade_server_state_index_like_cpp(),
+            2
+        );
+        assert_eq!(
+            source_session.represented_trade_item_like_cpp(2),
+            Some(item_guid)
+        );
         assert!(!source_session.represented_trade_accepted_like_cpp());
         assert!(!partner_session.represented_trade_accepted_like_cpp());
 

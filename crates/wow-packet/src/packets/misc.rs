@@ -5341,6 +5341,26 @@ impl ClientPacket for ClearTradeItem {
     }
 }
 
+/// C++ `WorldPackets::Trade::SetTradeItem`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct SetTradeItem {
+    pub trade_slot: u8,
+    pub pack_slot: u8,
+    pub item_slot_in_pack: u8,
+}
+
+impl ClientPacket for SetTradeItem {
+    const OPCODE: ClientOpcodes = ClientOpcodes::SetTradeItem;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            trade_slot: pkt.read_uint8()?,
+            pack_slot: pkt.read_uint8()?,
+            item_slot_in_pack: pkt.read_uint8()?,
+        })
+    }
+}
+
 /// C++ `WorldPackets::Trade::SetTradeGold`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct SetTradeGold {
@@ -6372,6 +6392,21 @@ mod tests {
         let packet = ClearTradeItem::read(&mut pkt).unwrap();
 
         assert_eq!(packet.trade_slot, 5);
+    }
+
+    #[test]
+    fn set_trade_item_reads_slots_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint8(2);
+        pkt.write_uint8(255);
+        pkt.write_uint8(18);
+        pkt.reset_read();
+
+        let packet = SetTradeItem::read(&mut pkt).unwrap();
+
+        assert_eq!(packet.trade_slot, 2);
+        assert_eq!(packet.pack_slot, 255);
+        assert_eq!(packet.item_slot_in_pack, 18);
     }
 
     #[test]

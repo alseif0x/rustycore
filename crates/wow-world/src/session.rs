@@ -137,8 +137,8 @@ use wow_packet::packets::misc::{
     AccountHeirloom, AccountHeirloomUpdate, AccountMount, AccountMountUpdate, AccountToy,
     AccountToyUpdate, BuyFailed, EQUIP_ERR_NOT_ENOUGH_MONEY_LIKE_CPP, NUM_ACCOUNT_DATA_TYPES,
     SellResponse, SetupCurrency, SetupCurrencyRecord, TRADE_SLOT_COUNT_LIKE_CPP,
-    TRADE_STATUS_ACCEPTED_LIKE_CPP, TRADE_STATUS_STATE_CHANGED_LIKE_CPP,
-    TRADE_STATUS_UNACCEPTED_LIKE_CPP, TradeStatus,
+    TRADE_STATUS_ACCEPTED_LIKE_CPP, TRADE_STATUS_CANCELLED_LIKE_CPP,
+    TRADE_STATUS_STATE_CHANGED_LIKE_CPP, TRADE_STATUS_UNACCEPTED_LIKE_CPP, TradeStatus,
 };
 use wow_packet::packets::quest::{
     QuestGiverOfferReward, QuestGiverQuestDetails, QuestGiverQuestList, QuestGiverRequestItems,
@@ -18795,6 +18795,9 @@ impl WorldSession {
             ClientOpcodes::ClearTradeItem => {
                 self.handle_clear_trade_item(pkt).await;
             }
+            ClientOpcodes::SetTradeItem => {
+                self.handle_set_trade_item(pkt).await;
+            }
             ClientOpcodes::SetTradeGold => {
                 self.handle_set_trade_gold(pkt).await;
             }
@@ -21351,6 +21354,69 @@ impl WorldSession {
         }
 
         self.represented_trade_items_like_cpp[slot] = None;
+        self.represented_trade_accepted_like_cpp = false;
+        self.represented_trade_server_state_index_like_cpp = self
+            .represented_trade_server_state_index_like_cpp
+            .wrapping_add(1);
+
+        let packet_bytes =
+            TradeStatus::status_only_like_cpp(TRADE_STATUS_UNACCEPTED_LIKE_CPP).to_bytes();
+        self.send_raw_packet(&packet_bytes);
+
+        if let Some(registry) = self.player_registry()
+            && let Some(partner) = registry.get(&partner_guid)
+        {
+            let _ = partner
+                .command_tx
+                .try_send(SessionCommand::UnacceptRepresentedTradeLikeCpp(
+                    wow_network::player_registry::UnacceptRepresentedTradeLikeCppCommand {
+                        packet_bytes,
+                    },
+                ));
+        }
+    }
+
+    pub(crate) fn set_represented_trade_item_like_cpp(
+        &mut self,
+        trade_slot: u8,
+        pack_slot: u8,
+        item_slot_in_pack: u8,
+    ) {
+        use wow_packet::ServerPacket;
+
+        let Some(partner_guid) = self.represented_active_trade_partner_like_cpp else {
+            return;
+        };
+
+        if trade_slot >= TRADE_SLOT_COUNT_LIKE_CPP {
+            let packet_bytes =
+                TradeStatus::cancel_like_cpp(TRADE_STATUS_CANCELLED_LIKE_CPP).to_bytes();
+            self.send_raw_packet(&packet_bytes);
+            return;
+        }
+
+        let Some(item) = self.get_inventory_item_by_pos(pack_slot, item_slot_in_pack) else {
+            let packet_bytes =
+                TradeStatus::cancel_like_cpp(TRADE_STATUS_CANCELLED_LIKE_CPP).to_bytes();
+            self.send_raw_packet(&packet_bytes);
+            return;
+        };
+
+        if self
+            .represented_trade_items_like_cpp
+            .iter()
+            .any(|trade_item| *trade_item == Some(item.guid))
+        {
+            let packet_bytes =
+                TradeStatus::cancel_like_cpp(TRADE_STATUS_CANCELLED_LIKE_CPP).to_bytes();
+            self.send_raw_packet(&packet_bytes);
+            return;
+        }
+
+        self.represented_trade_client_state_index_like_cpp = self
+            .represented_trade_client_state_index_like_cpp
+            .wrapping_add(1);
+        self.represented_trade_items_like_cpp[trade_slot as usize] = Some(item.guid);
         self.represented_trade_accepted_like_cpp = false;
         self.represented_trade_server_state_index_like_cpp = self
             .represented_trade_server_state_index_like_cpp

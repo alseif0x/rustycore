@@ -1,4 +1,14 @@
 - `#NEXT.R8.ENTITIES.868` - represented-complete implementation for bounded movement `Handle_NULL` ACK family.
+### #NEXT.R8.ENTITIES.896 — CMSG_SET_TRADE_ITEM
+
+Status: represented-partial for the bounded `WorldSession::HandleSetTradeItemOpcode` slot/inventory/duplicate/accepted-status seam.
+
+C++ source-of-truth: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/TradeHandler.cpp:712-758`, `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/TradeData.h:23-31,36-38,52-54`, `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/TradeData.cpp:50-72,135-151`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TradePackets.h:99-112`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TradePackets.cpp:40-43`, and `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:6465-6481`.
+
+Implemented Rust seam: `SetTradeItem` parses the C++ `uint8 TradeSlot`, `PackSlot`, `ItemSlotInPack` order, registers as `LoggedIn`/`PROCESS_THREADUNSAFE`, dispatches through `WorldSession`, preserves the no-op when no represented active trade exists, cancels without client-state mutation for invalid trade slots, missing inventory items, or duplicate item GUIDs already present in represented trade slots, resolves `Player::GetItemByPos` through the represented inventory model, records the item GUID in the requested represented trade slot after validation, advances represented client/server state deterministically, clears local/partner accepted flags, and sends bounded `SMSG_TRADE_STATUS` with `TRADE_STATUS_UNACCEPTED` to both represented sessions.
+
+Boundary: represented-partial only; full `TradeData`, `Item::CanBeTraded`, `IsBindedNotWith`/taplist status, C++ `rand32()` server-state parity, `SMSG_TRADE_UPDATED` payloads, spell reset side effects, real item ownership/DB transaction, install/restart, bot, and live-client/manual validation remain separate work.
+
 ### #NEXT.R8.ENTITIES.895 — CMSG_SET_TRADE_GOLD
 
 Status: represented-partial for the bounded `WorldSession::HandleSetTradeGoldOpcode` coinage/client-state/funds/accepted-status seam.
