@@ -5402,6 +5402,25 @@ impl ClientPacket for SignPetition {
     }
 }
 
+/// C++ `WorldPackets::Petition::DeclinePetition`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct DeclinePetition {
+    pub petition_guid: ObjectGuid,
+}
+
+impl ClientPacket for DeclinePetition {
+    const OPCODE: ClientOpcodes = ClientOpcodes::DeclinePetition;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let guid_bytes = pkt.read_bytes(16)?;
+        let mut raw = [0u8; 16];
+        raw.copy_from_slice(&guid_bytes);
+        Ok(Self {
+            petition_guid: ObjectGuid::from_raw_bytes(&raw),
+        })
+    }
+}
+
 /// C++ `WorldPackets::Trade::SetTradeGold`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct SetTradeGold {
@@ -6477,6 +6496,18 @@ mod tests {
 
         assert_eq!(packet.petition_guid, petition_guid);
         assert_eq!(packet.choice, 1);
+    }
+
+    #[test]
+    fn decline_petition_reads_guid_like_cpp() {
+        let petition_guid = ObjectGuid::create_item(1, 0x1112_1314_1516_1718);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bytes(&petition_guid.to_raw_bytes());
+        pkt.reset_read();
+
+        let packet = DeclinePetition::read(&mut pkt).unwrap();
+
+        assert_eq!(packet.petition_guid, petition_guid);
     }
 
     #[test]

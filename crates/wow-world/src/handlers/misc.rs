@@ -51,15 +51,15 @@ use wow_packet::packets::misc::{
     BattlePetUpdateNotify, BattlefieldLeave, BeginTrade, BugReport, BusyTrade, CageBattlePet,
     CalendarSendCalendar, CalendarSendNumPending, CanDuel, ClearTradeItem, CloseInteraction,
     CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint, ComplaintResult,
-    DeclineGuildInvites, DfGetJoinStatus, DfGetSystemInfo, FarSight, GmTicketAcknowledgeSurvey,
-    GmTicketCaseStatus, GmTicketSystemStatus, GuildSetAchievementTracking, IgnoreTrade,
-    LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify,
-    MAX_ACCOUNT_DATA_SIZE_LIKE_CPP, MountSetFavorite, MountSpecial, NUM_ACCOUNT_DATA_TYPES,
-    ObjectUpdateFailed, ObjectUpdateRescued, QueryBattlePetName, QueryBattlePetNameResponse,
-    RatedPvpInfo, RequestAccountData, RequestBattlefieldStatus, RequestCemeteryListResponse,
-    ResurrectResponse, SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags,
-    SetTaxiBenchmarkMode, SetTradeGold, SetTradeItem, SetTradeSpell, SignPetition,
-    SpecialMountAnim, StandStateChange, SubmitUserFeedback, SupportTicketSubmitBug,
+    DeclineGuildInvites, DeclinePetition, DfGetJoinStatus, DfGetSystemInfo, FarSight,
+    GmTicketAcknowledgeSurvey, GmTicketCaseStatus, GmTicketSystemStatus,
+    GuildSetAchievementTracking, IgnoreTrade, LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus,
+    LoadingScreenNotify, MAX_ACCOUNT_DATA_SIZE_LIKE_CPP, MountSetFavorite, MountSpecial,
+    NUM_ACCOUNT_DATA_TYPES, ObjectUpdateFailed, ObjectUpdateRescued, QueryBattlePetName,
+    QueryBattlePetNameResponse, RatedPvpInfo, RequestAccountData, RequestBattlefieldStatus,
+    RequestCemeteryListResponse, ResurrectResponse, SaveCufProfiles, SetAdvancedCombatLogging,
+    SetCurrencyFlags, SetTaxiBenchmarkMode, SetTradeGold, SetTradeItem, SetTradeSpell,
+    SignPetition, SpecialMountAnim, StandStateChange, SubmitUserFeedback, SupportTicketSubmitBug,
     SupportTicketSubmitComplaint, SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
     TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP, TaxiNodeStatusPkt, TogglePvp, ToyClearFanfare,
     UnacceptTrade, UpdateAccountData, UseToy, UserClientUpdateAccountData, ViolenceLevel,
@@ -1177,6 +1177,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_sign_petition",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::DeclinePetition,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_decline_petition",
     }
 }
 
@@ -3732,6 +3741,21 @@ impl crate::session::WorldSession {
         self.record_represented_sign_petition_like_cpp(packet.petition_guid, packet.choice);
     }
 
+    pub async fn handle_decline_petition(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let packet = match DeclinePetition::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "DeclinePetition parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        self.record_represented_decline_petition_like_cpp(packet.petition_guid);
+    }
+
     pub async fn handle_unaccept_trade(&mut self, mut pkt: wow_packet::WorldPacket) {
         if let Err(error) = UnacceptTrade::read(&mut pkt) {
             warn!(
@@ -5529,6 +5553,13 @@ mod tests {
         pkt
     }
 
+    fn decline_petition_packet(petition_guid: ObjectGuid) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bytes(&petition_guid.to_raw_bytes());
+        pkt.reset_read();
+        pkt
+    }
+
     fn trade_test_spell_info(spell_id: i32) -> SpellInfo {
         SpellInfo {
             spell_id,
@@ -6237,6 +6268,22 @@ mod tests {
                 petition_guid,
                 choice: 1,
             }]
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn decline_petition_records_guid_like_cpp_without_client_notification() {
+        let (mut session, send_rx) = make_session();
+        let petition_guid = ObjectGuid::create_item(1, 91_778);
+
+        session
+            .handle_decline_petition(decline_petition_packet(petition_guid))
+            .await;
+
+        assert_eq!(
+            session.represented_decline_petitions_like_cpp(),
+            &[crate::session::RepresentedDeclinePetitionLikeCpp { petition_guid }]
         );
         assert!(send_rx.try_recv().is_err());
     }

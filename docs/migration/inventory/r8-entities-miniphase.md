@@ -1,4 +1,14 @@
 - `#NEXT.R8.ENTITIES.868` - represented-complete implementation for bounded movement `Handle_NULL` ACK family.
+### #NEXT.R8.ENTITIES.901 — CMSG_DECLINE_PETITION
+
+Status: represented-complete for the bounded `WorldSession::HandleDeclinePetition` parser/dispatch/no-response seam.
+
+C++ source-of-truth: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/PetitionsHandler.cpp:302-319`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/PetitionPackets.h:169-176`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/PetitionPackets.cpp:141-143`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:243`, and `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:415`.
+
+Implemented Rust seam: `DeclinePetition` parses the C++ full `PetitionGUID` `ObjectGuid`, registers as `LoggedIn`/`PROCESS_THREADUNSAFE`, dispatches through `WorldSession`, and records a represented decline-petition request.
+
+Boundary: represented-complete for the active C++ behavior. The legacy handler's owner-notification branch is disabled/commented with "packet isn't handled by the client in any way", so Rust intentionally sends no owner notification and does not invent `PetitionMgr` lookup/fanout behavior. No install/restart, bot, or live-client/manual validation was performed.
+
 ### #NEXT.R8.ENTITIES.900 — CMSG_SILENCE_PARTY_TALKER
 
 Status: represented-partial for the bounded `WorldSession::HandleSilencePartyTalker` parser/dispatch/permission-gate seam.
