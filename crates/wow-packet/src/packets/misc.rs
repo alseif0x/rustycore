@@ -5323,6 +5323,18 @@ impl ClientPacket for ArenaTeamRoster {
     }
 }
 
+/// C++ `WorldPackets::ArenaTeam::ArenaTeamAccept`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ArenaTeamAccept;
+
+impl ClientPacket for ArenaTeamAccept {
+    const OPCODE: ClientOpcodes = ClientOpcodes::ArenaTeamAccept;
+
+    fn read(_pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self)
+    }
+}
+
 /// C++ `WorldPackets::ArenaTeam::ArenaTeamDecline`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct ArenaTeamDecline;
@@ -5332,6 +5344,78 @@ impl ClientPacket for ArenaTeamDecline {
 
     fn read(_pkt: &mut WorldPacket) -> Result<Self, PacketError> {
         Ok(Self)
+    }
+}
+
+/// C++ `WorldPackets::ArenaTeam::ArenaTeamLeave`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ArenaTeamLeave;
+
+impl ClientPacket for ArenaTeamLeave {
+    const OPCODE: ClientOpcodes = ClientOpcodes::ArenaTeamLeave;
+
+    fn read(_pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self)
+    }
+}
+
+/// C++ `WorldPackets::ArenaTeam::ArenaTeamRemove`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArenaTeamRemove {
+    pub team_id: u32,
+    pub target_name: String,
+}
+
+impl ClientPacket for ArenaTeamRemove {
+    const OPCODE: ClientOpcodes = ClientOpcodes::ArenaTeamRemove;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let team_id = pkt.read_uint32()?;
+        let target_name_len = pkt.read_bits(9)? as usize;
+        let target_name = pkt.read_string(target_name_len)?;
+
+        Ok(Self {
+            team_id,
+            target_name,
+        })
+    }
+}
+
+/// C++ `WorldPackets::ArenaTeam::ArenaTeamDisband`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ArenaTeamDisband {
+    pub team_id: u32,
+}
+
+impl ClientPacket for ArenaTeamDisband {
+    const OPCODE: ClientOpcodes = ClientOpcodes::ArenaTeamDisband;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            team_id: pkt.read_uint32()?,
+        })
+    }
+}
+
+/// C++ `WorldPackets::ArenaTeam::ArenaTeamLeader`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArenaTeamLeader {
+    pub team_id: u32,
+    pub target_name: String,
+}
+
+impl ClientPacket for ArenaTeamLeader {
+    const OPCODE: ClientOpcodes = ClientOpcodes::ArenaTeamLeader;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let team_id = pkt.read_uint32()?;
+        let target_name_len = pkt.read_bits(9)? as usize;
+        let target_name = pkt.read_string(target_name_len)?;
+
+        Ok(Self {
+            team_id,
+            target_name,
+        })
     }
 }
 
@@ -6540,6 +6624,59 @@ mod tests {
         let mut pkt = WorldPacket::new_empty();
 
         ArenaTeamDecline::read(&mut pkt).unwrap();
+    }
+
+    #[test]
+    fn arena_team_accept_reads_empty_cpp_packet() {
+        let mut pkt = WorldPacket::new_empty();
+
+        ArenaTeamAccept::read(&mut pkt).unwrap();
+    }
+
+    #[test]
+    fn arena_team_leave_reads_empty_cpp_packet() {
+        let mut pkt = WorldPacket::new_empty();
+
+        ArenaTeamLeave::read(&mut pkt).unwrap();
+    }
+
+    #[test]
+    fn arena_team_remove_reads_team_id_and_9bit_target_name_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(0x0102_0304);
+        pkt.write_bits(7, 9);
+        pkt.write_string("Playerx");
+        pkt.reset_read();
+
+        let request = ArenaTeamRemove::read(&mut pkt).unwrap();
+
+        assert_eq!(request.team_id, 0x0102_0304);
+        assert_eq!(request.target_name, "Playerx");
+    }
+
+    #[test]
+    fn arena_team_disband_reads_team_id_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(0x1122_3344);
+        pkt.reset_read();
+
+        let request = ArenaTeamDisband::read(&mut pkt).unwrap();
+
+        assert_eq!(request.team_id, 0x1122_3344);
+    }
+
+    #[test]
+    fn arena_team_leader_reads_team_id_and_9bit_target_name_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(0x5566_7788);
+        pkt.write_bits(6, 9);
+        pkt.write_string("Leader");
+        pkt.reset_read();
+
+        let request = ArenaTeamLeader::read(&mut pkt).unwrap();
+
+        assert_eq!(request.team_id, 0x5566_7788);
+        assert_eq!(request.target_name, "Leader");
     }
 
     #[test]

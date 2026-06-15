@@ -46,7 +46,8 @@ use wow_packet::packets::item::{
 use wow_packet::packets::loot::{LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHING_LIKE_CPP};
 use wow_packet::packets::misc::{
     AcceptGuildInvite, AcceptTrade, AcceptWargameInvite, ActivateTaxi, ActivateTaxiReply, AddToy,
-    AddonList, ArenaTeamDecline, ArenaTeamRoster, BattlePetClearFanfare, BattlePetDeletePet,
+    AddonList, ArenaTeamAccept, ArenaTeamDecline, ArenaTeamDisband, ArenaTeamLeader,
+    ArenaTeamLeave, ArenaTeamRemove, ArenaTeamRoster, BattlePetClearFanfare, BattlePetDeletePet,
     BattlePetModifyName, BattlePetRequestJournal, BattlePetSetBattleSlot, BattlePetSetFlags,
     BattlePetSummon, BattlePetUpdateNotify, BattlefieldLeave, BeginTrade, BugReport, BusyTrade,
     CageBattlePet, CalendarSendCalendar, CalendarSendNumPending, CanDuel, ClearTradeItem,
@@ -1049,10 +1050,55 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
+        opcode: ClientOpcodes::ArenaTeamAccept,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_arena_team_accept",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
         opcode: ClientOpcodes::ArenaTeamDecline,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_arena_team_decline",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::ArenaTeamLeave,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_arena_team_leave",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::ArenaTeamRemove,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_arena_team_remove",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::ArenaTeamDisband,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_arena_team_disband",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::ArenaTeamLeader,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_arena_team_leader",
     }
 }
 
@@ -3462,6 +3508,24 @@ impl crate::session::WorldSession {
         );
     }
 
+    pub async fn handle_arena_team_accept(&mut self, mut pkt: wow_packet::WorldPacket) {
+        if let Err(error) = ArenaTeamAccept::read(&mut pkt) {
+            warn!(
+                account = self.account_id,
+                "ArenaTeamAccept parse failed: {error}"
+            );
+            return;
+        }
+
+        // C++ returns before clearing Player::m_ArenaTeamIdInvited when
+        // sArenaTeamMgr has no team for the invited id. Rust has no live
+        // ArenaTeamMgr in this represented seam, so preserve that no-op.
+        debug!(
+            account = self.account_id,
+            "ArenaTeamAccept ignored without represented arena-team manager"
+        );
+    }
+
     pub async fn handle_arena_team_decline(&mut self, mut pkt: wow_packet::WorldPacket) {
         if let Err(error) = ArenaTeamDecline::read(&mut pkt) {
             warn!(
@@ -3472,6 +3536,86 @@ impl crate::session::WorldSession {
         }
 
         self.set_represented_arena_team_id_invited_like_cpp(0);
+    }
+
+    pub async fn handle_arena_team_leave(&mut self, mut pkt: wow_packet::WorldPacket) {
+        if let Err(error) = ArenaTeamLeave::read(&mut pkt) {
+            warn!(
+                account = self.account_id,
+                "ArenaTeamLeave parse failed: {error}"
+            );
+            return;
+        }
+
+        // C++ loops arena slots and only acts when sArenaTeamMgr resolves a
+        // real team. No represented ArenaTeamMgr exists yet, so the bounded
+        // no-team branch is intentionally silent.
+        debug!(
+            account = self.account_id,
+            "ArenaTeamLeave ignored without represented arena-team manager"
+        );
+    }
+
+    pub async fn handle_arena_team_remove(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let request = match ArenaTeamRemove::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "ArenaTeamRemove parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        // C++ returns silently when sArenaTeamMgr has no arena team for TeamId.
+        debug!(
+            account = self.account_id,
+            team_id = request.team_id,
+            target_name = %request.target_name,
+            "ArenaTeamRemove ignored without represented arena-team manager"
+        );
+    }
+
+    pub async fn handle_arena_team_disband(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let request = match ArenaTeamDisband::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "ArenaTeamDisband parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        // C++ returns silently when sArenaTeamMgr has no arena team for TeamId.
+        debug!(
+            account = self.account_id,
+            team_id = request.team_id,
+            "ArenaTeamDisband ignored without represented arena-team manager"
+        );
+    }
+
+    pub async fn handle_arena_team_leader(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let request = match ArenaTeamLeader::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "ArenaTeamLeader parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        // C++ returns silently when sArenaTeamMgr has no arena team for TeamId.
+        debug!(
+            account = self.account_id,
+            team_id = request.team_id,
+            target_name = %request.target_name,
+            "ArenaTeamLeader ignored without represented arena-team manager"
+        );
     }
 
     pub async fn handle_request_raid_info(&mut self, _pkt: wow_packet::WorldPacket) {
@@ -5467,6 +5611,67 @@ mod tests {
             .await;
 
         assert_eq!(session.represented_arena_team_id_invited_like_cpp(), 0);
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn arena_team_accept_without_manager_preserves_invited_id_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        session.set_represented_arena_team_id_invited_like_cpp(12_345);
+
+        session
+            .handle_arena_team_accept(WorldPacket::new_empty())
+            .await;
+
+        assert_eq!(session.represented_arena_team_id_invited_like_cpp(), 12_345);
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn arena_team_leave_without_manager_is_silent_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_arena_team_leave(WorldPacket::new_empty())
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn arena_team_remove_without_manager_is_silent_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(77);
+        pkt.write_bits(6, 9);
+        pkt.write_string("Target");
+
+        session.handle_arena_team_remove(pkt).await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn arena_team_disband_without_manager_is_silent_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(77);
+
+        session.handle_arena_team_disband(pkt).await;
+
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn arena_team_leader_without_manager_is_silent_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(77);
+        pkt.write_bits(6, 9);
+        pkt.write_string("Leader");
+
+        session.handle_arena_team_leader(pkt).await;
+
         assert!(send_rx.try_recv().is_err());
     }
 

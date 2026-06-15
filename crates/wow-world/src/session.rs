@@ -11496,6 +11496,11 @@ impl WorldSession {
             | ClientOpcodes::LogoutCancel
             | ClientOpcodes::AlterAppearance
             | ClientOpcodes::AdventureMapStartQuest
+            | ClientOpcodes::ArenaTeamAccept
+            | ClientOpcodes::ArenaTeamLeave
+            | ClientOpcodes::ArenaTeamRemove
+            | ClientOpcodes::ArenaTeamDisband
+            | ClientOpcodes::ArenaTeamLeader
             | ClientOpcodes::QuestConfirmAccept
             | ClientOpcodes::GuildEventLogQuery
             | ClientOpcodes::QuestGiverStatusMultipleQuery
@@ -18819,8 +18824,23 @@ impl WorldSession {
             ClientOpcodes::ArenaTeamRoster => {
                 self.handle_arena_team_roster(pkt).await;
             }
+            ClientOpcodes::ArenaTeamAccept => {
+                self.handle_arena_team_accept(pkt).await;
+            }
             ClientOpcodes::ArenaTeamDecline => {
                 self.handle_arena_team_decline(pkt).await;
+            }
+            ClientOpcodes::ArenaTeamLeave => {
+                self.handle_arena_team_leave(pkt).await;
+            }
+            ClientOpcodes::ArenaTeamRemove => {
+                self.handle_arena_team_remove(pkt).await;
+            }
+            ClientOpcodes::ArenaTeamDisband => {
+                self.handle_arena_team_disband(pkt).await;
+            }
+            ClientOpcodes::ArenaTeamLeader => {
+                self.handle_arena_team_leader(pkt).await;
             }
             ClientOpcodes::RequestRaidInfo => {
                 self.handle_request_raid_info(pkt).await;

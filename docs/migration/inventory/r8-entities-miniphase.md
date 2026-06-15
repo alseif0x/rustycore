@@ -1,3 +1,11 @@
+- `#NEXT.R8.ENTITIES.909` — represented-partial implementation for `CMSG_ARENA_TEAM_ACCEPT`, `CMSG_ARENA_TEAM_LEAVE`, `CMSG_ARENA_TEAM_REMOVE`, `CMSG_ARENA_TEAM_DISBAND`, and `CMSG_ARENA_TEAM_LEADER`.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/BattleGroundHandler.cpp:757-848` (`HandleArenaTeamAccept`, `HandleArenaTeamLeave`, `HandleArenaTeamRemove`, `HandleArenaTeamDisband`, `HandleArenaTeamLeader`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/ArenaTeamPackets.h:23-68` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/ArenaTeamPackets.cpp:12-30` (empty accept/leave packets, `TeamId`, and 9-bit `TargetName` packet shapes); `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:63-68` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:163-168`.
+
+Implemented Rust seam: the five missing ArenaTeam client packets now parse their C++ wire shapes, register `LoggedIn`/`ThreadUnsafe` dispatch, and route through `WorldSession`. With no live represented `ArenaTeamMgr`, Rust preserves the C++ no-team branches: `Accept` does not clear represented `m_ArenaTeamIdInvited` when the invited team cannot resolve; `Leave` has no represented teams to iterate; `Remove`/`Disband`/`Leader` return silently when `TeamId` cannot resolve.
+
+Boundaries: represented-partial only. Rust does not yet implement live `ArenaTeamMgr` storage, member lookup, captain/permission errors, `AddMember`/`DelMember`/`SetCaptain`/`Disband`, broadcast event packets, DB persistence, install/restart, bot, or live-client/manual validation.
+
 - `#NEXT.R8.ENTITIES.908` — represented-partial implementation for `CMSG_ADVENTURE_MAP_START_QUEST`.
 
 C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/AdventureMapHandler.cpp:24-38` (`WorldSession::HandleAdventureMapStartQuest`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/AdventureMapPackets.h:27-37` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/AdventureMapPackets.cpp:24-27` (`AdventureMapStartQuest::Read`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:58` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:156`.
