@@ -1519,6 +1519,26 @@ pub(crate) struct RepresentedCanDuelSpellCastLikeCpp {
     pub to_the_death: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedDuelAcceptedLikeCpp {
+    pub opponent_guid: ObjectGuid,
+    pub arbiter_guid: ObjectGuid,
+    pub countdown_ms: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RepresentedDuelCancelOutcomeLikeCpp {
+    Interrupted,
+    Surrendered,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedDuelCancelledLikeCpp {
+    pub opponent_guid: ObjectGuid,
+    pub outcome: RepresentedDuelCancelOutcomeLikeCpp,
+    pub beg_spell_id: Option<u32>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct MovementAckEventLikeCpp {
     pub opcode: ClientOpcodes,
@@ -2055,6 +2075,8 @@ const DAMAGE_FIRE_LIKE_CPP: u8 = 5;
 const DAMAGE_FALL_TO_VOID_LIKE_CPP: u8 = 6;
 pub(crate) const SPELL_DUEL_LIKE_CPP: u32 = 7266;
 pub(crate) const SPELL_MOUNTED_DUEL_LIKE_CPP: u32 = 62875;
+pub(crate) const SPELL_DUEL_BEG_LIKE_CPP: u32 = 7267;
+pub(crate) const DUEL_COUNTDOWN_MS_LIKE_CPP: u32 = 3000;
 pub type SharedCanonicalMapManager = Arc<Mutex<wow_map::MapManager>>;
 
 pub(crate) fn relocate_canonical_creature_map_object_on_map_like_cpp(
@@ -3069,6 +3091,9 @@ pub struct WorldSession {
     represented_query_petitions_like_cpp: Vec<RepresentedQueryPetitionLikeCpp>,
     represented_silence_party_talker_like_cpp: Vec<RepresentedSilencePartyTalkerLikeCpp>,
     represented_can_duel_spell_casts_like_cpp: Vec<RepresentedCanDuelSpellCastLikeCpp>,
+    represented_duel_arbiter_guid_like_cpp: Option<ObjectGuid>,
+    represented_duel_accepts_like_cpp: Vec<RepresentedDuelAcceptedLikeCpp>,
+    represented_duel_cancels_like_cpp: Vec<RepresentedDuelCancelledLikeCpp>,
     represented_guild_repair_bank_state_like_cpp: Option<RepresentedGuildRepairBankStateLikeCpp>,
     represented_guild_repair_bank_withdraws_like_cpp:
         Vec<RepresentedGuildRepairBankWithdrawLikeCpp>,
@@ -4474,6 +4499,9 @@ impl WorldSession {
             represented_query_petitions_like_cpp: Vec::new(),
             represented_silence_party_talker_like_cpp: Vec::new(),
             represented_can_duel_spell_casts_like_cpp: Vec::new(),
+            represented_duel_arbiter_guid_like_cpp: None,
+            represented_duel_accepts_like_cpp: Vec::new(),
+            represented_duel_cancels_like_cpp: Vec::new(),
             represented_guild_repair_bank_state_like_cpp: None,
             represented_guild_repair_bank_withdraws_like_cpp: Vec::new(),
             player_currencies: HashMap::new(),
@@ -12087,7 +12115,6 @@ impl WorldSession {
             | ClientOpcodes::BankerActivate
             | ClientOpcodes::BuyBankSlot
             | ClientOpcodes::OptOutOfLoot
-            | ClientOpcodes::DuelResponse
             | ClientOpcodes::CalendarComplain
             | ClientOpcodes::QueryQuestInfo
             | ClientOpcodes::QueryGameObject
@@ -20271,6 +20298,9 @@ impl WorldSession {
             ClientOpcodes::CanDuel => {
                 self.handle_can_duel(pkt).await;
             }
+            ClientOpcodes::DuelResponse => {
+                self.handle_duel_response(pkt).await;
+            }
             ClientOpcodes::IgnoreTrade => {
                 self.handle_ignore_trade(pkt).await;
             }
@@ -23456,6 +23486,171 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedCanDuelSpellCastLikeCpp] {
         &self.represented_can_duel_spell_casts_like_cpp
+    }
+
+    pub(crate) fn set_represented_duel_arbiter_guid_like_cpp(&mut self, guid: Option<ObjectGuid>) {
+        self.represented_duel_arbiter_guid_like_cpp = guid;
+    }
+
+    fn represented_current_duel_info_like_cpp(
+        &mut self,
+    ) -> Option<wow_entities::PlayerDuelInfoLikeCpp> {
+        self.mutate_canonical_player_like_cpp(|player| player.duel_info_like_cpp())
+            .flatten()
+    }
+
+    fn represented_duel_opponent_info_like_cpp(
+        &mut self,
+        opponent_guid: ObjectGuid,
+    ) -> Option<wow_entities::PlayerDuelInfoLikeCpp> {
+        self.mutate_canonical_player_by_guid_like_cpp(opponent_guid, |player| {
+            player.duel_info_like_cpp()
+        })
+        .flatten()
+    }
+
+    fn set_represented_duel_state_like_cpp(
+        &mut self,
+        player_guid: ObjectGuid,
+        opponent_guid: ObjectGuid,
+        state: wow_entities::PlayerDuelStateLikeCpp,
+    ) {
+        let _ = self.mutate_canonical_player_by_guid_like_cpp(player_guid, |player| {
+            player.set_duel_info_like_cpp(Some(wow_entities::PlayerDuelInfoLikeCpp {
+                opponent: opponent_guid,
+                state,
+            }));
+        });
+    }
+
+    fn clear_represented_duel_like_cpp(&mut self, player_guid: ObjectGuid) {
+        let _ = self.mutate_canonical_player_by_guid_like_cpp(player_guid, |player| {
+            player.clear_duel_like_cpp();
+        });
+    }
+
+    fn send_represented_duel_countdown_to_opponent_like_cpp(
+        &self,
+        opponent_guid: ObjectGuid,
+        packet_bytes: Vec<u8>,
+    ) {
+        if let Some(registry) = self.player_registry()
+            && let Some(opponent) = registry.get(&opponent_guid)
+        {
+            let _ =
+                opponent
+                    .command_tx
+                    .try_send(SessionCommand::SendRepresentedDuelCountdownLikeCpp(
+                        wow_network::player_registry::SendRepresentedDuelCountdownLikeCppCommand {
+                            packet_bytes,
+                        },
+                    ));
+        }
+    }
+
+    fn handle_duel_accepted_like_cpp(&mut self, arbiter_guid: ObjectGuid) -> bool {
+        let Some(player_guid) = self.player_guid() else {
+            return false;
+        };
+        if self.represented_duel_arbiter_guid_like_cpp != Some(arbiter_guid) {
+            return false;
+        }
+
+        let Some(duel) = self.represented_current_duel_info_like_cpp() else {
+            return false;
+        };
+        if duel.state != wow_entities::PlayerDuelStateLikeCpp::Challenged {
+            return false;
+        }
+
+        let opponent_guid = duel.opponent;
+        let Some(opponent_duel) = self.represented_duel_opponent_info_like_cpp(opponent_guid)
+        else {
+            return false;
+        };
+        if opponent_duel.opponent != player_guid {
+            return false;
+        }
+
+        self.set_represented_duel_state_like_cpp(
+            player_guid,
+            opponent_guid,
+            wow_entities::PlayerDuelStateLikeCpp::Countdown,
+        );
+        self.set_represented_duel_state_like_cpp(
+            opponent_guid,
+            player_guid,
+            wow_entities::PlayerDuelStateLikeCpp::Countdown,
+        );
+
+        use wow_packet::ServerPacket;
+        let packet = wow_packet::packets::misc::DuelCountdown {
+            countdown_ms: DUEL_COUNTDOWN_MS_LIKE_CPP,
+        };
+        let packet_bytes = packet.to_bytes();
+        self.send_raw_packet(&packet_bytes);
+        self.send_represented_duel_countdown_to_opponent_like_cpp(opponent_guid, packet_bytes);
+        self.represented_duel_accepts_like_cpp
+            .push(RepresentedDuelAcceptedLikeCpp {
+                opponent_guid,
+                arbiter_guid,
+                countdown_ms: DUEL_COUNTDOWN_MS_LIKE_CPP,
+            });
+        true
+    }
+
+    fn handle_duel_cancelled_like_cpp(&mut self) -> bool {
+        let Some(player_guid) = self.player_guid() else {
+            return false;
+        };
+        let Some(duel) = self.represented_current_duel_info_like_cpp() else {
+            return false;
+        };
+        if duel.state == wow_entities::PlayerDuelStateLikeCpp::Completed {
+            return false;
+        }
+
+        let opponent_guid = duel.opponent;
+        let outcome = if duel.state == wow_entities::PlayerDuelStateLikeCpp::InProgress {
+            RepresentedDuelCancelOutcomeLikeCpp::Surrendered
+        } else {
+            RepresentedDuelCancelOutcomeLikeCpp::Interrupted
+        };
+        let beg_spell_id = (outcome == RepresentedDuelCancelOutcomeLikeCpp::Surrendered)
+            .then_some(SPELL_DUEL_BEG_LIKE_CPP);
+
+        self.clear_represented_duel_like_cpp(player_guid);
+        self.clear_represented_duel_like_cpp(opponent_guid);
+        self.represented_duel_cancels_like_cpp
+            .push(RepresentedDuelCancelledLikeCpp {
+                opponent_guid,
+                outcome,
+                beg_spell_id,
+            });
+        true
+    }
+
+    pub(crate) fn handle_duel_response_like_cpp(
+        &mut self,
+        arbiter_guid: ObjectGuid,
+        accepted: bool,
+        forfeited: bool,
+    ) -> bool {
+        if accepted && !forfeited {
+            self.handle_duel_accepted_like_cpp(arbiter_guid)
+        } else {
+            self.handle_duel_cancelled_like_cpp()
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_duel_accepts_like_cpp(&self) -> &[RepresentedDuelAcceptedLikeCpp] {
+        &self.represented_duel_accepts_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_duel_cancels_like_cpp(&self) -> &[RepresentedDuelCancelledLikeCpp] {
+        &self.represented_duel_cancels_like_cpp
     }
 
     pub(crate) fn accept_guild_invitation_like_cpp(&mut self) -> bool {
@@ -62054,7 +62249,6 @@ mod tests {
             ClientOpcodes::BankerActivate,
             ClientOpcodes::BuyBankSlot,
             ClientOpcodes::OptOutOfLoot,
-            ClientOpcodes::DuelResponse,
             ClientOpcodes::CalendarComplain,
             ClientOpcodes::QueryQuestInfo,
             ClientOpcodes::QueryGameObject,

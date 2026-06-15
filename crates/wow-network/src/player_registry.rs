@@ -73,6 +73,8 @@ pub enum SessionCommand {
     /// Clear the receiver's represented trade acceptance and send the already
     /// serialized `TRADE_STATUS_UNACCEPTED` packet without cancelling trade.
     UnacceptRepresentedTradeLikeCpp(UnacceptRepresentedTradeLikeCppCommand),
+    /// Deliver represented `SMSG_DUEL_COUNTDOWN` to the remote duel participant.
+    SendRepresentedDuelCountdownLikeCpp(SendRepresentedDuelCountdownLikeCppCommand),
 }
 
 /// Cross-session kick command mirroring C++ callers such as `World::BanAccount`
@@ -235,6 +237,16 @@ pub struct SendRepresentedTradeStatusLikeCppCommand {
 /// bounded command mirrors the acceptance/status side effect on the partner.
 #[derive(Clone, Debug)]
 pub struct UnacceptRepresentedTradeLikeCppCommand {
+    pub packet_bytes: Vec<u8>,
+}
+
+/// Payload for [`SessionCommand::SendRepresentedDuelCountdownLikeCpp`].
+///
+/// C++ `WorldSession::HandleDuelAccepted` sends the same
+/// `SMSG_DUEL_COUNTDOWN` packet to both duel participants after moving both
+/// duel records to `DUEL_STATE_COUNTDOWN`.
+#[derive(Clone, Debug)]
+pub struct SendRepresentedDuelCountdownLikeCppCommand {
     pub packet_bytes: Vec<u8>,
 }
 

@@ -52,8 +52,9 @@ use wow_network::player_registry::{
     CancelRepresentedTradeLikeCppCommand, CreatureAttackStartLikeCppCommand,
     RefreshVisibleWorldCreaturesLikeCppCommand, SendAddonIfRegisteredLikeCppCommand,
     SendIfVisibleLikeCppCommand, SendPartyUpdateLikeCppCommand,
-    SendRepeatableTurnInRequestItemsLikeCppCommand, SendRepresentedTradeStatusLikeCppCommand,
-    SetQuestSharingInfoAndSendDetailsCommand, SyncChestGameobjectStateAndRefreshLikeCppCommand,
+    SendRepeatableTurnInRequestItemsLikeCppCommand, SendRepresentedDuelCountdownLikeCppCommand,
+    SendRepresentedTradeStatusLikeCppCommand, SetQuestSharingInfoAndSendDetailsCommand,
+    SyncChestGameobjectStateAndRefreshLikeCppCommand,
     SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
     SyncGooberGameobjectStateAndRefreshLikeCppCommand, UnacceptRepresentedTradeLikeCppCommand,
     WorldSessionShutdownFlushResultLikeCpp,
@@ -2930,6 +2931,9 @@ impl WorldSession {
                 SessionCommand::UnacceptRepresentedTradeLikeCpp(command) => {
                     self.handle_unaccept_represented_trade_command_like_cpp(command);
                 }
+                SessionCommand::SendRepresentedDuelCountdownLikeCpp(command) => {
+                    self.handle_send_represented_duel_countdown_command_like_cpp(command);
+                }
             }
         }
     }
@@ -3413,6 +3417,13 @@ impl WorldSession {
         }
 
         self.set_represented_trade_accepted_like_cpp_for_command(false);
+        self.send_raw_packet(&command.packet_bytes);
+    }
+
+    fn handle_send_represented_duel_countdown_command_like_cpp(
+        &mut self,
+        command: SendRepresentedDuelCountdownLikeCppCommand,
+    ) {
         self.send_raw_packet(&command.packet_bytes);
     }
 

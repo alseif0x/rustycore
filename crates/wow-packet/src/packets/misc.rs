@@ -59,6 +59,43 @@ impl ServerPacket for CanDuelResult {
     }
 }
 
+/// C++ `WorldPackets::Duel::DuelResponse`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DuelResponse {
+    pub arbiter_guid: ObjectGuid,
+    pub accepted: bool,
+    pub forfeited: bool,
+}
+
+impl ClientPacket for DuelResponse {
+    const OPCODE: ClientOpcodes = ClientOpcodes::DuelResponse;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let guid_bytes = pkt.read_bytes(16)?;
+        let mut raw = [0u8; 16];
+        raw.copy_from_slice(&guid_bytes);
+        Ok(Self {
+            arbiter_guid: ObjectGuid::from_raw_bytes(&raw),
+            accepted: pkt.read_bit()?,
+            forfeited: pkt.read_bit()?,
+        })
+    }
+}
+
+/// C++ `WorldPackets::Duel::DuelCountdown`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DuelCountdown {
+    pub countdown_ms: u32,
+}
+
+impl ServerPacket for DuelCountdown {
+    const OPCODE: ServerOpcodes = ServerOpcodes::DuelCountdown;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_uint32(self.countdown_ms);
+    }
+}
+
 // ── FarSight (CMSG 0x34e8) ──────────────────────────────────────────
 
 /// C++ `WorldPackets::Misc::FarSight`: one bit toggling seer to current viewpoint/self.
@@ -6664,6 +6701,39 @@ mod tests {
         raw.copy_from_slice(&guid_bytes);
         assert_eq!(ObjectGuid::from_raw_bytes(&raw), guid);
         assert!(body.read_bit().unwrap());
+        assert_eq!(body.remaining(), 0);
+    }
+
+    #[test]
+    fn duel_response_reads_raw_arbiter_guid_then_bits_like_cpp() {
+        let arbiter_guid =
+            ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 9, 1);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bytes(&arbiter_guid.to_raw_bytes());
+        pkt.write_bit(true);
+        pkt.write_bit(false);
+        pkt.flush_bits();
+        pkt.reset_read();
+
+        let parsed = DuelResponse::read(&mut pkt).unwrap();
+
+        assert_eq!(parsed.arbiter_guid, arbiter_guid);
+        assert!(parsed.accepted);
+        assert!(!parsed.forfeited);
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn duel_countdown_writes_uint32_like_cpp() {
+        let bytes = DuelCountdown { countdown_ms: 3000 }.to_bytes();
+        let mut body = WorldPacket::from_bytes(&bytes);
+
+        assert_eq!(body.server_opcode(), Some(ServerOpcodes::DuelCountdown));
+        assert_eq!(
+            body.read_uint16().unwrap(),
+            ServerOpcodes::DuelCountdown as u16
+        );
+        assert_eq!(body.read_uint32().unwrap(), 3000);
         assert_eq!(body.remaining(), 0);
     }
 
