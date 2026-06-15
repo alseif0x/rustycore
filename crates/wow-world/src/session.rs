@@ -164,6 +164,7 @@ const QUEST_OBJECTIVE_FLAG_KILL_PLAYERS_SAME_FACTION_LIKE_CPP: u32 = 0x0080;
 const QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP: u32 = 0x1;
 const MAX_GAMEOBJECT_SLOT_LIKE_CPP: usize = 4;
 const PLAYER_FLAGS_UBER_LIKE_CPP: u32 = 0x0008_0000;
+const PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP: u32 = 0x0000_0001;
 const PLAYER_FLAGS_AFK_LIKE_CPP: u32 = 0x0000_0002;
 const PLAYER_FLAGS_DND_LIKE_CPP: u32 = 0x0000_0004;
 const PLAYER_FLAGS_GHOST_LIKE_CPP: u32 = 0x0000_0010;
@@ -14144,6 +14145,39 @@ impl WorldSession {
 
         self.group_guid = Some(group_guid);
         self.load_represented_group_difficulties_like_cpp()
+    }
+
+    /// C++ `Player::_LoadGroup` sets `PLAYER_FLAGS_GROUP_LEADER` when the
+    /// loaded group leader matches the player, and removes it otherwise.
+    pub(crate) fn apply_represented_group_leader_flag_like_cpp(&mut self) -> bool {
+        let Some(player_guid) = self.player_guid() else {
+            return false;
+        };
+
+        let is_group_leader = self
+            .group_guid
+            .and_then(|group_guid| {
+                self.group_registry
+                    .as_ref()
+                    .and_then(|registry| registry.get(&group_guid).map(|group| group.leader_guid))
+            })
+            .is_some_and(|leader_guid| leader_guid == player_guid);
+
+        let updated = self
+            .mutate_canonical_player_like_cpp(|player| {
+                if is_group_leader {
+                    player.set_player_flag(PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP);
+                } else {
+                    player.remove_player_flag(PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP);
+                }
+            })
+            .is_some();
+
+        if updated {
+            self.sync_player_registry_state_like_cpp();
+        }
+
+        updated
     }
 
     pub(crate) fn represented_dungeon_difficulty_packet_like_cpp(&self) -> DungeonDifficultySet {
@@ -35235,6 +35269,55 @@ mod tests {
 
         assert!(!session.load_represented_group_by_db_store_id_like_cpp(80_929));
         assert_eq!(session.group_guid, None);
+    }
+
+    #[test]
+    fn represented_group_leader_flag_is_set_for_loaded_leader_like_cpp() {
+        let (mut session, _, player_guid) = session_with_canonical_player_for_away_like_cpp();
+        let group_registry = Arc::new(GroupRegistry::default());
+        let group = GroupInfo::new(player_guid);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+        session.group_guid = Some(group_guid);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+
+        assert!(session.apply_represented_group_leader_flag_like_cpp());
+
+        assert_eq!(
+            session.canonical_player_has_player_flag_like_cpp(
+                player_guid,
+                PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP
+            ),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn represented_group_leader_flag_is_removed_for_non_leader_like_cpp() {
+        let (mut session, _, player_guid) = session_with_canonical_player_for_away_like_cpp();
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.set_player_flag(PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP);
+            })
+            .unwrap();
+        let leader_guid = ObjectGuid::create_player(1, 99);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader_guid);
+        group.add_member(player_guid);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+        session.group_guid = Some(group_guid);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+
+        assert!(session.apply_represented_group_leader_flag_like_cpp());
+
+        assert_eq!(
+            session.canonical_player_has_player_flag_like_cpp(
+                player_guid,
+                PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP
+            ),
+            Some(false)
+        );
     }
 
     fn drain_server_opcodes(send_rx: &flume::Receiver<Vec<u8>>) -> Vec<ServerOpcodes> {

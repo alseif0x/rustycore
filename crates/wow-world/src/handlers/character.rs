@@ -2980,6 +2980,7 @@ impl WorldSession {
             gender,
         ) {
             let _ = self.ensure_canonical_world_map_for_current_player_like_cpp();
+            let _ = self.apply_represented_group_leader_flag_like_cpp();
         }
         self.load_represented_character_titles_like_cpp(
             &result.try_read::<String>(65).unwrap_or_default(),
