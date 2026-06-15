@@ -118,6 +118,7 @@ pub struct ApplyGroupRemovalLikeCppCommand {
     pub category: u8,
     pub party_type: u8,
     pub send_group_destroyed: bool,
+    pub send_group_uninvite: bool,
     pub refresh_visible_gameobjects_or_spellclicks: bool,
 }
 

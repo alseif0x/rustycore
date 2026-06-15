@@ -599,6 +599,20 @@ fn send_group_packet_bytes_like_cpp(bytes: Vec<u8>, recipients: &[flume::Sender<
     }
 }
 
+fn send_party_uninvite_result_like_cpp(
+    session: &WorldSession,
+    result: u8,
+    result_guid: ObjectGuid,
+) {
+    session.send_packet(&PartyCommandResult {
+        name: String::new(),
+        command: 1, // C++ PARTY_OP_UNINVITE
+        result,
+        result_data: 0,
+        result_guid,
+    });
+}
+
 fn role_changed_inform_like_cpp(
     party_index: u8,
     from: ObjectGuid,
@@ -1083,6 +1097,161 @@ impl WorldSession {
         }
     }
 
+    /// CMSG_PARTY_UNINVITE.
+    ///
+    /// C++ `WorldPackets::Party::PartyUninvite::Read` reads an optional
+    /// party-index bit, an 8-bit reason length, target GUID, optional party
+    /// index, then the reason string. `HandlePartyUninviteOpcode` rejects self,
+    /// checks `CanUninviteFromGroup`, and calls
+    /// `Player::RemoveFromGroup(... GROUP_REMOVEMETHOD_KICK ...)` when the
+    /// target is a current member.
+    pub async fn handle_party_uninvite(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let uninvite = match wow_packet::packets::party::PartyUninvite::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!("Bad PartyUninvite: {error}");
+                return;
+            }
+        };
+
+        let sender_guid = match self.player_guid() {
+            Some(guid) => guid,
+            None => return,
+        };
+        if uninvite.target_guid == sender_guid {
+            return;
+        }
+
+        let group_reg = match self.group_registry() {
+            Some(registry) => std::sync::Arc::clone(registry),
+            None => {
+                send_party_uninvite_result_like_cpp(
+                    self,
+                    party_result::NOT_IN_GROUP,
+                    uninvite.target_guid,
+                );
+                return;
+            }
+        };
+        let registry = match self.player_registry() {
+            Some(registry) => std::sync::Arc::clone(registry),
+            None => return,
+        };
+        let Some(group_guid) = current_group_guid_like_cpp(
+            &group_reg,
+            self.group_guid,
+            sender_guid,
+            uninvite.party_index,
+        ) else {
+            send_party_uninvite_result_like_cpp(
+                self,
+                party_result::NOT_IN_GROUP,
+                uninvite.target_guid,
+            );
+            return;
+        };
+
+        let mut group_leave_statements: Vec<PreparedStatement> = Vec::new();
+        let mut should_disband = false;
+        let mut db_store_to_free: Option<u32> = None;
+        {
+            let mut group = match group_reg.get_mut(&group_guid) {
+                Some(group) => group,
+                None => return,
+            };
+            let sender_is_assistant = group
+                .member_slot_like_cpp(sender_guid)
+                .is_some_and(|slot| (slot.flags & MEMBER_FLAG_ASSISTANT_LIKE_CPP) != 0);
+            if group.leader_guid != sender_guid && !sender_is_assistant {
+                send_party_uninvite_result_like_cpp(
+                    self,
+                    party_result::NOT_LEADER_LIKE_CPP,
+                    uninvite.target_guid,
+                );
+                return;
+            }
+            if group.leader_guid == uninvite.target_guid {
+                send_party_uninvite_result_like_cpp(
+                    self,
+                    party_result::NOT_LEADER_LIKE_CPP,
+                    uninvite.target_guid,
+                );
+                return;
+            }
+            if !group.members.contains(&uninvite.target_guid) {
+                send_party_uninvite_result_like_cpp(
+                    self,
+                    party_result::TARGET_NOT_IN_GROUP,
+                    uninvite.target_guid,
+                );
+                return;
+            }
+
+            group.remove_member(&uninvite.target_guid);
+            let db_store_id = group.db_store_id;
+            if group.members.len() < 2 {
+                group_leave_statements.push(group_delete_statement_like_cpp(db_store_id));
+                group_leave_statements
+                    .push(group_member_delete_all_statement_like_cpp(db_store_id));
+                group_leave_statements.push(group_lfg_data_delete_statement_like_cpp(db_store_id));
+                should_disband = true;
+                db_store_to_free = Some(db_store_id);
+            } else {
+                group_leave_statements
+                    .push(group_member_delete_statement_like_cpp(uninvite.target_guid));
+            }
+        }
+
+        if !group_leave_statements.is_empty() {
+            if let Some(char_db) = self.char_db().map(std::sync::Arc::clone) {
+                for stmt in group_leave_statements {
+                    if let Err(error) = char_db.execute(&stmt).await {
+                        warn!(
+                            group_guid,
+                            %error,
+                            "failed to persist represented party uninvite"
+                        );
+                        break;
+                    }
+                }
+            }
+        }
+
+        let cleanup_command = ApplyGroupRemovalLikeCppCommand {
+            group_guid,
+            category: wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP,
+            party_type: wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP,
+            send_group_destroyed: should_disband,
+            send_group_uninvite: !should_disband,
+            refresh_visible_gameobjects_or_spellclicks: true,
+        };
+        if let Some(target_entry) = registry.get(&uninvite.target_guid) {
+            let _ = target_entry
+                .command_tx
+                .try_send(SessionCommand::ApplyGroupRemovalLikeCpp(cleanup_command));
+        }
+
+        if should_disband {
+            group_reg.remove(&group_guid);
+            if let Some(db_store_id) = db_store_to_free {
+                free_group_db_store_id_like_cpp(db_store_id);
+            }
+            self.group_guid = None;
+            self.send_player_party_type_update_like_cpp(
+                wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP,
+                wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP,
+            );
+            self.sync_player_registry_state_like_cpp();
+            let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
+            self.send_packet(&wow_packet::packets::party::GroupDestroyed);
+            return;
+        }
+
+        if let Some(group) = group_reg.get(&group_guid) {
+            send_party_update(&group, &registry, self.virtual_realm_address());
+        }
+    }
+
     /// CMSG_LEAVE_GROUP (0x364c)
     ///
     /// Parse layout:
@@ -1189,6 +1358,7 @@ impl WorldSession {
                         category: wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP,
                         party_type: wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP,
                         send_group_destroyed: true,
+                        send_group_uninvite: false,
                         refresh_visible_gameobjects_or_spellclicks: true,
                     };
                     let _ = last_entry
@@ -2398,7 +2568,7 @@ mod tests {
         GroupInfo, GroupMemberCharacterLikeCpp, GroupRegistry, PendingInvites, PlayerBroadcastInfo,
         PlayerRegistry, ReadyCheckEventLikeCpp, SessionCommand,
     };
-    use wow_packet::WorldPacket;
+    use wow_packet::{WorldPacket, packets::party::party_result};
 
     use crate::session::WorldSession;
 
@@ -2586,6 +2756,24 @@ mod tests {
         } else {
             pkt.flush_bits();
         }
+        pkt.reset_read();
+        pkt
+    }
+
+    fn party_uninvite_packet(
+        target: ObjectGuid,
+        party_index: Option<u8>,
+        reason: &str,
+    ) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(party_index.is_some());
+        pkt.write_bits(reason.len() as u32, 8);
+        pkt.write_guid(&target);
+        if let Some(party_index) = party_index {
+            pkt.write_uint8(party_index);
+        }
+        pkt.write_string(reason);
+        pkt.flush_bits();
         pkt.reset_read();
         pkt
     }
@@ -2977,6 +3165,113 @@ mod tests {
         );
         assert!(command.send_group_destroyed);
         assert!(command.refresh_visible_gameobjects_or_spellclicks);
+    }
+
+    #[tokio::test]
+    async fn party_uninvite_leader_queues_remote_remove_member_cleanup_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send();
+        let leader = ObjectGuid::create_player(1, 42);
+        let target = ObjectGuid::create_player(1, 77);
+        let remaining = ObjectGuid::create_player(1, 88);
+        let (leader_tx, leader_rx) = bounded(8);
+        let (target_tx, _target_rx) = bounded(8);
+        let (target_command_tx, target_command_rx) = bounded(8);
+        let (remaining_tx, remaining_rx) = bounded(8);
+        let player_registry = Arc::new(PlayerRegistry::default());
+        player_registry.insert(leader, broadcast_info(leader, leader_tx));
+        player_registry.insert(
+            target,
+            broadcast_info_with_command_tx(target, target_tx, target_command_tx),
+        );
+        player_registry.insert(remaining, broadcast_info(remaining, remaining_tx));
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.add_member(target);
+        group.add_member(remaining);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        session.set_player_guid(Some(leader));
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(Arc::clone(&player_registry));
+        session.set_group_registry(
+            Arc::clone(&group_registry),
+            Arc::new(PendingInvites::default()),
+        );
+
+        session
+            .handle_party_uninvite(party_uninvite_packet(target, None, "bye"))
+            .await;
+
+        let group = group_registry.get(&group_guid).unwrap();
+        assert!(!group.members.contains(&target));
+        assert!(group.members.contains(&leader));
+        assert!(group.members.contains(&remaining));
+        drop(group);
+
+        let command = target_command_rx.try_recv().unwrap();
+        let SessionCommand::ApplyGroupRemovalLikeCpp(command) = command else {
+            panic!("expected ApplyGroupRemovalLikeCpp for kicked member");
+        };
+        assert_eq!(command.group_guid, group_guid);
+        assert_eq!(command.category, GROUP_CATEGORY_HOME_LIKE_CPP);
+        assert_eq!(
+            command.party_type,
+            wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP
+        );
+        assert!(!command.send_group_destroyed);
+        assert!(command.send_group_uninvite);
+        assert!(command.refresh_visible_gameobjects_or_spellclicks);
+
+        let leader_update = leader_rx.try_recv().expect("leader party update");
+        assert_eq!(
+            u16::from_le_bytes([leader_update[0], leader_update[1]]),
+            ServerOpcodes::PartyUpdate as u16
+        );
+        let remaining_update = remaining_rx.try_recv().expect("remaining party update");
+        assert_eq!(
+            u16::from_le_bytes([remaining_update[0], remaining_update[1]]),
+            ServerOpcodes::PartyUpdate as u16
+        );
+    }
+
+    #[tokio::test]
+    async fn party_uninvite_non_leader_rejects_with_cpp_result() {
+        let (mut session, send_rx) = make_session_with_send();
+        let leader = ObjectGuid::create_player(1, 42);
+        let sender = ObjectGuid::create_player(1, 77);
+        let target = ObjectGuid::create_player(1, 88);
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.add_member(sender);
+        group.add_member(target);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        session.set_player_guid(Some(sender));
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(player_registry);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+
+        session
+            .handle_party_uninvite(party_uninvite_packet(target, None, "bye"))
+            .await;
+
+        let result = send_rx.try_recv().expect("party command result");
+        assert_eq!(
+            u16::from_le_bytes([result[0], result[1]]),
+            ServerOpcodes::PartyCommandResult as u16
+        );
+        let mut payload = WorldPacket::from_bytes(&result[2..]);
+        let name_len = payload.read_bits(9).unwrap();
+        let command = payload.read_bits(4).unwrap();
+        let result_code = payload.read_bits(6).unwrap();
+
+        assert_eq!(name_len, 0);
+        assert_eq!(command, 1); // C++ PARTY_OP_UNINVITE
+        assert_eq!(result_code as u8, party_result::NOT_LEADER_LIKE_CPP);
+        assert!(send_rx.try_recv().is_err());
     }
 
     #[test]

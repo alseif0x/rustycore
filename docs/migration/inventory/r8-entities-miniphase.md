@@ -1,3 +1,13 @@
+# `#NEXT.R8.ENTITIES.936` — represented-partial for C++ `CMSG_PARTY_UNINVITE` / member kick cleanup.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/GroupHandler.cpp:257-290` (`WorldSession::HandlePartyUninviteOpcode`); `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:25122-25170` (`Player::CanUninviteFromGroup`); `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp:550-670` (`Group::RemoveMember`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/PartyPackets.cpp:201-209` (`PartyUninvite::Read`).
+
+Implemented Rust seam: `CMSG_PARTY_UNINVITE` now parses the C++ packet layout with optional party-index bit, 8-bit reason length, full 128-bit target GUID, optional party index, and reason string. `WorldSession` dispatches the opcode, rejects self silently, returns `SMSG_PARTY_COMMAND_RESULT` with `PARTY_OP_UNINVITE` for no group, not leader/assistant, target leader, and target-not-member branches, removes a represented member for the leader/assistant kick path, persists bounded group-member delete/disband statements, queues `SessionCommand::ApplyGroupRemovalLikeCpp` to the kicked remote member, and has the receiver send `SMSG_GROUP_UNINVITE` for non-disband kicks after clearing represented group state and party type.
+
+Focused tests: `party_uninvite_reads_bits_guid_party_index_and_reason_like_cpp` anchors the full-GUID client-packet parser; `party_uninvite_leader_queues_remote_remove_member_cleanup_like_cpp` verifies the represented kick path removes the member, queues remote cleanup with `send_group_uninvite=true`, and updates remaining members; `party_uninvite_non_leader_rejects_with_cpp_result` verifies the C++ `PARTY_OP_UNINVITE` / `ERR_NOT_LEADER` result; `group_removal_command_can_send_group_uninvite_like_cpp` verifies the receiving session emits `SMSG_GROUP_UNINVITE` without `SMSG_GROUP_DESTROYED`.
+
+Boundaries: represented-partial only. This closes bounded normal home-group member kick/uninvite cleanup, but not pending-invite `UninviteFromGroup`, LFG vote-kick, battleground/original-group routing, exact `BroadcastGroupUpdate` before removal, exact `SendUpdateDestroyGroupToPlayer`, group buff removal, script callbacks, criteria/homebind, DB rollback semantics, install/restart, bot, or live-client/manual validation.
+
 # `#NEXT.R8.ENTITIES.935` — represented-partial for C++ `Group::Disband` connected-member cleanup.
 
 C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp:550-599` (`Group::RemoveMember` connected-player cleanup); `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp:713-748` (`Group::Disband` connected-member loop); `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:25224-25228` (`Player::SetPartyType`).
@@ -7,16 +17,6 @@ Implemented Rust seam: `SessionCommand::ApplyGroupRemovalLikeCpp` now carries th
 Focused tests: `leave_group_disband_queues_remote_group_removal_like_cpp` verifies the leaving session enqueues the C++-shaped remote cleanup command; `group_removal_command_clears_remote_party_type_like_cpp` verifies the receiver session clears represented group state, updates registry party type to NONE, and emits `SMSG_UPDATE_OBJECT` plus `SMSG_GROUP_DESTROYED`.
 
 Boundaries: represented-partial only. This closes the connected last-member disband cleanup for represented two-player `LeaveGroup`, but not remote kick/uninvite full `Group::RemoveMember`, exact `SendUpdateDestroyGroupToPlayer`, BG/BF/original-group paths, install/restart, bot, or live-client/manual validation.
-
-# `#NEXT.R8.ENTITIES.935` — represented-partial for C++ `Group::Disband` connected-member cleanup.
-
-C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp:550-655` (`Group::RemoveMember`); `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp:713-747` (`Group::Disband`); `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:25224-25228` (`Player::SetPartyType`).
-
-Implemented Rust seam: two-player normal `CMSG_LEAVE_GROUP` disband no longer sends only raw `SMSG_GROUP_DESTROYED` to the last online member. It now queues `SessionCommand::ApplyGroupRemovalLikeCpp` to the remote session. The receiver session applies its own represented C++ cleanup: verifies it is still in that group, clears `group_guid`, sends the local `PlayerData::PartyType[category] = GROUP_TYPE_NONE` update-field delta, refreshes `PlayerRegistry.party_member_party_type`, optionally refreshes visible GO/spellclick state, and sends `SMSG_GROUP_DESTROYED`.
-
-Focused tests: `leave_group_disband_queues_remote_group_removal_like_cpp` verifies the disband branch queues the remote cleanup command; `group_removal_command_clears_remote_party_type_like_cpp` verifies the receiving session clears group state, publishes `PartyType NONE`, and emits `SMSG_UPDATE_OBJECT` plus `SMSG_GROUP_DESTROYED`.
-
-Boundaries: represented-partial only. This closes the bounded two-member disband cleanup path, but not generic remote kick/uninvite `Group::RemoveMember`, exact `SendUpdateDestroyGroupToPlayer`, BG/BF/original-group paths, install/restart, bot, or live-client/manual validation.
 
 # `#NEXT.R8.ENTITIES.934` — represented-partial for C++ `Player::SetPartyType` create/broadcast visibility.
 

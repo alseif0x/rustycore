@@ -2949,6 +2949,9 @@ impl WorldSession {
         if command.send_group_destroyed {
             self.send_packet(&wow_packet::packets::party::GroupDestroyed);
         }
+        if command.send_group_uninvite {
+            self.send_packet(&wow_packet::packets::party::GroupUninvite);
+        }
     }
 
     fn handle_send_party_update_command_like_cpp(

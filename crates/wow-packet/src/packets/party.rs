@@ -12,7 +12,7 @@ use crate::world_packet::PacketError;
 /// Sent to the inviting player to confirm or reject the operation.
 pub struct PartyCommandResult {
     pub name: String, // target name
-    pub command: u8,  // 0=Invite, 1=Leave, 2=OfflineLeave, 4=Uninvite
+    pub command: u8,  // PartyOperation: 0=Invite, 1=Uninvite, 2=Leave, 4=Swap
     pub result: u8,   // PartyResult enum (see below)
     pub result_data: u32,
     pub result_guid: ObjectGuid,
@@ -22,8 +22,11 @@ pub struct PartyCommandResult {
 pub mod party_result {
     pub const OK: u8 = 0;
     pub const BAD_PLAYER_NAME: u8 = 1;
+    pub const TARGET_NOT_IN_GROUP: u8 = 2;
     pub const WRONG_FACTION: u8 = 7;
     pub const ALREADY_IN_GROUP: u8 = 8;
+    pub const NOT_IN_GROUP: u8 = 6;
+    pub const NOT_LEADER_LIKE_CPP: u8 = 7;
     pub const NOT_LEADER: u8 = 14;
     pub const GROUP_FULL: u8 = 3;
 }
@@ -125,6 +128,37 @@ impl ClientPacket for SetAssistantLeader {
             target,
             apply,
             party_index,
+        })
+    }
+}
+
+// ── PartyUninvite (CMSG_PARTY_UNINVITE) ─────────────────────────
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PartyUninvite {
+    pub target_guid: ObjectGuid,
+    pub party_index: Option<u8>,
+    pub reason: String,
+}
+
+impl ClientPacket for PartyUninvite {
+    const OPCODE: ClientOpcodes = ClientOpcodes::PartyUninvite;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let has_party_index = pkt.read_bit()?;
+        let reason_len = pkt.read_bits(8)? as usize;
+        let target_guid = pkt.read_guid()?;
+        let party_index = if has_party_index {
+            Some(pkt.read_uint8()?)
+        } else {
+            None
+        };
+        let reason = pkt.read_string(reason_len)?;
+
+        Ok(Self {
+            target_guid,
+            party_index,
+            reason,
         })
     }
 }
@@ -1130,11 +1164,12 @@ mod tests {
         ChangeSubGroup, ConvertRaid, DoReadyCheck, DungeonScoreMapSummary, DungeonScoreSummary,
         GroupNewLeader, InitiateRolePoll, LowLevelRaid1, LowLevelRaid2, MinimapPingClient,
         OptOutOfLoot, PartyMemberFullState, PartyMemberPhase, PartyMemberPhaseStates,
-        RaidMarkersChanged, ReadyCheckCompleted, ReadyCheckResponse, ReadyCheckResponseClient,
-        ReadyCheckStarted, RequestPartyJoinUpdates, RequestPartyMemberStats, RoleChangedInform,
-        RolePollInform, SendRaidTargetUpdateAll, SendRaidTargetUpdateSingle, SetAssistantLeader,
-        SetEveryoneIsAssistant, SetLootMethod, SetPartyAssignment, SetPartyLeader, SetRole,
-        SilencePartyTalker, SwapSubGroups, UpdateRaidTarget,
+        PartyUninvite, RaidMarkersChanged, ReadyCheckCompleted, ReadyCheckResponse,
+        ReadyCheckResponseClient, ReadyCheckStarted, RequestPartyJoinUpdates,
+        RequestPartyMemberStats, RoleChangedInform, RolePollInform, SendRaidTargetUpdateAll,
+        SendRaidTargetUpdateSingle, SetAssistantLeader, SetEveryoneIsAssistant, SetLootMethod,
+        SetPartyAssignment, SetPartyLeader, SetRole, SilencePartyTalker, SwapSubGroups,
+        UpdateRaidTarget,
     };
     use crate::{ClientPacket, ServerPacket, WorldPacket};
     use wow_constants::ServerOpcodes;
@@ -1924,6 +1959,25 @@ mod tests {
     #[test]
     fn minimap_ping_client_opcode_matches_cpp() {
         assert_eq!(MinimapPingClient::OPCODE as u16, 0x364E);
+    }
+
+    #[test]
+    fn party_uninvite_reads_bits_guid_party_index_and_reason_like_cpp() {
+        let target = ObjectGuid::create_player(1, 0x1234);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(true);
+        pkt.write_bits(3, 8);
+        pkt.write_guid(&target);
+        pkt.write_uint8(0);
+        pkt.write_string("bye");
+        pkt.flush_bits();
+        pkt.reset_read();
+
+        let parsed = PartyUninvite::read(&mut pkt).unwrap();
+
+        assert_eq!(parsed.target_guid, target);
+        assert_eq!(parsed.party_index, Some(0));
+        assert_eq!(parsed.reason, "bye");
     }
 
     #[test]

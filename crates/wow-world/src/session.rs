@@ -19980,6 +19980,9 @@ impl WorldSession {
             ClientOpcodes::PartyInviteResponse => {
                 self.handle_party_invite_response(pkt).await;
             }
+            ClientOpcodes::PartyUninvite => {
+                self.handle_party_uninvite(pkt).await;
+            }
             ClientOpcodes::LeaveGroup => {
                 self.handle_leave_group(pkt).await;
             }
@@ -35575,6 +35578,7 @@ mod tests {
                     category: wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP,
                     party_type: wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP,
                     send_group_destroyed: true,
+                    send_group_uninvite: false,
                     refresh_visible_gameobjects_or_spellclicks: false,
                 },
             ))
@@ -35599,6 +35603,71 @@ mod tests {
                 == Some(ServerOpcodes::UpdateObject)
         }));
         assert!(packets.iter().any(|bytes| {
+            wow_packet::WorldPacket::from_bytes(bytes).server_opcode()
+                == Some(ServerOpcodes::GroupDestroyed)
+        }));
+    }
+
+    #[tokio::test]
+    async fn group_removal_command_can_send_group_uninvite_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let group_guid = 0xBCDEF0;
+        let player_registry = Arc::new(wow_network::PlayerRegistry::default());
+        let (registry_send_tx, _registry_send_rx) = flume::bounded(8);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(player_guid);
+        group.group_guid = group_guid;
+        group_registry.insert(group_guid, group);
+
+        session.set_player_guid(Some(player_guid));
+        session.group_guid = Some(group_guid);
+        session.state = SessionState::LoggedIn;
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "Tester".to_string(),
+            Position::ZERO,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_player_registry(Arc::clone(&player_registry));
+        session.set_group_registry(
+            Arc::clone(&group_registry),
+            Arc::new(PendingInvites::default()),
+        );
+        player_registry.insert(player_guid, broadcast_info(player_guid, registry_send_tx));
+        group_registry.remove(&group_guid);
+
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::ApplyGroupRemovalLikeCpp(
+                ApplyGroupRemovalLikeCppCommand {
+                    group_guid,
+                    category: wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP,
+                    party_type: wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP,
+                    send_group_destroyed: false,
+                    send_group_uninvite: true,
+                    refresh_visible_gameobjects_or_spellclicks: false,
+                },
+            ))
+            .unwrap();
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert!(packets.iter().any(|bytes| {
+            wow_packet::WorldPacket::from_bytes(bytes).server_opcode()
+                == Some(ServerOpcodes::UpdateObject)
+        }));
+        assert!(packets.iter().any(|bytes| {
+            wow_packet::WorldPacket::from_bytes(bytes).server_opcode()
+                == Some(ServerOpcodes::GroupUninvite)
+        }));
+        assert!(!packets.iter().any(|bytes| {
             wow_packet::WorldPacket::from_bytes(bytes).server_opcode()
                 == Some(ServerOpcodes::GroupDestroyed)
         }));
