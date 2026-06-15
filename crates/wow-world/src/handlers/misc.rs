@@ -63,17 +63,18 @@ use wow_packet::packets::misc::{
     ClearTradeItem, CloseInteraction, CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint,
     ComplaintResult, DeclineGuildInvites, DeclinePetition, DfGetJoinStatus, DfGetSystemInfo,
     DuelResponse, ERR_TAXITOOFARAWAY_LIKE_CPP, FarSight, GmTicketAcknowledgeSurvey,
-    GmTicketCaseStatus, GmTicketSystemStatus, GuildBankActivate, GuildBankQueryTab,
-    GuildCommandResult, GuildSetAchievementTracking, IgnoreTrade, LfgListBlacklist, LfgPlayerInfo,
-    LfgUpdateStatus, LoadingScreenNotify, MAX_ACCOUNT_DATA_SIZE_LIKE_CPP, MountSetFavorite,
-    MountSpecial, NUM_ACCOUNT_DATA_TYPES, ObjectUpdateFailed, ObjectUpdateRescued, QueryArenaTeam,
-    QueryBattlePetName, QueryBattlePetNameResponse, QueryPetition, QueryPetitionResponse,
-    RatedPvpInfo, ReclaimCorpse, RepopRequest, RequestAccountData, RequestBattlefieldStatus,
-    RequestCemeteryListResponse, ResurrectResponse, SaveCufProfiles, SetAdvancedCombatLogging,
-    SetCurrencyFlags, SetDifficultyId, SetDungeonDifficulty, SetPvp, SetRaidDifficulty,
-    SetTaxiBenchmarkMode, SetTradeGold, SetTradeItem, SetTradeSpell, SignPetition,
-    SpecialMountAnim, StandStateChange, SubmitUserFeedback, SupportTicketSubmitBug,
-    SupportTicketSubmitComplaint, SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
+    GmTicketCaseStatus, GmTicketSystemStatus, GuildBankActivate, GuildBankDepositMoney,
+    GuildBankQueryTab, GuildBankWithdrawMoney, GuildCommandResult, GuildSetAchievementTracking,
+    IgnoreTrade, LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify,
+    MAX_ACCOUNT_DATA_SIZE_LIKE_CPP, MountSetFavorite, MountSpecial, NUM_ACCOUNT_DATA_TYPES,
+    ObjectUpdateFailed, ObjectUpdateRescued, QueryArenaTeam, QueryBattlePetName,
+    QueryBattlePetNameResponse, QueryPetition, QueryPetitionResponse, RatedPvpInfo, ReclaimCorpse,
+    RepopRequest, RequestAccountData, RequestBattlefieldStatus, RequestCemeteryListResponse,
+    ResurrectResponse, SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags,
+    SetDifficultyId, SetDungeonDifficulty, SetPvp, SetRaidDifficulty, SetTaxiBenchmarkMode,
+    SetTradeGold, SetTradeItem, SetTradeSpell, SignPetition, SpecialMountAnim, StandStateChange,
+    SubmitUserFeedback, SupportTicketSubmitBug, SupportTicketSubmitComplaint,
+    SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
     TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP, TaxiNodeStatusPkt, ToggleDifficulty, TogglePvp,
     ToyClearFanfare, UnacceptTrade, UpdateAccountData, UseToy, UserClientUpdateAccountData,
     ViolenceLevel, compress_account_data_like_cpp, decompress_account_data_like_cpp,
@@ -1119,6 +1120,24 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_guild_bank_query_tab",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::GuildBankDepositMoney,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_guild_bank_deposit_money",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::GuildBankWithdrawMoney,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_guild_bank_withdraw_money",
     }
 }
 
@@ -3965,6 +3984,42 @@ impl crate::session::WorldSession {
             self.record_guild_bank_list_request_like_cpp(packet.banker, packet.tab, true);
     }
 
+    /// CMSG_GUILD_BANK_DEPOSIT_MONEY — deposit player money into the guild bank.
+    ///
+    /// C++ ref: `WorldSession::HandleGuildBankDepositMoney`.
+    pub async fn handle_guild_bank_deposit_money(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let packet = match GuildBankDepositMoney::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "GuildBankDepositMoney parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        let _accepted = self.guild_bank_money_move_like_cpp(packet.banker, true, packet.money);
+    }
+
+    /// CMSG_GUILD_BANK_WITHDRAW_MONEY — withdraw money from the guild bank.
+    ///
+    /// C++ ref: `WorldSession::HandleGuildBankWithdrawMoney`.
+    pub async fn handle_guild_bank_withdraw_money(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let packet = match GuildBankWithdrawMoney::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "GuildBankWithdrawMoney parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        let _accepted = self.guild_bank_money_move_like_cpp(packet.banker, false, packet.money);
+    }
+
     /// CMSG_AUTO_GUILD_BANK_ITEM — move from player inventory into a guild-bank slot.
     ///
     /// C++ ref: `WorldSession::HandleAutoGuildBankItem`.
@@ -6081,6 +6136,14 @@ mod tests {
         pkt.write_uint8(tab);
         pkt.write_bit(full_update);
         pkt.flush_bits();
+        pkt.reset_read();
+        pkt
+    }
+
+    fn guild_bank_money_packet(banker: ObjectGuid, money: u64) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_guid(&banker);
+        pkt.write_uint64(money);
         pkt.reset_read();
         pkt
     }
@@ -12895,6 +12958,103 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn guild_bank_money_without_banker_guild_or_money_is_silent_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let banker = ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 19);
+
+        session
+            .handle_guild_bank_deposit_money(guild_bank_money_packet(banker, 25))
+            .await;
+        session
+            .handle_guild_bank_withdraw_money(guild_bank_money_packet(banker, 25))
+            .await;
+        assert!(
+            session
+                .represented_guild_bank_money_moves_like_cpp()
+                .is_empty()
+        );
+
+        install_represented_guild_bank_like_cpp(&mut session, banker, 0);
+        session
+            .handle_guild_bank_deposit_money(guild_bank_money_packet(banker, 25))
+            .await;
+        session
+            .handle_guild_bank_withdraw_money(guild_bank_money_packet(banker, 25))
+            .await;
+        session
+            .handle_guild_bank_deposit_money(guild_bank_money_packet(banker, 0))
+            .await;
+        session
+            .handle_guild_bank_withdraw_money(guild_bank_money_packet(banker, 0))
+            .await;
+
+        assert!(
+            session
+                .represented_guild_bank_money_moves_like_cpp()
+                .is_empty()
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn guild_bank_deposit_money_requires_player_money_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let banker = ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 20);
+        install_represented_guild_bank_like_cpp(&mut session, banker, 42);
+        session.set_player_gold_like_cpp(10);
+
+        session
+            .handle_guild_bank_deposit_money(guild_bank_money_packet(banker, 25))
+            .await;
+        assert!(
+            session
+                .represented_guild_bank_money_moves_like_cpp()
+                .is_empty()
+        );
+
+        session.set_player_gold_like_cpp(100);
+        session
+            .handle_guild_bank_deposit_money(guild_bank_money_packet(banker, 25))
+            .await;
+
+        assert_eq!(
+            session.represented_guild_bank_money_moves_like_cpp(),
+            &[crate::session::RepresentedGuildBankMoneyMoveLikeCpp {
+                banker,
+                guild_id: 42,
+                deposit: true,
+                money: 25,
+            }]
+        );
+        assert_eq!(session.player_gold_like_cpp(), 100);
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn guild_bank_withdraw_money_records_without_player_money_check_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let banker = ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 21);
+        install_represented_guild_bank_like_cpp(&mut session, banker, 42);
+        session.set_player_gold_like_cpp(0);
+
+        session
+            .handle_guild_bank_withdraw_money(guild_bank_money_packet(banker, 30))
+            .await;
+
+        assert_eq!(
+            session.represented_guild_bank_money_moves_like_cpp(),
+            &[crate::session::RepresentedGuildBankMoneyMoveLikeCpp {
+                banker,
+                guild_id: 42,
+                deposit: false,
+                money: 30,
+            }]
+        );
+        assert_eq!(session.player_gold_like_cpp(), 0);
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
     async fn auto_guild_bank_item_records_represented_swap_with_inventory_like_cpp() {
         let (mut session, send_rx) = make_session();
         let banker = ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 12);
@@ -12969,6 +13129,28 @@ mod tests {
         assert_eq!(query_tab.status, SessionStatus::LoggedIn);
         assert_eq!(query_tab.processing, PacketProcessing::ThreadUnsafe);
         assert_eq!(query_tab.handler_name, "handle_guild_bank_query_tab");
+
+        let deposit_money = inventory::iter::<PacketHandlerEntry>
+            .into_iter()
+            .find(|entry| entry.opcode == ClientOpcodes::GuildBankDepositMoney)
+            .expect("GuildBankDepositMoney handler entry");
+        assert_eq!(deposit_money.status, SessionStatus::LoggedIn);
+        assert_eq!(deposit_money.processing, PacketProcessing::ThreadUnsafe);
+        assert_eq!(
+            deposit_money.handler_name,
+            "handle_guild_bank_deposit_money"
+        );
+
+        let withdraw_money = inventory::iter::<PacketHandlerEntry>
+            .into_iter()
+            .find(|entry| entry.opcode == ClientOpcodes::GuildBankWithdrawMoney)
+            .expect("GuildBankWithdrawMoney handler entry");
+        assert_eq!(withdraw_money.status, SessionStatus::LoggedIn);
+        assert_eq!(withdraw_money.processing, PacketProcessing::ThreadUnsafe);
+        assert_eq!(
+            withdraw_money.handler_name,
+            "handle_guild_bank_withdraw_money"
+        );
 
         let auto_guild = inventory::iter::<PacketHandlerEntry>
             .into_iter()

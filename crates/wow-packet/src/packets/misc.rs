@@ -196,6 +196,42 @@ impl ClientPacket for GuildBankQueryTab {
     }
 }
 
+/// C++ `WorldPackets::Guild::GuildBankDepositMoney`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GuildBankDepositMoney {
+    pub banker: ObjectGuid,
+    pub money: u64,
+}
+
+impl ClientPacket for GuildBankDepositMoney {
+    const OPCODE: ClientOpcodes = ClientOpcodes::GuildBankDepositMoney;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            banker: pkt.read_guid()?,
+            money: pkt.read_uint64()?,
+        })
+    }
+}
+
+/// C++ `WorldPackets::Guild::GuildBankWithdrawMoney`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GuildBankWithdrawMoney {
+    pub banker: ObjectGuid,
+    pub money: u64,
+}
+
+impl ClientPacket for GuildBankWithdrawMoney {
+    const OPCODE: ClientOpcodes = ClientOpcodes::GuildBankWithdrawMoney;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            banker: pkt.read_guid()?,
+            money: pkt.read_uint64()?,
+        })
+    }
+}
+
 /// C++ `WorldPackets::Guild::GuildCommandResult`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GuildCommandResult {
@@ -11534,6 +11570,36 @@ mod tests {
         assert_eq!(parsed.banker, banker);
         assert_eq!(parsed.tab, 4);
         assert!(!parsed.full_update);
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn guild_bank_deposit_money_reads_guid_then_money_like_cpp() {
+        let banker = ObjectGuid::new(0x4142_4344_4546_4748_i64, 0x5152_5354_5556_5758_i64);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_guid(&banker);
+        pkt.write_uint64(123_456);
+        pkt.reset_read();
+
+        let parsed = GuildBankDepositMoney::read(&mut pkt).unwrap();
+
+        assert_eq!(parsed.banker, banker);
+        assert_eq!(parsed.money, 123_456);
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn guild_bank_withdraw_money_reads_guid_then_money_like_cpp() {
+        let banker = ObjectGuid::new(0x6162_6364_6566_6768_i64, 0x7172_7374_7576_7778_i64);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_guid(&banker);
+        pkt.write_uint64(654_321);
+        pkt.reset_read();
+
+        let parsed = GuildBankWithdrawMoney::read(&mut pkt).unwrap();
+
+        assert_eq!(parsed.banker, banker);
+        assert_eq!(parsed.money, 654_321);
         assert_eq!(pkt.remaining(), 0);
     }
 
