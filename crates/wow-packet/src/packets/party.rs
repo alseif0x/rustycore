@@ -77,6 +77,31 @@ impl ClientPacket for ChangeSubGroup {
 // ── SetAssistantLeader (CMSG_SET_ASSISTANT_LEADER) ─────────────────────────
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SetPartyLeader {
+    pub target_guid: ObjectGuid,
+    pub party_index: Option<u8>,
+}
+
+impl ClientPacket for SetPartyLeader {
+    const OPCODE: ClientOpcodes = ClientOpcodes::SetPartyLeader;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let has_party_index = pkt.read_bit()?;
+        let target_guid = pkt.read_packed_guid()?;
+        let party_index = if has_party_index {
+            Some(pkt.read_uint8()?)
+        } else {
+            None
+        };
+
+        Ok(Self {
+            target_guid,
+            party_index,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SetAssistantLeader {
     pub target: ObjectGuid,
     pub apply: bool,
@@ -837,6 +862,21 @@ impl PartyDifficultySettings {
     }
 }
 
+pub struct GroupNewLeader {
+    pub party_index: i8,
+    pub name: String,
+}
+
+impl ServerPacket for GroupNewLeader {
+    const OPCODE: ServerOpcodes = ServerOpcodes::GroupNewLeader;
+
+    fn write(&self, w: &mut WorldPacket) {
+        w.write_int8(self.party_index);
+        w.write_bits(self.name.len() as u32, 9);
+        w.write_string(&self.name);
+    }
+}
+
 pub struct PartyUpdate {
     pub party_flags: u16, // 0 = normal
     pub party_index: u8,  // 0
@@ -1085,13 +1125,13 @@ impl ServerPacket for PartyMemberFullState {
 mod tests {
     use super::{
         ChangeSubGroup, ConvertRaid, DoReadyCheck, DungeonScoreMapSummary, DungeonScoreSummary,
-        InitiateRolePoll, LowLevelRaid1, LowLevelRaid2, MinimapPingClient, OptOutOfLoot,
-        PartyMemberFullState, PartyMemberPhase, PartyMemberPhaseStates, RaidMarkersChanged,
-        ReadyCheckCompleted, ReadyCheckResponse, ReadyCheckResponseClient, ReadyCheckStarted,
-        RequestPartyJoinUpdates, RequestPartyMemberStats, RoleChangedInform, RolePollInform,
-        SendRaidTargetUpdateAll, SendRaidTargetUpdateSingle, SetAssistantLeader,
-        SetEveryoneIsAssistant, SetLootMethod, SetPartyAssignment, SetRole, SilencePartyTalker,
-        SwapSubGroups, UpdateRaidTarget,
+        GroupNewLeader, InitiateRolePoll, LowLevelRaid1, LowLevelRaid2, MinimapPingClient,
+        OptOutOfLoot, PartyMemberFullState, PartyMemberPhase, PartyMemberPhaseStates,
+        RaidMarkersChanged, ReadyCheckCompleted, ReadyCheckResponse, ReadyCheckResponseClient,
+        ReadyCheckStarted, RequestPartyJoinUpdates, RequestPartyMemberStats, RoleChangedInform,
+        RolePollInform, SendRaidTargetUpdateAll, SendRaidTargetUpdateSingle, SetAssistantLeader,
+        SetEveryoneIsAssistant, SetLootMethod, SetPartyAssignment, SetPartyLeader, SetRole,
+        SilencePartyTalker, SwapSubGroups, UpdateRaidTarget,
     };
     use crate::{ClientPacket, ServerPacket, WorldPacket};
     use wow_constants::ServerOpcodes;
@@ -1275,6 +1315,35 @@ mod tests {
     }
 
     #[test]
+    fn set_party_leader_reads_cpp_has_party_guid_party_index_order() {
+        let target = ObjectGuid::create_player(1, 79);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(true);
+        pkt.write_packed_guid(&target);
+        pkt.write_uint8(0);
+        pkt.reset_read();
+
+        let set_leader = SetPartyLeader::read(&mut pkt).unwrap();
+
+        assert_eq!(set_leader.target_guid, target);
+        assert_eq!(set_leader.party_index, Some(0));
+    }
+
+    #[test]
+    fn set_party_leader_reads_cpp_optional_none_bit_before_guid() {
+        let target = ObjectGuid::create_player(1, 80);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(false);
+        pkt.write_packed_guid(&target);
+        pkt.reset_read();
+
+        let set_leader = SetPartyLeader::read(&mut pkt).unwrap();
+
+        assert_eq!(set_leader.target_guid, target);
+        assert_eq!(set_leader.party_index, None);
+    }
+
+    #[test]
     fn set_everyone_is_assistant_reads_cpp_has_party_apply_party_index_order() {
         let mut pkt = WorldPacket::new_empty();
         pkt.write_bit(true);
@@ -1286,6 +1355,24 @@ mod tests {
 
         assert!(set_everyone.everyone_is_assistant);
         assert_eq!(set_everyone.party_index, Some(0));
+    }
+
+    #[test]
+    fn group_new_leader_writes_cpp_party_index_name_bits_string_order() {
+        let bytes = GroupNewLeader {
+            party_index: 0,
+            name: "Player80".to_string(),
+        }
+        .to_bytes();
+
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::GroupNewLeader as u16
+        );
+        let mut payload = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(payload.read_int8().unwrap(), 0);
+        assert_eq!(payload.read_bits(9).unwrap(), 8);
+        assert_eq!(payload.read_string(8).unwrap(), "Player80");
     }
 
     #[test]

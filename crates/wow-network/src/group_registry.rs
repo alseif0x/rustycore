@@ -639,6 +639,23 @@ impl GroupInfo {
             .any(|slot| slot.guid == guid && (slot.flags & MEMBER_FLAG_ASSISTANT_LIKE_CPP) != 0)
     }
 
+    pub fn change_leader_like_cpp(&mut self, new_leader_guid: ObjectGuid) -> Option<u8> {
+        let slot = self
+            .member_slots
+            .iter_mut()
+            .find(|slot| slot.guid == new_leader_guid)?;
+        let previous_leader = self.leader_guid;
+        let previous_flags = slot.flags;
+
+        self.leader_guid = new_leader_guid;
+        slot.flags &= !MEMBER_FLAG_ASSISTANT_LIKE_CPP;
+        if previous_leader != new_leader_guid || previous_flags != slot.flags {
+            self.sequence_num += 1;
+        }
+
+        Some(slot.flags)
+    }
+
     pub fn set_everyone_is_assistant_like_cpp(&mut self, apply: bool) -> (u16, u32) {
         let previous_group_flags = self.group_flags;
         if apply {
@@ -1574,6 +1591,36 @@ mod tests {
         assert_eq!(second_flags, first_flags);
         assert_eq!(second_db_store_id, first_db_store_id);
         assert_eq!(group.sequence_num, sequence_after_apply);
+    }
+
+    #[test]
+    fn change_leader_like_cpp_sets_leader_and_clears_assistant_flag() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let member = ObjectGuid::create_player(1, 400);
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+        group.convert_to_raid_like_cpp();
+        assert_eq!(
+            group.set_assistant_leader_flag_like_cpp(member, true),
+            Some(MEMBER_FLAG_ASSISTANT_LIKE_CPP)
+        );
+        let previous_sequence = group.sequence_num;
+
+        assert_eq!(group.change_leader_like_cpp(member), Some(0));
+
+        assert_eq!(group.leader_guid, member);
+        assert_eq!(group.member_slot_like_cpp(member).unwrap().flags, 0);
+        assert_eq!(group.sequence_num, previous_sequence + 1);
+    }
+
+    #[test]
+    fn change_leader_like_cpp_rejects_missing_member() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let missing = ObjectGuid::create_player(1, 401);
+        let mut group = GroupInfo::new(leader);
+
+        assert_eq!(group.change_leader_like_cpp(missing), None);
+        assert_eq!(group.leader_guid, leader);
     }
 
     #[test]

@@ -18,14 +18,14 @@ use wow_network::{
     register_group_db_store_id_like_cpp,
 };
 use wow_packet::packets::party::{
-    DoReadyCheck, GroupDecline, GroupDestroyed, GroupUninvite, InitiateRolePoll, LowLevelRaid1,
-    LowLevelRaid2, MinimapPing, MinimapPingClient, OptOutOfLoot, PartyCommandResult,
+    DoReadyCheck, GroupDecline, GroupDestroyed, GroupNewLeader, GroupUninvite, InitiateRolePoll,
+    LowLevelRaid1, LowLevelRaid2, MinimapPing, MinimapPingClient, OptOutOfLoot, PartyCommandResult,
     PartyDifficultySettings, PartyInviteServer, PartyLootSettings, PartyMemberFullState,
     PartyPlayerInfo, PartyUpdate, RaidMarkersChanged, ReadyCheckCompleted, ReadyCheckResponse,
     ReadyCheckResponseClient, ReadyCheckStarted, RequestPartyJoinUpdates, RequestPartyMemberStats,
     RoleChangedInform, RolePollInform, SendRaidTargetUpdateAll, SendRaidTargetUpdateSingle,
-    SetAssistantLeader, SetEveryoneIsAssistant, SetLootMethod, SetPartyAssignment, SetRole,
-    SilencePartyTalker, UpdateRaidTarget, party_result,
+    SetAssistantLeader, SetEveryoneIsAssistant, SetLootMethod, SetPartyAssignment, SetPartyLeader,
+    SetRole, SilencePartyTalker, UpdateRaidTarget, party_result,
 };
 use wow_packet::{ClientPacket, ServerPacket};
 
@@ -138,6 +138,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_loot_method",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::SetPartyLeader,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_set_party_leader",
     }
 }
 
@@ -449,6 +458,25 @@ fn send_party_update(group: &GroupInfo, registry: &PlayerRegistry, _vra: u32) {
                 let _ = member_entry.send_tx.send(full_state.to_bytes());
             }
         }
+    }
+}
+
+fn send_group_new_leader_like_cpp(
+    group: &GroupInfo,
+    registry: &PlayerRegistry,
+    new_leader_name: &str,
+) {
+    let packet = GroupNewLeader {
+        party_index: group.group_category_like_cpp() as i8,
+        name: new_leader_name.to_string(),
+    }
+    .to_bytes();
+
+    for &member_guid in &group.members {
+        let Some(member_entry) = registry.get(&member_guid) else {
+            continue;
+        };
+        let _ = member_entry.send_tx.try_send(packet.clone());
     }
 }
 
@@ -1392,6 +1420,102 @@ impl WorldSession {
         }
 
         if let Some(group) = group_reg.get(&group_guid) {
+            send_party_update(&group, &registry, vra);
+        }
+    }
+
+    /// CMSG_SET_PARTY_LEADER.
+    ///
+    /// C++ resolves `ObjectAccessor::FindConnectedPlayer(packet.TargetGUID)`,
+    /// gets `GetPlayer()->GetGroup(packet.PartyIndex)`, requires the sender to
+    /// be current leader and the target to belong to that same group, then
+    /// calls `Group::ChangeLeader` followed by `Group::SendUpdate`.
+    ///
+    /// Rust preserves the represented state transitions available today:
+    /// connected target gate via `PlayerRegistry`, member gate via
+    /// `GroupRegistry`, leader mutation, assistant flag removal for the new
+    /// leader, optional DB persistence, `GroupNewLeader`, and `PartyUpdate`.
+    /// Player flag/name/faction/script side effects remain represented
+    /// boundaries until live player objects own those fields.
+    pub async fn handle_set_party_leader(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let set_leader = match SetPartyLeader::read(&mut pkt) {
+            Ok(set_leader) => set_leader,
+            Err(e) => {
+                warn!("Bad SetPartyLeader: {e}");
+                return;
+            }
+        };
+        let sender_guid = match self.player_guid() {
+            Some(guid) => guid,
+            None => return,
+        };
+        let group_reg = match self.group_registry() {
+            Some(registry) => std::sync::Arc::clone(registry),
+            None => return,
+        };
+        let registry = match self.player_registry() {
+            Some(registry) => std::sync::Arc::clone(registry),
+            None => return,
+        };
+        let Some(target_entry) = registry.get(&set_leader.target_guid) else {
+            return;
+        };
+        let target_name = target_entry.player_name.clone();
+        drop(target_entry);
+        let vra = self.virtual_realm_address();
+
+        let Some(group_guid) = current_group_guid_like_cpp(
+            &group_reg,
+            self.group_guid,
+            sender_guid,
+            set_leader.party_index,
+        ) else {
+            return;
+        };
+
+        let (db_store_id, final_flags) = {
+            let mut group = match group_reg.get_mut(&group_guid) {
+                Some(group) => group,
+                None => return,
+            };
+            if !group.is_leader_like_cpp(sender_guid) {
+                return;
+            }
+            if !group.members.contains(&set_leader.target_guid) {
+                return;
+            }
+            let db_store_id = group.db_store_id;
+            let Some(final_flags) = group.change_leader_like_cpp(set_leader.target_guid) else {
+                return;
+            };
+            (db_store_id, final_flags)
+        };
+
+        if let Some(char_db) = self.char_db().map(std::sync::Arc::clone) {
+            let mut statements = Vec::new();
+            if db_store_id != 0 {
+                statements.push(group_leader_update_statement_like_cpp(
+                    set_leader.target_guid,
+                    db_store_id,
+                ));
+            }
+            statements.push(group_member_flag_update_statement_like_cpp(
+                set_leader.target_guid,
+                final_flags,
+            ));
+            for stmt in statements {
+                if let Err(error) = char_db.execute(&stmt).await {
+                    warn!(
+                        member_guid = set_leader.target_guid.counter(),
+                        %error,
+                        "failed to persist represented party leader change"
+                    );
+                }
+            }
+        }
+
+        if let Some(group) = group_reg.get(&group_guid) {
+            send_group_new_leader_like_cpp(&group, &registry, &target_name);
             send_party_update(&group, &registry, vra);
         }
     }
@@ -2398,6 +2522,19 @@ mod tests {
         pkt
     }
 
+    fn set_party_leader_packet(target: ObjectGuid, party_index: Option<u8>) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(party_index.is_some());
+        pkt.write_packed_guid(&target);
+        if let Some(party_index) = party_index {
+            pkt.write_uint8(party_index);
+        } else {
+            pkt.flush_bits();
+        }
+        pkt.reset_read();
+        pkt
+    }
+
     fn set_everyone_is_assistant_packet(
         everyone_is_assistant: bool,
         party_index: Option<u8>,
@@ -2816,6 +2953,18 @@ mod tests {
         assert_eq!(entry.status, SessionStatus::LoggedIn);
         assert_eq!(entry.processing, PacketProcessing::Inplace);
         assert_eq!(entry.handler_name, "handle_ready_check_response");
+    }
+
+    #[test]
+    fn set_party_leader_dispatch_metadata_matches_cpp() {
+        let entry = inventory::iter::<PacketHandlerEntry>
+            .into_iter()
+            .find(|entry| entry.opcode == ClientOpcodes::SetPartyLeader)
+            .expect("SetPartyLeader handler entry");
+
+        assert_eq!(entry.status, SessionStatus::LoggedIn);
+        assert_eq!(entry.processing, PacketProcessing::Inplace);
+        assert_eq!(entry.handler_name, "handle_set_party_leader");
     }
 
     #[test]
@@ -4461,6 +4610,109 @@ mod tests {
                 & wow_network::MEMBER_FLAG_ASSISTANT_LIKE_CPP,
             0
         );
+    }
+
+    #[tokio::test]
+    async fn set_party_leader_leader_changes_to_connected_member_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send();
+        let leader = ObjectGuid::create_player(1, 42);
+        let member = ObjectGuid::create_player(1, 43);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+        group.convert_to_raid_like_cpp();
+        assert_eq!(
+            group.set_assistant_leader_flag_like_cpp(member, true),
+            Some(wow_network::MEMBER_FLAG_ASSISTANT_LIKE_CPP)
+        );
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (leader_tx, leader_rx) = bounded(8);
+        let (member_tx, member_rx) = bounded(8);
+        player_registry.insert(leader, broadcast_info(leader, leader_tx));
+        player_registry.insert(member, broadcast_info(member, member_tx));
+
+        session.set_player_guid(Some(leader));
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(Arc::clone(&player_registry));
+        session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
+
+        session
+            .handle_set_party_leader(set_party_leader_packet(member, Some(0)))
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+        let group = group_registry.get(&group_guid).unwrap();
+        assert_eq!(group.leader_guid, member);
+        assert_eq!(
+            group.member_slot_like_cpp(member).unwrap().flags
+                & wow_network::MEMBER_FLAG_ASSISTANT_LIKE_CPP,
+            0
+        );
+        drop(group);
+
+        let leader_new_leader = leader_rx.try_recv().expect("leader new-leader packet");
+        assert_eq!(
+            u16::from_le_bytes([leader_new_leader[0], leader_new_leader[1]]),
+            ServerOpcodes::GroupNewLeader as u16
+        );
+        let leader_update = leader_rx.try_recv().expect("leader party update");
+        assert_eq!(
+            u16::from_le_bytes([leader_update[0], leader_update[1]]),
+            ServerOpcodes::PartyUpdate as u16
+        );
+        let member_new_leader = member_rx.try_recv().expect("member new-leader packet");
+        assert_eq!(
+            u16::from_le_bytes([member_new_leader[0], member_new_leader[1]]),
+            ServerOpcodes::GroupNewLeader as u16
+        );
+        let member_update = member_rx.try_recv().expect("member party update");
+        assert_eq!(
+            u16::from_le_bytes([member_update[0], member_update[1]]),
+            ServerOpcodes::PartyUpdate as u16
+        );
+    }
+
+    #[tokio::test]
+    async fn set_party_leader_rejects_non_leader_and_disconnected_target_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send();
+        let leader = ObjectGuid::create_player(1, 42);
+        let member = ObjectGuid::create_player(1, 43);
+        let target = ObjectGuid::create_player(1, 44);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+        group.add_member(target);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (leader_tx, leader_rx) = bounded(8);
+        let (member_tx, member_rx) = bounded(8);
+        player_registry.insert(leader, broadcast_info(leader, leader_tx));
+        player_registry.insert(member, broadcast_info(member, member_tx));
+
+        session.set_player_guid(Some(member));
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(Arc::clone(&player_registry));
+        session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
+
+        session
+            .handle_set_party_leader(set_party_leader_packet(target, None))
+            .await;
+        assert_eq!(group_registry.get(&group_guid).unwrap().leader_guid, leader);
+        assert!(leader_rx.try_recv().is_err());
+        assert!(member_rx.try_recv().is_err());
+
+        session.set_player_guid(Some(leader));
+        session
+            .handle_set_party_leader(set_party_leader_packet(target, None))
+            .await;
+        assert_eq!(group_registry.get(&group_guid).unwrap().leader_guid, leader);
+        assert!(leader_rx.try_recv().is_err());
+        assert!(member_rx.try_recv().is_err());
     }
 
     #[tokio::test]
