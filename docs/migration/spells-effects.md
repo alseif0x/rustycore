@@ -531,7 +531,15 @@ Numerados como `#SPELLS-EFFECTS.N` para referencia desde `MIGRATION_ROADMAP.md`.
 - [ ] **#SPELLS-EFFECTS.71** Implementar `EffectGiveHonor`, `EffectGrantBattlePetExperience`, `EffectChangeRaidMarker` (L)
 - [ ] **#SPELLS-EFFECTS.72** Implementar `EffectGameobjectDamage`, `EffectGameObjectRepair`, `EffectGameobjectSetDestructionState` (M)
 - [ ] **#SPELLS-EFFECTS.73** Implementar `EffectPickPocket` (L)
-- [ ] **#SPELLS-EFFECTS.74** Implementar `EffectDistract` (turn target's facing) (L)
+- [x] **#SPELLS-EFFECTS.74** Representar `EffectDistract` / `SPELL_EFFECT_DISTRACT` para
+  criatura representada y destino explícito del cast. C++ `SpellEffects.cpp:2184-2198` valida
+  `HIT_TARGET`, target existente no engaged, sin `UNIT_STATE_CONFUSED|STUNNED|FLEEING`, y llama
+  `MoveDistract(damage * IN_MILLISECONDS, unitTarget->GetAbsoluteAngle(destTarget))`. Rust añade
+  `SPELL_EFFECT_DISTRACT = 69`, reutiliza `WorldCreature::begin_distract_movement_like_cpp`,
+  lanza spline facing-only y emite `SMSG_ON_MONSTER_MOVE` al cliente actual. Sigue
+  `represented-partial`: solo criatura representada, requiere `dst_location`, no cubre player/unit
+  genérico, no fanout visible-set completo, y el estado agregado `UnitState::DISTRACTED` aún queda
+  representado en el generador de movimiento hasta cerrar MotionMaster completo.
 - [ ] **#SPELLS-EFFECTS.75** Implementar `EffectForceDeselect`, `EffectSendChatMessage`, `EffectActivateRune`, `EffectCreatePrivateConversation`, `EffectTeleportGraveyard`, `EffectModifyAuraStacks` (M total)
 - [ ] **#SPELLS-EFFECTS.76** Implementar log packets: `SMSG_SPELL_NON_MELEE_DAMAGE_LOG`, `SMSG_SPELL_HEAL_LOG`, `SMSG_SPELL_ENERGIZE_LOG`, `SMSG_SPELL_INSTAKILL_LOG`, `SMSG_SPELL_DISPELL_LOG`, `SMSG_DISPEL_FAILED` (M)
 - [ ] **#SPELLS-EFFECTS.77** Marcar como `_RetailOnly` (no-op) los effects > id 270 (Dragonflight-only): EffectCreateTraitTreeConfig, EffectChangeActiveCombatTraitConfig, EffectLearnTransmogIllusion, EffectModifySpellCharges (id-dependent), etc. (L)
@@ -685,14 +693,14 @@ Numerados como `#SPELLS-EFFECTS.N` para referencia desde `MIGRATION_ROADMAP.md`.
 - Summon: `EffectSummonType` (the XL ~218-line discriminator), `EffectSummonPet`, `EffectSummonObject`, `EffectSummonObjectWild`, `EffectSummonChangeItem`, `EffectSummonPlayer` — none.
 - Resurrect: `EffectResurrect`, `EffectResurrectNew`, `EffectSelfResurrect`, `EffectResurrectPet` — none.
 - Dispel/Interrupt: `EffectDispel`, `EffectStealBeneficialBuff`, `EffectInterruptCast`, `EffectDispelMechanic` — none.
-- Status: `EffectStuck`, `EffectDualWield`, `EffectThreat`, `EffectModifyThreatPercent`, `EffectSanctuary`, `EffectTaunt` — represented-partial; `EffectAddComboPoints` — represented real-handler no-op; `EffectScriptEffect`, `EffectDummy`, `EffectDistract`, `EffectModifyAuraStacks`, `EffectModifyCooldown`/`Cooldowns`/`CooldownsByCategory`, `EffectModifySpellCharges` — none.
+- Status: `EffectStuck`, `EffectDualWield`, `EffectThreat`, `EffectModifyThreatPercent`, `EffectSanctuary`, `EffectTaunt`, `EffectDistract` — represented-partial; `EffectAddComboPoints` — represented real-handler no-op; `EffectScriptEffect`, `EffectDummy`, `EffectModifyAuraStacks`, `EffectModifyCooldown`/`Cooldowns`/`CooldownsByCategory`, `EffectModifySpellCharges` — none.
 - Item: `EffectCreateItem`, `EffectCreateItem2`, `EffectCreateRandomItem`, `EffectFeedPet`, `EffectEnchantItemPerm`, `EffectEnchantItemTmp`, `EffectEnchantItemPrismatic`, `EffectEnchantHeldItem`, `EffectDisEnchant`, `EffectMillItem`, `EffectProspecting` — none.
 - Quest/Profession: `EffectQuestComplete`, `EffectQuestStart`, `EffectQuestRedirect`, `EffectLearnSpell`, `EffectUnlearnSpecialization`, `EffectLearnPetSpell`, `EffectLearnSkill`, `EffectTradeSkill`, `EffectProficiency`, `EffectUntrainTalents` — none.
 - OpenLock/GO: `EffectOpenLock`, `EffectActivateObject`, `EffectSendEvent`, `EffectGameobjectDamage`, `EffectGameObjectRepair`, `EffectGameobjectSetDestructionState` — none.
 - Pet/Charm: `EffectTameCreature`, `EffectDismissPet`, `EffectAddFarsight`, `EffectInebriate` — none.
 - Combat misc: `EffectParry`, `EffectBlock`, `EffectReputation`, `EffectDuel` — none.
 - Glyph/Talent: `EffectApplyGlyph` — none.
-- Misc: `EffectForceCast`, `EffectTriggerSpell`, `EffectTriggerMissileSpell`, `EffectTriggerRitualOfSummoning`, `EffectPlayMovie`, `EffectPlayScene`, `EffectPlaySceneScriptPackage`, `EffectGiveHonor`, `EffectGrantBattlePetExperience`, `EffectForceDeselect`, `EffectPickPocket`, `EffectModifyAuraStacks` — none.
+- Misc: `EffectDistract` — represented-partial; `EffectForceCast`, `EffectTriggerSpell`, `EffectTriggerMissileSpell`, `EffectTriggerRitualOfSummoning`, `EffectPlayMovie`, `EffectPlayScene`, `EffectPlaySceneScriptPackage`, `EffectGiveHonor`, `EffectGrantBattlePetExperience`, `EffectForceDeselect`, `EffectPickPocket`, `EffectModifyAuraStacks` — none.
 
 **Dispatch infrastructure missing.** No `SpellEffect` Rust enum, no `match spell_effect` switch, no `Spell::handle_effects` method (because no `Spell` struct exists either — see `spells-cast.md`). `crates/wow-world/src/handlers/spell.rs` contains a stub `execute_spell(spell_id, target_guid)` whose body — when traced through `session.rs` and the surrounding code — does not branch on `SpellEffect`, does not consult `SpellEffectInfo`, does not invoke any `Effect*` semantic. It is plumbing-only: name without payload.
 

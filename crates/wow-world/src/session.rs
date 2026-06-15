@@ -34799,6 +34799,13 @@ impl WorldSession {
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_THREAT => {
                     self.apply_threat_effect_like_cpp(direct_effect_base_points, target_guid)?;
                 }
+                x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_DISTRACT => {
+                    self.apply_distract_effect_like_cpp(
+                        direct_effect_base_points,
+                        target_guid,
+                        &target_data,
+                    )?;
+                }
                 x if x
                     == wow_data::spell::spell_effect_types::SPELL_EFFECT_MODIFY_THREAT_PERCENT =>
                 {
@@ -35011,6 +35018,7 @@ impl WorldSession {
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_BLOCK
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_GIVE_HONOR
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_THREAT
+                || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_DISTRACT
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_MODIFY_THREAT_PERCENT
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_ATTACK_ME
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_SANCTUARY
@@ -36997,6 +37005,55 @@ impl WorldSession {
                 target = ?target_guid,
                 "represented EffectTaunt does not yet cast Hand of Reckoning damage spell 67485"
             );
+        }
+
+        Ok(())
+    }
+
+    /// C++ `Spell::EffectDistract` / `SPELL_EFFECT_DISTRACT`.
+    fn apply_distract_effect_like_cpp(
+        &mut self,
+        damage: i32,
+        target_guid: ObjectGuid,
+        target_data: &SpellTargetData,
+    ) -> Result<(), &'static str> {
+        use wow_packet::ServerPacket;
+        use wow_packet::packets::movement::{MonsterMove, MovementMonsterSpline};
+
+        let Some(destination) = target_data.dst_location.map(|location| location.position) else {
+            return Ok(());
+        };
+        let duration_ms = u32::try_from(damage.max(0))
+            .unwrap_or(0)
+            .saturating_mul(1_000);
+
+        let packet = self
+            .mutate_world_creature(target_guid, |creature| {
+                if creature.creature.ai_ownership().combat_target.is_some() {
+                    return None;
+                }
+                if creature.creature.unit().has_unit_state(
+                    (UnitState::CONFUSED | UnitState::STUNNED | UnitState::FLEEING).bits(),
+                ) {
+                    return None;
+                }
+
+                let orientation = creature.position().angle_to(&destination);
+                let (_, from, spline) =
+                    creature.begin_distract_movement_like_cpp(duration_ms, orientation)?;
+                Some(
+                    MonsterMove {
+                        mover_guid: target_guid,
+                        current_pos: from,
+                        spline: MovementMonsterSpline::from_move_spline(&spline),
+                    }
+                    .to_bytes(),
+                )
+            })
+            .flatten();
+
+        if let Some(packet) = packet {
+            let _ = self.send_tx.send(packet);
         }
 
         Ok(())
@@ -58275,6 +58332,154 @@ mod tests {
             session.canonical_creature_threat_value_like_cpp(creature_guid, player_guid),
             Some(5.0)
         );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_distract_effect_launches_facing_spline_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 795_i32;
+        let player_guid = ObjectGuid::create_player(1, 795);
+        let creature_guid = test_creature_guid(18_795);
+        let position = Position::new(10.0, 10.0, 0.0, 0.0);
+        let destination = Position::new(10.0, 20.0, 0.0, 0.0);
+        let manager = shared_map_manager();
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "DistractCaster".to_string(),
+            position,
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_player_health_like_cpp(100, 100);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 100);
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            threat_spell_info_like_cpp(
+                spell_id,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_DISTRACT,
+                5,
+            ),
+        );
+        session.set_spell_store(Arc::new(spell_store));
+        let target_data = SpellTargetData {
+            flags: 0x2,
+            unit: creature_guid,
+            item: ObjectGuid::EMPTY,
+            dst_location: Some(wow_packet::packets::spell::TargetLocation {
+                transport: ObjectGuid::EMPTY,
+                position: destination,
+            }),
+            ..SpellTargetData::default()
+        };
+
+        session
+            .execute_spell_with_target_data(spell_id, creature_guid, target_data)
+            .await
+            .expect("represented EffectDistract should execute");
+
+        let guard = manager.read().unwrap();
+        let creature = guard.find_creature(0, 0, creature_guid).unwrap();
+        let generator = creature
+            .creature
+            .unit()
+            .subsystems()
+            .motion
+            .current_movement_generator();
+        assert_eq!(
+            generator.kind,
+            wow_entities::MovementGeneratorKind::Distract
+        );
+        assert_eq!(generator.base_unit_state, UnitState::DISTRACTED.bits());
+        assert_eq!(generator.duration_ms, Some(5_000));
+        let spline = creature
+            .active_move_spline_like_cpp()
+            .expect("distract launches a facing spline");
+        assert_eq!(
+            spline.facing().kind,
+            wow_movement::MonsterMoveType::FacingAngle
+        );
+        assert!((spline.facing().angle - std::f32::consts::FRAC_PI_2).abs() < 0.0001);
+        drop(guard);
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![
+                ServerOpcodes::SpellGo,
+                ServerOpcodes::OnMonsterMove,
+                ServerOpcodes::CooldownEvent,
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_distract_effect_skips_engaged_target_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 796_i32;
+        let player_guid = ObjectGuid::create_player(1, 796);
+        let creature_guid = test_creature_guid(18_796);
+        let position = Position::new(10.0, 10.0, 0.0, 0.0);
+        let destination = Position::new(10.0, 20.0, 0.0, 0.0);
+        let manager = shared_map_manager();
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "DistractEngaged".to_string(),
+            position,
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_player_health_like_cpp(100, 100);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 100);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().combat_target = Some(player_guid);
+            })
+            .unwrap();
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            threat_spell_info_like_cpp(
+                spell_id,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_DISTRACT,
+                5,
+            ),
+        );
+        session.set_spell_store(Arc::new(spell_store));
+        let target_data = SpellTargetData {
+            flags: 0x2,
+            unit: creature_guid,
+            item: ObjectGuid::EMPTY,
+            dst_location: Some(wow_packet::packets::spell::TargetLocation {
+                transport: ObjectGuid::EMPTY,
+                position: destination,
+            }),
+            ..SpellTargetData::default()
+        };
+
+        session
+            .execute_spell_with_target_data(spell_id, creature_guid, target_data)
+            .await
+            .expect("represented EffectDistract engaged target gate should execute as no-op");
+
+        let guard = manager.read().unwrap();
+        let creature = guard.find_creature(0, 0, creature_guid).unwrap();
+        assert!(
+            !creature
+                .creature
+                .unit()
+                .has_unit_state(UnitState::DISTRACTED.bits())
+        );
+        assert!(creature.active_move_spline_like_cpp().is_none());
+        drop(guard);
         assert_eq!(
             drain_server_opcodes(&send_rx),
             vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]

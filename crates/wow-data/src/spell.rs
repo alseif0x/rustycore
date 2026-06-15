@@ -58,6 +58,7 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_THREAT: u32 = 63;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_RAID: u32 = 65;
     pub const SPELL_EFFECT_HEAL_MAX_HEALTH: u32 = 67;
+    pub const SPELL_EFFECT_DISTRACT: u32 = 69;
     pub const SPELL_EFFECT_PULL: u32 = 70;
     pub const SPELL_EFFECT_ADD_FARSIGHT: u32 = 72;
     pub const SPELL_EFFECT_HEAL_MECHANICAL: u32 = 75;
@@ -1116,6 +1117,7 @@ mod tests {
         assert_eq!(spell_effect_types::SPELL_EFFECT_THREAT, 63);
         assert_eq!(spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_RAID, 65);
         assert_eq!(spell_effect_types::SPELL_EFFECT_HEAL_MAX_HEALTH, 67);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_DISTRACT, 69);
         assert_eq!(spell_effect_types::SPELL_EFFECT_PULL, 70);
         assert_eq!(spell_effect_types::SPELL_EFFECT_HEAL_MECHANICAL, 75);
         assert_eq!(spell_effect_types::SPELL_EFFECT_ATTACK, 78);

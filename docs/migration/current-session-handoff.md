@@ -1,3 +1,16 @@
+- `#NEXT.RUNTIME.L3.031j41` — WotLK represented `Spell::EffectDistract` /
+  `SPELL_EFFECT_DISTRACT` (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:1215` and
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellEffects.cpp:2184-2198`. Rust now
+  names `SPELL_EFFECT_DISTRACT = 69`, dispatches the direct represented effect, applies the C++
+  target gates for represented creatures (no engaged target, no confused/stunned/fleeing state),
+  and reuses `WorldCreature::begin_distract_movement_like_cpp` to launch a facing-only
+  `MonsterMove` toward the spell destination. Coverage: focused spell tests cover the successful
+  facing spline/packet path and the engaged-target no-op gate; constant coverage asserts effect id
+  69. Boundary remains partial: creature represented target only, explicit `dst_location` required,
+  current-session packet delivery only (no visible-set fanout), no generic player/unit target, and
+  aggregate `UnitState::DISTRACTED` remains a MotionMaster follow-up while the generator carries the
+  distracted base state.
 - `#NEXT.RUNTIME.L3.031j40` — WotLK represented `Spell::EffectTaunt` / `SPELL_EFFECT_ATTACK_ME`
   and creature threat-list capability initialization fix (not manual-test-ready). Source-of-truth:
   `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:1260`,
