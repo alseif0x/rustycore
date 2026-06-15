@@ -1,3 +1,11 @@
+- `#NEXT.R8.ENTITIES.903` — represented-complete audit-fix for `CMSG_DEL_IGNORE`.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SocialHandler.cpp:162-169` (`WorldSession::HandleDelIgnoreOpcode`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/SocialPackets.h:140-146` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/SocialPackets.cpp:137-140` (`QualifiedGUID Player` read); `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/SocialMgr.cpp:79-110` (`PlayerSocial::RemoveFromSocialList`); `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/SocialMgr.h:41,85,110` (`SOCIAL_FLAG_IGNORED`, `FRIEND_IGNORE_REMOVED`, remove API); `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:246` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:418` (`STATUS_LOGGEDIN`, `PROCESS_THREADUNSAFE`).
+
+Implemented Rust seam: existing Rust already parses the C++ `QualifiedGUID` order in `wow-packet`, registers `CMSG_DEL_IGNORE` as `LoggedIn`/`PROCESS_THREADUNSAFE`, dispatches through `WorldSession`, clears only `SOCIAL_FLAG_IGNORED` from represented DB-backed `character_social` rows, removes the row only when all flags are gone, and sends `SMSG_FRIEND_STATUS` with `FRIEND_IGNORE_REMOVED` and the target guid. This row reconciles stale inventories that still marked the opcode as missing.
+
+Boundaries: represented-complete for the bounded per-character `DelIgnore` handler and packet/dispatch path. Account-level ignored-account cache parity, full `SocialMgr` runtime ownership, install/restart, bot, and live-client/manual validation remain outside this bounded closure.
+
 - `#NEXT.R8.ENTITIES.868` - represented-complete implementation for bounded movement `Handle_NULL` ACK family.
 ### #NEXT.R8.ENTITIES.902 — CMSG_QUERY_PETITION
 

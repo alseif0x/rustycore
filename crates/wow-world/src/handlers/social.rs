@@ -842,4 +842,16 @@ mod tests {
             Some("Élune")
         );
     }
+
+    #[test]
+    fn del_ignore_dispatch_metadata_matches_cpp() {
+        let entry = inventory::iter::<PacketHandlerEntry>
+            .into_iter()
+            .find(|entry| entry.opcode == ClientOpcodes::DelIgnore)
+            .expect("DelIgnore handler entry");
+
+        assert_eq!(entry.status, SessionStatus::LoggedIn);
+        assert_eq!(entry.processing, PacketProcessing::ThreadUnsafe);
+        assert_eq!(entry.handler_name, "handle_del_ignore");
+    }
 }
