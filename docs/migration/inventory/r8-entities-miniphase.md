@@ -1,3 +1,13 @@
+# `#NEXT.R8.ENTITIES.942` — audit-fix for stale `CMSG_SET_ROLE` inventories.
+
+Source-of-truth C++ was re-checked before editing docs: `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/PartyPackets.cpp:268-285` (`SetRole::Read` and `RoleChangedInform::Write`), `/home/server/woltk-trinity-legacy/src/server/game/Handlers/GroupHandler.cpp:309-331` (`WorldSession::HandleSetRoleOpcode`), and `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp:1426-1434` (`Group::SetLfgRoles`).
+
+Audit result: the Rust code from `#NEXT.R8.ENTITIES.789` already has the represented parser, dispatch, handler, role mutation, and tests for `CMSG_SET_ROLE` / `SMSG_ROLE_CHANGED_INFORM`. The stale state was in docs/inventory only: `groups.md`, `cpp-client-handlers.tsv`, and `r3-opcodes-registry.{tsv,md}` still described `CMSG_SET_ROLE` as unhandled or `missing_rust_dispatch`.
+
+Docs correction: those inventories now classify `CMSG_SET_ROLE` as represented-partial current HOME-group role handling and keep the real boundaries explicit: no full BG/BF/original-group `PartyIndex` parity, no full ObjectAccessor/sWorld fanout, no DB persistence, and no install/restart/live client validation.
+
+Checks: `cargo fmt --all --check`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-packet set_role --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-packet role_poll --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world set_role --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world initiate_role_poll --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world dispatch_metadata_matches_cpp_for_registered_active_opcodes -- --nocapture`; `git diff --check`.
+
 # `#NEXT.R8.ENTITIES.941` — represented-partial for C++ `/roll` random roll.
 
 Source-of-truth C++: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/GroupHandler.cpp:414-421` (`WorldSession::HandleRandomRollOpcode`), `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28718-28734` (`Player::DoRandomRoll`), and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.cpp:421-438` / `.h:544-565` (`WorldPackets::Misc::{RandomRollClient,RandomRoll}`).

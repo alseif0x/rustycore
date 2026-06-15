@@ -291,7 +291,7 @@ DBC/DB2 stores read:
 **What's missing vs C++:**
 - **No DB persistence** — groups are 100% in-memory. Server restart = all groups dissolved. `groups`/`group_member`/`group_instance` tables not read or written.
 - **No raid support** — `MAX_GROUP_SIZE=5` is enforced (`g.members.len() >= 5`); cannot convert to raid (no `CMSG_CONVERT_RAID`), no sub-groups, no 8×5 raid layout.
-- **No roles** — `roles_assigned` field hard-coded to 0 in `PartyPlayerInfo`. `CMSG_SET_ROLE` unhandled. LFG role bitmask unimplemented.
+- **Roles represented-partial** — `CMSG_SET_ROLE` / `SMSG_ROLE_CHANGED_INFORM` are parsed, dispatched, and fan out through the represented current HOME-group model. Remaining gaps: DB persistence, BG/BF/original-group `PartyIndex` parity, and full live ObjectAccessor/sWorld runtime.
 - **No assistant / main-tank / main-assist** — `flags` field hard-coded to 0. `CMSG_SET_ASSISTANT_LEADER`, `CMSG_SET_PARTY_ASSIGNMENT` unhandled. Cannot promote anyone to assistant.
 - **No leader change** — `CMSG_SET_PARTY_LEADER` unhandled. If leader leaves, the next member is silently elevated, but explicit promotion is impossible.
 - **No kick** — `CMSG_PARTY_UNINVITE` unhandled. Bad players cannot be removed.
@@ -408,7 +408,7 @@ DBC/DB2 stores read:
 - [ ] **#GROUPS.1** Replace `GroupInfo.group_guid: u64` with proper `ObjectGuid` (HighGuid::Party); fix all wire serialisations. Complejidad: **M**
 - [ ] **#GROUPS.2** Implement `CMSG_PARTY_UNINVITE` — kick by guid, leader/assistant only, with `RemoveMethod::KICK`. Complejidad: **M**
 - [ ] **#GROUPS.3** Implement `CMSG_SET_PARTY_LEADER` — explicit leader transfer; emit `SMSG_GROUP_NEW_LEADER`. Complejidad: **L**
-- [ ] **#GROUPS.4** Implement `CMSG_SET_ROLE` — per-member role bitmask (Tank/Healer/DPS); persist; emit `SMSG_ROLE_CHANGED_INFORM`. Complejidad: **M**
+- [x] **#GROUPS.4** Represent `CMSG_SET_ROLE` — per-member role bitmask (Tank/Healer/DPS) and `SMSG_ROLE_CHANGED_INFORM` fanout are covered in `#NEXT.R8.ENTITIES.789`; persistence/full category parity remain open. Complejidad: **M**
 - [ ] **#GROUPS.5** Implement `CMSG_SET_ASSISTANT_LEADER` + `CMSG_SET_PARTY_ASSIGNMENT` — toggle `MEMBER_FLAG_ASSISTANT/MAINTANK/MAINASSIST`. Complejidad: **M**
 - [ ] **#GROUPS.6** Implement `CMSG_SET_LOOT_METHOD` — set method, master-looter guid, threshold; emit `PartyUpdate` to all; persist. Complejidad: **M**
 - [ ] **#GROUPS.7** Implement looter rotation (`UpdateLooterGuid`) — round-robin advance on each loot drop. Complejidad: **M**
