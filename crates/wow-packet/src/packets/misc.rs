@@ -95,6 +95,26 @@ impl ClientPacket for BuyBankSlot {
     }
 }
 
+/// C++ `WorldPackets::Bank::ChangeBankBagSlotFlag`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ChangeBankBagSlotFlag {
+    pub slot: u32,
+    pub flag: u32,
+    pub enabled: bool,
+}
+
+impl ClientPacket for ChangeBankBagSlotFlag {
+    const OPCODE: ClientOpcodes = ClientOpcodes::ChangeBankBagSlotFlag;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            slot: pkt.read_uint32()?,
+            flag: pkt.read_uint32()?,
+            enabled: pkt.read_bit()?,
+        })
+    }
+}
+
 // ── BugReport (CMSG 0x3687) ───────────────────────────────────────
 
 /// C++ `WorldPackets::Ticket::BugReport`.
@@ -9471,6 +9491,22 @@ mod tests {
 
         let buy = BuyBankSlot::read(&mut pkt).unwrap();
         assert_eq!(buy.guid, guid);
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn change_bank_bag_slot_flag_reads_slot_flag_and_enabled_bit_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(3);
+        pkt.write_uint32(5);
+        pkt.write_bit(true);
+        pkt.flush_bits();
+        pkt.reset_read();
+
+        let change = ChangeBankBagSlotFlag::read(&mut pkt).unwrap();
+        assert_eq!(change.slot, 3);
+        assert_eq!(change.flag, 5);
+        assert!(change.enabled);
         assert_eq!(pkt.remaining(), 0);
     }
 

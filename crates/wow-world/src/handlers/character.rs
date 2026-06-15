@@ -501,6 +501,15 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
+        opcode: ClientOpcodes::ChangeBankBagSlotFlag,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_change_bank_bag_slot_flag",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
         opcode: ClientOpcodes::BinderActivate,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
@@ -6168,6 +6177,20 @@ impl WorldSession {
             "BankerActivate {:?} account {}",
             hello.unit, self.account_id
         );
+        let Some(_banker) = self.represented_npc_can_interact_with_like_cpp(
+            hello.unit,
+            NPCFlags1::BANKER.bits(),
+            0,
+        ) else {
+            debug!(
+                banker_guid = ?hello.unit,
+                account = self.account_id,
+                "BankerActivate rejected: NPC missing, out of range, dead, or lacks BANKER flag"
+            );
+            return;
+        };
+
+        self.set_represented_current_banker_guid_like_cpp(hello.unit);
         self.send_packet(&NpcInteractionOpenResult::new(hello.unit, 8)); // Banker
     }
 
@@ -6227,6 +6250,51 @@ impl WorldSession {
             .await;
         self.sync_object_accessor_player();
         self.sync_player_registry_state_like_cpp();
+    }
+
+    /// CMSG_CHANGE_BANK_BAG_SLOT_FLAG — player toggles an ActivePlayer bank bag flag.
+    ///
+    /// C++ ref: `WorldSession::HandleChangeBankBagSlotFlag`.
+    pub async fn handle_change_bank_bag_slot_flag(&mut self, packet: ChangeBankBagSlotFlag) {
+        if !self.represented_can_use_current_bank_like_cpp() {
+            debug!(
+                account = self.account_id,
+                "ChangeBankBagSlotFlag rejected: player cannot use current bank"
+            );
+            return;
+        }
+
+        let Ok(slot) = usize::try_from(packet.slot) else {
+            return;
+        };
+        if slot >= 7 {
+            debug!(
+                slot = packet.slot,
+                account = self.account_id,
+                "ChangeBankBagSlotFlag rejected: invalid bank bag slot"
+            );
+            return;
+        }
+        if packet.flag >= u32::BITS {
+            debug!(
+                flag = packet.flag,
+                account = self.account_id,
+                "ChangeBankBagSlotFlag rejected: invalid flag bit"
+            );
+            return;
+        }
+
+        let current = self
+            .represented_bank_bag_slot_flag_like_cpp(slot)
+            .unwrap_or(0);
+        let mask = 1u32 << packet.flag;
+        let updated = if packet.enabled {
+            current | mask
+        } else {
+            current & !mask
+        };
+        self.set_represented_bank_bag_slot_flag_like_cpp(slot, updated);
+        self.send_player_bank_bag_slot_flag_update_like_cpp(slot, updated);
     }
 
     /// CMSG_BINDER_ACTIVATE — player sets hearthstone at innkeeper.
@@ -11787,6 +11855,78 @@ mod tests {
         assert_eq!(session.player_bank_bag_slot_count_like_cpp(), 2);
         assert_eq!(session.player_gold_like_cpp(), 150);
         assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn change_bank_bag_slot_flag_toggles_flag_after_banker_activation_like_cpp() {
+        let (mut session, send_rx, canonical) = make_bank_slot_session(4);
+        let banker = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 4);
+        insert_banker_creature(&canonical, banker, NPCFlags1::BANKER.bits());
+
+        session.handle_banker_activate(Hello { unit: banker }).await;
+        assert!(send_rx.try_recv().is_ok(), "bank open should be sent");
+
+        session
+            .handle_change_bank_bag_slot_flag(ChangeBankBagSlotFlag {
+                slot: 2,
+                flag: 4,
+                enabled: true,
+            })
+            .await;
+
+        assert_eq!(session.represented_bank_bag_slot_flag_like_cpp(2), Some(16));
+        assert!(send_rx.try_recv().is_ok(), "flag update should be sent");
+
+        session
+            .handle_change_bank_bag_slot_flag(ChangeBankBagSlotFlag {
+                slot: 2,
+                flag: 4,
+                enabled: false,
+            })
+            .await;
+
+        assert_eq!(session.represented_bank_bag_slot_flag_like_cpp(2), Some(0));
+        assert!(
+            send_rx.try_recv().is_ok(),
+            "flag clear update should be sent"
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn change_bank_bag_slot_flag_rejects_without_current_bank_like_cpp() {
+        let (mut session, send_rx, _canonical) = make_bank_slot_session(1);
+
+        session
+            .handle_change_bank_bag_slot_flag(ChangeBankBagSlotFlag {
+                slot: 2,
+                flag: 4,
+                enabled: true,
+            })
+            .await;
+
+        assert_eq!(session.represented_bank_bag_slot_flag_like_cpp(2), Some(0));
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn change_bank_bag_slot_flag_rejects_invalid_slot_like_cpp() {
+        let (mut session, send_rx, canonical) = make_bank_slot_session(2);
+        let banker = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 5);
+        insert_banker_creature(&canonical, banker, NPCFlags1::BANKER.bits());
+        session.handle_banker_activate(Hello { unit: banker }).await;
+        assert!(send_rx.try_recv().is_ok(), "bank open should be sent");
+
+        session
+            .handle_change_bank_bag_slot_flag(ChangeBankBagSlotFlag {
+                slot: 7,
+                flag: 4,
+                enabled: true,
+            })
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+        assert_eq!(session.represented_bank_bag_slot_flag_like_cpp(6), Some(0));
     }
 
     #[tokio::test]

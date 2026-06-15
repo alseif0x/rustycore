@@ -2918,6 +2918,8 @@ pub struct WorldSession {
     player_gold: u64,
     /// C++ `Player::GetBankBagSlotCount`, loaded from `characters.bankSlots`.
     player_bank_bag_slot_count_like_cpp: u8,
+    represented_bank_bag_slot_flags_like_cpp: [u32; 7],
+    represented_current_banker_guid_like_cpp: Option<ObjectGuid>,
     player_xp: u32,
     /// XP required to reach next level, cached from player_xp_for_level.
     player_next_level_xp: u32,
@@ -4313,6 +4315,8 @@ impl WorldSession {
             level_played_time: 0,
             player_gold: 0,
             player_bank_bag_slot_count_like_cpp: 0,
+            represented_bank_bag_slot_flags_like_cpp: [0; 7],
+            represented_current_banker_guid_like_cpp: None,
             player_xp: 0,
             player_next_level_xp: 400,
             player_xp_table: None,
@@ -5021,6 +5025,14 @@ impl WorldSession {
         player.set_next_level_xp(self.player_next_level_xp_like_cpp() as i32);
         player.set_money(self.player_gold_like_cpp());
         player.set_bank_bag_slot_count(self.player_bank_bag_slot_count_like_cpp());
+        for (index, value) in self
+            .represented_bank_bag_slot_flags_like_cpp
+            .iter()
+            .copied()
+            .enumerate()
+        {
+            player.set_bank_bag_slot_flag_value_like_cpp(index, value);
+        }
         player.set_watched_faction_index_like_cpp(self.watched_faction_index_like_cpp);
         for quest_bit in &self.represented_quest_completed_bits_like_cpp {
             player.set_quest_completed_bit_like_cpp(*quest_bit, true);
@@ -13504,6 +13516,14 @@ impl WorldSession {
         let mut player = self.direct_inventory_player_snapshot()?;
         player.set_money(self.player_gold_like_cpp());
         player.set_bank_bag_slot_count(self.player_bank_bag_slot_count_like_cpp());
+        for (index, value) in self
+            .represented_bank_bag_slot_flags_like_cpp
+            .iter()
+            .copied()
+            .enumerate()
+        {
+            player.set_bank_bag_slot_flag_value_like_cpp(index, value);
+        }
         let inventory_items = self.inventory_items_like_cpp();
         let buyback_items = self.buyback_items_like_cpp();
         let buyback_price = self.buyback_price_like_cpp();
@@ -13552,6 +13572,26 @@ impl WorldSession {
         };
 
         player.set_bank_bag_slot_count(count);
+        let update = player.values_update(true);
+        if let Some(packet) =
+            player_values_update_to_update_object(guid, self.player_map_id_like_cpp(), &update)
+        {
+            self.send_packet(&packet);
+        }
+    }
+
+    pub(crate) fn send_player_bank_bag_slot_flag_update_like_cpp(&self, slot: usize, value: u32) {
+        let Some(guid) = self.player_guid() else {
+            return;
+        };
+        let Some(mut player) = self.player_values_update_snapshot() else {
+            return;
+        };
+
+        if !player.set_bank_bag_slot_flag_value_like_cpp(slot, value) {
+            return;
+        }
+        player.mark_bank_bag_slot_flag_changed_like_cpp(slot);
         let update = player.values_update(true);
         if let Some(packet) =
             player_values_update_to_update_object(guid, self.player_map_id_like_cpp(), &update)
@@ -18636,6 +18676,12 @@ impl WorldSession {
                     Err(e) => warn!("Failed to read BuyBankSlot: {e}"),
                 }
             }
+            ClientOpcodes::ChangeBankBagSlotFlag => {
+                match wow_packet::packets::misc::ChangeBankBagSlotFlag::read(&mut pkt) {
+                    Ok(change) => self.handle_change_bank_bag_slot_flag(change).await,
+                    Err(e) => warn!("Failed to read ChangeBankBagSlotFlag: {e}"),
+                }
+            }
             ClientOpcodes::BinderActivate => {
                 match wow_packet::packets::gossip::Hello::read(&mut pkt) {
                     Ok(hello) => self.handle_binder_activate(hello).await,
@@ -20554,6 +20600,45 @@ impl WorldSession {
         if let Some(controller) = &mut self.player_controller {
             controller.set_bank_bag_slot_count(count);
         }
+    }
+
+    pub(crate) fn set_represented_current_banker_guid_like_cpp(&mut self, guid: ObjectGuid) {
+        self.represented_current_banker_guid_like_cpp = Some(guid);
+    }
+
+    pub(crate) fn represented_current_banker_guid_like_cpp(&self) -> Option<ObjectGuid> {
+        self.represented_current_banker_guid_like_cpp
+    }
+
+    pub(crate) fn represented_can_use_current_bank_like_cpp(&self) -> bool {
+        let Some(banker_guid) = self.represented_current_banker_guid_like_cpp() else {
+            return false;
+        };
+
+        if Some(banker_guid) == self.player_guid() {
+            return true;
+        }
+
+        self.represented_npc_can_interact_with_like_cpp(banker_guid, NPCFlags1::BANKER.bits(), 0)
+            .is_some()
+    }
+
+    pub(crate) fn represented_bank_bag_slot_flag_like_cpp(&self, slot: usize) -> Option<u32> {
+        self.represented_bank_bag_slot_flags_like_cpp
+            .get(slot)
+            .copied()
+    }
+
+    pub(crate) fn set_represented_bank_bag_slot_flag_like_cpp(
+        &mut self,
+        slot: usize,
+        value: u32,
+    ) -> bool {
+        let Some(flag) = self.represented_bank_bag_slot_flags_like_cpp.get_mut(slot) else {
+            return false;
+        };
+        *flag = value;
+        true
     }
 
     pub(crate) fn set_player_xp_like_cpp(&mut self, xp: u32) {

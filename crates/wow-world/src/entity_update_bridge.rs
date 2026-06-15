@@ -855,6 +855,7 @@ fn active_player_data_update_to_packet(
         .copy_from_slice(&update.values.inv_slots);
     packet_update.buyback_price = update.values.buyback_price;
     packet_update.buyback_timestamp = update.values.buyback_timestamp;
+    packet_update.bank_bag_slot_flags = update.values.bank_bag_slot_flags;
     packet_update.heirlooms = update.values.heirlooms.clone();
     packet_update.heirlooms_update_mask = update.values.heirlooms_update_mask.clone();
     packet_update.heirloom_flags = update.values.heirloom_flags.clone();

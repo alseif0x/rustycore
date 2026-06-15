@@ -695,6 +695,8 @@ pub const ACTIVE_PLAYER_DATA_INV_SLOTS_FIRST_BIT: usize = 125;
 pub const ACTIVE_PLAYER_DATA_BUYBACK_PARENT_BIT: usize = 549;
 pub const ACTIVE_PLAYER_DATA_BUYBACK_PRICE_FIRST_BIT: usize = 550;
 pub const ACTIVE_PLAYER_DATA_BUYBACK_TIMESTAMP_FIRST_BIT: usize = 562;
+pub const ACTIVE_PLAYER_DATA_BANK_BAG_SLOT_FLAGS_PARENT_BIT: usize = 628;
+pub const ACTIVE_PLAYER_DATA_BANK_BAG_SLOT_FLAGS_FIRST_BIT: usize = 629;
 pub const ACTIVE_PLAYER_DATA_QUEST_COMPLETED_PARENT_BIT: usize = 636;
 pub const ACTIVE_PLAYER_DATA_QUEST_COMPLETED_FIRST_BIT: usize = 637;
 pub const ACTIVE_PLAYER_DATA_WATCHED_FACTION_INDEX_BIT: usize = 92;
@@ -2758,6 +2760,7 @@ pub struct ActivePlayerDataValues {
     pub inv_slots: [ObjectGuid; PLAYER_SLOT_END],
     pub buyback_price: [u32; BUYBACK_SLOT_COUNT],
     pub buyback_timestamp: [i64; BUYBACK_SLOT_COUNT],
+    pub bank_bag_slot_flags: [u32; 7],
     pub heirlooms: Vec<i32>,
     pub heirlooms_update_mask: Option<Vec<u32>>,
     pub heirloom_flags: Vec<u32>,
@@ -2787,6 +2790,7 @@ impl Default for ActivePlayerDataValues {
             inv_slots: [ObjectGuid::EMPTY; PLAYER_SLOT_END],
             buyback_price: [0; BUYBACK_SLOT_COUNT],
             buyback_timestamp: [0; BUYBACK_SLOT_COUNT],
+            bank_bag_slot_flags: [0; 7],
             heirlooms: Vec::new(),
             heirlooms_update_mask: None,
             heirloom_flags: Vec::new(),
@@ -3306,6 +3310,26 @@ impl Player {
         self.set_player_u8(PLAYER_DATA_NUM_BANK_SLOTS_BIT, count, |data| {
             &mut data.num_bank_slots
         });
+    }
+
+    pub fn set_bank_bag_slot_flag_value_like_cpp(&mut self, index: usize, value: u32) -> bool {
+        if index >= self.active_data.bank_bag_slot_flags.len() {
+            return false;
+        }
+
+        if self.active_data.bank_bag_slot_flags[index] != value {
+            self.active_data.bank_bag_slot_flags[index] = value;
+            self.mark_bank_bag_slot_flag_changed_like_cpp(index);
+        }
+        true
+    }
+
+    pub fn mark_bank_bag_slot_flag_changed_like_cpp(&mut self, index: usize) {
+        self.mark_active_player_data_array(
+            ACTIVE_PLAYER_DATA_BANK_BAG_SLOT_FLAGS_PARENT_BIT,
+            ACTIVE_PLAYER_DATA_BANK_BAG_SLOT_FLAGS_FIRST_BIT,
+            index,
+        );
     }
 
     pub fn set_primary_specialization(&mut self, spec: u32) {
