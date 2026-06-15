@@ -5341,6 +5341,22 @@ impl ClientPacket for ClearTradeItem {
     }
 }
 
+/// C++ `WorldPackets::Trade::SetTradeGold`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct SetTradeGold {
+    pub coinage: u64,
+}
+
+impl ClientPacket for SetTradeGold {
+    const OPCODE: ClientOpcodes = ClientOpcodes::SetTradeGold;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            coinage: pkt.read_uint64()?,
+        })
+    }
+}
+
 /// C++ `WorldPackets::Trade::UnacceptTrade`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct UnacceptTrade;
@@ -5395,11 +5411,17 @@ pub const TRADE_STATUS_UNACCEPTED_LIKE_CPP: u8 = 7;
 /// C++ `TRADE_STATUS_STATE_CHANGED`.
 pub const TRADE_STATUS_STATE_CHANGED_LIKE_CPP: u8 = 9;
 
+/// C++ `TRADE_STATUS_FAILED`.
+pub const TRADE_STATUS_FAILED_LIKE_CPP: u8 = 12;
+
 /// C++ `TRADE_STATUS_PLAYER_IGNORED`.
 pub const TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP: u8 = 14;
 
 /// C++ `TRADE_SLOT_COUNT`.
 pub const TRADE_SLOT_COUNT_LIKE_CPP: u8 = 7;
+
+/// C++ `EQUIP_ERR_NOT_ENOUGH_MONEY`.
+pub const EQUIP_ERR_NOT_ENOUGH_MONEY_LIKE_CPP: i32 = 30;
 
 /// Bounded C++ `WorldPackets::Trade::TradeStatus` writer.
 ///
@@ -5411,6 +5433,9 @@ pub struct TradeStatus {
     pub status: u8,
     pub partner_is_same_bnet_account: bool,
     pub id: u32,
+    pub failure_for_you: bool,
+    pub bag_result: i32,
+    pub item_id: i32,
 }
 
 impl TradeStatus {
@@ -5419,6 +5444,9 @@ impl TradeStatus {
             status,
             partner_is_same_bnet_account: false,
             id: 0,
+            failure_for_you: false,
+            bag_result: 0,
+            item_id: 0,
         }
     }
 
@@ -5427,6 +5455,9 @@ impl TradeStatus {
             status: TRADE_STATUS_INITIATED_LIKE_CPP,
             partner_is_same_bnet_account: false,
             id,
+            failure_for_you: false,
+            bag_result: 0,
+            item_id: 0,
         }
     }
 
@@ -5435,6 +5466,20 @@ impl TradeStatus {
             status,
             partner_is_same_bnet_account: false,
             id: 0,
+            failure_for_you: false,
+            bag_result: 0,
+            item_id: 0,
+        }
+    }
+
+    pub fn failed_like_cpp(bag_result: i32, item_id: i32) -> Self {
+        Self {
+            status: TRADE_STATUS_FAILED_LIKE_CPP,
+            partner_is_same_bnet_account: false,
+            id: 0,
+            failure_for_you: false,
+            bag_result,
+            item_id,
         }
     }
 }
@@ -5445,10 +5490,18 @@ impl ServerPacket for TradeStatus {
     fn write(&self, pkt: &mut WorldPacket) {
         pkt.write_bit(self.partner_is_same_bnet_account);
         pkt.write_bits(u32::from(self.status), 5);
-        if self.status == TRADE_STATUS_INITIATED_LIKE_CPP {
-            pkt.write_uint32(self.id);
-        } else {
-            pkt.flush_bits();
+        match self.status {
+            TRADE_STATUS_FAILED_LIKE_CPP => {
+                pkt.write_bit(self.failure_for_you);
+                pkt.write_int32(self.bag_result);
+                pkt.write_int32(self.item_id);
+            }
+            TRADE_STATUS_INITIATED_LIKE_CPP => {
+                pkt.write_uint32(self.id);
+            }
+            _ => {
+                pkt.flush_bits();
+            }
         }
     }
 }
@@ -6322,6 +6375,17 @@ mod tests {
     }
 
     #[test]
+    fn set_trade_gold_reads_coinage_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint64(0x1122_3344_5566_7788);
+        pkt.reset_read();
+
+        let packet = SetTradeGold::read(&mut pkt).unwrap();
+
+        assert_eq!(packet.coinage, 0x1122_3344_5566_7788);
+    }
+
+    #[test]
     fn unaccept_trade_reads_empty_cpp_packet() {
         let mut pkt = WorldPacket::new_empty();
 
@@ -6360,6 +6424,26 @@ mod tests {
         assert_eq!(
             u32::from_le_bytes([bytes[3], bytes[4], bytes[5], bytes[6]]),
             0x1122_3344
+        );
+    }
+
+    #[test]
+    fn trade_status_failed_writes_bag_result_like_cpp() {
+        let bytes = TradeStatus::failed_like_cpp(EQUIP_ERR_NOT_ENOUGH_MONEY_LIKE_CPP, 0).to_bytes();
+
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::TradeStatus as u16
+        );
+        assert_eq!(bytes.len(), 11);
+        assert_eq!(bytes[2], TRADE_STATUS_FAILED_LIKE_CPP << 2);
+        assert_eq!(
+            i32::from_le_bytes([bytes[3], bytes[4], bytes[5], bytes[6]]),
+            EQUIP_ERR_NOT_ENOUGH_MONEY_LIKE_CPP
+        );
+        assert_eq!(
+            i32::from_le_bytes([bytes[7], bytes[8], bytes[9], bytes[10]]),
+            0
         );
     }
 

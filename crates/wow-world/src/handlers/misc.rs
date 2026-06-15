@@ -58,7 +58,7 @@ use wow_packet::packets::misc::{
     ObjectUpdateFailed, ObjectUpdateRescued, QueryBattlePetName, QueryBattlePetNameResponse,
     RatedPvpInfo, RequestAccountData, RequestBattlefieldStatus, RequestCemeteryListResponse,
     ResurrectResponse, SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags,
-    SetTaxiBenchmarkMode, SpecialMountAnim, StandStateChange, SubmitUserFeedback,
+    SetTaxiBenchmarkMode, SetTradeGold, SpecialMountAnim, StandStateChange, SubmitUserFeedback,
     SupportTicketSubmitBug, SupportTicketSubmitComplaint, SupportTicketSubmitSuggestion,
     TRADE_STATUS_CANCELLED_LIKE_CPP, TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP, TaxiNodeStatusPkt,
     TogglePvp, ToyClearFanfare, UnacceptTrade, UpdateAccountData, UseToy,
@@ -1141,6 +1141,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_clear_trade_item",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::SetTradeGold,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_set_trade_gold",
     }
 }
 
@@ -3628,6 +3637,21 @@ impl crate::session::WorldSession {
         self.clear_represented_trade_item_like_cpp(packet.trade_slot);
     }
 
+    pub async fn handle_set_trade_gold(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let packet = match SetTradeGold::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "SetTradeGold parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        self.set_represented_trade_gold_like_cpp(packet.coinage);
+    }
+
     pub async fn handle_unaccept_trade(&mut self, mut pkt: wow_packet::WorldPacket) {
         if let Err(error) = UnacceptTrade::read(&mut pkt) {
             warn!(
@@ -4335,6 +4359,9 @@ mod tests {
     use wow_packet::ServerPacket;
     use wow_packet::WorldPacket;
     use wow_packet::packets::misc::TRADE_STATUS_INITIATED_LIKE_CPP;
+    use wow_packet::packets::misc::{
+        EQUIP_ERR_NOT_ENOUGH_MONEY_LIKE_CPP, TRADE_STATUS_FAILED_LIKE_CPP,
+    };
     use wow_packet::packets::misc::{
         SUPPORT_SPAM_TYPE_CHAT_LIKE_CPP, empty_battle_pet_guid_like_cpp,
     };
@@ -5388,6 +5415,13 @@ mod tests {
         pkt
     }
 
+    fn set_trade_gold_packet(coinage: u64) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint64(coinage);
+        pkt.reset_read();
+        pkt
+    }
+
     #[tokio::test]
     async fn accept_trade_without_active_trade_is_noop_like_cpp() {
         let (mut session, send_rx) = make_session();
@@ -5544,6 +5578,120 @@ mod tests {
             2
         );
         assert!(source_session.represented_trade_item_like_cpp(2).is_none());
+        assert!(!source_session.represented_trade_accepted_like_cpp());
+        assert!(!partner_session.represented_trade_accepted_like_cpp());
+
+        let source_bytes = source_send_rx.try_recv().expect("source unaccepted status");
+        let partner_bytes = partner_send_rx
+            .try_recv()
+            .expect("partner unaccepted status");
+        assert_eq!(source_bytes, partner_bytes);
+        assert_eq!(
+            u16::from_le_bytes([source_bytes[0], source_bytes[1]]),
+            ServerOpcodes::TradeStatus as u16
+        );
+        assert_eq!(source_bytes[2], TRADE_STATUS_UNACCEPTED_LIKE_CPP << 2);
+    }
+
+    #[tokio::test]
+    async fn set_trade_gold_without_active_trade_is_noop_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        session.set_player_gold_like_cpp(100);
+
+        session
+            .handle_set_trade_gold(set_trade_gold_packet(50))
+            .await;
+
+        assert_eq!(session.represented_trade_client_state_index_like_cpp(), 1);
+        assert_eq!(session.represented_trade_money_like_cpp(), 0);
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn set_trade_gold_same_money_only_updates_client_state_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let partner_guid = ObjectGuid::create_player(1, 88);
+        session.set_player_gold_like_cpp(100);
+        session.set_represented_active_trade_partner_like_cpp(Some(partner_guid));
+
+        session
+            .handle_set_trade_gold(set_trade_gold_packet(0))
+            .await;
+
+        assert_eq!(session.represented_trade_client_state_index_like_cpp(), 2);
+        assert_eq!(session.represented_trade_server_state_index_like_cpp(), 1);
+        assert_eq!(session.represented_trade_money_like_cpp(), 0);
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn set_trade_gold_not_enough_money_sends_failed_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let partner_guid = ObjectGuid::create_player(1, 88);
+        session.set_player_gold_like_cpp(10);
+        session.set_represented_active_trade_partner_like_cpp(Some(partner_guid));
+
+        session
+            .handle_set_trade_gold(set_trade_gold_packet(50))
+            .await;
+
+        assert_eq!(session.represented_trade_client_state_index_like_cpp(), 2);
+        assert_eq!(session.represented_trade_server_state_index_like_cpp(), 1);
+        assert_eq!(session.represented_trade_money_like_cpp(), 0);
+        let bytes = send_rx.try_recv().expect("failed trade status");
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::TradeStatus as u16
+        );
+        assert_eq!(bytes[2], TRADE_STATUS_FAILED_LIKE_CPP << 2);
+        assert_eq!(
+            i32::from_le_bytes([bytes[3], bytes[4], bytes[5], bytes[6]]),
+            EQUIP_ERR_NOT_ENOUGH_MONEY_LIKE_CPP
+        );
+        assert_eq!(
+            i32::from_le_bytes([bytes[7], bytes[8], bytes[9], bytes[10]]),
+            0
+        );
+    }
+
+    #[tokio::test]
+    async fn set_trade_gold_records_money_and_unaccepts_both_sides_like_cpp() {
+        let (mut source_session, source_send_rx) = make_session();
+        let (mut partner_session, partner_send_rx) = make_session();
+        let source_guid = ObjectGuid::create_player(1, 77);
+        let partner_guid = ObjectGuid::create_player(1, 88);
+        source_session.set_player_guid(Some(source_guid));
+        partner_session.set_player_guid(Some(partner_guid));
+        source_session.set_player_gold_like_cpp(100);
+        source_session.set_represented_active_trade_partner_like_cpp(Some(partner_guid));
+        partner_session.set_represented_active_trade_partner_like_cpp(Some(source_guid));
+        source_session.set_represented_trade_accepted_like_cpp_for_test(true);
+        partner_session.set_represented_trade_accepted_like_cpp_for_test(true);
+
+        let registry = Arc::new(PlayerRegistry::default());
+        let partner_command_tx = partner_session.session_command_tx();
+        registry.insert(
+            partner_guid,
+            broadcast_info_with_command_tx(partner_command_tx),
+        );
+        source_session.set_player_registry(registry);
+
+        source_session
+            .handle_set_trade_gold(set_trade_gold_packet(75))
+            .await;
+        partner_session
+            .process_represented_session_commands_like_cpp()
+            .await;
+
+        assert_eq!(
+            source_session.represented_trade_client_state_index_like_cpp(),
+            2
+        );
+        assert_eq!(
+            source_session.represented_trade_server_state_index_like_cpp(),
+            2
+        );
+        assert_eq!(source_session.represented_trade_money_like_cpp(), 75);
         assert!(!source_session.represented_trade_accepted_like_cpp());
         assert!(!partner_session.represented_trade_accepted_like_cpp());
 

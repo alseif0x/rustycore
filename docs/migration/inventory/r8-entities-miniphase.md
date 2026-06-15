@@ -1,4 +1,14 @@
 - `#NEXT.R8.ENTITIES.868` - represented-complete implementation for bounded movement `Handle_NULL` ACK family.
+### #NEXT.R8.ENTITIES.895 — CMSG_SET_TRADE_GOLD
+
+Status: represented-partial for the bounded `WorldSession::HandleSetTradeGoldOpcode` coinage/client-state/funds/accepted-status seam.
+
+C++ source-of-truth: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/TradeHandler.cpp:702-710`, `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/TradeData.cpp:99-121,135-151`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TradePackets.h:89-97`, `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TradePackets.cpp:35-38,55-72`, `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:6465-6481`, and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/ItemDefines.h:56`.
+
+Implemented Rust seam: `SetTradeGold` parses the C++ `uint64 Coinage`, registers as `LoggedIn`/`PROCESS_THREADUNSAFE`, dispatches through `WorldSession`, preserves the no-op when no represented active trade exists, increments represented client-state before `SetMoney`, preserves no-op when represented money is unchanged, sends `TRADE_STATUS_FAILED` with `EQUIP_ERR_NOT_ENOUGH_MONEY` when the player lacks funds, records represented trade money when valid, advances represented server-state deterministically, clears local/partner accepted flags, and sends bounded `SMSG_TRADE_STATUS` with `TRADE_STATUS_UNACCEPTED` to both represented sessions.
+
+Boundary: represented-partial only; full `TradeData`, C++ `rand32()` server-state parity, `SMSG_TRADE_UPDATED` payloads, complete money ownership/DB transaction, install/restart, bot, and live-client/manual validation remain separate work.
+
 ### #NEXT.R8.ENTITIES.894 — CMSG_CLEAR_TRADE_ITEM
 
 Status: represented-partial for the bounded `WorldSession::HandleClearTradeItemOpcode` slot-clear/client-state/accepted-status seam.
