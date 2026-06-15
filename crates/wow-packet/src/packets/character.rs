@@ -345,6 +345,29 @@ impl ClientPacket for AlterAppearance {
     }
 }
 
+/// C++ `WorldPackets::Character::ConfirmBarbersChoice`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConfirmBarbersChoice {
+    pub customizations: Vec<ChrCustomizationChoice>,
+}
+
+impl ClientPacket for ConfirmBarbersChoice {
+    const OPCODE: ClientOpcodes = ClientOpcodes::ConfirmBarbersChoice;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let customization_count = pkt.read_uint32()? as usize;
+        let mut customizations = Vec::with_capacity(customization_count);
+        for _ in 0..customization_count {
+            customizations.push(ChrCustomizationChoice {
+                option_id: pkt.read_uint32()? as i32,
+                choice_id: pkt.read_uint32()? as i32,
+            });
+        }
+
+        Ok(Self { customizations })
+    }
+}
+
 pub const BARBER_SHOP_RESULT_SUCCESS_LIKE_CPP: i32 = 0;
 pub const BARBER_SHOP_RESULT_NO_MONEY_LIKE_CPP: i32 = 1;
 pub const BARBER_SHOP_RESULT_NOT_ON_CHAIR_LIKE_CPP: i32 = 2;
@@ -961,6 +984,26 @@ mod tests {
             .map(|choice| (choice.option_id, choice.choice_id))
             .collect();
         assert_eq!(choices, vec![(10, 100), (20, 200), (20, 201)]);
+    }
+
+    #[test]
+    fn confirm_barbers_choice_reads_cpp_count_and_uint32_rows_without_sorting() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(2);
+        pkt.write_uint32(20);
+        pkt.write_uint32(200);
+        pkt.write_uint32(10);
+        pkt.write_uint32(100);
+        pkt.reset_read();
+
+        let parsed = ConfirmBarbersChoice::read(&mut pkt).unwrap();
+
+        let choices: Vec<(i32, i32)> = parsed
+            .customizations
+            .iter()
+            .map(|choice| (choice.option_id, choice.choice_id))
+            .collect();
+        assert_eq!(choices, vec![(20, 200), (10, 100)]);
     }
 
     #[test]

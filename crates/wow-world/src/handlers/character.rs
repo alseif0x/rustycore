@@ -52,7 +52,8 @@ use crate::handlers::quest::RepresentedQuestGiverStatusSourceLikeCpp;
 use crate::reputation::mgr::CharacterReputationRowLikeCpp;
 use crate::session::{
     PER_CHARACTER_CACHE_MASK_LIKE_CPP, RepresentedAlterAppearanceLikeCpp,
-    RepresentedBankItemMoveLikeCpp, RepresentedGameObjectUseState,
+    RepresentedBankItemMoveLikeCpp, RepresentedConfirmBarbersChoiceLikeCpp,
+    RepresentedGameObjectUseState,
 };
 
 // ── Handler registration ────────────────────────────────────────────
@@ -197,6 +198,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_alter_appearance",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::ConfirmBarbersChoice,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_confirm_barbers_choice",
     }
 }
 
@@ -2554,6 +2564,31 @@ impl WorldSession {
             customized_chr_model_id: request.customized_chr_model_id,
             cost,
         });
+    }
+
+    /// Handle CMSG_CONFIRM_BARBERS_CHOICE.
+    ///
+    /// C++ `HandleConfirmBarbersChoice` converts the barber rows into
+    /// `ChrCustomizationChoice`, checks `GetBarberShopCost`, sends only the
+    /// no-money failure, and otherwise mutates money/customizations/criteria
+    /// without a success packet. Rust records the accepted request until the
+    /// Player customization/cost/criteria runtime is canonical.
+    pub async fn handle_confirm_barbers_choice(&mut self, mut pkt: WorldPacket) {
+        let request = match ConfirmBarbersChoice::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!("Bad ConfirmBarbersChoice: {error}");
+                return;
+            }
+        };
+
+        let cost = 0;
+        self.record_represented_confirm_barbers_choice_like_cpp(
+            RepresentedConfirmBarbersChoiceLikeCpp {
+                customizations: request.customizations,
+                cost,
+            },
+        );
     }
 
     /// Handle CMSG_SET_PLAYER_DECLINED_NAMES.
@@ -11126,6 +11161,16 @@ mod tests {
         pkt
     }
 
+    fn confirm_barbers_choice_packet(customizations: &[(u32, u32)]) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(customizations.len() as u32);
+        for (option_id, choice_id) in customizations {
+            pkt.write_uint32(*option_id);
+            pkt.write_uint32(*choice_id);
+        }
+        pkt
+    }
+
     fn read_barber_shop_result(encoded: Vec<u8>) -> i32 {
         let mut packet = WorldPacket::new_client(encoded.as_slice().into());
         assert_eq!(
@@ -11993,6 +12038,33 @@ mod tests {
                 ],
                 customized_race: 7,
                 customized_chr_model_id: 11,
+                cost: 0,
+            }]
+        );
+    }
+
+    #[tokio::test]
+    async fn confirm_barbers_choice_records_request_without_success_packet_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+
+        session
+            .handle_confirm_barbers_choice(confirm_barbers_choice_packet(&[(20, 200), (10, 100)]))
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+        assert_eq!(
+            session.represented_confirm_barbers_choice_requests_like_cpp(),
+            &[RepresentedConfirmBarbersChoiceLikeCpp {
+                customizations: vec![
+                    ChrCustomizationChoice {
+                        option_id: 20,
+                        choice_id: 200,
+                    },
+                    ChrCustomizationChoice {
+                        option_id: 10,
+                        choice_id: 100,
+                    },
+                ],
                 cost: 0,
             }]
         );
