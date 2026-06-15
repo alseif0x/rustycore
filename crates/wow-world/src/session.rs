@@ -1475,6 +1475,14 @@ pub(crate) struct RepresentedAuctionPlaceBidLikeCpp {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedAuctionRemoveItemLikeCpp {
+    pub auctioneer: ObjectGuid,
+    pub auction_id: i32,
+    pub item_id: i32,
+    pub tainted_by_present: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedCanDuelSpellCastLikeCpp {
     pub target_guid: ObjectGuid,
     pub spell_id: u32,
@@ -2979,6 +2987,7 @@ pub struct WorldSession {
     represented_bank_item_moves_like_cpp: Vec<RepresentedBankItemMoveLikeCpp>,
     represented_auction_replicate_requests_like_cpp: Vec<RepresentedAuctionReplicateRequestLikeCpp>,
     represented_auction_place_bids_like_cpp: Vec<RepresentedAuctionPlaceBidLikeCpp>,
+    represented_auction_remove_items_like_cpp: Vec<RepresentedAuctionRemoveItemLikeCpp>,
     player_xp: u32,
     /// XP required to reach next level, cached from player_xp_for_level.
     player_next_level_xp: u32,
@@ -4385,6 +4394,7 @@ impl WorldSession {
             represented_bank_item_moves_like_cpp: Vec::new(),
             represented_auction_replicate_requests_like_cpp: Vec::new(),
             represented_auction_place_bids_like_cpp: Vec::new(),
+            represented_auction_remove_items_like_cpp: Vec::new(),
             player_xp: 0,
             player_next_level_xp: 400,
             player_xp_table: None,
@@ -20220,6 +20230,12 @@ impl WorldSession {
                     Err(e) => warn!("Failed to read AuctionPlaceBid: {e}"),
                 }
             }
+            ClientOpcodes::AuctionRemoveItem => {
+                match wow_packet::packets::misc::AuctionRemoveItem::read(&mut pkt) {
+                    Ok(packet) => self.handle_auction_remove_item(packet).await,
+                    Err(e) => warn!("Failed to read AuctionRemoveItem: {e}"),
+                }
+            }
             ClientOpcodes::AuctionReplicateItems => {
                 match wow_packet::packets::misc::AuctionReplicateItems::read(&mut pkt) {
                     Ok(packet) => self.handle_auction_replicate_items(packet).await,
@@ -21327,6 +21343,19 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedAuctionPlaceBidLikeCpp] {
         &self.represented_auction_place_bids_like_cpp
+    }
+
+    pub(crate) fn record_represented_auction_remove_item_like_cpp(
+        &mut self,
+        remove: RepresentedAuctionRemoveItemLikeCpp,
+    ) {
+        self.represented_auction_remove_items_like_cpp.push(remove);
+    }
+
+    pub(crate) fn represented_auction_remove_items_like_cpp(
+        &self,
+    ) -> &[RepresentedAuctionRemoveItemLikeCpp] {
+        &self.represented_auction_remove_items_like_cpp
     }
 
     pub(crate) fn represented_bank_bag_slot_flag_like_cpp(&self, slot: usize) -> Option<u32> {

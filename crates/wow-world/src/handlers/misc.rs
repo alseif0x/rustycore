@@ -48,25 +48,25 @@ use wow_packet::packets::loot::{LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHI
 use wow_packet::packets::misc::{
     AcceptGuildInvite, AcceptTrade, AcceptWargameInvite, ActivateTaxi, ActivateTaxiReply, AddToy,
     AddonList, ArenaTeamAccept, ArenaTeamDecline, ArenaTeamDisband, ArenaTeamLeader,
-    ArenaTeamLeave, ArenaTeamRemove, ArenaTeamRoster, AuctionPlaceBid, AuctionReplicateItems,
-    AuctionableTokenSell, AuctionableTokenSellAtMarketPrice, BattlePetClearFanfare,
-    BattlePetDeletePet, BattlePetModifyName, BattlePetRequestJournal, BattlePetSetBattleSlot,
-    BattlePetSetFlags, BattlePetSummon, BattlePetUpdateNotify, BattlefieldLeave, BeginTrade,
-    BugReport, BusyTrade, CageBattlePet, CalendarSendCalendar, CalendarSendNumPending, CanDuel,
-    ClearTradeItem, CloseInteraction, CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint,
-    ComplaintResult, DeclineGuildInvites, DeclinePetition, DfGetJoinStatus, DfGetSystemInfo,
-    ERR_TAXITOOFARAWAY_LIKE_CPP, FarSight, GmTicketAcknowledgeSurvey, GmTicketCaseStatus,
-    GmTicketSystemStatus, GuildSetAchievementTracking, IgnoreTrade, LfgListBlacklist,
-    LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify, MAX_ACCOUNT_DATA_SIZE_LIKE_CPP,
-    MountSetFavorite, MountSpecial, NUM_ACCOUNT_DATA_TYPES, ObjectUpdateFailed,
-    ObjectUpdateRescued, QueryArenaTeam, QueryBattlePetName, QueryBattlePetNameResponse,
-    QueryPetition, QueryPetitionResponse, RatedPvpInfo, ReclaimCorpse, RepopRequest,
-    RequestAccountData, RequestBattlefieldStatus, RequestCemeteryListResponse, ResurrectResponse,
-    SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags, SetDifficultyId,
-    SetDungeonDifficulty, SetPvp, SetRaidDifficulty, SetTaxiBenchmarkMode, SetTradeGold,
-    SetTradeItem, SetTradeSpell, SignPetition, SpecialMountAnim, StandStateChange,
-    SubmitUserFeedback, SupportTicketSubmitBug, SupportTicketSubmitComplaint,
-    SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
+    ArenaTeamLeave, ArenaTeamRemove, ArenaTeamRoster, AuctionPlaceBid, AuctionRemoveItem,
+    AuctionReplicateItems, AuctionableTokenSell, AuctionableTokenSellAtMarketPrice,
+    BattlePetClearFanfare, BattlePetDeletePet, BattlePetModifyName, BattlePetRequestJournal,
+    BattlePetSetBattleSlot, BattlePetSetFlags, BattlePetSummon, BattlePetUpdateNotify,
+    BattlefieldLeave, BeginTrade, BugReport, BusyTrade, CageBattlePet, CalendarSendCalendar,
+    CalendarSendNumPending, CanDuel, ClearTradeItem, CloseInteraction, CommerceTokenGetLog,
+    CommerceTokenGetLogResponse, Complaint, ComplaintResult, DeclineGuildInvites, DeclinePetition,
+    DfGetJoinStatus, DfGetSystemInfo, ERR_TAXITOOFARAWAY_LIKE_CPP, FarSight,
+    GmTicketAcknowledgeSurvey, GmTicketCaseStatus, GmTicketSystemStatus,
+    GuildSetAchievementTracking, IgnoreTrade, LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus,
+    LoadingScreenNotify, MAX_ACCOUNT_DATA_SIZE_LIKE_CPP, MountSetFavorite, MountSpecial,
+    NUM_ACCOUNT_DATA_TYPES, ObjectUpdateFailed, ObjectUpdateRescued, QueryArenaTeam,
+    QueryBattlePetName, QueryBattlePetNameResponse, QueryPetition, QueryPetitionResponse,
+    RatedPvpInfo, ReclaimCorpse, RepopRequest, RequestAccountData, RequestBattlefieldStatus,
+    RequestCemeteryListResponse, ResurrectResponse, SaveCufProfiles, SetAdvancedCombatLogging,
+    SetCurrencyFlags, SetDifficultyId, SetDungeonDifficulty, SetPvp, SetRaidDifficulty,
+    SetTaxiBenchmarkMode, SetTradeGold, SetTradeItem, SetTradeSpell, SignPetition,
+    SpecialMountAnim, StandStateChange, SubmitUserFeedback, SupportTicketSubmitBug,
+    SupportTicketSubmitComplaint, SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
     TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP, TaxiNodeStatusPkt, TogglePvp, ToyClearFanfare,
     UnacceptTrade, UpdateAccountData, UseToy, UserClientUpdateAccountData, ViolenceLevel,
     compress_account_data_like_cpp, decompress_account_data_like_cpp,
@@ -84,9 +84,9 @@ use crate::entity_update_bridge::player_values_update_to_update_object;
 use crate::handlers::loot::represented_gameobject_interaction_distance_like_cpp;
 use crate::session::{
     CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP, RepresentedActivateTaxiLikeCpp,
-    RepresentedAuctionPlaceBidLikeCpp, RepresentedAuctionReplicateRequestLikeCpp,
-    RepresentedGameObjectAccessLikeCpp, RepresentedGameObjectUseEffect, SpellCastMetadata,
-    TRADE_STATUS_PLAYER_BUSY_LIKE_CPP,
+    RepresentedAuctionPlaceBidLikeCpp, RepresentedAuctionRemoveItemLikeCpp,
+    RepresentedAuctionReplicateRequestLikeCpp, RepresentedGameObjectAccessLikeCpp,
+    RepresentedGameObjectUseEffect, SpellCastMetadata, TRADE_STATUS_PLAYER_BUSY_LIKE_CPP,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1551,6 +1551,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_auction_place_bid",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::AuctionRemoveItem,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_auction_remove_item",
     }
 }
 
@@ -4477,6 +4486,36 @@ impl crate::session::WorldSession {
             bid_amount: packet.bid_amount,
             tainted_by_present: packet.tainted_by.is_some(),
             copper_rejected: packet.bid_amount % SILVER_LIKE_CPP != 0,
+        });
+    }
+
+    /// CMSG_AUCTION_REMOVE_ITEM — cancel one of the player's auctions.
+    ///
+    /// C++ gates on throttle and auctioneer interaction before checking
+    /// AuctionMgr ownership/bidder state and DB. Rust has no live AH map yet,
+    /// so this records the represented cancel request after the interaction
+    /// gate without pretending the auction mutation exists.
+    pub async fn handle_auction_remove_item(&mut self, packet: AuctionRemoveItem) {
+        let Some(_auctioneer) = self.represented_npc_can_interact_with_like_cpp(
+            packet.auctioneer,
+            NPCFlags1::AUCTIONEER.bits(),
+            0,
+        ) else {
+            debug!(
+                account = self.account_id,
+                auctioneer = ?packet.auctioneer,
+                auction_id = packet.auction_id,
+                item_id = packet.item_id,
+                "AuctionRemoveItem rejected: auctioneer missing, invalid, hostile/dead, out of range, or lacks AUCTIONEER flag"
+            );
+            return;
+        };
+
+        self.record_represented_auction_remove_item_like_cpp(RepresentedAuctionRemoveItemLikeCpp {
+            auctioneer: packet.auctioneer,
+            auction_id: packet.auction_id,
+            item_id: packet.item_id,
+            tainted_by_present: packet.tainted_by.is_some(),
         });
     }
 
@@ -12030,6 +12069,109 @@ mod tests {
                 tainted_by_present: false,
                 copper_rejected: true,
             }]
+        );
+    }
+
+    #[tokio::test]
+    async fn auction_remove_item_records_request_after_auctioneer_gate_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager_for_misc_test();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let auctioneer =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 90_002, 82);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(crate::session::SessionPlayerController::new(
+            player_guid,
+            "Tester".to_string(),
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map_for_misc_test(
+            &canonical,
+            player_guid,
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            571,
+            0,
+        );
+        add_canonical_auctioneer_for_misc_test(
+            &canonical,
+            auctioneer,
+            Position::new(12.0, 0.0, 0.0, 0.0),
+            NPCFlags1::AUCTIONEER.bits(),
+        );
+
+        session
+            .handle_auction_remove_item(AuctionRemoveItem {
+                auctioneer,
+                auction_id: 1234,
+                item_id: 19019,
+                tainted_by: Some(wow_packet::packets::misc::AuctionAddonInfo {
+                    name: "Trade".to_string(),
+                    version: "1.0".to_string(),
+                    loaded: true,
+                    disabled: false,
+                }),
+            })
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+        assert_eq!(
+            session.represented_auction_remove_items_like_cpp(),
+            &[RepresentedAuctionRemoveItemLikeCpp {
+                auctioneer,
+                auction_id: 1234,
+                item_id: 19019,
+                tainted_by_present: true,
+            }]
+        );
+    }
+
+    #[tokio::test]
+    async fn auction_remove_item_rejects_missing_auctioneer_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager_for_misc_test();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let missing_auctioneer =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 90_002, 83);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(crate::session::SessionPlayerController::new(
+            player_guid,
+            "Tester".to_string(),
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map_for_misc_test(
+            &canonical,
+            player_guid,
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            571,
+            0,
+        );
+
+        session
+            .handle_auction_remove_item(AuctionRemoveItem {
+                auctioneer: missing_auctioneer,
+                auction_id: 1234,
+                item_id: 19019,
+                tainted_by: None,
+            })
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+        assert!(
+            session
+                .represented_auction_remove_items_like_cpp()
+                .is_empty()
         );
     }
 
