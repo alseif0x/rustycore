@@ -4810,6 +4810,98 @@ impl WorldSession {
         true
     }
 
+    fn ignored_equipment_set_item_guid_like_cpp() -> ObjectGuid {
+        ObjectGuid::new(0x0C00_0400_0000_0000_i64, -1_i64)
+    }
+
+    fn find_free_backpack_slot_like_cpp(&self) -> Option<u8> {
+        let inventory_end = INVENTORY_SLOT_ITEM_START
+            .saturating_add(INVENTORY_DEFAULT_SIZE)
+            .min(PLAYER_SLOT_END as u8);
+        (INVENTORY_SLOT_ITEM_START..inventory_end)
+            .find(|slot| !self.inventory_items_like_cpp().contains_key(slot))
+    }
+
+    fn represented_direct_inventory_slot_by_guid_like_cpp(
+        &self,
+        guid: ObjectGuid,
+    ) -> Option<(u8, InventoryItem)> {
+        let (bag, slot, item) = self.get_inventory_item_by_guid_like_cpp(guid)?;
+        (bag == INVENTORY_SLOT_BAG_0).then_some((slot, item))
+    }
+
+    fn move_represented_direct_inventory_item_like_cpp(&mut self, src: u8, dst: u8) -> bool {
+        if src == dst {
+            return true;
+        }
+
+        let src_item = self.inventory_items_like_cpp().get(&src).cloned();
+        let dst_item = self.inventory_items_like_cpp().get(&dst).cloned();
+        let Some(src_item) = src_item else {
+            return false;
+        };
+
+        self.insert_inventory_item_like_cpp(dst, src_item.clone());
+        self.set_inventory_item_object_slot(src_item.guid, dst);
+
+        if let Some(dst_item) = dst_item {
+            self.insert_inventory_item_like_cpp(src, dst_item.clone());
+            self.set_inventory_item_object_slot(dst_item.guid, src);
+        } else {
+            self.remove_inventory_item_like_cpp(src);
+        }
+
+        true
+    }
+
+    pub(crate) fn use_represented_equipment_set_like_cpp(
+        &mut self,
+        request: &wow_packet::packets::misc::UseEquipmentSet,
+    ) {
+        let ignored_guid = Self::ignored_equipment_set_item_guid_like_cpp();
+        let mut changed_equipment = false;
+
+        for (slot_index, set_item) in request.items.iter().enumerate() {
+            let dst = slot_index as u8;
+            if set_item.item == ignored_guid {
+                continue;
+            }
+
+            if self.in_combat && dst != EQUIPMENT_SLOT_MAINHAND && dst != EQUIPMENT_SLOT_OFFHAND {
+                continue;
+            }
+
+            if let Some((src, _item)) =
+                self.represented_direct_inventory_slot_by_guid_like_cpp(set_item.item)
+            {
+                if src == dst {
+                    continue;
+                }
+                if self.move_represented_direct_inventory_item_like_cpp(src, dst) {
+                    changed_equipment |= dst < EQUIPMENT_SLOT_END;
+                    changed_equipment |= src < EQUIPMENT_SLOT_END;
+                }
+                continue;
+            }
+
+            let Some(_equipped_item) = self.get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, dst)
+            else {
+                continue;
+            };
+            let Some(backpack_slot) = self.find_free_backpack_slot_like_cpp() else {
+                continue;
+            };
+            if self.move_represented_direct_inventory_item_like_cpp(dst, backpack_slot) {
+                changed_equipment = true;
+            }
+        }
+
+        if changed_equipment {
+            self.sync_object_accessor_player();
+            self.sync_player_registry_state_like_cpp();
+        }
+    }
+
     pub(crate) fn represented_money_loot_with_rate_like_cpp(
         &mut self,
         min_amount: u32,
@@ -11847,6 +11939,7 @@ impl WorldSession {
             | ClientOpcodes::SaveEquipmentSet
             | ClientOpcodes::AssignEquipmentSetSpec
             | ClientOpcodes::DeleteEquipmentSet
+            | ClientOpcodes::UseEquipmentSet
             | ClientOpcodes::DismissCritter
             | ClientOpcodes::RepopRequest
             | ClientOpcodes::PartyInvite
@@ -18305,6 +18398,9 @@ impl WorldSession {
             }
             ClientOpcodes::DeleteEquipmentSet => {
                 self.handle_delete_equipment_set(pkt).await;
+            }
+            ClientOpcodes::UseEquipmentSet => {
+                self.handle_use_equipment_set(pkt).await;
             }
             ClientOpcodes::AdventureMapStartQuest => {
                 self.handle_adventure_map_start_quest(pkt).await;

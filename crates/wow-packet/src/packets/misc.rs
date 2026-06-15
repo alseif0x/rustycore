@@ -12,6 +12,7 @@ use wow_constants::{ClientOpcodes, ServerOpcodes};
 use wow_core::guid::HighGuid;
 use wow_core::{ObjectGuid, Position};
 
+use crate::packets::item::InvUpdate;
 use crate::packets::spell::CastSpellRequest;
 use crate::world_packet::PacketError;
 use crate::{ClientPacket, ServerPacket, WorldPacket};
@@ -2668,6 +2669,65 @@ impl ClientPacket for DeleteEquipmentSet {
         Ok(Self {
             id: pkt.read_uint64()?,
         })
+    }
+}
+
+// ── UseEquipmentSet (CMSG 0x3995 / SMSG 0x274f) ──────────────────────
+
+/// C++ `WorldPackets::EquipmentSet::UseEquipmentSet::EquipmentSetItem`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UseEquipmentSetItemLikeCpp {
+    pub item: ObjectGuid,
+    pub container_slot: u8,
+    pub slot: u8,
+}
+
+/// C++ `WorldPackets::EquipmentSet::UseEquipmentSet`.
+#[derive(Debug, Clone)]
+pub struct UseEquipmentSet {
+    pub inv_update: InvUpdate,
+    pub items: [UseEquipmentSetItemLikeCpp; EQUIPMENT_SET_SLOTS_LIKE_CPP],
+    pub guid: u64,
+}
+
+impl ClientPacket for UseEquipmentSet {
+    const OPCODE: ClientOpcodes = ClientOpcodes::UseEquipmentSet;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let inv_update = InvUpdate::read(pkt)?;
+        let mut items = [UseEquipmentSetItemLikeCpp {
+            item: ObjectGuid::EMPTY,
+            container_slot: 0,
+            slot: 0,
+        }; EQUIPMENT_SET_SLOTS_LIKE_CPP];
+        for item in &mut items {
+            item.item = pkt.read_guid()?;
+            item.container_slot = pkt.read_uint8()?;
+            item.slot = pkt.read_uint8()?;
+        }
+        let guid = pkt.read_uint64()?;
+
+        Ok(Self {
+            inv_update,
+            items,
+            guid,
+        })
+    }
+}
+
+/// C++ `WorldPackets::EquipmentSet::UseEquipmentSetResult`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UseEquipmentSetResult {
+    pub guid: u64,
+    pub reason: u8,
+}
+
+impl ServerPacket for UseEquipmentSetResult {
+    const OPCODE: ServerOpcodes = ServerOpcodes::UseEquipmentSetResult;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_uint64(self.guid);
+        pkt.write_uint8(self.reason);
     }
 }
 
@@ -6611,6 +6671,50 @@ mod tests {
         let parsed = DeleteEquipmentSet::read(&mut pkt).unwrap();
 
         assert_eq!(parsed.id, 0x0102_0304_0506_0708);
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn use_equipment_set_reads_cpp_inv_items_and_guid() {
+        let item_guid = ObjectGuid::create_item(1, 55);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bits(1, 2);
+        pkt.write_uint8(255);
+        pkt.write_uint8(36);
+        for i in 0..EQUIPMENT_SET_SLOTS_LIKE_CPP {
+            let guid = if i == 0 { item_guid } else { ObjectGuid::EMPTY };
+            pkt.write_guid(&guid);
+            pkt.write_uint8(255);
+            pkt.write_uint8(i as u8);
+        }
+        pkt.write_uint64(0x0102_0304_0506_0708);
+        pkt.reset_read();
+
+        let parsed = UseEquipmentSet::read(&mut pkt).unwrap();
+
+        assert_eq!(parsed.inv_update.items, vec![(255, 36)]);
+        assert_eq!(parsed.items[0].item, item_guid);
+        assert_eq!(parsed.items[0].container_slot, 255);
+        assert_eq!(parsed.items[0].slot, 0);
+        assert_eq!(parsed.guid, 0x0102_0304_0506_0708);
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn use_equipment_set_result_writes_cpp_guid_and_reason() {
+        let bytes = UseEquipmentSetResult {
+            guid: 0x0102_0304_0506_0708,
+            reason: 4,
+        }
+        .to_bytes();
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::UseEquipmentSetResult as u16
+        );
+
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_uint64().unwrap(), 0x0102_0304_0506_0708);
+        assert_eq!(pkt.read_uint8().unwrap(), 4);
         assert_eq!(pkt.remaining(), 0);
     }
 

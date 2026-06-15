@@ -200,6 +200,15 @@ inventory::submit! {
     }
 }
 
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::UseEquipmentSet,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_use_equipment_set",
+    }
+}
+
 // ── Stub registrations for character-select opcodes ──────────────────
 
 inventory::submit! {
@@ -2311,6 +2320,30 @@ impl WorldSession {
         };
 
         let _deleted = self.delete_represented_equipment_set_like_cpp(request.id);
+    }
+
+    /// Handle CMSG_USE_EQUIPMENT_SET.
+    ///
+    /// C++ `HandleUseEquipmentSet` iterates all 19 equipment slots, skips the
+    /// ignored GUID sentinel and non-weapon slots in combat, then uses
+    /// `GetItemByGuid` + `SwapItem` / `CanStoreItem` to move gear. This slice
+    /// mirrors the represented direct-inventory state and the result packet;
+    /// full nested-container validation, `CanEquipItem`, DB writes, and item
+    /// update fanout remain later inventory-runtime work.
+    pub async fn handle_use_equipment_set(&mut self, mut pkt: WorldPacket) {
+        let request = match UseEquipmentSet::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!("Bad UseEquipmentSet: {error}");
+                return;
+            }
+        };
+
+        self.use_represented_equipment_set_like_cpp(&request);
+        self.send_packet(&UseEquipmentSetResult {
+            guid: request.guid,
+            reason: 0,
+        });
     }
 
     /// Handle CMSG_DB_QUERY_BULK — client requests DB2 records.
@@ -10343,6 +10376,7 @@ mod tests {
         QUEST_ITEM_DROP_COUNT, QUEST_REWARD_CHOICES_COUNT, QUEST_REWARD_DISPLAY_SPELL_COUNT,
         QUEST_REWARD_ITEM_COUNT, QUEST_REWARD_REPUTATIONS_COUNT, QuestStore, QuestTemplate,
     };
+    use wow_entities::EQUIPMENT_SLOT_MAINHAND;
     use wow_packet::WorldPacket;
     use wow_packet::packets::loot::{
         CreatureLoot, LOOT_TYPE_CORPSE_LIKE_CPP, LootEntry, LootEntryFlags,
@@ -10447,6 +10481,21 @@ mod tests {
         pkt
     }
 
+    fn use_equipment_set_packet(
+        guid: u64,
+        items: [ObjectGuid; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
+    ) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bits(0, 2);
+        for (slot, item) in items.iter().enumerate() {
+            pkt.write_guid(item);
+            pkt.write_uint8(255);
+            pkt.write_uint8(slot as u8);
+        }
+        pkt.write_uint64(guid);
+        pkt
+    }
+
     fn save_equipment_set_packet(
         set_type: i32,
         guid: u64,
@@ -10497,6 +10546,19 @@ mod tests {
         let set_id = packet.read_uint32().unwrap();
         assert_eq!(packet.remaining(), 0);
         (guid, set_type, set_id)
+    }
+
+    fn read_use_equipment_set_result(encoded: Vec<u8>) -> (u64, u8) {
+        let mut packet = WorldPacket::new_client(encoded.as_slice().into());
+        assert_eq!(
+            packet.server_opcode(),
+            Some(wow_constants::ServerOpcodes::UseEquipmentSetResult)
+        );
+        packet.skip_opcode();
+        let guid = packet.read_uint64().unwrap();
+        let reason = packet.read_uint8().unwrap();
+        assert_eq!(packet.remaining(), 0);
+        (guid, reason)
     }
 
     #[tokio::test]
@@ -10859,6 +10921,181 @@ mod tests {
             .await;
 
         assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn use_equipment_set_moves_direct_inventory_item_and_sends_result_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        let item_guid = ObjectGuid::create_item(1, 55);
+        session.insert_inventory_item_like_cpp(
+            INVENTORY_SLOT_ITEM_START,
+            InventoryItem {
+                guid: item_guid,
+                entry_id: 100,
+                db_guid: 55,
+                inventory_type: Some(InventoryType::Head as u8),
+            },
+        );
+        let mut items =
+            [ObjectGuid::EMPTY; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP];
+        items[0] = item_guid;
+
+        session
+            .handle_use_equipment_set(use_equipment_set_packet(0x0102_0304_0506_0708, items))
+            .await;
+
+        assert_eq!(
+            read_use_equipment_set_result(send_rx.try_recv().unwrap()),
+            (0x0102_0304_0506_0708, 0)
+        );
+        assert_eq!(
+            session
+                .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, 0)
+                .unwrap()
+                .guid,
+            item_guid
+        );
+        assert!(
+            session
+                .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)
+                .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn use_equipment_set_empty_slot_unequips_to_backpack_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        let item_guid = ObjectGuid::create_item(1, 56);
+        session.insert_inventory_item_like_cpp(
+            1,
+            InventoryItem {
+                guid: item_guid,
+                entry_id: 101,
+                db_guid: 56,
+                inventory_type: Some(InventoryType::Neck as u8),
+            },
+        );
+
+        session
+            .handle_use_equipment_set(use_equipment_set_packet(
+                0x0102_0304_0506_0709,
+                [ObjectGuid::EMPTY; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
+            ))
+            .await;
+
+        assert_eq!(
+            read_use_equipment_set_result(send_rx.try_recv().unwrap()),
+            (0x0102_0304_0506_0709, 0)
+        );
+        assert!(
+            session
+                .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, 1)
+                .is_none()
+        );
+        assert_eq!(
+            session
+                .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)
+                .unwrap()
+                .guid,
+            item_guid
+        );
+    }
+
+    #[tokio::test]
+    async fn use_equipment_set_ignored_guid_preserves_slot_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        let item_guid = ObjectGuid::create_item(1, 57);
+        session.insert_inventory_item_like_cpp(
+            2,
+            InventoryItem {
+                guid: item_guid,
+                entry_id: 102,
+                db_guid: 57,
+                inventory_type: Some(InventoryType::Shoulders as u8),
+            },
+        );
+        let mut items =
+            [ObjectGuid::EMPTY; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP];
+        items[2] = ObjectGuid::new(0x0C00_0400_0000_0000_i64, -1_i64);
+
+        session
+            .handle_use_equipment_set(use_equipment_set_packet(0x0102, items))
+            .await;
+
+        assert_eq!(
+            read_use_equipment_set_result(send_rx.try_recv().unwrap()),
+            (0x0102, 0)
+        );
+        assert_eq!(
+            session
+                .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, 2)
+                .unwrap()
+                .guid,
+            item_guid
+        );
+        assert!(
+            session
+                .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)
+                .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn use_equipment_set_skips_non_weapon_slots_in_combat_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        session.in_combat = true;
+        let head_guid = ObjectGuid::create_item(1, 58);
+        let mainhand_guid = ObjectGuid::create_item(1, 59);
+        session.insert_inventory_item_like_cpp(
+            INVENTORY_SLOT_ITEM_START,
+            InventoryItem {
+                guid: head_guid,
+                entry_id: 103,
+                db_guid: 58,
+                inventory_type: Some(InventoryType::Head as u8),
+            },
+        );
+        session.insert_inventory_item_like_cpp(
+            INVENTORY_SLOT_ITEM_START + 1,
+            InventoryItem {
+                guid: mainhand_guid,
+                entry_id: 104,
+                db_guid: 59,
+                inventory_type: Some(InventoryType::Weapon as u8),
+            },
+        );
+        let mut items =
+            [ObjectGuid::EMPTY; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP];
+        items[0] = head_guid;
+        items[EQUIPMENT_SLOT_MAINHAND as usize] = mainhand_guid;
+
+        session
+            .handle_use_equipment_set(use_equipment_set_packet(0x0103, items))
+            .await;
+
+        assert_eq!(
+            read_use_equipment_set_result(send_rx.try_recv().unwrap()),
+            (0x0103, 0)
+        );
+        assert!(
+            session
+                .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, 0)
+                .is_none()
+        );
+        assert_eq!(
+            session
+                .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)
+                .unwrap()
+                .guid,
+            head_guid
+        );
+        assert_eq!(
+            session
+                .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_MAINHAND)
+                .unwrap()
+                .guid,
+            mainhand_guid
+        );
     }
 
     #[tokio::test]

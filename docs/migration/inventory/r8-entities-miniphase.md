@@ -1,10 +1,18 @@
+# `#NEXT.R8.ENTITIES.919` — represented-partial implementation for `CMSG_USE_EQUIPMENT_SET` plus bounded `SMSG_USE_EQUIPMENT_SET_RESULT`.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CharacterHandler.cpp:1967-2016` (`WorldSession::HandleUseEquipmentSet`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/EquipmentSetPackets.h:80-106` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/EquipmentSetPackets.cpp:112-129` (`UseEquipmentSet::Read`, `UseEquipmentSetResult::Write`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/ItemPacketsCommon.h:106-133` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/ItemPacketsCommon.cpp:247-252` (`InvUpdate`); `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:9172,9621,10590,10781,11226,11559,12277` (`GetItemByGuid`, `CanStoreItem`, `CanEquipItem`, `CanUnequipItem`, `StoreItem`, `RemoveItem`, `SwapItem`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:2208`.
+
+Implemented Rust seam: `UseEquipmentSet` parses C++ `InvUpdate`, 19 full item GUID/container-slot/slot rows, and the set GUID; `UseEquipmentSetResult` writes `uint64 GUID` plus `uint8 Reason`; `CMSG_USE_EQUIPMENT_SET` registers `LoggedIn`/`Inplace`, dispatches through `WorldSession`, preserves the C++ ignored-item GUID sentinel (`0x0C00040000000000`, `0xFFFFFFFFFFFFFFFF`) and the in-combat non-weapon skip, applies represented direct-inventory swap/unequip-to-backpack behavior, and sends result reason `0` like C++.
+
+Boundaries: represented-partial only. Rust does not yet implement full nested bag/container movement, exact `CanStoreItem` / `CanUnequipItem` / `CanEquipItem` parity, equip-error reason `4` and full `SendEquipError` branches, DB inventory transactions, full item update/stat/fanout packets, install/restart, bot, or live-client/manual validation.
+
 - `#NEXT.R8.ENTITIES.918` — represented-partial implementation for `CMSG_SAVE_EQUIPMENT_SET` plus bounded `SMSG_EQUIPMENT_SET_ID` for new represented sets.
 
 C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CharacterHandler.cpp:1874-1960` (`WorldSession::HandleEquipmentSetSave`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/EquipmentSetPackets.h:26-58,43-50` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/EquipmentSetPackets.cpp:20-32,64-99` (`EquipmentSetID::Write`, `SaveEquipmentSet::Read`); `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/EquipmentSet.h:26-69`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:26382-26413` (`Player::SetEquipmentSet`); `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:861,1374`.
 
 Implemented Rust seam: `SaveEquipmentSet` parses the C++ `EquipmentSetData` shape (`Type`, `Guid`, `SetID`, `IgnoreMask`, 19 `Pieces`/`Appearances`, 2 `Enchants`, secondary appearance fields, optional assigned spec, name, icon), registers `LoggedIn`/`ThreadUnsafe` dispatch, routes through `WorldSession`, validates and normalizes the represented equipment/transmog payload against the gates available in Rust, mutates represented `_equipmentSets` with C++ `NEW`/`CHANGED` state semantics, and sends `SMSG_EQUIPMENT_SET_ID` when a new represented set receives a generated represented ID. The legacy C++ handler only rejects `Type > TRANSMOG`, so negative `Type` values fall through the non-equipment branch; Rust preserves that branch behavior for fidelity and records the raw type.
 
-Boundaries: represented-partial only. Rust does not yet implement global DB-backed `ObjectMgr::GenerateEquipmentSetGuid`, full equipment-set DB load/save persistence, exact transmog illusion class-restriction parity when DB2 stores are absent, `CHAR_INS/UPD/DEL_EQUIP_SET` / `CHAR_INS/UPD/DEL_TRANSMOG_OUTFIT` transaction execution during player save, `CMSG_USE_EQUIPMENT_SET`, install/restart, bot, or live-client/manual validation.
+Boundaries: represented-partial only. Rust does not yet implement global DB-backed `ObjectMgr::GenerateEquipmentSetGuid`, full equipment-set DB load/save persistence, exact transmog illusion class-restriction parity when DB2 stores are absent, `CHAR_INS/UPD/DEL_EQUIP_SET` / `CHAR_INS/UPD/DEL_TRANSMOG_OUTFIT` transaction execution during player save, install/restart, bot, or live-client/manual validation.
 
 - `#NEXT.R8.ENTITIES.917` — represented-partial implementation for `CMSG_DELETE_EQUIPMENT_SET`.
 
@@ -12,7 +20,7 @@ C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/Charact
 
 Implemented Rust seam: `DeleteEquipmentSet` parses the C++ `uint64 ID`, registers `LoggedIn`/`ThreadUnsafe` dispatch, routes through `WorldSession`, and mutates represented `_equipmentSets`: missing IDs return silently, `NEW` sets are removed immediately, and existing sets are marked `DELETED` for later save/delete processing. Like C++, Rust sends no immediate response.
 
-Boundaries: represented-partial only. Rust does not yet implement full equipment-set save/load persistence, `CHAR_DEL_EQUIP_SET` / `CHAR_DEL_TRANSMOG_OUTFIT` transaction execution during player save, `CMSG_SAVE_EQUIPMENT_SET`, `CMSG_USE_EQUIPMENT_SET`, install/restart, bot, or live-client/manual validation.
+Boundaries: represented-partial only. Rust does not yet implement full equipment-set save/load persistence, `CHAR_DEL_EQUIP_SET` / `CHAR_DEL_TRANSMOG_OUTFIT` transaction execution during player save, install/restart, bot, or live-client/manual validation.
 
 - `#NEXT.R8.ENTITIES.916` — represented-partial implementation for `CMSG_ASSIGN_EQUIPMENT_SET_SPEC`.
 
@@ -20,7 +28,7 @@ C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/Charact
 
 Implemented Rust seam: `AssignEquipmentSetSpec` parses the C++ `uint32 SetID` plus `uint32 SpecIndex`, registers `LoggedIn`/`Inplace` dispatch, routes through `WorldSession`, and mutates the represented `_equipmentSets` container by applying `AssignedSpecIndex = SpecIndex` and `State = CHANGED` unless the set is still `NEW`, only for matching `Type=EQUIPMENT` sets with `SetID < MAX_EQUIPMENT_SET_INDEX`. Like C++, Rust sends no immediate response.
 
-Boundaries: represented-partial only. Rust does not yet implement full equipment-set save/load persistence, generated equipment-set GUIDs, `SMSG_EQUIPMENT_SET_ID` for new sets, `CMSG_SAVE_EQUIPMENT_SET`, `CMSG_DELETE_EQUIPMENT_SET`, `CMSG_USE_EQUIPMENT_SET`, DB save/delete transaction parity, install/restart, bot, or live-client/manual validation.
+Boundaries: represented-partial only. Rust does not yet implement full equipment-set save/load persistence, DB save/delete transaction parity, install/restart, bot, or live-client/manual validation.
 
 - `#NEXT.R8.ENTITIES.915` — represented-partial implementation for `CMSG_SET_PLAYER_DECLINED_NAMES` and bounded `SMSG_SET_PLAYER_DECLINED_NAMES_RESULT` error response.
 
