@@ -40,6 +40,9 @@ pub enum SessionCommand {
     /// Deliver `PartyUpdate` from the receiver's own session so C++
     /// `Player::NextGroupUpdateSequenceNumber` is consumed per player.
     SendPartyUpdateLikeCpp(SendPartyUpdateLikeCppCommand),
+    /// Apply C++ `Group::Disband`/`Group::RemoveMember` session-local cleanup
+    /// for a connected remote member.
+    ApplyGroupRemovalLikeCpp(ApplyGroupRemovalLikeCppCommand),
     /// Deliver `packet_bytes` to this session if the source GUID is currently in
     /// `client_visible_guids_like_cpp` (HaveAtClient gate).
     ///
@@ -100,6 +103,22 @@ pub struct WorldSessionShutdownFlushResultLikeCpp {
 pub struct SendPartyUpdateLikeCppCommand {
     pub party_update: PartyUpdate,
     pub member_full_state_packets: Vec<Vec<u8>>,
+}
+
+/// Payload for [`SessionCommand::ApplyGroupRemovalLikeCpp`].
+///
+/// C++ `Group::RemoveMember` and `Group::Disband` mutate the connected
+/// player's own `Player` object (`SetGroup(nullptr)` / `SetPartyType(NONE)`)
+/// before sending destroy/uninvite packets. Rust sessions are task-owned, so a
+/// group mutation performed by one session must ask each affected remote
+/// session to apply its own represented cleanup.
+#[derive(Clone, Debug)]
+pub struct ApplyGroupRemovalLikeCppCommand {
+    pub group_guid: u64,
+    pub category: u8,
+    pub party_type: u8,
+    pub send_group_destroyed: bool,
+    pub refresh_visible_gameobjects_or_spellclicks: bool,
 }
 
 /// Payload for a map-owned creature melee hit against one player session.

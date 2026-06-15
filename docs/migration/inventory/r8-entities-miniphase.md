@@ -1,3 +1,23 @@
+# `#NEXT.R8.ENTITIES.935` — represented-partial for C++ `Group::Disband` connected-member cleanup.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp:550-599` (`Group::RemoveMember` connected-player cleanup); `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp:713-748` (`Group::Disband` connected-member loop); `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:25224-25228` (`Player::SetPartyType`).
+
+Implemented Rust seam: `SessionCommand::ApplyGroupRemovalLikeCpp` now carries the affected group/category cleanup to a remote connected session. The two-player `LeaveGroup` disband branch queues this command to the last remote member instead of sending only raw `SMSG_GROUP_DESTROYED`; the receiver session clears its represented `group_guid`, sends the local `PlayerData::PartyType[category] = GROUP_TYPE_NONE` update-field delta, refreshes `PlayerRegistry.party_member_party_type`, optionally refreshes visible gameobjects/spellclicks, and sends `SMSG_GROUP_DESTROYED`.
+
+Focused tests: `leave_group_disband_queues_remote_group_removal_like_cpp` verifies the leaving session enqueues the C++-shaped remote cleanup command; `group_removal_command_clears_remote_party_type_like_cpp` verifies the receiver session clears represented group state, updates registry party type to NONE, and emits `SMSG_UPDATE_OBJECT` plus `SMSG_GROUP_DESTROYED`.
+
+Boundaries: represented-partial only. This closes the connected last-member disband cleanup for represented two-player `LeaveGroup`, but not remote kick/uninvite full `Group::RemoveMember`, exact `SendUpdateDestroyGroupToPlayer`, BG/BF/original-group paths, install/restart, bot, or live-client/manual validation.
+
+# `#NEXT.R8.ENTITIES.935` — represented-partial for C++ `Group::Disband` connected-member cleanup.
+
+C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp:550-655` (`Group::RemoveMember`); `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp:713-747` (`Group::Disband`); `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:25224-25228` (`Player::SetPartyType`).
+
+Implemented Rust seam: two-player normal `CMSG_LEAVE_GROUP` disband no longer sends only raw `SMSG_GROUP_DESTROYED` to the last online member. It now queues `SessionCommand::ApplyGroupRemovalLikeCpp` to the remote session. The receiver session applies its own represented C++ cleanup: verifies it is still in that group, clears `group_guid`, sends the local `PlayerData::PartyType[category] = GROUP_TYPE_NONE` update-field delta, refreshes `PlayerRegistry.party_member_party_type`, optionally refreshes visible GO/spellclick state, and sends `SMSG_GROUP_DESTROYED`.
+
+Focused tests: `leave_group_disband_queues_remote_group_removal_like_cpp` verifies the disband branch queues the remote cleanup command; `group_removal_command_clears_remote_party_type_like_cpp` verifies the receiving session clears group state, publishes `PartyType NONE`, and emits `SMSG_UPDATE_OBJECT` plus `SMSG_GROUP_DESTROYED`.
+
+Boundaries: represented-partial only. This closes the bounded two-member disband cleanup path, but not generic remote kick/uninvite `Group::RemoveMember`, exact `SendUpdateDestroyGroupToPlayer`, BG/BF/original-group paths, install/restart, bot, or live-client/manual validation.
+
 # `#NEXT.R8.ENTITIES.934` — represented-partial for C++ `Player::SetPartyType` create/broadcast visibility.
 
 C++ anchors: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:18987-19008` (`Player::_LoadGroup`); `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:25224-25228` (`Player::SetPartyType`).
@@ -6,7 +26,7 @@ Implemented Rust seam: `UpdateObject::create_player_with_party_type` now carries
 
 Focused tests: `wow-packet` verifies `PlayerCreateData::write_player_data` serializes `PartyType[2]` before `NumBankSlots/NativeSex`; existing session registry tests verify grouped sessions publish home-category party type for visibility consumers.
 
-Boundaries: represented-partial only. This closes the create/broadcast serialization seam for represented party type, but not exact remote member/dissolve `SetPartyType` command delivery, exact `Player::SetGroup` subgroup/original/BG/BF routing, install/restart, bot, or live-client/manual validation.
+Boundaries: represented-partial only. This closes the create/broadcast serialization seam for represented party type, but not exact remote kick/uninvite `SetPartyType` command delivery, exact `Player::SetGroup` subgroup/original/BG/BF routing, install/restart, bot, or live-client/manual validation.
 
 # `#NEXT.R8.ENTITIES.933` — represented-partial for C++ `Player::SetPartyType(GroupCategory,uint8)`.
 
@@ -16,7 +36,7 @@ Implemented Rust seam: `wow-entities::PlayerDataValues` now carries `party_type[
 
 Focused tests: bridge-level `bridges_player_party_type_update_like_cpp`; invite acceptance now asserts the `SMSG_UPDATE_OBJECT` party-type update plus the existing gameobject visibility refresh; `group` handler tests cover the command queues after the new update ordering.
 
-Boundaries: represented-partial only. This closes the local represented update-field mutation for current-session home-group join/leave, but not every remote member/dissolve notification through session commands, exact `Player::SetGroup` subgroup/original/BG/BF routing, install/restart, bot, or live-client/manual validation.
+Boundaries: represented-partial only. This closes the local represented update-field mutation for current-session home-group join/leave, but not every remote kick/uninvite notification through session commands, exact `Player::SetGroup` subgroup/original/BG/BF routing, install/restart, bot, or live-client/manual validation.
 
 # `#NEXT.R8.ENTITIES.932` — represented-partial for C++ per-recipient `PartyUpdate.SequenceNum`.
 

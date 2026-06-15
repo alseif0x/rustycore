@@ -48,12 +48,12 @@ use wow_loot::{
     loot_item_ui_type_for_player_like_cpp,
 };
 use wow_network::player_registry::{
-    ApplyCreatureMeleeDamageLikeCppCommand, CancelRepresentedTradeLikeCppCommand,
-    CreatureAttackStartLikeCppCommand, RefreshVisibleWorldCreaturesLikeCppCommand,
-    SendAddonIfRegisteredLikeCppCommand, SendIfVisibleLikeCppCommand,
-    SendPartyUpdateLikeCppCommand, SendRepeatableTurnInRequestItemsLikeCppCommand,
-    SendRepresentedTradeStatusLikeCppCommand, SetQuestSharingInfoAndSendDetailsCommand,
-    SyncChestGameobjectStateAndRefreshLikeCppCommand,
+    ApplyCreatureMeleeDamageLikeCppCommand, ApplyGroupRemovalLikeCppCommand,
+    CancelRepresentedTradeLikeCppCommand, CreatureAttackStartLikeCppCommand,
+    RefreshVisibleWorldCreaturesLikeCppCommand, SendAddonIfRegisteredLikeCppCommand,
+    SendIfVisibleLikeCppCommand, SendPartyUpdateLikeCppCommand,
+    SendRepeatableTurnInRequestItemsLikeCppCommand, SendRepresentedTradeStatusLikeCppCommand,
+    SetQuestSharingInfoAndSendDetailsCommand, SyncChestGameobjectStateAndRefreshLikeCppCommand,
     SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
     SyncGooberGameobjectStateAndRefreshLikeCppCommand, UnacceptRepresentedTradeLikeCppCommand,
     WorldSessionShutdownFlushResultLikeCpp,
@@ -2906,6 +2906,9 @@ impl WorldSession {
                 SessionCommand::SendPartyUpdateLikeCpp(command) => {
                     self.handle_send_party_update_command_like_cpp(command);
                 }
+                SessionCommand::ApplyGroupRemovalLikeCpp(command) => {
+                    self.handle_apply_group_removal_command_like_cpp(command);
+                }
                 SessionCommand::SendIfVisibleLikeCpp(command) => {
                     self.handle_send_if_visible_like_cpp_command_like_cpp(command);
                 }
@@ -2922,6 +2925,29 @@ impl WorldSession {
                     self.handle_unaccept_represented_trade_command_like_cpp(command);
                 }
             }
+        }
+    }
+
+    fn handle_apply_group_removal_command_like_cpp(
+        &mut self,
+        command: ApplyGroupRemovalLikeCppCommand,
+    ) {
+        if self.state() != SessionState::LoggedIn {
+            return;
+        }
+        if self.group_guid != Some(command.group_guid) {
+            return;
+        }
+
+        self.group_guid = None;
+        self.send_player_party_type_update_like_cpp(command.category, command.party_type);
+        self.sync_player_registry_state_like_cpp();
+
+        if command.refresh_visible_gameobjects_or_spellclicks {
+            let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
+        }
+        if command.send_group_destroyed {
+            self.send_packet(&wow_packet::packets::party::GroupDestroyed);
         }
     }
 

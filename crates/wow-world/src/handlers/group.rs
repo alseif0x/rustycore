@@ -11,6 +11,7 @@ use wow_core::ObjectGuid;
 use wow_database::{CharStatements, PreparedStatement, StatementDef};
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
 use wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP;
+use wow_network::player_registry::ApplyGroupRemovalLikeCppCommand;
 use wow_network::{
     GROUP_ASSIGN_MAINASSIST_LIKE_CPP, GROUP_ASSIGN_MAINTANK_LIKE_CPP, GroupInfo, GroupRegistry,
     MEMBER_FLAG_ASSISTANT_LIKE_CPP, MEMBER_FLAG_MAINASSIST_LIKE_CPP, MEMBER_FLAG_MAINTANK_LIKE_CPP,
@@ -18,8 +19,8 @@ use wow_network::{
     free_group_db_store_id_like_cpp, register_group_db_store_id_like_cpp,
 };
 use wow_packet::packets::party::{
-    DoReadyCheck, GroupDecline, GroupDestroyed, GroupNewLeader, GroupUninvite, InitiateRolePoll,
-    LowLevelRaid1, LowLevelRaid2, MinimapPing, MinimapPingClient, OptOutOfLoot, PartyCommandResult,
+    DoReadyCheck, GroupDecline, GroupNewLeader, GroupUninvite, InitiateRolePoll, LowLevelRaid1,
+    LowLevelRaid2, MinimapPing, MinimapPingClient, OptOutOfLoot, PartyCommandResult,
     PartyDifficultySettings, PartyInviteServer, PartyLootSettings, PartyMemberFullState,
     PartyPlayerInfo, PartyUpdate, RaidMarkersChanged, ReadyCheckCompleted, ReadyCheckResponse,
     ReadyCheckResponseClient, ReadyCheckStarted, RequestPartyJoinUpdates, RequestPartyMemberStats,
@@ -1183,7 +1184,16 @@ impl WorldSession {
             }
             if let Some(&last_guid) = remaining.first() {
                 if let Some(last_entry) = registry.get(&last_guid) {
-                    let _ = last_entry.send_tx.send(GroupDestroyed.to_bytes());
+                    let command = ApplyGroupRemovalLikeCppCommand {
+                        group_guid: gid,
+                        category: wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP,
+                        party_type: wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP,
+                        send_group_destroyed: true,
+                        refresh_visible_gameobjects_or_spellclicks: true,
+                    };
+                    let _ = last_entry
+                        .command_tx
+                        .try_send(SessionCommand::ApplyGroupRemovalLikeCpp(command));
                 }
             }
             // Tell self to leave.
@@ -2394,6 +2404,14 @@ mod tests {
 
     fn broadcast_info(guid: ObjectGuid, send_tx: flume::Sender<Vec<u8>>) -> PlayerBroadcastInfo {
         let (command_tx, _command_rx) = flume::bounded(0);
+        broadcast_info_with_command_tx(guid, send_tx, command_tx)
+    }
+
+    fn broadcast_info_with_command_tx(
+        guid: ObjectGuid,
+        send_tx: flume::Sender<Vec<u8>>,
+        command_tx: flume::Sender<SessionCommand>,
+    ) -> PlayerBroadcastInfo {
         PlayerBroadcastInfo {
             map_id: 0,
             instance_id: 0,
@@ -2916,6 +2934,49 @@ mod tests {
             first_connected_group_member_like_cpp(&group, &registry),
             Some(connected)
         );
+    }
+
+    #[tokio::test]
+    async fn leave_group_disband_queues_remote_group_removal_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send();
+        let leaving_guid = ObjectGuid::create_player(1, 42);
+        let last_guid = ObjectGuid::create_player(1, 77);
+        let (last_send_tx, _last_send_rx) = bounded(8);
+        let (last_command_tx, last_command_rx) = bounded(8);
+        let player_registry = Arc::new(PlayerRegistry::default());
+        player_registry.insert(
+            last_guid,
+            broadcast_info_with_command_tx(last_guid, last_send_tx, last_command_tx),
+        );
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leaving_guid);
+        group.add_member(last_guid);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        session.set_player_guid(Some(leaving_guid));
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(player_registry);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(false);
+        pkt.flush_bits();
+        pkt.reset_read();
+        session.handle_leave_group(pkt).await;
+
+        let command = last_command_rx.try_recv().unwrap();
+        let SessionCommand::ApplyGroupRemovalLikeCpp(command) = command else {
+            panic!("expected ApplyGroupRemovalLikeCpp for remote disband cleanup");
+        };
+        assert_eq!(command.group_guid, group_guid);
+        assert_eq!(command.category, GROUP_CATEGORY_HOME_LIKE_CPP);
+        assert_eq!(
+            command.party_type,
+            wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP
+        );
+        assert!(command.send_group_destroyed);
+        assert!(command.refresh_visible_gameobjects_or_spellclicks);
     }
 
     #[test]
