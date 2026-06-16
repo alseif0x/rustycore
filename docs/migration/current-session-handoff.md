@@ -1,3 +1,20 @@
+- `#NEXT.RUNTIME.L3.031j44` — WotLK represented `Spell::EffectPowerDrain` and
+  `Spell::EffectPowerBurn` for current canonical player targets (not manual-test-ready).
+  Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:1154,1208`
+  and `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellEffects.cpp:1069-1163`.
+  Rust now names `SPELL_EFFECT_POWER_DRAIN = 8` and `SPELL_EFFECT_POWER_BURN = 62`, dispatches
+  both direct represented effects, validates `EffectMiscValue1` against the C++ `MAX_POWERS`
+  domain, requires an alive current player target whose active display power matches the requested
+  `Powers` id like `GetPowerType()`, rejects negative `damage`, drains up to the available current
+  canonical power, and keeps self-drain from restoring caster power. `PowerBurn` additionally
+  applies the drained amount as represented player damage with multiplier `1.0`. Coverage: targeted
+  spell tests cover flat power drain, active-power mismatch no-op, negative damage no-op, and
+  PowerBurn drain+damage; `wow-data` constant coverage asserts the effect ids. Boundary remains
+  partial: current canonical player target/caster only, no generic `unitTarget`, no non-self caster
+  restore, no exact `SpellEffectInfo::CalcValueMultiplier`, no spell damage bonus/taken pipeline,
+  no `ExecuteLogEffectTakeTargetPower` / `SMSG_SPELL_ENERGIZE_LOG`, no install/restart, bot, or
+  live-client/manual validation.
 - `#NEXT.RUNTIME.L3.031j43` — WotLK represented `Spell::EffectEnergize` and
   `Spell::EffectEnergizePct` for current canonical player targets (not manual-test-ready).
   Source-of-truth:

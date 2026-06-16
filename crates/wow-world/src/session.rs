@@ -34782,6 +34782,14 @@ impl WorldSession {
                     self.apply_heal_pct_like_cpp(direct_effect_base_points, target_guid)
                         .await?;
                 }
+                x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_POWER_DRAIN => {
+                    self.apply_power_drain_effect_like_cpp(
+                        direct_effect_base_points,
+                        direct_effect_misc_value_1,
+                        target_guid,
+                        false,
+                    );
+                }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_ENERGIZE => {
                     self.apply_energize_effect_like_cpp(
                         direct_effect_base_points,
@@ -34792,6 +34800,14 @@ impl WorldSession {
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_ENERGIZE_PCT => {
                     self.apply_energize_effect_like_cpp(
+                        direct_effect_base_points,
+                        direct_effect_misc_value_1,
+                        target_guid,
+                        true,
+                    );
+                }
+                x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_POWER_BURN => {
+                    self.apply_power_drain_effect_like_cpp(
                         direct_effect_base_points,
                         direct_effect_misc_value_1,
                         target_guid,
@@ -35044,8 +35060,10 @@ impl WorldSession {
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL_MECHANICAL
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL_MAX_HEALTH
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL_PCT
+                || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_POWER_DRAIN
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_ENERGIZE
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_ENERGIZE_PCT
+                || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_POWER_BURN
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEALTH_LEECH
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_DUAL_WIELD
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_PARRY
@@ -36703,6 +36721,58 @@ impl WorldSession {
             true
         })
         .unwrap_or(false)
+    }
+
+    /// C++ `Spell::EffectPowerDrain` / `Spell::EffectPowerBurn`.
+    ///
+    /// Represented boundary: current canonical player target/caster only.
+    /// `EffectPowerDrain` does not restore power on self-drain in C++, and this
+    /// represented path has no generic non-self caster yet. `EffectPowerBurn`
+    /// applies the drained amount as damage with multiplier 1.0; the exact C++
+    /// `SpellEffectInfo::CalcValueMultiplier` and take-power log packet remain
+    /// outside this bounded slice.
+    fn apply_power_drain_effect_like_cpp(
+        &mut self,
+        damage: i32,
+        misc_value: i32,
+        target_guid: ObjectGuid,
+        burn_damage: bool,
+    ) -> bool {
+        let Some(player_guid) = self.player_guid() else {
+            return false;
+        };
+        if target_guid != player_guid || !self.player_alive_like_cpp || damage < 0 {
+            return false;
+        }
+        if misc_value < 0 || misc_value >= MAX_POWERS as i32 {
+            return false;
+        }
+        let Ok(power_id) = u8::try_from(misc_value) else {
+            return false;
+        };
+        let power = party_member_power_kind_from_u8_like_cpp(power_id);
+
+        let drained = self
+            .mutate_canonical_player_like_cpp(|player| {
+                if party_member_power_kind_from_u8_like_cpp(player.unit().data().display_power)
+                    != power
+                {
+                    return 0;
+                }
+                let current = player.get_power(power).max(0);
+                let drain = current.min(damage);
+                player.unit_mut().set_power(power, current - drain);
+                drain
+            })
+            .unwrap_or(0);
+
+        if burn_damage && drained > 0 {
+            let health_after = u64::from(self.player_health_like_cpp)
+                .saturating_sub(u64::try_from(drained).unwrap_or(0));
+            self.set_player_health_after_runtime_damage_like_cpp(health_after);
+        }
+
+        drained > 0
     }
 
     async fn apply_health_leech_like_cpp(
@@ -57912,6 +57982,157 @@ mod tests {
             .mutate_canonical_player_like_cpp(|player| player.get_power(PowerType::Energy))
             .unwrap();
         assert_eq!(energy, 55);
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_power_drain_effect_drains_current_player_active_power_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 795_i32;
+        let player_guid = ObjectGuid::create_player(1, 795);
+        configure_self_resurrect_canonical_player_like_cpp(&mut session, player_guid, 100, 100);
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            power_spell_info_like_cpp(
+                spell_id,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_POWER_DRAIN,
+                15,
+                PowerType::Mana,
+            ),
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("represented EffectPowerDrain should execute");
+
+        let mana = session
+            .mutate_canonical_player_like_cpp(|player| player.get_power(PowerType::Mana))
+            .unwrap();
+        assert_eq!(mana, 10);
+        assert_eq!(
+            session.player_health_like_cpp(),
+            100,
+            "C++ self PowerDrain does not restore or damage the caster"
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_power_drain_requires_active_power_type_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 796_i32;
+        let player_guid = ObjectGuid::create_player(1, 796);
+        configure_self_resurrect_canonical_player_like_cpp(&mut session, player_guid, 100, 100);
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.unit_mut().set_display_power(PowerType::Energy);
+            })
+            .unwrap();
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            power_spell_info_like_cpp(
+                spell_id,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_POWER_DRAIN,
+                15,
+                PowerType::Mana,
+            ),
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("mismatched represented EffectPowerDrain should be a no-op");
+
+        let mana = session
+            .mutate_canonical_player_like_cpp(|player| player.get_power(PowerType::Mana))
+            .unwrap();
+        assert_eq!(mana, 25);
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_power_drain_negative_amount_is_noop_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 797_i32;
+        let player_guid = ObjectGuid::create_player(1, 797);
+        configure_self_resurrect_canonical_player_like_cpp(&mut session, player_guid, 100, 100);
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            power_spell_info_like_cpp(
+                spell_id,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_POWER_DRAIN,
+                -15,
+                PowerType::Mana,
+            ),
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("negative represented EffectPowerDrain should execute as C++ no-op effect");
+
+        let mana = session
+            .mutate_canonical_player_like_cpp(|player| player.get_power(PowerType::Mana))
+            .unwrap();
+        assert_eq!(mana, 25);
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_power_burn_effect_drains_power_and_damages_player_like_cpp_boundary() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 798_i32;
+        let player_guid = ObjectGuid::create_player(1, 798);
+        configure_self_resurrect_canonical_player_like_cpp(&mut session, player_guid, 100, 100);
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            power_spell_info_like_cpp(
+                spell_id,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_POWER_BURN,
+                15,
+                PowerType::Mana,
+            ),
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("represented EffectPowerBurn should execute");
+
+        let mana = session
+            .mutate_canonical_player_like_cpp(|player| player.get_power(PowerType::Mana))
+            .unwrap();
+        assert_eq!(mana, 10);
+        assert_eq!(
+            session.player_health_like_cpp(),
+            85,
+            "represented boundary uses drained amount as PowerBurn damage until CalcValueMultiplier is ported"
+        );
         assert_eq!(
             drain_server_opcodes(&send_rx),
             vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]

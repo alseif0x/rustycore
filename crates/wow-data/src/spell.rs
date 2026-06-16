@@ -28,6 +28,7 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_SCHOOL_DAMAGE: u32 = 2;
     pub const SPELL_EFFECT_PORTAL_TELEPORT: u32 = 4;
     pub const SPELL_EFFECT_ENVIRONMENTAL_DAMAGE: u32 = 7;
+    pub const SPELL_EFFECT_POWER_DRAIN: u32 = 8;
     pub const SPELL_EFFECT_APPLY_AURA: u32 = 6;
     pub const SPELL_EFFECT_HEALTH_LEECH: u32 = 9;
     pub const SPELL_EFFECT_HEAL: u32 = 10;
@@ -57,6 +58,7 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_DETECT: u32 = 49;
     pub const SPELL_EFFECT_FORCE_CRITICAL_HIT: u32 = 51;
     pub const SPELL_EFFECT_GUARANTEE_HIT: u32 = 52;
+    pub const SPELL_EFFECT_POWER_BURN: u32 = 62;
     pub const SPELL_EFFECT_THREAT: u32 = 63;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_RAID: u32 = 65;
     pub const SPELL_EFFECT_HEAL_MAX_HEALTH: u32 = 67;
@@ -1101,6 +1103,7 @@ mod tests {
         assert_eq!(spell_effect_types::SPELL_EFFECT_PORTAL_TELEPORT, 4);
         assert_eq!(spell_effect_types::SPELL_EFFECT_APPLY_AURA, 6);
         assert_eq!(spell_effect_types::SPELL_EFFECT_ENVIRONMENTAL_DAMAGE, 7);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_POWER_DRAIN, 8);
         assert_eq!(spell_effect_types::SPELL_EFFECT_HEALTH_LEECH, 9);
         assert_eq!(spell_effect_types::SPELL_EFFECT_HEAL, 10);
         assert_eq!(spell_effect_types::SPELL_EFFECT_BIND, 11);
@@ -1109,11 +1112,11 @@ mod tests {
         assert_eq!(spell_effect_types::SPELL_EFFECT_RITUAL_SPECIALIZE, 14);
         assert_eq!(spell_effect_types::SPELL_EFFECT_RITUAL_ACTIVATE_PORTAL, 15);
         assert_eq!(spell_effect_types::SPELL_EFFECT_QUEST_COMPLETE, 16);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_ADD_EXTRA_ATTACKS, 19);
         assert_eq!(spell_effect_types::SPELL_EFFECT_DODGE, 20);
         assert_eq!(spell_effect_types::SPELL_EFFECT_EVADE, 21);
         assert_eq!(spell_effect_types::SPELL_EFFECT_PARRY, 22);
         assert_eq!(spell_effect_types::SPELL_EFFECT_BLOCK, 23);
-        assert_eq!(spell_effect_types::SPELL_EFFECT_ADD_EXTRA_ATTACKS, 19);
         assert_eq!(spell_effect_types::SPELL_EFFECT_WEAPON, 25);
         assert_eq!(spell_effect_types::SPELL_EFFECT_DEFENSE, 26);
         assert_eq!(spell_effect_types::SPELL_EFFECT_ENERGIZE, 30);
@@ -1128,6 +1131,7 @@ mod tests {
         assert_eq!(spell_effect_types::SPELL_EFFECT_DETECT, 49);
         assert_eq!(spell_effect_types::SPELL_EFFECT_FORCE_CRITICAL_HIT, 51);
         assert_eq!(spell_effect_types::SPELL_EFFECT_GUARANTEE_HIT, 52);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_POWER_BURN, 62);
         assert_eq!(spell_effect_types::SPELL_EFFECT_THREAT, 63);
         assert_eq!(spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_RAID, 65);
         assert_eq!(spell_effect_types::SPELL_EFFECT_HEAL_MAX_HEALTH, 67);

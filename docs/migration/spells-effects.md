@@ -5,7 +5,7 @@
 > **Layer:** L5 sub-module of `spells.md`
 > **Status:** ⚠️ represented-partial — `wow-spell` sigue sin motor propio, pero hay efectos representados en `wow-world::WorldSession`
 > **Audited vs C++:** ✅ audited 2026-05-01 (engine missing — see §13)
-> **Last updated:** 2026-06-15
+> **Last updated:** 2026-06-16
 
 > **DRIFT NOTE (2026-06-15):** la auditoría histórica de §13 describe el estado inicial del módulo
 > antes de los efectos representados en `wow-world`. No debe leerse como inventario actual. Para
@@ -86,7 +86,7 @@ Todas las rutas relativas a `/home/server/woltk-trinity-legacy/`.
 **Power:**
 - `EffectEnergize` (30) — restore power flat
 - `EffectEnergizePct` (137) — restore power %
-- `EffectPowerBurn` (53) — drain + damage from drained amount
+- `EffectPowerBurn` (62) — drain + damage from drained amount
 
 **Aura:**
 - `EffectApplyAura` (6) — `Aura::TryRefreshStackOrCreate` (ver `spells-aura.md`)
@@ -447,7 +447,19 @@ Numerados como `#SPELLS-EFFECTS.N` para referencia desde `MIGRATION_ROADMAP.md`.
     `SMSG_SPELL_ENERGIZE_LOG`, `EnergizeBySpell` proc/script side effects, and
     C++ spell-id special cases for Blood Fury, Burst of Energy, and Runic Mana
     Injector engineering bonus.
-- [ ] **#SPELLS-EFFECTS.14** Implementar `EffectPowerDrain` y `EffectPowerBurn` (M)
+- [~] **#SPELLS-EFFECTS.14** Implementar `EffectPowerDrain` y `EffectPowerBurn` (M)
+  - `EffectPowerDrain` (`SPELL_EFFECT_POWER_DRAIN = 8`) and `EffectPowerBurn`
+    (`SPELL_EFFECT_POWER_BURN = 62`) are represented-partial for the current
+    canonical player target/caster: Rust validates `MiscValue` as a C++ `Powers`
+    id, requires alive current player target, requires the target's active
+    power type to match C++ `GetPowerType()`, rejects negative `damage`, drains
+    available current power, and keeps self-drain from restoring caster power.
+    `EffectPowerBurn` also applies the drained amount as represented player
+    damage with multiplier `1.0`. Remaining: generic `unitTarget` support,
+    non-self caster restore for `EffectPowerDrain`, exact
+    `SpellEffectInfo::CalcValueMultiplier`, damage bonus/taken pipeline,
+    `ExecuteLogEffectTakeTargetPower` / `SMSG_SPELL_ENERGIZE_LOG`, and
+    downstream spell-damage packet parity.
 - [ ] **#SPELLS-EFFECTS.15** Implementar `EffectHealthLeech` (damage + heal caster) (L)
 - [ ] **#SPELLS-EFFECTS.16** Implementar `EffectHealPct`, `EffectHealMechanical`, `EffectHealMaxHealth` (L)
 - [ ] **#SPELLS-EFFECTS.17** Implementar `EffectInstaKill` con SMSG_SPELL_INSTAKILL_LOG (L)
@@ -699,10 +711,12 @@ Numerados como `#SPELLS-EFFECTS.N` para referencia desde `MIGRATION_ROADMAP.md`.
 
 **Empty-crate finding — CONFIRMED.** `crates/wow-spell/src/lib.rs` measures **exactly 0 lines** (verified via `wc -l`). The Rust workspace has **no implementation** of: `enum SpellEffectName` (151 variants), `enum SpellEffectHandleMode` (Launch/LaunchTarget/Hit/HitTarget), `struct SpellEffectInfo` proper (BasePoints, MiscValue, MiscValueB, TriggerSpell, RadiusEntry, Mechanic, ItemType, EffectAttributes, ImplicitTargets), the dispatch table (`SpellEffectHandlers[151]` array or equivalent `match`), the bisagra function `Spell::HandleEffects`, and **0 of 151 effect handlers**.
 
-**Effects implemented.** **0 of ~151.** A search for every C++ effect handler name confirms zero analogs in Rust:
-- Damage offensive: `EffectSchoolDMG`, `EffectEnvironmentalDMG`, `EffectPowerDrain`, `EffectHealthLeech`, `EffectWeaponDmg` (+ NoSchool/Normalized/Pct variants), `EffectAddExtraAttacks`, `EffectInstaKill` — none.
+**`wow-spell` crate effects implemented.** **0 of ~151 in this crate.** Represented handlers
+that currently live in `wow-world::WorldSession` are tracked in §9 and in the handoff; this
+historical scan only proves that the standalone `wow-spell` engine remains empty:
+- Damage offensive: `EffectSchoolDMG`, `EffectEnvironmentalDMG`, `EffectWeaponDmg` (+ NoSchool/Normalized/Pct variants), `EffectAddExtraAttacks` — none; `EffectPowerDrain`, `EffectHealthLeech`, `EffectInstaKill` — represented-partial.
 - Heal: `EffectHeal`, `EffectHealPct`, `EffectHealMechanical`, `EffectHealMaxHealth` — none.
-- Power: `EffectEnergize`, `EffectEnergizePct` — represented-partial; `EffectPowerBurn` — none.
+- Power: `EffectEnergize`, `EffectEnergizePct`, `EffectPowerDrain`, `EffectPowerBurn` — represented-partial.
 - Aura: `EffectApplyAura`, `EffectApplyAreaAura*` (6 variants), `EffectPersistentAA` — none.
 - Movement: `EffectTeleportUnits`, `EffectTeleportUnitsWithVisualLoadingScreen`, `EffectTeleUnitsFaceCaster`, `EffectJump`, `EffectJumpDest`, `EffectLeap`, `EffectLeapBack`, `EffectKnockBack`, `EffectKnockBackDest`, `EffectPullTowardsDest`, `EffectPull`, `EffectCharge`, `EffectChargeDest`, `EffectJumpCharge`, `EffectMomentum` — none.
 - Summon: `EffectSummonType` (the XL ~218-line discriminator), `EffectSummonPet`, `EffectSummonObject`, `EffectSummonObjectWild`, `EffectSummonChangeItem`, `EffectSummonPlayer` — none.
