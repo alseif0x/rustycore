@@ -2801,34 +2801,39 @@ impl Creature {
             }
             DeathState::JustRespawned => {
                 let motion_initialize_outcome = self.aim_initialize_like_cpp();
-                self.unit.set_health(
-                    self.lifecycle_metadata
-                        .spawn_health
-                        .unwrap_or(self.unit.data().max_health),
-                );
-                if let Some(spawn_mana) = self.lifecycle_metadata.spawn_mana {
-                    self.unit.set_power(PowerType::Mana, spawn_mana);
+                let is_pet = self.unit.world().object().guid().is_pet();
+                if is_pet {
+                    self.unit.set_health(self.unit.data().max_health);
+                } else {
+                    self.unit.set_health(
+                        self.lifecycle_metadata
+                            .spawn_health
+                            .unwrap_or(self.unit.data().max_health),
+                    );
+                    if let Some(spawn_mana) = self.lifecycle_metadata.spawn_mana {
+                        self.unit.set_power(PowerType::Mana, spawn_mana);
+                    }
+                    self.unit
+                        .world_mut()
+                        .object_mut()
+                        .replace_all_dynamic_flags(0);
+                    self.unit
+                        .set_npc_flags_like_cpp(self.ai_ownership.npc_flags);
+                    self.unit
+                        .set_npc_flags2_like_cpp(self.ai_ownership.npc_flags2);
+                    let mut flags = UnitFlags::from_bits_truncate(self.ai_ownership.unit_flags);
+                    flags.remove(UnitFlags::SKINNABLE | UnitFlags::IN_COMBAT);
+                    self.unit.set_unit_flags_like_cpp(flags);
+                    self.unit
+                        .set_unit_flags2_like_cpp(UnitFlags2::from_bits_truncate(
+                            self.ai_ownership.unit_flags2,
+                        ));
+                    self.unit
+                        .set_unit_flags3_like_cpp(UnitFlags3::from_bits_truncate(
+                            self.ai_ownership.unit_flags3,
+                        ));
+                    self.set_melee_damage_school_like_cpp(self.lifecycle_metadata.damage_school);
                 }
-                self.unit
-                    .world_mut()
-                    .object_mut()
-                    .replace_all_dynamic_flags(0);
-                self.unit
-                    .set_npc_flags_like_cpp(self.ai_ownership.npc_flags);
-                self.unit
-                    .set_npc_flags2_like_cpp(self.ai_ownership.npc_flags2);
-                let mut flags = UnitFlags::from_bits_truncate(self.ai_ownership.unit_flags);
-                flags.remove(UnitFlags::SKINNABLE | UnitFlags::IN_COMBAT);
-                self.unit.set_unit_flags_like_cpp(flags);
-                self.unit
-                    .set_unit_flags2_like_cpp(UnitFlags2::from_bits_truncate(
-                        self.ai_ownership.unit_flags2,
-                    ));
-                self.unit
-                    .set_unit_flags3_like_cpp(UnitFlags3::from_bits_truncate(
-                        self.ai_ownership.unit_flags3,
-                    ));
-                self.set_melee_damage_school_like_cpp(self.lifecycle_metadata.damage_school);
                 self.unit.clear_unit_state(UnitState::ALL_ERASABLE.bits());
                 self.clear_tap_list();
                 self.player_damage_req = 0;
@@ -3269,6 +3274,7 @@ mod tests {
         CurrentSpellSlot, DIMINISHING_STUN, DiminishingLevel, OwnedAuraRef,
     };
     use wow_constants::SpellState;
+    use wow_core::guid::HighGuid;
 
     fn formation_info_like_cpp(leader_spawn_id: u64) -> CreatureFormationInfoLikeCpp {
         CreatureFormationInfoLikeCpp {
@@ -4422,6 +4428,66 @@ mod tests {
             creature.unit().unit_flags3_like_cpp(),
             UnitFlags3::AI_OBSTACLE
         );
+    }
+
+    #[test]
+    fn creature_runtime_just_respawned_pet_uses_full_health_and_skips_non_pet_resets_like_cpp() {
+        let mut creature = Creature::create_from_lifecycle(creature_lifecycle_create_record());
+        creature
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .create(ObjectGuid::new((HighGuid::Pet as i64) << 58, 44));
+        creature.unit_mut().set_max_health(9_000);
+        creature.unit_mut().set_health(1);
+        creature.unit_mut().set_power(PowerType::Mana, 1);
+        creature
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .replace_all_dynamic_flags(0x44);
+        creature
+            .unit_mut()
+            .set_unit_flags_like_cpp(UnitFlags::SKINNABLE | UnitFlags::IN_COMBAT);
+        creature
+            .unit_mut()
+            .set_unit_flags2_like_cpp(UnitFlags2::FEIGN_DEATH);
+        creature
+            .unit_mut()
+            .set_unit_flags3_like_cpp(UnitFlags3::AI_OBSTACLE);
+        creature.set_melee_damage_school_like_cpp(wow_constants::spell::SpellSchools::Fire as u8);
+        creature.unit_mut().set_death_state(DeathState::Corpse);
+
+        creature.set_death_state_runtime(DeathState::JustRespawned, 5_000);
+
+        assert_eq!(
+            creature.unit().data().health,
+            9_000,
+            "C++ Creature::setDeathState(JUST_RESPAWNED) calls SetFullHealth for pets"
+        );
+        assert_eq!(
+            creature.unit().get_power(PowerType::Mana),
+            1,
+            "C++ pet branch does not run the non-pet spawn mana restore"
+        );
+        assert_eq!(
+            creature.unit().world().object().dynamic_flags(),
+            0x44,
+            "C++ non-pet block owns ReplaceAllDynamicFlags(UNIT_DYNFLAG_NONE)"
+        );
+        assert!(
+            creature
+                .unit()
+                .unit_flags_like_cpp()
+                .contains(UnitFlags::SKINNABLE | UnitFlags::IN_COMBAT),
+            "C++ non-pet block owns unit flag reload/removal"
+        );
+        assert_eq!(
+            creature.melee_damage_school_like_cpp(),
+            wow_constants::spell::SpellSchools::Fire as u8,
+            "C++ non-pet block owns SetMeleeDamageSchool"
+        );
+        assert_eq!(creature.unit().death_state(), DeathState::Alive);
     }
 
     #[test]
