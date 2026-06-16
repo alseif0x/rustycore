@@ -408,6 +408,18 @@ NOTE: `InstanceSaveMgr` no longer exists as a separate class in this WoLK 3.4.3 
   fanout beyond represented `SMSG_AURA_UPDATE`, `CanCastSpellWhileMoving`
   exception handling from `IsInterruptFlagIgnoredForSpell`, channel-interrupt
   edge cases, bot, install/restart, and live-client validation remain pending.
+- `#NEXT.RUNTIME.L3.031j88` wires the accepted far-teleport
+  transport-server-time cleanup around `SMSG_TRANSFER_PENDING`: immediately
+  after sending `TransferPending`, Rust now removes the represented
+  `PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME` bit and resets the
+  represented ActivePlayer `TransportServerTime` to zero; preflight aborts
+  still preserve both values because C++ returns before this branch. Refs:
+  `Player.cpp:1433-1449`, `Player.h:487`, `Player.h:2774-2787`,
+  `MovementHandler.cpp:812-813`. Remaining gap: Rust `teleport_to` still has
+  no `TeleportOptions`/logout wiring, so the C++ `TELE_TO_SEAMLESS` and
+  `PlayerLogout()` packet-suppression branches are not representable yet; full
+  update-field propagation, bot, install/restart, and live-client validation
+  remain pending.
 
 **Tests existing:**
 - `cargo test -p wow-instances -- --nocapture` currently covers 19 focused tests, including C++-contrasted lock key/binding, daily/weekly reset anchors, temporary lock creation, active lock lookup, temp promotion, expired-lock replacement, DB row reconstruction, shared weak-ref cleanup, prepared-statement parameter order, flex-mask join rejection, different-instance rejection, and reset in-use guard.

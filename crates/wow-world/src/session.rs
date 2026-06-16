@@ -22413,6 +22413,7 @@ impl WorldSession {
             transfer_spell_id: None,
         };
         self.send_packet(&transfer_pending);
+        self.clear_active_player_transport_server_time_override_for_far_teleport_like_cpp();
 
         // 2. Store pending destination — completed in handle_world_port_response
         self.pending_teleport = Some((new_map, new_pos));
@@ -31231,6 +31232,13 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn set_active_player_local_flags_like_cpp(&mut self, flags: u32) {
         self.active_player_local_flags_like_cpp = flags;
+        self.sync_current_player_session_visibility_detection_like_cpp();
+    }
+
+    fn clear_active_player_transport_server_time_override_for_far_teleport_like_cpp(&mut self) {
+        self.active_player_local_flags_like_cpp &=
+            !PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP;
+        self.active_player_transport_server_time_like_cpp = 0;
         self.sync_current_player_session_visibility_detection_like_cpp();
     }
 
@@ -64902,6 +64910,121 @@ mod tests {
         );
         assert_eq!(session.pending_teleport, Some((0, destination)));
         assert_eq!(session.temporary_pet_unsummon_requests_like_cpp(), 0);
+    }
+
+    #[tokio::test]
+    async fn teleport_to_far_map_clears_transport_server_time_override_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 808);
+        let destination = Position::new(113.0, 213.0, 43.0, 2.8);
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 1,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+            wow_data::MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.expansion = 1;
+        session.active_player_transport_server_time_like_cpp = 42_000;
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TeleportClearTransportTime".to_string(),
+            Position::new(10.0, 20.0, 30.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+
+        session.teleport_to(0, destination).await;
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![
+                ServerOpcodes::CancelCombat,
+                ServerOpcodes::TransferPending,
+                ServerOpcodes::SuspendToken
+            ]
+        );
+        assert_eq!(session.pending_teleport, Some((0, destination)));
+        assert_eq!(
+            session.active_player_local_flags_like_cpp()
+                & PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP,
+            0,
+            "C++ Player::TeleportTo removes PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME after SMSG_TRANSFER_PENDING"
+        );
+        assert_eq!(
+            session.active_player_transport_server_time_like_cpp(),
+            0,
+            "C++ Player::TeleportTo calls SetTransportServerTime(0)"
+        );
+    }
+
+    #[tokio::test]
+    async fn teleport_to_preflight_abort_preserves_transport_server_time_override_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 809);
+        let destination = Position::new(114.0, 214.0, 44.0, 2.9);
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 1,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.expansion = 1;
+        session.active_player_transport_server_time_like_cpp = 43_000;
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TeleportRejectKeepsTransportTime".to_string(),
+            Position::new(10.0, 20.0, 30.0, 0.0),
+            DEATH_KNIGHT_START_MAP_LIKE_CPP,
+            1,
+            CLASS_DEATH_KNIGHT_LIKE_CPP,
+            58,
+            0,
+        ));
+
+        session.teleport_to(571, destination).await;
+
+        assert_eq!(
+            send_rx.try_recv().expect("SMSG_TRANSFER_ABORTED"),
+            wow_packet::packets::misc::TransferAborted {
+                map_id: 571,
+                arg: 1,
+                map_difficulty_x_condition_id: 0,
+                transfer_abort: TRANSFER_ABORT_UNIQUE_MESSAGE_LIKE_CPP,
+            }
+            .to_bytes()
+        );
+        assert_ne!(
+            session.active_player_local_flags_like_cpp()
+                & PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP,
+            0,
+            "C++ Player::TeleportTo returns before clearing transport server time on preflight aborts"
+        );
+        assert_eq!(
+            session.active_player_transport_server_time_like_cpp(),
+            43_000
+        );
     }
 
     #[tokio::test]
