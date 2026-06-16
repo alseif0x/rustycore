@@ -17,7 +17,7 @@ use std::f32::consts::TAU;
 
 use anyhow::Result;
 use tracing::info;
-use wow_database::{HotfixDatabase, WorldDatabase};
+use wow_database::{HotfixDatabase, StatementDef, WorldDatabase};
 use wow_entities::PetAuraLikeCpp;
 
 use crate::{ConditionEntriesByTypeStore, ConditionsReference};
@@ -1656,9 +1656,7 @@ impl SpellTargetPositionStoreLikeCpp {
         map_exists: impl FnMut(u16) -> bool,
     ) -> Result<Self> {
         let mut result = db
-            .direct_query(
-                "SELECT ID, EffectIndex, MapID, PositionX, PositionY, PositionZ, Orientation FROM spell_target_position",
-            )
+            .direct_query(wow_database::WorldStatements::SEL_SPELL_TARGET_POSITION.sql())
             .await?;
         let mut rows = Vec::new();
 

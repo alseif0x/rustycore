@@ -285,6 +285,8 @@ pub enum WorldStatements {
     SEL_SPELL_REQUIRED,
     /// C++ SpellMgr::LoadSpellLearnSpells startup query.
     SEL_SPELL_LEARN_SPELL,
+    /// C++ SpellMgr::LoadSpellTargetPositions startup query.
+    SEL_SPELL_TARGET_POSITION,
     /// Load C++ ConditionMgr loot-template conditions.
     /// Args: SourceTypeOrReferenceId (i32), SourceGroup (u32), SourceEntry (u32).
     SEL_LOOT_TEMPLATE_CONDITION_ROWS,
@@ -877,6 +879,9 @@ impl StatementDef for WorldStatements {
             }
             Self::SEL_SPELL_REQUIRED => "SELECT spell_id, req_spell from spell_required",
             Self::SEL_SPELL_LEARN_SPELL => "SELECT entry, SpellID, Active FROM spell_learn_spell",
+            Self::SEL_SPELL_TARGET_POSITION => {
+                "SELECT ID, EffectIndex, MapID, PositionX, PositionY, PositionZ, Orientation FROM spell_target_position"
+            }
             Self::SEL_LOOT_TEMPLATE_CONDITION_ROWS => concat!(
                 "SELECT ElseGroup, ConditionTypeOrReference, ConditionTarget, ",
                 "ConditionValue1, ConditionValue2, ConditionValue3, ",
@@ -1217,6 +1222,17 @@ mod tests {
         let sql = WorldStatements::SEL_SPELL_LEARN_SPELL.sql();
 
         assert_eq!(sql, "SELECT entry, SpellID, Active FROM spell_learn_spell");
+        assert_eq!(sql.matches('?').count(), 0);
+    }
+
+    #[test]
+    fn spell_target_position_statement_matches_cpp_sql_exactly() {
+        let sql = WorldStatements::SEL_SPELL_TARGET_POSITION.sql();
+
+        assert_eq!(
+            sql,
+            "SELECT ID, EffectIndex, MapID, PositionX, PositionY, PositionZ, Orientation FROM spell_target_position"
+        );
         assert_eq!(sql.matches('?').count(), 0);
     }
 }
