@@ -22,6 +22,7 @@ pub const GROUP_UPDATE_FLAG_PET_LIKE_CPP: u32 = 0x0001_0000;
 pub const GROUP_UPDATE_FLAG_PET_NONE_LIKE_CPP: u32 = 0x0000_0000;
 pub const GROUP_UPDATE_FLAG_PET_MODEL_ID_LIKE_CPP: u32 = 0x0000_0004;
 pub const PET_MAX_SPECIALIZATIONS_LIKE_CPP: usize = 4;
+pub const DEMONIC_KNOWLEDGE_AURA_LIKE_CPP: u32 = 35_696;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
@@ -314,6 +315,53 @@ pub struct PetLearnPetPassivesOutcomeLikeCpp {
 pub struct PetLearnPetTalentOutcomeLikeCpp {
     pub talent_id: u32,
     pub debug_log_only: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PetAuraLikeCpp {
+    pub auras_by_pet_entry: BTreeMap<u32, u32>,
+    pub remove_on_change_pet: bool,
+    pub damage: i32,
+}
+
+impl PetAuraLikeCpp {
+    pub fn new(pet_entry: u32, aura_id: u32, remove_on_change_pet: bool, damage: i32) -> Self {
+        let mut auras_by_pet_entry = BTreeMap::new();
+        auras_by_pet_entry.insert(pet_entry, aura_id);
+        Self {
+            auras_by_pet_entry,
+            remove_on_change_pet,
+            damage,
+        }
+    }
+
+    pub fn with_aura(mut self, pet_entry: u32, aura_id: u32) -> Self {
+        self.auras_by_pet_entry.insert(pet_entry, aura_id);
+        self
+    }
+
+    pub fn aura_for_pet_entry_like_cpp(&self, pet_entry: u32) -> u32 {
+        self.auras_by_pet_entry
+            .get(&pet_entry)
+            .copied()
+            .or_else(|| self.auras_by_pet_entry.get(&0).copied())
+            .unwrap_or(0)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PetCastPetAuraPlanLikeCpp {
+    pub owner_pet_aura_index: usize,
+    pub aura_id: u32,
+    pub spell_value_base_point0: Option<i32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PetCastPetAurasOutcomeLikeCpp {
+    pub skipped_not_permanent: bool,
+    pub removed_owner_pet_aura_indices: Vec<usize>,
+    pub removed_pet_aura_spell_ids: Vec<u32>,
+    pub cast_auras: Vec<PetCastPetAuraPlanLikeCpp>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1887,6 +1935,86 @@ impl Pet {
             talent_id,
             debug_log_only: true,
         }
+    }
+
+    pub fn cast_pet_aura_like_cpp(
+        &self,
+        owner_pet_aura_index: usize,
+        aura: &PetAuraLikeCpp,
+        pet_stamina_like_cpp: f32,
+        pet_intellect_like_cpp: f32,
+    ) -> Option<PetCastPetAuraPlanLikeCpp> {
+        let aura_id = aura.aura_for_pet_entry_like_cpp(self.creature.entry());
+        if aura_id == 0 {
+            return None;
+        }
+
+        let spell_value_base_point0 = (aura_id == DEMONIC_KNOWLEDGE_AURA_LIKE_CPP).then(|| {
+            (aura.damage as f32 * (pet_stamina_like_cpp + pet_intellect_like_cpp) / 100.0) as i32
+        });
+
+        Some(PetCastPetAuraPlanLikeCpp {
+            owner_pet_aura_index,
+            aura_id,
+            spell_value_base_point0,
+        })
+    }
+
+    pub fn cast_pet_auras_like_cpp(
+        &self,
+        current: bool,
+        owner_class: Class,
+        creature_type: CreatureType,
+        owner_pet_auras: &[PetAuraLikeCpp],
+        pet_stamina_like_cpp: f32,
+        pet_intellect_like_cpp: f32,
+    ) -> PetCastPetAurasOutcomeLikeCpp {
+        if !Self::is_permanent_pet_for_like_cpp(self.pet_type, owner_class, creature_type) {
+            return PetCastPetAurasOutcomeLikeCpp {
+                skipped_not_permanent: true,
+                removed_owner_pet_aura_indices: Vec::new(),
+                removed_pet_aura_spell_ids: Vec::new(),
+                cast_auras: Vec::new(),
+            };
+        }
+
+        let mut removed_owner_pet_aura_indices = Vec::new();
+        let mut removed_pet_aura_spell_ids = Vec::new();
+        let mut cast_auras = Vec::new();
+
+        for (index, aura) in owner_pet_auras.iter().enumerate() {
+            if !current && aura.remove_on_change_pet {
+                removed_owner_pet_aura_indices.push(index);
+                let aura_id = aura.aura_for_pet_entry_like_cpp(self.creature.entry());
+                if aura_id != 0 {
+                    removed_pet_aura_spell_ids.push(aura_id);
+                }
+            } else if let Some(plan) = self.cast_pet_aura_like_cpp(
+                index,
+                aura,
+                pet_stamina_like_cpp,
+                pet_intellect_like_cpp,
+            ) {
+                cast_auras.push(plan);
+            }
+        }
+
+        PetCastPetAurasOutcomeLikeCpp {
+            skipped_not_permanent: false,
+            removed_owner_pet_aura_indices,
+            removed_pet_aura_spell_ids,
+            cast_auras,
+        }
+    }
+
+    pub fn is_pet_aura_like_cpp(
+        &self,
+        owner_pet_auras: &[PetAuraLikeCpp],
+        aura_spell_id: u32,
+    ) -> bool {
+        owner_pet_auras
+            .iter()
+            .any(|aura| aura.aura_for_pet_entry_like_cpp(self.creature.entry()) == aura_spell_id)
     }
 
     pub fn fill_pet_info_like_cpp(
@@ -4286,6 +4414,117 @@ mod tests {
         );
         assert_eq!(pet.spells(), &spells_before);
         assert_eq!(pet.autospells(), autospells_before.as_slice());
+    }
+
+    #[test]
+    fn pet_cast_pet_auras_like_cpp_skips_non_permanent_pets() {
+        let pet = Pet::new(owner_guid(), PetType::Summon);
+        let outcome = pet.cast_pet_auras_like_cpp(
+            false,
+            Class::Warrior,
+            CreatureType::Demon,
+            &[PetAuraLikeCpp::new(0, 77, true, 0)],
+            10.0,
+            10.0,
+        );
+
+        assert!(outcome.skipped_not_permanent);
+        assert!(outcome.removed_owner_pet_aura_indices.is_empty());
+        assert!(outcome.removed_pet_aura_spell_ids.is_empty());
+        assert!(outcome.cast_auras.is_empty());
+    }
+
+    #[test]
+    fn pet_cast_pet_auras_like_cpp_removes_on_pet_change_or_casts_in_owner_order() {
+        let mut pet = Pet::new(owner_guid(), PetType::Summon);
+        pet.creature_mut()
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .set_entry(500);
+        let owner_pet_auras = vec![
+            PetAuraLikeCpp::new(500, 10, true, 0),
+            PetAuraLikeCpp::new(0, 20, false, 0),
+            PetAuraLikeCpp::new(700, 30, false, 0),
+        ];
+
+        let current_false = pet.cast_pet_auras_like_cpp(
+            false,
+            Class::Warlock,
+            CreatureType::Demon,
+            &owner_pet_auras,
+            0.0,
+            0.0,
+        );
+        assert!(!current_false.skipped_not_permanent);
+        assert_eq!(current_false.removed_owner_pet_aura_indices, vec![0]);
+        assert_eq!(current_false.removed_pet_aura_spell_ids, vec![10]);
+        assert_eq!(
+            current_false.cast_auras,
+            vec![PetCastPetAuraPlanLikeCpp {
+                owner_pet_aura_index: 1,
+                aura_id: 20,
+                spell_value_base_point0: None,
+            }],
+            "C++ falls back to petEntry 0 and ignores PetAura rows without exact or wildcard aura"
+        );
+
+        let current_true = pet.cast_pet_auras_like_cpp(
+            true,
+            Class::Warlock,
+            CreatureType::Demon,
+            &owner_pet_auras,
+            0.0,
+            0.0,
+        );
+        assert!(current_true.removed_owner_pet_aura_indices.is_empty());
+        assert_eq!(
+            current_true.cast_auras,
+            vec![
+                PetCastPetAuraPlanLikeCpp {
+                    owner_pet_aura_index: 0,
+                    aura_id: 10,
+                    spell_value_base_point0: None,
+                },
+                PetCastPetAuraPlanLikeCpp {
+                    owner_pet_aura_index: 1,
+                    aura_id: 20,
+                    spell_value_base_point0: None,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn pet_cast_pet_aura_like_cpp_applies_demonic_knowledge_basepoint_and_is_pet_aura() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+        pet.creature_mut()
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .set_entry(500);
+        let demonic_knowledge =
+            PetAuraLikeCpp::new(0, 999, false, 15).with_aura(500, DEMONIC_KNOWLEDGE_AURA_LIKE_CPP);
+        let other = PetAuraLikeCpp::new(0, 123, false, 0);
+
+        let plan = pet
+            .cast_pet_aura_like_cpp(4, &demonic_knowledge, 101.0, 50.0)
+            .unwrap();
+        assert_eq!(
+            plan,
+            PetCastPetAuraPlanLikeCpp {
+                owner_pet_aura_index: 4,
+                aura_id: DEMONIC_KNOWLEDGE_AURA_LIKE_CPP,
+                spell_value_base_point0: Some(22),
+            },
+            "C++ CalculatePct(int32 damage, stamina + intellect) truncates toward zero"
+        );
+        assert!(pet.is_pet_aura_like_cpp(
+            &[demonic_knowledge.clone(), other.clone()],
+            DEMONIC_KNOWLEDGE_AURA_LIKE_CPP
+        ));
+        assert!(pet.is_pet_aura_like_cpp(&[demonic_knowledge, other], 123));
+        assert!(!pet.is_pet_aura_like_cpp(&[], DEMONIC_KNOWLEDGE_AURA_LIKE_CPP));
     }
 
     #[test]
