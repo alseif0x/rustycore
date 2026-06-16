@@ -196,6 +196,21 @@ pub enum PetAliveOwnerUpdateOutcome {
     },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PetLevelUpdateOutcome {
+    pub changed: bool,
+    pub reset_experience: bool,
+    pub refresh_stats: bool,
+    pub init_levelup_spells: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PetXpUpdateOutcome {
+    pub accepted: bool,
+    pub levels_gained: u8,
+    pub level_update: PetLevelUpdateOutcome,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PetDeathStateUpdateOutcome {
     pub creature_plan: CreatureRuntimePlan,
@@ -213,6 +228,8 @@ pub struct Pet {
     loading: bool,
     removed: bool,
     focus_regen_timer_ms: u32,
+    pet_experience: u32,
+    pet_next_level_experience: u32,
     group_update_mask: u32,
     pet_specialization: u16,
     declined_name: Option<String>,
@@ -244,6 +261,8 @@ impl Pet {
             loading: false,
             removed: false,
             focus_regen_timer_ms: PET_FOCUS_REGEN_INTERVAL_MS,
+            pet_experience: 0,
+            pet_next_level_experience: 0,
             group_update_mask: 0,
             pet_specialization: 0,
             declined_name: None,
@@ -479,6 +498,111 @@ impl Pet {
             .unit_mut()
             .set_power(PowerType::Focus, next_focus);
         next_focus - cur_focus
+    }
+
+    pub const fn pet_experience(&self) -> u32 {
+        self.pet_experience
+    }
+
+    pub fn set_pet_experience(&mut self, experience: u32) {
+        self.pet_experience = experience;
+    }
+
+    pub const fn pet_next_level_experience(&self) -> u32 {
+        self.pet_next_level_experience
+    }
+
+    pub fn set_pet_next_level_experience(&mut self, experience: u32) {
+        self.pet_next_level_experience = experience;
+    }
+
+    pub fn give_pet_level_like_cpp(
+        &mut self,
+        level: u8,
+        xp_for_level: impl Fn(u8) -> u32,
+    ) -> PetLevelUpdateOutcome {
+        let current_level = self.creature.level();
+        if level == 0 || level == current_level {
+            return PetLevelUpdateOutcome {
+                changed: false,
+                reset_experience: false,
+                refresh_stats: false,
+                init_levelup_spells: false,
+            };
+        }
+
+        let mut reset_experience = false;
+        if self.pet_type == PetType::Hunter {
+            self.set_pet_experience(0);
+            self.set_pet_next_level_experience(Self::pet_next_level_xp_for_owner_level(
+                xp_for_level(level),
+            ));
+            reset_experience = true;
+        }
+
+        self.creature.unit_mut().set_level(level);
+        PetLevelUpdateOutcome {
+            changed: true,
+            reset_experience,
+            refresh_stats: true,
+            init_levelup_spells: true,
+        }
+    }
+
+    pub fn give_pet_xp_like_cpp(
+        &mut self,
+        xp: u32,
+        max_player_level: u8,
+        owner_level: u8,
+        xp_for_level: impl Fn(u8) -> u32 + Copy,
+    ) -> PetXpUpdateOutcome {
+        let mut level_update = PetLevelUpdateOutcome {
+            changed: false,
+            reset_experience: false,
+            refresh_stats: false,
+            init_levelup_spells: false,
+        };
+
+        if self.pet_type != PetType::Hunter
+            || xp < 1
+            || self.creature.unit().death_state() != DeathState::Alive
+        {
+            return PetXpUpdateOutcome {
+                accepted: false,
+                levels_gained: 0,
+                level_update,
+            };
+        }
+
+        let max_level = max_player_level.min(owner_level);
+        let mut pet_level = self.creature.level();
+        if pet_level >= max_level {
+            return PetXpUpdateOutcome {
+                accepted: false,
+                levels_gained: 0,
+                level_update,
+            };
+        }
+
+        let mut next_level_xp = self.pet_next_level_experience;
+        let mut new_xp = self.pet_experience.wrapping_add(xp);
+        let mut levels_gained = 0u8;
+
+        while new_xp >= next_level_xp && pet_level < max_level {
+            new_xp -= next_level_xp;
+            pet_level = pet_level.saturating_add(1);
+            levels_gained = levels_gained.saturating_add(1);
+            level_update = self.give_pet_level_like_cpp(pet_level, xp_for_level);
+            next_level_xp = self.pet_next_level_experience;
+        }
+
+        self.set_pet_experience(if pet_level < max_level { new_xp } else { 0 });
+
+        PetXpUpdateOutcome {
+            accepted: true,
+            levels_gained,
+            level_update,
+        }
     }
 
     pub const fn group_update_mask(&self) -> u32 {
@@ -1147,6 +1271,114 @@ mod tests {
 
         assert_eq!(pet.regenerate_focus_like_cpp(1.0, 1.0, 0, false), 0);
         assert_eq!(pet.creature().unit().get_power(PowerType::Focus), 40);
+    }
+
+    #[test]
+    fn pet_give_level_updates_hunter_xp_and_levelup_hooks_like_cpp() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+        pet.creature_mut().unit_mut().set_level(10);
+        pet.set_pet_experience(50);
+        pet.set_pet_next_level_experience(500);
+
+        let outcome = pet.give_pet_level_like_cpp(11, |level| u32::from(level) * 1_000);
+
+        assert_eq!(
+            outcome,
+            PetLevelUpdateOutcome {
+                changed: true,
+                reset_experience: true,
+                refresh_stats: true,
+                init_levelup_spells: true
+            }
+        );
+        assert_eq!(pet.creature().level(), 11);
+        assert_eq!(pet.pet_experience(), 0);
+        assert_eq!(pet.pet_next_level_experience(), 550);
+
+        let unchanged = pet.give_pet_level_like_cpp(11, |_| 999);
+        assert_eq!(
+            unchanged,
+            PetLevelUpdateOutcome {
+                changed: false,
+                reset_experience: false,
+                refresh_stats: false,
+                init_levelup_spells: false
+            }
+        );
+    }
+
+    #[test]
+    fn pet_give_xp_matches_cpp_gates_and_level_rollover() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+        pet.creature_mut().unit_mut().set_level(10);
+        pet.set_pet_experience(90);
+        pet.set_pet_next_level_experience(100);
+
+        let outcome = pet.give_pet_xp_like_cpp(700, 80, 12, |level| u32::from(level) * 1_000);
+
+        assert_eq!(outcome.accepted, true);
+        assert_eq!(outcome.levels_gained, 2);
+        assert_eq!(
+            outcome.level_update,
+            PetLevelUpdateOutcome {
+                changed: true,
+                reset_experience: true,
+                refresh_stats: true,
+                init_levelup_spells: true
+            }
+        );
+        assert_eq!(pet.creature().level(), 12);
+        assert_eq!(
+            pet.pet_experience(),
+            0,
+            "C++ clears pet XP when the pet reaches min(max-player-level, owner-level)"
+        );
+        assert_eq!(pet.pet_next_level_experience(), 600);
+
+        let mut summon = Pet::new(owner_guid(), PetType::Summon);
+        summon.creature_mut().unit_mut().set_level(10);
+        assert_eq!(
+            summon.give_pet_xp_like_cpp(1, 80, 80, |_| 100).accepted,
+            false
+        );
+
+        let mut dead = Pet::new(owner_guid(), PetType::Hunter);
+        dead.creature_mut().unit_mut().set_level(10);
+        dead.creature_mut()
+            .set_death_state_runtime(DeathState::JustDied, 1_000);
+        assert_eq!(
+            dead.give_pet_xp_like_cpp(1, 80, 80, |_| 100).accepted,
+            false
+        );
+    }
+
+    #[test]
+    fn pet_give_xp_handles_zero_next_level_xp_like_cpp_initialized_field_assumption() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+        pet.creature_mut().unit_mut().set_level(10);
+        pet.set_pet_experience(0);
+        pet.set_pet_next_level_experience(0);
+
+        let outcome = pet.give_pet_xp_like_cpp(600, 80, 12, |level| u32::from(level) * 1_000);
+
+        assert_eq!(outcome.levels_gained, 2);
+        assert_eq!(pet.creature().level(), 12);
+        assert_eq!(pet.pet_experience(), 0);
+    }
+
+    #[test]
+    fn pet_give_xp_uses_cpp_uint32_wrapping_sum() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+        pet.creature_mut().unit_mut().set_level(10);
+        pet.set_pet_experience(u32::MAX);
+        pet.set_pet_next_level_experience(100);
+
+        let outcome = pet.give_pet_xp_like_cpp(2, 80, 80, |_| 1_000);
+
+        assert!(outcome.accepted);
+        assert_eq!(outcome.levels_gained, 0);
+        assert_eq!(pet.creature().level(), 10);
+        assert_eq!(pet.pet_experience(), 1);
     }
 
     #[test]
