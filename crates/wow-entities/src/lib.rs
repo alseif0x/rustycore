@@ -166,7 +166,7 @@ pub use pet::{
     PetAliveOwnerUpdateOutcome, PetAuraSaveEffectLikeCpp, PetAuraSaveOperationLikeCpp,
     PetAuraSaveRefLikeCpp, PetCorpseUpdateOutcome, PetDeathStateUpdateOutcome,
     PetDeclinedNamesLikeCpp, PetDeleteFromDbOperationLikeCpp, PetDurationUpdateOutcome,
-    PetLevelUpdateOutcome, PetLoadInfoResult, PetLoadSelection, PetSaveMode,
+    PetLevelUpdateOutcome, PetLoadInfoResult, PetLoadSelection, PetRemovePlanLikeCpp, PetSaveMode,
     PetSaveToDbOperationLikeCpp, PetSaveToDbPlan, PetSaveToDbSkipReason, PetSpell,
     PetSpellSaveOperationLikeCpp, PetSpellState, PetSpellType, PetStable, PetStableInfo, PetType,
     PetXpUpdateOutcome,

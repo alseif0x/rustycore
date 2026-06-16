@@ -213,6 +213,14 @@ pub struct PetXpUpdateOutcome {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PetRemovePlanLikeCpp {
+    pub owner_guid: ObjectGuid,
+    pub pet_guid: ObjectGuid,
+    pub save_mode: PetSaveMode,
+    pub return_reagent: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PetSaveToDbSkipReason {
     ZeroEntry,
     NotControlled,
@@ -567,6 +575,19 @@ impl Pet {
         }
 
         PetAliveOwnerUpdateOutcome::Keep
+    }
+
+    pub fn remove_plan_like_cpp(
+        &self,
+        save_mode: PetSaveMode,
+        return_reagent: bool,
+    ) -> PetRemovePlanLikeCpp {
+        PetRemovePlanLikeCpp {
+            owner_guid: self.owner_guid,
+            pet_guid: self.creature.guid(),
+            save_mode,
+            return_reagent,
+        }
     }
 
     pub fn set_death_state_like_cpp(
@@ -1494,6 +1515,85 @@ mod tests {
                 unexpected_hunter: true
             },
             "C++ ASSERTs this unexpected hunter-pet unlink case before Remove(PET_SAVE_NOT_IN_SLOT)"
+        );
+    }
+
+    #[test]
+    fn pet_remove_plan_delegates_to_owner_remove_pet_like_cpp() {
+        let mut pet = Pet::new(owner_guid(), PetType::Summon);
+        pet.creature_mut()
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .create(pet_guid(16));
+
+        assert_eq!(
+            pet.remove_plan_like_cpp(PetSaveMode::NotInSlot, true),
+            PetRemovePlanLikeCpp {
+                owner_guid: owner_guid(),
+                pet_guid: pet_guid(16),
+                save_mode: PetSaveMode::NotInSlot,
+                return_reagent: true,
+            },
+            "C++ Pet::Remove(mode, returnreagent) delegates GetOwner()->RemovePet(this, mode, returnreagent)"
+        );
+        assert_eq!(
+            pet.remove_plan_like_cpp(PetSaveMode::AsDeleted, false),
+            PetRemovePlanLikeCpp {
+                owner_guid: owner_guid(),
+                pet_guid: pet_guid(16),
+                save_mode: PetSaveMode::AsDeleted,
+                return_reagent: false,
+            }
+        );
+    }
+
+    #[test]
+    fn pet_update_remove_outcomes_convert_to_remove_plan_like_cpp() {
+        let mut lost_owner = Pet::new(owner_guid(), PetType::Hunter);
+        lost_owner
+            .creature_mut()
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .create(pet_guid(17));
+        let PetAliveOwnerUpdateOutcome::RemoveLostOwner {
+            save_mode,
+            return_reagent,
+        } = lost_owner.update_alive_owner_link_like_cpp(false, false, Some(pet_guid(17)))
+        else {
+            panic!("expected C++ lost-owner branch to request Pet::Remove");
+        };
+        assert_eq!(
+            lost_owner.remove_plan_like_cpp(save_mode, return_reagent),
+            PetRemovePlanLikeCpp {
+                owner_guid: owner_guid(),
+                pet_guid: pet_guid(17),
+                save_mode: PetSaveMode::NotInSlot,
+                return_reagent: true,
+            }
+        );
+
+        let mut expired = Pet::new(owner_guid(), PetType::Summon);
+        expired
+            .creature_mut()
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .create(pet_guid(18));
+        expired.set_duration(1);
+        let PetDurationUpdateOutcome::Expired { save_mode } = expired.update_duration_like_cpp(1)
+        else {
+            panic!("expected C++ duration branch to request Pet::Remove");
+        };
+        assert_eq!(
+            expired.remove_plan_like_cpp(save_mode, false),
+            PetRemovePlanLikeCpp {
+                owner_guid: owner_guid(),
+                pet_guid: pet_guid(18),
+                save_mode: PetSaveMode::NotInSlot,
+                return_reagent: false,
+            }
         );
     }
 
