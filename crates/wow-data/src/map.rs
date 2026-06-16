@@ -16,6 +16,7 @@ use crate::{DifficultyStore, PlayerConditionEntry, PlayerConditionStore, wdc4::W
 
 pub const MAP_FLAG_FLEXIBLE_RAID_LOCKING: u32 = 0x0000_8000;
 pub const MAP_FLAG_GARRISON: u32 = 0x0400_0000;
+pub const MAP_FLAG2_IGNORE_INSTANCE_FARM_LIMIT: u32 = 0x0000_0080;
 pub const MAP_DIFFICULTY_FLAG_USE_LOOT_BASED_LOCK: u8 = 0x02;
 
 pub const MAP_COMMON: i8 = 0;
@@ -33,6 +34,7 @@ pub struct MapEntry {
     pub parent_map_id: i16,
     pub cosmetic_parent_map_id: i16,
     pub flags1: u32,
+    pub flags2: u32,
 }
 
 impl MapEntry {
@@ -42,6 +44,10 @@ impl MapEntry {
 
     pub const fn is_garrison(self) -> bool {
         self.flags1 & MAP_FLAG_GARRISON != 0
+    }
+
+    pub const fn ignores_instance_farm_limit_like_cpp(self) -> bool {
+        self.flags2 & MAP_FLAG2_IGNORE_INSTANCE_FARM_LIMIT != 0
     }
 
     pub const fn is_dungeon(self) -> bool {
@@ -98,12 +104,13 @@ impl MapStore {
                 // WDC4 record ids supply C++ field 0 (`ID`) and this reader
                 // exposes `Flags[3]` as one array field, so C++ field 8 -> 7,
                 // C++ field 9 -> 8, C++ fields 13..14 -> fields 12..13,
-                // and C++ fields 22..24 -> field 21.
+                // and C++ fields 22..24 -> field 21 with array elements 0..2.
                 instance_type: reader.get_field_i8(idx, 7),
                 expansion_id: reader.get_field_u8(idx, 8),
                 parent_map_id: reader.get_field_i16(idx, 12),
                 cosmetic_parent_map_id: reader.get_field_i16(idx, 13),
                 flags1: reader.get_field_u32(idx, 21),
+                flags2: reader.get_array_element(idx, 21, 1, 32),
             };
             entries.insert(id, entry);
         }
@@ -470,10 +477,26 @@ mod tests {
             parent_map_id: -1,
             cosmetic_parent_map_id: -1,
             flags1: MAP_FLAG_FLEXIBLE_RAID_LOCKING,
+            flags2: 0,
         }]);
 
         assert!(store.get(631).unwrap().is_flex_locking());
         assert!(store.get(1).is_none());
+    }
+
+    #[test]
+    fn map_store_ignore_instance_farm_limit_flag_matches_cpp() {
+        let entry = MapEntry {
+            id: 33,
+            instance_type: MAP_INSTANCE,
+            expansion_id: 0,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: 0,
+            flags2: MAP_FLAG2_IGNORE_INSTANCE_FARM_LIMIT,
+        };
+
+        assert!(entry.ignores_instance_farm_limit_like_cpp());
     }
 
     #[test]
@@ -485,6 +508,7 @@ mod tests {
             parent_map_id: -1,
             cosmetic_parent_map_id: -1,
             flags1: 0,
+            flags2: 0,
         };
         let dungeon = MapEntry {
             id: 33,
@@ -493,6 +517,7 @@ mod tests {
             parent_map_id: -1,
             cosmetic_parent_map_id: -1,
             flags1: 0,
+            flags2: 0,
         };
         let raid = MapEntry {
             id: 631,
@@ -501,6 +526,7 @@ mod tests {
             parent_map_id: -1,
             cosmetic_parent_map_id: -1,
             flags1: 0,
+            flags2: 0,
         };
         let battleground = MapEntry {
             id: 489,
@@ -509,6 +535,7 @@ mod tests {
             parent_map_id: -1,
             cosmetic_parent_map_id: -1,
             flags1: 0,
+            flags2: 0,
         };
         let arena = MapEntry {
             id: 562,
@@ -517,6 +544,7 @@ mod tests {
             parent_map_id: -1,
             cosmetic_parent_map_id: -1,
             flags1: 0,
+            flags2: 0,
         };
         let garrison = MapEntry {
             id: 1152,
@@ -525,6 +553,7 @@ mod tests {
             parent_map_id: -1,
             cosmetic_parent_map_id: -1,
             flags1: MAP_FLAG_GARRISON,
+            flags2: 0,
         };
         let split = MapEntry {
             id: 609,
@@ -533,6 +562,7 @@ mod tests {
             parent_map_id: 571,
             cosmetic_parent_map_id: -1,
             flags1: 0,
+            flags2: 0,
         };
 
         assert!(world.is_world_map());
@@ -556,6 +586,7 @@ mod tests {
                 parent_map_id: 571,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
             MapEntry {
                 id: 111,
@@ -564,6 +595,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: 1,
                 flags1: 0,
+                flags2: 0,
             },
         ]);
 
@@ -585,6 +617,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
             MapEntry {
                 id: 571,
@@ -593,6 +626,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: 1,
                 flags1: 0,
+                flags2: 0,
             },
             MapEntry {
                 id: 609,
@@ -601,6 +635,7 @@ mod tests {
                 parent_map_id: 571,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ]);
 
@@ -619,6 +654,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
             MapEntry {
                 id: 571,
@@ -627,6 +663,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
             MapEntry {
                 id: 609,
@@ -635,6 +672,7 @@ mod tests {
                 parent_map_id: 571,
                 cosmetic_parent_map_id: 1,
                 flags1: 0,
+                flags2: 0,
             },
         ]);
 
@@ -650,6 +688,7 @@ mod tests {
             parent_map_id: 571,
             cosmetic_parent_map_id: -1,
             flags1: 0,
+            flags2: 0,
         }]);
 
         assert_eq!(store.terrain_root_map_id_like_cpp(609), Some(609));
@@ -666,6 +705,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
             MapEntry {
                 id: 571,
@@ -674,6 +714,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: 1,
                 flags1: 0,
+                flags2: 0,
             },
             MapEntry {
                 id: 609,
@@ -682,6 +723,7 @@ mod tests {
                 parent_map_id: 571,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ]);
 
@@ -701,6 +743,7 @@ mod tests {
             parent_map_id: 571,
             cosmetic_parent_map_id: -1,
             flags1: 0,
+            flags2: 0,
         }]);
 
         let map_data = store.parent_child_map_data_like_cpp();
@@ -717,6 +760,7 @@ mod tests {
             parent_map_id: 571,
             cosmetic_parent_map_id: 1,
             flags1: 0,
+            flags2: 0,
         }]);
 
         let _ = store.parent_child_map_data_like_cpp();

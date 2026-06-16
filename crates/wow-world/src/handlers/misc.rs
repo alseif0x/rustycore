@@ -6360,6 +6360,7 @@ mod tests {
             parent_map_id: -1,
             cosmetic_parent_map_id: -1,
             flags1: 0,
+            flags2: 0,
         }
     }
 
@@ -6426,6 +6427,7 @@ mod tests {
             parent_map_id: -1,
             cosmetic_parent_map_id: -1,
             flags1: 0,
+            flags2: 0,
         }])));
         session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([difficulty_entry(
             u32::from(difficulty_id),
@@ -9883,6 +9885,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
             MapEntry {
                 id: 631,
@@ -9891,6 +9894,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: wow_data::map::MAP_FLAG_FLEXIBLE_RAID_LOCKING,
+                flags2: 0,
             },
         ])));
         session.set_map_difficulty_store(Arc::new(MapDifficultyStore::from_entries([
@@ -16167,6 +16171,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
             MapEntry {
                 id: 631,
@@ -16175,6 +16180,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: wow_data::map::MAP_FLAG_FLEXIBLE_RAID_LOCKING,
+                flags2: 0,
             },
         ])));
         session.set_map_difficulty_store(Arc::new(MapDifficultyStore::from_entries([
@@ -16258,6 +16264,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
             MapEntry {
                 id: 631,
@@ -16266,6 +16273,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: wow_data::map::MAP_FLAG_FLEXIBLE_RAID_LOCKING,
+                flags2: 0,
             },
         ])));
         session.set_map_difficulty_store(Arc::new(MapDifficultyStore::from_entries([
@@ -16337,6 +16345,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
             MapEntry {
                 id: 631,
@@ -16345,6 +16354,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: wow_data::map::MAP_FLAG_FLEXIBLE_RAID_LOCKING,
+                flags2: 0,
             },
         ])));
         session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([difficulty_entry(

@@ -167,6 +167,7 @@ mod tests {
             instance_type: 0,
             expansion_id: 0,
             flags1: 0,
+            flags2: 0,
         }]);
 
         let (store, report) = WorldSafeLocStore::from_rows_like_cpp(

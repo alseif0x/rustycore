@@ -3012,6 +3012,7 @@ mod tests {
             instance_type: 0,
             expansion_id: 0,
             flags1: 0,
+            flags2: 0,
         }]);
         let phase_store =
             crate::PhaseStore::from_entries([crate::PhaseEntry { id: 600, flags: 0 }]);
@@ -3563,6 +3564,7 @@ mod tests {
             instance_type: 0,
             expansion_id: 0,
             flags1: 0,
+            flags2: 0,
         }]);
         let quest_store =
             crate::quest::QuestStore::from_quests_like_cpp([quest_template(700, Vec::new())]);

@@ -1892,6 +1892,7 @@ mod tests {
             parent_map_id: -1,
             cosmetic_parent_map_id: -1,
             flags1: wow_data::map::MAP_FLAG_FLEXIBLE_RAID_LOCKING,
+            flags2: 0,
         }]);
         let difficulties =
             wow_data::MapDifficultyStore::from_entries([wow_data::MapDifficultyEntry {
@@ -1930,6 +1931,7 @@ mod tests {
             parent_map_id: -1,
             cosmetic_parent_map_id: -1,
             flags1: 0,
+            flags2: 0,
         }]);
         let difficulties = wow_data::DifficultyStore::from_entries([
             wow_data::DifficultyEntry {

@@ -5775,6 +5775,7 @@ mod tests {
             parent_map_id: -1,
             cosmetic_parent_map_id: -1,
             flags1: 0,
+            flags2: 0,
         }))
     }
 
@@ -5786,6 +5787,7 @@ mod tests {
             parent_map_id: -1,
             cosmetic_parent_map_id: -1,
             flags1: 0,
+            flags2: 0,
         }))
     }
 

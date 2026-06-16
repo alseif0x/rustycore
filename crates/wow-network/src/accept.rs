@@ -308,6 +308,8 @@ pub struct SessionResources {
     pub instance_ignore_raid: bool,
     /// C++ `CONFIG_INSTANCE_IGNORE_LEVEL` / `Instance.IgnoreLevel`.
     pub instance_ignore_level: bool,
+    /// C++ `CONFIG_MAX_INSTANCES_PER_HOUR` / `AccountInstancesPerHour`.
+    pub max_instances_per_hour: u32,
     pub chat_fake_message_preventing: bool,
     pub party_raid_warnings: bool,
     pub chat_strict_link_checking_kick: bool,

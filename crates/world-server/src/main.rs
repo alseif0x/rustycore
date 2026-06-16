@@ -2738,6 +2738,11 @@ async fn main() -> Result<ExitCode> {
             "CONFIG_INSTANCE_IGNORE_LEVEL",
             false,
         ),
+        max_instances_per_hour: world_config_u32(
+            &world_configs,
+            "CONFIG_MAX_INSTANCES_PER_HOUR",
+            5,
+        ),
         chat_fake_message_preventing: world_config_bool(
             &world_configs,
             "CONFIG_CHAT_FAKE_MESSAGE_PREVENTING",
@@ -9077,6 +9082,7 @@ async fn create_session(
     session.set_server_expansion_like_cpp(resources.server_expansion);
     session.set_instance_ignore_raid_like_cpp(resources.instance_ignore_raid);
     session.set_instance_ignore_level_like_cpp(resources.instance_ignore_level);
+    session.set_max_instances_per_hour_like_cpp(resources.max_instances_per_hour);
     session.set_chat_fake_message_preventing_like_cpp(resources.chat_fake_message_preventing);
     session.set_party_raid_warnings_like_cpp(resources.party_raid_warnings);
     session.set_chat_strict_link_checking_kick_like_cpp(resources.chat_strict_link_checking_kick);
@@ -13619,6 +13625,19 @@ ResetSchedule.WeekDay = 5
             "CONFIG_INSTANCE_IGNORE_LEVEL",
             false
         ));
+    }
+
+    #[test]
+    fn account_instances_per_hour_uses_cpp_world_config_key() {
+        let _guard = TEST_LOCK.lock().expect("test lock poisoned");
+        wow_config::load_config_from_str("AccountInstancesPerHour = 7\n")
+            .expect("config should load");
+
+        let configs = wow_config::load_world_config_values();
+        assert_eq!(
+            world_config_u32(&configs, "CONFIG_MAX_INSTANCES_PER_HOUR", 5),
+            7
+        );
     }
 
     #[test]

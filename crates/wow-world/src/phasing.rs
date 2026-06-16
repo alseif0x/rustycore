@@ -959,6 +959,7 @@ mod tests {
             parent_map_id,
             cosmetic_parent_map_id: -1,
             flags1: 0,
+            flags2: 0,
         }
     }
 

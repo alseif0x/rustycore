@@ -1,6 +1,6 @@
 key	cxx_dist_refs	cxx_dist_defaults	cxx_direct_refs	cxx_direct_defaults	cxx_targets	rust_refs	status	notes
 Account.PasswordChangeSecurity	worldserver:server/worldserver/worldserver.conf.dist:1380	worldserver=0	Int:server/game/World/World.cpp:1608	Int=0	CONFIG_ACC_PASSCHANGESEC		missing_in_rust	-
-AccountInstancesPerHour	worldserver:server/worldserver/worldserver.conf.dist:1371	worldserver=5	Int:server/game/World/World.cpp:1619	Int=5	CONFIG_MAX_INSTANCES_PER_HOUR		missing_in_rust	-
+AccountInstancesPerHour	worldserver:server/worldserver/worldserver.conf.dist:1371	worldserver=5	Int:server/game/World/World.cpp:1619	Int=5	CONFIG_MAX_INSTANCES_PER_HOUR	world_config_u32:crates/world-server/src/main.rs	rust_exact_key	-
 ActivateWeather	worldserver:server/worldserver/worldserver.conf.dist:1009	worldserver=1	Bool:server/game/World/World.cpp:1228	Bool=true	CONFIG_WEATHER		missing_in_rust	-
 AddonChannel	worldserver:server/worldserver/worldserver.conf.dist:509	worldserver=1	Bool:server/game/World/World.cpp:769	Bool=true	CONFIG_ADDON_CHANNEL		missing_in_rust	-
 AllFlightPaths	worldserver:server/worldserver/worldserver.conf.dist:992	worldserver=0	Bool:server/game/World/World.cpp:1110	Bool=false	CONFIG_ALL_TAXI_PATHS		missing_in_rust	-

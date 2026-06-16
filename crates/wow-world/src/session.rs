@@ -729,9 +729,11 @@ const MAX_PACKETS_PER_UPDATE: usize = 100;
 const TRANSFER_ABORT_DIFFICULTY_LIKE_CPP: u32 = 8;
 const TRANSFER_ABORT_ERROR_LIKE_CPP: u32 = 1;
 const TRANSFER_ABORT_MAX_PLAYERS_LIKE_CPP: u32 = 2;
+const TRANSFER_ABORT_TOO_MANY_INSTANCES_LIKE_CPP: u32 = 4;
 const TRANSFER_ABORT_ZONE_IN_COMBAT_LIKE_CPP: u32 = 6;
 const TRANSFER_ABORT_NEED_GROUP_LIKE_CPP: u32 = 11;
 const TRANSFER_ABORT_MAP_NOT_ALLOWED_LIKE_CPP: u32 = 16;
+const HOUR_SECS_LIKE_CPP: u64 = 60 * 60;
 const MAP_BATTLEGROUND_LIKE_CPP: i8 = 3;
 const MAP_ARENA_LIKE_CPP: i8 = 4;
 const GROUP_XP_DISTANCE_LIKE_CPP: f32 = 74.0;
@@ -2956,6 +2958,7 @@ pub struct WorldSession {
     server_expansion_like_cpp: u8,
     instance_ignore_raid_like_cpp: bool,
     instance_ignore_level_like_cpp: bool,
+    max_instances_per_hour_like_cpp: u32,
     pub build: u32,
     pub session_key: Vec<u8>,
     pub locale: String,
@@ -3689,6 +3692,8 @@ pub struct WorldSession {
     pub(crate) rewarded_quests: std::collections::HashSet<u32>,
     /// C++ `Player::HasAchieved`, represented per-session until character achievements are fully loaded.
     pub(crate) represented_completed_achievements_like_cpp: HashSet<u32>,
+    /// C++ `Player::_instanceResetTimes`: instance id -> release time.
+    pub(crate) represented_instance_reset_times_like_cpp: BTreeMap<u32, u64>,
     /// C++ `ActivePlayerData::DailyQuestsCompleted`, represented per-session until full Player runtime owns it.
     pub(crate) daily_quests_completed_like_cpp: HashSet<u32>,
     /// C++ `Player::m_DFQuests`, represented per-session until full Player runtime owns it.
@@ -4570,6 +4575,7 @@ impl WorldSession {
             server_expansion_like_cpp: 2,
             instance_ignore_raid_like_cpp: false,
             instance_ignore_level_like_cpp: false,
+            max_instances_per_hour_like_cpp: 5,
             build,
             session_key,
             locale,
@@ -4946,6 +4952,7 @@ impl WorldSession {
             player_quests: HashMap::new(),
             rewarded_quests: std::collections::HashSet::new(),
             represented_completed_achievements_like_cpp: HashSet::new(),
+            represented_instance_reset_times_like_cpp: BTreeMap::new(),
             daily_quests_completed_like_cpp: HashSet::new(),
             df_quests_like_cpp: HashSet::new(),
             weekly_quests_completed_like_cpp: HashSet::new(),
@@ -7272,6 +7279,27 @@ impl WorldSession {
             }
         }
 
+        if is_dungeon
+            && !bypass_player_cannot_enter_like_cpp
+            && !map_entry.ignores_instance_farm_limit_like_cpp()
+            && let Some(key) = key
+            && !self.check_instance_count_like_cpp(key.instance_id)
+            && self.player_is_alive_like_cpp()
+        {
+            self.send_transfer_aborted_like_cpp(
+                key.map_id,
+                TRANSFER_ABORT_TOO_MANY_INSTANCES_LIKE_CPP,
+            );
+            return Some(wow_map::CreateMapDecision::Reject {
+                side_effects: Vec::new(),
+            });
+        }
+
+        if is_dungeon && let Some(key) = key {
+            let now_secs = u64::try_from(unix_now()).unwrap_or(0);
+            self.add_instance_enter_time_like_cpp(key.instance_id, now_secs);
+        }
+
         let _ = self.apply_create_map_side_effects_like_cpp(map_id, &decision);
 
         if is_dungeon
@@ -7317,6 +7345,34 @@ impl WorldSession {
             map_difficulty_x_condition_id,
             transfer_abort,
         });
+    }
+
+    fn prune_expired_instance_reset_times_like_cpp(&mut self, now_secs: u64) {
+        self.represented_instance_reset_times_like_cpp
+            .retain(|_, release_time| *release_time > now_secs);
+    }
+
+    fn check_instance_count_like_cpp(&mut self, instance_id: u32) -> bool {
+        let now_secs = u64::try_from(unix_now()).unwrap_or(0);
+        self.check_instance_count_at_like_cpp(instance_id, now_secs)
+    }
+
+    fn check_instance_count_at_like_cpp(&mut self, instance_id: u32, now_secs: u64) -> bool {
+        self.prune_expired_instance_reset_times_like_cpp(now_secs);
+        if self.represented_instance_reset_times_like_cpp.len()
+            < self.max_instances_per_hour_like_cpp as usize
+        {
+            return true;
+        }
+
+        self.represented_instance_reset_times_like_cpp
+            .contains_key(&instance_id)
+    }
+
+    pub(crate) fn add_instance_enter_time_like_cpp(&mut self, instance_id: u32, enter_time: u64) {
+        self.represented_instance_reset_times_like_cpp
+            .entry(instance_id)
+            .or_insert(enter_time.saturating_add(HOUR_SECS_LIKE_CPP));
     }
 
     fn access_requirement_abort_like_cpp(
@@ -12943,6 +12999,10 @@ impl WorldSession {
 
     pub fn set_instance_ignore_level_like_cpp(&mut self, ignore: bool) {
         self.instance_ignore_level_like_cpp = ignore;
+    }
+
+    pub fn set_max_instances_per_hour_like_cpp(&mut self, max_instances: u32) {
+        self.max_instances_per_hour_like_cpp = max_instances;
     }
 
     pub fn set_legacy_creature_aggro_config_like_cpp(
@@ -39374,6 +39434,7 @@ mod tests {
             parent_map_id: -1,
             cosmetic_parent_map_id: -1,
             flags1: 0,
+            flags2: 0,
         }
     }
 
@@ -39430,6 +39491,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([DifficultyEntry {
@@ -39689,6 +39751,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([
@@ -39744,6 +39807,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([DifficultyEntry {
@@ -39791,6 +39855,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([DifficultyEntry {
@@ -48559,6 +48624,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
             wow_data::MapEntry {
                 id: 1,
@@ -48567,6 +48633,7 @@ mod tests {
                 parent_map_id: 0,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.set_mount_capability_store(Arc::new(wow_data::MountCapabilityStore::from_entries(
@@ -49539,6 +49606,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -49798,6 +49866,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -53672,6 +53741,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -54052,6 +54122,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -55537,6 +55608,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -55846,6 +55918,7 @@ mod tests {
                 parent_map_id: 571,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -55884,6 +55957,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
             wow_data::MapEntry {
                 id: 571,
@@ -55892,6 +55966,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ]))
     }
@@ -56025,6 +56100,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -56072,6 +56148,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([DifficultyEntry {
@@ -56419,6 +56496,194 @@ mod tests {
             }
             .to_bytes()
         );
+    }
+
+    #[test]
+    fn instance_count_allows_under_limit_and_existing_instance_like_cpp() {
+        let (mut session, _pkt_tx, _send_rx) = make_session();
+        session.set_max_instances_per_hour_like_cpp(5);
+        for instance_id in 100..104 {
+            session.add_instance_enter_time_like_cpp(instance_id, 1_000);
+        }
+
+        assert!(session.check_instance_count_at_like_cpp(200, 1_000));
+        session.add_instance_enter_time_like_cpp(104, 1_000);
+        assert!(session.check_instance_count_at_like_cpp(102, 1_000));
+        assert!(!session.check_instance_count_at_like_cpp(200, 1_000));
+    }
+
+    #[test]
+    fn instance_count_prunes_expired_entries_like_cpp() {
+        let (mut session, _pkt_tx, _send_rx) = make_session();
+        session.set_max_instances_per_hour_like_cpp(2);
+        session
+            .represented_instance_reset_times_like_cpp
+            .insert(1, 10);
+        session
+            .represented_instance_reset_times_like_cpp
+            .insert(2, 5_000);
+
+        assert!(session.check_instance_count_at_like_cpp(3, 20));
+        assert!(
+            !session
+                .represented_instance_reset_times_like_cpp
+                .contains_key(&1)
+        );
+        assert!(
+            session
+                .represented_instance_reset_times_like_cpp
+                .contains_key(&2)
+        );
+    }
+
+    #[test]
+    fn canonical_instance_count_blocks_new_distinct_instance_like_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 89);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "InstanceCap".to_string(),
+            Position::new(3700.0, 1500.0, 120.0, 0.0),
+            631,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.represented_raid_difficulty_id_like_cpp = 3;
+        session.set_max_instances_per_hour_like_cpp(5);
+        install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
+        for instance_id in 100..105 {
+            session
+                .represented_instance_reset_times_like_cpp
+                .insert(instance_id, u64::MAX);
+        }
+
+        assert_eq!(
+            session.ensure_canonical_world_map_for_current_player_like_cpp(),
+            Some(wow_map::CreateMapDecision::Reject {
+                side_effects: Vec::new()
+            })
+        );
+        assert_eq!(
+            send_rx.try_recv().expect("too many instances abort"),
+            wow_packet::packets::misc::TransferAborted {
+                map_id: 631,
+                arg: 0,
+                map_difficulty_x_condition_id: 0,
+                transfer_abort: TRANSFER_ABORT_TOO_MANY_INSTANCES_LIKE_CPP,
+            }
+            .to_bytes()
+        );
+    }
+
+    #[test]
+    fn canonical_instance_count_allows_dead_player_like_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 90);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "DeadInstanceCap".to_string(),
+            Position::new(3700.0, 1500.0, 120.0, 0.0),
+            631,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.represented_raid_difficulty_id_like_cpp = 3;
+        session.set_player_alive_like_cpp(false);
+        session.set_max_instances_per_hour_like_cpp(1);
+        install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
+        session
+            .represented_instance_reset_times_like_cpp
+            .insert(100, u64::MAX);
+
+        assert!(matches!(
+            session.ensure_canonical_world_map_for_current_player_like_cpp(),
+            Some(wow_map::CreateMapDecision::Create { .. })
+        ));
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn canonical_instance_count_honors_ignore_farm_limit_flag_like_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 91);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "IgnoreFarmLimit".to_string(),
+            Position::new(3700.0, 1500.0, 120.0, 0.0),
+            631,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.represented_raid_difficulty_id_like_cpp = 3;
+        session.set_max_instances_per_hour_like_cpp(1);
+        install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 631,
+                instance_type: wow_data::map::MAP_RAID,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: wow_data::map::MAP_FLAG2_IGNORE_INSTANCE_FARM_LIMIT,
+            },
+        ])));
+        session
+            .represented_instance_reset_times_like_cpp
+            .insert(100, u64::MAX);
+
+        assert!(matches!(
+            session.ensure_canonical_world_map_for_current_player_like_cpp(),
+            Some(wow_map::CreateMapDecision::Create { .. })
+        ));
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn canonical_instance_entry_records_enter_time_like_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 92);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "InstanceEnterTime".to_string(),
+            Position::new(3700.0, 1500.0, 120.0, 0.0),
+            631,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.represented_raid_difficulty_id_like_cpp = 3;
+        install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
+
+        assert!(matches!(
+            session.ensure_canonical_world_map_for_current_player_like_cpp(),
+            Some(wow_map::CreateMapDecision::Create { key, .. }) if key.instance_id != 0
+        ));
+        assert!(
+            session
+                .represented_instance_reset_times_like_cpp
+                .contains_key(&1)
+        );
+        assert!(send_rx.try_recv().is_err());
     }
 
     #[test]
@@ -57259,6 +57524,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -57328,6 +57594,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -57385,6 +57652,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -57869,6 +58137,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         configure_two_player_group_for_reputation_test(&mut session, player_guid, other_guid);
@@ -57921,6 +58190,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         configure_two_player_group_for_reputation_test(&mut session, player_guid, other_guid);
@@ -58189,6 +58459,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.set_lfg_dungeons_store(Arc::new(wow_data::LfgDungeonsStore::from_entries([
@@ -58701,6 +58972,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
             wow_data::MapEntry {
                 id: 609,
@@ -58709,6 +58981,7 @@ mod tests {
                 parent_map_id: 571,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ]));
         let terrain_swap_store = Arc::new(wow_data::TerrainSwapStore::from_rows_like_cpp(
@@ -58829,6 +59102,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
             wow_data::MapEntry {
                 id: 609,
@@ -58837,6 +59111,7 @@ mod tests {
                 parent_map_id: 571,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ]));
         let terrain_swap_store = Arc::new(wow_data::TerrainSwapStore::from_rows_like_cpp(
@@ -59739,6 +60014,7 @@ mod tests {
             parent_map_id: -1,
             cosmetic_parent_map_id: -1,
             flags1: 0,
+            flags2: 0,
         }]))
     }
 
@@ -60585,6 +60861,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         register_test_creature(&mut session, manager.clone(), guid, 40);
@@ -61037,6 +61314,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -61095,6 +61373,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -63297,6 +63576,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -63407,6 +63687,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -64369,6 +64650,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -66079,6 +66361,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -66156,6 +66439,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -66227,6 +66511,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -66302,6 +66587,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -66378,6 +66664,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -66747,6 +67034,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -66806,6 +67094,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -66882,6 +67171,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -67000,6 +67290,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -67084,6 +67375,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -67161,6 +67453,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -67230,6 +67523,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -67280,6 +67574,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -67357,6 +67652,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -67436,6 +67732,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -67517,6 +67814,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -67585,6 +67883,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -67662,6 +67961,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -67742,6 +68042,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -67822,6 +68123,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -67905,6 +68207,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -67974,6 +68277,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -68043,6 +68347,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -68170,6 +68475,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -68265,6 +68571,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -68321,6 +68628,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -68366,6 +68674,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -68429,6 +68738,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -68505,6 +68815,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -68581,6 +68892,7 @@ mod tests {
             parent_map_id: -1,
             cosmetic_parent_map_id: -1,
             flags1: 0,
+            flags2: 0,
         }]));
 
         canonical.lock().unwrap().create_world_map(571, 0);
@@ -68663,6 +68975,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -68747,6 +69060,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -68839,6 +69153,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -68930,6 +69245,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -69066,6 +69382,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -69152,6 +69469,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -69221,6 +69539,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -69282,6 +69601,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -69375,6 +69695,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -69447,6 +69768,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -69534,6 +69856,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -69627,6 +69950,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -69708,6 +70032,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -69754,6 +70079,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -69806,6 +70132,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -69860,6 +70187,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -69909,6 +70237,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -69948,6 +70277,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -70017,6 +70347,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -70082,6 +70413,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -70175,6 +70507,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -70259,6 +70592,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -70363,6 +70697,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -70436,6 +70771,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         let mut player_phase = PhaseShift::default();
@@ -70527,6 +70863,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -70608,6 +70945,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -70684,6 +71022,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -70759,6 +71098,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -70811,6 +71151,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -76238,6 +76579,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -77729,6 +78071,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -89932,6 +90275,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
 
@@ -89977,6 +90321,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
 
@@ -90041,6 +90386,7 @@ mod tests {
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
+                flags2: 0,
             },
         ])));
 
