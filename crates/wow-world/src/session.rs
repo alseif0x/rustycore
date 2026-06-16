@@ -3660,10 +3660,17 @@ pub struct WorldSession {
     move_spline_done_taxi_events_like_cpp: Vec<MoveSplineDoneTaxiEventLikeCpp>,
     /// C++ `Unit::m_movementCounter` equivalent for same-map `SMSG_MOVE_TELEPORT`.
     near_teleport_movement_sequence_like_cpp: u32,
+    /// C++ `Player::m_bCanDelayTeleport`, represented around update-owned work.
+    represented_can_delay_teleport_like_cpp: bool,
+    /// C++ `Player::m_bHasDelayedTeleport`, represented for same-map near teleports.
+    represented_has_delayed_teleport_like_cpp: bool,
     /// C++ `Player::mSemaphoreTeleport_Near` represented state.
     near_teleport_pending_like_cpp: bool,
     /// C++ `Player::m_teleport_dest` represented state for near teleports.
     near_teleport_destination_like_cpp: Option<(u16, wow_core::Position)>,
+    /// Saved same-map `TeleportTo` arguments while `m_bHasDelayedTeleport` is set.
+    represented_delayed_near_teleport_like_cpp:
+        Option<(u32, wow_core::Position, TeleportToOptionsLikeCpp)>,
     /// Represented zone/area for the pending near-teleport destination.
     near_teleport_destination_zone_area_like_cpp: Option<(u32, u32)>,
     /// C++ `Player::m_homebind` / `m_homebindAreaId` represented until
@@ -4971,8 +4978,11 @@ impl WorldSession {
             player_area_id_like_cpp: 0,
             move_spline_done_taxi_events_like_cpp: Vec::new(),
             near_teleport_movement_sequence_like_cpp: 0,
+            represented_can_delay_teleport_like_cpp: false,
+            represented_has_delayed_teleport_like_cpp: false,
             near_teleport_pending_like_cpp: false,
             near_teleport_destination_like_cpp: None,
+            represented_delayed_near_teleport_like_cpp: None,
             near_teleport_destination_zone_area_like_cpp: None,
             represented_homebind_like_cpp: None,
             represented_resurrection_request_like_cpp: None,
@@ -19602,6 +19612,7 @@ impl WorldSession {
         // calls DoMeleeAttackIfReady before Map::Update runs ObjectUpdater.
         if self.state == SessionState::LoggedIn {
             self.update_pvp_flag_like_cpp(wow_entities::game_time_secs_like_cpp());
+            self.represented_can_delay_teleport_like_cpp = true;
             // Read the tick owner once; the lock is taken and released inside
             // runtime_tick_owner_like_cpp before any tick work begins.
             let owner = self.runtime_tick_owner_like_cpp();
@@ -19617,6 +19628,8 @@ impl WorldSession {
             if self.creature_tick % 4 == 0 {
                 self.tick_auras();
             }
+            self.represented_can_delay_teleport_like_cpp = false;
+            self.process_represented_delayed_near_teleport_after_update_like_cpp();
         }
 
         // ── Periodic TimeSyncRequest ──────────────────────────────
@@ -22530,6 +22543,17 @@ impl WorldSession {
         destination: wow_core::Position,
         options: TeleportToOptionsLikeCpp,
     ) {
+        self.represented_has_delayed_teleport_like_cpp =
+            self.represented_can_delay_teleport_like_cpp;
+        if self.represented_has_delayed_teleport_like_cpp {
+            let map_id_u16 = u16::try_from(map_id).unwrap_or(self.player_map_id_like_cpp());
+            self.near_teleport_pending_like_cpp = true;
+            self.near_teleport_destination_like_cpp = Some((map_id_u16, destination));
+            self.near_teleport_destination_zone_area_like_cpp = None;
+            self.represented_delayed_near_teleport_like_cpp = Some((map_id, destination, options));
+            return;
+        }
+
         self.unsummon_represented_pet_for_same_map_teleport_if_out_of_range_like_cpp(
             destination,
             options,
@@ -22579,6 +22603,24 @@ impl WorldSession {
             ),
             "Player same-map near teleport initiated; awaiting MoveTeleportAck"
         );
+    }
+
+    fn process_represented_delayed_near_teleport_after_update_like_cpp(&mut self) -> bool {
+        if !self.represented_has_delayed_teleport_like_cpp || !self.player_is_alive_like_cpp() {
+            return false;
+        }
+
+        let Some((map_id, destination, options)) =
+            self.represented_delayed_near_teleport_like_cpp.take()
+        else {
+            self.represented_has_delayed_teleport_like_cpp = false;
+            return false;
+        };
+
+        self.represented_can_delay_teleport_like_cpp = false;
+        self.represented_has_delayed_teleport_like_cpp = false;
+        self.initiate_same_map_near_teleport_like_cpp(map_id, destination, options);
+        true
     }
 
     fn unsummon_represented_pet_for_same_map_teleport_if_out_of_range_like_cpp(
@@ -32407,6 +32449,23 @@ impl WorldSession {
         self.near_teleport_pending_like_cpp = pending;
         self.near_teleport_destination_like_cpp = destination;
         self.near_teleport_destination_zone_area_like_cpp = zone_area;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_represented_can_delay_teleport_like_cpp(&mut self, can_delay: bool) {
+        self.represented_can_delay_teleport_like_cpp = can_delay;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_has_delayed_teleport_like_cpp(&self) -> bool {
+        self.represented_has_delayed_teleport_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_delayed_near_teleport_like_cpp(
+        &self,
+    ) -> Option<(u32, wow_core::Position, TeleportToOptionsLikeCpp)> {
+        self.represented_delayed_near_teleport_like_cpp
     }
 
     pub(crate) fn near_teleport_pending_like_cpp(&self) -> bool {
@@ -66211,6 +66270,128 @@ mod tests {
         assert_eq!(session.pending_teleport, None);
         assert_ne!(session.state, SessionState::Transfer);
         assert_eq!(session.fall_information_like_cpp(), (0, source.z));
+    }
+
+    #[tokio::test]
+    async fn teleport_to_same_map_delays_when_can_delay_teleport_is_set_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 824);
+        let pet_guid = ObjectGuid::create_world_object(HighGuid::Pet, 0, 1, 571, 0, 500, 824);
+        let creature_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 7_824, 1);
+        let source = Position::new(10.0, 20.0, 30.0, 0.0);
+        let destination = Position::new(
+            10.0 + wow_entities::DEFAULT_VISIBILITY_DISTANCE + 25.0,
+            20.0,
+            30.0,
+            4.2,
+        );
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 1,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.expansion = 1;
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "NearTeleportDelayed".to_string(),
+            source,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map(&canonical, player_guid, source, 571, 0);
+        add_canonical_test_pet(&canonical, pet_guid, player_guid, 500, source, 0);
+        session.set_represented_pet_mode_state_like_cpp(
+            Some(pet_guid),
+            wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP,
+            wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP,
+        );
+        session.combat_target = Some(creature_guid);
+        session.in_combat = true;
+        session.set_represented_can_delay_teleport_like_cpp(true);
+
+        session.teleport_to(571, destination).await;
+
+        assert!(
+            send_rx.try_recv().is_err(),
+            "C++ delayed same-map branch stores m_teleport_dest/options and returns before SendTeleportPacket"
+        );
+        assert!(session.near_teleport_pending_like_cpp());
+        assert!(session.represented_has_delayed_teleport_like_cpp());
+        assert_eq!(
+            session.represented_delayed_near_teleport_like_cpp(),
+            Some((571, destination, TELE_TO_NONE_LIKE_CPP))
+        );
+        assert_eq!(
+            session.temporary_pet_unsummon_requests_like_cpp(),
+            0,
+            "C++ returns before the same-map pet distance branch while delayed"
+        );
+        assert!(
+            session.in_combat,
+            "C++ returns before CombatStop while delayed"
+        );
+    }
+
+    #[tokio::test]
+    async fn update_processes_alive_delayed_same_map_teleport_like_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 825);
+        let source = Position::new(10.0, 20.0, 30.0, 0.0);
+        let destination = Position::new(124.0, 224.0, 54.0, 4.3);
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 1,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.expansion = 1;
+        session.state = SessionState::LoggedIn;
+        session.socket_timeout_deadline_like_cpp = Instant::now() + Duration::from_secs(60);
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "NearTeleportDelayedUpdate".to_string(),
+            source,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_player_health_like_cpp(100, 100);
+        session.in_combat = true;
+        session.set_represented_can_delay_teleport_like_cpp(true);
+        session.teleport_to(571, destination).await;
+        assert!(send_rx.try_recv().is_err());
+
+        session.update(50);
+        assert_eq!(session.state, SessionState::LoggedIn);
+        assert!(!session.represented_has_delayed_teleport_like_cpp());
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::CancelCombat, ServerOpcodes::MoveTeleport]
+        );
+        assert!(!session.represented_has_delayed_teleport_like_cpp());
+        assert_eq!(session.represented_delayed_near_teleport_like_cpp(), None);
+        assert!(!session.in_combat);
+        assert!(session.near_teleport_pending_like_cpp());
     }
 
     #[tokio::test]

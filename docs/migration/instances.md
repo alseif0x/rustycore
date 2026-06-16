@@ -441,9 +441,9 @@ NOTE: `InstanceSaveMgr` no longer exists as a separate class in this WoLK 3.4.3 
   `MovementPackets.cpp:705-724`, `MovementHandler.cpp:263-324`.
   Remaining gaps: transport/vehicle payloads, full real-pet temporary unsummon
   state/DB removal beyond the represented request counter, full
-  `ResurrectPlayer` side effects beyond represented health/powers, delayed
-  teleport semaphores, install/restart, bot, and live-client validation remain
-  pending.
+  `ResurrectPlayer` side effects beyond represented health/powers, delayed far
+  teleports/quest-reward activation, install/restart, bot, and live-client
+  validation remain pending.
 - `#NEXT.RUNTIME.L3.031j91` adds the represented nearby-player fanout half of
   C++ `Unit::SendTeleportPacket`: `SMSG_MOVE_UPDATE_TELEPORT` now serializes
   the C++ `MoveUpdateTeleport::Write` field order for the represented
@@ -459,8 +459,8 @@ NOTE: `InstanceSaveMgr` no longer exists as a separate class in this WoLK 3.4.3 
   Remaining gaps: transport/vehicle offsets and GUID payloads, movement forces,
   optional speed payloads, full real-pet temporary unsummon state/DB removal
   beyond the represented request counter, full `ResurrectPlayer` side effects
-  beyond represented health/powers, delayed teleport semaphores,
-  install/restart, bot, and live-client validation remain pending.
+  beyond represented health/powers, delayed far teleports/quest-reward
+  activation, install/restart, bot, and live-client validation remain pending.
 - `#NEXT.RUNTIME.L3.031j92` ports the same-map
   `TELE_REVIVE_AT_TELEPORT` branch from C++ `Player::TeleportTo`: a dead
   represented player now runs the local `ResurrectPlayer(0.5f)` state update
@@ -474,8 +474,8 @@ NOTE: `InstanceSaveMgr` no longer exists as a separate class in this WoLK 3.4.3 
   zone/visibility refresh, outdoor-PvP/BG callbacks, item obtain spell recasts,
   resurrection sickness, full real-pet temporary unsummon state/DB removal
   beyond the represented request counter, transport/vehicle payloads, delayed
-  teleport semaphores, install/restart, bot, and live-client validation remain
-  pending.
+  far teleports/quest-reward activation, install/restart, bot, and live-client
+  validation remain pending.
 - `#NEXT.RUNTIME.L3.031j93` ports the same-map pet distance gate from C++
   `Player::TeleportTo`: unless `TELE_TO_NOT_UNSUMMON_PET` is set, a represented
   pet with a canonical map record now requests temporary unsummon only when its
@@ -488,8 +488,24 @@ NOTE: `InstanceSaveMgr` no longer exists as a separate class in this WoLK 3.4.3 
   `Player.h:801`.
   Remaining gaps: real `UnsummonPetTemporaryIfAny` internals
   (`m_temporaryUnsummonedPetNumber`, `m_oldpetspell`, `RemovePet(PET_SAVE_AS_CURRENT)`,
-  DB/current-pet state), transport/vehicle payloads, delayed teleport
-  semaphores, install/restart, bot, and live-client validation remain pending.
+  DB/current-pet state), transport/vehicle payloads, delayed far
+  teleports/quest-reward activation, install/restart, bot, and live-client
+  validation remain pending.
+- `#NEXT.RUNTIME.L3.031j94` represents the C++ same-map delayed-teleport
+  semaphore path. While `Player::m_bCanDelayTeleport` is represented as active,
+  same-map `TeleportTo` now sets `m_bHasDelayedTeleport`, marks the near
+  semaphore, stores `m_teleport_dest`/`m_teleport_options`, and returns before
+  pet unsummon, revive, combat stop, fall reset, fanout, or
+  `SMSG_MOVE_TELEPORT`. `WorldSession::update` opens the represented
+  `CanDelayTeleport` window around its player/unit update work, closes it, and
+  replays a saved same-map teleport only for alive players, matching the C++
+  `Player::Update` delayed-execution guard. Refs: `Player.cpp:933-935`,
+  `Player.cpp:1154-1155`, `Player.cpp:1306-1318`, `Player.h:2185-2189`,
+  `Player.h:3095-3098`.
+  Remaining gaps: delayed far teleport replay, `RewardQuest`-scoped
+  `SetCanDelayTeleport(true/false)`, full real-pet temporary unsummon internals,
+  transport/vehicle payloads, install/restart, bot, and live-client validation
+  remain pending.
 
 **Tests existing:**
 - `cargo test -p wow-instances -- --nocapture` currently covers 19 focused tests, including C++-contrasted lock key/binding, daily/weekly reset anchors, temporary lock creation, active lock lookup, temp promotion, expired-lock replacement, DB row reconstruction, shared weak-ref cleanup, prepared-statement parameter order, flex-mask join rejection, different-instance rejection, and reset in-use guard.
