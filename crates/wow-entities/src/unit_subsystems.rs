@@ -1323,6 +1323,7 @@ pub struct CombatSubsystem {
     pub attackers: HashSet<ObjectGuid>,
     pub attacking_guid: Option<ObjectGuid>,
     pub last_damaged_target_guid: Option<ObjectGuid>,
+    pub extra_attacks_targets: HashMap<ObjectGuid, u32>,
     pub combat_disallowed: bool,
 }
 
@@ -1342,6 +1343,7 @@ impl Default for CombatSubsystem {
             attackers: HashSet::new(),
             attacking_guid: None,
             last_damaged_target_guid: None,
+            extra_attacks_targets: HashMap::new(),
             combat_disallowed: false,
         }
     }
@@ -1806,6 +1808,19 @@ impl CombatSubsystem {
 
     pub fn set_last_damaged_target_like_cpp(&mut self, target: Option<ObjectGuid>) {
         self.last_damaged_target_guid = target;
+    }
+
+    pub fn add_extra_attacks_for_like_cpp(&mut self, target: ObjectGuid, count: u32) -> u32 {
+        let entry = self.extra_attacks_targets.entry(target).or_insert(0);
+        *entry = entry.saturating_add(count);
+        *entry
+    }
+
+    pub fn extra_attacks_for_like_cpp(&self, target: ObjectGuid) -> u32 {
+        self.extra_attacks_targets
+            .get(&target)
+            .copied()
+            .unwrap_or_default()
     }
 }
 

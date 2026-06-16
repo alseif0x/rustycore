@@ -1,3 +1,18 @@
+- `#NEXT.RUNTIME.L3.031j45` — WotLK represented `Spell::EffectAddExtraAttacks` state storage for
+  current canonical player targets (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:1165`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellEffects.cpp:3629-3639`, and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:437-448,2248-2268`.
+  Rust already named `SPELL_EFFECT_ADD_EXTRA_ATTACKS = 19`; this slice now dispatches the direct
+  represented effect for the current canonical player target and adds canonical unit storage
+  equivalent to `Unit::AddExtraAttacks`: queue by `last_damaged_target_guid` first, then current
+  selection, otherwise no-op. The represented queue saturates on overflow instead of wrapping the
+  `uint32` count. Coverage: targeted spell tests cover selected-target storage, last-damaged target
+  precedence, and no-target no-op; `wow-entities` unit coverage verifies the fallback and saturation
+  storage semantics. Boundary remains partial: current canonical player target only, no generic
+  `unitTarget`, no `_lastExtraAttackSpell`/proc-chain integration, no melee update consumption via
+  `HandleProcExtraAttackFor`, no `ExecuteLogEffectExtraAttacks` / combat-log packet parity, no
+  install/restart, bot, or live-client/manual validation.
 - `#NEXT.RUNTIME.L3.031j44` — WotLK represented `Spell::EffectPowerDrain` and
   `Spell::EffectPowerBurn` for current canonical player targets (not manual-test-ready).
   Source-of-truth:

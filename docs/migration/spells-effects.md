@@ -464,7 +464,16 @@ Numerados como `#SPELLS-EFFECTS.N` para referencia desde `MIGRATION_ROADMAP.md`.
 - [ ] **#SPELLS-EFFECTS.16** Implementar `EffectHealPct`, `EffectHealMechanical`, `EffectHealMaxHealth` (L)
 - [ ] **#SPELLS-EFFECTS.17** Implementar `EffectInstaKill` con SMSG_SPELL_INSTAKILL_LOG (L)
 - [ ] **#SPELLS-EFFECTS.18** Implementar `EffectEnvironmentalDMG` (lava, fall, drown — bypass resistance) (L)
-- [ ] **#SPELLS-EFFECTS.19** Implementar `EffectAddExtraAttacks` (set m_extraAttacks) (L)
+- [~] **#SPELLS-EFFECTS.19** Implementar `EffectAddExtraAttacks` (set m_extraAttacks) (L)
+  - `EffectAddExtraAttacks` (`SPELL_EFFECT_ADD_EXTRA_ATTACKS = 19`) is
+    represented-partial for the current canonical player target: Rust stores
+    C++ `Unit::AddExtraAttacks` state on the canonical unit, using
+    `last_damaged_target_guid` first and current selection as fallback. The
+    represented store saturates queued counts instead of wrapping on overflow.
+    Remaining: generic `unitTarget` support, `_lastExtraAttackSpell` /
+    proc-chain integration, melee update consumption via
+    `HandleProcExtraAttackFor`, `ExecuteLogEffectExtraAttacks`, and combat-log
+    packet parity.
 - [ ] **#SPELLS-EFFECTS.20** Implementar `EffectWeaponDmg`, `EffectWeaponDmgNoSchool`, `EffectNormalizedWeaponDmg`, `EffectWeaponDmgPct` (4 variantes) (H)
 - [ ] **#SPELLS-EFFECTS.21** Implementar `EffectKnockBack` y `EffectKnockBackDest` con `MotionMaster::move_knockback_from` + SMSG_MOVE_KNOCK_BACK (M)
 - [ ] **#SPELLS-EFFECTS.22** Implementar `EffectJump` y `EffectJumpDest` con `MotionMaster::move_jump` (M)
@@ -714,7 +723,7 @@ Numerados como `#SPELLS-EFFECTS.N` para referencia desde `MIGRATION_ROADMAP.md`.
 **`wow-spell` crate effects implemented.** **0 of ~151 in this crate.** Represented handlers
 that currently live in `wow-world::WorldSession` are tracked in §9 and in the handoff; this
 historical scan only proves that the standalone `wow-spell` engine remains empty:
-- Damage offensive: `EffectSchoolDMG`, `EffectEnvironmentalDMG`, `EffectWeaponDmg` (+ NoSchool/Normalized/Pct variants), `EffectAddExtraAttacks` — none; `EffectPowerDrain`, `EffectHealthLeech`, `EffectInstaKill` — represented-partial.
+- Damage offensive: `EffectSchoolDMG`, `EffectEnvironmentalDMG`, `EffectWeaponDmg` (+ NoSchool/Normalized/Pct variants) — none; `EffectPowerDrain`, `EffectHealthLeech`, `EffectInstaKill`, `EffectAddExtraAttacks` — represented-partial.
 - Heal: `EffectHeal`, `EffectHealPct`, `EffectHealMechanical`, `EffectHealMaxHealth` — none.
 - Power: `EffectEnergize`, `EffectEnergizePct`, `EffectPowerDrain`, `EffectPowerBurn` — represented-partial.
 - Aura: `EffectApplyAura`, `EffectApplyAreaAura*` (6 variants), `EffectPersistentAA` — none.

@@ -34782,6 +34782,12 @@ impl WorldSession {
                     self.apply_heal_pct_like_cpp(direct_effect_base_points, target_guid)
                         .await?;
                 }
+                x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_ADD_EXTRA_ATTACKS => {
+                    self.apply_add_extra_attacks_effect_like_cpp(
+                        direct_effect_base_points,
+                        target_guid,
+                    );
+                }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_POWER_DRAIN => {
                     self.apply_power_drain_effect_like_cpp(
                         direct_effect_base_points,
@@ -35060,6 +35066,7 @@ impl WorldSession {
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL_MECHANICAL
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL_MAX_HEALTH
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL_PCT
+                || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_ADD_EXTRA_ATTACKS
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_POWER_DRAIN
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_ENERGIZE
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_ENERGIZE_PCT
@@ -36773,6 +36780,33 @@ impl WorldSession {
         }
 
         drained > 0
+    }
+
+    /// C++ `Spell::EffectAddExtraAttacks`.
+    ///
+    /// Represented boundary: current canonical player target only. This stores
+    /// C++ `Unit::AddExtraAttacks` state on the target unit; consuming the
+    /// queued extra swings during melee update and combat-log emission remains
+    /// outside this bounded slice.
+    fn apply_add_extra_attacks_effect_like_cpp(
+        &mut self,
+        damage: i32,
+        target_guid: ObjectGuid,
+    ) -> bool {
+        let Some(player_guid) = self.player_guid() else {
+            return false;
+        };
+        if target_guid != player_guid || !self.player_alive_like_cpp {
+            return false;
+        }
+        let count = damage as u32;
+        self.mutate_canonical_player_like_cpp(|player| {
+            player
+                .unit_mut()
+                .add_extra_attacks_like_cpp(count)
+                .is_some()
+        })
+        .unwrap_or(false)
     }
 
     async fn apply_health_leech_like_cpp(
@@ -58133,6 +58167,163 @@ mod tests {
             85,
             "represented boundary uses drained amount as PowerBurn damage until CalcValueMultiplier is ported"
         );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_add_extra_attacks_effect_records_selected_target_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 799_i32;
+        let player_guid = ObjectGuid::create_player(1, 799);
+        let selected_target = test_creature_guid(18_799);
+        configure_self_resurrect_canonical_player_like_cpp(&mut session, player_guid, 100, 100);
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.unit_mut().set_target(selected_target);
+            })
+            .unwrap();
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_ADD_EXTRA_ATTACKS,
+                    effect_base_points: 2,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("represented EffectAddExtraAttacks should execute");
+
+        let extra_attacks = session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.unit().extra_attacks_for_like_cpp(selected_target)
+            })
+            .unwrap();
+        assert_eq!(extra_attacks, 2);
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_add_extra_attacks_prefers_last_damaged_target_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 800_i32;
+        let player_guid = ObjectGuid::create_player(1, 800);
+        let selected_target = test_creature_guid(18_800);
+        let last_damaged_target = test_creature_guid(18_801);
+        configure_self_resurrect_canonical_player_like_cpp(&mut session, player_guid, 100, 100);
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.unit_mut().set_target(selected_target);
+                player
+                    .unit_mut()
+                    .set_last_damaged_target_like_cpp(Some(last_damaged_target));
+            })
+            .unwrap();
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_ADD_EXTRA_ATTACKS,
+                effect_base_points: 3,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: Vec::new(),
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("represented primary EffectAddExtraAttacks should execute");
+
+        let (selected_extra, last_damaged_extra) = session
+            .mutate_canonical_player_like_cpp(|player| {
+                (
+                    player.unit().extra_attacks_for_like_cpp(selected_target),
+                    player
+                        .unit()
+                        .extra_attacks_for_like_cpp(last_damaged_target),
+                )
+            })
+            .unwrap();
+        assert_eq!(selected_extra, 0);
+        assert_eq!(last_damaged_extra, 3);
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_add_extra_attacks_without_target_is_noop_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 801_i32;
+        let player_guid = ObjectGuid::create_player(1, 801);
+        let selected_target = test_creature_guid(18_802);
+        configure_self_resurrect_canonical_player_like_cpp(&mut session, player_guid, 100, 100);
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_ADD_EXTRA_ATTACKS,
+                effect_base_points: 2,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: Vec::new(),
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("target-less represented EffectAddExtraAttacks should execute as C++ no-op");
+
+        let extra_attacks = session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.unit().extra_attacks_for_like_cpp(selected_target)
+            })
+            .unwrap();
+        assert_eq!(extra_attacks, 0);
         assert_eq!(
             drain_server_opcodes(&send_rx),
             vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]

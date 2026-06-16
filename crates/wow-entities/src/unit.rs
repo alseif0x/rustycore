@@ -1043,6 +1043,32 @@ impl Unit {
             .set_last_damaged_target_like_cpp(target);
     }
 
+    /// C++ `Unit::AddExtraAttacks`.
+    ///
+    /// The target bucket is `_lastDamagedTargetGuid` first, then current
+    /// selection (`UNIT_FIELD_TARGET`), otherwise the call is a no-op.
+    pub fn add_extra_attacks_like_cpp(&mut self, count: u32) -> Option<ObjectGuid> {
+        let target = self.last_damaged_target_like_cpp().unwrap_or_else(|| {
+            let selected = self.data().target;
+            if selected.is_empty() {
+                ObjectGuid::EMPTY
+            } else {
+                selected
+            }
+        });
+        if target.is_empty() {
+            return None;
+        }
+        self.subsystems
+            .combat
+            .add_extra_attacks_for_like_cpp(target, count);
+        Some(target)
+    }
+
+    pub fn extra_attacks_for_like_cpp(&self, target: ObjectGuid) -> u32 {
+        self.subsystems.combat.extra_attacks_for_like_cpp(target)
+    }
+
     pub fn attack_like_cpp(
         &mut self,
         victim_guid: ObjectGuid,
@@ -2015,6 +2041,7 @@ mod tests {
         assert_eq!(unit.subsystems().combat.current_victim_guid, None);
         assert_eq!(unit.subsystems().combat.fixate_guid, None);
         assert!(unit.subsystems().combat.attackers.is_empty());
+        assert!(unit.subsystems().combat.extra_attacks_targets.is_empty());
         assert_eq!(unit.subsystems().combat.attacking_guid, None);
         assert!(!unit.subsystems().combat.combat_disallowed);
         assert_eq!(
@@ -2037,6 +2064,32 @@ mod tests {
         assert!(!unit.subsystems().ai.locked);
         assert!(!unit.subsystems().ai.scheduled_change_pending);
         assert!(!unit.unit_data_changes_mask().is_any_set());
+    }
+
+    #[test]
+    fn add_extra_attacks_uses_last_damaged_then_selection_like_cpp() {
+        let mut unit = Unit::new(true);
+        let selected = ObjectGuid::new(7, 11);
+        let last_damaged = ObjectGuid::new(7, 12);
+
+        assert_eq!(unit.add_extra_attacks_like_cpp(2), None);
+
+        unit.set_target(selected);
+        assert_eq!(unit.add_extra_attacks_like_cpp(2), Some(selected));
+        assert_eq!(unit.extra_attacks_for_like_cpp(selected), 2);
+
+        unit.set_last_damaged_target_like_cpp(Some(last_damaged));
+        assert_eq!(unit.add_extra_attacks_like_cpp(3), Some(last_damaged));
+        assert_eq!(unit.extra_attacks_for_like_cpp(selected), 2);
+        assert_eq!(unit.extra_attacks_for_like_cpp(last_damaged), 3);
+
+        unit.set_last_damaged_target_like_cpp(None);
+        assert_eq!(unit.add_extra_attacks_like_cpp(u32::MAX), Some(selected));
+        assert_eq!(
+            unit.extra_attacks_for_like_cpp(selected),
+            u32::MAX,
+            "represented storage saturates instead of wrapping the queued count"
+        );
     }
 
     #[test]
