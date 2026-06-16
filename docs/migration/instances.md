@@ -840,7 +840,11 @@ Complejidad: **L** (low, <1h), **M** (med, 1-4h), **H** (high, 4-12h), **XL** (>
 - La conversión replica `Player::_LoadPetStable`: slots activos (`0..5`) a `active_pets`, slots de establo (`5..205`) a `stabled_pets`, `PET_SAVE_NOT_IN_SLOT` a `unslotted_pets`, descartando slots inválidos/deleted.
 - Si `summonedPetNumber` de `CHAR_SEL_CHARACTER` apunta a una pet cargada, Rust marca `m_temporaryUnsummonedPetNumber` representado igual que C++ para que el resummon post-teleport pueda usar datos reales de `character_pet` en vez de una stable inyectada por tests.
 
+**Cerrado en Rust (`#NEXT.RUNTIME.L3.031j102`):**
+- El login carga `pet_spell` para el `summonedPetNumber` representado usando la statement C++ `CHAR_SEL_PET_SPELL` (`SELECT spell, active FROM pet_spell WHERE guid = ?`).
+- El resummon representado aplica esas filas al `Pet` canónico mínimo con la misma forma de C++ `_LoadSpells`: `addSpell(spell, ActiveStates(active), PETSPELL_UNCHANGED)`. En Rust queda mapeado a `Pet::add_spell(..., PetSpellState::Unchanged, PetSpellType::Normal)`, conservando autocast para `ActiveState::Enabled`.
+
 **Límites honestos:**
-- No es todavía `Pet::LoadPetFromDB` real: aunque `character_pet` ya alimenta la stable representada, faltan aplicar action bar al pet vivo, spells, auras, cooldowns, happiness/focus exactos, save mode, deleted slot handling y persistencia completa de `character_pet`.
+- No es todavía `Pet::LoadPetFromDB` real: aunque `character_pet` y `pet_spell` ya alimentan el resummon representado, faltan aplicar action bar al pet vivo, auras, cooldowns/charges, declined names, happiness/focus exactos, save mode, deleted slot handling y persistencia completa de `character_pet`.
 - El gate de vuelo avanzado C++ `MOVEMENTFLAG3_ADV_FLYING` no está cubierto porque no hay campo equivalente representado en `WorldSession`; añadirlo cuando se porte `MovementInfo::flags2/flags3` completo.
 - Falta validar live con cliente/bot que la pet reaparece visualmente tras worldport/near teleport y que los paquetes de create/update son suficientes.

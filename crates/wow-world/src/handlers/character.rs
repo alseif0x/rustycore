@@ -51,7 +51,7 @@ use wow_packet::{ClientPacket, WorldPacket};
 use crate::handlers::quest::RepresentedQuestGiverStatusSourceLikeCpp;
 use crate::reputation::mgr::CharacterReputationRowLikeCpp;
 use crate::session::{
-    CharacterPetStableRowLikeCpp, PER_CHARACTER_CACHE_MASK_LIKE_CPP,
+    CharacterPetSpellRowLikeCpp, CharacterPetStableRowLikeCpp, PER_CHARACTER_CACHE_MASK_LIKE_CPP,
     RepresentedAlterAppearanceLikeCpp, RepresentedBankItemMoveLikeCpp,
     RepresentedConfirmBarbersChoiceLikeCpp, RepresentedGameObjectUseState,
 };
@@ -3326,6 +3326,40 @@ impl WorldSession {
                         player_guid = guid.counter(),
                         %error,
                         "failed to load represented character_pet rows"
+                    );
+                }
+            }
+        }
+        if summoned_pet_number != 0 {
+            let mut pet_spell_stmt = char_db.prepare(CharStatements::SEL_PET_SPELL);
+            pet_spell_stmt.set_u32(0, summoned_pet_number);
+            match char_db.query(&pet_spell_stmt).await {
+                Ok(mut spells_result) => {
+                    let mut rows = Vec::new();
+                    if !spells_result.is_empty() {
+                        loop {
+                            rows.push(CharacterPetSpellRowLikeCpp {
+                                spell_id: spells_result.try_read::<u32>(0).unwrap_or(0),
+                                active: spells_result.try_read::<u8>(1).unwrap_or(0),
+                            });
+                            if !spells_result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    let loaded =
+                        self.load_represented_pet_spell_rows_like_cpp(summoned_pet_number, rows);
+                    trace!(
+                        player_guid = guid.counter(),
+                        summoned_pet_number, loaded, "loaded represented pet_spell rows like C++"
+                    );
+                }
+                Err(error) => {
+                    warn!(
+                        player_guid = guid.counter(),
+                        summoned_pet_number,
+                        %error,
+                        "failed to load represented pet_spell rows"
                     );
                 }
             }

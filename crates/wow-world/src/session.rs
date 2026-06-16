@@ -103,24 +103,24 @@ use wow_database::{
     SqlTransaction, StatementDef, WorldDatabase,
 };
 use wow_entities::{
-    AccessorObjectKind, ApplyEnchantmentArgs, ApplyEnchantmentEffectRef, ApplyEnchantmentPlan,
-    ApplyEnchantmentRandomSuffixRef, ApplyEnchantmentTemplateRef, BANK_SLOT_BAG_END,
-    BANK_SLOT_BAG_START, BUYBACK_SLOT_COUNT, BUYBACK_SLOT_END, BUYBACK_SLOT_START, BagTemplateRef,
-    CanStoreItemArgs, CanUnequipItemArgs, CanUseItemArgs, CanUseItemTemplateArgs,
-    EQUIPMENT_SLOT_BACK, EQUIPMENT_SLOT_BODY, EQUIPMENT_SLOT_CHEST, EQUIPMENT_SLOT_END,
-    EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_HANDS, EQUIPMENT_SLOT_HEAD, EQUIPMENT_SLOT_LEGS,
-    EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND, EQUIPMENT_SLOT_SHOULDERS,
+    AccessorObjectKind, ActiveState, ApplyEnchantmentArgs, ApplyEnchantmentEffectRef,
+    ApplyEnchantmentPlan, ApplyEnchantmentRandomSuffixRef, ApplyEnchantmentTemplateRef,
+    BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_COUNT, BUYBACK_SLOT_END,
+    BUYBACK_SLOT_START, BagTemplateRef, CanStoreItemArgs, CanUnequipItemArgs, CanUseItemArgs,
+    CanUseItemTemplateArgs, EQUIPMENT_SLOT_BACK, EQUIPMENT_SLOT_BODY, EQUIPMENT_SLOT_CHEST,
+    EQUIPMENT_SLOT_END, EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_HANDS, EQUIPMENT_SLOT_HEAD,
+    EQUIPMENT_SLOT_LEGS, EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND, EQUIPMENT_SLOT_SHOULDERS,
     EQUIPMENT_SLOT_TABARD, EQUIPMENT_SLOT_WAIST, EQUIPMENT_SLOT_WRISTS, GAMEOBJECT_TYPE_GUILD_BANK,
     GameObject, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END,
     INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, ITEM_DATA_BITS, ITEM_DATA_DURABILITY_BIT,
     Item, ItemCreateInfo, ItemDataUpdate, ItemLimitCategoryTemplate, ItemPosCount, ItemSlotRef,
     ItemStorageRef, ItemStorageTemplate, ItemValuesUpdate, MAX_BAG_SIZE, MAX_ITEM_SPELLS,
-    MAX_MONEY_AMOUNT, MAX_POWERS, NULL_BAG, NULL_SLOT, ObjectAccessor, PLAYER_SLOT_END, PhaseShift,
-    Pet, PetSaveMode, PetStable, PetStableInfo, PetType, Player, PlayerEnchantTimeUpdate,
-    PlayerInventoryStorage, PlayerItemTimeUpdate, ReactState,
+    MAX_MONEY_AMOUNT, MAX_POWERS, NULL_BAG, NULL_SLOT, ObjectAccessor, PLAYER_SLOT_END, Pet,
+    PetSaveMode, PetSpellState, PetSpellType, PetStable, PetStableInfo, PetType, PhaseShift,
+    Player, PlayerEnchantTimeUpdate, PlayerInventoryStorage, PlayerItemTimeUpdate,
     QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE, REAGENT_BAG_SLOT_END,
-    REAGENT_BAG_SLOT_START, SendNewItemDelivery, SendNewItemDisplayText, SendNewItemPlan,
-    TYPEID_ITEM, UNIT_DATA_HEALTH_BIT, Unit, UnitDataUpdate, UnitDataValues,
+    REAGENT_BAG_SLOT_START, ReactState, SendNewItemDelivery, SendNewItemDisplayText,
+    SendNewItemPlan, TYPEID_ITEM, UNIT_DATA_HEALTH_BIT, Unit, UnitDataUpdate, UnitDataValues,
     UnitVisibilityDetectionStateLikeCpp, UpdateMask, Vehicle, VehicleAccessory, VisibleItemValues,
     WorldObject, is_bag_pos, is_equipment_packed_pos, is_inventory_pos, make_item_pos,
 };
@@ -333,6 +333,16 @@ const fn pet_type_from_db_like_cpp(value: u8) -> PetType {
     }
 }
 
+const fn active_state_from_db_like_cpp(value: u8) -> ActiveState {
+    match value {
+        0x00 => ActiveState::Decide,
+        0x01 => ActiveState::Passive,
+        0x81 => ActiveState::Disabled,
+        0xC1 => ActiveState::Enabled,
+        _ => ActiveState::Disabled,
+    }
+}
+
 #[derive(Debug, Clone)]
 struct RepresentedPreparedQuestMenuItemLikeCpp {
     quest: wow_data::quest::QuestTemplate,
@@ -359,6 +369,12 @@ pub(crate) struct CharacterPetStableRowLikeCpp {
     pub created_by_spell_id: u32,
     pub pet_type: u8,
     pub specialization_id: u16,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct CharacterPetSpellRowLikeCpp {
+    pub spell_id: u32,
+    pub active: u8,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -3655,6 +3671,8 @@ pub struct WorldSession {
     represented_old_pet_spell_like_cpp: u32,
     /// Represented `character_pet`/stable rows until `Pet::LoadPetFromDB` is wired to DB.
     represented_pet_stable_like_cpp: PetStable,
+    /// Represented `pet_spell` rows keyed by pet number until `PetLoadQueryHolder` is live.
+    represented_pet_spells_like_cpp: HashMap<u32, Vec<CharacterPetSpellRowLikeCpp>>,
     /// Represented `Pet::m_unitData->CreatedBySpell` for the active pet until UnitData owns it.
     represented_pet_created_by_spell_like_cpp: u32,
     /// Represented current pet react state for C++ mount/dismount PetMode side effects.
@@ -5002,6 +5020,7 @@ impl WorldSession {
             represented_temporary_unsummoned_pet_number_like_cpp: 0,
             represented_old_pet_spell_like_cpp: 0,
             represented_pet_stable_like_cpp: PetStable::default(),
+            represented_pet_spells_like_cpp: HashMap::new(),
             represented_pet_created_by_spell_like_cpp: 0,
             represented_pet_react_state_like_cpp:
                 wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP,
@@ -24243,6 +24262,22 @@ impl WorldSession {
         loaded
     }
 
+    pub(crate) fn load_represented_pet_spell_rows_like_cpp(
+        &mut self,
+        pet_number: u32,
+        rows: impl IntoIterator<Item = CharacterPetSpellRowLikeCpp>,
+    ) -> usize {
+        let spells: Vec<_> = rows.into_iter().filter(|row| row.spell_id != 0).collect();
+        let loaded = spells.len();
+        if loaded == 0 {
+            self.represented_pet_spells_like_cpp.remove(&pet_number);
+        } else {
+            self.represented_pet_spells_like_cpp
+                .insert(pet_number, spells);
+        }
+        loaded
+    }
+
     #[cfg(test)]
     pub(crate) fn represented_temporary_unsummoned_pet_number_like_cpp(&self) -> u32 {
         self.represented_temporary_unsummoned_pet_number_like_cpp
@@ -25071,7 +25106,9 @@ impl WorldSession {
     fn is_pet_need_be_temporary_unsummoned_like_cpp(&self) -> bool {
         !self.player_is_in_world_for_registry_like_cpp()
             || !self.player_alive_like_cpp
-            || self.player_movement_flags_like_cpp.contains(MovementFlag::FLYING)
+            || self
+                .player_movement_flags_like_cpp
+                .contains(MovementFlag::FLYING)
     }
 
     pub(crate) fn resummon_pet_temporary_unsummoned_if_any_like_cpp(&mut self) {
@@ -25131,12 +25168,12 @@ impl WorldSession {
                 .unit_mut()
                 .world_mut()
                 .set_map(map_id, instance_id);
-            pet.creature_mut()
-                .unit_mut()
-                .world_mut()
-                .relocate(position);
+            pet.creature_mut().unit_mut().world_mut().relocate(position);
             if !info.name.is_empty() {
-                pet.creature_mut().unit_mut().world_mut().set_name(info.name);
+                pet.creature_mut()
+                    .unit_mut()
+                    .world_mut()
+                    .set_name(info.name);
             }
             if info.display_id != 0 {
                 pet.creature_mut()
@@ -25165,6 +25202,16 @@ impl WorldSession {
                 .control
                 .init_charm_info()
                 .pet_number = pet_number;
+            if let Some(spells) = self.represented_pet_spells_like_cpp.get(&pet_number) {
+                for spell in spells {
+                    pet.add_spell(
+                        spell.spell_id,
+                        active_state_from_db_like_cpp(spell.active),
+                        PetSpellState::Unchanged,
+                        PetSpellType::Normal,
+                    );
+                }
+            }
 
             let manager = self.canonical_map_manager.as_ref().map(Arc::clone)?;
             let mut manager = manager.lock().ok()?;
@@ -65848,7 +65895,10 @@ mod tests {
         assert_eq!(active.created_by_spell_id, 9_001);
         assert_eq!(active.specialization_id, 2);
 
-        assert_eq!(session.represented_pet_stable_like_cpp.stabled_pets.len(), 4);
+        assert_eq!(
+            session.represented_pet_stable_like_cpp.stabled_pets.len(),
+            4
+        );
         assert_eq!(
             session.represented_pet_stable_like_cpp.stabled_pets[3]
                 .as_ref()
@@ -65912,6 +65962,35 @@ mod tests {
     }
 
     #[test]
+    fn load_represented_pet_spell_rows_filters_zero_spell_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+
+        let loaded = session.load_represented_pet_spell_rows_like_cpp(
+            42,
+            [
+                CharacterPetSpellRowLikeCpp {
+                    spell_id: 0,
+                    active: ActiveState::Enabled as u8,
+                },
+                CharacterPetSpellRowLikeCpp {
+                    spell_id: 123,
+                    active: ActiveState::Enabled as u8,
+                },
+            ],
+        );
+
+        assert_eq!(loaded, 1);
+        assert_eq!(
+            session
+                .represented_pet_spells_like_cpp
+                .get(&42)
+                .and_then(|spells| spells.first())
+                .map(|spell| spell.spell_id),
+            Some(123)
+        );
+    }
+
+    #[test]
     fn resummon_pet_temporary_unsummoned_loads_represented_stable_pet_like_cpp() {
         let (mut session, _, _send_rx) = make_session();
         let canonical = shared_canonical_map_manager();
@@ -65930,9 +66009,21 @@ mod tests {
         ));
         add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
         session.represented_temporary_unsummoned_pet_number_like_cpp = 42;
-        session.set_represented_pet_stable_like_cpp(represented_hunter_pet_stable_like_cpp(
-            42, 500,
-        ));
+        session
+            .set_represented_pet_stable_like_cpp(represented_hunter_pet_stable_like_cpp(42, 500));
+        session.load_represented_pet_spell_rows_like_cpp(
+            42,
+            [
+                CharacterPetSpellRowLikeCpp {
+                    spell_id: 1_234,
+                    active: ActiveState::Enabled as u8,
+                },
+                CharacterPetSpellRowLikeCpp {
+                    spell_id: 5_678,
+                    active: ActiveState::Disabled as u8,
+                },
+            ],
+        );
 
         session.resummon_pet_temporary_unsummoned_if_any_like_cpp();
 
@@ -65956,6 +66047,10 @@ mod tests {
         assert_eq!(pet.creature().entry(), 500);
         assert_eq!(pet.creature().unit().data().level, 80);
         assert_eq!(pet.creature().unit().data().health, 345);
+        assert!(pet.has_spell(1_234));
+        assert!(pet.has_spell(5_678));
+        assert_eq!(pet.get_pet_auto_spell_on_pos(0), 1_234);
+        assert_eq!(pet.get_pet_auto_spell_size(), 1);
         assert_eq!(
             pet.creature()
                 .unit()
@@ -65972,9 +66067,8 @@ mod tests {
     fn resummon_pet_temporary_unsummoned_waits_while_player_dead_like_cpp() {
         let (mut session, _, _send_rx) = make_session();
         session.represented_temporary_unsummoned_pet_number_like_cpp = 42;
-        session.set_represented_pet_stable_like_cpp(represented_hunter_pet_stable_like_cpp(
-            42, 500,
-        ));
+        session
+            .set_represented_pet_stable_like_cpp(represented_hunter_pet_stable_like_cpp(42, 500));
         session.set_player_alive_like_cpp(false);
 
         session.resummon_pet_temporary_unsummoned_if_any_like_cpp();
@@ -65991,9 +66085,8 @@ mod tests {
     fn resummon_pet_temporary_unsummoned_waits_while_player_flying_like_cpp() {
         let (mut session, _, _send_rx) = make_session();
         session.represented_temporary_unsummoned_pet_number_like_cpp = 42;
-        session.set_represented_pet_stable_like_cpp(represented_hunter_pet_stable_like_cpp(
-            42, 500,
-        ));
+        session
+            .set_represented_pet_stable_like_cpp(represented_hunter_pet_stable_like_cpp(42, 500));
         session.set_player_movement_flags_like_cpp(MovementFlag::FLYING);
 
         session.resummon_pet_temporary_unsummoned_if_any_like_cpp();
@@ -66025,9 +66118,8 @@ mod tests {
         ));
         add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
         session.represented_temporary_unsummoned_pet_number_like_cpp = 42;
-        session.set_represented_pet_stable_like_cpp(represented_hunter_pet_stable_like_cpp(
-            99, 500,
-        ));
+        session
+            .set_represented_pet_stable_like_cpp(represented_hunter_pet_stable_like_cpp(99, 500));
 
         session.resummon_pet_temporary_unsummoned_if_any_like_cpp();
 
