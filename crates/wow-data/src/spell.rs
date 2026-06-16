@@ -727,6 +727,198 @@ pub struct SpellThreatLoadOutcomeLikeCpp {
     pub errors: Vec<SpellThreatLoadErrorLikeCpp>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum SpellLinkedTypeLikeCpp {
+    Cast,
+    Hit,
+    Aura,
+    Remove,
+}
+
+impl SpellLinkedTypeLikeCpp {
+    pub fn from_u8_like_cpp(value: u8) -> Option<Self> {
+        match value {
+            0 => Some(Self::Cast),
+            1 => Some(Self::Hit),
+            2 => Some(Self::Aura),
+            3 => Some(Self::Remove),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpellLinkedRowLikeCpp {
+    pub spell_trigger: i32,
+    pub spell_effect: i32,
+    pub link_type: u8,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpellLinkedSpellInfoLikeCpp {
+    /// Precomputed C++ `SpellEffectInfo::CalcValue()` values paired with
+    /// `EffectIndex`. Rust does not have full CalcValue yet, so callers must
+    /// pass authoritative values when this warning needs exact parity.
+    pub effect_calc_values_by_index: Vec<(u32, i32)>,
+}
+
+impl SpellLinkedSpellInfoLikeCpp {
+    pub fn from_represented_spell_info_base_points(spell_info: &SpellInfo) -> Self {
+        Self {
+            effect_calc_values_by_index: spell_info
+                .effects()
+                .iter()
+                .map(|effect| (effect.effect_index, effect.effect_base_points))
+                .collect(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpellLinkedLoadErrorKindLikeCpp {
+    TriggerSpellMissing,
+    EffectSpellMissing,
+    InvalidLinkType,
+    SelfTriggerLoop,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpellLinkedLoadErrorLikeCpp {
+    pub row: SpellLinkedRowLikeCpp,
+    pub kind: SpellLinkedLoadErrorKindLikeCpp,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpellLinkedLoadWarningKindLikeCpp {
+    TriggerEffectSameBasePoint { effect_index: u32 },
+    NegativeTriggerLinkTypeCoercedToRemove,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpellLinkedLoadWarningLikeCpp {
+    pub row: SpellLinkedRowLikeCpp,
+    pub kind: SpellLinkedLoadWarningKindLikeCpp,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SpellLinkedStoreLikeCpp {
+    pub effects_by_type_and_trigger: BTreeMap<(SpellLinkedTypeLikeCpp, u32), Vec<i32>>,
+}
+
+impl SpellLinkedStoreLikeCpp {
+    pub fn from_rows_like_cpp<I, SpellLookup>(
+        rows: I,
+        mut spell_lookup: SpellLookup,
+    ) -> SpellLinkedLoadOutcomeLikeCpp
+    where
+        I: IntoIterator<Item = SpellLinkedRowLikeCpp>,
+        SpellLookup: FnMut(u32) -> Option<SpellLinkedSpellInfoLikeCpp>,
+    {
+        let mut store = Self::default();
+        let mut loaded_row_count = 0;
+        let mut errors = Vec::new();
+        let mut warnings = Vec::new();
+
+        for row in rows {
+            let trigger_spell_id = row.spell_trigger.unsigned_abs();
+            let effect_spell_id = row.spell_effect.unsigned_abs();
+            let Some(trigger_spell) = spell_lookup(trigger_spell_id) else {
+                errors.push(SpellLinkedLoadErrorLikeCpp {
+                    row,
+                    kind: SpellLinkedLoadErrorKindLikeCpp::TriggerSpellMissing,
+                });
+                continue;
+            };
+
+            if row.spell_effect >= 0 {
+                for (effect_index, calc_value) in trigger_spell.effect_calc_values_by_index {
+                    if calc_value == row.spell_effect.abs() {
+                        warnings.push(SpellLinkedLoadWarningLikeCpp {
+                            row: row.clone(),
+                            kind: SpellLinkedLoadWarningKindLikeCpp::TriggerEffectSameBasePoint {
+                                effect_index,
+                            },
+                        });
+                    }
+                }
+            }
+
+            if spell_lookup(effect_spell_id).is_none() {
+                errors.push(SpellLinkedLoadErrorLikeCpp {
+                    row,
+                    kind: SpellLinkedLoadErrorKindLikeCpp::EffectSpellMissing,
+                });
+                continue;
+            }
+
+            let Some(mut link_type) = SpellLinkedTypeLikeCpp::from_u8_like_cpp(row.link_type)
+            else {
+                errors.push(SpellLinkedLoadErrorLikeCpp {
+                    row,
+                    kind: SpellLinkedLoadErrorKindLikeCpp::InvalidLinkType,
+                });
+                continue;
+            };
+
+            let trigger_key = if row.spell_trigger < 0 {
+                if link_type != SpellLinkedTypeLikeCpp::Cast {
+                    warnings.push(SpellLinkedLoadWarningLikeCpp {
+                        row: row.clone(),
+                        kind: SpellLinkedLoadWarningKindLikeCpp::NegativeTriggerLinkTypeCoercedToRemove,
+                    });
+                }
+                link_type = SpellLinkedTypeLikeCpp::Remove;
+                trigger_spell_id
+            } else {
+                row.spell_trigger as u32
+            };
+
+            if link_type != SpellLinkedTypeLikeCpp::Aura
+                && trigger_key <= i32::MAX as u32
+                && trigger_key as i32 == row.spell_effect
+            {
+                errors.push(SpellLinkedLoadErrorLikeCpp {
+                    row,
+                    kind: SpellLinkedLoadErrorKindLikeCpp::SelfTriggerLoop,
+                });
+                continue;
+            }
+
+            store
+                .effects_by_type_and_trigger
+                .entry((link_type, trigger_key))
+                .or_default()
+                .push(row.spell_effect);
+            loaded_row_count += 1;
+        }
+
+        SpellLinkedLoadOutcomeLikeCpp {
+            store,
+            loaded_row_count,
+            errors,
+            warnings,
+        }
+    }
+
+    pub fn get_spell_linked_like_cpp(
+        &self,
+        link_type: SpellLinkedTypeLikeCpp,
+        spell_id: u32,
+    ) -> Option<&[i32]> {
+        self.effects_by_type_and_trigger
+            .get(&(link_type, spell_id))
+            .map(Vec::as_slice)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpellLinkedLoadOutcomeLikeCpp {
+    pub store: SpellLinkedStoreLikeCpp,
+    pub loaded_row_count: usize,
+    pub errors: Vec<SpellLinkedLoadErrorLikeCpp>,
+    pub warnings: Vec<SpellLinkedLoadWarningLikeCpp>,
+}
+
 impl SpellInfo {
     /// Convenience: returns the effective cooldown (per-spell or global, whichever is larger).
     pub fn effective_cooldown_ms(&self) -> u32 {
@@ -2305,6 +2497,188 @@ mod tests {
         assert_eq!(
             outcome.store.get_spell_threat_entry_like_cpp(43, |_| 43),
             None
+        );
+    }
+
+    #[test]
+    fn spell_linked_store_skips_missing_trigger_and_effect_like_cpp() {
+        let outcome = SpellLinkedStoreLikeCpp::from_rows_like_cpp(
+            [
+                SpellLinkedRowLikeCpp {
+                    spell_trigger: 100,
+                    spell_effect: 200,
+                    link_type: 0,
+                },
+                SpellLinkedRowLikeCpp {
+                    spell_trigger: 300,
+                    spell_effect: 400,
+                    link_type: 0,
+                },
+            ],
+            |spell_id| match spell_id {
+                100 => Some(SpellLinkedSpellInfoLikeCpp {
+                    effect_calc_values_by_index: Vec::new(),
+                }),
+                _ => None,
+            },
+        );
+
+        assert_eq!(outcome.loaded_row_count, 0);
+        assert_eq!(
+            outcome
+                .errors
+                .iter()
+                .map(|error| error.kind)
+                .collect::<Vec<_>>(),
+            vec![
+                SpellLinkedLoadErrorKindLikeCpp::EffectSpellMissing,
+                SpellLinkedLoadErrorKindLikeCpp::TriggerSpellMissing,
+            ]
+        );
+        assert!(outcome.store.effects_by_type_and_trigger.is_empty());
+    }
+
+    #[test]
+    fn spell_linked_store_preserves_signed_effects_and_push_order_like_cpp() {
+        let outcome = SpellLinkedStoreLikeCpp::from_rows_like_cpp(
+            [
+                SpellLinkedRowLikeCpp {
+                    spell_trigger: 10,
+                    spell_effect: 20,
+                    link_type: 1,
+                },
+                SpellLinkedRowLikeCpp {
+                    spell_trigger: 10,
+                    spell_effect: -30,
+                    link_type: 1,
+                },
+            ],
+            |_| {
+                Some(SpellLinkedSpellInfoLikeCpp {
+                    effect_calc_values_by_index: Vec::new(),
+                })
+            },
+        );
+
+        assert_eq!(outcome.loaded_row_count, 2);
+        assert!(outcome.errors.is_empty());
+        assert_eq!(
+            outcome
+                .store
+                .get_spell_linked_like_cpp(SpellLinkedTypeLikeCpp::Hit, 10),
+            Some([20, -30].as_slice())
+        );
+    }
+
+    #[test]
+    fn spell_linked_store_negative_trigger_forces_remove_like_cpp() {
+        let outcome = SpellLinkedStoreLikeCpp::from_rows_like_cpp(
+            [SpellLinkedRowLikeCpp {
+                spell_trigger: -50,
+                spell_effect: 60,
+                link_type: 1,
+            }],
+            |_| {
+                Some(SpellLinkedSpellInfoLikeCpp {
+                    effect_calc_values_by_index: Vec::new(),
+                })
+            },
+        );
+
+        assert_eq!(outcome.loaded_row_count, 1);
+        assert!(outcome.errors.is_empty());
+        assert_eq!(outcome.warnings.len(), 1);
+        assert_eq!(
+            outcome.warnings[0].kind,
+            SpellLinkedLoadWarningKindLikeCpp::NegativeTriggerLinkTypeCoercedToRemove
+        );
+        assert_eq!(
+            outcome
+                .store
+                .get_spell_linked_like_cpp(SpellLinkedTypeLikeCpp::Remove, 50),
+            Some([60].as_slice())
+        );
+    }
+
+    #[test]
+    fn spell_linked_store_invalid_type_and_self_loop_match_cpp() {
+        let outcome = SpellLinkedStoreLikeCpp::from_rows_like_cpp(
+            [
+                SpellLinkedRowLikeCpp {
+                    spell_trigger: 10,
+                    spell_effect: 10,
+                    link_type: 0,
+                },
+                SpellLinkedRowLikeCpp {
+                    spell_trigger: 20,
+                    spell_effect: 20,
+                    link_type: 2,
+                },
+                SpellLinkedRowLikeCpp {
+                    spell_trigger: 30,
+                    spell_effect: 40,
+                    link_type: 9,
+                },
+            ],
+            |_| {
+                Some(SpellLinkedSpellInfoLikeCpp {
+                    effect_calc_values_by_index: Vec::new(),
+                })
+            },
+        );
+
+        assert_eq!(outcome.loaded_row_count, 1);
+        assert_eq!(
+            outcome
+                .errors
+                .iter()
+                .map(|error| error.kind)
+                .collect::<Vec<_>>(),
+            vec![
+                SpellLinkedLoadErrorKindLikeCpp::SelfTriggerLoop,
+                SpellLinkedLoadErrorKindLikeCpp::InvalidLinkType,
+            ]
+        );
+        assert_eq!(
+            outcome
+                .store
+                .get_spell_linked_like_cpp(SpellLinkedTypeLikeCpp::Aura, 20),
+            Some([20].as_slice())
+        );
+    }
+
+    #[test]
+    fn spell_linked_store_same_base_point_warning_does_not_skip_like_cpp() {
+        let outcome = SpellLinkedStoreLikeCpp::from_rows_like_cpp(
+            [SpellLinkedRowLikeCpp {
+                spell_trigger: 70,
+                spell_effect: 12,
+                link_type: 0,
+            }],
+            |spell_id| {
+                if spell_id == 70 {
+                    Some(SpellLinkedSpellInfoLikeCpp {
+                        effect_calc_values_by_index: vec![(2, 12)],
+                    })
+                } else {
+                    Some(SpellLinkedSpellInfoLikeCpp {
+                        effect_calc_values_by_index: Vec::new(),
+                    })
+                }
+            },
+        );
+
+        assert_eq!(outcome.loaded_row_count, 1);
+        assert!(outcome.errors.is_empty());
+        assert_eq!(
+            outcome.warnings[0].kind,
+            SpellLinkedLoadWarningKindLikeCpp::TriggerEffectSameBasePoint { effect_index: 2 }
+        );
+        assert_eq!(
+            outcome
+                .store
+                .get_spell_linked_like_cpp(SpellLinkedTypeLikeCpp::Cast, 70),
+            Some([12].as_slice())
         );
     }
 }

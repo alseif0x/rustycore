@@ -277,6 +277,8 @@ pub enum WorldStatements {
     SEL_SPELL_THREATS,
     /// C++ SpellMgr::LoadSpellEnchantProcData startup query.
     SEL_SPELL_ENCHANT_PROC_DATA,
+    /// C++ SpellMgr::LoadSpellLinked startup query.
+    SEL_SPELL_LINKED,
     /// Load C++ ConditionMgr loot-template conditions.
     /// Args: SourceTypeOrReferenceId (i32), SourceGroup (u32), SourceEntry (u32).
     SEL_LOOT_TEMPLATE_CONDITION_ROWS,
@@ -861,6 +863,9 @@ impl StatementDef for WorldStatements {
             Self::SEL_SPELL_ENCHANT_PROC_DATA => {
                 "SELECT EnchantID, Chance, ProcsPerMinute, HitMask, AttributesMask FROM spell_enchant_proc_data"
             }
+            Self::SEL_SPELL_LINKED => {
+                "SELECT spell_trigger, spell_effect, type FROM spell_linked_spell"
+            }
             Self::SEL_LOOT_TEMPLATE_CONDITION_ROWS => concat!(
                 "SELECT ElseGroup, ConditionTypeOrReference, ConditionTarget, ",
                 "ConditionValue1, ConditionValue2, ConditionValue3, ",
@@ -1162,6 +1167,17 @@ mod tests {
         assert_eq!(
             sql,
             "SELECT EnchantID, Chance, ProcsPerMinute, HitMask, AttributesMask FROM spell_enchant_proc_data"
+        );
+        assert_eq!(sql.matches('?').count(), 0);
+    }
+
+    #[test]
+    fn spell_linked_statement_matches_cpp_sql_exactly() {
+        let sql = WorldStatements::SEL_SPELL_LINKED.sql();
+
+        assert_eq!(
+            sql,
+            "SELECT spell_trigger, spell_effect, type FROM spell_linked_spell"
         );
         assert_eq!(sql.matches('?').count(), 0);
     }

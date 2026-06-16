@@ -307,7 +307,10 @@ pub use spawn_group::{
     SpawnGroupTemplateStore,
 };
 pub use spell::{
-    SPELL_AURA_DUMMY_LIKE_CPP, SpellEffectInfo, SpellInfo, SpellPetAuraLoadErrorKindLikeCpp,
+    SPELL_AURA_DUMMY_LIKE_CPP, SpellEffectInfo, SpellInfo, SpellLinkedLoadErrorKindLikeCpp,
+    SpellLinkedLoadErrorLikeCpp, SpellLinkedLoadOutcomeLikeCpp, SpellLinkedLoadWarningKindLikeCpp,
+    SpellLinkedLoadWarningLikeCpp, SpellLinkedRowLikeCpp, SpellLinkedSpellInfoLikeCpp,
+    SpellLinkedStoreLikeCpp, SpellLinkedTypeLikeCpp, SpellPetAuraLoadErrorKindLikeCpp,
     SpellPetAuraLoadErrorLikeCpp, SpellPetAuraLoadOutcomeLikeCpp, SpellPetAuraRowLikeCpp,
     SpellPetAuraSourceEffectLikeCpp, SpellPetAuraSourceLookupLikeCpp, SpellPetAuraStoreLikeCpp,
     SpellStore, SpellTargetPositionLikeCpp, SpellTargetPositionLoadReportLikeCpp,
