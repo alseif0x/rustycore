@@ -848,6 +848,9 @@ impl MapManager {
                 if let Some(initializer) = spawn_group_initializer_like_cpp {
                     initializer(&mut map);
                 }
+                if instance_id != 0 && (kind.is_dungeon() || kind.is_battleground_or_arena()) {
+                    self.instance_ids.register_instance_id(instance_id);
+                }
                 entry.insert(map)
             }
         }
@@ -3119,6 +3122,22 @@ mod tests {
 
         assert!(manager.find_map(33, 7).is_none());
         assert_eq!(manager.next_instance_id(), 7);
+    }
+
+    #[test]
+    fn create_instanced_map_registers_instance_id_like_cpp() {
+        let mut manager = MapManager::default();
+        manager.create_map_entry(
+            631,
+            1,
+            3,
+            ManagedMapKind::Dungeon {
+                has_reset_schedule: true,
+            },
+        );
+        manager.create_map_entry(489, 2, 0, ManagedMapKind::Battleground);
+
+        assert_eq!(manager.generate_instance_id(), Some(3));
     }
 
     #[test]

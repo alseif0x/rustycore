@@ -39047,6 +39047,32 @@ mod tests {
         ])));
     }
 
+    fn install_create_map_encounter_lock_stores_like_cpp(
+        session: &mut WorldSession,
+        map_id: u32,
+        difficulty_id: u8,
+        lock_id: u8,
+        reset_interval: u8,
+    ) {
+        install_create_map_active_lock_stores_like_cpp(
+            session,
+            map_id,
+            difficulty_id,
+            lock_id,
+            reset_interval,
+        );
+        session.set_map_difficulty_store(Arc::new(MapDifficultyStore::from_entries([
+            MapDifficultyEntry {
+                id: 901,
+                map_id,
+                difficulty_id,
+                lock_id,
+                reset_interval,
+                flags: wow_data::map::MAP_DIFFICULTY_FLAG_USE_LOOT_BASED_LOCK,
+            },
+        ])));
+    }
+
     fn install_active_instance_lock_mgr_like_cpp(
         session: &mut WorldSession,
         owner_guid: ObjectGuid,
@@ -55687,6 +55713,94 @@ mod tests {
         assert_eq!(
             manager.find_map(631, 9001).unwrap().instance_lock_token(),
             Some(expected_token)
+        );
+    }
+
+    #[test]
+    fn canonical_player_dungeon_create_map_regenerates_conflicting_encounter_lock_instance_like_cpp()
+     {
+        let (mut session, _pkt_tx, _send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let owner = ObjectGuid::create_player(1, 66);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            owner,
+            "DungeonConflict".to_string(),
+            Position::new(3700.0, 1500.0, 120.0, 0.0),
+            631,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.represented_raid_difficulty_id_like_cpp = 3;
+        install_create_map_encounter_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
+        let active_token =
+            install_active_instance_lock_mgr_like_cpp(&mut session, owner, 631, 3, 9001);
+
+        {
+            let mut manager = canonical.lock().unwrap();
+            manager.init_instance_ids(9001);
+            for instance_id in 1..=9001 {
+                manager.register_instance_id(instance_id);
+            }
+            manager
+                .create_map_entry(
+                    631,
+                    9001,
+                    3,
+                    wow_map::ManagedMapKind::Dungeon {
+                        has_reset_schedule: true,
+                    },
+                )
+                .set_instance_lock_token(Some(active_token.wrapping_add(1)));
+        }
+
+        let decision = session
+            .ensure_canonical_world_map_for_current_player_like_cpp()
+            .unwrap();
+        let lock_context = session
+            .create_map_active_instance_lock_context_like_cpp(631, 3)
+            .unwrap();
+
+        assert_eq!(
+            decision,
+            wow_map::CreateMapDecision::Create {
+                key: wow_map::MapKey::new(631, 9002),
+                difficulty_id: 3,
+                kind: wow_map::ManagedMapKind::Dungeon {
+                    has_reset_schedule: true,
+                },
+                side_effects: vec![
+                    wow_map::CreateMapSideEffect::SetInstanceLockInstanceId { instance_id: 9002 },
+                    wow_map::CreateMapSideEffect::SetPlayerRecentInstance { instance_id: 9002 },
+                ],
+            }
+        );
+        assert_eq!(lock_context.instance_id, 9002);
+        assert_eq!(
+            session.represented_player_recent_instance_id_like_cpp(631),
+            9002
+        );
+
+        let manager = canonical.lock().unwrap();
+        assert_eq!(
+            manager.find_map(631, 9001).unwrap().instance_lock_token(),
+            Some(active_token.wrapping_add(1))
+        );
+        assert_eq!(
+            manager.find_map(631, 9002).unwrap().instance_lock_token(),
+            Some(lock_context.token)
+        );
+        assert!(
+            manager
+                .find_map(631, 9002)
+                .unwrap()
+                .map()
+                .get_typed_player(owner)
+                .is_some(),
+            "player snapshot should enter the regenerated instance map"
         );
     }
 

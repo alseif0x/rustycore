@@ -1,3 +1,19 @@
+- `#NEXT.RUNTIME.L3.031j69` — WotLK live-session dungeon `CreateMap`
+  now has regression coverage for the C++ existing-map encounter-lock conflict branch,
+  and the canonical map manager marks created instanced-map ids as allocated (not
+  manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Maps/MapManager.cpp:205-216`
+  and `/home/server/woltk-trinity-legacy/src/server/game/Maps/MapManager.cpp:380-429`.
+  C++ finds the already-created map for the chosen instance id, compares its
+  `InstanceMap::GetInstanceLock()` against the active lock when `!entries.IsInstanceIdBound()`,
+  and generates a new instance id plus `InstanceLock::SetInstanceId` on conflict. Rust already
+  performs the same lookup inside `wow_map::MapManager::create_map_decision_like_cpp`; this slice
+  fixes the allocator side so `create_map_entry` registers dungeon/battleground instance ids as
+  occupied, and adds a live-session test proving a conflicting encounter-lock map regenerates the
+  instance id, applies `SetInstanceLockInstanceId`, preserves the old map, creates the new map,
+  stores the new lock token, and syncs the player into the regenerated instance. Boundary remains
+  partial: DB-loaded lock/map persistence, install/restart, bot, and live-client/manual validation
+  remain pending.
 - `#NEXT.RUNTIME.L3.031j68` — WotLK instance-lock reset schedule now comes
   from the C++ world config keys instead of a represented hardcoded default (not
   manual-test-ready). Source-of-truth:
@@ -29,9 +45,9 @@
   canonical_player_dungeon_create_map` tests cover new temporary-lock instance creation and active
   lock reuse, including player insertion into the created dungeon map and lock-token propagation.
   Boundary remains partial: battleground/garrison `CreateMap` still stay blocked, reset schedule
-  config wiring for this path is covered by `#NEXT.RUNTIME.L3.031j68`, `existing_instance_map`
-  external lookup remains a represented no-op, no install/restart, bot, or live-client/manual
-  validation has been done for this path.
+  config wiring for this path is covered by `#NEXT.RUNTIME.L3.031j68`, existing-map
+  encounter-lock conflict coverage is covered by `#NEXT.RUNTIME.L3.031j69`, no install/restart,
+  bot, or live-client/manual validation has been done for this path.
 - `#NEXT.RUNTIME.L3.031j66` — WotLK represented `CreateMap` encounter-lock
   instance-id conflict side effect is now applied in memory (not manual-test-ready).
   Source-of-truth: `/home/server/woltk-trinity-legacy/src/server/game/Maps/MapManager.cpp:211-216`

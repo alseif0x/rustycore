@@ -24006,6 +24006,8 @@ mod tests {
                         can_enter_or_exit: true,
                         usable_by_override: false,
                         can_control: false,
+                        can_switch_from_seat: false,
+                        ejectable: false,
                         disables_gravity: false,
                         passenger_not_selectable: false,
                         keep_pet: false,
