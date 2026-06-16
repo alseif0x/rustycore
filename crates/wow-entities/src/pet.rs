@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use wow_constants::{DeathState, PowerType, UnitFlags};
+use wow_constants::{Class, CreatureType, DeathState, PowerType, UnitFlags};
 use wow_core::ObjectGuid;
 
 use crate::{
@@ -1023,6 +1023,23 @@ impl Pet {
         }
     }
 
+    pub const fn is_permanent_pet_for_like_cpp(
+        pet_type: PetType,
+        owner_class: Class,
+        creature_type: CreatureType,
+    ) -> bool {
+        match pet_type {
+            PetType::Summon => match owner_class {
+                Class::Warlock => matches!(creature_type, CreatureType::Demon),
+                Class::DeathKnight => matches!(creature_type, CreatureType::Undead),
+                Class::Mage => matches!(creature_type, CreatureType::Elemental),
+                _ => false,
+            },
+            PetType::Hunter => true,
+            PetType::Max => false,
+        }
+    }
+
     pub const fn specialization(&self) -> u16 {
         self.pet_specialization
     }
@@ -1833,6 +1850,61 @@ mod tests {
             0.95,
             "C++ divides the middle interpolation by MaxScaleLevel, not by the min-max span"
         );
+    }
+
+    #[test]
+    fn pet_is_permanent_pet_for_matches_cpp_owner_class_and_creature_type() {
+        assert!(Pet::is_permanent_pet_for_like_cpp(
+            PetType::Hunter,
+            Class::Warrior,
+            CreatureType::Critter
+        ));
+        assert!(Pet::is_permanent_pet_for_like_cpp(
+            PetType::Summon,
+            Class::Warlock,
+            CreatureType::Demon
+        ));
+        assert!(Pet::is_permanent_pet_for_like_cpp(
+            PetType::Summon,
+            Class::DeathKnight,
+            CreatureType::Undead
+        ));
+        assert!(Pet::is_permanent_pet_for_like_cpp(
+            PetType::Summon,
+            Class::Mage,
+            CreatureType::Elemental
+        ));
+
+        assert!(
+            !Pet::is_permanent_pet_for_like_cpp(
+                PetType::Summon,
+                Class::Warlock,
+                CreatureType::Elemental
+            ),
+            "C++ requires warlock summon pets to use CREATURE_TYPE_DEMON"
+        );
+        assert!(
+            !Pet::is_permanent_pet_for_like_cpp(
+                PetType::Summon,
+                Class::DeathKnight,
+                CreatureType::Demon
+            ),
+            "C++ requires death knight summon pets to use CREATURE_TYPE_UNDEAD"
+        );
+        assert!(
+            !Pet::is_permanent_pet_for_like_cpp(PetType::Summon, Class::Mage, CreatureType::Demon),
+            "C++ requires mage summon pets to use CREATURE_TYPE_ELEMENTAL"
+        );
+        assert!(!Pet::is_permanent_pet_for_like_cpp(
+            PetType::Summon,
+            Class::Shaman,
+            CreatureType::Elemental
+        ));
+        assert!(!Pet::is_permanent_pet_for_like_cpp(
+            PetType::Max,
+            Class::Hunter,
+            CreatureType::Beast
+        ));
     }
 
     #[test]
