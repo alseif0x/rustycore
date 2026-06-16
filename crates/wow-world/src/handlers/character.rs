@@ -51,9 +51,9 @@ use wow_packet::{ClientPacket, WorldPacket};
 use crate::handlers::quest::RepresentedQuestGiverStatusSourceLikeCpp;
 use crate::reputation::mgr::CharacterReputationRowLikeCpp;
 use crate::session::{
-    PER_CHARACTER_CACHE_MASK_LIKE_CPP, RepresentedAlterAppearanceLikeCpp,
-    RepresentedBankItemMoveLikeCpp, RepresentedConfirmBarbersChoiceLikeCpp,
-    RepresentedGameObjectUseState,
+    CharacterPetStableRowLikeCpp, PER_CHARACTER_CACHE_MASK_LIKE_CPP,
+    RepresentedAlterAppearanceLikeCpp, RepresentedBankItemMoveLikeCpp,
+    RepresentedConfirmBarbersChoiceLikeCpp, RepresentedGameObjectUseState,
 };
 
 // ── Handler registration ────────────────────────────────────────────
@@ -3280,6 +3280,56 @@ impl WorldSession {
             result.try_read::<u32>(67).unwrap_or(0),
             result.try_read::<u32>(68).unwrap_or(0),
         );
+        let summoned_pet_number = result.try_read::<u32>(38).unwrap_or(0);
+        {
+            let mut pets_stmt = char_db.prepare(CharStatements::SEL_CHAR_PETS);
+            pets_stmt.set_u64(0, guid.counter() as u64);
+            match char_db.query(&pets_stmt).await {
+                Ok(mut pets_result) => {
+                    let mut rows = Vec::new();
+                    if !pets_result.is_empty() {
+                        loop {
+                            rows.push(CharacterPetStableRowLikeCpp {
+                                pet_number: pets_result.try_read::<u32>(0).unwrap_or(0),
+                                creature_id: pets_result.try_read::<u32>(1).unwrap_or(0),
+                                display_id: pets_result.try_read::<u32>(2).unwrap_or(0),
+                                level: pets_result.try_read::<u8>(3).unwrap_or(1),
+                                experience: pets_result.try_read::<u32>(4).unwrap_or(0),
+                                react_state: pets_result.try_read::<u8>(5).unwrap_or(0),
+                                slot: pets_result.try_read::<i16>(6).unwrap_or(-1),
+                                name: pets_result.read_string(7),
+                                was_renamed: pets_result.try_read::<bool>(8).unwrap_or(false),
+                                health: pets_result.try_read::<u32>(9).unwrap_or(1),
+                                mana: pets_result.try_read::<u32>(10).unwrap_or(0),
+                                action_bar: pets_result.try_read::<String>(11).unwrap_or_default(),
+                                last_save_time: pets_result.try_read::<u32>(12).unwrap_or(0),
+                                created_by_spell_id: pets_result.try_read::<u32>(13).unwrap_or(0),
+                                pet_type: pets_result.try_read::<u8>(14).unwrap_or(0),
+                                specialization_id: pets_result.try_read::<u16>(15).unwrap_or(0),
+                            });
+                            if !pets_result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    let loaded =
+                        self.load_represented_pet_stable_rows_like_cpp(summoned_pet_number, rows);
+                    trace!(
+                        player_guid = guid.counter(),
+                        summoned_pet_number,
+                        loaded,
+                        "loaded represented character_pet stable rows like C++"
+                    );
+                }
+                Err(error) => {
+                    warn!(
+                        player_guid = guid.counter(),
+                        %error,
+                        "failed to load represented character_pet rows"
+                    );
+                }
+            }
+        }
         self.group_guid = None;
         {
             let mut group_stmt = char_db.prepare(CharStatements::SEL_GROUP_MEMBER);

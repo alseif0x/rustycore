@@ -116,8 +116,8 @@ use wow_entities::{
     Item, ItemCreateInfo, ItemDataUpdate, ItemLimitCategoryTemplate, ItemPosCount, ItemSlotRef,
     ItemStorageRef, ItemStorageTemplate, ItemValuesUpdate, MAX_BAG_SIZE, MAX_ITEM_SPELLS,
     MAX_MONEY_AMOUNT, MAX_POWERS, NULL_BAG, NULL_SLOT, ObjectAccessor, PLAYER_SLOT_END, PhaseShift,
-    Pet, PetStable, PetStableInfo, Player, PlayerEnchantTimeUpdate, PlayerInventoryStorage,
-    PlayerItemTimeUpdate,
+    Pet, PetSaveMode, PetStable, PetStableInfo, PetType, Player, PlayerEnchantTimeUpdate,
+    PlayerInventoryStorage, PlayerItemTimeUpdate, ReactState,
     QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE, REAGENT_BAG_SLOT_END,
     REAGENT_BAG_SLOT_START, SendNewItemDelivery, SendNewItemDisplayText, SendNewItemPlan,
     TYPEID_ITEM, UNIT_DATA_HEALTH_BIT, Unit, UnitDataUpdate, UnitDataValues,
@@ -316,12 +316,49 @@ const QUEST_MENU_ICON_TURN_IN_LIKE_CPP: u8 = 0;
 const QUEST_MENU_ICON_AVAILABLE_LIKE_CPP: u8 = 2;
 const QUEST_MENU_ICON_COMPLETE_LIKE_CPP: u8 = 4;
 
+const fn react_state_from_db_like_cpp(value: u8) -> ReactState {
+    match value {
+        0 => ReactState::Passive,
+        1 => ReactState::Defensive,
+        2 => ReactState::Aggressive,
+        _ => ReactState::Passive,
+    }
+}
+
+const fn pet_type_from_db_like_cpp(value: u8) -> PetType {
+    match value {
+        0 => PetType::Summon,
+        1 => PetType::Hunter,
+        _ => PetType::Max,
+    }
+}
+
 #[derive(Debug, Clone)]
 struct RepresentedPreparedQuestMenuItemLikeCpp {
     quest: wow_data::quest::QuestTemplate,
     quest_icon: u8,
     has_starter_relation: bool,
     has_involved_relation: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct CharacterPetStableRowLikeCpp {
+    pub pet_number: u32,
+    pub creature_id: u32,
+    pub display_id: u32,
+    pub level: u8,
+    pub experience: u32,
+    pub react_state: u8,
+    pub slot: i16,
+    pub name: String,
+    pub was_renamed: bool,
+    pub health: u32,
+    pub mana: u32,
+    pub action_bar: String,
+    pub last_save_time: u32,
+    pub created_by_spell_id: u32,
+    pub pet_type: u8,
+    pub specialization_id: u16,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -24137,9 +24174,73 @@ impl WorldSession {
         self.temporary_mount_pet_react_state_like_cpp = None;
     }
 
-    #[cfg(test)]
     pub(crate) fn set_represented_pet_stable_like_cpp(&mut self, stable: PetStable) {
         self.represented_pet_stable_like_cpp = stable;
+    }
+
+    pub(crate) fn load_represented_pet_stable_rows_like_cpp(
+        &mut self,
+        summoned_pet_number: u32,
+        rows: impl IntoIterator<Item = CharacterPetStableRowLikeCpp>,
+    ) -> usize {
+        let mut stable = PetStable::default();
+        let mut loaded = 0usize;
+
+        for row in rows {
+            let slot = row.slot;
+            let pet_info = PetStableInfo {
+                name: row.name,
+                action_bar: row.action_bar,
+                pet_number: row.pet_number,
+                creature_id: row.creature_id,
+                display_id: row.display_id,
+                experience: row.experience,
+                health: row.health,
+                mana: row.mana,
+                last_save_time: row.last_save_time,
+                created_by_spell_id: row.created_by_spell_id,
+                specialization_id: row.specialization_id,
+                level: row.level,
+                react_state: react_state_from_db_like_cpp(row.react_state),
+                pet_type: pet_type_from_db_like_cpp(row.pet_type),
+                was_renamed: row.was_renamed,
+            };
+
+            if PetSaveMode::is_active_slot(slot) {
+                let index = slot as usize;
+                if stable.active_pets.len() <= index {
+                    stable.active_pets.resize_with(index + 1, || None);
+                }
+                stable.active_pets[index] = Some(pet_info);
+            } else if PetSaveMode::is_stabled_slot(slot) {
+                let index = (slot - PetSaveMode::stable_slot(0)) as usize;
+                if stable.stabled_pets.len() <= index {
+                    stable.stabled_pets.resize_with(index + 1, || None);
+                }
+                stable.stabled_pets[index] = Some(pet_info);
+            } else if slot == PetSaveMode::NotInSlot as i16 {
+                stable.unslotted_pets.push(pet_info);
+            } else {
+                continue;
+            }
+
+            loaded = loaded.saturating_add(1);
+        }
+
+        if Pet::get_load_pet_info(&stable, 0, summoned_pet_number, None).is_some() {
+            stable.current_pet_index = stable
+                .active_pets
+                .iter()
+                .position(|pet| {
+                    pet.as_ref()
+                        .is_some_and(|pet| pet.pet_number == summoned_pet_number)
+                })
+                .map(|index| index as u32);
+            self.represented_temporary_unsummoned_pet_number_like_cpp = summoned_pet_number;
+        }
+
+        self.represented_pet_stable_like_cpp = stable;
+        loaded
     }
 
     #[cfg(test)]
@@ -65685,6 +65786,129 @@ mod tests {
             stabled_pets: Vec::new(),
             unslotted_pets: Vec::new(),
         }
+    }
+
+    fn character_pet_stable_row_like_cpp(
+        pet_number: u32,
+        slot: i16,
+        pet_type: u8,
+    ) -> CharacterPetStableRowLikeCpp {
+        CharacterPetStableRowLikeCpp {
+            pet_number,
+            creature_id: 500 + pet_number,
+            display_id: 12_000 + pet_number,
+            level: 70,
+            experience: 123_456,
+            react_state: 1,
+            slot,
+            name: format!("Pet{pet_number}"),
+            was_renamed: true,
+            health: 345,
+            mana: 67,
+            action_bar: "1 2 3".to_string(),
+            last_save_time: 98_765,
+            created_by_spell_id: 9_001,
+            pet_type,
+            specialization_id: 2,
+        }
+    }
+
+    #[test]
+    fn load_represented_pet_stable_rows_partitions_slots_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+
+        let loaded = session.load_represented_pet_stable_rows_like_cpp(
+            0,
+            [
+                character_pet_stable_row_like_cpp(42, PetSaveMode::active_slot(2), 1),
+                character_pet_stable_row_like_cpp(43, PetSaveMode::stable_slot(3), 1),
+                character_pet_stable_row_like_cpp(44, PetSaveMode::NotInSlot as i16, 0),
+                character_pet_stable_row_like_cpp(45, PetSaveMode::AsDeleted as i16, 1),
+            ],
+        );
+
+        assert_eq!(loaded, 3);
+        assert_eq!(session.represented_pet_stable_like_cpp.active_pets.len(), 3);
+        let active = session.represented_pet_stable_like_cpp.active_pets[2]
+            .as_ref()
+            .expect("active pet slot");
+        assert_eq!(active.pet_number, 42);
+        assert_eq!(active.creature_id, 542);
+        assert_eq!(active.display_id, 12_042);
+        assert_eq!(active.level, 70);
+        assert_eq!(active.experience, 123_456);
+        assert_eq!(active.react_state, ReactState::Defensive);
+        assert_eq!(active.pet_type, PetType::Hunter);
+        assert_eq!(active.name, "Pet42");
+        assert_eq!(active.action_bar, "1 2 3");
+        assert!(active.was_renamed);
+        assert_eq!(active.health, 345);
+        assert_eq!(active.mana, 67);
+        assert_eq!(active.last_save_time, 98_765);
+        assert_eq!(active.created_by_spell_id, 9_001);
+        assert_eq!(active.specialization_id, 2);
+
+        assert_eq!(session.represented_pet_stable_like_cpp.stabled_pets.len(), 4);
+        assert_eq!(
+            session.represented_pet_stable_like_cpp.stabled_pets[3]
+                .as_ref()
+                .map(|pet| pet.pet_number),
+            Some(43)
+        );
+        assert_eq!(
+            session.represented_pet_stable_like_cpp.unslotted_pets[0].pet_number,
+            44
+        );
+        assert_eq!(
+            session.represented_temporary_unsummoned_pet_number_like_cpp(),
+            0
+        );
+    }
+
+    #[test]
+    fn load_represented_pet_stable_rows_sets_temporary_unsummoned_when_summoned_exists_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+
+        let loaded = session.load_represented_pet_stable_rows_like_cpp(
+            42,
+            [
+                character_pet_stable_row_like_cpp(42, PetSaveMode::active_slot(0), 1),
+                character_pet_stable_row_like_cpp(43, PetSaveMode::stable_slot(0), 1),
+            ],
+        );
+
+        assert_eq!(loaded, 2);
+        assert_eq!(
+            session.represented_temporary_unsummoned_pet_number_like_cpp(),
+            42
+        );
+        assert_eq!(
+            session.represented_pet_stable_like_cpp.current_pet_index,
+            Some(0)
+        );
+    }
+
+    #[test]
+    fn load_represented_pet_stable_rows_leaves_temporary_unsummoned_zero_when_missing_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+
+        session.load_represented_pet_stable_rows_like_cpp(
+            99,
+            [character_pet_stable_row_like_cpp(
+                42,
+                PetSaveMode::active_slot(0),
+                1,
+            )],
+        );
+
+        assert_eq!(
+            session.represented_temporary_unsummoned_pet_number_like_cpp(),
+            0
+        );
+        assert_eq!(
+            session.represented_pet_stable_like_cpp.current_pet_index,
+            None
+        );
     }
 
     #[test]
