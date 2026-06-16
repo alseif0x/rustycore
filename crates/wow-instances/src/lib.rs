@@ -254,7 +254,7 @@ pub struct ResetSchedule {
 impl Default for ResetSchedule {
     fn default() -> Self {
         Self {
-            hour: 9,
+            hour: 8,
             week_day: 2,
         }
     }
@@ -1955,6 +1955,17 @@ mod tests {
                 reset_interval: MapDifficultyResetInterval::Daily,
                 is_flex_locking: false,
                 is_using_encounter_locks: true,
+            }
+        );
+    }
+
+    #[test]
+    fn reset_schedule_default_matches_cpp_world_config_defaults() {
+        assert_eq!(
+            ResetSchedule::default(),
+            ResetSchedule {
+                hour: 8,
+                week_day: 2,
             }
         );
     }

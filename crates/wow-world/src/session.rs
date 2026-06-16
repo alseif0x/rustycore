@@ -3804,6 +3804,8 @@ pub struct WorldSession {
     reputation_rates: ReputationRatesLikeCpp,
     /// C++ `sWorld->getRate(RATE_REPAIRCOST)` represented value.
     repair_cost_rate_like_cpp: f32,
+    /// C++ `CONFIG_RESET_SCHEDULE_{HOUR,WEEK_DAY}` consumed by `InstanceLockMgr::GetNextResetTime`.
+    reset_schedule_like_cpp: wow_instances::ResetSchedule,
     /// C++ `ReputationMgr` per-player state foundation.
     reputation_mgr_like_cpp: ReputationMgrLikeCpp,
     /// C++ `ActivePlayerData::WatchedFactionIndex` represented state.
@@ -4989,6 +4991,7 @@ impl WorldSession {
             loot_drop_rates: LootDropRatesLikeCpp::default(),
             reputation_rates: ReputationRatesLikeCpp::default(),
             repair_cost_rate_like_cpp: 1.0,
+            reset_schedule_like_cpp: wow_instances::ResetSchedule::default(),
             reputation_mgr_like_cpp: ReputationMgrLikeCpp::new_like_cpp(),
             watched_faction_index_like_cpp: -1,
             enable_ae_loot_like_cpp: false,
@@ -7265,7 +7268,7 @@ impl WorldSession {
             owner_guid,
             &entries,
             instance_id,
-            wow_instances::ResetSchedule::default(),
+            self.reset_schedule_like_cpp,
             now,
         )?;
         Some(())
@@ -12250,6 +12253,10 @@ impl WorldSession {
 
     pub fn set_repair_cost_rate_like_cpp(&mut self, rate: f32) {
         self.repair_cost_rate_like_cpp = rate.max(0.0);
+    }
+
+    pub fn set_reset_schedule_like_cpp(&mut self, schedule: wow_instances::ResetSchedule) {
+        self.reset_schedule_like_cpp = schedule;
     }
 
     pub(crate) fn repair_cost_rate_like_cpp(&self) -> f32 {

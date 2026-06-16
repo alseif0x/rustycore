@@ -1,3 +1,18 @@
+- `#NEXT.RUNTIME.L3.031j68` — WotLK instance-lock reset schedule now comes
+  from the C++ world config keys instead of a represented hardcoded default (not
+  manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/World/World.cpp:1117-1118`,
+  `/home/server/woltk-trinity-legacy/src/server/worldserver/worldserver.conf.dist:1055-1068`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Instances/InstanceLockMgr.cpp:557-590`.
+  `ResetSchedule::default()` now matches the C++ defaults (`ResetSchedule.Hour = 8`,
+  `ResetSchedule.WeekDay = 2`), `world-server` resolves those keys from `WorldConfigSet`
+  into `SessionResources`, `configure_session_like_cpp` installs the schedule on each
+  `WorldSession`, and `CreateInstanceLockForNewInstance` consumes the session schedule
+  when computing temporary instance-lock expiry. Coverage: targeted `wow-instances`
+  reset-schedule default test and targeted `world-server` config test cover C++ default
+  and override keys. Boundary remains partial: this wires the live-session CreateMap
+  lock path only; existing DB-loaded locks, non-session represented callers, install/restart,
+  bot, and live-client/manual validation remain pending.
 - `#NEXT.RUNTIME.L3.031j67` — WotLK live session `CreateMap` now enters the
   canonical dungeon branch instead of rejecting dungeons at the ensure-map boundary (not
   manual-test-ready). Source-of-truth:
@@ -14,9 +29,9 @@
   canonical_player_dungeon_create_map` tests cover new temporary-lock instance creation and active
   lock reuse, including player insertion into the created dungeon map and lock-token propagation.
   Boundary remains partial: battleground/garrison `CreateMap` still stay blocked, reset schedule
-  still uses represented defaults until config keys are wired, `existing_instance_map` external
-  lookup remains a represented no-op, no install/restart, bot, or live-client/manual validation has
-  been done for this path.
+  config wiring for this path is covered by `#NEXT.RUNTIME.L3.031j68`, `existing_instance_map`
+  external lookup remains a represented no-op, no install/restart, bot, or live-client/manual
+  validation has been done for this path.
 - `#NEXT.RUNTIME.L3.031j66` — WotLK represented `CreateMap` encounter-lock
   instance-id conflict side effect is now applied in memory (not manual-test-ready).
   Source-of-truth: `/home/server/woltk-trinity-legacy/src/server/game/Maps/MapManager.cpp:211-216`
@@ -43,10 +58,10 @@
   `create_instance_lock_for_new_instance_at` temporary-lock path. Coverage: targeted
   `wow-world create_map_side_effects` test proves the side effect creates a temporary lock that
   is immediately discoverable through `create_map_active_instance_lock_context_like_cpp`.
-  Boundary remains partial: the live `ensure_canonical_world_map_for_current_player_like_cpp`
-  path still skips dungeon maps, reset schedule still uses the represented default until
-  `ResetSchedule.{Hour,WeekDay}` config is wired, and no install/restart, bot, or live-client
-  validation has been done for this path.
+  Boundary remains partial: the later live dungeon ensure-map path is covered by
+  `#NEXT.RUNTIME.L3.031j67`, reset schedule config wiring for this path is covered by
+  `#NEXT.RUNTIME.L3.031j68`, and no install/restart, bot, or live-client validation has
+  been done for this path.
 - `#NEXT.RUNTIME.L3.031j64` — WotLK session-side active `InstanceLockMgr`
   bridge for represented dungeon `CreateMap` (not manual-test-ready). Source-of-truth:
   `/home/server/woltk-trinity-legacy/src/server/game/Maps/MapManager.cpp:177-221`,

@@ -36,7 +36,7 @@ use wow_database::{
     LoginDatabase, LoginStatements, PreparedStatement, SqlResult, SqlTransaction, StatementDef,
     WorldDatabase, WorldStatements, escape_string_like_cpp, warn_about_sync_queries_scope_like_cpp,
 };
-use wow_instances::{InstanceLockMgr, MapDb2Entries};
+use wow_instances::{InstanceLockMgr, MapDb2Entries, ResetSchedule};
 use wow_loot::{
     LootConditionId, LootConditionLinkReport, LootConditionReferenceUseLikeCpp,
     LootReferenceCheckReport, LootStore, LootStoreKind, LootStores, LootTemplateRow,
@@ -2681,6 +2681,7 @@ async fn main() -> Result<ExitCode> {
         loot_drop_rates: loot_drop_rates_like_cpp(&world_configs),
         reputation_rates: reputation_rates_like_cpp(&world_configs),
         repair_cost_rate: repair_cost_rate_like_cpp(&world_configs),
+        reset_schedule: reset_schedule_like_cpp(&world_configs),
         support_enabled: world_config_bool(&world_configs, "CONFIG_SUPPORT_ENABLED", true),
         support_bugs_enabled: world_config_bool(
             &world_configs,
@@ -3984,6 +3985,13 @@ fn reputation_rates_like_cpp(configs: &WorldConfigSet) -> ReputationRatesLikeCpp
 
 fn repair_cost_rate_like_cpp(configs: &WorldConfigSet) -> f32 {
     world_config_f32(configs, "RATE_REPAIRCOST", 1.0).max(0.0)
+}
+
+fn reset_schedule_like_cpp(configs: &WorldConfigSet) -> ResetSchedule {
+    ResetSchedule {
+        hour: world_config_u8(configs, "CONFIG_RESET_SCHEDULE_HOUR", 8),
+        week_day: world_config_u8(configs, "CONFIG_RESET_SCHEDULE_WEEK_DAY", 2),
+    }
 }
 
 async fn load_loot_stores_like_cpp(
@@ -9025,6 +9033,7 @@ async fn create_session(
     session.set_loot_drop_rates_like_cpp(resources.loot_drop_rates);
     session.set_reputation_rates_like_cpp(resources.reputation_rates);
     session.set_repair_cost_rate_like_cpp(resources.repair_cost_rate);
+    session.set_reset_schedule_like_cpp(resources.reset_schedule);
     session.set_represented_support_enabled_like_cpp(resources.support_enabled);
     session.set_represented_support_bugs_enabled_like_cpp(resources.support_bugs_enabled);
     session
@@ -10221,7 +10230,7 @@ mod tests {
         normalized_realm_name_like_cpp, persisted_respawn_info_from_row_like_cpp,
         process_exit_code_like_cpp, queue_respawn_db_delete_like_cpp,
         queue_respawn_db_save_like_cpp, realm_id_like_cpp, realm_list_entry_from_row_like_cpp,
-        repair_cost_rate_like_cpp, reputation_rates_like_cpp,
+        repair_cost_rate_like_cpp, reputation_rates_like_cpp, reset_schedule_like_cpp,
         run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp,
         run_legacy_creature_melee_tick_and_deliver_once_like_cpp,
         run_legacy_creature_movement_tick_and_deliver_once_like_cpp,
@@ -10251,6 +10260,7 @@ mod tests {
         StatementDef,
     };
     use wow_entities::{Creature, GameObject, MapObjectRecord, Player};
+    use wow_instances::ResetSchedule;
     use wow_map::{
         LinkedRespawnStoreLikeCpp, PoolGroupLikeCpp, PoolMemberKindLikeCpp, PoolMgrLikeCpp,
         PoolObjectLikeCpp, PoolTemplateDataLikeCpp, RespawnInfoLikeCpp, SpawnData, SpawnGroupFlags,
@@ -13499,6 +13509,38 @@ MaxRecruitAFriendBonusDistance = 45
         wow_config::load_config_from_str("Rate.RepairCost = -1\n").expect("config should load");
         let configs = wow_config::load_world_config_values();
         assert_eq!(repair_cost_rate_like_cpp(&configs), 0.0);
+    }
+
+    #[test]
+    fn reset_schedule_uses_cpp_world_config_defaults_and_keys() {
+        let _guard = TEST_LOCK.lock().expect("test lock poisoned");
+        wow_config::load_config_from_str("").expect("config should load");
+
+        let configs = wow_config::load_world_config_values();
+        assert_eq!(
+            reset_schedule_like_cpp(&configs),
+            ResetSchedule {
+                hour: 8,
+                week_day: 2,
+            }
+        );
+
+        wow_config::load_config_from_str(
+            r#"
+ResetSchedule.Hour = 6
+ResetSchedule.WeekDay = 5
+"#,
+        )
+        .expect("config should load");
+
+        let configs = wow_config::load_world_config_values();
+        assert_eq!(
+            reset_schedule_like_cpp(&configs),
+            ResetSchedule {
+                hour: 6,
+                week_day: 5,
+            }
+        );
     }
 
     #[test]
