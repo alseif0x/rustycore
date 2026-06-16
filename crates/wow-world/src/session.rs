@@ -25442,6 +25442,7 @@ impl WorldSession {
         let stable_info = load_info
             .filter(|info| info.pet_number == pet_number)
             .and_then(|_| self.represented_pet_stable_info_by_number_like_cpp(pet_number));
+        let player_xp_table = self.player_xp_table.clone();
 
         let inserted_guid = stable_info.and_then(|info| {
             let owner_guid = self.player_guid()?;
@@ -25494,6 +25495,14 @@ impl WorldSession {
             }
             if info.level != 0 {
                 pet.creature_mut().unit_mut().set_level(info.level);
+            }
+            pet.set_pet_experience(info.experience);
+            if let Some(next_level_experience) = player_xp_table
+                .as_ref()
+                .and_then(|table| table.get(info.level as usize).copied())
+                .map(Pet::pet_next_level_xp_for_owner_level)
+            {
+                pet.set_pet_next_level_experience(next_level_experience);
             }
             if info.health == 0 && info.pet_type == PetType::Hunter {
                 pet.creature_mut()
@@ -66955,7 +66964,11 @@ mod tests {
         ));
         add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
         session.represented_temporary_unsummoned_pet_number_like_cpp = 42;
+        let mut xp_table = vec![0; 81];
+        xp_table[80] = 10_000;
+        session.set_player_xp_table(Arc::new(xp_table));
         let mut stable = represented_hunter_pet_stable_like_cpp(42, 500);
+        stable.active_pets[0].as_mut().unwrap().experience = 321;
         stable.active_pets[0].as_mut().unwrap().action_bar =
             "7 2 7 1 7 0 193 12345 129 23456 1 34567 193 45678 6 2 6 1 6 0".to_string();
         session.set_represented_pet_stable_like_cpp(stable);
@@ -67060,6 +67073,12 @@ mod tests {
         assert_eq!(pet.owner_guid(), player_guid);
         assert_eq!(pet.creature().entry(), 500);
         assert_eq!(pet.creature().unit().data().level, 80);
+        assert_eq!(pet.pet_experience(), 321);
+        assert_eq!(
+            pet.pet_next_level_experience(),
+            500,
+            "C++ InitStatsForLevel sets hunter PetNextLevelExperience from XPForLevel(petlevel) * PET_XP_FACTOR"
+        );
         assert_eq!(pet.creature().unit().data().health, 345);
         assert!(pet.has_spell(1_234));
         assert!(pet.has_spell(5_678));
