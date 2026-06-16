@@ -160,6 +160,7 @@ const QUEST_OBJECTIVE_PLAYERKILLS_LIKE_CPP: u8 = 9;
 const QUEST_OBJECTIVE_HAVE_CURRENCY_LIKE_CPP: u8 = 16;
 const QUEST_OBJECTIVE_OBTAIN_CURRENCY_LIKE_CPP: u8 = 17;
 const QUEST_OBJECTIVE_INCREASE_REPUTATION_LIKE_CPP: u8 = 18;
+const DEFAULT_VISIBILITY_DISTANCE_YARDS_LIKE_CPP: u32 = 100;
 const QUEST_OBJECTIVE_FLAG_KILL_PLAYERS_SAME_FACTION_LIKE_CPP: u32 = 0x0080;
 const QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP: u32 = 0x1;
 const MAX_GAMEOBJECT_SLOT_LIKE_CPP: usize = 4;
@@ -552,6 +553,16 @@ pub(crate) struct RepresentedQuestRewardSpellCastLikeCpp {
     pub spell_info_lookup_unrepresented: bool,
     pub caster_selection_unrepresented: bool,
     pub cast_spell_runtime_unrepresented: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RepresentedForceDeselectLikeCpp {
+    pub caster_guid: ObjectGuid,
+    pub visibility_range_yards: u32,
+    pub break_target_packet_bytes: Vec<u8>,
+    pub clear_target_packet_bytes: Vec<u8>,
+    pub hostile_visible_fanout_unrepresented: bool,
+    pub attacker_pet_attack_stop_unrepresented: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -3287,6 +3298,7 @@ pub struct WorldSession {
     represented_can_duel_spell_casts_like_cpp: Vec<RepresentedCanDuelSpellCastLikeCpp>,
     represented_duel_arbiter_guid_like_cpp: Option<ObjectGuid>,
     represented_duel_requests_like_cpp: Vec<RepresentedDuelRequestedLikeCpp>,
+    represented_force_deselects_like_cpp: Vec<RepresentedForceDeselectLikeCpp>,
     represented_duel_accepts_like_cpp: Vec<RepresentedDuelAcceptedLikeCpp>,
     represented_duel_cancels_like_cpp: Vec<RepresentedDuelCancelledLikeCpp>,
     represented_guild_repair_bank_state_like_cpp: Option<RepresentedGuildRepairBankStateLikeCpp>,
@@ -4723,6 +4735,7 @@ impl WorldSession {
             represented_can_duel_spell_casts_like_cpp: Vec::new(),
             represented_duel_arbiter_guid_like_cpp: None,
             represented_duel_requests_like_cpp: Vec::new(),
+            represented_force_deselects_like_cpp: Vec::new(),
             represented_duel_accepts_like_cpp: Vec::new(),
             represented_duel_cancels_like_cpp: Vec::new(),
             represented_guild_repair_bank_state_like_cpp: None,
@@ -24572,6 +24585,13 @@ impl WorldSession {
         &self.represented_duel_requests_like_cpp
     }
 
+    #[cfg(test)]
+    pub(crate) fn represented_force_deselects_like_cpp(
+        &self,
+    ) -> &[RepresentedForceDeselectLikeCpp] {
+        &self.represented_force_deselects_like_cpp
+    }
+
     pub(crate) fn set_represented_duel_arbiter_guid_like_cpp(&mut self, guid: Option<ObjectGuid>) {
         self.represented_duel_arbiter_guid_like_cpp = guid;
     }
@@ -35033,6 +35053,9 @@ impl WorldSession {
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_DISMISS_PET => {
                     self.apply_dismiss_pet_effect_like_cpp(target_guid);
                 }
+                x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_FORCE_DESELECT => {
+                    self.apply_force_deselect_effect_like_cpp();
+                }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_SPELL => {
                     self.apply_learn_spell_effect_like_cpp(
                         direct_effect_trigger_spell,
@@ -35243,6 +35266,7 @@ impl WorldSession {
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_PLAY_MOVIE
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_DUEL
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_DISMISS_PET
+                || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_FORCE_DESELECT
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_SPELL
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_TRANSMOG_SET
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_UPGRADE_HEIRLOOM
@@ -37112,6 +37136,38 @@ impl WorldSession {
             wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP;
         self.represented_pet_command_state_like_cpp =
             wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP;
+        true
+    }
+
+    /// C++ `Spell::EffectForceDeselect`.
+    ///
+    /// Represented boundary: packet construction and effect evidence only.
+    /// C++ delivers `SMSG_BREAK_TARGET` and `SMSG_CLEAR_TARGET` to hostile
+    /// visible clients around the caster, then stops attacker pets without
+    /// threat lists. The hostile visible-set fanout and attacker traversal are
+    /// deferred to the live visibility/combat runtime.
+    fn apply_force_deselect_effect_like_cpp(&mut self) -> bool {
+        let Some(caster_guid) = self.player_guid() else {
+            return false;
+        };
+
+        use wow_packet::ServerPacket;
+        let break_target_packet_bytes = wow_packet::packets::combat::BreakTarget {
+            unit_guid: caster_guid,
+        }
+        .to_bytes();
+        let clear_target_packet_bytes =
+            wow_packet::packets::spell::ClearTarget { guid: caster_guid }.to_bytes();
+
+        self.represented_force_deselects_like_cpp
+            .push(RepresentedForceDeselectLikeCpp {
+                caster_guid,
+                visibility_range_yards: DEFAULT_VISIBILITY_DISTANCE_YARDS_LIKE_CPP,
+                break_target_packet_bytes,
+                clear_target_packet_bytes,
+                hostile_visible_fanout_unrepresented: true,
+                attacker_pet_attack_stop_unrepresented: true,
+            });
         true
     }
 
@@ -61748,6 +61804,76 @@ mod tests {
             drain_server_opcodes(&send_rx),
             vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
         );
+    }
+
+    #[tokio::test]
+    async fn spell_force_deselect_effect_row_records_break_and_clear_packets_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 755_i32;
+        let player_guid = ObjectGuid::create_player(1, 77);
+        session.set_player_guid(Some(player_guid));
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_FORCE_DESELECT,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("represented force-deselect spell row should execute");
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent],
+            "C++ sends break/clear to hostile visible clients, not directly to the caster session"
+        );
+        let evidence = session
+            .represented_force_deselects_like_cpp()
+            .first()
+            .expect("represented force-deselect evidence");
+        assert_eq!(evidence.caster_guid, player_guid);
+        assert_eq!(evidence.visibility_range_yards, 100);
+        assert!(evidence.hostile_visible_fanout_unrepresented);
+        assert!(evidence.attacker_pet_attack_stop_unrepresented);
+
+        let mut break_target =
+            wow_packet::WorldPacket::from_bytes(&evidence.break_target_packet_bytes);
+        assert_eq!(
+            break_target.read_uint16().expect("break opcode"),
+            ServerOpcodes::BreakTarget as u16
+        );
+        assert_eq!(
+            break_target.read_packed_guid().expect("UnitGUID"),
+            player_guid
+        );
+        assert!(break_target.is_empty());
+
+        let mut clear_target =
+            wow_packet::WorldPacket::from_bytes(&evidence.clear_target_packet_bytes);
+        assert_eq!(
+            clear_target.read_uint16().expect("clear opcode"),
+            ServerOpcodes::ClearTarget as u16
+        );
+        assert_eq!(clear_target.read_packed_guid().expect("Guid"), player_guid);
+        assert!(clear_target.is_empty());
     }
 
     #[tokio::test]

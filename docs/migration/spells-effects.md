@@ -607,7 +607,12 @@ Numerados como `#SPELLS-EFFECTS.N` para referencia desde `MIGRATION_ROADMAP.md`.
   `represented-partial`: solo criatura representada, requiere `dst_location`, no cubre player/unit
   genérico, no fanout visible-set completo, y el estado agregado `UnitState::DISTRACTED` aún queda
   representado en el generador de movimiento hasta cerrar MotionMaster completo.
-- [ ] **#SPELLS-EFFECTS.75** Implementar `EffectForceDeselect`, `EffectSendChatMessage`, `EffectActivateRune`, `EffectCreatePrivateConversation`, `EffectTeleportGraveyard`, `EffectModifyAuraStacks` (M total)
+- [~] **#SPELLS-EFFECTS.75** Implementar `EffectForceDeselect`, `EffectSendChatMessage`, `EffectActivateRune`, `EffectCreatePrivateConversation`, `EffectTeleportGraveyard`, `EffectModifyAuraStacks` (M total)
+  - `EffectForceDeselect` (`SPELL_EFFECT_FORCE_DESELECT = 93`) is represented-partial: Rust builds
+    the C++ `SMSG_BREAK_TARGET` and `SMSG_CLEAR_TARGET` packets for the caster GUID and records the
+    represented effect evidence. Remaining: hostile visible-set fanout via `MessageDistDelivererToHostile`,
+    live `Unit::GetVisibilityRange()` per map, attacker-set traversal and non-threat-list pet
+    `AttackStop`, runtime delivery, and live-client validation.
 - [ ] **#SPELLS-EFFECTS.76** Implementar log packets: `SMSG_SPELL_NON_MELEE_DAMAGE_LOG`, `SMSG_SPELL_HEAL_LOG`, `SMSG_SPELL_ENERGIZE_LOG`, `SMSG_SPELL_INSTAKILL_LOG`, `SMSG_SPELL_DISPELL_LOG`, `SMSG_DISPEL_FAILED` (M)
 - [ ] **#SPELLS-EFFECTS.77** Marcar como `_RetailOnly` (no-op) los effects > id 270 (Dragonflight-only): EffectCreateTraitTreeConfig, EffectChangeActiveCombatTraitConfig, EffectLearnTransmogIllusion, EffectModifySpellCharges (id-dependent), etc. (L)
 - [ ] **#SPELLS-EFFECTS.78** Stubbed `EffectNULL` y `EffectUnused` para los ~50 deprecated entries (L)
@@ -769,7 +774,7 @@ historical scan only proves that the standalone `wow-spell` engine remains empty
 - Pet/Charm: `EffectDismissPet`, `EffectAddFarsight` — represented-partial; `EffectTameCreature` — none.
 - Combat misc: `EffectParry`, `EffectBlock`, `EffectReputation`, `EffectDuel` — represented-partial.
 - Glyph/Talent: `EffectApplyGlyph` — none.
-- Misc: `EffectDistract`, `EffectInebriate` — represented-partial; `EffectForceCast`, `EffectTriggerSpell`, `EffectTriggerMissileSpell`, `EffectTriggerRitualOfSummoning`, `EffectPlayMovie`, `EffectPlayScene`, `EffectPlaySceneScriptPackage`, `EffectGiveHonor`, `EffectGrantBattlePetExperience`, `EffectForceDeselect`, `EffectPickPocket`, `EffectModifyAuraStacks` — none.
+- Misc: `EffectDistract`, `EffectInebriate`, `EffectForceDeselect` — represented-partial; `EffectForceCast`, `EffectTriggerSpell`, `EffectTriggerMissileSpell`, `EffectTriggerRitualOfSummoning`, `EffectPlayMovie`, `EffectPlayScene`, `EffectPlaySceneScriptPackage`, `EffectGiveHonor`, `EffectGrantBattlePetExperience`, `EffectPickPocket`, `EffectModifyAuraStacks` — none.
 
 **Dispatch infrastructure missing.** No `SpellEffect` Rust enum, no `match spell_effect` switch, no `Spell::handle_effects` method (because no `Spell` struct exists either — see `spells-cast.md`). `crates/wow-world/src/handlers/spell.rs` contains a stub `execute_spell(spell_id, target_guid)` whose body — when traced through `session.rs` and the surrounding code — does not branch on `SpellEffect`, does not consult `SpellEffectInfo`, does not invoke any `Effect*` semantic. It is plumbing-only: name without payload.
 

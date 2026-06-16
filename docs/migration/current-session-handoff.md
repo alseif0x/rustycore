@@ -1,3 +1,17 @@
+- `#NEXT.RUNTIME.L3.031j51` — WotLK represented `Spell::EffectForceDeselect` packet/evidence
+  foundation (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:1239`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellEffects.cpp:3722-3757`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/CombatPackets.cpp:161-166`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/SpellPackets.cpp:713-718`.
+  Rust now names `SPELL_EFFECT_FORCE_DESELECT = 93`, adds `SMSG_BREAK_TARGET` and
+  `SMSG_CLEAR_TARGET` packet writers, dispatches represented spell-effect rows, and records
+  effect evidence containing caster GUID, represented default visibility range, and both packet
+  byte payloads. Coverage: packet tests cover both GUID-only writers; spell test covers evidence
+  creation and confirms the packets are not incorrectly sent to the caster session. Boundary remains
+  partial: no hostile visible-set fanout, no live per-map `Unit::GetVisibilityRange()`, no attacker
+  set traversal or non-threat-list pet `AttackStop`, no runtime delivery, no install/restart, bot,
+  or live-client/manual validation.
 - `#NEXT.RUNTIME.L3.031j50` — WotLK represented `Spell::EffectDismissPet` for the
   current represented active pet target (not manual-test-ready). Source-of-truth:
   `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:1248` and

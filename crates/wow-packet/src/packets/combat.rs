@@ -104,6 +104,20 @@ impl ServerPacket for SAttackStop {
     }
 }
 
+/// C++ `WorldPackets::Combat::BreakTarget`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BreakTarget {
+    pub unit_guid: ObjectGuid,
+}
+
+impl ServerPacket for BreakTarget {
+    const OPCODE: ServerOpcodes = ServerOpcodes::BreakTarget;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_packed_guid(&self.unit_guid);
+    }
+}
+
 // ── AIReaction (SMSG_AI_REACTION) ────────────────────────────────
 
 /// Server notifies visible clients of a creature AI reaction.
@@ -466,6 +480,20 @@ mod tests {
         assert_eq!(pkt.read_int32().expect("Honor"), 40);
         assert_eq!(pkt.read_packed_guid().expect("Target"), target);
         assert_eq!(pkt.read_int32().expect("Rank"), 7);
+        assert!(pkt.is_empty());
+    }
+
+    #[test]
+    fn break_target_writes_unit_guid_like_cpp() {
+        let unit_guid = ObjectGuid::create_player(1, 0x0102_0304_0506_0708);
+        let bytes = BreakTarget { unit_guid }.to_bytes();
+
+        let mut pkt = WorldPacket::from_bytes(&bytes);
+        assert_eq!(
+            pkt.read_uint16().expect("opcode"),
+            ServerOpcodes::BreakTarget as u16
+        );
+        assert_eq!(pkt.read_packed_guid().expect("UnitGUID"), unit_guid);
         assert!(pkt.is_empty());
     }
 

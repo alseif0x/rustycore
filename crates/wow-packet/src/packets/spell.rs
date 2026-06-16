@@ -113,6 +113,20 @@ impl ClientPacket for CancelMountAura {
     }
 }
 
+/// C++ `WorldPackets::Spells::ClearTarget`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClearTarget {
+    pub guid: ObjectGuid,
+}
+
+impl ServerPacket for ClearTarget {
+    const OPCODE: ServerOpcodes = ServerOpcodes::ClearTarget;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_packed_guid(&self.guid);
+    }
+}
+
 /// C++ `WorldPackets::Spells::SetActionButton`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SetActionButton {
@@ -1095,6 +1109,20 @@ mod tests {
         assert_eq!(pkt.read_float().expect("launch delay"), 0.0);
         assert_eq!(pkt.read_float().expect("min duration"), 0.0);
         assert!(!pkt.read_bit().expect("speed as time"));
+        assert!(pkt.is_empty());
+    }
+
+    #[test]
+    fn clear_target_writes_guid_like_cpp() {
+        let guid = ObjectGuid::create_player(1, 0x0102_0304_0506_0708);
+        let bytes = ClearTarget { guid }.to_bytes();
+        let mut pkt = WorldPacket::from_bytes(&bytes);
+
+        assert_eq!(
+            pkt.read_uint16().expect("opcode"),
+            ServerOpcodes::ClearTarget as u16
+        );
+        assert_eq!(pkt.read_packed_guid().expect("Guid"), guid);
         assert!(pkt.is_empty());
     }
 

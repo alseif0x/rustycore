@@ -82,6 +82,7 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_STUCK: u32 = 84;
     pub const SPELL_EFFECT_KILL_CREDIT: u32 = 90;
     pub const SPELL_EFFECT_THREAT_ALL: u32 = 91;
+    pub const SPELL_EFFECT_FORCE_DESELECT: u32 = 93;
     pub const SPELL_EFFECT_SELF_RESURRECT: u32 = 94;
     pub const SPELL_EFFECT_INEBRIATE: u32 = 100;
     pub const SPELL_EFFECT_DISMISS_PET: u32 = 102;
@@ -1151,6 +1152,7 @@ mod tests {
         assert_eq!(spell_effect_types::SPELL_EFFECT_DUEL, 83);
         assert_eq!(spell_effect_types::SPELL_EFFECT_KILL_CREDIT, 90);
         assert_eq!(spell_effect_types::SPELL_EFFECT_THREAT_ALL, 91);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_FORCE_DESELECT, 93);
         assert_eq!(spell_effect_types::SPELL_EFFECT_INEBRIATE, 100);
         assert_eq!(spell_effect_types::SPELL_EFFECT_DISMISS_PET, 102);
         assert_eq!(spell_effect_types::SPELL_EFFECT_REPUTATION, 103);
