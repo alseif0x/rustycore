@@ -22530,6 +22530,11 @@ impl WorldSession {
         destination: wow_core::Position,
         options: TeleportToOptionsLikeCpp,
     ) {
+        self.unsummon_represented_pet_for_same_map_teleport_if_out_of_range_like_cpp(
+            destination,
+            options,
+        );
+
         if !self.player_is_alive_like_cpp() && options & TELE_REVIVE_AT_TELEPORT_LIKE_CPP != 0 {
             self.resurrect_player_percent_for_teleport_like_cpp(0.5);
         }
@@ -22574,6 +22579,45 @@ impl WorldSession {
             ),
             "Player same-map near teleport initiated; awaiting MoveTeleportAck"
         );
+    }
+
+    fn unsummon_represented_pet_for_same_map_teleport_if_out_of_range_like_cpp(
+        &mut self,
+        destination: wow_core::Position,
+        options: TeleportToOptionsLikeCpp,
+    ) {
+        if options & TELE_TO_NOT_UNSUMMON_PET_LIKE_CPP != 0 {
+            return;
+        }
+        let Some(pet_guid) = self.represented_pet_guid_like_cpp else {
+            return;
+        };
+        let map_id = u32::from(self.player_map_id_like_cpp());
+        let instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+
+        let should_unsummon = {
+            let Some(manager) = self.canonical_map_manager.as_ref().cloned() else {
+                return;
+            };
+            let Ok(manager) = manager.lock() else {
+                return;
+            };
+            let Some(managed) = manager.find_map(map_id, instance_id) else {
+                return;
+            };
+            let visibility_range = managed.map().visibility_range();
+            managed
+                .map()
+                .get_pet(pet_guid)
+                .is_some_and(|pet| pet.distance_to_position(destination) > visibility_range)
+        };
+
+        if should_unsummon {
+            self.unsummon_represented_pet_temporary_if_any_like_cpp();
+        }
     }
 
     fn resurrect_player_percent_for_teleport_like_cpp(&mut self, restore_percent: f32) {
@@ -66446,6 +66490,162 @@ mod tests {
         assert!(!session.player_is_alive_like_cpp());
         assert_eq!(session.player_health_like_cpp(), 0);
         assert!(session.near_teleport_pending_like_cpp());
+    }
+
+    #[tokio::test]
+    async fn teleport_to_same_map_unsummons_pet_when_destination_out_of_visibility_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 821);
+        let pet_guid = ObjectGuid::create_world_object(HighGuid::Pet, 0, 1, 571, 0, 500, 821);
+        let source = Position::new(10.0, 20.0, 30.0, 0.0);
+        let destination = Position::new(
+            10.0 + wow_entities::DEFAULT_VISIBILITY_DISTANCE + 25.0,
+            20.0,
+            30.0,
+            3.9,
+        );
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 1,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.expansion = 1;
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "NearTeleportPetFar".to_string(),
+            source,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map(&canonical, player_guid, source, 571, 0);
+        add_canonical_test_pet(&canonical, pet_guid, player_guid, 500, source, 0);
+        session.set_represented_pet_mode_state_like_cpp(
+            Some(pet_guid),
+            wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP,
+            wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP,
+        );
+
+        session.teleport_to(571, destination).await;
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::CancelCombat, ServerOpcodes::MoveTeleport]
+        );
+        assert_eq!(session.temporary_pet_unsummon_requests_like_cpp(), 1);
+    }
+
+    #[tokio::test]
+    async fn teleport_to_same_map_keeps_pet_when_destination_within_visibility_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 822);
+        let pet_guid = ObjectGuid::create_world_object(HighGuid::Pet, 0, 1, 571, 0, 500, 822);
+        let source = Position::new(10.0, 20.0, 30.0, 0.0);
+        let destination = Position::new(35.0, 20.0, 30.0, 4.0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 1,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.expansion = 1;
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "NearTeleportPetNear".to_string(),
+            source,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map(&canonical, player_guid, source, 571, 0);
+        add_canonical_test_pet(&canonical, pet_guid, player_guid, 500, source, 0);
+        session.set_represented_pet_mode_state_like_cpp(
+            Some(pet_guid),
+            wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP,
+            wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP,
+        );
+
+        session.teleport_to(571, destination).await;
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::CancelCombat, ServerOpcodes::MoveTeleport]
+        );
+        assert_eq!(session.temporary_pet_unsummon_requests_like_cpp(), 0);
+    }
+
+    #[tokio::test]
+    async fn teleport_to_same_map_not_unsummon_pet_option_preserves_pet_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 823);
+        let pet_guid = ObjectGuid::create_world_object(HighGuid::Pet, 0, 1, 571, 0, 500, 823);
+        let source = Position::new(10.0, 20.0, 30.0, 0.0);
+        let destination = Position::new(
+            10.0 + wow_entities::DEFAULT_VISIBILITY_DISTANCE + 25.0,
+            20.0,
+            30.0,
+            4.1,
+        );
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 1,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.expansion = 1;
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "NearTeleportPetNoUnsummon".to_string(),
+            source,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map(&canonical, player_guid, source, 571, 0);
+        add_canonical_test_pet(&canonical, pet_guid, player_guid, 500, source, 0);
+        session.set_represented_pet_mode_state_like_cpp(
+            Some(pet_guid),
+            wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP,
+            wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP,
+        );
+
+        session
+            .teleport_to_with_options(571, destination, TELE_TO_NOT_UNSUMMON_PET_LIKE_CPP)
+            .await;
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::CancelCombat, ServerOpcodes::MoveTeleport]
+        );
+        assert_eq!(session.temporary_pet_unsummon_requests_like_cpp(), 0);
     }
 
     #[tokio::test]

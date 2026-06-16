@@ -439,10 +439,11 @@ NOTE: `InstanceSaveMgr` no longer exists as a separate class in this WoLK 3.4.3 
   branch, matching C++ `Player::TeleportTo`. Refs: `Player.cpp:1310-1346`,
   `Unit.cpp:12208-12244`, `MovementPackets.h:303-318`,
   `MovementPackets.cpp:705-724`, `MovementHandler.cpp:263-324`.
-  Remaining gaps: transport/vehicle payloads, pet distance check and temporary
-  unsummon for same-map teleports, full `ResurrectPlayer` side effects beyond
-  represented health/powers, delayed teleport semaphores, install/restart, bot,
-  and live-client validation remain pending.
+  Remaining gaps: transport/vehicle payloads, full real-pet temporary unsummon
+  state/DB removal beyond the represented request counter, full
+  `ResurrectPlayer` side effects beyond represented health/powers, delayed
+  teleport semaphores, install/restart, bot, and live-client validation remain
+  pending.
 - `#NEXT.RUNTIME.L3.031j91` adds the represented nearby-player fanout half of
   C++ `Unit::SendTeleportPacket`: `SMSG_MOVE_UPDATE_TELEPORT` now serializes
   the C++ `MoveUpdateTeleport::Write` field order for the represented
@@ -456,10 +457,10 @@ NOTE: `InstanceSaveMgr` no longer exists as a separate class in this WoLK 3.4.3 
   corrected destination payload. Refs: `Unit.cpp:12208-12255`,
   `MovementPackets.h:319-334`, `MovementPackets.cpp:750-795`.
   Remaining gaps: transport/vehicle offsets and GUID payloads, movement forces,
-  optional speed payloads, pet distance check and temporary unsummon, full
-  `ResurrectPlayer` side effects beyond represented health/powers, delayed
-  teleport semaphores, install/restart, bot, and live-client validation remain
-  pending.
+  optional speed payloads, full real-pet temporary unsummon state/DB removal
+  beyond the represented request counter, full `ResurrectPlayer` side effects
+  beyond represented health/powers, delayed teleport semaphores,
+  install/restart, bot, and live-client validation remain pending.
 - `#NEXT.RUNTIME.L3.031j92` ports the same-map
   `TELE_REVIVE_AT_TELEPORT` branch from C++ `Player::TeleportTo`: a dead
   represented player now runs the local `ResurrectPlayer(0.5f)` state update
@@ -471,9 +472,24 @@ NOTE: `InstanceSaveMgr` no longer exists as a separate class in this WoLK 3.4.3 
   Remaining gaps: `SMSG_DEATH_RELEASE_LOC`, area-spirit-healer clearing,
   ghost/night-elf aura removals, water-walk/rooted movement flag packets,
   zone/visibility refresh, outdoor-PvP/BG callbacks, item obtain spell recasts,
-  resurrection sickness, pet distance check and temporary unsummon,
-  transport/vehicle payloads, delayed teleport semaphores, install/restart,
-  bot, and live-client validation remain pending.
+  resurrection sickness, full real-pet temporary unsummon state/DB removal
+  beyond the represented request counter, transport/vehicle payloads, delayed
+  teleport semaphores, install/restart, bot, and live-client validation remain
+  pending.
+- `#NEXT.RUNTIME.L3.031j93` ports the same-map pet distance gate from C++
+  `Player::TeleportTo`: unless `TELE_TO_NOT_UNSUMMON_PET` is set, a represented
+  pet with a canonical map record now requests temporary unsummon only when its
+  3D distance to the same-map destination exceeds the map visibility range
+  (`pet->IsWithinDist3d(x, y, z, GetMap()->GetVisibilityRange())` in C++).
+  This preserves the C++ distinction between far teleports, which prepare a
+  temporary unsummon unconditionally when a pet exists, and same-map near
+  teleports, which only do it for an out-of-range pet. Refs:
+  `Player.cpp:1254`, `Player.cpp:1321-1325`, `Object.cpp:1128-1136`,
+  `Player.h:801`.
+  Remaining gaps: real `UnsummonPetTemporaryIfAny` internals
+  (`m_temporaryUnsummonedPetNumber`, `m_oldpetspell`, `RemovePet(PET_SAVE_AS_CURRENT)`,
+  DB/current-pet state), transport/vehicle payloads, delayed teleport
+  semaphores, install/restart, bot, and live-client validation remain pending.
 
 **Tests existing:**
 - `cargo test -p wow-instances -- --nocapture` currently covers 19 focused tests, including C++-contrasted lock key/binding, daily/weekly reset anchors, temporary lock creation, active lock lookup, temp promotion, expired-lock replacement, DB row reconstruction, shared weak-ref cleanup, prepared-statement parameter order, flex-mask join rejection, different-instance rejection, and reset in-use guard.
