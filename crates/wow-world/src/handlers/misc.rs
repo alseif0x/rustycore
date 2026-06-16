@@ -58,24 +58,25 @@ use wow_packet::packets::misc::{
     BattlemasterJoinArena, BattlemasterJoinSkirmish, BeginTrade, BugReport, BusyTrade,
     CageBattlePet, CalendarAddEvent, CalendarCommandResult, CalendarCommunityInvite,
     CalendarComplain, CalendarCopyEvent, CalendarEventSignUp, CalendarGetEvent, CalendarInvite,
-    CalendarModeratorStatusQuery, CalendarRemoveEvent, CalendarRemoveInvite, CalendarRsvp,
-    CalendarSendCalendar, CalendarSendNumPending, CalendarStatus, CalendarUpdateEvent, CanDuel,
-    ClearTradeItem, CloseInteraction, CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint,
-    ComplaintResult, DeclineGuildInvites, DeclinePetition, DfGetJoinStatus, DfGetSystemInfo,
-    DuelResponse, ERR_TAXITOOFARAWAY_LIKE_CPP, FarSight, GmTicketAcknowledgeSurvey,
-    GmTicketCaseStatus, GmTicketSystemStatus, GuildBankActivate, GuildBankBuyTab,
-    GuildBankDepositMoney, GuildBankLogQuery, GuildBankQueryTab, GuildBankSetTabText,
-    GuildBankTextQuery, GuildBankUpdateTab, GuildBankWithdrawMoney, GuildCommandResult,
-    GuildSetAchievementTracking, IgnoreTrade, LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus,
-    LoadingScreenNotify, MAX_ACCOUNT_DATA_SIZE_LIKE_CPP, MountSetFavorite, MountSpecial,
-    NUM_ACCOUNT_DATA_TYPES, ObjectUpdateFailed, ObjectUpdateRescued, QueryArenaTeam,
-    QueryBattlePetName, QueryBattlePetNameResponse, QueryPetition, QueryPetitionResponse,
-    RatedPvpInfo, ReclaimCorpse, RepopRequest, RequestAccountData, RequestBattlefieldStatus,
-    RequestCemeteryListResponse, ResurrectResponse, SaveCufProfiles, SetAdvancedCombatLogging,
-    SetCurrencyFlags, SetDifficultyId, SetDungeonDifficulty, SetPvp, SetRaidDifficulty,
-    SetTaxiBenchmarkMode, SetTradeGold, SetTradeItem, SetTradeSpell, SignPetition,
-    SpecialMountAnim, StandStateChange, SubmitUserFeedback, SupportTicketSubmitBug,
-    SupportTicketSubmitComplaint, SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
+    CalendarModeratorStatusQuery, CalendarRaidLockoutAdded, CalendarRemoveEvent,
+    CalendarRemoveInvite, CalendarRsvp, CalendarSendCalendar, CalendarSendNumPending,
+    CalendarStatus, CalendarUpdateEvent, CanDuel, ClearTradeItem, CloseInteraction,
+    CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint, ComplaintResult,
+    DeclineGuildInvites, DeclinePetition, DfGetJoinStatus, DfGetSystemInfo, DuelResponse,
+    ERR_TAXITOOFARAWAY_LIKE_CPP, FarSight, GmTicketAcknowledgeSurvey, GmTicketCaseStatus,
+    GmTicketSystemStatus, GuildBankActivate, GuildBankBuyTab, GuildBankDepositMoney,
+    GuildBankLogQuery, GuildBankQueryTab, GuildBankSetTabText, GuildBankTextQuery,
+    GuildBankUpdateTab, GuildBankWithdrawMoney, GuildCommandResult, GuildSetAchievementTracking,
+    IgnoreTrade, LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify,
+    MAX_ACCOUNT_DATA_SIZE_LIKE_CPP, MountSetFavorite, MountSpecial, NUM_ACCOUNT_DATA_TYPES,
+    ObjectUpdateFailed, ObjectUpdateRescued, QueryArenaTeam, QueryBattlePetName,
+    QueryBattlePetNameResponse, QueryPetition, QueryPetitionResponse, RatedPvpInfo, ReclaimCorpse,
+    RepopRequest, RequestAccountData, RequestBattlefieldStatus, RequestCemeteryListResponse,
+    ResurrectResponse, SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags,
+    SetDifficultyId, SetDungeonDifficulty, SetPvp, SetRaidDifficulty, SetTaxiBenchmarkMode,
+    SetTradeGold, SetTradeItem, SetTradeSpell, SignPetition, SpecialMountAnim, StandStateChange,
+    SubmitUserFeedback, SupportTicketSubmitBug, SupportTicketSubmitComplaint,
+    SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
     TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP, TaxiNodeStatusPkt, ToggleDifficulty, TogglePvp,
     ToyClearFanfare, UnacceptTrade, UpdateAccountData, UseToy, UserClientUpdateAccountData,
     ViolenceLevel, compress_account_data_like_cpp, decompress_account_data_like_cpp,
@@ -4920,7 +4921,7 @@ impl crate::session::WorldSession {
             .map(|duration| duration.as_secs())
             .unwrap_or(0);
         let mut tx = SqlTransaction::new();
-        let is_new_lock = {
+        let (is_new_lock, new_lock) = {
             let mut mgr = match instance_lock_mgr.write() {
                 Ok(mgr) => mgr,
                 Err(_) => return false,
@@ -4935,20 +4936,17 @@ impl crate::session::WorldSession {
                 completed_encounter_bit: None,
                 entrance_world_safe_loc_id: None,
             };
-            if mgr
-                .update_instance_lock_for_player_tx_at(
-                    &mut tx,
-                    player_guid,
-                    &entries,
-                    update_event,
-                    self.reset_schedule_like_cpp(),
-                    now,
-                )
-                .is_none()
-            {
+            let Some(new_lock) = mgr.update_instance_lock_for_player_tx_at(
+                &mut tx,
+                player_guid,
+                &entries,
+                update_event,
+                self.reset_schedule_like_cpp(),
+                now,
+            ) else {
                 return false;
-            }
-            is_new_lock
+            };
+            (is_new_lock, new_lock)
         };
 
         if !tx.is_empty() {
@@ -4970,9 +4968,30 @@ impl crate::session::WorldSession {
             self.send_packet(&InstanceSaveCreated {
                 gm: self.player_is_game_master_like_cpp(),
             });
+            self.send_calendar_raid_lockout_added_like_cpp(&new_lock, &entries, now);
         }
 
         true
+    }
+
+    /// C++ `WorldSession::SendCalendarRaidLockoutAdded`.
+    fn send_calendar_raid_lockout_added_like_cpp(
+        &self,
+        lock: &wow_instances::InstanceLock,
+        entries: &wow_instances::MapDb2Entries,
+        now: u64,
+    ) {
+        let effective_expiry =
+            lock.effective_expiry_time_at(entries, self.reset_schedule_like_cpp(), now);
+        let remaining = (effective_expiry as i128 - now as i128)
+            .clamp(i128::from(i32::MIN), i128::from(i32::MAX)) as i32;
+        self.send_packet(&CalendarRaidLockoutAdded::new_at_unix(
+            u64::from(lock.instance_id),
+            now.min(i64::MAX as u64) as i64,
+            i32::try_from(lock.map_id).unwrap_or(i32::MAX),
+            u32::from(lock.difficulty_id),
+            remaining,
+        ));
     }
 
     #[allow(dead_code)]
@@ -16263,6 +16282,17 @@ mod tests {
             u16::from_le_bytes([sent[0], sent[1]]),
             ServerOpcodes::InstanceSaveCreated as u16
         );
+        let sent = send_rx.try_recv().unwrap();
+        assert_eq!(
+            u16::from_le_bytes([sent[0], sent[1]]),
+            ServerOpcodes::CalendarRaidLockoutAdded as u16
+        );
+        let mut pkt = WorldPacket::from_bytes(&sent[2..]);
+        assert_eq!(pkt.read_uint64().unwrap(), 9001);
+        let _server_time = pkt.read_uint32().unwrap();
+        assert_eq!(pkt.read_int32().unwrap(), 631);
+        assert_eq!(pkt.read_uint32().unwrap(), 4);
+        assert!(pkt.read_int32().unwrap() > 0);
     }
 
     #[tokio::test]

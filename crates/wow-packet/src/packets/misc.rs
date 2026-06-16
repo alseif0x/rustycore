@@ -6408,6 +6408,46 @@ impl ServerPacket for CalendarSendCalendar {
     }
 }
 
+/// C++ `WorldPackets::Calendar::CalendarRaidLockoutAdded`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CalendarRaidLockoutAdded {
+    pub instance_id: u64,
+    pub server_time_packed: u32,
+    pub map_id: i32,
+    pub difficulty_id: u32,
+    pub time_remaining: i32,
+}
+
+impl CalendarRaidLockoutAdded {
+    pub fn new_at_unix(
+        instance_id: u64,
+        unix_seconds: i64,
+        map_id: i32,
+        difficulty_id: u32,
+        time_remaining: i32,
+    ) -> Self {
+        Self {
+            instance_id,
+            server_time_packed: wow_time_packed_from_unix_seconds(unix_seconds),
+            map_id,
+            difficulty_id,
+            time_remaining,
+        }
+    }
+}
+
+impl ServerPacket for CalendarRaidLockoutAdded {
+    const OPCODE: ServerOpcodes = ServerOpcodes::CalendarRaidLockoutAdded;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_uint64(self.instance_id);
+        pkt.write_uint32(self.server_time_packed);
+        pkt.write_int32(self.map_id);
+        pkt.write_uint32(self.difficulty_id);
+        pkt.write_int32(self.time_remaining);
+    }
+}
+
 /// C++ `WorldPackets::Calendar::CalendarCommunityInviteRequest`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CalendarCommunityInvite {
@@ -8508,6 +8548,24 @@ mod tests {
         assert_eq!(pkt.read_uint32().unwrap(), 0); // Invites.Count
         assert_eq!(pkt.read_uint32().unwrap(), 0); // Events.Count
         assert_eq!(pkt.read_uint32().unwrap(), 0); // RaidLockouts.Count
+    }
+
+    #[test]
+    fn calendar_raid_lockout_added_matches_cpp_field_order() {
+        let bytes =
+            CalendarRaidLockoutAdded::new_at_unix(9001, 946_684_800, 631, 4, 86_400).to_bytes();
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::CalendarRaidLockoutAdded as u16
+        );
+        assert_eq!(bytes.len(), 2 + 8 + 4 + 4 + 4 + 4);
+
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_uint64().unwrap(), 9001);
+        assert_eq!(pkt.read_uint32().unwrap(), 0x0000_3000); // 2000-01-01 00:00 UTC
+        assert_eq!(pkt.read_int32().unwrap(), 631);
+        assert_eq!(pkt.read_uint32().unwrap(), 4);
+        assert_eq!(pkt.read_int32().unwrap(), 86_400);
     }
 
     #[test]

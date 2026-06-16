@@ -1,3 +1,19 @@
+- `#NEXT.RUNTIME.L3.031j72` — WotLK represented pending-bind lock creation now
+  sends the C++ calendar raid-lockout added notification after `SMSG_INSTANCE_SAVE_CREATED`
+  (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Maps/Map.cpp:3175-3190`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CalendarHandler.cpp:557-565`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/CalendarPackets.cpp:430-438`.
+  C++ `InstanceMap::CreateInstanceLockForPlayer` sends `InstanceSaveCreated` for a
+  newly created lock and immediately calls `WorldSession::SendCalendarRaidLockoutAdded`,
+  whose packet order is `InstanceID`, packed `ServerTime`, `MapID`, `DifficultyID`,
+  `TimeRemaining`. Rust now has `CalendarRaidLockoutAdded` packet serialization and
+  sends it from the represented pending-bind accept path using the created
+  `InstanceLock` effective expiry time. Coverage: targeted `wow-packet` packet-order
+  test and targeted `wow-world` pending-bind accept test cover the extra packet after
+  lock creation. Boundary remains partial: calendar removed/updated lockout packets,
+  extension/reset calendar fanout, full `InstanceMap::i_data`, live DB commit exercise,
+  install/restart, bot, and live-client/manual validation remain pending.
 - `#NEXT.RUNTIME.L3.031j71` — WotLK represented pending-instance-bind accept
   now performs the C++ `Player::ConfirmPendingBind` lock mutation when the
   current canonical instance map matches the pending bind (not manual-test-ready).
