@@ -35030,6 +35030,9 @@ impl WorldSession {
                         target_guid,
                     );
                 }
+                x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_DISMISS_PET => {
+                    self.apply_dismiss_pet_effect_like_cpp(target_guid);
+                }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_SPELL => {
                     self.apply_learn_spell_effect_like_cpp(
                         direct_effect_trigger_spell,
@@ -35239,6 +35242,7 @@ impl WorldSession {
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_STUCK
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_PLAY_MOVIE
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_DUEL
+                || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_DISMISS_PET
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_SPELL
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_TRANSMOG_SET
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_UPGRADE_HEIRLOOM
@@ -37089,6 +37093,25 @@ impl WorldSession {
         self.send_packet(&wow_packet::packets::trainer::LearnedSpells::single(
             trigger_spell,
         ));
+        true
+    }
+
+    /// C++ `Spell::EffectDismissPet`.
+    ///
+    /// Represented boundary: current represented pet target only. Full C++
+    /// `Unit::IsPet` / `Pet::Remove(PET_SAVE_NOT_IN_SLOT)` requires the live
+    /// pet runtime; this slice preserves the hit-target no-op semantics and
+    /// clears the represented active pet state when the target is that pet.
+    fn apply_dismiss_pet_effect_like_cpp(&mut self, target_guid: ObjectGuid) -> bool {
+        if self.represented_pet_guid_like_cpp != Some(target_guid) {
+            return false;
+        }
+
+        self.represented_pet_guid_like_cpp = None;
+        self.represented_pet_react_state_like_cpp =
+            wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP;
+        self.represented_pet_command_state_like_cpp =
+            wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP;
         true
     }
 
@@ -61610,6 +61633,117 @@ mod tests {
             .expect("represented learn-spell non-current player target should no-op");
 
         assert!(!session.known_spells_like_cpp().contains(&learned_spell_id));
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_dismiss_pet_effect_row_clears_represented_pet_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 753_i32;
+        let player_guid = ObjectGuid::create_player(1, 72);
+        let pet_guid = ObjectGuid::create_world_object(HighGuid::Pet, 0, 1, 0, 0, 500, 73);
+        session.set_player_guid(Some(player_guid));
+        session.set_represented_pet_mode_state_like_cpp(
+            Some(pet_guid),
+            wow_packet::packets::pet::REACT_PASSIVE_LIKE_CPP,
+            wow_packet::packets::pet::COMMAND_STAY_LIKE_CPP,
+        );
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_DISMISS_PET,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, pet_guid)
+            .await
+            .expect("represented dismiss-pet spell row should execute");
+
+        assert_eq!(session.represented_pet_guid_like_cpp, None);
+        assert_eq!(
+            session.represented_pet_react_state_like_cpp,
+            wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP
+        );
+        assert_eq!(
+            session.represented_pet_command_state_like_cpp,
+            wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_dismiss_pet_effect_row_requires_represented_pet_target_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 754_i32;
+        let player_guid = ObjectGuid::create_player(1, 74);
+        let pet_guid = ObjectGuid::create_world_object(HighGuid::Pet, 0, 1, 0, 0, 500, 75);
+        let other_pet_guid = ObjectGuid::create_world_object(HighGuid::Pet, 0, 1, 0, 0, 500, 76);
+        session.set_player_guid(Some(player_guid));
+        session.set_represented_pet_mode_state_like_cpp(
+            Some(pet_guid),
+            wow_packet::packets::pet::REACT_PASSIVE_LIKE_CPP,
+            wow_packet::packets::pet::COMMAND_STAY_LIKE_CPP,
+        );
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_DISMISS_PET,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, other_pet_guid)
+            .await
+            .expect("represented dismiss-pet non-active pet target should no-op");
+
+        assert_eq!(session.represented_pet_guid_like_cpp, Some(pet_guid));
+        assert_eq!(
+            session.represented_pet_react_state_like_cpp,
+            wow_packet::packets::pet::REACT_PASSIVE_LIKE_CPP
+        );
+        assert_eq!(
+            session.represented_pet_command_state_like_cpp,
+            wow_packet::packets::pet::COMMAND_STAY_LIKE_CPP
+        );
         assert_eq!(
             drain_server_opcodes(&send_rx),
             vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]

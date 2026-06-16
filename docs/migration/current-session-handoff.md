@@ -1,3 +1,14 @@
+- `#NEXT.RUNTIME.L3.031j50` — WotLK represented `Spell::EffectDismissPet` for the
+  current represented active pet target (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:1248` and
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellEffects.cpp:3527-3539`.
+  Rust now names `SPELL_EFFECT_DISMISS_PET = 102`, dispatches represented spell-effect rows,
+  requires the target GUID to match the session's represented active pet, clears that pet GUID,
+  and restores the default defensive/follow pet mode state. Coverage: targeted spell tests cover
+  the represented dismiss path and a non-active-pet target no-op. Boundary remains partial: no full
+  `Unit::IsPet`/live Pet lookup, no real `Pet::Remove(PET_SAVE_NOT_IN_SLOT)` object removal,
+  no unsummon/remove packet parity, no pet slot/stable persistence semantics, no AI/object cleanup,
+  no install/restart, bot, or live-client/manual validation.
 - `#NEXT.RUNTIME.L3.031j49` — WotLK represented `Spell::EffectLearnSpell` for current
   player `TriggerSpell` rows (not manual-test-ready). Source-of-truth:
   `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:1182`,

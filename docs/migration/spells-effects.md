@@ -558,7 +558,12 @@ Numerados como `#SPELLS-EFFECTS.N` para referencia desde `MIGRATION_ROADMAP.md`.
 - [ ] **#SPELLS-EFFECTS.59** Implementar `EffectActivateObject` (L)
 - [ ] **#SPELLS-EFFECTS.60** Implementar `EffectSendEvent` (SmartScript event fire) (L)
 - [ ] **#SPELLS-EFFECTS.61** Implementar `EffectTameCreature` (M)
-- [ ] **#SPELLS-EFFECTS.62** Implementar `EffectDismissPet` (L)
+- [~] **#SPELLS-EFFECTS.62** Implementar `EffectDismissPet` (L) —
+  represented-partial: current represented active pet target only, `SPELL_EFFECT_DISMISS_PET = 102`.
+  Rust clears the represented pet GUID and restores default defensive/follow state, matching the C++
+  `unitTarget->IsPet()` guarded `Pet::Remove(PET_SAVE_NOT_IN_SLOT)` ownership effect. Remaining:
+  full `Unit::IsPet`/Pet runtime lookup, real unsummon/remove packets and save-state semantics,
+  pet slot/stable integration, AI/object cleanup, persistence and live-client validation.
 - [ ] **#SPELLS-EFFECTS.63** Implementar `EffectAddFarsight` (L)
 - [~] **#SPELLS-EFFECTS.64** Implementar `EffectInebriate` (drunk state) (L) —
   represented-partial: current canonical player target only, `PlayerData::Inebriation`
@@ -761,7 +766,7 @@ historical scan only proves that the standalone `wow-spell` engine remains empty
 - Item: `EffectCreateItem`, `EffectCreateItem2`, `EffectCreateRandomItem`, `EffectFeedPet`, `EffectEnchantItemPerm`, `EffectEnchantItemTmp`, `EffectEnchantItemPrismatic`, `EffectEnchantHeldItem`, `EffectDisEnchant`, `EffectMillItem`, `EffectProspecting` — none.
 - Quest/Profession: `EffectQuestComplete`, `EffectLearnSpell` — represented-partial; `EffectQuestStart`, `EffectQuestRedirect`, `EffectUnlearnSpecialization`, `EffectLearnPetSpell`, `EffectLearnSkill`, `EffectTradeSkill`, `EffectProficiency`, `EffectUntrainTalents` — none.
 - OpenLock/GO: `EffectOpenLock`, `EffectActivateObject`, `EffectSendEvent`, `EffectGameobjectDamage`, `EffectGameObjectRepair`, `EffectGameobjectSetDestructionState` — none.
-- Pet/Charm: `EffectTameCreature`, `EffectDismissPet`, `EffectAddFarsight` — none.
+- Pet/Charm: `EffectDismissPet`, `EffectAddFarsight` — represented-partial; `EffectTameCreature` — none.
 - Combat misc: `EffectParry`, `EffectBlock`, `EffectReputation`, `EffectDuel` — represented-partial.
 - Glyph/Talent: `EffectApplyGlyph` — none.
 - Misc: `EffectDistract`, `EffectInebriate` — represented-partial; `EffectForceCast`, `EffectTriggerSpell`, `EffectTriggerMissileSpell`, `EffectTriggerRitualOfSummoning`, `EffectPlayMovie`, `EffectPlayScene`, `EffectPlaySceneScriptPackage`, `EffectGiveHonor`, `EffectGrantBattlePetExperience`, `EffectForceDeselect`, `EffectPickPocket`, `EffectModifyAuraStacks` — none.
