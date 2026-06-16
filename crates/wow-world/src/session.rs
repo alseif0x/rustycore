@@ -7469,6 +7469,12 @@ impl WorldSession {
             .and_then(|store| store.get(map_id, downscaled_entries.difficulty_id))
             .map(|entry| entry.id)
             .unwrap_or(0);
+        let map_difficulty_has_message = self
+            .map_difficulty_store
+            .as_ref()
+            .and_then(|store| store.get(map_id, downscaled_entries.difficulty_id))
+            .map(|entry| !entry.message.is_empty())
+            .unwrap_or(false);
 
         let failed_map_difficulty_x_condition =
             if self.instance_ignore_level_like_cpp || map_difficulty_id == 0 {
@@ -7580,7 +7586,7 @@ impl WorldSession {
             || missing_quest != 0
             || missing_achievement != 0
         {
-            if failed_map_difficulty_x_condition != 0 {
+            if map_difficulty_has_message || failed_map_difficulty_x_condition != 0 {
                 return Some((
                     TRANSFER_ABORT_DIFFICULTY_LIKE_CPP,
                     requested_difficulty,
@@ -39520,6 +39526,7 @@ mod tests {
         session.set_map_difficulty_store(Arc::new(MapDifficultyStore::from_entries([
             MapDifficultyEntry {
                 id: 1,
+                message: String::new(),
                 map_id,
                 difficulty_id: default_difficulty_id,
                 lock_id: 0,
@@ -39611,6 +39618,7 @@ mod tests {
         session.set_map_difficulty_store(Arc::new(MapDifficultyStore::from_entries([
             MapDifficultyEntry {
                 id: 900,
+                message: String::new(),
                 map_id,
                 difficulty_id,
                 lock_id,
@@ -39665,6 +39673,7 @@ mod tests {
         session.set_map_difficulty_store(Arc::new(MapDifficultyStore::from_entries([
             MapDifficultyEntry {
                 id: 901,
+                message: String::new(),
                 map_id,
                 difficulty_id,
                 lock_id,
@@ -39880,6 +39889,7 @@ mod tests {
         session.set_map_difficulty_store(Arc::new(MapDifficultyStore::from_entries([
             MapDifficultyEntry {
                 id: 900,
+                message: String::new(),
                 map_id: 33,
                 difficulty_id: 2,
                 lock_id: 9,
@@ -39927,6 +39937,7 @@ mod tests {
         session.set_map_difficulty_store(Arc::new(MapDifficultyStore::from_entries([
             MapDifficultyEntry {
                 id: 900,
+                message: String::new(),
                 map_id: 33,
                 difficulty_id: 1,
                 lock_id: 7,
@@ -56344,6 +56355,68 @@ mod tests {
                 arg: 0,
                 map_difficulty_x_condition_id: 0,
                 transfer_abort: TRANSFER_ABORT_ERROR_LIKE_CPP,
+            }
+            .to_bytes()
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn canonical_access_requirement_map_difficulty_message_sends_difficulty_abort_like_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 97);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "AccessMapDifficultyMessage".to_string(),
+            Position::new(3700.0, 1500.0, 120.0, 0.0),
+            631,
+            1,
+            1,
+            79,
+            0,
+        ));
+        session.represented_raid_difficulty_id_like_cpp = 3;
+        install_create_map_active_lock_stores_with_expansion_and_max_players_like_cpp(
+            &mut session,
+            631,
+            3,
+            77,
+            2,
+            2,
+            25,
+        );
+        session.set_map_difficulty_store(Arc::new(MapDifficultyStore::from_entries([
+            MapDifficultyEntry {
+                id: 900,
+                message: "localized difficulty failure".to_string(),
+                map_id: 631,
+                difficulty_id: 3,
+                lock_id: 77,
+                reset_interval: 2,
+                max_players: 25,
+                flags: 0,
+            },
+        ])));
+        let mut requirement = access_requirement_like_cpp(631, 3);
+        requirement.level_min = 80;
+        install_access_requirement_store_like_cpp(&mut session, requirement);
+
+        assert_eq!(
+            session.ensure_canonical_world_map_for_current_player_like_cpp(),
+            Some(wow_map::CreateMapDecision::Reject {
+                side_effects: Vec::new()
+            })
+        );
+        assert_eq!(
+            send_rx.try_recv().expect("SMSG_TRANSFER_ABORTED"),
+            wow_packet::packets::misc::TransferAborted {
+                map_id: 631,
+                arg: 3,
+                map_difficulty_x_condition_id: 0,
+                transfer_abort: TRANSFER_ABORT_DIFFICULTY_LIKE_CPP,
             }
             .to_bytes()
         );

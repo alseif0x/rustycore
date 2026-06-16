@@ -192,9 +192,10 @@ impl MapStore {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MapDifficultyEntry {
     pub id: u32,
+    pub message: String,
     pub map_id: u32,
     pub difficulty_id: u8,
     pub lock_id: u8,
@@ -204,7 +205,7 @@ pub struct MapDifficultyEntry {
 }
 
 impl MapDifficultyEntry {
-    pub const fn is_using_encounter_locks(self) -> bool {
+    pub const fn is_using_encounter_locks(&self) -> bool {
         self.flags & MAP_DIFFICULTY_FLAG_USE_LOOT_BASED_LOCK != 0
     }
 }
@@ -359,6 +360,7 @@ impl MapDifficultyStore {
         for (id, idx) in reader.iter_records() {
             entries.push(MapDifficultyEntry {
                 id,
+                message: reader.get_field_string(idx, 0),
                 // WDC4 record ids supply C++ field 0 (`ID`) and this reader
                 // exposes the numeric payload in physical order:
                 // ContentTuning, ItemContextPicker, ItemContext,
@@ -770,6 +772,7 @@ mod tests {
     fn map_difficulty_store_indexes_by_map_and_difficulty_like_cpp() {
         let store = MapDifficultyStore::from_entries([MapDifficultyEntry {
             id: 900,
+            message: String::new(),
             map_id: 631,
             difficulty_id: 4,
             lock_id: 7,
@@ -805,6 +808,7 @@ mod tests {
         let store = MapDifficultyStore::from_entries([
             MapDifficultyEntry {
                 id: 900,
+                message: String::new(),
                 map_id: 631,
                 difficulty_id: 3,
                 lock_id: 0,
@@ -814,6 +818,7 @@ mod tests {
             },
             MapDifficultyEntry {
                 id: 901,
+                message: String::new(),
                 map_id: 631,
                 difficulty_id: 15,
                 lock_id: 0,
@@ -839,6 +844,7 @@ mod tests {
         }]);
         let store = MapDifficultyStore::from_entries([MapDifficultyEntry {
             id: 900,
+            message: String::new(),
             map_id: 631,
             difficulty_id: 3,
             lock_id: 0,
@@ -864,6 +870,7 @@ mod tests {
         }]);
         let store = MapDifficultyStore::from_entries([MapDifficultyEntry {
             id: 900,
+            message: String::new(),
             map_id: 33,
             difficulty_id: 2,
             lock_id: 8,
@@ -900,6 +907,7 @@ mod tests {
         ]);
         let store = MapDifficultyStore::from_entries([MapDifficultyEntry {
             id: 900,
+            message: String::new(),
             map_id: 33,
             difficulty_id: 2,
             lock_id: 8,
@@ -937,6 +945,7 @@ mod tests {
         ]);
         let store = MapDifficultyStore::from_entries([MapDifficultyEntry {
             id: 900,
+            message: String::new(),
             map_id: 33,
             difficulty_id: 1,
             lock_id: 7,

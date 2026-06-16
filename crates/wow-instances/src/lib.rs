@@ -1897,6 +1897,7 @@ mod tests {
         let difficulties =
             wow_data::MapDifficultyStore::from_entries([wow_data::MapDifficultyEntry {
                 id: 900,
+                message: String::new(),
                 map_id: 631,
                 difficulty_id: 15,
                 lock_id: 7,
@@ -1952,6 +1953,7 @@ mod tests {
         let map_difficulties =
             wow_data::MapDifficultyStore::from_entries([wow_data::MapDifficultyEntry {
                 id: 900,
+                message: String::new(),
                 map_id: 33,
                 difficulty_id: 2,
                 lock_id: 9,

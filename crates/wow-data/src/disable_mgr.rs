@@ -607,6 +607,7 @@ mod tests {
     fn map_difficulty_store() -> MapDifficultyStore {
         MapDifficultyStore::from_entries([MapDifficultyEntry {
             id: 1,
+            message: String::new(),
             map_id: 571,
             difficulty_id: DIFFICULTY_HEROIC,
             lock_id: 0,

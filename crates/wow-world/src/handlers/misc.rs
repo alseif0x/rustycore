@@ -6437,6 +6437,7 @@ mod tests {
         session.set_map_difficulty_store(Arc::new(MapDifficultyStore::from_entries([
             MapDifficultyEntry {
                 id: 1,
+                message: String::new(),
                 map_id,
                 difficulty_id,
                 lock_id,
@@ -9900,6 +9901,7 @@ mod tests {
         session.set_map_difficulty_store(Arc::new(MapDifficultyStore::from_entries([
             MapDifficultyEntry {
                 id: 1,
+                message: String::new(),
                 map_id: 631,
                 difficulty_id: 4,
                 lock_id: 10,
@@ -16186,6 +16188,7 @@ mod tests {
         session.set_map_difficulty_store(Arc::new(MapDifficultyStore::from_entries([
             MapDifficultyEntry {
                 id: 1,
+                message: String::new(),
                 map_id: 631,
                 difficulty_id: 4,
                 lock_id: 10,
@@ -16279,6 +16282,7 @@ mod tests {
         session.set_map_difficulty_store(Arc::new(MapDifficultyStore::from_entries([
             MapDifficultyEntry {
                 id: 1,
+                message: String::new(),
                 map_id: 631,
                 difficulty_id: 4,
                 lock_id: 10,
@@ -16365,6 +16369,7 @@ mod tests {
         session.set_map_difficulty_store(Arc::new(MapDifficultyStore::from_entries([
             MapDifficultyEntry {
                 id: 1,
+                message: String::new(),
                 map_id: 631,
                 difficulty_id: 4,
                 lock_id: 10,

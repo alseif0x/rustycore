@@ -6168,6 +6168,7 @@ mod tests {
         wow_data::MapDifficultyStore::from_entries(entries.iter().enumerate().map(
             |(idx, (map_id, difficulty_id))| wow_data::MapDifficultyEntry {
                 id: u32::try_from(idx + 1).unwrap_or(u32::MAX),
+                message: String::new(),
                 map_id: *map_id,
                 difficulty_id: *difficulty_id,
                 lock_id: 0,
