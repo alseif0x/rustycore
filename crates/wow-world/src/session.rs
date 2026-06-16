@@ -734,8 +734,12 @@ const TRANSFER_ABORT_MAX_PLAYERS_LIKE_CPP: u32 = 2;
 const TRANSFER_ABORT_TOO_MANY_INSTANCES_LIKE_CPP: u32 = 4;
 const TRANSFER_ABORT_ZONE_IN_COMBAT_LIKE_CPP: u32 = 6;
 const TRANSFER_ABORT_INSUF_EXPAN_LVL_LIKE_CPP: u32 = 7;
+const TRANSFER_ABORT_UNIQUE_MESSAGE_LIKE_CPP: u32 = 9;
 const TRANSFER_ABORT_NEED_GROUP_LIKE_CPP: u32 = 11;
 const TRANSFER_ABORT_MAP_NOT_ALLOWED_LIKE_CPP: u32 = 16;
+const CLASS_DEATH_KNIGHT_LIKE_CPP: u8 = 6;
+const DEATH_KNIGHT_START_MAP_LIKE_CPP: u16 = 609;
+const DEATH_KNIGHT_ESCAPE_SPELL_LIKE_CPP: i32 = 50977;
 const HOUR_SECS_LIKE_CPP: u64 = 60 * 60;
 const MAP_BATTLEGROUND_LIKE_CPP: i8 = 3;
 const MAP_ARENA_LIKE_CPP: i8 = 4;
@@ -22175,6 +22179,23 @@ impl WorldSession {
             );
             return;
         };
+
+        if self.player_class_like_cpp() == CLASS_DEATH_KNIGHT_LIKE_CPP
+            && self.player_map_id_like_cpp() == DEATH_KNIGHT_START_MAP_LIKE_CPP
+            && u32::from(self.player_map_id_like_cpp()) != new_map
+            && !self.player_is_game_master_like_cpp()
+            && !self
+                .known_spells_like_cpp()
+                .contains(&DEATH_KNIGHT_ESCAPE_SPELL_LIKE_CPP)
+        {
+            self.send_transfer_aborted_with_params_like_cpp(
+                new_map,
+                TRANSFER_ABORT_UNIQUE_MESSAGE_LIKE_CPP,
+                1,
+                0,
+            );
+            return;
+        }
 
         if let Some((transfer_abort, arg, map_difficulty_x_condition_id)) =
             self.player_cannot_enter_target_map_like_cpp(new_map)
@@ -64232,6 +64253,93 @@ mod tests {
             vec![ServerOpcodes::TransferPending, ServerOpcodes::SuspendToken]
         );
         assert_eq!(session.pending_teleport, Some((529, destination)));
+        assert_eq!(session.state, SessionState::Transfer);
+    }
+
+    #[tokio::test]
+    async fn teleport_to_blocks_unescaped_death_knight_leaving_start_map_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 796);
+        let destination = Position::new(104.0, 204.0, 34.0, 1.9);
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 1,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.expansion = 1;
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TeleportDkReject".to_string(),
+            Position::new(10.0, 20.0, 30.0, 0.0),
+            DEATH_KNIGHT_START_MAP_LIKE_CPP,
+            1,
+            CLASS_DEATH_KNIGHT_LIKE_CPP,
+            58,
+            0,
+        ));
+
+        session.teleport_to(571, destination).await;
+
+        assert_eq!(
+            send_rx.try_recv().expect("SMSG_TRANSFER_ABORTED"),
+            wow_packet::packets::misc::TransferAborted {
+                map_id: 571,
+                arg: 1,
+                map_difficulty_x_condition_id: 0,
+                transfer_abort: TRANSFER_ABORT_UNIQUE_MESSAGE_LIKE_CPP,
+            }
+            .to_bytes()
+        );
+        assert!(
+            send_rx.try_recv().is_err(),
+            "C++ Player::TeleportTo returns before SMSG_TRANSFER_PENDING for unescaped DKs leaving map 609"
+        );
+        assert_eq!(session.pending_teleport, None);
+        assert_ne!(session.state, SessionState::Transfer);
+    }
+
+    #[tokio::test]
+    async fn teleport_to_allows_death_knight_after_escape_spell_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 797);
+        let destination = Position::new(105.0, 205.0, 35.0, 2.0);
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 1,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.expansion = 1;
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TeleportDkAllow".to_string(),
+            Position::new(10.0, 20.0, 30.0, 0.0),
+            DEATH_KNIGHT_START_MAP_LIKE_CPP,
+            1,
+            CLASS_DEATH_KNIGHT_LIKE_CPP,
+            58,
+            0,
+        ));
+        session.learn_known_spell_like_cpp(DEATH_KNIGHT_ESCAPE_SPELL_LIKE_CPP);
+
+        session.teleport_to(571, destination).await;
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::TransferPending, ServerOpcodes::SuspendToken]
+        );
+        assert_eq!(session.pending_teleport, Some((571, destination)));
         assert_eq!(session.state, SessionState::Transfer);
     }
 

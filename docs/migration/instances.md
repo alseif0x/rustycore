@@ -314,6 +314,14 @@ NOTE: `InstanceSaveMgr` no longer exists as a separate class in this WoLK 3.4.3 
   gap: this uses Rust's represented battleground type seam as the available
   stand-in for C++ `m_bgData.bgInstanceID`; full `BattlegroundMgr`
   assignment/instance ownership and live-client validation remain pending.
+- `#NEXT.RUNTIME.L3.031j78` wires the C++ Death Knight starter-map escape
+  guard in the far-teleport branch: a non-GM DK on map 609 without spell 50977
+  now receives `TRANSFER_ABORT_UNIQUE_MESSAGE` with argument `1` before entry
+  preflight or transfer packets, while a represented DK that knows 50977 can
+  proceed. Refs: `Player.cpp:1349-1352`, `SharedDefines.h:148`, `Map.h:93`.
+  Remaining gaps: same-map near teleport, delayed-teleport flags, selection /
+  combat / contested-PvP resets, full BG cleanup, pet/vehicle/duel/movement
+  cleanup, bot, install/restart, and live-client validation remain pending.
 
 **Tests existing:**
 - `cargo test -p wow-instances -- --nocapture` currently covers 19 focused tests, including C++-contrasted lock key/binding, daily/weekly reset anchors, temporary lock creation, active lock lookup, temp promotion, expired-lock replacement, DB row reconstruction, shared weak-ref cleanup, prepared-statement parameter order, flex-mask join rejection, different-instance rejection, and reset in-use guard.

@@ -1,3 +1,23 @@
+- `#NEXT.RUNTIME.L3.031j78` — WotLK `Player::TeleportTo` now mirrors the
+  Death Knight starter-map escape guard in the far-teleport branch
+  (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:1349-1352`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:148`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Maps/Map.h:93`.
+  C++ rejects a non-GM `CLASS_DEATH_KNIGHT` on map `609` that does not know
+  spell `50977`, sending `SMSG_TRANSFER_ABORTED` reason
+  `TRANSFER_ABORT_UNIQUE_MESSAGE` with `Arg = 1` before entry preflight or
+  `SMSG_TRANSFER_PENDING`. Rust now applies that same represented guard in
+  `WorldSession::teleport_to` when leaving map 609, after the earlier
+  disabled-map, battleground-assignment, expansion, and current-position gates.
+  Coverage: targeted `wow-world` tests prove an unescaped DK leaving map 609
+  receives only the unique-message transfer abort and no pending transfer, while
+  the same represented DK with spell 50977 proceeds to
+  `SMSG_TRANSFER_PENDING` + `SMSG_SUSPEND_TOKEN`. Boundary remains partial:
+  Rust still lacks full same-map near teleport semantics, delayed-teleport
+  flags, `SetSelection`, `CombatStop`, `ResetContestedPvP`, full
+  BattlegroundMgr cleanup, pet/vehicle/duel/movement cleanup, install/restart,
+  bot, and live-client/manual validation.
 - `#NEXT.RUNTIME.L3.031j77` — WotLK `Player::TeleportTo` now mirrors the
   C++ battleground/arena assignment gate before the client-expansion branch
   (not manual-test-ready). Source-of-truth:
