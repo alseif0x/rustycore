@@ -49,7 +49,7 @@ use wow_entities::{
     GameObjectUpdateOutcomeLikeCpp as EntityGameObjectUpdateOutcomeLikeCpp,
     GameObjectUpdateStatusLikeCpp as EntityGameObjectUpdateStatusLikeCpp, GoState, INVALID_HEIGHT,
     LineOfSightQuery, LootState, MAX_VISIBILITY_DISTANCE, MapBindingError, MapObjectRecord,
-    ObjectAccessorError, ObjectAccessorMapSource, ObjectNotifyFlags, Player, SceneObject,
+    ObjectAccessorError, ObjectAccessorMapSource, ObjectNotifyFlags, Pet, Player, SceneObject,
     TransportUpdateLikeCpp, Unit, UnitAddToWorldOutcomeLikeCpp, UnitRemoveFromWorldOutcomeLikeCpp,
     UnitSharedVisionSetWorldObjectRequestLikeCpp, UnitValuesUpdate,
     VehicleKitAddToWorldResetOutcomeLikeCpp, VehicleKitInstallOutcomeLikeCpp,
@@ -12638,6 +12638,14 @@ where
 
     pub fn get_pet(&self, guid: ObjectGuid) -> Option<&WorldObject> {
         self.map_object_by_kind(guid, &[AccessorObjectKind::Pet])
+    }
+
+    pub fn get_typed_pet(&self, guid: ObjectGuid) -> Option<&Pet> {
+        let record = self.map_object_record(guid)?;
+        if record.kind() != AccessorObjectKind::Pet {
+            return None;
+        }
+        record.pet()
     }
 
     pub fn get_game_object(&self, guid: ObjectGuid) -> Option<&WorldObject> {

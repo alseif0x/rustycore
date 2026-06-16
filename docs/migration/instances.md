@@ -439,8 +439,8 @@ NOTE: `InstanceSaveMgr` no longer exists as a separate class in this WoLK 3.4.3 
   branch, matching C++ `Player::TeleportTo`. Refs: `Player.cpp:1310-1346`,
   `Unit.cpp:12208-12244`, `MovementPackets.h:303-318`,
   `MovementPackets.cpp:705-724`, `MovementHandler.cpp:263-324`.
-  Remaining gaps: transport/vehicle payloads, full real-pet temporary unsummon
-  state/DB removal beyond the represented request counter, full
+  Remaining gaps: transport/vehicle payloads, temporary-pet DB
+  resummon/stable persistence, full
   `ResurrectPlayer` side effects beyond represented health/powers, delayed far
   teleports/quest-reward activation, install/restart, bot, and live-client
   validation remain pending.
@@ -457,8 +457,8 @@ NOTE: `InstanceSaveMgr` no longer exists as a separate class in this WoLK 3.4.3 
   corrected destination payload. Refs: `Unit.cpp:12208-12255`,
   `MovementPackets.h:319-334`, `MovementPackets.cpp:750-795`.
   Remaining gaps: transport/vehicle offsets and GUID payloads, movement forces,
-  optional speed payloads, full real-pet temporary unsummon state/DB removal
-  beyond the represented request counter, full `ResurrectPlayer` side effects
+  optional speed payloads, temporary-pet DB resummon/stable persistence, full
+  `ResurrectPlayer` side effects
   beyond represented health/powers, delayed far teleports/quest-reward
   activation, install/restart, bot, and live-client validation remain pending.
 - `#NEXT.RUNTIME.L3.031j92` ports the same-map
@@ -472,8 +472,8 @@ NOTE: `InstanceSaveMgr` no longer exists as a separate class in this WoLK 3.4.3 
   Remaining gaps: `SMSG_DEATH_RELEASE_LOC`, area-spirit-healer clearing,
   ghost/night-elf aura removals, water-walk/rooted movement flag packets,
   zone/visibility refresh, outdoor-PvP/BG callbacks, item obtain spell recasts,
-  resurrection sickness, full real-pet temporary unsummon state/DB removal
-  beyond the represented request counter, transport/vehicle payloads, delayed
+  resurrection sickness, temporary-pet DB resummon/stable persistence,
+  transport/vehicle payloads, delayed
   far teleports/quest-reward activation, install/restart, bot, and live-client
   validation remain pending.
 - `#NEXT.RUNTIME.L3.031j93` ports the same-map pet distance gate from C++
@@ -486,11 +486,10 @@ NOTE: `InstanceSaveMgr` no longer exists as a separate class in this WoLK 3.4.3 
   teleports, which only do it for an out-of-range pet. Refs:
   `Player.cpp:1254`, `Player.cpp:1321-1325`, `Object.cpp:1128-1136`,
   `Player.h:801`.
-  Remaining gaps: real `UnsummonPetTemporaryIfAny` internals
-  (`m_temporaryUnsummonedPetNumber`, `m_oldpetspell`, `RemovePet(PET_SAVE_AS_CURRENT)`,
-  DB/current-pet state), transport/vehicle payloads, delayed far
-  teleports/quest-reward activation, install/restart, bot, and live-client
-  validation remain pending.
+  Remaining gaps: real `ResummonPetTemporaryUnSummonedIfAny` DB load,
+  `Pet::SavePetToDB(PET_SAVE_AS_CURRENT)` slot/current-pet persistence,
+  transport/vehicle payloads, delayed far teleports/quest-reward activation,
+  install/restart, bot, and live-client validation remain pending.
 - `#NEXT.RUNTIME.L3.031j94` represents the C++ same-map delayed-teleport
   semaphore path. While `Player::m_bCanDelayTeleport` is represented as active,
   same-map `TeleportTo` now sets `m_bHasDelayedTeleport`, marks the near
@@ -502,9 +501,9 @@ NOTE: `InstanceSaveMgr` no longer exists as a separate class in this WoLK 3.4.3 
   `Player::Update` delayed-execution guard. Refs: `Player.cpp:933-935`,
   `Player.cpp:1154-1155`, `Player.cpp:1306-1318`, `Player.h:2185-2189`,
   `Player.h:3095-3098`.
-  Remaining gaps: full real-pet temporary unsummon internals,
-  transport/vehicle payloads, install/restart, bot, and live-client
-  validation remain pending.
+  Remaining gaps: temporary-pet DB resummon/stable persistence,
+  transport/vehicle payloads, install/restart, bot, and live-client validation
+  remain pending.
 - `#NEXT.RUNTIME.L3.031j95` extends the represented delayed-teleport semaphore
   path to far/cross-map teleports. When the represented
   `Player::m_bCanDelayTeleport` window is active, far `TeleportTo` now stores
@@ -516,9 +515,9 @@ NOTE: `InstanceSaveMgr` no longer exists as a separate class in this WoLK 3.4.3 
   transfer path. Refs: `Player.cpp:933-935`, `Player.cpp:1154-1155`,
   `Player.cpp:1372-1386`, `Player.cpp:1388-1473`, `Player.h:2185-2189`,
   `Player.h:3095-3098`.
-  Remaining gaps: full real-pet temporary unsummon internals,
-  transport/vehicle payloads, install/restart, bot, and live-client
-  validation remain pending.
+  Remaining gaps: temporary-pet DB resummon/stable persistence,
+  transport/vehicle payloads, install/restart, bot, and live-client validation
+  remain pending.
 - `#NEXT.RUNTIME.L3.031j96` represents the `RewardQuest`-scoped delayed-teleport
   window. `reward_represented_quest_like_cpp` now opens the represented
   `Player::m_bCanDelayTeleport` flag on entry, keeps it active through
@@ -527,9 +526,9 @@ NOTE: `InstanceSaveMgr` no longer exists as a separate class in this WoLK 3.4.3 
   whether the C++ delay window was active so tests can prove the timing, not
   only the final state. Refs: `Player.cpp:14635`, `Player.cpp:14830-14870`,
   `Player.cpp:14893`.
-  Remaining gaps: full real-pet temporary unsummon internals,
-  transport/vehicle payloads, install/restart, bot, and live-client
-  validation remain pending.
+  Remaining gaps: temporary-pet DB resummon/stable persistence,
+  transport/vehicle payloads, install/restart, bot, and live-client validation
+  remain pending.
 - `#NEXT.RUNTIME.L3.031j97` separates the represented far teleport semaphore
   from `pending_teleport`. Rust now tracks C++ `Player::mSemaphoreTeleport_Far`
   as its own state, sets it on immediate and delayed far `TeleportTo`, clears it
@@ -539,9 +538,9 @@ NOTE: `InstanceSaveMgr` no longer exists as a separate class in this WoLK 3.4.3 
   `WorldSession::HandleMoveWorldportAck`. Refs: `Player.cpp:203-204`,
   `Player.cpp:1306`, `Player.cpp:1381`, `Player.cpp:1473`,
   `MovementHandler.cpp:53-58`, `Player.h:2184-2189`, `Player.h:3116-3117`.
-  Remaining gaps: full real-pet temporary unsummon internals,
-  transport/vehicle payloads, install/restart, bot, and live-client
-  validation remain pending.
+  Remaining gaps: temporary-pet DB resummon/stable persistence,
+  transport/vehicle payloads, install/restart, bot, and live-client validation
+  remain pending.
 - `#NEXT.RUNTIME.L3.031j98` wires represented canonical old-map removal for far
   teleports. Immediate far `TeleportTo` and delayed far replay now remove the
   current player from the canonical old map with `remove_from_map_like_cpp(...,
@@ -552,9 +551,23 @@ NOTE: `InstanceSaveMgr` no longer exists as a separate class in this WoLK 3.4.3 
   still-in-world player from the old map and adds it to the destination map.
   Refs: `Player.cpp:1454`, `MovementHandler.cpp:83-88`,
   `MovementHandler.cpp:102-123`.
-  Remaining gaps: full real-pet temporary unsummon internals,
+  Remaining gaps: temporary-pet DB resummon/stable persistence,
   transport/vehicle payloads, install/restart, bot, and live-client validation
   remain pending.
+- `#NEXT.RUNTIME.L3.031j99` represents the core state mutation inside
+  `Player::UnsummonPetTemporaryIfAny`. When a represented active pet is
+  temporarily unsummoned, Rust now reads the canonical pet's `CharmInfo`
+  pet-number when the pet is controlled and not temporary, stores represented
+  `m_temporaryUnsummonedPetNumber` plus represented `m_oldpetspell`, removes the
+  pet from the canonical map with `remove_from_map_like_cpp(..., false)`, and
+  clears the represented active pet GUID. Temporary summoned pets are removed
+  without storing a pet number, matching the C++ guard. Refs:
+  `Player.cpp:26256-26268`, `Player.cpp:20869-20906`,
+  `Pet.cpp:468-486`.
+  Remaining gaps: real `ResummonPetTemporaryUnSummonedIfAny` DB load,
+  `Pet::SavePetToDB(PET_SAVE_AS_CURRENT)` slot/current-pet persistence,
+  reagent-return side effects, transport/vehicle payloads, install/restart,
+  bot, and live-client validation remain pending.
 
 **Tests existing:**
 - `cargo test -p wow-instances -- --nocapture` currently covers 19 focused tests, including C++-contrasted lock key/binding, daily/weekly reset anchors, temporary lock creation, active lock lookup, temp promotion, expired-lock replacement, DB row reconstruction, shared weak-ref cleanup, prepared-statement parameter order, flex-mask join rejection, different-instance rejection, and reset in-use guard.
