@@ -1259,6 +1259,15 @@ pub struct AreaTriggersUpdateSummaryLikeCpp {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RemoveAllAreaTriggersForCasterOutcomeLikeCpp {
+    pub caster_guid: ObjectGuid,
+    pub candidates: usize,
+    pub removed: usize,
+    pub missing_or_stale: usize,
+    pub remove_errors: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConversationUpdateStatusLikeCpp {
     Updated,
     ExpiredRemoveQueued,
@@ -6984,6 +6993,64 @@ where
         }
 
         summary
+    }
+
+    /// C++ `Unit::RemoveAllAreaTriggers` represented over map-owned AreaTriggers.
+    ///
+    /// C++ anchors:
+    /// - `Player.cpp:1421-1422` calls `RemoveAllAreaTriggers()` during accepted
+    ///   inter-map `Player::TeleportTo`, immediately after `RemoveAllDynObjects()`.
+    /// - `Unit.cpp:5347-5351` repeatedly removes every AreaTrigger owned by the
+    ///   Unit (`m_areaTrigger.back()->Remove()`).
+    /// - `AreaTrigger.cpp:366-372` routes `Remove()` through the owning map
+    ///   remove list only while the object is in world; Rust reuses
+    ///   `remove_from_map_like_cpp(..., true)` to keep physical removal in one
+    ///   canonical map path.
+    ///
+    /// Scope: source-of-truth is this canonical `Map::map_objects` store. This
+    /// does not model the exact C++ `Unit::m_areaTrigger` vector ordering,
+    /// destroy-packet fanout, ObjectAccessor/session mirrors, AI target list
+    /// exits, scripts, DB, or cross-map lookup beyond this map.
+    pub fn remove_all_area_triggers_for_caster_like_cpp(
+        &mut self,
+        caster_guid: ObjectGuid,
+    ) -> RemoveAllAreaTriggersForCasterOutcomeLikeCpp {
+        let mut guids = self
+            .map_objects
+            .iter()
+            .filter_map(|(guid, record)| {
+                if record.kind() != AccessorObjectKind::AreaTrigger {
+                    return None;
+                }
+                let area_trigger = record.area_trigger()?;
+                (area_trigger.caster_guid() == caster_guid).then_some(*guid)
+            })
+            .collect::<Vec<_>>();
+        guids.sort_by_key(ObjectGuid::to_raw_bytes);
+
+        let mut outcome = RemoveAllAreaTriggersForCasterOutcomeLikeCpp {
+            caster_guid,
+            candidates: guids.len(),
+            removed: 0,
+            missing_or_stale: 0,
+            remove_errors: 0,
+        };
+
+        for guid in guids {
+            match self.remove_from_map_like_cpp(guid, true) {
+                Ok(_) => {
+                    outcome.removed += 1;
+                }
+                Err(RemoveFromMapError::ObjectNotFound { .. }) => {
+                    outcome.missing_or_stale += 1;
+                }
+                Err(_) => {
+                    outcome.remove_errors += 1;
+                }
+            }
+        }
+
+        outcome
     }
 
     /// Map-owned seam for C++ `Conversation::Update` under `ObjectUpdater`.
@@ -26720,6 +26787,55 @@ mod tests {
         );
         assert_eq!(map.objects_to_remove_count_like_cpp(), 0);
         assert!(map.map_object_record(missing_guid).is_none());
+        assert!(map.map_object_record(creature_guid).is_some());
+    }
+
+    #[test]
+    fn remove_all_area_triggers_for_caster_removes_only_matching_caster_like_cpp() {
+        let mut map = test_map();
+        let caster_guid = guid(HighGuid::Player, 4340601);
+        let other_caster_guid = guid(HighGuid::Player, 4340602);
+
+        let mut matching_area_trigger = test_area_trigger_for_update(4340603, 1_000, true);
+        let matching_guid = matching_area_trigger.world().guid();
+        matching_area_trigger.set_caster_guid(caster_guid);
+        map.insert_map_object_record(
+            MapObjectRecord::new_area_trigger(matching_area_trigger).unwrap(),
+        )
+        .unwrap();
+
+        let mut other_area_trigger = test_area_trigger_for_update(4340604, 1_000, true);
+        let other_guid = other_area_trigger.world().guid();
+        other_area_trigger.set_caster_guid(other_caster_guid);
+        map.insert_map_object_record(
+            MapObjectRecord::new_area_trigger(other_area_trigger).unwrap(),
+        )
+        .unwrap();
+
+        let outcome = map.remove_all_area_triggers_for_caster_like_cpp(caster_guid);
+
+        assert_eq!(outcome.caster_guid, caster_guid);
+        assert_eq!(outcome.candidates, 1);
+        assert_eq!(outcome.removed, 1);
+        assert_eq!(outcome.missing_or_stale, 0);
+        assert_eq!(outcome.remove_errors, 0);
+        assert!(map.map_object_record(matching_guid).is_none());
+        assert!(map.map_object_record(other_guid).is_some());
+    }
+
+    #[test]
+    fn remove_all_area_triggers_for_caster_ignores_other_object_kinds_like_cpp() {
+        let mut map = test_map();
+        let caster_guid = guid(HighGuid::Player, 4340611);
+        let creature = test_creature_for_spawn(4340612, 4340612, true);
+        let creature_guid = creature.guid();
+        map.insert_map_object_record(MapObjectRecord::new_creature(creature).unwrap())
+            .unwrap();
+
+        let outcome = map.remove_all_area_triggers_for_caster_like_cpp(caster_guid);
+
+        assert_eq!(outcome.candidates, 0);
+        assert_eq!(outcome.removed, 0);
         assert!(map.map_object_record(creature_guid).is_some());
     }
 

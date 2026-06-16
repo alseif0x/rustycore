@@ -372,8 +372,18 @@ NOTE: `InstanceSaveMgr` no longer exists as a separate class in this WoLK 3.4.3 
   `DynamicObject.cpp:167-171`. Remaining gap: this is still bounded to
   canonical map-owned typed records; exact `Unit::m_dynObj` ordering,
   destroy-packet fanout/ObjectAccessor mirrors, scripts, live DB persistence,
-  `RemoveAllAreaTriggers()`, bot, install/restart, and live-client validation
-  remain pending.
+  bot, install/restart, and live-client validation remain pending.
+- `#NEXT.RUNTIME.L3.031j85` wires the accepted far-teleport
+  `RemoveAllAreaTriggers()` branch for canonical map-owned AreaTriggers whose
+  caster is the current player: Rust removes those typed AreaTrigger records
+  from the current canonical map after `RemoveAllDynObjects()` and before
+  transfer packets, leaving AreaTriggers owned by other casters intact. Refs:
+  `Player.cpp:1421-1422`, `Unit.cpp:5347-5351`,
+  `AreaTrigger.cpp:366-372`. Remaining gap: this is still bounded to canonical
+  typed records; exact `Unit::m_areaTrigger` ordering, destroy-packet fanout,
+  ObjectAccessor/session mirrors, AreaTrigger AI/target-list exit callbacks,
+  scripts, live DB persistence, bot, install/restart, and live-client
+  validation remain pending.
 
 **Tests existing:**
 - `cargo test -p wow-instances -- --nocapture` currently covers 19 focused tests, including C++-contrasted lock key/binding, daily/weekly reset anchors, temporary lock creation, active lock lookup, temp promotion, expired-lock replacement, DB row reconstruction, shared weak-ref cleanup, prepared-statement parameter order, flex-mask join rejection, different-instance rejection, and reset in-use guard.

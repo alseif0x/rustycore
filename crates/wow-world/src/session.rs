@@ -22354,6 +22354,7 @@ impl WorldSession {
             self.maybe_leave_represented_battleground_on_far_teleport_like_cpp(new_map);
             self.unsummon_represented_pet_temporary_if_any_like_cpp();
             let _ = self.remove_all_dynamic_objects_for_current_player_like_cpp();
+            let _ = self.remove_all_area_triggers_for_current_player_like_cpp();
         }
 
         info!(
@@ -22415,6 +22416,21 @@ impl WorldSession {
             managed
                 .map_mut()
                 .remove_all_dynamic_objects_for_caster_like_cpp(player_guid),
+        )
+    }
+
+    fn remove_all_area_triggers_for_current_player_like_cpp(
+        &self,
+    ) -> Option<wow_map::map::RemoveAllAreaTriggersForCasterOutcomeLikeCpp> {
+        let player_guid = self.player_guid()?;
+        let map_key = self.current_canonical_player_map_key_like_cpp()?;
+        let canonical = self.canonical_map_manager.as_ref()?;
+        let mut manager = canonical.lock().ok()?;
+        let managed = manager.find_map_mut(map_key.map_id, map_key.instance_id)?;
+        Some(
+            managed
+                .map_mut()
+                .remove_all_area_triggers_for_caster_like_cpp(player_guid),
         )
     }
 
@@ -50189,6 +50205,18 @@ mod tests {
         )
     }
 
+    fn test_area_trigger_guid(entry: u32, counter: i64) -> ObjectGuid {
+        ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::AreaTrigger,
+            0,
+            1,
+            571,
+            0,
+            entry,
+            counter,
+        )
+    }
+
     fn prepare_dynamic_object_values_snapshot_like_cpp(
         canonical: &SharedCanonicalMapManager,
         map_id: u32,
@@ -50316,6 +50344,41 @@ mod tests {
         map.map_mut()
             .insert_map_object_record(
                 wow_entities::MapObjectRecord::new_dynamic_object(dynamic_object).unwrap(),
+            )
+            .unwrap();
+    }
+
+    fn add_canonical_test_area_trigger_on_map(
+        canonical: &SharedCanonicalMapManager,
+        guid: ObjectGuid,
+        caster: ObjectGuid,
+        spell_id: u32,
+        position: Position,
+        map_id: u32,
+        instance_id: u32,
+    ) {
+        let mut area_trigger = wow_entities::AreaTrigger::new();
+        area_trigger.world_mut().object_mut().create(guid);
+        area_trigger.world_mut().object_mut().set_entry(spell_id);
+        area_trigger
+            .world_mut()
+            .set_map(map_id, instance_id)
+            .unwrap();
+        area_trigger.world_mut().relocate(position);
+        area_trigger.set_caster_guid(caster);
+        area_trigger.set_spell_id(spell_id as i32);
+        area_trigger.set_duration(5000);
+
+        let mut guard = canonical.lock().unwrap();
+        let map = guard.create_world_map(map_id, instance_id);
+        let _ = map.map_mut().add_to_map_like_cpp(
+            AccessorObjectKind::AreaTrigger,
+            area_trigger.world().clone(),
+        );
+        area_trigger.world_mut().object_mut().add_to_world();
+        map.map_mut()
+            .insert_map_object_record(
+                wow_entities::MapObjectRecord::new_area_trigger(area_trigger).unwrap(),
             )
             .unwrap();
     }
@@ -64871,6 +64934,92 @@ mod tests {
         assert!(
             map.get_typed_dynamic_object(other_dynamic_guid).is_some(),
             "RemoveAllDynObjects must not remove DynamicObjects owned by another caster"
+        );
+    }
+
+    #[tokio::test]
+    async fn teleport_to_far_map_removes_current_player_area_triggers_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 803);
+        let other_player_guid = ObjectGuid::create_player(1, 804);
+        let owned_area_trigger_guid = test_area_trigger_guid(601_803, 50_803);
+        let other_area_trigger_guid = test_area_trigger_guid(601_804, 50_804);
+        let source_position = Position::new(10.0, 20.0, 30.0, 0.0);
+        let destination = Position::new(109.0, 209.0, 39.0, 2.4);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 1,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+            wow_data::MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.expansion = 1;
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TeleportRemoveAreaTriggers".to_string(),
+            source_position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map(&canonical, player_guid, source_position, 571, 0);
+        add_canonical_test_area_trigger_on_map(
+            &canonical,
+            owned_area_trigger_guid,
+            player_guid,
+            60_183,
+            source_position,
+            571,
+            0,
+        );
+        add_canonical_test_area_trigger_on_map(
+            &canonical,
+            other_area_trigger_guid,
+            other_player_guid,
+            60_184,
+            Position::new(11.0, 21.0, 31.0, 0.0),
+            571,
+            0,
+        );
+
+        session.teleport_to(0, destination).await;
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![
+                ServerOpcodes::CancelCombat,
+                ServerOpcodes::TransferPending,
+                ServerOpcodes::SuspendToken
+            ]
+        );
+        assert_eq!(session.pending_teleport, Some((0, destination)));
+        let manager = canonical.lock().unwrap();
+        let map = manager.find_map(571, 0).unwrap().map();
+        assert!(
+            map.get_area_trigger(owned_area_trigger_guid).is_none(),
+            "C++ Player::TeleportTo calls Unit::RemoveAllAreaTriggers before transfer"
+        );
+        assert!(
+            map.get_area_trigger(other_area_trigger_guid).is_some(),
+            "RemoveAllAreaTriggers must not remove AreaTriggers owned by another caster"
         );
     }
 
