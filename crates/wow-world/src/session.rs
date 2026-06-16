@@ -5406,6 +5406,16 @@ impl WorldSession {
     }
 
     fn canonical_player_entity_snapshot_like_cpp(&self) -> Option<Player> {
+        self.canonical_player_entity_snapshot_for_map_like_cpp(wow_map::MapKey::new(
+            u32::from(self.player_map_id_like_cpp()),
+            0,
+        ))
+    }
+
+    fn canonical_player_entity_snapshot_for_map_like_cpp(
+        &self,
+        key: wow_map::MapKey,
+    ) -> Option<Player> {
         let guid = self.player_guid()?;
         let position = self.player_position_like_cpp()?;
         let name = self.player_name_like_cpp()?;
@@ -5415,7 +5425,7 @@ impl WorldSession {
         player
             .unit_mut()
             .world_mut()
-            .set_map(u32::from(self.player_map_id_like_cpp()), 0)
+            .set_map(key.map_id, key.instance_id)
             .ok()?;
         player.unit_mut().world_mut().relocate(position);
         *player.unit_mut().world_mut().phase_shift_mut() =
@@ -7060,28 +7070,42 @@ impl WorldSession {
     ) -> Option<wow_map::CreateMapDecision> {
         let map_id = u32::from(self.player_map_id_like_cpp());
         let map_entry = self.map_store.as_ref()?.get(map_id).copied()?;
-        if map_entry.is_dungeon() || map_entry.is_battleground_or_arena() || map_entry.is_garrison()
-        {
+        if map_entry.is_battleground_or_arena() || map_entry.is_garrison() {
             return None;
         }
 
         let player_guid = self.player_guid?;
         let player = self.create_map_player_context_like_cpp(map_id, map_entry, player_guid);
+        let is_dungeon = map_entry.is_dungeon();
+        let requested_difficulty = player
+            .group
+            .map(|group| group.difficulty_id)
+            .unwrap_or(player.player_difficulty_id);
         let entry = wow_map::CreateMapEntryContext {
             map_id,
-            kind: wow_map::CreateMapEntryKind::World,
+            kind: if is_dungeon {
+                wow_map::CreateMapEntryKind::Dungeon
+            } else {
+                wow_map::CreateMapEntryKind::World
+            },
             split_by_faction: map_entry.is_split_by_faction(),
             flex_locking: map_entry.is_flex_locking(),
         };
+        let active_instance_lock = is_dungeon
+            .then(|| {
+                self.create_map_active_instance_lock_context_like_cpp(map_id, requested_difficulty)
+            })
+            .flatten();
 
-        let player_entity = self.canonical_player_entity_snapshot_like_cpp();
         let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
         let mut manager = manager.lock().ok()?;
         let decision = manager.create_map_decision_like_cpp(
             Some(entry),
             Some(player),
-            |_, _| None,
-            None,
+            |map_id, difficulty_id| {
+                self.create_map_difficulty_context_like_cpp(map_id, difficulty_id)
+            },
+            active_instance_lock,
             |_, _| None,
         );
 
@@ -7092,7 +7116,10 @@ impl WorldSession {
             ..
         } = &decision
         {
-            manager.create_map_entry(key.map_id, key.instance_id, *difficulty_id, *kind);
+            let map = manager.create_map_entry(key.map_id, key.instance_id, *difficulty_id, *kind);
+            if is_dungeon {
+                map.set_instance_lock_token(active_instance_lock.map(|lock| lock.token));
+            }
         }
 
         let key = match &decision {
@@ -7104,8 +7131,22 @@ impl WorldSession {
 
         let _ = self.apply_create_map_side_effects_like_cpp(map_id, &decision);
 
-        if let Some(player) = player_entity
+        if is_dungeon
             && let Some(key) = key
+            && let Some(difficulty_id) = create_map_decision_difficulty_id_like_cpp(&decision)
+            && let Some(lock) =
+                self.create_map_active_instance_lock_context_like_cpp(map_id, difficulty_id)
+        {
+            let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
+            if let Ok(mut manager) = manager.lock()
+                && let Some(map) = manager.find_map_mut(key.map_id, key.instance_id)
+            {
+                map.set_instance_lock_token(Some(lock.token));
+            }
+        }
+
+        if let Some(key) = key
+            && let Some(player) = self.canonical_player_entity_snapshot_for_map_like_cpp(key)
         {
             let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
             if let Ok(mut manager) = manager.lock() {
@@ -38642,6 +38683,16 @@ fn create_map_instance_lock_token_like_cpp(
     hash
 }
 
+fn create_map_decision_difficulty_id_like_cpp(
+    decision: &wow_map::CreateMapDecision,
+) -> Option<wow_map::Difficulty> {
+    match decision {
+        wow_map::CreateMapDecision::Existing { difficulty_id, .. }
+        | wow_map::CreateMapDecision::Create { difficulty_id, .. } => Some(*difficulty_id),
+        wow_map::CreateMapDecision::Reject { .. } => None,
+    }
+}
+
 /// Available race/class combinations from `class_expansion_requirement` table.
 ///
 /// Data matches exactly what C# ObjectManager loads from the world DB.
@@ -55505,10 +55556,11 @@ mod tests {
         ));
         insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
 
-        assert!(
-            session
-                .ensure_canonical_world_map_for_current_player_like_cpp()
-                .is_none()
+        assert_eq!(
+            session.ensure_canonical_world_map_for_current_player_like_cpp(),
+            Some(wow_map::CreateMapDecision::Reject {
+                side_effects: Vec::new()
+            })
         );
         let manager = canonical.lock().unwrap();
         assert!(manager.find_map(0, 0).is_none());
@@ -55519,6 +55571,115 @@ mod tests {
                 .map()
                 .get_typed_player(player_guid)
                 .is_some()
+        );
+    }
+
+    #[test]
+    fn canonical_player_dungeon_create_map_creates_temporary_lock_like_cpp() {
+        let (mut session, _pkt_tx, _send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let owner = ObjectGuid::create_player(1, 64);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            owner,
+            "DungeonCreate".to_string(),
+            Position::new(3700.0, 1500.0, 120.0, 0.0),
+            631,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.represented_raid_difficulty_id_like_cpp = 3;
+        install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
+        session.set_instance_lock_mgr(Arc::new(std::sync::RwLock::new(
+            wow_instances::InstanceLockMgr::default(),
+        )));
+
+        let decision = session
+            .ensure_canonical_world_map_for_current_player_like_cpp()
+            .unwrap();
+        let lock_context = session
+            .create_map_active_instance_lock_context_like_cpp(631, 3)
+            .unwrap();
+
+        assert_eq!(
+            decision,
+            wow_map::CreateMapDecision::Create {
+                key: wow_map::MapKey::new(631, 1),
+                difficulty_id: 3,
+                kind: wow_map::ManagedMapKind::Dungeon {
+                    has_reset_schedule: true,
+                },
+                side_effects: vec![
+                    wow_map::CreateMapSideEffect::CreateInstanceLockForNewInstance {
+                        owner_guid_counter: owner.counter() as u64,
+                        instance_id: 1,
+                    },
+                    wow_map::CreateMapSideEffect::SetPlayerRecentInstance { instance_id: 1 },
+                ],
+            }
+        );
+        assert_eq!(lock_context.instance_id, 1);
+        assert_eq!(
+            session.represented_player_recent_instance_id_like_cpp(631),
+            1
+        );
+
+        let manager = canonical.lock().unwrap();
+        let map = manager.find_map(631, 1).unwrap();
+        assert_eq!(map.instance_lock_token(), Some(lock_context.token));
+        assert!(
+            map.map().get_typed_player(owner).is_some(),
+            "player snapshot should be synchronized into the created dungeon map"
+        );
+    }
+
+    #[test]
+    fn canonical_player_dungeon_create_map_reuses_active_lock_like_cpp() {
+        let (mut session, _pkt_tx, _send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let owner = ObjectGuid::create_player(1, 65);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            owner,
+            "DungeonReuse".to_string(),
+            Position::new(3700.0, 1500.0, 120.0, 0.0),
+            631,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.represented_raid_difficulty_id_like_cpp = 3;
+        install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
+        let expected_token =
+            install_active_instance_lock_mgr_like_cpp(&mut session, owner, 631, 3, 9001);
+
+        let decision = session
+            .ensure_canonical_world_map_for_current_player_like_cpp()
+            .unwrap();
+
+        assert_eq!(
+            decision,
+            wow_map::CreateMapDecision::Create {
+                key: wow_map::MapKey::new(631, 9001),
+                difficulty_id: 3,
+                kind: wow_map::ManagedMapKind::Dungeon {
+                    has_reset_schedule: true,
+                },
+                side_effects: vec![wow_map::CreateMapSideEffect::SetPlayerRecentInstance {
+                    instance_id: 9001,
+                }],
+            }
+        );
+
+        let manager = canonical.lock().unwrap();
+        assert_eq!(
+            manager.find_map(631, 9001).unwrap().instance_lock_token(),
+            Some(expected_token)
         );
     }
 

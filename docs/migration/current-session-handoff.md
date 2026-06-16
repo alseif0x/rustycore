@@ -1,3 +1,22 @@
+- `#NEXT.RUNTIME.L3.031j67` — WotLK live session `CreateMap` now enters the
+  canonical dungeon branch instead of rejecting dungeons at the ensure-map boundary (not
+  manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Maps/MapManager.cpp:139-225`.
+  `WorldSession::ensure_canonical_world_map_for_current_player_like_cpp` now builds a dungeon
+  `CreateMapEntryContext`, resolves the C++ player/group difficulty, supplies the downscaled
+  `MapDb2Entries` difficulty context, supplies the represented active `InstanceLockMgr` context,
+  creates/reuses the canonical instance map, applies `CreateInstanceLockForNewInstance`,
+  `SetInstanceLockInstanceId`, and recent-instance side effects, stores the represented instance-lock
+  token on the map, and syncs the canonical player snapshot directly into the destination
+  `(map_id, instance_id)` map. The player sync deliberately constructs the snapshot with the final
+  `MapKey` before `add_to_world`, matching the Rust `WorldObject` binding invariant and avoiding a
+  forbidden post-add-to-world map rebind. Coverage: targeted `wow-world
+  canonical_player_dungeon_create_map` tests cover new temporary-lock instance creation and active
+  lock reuse, including player insertion into the created dungeon map and lock-token propagation.
+  Boundary remains partial: battleground/garrison `CreateMap` still stay blocked, reset schedule
+  still uses represented defaults until config keys are wired, `existing_instance_map` external
+  lookup remains a represented no-op, no install/restart, bot, or live-client/manual validation has
+  been done for this path.
 - `#NEXT.RUNTIME.L3.031j66` — WotLK represented `CreateMap` encounter-lock
   instance-id conflict side effect is now applied in memory (not manual-test-ready).
   Source-of-truth: `/home/server/woltk-trinity-legacy/src/server/game/Maps/MapManager.cpp:211-216`
