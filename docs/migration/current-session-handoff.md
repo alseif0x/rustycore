@@ -1,3 +1,19 @@
+- `#NEXT.RUNTIME.L3.031j39` — WotLK `Player::Satisfy(access_requirement)`
+  now sends the literal `quest_failed_text` system chat before the transfer abort
+  (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:19127-19131`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Chat/Chat.cpp:113-145`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/ChatPackets.cpp:191-230`.
+  C++ prioritizes `missingQuest && !questFailedText.empty()` over the
+  `MapDifficulty::Message` difficulty-abort branch, sends a `CHAT_MSG_SYSTEM`
+  packet line with the literal DB text, and leaves the transfer-abort params as
+  `TRANSFER_ABORT_ERROR`. Rust now mirrors that order in the represented
+  canonical dungeon/raid map-entry gate using `ChatPkt { msg_type: System,
+  language: LANG_UNIVERSAL }` and then `SMSG_TRANSFER_ABORTED`. Coverage:
+  targeted `wow-world` test proves the system-chat packet is emitted before the
+  abort and that a non-empty `MapDifficulty::Message` does not override the
+  quest-failed-text branch. Boundary remains partial: missing-item and level-min
+  notifications still require a TrinityString/localized item-name seam.
 - `#NEXT.RUNTIME.L3.031j38` — WotLK access-requirement achievement
   state for the current player is now loaded from the character DB during
   login (not manual-test-ready). Source-of-truth:

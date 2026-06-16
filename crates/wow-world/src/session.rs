@@ -134,6 +134,7 @@ use wow_network::{
     PlayerBroadcastInfo, PlayerRegistry, ReputationRatesLikeCpp, SessionCommand,
     SocketTimeoutsLikeCpp, group_guid_by_db_store_id_like_cpp,
 };
+use wow_packet::packets::chat::{ChatMsg, ChatPkt};
 use wow_packet::packets::item::{
     InventoryChangeFailure, ItemEnchantTimeUpdate, ItemInstance, ItemMod, ItemModList,
     ItemPushResult, ItemPushResultDisplayType, ItemTimeUpdate,
@@ -7647,7 +7648,12 @@ impl WorldSession {
             || missing_quest != 0
             || missing_achievement != 0
         {
-            if map_difficulty_has_message || failed_map_difficulty_x_condition != 0 {
+            if missing_quest != 0
+                && let Some(access_requirement) = access_requirement
+                && !access_requirement.quest_failed_text.is_empty()
+            {
+                self.send_system_message_like_cpp(&access_requirement.quest_failed_text);
+            } else if map_difficulty_has_message || failed_map_difficulty_x_condition != 0 {
                 return Some((
                     TRANSFER_ABORT_DIFFICULTY_LIKE_CPP,
                     requested_difficulty,
@@ -22134,6 +22140,23 @@ impl WorldSession {
         let data = pkt.to_bytes();
         if self.send_tx.send(data).is_err() {
             warn!("Send channel closed for account {}", self.account_id);
+        }
+    }
+
+    fn send_system_message_like_cpp(&self, text: &str) {
+        for line in text.split('\n') {
+            self.send_packet(&ChatPkt {
+                msg_type: ChatMsg::System,
+                language: 0,
+                sender_guid: ObjectGuid::EMPTY,
+                sender_name: String::new(),
+                target_guid: ObjectGuid::EMPTY,
+                target_name: String::new(),
+                prefix: String::new(),
+                channel: String::new(),
+                text: line.to_string(),
+                virtual_realm: self.virtual_realm_address(),
+            });
         }
     }
 
@@ -56630,6 +56653,77 @@ mod tests {
             session.ensure_canonical_world_map_for_current_player_like_cpp(),
             Some(wow_map::CreateMapDecision::Create { .. })
         ));
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn canonical_access_requirement_quest_failed_text_sends_system_message_like_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 89);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "AccessQuestText".to_string(),
+            Position::new(3700.0, 1500.0, 120.0, 0.0),
+            631,
+            2,
+            1,
+            80,
+            0,
+        ));
+        session.represented_raid_difficulty_id_like_cpp = 3;
+        install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
+        session.set_map_difficulty_store(Arc::new(MapDifficultyStore::from_entries([
+            MapDifficultyEntry {
+                id: 900,
+                message: "localized difficulty failure".to_string(),
+                map_id: 631,
+                difficulty_id: 3,
+                lock_id: 77,
+                reset_interval: 2,
+                max_players: 25,
+                flags: 0,
+            },
+        ])));
+        let mut requirement = access_requirement_like_cpp(631, 3);
+        requirement.quest_done_h = 200;
+        requirement.quest_failed_text = "Finish the attunement first.".to_string();
+        install_access_requirement_store_like_cpp(&mut session, requirement);
+
+        assert_eq!(
+            session.ensure_canonical_world_map_for_current_player_like_cpp(),
+            Some(wow_map::CreateMapDecision::Reject {
+                side_effects: Vec::new()
+            })
+        );
+        assert_eq!(
+            send_rx.try_recv().expect("missing quest failed sysmessage"),
+            ChatPkt {
+                msg_type: ChatMsg::System,
+                language: 0,
+                sender_guid: ObjectGuid::EMPTY,
+                sender_name: String::new(),
+                target_guid: ObjectGuid::EMPTY,
+                target_name: String::new(),
+                prefix: String::new(),
+                channel: String::new(),
+                text: "Finish the attunement first.".to_string(),
+                virtual_realm: session.virtual_realm_address(),
+            }
+            .to_bytes()
+        );
+        assert_eq!(
+            send_rx.try_recv().expect("missing quest failed abort"),
+            wow_packet::packets::misc::TransferAborted {
+                map_id: 631,
+                arg: 0,
+                map_difficulty_x_condition_id: 0,
+                transfer_abort: TRANSFER_ABORT_ERROR_LIKE_CPP,
+            }
+            .to_bytes()
+        );
         assert!(send_rx.try_recv().is_err());
     }
 
