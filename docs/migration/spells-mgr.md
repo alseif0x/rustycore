@@ -159,7 +159,7 @@ All loads are issued via `WorldDatabase.Query("SELECT … FROM …")` — **no p
 | Statement / Source | Purpose | DB | Loader |
 |---|---|---|---|
 | `SELECT id, prev_spell, first_spell, rank FROM spell_ranks` (legacy) → builds `mSpellChains` | Manual spell-rank chains for spells whose DB2 chain is wrong | world | `LoadSpellRanks` |
-| `SELECT spell_id, req_spell FROM spell_required` | Pre-req graph; rejects rows where both ids are in same chain | world | `LoadSpellRequired` |
+| `SELECT spell_id, req_spell from spell_required` | Pre-req graph; rejects rows where both ids are in same chain | world | `LoadSpellRequired` |
 | `SELECT entry, SpellID, Active FROM spell_learn_spell` | Override for the DB2 `SpellLearnSpell` join | world | `LoadSpellLearnSpells` |
 | `SELECT ID, EffectIndex, MapID, PositionX, PositionY, PositionZ, Orientation FROM spell_target_position` | TeleportUnits destinations; rejects effects whose `Target` isn't `TARGET_DEST_DB` | world | `LoadSpellTargetPositions` |
 | `SELECT id, spell_id FROM spell_group` | Group membership; both forward + reverse map | world | `LoadSpellGroups` |
@@ -318,7 +318,7 @@ Numbered for `MIGRATION_ROADMAP.md` cross-reference. Complexity: **L** <1h, **M*
 - [ ] **#SPELLMGR.5** Define `mSpellInfoMap: DashMap<(u32, Difficulty), Arc<SpellInfo>>` + `get_spell_info(spell_id, difficulty)` + `assert_spell_info` + `for_each_spell_info` + `for_each_spell_info_difficulty` (M)
 - [ ] **#SPELLMGR.6** Implement `LoadSpellRanks` (`spell_ranks` SQL): build `SpellChainNode { prev, next, first, last, rank }` graph; patch `SpellInfo::chain_entry` (M)
 - [ ] **#SPELLMGR.7** Implement chain accessors: `get_first_spell_in_chain`, `get_last_spell_in_chain`, `get_next_spell_in_chain`, `get_prev_spell_in_chain`, `get_spell_rank`, `get_spell_with_rank` (L)
-- [ ] **#SPELLMGR.8** Implement `LoadSpellRequired` (`spell_required` SQL): forward + reverse multimap; reject same-chain pairs (M)
+- [ ] **#SPELLMGR.8** Implement `LoadSpellRequired` (`spell_required` SQL): query + represented `wow-data` store/loader exist (`WorldStatements::SEL_SPELL_REQUIRED`, `SpellRequiredStoreLikeCpp`), including C++ spell/required-spell validation, same-rank-chain rejection via callback, duplicate exact-pair skip, and forward+reverse multimaps; live startup wiring with the real `LoadSpellRanks` chain store and runtime consumption are still pending (M)
 - [ ] **#SPELLMGR.9** Implement `LoadSpellLearnSkills` (DB2 + override) → `mSpellLearnSkills` (L)
 - [ ] **#SPELLMGR.10** Implement `LoadSpellLearnSpells` (DB2 `SpellLearnSpell` + SQL `spell_learn_spell` override) → `mSpellLearnSpells` multimap; emit `Active`/`AutoLearned` flags (M)
 - [ ] **#SPELLMGR.11** Implement `LoadSpellTargetPositions` (`spell_target_position` SQL): keyed by `(spell_id, eff_index)`; reject effects whose target type isn't `TARGET_DEST_DB` (L)
@@ -462,7 +462,7 @@ Numbered for `MIGRATION_ROADMAP.md` cross-reference. Complexity: **L** <1h, **M*
 
 **SQL loader coverage.** All 14 `spell_*` SQL tables are unloaded:
 - `spell_ranks` / `spell_chain` — no Rust loader. Rank chain queries (`get_first_spell_in_chain`, `get_spell_with_rank`) impossible.
-- `spell_required` — no Rust loader. Cross-spell prerequisite graph absent.
+- `spell_required` — represented Rust query/store exists in `wow-data`, but it is not yet loaded during world-server startup or consumed by spell-learning/cast checks. Cross-spell prerequisite graph is therefore not live yet.
 - `spell_learn_spell` — no Rust loader. Spell-teaches-spell auto-learn graph absent (currently the `wow-world::handlers::character::Player::add_spell` path has no concept of learn cascades).
 - `spell_target_position` — no Rust loader. `EffectTeleportUnits` with `TARGET_DEST_DB` (used by hearthstones, instance portals, summon rituals) cannot resolve.
 - `spell_group` / `spell_group_stack_rules` — no Rust loader. Cross-spell stacking semantics (Elixir Battle vs Guardian, etc.) do not exist.

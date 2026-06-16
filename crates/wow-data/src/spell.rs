@@ -1014,6 +1014,127 @@ pub struct SpellTotemModelLoadOutcomeLikeCpp {
     pub errors: Vec<SpellTotemModelLoadErrorLikeCpp>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellRequiredRowLikeCpp {
+    pub spell_id: u32,
+    pub req_spell: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpellRequiredLoadErrorKindLikeCpp {
+    SpellMissing,
+    RequiredSpellMissing,
+    SameRankChain,
+    Duplicate,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellRequiredLoadErrorLikeCpp {
+    pub row: SpellRequiredRowLikeCpp,
+    pub kind: SpellRequiredLoadErrorKindLikeCpp,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SpellRequiredStoreLikeCpp {
+    pub required_by_spell_id: BTreeMap<u32, Vec<u32>>,
+    pub requiring_by_required_spell_id: BTreeMap<u32, Vec<u32>>,
+}
+
+impl SpellRequiredStoreLikeCpp {
+    pub fn from_rows_like_cpp<I, SpellExists, SameRankChain>(
+        rows: I,
+        mut spell_exists: SpellExists,
+        mut same_rank_chain: SameRankChain,
+    ) -> SpellRequiredLoadOutcomeLikeCpp
+    where
+        I: IntoIterator<Item = SpellRequiredRowLikeCpp>,
+        SpellExists: FnMut(u32) -> bool,
+        SameRankChain: FnMut(u32, u32) -> bool,
+    {
+        let mut store = Self::default();
+        let mut loaded_row_count = 0;
+        let mut errors = Vec::new();
+
+        for row in rows {
+            if !spell_exists(row.spell_id) {
+                errors.push(SpellRequiredLoadErrorLikeCpp {
+                    row,
+                    kind: SpellRequiredLoadErrorKindLikeCpp::SpellMissing,
+                });
+                continue;
+            }
+
+            if !spell_exists(row.req_spell) {
+                errors.push(SpellRequiredLoadErrorLikeCpp {
+                    row,
+                    kind: SpellRequiredLoadErrorKindLikeCpp::RequiredSpellMissing,
+                });
+                continue;
+            }
+
+            if same_rank_chain(row.spell_id, row.req_spell) {
+                errors.push(SpellRequiredLoadErrorLikeCpp {
+                    row,
+                    kind: SpellRequiredLoadErrorKindLikeCpp::SameRankChain,
+                });
+                continue;
+            }
+
+            if store.is_spell_requiring_spell_like_cpp(row.spell_id, row.req_spell) {
+                errors.push(SpellRequiredLoadErrorLikeCpp {
+                    row,
+                    kind: SpellRequiredLoadErrorKindLikeCpp::Duplicate,
+                });
+                continue;
+            }
+
+            store
+                .required_by_spell_id
+                .entry(row.spell_id)
+                .or_default()
+                .push(row.req_spell);
+            store
+                .requiring_by_required_spell_id
+                .entry(row.req_spell)
+                .or_default()
+                .push(row.spell_id);
+            loaded_row_count += 1;
+        }
+
+        SpellRequiredLoadOutcomeLikeCpp {
+            store,
+            loaded_row_count,
+            errors,
+        }
+    }
+
+    pub fn spells_required_for_spell_like_cpp(&self, spell_id: u32) -> &[u32] {
+        self.required_by_spell_id
+            .get(&spell_id)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    }
+
+    pub fn spells_requiring_spell_like_cpp(&self, req_spell: u32) -> &[u32] {
+        self.requiring_by_required_spell_id
+            .get(&req_spell)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    }
+
+    pub fn is_spell_requiring_spell_like_cpp(&self, spell_id: u32, req_spell: u32) -> bool {
+        self.spells_requiring_spell_like_cpp(req_spell)
+            .contains(&spell_id)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpellRequiredLoadOutcomeLikeCpp {
+    pub store: SpellRequiredStoreLikeCpp,
+    pub loaded_row_count: usize,
+    pub errors: Vec<SpellRequiredLoadErrorLikeCpp>,
+}
+
 impl SpellInfo {
     /// Convenience: returns the effective cooldown (per-spell or global, whichever is larger).
     pub fn effective_cooldown_ms(&self) -> u32 {
@@ -2852,5 +2973,97 @@ mod tests {
         assert_eq!(outcome.store.display_id_by_spell_and_race.len(), 1);
         assert_eq!(outcome.store.get_model_for_totem_like_cpp(50, 8), 2000);
         assert_eq!(outcome.store.get_model_for_totem_like_cpp(50, 2), 0);
+    }
+
+    #[test]
+    fn spell_required_store_skips_missing_and_same_chain_like_cpp() {
+        let outcome = SpellRequiredStoreLikeCpp::from_rows_like_cpp(
+            [
+                SpellRequiredRowLikeCpp {
+                    spell_id: 10,
+                    req_spell: 20,
+                },
+                SpellRequiredRowLikeCpp {
+                    spell_id: 30,
+                    req_spell: 40,
+                },
+                SpellRequiredRowLikeCpp {
+                    spell_id: 50,
+                    req_spell: 60,
+                },
+            ],
+            |spell_id| matches!(spell_id, 10 | 20 | 30 | 50 | 60),
+            |spell_id, req_spell| spell_id == 50 && req_spell == 60,
+        );
+
+        assert_eq!(outcome.loaded_row_count, 1);
+        assert_eq!(
+            outcome
+                .errors
+                .iter()
+                .map(|error| error.kind)
+                .collect::<Vec<_>>(),
+            vec![
+                SpellRequiredLoadErrorKindLikeCpp::RequiredSpellMissing,
+                SpellRequiredLoadErrorKindLikeCpp::SameRankChain,
+            ]
+        );
+        assert_eq!(outcome.store.spells_required_for_spell_like_cpp(10), &[20]);
+        assert_eq!(outcome.store.spells_requiring_spell_like_cpp(20), &[10]);
+    }
+
+    #[test]
+    fn spell_required_store_skips_missing_spell_id_like_cpp() {
+        let outcome = SpellRequiredStoreLikeCpp::from_rows_like_cpp(
+            [SpellRequiredRowLikeCpp {
+                spell_id: 70,
+                req_spell: 80,
+            }],
+            |spell_id| spell_id == 80,
+            |_, _| false,
+        );
+
+        assert_eq!(outcome.loaded_row_count, 0);
+        assert_eq!(outcome.errors.len(), 1);
+        assert_eq!(
+            outcome.errors[0].kind,
+            SpellRequiredLoadErrorKindLikeCpp::SpellMissing
+        );
+    }
+
+    #[test]
+    fn spell_required_store_skips_duplicate_exact_pair_like_cpp() {
+        let outcome = SpellRequiredStoreLikeCpp::from_rows_like_cpp(
+            [
+                SpellRequiredRowLikeCpp {
+                    spell_id: 90,
+                    req_spell: 100,
+                },
+                SpellRequiredRowLikeCpp {
+                    spell_id: 90,
+                    req_spell: 100,
+                },
+                SpellRequiredRowLikeCpp {
+                    spell_id: 91,
+                    req_spell: 100,
+                },
+            ],
+            |_| true,
+            |_, _| false,
+        );
+
+        assert_eq!(outcome.loaded_row_count, 2);
+        assert_eq!(outcome.errors.len(), 1);
+        assert_eq!(
+            outcome.errors[0].kind,
+            SpellRequiredLoadErrorKindLikeCpp::Duplicate
+        );
+        assert!(outcome.store.is_spell_requiring_spell_like_cpp(90, 100));
+        assert!(outcome.store.is_spell_requiring_spell_like_cpp(91, 100));
+        assert_eq!(outcome.store.spells_required_for_spell_like_cpp(90), &[100]);
+        assert_eq!(
+            outcome.store.spells_requiring_spell_like_cpp(100),
+            &[90, 91]
+        );
     }
 }

@@ -313,6 +313,8 @@ pub use spell::{
     SpellLinkedStoreLikeCpp, SpellLinkedTypeLikeCpp, SpellPetAuraLoadErrorKindLikeCpp,
     SpellPetAuraLoadErrorLikeCpp, SpellPetAuraLoadOutcomeLikeCpp, SpellPetAuraRowLikeCpp,
     SpellPetAuraSourceEffectLikeCpp, SpellPetAuraSourceLookupLikeCpp, SpellPetAuraStoreLikeCpp,
+    SpellRequiredLoadErrorKindLikeCpp, SpellRequiredLoadErrorLikeCpp,
+    SpellRequiredLoadOutcomeLikeCpp, SpellRequiredRowLikeCpp, SpellRequiredStoreLikeCpp,
     SpellStore, SpellTargetPositionLikeCpp, SpellTargetPositionLoadReportLikeCpp,
     SpellTargetPositionRowLikeCpp, SpellTargetPositionStoreLikeCpp, SpellThreatEntryLikeCpp,
     SpellThreatLoadErrorLikeCpp, SpellThreatLoadOutcomeLikeCpp, SpellThreatRowLikeCpp,
