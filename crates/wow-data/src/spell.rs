@@ -48,6 +48,7 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_PERSISTENT_AREA_AURA: u32 = 27;
     pub const SPELL_EFFECT_ENERGIZE: u32 = 30;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_PARTY: u32 = 35;
+    pub const SPELL_EFFECT_LEARN_SPELL: u32 = 36;
     pub const SPELL_EFFECT_SPELL_DEFENSE: u32 = 37;
     pub const SPELL_EFFECT_LANGUAGE: u32 = 39;
     pub const SPELL_EFFECT_DUAL_WIELD: u32 = 40;
@@ -1124,6 +1125,7 @@ mod tests {
         assert_eq!(spell_effect_types::SPELL_EFFECT_DEFENSE, 26);
         assert_eq!(spell_effect_types::SPELL_EFFECT_ENERGIZE, 30);
         assert_eq!(spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_PARTY, 35);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_LEARN_SPELL, 36);
         assert_eq!(spell_effect_types::SPELL_EFFECT_SPELL_DEFENSE, 37);
         assert_eq!(spell_effect_types::SPELL_EFFECT_LANGUAGE, 39);
         assert_eq!(spell_effect_types::SPELL_EFFECT_DUAL_WIELD, 40);

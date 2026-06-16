@@ -1,3 +1,17 @@
+- `#NEXT.RUNTIME.L3.031j49` — WotLK represented `Spell::EffectLearnSpell` for current
+  player `TriggerSpell` rows (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:1182`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellEffects.cpp:2025-2064`, and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3192-3230`.
+  Rust now names `SPELL_EFFECT_LEARN_SPELL = 36`, dispatches represented spell-effect rows with
+  `effectInfo->TriggerSpell`, learns the triggered spell only for the current player target, avoids
+  duplicate spellbook entries, and sends `SMSG_LEARNED_SPELLS` only when the spell is newly learned,
+  matching the C++ `Player::LearnSpell` `learning && IsInWorld()` packet gate. Coverage: targeted
+  spell tests cover newly learned trigger spell packet content/order, duplicate no-op, and
+  non-current-player target no-op. Boundary remains partial: no cast-item `ITEM_SPELLTRIGGER_ON_LEARN`
+  branch, no battle-pet species item learn branch, no `EffectLearnPetSpell`, no generic/offline
+  player target routing, no disabled-rank/required-spell recursion, no quest objective learn-spell
+  progress, no DB persistence, no install/restart, bot, or live-client/manual validation.
 - `#NEXT.RUNTIME.L3.031j48` — WotLK represented `Spell::EffectDuel` for connected canonical
   player targets (not manual-test-ready). Source-of-truth:
   `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:1229,6544-6551`,

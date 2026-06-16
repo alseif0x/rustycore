@@ -544,7 +544,14 @@ Numerados como `#SPELLS-EFFECTS.N` para referencia desde `MIGRATION_ROADMAP.md`.
 - [ ] **#SPELLS-EFFECTS.52** Implementar `EffectDisEnchant`, `EffectMillItem`, `EffectProspecting` (M)
 - [ ] **#SPELLS-EFFECTS.53** Implementar `EffectFeedPet` (consume item, apply happiness aura) (L)
 - [ ] **#SPELLS-EFFECTS.54** Implementar `EffectQuestComplete`, `EffectQuestStart`, `EffectQuestRedirect`, `EffectKillCredit*` (M)
-- [ ] **#SPELLS-EFFECTS.55** Implementar `EffectLearnSpell`, `EffectUnlearnSpecialization`, `EffectLearnPetSpell`, `EffectLearnSkill` (M)
+- [~] **#SPELLS-EFFECTS.55** Implementar `EffectLearnSpell`, `EffectUnlearnSpecialization`, `EffectLearnPetSpell`, `EffectLearnSkill` (M)
+  - `EffectLearnSpell` (`SPELL_EFFECT_LEARN_SPELL = 36`) is represented-partial for the current
+    player target and `effectInfo->TriggerSpell`: Rust learns the triggered spell once and sends
+    `SMSG_LEARNED_SPELLS` only for newly learned entries, matching the C++ `Player::LearnSpell`
+    notification gate. Remaining: cast-item `ITEM_SPELLTRIGGER_ON_LEARN`, battle-pet species
+    item learn branch, `EffectLearnPetSpell`, generic/offline player targets, disabled rank /
+    required-spell recursion, quest objective learn-spell progress, DB persistence and live-client
+    validation.
 - [ ] **#SPELLS-EFFECTS.56** Implementar `EffectTradeSkill` y `EffectProficiency` (L)
 - [ ] **#SPELLS-EFFECTS.57** Implementar `EffectUntrainTalents` (L)
 - [ ] **#SPELLS-EFFECTS.58** Implementar `EffectOpenLock` con Lock.db2 lookup, skill check per slot, SMSG_OPEN_LOCK + Loot::FillLoot (H)
@@ -752,7 +759,7 @@ historical scan only proves that the standalone `wow-spell` engine remains empty
 - Dispel/Interrupt: `EffectDispel`, `EffectStealBeneficialBuff`, `EffectInterruptCast`, `EffectDispelMechanic` — none.
 - Status: `EffectStuck`, `EffectDualWield`, `EffectThreat`, `EffectModifyThreatPercent`, `EffectSanctuary`, `EffectTaunt`, `EffectDistract`, `EffectModifyCooldown`, `EffectModifySpellCharges` — represented-partial; `EffectAddComboPoints` — represented real-handler no-op; `EffectScriptEffect`, `EffectDummy`, `EffectModifyAuraStacks`, `EffectModifyCooldowns`/`CooldownsByCategory` — none.
 - Item: `EffectCreateItem`, `EffectCreateItem2`, `EffectCreateRandomItem`, `EffectFeedPet`, `EffectEnchantItemPerm`, `EffectEnchantItemTmp`, `EffectEnchantItemPrismatic`, `EffectEnchantHeldItem`, `EffectDisEnchant`, `EffectMillItem`, `EffectProspecting` — none.
-- Quest/Profession: `EffectQuestComplete`, `EffectQuestStart`, `EffectQuestRedirect`, `EffectLearnSpell`, `EffectUnlearnSpecialization`, `EffectLearnPetSpell`, `EffectLearnSkill`, `EffectTradeSkill`, `EffectProficiency`, `EffectUntrainTalents` — none.
+- Quest/Profession: `EffectQuestComplete`, `EffectLearnSpell` — represented-partial; `EffectQuestStart`, `EffectQuestRedirect`, `EffectUnlearnSpecialization`, `EffectLearnPetSpell`, `EffectLearnSkill`, `EffectTradeSkill`, `EffectProficiency`, `EffectUntrainTalents` — none.
 - OpenLock/GO: `EffectOpenLock`, `EffectActivateObject`, `EffectSendEvent`, `EffectGameobjectDamage`, `EffectGameObjectRepair`, `EffectGameobjectSetDestructionState` — none.
 - Pet/Charm: `EffectTameCreature`, `EffectDismissPet`, `EffectAddFarsight` — none.
 - Combat misc: `EffectParry`, `EffectBlock`, `EffectReputation`, `EffectDuel` — represented-partial.

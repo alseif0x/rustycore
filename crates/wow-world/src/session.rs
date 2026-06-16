@@ -35030,6 +35030,12 @@ impl WorldSession {
                         target_guid,
                     );
                 }
+                x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_SPELL => {
+                    self.apply_learn_spell_effect_like_cpp(
+                        direct_effect_trigger_spell,
+                        target_guid,
+                    );
+                }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_TRANSMOG_SET => {
                     self.apply_learn_transmog_set_effect_like_cpp(
                         target_guid,
@@ -35233,6 +35239,7 @@ impl WorldSession {
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_STUCK
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_PLAY_MOVIE
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_DUEL
+                || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_SPELL
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_TRANSMOG_SET
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_UPGRADE_HEIRLOOM
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_UNCAGE_BATTLEPET
@@ -37055,6 +37062,34 @@ impl WorldSession {
             self.send_packet(&packet);
         }
         outcome.applied
+    }
+
+    /// C++ `Spell::EffectLearnSpell`.
+    ///
+    /// Represented boundary: current player target and `effectInfo->TriggerSpell`
+    /// only. C++ also has item `ITEM_SPELLTRIGGER_ON_LEARN`, battle-pet and pet
+    /// spell branches; those require cast-item/pet runtime that is outside this
+    /// bounded spell-effect slice.
+    fn apply_learn_spell_effect_like_cpp(
+        &mut self,
+        trigger_spell: i32,
+        target_guid: ObjectGuid,
+    ) -> bool {
+        let Some(player_guid) = self.player_guid() else {
+            return false;
+        };
+        if target_guid != player_guid || trigger_spell <= 0 {
+            return false;
+        }
+        if self.known_spells_like_cpp().contains(&trigger_spell) {
+            return false;
+        }
+
+        self.learn_known_spell_like_cpp(trigger_spell);
+        self.send_packet(&wow_packet::packets::trainer::LearnedSpells::single(
+            trigger_spell,
+        ));
+        true
     }
 
     async fn apply_health_leech_like_cpp(
@@ -61418,6 +61453,163 @@ mod tests {
             .await
             .expect("represented give-honor non-current player target should no-op");
 
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_learn_spell_effect_row_learns_trigger_spell_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 750_i32;
+        let learned_spell_id = 13_337_i32;
+        let player_guid = ObjectGuid::create_player(1, 68);
+        session.set_player_guid(Some(player_guid));
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_SPELL,
+                    effect_trigger_spell: learned_spell_id,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("represented learn-spell row should execute");
+
+        assert!(session.known_spells_like_cpp().contains(&learned_spell_id));
+        let packets = drain_server_packet_bytes(&send_rx);
+        let opcodes: Vec<_> = packets
+            .iter()
+            .filter_map(|bytes| wow_packet::WorldPacket::from_bytes(bytes).server_opcode())
+            .collect();
+        assert_eq!(
+            opcodes,
+            vec![
+                ServerOpcodes::SpellGo,
+                ServerOpcodes::LearnedSpells,
+                ServerOpcodes::CooldownEvent,
+            ]
+        );
+        let mut learned = wow_packet::WorldPacket::from_bytes(&packets[1]);
+        assert_eq!(
+            learned.read_uint16().expect("opcode"),
+            ServerOpcodes::LearnedSpells as u16
+        );
+        assert_eq!(learned.read_int32().expect("count"), 1);
+        assert_eq!(learned.read_uint32().expect("specialization id"), 0);
+        assert!(!learned.read_bit().expect("SuppressMessaging"));
+        learned.flush_bits();
+        assert_eq!(learned.read_int32().expect("SpellID"), learned_spell_id);
+        assert!(!learned.read_bit().expect("IsFavorite"));
+        assert!(!learned.read_bit().expect("field_8.HasValue"));
+        assert!(!learned.read_bit().expect("Superceded.HasValue"));
+        assert!(!learned.read_bit().expect("TraitDefinitionID.HasValue"));
+        learned.flush_bits();
+        assert!(learned.is_empty());
+    }
+
+    #[tokio::test]
+    async fn spell_learn_spell_effect_row_does_not_duplicate_known_spell_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 751_i32;
+        let learned_spell_id = 13_338_i32;
+        let player_guid = ObjectGuid::create_player(1, 69);
+        session.set_player_guid(Some(player_guid));
+        session.set_known_spells_like_cpp(vec![learned_spell_id]);
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_SPELL,
+                    effect_trigger_spell: learned_spell_id,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("duplicate represented learn-spell row should execute as no-op");
+
+        assert_eq!(session.known_spells_like_cpp(), &[learned_spell_id]);
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent],
+            "C++ Player::LearnSpell sends LearnedSpells only when AddSpell reports a new learned entry"
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_learn_spell_effect_row_requires_current_player_target_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 752_i32;
+        let learned_spell_id = 13_339_i32;
+        let player_guid = ObjectGuid::create_player(1, 70);
+        let other_player_guid = ObjectGuid::create_player(1, 71);
+        session.set_player_guid(Some(player_guid));
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_SPELL,
+                    effect_trigger_spell: learned_spell_id,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, other_player_guid)
+            .await
+            .expect("represented learn-spell non-current player target should no-op");
+
+        assert!(!session.known_spells_like_cpp().contains(&learned_spell_id));
         assert_eq!(
             drain_server_opcodes(&send_rx),
             vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
