@@ -77,12 +77,12 @@ use wow_data::{
     PlayerConditionCountLikeCpp, PlayerConditionPartyStatusLikeCpp,
     PlayerConditionQuestKillLikeCpp, PlayerConditionReputationLikeCpp, PlayerConditionSkillLikeCpp,
     PlayerConditionStore, PlayerStatsStore, RandPropPointsStore, SkillLineStore, SkillStore,
-    SpellDurationStore, SpellItemEnchantmentStore, SpellMiscStore, SpellRadiusStore,
-    SpellRangeStore, SpellStore, SpellTargetPositionStoreLikeCpp, SummonPropertiesEntry, ToyStore,
-    TransmogSetEntry, TransmogSetItemStore, TrinityStringStoreLikeCpp,
-    VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore,
-    VehicleTemplateStoreLikeCpp, calculate_battle_pet_stats_like_cpp,
-    is_player_meeting_condition_like_cpp,
+    SpellCategoryStore, SpellDurationStore, SpellItemEnchantmentStore, SpellMiscStore,
+    SpellRadiusStore, SpellRangeStore, SpellStore, SpellTargetPositionStoreLikeCpp,
+    SummonPropertiesEntry, ToyStore, TransmogSetEntry, TransmogSetItemStore,
+    TrinityStringStoreLikeCpp, VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp,
+    VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
+    calculate_battle_pet_stats_like_cpp, is_player_meeting_condition_like_cpp,
     progression_rewards::{
         ContentTuningStore, FactionEntry, FactionStore, FactionTemplateStore,
         FriendshipRepReactionStore, ParagonReputationStore, QuestFactionRewardStore,
@@ -3843,6 +3843,7 @@ pub struct WorldSession {
     // ── Spell casting ──────────────────────────────────────────────
     /// Spell store (metadata for all known spells: cast time, cooldown, effects, etc.)
     pub spell_store: Option<Arc<SpellStore>>,
+    spell_category_store: Option<Arc<SpellCategoryStore>>,
     npc_spell_click_store: Option<Arc<NpcSpellClickStoreLikeCpp>>,
     spell_misc_store: Option<Arc<SpellMiscStore>>,
     spell_duration_store: Option<Arc<SpellDurationStore>>,
@@ -5141,6 +5142,7 @@ impl WorldSession {
             movement_speed_ack_events_like_cpp: Vec::new(),
             visible_auras: HashMap::new(),
             spell_store: None,
+            spell_category_store: None,
             npc_spell_click_store: None,
             spell_misc_store: None,
             spell_duration_store: None,
@@ -16838,6 +16840,14 @@ impl WorldSession {
         self.spell_store.as_ref()
     }
 
+    pub fn set_spell_category_store(&mut self, store: Arc<SpellCategoryStore>) {
+        self.spell_category_store = Some(store);
+    }
+
+    pub(crate) fn spell_category_store(&self) -> Option<&Arc<SpellCategoryStore>> {
+        self.spell_category_store.as_ref()
+    }
+
     pub fn set_npc_spell_click_store(&mut self, store: Arc<NpcSpellClickStoreLikeCpp>) {
         self.npc_spell_click_store = Some(store);
     }
@@ -24377,9 +24387,15 @@ impl WorldSession {
         pet_number: u32,
         rows: impl IntoIterator<Item = CharacterPetSpellChargeRowLikeCpp>,
     ) -> usize {
+        let spell_category_store = self.spell_category_store().cloned();
         let charges: Vec<_> = rows
             .into_iter()
-            .filter(|row| row.category_id != 0)
+            .filter(|row| {
+                row.category_id != 0
+                    && spell_category_store
+                        .as_ref()
+                        .is_none_or(|store| store.get(row.category_id).is_some())
+            })
             .collect();
         let loaded = charges.len();
         if loaded == 0 {
@@ -66327,6 +66343,17 @@ mod tests {
     #[test]
     fn load_represented_pet_spell_charge_rows_preserves_db_order_like_cpp() {
         let (mut session, _, _send_rx) = make_session();
+        session.set_spell_category_store(Arc::new(SpellCategoryStore::from_entries([
+            wow_data::SpellCategoryEntry {
+                id: 88,
+                name: "represented category".to_string(),
+                flags: 0,
+                uses_per_week: 0,
+                max_charges: 2,
+                charge_recovery_time: 30_000,
+                type_mask: 0,
+            },
+        ])));
 
         let loaded = session.load_represented_pet_spell_charge_rows_like_cpp(
             42,
@@ -66345,6 +66372,11 @@ mod tests {
                     category_id: 88,
                     recharge_start_unix_secs: 5,
                     recharge_end_unix_secs: 6,
+                },
+                CharacterPetSpellChargeRowLikeCpp {
+                    category_id: 99,
+                    recharge_start_unix_secs: 7,
+                    recharge_end_unix_secs: 8,
                 },
             ],
         );

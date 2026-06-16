@@ -1282,6 +1282,14 @@ async fn main() -> Result<ExitCode> {
         .await
         .context("Failed to load SpellStore")?;
     info!("Loaded {} spells from SpellStore", spell_store.len());
+    let spell_category_store = Arc::new(
+        wow_data::SpellCategoryStore::load(&data_dir, &locale)
+            .context("Failed to load SpellCategory.db2")?,
+    );
+    info!(
+        "Loaded {} spell categories from SpellCategory.db2",
+        spell_category_store.len()
+    );
     let spell_misc_store = Arc::new(
         wow_data::SpellMiscStore::load(&data_dir, &locale)
             .context("Failed to load SpellMisc.db2")?,
@@ -2653,6 +2661,7 @@ async fn main() -> Result<ExitCode> {
         skill_store: Some(Arc::clone(&skill_store)),
         skill_line_store: Some(Arc::clone(&skill_line_store)),
         spell_store: Some(Arc::clone(&spell_store)),
+        spell_category_store: Some(Arc::clone(&spell_category_store)),
         npc_spell_click_store: Some(Arc::clone(&npc_spell_click_store)),
         spell_misc_store: Some(Arc::clone(&spell_misc_store)),
         spell_duration_store: Some(Arc::clone(&spell_duration_store)),
@@ -8926,6 +8935,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.spell_store {
         session.set_spell_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.spell_category_store {
+        session.set_spell_category_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.npc_spell_click_store {
         session.set_npc_spell_click_store(Arc::clone(store));
