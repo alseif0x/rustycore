@@ -582,6 +582,7 @@ pub(crate) struct RepresentedQuestRewardSpellCastLikeCpp {
     pub quest_id: u32,
     pub spell_id: u32,
     pub kind: RepresentedQuestRewardSpellKindLikeCpp,
+    pub can_delay_teleport_like_cpp: bool,
     pub spell_info_lookup_unrepresented: bool,
     pub caster_selection_unrepresented: bool,
     pub cast_spell_runtime_unrepresented: bool,
@@ -32517,9 +32518,12 @@ impl WorldSession {
         self.near_teleport_destination_zone_area_like_cpp = zone_area;
     }
 
-    #[cfg(test)]
     pub(crate) fn set_represented_can_delay_teleport_like_cpp(&mut self, can_delay: bool) {
         self.represented_can_delay_teleport_like_cpp = can_delay;
+    }
+
+    pub(crate) fn represented_can_delay_teleport_like_cpp(&self) -> bool {
+        self.represented_can_delay_teleport_like_cpp
     }
 
     #[cfg(test)]

@@ -2650,6 +2650,7 @@ impl WorldSession {
                     quest_id: quest.id,
                     spell_id: quest.reward_spell,
                     kind: RepresentedQuestRewardSpellKindLikeCpp::RewardSpell,
+                    can_delay_teleport_like_cpp: self.represented_can_delay_teleport_like_cpp(),
                     spell_info_lookup_unrepresented: true,
                     caster_selection_unrepresented,
                     cast_spell_runtime_unrepresented: true,
@@ -2670,6 +2671,7 @@ impl WorldSession {
                     kind: RepresentedQuestRewardSpellKindLikeCpp::RewardDisplaySpell {
                         index: index as u8,
                     },
+                    can_delay_teleport_like_cpp: self.represented_can_delay_teleport_like_cpp(),
                     spell_info_lookup_unrepresented: true,
                     caster_selection_unrepresented,
                     cast_spell_runtime_unrepresented: true,
@@ -5255,6 +5257,14 @@ impl WorldSession {
     ) -> bool {
         let quest_id = quest.id;
         let choice_item_id = choice.item_id;
+        self.set_represented_can_delay_teleport_like_cpp(true);
+
+        macro_rules! reward_abort {
+            () => {{
+                self.set_represented_can_delay_teleport_like_cpp(false);
+                return false;
+            }};
+        }
 
         if !self
             .remove_quest_required_items_and_currencies_like_cpp(quest)
@@ -5265,7 +5275,7 @@ impl WorldSession {
                 quest_id,
                 "RewardQuest: represented quest objective/item-drop removal failed before reward mutation"
             );
-            return false;
+            reward_abort!();
         }
 
         self.remove_represented_timed_quest_like_cpp(quest_id);
@@ -5276,7 +5286,7 @@ impl WorldSession {
                 quest_id,
                 "RewardQuest: represented fixed reward item grant failed before reward mutation"
             );
-            return false;
+            reward_abort!();
         }
 
         if !self
@@ -5289,7 +5299,7 @@ impl WorldSession {
                 choice_item_id,
                 "RewardQuest: represented chosen reward item grant failed before reward mutation"
             );
-            return false;
+            reward_abort!();
         }
 
         if !self
@@ -5302,7 +5312,7 @@ impl WorldSession {
                 choice_item_id,
                 "RewardQuest: represented quest package item grant failed before reward mutation"
             );
-            return false;
+            reward_abort!();
         }
 
         if !self
@@ -5315,7 +5325,7 @@ impl WorldSession {
                 choice_item_id,
                 "RewardQuest: represented quest reward currency grant failed before reward mutation"
             );
-            return false;
+            reward_abort!();
         }
 
         self.apply_represented_quest_reward_skill_like_cpp(quest);
@@ -5389,6 +5399,8 @@ impl WorldSession {
                 .unwrap_or(wow_core::ObjectGuid::new(0, 0));
             self.give_xp(xp, player_guid, false).await;
         }
+
+        self.set_represented_can_delay_teleport_like_cpp(false);
 
         true
     }
@@ -8741,11 +8753,13 @@ mod tests {
                 quest_id,
                 spell_id: 12_345,
                 kind: RepresentedQuestRewardSpellKindLikeCpp::RewardSpell,
+                can_delay_teleport_like_cpp: true,
                 spell_info_lookup_unrepresented: true,
                 caster_selection_unrepresented: true,
                 cast_spell_runtime_unrepresented: true,
             }]
         );
+        assert!(!session.represented_can_delay_teleport_like_cpp());
     }
 
     #[tokio::test]
@@ -8787,6 +8801,7 @@ mod tests {
                     quest_id,
                     spell_id: 22_001,
                     kind: RepresentedQuestRewardSpellKindLikeCpp::RewardDisplaySpell { index: 0 },
+                    can_delay_teleport_like_cpp: true,
                     spell_info_lookup_unrepresented: true,
                     caster_selection_unrepresented: false,
                     cast_spell_runtime_unrepresented: true,
@@ -8795,12 +8810,14 @@ mod tests {
                     quest_id,
                     spell_id: 22_003,
                     kind: RepresentedQuestRewardSpellKindLikeCpp::RewardDisplaySpell { index: 2 },
+                    can_delay_teleport_like_cpp: true,
                     spell_info_lookup_unrepresented: true,
                     caster_selection_unrepresented: false,
                     cast_spell_runtime_unrepresented: true,
                 },
             ]
         );
+        assert!(!session.represented_can_delay_teleport_like_cpp());
     }
 
     #[tokio::test]
