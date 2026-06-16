@@ -310,6 +310,12 @@ pub struct PetLearnPetPassivesOutcomeLikeCpp {
     pub learned_spell_ids: Vec<u32>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PetLearnPetTalentOutcomeLikeCpp {
+    pub talent_id: u32,
+    pub debug_log_only: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PetInitCreateSpellsOutcomeLikeCpp {
     pub init_pet_action_bar: bool,
@@ -1873,6 +1879,13 @@ impl Pet {
             creature_family_missing: false,
             attempted_spell_ids,
             learned_spell_ids,
+        }
+    }
+
+    pub fn learn_pet_talent_like_cpp(&self, talent_id: u32) -> PetLearnPetTalentOutcomeLikeCpp {
+        PetLearnPetTalentOutcomeLikeCpp {
+            talent_id,
+            debug_log_only: true,
         }
     }
 
@@ -4247,6 +4260,32 @@ mod tests {
             pet.spells().get(&200).unwrap().spell_type,
             PetSpellType::Family
         );
+    }
+
+    #[test]
+    fn pet_learn_pet_talent_like_cpp_is_currently_debug_log_only() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+        assert!(pet.add_spell(
+            100,
+            ActiveState::Enabled,
+            PetSpellState::Unchanged,
+            PetSpellType::Normal
+        ));
+        let autospells_before = pet.autospells().to_vec();
+        let spells_before = pet.spells().clone();
+
+        let outcome = pet.learn_pet_talent_like_cpp(42);
+
+        assert_eq!(
+            outcome,
+            PetLearnPetTalentOutcomeLikeCpp {
+                talent_id: 42,
+                debug_log_only: true,
+            },
+            "local C++ Pet::LearnPetTalent only logs name/talent id and performs no mutation"
+        );
+        assert_eq!(pet.spells(), &spells_before);
+        assert_eq!(pet.autospells(), autospells_before.as_slice());
     }
 
     #[test]

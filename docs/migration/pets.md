@@ -144,7 +144,7 @@ NPC-handler stable packets (`WorldPackets::NPC`):
 | `Pet::ToggleAutocast(spellInfo, apply)` | Mutate the `PetSpell::active` field + add/remove from `m_autospells` | — |
 | `Pet::HasSpell(spell)` (override) | `m_spells.find(spell) != end()` and not `PETSPELL_REMOVED` | — |
 | `Pet::LearnPetPassives()` | For HUNTER_PET: add `creatureFamily.spellSet` passive list. For SUMMON_PET: nothing (those come from `pet_levelstats` and `creature_template_addon`) | `addSpell(s, ACT_PASSIVE, NEW, FAMILY)` |
-| `Pet::LearnPetTalent(talentId)` | 3.4.3 hunter pet talent system: TalentEntry lookup, validate prereqs, learn the talent's spell, mark `PETSPELL_TALENT` | `addSpell(spell, ACT_DECIDE, NEW, TALENT)` |
+| `Pet::LearnPetTalent(talentId)` | Current local C++ only logs `LearnPetTalent: Pet ... learning talent ...`; no spellbook, talent-point or packet side effect is implemented there | — |
 | `Pet::CastPetAuras(current)` | Apply persistent talent/Mark-of-the-Wild-style auras owned by the **owner** that affect this pet (from `pet_aura` Trinity DB table → `PetAura` cache) | `CastPetAura` |
 | `Pet::CastPetAura(petAura)` | `CastSpell(this, petAura.spellId, true)` if pet level satisfies threshold | — |
 | `Pet::IsPetAura(aura)` | Owned-by-this-pet auras (excludes player-cast buffs that simply target the pet) | — |
@@ -458,7 +458,7 @@ Complejidad: **L** (low, <1h), **M** (med, 1-4h), **H** (high, 4-12h), **XL** (>
 - [ ] **#PETS.12** Implement `Pet::delete_from_db(pet_number)` — cascade across all 7 tables in a single transaction, exact statement order matching C++ (L)
 - [ ] **#PETS.13** Implement `Pet::fill_pet_info(petInfo, forced_react_state)` and `Pet::generate_action_bar_data() -> String` / `CharmInfo::load_pet_action_bar(text)` — the text format is space-separated `"<active_state> <action>"` × 10, parser must match TC's `GenerateActionBarData` byte-for-byte (M)
 - [ ] **#PETS.14** Implement `Pet::add_spell` / `learn_spell` / `learn_spells` / `learn_spell_high_rank` / `unlearn_spell` / `unlearn_spells` / `remove_spell` / `cleanup_action_bar` — including `SMSG_PET_LEARNED_SPELLS` / `SMSG_PET_UNLEARNED_SPELLS` emission for state == NEW/REMOVED (H)
-- [ ] **#PETS.15** Implement `Pet::toggle_autocast(spell_info, apply)` and `Pet::has_spell(spell)` override (L)
+- [x] **#PETS.15** Implement `Pet::toggle_autocast(spell_info, apply)` and `Pet::has_spell(spell)` override (L) — represented as `toggle_autocast_like_cpp` plus `has_spell`, contrasted with local C++ `Pet::ToggleAutocast` / `Pet::HasSpell`
 - [ ] **#PETS.16** Implement `Pet::init_pet_create_spells()` per current local C++ — reset action bar, clear spell book, run passives, level-up spells and `CastPetAuras(false)`; do not use the stale `creature_template_addon.spell1..8` summary for this method (M)
 - [ ] **#PETS.17** Implement `Pet::learn_pet_passives()` for HUNTER_PET — read CreatureFamilyStore + family-spell list, add as `(ACT_PASSIVE, NEW, FAMILY)` (M)
 - [ ] **#PETS.18** Implement `Pet::cast_pet_auras(current)` + `Pet::cast_pet_aura(petAura)` + `Pet::is_pet_aura(aura)` — backed by a Trinity-style world DB `pet_aura` cache (separate from character DB `pet_aura` aura-instance table) (M)
