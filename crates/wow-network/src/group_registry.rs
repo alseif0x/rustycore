@@ -181,6 +181,13 @@ pub struct GroupMemberDbRowLikeCpp {
     pub roles: u8,
 }
 
+/// C++ `Group::m_recentInstances[mapId] = { instanceOwner, instanceId }`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GroupRecentInstanceLikeCpp {
+    pub instance_owner: ObjectGuid,
+    pub instance_id: u32,
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct GroupLoadSummaryLikeCpp {
     pub loaded_groups: usize,
@@ -259,6 +266,7 @@ pub struct GroupInfo {
     pub legacy_raid_difficulty_id: u32,
     pub target_icons: [[u8; 16]; TARGET_ICONS_COUNT_LIKE_CPP],
     pub raid_markers: [Option<RaidMarkerLikeCpp>; RAID_MARKERS_COUNT_LIKE_CPP],
+    pub recent_instances: BTreeMap<u32, GroupRecentInstanceLikeCpp>,
     pub lfg_db_state: Option<GroupLfgDbStateLikeCpp>,
     pub raid_subgroup_counts: Option<[u8; MAX_RAID_SUBGROUPS_LIKE_CPP]>,
     pub ready_check_started: bool,
@@ -297,6 +305,7 @@ impl GroupInfo {
             legacy_raid_difficulty_id: DIFFICULTY_10_N_LIKE_CPP,
             target_icons: [EMPTY_TARGET_ICON_RAW_LIKE_CPP; TARGET_ICONS_COUNT_LIKE_CPP],
             raid_markers: [None; RAID_MARKERS_COUNT_LIKE_CPP],
+            recent_instances: BTreeMap::new(),
             lfg_db_state: None,
             raid_subgroup_counts: None,
             ready_check_started: false,
@@ -336,6 +345,7 @@ impl GroupInfo {
             legacy_raid_difficulty_id,
             target_icons: [EMPTY_TARGET_ICON_RAW_LIKE_CPP; TARGET_ICONS_COUNT_LIKE_CPP],
             raid_markers: [None; RAID_MARKERS_COUNT_LIKE_CPP],
+            recent_instances: BTreeMap::new(),
             lfg_db_state: None,
             raid_subgroup_counts: if (group_flags & GROUP_FLAG_RAID_LIKE_CPP) != 0 {
                 Some([0; MAX_RAID_SUBGROUPS_LIKE_CPP])
@@ -414,6 +424,39 @@ impl GroupInfo {
 
     pub fn group_category_like_cpp(&self) -> u8 {
         self.group_category
+    }
+
+    pub fn recent_instance_owner_like_cpp(&self, map_id: u32) -> ObjectGuid {
+        self.recent_instances
+            .get(&map_id)
+            .map(|recent| recent.instance_owner)
+            .unwrap_or(self.leader_guid)
+    }
+
+    pub fn recent_instance_id_like_cpp(&self, map_id: u32) -> u32 {
+        self.recent_instances
+            .get(&map_id)
+            .map(|recent| recent.instance_id)
+            .unwrap_or(0)
+    }
+
+    pub fn set_recent_instance_like_cpp(
+        &mut self,
+        map_id: u32,
+        instance_owner: ObjectGuid,
+        instance_id: u32,
+    ) {
+        self.recent_instances.insert(
+            map_id,
+            GroupRecentInstanceLikeCpp {
+                instance_owner,
+                instance_id,
+            },
+        );
+    }
+
+    pub fn forget_recent_instance_like_cpp(&mut self, map_id: u32) -> bool {
+        self.recent_instances.remove(&map_id).is_some()
     }
 
     pub fn matches_party_index_like_cpp(&self, party_index: Option<u8>) -> bool {
@@ -1332,6 +1375,61 @@ mod tests {
         assert_eq!(group.raid_difficulty_id, 15);
         assert_eq!(group.legacy_raid_difficulty_id, 5);
         assert_eq!(group.master_looter_guid, master);
+    }
+
+    #[test]
+    fn recent_instance_defaults_to_leader_and_zero_instance_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let group = GroupInfo::new(leader);
+
+        assert_eq!(group.recent_instance_owner_like_cpp(631), leader);
+        assert_eq!(group.recent_instance_id_like_cpp(631), 0);
+    }
+
+    #[test]
+    fn set_recent_instance_tracks_owner_and_instance_by_map_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let owner = ObjectGuid::create_player(1, 77);
+        let mut group = GroupInfo::new(leader);
+
+        group.set_recent_instance_like_cpp(631, owner, 9001);
+
+        assert_eq!(group.recent_instance_owner_like_cpp(631), owner);
+        assert_eq!(group.recent_instance_id_like_cpp(631), 9001);
+        assert_eq!(
+            group.recent_instance_owner_like_cpp(533),
+            leader,
+            "other maps still fall back to C++ leader guid"
+        );
+        assert_eq!(group.recent_instance_id_like_cpp(533), 0);
+    }
+
+    #[test]
+    fn set_recent_instance_replaces_same_map_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let first_owner = ObjectGuid::create_player(1, 77);
+        let second_owner = ObjectGuid::create_player(1, 88);
+        let mut group = GroupInfo::new(leader);
+
+        group.set_recent_instance_like_cpp(631, first_owner, 9001);
+        group.set_recent_instance_like_cpp(631, second_owner, 9002);
+
+        assert_eq!(group.recent_instance_owner_like_cpp(631), second_owner);
+        assert_eq!(group.recent_instance_id_like_cpp(631), 9002);
+    }
+
+    #[test]
+    fn forget_recent_instance_erases_map_binding_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let owner = ObjectGuid::create_player(1, 77);
+        let mut group = GroupInfo::new(leader);
+
+        group.set_recent_instance_like_cpp(631, owner, 9001);
+
+        assert!(group.forget_recent_instance_like_cpp(631));
+        assert!(!group.forget_recent_instance_like_cpp(631));
+        assert_eq!(group.recent_instance_owner_like_cpp(631), leader);
+        assert_eq!(group.recent_instance_id_like_cpp(631), 0);
     }
 
     #[test]

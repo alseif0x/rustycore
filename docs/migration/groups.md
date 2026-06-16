@@ -291,7 +291,14 @@ DBC/DB2 stores read:
 - Difficulty settings serialised as dungeon=1 (Normal), raid=14 (Normal30), legacy_raid=3 (Normal10) — hard-coded defaults.
 
 **What's missing vs C++:**
-- **No DB persistence** — groups are 100% in-memory. Server restart = all groups dissolved. `groups`/`group_member`/`group_instance` tables not read or written.
+- **DB persistence represented-partial** — `groups` and `group_member` statements exist,
+  mutating handlers write several represented paths, and `world-server` now loads persisted
+  groups/members at startup like `GroupMgr::LoadGroups`. Remaining gaps: complete transaction /
+  rollback parity for every mutating handler, live restart/bot validation, and integration of
+  group recent-instance runtime with the live instance map/lock flow. Audit correction:
+  `group_instance` is an old-schema table, not a live prepared-statement surface in this 3.4.3
+  fork; current instance lock persistence is `InstanceLockMgr` (`instance` +
+  `character_instance_lock`).
 - **Raid represented-partial** — `CMSG_CONVERT_RAID` is parsed/handled through represented HOME-group state (`#NEXT.R8.ENTITIES.745/#746`), but full raid runtime remains incomplete: BG/BF/original-group category parity, full 8×5 layout/cap semantics, DB persistence, and live-client validation remain open.
 - **Roles represented-partial** — `CMSG_SET_ROLE` / `SMSG_ROLE_CHANGED_INFORM` are parsed, dispatched, and fan out through the represented current HOME-group model. Remaining gaps: DB persistence, BG/BF/original-group `PartyIndex` parity, and full live ObjectAccessor/sWorld runtime.
 - **Assistant / main-tank / main-assist represented-partial** — `CMSG_SET_ASSISTANT_LEADER` / `CMSG_SET_PARTY_ASSIGNMENT` have represented HOME-group wiring, but full category parity, persistence, and live runtime side effects remain open.
@@ -317,8 +324,11 @@ DBC/DB2 stores read:
   Remaining gaps: unresolved real opcode-table identity for the duplicated `0xBADD` placeholder,
   DB persistence, original/instance/BG/BF group category parity, and full live runtime/manual validation.
 - **Target icons represented-partial** — `CMSG_UPDATE_RAID_TARGET` and target-icon packets are represented (`#NEXT.R8.ENTITIES.793`), but full live raid target storage/category/runtime validation and complete fanout remain open.
-- **Difficulty switching represented-partial** — `CMSG_SET_DIFFICULTY_ID`, `CMSG_SET_DUNGEON_DIFFICULTY`, and `CMSG_SET_RAID_DIFFICULTY` now route through represented solo/group difficulty state and reset hooks. Remaining gaps: full live `InstanceMap::Reset`, recent/owned instance parity, BG/BF/original-group exclusions, install/restart, and live client/bot validation.
-- **No instance binding** — `m_recentInstances` map absent. Group cannot save/restore raid lockouts.
+- **Difficulty switching represented-partial** — `CMSG_SET_DIFFICULTY_ID`, `CMSG_SET_DUNGEON_DIFFICULTY`, and `CMSG_SET_RAID_DIFFICULTY` now route through represented solo/group difficulty state and reset hooks. Remaining gaps: full live `InstanceMap::Reset`, owned-instance reference parity, BG/BF/original-group exclusions, install/restart, and live client/bot validation.
+- **Instance binding represented-partial** — `GroupInfo` now stores represented
+  `m_recentInstances` per map (`owner`, `instanceId`) with C++ fallback/erase helpers. Remaining
+  gaps: live `GroupInstanceReference`/`m_ownedInstancesMgr`, call-sites that set recent instances
+  from real `InstanceMap`, and exact `Group::ResetInstances` map-iteration behavior.
 - **Minimap ping / random roll represented** — `CMSG_MINIMAP_PING` and `CMSG_RANDOM_ROLL` are wired through represented HOME-group state. Remaining gaps: BG/BF/original-group routing, full live `Group::BroadcastPacket` semantics, and live client/bot validation.
 - **Member stats refresh represented-partial** — `CMSG_REQUEST_PARTY_MEMBER_STATS` and represented `PartyMemberFullState` snapshots are covered by `#NEXT.R8.ENTITIES.794`; full `Group::UpdatePlayerOutOfRange`, live aura/pet/vehicle runtime, original-group ownership, and manual validation remain open.
 - **Raid info represented-partial** — `CMSG_REQUEST_RAID_INFO` is wired through represented instance-lock data, but full `InstanceSaveMgr::SendRaidInfo` parity depends on live instance-save/runtime validation.
@@ -450,7 +460,7 @@ DBC/DB2 stores read:
   `PartyIndex` category parity, exact online `Player::GetGroupRef().setSubGroup` object graph,
   DB transaction/rollback parity, install/restart, bot, and live-client validation. Complejidad: **H**
 - [x] **#GROUPS.13** Represent `CMSG_SET_DUNGEON_DIFFICULTY` / `CMSG_SET_RAID_DIFFICULTY` legacy opcodes — per-group/solo difficulty and represented reset hooks are covered by `#NEXT.R8.ENTITIES.938`, `#NEXT.R8.ENTITIES.939`, and `#NEXT.R8.ENTITIES.943`; full live instance/runtime parity remains open. Complejidad: **M**
-- [ ] **#GROUPS.14** Implement DB persistence — schema for `groups`, `group_member`; load on startup via `GroupMgr::load_groups`; persist on Create/AddMember/Disband. Complejidad: **H**
+- [~] **#GROUPS.14** Implement DB persistence — `groups` / `group_member` statements, represented mutating writes, and startup `GroupMgr::LoadGroups` bridge are present; remaining work is complete transaction/rollback parity for all group mutations and live restart/bot validation. `group_instance` is not a live 3.4.3 prepared-statement surface; instance lock persistence is tracked in the Instances module. Complejidad: **H**
 - [x] **#GROUPS.15** Implement represented `CMSG_MINIMAP_PING` — broadcast `(senderGuid, x, y)` to other represented HOME-group members. Remaining runtime/BG/original-group gaps tracked in R8.
 - [x] **#GROUPS.16** Implement represented `CMSG_RANDOM_ROLL` — `/roll min max`, broadcast `SMSG_RANDOM_ROLL` to represented HOME-group members including roller. Remaining runtime/BG/original-group gaps tracked in `#NEXT.R8.ENTITIES.941`.
 - [x] **#GROUPS.17** Represent `CMSG_REQUEST_PARTY_MEMBER_STATS` — represented `PartyMemberFullState` snapshots are covered by `#NEXT.R8.ENTITIES.794`; full `UpdatePlayerOutOfRange` live runtime remains open. Complejidad: **M**
@@ -507,7 +517,7 @@ DBC/DB2 stores read:
 
 | Scope | Decision | C++ retained | Evidence |
 |---|---|---|---|
-| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 10 files / 2815 lines; refs: `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp`, `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.h`, `/home/server/woltk-trinity-legacy/src/server/game/Groups/GroupMgr.cpp` | `crates/wow-network/src/group_registry.rs`, `crates/wow-world/src/handlers/group.rs`, `crates/wow-packet/src/packets/party.rs`, `crates/world-server/src/main.rs` \| ⚠️ partial — broad represented coverage for member slots, subgroups, roles, loot, ready-check, target icons, raid markers and startup DB load; remaining gaps include BG/BF/original-group parity, full `group_instance`/raid-bind persistence, complete mutation transaction parity, and manual-test-ready runtime validation |
+| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 10 files / 2815 lines; refs: `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp`, `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.h`, `/home/server/woltk-trinity-legacy/src/server/game/Groups/GroupMgr.cpp` | `crates/wow-network/src/group_registry.rs`, `crates/wow-world/src/handlers/group.rs`, `crates/wow-packet/src/packets/party.rs`, `crates/world-server/src/main.rs` \| ⚠️ partial — broad represented coverage for member slots, subgroups, roles, loot, ready-check, target icons, raid markers, recent instances and startup DB load; remaining gaps include BG/BF/original-group parity, live `GroupInstanceReference`/owned-map reset parity, complete mutation transaction parity, and manual-test-ready runtime validation |
 
 <!-- REFINE.025:END product-scope -->
 
@@ -594,7 +604,10 @@ its line counts or "only 3 handlers" statement as current truth without re-audit
 
 **Largest missing surfaces (confirmed):**
 - Remaining group CMSG surfaces still include set leader, set role, raid markers, target icons, convert raid, full raid/original-group routing, opt-out-of-loot, role poll, restrict pings, low-level raid, raid info request, member stats request, and runtime `Group::Update(diff)`. Some formerly listed surfaces now have represented coverage (uninvite, loot method, ready check, sub-groups, difficulty, minimap ping, random roll) but still carry represented/runtime boundaries in R8.
-- DB persistence: zero `groups` / `group_member` / `group_instance` reads or writes. `wow-database/src/statements/character.rs` has no group statements.
+- DB persistence: historical finding superseded. `groups` / `group_member` statements and startup
+  load now exist; several represented mutating paths write DB statements. Remaining gap is complete
+  transaction/rollback parity and live restart/bot validation. `group_instance` belongs to old SQL
+  history in this fork; current raid/instance lock persistence is `InstanceLockMgr`.
 - `MemberSlot` struct: represented as `GroupMemberSlotLikeCpp` with per-member `subgroup`,
   `flags` (Assistant/MainTank/MainAssist), `roles`, and `ready_checked`; remaining gaps are
   live object graph/category parity and persistence transaction parity, not absence of the struct.

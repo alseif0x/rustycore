@@ -1,3 +1,17 @@
+- `#NEXT.RUNTIME.L3.031j56` — WotLK represented `Group::m_recentInstances`
+  foundation (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.h:368-371` and
+  `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp:1356-1376`.
+  Rust `GroupInfo` now carries a per-map recent-instance map equivalent to the C++ pair
+  `{ instanceOwner, instanceId }`, with C++-shaped helpers for `GetRecentInstanceOwner`
+  (fallback to leader), `GetRecentInstanceId` (fallback `0`), `SetRecentInstance`, and erase.
+  Coverage: targeted `wow-network recent_instance` tests cover fallback, per-map storage,
+  replacement, and erase semantics. Boundary remains partial: no real `GroupInstanceReference`
+  link to live `InstanceMap`, no `Group::ResetInstances` runtime iteration over owned maps, no
+  call-site that records recent instances after instance creation/kill, no install/restart, bot,
+  or live-client validation. Audit correction: this C++ 3.4.3 fork no longer has live
+  `group_instance` prepared statements; current lock persistence lives in `InstanceLockMgr`
+  (`instance` + `character_instance_lock`), already represented separately.
 - `#NEXT.RUNTIME.L3.031j55` — WotLK represented `GroupMgr::LoadGroups()` startup bridge
   (not manual-test-ready). Source-of-truth:
   `/home/server/woltk-trinity-legacy/src/server/game/Groups/GroupMgr.cpp:127-205` and
@@ -10,10 +24,11 @@
   the Rust character-cache projection, `world-server`
   `target_icon_raw_from_db_bytes_preserves_cpp_binary_guid_shape` covers the C++ `GetBinary`
   raid-target-icon normalization, and `cargo check -p wow-database -p wow-network -p world-server`
-  passes. Boundary remains partial: represented `GroupInfo` only, no `group_instance` raid-bind
-  load/persistence, no full LFG manager DB side effects beyond represented LFG state, no grouped
-  transaction/rollback parity for all mutating handlers, no install/restart, bot, or live-client
-  validation.
+  passes. Boundary remains partial: represented `GroupInfo` only, no full LFG manager DB side
+  effects beyond represented LFG state, no grouped transaction/rollback parity for all mutating
+  handlers, no install/restart, bot, or live-client validation. `group_instance` is not a live
+  prepared-statement surface in this 3.4.3 fork; current raid/instance lock persistence is tracked
+  under `InstanceLockMgr`.
 - `#NEXT.RUNTIME.L3.031j54` — WotLK represented `Group::UpdateLooterGuid` round-robin
   state helper (not manual-test-ready). Source-of-truth:
   `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp:1116-1176`
