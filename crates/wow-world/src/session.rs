@@ -4365,6 +4365,10 @@ fn represented_aura_effect_amounts_like_cpp(
 const AFLAG_SCALABLE_LIKE_CPP: u32 = 0x0000_0008;
 
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG_LOOTING_LIKE_CPP: u32 = 0x0000_0800;
+pub(crate) const SPELL_AURA_INTERRUPT_FLAG_MOVING_LIKE_CPP: u32 = 0x0000_0008;
+pub(crate) const SPELL_AURA_INTERRUPT_FLAG_TURNING_LIKE_CPP: u32 = 0x0000_0010;
+pub(crate) const SPELL_AURA_INTERRUPT_FLAG_MOVING_OR_TURNING_LIKE_CPP: u32 =
+    SPELL_AURA_INTERRUPT_FLAG_MOVING_LIKE_CPP | SPELL_AURA_INTERRUPT_FLAG_TURNING_LIKE_CPP;
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG_LANDING_OR_FLIGHT_LIKE_CPP: u32 = 0x0200_0000;
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG2_JUMP_LIKE_CPP: u32 = 0x0000_0020;
 pub(crate) const PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP: u32 = 0x0000_8000;
@@ -20184,6 +20188,34 @@ impl WorldSession {
         )
     }
 
+    pub(crate) fn remove_moving_or_turning_interrupt_auras_for_far_teleport_like_cpp(
+        &mut self,
+    ) -> usize {
+        let represented_removed = self.remove_auras_with_interrupt_flags_like_cpp(
+            SPELL_AURA_INTERRUPT_FLAG_MOVING_OR_TURNING_LIKE_CPP,
+            0,
+        );
+        let canonical_removed = self
+            .mutate_canonical_player_like_cpp(|player| {
+                player
+                    .unit_mut()
+                    .subsystems_mut()
+                    .auras
+                    .remove_interruptible_auras(
+                        SPELL_AURA_INTERRUPT_FLAG_MOVING_OR_TURNING_LIKE_CPP,
+                        0,
+                    )
+                    .len()
+            })
+            .unwrap_or(0);
+
+        if canonical_removed > 0 {
+            self.sync_object_accessor_player();
+        }
+
+        represented_removed + canonical_removed
+    }
+
     pub(crate) fn remove_represented_feign_death_if_needed_like_cpp(&mut self) -> bool {
         let has_died_state = self
             .mutate_canonical_player_like_cpp(|player| {
@@ -22356,6 +22388,7 @@ impl WorldSession {
             let _ = self.remove_all_dynamic_objects_for_current_player_like_cpp();
             let _ = self.remove_all_area_triggers_for_current_player_like_cpp();
             let _ = self.interrupt_non_melee_spells_for_far_teleport_like_cpp();
+            let _ = self.remove_moving_or_turning_interrupt_auras_for_far_teleport_like_cpp();
         }
 
         info!(
@@ -65228,6 +65261,139 @@ mod tests {
                     .current_spell(wow_entities::CurrentSpellSlot::Generic),
                 Some(generic_spell)
             );
+        });
+    }
+
+    #[tokio::test]
+    async fn teleport_to_far_map_removes_moving_and_turning_interrupt_auras_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 807);
+        let source_position = Position::new(10.0, 20.0, 30.0, 0.0);
+        let destination = Position::new(112.0, 212.0, 42.0, 2.7);
+        let represented_moving_slot = 11;
+        let represented_turning_slot = 12;
+        let represented_kept_slot = 13;
+        let canonical_moving = wow_entities::AppliedAuraRef::new(62_807, player_guid, 0, 0x1);
+        let canonical_turning = wow_entities::AppliedAuraRef::new(62_808, player_guid, 1, 0x1);
+        let canonical_kept = wow_entities::AppliedAuraRef::new(62_809, player_guid, 2, 0x1);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 1,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+            wow_data::MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.expansion = 1;
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TeleportRemoveInterruptAuras".to_string(),
+            source_position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        for (slot, spell_id, flags) in [
+            (
+                represented_moving_slot,
+                62_817,
+                SPELL_AURA_INTERRUPT_FLAG_MOVING_LIKE_CPP,
+            ),
+            (
+                represented_turning_slot,
+                62_818,
+                SPELL_AURA_INTERRUPT_FLAG_TURNING_LIKE_CPP,
+            ),
+            (represented_kept_slot, 62_819, 0),
+        ] {
+            session.visible_auras.insert(
+                slot,
+                AuraApplication {
+                    spell_id,
+                    caster_guid: player_guid,
+                    slot,
+                    duration_total: 30_000,
+                    duration_remaining: 30_000,
+                    stack_count: 1,
+                    aura_flags: 0x1,
+                    effect_mask: 0x1,
+                    aura_interrupt_flags: flags,
+                    aura_interrupt_flags2: 0,
+                    represented_effect: None,
+                    represented_amount: 0,
+                    represented_effect_amounts: Vec::new(),
+                    represented_misc_value: None,
+                    represented_multiplier: 1.0,
+                    applied_at: Instant::now(),
+                },
+            );
+        }
+        add_canonical_test_player_on_map(&canonical, player_guid, source_position, 571, 0);
+        session.mutate_canonical_player_like_cpp(|player| {
+            let auras = &mut player.unit_mut().subsystems_mut().auras;
+            auras.register_applied_aura(
+                canonical_moving,
+                None,
+                SPELL_AURA_INTERRUPT_FLAG_MOVING_LIKE_CPP,
+                0,
+            );
+            auras.register_applied_aura(
+                canonical_turning,
+                None,
+                SPELL_AURA_INTERRUPT_FLAG_TURNING_LIKE_CPP,
+                0,
+            );
+            auras.register_applied_aura(canonical_kept, None, 0, 0);
+        });
+
+        session.teleport_to(0, destination).await;
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![
+                ServerOpcodes::CancelCombat,
+                ServerOpcodes::AuraUpdate,
+                ServerOpcodes::AuraUpdate,
+                ServerOpcodes::TransferPending,
+                ServerOpcodes::SuspendToken
+            ]
+        );
+        assert_eq!(session.pending_teleport, Some((0, destination)));
+        assert!(!session.visible_auras.contains_key(&represented_moving_slot));
+        assert!(
+            !session
+                .visible_auras
+                .contains_key(&represented_turning_slot)
+        );
+        assert!(session.visible_auras.contains_key(&represented_kept_slot));
+        session.mutate_canonical_player_like_cpp(|player| {
+            let auras = &player.unit().subsystems().auras;
+            assert!(
+                !auras.has_applied(canonical_moving),
+                "C++ RemoveAurasWithInterruptFlags(Moving|Turning) removes Moving auras before transfer"
+            );
+            assert!(
+                !auras.has_applied(canonical_turning),
+                "C++ RemoveAurasWithInterruptFlags(Moving|Turning) removes Turning auras before transfer"
+            );
+            assert!(auras.has_applied(canonical_kept));
         });
     }
 

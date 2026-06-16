@@ -397,6 +397,17 @@ NOTE: `InstanceSaveMgr` no longer exists as a separate class in this WoLK 3.4.3 
   `TELE_TO_SPELL` exception is not representable yet; outgoing spell-interrupt
   packets, full Spell runtime state, bot, install/restart, and live-client
   validation remain pending.
+- `#NEXT.RUNTIME.L3.031j87` wires the accepted far-teleport
+  `RemoveAurasWithInterruptFlags(Moving | Turning)` branch: after non-melee
+  spell interruption and before transfer packets, Rust now removes represented
+  visible auras and canonical Player Unit applied auras carrying Trinity's
+  `SpellAuraInterruptFlags::Moving` or `Turning`, while preserving unrelated
+  auras. Refs: `Player.cpp:1430-1431`, `Unit.cpp:4051-4108`,
+  `SpellDefines.h:70-109`. Remaining gap: this is still a bounded
+  represented/canonical local cleanup; full aura scripts/procs, remove-mode
+  fanout beyond represented `SMSG_AURA_UPDATE`, `CanCastSpellWhileMoving`
+  exception handling from `IsInterruptFlagIgnoredForSpell`, channel-interrupt
+  edge cases, bot, install/restart, and live-client validation remain pending.
 
 **Tests existing:**
 - `cargo test -p wow-instances -- --nocapture` currently covers 19 focused tests, including C++-contrasted lock key/binding, daily/weekly reset anchors, temporary lock creation, active lock lookup, temp promotion, expired-lock replacement, DB row reconstruction, shared weak-ref cleanup, prepared-statement parameter order, flex-mask join rejection, different-instance rejection, and reset in-use guard.
