@@ -4,7 +4,7 @@ use wow_constants::{Class, CreatureType, DeathState, PowerType, UnitFlags};
 use wow_core::ObjectGuid;
 
 use crate::{
-    ACT_DISABLED_LIKE_CPP, ACT_ENABLED_LIKE_CPP, ACT_PASSIVE_LIKE_CPP, Creature,
+    ACT_DISABLED_LIKE_CPP, ACT_ENABLED_LIKE_CPP, ACT_PASSIVE_LIKE_CPP, CharmInfoState, Creature,
     CreatureRuntimePlan, MAX_UNIT_ACTION_BAR_INDEX, ReactState, UNIT_MASK_CONTROLABLE_GUARDIAN,
     UNIT_MASK_GUARDIAN, UNIT_MASK_HUNTER_PET, UNIT_MASK_MINION, UNIT_MASK_PET, UNIT_MASK_SUMMON,
     UnitAddToWorldOutcomeLikeCpp, UnitRemoveFromWorldOutcomeLikeCpp,
@@ -308,6 +308,16 @@ pub struct PetLearnPetPassivesOutcomeLikeCpp {
     pub creature_family_missing: bool,
     pub attempted_spell_ids: Vec<u32>,
     pub learned_spell_ids: Vec<u32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PetInitCreateSpellsOutcomeLikeCpp {
+    pub init_pet_action_bar: bool,
+    pub cleared_spell_count: usize,
+    pub cleared_autospell_count: usize,
+    pub learn_pet_passives: PetLearnPetPassivesOutcomeLikeCpp,
+    pub init_levelup_spells_for_level: bool,
+    pub cast_pet_auras_current: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1366,6 +1376,36 @@ impl Pet {
             packet_spell_ids: learned_spell_ids.clone(),
             learned_spell_ids,
             send_session_packet: !self.loading,
+        }
+    }
+
+    pub fn init_pet_create_spells_like_cpp(
+        &mut self,
+        charm_info: &mut CharmInfoState,
+        creature_family_id_like_cpp: Option<u32>,
+        creature_family_exists_like_cpp: impl FnMut(u32) -> bool,
+        pet_family_spells_like_cpp: impl FnMut(u32) -> Vec<u32>,
+    ) -> PetInitCreateSpellsOutcomeLikeCpp {
+        charm_info.init_pet_action_bar_like_cpp();
+
+        let cleared_spell_count = self.spells.len();
+        let cleared_autospell_count = self.autospells.len();
+        self.spells.clear();
+        self.autospells.clear();
+
+        let learn_pet_passives = self.learn_pet_passives_like_cpp(
+            creature_family_id_like_cpp,
+            creature_family_exists_like_cpp,
+            pet_family_spells_like_cpp,
+        );
+
+        PetInitCreateSpellsOutcomeLikeCpp {
+            init_pet_action_bar: true,
+            cleared_spell_count,
+            cleared_autospell_count,
+            learn_pet_passives,
+            init_levelup_spells_for_level: true,
+            cast_pet_auras_current: false,
         }
     }
 
@@ -3996,6 +4036,84 @@ mod tests {
             pet.spells().get(&200).unwrap().spell_type,
             PetSpellType::Family
         );
+    }
+
+    #[test]
+    fn pet_init_create_spells_like_cpp_resets_action_bar_spellbook_and_runs_create_phases() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+        assert!(pet.add_spell(
+            10,
+            ActiveState::Enabled,
+            PetSpellState::Unchanged,
+            PetSpellType::Normal
+        ));
+        assert!(pet.add_spell(
+            20,
+            ActiveState::Disabled,
+            PetSpellState::Unchanged,
+            PetSpellType::Normal
+        ));
+        let mut charm_info = CharmInfoState::default();
+        charm_info.action_bar[0] = make_unit_action_button_like_cpp(999, ACT_PASSIVE_LIKE_CPP);
+
+        let outcome = pet.init_pet_create_spells_like_cpp(
+            &mut charm_info,
+            Some(7),
+            |family| family == 7,
+            |family| {
+                assert_eq!(family, 7);
+                vec![300, 100, 200]
+            },
+        );
+
+        let mut expected_charm = CharmInfoState::default();
+        expected_charm.init_pet_action_bar_like_cpp();
+        assert_eq!(charm_info.action_bar, expected_charm.action_bar);
+        assert_eq!(outcome.cleared_spell_count, 2);
+        assert_eq!(outcome.cleared_autospell_count, 1);
+        assert_eq!(
+            outcome.learn_pet_passives.attempted_spell_ids,
+            vec![100, 200, 300]
+        );
+        assert_eq!(
+            outcome.learn_pet_passives.learned_spell_ids,
+            vec![100, 200, 300]
+        );
+        assert!(outcome.init_pet_action_bar);
+        assert!(outcome.init_levelup_spells_for_level);
+        assert!(
+            !outcome.cast_pet_auras_current,
+            "C++ Pet::InitPetCreateSpells ends with CastPetAuras(false)"
+        );
+        assert_eq!(pet.autospells(), &[]);
+        assert_eq!(pet.spells().len(), 3);
+        assert!(
+            pet.spells()
+                .values()
+                .all(|spell| spell.spell_type == PetSpellType::Family)
+        );
+    }
+
+    #[test]
+    fn pet_init_create_spells_like_cpp_still_runs_levelup_and_auras_when_passives_skip() {
+        let mut pet = Pet::new(owner_guid(), PetType::Summon);
+        let mut charm_info = CharmInfoState::default();
+
+        let outcome = pet.init_pet_create_spells_like_cpp(
+            &mut charm_info,
+            None,
+            |_| panic!("C++ LearnPetPassives returns before family lookup without template family"),
+            |_| {
+                panic!(
+                    "C++ LearnPetPassives returns before spell set lookup without template family"
+                )
+            },
+        );
+
+        assert!(outcome.learn_pet_passives.creature_template_missing);
+        assert!(outcome.init_levelup_spells_for_level);
+        assert!(!outcome.cast_pet_auras_current);
+        assert!(pet.spells().is_empty());
     }
 
     #[test]

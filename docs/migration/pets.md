@@ -156,7 +156,7 @@ NPC-handler stable packets (`WorldPackets::NPC`):
 | `Pet::unlearnSpell(id, learn_prev, clear_ab)` | Remove from spell book; if `learn_prev` and a previous-rank exists, re-learn it; if `clear_ab` clear from action bar | `removeSpell` |
 | `Pet::CleanupActionBar()` | After spell-list mutation, walk action bar slots 0..9 and remove any spell ID the pet no longer knows | `CharmInfo::SetActionBar(slot, 0, ACT_DISABLED)` |
 | `Pet::GenerateActionBarData()` | Build the comma-separated text serialized form (for `character_pet.abdata`) — 10 entries of `"<active_state> <action>"` | — |
-| `Pet::InitPetCreateSpells()` | Called for SUMMON_PET on first creation: read `creature_template_addon.spell1..8` and learn each | `addSpell(spell, ACT_DECIDE, NEW, NORMAL)` |
+| `Pet::InitPetCreateSpells()` | Current local C++ resets the pet action bar, clears `m_spells`, runs `LearnPetPassives()`, `InitLevelupSpellsForLevel()`, then `CastPetAuras(false)` | `CharmInfo::InitPetActionBar`, `LearnPetPassives`, `InitLevelupSpellsForLevel`, `CastPetAuras(false)` |
 | `Pet::SetSpecialization(specId)` | Pet specialization (3.4.3 Beast Mastery added Cunning/Tenacity/Ferocity for hunter pets) — apply spec passives, send `SMSG_SET_PET_SPECIALIZATION` | `LearnSpecializationSpells` |
 | `Pet::SetGroupUpdateFlag(flag)` | Mark a `m_groupUpdateMask` bit so the next group-update tick re-broadcasts pet stats | — |
 | `WorldSession::HandlePetAction(packet)` | Top-level dispatcher: validate not mounted, resolve pet, validate ownership, check if alive (allow only `SPELL_ATTR0_ALLOW_CAST_WHILE_DEAD` if dead), guard charmed-player edge case, then call `HandlePetActionHelper` for one or many controlled units of same entry | `HandlePetActionHelper` |
@@ -459,7 +459,7 @@ Complejidad: **L** (low, <1h), **M** (med, 1-4h), **H** (high, 4-12h), **XL** (>
 - [ ] **#PETS.13** Implement `Pet::fill_pet_info(petInfo, forced_react_state)` and `Pet::generate_action_bar_data() -> String` / `CharmInfo::load_pet_action_bar(text)` — the text format is space-separated `"<active_state> <action>"` × 10, parser must match TC's `GenerateActionBarData` byte-for-byte (M)
 - [ ] **#PETS.14** Implement `Pet::add_spell` / `learn_spell` / `learn_spells` / `learn_spell_high_rank` / `unlearn_spell` / `unlearn_spells` / `remove_spell` / `cleanup_action_bar` — including `SMSG_PET_LEARNED_SPELLS` / `SMSG_PET_UNLEARNED_SPELLS` emission for state == NEW/REMOVED (H)
 - [ ] **#PETS.15** Implement `Pet::toggle_autocast(spell_info, apply)` and `Pet::has_spell(spell)` override (L)
-- [ ] **#PETS.16** Implement `Pet::init_pet_create_spells()` for SUMMON_PET — read `creature_template_addon.spell1..8` and add each as `(ACT_DECIDE, NEW, NORMAL)` (M)
+- [ ] **#PETS.16** Implement `Pet::init_pet_create_spells()` per current local C++ — reset action bar, clear spell book, run passives, level-up spells and `CastPetAuras(false)`; do not use the stale `creature_template_addon.spell1..8` summary for this method (M)
 - [ ] **#PETS.17** Implement `Pet::learn_pet_passives()` for HUNTER_PET — read CreatureFamilyStore + family-spell list, add as `(ACT_PASSIVE, NEW, FAMILY)` (M)
 - [ ] **#PETS.18** Implement `Pet::cast_pet_auras(current)` + `Pet::cast_pet_aura(petAura)` + `Pet::is_pet_aura(aura)` — backed by a Trinity-style world DB `pet_aura` cache (separate from character DB `pet_aura` aura-instance table) (M)
 - [ ] **#PETS.19** Implement `Pet::set_specialization(specId)` + `learn_specialization_spells` + `remove_specialization_spells(clear_action_bar)` — depends on ChrSpecialization DB2 store integration (M)
