@@ -188,6 +188,32 @@ pub struct GroupRecentInstanceLikeCpp {
     pub instance_id: u32,
 }
 
+/// Represented C++ `GroupInstanceReference` source identity.
+///
+/// The real C++ object is a linked back-reference from `Group` to a live
+/// `InstanceMap`. Rust does not own the live `InstanceMap` here yet, so this
+/// stores the stable map identity that `Group::ResetInstances` needs before the
+/// live map reset wiring exists.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GroupOwnedInstanceLikeCpp {
+    pub map_id: u32,
+    pub instance_id: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GroupInstanceResetMethodLikeCpp {
+    Manual,
+    OnChangeDifficulty,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GroupInstanceResetResultLikeCpp {
+    Success,
+    NotEmpty,
+    CannotReset,
+    Other,
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct GroupLoadSummaryLikeCpp {
     pub loaded_groups: usize,
@@ -267,6 +293,7 @@ pub struct GroupInfo {
     pub target_icons: [[u8; 16]; TARGET_ICONS_COUNT_LIKE_CPP],
     pub raid_markers: [Option<RaidMarkerLikeCpp>; RAID_MARKERS_COUNT_LIKE_CPP],
     pub recent_instances: BTreeMap<u32, GroupRecentInstanceLikeCpp>,
+    pub owned_instances: BTreeMap<(u32, u32), GroupOwnedInstanceLikeCpp>,
     pub lfg_db_state: Option<GroupLfgDbStateLikeCpp>,
     pub raid_subgroup_counts: Option<[u8; MAX_RAID_SUBGROUPS_LIKE_CPP]>,
     pub ready_check_started: bool,
@@ -306,6 +333,7 @@ impl GroupInfo {
             target_icons: [EMPTY_TARGET_ICON_RAW_LIKE_CPP; TARGET_ICONS_COUNT_LIKE_CPP],
             raid_markers: [None; RAID_MARKERS_COUNT_LIKE_CPP],
             recent_instances: BTreeMap::new(),
+            owned_instances: BTreeMap::new(),
             lfg_db_state: None,
             raid_subgroup_counts: None,
             ready_check_started: false,
@@ -346,6 +374,7 @@ impl GroupInfo {
             target_icons: [EMPTY_TARGET_ICON_RAW_LIKE_CPP; TARGET_ICONS_COUNT_LIKE_CPP],
             raid_markers: [None; RAID_MARKERS_COUNT_LIKE_CPP],
             recent_instances: BTreeMap::new(),
+            owned_instances: BTreeMap::new(),
             lfg_db_state: None,
             raid_subgroup_counts: if (group_flags & GROUP_FLAG_RAID_LIKE_CPP) != 0 {
                 Some([0; MAX_RAID_SUBGROUPS_LIKE_CPP])
@@ -457,6 +486,50 @@ impl GroupInfo {
 
     pub fn forget_recent_instance_like_cpp(&mut self, map_id: u32) -> bool {
         self.recent_instances.remove(&map_id).is_some()
+    }
+
+    pub fn link_owned_instance_like_cpp(&mut self, map_id: u32, instance_id: u32) -> bool {
+        self.owned_instances
+            .insert(
+                (map_id, instance_id),
+                GroupOwnedInstanceLikeCpp {
+                    map_id,
+                    instance_id,
+                },
+            )
+            .is_none()
+    }
+
+    pub fn unlink_owned_instance_like_cpp(&mut self, map_id: u32, instance_id: u32) -> bool {
+        self.owned_instances
+            .remove(&(map_id, instance_id))
+            .is_some()
+    }
+
+    pub fn owned_instances_like_cpp(&self) -> impl Iterator<Item = GroupOwnedInstanceLikeCpp> + '_ {
+        self.owned_instances.values().copied()
+    }
+
+    pub fn apply_owned_instance_reset_result_like_cpp(
+        &mut self,
+        map_id: u32,
+        result: GroupInstanceResetResultLikeCpp,
+        method: GroupInstanceResetMethodLikeCpp,
+    ) -> bool {
+        match result {
+            GroupInstanceResetResultLikeCpp::Success
+            | GroupInstanceResetResultLikeCpp::CannotReset => {
+                self.forget_recent_instance_like_cpp(map_id)
+            }
+            GroupInstanceResetResultLikeCpp::NotEmpty
+                if method == GroupInstanceResetMethodLikeCpp::OnChangeDifficulty =>
+            {
+                self.forget_recent_instance_like_cpp(map_id)
+            }
+            GroupInstanceResetResultLikeCpp::NotEmpty | GroupInstanceResetResultLikeCpp::Other => {
+                false
+            }
+        }
     }
 
     pub fn matches_party_index_like_cpp(&self, party_index: Option<u8>) -> bool {
@@ -1430,6 +1503,103 @@ mod tests {
         assert!(!group.forget_recent_instance_like_cpp(631));
         assert_eq!(group.recent_instance_owner_like_cpp(631), leader);
         assert_eq!(group.recent_instance_id_like_cpp(631), 0);
+    }
+
+    #[test]
+    fn link_owned_instance_tracks_unique_instance_map_references_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let mut group = GroupInfo::new(leader);
+
+        assert!(group.link_owned_instance_like_cpp(631, 9001));
+        assert!(!group.link_owned_instance_like_cpp(631, 9001));
+        assert!(group.link_owned_instance_like_cpp(631, 9002));
+
+        let owned: Vec<_> = group.owned_instances_like_cpp().collect();
+        assert_eq!(
+            owned,
+            vec![
+                GroupOwnedInstanceLikeCpp {
+                    map_id: 631,
+                    instance_id: 9001,
+                },
+                GroupOwnedInstanceLikeCpp {
+                    map_id: 631,
+                    instance_id: 9002,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn unlink_owned_instance_removes_reference_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let mut group = GroupInfo::new(leader);
+
+        group.link_owned_instance_like_cpp(631, 9001);
+
+        assert!(group.unlink_owned_instance_like_cpp(631, 9001));
+        assert!(!group.unlink_owned_instance_like_cpp(631, 9001));
+        assert_eq!(group.owned_instances_like_cpp().count(), 0);
+    }
+
+    #[test]
+    fn reset_success_and_cannot_reset_forget_recent_instance_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let owner = ObjectGuid::create_player(1, 77);
+        let mut group = GroupInfo::new(leader);
+
+        group.set_recent_instance_like_cpp(631, owner, 9001);
+        assert!(group.apply_owned_instance_reset_result_like_cpp(
+            631,
+            GroupInstanceResetResultLikeCpp::Success,
+            GroupInstanceResetMethodLikeCpp::Manual,
+        ));
+        assert_eq!(group.recent_instance_id_like_cpp(631), 0);
+
+        group.set_recent_instance_like_cpp(631, owner, 9002);
+        assert!(group.apply_owned_instance_reset_result_like_cpp(
+            631,
+            GroupInstanceResetResultLikeCpp::CannotReset,
+            GroupInstanceResetMethodLikeCpp::Manual,
+        ));
+        assert_eq!(group.recent_instance_id_like_cpp(631), 0);
+    }
+
+    #[test]
+    fn reset_not_empty_forgets_only_on_change_difficulty_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let owner = ObjectGuid::create_player(1, 77);
+        let mut group = GroupInfo::new(leader);
+
+        group.set_recent_instance_like_cpp(631, owner, 9001);
+        assert!(!group.apply_owned_instance_reset_result_like_cpp(
+            631,
+            GroupInstanceResetResultLikeCpp::NotEmpty,
+            GroupInstanceResetMethodLikeCpp::Manual,
+        ));
+        assert_eq!(group.recent_instance_id_like_cpp(631), 9001);
+
+        assert!(group.apply_owned_instance_reset_result_like_cpp(
+            631,
+            GroupInstanceResetResultLikeCpp::NotEmpty,
+            GroupInstanceResetMethodLikeCpp::OnChangeDifficulty,
+        ));
+        assert_eq!(group.recent_instance_id_like_cpp(631), 0);
+    }
+
+    #[test]
+    fn reset_other_result_keeps_recent_instance_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let owner = ObjectGuid::create_player(1, 77);
+        let mut group = GroupInfo::new(leader);
+
+        group.set_recent_instance_like_cpp(631, owner, 9001);
+        assert!(!group.apply_owned_instance_reset_result_like_cpp(
+            631,
+            GroupInstanceResetResultLikeCpp::Other,
+            GroupInstanceResetMethodLikeCpp::Manual,
+        ));
+        assert_eq!(group.recent_instance_id_like_cpp(631), 9001);
     }
 
     #[test]

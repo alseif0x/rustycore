@@ -324,11 +324,13 @@ DBC/DB2 stores read:
   Remaining gaps: unresolved real opcode-table identity for the duplicated `0xBADD` placeholder,
   DB persistence, original/instance/BG/BF group category parity, and full live runtime/manual validation.
 - **Target icons represented-partial** — `CMSG_UPDATE_RAID_TARGET` and target-icon packets are represented (`#NEXT.R8.ENTITIES.793`), but full live raid target storage/category/runtime validation and complete fanout remain open.
-- **Difficulty switching represented-partial** — `CMSG_SET_DIFFICULTY_ID`, `CMSG_SET_DUNGEON_DIFFICULTY`, and `CMSG_SET_RAID_DIFFICULTY` now route through represented solo/group difficulty state and reset hooks. Remaining gaps: full live `InstanceMap::Reset`, owned-instance reference parity, BG/BF/original-group exclusions, install/restart, and live client/bot validation.
+- **Difficulty switching represented-partial** — `CMSG_SET_DIFFICULTY_ID`, `CMSG_SET_DUNGEON_DIFFICULTY`, and `CMSG_SET_RAID_DIFFICULTY` now route through represented solo/group difficulty state and reset hooks. Remaining gaps: full live `InstanceMap::Reset`, call-sites that link real instance maps, BG/BF/original-group exclusions, install/restart, and live client/bot validation.
 - **Instance binding represented-partial** — `GroupInfo` now stores represented
-  `m_recentInstances` per map (`owner`, `instanceId`) with C++ fallback/erase helpers. Remaining
-  gaps: live `GroupInstanceReference`/`m_ownedInstancesMgr`, call-sites that set recent instances
-  from real `InstanceMap`, and exact `Group::ResetInstances` map-iteration behavior.
+  `m_recentInstances` per map (`owner`, `instanceId`) plus represented
+  `GroupInstanceReference` / `m_ownedInstancesMgr` identities keyed by `(map_id, instance_id)`.
+  Reset-result erase semantics now match C++ `Group::ResetInstances` for `Success`, `CannotReset`,
+  and `NotEmpty` during `OnChangeDifficulty`. Remaining gaps: live `InstanceMap` references,
+  call-sites that set/link real maps, real `InstanceMap::Reset`, and reset packet integration.
 - **Minimap ping / random roll represented** — `CMSG_MINIMAP_PING` and `CMSG_RANDOM_ROLL` are wired through represented HOME-group state. Remaining gaps: BG/BF/original-group routing, full live `Group::BroadcastPacket` semantics, and live client/bot validation.
 - **Member stats refresh represented-partial** — `CMSG_REQUEST_PARTY_MEMBER_STATS` and represented `PartyMemberFullState` snapshots are covered by `#NEXT.R8.ENTITIES.794`; full `Group::UpdatePlayerOutOfRange`, live aura/pet/vehicle runtime, original-group ownership, and manual validation remain open.
 - **Raid info represented-partial** — `CMSG_REQUEST_RAID_INFO` is wired through represented instance-lock data, but full `InstanceSaveMgr::SendRaidInfo` parity depends on live instance-save/runtime validation.
@@ -374,24 +376,24 @@ DBC/DB2 stores read:
   Depends on: #REFINE.020, #REFINE.021; execution order finalized by #REFINE.040
   Acceptance: Rust target compiles; behavior and public contracts are checked against the listed C++ file; unit/golden/integration tests are added or marked n/a with reason; divergences are recorded before closing.
   Notes: `ready_for_small_task`; Single source-file coverage task; split further if C++ review exposes multiple independent behaviors. Assignment basis: prefix.
-- [ ] **#GROUPS.WBS.003** Cerrar la migracion auditada de `game/Groups/GroupInstanceRefManager.h`
+- [~] **#GROUPS.WBS.003** Cerrar la migracion auditada de `game/Groups/GroupInstanceRefManager.h`
   C++ refs: `/home/server/woltk-trinity-legacy/src/server/game/Groups/GroupInstanceRefManager.h`
   Rust target: `crates/wow-network/src/group_registry.rs`, `crates/wow-world/src/handlers/group.rs`, `crates/wow-packet/src/packets/party.rs`
   Depends on: #REFINE.020, #REFINE.021; execution order finalized by #REFINE.040
   Acceptance: Rust target compiles; behavior and public contracts are checked against the listed C++ file; unit/golden/integration tests are added or marked n/a with reason; divergences are recorded before closing.
-  Notes: `ready_for_small_task`; Single source-file coverage task; split further if C++ review exposes multiple independent behaviors. Assignment basis: prefix.
-- [ ] **#GROUPS.WBS.004** Cerrar la migracion auditada de `game/Groups/GroupInstanceReference.cpp`
+  Notes: represented owned-instance iteration exists in `GroupInfo`; remaining live linked-reference lifecycle waits on real `InstanceMap` integration. Assignment basis: prefix.
+- [~] **#GROUPS.WBS.004** Cerrar la migracion auditada de `game/Groups/GroupInstanceReference.cpp`
   C++ refs: `/home/server/woltk-trinity-legacy/src/server/game/Groups/GroupInstanceReference.cpp`
   Rust target: `crates/wow-network/src/group_registry.rs`, `crates/wow-world/src/handlers/group.rs`, `crates/wow-packet/src/packets/party.rs`
   Depends on: #REFINE.020, #REFINE.021; execution order finalized by #REFINE.040
   Acceptance: Rust target compiles; behavior and public contracts are checked against the listed C++ file; unit/golden/integration tests are added or marked n/a with reason; divergences are recorded before closing.
-  Notes: `ready_for_small_task`; Single source-file coverage task; split further if C++ review exposes multiple independent behaviors. Assignment basis: prefix.
-- [ ] **#GROUPS.WBS.005** Cerrar la migracion auditada de `game/Groups/GroupInstanceReference.h`
+  Notes: represented `targetObjectBuildLink -> Group::LinkOwnedInstance` behavior exists; remaining lifecycle callbacks are n/a/no-op until live `InstanceMap` references are wired. Assignment basis: prefix.
+- [~] **#GROUPS.WBS.005** Cerrar la migracion auditada de `game/Groups/GroupInstanceReference.h`
   C++ refs: `/home/server/woltk-trinity-legacy/src/server/game/Groups/GroupInstanceReference.h`
   Rust target: `crates/wow-network/src/group_registry.rs`, `crates/wow-world/src/handlers/group.rs`, `crates/wow-packet/src/packets/party.rs`
   Depends on: #REFINE.020, #REFINE.021; execution order finalized by #REFINE.040
   Acceptance: Rust target compiles; behavior and public contracts are checked against the listed C++ file; unit/golden/integration tests are added or marked n/a with reason; divergences are recorded before closing.
-  Notes: `ready_for_small_task`; Single source-file coverage task; split further if C++ review exposes multiple independent behaviors. Assignment basis: prefix.
+  Notes: represented source identity exists as `(map_id, instance_id)` because Rust does not yet hold live `InstanceMap*`; remaining work is replacing the identity with real map-link lifecycle. Assignment basis: prefix.
 - [ ] **#GROUPS.WBS.006** Cerrar la migracion auditada de `game/Groups/GroupMgr.cpp`
   C++ refs: `/home/server/woltk-trinity-legacy/src/server/game/Groups/GroupMgr.cpp`
   Rust target: `crates/wow-network/src/group_registry.rs`, `crates/wow-world/src/handlers/group.rs`, `crates/wow-packet/src/packets/party.rs`
@@ -517,7 +519,7 @@ DBC/DB2 stores read:
 
 | Scope | Decision | C++ retained | Evidence |
 |---|---|---|---|
-| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 10 files / 2815 lines; refs: `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp`, `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.h`, `/home/server/woltk-trinity-legacy/src/server/game/Groups/GroupMgr.cpp` | `crates/wow-network/src/group_registry.rs`, `crates/wow-world/src/handlers/group.rs`, `crates/wow-packet/src/packets/party.rs`, `crates/world-server/src/main.rs` \| ⚠️ partial — broad represented coverage for member slots, subgroups, roles, loot, ready-check, target icons, raid markers, recent instances and startup DB load; remaining gaps include BG/BF/original-group parity, live `GroupInstanceReference`/owned-map reset parity, complete mutation transaction parity, and manual-test-ready runtime validation |
+| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 10 files / 2815 lines; refs: `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp`, `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.h`, `/home/server/woltk-trinity-legacy/src/server/game/Groups/GroupMgr.cpp` | `crates/wow-network/src/group_registry.rs`, `crates/wow-world/src/handlers/group.rs`, `crates/wow-packet/src/packets/party.rs`, `crates/world-server/src/main.rs` \| ⚠️ partial — broad represented coverage for member slots, subgroups, roles, loot, ready-check, target icons, raid markers, recent instances, represented owned-instance refs and startup DB load; remaining gaps include BG/BF/original-group parity, live `InstanceMap::Reset`/map-link call-sites, complete mutation transaction parity, and manual-test-ready runtime validation |
 
 <!-- REFINE.025:END product-scope -->
 

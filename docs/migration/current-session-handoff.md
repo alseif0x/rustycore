@@ -1,3 +1,18 @@
+- `#NEXT.RUNTIME.L3.031j57` — WotLK represented `GroupInstanceReference` /
+  `m_ownedInstancesMgr` foundation plus `Group::ResetInstances` recent-instance erase semantics
+  (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Groups/GroupInstanceReference.h`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Groups/GroupInstanceReference.cpp`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Groups/GroupInstanceRefManager.h`, and
+  `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp:1356-1376`. Rust `GroupInfo`
+  now stores represented owned instance-map references keyed by `(map_id, instance_id)` and exposes
+  C++-shaped link/unlink/iteration helpers. It also represents the exact `ResetInstances` rule that
+  forgets `m_recentInstances[mapId]` for reset `Success`, `CannotReset`, and `NotEmpty` only during
+  `OnChangeDifficulty`. Coverage: targeted `wow-network owned_instance` / `recent_instance` tests
+  cover duplicate links, unlink, iteration, and reset-result erase/no-erase branches. Boundary
+  remains partial: no live linked `InstanceMap` object reference, no call-site that links real maps,
+  no real `InstanceMap::Reset` invocation, no reset success/failure packet integration from these
+  represented references, no install/restart, bot, or live-client validation.
 - `#NEXT.RUNTIME.L3.031j56` — WotLK represented `Group::m_recentInstances`
   foundation (not manual-test-ready). Source-of-truth:
   `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.h:368-371` and
@@ -6,10 +21,9 @@
   `{ instanceOwner, instanceId }`, with C++-shaped helpers for `GetRecentInstanceOwner`
   (fallback to leader), `GetRecentInstanceId` (fallback `0`), `SetRecentInstance`, and erase.
   Coverage: targeted `wow-network recent_instance` tests cover fallback, per-map storage,
-  replacement, and erase semantics. Boundary remains partial: no real `GroupInstanceReference`
-  link to live `InstanceMap`, no `Group::ResetInstances` runtime iteration over owned maps, no
-  call-site that records recent instances after instance creation/kill, no install/restart, bot,
-  or live-client validation. Audit correction: this C++ 3.4.3 fork no longer has live
+  replacement, and erase semantics. Boundary remains partial: no call-site that records recent
+  instances after instance creation/kill, no live `InstanceMap::Reset` integration, no
+  install/restart, bot, or live-client validation. Audit correction: this C++ 3.4.3 fork no longer has live
   `group_instance` prepared statements; current lock persistence lives in `InstanceLockMgr`
   (`instance` + `character_instance_lock`), already represented separately.
 - `#NEXT.RUNTIME.L3.031j55` — WotLK represented `GroupMgr::LoadGroups()` startup bridge
