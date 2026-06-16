@@ -844,7 +844,11 @@ Complejidad: **L** (low, <1h), **M** (med, 1-4h), **H** (high, 4-12h), **XL** (>
 - El login carga `pet_spell` para el `summonedPetNumber` representado usando la statement C++ `CHAR_SEL_PET_SPELL` (`SELECT spell, active FROM pet_spell WHERE guid = ?`).
 - El resummon representado aplica esas filas al `Pet` canónico mínimo con la misma forma de C++ `_LoadSpells`: `addSpell(spell, ActiveStates(active), PETSPELL_UNCHANGED)`. En Rust queda mapeado a `Pet::add_spell(..., PetSpellState::Unchanged, PetSpellType::Normal)`, conservando autocast para `ActiveState::Enabled`.
 
+**Cerrado en Rust (`#NEXT.RUNTIME.L3.031j103`):**
+- El login carga `character_pet_declinedname` para el `summonedPetNumber` representado usando la statement C++ `CHAR_SEL_PET_DECLINED_NAME` (`SELECT genitive, dative, accusative, instrumental, prepositional FROM character_pet_declinedname WHERE owner = ? AND id = ?`).
+- `wow_entities::Pet` conserva ahora los cinco casos de declined names y el resummon representado los aplica solo cuando la stable row es `HUNTER_PET`, igual que el branch final de C++ `Pet::LoadPetFromDB`.
+
 **Límites honestos:**
-- No es todavía `Pet::LoadPetFromDB` real: aunque `character_pet` y `pet_spell` ya alimentan el resummon representado, faltan aplicar action bar al pet vivo, auras, cooldowns/charges, declined names, happiness/focus exactos, save mode, deleted slot handling y persistencia completa de `character_pet`.
+- No es todavía `Pet::LoadPetFromDB` real: aunque `character_pet`, `pet_spell` y declined names de hunter pet ya alimentan el resummon representado, faltan aplicar action bar al pet vivo, auras, cooldowns/charges, happiness/focus exactos, save mode, deleted slot handling y persistencia completa de `character_pet`.
 - El gate de vuelo avanzado C++ `MOVEMENTFLAG3_ADV_FLYING` no está cubierto porque no hay campo equivalente representado en `WorldSession`; añadirlo cuando se porte `MovementInfo::flags2/flags3` completo.
 - Falta validar live con cliente/bot que la pet reaparece visualmente tras worldport/near teleport y que los paquetes de create/update son suficientes.

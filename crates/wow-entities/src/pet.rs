@@ -82,6 +82,11 @@ pub struct PetSpell {
     pub spell_type: PetSpellType,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PetDeclinedNamesLikeCpp {
+    pub names: [String; 5],
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct PetStableInfo {
     pub name: String,
@@ -151,6 +156,7 @@ pub struct Pet {
     group_update_mask: u32,
     pet_specialization: u16,
     declined_name: Option<String>,
+    declined_names: Option<PetDeclinedNamesLikeCpp>,
     spells: BTreeMap<u32, PetSpell>,
     autospells: Vec<u32>,
 }
@@ -181,6 +187,7 @@ impl Pet {
             group_update_mask: 0,
             pet_specialization: 0,
             declined_name: None,
+            declined_names: None,
             spells: BTreeMap::new(),
             autospells: Vec::new(),
         }
@@ -291,6 +298,14 @@ impl Pet {
 
     pub fn set_declined_name(&mut self, declined_name: Option<String>) {
         self.declined_name = declined_name;
+    }
+
+    pub fn declined_names(&self) -> Option<&PetDeclinedNamesLikeCpp> {
+        self.declined_names.as_ref()
+    }
+
+    pub fn set_declined_names(&mut self, declined_names: Option<PetDeclinedNamesLikeCpp>) {
+        self.declined_names = declined_names;
     }
 
     pub fn spells(&self) -> &BTreeMap<u32, PetSpell> {
@@ -526,6 +541,7 @@ mod tests {
         assert_eq!(summon.group_update_mask(), 0);
         assert_eq!(summon.specialization(), 0);
         assert!(summon.declined_name().is_none());
+        assert!(summon.declined_names().is_none());
 
         let hunter = Pet::new(owner_guid(), PetType::Hunter);
         assert!((hunter.unit_type_mask() & UNIT_MASK_HUNTER_PET) != 0);
@@ -587,6 +603,18 @@ mod tests {
 
         assert!(pet.remove_spell(123));
         assert!(!pet.has_spell(123));
+    }
+
+    #[test]
+    fn pet_declined_names_store_all_cpp_cases() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+        let names = PetDeclinedNamesLikeCpp {
+            names: ["Mishy", "Mishya", "Mishu", "Mishom", "Mishe"].map(str::to_string),
+        };
+
+        pet.set_declined_names(Some(names.clone()));
+
+        assert_eq!(pet.declined_names(), Some(&names));
     }
 
     #[test]

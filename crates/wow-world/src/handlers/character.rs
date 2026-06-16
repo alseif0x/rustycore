@@ -51,9 +51,10 @@ use wow_packet::{ClientPacket, WorldPacket};
 use crate::handlers::quest::RepresentedQuestGiverStatusSourceLikeCpp;
 use crate::reputation::mgr::CharacterReputationRowLikeCpp;
 use crate::session::{
-    CharacterPetSpellRowLikeCpp, CharacterPetStableRowLikeCpp, PER_CHARACTER_CACHE_MASK_LIKE_CPP,
-    RepresentedAlterAppearanceLikeCpp, RepresentedBankItemMoveLikeCpp,
-    RepresentedConfirmBarbersChoiceLikeCpp, RepresentedGameObjectUseState,
+    CharacterPetDeclinedNamesRowLikeCpp, CharacterPetSpellRowLikeCpp, CharacterPetStableRowLikeCpp,
+    PER_CHARACTER_CACHE_MASK_LIKE_CPP, RepresentedAlterAppearanceLikeCpp,
+    RepresentedBankItemMoveLikeCpp, RepresentedConfirmBarbersChoiceLikeCpp,
+    RepresentedGameObjectUseState,
 };
 
 // ── Handler registration ────────────────────────────────────────────
@@ -3360,6 +3361,43 @@ impl WorldSession {
                         summoned_pet_number,
                         %error,
                         "failed to load represented pet_spell rows"
+                    );
+                }
+            }
+
+            let mut pet_declined_stmt = char_db.prepare(CharStatements::SEL_PET_DECLINED_NAME);
+            pet_declined_stmt.set_u64(0, guid.counter() as u64);
+            pet_declined_stmt.set_u32(1, summoned_pet_number);
+            match char_db.query(&pet_declined_stmt).await {
+                Ok(declined_result) => {
+                    let row = if declined_result.is_empty() {
+                        None
+                    } else {
+                        Some(CharacterPetDeclinedNamesRowLikeCpp {
+                            names: [
+                                declined_result.read_string(0),
+                                declined_result.read_string(1),
+                                declined_result.read_string(2),
+                                declined_result.read_string(3),
+                                declined_result.read_string(4),
+                            ],
+                        })
+                    };
+                    let loaded =
+                        self.load_represented_pet_declined_names_like_cpp(summoned_pet_number, row);
+                    trace!(
+                        player_guid = guid.counter(),
+                        summoned_pet_number,
+                        loaded,
+                        "loaded represented character_pet_declinedname row like C++"
+                    );
+                }
+                Err(error) => {
+                    warn!(
+                        player_guid = guid.counter(),
+                        summoned_pet_number,
+                        %error,
+                        "failed to load represented character_pet_declinedname row"
                     );
                 }
             }

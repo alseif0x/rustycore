@@ -116,13 +116,14 @@ use wow_entities::{
     Item, ItemCreateInfo, ItemDataUpdate, ItemLimitCategoryTemplate, ItemPosCount, ItemSlotRef,
     ItemStorageRef, ItemStorageTemplate, ItemValuesUpdate, MAX_BAG_SIZE, MAX_ITEM_SPELLS,
     MAX_MONEY_AMOUNT, MAX_POWERS, NULL_BAG, NULL_SLOT, ObjectAccessor, PLAYER_SLOT_END, Pet,
-    PetSaveMode, PetSpellState, PetSpellType, PetStable, PetStableInfo, PetType, PhaseShift,
-    Player, PlayerEnchantTimeUpdate, PlayerInventoryStorage, PlayerItemTimeUpdate,
-    QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE, REAGENT_BAG_SLOT_END,
-    REAGENT_BAG_SLOT_START, ReactState, SendNewItemDelivery, SendNewItemDisplayText,
-    SendNewItemPlan, TYPEID_ITEM, UNIT_DATA_HEALTH_BIT, Unit, UnitDataUpdate, UnitDataValues,
-    UnitVisibilityDetectionStateLikeCpp, UpdateMask, Vehicle, VehicleAccessory, VisibleItemValues,
-    WorldObject, is_bag_pos, is_equipment_packed_pos, is_inventory_pos, make_item_pos,
+    PetDeclinedNamesLikeCpp, PetSaveMode, PetSpellState, PetSpellType, PetStable, PetStableInfo,
+    PetType, PhaseShift, Player, PlayerEnchantTimeUpdate, PlayerInventoryStorage,
+    PlayerItemTimeUpdate, QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE,
+    REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, ReactState, SendNewItemDelivery,
+    SendNewItemDisplayText, SendNewItemPlan, TYPEID_ITEM, UNIT_DATA_HEALTH_BIT, Unit,
+    UnitDataUpdate, UnitDataValues, UnitVisibilityDetectionStateLikeCpp, UpdateMask, Vehicle,
+    VehicleAccessory, VisibleItemValues, WorldObject, is_bag_pos, is_equipment_packed_pos,
+    is_inventory_pos, make_item_pos,
 };
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus, build_dispatch_table};
 use wow_loot::{LootStoreKind, LootStores};
@@ -375,6 +376,11 @@ pub(crate) struct CharacterPetStableRowLikeCpp {
 pub(crate) struct CharacterPetSpellRowLikeCpp {
     pub spell_id: u32,
     pub active: u8,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct CharacterPetDeclinedNamesRowLikeCpp {
+    pub names: [String; 5],
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -3673,6 +3679,8 @@ pub struct WorldSession {
     represented_pet_stable_like_cpp: PetStable,
     /// Represented `pet_spell` rows keyed by pet number until `PetLoadQueryHolder` is live.
     represented_pet_spells_like_cpp: HashMap<u32, Vec<CharacterPetSpellRowLikeCpp>>,
+    /// Represented `character_pet_declinedname` rows keyed by pet number until `PetLoadQueryHolder` is live.
+    represented_pet_declined_names_like_cpp: HashMap<u32, CharacterPetDeclinedNamesRowLikeCpp>,
     /// Represented `Pet::m_unitData->CreatedBySpell` for the active pet until UnitData owns it.
     represented_pet_created_by_spell_like_cpp: u32,
     /// Represented current pet react state for C++ mount/dismount PetMode side effects.
@@ -5021,6 +5029,7 @@ impl WorldSession {
             represented_old_pet_spell_like_cpp: 0,
             represented_pet_stable_like_cpp: PetStable::default(),
             represented_pet_spells_like_cpp: HashMap::new(),
+            represented_pet_declined_names_like_cpp: HashMap::new(),
             represented_pet_created_by_spell_like_cpp: 0,
             represented_pet_react_state_like_cpp:
                 wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP,
@@ -24278,6 +24287,22 @@ impl WorldSession {
         loaded
     }
 
+    pub(crate) fn load_represented_pet_declined_names_like_cpp(
+        &mut self,
+        pet_number: u32,
+        row: Option<CharacterPetDeclinedNamesRowLikeCpp>,
+    ) -> bool {
+        if let Some(row) = row {
+            self.represented_pet_declined_names_like_cpp
+                .insert(pet_number, row);
+            true
+        } else {
+            self.represented_pet_declined_names_like_cpp
+                .remove(&pet_number)
+                .is_some()
+        }
+    }
+
     #[cfg(test)]
     pub(crate) fn represented_temporary_unsummoned_pet_number_like_cpp(&self) -> u32 {
         self.represented_temporary_unsummoned_pet_number_like_cpp
@@ -25211,6 +25236,15 @@ impl WorldSession {
                         PetSpellType::Normal,
                     );
                 }
+            }
+            if info.pet_type == PetType::Hunter
+                && let Some(declined_names) = self
+                    .represented_pet_declined_names_like_cpp
+                    .get(&pet_number)
+            {
+                pet.set_declined_names(Some(PetDeclinedNamesLikeCpp {
+                    names: declined_names.names.clone(),
+                }));
             }
 
             let manager = self.canonical_map_manager.as_ref().map(Arc::clone)?;
@@ -65991,6 +66025,26 @@ mod tests {
     }
 
     #[test]
+    fn load_represented_pet_declined_names_replaces_and_clears_row_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let row = CharacterPetDeclinedNamesRowLikeCpp {
+            names: ["Mishy", "Mishya", "Mishu", "Mishom", "Mishe"].map(str::to_string),
+        };
+
+        assert!(session.load_represented_pet_declined_names_like_cpp(42, Some(row.clone())));
+        assert_eq!(
+            session.represented_pet_declined_names_like_cpp.get(&42),
+            Some(&row)
+        );
+        assert!(session.load_represented_pet_declined_names_like_cpp(42, None));
+        assert!(
+            !session
+                .represented_pet_declined_names_like_cpp
+                .contains_key(&42)
+        );
+    }
+
+    #[test]
     fn resummon_pet_temporary_unsummoned_loads_represented_stable_pet_like_cpp() {
         let (mut session, _, _send_rx) = make_session();
         let canonical = shared_canonical_map_manager();
@@ -66024,6 +66078,13 @@ mod tests {
                 },
             ],
         );
+        let declined_names = ["Mishy", "Mishya", "Mishu", "Mishom", "Mishe"].map(str::to_string);
+        session.load_represented_pet_declined_names_like_cpp(
+            42,
+            Some(CharacterPetDeclinedNamesRowLikeCpp {
+                names: declined_names.clone(),
+            }),
+        );
 
         session.resummon_pet_temporary_unsummoned_if_any_like_cpp();
 
@@ -66052,6 +66113,10 @@ mod tests {
         assert_eq!(pet.get_pet_auto_spell_on_pos(0), 1_234);
         assert_eq!(pet.get_pet_auto_spell_size(), 1);
         assert_eq!(
+            pet.declined_names().map(|names| &names.names),
+            Some(&declined_names)
+        );
+        assert_eq!(
             pet.creature()
                 .unit()
                 .subsystems()
@@ -66061,6 +66126,51 @@ mod tests {
                 .map(|info| info.pet_number),
             Some(42)
         );
+    }
+
+    #[test]
+    fn resummon_pet_temporary_unsummoned_skips_declined_names_for_non_hunter_pet_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 8_421);
+        let position = Position::new(17.0, 27.0, 37.0, 1.2);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TemporarySummonPetNoDeclinedNames".to_string(),
+            position,
+            571,
+            1,
+            3,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
+        session.represented_temporary_unsummoned_pet_number_like_cpp = 42;
+        let mut stable = represented_hunter_pet_stable_like_cpp(42, 500);
+        stable.active_pets[0].as_mut().unwrap().pet_type = PetType::Summon;
+        session.set_represented_pet_stable_like_cpp(stable);
+        session.load_represented_pet_declined_names_like_cpp(
+            42,
+            Some(CharacterPetDeclinedNamesRowLikeCpp {
+                names: ["Mishy", "Mishya", "Mishu", "Mishom", "Mishe"].map(str::to_string),
+            }),
+        );
+
+        session.resummon_pet_temporary_unsummoned_if_any_like_cpp();
+
+        let pet_guid = session
+            .represented_pet_guid_like_cpp()
+            .expect("represented active pet guid");
+        let manager = canonical.lock().unwrap();
+        let pet = manager
+            .find_map(571, 0)
+            .unwrap()
+            .map()
+            .get_typed_pet(pet_guid)
+            .expect("canonical represented pet");
+        assert_eq!(pet.pet_type(), PetType::Summon);
+        assert!(pet.declined_names().is_none());
     }
 
     #[test]
