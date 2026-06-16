@@ -143,6 +143,28 @@ pub struct PetLoadSelection {
     pub slot: i16,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PetLoadInfoResult {
+    Found(PetLoadSelection),
+    Deleted,
+}
+
+impl PetLoadInfoResult {
+    pub const fn selection(self) -> Option<PetLoadSelection> {
+        match self {
+            Self::Found(selection) => Some(selection),
+            Self::Deleted => None,
+        }
+    }
+
+    pub const fn save_mode(self) -> i16 {
+        match self {
+            Self::Found(selection) => selection.slot,
+            Self::Deleted => PetSaveMode::AsDeleted as i16,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Pet {
     creature: Creature,
@@ -398,11 +420,20 @@ impl Pet {
         pet_number: u32,
         slot: Option<i16>,
     ) -> Option<PetLoadSelection> {
+        Self::get_load_pet_info_result_like_cpp(stable, pet_entry, pet_number, slot).selection()
+    }
+
+    pub fn get_load_pet_info_result_like_cpp(
+        stable: &PetStable,
+        pet_entry: u32,
+        pet_number: u32,
+        slot: Option<i16>,
+    ) -> PetLoadInfoResult {
         if pet_number != 0 {
             for (index, pet) in stable.active_pets.iter().enumerate() {
                 if let Some(pet) = pet {
                     if pet.pet_number == pet_number {
-                        return Some(PetLoadSelection {
+                        return PetLoadInfoResult::Found(PetLoadSelection {
                             pet_number: pet.pet_number,
                             creature_id: pet.creature_id,
                             slot: index as i16,
@@ -413,7 +444,7 @@ impl Pet {
             for (index, pet) in stable.stabled_pets.iter().enumerate() {
                 if let Some(pet) = pet {
                     if pet.pet_number == pet_number {
-                        return Some(PetLoadSelection {
+                        return PetLoadInfoResult::Found(PetLoadSelection {
                             pet_number: pet.pet_number,
                             creature_id: pet.creature_id,
                             slot: PetSaveMode::stable_slot(index as u16),
@@ -423,7 +454,7 @@ impl Pet {
             }
             for pet in &stable.unslotted_pets {
                 if pet.pet_number == pet_number {
-                    return Some(PetLoadSelection {
+                    return PetLoadInfoResult::Found(PetLoadSelection {
                         pet_number: pet.pet_number,
                         creature_id: pet.creature_id,
                         slot: PetSaveMode::NotInSlot as i16,
@@ -434,7 +465,7 @@ impl Pet {
             if slot == PetSaveMode::AsCurrent as i16 {
                 if let Some(index) = stable.current_pet_index {
                     if let Some(Some(pet)) = stable.active_pets.get(index as usize) {
-                        return Some(PetLoadSelection {
+                        return PetLoadInfoResult::Found(PetLoadSelection {
                             pet_number: pet.pet_number,
                             creature_id: pet.creature_id,
                             slot: index as i16,
@@ -443,7 +474,7 @@ impl Pet {
                 }
             } else if PetSaveMode::is_active_slot(slot) {
                 if let Some(Some(pet)) = stable.active_pets.get(slot as usize) {
-                    return Some(PetLoadSelection {
+                    return PetLoadInfoResult::Found(PetLoadSelection {
                         pet_number: pet.pet_number,
                         creature_id: pet.creature_id,
                         slot,
@@ -452,7 +483,7 @@ impl Pet {
             } else if PetSaveMode::is_stabled_slot(slot) {
                 let index = (slot - PetSaveMode::stable_slot(0)) as usize;
                 if let Some(Some(pet)) = stable.stabled_pets.get(index) {
-                    return Some(PetLoadSelection {
+                    return PetLoadInfoResult::Found(PetLoadSelection {
                         pet_number: pet.pet_number,
                         creature_id: pet.creature_id,
                         slot,
@@ -462,7 +493,7 @@ impl Pet {
         } else if pet_entry != 0 {
             for pet in &stable.unslotted_pets {
                 if pet.creature_id == pet_entry {
-                    return Some(PetLoadSelection {
+                    return PetLoadInfoResult::Found(PetLoadSelection {
                         pet_number: pet.pet_number,
                         creature_id: pet.creature_id,
                         slot: PetSaveMode::NotInSlot as i16,
@@ -471,14 +502,14 @@ impl Pet {
             }
         } else {
             if let Some(Some(pet)) = stable.active_pets.first() {
-                return Some(PetLoadSelection {
+                return PetLoadInfoResult::Found(PetLoadSelection {
                     pet_number: pet.pet_number,
                     creature_id: pet.creature_id,
                     slot: PetSaveMode::FirstActiveSlot as i16,
                 });
             }
             if let Some(pet) = stable.unslotted_pets.first() {
-                return Some(PetLoadSelection {
+                return PetLoadInfoResult::Found(PetLoadSelection {
                     pet_number: pet.pet_number,
                     creature_id: pet.creature_id,
                     slot: PetSaveMode::NotInSlot as i16,
@@ -486,7 +517,7 @@ impl Pet {
             }
         }
 
-        None
+        PetLoadInfoResult::Deleted
     }
 
     fn sync_autospell(&mut self, spell_id: u32, active: ActiveState) {
@@ -650,6 +681,31 @@ mod tests {
             Pet::get_load_pet_info(&stable, 400, 0, None).unwrap().slot,
             PetSaveMode::NotInSlot as i16
         );
+    }
+
+    #[test]
+    fn stable_lookup_preserves_cpp_deleted_save_mode() {
+        let stable = PetStable {
+            current_pet_index: Some(0),
+            active_pets: vec![None],
+            stabled_pets: vec![None],
+            unslotted_pets: Vec::new(),
+        };
+
+        let result = Pet::get_load_pet_info_result_like_cpp(&stable, 0, 999, None);
+        assert_eq!(result, PetLoadInfoResult::Deleted);
+        assert_eq!(result.selection(), None);
+        assert_eq!(result.save_mode(), PetSaveMode::AsDeleted as i16);
+        assert_eq!(Pet::get_load_pet_info(&stable, 0, 999, None), None);
+
+        let result = Pet::get_load_pet_info_result_like_cpp(
+            &stable,
+            0,
+            0,
+            Some(PetSaveMode::AsCurrent as i16),
+        );
+        assert_eq!(result, PetLoadInfoResult::Deleted);
+        assert_eq!(result.save_mode(), PetSaveMode::AsDeleted as i16);
     }
 
     #[test]
