@@ -1,3 +1,15 @@
+- `#NEXT.RUNTIME.L3.031j74` — WotLK calendar raid-lockout removed packet
+  serialization is now represented (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/CalendarPackets.cpp:441-448`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/CalendarPackets.h:494-503`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CalendarHandler.cpp:568-574`.
+  C++ `CalendarRaidLockoutRemoved::Write` sends `InstanceID`, `MapID`, and
+  `DifficultyID`; Rust now has `CalendarRaidLockoutRemoved` with byte-order coverage.
+  Current C++ audit found the helper definition but no direct call-site in this fork,
+  so Rust does not invent a reset/remove fanout path here. Boundary remains partial:
+  live call-site/fanout for removed lockouts if one is later identified, full
+  `InstanceMap::i_data`, install/restart, bot, and live-client/manual validation remain
+  pending.
 - `#NEXT.RUNTIME.L3.031j73` — WotLK represented saved-instance extension now
   handles the C++ `CMSG_SET_SAVED_INSTANCE_EXTEND` path and sends the calendar
   raid-lockout updated notification (not manual-test-ready). Source-of-truth:

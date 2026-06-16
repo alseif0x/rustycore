@@ -6448,6 +6448,24 @@ impl ServerPacket for CalendarRaidLockoutAdded {
     }
 }
 
+/// C++ `WorldPackets::Calendar::CalendarRaidLockoutRemoved`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CalendarRaidLockoutRemoved {
+    pub instance_id: u64,
+    pub map_id: i32,
+    pub difficulty_id: u32,
+}
+
+impl ServerPacket for CalendarRaidLockoutRemoved {
+    const OPCODE: ServerOpcodes = ServerOpcodes::CalendarRaidLockoutRemoved;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_uint64(self.instance_id);
+        pkt.write_int32(self.map_id);
+        pkt.write_uint32(self.difficulty_id);
+    }
+}
+
 /// C++ `WorldPackets::Calendar::CalendarRaidLockoutUpdated`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CalendarRaidLockoutUpdated {
@@ -8631,6 +8649,26 @@ mod tests {
         assert_eq!(pkt.read_int32().unwrap(), 631);
         assert_eq!(pkt.read_uint32().unwrap(), 4);
         assert_eq!(pkt.read_int32().unwrap(), 86_400);
+    }
+
+    #[test]
+    fn calendar_raid_lockout_removed_matches_cpp_field_order() {
+        let bytes = CalendarRaidLockoutRemoved {
+            instance_id: 9001,
+            map_id: 631,
+            difficulty_id: 4,
+        }
+        .to_bytes();
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::CalendarRaidLockoutRemoved as u16
+        );
+        assert_eq!(bytes.len(), 2 + 8 + 4 + 4);
+
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_uint64().unwrap(), 9001);
+        assert_eq!(pkt.read_int32().unwrap(), 631);
+        assert_eq!(pkt.read_uint32().unwrap(), 4);
     }
 
     #[test]
