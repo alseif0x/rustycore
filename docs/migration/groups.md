@@ -295,6 +295,11 @@ DBC/DB2 stores read:
 - **Assistant / main-tank / main-assist represented-partial** — `CMSG_SET_ASSISTANT_LEADER` / `CMSG_SET_PARTY_ASSIGNMENT` have represented HOME-group wiring, but full category parity, persistence, and live runtime side effects remain open.
 - **Leader change represented-partial** — `CMSG_SET_PARTY_LEADER` is parsed/handled (`#NEXT.R8.ENTITIES.905`), but live Player flags/name/faction, script callbacks, full PartyIndex parity, and exact DB transaction semantics remain open.
 - **Kick/uninvite represented-partial** — `CMSG_PARTY_UNINVITE` covers bounded member-kick and pending-invite branches (`#NEXT.R8.ENTITIES.936/#937`), but LFG vote-kick, BG/BF/original-group routing, exact destroy/update side effects, scripts, and rollback parity remain open.
+- **Raid sub-groups represented-partial** — member slots carry subgroup ids, raid subgroup
+  counters are maintained, and `CMSG_CHANGE_SUB_GROUP` / `CMSG_SWAP_SUB_GROUPS` mutate represented
+  HOME-group state with PartyUpdate fanout. Remaining gaps: full BG/BF/original-group `PartyIndex`
+  category parity, exact online group-reference object graph, DB transaction/rollback parity, and
+  live client/bot validation.
 - **Loot method follows this C++ branch** — `CMSG_SET_LOOT_METHOD` is parsed/registered/dispatches (`#NEXT.R8.ENTITIES.231`), but runtime mutation is intentionally a represented no-op because this legacy C++ branch comments out the mutation block.
 - **Looter rotation represented-partial** — `GroupInfo::UpdateLooterGuid` now has a represented
   state helper for C++ round-robin selection over a caller-provided eligible set. Remaining gaps:
@@ -436,7 +441,12 @@ DBC/DB2 stores read:
   Complejidad: **M**
 - [x] **#GROUPS.10** Represent target icons — represented `CMSG_UPDATE_RAID_TARGET` / target-icon packets are covered by `#NEXT.R8.ENTITIES.793`; full live raid target storage/category/fanout remains open. Complejidad: **M**
 - [x] **#GROUPS.11** Represent `CMSG_CONVERT_RAID` — represented conversion is covered by `#NEXT.R8.ENTITIES.745/#746`; full raid cap/layout/category/runtime parity remains open. Complejidad: **H**
-- [ ] **#GROUPS.12** Implement raid sub-groups — `subgroup: u8` per member (0..7), `CMSG_CHANGE_SUB_GROUP`, `CMSG_SWAP_SUB_GROUPS`. Complejidad: **H**
+- [~] **#GROUPS.12** Implement raid sub-groups — represented `subgroup: u8` member-slot
+  state, raid subgroup counters, `CMSG_CHANGE_SUB_GROUP`, `CMSG_SWAP_SUB_GROUPS`, represented
+  DB statement execution, local/remote subgroup command update, and `PartyUpdate` fanout are
+  covered by `#NEXT.R8.ENTITIES.782/#783/#784`. Still missing full BG/BF/original-group
+  `PartyIndex` category parity, exact online `Player::GetGroupRef().setSubGroup` object graph,
+  DB transaction/rollback parity, install/restart, bot, and live-client validation. Complejidad: **H**
 - [x] **#GROUPS.13** Represent `CMSG_SET_DUNGEON_DIFFICULTY` / `CMSG_SET_RAID_DIFFICULTY` legacy opcodes — per-group/solo difficulty and represented reset hooks are covered by `#NEXT.R8.ENTITIES.938`, `#NEXT.R8.ENTITIES.939`, and `#NEXT.R8.ENTITIES.943`; full live instance/runtime parity remains open. Complejidad: **M**
 - [ ] **#GROUPS.14** Implement DB persistence — schema for `groups`, `group_member`; load on startup via `GroupMgr::load_groups`; persist on Create/AddMember/Disband. Complejidad: **H**
 - [x] **#GROUPS.15** Implement represented `CMSG_MINIMAP_PING` — broadcast `(senderGuid, x, y)` to other represented HOME-group members. Remaining runtime/BG/original-group gaps tracked in R8.
@@ -581,9 +591,18 @@ its line counts or "only 3 handlers" statement as current truth without re-audit
 **Largest missing surfaces (confirmed):**
 - Remaining group CMSG surfaces still include set leader, set role, raid markers, target icons, convert raid, full raid/original-group routing, opt-out-of-loot, role poll, restrict pings, low-level raid, raid info request, member stats request, and runtime `Group::Update(diff)`. Some formerly listed surfaces now have represented coverage (uninvite, loot method, ready check, sub-groups, difficulty, minimap ping, random roll) but still carry represented/runtime boundaries in R8.
 - DB persistence: zero `groups` / `group_member` / `group_instance` reads or writes. `wow-database/src/statements/character.rs` has no group statements.
-- `MemberSlot` struct: per-member `subgroup`, `flags` (Assistant/MainTank/MainAssist), `roles`, `readyChecked` all absent.
-- Raid (40-cap, 8 sub-groups) entirely absent — cap hard-coded to 5 at `group.rs:249`.
-- Loot rules: only `loot_method: u8` field, no master-looter/threshold persistence, no `UpdateLooterGuid` round-robin, no roll machinery.
-- Tests: 0 unit tests covering `GroupInfo` (verified — the file has no `#[cfg(test)]` block) and 0 integration tests for invite/accept/leave handshake.
+- `MemberSlot` struct: represented as `GroupMemberSlotLikeCpp` with per-member `subgroup`,
+  `flags` (Assistant/MainTank/MainAssist), `roles`, and `ready_checked`; remaining gaps are
+  live object graph/category parity and persistence transaction parity, not absence of the struct.
+- Raid (40-cap, 8 sub-groups) is now represented through `GroupInfo` member slots and subgroup
+  counters; full original/instance/BG/BF routing, live object graph, persistence transaction
+  parity, and live-client validation remain open.
+- Loot rules: represented `loot_method`, `looter_guid`, `loot_threshold`,
+  `master_looter_guid`, and `UpdateLooterGuid` state helper exist. Remaining gaps are live
+  loot-drop caller/reward-distance/ObjectAccessor integration, master-loot/runtime roll machinery,
+  persistence writes, and live-client validation.
+- Tests: `GroupInfo` has focused unit coverage for subgroup counters/moves/swaps, raid markers,
+  ready check state, role flags, looter rotation, and DB-load seams; still missing live
+  integration coverage for invite/accept/leave and client/bot flows.
 
 **Refuted nothing.** Every concern raised in §8's "Suspicious / likely divergent" list checks out.
