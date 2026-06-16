@@ -533,8 +533,9 @@ Complejidad: **L** (low, <1h), **M** (med, 1-4h), **H** (high, 4-12h), **XL** (>
 - El seam representado de GM bypassa los gates posteriores a dificultad (`MAX_PLAYERS` y lock compatibility) como `Map::PlayerCannotEnter` hace tras `GetDownscaledMapDifficultyData`.
 - Los achievements completados del personaje actual se cargan durante login desde `character_achievement` con `CHAR_SEL_CHARACTER_ACHIEVEMENTS`, poblando el set representado que usa el gate `completed_achievement` de `Player::Satisfy`, igual que C++ carga `PLAYER_LOGIN_QUERY_LOAD_ACHIEVEMENTS` antes del resto de criterios de jugador.
 - La rama `quest_failed_text` de `Player::Satisfy` ya envía un `SMSG_CHAT` de sistema con el texto literal de `access_requirement.quest_failed_text` antes del `SMSG_TRANSFER_ABORTED`, respetando la prioridad C++ sobre la rama `MapDifficulty::Message`.
+- Las ramas `missingItem` y `LevelMin` de `Player::Satisfy` ya envían `SMSG_PRINT_NOTIFICATION` usando `trinity_string` cargado desde world DB (`LANG_LEVEL_MINREQUIRED[_AND_ITEM]`) y el nombre localizado de `ItemSearchName.db2`, antes del `SMSG_TRANSFER_ABORTED` genérico.
 
 **Límites honestos:**
 - `instance_encounter_in_progress_like_cpp` es un seam representado en `ManagedMap`; falta conectarlo al `InstanceScriptBase::is_encounter_in_progress_like_cpp` real y a la lifecycle `InstanceMap::GetInstanceScript()`.
-- El gate de access requirements aún no envía las notificaciones exactas de `Player::Satisfy` para missing-item y level-min cuando C++ no escoge el abort de dificultad; dependen de `GetTrinityString(LANG_LEVEL_MINREQUIRED[_AND_ITEM])` y del nombre localizado de item, por lo que siguen pendientes hasta portar el string/localization seam. El requisito de achievement de líder ajeno queda conservador hasta portar resolución de líder viva/grupo y el `AchievementMgr` completo sigue pendiente.
-- Siguen pendientes esas notificaciones restantes de access requirements, la conexión real de `InstanceScript`, y validación live con cliente/bot.
+- El requisito de achievement de líder ajeno queda conservador hasta portar resolución de líder viva/grupo y el `AchievementMgr` completo sigue pendiente.
+- Siguen pendientes la conexión real de `InstanceScript`, broader portal/teleport call-sites, y validación live con cliente/bot.

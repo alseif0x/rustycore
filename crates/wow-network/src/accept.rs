@@ -185,6 +185,7 @@ pub struct SessionResources {
     pub item_store: Option<Arc<wow_data::ItemStore>>,
     pub item_modified_appearance_store: Option<Arc<wow_data::ItemModifiedAppearanceStore>>,
     pub item_search_name_store: Option<Arc<wow_data::ItemSearchNameStore>>,
+    pub trinity_string_store: Option<Arc<wow_data::TrinityStringStoreLikeCpp>>,
     pub heirloom_store: Option<Arc<wow_data::HeirloomStore>>,
     pub toy_store: Option<Arc<wow_data::ToyStore>>,
     pub battle_pet_breed_quality_store: Option<Arc<wow_data::BattlePetBreedQualityStore>>,

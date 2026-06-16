@@ -1675,6 +1675,15 @@ async fn main() -> Result<ExitCode> {
         "Loaded {} item search-name rows from ItemSearchName.db2",
         item_search_name_store.len()
     );
+    let trinity_string_store = Arc::new(
+        wow_data::TrinityStringStoreLikeCpp::load_like_cpp(world_db.as_ref())
+            .await
+            .context("Failed to load C++ trinity_string rows")?,
+    );
+    info!(
+        "Loaded {} C++ trinity_string rows",
+        trinity_string_store.len()
+    );
 
     // Load battle-pet stat DB2 stores used by BattlePet::CalculateStats.
     let battle_pet_breed_quality_store = Arc::new(
@@ -2606,6 +2615,7 @@ async fn main() -> Result<ExitCode> {
         item_appearance_store: Some(Arc::clone(&item_appearance_store)),
         item_modified_appearance_store: Some(Arc::clone(&item_modified_appearance_store)),
         item_search_name_store: Some(Arc::clone(&item_search_name_store)),
+        trinity_string_store: Some(Arc::clone(&trinity_string_store)),
         heirloom_store: Some(Arc::clone(&heirloom_store)),
         toy_store: Some(Arc::clone(&toy_store)),
         battle_pet_breed_quality_store: Some(Arc::clone(&battle_pet_breed_quality_store)),
@@ -8808,6 +8818,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.item_search_name_store {
         session.set_item_search_name_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.trinity_string_store {
+        session.set_trinity_string_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.heirloom_store {
         session.set_heirloom_store(Arc::clone(store));

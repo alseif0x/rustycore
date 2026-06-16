@@ -1,3 +1,28 @@
+- `#NEXT.RUNTIME.L3.031j40` — WotLK `Player::Satisfy(access_requirement)`
+  missing-item and min-level notifications now use C++ `trinity_string` and
+  localized item names before the generic transfer abort (not manual-test-ready).
+  Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:19138-19142`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:764-776`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:8833-8874`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/ItemTemplate.cpp:34-39`.
+  C++ loads `trinity_string`, resolves session-locale strings with fallback to
+  default locale, formats `LANG_LEVEL_MINREQUIRED_AND_ITEM` with `LevelMin` and
+  `ItemTemplate::GetName(locale)`, formats `LANG_LEVEL_MINREQUIRED` with
+  `LevelMin`, sends `SMSG_PRINT_NOTIFICATION`, then leaves transfer-abort params
+  as `TRANSFER_ABORT_ERROR`. Rust now has `TrinityStringStoreLikeCpp` loaded from
+  world DB, wires it through `SessionResources`, formats the represented
+  notification strings, resolves item names from `ItemSearchNameStore`, and
+  preserves the C++ branch order after quest text and map-difficulty message.
+  C++ quirk preserved: when the player meets `levelMin` but lacks the required
+  item, local `LevelMin` remains `0` and that value is passed to
+  `LANG_LEVEL_MINREQUIRED_AND_ITEM`; if we decide this is a user-facing bug, fix
+  it explicitly in both C++ and Rust instead of silently diverging here.
+  Coverage: targeted `wow-data` tests cover locale fallback/missing-entry
+  behavior, and targeted `wow-world` access-requirement tests cover level-only
+  and missing-item notification bytes before the abort. Boundary remains partial:
+  this is an initial TrinityString seam for session notifications, not a full
+  replacement for every C++ `GetTrinityString` call-site.
 - `#NEXT.RUNTIME.L3.031j39` — WotLK `Player::Satisfy(access_requirement)`
   now sends the literal `quest_failed_text` system chat before the transfer abort
   (not manual-test-ready). Source-of-truth:
@@ -12,8 +37,8 @@
   language: LANG_UNIVERSAL }` and then `SMSG_TRANSFER_ABORTED`. Coverage:
   targeted `wow-world` test proves the system-chat packet is emitted before the
   abort and that a non-empty `MapDifficulty::Message` does not override the
-  quest-failed-text branch. Boundary remains partial: missing-item and level-min
-  notifications still require a TrinityString/localized item-name seam.
+  quest-failed-text branch. Missing-item and level-min notifications are covered
+  later by `#NEXT.RUNTIME.L3.031j40`.
 - `#NEXT.RUNTIME.L3.031j38` — WotLK access-requirement achievement
   state for the current player is now loaded from the character DB during
   login (not manual-test-ready). Source-of-truth:

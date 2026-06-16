@@ -68,6 +68,7 @@ pub mod spell_db2;
 pub mod spell_item_enchantment;
 pub mod terrain_swap;
 pub mod trait_tree;
+pub mod trinity_string;
 pub mod ui_map;
 pub mod vehicle;
 pub mod wdc4;
@@ -342,6 +343,10 @@ pub use spell_db2::{
 };
 pub use spell_item_enchantment::{SpellItemEnchantmentEntry, SpellItemEnchantmentStore};
 pub use terrain_swap::{TerrainSwapInfo, TerrainSwapStore, load_terrain_swaps};
+pub use trinity_string::{
+    LANG_LEVEL_MINREQUIRED_AND_ITEM_LIKE_CPP, LANG_LEVEL_MINREQUIRED_LIKE_CPP,
+    TrinityStringEntryLikeCpp, TrinityStringStoreLikeCpp,
+};
 pub use ui_map::{UiMapXMapArtEntry, UiMapXMapArtStore};
 pub use vehicle::{
     VEHICLE_SEAT_FLAG_B_EJECTABLE, VEHICLE_SEAT_FLAG_B_USABLE_FORCED, VEHICLE_SEAT_FLAG_CAN_ATTACK,

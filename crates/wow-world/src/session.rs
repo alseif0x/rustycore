@@ -79,9 +79,10 @@ use wow_data::{
     PlayerConditionStore, PlayerStatsStore, RandPropPointsStore, SkillLineStore, SkillStore,
     SpellDurationStore, SpellItemEnchantmentStore, SpellMiscStore, SpellRadiusStore,
     SpellRangeStore, SpellStore, SpellTargetPositionStoreLikeCpp, SummonPropertiesEntry, ToyStore,
-    TransmogSetEntry, TransmogSetItemStore, VEHICLE_SEAT_FLAG_CAN_ATTACK,
-    VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
-    calculate_battle_pet_stats_like_cpp, is_player_meeting_condition_like_cpp,
+    TransmogSetEntry, TransmogSetItemStore, TrinityStringStoreLikeCpp,
+    VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore,
+    VehicleTemplateStoreLikeCpp, calculate_battle_pet_stats_like_cpp,
+    is_player_meeting_condition_like_cpp,
     progression_rewards::{
         ContentTuningStore, FactionEntry, FactionStore, FactionTemplateStore,
         FriendshipRepReactionStore, ParagonReputationStore, QuestFactionRewardStore,
@@ -134,7 +135,7 @@ use wow_network::{
     PlayerBroadcastInfo, PlayerRegistry, ReputationRatesLikeCpp, SessionCommand,
     SocketTimeoutsLikeCpp, group_guid_by_db_store_id_like_cpp,
 };
-use wow_packet::packets::chat::{ChatMsg, ChatPkt};
+use wow_packet::packets::chat::{ChatMsg, ChatPkt, PrintNotification};
 use wow_packet::packets::item::{
     InventoryChangeFailure, ItemEnchantTimeUpdate, ItemInstance, ItemMod, ItemModList,
     ItemPushResult, ItemPushResultDisplayType, ItemTimeUpdate,
@@ -2942,6 +2943,36 @@ fn default_group_update_sequences_like_cpp() -> [RepresentedGroupUpdateSequenceL
     std::array::from_fn(|_| RepresentedGroupUpdateSequenceLikeCpp::default())
 }
 
+fn trinity_sprintf_like_cpp(format: &str, args: &[&str]) -> String {
+    let mut output = String::with_capacity(format.len());
+    let mut chars = format.chars().peekable();
+    let mut arg_idx = 0usize;
+
+    while let Some(ch) = chars.next() {
+        if ch != '%' {
+            output.push(ch);
+            continue;
+        }
+
+        match chars.next() {
+            Some('%') => output.push('%'),
+            Some('u' | 'd' | 's') => {
+                if let Some(arg) = args.get(arg_idx) {
+                    output.push_str(arg);
+                    arg_idx += 1;
+                }
+            }
+            Some(other) => {
+                output.push('%');
+                output.push(other);
+            }
+            None => output.push('%'),
+        }
+    }
+
+    output
+}
+
 /// Per-player session on the world server.
 ///
 /// Receives deserialized packets from the socket layer via a channel,
@@ -3031,6 +3062,9 @@ pub struct WorldSession {
 
     // Item search-name store (ItemSearchName.db2 data)
     item_search_name_store: Option<Arc<ItemSearchNameStore>>,
+
+    // Trinity strings loaded from world DB `trinity_string`.
+    trinity_string_store: Option<Arc<TrinityStringStoreLikeCpp>>,
 
     // Heirloom store (Heirloom.db2 data)
     heirloom_store: Option<Arc<HeirloomStore>>,
@@ -4610,6 +4644,7 @@ impl WorldSession {
             item_appearance_store: None,
             item_modified_appearance_store: None,
             item_search_name_store: None,
+            trinity_string_store: None,
             heirloom_store: None,
             toy_store: None,
             battle_pet_breed_quality_store: None,
@@ -7659,6 +7694,23 @@ impl WorldSession {
                     requested_difficulty,
                     failed_map_difficulty_x_condition as i32,
                 ));
+            } else if missing_item != 0 {
+                let level_min_text = level_min.to_string();
+                let item_name = self.item_template_name_like_cpp(missing_item);
+                let notify_text = trinity_sprintf_like_cpp(
+                    self.trinity_string_like_cpp(
+                        wow_data::LANG_LEVEL_MINREQUIRED_AND_ITEM_LIKE_CPP,
+                    ),
+                    &[level_min_text.as_str(), item_name],
+                );
+                self.send_notification_like_cpp(notify_text);
+            } else if level_min != 0 {
+                let level_min_text = level_min.to_string();
+                let notify_text = trinity_sprintf_like_cpp(
+                    self.trinity_string_like_cpp(wow_data::LANG_LEVEL_MINREQUIRED_LIKE_CPP),
+                    &[level_min_text.as_str()],
+                );
+                self.send_notification_like_cpp(notify_text);
             }
             return Some((TRANSFER_ABORT_ERROR_LIKE_CPP, 0, 0));
         }
@@ -11378,6 +11430,14 @@ impl WorldSession {
     /// Get the item search-name store reference.
     pub fn item_search_name_store(&self) -> Option<&Arc<ItemSearchNameStore>> {
         self.item_search_name_store.as_ref()
+    }
+
+    pub fn set_trinity_string_store(&mut self, store: Arc<TrinityStringStoreLikeCpp>) {
+        self.trinity_string_store = Some(store);
+    }
+
+    pub fn trinity_string_store(&self) -> Option<&Arc<TrinityStringStoreLikeCpp>> {
+        self.trinity_string_store.as_ref()
     }
 
     /// Set the heirloom store for this session.
@@ -22158,6 +22218,26 @@ impl WorldSession {
                 virtual_realm: self.virtual_realm_address(),
             });
         }
+    }
+
+    fn send_notification_like_cpp(&self, text: String) {
+        self.send_packet(&PrintNotification { notify_text: text });
+    }
+
+    fn trinity_string_like_cpp(&self, entry: u32) -> &str {
+        self.trinity_string_store
+            .as_ref()
+            .map(|store| store.get_like_cpp(entry, &self.locale))
+            .unwrap_or("<error>")
+    }
+
+    fn item_template_name_like_cpp(&self, item_id: u32) -> &str {
+        self.item_search_name_store
+            .as_ref()
+            .and_then(|store| store.get(item_id))
+            .map(|entry| entry.display.as_str())
+            .filter(|name| !name.is_empty())
+            .unwrap_or("<error>")
     }
 
     /// C++ `Player::SendUpdateWorldState(variable, value, hidden)` direct-session send.
@@ -39740,6 +39820,71 @@ mod tests {
         }
     }
 
+    fn trinity_string_entry_like_cpp(
+        entry: u32,
+        content_default: &str,
+    ) -> wow_data::TrinityStringEntryLikeCpp {
+        wow_data::TrinityStringEntryLikeCpp {
+            entry,
+            content: std::array::from_fn(|idx| {
+                if idx == 0 {
+                    content_default.to_string()
+                } else {
+                    String::new()
+                }
+            }),
+        }
+    }
+
+    fn install_access_notification_stores_like_cpp(session: &mut WorldSession) {
+        session.set_trinity_string_store(Arc::new(
+            wow_data::TrinityStringStoreLikeCpp::from_entries_like_cpp([
+                trinity_string_entry_like_cpp(
+                    wow_data::LANG_LEVEL_MINREQUIRED_LIKE_CPP,
+                    "You must be at least level %u to enter.",
+                ),
+                trinity_string_entry_like_cpp(
+                    wow_data::LANG_LEVEL_MINREQUIRED_AND_ITEM_LIKE_CPP,
+                    "You must be at least level %u and have %s to enter.",
+                ),
+            ]),
+        ));
+        session.set_item_search_name_store(Arc::new(ItemSearchNameStore::from_entries([
+            ItemSearchNameEntry {
+                id: 700,
+                allowable_race: 0,
+                display: "The Workshop Key".to_string(),
+                overall_quality_id: 1,
+                expansion_id: 0,
+                min_faction_id: 0,
+                min_reputation: 0,
+                allowable_class: 0,
+                required_level: 0,
+                required_skill: 0,
+                required_skill_rank: 0,
+                required_ability: 0,
+                item_level: 1,
+                flags: [0; 4],
+            },
+            ItemSearchNameEntry {
+                id: 701,
+                allowable_race: 0,
+                display: "The Scarlet Key".to_string(),
+                overall_quality_id: 1,
+                expansion_id: 0,
+                min_faction_id: 0,
+                min_reputation: 0,
+                allowable_class: 0,
+                required_level: 0,
+                required_skill: 0,
+                required_skill_rank: 0,
+                required_ability: 0,
+                item_level: 1,
+                flags: [0; 4],
+            },
+        ])));
+    }
+
     fn install_create_map_encounter_lock_stores_like_cpp(
         session: &mut WorldSession,
         map_id: u32,
@@ -56424,6 +56569,7 @@ mod tests {
         );
         let mut requirement = access_requirement_like_cpp(631, 3);
         requirement.level_min = 80;
+        install_access_notification_stores_like_cpp(&mut session);
         install_access_requirement_store_like_cpp(&mut session, requirement);
 
         assert_eq!(
@@ -56433,7 +56579,64 @@ mod tests {
             })
         );
         assert_eq!(
+            send_rx.try_recv().expect("SMSG_PRINT_NOTIFICATION"),
+            PrintNotification {
+                notify_text: "You must be at least level 80 to enter.".to_string(),
+            }
+            .to_bytes()
+        );
+        assert_eq!(
             send_rx.try_recv().expect("SMSG_TRANSFER_ABORTED"),
+            wow_packet::packets::misc::TransferAborted {
+                map_id: 631,
+                arg: 0,
+                map_difficulty_x_condition_id: 0,
+                transfer_abort: TRANSFER_ABORT_ERROR_LIKE_CPP,
+            }
+            .to_bytes()
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn canonical_access_requirement_min_level_sends_notification_like_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 91);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "AccessLevelNotify".to_string(),
+            Position::new(3700.0, 1500.0, 120.0, 0.0),
+            631,
+            1,
+            1,
+            79,
+            0,
+        ));
+        session.represented_raid_difficulty_id_like_cpp = 3;
+        install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
+        install_access_notification_stores_like_cpp(&mut session);
+        let mut requirement = access_requirement_like_cpp(631, 3);
+        requirement.level_min = 80;
+        install_access_requirement_store_like_cpp(&mut session, requirement);
+
+        assert_eq!(
+            session.ensure_canonical_world_map_for_current_player_like_cpp(),
+            Some(wow_map::CreateMapDecision::Reject {
+                side_effects: Vec::new()
+            })
+        );
+        assert_eq!(
+            send_rx.try_recv().expect("missing level notification"),
+            PrintNotification {
+                notify_text: "You must be at least level 80 to enter.".to_string(),
+            }
+            .to_bytes()
+        );
+        assert_eq!(
+            send_rx.try_recv().expect("missing level abort"),
             wow_packet::packets::misc::TransferAborted {
                 map_id: 631,
                 arg: 0,
@@ -56557,6 +56760,7 @@ mod tests {
         ));
         session.represented_raid_difficulty_id_like_cpp = 3;
         install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
+        install_access_notification_stores_like_cpp(&mut session);
         let mut requirement = access_requirement_like_cpp(631, 3);
         requirement.item = 700;
         requirement.item2 = 701;
@@ -56567,6 +56771,14 @@ mod tests {
             Some(wow_map::CreateMapDecision::Reject {
                 side_effects: Vec::new()
             })
+        );
+        assert_eq!(
+            send_rx.try_recv().expect("missing key item notification"),
+            PrintNotification {
+                notify_text: "You must be at least level 0 and have The Workshop Key to enter."
+                    .to_string(),
+            }
+            .to_bytes()
         );
         assert_eq!(
             send_rx.try_recv().expect("missing key item abort"),
@@ -56604,6 +56816,58 @@ mod tests {
             session.ensure_canonical_world_map_for_current_player_like_cpp(),
             Some(wow_map::CreateMapDecision::Create { .. })
         ));
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn canonical_access_requirement_missing_item_sends_notification_like_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 90);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "AccessItemNotify".to_string(),
+            Position::new(3700.0, 1500.0, 120.0, 0.0),
+            631,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.represented_raid_difficulty_id_like_cpp = 3;
+        install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
+        install_access_notification_stores_like_cpp(&mut session);
+        let mut requirement = access_requirement_like_cpp(631, 3);
+        requirement.level_min = 80;
+        requirement.item = 701;
+        install_access_requirement_store_like_cpp(&mut session, requirement);
+
+        assert_eq!(
+            session.ensure_canonical_world_map_for_current_player_like_cpp(),
+            Some(wow_map::CreateMapDecision::Reject {
+                side_effects: Vec::new()
+            })
+        );
+        assert_eq!(
+            send_rx.try_recv().expect("missing item notification"),
+            PrintNotification {
+                notify_text: "You must be at least level 0 and have The Scarlet Key to enter."
+                    .to_string(),
+            }
+            .to_bytes()
+        );
+        assert_eq!(
+            send_rx.try_recv().expect("missing item abort"),
+            wow_packet::packets::misc::TransferAborted {
+                map_id: 631,
+                arg: 0,
+                map_difficulty_x_condition_id: 0,
+                transfer_abort: TRANSFER_ABORT_ERROR_LIKE_CPP,
+            }
+            .to_bytes()
+        );
         assert!(send_rx.try_recv().is_err());
     }
 
