@@ -858,6 +858,19 @@ impl Pet {
         }
     }
 
+    pub fn synchronize_level_with_owner_like_cpp(
+        &mut self,
+        owner_level: u8,
+        xp_for_level: impl Fn(u8) -> u32,
+    ) -> Option<PetLevelUpdateOutcome> {
+        match self.pet_type {
+            PetType::Summon | PetType::Hunter => {
+                Some(self.give_pet_level_like_cpp(owner_level, xp_for_level))
+            }
+            PetType::Max => None,
+        }
+    }
+
     pub fn give_pet_xp_like_cpp(
         &mut self,
         xp: u32,
@@ -2361,6 +2374,51 @@ mod tests {
                 refresh_stats: false,
                 init_levelup_spells: false
             }
+        );
+    }
+
+    #[test]
+    fn pet_synchronize_level_with_owner_delegates_to_give_pet_level_like_cpp() {
+        let mut hunter = Pet::new(owner_guid(), PetType::Hunter);
+        hunter.creature_mut().unit_mut().set_level(10);
+        hunter.set_pet_experience(77);
+        hunter.set_pet_next_level_experience(100);
+
+        assert_eq!(
+            hunter.synchronize_level_with_owner_like_cpp(12, |level| u32::from(level) * 1_000),
+            Some(PetLevelUpdateOutcome {
+                changed: true,
+                reset_experience: true,
+                refresh_stats: true,
+                init_levelup_spells: true,
+            }),
+            "C++ Pet::SynchronizeLevelWithOwner calls GivePetLevel for HUNTER_PET"
+        );
+        assert_eq!(hunter.creature().level(), 12);
+        assert_eq!(hunter.pet_experience(), 0);
+        assert_eq!(hunter.pet_next_level_experience(), 600);
+
+        let mut summon = Pet::new(owner_guid(), PetType::Summon);
+        summon.creature_mut().unit_mut().set_level(4);
+        assert_eq!(
+            summon.synchronize_level_with_owner_like_cpp(8, |_| 999),
+            Some(PetLevelUpdateOutcome {
+                changed: true,
+                reset_experience: false,
+                refresh_stats: true,
+                init_levelup_spells: true,
+            }),
+            "C++ also synchronizes SUMMON_PET, but GivePetLevel does not reset hunter XP fields"
+        );
+        assert_eq!(summon.creature().level(), 8);
+
+        let mut max = Pet::new(owner_guid(), PetType::Max);
+        max.creature_mut().unit_mut().set_level(3);
+        assert_eq!(max.synchronize_level_with_owner_like_cpp(9, |_| 999), None);
+        assert_eq!(
+            max.creature().level(),
+            3,
+            "C++ default branch leaves non summon/hunter pet types unchanged"
         );
     }
 
