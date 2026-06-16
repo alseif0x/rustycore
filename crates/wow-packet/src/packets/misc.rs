@@ -96,6 +96,27 @@ impl ServerPacket for DuelCountdown {
     }
 }
 
+/// C++ `WorldPackets::Duel::DuelRequested`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DuelRequested {
+    pub arbiter_guid: ObjectGuid,
+    pub requested_by_guid: ObjectGuid,
+    pub requested_by_wow_account: ObjectGuid,
+    pub to_the_death: bool,
+}
+
+impl ServerPacket for DuelRequested {
+    const OPCODE: ServerOpcodes = ServerOpcodes::DuelRequested;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_bytes(&self.arbiter_guid.to_raw_bytes());
+        pkt.write_bytes(&self.requested_by_guid.to_raw_bytes());
+        pkt.write_bytes(&self.requested_by_wow_account.to_raw_bytes());
+        pkt.write_bit(self.to_the_death);
+        pkt.flush_bits();
+    }
+}
+
 // ── FarSight (CMSG 0x34e8) ──────────────────────────────────────────
 
 /// C++ `WorldPackets::Misc::FarSight`: one bit toggling seer to current viewpoint/self.
@@ -7530,6 +7551,36 @@ mod tests {
             ServerOpcodes::DuelCountdown as u16
         );
         assert_eq!(body.read_uint32().unwrap(), 3000);
+        assert_eq!(body.remaining(), 0);
+    }
+
+    #[test]
+    fn duel_requested_writes_three_raw_guids_then_bit_like_cpp() {
+        let arbiter_guid =
+            ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 9, 1);
+        let requested_by_guid = ObjectGuid::create_player(1, 42);
+        let requested_by_wow_account = ObjectGuid::create_global(HighGuid::WowAccount, 0, 7);
+        let bytes = DuelRequested {
+            arbiter_guid,
+            requested_by_guid,
+            requested_by_wow_account,
+            to_the_death: true,
+        }
+        .to_bytes();
+        let mut body = WorldPacket::from_bytes(&bytes);
+
+        assert_eq!(body.server_opcode(), Some(ServerOpcodes::DuelRequested));
+        assert_eq!(
+            body.read_uint16().unwrap(),
+            ServerOpcodes::DuelRequested as u16
+        );
+        for expected in [arbiter_guid, requested_by_guid, requested_by_wow_account] {
+            let guid_bytes = body.read_bytes(16).unwrap();
+            let mut raw = [0u8; 16];
+            raw.copy_from_slice(&guid_bytes);
+            assert_eq!(ObjectGuid::from_raw_bytes(&raw), expected);
+        }
+        assert!(body.read_bit().unwrap());
         assert_eq!(body.remaining(), 0);
     }
 

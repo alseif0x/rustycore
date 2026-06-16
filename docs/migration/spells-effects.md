@@ -559,14 +559,24 @@ Numerados como `#SPELLS-EFFECTS.N` para referencia desde `MIGRATION_ROADMAP.md`.
   Still missing: Drunken Vomit trigger spell `67468`, fake-inebriate aura/invisibility detect
   side effects, sobering timer reset, `SMSG_CROSSED_INEBRIATION_THRESHOLD`, generic player
   target handling, and live-client/manual validation.
-- [ ] **#SPELLS-EFFECTS.65** Implementar `EffectParry`, `EffectBlock` (passive grant) (L)
+- [~] **#SPELLS-EFFECTS.65** Implementar `EffectParry`, `EffectBlock` (passive grant) (L) —
+  represented-partial: current canonical caster only, sets represented unit `can_parry` /
+  `can_block` capability flags from both effect rows and primary-effect fallback. Still missing:
+  generic unit targets, real combat capability interaction outside the represented unit bridge,
+  and live-client/manual validation.
 - [~] **#SPELLS-EFFECTS.66** Implementar `EffectReputation` (faction modify) (L) —
   represented-partial: current player target only, `SPELL_EFFECT_REPUTATION = 103`,
   C++ `CalculateReputationGain(REPUTATION_SOURCE_SPELL, 0, damage, factionId)`, faction
   lookup and `ReputationMgr::ModifyReputation`/`SMSG_SET_FACTION_STANDING` packet path are
   covered. Still missing: generic/offline player targets, persistence, script callbacks,
   full reputation side-effect audit, and live-client/manual validation.
-- [ ] **#SPELLS-EFFECTS.67** Implementar `EffectDuel` (L)
+- [~] **#SPELLS-EFFECTS.67** Implementar `EffectDuel` (L) —
+  represented-partial: connected canonical player target only, `SPELL_EFFECT_DUEL = 83`,
+  `SMSG_DUEL_REQUESTED` packet serialization, represented duel arbiter GUID, cross-session
+  request delivery and `DuelInfo` challenged state for caster/target are covered. Still missing:
+  real duel-flag GameObject creation/AddToMap, area/social-ignore checks, phasing/faction/level
+  setup for the flag object, script callbacks, full duel lifecycle persistence/runtime audit, and
+  live-client/manual validation.
 - [x] **#SPELLS-EFFECTS.68** Implementar `EffectStuck` (homebind teleport) (L) — represented-partial:
   `CONFIG_CAST_UNSTUCK`, flight/dead/cooldown gates, homebind teleport, and Hearthstone cooldown
   are covered; full `SpellHistory` duration expiry, exact `KillSelf` death pipeline, and live
@@ -745,7 +755,7 @@ historical scan only proves that the standalone `wow-spell` engine remains empty
 - Quest/Profession: `EffectQuestComplete`, `EffectQuestStart`, `EffectQuestRedirect`, `EffectLearnSpell`, `EffectUnlearnSpecialization`, `EffectLearnPetSpell`, `EffectLearnSkill`, `EffectTradeSkill`, `EffectProficiency`, `EffectUntrainTalents` — none.
 - OpenLock/GO: `EffectOpenLock`, `EffectActivateObject`, `EffectSendEvent`, `EffectGameobjectDamage`, `EffectGameObjectRepair`, `EffectGameobjectSetDestructionState` — none.
 - Pet/Charm: `EffectTameCreature`, `EffectDismissPet`, `EffectAddFarsight` — none.
-- Combat misc: `EffectReputation` — represented-partial; `EffectParry`, `EffectBlock`, `EffectDuel` — none.
+- Combat misc: `EffectParry`, `EffectBlock`, `EffectReputation`, `EffectDuel` — represented-partial.
 - Glyph/Talent: `EffectApplyGlyph` — none.
 - Misc: `EffectDistract`, `EffectInebriate` — represented-partial; `EffectForceCast`, `EffectTriggerSpell`, `EffectTriggerMissileSpell`, `EffectTriggerRitualOfSummoning`, `EffectPlayMovie`, `EffectPlayScene`, `EffectPlaySceneScriptPackage`, `EffectGiveHonor`, `EffectGrantBattlePetExperience`, `EffectForceDeselect`, `EffectPickPocket`, `EffectModifyAuraStacks` — none.
 

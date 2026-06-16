@@ -53,8 +53,8 @@ use wow_network::player_registry::{
     RefreshVisibleWorldCreaturesLikeCppCommand, SendAddonIfRegisteredLikeCppCommand,
     SendIfVisibleLikeCppCommand, SendPartyUpdateLikeCppCommand,
     SendRepeatableTurnInRequestItemsLikeCppCommand, SendRepresentedDuelCountdownLikeCppCommand,
-    SendRepresentedTradeStatusLikeCppCommand, SetQuestSharingInfoAndSendDetailsCommand,
-    SyncChestGameobjectStateAndRefreshLikeCppCommand,
+    SendRepresentedDuelRequestedLikeCppCommand, SendRepresentedTradeStatusLikeCppCommand,
+    SetQuestSharingInfoAndSendDetailsCommand, SyncChestGameobjectStateAndRefreshLikeCppCommand,
     SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
     SyncGooberGameobjectStateAndRefreshLikeCppCommand, UnacceptRepresentedTradeLikeCppCommand,
     WorldSessionShutdownFlushResultLikeCpp,
@@ -2934,6 +2934,9 @@ impl WorldSession {
                 SessionCommand::SendRepresentedDuelCountdownLikeCpp(command) => {
                     self.handle_send_represented_duel_countdown_command_like_cpp(command);
                 }
+                SessionCommand::SendRepresentedDuelRequestedLikeCpp(command) => {
+                    self.handle_send_represented_duel_requested_command_like_cpp(command);
+                }
             }
         }
     }
@@ -3424,6 +3427,14 @@ impl WorldSession {
         &mut self,
         command: SendRepresentedDuelCountdownLikeCppCommand,
     ) {
+        self.send_raw_packet(&command.packet_bytes);
+    }
+
+    fn handle_send_represented_duel_requested_command_like_cpp(
+        &mut self,
+        command: SendRepresentedDuelRequestedLikeCppCommand,
+    ) {
+        self.set_represented_duel_arbiter_guid_like_cpp(Some(command.arbiter_guid));
         self.send_raw_packet(&command.packet_bytes);
     }
 

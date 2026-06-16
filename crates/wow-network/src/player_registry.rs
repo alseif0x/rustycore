@@ -75,6 +75,8 @@ pub enum SessionCommand {
     UnacceptRepresentedTradeLikeCpp(UnacceptRepresentedTradeLikeCppCommand),
     /// Deliver represented `SMSG_DUEL_COUNTDOWN` to the remote duel participant.
     SendRepresentedDuelCountdownLikeCpp(SendRepresentedDuelCountdownLikeCppCommand),
+    /// Deliver represented `SMSG_DUEL_REQUESTED` to the remote duel participant.
+    SendRepresentedDuelRequestedLikeCpp(SendRepresentedDuelRequestedLikeCppCommand),
 }
 
 /// Cross-session kick command mirroring C++ callers such as `World::BanAccount`
@@ -247,6 +249,17 @@ pub struct UnacceptRepresentedTradeLikeCppCommand {
 /// duel records to `DUEL_STATE_COUNTDOWN`.
 #[derive(Clone, Debug)]
 pub struct SendRepresentedDuelCountdownLikeCppCommand {
+    pub packet_bytes: Vec<u8>,
+}
+
+/// Payload for [`SessionCommand::SendRepresentedDuelRequestedLikeCpp`].
+///
+/// C++ `Spell::EffectDuel` sends one `SMSG_DUEL_REQUESTED` packet to the
+/// caster and the target after creating the duel flag and before storing
+/// `DuelInfo` for both players.
+#[derive(Clone, Debug)]
+pub struct SendRepresentedDuelRequestedLikeCppCommand {
+    pub arbiter_guid: ObjectGuid,
     pub packet_bytes: Vec<u8>,
 }
 

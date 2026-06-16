@@ -77,6 +77,7 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_ADD_COMBO_POINTS: u32 = 80;
     pub const SPELL_EFFECT_CREATE_HOUSE: u32 = 81;
     pub const SPELL_EFFECT_BIND_SIGHT: u32 = 82;
+    pub const SPELL_EFFECT_DUEL: u32 = 83;
     pub const SPELL_EFFECT_STUCK: u32 = 84;
     pub const SPELL_EFFECT_KILL_CREDIT: u32 = 90;
     pub const SPELL_EFFECT_THREAT_ALL: u32 = 91;
@@ -1144,6 +1145,7 @@ mod tests {
         assert_eq!(spell_effect_types::SPELL_EFFECT_SANCTUARY, 79);
         assert_eq!(spell_effect_types::SPELL_EFFECT_CREATE_HOUSE, 81);
         assert_eq!(spell_effect_types::SPELL_EFFECT_BIND_SIGHT, 82);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_DUEL, 83);
         assert_eq!(spell_effect_types::SPELL_EFFECT_KILL_CREDIT, 90);
         assert_eq!(spell_effect_types::SPELL_EFFECT_THREAT_ALL, 91);
         assert_eq!(spell_effect_types::SPELL_EFFECT_INEBRIATE, 100);

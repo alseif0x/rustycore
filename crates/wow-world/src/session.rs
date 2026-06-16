@@ -1698,6 +1698,14 @@ pub(crate) struct RepresentedCanDuelSpellCastLikeCpp {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedDuelRequestedLikeCpp {
+    pub target_guid: ObjectGuid,
+    pub arbiter_guid: ObjectGuid,
+    pub gameobject_entry: u32,
+    pub to_the_death: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedDuelAcceptedLikeCpp {
     pub opponent_guid: ObjectGuid,
     pub arbiter_guid: ObjectGuid,
@@ -3278,6 +3286,7 @@ pub struct WorldSession {
     represented_silence_party_talker_like_cpp: Vec<RepresentedSilencePartyTalkerLikeCpp>,
     represented_can_duel_spell_casts_like_cpp: Vec<RepresentedCanDuelSpellCastLikeCpp>,
     represented_duel_arbiter_guid_like_cpp: Option<ObjectGuid>,
+    represented_duel_requests_like_cpp: Vec<RepresentedDuelRequestedLikeCpp>,
     represented_duel_accepts_like_cpp: Vec<RepresentedDuelAcceptedLikeCpp>,
     represented_duel_cancels_like_cpp: Vec<RepresentedDuelCancelledLikeCpp>,
     represented_guild_repair_bank_state_like_cpp: Option<RepresentedGuildRepairBankStateLikeCpp>,
@@ -4713,6 +4722,7 @@ impl WorldSession {
             represented_silence_party_talker_like_cpp: Vec::new(),
             represented_can_duel_spell_casts_like_cpp: Vec::new(),
             represented_duel_arbiter_guid_like_cpp: None,
+            represented_duel_requests_like_cpp: Vec::new(),
             represented_duel_accepts_like_cpp: Vec::new(),
             represented_duel_cancels_like_cpp: Vec::new(),
             represented_guild_repair_bank_state_like_cpp: None,
@@ -24557,6 +24567,11 @@ impl WorldSession {
         &self.represented_can_duel_spell_casts_like_cpp
     }
 
+    #[cfg(test)]
+    pub(crate) fn represented_duel_requests_like_cpp(&self) -> &[RepresentedDuelRequestedLikeCpp] {
+        &self.represented_duel_requests_like_cpp
+    }
+
     pub(crate) fn set_represented_duel_arbiter_guid_like_cpp(&mut self, guid: Option<ObjectGuid>) {
         self.represented_duel_arbiter_guid_like_cpp = guid;
     }
@@ -24615,6 +24630,118 @@ impl WorldSession {
                         },
                     ));
         }
+    }
+
+    fn send_represented_duel_requested_to_opponent_like_cpp(
+        &self,
+        opponent_guid: ObjectGuid,
+        arbiter_guid: ObjectGuid,
+        packet_bytes: Vec<u8>,
+    ) {
+        if let Some(registry) = self.player_registry()
+            && let Some(opponent) = registry.get(&opponent_guid)
+        {
+            let _ =
+                opponent
+                    .command_tx
+                    .try_send(SessionCommand::SendRepresentedDuelRequestedLikeCpp(
+                        wow_network::player_registry::SendRepresentedDuelRequestedLikeCppCommand {
+                            arbiter_guid,
+                            packet_bytes,
+                        },
+                    ));
+        }
+    }
+
+    /// C++ `Spell::EffectDuel`.
+    ///
+    /// Represented boundary: canonical connected players only. This creates the
+    /// duel request packet, represented arbiter GUID and challenged duel state;
+    /// the actual duel-flag GameObject, area/social ignore checks, phasing,
+    /// script hook and full duel lifecycle remain outside this bounded slice.
+    fn apply_duel_effect_like_cpp(
+        &mut self,
+        spell_id: i32,
+        gameobject_entry: i32,
+        target_guid: ObjectGuid,
+    ) -> bool {
+        let Some(player_guid) = self.player_guid() else {
+            return false;
+        };
+        if target_guid == player_guid {
+            return false;
+        }
+        if gameobject_entry <= 0 {
+            return false;
+        }
+        if self
+            .mutate_canonical_player_by_guid_like_cpp(player_guid, |player| {
+                player.duel_info_like_cpp()
+            })
+            .flatten()
+            .is_some()
+        {
+            return false;
+        }
+        let Some(target_duel) = self
+            .mutate_canonical_player_by_guid_like_cpp(target_guid, |player| {
+                player.duel_info_like_cpp()
+            })
+        else {
+            return false;
+        };
+        if target_duel.is_some() {
+            return false;
+        }
+
+        let map_id = self.player_map_id_like_cpp();
+        let arbiter_guid = ObjectGuid::create_world_object(
+            HighGuid::GameObject,
+            0,
+            1,
+            map_id,
+            0,
+            gameobject_entry as u32,
+            i64::from(spell_id.max(0) as u32),
+        );
+        let requested_by_wow_account =
+            ObjectGuid::create_global(HighGuid::WowAccount, 0, self.account_id as i64);
+
+        self.set_represented_duel_state_like_cpp(
+            player_guid,
+            target_guid,
+            wow_entities::PlayerDuelStateLikeCpp::Challenged,
+        );
+        self.set_represented_duel_state_like_cpp(
+            target_guid,
+            player_guid,
+            wow_entities::PlayerDuelStateLikeCpp::Challenged,
+        );
+        self.represented_duel_arbiter_guid_like_cpp = Some(arbiter_guid);
+
+        use wow_packet::ServerPacket;
+        let packet = wow_packet::packets::misc::DuelRequested {
+            arbiter_guid,
+            requested_by_guid: player_guid,
+            requested_by_wow_account,
+            to_the_death: false,
+        };
+        let packet_bytes = packet.to_bytes();
+        self.send_raw_packet(&packet_bytes);
+        self.send_represented_duel_requested_to_opponent_like_cpp(
+            target_guid,
+            arbiter_guid,
+            packet_bytes,
+        );
+
+        self.represented_duel_requests_like_cpp
+            .push(RepresentedDuelRequestedLikeCpp {
+                target_guid,
+                arbiter_guid,
+                gameobject_entry: gameobject_entry as u32,
+                to_the_death: false,
+            });
+        true
     }
 
     fn handle_duel_accepted_like_cpp(&mut self, arbiter_guid: ObjectGuid) -> bool {
@@ -34896,6 +35023,13 @@ impl WorldSession {
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_PLAY_MOVIE => {
                     self.apply_play_movie_effect_like_cpp(target_guid, direct_effect_misc_value_1);
                 }
+                x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_DUEL => {
+                    self.apply_duel_effect_like_cpp(
+                        spell_id,
+                        direct_effect_misc_value_1,
+                        target_guid,
+                    );
+                }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_TRANSMOG_SET => {
                     self.apply_learn_transmog_set_effect_like_cpp(
                         target_guid,
@@ -35098,6 +35232,7 @@ impl WorldSession {
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_SELF_RESURRECT
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_STUCK
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_PLAY_MOVIE
+                || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_DUEL
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_TRANSMOG_SET
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_UPGRADE_HEIRLOOM
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_UNCAGE_BATTLEPET
@@ -58883,6 +59018,219 @@ mod tests {
         assert_eq!(
             drain_server_opcodes(&send_rx),
             vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_duel_effect_requests_duel_and_sets_challenged_state_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let (mut target_session, _, target_send_rx) = make_session();
+        let spell_id = SPELL_DUEL_LIKE_CPP as i32;
+        let gameobject_entry = 21680_i32;
+        let player_guid = ObjectGuid::create_player(1, 810);
+        let target_guid = ObjectGuid::create_player(1, 811);
+        let canonical = shared_canonical_map_manager();
+        add_canonical_test_player_on_map(
+            &canonical,
+            player_guid,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            571,
+            0,
+        );
+        add_canonical_test_player_on_map(
+            &canonical,
+            target_guid,
+            Position::new(12.0, 10.0, 0.0, 0.0),
+            571,
+            0,
+        );
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_player_guid(Some(player_guid));
+        session.set_player_map_position_like_cpp(571, Position::new(10.0, 10.0, 0.0, 0.0));
+        target_session.set_player_guid(Some(target_guid));
+
+        let registry = Arc::new(PlayerRegistry::default());
+        let (target_tx, _target_rx) = flume::bounded(10);
+        let mut target_info = broadcast_info(target_guid, target_tx);
+        target_info.map_id = 571;
+        target_info.position = Position::new(12.0, 10.0, 0.0, 0.0);
+        target_info.command_tx = target_session.session_command_tx();
+        registry.insert(target_guid, target_info);
+        session.set_player_registry(registry);
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_DUEL,
+                    effect_misc_value_1: gameobject_entry,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, target_guid)
+            .await
+            .expect("represented EffectDuel should execute");
+        target_session
+            .process_represented_session_commands_like_cpp()
+            .await;
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        let opcodes: Vec<_> = packets
+            .iter()
+            .filter_map(|bytes| wow_packet::WorldPacket::from_bytes(bytes).server_opcode())
+            .collect();
+        assert_eq!(
+            opcodes,
+            vec![
+                ServerOpcodes::SpellGo,
+                ServerOpcodes::DuelRequested,
+                ServerOpcodes::CooldownEvent
+            ]
+        );
+        assert_eq!(
+            drain_server_opcodes(&target_send_rx),
+            vec![ServerOpcodes::DuelRequested]
+        );
+
+        let request = session
+            .represented_duel_requests_like_cpp()
+            .first()
+            .copied()
+            .expect("represented duel request");
+        assert_eq!(request.target_guid, target_guid);
+        assert_eq!(request.gameobject_entry, gameobject_entry as u32);
+        assert!(!request.to_the_death);
+        assert_eq!(
+            target_session.represented_duel_arbiter_guid_like_cpp,
+            Some(request.arbiter_guid)
+        );
+        assert_eq!(
+            session.mutate_canonical_player_by_guid_like_cpp(player_guid, |player| {
+                player.duel_info_like_cpp()
+            }),
+            Some(Some(wow_entities::PlayerDuelInfoLikeCpp {
+                opponent: target_guid,
+                state: wow_entities::PlayerDuelStateLikeCpp::Challenged,
+            }))
+        );
+        assert_eq!(
+            session.mutate_canonical_player_by_guid_like_cpp(target_guid, |player| {
+                player.duel_info_like_cpp()
+            }),
+            Some(Some(wow_entities::PlayerDuelInfoLikeCpp {
+                opponent: player_guid,
+                state: wow_entities::PlayerDuelStateLikeCpp::Challenged,
+            }))
+        );
+
+        let packet = packets
+            .iter()
+            .find(|bytes| {
+                wow_packet::WorldPacket::from_bytes(bytes).server_opcode()
+                    == Some(ServerOpcodes::DuelRequested)
+            })
+            .expect("duel requested packet");
+        let mut reader = wow_packet::WorldPacket::from_bytes(packet);
+        reader.skip_opcode();
+        let arbiter_bytes = reader.read_bytes(16).unwrap();
+        let mut raw = [0_u8; 16];
+        raw.copy_from_slice(&arbiter_bytes);
+        assert_eq!(ObjectGuid::from_raw_bytes(&raw), request.arbiter_guid);
+        let requester_bytes = reader.read_bytes(16).unwrap();
+        raw.copy_from_slice(&requester_bytes);
+        assert_eq!(ObjectGuid::from_raw_bytes(&raw), player_guid);
+        let account_bytes = reader.read_bytes(16).unwrap();
+        raw.copy_from_slice(&account_bytes);
+        assert_eq!(
+            ObjectGuid::from_raw_bytes(&raw),
+            ObjectGuid::create_global(HighGuid::WowAccount, 0, session.account_id as i64)
+        );
+        assert!(!reader.read_bit().unwrap());
+        assert_eq!(reader.remaining(), 0);
+    }
+
+    #[tokio::test]
+    async fn spell_duel_effect_ignores_target_already_dueling_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = SPELL_DUEL_LIKE_CPP as i32;
+        let player_guid = ObjectGuid::create_player(1, 812);
+        let target_guid = ObjectGuid::create_player(1, 813);
+        let other_guid = ObjectGuid::create_player(1, 814);
+        let canonical = shared_canonical_map_manager();
+        add_canonical_test_player_on_map(&canonical, player_guid, Position::ZERO, 571, 0);
+        add_canonical_test_player_on_map(&canonical, target_guid, Position::ZERO, 571, 0);
+        {
+            let mut manager = canonical.lock().unwrap();
+            manager
+                .find_map_mut(571, 0)
+                .unwrap()
+                .map_mut()
+                .get_typed_player_mut(target_guid)
+                .unwrap()
+                .set_duel_info_like_cpp(Some(wow_entities::PlayerDuelInfoLikeCpp {
+                    opponent: other_guid,
+                    state: wow_entities::PlayerDuelStateLikeCpp::Challenged,
+                }));
+        }
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_player_guid(Some(player_guid));
+        session.set_player_map_position_like_cpp(571, Position::ZERO);
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_DUEL,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_DUEL,
+                    effect_misc_value_1: 21680,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, target_guid)
+            .await
+            .expect("represented EffectDuel target-with-duel should execute as C++ no-op");
+
+        assert!(session.represented_duel_requests_like_cpp().is_empty());
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
+        assert_eq!(
+            session.mutate_canonical_player_by_guid_like_cpp(player_guid, |player| {
+                player.duel_info_like_cpp()
+            }),
+            Some(None)
         );
     }
 

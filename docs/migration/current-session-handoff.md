@@ -1,3 +1,20 @@
+- `#NEXT.RUNTIME.L3.031j48` — WotLK represented `Spell::EffectDuel` for connected canonical
+  player targets (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:1229,6544-6551`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellEffects.cpp:3183-3260`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/DuelHandler.cpp:29-84`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:351-365`, and
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/DuelPackets.cpp:50-59`.
+  Rust now names `SPELL_EFFECT_DUEL = 83`, serializes `SMSG_DUEL_REQUESTED` with the C++ raw
+  GUID/GUID/GUID/bit order, dispatches the represented spell effect, creates a represented
+  GameObject arbiter GUID from `EffectMiscValue1`, sends the request packet to caster and target
+  via the existing session-command fanout pattern, and stores challenged `PlayerDuelInfoLikeCpp`
+  for both canonical players. Coverage: packet test covers field order; spell tests cover the
+  accepted request path and target-already-dueling no-op. Boundary remains partial: no real duel
+  flag GameObject/AddToMap, no area-dueling or social-ignore checks, no phasing/faction/level
+  setup for the flag object, no script callbacks, no full duel lifecycle/runtime audit, no
+  install/restart, bot, or live-client/manual validation. Docs also corrected the stale
+  `EffectParry`/`EffectBlock` status to represented-partial.
 - `#NEXT.RUNTIME.L3.031j47` — WotLK represented `Spell::EffectReputation` for current
   player targets (not manual-test-ready). Source-of-truth:
   `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:1249`,
