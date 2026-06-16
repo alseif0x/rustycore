@@ -16,6 +16,9 @@ pub const MAX_PET_STABLES: usize = 200;
 pub const PET_FOCUS_REGEN_AMOUNT_LIKE_CPP: f32 = 24.0;
 pub const PET_FOCUS_REGEN_INTERVAL_MS: u32 = 4_000;
 pub const PET_XP_FACTOR: f32 = 0.05;
+pub const GROUP_UPDATE_FLAG_PET_LIKE_CPP: u32 = 0x0001_0000;
+pub const GROUP_UPDATE_FLAG_PET_NONE_LIKE_CPP: u32 = 0x0000_0000;
+pub const GROUP_UPDATE_FLAG_PET_MODEL_ID_LIKE_CPP: u32 = 0x0000_0004;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
@@ -236,6 +239,19 @@ pub struct PetRemoveFromWorldOutcomeLikeCpp {
     pub guid: ObjectGuid,
     pub unit_remove_from_world: Option<UnitRemoveFromWorldOutcomeLikeCpp>,
     pub removed_pet_lookup: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PetGroupUpdateOutcomeLikeCpp {
+    pub group_update_mask: u32,
+    pub owner_group_flag: Option<u32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PetSetDisplayIdOutcomeLikeCpp {
+    pub model_id: u32,
+    pub set_native: bool,
+    pub group_update: Option<PetGroupUpdateOutcomeLikeCpp>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -898,8 +914,59 @@ impl Pet {
         self.group_update_mask |= flag;
     }
 
+    pub fn set_group_update_flag_like_cpp(
+        &mut self,
+        flag: u32,
+        owner_has_group: bool,
+    ) -> Option<PetGroupUpdateOutcomeLikeCpp> {
+        if !owner_has_group {
+            return None;
+        }
+
+        self.group_update_mask |= flag;
+        Some(PetGroupUpdateOutcomeLikeCpp {
+            group_update_mask: self.group_update_mask,
+            owner_group_flag: Some(GROUP_UPDATE_FLAG_PET_LIKE_CPP),
+        })
+    }
+
     pub fn reset_group_update_flag(&mut self) {
         self.group_update_mask = 0;
+    }
+
+    pub fn reset_group_update_flag_like_cpp(
+        &mut self,
+        owner_has_group: bool,
+    ) -> PetGroupUpdateOutcomeLikeCpp {
+        self.group_update_mask = GROUP_UPDATE_FLAG_PET_NONE_LIKE_CPP;
+        PetGroupUpdateOutcomeLikeCpp {
+            group_update_mask: self.group_update_mask,
+            owner_group_flag: owner_has_group.then_some(GROUP_UPDATE_FLAG_PET_LIKE_CPP),
+        }
+    }
+
+    pub fn set_display_id_like_cpp(
+        &mut self,
+        model_id: u32,
+        set_native: bool,
+        owner_has_group: bool,
+    ) -> PetSetDisplayIdOutcomeLikeCpp {
+        self.creature.set_display_id(model_id, set_native, None);
+        let group_update = self
+            .is_controlled()
+            .then(|| {
+                self.set_group_update_flag_like_cpp(
+                    GROUP_UPDATE_FLAG_PET_MODEL_ID_LIKE_CPP,
+                    owner_has_group,
+                )
+            })
+            .flatten();
+
+        PetSetDisplayIdOutcomeLikeCpp {
+            model_id,
+            set_native,
+            group_update,
+        }
     }
 
     pub const fn specialization(&self) -> u16 {
@@ -1565,6 +1632,82 @@ mod tests {
         assert_eq!(pet.group_update_mask(), 0x5);
         pet.reset_group_update_flag();
         assert_eq!(pet.group_update_mask(), 0);
+    }
+
+    #[test]
+    fn pet_group_update_flags_follow_cpp_owner_group_gate() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+
+        assert_eq!(
+            pet.set_group_update_flag_like_cpp(GROUP_UPDATE_FLAG_PET_MODEL_ID_LIKE_CPP, false),
+            None,
+            "C++ Pet::SetGroupUpdateFlag mutates only when owner has a group"
+        );
+        assert_eq!(pet.group_update_mask(), 0);
+
+        assert_eq!(
+            pet.set_group_update_flag_like_cpp(GROUP_UPDATE_FLAG_PET_MODEL_ID_LIKE_CPP, true),
+            Some(PetGroupUpdateOutcomeLikeCpp {
+                group_update_mask: GROUP_UPDATE_FLAG_PET_MODEL_ID_LIKE_CPP,
+                owner_group_flag: Some(GROUP_UPDATE_FLAG_PET_LIKE_CPP),
+            })
+        );
+        assert_eq!(
+            pet.group_update_mask(),
+            GROUP_UPDATE_FLAG_PET_MODEL_ID_LIKE_CPP
+        );
+
+        assert_eq!(
+            pet.reset_group_update_flag_like_cpp(false),
+            PetGroupUpdateOutcomeLikeCpp {
+                group_update_mask: GROUP_UPDATE_FLAG_PET_NONE_LIKE_CPP,
+                owner_group_flag: None,
+            }
+        );
+        assert_eq!(pet.group_update_mask(), 0);
+
+        pet.set_group_update_flag_like_cpp(GROUP_UPDATE_FLAG_PET_MODEL_ID_LIKE_CPP, true);
+        assert_eq!(
+            pet.reset_group_update_flag_like_cpp(true),
+            PetGroupUpdateOutcomeLikeCpp {
+                group_update_mask: GROUP_UPDATE_FLAG_PET_NONE_LIKE_CPP,
+                owner_group_flag: Some(GROUP_UPDATE_FLAG_PET_LIKE_CPP),
+            }
+        );
+    }
+
+    #[test]
+    fn pet_set_display_id_marks_pet_model_group_update_only_for_controlled_pets_like_cpp() {
+        let mut hunter = Pet::new(owner_guid(), PetType::Hunter);
+        let outcome = hunter.set_display_id_like_cpp(12_345, true, true);
+        assert_eq!(
+            outcome,
+            PetSetDisplayIdOutcomeLikeCpp {
+                model_id: 12_345,
+                set_native: true,
+                group_update: Some(PetGroupUpdateOutcomeLikeCpp {
+                    group_update_mask: GROUP_UPDATE_FLAG_PET_MODEL_ID_LIKE_CPP,
+                    owner_group_flag: Some(GROUP_UPDATE_FLAG_PET_LIKE_CPP),
+                }),
+            }
+        );
+        assert_eq!(hunter.creature().unit().data().display_id, 12_345);
+        assert_eq!(hunter.creature().unit().data().native_display_id, 12_345);
+
+        let mut uncontrolled = Pet::new(owner_guid(), PetType::Max);
+        let outcome = uncontrolled.set_display_id_like_cpp(22_222, false, true);
+        assert_eq!(
+            outcome,
+            PetSetDisplayIdOutcomeLikeCpp {
+                model_id: 22_222,
+                set_native: false,
+                group_update: None,
+            },
+            "C++ Pet::SetDisplayId returns before SetGroupUpdateFlag when !isControlled()"
+        );
+        assert_eq!(uncontrolled.group_update_mask(), 0);
+        assert_eq!(uncontrolled.creature().unit().data().display_id, 22_222);
+        assert_eq!(uncontrolled.creature().unit().data().native_display_id, 0);
     }
 
     #[test]
