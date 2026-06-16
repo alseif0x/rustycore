@@ -22530,6 +22530,10 @@ impl WorldSession {
         destination: wow_core::Position,
         options: TeleportToOptionsLikeCpp,
     ) {
+        if !self.player_is_alive_like_cpp() && options & TELE_REVIVE_AT_TELEPORT_LIKE_CPP != 0 {
+            self.resurrect_player_percent_for_teleport_like_cpp(0.5);
+        }
+
         if options & TELE_TO_NOT_LEAVE_COMBAT_LIKE_CPP == 0 {
             self.combat_stop_like_cpp();
         }
@@ -22570,6 +22574,30 @@ impl WorldSession {
             ),
             "Player same-map near teleport initiated; awaiting MoveTeleportAck"
         );
+    }
+
+    fn resurrect_player_percent_for_teleport_like_cpp(&mut self, restore_percent: f32) {
+        let max_health = self.player_max_health_like_cpp.max(1);
+        let health = ((max_health as f32) * restore_percent)
+            .max(0.0)
+            .min(max_health as f32) as u32;
+        self.player_health_like_cpp = health;
+        self.player_alive_like_cpp = true;
+        let _ = self.mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_max_health(u64::from(max_health));
+            player.unit_mut().set_health(u64::from(health));
+            let mana = ((player.get_max_power(PowerType::Mana).max(0) as f32) * restore_percent)
+                .max(0.0) as i32;
+            let energy = ((player.get_max_power(PowerType::Energy).max(0) as f32) * restore_percent)
+                .max(0.0) as i32;
+            let focus = ((player.get_max_power(PowerType::Focus).max(0) as f32) * restore_percent)
+                .max(0.0) as i32;
+            player.unit_mut().set_power(PowerType::Mana, mana);
+            player.unit_mut().set_power(PowerType::Rage, 0);
+            player.unit_mut().set_power(PowerType::Energy, energy);
+            player.unit_mut().set_power(PowerType::Focus, focus);
+        });
+        self.sync_player_registry_state_like_cpp();
     }
 
     fn send_same_map_move_update_teleport_to_visible_set_like_cpp(&self, source_guid: ObjectGuid) {
@@ -66296,6 +66324,128 @@ mod tests {
         );
         assert!(session.near_teleport_pending_like_cpp());
         assert_eq!(session.pending_teleport, None);
+    }
+
+    #[tokio::test]
+    async fn teleport_to_same_map_revive_at_teleport_restores_half_health_and_powers_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 819);
+        let source = Position::new(10.0, 20.0, 30.0, 0.0);
+        let destination = Position::new(122.0, 222.0, 52.0, 3.7);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 1,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.expansion = 1;
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "NearTeleportRevive".to_string(),
+            source,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_player_health_like_cpp(0, 400);
+        add_canonical_test_player_on_map(&canonical, player_guid, source, 571, 0);
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.unit_mut().set_max_health(400);
+                player.unit_mut().set_health(0);
+                player.unit_mut().set_power_index(PowerType::Mana, Some(0));
+                player.unit_mut().set_power_index(PowerType::Rage, Some(1));
+                player
+                    .unit_mut()
+                    .set_power_index(PowerType::Energy, Some(3));
+                player.unit_mut().set_power_index(PowerType::Focus, Some(4));
+                player.unit_mut().set_max_power(PowerType::Mana, 200);
+                player.unit_mut().set_power(PowerType::Mana, 0);
+                player.unit_mut().set_max_power(PowerType::Rage, 100);
+                player.unit_mut().set_power(PowerType::Rage, 50);
+                player.unit_mut().set_max_power(PowerType::Energy, 120);
+                player.unit_mut().set_power(PowerType::Energy, 0);
+                player.unit_mut().set_max_power(PowerType::Focus, 80);
+                player.unit_mut().set_power(PowerType::Focus, 0);
+            })
+            .expect("canonical player exists");
+
+        session
+            .teleport_to_with_options(571, destination, TELE_REVIVE_AT_TELEPORT_LIKE_CPP)
+            .await;
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::CancelCombat, ServerOpcodes::MoveTeleport]
+        );
+        assert!(session.player_is_alive_like_cpp());
+        assert_eq!(session.player_health_like_cpp(), 200);
+        assert!(session.near_teleport_pending_like_cpp());
+        assert_eq!(
+            session
+                .mutate_canonical_player_like_cpp(|player| {
+                    (
+                        player.unit().data().health,
+                        player.get_power(PowerType::Mana),
+                        player.get_power(PowerType::Rage),
+                        player.get_power(PowerType::Energy),
+                        player.get_power(PowerType::Focus),
+                    )
+                })
+                .expect("canonical player exists"),
+            (200, 100, 0, 60, 40),
+            "C++ Player::ResurrectPlayer(0.5f) restores health/mana/energy/focus by percent and resets rage"
+        );
+    }
+
+    #[tokio::test]
+    async fn teleport_to_same_map_without_revive_flag_keeps_dead_player_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 820);
+        let source = Position::new(10.0, 20.0, 30.0, 0.0);
+        let destination = Position::new(123.0, 223.0, 53.0, 3.8);
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 1,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.expansion = 1;
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "NearTeleportNoRevive".to_string(),
+            source,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_player_health_like_cpp(0, 400);
+
+        session.teleport_to(571, destination).await;
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::CancelCombat, ServerOpcodes::MoveTeleport]
+        );
+        assert!(!session.player_is_alive_like_cpp());
+        assert_eq!(session.player_health_like_cpp(), 0);
+        assert!(session.near_teleport_pending_like_cpp());
     }
 
     #[tokio::test]
