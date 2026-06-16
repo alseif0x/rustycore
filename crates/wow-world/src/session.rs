@@ -20072,12 +20072,22 @@ impl WorldSession {
                 }
             }
             ClientOpcodes::SetLootSpecialization => {
-                match wow_packet::packets::loot::SetLootSpecialization::read(&mut pkt) {
-                    Ok(set_loot_specialization) => {
-                        self.handle_set_loot_specialization(set_loot_specialization)
-                            .await;
+                // The inspected TrinityCore opcode table assigns the shared
+                // unresolved 0xBADD placeholder to both
+                // CMSG_CLEAR_RAID_MARKER (uint8 payload) and
+                // CMSG_SET_LOOT_SPECIALIZATION (uint32 payload). Rust keeps one
+                // enum variant and splits by payload length until the real
+                // opcode table is resolved.
+                if pkt.remaining() == 1 {
+                    self.handle_clear_raid_marker(pkt).await;
+                } else {
+                    match wow_packet::packets::loot::SetLootSpecialization::read(&mut pkt) {
+                        Ok(set_loot_specialization) => {
+                            self.handle_set_loot_specialization(set_loot_specialization)
+                                .await;
+                        }
+                        Err(e) => warn!("Failed to read SetLootSpecialization: {e}"),
                     }
-                    Err(e) => warn!("Failed to read SetLootSpecialization: {e}"),
                 }
             }
 

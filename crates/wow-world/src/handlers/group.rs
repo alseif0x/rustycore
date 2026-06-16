@@ -11,7 +11,7 @@ use wow_constants::ClientOpcodes;
 use wow_core::{ObjectGuid, guid::HighGuid};
 use wow_database::{CharStatements, PreparedStatement, StatementDef};
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
-use wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP;
+use wow_network::group_registry::{GROUP_CATEGORY_HOME_LIKE_CPP, RAID_MARKERS_COUNT_LIKE_CPP};
 use wow_network::player_registry::ApplyGroupRemovalLikeCppCommand;
 use wow_network::{
     GROUP_ASSIGN_MAINASSIST_LIKE_CPP, GROUP_ASSIGN_MAINTANK_LIKE_CPP, GroupInfo, GroupRegistry,
@@ -21,8 +21,8 @@ use wow_network::{
 };
 use wow_packet::packets::misc::{RandomRoll, RandomRollClient};
 use wow_packet::packets::party::{
-    DoReadyCheck, GroupDecline, GroupNewLeader, GroupUninvite, InitiateRolePoll, LowLevelRaid1,
-    LowLevelRaid2, MinimapPing, MinimapPingClient, OptOutOfLoot, PartyCommandResult,
+    ClearRaidMarker, DoReadyCheck, GroupDecline, GroupNewLeader, GroupUninvite, InitiateRolePoll,
+    LowLevelRaid1, LowLevelRaid2, MinimapPing, MinimapPingClient, OptOutOfLoot, PartyCommandResult,
     PartyDifficultySettings, PartyInviteServer, PartyLootSettings, PartyMemberFullState,
     PartyPlayerInfo, PartyUpdate, RaidMarker, RaidMarkersChanged, ReadyCheckCompleted,
     ReadyCheckResponse, ReadyCheckResponseClient, ReadyCheckStarted, RequestPartyJoinUpdates,
@@ -2379,12 +2379,68 @@ impl WorldSession {
         }
     }
 
+    /// CMSG_CLEAR_RAID_MARKER.
+    ///
+    /// C++ `WorldSession::HandleClearRaidMarker` resolves the player's current
+    /// HOME group, gates raid groups to leader/assistant, then calls
+    /// `Group::DeleteRaidMarker`. Marker id `8` is the C++ "clear all" sentinel.
+    pub async fn handle_clear_raid_marker(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let clear = match ClearRaidMarker::read(&mut pkt) {
+            Ok(clear) => clear,
+            Err(e) => {
+                warn!("Bad ClearRaidMarker: {e}");
+                return;
+            }
+        };
+        let sender_guid = match self.player_guid() {
+            Some(guid) => guid,
+            None => return,
+        };
+        let group_reg = match self.group_registry() {
+            Some(registry) => std::sync::Arc::clone(registry),
+            None => return,
+        };
+        let registry = match self.player_registry() {
+            Some(registry) => std::sync::Arc::clone(registry),
+            None => return,
+        };
+        let Some(group_guid) =
+            current_group_guid_like_cpp(&group_reg, self.group_guid, sender_guid, None)
+        else {
+            return;
+        };
+
+        let Some((bytes, recipients)) = ({
+            let mut group = match group_reg.get_mut(&group_guid) {
+                Some(group) => group,
+                None => return,
+            };
+            if group.is_raid_group()
+                && !group.is_leader_like_cpp(sender_guid)
+                && !group.is_assistant_like_cpp(sender_guid)
+            {
+                return;
+            }
+            if usize::from(clear.marker_id) > RAID_MARKERS_COUNT_LIKE_CPP {
+                return;
+            }
+            group.delete_raid_marker_like_cpp(clear.marker_id);
+            Some((
+                raid_markers_changed_like_cpp(&group),
+                connected_group_member_txs_like_cpp(&group, &registry),
+            ))
+        }) else {
+            return;
+        };
+
+        send_group_packet_bytes_like_cpp(bytes, &recipients);
+    }
+
     /// CMSG_REQUEST_PARTY_JOIN_UPDATES.
     ///
     /// C++ sends current target icons and raid markers for the requested party
-    /// index. Rust represents raid target icons fully from `GroupInfo.target_icons`
-    /// and emits an empty `SMSG_RAID_MARKERS_CHANGED` shell because raid/world
-    /// marker state is outside this slice.
+    /// index. Rust represents raid target icons and raid marker state from
+    /// `GroupInfo`.
     pub async fn handle_request_party_join_updates(&mut self, mut pkt: wow_packet::WorldPacket) {
         let request = match RequestPartyJoinUpdates::read(&mut pkt) {
             Ok(request) => request,
@@ -3008,6 +3064,40 @@ mod tests {
         } else {
             pkt.flush_bits();
         }
+        pkt.reset_read();
+        pkt
+    }
+
+    fn assert_raid_markers_packet_like_cpp(
+        bytes: &[u8],
+        expected_active_markers: u32,
+        expected_positions: &[Position],
+    ) {
+        let mut pkt = WorldPacket::from_bytes(bytes);
+        assert_eq!(
+            pkt.read_uint16().unwrap(),
+            ServerOpcodes::RaidMarkersChanged as u16
+        );
+        assert_eq!(pkt.read_uint8().unwrap(), GROUP_CATEGORY_HOME_LIKE_CPP);
+        assert_eq!(pkt.read_uint32().unwrap(), expected_active_markers);
+        assert_eq!(
+            pkt.read_bits(4).unwrap(),
+            u32::try_from(expected_positions.len()).unwrap()
+        );
+        pkt.flush_bits();
+        for expected_position in expected_positions {
+            assert_eq!(pkt.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
+            assert_eq!(pkt.read_uint32().unwrap(), 571);
+            assert_eq!(pkt.read_float().unwrap(), expected_position.x);
+            assert_eq!(pkt.read_float().unwrap(), expected_position.y);
+            assert_eq!(pkt.read_float().unwrap(), expected_position.z);
+        }
+        assert!(pkt.is_empty());
+    }
+
+    fn clear_raid_marker_packet(marker_id: u8) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint8(marker_id);
         pkt.reset_read();
         pkt
     }
@@ -3897,13 +3987,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn party_join_updates_sends_target_list_and_empty_raid_markers_like_cpp() {
+    async fn party_join_updates_sends_target_list_and_raid_markers_like_cpp() {
         let (mut session, send_rx) = make_session_with_send();
         let leader = ObjectGuid::create_player(1, 42);
         let marked = ObjectGuid::create_player(1, 77);
+        let marker_position = Position::xyz(12.25, -34.5, 6.75);
         let group_registry = Arc::new(GroupRegistry::default());
         let mut group = GroupInfo::new(leader);
         group.target_icons[6] = marked.to_raw_bytes();
+        group.add_raid_marker_like_cpp(3, 571, marker_position, ObjectGuid::EMPTY);
         let group_guid = group.group_guid;
         group_registry.insert(group_guid, group);
 
@@ -3930,13 +4022,128 @@ mod tests {
                 assert_eq!(target, marked);
             }
         }
-        let markers = send_rx.try_recv().expect("empty raid markers");
-        assert_eq!(
-            u16::from_le_bytes([markers[0], markers[1]]),
-            ServerOpcodes::RaidMarkersChanged as u16
-        );
-        assert_eq!(&markers[2..], &[0, 0, 0, 0, 0, 0]);
+        let markers = send_rx.try_recv().expect("raid markers");
+        assert_raid_markers_packet_like_cpp(&markers, 1 << 3, &[marker_position]);
         assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn clear_raid_marker_removes_one_slot_and_fanouts_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send();
+        let leader = ObjectGuid::create_player(1, 42);
+        let member = ObjectGuid::create_player(1, 43);
+        let remaining_position = Position::xyz(4.0, 5.0, 6.0);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (leader_tx, leader_rx) = bounded::<Vec<u8>>(4);
+        let (member_tx, member_rx) = bounded::<Vec<u8>>(4);
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+        group.add_raid_marker_like_cpp(1, 571, Position::xyz(1.0, 2.0, 3.0), ObjectGuid::EMPTY);
+        group.add_raid_marker_like_cpp(3, 571, remaining_position, ObjectGuid::EMPTY);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+        player_registry.insert(leader, broadcast_info(leader, leader_tx));
+        player_registry.insert(member, broadcast_info(member, member_tx));
+
+        session.set_player_guid(Some(leader));
+        session.group_guid = Some(group_guid);
+        session.set_group_registry(
+            Arc::clone(&group_registry),
+            Arc::new(PendingInvites::default()),
+        );
+        session.set_player_registry(player_registry);
+
+        session
+            .handle_clear_raid_marker(clear_raid_marker_packet(1))
+            .await;
+
+        assert_eq!(
+            group_registry
+                .get(&group_guid)
+                .unwrap()
+                .active_raid_markers_mask_like_cpp(),
+            1 << 3
+        );
+        for rx in [&leader_rx, &member_rx] {
+            let bytes = rx.try_recv().expect("marker changed");
+            assert_raid_markers_packet_like_cpp(&bytes, 1 << 3, &[remaining_position]);
+        }
+    }
+
+    #[tokio::test]
+    async fn clear_raid_marker_id_eight_removes_all_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send();
+        let leader = ObjectGuid::create_player(1, 42);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (leader_tx, leader_rx) = bounded::<Vec<u8>>(4);
+        let mut group = GroupInfo::new(leader);
+        group.add_raid_marker_like_cpp(1, 571, Position::xyz(1.0, 2.0, 3.0), ObjectGuid::EMPTY);
+        group.add_raid_marker_like_cpp(3, 571, Position::xyz(4.0, 5.0, 6.0), ObjectGuid::EMPTY);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+        player_registry.insert(leader, broadcast_info(leader, leader_tx));
+
+        session.set_player_guid(Some(leader));
+        session.group_guid = Some(group_guid);
+        session.set_group_registry(
+            Arc::clone(&group_registry),
+            Arc::new(PendingInvites::default()),
+        );
+        session.set_player_registry(player_registry);
+
+        session
+            .handle_clear_raid_marker(clear_raid_marker_packet(8))
+            .await;
+
+        assert_eq!(
+            group_registry
+                .get(&group_guid)
+                .unwrap()
+                .active_raid_markers_mask_like_cpp(),
+            0
+        );
+        let bytes = leader_rx.try_recv().expect("marker changed");
+        assert_raid_markers_packet_like_cpp(&bytes, 0, &[]);
+    }
+
+    #[tokio::test]
+    async fn clear_raid_marker_raid_requires_leader_or_assistant_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send();
+        let leader = ObjectGuid::create_player(1, 42);
+        let member = ObjectGuid::create_player(1, 43);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (member_tx, member_rx) = bounded::<Vec<u8>>(4);
+        let mut group = GroupInfo::new(leader);
+        group.convert_to_raid_like_cpp();
+        group.add_member(member);
+        group.add_raid_marker_like_cpp(3, 571, Position::xyz(4.0, 5.0, 6.0), ObjectGuid::EMPTY);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+        player_registry.insert(member, broadcast_info(member, member_tx));
+
+        session.set_player_guid(Some(member));
+        session.group_guid = Some(group_guid);
+        session.set_group_registry(
+            Arc::clone(&group_registry),
+            Arc::new(PendingInvites::default()),
+        );
+        session.set_player_registry(player_registry);
+
+        session
+            .handle_clear_raid_marker(clear_raid_marker_packet(3))
+            .await;
+
+        assert_eq!(
+            group_registry
+                .get(&group_guid)
+                .unwrap()
+                .active_raid_markers_mask_like_cpp(),
+            1 << 3
+        );
+        assert!(member_rx.try_recv().is_err());
     }
 
     #[tokio::test]

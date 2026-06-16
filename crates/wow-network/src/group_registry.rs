@@ -654,6 +654,25 @@ impl GroupInfo {
         true
     }
 
+    /// C++ `Group::DeleteRaidMarker`: ids `0..=7` clear one slot, `8` clears all.
+    pub fn delete_raid_marker_like_cpp(&mut self, marker_id: u8) -> bool {
+        if usize::from(marker_id) > RAID_MARKERS_COUNT_LIKE_CPP {
+            return false;
+        }
+
+        let mut changed = false;
+        for (index, marker) in self.raid_markers.iter_mut().enumerate() {
+            if marker.is_some()
+                && (usize::from(marker_id) == index
+                    || usize::from(marker_id) == RAID_MARKERS_COUNT_LIKE_CPP)
+            {
+                *marker = None;
+                changed = true;
+            }
+        }
+        changed
+    }
+
     pub fn set_target_icon_like_cpp(
         &mut self,
         symbol: u8,
@@ -1981,6 +2000,25 @@ mod tests {
         assert!(!group.add_raid_marker_like_cpp(8, 1, Position::ZERO, ObjectGuid::EMPTY));
         assert_eq!(group.active_raid_markers_mask_like_cpp(), 1 << 3);
         assert_eq!(group.raid_marker_list_like_cpp().len(), 1);
+    }
+
+    #[test]
+    fn delete_raid_marker_preserves_cpp_single_all_and_out_of_range_semantics() {
+        let mut group = GroupInfo::new(ObjectGuid::create_player(1, 42));
+        group.add_raid_marker_like_cpp(1, 571, Position::xyz(1.0, 2.0, 3.0), ObjectGuid::EMPTY);
+        group.add_raid_marker_like_cpp(3, 571, Position::xyz(4.0, 5.0, 6.0), ObjectGuid::EMPTY);
+
+        assert!(group.delete_raid_marker_like_cpp(1));
+        assert_eq!(group.active_raid_markers_mask_like_cpp(), 1 << 3);
+        assert!(!group.delete_raid_marker_like_cpp(1));
+        assert_eq!(group.active_raid_markers_mask_like_cpp(), 1 << 3);
+
+        assert!(!group.delete_raid_marker_like_cpp(9));
+        assert_eq!(group.active_raid_markers_mask_like_cpp(), 1 << 3);
+
+        assert!(group.delete_raid_marker_like_cpp(RAID_MARKERS_COUNT_LIKE_CPP as u8));
+        assert_eq!(group.active_raid_markers_mask_like_cpp(), 0);
+        assert!(group.raid_marker_list_like_cpp().is_empty());
     }
 
     #[test]

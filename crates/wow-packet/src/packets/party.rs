@@ -343,6 +343,26 @@ impl ClientPacket for RequestPartyJoinUpdates {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClearRaidMarker {
+    pub marker_id: u8,
+}
+
+impl ClientPacket for ClearRaidMarker {
+    // The inspected TrinityCore 3.4.3 opcode table uses the shared unresolved
+    // `0xBADD` placeholder for both `CMSG_CLEAR_RAID_MARKER` and
+    // `CMSG_SET_LOOT_SPECIALIZATION`. Rust cannot represent duplicate enum
+    // discriminants, so this parser is routed from the existing 0xBADD opcode
+    // slot by payload shape in `WorldSession`.
+    const OPCODE: ClientOpcodes = ClientOpcodes::SetLootSpecialization;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            marker_id: pkt.read_uint8()?,
+        })
+    }
+}
+
 // ── RequestPartyMemberStats (CMSG_REQUEST_PARTY_MEMBER_STATS) ────────────────
 
 /// Client requests one party member's current full-state snapshot.
@@ -1175,11 +1195,11 @@ impl ServerPacket for PartyMemberFullState {
 #[cfg(test)]
 mod tests {
     use super::{
-        ChangeSubGroup, ConvertRaid, DoReadyCheck, DungeonScoreMapSummary, DungeonScoreSummary,
-        GroupNewLeader, InitiateRolePoll, LowLevelRaid1, LowLevelRaid2, MinimapPingClient,
-        OptOutOfLoot, PartyMemberFullState, PartyMemberPhase, PartyMemberPhaseStates,
-        PartyUninvite, RaidMarker, RaidMarkersChanged, ReadyCheckCompleted, ReadyCheckResponse,
-        ReadyCheckResponseClient, ReadyCheckStarted, RequestPartyJoinUpdates,
+        ChangeSubGroup, ClearRaidMarker, ConvertRaid, DoReadyCheck, DungeonScoreMapSummary,
+        DungeonScoreSummary, GroupNewLeader, InitiateRolePoll, LowLevelRaid1, LowLevelRaid2,
+        MinimapPingClient, OptOutOfLoot, PartyMemberFullState, PartyMemberPhase,
+        PartyMemberPhaseStates, PartyUninvite, RaidMarker, RaidMarkersChanged, ReadyCheckCompleted,
+        ReadyCheckResponse, ReadyCheckResponseClient, ReadyCheckStarted, RequestPartyJoinUpdates,
         RequestPartyMemberStats, RoleChangedInform, RolePollInform, SendRaidTargetUpdateAll,
         SendRaidTargetUpdateSingle, SetAssistantLeader, SetEveryoneIsAssistant, SetLootMethod,
         SetPartyAssignment, SetPartyLeader, SetRole, SilencePartyTalker, SwapSubGroups,
@@ -1617,6 +1637,18 @@ mod tests {
         let request = RequestPartyJoinUpdates::read(&mut pkt).unwrap();
 
         assert_eq!(request.party_index, Some(0));
+    }
+
+    #[test]
+    fn clear_raid_marker_reads_marker_id_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint8(8);
+        pkt.reset_read();
+
+        let clear = ClearRaidMarker::read(&mut pkt).unwrap();
+
+        assert_eq!(clear.marker_id, 8);
+        assert!(pkt.is_empty());
     }
 
     #[test]

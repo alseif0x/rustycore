@@ -301,8 +301,10 @@ DBC/DB2 stores read:
 - **Raid markers represented-partial** — `GroupInfo` now owns the 8-slot marker state,
   `SMSG_RAID_MARKERS_CHANGED` serializes active marker entries, join updates replay the
   represented marker state, and `Spell::EffectChangeRaidMarker` can add a marker and fan it
-  out to connected HOME-group members. Remaining gaps: `CMSG_CLEAR_RAID_MARKER`, DB persistence,
-  original/instance/BG/BF group category parity, and full live runtime/manual validation.
+  out to connected HOME-group members. `CMSG_CLEAR_RAID_MARKER` is represented for the same
+  HOME-group state, including marker id `8` clear-all semantics and connected-member fanout.
+  Remaining gaps: unresolved real opcode-table identity for the duplicated `0xBADD` placeholder,
+  DB persistence, original/instance/BG/BF group category parity, and full live runtime/manual validation.
 - **Target icons represented-partial** — `CMSG_UPDATE_RAID_TARGET` and target-icon packets are represented (`#NEXT.R8.ENTITIES.793`), but full live raid target storage/category/runtime validation and complete fanout remain open.
 - **Difficulty switching represented-partial** — `CMSG_SET_DIFFICULTY_ID`, `CMSG_SET_DUNGEON_DIFFICULTY`, and `CMSG_SET_RAID_DIFFICULTY` now route through represented solo/group difficulty state and reset hooks. Remaining gaps: full live `InstanceMap::Reset`, recent/owned instance parity, BG/BF/original-group exclusions, install/restart, and live client/bot validation.
 - **No instance binding** — `m_recentInstances` map absent. Group cannot save/restore raid lockouts.
@@ -420,9 +422,11 @@ DBC/DB2 stores read:
 - [~] **#GROUPS.9** Represent raid markers — the 8-slot `(map, x, y, z, transport)`
   state, `SMSG_RAID_MARKERS_CHANGED` writer/replay, and represented
   `Spell::EffectChangeRaidMarker` add/fanout path are covered by
-  `#NEXT.RUNTIME.L3.031j52`. Still missing: `CMSG_CLEAR_RAID_MARKER`, DB persistence,
-  original/instance/BG/BF group category parity, full `Group::SendRaidMarkersChanged`
-  session targeting, and live-client/manual validation. Complejidad: **M**
+  `#NEXT.RUNTIME.L3.031j52`; represented `CMSG_CLEAR_RAID_MARKER` remove-one/remove-all
+  fanout is covered by `#NEXT.RUNTIME.L3.031j53`. Still missing: real opcode-table resolution
+  for the duplicated `0xBADD` placeholder, DB persistence, original/instance/BG/BF group category
+  parity, full `Group::SendRaidMarkersChanged` session targeting, and live-client/manual validation.
+  Complejidad: **M**
 - [x] **#GROUPS.10** Represent target icons — represented `CMSG_UPDATE_RAID_TARGET` / target-icon packets are covered by `#NEXT.R8.ENTITIES.793`; full live raid target storage/category/fanout remains open. Complejidad: **M**
 - [x] **#GROUPS.11** Represent `CMSG_CONVERT_RAID` — represented conversion is covered by `#NEXT.R8.ENTITIES.745/#746`; full raid cap/layout/category/runtime parity remains open. Complejidad: **H**
 - [ ] **#GROUPS.12** Implement raid sub-groups — `subgroup: u8` per member (0..7), `CMSG_CHANGE_SUB_GROUP`, `CMSG_SWAP_SUB_GROUPS`. Complejidad: **H**

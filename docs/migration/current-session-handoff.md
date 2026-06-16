@@ -1,3 +1,23 @@
+- `#NEXT.RUNTIME.L3.031j53` — WotLK represented `CMSG_CLEAR_RAID_MARKER` over the
+  represented HOME-group raid-marker state (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/GroupHandler.cpp:641-650`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp:1557-1570`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/PartyPackets.cpp:557-560`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/PartyPackets.h:606-613`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:762,908`.
+  Rust now parses the one-byte marker id packet, deletes a single marker for ids `0..=7`, deletes
+  all markers for id `8` exactly like C++ `Group::DeleteRaidMarker`, rejects ids `9+`, enforces the
+  C++ raid leader/assistant gate, and fans out `SMSG_RAID_MARKERS_CHANGED` to connected represented
+  group members after a valid clear. Important opcode-table note: the inspected C++ source assigns
+  the unresolved placeholder `0xBADD` to both `CMSG_CLEAR_RAID_MARKER` and
+  `CMSG_SET_LOOT_SPECIALIZATION`; Rust cannot encode duplicate enum discriminants, so the current
+  dispatcher routes the existing `SetLootSpecialization`/`0xBADD` slot by payload shape (`uint8`
+  clear marker vs `uint32` loot specialization) until the real opcode table is resolved. Coverage:
+  targeted `wow-packet clear_raid_marker` covers parser shape; targeted `wow-network raid_marker`
+  covers delete-one/delete-all/out-of-range state semantics; targeted `wow-world clear_raid_marker`
+  covers fanout, clear-all and unauthorized raid-member no-op. Boundary remains partial: represented
+  HOME group only; no real opcode-table resolution, no DB persistence, no original/instance/BG/BF
+  group category parity, no install/restart, bot, or live-client/manual validation.
 - `#NEXT.RUNTIME.L3.031j52` — WotLK represented `Spell::EffectChangeRaidMarker`
   plus represented raid-marker state/fanout (not manual-test-ready). Source-of-truth:
   `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:1252`,
