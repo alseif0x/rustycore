@@ -1,3 +1,27 @@
+- `#NEXT.RUNTIME.L3.031j75` — WotLK live-session dungeon `CreateMap`
+  now applies the C++ `InstanceMap::CannotEnter` instance-lock compatibility
+  gate when reusing an existing canonical instance map (not manual-test-ready).
+  Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Maps/Map.cpp:1808-1811`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Maps/Map.cpp:2836-2869`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Maps/MapManager.cpp:247-279`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Instances/InstanceLockMgr.cpp:188-202`.
+  C++ finds the instance id for the player/group, finds the existing map, then
+  calls `InstanceMap::CannotEnter`; if `i_instanceLock` exists, that path calls
+  `InstanceLockMgr::CanJoinInstanceLock(playerGuid, entries, i_instanceLock)`
+  and sends `SMSG_TRANSFER_ABORTED` on denial. Rust now preserves the active
+  instance-lock owner context on `ManagedMap`, retrieves the target map lock
+  through the shared `InstanceLockMgr`, calls the represented
+  `can_join_instance_lock_at`, rejects the canonical ensure-map with an empty
+  side-effect decision, and sends `SMSG_TRANSFER_ABORTED` for incompatible
+  permanent player locks. Coverage: targeted `wow-world` test proves a group
+  map owned by one lock rejects a member permanently saved to a different
+  instance and does not sync the player into the incompatible map; targeted
+  `wow-map create_map_decision` tests still pass with the richer lock context.
+  Boundary remains partial: full `Map::PlayerCannotEnter` gates (access
+  requirements, GM bypass, raid-group requirement, farm-limit, max-player,
+  in-combat, portal/teleport call-sites) are still pending, as are install/restart,
+  bot, and live-client/manual validation.
 - `#NEXT.RUNTIME.L3.031j74` — WotLK calendar raid-lockout removed packet
   serialization is now represented (not manual-test-ready). Source-of-truth:
   `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/CalendarPackets.cpp:441-448`,

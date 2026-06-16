@@ -84,6 +84,7 @@ pub struct CreateMapInstanceLockContext {
     pub instance_id: u32,
     pub difficulty_id: Difficulty,
     pub token: u64,
+    pub owner_guid_counter: u64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -189,6 +190,7 @@ pub struct ManagedMap {
     can_unload: bool,
     player_count: u32,
     instance_lock_token: Option<u64>,
+    instance_lock_context: Option<CreateMapInstanceLockContext>,
     update_calls: Vec<u32>,
     delayed_update_calls: Vec<u32>,
     last_dynamic_tree_update_summary_like_cpp: DynamicMapTreeUpdateSummaryLikeCpp,
@@ -240,6 +242,7 @@ impl ManagedMap {
             can_unload: false,
             player_count: 0,
             instance_lock_token: None,
+            instance_lock_context: None,
             update_calls: Vec::new(),
             delayed_update_calls: Vec::new(),
             last_dynamic_tree_update_summary_like_cpp: DynamicMapTreeUpdateSummaryLikeCpp::default(
@@ -308,8 +311,20 @@ impl ManagedMap {
         self.instance_lock_token
     }
 
+    pub const fn instance_lock_context(&self) -> Option<CreateMapInstanceLockContext> {
+        self.instance_lock_context
+    }
+
     pub fn set_instance_lock_token(&mut self, token: Option<u64>) {
         self.instance_lock_token = token;
+        if token.is_none() {
+            self.instance_lock_context = None;
+        }
+    }
+
+    pub fn set_instance_lock_context(&mut self, context: Option<CreateMapInstanceLockContext>) {
+        self.instance_lock_token = context.map(|context| context.token);
+        self.instance_lock_context = context;
     }
 
     pub fn update_calls(&self) -> &[u32] {
@@ -4208,6 +4223,7 @@ mod tests {
                     instance_id: 42,
                     difficulty_id: 2,
                     token: 9,
+                    owner_guid_counter: 77,
                 }),
                 |_, _| None,
             ),
@@ -4302,6 +4318,7 @@ mod tests {
                     instance_id: 42,
                     difficulty_id: 3,
                     token: 200,
+                    owner_guid_counter: 77,
                 }),
                 |_, _| None,
             ),
@@ -4417,6 +4434,7 @@ mod tests {
                     instance_id: 42,
                     difficulty_id: 3,
                     token: 200,
+                    owner_guid_counter: 77,
                 }),
                 |_, _| None,
             ),
@@ -4431,6 +4449,7 @@ mod tests {
                     instance_id: 42,
                     difficulty_id: 3,
                     token: 100,
+                    owner_guid_counter: 77,
                 }),
                 |_, _| None,
             ),

@@ -7123,7 +7123,7 @@ impl WorldSession {
         {
             let map = manager.create_map_entry(key.map_id, key.instance_id, *difficulty_id, *kind);
             if is_dungeon {
-                map.set_instance_lock_token(active_instance_lock.map(|lock| lock.token));
+                map.set_instance_lock_context(active_instance_lock);
             }
         }
 
@@ -7132,7 +7132,39 @@ impl WorldSession {
             | wow_map::CreateMapDecision::Create { key, .. } => Some(*key),
             wow_map::CreateMapDecision::Reject { .. } => None,
         };
+        let existing_instance_lock_context = match &decision {
+            wow_map::CreateMapDecision::Existing { key, .. } if is_dungeon => manager
+                .find_map(key.map_id, key.instance_id)
+                .and_then(|map| map.instance_lock_context()),
+            _ => None,
+        };
         drop(manager);
+
+        if is_dungeon
+            && let wow_map::CreateMapDecision::Existing {
+                key, difficulty_id, ..
+            } = &decision
+            && let Some(lock_context) = existing_instance_lock_context
+        {
+            let deny_reason = self
+                .cannot_enter_existing_instance_lock_like_cpp(
+                    key.map_id,
+                    *difficulty_id,
+                    lock_context,
+                )
+                .unwrap_or(wow_instances::TransferAbortReason::None);
+            if deny_reason != wow_instances::TransferAbortReason::None {
+                self.send_packet(&wow_packet::packets::misc::TransferAborted {
+                    map_id: key.map_id,
+                    arg: 0,
+                    map_difficulty_x_condition_id: 0,
+                    transfer_abort: deny_reason as u32,
+                });
+                return Some(wow_map::CreateMapDecision::Reject {
+                    side_effects: Vec::new(),
+                });
+            }
+        }
 
         let _ = self.apply_create_map_side_effects_like_cpp(map_id, &decision);
 
@@ -7146,7 +7178,7 @@ impl WorldSession {
             if let Ok(mut manager) = manager.lock()
                 && let Some(map) = manager.find_map_mut(key.map_id, key.instance_id)
             {
-                map.set_instance_lock_token(Some(lock.token));
+                map.set_instance_lock_context(Some(lock));
             }
         }
 
@@ -7160,6 +7192,23 @@ impl WorldSession {
         }
 
         Some(decision)
+    }
+
+    fn cannot_enter_existing_instance_lock_like_cpp(
+        &self,
+        map_id: u32,
+        difficulty_id: wow_map::Difficulty,
+        target_lock_context: wow_map::CreateMapInstanceLockContext,
+    ) -> Option<wow_instances::TransferAbortReason> {
+        let player_guid = self.player_guid?;
+        let owner_guid_counter = i64::try_from(target_lock_context.owner_guid_counter).ok()?;
+        let owner_guid = ObjectGuid::create_player(1, owner_guid_counter);
+        let entries = self.create_map_db2_entries_like_cpp(map_id, difficulty_id)?;
+        let now = u64::try_from(unix_now()).unwrap_or(0);
+        let mgr = self.instance_lock_mgr.as_ref()?;
+        let mgr = mgr.read().ok()?;
+        let target_lock = mgr.find_active_instance_lock_at(owner_guid, &entries, now)?;
+        Some(mgr.can_join_instance_lock_at(player_guid, &entries, target_lock, now))
     }
 
     pub(crate) fn apply_create_map_side_effects_like_cpp(
@@ -7357,6 +7406,7 @@ impl WorldSession {
             instance_id: lock.instance_id,
             difficulty_id: lock.difficulty_id,
             token: create_map_instance_lock_token_like_cpp(owner_guid, &entries, lock),
+            owner_guid_counter: owner_guid.counter() as u64,
         })
     }
 
@@ -39409,6 +39459,7 @@ mod tests {
                 instance_id: 9001,
                 difficulty_id: 3,
                 token: expected_token,
+                owner_guid_counter: player_guid.counter() as u64,
             }
         );
         assert_ne!(context.token, 0);
@@ -55682,6 +55733,7 @@ mod tests {
         let manager = canonical.lock().unwrap();
         let map = manager.find_map(631, 1).unwrap();
         assert_eq!(map.instance_lock_token(), Some(lock_context.token));
+        assert_eq!(map.instance_lock_context(), Some(lock_context));
         assert!(
             map.map().get_typed_player(owner).is_some(),
             "player snapshot should be synchronized into the created dungeon map"
@@ -55730,8 +55782,123 @@ mod tests {
 
         let manager = canonical.lock().unwrap();
         assert_eq!(
-            manager.find_map(631, 9001).unwrap().instance_lock_token(),
-            Some(expected_token)
+            manager.find_map(631, 9001).unwrap().instance_lock_context(),
+            Some(wow_map::CreateMapInstanceLockContext {
+                instance_id: 9001,
+                difficulty_id: 3,
+                token: expected_token,
+                owner_guid_counter: owner.counter() as u64,
+            })
+        );
+    }
+
+    #[test]
+    fn canonical_player_existing_instance_map_rejects_incompatible_player_lock_like_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let leader = ObjectGuid::create_player(1, 67);
+        let member = ObjectGuid::create_player(1, 68);
+        let instance_owner = ObjectGuid::create_player(1, 69);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            member,
+            "DungeonLockReject".to_string(),
+            Position::new(3700.0, 1500.0, 120.0, 0.0),
+            631,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.represented_raid_difficulty_id_like_cpp = 3;
+        install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
+
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+        group.set_recent_instance_like_cpp(631, instance_owner, 9001);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+        session.group_guid = Some(group_guid);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+
+        let entries = session.create_map_db2_entries_like_cpp(631, 3).unwrap();
+        let now = u64::try_from(unix_now()).unwrap_or(0);
+        let mut mgr = wow_instances::InstanceLockMgr::default();
+        let target_lock = mgr
+            .create_instance_lock_for_new_instance_at(
+                instance_owner,
+                &entries,
+                9001,
+                wow_instances::ResetSchedule::default(),
+                now,
+            )
+            .unwrap()
+            .clone();
+        mgr.update_instance_lock_for_player_at(
+            member,
+            &entries,
+            wow_instances::InstanceLockUpdateEvent {
+                instance_id: 9002,
+                new_data: String::new(),
+                instance_completed_encounters_mask: 0,
+                completed_encounter_bit: None,
+                entrance_world_safe_loc_id: None,
+            },
+            wow_instances::ResetSchedule::default(),
+            now,
+        )
+        .unwrap();
+        session.set_instance_lock_mgr(Arc::new(std::sync::RwLock::new(mgr)));
+
+        let target_context = wow_map::CreateMapInstanceLockContext {
+            instance_id: 9001,
+            difficulty_id: 3,
+            token: create_map_instance_lock_token_like_cpp(instance_owner, &entries, &target_lock),
+            owner_guid_counter: instance_owner.counter() as u64,
+        };
+        {
+            let mut manager = canonical.lock().unwrap();
+            manager
+                .create_map_entry(
+                    631,
+                    9001,
+                    3,
+                    wow_map::ManagedMapKind::Dungeon {
+                        has_reset_schedule: true,
+                    },
+                )
+                .set_instance_lock_context(Some(target_context));
+        }
+
+        assert_eq!(
+            session.ensure_canonical_world_map_for_current_player_like_cpp(),
+            Some(wow_map::CreateMapDecision::Reject {
+                side_effects: Vec::new()
+            })
+        );
+        assert_eq!(
+            send_rx.try_recv().expect("SMSG_TRANSFER_ABORTED"),
+            wow_packet::packets::misc::TransferAborted {
+                map_id: 631,
+                arg: 0,
+                map_difficulty_x_condition_id: 0,
+                transfer_abort: wow_instances::TransferAbortReason::LockedToDifferentInstance
+                    as u32,
+            }
+            .to_bytes()
+        );
+        assert!(
+            canonical
+                .lock()
+                .unwrap()
+                .find_map(631, 9001)
+                .unwrap()
+                .map()
+                .get_typed_player(member)
+                .is_none(),
+            "rejected player must not be synchronized into the incompatible instance map"
         );
     }
 
