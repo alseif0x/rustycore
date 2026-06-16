@@ -2195,7 +2195,7 @@ impl crate::session::WorldSession {
         // resurrected state. InstanceScript combat-res charges, aura original
         // caster, and SpawnCorpseBones remain represented gaps.
         self.teleport_to(request.map_id, request.position).await;
-        if self.pending_teleport.is_some() {
+        if self.pending_teleport.is_some() || self.near_teleport_pending_like_cpp() {
             self.schedule_represented_resurrection_after_teleport_like_cpp(request);
         } else {
             self.apply_represented_resurrection_health_like_cpp(request.health);
@@ -7190,15 +7190,22 @@ mod tests {
                 .represented_delayed_resurrection_after_teleport_like_cpp()
                 .is_some()
         );
-        let first = send_rx.try_recv().expect("transfer pending packet");
         assert_eq!(
-            u16::from_le_bytes([first[0], first[1]]),
-            ServerOpcodes::TransferPending as u16
+            std::iter::from_fn(|| send_rx.try_recv().ok())
+                .map(|bytes| u16::from_le_bytes([bytes[0], bytes[1]]))
+                .collect::<Vec<_>>(),
+            vec![
+                ServerOpcodes::CancelCombat as u16,
+                ServerOpcodes::MoveTeleport as u16,
+            ]
         );
 
-        session
-            .handle_world_port_response(WorldPacket::new_empty())
-            .await;
+        let action =
+            session.handle_move_teleport_ack_like_cpp(ObjectGuid::create_player(1, 42), 0, 0);
+        assert_eq!(
+            action,
+            crate::session::MoveTeleportAckActionLikeCpp::Accepted
+        );
 
         assert!(session.player_is_alive_like_cpp());
         assert_eq!(session.player_health_like_cpp(), 450);

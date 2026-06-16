@@ -735,6 +735,42 @@ impl MoveTeleportAck {
     }
 }
 
+// ── MoveTeleport (SMSG_MOVE_TELEPORT) ────────────────────────────
+
+/// Sent to the moved player on a same-map teleport.
+///
+/// Mirrors C++ `WorldPackets::Movement::MoveTeleport::Write` for the
+/// no-transport/no-vehicle case currently represented by Rust near teleports.
+#[derive(Debug, Clone)]
+pub struct MoveTeleport {
+    pub mover_guid: ObjectGuid,
+    pub position: Position,
+    pub facing: f32,
+    pub sequence_index: u32,
+    pub preload_world: u8,
+    pub transport_guid: Option<ObjectGuid>,
+}
+
+impl ServerPacket for MoveTeleport {
+    const OPCODE: ServerOpcodes = ServerOpcodes::MoveTeleport;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_guid(&self.mover_guid);
+        pkt.write_uint32(self.sequence_index);
+        pkt.write_float(self.position.x);
+        pkt.write_float(self.position.y);
+        pkt.write_float(self.position.z);
+        pkt.write_float(self.facing);
+        pkt.write_uint8(self.preload_world);
+        pkt.write_bit(self.transport_guid.is_some());
+        pkt.write_bit(false); // Vehicle payload not represented yet.
+        pkt.flush_bits();
+        if let Some(transport_guid) = self.transport_guid {
+            pkt.write_guid(&transport_guid);
+        }
+    }
+}
+
 // ── MoveUpdate (SMSG_MOVE_UPDATE) ────────────────────────────────
 
 /// Broadcast a player's movement to nearby players.
@@ -1413,6 +1449,36 @@ mod tests {
         assert_eq!(teleport.mover_guid, guid);
         assert_eq!(teleport.ack_index, 11);
         assert_eq!(teleport.move_time, 12);
+    }
+
+    #[test]
+    fn move_teleport_writes_cpp_no_transport_field_order() {
+        let guid = ObjectGuid::create_player(1, 42);
+        let packet = MoveTeleport {
+            mover_guid: guid,
+            position: Position::new(1.25, 2.5, 3.75, 4.0),
+            facing: 4.0,
+            sequence_index: 77,
+            preload_world: 0,
+            transport_guid: None,
+        };
+
+        let bytes = packet.to_bytes();
+        let mut pkt = WorldPacket::from_bytes(&bytes);
+        assert_eq!(
+            pkt.read_uint16().unwrap(),
+            ServerOpcodes::MoveTeleport as u16
+        );
+        assert_eq!(pkt.read_int64().unwrap(), guid.low_value());
+        assert_eq!(pkt.read_int64().unwrap(), guid.high_value());
+        assert_eq!(pkt.read_uint32().unwrap(), 77);
+        assert_eq!(pkt.read_float().unwrap(), 1.25);
+        assert_eq!(pkt.read_float().unwrap(), 2.5);
+        assert_eq!(pkt.read_float().unwrap(), 3.75);
+        assert_eq!(pkt.read_float().unwrap(), 4.0);
+        assert_eq!(pkt.read_uint8().unwrap(), 0);
+        assert!(!pkt.read_bit().unwrap());
+        assert!(!pkt.read_bit().unwrap());
     }
 
     #[test]

@@ -3658,6 +3658,8 @@ pub struct WorldSession {
     player_area_id_like_cpp: u32,
     /// `MoveSplineDone` taxi decisions recorded until full Taxi/MotionMaster runtime exists.
     move_spline_done_taxi_events_like_cpp: Vec<MoveSplineDoneTaxiEventLikeCpp>,
+    /// C++ `Unit::m_movementCounter` equivalent for same-map `SMSG_MOVE_TELEPORT`.
+    near_teleport_movement_sequence_like_cpp: u32,
     /// C++ `Player::mSemaphoreTeleport_Near` represented state.
     near_teleport_pending_like_cpp: bool,
     /// C++ `Player::m_teleport_dest` represented state for near teleports.
@@ -4968,6 +4970,7 @@ impl WorldSession {
             player_zone_id_like_cpp: 0,
             player_area_id_like_cpp: 0,
             move_spline_done_taxi_events_like_cpp: Vec::new(),
+            near_teleport_movement_sequence_like_cpp: 0,
             near_teleport_pending_like_cpp: false,
             near_teleport_destination_like_cpp: None,
             near_teleport_destination_zone_area_like_cpp: None,
@@ -22393,6 +22396,12 @@ impl WorldSession {
             return;
         }
 
+        let same_map_near_teleport = u32::from(self.player_map_id_like_cpp()) == new_map;
+        if same_map_near_teleport {
+            self.initiate_same_map_near_teleport_like_cpp(new_map, new_pos, options);
+            return;
+        }
+
         if let Some((transfer_abort, arg, map_difficulty_x_condition_id)) =
             self.player_cannot_enter_target_map_like_cpp(new_map)
         {
@@ -22513,6 +22522,53 @@ impl WorldSession {
         }
 
         options
+    }
+
+    fn initiate_same_map_near_teleport_like_cpp(
+        &mut self,
+        map_id: u32,
+        destination: wow_core::Position,
+        options: TeleportToOptionsLikeCpp,
+    ) {
+        if options & TELE_TO_NOT_LEAVE_COMBAT_LIKE_CPP == 0 {
+            self.combat_stop_like_cpp();
+        }
+
+        let map_id = u16::try_from(map_id).unwrap_or(self.player_map_id_like_cpp());
+        self.pending_teleport = None;
+        self.near_teleport_pending_like_cpp = true;
+        self.near_teleport_destination_like_cpp = Some((map_id, destination));
+        self.near_teleport_destination_zone_area_like_cpp = None;
+        if let Some(current_pos) = self.player_position_like_cpp() {
+            self.set_fall_information_like_cpp(0, current_pos.z);
+        }
+
+        if !self.player_logout_like_cpp {
+            let sequence_index = self.near_teleport_movement_sequence_like_cpp;
+            self.near_teleport_movement_sequence_like_cpp = self
+                .near_teleport_movement_sequence_like_cpp
+                .wrapping_add(1);
+            if let Some(mover_guid) = self.player_guid() {
+                self.send_packet(&wow_packet::packets::movement::MoveTeleport {
+                    mover_guid,
+                    position: destination,
+                    facing: destination.orientation,
+                    sequence_index,
+                    preload_world: 0,
+                    transport_guid: None,
+                });
+            }
+        }
+
+        info!(
+            account = self.account_id,
+            map_id,
+            new_pos = format!(
+                "({:.2}, {:.2}, {:.2})",
+                destination.x, destination.y, destination.z
+            ),
+            "Player same-map near teleport initiated; awaiting MoveTeleportAck"
+        );
     }
 
     fn remove_all_dynamic_objects_for_current_player_like_cpp(
@@ -31993,6 +32049,7 @@ impl WorldSession {
         self.temporary_pet_resummon_requests_like_cpp = self
             .temporary_pet_resummon_requests_like_cpp
             .saturating_add(1);
+        self.process_represented_delayed_resurrection_after_teleport_like_cpp();
         self.delayed_operations_processed_like_cpp =
             self.delayed_operations_processed_like_cpp.saturating_add(1);
 
@@ -32227,7 +32284,6 @@ impl WorldSession {
         self.near_teleport_destination_zone_area_like_cpp = zone_area;
     }
 
-    #[cfg(test)]
     pub(crate) fn near_teleport_pending_like_cpp(&self) -> bool {
         self.near_teleport_pending_like_cpp
     }
@@ -65970,6 +66026,153 @@ mod tests {
         );
         assert_eq!(session.pending_teleport, Some((571, destination)));
         assert_eq!(session.state, SessionState::Transfer);
+    }
+
+    #[tokio::test]
+    async fn teleport_to_same_map_sends_move_teleport_and_sets_near_pending_like_cpp() {
+        use wow_packet::ServerPacket;
+
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 814);
+        let source = Position::new(10.0, 20.0, 30.0, 0.0);
+        let destination = Position::new(119.0, 219.0, 49.0, 3.4);
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 1,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.expansion = 1;
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "NearTeleport".to_string(),
+            source,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+
+        session.teleport_to(571, destination).await;
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(
+            packets
+                .iter()
+                .filter_map(|bytes| wow_packet::WorldPacket::from_bytes(bytes).server_opcode())
+                .collect::<Vec<_>>(),
+            vec![ServerOpcodes::CancelCombat, ServerOpcodes::MoveTeleport],
+            "C++ same-map Player::TeleportTo sends SMSG_MOVE_TELEPORT, not TransferPending"
+        );
+        assert_eq!(
+            packets.last().expect("SMSG_MOVE_TELEPORT"),
+            &wow_packet::packets::movement::MoveTeleport {
+                mover_guid: player_guid,
+                position: destination,
+                facing: destination.orientation,
+                sequence_index: 0,
+                preload_world: 0,
+                transport_guid: None,
+            }
+            .to_bytes()
+        );
+        assert!(session.near_teleport_pending_like_cpp());
+        assert_eq!(session.pending_teleport, None);
+        assert_ne!(session.state, SessionState::Transfer);
+        assert_eq!(session.fall_information_like_cpp(), (0, source.z));
+    }
+
+    #[tokio::test]
+    async fn teleport_to_same_map_not_leave_combat_preserves_combat_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 815);
+        let creature_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 7_815, 1);
+        let destination = Position::new(120.0, 220.0, 50.0, 3.5);
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 1,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.expansion = 1;
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "NearTeleportCombat".to_string(),
+            Position::new(10.0, 20.0, 30.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.combat_target = Some(creature_guid);
+        session.in_combat = true;
+
+        session
+            .teleport_to_with_options(571, destination, TELE_TO_NOT_LEAVE_COMBAT_LIKE_CPP)
+            .await;
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::MoveTeleport],
+            "C++ same-map TeleportTo skips CombatStop when TELE_TO_NOT_LEAVE_COMBAT is set"
+        );
+        assert_eq!(session.combat_target, Some(creature_guid));
+        assert!(session.in_combat);
+        assert!(session.near_teleport_pending_like_cpp());
+    }
+
+    #[tokio::test]
+    async fn teleport_to_same_map_logout_sets_near_pending_without_packet_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 816);
+        let destination = Position::new(121.0, 221.0, 51.0, 3.6);
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 1,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.expansion = 1;
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "NearTeleportLogout".to_string(),
+            Position::new(10.0, 20.0, 30.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_player_logout_like_cpp(true);
+
+        session
+            .teleport_to_with_options(571, destination, TELE_TO_NOT_LEAVE_COMBAT_LIKE_CPP)
+            .await;
+
+        assert!(
+            send_rx.try_recv().is_err(),
+            "C++ same-map TeleportTo does not SendTeleportPacket during PlayerLogout"
+        );
+        assert!(session.near_teleport_pending_like_cpp());
+        assert_eq!(session.pending_teleport, None);
     }
 
     #[tokio::test]

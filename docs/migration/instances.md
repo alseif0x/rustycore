@@ -425,9 +425,24 @@ NOTE: `InstanceSaveMgr` no longer exists as a separate class in this WoLK 3.4.3 
   `PlayerLogout()` suppresses both `TransferPending` and `SuspendToken` without
   clearing transport-server time. Refs: `Player.cpp:1368-1371`,
   `Player.cpp:1424-1469`, `Player.h:790-805`, `WorldSession.h:1034`.
-  Remaining gaps: same-map/near-teleport option semantics, real transport
-  passenger removal, revive-at-teleport, not-leave-combat, delayed teleport
+  Remaining gaps: real transport passenger removal, revive-at-teleport,
+  not-leave-combat coverage outside same-map near teleport, delayed teleport
   semaphores, install/restart, bot, and live-client validation remain pending.
+- `#NEXT.RUNTIME.L3.031j90` starts the C++ same-map/near-teleport branch:
+  `SMSG_MOVE_TELEPORT` serialization now mirrors
+  `WorldPackets::Movement::MoveTeleport::Write` for the represented
+  no-transport/no-vehicle case, same-map `WorldSession::teleport_to` sets the
+  near-teleport pending destination instead of entering the far-transfer state,
+  sends `MoveTeleport` rather than `TransferPending`, suppresses that packet
+  during `PlayerLogout()`, and honors `TELE_TO_NOT_LEAVE_COMBAT` for this
+  branch. The dungeon `PlayerCannotEnter` preflight is now kept in the far
+  branch, matching C++ `Player::TeleportTo`. Refs: `Player.cpp:1310-1346`,
+  `Unit.cpp:12208-12244`, `MovementPackets.h:303-318`,
+  `MovementPackets.cpp:705-724`, `MovementHandler.cpp:263-324`.
+  Remaining gaps: `SMSG_MOVE_UPDATE_TELEPORT` fanout to nearby players,
+  transport/vehicle payloads, pet distance check and temporary unsummon for
+  same-map teleports, `TELE_REVIVE_AT_TELEPORT`, delayed teleport semaphores,
+  install/restart, bot, and live-client validation remain pending.
 
 **Tests existing:**
 - `cargo test -p wow-instances -- --nocapture` currently covers 19 focused tests, including C++-contrasted lock key/binding, daily/weekly reset anchors, temporary lock creation, active lock lookup, temp promotion, expired-lock replacement, DB row reconstruction, shared weak-ref cleanup, prepared-statement parameter order, flex-mask join rejection, different-instance rejection, and reset in-use guard.

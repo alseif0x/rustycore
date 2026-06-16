@@ -12352,15 +12352,14 @@ mod tests {
             .await;
 
         assert!(session.player_is_alive_like_cpp());
-        let first = send_rx.try_recv().expect("transfer pending packet");
         assert_eq!(
-            u16::from_le_bytes([first[0], first[1]]),
-            wow_constants::ServerOpcodes::TransferPending as u16
-        );
-        let second = send_rx.try_recv().expect("suspend token packet");
-        assert_eq!(
-            u16::from_le_bytes([second[0], second[1]]),
-            wow_constants::ServerOpcodes::SuspendToken as u16
+            std::iter::from_fn(|| send_rx.try_recv().ok())
+                .map(|bytes| u16::from_le_bytes([bytes[0], bytes[1]]))
+                .collect::<Vec<_>>(),
+            vec![
+                wow_constants::ServerOpcodes::CancelCombat as u16,
+                wow_constants::ServerOpcodes::MoveTeleport as u16,
+            ]
         );
     }
 
