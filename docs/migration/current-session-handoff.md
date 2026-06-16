@@ -1,3 +1,17 @@
+- `#NEXT.RUNTIME.L3.031j60` — WotLK represented `MapManager::CreateMap` side-effect
+  application seam (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Maps/MapManager.cpp:177-221` and the Rust
+  decision engine in `crates/wow-map/src/manager.rs`. `WorldSession` now has
+  `apply_create_map_side_effects_like_cpp`, calls it from the canonical map ensure path, and applies
+  represented `SetPlayerRecentInstance` / `SetGroupRecentInstance` effects emitted by
+  `CreateMapDecision`. The helper returns an explicit summary for side effects that are still
+  intentionally not wired (`CreateInstanceLockForNewInstance`, `SetInstanceLockInstanceId`, and
+  `TeleportToBattlegroundEntryPoint`) so later dungeon/BG work cannot silently pretend those C++
+  effects are complete. Coverage: targeted `wow-world create_map_side_effects` tests cover player
+  recent-instance mutation, group recent-instance mutation, missing-group skip, and pending
+  lock/BG counters. Boundary remains partial: the live dungeon `CreateMap` path still needs
+  `MapDb2Entries` resolution, active/temporary `InstanceLockMgr` integration, lock persistence,
+  battleground teleport handling, install/restart, bot, and live-client validation.
 - `#NEXT.RUNTIME.L3.031j59` — WotLK represented `MapManager::CreateMap` player/group
   context bridge (not manual-test-ready). Source-of-truth:
   `/home/server/woltk-trinity-legacy/src/server/game/Maps/MapManager.cpp:139-225`,

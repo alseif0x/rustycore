@@ -348,6 +348,16 @@ struct PacketCounterLikeCpp {
     amount_counter: u32,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) struct CreateMapSideEffectApplySummaryLikeCpp {
+    pub player_recent_instance_sets: u32,
+    pub group_recent_instance_sets: u32,
+    pub skipped_group_recent_instance_sets: u32,
+    pub pending_instance_lock_creates: u32,
+    pub pending_instance_lock_instance_id_updates: u32,
+    pub pending_battleground_entry_teleports: u32,
+}
+
 const PACKET_SPOOF_BAN_REASON_LIKE_CPP: &str = "DOS (Packet Flooding/Spoofing";
 const PACKET_SPOOF_BAN_AUTHOR_LIKE_CPP: &str = "Server: AutoDOS";
 
@@ -7083,18 +7093,79 @@ impl WorldSession {
             manager.create_map_entry(key.map_id, key.instance_id, *difficulty_id, *kind);
         }
 
-        if let Some(player) = player_entity {
-            let key = match &decision {
-                wow_map::CreateMapDecision::Existing { key, .. }
-                | wow_map::CreateMapDecision::Create { key, .. } => Some(*key),
-                wow_map::CreateMapDecision::Reject { .. } => None,
-            };
-            if let Some(key) = key {
+        let key = match &decision {
+            wow_map::CreateMapDecision::Existing { key, .. }
+            | wow_map::CreateMapDecision::Create { key, .. } => Some(*key),
+            wow_map::CreateMapDecision::Reject { .. } => None,
+        };
+        drop(manager);
+
+        let _ = self.apply_create_map_side_effects_like_cpp(map_id, &decision);
+
+        if let Some(player) = player_entity
+            && let Some(key) = key
+        {
+            let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
+            if let Ok(mut manager) = manager.lock() {
                 self.sync_canonical_player_entity_for_map_like_cpp(&mut manager, key, player);
             }
         }
 
         Some(decision)
+    }
+
+    pub(crate) fn apply_create_map_side_effects_like_cpp(
+        &mut self,
+        map_id: u32,
+        decision: &wow_map::CreateMapDecision,
+    ) -> CreateMapSideEffectApplySummaryLikeCpp {
+        let side_effects = match decision {
+            wow_map::CreateMapDecision::Existing { side_effects, .. }
+            | wow_map::CreateMapDecision::Create { side_effects, .. }
+            | wow_map::CreateMapDecision::Reject { side_effects } => side_effects,
+        };
+
+        let mut summary = CreateMapSideEffectApplySummaryLikeCpp::default();
+        for side_effect in side_effects {
+            match *side_effect {
+                wow_map::CreateMapSideEffect::SetPlayerRecentInstance { instance_id } => {
+                    self.set_represented_player_recent_instance_like_cpp(map_id, instance_id);
+                    summary.player_recent_instance_sets += 1;
+                }
+                wow_map::CreateMapSideEffect::SetGroupRecentInstance {
+                    owner_guid_counter,
+                    instance_id,
+                } => {
+                    let owner_guid = i64::try_from(owner_guid_counter)
+                        .ok()
+                        .map(|counter| ObjectGuid::create_player(1, counter));
+                    let updated = self
+                        .group_guid
+                        .and_then(|group_guid| self.group_registry.as_ref()?.get_mut(&group_guid))
+                        .zip(owner_guid)
+                        .map(|(mut group, owner_guid)| {
+                            group.set_recent_instance_like_cpp(map_id, owner_guid, instance_id);
+                        })
+                        .is_some();
+                    if updated {
+                        summary.group_recent_instance_sets += 1;
+                    } else {
+                        summary.skipped_group_recent_instance_sets += 1;
+                    }
+                }
+                wow_map::CreateMapSideEffect::CreateInstanceLockForNewInstance { .. } => {
+                    summary.pending_instance_lock_creates += 1;
+                }
+                wow_map::CreateMapSideEffect::SetInstanceLockInstanceId { .. } => {
+                    summary.pending_instance_lock_instance_id_updates += 1;
+                }
+                wow_map::CreateMapSideEffect::TeleportToBattlegroundEntryPoint => {
+                    summary.pending_battleground_entry_teleports += 1;
+                }
+            }
+        }
+
+        summary
     }
 
     pub(crate) fn create_map_player_context_like_cpp(
@@ -38874,6 +38945,104 @@ mod tests {
         let context = session.create_map_player_context_like_cpp(249, map_entry, player_guid);
 
         assert_eq!(context.player_difficulty_id, 4);
+    }
+
+    #[test]
+    fn create_map_side_effects_set_player_recent_instance_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let decision = wow_map::CreateMapDecision::Create {
+            key: wow_map::MapKey::new(631, 9001),
+            difficulty_id: 1,
+            kind: wow_map::ManagedMapKind::Dungeon {
+                has_reset_schedule: false,
+            },
+            side_effects: vec![wow_map::CreateMapSideEffect::SetPlayerRecentInstance {
+                instance_id: 9001,
+            }],
+        };
+
+        let summary = session.apply_create_map_side_effects_like_cpp(631, &decision);
+
+        assert_eq!(
+            summary,
+            CreateMapSideEffectApplySummaryLikeCpp {
+                player_recent_instance_sets: 1,
+                ..Default::default()
+            }
+        );
+        assert_eq!(
+            session.represented_player_recent_instance_id_like_cpp(631),
+            9001
+        );
+    }
+
+    #[test]
+    fn create_map_side_effects_set_group_recent_instance_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let leader = ObjectGuid::create_player(1, 42);
+        let owner = ObjectGuid::create_player(1, 77);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let group = GroupInfo::new(leader);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+        session.group_guid = Some(group_guid);
+        session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
+        let decision = wow_map::CreateMapDecision::Create {
+            key: wow_map::MapKey::new(631, 9001),
+            difficulty_id: 1,
+            kind: wow_map::ManagedMapKind::Dungeon {
+                has_reset_schedule: false,
+            },
+            side_effects: vec![wow_map::CreateMapSideEffect::SetGroupRecentInstance {
+                owner_guid_counter: owner.counter() as u64,
+                instance_id: 9001,
+            }],
+        };
+
+        let summary = session.apply_create_map_side_effects_like_cpp(631, &decision);
+        let group = group_registry.get(&group_guid).unwrap();
+
+        assert_eq!(
+            summary,
+            CreateMapSideEffectApplySummaryLikeCpp {
+                group_recent_instance_sets: 1,
+                ..Default::default()
+            }
+        );
+        assert_eq!(group.recent_instance_owner_like_cpp(631), owner);
+        assert_eq!(group.recent_instance_id_like_cpp(631), 9001);
+    }
+
+    #[test]
+    fn create_map_side_effects_report_pending_unwired_effects_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let decision = wow_map::CreateMapDecision::Reject {
+            side_effects: vec![
+                wow_map::CreateMapSideEffect::CreateInstanceLockForNewInstance {
+                    owner_guid_counter: 42,
+                    instance_id: 9001,
+                },
+                wow_map::CreateMapSideEffect::SetInstanceLockInstanceId { instance_id: 9002 },
+                wow_map::CreateMapSideEffect::TeleportToBattlegroundEntryPoint,
+                wow_map::CreateMapSideEffect::SetGroupRecentInstance {
+                    owner_guid_counter: 77,
+                    instance_id: 9003,
+                },
+            ],
+        };
+
+        let summary = session.apply_create_map_side_effects_like_cpp(631, &decision);
+
+        assert_eq!(
+            summary,
+            CreateMapSideEffectApplySummaryLikeCpp {
+                skipped_group_recent_instance_sets: 1,
+                pending_instance_lock_creates: 1,
+                pending_instance_lock_instance_id_updates: 1,
+                pending_battleground_entry_teleports: 1,
+                ..Default::default()
+            }
+        );
     }
 
     #[test]
