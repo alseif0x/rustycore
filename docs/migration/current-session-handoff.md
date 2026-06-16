@@ -1,3 +1,18 @@
+- `#NEXT.RUNTIME.L3.031j54` — WotLK represented `Group::UpdateLooterGuid` round-robin
+  state helper (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp:1116-1176`
+  and `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp:1636-1644`.
+  Rust now exposes `GroupInfo::looter_guid_like_cpp()` with the C++ `FREE_FOR_ALL -> Empty`
+  getter behavior and `GroupInfo::update_looter_guid_like_cpp(eligible_members, ifneed)`,
+  where the caller-provided eligible set represents `ObjectAccessor::FindPlayer` plus
+  `Player::IsAtGroupRewardDistance(pLootedObject)`. The helper preserves the C++ no-op for
+  free-for-all, the `ifneed` current-looter-still-eligible early return, next-member search,
+  wraparound search, same-looter no-update case, and clear-to-empty/send-update case when no
+  eligible member exists. Coverage: targeted `wow-network looter_guid` tests cover all of
+  those branches. Boundary remains partial: no live loot-drop caller, no `WorldObject`
+  reward-distance calculation inside the helper, no `ObjectAccessor::FindPlayer` integration,
+  no `Group::SendUpdate` fanout from an actual loot event, no persistence write, and no
+  install/restart, bot, or live-client/manual validation.
 - `#NEXT.RUNTIME.L3.031j53` — WotLK represented `CMSG_CLEAR_RAID_MARKER` over the
   represented HOME-group raid-marker state (not manual-test-ready). Source-of-truth:
   `/home/server/woltk-trinity-legacy/src/server/game/Handlers/GroupHandler.cpp:641-650`,

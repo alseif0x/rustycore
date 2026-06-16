@@ -32,6 +32,7 @@ pub const GROUP_TYPE_NORMAL_LIKE_CPP: u8 = 1;
 pub const GROUP_CATEGORY_HOME_LIKE_CPP: u8 = 0;
 pub const GROUP_CATEGORY_INSTANCE_LIKE_CPP: u8 = 1;
 pub const MAX_GROUP_CATEGORY_LIKE_CPP: u8 = 2;
+pub const LOOT_METHOD_FREE_FOR_ALL_LIKE_CPP: u8 = 0;
 pub const LOOT_METHOD_PERSONAL_LIKE_CPP: u8 = 5;
 pub const ITEM_QUALITY_UNCOMMON_LIKE_CPP: u8 = 2;
 pub const DIFFICULTY_NORMAL_LIKE_CPP: u32 = 1;
@@ -671,6 +672,66 @@ impl GroupInfo {
             }
         }
         changed
+    }
+
+    pub fn looter_guid_like_cpp(&self) -> ObjectGuid {
+        if self.loot_method == LOOT_METHOD_FREE_FOR_ALL_LIKE_CPP {
+            ObjectGuid::EMPTY
+        } else {
+            self.looter_guid
+        }
+    }
+
+    /// C++ `Group::UpdateLooterGuid`.
+    ///
+    /// The caller supplies the represented equivalent of
+    /// `ObjectAccessor::FindPlayer(slot.guid)` plus
+    /// `Player::IsAtGroupRewardDistance(pLootedObject)`: only members present in
+    /// `eligible_reward_distance_members` are treated as found and close enough.
+    /// The bool return means C++ would call `SendUpdate()`.
+    pub fn update_looter_guid_like_cpp(
+        &mut self,
+        eligible_reward_distance_members: impl IntoIterator<Item = ObjectGuid>,
+        ifneed: bool,
+    ) -> bool {
+        if self.loot_method == LOOT_METHOD_FREE_FOR_ALL_LIKE_CPP {
+            return false;
+        }
+
+        let eligible: Vec<ObjectGuid> = eligible_reward_distance_members.into_iter().collect();
+        let old_looter_guid = self.looter_guid_like_cpp();
+        let current_index = self
+            .member_slots
+            .iter()
+            .position(|slot| slot.guid == old_looter_guid);
+        let start_index = match current_index {
+            Some(index) => {
+                if ifneed && eligible.contains(&old_looter_guid) {
+                    return false;
+                }
+                index.saturating_add(1)
+            }
+            None => 0,
+        };
+
+        let new_looter = self.member_slots[start_index..]
+            .iter()
+            .chain(self.member_slots[..start_index].iter())
+            .find_map(|slot| eligible.contains(&slot.guid).then_some(slot.guid));
+
+        if new_looter == Some(old_looter_guid) {
+            return false;
+        }
+
+        if let Some(new_looter) = new_looter {
+            self.looter_guid = new_looter;
+            self.sequence_num += 1;
+            true
+        } else {
+            self.looter_guid = ObjectGuid::EMPTY;
+            self.sequence_num += 1;
+            true
+        }
     }
 
     pub fn set_target_icon_like_cpp(
@@ -2019,6 +2080,85 @@ mod tests {
         assert!(group.delete_raid_marker_like_cpp(RAID_MARKERS_COUNT_LIKE_CPP as u8));
         assert_eq!(group.active_raid_markers_mask_like_cpp(), 0);
         assert!(group.raid_marker_list_like_cpp().is_empty());
+    }
+
+    #[test]
+    fn update_looter_guid_preserves_cpp_free_for_all_noop() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let member = ObjectGuid::create_player(1, 43);
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+        group.loot_method = LOOT_METHOD_FREE_FOR_ALL_LIKE_CPP;
+        group.looter_guid = leader;
+        let sequence_before = group.sequence_num;
+
+        assert!(!group.update_looter_guid_like_cpp([member], false));
+
+        assert_eq!(group.looter_guid, leader);
+        assert_eq!(group.looter_guid_like_cpp(), ObjectGuid::EMPTY);
+        assert_eq!(group.sequence_num, sequence_before);
+    }
+
+    #[test]
+    fn update_looter_guid_ifneed_keeps_current_eligible_looter_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let member = ObjectGuid::create_player(1, 43);
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+        group.looter_guid = leader;
+        let sequence_before = group.sequence_num;
+
+        assert!(!group.update_looter_guid_like_cpp([leader, member], true));
+
+        assert_eq!(group.looter_guid, leader);
+        assert_eq!(group.sequence_num, sequence_before);
+    }
+
+    #[test]
+    fn update_looter_guid_rotates_to_next_eligible_member_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let first = ObjectGuid::create_player(1, 43);
+        let second = ObjectGuid::create_player(1, 44);
+        let mut group = GroupInfo::new(leader);
+        group.add_member(first);
+        group.add_member(second);
+        group.looter_guid = leader;
+        let sequence_before = group.sequence_num;
+
+        assert!(group.update_looter_guid_like_cpp([second], false));
+
+        assert_eq!(group.looter_guid, second);
+        assert_eq!(group.sequence_num, sequence_before + 1);
+    }
+
+    #[test]
+    fn update_looter_guid_wraps_without_updating_when_only_current_is_eligible_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let member = ObjectGuid::create_player(1, 43);
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+        group.looter_guid = member;
+        let sequence_before = group.sequence_num;
+
+        assert!(!group.update_looter_guid_like_cpp([member], false));
+
+        assert_eq!(group.looter_guid, member);
+        assert_eq!(group.sequence_num, sequence_before);
+    }
+
+    #[test]
+    fn update_looter_guid_clears_when_no_member_is_eligible_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let member = ObjectGuid::create_player(1, 43);
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+        group.looter_guid = member;
+        let sequence_before = group.sequence_num;
+
+        assert!(group.update_looter_guid_like_cpp([], false));
+
+        assert_eq!(group.looter_guid, ObjectGuid::EMPTY);
+        assert_eq!(group.sequence_num, sequence_before + 1);
     }
 
     #[test]

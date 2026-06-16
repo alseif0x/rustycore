@@ -296,7 +296,11 @@ DBC/DB2 stores read:
 - **Leader change represented-partial** — `CMSG_SET_PARTY_LEADER` is parsed/handled (`#NEXT.R8.ENTITIES.905`), but live Player flags/name/faction, script callbacks, full PartyIndex parity, and exact DB transaction semantics remain open.
 - **Kick/uninvite represented-partial** — `CMSG_PARTY_UNINVITE` covers bounded member-kick and pending-invite branches (`#NEXT.R8.ENTITIES.936/#937`), but LFG vote-kick, BG/BF/original-group routing, exact destroy/update side effects, scripts, and rollback parity remain open.
 - **Loot method follows this C++ branch** — `CMSG_SET_LOOT_METHOD` is parsed/registered/dispatches (`#NEXT.R8.ENTITIES.231`), but runtime mutation is intentionally a represented no-op because this legacy C++ branch comments out the mutation block.
-- **No master looter / round-robin advance** — `UpdateLooterGuid` not implemented, so `looter_guid` is always EMPTY and group looting cannot work.
+- **Looter rotation represented-partial** — `GroupInfo::UpdateLooterGuid` now has a represented
+  state helper for C++ round-robin selection over a caller-provided eligible set. Remaining gaps:
+  live loot-drop caller, `WorldObject` reward-distance calculation, `ObjectAccessor::FindPlayer`
+  integration, real `Group::SendUpdate` fanout from loot events, persistence write, and live
+  client/bot validation.
 - **Ready check represented-partial** — `CMSG_DO_READY_CHECK` and `CMSG_READY_CHECK_RESPONSE` parse/dispatch through represented current-group state; `SMSG_READY_CHECK_STARTED/RESPONSE/COMPLETED` writers and connected-member fanout exist, including offline/no-session false response approximation and 35s timer state. Missing: full BG/BF/original-group `PartyIndex` category resolution and real `Group::UpdateReadyCheck` timeout tick loop.
 - **Raid markers represented-partial** — `GroupInfo` now owns the 8-slot marker state,
   `SMSG_RAID_MARKERS_CHANGED` serializes active marker entries, join updates replay the
@@ -417,7 +421,10 @@ DBC/DB2 stores read:
 - [x] **#GROUPS.4** Represent `CMSG_SET_ROLE` — per-member role bitmask (Tank/Healer/DPS) and `SMSG_ROLE_CHANGED_INFORM` fanout are covered in `#NEXT.R8.ENTITIES.789`; persistence/full category parity remain open. Complejidad: **M**
 - [x] **#GROUPS.5** Represent `CMSG_SET_ASSISTANT_LEADER` + `CMSG_SET_PARTY_ASSIGNMENT` — represented assistant/main-tank/main-assist flags are covered by `#NEXT.R8.ENTITIES.785/#787`; persistence/category/runtime gaps remain open. Complejidad: **M**
 - [x] **#GROUPS.6** Represent `CMSG_SET_LOOT_METHOD` as the legacy C++ branch requires — parser/dispatch plus represented no-op are covered by `#NEXT.R8.ENTITIES.231`; mutable loot settings require a different C++ branch or intentional behavior change. Complejidad: **M**
-- [ ] **#GROUPS.7** Implement looter rotation (`UpdateLooterGuid`) — round-robin advance on each loot drop. Complejidad: **M**
+- [~] **#GROUPS.7** Implement looter rotation (`UpdateLooterGuid`) — represented state helper
+  covered by `#NEXT.RUNTIME.L3.031j54`; still missing live loot-drop caller, reward-distance /
+  `ObjectAccessor` integration, SendUpdate fanout from real loot events, persistence, and live
+  validation. Complejidad: **M**
 - [ ] **#GROUPS.8** Implement `CMSG_DO_READY_CHECK` + `CMSG_READY_CHECK_RESPONSE` + 35s timer in a per-tick `Group::update(diff)`; emit `SMSG_READY_CHECK_STARTED/RESPONSE/COMPLETED`. Complejidad: **H**
 - [~] **#GROUPS.9** Represent raid markers — the 8-slot `(map, x, y, z, transport)`
   state, `SMSG_RAID_MARKERS_CHANGED` writer/replay, and represented
