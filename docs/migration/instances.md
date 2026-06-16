@@ -352,6 +352,15 @@ NOTE: `InstanceSaveMgr` no longer exists as a separate class in this WoLK 3.4.3 
   note in that branch. Refs: `Player.cpp:1395-1403`. Remaining gap: this is
   still a represented request only; live `BattlegroundMgr`, queue/member
   removal, score/world-state cleanup, and full BG runtime remain pending.
+- `#NEXT.RUNTIME.L3.031j83` wires the accepted far-teleport
+  `UnsummonPetTemporaryIfAny()` branch for represented pets on map change:
+  when the current player has a represented pet GUID, Rust records one
+  temporary-pet-unsummon request after the BG leave check and before transfer
+  packets; players without represented pets do not request it. Refs:
+  `Player.cpp:1414-1416`, `Player.cpp:26256-26266`. Remaining gap: this is the
+  existing represented request seam only; live `Pet::RemovePet`,
+  `m_temporaryUnsummonedPetNumber`, pet spell persistence, and resummon loading
+  remain under full pet runtime work.
 
 **Tests existing:**
 - `cargo test -p wow-instances -- --nocapture` currently covers 19 focused tests, including C++-contrasted lock key/binding, daily/weekly reset anchors, temporary lock creation, active lock lookup, temp promotion, expired-lock replacement, DB row reconstruction, shared weak-ref cleanup, prepared-statement parameter order, flex-mask join rejection, different-instance rejection, and reset in-use guard.

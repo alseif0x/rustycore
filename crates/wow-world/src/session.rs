@@ -22352,6 +22352,7 @@ impl WorldSession {
             self.combat_stop_like_cpp();
             self.reset_contested_pvp_like_cpp();
             self.maybe_leave_represented_battleground_on_far_teleport_like_cpp(new_map);
+            self.unsummon_represented_pet_temporary_if_any_like_cpp();
         }
 
         info!(
@@ -24371,6 +24372,12 @@ impl WorldSession {
             .is_some_and(|bg_map_id| bg_map_id != new_map)
         {
             self.request_represented_battleground_leave_like_cpp();
+        }
+    }
+
+    fn unsummon_represented_pet_temporary_if_any_like_cpp(&mut self) {
+        if self.represented_pet_guid_like_cpp.is_some() {
+            self.request_temporary_pet_unsummon_like_cpp();
         }
     }
 
@@ -64655,6 +64662,114 @@ mod tests {
             session.represented_battleground_leave_requests_like_cpp(),
             1
         );
+    }
+
+    #[tokio::test]
+    async fn teleport_to_far_map_requests_temporary_pet_unsummon_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 799);
+        let pet_guid = ObjectGuid::create_world_object(HighGuid::Pet, 0, 1, 571, 0, 500, 799);
+        let destination = Position::new(106.0, 206.0, 36.0, 2.1);
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 1,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+            wow_data::MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.expansion = 1;
+        session.set_represented_pet_mode_state_like_cpp(
+            Some(pet_guid),
+            wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP,
+            wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP,
+        );
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TeleportPetUnsummon".to_string(),
+            Position::new(10.0, 20.0, 30.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+
+        session.teleport_to(0, destination).await;
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![
+                ServerOpcodes::CancelCombat,
+                ServerOpcodes::TransferPending,
+                ServerOpcodes::SuspendToken
+            ]
+        );
+        assert_eq!(session.pending_teleport, Some((0, destination)));
+        assert_eq!(session.temporary_pet_unsummon_requests_like_cpp(), 1);
+    }
+
+    #[tokio::test]
+    async fn teleport_to_far_map_without_pet_does_not_request_pet_unsummon_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 800);
+        let destination = Position::new(107.0, 207.0, 37.0, 2.2);
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 1,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+            wow_data::MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.expansion = 1;
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TeleportNoPetUnsummon".to_string(),
+            Position::new(10.0, 20.0, 30.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+
+        session.teleport_to(0, destination).await;
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![
+                ServerOpcodes::CancelCombat,
+                ServerOpcodes::TransferPending,
+                ServerOpcodes::SuspendToken
+            ]
+        );
+        assert_eq!(session.pending_teleport, Some((0, destination)));
+        assert_eq!(session.temporary_pet_unsummon_requests_like_cpp(), 0);
     }
 
     #[tokio::test]
