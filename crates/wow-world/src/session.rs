@@ -7389,6 +7389,67 @@ impl WorldSession {
         }
     }
 
+    #[cfg(test)]
+    fn load_completed_achievement_rows_like_cpp(&mut self, rows: impl IntoIterator<Item = u32>) {
+        self.represented_completed_achievements_like_cpp.clear();
+        self.represented_completed_achievements_like_cpp.extend(
+            rows.into_iter()
+                .filter(|achievement_id| *achievement_id != 0),
+        );
+    }
+
+    pub async fn load_completed_achievements_like_cpp(&mut self) {
+        self.represented_completed_achievements_like_cpp.clear();
+
+        let Some(player_guid) = self.player_guid() else {
+            warn!(
+                account = self.account_id,
+                "LoadCompletedAchievements skipped: player guid unavailable"
+            );
+            return;
+        };
+        let Some(char_db) = self.char_db().map(Arc::clone) else {
+            warn!(
+                account = self.account_id,
+                guid = player_guid.counter(),
+                "LoadCompletedAchievements skipped: character database unavailable"
+            );
+            return;
+        };
+
+        let mut stmt = char_db.prepare(CharStatements::SEL_CHARACTER_ACHIEVEMENTS);
+        stmt.set_u64(0, player_guid.counter() as u64);
+
+        let result = match char_db.query(&stmt).await {
+            Ok(result) => result,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    guid = player_guid.counter(),
+                    "LoadCompletedAchievements query failed: {error}"
+                );
+                return;
+            }
+        };
+
+        if result.is_empty() {
+            return;
+        }
+
+        let mut result = result;
+        loop {
+            let achievement_id = result.try_read::<u32>(0).unwrap_or(0);
+            if achievement_id != 0 {
+                self.represented_completed_achievements_like_cpp
+                    .insert(achievement_id);
+            }
+
+            if !result.next_row() {
+                break;
+            }
+        }
+    }
+
     pub async fn load_instance_time_restrictions_like_cpp(&mut self) {
         self.represented_instance_reset_times_like_cpp.clear();
 
@@ -56612,14 +56673,44 @@ mod tests {
             .to_bytes()
         );
 
-        session
-            .represented_completed_achievements_like_cpp
-            .insert(9001);
+        session.load_completed_achievement_rows_like_cpp([9001, 9001, 0]);
         assert!(matches!(
             session.ensure_canonical_world_map_for_current_player_like_cpp(),
             Some(wow_map::CreateMapDecision::Create { .. })
         ));
         assert!(send_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn load_completed_achievement_rows_like_cpp_clears_stale_and_deduplicates() {
+        let (mut session, _, _) = make_session();
+        session
+            .represented_completed_achievements_like_cpp
+            .insert(7777);
+
+        session.load_completed_achievement_rows_like_cpp([9001, 9001, 0, 9002]);
+
+        assert_eq!(session.represented_completed_achievements_like_cpp.len(), 2);
+        assert!(
+            session
+                .represented_completed_achievements_like_cpp
+                .contains(&9001)
+        );
+        assert!(
+            session
+                .represented_completed_achievements_like_cpp
+                .contains(&9002)
+        );
+        assert!(
+            !session
+                .represented_completed_achievements_like_cpp
+                .contains(&7777)
+        );
+        assert!(
+            !session
+                .represented_completed_achievements_like_cpp
+                .contains(&0)
+        );
     }
 
     #[test]

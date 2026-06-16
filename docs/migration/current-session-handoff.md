@@ -1,3 +1,21 @@
+- `#NEXT.RUNTIME.L3.031j38` — WotLK access-requirement achievement
+  state for the current player is now loaded from the character DB during
+  login (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CharacterHandler.cpp:204-206`,
+  `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/CharacterDatabase.cpp:143`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:17305`.
+  C++ queues `CHAR_SEL_CHARACTER_ACHIEVEMENTS` with the character low guid and
+  loads it into the player's achievement manager before other login-time player
+  state can update criteria. Rust now mirrors the access-gate-relevant part by
+  clearing and populating `represented_completed_achievements_like_cpp` from
+  `character_achievement` during `handle_player_login`, before represented
+  instance/account data is used. Coverage: targeted `wow-world` tests prove the
+  row loader clears stale state, ignores zero ids, deduplicates, and satisfies
+  the represented `completed_achievement` access requirement after loading.
+  Boundary remains partial: this is not full `AchievementMgr::LoadFromDB`, does
+  not load criteria progress, and still treats achievement checks for a
+  different live group leader conservatively until group/leader achievement
+  resolution is ported.
 - `#NEXT.RUNTIME.L3.031j76` — WotLK live-session dungeon `CreateMap`
   now mirrors the C++ `Map::PlayerCannotEnter` missing-difficulty abort before
   creating or reusing a canonical dungeon map (not manual-test-ready).
