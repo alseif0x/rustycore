@@ -212,6 +212,29 @@ pub struct PetXpUpdateOutcome {
     pub level_update: PetLevelUpdateOutcome,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PetSaveToDbSkipReason {
+    ZeroEntry,
+    NotControlled,
+    OwnerNotPlayer,
+    TemporaryUnsummonedHunterCurrent,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PetSaveToDbPlan {
+    pub effective_mode: i16,
+    pub save_auras_before_cleanup: bool,
+    pub remove_all_auras_before_spell_save: bool,
+    pub save_spells: bool,
+    pub save_spell_history: bool,
+    pub delete_existing_pet_row: bool,
+    pub fill_pet_info: bool,
+    pub insert_pet_row: bool,
+    pub insert_slot: Option<i16>,
+    pub remove_all_auras_before_delete: bool,
+    pub delete_from_db_pet_number: Option<u32>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PetDeathStateUpdateOutcome {
     pub creature_plan: CreatureRuntimePlan,
@@ -765,6 +788,67 @@ impl Pet {
             pet_type: self.pet_type,
             was_renamed: !can_be_renamed,
         }
+    }
+
+    pub fn prepare_save_pet_to_db_like_cpp(
+        &self,
+        mut mode: i16,
+        pet_number: u32,
+        temporary_unsummoned_pet_number: Option<u32>,
+        current_active_pet_index: Option<u32>,
+    ) -> Result<PetSaveToDbPlan, PetSaveToDbSkipReason> {
+        if self.creature.entry() == 0 {
+            return Err(PetSaveToDbSkipReason::ZeroEntry);
+        }
+
+        if !self.is_controlled() {
+            return Err(PetSaveToDbSkipReason::NotControlled);
+        }
+
+        if !self.owner_guid.is_player() {
+            return Err(PetSaveToDbSkipReason::OwnerNotPlayer);
+        }
+
+        if mode == PetSaveMode::AsCurrent as i16 {
+            if temporary_unsummoned_pet_number.is_some_and(|number| number != pet_number) {
+                if self.pet_type == PetType::Hunter {
+                    return Err(PetSaveToDbSkipReason::TemporaryUnsummonedHunterCurrent);
+                }
+                mode = PetSaveMode::NotInSlot as i16;
+            }
+        }
+
+        if mode == PetSaveMode::AsCurrent as i16 {
+            if let Some(active_slot) = current_active_pet_index {
+                mode = active_slot as i16;
+            }
+        }
+
+        let delete_path = mode == PetSaveMode::AsDeleted as i16;
+        let remove_all_auras_before_spell_save = !PetSaveMode::is_active_slot(mode);
+        let insert_slot = if delete_path {
+            None
+        } else {
+            Some(
+                current_active_pet_index
+                    .map(|slot| slot as i16)
+                    .unwrap_or(PetSaveMode::NotInSlot as i16),
+            )
+        };
+
+        Ok(PetSaveToDbPlan {
+            effective_mode: mode,
+            save_auras_before_cleanup: true,
+            remove_all_auras_before_spell_save,
+            save_spells: true,
+            save_spell_history: true,
+            delete_existing_pet_row: !delete_path,
+            fill_pet_info: !delete_path,
+            insert_pet_row: !delete_path,
+            insert_slot,
+            remove_all_auras_before_delete: delete_path,
+            delete_from_db_pet_number: delete_path.then_some(pet_number),
+        })
     }
 
     pub fn get_load_pet_info(
@@ -1528,6 +1612,158 @@ mod tests {
         let unforced = pet.fill_pet_info_like_cpp(43, &action_bar, None, true, 7, 8);
         assert_eq!(unforced.react_state, ReactState::Defensive);
         assert!(!unforced.was_renamed);
+    }
+
+    #[test]
+    fn pet_prepare_save_to_db_matches_cpp_initial_guards() {
+        let pet = Pet::new(owner_guid(), PetType::Hunter);
+        assert_eq!(
+            pet.prepare_save_pet_to_db_like_cpp(PetSaveMode::AsCurrent as i16, 42, None, Some(0)),
+            Err(PetSaveToDbSkipReason::ZeroEntry)
+        );
+
+        let mut uncontrolled = Pet::new(owner_guid(), PetType::Max);
+        uncontrolled
+            .creature_mut()
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .set_entry(500);
+        assert_eq!(
+            uncontrolled.prepare_save_pet_to_db_like_cpp(
+                PetSaveMode::AsCurrent as i16,
+                42,
+                None,
+                Some(0)
+            ),
+            Err(PetSaveToDbSkipReason::NotControlled)
+        );
+
+        let mut non_player_owner = Pet::new(pet_guid(99), PetType::Hunter);
+        non_player_owner
+            .creature_mut()
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .set_entry(500);
+        assert_eq!(
+            non_player_owner.prepare_save_pet_to_db_like_cpp(
+                PetSaveMode::AsCurrent as i16,
+                42,
+                None,
+                Some(0)
+            ),
+            Err(PetSaveToDbSkipReason::OwnerNotPlayer)
+        );
+    }
+
+    #[test]
+    fn pet_prepare_save_to_db_remaps_current_and_preserves_cpp_insert_slot_quirk() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+        pet.creature_mut()
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .set_entry(500);
+
+        let current = pet
+            .prepare_save_pet_to_db_like_cpp(PetSaveMode::AsCurrent as i16, 42, None, Some(2))
+            .unwrap();
+
+        assert_eq!(current.effective_mode, PetSaveMode::active_slot(2));
+        assert!(current.save_auras_before_cleanup);
+        assert!(!current.remove_all_auras_before_spell_save);
+        assert!(current.save_spells);
+        assert!(current.save_spell_history);
+        assert!(current.delete_existing_pet_row);
+        assert!(current.fill_pet_info);
+        assert!(current.insert_pet_row);
+        assert_eq!(current.insert_slot, Some(PetSaveMode::active_slot(2)));
+        assert!(!current.remove_all_auras_before_delete);
+        assert_eq!(current.delete_from_db_pet_number, None);
+
+        let stable_slot = pet
+            .prepare_save_pet_to_db_like_cpp(PetSaveMode::stable_slot(3), 42, None, Some(1))
+            .unwrap();
+        assert_eq!(stable_slot.effective_mode, PetSaveMode::stable_slot(3));
+        assert!(
+            stable_slot.remove_all_auras_before_spell_save,
+            "C++ removes all auras before saving spells for stable/not-in-slot saves"
+        );
+        assert_eq!(
+            stable_slot.insert_slot,
+            Some(PetSaveMode::active_slot(1)),
+            "C++ CHAR_INS_PET stores current active slot, not the already-computed mode"
+        );
+
+        let without_current_slot = pet
+            .prepare_save_pet_to_db_like_cpp(PetSaveMode::stable_slot(4), 42, None, None)
+            .unwrap();
+        assert_eq!(
+            without_current_slot.insert_slot,
+            Some(PetSaveMode::NotInSlot as i16)
+        );
+    }
+
+    #[test]
+    fn pet_prepare_save_to_db_handles_temporary_unsummoned_current_like_cpp() {
+        let mut hunter = Pet::new(owner_guid(), PetType::Hunter);
+        hunter
+            .creature_mut()
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .set_entry(500);
+        assert_eq!(
+            hunter.prepare_save_pet_to_db_like_cpp(
+                PetSaveMode::AsCurrent as i16,
+                42,
+                Some(7),
+                Some(0)
+            ),
+            Err(PetSaveToDbSkipReason::TemporaryUnsummonedHunterCurrent)
+        );
+
+        let mut summon = Pet::new(owner_guid(), PetType::Summon);
+        summon
+            .creature_mut()
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .set_entry(600);
+        let plan = summon
+            .prepare_save_pet_to_db_like_cpp(PetSaveMode::AsCurrent as i16, 42, Some(7), Some(0))
+            .unwrap();
+        assert_eq!(plan.effective_mode, PetSaveMode::NotInSlot as i16);
+        assert!(plan.remove_all_auras_before_spell_save);
+        assert!(plan.insert_pet_row);
+        assert_eq!(plan.delete_from_db_pet_number, None);
+    }
+
+    #[test]
+    fn pet_prepare_save_to_db_delete_path_matches_cpp_delete_from_db_shape() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+        pet.creature_mut()
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .set_entry(500);
+
+        let plan = pet
+            .prepare_save_pet_to_db_like_cpp(PetSaveMode::AsDeleted as i16, 42, None, Some(3))
+            .unwrap();
+
+        assert_eq!(plan.effective_mode, PetSaveMode::AsDeleted as i16);
+        assert!(plan.save_auras_before_cleanup);
+        assert!(plan.remove_all_auras_before_spell_save);
+        assert!(plan.save_spells);
+        assert!(plan.save_spell_history);
+        assert!(!plan.delete_existing_pet_row);
+        assert!(!plan.fill_pet_info);
+        assert!(!plan.insert_pet_row);
+        assert_eq!(plan.insert_slot, None);
+        assert!(plan.remove_all_auras_before_delete);
+        assert_eq!(plan.delete_from_db_pet_number, Some(42));
     }
 
     #[test]
