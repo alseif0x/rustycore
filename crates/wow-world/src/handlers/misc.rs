@@ -58,10 +58,10 @@ use wow_packet::packets::misc::{
     BattlemasterJoinArena, BattlemasterJoinSkirmish, BeginTrade, BugReport, BusyTrade,
     CageBattlePet, CalendarAddEvent, CalendarCommandResult, CalendarCommunityInvite,
     CalendarComplain, CalendarCopyEvent, CalendarEventSignUp, CalendarGetEvent, CalendarInvite,
-    CalendarModeratorStatusQuery, CalendarRaidLockoutAdded, CalendarRemoveEvent,
-    CalendarRemoveInvite, CalendarRsvp, CalendarSendCalendar, CalendarSendNumPending,
-    CalendarStatus, CalendarUpdateEvent, CanDuel, ClearTradeItem, CloseInteraction,
-    CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint, ComplaintResult,
+    CalendarModeratorStatusQuery, CalendarRaidLockoutAdded, CalendarRaidLockoutUpdated,
+    CalendarRemoveEvent, CalendarRemoveInvite, CalendarRsvp, CalendarSendCalendar,
+    CalendarSendNumPending, CalendarStatus, CalendarUpdateEvent, CanDuel, ClearTradeItem,
+    CloseInteraction, CommerceTokenGetLog, CommerceTokenGetLogResponse, Complaint, ComplaintResult,
     DeclineGuildInvites, DeclinePetition, DfGetJoinStatus, DfGetSystemInfo, DuelResponse,
     ERR_TAXITOOFARAWAY_LIKE_CPP, FarSight, GmTicketAcknowledgeSurvey, GmTicketCaseStatus,
     GmTicketSystemStatus, GuildBankActivate, GuildBankBuyTab, GuildBankDepositMoney,
@@ -73,10 +73,10 @@ use wow_packet::packets::misc::{
     QueryBattlePetNameResponse, QueryPetition, QueryPetitionResponse, RatedPvpInfo, ReclaimCorpse,
     RepopRequest, RequestAccountData, RequestBattlefieldStatus, RequestCemeteryListResponse,
     ResurrectResponse, SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags,
-    SetDifficultyId, SetDungeonDifficulty, SetPvp, SetRaidDifficulty, SetTaxiBenchmarkMode,
-    SetTradeGold, SetTradeItem, SetTradeSpell, SignPetition, SpecialMountAnim, StandStateChange,
-    SubmitUserFeedback, SupportTicketSubmitBug, SupportTicketSubmitComplaint,
-    SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
+    SetDifficultyId, SetDungeonDifficulty, SetPvp, SetRaidDifficulty, SetSavedInstanceExtend,
+    SetTaxiBenchmarkMode, SetTradeGold, SetTradeItem, SetTradeSpell, SignPetition,
+    SpecialMountAnim, StandStateChange, SubmitUserFeedback, SupportTicketSubmitBug,
+    SupportTicketSubmitComplaint, SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
     TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP, TaxiNodeStatusPkt, ToggleDifficulty, TogglePvp,
     ToyClearFanfare, UnacceptTrade, UpdateAccountData, UseToy, UserClientUpdateAccountData,
     ViolenceLevel, compress_account_data_like_cpp, decompress_account_data_like_cpp,
@@ -5424,6 +5424,80 @@ impl crate::session::WorldSession {
         // no event for the requested id. Rust does not have CalendarMgr wired
         // yet, so this represents the observable miss branch.
         self.send_packet(&CalendarCommandResult::event_invalid_like_cpp());
+    }
+
+    /// C++ `WorldSession::HandleSetSavedInstanceExtend`.
+    pub async fn handle_set_saved_instance_extend(&mut self, query: SetSavedInstanceExtend) {
+        let Some(player_guid) = self.player_guid() else {
+            return;
+        };
+
+        let Ok(map_id) = u32::try_from(query.map_id) else {
+            return;
+        };
+        if u32::from(self.player_map_id_like_cpp()) == map_id {
+            return;
+        }
+
+        let Ok(difficulty_id) = wow_map::Difficulty::try_from(query.difficulty_id) else {
+            return;
+        };
+        let Some(entries) = self.create_map_db2_entries_like_cpp(map_id, difficulty_id) else {
+            return;
+        };
+        let Some(instance_lock_mgr) = self.instance_lock_mgr.as_ref().cloned() else {
+            return;
+        };
+
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_secs())
+            .unwrap_or(0);
+        let mut tx = SqlTransaction::new();
+        let Some((old_expiry, new_expiry)) = ({
+            let mut mgr = match instance_lock_mgr.write() {
+                Ok(mgr) => mgr,
+                Err(_) => return,
+            };
+            mgr.update_instance_lock_extension_for_player_tx_at(
+                &mut tx,
+                player_guid,
+                &entries,
+                query.extend,
+                self.reset_schedule_like_cpp(),
+                now,
+            )
+        }) else {
+            return;
+        };
+
+        if !tx.is_empty()
+            && let Some(char_db) = self.char_db()
+            && let Err(err) = char_db.commit_transaction(tx).await
+        {
+            warn!(
+                account = self.account_id,
+                player_guid = ?player_guid,
+                map_id,
+                difficulty_id,
+                error = ?err,
+                "failed to commit represented instance lock extension transaction"
+            );
+            return;
+        }
+
+        let remaining = |expiry: u64| -> i32 {
+            (expiry.saturating_sub(now) as i128)
+                .min(i128::from(i32::MAX))
+                .max(0) as i32
+        };
+        self.send_packet(&CalendarRaidLockoutUpdated::new_at_unix(
+            now.min(i64::MAX as u64) as i64,
+            query.map_id,
+            query.difficulty_id,
+            remaining(old_expiry),
+            remaining(new_expiry),
+        ));
     }
 
     // ── Auction house list stubs ──────────────────────────────────────────────
@@ -16202,6 +16276,119 @@ mod tests {
                 .find_active_instance_lock_at(leader, &entries, now)
                 .is_some()
         );
+    }
+
+    #[tokio::test]
+    async fn set_saved_instance_extend_updates_lock_and_sends_calendar_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let entries = wow_instances::MapDb2Entries {
+            map_id: 631,
+            difficulty_id: 4,
+            lock_id: 10,
+            reset_interval: wow_instances::MapDifficultyResetInterval::Weekly,
+            is_flex_locking: true,
+            is_using_encounter_locks: false,
+        };
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let mut mgr = wow_instances::InstanceLockMgr::default();
+        mgr.update_instance_lock_for_player_at(
+            player_guid,
+            &entries,
+            wow_instances::InstanceLockUpdateEvent {
+                instance_id: 100,
+                new_data: String::new(),
+                instance_completed_encounters_mask: 0,
+                completed_encounter_bit: None,
+                entrance_world_safe_loc_id: None,
+            },
+            wow_instances::ResetSchedule::default(),
+            now,
+        );
+
+        session.set_player_guid(Some(player_guid));
+        session.set_player_map_position_like_cpp(0, Position::ZERO);
+        session.set_map_store(Arc::new(MapStore::from_entries([
+            MapEntry {
+                id: 0,
+                instance_type: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+            },
+            MapEntry {
+                id: 631,
+                instance_type: 2,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: wow_data::map::MAP_FLAG_FLEXIBLE_RAID_LOCKING,
+            },
+        ])));
+        session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([difficulty_entry(
+            4,
+            2,
+            DifficultyFlags::empty(),
+        )])));
+        session.set_map_difficulty_store(Arc::new(MapDifficultyStore::from_entries([
+            MapDifficultyEntry {
+                id: 1,
+                map_id: 631,
+                difficulty_id: 4,
+                lock_id: 10,
+                reset_interval: 2,
+                flags: 0,
+            },
+        ])));
+        let mgr = Arc::new(std::sync::RwLock::new(mgr));
+        session.set_instance_lock_mgr(Arc::clone(&mgr));
+
+        session
+            .handle_set_saved_instance_extend(SetSavedInstanceExtend {
+                map_id: 631,
+                difficulty_id: 4,
+                extend: true,
+            })
+            .await;
+
+        let sent = send_rx.try_recv().unwrap();
+        assert_eq!(
+            u16::from_le_bytes([sent[0], sent[1]]),
+            ServerOpcodes::CalendarRaidLockoutUpdated as u16
+        );
+        let mut pkt = WorldPacket::from_bytes(&sent[2..]);
+        let _server_time = pkt.read_uint32().unwrap();
+        assert_eq!(pkt.read_int32().unwrap(), 631);
+        assert_eq!(pkt.read_uint32().unwrap(), 4);
+        let old_remaining = pkt.read_int32().unwrap();
+        let new_remaining = pkt.read_int32().unwrap();
+        assert!(new_remaining > old_remaining);
+        assert!(
+            mgr.read()
+                .unwrap()
+                .find_active_instance_lock_at(player_guid, &entries, now)
+                .unwrap()
+                .extended
+        );
+    }
+
+    #[tokio::test]
+    async fn set_saved_instance_extend_current_map_is_silent_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        session.set_player_map_position_like_cpp(631, Position::ZERO);
+
+        session
+            .handle_set_saved_instance_extend(SetSavedInstanceExtend {
+                map_id: 631,
+                difficulty_id: 4,
+                extend: true,
+            })
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
     }
 
     #[test]

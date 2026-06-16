@@ -1,3 +1,23 @@
+- `#NEXT.RUNTIME.L3.031j73` — WotLK represented saved-instance extension now
+  handles the C++ `CMSG_SET_SAVED_INSTANCE_EXTEND` path and sends the calendar
+  raid-lockout updated notification (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CalendarHandler.cpp:532-552`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/CalendarPackets.cpp:230`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/CalendarPackets.cpp:450-458`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:908-911`.
+  C++ assigns the unresolved `0xBADD` opcode placeholder to both loot specialization
+  and saved-instance extension (and Rust already routes another `0xBADD` shape for
+  raid markers), so Rust keeps one enum discriminant and dispatches
+  `SetSavedInstanceExtend` by payload shape from the shared slot. The handler mirrors
+  C++ by refusing changes while the player is on the target map, updating the active
+  player lock extension flag through `InstanceLockMgr::UpdateInstanceLockExtensionForPlayer`,
+  and sending `SMSG_CALENDAR_RAID_LOCKOUT_UPDATED` with packed server time,
+  `MapID`, `DifficultyID`, old remaining time, and new remaining time. Coverage:
+  targeted `wow-packet` parser/packet-order tests and targeted `wow-world`
+  saved-instance-extension tests cover valid update and current-map silent return.
+  Boundary remains partial: lockout removed packet/call-site, reset/remove calendar
+  fanout, full `InstanceMap::i_data`, install/restart, bot, and live-client/manual
+  validation remain pending.
 - `#NEXT.RUNTIME.L3.031j72` — WotLK represented pending-bind lock creation now
   sends the C++ calendar raid-lockout added notification after `SMSG_INSTANCE_SAVE_CREATED`
   (not manual-test-ready). Source-of-truth:

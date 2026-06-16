@@ -20468,12 +20468,14 @@ impl WorldSession {
                 // The inspected TrinityCore opcode table assigns the shared
                 // unresolved 0xBADD placeholder to both
                 // CMSG_CLEAR_RAID_MARKER (uint8 payload) and
-                // CMSG_SET_LOOT_SPECIALIZATION (uint32 payload). Rust keeps one
-                // enum variant and splits by payload length until the real
-                // opcode table is resolved.
+                // CMSG_SET_LOOT_SPECIALIZATION (uint32 payload), and this fork
+                // also assigns it to CMSG_SET_SAVED_INSTANCE_EXTEND
+                // (int32+uint32+bit payload). Rust keeps one enum variant and
+                // splits by payload length until the real opcode table is
+                // resolved.
                 if pkt.remaining() == 1 {
                     self.handle_clear_raid_marker(pkt).await;
-                } else {
+                } else if pkt.remaining() == 4 {
                     match wow_packet::packets::loot::SetLootSpecialization::read(&mut pkt) {
                         Ok(set_loot_specialization) => {
                             self.handle_set_loot_specialization(set_loot_specialization)
@@ -20481,6 +20483,17 @@ impl WorldSession {
                         }
                         Err(e) => warn!("Failed to read SetLootSpecialization: {e}"),
                     }
+                } else if pkt.remaining() == 9 {
+                    match wow_packet::packets::misc::SetSavedInstanceExtend::read(&mut pkt) {
+                        Ok(query) => self.handle_set_saved_instance_extend(query).await,
+                        Err(e) => warn!("Failed to read SetSavedInstanceExtend: {e}"),
+                    }
+                } else {
+                    warn!(
+                        opcode = ?ClientOpcodes::SetLootSpecialization,
+                        remaining = pkt.remaining(),
+                        "unresolved 0xBADD payload shape"
+                    );
                 }
             }
 

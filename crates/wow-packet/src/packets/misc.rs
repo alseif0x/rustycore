@@ -6448,6 +6448,46 @@ impl ServerPacket for CalendarRaidLockoutAdded {
     }
 }
 
+/// C++ `WorldPackets::Calendar::CalendarRaidLockoutUpdated`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CalendarRaidLockoutUpdated {
+    pub server_time_packed: u32,
+    pub map_id: i32,
+    pub difficulty_id: u32,
+    pub old_time_remaining: i32,
+    pub new_time_remaining: i32,
+}
+
+impl CalendarRaidLockoutUpdated {
+    pub fn new_at_unix(
+        unix_seconds: i64,
+        map_id: i32,
+        difficulty_id: u32,
+        old_time_remaining: i32,
+        new_time_remaining: i32,
+    ) -> Self {
+        Self {
+            server_time_packed: wow_time_packed_from_unix_seconds(unix_seconds),
+            map_id,
+            difficulty_id,
+            old_time_remaining,
+            new_time_remaining,
+        }
+    }
+}
+
+impl ServerPacket for CalendarRaidLockoutUpdated {
+    const OPCODE: ServerOpcodes = ServerOpcodes::CalendarRaidLockoutUpdated;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_uint32(self.server_time_packed);
+        pkt.write_int32(self.map_id);
+        pkt.write_uint32(self.difficulty_id);
+        pkt.write_int32(self.old_time_remaining);
+        pkt.write_int32(self.new_time_remaining);
+    }
+}
+
 /// C++ `WorldPackets::Calendar::CalendarCommunityInviteRequest`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CalendarCommunityInvite {
@@ -6786,6 +6826,31 @@ impl ClientPacket for CalendarStatus {
             invite_id: pkt.read_uint64()?,
             moderator_id: pkt.read_uint64()?,
             status: pkt.read_uint8()?,
+        })
+    }
+}
+
+/// C++ `WorldPackets::Calendar::SetSavedInstanceExtend`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SetSavedInstanceExtend {
+    pub map_id: i32,
+    pub difficulty_id: u32,
+    pub extend: bool,
+}
+
+impl ClientPacket for SetSavedInstanceExtend {
+    // The inspected TrinityCore 3.4.3 opcode table uses the shared unresolved
+    // `0xBADD` placeholder for `CMSG_SET_SAVED_INSTANCE_EXTEND`,
+    // `CMSG_SET_LOOT_SPECIALIZATION`, and `CMSG_CLEAR_RAID_MARKER`. Rust cannot
+    // represent duplicate enum discriminants, so this parser is routed from the
+    // existing 0xBADD opcode slot by payload shape in `WorldSession`.
+    const OPCODE: ClientOpcodes = ClientOpcodes::SetLootSpecialization;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            map_id: pkt.read_int32()?,
+            difficulty_id: pkt.read_uint32()?,
+            extend: pkt.read_bit()?,
         })
     }
 }
@@ -8566,6 +8631,39 @@ mod tests {
         assert_eq!(pkt.read_int32().unwrap(), 631);
         assert_eq!(pkt.read_uint32().unwrap(), 4);
         assert_eq!(pkt.read_int32().unwrap(), 86_400);
+    }
+
+    #[test]
+    fn calendar_raid_lockout_updated_matches_cpp_field_order() {
+        let bytes =
+            CalendarRaidLockoutUpdated::new_at_unix(946_684_800, 631, 4, 3_600, 86_400).to_bytes();
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::CalendarRaidLockoutUpdated as u16
+        );
+        assert_eq!(bytes.len(), 2 + 4 + 4 + 4 + 4 + 4);
+
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_uint32().unwrap(), 0x0000_3000); // 2000-01-01 00:00 UTC
+        assert_eq!(pkt.read_int32().unwrap(), 631);
+        assert_eq!(pkt.read_uint32().unwrap(), 4);
+        assert_eq!(pkt.read_int32().unwrap(), 3_600);
+        assert_eq!(pkt.read_int32().unwrap(), 86_400);
+    }
+
+    #[test]
+    fn set_saved_instance_extend_reads_cpp_field_order() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_int32(631);
+        pkt.write_uint32(4);
+        pkt.write_bit(true);
+        pkt.flush_bits();
+        pkt.reset_read();
+
+        let query = SetSavedInstanceExtend::read(&mut pkt).unwrap();
+        assert_eq!(query.map_id, 631);
+        assert_eq!(query.difficulty_id, 4);
+        assert!(query.extend);
     }
 
     #[test]
