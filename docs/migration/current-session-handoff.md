@@ -1,3 +1,18 @@
+- `#NEXT.RUNTIME.L3.031j47` — WotLK represented `Spell::EffectReputation` for current
+  player targets (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:1249`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellEffects.cpp:3675-3695`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:299-307`, and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:6321-6402`.
+  Rust now names `SPELL_EFFECT_REPUTATION = 103`, dispatches the represented direct effect,
+  applies the existing C++-shaped `CalculateReputationGain` branch with `REPUTATION_SOURCE_SPELL`,
+  resolves `EffectMiscValue1` through `FactionStore`, mutates `ReputationMgrLikeCpp` with
+  incremental `ModifyReputation` semantics, and sends `SMSG_SET_FACTION_STANDING` when the
+  reputation state marks a visible faction dirty. Coverage: targeted spell tests cover
+  current-player reputation mutation plus packet order/content, spell reward-rate multiplier,
+  missing faction no-op, and non-player-target no-op. Boundary remains partial: current-session
+  player target only, no generic/offline player target resolution, no DB persistence, no script
+  callback/faction-change runtime audit, no install/restart, bot, or live-client/manual validation.
 - `#NEXT.RUNTIME.L3.031j46` — WotLK represented `Spell::EffectInebriate` for current
   canonical player targets (not manual-test-ready). Source-of-truth:
   `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:1246`,
