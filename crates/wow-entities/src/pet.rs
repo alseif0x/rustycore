@@ -235,6 +235,19 @@ pub struct PetSaveToDbPlan {
     pub delete_from_db_pet_number: Option<u32>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PetSpellSaveOperationLikeCpp {
+    DeleteBySpell {
+        pet_number: u32,
+        spell_id: u32,
+    },
+    Insert {
+        pet_number: u32,
+        spell_id: u32,
+        active: ActiveState,
+    },
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PetDeathStateUpdateOutcome {
     pub creature_plan: CreatureRuntimePlan,
@@ -739,6 +752,61 @@ impl Pet {
         spell.active = active;
         self.sync_autospell(spell_id, active);
         true
+    }
+
+    pub fn save_spells_plan_like_cpp(
+        &mut self,
+        pet_number: u32,
+    ) -> Vec<PetSpellSaveOperationLikeCpp> {
+        let spell_ids = self.spells.keys().copied().collect::<Vec<_>>();
+        let mut operations = Vec::new();
+
+        for spell_id in spell_ids {
+            let Some(spell) = self.spells.get(&spell_id).copied() else {
+                continue;
+            };
+
+            if spell.spell_type == PetSpellType::Family {
+                continue;
+            }
+
+            match spell.state {
+                PetSpellState::Removed => {
+                    operations.push(PetSpellSaveOperationLikeCpp::DeleteBySpell {
+                        pet_number,
+                        spell_id,
+                    });
+                    self.spells.remove(&spell_id);
+                }
+                PetSpellState::Changed => {
+                    operations.push(PetSpellSaveOperationLikeCpp::DeleteBySpell {
+                        pet_number,
+                        spell_id,
+                    });
+                    operations.push(PetSpellSaveOperationLikeCpp::Insert {
+                        pet_number,
+                        spell_id,
+                        active: spell.active,
+                    });
+                    if let Some(saved_spell) = self.spells.get_mut(&spell_id) {
+                        saved_spell.state = PetSpellState::Unchanged;
+                    }
+                }
+                PetSpellState::New => {
+                    operations.push(PetSpellSaveOperationLikeCpp::Insert {
+                        pet_number,
+                        spell_id,
+                        active: spell.active,
+                    });
+                    if let Some(saved_spell) = self.spells.get_mut(&spell_id) {
+                        saved_spell.state = PetSpellState::Unchanged;
+                    }
+                }
+                PetSpellState::Unchanged => {}
+            }
+        }
+
+        operations
     }
 
     pub fn is_permanent_pet_for(&self, owner_guid: ObjectGuid, pet_number: u32) -> bool {
@@ -1764,6 +1832,87 @@ mod tests {
         assert_eq!(plan.insert_slot, None);
         assert!(plan.remove_all_auras_before_delete);
         assert_eq!(plan.delete_from_db_pet_number, Some(42));
+    }
+
+    #[test]
+    fn pet_save_spells_plan_matches_cpp_state_machine_and_family_skip() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+        assert!(pet.add_spell(
+            100,
+            ActiveState::Enabled,
+            PetSpellState::New,
+            PetSpellType::Normal
+        ));
+        assert!(pet.add_spell(
+            200,
+            ActiveState::Disabled,
+            PetSpellState::Changed,
+            PetSpellType::Normal
+        ));
+        assert!(pet.add_spell(
+            300,
+            ActiveState::Passive,
+            PetSpellState::Unchanged,
+            PetSpellType::Normal
+        ));
+        assert!(pet.add_spell(
+            400,
+            ActiveState::Enabled,
+            PetSpellState::New,
+            PetSpellType::Family
+        ));
+        assert!(pet.add_spell(
+            500,
+            ActiveState::Enabled,
+            PetSpellState::New,
+            PetSpellType::Normal
+        ));
+        assert!(pet.remove_spell(500));
+
+        let operations = pet.save_spells_plan_like_cpp(42);
+
+        assert_eq!(
+            operations,
+            vec![
+                PetSpellSaveOperationLikeCpp::Insert {
+                    pet_number: 42,
+                    spell_id: 100,
+                    active: ActiveState::Enabled
+                },
+                PetSpellSaveOperationLikeCpp::DeleteBySpell {
+                    pet_number: 42,
+                    spell_id: 200
+                },
+                PetSpellSaveOperationLikeCpp::Insert {
+                    pet_number: 42,
+                    spell_id: 200,
+                    active: ActiveState::Disabled
+                },
+                PetSpellSaveOperationLikeCpp::DeleteBySpell {
+                    pet_number: 42,
+                    spell_id: 500
+                },
+            ],
+            "C++ iterates the spell map in key order and appends delete/insert statements per state"
+        );
+        assert_eq!(
+            pet.spells().get(&100).unwrap().state,
+            PetSpellState::Unchanged
+        );
+        assert_eq!(
+            pet.spells().get(&200).unwrap().state,
+            PetSpellState::Unchanged
+        );
+        assert_eq!(
+            pet.spells().get(&300).unwrap().state,
+            PetSpellState::Unchanged
+        );
+        assert_eq!(
+            pet.spells().get(&400).unwrap().state,
+            PetSpellState::New,
+            "C++ skips PETSPELL_FAMILY before handling state, so even NEW family passives stay dirty"
+        );
+        assert!(!pet.spells().contains_key(&500));
     }
 
     #[test]
