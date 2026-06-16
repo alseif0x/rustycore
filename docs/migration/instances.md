@@ -384,6 +384,19 @@ NOTE: `InstanceSaveMgr` no longer exists as a separate class in this WoLK 3.4.3 
   ObjectAccessor/session mirrors, AreaTrigger AI/target-list exit callbacks,
   scripts, live DB persistence, bot, install/restart, and live-client
   validation remain pending.
+- `#NEXT.RUNTIME.L3.031j86` wires the accepted far-teleport
+  non-melee spell interruption branch: after DynamicObjects and AreaTriggers
+  are removed and before transfer packets, Rust now clears the represented
+  delayed cast state and interrupts the canonical Player Unit's generic,
+  channeled, and autorepeat current spell slots while preserving the melee
+  slot, matching `IsNonMeleeSpellCast(true)` followed by
+  `InterruptNonMeleeSpells(true)`. Preflight aborts still return before this
+  cleanup. Refs: `Player.cpp:1424-1428`, `Unit.cpp:3050-3100`,
+  `Unit.h:576-583`, `Unit.h:1394-1402`. Remaining gap: Rust
+  `teleport_to` still has no `TeleportOptions` parameter, so the C++
+  `TELE_TO_SPELL` exception is not representable yet; outgoing spell-interrupt
+  packets, full Spell runtime state, bot, install/restart, and live-client
+  validation remain pending.
 
 **Tests existing:**
 - `cargo test -p wow-instances -- --nocapture` currently covers 19 focused tests, including C++-contrasted lock key/binding, daily/weekly reset anchors, temporary lock creation, active lock lookup, temp promotion, expired-lock replacement, DB row reconstruction, shared weak-ref cleanup, prepared-statement parameter order, flex-mask join rejection, different-instance rejection, and reset in-use guard.

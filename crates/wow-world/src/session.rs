@@ -22355,6 +22355,7 @@ impl WorldSession {
             self.unsummon_represented_pet_temporary_if_any_like_cpp();
             let _ = self.remove_all_dynamic_objects_for_current_player_like_cpp();
             let _ = self.remove_all_area_triggers_for_current_player_like_cpp();
+            let _ = self.interrupt_non_melee_spells_for_far_teleport_like_cpp();
         }
 
         info!(
@@ -32372,6 +32373,25 @@ impl WorldSession {
 
     pub(crate) fn interrupt_non_melee_spell_cast_for_loot_like_cpp(&mut self) -> bool {
         self.active_spell_cast.take().is_some()
+    }
+
+    pub(crate) fn interrupt_non_melee_spells_for_far_teleport_like_cpp(&mut self) -> bool {
+        let session_cast_interrupted = self.active_spell_cast.take().is_some();
+        let canonical_spells_interrupted = self
+            .mutate_canonical_player_like_cpp(|player| {
+                let unit = player.unit_mut();
+                if !unit.is_non_melee_spell_cast_like_cpp(true, false, false, true) {
+                    return false;
+                }
+                !unit.interrupt_non_melee_spells(None, true, true).is_empty()
+            })
+            .unwrap_or(false);
+
+        if canonical_spells_interrupted {
+            self.sync_object_accessor_player();
+        }
+
+        session_cast_interrupted || canonical_spells_interrupted
     }
 
     pub(crate) fn set_represented_pending_quest_sharing_like_cpp(
@@ -65021,6 +65041,194 @@ mod tests {
             map.get_area_trigger(other_area_trigger_guid).is_some(),
             "RemoveAllAreaTriggers must not remove AreaTriggers owned by another caster"
         );
+    }
+
+    #[tokio::test]
+    async fn teleport_to_far_map_interrupts_non_melee_spell_casts_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 805);
+        let source_position = Position::new(10.0, 20.0, 30.0, 0.0);
+        let destination = Position::new(110.0, 210.0, 40.0, 2.5);
+        let melee_spell = wow_entities::CurrentSpellRef::new(61_805, Some(player_guid), None)
+            .with_cast_time_ms(1_000);
+        let generic_spell = wow_entities::CurrentSpellRef::new(61_806, Some(player_guid), None)
+            .with_cast_time_ms(1_500);
+        let channeled_spell = wow_entities::CurrentSpellRef::new(61_807, Some(player_guid), None)
+            .with_state(wow_constants::SpellState::Delayed);
+        let autorepeat_spell = wow_entities::CurrentSpellRef::new(61_808, Some(player_guid), None);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 1,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+            wow_data::MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.expansion = 1;
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TeleportInterruptSpells".to_string(),
+            source_position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.active_spell_cast = Some(SpellCastState {
+            spell_id: 61_806,
+            target_guid: player_guid,
+            target_data: wow_packet::packets::spell::SpellTargetData::default(),
+            cast_id: ObjectGuid::EMPTY,
+            cast_start_time: Instant::now(),
+            cast_time_ms: 10_000,
+            spell_visual: wow_packet::packets::spell::SpellCastVisual::default(),
+            metadata: SpellCastMetadata::default(),
+        });
+        add_canonical_test_player_on_map(&canonical, player_guid, source_position, 571, 0);
+        session.mutate_canonical_player_like_cpp(|player| {
+            let unit = player.unit_mut();
+            unit.set_current_cast_spell(wow_entities::CurrentSpellSlot::Melee, melee_spell);
+            unit.set_current_cast_spell(wow_entities::CurrentSpellSlot::Generic, generic_spell);
+            unit.set_current_cast_spell(wow_entities::CurrentSpellSlot::Channeled, channeled_spell);
+            unit.set_current_cast_spell(
+                wow_entities::CurrentSpellSlot::Autorepeat,
+                autorepeat_spell,
+            );
+        });
+
+        session.teleport_to(0, destination).await;
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![
+                ServerOpcodes::CancelCombat,
+                ServerOpcodes::TransferPending,
+                ServerOpcodes::SuspendToken
+            ]
+        );
+        assert_eq!(session.pending_teleport, Some((0, destination)));
+        assert!(
+            session.active_spell_cast.is_none(),
+            "C++ Player::TeleportTo interrupts non-melee casts before transfer"
+        );
+        session.mutate_canonical_player_like_cpp(|player| {
+            let unit = player.unit();
+            assert_eq!(
+                unit.current_spell(wow_entities::CurrentSpellSlot::Melee),
+                Some(melee_spell),
+                "C++ InterruptNonMeleeSpells must not interrupt CURRENT_MELEE_SPELL"
+            );
+            assert_eq!(
+                unit.current_spell(wow_entities::CurrentSpellSlot::Generic),
+                None
+            );
+            assert_eq!(
+                unit.current_spell(wow_entities::CurrentSpellSlot::Channeled),
+                None
+            );
+            assert_eq!(
+                unit.current_spell(wow_entities::CurrentSpellSlot::Autorepeat),
+                None
+            );
+        });
+    }
+
+    #[tokio::test]
+    async fn teleport_to_preflight_abort_preserves_non_melee_spell_casts_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 806);
+        let source_position = Position::new(10.0, 20.0, 30.0, 0.0);
+        let destination = Position::new(111.0, 211.0, 41.0, 2.6);
+        let generic_spell = wow_entities::CurrentSpellRef::new(61_809, Some(player_guid), None)
+            .with_cast_time_ms(1_500);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 1,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.expansion = 1;
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TeleportRejectPreservesSpell".to_string(),
+            source_position,
+            DEATH_KNIGHT_START_MAP_LIKE_CPP,
+            1,
+            CLASS_DEATH_KNIGHT_LIKE_CPP,
+            58,
+            0,
+        ));
+        session.active_spell_cast = Some(SpellCastState {
+            spell_id: 61_809,
+            target_guid: player_guid,
+            target_data: wow_packet::packets::spell::SpellTargetData::default(),
+            cast_id: ObjectGuid::EMPTY,
+            cast_start_time: Instant::now(),
+            cast_time_ms: 10_000,
+            spell_visual: wow_packet::packets::spell::SpellCastVisual::default(),
+            metadata: SpellCastMetadata::default(),
+        });
+        add_canonical_test_player_on_map(
+            &canonical,
+            player_guid,
+            source_position,
+            u32::from(DEATH_KNIGHT_START_MAP_LIKE_CPP),
+            0,
+        );
+        session.mutate_canonical_player_like_cpp(|player| {
+            player
+                .unit_mut()
+                .set_current_cast_spell(wow_entities::CurrentSpellSlot::Generic, generic_spell);
+        });
+
+        session.teleport_to(571, destination).await;
+
+        assert_eq!(
+            send_rx.try_recv().expect("SMSG_TRANSFER_ABORTED"),
+            wow_packet::packets::misc::TransferAborted {
+                map_id: 571,
+                arg: 1,
+                map_difficulty_x_condition_id: 0,
+                transfer_abort: TRANSFER_ABORT_UNIQUE_MESSAGE_LIKE_CPP,
+            }
+            .to_bytes()
+        );
+        assert!(
+            session.active_spell_cast.is_some(),
+            "C++ Player::TeleportTo returns before spell interruption on preflight aborts"
+        );
+        session.mutate_canonical_player_like_cpp(|player| {
+            assert_eq!(
+                player
+                    .unit()
+                    .current_spell(wow_entities::CurrentSpellSlot::Generic),
+                Some(generic_spell)
+            );
+        });
     }
 
     #[tokio::test]
