@@ -93,6 +93,14 @@ pub struct PetDeclinedNamesLikeCpp {
     pub names: [String; 5],
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PetFamilyScaleLikeCpp {
+    pub min_scale: f32,
+    pub min_scale_level: u8,
+    pub max_scale: f32,
+    pub max_scale_level: u8,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct PetStableInfo {
     pub name: String,
@@ -990,6 +998,31 @@ impl Pet {
         (diet & food_mask) != 0
     }
 
+    pub fn native_object_scale_like_cpp(
+        pet_type: PetType,
+        level: u8,
+        guardian_native_scale: f32,
+        creature_family_scale: Option<PetFamilyScaleLikeCpp>,
+    ) -> f32 {
+        let Some(family) = creature_family_scale else {
+            return guardian_native_scale;
+        };
+
+        if family.min_scale <= 0.0 || pet_type != PetType::Hunter {
+            return guardian_native_scale;
+        }
+
+        if level >= family.max_scale_level {
+            family.max_scale
+        } else if level <= family.min_scale_level {
+            family.min_scale
+        } else {
+            family.min_scale
+                + (level - family.min_scale_level) as f32 / family.max_scale_level as f32
+                    * (family.max_scale - family.min_scale)
+        }
+    }
+
     pub const fn specialization(&self) -> u16 {
         self.pet_specialization
     }
@@ -1751,6 +1784,54 @@ mod tests {
         assert!(
             !Pet::have_in_diet_like_cpp(33, true, Some(u32::MAX)),
             "C++ food masks are u32; out-of-range represented input fails closed"
+        );
+    }
+
+    #[test]
+    fn pet_native_object_scale_matches_cpp_hunter_family_scale() {
+        let family = PetFamilyScaleLikeCpp {
+            min_scale: 0.75,
+            min_scale_level: 10,
+            max_scale: 1.25,
+            max_scale_level: 50,
+        };
+
+        assert_eq!(
+            Pet::native_object_scale_like_cpp(PetType::Summon, 40, 1.5, Some(family)),
+            1.5,
+            "C++ applies CreatureFamily scaling only to hunter pets"
+        );
+        assert_eq!(
+            Pet::native_object_scale_like_cpp(PetType::Hunter, 40, 1.5, None),
+            1.5,
+            "C++ falls back to Guardian::GetNativeObjectScale when CreatureFamily lookup is missing"
+        );
+        assert_eq!(
+            Pet::native_object_scale_like_cpp(
+                PetType::Hunter,
+                40,
+                1.5,
+                Some(PetFamilyScaleLikeCpp {
+                    min_scale: 0.0,
+                    ..family
+                })
+            ),
+            1.5,
+            "C++ requires CreatureFamilyEntry::MinScale > 0.0"
+        );
+
+        assert_eq!(
+            Pet::native_object_scale_like_cpp(PetType::Hunter, 8, 1.5, Some(family)),
+            family.min_scale
+        );
+        assert_eq!(
+            Pet::native_object_scale_like_cpp(PetType::Hunter, 50, 1.5, Some(family)),
+            family.max_scale
+        );
+        assert_eq!(
+            Pet::native_object_scale_like_cpp(PetType::Hunter, 30, 1.5, Some(family)),
+            0.95,
+            "C++ divides the middle interpolation by MaxScaleLevel, not by the min-max span"
         );
     }
 
