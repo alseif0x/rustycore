@@ -51,6 +51,7 @@ use wow_packet::{ClientPacket, WorldPacket};
 use crate::handlers::quest::RepresentedQuestGiverStatusSourceLikeCpp;
 use crate::reputation::mgr::CharacterReputationRowLikeCpp;
 use crate::session::{
+    CharacterPetAuraEffectRowLikeCpp, CharacterPetAuraRowLikeCpp,
     CharacterPetDeclinedNamesRowLikeCpp, CharacterPetSpellChargeRowLikeCpp,
     CharacterPetSpellCooldownRowLikeCpp, CharacterPetSpellRowLikeCpp, CharacterPetStableRowLikeCpp,
     PER_CHARACTER_CACHE_MASK_LIKE_CPP, RepresentedAlterAppearanceLikeCpp,
@@ -86,6 +87,13 @@ const CHAR_NAME_INVALID_CHARACTER_LIKE_CPP: u8 = 95;
 const AT_LOGIN_RENAME_LIKE_CPP: u16 = 0x001;
 const AT_LOGIN_CUSTOMIZE_LIKE_CPP: u16 = 0x008;
 const DIFFICULTY_10_N_LIKE_CPP: u8 = 3;
+
+fn object_guid_from_db_binary_like_cpp(raw: Vec<u8>) -> ObjectGuid {
+    let Ok(bytes) = <[u8; 16]>::try_from(raw.as_slice()) else {
+        return ObjectGuid::EMPTY;
+    };
+    ObjectGuid::from_raw_bytes(&bytes)
+}
 
 fn bind_create_character_difficulties_like_cpp(stmt: &mut PreparedStatement) {
     stmt.set_u8(16, DIFFICULTY_NORMAL_LIKE_CPP);
@@ -3333,6 +3341,91 @@ impl WorldSession {
             }
         }
         if summoned_pet_number != 0 {
+            let mut pet_aura_stmt = char_db.prepare(CharStatements::SEL_PET_AURA);
+            pet_aura_stmt.set_u32(0, summoned_pet_number);
+            match char_db.query(&pet_aura_stmt).await {
+                Ok(mut aura_result) => {
+                    let mut rows = Vec::new();
+                    if !aura_result.is_empty() {
+                        loop {
+                            rows.push(CharacterPetAuraRowLikeCpp {
+                                caster_guid: object_guid_from_db_binary_like_cpp(
+                                    aura_result.try_read::<Vec<u8>>(0).unwrap_or_default(),
+                                ),
+                                spell_id: aura_result.try_read::<u32>(1).unwrap_or(0),
+                                effect_mask: aura_result.try_read::<u32>(2).unwrap_or(0),
+                                recalculate_mask: aura_result.try_read::<u32>(3).unwrap_or(0),
+                                difficulty: aura_result.try_read::<u8>(4).unwrap_or(0),
+                                stack_count: aura_result.try_read::<u8>(5).unwrap_or(0),
+                                max_duration_ms: aura_result.try_read::<i32>(6).unwrap_or(0),
+                                remain_time_ms: aura_result.try_read::<i32>(7).unwrap_or(0),
+                                remain_charges: aura_result.try_read::<u8>(8).unwrap_or(0),
+                            });
+                            if !aura_result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    let loaded =
+                        self.load_represented_pet_aura_rows_like_cpp(summoned_pet_number, rows);
+                    trace!(
+                        player_guid = guid.counter(),
+                        summoned_pet_number, loaded, "loaded represented pet_aura rows like C++"
+                    );
+                }
+                Err(error) => {
+                    warn!(
+                        player_guid = guid.counter(),
+                        summoned_pet_number,
+                        %error,
+                        "failed to load represented pet_aura rows"
+                    );
+                }
+            }
+
+            let mut pet_aura_effect_stmt = char_db.prepare(CharStatements::SEL_PET_AURA_EFFECT);
+            pet_aura_effect_stmt.set_u32(0, summoned_pet_number);
+            match char_db.query(&pet_aura_effect_stmt).await {
+                Ok(mut aura_effect_result) => {
+                    let mut rows = Vec::new();
+                    if !aura_effect_result.is_empty() {
+                        loop {
+                            rows.push(CharacterPetAuraEffectRowLikeCpp {
+                                caster_guid: object_guid_from_db_binary_like_cpp(
+                                    aura_effect_result
+                                        .try_read::<Vec<u8>>(0)
+                                        .unwrap_or_default(),
+                                ),
+                                spell_id: aura_effect_result.try_read::<u32>(1).unwrap_or(0),
+                                effect_mask: aura_effect_result.try_read::<u32>(2).unwrap_or(0),
+                                effect_index: aura_effect_result.try_read::<u8>(3).unwrap_or(0),
+                                amount: aura_effect_result.try_read::<i32>(4).unwrap_or(0),
+                                base_amount: aura_effect_result.try_read::<i32>(5).unwrap_or(0),
+                            });
+                            if !aura_effect_result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    let loaded = self
+                        .load_represented_pet_aura_effect_rows_like_cpp(summoned_pet_number, rows);
+                    trace!(
+                        player_guid = guid.counter(),
+                        summoned_pet_number,
+                        loaded,
+                        "loaded represented pet_aura_effect rows like C++"
+                    );
+                }
+                Err(error) => {
+                    warn!(
+                        player_guid = guid.counter(),
+                        summoned_pet_number,
+                        %error,
+                        "failed to load represented pet_aura_effect rows"
+                    );
+                }
+            }
+
             let mut pet_spell_stmt = char_db.prepare(CharStatements::SEL_PET_SPELL);
             pet_spell_stmt.set_u32(0, summoned_pet_number);
             match char_db.query(&pet_spell_stmt).await {

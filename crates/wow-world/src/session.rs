@@ -393,6 +393,29 @@ pub(crate) struct CharacterPetSpellChargeRowLikeCpp {
     pub recharge_end_unix_secs: i64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct CharacterPetAuraRowLikeCpp {
+    pub caster_guid: ObjectGuid,
+    pub spell_id: u32,
+    pub effect_mask: u32,
+    pub recalculate_mask: u32,
+    pub difficulty: u8,
+    pub stack_count: u8,
+    pub max_duration_ms: i32,
+    pub remain_time_ms: i32,
+    pub remain_charges: u8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct CharacterPetAuraEffectRowLikeCpp {
+    pub caster_guid: ObjectGuid,
+    pub spell_id: u32,
+    pub effect_mask: u32,
+    pub effect_index: u8,
+    pub amount: i32,
+    pub base_amount: i32,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CharacterPetDeclinedNamesRowLikeCpp {
     pub names: [String; 5],
@@ -2699,6 +2722,10 @@ fn unix_secs_to_ms_like_cpp(value: i64) -> u64 {
     u64::try_from(value).unwrap_or(0).saturating_mul(1_000)
 }
 
+fn represented_pet_aura_slot_like_cpp(index: usize) -> Option<u8> {
+    u8::try_from(index).ok().filter(|slot| *slot < u8::MAX)
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct SessionPlayerController {
     guid: ObjectGuid,
@@ -3703,6 +3730,10 @@ pub struct WorldSession {
         HashMap<u32, Vec<CharacterPetSpellCooldownRowLikeCpp>>,
     /// Represented `pet_spell_charges` rows keyed by pet number until `PetLoadQueryHolder` is live.
     represented_pet_spell_charges_like_cpp: HashMap<u32, Vec<CharacterPetSpellChargeRowLikeCpp>>,
+    /// Represented `pet_aura` rows keyed by pet number until `Aura::LoadFromDB` is live.
+    represented_pet_auras_like_cpp: HashMap<u32, Vec<CharacterPetAuraRowLikeCpp>>,
+    /// Represented `pet_aura_effect` rows keyed by pet number until `Aura::LoadFromDB` is live.
+    represented_pet_aura_effects_like_cpp: HashMap<u32, Vec<CharacterPetAuraEffectRowLikeCpp>>,
     /// Represented `character_pet_declinedname` rows keyed by pet number until `PetLoadQueryHolder` is live.
     represented_pet_declined_names_like_cpp: HashMap<u32, CharacterPetDeclinedNamesRowLikeCpp>,
     /// Represented `Pet::m_unitData->CreatedBySpell` for the active pet until UnitData owns it.
@@ -5055,6 +5086,8 @@ impl WorldSession {
             represented_pet_spells_like_cpp: HashMap::new(),
             represented_pet_spell_cooldowns_like_cpp: HashMap::new(),
             represented_pet_spell_charges_like_cpp: HashMap::new(),
+            represented_pet_auras_like_cpp: HashMap::new(),
+            represented_pet_aura_effects_like_cpp: HashMap::new(),
             represented_pet_declined_names_like_cpp: HashMap::new(),
             represented_pet_created_by_spell_like_cpp: 0,
             represented_pet_react_state_like_cpp:
@@ -24359,6 +24392,55 @@ impl WorldSession {
         loaded
     }
 
+    pub(crate) fn load_represented_pet_aura_rows_like_cpp(
+        &mut self,
+        pet_number: u32,
+        rows: impl IntoIterator<Item = CharacterPetAuraRowLikeCpp>,
+    ) -> usize {
+        let spell_store = self.spell_store().cloned();
+        let auras: Vec<_> = rows
+            .into_iter()
+            .filter(|row| {
+                row.spell_id != 0
+                    && spell_store
+                        .as_ref()
+                        .is_none_or(|store| store.get(row.spell_id as i32).is_some())
+            })
+            .collect();
+        let loaded = auras.len();
+        if loaded == 0 {
+            self.represented_pet_auras_like_cpp.remove(&pet_number);
+        } else {
+            self.represented_pet_auras_like_cpp
+                .insert(pet_number, auras);
+        }
+        loaded
+    }
+
+    pub(crate) fn load_represented_pet_aura_effect_rows_like_cpp(
+        &mut self,
+        pet_number: u32,
+        rows: impl IntoIterator<Item = CharacterPetAuraEffectRowLikeCpp>,
+    ) -> usize {
+        let effects: Vec<_> = rows
+            .into_iter()
+            .filter(|row| {
+                row.spell_id != 0
+                    && u32::from(row.effect_index)
+                        < wow_data::conditions::MAX_SPELL_EFFECTS_LIKE_CPP
+            })
+            .collect();
+        let loaded = effects.len();
+        if loaded == 0 {
+            self.represented_pet_aura_effects_like_cpp
+                .remove(&pet_number);
+        } else {
+            self.represented_pet_aura_effects_like_cpp
+                .insert(pet_number, effects);
+        }
+        loaded
+    }
+
     pub(crate) fn load_represented_pet_declined_names_like_cpp(
         &mut self,
         pet_number: u32,
@@ -25338,6 +25420,75 @@ impl WorldSession {
                         charge.category_id,
                         unix_secs_to_ms_like_cpp(charge.recharge_start_unix_secs),
                         unix_secs_to_ms_like_cpp(charge.recharge_end_unix_secs),
+                    );
+                }
+            }
+            let pet_aura_effects = self
+                .represented_pet_aura_effects_like_cpp
+                .get(&pet_number)
+                .cloned()
+                .unwrap_or_default();
+            if let Some(auras) = self.represented_pet_auras_like_cpp.get(&pet_number) {
+                let aura_subsystem = &mut pet.creature_mut().unit_mut().subsystems_mut().auras;
+                for (index, aura) in auras.iter().enumerate() {
+                    let Some(slot) = represented_pet_aura_slot_like_cpp(index) else {
+                        break;
+                    };
+                    let caster_guid = if aura.caster_guid.is_empty() {
+                        pet_guid
+                    } else {
+                        aura.caster_guid
+                    };
+                    let applied = wow_entities::AppliedAuraRef::new(
+                        aura.spell_id,
+                        caster_guid,
+                        slot,
+                        aura.effect_mask,
+                    );
+                    aura_subsystem.add_owned(wow_entities::OwnedAuraRef::new(
+                        aura.spell_id,
+                        caster_guid,
+                        None,
+                    ));
+                    aura_subsystem.add_applied(applied);
+                    aura_subsystem
+                        .visible_auras
+                        .insert(slot, wow_entities::AuraRef::new(aura.spell_id, caster_guid));
+
+                    let effect_amounts: Vec<_> = pet_aura_effects
+                        .iter()
+                        .filter(|effect| {
+                            let effect_caster_guid = if effect.caster_guid.is_empty() {
+                                pet_guid
+                            } else {
+                                effect.caster_guid
+                            };
+                            effect_caster_guid == caster_guid
+                                && effect.spell_id == aura.spell_id
+                                && effect.effect_mask == aura.effect_mask
+                        })
+                        .map(|effect| {
+                            let effect_ref = wow_entities::AppliedAuraRef::new(
+                                aura.spell_id,
+                                caster_guid,
+                                slot,
+                                1u32 << u32::from(effect.effect_index),
+                            );
+                            aura_subsystem
+                                .applied_aura_amounts
+                                .insert(effect_ref, effect.amount);
+                            wow_entities::VisibleAuraEffectAmountLikeCpp {
+                                effect_index: effect.effect_index,
+                                amount: effect.amount,
+                            }
+                        })
+                        .collect();
+                    aura_subsystem.visible_aura_applications_like_cpp.insert(
+                        slot,
+                        wow_entities::VisibleAuraApplicationLikeCpp::new(
+                            aura.effect_mask,
+                            effect_amounts,
+                        ),
                     );
                 }
             }
@@ -66208,6 +66359,103 @@ mod tests {
     }
 
     #[test]
+    fn load_represented_pet_aura_rows_filters_unknown_spell_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            7_777,
+            gameobject_summon_spell_info_like_cpp(7_777, 0, Vec::new()),
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        let loaded = session.load_represented_pet_aura_rows_like_cpp(
+            42,
+            [
+                CharacterPetAuraRowLikeCpp {
+                    caster_guid: ObjectGuid::EMPTY,
+                    spell_id: 0,
+                    effect_mask: 1,
+                    recalculate_mask: 0,
+                    difficulty: 0,
+                    stack_count: 1,
+                    max_duration_ms: 10_000,
+                    remain_time_ms: 5_000,
+                    remain_charges: 0,
+                },
+                CharacterPetAuraRowLikeCpp {
+                    caster_guid: ObjectGuid::EMPTY,
+                    spell_id: 7_777,
+                    effect_mask: 1,
+                    recalculate_mask: 0,
+                    difficulty: 0,
+                    stack_count: 1,
+                    max_duration_ms: 10_000,
+                    remain_time_ms: 5_000,
+                    remain_charges: 0,
+                },
+                CharacterPetAuraRowLikeCpp {
+                    caster_guid: ObjectGuid::EMPTY,
+                    spell_id: 9_999,
+                    effect_mask: 1,
+                    recalculate_mask: 0,
+                    difficulty: 0,
+                    stack_count: 1,
+                    max_duration_ms: 10_000,
+                    remain_time_ms: 5_000,
+                    remain_charges: 0,
+                },
+            ],
+        );
+
+        assert_eq!(loaded, 1);
+        assert_eq!(
+            session
+                .represented_pet_auras_like_cpp
+                .get(&42)
+                .and_then(|auras| auras.first())
+                .map(|aura| aura.spell_id),
+            Some(7_777)
+        );
+    }
+
+    #[test]
+    fn load_represented_pet_aura_effect_rows_filters_bad_effect_index_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+
+        let loaded = session.load_represented_pet_aura_effect_rows_like_cpp(
+            42,
+            [
+                CharacterPetAuraEffectRowLikeCpp {
+                    caster_guid: ObjectGuid::EMPTY,
+                    spell_id: 7_777,
+                    effect_mask: 1,
+                    effect_index: 31,
+                    amount: 50,
+                    base_amount: 40,
+                },
+                CharacterPetAuraEffectRowLikeCpp {
+                    caster_guid: ObjectGuid::EMPTY,
+                    spell_id: 7_777,
+                    effect_mask: 1,
+                    effect_index: 32,
+                    amount: 60,
+                    base_amount: 50,
+                },
+            ],
+        );
+
+        assert_eq!(loaded, 1);
+        assert_eq!(
+            session
+                .represented_pet_aura_effects_like_cpp
+                .get(&42)
+                .and_then(|effects| effects.first())
+                .map(|effect| effect.effect_index),
+            Some(31)
+        );
+    }
+
+    #[test]
     fn load_represented_pet_declined_names_replaces_and_clears_row_like_cpp() {
         let (mut session, _, _send_rx) = make_session();
         let row = CharacterPetDeclinedNamesRowLikeCpp {
@@ -66287,6 +66535,41 @@ mod tests {
                 },
             ],
         );
+        session.load_represented_pet_aura_rows_like_cpp(
+            42,
+            [CharacterPetAuraRowLikeCpp {
+                caster_guid: ObjectGuid::EMPTY,
+                spell_id: 7_777,
+                effect_mask: 0x3,
+                recalculate_mask: 0,
+                difficulty: 0,
+                stack_count: 2,
+                max_duration_ms: 30_000,
+                remain_time_ms: 20_000,
+                remain_charges: 1,
+            }],
+        );
+        session.load_represented_pet_aura_effect_rows_like_cpp(
+            42,
+            [
+                CharacterPetAuraEffectRowLikeCpp {
+                    caster_guid: ObjectGuid::EMPTY,
+                    spell_id: 7_777,
+                    effect_mask: 0x3,
+                    effect_index: 0,
+                    amount: 51,
+                    base_amount: 41,
+                },
+                CharacterPetAuraEffectRowLikeCpp {
+                    caster_guid: ObjectGuid::EMPTY,
+                    spell_id: 7_777,
+                    effect_mask: 0x3,
+                    effect_index: 1,
+                    amount: 52,
+                    base_amount: 42,
+                },
+            ],
+        );
         let declined_names = ["Mishy", "Mishya", "Mishu", "Mishom", "Mishe"].map(str::to_string);
         session.load_represented_pet_declined_names_like_cpp(
             42,
@@ -66337,6 +66620,34 @@ mod tests {
         assert_eq!(charges[0].recharge_end_ms, 1_700_000_011_000);
         assert_eq!(charges[1].recharge_start_ms, 1_700_000_011_000);
         assert_eq!(charges[1].recharge_end_ms, 1_700_000_021_000);
+        let pet_auras = &pet.creature().unit().subsystems().auras;
+        let loaded_aura = wow_entities::AppliedAuraRef::new(7_777, pet_guid, 0, 0x3);
+        assert!(pet_auras.has_applied(loaded_aura));
+        assert!(pet_auras.has_owned(wow_entities::OwnedAuraRef::new(7_777, pet_guid, None)));
+        assert_eq!(
+            pet_auras.visible_auras.get(&0),
+            Some(&wow_entities::AuraRef::new(7_777, pet_guid))
+        );
+        assert_eq!(
+            pet_auras
+                .visible_aura_applications_like_cpp
+                .get(&0)
+                .map(|application| (
+                    application.flags,
+                    application
+                        .effect_amounts
+                        .iter()
+                        .map(|amount| (amount.effect_index, amount.amount))
+                        .collect::<Vec<_>>()
+                )),
+            Some((0x3, vec![(0, 51), (1, 52)]))
+        );
+        assert_eq!(
+            pet_auras
+                .applied_aura_amounts
+                .get(&wow_entities::AppliedAuraRef::new(7_777, pet_guid, 0, 0x1)),
+            Some(&51)
+        );
         assert_eq!(
             pet.declined_names().map(|names| &names.names),
             Some(&declined_names)

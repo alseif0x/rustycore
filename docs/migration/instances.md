@@ -857,7 +857,12 @@ Complejidad: **L** (low, <1h), **M** (med, 1-4h), **H** (high, 4-12h), **XL** (>
 - El resummon representado aplica esas filas al `SpellHistory` del pet vivo como `SpellHistory::LoadFromDB<Pet>`: cooldown por spell con `ItemId = 0`, category cooldown enlazada por `categoryId`, y cargas por categoría preservando el orden de DB.
 - Si hay `SpellStore` instalado, Rust descarta cooldowns de spells inexistentes igual que `PersistenceHelper<Pet>::ReadCooldown`; sin store instalado, conserva la fila representada para no descartar datos sin autoridad de validación.
 
+**Cerrado en Rust (`#NEXT.RUNTIME.L3.031j106`):**
+- El login carga `pet_aura` y `pet_aura_effect` para el `summonedPetNumber` representado con las statements C++ `CHAR_SEL_PET_AURA` y `CHAR_SEL_PET_AURA_EFFECT`.
+- Igual que `Pet::_LoadAuras`, Rust normaliza caster GUID vacío al GUID vivo del pet recreado, filtra `effectIndex >= MAX_SPELL_EFFECTS`, y aplica la aura al `AuraSubsystem` del pet como `OwnedAuraRef`, `AppliedAuraRef`, `visible_auras` y `VisibleAuraApplicationLikeCpp` con amounts por efecto.
+- Si hay `SpellStore` instalado, Rust descarta auras de spells inexistentes igual que `Pet::_LoadAuras` hace con `sSpellMgr->GetSpellInfo`.
+
 **Límites honestos:**
-- No es todavía `Pet::LoadPetFromDB` real: aunque `character_pet`, `pet_spell`, action bar, declined names de hunter pet y cooldowns/charges ya alimentan el resummon representado, faltan la validación de `LoadPetActionBar` contra `sSpellMgr->GetSpellInfo(...)->IsAutocastable()`, auras, validación exacta de `pet_spell_charges` contra `sSpellCategoryStore.LookupEntry`, happiness/focus exactos, save mode, deleted slot handling y persistencia completa de `character_pet`.
+- No es todavía `Pet::LoadPetFromDB` real: aunque `character_pet`, `pet_spell`, action bar, declined names de hunter pet, cooldowns/charges y auras persistidas ya alimentan el resummon representado, faltan la validación de `LoadPetActionBar` contra `sSpellMgr->GetSpellInfo(...)->IsAutocastable()`, el ajuste offline exacto de `Pet::_LoadAuras` para auras negativas/`SPELL_ATTR4_AURA_EXPIRES_OFFLINE`, `ProcCharges`, `DifficultyStore`, `Aura::TryCreate/CanBeSaved`, validación exacta de `pet_spell_charges` contra `sSpellCategoryStore.LookupEntry`, happiness/focus exactos, save mode, deleted slot handling y persistencia completa de `character_pet`.
 - El gate de vuelo avanzado C++ `MOVEMENTFLAG3_ADV_FLYING` no está cubierto porque no hay campo equivalente representado en `WorldSession`; añadirlo cuando se porte `MovementInfo::flags2/flags3` completo.
 - Falta validar live con cliente/bot que la pet reaparece visualmente tras worldport/near teleport y que los paquetes de create/update son suficientes.
