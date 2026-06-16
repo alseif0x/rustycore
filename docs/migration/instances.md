@@ -439,10 +439,25 @@ NOTE: `InstanceSaveMgr` no longer exists as a separate class in this WoLK 3.4.3 
   branch, matching C++ `Player::TeleportTo`. Refs: `Player.cpp:1310-1346`,
   `Unit.cpp:12208-12244`, `MovementPackets.h:303-318`,
   `MovementPackets.cpp:705-724`, `MovementHandler.cpp:263-324`.
-  Remaining gaps: `SMSG_MOVE_UPDATE_TELEPORT` fanout to nearby players,
-  transport/vehicle payloads, pet distance check and temporary unsummon for
-  same-map teleports, `TELE_REVIVE_AT_TELEPORT`, delayed teleport semaphores,
-  install/restart, bot, and live-client validation remain pending.
+  Remaining gaps: transport/vehicle payloads, pet distance check and temporary
+  unsummon for same-map teleports, `TELE_REVIVE_AT_TELEPORT`, delayed teleport
+  semaphores, install/restart, bot, and live-client validation remain pending.
+- `#NEXT.RUNTIME.L3.031j91` adds the represented nearby-player fanout half of
+  C++ `Unit::SendTeleportPacket`: `SMSG_MOVE_UPDATE_TELEPORT` now serializes
+  the C++ `MoveUpdateTeleport::Write` field order for the represented
+  no-movement-forces/no-speed-optionals case, and same-map player teleports
+  queue that packet to nearby visible sessions through the existing
+  `SendIfVisibleLikeCpp` HaveAtClient gate while excluding the moved player.
+  This mirrors the C++ player branch in `Unit.cpp:12208-12255`: destination is
+  still carried by the moved player's `SMSG_MOVE_TELEPORT`; nearby observers
+  receive the represented current `MovementInfo` status, matching the legacy
+  `moveUpdateTeleport.Status = &m_movementInfo` shape rather than inventing a
+  corrected destination payload. Refs: `Unit.cpp:12208-12255`,
+  `MovementPackets.h:319-334`, `MovementPackets.cpp:750-795`.
+  Remaining gaps: transport/vehicle offsets and GUID payloads, movement forces,
+  optional speed payloads, pet distance check and temporary unsummon,
+  `TELE_REVIVE_AT_TELEPORT`, delayed teleport semaphores, install/restart, bot,
+  and live-client validation remain pending.
 
 **Tests existing:**
 - `cargo test -p wow-instances -- --nocapture` currently covers 19 focused tests, including C++-contrasted lock key/binding, daily/weekly reset anchors, temporary lock creation, active lock lookup, temp promotion, expired-lock replacement, DB row reconstruction, shared weak-ref cleanup, prepared-statement parameter order, flex-mask join rejection, different-instance rejection, and reset in-use guard.

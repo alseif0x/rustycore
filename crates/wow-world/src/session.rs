@@ -22549,6 +22549,7 @@ impl WorldSession {
                 .near_teleport_movement_sequence_like_cpp
                 .wrapping_add(1);
             if let Some(mover_guid) = self.player_guid() {
+                self.send_same_map_move_update_teleport_to_visible_set_like_cpp(mover_guid);
                 self.send_packet(&wow_packet::packets::movement::MoveTeleport {
                     mover_guid,
                     position: destination,
@@ -22569,6 +22570,58 @@ impl WorldSession {
             ),
             "Player same-map near teleport initiated; awaiting MoveTeleportAck"
         );
+    }
+
+    fn send_same_map_move_update_teleport_to_visible_set_like_cpp(&self, source_guid: ObjectGuid) {
+        use wow_packet::ServerPacket;
+
+        let Some(registry) = self.player_registry() else {
+            return;
+        };
+        let Some(source_position) = self.player_position_like_cpp() else {
+            return;
+        };
+        let map_id = self.player_map_id_like_cpp();
+        let instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        let range_sq =
+            crate::map_manager::VISIBILITY_RADIUS * crate::map_manager::VISIBILITY_RADIUS;
+
+        let mut status = self.current_player_movement_info_like_cpp(source_guid);
+        status.time = self.player_movement_time_like_cpp();
+        let packet_bytes = wow_packet::packets::movement::MoveUpdateTeleport { status }.to_bytes();
+
+        let candidates: Vec<_> = registry
+            .iter()
+            .filter_map(|entry| {
+                let (target_guid, info) = entry.pair();
+                if *target_guid == source_guid {
+                    return None;
+                }
+                if !info.is_in_world || info.map_id != map_id || info.instance_id != instance_id {
+                    return None;
+                }
+                let dx = info.position.x - source_position.x;
+                let dy = info.position.y - source_position.y;
+                if dx * dx + dy * dy > range_sq {
+                    return None;
+                }
+                Some(info.command_tx.clone())
+            })
+            .collect();
+
+        for command_tx in candidates {
+            let _ = command_tx.try_send(wow_network::SessionCommand::SendIfVisibleLikeCpp(
+                wow_network::player_registry::SendIfVisibleLikeCppCommand {
+                    source_guid,
+                    map_id,
+                    instance_id,
+                    packet_bytes: packet_bytes.clone(),
+                },
+            ));
+        }
     }
 
     fn remove_all_dynamic_objects_for_current_player_like_cpp(
@@ -66086,6 +66139,76 @@ mod tests {
         assert_eq!(session.pending_teleport, None);
         assert_ne!(session.state, SessionState::Transfer);
         assert_eq!(session.fall_information_like_cpp(), (0, source.z));
+    }
+
+    #[tokio::test]
+    async fn teleport_to_same_map_fanouts_move_update_teleport_to_visible_players_like_cpp() {
+        use wow_packet::packets::movement::MovementInfo;
+
+        let registry = Arc::new(PlayerRegistry::default());
+        let (mut source, _, source_rx) = make_session();
+        let (mut viewer, _, viewer_rx) = make_session();
+        let source_guid = ObjectGuid::create_player(1, 817);
+        let viewer_guid = ObjectGuid::create_player(1, 818);
+        let source_position = Position::new(10.0, 20.0, 30.0, 0.5);
+        let viewer_position = Position::new(11.0, 21.0, 30.0, 0.0);
+        let destination = Position::new(121.0, 221.0, 51.0, 3.6);
+
+        source.set_player_registry(Arc::clone(&registry));
+        source.attach_player_controller_like_cpp(SessionPlayerController::new(
+            source_guid,
+            "NearTeleportSource".to_string(),
+            source_position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        source.set_player_movement_time_like_cpp(456);
+        source.register_in_player_registry();
+
+        viewer.set_player_registry(Arc::clone(&registry));
+        viewer.state = SessionState::LoggedIn;
+        viewer.attach_player_controller_like_cpp(SessionPlayerController::new(
+            viewer_guid,
+            "NearTeleportViewer".to_string(),
+            viewer_position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        viewer.client_visible_guids_like_cpp.insert(source_guid);
+        viewer.register_in_player_registry();
+
+        source.teleport_to(571, destination).await;
+
+        assert_eq!(
+            drain_server_opcodes(&source_rx),
+            vec![ServerOpcodes::CancelCombat, ServerOpcodes::MoveTeleport],
+            "C++ sends SMSG_MOVE_TELEPORT to the moved player"
+        );
+        viewer.process_represented_session_commands_like_cpp().await;
+
+        let packet = viewer_rx
+            .try_recv()
+            .expect("nearby visible player receives SMSG_MOVE_UPDATE_TELEPORT");
+        let mut packet = wow_packet::WorldPacket::from_bytes(&packet);
+        assert_eq!(
+            packet.server_opcode(),
+            Some(ServerOpcodes::MoveUpdateTeleport)
+        );
+        packet.skip_opcode();
+        let status = MovementInfo::read(&mut packet).expect("MovementInfo status");
+        assert_eq!(status.guid, source_guid);
+        assert_eq!(status.time, 456);
+        assert_eq!(
+            status.position, source_position,
+            "C++ player branch broadcasts current m_movementInfo; destination is carried by self SMSG_MOVE_TELEPORT"
+        );
+        assert!(viewer_rx.try_recv().is_err());
     }
 
     #[tokio::test]

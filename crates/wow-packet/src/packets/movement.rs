@@ -771,6 +771,36 @@ impl ServerPacket for MoveTeleport {
     }
 }
 
+// ── MoveUpdateTeleport (SMSG_MOVE_UPDATE_TELEPORT) ───────────────
+
+/// Broadcast to nearby players when a unit performs a same-map teleport.
+///
+/// Mirrors C++ `WorldPackets::Movement::MoveUpdateTeleport::Write` for the
+/// represented no-movement-forces/no-speed-optionals case.
+#[derive(Debug, Clone)]
+pub struct MoveUpdateTeleport {
+    pub status: MovementInfo,
+}
+
+impl ServerPacket for MoveUpdateTeleport {
+    const OPCODE: ServerOpcodes = ServerOpcodes::MoveUpdateTeleport;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        self.status.write(pkt);
+        pkt.write_uint32(0); // MovementForces count
+        pkt.write_bit(false); // WalkSpeed
+        pkt.write_bit(false); // RunSpeed
+        pkt.write_bit(false); // RunBackSpeed
+        pkt.write_bit(false); // SwimSpeed
+        pkt.write_bit(false); // SwimBackSpeed
+        pkt.write_bit(false); // FlightSpeed
+        pkt.write_bit(false); // FlightBackSpeed
+        pkt.write_bit(false); // TurnRate
+        pkt.write_bit(false); // PitchRate
+        pkt.flush_bits();
+    }
+}
+
 // ── MoveUpdate (SMSG_MOVE_UPDATE) ────────────────────────────────
 
 /// Broadcast a player's movement to nearby players.
@@ -1479,6 +1509,35 @@ mod tests {
         assert_eq!(pkt.read_uint8().unwrap(), 0);
         assert!(!pkt.read_bit().unwrap());
         assert!(!pkt.read_bit().unwrap());
+    }
+
+    #[test]
+    fn move_update_teleport_writes_cpp_no_forces_no_speeds_field_order() {
+        let guid = ObjectGuid::create_player(1, 43);
+        let status = MovementInfo {
+            guid,
+            time: 987,
+            position: Position::new(12.0, 13.0, 14.0, 1.25),
+            ..MovementInfo::default()
+        };
+        let packet = MoveUpdateTeleport {
+            status: status.clone(),
+        };
+
+        let bytes = packet.to_bytes();
+        let mut pkt = WorldPacket::from_bytes(&bytes);
+        assert_eq!(
+            pkt.read_uint16().unwrap(),
+            ServerOpcodes::MoveUpdateTeleport as u16
+        );
+        let parsed_status = MovementInfo::read(&mut pkt).expect("MovementInfo status");
+        assert_eq!(parsed_status.guid, guid);
+        assert_eq!(parsed_status.time, 987);
+        assert_eq!(parsed_status.position, status.position);
+        assert_eq!(pkt.read_uint32().unwrap(), 0);
+        for _ in 0..9 {
+            assert!(!pkt.read_bit().unwrap());
+        }
     }
 
     #[test]
