@@ -22209,6 +22209,10 @@ impl WorldSession {
             return;
         }
 
+        if u32::from(self.player_map_id_like_cpp()) != new_map {
+            self.set_selection_guid_like_cpp(None);
+        }
+
         info!(
             account = self.account_id,
             old_map = self.player_map_id_like_cpp(),
@@ -64012,6 +64016,7 @@ mod tests {
         let (mut session, _, send_rx) = make_session();
         let canonical = shared_canonical_map_manager();
         let player_guid = ObjectGuid::create_player(1, 790);
+        let selected_guid = test_creature_guid(79_001);
         let destination = Position::new(5790.0, 2090.0, 636.0, 3.1);
 
         session.set_canonical_map_manager(Arc::clone(&canonical));
@@ -64026,6 +64031,7 @@ mod tests {
             0,
         ));
         session.represented_raid_difficulty_id_like_cpp = 3;
+        session.set_selection_guid_like_cpp(Some(selected_guid));
         install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
         install_access_notification_stores_like_cpp(&mut session);
         let mut requirement = access_requirement_like_cpp(631, 3);
@@ -64057,6 +64063,11 @@ mod tests {
         );
         assert_eq!(session.pending_teleport, None);
         assert_ne!(session.state, SessionState::Transfer);
+        assert_eq!(
+            session.selection_guid_like_cpp(),
+            Some(selected_guid),
+            "C++ Player::TeleportTo returns before SetSelection(Empty) when PlayerCannotEnter rejects"
+        );
         assert!(
             canonical.lock().unwrap().find_map(631, 0).is_none(),
             "teleport preflight must not create the target instance before the client transfer"
@@ -64068,6 +64079,7 @@ mod tests {
         let (mut session, _, send_rx) = make_session();
         let canonical = shared_canonical_map_manager();
         let player_guid = ObjectGuid::create_player(1, 791);
+        let selected_guid = test_creature_guid(79_101);
         let destination = Position::new(5791.0, 2091.0, 637.0, 3.2);
 
         session.set_canonical_map_manager(Arc::clone(&canonical));
@@ -64081,6 +64093,7 @@ mod tests {
             80,
             0,
         ));
+        session.set_selection_guid_like_cpp(Some(selected_guid));
         session.represented_raid_difficulty_id_like_cpp = 3;
         install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
 
@@ -64092,6 +64105,11 @@ mod tests {
         );
         assert_eq!(session.pending_teleport, Some((631, destination)));
         assert_eq!(session.state, SessionState::Transfer);
+        assert_eq!(
+            session.selection_guid_like_cpp(),
+            None,
+            "C++ far Player::TeleportTo clears selection after entry preflight and before transfer"
+        );
         assert!(
             canonical.lock().unwrap().find_map(631, 0).is_none(),
             "C++ Player::TeleportTo only preflights entry rights; map materialization happens later"

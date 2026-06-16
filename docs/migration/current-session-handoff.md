@@ -1,3 +1,18 @@
+- `#NEXT.RUNTIME.L3.031j79` — WotLK `Player::TeleportTo` now clears the
+  selected target on accepted far teleports at the C++ `SetSelection(ObjectGuid::Empty)`
+  point (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:1370-1377`.
+  C++ reaches this only after far-teleport entry gates pass; aborts from
+  `Map::PlayerCannotEnter` return before clearing selection. Rust now mirrors
+  that ordering in `WorldSession::teleport_to`: cross-map transfers clear the
+  represented selection after the target-map preflight and before
+  `SMSG_TRANSFER_PENDING`, while rejected preflights preserve the previous
+  selection. Coverage: targeted `wow-world` teleport tests prove an access
+  requirement abort leaves selection intact and an accepted far instance
+  teleport clears it. Boundary remains partial: no same-map near teleport path,
+  delayed-teleport flags, `CombatStop`, `ResetContestedPvP`, full BG cleanup,
+  pet/vehicle/duel/movement cleanup, install/restart, bot, or live-client/manual
+  validation.
 - `#NEXT.RUNTIME.L3.031j78` — WotLK `Player::TeleportTo` now mirrors the
   Death Knight starter-map escape guard in the far-teleport branch
   (not manual-test-ready). Source-of-truth:
@@ -15,7 +30,7 @@
   the same represented DK with spell 50977 proceeds to
   `SMSG_TRANSFER_PENDING` + `SMSG_SUSPEND_TOKEN`. Boundary remains partial:
   Rust still lacks full same-map near teleport semantics, delayed-teleport
-  flags, `SetSelection`, `CombatStop`, `ResetContestedPvP`, full
+  flags, `CombatStop`, `ResetContestedPvP`, full
   BattlegroundMgr cleanup, pet/vehicle/duel/movement cleanup, install/restart,
   bot, and live-client/manual validation.
 - `#NEXT.RUNTIME.L3.031j77` — WotLK `Player::TeleportTo` now mirrors the
