@@ -24420,6 +24420,7 @@ impl WorldSession {
         rows: impl IntoIterator<Item = CharacterPetAuraRowLikeCpp>,
     ) -> usize {
         let spell_store = self.spell_store().cloned();
+        let difficulty_store = self.difficulty_store().cloned();
         let aura_options_store = self.spell_aura_options_store.clone();
         let auras: Vec<_> = rows
             .into_iter()
@@ -24441,6 +24442,10 @@ impl WorldSession {
                     && spell_store
                         .as_ref()
                         .is_none_or(|store| store.get(row.spell_id as i32).is_some())
+                    && (row.difficulty == 0
+                        || difficulty_store
+                            .as_ref()
+                            .is_none_or(|store| store.contains(u32::from(row.difficulty))))
             })
             .collect();
         let loaded = auras.len();
@@ -66619,6 +66624,73 @@ mod tests {
         assert_eq!(
             auras[2].remain_charges, 0,
             "C++ Pet::_LoadAuras clears remainCharges when SpellInfo::ProcCharges is zero"
+        );
+    }
+
+    #[test]
+    fn load_represented_pet_aura_rows_filters_unknown_difficulty_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let mut spell_store = wow_data::SpellStore::new();
+        for spell_id in [7_001, 7_002, 7_003] {
+            spell_store.insert(
+                spell_id,
+                gameobject_summon_spell_info_like_cpp(spell_id, 0, Vec::new()),
+            );
+        }
+        session.set_spell_store(Arc::new(spell_store));
+        session.set_difficulty_store(Arc::new(wow_data::DifficultyStore::from_ids([2])));
+
+        let loaded = session.load_represented_pet_aura_rows_like_cpp(
+            42,
+            [
+                CharacterPetAuraRowLikeCpp {
+                    caster_guid: ObjectGuid::EMPTY,
+                    spell_id: 7_001,
+                    effect_mask: 1,
+                    recalculate_mask: 0,
+                    difficulty: 0,
+                    stack_count: 1,
+                    max_duration_ms: 10_000,
+                    remain_time_ms: 5_000,
+                    remain_charges: 0,
+                },
+                CharacterPetAuraRowLikeCpp {
+                    caster_guid: ObjectGuid::EMPTY,
+                    spell_id: 7_002,
+                    effect_mask: 1,
+                    recalculate_mask: 0,
+                    difficulty: 2,
+                    stack_count: 1,
+                    max_duration_ms: 10_000,
+                    remain_time_ms: 5_000,
+                    remain_charges: 0,
+                },
+                CharacterPetAuraRowLikeCpp {
+                    caster_guid: ObjectGuid::EMPTY,
+                    spell_id: 7_003,
+                    effect_mask: 1,
+                    recalculate_mask: 0,
+                    difficulty: 9,
+                    stack_count: 1,
+                    max_duration_ms: 10_000,
+                    remain_time_ms: 5_000,
+                    remain_charges: 0,
+                },
+            ],
+        );
+
+        assert_eq!(loaded, 2);
+        let loaded_spell_ids: Vec<_> = session
+            .represented_pet_auras_like_cpp
+            .get(&42)
+            .expect("represented pet auras")
+            .iter()
+            .map(|aura| aura.spell_id)
+            .collect();
+        assert_eq!(
+            loaded_spell_ids,
+            vec![7_001, 7_002],
+            "C++ Pet::_LoadAuras keeps DIFFICULTY_NONE and known difficulties, skips unknown non-zero difficulties"
         );
     }
 
