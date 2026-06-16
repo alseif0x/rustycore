@@ -298,7 +298,11 @@ DBC/DB2 stores read:
 - **Loot method follows this C++ branch** — `CMSG_SET_LOOT_METHOD` is parsed/registered/dispatches (`#NEXT.R8.ENTITIES.231`), but runtime mutation is intentionally a represented no-op because this legacy C++ branch comments out the mutation block.
 - **No master looter / round-robin advance** — `UpdateLooterGuid` not implemented, so `looter_guid` is always EMPTY and group looting cannot work.
 - **Ready check represented-partial** — `CMSG_DO_READY_CHECK` and `CMSG_READY_CHECK_RESPONSE` parse/dispatch through represented current-group state; `SMSG_READY_CHECK_STARTED/RESPONSE/COMPLETED` writers and connected-member fanout exist, including offline/no-session false response approximation and 35s timer state. Missing: full BG/BF/original-group `PartyIndex` category resolution and real `Group::UpdateReadyCheck` timeout tick loop.
-- **No raid markers** — `m_markers[8]` storage absent. `CMSG_CLEAR_RAID_MARKER`, `SMSG_RAID_MARKERS_CHANGED` unhandled.
+- **Raid markers represented-partial** — `GroupInfo` now owns the 8-slot marker state,
+  `SMSG_RAID_MARKERS_CHANGED` serializes active marker entries, join updates replay the
+  represented marker state, and `Spell::EffectChangeRaidMarker` can add a marker and fan it
+  out to connected HOME-group members. Remaining gaps: `CMSG_CLEAR_RAID_MARKER`, DB persistence,
+  original/instance/BG/BF group category parity, and full live runtime/manual validation.
 - **Target icons represented-partial** — `CMSG_UPDATE_RAID_TARGET` and target-icon packets are represented (`#NEXT.R8.ENTITIES.793`), but full live raid target storage/category/runtime validation and complete fanout remain open.
 - **Difficulty switching represented-partial** — `CMSG_SET_DIFFICULTY_ID`, `CMSG_SET_DUNGEON_DIFFICULTY`, and `CMSG_SET_RAID_DIFFICULTY` now route through represented solo/group difficulty state and reset hooks. Remaining gaps: full live `InstanceMap::Reset`, recent/owned instance parity, BG/BF/original-group exclusions, install/restart, and live client/bot validation.
 - **No instance binding** — `m_recentInstances` map absent. Group cannot save/restore raid lockouts.
@@ -413,7 +417,12 @@ DBC/DB2 stores read:
 - [x] **#GROUPS.6** Represent `CMSG_SET_LOOT_METHOD` as the legacy C++ branch requires — parser/dispatch plus represented no-op are covered by `#NEXT.R8.ENTITIES.231`; mutable loot settings require a different C++ branch or intentional behavior change. Complejidad: **M**
 - [ ] **#GROUPS.7** Implement looter rotation (`UpdateLooterGuid`) — round-robin advance on each loot drop. Complejidad: **M**
 - [ ] **#GROUPS.8** Implement `CMSG_DO_READY_CHECK` + `CMSG_READY_CHECK_RESPONSE` + 35s timer in a per-tick `Group::update(diff)`; emit `SMSG_READY_CHECK_STARTED/RESPONSE/COMPLETED`. Complejidad: **H**
-- [ ] **#GROUPS.9** Implement raid markers — 8-slot array of `(map, x, y, z, transport)`; `CMSG_CLEAR_RAID_MARKER`, `SMSG_RAID_MARKERS_CHANGED`. Complejidad: **M**
+- [~] **#GROUPS.9** Represent raid markers — the 8-slot `(map, x, y, z, transport)`
+  state, `SMSG_RAID_MARKERS_CHANGED` writer/replay, and represented
+  `Spell::EffectChangeRaidMarker` add/fanout path are covered by
+  `#NEXT.RUNTIME.L3.031j52`. Still missing: `CMSG_CLEAR_RAID_MARKER`, DB persistence,
+  original/instance/BG/BF group category parity, full `Group::SendRaidMarkersChanged`
+  session targeting, and live-client/manual validation. Complejidad: **M**
 - [x] **#GROUPS.10** Represent target icons — represented `CMSG_UPDATE_RAID_TARGET` / target-icon packets are covered by `#NEXT.R8.ENTITIES.793`; full live raid target storage/category/fanout remains open. Complejidad: **M**
 - [x] **#GROUPS.11** Represent `CMSG_CONVERT_RAID` — represented conversion is covered by `#NEXT.R8.ENTITIES.745/#746`; full raid cap/layout/category/runtime parity remains open. Complejidad: **H**
 - [ ] **#GROUPS.12** Implement raid sub-groups — `subgroup: u8` per member (0..7), `CMSG_CHANGE_SUB_GROUP`, `CMSG_SWAP_SUB_GROUPS`. Complejidad: **H**
@@ -450,7 +459,9 @@ DBC/DB2 stores read:
 - [ ] Test: Pending invite is dropped if inviter leaves before target responds.
 - [ ] Test: Leader leaves → highest-level remaining member becomes leader; tied → highest-account-id wins.
 - [ ] Test: Ready-check timer fires after exactly 35s if not all members respond → `SMSG_READY_CHECK_COMPLETED` with `READY_CHECK_FAIL` flag.
-- [ ] Test: Raid marker placed at slot 3 persists across `SendRaidMarkersChanged` to a re-joining session.
+- [~] Test: Raid marker placed at slot 3 persists across `SendRaidMarkersChanged` to a
+  re-joining session — represented packet/state coverage exists in `#NEXT.RUNTIME.L3.031j52`;
+  full reconnect/DB/runtime validation remains open.
 - [ ] Test: Target icon (skull) on mob A clears the icon from any previous bearer of skull.
 - [ ] Test: Convert-to-raid promotes a 5-player party to raid layout with all in subgroup 0.
 - [ ] Test: Kick a member by `RemoveMember(KICK)` triggers `SMSG_GROUP_UNINVITE` to kicked + `PartyUpdate` to remaining.
@@ -536,10 +547,15 @@ DBC/DB2 stores read:
 
 ## 13. Audit (2026-05-01)
 
-**Verdict: ⚠️ partial — pre-audit estimate of "~15%" confirmed.** Reality is closer to **~8–10%**: only 3 of the ~30 group-related opcode handlers are wired and several previously-listed bugs are confirmed.
+**Verdict: ⚠️ partial — historical 2026-05-01 snapshot.** This section is retained as audit
+history and is superseded for several represented surfaces by later R8/runtime entries; do not use
+its line counts or "only 3 handlers" statement as current truth without re-auditing the code.
 
 **Inventory verified:**
-- `crates/wow-network/src/group_registry.rs`: **53 lines** (doc said 54). Holds `GroupInfo { group_guid: u64, leader_guid, members: Vec<ObjectGuid>, loot_method: u8, sequence_num: u32 }`. No `MemberSlot`, no per-member `subgroup`/`flags`/`roles`/`ready_checked`, no raid markers, no target icons, no instance bind. `is_empty()` returns true at <2 members which is consistent with auto-disband threshold but doesn't match C++ semantics ("no members" vs "auto-dissolve").
+- `crates/wow-network/src/group_registry.rs`: historical snapshot. Later slices added represented
+  member slots/subgroups/roles/ready-check/target-icons/raid-markers and many packet paths; use
+  the task list above plus `current-session-handoff.md` for current boundaries. Instance binds,
+  DB persistence, BG/BF/original-group parity and full live runtime remain open.
 - `crates/wow-world/src/handlers/group.rs`: **467 lines** (matches doc). Three `inventory::submit!` registrations exactly: `PartyInvite`, `PartyInviteResponse`, `LeaveGroup`. **Zero** other group opcodes wired.
 
 **Confirmed bugs:**

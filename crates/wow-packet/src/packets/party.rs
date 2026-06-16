@@ -3,7 +3,7 @@
 
 use crate::{ClientPacket, ServerPacket, WorldPacket};
 use wow_constants::{ClientOpcodes, ServerOpcodes};
-use wow_core::ObjectGuid;
+use wow_core::{ObjectGuid, Position};
 
 use crate::world_packet::PacketError;
 
@@ -865,10 +865,18 @@ impl ServerPacket for SendRaidTargetUpdateAll {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct RaidMarker {
+    pub transport_guid: ObjectGuid,
+    pub map_id: u32,
+    pub position: Position,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct RaidMarkersChanged {
     pub party_index: u8,
     pub active_markers: u32,
+    pub raid_markers: Vec<RaidMarker>,
 }
 
 impl ServerPacket for RaidMarkersChanged {
@@ -877,9 +885,15 @@ impl ServerPacket for RaidMarkersChanged {
     fn write(&self, w: &mut WorldPacket) {
         w.write_uint8(self.party_index);
         w.write_uint32(self.active_markers);
-        // Represented-minimal join-update path: no RaidMarker entries yet.
-        w.write_bits(0, 4);
+        w.write_bits(self.raid_markers.len() as u32, 4);
         w.flush_bits();
+        for marker in &self.raid_markers {
+            w.write_packed_guid(&marker.transport_guid);
+            w.write_uint32(marker.map_id);
+            w.write_float(marker.position.x);
+            w.write_float(marker.position.y);
+            w.write_float(marker.position.z);
+        }
     }
 }
 
@@ -1164,7 +1178,7 @@ mod tests {
         ChangeSubGroup, ConvertRaid, DoReadyCheck, DungeonScoreMapSummary, DungeonScoreSummary,
         GroupNewLeader, InitiateRolePoll, LowLevelRaid1, LowLevelRaid2, MinimapPingClient,
         OptOutOfLoot, PartyMemberFullState, PartyMemberPhase, PartyMemberPhaseStates,
-        PartyUninvite, RaidMarkersChanged, ReadyCheckCompleted, ReadyCheckResponse,
+        PartyUninvite, RaidMarker, RaidMarkersChanged, ReadyCheckCompleted, ReadyCheckResponse,
         ReadyCheckResponseClient, ReadyCheckStarted, RequestPartyJoinUpdates,
         RequestPartyMemberStats, RoleChangedInform, RolePollInform, SendRaidTargetUpdateAll,
         SendRaidTargetUpdateSingle, SetAssistantLeader, SetEveryoneIsAssistant, SetLootMethod,
@@ -1173,7 +1187,7 @@ mod tests {
     };
     use crate::{ClientPacket, ServerPacket, WorldPacket};
     use wow_constants::ServerOpcodes;
-    use wow_core::ObjectGuid;
+    use wow_core::{ObjectGuid, Position};
 
     fn packed_guid_bytes(guid: ObjectGuid) -> Vec<u8> {
         let mut pkt = WorldPacket::new_empty();
@@ -1696,11 +1710,41 @@ mod tests {
         RaidMarkersChanged {
             party_index: 0,
             active_markers: 0,
+            raid_markers: Vec::new(),
         }
         .write(&mut pkt);
         let data = pkt.into_data();
 
         assert_eq!(data, vec![0, 0, 0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn raid_markers_changed_writes_marker_entries_like_cpp() {
+        let transport =
+            ObjectGuid::create_transport(wow_core::guid::HighGuid::Transport, 0x0102_0304);
+        let mut pkt = WorldPacket::new_empty();
+        RaidMarkersChanged {
+            party_index: 1,
+            active_markers: 1 << 3,
+            raid_markers: vec![RaidMarker {
+                transport_guid: transport,
+                map_id: 571,
+                position: Position::xyz(12.25, -34.5, 6.75),
+            }],
+        }
+        .write(&mut pkt);
+        pkt.reset_read();
+
+        assert_eq!(pkt.read_uint8().unwrap(), 1);
+        assert_eq!(pkt.read_uint32().unwrap(), 1 << 3);
+        assert_eq!(pkt.read_bits(4).unwrap(), 1);
+        pkt.flush_bits();
+        assert_eq!(pkt.read_packed_guid().unwrap(), transport);
+        assert_eq!(pkt.read_uint32().unwrap(), 571);
+        assert_eq!(pkt.read_float().unwrap(), 12.25);
+        assert_eq!(pkt.read_float().unwrap(), -34.5);
+        assert_eq!(pkt.read_float().unwrap(), 6.75);
+        assert!(pkt.is_empty());
     }
 
     #[test]

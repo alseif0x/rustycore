@@ -35056,6 +35056,14 @@ impl WorldSession {
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_FORCE_DESELECT => {
                     self.apply_force_deselect_effect_like_cpp();
                 }
+                x if x
+                    == wow_data::spell::spell_effect_types::SPELL_EFFECT_CHANGE_RAID_MARKER =>
+                {
+                    self.apply_change_raid_marker_effect_like_cpp(
+                        direct_effect_base_points,
+                        &target_data,
+                    );
+                }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_SPELL => {
                     self.apply_learn_spell_effect_like_cpp(
                         direct_effect_trigger_spell,
@@ -35267,6 +35275,7 @@ impl WorldSession {
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_DUEL
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_DISMISS_PET
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_FORCE_DESELECT
+                || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_CHANGE_RAID_MARKER
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_SPELL
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_TRANSMOG_SET
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_UPGRADE_HEIRLOOM
@@ -37168,6 +37177,92 @@ impl WorldSession {
                 hostile_visible_fanout_unrepresented: true,
                 attacker_pet_attack_stop_unrepresented: true,
             });
+        true
+    }
+
+    /// C++ `Spell::EffectChangeRaidMarker`.
+    ///
+    /// Represented boundary: current in-memory HOME group only. This mirrors
+    /// `Group::AddRaidMarker` storage and `SMSG_RAID_MARKERS_CHANGED` fanout to
+    /// connected represented members. Full DB persistence, instance/original
+    /// group category routing and `CMSG_CLEAR_RAID_MARKER` remain group-runtime
+    /// follow-ups.
+    fn apply_change_raid_marker_effect_like_cpp(
+        &mut self,
+        damage: i32,
+        target_data: &SpellTargetData,
+    ) -> bool {
+        let Some(player_guid) = self.player_guid() else {
+            return false;
+        };
+        let Some(destination) = target_data.dst_location.as_ref() else {
+            return false;
+        };
+        let Some(group_guid) = self.group_guid else {
+            return false;
+        };
+        let Some(group_registry) = self.group_registry().cloned() else {
+            return false;
+        };
+
+        let packet_bytes_and_members = {
+            let Some(mut group) = group_registry.get_mut(&group_guid) else {
+                return false;
+            };
+            if !group.members.contains(&player_guid) {
+                return false;
+            }
+            if group.is_raid_group()
+                && !group.is_leader_like_cpp(player_guid)
+                && !group.is_assistant_like_cpp(player_guid)
+            {
+                return false;
+            }
+
+            let marker_id = damage as u8;
+            if !group.add_raid_marker_like_cpp(
+                marker_id,
+                u32::from(self.player_map_id_like_cpp()),
+                destination.position,
+                destination.transport,
+            ) {
+                return false;
+            }
+
+            use wow_packet::ServerPacket;
+            let packet = wow_packet::packets::party::RaidMarkersChanged {
+                party_index: group.group_category_like_cpp(),
+                active_markers: group.active_raid_markers_mask_like_cpp(),
+                raid_markers: group
+                    .raid_marker_list_like_cpp()
+                    .into_iter()
+                    .map(|marker| wow_packet::packets::party::RaidMarker {
+                        transport_guid: marker.transport_guid,
+                        map_id: marker.map_id,
+                        position: marker.position,
+                    })
+                    .collect(),
+            }
+            .to_bytes();
+            (packet, group.members.clone())
+        };
+
+        let (packet_bytes, members) = packet_bytes_and_members;
+        let mut sent_to_self_via_registry = false;
+        if let Some(registry) = self.player_registry().cloned() {
+            for member_guid in members {
+                let Some(member) = registry.get(&member_guid) else {
+                    continue;
+                };
+                if member_guid == player_guid {
+                    sent_to_self_via_registry = true;
+                }
+                let _ = member.send_tx.try_send(packet_bytes.clone());
+            }
+        }
+        if !sent_to_self_via_registry {
+            self.send_raw_packet(&packet_bytes);
+        }
         true
     }
 
@@ -61874,6 +61969,187 @@ mod tests {
         );
         assert_eq!(clear_target.read_packed_guid().expect("Guid"), player_guid);
         assert!(clear_target.is_empty());
+    }
+
+    #[tokio::test]
+    async fn spell_change_raid_marker_effect_row_stores_marker_and_fanouts_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 756_i32;
+        let leader_guid = ObjectGuid::create_player(1, 78);
+        let member_guid = ObjectGuid::create_player(1, 79);
+        let destination = Position::xyz(12.25, -34.5, 6.75);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (leader_tx, leader_rx) = flume::bounded(8);
+        let (member_tx, member_rx) = flume::bounded(8);
+        let mut group = GroupInfo::new(leader_guid);
+        group.convert_to_raid_like_cpp();
+        group.add_member(member_guid);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+        player_registry.insert(leader_guid, broadcast_info(leader_guid, leader_tx));
+        player_registry.insert(member_guid, broadcast_info(member_guid, member_tx));
+        session.set_player_guid(Some(leader_guid));
+        session.set_player_map_position_like_cpp(571, Position::ZERO);
+        session.group_guid = Some(group_guid);
+        session.set_group_registry(
+            Arc::clone(&group_registry),
+            Arc::new(PendingInvites::default()),
+        );
+        session.set_player_registry(player_registry);
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_CHANGE_RAID_MARKER,
+                    effect_base_points: 3,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell_with_target_data(
+                spell_id,
+                leader_guid,
+                SpellTargetData {
+                    dst_location: Some(wow_packet::packets::spell::TargetLocation {
+                        transport: ObjectGuid::EMPTY,
+                        position: destination,
+                    }),
+                    ..SpellTargetData::default()
+                },
+            )
+            .await
+            .expect("represented change-raid-marker spell row should execute");
+
+        let group = group_registry
+            .get(&group_guid)
+            .expect("group should remain");
+        assert_eq!(group.active_raid_markers_mask_like_cpp(), 1 << 3);
+        assert_eq!(group.raid_marker_list_like_cpp()[0].map_id, 571);
+        assert_eq!(group.raid_marker_list_like_cpp()[0].position, destination);
+        drop(group);
+
+        for rx in [&leader_rx, &member_rx] {
+            let marker_packet = rx.try_recv().expect("raid marker fanout packet");
+            let mut packet = WorldPacket::from_bytes(&marker_packet);
+            assert_eq!(
+                packet.server_opcode(),
+                Some(ServerOpcodes::RaidMarkersChanged)
+            );
+            assert_eq!(
+                packet.read_uint16().expect("opcode"),
+                ServerOpcodes::RaidMarkersChanged as u16
+            );
+            assert_eq!(packet.read_uint8().expect("PartyIndex"), 0);
+            assert_eq!(packet.read_uint32().expect("ActiveMarkers"), 1 << 3);
+            assert_eq!(packet.read_bits(4).expect("marker count"), 1);
+            packet.flush_bits();
+            assert_eq!(
+                packet.read_packed_guid().expect("TransportGUID"),
+                ObjectGuid::EMPTY
+            );
+            assert_eq!(packet.read_uint32().expect("mapId"), 571);
+            assert_eq!(packet.read_float().expect("x"), destination.x);
+            assert_eq!(packet.read_float().expect("y"), destination.y);
+            assert_eq!(packet.read_float().expect("z"), destination.z);
+            assert!(packet.is_empty());
+        }
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent],
+            "RaidMarkersChanged is sent to represented group members, not as an extra direct caster packet"
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_change_raid_marker_raid_requires_leader_or_assistant_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 757_i32;
+        let leader_guid = ObjectGuid::create_player(1, 80);
+        let member_guid = ObjectGuid::create_player(1, 81);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (member_tx, member_rx) = flume::bounded(8);
+        let mut group = GroupInfo::new(leader_guid);
+        group.convert_to_raid_like_cpp();
+        group.add_member(member_guid);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+        player_registry.insert(member_guid, broadcast_info(member_guid, member_tx));
+        session.set_player_guid(Some(member_guid));
+        session.set_player_map_position_like_cpp(571, Position::ZERO);
+        session.group_guid = Some(group_guid);
+        session.set_group_registry(
+            Arc::clone(&group_registry),
+            Arc::new(PendingInvites::default()),
+        );
+        session.set_player_registry(player_registry);
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_CHANGE_RAID_MARKER,
+                    effect_base_points: 4,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell_with_target_data(
+                spell_id,
+                member_guid,
+                SpellTargetData {
+                    dst_location: Some(wow_packet::packets::spell::TargetLocation {
+                        transport: ObjectGuid::EMPTY,
+                        position: Position::xyz(1.0, 2.0, 3.0),
+                    }),
+                    ..SpellTargetData::default()
+                },
+            )
+            .await
+            .expect("represented change-raid-marker unauthorized raid member should no-op");
+
+        assert_eq!(
+            group_registry
+                .get(&group_guid)
+                .unwrap()
+                .active_raid_markers_mask_like_cpp(),
+            0
+        );
+        assert!(member_rx.try_recv().is_err());
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
     }
 
     #[tokio::test]

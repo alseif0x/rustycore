@@ -8,7 +8,7 @@ use std::{
         atomic::{AtomicU32, AtomicU64, Ordering},
     },
 };
-use wow_core::ObjectGuid;
+use wow_core::{ObjectGuid, Position};
 use wow_data::DifficultyStore;
 
 static NEXT_GROUP_ID: AtomicU64 = AtomicU64::new(1);
@@ -39,6 +39,7 @@ pub const DIFFICULTY_NORMAL_RAID_LIKE_CPP: u32 = 14;
 pub const DIFFICULTY_10_N_LIKE_CPP: u32 = 3;
 pub const TARGET_ICONS_COUNT_LIKE_CPP: usize = 8;
 pub const EMPTY_TARGET_ICON_RAW_LIKE_CPP: [u8; 16] = [0; 16];
+pub const RAID_MARKERS_COUNT_LIKE_CPP: usize = 8;
 pub const LFG_STATE_DUNGEON_LIKE_CPP: u8 = 5;
 pub const LFG_STATE_FINISHED_DUNGEON_LIKE_CPP: u8 = 6;
 pub const MAX_GROUP_SIZE_LIKE_CPP: usize = 5;
@@ -219,6 +220,14 @@ pub enum ReadyCheckEventLikeCpp {
     },
 }
 
+/// C++ `RaidMarker` (`Group.h`): one world position plus optional transport.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct RaidMarkerLikeCpp {
+    pub map_id: u32,
+    pub position: Position,
+    pub transport_guid: ObjectGuid,
+}
+
 /// Information about one group/party.
 #[derive(Debug, Clone)]
 pub struct GroupInfo {
@@ -248,6 +257,7 @@ pub struct GroupInfo {
     pub raid_difficulty_id: u32,
     pub legacy_raid_difficulty_id: u32,
     pub target_icons: [[u8; 16]; TARGET_ICONS_COUNT_LIKE_CPP],
+    pub raid_markers: [Option<RaidMarkerLikeCpp>; RAID_MARKERS_COUNT_LIKE_CPP],
     pub lfg_db_state: Option<GroupLfgDbStateLikeCpp>,
     pub raid_subgroup_counts: Option<[u8; MAX_RAID_SUBGROUPS_LIKE_CPP]>,
     pub ready_check_started: bool,
@@ -285,6 +295,7 @@ impl GroupInfo {
             raid_difficulty_id: DIFFICULTY_NORMAL_RAID_LIKE_CPP,
             legacy_raid_difficulty_id: DIFFICULTY_10_N_LIKE_CPP,
             target_icons: [EMPTY_TARGET_ICON_RAW_LIKE_CPP; TARGET_ICONS_COUNT_LIKE_CPP],
+            raid_markers: [None; RAID_MARKERS_COUNT_LIKE_CPP],
             lfg_db_state: None,
             raid_subgroup_counts: None,
             ready_check_started: false,
@@ -323,6 +334,7 @@ impl GroupInfo {
             raid_difficulty_id,
             legacy_raid_difficulty_id,
             target_icons: [EMPTY_TARGET_ICON_RAW_LIKE_CPP; TARGET_ICONS_COUNT_LIKE_CPP],
+            raid_markers: [None; RAID_MARKERS_COUNT_LIKE_CPP],
             lfg_db_state: None,
             raid_subgroup_counts: if (group_flags & GROUP_FLAG_RAID_LIKE_CPP) != 0 {
                 Some([0; MAX_RAID_SUBGROUPS_LIKE_CPP])
@@ -600,6 +612,46 @@ impl GroupInfo {
             .enumerate()
             .map(|(symbol, raw)| (symbol as u8, ObjectGuid::from_raw_bytes(raw)))
             .collect()
+    }
+
+    pub fn active_raid_markers_mask_like_cpp(&self) -> u32 {
+        self.raid_markers
+            .iter()
+            .enumerate()
+            .fold(0u32, |mask, (index, marker)| {
+                if marker.is_some() {
+                    mask | (1u32 << index)
+                } else {
+                    mask
+                }
+            })
+    }
+
+    pub fn raid_marker_list_like_cpp(&self) -> Vec<RaidMarkerLikeCpp> {
+        self.raid_markers.iter().flatten().copied().collect()
+    }
+
+    /// C++ `Group::AddRaidMarker`: ignore ids outside `[0, 8)` and occupied slots.
+    pub fn add_raid_marker_like_cpp(
+        &mut self,
+        marker_id: u8,
+        map_id: u32,
+        position: Position,
+        transport_guid: ObjectGuid,
+    ) -> bool {
+        let index = usize::from(marker_id);
+        let Some(slot) = self.raid_markers.get_mut(index) else {
+            return false;
+        };
+        if slot.is_some() {
+            return false;
+        }
+        *slot = Some(RaidMarkerLikeCpp {
+            map_id,
+            position,
+            transport_guid,
+        });
+        true
     }
 
     pub fn set_target_icon_like_cpp(
@@ -1901,6 +1953,34 @@ mod tests {
                 .count(),
             1
         );
+    }
+
+    #[test]
+    fn add_raid_marker_preserves_cpp_slots_mask_and_duplicate_rejection() {
+        let transport = ObjectGuid::create_transport(wow_core::guid::HighGuid::Transport, 0x55AA);
+        let mut group = GroupInfo::new(ObjectGuid::create_player(1, 42));
+        let sequence_before = group.sequence_num;
+        let position = Position::xyz(12.25, -34.5, 6.75);
+
+        assert!(group.add_raid_marker_like_cpp(3, 571, position, transport));
+        assert_eq!(group.active_raid_markers_mask_like_cpp(), 1 << 3);
+        assert_eq!(
+            group.raid_marker_list_like_cpp(),
+            vec![RaidMarkerLikeCpp {
+                map_id: 571,
+                position,
+                transport_guid: transport,
+            }]
+        );
+        assert_eq!(
+            group.sequence_num, sequence_before,
+            "C++ Group::AddRaidMarker sends RaidMarkersChanged and does not advance PartyUpdate sequence"
+        );
+
+        assert!(!group.add_raid_marker_like_cpp(3, 1, Position::ZERO, ObjectGuid::EMPTY));
+        assert!(!group.add_raid_marker_like_cpp(8, 1, Position::ZERO, ObjectGuid::EMPTY));
+        assert_eq!(group.active_raid_markers_mask_like_cpp(), 1 << 3);
+        assert_eq!(group.raid_marker_list_like_cpp().len(), 1);
     }
 
     #[test]

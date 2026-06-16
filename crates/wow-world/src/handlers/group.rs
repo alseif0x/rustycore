@@ -24,11 +24,12 @@ use wow_packet::packets::party::{
     DoReadyCheck, GroupDecline, GroupNewLeader, GroupUninvite, InitiateRolePoll, LowLevelRaid1,
     LowLevelRaid2, MinimapPing, MinimapPingClient, OptOutOfLoot, PartyCommandResult,
     PartyDifficultySettings, PartyInviteServer, PartyLootSettings, PartyMemberFullState,
-    PartyPlayerInfo, PartyUpdate, RaidMarkersChanged, ReadyCheckCompleted, ReadyCheckResponse,
-    ReadyCheckResponseClient, ReadyCheckStarted, RequestPartyJoinUpdates, RequestPartyMemberStats,
-    RoleChangedInform, RolePollInform, SendRaidTargetUpdateAll, SendRaidTargetUpdateSingle,
-    SetAssistantLeader, SetEveryoneIsAssistant, SetLootMethod, SetPartyAssignment, SetPartyLeader,
-    SetRole, SilencePartyTalker, UpdateRaidTarget, party_result,
+    PartyPlayerInfo, PartyUpdate, RaidMarker, RaidMarkersChanged, ReadyCheckCompleted,
+    ReadyCheckResponse, ReadyCheckResponseClient, ReadyCheckStarted, RequestPartyJoinUpdates,
+    RequestPartyMemberStats, RoleChangedInform, RolePollInform, SendRaidTargetUpdateAll,
+    SendRaidTargetUpdateSingle, SetAssistantLeader, SetEveryoneIsAssistant, SetLootMethod,
+    SetPartyAssignment, SetPartyLeader, SetRole, SilencePartyTalker, UpdateRaidTarget,
+    party_result,
 };
 use wow_packet::{ClientPacket, ServerPacket};
 
@@ -668,10 +669,19 @@ fn raid_target_update_all_like_cpp(group: &GroupInfo) -> Vec<u8> {
     .to_bytes()
 }
 
-fn raid_markers_changed_empty_like_cpp(party_index: u8) -> Vec<u8> {
+fn raid_markers_changed_like_cpp(group: &GroupInfo) -> Vec<u8> {
     RaidMarkersChanged {
-        party_index,
-        active_markers: 0,
+        party_index: group.group_category_like_cpp(),
+        active_markers: group.active_raid_markers_mask_like_cpp(),
+        raid_markers: group
+            .raid_marker_list_like_cpp()
+            .into_iter()
+            .map(|marker| RaidMarker {
+                transport_guid: marker.transport_guid,
+                map_id: marker.map_id,
+                position: marker.position,
+            })
+            .collect(),
     }
     .to_bytes()
 }
@@ -2401,9 +2411,7 @@ impl WorldSession {
         };
         if let Some(group) = group_reg.get(&group_guid) {
             self.send_raw_packet(&raid_target_update_all_like_cpp(&group));
-            self.send_raw_packet(&raid_markers_changed_empty_like_cpp(
-                group.group_category_like_cpp(),
-            ));
+            self.send_raw_packet(&raid_markers_changed_like_cpp(&group));
         }
     }
 

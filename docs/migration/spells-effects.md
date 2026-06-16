@@ -595,7 +595,15 @@ Numerados como `#SPELLS-EFFECTS.N` para referencia desde `MIGRATION_ROADMAP.md`.
   client/manual validation remain open.
 - [ ] **#SPELLS-EFFECTS.69** Implementar `EffectApplyGlyph` con GlyphProperties.db2 (M)
 - [ ] **#SPELLS-EFFECTS.70** Implementar `EffectPlayMovie`, `EffectPlayScene`, `EffectPlaySceneScriptPackage`, `EffectCreateSceneObject`, `EffectCreatePrivateSceneObject` (M)
-- [ ] **#SPELLS-EFFECTS.71** Implementar `EffectGiveHonor`, `EffectGrantBattlePetExperience`, `EffectChangeRaidMarker` (L)
+- [~] **#SPELLS-EFFECTS.71** Implementar `EffectGiveHonor`, `EffectGrantBattlePetExperience`,
+  `EffectChangeRaidMarker` (L) — represented-partial: `EffectGiveHonor` is covered by
+  `#NEXT.RUNTIME.L3.031fq`; `EffectChangeRaidMarker` is covered by
+  `#NEXT.RUNTIME.L3.031j52` for current represented HOME-group state, including
+  `SPELL_EFFECT_CHANGE_RAID_MARKER = 106`, 8-slot raid-marker storage,
+  `SMSG_RAID_MARKERS_CHANGED` serialization and connected-member fanout. Remaining:
+  `EffectGrantBattlePetExperience` is future/non-WotLK scope and not counted toward the
+  active WotLK target; full raid-marker clear/persistence/original-instance-BG-BF category
+  parity and live-client/manual validation remain open.
 - [ ] **#SPELLS-EFFECTS.72** Implementar `EffectGameobjectDamage`, `EffectGameObjectRepair`, `EffectGameobjectSetDestructionState` (M)
 - [ ] **#SPELLS-EFFECTS.73** Implementar `EffectPickPocket` (L)
 - [x] **#SPELLS-EFFECTS.74** Representar `EffectDistract` / `SPELL_EFFECT_DISTRACT` para

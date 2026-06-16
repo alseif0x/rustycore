@@ -91,6 +91,7 @@ pub mod spell_effect_types {
     /// `Spell::EffectSummonObject` (`SpellEffects.cpp:3541-3597`).
     pub const SPELL_EFFECT_SUMMON_OBJECT_SLOT1: u32 = 104;
     pub const SPELL_EFFECT_SURVEY: u32 = 105;
+    pub const SPELL_EFFECT_CHANGE_RAID_MARKER: u32 = 106;
     pub const SPELL_EFFECT_SHOW_CORPSE_LOOT: u32 = 107;
     pub const SPELL_EFFECT_112: u32 = 112;
     pub const SPELL_EFFECT_ATTACK_ME: u32 = 114;
@@ -1157,6 +1158,7 @@ mod tests {
         assert_eq!(spell_effect_types::SPELL_EFFECT_DISMISS_PET, 102);
         assert_eq!(spell_effect_types::SPELL_EFFECT_REPUTATION, 103);
         assert_eq!(spell_effect_types::SPELL_EFFECT_SURVEY, 105);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_CHANGE_RAID_MARKER, 106);
         assert_eq!(spell_effect_types::SPELL_EFFECT_SHOW_CORPSE_LOOT, 107);
         assert_eq!(spell_effect_types::SPELL_EFFECT_112, 112);
         assert_eq!(spell_effect_types::SPELL_EFFECT_ATTACK_ME, 114);
