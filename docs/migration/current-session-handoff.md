@@ -1,3 +1,20 @@
+- `#NEXT.RUNTIME.L3.031j59` — WotLK represented `MapManager::CreateMap` player/group
+  context bridge (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Maps/MapManager.cpp:139-225`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28532-28545`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp:1338-1351`, and
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Stores.cpp:2314-2339`.
+  Rust now builds `wow_map::CreateMapPlayerContext` from live `WorldSession` state instead of
+  hardcoded solo defaults: player guid/team, solo recent instance id, group difficulty, group recent
+  instance owner/id, and C++ `GetDifficultyID(MapEntry*)` raid selection. `MapDifficultyStore` now
+  exposes a bounded C++ `GetDefaultMapDifficulty` equivalent so legacy raids select
+  `m_legacyRaidDifficulty` when the map default difficulty is legacy or metadata is missing, while
+  modern raids use `m_raidDifficulty`. Coverage: targeted `wow-data default_for_map` tests cover
+  default-flag and fallback behavior; targeted `wow-world create_map_player_context` tests cover
+  solo, group, leader-owner fallback, legacy raid, and missing-metadata legacy fallback branches.
+  Boundary remains partial: `ensure_canonical_world_map_for_current_player_like_cpp` still only
+  requests world-map creation today, dungeon/battleground `CreateMap` side effects are not fully
+  consumed by live runtime, no persistence/install/restart, bot, or live-client validation.
 - `#NEXT.RUNTIME.L3.031j58` — WotLK represented `Player::m_recentInstances` foundation
   (not manual-test-ready). Source-of-truth:
   `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:2527-2538`,

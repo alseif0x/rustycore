@@ -127,7 +127,7 @@ use wow_map::coords::SIZE_OF_GRID_CELL;
 use wow_network::session_mgr::{InstanceLink, SessionManager};
 use wow_network::{
     ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp,
-    GameEventQuestCompleteClientOutcomeLikeCpp, GameEventQuestCompleteCommandLikeCpp,
+    GameEventQuestCompleteClientOutcomeLikeCpp, GameEventQuestCompleteCommandLikeCpp, GroupInfo,
     GroupInstanceResetMethodLikeCpp, GroupInstanceResetResultLikeCpp, GroupRegistry,
     KickLikeCppCommand, LootDropRatesLikeCpp, PacketSpoofConfigLikeCpp, PendingInvites,
     PlayerBroadcastInfo, PlayerRegistry, ReputationRatesLikeCpp, SessionCommand,
@@ -7054,15 +7054,7 @@ impl WorldSession {
         }
 
         let player_guid = self.player_guid?;
-        let player = wow_map::CreateMapPlayerContext {
-            guid_counter: player_guid.counter() as u64,
-            team_id: player_team_id_for_race_cpp(self.player_race_like_cpp()),
-            battleground_id: 0,
-            has_battleground: false,
-            player_difficulty_id: 0,
-            player_recent_instance_id: self.represented_player_recent_instance_id_like_cpp(map_id),
-            group: None,
-        };
+        let player = self.create_map_player_context_like_cpp(map_id, map_entry, player_guid);
         let entry = wow_map::CreateMapEntryContext {
             map_id,
             kind: wow_map::CreateMapEntryKind::World,
@@ -7103,6 +7095,100 @@ impl WorldSession {
         }
 
         Some(decision)
+    }
+
+    pub(crate) fn create_map_player_context_like_cpp(
+        &self,
+        map_id: u32,
+        map_entry: wow_data::map::MapEntry,
+        player_guid: ObjectGuid,
+    ) -> wow_map::CreateMapPlayerContext {
+        let player_difficulty_id =
+            self.represented_player_difficulty_id_for_map_entry_like_cpp(map_id, map_entry);
+
+        let group = self
+            .group_guid
+            .and_then(|group_guid| self.group_registry.as_ref()?.get(&group_guid))
+            .map(|group| {
+                let difficulty_id = self.represented_group_difficulty_id_for_map_entry_like_cpp(
+                    map_id, map_entry, &group,
+                );
+                wow_map::CreateMapGroupContext {
+                    difficulty_id,
+                    recent_instance_owner_guid_counter: group
+                        .recent_instance_owner_like_cpp(map_id)
+                        .counter() as u64,
+                    recent_instance_id: group.recent_instance_id_like_cpp(map_id),
+                }
+            });
+
+        wow_map::CreateMapPlayerContext {
+            guid_counter: player_guid.counter() as u64,
+            team_id: player_team_id_for_race_cpp(self.player_race_like_cpp()),
+            battleground_id: 0,
+            has_battleground: false,
+            player_difficulty_id,
+            player_recent_instance_id: self.represented_player_recent_instance_id_like_cpp(map_id),
+            group,
+        }
+    }
+
+    fn represented_player_difficulty_id_for_map_entry_like_cpp(
+        &self,
+        map_id: u32,
+        map_entry: wow_data::map::MapEntry,
+    ) -> wow_map::Difficulty {
+        (match map_entry.instance_type {
+            wow_data::map::MAP_INSTANCE => self.represented_dungeon_difficulty_id_like_cpp,
+            wow_data::map::MAP_RAID => {
+                if self.map_uses_legacy_raid_difficulty_like_cpp(map_id) {
+                    self.represented_legacy_raid_difficulty_id_like_cpp
+                } else {
+                    self.represented_raid_difficulty_id_like_cpp
+                }
+            }
+            _ => 0,
+        }) as wow_map::Difficulty
+    }
+
+    fn represented_group_difficulty_id_for_map_entry_like_cpp(
+        &self,
+        map_id: u32,
+        map_entry: wow_data::map::MapEntry,
+        group: &GroupInfo,
+    ) -> wow_map::Difficulty {
+        (match map_entry.instance_type {
+            wow_data::map::MAP_INSTANCE => group.dungeon_difficulty_id,
+            wow_data::map::MAP_RAID => {
+                if self.map_uses_legacy_raid_difficulty_like_cpp(map_id) {
+                    group.legacy_raid_difficulty_id
+                } else {
+                    group.raid_difficulty_id
+                }
+            }
+            _ => u32::from(
+                self.represented_player_difficulty_id_for_map_entry_like_cpp(map_id, map_entry),
+            ),
+        }) as wow_map::Difficulty
+    }
+
+    fn map_uses_legacy_raid_difficulty_like_cpp(&self, map_id: u32) -> bool {
+        let Some(default_difficulty) = self.map_difficulty_store().and_then(|store| {
+            self.difficulty_store().and_then(|difficulty_store| {
+                store.default_for_map_like_cpp(map_id, difficulty_store)
+            })
+        }) else {
+            return true;
+        };
+
+        let Some(difficulty) = self
+            .difficulty_store()
+            .and_then(|store| store.get(u32::from(default_difficulty.difficulty_id)))
+        else {
+            return true;
+        };
+
+        DifficultyFlags::from_bits_truncate(difficulty.flags).contains(DifficultyFlags::LEGACY)
     }
 
     /// Inject the dedicated Detour worker handle. The session only sends
@@ -38516,9 +38602,10 @@ mod tests {
         ItemPriceBaseStore, ItemRandomPropertyTemplateEntry, ItemRandomSuffixEntry,
         ItemRandomSuffixStore, ItemRecord, ItemSearchNameEntry, ItemSearchNameStore,
         ItemSparseTemplateEntry, ItemSpecOverrideEntry, ItemSpecOverrideStore, ItemStatsStore,
-        ItemStore, LockEntry, LockStore, PlayerConditionEntry, PlayerConditionStore,
-        SpellItemEnchantmentEntry, SpellItemEnchantmentStore, ToyEntry, ToyStore, TransmogSetEntry,
-        TransmogSetItemEntry, TransmogSetItemStore,
+        ItemStore, LockEntry, LockStore, MapDifficultyEntry, MapDifficultyStore,
+        PlayerConditionEntry, PlayerConditionStore, SpellItemEnchantmentEntry,
+        SpellItemEnchantmentStore, ToyEntry, ToyStore, TransmogSetEntry, TransmogSetItemEntry,
+        TransmogSetItemStore,
         progression_rewards::{
             FactionEntry, FactionStore, QUEST_PACKAGE_FILTER_CLASS_LIKE_CPP,
             QUEST_PACKAGE_FILTER_UNMATCHED_LIKE_CPP, QuestPackageItemEntry, QuestPackageItemStore,
@@ -38589,6 +38676,60 @@ mod tests {
         }
     }
 
+    fn install_create_map_difficulty_stores_like_cpp(
+        session: &mut WorldSession,
+        map_id: u32,
+        default_difficulty_id: u8,
+        default_difficulty_flags: DifficultyFlags,
+    ) {
+        session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([
+            difficulty_entry(
+                2,
+                MAP_INSTANCE_LIKE_CPP,
+                DifficultyFlags::CAN_SELECT | DifficultyFlags::DEFAULT,
+            ),
+            difficulty_entry(
+                3,
+                MAP_RAID_LIKE_CPP,
+                DifficultyFlags::CAN_SELECT | DifficultyFlags::LEGACY,
+            ),
+            difficulty_entry(
+                4,
+                MAP_RAID_LIKE_CPP,
+                DifficultyFlags::CAN_SELECT | DifficultyFlags::LEGACY,
+            ),
+            difficulty_entry(15, MAP_RAID_LIKE_CPP, DifficultyFlags::CAN_SELECT),
+            difficulty_entry(
+                u32::from(default_difficulty_id),
+                MAP_RAID_LIKE_CPP,
+                default_difficulty_flags,
+            ),
+        ])));
+        session.set_map_difficulty_store(Arc::new(MapDifficultyStore::from_entries([
+            MapDifficultyEntry {
+                id: 1,
+                map_id,
+                difficulty_id: default_difficulty_id,
+                lock_id: 0,
+                reset_interval: 0,
+                flags: 0,
+            },
+        ])));
+    }
+
+    fn represented_map_entry_for_create_map_context_like_cpp(
+        map_id: u32,
+        instance_type: i8,
+    ) -> wow_data::map::MapEntry {
+        wow_data::map::MapEntry {
+            id: map_id,
+            instance_type,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: 0,
+        }
+    }
+
     #[test]
     fn represented_player_recent_instance_defaults_to_zero_like_cpp() {
         let (session, _, _) = make_session();
@@ -38615,6 +38756,124 @@ mod tests {
             session.represented_player_recent_instance_id_like_cpp(533),
             7001
         );
+    }
+
+    #[test]
+    fn create_map_player_context_uses_solo_recent_instance_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let map_entry =
+            represented_map_entry_for_create_map_context_like_cpp(631, wow_data::map::MAP_INSTANCE);
+
+        session.represented_dungeon_difficulty_id_like_cpp = 2;
+        session.set_represented_player_recent_instance_like_cpp(631, 9001);
+
+        let context = session.create_map_player_context_like_cpp(631, map_entry, player_guid);
+
+        assert_eq!(context.guid_counter, player_guid.counter() as u64);
+        assert_eq!(context.player_difficulty_id, 2);
+        assert_eq!(context.player_recent_instance_id, 9001);
+        assert_eq!(context.group, None);
+    }
+
+    #[test]
+    fn create_map_player_context_uses_group_recent_instance_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let leader = ObjectGuid::create_player(1, 42);
+        let member = ObjectGuid::create_player(1, 43);
+        let owner = ObjectGuid::create_player(1, 77);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+        group.dungeon_difficulty_id = 2;
+        group.set_recent_instance_like_cpp(631, owner, 9001);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+        let map_entry =
+            represented_map_entry_for_create_map_context_like_cpp(631, wow_data::map::MAP_INSTANCE);
+
+        session.group_guid = Some(group_guid);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+
+        let context = session.create_map_player_context_like_cpp(631, map_entry, member);
+        let group = context.group.unwrap();
+
+        assert_eq!(context.guid_counter, member.counter() as u64);
+        assert_eq!(group.difficulty_id, 2);
+        assert_eq!(
+            group.recent_instance_owner_guid_counter,
+            owner.counter() as u64
+        );
+        assert_eq!(group.recent_instance_id, 9001);
+    }
+
+    #[test]
+    fn create_map_player_context_group_owner_falls_back_to_leader_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let leader = ObjectGuid::create_player(1, 42);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.raid_difficulty_id = 15;
+        group.legacy_raid_difficulty_id = 4;
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+        let map_entry =
+            represented_map_entry_for_create_map_context_like_cpp(631, wow_data::map::MAP_RAID);
+
+        session.group_guid = Some(group_guid);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+        install_create_map_difficulty_stores_like_cpp(
+            &mut session,
+            631,
+            15,
+            DifficultyFlags::CAN_SELECT | DifficultyFlags::DEFAULT,
+        );
+
+        let context = session.create_map_player_context_like_cpp(631, map_entry, leader);
+        let group = context.group.unwrap();
+
+        assert_eq!(group.difficulty_id, 15);
+        assert_eq!(
+            group.recent_instance_owner_guid_counter,
+            leader.counter() as u64
+        );
+        assert_eq!(group.recent_instance_id, 0);
+    }
+
+    #[test]
+    fn create_map_player_context_uses_legacy_raid_difficulty_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let map_entry =
+            represented_map_entry_for_create_map_context_like_cpp(249, wow_data::map::MAP_RAID);
+
+        session.represented_raid_difficulty_id_like_cpp = 15;
+        session.represented_legacy_raid_difficulty_id_like_cpp = 4;
+        install_create_map_difficulty_stores_like_cpp(
+            &mut session,
+            249,
+            3,
+            DifficultyFlags::CAN_SELECT | DifficultyFlags::DEFAULT | DifficultyFlags::LEGACY,
+        );
+
+        let context = session.create_map_player_context_like_cpp(249, map_entry, player_guid);
+
+        assert_eq!(context.player_difficulty_id, 4);
+    }
+
+    #[test]
+    fn create_map_player_context_missing_default_raid_metadata_falls_back_to_legacy_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let map_entry =
+            represented_map_entry_for_create_map_context_like_cpp(249, wow_data::map::MAP_RAID);
+
+        session.represented_raid_difficulty_id_like_cpp = 15;
+        session.represented_legacy_raid_difficulty_id_like_cpp = 4;
+
+        let context = session.create_map_player_context_like_cpp(249, map_entry, player_guid);
+
+        assert_eq!(context.player_difficulty_id, 4);
     }
 
     #[test]

@@ -10,8 +10,9 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use tracing::info;
+use wow_constants::shared::DifficultyFlags;
 
-use crate::{PlayerConditionEntry, PlayerConditionStore, wdc4::Wdc4Reader};
+use crate::{DifficultyStore, PlayerConditionEntry, PlayerConditionStore, wdc4::Wdc4Reader};
 
 pub const MAP_FLAG_FLEXIBLE_RAID_LOCKING: u32 = 0x0000_8000;
 pub const MAP_FLAG_GARRISON: u32 = 0x0400_0000;
@@ -371,6 +372,40 @@ impl MapDifficultyStore {
             .and_then(|id| self.by_id.get(id))
     }
 
+    /// C++ `DB2Manager::GetDefaultMapDifficulty`.
+    ///
+    /// Trinity first returns the map difficulty whose `DifficultyEntry` has
+    /// `DIFFICULTY_FLAG_DEFAULT`; if no default row is marked, it falls back
+    /// to the first stored row for that map.
+    pub fn default_for_map_like_cpp(
+        &self,
+        map_id: u32,
+        difficulty_store: &DifficultyStore,
+    ) -> Option<&MapDifficultyEntry> {
+        let mut fallback = None;
+        for ((entry_map_id, difficulty_id), entry_id) in &self.by_map_difficulty {
+            if *entry_map_id != map_id {
+                continue;
+            }
+
+            let Some(entry) = self.by_id.get(entry_id) else {
+                continue;
+            };
+            fallback = fallback.or(Some(entry));
+
+            let Some(difficulty) = difficulty_store.get(u32::from(*difficulty_id)) else {
+                continue;
+            };
+            if DifficultyFlags::from_bits_truncate(difficulty.flags)
+                .contains(DifficultyFlags::DEFAULT)
+            {
+                return Some(entry);
+            }
+        }
+
+        fallback
+    }
+
     pub fn len(&self) -> usize {
         self.by_id.len()
     }
@@ -637,6 +672,69 @@ mod tests {
         assert_eq!(entry.lock_id, 7);
         assert!(entry.is_using_encounter_locks());
         assert!(store.get(631, 3).is_none());
+    }
+
+    #[test]
+    fn default_for_map_prefers_default_difficulty_flag_like_cpp() {
+        let difficulties = DifficultyStore::from_entries([
+            crate::DifficultyEntry {
+                id: 3,
+                instance_type: 2,
+                flags: DifficultyFlags::CAN_SELECT.bits(),
+                toggle_difficulty_id: 0,
+            },
+            crate::DifficultyEntry {
+                id: 15,
+                instance_type: 2,
+                flags: (DifficultyFlags::CAN_SELECT | DifficultyFlags::DEFAULT).bits(),
+                toggle_difficulty_id: 0,
+            },
+        ]);
+        let store = MapDifficultyStore::from_entries([
+            MapDifficultyEntry {
+                id: 900,
+                map_id: 631,
+                difficulty_id: 3,
+                lock_id: 0,
+                reset_interval: 0,
+                flags: 0,
+            },
+            MapDifficultyEntry {
+                id: 901,
+                map_id: 631,
+                difficulty_id: 15,
+                lock_id: 0,
+                reset_interval: 0,
+                flags: 0,
+            },
+        ]);
+
+        let entry = store.default_for_map_like_cpp(631, &difficulties).unwrap();
+
+        assert_eq!(entry.difficulty_id, 15);
+    }
+
+    #[test]
+    fn default_for_map_falls_back_to_any_map_difficulty_like_cpp() {
+        let difficulties = DifficultyStore::from_entries([crate::DifficultyEntry {
+            id: 3,
+            instance_type: 2,
+            flags: DifficultyFlags::CAN_SELECT.bits(),
+            toggle_difficulty_id: 0,
+        }]);
+        let store = MapDifficultyStore::from_entries([MapDifficultyEntry {
+            id: 900,
+            map_id: 631,
+            difficulty_id: 3,
+            lock_id: 0,
+            reset_interval: 0,
+            flags: 0,
+        }]);
+
+        let entry = store.default_for_map_like_cpp(631, &difficulties).unwrap();
+
+        assert_eq!(entry.difficulty_id, 3);
+        assert!(store.default_for_map_like_cpp(632, &difficulties).is_none());
     }
 
     #[test]

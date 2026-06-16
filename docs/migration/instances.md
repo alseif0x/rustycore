@@ -241,9 +241,12 @@ NOTE: `InstanceSaveMgr` no longer exists as a separate class in this WoLK 3.4.3 
 - `InstanceLockMgr` real world/map call-sites that invoke the transaction-aware update helpers.
 - `CMSG_RESET_INSTANCES` now reaches `InstanceLockMgr`; represented `Player::m_recentInstances`
   and `Group::m_recentInstances` / `m_ownedInstancesMgr` state plus reset-result erase rules are
-  present. Remaining gap: the exact live C++ runtime still needs real `InstanceMap` references,
-  `InstanceMap::Reset(method)` calls, and reset success/failure packet integration from those live
-  map results.
+  present. `WorldSession` now also builds the canonical `CreateMapPlayerContext` from represented
+  player/group state, including solo/group recent instance ids and the C++ `GetDifficultyID(MapEntry*)`
+  choice between dungeon, modern raid, and legacy raid difficulty. Remaining gap: the exact live C++
+  runtime still needs real `InstanceMap` references, `InstanceMap::Reset(method)` calls, full
+  consumption of `CreateMap` side effects for dungeon/battleground paths, and reset success/failure
+  packet integration from those live map results.
 - `SMSG_PENDING_RAID_LOCK` / `CMSG_INSTANCE_LOCK_RESPONSE` protocol and represented pending-bind state are present; creation of the prompt from `InstanceMap::AddPlayerToMap` and real `ConfirmPendingBind` lock creation remain pending with `InstanceMap`.
 - Everything below `InstanceScript` — boss-state machine, door/minion linking, encounter packets, persistent values, JSON save blob.
 - Reset cron caller in `MapManager::Update`; pure `GetNextResetTime` is now ported/tested in `wow-instances`.
