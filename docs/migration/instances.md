@@ -280,6 +280,10 @@ NOTE: `InstanceSaveMgr` no longer exists as a separate class in this WoLK 3.4.3 
   call-site for existing canonical dungeon maps: the group/player `CreateMap`
   path now preserves the target map's active lock owner context and rejects a
   player permanently saved to an incompatible instance with `SMSG_TRANSFER_ABORTED`.
+- `#NEXT.RUNTIME.L3.031j76` wires the preceding C++ missing-difficulty abort:
+  if the dungeon's requested difficulty cannot be downscaled to a
+  `MapDifficultyEntry`, Rust now sends `SMSG_TRANSFER_ABORTED` with
+  `TRANSFER_ABORT_DIFFICULTY` and does not create/sync the canonical map.
   This is still not full `Map::PlayerCannotEnter`: access requirements, GM
   bypass, raid-group requirement, farm-limit, max-player, in-combat, and the
   broader portal/teleport call-sites remain pending.
@@ -389,7 +393,7 @@ Complejidad: **L** (low, <1h), **M** (med, 1-4h), **H** (high, 4-12h), **XL** (>
 - [ ] **#INST.40** Wire `InstanceMap::Update(diff)` → `InstanceScript::Update` + combat-res tick (L)
 - [x] **#INST.41** Audit & fix `MapManager::GenerateInstanceId` in WIP `map_manager.rs` (L) — contrasted with C++ `MapManager.cpp`: no mask OR is applied by this fork; Rust now reserves 0, registers loaded ids, returns the lowest free sequential id, and reuses freed ids.
 - [ ] **#INST.42** Add GM commands `.instance unbind`, `.instance reset`, `.instance stats` (M)
-- [~] **#INST.43** Plumb `CanJoinInstanceLock` into the teleport / portal / `MapManager::PlayerCannotEnter` path (H) — live-session canonical dungeon `CreateMap` now applies the C++ `InstanceMap::CannotEnter` lock compatibility gate for existing maps and sends `SMSG_TRANSFER_ABORTED` on incompatible permanent player locks; full `Map::PlayerCannotEnter` gates and all portal/teleport call-sites remain pending.
+- [~] **#INST.43** Plumb `CanJoinInstanceLock` into the teleport / portal / `MapManager::PlayerCannotEnter` path (H) — live-session canonical dungeon `CreateMap` now applies the C++ missing-`MapDifficulty` `TRANSFER_ABORT_DIFFICULTY` gate and the `InstanceMap::CannotEnter` lock compatibility gate for existing maps; full `Map::PlayerCannotEnter` gates and all portal/teleport call-sites remain pending.
 
 ---
 
@@ -415,6 +419,7 @@ Complejidad: **L** (low, <1h), **M** (med, 1-4h), **H** (high, 4-12h), **XL** (>
 - [ ] Test: temporary lock (no boss killed) is purged on player logout / map destroy without writing `character_instance_lock`.
 - [ ] Test: first boss kill promotes temp → perm and writes both `instance` row (for ID-based) and `character_instance_lock` row.
 - [x] Test: `CanJoinInstanceLock` returns `TRANSFER_ABORT_LOCKED_TO_DIFFERENT_INSTANCE` when player has lock to instanceId X but tries to enter Y of same `(mapId, lockId)` — pure `wow-instances` coverage plus `#NEXT.RUNTIME.L3.031j75` live-session canonical dungeon `CreateMap` coverage for the C++ `InstanceMap::CannotEnter` existing-map gate. Refs: `Map.cpp:1808-1811`, `Map.cpp:2836-2869`, `MapManager.cpp:247-279`, `InstanceLockMgr.cpp:188-202`.
+- [x] Test: live dungeon entry sends `TRANSFER_ABORT_DIFFICULTY` and creates no canonical map when `GetDownscaledMapDifficultyData` has no `MapDifficultyEntry` — covered by `#NEXT.RUNTIME.L3.031j76`; refs: `Map.cpp:1783-1788`, `Map.h:92`.
 - [ ] Test: `extended=true` lets player join a lock that is past `_expiryTime` but not past `effectiveExpiryTime` (= next reset).
 - [ ] Test: `ResetInstanceLocksForPlayer` skips locks where `IsInUse()` (active map) and reports them in `locksFailedToReset`.
 - [~] Test: `InstanceScript::SetBossState(id, DONE)` flips door states per `EncounterDoorBehavior` and updates `completedEncountersMask` — DONE transition side-effect plan and encounter id resolution covered; real door/minion mutation and DB mask update pending.

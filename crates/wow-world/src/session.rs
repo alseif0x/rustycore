@@ -725,6 +725,7 @@ use wow_packet::{ClientPacket, WorldPacket};
 
 /// Maximum number of packets processed per `update()` call.
 const MAX_PACKETS_PER_UPDATE: usize = 100;
+const TRANSFER_ABORT_DIFFICULTY_LIKE_CPP: u32 = 8;
 const TRANSFER_ABORT_MAP_NOT_ALLOWED_LIKE_CPP: u32 = 16;
 const MAP_BATTLEGROUND_LIKE_CPP: i8 = 3;
 const MAP_ARENA_LIKE_CPP: i8 = 4;
@@ -7086,6 +7087,16 @@ impl WorldSession {
             .group
             .map(|group| group.difficulty_id)
             .unwrap_or(player.player_difficulty_id);
+        if is_dungeon
+            && self
+                .create_map_db2_entries_like_cpp(map_id, requested_difficulty)
+                .is_none()
+        {
+            self.send_transfer_aborted_like_cpp(map_id, TRANSFER_ABORT_DIFFICULTY_LIKE_CPP);
+            return Some(wow_map::CreateMapDecision::Reject {
+                side_effects: Vec::new(),
+            });
+        }
         let entry = wow_map::CreateMapEntryContext {
             map_id,
             kind: if is_dungeon {
@@ -7154,12 +7165,7 @@ impl WorldSession {
                 )
                 .unwrap_or(wow_instances::TransferAbortReason::None);
             if deny_reason != wow_instances::TransferAbortReason::None {
-                self.send_packet(&wow_packet::packets::misc::TransferAborted {
-                    map_id: key.map_id,
-                    arg: 0,
-                    map_difficulty_x_condition_id: 0,
-                    transfer_abort: deny_reason as u32,
-                });
+                self.send_transfer_aborted_like_cpp(key.map_id, deny_reason as u32);
                 return Some(wow_map::CreateMapDecision::Reject {
                     side_effects: Vec::new(),
                 });
@@ -7192,6 +7198,15 @@ impl WorldSession {
         }
 
         Some(decision)
+    }
+
+    fn send_transfer_aborted_like_cpp(&self, map_id: u32, transfer_abort: u32) {
+        self.send_packet(&wow_packet::packets::misc::TransferAborted {
+            map_id,
+            arg: 0,
+            map_difficulty_x_condition_id: 0,
+            transfer_abort,
+        });
     }
 
     fn cannot_enter_existing_instance_lock_like_cpp(
@@ -55674,6 +55689,64 @@ mod tests {
                 .map()
                 .get_typed_player(player_guid)
                 .is_some()
+        );
+    }
+
+    #[test]
+    fn canonical_player_dungeon_missing_map_difficulty_sends_transfer_abort_like_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 63);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 631,
+                instance_type: wow_data::map::MAP_RAID,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+            },
+        ])));
+        session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([DifficultyEntry {
+            id: 3,
+            instance_type: MAP_RAID_LIKE_CPP,
+            flags: DifficultyFlags::CAN_SELECT.bits(),
+            fallback_difficulty_id: 0,
+            toggle_difficulty_id: 0,
+        }])));
+        session.set_map_difficulty_store(Arc::new(MapDifficultyStore::from_entries([])));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "MissingMapDifficulty".to_string(),
+            Position::new(3700.0, 1500.0, 120.0, 0.0),
+            631,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.represented_raid_difficulty_id_like_cpp = 3;
+
+        assert_eq!(
+            session.ensure_canonical_world_map_for_current_player_like_cpp(),
+            Some(wow_map::CreateMapDecision::Reject {
+                side_effects: Vec::new()
+            })
+        );
+        assert_eq!(
+            send_rx.try_recv().expect("SMSG_TRANSFER_ABORTED"),
+            wow_packet::packets::misc::TransferAborted {
+                map_id: 631,
+                arg: 0,
+                map_difficulty_x_condition_id: 0,
+                transfer_abort: TRANSFER_ABORT_DIFFICULTY_LIKE_CPP,
+            }
+            .to_bytes()
+        );
+        assert!(
+            canonical.lock().unwrap().find_map(631, 0).is_none(),
+            "rejected dungeon difficulty must not create or sync a canonical map"
         );
     }
 

@@ -1,3 +1,21 @@
+- `#NEXT.RUNTIME.L3.031j76` — WotLK live-session dungeon `CreateMap`
+  now mirrors the C++ `Map::PlayerCannotEnter` missing-difficulty abort before
+  creating or reusing a canonical dungeon map (not manual-test-ready).
+  Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Maps/Map.cpp:1783-1788`
+  and `/home/server/woltk-trinity-legacy/src/server/game/Maps/Map.h:92`.
+  C++ resolves the player's requested difficulty through
+  `sDB2Manager.GetDownscaledMapDifficultyData(mapid, targetDifficulty)` and returns
+  `TRANSFER_ABORT_DIFFICULTY` when no `MapDifficultyEntry` is available. Rust now
+  performs the same downscaled DB2-entry lookup before the represented
+  `create_map_decision_like_cpp` call, sends `SMSG_TRANSFER_ABORTED` with reason
+  `8`, and returns a reject decision without creating/syncing a canonical map.
+  Coverage: targeted `wow-world` test proves a dungeon map with no matching
+  `MapDifficulty` row sends the abort packet and leaves the canonical map absent.
+  Boundary remains partial: full `Map::PlayerCannotEnter` gates (access
+  requirements, GM bypass, raid-group requirement, farm-limit, max-player,
+  in-combat, portal/teleport call-sites) are still pending, as are install/restart,
+  bot, and live-client/manual validation.
 - `#NEXT.RUNTIME.L3.031j75` — WotLK live-session dungeon `CreateMap`
   now applies the C++ `InstanceMap::CannotEnter` instance-lock compatibility
   gate when reusing an existing canonical instance map (not manual-test-ready).
