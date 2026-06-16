@@ -321,6 +321,20 @@ pub struct PetRemoveSpellOutcomeLikeCpp {
     pub pet_spell_initialize: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PetUnlearnSpellOutcomeLikeCpp {
+    pub remove_spell: PetRemoveSpellOutcomeLikeCpp,
+    pub packet_spell_ids: Vec<u32>,
+    pub send_direct_message: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PetUnlearnSpellsOutcomeLikeCpp {
+    pub remove_spells: Vec<(u32, PetRemoveSpellOutcomeLikeCpp)>,
+    pub packet_spell_ids: Vec<u32>,
+    pub send_session_packet: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PetSaveToDbSkipReason {
     ZeroEntry,
@@ -1286,6 +1300,70 @@ impl Pet {
             return true;
         }
         false
+    }
+
+    pub fn unlearn_spell_like_cpp(
+        &mut self,
+        spell_id: u32,
+        learn_prev: bool,
+        clear_action_bar: bool,
+        action_bar: &mut [u32; MAX_UNIT_ACTION_BAR_INDEX],
+        prev_spell_in_chain_like_cpp: impl FnMut(u32) -> u32,
+        first_spell_in_chain_like_cpp: impl FnMut(u32) -> u32,
+    ) -> PetUnlearnSpellOutcomeLikeCpp {
+        let remove_spell = self.remove_spell_like_cpp(
+            spell_id,
+            learn_prev,
+            clear_action_bar,
+            action_bar,
+            prev_spell_in_chain_like_cpp,
+            first_spell_in_chain_like_cpp,
+        );
+        let packet_spell_ids = if remove_spell.removed {
+            vec![spell_id]
+        } else {
+            Vec::new()
+        };
+
+        PetUnlearnSpellOutcomeLikeCpp {
+            send_direct_message: remove_spell.removed && !self.loading,
+            remove_spell,
+            packet_spell_ids,
+        }
+    }
+
+    pub fn unlearn_spells_like_cpp(
+        &mut self,
+        spell_ids: impl IntoIterator<Item = u32>,
+        learn_prev: bool,
+        clear_action_bar: bool,
+        action_bar: &mut [u32; MAX_UNIT_ACTION_BAR_INDEX],
+        mut prev_spell_in_chain_like_cpp: impl FnMut(u32) -> u32,
+        mut first_spell_in_chain_like_cpp: impl FnMut(u32) -> u32,
+    ) -> PetUnlearnSpellsOutcomeLikeCpp {
+        let mut remove_spells = Vec::new();
+        let mut packet_spell_ids = Vec::new();
+
+        for spell_id in spell_ids {
+            let remove_spell = self.remove_spell_like_cpp(
+                spell_id,
+                learn_prev,
+                clear_action_bar,
+                action_bar,
+                &mut prev_spell_in_chain_like_cpp,
+                &mut first_spell_in_chain_like_cpp,
+            );
+            if remove_spell.removed {
+                packet_spell_ids.push(spell_id);
+            }
+            remove_spells.push((spell_id, remove_spell));
+        }
+
+        PetUnlearnSpellsOutcomeLikeCpp {
+            remove_spells,
+            packet_spell_ids,
+            send_session_packet: !self.loading,
+        }
     }
 
     pub fn remove_spell_like_cpp(
@@ -3913,6 +3991,152 @@ mod tests {
             pet.remove_spell_like_cpp(100, true, true, &mut action_bar, |_| 1, |spell_id| spell_id),
             PetRemoveSpellOutcomeLikeCpp::not_removed()
         );
+    }
+
+    #[test]
+    fn pet_unlearn_spell_like_cpp_sends_single_packet_only_when_removed_and_not_loading() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+        assert!(pet.add_spell(
+            100,
+            ActiveState::Disabled,
+            PetSpellState::Unchanged,
+            PetSpellType::Normal
+        ));
+        let mut action_bar = [0; MAX_UNIT_ACTION_BAR_INDEX];
+
+        let outcome = pet.unlearn_spell_like_cpp(
+            100,
+            false,
+            false,
+            &mut action_bar,
+            |_| 0,
+            |spell_id| spell_id,
+        );
+
+        assert!(outcome.remove_spell.removed);
+        assert_eq!(outcome.packet_spell_ids, vec![100]);
+        assert!(
+            outcome.send_direct_message,
+            "C++ Pet::unlearnSpell sends PetUnlearnedSpells only after removeSpell succeeds"
+        );
+
+        let missing = pet.unlearn_spell_like_cpp(
+            999,
+            false,
+            false,
+            &mut action_bar,
+            |_| 0,
+            |spell_id| spell_id,
+        );
+        assert!(!missing.remove_spell.removed);
+        assert!(missing.packet_spell_ids.is_empty());
+        assert!(!missing.send_direct_message);
+
+        let mut loading_pet = Pet::new(owner_guid(), PetType::Hunter);
+        loading_pet.set_loading(true);
+        assert!(loading_pet.add_spell(
+            200,
+            ActiveState::Disabled,
+            PetSpellState::Unchanged,
+            PetSpellType::Normal
+        ));
+        let loading = loading_pet.unlearn_spell_like_cpp(
+            200,
+            false,
+            false,
+            &mut action_bar,
+            |_| 0,
+            |spell_id| spell_id,
+        );
+        assert_eq!(loading.packet_spell_ids, vec![200]);
+        assert!(
+            !loading.send_direct_message,
+            "C++ removes while loading but suppresses the direct message"
+        );
+    }
+
+    #[test]
+    fn pet_unlearn_spells_like_cpp_batches_removed_spells_and_sends_even_empty_when_loaded() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+        assert!(pet.add_spell(
+            100,
+            ActiveState::Disabled,
+            PetSpellState::Unchanged,
+            PetSpellType::Normal
+        ));
+        assert!(pet.add_spell(
+            200,
+            ActiveState::Disabled,
+            PetSpellState::Removed,
+            PetSpellType::Normal
+        ));
+        assert!(pet.add_spell(
+            300,
+            ActiveState::Disabled,
+            PetSpellState::New,
+            PetSpellType::Normal
+        ));
+        let mut action_bar = [0; MAX_UNIT_ACTION_BAR_INDEX];
+
+        let outcome = pet.unlearn_spells_like_cpp(
+            [100, 200, 999, 300],
+            false,
+            false,
+            &mut action_bar,
+            |_| 0,
+            |spell_id| spell_id,
+        );
+
+        assert_eq!(outcome.packet_spell_ids, vec![100, 300]);
+        assert!(outcome.send_session_packet);
+        assert_eq!(outcome.remove_spells.len(), 4);
+        assert!(
+            !outcome.remove_spells[1].1.removed,
+            "C++ skips already PETSPELL_REMOVED entries inside the batch"
+        );
+        assert!(
+            !outcome.remove_spells[2].1.removed,
+            "C++ skips missing entries inside the batch"
+        );
+
+        let empty = pet.unlearn_spells_like_cpp(
+            [200, 999],
+            false,
+            false,
+            &mut action_bar,
+            |_| 0,
+            |spell_id| spell_id,
+        );
+        assert!(empty.packet_spell_ids.is_empty());
+        assert!(
+            empty.send_session_packet,
+            "C++ Pet::unlearnSpells sends the packet after the loop whenever !m_loading"
+        );
+    }
+
+    #[test]
+    fn pet_unlearn_spells_like_cpp_loading_still_batches_without_sending() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+        pet.set_loading(true);
+        assert!(pet.add_spell(
+            100,
+            ActiveState::Disabled,
+            PetSpellState::Unchanged,
+            PetSpellType::Normal
+        ));
+        let mut action_bar = [0; MAX_UNIT_ACTION_BAR_INDEX];
+
+        let outcome = pet.unlearn_spells_like_cpp(
+            [100],
+            false,
+            false,
+            &mut action_bar,
+            |_| 0,
+            |spell_id| spell_id,
+        );
+
+        assert_eq!(outcome.packet_spell_ids, vec![100]);
+        assert!(!outcome.send_session_packet);
     }
 
     #[test]
