@@ -3633,6 +3633,8 @@ pub struct WorldSession {
     player_in_pvp_flag_like_cpp: bool,
     /// Represented `pvpInfo.EndTimer` consumed by `Player::UpdatePvPFlag`.
     player_pvp_end_timer_like_cpp: Option<i64>,
+    /// C++ `Player::m_contestedPvPTimer`, reset by `Player::ResetContestedPvP`.
+    player_contested_pvp_timer_like_cpp: u32,
     /// Current represented zone/area ids until Map/Terrain runtime can calculate them.
     player_zone_id_like_cpp: u32,
     player_area_id_like_cpp: u32,
@@ -4939,6 +4941,7 @@ impl WorldSession {
             player_pvp_enabled_like_cpp: false,
             player_in_pvp_flag_like_cpp: false,
             player_pvp_end_timer_like_cpp: None,
+            player_contested_pvp_timer_like_cpp: 0,
             player_zone_id_like_cpp: 0,
             player_area_id_like_cpp: 0,
             move_spline_done_taxi_events_like_cpp: Vec::new(),
@@ -14571,6 +14574,22 @@ impl WorldSession {
         .unwrap_or(false)
     }
 
+    fn reset_contested_pvp_like_cpp(&mut self) {
+        let Some(guid) = self.player_guid() else {
+            self.player_contested_pvp_timer_like_cpp = 0;
+            return;
+        };
+
+        let _ = self.mutate_canonical_player_by_guid_like_cpp(guid, |player| {
+            player
+                .unit_mut()
+                .clear_unit_state(UnitState::ATTACK_PLAYER.bits());
+            player.remove_player_flag(PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP);
+        });
+        self.player_contested_pvp_timer_like_cpp = 0;
+        self.sync_player_registry_state_like_cpp();
+    }
+
     pub(crate) fn canonical_player_unit_flags2_snapshot_like_cpp(&self) -> u32 {
         self.canonical_player_snapshot_like_cpp(|player| {
             player.unit().unit_flags2_like_cpp().bits()
@@ -22211,6 +22230,7 @@ impl WorldSession {
 
         if u32::from(self.player_map_id_like_cpp()) != new_map {
             self.set_selection_guid_like_cpp(None);
+            self.reset_contested_pvp_like_cpp();
         }
 
         info!(
@@ -64015,11 +64035,13 @@ mod tests {
     async fn teleport_to_instance_rejects_access_requirements_before_transfer_like_cpp() {
         let (mut session, _, send_rx) = make_session();
         let canonical = shared_canonical_map_manager();
+        let player_registry = Arc::new(PlayerRegistry::default());
         let player_guid = ObjectGuid::create_player(1, 790);
         let selected_guid = test_creature_guid(79_001);
         let destination = Position::new(5790.0, 2090.0, 636.0, 3.1);
 
         session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_player_registry(Arc::clone(&player_registry));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
             player_guid,
             "TeleportAccessReject".to_string(),
@@ -64030,6 +64052,17 @@ mod tests {
             79,
             0,
         ));
+        insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.set_player_flag(PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP);
+                player
+                    .unit_mut()
+                    .add_unit_state(UnitState::ATTACK_PLAYER.bits());
+            })
+            .unwrap();
+        session.player_contested_pvp_timer_like_cpp = 77;
+        session.register_in_player_registry();
         session.represented_raid_difficulty_id_like_cpp = 3;
         session.set_selection_guid_like_cpp(Some(selected_guid));
         install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
@@ -64068,6 +64101,31 @@ mod tests {
             Some(selected_guid),
             "C++ Player::TeleportTo returns before SetSelection(Empty) when PlayerCannotEnter rejects"
         );
+        assert_eq!(
+            session.player_contested_pvp_timer_like_cpp, 77,
+            "C++ Player::TeleportTo returns before ResetContestedPvP when PlayerCannotEnter rejects"
+        );
+        {
+            let manager = canonical.lock().unwrap();
+            let player = manager
+                .find_map(571, 0)
+                .unwrap()
+                .map()
+                .get_typed_player(player_guid)
+                .unwrap();
+            assert!(player.has_player_flag(PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP));
+            assert!(
+                player
+                    .unit()
+                    .has_unit_state(UnitState::ATTACK_PLAYER.bits())
+            );
+        }
+        assert!(
+            player_registry
+                .get(&player_guid)
+                .expect("player registry snapshot")
+                .is_contested_pvp
+        );
         assert!(
             canonical.lock().unwrap().find_map(631, 0).is_none(),
             "teleport preflight must not create the target instance before the client transfer"
@@ -64078,11 +64136,13 @@ mod tests {
     async fn teleport_to_instance_allows_transfer_after_player_cannot_enter_passes_like_cpp() {
         let (mut session, _, send_rx) = make_session();
         let canonical = shared_canonical_map_manager();
+        let player_registry = Arc::new(PlayerRegistry::default());
         let player_guid = ObjectGuid::create_player(1, 791);
         let selected_guid = test_creature_guid(79_101);
         let destination = Position::new(5791.0, 2091.0, 637.0, 3.2);
 
         session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_player_registry(Arc::clone(&player_registry));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
             player_guid,
             "TeleportAccessAllow".to_string(),
@@ -64093,6 +64153,17 @@ mod tests {
             80,
             0,
         ));
+        insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.set_player_flag(PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP);
+                player
+                    .unit_mut()
+                    .add_unit_state(UnitState::ATTACK_PLAYER.bits());
+            })
+            .unwrap();
+        session.player_contested_pvp_timer_like_cpp = 77;
+        session.register_in_player_registry();
         session.set_selection_guid_like_cpp(Some(selected_guid));
         session.represented_raid_difficulty_id_like_cpp = 3;
         install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
@@ -64109,6 +64180,31 @@ mod tests {
             session.selection_guid_like_cpp(),
             None,
             "C++ far Player::TeleportTo clears selection after entry preflight and before transfer"
+        );
+        assert_eq!(
+            session.player_contested_pvp_timer_like_cpp, 0,
+            "C++ far Player::TeleportTo calls ResetContestedPvP before transfer"
+        );
+        {
+            let manager = canonical.lock().unwrap();
+            let player = manager
+                .find_map(571, 0)
+                .unwrap()
+                .map()
+                .get_typed_player(player_guid)
+                .unwrap();
+            assert!(!player.has_player_flag(PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP));
+            assert!(
+                !player
+                    .unit()
+                    .has_unit_state(UnitState::ATTACK_PLAYER.bits())
+            );
+        }
+        assert!(
+            !player_registry
+                .get(&player_guid)
+                .expect("player registry snapshot")
+                .is_contested_pvp
         );
         assert!(
             canonical.lock().unwrap().find_map(631, 0).is_none(),

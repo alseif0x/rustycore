@@ -323,8 +323,15 @@ NOTE: `InstanceSaveMgr` no longer exists as a separate class in this WoLK 3.4.3 
   `SetSelection(ObjectGuid::Empty)` ordering: Rust clears the represented
   selection after target-map preflight succeeds and before
   `SMSG_TRANSFER_PENDING`, while preflight aborts keep the existing selection.
-  Ref: `Player.cpp:1370-1377`. Remaining gaps: same-map near teleport,
-  delayed-teleport flags, combat / contested-PvP resets, full BG cleanup,
+  Ref: `Player.cpp:1370-1377`.
+- `#NEXT.RUNTIME.L3.031j80` wires the accepted far-teleport
+  `ResetContestedPvP()` side effects after successful target-map preflight:
+  Rust clears `UNIT_STATE_ATTACK_PLAYER`, removes `PLAYER_FLAGS_CONTESTED_PVP`,
+  resets the represented contested-PvP timer, and syncs the player registry
+  before transfer packets; preflight aborts preserve the state because C++
+  returns before `ResetContestedPvP()`. Refs: `Player.cpp:1389-1393`,
+  `Player.cpp:20807-20812`, `Player.h:432`. Remaining gaps: same-map near
+  teleport, delayed-teleport flags, `CombatStop()`, full BG cleanup,
   pet/vehicle/duel/movement cleanup, bot, install/restart, and live-client
   validation remain pending.
 
