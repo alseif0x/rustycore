@@ -7209,19 +7209,53 @@ impl WorldSession {
         map_id: u32,
         difficulty_id: wow_map::Difficulty,
     ) -> Option<wow_map::CreateMapDifficultyContext> {
-        let entries = wow_instances::MapDb2Entries::from_downscaled_stores_like_cpp(
-            self.map_store()?.as_ref(),
-            self.map_difficulty_store()?.as_ref(),
-            self.difficulty_store()?.as_ref(),
-            map_id,
-            difficulty_id,
-        )?;
+        let entries = self.create_map_db2_entries_like_cpp(map_id, difficulty_id)?;
 
         Some(wow_map::CreateMapDifficultyContext {
             difficulty_id: entries.difficulty_id,
             has_reset_schedule: entries.has_reset_schedule(),
             is_instance_id_bound: entries.is_instance_id_bound(),
         })
+    }
+
+    pub(crate) fn create_map_active_instance_lock_context_like_cpp(
+        &self,
+        map_id: u32,
+        difficulty_id: wow_map::Difficulty,
+    ) -> Option<wow_map::CreateMapInstanceLockContext> {
+        let entries = self.create_map_db2_entries_like_cpp(map_id, difficulty_id)?;
+        let owner_guid = self.create_map_instance_owner_guid_like_cpp(map_id)?;
+        let now = u64::try_from(unix_now()).unwrap_or(0);
+        let mgr = self.instance_lock_mgr.as_ref()?;
+        let mgr = mgr.read().ok()?;
+        let lock = mgr.find_active_instance_lock_at(owner_guid, &entries, now)?;
+
+        Some(wow_map::CreateMapInstanceLockContext {
+            instance_id: lock.instance_id,
+            difficulty_id: lock.difficulty_id,
+            token: create_map_instance_lock_token_like_cpp(owner_guid, &entries, lock),
+        })
+    }
+
+    fn create_map_db2_entries_like_cpp(
+        &self,
+        map_id: u32,
+        difficulty_id: wow_map::Difficulty,
+    ) -> Option<wow_instances::MapDb2Entries> {
+        wow_instances::MapDb2Entries::from_downscaled_stores_like_cpp(
+            self.map_store()?.as_ref(),
+            self.map_difficulty_store()?.as_ref(),
+            self.difficulty_store()?.as_ref(),
+            map_id,
+            difficulty_id,
+        )
+    }
+
+    fn create_map_instance_owner_guid_like_cpp(&self, map_id: u32) -> Option<ObjectGuid> {
+        self.group_guid
+            .and_then(|group_guid| self.group_registry.as_ref()?.get(&group_guid))
+            .map(|group| group.recent_instance_owner_like_cpp(map_id))
+            .or(self.player_guid)
     }
 
     fn represented_player_difficulty_id_for_map_entry_like_cpp(
@@ -38510,6 +38544,27 @@ fn unix_now() -> i64 {
         .as_secs() as i64
 }
 
+fn create_map_instance_lock_token_like_cpp(
+    owner_guid: ObjectGuid,
+    entries: &wow_instances::MapDb2Entries,
+    lock: &wow_instances::InstanceLock,
+) -> u64 {
+    fn mix(hash: &mut u64, value: u64) {
+        *hash ^= value;
+        *hash = hash.wrapping_mul(0x1000_0000_01b3);
+    }
+
+    let mut hash = 0xcbf2_9ce4_8422_2325;
+    mix(&mut hash, owner_guid.high_value() as u64);
+    mix(&mut hash, owner_guid.low_value() as u64);
+    mix(&mut hash, u64::from(entries.map_id));
+    mix(&mut hash, u64::from(entries.lock_id));
+    mix(&mut hash, u64::from(entries.difficulty_id));
+    mix(&mut hash, u64::from(lock.map_id));
+    mix(&mut hash, u64::from(lock.difficulty_id));
+    hash
+}
+
 /// Available race/class combinations from `class_expansion_requirement` table.
 ///
 /// Data matches exactly what C# ObjectManager loads from the world DB.
@@ -38822,6 +38877,67 @@ mod tests {
         }
     }
 
+    fn install_create_map_active_lock_stores_like_cpp(
+        session: &mut WorldSession,
+        map_id: u32,
+        difficulty_id: u8,
+        lock_id: u8,
+        reset_interval: u8,
+    ) {
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: map_id,
+                instance_type: wow_data::map::MAP_RAID,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+            },
+        ])));
+        session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([DifficultyEntry {
+            id: u32::from(difficulty_id),
+            instance_type: MAP_RAID_LIKE_CPP,
+            flags: DifficultyFlags::CAN_SELECT.bits(),
+            fallback_difficulty_id: 0,
+            toggle_difficulty_id: 0,
+        }])));
+        session.set_map_difficulty_store(Arc::new(MapDifficultyStore::from_entries([
+            MapDifficultyEntry {
+                id: 900,
+                map_id,
+                difficulty_id,
+                lock_id,
+                reset_interval,
+                flags: 0,
+            },
+        ])));
+    }
+
+    fn install_active_instance_lock_mgr_like_cpp(
+        session: &mut WorldSession,
+        owner_guid: ObjectGuid,
+        map_id: u32,
+        difficulty_id: u8,
+        instance_id: u32,
+    ) -> u64 {
+        let entries = session
+            .create_map_db2_entries_like_cpp(map_id, difficulty_id)
+            .unwrap();
+        let now = u64::try_from(unix_now()).unwrap_or(0);
+        let mut mgr = wow_instances::InstanceLockMgr::default();
+        let lock = mgr
+            .create_instance_lock_for_new_instance_at(
+                owner_guid,
+                &entries,
+                instance_id,
+                wow_instances::ResetSchedule::default(),
+                now,
+            )
+            .unwrap();
+        let expected_token = create_map_instance_lock_token_like_cpp(owner_guid, &entries, lock);
+        session.set_instance_lock_mgr(Arc::new(std::sync::RwLock::new(mgr)));
+        expected_token
+    }
+
     #[test]
     fn represented_player_recent_instance_defaults_to_zero_like_cpp() {
         let (session, _, _) = make_session();
@@ -39090,6 +39206,109 @@ mod tests {
         assert!(
             session
                 .create_map_difficulty_context_like_cpp(33, 1)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn create_map_active_instance_lock_context_uses_solo_owner_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        session.player_guid = Some(player_guid);
+        install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
+        let expected_token =
+            install_active_instance_lock_mgr_like_cpp(&mut session, player_guid, 631, 3, 9001);
+
+        let context = session
+            .create_map_active_instance_lock_context_like_cpp(631, 3)
+            .unwrap();
+
+        assert_eq!(
+            context,
+            wow_map::CreateMapInstanceLockContext {
+                instance_id: 9001,
+                difficulty_id: 3,
+                token: expected_token,
+            }
+        );
+        assert_ne!(context.token, 0);
+    }
+
+    #[test]
+    fn create_map_active_instance_lock_context_uses_group_recent_owner_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let leader = ObjectGuid::create_player(1, 42);
+        let member = ObjectGuid::create_player(1, 43);
+        let owner = ObjectGuid::create_player(1, 77);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+        group.set_recent_instance_like_cpp(631, owner, 9001);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        session.player_guid = Some(member);
+        session.group_guid = Some(group_guid);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+        install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
+        let expected_token =
+            install_active_instance_lock_mgr_like_cpp(&mut session, owner, 631, 3, 9001);
+
+        let context = session
+            .create_map_active_instance_lock_context_like_cpp(631, 3)
+            .unwrap();
+
+        assert_eq!(context.instance_id, 9001);
+        assert_eq!(context.difficulty_id, 3);
+        assert_eq!(context.token, expected_token);
+    }
+
+    #[test]
+    fn create_map_instance_lock_token_distinguishes_owner_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let owner_a = ObjectGuid::create_player(1, 42);
+        let owner_b = ObjectGuid::create_player(1, 77);
+        install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
+        let entries = session.create_map_db2_entries_like_cpp(631, 3).unwrap();
+        let lock = wow_instances::InstanceLock::new(631, 3, u64::MAX, 9001);
+
+        let token_a = create_map_instance_lock_token_like_cpp(owner_a, &entries, &lock);
+        let token_b = create_map_instance_lock_token_like_cpp(owner_b, &entries, &lock);
+
+        assert_ne!(token_a, token_b);
+    }
+
+    #[test]
+    fn create_map_active_instance_lock_context_rejects_missing_lock_inputs_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        session.player_guid = Some(player_guid);
+        install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
+
+        assert!(
+            session
+                .create_map_active_instance_lock_context_like_cpp(631, 3)
+                .is_none()
+        );
+
+        install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 0);
+        let entries = session.create_map_db2_entries_like_cpp(631, 3).unwrap();
+        let mut mgr = wow_instances::InstanceLockMgr::default();
+        assert!(
+            mgr.create_instance_lock_for_new_instance_at(
+                player_guid,
+                &entries,
+                9001,
+                wow_instances::ResetSchedule::default(),
+                u64::try_from(unix_now()).unwrap_or(0),
+            )
+            .is_none()
+        );
+        session.set_instance_lock_mgr(Arc::new(std::sync::RwLock::new(mgr)));
+
+        assert!(
+            session
+                .create_map_active_instance_lock_context_like_cpp(631, 3)
                 .is_none()
         );
     }

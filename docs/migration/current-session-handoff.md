@@ -1,3 +1,23 @@
+- `#NEXT.RUNTIME.L3.031j64` — WotLK session-side active `InstanceLockMgr`
+  bridge for represented dungeon `CreateMap` (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Maps/MapManager.cpp:177-221`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Instances/InstanceLockMgr.cpp:222-263`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Instances/InstanceLockMgr.h:82-105`.
+  `WorldSession::create_map_active_instance_lock_context_like_cpp` now resolves the C++
+  instance owner (`group->GetRecentInstanceOwner(mapId)` when grouped, otherwise player GUID),
+  reuses the downscaled `MapDb2Entries`, calls the represented `FindActiveInstanceLock`
+  equivalent, and converts the result into `wow_map::CreateMapInstanceLockContext`
+  (`instance_id`, `difficulty_id`, token). The token is a deterministic Rust boundary for the
+  C++ pointer-identity comparison used by encounter-lock conflict handling; it includes owner
+  and map/difficulty lock identity, but intentionally excludes `instance_id` so later
+  `SetInstanceLockInstanceId` side effects can keep the same logical lock identity. Coverage:
+  targeted `wow-world create_map_active_instance_lock_context`, `create_map_instance_lock_token`,
+  and `create_map_difficulty_context` tests cover solo owner, group recent owner, missing
+  manager/schedule rejection, owner-distinct tokens, and the shared difficulty context refactor.
+  Boundary remains partial: live `ensure_canonical_world_map_for_current_player_like_cpp` still
+  skips dungeon maps, `CreateInstanceLockForNewInstance` and `SetInstanceLockInstanceId` side
+  effects are still pending, and no install/restart, bot, or live-client validation has been
+  done for this path.
 - `#NEXT.RUNTIME.L3.031j63` — WotLK session-side `CreateMapDifficultyContext`
   bridge for represented dungeon `CreateMap` (not manual-test-ready). Source-of-truth:
   `/home/server/woltk-trinity-legacy/src/server/game/Maps/MapManager.cpp:177-221` and
