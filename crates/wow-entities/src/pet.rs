@@ -548,6 +548,22 @@ impl Pet {
         })
     }
 
+    pub fn debug_info_with_guardian_like_cpp(&self, guardian_debug_info: &str) -> Option<String> {
+        let pet_number = self
+            .creature
+            .unit()
+            .subsystems()
+            .control
+            .charm_info
+            .as_ref()
+            .map(|charm_info| charm_info.pet_number)?;
+
+        Some(format!(
+            "{guardian_debug_info}\nPetType: {} PetNumber: {pet_number}",
+            self.pet_type as u8
+        ))
+    }
+
     pub const fn pet_type(&self) -> PetType {
         self.pet_type
     }
@@ -1477,6 +1493,42 @@ mod tests {
         assert!(remove.removed_pet_lookup);
         assert!(!pet.creature().unit().world().object().is_in_world());
         assert!(pet.remove_from_world_like_cpp().is_none());
+    }
+
+    #[test]
+    fn pet_debug_info_appends_pet_type_and_number_like_cpp() {
+        let mut hunter = Pet::new(owner_guid(), PetType::Hunter);
+        hunter
+            .creature_mut()
+            .unit_mut()
+            .subsystems_mut()
+            .control
+            .init_charm_info()
+            .pet_number = 42;
+        assert_eq!(
+            hunter.debug_info_with_guardian_like_cpp("GuardianDebug"),
+            Some("GuardianDebug\nPetType: 1 PetNumber: 42".to_string())
+        );
+
+        let mut summon = Pet::new(owner_guid(), PetType::Summon);
+        summon
+            .creature_mut()
+            .unit_mut()
+            .subsystems_mut()
+            .control
+            .init_charm_info()
+            .pet_number = 7;
+        assert_eq!(
+            summon.debug_info_with_guardian_like_cpp("G"),
+            Some("G\nPetType: 0 PetNumber: 7".to_string()),
+            "C++ uses std::to_string(getPetType()), so the enum is numeric"
+        );
+    }
+
+    #[test]
+    fn pet_debug_info_requires_charm_info_like_cpp_assumption() {
+        let pet = Pet::new(owner_guid(), PetType::Hunter);
+        assert_eq!(pet.debug_info_with_guardian_like_cpp("GuardianDebug"), None);
     }
 
     #[test]
