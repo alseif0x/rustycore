@@ -1390,6 +1390,17 @@ pub struct RemoveAllObjectsInRemoveListOutcomeLikeCpp {
     pub dynamic_object_unbound_caster_count: usize,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RemoveAllDynamicObjectsForCasterOutcomeLikeCpp {
+    pub caster_guid: ObjectGuid,
+    pub candidates: usize,
+    pub removed: usize,
+    pub missing_or_stale: usize,
+    pub remove_errors: usize,
+    pub dynamic_object_remove_aura_cleanup_count: usize,
+    pub dynamic_object_unbound_caster_count: usize,
+}
+
 /// Bounded represented action for C++ `Map::AddFarSpellCallback` / `_farSpellCallbacks`.
 ///
 /// C++ anchors:
@@ -7606,6 +7617,73 @@ where
                 }
                 Err(RemoveFromMapError::ObjectNotFound { .. }) => outcome.missing_or_stale += 1,
                 Err(_) => outcome.remove_errors += 1,
+            }
+        }
+
+        outcome
+    }
+
+    /// C++ `Unit::RemoveAllDynObjects` represented over map-owned DynamicObjects.
+    ///
+    /// C++ anchors:
+    /// - `Player.cpp:1418-1419` calls `RemoveAllDynObjects()` during accepted
+    ///   inter-map `Player::TeleportTo`.
+    /// - `Unit.cpp:5169-5174` repeatedly removes every DynamicObject owned by
+    ///   the Unit (`m_dynObj.back()->Remove()`).
+    /// - `DynamicObject.cpp:167-171` routes `Remove()` through the owning
+    ///   map remove list; Rust reuses `remove_from_map_like_cpp(..., true)` so
+    ///   aura and caster-unbind cleanup stays in the canonical remove path.
+    ///
+    /// Scope: source-of-truth is this canonical `Map::map_objects` store. This
+    /// does not model the C++ `Unit::m_dynObj` vector ordering, session fanout,
+    /// destroy packets, ObjectAccessor mirrors, scripts, DB, or cross-map
+    /// instance lookup beyond this map.
+    pub fn remove_all_dynamic_objects_for_caster_like_cpp(
+        &mut self,
+        caster_guid: ObjectGuid,
+    ) -> RemoveAllDynamicObjectsForCasterOutcomeLikeCpp {
+        let mut guids = self
+            .map_objects
+            .iter()
+            .filter_map(|(guid, record)| {
+                if record.kind() != AccessorObjectKind::DynamicObject {
+                    return None;
+                }
+                let dynamic_object = record.dynamic_object()?;
+                (dynamic_object.caster_guid() == caster_guid).then_some(*guid)
+            })
+            .collect::<Vec<_>>();
+        guids.sort_by_key(ObjectGuid::to_raw_bytes);
+
+        let mut outcome = RemoveAllDynamicObjectsForCasterOutcomeLikeCpp {
+            caster_guid,
+            candidates: guids.len(),
+            removed: 0,
+            missing_or_stale: 0,
+            remove_errors: 0,
+            dynamic_object_remove_aura_cleanup_count: 0,
+            dynamic_object_unbound_caster_count: 0,
+        };
+
+        for guid in guids {
+            match self.remove_from_map_like_cpp(guid, true) {
+                Ok(removed) => {
+                    outcome.removed += 1;
+                    if let Some(cleanup) = removed.dynamic_object_remove_cleanup {
+                        if cleanup.removed_aura_pending_delete {
+                            outcome.dynamic_object_remove_aura_cleanup_count += 1;
+                        }
+                        if cleanup.unbound_caster.is_some() {
+                            outcome.dynamic_object_unbound_caster_count += 1;
+                        }
+                    }
+                }
+                Err(RemoveFromMapError::ObjectNotFound { .. }) => {
+                    outcome.missing_or_stale += 1;
+                }
+                Err(_) => {
+                    outcome.remove_errors += 1;
+                }
             }
         }
 
@@ -27528,6 +27606,73 @@ mod tests {
         assert_eq!(drain.removed, 1);
         assert_eq!(map.objects_to_remove_count_like_cpp(), 0);
         assert!(map.map_object_record(dynamic_object_guid).is_none());
+        assert_eq!(
+            map.get_typed_player(player_guid)
+                .unwrap()
+                .active_data()
+                .farsight_object,
+            ObjectGuid::EMPTY
+        );
+    }
+
+    #[test]
+    fn remove_all_dynamic_objects_for_caster_removes_only_matching_caster_like_cpp() {
+        let mut map = test_map();
+        let caster_guid = guid(HighGuid::Player, 4290701);
+        let other_caster_guid = guid(HighGuid::Player, 4290702);
+
+        let mut matching_dynamic = test_dynamic_object_for_viewpoint(4290703);
+        let matching_guid = matching_dynamic.world().guid();
+        matching_dynamic.set_caster_guid(caster_guid);
+        map.insert_map_object_record(
+            MapObjectRecord::new_dynamic_object(matching_dynamic).unwrap(),
+        )
+        .unwrap();
+
+        let mut other_dynamic = test_dynamic_object_for_viewpoint(4290704);
+        let other_guid = other_dynamic.world().guid();
+        other_dynamic.set_caster_guid(other_caster_guid);
+        map.insert_map_object_record(MapObjectRecord::new_dynamic_object(other_dynamic).unwrap())
+            .unwrap();
+
+        let outcome = map.remove_all_dynamic_objects_for_caster_like_cpp(caster_guid);
+
+        assert_eq!(outcome.caster_guid, caster_guid);
+        assert_eq!(outcome.candidates, 1);
+        assert_eq!(outcome.removed, 1);
+        assert_eq!(outcome.missing_or_stale, 0);
+        assert_eq!(outcome.remove_errors, 0);
+        assert!(map.map_object_record(matching_guid).is_none());
+        assert!(map.map_object_record(other_guid).is_some());
+    }
+
+    #[test]
+    fn remove_all_dynamic_objects_for_caster_uses_dynamic_object_cleanup_like_cpp() {
+        let mut map = test_map();
+        let player = test_player_for_viewpoint(4290711);
+        let player_guid = player.guid();
+        map.insert_map_object_record(MapObjectRecord::new_player(player).unwrap())
+            .unwrap();
+        let create = create_farsight_focus_for_tests(&mut map, player_guid);
+        assert_eq!(
+            create.status,
+            FarsightDynamicObjectCreateStatusLikeCpp::Created
+        );
+        let dynamic_guid = create.dynamic_object_guid.unwrap();
+        {
+            let dynamic_object = map.get_typed_dynamic_object_mut(dynamic_guid).unwrap();
+            dynamic_object.set_aura_bound();
+            assert_eq!(dynamic_object.bound_caster(), Some(player_guid));
+            assert!(dynamic_object.has_aura());
+        }
+
+        let outcome = map.remove_all_dynamic_objects_for_caster_like_cpp(player_guid);
+
+        assert_eq!(outcome.candidates, 1);
+        assert_eq!(outcome.removed, 1);
+        assert_eq!(outcome.dynamic_object_remove_aura_cleanup_count, 1);
+        assert_eq!(outcome.dynamic_object_unbound_caster_count, 1);
+        assert!(map.map_object_record(dynamic_guid).is_none());
         assert_eq!(
             map.get_typed_player(player_guid)
                 .unwrap()

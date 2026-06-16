@@ -361,6 +361,19 @@ NOTE: `InstanceSaveMgr` no longer exists as a separate class in this WoLK 3.4.3 
   existing represented request seam only; live `Pet::RemovePet`,
   `m_temporaryUnsummonedPetNumber`, pet spell persistence, and resummon loading
   remain under full pet runtime work.
+- `#NEXT.RUNTIME.L3.031j84` wires the accepted far-teleport
+  `RemoveAllDynObjects()` branch for canonical map-owned DynamicObjects whose
+  caster is the current player: Rust removes those typed DynamicObject records
+  from the current canonical map before transfer packets and reuses the
+  canonical `remove_from_map_like_cpp(..., true)` path so aura cleanup,
+  caster-unbind cleanup, and Farsight viewpoint cleanup stay centralized.
+  DynamicObjects owned by other casters remain on the map. Refs:
+  `Player.cpp:1418-1419`, `Unit.cpp:5169-5174`,
+  `DynamicObject.cpp:167-171`. Remaining gap: this is still bounded to
+  canonical map-owned typed records; exact `Unit::m_dynObj` ordering,
+  destroy-packet fanout/ObjectAccessor mirrors, scripts, live DB persistence,
+  `RemoveAllAreaTriggers()`, bot, install/restart, and live-client validation
+  remain pending.
 
 **Tests existing:**
 - `cargo test -p wow-instances -- --nocapture` currently covers 19 focused tests, including C++-contrasted lock key/binding, daily/weekly reset anchors, temporary lock creation, active lock lookup, temp promotion, expired-lock replacement, DB row reconstruction, shared weak-ref cleanup, prepared-statement parameter order, flex-mask join rejection, different-instance rejection, and reset in-use guard.

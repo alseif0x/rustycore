@@ -22353,6 +22353,7 @@ impl WorldSession {
             self.reset_contested_pvp_like_cpp();
             self.maybe_leave_represented_battleground_on_far_teleport_like_cpp(new_map);
             self.unsummon_represented_pet_temporary_if_any_like_cpp();
+            let _ = self.remove_all_dynamic_objects_for_current_player_like_cpp();
         }
 
         info!(
@@ -22400,6 +22401,21 @@ impl WorldSession {
             new_pos.y,
             new_pos.z
         );
+    }
+
+    fn remove_all_dynamic_objects_for_current_player_like_cpp(
+        &self,
+    ) -> Option<wow_map::map::RemoveAllDynamicObjectsForCasterOutcomeLikeCpp> {
+        let player_guid = self.player_guid()?;
+        let map_key = self.current_canonical_player_map_key_like_cpp()?;
+        let canonical = self.canonical_map_manager.as_ref()?;
+        let mut manager = canonical.lock().ok()?;
+        let managed = manager.find_map_mut(map_key.map_id, map_key.instance_id)?;
+        Some(
+            managed
+                .map_mut()
+                .remove_all_dynamic_objects_for_caster_like_cpp(player_guid),
+        )
     }
 
     fn player_cannot_enter_target_map_like_cpp(&self, map_id: u32) -> Option<(u32, u8, i32)> {
@@ -64770,6 +64786,92 @@ mod tests {
         );
         assert_eq!(session.pending_teleport, Some((0, destination)));
         assert_eq!(session.temporary_pet_unsummon_requests_like_cpp(), 0);
+    }
+
+    #[tokio::test]
+    async fn teleport_to_far_map_removes_current_player_dynamic_objects_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 801);
+        let other_player_guid = ObjectGuid::create_player(1, 802);
+        let owned_dynamic_guid = test_dynamic_object_guid(601_801, 50_801);
+        let other_dynamic_guid = test_dynamic_object_guid(601_802, 50_802);
+        let source_position = Position::new(10.0, 20.0, 30.0, 0.0);
+        let destination = Position::new(108.0, 208.0, 38.0, 2.3);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 1,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+            wow_data::MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.expansion = 1;
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TeleportRemoveDynObjects".to_string(),
+            source_position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map(&canonical, player_guid, source_position, 571, 0);
+        add_canonical_test_dynamic_object_on_map(
+            &canonical,
+            owned_dynamic_guid,
+            player_guid,
+            60_181,
+            source_position,
+            571,
+            0,
+        );
+        add_canonical_test_dynamic_object_on_map(
+            &canonical,
+            other_dynamic_guid,
+            other_player_guid,
+            60_182,
+            Position::new(11.0, 21.0, 31.0, 0.0),
+            571,
+            0,
+        );
+
+        session.teleport_to(0, destination).await;
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![
+                ServerOpcodes::CancelCombat,
+                ServerOpcodes::TransferPending,
+                ServerOpcodes::SuspendToken
+            ]
+        );
+        assert_eq!(session.pending_teleport, Some((0, destination)));
+        let manager = canonical.lock().unwrap();
+        let map = manager.find_map(571, 0).unwrap().map();
+        assert!(
+            map.get_typed_dynamic_object(owned_dynamic_guid).is_none(),
+            "C++ Player::TeleportTo calls Unit::RemoveAllDynObjects before transfer"
+        );
+        assert!(
+            map.get_typed_dynamic_object(other_dynamic_guid).is_some(),
+            "RemoveAllDynObjects must not remove DynamicObjects owned by another caster"
+        );
     }
 
     #[tokio::test]
