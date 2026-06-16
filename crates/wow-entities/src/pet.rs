@@ -311,6 +311,21 @@ pub struct PetLearnPetPassivesOutcomeLikeCpp {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PetLearnSpellOutcomeLikeCpp {
+    pub learned: bool,
+    pub packet_spell_ids: Vec<u32>,
+    pub send_direct_message: bool,
+    pub pet_spell_initialize: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PetLearnSpellsOutcomeLikeCpp {
+    pub learned_spell_ids: Vec<u32>,
+    pub packet_spell_ids: Vec<u32>,
+    pub send_session_packet: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PetRemoveSpellOutcomeLikeCpp {
     pub removed: bool,
     pub erased_new_spell: bool,
@@ -1269,11 +1284,32 @@ impl Pet {
         &mut self,
         spell_id: u32,
         active: ActiveState,
-        state: PetSpellState,
+        mut state: PetSpellState,
         spell_type: PetSpellType,
     ) -> bool {
         if spell_id == 0 {
             return false;
+        }
+
+        if let Some(existing) = self.spells.get_mut(&spell_id) {
+            if existing.state == PetSpellState::Removed {
+                state = PetSpellState::Changed;
+            } else {
+                if state == PetSpellState::Unchanged && existing.state != PetSpellState::Unchanged {
+                    existing.state = PetSpellState::Unchanged;
+                    if active == ActiveState::Enabled || active == ActiveState::Disabled {
+                        existing.active = active;
+                        if active == ActiveState::Enabled {
+                            if !self.autospells.contains(&spell_id) {
+                                self.autospells.push(spell_id);
+                            }
+                        } else {
+                            self.autospells.retain(|known| *known != spell_id);
+                        }
+                    }
+                }
+                return false;
+            }
         }
 
         let active = if active == ActiveState::Decide {
@@ -1287,10 +1323,50 @@ impl Pet {
             state,
             spell_type,
         };
-        let changed = self.spells.get(&spell_id).copied() != Some(spell);
         self.spells.insert(spell_id, spell);
         self.sync_autospell(spell_id, active);
-        changed
+        true
+    }
+
+    pub fn learn_spell_like_cpp(&mut self, spell_id: u32) -> PetLearnSpellOutcomeLikeCpp {
+        let learned = self.add_spell(
+            spell_id,
+            ActiveState::Decide,
+            PetSpellState::New,
+            PetSpellType::Normal,
+        );
+        let packet_spell_ids = if learned { vec![spell_id] } else { Vec::new() };
+
+        PetLearnSpellOutcomeLikeCpp {
+            learned,
+            packet_spell_ids,
+            send_direct_message: learned && !self.loading,
+            pet_spell_initialize: learned && !self.loading,
+        }
+    }
+
+    pub fn learn_spells_like_cpp(
+        &mut self,
+        spell_ids: impl IntoIterator<Item = u32>,
+    ) -> PetLearnSpellsOutcomeLikeCpp {
+        let mut learned_spell_ids = Vec::new();
+
+        for spell_id in spell_ids {
+            if self.add_spell(
+                spell_id,
+                ActiveState::Decide,
+                PetSpellState::New,
+                PetSpellType::Normal,
+            ) {
+                learned_spell_ids.push(spell_id);
+            }
+        }
+
+        PetLearnSpellsOutcomeLikeCpp {
+            packet_spell_ids: learned_spell_ids.clone(),
+            learned_spell_ids,
+            send_session_packet: !self.loading,
+        }
     }
 
     pub fn remove_spell(&mut self, spell_id: u32) -> bool {
@@ -3759,6 +3835,89 @@ mod tests {
     }
 
     #[test]
+    fn pet_add_spell_like_cpp_rejects_existing_spell_and_restores_removed_as_changed() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+        assert!(pet.add_spell(
+            100,
+            ActiveState::Disabled,
+            PetSpellState::New,
+            PetSpellType::Normal
+        ));
+        assert!(
+            !pet.add_spell(
+                100,
+                ActiveState::Enabled,
+                PetSpellState::New,
+                PetSpellType::Family
+            ),
+            "C++ Pet::addSpell returns false for an existing non-removed spell"
+        );
+        assert_eq!(pet.spells().get(&100).unwrap().state, PetSpellState::New);
+        assert_eq!(
+            pet.spells().get(&100).unwrap().active,
+            ActiveState::Disabled
+        );
+        assert_eq!(
+            pet.spells().get(&100).unwrap().spell_type,
+            PetSpellType::Normal
+        );
+
+        assert!(pet.remove_spell(100));
+        assert!(pet.add_spell(
+            100,
+            ActiveState::Enabled,
+            PetSpellState::New,
+            PetSpellType::Normal
+        ));
+        assert_eq!(
+            pet.spells().get(&100).unwrap().state,
+            PetSpellState::Changed,
+            "C++ promotes re-added PETSPELL_REMOVED entries to PETSPELL_CHANGED"
+        );
+        assert_eq!(pet.autospells(), &[100]);
+    }
+
+    #[test]
+    fn pet_add_spell_like_cpp_load_case_normalizes_existing_state_and_autocast() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+        assert!(pet.add_spell(
+            100,
+            ActiveState::Disabled,
+            PetSpellState::New,
+            PetSpellType::Normal
+        ));
+
+        assert!(
+            !pet.add_spell(
+                100,
+                ActiveState::Enabled,
+                PetSpellState::Unchanged,
+                PetSpellType::Normal
+            ),
+            "C++ load case normalizes an existing learned spell but still returns false"
+        );
+        assert_eq!(
+            pet.spells().get(&100).unwrap().state,
+            PetSpellState::Unchanged
+        );
+        assert_eq!(pet.spells().get(&100).unwrap().active, ActiveState::Enabled);
+        assert_eq!(pet.autospells(), &[100]);
+
+        assert!(!pet.add_spell(
+            100,
+            ActiveState::Disabled,
+            PetSpellState::Unchanged,
+            PetSpellType::Normal
+        ));
+        assert_eq!(
+            pet.spells().get(&100).unwrap().active,
+            ActiveState::Enabled,
+            "C++ only applies the load autocast correction while old state is not PETSPELL_UNCHANGED"
+        );
+        assert_eq!(pet.autospells(), &[100]);
+    }
+
+    #[test]
     fn pet_learn_pet_passives_applies_family_spell_set_like_cpp() {
         let mut pet = Pet::new(owner_guid(), PetType::Hunter);
 
@@ -3837,6 +3996,76 @@ mod tests {
             pet.spells().get(&200).unwrap().spell_type,
             PetSpellType::Family
         );
+    }
+
+    #[test]
+    fn pet_learn_spell_like_cpp_sends_and_initializes_only_after_new_spell() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+
+        let learned = pet.learn_spell_like_cpp(100);
+        assert_eq!(
+            learned,
+            PetLearnSpellOutcomeLikeCpp {
+                learned: true,
+                packet_spell_ids: vec![100],
+                send_direct_message: true,
+                pet_spell_initialize: true,
+            }
+        );
+
+        let duplicate = pet.learn_spell_like_cpp(100);
+        assert_eq!(
+            duplicate,
+            PetLearnSpellOutcomeLikeCpp {
+                learned: false,
+                packet_spell_ids: Vec::new(),
+                send_direct_message: false,
+                pet_spell_initialize: false,
+            },
+            "C++ Pet::learnSpell returns before sending when addSpell rejects a duplicate"
+        );
+
+        let mut loading_pet = Pet::new(owner_guid(), PetType::Hunter);
+        loading_pet.set_loading(true);
+        let loading = loading_pet.learn_spell_like_cpp(200);
+        assert_eq!(loading.packet_spell_ids, vec![200]);
+        assert!(!loading.send_direct_message);
+        assert!(!loading.pet_spell_initialize);
+    }
+
+    #[test]
+    fn pet_learn_spells_like_cpp_batches_and_sends_even_empty_when_loaded() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+        assert!(pet.add_spell(
+            100,
+            ActiveState::Disabled,
+            PetSpellState::Unchanged,
+            PetSpellType::Normal
+        ));
+
+        let outcome = pet.learn_spells_like_cpp([100, 200, 300, 200]);
+        assert_eq!(outcome.learned_spell_ids, vec![200, 300]);
+        assert_eq!(outcome.packet_spell_ids, vec![200, 300]);
+        assert!(outcome.send_session_packet);
+
+        let empty = pet.learn_spells_like_cpp([100, 200, 300]);
+        assert!(empty.learned_spell_ids.is_empty());
+        assert!(empty.packet_spell_ids.is_empty());
+        assert!(
+            empty.send_session_packet,
+            "C++ Pet::learnSpells sends the packet after the loop whenever !m_loading"
+        );
+    }
+
+    #[test]
+    fn pet_learn_spells_like_cpp_loading_batches_without_sending() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+        pet.set_loading(true);
+
+        let outcome = pet.learn_spells_like_cpp([100, 200]);
+        assert_eq!(outcome.learned_spell_ids, vec![100, 200]);
+        assert_eq!(outcome.packet_spell_ids, vec![100, 200]);
+        assert!(!outcome.send_session_packet);
     }
 
     #[test]
