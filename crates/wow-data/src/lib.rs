@@ -311,7 +311,9 @@ pub use spell::{
     SpellPetAuraLoadErrorLikeCpp, SpellPetAuraLoadOutcomeLikeCpp, SpellPetAuraRowLikeCpp,
     SpellPetAuraSourceEffectLikeCpp, SpellPetAuraSourceLookupLikeCpp, SpellPetAuraStoreLikeCpp,
     SpellStore, SpellTargetPositionLikeCpp, SpellTargetPositionLoadReportLikeCpp,
-    SpellTargetPositionRowLikeCpp, SpellTargetPositionStoreLikeCpp, TARGET_UNIT_PET_LIKE_CPP,
+    SpellTargetPositionRowLikeCpp, SpellTargetPositionStoreLikeCpp, SpellThreatEntryLikeCpp,
+    SpellThreatLoadErrorLikeCpp, SpellThreatLoadOutcomeLikeCpp, SpellThreatRowLikeCpp,
+    SpellThreatStoreLikeCpp, TARGET_UNIT_PET_LIKE_CPP,
 };
 pub use spell_click::{
     NpcSpellClickLoadReportLikeCpp, NpcSpellClickRowLikeCpp, NpcSpellClickStoreLikeCpp,

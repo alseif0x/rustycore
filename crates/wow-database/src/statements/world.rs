@@ -273,6 +273,8 @@ pub enum WorldStatements {
     SEL_SPELL_LOOT_TEMPLATE_ALL_ROWS,
     /// C++ SpellMgr::LoadSpellPetAuras startup query.
     SEL_SPELL_PET_AURAS,
+    /// C++ SpellMgr::LoadSpellThreats startup query.
+    SEL_SPELL_THREATS,
     /// Load C++ ConditionMgr loot-template conditions.
     /// Args: SourceTypeOrReferenceId (i32), SourceGroup (u32), SourceEntry (u32).
     SEL_LOOT_TEMPLATE_CONDITION_ROWS,
@@ -853,6 +855,7 @@ impl StatementDef for WorldStatements {
                 "FROM spell_loot_template",
             ),
             Self::SEL_SPELL_PET_AURAS => "SELECT spell, effectId, pet, aura FROM spell_pet_auras",
+            Self::SEL_SPELL_THREATS => "SELECT entry, flatMod, pctMod, apPctMod FROM spell_threat",
             Self::SEL_LOOT_TEMPLATE_CONDITION_ROWS => concat!(
                 "SELECT ElseGroup, ConditionTypeOrReference, ConditionTarget, ",
                 "ConditionValue1, ConditionValue2, ConditionValue3, ",
@@ -1132,6 +1135,17 @@ mod tests {
         assert_eq!(
             sql,
             "SELECT spell, effectId, pet, aura FROM spell_pet_auras"
+        );
+        assert_eq!(sql.matches('?').count(), 0);
+    }
+
+    #[test]
+    fn spell_threats_statement_matches_cpp_sql_exactly() {
+        let sql = WorldStatements::SEL_SPELL_THREATS.sql();
+
+        assert_eq!(
+            sql,
+            "SELECT entry, flatMod, pctMod, apPctMod FROM spell_threat"
         );
         assert_eq!(sql.matches('?').count(), 0);
     }

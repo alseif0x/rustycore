@@ -327,7 +327,7 @@ Numbered for `MIGRATION_ROADMAP.md` cross-reference. Complexity: **L** <1h, **M*
 - [ ] **#SPELLMGR.14** Implement `LoadSpellProcs` (`spell_proc` SQL): `SpellProcEntry` per spell; support negative `spell_id` to apply to whole rank chain via `get_first_spell_in_chain` (M)
 - [ ] **#SPELLMGR.15** Define `SpellProcEntry` with `flag128 SpellFamilyMask` + `ProcFlagsInit ProcFlags` + 6 mask dimensions (M)
 - [ ] **#SPELLMGR.16** Implement `CanSpellTriggerProcOnEvent` static dispatcher (the central proc-condition AND across SchoolMask, SpellFamilyName, SpellFamilyMask, ProcFlags, SpellTypeMask, SpellPhaseMask, HitMask, AttributesMask) (M)
-- [ ] **#SPELLMGR.17** Implement `LoadSpellThreats` (`spell_threat` SQL): `SpellThreatEntry` per spell (L)
+- [ ] **#SPELLMGR.17** Implement `LoadSpellThreats` (`spell_threat` SQL): query + represented `wow-data` store/loader exist (`WorldStatements::SEL_SPELL_THREATS`, `SpellThreatStoreLikeCpp`), including C++ skip for missing spells, duplicate overwrite semantics, and `GetSpellThreatEntry` fallback to first spell in rank chain via callback; live startup wiring and threat-runtime consumption are still pending (L)
 - [ ] **#SPELLMGR.18** Implement `LoadSkillLineAbilityMap` (DB2): multimap by spell_id (L)
 - [ ] **#SPELLMGR.19** Implement `LoadSpellPetAuras` (`spell_pet_auras` SQL): query + represented `wow-data` store/loader exist (`WorldStatements::SEL_SPELL_PET_AURAS`, `SpellPetAuraStoreLikeCpp`), including C++ key `(spell << 8) + eff`, dummy-effect validation, `petEntry==0` wildcard, and duplicate-key `AddAura` semantics; live startup wiring against the authoritative `SpellInfo` cache is still pending. Before wiring, preserve C++ `SpellEffectInfo::CalcValue()` semantics for the source effect `damage` field, not just raw `EffectBasePoints`. (M)
 - [ ] **#SPELLMGR.20** Implement `LoadSpellEnchantProcData` (`spell_enchant_proc_data` SQL): `SpellEnchantProcEntry` per ench (L)
@@ -467,7 +467,7 @@ Numbered for `MIGRATION_ROADMAP.md` cross-reference. Complexity: **L** <1h, **M*
 - `spell_target_position` — no Rust loader. `EffectTeleportUnits` with `TARGET_DEST_DB` (used by hearthstones, instance portals, summon rituals) cannot resolve.
 - `spell_group` / `spell_group_stack_rules` — no Rust loader. Cross-spell stacking semantics (Elixir Battle vs Guardian, etc.) do not exist.
 - `spell_proc` — no Rust loader. The proc system (~30 ProcFlags dimensions, PpmRate, SpellFamilyMask matching) has no rule source.
-- `spell_threat` — no Rust loader. Per-spell threat overrides (used to reduce/multiply threat for specific spells like taunts vs DPS abilities) do not exist.
+- `spell_threat` — represented Rust query/store exists in `wow-data`, but it is not yet loaded during world-server startup or consumed by spell/threat runtime. Per-spell threat overrides are therefore not live yet.
 - `spell_pet_auras` — no Rust loader. Owner→pet aura inheritance (Beast Mastery hunter, Demonology warlock) absent.
 - `spell_enchant_proc_data` — no Rust loader. Item enchant procs (Berserking, Mongoose, etc.) cannot fire.
 - `spell_linked_spell` — no Rust loader. Spell-A-cast-triggers-Spell-B chains (used heavily by boss scripts) absent.

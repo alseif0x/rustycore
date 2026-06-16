@@ -643,6 +643,90 @@ pub struct SpellPetAuraLoadOutcomeLikeCpp {
     pub errors: Vec<SpellPetAuraLoadErrorLikeCpp>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SpellThreatRowLikeCpp {
+    pub spell_id: u32,
+    pub flat_mod: i32,
+    pub pct_mod: f32,
+    pub ap_pct_mod: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SpellThreatEntryLikeCpp {
+    pub flat_mod: i32,
+    pub pct_mod: f32,
+    pub ap_pct_mod: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SpellThreatLoadErrorLikeCpp {
+    pub row: SpellThreatRowLikeCpp,
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct SpellThreatStoreLikeCpp {
+    pub entries_by_spell_id: HashMap<u32, SpellThreatEntryLikeCpp>,
+}
+
+impl SpellThreatStoreLikeCpp {
+    pub fn from_rows_like_cpp<I, SpellExists>(
+        rows: I,
+        mut spell_exists: SpellExists,
+    ) -> SpellThreatLoadOutcomeLikeCpp
+    where
+        I: IntoIterator<Item = SpellThreatRowLikeCpp>,
+        SpellExists: FnMut(u32) -> bool,
+    {
+        let mut store = Self::default();
+        let mut loaded_row_count = 0;
+        let mut errors = Vec::new();
+
+        for row in rows {
+            if !spell_exists(row.spell_id) {
+                errors.push(SpellThreatLoadErrorLikeCpp { row });
+                continue;
+            }
+
+            store.entries_by_spell_id.insert(
+                row.spell_id,
+                SpellThreatEntryLikeCpp {
+                    flat_mod: row.flat_mod,
+                    pct_mod: row.pct_mod,
+                    ap_pct_mod: row.ap_pct_mod,
+                },
+            );
+            loaded_row_count += 1;
+        }
+
+        SpellThreatLoadOutcomeLikeCpp {
+            store,
+            loaded_row_count,
+            errors,
+        }
+    }
+
+    pub fn get_spell_threat_entry_like_cpp<FirstSpellInChain>(
+        &self,
+        spell_id: u32,
+        mut first_spell_in_chain: FirstSpellInChain,
+    ) -> Option<&SpellThreatEntryLikeCpp>
+    where
+        FirstSpellInChain: FnMut(u32) -> u32,
+    {
+        self.entries_by_spell_id.get(&spell_id).or_else(|| {
+            self.entries_by_spell_id
+                .get(&first_spell_in_chain(spell_id))
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SpellThreatLoadOutcomeLikeCpp {
+    pub store: SpellThreatStoreLikeCpp,
+    pub loaded_row_count: usize,
+    pub errors: Vec<SpellThreatLoadErrorLikeCpp>,
+}
+
 impl SpellInfo {
     /// Convenience: returns the effective cooldown (per-spell or global, whichever is larger).
     pub fn effective_cooldown_ms(&self) -> u32 {
@@ -2118,5 +2202,109 @@ mod tests {
         assert_eq!(pet_aura.damage, -15);
         assert_eq!(pet_aura.aura_for_pet_entry_like_cpp(500), 900);
         assert_eq!(pet_aura.aura_for_pet_entry_like_cpp(501), 0);
+    }
+
+    #[test]
+    fn spell_threat_store_skips_missing_spells_like_cpp() {
+        let outcome = SpellThreatStoreLikeCpp::from_rows_like_cpp(
+            [
+                SpellThreatRowLikeCpp {
+                    spell_id: 100,
+                    flat_mod: 7,
+                    pct_mod: 1.25,
+                    ap_pct_mod: 0.5,
+                },
+                SpellThreatRowLikeCpp {
+                    spell_id: 200,
+                    flat_mod: 9,
+                    pct_mod: 2.0,
+                    ap_pct_mod: 0.0,
+                },
+            ],
+            |spell_id| spell_id == 100,
+        );
+
+        assert_eq!(outcome.loaded_row_count, 1);
+        assert_eq!(outcome.errors.len(), 1);
+        assert_eq!(outcome.errors[0].row.spell_id, 200);
+        assert_eq!(
+            outcome
+                .store
+                .get_spell_threat_entry_like_cpp(100, |_| unreachable!()),
+            Some(&SpellThreatEntryLikeCpp {
+                flat_mod: 7,
+                pct_mod: 1.25,
+                ap_pct_mod: 0.5,
+            })
+        );
+    }
+
+    #[test]
+    fn spell_threat_store_duplicate_rows_last_wins_like_cpp() {
+        let outcome = SpellThreatStoreLikeCpp::from_rows_like_cpp(
+            [
+                SpellThreatRowLikeCpp {
+                    spell_id: 300,
+                    flat_mod: 1,
+                    pct_mod: 1.0,
+                    ap_pct_mod: 0.0,
+                },
+                SpellThreatRowLikeCpp {
+                    spell_id: 300,
+                    flat_mod: -4,
+                    pct_mod: 0.75,
+                    ap_pct_mod: 0.25,
+                },
+            ],
+            |_| true,
+        );
+
+        assert_eq!(
+            outcome.loaded_row_count, 2,
+            "C++ increments count for every valid row before unordered_map overwrite visibility"
+        );
+        assert!(outcome.errors.is_empty());
+        assert_eq!(outcome.store.entries_by_spell_id.len(), 1);
+        assert_eq!(
+            outcome
+                .store
+                .get_spell_threat_entry_like_cpp(300, |_| unreachable!()),
+            Some(&SpellThreatEntryLikeCpp {
+                flat_mod: -4,
+                pct_mod: 0.75,
+                ap_pct_mod: 0.25,
+            })
+        );
+    }
+
+    #[test]
+    fn spell_threat_store_falls_back_to_first_spell_in_chain_like_cpp() {
+        let outcome = SpellThreatStoreLikeCpp::from_rows_like_cpp(
+            [SpellThreatRowLikeCpp {
+                spell_id: 11,
+                flat_mod: 40,
+                pct_mod: 1.5,
+                ap_pct_mod: 0.0,
+            }],
+            |_| true,
+        );
+
+        assert_eq!(
+            outcome
+                .store
+                .get_spell_threat_entry_like_cpp(42, |spell_id| {
+                    assert_eq!(spell_id, 42);
+                    11
+                }),
+            Some(&SpellThreatEntryLikeCpp {
+                flat_mod: 40,
+                pct_mod: 1.5,
+                ap_pct_mod: 0.0,
+            })
+        );
+        assert_eq!(
+            outcome.store.get_spell_threat_entry_like_cpp(43, |_| 43),
+            None
+        );
     }
 }
