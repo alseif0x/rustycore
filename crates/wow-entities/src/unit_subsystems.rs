@@ -761,7 +761,75 @@ pub struct SpellHistory {
     pub global_cooldowns: HashMap<u32, u64>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpellHistoryPetSaveOperationLikeCpp {
+    DeleteCooldowns {
+        pet_number: u32,
+    },
+    InsertCooldown {
+        pet_number: u32,
+        spell_id: u32,
+        cooldown_end_time_secs: i64,
+        category_id: u32,
+        category_end_time_secs: i64,
+    },
+    DeleteCharges {
+        pet_number: u32,
+    },
+    InsertCharge {
+        pet_number: u32,
+        category_id: u32,
+        recharge_start_time_secs: i64,
+        recharge_end_time_secs: i64,
+    },
+}
+
 impl SpellHistory {
+    fn unix_secs_from_ms_like_cpp(ms: u64) -> i64 {
+        (ms / 1_000).min(i64::MAX as u64) as i64
+    }
+
+    pub fn save_pet_spell_history_plan_like_cpp(
+        &self,
+        pet_number: u32,
+    ) -> Vec<SpellHistoryPetSaveOperationLikeCpp> {
+        let mut operations =
+            vec![SpellHistoryPetSaveOperationLikeCpp::DeleteCooldowns { pet_number }];
+
+        for (&spell_id, cooldown) in &self.cooldowns {
+            if cooldown.on_hold {
+                continue;
+            }
+
+            operations.push(SpellHistoryPetSaveOperationLikeCpp::InsertCooldown {
+                pet_number,
+                spell_id,
+                cooldown_end_time_secs: Self::unix_secs_from_ms_like_cpp(cooldown.cooldown_end_ms),
+                category_id: cooldown.category_id,
+                category_end_time_secs: Self::unix_secs_from_ms_like_cpp(cooldown.category_end_ms),
+            });
+        }
+
+        operations.push(SpellHistoryPetSaveOperationLikeCpp::DeleteCharges { pet_number });
+
+        for (&category_id, charges) in &self.charges {
+            for charge in charges {
+                operations.push(SpellHistoryPetSaveOperationLikeCpp::InsertCharge {
+                    pet_number,
+                    category_id,
+                    recharge_start_time_secs: Self::unix_secs_from_ms_like_cpp(
+                        charge.recharge_start_ms,
+                    ),
+                    recharge_end_time_secs: Self::unix_secs_from_ms_like_cpp(
+                        charge.recharge_end_ms,
+                    ),
+                });
+            }
+        }
+
+        operations
+    }
+
     pub fn start_cooldown(
         &mut self,
         now_ms: u64,
@@ -4790,6 +4858,87 @@ mod unit_subsystems_tests {
         assert_eq!(charges[1].recharge_start_ms, 2_000);
         assert_eq!(charges[1].recharge_end_ms, 5_000);
         assert!(history.charges(0).is_none());
+    }
+
+    #[test]
+    fn spell_history_pet_save_plan_matches_cpp_delete_insert_phases() {
+        let mut history = SpellHistory::default();
+        history.add_cooldown(100, 7, 12_345, 9, 67_890, false);
+        history.cooldowns.get_mut(&100).unwrap().spell_id = 999;
+        history.add_cooldown(101, 0, 22_000, 0, 0, true);
+        assert!(history.add_charge_state_like_cpp(44, 10_999, 20_001));
+        assert!(history.add_charge_state_like_cpp(44, 20_001, 30_999));
+        assert!(history.add_charge_state_like_cpp(55, 40_000, 50_000));
+
+        let operations = history.save_pet_spell_history_plan_like_cpp(77);
+        assert_eq!(
+            operations.first(),
+            Some(&SpellHistoryPetSaveOperationLikeCpp::DeleteCooldowns { pet_number: 77 })
+        );
+
+        let delete_charges_index = operations
+            .iter()
+            .position(|operation| {
+                matches!(
+                    operation,
+                    SpellHistoryPetSaveOperationLikeCpp::DeleteCharges { pet_number: 77 }
+                )
+            })
+            .expect("C++ deletes charge rows after cooldown inserts");
+        assert!(delete_charges_index > 0);
+        assert!(
+            operations[..delete_charges_index]
+                .iter()
+                .skip(1)
+                .all(|operation| matches!(
+                    operation,
+                    SpellHistoryPetSaveOperationLikeCpp::InsertCooldown { .. }
+                ))
+        );
+        assert!(
+            operations[delete_charges_index + 1..]
+                .iter()
+                .all(|operation| matches!(
+                    operation,
+                    SpellHistoryPetSaveOperationLikeCpp::InsertCharge { .. }
+                ))
+        );
+
+        assert!(
+            operations.contains(&SpellHistoryPetSaveOperationLikeCpp::InsertCooldown {
+                pet_number: 77,
+                spell_id: 100,
+                cooldown_end_time_secs: 12,
+                category_id: 9,
+                category_end_time_secs: 67,
+            })
+        );
+        assert!(!operations.iter().any(|operation| matches!(
+            operation,
+            SpellHistoryPetSaveOperationLikeCpp::InsertCooldown { spell_id: 101, .. }
+        )));
+
+        let charge_44: Vec<_> = operations
+            .iter()
+            .filter_map(|operation| match operation {
+                SpellHistoryPetSaveOperationLikeCpp::InsertCharge {
+                    category_id: 44,
+                    recharge_start_time_secs,
+                    recharge_end_time_secs,
+                    ..
+                } => Some((*recharge_start_time_secs, *recharge_end_time_secs)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(charge_44, vec![(10, 20), (20, 30)]);
+        assert!(
+            operations.contains(&SpellHistoryPetSaveOperationLikeCpp::InsertCharge {
+                pet_number: 77,
+                category_id: 55,
+                recharge_start_time_secs: 40,
+                recharge_end_time_secs: 50,
+            })
+        );
     }
 
     #[test]
