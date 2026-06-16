@@ -196,6 +196,8 @@ Todas las rutas relativas a `/home/server/woltk-trinity-legacy/`.
 | `CHAR_DEL_GROUP_INSTANCE_PERM_BINDING` | DELETE on reset | character |
 | `CHAR_SEL_GROUP_MEMBER` | SELECT guid FROM group_member WHERE memberGuid=? | character |
 | `CHAR_SEL_GROUPS` (raw) | Bulk-load all groups at startup | character |
+| `CHAR_SEL_GROUP_MEMBERS` (raw) | Bulk-load group members at startup | character |
+| `CHAR_SEL_GROUP_MEMBER_CHARACTER_CACHE` (Rust bridge) | Minimal `sCharacterCache` projection (`guid,name,race,class`) needed by `Group::LoadGroupFromDB` / `LoadMemberFromDB` | character |
 
 DBC/DB2 stores read:
 
@@ -505,7 +507,7 @@ DBC/DB2 stores read:
 
 | Scope | Decision | C++ retained | Evidence |
 |---|---|---|---|
-| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 10 files / 2815 lines; refs: `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp`, `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.h`, `/home/server/woltk-trinity-legacy/src/server/game/Groups/GroupMgr.cpp` | `crates/wow-network/src/group_registry.rs`, `crates/wow-world/src/handlers/group.rs`, `crates/wow-packet/src/packets/party.rs` \| ⚠️ partial (~15% — invite, accept, decline, leave only; bounded raid conversion, roles, loot and ready-check represented; no markers/full DB persistence/manual-test-ready runtime) |
+| `active_port_scope` | Full C++ surface remains in migration scope; no product exclusion recorded. | 10 files / 2815 lines; refs: `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp`, `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.h`, `/home/server/woltk-trinity-legacy/src/server/game/Groups/GroupMgr.cpp` | `crates/wow-network/src/group_registry.rs`, `crates/wow-world/src/handlers/group.rs`, `crates/wow-packet/src/packets/party.rs`, `crates/world-server/src/main.rs` \| ⚠️ partial — broad represented coverage for member slots, subgroups, roles, loot, ready-check, target icons, raid markers and startup DB load; remaining gaps include BG/BF/original-group parity, full `group_instance`/raid-bind persistence, complete mutation transaction parity, and manual-test-ready runtime validation |
 
 <!-- REFINE.025:END product-scope -->
 
@@ -575,8 +577,10 @@ its line counts or "only 3 handlers" statement as current truth without re-audit
 **Inventory verified:**
 - `crates/wow-network/src/group_registry.rs`: historical snapshot. Later slices added represented
   member slots/subgroups/roles/ready-check/target-icons/raid-markers and many packet paths; use
-  the task list above plus `current-session-handoff.md` for current boundaries. Instance binds,
-  DB persistence, BG/BF/original-group parity and full live runtime remain open.
+  the task list above plus `current-session-handoff.md` for current boundaries. `world-server`
+  now also performs represented `GroupMgr::LoadGroups()` startup load into the shared
+  `GroupRegistry`. Instance binds, complete DB transaction/rollback parity, BG/BF/original-group
+  parity and full live runtime remain open.
 - `crates/wow-world/src/handlers/group.rs`: **467 lines** (matches doc). Three `inventory::submit!` registrations exactly: `PartyInvite`, `PartyInviteResponse`, `LeaveGroup`. **Zero** other group opcodes wired.
 
 **Confirmed bugs:**

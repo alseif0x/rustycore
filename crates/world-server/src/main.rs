@@ -47,12 +47,13 @@ use wow_network::session_mgr::SessionManager;
 use wow_network::world_socket::{AccountInfo, AccountLookup};
 use wow_network::{
     ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, GameEventQuestCompleteCommandLikeCpp,
-    GameEventQuestCompleteResponseLikeCpp, GroupRegistry, KickLikeCppCommand, LootDropRatesLikeCpp,
-    PacketSpoofConfigLikeCpp, PendingInvites, PlayerRegistry, ReadyCheckEventLikeCpp,
-    ReputationRatesLikeCpp, ResetSeasonalQuestStatusCommand, SendVisibleObjectValuesUpdateCommand,
-    SessionCommand, SessionResources, SocketTimeoutsLikeCpp,
+    GameEventQuestCompleteResponseLikeCpp, GroupDbRowLikeCpp, GroupLoadSummaryLikeCpp,
+    GroupMemberCharacterLikeCpp, GroupMemberDbRowLikeCpp, GroupRegistry, KickLikeCppCommand,
+    LootDropRatesLikeCpp, PacketSpoofConfigLikeCpp, PendingInvites, PlayerRegistry,
+    ReadyCheckEventLikeCpp, ReputationRatesLikeCpp, ResetSeasonalQuestStatusCommand,
+    SendVisibleObjectValuesUpdateCommand, SessionCommand, SessionResources, SocketTimeoutsLikeCpp,
     WorldSessionShutdownFlushLikeCppCommand, WorldSessionShutdownFlushResultLikeCpp,
-    tick_all_group_ready_checks_like_cpp,
+    load_groups_from_db_rows_like_cpp, tick_all_group_ready_checks_like_cpp,
 };
 use wow_packet::{
     ServerPacket,
@@ -2286,6 +2287,21 @@ async fn main() -> Result<ExitCode> {
     // Shared group registry and pending invites
     let group_registry = Arc::new(GroupRegistry::new());
     let pending_invites = Arc::new(PendingInvites::new());
+    let group_load_summary = load_groups_from_character_database_like_cpp(
+        char_db.as_ref(),
+        group_registry.as_ref(),
+        difficulty_store.as_ref(),
+    )
+    .await
+    .context("Failed to load C++ group startup state")?;
+    info!(
+        "Loaded C++ group startup state: groups={} member-rows={} members={} skipped-groups={} skipped-members={}",
+        group_load_summary.loaded_groups,
+        group_load_summary.loaded_member_rows,
+        group_load_summary.loaded_members,
+        group_load_summary.skipped_group_rows,
+        group_load_summary.skipped_member_rows,
+    );
 
     // Shared world state (creatures/grids visible to every session on the same map).
     // Each session gets a clone of this Arc on creation.
@@ -6932,6 +6948,154 @@ struct GameEventQuestCompleteDbBridgeSummaryLikeCpp {
     operations: Vec<GameEventQuestCompleteConditionSaveDbOperationLikeCpp>,
 }
 
+async fn load_groups_from_character_database_like_cpp(
+    char_db: &CharacterDatabase,
+    group_registry: &GroupRegistry,
+    difficulty_store: &wow_data::DifficultyStore,
+) -> Result<GroupLoadSummaryLikeCpp> {
+    // C++ GroupMgr::LoadGroups runs these DirectExecute cleanup statements
+    // before selecting groups and members.
+    for statement in [
+        CharStatements::DEL_GROUP_MEMBERS_WITHOUT_CHARACTER,
+        CharStatements::DEL_GROUPS_WITHOUT_LEADER,
+        CharStatements::DEL_GROUPS_WITH_FEWER_THAN_TWO_MEMBERS,
+        CharStatements::DEL_GROUP_MEMBERS_WITHOUT_GROUP,
+    ] {
+        let stmt = char_db.prepare(statement);
+        char_db
+            .execute(&stmt)
+            .await
+            .with_context(|| format!("Failed to execute group startup cleanup: {statement:?}"))?;
+    }
+
+    let character_cache = load_group_member_character_cache_like_cpp(char_db).await?;
+    let group_rows = load_group_db_rows_like_cpp(char_db).await?;
+    let member_rows = load_group_member_db_rows_like_cpp(char_db).await?;
+
+    Ok(load_groups_from_db_rows_like_cpp(
+        group_registry,
+        group_rows,
+        member_rows,
+        &character_cache,
+        difficulty_store,
+    ))
+}
+
+async fn load_group_member_character_cache_like_cpp(
+    char_db: &CharacterDatabase,
+) -> Result<BTreeMap<u64, GroupMemberCharacterLikeCpp>> {
+    let stmt = char_db.prepare(CharStatements::SEL_GROUP_MEMBER_CHARACTER_CACHE);
+    let mut result = char_db
+        .query(&stmt)
+        .await
+        .context("Failed to select group member character cache rows")?;
+    let mut cache = BTreeMap::new();
+    if result.is_empty() {
+        return Ok(cache);
+    }
+
+    loop {
+        let guid: u64 = result.try_read(0).unwrap_or(0);
+        if guid != 0 {
+            cache.insert(
+                guid,
+                GroupMemberCharacterLikeCpp {
+                    name: result.read_string(1),
+                    race: result.try_read(2).unwrap_or(0),
+                    class: result.try_read(3).unwrap_or(0),
+                },
+            );
+        }
+
+        if !result.next_row() {
+            break;
+        }
+    }
+
+    Ok(cache)
+}
+
+async fn load_group_db_rows_like_cpp(
+    char_db: &CharacterDatabase,
+) -> Result<Vec<GroupDbRowLikeCpp>> {
+    let stmt = char_db.prepare(CharStatements::SEL_GROUPS);
+    let mut result = char_db
+        .query(&stmt)
+        .await
+        .context("Failed to select C++ GroupMgr::LoadGroups group rows")?;
+    let mut rows = Vec::new();
+    if result.is_empty() {
+        return Ok(rows);
+    }
+
+    loop {
+        let mut target_icons = [[0u8; 16]; wow_network::TARGET_ICONS_COUNT_LIKE_CPP];
+        for (idx, icon) in target_icons.iter_mut().enumerate() {
+            let bytes: Vec<u8> = result.try_read(4 + idx).unwrap_or_default();
+            *icon = target_icon_raw_from_db_bytes_like_cpp(&bytes);
+        }
+
+        rows.push(GroupDbRowLikeCpp {
+            leader_guid_low: result.try_read(0).unwrap_or(0),
+            loot_method: result.try_read(1).unwrap_or(0),
+            looter_guid_low: result.try_read(2).unwrap_or(0),
+            loot_threshold: result.try_read(3).unwrap_or(0),
+            target_icons,
+            group_flags: result.try_read(12).unwrap_or(0),
+            dungeon_difficulty_id: result.try_read::<u8>(13).unwrap_or(0).into(),
+            raid_difficulty_id: result.try_read::<u8>(14).unwrap_or(0).into(),
+            legacy_raid_difficulty_id: result.try_read::<u8>(15).unwrap_or(0).into(),
+            master_looter_guid_low: result.try_read(16).unwrap_or(0),
+            db_store_id: result.try_read(17).unwrap_or(0),
+            lfg_dungeon_id: (!result.is_null(18)).then(|| result.try_read(18).unwrap_or(0)),
+            lfg_state: (!result.is_null(19)).then(|| result.try_read(19).unwrap_or(0)),
+        });
+
+        if !result.next_row() {
+            break;
+        }
+    }
+
+    Ok(rows)
+}
+
+async fn load_group_member_db_rows_like_cpp(
+    char_db: &CharacterDatabase,
+) -> Result<Vec<GroupMemberDbRowLikeCpp>> {
+    let stmt = char_db.prepare(CharStatements::SEL_GROUP_MEMBERS);
+    let mut result = char_db
+        .query(&stmt)
+        .await
+        .context("Failed to select C++ GroupMgr::LoadGroups member rows")?;
+    let mut rows = Vec::new();
+    if result.is_empty() {
+        return Ok(rows);
+    }
+
+    loop {
+        rows.push(GroupMemberDbRowLikeCpp {
+            db_store_id: result.try_read(0).unwrap_or(0),
+            member_guid_low: result.try_read(1).unwrap_or(0),
+            member_flags: result.try_read(2).unwrap_or(0),
+            subgroup: result.try_read(3).unwrap_or(0),
+            roles: result.try_read(4).unwrap_or(0),
+        });
+
+        if !result.next_row() {
+            break;
+        }
+    }
+
+    Ok(rows)
+}
+
+fn target_icon_raw_from_db_bytes_like_cpp(bytes: &[u8]) -> [u8; 16] {
+    let mut raw = [0u8; 16];
+    let copy_len = bytes.len().min(raw.len());
+    raw[..copy_len].copy_from_slice(&bytes[..copy_len]);
+    raw
+}
+
 #[allow(dead_code)]
 fn materialize_game_event_quest_complete_db_bridge_like_cpp(
     outcome: &spawn_store_loader::GameEventQuestCompleteOutcomeLikeCpp,
@@ -10077,7 +10241,7 @@ mod tests {
         run_legacy_creature_movement_tick_and_deliver_once_like_cpp,
         run_legacy_creature_runtime_tick_and_deliver_once_like_cpp, set_realm_offline_sql_like_cpp,
         set_realm_online_sql_like_cpp, spawn_legacy_creature_runtime_update_loop_like_cpp,
-        spawn_store_loader, stop_world_network_like_cpp,
+        spawn_store_loader, stop_world_network_like_cpp, target_icon_raw_from_db_bytes_like_cpp,
         update_sessions_shutdown_flush_once_like_cpp, updates_auto_setup_enabled_like_cpp,
         updates_database_mask_like_cpp, updates_enabled_for_database_like_cpp, world_config_bool,
         world_config_u8, world_config_u16, world_config_u32,
@@ -10114,6 +10278,21 @@ mod tests {
         ServerPacket,
         packets::chat::{ChatMsg, ChatPkt},
     };
+
+    #[test]
+    fn target_icon_raw_from_db_bytes_preserves_cpp_binary_guid_shape() {
+        assert_eq!(target_icon_raw_from_db_bytes_like_cpp(&[]), [0u8; 16]);
+
+        let short = target_icon_raw_from_db_bytes_like_cpp(&[1, 2, 3]);
+        assert_eq!(&short[..3], &[1, 2, 3]);
+        assert_eq!(&short[3..], &[0u8; 13]);
+
+        let exact = target_icon_raw_from_db_bytes_like_cpp(&[9u8; 16]);
+        assert_eq!(exact, [9u8; 16]);
+
+        let long = target_icon_raw_from_db_bytes_like_cpp(&(0u8..20).collect::<Vec<_>>());
+        assert_eq!(long, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
+    }
 
     fn player_broadcast_info_fixture_like_cpp(
         send_tx: flume::Sender<Vec<u8>>,

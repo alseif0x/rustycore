@@ -353,6 +353,8 @@ pub enum CharStatements {
     SEL_GROUPS,
     /// SELECT C++ GroupMgr::LoadGroups member rows.
     SEL_GROUP_MEMBERS,
+    /// SELECT minimal sCharacterCache projection needed by Group::LoadMemberFromDB.
+    SEL_GROUP_MEMBER_CHARACTER_CACHE,
 
     /// UPDATE characters SET totaltime = ?, leveltime = ? WHERE guid = ?
     UPD_CHAR_PLAYED_TIME,
@@ -2032,6 +2034,9 @@ impl StatementDef for CharStatements {
             Self::SEL_GROUP_MEMBERS => {
                 "SELECT guid, memberGuid, memberFlags, subgroup, roles FROM group_member ORDER BY guid"
             }
+            Self::SEL_GROUP_MEMBER_CHARACTER_CACHE => {
+                "SELECT guid, name, race, class FROM characters WHERE guid IN (SELECT leaderGuid FROM `groups` UNION SELECT memberGuid FROM group_member)"
+            }
             Self::UPD_CHAR_PLAYED_TIME => {
                 "UPDATE characters SET totaltime = ?, leveltime = ? WHERE guid = ?"
             }
@@ -3365,6 +3370,10 @@ mod tests {
             "SELECT guid, memberGuid, memberFlags, subgroup, roles FROM group_member ORDER BY guid"
         );
         assert_eq!(
+            CharStatements::SEL_GROUP_MEMBER_CHARACTER_CACHE.sql(),
+            "SELECT guid, name, race, class FROM characters WHERE guid IN (SELECT leaderGuid FROM `groups` UNION SELECT memberGuid FROM group_member)"
+        );
+        assert_eq!(
             CharStatements::DEL_GROUP_MEMBERS_WITHOUT_CHARACTER
                 .sql()
                 .matches('?')
@@ -3374,6 +3383,13 @@ mod tests {
         assert_eq!(CharStatements::SEL_GROUPS.sql().matches('?').count(), 0);
         assert_eq!(
             CharStatements::SEL_GROUP_MEMBERS.sql().matches('?').count(),
+            0
+        );
+        assert_eq!(
+            CharStatements::SEL_GROUP_MEMBER_CHARACTER_CACHE
+                .sql()
+                .matches('?')
+                .count(),
             0
         );
     }

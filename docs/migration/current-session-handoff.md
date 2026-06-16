@@ -1,3 +1,19 @@
+- `#NEXT.RUNTIME.L3.031j55` — WotLK represented `GroupMgr::LoadGroups()` startup bridge
+  (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Groups/GroupMgr.cpp:127-205` and
+  `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp:196-265`.
+  Rust world startup now executes the four C++ group cleanup statements in order, selects the
+  C++ `groups` and `group_member` row shapes, materializes the minimal `sCharacterCache`
+  projection needed by `Group::LoadGroupFromDB`/`LoadMemberFromDB`, and populates the shared
+  `GroupRegistry` before sessions are created. Coverage: `wow-database`
+  `group_startup_load_statements_match_cpp_exactly` covers the cleanup/load SQL shapes including
+  the Rust character-cache projection, `world-server`
+  `target_icon_raw_from_db_bytes_preserves_cpp_binary_guid_shape` covers the C++ `GetBinary`
+  raid-target-icon normalization, and `cargo check -p wow-database -p wow-network -p world-server`
+  passes. Boundary remains partial: represented `GroupInfo` only, no `group_instance` raid-bind
+  load/persistence, no full LFG manager DB side effects beyond represented LFG state, no grouped
+  transaction/rollback parity for all mutating handlers, no install/restart, bot, or live-client
+  validation.
 - `#NEXT.RUNTIME.L3.031j54` — WotLK represented `Group::UpdateLooterGuid` round-robin
   state helper (not manual-test-ready). Source-of-truth:
   `/home/server/woltk-trinity-legacy/src/server/game/Groups/Group.cpp:1116-1176`
