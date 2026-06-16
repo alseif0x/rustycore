@@ -6,6 +6,7 @@ use wow_core::ObjectGuid;
 use crate::{
     Creature, CreatureRuntimePlan, ReactState, UNIT_MASK_CONTROLABLE_GUARDIAN, UNIT_MASK_GUARDIAN,
     UNIT_MASK_HUNTER_PET, UNIT_MASK_MINION, UNIT_MASK_PET, UNIT_MASK_SUMMON,
+    unit_action_button_action_like_cpp, unit_action_button_type_like_cpp,
 };
 
 pub const HAPPINESS_LEVEL_SIZE: u32 = 333_000;
@@ -725,6 +726,47 @@ impl Pet {
         (owner_next_level_xp as f32 * PET_XP_FACTOR) as u32
     }
 
+    pub fn generate_action_bar_data_like_cpp(action_bar: &[u32]) -> String {
+        let mut data = String::new();
+        for packed in action_bar.iter().take(10) {
+            data.push_str(&format!(
+                "{} {} ",
+                unit_action_button_type_like_cpp(*packed),
+                unit_action_button_action_like_cpp(*packed)
+            ));
+        }
+        data
+    }
+
+    pub fn fill_pet_info_like_cpp(
+        &self,
+        pet_number: u32,
+        action_bar: &[u32],
+        forced_react_state: Option<ReactState>,
+        can_be_renamed: bool,
+        last_save_time: u32,
+        created_by_spell_id: u32,
+    ) -> PetStableInfo {
+        let unit = self.creature.unit();
+        PetStableInfo {
+            name: unit.world().name().to_string(),
+            action_bar: Self::generate_action_bar_data_like_cpp(action_bar),
+            pet_number,
+            creature_id: self.creature.entry(),
+            display_id: unit.data().native_display_id as u32,
+            experience: self.pet_experience,
+            health: unit.data().health as u32,
+            mana: unit.get_power(PowerType::Mana) as u32,
+            last_save_time,
+            created_by_spell_id,
+            specialization_id: self.pet_specialization,
+            level: self.creature.level(),
+            react_state: forced_react_state.unwrap_or_else(|| self.creature.react_state()),
+            pet_type: self.pet_type,
+            was_renamed: !can_be_renamed,
+        }
+    }
+
     pub fn get_load_pet_info(
         stable: &PetStable,
         pet_entry: u32,
@@ -1379,6 +1421,113 @@ mod tests {
         assert_eq!(outcome.levels_gained, 0);
         assert_eq!(pet.creature().level(), 10);
         assert_eq!(pet.pet_experience(), 1);
+    }
+
+    #[test]
+    fn pet_generate_action_bar_data_matches_cpp_type_action_format() {
+        let mut action_bar = [0u32; 10];
+        action_bar[0] = crate::make_unit_action_button_like_cpp(
+            crate::COMMAND_ATTACK_LIKE_CPP,
+            crate::ACT_COMMAND_LIKE_CPP,
+        );
+        action_bar[3] =
+            crate::make_unit_action_button_like_cpp(12_345, crate::ACT_ENABLED_LIKE_CPP);
+        action_bar[4] =
+            crate::make_unit_action_button_like_cpp(23_456, crate::ACT_DISABLED_LIKE_CPP);
+        action_bar[9] = crate::make_unit_action_button_like_cpp(
+            crate::COMMAND_STAY_LIKE_CPP,
+            crate::ACT_REACTION_LIKE_CPP,
+        );
+
+        let expected = action_bar
+            .iter()
+            .map(|packed| {
+                format!(
+                    "{} {} ",
+                    unit_action_button_type_like_cpp(*packed),
+                    unit_action_button_action_like_cpp(*packed)
+                )
+            })
+            .collect::<String>();
+
+        assert_eq!(
+            Pet::generate_action_bar_data_like_cpp(&action_bar),
+            expected
+        );
+        assert!(
+            expected.ends_with(' '),
+            "C++ ostream appends a trailing space after every action-bar entry"
+        );
+    }
+
+    #[test]
+    fn pet_fill_pet_info_matches_cpp_field_copy() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+        pet.creature_mut()
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .create(pet_guid(21));
+        pet.creature_mut()
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .set_entry(500);
+        pet.creature_mut().unit_mut().world_mut().set_name("Misha");
+        pet.creature_mut().set_display_id(12_345, true, None);
+        pet.creature_mut().unit_mut().set_level(43);
+        pet.creature_mut().unit_mut().set_max_health(1_000);
+        pet.creature_mut().unit_mut().set_health(888);
+        pet.creature_mut().set_power_type(PowerType::Mana);
+        pet.creature_mut()
+            .unit_mut()
+            .set_max_power(PowerType::Mana, 500);
+        pet.creature_mut()
+            .unit_mut()
+            .set_power(PowerType::Mana, 222);
+        pet.creature_mut().set_react_state(ReactState::Defensive);
+        pet.set_pet_experience(777);
+        pet.set_specialization(12);
+
+        let mut action_bar = [0u32; 10];
+        action_bar[0] = crate::make_unit_action_button_like_cpp(
+            crate::COMMAND_ATTACK_LIKE_CPP,
+            crate::ACT_COMMAND_LIKE_CPP,
+        );
+        action_bar[3] =
+            crate::make_unit_action_button_like_cpp(11_111, crate::ACT_ENABLED_LIKE_CPP);
+
+        let forced = pet.fill_pet_info_like_cpp(
+            42,
+            &action_bar,
+            Some(ReactState::Passive),
+            false,
+            1_700_000_000,
+            9_001,
+        );
+
+        assert_eq!(forced.name, "Misha");
+        assert_eq!(
+            forced.action_bar,
+            Pet::generate_action_bar_data_like_cpp(&action_bar)
+        );
+        assert_eq!(forced.pet_number, 42);
+        assert_eq!(forced.creature_id, 500);
+        assert_eq!(forced.display_id, 12_345);
+        assert_eq!(forced.experience, 777);
+        assert_eq!(forced.health, 888);
+        assert_eq!(forced.mana, 222);
+        assert_eq!(forced.last_save_time, 1_700_000_000);
+        assert_eq!(forced.created_by_spell_id, 9_001);
+        assert_eq!(forced.specialization_id, 12);
+        assert_eq!(forced.level, 43);
+        assert_eq!(forced.react_state, ReactState::Passive);
+        assert_eq!(forced.pet_type, PetType::Hunter);
+        assert!(forced.was_renamed);
+
+        let unforced = pet.fill_pet_info_like_cpp(43, &action_bar, None, true, 7, 8);
+        assert_eq!(unforced.react_state, ReactState::Defensive);
+        assert!(!unforced.was_renamed);
     }
 
     #[test]
