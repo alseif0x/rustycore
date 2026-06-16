@@ -343,6 +343,15 @@ NOTE: `InstanceSaveMgr` no longer exists as a separate class in this WoLK 3.4.3 
   delayed-teleport flags, full BG cleanup,
   pet/vehicle/duel/movement cleanup, bot, install/restart, and live-client
   validation remain pending.
+- `#NEXT.RUNTIME.L3.031j82` wires the accepted far-teleport battleground leave
+  comparison from C++ `Player::TeleportTo`: if the represented current
+  battleground's `GetMapId()` differs from the destination map, Rust records a
+  represented `LeaveBattleground(false)` request after `CombatStop()` and
+  `ResetContestedPvP()` and before transfer packets. Teleporting into the
+  represented battleground's own map does not leave it, matching the C++ join
+  note in that branch. Refs: `Player.cpp:1395-1403`. Remaining gap: this is
+  still a represented request only; live `BattlegroundMgr`, queue/member
+  removal, score/world-state cleanup, and full BG runtime remain pending.
 
 **Tests existing:**
 - `cargo test -p wow-instances -- --nocapture` currently covers 19 focused tests, including C++-contrasted lock key/binding, daily/weekly reset anchors, temporary lock creation, active lock lookup, temp promotion, expired-lock replacement, DB row reconstruction, shared weak-ref cleanup, prepared-statement parameter order, flex-mask join rejection, different-instance rejection, and reset in-use guard.

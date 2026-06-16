@@ -3569,6 +3569,8 @@ pub struct WorldSession {
     represented_vehicle_base_movements_like_cpp: Vec<RepresentedVehicleBaseMovementLikeCpp>,
     /// Represented `Player::GetBattleground()->GetTypeID()` for C++ battleground object use.
     player_battleground_type_id_like_cpp: Option<u32>,
+    /// Represented `Player::GetBattleground()->GetMapId()` until live Battleground ownership exists.
+    player_battleground_map_id_like_cpp: Option<u32>,
     /// Represented `Battleground::GetStatus()` until live Battleground ownership exists.
     represented_battleground_status_like_cpp: Option<u8>,
     /// Count of represented `Player::LeaveBattleground()` requests.
@@ -4907,6 +4909,7 @@ impl WorldSession {
             represented_vehicle_dismiss_movements_like_cpp: Vec::new(),
             represented_vehicle_base_movements_like_cpp: Vec::new(),
             player_battleground_type_id_like_cpp: None,
+            player_battleground_map_id_like_cpp: None,
             represented_battleground_status_like_cpp: None,
             represented_battleground_leave_requests_like_cpp: 0,
             represented_battlemaster_hellos_like_cpp: Vec::new(),
@@ -22348,6 +22351,7 @@ impl WorldSession {
             self.set_selection_guid_like_cpp(None);
             self.combat_stop_like_cpp();
             self.reset_contested_pvp_like_cpp();
+            self.maybe_leave_represented_battleground_on_far_teleport_like_cpp(new_map);
         }
 
         info!(
@@ -24333,6 +24337,16 @@ impl WorldSession {
         self.player_battleground_type_id_like_cpp = (bg_type_id != 0).then_some(bg_type_id);
     }
 
+    #[cfg(test)]
+    pub(crate) fn set_player_battleground_context_like_cpp(
+        &mut self,
+        bg_type_id: u32,
+        bg_map_id: u32,
+    ) {
+        self.player_battleground_type_id_like_cpp = (bg_type_id != 0).then_some(bg_type_id);
+        self.player_battleground_map_id_like_cpp = (bg_map_id != 0).then_some(bg_map_id);
+    }
+
     pub(crate) fn set_represented_battleground_status_like_cpp(&mut self, status: Option<u8>) {
         self.represented_battleground_status_like_cpp = status;
     }
@@ -24349,6 +24363,15 @@ impl WorldSession {
         self.represented_battleground_leave_requests_like_cpp = self
             .represented_battleground_leave_requests_like_cpp
             .saturating_add(1);
+    }
+
+    fn maybe_leave_represented_battleground_on_far_teleport_like_cpp(&mut self, new_map: u32) {
+        if self
+            .player_battleground_map_id_like_cpp
+            .is_some_and(|bg_map_id| bg_map_id != new_map)
+        {
+            self.request_represented_battleground_leave_like_cpp();
+        }
     }
 
     #[cfg(test)]
@@ -64548,7 +64571,7 @@ mod tests {
                 flags2: 0,
             },
         ])));
-        session.set_player_battleground_type_id_like_cpp(BATTLEGROUND_AB_LIKE_CPP);
+        session.set_player_battleground_context_like_cpp(BATTLEGROUND_AB_LIKE_CPP, 529);
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
             player_guid,
             "TeleportBgAllow".to_string(),
@@ -64572,6 +64595,66 @@ mod tests {
         );
         assert_eq!(session.pending_teleport, Some((529, destination)));
         assert_eq!(session.state, SessionState::Transfer);
+        assert_eq!(
+            session.represented_battleground_leave_requests_like_cpp(),
+            0
+        );
+    }
+
+    #[tokio::test]
+    async fn teleport_to_leaves_represented_battleground_when_target_map_differs_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 798);
+        let destination = Position::new(104.0, 204.0, 34.0, 1.9);
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 529,
+                instance_type: wow_data::map::MAP_BATTLEGROUND,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 1,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.expansion = 1;
+        session.set_player_battleground_context_like_cpp(BATTLEGROUND_AB_LIKE_CPP, 529);
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TeleportBgLeave".to_string(),
+            Position::new(10.0, 20.0, 30.0, 0.0),
+            529,
+            1,
+            1,
+            80,
+            0,
+        ));
+
+        session.teleport_to(571, destination).await;
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![
+                ServerOpcodes::CancelCombat,
+                ServerOpcodes::TransferPending,
+                ServerOpcodes::SuspendToken
+            ]
+        );
+        assert_eq!(session.pending_teleport, Some((571, destination)));
+        assert_eq!(session.state, SessionState::Transfer);
+        assert_eq!(
+            session.represented_battleground_leave_requests_like_cpp(),
+            1
+        );
     }
 
     #[tokio::test]
