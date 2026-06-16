@@ -5766,6 +5766,31 @@ impl WorldSession {
         }
     }
 
+    fn remove_current_player_from_canonical_current_map_like_cpp(&mut self) -> bool {
+        let Some(guid) = self.player_guid() else {
+            return false;
+        };
+        let Some(manager) = self.canonical_map_manager.as_ref().map(Arc::clone) else {
+            return false;
+        };
+        let Ok(mut manager) = manager.lock() else {
+            return false;
+        };
+        let map_id = u32::from(self.player_map_id_like_cpp());
+        let mut removed = false;
+        manager.do_for_all_maps_mut(|managed| {
+            if managed.map_id() != map_id {
+                return;
+            }
+            match managed.map_mut().remove_from_map_like_cpp(guid, false) {
+                Ok(_) => removed = true,
+                Err(wow_map::RemoveFromMapError::ObjectNotFound { .. }) => {}
+                Err(_) => {}
+            }
+        });
+        removed
+    }
+
     pub(crate) fn mutate_canonical_player_like_cpp<R>(
         &mut self,
         f: impl FnOnce(&mut Player) -> R,
@@ -22487,6 +22512,8 @@ impl WorldSession {
             self.clear_active_player_transport_server_time_override_for_far_teleport_like_cpp();
         }
 
+        let _ = self.remove_current_player_from_canonical_current_map_like_cpp();
+
         // 2. Store pending destination — completed in handle_world_port_response
         self.pending_teleport = Some((new_map, new_pos));
         self.active_area_trigger = None;
@@ -22678,6 +22705,8 @@ impl WorldSession {
             self.send_packet(&transfer_pending);
             self.clear_active_player_transport_server_time_override_for_far_teleport_like_cpp();
         }
+
+        let _ = self.remove_current_player_from_canonical_current_map_like_cpp();
 
         self.pending_teleport = Some((map_id, destination));
         self.active_area_trigger = None;
@@ -64914,33 +64943,12 @@ mod tests {
         );
         {
             let manager = canonical.lock().unwrap();
-            let player = manager
-                .find_map(571, 0)
-                .unwrap()
-                .map()
-                .get_typed_player(player_guid)
-                .unwrap();
-            assert_eq!(player.unit().attacking(), None);
-            assert_eq!(player.unit().data().target, ObjectGuid::EMPTY);
+            let old_map = manager.find_map(571, 0).unwrap().map();
             assert!(
-                !player
-                    .unit()
-                    .subsystems()
-                    .combat
-                    .is_in_combat_with(selected_guid)
+                old_map.get_typed_player(player_guid).is_none(),
+                "C++ far Player::TeleportTo removes the player from oldmap before storing the far teleport destination"
             );
-            assert!(!player.has_player_flag(PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP));
-            assert!(
-                !player
-                    .unit()
-                    .has_unit_state(UnitState::ATTACK_PLAYER.bits())
-            );
-            let creature = manager
-                .find_map(571, 0)
-                .unwrap()
-                .map()
-                .get_typed_creature(selected_guid)
-                .unwrap();
+            let creature = old_map.get_typed_creature(selected_guid).unwrap();
             assert!(!creature.unit().has_attacker_like_cpp(player_guid));
             assert!(
                 !creature

@@ -2102,6 +2102,7 @@ impl crate::session::WorldSession {
 
         // Update internal state
         self.set_player_map_position_like_cpp(new_map as u16, new_pos);
+        let _ = self.ensure_canonical_world_map_for_current_player_like_cpp();
         self.update_registry_position();
         self.process_represented_delayed_resurrection_after_teleport_like_cpp();
 
@@ -6438,9 +6439,47 @@ mod tests {
     #[tokio::test]
     async fn world_port_response_clears_far_teleport_semaphore_like_cpp() {
         let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager_for_misc_test();
         let destination = Position::new(11.0, 22.0, 33.0, 1.5);
-        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
-        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        let player_guid = ObjectGuid::create_player(1, 42);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(MapStore::from_entries([
+            MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+            MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.attach_player_controller_like_cpp(crate::session::SessionPlayerController::new(
+            player_guid,
+            "WorldportAck".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map_for_misc_test(
+            &canonical,
+            player_guid,
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            0,
+        );
         session.pending_teleport = Some((0, destination));
         session.set_represented_far_teleport_pending_like_cpp(true);
         session.set_state(crate::session::SessionState::Transfer);
@@ -6454,6 +6493,26 @@ mod tests {
         assert_eq!(session.player_map_id_like_cpp(), 0);
         assert_eq!(session.player_position_like_cpp(), Some(destination));
         assert_eq!(session.state(), crate::session::SessionState::LoggedIn);
+        {
+            let manager = canonical.lock().unwrap();
+            assert!(
+                manager
+                    .find_map(571, 0)
+                    .unwrap()
+                    .map()
+                    .get_typed_player(player_guid)
+                    .is_none(),
+                "C++ HandleMoveWorldportAck removes a still-in-world player from the old map before adding to the destination"
+            );
+            let player = manager
+                .find_map(0, 0)
+                .unwrap()
+                .map()
+                .get_typed_player(player_guid)
+                .unwrap();
+            assert_eq!(player.unit().world().map_id(), 0);
+            assert_eq!(player.unit().world().position(), destination);
+        }
         assert_eq!(
             std::iter::from_fn(|| send_rx.try_recv().ok())
                 .map(|bytes| u16::from_le_bytes([bytes[0], bytes[1]]))
