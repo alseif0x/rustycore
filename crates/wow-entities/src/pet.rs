@@ -11,6 +11,7 @@ use crate::{
 pub const HAPPINESS_LEVEL_SIZE: u32 = 333_000;
 pub const MAX_ACTIVE_PETS: usize = 5;
 pub const MAX_PET_STABLES: usize = 200;
+pub const PET_FOCUS_REGEN_AMOUNT_LIKE_CPP: f32 = 24.0;
 pub const PET_FOCUS_REGEN_INTERVAL_MS: u32 = 4_000;
 pub const PET_XP_FACTOR: f32 = 0.05;
 
@@ -289,9 +290,48 @@ impl Pet {
             self.focus_regen_timer_ms -= diff_ms;
             false
         } else {
-            self.focus_regen_timer_ms = PET_FOCUS_REGEN_INTERVAL_MS;
+            let overshoot_ms = diff_ms - self.focus_regen_timer_ms;
+            self.focus_regen_timer_ms = if overshoot_ms <= PET_FOCUS_REGEN_INTERVAL_MS {
+                let remaining = PET_FOCUS_REGEN_INTERVAL_MS - overshoot_ms;
+                remaining.max(1)
+            } else {
+                PET_FOCUS_REGEN_INTERVAL_MS
+            };
             true
         }
+    }
+
+    pub fn regenerate_focus_like_cpp(
+        &mut self,
+        rate_power_focus: f32,
+        aura_percent_multiplier: f32,
+        aura_flat_modifier: i32,
+        can_regenerate_power: bool,
+    ) -> i32 {
+        if !can_regenerate_power || self.get_power_index(PowerType::Focus).is_none() {
+            return 0;
+        }
+
+        let cur_focus = self.creature.unit().get_power(PowerType::Focus);
+        let max_focus = self.creature.unit().get_max_power(PowerType::Focus);
+        if cur_focus >= max_focus {
+            return 0;
+        }
+
+        let add_value = (PET_FOCUS_REGEN_AMOUNT_LIKE_CPP
+            * rate_power_focus
+            * aura_percent_multiplier)
+            + (aura_flat_modifier as f32 * PET_FOCUS_REGEN_INTERVAL_MS as f32 / (5.0 * 1_000.0));
+        let delta = add_value as i32;
+        if delta == 0 {
+            return 0;
+        }
+
+        let next_focus = (cur_focus + delta).clamp(0, max_focus);
+        self.creature
+            .unit_mut()
+            .set_power(PowerType::Focus, next_focus);
+        next_focus - cur_focus
     }
 
     pub const fn group_update_mask(&self) -> u32 {
@@ -612,6 +652,60 @@ mod tests {
         assert_eq!(pet.group_update_mask(), 0x5);
         pet.reset_group_update_flag();
         assert_eq!(pet.group_update_mask(), 0);
+    }
+
+    #[test]
+    fn pet_focus_regen_timer_preserves_cpp_overshoot_and_lag_reset() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+
+        assert!(pet.tick_focus_regen_timer(4_500));
+        assert_eq!(pet.focus_regen_timer_ms(), 3_500);
+
+        assert!(pet.tick_focus_regen_timer(7_500));
+        assert_eq!(pet.focus_regen_timer_ms(), 1);
+
+        assert!(pet.tick_focus_regen_timer(10_000));
+        assert_eq!(pet.focus_regen_timer_ms(), PET_FOCUS_REGEN_INTERVAL_MS);
+    }
+
+    #[test]
+    fn pet_regenerate_focus_matches_cpp_base_amount_and_clamps() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+        pet.creature_mut().set_power_type(PowerType::Focus);
+        pet.creature_mut()
+            .unit_mut()
+            .set_max_power(PowerType::Focus, 100);
+        pet.creature_mut()
+            .unit_mut()
+            .set_power(PowerType::Focus, 40);
+
+        assert_eq!(pet.regenerate_focus_like_cpp(1.0, 1.0, 0, true), 24);
+        assert_eq!(pet.creature().unit().get_power(PowerType::Focus), 64);
+
+        assert_eq!(pet.regenerate_focus_like_cpp(2.0, 0.5, 5, true), 28);
+        assert_eq!(pet.creature().unit().get_power(PowerType::Focus), 92);
+
+        assert_eq!(pet.regenerate_focus_like_cpp(1.0, 1.0, 0, true), 8);
+        assert_eq!(pet.creature().unit().get_power(PowerType::Focus), 100);
+        assert_eq!(pet.regenerate_focus_like_cpp(1.0, 1.0, 0, true), 0);
+    }
+
+    #[test]
+    fn pet_regenerate_focus_honors_cpp_power_guards() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+
+        assert_eq!(pet.regenerate_focus_like_cpp(1.0, 1.0, 0, true), 0);
+
+        pet.creature_mut().set_power_type(PowerType::Focus);
+        pet.creature_mut()
+            .unit_mut()
+            .set_max_power(PowerType::Focus, 100);
+        pet.creature_mut()
+            .unit_mut()
+            .set_power(PowerType::Focus, 40);
+
+        assert_eq!(pet.regenerate_focus_like_cpp(1.0, 1.0, 0, false), 0);
+        assert_eq!(pet.creature().unit().get_power(PowerType::Focus), 40);
     }
 
     #[test]
