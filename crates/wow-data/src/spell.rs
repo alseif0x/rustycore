@@ -409,6 +409,8 @@ pub mod attributes {
     pub const SPELL_ATTR0_PASSIVE: u32 = 0x0000_0040;
     /// C++ `SPELL_ATTR1_NO_AUTOCAST_AI` (`SharedDefines.h`).
     pub const SPELL_ATTR1_NO_AUTOCAST_AI: u32 = 0x0002_0000;
+    /// C++ `SPELL_ATTR4_AURA_EXPIRES_OFFLINE` (`SharedDefines.h`).
+    pub const SPELL_ATTR4_AURA_EXPIRES_OFFLINE: u32 = 0x0000_0004;
     pub const SPELL_ATTR4_USE_FACING_FROM_SPELL: u32 = 0x8000_0000;
 }
 

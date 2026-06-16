@@ -416,6 +416,24 @@ pub(crate) struct CharacterPetAuraEffectRowLikeCpp {
     pub base_amount: i32,
 }
 
+pub(crate) fn adjusted_represented_pet_aura_remain_time_like_cpp(
+    remain_time_ms: i32,
+    timediff_secs: u32,
+    is_positive: bool,
+    aura_expires_offline: bool,
+) -> Option<i32> {
+    if remain_time_ms != -1 && (!is_positive || aura_expires_offline) {
+        let timediff_secs = i32::try_from(timediff_secs).unwrap_or(i32::MAX);
+        if remain_time_ms / 1_000 <= timediff_secs {
+            return None;
+        }
+
+        return Some(remain_time_ms.saturating_sub(timediff_secs.saturating_mul(1_000)));
+    }
+
+    Some(remain_time_ms)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CharacterPetDeclinedNamesRowLikeCpp {
     pub names: [String; 5],
@@ -24419,12 +24437,51 @@ impl WorldSession {
         pet_number: u32,
         rows: impl IntoIterator<Item = CharacterPetAuraRowLikeCpp>,
     ) -> usize {
+        self.load_represented_pet_aura_rows_with_timediff_like_cpp(pet_number, rows, 0)
+    }
+
+    pub(crate) fn load_represented_pet_aura_rows_with_timediff_like_cpp(
+        &mut self,
+        pet_number: u32,
+        rows: impl IntoIterator<Item = CharacterPetAuraRowLikeCpp>,
+        timediff_secs: u32,
+    ) -> usize {
         let spell_store = self.spell_store().cloned();
         let difficulty_store = self.difficulty_store().cloned();
         let aura_options_store = self.spell_aura_options_store.clone();
+        let spell_misc_store = self.spell_misc_store().cloned();
         let auras: Vec<_> = rows
             .into_iter()
-            .map(|mut row| {
+            .filter(|row| {
+                row.spell_id != 0
+                    && spell_store
+                        .as_ref()
+                        .is_none_or(|store| store.get(row.spell_id as i32).is_some())
+                    && (row.difficulty == 0
+                        || difficulty_store
+                            .as_ref()
+                            .is_none_or(|store| store.contains(u32::from(row.difficulty))))
+            })
+            .filter_map(|mut row| {
+                let aura_expires_offline = spell_misc_store
+                    .as_ref()
+                    .and_then(|store| store.get_by_spell_id(row.spell_id))
+                    .is_some_and(|misc| {
+                        (misc.attributes[4] as u32
+                            & wow_data::spell::attributes::SPELL_ATTR4_AURA_EXPIRES_OFFLINE)
+                            != 0
+                    });
+                if let Some(remain_time_ms) = adjusted_represented_pet_aura_remain_time_like_cpp(
+                    row.remain_time_ms,
+                    timediff_secs,
+                    true,
+                    aura_expires_offline,
+                ) {
+                    row.remain_time_ms = remain_time_ms;
+                } else {
+                    return None;
+                }
+
                 if let Some(store) = aura_options_store.as_ref() {
                     let proc_charges = store.proc_charges_like_cpp(row.spell_id, row.difficulty);
                     row.remain_charges = if proc_charges == 0 {
@@ -24435,17 +24492,7 @@ impl WorldSession {
                         row.remain_charges
                     };
                 }
-                row
-            })
-            .filter(|row| {
-                row.spell_id != 0
-                    && spell_store
-                        .as_ref()
-                        .is_none_or(|store| store.get(row.spell_id as i32).is_some())
-                    && (row.difficulty == 0
-                        || difficulty_store
-                            .as_ref()
-                            .is_none_or(|store| store.contains(u32::from(row.difficulty))))
+                Some(row)
             })
             .collect();
         let loaded = auras.len();
@@ -66534,6 +66581,139 @@ mod tests {
                 .map(|aura| aura.spell_id),
             Some(7_777)
         );
+    }
+
+    #[test]
+    fn represented_pet_aura_offline_remain_time_matches_cpp_arithmetic() {
+        assert_eq!(
+            adjusted_represented_pet_aura_remain_time_like_cpp(5_000, 3, true, true),
+            Some(2_000)
+        );
+        assert_eq!(
+            adjusted_represented_pet_aura_remain_time_like_cpp(3_000, 3, true, true),
+            None,
+            "C++ skips when remainTime / IN_MILLISECONDS <= timediff"
+        );
+        assert_eq!(
+            adjusted_represented_pet_aura_remain_time_like_cpp(-1, 99, true, true),
+            Some(-1),
+            "C++ permanent auras do not tick offline"
+        );
+        assert_eq!(
+            adjusted_represented_pet_aura_remain_time_like_cpp(5_000, 3, true, false),
+            Some(5_000),
+            "positive auras without SPELL_ATTR4_AURA_EXPIRES_OFFLINE keep their saved remainTime"
+        );
+        assert_eq!(
+            adjusted_represented_pet_aura_remain_time_like_cpp(5_000, 3, false, false),
+            Some(2_000),
+            "C++ also ticks negative auras offline; represented SpellInfo::IsPositive is not wired yet"
+        );
+    }
+
+    #[test]
+    fn load_represented_pet_aura_rows_ticks_attr4_offline_auras_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let mut spell_store = wow_data::SpellStore::new();
+        for spell_id in [7_701, 7_702, 7_703] {
+            spell_store.insert(
+                spell_id,
+                gameobject_summon_spell_info_like_cpp(spell_id, 0, Vec::new()),
+            );
+        }
+        session.set_spell_store(Arc::new(spell_store));
+        let mut expires_offline_attrs = [0; 15];
+        expires_offline_attrs[4] =
+            wow_data::spell::attributes::SPELL_ATTR4_AURA_EXPIRES_OFFLINE as i32;
+        session.set_spell_misc_store(Arc::new(wow_data::SpellMiscStore::from_entries([
+            wow_data::SpellMiscEntry {
+                id: 1,
+                attributes: expires_offline_attrs,
+                difficulty_id: 0,
+                casting_time_index: 0,
+                duration_index: 0,
+                range_index: 0,
+                school_mask: 0,
+                speed: 0.0,
+                launch_delay: 0.0,
+                min_duration: 0.0,
+                spell_icon_file_data_id: 0,
+                active_icon_file_data_id: 0,
+                content_tuning_id: 0,
+                show_future_spell_player_condition_id: 0,
+                spell_id: 7_701,
+            },
+            wow_data::SpellMiscEntry {
+                id: 2,
+                attributes: expires_offline_attrs,
+                difficulty_id: 0,
+                casting_time_index: 0,
+                duration_index: 0,
+                range_index: 0,
+                school_mask: 0,
+                speed: 0.0,
+                launch_delay: 0.0,
+                min_duration: 0.0,
+                spell_icon_file_data_id: 0,
+                active_icon_file_data_id: 0,
+                content_tuning_id: 0,
+                show_future_spell_player_condition_id: 0,
+                spell_id: 7_702,
+            },
+        ])));
+
+        let loaded = session.load_represented_pet_aura_rows_with_timediff_like_cpp(
+            42,
+            [
+                CharacterPetAuraRowLikeCpp {
+                    caster_guid: ObjectGuid::EMPTY,
+                    spell_id: 7_701,
+                    effect_mask: 1,
+                    recalculate_mask: 0,
+                    difficulty: 0,
+                    stack_count: 1,
+                    max_duration_ms: 10_000,
+                    remain_time_ms: 5_000,
+                    remain_charges: 0,
+                },
+                CharacterPetAuraRowLikeCpp {
+                    caster_guid: ObjectGuid::EMPTY,
+                    spell_id: 7_702,
+                    effect_mask: 1,
+                    recalculate_mask: 0,
+                    difficulty: 0,
+                    stack_count: 1,
+                    max_duration_ms: 10_000,
+                    remain_time_ms: 3_000,
+                    remain_charges: 0,
+                },
+                CharacterPetAuraRowLikeCpp {
+                    caster_guid: ObjectGuid::EMPTY,
+                    spell_id: 7_703,
+                    effect_mask: 1,
+                    recalculate_mask: 0,
+                    difficulty: 0,
+                    stack_count: 1,
+                    max_duration_ms: 10_000,
+                    remain_time_ms: 5_000,
+                    remain_charges: 0,
+                },
+            ],
+            3,
+        );
+
+        assert_eq!(loaded, 2);
+        let auras = session
+            .represented_pet_auras_like_cpp
+            .get(&42)
+            .expect("represented pet auras");
+        assert_eq!(auras[0].spell_id, 7_701);
+        assert_eq!(auras[0].remain_time_ms, 2_000);
+        assert_eq!(
+            auras[1].spell_id, 7_703,
+            "C++ skips expired offline aura rows and keeps normal positive rows"
+        );
+        assert_eq!(auras[1].remain_time_ms, 5_000);
     }
 
     #[test]
