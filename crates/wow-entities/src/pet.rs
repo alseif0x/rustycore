@@ -248,6 +248,60 @@ pub enum PetSpellSaveOperationLikeCpp {
     },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PetAuraSaveEffectLikeCpp {
+    pub effect_index: u8,
+    pub amount: i32,
+    pub base_amount: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PetAuraSaveRefLikeCpp {
+    pub caster_guid: ObjectGuid,
+    pub spell_id: u32,
+    pub effect_mask: u32,
+    pub recalculate_mask: u32,
+    pub difficulty: u8,
+    pub stack_count: u8,
+    pub max_duration_ms: i32,
+    pub duration_ms: i32,
+    pub charges: u8,
+    pub can_be_saved: bool,
+    pub is_pet_aura: bool,
+    pub effects: Vec<PetAuraSaveEffectLikeCpp>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PetAuraSaveOperationLikeCpp {
+    DeleteAuraEffects {
+        pet_number: u32,
+    },
+    DeleteAuras {
+        pet_number: u32,
+    },
+    InsertAura {
+        pet_number: u32,
+        caster_guid: ObjectGuid,
+        spell_id: u32,
+        effect_mask: u32,
+        recalculate_mask: u32,
+        difficulty: u8,
+        stack_count: u8,
+        max_duration_ms: i32,
+        duration_ms: i32,
+        charges: u8,
+    },
+    InsertAuraEffect {
+        pet_number: u32,
+        caster_guid: ObjectGuid,
+        spell_id: u32,
+        effect_mask: u32,
+        effect_index: u8,
+        amount: i32,
+        base_amount: i32,
+    },
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PetDeathStateUpdateOutcome {
     pub creature_plan: CreatureRuntimePlan,
@@ -803,6 +857,56 @@ impl Pet {
                     }
                 }
                 PetSpellState::Unchanged => {}
+            }
+        }
+
+        operations
+    }
+
+    pub fn save_auras_plan_like_cpp(
+        pet_number: u32,
+        pet_guid: ObjectGuid,
+        auras: &[PetAuraSaveRefLikeCpp],
+    ) -> Vec<PetAuraSaveOperationLikeCpp> {
+        let mut operations = vec![
+            PetAuraSaveOperationLikeCpp::DeleteAuraEffects { pet_number },
+            PetAuraSaveOperationLikeCpp::DeleteAuras { pet_number },
+        ];
+
+        for aura in auras {
+            if !aura.can_be_saved || aura.is_pet_aura {
+                continue;
+            }
+
+            let caster_guid = if aura.caster_guid == pet_guid {
+                ObjectGuid::EMPTY
+            } else {
+                aura.caster_guid
+            };
+
+            operations.push(PetAuraSaveOperationLikeCpp::InsertAura {
+                pet_number,
+                caster_guid,
+                spell_id: aura.spell_id,
+                effect_mask: aura.effect_mask,
+                recalculate_mask: aura.recalculate_mask,
+                difficulty: aura.difficulty,
+                stack_count: aura.stack_count,
+                max_duration_ms: aura.max_duration_ms,
+                duration_ms: aura.duration_ms,
+                charges: aura.charges,
+            });
+
+            for effect in &aura.effects {
+                operations.push(PetAuraSaveOperationLikeCpp::InsertAuraEffect {
+                    pet_number,
+                    caster_guid,
+                    spell_id: aura.spell_id,
+                    effect_mask: aura.effect_mask,
+                    effect_index: effect.effect_index,
+                    amount: effect.amount,
+                    base_amount: effect.base_amount,
+                });
             }
         }
 
@@ -1913,6 +2017,119 @@ mod tests {
             "C++ skips PETSPELL_FAMILY before handling state, so even NEW family passives stay dirty"
         );
         assert!(!pet.spells().contains_key(&500));
+    }
+
+    #[test]
+    fn pet_save_auras_plan_matches_cpp_delete_filter_and_insert_order() {
+        let pet_guid = pet_guid(42);
+        let other_caster = owner_guid();
+        let saved_self_cast = PetAuraSaveRefLikeCpp {
+            caster_guid: pet_guid,
+            spell_id: 7_001,
+            effect_mask: 0x3,
+            recalculate_mask: 0x2,
+            difficulty: 1,
+            stack_count: 2,
+            max_duration_ms: 30_000,
+            duration_ms: 12_000,
+            charges: 3,
+            can_be_saved: true,
+            is_pet_aura: false,
+            effects: vec![
+                PetAuraSaveEffectLikeCpp {
+                    effect_index: 0,
+                    amount: 11,
+                    base_amount: 10,
+                },
+                PetAuraSaveEffectLikeCpp {
+                    effect_index: 1,
+                    amount: 22,
+                    base_amount: 20,
+                },
+            ],
+        };
+        let saved_external_cast = PetAuraSaveRefLikeCpp {
+            caster_guid: other_caster,
+            spell_id: 7_002,
+            effect_mask: 0x4,
+            recalculate_mask: 0,
+            difficulty: 0,
+            stack_count: 1,
+            max_duration_ms: -1,
+            duration_ms: -1,
+            charges: 0,
+            can_be_saved: true,
+            is_pet_aura: false,
+            effects: vec![],
+        };
+        let not_saveable = PetAuraSaveRefLikeCpp {
+            spell_id: 7_003,
+            can_be_saved: false,
+            ..saved_external_cast.clone()
+        };
+        let pet_aura = PetAuraSaveRefLikeCpp {
+            spell_id: 7_004,
+            can_be_saved: true,
+            is_pet_aura: true,
+            ..saved_external_cast.clone()
+        };
+
+        let operations = Pet::save_auras_plan_like_cpp(
+            77,
+            pet_guid,
+            &[saved_self_cast, saved_external_cast, not_saveable, pet_aura],
+        );
+
+        assert_eq!(
+            operations,
+            vec![
+                PetAuraSaveOperationLikeCpp::DeleteAuraEffects { pet_number: 77 },
+                PetAuraSaveOperationLikeCpp::DeleteAuras { pet_number: 77 },
+                PetAuraSaveOperationLikeCpp::InsertAura {
+                    pet_number: 77,
+                    caster_guid: ObjectGuid::EMPTY,
+                    spell_id: 7_001,
+                    effect_mask: 0x3,
+                    recalculate_mask: 0x2,
+                    difficulty: 1,
+                    stack_count: 2,
+                    max_duration_ms: 30_000,
+                    duration_ms: 12_000,
+                    charges: 3,
+                },
+                PetAuraSaveOperationLikeCpp::InsertAuraEffect {
+                    pet_number: 77,
+                    caster_guid: ObjectGuid::EMPTY,
+                    spell_id: 7_001,
+                    effect_mask: 0x3,
+                    effect_index: 0,
+                    amount: 11,
+                    base_amount: 10,
+                },
+                PetAuraSaveOperationLikeCpp::InsertAuraEffect {
+                    pet_number: 77,
+                    caster_guid: ObjectGuid::EMPTY,
+                    spell_id: 7_001,
+                    effect_mask: 0x3,
+                    effect_index: 1,
+                    amount: 22,
+                    base_amount: 20,
+                },
+                PetAuraSaveOperationLikeCpp::InsertAura {
+                    pet_number: 77,
+                    caster_guid: other_caster,
+                    spell_id: 7_002,
+                    effect_mask: 0x4,
+                    recalculate_mask: 0,
+                    difficulty: 0,
+                    stack_count: 1,
+                    max_duration_ms: -1,
+                    duration_ms: -1,
+                    charges: 0,
+                },
+            ],
+            "C++ deletes existing pet aura rows first, clears self-caster GUIDs, then appends aura/effect inserts"
+        );
     }
 
     #[test]
