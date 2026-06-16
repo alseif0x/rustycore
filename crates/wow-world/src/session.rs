@@ -25448,7 +25448,12 @@ impl WorldSession {
             if info.level != 0 {
                 pet.creature_mut().unit_mut().set_level(info.level);
             }
-            if info.health != 0 {
+            if info.health == 0 && info.pet_type == PetType::Hunter {
+                pet.creature_mut()
+                    .unit_mut()
+                    .set_death_state(wow_constants::DeathState::JustDied);
+                pet.creature_mut().unit_mut().set_health(0);
+            } else if info.health != 0 {
                 pet.creature_mut()
                     .unit_mut()
                     .set_max_health(u64::from(info.health));
@@ -66968,6 +66973,49 @@ mod tests {
                 wow_entities::ACT_DISABLED_LIKE_CPP
             )
         );
+    }
+
+    #[test]
+    fn resummon_pet_zero_health_hunter_pet_loads_just_died_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 8_421);
+        let position = Position::new(18.0, 28.0, 38.0, 1.3);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "DeadHunterPetResummon".to_string(),
+            position,
+            571,
+            1,
+            3,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
+        session.represented_temporary_unsummoned_pet_number_like_cpp = 42;
+        let mut stable = represented_hunter_pet_stable_like_cpp(42, 500);
+        stable.active_pets[0].as_mut().unwrap().health = 0;
+        session.set_represented_pet_stable_like_cpp(stable);
+
+        session.resummon_pet_temporary_unsummoned_if_any_like_cpp();
+
+        let pet_guid = session
+            .represented_pet_guid_like_cpp()
+            .expect("represented active pet guid");
+        let manager = canonical.lock().unwrap();
+        let pet = manager
+            .find_map(571, 0)
+            .unwrap()
+            .map()
+            .get_typed_pet(pet_guid)
+            .expect("canonical represented pet");
+        assert_eq!(
+            pet.creature().unit().death_state(),
+            wow_constants::DeathState::JustDied,
+            "C++ Pet::LoadPetFromDB calls setDeathState(JUST_DIED) for HUNTER_PET rows with zero saved health"
+        );
+        assert_eq!(pet.creature().unit().data().health, 0);
     }
 
     #[test]
