@@ -25306,6 +25306,52 @@ impl WorldSession {
                 .contains(MovementFlag::FLYING)
     }
 
+    fn validate_represented_pet_action_bar_like_cpp(
+        &self,
+        charm_info: &mut wow_entities::CharmInfoState,
+    ) {
+        let Some(spell_store) = self.spell_store() else {
+            return;
+        };
+
+        for button in &mut charm_info.action_bar {
+            // C++ `UNIT_ACTION_BUTTON_TYPE` drops the low bit after `MAKE_UNIT_ACTION_BUTTON`
+            // stores `ActiveStates << 23`; recover the just-loaded type to apply the
+            // intended `LoadPetActionBar` validation without changing the packed wire shape.
+            let action_type = ((*button >> 23) & 0xFF) as u8;
+            if !matches!(
+                action_type,
+                wow_entities::ACT_DISABLED_LIKE_CPP
+                    | wow_entities::ACT_ENABLED_LIKE_CPP
+                    | wow_entities::ACT_PASSIVE_LIKE_CPP
+            ) {
+                continue;
+            }
+
+            let action = wow_entities::unit_action_button_action_like_cpp(*button);
+            if spell_store
+                .get(i32::try_from(action).unwrap_or(i32::MAX))
+                .is_none()
+            {
+                *button = wow_entities::make_unit_action_button_like_cpp(
+                    0,
+                    wow_entities::ACT_PASSIVE_LIKE_CPP,
+                );
+                continue;
+            }
+
+            if self
+                .spell_misc_store()
+                .is_some_and(|store| !store.is_autocastable_like_cpp(action))
+            {
+                *button = wow_entities::make_unit_action_button_like_cpp(
+                    action,
+                    wow_entities::ACT_PASSIVE_LIKE_CPP,
+                );
+            }
+        }
+    }
+
     pub(crate) fn resummon_pet_temporary_unsummoned_if_any_like_cpp(&mut self) {
         self.temporary_pet_resummon_requests_like_cpp = self
             .temporary_pet_resummon_requests_like_cpp
@@ -25399,6 +25445,7 @@ impl WorldSession {
                 .init_charm_info();
             charm_info.pet_number = pet_number;
             charm_info.load_pet_action_bar_like_cpp(&info.action_bar);
+            self.validate_represented_pet_action_bar_like_cpp(charm_info);
             if let Some(spells) = self.represented_pet_spells_like_cpp.get(&pet_number) {
                 for spell in spells {
                     pet.add_spell(
@@ -66714,6 +66761,107 @@ mod tests {
             wow_entities::make_unit_action_button_like_cpp(
                 23_456,
                 wow_entities::ACT_DISABLED_LIKE_CPP
+            )
+        );
+    }
+
+    #[test]
+    fn resummon_pet_validates_action_bar_spells_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 8_424);
+        let position = Position::new(17.0, 27.0, 37.0, 1.2);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TemporaryPetActionBarValidation".to_string(),
+            position,
+            571,
+            1,
+            3,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
+        session.represented_temporary_unsummoned_pet_number_like_cpp = 42;
+        let mut stable = represented_hunter_pet_stable_like_cpp(42, 500);
+        stable.active_pets[0].as_mut().unwrap().action_bar =
+            "7 2 7 1 7 0 193 1111 193 3333 129 2222 193 4444 6 2 6 1 6 0".to_string();
+        session.set_represented_pet_stable_like_cpp(stable);
+
+        let mut spell_store = wow_data::SpellStore::new();
+        for spell_id in [1_111, 2_222, 4_444] {
+            spell_store.insert(
+                spell_id,
+                gameobject_summon_spell_info_like_cpp(spell_id, 0, Vec::new()),
+            );
+        }
+        session.set_spell_store(Arc::new(spell_store));
+
+        let mut passive_misc = spell_misc_entry_like_cpp(1_111, 1_111, 0);
+        passive_misc.attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_PASSIVE as i32;
+        let mut no_autocast_misc = spell_misc_entry_like_cpp(2_222, 2_222, 0);
+        no_autocast_misc.attributes[1] =
+            wow_data::spell::attributes::SPELL_ATTR1_NO_AUTOCAST_AI as i32;
+        let autocastable_misc = spell_misc_entry_like_cpp(4_444, 4_444, 0);
+        session.set_spell_misc_store(Arc::new(wow_data::SpellMiscStore::from_entries([
+            passive_misc,
+            no_autocast_misc,
+            autocastable_misc,
+        ])));
+        let spell_misc_store = session
+            .spell_misc_store()
+            .expect("spell misc store should be installed");
+        assert!(!spell_misc_store.is_autocastable_like_cpp(1_111));
+        assert!(!spell_misc_store.is_autocastable_like_cpp(2_222));
+        assert!(spell_misc_store.is_autocastable_like_cpp(4_444));
+
+        session.resummon_pet_temporary_unsummoned_if_any_like_cpp();
+
+        let pet_guid = session
+            .represented_pet_guid_like_cpp()
+            .expect("represented active pet guid");
+        let manager = canonical.lock().unwrap();
+        let pet = manager
+            .find_map(571, 0)
+            .unwrap()
+            .map()
+            .get_typed_pet(pet_guid)
+            .expect("canonical represented pet");
+        let charm_info = pet
+            .creature()
+            .unit()
+            .subsystems()
+            .control
+            .charm_info
+            .as_ref()
+            .expect("pet charm info");
+        assert_eq!(
+            charm_info.action_bar[3],
+            wow_entities::make_unit_action_button_like_cpp(
+                1_111,
+                wow_entities::ACT_PASSIVE_LIKE_CPP
+            ),
+            "C++ LoadPetActionBar forces passive spells to ACT_PASSIVE"
+        );
+        assert_eq!(
+            charm_info.action_bar[4],
+            wow_entities::make_unit_action_button_like_cpp(0, wow_entities::ACT_PASSIVE_LIKE_CPP),
+            "C++ LoadPetActionBar clears unknown spell buttons"
+        );
+        assert_eq!(
+            charm_info.action_bar[5],
+            wow_entities::make_unit_action_button_like_cpp(
+                2_222,
+                wow_entities::ACT_PASSIVE_LIKE_CPP
+            ),
+            "C++ LoadPetActionBar forces SPELL_ATTR1_NO_AUTOCAST_AI to ACT_PASSIVE"
+        );
+        assert_eq!(
+            charm_info.action_bar[6],
+            wow_entities::make_unit_action_button_like_cpp(
+                4_444,
+                wow_entities::ACT_ENABLED_LIKE_CPP
             )
         );
     }

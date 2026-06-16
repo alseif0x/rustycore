@@ -237,6 +237,15 @@ pub struct SpellMiscEntry {
     pub spell_id: u32,
 }
 
+impl SpellMiscEntry {
+    /// C++ `SpellInfo::IsAutocastable`.
+    pub fn is_autocastable_like_cpp(&self) -> bool {
+        (self.attributes[0] as u32 & crate::spell::attributes::SPELL_ATTR0_PASSIVE) == 0
+            && (self.attributes[1] as u32 & crate::spell::attributes::SPELL_ATTR1_NO_AUTOCAST_AI)
+                == 0
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SpellNameEntry {
     pub id: u32,
@@ -991,6 +1000,12 @@ impl SpellMiscStore {
         self.entries
             .values()
             .find(|entry| entry.spell_id == spell_id)
+    }
+
+    /// C++ `SpellInfo::IsAutocastable`.
+    pub fn is_autocastable_like_cpp(&self, spell_id: u32) -> bool {
+        self.get_by_spell_id(spell_id)
+            .is_none_or(SpellMiscEntry::is_autocastable_like_cpp)
     }
 
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {

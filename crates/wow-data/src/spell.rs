@@ -405,6 +405,10 @@ pub mod implicit_targets {
 }
 
 pub mod attributes {
+    /// C++ `SPELL_ATTR0_PASSIVE` (`SharedDefines.h`).
+    pub const SPELL_ATTR0_PASSIVE: u32 = 0x0000_0040;
+    /// C++ `SPELL_ATTR1_NO_AUTOCAST_AI` (`SharedDefines.h`).
+    pub const SPELL_ATTR1_NO_AUTOCAST_AI: u32 = 0x0002_0000;
     pub const SPELL_ATTR4_USE_FACING_FROM_SPELL: u32 = 0x8000_0000;
 }
 
