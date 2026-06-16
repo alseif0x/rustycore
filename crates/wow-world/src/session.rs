@@ -355,7 +355,8 @@ pub(crate) struct CreateMapSideEffectApplySummaryLikeCpp {
     pub skipped_group_recent_instance_sets: u32,
     pub instance_lock_creates: u32,
     pub skipped_instance_lock_creates: u32,
-    pub pending_instance_lock_instance_id_updates: u32,
+    pub instance_lock_instance_id_updates: u32,
+    pub skipped_instance_lock_instance_id_updates: u32,
     pub pending_battleground_entry_teleports: u32,
 }
 
@@ -7183,8 +7184,21 @@ impl WorldSession {
                         summary.skipped_instance_lock_creates += 1;
                     }
                 }
-                wow_map::CreateMapSideEffect::SetInstanceLockInstanceId { .. } => {
-                    summary.pending_instance_lock_instance_id_updates += 1;
+                wow_map::CreateMapSideEffect::SetInstanceLockInstanceId { instance_id } => {
+                    let updated = decision_difficulty_id
+                        .and_then(|difficulty_id| {
+                            self.set_active_instance_lock_instance_id_side_effect_like_cpp(
+                                map_id,
+                                difficulty_id,
+                                instance_id,
+                            )
+                        })
+                        .is_some();
+                    if updated {
+                        summary.instance_lock_instance_id_updates += 1;
+                    } else {
+                        summary.skipped_instance_lock_instance_id_updates += 1;
+                    }
                 }
                 wow_map::CreateMapSideEffect::TeleportToBattlegroundEntryPoint => {
                     summary.pending_battleground_entry_teleports += 1;
@@ -7214,6 +7228,21 @@ impl WorldSession {
             now,
         )?;
         Some(())
+    }
+
+    fn set_active_instance_lock_instance_id_side_effect_like_cpp(
+        &self,
+        map_id: u32,
+        difficulty_id: wow_map::Difficulty,
+        instance_id: u32,
+    ) -> Option<()> {
+        let entries = self.create_map_db2_entries_like_cpp(map_id, difficulty_id)?;
+        let owner_guid = self.create_map_instance_owner_guid_like_cpp(map_id)?;
+        let now = u64::try_from(unix_now()).unwrap_or(0);
+        let mgr = self.instance_lock_mgr.as_ref()?;
+        let mut mgr = mgr.write().ok()?;
+        mgr.set_active_instance_lock_instance_id_at(owner_guid, &entries, now, instance_id)
+            .then_some(())
     }
 
     pub(crate) fn create_map_player_context_like_cpp(
@@ -39469,6 +39498,39 @@ mod tests {
     }
 
     #[test]
+    fn create_map_side_effects_set_instance_lock_instance_id_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let owner = ObjectGuid::create_player(1, 77);
+        session.player_guid = Some(owner);
+        install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
+        install_active_instance_lock_mgr_like_cpp(&mut session, owner, 631, 3, 9001);
+        let decision = wow_map::CreateMapDecision::Create {
+            key: wow_map::MapKey::new(631, 9002),
+            difficulty_id: 3,
+            kind: wow_map::ManagedMapKind::Dungeon {
+                has_reset_schedule: true,
+            },
+            side_effects: vec![wow_map::CreateMapSideEffect::SetInstanceLockInstanceId {
+                instance_id: 9002,
+            }],
+        };
+
+        let summary = session.apply_create_map_side_effects_like_cpp(631, &decision);
+        let context = session
+            .create_map_active_instance_lock_context_like_cpp(631, 3)
+            .unwrap();
+
+        assert_eq!(
+            summary,
+            CreateMapSideEffectApplySummaryLikeCpp {
+                instance_lock_instance_id_updates: 1,
+                ..Default::default()
+            }
+        );
+        assert_eq!(context.instance_id, 9002);
+    }
+
+    #[test]
     fn create_map_side_effects_report_pending_unwired_effects_like_cpp() {
         let (mut session, _, _) = make_session();
         let decision = wow_map::CreateMapDecision::Reject {
@@ -39493,7 +39555,7 @@ mod tests {
             CreateMapSideEffectApplySummaryLikeCpp {
                 skipped_group_recent_instance_sets: 1,
                 skipped_instance_lock_creates: 1,
-                pending_instance_lock_instance_id_updates: 1,
+                skipped_instance_lock_instance_id_updates: 1,
                 pending_battleground_entry_teleports: 1,
                 ..Default::default()
             }

@@ -544,6 +544,38 @@ impl InstanceLockMgr {
         self.find_active_instance_lock_inner(player_guid, entries, now, false, true)
     }
 
+    pub fn set_active_instance_lock_instance_id_at(
+        &mut self,
+        player_guid: ObjectGuid,
+        entries: &MapDb2Entries,
+        now: InstanceResetTime,
+        instance_id: u32,
+    ) -> bool {
+        if !entries.has_reset_schedule() {
+            return false;
+        }
+
+        let key = entries.key();
+        if let Some(lock) = self
+            .instance_locks_by_player
+            .get_mut(&player_guid)
+            .and_then(|locks| locks.get_mut(&key))
+        {
+            if !lock.is_expired_at(now) || lock.extended {
+                lock.instance_id = instance_id;
+                return true;
+            }
+        }
+
+        self.temporary_instance_locks_by_player
+            .get_mut(&player_guid)
+            .and_then(|locks| locks.get_mut(&key))
+            .map(|lock| {
+                lock.instance_id = instance_id;
+            })
+            .is_some()
+    }
+
     pub fn create_instance_lock_for_new_instance_at(
         &mut self,
         player_guid: ObjectGuid,
@@ -2033,6 +2065,54 @@ mod tests {
         assert!(
             mgr.find_active_instance_lock_at(player(2), &entries, 100)
                 .is_some()
+        );
+    }
+
+    #[test]
+    fn set_active_instance_lock_instance_id_updates_active_lock_like_cpp() {
+        let entries = flex_entries();
+        let mut mgr = InstanceLockMgr::default();
+
+        mgr.create_instance_lock_for_new_instance_at(
+            player(1),
+            &entries,
+            9001,
+            ResetSchedule::default(),
+            100,
+        );
+        assert!(mgr.set_active_instance_lock_instance_id_at(player(1), &entries, 100, 9002));
+
+        assert_eq!(
+            mgr.find_active_instance_lock_at(player(1), &entries, 100)
+                .unwrap()
+                .instance_id,
+            9002
+        );
+    }
+
+    #[test]
+    fn set_active_instance_lock_instance_id_skips_expired_permanent_like_cpp() {
+        let entries = flex_entries();
+        let mut mgr = InstanceLockMgr::default();
+
+        mgr.update_instance_lock_for_player_at(
+            player(1),
+            &entries,
+            update_event(9001, None),
+            ResetSchedule::default(),
+            100,
+        );
+        mgr.instance_locks_by_player
+            .get_mut(&player(1))
+            .unwrap()
+            .get_mut(&entries.key())
+            .unwrap()
+            .expiry_time = 10;
+
+        assert!(!mgr.set_active_instance_lock_instance_id_at(player(1), &entries, 100, 9002));
+        assert!(
+            mgr.find_active_instance_lock_at(player(1), &entries, 100)
+                .is_none()
         );
     }
 
