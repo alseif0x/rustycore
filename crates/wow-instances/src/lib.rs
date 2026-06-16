@@ -334,6 +334,7 @@ pub struct InstanceLockMgr {
     temporary_instance_locks_by_player: HashMap<ObjectGuid, HashMap<InstanceLockKey, InstanceLock>>,
     instance_locks_by_player: HashMap<ObjectGuid, HashMap<InstanceLockKey, InstanceLock>>,
     instance_lock_data_by_id: HashMap<u32, Weak<RwLock<SharedInstanceLockData>>>,
+    loaded_character_instance_ids_like_cpp: Vec<u32>,
 }
 
 impl InstanceLockMgr {
@@ -425,6 +426,7 @@ impl InstanceLockMgr {
         self.temporary_instance_locks_by_player.clear();
         self.instance_locks_by_player.clear();
         self.instance_lock_data_by_id.clear();
+        self.loaded_character_instance_ids_like_cpp.clear();
 
         let mut shared_data_by_id = HashMap::new();
         for row in shared_rows {
@@ -443,6 +445,8 @@ impl InstanceLockMgr {
 
         let mut issues = Vec::new();
         for row in character_rows {
+            self.loaded_character_instance_ids_like_cpp
+                .push(row.instance_id);
             let entries = entries_for(row.map_id, row.difficulty_id).unwrap_or(MapDb2Entries {
                 map_id: row.map_id,
                 difficulty_id: row.difficulty_id,
@@ -988,6 +992,13 @@ impl InstanceLockMgr {
     /// C++ `character_instance_lock ORDER BY instanceId` before
     /// `MapManager::RegisterInstanceId`.
     pub fn registered_instance_ids_like_cpp_order(&self) -> Vec<u32> {
+        if !self.loaded_character_instance_ids_like_cpp.is_empty() {
+            let mut instance_ids = self.loaded_character_instance_ids_like_cpp.clone();
+            instance_ids.sort_unstable();
+            instance_ids.dedup();
+            return instance_ids;
+        }
+
         let mut instance_ids = self
             .instance_locks_by_player
             .values()
@@ -2388,6 +2399,7 @@ mod tests {
             mgr.get_instance_locks_for_player(ObjectGuid::create_global(HighGuid::Player, 0, 55))
                 .is_empty()
         );
+        assert_eq!(mgr.registered_instance_ids_like_cpp_order(), vec![9001]);
     }
 
     #[test]

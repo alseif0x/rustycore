@@ -1,3 +1,20 @@
+- `#NEXT.RUNTIME.L3.031j70` — WotLK DB-loaded instance-lock id reservation now
+  preserves the C++ `InstanceLockMgr::Load()` side effect for every
+  `character_instance_lock.instanceId`, including rows later skipped as corrupt
+  missing-shared-data locks (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Instances/InstanceLockMgr.cpp:136-152`
+  and `/home/server/woltk-trinity-legacy/src/server/game/Maps/MapManager.cpp:380-429`.
+  C++ calls `sMapMgr->RegisterInstanceId(instanceId)` immediately after reading each
+  `character_instance_lock` row and before validating `instanceLockDataById` for
+  ID-bound locks; skipped rows still reserve their instance id for that startup.
+  Rust `InstanceLockMgr::load_from_rows_like_cpp` now records loaded character
+  instance ids before validation, and `registered_instance_ids_like_cpp_order`
+  returns their sorted/deduped C++ load order so world-server startup registers
+  the same occupied ids with both map-manager paths. Coverage: targeted
+  `wow-instances` tests cover both normal load reconstruction and the missing shared-data
+  skip while still reserving the id. Boundary remains partial: live DB/startup
+  integration, lock persistence gameplay call-sites, install/restart, bot, and
+  live-client/manual validation remain pending.
 - `#NEXT.RUNTIME.L3.031j69` — WotLK live-session dungeon `CreateMap`
   now has regression coverage for the C++ existing-map encounter-lock conflict branch,
   and the canonical map manager marks created instanced-map ids as allocated (not
