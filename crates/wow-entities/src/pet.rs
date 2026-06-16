@@ -310,6 +310,17 @@ pub struct PetLearnPetPassivesOutcomeLikeCpp {
     pub learned_spell_ids: Vec<u32>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PetRemoveSpellOutcomeLikeCpp {
+    pub removed: bool,
+    pub erased_new_spell: bool,
+    pub marked_removed: bool,
+    pub remove_auras_due_to_spell: bool,
+    pub learned_prev_spell_id: Option<u32>,
+    pub cleared_action_bar_slot: Option<usize>,
+    pub pet_spell_initialize: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PetSaveToDbSkipReason {
     ZeroEntry,
@@ -1277,6 +1288,69 @@ impl Pet {
         false
     }
 
+    pub fn remove_spell_like_cpp(
+        &mut self,
+        spell_id: u32,
+        mut learn_prev: bool,
+        clear_action_bar: bool,
+        action_bar: &mut [u32; MAX_UNIT_ACTION_BAR_INDEX],
+        mut prev_spell_in_chain_like_cpp: impl FnMut(u32) -> u32,
+        mut first_spell_in_chain_like_cpp: impl FnMut(u32) -> u32,
+    ) -> PetRemoveSpellOutcomeLikeCpp {
+        let Some(spell) = self.spells.get(&spell_id).copied() else {
+            return PetRemoveSpellOutcomeLikeCpp::not_removed();
+        };
+        if spell.state == PetSpellState::Removed {
+            return PetRemoveSpellOutcomeLikeCpp::not_removed();
+        }
+
+        let erased_new_spell = spell.state == PetSpellState::New;
+        if erased_new_spell {
+            self.spells.remove(&spell_id);
+        } else if let Some(spell) = self.spells.get_mut(&spell_id) {
+            spell.state = PetSpellState::Removed;
+        }
+        self.autospells.retain(|known| *known != spell_id);
+
+        let learned_prev_spell_id = if learn_prev {
+            let prev_id = prev_spell_in_chain_like_cpp(spell_id);
+            if prev_id != 0 {
+                self.add_spell(
+                    prev_id,
+                    ActiveState::Decide,
+                    PetSpellState::New,
+                    PetSpellType::Normal,
+                );
+                Some(prev_id)
+            } else {
+                learn_prev = false;
+                None
+            }
+        } else {
+            None
+        };
+
+        let cleared_action_bar_slot = if clear_action_bar && !learn_prev {
+            self.remove_spell_from_action_bar_like_cpp(
+                spell_id,
+                action_bar,
+                &mut first_spell_in_chain_like_cpp,
+            )
+        } else {
+            None
+        };
+
+        PetRemoveSpellOutcomeLikeCpp {
+            removed: true,
+            erased_new_spell,
+            marked_removed: !erased_new_spell,
+            remove_auras_due_to_spell: true,
+            learned_prev_spell_id,
+            cleared_action_bar_slot,
+            pet_spell_initialize: cleared_action_bar_slot.is_some() && !self.loading,
+        }
+    }
+
     pub fn toggle_autocast(&mut self, spell_id: u32, apply: bool) -> bool {
         let Some(spell) = self.spells.get_mut(&spell_id) else {
             return false;
@@ -1754,6 +1828,44 @@ impl Pet {
             active_type,
             ACT_DISABLED_LIKE_CPP | ACT_ENABLED_LIKE_CPP | ACT_PASSIVE_LIKE_CPP
         )
+    }
+
+    fn remove_spell_from_action_bar_like_cpp(
+        &self,
+        spell_id: u32,
+        action_bar: &mut [u32; MAX_UNIT_ACTION_BAR_INDEX],
+        first_spell_in_chain_like_cpp: &mut impl FnMut(u32) -> u32,
+    ) -> Option<usize> {
+        let first_id = first_spell_in_chain_like_cpp(spell_id);
+
+        for (index, packed) in action_bar.iter_mut().enumerate() {
+            let action = unit_action_button_action_like_cpp(*packed);
+            if action == 0 {
+                continue;
+            }
+            if Self::is_action_bar_for_spell_like_cpp(unit_action_button_type_like_cpp(*packed))
+                && first_spell_in_chain_like_cpp(action) == first_id
+            {
+                *packed = make_unit_action_button_like_cpp(0, ACT_PASSIVE_LIKE_CPP);
+                return Some(index);
+            }
+        }
+
+        None
+    }
+}
+
+impl PetRemoveSpellOutcomeLikeCpp {
+    const fn not_removed() -> Self {
+        Self {
+            removed: false,
+            erased_new_spell: false,
+            marked_removed: false,
+            remove_auras_due_to_spell: false,
+            learned_prev_spell_id: None,
+            cleared_action_bar_slot: None,
+            pet_spell_initialize: false,
+        }
     }
 }
 
@@ -3646,6 +3758,160 @@ mod tests {
         assert_eq!(
             pet.spells().get(&200).unwrap().spell_type,
             PetSpellType::Family
+        );
+    }
+
+    #[test]
+    fn pet_remove_spell_like_cpp_erases_new_and_marks_persisted() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+        assert!(pet.add_spell(
+            100,
+            ActiveState::Disabled,
+            PetSpellState::New,
+            PetSpellType::Normal
+        ));
+        assert!(pet.add_spell(
+            200,
+            ActiveState::Enabled,
+            PetSpellState::Unchanged,
+            PetSpellType::Normal
+        ));
+        let mut action_bar = [0; MAX_UNIT_ACTION_BAR_INDEX];
+
+        let new_outcome = pet.remove_spell_like_cpp(
+            100,
+            false,
+            false,
+            &mut action_bar,
+            |_| 0,
+            |spell_id| spell_id,
+        );
+        assert_eq!(
+            new_outcome,
+            PetRemoveSpellOutcomeLikeCpp {
+                removed: true,
+                erased_new_spell: true,
+                marked_removed: false,
+                remove_auras_due_to_spell: true,
+                learned_prev_spell_id: None,
+                cleared_action_bar_slot: None,
+                pet_spell_initialize: false,
+            }
+        );
+        assert!(!pet.spells().contains_key(&100));
+
+        let persisted_outcome = pet.remove_spell_like_cpp(
+            200,
+            false,
+            false,
+            &mut action_bar,
+            |_| 0,
+            |spell_id| spell_id,
+        );
+        assert!(persisted_outcome.marked_removed);
+        assert!(!persisted_outcome.erased_new_spell);
+        assert_eq!(
+            pet.spells().get(&200).unwrap().state,
+            PetSpellState::Removed
+        );
+        assert!(
+            pet.autospells().is_empty(),
+            "C++ ToggleAutocast state must not survive removing a learned spell"
+        );
+    }
+
+    #[test]
+    fn pet_remove_spell_like_cpp_learns_previous_rank_without_clearing_action_bar() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+        assert!(pet.add_spell(
+            300,
+            ActiveState::Disabled,
+            PetSpellState::Unchanged,
+            PetSpellType::Normal
+        ));
+        let mut action_bar = [0; MAX_UNIT_ACTION_BAR_INDEX];
+        action_bar[3] = make_unit_action_button_like_cpp(300, ACT_ENABLED_LIKE_CPP);
+
+        let outcome = pet.remove_spell_like_cpp(
+            300,
+            true,
+            true,
+            &mut action_bar,
+            |spell_id| (spell_id == 300).then_some(200).unwrap_or_default(),
+            |spell_id| match spell_id {
+                200 | 300 => 100,
+                _ => spell_id,
+            },
+        );
+
+        assert_eq!(outcome.learned_prev_spell_id, Some(200));
+        assert_eq!(outcome.cleared_action_bar_slot, None);
+        assert_eq!(
+            action_bar[3],
+            make_unit_action_button_like_cpp(300, ACT_ENABLED_LIKE_CPP),
+            "C++ skips RemoveSpellFromActionBar when learn_prev remains true"
+        );
+        assert!(pet.has_spell(200));
+    }
+
+    #[test]
+    fn pet_remove_spell_like_cpp_clears_action_bar_when_no_previous_rank() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+        assert!(pet.add_spell(
+            300,
+            ActiveState::Disabled,
+            PetSpellState::Unchanged,
+            PetSpellType::Normal
+        ));
+        let mut action_bar = [0; MAX_UNIT_ACTION_BAR_INDEX];
+        action_bar[1] = make_unit_action_button_like_cpp(1, crate::ACT_COMMAND_LIKE_CPP);
+        action_bar[3] = make_unit_action_button_like_cpp(301, ACT_ENABLED_LIKE_CPP);
+        action_bar[4] = make_unit_action_button_like_cpp(300, ACT_DISABLED_LIKE_CPP);
+
+        let outcome = pet.remove_spell_like_cpp(
+            300,
+            true,
+            true,
+            &mut action_bar,
+            |_| 0,
+            |spell_id| match spell_id {
+                300 | 301 => 100,
+                _ => spell_id,
+            },
+        );
+
+        assert_eq!(outcome.learned_prev_spell_id, None);
+        assert_eq!(outcome.cleared_action_bar_slot, Some(3));
+        assert!(outcome.pet_spell_initialize);
+        assert_eq!(
+            action_bar[3],
+            make_unit_action_button_like_cpp(0, ACT_PASSIVE_LIKE_CPP)
+        );
+        assert_eq!(
+            action_bar[4],
+            make_unit_action_button_like_cpp(300, ACT_DISABLED_LIKE_CPP),
+            "C++ stops after clearing the first action bar slot in the same chain"
+        );
+    }
+
+    #[test]
+    fn pet_remove_spell_like_cpp_missing_or_already_removed_is_noop() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+        assert!(pet.add_spell(
+            100,
+            ActiveState::Disabled,
+            PetSpellState::Removed,
+            PetSpellType::Normal
+        ));
+        let mut action_bar = [0; MAX_UNIT_ACTION_BAR_INDEX];
+
+        assert_eq!(
+            pet.remove_spell_like_cpp(999, true, true, &mut action_bar, |_| 1, |spell_id| spell_id),
+            PetRemoveSpellOutcomeLikeCpp::not_removed()
+        );
+        assert_eq!(
+            pet.remove_spell_like_cpp(100, true, true, &mut action_bar, |_| 1, |spell_id| spell_id),
+            PetRemoveSpellOutcomeLikeCpp::not_removed()
         );
     }
 
