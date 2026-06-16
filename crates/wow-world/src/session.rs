@@ -378,6 +378,21 @@ pub(crate) struct CharacterPetSpellRowLikeCpp {
     pub active: u8,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct CharacterPetSpellCooldownRowLikeCpp {
+    pub spell_id: u32,
+    pub cooldown_end_unix_secs: i64,
+    pub category_id: u32,
+    pub category_end_unix_secs: i64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct CharacterPetSpellChargeRowLikeCpp {
+    pub category_id: u32,
+    pub recharge_start_unix_secs: i64,
+    pub recharge_end_unix_secs: i64,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CharacterPetDeclinedNamesRowLikeCpp {
     pub names: [String; 5],
@@ -2680,6 +2695,10 @@ fn gender_from_u8(value: u8) -> Gender {
     }
 }
 
+fn unix_secs_to_ms_like_cpp(value: i64) -> u64 {
+    u64::try_from(value).unwrap_or(0).saturating_mul(1_000)
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct SessionPlayerController {
     guid: ObjectGuid,
@@ -3679,6 +3698,11 @@ pub struct WorldSession {
     represented_pet_stable_like_cpp: PetStable,
     /// Represented `pet_spell` rows keyed by pet number until `PetLoadQueryHolder` is live.
     represented_pet_spells_like_cpp: HashMap<u32, Vec<CharacterPetSpellRowLikeCpp>>,
+    /// Represented `pet_spell_cooldown` rows keyed by pet number until `PetLoadQueryHolder` is live.
+    represented_pet_spell_cooldowns_like_cpp:
+        HashMap<u32, Vec<CharacterPetSpellCooldownRowLikeCpp>>,
+    /// Represented `pet_spell_charges` rows keyed by pet number until `PetLoadQueryHolder` is live.
+    represented_pet_spell_charges_like_cpp: HashMap<u32, Vec<CharacterPetSpellChargeRowLikeCpp>>,
     /// Represented `character_pet_declinedname` rows keyed by pet number until `PetLoadQueryHolder` is live.
     represented_pet_declined_names_like_cpp: HashMap<u32, CharacterPetDeclinedNamesRowLikeCpp>,
     /// Represented `Pet::m_unitData->CreatedBySpell` for the active pet until UnitData owns it.
@@ -5029,6 +5053,8 @@ impl WorldSession {
             represented_old_pet_spell_like_cpp: 0,
             represented_pet_stable_like_cpp: PetStable::default(),
             represented_pet_spells_like_cpp: HashMap::new(),
+            represented_pet_spell_cooldowns_like_cpp: HashMap::new(),
+            represented_pet_spell_charges_like_cpp: HashMap::new(),
             represented_pet_declined_names_like_cpp: HashMap::new(),
             represented_pet_created_by_spell_like_cpp: 0,
             represented_pet_react_state_like_cpp:
@@ -24287,6 +24313,52 @@ impl WorldSession {
         loaded
     }
 
+    pub(crate) fn load_represented_pet_spell_cooldown_rows_like_cpp(
+        &mut self,
+        pet_number: u32,
+        rows: impl IntoIterator<Item = CharacterPetSpellCooldownRowLikeCpp>,
+    ) -> usize {
+        let spell_store = self.spell_store().cloned();
+        let cooldowns: Vec<_> = rows
+            .into_iter()
+            .filter(|row| {
+                row.spell_id != 0
+                    && spell_store
+                        .as_ref()
+                        .is_none_or(|store| store.get(row.spell_id as i32).is_some())
+            })
+            .collect();
+        let loaded = cooldowns.len();
+        if loaded == 0 {
+            self.represented_pet_spell_cooldowns_like_cpp
+                .remove(&pet_number);
+        } else {
+            self.represented_pet_spell_cooldowns_like_cpp
+                .insert(pet_number, cooldowns);
+        }
+        loaded
+    }
+
+    pub(crate) fn load_represented_pet_spell_charge_rows_like_cpp(
+        &mut self,
+        pet_number: u32,
+        rows: impl IntoIterator<Item = CharacterPetSpellChargeRowLikeCpp>,
+    ) -> usize {
+        let charges: Vec<_> = rows
+            .into_iter()
+            .filter(|row| row.category_id != 0)
+            .collect();
+        let loaded = charges.len();
+        if loaded == 0 {
+            self.represented_pet_spell_charges_like_cpp
+                .remove(&pet_number);
+        } else {
+            self.represented_pet_spell_charges_like_cpp
+                .insert(pet_number, charges);
+        }
+        loaded
+    }
+
     pub(crate) fn load_represented_pet_declined_names_like_cpp(
         &mut self,
         pet_number: u32,
@@ -25236,6 +25308,36 @@ impl WorldSession {
                         active_state_from_db_like_cpp(spell.active),
                         PetSpellState::Unchanged,
                         PetSpellType::Normal,
+                    );
+                }
+            }
+            let spell_history = &mut pet
+                .creature_mut()
+                .unit_mut()
+                .subsystems_mut()
+                .spells
+                .history;
+            if let Some(cooldowns) = self
+                .represented_pet_spell_cooldowns_like_cpp
+                .get(&pet_number)
+            {
+                for cooldown in cooldowns {
+                    spell_history.add_cooldown(
+                        cooldown.spell_id,
+                        0,
+                        unix_secs_to_ms_like_cpp(cooldown.cooldown_end_unix_secs),
+                        cooldown.category_id,
+                        unix_secs_to_ms_like_cpp(cooldown.category_end_unix_secs),
+                        false,
+                    );
+                }
+            }
+            if let Some(charges) = self.represented_pet_spell_charges_like_cpp.get(&pet_number) {
+                for charge in charges {
+                    spell_history.add_charge_state_like_cpp(
+                        charge.category_id,
+                        unix_secs_to_ms_like_cpp(charge.recharge_start_unix_secs),
+                        unix_secs_to_ms_like_cpp(charge.recharge_end_unix_secs),
                     );
                 }
             }
@@ -66027,6 +66129,85 @@ mod tests {
     }
 
     #[test]
+    fn load_represented_pet_spell_cooldown_rows_filters_unknown_spell_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            1_234,
+            gameobject_summon_spell_info_like_cpp(1_234, 0, Vec::new()),
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        let loaded = session.load_represented_pet_spell_cooldown_rows_like_cpp(
+            42,
+            [
+                CharacterPetSpellCooldownRowLikeCpp {
+                    spell_id: 0,
+                    cooldown_end_unix_secs: 10,
+                    category_id: 9,
+                    category_end_unix_secs: 11,
+                },
+                CharacterPetSpellCooldownRowLikeCpp {
+                    spell_id: 1_234,
+                    cooldown_end_unix_secs: 12,
+                    category_id: 9,
+                    category_end_unix_secs: 13,
+                },
+                CharacterPetSpellCooldownRowLikeCpp {
+                    spell_id: 9_999,
+                    cooldown_end_unix_secs: 14,
+                    category_id: 10,
+                    category_end_unix_secs: 15,
+                },
+            ],
+        );
+
+        assert_eq!(loaded, 1);
+        assert_eq!(
+            session
+                .represented_pet_spell_cooldowns_like_cpp
+                .get(&42)
+                .and_then(|cooldowns| cooldowns.first())
+                .map(|cooldown| cooldown.spell_id),
+            Some(1_234)
+        );
+    }
+
+    #[test]
+    fn load_represented_pet_spell_charge_rows_preserves_db_order_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+
+        let loaded = session.load_represented_pet_spell_charge_rows_like_cpp(
+            42,
+            [
+                CharacterPetSpellChargeRowLikeCpp {
+                    category_id: 0,
+                    recharge_start_unix_secs: 1,
+                    recharge_end_unix_secs: 2,
+                },
+                CharacterPetSpellChargeRowLikeCpp {
+                    category_id: 88,
+                    recharge_start_unix_secs: 3,
+                    recharge_end_unix_secs: 4,
+                },
+                CharacterPetSpellChargeRowLikeCpp {
+                    category_id: 88,
+                    recharge_start_unix_secs: 5,
+                    recharge_end_unix_secs: 6,
+                },
+            ],
+        );
+
+        assert_eq!(loaded, 2);
+        let rows = session
+            .represented_pet_spell_charges_like_cpp
+            .get(&42)
+            .expect("represented pet charge rows");
+        assert_eq!(rows[0].recharge_end_unix_secs, 4);
+        assert_eq!(rows[1].recharge_end_unix_secs, 6);
+    }
+
+    #[test]
     fn load_represented_pet_declined_names_replaces_and_clears_row_like_cpp() {
         let (mut session, _, _send_rx) = make_session();
         let row = CharacterPetDeclinedNamesRowLikeCpp {
@@ -66082,6 +66263,30 @@ mod tests {
                 },
             ],
         );
+        session.load_represented_pet_spell_cooldown_rows_like_cpp(
+            42,
+            [CharacterPetSpellCooldownRowLikeCpp {
+                spell_id: 1_234,
+                cooldown_end_unix_secs: 1_700_000_010,
+                category_id: 33,
+                category_end_unix_secs: 1_700_000_020,
+            }],
+        );
+        session.load_represented_pet_spell_charge_rows_like_cpp(
+            42,
+            [
+                CharacterPetSpellChargeRowLikeCpp {
+                    category_id: 44,
+                    recharge_start_unix_secs: 1_700_000_001,
+                    recharge_end_unix_secs: 1_700_000_011,
+                },
+                CharacterPetSpellChargeRowLikeCpp {
+                    category_id: 44,
+                    recharge_start_unix_secs: 1_700_000_011,
+                    recharge_end_unix_secs: 1_700_000_021,
+                },
+            ],
+        );
         let declined_names = ["Mishy", "Mishya", "Mishu", "Mishom", "Mishe"].map(str::to_string);
         session.load_represented_pet_declined_names_like_cpp(
             42,
@@ -66116,6 +66321,22 @@ mod tests {
         assert!(pet.has_spell(5_678));
         assert_eq!(pet.get_pet_auto_spell_on_pos(0), 1_234);
         assert_eq!(pet.get_pet_auto_spell_size(), 1);
+        let pet_history = &pet.creature().unit().subsystems().spells.history;
+        let cooldown = pet_history
+            .cooldown(1_234)
+            .expect("represented pet spell cooldown");
+        assert_eq!(cooldown.item_id, 0);
+        assert_eq!(cooldown.cooldown_end_ms, 1_700_000_010_000);
+        assert_eq!(cooldown.category_id, 33);
+        assert_eq!(cooldown.category_end_ms, 1_700_000_020_000);
+        let charges = pet_history
+            .charges(44)
+            .expect("represented pet spell charges");
+        assert_eq!(charges.len(), 2);
+        assert_eq!(charges[0].recharge_start_ms, 1_700_000_001_000);
+        assert_eq!(charges[0].recharge_end_ms, 1_700_000_011_000);
+        assert_eq!(charges[1].recharge_start_ms, 1_700_000_011_000);
+        assert_eq!(charges[1].recharge_end_ms, 1_700_000_021_000);
         assert_eq!(
             pet.declined_names().map(|names| &names.names),
             Some(&declined_names)

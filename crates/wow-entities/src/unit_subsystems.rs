@@ -940,6 +940,25 @@ impl SpellHistory {
         self.charges.get(&charge_category_id)
     }
 
+    pub fn add_charge_state_like_cpp(
+        &mut self,
+        charge_category_id: u32,
+        recharge_start_ms: u64,
+        recharge_end_ms: u64,
+    ) -> bool {
+        if charge_category_id == 0 {
+            return false;
+        }
+        self.charges
+            .entry(charge_category_id)
+            .or_default()
+            .push_back(SpellChargeState {
+                recharge_start_ms,
+                recharge_end_ms,
+            });
+        true
+    }
+
     pub fn consumed_charges(&self, charge_category_id: u32) -> u8 {
         self.charges
             .get(&charge_category_id)
@@ -4721,6 +4740,23 @@ mod unit_subsystems_tests {
         assert!(history.has_cooldown(777, 55, 31_000));
         assert!(!history.has_cooldown(888, 66, 31_000));
         assert_eq!(history.category_cooldowns.get(&55), Some(&777));
+    }
+
+    #[test]
+    fn spell_history_add_charge_state_preserves_loaded_order_like_cpp() {
+        let mut history = SpellHistory::default();
+
+        assert!(history.add_charge_state_like_cpp(88, 1_000, 4_000));
+        assert!(history.add_charge_state_like_cpp(88, 2_000, 5_000));
+        assert!(!history.add_charge_state_like_cpp(0, 3_000, 6_000));
+
+        let charges = history.charges(88).expect("loaded charge category");
+        assert_eq!(charges.len(), 2);
+        assert_eq!(charges[0].recharge_start_ms, 1_000);
+        assert_eq!(charges[0].recharge_end_ms, 4_000);
+        assert_eq!(charges[1].recharge_start_ms, 2_000);
+        assert_eq!(charges[1].recharge_end_ms, 5_000);
+        assert!(history.charges(0).is_none());
     }
 
     #[test]

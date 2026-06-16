@@ -51,7 +51,8 @@ use wow_packet::{ClientPacket, WorldPacket};
 use crate::handlers::quest::RepresentedQuestGiverStatusSourceLikeCpp;
 use crate::reputation::mgr::CharacterReputationRowLikeCpp;
 use crate::session::{
-    CharacterPetDeclinedNamesRowLikeCpp, CharacterPetSpellRowLikeCpp, CharacterPetStableRowLikeCpp,
+    CharacterPetDeclinedNamesRowLikeCpp, CharacterPetSpellChargeRowLikeCpp,
+    CharacterPetSpellCooldownRowLikeCpp, CharacterPetSpellRowLikeCpp, CharacterPetStableRowLikeCpp,
     PER_CHARACTER_CACHE_MASK_LIKE_CPP, RepresentedAlterAppearanceLikeCpp,
     RepresentedBankItemMoveLikeCpp, RepresentedConfirmBarbersChoiceLikeCpp,
     RepresentedGameObjectUseState,
@@ -3361,6 +3362,89 @@ impl WorldSession {
                         summoned_pet_number,
                         %error,
                         "failed to load represented pet_spell rows"
+                    );
+                }
+            }
+
+            let mut pet_cooldown_stmt = char_db.prepare(CharStatements::SEL_PET_SPELL_COOLDOWN);
+            pet_cooldown_stmt.set_u32(0, summoned_pet_number);
+            match char_db.query(&pet_cooldown_stmt).await {
+                Ok(mut cooldowns_result) => {
+                    let mut rows = Vec::new();
+                    if !cooldowns_result.is_empty() {
+                        loop {
+                            rows.push(CharacterPetSpellCooldownRowLikeCpp {
+                                spell_id: cooldowns_result.try_read::<u32>(0).unwrap_or(0),
+                                cooldown_end_unix_secs: cooldowns_result
+                                    .try_read::<i64>(1)
+                                    .unwrap_or(0),
+                                category_id: cooldowns_result.try_read::<u32>(2).unwrap_or(0),
+                                category_end_unix_secs: cooldowns_result
+                                    .try_read::<i64>(3)
+                                    .unwrap_or(0),
+                            });
+                            if !cooldowns_result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    let loaded = self.load_represented_pet_spell_cooldown_rows_like_cpp(
+                        summoned_pet_number,
+                        rows,
+                    );
+                    trace!(
+                        player_guid = guid.counter(),
+                        summoned_pet_number,
+                        loaded,
+                        "loaded represented pet_spell_cooldown rows like C++"
+                    );
+                }
+                Err(error) => {
+                    warn!(
+                        player_guid = guid.counter(),
+                        summoned_pet_number,
+                        %error,
+                        "failed to load represented pet_spell_cooldown rows"
+                    );
+                }
+            }
+
+            let mut pet_charges_stmt = char_db.prepare(CharStatements::SEL_PET_SPELL_CHARGES);
+            pet_charges_stmt.set_u32(0, summoned_pet_number);
+            match char_db.query(&pet_charges_stmt).await {
+                Ok(mut charges_result) => {
+                    let mut rows = Vec::new();
+                    if !charges_result.is_empty() {
+                        loop {
+                            rows.push(CharacterPetSpellChargeRowLikeCpp {
+                                category_id: charges_result.try_read::<u32>(0).unwrap_or(0),
+                                recharge_start_unix_secs: charges_result
+                                    .try_read::<i64>(1)
+                                    .unwrap_or(0),
+                                recharge_end_unix_secs: charges_result
+                                    .try_read::<i64>(2)
+                                    .unwrap_or(0),
+                            });
+                            if !charges_result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    let loaded = self
+                        .load_represented_pet_spell_charge_rows_like_cpp(summoned_pet_number, rows);
+                    trace!(
+                        player_guid = guid.counter(),
+                        summoned_pet_number,
+                        loaded,
+                        "loaded represented pet_spell_charges rows like C++"
+                    );
+                }
+                Err(error) => {
+                    warn!(
+                        player_guid = guid.counter(),
+                        summoned_pet_number,
+                        %error,
+                        "failed to load represented pet_spell_charges rows"
                     );
                 }
             }
