@@ -7394,6 +7394,22 @@ impl WorldSession {
         self.check_instance_count_at_like_cpp(instance_id, now_secs)
     }
 
+    fn check_instance_count_probe_like_cpp(&self, instance_id: u32) -> bool {
+        let now_secs = u64::try_from(unix_now()).unwrap_or(0);
+        let active_count = self
+            .represented_instance_reset_times_like_cpp
+            .values()
+            .filter(|release_time| **release_time > now_secs)
+            .count();
+        if active_count < self.max_instances_per_hour_like_cpp as usize {
+            return true;
+        }
+
+        self.represented_instance_reset_times_like_cpp
+            .get(&instance_id)
+            .is_some_and(|release_time| *release_time > now_secs)
+    }
+
     fn check_instance_count_at_like_cpp(&mut self, instance_id: u32, now_secs: u64) -> bool {
         self.prune_expired_instance_reset_times_like_cpp(now_secs);
         if self.represented_instance_reset_times_like_cpp.len()
@@ -22110,12 +22126,7 @@ impl WorldSession {
                 map_id = new_map,
                 "Teleport blocked by C++ DisableMgr map gate"
             );
-            self.send_packet(&wow_packet::packets::misc::TransferAborted {
-                map_id: new_map,
-                arg: 0,
-                map_difficulty_x_condition_id: 0,
-                transfer_abort: TRANSFER_ABORT_MAP_NOT_ALLOWED_LIKE_CPP,
-            });
+            self.send_transfer_aborted_like_cpp(new_map, TRANSFER_ABORT_MAP_NOT_ALLOWED_LIKE_CPP);
             return;
         }
 
@@ -22126,6 +22137,18 @@ impl WorldSession {
             );
             return;
         };
+
+        if let Some((transfer_abort, arg, map_difficulty_x_condition_id)) =
+            self.player_cannot_enter_target_map_like_cpp(new_map)
+        {
+            self.send_transfer_aborted_with_params_like_cpp(
+                new_map,
+                transfer_abort,
+                arg,
+                map_difficulty_x_condition_id,
+            );
+            return;
+        }
 
         info!(
             account = self.account_id,
@@ -22172,6 +22195,134 @@ impl WorldSession {
             new_pos.y,
             new_pos.z
         );
+    }
+
+    fn player_cannot_enter_target_map_like_cpp(&self, map_id: u32) -> Option<(u32, u8, i32)> {
+        let Some(map_store) = self.map_store.as_ref() else {
+            return None;
+        };
+        let Some(map_entry) = map_store.get(map_id).copied() else {
+            return Some((TRANSFER_ABORT_MAP_NOT_ALLOWED_LIKE_CPP, 0, 0));
+        };
+        if !map_entry.is_dungeon() {
+            return None;
+        }
+
+        let player_guid = self.player_guid?;
+        let player = self.create_map_player_context_like_cpp(map_id, map_entry, player_guid);
+        let requested_difficulty = player
+            .group
+            .map(|group| group.difficulty_id)
+            .unwrap_or(player.player_difficulty_id);
+
+        if self
+            .create_map_db2_entries_like_cpp(map_id, requested_difficulty)
+            .is_none()
+        {
+            return Some((TRANSFER_ABORT_DIFFICULTY_LIKE_CPP, 0, 0));
+        }
+
+        if self.player_is_game_master_like_cpp() {
+            return None;
+        }
+
+        if let Some(abort) =
+            self.access_requirement_abort_like_cpp(map_id, requested_difficulty as u8)
+        {
+            return Some(abort);
+        }
+
+        if map_entry.instance_type == wow_data::map::MAP_RAID
+            && map_entry.expansion_like_cpp() >= self.server_expansion_like_cpp
+            && !self.instance_ignore_raid_like_cpp
+            && !self.current_player_is_in_raid_group_like_cpp()
+        {
+            return Some((TRANSFER_ABORT_NEED_GROUP_LIKE_CPP, 0, 0));
+        }
+
+        let Some(canonical_map_manager) = self.canonical_map_manager.as_ref() else {
+            return None;
+        };
+        let entry = wow_map::CreateMapEntryContext {
+            map_id,
+            kind: wow_map::CreateMapEntryKind::Dungeon,
+            split_by_faction: map_entry.is_split_by_faction(),
+            flex_locking: map_entry.is_flex_locking(),
+        };
+        let active_instance_lock =
+            self.create_map_active_instance_lock_context_like_cpp(map_id, requested_difficulty);
+        let mut manager = canonical_map_manager.lock().ok()?;
+        let decision = manager.create_map_decision_like_cpp(
+            Some(entry),
+            Some(player),
+            |candidate_map_id, difficulty_id| {
+                self.create_map_difficulty_context_like_cpp(candidate_map_id, difficulty_id)
+            },
+            active_instance_lock,
+            |_, _| None,
+        );
+
+        let existing_instance_lock_context = match &decision {
+            wow_map::CreateMapDecision::Existing { key, .. } => manager
+                .find_map(key.map_id, key.instance_id)
+                .and_then(|map| map.instance_lock_context()),
+            _ => None,
+        };
+        let existing_instance_player_count = match &decision {
+            wow_map::CreateMapDecision::Existing { key, .. } => manager
+                .find_map(key.map_id, key.instance_id)
+                .map(|map| map.players_count_except_gms_like_cpp()),
+            _ => None,
+        };
+        let existing_instance_encounter_in_progress = match &decision {
+            wow_map::CreateMapDecision::Existing { key, .. } => manager
+                .find_map(key.map_id, key.instance_id)
+                .map(|map| map.instance_encounter_in_progress_like_cpp()),
+            _ => None,
+        };
+        drop(manager);
+
+        if let wow_map::CreateMapDecision::Existing {
+            key, difficulty_id, ..
+        } = &decision
+        {
+            if let Some(player_count) = existing_instance_player_count
+                && let Some(entries) =
+                    self.create_map_db2_entries_like_cpp(key.map_id, *difficulty_id)
+                && player_count >= entries.max_players
+            {
+                return Some((TRANSFER_ABORT_MAX_PLAYERS_LIKE_CPP, 0, 0));
+            }
+
+            if map_entry.instance_type == wow_data::map::MAP_RAID
+                && self.player_loading() != Some(player_guid)
+                && existing_instance_encounter_in_progress == Some(true)
+            {
+                return Some((TRANSFER_ABORT_ZONE_IN_COMBAT_LIKE_CPP, 0, 0));
+            }
+
+            if let Some(lock_context) = existing_instance_lock_context {
+                let deny_reason = self
+                    .cannot_enter_existing_instance_lock_like_cpp(
+                        key.map_id,
+                        *difficulty_id,
+                        lock_context,
+                    )
+                    .unwrap_or(wow_instances::TransferAbortReason::None);
+                if deny_reason != wow_instances::TransferAbortReason::None {
+                    return Some((deny_reason as u32, 0, 0));
+                }
+            }
+
+            if !map_entry.ignores_instance_farm_limit_like_cpp()
+                && !self.check_instance_count_probe_like_cpp(key.instance_id)
+                && self.player_is_alive_like_cpp()
+            {
+                return Some((TRANSFER_ABORT_TOO_MANY_INSTANCES_LIKE_CPP, 0, 0));
+            }
+        }
+
+        None
     }
 
     fn is_map_disabled_for_player_like_cpp(&self, map_id: u32) -> bool {
@@ -58532,8 +58683,8 @@ mod tests {
     }
 
     #[test]
-    fn canonical_world_map_login_binding_skips_dungeons_until_runtime_fields_exist() {
-        let (mut session, _pkt_tx, _send_rx) = make_session();
+    fn canonical_world_map_login_binding_rejects_dungeon_missing_difficulty_like_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
         let canonical = shared_canonical_map_manager();
         let guid = ObjectGuid::create_player(1, 42);
 
@@ -58560,11 +58711,23 @@ mod tests {
             0,
         ));
 
-        assert!(
-            session
-                .ensure_canonical_world_map_for_current_player_like_cpp()
-                .is_none()
+        assert_eq!(
+            session.ensure_canonical_world_map_for_current_player_like_cpp(),
+            Some(wow_map::CreateMapDecision::Reject {
+                side_effects: Vec::new()
+            })
         );
+        assert_eq!(
+            send_rx.try_recv().expect("SMSG_TRANSFER_ABORTED"),
+            wow_packet::packets::misc::TransferAborted {
+                map_id: 33,
+                arg: 0,
+                map_difficulty_x_condition_id: 0,
+                transfer_abort: TRANSFER_ABORT_DIFFICULTY_LIKE_CPP,
+            }
+            .to_bytes()
+        );
+        assert!(send_rx.try_recv().is_err());
         assert!(canonical.lock().unwrap().find_map(33, 0).is_none());
     }
 
@@ -63782,6 +63945,97 @@ mod tests {
                 ServerOpcodes::CooldownEvent,
                 ServerOpcodes::CooldownEvent,
             ]
+        );
+    }
+
+    #[tokio::test]
+    async fn teleport_to_instance_rejects_access_requirements_before_transfer_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 790);
+        let destination = Position::new(5790.0, 2090.0, 636.0, 3.1);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TeleportAccessReject".to_string(),
+            Position::new(3700.0, 1500.0, 120.0, 0.0),
+            571,
+            1,
+            1,
+            79,
+            0,
+        ));
+        session.represented_raid_difficulty_id_like_cpp = 3;
+        install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
+        install_access_notification_stores_like_cpp(&mut session);
+        let mut requirement = access_requirement_like_cpp(631, 3);
+        requirement.level_min = 80;
+        install_access_requirement_store_like_cpp(&mut session, requirement);
+
+        session.teleport_to(631, destination).await;
+
+        assert_eq!(
+            send_rx.try_recv().expect("SMSG_PRINT_NOTIFICATION"),
+            PrintNotification {
+                notify_text: "You must be at least level 80 to enter.".to_string(),
+            }
+            .to_bytes()
+        );
+        assert_eq!(
+            send_rx.try_recv().expect("SMSG_TRANSFER_ABORTED"),
+            wow_packet::packets::misc::TransferAborted {
+                map_id: 631,
+                arg: 0,
+                map_difficulty_x_condition_id: 0,
+                transfer_abort: TRANSFER_ABORT_ERROR_LIKE_CPP,
+            }
+            .to_bytes()
+        );
+        assert!(
+            send_rx.try_recv().is_err(),
+            "C++ Player::TeleportTo returns before SMSG_TRANSFER_PENDING when Map::PlayerCannotEnter rejects"
+        );
+        assert_eq!(session.pending_teleport, None);
+        assert_ne!(session.state, SessionState::Transfer);
+        assert!(
+            canonical.lock().unwrap().find_map(631, 0).is_none(),
+            "teleport preflight must not create the target instance before the client transfer"
+        );
+    }
+
+    #[tokio::test]
+    async fn teleport_to_instance_allows_transfer_after_player_cannot_enter_passes_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 791);
+        let destination = Position::new(5791.0, 2091.0, 637.0, 3.2);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TeleportAccessAllow".to_string(),
+            Position::new(3700.0, 1500.0, 120.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.represented_raid_difficulty_id_like_cpp = 3;
+        install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
+
+        session.teleport_to(631, destination).await;
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::TransferPending, ServerOpcodes::SuspendToken]
+        );
+        assert_eq!(session.pending_teleport, Some((631, destination)));
+        assert_eq!(session.state, SessionState::Transfer);
+        assert!(
+            canonical.lock().unwrap().find_map(631, 0).is_none(),
+            "C++ Player::TeleportTo only preflights entry rights; map materialization happens later"
         );
     }
 

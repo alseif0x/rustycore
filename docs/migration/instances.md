@@ -268,7 +268,9 @@ NOTE: `InstanceSaveMgr` no longer exists as a separate class in this WoLK 3.4.3 
 - Reset cron caller in `MapManager::Update`; pure `GetNextResetTime` is now ported/tested in `wow-instances`.
 - All wire packets (Section 7).
 - Group-leader-as-lock-owner rule.
-- Account-wide instance-enter rate limit (`account_instance_times`).
+- Account-wide instance-enter rate limit (`account_instance_times`) DB
+  load/save integration remains pending; represented session memory checks are
+  already used by live `CreateMap` and teleport preflight paths.
 - Per-instance respawn purge on reset (`respawn` rows tagged with `mapId` + `instanceId`).
 - LFG progress hook.
 - Combat-res tracker.
@@ -284,9 +286,19 @@ NOTE: `InstanceSaveMgr` no longer exists as a separate class in this WoLK 3.4.3 
   if the dungeon's requested difficulty cannot be downscaled to a
   `MapDifficultyEntry`, Rust now sends `SMSG_TRANSFER_ABORTED` with
   `TRANSFER_ABORT_DIFFICULTY` and does not create/sync the canonical map.
-  This is still not full `Map::PlayerCannotEnter`: access requirements, GM
-  bypass, raid-group requirement, farm-limit, max-player, in-combat, and the
-  broader portal/teleport call-sites remain pending.
+  This is still not full `Player::TeleportTo`: expansion/pet/vehicle/duel/
+  transport/BG cleanup, same-map near teleport, `WorldPortAck` fallback, LFG
+  teleports, and live-client validation remain pending.
+- `#NEXT.RUNTIME.L3.031j42` wires represented `Map::PlayerCannotEnter` into
+  `WorldSession::teleport_to` before `SMSG_TRANSFER_PENDING`, matching C++
+  `Player::TeleportTo` / `Map::PlayerCannotEnter` ordering. Target dungeon/raid
+  teleports now preflight map entry, difficulty, access requirements, GM bypass,
+  raid-group requirement, existing-map lock/max-player/in-combat gates, and the
+  represented instance-count limit without creating/syncing the canonical target
+  map or applying `CreateMap` side effects. Remaining gaps: this is not full
+  `Player::TeleportTo`; same-map near teleport, expansion/pet/vehicle/duel/
+  transport/BG cleanup, `WorldPortAck` fallback, LFG-specific teleports, bot,
+  install/restart, and live-client validation remain pending.
 
 **Tests existing:**
 - `cargo test -p wow-instances -- --nocapture` currently covers 19 focused tests, including C++-contrasted lock key/binding, daily/weekly reset anchors, temporary lock creation, active lock lookup, temp promotion, expired-lock replacement, DB row reconstruction, shared weak-ref cleanup, prepared-statement parameter order, flex-mask join rejection, different-instance rejection, and reset in-use guard.

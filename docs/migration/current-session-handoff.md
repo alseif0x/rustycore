@@ -1,3 +1,23 @@
+- `#NEXT.RUNTIME.L3.031j42` — WotLK `Player::TeleportTo` now runs the
+  represented `Map::PlayerCannotEnter` preflight for target dungeon/raid maps
+  before sending `SMSG_TRANSFER_PENDING` (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:1361-1365`
+  and `/home/server/woltk-trinity-legacy/src/server/game/Maps/Map.cpp:1774-1818`.
+  C++ checks entry rights before map creation so a rejected far teleport does
+  not materialize an instance copy. Rust now mirrors that ordering in
+  `WorldSession::teleport_to`: disabled-map abort still happens first, then the
+  target-map preflight verifies map existence, dungeon difficulty availability,
+  GM bypass, access requirements, raid-group requirement, compatible existing
+  instance lock, max players, encounter-in-progress, and represented
+  instance-count limit without creating/syncing the canonical map or applying
+  `CreateMap` side effects. Coverage: targeted `wow-world` tests prove a
+  level-gated raid teleport emits the C++ access notification plus
+  `SMSG_TRANSFER_ABORTED` and no `SMSG_TRANSFER_PENDING`, while an allowed
+  instance teleport still sends `SMSG_TRANSFER_PENDING` + `SMSG_SUSPEND_TOKEN`
+  and leaves target map materialization for the later world-port path. Boundary
+  remains partial: same-map near teleport semantics, expansion/pet/vehicle/duel/
+  transport/BG cleanup, `WorldPortAck` fallback, LFG-specific teleports,
+  install/restart, bot, and live-client/manual validation remain pending.
 - `#NEXT.RUNTIME.L3.031j41` — WotLK `Player::Satisfy(access_requirement)`
   achievement gates now resolve a connected group leader before rejecting
   (not manual-test-ready). Source-of-truth:
