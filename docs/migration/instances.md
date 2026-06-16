@@ -392,11 +392,10 @@ NOTE: `InstanceSaveMgr` no longer exists as a separate class in this WoLK 3.4.3 
   slot, matching `IsNonMeleeSpellCast(true)` followed by
   `InterruptNonMeleeSpells(true)`. Preflight aborts still return before this
   cleanup. Refs: `Player.cpp:1424-1428`, `Unit.cpp:3050-3100`,
-  `Unit.h:576-583`, `Unit.h:1394-1402`. Remaining gap: Rust
-  `teleport_to` still has no `TeleportOptions` parameter, so the C++
-  `TELE_TO_SPELL` exception is not representable yet; outgoing spell-interrupt
-  packets, full Spell runtime state, bot, install/restart, and live-client
-  validation remain pending.
+  `Unit.h:576-583`, `Unit.h:1394-1402`. Remaining gap: Rust now represents the
+  `TELE_TO_SPELL` exception, but outgoing spell-interrupt packets, full Spell
+  runtime state, bot, install/restart, and live-client validation remain
+  pending.
 - `#NEXT.RUNTIME.L3.031j87` wires the accepted far-teleport
   `RemoveAurasWithInterruptFlags(Moving | Turning)` branch: after non-melee
   spell interruption and before transfer packets, Rust now removes represented
@@ -415,11 +414,20 @@ NOTE: `InstanceSaveMgr` no longer exists as a separate class in this WoLK 3.4.3 
   represented ActivePlayer `TransportServerTime` to zero; preflight aborts
   still preserve both values because C++ returns before this branch. Refs:
   `Player.cpp:1433-1449`, `Player.h:487`, `Player.h:2774-2787`,
-  `MovementHandler.cpp:812-813`. Remaining gap: Rust `teleport_to` still has
-  no `TeleportOptions`/logout wiring, so the C++ `TELE_TO_SEAMLESS` and
-  `PlayerLogout()` packet-suppression branches are not representable yet; full
-  update-field propagation, bot, install/restart, and live-client validation
-  remain pending.
+  `MovementHandler.cpp:812-813`. Remaining gap: full update-field propagation,
+  bot, install/restart, and live-client validation remain pending.
+- `#NEXT.RUNTIME.L3.031j89` adds represented `TeleportToOptions` bits from C++
+  `Player.h:790-805` and wires the far-teleport branches that were previously
+  unreachable in Rust: `TELE_TO_SPELL` now skips the non-melee spell interrupt
+  branch, valid `TELE_TO_SEAMLESS` suppresses `SMSG_TRANSFER_PENDING` and sends
+  `SMSG_SUSPEND_TOKEN` with reason `2`, invalid seamless requests fall back to
+  normal transfer after the C++ cosmetic-parent-map gate, and
+  `PlayerLogout()` suppresses both `TransferPending` and `SuspendToken` without
+  clearing transport-server time. Refs: `Player.cpp:1368-1371`,
+  `Player.cpp:1424-1469`, `Player.h:790-805`, `WorldSession.h:1034`.
+  Remaining gaps: same-map/near-teleport option semantics, real transport
+  passenger removal, revive-at-teleport, not-leave-combat, delayed teleport
+  semaphores, install/restart, bot, and live-client validation remain pending.
 
 **Tests existing:**
 - `cargo test -p wow-instances -- --nocapture` currently covers 19 focused tests, including C++-contrasted lock key/binding, daily/weekly reset anchors, temporary lock creation, active lock lookup, temp promotion, expired-lock replacement, DB row reconstruction, shared weak-ref cleanup, prepared-statement parameter order, flex-mask join rejection, different-instance rejection, and reset in-use guard.

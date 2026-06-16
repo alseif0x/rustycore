@@ -186,6 +186,22 @@ const PLAYER_FLAGS_AUTO_DECLINE_GUILD_LIKE_CPP: u32 = 0x0800_0000;
 pub(crate) const TRADE_STATUS_PLAYER_BUSY_LIKE_CPP: u8 = 0;
 const PLAYER_LOCAL_FLAG_WAR_MODE_LIKE_CPP: u32 = 0x0000_0800;
 const CURRENCY_DB_UNUSED_FLAGS_LIKE_CPP: u8 = 0x13;
+pub(crate) type TeleportToOptionsLikeCpp = u32;
+pub(crate) const TELE_TO_NONE_LIKE_CPP: TeleportToOptionsLikeCpp = 0x00;
+#[allow(dead_code)]
+pub(crate) const TELE_TO_GM_MODE_LIKE_CPP: TeleportToOptionsLikeCpp = 0x01;
+#[allow(dead_code)]
+pub(crate) const TELE_TO_NOT_LEAVE_TRANSPORT_LIKE_CPP: TeleportToOptionsLikeCpp = 0x02;
+#[allow(dead_code)]
+pub(crate) const TELE_TO_NOT_LEAVE_COMBAT_LIKE_CPP: TeleportToOptionsLikeCpp = 0x04;
+#[allow(dead_code)]
+pub(crate) const TELE_TO_NOT_UNSUMMON_PET_LIKE_CPP: TeleportToOptionsLikeCpp = 0x08;
+pub(crate) const TELE_TO_SPELL_LIKE_CPP: TeleportToOptionsLikeCpp = 0x10;
+#[allow(dead_code)]
+pub(crate) const TELE_TO_TRANSPORT_TELEPORT_LIKE_CPP: TeleportToOptionsLikeCpp = 0x20;
+#[allow(dead_code)]
+pub(crate) const TELE_REVIVE_AT_TELEPORT_LIKE_CPP: TeleportToOptionsLikeCpp = 0x40;
+pub(crate) const TELE_TO_SEAMLESS_LIKE_CPP: TeleportToOptionsLikeCpp = 0x80;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum PlayerAwayModeLikeCpp {
@@ -22286,6 +22302,16 @@ impl WorldSession {
     ///
     /// C# ref: Player.TeleportTo → SendTransferPending
     pub async fn teleport_to(&mut self, new_map: u32, new_pos: wow_core::Position) {
+        self.teleport_to_with_options(new_map, new_pos, TELE_TO_NONE_LIKE_CPP)
+            .await;
+    }
+
+    pub(crate) async fn teleport_to_with_options(
+        &mut self,
+        new_map: u32,
+        new_pos: wow_core::Position,
+        mut options: TeleportToOptionsLikeCpp,
+    ) {
         // Validate inputs
         if new_map as u16 > 0xFFF {
             warn!(
@@ -22380,6 +22406,10 @@ impl WorldSession {
         }
 
         if u32::from(self.player_map_id_like_cpp()) != new_map {
+            options = self.teleport_options_after_seamless_gate_like_cpp(new_map, options);
+        }
+
+        if u32::from(self.player_map_id_like_cpp()) != new_map {
             self.set_selection_guid_like_cpp(None);
             self.combat_stop_like_cpp();
             self.reset_contested_pvp_like_cpp();
@@ -22387,7 +22417,9 @@ impl WorldSession {
             self.unsummon_represented_pet_temporary_if_any_like_cpp();
             let _ = self.remove_all_dynamic_objects_for_current_player_like_cpp();
             let _ = self.remove_all_area_triggers_for_current_player_like_cpp();
-            let _ = self.interrupt_non_melee_spells_for_far_teleport_like_cpp();
+            if options & TELE_TO_SPELL_LIKE_CPP == 0 {
+                let _ = self.interrupt_non_melee_spells_for_far_teleport_like_cpp();
+            }
             let _ = self.remove_moving_or_turning_interrupt_auras_for_far_teleport_like_cpp();
         }
 
@@ -22406,24 +22438,32 @@ impl WorldSession {
         use wow_packet::packets::misc::{SuspendToken, TransferPending};
 
         // 1. SMSG_TRANSFER_PENDING — tell client to start loading screen
-        let transfer_pending = TransferPending {
-            map_id: new_map,
-            old_map_position: current_pos,
-            ship: None,
-            transfer_spell_id: None,
-        };
-        self.send_packet(&transfer_pending);
-        self.clear_active_player_transport_server_time_override_for_far_teleport_like_cpp();
+        if !self.player_logout_like_cpp && options & TELE_TO_SEAMLESS_LIKE_CPP == 0 {
+            let transfer_pending = TransferPending {
+                map_id: new_map,
+                old_map_position: current_pos,
+                ship: None,
+                transfer_spell_id: None,
+            };
+            self.send_packet(&transfer_pending);
+            self.clear_active_player_transport_server_time_override_for_far_teleport_like_cpp();
+        }
 
         // 2. Store pending destination — completed in handle_world_port_response
         self.pending_teleport = Some((new_map, new_pos));
         self.active_area_trigger = None;
 
         // 3. SMSG_SUSPEND_TOKEN — pause movement processing on client
-        self.send_packet(&SuspendToken {
-            sequence_index: 1,
-            reason: 1,
-        });
+        if !self.player_logout_like_cpp {
+            self.send_packet(&SuspendToken {
+                sequence_index: 1,
+                reason: if options & TELE_TO_SEAMLESS_LIKE_CPP != 0 {
+                    2
+                } else {
+                    1
+                },
+            });
+        }
 
         // 4. Transition to Transfer state — only WorldPortResponse accepted now
         self.state = SessionState::Transfer;
@@ -22437,6 +22477,42 @@ impl WorldSession {
             new_pos.y,
             new_pos.z
         );
+    }
+
+    fn teleport_options_after_seamless_gate_like_cpp(
+        &self,
+        new_map: u32,
+        mut options: TeleportToOptionsLikeCpp,
+    ) -> TeleportToOptionsLikeCpp {
+        if options & TELE_TO_SEAMLESS_LIKE_CPP == 0 {
+            return options;
+        }
+
+        let Some(map_store) = self.map_store.as_ref() else {
+            return options & !TELE_TO_SEAMLESS_LIKE_CPP;
+        };
+        let Some(old_map_entry) = map_store
+            .get(u32::from(self.player_map_id_like_cpp()))
+            .copied()
+        else {
+            return options & !TELE_TO_SEAMLESS_LIKE_CPP;
+        };
+        let Some(new_map_entry) = map_store.get(new_map).copied() else {
+            return options & !TELE_TO_SEAMLESS_LIKE_CPP;
+        };
+
+        let old_cosmetic_parent = i32::from(old_map_entry.cosmetic_parent_map_id);
+        let new_cosmetic_parent = i32::from(new_map_entry.cosmetic_parent_map_id);
+        let current_map_id = i32::from(self.player_map_id_like_cpp());
+        let new_map_id = i32::try_from(new_map).unwrap_or(i32::MAX);
+        if old_cosmetic_parent != new_map_id
+            && current_map_id != new_cosmetic_parent
+            && !((old_cosmetic_parent != -1) ^ (old_cosmetic_parent != new_cosmetic_parent))
+        {
+            options &= !TELE_TO_SEAMLESS_LIKE_CPP;
+        }
+
+        options
     }
 
     fn remove_all_dynamic_objects_for_current_player_like_cpp(
@@ -65028,6 +65104,206 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn teleport_to_valid_seamless_suppresses_transfer_pending_and_uses_reason_two_like_cpp() {
+        use wow_packet::ServerPacket;
+
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 811);
+        let destination = Position::new(116.0, 216.0, 46.0, 3.1);
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 1,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: 0,
+                flags1: 0,
+                flags2: 0,
+            },
+            wow_data::MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.expansion = 1;
+        session.active_player_transport_server_time_like_cpp = 44_000;
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TeleportSeamless".to_string(),
+            Position::new(10.0, 20.0, 30.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+
+        session
+            .teleport_to_with_options(0, destination, TELE_TO_SEAMLESS_LIKE_CPP)
+            .await;
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(
+            packets
+                .iter()
+                .filter_map(|bytes| wow_packet::WorldPacket::from_bytes(bytes).server_opcode())
+                .collect::<Vec<_>>(),
+            vec![ServerOpcodes::CancelCombat, ServerOpcodes::SuspendToken],
+            "C++ Player::TeleportTo suppresses TransferPending for valid seamless far teleports"
+        );
+        assert_eq!(
+            packets.last().expect("SMSG_SUSPEND_TOKEN"),
+            &wow_packet::packets::misc::SuspendToken {
+                sequence_index: 1,
+                reason: 2,
+            }
+            .to_bytes()
+        );
+        assert_eq!(session.pending_teleport, Some((0, destination)));
+        assert_ne!(
+            session.active_player_local_flags_like_cpp()
+                & PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP,
+            0,
+            "C++ clears transport server time only in the TransferPending branch"
+        );
+        assert_eq!(
+            session.active_player_transport_server_time_like_cpp(),
+            44_000
+        );
+    }
+
+    #[tokio::test]
+    async fn teleport_to_invalid_seamless_falls_back_to_normal_transfer_like_cpp() {
+        use wow_packet::ServerPacket;
+
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 812);
+        let destination = Position::new(117.0, 217.0, 47.0, 3.2);
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 1,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+            wow_data::MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.expansion = 1;
+        session.active_player_transport_server_time_like_cpp = 45_000;
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TeleportInvalidSeamless".to_string(),
+            Position::new(10.0, 20.0, 30.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+
+        session
+            .teleport_to_with_options(0, destination, TELE_TO_SEAMLESS_LIKE_CPP)
+            .await;
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(
+            packets
+                .iter()
+                .filter_map(|bytes| wow_packet::WorldPacket::from_bytes(bytes).server_opcode())
+                .collect::<Vec<_>>(),
+            vec![
+                ServerOpcodes::CancelCombat,
+                ServerOpcodes::TransferPending,
+                ServerOpcodes::SuspendToken
+            ],
+            "C++ Player::TeleportTo clears TELE_TO_SEAMLESS when cosmetic-map parents do not match"
+        );
+        assert_eq!(
+            packets.last().expect("SMSG_SUSPEND_TOKEN"),
+            &wow_packet::packets::misc::SuspendToken {
+                sequence_index: 1,
+                reason: 1,
+            }
+            .to_bytes()
+        );
+        assert_eq!(session.active_player_transport_server_time_like_cpp(), 0);
+    }
+
+    #[tokio::test]
+    async fn teleport_to_player_logout_suppresses_transfer_packets_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 813);
+        let destination = Position::new(118.0, 218.0, 48.0, 3.3);
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 1,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+            wow_data::MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.expansion = 1;
+        session.active_player_transport_server_time_like_cpp = 46_000;
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TeleportLogout".to_string(),
+            Position::new(10.0, 20.0, 30.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_player_logout_like_cpp(true);
+
+        session.teleport_to(0, destination).await;
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::CancelCombat],
+            "C++ Player::TeleportTo suppresses both TransferPending and SuspendToken during PlayerLogout"
+        );
+        assert_eq!(session.pending_teleport, Some((0, destination)));
+        assert_ne!(
+            session.active_player_local_flags_like_cpp()
+                & PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP,
+            0
+        );
+        assert_eq!(
+            session.active_player_transport_server_time_like_cpp(),
+            46_000
+        );
+    }
+
+    #[tokio::test]
     async fn teleport_to_far_map_removes_current_player_dynamic_objects_like_cpp() {
         let (mut session, _, send_rx) = make_session();
         let canonical = shared_canonical_map_manager();
@@ -65376,6 +65652,91 @@ mod tests {
         assert!(
             session.active_spell_cast.is_some(),
             "C++ Player::TeleportTo returns before spell interruption on preflight aborts"
+        );
+        session.mutate_canonical_player_like_cpp(|player| {
+            assert_eq!(
+                player
+                    .unit()
+                    .current_spell(wow_entities::CurrentSpellSlot::Generic),
+                Some(generic_spell)
+            );
+        });
+    }
+
+    #[tokio::test]
+    async fn teleport_to_spell_option_preserves_non_melee_spell_casts_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 810);
+        let source_position = Position::new(10.0, 20.0, 30.0, 0.0);
+        let destination = Position::new(115.0, 215.0, 45.0, 3.0);
+        let generic_spell = wow_entities::CurrentSpellRef::new(61_810, Some(player_guid), None)
+            .with_cast_time_ms(1_500);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 1,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+            wow_data::MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.expansion = 1;
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TeleportSpellOption".to_string(),
+            source_position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.active_spell_cast = Some(SpellCastState {
+            spell_id: 61_810,
+            target_guid: player_guid,
+            target_data: wow_packet::packets::spell::SpellTargetData::default(),
+            cast_id: ObjectGuid::EMPTY,
+            cast_start_time: Instant::now(),
+            cast_time_ms: 10_000,
+            spell_visual: wow_packet::packets::spell::SpellCastVisual::default(),
+            metadata: SpellCastMetadata::default(),
+        });
+        add_canonical_test_player_on_map(&canonical, player_guid, source_position, 571, 0);
+        session.mutate_canonical_player_like_cpp(|player| {
+            player
+                .unit_mut()
+                .set_current_cast_spell(wow_entities::CurrentSpellSlot::Generic, generic_spell);
+        });
+
+        session
+            .teleport_to_with_options(0, destination, TELE_TO_SPELL_LIKE_CPP)
+            .await;
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![
+                ServerOpcodes::CancelCombat,
+                ServerOpcodes::TransferPending,
+                ServerOpcodes::SuspendToken
+            ]
+        );
+        assert!(
+            session.active_spell_cast.is_some(),
+            "C++ Player::TeleportTo skips InterruptNonMeleeSpells when TELE_TO_SPELL is set"
         );
         session.mutate_canonical_player_like_cpp(|player| {
             assert_eq!(
