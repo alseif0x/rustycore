@@ -330,8 +330,17 @@ NOTE: `InstanceSaveMgr` no longer exists as a separate class in this WoLK 3.4.3 
   resets the represented contested-PvP timer, and syncs the player registry
   before transfer packets; preflight aborts preserve the state because C++
   returns before `ResetContestedPvP()`. Refs: `Player.cpp:1389-1393`,
-  `Player.cpp:20807-20812`, `Player.h:432`. Remaining gaps: same-map near
-  teleport, delayed-teleport flags, `CombatStop()`, full BG cleanup,
+  `Player.cpp:20807-20812`, `Player.h:432`.
+- `#NEXT.RUNTIME.L3.031j81` wires the accepted far-teleport
+  `CombatStop(false, true)` phase for the represented current player before
+  `ResetContestedPvP()`: Rust stops the current attack, emits
+  `SMSG_ATTACK_STOP` when an attack target existed, emits C++'s empty
+  `SMSG_CANCEL_COMBAT`, clears the player's PvE/PvP combat refs, removes
+  attacker refs from canonical/legacy creatures or players, clears represented
+  combat mirrors, and syncs the player registry. Refs: `Player.cpp:1389-1391`,
+  `Unit.cpp:5756-5815`, `Player.cpp:20626-20629`,
+  `CombatPackets.h:136-141`. Remaining gaps: same-map near teleport,
+  delayed-teleport flags, full BG cleanup,
   pet/vehicle/duel/movement cleanup, bot, install/restart, and live-client
   validation remain pending.
 

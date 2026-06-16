@@ -104,6 +104,16 @@ impl ServerPacket for SAttackStop {
     }
 }
 
+/// C++ `WorldPackets::Combat::CancelCombat` (`SMSG_CANCEL_COMBAT`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CancelCombat;
+
+impl ServerPacket for CancelCombat {
+    const OPCODE: ServerOpcodes = ServerOpcodes::CancelCombat;
+
+    fn write(&self, _pkt: &mut WorldPacket) {}
+}
+
 /// C++ `WorldPackets::Combat::BreakTarget`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BreakTarget {
@@ -494,6 +504,18 @@ mod tests {
             ServerOpcodes::BreakTarget as u16
         );
         assert_eq!(pkt.read_packed_guid().expect("UnitGUID"), unit_guid);
+        assert!(pkt.is_empty());
+    }
+
+    #[test]
+    fn cancel_combat_writes_empty_cpp_payload_like_cpp() {
+        let bytes = CancelCombat.to_bytes();
+
+        let mut pkt = WorldPacket::from_bytes(&bytes);
+        assert_eq!(
+            pkt.read_uint16().expect("opcode"),
+            ServerOpcodes::CancelCombat as u16
+        );
         assert!(pkt.is_empty());
     }
 

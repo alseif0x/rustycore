@@ -7153,6 +7153,122 @@ impl WorldSession {
         Some(target)
     }
 
+    fn combat_stop_like_cpp(&mut self) {
+        let Some(player_guid) = self.player_guid() else {
+            self.combat_target = None;
+            self.in_combat = false;
+            return;
+        };
+
+        let stopped_target = self.stop_player_attack_like_cpp();
+        let owner_guids = {
+            let Some(manager) = self.canonical_map_manager.as_ref().cloned() else {
+                return self.finish_combat_stop_like_cpp(player_guid, stopped_target, Vec::new());
+            };
+            let Ok(mut manager) = manager.lock() else {
+                return self.finish_combat_stop_like_cpp(player_guid, stopped_target, Vec::new());
+            };
+            let Some(managed) = manager.find_map_mut(u32::from(self.player_map_id_like_cpp()), 0)
+            else {
+                return self.finish_combat_stop_like_cpp(player_guid, stopped_target, Vec::new());
+            };
+            let map = managed.map_mut();
+            let Some(player) = map.get_typed_player_mut(player_guid) else {
+                return self.finish_combat_stop_like_cpp(player_guid, stopped_target, Vec::new());
+            };
+
+            let mut owner_guids: Vec<ObjectGuid> = player
+                .unit()
+                .subsystems()
+                .combat
+                .pve_refs
+                .keys()
+                .chain(player.unit().subsystems().combat.pvp_refs.keys())
+                .chain(player.unit().subsystems().combat.attackers.iter())
+                .copied()
+                .collect();
+            owner_guids.sort_unstable();
+            owner_guids.dedup();
+
+            player.unit_mut().subsystems_mut().combat.end_all_combat();
+            player.unit_mut().subsystems_mut().combat.clear_attackers();
+
+            for owner_guid in &owner_guids {
+                if let Some(owner) = map.get_typed_player_mut(*owner_guid) {
+                    if owner.unit().attacking() == Some(player_guid) {
+                        let _ = owner.unit_mut().attack_stop_like_cpp();
+                    }
+                    owner
+                        .unit_mut()
+                        .subsystems_mut()
+                        .combat
+                        .purge_combat_ref_like_cpp(player_guid);
+                    owner.unit_mut().remove_attacker_like_cpp(player_guid);
+                } else if let Some(owner) = map.get_typed_creature_mut(*owner_guid) {
+                    if owner.unit().attacking() == Some(player_guid) {
+                        let _ = owner.unit_mut().attack_stop_like_cpp();
+                    }
+                    owner
+                        .unit_mut()
+                        .subsystems_mut()
+                        .combat
+                        .purge_combat_ref_like_cpp(player_guid);
+                    owner.unit_mut().remove_attacker_like_cpp(player_guid);
+                }
+            }
+
+            owner_guids
+        };
+
+        self.finish_combat_stop_like_cpp(player_guid, stopped_target, owner_guids);
+    }
+
+    fn finish_combat_stop_like_cpp(
+        &mut self,
+        player_guid: ObjectGuid,
+        stopped_target: Option<ObjectGuid>,
+        owner_guids: Vec<ObjectGuid>,
+    ) {
+        self.combat_target = None;
+        self.in_combat = false;
+        for owner_guid in owner_guids {
+            let _ = self.mutate_world_creature(owner_guid, |owner| {
+                if owner.creature.unit().attacking() == Some(player_guid) {
+                    let _ = owner.creature.unit_mut().attack_stop_like_cpp();
+                }
+                owner
+                    .creature
+                    .unit_mut()
+                    .subsystems_mut()
+                    .combat
+                    .purge_combat_ref_like_cpp(player_guid);
+                owner
+                    .creature
+                    .unit_mut()
+                    .subsystems_mut()
+                    .combat
+                    .scale_threat(player_guid, 0.0);
+                owner
+                    .creature
+                    .unit_mut()
+                    .remove_attacker_like_cpp(player_guid);
+                if owner.creature.ai_ownership().combat_target == Some(player_guid) {
+                    owner.creature.ai_ownership_mut().combat_target = None;
+                }
+            });
+        }
+
+        if let Some(target) = stopped_target {
+            self.send_packet(&wow_packet::packets::combat::SAttackStop {
+                attacker: player_guid,
+                victim: target,
+                now_dead: false,
+            });
+        }
+        self.send_packet(&wow_packet::packets::combat::CancelCombat);
+        self.sync_player_registry_state_like_cpp();
+    }
+
     pub(crate) fn ensure_canonical_world_map_for_current_player_like_cpp(
         &mut self,
     ) -> Option<wow_map::CreateMapDecision> {
@@ -22230,6 +22346,7 @@ impl WorldSession {
 
         if u32::from(self.player_map_id_like_cpp()) != new_map {
             self.set_selection_guid_like_cpp(None);
+            self.combat_stop_like_cpp();
             self.reset_contested_pvp_like_cpp();
         }
 
@@ -64023,6 +64140,7 @@ mod tests {
             drain_server_opcodes(&send_rx),
             vec![
                 ServerOpcodes::SpellGo,
+                ServerOpcodes::CancelCombat,
                 ServerOpcodes::TransferPending,
                 ServerOpcodes::SuspendToken,
                 ServerOpcodes::CooldownEvent,
@@ -64135,12 +64253,14 @@ mod tests {
     #[tokio::test]
     async fn teleport_to_instance_allows_transfer_after_player_cannot_enter_passes_like_cpp() {
         let (mut session, _, send_rx) = make_session();
+        let legacy_manager = shared_map_manager();
         let canonical = shared_canonical_map_manager();
         let player_registry = Arc::new(PlayerRegistry::default());
         let player_guid = ObjectGuid::create_player(1, 791);
         let selected_guid = test_creature_guid(79_101);
         let destination = Position::new(5791.0, 2091.0, 637.0, 3.2);
 
+        session.set_map_manager(Arc::clone(&legacy_manager));
         session.set_canonical_map_manager(Arc::clone(&canonical));
         session.set_player_registry(Arc::clone(&player_registry));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -64165,6 +64285,37 @@ mod tests {
         session.player_contested_pvp_timer_like_cpp = 77;
         session.register_in_player_registry();
         session.set_selection_guid_like_cpp(Some(selected_guid));
+        session.register_world_creature(
+            571,
+            Position::new(3701.0, 1500.0, 120.0, 0.0),
+            test_creature_create_data(selected_guid, 9_101, 80),
+            3,
+            5,
+            20.0,
+            0,
+            0,
+            0,
+            0,
+            None,
+            0,
+            0,
+            0,
+            0,
+            -1,
+        );
+        session.start_player_attack_like_cpp(selected_guid);
+        session
+            .mutate_world_creature(selected_guid, |creature| {
+                creature.enter_combat(player_guid);
+                creature
+                    .creature
+                    .unit_mut()
+                    .subsystems_mut()
+                    .combat
+                    .add_threat(player_guid, 25.0);
+            })
+            .unwrap();
+        assert!(session.in_combat);
         session.represented_raid_difficulty_id_like_cpp = 3;
         install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
 
@@ -64172,7 +64323,12 @@ mod tests {
 
         assert_eq!(
             drain_server_opcodes(&send_rx),
-            vec![ServerOpcodes::TransferPending, ServerOpcodes::SuspendToken]
+            vec![
+                ServerOpcodes::AttackStop,
+                ServerOpcodes::CancelCombat,
+                ServerOpcodes::TransferPending,
+                ServerOpcodes::SuspendToken
+            ]
         );
         assert_eq!(session.pending_teleport, Some((631, destination)));
         assert_eq!(session.state, SessionState::Transfer);
@@ -64193,11 +64349,49 @@ mod tests {
                 .map()
                 .get_typed_player(player_guid)
                 .unwrap();
+            assert_eq!(player.unit().attacking(), None);
+            assert_eq!(player.unit().data().target, ObjectGuid::EMPTY);
+            assert!(
+                !player
+                    .unit()
+                    .subsystems()
+                    .combat
+                    .is_in_combat_with(selected_guid)
+            );
             assert!(!player.has_player_flag(PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP));
             assert!(
                 !player
                     .unit()
                     .has_unit_state(UnitState::ATTACK_PLAYER.bits())
+            );
+            let creature = manager
+                .find_map(571, 0)
+                .unwrap()
+                .map()
+                .get_typed_creature(selected_guid)
+                .unwrap();
+            assert!(!creature.unit().has_attacker_like_cpp(player_guid));
+            assert!(
+                !creature
+                    .unit()
+                    .subsystems()
+                    .combat
+                    .is_in_combat_with(player_guid)
+            );
+        }
+        {
+            let manager = legacy_manager.read().unwrap();
+            let creature = manager.find_creature(571, 0, selected_guid).unwrap();
+            assert!(!creature.creature.unit().has_attacker_like_cpp(player_guid));
+            assert_eq!(creature.creature.ai_ownership().combat_target, None);
+            assert_eq!(
+                creature
+                    .creature
+                    .unit()
+                    .subsystems()
+                    .combat
+                    .threat_value(player_guid),
+                Some(0.0)
             );
         }
         assert!(
@@ -64206,6 +64400,8 @@ mod tests {
                 .expect("player registry snapshot")
                 .is_contested_pvp
         );
+        assert_eq!(session.combat_target, None);
+        assert!(!session.in_combat);
         assert!(
             canonical.lock().unwrap().find_map(631, 0).is_none(),
             "C++ Player::TeleportTo only preflights entry rights; map materialization happens later"
@@ -64289,7 +64485,11 @@ mod tests {
 
         assert_eq!(
             drain_server_opcodes(&send_rx),
-            vec![ServerOpcodes::TransferPending, ServerOpcodes::SuspendToken]
+            vec![
+                ServerOpcodes::CancelCombat,
+                ServerOpcodes::TransferPending,
+                ServerOpcodes::SuspendToken
+            ]
         );
         assert_eq!(session.pending_teleport, Some((870, destination)));
         assert_eq!(session.state, SessionState::Transfer);
@@ -64364,7 +64564,11 @@ mod tests {
 
         assert_eq!(
             drain_server_opcodes(&send_rx),
-            vec![ServerOpcodes::TransferPending, ServerOpcodes::SuspendToken]
+            vec![
+                ServerOpcodes::CancelCombat,
+                ServerOpcodes::TransferPending,
+                ServerOpcodes::SuspendToken
+            ]
         );
         assert_eq!(session.pending_teleport, Some((529, destination)));
         assert_eq!(session.state, SessionState::Transfer);
@@ -64451,7 +64655,11 @@ mod tests {
 
         assert_eq!(
             drain_server_opcodes(&send_rx),
-            vec![ServerOpcodes::TransferPending, ServerOpcodes::SuspendToken]
+            vec![
+                ServerOpcodes::CancelCombat,
+                ServerOpcodes::TransferPending,
+                ServerOpcodes::SuspendToken
+            ]
         );
         assert_eq!(session.pending_teleport, Some((571, destination)));
         assert_eq!(session.state, SessionState::Transfer);
