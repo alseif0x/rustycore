@@ -1,3 +1,18 @@
+- `#NEXT.RUNTIME.L3.031j61` — WotLK shared `MapDb2Entries` DB2 builder for
+  represented `MapManager::CreateMap` (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Maps/MapManager.cpp:177-221`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Instances/InstanceLockMgr.h`, and
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Stores.cpp:2314-2380`.
+  Rust now exposes `MapDb2Entries::from_stores_like_cpp` from `wow-instances`, deriving the
+  same fields consumed by the C++ create-map/lock path (`map_id`, `difficulty_id`, `lock_id`,
+  reset interval, flex-locking flag, and encounter-lock flag). `world-server` delegates its
+  private DB2 helper to that shared implementation, so the next `WorldSession` dungeon
+  `CreateMap` slice can reuse instance-lock inputs without depending on a bin-private helper.
+  Coverage: targeted `wow-instances map_db2_entries` tests cover field mapping and missing
+  difficulty behavior. Boundary remains partial: this is still exact `(mapId,difficultyId)`
+  lookup only; full `sDB2Manager.GetDownscaledMapDifficultyData(mapId,difficulty)` fallback,
+  active/temporary `InstanceLockMgr` integration, live dungeon `CreateMap`, install/restart,
+  bot, and live-client validation remain pending.
 - `#NEXT.RUNTIME.L3.031j60` — WotLK represented `MapManager::CreateMap` side-effect
   application seam (not manual-test-ready). Source-of-truth:
   `/home/server/woltk-trinity-legacy/src/server/game/Maps/MapManager.cpp:177-221` and the Rust

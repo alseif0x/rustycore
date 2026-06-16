@@ -36,7 +36,7 @@ use wow_database::{
     LoginDatabase, LoginStatements, PreparedStatement, SqlResult, SqlTransaction, StatementDef,
     WorldDatabase, WorldStatements, escape_string_like_cpp, warn_about_sync_queries_scope_like_cpp,
 };
-use wow_instances::{InstanceLockMgr, MapDb2Entries, MapDifficultyResetInterval};
+use wow_instances::{InstanceLockMgr, MapDb2Entries};
 use wow_loot::{
     LootConditionId, LootConditionLinkReport, LootConditionReferenceUseLikeCpp,
     LootReferenceCheckReport, LootStore, LootStoreKind, LootStores, LootTemplateRow,
@@ -5478,21 +5478,7 @@ fn map_db2_entries_from_stores(
     map_id: u32,
     difficulty_id: u8,
 ) -> Option<MapDb2Entries> {
-    let map = map_store.get(map_id)?;
-    let map_difficulty = map_difficulty_store.get(map_id, difficulty_id)?;
-
-    Some(MapDb2Entries {
-        map_id,
-        difficulty_id,
-        lock_id: u32::from(map_difficulty.lock_id),
-        reset_interval: match map_difficulty.reset_interval {
-            1 => MapDifficultyResetInterval::Daily,
-            2 => MapDifficultyResetInterval::Weekly,
-            _ => MapDifficultyResetInterval::Anytime,
-        },
-        is_flex_locking: map.is_flex_locking(),
-        is_using_encounter_locks: map_difficulty.is_using_encounter_locks(),
-    })
+    MapDb2Entries::from_stores_like_cpp(map_store, map_difficulty_store, map_id, difficulty_id)
 }
 
 fn register_loaded_instance_ids(

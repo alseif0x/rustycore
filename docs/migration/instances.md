@@ -5,7 +5,7 @@
 > **Layer:** L7
 > **Status:** 🟡 foundation in progress
 > **Audited vs C++:** ✅ audited 2026-05-10 (`InstanceLockMgr` core contrasted; broad module still pending)
-> **Last updated:** 2026-05-10
+> **Last updated:** 2026-06-16
 
 ---
 
@@ -218,6 +218,7 @@ NOTE: `InstanceSaveMgr` no longer exists as a separate class in this WoLK 3.4.3 
 - `crates/wow-instances/src/lib.rs` — foundation started in `#NEXT.R8.ENTITIES.303/#NEXT.R8.ENTITIES.304`: the crate exists and ports the pure C++ encounter metadata path for `MAX_DUNGEON_ENCOUNTERS_PER_BOSS`, `EncounterState`, `DungeonEncounterData`, `BossInfo::GetDungeonEncounterForDifficulty`, `InstanceScript::LoadDungeonEncounterData`, `InstanceScript::GetBossDungeonEncounter(uint32)` and the `BossAI::GetBossId()` branch behind `InstanceScript::GetBossDungeonEncounter(Creature const*)`. `#NEXT.R8.ENTITIES.305` preserves optional represented `BossAI::_bossId` on `wow-ai::CreatureAI`.
 - `#NEXT.R8.INSTANCES.001` ports the C++ `InstanceLockMgr` in-memory core: `InstanceLockData`, `InstanceLock`, `SharedInstanceLockData`, `MapDb2Entries::GetKey`, `IsInstanceIdBound`, temporary lock creation, active-lock lookup with extended expired locks, `CanJoinInstanceLock`, temporary-to-permanent promotion, shared-data update, lock extension, reset in-use guard, statistics, `GetNextResetTime`, and C++ instance-id mask constants.
 - `#NEXT.R8.INSTANCES.002` adds the C++ character DB statement set for `instance`, `character_instance_lock`, and `account_instance_times`, plus pure Rust load reconstruction from DB row shapes, async DB load glue, prepared-statement builders for the same delete/insert/update operations used by C++ `InstanceLockMgr`, and weak-ref cleanup for unreferenced shared instance data.
+- `#NEXT.RUNTIME.L3.031j61` moves the DB2-derived `MapDb2Entries` builder into `wow-instances` as `MapDb2Entries::from_stores_like_cpp`, matching the fields consumed by C++ `MapManager::CreateMap` / `InstanceLockMgr` (`mapId`, `difficultyId`, `lockId`, reset interval, flex-lock flag, encounter-lock flag). `world-server` now delegates to this shared helper instead of owning a private duplicate, which lets the next session-side `CreateMap` work reuse the same logic. Remaining gap: this helper still uses an exact `(mapId,difficultyId)` lookup; full `sDB2Manager.GetDownscaledMapDifficultyData(mapId,difficulty)` fallback/downscale semantics are not yet ported.
 - `#NEXT.R8.INSTANCES.003` adds C++-indexed `Map.db2`/`MapDifficulty.db2` readers, wires them into world-server startup/session resources, invokes `InstanceLockMgr::load_from_database_like_cpp()` with real DB2 `MapDb2Entries` resolution, and registers persisted instance ids with both MapManager paths.
 - `#NEXT.R8.INSTANCES.004` adds transaction-aware `UpdateInstanceLockForPlayer` and `UpdateSharedInstanceLock` wrappers that mutate the in-memory lock state and append the same C++ delete/insert statement pairs to a caller-owned `SqlTransaction`.
 - `#NEXT.R8.INSTANCES.005` adds transaction-aware `UpdateInstanceLockExtensionForPlayer` and `ResetInstanceLocksForPlayer` wrappers that mutate the in-memory lock state and append the same C++ extension/force-expire update statements to a caller-owned `SqlTransaction`.

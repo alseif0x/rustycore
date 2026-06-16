@@ -179,6 +179,29 @@ pub struct MapDb2Entries {
 }
 
 impl MapDb2Entries {
+    pub fn from_stores_like_cpp(
+        map_store: &wow_data::MapStore,
+        map_difficulty_store: &wow_data::MapDifficultyStore,
+        map_id: u32,
+        difficulty_id: u8,
+    ) -> Option<Self> {
+        let map = map_store.get(map_id)?;
+        let map_difficulty = map_difficulty_store.get(map_id, difficulty_id)?;
+
+        Some(Self {
+            map_id,
+            difficulty_id,
+            lock_id: u32::from(map_difficulty.lock_id),
+            reset_interval: match map_difficulty.reset_interval {
+                1 => MapDifficultyResetInterval::Daily,
+                2 => MapDifficultyResetInterval::Weekly,
+                _ => MapDifficultyResetInterval::Anytime,
+            },
+            is_flex_locking: map.is_flex_locking(),
+            is_using_encounter_locks: map_difficulty.is_using_encounter_locks(),
+        })
+    }
+
     /// C++ null-guarded `MapDb2Entries::GetKey`.
     pub const fn key(&self) -> InstanceLockKey {
         (self.map_id, self.lock_id)
@@ -1785,6 +1808,41 @@ mod tests {
             }
             .has_reset_schedule()
         );
+    }
+
+    #[test]
+    fn map_db2_entries_from_stores_match_cpp_fields() {
+        let maps = wow_data::MapStore::from_entries([wow_data::MapEntry {
+            id: 631,
+            instance_type: wow_data::map::MAP_RAID,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: wow_data::map::MAP_FLAG_FLEXIBLE_RAID_LOCKING,
+        }]);
+        let difficulties =
+            wow_data::MapDifficultyStore::from_entries([wow_data::MapDifficultyEntry {
+                id: 900,
+                map_id: 631,
+                difficulty_id: 15,
+                lock_id: 7,
+                reset_interval: 2,
+                flags: wow_data::map::MAP_DIFFICULTY_FLAG_USE_LOOT_BASED_LOCK,
+            }]);
+
+        let entries = MapDb2Entries::from_stores_like_cpp(&maps, &difficulties, 631, 15).unwrap();
+
+        assert_eq!(
+            entries,
+            MapDb2Entries {
+                map_id: 631,
+                difficulty_id: 15,
+                lock_id: 7,
+                reset_interval: MapDifficultyResetInterval::Weekly,
+                is_flex_locking: true,
+                is_using_encounter_locks: true,
+            }
+        );
+        assert!(MapDb2Entries::from_stores_like_cpp(&maps, &difficulties, 631, 3).is_none());
     }
 
     #[test]
