@@ -283,6 +283,8 @@ pub enum WorldStatements {
     SEL_SPELL_TOTEM_MODEL,
     /// C++ SpellMgr::LoadSpellRequired startup query.
     SEL_SPELL_REQUIRED,
+    /// C++ SpellMgr::LoadSpellLearnSpells startup query.
+    SEL_SPELL_LEARN_SPELL,
     /// Load C++ ConditionMgr loot-template conditions.
     /// Args: SourceTypeOrReferenceId (i32), SourceGroup (u32), SourceEntry (u32).
     SEL_LOOT_TEMPLATE_CONDITION_ROWS,
@@ -874,6 +876,7 @@ impl StatementDef for WorldStatements {
                 "SELECT SpellID, RaceID, DisplayID from spell_totem_model"
             }
             Self::SEL_SPELL_REQUIRED => "SELECT spell_id, req_spell from spell_required",
+            Self::SEL_SPELL_LEARN_SPELL => "SELECT entry, SpellID, Active FROM spell_learn_spell",
             Self::SEL_LOOT_TEMPLATE_CONDITION_ROWS => concat!(
                 "SELECT ElseGroup, ConditionTypeOrReference, ConditionTarget, ",
                 "ConditionValue1, ConditionValue2, ConditionValue3, ",
@@ -1206,6 +1209,14 @@ mod tests {
         let sql = WorldStatements::SEL_SPELL_REQUIRED.sql();
 
         assert_eq!(sql, "SELECT spell_id, req_spell from spell_required");
+        assert_eq!(sql.matches('?').count(), 0);
+    }
+
+    #[test]
+    fn spell_learn_spell_statement_matches_cpp_sql_exactly() {
+        let sql = WorldStatements::SEL_SPELL_LEARN_SPELL.sql();
+
+        assert_eq!(sql, "SELECT entry, SpellID, Active FROM spell_learn_spell");
         assert_eq!(sql.matches('?').count(), 0);
     }
 }

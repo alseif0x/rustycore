@@ -1135,6 +1135,285 @@ pub struct SpellRequiredLoadOutcomeLikeCpp {
     pub errors: Vec<SpellRequiredLoadErrorLikeCpp>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellLearnSpellSqlRowLikeCpp {
+    pub entry: u32,
+    pub spell_id: u32,
+    pub active: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellLearnSpellNodeLikeCpp {
+    pub spell: u32,
+    pub overrides_spell: u32,
+    pub active: bool,
+    pub auto_learned: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellLearnSpellEffectLikeCpp {
+    pub trigger_spell: u32,
+    pub target_unit_pet: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpellLearnSourceSpellInfoLikeCpp {
+    pub spell_id: u32,
+    pub difficulty_none: bool,
+    pub is_talent: bool,
+    pub is_passive: bool,
+    pub has_skill_step_effect: bool,
+    pub learn_spell_effects: Vec<SpellLearnSpellEffectLikeCpp>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpellLearnSpellLoadErrorKindLikeCpp {
+    SqlSourceSpellMissing,
+    SqlLearnedSpellMissing,
+    SqlSourceIsTalent,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellLearnSpellLoadErrorLikeCpp {
+    pub row: SpellLearnSpellSqlRowLikeCpp,
+    pub kind: SpellLearnSpellLoadErrorKindLikeCpp,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpellLearnSpellLoadWarningKindLikeCpp {
+    RedundantSqlRowForSpellEffect {
+        source_spell: u32,
+        learned_spell: u32,
+    },
+    RedundantSqlRowForDb2 {
+        source_spell: u32,
+        learned_spell: i32,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellLearnSpellLoadWarningLikeCpp {
+    pub kind: SpellLearnSpellLoadWarningKindLikeCpp,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SpellLearnSpellStoreLikeCpp {
+    pub learned_by_spell_id: BTreeMap<u32, Vec<SpellLearnSpellNodeLikeCpp>>,
+}
+
+impl SpellLearnSpellStoreLikeCpp {
+    pub fn from_sources_like_cpp<SqlRows, SourceSpells, Db2Rows, SpellLookup, SpellExists>(
+        sql_rows: SqlRows,
+        source_spells: SourceSpells,
+        db2_rows: Db2Rows,
+        mut spell_lookup: SpellLookup,
+        mut spell_exists: SpellExists,
+    ) -> SpellLearnSpellLoadOutcomeLikeCpp
+    where
+        SqlRows: IntoIterator<Item = SpellLearnSpellSqlRowLikeCpp>,
+        SourceSpells: IntoIterator<Item = SpellLearnSourceSpellInfoLikeCpp>,
+        Db2Rows: IntoIterator<Item = crate::spell_db2::SpellLearnSpellEntry>,
+        SpellLookup: FnMut(u32) -> Option<SpellLearnSourceSpellInfoLikeCpp>,
+        SpellExists: FnMut(u32) -> bool,
+    {
+        let mut store = Self::default();
+        let mut sql_loaded_row_count = 0;
+        let mut dbc_loaded_row_count = 0;
+        let mut errors = Vec::new();
+        let mut warnings = Vec::new();
+        let sql_rows = sql_rows.into_iter().collect::<Vec<_>>();
+
+        if sql_rows.is_empty() {
+            return SpellLearnSpellLoadOutcomeLikeCpp {
+                store,
+                sql_loaded_row_count,
+                dbc_loaded_row_count,
+                sql_result_empty: true,
+                errors,
+                warnings,
+            };
+        }
+
+        for row in sql_rows {
+            let Some(source_spell) = spell_lookup(row.entry) else {
+                errors.push(SpellLearnSpellLoadErrorLikeCpp {
+                    row,
+                    kind: SpellLearnSpellLoadErrorKindLikeCpp::SqlSourceSpellMissing,
+                });
+                continue;
+            };
+
+            if !spell_exists(row.spell_id) {
+                errors.push(SpellLearnSpellLoadErrorLikeCpp {
+                    row,
+                    kind: SpellLearnSpellLoadErrorKindLikeCpp::SqlLearnedSpellMissing,
+                });
+                continue;
+            }
+
+            if source_spell.is_talent {
+                errors.push(SpellLearnSpellLoadErrorLikeCpp {
+                    row,
+                    kind: SpellLearnSpellLoadErrorKindLikeCpp::SqlSourceIsTalent,
+                });
+                continue;
+            }
+
+            store
+                .learned_by_spell_id
+                .entry(row.entry)
+                .or_default()
+                .push(SpellLearnSpellNodeLikeCpp {
+                    spell: row.spell_id,
+                    overrides_spell: 0,
+                    active: row.active,
+                    auto_learned: false,
+                });
+            sql_loaded_row_count += 1;
+        }
+
+        let db_spell_learn_spells = store.learned_by_spell_id.clone();
+
+        for source_spell in source_spells {
+            if !source_spell.difficulty_none {
+                continue;
+            }
+
+            for effect in source_spell.learn_spell_effects {
+                let dbc_node = SpellLearnSpellNodeLikeCpp {
+                    spell: effect.trigger_spell,
+                    overrides_spell: 0,
+                    active: true,
+                    auto_learned: effect.target_unit_pet
+                        || source_spell.is_talent
+                        || source_spell.is_passive
+                        || source_spell.has_skill_step_effect,
+                };
+
+                if !spell_exists(dbc_node.spell) {
+                    continue;
+                }
+
+                if Self::contains_learn_pair_in_map(
+                    &db_spell_learn_spells,
+                    source_spell.spell_id,
+                    dbc_node.spell,
+                ) {
+                    warnings.push(SpellLearnSpellLoadWarningLikeCpp {
+                        kind:
+                            SpellLearnSpellLoadWarningKindLikeCpp::RedundantSqlRowForSpellEffect {
+                                source_spell: source_spell.spell_id,
+                                learned_spell: dbc_node.spell,
+                            },
+                    });
+                    continue;
+                }
+
+                store
+                    .learned_by_spell_id
+                    .entry(source_spell.spell_id)
+                    .or_default()
+                    .push(dbc_node);
+                dbc_loaded_row_count += 1;
+            }
+        }
+
+        for db2_row in db2_rows {
+            let source_spell = db2_row.spell_id as u32;
+            let learned_spell = db2_row.learn_spell_id as u32;
+
+            if !spell_exists(source_spell) || !spell_exists(learned_spell) {
+                continue;
+            }
+
+            if db_spell_learn_spells
+                .get(&source_spell)
+                .is_some_and(|nodes| {
+                    nodes
+                        .iter()
+                        .any(|node| node.spell as i32 == db2_row.learn_spell_id)
+                })
+            {
+                warnings.push(SpellLearnSpellLoadWarningLikeCpp {
+                    kind: SpellLearnSpellLoadWarningKindLikeCpp::RedundantSqlRowForDb2 {
+                        source_spell,
+                        learned_spell: db2_row.learn_spell_id,
+                    },
+                });
+                continue;
+            }
+
+            if Self::contains_learn_pair_in_map(
+                &store.learned_by_spell_id,
+                source_spell,
+                learned_spell,
+            ) {
+                continue;
+            }
+
+            store
+                .learned_by_spell_id
+                .entry(source_spell)
+                .or_default()
+                .push(SpellLearnSpellNodeLikeCpp {
+                    spell: learned_spell,
+                    overrides_spell: db2_row.overrides_spell_id as u32,
+                    active: true,
+                    auto_learned: false,
+                });
+            dbc_loaded_row_count += 1;
+        }
+
+        SpellLearnSpellLoadOutcomeLikeCpp {
+            store,
+            sql_loaded_row_count,
+            dbc_loaded_row_count,
+            sql_result_empty: false,
+            errors,
+            warnings,
+        }
+    }
+
+    fn contains_learn_pair_in_map(
+        map: &BTreeMap<u32, Vec<SpellLearnSpellNodeLikeCpp>>,
+        source_spell: u32,
+        learned_spell: u32,
+    ) -> bool {
+        map.get(&source_spell)
+            .is_some_and(|nodes| nodes.iter().any(|node| node.spell == learned_spell))
+    }
+
+    pub fn get_spell_learn_spell_map_bounds_like_cpp(
+        &self,
+        spell_id: u32,
+    ) -> &[SpellLearnSpellNodeLikeCpp] {
+        self.learned_by_spell_id
+            .get(&spell_id)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    }
+
+    pub fn is_spell_learn_spell_like_cpp(&self, spell_id: u32) -> bool {
+        self.learned_by_spell_id.contains_key(&spell_id)
+    }
+
+    pub fn is_spell_learn_to_spell_like_cpp(&self, spell_id1: u32, spell_id2: u32) -> bool {
+        self.get_spell_learn_spell_map_bounds_like_cpp(spell_id1)
+            .iter()
+            .any(|node| node.spell == spell_id2)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpellLearnSpellLoadOutcomeLikeCpp {
+    pub store: SpellLearnSpellStoreLikeCpp,
+    pub sql_loaded_row_count: usize,
+    pub dbc_loaded_row_count: usize,
+    pub sql_result_empty: bool,
+    pub errors: Vec<SpellLearnSpellLoadErrorLikeCpp>,
+    pub warnings: Vec<SpellLearnSpellLoadWarningLikeCpp>,
+}
+
 impl SpellInfo {
     /// Convenience: returns the effective cooldown (per-spell or global, whichever is larger).
     pub fn effective_cooldown_ms(&self) -> u32 {
@@ -3064,6 +3343,278 @@ mod tests {
         assert_eq!(
             outcome.store.spells_requiring_spell_like_cpp(100),
             &[90, 91]
+        );
+    }
+
+    fn learn_source(
+        spell_id: u32,
+        is_talent: bool,
+        is_passive: bool,
+        has_skill_step_effect: bool,
+        learn_spell_effects: Vec<SpellLearnSpellEffectLikeCpp>,
+    ) -> SpellLearnSourceSpellInfoLikeCpp {
+        SpellLearnSourceSpellInfoLikeCpp {
+            spell_id,
+            difficulty_none: true,
+            is_talent,
+            is_passive,
+            has_skill_step_effect,
+            learn_spell_effects,
+        }
+    }
+
+    #[test]
+    fn spell_learn_spell_store_validates_sql_rows_like_cpp() {
+        let outcome = SpellLearnSpellStoreLikeCpp::from_sources_like_cpp(
+            [
+                SpellLearnSpellSqlRowLikeCpp {
+                    entry: 10,
+                    spell_id: 20,
+                    active: false,
+                },
+                SpellLearnSpellSqlRowLikeCpp {
+                    entry: 11,
+                    spell_id: 21,
+                    active: true,
+                },
+                SpellLearnSpellSqlRowLikeCpp {
+                    entry: 12,
+                    spell_id: 22,
+                    active: true,
+                },
+                SpellLearnSpellSqlRowLikeCpp {
+                    entry: 13,
+                    spell_id: 23,
+                    active: true,
+                },
+            ],
+            [],
+            [],
+            |spell_id| match spell_id {
+                10 => Some(learn_source(10, false, false, false, Vec::new())),
+                12 => Some(learn_source(12, false, false, false, Vec::new())),
+                13 => Some(learn_source(13, true, false, false, Vec::new())),
+                _ => None,
+            },
+            |spell_id| matches!(spell_id, 20 | 23),
+        );
+
+        assert!(!outcome.sql_result_empty);
+        assert_eq!(outcome.sql_loaded_row_count, 1);
+        assert_eq!(outcome.dbc_loaded_row_count, 0);
+        assert_eq!(
+            outcome
+                .errors
+                .iter()
+                .map(|error| error.kind)
+                .collect::<Vec<_>>(),
+            vec![
+                SpellLearnSpellLoadErrorKindLikeCpp::SqlSourceSpellMissing,
+                SpellLearnSpellLoadErrorKindLikeCpp::SqlLearnedSpellMissing,
+                SpellLearnSpellLoadErrorKindLikeCpp::SqlSourceIsTalent,
+            ]
+        );
+        assert_eq!(
+            outcome.store.get_spell_learn_spell_map_bounds_like_cpp(10),
+            &[SpellLearnSpellNodeLikeCpp {
+                spell: 20,
+                overrides_spell: 0,
+                active: false,
+                auto_learned: false,
+            }]
+        );
+        assert!(outcome.store.is_spell_learn_spell_like_cpp(10));
+        assert!(outcome.store.is_spell_learn_to_spell_like_cpp(10, 20));
+        assert!(!outcome.store.is_spell_learn_to_spell_like_cpp(10, 21));
+    }
+
+    #[test]
+    fn spell_learn_spell_store_preserves_empty_sql_early_return_like_cpp() {
+        let outcome = SpellLearnSpellStoreLikeCpp::from_sources_like_cpp(
+            [],
+            [learn_source(
+                100,
+                false,
+                false,
+                false,
+                vec![SpellLearnSpellEffectLikeCpp {
+                    trigger_spell: 101,
+                    target_unit_pet: false,
+                }],
+            )],
+            [crate::spell_db2::SpellLearnSpellEntry {
+                id: 1,
+                spell_id: 200,
+                learn_spell_id: 201,
+                overrides_spell_id: 0,
+            }],
+            |_| None,
+            |_| true,
+        );
+
+        assert!(outcome.sql_result_empty);
+        assert_eq!(outcome.sql_loaded_row_count, 0);
+        assert_eq!(outcome.dbc_loaded_row_count, 0);
+        assert!(outcome.store.learned_by_spell_id.is_empty());
+        assert!(outcome.errors.is_empty());
+        assert!(outcome.warnings.is_empty());
+    }
+
+    #[test]
+    fn spell_learn_spell_store_adds_spellinfo_effects_like_cpp() {
+        let outcome = SpellLearnSpellStoreLikeCpp::from_sources_like_cpp(
+            [SpellLearnSpellSqlRowLikeCpp {
+                entry: 10,
+                spell_id: 20,
+                active: true,
+            }],
+            [
+                learn_source(
+                    10,
+                    false,
+                    false,
+                    false,
+                    vec![SpellLearnSpellEffectLikeCpp {
+                        trigger_spell: 20,
+                        target_unit_pet: false,
+                    }],
+                ),
+                learn_source(
+                    30,
+                    false,
+                    true,
+                    false,
+                    vec![SpellLearnSpellEffectLikeCpp {
+                        trigger_spell: 31,
+                        target_unit_pet: false,
+                    }],
+                ),
+                SpellLearnSourceSpellInfoLikeCpp {
+                    spell_id: 40,
+                    difficulty_none: false,
+                    is_talent: false,
+                    is_passive: false,
+                    has_skill_step_effect: false,
+                    learn_spell_effects: vec![SpellLearnSpellEffectLikeCpp {
+                        trigger_spell: 41,
+                        target_unit_pet: true,
+                    }],
+                },
+            ],
+            [],
+            |spell_id| match spell_id {
+                10 => Some(learn_source(10, false, false, false, Vec::new())),
+                _ => None,
+            },
+            |spell_id| matches!(spell_id, 20 | 31 | 41),
+        );
+
+        assert_eq!(outcome.sql_loaded_row_count, 1);
+        assert_eq!(outcome.dbc_loaded_row_count, 1);
+        assert_eq!(outcome.warnings.len(), 1);
+        assert_eq!(
+            outcome.warnings[0].kind,
+            SpellLearnSpellLoadWarningKindLikeCpp::RedundantSqlRowForSpellEffect {
+                source_spell: 10,
+                learned_spell: 20,
+            }
+        );
+        assert_eq!(
+            outcome.store.get_spell_learn_spell_map_bounds_like_cpp(30),
+            &[SpellLearnSpellNodeLikeCpp {
+                spell: 31,
+                overrides_spell: 0,
+                active: true,
+                auto_learned: true,
+            }]
+        );
+        assert!(
+            outcome
+                .store
+                .get_spell_learn_spell_map_bounds_like_cpp(40)
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn spell_learn_spell_store_adds_db2_rows_after_sql_and_spell_effects_like_cpp() {
+        let outcome = SpellLearnSpellStoreLikeCpp::from_sources_like_cpp(
+            [SpellLearnSpellSqlRowLikeCpp {
+                entry: 10,
+                spell_id: 20,
+                active: true,
+            }],
+            [learn_source(
+                30,
+                false,
+                false,
+                false,
+                vec![SpellLearnSpellEffectLikeCpp {
+                    trigger_spell: 31,
+                    target_unit_pet: true,
+                }],
+            )],
+            [
+                crate::spell_db2::SpellLearnSpellEntry {
+                    id: 1,
+                    spell_id: 10,
+                    learn_spell_id: 20,
+                    overrides_spell_id: 0,
+                },
+                crate::spell_db2::SpellLearnSpellEntry {
+                    id: 2,
+                    spell_id: 30,
+                    learn_spell_id: 31,
+                    overrides_spell_id: 0,
+                },
+                crate::spell_db2::SpellLearnSpellEntry {
+                    id: 3,
+                    spell_id: 40,
+                    learn_spell_id: 41,
+                    overrides_spell_id: 42,
+                },
+                crate::spell_db2::SpellLearnSpellEntry {
+                    id: 4,
+                    spell_id: 50,
+                    learn_spell_id: 51,
+                    overrides_spell_id: 0,
+                },
+            ],
+            |spell_id| match spell_id {
+                10 => Some(learn_source(10, false, false, false, Vec::new())),
+                _ => None,
+            },
+            |spell_id| matches!(spell_id, 10 | 20 | 30 | 31 | 40 | 41 | 51),
+        );
+
+        assert_eq!(outcome.sql_loaded_row_count, 1);
+        assert_eq!(
+            outcome.dbc_loaded_row_count, 2,
+            "one SpellInfo effect plus one non-redundant SpellLearnSpell.db2 row"
+        );
+        assert_eq!(outcome.warnings.len(), 1);
+        assert_eq!(
+            outcome.warnings[0].kind,
+            SpellLearnSpellLoadWarningKindLikeCpp::RedundantSqlRowForDb2 {
+                source_spell: 10,
+                learned_spell: 20,
+            }
+        );
+        assert_eq!(
+            outcome.store.get_spell_learn_spell_map_bounds_like_cpp(40),
+            &[SpellLearnSpellNodeLikeCpp {
+                spell: 41,
+                overrides_spell: 42,
+                active: true,
+                auto_learned: false,
+            }]
+        );
+        assert!(
+            outcome
+                .store
+                .get_spell_learn_spell_map_bounds_like_cpp(50)
+                .is_empty(),
+            "C++ silently skips SpellLearnSpell.db2 rows whose source spell is missing"
         );
     }
 }

@@ -206,7 +206,7 @@ All loads are issued via `WorldDatabase.Query("SELECT … FROM …")` — **no p
 | `sSpellRangeStore` / `sSpellRadiusStore` / `sSpellCastTimesStore` / `sSpellDurationStore` | Pointer references stored on `SpellInfo` (lazy lookup through these stores) | no |
 | `sSpellProcsPerMinuteStore` + `sSpellProcsPerMinuteModStore` | PpmRate base + per-condition multipliers | no |
 | `sSpellPowerDifficultyStore` | Re-keys `SpellPower` rows to `(spellId, difficulty, orderIndex)` | yes |
-| `sSpellLearnSpellStore` | DB2 spell-teaches-spell graph (overlaid by `spell_learn_spell` SQL) | no |
+| `sSpellLearnSpellStore` | DB2 spell-teaches-spell graph (overlaid by `spell_learn_spell` SQL) | represented DB2 store + represented `LoadSpellLearnSpells` merge store; not wired live |
 | `sSkillLineAbilityStore` | Read by `LoadSkillLineAbilityMap` for trainer/learn paths | no |
 | `sBattlePetSpeciesStore` + `sSummonPropertiesStore` | Cross-walk for `SPELL_EFFECT_SUMMON` rows that point at a battle pet | no |
 | `sDifficultyStore` | Drives `FallbackDifficultyID` chain when a (spellId, difficulty) is missing slots | no |
@@ -257,7 +257,7 @@ DB2 overlay rows can also generate `SMSG_DB_REPLY` to clients via `DB2Storage<T>
 **What's missing vs C++:**
 1. The `SpellMgr` singleton itself — type, instance, public API, and all 30 loader methods.
 2. The `SpellInfoLoadHelper` POD and the cross-table join logic in `LoadSpellInfoStore` (the difficulty-fallback walk and per-store merge).
-3. All ~14 SQL `spell_*` table loaders (none of `LoadSpellRanks`, `LoadSpellRequired`, `LoadSpellLearnSpells`, `LoadSpellTargetPositions`, `LoadSpellGroups`, `LoadSpellGroupStackRules`, `LoadSpellProcs`, `LoadSpellThreats`, `LoadSpellPetAuras`, `LoadSpellEnchantProcData`, `LoadSpellLinked`, `LoadSpellAreas`, `LoadSpellTotemModel`, `LoadSpellInfoCustomAttributes` — all absent).
+3. Several SQL `spell_*` table loaders are still absent or only represented. `LoadSpellRequired`, `LoadSpellLearnSpells`, `LoadSpellThreats`, `LoadSpellPetAuras`, `LoadSpellEnchantProcData`, `LoadSpellLinked` and `LoadSpellTotemModel` have represented query/store coverage, but none are wired into a live `SpellMgr` startup path yet. `LoadSpellRanks`, `LoadSpellTargetPositions`, `LoadSpellGroups`, `LoadSpellGroupStackRules`, `LoadSpellProcs`, `LoadSpellAreas`, and `LoadSpellInfoCustomAttributes` remain missing.
 4. The `LoadSpellInfoServerside` SQL loader (the `serverside_spell` / `serverside_spell_effect` overlay path that the user-brief calls "spell_dbc").
 5. The `LoadSpellInfoCorrections` ~1,500-entry hand-coded fix-up table (the largest single function in the C++ file at ~1,540 lines).
 6. The 17 secondary lookup maps and their accessor APIs (`mSpellChains`, `mSpellReq`, `mSpellsReqSpell`, `mSpellLearnSkills`, `mSpellLearnSpells`, `mSpellTargetPositions`, `mSpellSpellGroup`, `mSpellGroupSpell`, `mSpellGroupStack`, `mSpellSameEffectStack`, `mSpellThreatMap`, `mSpellPetAuraMap`, `mSpellLinkedMap`, `mSpellEnchantProcEventMap`, `mSpellAreaMap` + 4 secondary indices, `mSkillLineAbilityMap`, `mPetLevelupSpellMap`, `mPetDefaultSpellsMap`, `mSpellTotemModel`, `mSpellDifficultySearcherMap`).
@@ -320,7 +320,7 @@ Numbered for `MIGRATION_ROADMAP.md` cross-reference. Complexity: **L** <1h, **M*
 - [ ] **#SPELLMGR.7** Implement chain accessors: `get_first_spell_in_chain`, `get_last_spell_in_chain`, `get_next_spell_in_chain`, `get_prev_spell_in_chain`, `get_spell_rank`, `get_spell_with_rank` (L)
 - [ ] **#SPELLMGR.8** Implement `LoadSpellRequired` (`spell_required` SQL): query + represented `wow-data` store/loader exist (`WorldStatements::SEL_SPELL_REQUIRED`, `SpellRequiredStoreLikeCpp`), including C++ spell/required-spell validation, same-rank-chain rejection via callback, duplicate exact-pair skip, and forward+reverse multimaps; live startup wiring with the real `LoadSpellRanks` chain store and runtime consumption are still pending (M)
 - [ ] **#SPELLMGR.9** Implement `LoadSpellLearnSkills` (DB2 + override) → `mSpellLearnSkills` (L)
-- [ ] **#SPELLMGR.10** Implement `LoadSpellLearnSpells` (DB2 `SpellLearnSpell` + SQL `spell_learn_spell` override) → `mSpellLearnSpells` multimap; emit `Active`/`AutoLearned` flags (M)
+- [ ] **#SPELLMGR.10** Implement `LoadSpellLearnSpells` (DB2 `SpellLearnSpell` + SQL `spell_learn_spell` override): query + represented `wow-data` store/loader exist (`WorldStatements::SEL_SPELL_LEARN_SPELL`, `SpellLearnSpellStoreLikeCpp`), including C++ SQL validation, SQL-table-empty early return, SpellInfo-effect auto-learn pass, SpellLearnSpell.db2 pass, redundant-SQL warnings, `Active`/`AutoLearned` flags and map accessors. Live startup wiring against the authoritative `SpellInfo` cache and runtime learn/unlearn cascade consumption are still pending. (M)
 - [ ] **#SPELLMGR.11** Implement `LoadSpellTargetPositions` (`spell_target_position` SQL): keyed by `(spell_id, eff_index)`; reject effects whose target type isn't `TARGET_DEST_DB` (L)
 - [ ] **#SPELLMGR.12** Implement `LoadSpellGroups` (`spell_group` SQL) — forward + reverse multimaps (M)
 - [ ] **#SPELLMGR.13** Implement `LoadSpellGroupStackRules` (`spell_group_stack_rules` SQL) + computed `mSpellSameEffectStack` (M)
@@ -463,7 +463,7 @@ Numbered for `MIGRATION_ROADMAP.md` cross-reference. Complexity: **L** <1h, **M*
 **SQL loader coverage.** All 14 `spell_*` SQL tables are unloaded:
 - `spell_ranks` / `spell_chain` — no Rust loader. Rank chain queries (`get_first_spell_in_chain`, `get_spell_with_rank`) impossible.
 - `spell_required` — represented Rust query/store exists in `wow-data`, but it is not yet loaded during world-server startup or consumed by spell-learning/cast checks. Cross-spell prerequisite graph is therefore not live yet.
-- `spell_learn_spell` — no Rust loader. Spell-teaches-spell auto-learn graph absent (currently the `wow-world::handlers::character::Player::add_spell` path has no concept of learn cascades).
+- `spell_learn_spell` — represented query/store exists (`WorldStatements::SEL_SPELL_LEARN_SPELL`, `SpellLearnSpellStoreLikeCpp`), but startup wiring and the `Player::add_spell` learn-cascade runtime are still absent.
 - `spell_target_position` — no Rust loader. `EffectTeleportUnits` with `TARGET_DEST_DB` (used by hearthstones, instance portals, summon rituals) cannot resolve.
 - `spell_group` / `spell_group_stack_rules` — no Rust loader. Cross-spell stacking semantics (Elixir Battle vs Guardian, etc.) do not exist.
 - `spell_proc` — no Rust loader. The proc system (~30 ProcFlags dimensions, PpmRate, SpellFamilyMask matching) has no rule source.
