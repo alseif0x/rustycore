@@ -165,10 +165,11 @@ pub use pet::{
     PET_FOCUS_REGEN_AMOUNT_LIKE_CPP, PET_FOCUS_REGEN_INTERVAL_MS, PET_XP_FACTOR, Pet,
     PetAliveOwnerUpdateOutcome, PetAuraSaveEffectLikeCpp, PetAuraSaveOperationLikeCpp,
     PetAuraSaveRefLikeCpp, PetCorpseUpdateOutcome, PetDeathStateUpdateOutcome,
-    PetDeclinedNamesLikeCpp, PetDurationUpdateOutcome, PetLevelUpdateOutcome, PetLoadInfoResult,
-    PetLoadSelection, PetSaveMode, PetSaveToDbOperationLikeCpp, PetSaveToDbPlan,
-    PetSaveToDbSkipReason, PetSpell, PetSpellSaveOperationLikeCpp, PetSpellState, PetSpellType,
-    PetStable, PetStableInfo, PetType, PetXpUpdateOutcome,
+    PetDeclinedNamesLikeCpp, PetDeleteFromDbOperationLikeCpp, PetDurationUpdateOutcome,
+    PetLevelUpdateOutcome, PetLoadInfoResult, PetLoadSelection, PetSaveMode,
+    PetSaveToDbOperationLikeCpp, PetSaveToDbPlan, PetSaveToDbSkipReason, PetSpell,
+    PetSpellSaveOperationLikeCpp, PetSpellState, PetSpellType, PetStable, PetStableInfo, PetType,
+    PetXpUpdateOutcome,
 };
 pub use player::{
     ACTIVE_PLAYER_DATA_BUYBACK_PARENT_BIT, ACTIVE_PLAYER_DATA_BUYBACK_PRICE_FIRST_BIT,

@@ -253,6 +253,19 @@ pub enum PetSaveToDbOperationLikeCpp {
     DeleteFromDb { pet_number: u32 },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PetDeleteFromDbOperationLikeCpp {
+    BeginTransaction,
+    DeleteCharacterPetById { pet_number: u32 },
+    DeleteCharacterPetDeclinedName { pet_number: u32 },
+    DeletePetAuraEffects { pet_number: u32 },
+    DeletePetAuras { pet_number: u32 },
+    DeletePetSpells { pet_number: u32 },
+    DeletePetSpellCooldowns { pet_number: u32 },
+    DeletePetSpellCharges { pet_number: u32 },
+    CommitTransaction,
+}
+
 impl PetSaveToDbPlan {
     pub fn operations_like_cpp(&self) -> Vec<PetSaveToDbOperationLikeCpp> {
         let mut operations = vec![PetSaveToDbOperationLikeCpp::BeginAuraSpellHistoryTransaction];
@@ -1089,6 +1102,20 @@ impl Pet {
             remove_all_auras_before_delete: delete_path,
             delete_from_db_pet_number: delete_path.then_some(pet_number),
         })
+    }
+
+    pub fn delete_from_db_plan_like_cpp(pet_number: u32) -> Vec<PetDeleteFromDbOperationLikeCpp> {
+        vec![
+            PetDeleteFromDbOperationLikeCpp::BeginTransaction,
+            PetDeleteFromDbOperationLikeCpp::DeleteCharacterPetById { pet_number },
+            PetDeleteFromDbOperationLikeCpp::DeleteCharacterPetDeclinedName { pet_number },
+            PetDeleteFromDbOperationLikeCpp::DeletePetAuraEffects { pet_number },
+            PetDeleteFromDbOperationLikeCpp::DeletePetAuras { pet_number },
+            PetDeleteFromDbOperationLikeCpp::DeletePetSpells { pet_number },
+            PetDeleteFromDbOperationLikeCpp::DeletePetSpellCooldowns { pet_number },
+            PetDeleteFromDbOperationLikeCpp::DeletePetSpellCharges { pet_number },
+            PetDeleteFromDbOperationLikeCpp::CommitTransaction,
+        ]
     }
 
     pub fn get_load_pet_info(
@@ -2075,6 +2102,20 @@ mod tests {
                 PetSaveToDbOperationLikeCpp::CommitAuraSpellHistoryTransaction,
                 PetSaveToDbOperationLikeCpp::RemoveAllAurasBeforeDelete,
                 PetSaveToDbOperationLikeCpp::DeleteFromDb { pet_number: 42 },
+            ]
+        );
+        assert_eq!(
+            Pet::delete_from_db_plan_like_cpp(42),
+            vec![
+                PetDeleteFromDbOperationLikeCpp::BeginTransaction,
+                PetDeleteFromDbOperationLikeCpp::DeleteCharacterPetById { pet_number: 42 },
+                PetDeleteFromDbOperationLikeCpp::DeleteCharacterPetDeclinedName { pet_number: 42 },
+                PetDeleteFromDbOperationLikeCpp::DeletePetAuraEffects { pet_number: 42 },
+                PetDeleteFromDbOperationLikeCpp::DeletePetAuras { pet_number: 42 },
+                PetDeleteFromDbOperationLikeCpp::DeletePetSpells { pet_number: 42 },
+                PetDeleteFromDbOperationLikeCpp::DeletePetSpellCooldowns { pet_number: 42 },
+                PetDeleteFromDbOperationLikeCpp::DeletePetSpellCharges { pet_number: 42 },
+                PetDeleteFromDbOperationLikeCpp::CommitTransaction,
             ]
         );
     }
