@@ -316,7 +316,9 @@ pub use spell::{
     SpellStore, SpellTargetPositionLikeCpp, SpellTargetPositionLoadReportLikeCpp,
     SpellTargetPositionRowLikeCpp, SpellTargetPositionStoreLikeCpp, SpellThreatEntryLikeCpp,
     SpellThreatLoadErrorLikeCpp, SpellThreatLoadOutcomeLikeCpp, SpellThreatRowLikeCpp,
-    SpellThreatStoreLikeCpp, TARGET_UNIT_PET_LIKE_CPP,
+    SpellThreatStoreLikeCpp, SpellTotemModelLoadErrorKindLikeCpp, SpellTotemModelLoadErrorLikeCpp,
+    SpellTotemModelLoadOutcomeLikeCpp, SpellTotemModelRowLikeCpp, SpellTotemModelStoreLikeCpp,
+    TARGET_UNIT_PET_LIKE_CPP,
 };
 pub use spell_click::{
     NpcSpellClickLoadReportLikeCpp, NpcSpellClickRowLikeCpp, NpcSpellClickStoreLikeCpp,

@@ -170,7 +170,7 @@ All loads are issued via `WorldDatabase.Query("SELECT … FROM …")` — **no p
 | `SELECT EnchantID, Chance, ProcsPerMinute, HitMask, AttributesMask FROM spell_enchant_proc_data` | Item-enchant proc tuning | world | `LoadSpellEnchantProcData` |
 | `SELECT spell_trigger, spell_effect, type FROM spell_linked_spell` | A→B chains by `SpellLinkedType` (CAST/HIT/AURA/REMOVE) | world | `LoadSpellLinked` |
 | `SELECT spell, area, quest_start, quest_end, aura_spell, racemask, gender, flags, quest_start_status, quest_end_status FROM spell_area` | Area-conditional auras | world | `LoadSpellAreas` |
-| `SELECT spellId, raceId, displayId FROM spell_totem_model` | Per-race totem display override | world | `LoadSpellTotemModel` |
+| `SELECT SpellID, RaceID, DisplayID from spell_totem_model` | Per-race totem display override | world | `LoadSpellTotemModel` |
 | `SELECT entry, attributes FROM spell_custom_attr` | Override `AttributesCu` bits (rare) | world | `LoadSpellInfoCustomAttributes` |
 | `SELECT … FROM serverside_spell` | Server-only spells (no client DB2 row) — **this is the modern equivalent of legacy `spell_dbc`**; the user-task brief refers to this overlay | world | `LoadSpellInfoServerside` |
 | `SELECT SpellID, EffectIndex, DifficultyID, Effect, EffectAura, …(33 columns)… FROM serverside_spell_effect` | Effect rows for serverside spells; refuses to overlay a real DB2 spell | world | `LoadSpellInfoServerside` |
@@ -336,7 +336,7 @@ Numbered for `MIGRATION_ROADMAP.md` cross-reference. Complexity: **L** <1h, **M*
 - [ ] **#SPELLMGR.23** Implement `LoadPetDefaultSpells` (DB2 + cached creature templates): `PetDefaultSpellsEntry { spellid: [u32; 4] }` (M)
 - [ ] **#SPELLMGR.24** Implement `LoadSpellAreas` (`spell_area` SQL): primary multimap + 4 secondary indices (`for_quest_start`, `for_quest_end`, `for_aura`, `for_area`); implement `SpellArea::is_fit_to_requirements` (race/gender/zone/quest-status) (H)
 - [ ] **#SPELLMGR.25** Implement `LoadPetFamilySpellsStore` (DB2-only) (L)
-- [ ] **#SPELLMGR.26** Implement `LoadSpellTotemModel` (`spell_totem_model` SQL): keyed by `(spell_id, race)` (L)
+- [ ] **#SPELLMGR.26** Implement `LoadSpellTotemModel` (`spell_totem_model` SQL): query + represented `wow-data` store/loader exist (`WorldStatements::SEL_SPELL_TOTEM_MODEL`, `SpellTotemModelStoreLikeCpp`), including C++ spell/race/display validation, duplicate overwrite semantics, and `GetModelForTotem` missing→0; live startup wiring and totem summon display consumption are still pending (L)
 - [ ] **#SPELLMGR.27** Implement `LoadSpellInfoCustomAttributes`: derived `AttributesCu` bits computed from effect/aura analysis + `spell_custom_attr` SQL override (H)
 - [ ] **#SPELLMGR.28** Implement `LoadSpellInfoSpellSpecificAndAuraState` (per-spell post-processor: dispatches into `SpellInfo::_load_spell_specific` and `_load_aura_state`) (M)
 - [ ] **#SPELLMGR.29** Implement `LoadSpellInfoDiminishing` (per-spell `_load_spell_diminish_info`) (M)
@@ -472,7 +472,7 @@ Numbered for `MIGRATION_ROADMAP.md` cross-reference. Complexity: **L** <1h, **M*
 - `spell_enchant_proc_data` — represented Rust query/store exists in `wow-data`, but it is not yet loaded during world-server startup or consumed by item-enchant proc runtime. Item enchant procs (Berserking, Mongoose, etc.) are therefore not live yet.
 - `spell_linked_spell` — represented Rust query/store exists in `wow-data`, but it is not yet loaded during world-server startup or consumed by cast/hit/aura/remove runtime. Spell-A-triggers-Spell-B chains (used heavily by boss scripts) are therefore not live yet.
 - `spell_area` — no Rust loader. Zone-conditional auras (sanctum buffs, capital city resting buffs, racial flight masters) absent.
-- `spell_totem_model` — no Rust loader. Race-specific totem display (Tauren vs Orc shaman totems) absent.
+- `spell_totem_model` — represented Rust query/store exists in `wow-data`, but it is not yet loaded during world-server startup or consumed by totem summon runtime. Race-specific totem display (Tauren vs Orc shaman totems) is therefore not live yet.
 - `spell_custom_attr` — no Rust loader. SQL-driven `AttributesCu` overrides absent.
 - `serverside_spell` / `serverside_spell_effect` (the modern `spell_dbc` overlay) — no Rust loader. Server-only spells (used by scripts to apply bookkeeping auras with no client visualization) absent.
 

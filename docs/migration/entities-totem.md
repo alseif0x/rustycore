@@ -181,7 +181,7 @@ DBC stores:
 - [ ] **#TOT.9** Wire `CMSG_TOTEM_DESTROYED` handler (player clicks X) (L)
 - [ ] **#TOT.10** Override stat updates to no-ops (totems do not recalc stats) (L)
 - [ ] **#TOT.11** Implement `is_immune_to_spell_effect` overrides (knockback, fear, root, etc.) (M)
-- [ ] **#TOT.12** `spell_totem_model` table loader in `wow-data` (L)
+- [ ] **#TOT.12** `spell_totem_model` table loader in `wow-data`: represented query/store exists (`WorldStatements::SEL_SPELL_TOTEM_MODEL`, `SpellTotemModelStoreLikeCpp`); startup wiring and `Totem::InitStats` consumption are still pending (L)
 
 ---
 
@@ -274,7 +274,7 @@ DBC stores:
 | `Totem::UnSummon` (TOTEM_DESTROYED) | no | — | ❌ missing |
 | `Unit::m_SummonSlot[7]` | no | — | ❌ missing |
 | `SUMMON_SLOT_TOTEM` constants | no | — | ❌ missing |
-| `SpellMgr::GetModelForTotem` | no | — | ❌ missing |
+| `SpellMgr::GetModelForTotem` | partial | `crates/wow-data/src/spell.rs` (`SpellTotemModelStoreLikeCpp::get_model_for_totem_like_cpp`) | ⚠️ represented store/accessor exists, not loaded or consumed by totem runtime |
 | `SMSG_TOTEM_CREATED` sender | no | — | ❌ missing |
 | `SMSG_TOTEM_DESTROYED` sender | no | — | ❌ missing |
 | `CMSG_TOTEM_DESTROYED` handler | no | — | ❌ missing |

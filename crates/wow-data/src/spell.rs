@@ -919,6 +919,101 @@ pub struct SpellLinkedLoadOutcomeLikeCpp {
     pub warnings: Vec<SpellLinkedLoadWarningLikeCpp>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellTotemModelRowLikeCpp {
+    pub spell_id: u32,
+    pub race_id: u8,
+    pub display_id: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpellTotemModelLoadErrorKindLikeCpp {
+    SpellMissing,
+    RaceMissing,
+    DisplayMissing,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellTotemModelLoadErrorLikeCpp {
+    pub row: SpellTotemModelRowLikeCpp,
+    pub kind: SpellTotemModelLoadErrorKindLikeCpp,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SpellTotemModelStoreLikeCpp {
+    pub display_id_by_spell_and_race: BTreeMap<(u32, u8), u32>,
+}
+
+impl SpellTotemModelStoreLikeCpp {
+    pub fn from_rows_like_cpp<I, SpellExists, RaceExists, DisplayExists>(
+        rows: I,
+        mut spell_exists: SpellExists,
+        mut race_exists: RaceExists,
+        mut display_exists: DisplayExists,
+    ) -> SpellTotemModelLoadOutcomeLikeCpp
+    where
+        I: IntoIterator<Item = SpellTotemModelRowLikeCpp>,
+        SpellExists: FnMut(u32) -> bool,
+        RaceExists: FnMut(u8) -> bool,
+        DisplayExists: FnMut(u32) -> bool,
+    {
+        let mut store = Self::default();
+        let mut loaded_row_count = 0;
+        let mut errors = Vec::new();
+
+        for row in rows {
+            if !spell_exists(row.spell_id) {
+                errors.push(SpellTotemModelLoadErrorLikeCpp {
+                    row,
+                    kind: SpellTotemModelLoadErrorKindLikeCpp::SpellMissing,
+                });
+                continue;
+            }
+
+            if !race_exists(row.race_id) {
+                errors.push(SpellTotemModelLoadErrorLikeCpp {
+                    row,
+                    kind: SpellTotemModelLoadErrorKindLikeCpp::RaceMissing,
+                });
+                continue;
+            }
+
+            if !display_exists(row.display_id) {
+                errors.push(SpellTotemModelLoadErrorLikeCpp {
+                    row,
+                    kind: SpellTotemModelLoadErrorKindLikeCpp::DisplayMissing,
+                });
+                continue;
+            }
+
+            store
+                .display_id_by_spell_and_race
+                .insert((row.spell_id, row.race_id), row.display_id);
+            loaded_row_count += 1;
+        }
+
+        SpellTotemModelLoadOutcomeLikeCpp {
+            store,
+            loaded_row_count,
+            errors,
+        }
+    }
+
+    pub fn get_model_for_totem_like_cpp(&self, spell_id: u32, race_id: u8) -> u32 {
+        self.display_id_by_spell_and_race
+            .get(&(spell_id, race_id))
+            .copied()
+            .unwrap_or(0)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpellTotemModelLoadOutcomeLikeCpp {
+    pub store: SpellTotemModelStoreLikeCpp,
+    pub loaded_row_count: usize,
+    pub errors: Vec<SpellTotemModelLoadErrorLikeCpp>,
+}
+
 impl SpellInfo {
     /// Convenience: returns the effective cooldown (per-spell or global, whichever is larger).
     pub fn effective_cooldown_ms(&self) -> u32 {
@@ -2680,5 +2775,82 @@ mod tests {
                 .get_spell_linked_like_cpp(SpellLinkedTypeLikeCpp::Cast, 70),
             Some([12].as_slice())
         );
+    }
+
+    #[test]
+    fn spell_totem_model_store_skips_missing_dependencies_like_cpp() {
+        let outcome = SpellTotemModelStoreLikeCpp::from_rows_like_cpp(
+            [
+                SpellTotemModelRowLikeCpp {
+                    spell_id: 10,
+                    race_id: 2,
+                    display_id: 100,
+                },
+                SpellTotemModelRowLikeCpp {
+                    spell_id: 20,
+                    race_id: 2,
+                    display_id: 100,
+                },
+                SpellTotemModelRowLikeCpp {
+                    spell_id: 10,
+                    race_id: 3,
+                    display_id: 100,
+                },
+                SpellTotemModelRowLikeCpp {
+                    spell_id: 10,
+                    race_id: 2,
+                    display_id: 200,
+                },
+            ],
+            |spell_id| spell_id == 10,
+            |race_id| race_id == 2,
+            |display_id| display_id == 100,
+        );
+
+        assert_eq!(outcome.loaded_row_count, 1);
+        assert_eq!(
+            outcome
+                .errors
+                .iter()
+                .map(|error| error.kind)
+                .collect::<Vec<_>>(),
+            vec![
+                SpellTotemModelLoadErrorKindLikeCpp::SpellMissing,
+                SpellTotemModelLoadErrorKindLikeCpp::RaceMissing,
+                SpellTotemModelLoadErrorKindLikeCpp::DisplayMissing,
+            ]
+        );
+        assert_eq!(outcome.store.get_model_for_totem_like_cpp(10, 2), 100);
+        assert_eq!(outcome.store.get_model_for_totem_like_cpp(10, 3), 0);
+    }
+
+    #[test]
+    fn spell_totem_model_store_duplicate_rows_last_wins_like_cpp() {
+        let outcome = SpellTotemModelStoreLikeCpp::from_rows_like_cpp(
+            [
+                SpellTotemModelRowLikeCpp {
+                    spell_id: 50,
+                    race_id: 8,
+                    display_id: 1000,
+                },
+                SpellTotemModelRowLikeCpp {
+                    spell_id: 50,
+                    race_id: 8,
+                    display_id: 2000,
+                },
+            ],
+            |_| true,
+            |_| true,
+            |_| true,
+        );
+
+        assert_eq!(
+            outcome.loaded_row_count, 2,
+            "C++ increments count for every valid row before std::map overwrite visibility"
+        );
+        assert!(outcome.errors.is_empty());
+        assert_eq!(outcome.store.display_id_by_spell_and_race.len(), 1);
+        assert_eq!(outcome.store.get_model_for_totem_like_cpp(50, 8), 2000);
+        assert_eq!(outcome.store.get_model_for_totem_like_cpp(50, 2), 0);
     }
 }
