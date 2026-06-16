@@ -733,6 +733,7 @@ const TRANSFER_ABORT_ERROR_LIKE_CPP: u32 = 1;
 const TRANSFER_ABORT_MAX_PLAYERS_LIKE_CPP: u32 = 2;
 const TRANSFER_ABORT_TOO_MANY_INSTANCES_LIKE_CPP: u32 = 4;
 const TRANSFER_ABORT_ZONE_IN_COMBAT_LIKE_CPP: u32 = 6;
+const TRANSFER_ABORT_INSUF_EXPAN_LVL_LIKE_CPP: u32 = 7;
 const TRANSFER_ABORT_NEED_GROUP_LIKE_CPP: u32 = 11;
 const TRANSFER_ABORT_MAP_NOT_ALLOWED_LIKE_CPP: u32 = 16;
 const HOUR_SECS_LIKE_CPP: u64 = 60 * 60;
@@ -22127,6 +22128,28 @@ impl WorldSession {
                 "Teleport blocked by C++ DisableMgr map gate"
             );
             self.send_transfer_aborted_like_cpp(new_map, TRANSFER_ABORT_MAP_NOT_ALLOWED_LIKE_CPP);
+            return;
+        }
+
+        if let Some(target_map) = self
+            .map_store
+            .as_ref()
+            .and_then(|store| store.get(new_map).copied())
+            && self.expansion < target_map.expansion_like_cpp()
+        {
+            warn!(
+                account = self.account_id,
+                map_id = new_map,
+                session_expansion = self.expansion,
+                required_expansion = target_map.expansion_like_cpp(),
+                "Teleport blocked by C++ client expansion gate"
+            );
+            self.send_transfer_aborted_with_params_like_cpp(
+                new_map,
+                TRANSFER_ABORT_INSUF_EXPAN_LVL_LIKE_CPP,
+                target_map.expansion_like_cpp(),
+                0,
+            );
             return;
         }
 
@@ -64037,6 +64060,89 @@ mod tests {
             canonical.lock().unwrap().find_map(631, 0).is_none(),
             "C++ Player::TeleportTo only preflights entry rights; map materialization happens later"
         );
+    }
+
+    #[tokio::test]
+    async fn teleport_to_blocks_client_without_target_map_expansion_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 792);
+        let destination = Position::new(100.0, 200.0, 30.0, 1.5);
+        session.expansion = 1;
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 870,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 2,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TeleportExpansionReject".to_string(),
+            Position::new(10.0, 20.0, 30.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+
+        session.teleport_to(870, destination).await;
+
+        assert_eq!(
+            send_rx.try_recv().expect("SMSG_TRANSFER_ABORTED"),
+            wow_packet::packets::misc::TransferAborted {
+                map_id: 870,
+                arg: 2,
+                map_difficulty_x_condition_id: 0,
+                transfer_abort: TRANSFER_ABORT_INSUF_EXPAN_LVL_LIKE_CPP,
+            }
+            .to_bytes()
+        );
+        assert!(send_rx.try_recv().is_err());
+        assert_eq!(session.pending_teleport, None);
+        assert_ne!(session.state, SessionState::Transfer);
+    }
+
+    #[tokio::test]
+    async fn teleport_to_allows_target_map_when_session_expansion_matches_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 793);
+        let destination = Position::new(101.0, 201.0, 31.0, 1.6);
+        session.expansion = 2;
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 870,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 2,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TeleportExpansionAllow".to_string(),
+            Position::new(10.0, 20.0, 30.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+
+        session.teleport_to(870, destination).await;
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::TransferPending, ServerOpcodes::SuspendToken]
+        );
+        assert_eq!(session.pending_teleport, Some((870, destination)));
+        assert_eq!(session.state, SessionState::Transfer);
     }
 
     #[tokio::test]

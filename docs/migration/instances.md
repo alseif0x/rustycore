@@ -299,6 +299,13 @@ NOTE: `InstanceSaveMgr` no longer exists as a separate class in this WoLK 3.4.3 
   `Player::TeleportTo`; same-map near teleport, expansion/pet/vehicle/duel/
   transport/BG cleanup, `WorldPortAck` fallback, LFG-specific teleports, bot,
   install/restart, and live-client validation remain pending.
+- `#NEXT.RUNTIME.L3.031j43` wires the earlier C++ client-expansion teleport
+  gate: if the session expansion is lower than the target `MapEntry::Expansion`,
+  Rust now sends `SMSG_TRANSFER_ABORTED` with
+  `TRANSFER_ABORT_INSUF_EXPAN_LVL` and the required expansion argument before
+  `SMSG_TRANSFER_PENDING`. Remaining gaps: C++ transport passenger removal and
+  graveyard repop on this branch, battleground-assignment rejection, and the
+  broader `Player::TeleportTo` cleanup/finalization paths remain pending.
 
 **Tests existing:**
 - `cargo test -p wow-instances -- --nocapture` currently covers 19 focused tests, including C++-contrasted lock key/binding, daily/weekly reset anchors, temporary lock creation, active lock lookup, temp promotion, expired-lock replacement, DB row reconstruction, shared weak-ref cleanup, prepared-statement parameter order, flex-mask join rejection, different-instance rejection, and reset in-use guard.

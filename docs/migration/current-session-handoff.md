@@ -1,3 +1,22 @@
+- `#NEXT.RUNTIME.L3.031j43` — WotLK `Player::TeleportTo` now enforces the
+  C++ client-expansion gate before starting the transfer (not manual-test-ready).
+  Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:1257-1271`
+  and `/home/server/woltk-trinity-legacy/src/server/game/Maps/Map.h:91`.
+  C++ compares `WorldSession::GetExpansion()` with `MapEntry::Expansion()` and
+  sends `SMSG_TRANSFER_ABORTED` reason `TRANSFER_ABORT_INSUF_EXPAN_LVL` with
+  the required expansion as `Arg` before any far-transfer setup. Rust now uses
+  the session expansion field (not raw `account_expansion`) and the loaded
+  `Map.db2` expansion field in `WorldSession::teleport_to`, preserving the
+  existing disabled-map gate order and returning before `SMSG_TRANSFER_PENDING`
+  when the client lacks the target map expansion. Coverage: targeted
+  `wow-world` tests prove an expansion-1 session attempting to teleport to an
+  expansion-2 map receives `SMSG_TRANSFER_ABORTED { reason: 7, arg: 2 }` and no
+  pending transfer, while expansion-2 still emits `SMSG_TRANSFER_PENDING` and
+  `SMSG_SUSPEND_TOKEN`. Boundary remains partial: C++ transport passenger
+  removal + graveyard repop on this branch, battleground-assignment rejection,
+  vehicle/duel/movement cleanup, same-map near teleport, install/restart, bot,
+  and live-client/manual validation remain pending.
 - `#NEXT.RUNTIME.L3.031j42` — WotLK `Player::TeleportTo` now runs the
   represented `Map::PlayerCannotEnter` preflight for target dungeon/raid maps
   before sending `SMSG_TRANSFER_PENDING` (not manual-test-ready). Source-of-truth:
