@@ -163,9 +163,9 @@ pub use object_accessor::{
 pub use pet::{
     ActiveState, HAPPINESS_LEVEL_SIZE, MAX_ACTIVE_PETS, MAX_PET_STABLES,
     PET_FOCUS_REGEN_AMOUNT_LIKE_CPP, PET_FOCUS_REGEN_INTERVAL_MS, PET_XP_FACTOR, Pet,
-    PetCorpseUpdateOutcome, PetDeclinedNamesLikeCpp, PetDurationUpdateOutcome, PetLoadInfoResult,
-    PetLoadSelection, PetSaveMode, PetSpell, PetSpellState, PetSpellType, PetStable, PetStableInfo,
-    PetType,
+    PetCorpseUpdateOutcome, PetDeathStateUpdateOutcome, PetDeclinedNamesLikeCpp,
+    PetDurationUpdateOutcome, PetLoadInfoResult, PetLoadSelection, PetSaveMode, PetSpell,
+    PetSpellState, PetSpellType, PetStable, PetStableInfo, PetType,
 };
 pub use player::{
     ACTIVE_PLAYER_DATA_BUYBACK_PARENT_BIT, ACTIVE_PLAYER_DATA_BUYBACK_PRICE_FIRST_BIT,

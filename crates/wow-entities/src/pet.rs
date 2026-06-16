@@ -1,11 +1,11 @@
 use std::collections::BTreeMap;
 
-use wow_constants::{DeathState, PowerType};
+use wow_constants::{DeathState, PowerType, UnitFlags};
 use wow_core::ObjectGuid;
 
 use crate::{
-    Creature, ReactState, UNIT_MASK_CONTROLABLE_GUARDIAN, UNIT_MASK_GUARDIAN, UNIT_MASK_HUNTER_PET,
-    UNIT_MASK_MINION, UNIT_MASK_PET, UNIT_MASK_SUMMON,
+    Creature, CreatureRuntimePlan, ReactState, UNIT_MASK_CONTROLABLE_GUARDIAN, UNIT_MASK_GUARDIAN,
+    UNIT_MASK_HUNTER_PET, UNIT_MASK_MINION, UNIT_MASK_PET, UNIT_MASK_SUMMON,
 };
 
 pub const HAPPINESS_LEVEL_SIZE: u32 = 333_000;
@@ -181,6 +181,13 @@ pub enum PetCorpseUpdateOutcome {
     Remove { save_mode: PetSaveMode },
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PetDeathStateUpdateOutcome {
+    pub creature_plan: CreatureRuntimePlan,
+    pub cleared_hunter_corpse_flags: bool,
+    pub cast_pet_auras_current: bool,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Pet {
     creature: Creature,
@@ -318,6 +325,39 @@ impl Pet {
             }
         } else {
             PetCorpseUpdateOutcome::KeepCorpse
+        }
+    }
+
+    pub fn set_death_state_like_cpp(
+        &mut self,
+        state: DeathState,
+        now: i64,
+    ) -> PetDeathStateUpdateOutcome {
+        let creature_plan = self.creature.set_death_state_runtime(state, now);
+        let death_state = self.creature.unit().death_state();
+        let mut cleared_hunter_corpse_flags = false;
+        let mut cast_pet_auras_current = false;
+
+        if death_state == DeathState::Corpse {
+            if self.pet_type == PetType::Hunter {
+                self.creature
+                    .unit_mut()
+                    .world_mut()
+                    .object_mut()
+                    .replace_all_dynamic_flags(0);
+                let mut flags = self.creature.unit().unit_flags_like_cpp();
+                flags.remove(UnitFlags::SKINNABLE);
+                self.creature.unit_mut().set_unit_flags_like_cpp(flags);
+                cleared_hunter_corpse_flags = true;
+            }
+        } else if death_state == DeathState::Alive {
+            cast_pet_auras_current = true;
+        }
+
+        PetDeathStateUpdateOutcome {
+            creature_plan,
+            cleared_hunter_corpse_flags,
+            cast_pet_auras_current,
         }
     }
 
@@ -635,6 +675,10 @@ mod tests {
         ObjectGuid::create_global(wow_core::guid::HighGuid::Player, 0, 1)
     }
 
+    fn pet_guid(counter: i64) -> ObjectGuid {
+        ObjectGuid::new((wow_core::guid::HighGuid::Pet as i64) << 58, counter)
+    }
+
     fn pet_info(pet_number: u32, creature_id: u32) -> PetStableInfo {
         PetStableInfo {
             pet_number,
@@ -820,6 +864,94 @@ mod tests {
         assert_eq!(
             loading.update_corpse_like_cpp(1_000),
             PetCorpseUpdateOutcome::Skipped
+        );
+    }
+
+    #[test]
+    fn pet_set_death_state_hunter_corpse_clears_lootable_and_skinnable_like_cpp() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+        pet.creature_mut()
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .create(pet_guid(1));
+        pet.creature_mut()
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .replace_all_dynamic_flags(0x44);
+        pet.creature_mut()
+            .unit_mut()
+            .set_unit_flags_like_cpp(UnitFlags::SKINNABLE | UnitFlags::IN_COMBAT);
+
+        let outcome = pet.set_death_state_like_cpp(DeathState::JustDied, 1_000);
+
+        assert_eq!(pet.creature().unit().death_state(), DeathState::Corpse);
+        assert!(outcome.cleared_hunter_corpse_flags);
+        assert!(!outcome.cast_pet_auras_current);
+        assert_eq!(pet.creature().unit().world().object().dynamic_flags(), 0);
+        assert!(
+            !pet.creature()
+                .unit()
+                .unit_flags_like_cpp()
+                .contains(UnitFlags::SKINNABLE),
+            "C++ Pet::setDeathState(CORPSE) removes UNIT_FLAG_SKINNABLE for hunter pets"
+        );
+        assert!(
+            pet.creature()
+                .unit()
+                .unit_flags_like_cpp()
+                .contains(UnitFlags::IN_COMBAT),
+            "Pet-specific C++ branch removes SKINNABLE only; broader combat cleanup belongs to Creature/Unit"
+        );
+    }
+
+    #[test]
+    fn pet_set_death_state_non_hunter_corpse_keeps_pet_specific_flags_like_cpp() {
+        let mut pet = Pet::new(owner_guid(), PetType::Summon);
+        pet.creature_mut()
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .create(pet_guid(2));
+        pet.creature_mut()
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .replace_all_dynamic_flags(0x44);
+        pet.creature_mut()
+            .unit_mut()
+            .set_unit_flags_like_cpp(UnitFlags::SKINNABLE);
+
+        let outcome = pet.set_death_state_like_cpp(DeathState::JustDied, 1_000);
+
+        assert_eq!(pet.creature().unit().death_state(), DeathState::Corpse);
+        assert!(!outcome.cleared_hunter_corpse_flags);
+        assert_eq!(pet.creature().unit().world().object().dynamic_flags(), 0x44);
+        assert!(
+            pet.creature()
+                .unit()
+                .unit_flags_like_cpp()
+                .contains(UnitFlags::SKINNABLE)
+        );
+    }
+
+    #[test]
+    fn pet_set_death_state_alive_requests_current_pet_auras_like_cpp() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+        pet.creature_mut()
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .create(pet_guid(3));
+
+        let outcome = pet.set_death_state_like_cpp(DeathState::Alive, 1_000);
+
+        assert_eq!(pet.creature().unit().death_state(), DeathState::Alive);
+        assert!(!outcome.cleared_hunter_corpse_flags);
+        assert!(
+            outcome.cast_pet_auras_current,
+            "C++ Pet::setDeathState(ALIVE) calls CastPetAuras(true)"
         );
     }
 
