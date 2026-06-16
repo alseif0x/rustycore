@@ -296,6 +296,12 @@ pub struct PetCleanupActionBarOutcomeLikeCpp {
     pub operations: Vec<PetCleanupActionBarOperationLikeCpp>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PetLearnSpellHighRankOutcomeLikeCpp {
+    pub attempted_spell_ids: Vec<u32>,
+    pub learned_spell_ids: Vec<u32>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PetSaveToDbSkipReason {
     ZeroEntry,
@@ -1431,6 +1437,36 @@ impl Pet {
         PetCleanupActionBarOutcomeLikeCpp {
             action_bar: *action_bar,
             operations,
+        }
+    }
+
+    pub fn learn_spell_high_rank_like_cpp(
+        &mut self,
+        spell_id: u32,
+        mut next_spell_in_chain_like_cpp: impl FnMut(u32) -> u32,
+    ) -> PetLearnSpellHighRankOutcomeLikeCpp {
+        let mut attempted_spell_ids = Vec::new();
+        let mut learned_spell_ids = Vec::new();
+        let mut current_spell_id = spell_id;
+
+        while current_spell_id != 0 {
+            attempted_spell_ids.push(current_spell_id);
+
+            if self.add_spell(
+                current_spell_id,
+                ActiveState::Decide,
+                PetSpellState::New,
+                PetSpellType::Normal,
+            ) {
+                learned_spell_ids.push(current_spell_id);
+            }
+
+            current_spell_id = next_spell_in_chain_like_cpp(current_spell_id);
+        }
+
+        PetLearnSpellHighRankOutcomeLikeCpp {
+            attempted_spell_ids,
+            learned_spell_ids,
         }
     }
 
@@ -3423,6 +3459,55 @@ mod tests {
             make_unit_action_button_like_cpp(0, ACT_PASSIVE_LIKE_CPP)
         );
         assert!(pet.autospells().is_empty());
+    }
+
+    #[test]
+    fn pet_learn_spell_high_rank_walks_next_spell_chain_like_cpp() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+
+        let outcome = pet.learn_spell_high_rank_like_cpp(100, |spell_id| match spell_id {
+            100 => 200,
+            200 => 300,
+            300 => 0,
+            _ => 0,
+        });
+
+        assert_eq!(outcome.attempted_spell_ids, vec![100, 200, 300]);
+        assert_eq!(outcome.learned_spell_ids, vec![100, 200, 300]);
+        assert!(pet.has_spell(100));
+        assert!(pet.has_spell(200));
+        assert!(pet.has_spell(300));
+        assert_eq!(
+            pet.spells().get(&300).unwrap().active,
+            ActiveState::Disabled,
+            "the current represented addSpell seam maps ACT_DECIDE to ACT_DISABLED until SpellInfo autocast/passive metadata is live"
+        );
+    }
+
+    #[test]
+    fn pet_learn_spell_high_rank_continues_after_duplicate_like_cpp() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+        assert!(pet.add_spell(
+            100,
+            ActiveState::Disabled,
+            PetSpellState::New,
+            PetSpellType::Normal
+        ));
+
+        let outcome = pet.learn_spell_high_rank_like_cpp(100, |spell_id| match spell_id {
+            100 => 200,
+            200 => 0,
+            _ => 0,
+        });
+
+        assert_eq!(
+            outcome.attempted_spell_ids,
+            vec![100, 200],
+            "C++ calls GetNextSpellInChain after learnSpell(spellid), even if learnSpell was a no-op"
+        );
+        assert_eq!(outcome.learned_spell_ids, vec![200]);
+        assert!(pet.has_spell(100));
+        assert!(pet.has_spell(200));
     }
 
     #[test]
