@@ -222,6 +222,7 @@ pub enum PetSaveToDbSkipReason {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PetSaveToDbPlan {
+    pub pet_number: u32,
     pub effective_mode: i16,
     pub save_auras_before_cleanup: bool,
     pub remove_all_auras_before_spell_save: bool,
@@ -233,6 +234,72 @@ pub struct PetSaveToDbPlan {
     pub insert_slot: Option<i16>,
     pub remove_all_auras_before_delete: bool,
     pub delete_from_db_pet_number: Option<u32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PetSaveToDbOperationLikeCpp {
+    BeginAuraSpellHistoryTransaction,
+    SaveAuras,
+    RemoveAllAurasBeforeSpellSave,
+    SaveSpells,
+    SaveSpellHistory,
+    CommitAuraSpellHistoryTransaction,
+    BeginPetRowTransaction,
+    DeleteCharacterPetById { pet_number: u32 },
+    FillPetInfo,
+    InsertPetRow { pet_number: u32, insert_slot: i16 },
+    CommitPetRowTransaction,
+    RemoveAllAurasBeforeDelete,
+    DeleteFromDb { pet_number: u32 },
+}
+
+impl PetSaveToDbPlan {
+    pub fn operations_like_cpp(&self) -> Vec<PetSaveToDbOperationLikeCpp> {
+        let mut operations = vec![PetSaveToDbOperationLikeCpp::BeginAuraSpellHistoryTransaction];
+
+        if self.save_auras_before_cleanup {
+            operations.push(PetSaveToDbOperationLikeCpp::SaveAuras);
+        }
+        if self.remove_all_auras_before_spell_save {
+            operations.push(PetSaveToDbOperationLikeCpp::RemoveAllAurasBeforeSpellSave);
+        }
+        if self.save_spells {
+            operations.push(PetSaveToDbOperationLikeCpp::SaveSpells);
+        }
+        if self.save_spell_history {
+            operations.push(PetSaveToDbOperationLikeCpp::SaveSpellHistory);
+        }
+
+        operations.push(PetSaveToDbOperationLikeCpp::CommitAuraSpellHistoryTransaction);
+
+        if self.insert_pet_row {
+            operations.push(PetSaveToDbOperationLikeCpp::BeginPetRowTransaction);
+            if self.delete_existing_pet_row {
+                operations.push(PetSaveToDbOperationLikeCpp::DeleteCharacterPetById {
+                    pet_number: self.pet_number,
+                });
+            }
+            if self.fill_pet_info {
+                operations.push(PetSaveToDbOperationLikeCpp::FillPetInfo);
+            }
+            if let Some(insert_slot) = self.insert_slot {
+                operations.push(PetSaveToDbOperationLikeCpp::InsertPetRow {
+                    pet_number: self.pet_number,
+                    insert_slot,
+                });
+            }
+            operations.push(PetSaveToDbOperationLikeCpp::CommitPetRowTransaction);
+        } else {
+            if self.remove_all_auras_before_delete {
+                operations.push(PetSaveToDbOperationLikeCpp::RemoveAllAurasBeforeDelete);
+            }
+            if let Some(pet_number) = self.delete_from_db_pet_number {
+                operations.push(PetSaveToDbOperationLikeCpp::DeleteFromDb { pet_number });
+            }
+        }
+
+        operations
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1009,6 +1076,7 @@ impl Pet {
         };
 
         Ok(PetSaveToDbPlan {
+            pet_number,
             effective_mode: mode,
             save_auras_before_cleanup: true,
             remove_all_auras_before_spell_save,
@@ -1842,6 +1910,7 @@ mod tests {
             .prepare_save_pet_to_db_like_cpp(PetSaveMode::AsCurrent as i16, 42, None, Some(2))
             .unwrap();
 
+        assert_eq!(current.pet_number, 42);
         assert_eq!(current.effective_mode, PetSaveMode::active_slot(2));
         assert!(current.save_auras_before_cleanup);
         assert!(!current.remove_all_auras_before_spell_save);
@@ -1936,6 +2005,78 @@ mod tests {
         assert_eq!(plan.insert_slot, None);
         assert!(plan.remove_all_auras_before_delete);
         assert_eq!(plan.delete_from_db_pet_number, Some(42));
+    }
+
+    #[test]
+    fn pet_save_to_db_operations_preserve_cpp_transaction_order() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+        pet.creature_mut()
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .set_entry(500);
+
+        let current = pet
+            .prepare_save_pet_to_db_like_cpp(PetSaveMode::AsCurrent as i16, 42, None, Some(2))
+            .unwrap();
+        assert_eq!(
+            current.operations_like_cpp(),
+            vec![
+                PetSaveToDbOperationLikeCpp::BeginAuraSpellHistoryTransaction,
+                PetSaveToDbOperationLikeCpp::SaveAuras,
+                PetSaveToDbOperationLikeCpp::SaveSpells,
+                PetSaveToDbOperationLikeCpp::SaveSpellHistory,
+                PetSaveToDbOperationLikeCpp::CommitAuraSpellHistoryTransaction,
+                PetSaveToDbOperationLikeCpp::BeginPetRowTransaction,
+                PetSaveToDbOperationLikeCpp::DeleteCharacterPetById { pet_number: 42 },
+                PetSaveToDbOperationLikeCpp::FillPetInfo,
+                PetSaveToDbOperationLikeCpp::InsertPetRow {
+                    pet_number: 42,
+                    insert_slot: PetSaveMode::active_slot(2),
+                },
+                PetSaveToDbOperationLikeCpp::CommitPetRowTransaction,
+            ]
+        );
+
+        let stable_slot = pet
+            .prepare_save_pet_to_db_like_cpp(PetSaveMode::stable_slot(3), 42, None, Some(1))
+            .unwrap();
+        assert_eq!(
+            stable_slot.operations_like_cpp(),
+            vec![
+                PetSaveToDbOperationLikeCpp::BeginAuraSpellHistoryTransaction,
+                PetSaveToDbOperationLikeCpp::SaveAuras,
+                PetSaveToDbOperationLikeCpp::RemoveAllAurasBeforeSpellSave,
+                PetSaveToDbOperationLikeCpp::SaveSpells,
+                PetSaveToDbOperationLikeCpp::SaveSpellHistory,
+                PetSaveToDbOperationLikeCpp::CommitAuraSpellHistoryTransaction,
+                PetSaveToDbOperationLikeCpp::BeginPetRowTransaction,
+                PetSaveToDbOperationLikeCpp::DeleteCharacterPetById { pet_number: 42 },
+                PetSaveToDbOperationLikeCpp::FillPetInfo,
+                PetSaveToDbOperationLikeCpp::InsertPetRow {
+                    pet_number: 42,
+                    insert_slot: PetSaveMode::active_slot(1),
+                },
+                PetSaveToDbOperationLikeCpp::CommitPetRowTransaction,
+            ]
+        );
+
+        let delete = pet
+            .prepare_save_pet_to_db_like_cpp(PetSaveMode::AsDeleted as i16, 42, None, Some(1))
+            .unwrap();
+        assert_eq!(
+            delete.operations_like_cpp(),
+            vec![
+                PetSaveToDbOperationLikeCpp::BeginAuraSpellHistoryTransaction,
+                PetSaveToDbOperationLikeCpp::SaveAuras,
+                PetSaveToDbOperationLikeCpp::RemoveAllAurasBeforeSpellSave,
+                PetSaveToDbOperationLikeCpp::SaveSpells,
+                PetSaveToDbOperationLikeCpp::SaveSpellHistory,
+                PetSaveToDbOperationLikeCpp::CommitAuraSpellHistoryTransaction,
+                PetSaveToDbOperationLikeCpp::RemoveAllAurasBeforeDelete,
+                PetSaveToDbOperationLikeCpp::DeleteFromDb { pet_number: 42 },
+            ]
+        );
     }
 
     #[test]

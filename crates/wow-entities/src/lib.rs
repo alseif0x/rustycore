@@ -166,9 +166,9 @@ pub use pet::{
     PetAliveOwnerUpdateOutcome, PetAuraSaveEffectLikeCpp, PetAuraSaveOperationLikeCpp,
     PetAuraSaveRefLikeCpp, PetCorpseUpdateOutcome, PetDeathStateUpdateOutcome,
     PetDeclinedNamesLikeCpp, PetDurationUpdateOutcome, PetLevelUpdateOutcome, PetLoadInfoResult,
-    PetLoadSelection, PetSaveMode, PetSaveToDbPlan, PetSaveToDbSkipReason, PetSpell,
-    PetSpellSaveOperationLikeCpp, PetSpellState, PetSpellType, PetStable, PetStableInfo, PetType,
-    PetXpUpdateOutcome,
+    PetLoadSelection, PetSaveMode, PetSaveToDbOperationLikeCpp, PetSaveToDbPlan,
+    PetSaveToDbSkipReason, PetSpell, PetSpellSaveOperationLikeCpp, PetSpellState, PetSpellType,
+    PetStable, PetStableInfo, PetType, PetXpUpdateOutcome,
 };
 pub use player::{
     ACTIVE_PLAYER_DATA_BUYBACK_PARENT_BIT, ACTIVE_PLAYER_DATA_BUYBACK_PRICE_FIRST_BIT,
