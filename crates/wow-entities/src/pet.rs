@@ -335,6 +335,16 @@ pub struct PetLearnSpellsOutcomeLikeCpp {
     pub send_session_packet: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PetToggleAutocastOutcomeLikeCpp {
+    pub spell_found: bool,
+    pub autocastable: bool,
+    pub autospell_added: bool,
+    pub autospell_removed: bool,
+    pub active_changed: bool,
+    pub marked_changed: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PetRemoveSpellOutcomeLikeCpp {
     pub removed: bool,
@@ -1546,17 +1556,87 @@ impl Pet {
     }
 
     pub fn toggle_autocast(&mut self, spell_id: u32, apply: bool) -> bool {
-        let Some(spell) = self.spells.get_mut(&spell_id) else {
-            return false;
+        self.toggle_autocast_like_cpp(spell_id, apply, true)
+            .spell_found
+    }
+
+    pub fn toggle_autocast_like_cpp(
+        &mut self,
+        spell_id: u32,
+        apply: bool,
+        spell_is_autocastable_like_cpp: bool,
+    ) -> PetToggleAutocastOutcomeLikeCpp {
+        if !spell_is_autocastable_like_cpp {
+            return PetToggleAutocastOutcomeLikeCpp {
+                spell_found: false,
+                autocastable: false,
+                autospell_added: false,
+                autospell_removed: false,
+                active_changed: false,
+                marked_changed: false,
+            };
+        }
+
+        let Some(existing_spell) = self.spells.get(&spell_id).copied() else {
+            return PetToggleAutocastOutcomeLikeCpp {
+                spell_found: false,
+                autocastable: true,
+                autospell_added: false,
+                autospell_removed: false,
+                active_changed: false,
+                marked_changed: false,
+            };
         };
-        let active = if apply {
-            ActiveState::Enabled
-        } else {
-            ActiveState::Disabled
-        };
-        spell.active = active;
-        self.sync_autospell(spell_id, active);
-        true
+
+        let autospell_index = self
+            .autospells
+            .iter()
+            .position(|known_spell_id| *known_spell_id == spell_id);
+        let mut autospell_added = false;
+        let mut autospell_removed = false;
+        let mut active_changed = false;
+        let mut marked_changed = false;
+
+        if apply {
+            if autospell_index.is_none() {
+                self.autospells.push(spell_id);
+                autospell_added = true;
+
+                if existing_spell.active != ActiveState::Enabled {
+                    active_changed = true;
+                    marked_changed = existing_spell.state != PetSpellState::New;
+                    if let Some(spell) = self.spells.get_mut(&spell_id) {
+                        spell.active = ActiveState::Enabled;
+                        if marked_changed {
+                            spell.state = PetSpellState::Changed;
+                        }
+                    }
+                }
+            }
+        } else if let Some(index) = autospell_index {
+            self.autospells.remove(index);
+            autospell_removed = true;
+
+            if existing_spell.active != ActiveState::Disabled {
+                active_changed = true;
+                marked_changed = existing_spell.state != PetSpellState::New;
+                if let Some(spell) = self.spells.get_mut(&spell_id) {
+                    spell.active = ActiveState::Disabled;
+                    if marked_changed {
+                        spell.state = PetSpellState::Changed;
+                    }
+                }
+            }
+        }
+
+        PetToggleAutocastOutcomeLikeCpp {
+            spell_found: true,
+            autocastable: true,
+            autospell_added,
+            autospell_removed,
+            active_changed,
+            marked_changed,
+        }
     }
 
     pub fn save_spells_plan_like_cpp(
@@ -3741,6 +3821,137 @@ mod tests {
 
         assert!(pet.remove_spell(123));
         assert!(!pet.has_spell(123));
+    }
+
+    #[test]
+    fn pet_toggle_autocast_like_cpp_requires_autocastable_spell_and_known_spell() {
+        let mut pet = Pet::new(owner_guid(), PetType::Summon);
+        assert!(pet.add_spell(
+            123,
+            ActiveState::Disabled,
+            PetSpellState::Unchanged,
+            PetSpellType::Normal
+        ));
+
+        let not_autocastable = pet.toggle_autocast_like_cpp(123, true, false);
+        assert_eq!(
+            not_autocastable,
+            PetToggleAutocastOutcomeLikeCpp {
+                spell_found: false,
+                autocastable: false,
+                autospell_added: false,
+                autospell_removed: false,
+                active_changed: false,
+                marked_changed: false,
+            }
+        );
+        assert!(pet.autospells().is_empty());
+        assert_eq!(
+            pet.spells().get(&123).unwrap().active,
+            ActiveState::Disabled
+        );
+
+        let missing = pet.toggle_autocast_like_cpp(999, true, true);
+        assert_eq!(
+            missing,
+            PetToggleAutocastOutcomeLikeCpp {
+                spell_found: false,
+                autocastable: true,
+                autospell_added: false,
+                autospell_removed: false,
+                active_changed: false,
+                marked_changed: false,
+            }
+        );
+    }
+
+    #[test]
+    fn pet_toggle_autocast_like_cpp_adds_removes_and_marks_persisted_changed() {
+        let mut pet = Pet::new(owner_guid(), PetType::Summon);
+        assert!(pet.add_spell(
+            123,
+            ActiveState::Disabled,
+            PetSpellState::Unchanged,
+            PetSpellType::Normal
+        ));
+
+        let enabled = pet.toggle_autocast_like_cpp(123, true, true);
+        assert!(enabled.autospell_added);
+        assert!(enabled.active_changed);
+        assert!(enabled.marked_changed);
+        assert_eq!(pet.autospells(), &[123]);
+        assert_eq!(pet.spells().get(&123).unwrap().active, ActiveState::Enabled);
+        assert_eq!(
+            pet.spells().get(&123).unwrap().state,
+            PetSpellState::Changed
+        );
+
+        let duplicate_enable = pet.toggle_autocast_like_cpp(123, true, true);
+        assert_eq!(
+            duplicate_enable,
+            PetToggleAutocastOutcomeLikeCpp {
+                spell_found: true,
+                autocastable: true,
+                autospell_added: false,
+                autospell_removed: false,
+                active_changed: false,
+                marked_changed: false,
+            },
+            "C++ ToggleAutocast(true) is a no-op when the spell is already in m_autospells"
+        );
+
+        let disabled = pet.toggle_autocast_like_cpp(123, false, true);
+        assert!(disabled.autospell_removed);
+        assert!(disabled.active_changed);
+        assert!(disabled.marked_changed);
+        assert!(pet.autospells().is_empty());
+        assert_eq!(
+            pet.spells().get(&123).unwrap().active,
+            ActiveState::Disabled
+        );
+        assert_eq!(
+            pet.spells().get(&123).unwrap().state,
+            PetSpellState::Changed
+        );
+    }
+
+    #[test]
+    fn pet_toggle_autocast_like_cpp_does_not_mark_new_spells_changed_or_disable_absent_autospell() {
+        let mut pet = Pet::new(owner_guid(), PetType::Summon);
+        assert!(pet.add_spell(
+            123,
+            ActiveState::Disabled,
+            PetSpellState::New,
+            PetSpellType::Normal
+        ));
+
+        let enabled = pet.toggle_autocast_like_cpp(123, true, true);
+        assert!(enabled.autospell_added);
+        assert!(enabled.active_changed);
+        assert!(!enabled.marked_changed);
+        assert_eq!(pet.spells().get(&123).unwrap().state, PetSpellState::New);
+
+        assert!(pet.add_spell(
+            456,
+            ActiveState::Enabled,
+            PetSpellState::Unchanged,
+            PetSpellType::Normal
+        ));
+        pet.autospells.retain(|spell_id| *spell_id != 456);
+        let disabled = pet.toggle_autocast_like_cpp(456, false, true);
+        assert_eq!(
+            disabled,
+            PetToggleAutocastOutcomeLikeCpp {
+                spell_found: true,
+                autocastable: true,
+                autospell_added: false,
+                autospell_removed: false,
+                active_changed: false,
+                marked_changed: false,
+            },
+            "C++ ToggleAutocast(false) is a no-op when the spell is absent from m_autospells"
+        );
+        assert_eq!(pet.spells().get(&456).unwrap().active, ActiveState::Enabled);
     }
 
     #[test]
