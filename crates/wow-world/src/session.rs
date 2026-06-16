@@ -113,8 +113,8 @@ use wow_entities::{
     INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, ITEM_DATA_BITS, ITEM_DATA_DURABILITY_BIT,
     Item, ItemCreateInfo, ItemDataUpdate, ItemLimitCategoryTemplate, ItemPosCount, ItemSlotRef,
     ItemStorageRef, ItemStorageTemplate, ItemValuesUpdate, MAX_BAG_SIZE, MAX_ITEM_SPELLS,
-    MAX_MONEY_AMOUNT, NULL_BAG, NULL_SLOT, ObjectAccessor, PLAYER_SLOT_END, PhaseShift, Player,
-    PlayerEnchantTimeUpdate, PlayerInventoryStorage, PlayerItemTimeUpdate,
+    MAX_MONEY_AMOUNT, MAX_POWERS, NULL_BAG, NULL_SLOT, ObjectAccessor, PLAYER_SLOT_END, PhaseShift,
+    Player, PlayerEnchantTimeUpdate, PlayerInventoryStorage, PlayerItemTimeUpdate,
     QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE, REAGENT_BAG_SLOT_END,
     REAGENT_BAG_SLOT_START, SendNewItemDelivery, SendNewItemDisplayText, SendNewItemPlan,
     TYPEID_ITEM, UNIT_DATA_HEALTH_BIT, Unit, UnitDataUpdate, UnitDataValues,
@@ -34782,6 +34782,22 @@ impl WorldSession {
                     self.apply_heal_pct_like_cpp(direct_effect_base_points, target_guid)
                         .await?;
                 }
+                x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_ENERGIZE => {
+                    self.apply_energize_effect_like_cpp(
+                        direct_effect_base_points,
+                        direct_effect_misc_value_1,
+                        target_guid,
+                        false,
+                    );
+                }
+                x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_ENERGIZE_PCT => {
+                    self.apply_energize_effect_like_cpp(
+                        direct_effect_base_points,
+                        direct_effect_misc_value_1,
+                        target_guid,
+                        true,
+                    );
+                }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEALTH_LEECH => {
                     self.apply_health_leech_like_cpp(direct_effect_base_points, target_guid)
                         .await?;
@@ -35028,6 +35044,8 @@ impl WorldSession {
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL_MECHANICAL
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL_MAX_HEALTH
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL_PCT
+                || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_ENERGIZE
+                || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_ENERGIZE_PCT
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEALTH_LEECH
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_DUAL_WIELD
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_PARRY
@@ -36638,6 +36656,53 @@ impl WorldSession {
             return Ok(());
         }
         self.apply_heal(target_guid, heal_amount).await
+    }
+
+    /// C++ `Spell::EffectEnergize` / `Spell::EffectEnergizePct`.
+    ///
+    /// Represented boundary: current canonical player target only. C++ spell-id
+    /// special cases in `EffectEnergize` (Blood Fury, Burst of Energy, Runic
+    /// Mana Injector engineering bonus) and `SMSG_SPELL_ENERGIZE_LOG` remain
+    /// outside this bounded slice.
+    fn apply_energize_effect_like_cpp(
+        &mut self,
+        damage: i32,
+        misc_value: i32,
+        target_guid: ObjectGuid,
+        percent: bool,
+    ) -> bool {
+        let Some(player_guid) = self.player_guid() else {
+            return false;
+        };
+        if target_guid != player_guid || !self.player_alive_like_cpp {
+            return false;
+        }
+        if misc_value < 0 || misc_value >= MAX_POWERS as i32 {
+            return false;
+        }
+        let Ok(power_id) = u8::try_from(misc_value) else {
+            return false;
+        };
+        let power = party_member_power_kind_from_u8_like_cpp(power_id);
+
+        self.mutate_canonical_player_like_cpp(|player| {
+            let max_power = player.get_max_power(power);
+            if max_power <= 0 {
+                return false;
+            }
+            let gain = if percent {
+                ((i64::from(max_power) * i64::from(damage)) / 100)
+                    .clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32
+            } else {
+                damage
+            };
+            let current = player.get_power(power);
+            player
+                .unit_mut()
+                .set_power(power, current.saturating_add(gain).max(0));
+            true
+        })
+        .unwrap_or(false)
     }
 
     async fn apply_health_leech_like_cpp(
@@ -57756,6 +57821,101 @@ mod tests {
                 ..Default::default()
             }],
         }
+    }
+
+    fn power_spell_info_like_cpp(
+        spell_id: i32,
+        effect: u32,
+        damage: i32,
+        power_type: PowerType,
+    ) -> wow_data::SpellInfo {
+        wow_data::SpellInfo {
+            spell_id,
+            cast_time_ms: 0,
+            cooldown_ms: 0,
+            recovery_time_ms: 0,
+            effect_type: 0,
+            effect_base_points: 0,
+            effect_bonus_coefficient: 0.0,
+            aura_type: None,
+            display_flags: 0,
+            requires_spell_focus: 0,
+            effects: vec![wow_data::SpellEffectInfo {
+                effect_index: 0,
+                effect,
+                effect_base_points: damage,
+                effect_misc_value_1: power_type as i32,
+                ..Default::default()
+            }],
+        }
+    }
+
+    #[tokio::test]
+    async fn spell_energize_effect_restores_current_player_power_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 793_i32;
+        let player_guid = ObjectGuid::create_player(1, 793);
+        configure_self_resurrect_canonical_player_like_cpp(&mut session, player_guid, 100, 100);
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            power_spell_info_like_cpp(
+                spell_id,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_ENERGIZE,
+                50,
+                PowerType::Mana,
+            ),
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("represented EffectEnergize should execute");
+
+        let mana = session
+            .mutate_canonical_player_like_cpp(|player| player.get_power(PowerType::Mana))
+            .unwrap();
+        assert_eq!(mana, 75);
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_energize_pct_effect_uses_target_max_power_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 794_i32;
+        let player_guid = ObjectGuid::create_player(1, 794);
+        configure_self_resurrect_canonical_player_like_cpp(&mut session, player_guid, 100, 100);
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            power_spell_info_like_cpp(
+                spell_id,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_ENERGIZE_PCT,
+                25,
+                PowerType::Energy,
+            ),
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("represented EffectEnergizePct should execute");
+
+        let energy = session
+            .mutate_canonical_player_like_cpp(|player| player.get_power(PowerType::Energy))
+            .unwrap();
+        assert_eq!(energy, 55);
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
     }
 
     #[tokio::test]

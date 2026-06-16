@@ -1,3 +1,17 @@
+- `#NEXT.RUNTIME.L3.031j43` — WotLK represented `Spell::EffectEnergize` and
+  `Spell::EffectEnergizePct` for current canonical player targets (not manual-test-ready).
+  Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:1176,1283`
+  and `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellEffects.cpp:1488-1549`.
+  Rust now names `SPELL_EFFECT_ENERGIZE = 30` and `SPELL_EFFECT_ENERGIZE_PCT = 137`, dispatches
+  both direct represented effects, validates `EffectMiscValue1` against the C++ `MAX_POWERS`
+  domain, requires the current player target to be alive with non-zero max power, and updates the
+  canonical player power clamped to `0..max`. Coverage: targeted spell tests cover flat mana gain
+  and percent energy gain; `wow-data` constant coverage asserts the effect ids. Boundary remains
+  partial: current canonical player target only, no generic `unitTarget`, no
+  `SMSG_SPELL_ENERGIZE_LOG`, no `EnergizeBySpell` proc/script side effects, no C++ spell-id special
+  cases for Blood Fury/Burst of Energy/Runic Mana Injector, no install/restart, bot, or
+  live-client/manual validation.
 - `#NEXT.RUNTIME.L3.031j42` — WotLK represented `Spell::EffectModifyCooldown` and
   `Spell::EffectModifySpellCharges` for current canonical player targets (not manual-test-ready).
   Source-of-truth:

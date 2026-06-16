@@ -37,6 +37,7 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_RITUAL_SPECIALIZE: u32 = 14;
     pub const SPELL_EFFECT_RITUAL_ACTIVATE_PORTAL: u32 = 15;
     pub const SPELL_EFFECT_QUEST_COMPLETE: u32 = 16;
+    pub const SPELL_EFFECT_ADD_EXTRA_ATTACKS: u32 = 19;
     pub const SPELL_EFFECT_DODGE: u32 = 20;
     pub const SPELL_EFFECT_EVADE: u32 = 21;
     pub const SPELL_EFFECT_PARRY: u32 = 22;
@@ -44,6 +45,7 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_WEAPON: u32 = 25;
     pub const SPELL_EFFECT_DEFENSE: u32 = 26;
     pub const SPELL_EFFECT_PERSISTENT_AREA_AURA: u32 = 27;
+    pub const SPELL_EFFECT_ENERGIZE: u32 = 30;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_PARTY: u32 = 35;
     pub const SPELL_EFFECT_SPELL_DEFENSE: u32 = 37;
     pub const SPELL_EFFECT_LANGUAGE: u32 = 39;
@@ -92,6 +94,7 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_KILL_CREDIT2: u32 = 134;
     pub const SPELL_EFFECT_CALL_PET: u32 = 135;
     pub const SPELL_EFFECT_HEAL_PCT: u32 = 136;
+    pub const SPELL_EFFECT_ENERGIZE_PCT: u32 = 137;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_OWNER: u32 = 143;
     pub const SPELL_EFFECT_OBLITERATE_ITEM: u32 = 163;
     pub const SPELL_EFFECT_ALLOW_CONTROL_PET: u32 = 168;
@@ -1110,8 +1113,10 @@ mod tests {
         assert_eq!(spell_effect_types::SPELL_EFFECT_EVADE, 21);
         assert_eq!(spell_effect_types::SPELL_EFFECT_PARRY, 22);
         assert_eq!(spell_effect_types::SPELL_EFFECT_BLOCK, 23);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_ADD_EXTRA_ATTACKS, 19);
         assert_eq!(spell_effect_types::SPELL_EFFECT_WEAPON, 25);
         assert_eq!(spell_effect_types::SPELL_EFFECT_DEFENSE, 26);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_ENERGIZE, 30);
         assert_eq!(spell_effect_types::SPELL_EFFECT_APPLY_AREA_AURA_PARTY, 35);
         assert_eq!(spell_effect_types::SPELL_EFFECT_SPELL_DEFENSE, 37);
         assert_eq!(spell_effect_types::SPELL_EFFECT_LANGUAGE, 39);
@@ -1147,6 +1152,7 @@ mod tests {
         assert_eq!(spell_effect_types::SPELL_EFFECT_KILL_CREDIT2, 134);
         assert_eq!(spell_effect_types::SPELL_EFFECT_CALL_PET, 135);
         assert_eq!(spell_effect_types::SPELL_EFFECT_HEAL_PCT, 136);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_ENERGIZE_PCT, 137);
         assert_eq!(spell_effect_types::SPELL_EFFECT_OBLITERATE_ITEM, 163);
         assert_eq!(spell_effect_types::SPELL_EFFECT_ALLOW_CONTROL_PET, 168);
         assert_eq!(spell_effect_types::SPELL_EFFECT_175, 175);

@@ -382,12 +382,16 @@ Los effects que solo emiten state changes (`EffectApplyAura`, `EffectModifyCoold
 - 0 dispatch table.
 - 0 effect-specific log packets.
 
-**What's missing vs C++:**
-1. **No `enum SpellEffectName`** — los ~151 IDs no están definidos en Rust; ni siquiera un enum stub
+**Legacy snapshot note:** this block predates the represented spell-effect slices below. Read it as
+the original full-runtime gap baseline, not as current per-effect status. The current status list in
+§9 is authoritative for represented/partial effects.
+
+**What's still broadly missing vs C++ full runtime:**
+1. **No complete `enum SpellEffectName`** — Rust has named constants for represented effects, but not the full typed enum
 2. **No `enum SpellEffectHandleMode`** (LAUNCH, LAUNCH_TARGET, HIT, HIT_TARGET)
 3. **No `struct SpellEffectInfo`** completo (BasePoints, MiscValue, TriggerSpell, ChainTargets, RadiusEntry, Mechanic, ItemType, EffectAttributes)
 4. **No dispatch table** — ni `SpellEffectHandlers[151]` array, ni `match spell_effect { … }`
-5. **0 of ~151 handlers**: `EffectSchoolDMG`, `EffectHeal`, `EffectApplyAura`, `EffectTeleportUnits`, `EffectSummonType`, `EffectDispel`, `EffectInterruptCast`, `EffectKnockBack`, `EffectJump`, `EffectCharge`, `EffectEnergize`, `EffectPowerDrain`, `EffectCreateItem`, `EffectEnchantItem*`, `EffectScriptEffect`, `EffectDummy`, `EffectTriggerSpell`, `EffectQuestComplete`, `EffectLearnSpell`, `EffectOpenLock`, `EffectResurrect`, `EffectAddExtraAttacks`, `EffectTaunt`, `EffectInstaKill`, `EffectFeedPet`, `EffectTameCreature`, `EffectModifyCooldown*`, … todos ausentes
+5. **Many full handlers remain missing or represented-partial**: see §9 for the current effect-by-effect status; do not use this legacy baseline as a completion counter.
 6. **No `Spell::HandleEffects`** invoker — no existe la función bisagra
 7. **No effect log packets**: ni `SMSG_SPELL_NON_MELEE_DAMAGE_LOG` ni `SMSG_SPELL_HEAL_LOG` ni `SMSG_SPELL_ENERGIZE_LOG` ni `SMSG_SPELL_DISPELL_LOG` ni `SMSG_SPELL_INSTAKILL_LOG`
 8. **No script hooks**: `OnEffectHit`, `OnEffectLaunch`, `OnEffectDummy`, `OnEffectScript` no existen
@@ -434,7 +438,15 @@ Numerados como `#SPELLS-EFFECTS.N` para referencia desde `MIGRATION_ROADMAP.md`.
 - [ ] **#SPELLS-EFFECTS.10** Implementar `EffectPersistentAA` con DynamicObject creation + DynObjAura (depende de DynObjAura, ver `spells-aura.md`) (H)
 - [ ] **#SPELLS-EFFECTS.11** Implementar `EffectTeleportUnits` con `SpellMgr::get_spell_target_position` lookup + `Player::TeleportTo` (L)
 - [ ] **#SPELLS-EFFECTS.12** Implementar `EffectTeleportUnitsWithVisualLoadingScreen` y `EffectTeleUnitsFaceCaster` (L)
-- [ ] **#SPELLS-EFFECTS.13** Implementar `EffectEnergize` y `EffectEnergizePct` con `Unit::ModifyPower` + SMSG_SPELL_ENERGIZE_LOG (L)
+- [~] **#SPELLS-EFFECTS.13** Implementar `EffectEnergize` y `EffectEnergizePct` con `Unit::ModifyPower` + SMSG_SPELL_ENERGIZE_LOG (L)
+  - `EffectEnergize` (`SPELL_EFFECT_ENERGIZE = 30`) and `EffectEnergizePct`
+    (`SPELL_EFFECT_ENERGIZE_PCT = 137`) are represented-partial for the current
+    canonical player target: Rust validates `MiscValue` as a C++ `Powers` id,
+    requires an alive target with non-zero max power, and mutates canonical
+    power clamped to `0..max`. Remaining: generic `unitTarget` support,
+    `SMSG_SPELL_ENERGIZE_LOG`, `EnergizeBySpell` proc/script side effects, and
+    C++ spell-id special cases for Blood Fury, Burst of Energy, and Runic Mana
+    Injector engineering bonus.
 - [ ] **#SPELLS-EFFECTS.14** Implementar `EffectPowerDrain` y `EffectPowerBurn` (M)
 - [ ] **#SPELLS-EFFECTS.15** Implementar `EffectHealthLeech` (damage + heal caster) (L)
 - [ ] **#SPELLS-EFFECTS.16** Implementar `EffectHealPct`, `EffectHealMechanical`, `EffectHealMaxHealth` (L)
@@ -690,7 +702,7 @@ Numerados como `#SPELLS-EFFECTS.N` para referencia desde `MIGRATION_ROADMAP.md`.
 **Effects implemented.** **0 of ~151.** A search for every C++ effect handler name confirms zero analogs in Rust:
 - Damage offensive: `EffectSchoolDMG`, `EffectEnvironmentalDMG`, `EffectPowerDrain`, `EffectHealthLeech`, `EffectWeaponDmg` (+ NoSchool/Normalized/Pct variants), `EffectAddExtraAttacks`, `EffectInstaKill` — none.
 - Heal: `EffectHeal`, `EffectHealPct`, `EffectHealMechanical`, `EffectHealMaxHealth` — none.
-- Power: `EffectEnergize`, `EffectEnergizePct`, `EffectPowerBurn` — none.
+- Power: `EffectEnergize`, `EffectEnergizePct` — represented-partial; `EffectPowerBurn` — none.
 - Aura: `EffectApplyAura`, `EffectApplyAreaAura*` (6 variants), `EffectPersistentAA` — none.
 - Movement: `EffectTeleportUnits`, `EffectTeleportUnitsWithVisualLoadingScreen`, `EffectTeleUnitsFaceCaster`, `EffectJump`, `EffectJumpDest`, `EffectLeap`, `EffectLeapBack`, `EffectKnockBack`, `EffectKnockBackDest`, `EffectPullTowardsDest`, `EffectPull`, `EffectCharge`, `EffectChargeDest`, `EffectJumpCharge`, `EffectMomentum` — none.
 - Summon: `EffectSummonType` (the XL ~218-line discriminator), `EffectSummonPet`, `EffectSummonObject`, `EffectSummonObjectWild`, `EffectSummonChangeItem`, `EffectSummonPlayer` — none.
