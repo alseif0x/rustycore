@@ -166,6 +166,13 @@ impl PetLoadInfoResult {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PetDurationUpdateOutcome {
+    Skipped,
+    Active,
+    Expired { save_mode: PetSaveMode },
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Pet {
     creature: Creature,
@@ -263,6 +270,29 @@ impl Pet {
 
     pub fn set_duration(&mut self, duration_ms: i32) {
         self.duration_ms = duration_ms;
+    }
+
+    pub fn update_duration_like_cpp(&mut self, diff_ms: u32) -> PetDurationUpdateOutcome {
+        if self.removed || self.loading || self.duration_ms <= 0 {
+            return if self.removed || self.loading {
+                PetDurationUpdateOutcome::Skipped
+            } else {
+                PetDurationUpdateOutcome::Active
+            };
+        }
+
+        if self.duration_ms as u32 > diff_ms {
+            self.duration_ms -= diff_ms as i32;
+            PetDurationUpdateOutcome::Active
+        } else {
+            self.duration_ms = 0;
+            let save_mode = if self.pet_type == PetType::Summon {
+                PetSaveMode::NotInSlot
+            } else {
+                PetSaveMode::AsDeleted
+            };
+            PetDurationUpdateOutcome::Expired { save_mode }
+        }
     }
 
     pub const fn is_loading(&self) -> bool {
@@ -652,6 +682,60 @@ mod tests {
         assert_eq!(pet.group_update_mask(), 0x5);
         pet.reset_group_update_flag();
         assert_eq!(pet.group_update_mask(), 0);
+    }
+
+    #[test]
+    fn pet_duration_update_matches_cpp_temporary_summon_expiry_modes() {
+        let mut summon = Pet::new(owner_guid(), PetType::Summon);
+        summon.set_duration(100);
+        assert_eq!(
+            summon.update_duration_like_cpp(40),
+            PetDurationUpdateOutcome::Active
+        );
+        assert_eq!(summon.duration_ms(), 60);
+        assert_eq!(
+            summon.update_duration_like_cpp(60),
+            PetDurationUpdateOutcome::Expired {
+                save_mode: PetSaveMode::NotInSlot
+            }
+        );
+        assert_eq!(summon.duration_ms(), 0);
+
+        let mut hunter = Pet::new(owner_guid(), PetType::Hunter);
+        hunter.set_duration(1);
+        assert_eq!(
+            hunter.update_duration_like_cpp(1),
+            PetDurationUpdateOutcome::Expired {
+                save_mode: PetSaveMode::AsDeleted
+            }
+        );
+    }
+
+    #[test]
+    fn pet_duration_update_skips_cpp_removed_loading_and_permanent_states() {
+        let mut permanent = Pet::new(owner_guid(), PetType::Summon);
+        assert_eq!(
+            permanent.update_duration_like_cpp(100),
+            PetDurationUpdateOutcome::Active
+        );
+
+        let mut removed = Pet::new(owner_guid(), PetType::Summon);
+        removed.set_duration(100);
+        removed.set_removed(true);
+        assert_eq!(
+            removed.update_duration_like_cpp(100),
+            PetDurationUpdateOutcome::Skipped
+        );
+        assert_eq!(removed.duration_ms(), 100);
+
+        let mut loading = Pet::new(owner_guid(), PetType::Summon);
+        loading.set_duration(100);
+        loading.set_loading(true);
+        assert_eq!(
+            loading.update_duration_like_cpp(100),
+            PetDurationUpdateOutcome::Skipped
+        );
+        assert_eq!(loading.duration_ms(), 100);
     }
 
     #[test]
