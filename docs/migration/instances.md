@@ -523,8 +523,10 @@ Complejidad: **L** (low, <1h), **M** (med, 1-4h), **H** (high, 4-12h), **XL** (>
 **Cerrado en Rust:**
 - `MapDifficulty.db2::MaxPlayers` ya se carga desde el campo físico 6 y se propaga por `wow_instances::MapDb2Entries`.
 - La entrada a un mapa de instancia canónica existente comprueba `player_count >= max_players` y envía `SMSG_TRANSFER_ABORTED` con `TRANSFER_ABORT_MAX_PLAYERS = 2`, antes del gate de lock compatible, igual que `InstanceMap::CannotEnter`.
+- La entrada a una raid canónica existente con encuentro en progreso envía `SMSG_TRANSFER_ABORTED` con `TRANSFER_ABORT_ZONE_IN_COMBAT = 6` para jugadores no-GM que no estén en estado de loading/relog, antes del gate de lock compatible, igual que `InstanceMap::CannotEnter`.
 - El seam representado de GM bypassa los gates posteriores a dificultad (`MAX_PLAYERS` y lock compatibility) como `Map::PlayerCannotEnter` hace tras `GetDownscaledMapDifficultyData`.
 
 **Límites honestos:**
 - `player_count` es el conteo representado del `ManagedMap`; todavía no hay contabilidad separada equivalente a `GetPlayersCountExceptGMs()` para GMs ya presentes dentro del mapa.
-- Siguen pendientes `Player::Satisfy`/access requirements, raid-group requirement, `CheckInstanceCount`, `IsEncounterInProgress`, y validación live con cliente/bot.
+- `instance_encounter_in_progress_like_cpp` es un seam representado en `ManagedMap`; falta conectarlo al `InstanceScriptBase::is_encounter_in_progress_like_cpp` real y a la lifecycle `InstanceMap::GetInstanceScript()`.
+- Siguen pendientes `Player::Satisfy`/access requirements, raid-group requirement, `CheckInstanceCount`, y validación live con cliente/bot.

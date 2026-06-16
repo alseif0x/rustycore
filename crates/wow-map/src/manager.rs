@@ -189,6 +189,7 @@ pub struct ManagedMap {
     kind: ManagedMapKind,
     can_unload: bool,
     player_count: u32,
+    instance_encounter_in_progress: bool,
     instance_lock_token: Option<u64>,
     instance_lock_context: Option<CreateMapInstanceLockContext>,
     update_calls: Vec<u32>,
@@ -241,6 +242,7 @@ impl ManagedMap {
             kind,
             can_unload: false,
             player_count: 0,
+            instance_encounter_in_progress: false,
             instance_lock_token: None,
             instance_lock_context: None,
             update_calls: Vec::new(),
@@ -305,6 +307,14 @@ impl ManagedMap {
 
     pub const fn player_count(&self) -> u32 {
         self.player_count
+    }
+
+    pub fn set_instance_encounter_in_progress_like_cpp(&mut self, in_progress: bool) {
+        self.instance_encounter_in_progress = in_progress;
+    }
+
+    pub const fn instance_encounter_in_progress_like_cpp(&self) -> bool {
+        self.instance_encounter_in_progress
     }
 
     pub const fn instance_lock_token(&self) -> Option<u64> {
@@ -1552,6 +1562,23 @@ mod tests {
         assert_eq!(map.map_id(), 1);
         assert_eq!(map.instance_id(), 0);
         assert!(manager.find_map(1, 1).is_none());
+    }
+
+    #[test]
+    fn managed_map_tracks_represented_instance_encounter_progress() {
+        let mut manager = MapManager::default();
+        let map = manager.create_map_entry(
+            631,
+            9001,
+            3,
+            ManagedMapKind::Dungeon {
+                has_reset_schedule: false,
+            },
+        );
+
+        assert!(!map.instance_encounter_in_progress_like_cpp());
+        map.set_instance_encounter_in_progress_like_cpp(true);
+        assert!(map.instance_encounter_in_progress_like_cpp());
     }
 
     #[test]
