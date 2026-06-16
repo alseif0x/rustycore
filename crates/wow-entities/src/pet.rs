@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use wow_constants::PowerType;
+use wow_constants::{DeathState, PowerType};
 use wow_core::ObjectGuid;
 
 use crate::{
@@ -173,6 +173,14 @@ pub enum PetDurationUpdateOutcome {
     Expired { save_mode: PetSaveMode },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PetCorpseUpdateOutcome {
+    Skipped,
+    NotCorpse,
+    KeepCorpse,
+    Remove { save_mode: PetSaveMode },
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Pet {
     creature: Creature,
@@ -292,6 +300,24 @@ impl Pet {
                 PetSaveMode::AsDeleted
             };
             PetDurationUpdateOutcome::Expired { save_mode }
+        }
+    }
+
+    pub fn update_corpse_like_cpp(&self, now: i64) -> PetCorpseUpdateOutcome {
+        if self.removed || self.loading {
+            return PetCorpseUpdateOutcome::Skipped;
+        }
+
+        if self.creature.unit().death_state() != DeathState::Corpse {
+            return PetCorpseUpdateOutcome::NotCorpse;
+        }
+
+        if self.pet_type != PetType::Hunter || self.creature.corpse_remove_time() <= now {
+            PetCorpseUpdateOutcome::Remove {
+                save_mode: PetSaveMode::NotInSlot,
+            }
+        } else {
+            PetCorpseUpdateOutcome::KeepCorpse
         }
     }
 
@@ -736,6 +762,65 @@ mod tests {
             PetDurationUpdateOutcome::Skipped
         );
         assert_eq!(loading.duration_ms(), 100);
+    }
+
+    #[test]
+    fn pet_corpse_update_matches_cpp_hunter_corpse_keep_and_remove() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+        pet.creature_mut().set_corpse_delay(15, false);
+        pet.creature_mut()
+            .set_death_state_runtime(DeathState::JustDied, 1_000);
+
+        assert_eq!(pet.creature().unit().death_state(), DeathState::Corpse);
+        assert_eq!(pet.creature().corpse_remove_time(), 1_015);
+        assert_eq!(
+            pet.update_corpse_like_cpp(1_014),
+            PetCorpseUpdateOutcome::KeepCorpse
+        );
+        assert_eq!(
+            pet.update_corpse_like_cpp(1_015),
+            PetCorpseUpdateOutcome::Remove {
+                save_mode: PetSaveMode::NotInSlot
+            }
+        );
+    }
+
+    #[test]
+    fn pet_corpse_update_removes_non_hunter_corpses_like_cpp() {
+        let mut pet = Pet::new(owner_guid(), PetType::Summon);
+        pet.creature_mut().set_corpse_delay(15, false);
+        pet.creature_mut()
+            .set_death_state_runtime(DeathState::JustDied, 1_000);
+
+        assert_eq!(
+            pet.update_corpse_like_cpp(1_001),
+            PetCorpseUpdateOutcome::Remove {
+                save_mode: PetSaveMode::NotInSlot
+            }
+        );
+    }
+
+    #[test]
+    fn pet_corpse_update_skips_cpp_removed_loading_and_non_corpse_states() {
+        let pet = Pet::new(owner_guid(), PetType::Hunter);
+        assert_eq!(
+            pet.update_corpse_like_cpp(1_000),
+            PetCorpseUpdateOutcome::NotCorpse
+        );
+
+        let mut removed = Pet::new(owner_guid(), PetType::Hunter);
+        removed.set_removed(true);
+        assert_eq!(
+            removed.update_corpse_like_cpp(1_000),
+            PetCorpseUpdateOutcome::Skipped
+        );
+
+        let mut loading = Pet::new(owner_guid(), PetType::Hunter);
+        loading.set_loading(true);
+        assert_eq!(
+            loading.update_corpse_like_cpp(1_000),
+            PetCorpseUpdateOutcome::Skipped
+        );
     }
 
     #[test]
