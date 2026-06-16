@@ -6,6 +6,7 @@ use wow_core::ObjectGuid;
 use crate::{
     Creature, CreatureRuntimePlan, ReactState, UNIT_MASK_CONTROLABLE_GUARDIAN, UNIT_MASK_GUARDIAN,
     UNIT_MASK_HUNTER_PET, UNIT_MASK_MINION, UNIT_MASK_PET, UNIT_MASK_SUMMON,
+    UnitAddToWorldOutcomeLikeCpp, UnitRemoveFromWorldOutcomeLikeCpp,
     unit_action_button_action_like_cpp, unit_action_button_type_like_cpp,
 };
 
@@ -218,6 +219,23 @@ pub struct PetRemovePlanLikeCpp {
     pub pet_guid: ObjectGuid,
     pub save_mode: PetSaveMode,
     pub return_reagent: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PetAddToWorldOutcomeLikeCpp {
+    pub guid: ObjectGuid,
+    pub inserted_pet_lookup: bool,
+    pub unit_add_to_world: Option<UnitAddToWorldOutcomeLikeCpp>,
+    pub aim_initialize_represented: bool,
+    pub zone_script_on_creature_create_represented: bool,
+    pub follow_command_flags_reset: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PetRemoveFromWorldOutcomeLikeCpp {
+    pub guid: ObjectGuid,
+    pub unit_remove_from_world: Option<UnitRemoveFromWorldOutcomeLikeCpp>,
+    pub removed_pet_lookup: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -469,6 +487,65 @@ impl Pet {
 
     pub const fn owner_guid(&self) -> ObjectGuid {
         self.owner_guid
+    }
+
+    pub fn add_to_world_like_cpp(&mut self) -> PetAddToWorldOutcomeLikeCpp {
+        let guid = self.creature.guid();
+        let mut inserted_pet_lookup = false;
+        let mut unit_add_to_world = None;
+        let mut aim_initialize_represented = false;
+        let mut zone_script_on_creature_create_represented = false;
+
+        if !self.creature.unit().world().object().is_in_world() {
+            inserted_pet_lookup = true;
+            unit_add_to_world = Some(self.creature.unit_mut().add_to_world_like_cpp());
+            aim_initialize_represented = true;
+            zone_script_on_creature_create_represented = true;
+        }
+
+        let follow_command_flags_reset = self
+            .creature
+            .unit_mut()
+            .subsystems_mut()
+            .control
+            .charm_info
+            .as_mut()
+            .is_some_and(|charm_info| {
+                if charm_info.command_state == crate::COMMAND_FOLLOW_LIKE_CPP as u8 {
+                    charm_info.is_command_attack = false;
+                    charm_info.is_command_follow = false;
+                    charm_info.is_at_stay = false;
+                    charm_info.is_following = false;
+                    charm_info.is_returning = false;
+                    true
+                } else {
+                    false
+                }
+            });
+
+        PetAddToWorldOutcomeLikeCpp {
+            guid,
+            inserted_pet_lookup,
+            unit_add_to_world,
+            aim_initialize_represented,
+            zone_script_on_creature_create_represented,
+            follow_command_flags_reset,
+        }
+    }
+
+    pub fn remove_from_world_like_cpp(&mut self) -> Option<PetRemoveFromWorldOutcomeLikeCpp> {
+        let guid = self.creature.guid();
+        if !self.creature.unit().world().object().is_in_world() {
+            return None;
+        }
+
+        let unit_remove_from_world = self.creature.unit_mut().remove_from_world_like_cpp();
+
+        Some(PetRemoveFromWorldOutcomeLikeCpp {
+            guid,
+            unit_remove_from_world,
+            removed_pet_lookup: true,
+        })
     }
 
     pub const fn pet_type(&self) -> PetType {
@@ -1305,6 +1382,101 @@ mod tests {
 
         let hunter = Pet::new(owner_guid(), PetType::Hunter);
         assert!((hunter.unit_type_mask() & UNIT_MASK_HUNTER_PET) != 0);
+    }
+
+    #[test]
+    fn pet_add_to_world_uses_unit_path_and_resets_follow_flags_like_cpp() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+        pet.creature_mut()
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .create(pet_guid(2));
+        let charm_info = pet
+            .creature_mut()
+            .unit_mut()
+            .subsystems_mut()
+            .control
+            .init_charm_info();
+        charm_info.command_state = crate::COMMAND_FOLLOW_LIKE_CPP as u8;
+        charm_info.is_command_attack = true;
+        charm_info.is_command_follow = true;
+        charm_info.is_at_stay = true;
+        charm_info.is_following = true;
+        charm_info.is_returning = true;
+
+        let first = pet.add_to_world_like_cpp();
+        assert_eq!(first.guid, pet_guid(2));
+        assert!(first.inserted_pet_lookup);
+        assert!(first.unit_add_to_world.is_some());
+        assert!(first.aim_initialize_represented);
+        assert!(first.zone_script_on_creature_create_represented);
+        assert!(first.follow_command_flags_reset);
+        assert!(pet.creature().unit().world().object().is_in_world());
+        let charm_info = pet
+            .creature()
+            .unit()
+            .subsystems()
+            .control
+            .charm_info
+            .as_ref()
+            .unwrap();
+        assert_eq!(
+            charm_info.command_state,
+            crate::COMMAND_FOLLOW_LIKE_CPP as u8,
+            "C++ clears transient follow flags but does not change CommandState"
+        );
+        assert!(!charm_info.is_command_attack);
+        assert!(!charm_info.is_command_follow);
+        assert!(!charm_info.is_at_stay);
+        assert!(!charm_info.is_following);
+        assert!(!charm_info.is_returning);
+
+        let charm_info = pet
+            .creature_mut()
+            .unit_mut()
+            .subsystems_mut()
+            .control
+            .charm_info
+            .as_mut()
+            .unwrap();
+        charm_info.is_command_follow = true;
+        charm_info.is_following = true;
+        let second = pet.add_to_world_like_cpp();
+        assert!(!second.inserted_pet_lookup);
+        assert!(second.unit_add_to_world.is_none());
+        assert!(second.follow_command_flags_reset);
+        assert!(
+            !pet.creature()
+                .unit()
+                .subsystems()
+                .control
+                .charm_info
+                .as_ref()
+                .unwrap()
+                .is_following,
+            "C++ follow cleanup is outside the IsInWorld guard"
+        );
+    }
+
+    #[test]
+    fn pet_remove_from_world_uses_unit_path_and_pet_lookup_like_cpp() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+        pet.creature_mut()
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .create(pet_guid(3));
+        assert!(pet.remove_from_world_like_cpp().is_none());
+
+        let add = pet.add_to_world_like_cpp();
+        assert!(add.unit_add_to_world.is_some());
+        let remove = pet.remove_from_world_like_cpp().unwrap();
+        assert_eq!(remove.guid, pet_guid(3));
+        assert!(remove.unit_remove_from_world.is_some());
+        assert!(remove.removed_pet_lookup);
+        assert!(!pet.creature().unit().world().object().is_in_world());
+        assert!(pet.remove_from_world_like_cpp().is_none());
     }
 
     #[test]
