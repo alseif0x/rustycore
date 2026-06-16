@@ -18,6 +18,7 @@ pub struct AuraSubsystem {
     pub applied_auras: Vec<AppliedAuraRef>,
     pub applied_aura_types: HashMap<i32, Vec<AppliedAuraRef>>,
     pub applied_aura_amounts: HashMap<AppliedAuraRef, i32>,
+    pub loaded_aura_states_like_cpp: HashMap<AuraRef, LoadedAuraStateLikeCpp>,
     pub visible_auras: HashMap<u8, AuraRef>,
     pub visible_aura_applications_like_cpp: HashMap<u8, VisibleAuraApplicationLikeCpp>,
     pub visible_auras_to_update: HashSet<u8>,
@@ -34,6 +35,33 @@ pub struct AuraSubsystem {
     pub proc_depth: u16,
     pub proc_chain_length: i32,
     pub diminishing: [DiminishingReturnState; DIMINISHING_MAX],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LoadedAuraStateLikeCpp {
+    pub max_duration_ms: i32,
+    pub duration_ms: i32,
+    pub charges: u8,
+    pub stack_amount: u8,
+    pub recalculate_mask: u32,
+}
+
+impl LoadedAuraStateLikeCpp {
+    pub const fn new(
+        max_duration_ms: i32,
+        duration_ms: i32,
+        charges: u8,
+        stack_amount: u8,
+        recalculate_mask: u32,
+    ) -> Self {
+        Self {
+            max_duration_ms,
+            duration_ms,
+            charges,
+            stack_amount,
+            recalculate_mask,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -208,6 +236,10 @@ impl AuraSubsystem {
         }
     }
 
+    pub fn set_loaded_aura_state_like_cpp(&mut self, aura: AuraRef, state: LoadedAuraStateLikeCpp) {
+        self.loaded_aura_states_like_cpp.insert(aura, state);
+    }
+
     pub fn register_applied_aura_type_like_cpp(&mut self, aura: AppliedAuraRef, aura_type: i32) {
         self.add_applied(aura);
         let typed_auras = self.applied_aura_types.entry(aura_type).or_default();
@@ -241,6 +273,7 @@ impl AuraSubsystem {
         }
         self.aura_state_auras.retain(|_, auras| !auras.is_empty());
         self.applied_aura_amounts.remove(&aura);
+        self.loaded_aura_states_like_cpp.remove(&aura.aura_ref());
         self.update_interrupt_masks();
         before != self.applied_auras.len()
     }

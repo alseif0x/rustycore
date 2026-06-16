@@ -543,6 +543,20 @@ db2_store!(SpellVisualMissileStore, SpellVisualMissileEntry);
 db2_store!(SpellXSpellVisualStore, SpellXSpellVisualEntry);
 
 impl SpellAuraOptionsStore {
+    /// C++ `SpellInfo::ProcCharges`, hydrated from `SpellAuraOptionsEntry`.
+    pub fn proc_charges_like_cpp(&self, spell_id: u32, difficulty_id: u8) -> u8 {
+        self.entries
+            .values()
+            .find(|entry| entry.spell_id == spell_id && entry.difficulty_id == difficulty_id)
+            .or_else(|| {
+                self.entries
+                    .values()
+                    .find(|entry| entry.spell_id == spell_id && entry.difficulty_id == 0)
+            })
+            .map(|entry| entry.proc_charges.clamp(0, i32::from(u8::MAX)) as u8)
+            .unwrap_or(0)
+    }
+
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(data_dir, locale, "SpellAuraOptions.db2", |id, idx, r| {
             SpellAuraOptionsEntry {

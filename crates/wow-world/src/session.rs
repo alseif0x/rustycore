@@ -77,8 +77,8 @@ use wow_data::{
     PlayerConditionCountLikeCpp, PlayerConditionPartyStatusLikeCpp,
     PlayerConditionQuestKillLikeCpp, PlayerConditionReputationLikeCpp, PlayerConditionSkillLikeCpp,
     PlayerConditionStore, PlayerStatsStore, RandPropPointsStore, SkillLineStore, SkillStore,
-    SpellCategoryStore, SpellDurationStore, SpellItemEnchantmentStore, SpellMiscStore,
-    SpellRadiusStore, SpellRangeStore, SpellStore, SpellTargetPositionStoreLikeCpp,
+    SpellAuraOptionsStore, SpellCategoryStore, SpellDurationStore, SpellItemEnchantmentStore,
+    SpellMiscStore, SpellRadiusStore, SpellRangeStore, SpellStore, SpellTargetPositionStoreLikeCpp,
     SummonPropertiesEntry, ToyStore, TransmogSetEntry, TransmogSetItemStore,
     TrinityStringStoreLikeCpp, VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp,
     VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
@@ -3845,6 +3845,7 @@ pub struct WorldSession {
     pub spell_store: Option<Arc<SpellStore>>,
     spell_category_store: Option<Arc<SpellCategoryStore>>,
     npc_spell_click_store: Option<Arc<NpcSpellClickStoreLikeCpp>>,
+    spell_aura_options_store: Option<Arc<SpellAuraOptionsStore>>,
     spell_misc_store: Option<Arc<SpellMiscStore>>,
     spell_duration_store: Option<Arc<SpellDurationStore>>,
     spell_radius_store: Option<Arc<SpellRadiusStore>>,
@@ -5144,6 +5145,7 @@ impl WorldSession {
             spell_store: None,
             spell_category_store: None,
             npc_spell_click_store: None,
+            spell_aura_options_store: None,
             spell_misc_store: None,
             spell_duration_store: None,
             spell_radius_store: None,
@@ -16856,6 +16858,10 @@ impl WorldSession {
         self.npc_spell_click_store.as_ref()
     }
 
+    pub fn set_spell_aura_options_store(&mut self, store: Arc<SpellAuraOptionsStore>) {
+        self.spell_aura_options_store = Some(store);
+    }
+
     pub fn set_spell_misc_store(&mut self, store: Arc<SpellMiscStore>) {
         self.spell_misc_store = Some(store);
     }
@@ -24414,8 +24420,22 @@ impl WorldSession {
         rows: impl IntoIterator<Item = CharacterPetAuraRowLikeCpp>,
     ) -> usize {
         let spell_store = self.spell_store().cloned();
+        let aura_options_store = self.spell_aura_options_store.clone();
         let auras: Vec<_> = rows
             .into_iter()
+            .map(|mut row| {
+                if let Some(store) = aura_options_store.as_ref() {
+                    let proc_charges = store.proc_charges_like_cpp(row.spell_id, row.difficulty);
+                    row.remain_charges = if proc_charges == 0 {
+                        0
+                    } else if row.remain_charges == 0 {
+                        proc_charges
+                    } else {
+                        row.remain_charges
+                    };
+                }
+                row
+            })
             .filter(|row| {
                 row.spell_id != 0
                     && spell_store
@@ -25508,15 +25528,24 @@ impl WorldSession {
                         slot,
                         aura.effect_mask,
                     );
+                    let aura_ref = wow_entities::AuraRef::new(aura.spell_id, caster_guid);
                     aura_subsystem.add_owned(wow_entities::OwnedAuraRef::new(
                         aura.spell_id,
                         caster_guid,
                         None,
                     ));
                     aura_subsystem.add_applied(applied);
-                    aura_subsystem
-                        .visible_auras
-                        .insert(slot, wow_entities::AuraRef::new(aura.spell_id, caster_guid));
+                    aura_subsystem.set_loaded_aura_state_like_cpp(
+                        aura_ref,
+                        wow_entities::LoadedAuraStateLikeCpp::new(
+                            aura.max_duration_ms,
+                            aura.remain_time_ms,
+                            aura.remain_charges,
+                            aura.stack_count,
+                            aura.recalculate_mask,
+                        ),
+                    );
+                    aura_subsystem.visible_auras.insert(slot, aura_ref);
 
                     let effect_amounts: Vec<_> = pet_aura_effects
                         .iter()
@@ -66498,6 +66527,102 @@ mod tests {
     }
 
     #[test]
+    fn load_represented_pet_aura_rows_normalizes_proc_charges_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let mut spell_store = wow_data::SpellStore::new();
+        for spell_id in [7_777, 8_888, 9_999] {
+            spell_store.insert(
+                spell_id,
+                gameobject_summon_spell_info_like_cpp(spell_id, 0, Vec::new()),
+            );
+        }
+        session.set_spell_store(Arc::new(spell_store));
+        session.set_spell_aura_options_store(Arc::new(
+            wow_data::SpellAuraOptionsStore::from_entries([
+                wow_data::SpellAuraOptionsEntry {
+                    id: 1,
+                    difficulty_id: 0,
+                    cumulative_aura: 0,
+                    proc_category_recovery: 0,
+                    proc_chance: 0,
+                    proc_charges: 3,
+                    spell_procs_per_minute_id: 0,
+                    proc_type_mask: [0; 2],
+                    spell_id: 7_777,
+                },
+                wow_data::SpellAuraOptionsEntry {
+                    id: 2,
+                    difficulty_id: 2,
+                    cumulative_aura: 0,
+                    proc_category_recovery: 0,
+                    proc_chance: 0,
+                    proc_charges: 5,
+                    spell_procs_per_minute_id: 0,
+                    proc_type_mask: [0; 2],
+                    spell_id: 8_888,
+                },
+            ]),
+        ));
+
+        let loaded = session.load_represented_pet_aura_rows_like_cpp(
+            42,
+            [
+                CharacterPetAuraRowLikeCpp {
+                    caster_guid: ObjectGuid::EMPTY,
+                    spell_id: 7_777,
+                    effect_mask: 1,
+                    recalculate_mask: 0,
+                    difficulty: 0,
+                    stack_count: 1,
+                    max_duration_ms: 10_000,
+                    remain_time_ms: 5_000,
+                    remain_charges: 0,
+                },
+                CharacterPetAuraRowLikeCpp {
+                    caster_guid: ObjectGuid::EMPTY,
+                    spell_id: 8_888,
+                    effect_mask: 1,
+                    recalculate_mask: 0,
+                    difficulty: 2,
+                    stack_count: 1,
+                    max_duration_ms: 10_000,
+                    remain_time_ms: 5_000,
+                    remain_charges: 2,
+                },
+                CharacterPetAuraRowLikeCpp {
+                    caster_guid: ObjectGuid::EMPTY,
+                    spell_id: 9_999,
+                    effect_mask: 1,
+                    recalculate_mask: 0,
+                    difficulty: 0,
+                    stack_count: 1,
+                    max_duration_ms: 10_000,
+                    remain_time_ms: 5_000,
+                    remain_charges: 7,
+                },
+            ],
+        );
+
+        assert_eq!(loaded, 3);
+        let auras = session
+            .represented_pet_auras_like_cpp
+            .get(&42)
+            .expect("represented pet auras");
+        assert_eq!(
+            auras[0].remain_charges, 3,
+            "C++ Pet::_LoadAuras replaces zero remainCharges with SpellInfo::ProcCharges"
+        );
+        assert_eq!(
+            auras[1].remain_charges, 2,
+            "C++ Pet::_LoadAuras preserves non-zero remainCharges when ProcCharges exists"
+        );
+        assert_eq!(
+            auras[2].remain_charges, 0,
+            "C++ Pet::_LoadAuras clears remainCharges when SpellInfo::ProcCharges is zero"
+        );
+    }
+
+    #[test]
     fn load_represented_pet_aura_effect_rows_filters_bad_effect_index_like_cpp() {
         let (mut session, _, _send_rx) = make_session();
 
@@ -66720,6 +66845,14 @@ mod tests {
                         .collect::<Vec<_>>()
                 )),
             Some((0x3, vec![(0, 51), (1, 52)]))
+        );
+        assert_eq!(
+            pet_auras
+                .loaded_aura_states_like_cpp
+                .get(&loaded_aura.aura_ref()),
+            Some(&wow_entities::LoadedAuraStateLikeCpp::new(
+                30_000, 20_000, 1, 2, 0
+            ))
         );
         assert_eq!(
             pet_auras
