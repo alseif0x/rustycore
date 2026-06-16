@@ -5495,6 +5495,7 @@ impl WorldSession {
         for quest_bit in &self.represented_quest_completed_bits_like_cpp {
             player.set_quest_completed_bit_like_cpp(*quest_bit, true);
         }
+        player.set_game_master_like_cpp(self.player_game_master_like_cpp);
         player
             .unit_mut()
             .set_base_attack_time_like_cpp(WeaponAttackType::BaseAttack, 2_000);
@@ -7218,7 +7219,7 @@ impl WorldSession {
         let existing_instance_player_count = match &decision {
             wow_map::CreateMapDecision::Existing { key, .. } if is_dungeon => manager
                 .find_map(key.map_id, key.instance_id)
-                .map(|map| map.player_count()),
+                .map(|map| map.players_count_except_gms_like_cpp()),
             _ => None,
         };
         let existing_instance_encounter_in_progress = match &decision {
@@ -39425,9 +39426,9 @@ mod tests {
     use wow_entities::{
         AccessorObjectRef, ApplyEnchantmentDurationAction, ApplyEnchantmentResult,
         BANK_SLOT_BAG_START, CharmType, EQUIPMENT_SLOT_CHEST, INVENTORY_SLOT_BAG_START,
-        INVENTORY_SLOT_ITEM_START, REAGENT_BAG_SLOT_START, SendNewItemInstancePlan,
-        SendNewItemModifier, TYPEID_UNIT, UNIT_DATA_BITS, UnitDataUpdate, UnitDataValues,
-        UnitValuesUpdate, UpdateMask,
+        INVENTORY_SLOT_ITEM_START, MapObjectRecord, REAGENT_BAG_SLOT_START,
+        SendNewItemInstancePlan, SendNewItemModifier, TYPEID_UNIT, UNIT_DATA_BITS, UnitDataUpdate,
+        UnitDataValues, UnitValuesUpdate, UpdateMask,
     };
     use wow_movement::MoveSplineFlag;
     use wow_network::player_registry::{
@@ -57397,6 +57398,91 @@ mod tests {
                 .get_typed_player(member)
                 .is_none(),
             "full instance rejection must not synchronize the player"
+        );
+    }
+
+    #[test]
+    fn canonical_existing_instance_full_gate_does_not_count_game_masters_like_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let leader = ObjectGuid::create_player(1, 94);
+        let member = ObjectGuid::create_player(1, 95);
+        let existing_gm = ObjectGuid::create_player(1, 96);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            member,
+            "DungeonGmOccupant".to_string(),
+            Position::new(3700.0, 1500.0, 120.0, 0.0),
+            631,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.represented_raid_difficulty_id_like_cpp = 3;
+        install_create_map_active_lock_stores_with_max_players_like_cpp(
+            &mut session,
+            631,
+            3,
+            77,
+            0,
+            1,
+        );
+
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.raid_difficulty_id = 3;
+        group.add_member(member);
+        group.set_recent_instance_like_cpp(631, leader, 9001);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+        session.group_guid = Some(group_guid);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+
+        {
+            let mut manager = canonical.lock().unwrap();
+            let map = manager.create_map_entry(
+                631,
+                9001,
+                3,
+                wow_map::ManagedMapKind::Dungeon {
+                    has_reset_schedule: false,
+                },
+            );
+            map.set_player_count(1);
+            let mut gm = Player::new(Some(1), false);
+            gm.unit_mut().world_mut().object_mut().create(existing_gm);
+            gm.unit_mut().world_mut().set_map(631, 9001).unwrap();
+            gm.unit_mut()
+                .world_mut()
+                .relocate(Position::new(3700.0, 1500.0, 120.0, 0.0));
+            gm.unit_mut().world_mut().object_mut().add_to_world();
+            gm.set_game_master_like_cpp(true);
+            map.map_mut()
+                .insert_map_object_record(MapObjectRecord::new_player(gm).unwrap())
+                .unwrap();
+        }
+
+        assert_eq!(
+            session.ensure_canonical_world_map_for_current_player_like_cpp(),
+            Some(wow_map::CreateMapDecision::Existing {
+                key: wow_map::MapKey::new(631, 9001),
+                difficulty_id: 3,
+                side_effects: Vec::new(),
+            })
+        );
+        assert!(send_rx.try_recv().is_err());
+        assert!(
+            canonical
+                .lock()
+                .unwrap()
+                .find_map(631, 9001)
+                .unwrap()
+                .map()
+                .get_typed_player(member)
+                .is_some(),
+            "GM occupants must not make a C++ instance full"
         );
     }
 

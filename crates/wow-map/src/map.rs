@@ -12535,6 +12535,24 @@ where
         record.player()
     }
 
+    pub fn typed_player_counts_like_cpp(&self) -> (u32, u32) {
+        let mut total = 0u32;
+        let mut non_game_masters = 0u32;
+        for record in self.map_objects.values() {
+            if record.kind() != AccessorObjectKind::Player {
+                continue;
+            }
+            let Some(player) = record.player() else {
+                continue;
+            };
+            total = total.saturating_add(1);
+            if !player.is_game_master_like_cpp() {
+                non_game_masters = non_game_masters.saturating_add(1);
+            }
+        }
+        (total, non_game_masters)
+    }
+
     pub fn get_typed_player_mut(&mut self, guid: ObjectGuid) -> Option<&mut Player> {
         let record = self.map_objects.get_mut(&guid)?;
         if record.kind() != AccessorObjectKind::Player {
@@ -23081,6 +23099,34 @@ mod tests {
                 .attacking(),
             None
         );
+    }
+
+    #[test]
+    fn typed_player_counts_exclude_game_masters_like_cpp() {
+        let mut map = test_map();
+        let normal_guid = guid(HighGuid::Player, 42);
+        let gm_guid = guid(HighGuid::Player, 43);
+
+        let mut normal = Player::new(Some(7), false);
+        normal
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .create(normal_guid);
+        normal.unit_mut().world_mut().set_map(571, 7).unwrap();
+        normal.unit_mut().world_mut().object_mut().add_to_world();
+        map.insert_map_object_record(MapObjectRecord::new_player(normal).unwrap())
+            .unwrap();
+
+        let mut gm = Player::new(Some(8), false);
+        gm.unit_mut().world_mut().object_mut().create(gm_guid);
+        gm.unit_mut().world_mut().set_map(571, 7).unwrap();
+        gm.unit_mut().world_mut().object_mut().add_to_world();
+        gm.set_game_master_like_cpp(true);
+        map.insert_map_object_record(MapObjectRecord::new_player(gm).unwrap())
+            .unwrap();
+
+        assert_eq!(map.typed_player_counts_like_cpp(), (2, 1));
     }
 
     #[test]

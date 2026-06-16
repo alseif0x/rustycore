@@ -309,6 +309,15 @@ impl ManagedMap {
         self.player_count
     }
 
+    pub fn players_count_except_gms_like_cpp(&self) -> u32 {
+        let (typed_players, non_game_masters) = self.map.typed_player_counts_like_cpp();
+        if typed_players > 0 {
+            non_game_masters
+        } else {
+            self.player_count
+        }
+    }
+
     pub fn set_instance_encounter_in_progress_like_cpp(&mut self, in_progress: bool) {
         self.instance_encounter_in_progress = in_progress;
     }
