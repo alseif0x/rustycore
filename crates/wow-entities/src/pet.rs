@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use wow_constants::{Class, CreatureType, DeathState, PowerType, UnitFlags};
 use wow_core::ObjectGuid;
@@ -298,6 +298,14 @@ pub struct PetCleanupActionBarOutcomeLikeCpp {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PetLearnSpellHighRankOutcomeLikeCpp {
+    pub attempted_spell_ids: Vec<u32>,
+    pub learned_spell_ids: Vec<u32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PetLearnPetPassivesOutcomeLikeCpp {
+    pub creature_template_missing: bool,
+    pub creature_family_missing: bool,
     pub attempted_spell_ids: Vec<u32>,
     pub learned_spell_ids: Vec<u32>,
 }
@@ -1465,6 +1473,56 @@ impl Pet {
         }
 
         PetLearnSpellHighRankOutcomeLikeCpp {
+            attempted_spell_ids,
+            learned_spell_ids,
+        }
+    }
+
+    pub fn learn_pet_passives_like_cpp(
+        &mut self,
+        creature_family_id: Option<u32>,
+        creature_family_exists_like_cpp: impl FnOnce(u32) -> bool,
+        pet_family_spell_ids_like_cpp: impl FnOnce(u32) -> Vec<u32>,
+    ) -> PetLearnPetPassivesOutcomeLikeCpp {
+        let Some(creature_family_id) = creature_family_id else {
+            return PetLearnPetPassivesOutcomeLikeCpp {
+                creature_template_missing: true,
+                creature_family_missing: false,
+                attempted_spell_ids: Vec::new(),
+                learned_spell_ids: Vec::new(),
+            };
+        };
+
+        if !creature_family_exists_like_cpp(creature_family_id) {
+            return PetLearnPetPassivesOutcomeLikeCpp {
+                creature_template_missing: false,
+                creature_family_missing: true,
+                attempted_spell_ids: Vec::new(),
+                learned_spell_ids: Vec::new(),
+            };
+        }
+
+        let attempted_spell_ids = pet_family_spell_ids_like_cpp(creature_family_id)
+            .into_iter()
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        let mut learned_spell_ids = Vec::new();
+
+        for spell_id in attempted_spell_ids.iter().copied() {
+            if self.add_spell(
+                spell_id,
+                ActiveState::Decide,
+                PetSpellState::New,
+                PetSpellType::Family,
+            ) {
+                learned_spell_ids.push(spell_id);
+            }
+        }
+
+        PetLearnPetPassivesOutcomeLikeCpp {
+            creature_template_missing: false,
+            creature_family_missing: false,
             attempted_spell_ids,
             learned_spell_ids,
         }
@@ -3508,6 +3566,87 @@ mod tests {
         assert_eq!(outcome.learned_spell_ids, vec![200]);
         assert!(pet.has_spell(100));
         assert!(pet.has_spell(200));
+    }
+
+    #[test]
+    fn pet_learn_pet_passives_applies_family_spell_set_like_cpp() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+
+        let outcome = pet.learn_pet_passives_like_cpp(
+            Some(7),
+            |family| family == 7,
+            |family| {
+                assert_eq!(family, 7);
+                vec![300, 100, 200, 100]
+            },
+        );
+
+        assert_eq!(outcome.attempted_spell_ids, vec![100, 200, 300]);
+        assert_eq!(outcome.learned_spell_ids, vec![100, 200, 300]);
+        assert!(!outcome.creature_template_missing);
+        assert!(!outcome.creature_family_missing);
+        assert_eq!(
+            pet.spells().get(&100).unwrap().spell_type,
+            PetSpellType::Family
+        );
+        assert_eq!(
+            pet.spells().get(&200).unwrap().spell_type,
+            PetSpellType::Family
+        );
+        assert_eq!(
+            pet.spells().get(&300).unwrap().spell_type,
+            PetSpellType::Family
+        );
+    }
+
+    #[test]
+    fn pet_learn_pet_passives_keeps_cpp_template_and_family_guards() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+
+        let missing_template = pet.learn_pet_passives_like_cpp(
+            None,
+            |_| panic!("C++ returns before CreatureFamily lookup when template is missing"),
+            |_| panic!("C++ returns before PetFamilySpellsStore lookup when template is missing"),
+        );
+        assert!(missing_template.creature_template_missing);
+        assert!(missing_template.attempted_spell_ids.is_empty());
+
+        let missing_family = pet.learn_pet_passives_like_cpp(
+            Some(99),
+            |family| {
+                assert_eq!(family, 99);
+                false
+            },
+            |_| panic!("C++ returns before PetFamilySpellsStore lookup when family is missing"),
+        );
+        assert!(!missing_family.creature_template_missing);
+        assert!(missing_family.creature_family_missing);
+        assert!(pet.spells().is_empty());
+    }
+
+    #[test]
+    fn pet_learn_pet_passives_records_duplicate_noop_like_cpp_add_spell() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+        assert!(pet.add_spell(
+            100,
+            ActiveState::Disabled,
+            PetSpellState::New,
+            PetSpellType::Family
+        ));
+
+        let outcome =
+            pet.learn_pet_passives_like_cpp(Some(7), |family| family == 7, |_| vec![100, 200]);
+
+        assert_eq!(outcome.attempted_spell_ids, vec![100, 200]);
+        assert_eq!(outcome.learned_spell_ids, vec![200]);
+        assert_eq!(
+            pet.spells().get(&100).unwrap().spell_type,
+            PetSpellType::Family
+        );
+        assert_eq!(
+            pet.spells().get(&200).unwrap().spell_type,
+            PetSpellType::Family
+        );
     }
 
     #[test]
