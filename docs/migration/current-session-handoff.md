@@ -1,3 +1,16 @@
+- `#NEXT.RUNTIME.L3.031j63` — WotLK session-side `CreateMapDifficultyContext`
+  bridge for represented dungeon `CreateMap` (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Maps/MapManager.cpp:177-221` and
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Stores.cpp:2357-2377`.
+  `WorldSession::create_map_difficulty_context_like_cpp` now resolves C++-effective
+  `MapDb2Entries` through `from_downscaled_stores_like_cpp` and converts the result into the
+  `wow_map::CreateMapDifficultyContext` expected by `MapManager::create_map_decision_like_cpp`
+  (`difficulty_id`, `has_reset_schedule`, `is_instance_id_bound`). Coverage: targeted
+  `wow-world create_map_difficulty_context` tests cover fallback/downscale difficulty, normal
+  instance-id-bound semantics, and missing DB2 metadata rejection. Boundary remains partial:
+  the live `ensure_canonical_world_map_for_current_player_like_cpp` path still skips dungeons,
+  active/temporary `InstanceLockMgr` context is not yet supplied to `create_map_decision_like_cpp`,
+  and no install/restart, bot, or live-client validation has been done for this path.
 - `#NEXT.RUNTIME.L3.031j62` — WotLK `GetDownscaledMapDifficultyData` DB2
   foundation for represented dungeon `CreateMap` (not manual-test-ready). Source-of-truth:
   `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Stores.cpp:2314-2380`,

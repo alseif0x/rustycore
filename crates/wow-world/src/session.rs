@@ -7204,6 +7204,26 @@ impl WorldSession {
         }
     }
 
+    pub(crate) fn create_map_difficulty_context_like_cpp(
+        &self,
+        map_id: u32,
+        difficulty_id: wow_map::Difficulty,
+    ) -> Option<wow_map::CreateMapDifficultyContext> {
+        let entries = wow_instances::MapDb2Entries::from_downscaled_stores_like_cpp(
+            self.map_store()?.as_ref(),
+            self.map_difficulty_store()?.as_ref(),
+            self.difficulty_store()?.as_ref(),
+            map_id,
+            difficulty_id,
+        )?;
+
+        Some(wow_map::CreateMapDifficultyContext {
+            difficulty_id: entries.difficulty_id,
+            has_reset_schedule: entries.has_reset_schedule(),
+            is_instance_id_bound: entries.is_instance_id_bound(),
+        })
+    }
+
     fn represented_player_difficulty_id_for_map_entry_like_cpp(
         &self,
         map_id: u32,
@@ -38946,6 +38966,132 @@ mod tests {
         let context = session.create_map_player_context_like_cpp(249, map_entry, player_guid);
 
         assert_eq!(context.player_difficulty_id, 4);
+    }
+
+    #[test]
+    fn create_map_difficulty_context_uses_downscaled_map_entries_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 33,
+                instance_type: wow_data::map::MAP_INSTANCE,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+            },
+        ])));
+        session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([
+            DifficultyEntry {
+                id: 5,
+                instance_type: MAP_INSTANCE_LIKE_CPP,
+                flags: 0,
+                fallback_difficulty_id: 2,
+                toggle_difficulty_id: 0,
+            },
+            DifficultyEntry {
+                id: 2,
+                instance_type: MAP_INSTANCE_LIKE_CPP,
+                flags: 0,
+                fallback_difficulty_id: 1,
+                toggle_difficulty_id: 0,
+            },
+        ])));
+        session.set_map_difficulty_store(Arc::new(MapDifficultyStore::from_entries([
+            MapDifficultyEntry {
+                id: 900,
+                map_id: 33,
+                difficulty_id: 2,
+                lock_id: 9,
+                reset_interval: 1,
+                flags: wow_data::map::MAP_DIFFICULTY_FLAG_USE_LOOT_BASED_LOCK,
+            },
+        ])));
+
+        let context = session
+            .create_map_difficulty_context_like_cpp(33, 5)
+            .unwrap();
+
+        assert_eq!(
+            context,
+            wow_map::CreateMapDifficultyContext {
+                difficulty_id: 2,
+                has_reset_schedule: true,
+                is_instance_id_bound: false,
+            }
+        );
+    }
+
+    #[test]
+    fn create_map_difficulty_context_marks_normal_instance_id_bound_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 33,
+                instance_type: wow_data::map::MAP_INSTANCE,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+            },
+        ])));
+        session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([DifficultyEntry {
+            id: 1,
+            instance_type: MAP_INSTANCE_LIKE_CPP,
+            flags: DifficultyFlags::DEFAULT.bits(),
+            fallback_difficulty_id: 0,
+            toggle_difficulty_id: 0,
+        }])));
+        session.set_map_difficulty_store(Arc::new(MapDifficultyStore::from_entries([
+            MapDifficultyEntry {
+                id: 900,
+                map_id: 33,
+                difficulty_id: 1,
+                lock_id: 7,
+                reset_interval: 0,
+                flags: 0,
+            },
+        ])));
+
+        let context = session
+            .create_map_difficulty_context_like_cpp(33, 1)
+            .unwrap();
+
+        assert_eq!(
+            context,
+            wow_map::CreateMapDifficultyContext {
+                difficulty_id: 1,
+                has_reset_schedule: false,
+                is_instance_id_bound: true,
+            }
+        );
+    }
+
+    #[test]
+    fn create_map_difficulty_context_rejects_unrepresentable_inputs_like_cpp() {
+        let (mut session, _, _) = make_session();
+
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 33,
+                instance_type: wow_data::map::MAP_INSTANCE,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+            },
+        ])));
+        session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([DifficultyEntry {
+            id: 1,
+            instance_type: MAP_INSTANCE_LIKE_CPP,
+            flags: DifficultyFlags::DEFAULT.bits(),
+            fallback_difficulty_id: 0,
+            toggle_difficulty_id: 0,
+        }])));
+        session.set_map_difficulty_store(Arc::new(MapDifficultyStore::from_entries([])));
+
+        assert!(
+            session
+                .create_map_difficulty_context_like_cpp(33, 1)
+                .is_none()
+        );
     }
 
     #[test]

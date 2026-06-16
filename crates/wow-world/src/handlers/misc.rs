@@ -6144,6 +6144,7 @@ mod tests {
             id,
             instance_type,
             flags: flags.bits(),
+            fallback_difficulty_id: 0,
             toggle_difficulty_id,
         }
     }
