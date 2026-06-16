@@ -181,6 +181,21 @@ pub enum PetCorpseUpdateOutcome {
     Remove { save_mode: PetSaveMode },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PetAliveOwnerUpdateOutcome {
+    Skipped,
+    NotAlive,
+    Keep,
+    RemoveLostOwner {
+        save_mode: PetSaveMode,
+        return_reagent: bool,
+    },
+    RemoveUnlinkedControlled {
+        save_mode: PetSaveMode,
+        unexpected_hunter: bool,
+    },
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PetDeathStateUpdateOutcome {
     pub creature_plan: CreatureRuntimePlan,
@@ -326,6 +341,42 @@ impl Pet {
         } else {
             PetCorpseUpdateOutcome::KeepCorpse
         }
+    }
+
+    pub fn update_alive_owner_link_like_cpp(
+        &self,
+        owner_within_visibility_range: bool,
+        is_possessed: bool,
+        owner_pet_guid: Option<ObjectGuid>,
+    ) -> PetAliveOwnerUpdateOutcome {
+        if self.removed || self.loading {
+            return PetAliveOwnerUpdateOutcome::Skipped;
+        }
+
+        if self.creature.unit().death_state() != DeathState::Alive {
+            return PetAliveOwnerUpdateOutcome::NotAlive;
+        }
+
+        if (!owner_within_visibility_range && !is_possessed)
+            || (self.is_controlled() && owner_pet_guid.is_none())
+        {
+            return PetAliveOwnerUpdateOutcome::RemoveLostOwner {
+                save_mode: PetSaveMode::NotInSlot,
+                return_reagent: true,
+            };
+        }
+
+        if self.is_controlled() {
+            let pet_guid = self.creature.guid();
+            if owner_pet_guid != Some(pet_guid) {
+                return PetAliveOwnerUpdateOutcome::RemoveUnlinkedControlled {
+                    save_mode: PetSaveMode::NotInSlot,
+                    unexpected_hunter: self.pet_type == PetType::Hunter,
+                };
+            }
+        }
+
+        PetAliveOwnerUpdateOutcome::Keep
     }
 
     pub fn set_death_state_like_cpp(
@@ -864,6 +915,95 @@ mod tests {
         assert_eq!(
             loading.update_corpse_like_cpp(1_000),
             PetCorpseUpdateOutcome::Skipped
+        );
+    }
+
+    #[test]
+    fn pet_alive_owner_link_removes_lost_owner_like_cpp() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+        pet.creature_mut()
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .create(pet_guid(10));
+
+        assert_eq!(
+            pet.update_alive_owner_link_like_cpp(false, false, Some(pet_guid(10))),
+            PetAliveOwnerUpdateOutcome::RemoveLostOwner {
+                save_mode: PetSaveMode::NotInSlot,
+                return_reagent: true
+            },
+            "C++ removes when pet is outside owner visibility range and not possessed"
+        );
+        assert_eq!(
+            pet.update_alive_owner_link_like_cpp(true, false, None),
+            PetAliveOwnerUpdateOutcome::RemoveLostOwner {
+                save_mode: PetSaveMode::NotInSlot,
+                return_reagent: true
+            },
+            "C++ removes controlled pets when owner->GetPetGUID() is empty"
+        );
+    }
+
+    #[test]
+    fn pet_alive_owner_link_removes_unlinked_controlled_pet_like_cpp() {
+        let mut summon = Pet::new(owner_guid(), PetType::Summon);
+        summon
+            .creature_mut()
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .create(pet_guid(11));
+
+        assert_eq!(
+            summon.update_alive_owner_link_like_cpp(true, false, Some(pet_guid(12))),
+            PetAliveOwnerUpdateOutcome::RemoveUnlinkedControlled {
+                save_mode: PetSaveMode::NotInSlot,
+                unexpected_hunter: false
+            }
+        );
+
+        let mut hunter = Pet::new(owner_guid(), PetType::Hunter);
+        hunter
+            .creature_mut()
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .create(pet_guid(13));
+        assert_eq!(
+            hunter.update_alive_owner_link_like_cpp(true, false, Some(pet_guid(14))),
+            PetAliveOwnerUpdateOutcome::RemoveUnlinkedControlled {
+                save_mode: PetSaveMode::NotInSlot,
+                unexpected_hunter: true
+            },
+            "C++ ASSERTs this unexpected hunter-pet unlink case before Remove(PET_SAVE_NOT_IN_SLOT)"
+        );
+    }
+
+    #[test]
+    fn pet_alive_owner_link_keeps_valid_alive_and_skips_non_alive_like_cpp() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+        pet.creature_mut()
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .create(pet_guid(15));
+
+        assert_eq!(
+            pet.update_alive_owner_link_like_cpp(true, false, Some(pet_guid(15))),
+            PetAliveOwnerUpdateOutcome::Keep
+        );
+        assert_eq!(
+            pet.update_alive_owner_link_like_cpp(false, true, Some(pet_guid(15))),
+            PetAliveOwnerUpdateOutcome::Keep,
+            "C++ allows out-of-range possessed pets through the distance branch"
+        );
+
+        pet.creature_mut()
+            .set_death_state_runtime(DeathState::JustDied, 1_000);
+        assert_eq!(
+            pet.update_alive_owner_link_like_cpp(true, false, Some(pet_guid(15))),
+            PetAliveOwnerUpdateOutcome::NotAlive
         );
     }
 
