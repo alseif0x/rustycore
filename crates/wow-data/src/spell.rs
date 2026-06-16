@@ -12,12 +12,13 @@
 //! - Effect type (heal, damage, apply aura, etc.)
 //! - Effect parameters (base points, bonus coefficients)
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::f32::consts::TAU;
 
 use anyhow::Result;
 use tracing::info;
 use wow_database::{HotfixDatabase, WorldDatabase};
+use wow_entities::PetAuraLikeCpp;
 
 use crate::{ConditionEntriesByTypeStore, ConditionsReference};
 
@@ -26,10 +27,11 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_NONE: u32 = 0;
     pub const SPELL_EFFECT_INSTAKILL: u32 = 1;
     pub const SPELL_EFFECT_SCHOOL_DAMAGE: u32 = 2;
+    pub const SPELL_EFFECT_DUMMY: u32 = 3;
     pub const SPELL_EFFECT_PORTAL_TELEPORT: u32 = 4;
+    pub const SPELL_EFFECT_APPLY_AURA: u32 = 6;
     pub const SPELL_EFFECT_ENVIRONMENTAL_DAMAGE: u32 = 7;
     pub const SPELL_EFFECT_POWER_DRAIN: u32 = 8;
-    pub const SPELL_EFFECT_APPLY_AURA: u32 = 6;
     pub const SPELL_EFFECT_HEALTH_LEECH: u32 = 9;
     pub const SPELL_EFFECT_HEAL: u32 = 10;
     pub const SPELL_EFFECT_BIND: u32 = 11;
@@ -491,6 +493,154 @@ pub struct SpellTargetPositionLoadReportLikeCpp {
 pub struct SpellTargetPositionStoreLikeCpp {
     positions: HashMap<(u32, u32), SpellTargetPositionLikeCpp>,
     load_report: SpellTargetPositionLoadReportLikeCpp,
+}
+
+pub const SPELL_AURA_DUMMY_LIKE_CPP: i32 = 0;
+pub const TARGET_UNIT_PET_LIKE_CPP: u32 = 5;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellPetAuraRowLikeCpp {
+    pub spell_id: u32,
+    pub effect_index: u8,
+    pub pet_entry: u32,
+    pub aura_id: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellPetAuraSourceEffectLikeCpp {
+    pub effect: u32,
+    pub apply_aura_name: i32,
+    pub target_a: u32,
+    pub calc_value: i32,
+}
+
+impl SpellPetAuraSourceEffectLikeCpp {
+    pub const fn is_valid_pet_aura_source_like_cpp(self) -> bool {
+        self.effect == spell_effect_types::SPELL_EFFECT_DUMMY
+            || (self.effect == spell_effect_types::SPELL_EFFECT_APPLY_AURA
+                && self.apply_aura_name == SPELL_AURA_DUMMY_LIKE_CPP)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpellPetAuraSourceLookupLikeCpp {
+    SpellMissing,
+    EffectIndexMissing,
+    Found(SpellPetAuraSourceEffectLikeCpp),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpellPetAuraLoadErrorKindLikeCpp {
+    SpellMissing,
+    EffectIndexMissing,
+    SourceEffectNotDummy,
+    AuraSpellMissing,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellPetAuraLoadErrorLikeCpp {
+    pub row: SpellPetAuraRowLikeCpp,
+    pub kind: SpellPetAuraLoadErrorKindLikeCpp,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct SpellPetAuraStoreLikeCpp {
+    pub auras_by_spell_effect_key: BTreeMap<u32, PetAuraLikeCpp>,
+}
+
+impl SpellPetAuraStoreLikeCpp {
+    pub const fn key_like_cpp(spell_id: u32, effect_index: u8) -> u32 {
+        (spell_id << 8) + effect_index as u32
+    }
+
+    pub fn get_pet_aura_like_cpp(
+        &self,
+        spell_id: u32,
+        effect_index: u8,
+    ) -> Option<&PetAuraLikeCpp> {
+        self.auras_by_spell_effect_key
+            .get(&Self::key_like_cpp(spell_id, effect_index))
+    }
+
+    pub fn load_spell_pet_auras_like_cpp<I, SourceEffect, AuraExists>(
+        rows: I,
+        mut source_effect_lookup: SourceEffect,
+        mut aura_spell_exists: AuraExists,
+    ) -> SpellPetAuraLoadOutcomeLikeCpp
+    where
+        I: IntoIterator<Item = SpellPetAuraRowLikeCpp>,
+        SourceEffect: FnMut(u32, u8) -> SpellPetAuraSourceLookupLikeCpp,
+        AuraExists: FnMut(u32) -> bool,
+    {
+        let mut store = Self::default();
+        let mut loaded_row_count = 0;
+        let mut errors = Vec::new();
+
+        for row in rows {
+            let key = Self::key_like_cpp(row.spell_id, row.effect_index);
+            if let Some(pet_aura) = store.auras_by_spell_effect_key.get_mut(&key) {
+                pet_aura.add_aura_like_cpp(row.pet_entry, row.aura_id);
+                loaded_row_count += 1;
+                continue;
+            }
+
+            let source_effect = match source_effect_lookup(row.spell_id, row.effect_index) {
+                SpellPetAuraSourceLookupLikeCpp::SpellMissing => {
+                    errors.push(SpellPetAuraLoadErrorLikeCpp {
+                        row,
+                        kind: SpellPetAuraLoadErrorKindLikeCpp::SpellMissing,
+                    });
+                    continue;
+                }
+                SpellPetAuraSourceLookupLikeCpp::EffectIndexMissing => {
+                    errors.push(SpellPetAuraLoadErrorLikeCpp {
+                        row,
+                        kind: SpellPetAuraLoadErrorKindLikeCpp::EffectIndexMissing,
+                    });
+                    continue;
+                }
+                SpellPetAuraSourceLookupLikeCpp::Found(effect) => effect,
+            };
+
+            if !source_effect.is_valid_pet_aura_source_like_cpp() {
+                errors.push(SpellPetAuraLoadErrorLikeCpp {
+                    row,
+                    kind: SpellPetAuraLoadErrorKindLikeCpp::SourceEffectNotDummy,
+                });
+                continue;
+            }
+
+            if !aura_spell_exists(row.aura_id) {
+                errors.push(SpellPetAuraLoadErrorLikeCpp {
+                    row,
+                    kind: SpellPetAuraLoadErrorKindLikeCpp::AuraSpellMissing,
+                });
+                continue;
+            }
+
+            let pet_aura = PetAuraLikeCpp::new(
+                row.pet_entry,
+                row.aura_id,
+                source_effect.target_a == TARGET_UNIT_PET_LIKE_CPP,
+                source_effect.calc_value,
+            );
+            store.auras_by_spell_effect_key.insert(key, pet_aura);
+            loaded_row_count += 1;
+        }
+
+        SpellPetAuraLoadOutcomeLikeCpp {
+            store,
+            loaded_row_count,
+            errors,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpellPetAuraLoadOutcomeLikeCpp {
+    pub store: SpellPetAuraStoreLikeCpp,
+    pub loaded_row_count: usize,
+    pub errors: Vec<SpellPetAuraLoadErrorLikeCpp>,
 }
 
 impl SpellInfo {
@@ -1805,5 +1955,168 @@ mod tests {
                 .and_then(|reference| reference.upgrade())
                 .is_some_and(|conditions| conditions.len() == 1)
         );
+    }
+
+    #[test]
+    fn spell_pet_aura_store_loads_first_row_metadata_and_wildcard_like_cpp() {
+        let outcome = SpellPetAuraStoreLikeCpp::load_spell_pet_auras_like_cpp(
+            [
+                SpellPetAuraRowLikeCpp {
+                    spell_id: 10,
+                    effect_index: 1,
+                    pet_entry: 0,
+                    aura_id: 100,
+                },
+                SpellPetAuraRowLikeCpp {
+                    spell_id: 10,
+                    effect_index: 1,
+                    pet_entry: 700,
+                    aura_id: 200,
+                },
+            ],
+            |spell_id, effect_index| {
+                assert_eq!((spell_id, effect_index), (10, 1));
+                SpellPetAuraSourceLookupLikeCpp::Found(SpellPetAuraSourceEffectLikeCpp {
+                    effect: spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    apply_aura_name: SPELL_AURA_DUMMY_LIKE_CPP,
+                    target_a: TARGET_UNIT_PET_LIKE_CPP,
+                    calc_value: 35,
+                })
+            },
+            |aura_id| matches!(aura_id, 100 | 200),
+        );
+
+        assert_eq!(outcome.loaded_row_count, 2);
+        assert!(outcome.errors.is_empty());
+        let pet_aura = outcome.store.get_pet_aura_like_cpp(10, 1).unwrap();
+        assert!(pet_aura.remove_on_change_pet);
+        assert_eq!(pet_aura.damage, 35);
+        assert_eq!(pet_aura.aura_for_pet_entry_like_cpp(700), 200);
+        assert_eq!(
+            pet_aura.aura_for_pet_entry_like_cpp(701),
+            100,
+            "C++ PetAura::GetAura falls back to petEntry 0"
+        );
+        assert_eq!(
+            outcome.store.get_pet_aura_like_cpp(10, 2),
+            None,
+            "C++ SpellMgr::GetPetAura keys by (spell << 8) + effect index"
+        );
+    }
+
+    #[test]
+    fn spell_pet_aura_store_rejects_invalid_first_rows_like_cpp() {
+        let rows = [
+            SpellPetAuraRowLikeCpp {
+                spell_id: 1,
+                effect_index: 0,
+                pet_entry: 0,
+                aura_id: 10,
+            },
+            SpellPetAuraRowLikeCpp {
+                spell_id: 2,
+                effect_index: 3,
+                pet_entry: 0,
+                aura_id: 20,
+            },
+            SpellPetAuraRowLikeCpp {
+                spell_id: 3,
+                effect_index: 0,
+                pet_entry: 0,
+                aura_id: 30,
+            },
+            SpellPetAuraRowLikeCpp {
+                spell_id: 4,
+                effect_index: 0,
+                pet_entry: 0,
+                aura_id: 40,
+            },
+        ];
+
+        let outcome = SpellPetAuraStoreLikeCpp::load_spell_pet_auras_like_cpp(
+            rows,
+            |spell_id, _| match spell_id {
+                1 => SpellPetAuraSourceLookupLikeCpp::SpellMissing,
+                2 => SpellPetAuraSourceLookupLikeCpp::EffectIndexMissing,
+                3 => SpellPetAuraSourceLookupLikeCpp::Found(SpellPetAuraSourceEffectLikeCpp {
+                    effect: spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    apply_aura_name: 73,
+                    target_a: 0,
+                    calc_value: 0,
+                }),
+                4 => SpellPetAuraSourceLookupLikeCpp::Found(SpellPetAuraSourceEffectLikeCpp {
+                    effect: spell_effect_types::SPELL_EFFECT_DUMMY,
+                    apply_aura_name: 0,
+                    target_a: 0,
+                    calc_value: 0,
+                }),
+                _ => unreachable!(),
+            },
+            |aura_id| aura_id != 40,
+        );
+
+        assert_eq!(outcome.loaded_row_count, 0);
+        assert!(outcome.store.auras_by_spell_effect_key.is_empty());
+        assert_eq!(
+            outcome
+                .errors
+                .iter()
+                .map(|error| error.kind)
+                .collect::<Vec<_>>(),
+            vec![
+                SpellPetAuraLoadErrorKindLikeCpp::SpellMissing,
+                SpellPetAuraLoadErrorKindLikeCpp::EffectIndexMissing,
+                SpellPetAuraLoadErrorKindLikeCpp::SourceEffectNotDummy,
+                SpellPetAuraLoadErrorKindLikeCpp::AuraSpellMissing,
+            ]
+        );
+    }
+
+    #[test]
+    fn spell_pet_aura_store_duplicate_keys_add_aura_without_revalidation_like_cpp() {
+        let mut source_lookups = 0;
+        let mut aura_checks = 0;
+        let outcome = SpellPetAuraStoreLikeCpp::load_spell_pet_auras_like_cpp(
+            [
+                SpellPetAuraRowLikeCpp {
+                    spell_id: 77,
+                    effect_index: 2,
+                    pet_entry: 500,
+                    aura_id: 900,
+                },
+                SpellPetAuraRowLikeCpp {
+                    spell_id: 77,
+                    effect_index: 2,
+                    pet_entry: 501,
+                    aura_id: 0,
+                },
+            ],
+            |_, _| {
+                source_lookups += 1;
+                SpellPetAuraSourceLookupLikeCpp::Found(SpellPetAuraSourceEffectLikeCpp {
+                    effect: spell_effect_types::SPELL_EFFECT_DUMMY,
+                    apply_aura_name: 0,
+                    target_a: 0,
+                    calc_value: -15,
+                })
+            },
+            |aura_id| {
+                aura_checks += 1;
+                aura_id == 900
+            },
+        );
+
+        assert_eq!(
+            source_lookups, 1,
+            "C++ validates only before creating a new SpellPetAuraMap entry"
+        );
+        assert_eq!(aura_checks, 1);
+        assert_eq!(outcome.loaded_row_count, 2);
+        assert!(outcome.errors.is_empty());
+        let pet_aura = outcome.store.get_pet_aura_like_cpp(77, 2).unwrap();
+        assert!(!pet_aura.remove_on_change_pet);
+        assert_eq!(pet_aura.damage, -15);
+        assert_eq!(pet_aura.aura_for_pet_entry_like_cpp(500), 900);
+        assert_eq!(pet_aura.aura_for_pet_entry_like_cpp(501), 0);
     }
 }

@@ -307,9 +307,11 @@ pub use spawn_group::{
     SpawnGroupTemplateStore,
 };
 pub use spell::{
-    SpellEffectInfo, SpellInfo, SpellStore, SpellTargetPositionLikeCpp,
-    SpellTargetPositionLoadReportLikeCpp, SpellTargetPositionRowLikeCpp,
-    SpellTargetPositionStoreLikeCpp,
+    SPELL_AURA_DUMMY_LIKE_CPP, SpellEffectInfo, SpellInfo, SpellPetAuraLoadErrorKindLikeCpp,
+    SpellPetAuraLoadErrorLikeCpp, SpellPetAuraLoadOutcomeLikeCpp, SpellPetAuraRowLikeCpp,
+    SpellPetAuraSourceEffectLikeCpp, SpellPetAuraSourceLookupLikeCpp, SpellPetAuraStoreLikeCpp,
+    SpellStore, SpellTargetPositionLikeCpp, SpellTargetPositionLoadReportLikeCpp,
+    SpellTargetPositionRowLikeCpp, SpellTargetPositionStoreLikeCpp, TARGET_UNIT_PET_LIKE_CPP,
 };
 pub use spell_click::{
     NpcSpellClickLoadReportLikeCpp, NpcSpellClickRowLikeCpp, NpcSpellClickStoreLikeCpp,
