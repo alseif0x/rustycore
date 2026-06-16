@@ -97,6 +97,9 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_SHOW_CORPSE_LOOT: u32 = 107;
     pub const SPELL_EFFECT_112: u32 = 112;
     pub const SPELL_EFFECT_ATTACK_ME: u32 = 114;
+    /// C++ `SPELL_EFFECT_SKILL`; `SpellMgr::LoadSpellLearnSkills` derives
+    /// `mSpellLearnSkills` from this effect.
+    pub const SPELL_EFFECT_SKILL: u32 = 118;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_PET: u32 = 119;
     pub const SPELL_EFFECT_122: u32 = 122;
     pub const SPELL_EFFECT_MODIFY_THREAT_PERCENT: u32 = 125;
@@ -497,6 +500,7 @@ pub struct SpellTargetPositionStoreLikeCpp {
 
 pub const SPELL_AURA_DUMMY_LIKE_CPP: i32 = 0;
 pub const TARGET_UNIT_PET_LIKE_CPP: u32 = 5;
+pub const SKILL_DUAL_WIELD_LIKE_CPP: u16 = 118;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SpellPetAuraRowLikeCpp {
@@ -1133,6 +1137,91 @@ pub struct SpellRequiredLoadOutcomeLikeCpp {
     pub store: SpellRequiredStoreLikeCpp,
     pub loaded_row_count: usize,
     pub errors: Vec<SpellRequiredLoadErrorLikeCpp>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellLearnSkillNodeLikeCpp {
+    pub skill: u16,
+    pub step: u16,
+    pub value: u16,
+    pub maxvalue: u16,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellLearnSkillEffectLikeCpp {
+    pub effect: u32,
+    pub misc_value: i32,
+    /// Precomputed C++ `SpellEffectInfo::CalcValue()` for
+    /// `SPELL_EFFECT_SKILL`.
+    pub calc_value: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpellLearnSkillSourceSpellInfoLikeCpp {
+    pub spell_id: u32,
+    pub difficulty_none: bool,
+    pub effects: Vec<SpellLearnSkillEffectLikeCpp>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SpellLearnSkillStoreLikeCpp {
+    pub skill_by_spell_id: BTreeMap<u32, SpellLearnSkillNodeLikeCpp>,
+}
+
+impl SpellLearnSkillStoreLikeCpp {
+    pub fn from_spell_infos_like_cpp<I>(source_spells: I) -> SpellLearnSkillLoadOutcomeLikeCpp
+    where
+        I: IntoIterator<Item = SpellLearnSkillSourceSpellInfoLikeCpp>,
+    {
+        let mut store = Self::default();
+        let mut dbc_loaded_row_count = 0;
+
+        for source_spell in source_spells {
+            if !source_spell.difficulty_none {
+                continue;
+            }
+
+            for effect in source_spell.effects {
+                let node = match effect.effect {
+                    spell_effect_types::SPELL_EFFECT_SKILL => SpellLearnSkillNodeLikeCpp {
+                        skill: effect.misc_value as u16,
+                        step: effect.calc_value as u16,
+                        value: 0,
+                        maxvalue: 0,
+                    },
+                    spell_effect_types::SPELL_EFFECT_DUAL_WIELD => SpellLearnSkillNodeLikeCpp {
+                        skill: SKILL_DUAL_WIELD_LIKE_CPP,
+                        step: 1,
+                        value: 1,
+                        maxvalue: 1,
+                    },
+                    _ => continue,
+                };
+
+                store.skill_by_spell_id.insert(source_spell.spell_id, node);
+                dbc_loaded_row_count += 1;
+                break;
+            }
+        }
+
+        SpellLearnSkillLoadOutcomeLikeCpp {
+            store,
+            dbc_loaded_row_count,
+        }
+    }
+
+    pub fn get_spell_learn_skill_like_cpp(
+        &self,
+        spell_id: u32,
+    ) -> Option<&SpellLearnSkillNodeLikeCpp> {
+        self.skill_by_spell_id.get(&spell_id)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpellLearnSkillLoadOutcomeLikeCpp {
+    pub store: SpellLearnSkillStoreLikeCpp,
+    pub dbc_loaded_row_count: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2059,6 +2148,7 @@ mod tests {
         assert_eq!(spell_effect_types::SPELL_EFFECT_SPELL_DEFENSE, 37);
         assert_eq!(spell_effect_types::SPELL_EFFECT_LANGUAGE, 39);
         assert_eq!(spell_effect_types::SPELL_EFFECT_DUAL_WIELD, 40);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_SKILL, 118);
         assert_eq!(spell_effect_types::SPELL_EFFECT_PLAY_MOVIE, 45);
         assert_eq!(spell_effect_types::SPELL_EFFECT_SPAWN, 46);
         assert_eq!(spell_effect_types::SPELL_EFFECT_TRADE_SKILL, 47);
@@ -3343,6 +3433,114 @@ mod tests {
         assert_eq!(
             outcome.store.spells_requiring_spell_like_cpp(100),
             &[90, 91]
+        );
+    }
+
+    fn learn_skill_source(
+        spell_id: u32,
+        difficulty_none: bool,
+        effects: Vec<SpellLearnSkillEffectLikeCpp>,
+    ) -> SpellLearnSkillSourceSpellInfoLikeCpp {
+        SpellLearnSkillSourceSpellInfoLikeCpp {
+            spell_id,
+            difficulty_none,
+            effects,
+        }
+    }
+
+    #[test]
+    fn spell_learn_skill_store_derives_skill_effect_like_cpp() {
+        let outcome = SpellLearnSkillStoreLikeCpp::from_spell_infos_like_cpp([learn_skill_source(
+            100,
+            true,
+            vec![SpellLearnSkillEffectLikeCpp {
+                effect: spell_effect_types::SPELL_EFFECT_SKILL,
+                misc_value: 755,
+                calc_value: 4,
+            }],
+        )]);
+
+        assert_eq!(outcome.dbc_loaded_row_count, 1);
+        assert_eq!(
+            outcome.store.get_spell_learn_skill_like_cpp(100),
+            Some(&SpellLearnSkillNodeLikeCpp {
+                skill: 755,
+                step: 4,
+                value: 0,
+                maxvalue: 0,
+            })
+        );
+    }
+
+    #[test]
+    fn spell_learn_skill_store_derives_dual_wield_like_cpp() {
+        let outcome = SpellLearnSkillStoreLikeCpp::from_spell_infos_like_cpp([learn_skill_source(
+            200,
+            true,
+            vec![SpellLearnSkillEffectLikeCpp {
+                effect: spell_effect_types::SPELL_EFFECT_DUAL_WIELD,
+                misc_value: 0,
+                calc_value: 0,
+            }],
+        )]);
+
+        assert_eq!(outcome.dbc_loaded_row_count, 1);
+        assert_eq!(
+            outcome.store.get_spell_learn_skill_like_cpp(200),
+            Some(&SpellLearnSkillNodeLikeCpp {
+                skill: SKILL_DUAL_WIELD_LIKE_CPP,
+                step: 1,
+                value: 1,
+                maxvalue: 1,
+            })
+        );
+    }
+
+    #[test]
+    fn spell_learn_skill_store_skips_non_base_difficulty_and_breaks_after_first_match_like_cpp() {
+        let outcome = SpellLearnSkillStoreLikeCpp::from_spell_infos_like_cpp([
+            learn_skill_source(
+                300,
+                false,
+                vec![SpellLearnSkillEffectLikeCpp {
+                    effect: spell_effect_types::SPELL_EFFECT_SKILL,
+                    misc_value: 333,
+                    calc_value: 3,
+                }],
+            ),
+            learn_skill_source(
+                301,
+                true,
+                vec![
+                    SpellLearnSkillEffectLikeCpp {
+                        effect: spell_effect_types::SPELL_EFFECT_NONE,
+                        misc_value: 0,
+                        calc_value: 0,
+                    },
+                    SpellLearnSkillEffectLikeCpp {
+                        effect: spell_effect_types::SPELL_EFFECT_DUAL_WIELD,
+                        misc_value: 0,
+                        calc_value: 0,
+                    },
+                    SpellLearnSkillEffectLikeCpp {
+                        effect: spell_effect_types::SPELL_EFFECT_SKILL,
+                        misc_value: 755,
+                        calc_value: 8,
+                    },
+                ],
+            ),
+        ]);
+
+        assert_eq!(outcome.dbc_loaded_row_count, 1);
+        assert!(outcome.store.get_spell_learn_skill_like_cpp(300).is_none());
+        assert_eq!(
+            outcome.store.get_spell_learn_skill_like_cpp(301),
+            Some(&SpellLearnSkillNodeLikeCpp {
+                skill: SKILL_DUAL_WIELD_LIKE_CPP,
+                step: 1,
+                value: 1,
+                maxvalue: 1,
+            })
         );
     }
 
