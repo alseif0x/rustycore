@@ -345,7 +345,11 @@ pub use spell_db2::{
     SpellVisualMissileEntry, SpellVisualMissileStore, SpellVisualStore, SpellXSpellVisualEntry,
     SpellXSpellVisualStore, spell_duration_ms_like_cpp, spell_effect_radius_like_cpp,
 };
-pub use spell_item_enchantment::{SpellItemEnchantmentEntry, SpellItemEnchantmentStore};
+pub use spell_item_enchantment::{
+    SpellEnchantProcEntryLikeCpp, SpellEnchantProcLoadErrorLikeCpp,
+    SpellEnchantProcLoadOutcomeLikeCpp, SpellEnchantProcRowLikeCpp, SpellEnchantProcStoreLikeCpp,
+    SpellItemEnchantmentEntry, SpellItemEnchantmentStore,
+};
 pub use terrain_swap::{TerrainSwapInfo, TerrainSwapStore, load_terrain_swaps};
 pub use trinity_string::{
     LANG_LEVEL_MINREQUIRED_AND_ITEM_LIKE_CPP, LANG_LEVEL_MINREQUIRED_LIKE_CPP,

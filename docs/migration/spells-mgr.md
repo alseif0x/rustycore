@@ -167,7 +167,7 @@ All loads are issued via `WorldDatabase.Query("SELECT … FROM …")` — **no p
 | `SELECT SpellId, SchoolMask, SpellFamilyName, SpellFamilyMask0..3, ProcFlags, ProcFlags2, SpellTypeMask, SpellPhaseMask, HitMask, AttributesMask, DisableEffectsMask, ProcsPerMinute, Chance, Cooldown, Charges FROM spell_proc` | Override / fully-define a spell's proc rule; supports negative SpellId to apply to whole rank chain | world | `LoadSpellProcs` |
 | `SELECT entry, flatMod, pctMod, apPctMod FROM spell_threat` | Per-spell threat multiplier override | world | `LoadSpellThreats` |
 | `SELECT spell, effectId, pet, aura FROM spell_pet_auras` | Owner aura → pet aura mapping; `removeOnChangePet`/`damage` come from the source spell effect | world | `LoadSpellPetAuras` |
-| `SELECT entry, customChance, PPMChance, attributeMask FROM spell_enchant_proc_data` | Item-enchant proc tuning | world | `LoadSpellEnchantProcData` |
+| `SELECT EnchantID, Chance, ProcsPerMinute, HitMask, AttributesMask FROM spell_enchant_proc_data` | Item-enchant proc tuning | world | `LoadSpellEnchantProcData` |
 | `SELECT spell_trigger, spell_effect, type FROM spell_linked_spell` | A→B chains by `SpellLinkedType` (CAST/HIT/AURA/REMOVE) | world | `LoadSpellLinked` |
 | `SELECT spell, area, quest_start, quest_end, aura_spell, racemask, gender, flags, quest_start_status, quest_end_status FROM spell_area` | Area-conditional auras | world | `LoadSpellAreas` |
 | `SELECT spellId, raceId, displayId FROM spell_totem_model` | Per-race totem display override | world | `LoadSpellTotemModel` |
@@ -330,7 +330,7 @@ Numbered for `MIGRATION_ROADMAP.md` cross-reference. Complexity: **L** <1h, **M*
 - [ ] **#SPELLMGR.17** Implement `LoadSpellThreats` (`spell_threat` SQL): query + represented `wow-data` store/loader exist (`WorldStatements::SEL_SPELL_THREATS`, `SpellThreatStoreLikeCpp`), including C++ skip for missing spells, duplicate overwrite semantics, and `GetSpellThreatEntry` fallback to first spell in rank chain via callback; live startup wiring and threat-runtime consumption are still pending (L)
 - [ ] **#SPELLMGR.18** Implement `LoadSkillLineAbilityMap` (DB2): multimap by spell_id (L)
 - [ ] **#SPELLMGR.19** Implement `LoadSpellPetAuras` (`spell_pet_auras` SQL): query + represented `wow-data` store/loader exist (`WorldStatements::SEL_SPELL_PET_AURAS`, `SpellPetAuraStoreLikeCpp`), including C++ key `(spell << 8) + eff`, dummy-effect validation, `petEntry==0` wildcard, and duplicate-key `AddAura` semantics; live startup wiring against the authoritative `SpellInfo` cache is still pending. Before wiring, preserve C++ `SpellEffectInfo::CalcValue()` semantics for the source effect `damage` field, not just raw `EffectBasePoints`. (M)
-- [ ] **#SPELLMGR.20** Implement `LoadSpellEnchantProcData` (`spell_enchant_proc_data` SQL): `SpellEnchantProcEntry` per ench (L)
+- [ ] **#SPELLMGR.20** Implement `LoadSpellEnchantProcData` (`spell_enchant_proc_data` SQL): query + represented `wow-data` store/loader exist (`WorldStatements::SEL_SPELL_ENCHANT_PROC_DATA`, `SpellEnchantProcStoreLikeCpp`), including C++ skip for missing `SpellItemEnchantment.db2` rows and duplicate overwrite semantics; live startup wiring and enchant proc runtime consumption are still pending (L)
 - [ ] **#SPELLMGR.21** Implement `LoadSpellLinked` (`spell_linked_spell` SQL): keyed by `(SpellLinkedType, spell_id)` (M)
 - [ ] **#SPELLMGR.22** Implement `LoadPetLevelupSpellMap` (DB2 join `CreatureFamily` × `SkillLineAbility`): keyed by petFamily (M)
 - [ ] **#SPELLMGR.23** Implement `LoadPetDefaultSpells` (DB2 + cached creature templates): `PetDefaultSpellsEntry { spellid: [u32; 4] }` (M)
@@ -469,7 +469,7 @@ Numbered for `MIGRATION_ROADMAP.md` cross-reference. Complexity: **L** <1h, **M*
 - `spell_proc` — no Rust loader. The proc system (~30 ProcFlags dimensions, PpmRate, SpellFamilyMask matching) has no rule source.
 - `spell_threat` — represented Rust query/store exists in `wow-data`, but it is not yet loaded during world-server startup or consumed by spell/threat runtime. Per-spell threat overrides are therefore not live yet.
 - `spell_pet_auras` — no Rust loader. Owner→pet aura inheritance (Beast Mastery hunter, Demonology warlock) absent.
-- `spell_enchant_proc_data` — no Rust loader. Item enchant procs (Berserking, Mongoose, etc.) cannot fire.
+- `spell_enchant_proc_data` — represented Rust query/store exists in `wow-data`, but it is not yet loaded during world-server startup or consumed by item-enchant proc runtime. Item enchant procs (Berserking, Mongoose, etc.) are therefore not live yet.
 - `spell_linked_spell` — no Rust loader. Spell-A-cast-triggers-Spell-B chains (used heavily by boss scripts) absent.
 - `spell_area` — no Rust loader. Zone-conditional auras (sanctum buffs, capital city resting buffs, racial flight masters) absent.
 - `spell_totem_model` — no Rust loader. Race-specific totem display (Tauren vs Orc shaman totems) absent.

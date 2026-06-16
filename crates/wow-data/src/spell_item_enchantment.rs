@@ -122,6 +122,85 @@ impl SpellItemEnchantmentStore {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SpellEnchantProcRowLikeCpp {
+    pub enchant_id: u32,
+    pub chance: f32,
+    pub procs_per_minute: f32,
+    pub hit_mask: u32,
+    pub attributes_mask: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SpellEnchantProcEntryLikeCpp {
+    pub chance: f32,
+    pub procs_per_minute: f32,
+    pub hit_mask: u32,
+    pub attributes_mask: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SpellEnchantProcLoadErrorLikeCpp {
+    pub row: SpellEnchantProcRowLikeCpp,
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct SpellEnchantProcStoreLikeCpp {
+    pub entries_by_enchant_id: HashMap<u32, SpellEnchantProcEntryLikeCpp>,
+}
+
+impl SpellEnchantProcStoreLikeCpp {
+    pub fn from_rows_like_cpp<I>(
+        rows: I,
+        enchantment_store: &SpellItemEnchantmentStore,
+    ) -> SpellEnchantProcLoadOutcomeLikeCpp
+    where
+        I: IntoIterator<Item = SpellEnchantProcRowLikeCpp>,
+    {
+        let mut store = Self::default();
+        let mut loaded_row_count = 0;
+        let mut errors = Vec::new();
+
+        for row in rows {
+            if enchantment_store.get(row.enchant_id).is_none() {
+                errors.push(SpellEnchantProcLoadErrorLikeCpp { row });
+                continue;
+            }
+
+            store.entries_by_enchant_id.insert(
+                row.enchant_id,
+                SpellEnchantProcEntryLikeCpp {
+                    chance: row.chance,
+                    procs_per_minute: row.procs_per_minute,
+                    hit_mask: row.hit_mask,
+                    attributes_mask: row.attributes_mask,
+                },
+            );
+            loaded_row_count += 1;
+        }
+
+        SpellEnchantProcLoadOutcomeLikeCpp {
+            store,
+            loaded_row_count,
+            errors,
+        }
+    }
+
+    pub fn get_spell_enchant_proc_event_like_cpp(
+        &self,
+        enchant_id: u32,
+    ) -> Option<&SpellEnchantProcEntryLikeCpp> {
+        self.entries_by_enchant_id.get(&enchant_id)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SpellEnchantProcLoadOutcomeLikeCpp {
+    pub store: SpellEnchantProcStoreLikeCpp,
+    pub loaded_row_count: usize,
+    pub errors: Vec<SpellEnchantProcLoadErrorLikeCpp>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -191,5 +270,116 @@ mod tests {
         assert!(store.is_arena_allowed_enchantment(1));
         assert!(!store.is_arena_allowed_enchantment(2));
         assert!(!store.is_arena_allowed_enchantment(3));
+    }
+
+    #[test]
+    fn spell_enchant_proc_store_skips_missing_enchantments_like_cpp() {
+        let enchantments = SpellItemEnchantmentStore::from_entries([SpellItemEnchantmentEntry {
+            id: 10,
+            effect_arg: [0; SPELL_ITEM_ENCHANTMENT_EFFECTS],
+            effect_points_min: [0; SPELL_ITEM_ENCHANTMENT_EFFECTS],
+            item_visual: 0,
+            flags: SpellItemEnchantmentFlags::empty(),
+            required_skill_id: 0,
+            required_skill_rank: 0,
+            item_level: 0,
+            charges: 0,
+            effect: [0; SPELL_ITEM_ENCHANTMENT_EFFECTS],
+            condition_id: 0,
+            min_level: 0,
+            max_level: 0,
+        }]);
+
+        let outcome = SpellEnchantProcStoreLikeCpp::from_rows_like_cpp(
+            [
+                SpellEnchantProcRowLikeCpp {
+                    enchant_id: 10,
+                    chance: 4.5,
+                    procs_per_minute: 1.0,
+                    hit_mask: 3,
+                    attributes_mask: 1,
+                },
+                SpellEnchantProcRowLikeCpp {
+                    enchant_id: 20,
+                    chance: 9.0,
+                    procs_per_minute: 2.0,
+                    hit_mask: 7,
+                    attributes_mask: 0,
+                },
+            ],
+            &enchantments,
+        );
+
+        assert_eq!(outcome.loaded_row_count, 1);
+        assert_eq!(outcome.errors.len(), 1);
+        assert_eq!(outcome.errors[0].row.enchant_id, 20);
+        assert_eq!(
+            outcome.store.get_spell_enchant_proc_event_like_cpp(10),
+            Some(&SpellEnchantProcEntryLikeCpp {
+                chance: 4.5,
+                procs_per_minute: 1.0,
+                hit_mask: 3,
+                attributes_mask: 1,
+            })
+        );
+        assert_eq!(
+            outcome.store.get_spell_enchant_proc_event_like_cpp(20),
+            None
+        );
+    }
+
+    #[test]
+    fn spell_enchant_proc_store_duplicate_rows_last_wins_like_cpp() {
+        let enchantments = SpellItemEnchantmentStore::from_entries([SpellItemEnchantmentEntry {
+            id: 30,
+            effect_arg: [0; SPELL_ITEM_ENCHANTMENT_EFFECTS],
+            effect_points_min: [0; SPELL_ITEM_ENCHANTMENT_EFFECTS],
+            item_visual: 0,
+            flags: SpellItemEnchantmentFlags::empty(),
+            required_skill_id: 0,
+            required_skill_rank: 0,
+            item_level: 0,
+            charges: 0,
+            effect: [0; SPELL_ITEM_ENCHANTMENT_EFFECTS],
+            condition_id: 0,
+            min_level: 0,
+            max_level: 0,
+        }]);
+
+        let outcome = SpellEnchantProcStoreLikeCpp::from_rows_like_cpp(
+            [
+                SpellEnchantProcRowLikeCpp {
+                    enchant_id: 30,
+                    chance: 1.0,
+                    procs_per_minute: 0.0,
+                    hit_mask: 1,
+                    attributes_mask: 0,
+                },
+                SpellEnchantProcRowLikeCpp {
+                    enchant_id: 30,
+                    chance: 0.0,
+                    procs_per_minute: 3.5,
+                    hit_mask: 5,
+                    attributes_mask: 2,
+                },
+            ],
+            &enchantments,
+        );
+
+        assert_eq!(
+            outcome.loaded_row_count, 2,
+            "C++ increments count for every valid row before unordered_map overwrite visibility"
+        );
+        assert!(outcome.errors.is_empty());
+        assert_eq!(outcome.store.entries_by_enchant_id.len(), 1);
+        assert_eq!(
+            outcome.store.get_spell_enchant_proc_event_like_cpp(30),
+            Some(&SpellEnchantProcEntryLikeCpp {
+                chance: 0.0,
+                procs_per_minute: 3.5,
+                hit_mask: 5,
+                attributes_mask: 2,
+            })
+        );
     }
 }
